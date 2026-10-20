@@ -19,7 +19,6 @@ const CHOICES: readonly { id: string; via: ConnectVia; note: string }[] = [
 
 const offers = (provider: CatalogProvider, via: ConnectVia) => (via === "sign_in" ? provider.signIn !== undefined : provider.connect.includes("api_key"))
 
-/** The providers first run offers, plans first. A provider the server cannot connect that way is left out. */
 export function firstRunChoices(providers: readonly CatalogProvider[]): FirstRunChoice[] {
   return CHOICES.flatMap(({ id, via, note }) => {
     const provider = providers.find((p) => p.id === id)

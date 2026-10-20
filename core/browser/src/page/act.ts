@@ -103,7 +103,6 @@ async function reload(page: PageState): Promise<StepResult> {
   return { ok: true }
 }
 
-// check-rules: allow no-timer-in-do a bounded wait inside one request; core/browser may not import @kiko/durable, so it keeps its own timer
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 async function bodyText(page: PageState): Promise<string | undefined> {
@@ -157,7 +156,6 @@ async function perform(page: PageState, step: Step): Promise<StepResult | { ok: 
     case "type": {
       const g = await guard(page, step.id, true)
       if (g.status !== "ok") return refused(g)
-      // Input events on one session reach the page in the order sent, so the text and Enter go out together.
       const text = step.text ? page.channel.send("Input.insertText", { text: step.text }) : press(page, "Delete")
       await Promise.all([text, step.submit ? press(page, "Enter") : undefined])
       return { ok: true, menu: g.menu }
@@ -196,7 +194,6 @@ export async function act(page: PageState, step: Step): Promise<StepResult> {
     else if (step.op === "press") await flush(page)
     const done = await perform(page, step)
     if (!done.ok) return done
-    // The settle, and the load of a navigation it starts, are paid by the next page script: usually the read.
     if (!NAVIGATES.has(step.op)) page.settle = "menu" in done && done.menu
     return { ok: true }
   } catch (error) {

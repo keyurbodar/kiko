@@ -81,8 +81,6 @@ function ChatMenuItems(props: { id: string }) {
 
 const [openPreview, setOpenPreview] = createSignal<string | null>(null)
 
-// A preview shows only while the pointer or focus rests on its row. Any click or key
-// elsewhere, such as Ctrl+K or opening the chat card, ends it.
 if (typeof document !== "undefined") {
   const close = () => setOpenPreview(null)
   document.addEventListener("pointerdown", close, true)
@@ -206,9 +204,6 @@ function RowTitle(props: { id: string; title: string }) {
       input?.select()
     }, 0)
   })
-  // A row can leave the list while its title is being edited: another chat receives a message and
-  // reorders it, or it scrolls out of the virtualized window. A removed element fires no blur, so
-  // without this the typed title is dropped and the row comes back still in edit mode.
   onCleanup(() => {
     if (done || !editing()) return
     done = true
@@ -434,9 +429,6 @@ export function ChatPanel() {
   )
   const pinned = createMemo(() => pinnedRows(shown(), useApp.kikoChatId()))
   const jumpHint = createMemo(() => {
-    // The numbers follow the sidebar's own order, and the keyboard jump uses that same order. While
-    // the list is filtered the two disagree, so the badge would name a chat that Alt+N does not
-    // open. A filtered list shows no badges rather than a wrong one.
     if (query() !== "" || unreadOnly()) return new Map<string, string>()
     const order = [...all().filter((b) => b.pinned), ...all().filter((b) => !b.pinned)].slice(0, 9)
     return new Map(order.map((b, i) => [b.id, `chats.go-${i + 1}`]))

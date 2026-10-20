@@ -7,11 +7,6 @@ import { useApp } from "../lib/store"
 import { installedSlugs } from "./model"
 import { cardsOf, fetchListing, loadListing, type Listing, postEdit, postInstall, deleteInstall, cacheListing, updateRecipeRoutine } from "./api"
 
-/*
- * The recipes the user has added, and the requests in flight. An add shows its agent chip and
- * takes the user to the chat before the server answers. A refused add takes the mark back and says why.
- */
-
 const [listing, setListing] = createSignal<Listing>(loadListing())
 const [owning, setOwning] = createSignal<ReadonlySet<string>>(new Set())
 const [editing, setEditing] = createSignal<ReadonlySet<string>>(new Set())
@@ -19,10 +14,8 @@ let pending: Promise<void> | undefined
 let revision = 0
 let mutations = 0
 
-/** The cards the page and the starter show. */
 export const cards = (): readonly RecipeCard[] => cardsOf(listing())
 
-/** Gets the list from the server. Calls while one is in flight share it. */
 export const refreshListing = (): Promise<void> => {
   const started = revision
   return (pending ??= fetchListing()
@@ -35,13 +28,10 @@ export const refreshListing = (): Promise<void> => {
     }))
 }
 
-/** Why each recipe file that did not load was refused, so the page can say what to fix. */
 export const broken = (): readonly string[] => listing().broken ?? []
 
-/** True while a recipe's file is being made ready to open. */
 export const isEditing = (slug: string): boolean => editing().has(slug)
 
-/** Opens a recipe's file in the Kiko chat's files. A built-in is written to the drive first, so there is a file to edit. */
 export async function editRecipe(slug: string, navigate: (to: string) => void): Promise<void> {
   if (editing().has(slug)) return
   const roomId = useApp.kikoChatId()
@@ -69,7 +59,6 @@ export const installsFor = (slug: string): readonly RecipeInstall[] => listing()
 export const agentName = (slug: string): string => agentDisplayName(slug, useApp.agents())
 export const isAdded = (slug: string, target?: RecipeTarget): boolean => !!target && installedSlugs(listing().installs, target).has(slug)
 
-/** Pauses or resumes every routine of one install. It shows at once and goes back if the server refuses. */
 export function setInstallPaused(install: RecipeInstall, paused: boolean): void {
   const status = paused ? "paused" : "active"
   const before = new Map(install.routines.map((r) => [r.id, r.status]))
@@ -119,7 +108,6 @@ const recorded = (install: RecipeInstall) => changeInstalls((list) => [...list.f
 
 const failed = (card: RecipeCard, error: string) => showToastV2({ title: `Could not add ${card.title}`, description: error, variant: "error" })
 
-/** An add that is waiting on the human to connect apps. The same `installId` is posted again on "Done, add it". */
 export type ConnectAsk = { card: RecipeCard; body: InstallRecipe; navigate: (to: string) => void; connect: RecipeNeedsConnect }
 
 const [ask, setAsk] = createSignal<ConnectAsk | null>(null)
@@ -128,7 +116,6 @@ export const connectAsk = ask
 export const dismissConnect = () => setAsk(null)
 export const isWaiting = (slug: string): boolean => waiting().has(slug)
 
-/** Posts an add. Only an install the server made is recorded, and only then does the chat open. */
 async function submit(card: RecipeCard, body: InstallRecipe, navigate: (to: string) => void): Promise<RecipeInstall | null> {
   const result = await postInstall(body)
   if (result.ok) {
@@ -140,10 +127,8 @@ async function submit(card: RecipeCard, body: InstallRecipe, navigate: (to: stri
   return null
 }
 
-/** True when the card is known to need no connecting, so the add can show before the server answers. */
 const ready = (card: RecipeCard) => card.apps.every((a) => a.connected === true)
 
-/** Adds to one agent in one chat. The chat opens before the server answers when no app is missing. */
 export function addToTarget(card: RecipeCard, target: RecipeTarget | undefined, navigate: (to: string) => void): void {
   if (!target || isAdded(card.slug, target) || isWaiting(card.slug)) return
   const install: RecipeInstall = { installId: crypto.randomUUID(), slug: card.slug, roomId: target.roomId, agent: target.agent, at: Date.now(), routines: [] }
@@ -164,7 +149,6 @@ export function addToTarget(card: RecipeCard, target: RecipeTarget | undefined, 
   })
 }
 
-/** Gives the recipe its own new chat, then opens it. Nothing opens until the server has made the chat. */
 export function addOwnChat(card: RecipeCard, navigate: (to: string) => void): void {
   mark(setOwning, card.slug, true)
   void submit(card, { installId: crypto.randomUUID(), slug: card.slug, own: true }, navigate).then((made) => {
@@ -175,7 +159,6 @@ export function addOwnChat(card: RecipeCard, navigate: (to: string) => void): vo
   })
 }
 
-/** "Done, add it": posts the same add again. The server checks the apps again and makes the install when they are all connected. */
 export function retryConnect(): void {
   const pending = ask()
   if (!pending || isWaiting(pending.card.slug)) return

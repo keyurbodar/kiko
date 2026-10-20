@@ -15,7 +15,6 @@ export const DRAFT_INTERVAL_MS = 300
 export interface RoomPort {
   post(runId: string, attempt: number, index: number, block: string): Promise<unknown>
   draft(runId: string, index: number, text: string): Promise<void>
-  /** Words the run wrote between two calls: a step of its own in the panel, not a bubble. */
   note(runId: string, id: string, text: string): Promise<void>
   status(state: AgentState, detail?: string | null): Promise<void>
   workers(rows: readonly WorkerRow[]): Promise<void>
@@ -26,7 +25,6 @@ export interface RoomPort {
 
 type Row = { run_id: string; attempt: number; cursor: number; posted: number; until?: number }
 
-/** A model error the run has not recovered from. pi-durable may still retry it, so it is reported only when the run ends. */
 type Failure = { errorMessage?: string; provider?: string }
 
 type AssistantLike = Assistant
@@ -63,7 +61,6 @@ type Run = {
   toolStarted: boolean
   tools: Map<string, string>
   quiet: boolean
-  /** The narration the run wrote between two calls, waiting to be pushed to the step pane. */
   notes: { id: string; text: string }[]
   failure: Failure | null
 }
@@ -74,7 +71,6 @@ const quietInput = (entry: EntryRecord): boolean => {
   return text.includes("<system-event") && !text.includes("<context>message id")
 }
 
-/** A narration's step id: stable across a replay, so a note is stored once. */
 const noteId = (entry: number) => `note:${entry}`
 
 export class Outbox {
@@ -85,7 +81,6 @@ export class Outbox {
   private lastEntry = 0
   private lastDraft = 0
   private state: AgentState = "idle"
-  /** What the current state says beside the three dots, such as "retrying, 2 of 3". */
   private detail: string | undefined
   private backgroundRunning = false
   private readonly idleWaiters = new Set<{ entry: number; resolve(): void; reject(error: Error): void }>()
@@ -152,7 +147,6 @@ export class Outbox {
 
   async background(running: boolean, pending = false): Promise<void> {
     this.backgroundRunning = running
-    // A worker's report waits in the inbox: the run that tells the human comes next, so do not flash idle first.
     if (!this.run && !(pending && !running)) await this.setStatus(running ? "working" : "idle")
   }
 
@@ -160,7 +154,6 @@ export class Outbox {
     this.run = null
   }
 
-  /** The run that is going now, or null between runs. */
   runId(): string | null {
     return this.run?.id ?? null
   }
@@ -235,7 +228,6 @@ export class Outbox {
         this.see(event.entry)
         this.run?.tools.delete(event.toolCallId)
         return this.setStatus("typing")
-      // pi-durable waits out a transient error and tries again; the typing line says so instead of "writing a reply".
       case "auto_retry_start":
         if (this.run?.failure) {
           this.run.failure = null
@@ -335,7 +327,6 @@ export class Outbox {
     await this.notes(run)
   }
 
-  /** The narration a run wrote between two calls, pushed to the step pane in the order it was written. */
   private async notes(run: Run): Promise<void> {
     const port = this.room()
     if (!run.notes.length || !port) return
@@ -344,7 +335,6 @@ export class Outbox {
 
   private async reportError(runId: string, message: Failure): Promise<void> {
     const detail = runErrorDetail(message.errorMessage)
-    // A failed report must not stop the run from being saved and its bubbles flushed.
     await this.room()
       ?.runError(runId, { kind: classifyRunError(message.errorMessage), provider: message.provider ?? "", ...(detail ? { detail } : {}) })
       .catch((e: unknown) => console.error(`run error not reported: ${e instanceof Error ? e.message : String(e)}`))
@@ -359,18 +349,13 @@ export class Outbox {
     const streamed = run.generation?.blocks ?? []
     run.generation = null
     if (message.stopReason === "aborted") return true
-    // A failed message says nothing new. What it streamed before the failure stays: a cut-off answer is still the
-    // best the human got, and the run's error row offers Retry.
     if (message.stopReason === "error") return false
     const post = postOf(message, { posted: run.blocks.length > 0, quiet: run.quiet })
     const text = textOf(message)
-    // A run's narration belongs to the step pane, not the chat, so eight tool calls never stack eight bubbles.
     if (post === "none" && !run.quiet && hasToolCall(message) && text.trim()) run.notes.push({ id: noteId(entry.id), text: noteOf(text) })
     const { blocks: final, reactions } = partsOf(post === "ack" ? ackOf(text) : post === "answer" ? text : "")
     run.blocks.push(...final)
     run.reactions.push(...reactions)
-    // True when the words streamed while this message grew are not what it turned out to be: the caller then
-    // raises the attempt, which makes the room drop those bubbles and adopt the ones that stay.
     return streamed.some((block, i) => block !== final[i])
   }
 
@@ -416,7 +401,6 @@ export class Outbox {
   }
 
   private async setStatus(state: AgentState, detail?: string | null): Promise<void> {
-    // Undefined means "the same as last time", and null means "the default wording": a retry's end passes null.
     const next = detail === undefined ? this.detail : (detail ?? undefined)
     if (state === this.state && next === this.detail) return
     this.state = state
@@ -432,8 +416,6 @@ export class Outbox {
     return { run_id: id, cursor, posted: posted?.posted ?? 0, attempt: posted?.attempt ?? 0 }
   }
 
-  // Journal settlement can precede the final outbox flush. Recover settled inputs too;
-  // the exact room/run lookup keeps already delivered bubbles idempotent.
   private async openRows(snapshot: SnapshotEvent): Promise<Row[]> {
     if (!this.journal) return []
     const rows: Row[] = []

@@ -22,12 +22,10 @@ export function Spinner(props: { size?: number }): JSX.Element {
   return <RemixIcon icon={LoaderIcon} class="motion-spin" size={props.size ?? 14} />
 }
 
-/** Placeholder bars while a load is in flight. Size them with `class`. */
 export function Skeleton(props: { class?: string }): JSX.Element {
   return <div class={cn("motion-skeleton rounded-sm", props.class)} aria-hidden="true" data-component="skeleton" />
 }
 
-/** `busy` keeps the label's width and lays a spinner over it, so a button never changes size. */
 export function Button(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; busy?: boolean }): JSX.Element {
   const [local, rest] = splitProps(props, ["variant", "class", "type", "busy", "disabled", "children"])
   return (
@@ -262,9 +260,7 @@ export function Slider(props: {
   max: number
   step?: number
   disabled?: boolean
-  /** Every step of the drag, for a live preview that is not saved. */
   onInput?: (value: number) => void
-  /** The drag ended or the key was released: the value to keep. */
   onChange: (value: number) => void
 }): JSX.Element {
   const fill = () => `${((props.value - props.min) / (props.max - props.min || 1)) * 100}%`

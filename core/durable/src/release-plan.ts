@@ -1,6 +1,3 @@
-// What a release upload carries: bindings, migrations, and the multipart body. The installer and the
-// in-place update both build the upload here so they cannot drift apart.
-
 import type { ReleaseManifest, ReleaseMigration } from "./release"
 
 type MigrationPlan = { old_tag?: string; new_tag: string; steps: ReleaseMigration[] }
@@ -9,7 +6,6 @@ const BUCKET = "kiko-files"
 
 type ReleaseBindings = { name: string; class_name: string }[]
 
-/** Upload bindings are signed with the modules, rather than baked into the installed updater. */
 function releaseBindings(manifest: ReleaseManifest): ReleaseBindings {
   if (!("durable_objects" in manifest) || !Array.isArray(manifest.durable_objects) || !manifest.durable_objects.length) {
     throw new Error("This release has no signed Durable Object bindings. Use the installer for the OwnerDO upgrade.")
@@ -24,11 +20,6 @@ export function destructiveMigration(plan: MigrationPlan): boolean {
   return plan.steps.some((step) => (step.deleted_classes?.length ?? 0) > 0)
 }
 
-/**
- * Where file bytes live. "r2" binds the bucket (a new install whose bucket exists). "inherit" keeps the
- * binding the running script has, or none (an update, or a new upload to an existing script). "none"
- * leaves it out: files then live in OwnerDO.
- */
 export type FilesBinding = "r2" | "inherit" | "none"
 
 function filesBinding(files: FilesBinding) {
@@ -36,8 +27,6 @@ function filesBinding(files: FilesBinding) {
   return []
 }
 
-// Which migration steps to send. A new script sends them all. An existing script sends the steps after the tag
-// it already ran. A script at the latest tag sends none.
 export function selectMigrations(all: ReleaseMigration[], currentTag: string | null): MigrationPlan {
   const last = all.at(-1)
   if (!last) throw new Error("The release has no migrations.")

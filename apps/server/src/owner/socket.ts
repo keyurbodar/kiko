@@ -37,8 +37,6 @@ export function socketView(ws: WebSocket, roomId?: string): WebSocket {
         const saved = ownerAttachment(target)
         delete saved.rooms[roomId]
         target.serializeAttachment(saved)
-        // A room closes its view to refuse a frame. The client must see that close, or it never learns
-        // the frame was bad.
         try { target.close(code, reason) } catch {}
       }
       const value = Reflect.get(target, property, target)
@@ -49,7 +47,6 @@ export function socketView(ws: WebSocket, roomId?: string): WebSocket {
   return view
 }
 
-/** The accepted socket's event stays alive until its short handshake deadline. */
 export async function waitForHello(ws: WebSocket): Promise<void> {
   const attachment = ws.deserializeAttachment() as UserAttachment
   if (attachment.helloBy === undefined) return

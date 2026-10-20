@@ -10,7 +10,6 @@ type Shape = {
 
 export type ZoomLog = "chat" | "life"
 
-// The shape of a schema step. Structurally the same as core/durable's Step, which this package may not import.
 export type Step = string | ((sql: SqlStorage) => void)
 
 export const ROOM_SHAPE: Shape = { page: 16, floor: 32, budget: 48, retile: 32, log: "chat" }
@@ -114,7 +113,6 @@ export type Node = { text: string; from: number; to: number }
 
 type NapInput = { span: Span; items: Item[] } | { span: Span; halves: [Node, Node] }
 
-// A tree's table and its fail counter. The object's schema list runs these, so a tree never creates a table on use.
 export function treeSteps(name: string): Step[] {
   return [
     `CREATE TABLE IF NOT EXISTS ${name} (room_id TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL, k INTEGER NOT NULL, text TEXT NOT NULL, at_from INTEGER NOT NULL, at_to INTEGER NOT NULL, PRIMARY KEY (room_id, size, k)) WITHOUT ROWID`,

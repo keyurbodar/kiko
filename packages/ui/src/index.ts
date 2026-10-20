@@ -1,7 +1,3 @@
-// Barrel for the pieces the app composes at the root. Everything else is
-// still imported through its own subpath export (`@kiko/ui/v2/*`,
-// `@kiko/ui/context/*`) so a consumer pulls only what it renders.
-
 export { FileIcon } from "./components/file-icon"
 export { Icon } from "./components/icon"
 export { ProviderIcon } from "./components/provider-icon"

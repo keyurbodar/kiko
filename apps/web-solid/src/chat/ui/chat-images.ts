@@ -1,10 +1,6 @@
 import { isImage } from "../../lib/attachments"
 import type { DialogImage } from "./image-dialog"
 
-/**
- * Every picture of the chat in order, and where `clicked` is among them, so the arrows walk the
- * whole chat. A picture that is not among them (a file chip's, whose address differs) opens alone.
- */
 export function chatImages(
   messages: readonly { files?: readonly { src: string; name: string; type: string }[] }[],
   clicked: DialogImage,

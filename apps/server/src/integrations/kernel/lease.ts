@@ -4,31 +4,21 @@ import type { KernelStore, LeaseRow, Tabs } from "./store"
 
 type LeaseStore = Pick<KernelStore, "lease" | "urls" | "putLease" | "patchLease" | "deleteLease" | "profileReady" | "setProfileReady" | "setBroken">
 
-/**
- * A browser nobody used for this long is deleted, which saves the profile. Until then it keeps its tabs and pages.
- * Kernel puts a browser with no CDP or live view connection in standby after 5 s and bills nothing for standby,
- * so a long life costs a concurrency slot and no usage.
- */
 const IDLE_MS = 24 * 60 * 60_000
-/** While the human drives, the reaper looks again this often. */
 const TAKEOVER_RECHECK_MS = 60_000
-/** Kernel's own delete after this long in standby, the net if our reaper misses. Kernel allows up to 72 hours. */
 const KERNEL_TIMEOUT_SECONDS = 25 * 60 * 60
 const MAX_RETRY_AFTER_S = 5
 export const MAX_TABS = 8
-/** The longest the human holds control. A takeover older than this is over, so a forgotten live view cannot pause agents for ever. */
 const TAKEOVER_MS = 30 * 60_000
 
 export const REAP_WAKEUP = "kernel_reap"
 
 export type ReapDecision = { delete: true } | { delete: false; at: number }
 
-/** Control is data: the human holds it from the flag until `watchUntil`; a row from before the limit (`watchUntil` 0) holds until handed back. */
 export function humanHolds(row: Pick<LeaseRow, "takeover" | "watchUntil">, now: number): boolean {
   return row.takeover && (row.watchUntil === 0 || row.watchUntil > now)
 }
 
-/** The whole reaper policy, as data in and a verdict out. A browser an agent used inside the idle window is never deleted, whatever its age. */
 function reapDecision(row: Pick<LeaseRow, "lastUse" | "takeover" | "watchUntil" | "dead">, now: number): ReapDecision {
   if (row.dead) return { delete: true }
   if (humanHolds(row, now)) return { delete: false, at: now + TAKEOVER_RECHECK_MS }
@@ -60,10 +50,6 @@ function urlsOf(tabs: Tabs): Record<string, string[]> {
   return Object.fromEntries(Object.entries(tabs).map(([agent, t]) => [agent, Object.values(t)]))
 }
 
-/**
- * One user's one browser. Every change runs one at a time, so two callers never create two
- * browsers: the second finds the first one's row. `UserDO` owns the one instance for its user.
- */
 export class KernelLease {
   #queue: Promise<unknown> = Promise.resolve()
   readonly #now: () => number
@@ -93,8 +79,6 @@ export class KernelLease {
       }
       const reopen = row ? Object.values(row.tabs[agentId] ?? {}) : []
       if (row) await this.#destroy(row)
-      // Always headful: a live view link then reads the open browser's URL. Switching a headless one under a
-      // working agent took seconds, timed out on Kernel's side, and closed the agent's pages.
       const made = await this.#create("headful", { takeover: false, watchUntil: 0 })
       this.#touch(made.row, agentId)
       return { sessionId: made.row.sessionId, cdpUrl: made.cdpUrl, mode: "headful", restarted: row?.dead === true, reopen: row?.dead ? reopen : [] }
@@ -108,11 +92,6 @@ export class KernelLease {
     return true
   }
 
-  /**
-   * An agent's socket to `sessionId` died. A socket also dies on our own idle close, a network blip,
-   * or a mode switch, so the browser is marked dead only when it is still the current one and Kernel
-   * says it is gone. Otherwise every other agent would lose its tabs.
-   */
   dead(sessionId: string): Promise<boolean> {
     return this.#serial(async () => {
       const row = this.deps.store.lease()
@@ -123,7 +102,6 @@ export class KernelLease {
     })
   }
 
-  /** DEVELOPMENT ONLY: ends the browser on Kernel's side, as Kernel's own timeout would. */
   async killForDev(): Promise<string | undefined> {
     const row = this.deps.store.lease()
     if (!row) return undefined
@@ -142,10 +120,6 @@ export class KernelLease {
     this.deps.store.patchLease({ watchUntil: Math.max(row?.watchUntil ?? 0, until), lastUse: this.#now() })
   }
 
-  /**
-   * Replaces the browser with one in `mode` on the same profile. The old one is deleted first and
-   * its save finishes before the new one starts, so there is never a second writer.
-   */
   switchMode(mode: Mode): Promise<Switched> {
     return this.#serial(async () => {
       const { store } = this.deps
@@ -245,7 +219,6 @@ export class KernelLease {
       await (await this.deps.client()).deleteBrowser(row.sessionId)
     } catch (e) {
       if (e instanceof KernelError && e.kind === "unauthorized") {
-        // The key cannot delete it. Kernel's own timeout will.
         this.#mark(e)
       } else if (!(e instanceof KernelError && e.kind === "not_found")) throw e
     }
@@ -253,7 +226,6 @@ export class KernelLease {
     await wake.clear()
   }
 
-  /** A rejected key is remembered, so Settings can say so. */
   #mark(e: unknown): unknown {
     if (e instanceof KernelError && e.kind === "unauthorized") this.deps.store.setBroken(true)
     return e

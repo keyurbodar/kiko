@@ -1,11 +1,6 @@
 import { findCommand, isEnabled, runCommand } from "../commands/registry"
 import type { PromptInputV2Suggestion } from "./prompt-input/types"
 
-/*
- * Composer slash commands. `/new` runs a registry command. `/remind` and
- * `/skill` have no client action: they stay in the draft and send as text for
- * the agent to handle (ASSUMPTION: the agent owns reminders and skills).
- */
 interface Slash {
   trigger: string
   title: string
@@ -35,7 +30,6 @@ export function slashSuggestions(): PromptInputV2Suggestion[] {
   }))
 }
 
-/** Run the draft if it is exactly a registry slash command. True means it was handled. */
 export function runSlash(text: string): boolean {
   const word = /^\/(\S+)\s*$/.exec(text.trim())?.[1]
   const slash = SLASH.find((s) => s.trigger === word)

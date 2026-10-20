@@ -11,9 +11,6 @@ export const MAX_TIMEOUT_S = 120
 const PREFETCH_FILES = 32
 const PREFETCH_MAX_FILE = 256 * 1024
 const PREFETCH_BYTES = 8 * 1024 * 1024
-// UNVERIFIED: the Free plan allows 50 subrequests per invocation, which this
-// budget does not fit. Whether R2 reads inside a Durable Object count against that limit is still open.
-// Measure it before changing this number.
 const MAX_READS = 400
 const DIRTY_BYTES = 16 * 1024 * 1024
 
@@ -376,8 +373,6 @@ class CommandFs implements IFileSystem {
     return path
   }
 
-  // Writes commit before deletions, and a deletion commits only when every write saved, so a refused write
-  // keeps the file it would have moved. Each space commits its group in one call. `changed` lists what saved.
   async commit(): Promise<{ saved: string[]; changed: string[]; refused: Refusal[] }> {
     const changes = plan(this.start, this.tree)
     const batch = await Promise.all(
@@ -420,7 +415,6 @@ class CommandFs implements IFileSystem {
 
 const LIMIT_EXIT = 126
 
-// The paths a command saved. The bash tool reports them as its details, so the work hook can list them.
 export type BashResult = ShellExecResult & { changed: string[] }
 
 const stopped = (timer: AbortSignal, seconds: number) =>
@@ -438,7 +432,6 @@ export async function runCommand(files: RoomFs, command: string, options: ShellE
     return ok({ exitCode: LIMIT_EXIT, changed: [] })
   }
   let fs: CommandFs | undefined
-  // Once the commit starts it runs to its end: a stop after this point cannot undo a save, so the result names what saved.
   let committing = false
   try {
     fs = await CommandFs.open(files)

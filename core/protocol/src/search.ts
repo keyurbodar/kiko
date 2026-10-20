@@ -29,11 +29,6 @@ export function snippetParts(snippet: string): SnippetPart[] {
 
 const snippetText = (snippet: string) => snippetParts(snippet).map((p) => p.text).join("")
 
-/**
- * Merges per-chat pages, each newest first, into one page of at most `limit`, newest first. Scores
- * from different rooms' indexes are not comparable, so the order is by time; ties go by room id, then seq, so the order never changes between calls. `next` is the
- * time of the last hit when any chat may have more, else null.
- */
 export function mergeHits(
 	pages: readonly { results: readonly ChatSearchHit[]; more: boolean }[],
 	limit: number,

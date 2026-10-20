@@ -254,9 +254,7 @@ const OWNER_STEPS: readonly Step[] = [
   `CREATE TRIGGER IF NOT EXISTS messages_search_delete AFTER DELETE ON messages BEGIN
     DELETE FROM messages_fts WHERE rowid IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ('message:m' || hex(old.room_id) || 'x' || old.seq));
   END`,
-  // History pages use the room/seq primary key. Age scans run only during archival.
   `DROP INDEX IF EXISTS messages_at`,
-  // One owner's bounded ready queue is cheaper to scan than index on every ticket write.
   `DROP INDEX IF EXISTS owner_runs_ready`,
   `DROP TABLE IF EXISTS outbox`,
   `DROP INDEX IF EXISTS mem_turns_seq`,
@@ -272,7 +270,6 @@ const OWNER_STEPS: readonly Step[] = [
   `DROP TABLE clients`,
   `DROP INDEX IF EXISTS messages_id`,
   `DROP INDEX IF EXISTS messages_run`,
-  // Search lazily rebuilds its disposable index as bounded batches, not individual messages.
   `DROP TABLE messages_fts`,
   `CREATE VIRTUAL TABLE messages_fts USING fts5(room, chunk, room_id UNINDEXED, first_seq UNINDEXED, last_seq UNINDEXED, edit_seq UNINDEXED, members UNINDEXED)`,
   `DROP INDEX IF EXISTS pending_seq`,

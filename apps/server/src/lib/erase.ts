@@ -1,10 +1,7 @@
-/** Erase application rows while retaining the migrated schema and a permanent tombstone. */
 export function erase(storage: DurableObjectStorage): void {
   storage.transactionSync(() => {
     const tables = storage.sql.exec<{ name: string; sql: string }>("SELECT name, sql FROM sqlite_master WHERE type = 'table' AND sql IS NOT NULL").toArray()
     const virtual = tables.filter((t) => t.sql.startsWith("CREATE VIRTUAL TABLE")).map((t) => t.name)
-    // Standalone FTS tables own their text; external indexes need an explicit
-    // reset after source rows, including schemas without delete triggers.
     const roots = tables.filter((t) => virtual.includes(t.name))
     for (const { name, sql } of roots) if (!/\bcontent\s*=/i.test(sql)) storage.sql.exec(`DELETE FROM "${name.replaceAll('"', '""')}"`)
     for (const { name } of tables) {

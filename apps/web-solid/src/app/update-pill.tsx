@@ -1,4 +1,3 @@
-// The quiet update affordance at the foot of the sidebar, after t3code's update pill. Loads after first paint.
 import { Match, onMount, Show, Switch } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { DownloadIcon } from "@kiko/ui/icons"

@@ -24,7 +24,6 @@ export interface Metadata {
   delete(key: string): void
 }
 
-/** Explicit dependencies shared by the owner-local services. */
 export interface ServiceOptions {
   identity: { ownerId: string; roomId?: string; slug?: string }
   metadata: Metadata

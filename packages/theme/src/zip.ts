@@ -1,7 +1,3 @@
-// Reads the entries of a .vsix (a zip) that an import needs. Only those entries are inflated, so a
-// large package costs nothing beyond its directory. Inflation uses the platform's
-// DecompressionStream, so no zip library is needed.
-
 const EOCD = 0x06054b50
 const CENTRAL = 0x02014b50
 const LOCAL = 0x04034b50

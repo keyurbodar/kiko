@@ -6,22 +6,10 @@ import { useApp } from "../../lib/store";
 import { RunTree } from "../run/RunTree";
 import "./typing.css";
 
-/*
- * Kat's typing bubble, one per working agent. A reply lands as whole bubbles, so this is all
- * the reader sees of a run until a bubble arrives. The three dots say what the agent is doing
- * by how they move: kat's wave while it writes, a scan while it reads, a hop while it edits, an
- * orbit while a tool runs. The line beside them names the activity, and its clock is that
- * activity's own, so a new tool call starts the count again. In a group each row carries the
- * agent's avatar in the gutter, the same avatar as on its messages.
- */
-
 export interface TypingIndicatorProps {
   typists: string[];
-  /** The typists' slugs, in the same order, so each avatar is the agent's own. */
   seeds?: readonly string[];
-  /** What each typist is doing, in the same order, such as "editing /hello.html". */
   doings?: readonly (string | undefined)[];
-  /** A group chat: each row carries its agent's avatar, as its messages do. */
   group?: boolean;
   max?: number;
   announceAfter?: number;
@@ -30,12 +18,10 @@ export interface TypingIndicatorProps {
 
 const ROWS = 3;
 
-/** How long an act runs before its line shows, so a quick tool call never flashes words. */
 const CAPTION_AFTER_MS = 2000;
 
 function Row(props: { seed: string; doing?: string; group?: boolean }) {
   const motion = () => motionOf(props.doing);
-  // The clock belongs to the activity: a new doing text starts it again.
   const [since, setSince] = createSignal(Date.now());
   const [now, setNow] = createSignal(Date.now());
   const tick = setInterval(() => setNow(Date.now()), 1000);
@@ -52,8 +38,6 @@ function Row(props: { seed: string; doing?: string; group?: boolean }) {
     ),
   );
   const elapsed = () => now() - since();
-  // A quick tool call never flashes words: its act shows only once it has run a while. While the run's
-  // tree hangs under the dots, its shining row names the step, so the caption would say it twice.
   const caption = () => (useApp.typingRun(props.seed) || elapsed() < CAPTION_AFTER_MS ? "" : captionOf(props.doing, elapsed()));
   return (
     <div class="typing" data-component="typing-row" data-motion={motion()}>
@@ -89,7 +73,6 @@ export function TypingIndicator(props: TypingIndicatorProps) {
   const rows = createMemo(() => props.typists.slice(0, ROWS).map((name, i) => props.seeds?.[i] ?? name));
   const more = () => props.typists.length - ROWS;
 
-  // The screen reader text trails the typing state. It is the only label read out.
   const [announced, setAnnounced] = createSignal(label());
   createEffect(
     on(

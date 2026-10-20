@@ -3,7 +3,6 @@ import { ownerStub } from "../lib/names"
 import { error, signedIn } from "../lib/route"
 import { BACKEND } from "../lib/version"
 
-/** The revision a client's `If-None-Match` holds, when it was made by this build. The catalog also depends on the bundled pi-ai data, which changes with the version. */
 function heldRevision(header: string | null): string | null {
   const tag = header?.replace(/^W\//, "").replace(/^"|"$/g, "")
   const dash = tag?.indexOf("-") ?? -1

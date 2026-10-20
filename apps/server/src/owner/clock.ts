@@ -19,7 +19,6 @@ type ClockSnapshot = {
   burst?: number
 }
 
-/** A runnable task keeps its first recovery deadline until it settles or that alarm fires. */
 export class Clock {
   private update: Promise<void> = Promise.resolve()
   private readonly recovery = new Map<string, Map<TaskId, number>>()
@@ -73,8 +72,6 @@ export class Clock {
   }
 }
 
-// A service's application deadlines share one document; pi task state remains in its journal.
-// The owner commits the metadata and its scope projection in one SQLite transaction.
 export type ClockMetadata = {
   get(key: string): string | null
   set(key: string, value: string): void

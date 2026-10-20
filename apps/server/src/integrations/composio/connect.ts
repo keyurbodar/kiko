@@ -25,7 +25,6 @@ export class ComposioConnection {
   constructor(
     private readonly store: ComposioStore,
     private readonly userId: () => Promise<string>,
-    // check-rules: allow egress Composio calls run in UserDO, which gets its own invocation per RPC. UNVERIFIED until G01: that they stay outside an agent run's 50 subrequests
     fetcher: typeof fetch = (input, init) => fetch(input, init),
     private readonly waitUntil: (work: Promise<unknown>) => void = () => undefined,
   ) {
@@ -40,7 +39,6 @@ export class ComposioConnection {
     }
   }
 
-  /** The toolkits the owner has connected, cached for a minute unless `fresh`. Null when Composio is not connected or cannot say. */
   async connectedToolkits(now = Date.now(), fresh = false): Promise<ReadonlySet<string> | null> {
     if (!this.store.connected()) return null
     if (!fresh && this.connected && now - this.connected.at < CONNECTED_FRESH_MS) return this.connected.toolkits
@@ -55,7 +53,6 @@ export class ComposioConnection {
     return (await this.store.target())?.session ?? null
   }
 
-  /** The real toolkit slug for an app a person named. A Connect key has no catalog, so it squeezes the name. */
   async resolveToolkit(app: string): Promise<string | null> {
     const target = await this.store.target()
     if (!target) return null
@@ -66,7 +63,6 @@ export class ComposioConnection {
     return { connected: this.store.connected(), rows: this.store.count() }
   }
 
-  /** A rejected key stores nothing. The previous session is deleted behind the answer. */
   async connect(apiKey: unknown): Promise<{ status: ComposioStatus; tools: string[] }> {
     const key = checkApiKey(apiKey)
     await checkKey(key, this.fetcher)
@@ -115,7 +111,6 @@ export class ComposioConnection {
     return this.store.learned().map((t) => ({ name: t.slug, description: t.description, inputSchema: t.inputSchema, ...(t.readOnly ? { readOnly: true } : {}), direct: { slug: t.slug, toolkit: t.toolkit } }))
   }
 
-  /** An old listing is served while a new one loads behind it. */
   private async listed(now: number): Promise<ComposioTool[] | null> {
     if (!this.store.connected()) return null
     const saved = this.store.listing()
@@ -138,7 +133,6 @@ export class ComposioConnection {
     return tools
   }
 
-  /** Every agent call passes here, so this is where direct tools are learned. */
   async call(name: string, args: Record<string, unknown>, egress: typeof fetch = this.fetcher): Promise<ComposioCallResult> {
     const generation = this.store.generation
     const out = await this.session((target) => callTool(target, name, args, egress), egress)
@@ -150,8 +144,6 @@ export class ComposioConnection {
       this.forgetFailed(failed(args, body), generation)
       const learned = this.store.learned()
       const listed = this.listedNames()
-      // A tool the session already mounts needs no learned copy, and learning it would reopen every agent
-      // for a tool it already had.
       const used = succeeded(args, body).flatMap((slug) => (listed.has(slug) ? [] : (this.candidates.get(slug) ?? learned.find((t) => t.slug === slug) ?? [])))
       if (used.length) this.store.putLearned(remember(learned, used, Date.now()), generation)
       for (const c of used) if (!learned.some((t) => t.slug === c.slug)) this.classify(c.slug, generation, egress)
@@ -170,12 +162,10 @@ export class ComposioConnection {
     return out
   }
 
-  /** The slugs the session mounts by its own name, which therefore need no learned copy. */
   private listedNames(): ReadonlySet<string> {
     return new Set((this.store.listing()?.tools ?? []).map((t) => t.name))
   }
 
-  /** A search names some tools with a `schemaRef` and no schema. Load the schemas so those can be learned too. */
   private loadSchemas(slugs: string[], generation: number, egress: typeof fetch): void {
     const work = this.session((target) => callTool(target, SCHEMAS, { tool_slugs: slugs }, egress), egress).then((out) => {
       const body = resultJson(out)
@@ -193,7 +183,6 @@ export class ComposioConnection {
     this.waitUntil(work.catch(() => undefined))
   }
 
-  /** When the lookup fails, the tool stays `external`. */
   private classify(slug: string, generation: number, egress: typeof fetch): void {
     const work = this.store.target().then(async (target) => {
       if (!target) return
@@ -209,7 +198,6 @@ export class ComposioConnection {
     if (kept.length !== learned.length) this.store.putLearned(kept, generation)
   }
 
-  /** When Composio says the session is gone, makes a new one and runs `work` once more. */
   private async session<T>(work: (target: Target) => Promise<T>, egress: typeof fetch = this.fetcher): Promise<T> {
     const target = await this.store.target()
     if (!target) throw new ComposioError("Composio is not connected")
@@ -221,7 +209,6 @@ export class ComposioConnection {
     }
   }
 
-  /** One new session for any number of calls that found `gone` gone. */
   private renew(key: string, gone: string, egress: typeof fetch): Promise<Target> {
     if (this.renewing?.gone === gone) return this.renewing.next
     const generation = this.store.generation

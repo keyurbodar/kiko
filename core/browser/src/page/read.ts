@@ -9,7 +9,6 @@ export type PageState = {
   crashed?: boolean
   settle?: boolean
   loading?: Promise<unknown>
-  /** Dialogs the page raised and that were answered for the model, so its next result can say so. */
   notes: string[]
 }
 
@@ -53,7 +52,6 @@ async function readOnce(page: PageState): Promise<string> {
 
 export async function read(page: PageState): Promise<PageView> {
   let raw = await readOnce(page)
-  // A click that navigates starts loading during the settle while the old document answers: read the new one.
   if (page.loading) raw = await readOnce(page)
   const view = JSON.parse(raw.startsWith(GZIP_MARK) ? await gunzip(raw.slice(GZIP_MARK.length)) : raw) as PageView
   for (const control of view.controls) {

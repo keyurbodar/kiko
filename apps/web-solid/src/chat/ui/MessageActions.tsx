@@ -22,7 +22,6 @@ export function MessageActions(props: {
   onReact: (emoji: string) => void
   onReply: () => void
   onMore: (anchor: HTMLElement) => void
-  /** Pixels beside the bubble that the run chevron takes. The actions sit past them. */
   reserve?: number
 }): JSX.Element {
   let react: HTMLButtonElement | undefined

@@ -14,7 +14,6 @@ function read(): ModelsTab {
 
 const [tab, setTab] = createSignal<ModelsTab>(read())
 
-/** The tab the Models page shows. It lives in this browser's localStorage. */
 export const modelsTab = tab
 
 export function setModelsTab(next: ModelsTab) {

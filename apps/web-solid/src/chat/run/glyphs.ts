@@ -2,10 +2,6 @@ import * as glyphs from "@kiko/ui/icons"
 import type { Glyph } from "@kiko/ui/remix-icon"
 import type { StepIcon } from "./run-log"
 
-/*
- * The glyph each step icon draws. Its own module because the run tree is in first paint and the run
- * panel is a lazy chunk: both draw the same icons, and the tree must not pull the panel in.
- */
 export const GLYPH: Record<StepIcon, Glyph> = {
   "file-view": glyphs.FileViewIcon,
   folder: glyphs.FolderIcon,

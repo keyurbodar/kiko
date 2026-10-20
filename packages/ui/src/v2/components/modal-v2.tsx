@@ -3,7 +3,6 @@ import { Children, part, trigger } from "./overlays"
 
 export type { ModalV2CloseProps, ModalV2ContentProps, ModalV2OverlayProps, ModalV2Props, ModalV2TitleProps } from "./modal-v2-impl"
 
-/* The real dialog lives in modal-v2-impl.tsx and loads after first paint. See overlays.tsx. */
 type D = typeof Impl
 
 export const ModalV2 = Object.assign(part<D>((i) => i.ModalV2, Children), {

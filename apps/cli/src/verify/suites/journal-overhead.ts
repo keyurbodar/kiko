@@ -17,12 +17,9 @@ async function call(v: Verifier, s: Session, path: string, body: unknown): Promi
 const fake = (v: Verifier, s: Session, roomId: string) => call(v, s, "api/dev/agent/fake", { roomId })
 const resetStats = (v: Verifier, s: Session) => call(v, s, "api/dev/stats/reset", {})
 
-// SQL cursor rows exclude hidden KV and alarm writes. The gate includes all three meters.
-// KIKO_JOURNAL_QUIET_MS can shorten a smoke run, but a gate requires the full minute.
 const QUIET_MS = Number(process.env.KIKO_JOURNAL_QUIET_MS ?? 60_000)
 const BASELINE = process.env.PR2_BASELINE === "1" || process.env.PR1_BASELINE === "1"
 const EVIDENCE = process.env.PR2_EVIDENCE ?? process.env.PR1_EVIDENCE
-// The measured cost today, so a regression fails. The target is 3; see docs/one-object/HANDOFF.md.
 const ROW_GATE = 4
 const WARM_RUNS = 5
 const AGENT = "kiko"
@@ -60,7 +57,6 @@ export const rowsWritten = (c: Counters): number => c["owner.rowsWritten"] ?? su
 export const interObjectCalls = (c: Counters): number => sum(c, (k) => k.startsWith("rpc.") && k !== "rpc.owner" && !k.startsWith("rpc.owner."))
 const setAlarm = (c: Counters): number => c["owner.kv.setAlarm"] ?? sum(c, (k) => k.endsWith(".kv.setAlarm"))
 
-/** Rows and alarm calls per object, so a room's own background alarm is never read as the agent's. */
 function byObject(c: Counters, suffix: string): Record<string, number> {
   const out: Record<string, number> = {}
   for (const kind of KIND_PARTS) out[kind] = c[`${kind}.${suffix}`] ?? 0
@@ -69,10 +65,6 @@ function byObject(c: Counters, suffix: string): Record<string, number> {
 
 const errorRows = (room: RoomHandle) => messages(room).filter((m) => m.event?.kind === "run_error")
 
-/**
- * The error rows the room persisted, read back over a fresh socket from seq 0. The live channel could have
- * missed one, or counted one twice; this is what a reopening tab sees.
- */
 async function persistedErrorRows(s: Session, roomId: string): Promise<number> {
   const room = await s.room(roomId)
   try {
@@ -99,10 +91,6 @@ async function callJson(v: Verifier, s: Session, path: string, body: unknown): P
   return res.json()
 }
 
-/**
- * The agent's actual alarm from `AgentDO.status().alarmAt`, not the count of `setAlarm` calls: an alarm
- * already set for the same time is skipped, so the count alone cannot say one is armed.
- */
 async function armedAlarm(v: Verifier, s: Session, roomId: string): Promise<AlarmAt> {
   const body = (await callJson(v, s, "api/dev/agent/status", { roomId, slug: AGENT })) as { alarmAt?: unknown }
   if (body.alarmAt === null || typeof body.alarmAt === "number") return body.alarmAt
@@ -130,14 +118,12 @@ function report(label: string, p: Phase): void {
   console.log(`    kv by object: ${KIND_PARTS.map((k) => `${k} [${kv[k]}]`).join("; ")}`)
 }
 
-/** Resets, waits the quiet period, then reads the counters and the agent's alarm state at the end of it. */
 async function measure(v: Verifier, s: Session, name: string, roomId: string): Promise<Phase> {
   await resetStats(v, s)
   await Bun.sleep(QUIET_MS)
   return turn(v, s, name, roomId)
 }
 
-/** Reads the counters now: the measured turn, or the end of a quiet wait. */
 async function turn(v: Verifier, s: Session, name: string, roomId: string): Promise<Phase> {
   const response = await fetch(new URL("api/dev/stats", v.url), { headers: { authorization: s.auth } })
   if (!response.ok) throw new VerifyError(`stats answered ${response.status}`)
@@ -173,7 +159,6 @@ const suite: Suite = {
     const s = await v.as("journal-overhead")
     const phases: Phase[] = []
 
-    // `[reply]` makes fakeReply answer with exactly the text that follows it, so a poll can match the answer.
     const warmTurn = async (room: RoomHandle, text: string) => {
       const clientId = room.send(`[reply] ${text}`)
       await room.expect({ t: "ack", clientId })
@@ -206,8 +191,6 @@ const suite: Suite = {
     phases.push(warmPrompts[WARM_RUNS - 1]!)
     phases.push(await measure(v, s, `quiet minute after the prompt (${QUIET_MS / 1000} s)`, normal.roomId))
 
-    // `[model-error]` makes fakeReply end every request with a model error, so a retry inside the run spends
-    // itself and the run still ends in one visible row.
     const failing = await newRoom(s, "journal overhead error")
     await fake(v, s, failing.roomId)
     await warmTurn(failing.room, "warm")
@@ -220,7 +203,6 @@ const suite: Suite = {
     await Bun.sleep(2_000)
     phases.push(await turn(v, s, "always-failing prompt", failing.roomId))
     phases.push(await measure(v, s, `quiet minute after the error (${QUIET_MS / 1000} s)`, failing.roomId))
-    // Counted after the minute, so a duplicate error that arrives late still fails the gate.
     const liveErrors = errorRows(failing.room).length
     const persistedErrors = await persistedErrorRows(s, failing.roomId)
     console.log(`    always-failing prompt: ${liveErrors} live error rows, ${persistedErrors} on a fresh socket`)

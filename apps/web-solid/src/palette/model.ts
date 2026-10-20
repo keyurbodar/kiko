@@ -2,22 +2,17 @@ import * as glyphs from "@kiko/ui/icons"
 import type { Glyph } from "@kiko/ui/icons"
 import { commands, GROUP_LABEL, isEnabled, shortcutOf, type Choice, type Command, type CommandGroup } from "../commands/registry"
 
-/** One row. It either runs, or opens the submenu of the command with id `submenu`. */
 export interface Item {
   key: string
   title: string
   icon?: string
   seed?: string
   chatId?: string
-  /** The second, muted line. */
   detail?: string
-  /** A path whose file icon leads the row. */
   file?: string
   snippet?: string
   swatch?: string
-  /** The query to mark inside the title and detail. */
   mark?: string
-  /** A chat row of the root list. A leading ">" in the search leaves these out. */
   chat?: boolean
   shortcut?: string
   current?: boolean
@@ -34,16 +29,13 @@ export interface PaletteGroup {
 export interface View {
   placeholder: string
   groups: PaletteGroup[]
-  /** The submenu's command, absent on the root list. */
   parent?: Command
 }
 
-/** What the footer says Enter does. */
 export const enterLabel = (view: View): string => view.parent?.enter ?? "Select"
 
 const ROOT_PLACEHOLDER = "Search commands and chats…"
 
-/** The palette hides itself, and so do commands that are off or unlisted. */
 export const listed = (list: readonly Command[]): Command[] => list.filter((c) => c.group !== "palette" && !c.unlisted && isEnabled(c))
 
 const commandItem = (c: Command): Item => ({
@@ -57,7 +49,6 @@ const commandItem = (c: Command): Item => ({
 
 const choiceItem = (c: Choice): Item => ({ key: c.id, title: c.title, icon: c.icon, seed: c.seed, chatId: c.chatId, detail: c.detail, file: c.file, snippet: c.snippet, swatch: c.swatch, current: c.current, preview: c.preview, run: c.run })
 
-/** A search view's rows under their headings. A heading starts a new group when it changes. */
 export const searchGroups = (parent: Command, query: string): PaletteGroup[] => groupChoices(parent.search?.(query) ?? [], parent.highlight ? query.trim() : undefined)
 
 function groupChoices(choices: readonly Choice[], mark?: string): PaletteGroup[] {
@@ -72,7 +63,6 @@ function groupChoices(choices: readonly Choice[], mark?: string): PaletteGroup[]
   return groups
 }
 
-/** What an empty search view says. */
 export function emptyText(parent: Command | undefined, query: string): string {
   const state = parent?.state?.()
   if (state === "error") return "Search is not reachable"
@@ -80,14 +70,8 @@ export function emptyText(parent: Command | undefined, query: string): string {
   return (query.trim() ? parent?.empty?.noMatch : parent?.empty?.none) ?? "No results"
 }
 
-/** The chats the root list offers: the five latest when nothing is typed, else all of them to search. */
 const RECENT_CHATS = 5
 
-/**
- * The list the stack points at. The root groups the enabled commands under their headings, in the
- * order their first row was registered, then the chats. A submenu is the choices of its command. A stack whose
- * command is gone or disabled falls back to the root.
- */
 export function viewFor(stack: readonly string[], list: readonly Command[] = commands(), typed = false): View {
   const parent = stack.length ? list.find((c) => c.id === stack[stack.length - 1] && (c.submenu || c.search) && isEnabled(c)) : undefined
   if (parent?.search) return { parent, placeholder: parent.placeholder ?? "Search…", groups: [] }
@@ -107,10 +91,6 @@ export function viewFor(stack: readonly string[], list: readonly Command[] = com
   return { placeholder: ROOT_PLACEHOLDER, groups: rows }
 }
 
-/**
- * The live preview of the highlighted row. A row with `preview` shows itself on highlight, and the next
- * highlight replaces it. `restore` puts the saved look back, `keep` forgets it because the row was chosen.
- */
 export function createPreview() {
   let undo: (() => void) | null = null
   return {
@@ -128,10 +108,8 @@ export function createPreview() {
   }
 }
 
-/** Backspace in an empty search leaves the submenu. With text in it, it deletes a letter. */
 export const backspaceLeaves = (stack: readonly string[], query: string): boolean => stack.length > 0 && query === ""
 
-/** Registry icon names to glyphs. The palette loads lazily, so its table costs the chat route nothing. */
 const ICONS: Record<string, Glyph> = {
   menu: glyphs.MenuIcon,
   plus: glyphs.PlusIcon,
@@ -159,14 +137,9 @@ const ICONS: Record<string, Glyph> = {
 
 export const iconFor = (name: string): Glyph => ICONS[name] ?? glyphs.CommandIcon
 
-/** `Ctrl+Shift+T` as one chip per key. A Mac chord such as `⌘⇧F2` has no separator, so each modifier symbol is a chip and the rest is one. */
 export const keyChips = (display: string): string[] =>
   display.length > 1 && display.includes("+") ? display.split("+").filter(Boolean) : (display.match(/[⌘⇧⌥⌃]|[^⌘⇧⌥⌃]+/g) ?? [])
 
-/**
- * How well a row matches the search, 0 for none. The title counts most, its group's heading less, and
- * letters in order least. Ids never count, so "theme" does not find "chat.model".
- */
 export function matchScore(search: string, title: string, group: string): number {
   const words = search.toLowerCase().split(/\s+/).filter(Boolean)
   if (!words.length) return 1
@@ -191,7 +164,6 @@ const inOrder = (word: string, text: string): boolean => {
   return true
 }
 
-/** The score cmdk gets for a row. A leading ">" asks for commands only: chats score 0 and the rest match the text after it. */
 export function rowScore(search: string, title: string, group: string, chat: boolean): number {
   if (!search.startsWith(">")) return matchScore(search, title, group)
   return chat ? 0 : matchScore(search.slice(1), title, group)

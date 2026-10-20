@@ -15,10 +15,8 @@ const MAX_KICKOFF = 4_000
 
 const clean = (s: string, max: number) => s.trim().slice(0, max)
 const handleOf = (s: string) => s.trim().toLowerCase().replace(/^@/, "")
-/** A name begins with a capital, so a model that writes "ebert" still makes Ebert. */
 export const capitalized = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-/** Tracks the handles and names a batch of new agents must not reuse. */
 function newAgentCheck(agents: readonly Agent[]) {
   const taken = new Set([CHIEF, ...agents.map((a) => a.slug as string)])
   const names = new Set(["kiko", ...agents.map((a) => a.name.trim().toLowerCase())])
@@ -42,7 +40,6 @@ export function checkNewAgent(spec: NewAgentSpec, agents: readonly Agent[]): New
   return newAgentCheck(agents)(spec)
 }
 
-/** `creator` is the agent making the group. Kiko is always in a group and the creator is too, so neither counts as a pick. */
 export function checkGroup(input: GroupInput, creator: AgentSlug, agents: readonly Agent[]): GroupInput | { error: string } {
   const title = clean(input.title, 200)
   if (!title) return { error: "the group needs a title" }
@@ -65,7 +62,6 @@ export function checkGroup(input: GroupInput, creator: AgentSlug, agents: readon
   return { title, members, newAgents, goal: input.goal.trim(), kickoff }
 }
 
-/** /chat.md for a new group: the goal, who does what, and an empty decisions section. */
 export function groupChatFile(title: string, goal: string, team: readonly { slug: string; role: string }[]): string | { error: string } {
   const lines = team.map((m) => `- @${m.slug}: ${m.role}`.trimEnd()).join("\n")
   const text = `# ${title}\n\ngoal: ${goal}\n\n## who does what\n${lines}\n\n## decisions\n`
@@ -74,7 +70,6 @@ export function groupChatFile(title: string, goal: string, team: readonly { slug
 
 export type Maker = "kiko" | "human"
 
-/** What a new agent hears first. It speaks first, asks what it needs, and may suggest a recipe that fits. */
 export function introduction(spec: NewAgentSpec, by: Maker, recipes: readonly RecipeHint[] = []): string {
   const made = by === "kiko" ? "kiko just made you for the human" : "the human just made you themselves"
   const lines = [`${made}: ${spec.description}. this is your own chat with them, and you speak first. say hi in a line or two, in your voice, then ask the one or two questions you need to start. no more than two.`]
@@ -86,7 +81,6 @@ export function introduction(spec: NewAgentSpec, by: Maker, recipes: readonly Re
   return lines.join("\n")
 }
 
-/** A first soul for an agent the human made from a form: its own voice, from the description they wrote. */
 export function soulFromDescription(name: string, description: string): string {
   return `# ${name}
 

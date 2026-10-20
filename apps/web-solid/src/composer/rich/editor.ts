@@ -138,13 +138,8 @@ function taskInputRule(type: NodeType): InputRule {
 
 const MARKER: Record<string, string> = { bold: "**", italic: "_", strike: "~~", code: "`" }
 
-/**
- * A paste longer than this goes in as plain text. Markdown parsing is synchronous on the main
- * thread, and the box re-serializes its whole document on every keystroke after a paste.
- */
 export const PLAIN_PASTE_CHARS = 20_000
 
-/** Each run of one mark inside a text block, as document positions. */
 function styledRanges(doc: PMNode): { from: number; to: number; text: string }[] {
   const ranges: { from: number; to: number; text: string }[] = []
   doc.descendants((block, start) => {
@@ -167,7 +162,6 @@ function styledRanges(doc: PMNode): { from: number; to: number; text: string }[]
   return ranges
 }
 
-/** t3code's marker reveal: the Markdown markers of the styled text under the caret show, faintly. */
 const markers = new Plugin({
   props: {
     decorations(state) {
@@ -189,22 +183,14 @@ const markers = new Plugin({
   },
 })
 
-/** A new line after a heading is a paragraph, as in t3code. A line break would keep it a heading. */
 const leaveHeading: Command = (state, dispatch) => state.selection.$from.parent.type.name === "heading" && splitBlock(state, dispatch)
 
-/** Backspace at the start of a heading turns it back into a paragraph, so `# ` can be undone. */
 const unsetHeadingAtStart: Command = (state, dispatch) => {
   const { $from, empty } = state.selection
   if (!empty || $from.parentOffset !== 0 || $from.parent.type.name !== "heading") return false
   return setBlockType(state.schema.nodes.paragraph!)(state, dispatch)
 }
 
-/**
- * A newline starts a new block, as in t3code, rather than a line break: a break would keep the
- * caret inside the block it came from, so the next line could never become a heading, a rule, a
- * list or a fence. Marks carry over so bold text continues, and a list, an empty quote and a
- * heading each leave the block their own way.
- */
 const newline: Command = (state, dispatch) =>
   splitOrLeaveListItem(state, dispatch) ||
   leaveEmptyQuote(state, dispatch) ||
@@ -252,7 +238,6 @@ export function mountRichEditor(options: RichOptions) {
       Code.extend({
         excludes: "code",
         exitable: false,
-        // Tiptap's rule, except the code must hold more than spaces, so a stray pair never wraps a blank.
         addInputRules() {
           return [markInputRule({ find: /(^|[^`])`([^`]*[^`\s][^`]*)`(?!`)$/, type: this.type })]
         },
@@ -359,9 +344,6 @@ export function mountRichEditor(options: RichOptions) {
         event.preventDefault()
         const { state } = view
         const code = state.selection.$from.parent.type.spec.code
-        // A pasted log or document is parsed as markdown on the main thread, and every later
-        // keystroke re-serializes the whole box. Past a screenful of text that costs frames the
-        // person feels, so it goes in as plain text: a paste that large is data, not formatting.
         const plain = !code && text.length > PLAIN_PASTE_CHARS
         const slice = code || plain
           ? sliceOf(state, text)
@@ -455,16 +437,12 @@ export function mountRichEditor(options: RichOptions) {
       view.dispatch(state.tr.replaceWith(from, state.selection.from, [mention, state.schema.text(" ")]).scrollIntoView())
       editor.commands.focus(undefined, { scrollIntoView: false })
     },
-    /** Puts a chip per attachment where `at` points on screen, or at the caret, each followed by a space. */
     insertAttachments(items: readonly { id: string; name: string }[], at?: Point) {
       insertChips(items.map((item) => ({ type: "attachment", attrs: item })), at)
     },
-    /** Puts a chip per workspace file or folder where `at` points on screen, or at the caret. */
     insertFileRefs(paths: readonly string[], at?: Point) {
-      // A folder arrives with a trailing slash, which is the only sign it is one.
       insertChips(paths.map((path) => ({ type: "fileRef", attrs: { path: path.replace(/\/+$/, ""), ...(path.endsWith("/") ? { folder: true } : {}) } })), at)
     },
-    /** Takes every chip of attachment `id` out of the text. */
     removeAttachment(id: string) {
       const { view } = editor
       const tr = view.state.tr

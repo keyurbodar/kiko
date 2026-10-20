@@ -10,10 +10,6 @@ export type LiteField = {
   destroy: () => void
 }
 
-/**
- * A plain-text field the composer shows until the rich editor has loaded, so the first keystroke
- * lands at first paint. The draft lives in the controller, so the rich editor picks it up as it is.
- */
 export function mountLite(input: {
   host: HTMLElement
   controller: PromptInputV2Interaction

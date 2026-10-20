@@ -1,10 +1,6 @@
 import { TASK_TITLE_WORD_LIMIT } from "../room/task-title"
 import { type PromptSection, section } from "@earendil-works/pi-durable"
 
-// One structured prompt. Stable sections come first so the provider's prompt cache keeps hitting:
-// what the agent is, how Kiko works, then how to behave. Per-agent text (role, soul, chat, skills)
-// comes last.
-
 const SECTION_ORDER = ["role", "runtime", "kiko", "tools", "pacing", "voice", "team", "work", "autonomy", "files", "reactions", "soul", "chat", "skills"] as const
 export type SectionKey = (typeof SECTION_ORDER)[number]
 
@@ -81,7 +77,6 @@ function roleText({ role, lead }: RoleInput): string {
 
 const slot = (key: SectionKey): PromptSection => section(key, () => undefined)
 
-/** The delegation rules the work extension fills in. Kept here so a talker prompt names workers even when a test agent has none. */
 export const WORK_LINES = `- start_work hands one whole job to a background worker and returns at once. Use it for work that is slow, has many parts, or needs the browser. A quick search or one connected-app call you make yourself.
 - Give the worker the whole job in one call, with everything it needs. Never one worker per item, and never split a job into batches.
 - Answer small questions yourself while workers run.
@@ -112,7 +107,6 @@ export function baseSections(input: RoleInput): PromptSection[] {
   ]
 }
 
-/** The integration lines for <context>: what the human has set up, so no agent has to guess. */
 export function integrationNote(composio: readonly unknown[] | null | "unreachable", browserOn: boolean): string {
   const apps = composio === "unreachable" ? undefined : composio === null ? "composio is not set up (the human adds a key in Settings, Integrations); there is no connect_app." : "composio is set up: connect_app gives a link for an app."
   const browser = browserOn ? "the Kernel browser is connected." : "the Kernel browser is not connected (the human adds a key in Settings, Integrations)."

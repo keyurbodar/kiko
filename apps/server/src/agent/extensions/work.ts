@@ -98,7 +98,6 @@ export function workExtensions(workers: Workers, all: () => readonly Extension[]
       const work = workers.get(id)
       const child = work?.conversationId ? await api.conversation(work.conversationId, ctx) : undefined
       if (!work || !child || !work.conversationId) return say(`there is no worker ${id}.`)
-      // A worker keeps the model it started with. One that ended is picked up on the agent's model now, so a worker that failed on a model since changed or removed does not fail the same way again.
       if (work.status !== "running") {
         const agent = workerAgent(await api.agent(ctx), all())
         const conversationId = work.conversationId
@@ -117,8 +116,6 @@ export function workExtensions(workers: Workers, all: () => readonly Extension[]
       const work = workers.get(id)
       if (!work) return say(`there is no worker ${id}.`)
       if (work.status !== "running" && work.status !== "pending") return say(`${id} already ended: ${work.status}.`)
-      // Not awaited: the abort has to finish before this tool can return, and it cannot finish while
-      // this run still holds the object. The status is written first, so the stop shows at once.
       void workers.stop(id)
       return say(`stopped ${id}.`)
     },

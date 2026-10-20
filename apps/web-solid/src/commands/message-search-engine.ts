@@ -4,7 +4,6 @@ import { fetchHits } from "../search/fetch"
 import { useApp } from "../lib/store"
 import type { Choice } from "./registry"
 
-/* The palette's message search engine. It loads when the search view first opens, so the shell does not carry it. */
 const search = createRoot(() => {
   const [view, setView] = createSignal<SearchView>()
   const s = createSearch({ scope: "all", fetch: fetchHits, onChange: setView })

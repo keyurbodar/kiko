@@ -5,7 +5,6 @@ import { KernelError } from "./client"
 import { MAX_TABS } from "./lease"
 import type { LeaseRow } from "./store"
 
-/** A message that is safe to show. Kernel's errors never carry the key. */
 export function kernelErrorText(e: unknown): string {
   if (e instanceof KernelError || e instanceof CredentialError) return e.message
   return `Kernel did not answer: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300)
@@ -13,7 +12,6 @@ export function kernelErrorText(e: unknown): string {
 
 const AGENT_ID = /^[A-Za-z0-9_.:/-]{1,128}$/
 
-/** The agent id an RPC caller names. It is only ever a key into the lease's tab map. */
 export function checkAgentId(value: unknown): string {
   if (typeof value !== "string" || !AGENT_ID.test(value)) throw new KernelError("failed", "bad agent id")
   return value
@@ -30,10 +28,8 @@ export function checkTabs(value: unknown): Record<string, string> | undefined {
   return Object.fromEntries(entries) as Record<string, string>
 }
 
-/** How long Watch keeps the browser open, so the reaper does not delete it under the human's eyes. */
 export const WATCH_MS = 10 * 60_000
 
-/** The site a tab shows, as a hostname only: the client never sees a page URL. */
 export function hostOf(url: string): string {
   try {
     return new URL(url).hostname || "blank"
@@ -51,7 +47,6 @@ export function browserState(row: LeaseRow | undefined, switching: boolean, reso
   return { mode: row.mode, tabs, takeover: row.takeover, switching, since: row.createdAt }
 }
 
-/** `kiko-` and 16 hex characters of the user's id hash. The name never comes from input. */
 export async function profileName(userId: string): Promise<string> {
   return `kiko-${(await sha256Hex(userId)).slice(0, 16)}`
 }

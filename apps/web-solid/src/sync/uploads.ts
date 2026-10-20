@@ -3,19 +3,6 @@ import { createStore, produce } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { apiFetch, apiUrl, getToken } from "../lib/api"
 
-/*
- * Composer attachments upload the moment they are picked, as t3code's do. Each lands in the room
- * as a pending upload under an id this
- * queue chose, and the send names those ids; the room claims them as it stores the message. Three
- * upload at once, over XHR so the strip can show progress in 5% steps, and a request gives up after
- * five minutes. A failed upload waits for a retry: the button on its thumbnail, or the room's socket
- * opening again. Removing an attachment, or discarding the draft, cancels its upload and deletes
- * what reached the server; a sweep on the server is the backstop.
- *
- * A file up to the server's one-request limit goes in one PUT. A larger one goes in parts, as R2
- * requires: every part but the last is the same size and at least 5 MiB.
- */
-
 export type UploadState =
   | { status: "uploading"; progress: number }
   | { status: "ready"; pendingId: string }
@@ -24,23 +11,19 @@ export type UploadState =
 const MAX_UPLOADS = 3
 const OFFLINE = "Not connected"
 const TIMEOUT_MS = 5 * 60_000
-/** The server's largest single request body (`files/upload.ts`). */
 const MAX_SINGLE_PUT = 32 * 1024 * 1024
 const PART_BYTES = 16 * 1024 * 1024
 const TOAST_WINDOW_MS = 5000
 
 type Job = {
-  /** The composer's attachment id. */
   id: string
   roomId: string
   file: Blob
   name: string
   type: string
-  /** Chosen once per job, so a retry writes over its own earlier try. */
   pendingId: string
   cancelled: boolean
   abort: (() => void) | null
-  /** True once a request for this id may have reached the server. */
   sent: boolean
 }
 
@@ -61,12 +44,10 @@ function set(id: string, state: UploadState | undefined) {
   )
 }
 
-/** The upload state of one composer attachment, tracked. */
 export function uploadState(id: string): UploadState | undefined {
   return uploads[id]
 }
 
-/** The server's own sentence when it sent one, else a plain one for the status. */
 export function refusal(status: number, body: string): string {
   try {
     const said = (JSON.parse(body) as { error?: unknown }).error
@@ -77,7 +58,6 @@ export function refusal(status: number, body: string): string {
   return status >= 500 ? `Your backend had a problem (${status}). Retry in a moment.` : `The upload was refused (${status}).`
 }
 
-/** One request. Resolves with the body, rejects with the reason a thumbnail's tooltip shows. */
 function request(job: Job, method: string, url: string, body: Blob | string | null, headers: Record<string, string>, onProgress?: (loaded: number) => void): Promise<string> {
   const xhr = new XMLHttpRequest()
   const done = new Promise<string>((resolve, reject) => {
@@ -102,7 +82,6 @@ async function transfer(job: Job): Promise<void> {
   const total = job.file.size
   let lastStep = -1
   const progress = (loaded: number) => {
-    // Quantised to 5%, so a fast upload does not redraw the strip on every packet.
     const step = Math.floor((Math.min(loaded, total) / Math.max(1, total)) * 20)
     if (step === lastStep || job.cancelled) return
     lastStep = step
@@ -132,12 +111,10 @@ async function run(job: Job): Promise<void> {
 
 let toasted: { at: number; reason: string } | null = null
 
-/** True when a failure is news: not the same reason as the last toast, shown within the last few seconds. */
 export function isNewFailure(last: { at: number; reason: string } | null, now: number, reason: string): boolean {
   return !last || last.reason !== reason || now - last.at >= TOAST_WINDOW_MS
 }
 
-/** One toast for a run of failures: a folder of fifty files on a dead connection says so once, not fifty times. */
 function failToast(name: string, reason: string) {
   const now = Date.now()
   if (!isNewFailure(toasted, now, reason)) return
@@ -168,7 +145,6 @@ function pump() {
   }
 }
 
-/** Deletes a pending upload on the server. Only ever a pending id: the server refuses any other. */
 function deletePending(job: Job) {
   if (!job.sent) return
   void apiFetch(base(job), { method: "DELETE" }).catch(() => {})
@@ -181,7 +157,6 @@ function stop(job: Job) {
   job.abort?.()
 }
 
-/** Starts uploading a composer attachment to `roomId` as pending. A second call for the same id does nothing. */
 export function startUpload(id: string, roomId: string, file: Blob, name: string, type: string): void {
   if (jobs.has(id)) return
   const job: Job = { id, roomId, file, name, type, pendingId: newId(), cancelled: false, abort: null, sent: false }
@@ -191,7 +166,6 @@ export function startUpload(id: string, roomId: string, file: Blob, name: string
   pump()
 }
 
-/** Uploads a failed attachment again under the same pending id. */
 export function retryUpload(id: string): void {
   const old = jobs.get(id)
   if (!old || uploads[id]?.status !== "failed") return
@@ -202,12 +176,10 @@ export function retryUpload(id: string): void {
   pump()
 }
 
-/** Retries every failed upload. The room store calls it when its socket opens again. */
 export function retryFailedUploads(): void {
   for (const id of jobs.keys()) if (uploads[id]?.status === "failed") retryUpload(id)
 }
 
-/** The attachment left the composer unsent: stops its upload and deletes what reached the server. */
 export function releaseUpload(id: string): void {
   const job = jobs.get(id)
   jobs.delete(id)
@@ -217,13 +189,11 @@ export function releaseUpload(id: string): void {
   deletePending(job)
 }
 
-/** The attachment was sent: the room now owns its upload, so the queue forgets it without a delete. */
 export function forgetUpload(id: string): void {
   jobs.delete(id)
   set(id, undefined)
 }
 
-/** What a send names for these attachments, or null while any is not ready. */
 export function readyAttachments(items: readonly { id: string; name: string; type: string; size: number }[]): PendingAttachment[] | null {
   const out: PendingAttachment[] = []
   for (const item of items) {
@@ -234,7 +204,6 @@ export function readyAttachments(items: readonly { id: string; name: string; typ
   return out
 }
 
-/** Why the send button waits, in t3code's words, or null when every attachment is ready. */
 export function uploadBlockReason(ids: readonly string[], state: (id: string) => UploadState | undefined = uploadState): string | null {
   let pending = 0
   let failed = 0
@@ -248,7 +217,6 @@ export function uploadBlockReason(ids: readonly string[], state: (id: string) =>
   return null
 }
 
-/** `42%`. */
 export function progressLabel(progress: number): string {
   const bounded = Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0))
   return `${Math.floor(bounded * 100)}%`

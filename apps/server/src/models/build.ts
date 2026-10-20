@@ -2,7 +2,6 @@ import type { Provider } from "@earendil-works/pi-ai"
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai/models"
 import type { Catalog, CatalogModel, CatalogProvider, ConnectMethod } from "@kiko/protocol"
 
-/** The catalog the client reads, shaped from the live provider set. */
 export function buildCatalog(all: readonly Provider[], signInMethod: (providerId: string) => ConnectMethod | undefined): Catalog {
   const providers: CatalogProvider[] = all.map((provider) => {
     const connect: ConnectMethod[] = []
@@ -25,6 +24,5 @@ export function buildCatalog(all: readonly Provider[], signInMethod: (providerId
     const classifiers = (provider.getAllModels?.() ?? []).filter((model) => model.type === "classifier").length
     return { id: provider.id, name: provider.name ?? provider.id, connect, ...(offer ? { signIn: offer } : {}), models, classifiers }
   })
-  // A provider Kiko has no way to connect (OpenAI Codex, whose host refuses Workers) is not offered at all.
   return { providers: providers.filter((p) => p.connect.length > 0).sort((a, b) => a.id.localeCompare(b.id)) }
 }

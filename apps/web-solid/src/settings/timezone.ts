@@ -1,7 +1,6 @@
 import { apiFetch } from "../lib/api"
 let sent = false
 
-/** Tells the server the browser's time zone, once per session, when it differs from the stored one. Never blocks anything. */
 export async function syncTimeZone(): Promise<void> {
   if (sent) return
   sent = true

@@ -18,16 +18,12 @@
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["UserDO", "RoomDO", "AgentDO"] },
     { "tag": "v2", "new_sqlite_classes": ["WorkDO"] },
-    // The attachment job and its WorkDO were removed on 2026-10-09.
     { "tag": "v3", "deleted_classes": ["WorkDO"] },
-    // File bytes for an install without R2.
     { "tag": "v4", "new_sqlite_classes": ["FileDO"] },
     { "tag": "v5", "deleted_classes": ["UserDO", "RoomDO", "AgentDO", "FileDO"], "new_sqlite_classes": ["OwnerDO"] }
   ],
-  // Optional. An install without R2 drops this line and keeps files in OwnerDO.
   "r2_buckets": [
     { "binding": "FILES", "bucket_name": "kiko-files" },
-    // Optional. Remove ARCHIVE to retain all history in OwnerDO.
     { "binding": "ARCHIVE", "bucket_name": "kiko-history" }
   ]
 }

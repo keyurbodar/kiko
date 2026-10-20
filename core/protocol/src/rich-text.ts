@@ -1,7 +1,3 @@
-// The server parses agent markdown once into this
-// tree and stores it with the message. The client renders it and ships no
-// parser. There is no HTML node: raw HTML arrives as text.
-
 import type { AgentSlug } from "./ids"
 
 export type Inline =
@@ -24,7 +20,6 @@ export type Block =
 	| { t: "quote"; children: readonly Block[] }
 	| { t: "rule" }
 	| { t: "code_block"; lang?: string; text: string }
-	/** A paragraph that is only an image. `url` is an https address; `fileId` is a file of this chat. Exactly one is set. */
 	| { t: "image"; alt: string; url?: string; fileId?: string }
 	| { t: "table"; align: readonly ColumnAlign[]; head: readonly (readonly Inline[])[]; rows: readonly (readonly (readonly Inline[])[])[] }
 
@@ -65,11 +60,6 @@ const blockText = (block: Block, name: (slug: string) => string): string => {
 	}
 }
 
-/**
- * A message as plain words, with no markup: the one text a chat-list preview and a search result
- * show. Blocks are separated by a newline; the caller flattens whitespace. A mention reads as
- * `@` and whatever `name` returns for the slug.
- */
 export function plainText(rich: RichText, name: (slug: string) => string = (slug) => slug): string {
 	return rich.map((b) => blockText(b, name)).join("\n")
 }

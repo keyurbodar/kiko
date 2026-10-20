@@ -1,6 +1,3 @@
-// request carries a `reqId` and gets one `memory_result` back, to the socket that asked. The log is
-// append-only: the human can pin a line, redact one, or add one, never rewrite one.
-
 export type LifeLine = {
 	pos: number
 	at: number

@@ -25,15 +25,10 @@ const ICONS: Record<string, Glyph> = {
   run_error: AlertCircleIcon,
 }
 
-/** A click that the room never answered frees the button again, so one lost frame is not the end of Retry. */
 const RETRY_WAIT_MS = 8_000
 
 const LABELS: Record<RunErrorAction, string> = { retry: "Retry", change_model: "Change model", open_settings: "Settings" }
 
-/**
- * A system event as a row between messages. A failed run carries pills for what the human can do,
- * on the newest line of the chat only, since an older failure has been answered by what came after it.
- */
 export function ActivityEvent(props: { message: ChatMessage; name: (slug: string) => string; latest?: boolean }) {
   const row = createMemo(() => eventRow(props.message, props.name))
   const failed = () => (props.message.event?.kind === "run_error" ? (props.message.event as Extract<SystemEvent, { kind: "run_error" }>) : undefined)

@@ -7,7 +7,6 @@ import type { QuoteModel } from "../lib/reply"
 export function Quote(props: {
   quote: QuoteModel
   side?: "user" | "bot"
-  /** The quoted author's colour in a group: it tints the name, the bar, and the background. */
   tint?: string
   onOpenReplyTarget: (messageId: string, seq?: number) => void
   class?: string

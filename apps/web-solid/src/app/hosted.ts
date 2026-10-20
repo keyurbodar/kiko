@@ -1,12 +1,6 @@
 import { createSignal } from "solid-js"
 import { read, write } from "../lib/api-base"
 
-/*
- * The hosted app: sign-in goes through Clerk, which only the sign-in screen and the
- * callback load. This file holds what every tier may know: whether the build is hosted, and the cached
- * profile that lets the Account page paint at once.
- */
-
 export const CLERK_KEY: string | undefined = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || undefined
 export const hosted = CLERK_KEY !== undefined
 

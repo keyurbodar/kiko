@@ -11,8 +11,6 @@ function error(status: number, message: string): Response {
   return Response.json({ error: message }, { status })
 }
 
-// A browser sends cookies on a cross-site socket upgrade, so a page on another origin could
-// open a socket as the user. A request without an Origin header is not from a browser page.
 export function originAllowed(request: Request, url: URL, env: AuthEnv): boolean {
   const origin = request.headers.get("origin")
   if (!origin || origin === url.origin) return true
@@ -30,7 +28,6 @@ export async function route(request: Request, env: Env, lookup: SessionLookup = 
 
 const UPGRADE_TIMEOUT_MS = 5_000
 
-// If this Worker invocation ends first, the object's own hello deadline closes the socket.
 async function within(ms: number, work: Promise<Response>): Promise<Response> {
   const wait = boundedWait(ms)
   const late = wait.then(() => null)
@@ -63,8 +60,6 @@ async function upgrade(request: Request, env: Env, url: URL, lookup: SessionLook
   try {
     headers.set(HANDLE_HEADER, humanHandle(user.name))
     const response = await ownerStub(env.OWNER, user.id).fetch(new Request(request, { headers }))
-    // A client fails a socket whose answer names a subprotocol it did not offer, and a browser that offered
-    // one fails it unless the answer names it. So echo `kiko` exactly when the client offered it.
     const offered = (request.headers.get("sec-websocket-protocol") ?? "").split(",").map((p) => p.trim())
     if (!response.webSocket || !offered.includes(SOCKET_PROTOCOL)) return response
     return new Response(null, { status: 101, webSocket: response.webSocket, headers: { "sec-websocket-protocol": SOCKET_PROTOCOL } })

@@ -1,6 +1,3 @@
-// The key is never put in an error or a log.
-// The SDK adds 46 KB gzipped to the server bundle.
-
 import Kernel, { APIConnectionError, APIError } from "@onkernel/sdk"
 
 export type Mode = "headless" | "headful"
@@ -55,7 +52,6 @@ async function call<T>(op: () => Promise<T>): Promise<T> {
 }
 
 export function sdkClient(apiKey: string, fetchImpl?: typeof fetch): KernelClient {
-  // Retries are the lease's job: it knows which 429 is worth waiting for.
   const kernel = new Kernel({ apiKey, maxRetries: 0, timeout: 30_000, ...(fetchImpl ? { fetch: fetchImpl } : {}) })
   return {
     createBrowser: ({ headless, profile, timeoutSeconds }) =>

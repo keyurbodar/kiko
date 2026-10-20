@@ -1,9 +1,3 @@
-// Usage: bun scripts/sync-releases.ts <store> <base-url> <version...>
-// Rebuilds <store> from the live front door so the next deploy keeps serving every release
-// it serves now. Deploys run on clean machines, so the store cannot be carried over: a tab
-// on an older app updates its backend to that app's version, and a release that stops being
-// served strands it. A version the front door does not serve is skipped.
-
 import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
@@ -30,7 +24,6 @@ for (const version of versions) {
   try {
     parsed = JSON.parse(new TextDecoder().decode(manifest))
   } catch {
-    // An unknown path answers with the app page, so only a manifest that names the version is a release.
   }
   if (parsed.version !== version) {
     console.log(`Skipped ${version}: not served`)

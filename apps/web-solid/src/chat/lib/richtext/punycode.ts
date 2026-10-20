@@ -1,23 +1,4 @@
-// Punycode decoding, ported to TypeScript from tweb's vendored copy at
-// `src/vendor/convertPunycode.js`.
-//
-// Original: `punycode.js` by Mathias Bynens, MIT licensed
-// (https://github.com/mbostock/punycode), vendored by tweb so the script-level
-// host check would not depend on `punycode/`, which has been unmaintained since
-// 2015.
-//
-// Only the decode direction is here, and only because a hostile domain arrives
-// in its ASCII form: `xn--` is what a link's host actually reads as in an href,
-// and the spoof is invisible until the label is decoded back to the script it
-// was written in. `isSuspiciousUrl` calls this on the hostname before it looks
-// at scripts, so a homograph that hides behind `xn--` is judged on its real
-// letters.
-//
-// Everything below tweb's `toUnicode` is the algorithm unchanged; the edits are
-// the TypeScript annotations and the two constants that were `var`s.
-
 const utf16 = {
-  // The utf16-class is necessary to convert from javascripts internal character representation to unicode and back.
   decode: (input: string): number[] => {
     const output: number[] = []
     let i = 0
@@ -60,7 +41,6 @@ const utf16 = {
   },
 }
 
-// Default parameters
 const initial_n = 0x80
 const initial_bias = 72
 const delimiter = "\x2D"
@@ -71,15 +51,10 @@ const tmax = 26
 const skew = 38
 const maxint = 0x7fffffff
 
-// decode_digit(cp) returns the numeric value of a basic code
-// point (for use in representing integers) in the range 0 to
-// base-1, or base if cp is does not represent a value.
-
 function decode_digit(cp: number): number {
   return cp - 48 < 10 ? cp - 22 : cp - 65 < 26 ? cp - 65 : cp - 97 < 26 ? cp - 97 : base
 }
 
-// **Bias adaptation function **
 function adapt(delta: number, numpoints: number, firsttime: boolean): number {
   let k
   delta = firsttime ? Math.floor(delta / damp) : delta >> 1
@@ -91,24 +66,16 @@ function adapt(delta: number, numpoints: number, firsttime: boolean): number {
   return Math.floor(k + ((base - tmin + 1) * delta) / (delta + skew))
 }
 
-// Main decode
 function decode(input: string, preserveCase?: boolean): string {
-  // Dont use utf16
   const output: number[] = []
   const case_flags: boolean[] = []
   const input_length = input.length
 
   let n, out, i, bias, basic, j, ic, oldi, w, k, digit, t, len
 
-  // Initialize the state:
-
   n = initial_n
   i = 0
   bias = initial_bias
-
-  // Handle the basic code points: Let basic be the number of input code
-  // points before the last delimiter, or 0 if there is none, then
-  // copy the first basic code points to the output.
 
   basic = input.lastIndexOf(delimiter)
   if (basic < 0) basic = 0
@@ -121,16 +88,8 @@ function decode(input: string, preserveCase?: boolean): string {
     output.push(input.charCodeAt(j))
   }
 
-  // Main decoding loop: Start just after the last delimiter if any
-  // basic code points were copied; start at the beginning otherwise.
-
   for (ic = basic > 0 ? basic + 1 : 0; ic < input_length; ) {
-    // ic is the index of the next character to be consumed,
 
-    // Decode a generalized variable-length integer into delta,
-    // which gets added to i. The overflow checking is easier
-    // if we increase i as we go, then subtract off its starting
-    // value at the end to obtain delta.
     for (oldi = i, w = 1, k = base; ; k += base) {
       if (ic >= input_length) {
         throw new RangeError("punycode_bad_input(1)")
@@ -157,16 +116,12 @@ function decode(input: string, preserveCase?: boolean): string {
     out = output.length + 1
     bias = adapt(i - oldi, out, oldi === 0)
 
-    // i was supposed to wrap around from out to 0,
-    // incrementing n each time, so we'll fix that now:
     if (Math.floor(i / out) > maxint - n) {
       throw new RangeError("punycode_overflow(3)")
     }
     n += Math.floor(i / out)
     i %= out
 
-    // Insert n at position i of the output:
-    // Case of last character determines uppercase flag:
     if (preserveCase) {
       case_flags.splice(i, 0, input.charCodeAt(ic - 1) - 65 < 26)
     }
@@ -186,14 +141,6 @@ function decode(input: string, preserveCase?: boolean): string {
   return utf16.encode(output)
 }
 
-/**
- * A hostname with every `xn--` label decoded back to the letters it stands for.
- *
- * Label by label, and only the `xn--` ones: a host that spells itself in ASCII
- * has nothing to decode, and running the algorithm over one would either be a
- * no-op or a throw. A label that claims to be punycode and is not throws, and
- * the caller treats that as suspicious — an undecodable host is not a host.
- */
 function toUnicode(domain: string): string {
   const domain_array = domain.split(".")
   const out = []

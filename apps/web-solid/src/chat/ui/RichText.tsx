@@ -4,7 +4,6 @@ import { EmojiText } from "../../lib/emoji"
 import { richTextSegments } from "../lib/richtext/segments"
 import { Mention } from "./Mention"
 
-/* The warning for a masked link loads on the click that needs it. */
 const SuspiciousLinkDialog = lazy(() => import("./SuspiciousLinkDialog").then((m) => ({ default: m.SuspiciousLinkDialog })))
 
 export function RichText(props: {

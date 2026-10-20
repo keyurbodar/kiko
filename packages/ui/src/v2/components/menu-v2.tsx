@@ -3,7 +3,6 @@ import { Children, part, trigger } from "./overlays"
 
 export type { MenuV2CheckboxItemProps, MenuV2ItemProps, MenuV2RadioItemProps, MenuV2SubTriggerProps } from "./menu-v2-impl"
 
-/* The real menu lives in menu-v2-impl.tsx and loads after first paint. See overlays.tsx. */
 type M = typeof Impl
 type C = M["Context"]
 

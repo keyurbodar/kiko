@@ -1,7 +1,6 @@
 import { createEffect, createSignal, lazy, Show, Suspense, type JSX } from "solid-js"
 import type { ChatMessage } from "../../lib/types"
 
-/** The menu body loads on the first right click or long press, or when the thread is idle. */
 const loadView = () => import("./MessageMenuView")
 const MessageMenu = lazy(loadView)
 export const preloadMessageMenu = () => void loadView()
@@ -46,7 +45,6 @@ export function createMessageMenu(
       </Suspense>
     </Show>
   )
-  /** Where the menu should open once its body has loaded and its trigger exists. */
   let pending: { x: number; y: number } | null = null
   const fire = () => {
     const at = pending

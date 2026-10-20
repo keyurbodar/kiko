@@ -4,15 +4,8 @@ import { MAX_ROLE, type MemberRow } from "./members"
 import { briefTasks } from "./workspace"
 
 const MAX_LINE = 400
-/** The most of a member's doing text one brief names, in characters. A command's text is cut here. */
 const MAX_DOING = 80
-/** The most of the human's handle one brief names, in characters. */
 const MAX_HANDLE = 40
-/**
- * The most of the board one brief carries. A human message rides with its brief in one inbox entry
- * of 128 KB. Its bubble is at most 64 KB of JSON (`whole-text.ts`), so the board takes 24 KB. Every
- * other part of the entry is capped too.
- */
 const MAX_BOARD_BYTES = 24 * 1024
 
 export type BriefView = {
@@ -35,7 +28,6 @@ export function shortBrief(brief: string): string {
 	return brief.replace(/^(the human is @(\S+)\.) write @\2 only when you need them, such as a question only they can answer\.$/m, "$1")
 }
 
-/** The most of a member's held paths one brief names, in bytes after escaping. A path is cut to `MAX_HOLD_PATH` characters, so one path always fits. */
 const MAX_HOLDING_BYTES = 512
 const MAX_HOLD_PATH = 96
 
@@ -52,7 +44,6 @@ function holding(paths: readonly string[]): string {
 	return shown.join(", ")
 }
 
-/** The board's lines, up to `MAX_BOARD_BYTES`. The rest is counted, so the agent knows there is more. */
 function boardLines(tasks: readonly Task[]): string[] {
 	const lines: string[] = []
 	let bytes = 0

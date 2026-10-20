@@ -1,12 +1,5 @@
 import { createSignal } from "solid-js"
 
-/*
- * A file's icon, as t3code draws it (`components/chat/PierreEntryIcon.tsx` and `pierre-icons.ts`):
- * the Pierre "complete" icon set, colored per token in a light and a dark tint. The set loads on
- * demand (entry-icon-pierre.ts). Until it lands, every file draws one neutral glyph of the same
- * size, so nothing moves when the icons arrive. Each icon is a `<use>` of the sprite.
- */
-
 type Pierre = typeof import("./entry-icon-pierre")
 
 const ICON_COLORS: Record<string, readonly [light: string, dark: string]> = {
@@ -64,7 +57,6 @@ const ICON_COLORS: Record<string, readonly [light: string, dark: string]> = {
   zip: ["#d47628", "#ffa359"],
 }
 
-/** A plain document outline in the icon's box. It stands in until Pierre's set loads. */
 const NEUTRAL_GLYPH =
   '<path d="M4.5 1.75h4.6l3.15 3.15v9.35h-7.75z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>'
 
@@ -74,7 +66,6 @@ let pierre: Pierre | undefined
 const [loaded, setLoaded] = createSignal(false)
 let loading: Promise<void> | undefined
 
-/** Loads Pierre's icon set once and puts its sprite in the page. Safe to call on every render. */
 export function loadEntryIcons(): Promise<void> {
   loading ??= import("./entry-icon-pierre").then((mod) => {
     if (typeof document !== "undefined" && !document.getElementById(SPRITE_ID)) {
@@ -91,10 +82,6 @@ export function loadEntryIcons(): Promise<void> {
   return loading
 }
 
-/**
- * The icon as markup, sized by the caller. Reading it in a Solid effect redraws it when the set
- * lands. Code outside Solid calls `loadEntryIcons().then(...)` and sets the markup again.
- */
 export function entryIconMarkup(path: string): string {
   void loadEntryIcons()
   if (!loaded() || !pierre) {

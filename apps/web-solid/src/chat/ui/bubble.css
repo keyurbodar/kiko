@@ -1,12 +1,8 @@
-/* A chat bubble is a soft card, as on Unify: a small corner, no pill and no tail. Inside a run the
-   corners where two bubbles meet on the sender's side close further, so the run reads as one
-   message in parts. */
 [data-slot="bubble"] {
   --bubble-r: var(--radius-bubble);
   --bubble-joint: 4px;
 }
 
-/* The joints of a run. */
 [data-slot="bubble"][data-align="start"]:is([data-position="first"], [data-position="middle"]):not([data-variant="ghost"]) > [data-slot="bubble-content"] {
   border-end-start-radius: var(--bubble-joint);
 }

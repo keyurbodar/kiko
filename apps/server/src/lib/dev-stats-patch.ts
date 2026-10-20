@@ -1,6 +1,3 @@
-// The dev counters patch the object's storage so `verify` counts statements, rows read and written, and
-// KV calls. Reached only through dev-guard's `instrument`, so the patch never enters a production bundle.
-
 export type DevCounterPort = {
   bump(key: string, n?: number): void
   instrumentation(kind: string, complete: boolean): void
@@ -12,12 +9,6 @@ const MAX_LABEL = 240
 const MAX_LABELS = 4_000
 const labels = new Map<string, string>()
 
-/**
- * One SQL statement as a stable label for the dev counters. Scope prefixes (`s<hex>_`, the physical table
- * name that owner/context.ts rewrites in) and SQL string literals drop out, numbers become placeholders, and
- * whitespace collapses, so two runs of the same statement share one label. Bindings are never part of the
- * query text, so a parameter value cannot appear here.
- */
 function sqlLabel(query: string): string {
   const cached = labels.get(query)
   if (cached !== undefined) return cached

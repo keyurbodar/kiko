@@ -1,19 +1,4 @@
-/*
- * Only the symbols in use, copied out of a large sprite.
- *
- * A `<use href="sprite.svg#name">` makes the browser parse the whole sprite into a document of
- * its own and keep it for the life of the page. The file-icon sprite holds 1,089 symbols, so one
- * file tree held about 11,000 SVG nodes for a dozen icons. Here the sprite's text is fetched once
- * (an immutable hashed asset, so the HTTP cache answers), each symbol a page asks for is copied
- * into one small inline sprite, and the text is dropped after a short wait.
- *
- * A symbol's inner ids (gradients, clip paths) are only unique inside the sprite, so each copy
- * gets them prefixed with its own name. A `<use>` that points at an id added later resolves when
- * it appears, so an icon simply shows once its symbol lands.
- */
-
 const HOST_ID = "kiko-sprite-subset"
-/** How long the sprite's text stays after the last copy, for icons asked for right after. */
 const KEEP_TEXT_MS = 30_000
 
 function host(): SVGSVGElement | null {
@@ -33,10 +18,6 @@ function host(): SVGSVGElement | null {
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
-/**
- * One symbol of `text` with its id set to `id` and every inner id prefixed with `id-`.
- * Null when the sprite has no such symbol. Exported for the tests.
- */
 export function copySymbol(text: string, name: string, id: string): string | null {
   const open = new RegExp(`<symbol[^>]*\\sid="${escapeRe(name)}"`).exec(text)
   if (!open) return null
@@ -58,10 +39,6 @@ export function copySymbol(text: string, name: string, id: string): string | nul
   return out
 }
 
-/**
- * A loader for one sprite. `ref(name)` returns the in-page href for a symbol and makes sure it
- * gets copied. `prefix` keeps two sprites' names apart.
- */
 export function spriteSubset(url: string, prefix: string) {
   const copied = new Set<string>()
   const wanted = new Set<string>()

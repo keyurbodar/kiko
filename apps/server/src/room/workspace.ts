@@ -174,17 +174,13 @@ export class RoomWorkspace implements Workspace {
 			if (patch.status !== undefined && !isStatus(patch.status)) return fail(`status must be one of ${TASK_STATUSES.join(", ")}`)
 			const asked = patch.owner === undefined ? undefined : patch.owner || null
 			let owner = asked === undefined ? (current.owner ?? null) : asked
-			// Taking a task is a claim: only for yourself unless you lead, never out of a closed task,
-			// and it starts the work when the task has not started. Starting an unowned task takes it.
 			const taking = owner !== null && owner !== current.owner
 			if (by.kind === "agent" && !lead && taking && owner !== by.slug) return fail(`task ${id} can only be assigned to @${by.slug}`)
 			if (by.kind === "agent" && !lead && current.owner && current.owner !== by.slug) return fail(`task ${id} is owned by @${current.owner}`)
 			if (taking && CLOSED.has(current.status)) return fail(`task ${id} is ${current.status}`)
 			if (asked === undefined && !owner && by.kind === "agent" && patch.status === "doing") owner = by.slug
 			if (owner && owner !== current.owner && !members.includes(owner as AgentSlug)) return fail(`@${owner} is not a member of this room`)
-			// An agent names a task by taking it. Only a lead can leave one unowned.
 			if (by.kind === "agent" && !owner && asked === undefined) return fail(`task ${id} has no owner. set it to doing to take it`)
-			// Taking a task starts it, unless something it waits on is still open.
 			const starts = patch.status === undefined && taking && !current.owner && (current.status === "todo" || current.status === "blocked") && !this.openDeps(id).length
 			const status = (patch.status as TaskStatus | undefined) ?? (starts ? "doing" : current.status)
 			if (status === "done" && current.status !== "done") {
@@ -281,8 +277,6 @@ export function runCall(ws: Workspace, slug: AgentSlug, lead: boolean, call: Wor
 		r.ok ? { answer: { ok: true as const, text: text(r.value) }, events: r.events } : { answer: fail(r.error), events: [] }
 	switch (call.op) {
 		case "update_task": {
-			// `update` follows the claim rules itself: setting doing takes an unowned task for the caller,
-			// and `owner` takes it for the named agent or ("me") for the caller.
 			const owner = call.owner?.replace(/^@/, "").trim().toLowerCase()
 			const who = owner === "me" ? slug : owner
 			return done(ws.update(by, call.id, { status: call.status, note: call.note, title: call.title, ...(who ? { owner: who } : {}) }, members, lead), (t) => `updated ${line(t)}`)

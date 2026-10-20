@@ -4,7 +4,6 @@ import type { FsEntry, FsFail } from "../room/files"
 import type { BatchChange, FilesBackend } from "./room-fs"
 import { batchPaths } from "./room-fs"
 
-/** The read-only folder that explains Kiko to an agent. Mounted beside the chat's files, /home, and /me. */
 export const KIKO = "kiko"
 
 const REFUSAL = `/${KIKO} is read-only. It explains how Kiko works. Write your own files under / or /home.`
@@ -32,10 +31,6 @@ async function sizes(): Promise<{ files: FsEntry[]; size: number }> {
 
 const refuse = (): FsFail => ({ ok: false, code: "invalid", message: REFUSAL })
 
-/**
- * The /kiko/ docs, from the bundle built at build time. There is nothing to write: every write
- * path answers with one clear sentence, so a model that tries learns the folder is read-only.
- */
 export function kikoDocsBackend(): FilesBackend {
   return {
     async stat(path) {

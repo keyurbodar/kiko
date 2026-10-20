@@ -6,7 +6,6 @@ export type EventRow = { label: string; detail?: string; title?: string; tone?: 
 type Loose = Record<string, unknown>
 const text = (value: unknown): string | undefined => (typeof value === "string" && value ? value : undefined)
 
-/** "12,400 tokens before, 3,100 after" from whichever counts the event carries. */
 function tokens(e: Loose): string | undefined {
   const before = typeof e.tokensBefore === "number" ? e.tokensBefore : undefined
   const after = typeof e.tokensAfter === "number" ? e.tokensAfter : undefined
@@ -15,7 +14,6 @@ function tokens(e: Loose): string | undefined {
   return before !== undefined ? `${fmt(before)} tokens` : undefined
 }
 
-/** What a system event says as a divider row, or null for a kind this client does not draw. `name` turns a slug into the agent's name. */
 export function eventRow(message: ChatMessage, name: (slug: string) => string): EventRow | null {
   const e = message.event as SystemEvent | undefined
   if (!e) return message.goto ? { label: message.body } : null
@@ -64,7 +62,6 @@ function joinNames(names: readonly string[]): string {
 
 const messageCount = (n: number) => `${n} ${n === 1 ? "message" : "messages"}`
 
-/** "Kiko messaged Ada" for one message, "Kiko and Ada exchanged 3 messages" for more. */
 export function threadLabel(names: readonly string[], count: number): string {
   return count === 1 && names.length === 2 ? `${names[0]} messaged ${names[1]}` : `${joinNames(names)} exchanged ${messageCount(count)}`
 }

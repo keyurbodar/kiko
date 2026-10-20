@@ -9,7 +9,6 @@ export type CapturePolicy = { idleMs: number; jevDelayMs: number; capture: Captu
 
 const DEFAULT_POLICY: CapturePolicy = { idleMs: 60_000, jevDelayMs: 3_000, capture: "auto" }
 
-// How sure the judge must be. Scores are probabilities.
 const WORTH_MIN = 0.6
 const PRIVATE_MAX = 0.5
 const CARD_MIN = 0.7
@@ -55,7 +54,6 @@ export function candidates(text: string): string[] {
 
 const NEIGHBORS = 8
 
-// The long definitions travel once in the judge state; each question carries only a short label and points at them by path.
 const RULES = {
   worth: {
     true: "a lasting fact about the human worth remembering for months: who they are, their people, places, work, plans, preferences, or how they want to be helped",
@@ -108,7 +106,6 @@ function captureQuestions(items: readonly CaptureItem[]): { state: JsonObject; q
 
 type CaptureRow = { heard: Heard; ref: string; keep?: () => boolean }
 
-// One judge request for every queued message. A message the human changed meanwhile (keep() false) is asked about but not written.
 export async function captureWithJudge(life: Life, judge: Judge, rows: readonly CaptureRow[]): Promise<CaptureCount | null> {
   const count: CaptureCount = { added: 0, replaced: 0, same: 0, private: 0 }
   const items = rows.flatMap((row, message) => candidates(row.heard.text).map((candidate) => ({ message, candidate, known: life.nearest(candidate, NEIGHBORS).map((l) => ({ pos: l.pos, text: l.text })) })))
@@ -125,7 +122,6 @@ export async function captureWithJudge(life: Life, judge: Judge, rows: readonly 
     }
     const answer = choiceOf(answers[`c${i}_card`])
     const card = answer && isCardTag(answer.choice) && answer.p >= CARD_MIN ? answer.choice : null
-    // Jev scores a standing rule low on worth, so it is asked separately.
     const standing = card === "INSTRUCTION" && boolOf(answers[`c${i}_standing`]) >= WORTH_MIN
     if (!standing && boolOf(answers[`c${i}_worth`]) < WORTH_MIN) continue
     const replaced = known.filter((k) => boolOf(answers[`c${i}_replaces_${k.pos}`]) >= RELATION_MIN).map((k) => k.pos)

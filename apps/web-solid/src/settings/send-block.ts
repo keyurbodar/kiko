@@ -1,19 +1,12 @@
 import type { ProviderProblem } from "@kiko/protocol"
 import { modelProviders } from "./provider-kinds"
 
-/** What the human can do about a send that cannot go yet. */
 export type BlockAction = "open_settings" | "choose_model"
 
 export type SendBlock = { reason: string; actions: readonly BlockAction[] }
 
 type Saved = { provider: string; problem?: ProviderProblem; chat?: boolean }
 
-/**
- * Why a message to `agent` cannot be sent yet, or null when it can. A message sent in this state
- * would only come back as an error, so the composer keeps the words and disables Send with this
- * reason. `known` is false until the saved providers and the agent's model have loaded: an unknown
- * state never blocks, because the server still answers for itself.
- */
 export function sendBlock(input: { known: boolean; providers: readonly Saved[]; model: string | undefined; agent: string | undefined }): SendBlock | null {
   const { providers, model, agent } = input
   if (!input.known || !agent) return null

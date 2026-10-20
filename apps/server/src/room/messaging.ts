@@ -13,12 +13,10 @@ export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[] } | 
 
 export type Chain = { rootId: string; hop: number }
 
-/** Where a queued mail goes when its recipient is in another room: the pair room, and the ask it belongs to. `back` marks an answer on its way to the room that asked. */
 type Remote = { room: RoomId; askId: string; back?: true }
 
 type QueuedMail = { n: number; from: AgentSlug; to: AgentSlug; send: StoredSend; remote: Remote | null }
 
-/** What the room does after an answer came back from a pair room. */
 type Returned = { events: RoomEvent[]; asker: AgentSlug; queued: boolean }
 
 const KEEP_SENDS_MS = 7 * 86_400_000
@@ -91,7 +89,6 @@ export class MessageChains {
 		return this.sql.exec<{ n: number }>("SELECT deliveries AS n FROM root_counts WHERE root_id = ?1 AND root_counts.room_id = ?2", rootId, this.log.roomId).toArray()[0]?.n ?? 0
 	}
 
-	/** Records the send, queues it for each recipient, and links it to a pair room if it has one, all in one transaction. A replay returns the first record and queues nothing. */
 	send(from: AgentSlug, input: AgentSend, members: readonly { slug: AgentSlug }[], pair: RoomId | null = null): SendOutcome {
 		return this.storage.transactionSync((): SendOutcome => {
 			const earlier = this.sql.exec<{ send: string }>("SELECT send FROM agent_sends WHERE id = ?1 AND agent_sends.room_id = ?2", input.id, this.log.roomId).toArray()[0]
@@ -124,16 +121,13 @@ export class MessageChains {
 			if (back.length) send.returns = back
 			this.sql.exec("INSERT INTO agent_sends (id, send, at, room_id) VALUES (?1, ?2, ?3, ?4)", input.id, JSON.stringify(send), this.now(), this.log.roomId)
 			for (const ask of back) this.giveBack(ask.id, from, input.to as AgentSlug, text, ask.remote, { rootId, hop })
-			// A send that answers another room's message is relayed there, so no recipient needs it.
 			if (!back.length) this.enqueue(from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
-			// An answer to a message opens no expectation of its own.
 			if (!back.length && !settled) for (const to of recipients) this.asks.expect(`${input.id}:${to}`, from, to, stored.id, this.now(), pair)
 			this.prune()
 			return { ok: true, send, events: stored.event ? [stored.event] : [] }
 		})
 	}
 
-	/** An answer to an ask, relayed to its asker as mail. Recorded and queued in one transaction, like `send`. */
 	relay(id: string, from: AgentSlug, to: AgentSlug, message: { id: string; seq: number; text: string }): StoredSend | null {
 		return this.storage.transactionSync(() => {
 			const previous=this.replay(id,from);if(previous)return previous
@@ -164,10 +158,6 @@ export class MessageChains {
 		for (const to of send.recipients) this.admissions.push(Promise.resolve(this.deliver({ n: 0, from, to, send, remote })))
 	}
 
-	/**
-	 * In a pair room, queues the answer to what `to` asked in `room`. Once per ask, so a replay queues nothing.
-	 * `chain` is the answer's own: the chain of the agent that answers, one hop on, unless the caller has it already.
-	 */
 	giveBack(askId: string, from: AgentSlug, to: AgentSlug, text: string, room: RoomId, chain?: Chain): void {
 		this.storage.transactionSync(() => {
 			const id = `back:${askId}`
@@ -179,11 +169,6 @@ export class MessageChains {
 		})
 	}
 
-	/**
-	 * The answer to a private talk, back from the pair room. It settles the asker's expectation, logs the answer
-	 * as a message from the agent that is not in this room, and delivers it to the asker as mail.
-	 * Null when the answer was already taken, the ask is unknown, or the human stopped this root.
-	 */
 	returned(askId: string, from: AgentSlug, text: string, chain: Chain): Returned | null {
 		return this.storage.transactionSync((): Returned | null => {
 			const ask = this.asks.remote(askId)
@@ -261,7 +246,6 @@ type MailDeps = ReceiveDeps & {
 	alarms: Alarms
 	home: () => Home | null
 	title: (home: Home) => Promise<string>
-	/** The pair room where `from` and `to` talk, made if it is new. An error names the agents the human has. */
 	pair: (from: AgentSlug, to: AgentSlug) => Promise<{ ok: true; roomId: RoomId } | { ok: false; error: string }>
 }
 
@@ -289,10 +273,6 @@ export class RoomMessaging {
 		return { ok: true, to: out.send.recipients }
 	}
 
-	/**
-	 * Sends what `slug` posted in this run back to whoever messaged it, as mail. The answer reaches
-	 * the asker as a new delivery, which is the one path every agent message takes.
-	 */
 	async answerAsks(slug: AgentSlug, runId: string, heard: readonly string[]): Promise<void> {
 		const bubbles = this.d.ctx.storage.sql
 			.exec<{ id: string; seq: number; text: string }>(`SELECT id, seq, text FROM ${RECENT_MESSAGES} WHERE run_id = ? AND deleted_at IS NULL ORDER BY seq`, this.d.log.roomId, runId)
@@ -305,7 +285,6 @@ export class RoomMessaging {
 		await this.relayHeard(slug, heard, text, last ? { id: last.id, seq: last.seq } : null)
 	}
 
-	/** A run with no reply bubbles (empty, `[skip]`, or only reactions, none of which become messages) has nothing to say: its asks settle empty and are not relayed. */
 	async relayHeard(slug: AgentSlug, heard: readonly string[], text: string, message: { id: string; seq: number } | null): Promise<void> {
 		let relayed = false
 		for (const ask of this.d.asks.unanswered(
@@ -336,7 +315,6 @@ export class RoomMessaging {
 		return new Set(route(this.d.burst.envelopes(home.roomId), this.d.members.list(), (id) => replyAddressees((at) => this.d.log.message(at), id)).keys())
 	}
 
-	/** The answer from a pair room. It is taken once, whatever the retries. */
 	async pairBack(input: { askId: string; from: AgentSlug; text: string } & Chain): Promise<void> {
 		const home = this.d.home()
 		if (!home) return

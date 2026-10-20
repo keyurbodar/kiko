@@ -8,12 +8,6 @@ import { RecipeIcon, RecipeWatermark, toneStyle } from "./icon"
 import { installStatus, nextRunLabel } from "./model"
 import { installsFor } from "./state"
 
-/**
- * A recipe in the book: a card tinted by its tone, with its mark in the corner. Off, it shows when
- * it would run and a round add button. On, it shows its soonest run and the faces of the agents that
- * use it. The whole tile opens the details. Below 520px of page width it lays out as a row, so a
- * phone reads the book like a chat list.
- */
 export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAdd: () => void }) {
   const installs = () => installsFor(props.recipe.slug)
   const agents = () => [...new Set(installs().map((i) => i.agent))]

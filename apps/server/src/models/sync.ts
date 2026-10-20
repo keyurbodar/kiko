@@ -3,7 +3,6 @@ import { getBuiltinModelDataGeneratedAt } from "@earendil-works/pi-ai/providers/
 import { getSetting, setSetting } from "../lib/settings"
 import { applyOverlay, type CatalogOverlay, computeOverlay } from "./catalog"
 
-// One aggregate request. pi's own client sends one per provider, which would spend 42 of the Free plan's 50 subrequests.
 const CATALOG_URL = "https://pi.dev/api/models?types=chat,image,classifier"
 const ATTEMPT_TIMEOUT_MS = 4_000
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000
@@ -54,7 +53,6 @@ export function writeOverlay(sql: SqlStorage, overlay: CatalogOverlay): void {
   )
 }
 
-/** Loads the stored overlay into this process. An overlay the bundled data has caught up with is dropped, as pi does. */
 export function restoreOverlay(sql: SqlStorage): void {
   const state = readState(sql)
   const generated = getBuiltinModelDataGeneratedAt()
@@ -78,11 +76,6 @@ async function request(deps: SyncDeps, etag: string | undefined): Promise<Respon
   }
 }
 
-/**
- * One conditional GET of the aggregate catalog, with pi's outcomes: 304 moves only checkedAt, 404 and 501
- * store an empty overlay, any other failure keeps the cached body and its etag. Never throws.
- * Returns whether the overlay changed.
- */
 export async function syncCatalog(deps: SyncDeps): Promise<boolean> {
   const { sql } = deps
   const stored = readState(sql)

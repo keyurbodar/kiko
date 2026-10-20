@@ -14,7 +14,6 @@ import {
 } from "@kiko/ui/icons"
 import type { ViewerKind } from "./kind"
 
-/** The glyph that stands for each kind of file in the file header. */
 export const KIND_ICON: Record<ViewerKind, Glyph> = {
 	markdown: FileMarkdownIcon,
 	json: FileJsonIcon,

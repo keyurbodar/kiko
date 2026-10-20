@@ -5,7 +5,6 @@ import { cn } from "../../lib/cn"
 
 export type RowTone = "muted" | "danger" | "warning" | "accent"
 
-/** A pill at the end of a row. `href` opens a route, `onClick` runs a handler. `busy` swaps the pill for its progress word. */
 export type RowAction = { label: string; busy?: string | undefined; href?: string; onClick?: () => void; "data-action"?: string }
 
 const TONE: Record<RowTone, string> = {
@@ -25,14 +24,9 @@ const RULE: Record<RowTone, string> = {
 const PILL =
   "shrink-0 cursor-pointer rounded-full border border-border/70 bg-background px-2.5 py-1 text-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
 
-/**
- * The one row between messages for everything that is not a message, after t3code's
- * `TimelineSystemDivider`: a label and a detail between two rules, and up to two pills.
- */
 export function SystemRow(props: {
   label: string
   detail?: string | undefined
-  /** The full text when `detail` is cut short. */
   title?: string | undefined
   icon?: Glyph | undefined
   tone?: RowTone | undefined

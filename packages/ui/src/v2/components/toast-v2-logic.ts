@@ -1,19 +1,9 @@
-/*
- * The toaster's rules as data, after t3code (MIT, apps/web/src/components/ui/toast.logic.ts,
- * anchoredCopyToast.ts) and Base UI's toast defaults. No DOM here, so the tests can run it.
- */
-
 export type ToastV2Variant = "default" | "success" | "error" | "warning" | "info" | "loading"
 
-/* Base UI's default timeout, which t3code keeps for every type. A loading toast waits for its result. */
 export const TOAST_DURATION_MS = 5000
-/* t3code's copy confirmation next to the button that copied. */
 export const ANCHORED_TOAST_DURATION_MS = 1000
-/* Base UI's default limit: older toasts wait, hidden, until one in front closes. */
 export const TOAST_LIMIT = 3
-/* How far a toast travels before a release dismisses it. */
 export const SWIPE_THRESHOLD_PX = 40
-/* An error description this long is clamped to four lines, as t3code does. */
 export const ERROR_CLAMP_CHARS = 180
 
 export function toastDuration(options: {
@@ -28,11 +18,6 @@ export function toastDuration(options: {
   return options.anchored ? ANCHORED_TOAST_DURATION_MS : TOAST_DURATION_MS
 }
 
-/*
- * Where a new toast goes, given the live toasts newest first. The same toast again refreshes
- * the front one in place, or moves an older copy to the front, so a repeated action never
- * stacks copies.
- */
 export type ToastPlacement = { kind: "add" } | { kind: "refresh"; id: number } | { kind: "replace"; id: number }
 
 export function placeToast(live: readonly { id: number; key: string }[], key: string): ToastPlacement {
@@ -41,11 +26,6 @@ export function placeToast(live: readonly { id: number; key: string }[], key: st
   return index === 0 ? { kind: "refresh", id: live[0]!.id } : { kind: "replace", id: live[index]!.id }
 }
 
-/*
- * Each toast's place in the stack, newest first. A closing toast keeps the slot it had so it
- * leaves from where it was, while the live ones behind it move up at once. A toast past the
- * limit is kept but hidden.
- */
 export interface ToastSlot {
   index: number
   offset: number
@@ -77,10 +57,6 @@ export function stackLayout(toasts: readonly { id: number; height: number; endin
   return { frontHeight: front && front.height > 0 ? front.height : 0, slots }
 }
 
-/*
- * What a released swipe does. A toast leaves toward its own edge or upward, past the threshold.
- * `outward` is 1 when the toaster sits on the right, -1 on the left.
- */
 export type SwipeOutcome = "out-x" | "out-y" | null
 
 export function swipeOutcome(axis: "x" | "y" | null, dx: number, dy: number, outward: 1 | -1): SwipeOutcome {
@@ -89,7 +65,6 @@ export function swipeOutcome(axis: "x" | "y" | null, dx: number, dy: number, out
   return null
 }
 
-/* Movement against an allowed direction is damped, so the toast resists instead of following. */
 export function swipeDamp(delta: number, allowed: boolean): number {
   if (allowed) return delta
   return delta / (1.5 + Math.abs(delta) / 20)

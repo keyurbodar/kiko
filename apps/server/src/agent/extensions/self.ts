@@ -24,7 +24,6 @@ export function selfExtension(fs: RoomFs, soul: SoulPort, stamp?: () => number):
   const chatText = perRun(async () => {
     const found = await fs.stat(CHAT_PATH)
     if (!found.ok || found.value.kind !== "file") return undefined
-    // Whole, so the byte cache keeps it by its R2 key: an agent's writes cap /chat.md. Only an upload can pass the cap.
     const bytes = await fs.bytesOf(found.value, found.value.size > MAX_CHAT ? MAX_CHAT : undefined)
     const text = bytes ? new TextDecoder().decode(bytes).trim() : ""
     return text ? `/chat.md:\n${text}` : undefined

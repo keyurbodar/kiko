@@ -6,15 +6,6 @@ import type { EditorState } from "./editor"
 import { TEXT_KINDS, type ViewerKind } from "./kind"
 import "./editor.css"
 
-/*
- * The body of one file tab, after t3code's file preview. `viewerKind` picks the view, and each
- * heavy one is its own chunk: CodeMirror loads when a source view opens, the markdown parser when
- * markdown renders, and so on. Pictures, video and sound are the browser's own elements, drawn in
- * the panel.
- *
- * A text kind shows its source unless `rendered` asks for the markdown, table or page instead.
- */
-
 const TextEditor = lazy(() => import("./editor").then((m) => ({ default: m.TextEditor })))
 const MarkdownView = lazy(() => import("./viewers/markdown"))
 const TableView = lazy(() => import("./viewers/table"))
@@ -33,7 +24,6 @@ export function FileViewer(props: {
 	reveal: { line: number; n: number } | null
 	onEditorState?: (state: EditorState) => void
 }) {
-	// The editor keeps the version it opened. Later versions reach it as `file`.
 	const opened = createMemo<FileRef | undefined>((prev) => (props.file ? (prev ?? props.file) : undefined), undefined)
 	const src = (f: FileRef) => urls.file(props.roomId, f.id)
 	return (
@@ -104,7 +94,6 @@ export function FileViewer(props: {
 	)
 }
 
-/** A picture, video or sound that may fail to load. Try again draws it afresh, as does a new version. */
 function Media(props: { src: string; error: string; children: (src: string, fail: () => void) => JSX.Element }) {
 	const [failed, setFailed] = createSignal(false)
 	createEffect(on(() => props.src, () => setFailed(false), { defer: true }))

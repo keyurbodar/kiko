@@ -1,4 +1,3 @@
-/** Words that name a recipe icon outright, and the other icons a recipe may use. scripts/gen-recipes.ts turns both into icons.gen.ts. */
 export const SYNONYMS: Record<string, string> = {
   morning: "sun-horizon", briefing: "sun-horizon", sunrise: "sun-horizon",
   weather: "cloud-sun", forecast: "cloud-sun", rain: "umbrella", storm: "cloud-lightning",
@@ -29,5 +28,4 @@ export const SYNONYMS: Record<string, string> = {
   horoscope: "planet", astrology: "planet", prayer: "hands-praying", bible: "book-bookmark", verse: "book-bookmark", quote: "quotes", fact: "lightbulb-filament",
 }
 
-/** Icons worth a recipe that no synonym names. */
 export const EXTRA_ICONS = ["sparkle", "cloud-warning", "flower", "star", "heart", "coffee", "brain", "chat-circle-dots", "bell", "clock", "globe", "map-pin", "users", "calendar-dots", "rocket-launch", "trophy", "leaf", "sun", "moon", "fire", "lightning", "megaphone", "clipboard-text", "chart-pie", "piggy-bank", "bank", "hamburger", "pizza", "wine", "tree", "mountains", "bicycle", "airplane", "ticket", "gift", "balloon", "confetti", "palette", "pencil-simple", "puzzle-piece", "dice-five", "game-controller", "headphones", "television", "camera", "image", "files", "folder", "robot", "shield-check", "key", "lock", "wrench", "hammer", "medal", "flag", "compass", "binoculars", "eye", "envelope-open", "tray", "phone-call", "chats", "handshake", "hand-coins", "storefront", "barcode", "truck", "baby-carriage", "dog", "cat", "bird", "fish", "flower-tulip", "cactus", "sun-dim", "snowflake", "thermometer", "wind", "tooth", "brain", "heartbeat", "pill", "bandaids", "bed", "alarm", "timer", "hourglass", "calendar-blank", "note-pencil", "notepad", "student", "chalkboard-teacher", "exam", "certificate", "scroll", "feather", "pen-nib", "quotes", "microphone-stage", "guitar", "radio", "film-strip"]

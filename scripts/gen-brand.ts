@@ -1,7 +1,3 @@
-/*
- * Generate the L1 tiles and the open and blinking mascot.
- * Flat colors, blush, no grid, glow, gradient, or shadow. Run `bun scripts/gen-brand.ts`.
- */
 import { writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { Resvg } from "@resvg/resvg-js"
@@ -18,7 +14,6 @@ function tile({ rounded, ink }: { rounded: boolean; ink: string }): string {
 
 const png = (svg: string, size: number) => new Resvg(svg, { fitTo: { mode: "width", value: size } }).render().asPng()
 
-/** An ICO file that holds PNG images, which every current browser reads. */
 function ico(images: { size: number; data: Uint8Array }[]): Uint8Array {
   const head = Buffer.alloc(6 + images.length * 16)
   head.writeUInt16LE(1, 2)

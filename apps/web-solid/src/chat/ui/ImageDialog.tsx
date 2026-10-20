@@ -8,18 +8,6 @@ import { FLIP_MS, flip, reducedMotion } from "./flip"
 import type { DialogImage } from "./image-dialog"
 import { anchorAt, clampZoom, clickZoom, fitScale, keyZoom, maxHeight, panStep, scrollFor, wheelZoom, type Point } from "./zoom"
 
-/*
- * A picture at full size over a dark backdrop, after t3code's ExpandedImageDialog: the picture
- * centred, a close button above its corner, arrows when there are more, and the name and count
- * under it. The picture grows out of its thumbnail and shrinks back into it in 200 ms (`flip.ts`),
- * and the backdrop fades; it takes input from the first frame. Escape and a click on the backdrop
- * close it (Kobalte's dialog), and the arrow keys move.
- *
- * The picture zooms as t3code's ZoomableImage does: the wheel zooms around the pointer, a click
- * toggles 2x, + - 0 and Enter work from the keyboard, and a zoomed picture pans by dragging or
- * with the arrow keys.
- */
-
 const NAV = "absolute top-1/2 z-20 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-white/90 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
 
 export default function ImageDialog(props: { images: readonly DialogImage[]; index: number; from?: Element | null; onClose: () => void }) {
@@ -32,7 +20,6 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
   let pan: ((key: string) => boolean) | undefined
   const [closing, setClosing] = createSignal(false)
   let shrink: ((to: DOMRect) => void) | undefined
-  /** The thumbnail is only the way back while its own picture is showing. */
   const thumbnail = () => (offset() === 0 && props.from?.isConnected ? (props.from.querySelector("img") ?? props.from) : null)
   const close = () => {
     if (closing()) return
@@ -51,7 +38,6 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
           class="h-[92vh] w-[92vw] items-center justify-center"
           data-lightbox=""
           data-closing={closing() ? "" : undefined}
-          // Focus starts on the picture, so its keys work at once and Enter zooms rather than closing.
           onOpenAutoFocus={(event: Event) => {
             const picture = (event.currentTarget as HTMLElement | null)?.querySelector<HTMLElement>('[data-component="image-dialog-viewport"]')
             if (!picture) return
@@ -60,7 +46,6 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
           }}
           onKeyDown={(event: KeyboardEvent) => {
             if (event.ctrlKey || event.metaKey || event.altKey) return
-            // A zoomed picture takes the arrows to pan. Fitted, left and right move between pictures.
             if (pan?.(event.key)) return event.preventDefault()
             if (count() < 2 || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return
             event.preventDefault()
@@ -85,7 +70,6 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
               <RemixIcon icon={ChevronLeftIcon} class="size-5" />
             </button>
           </Show>
-          {/* Keyed, so a new picture starts fitted. */}
           <Show when={item()} keyed>
             {(image) => (
               <div class="relative z-10 flex max-w-[calc(92vw-96px)] flex-col items-center" data-component="image-dialog" data-swap={offset() === 0 ? undefined : ""}>
@@ -124,7 +108,6 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
   )
 }
 
-/** Zooms around the pointer and keeps the whole picture reachable by dragging or scrolling. */
 function ZoomableImage(props: { src: string; name: string; from: Element | null; onError: () => void; panRef: (pan: (key: string) => boolean) => void; shrinkRef: (shrink: (to: DOMRect) => void) => void }) {
   let viewport!: HTMLDivElement
   const hint = createUniqueId()
@@ -132,20 +115,16 @@ function ZoomableImage(props: { src: string; name: string; from: Element | null;
   const [window_, setWindow] = createSignal({ width: window.innerWidth, height: window.innerHeight })
   const [zoom, setZoom] = createSignal(1)
   const [dragging, setDragging] = createSignal(false)
-  // Hidden until the picture has its size, so it never shows at the wrong place before it grows from its thumbnail.
   const [waiting, setWaiting] = createSignal(props.from !== null && !reducedMotion())
   props.shrinkRef((to) => flip(viewport, to, "out"))
-  // A big original may be slow to arrive. After a moment it shows as it loads rather than keep the dialog blank.
   const impatient = setTimeout(() => setWaiting(false), 250)
   onCleanup(() => clearTimeout(impatient))
   let drag: { pointerId: number; x: number; y: number; left: number; top: number } | null = null
-  /** A drag ends in a click as well. That click must not toggle the zoom. */
   let dragged = false
   const fit = () => fitScale(natural(), window_())
   const width = () => natural().width * fit() * zoom()
   const height = () => natural().height * fit() * zoom()
 
-  /** Zooms to `next`, keeping the picture point under `point` (the centre when left out) where it is on screen. */
   const change = (next: number, point?: Point) => {
     const previous = zoom()
     const target = clampZoom(next)
@@ -154,7 +133,6 @@ function ZoomableImage(props: { src: string; name: string; from: Element | null;
     const at = point ? { x: point.x - bounds.left, y: point.y - bounds.top } : { x: viewport.clientWidth / 2, y: viewport.clientHeight / 2 }
     const anchor = anchorAt({ x: viewport.scrollLeft, y: viewport.scrollTop }, at, previous)
     const screen = { x: bounds.left + at.x, y: bounds.top + at.y }
-    // Solid writes the new size at once, so the viewport has its new bounds on the next line.
     setZoom(target)
     const moved = viewport.getBoundingClientRect()
     const scroll = scrollFor(anchor, { x: screen.x - moved.left, y: screen.y - moved.top }, target)
@@ -165,7 +143,6 @@ function ZoomableImage(props: { src: string; name: string; from: Element | null;
   props.panRef((key) => {
     const by = panStep(key)
     if (!by || zoom() <= 1) return false
-    // A vertical scrollbar alone must not swallow moving between pictures.
     if (by.x && viewport.scrollWidth <= viewport.offsetWidth) return false
     viewport.scrollLeft += by.x
     viewport.scrollTop += by.y
@@ -232,7 +209,6 @@ function ZoomableImage(props: { src: string; name: string; from: Element | null;
           dragged = false
           if (event.pointerType !== "mouse" || event.button !== 0 || zoom() <= 1) return
           const bounds = viewport.getBoundingClientRect()
-          // A press on a scrollbar scrolls; it is not a drag.
           if (event.clientX - bounds.left >= viewport.clientWidth || event.clientY - bounds.top >= viewport.clientHeight) return
           drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop }
           viewport.setPointerCapture(event.pointerId)
@@ -257,7 +233,6 @@ function ZoomableImage(props: { src: string; name: string; from: Element | null;
             setNatural({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })
             if (!waiting()) return
             setWaiting(false)
-            // Solid has written the size, so the viewport has its final place to grow into.
             if (props.from?.isConnected) flip(viewport, props.from.getBoundingClientRect(), "in")
           }}
           onError={() => {

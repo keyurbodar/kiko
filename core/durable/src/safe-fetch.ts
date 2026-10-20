@@ -1,7 +1,3 @@
-// Known limit: the runtime resolves the host again when it connects, and a Worker
-// cannot pin the address it checked. A DNS record that changes between the check
-// and the connection is not caught here.
-
 const MAX_REDIRECTS = 3
 const TIMEOUT_MS = 3000
 const MAX_BYTES = 1024 * 1024
@@ -107,7 +103,6 @@ async function check(
 
   const host = url.hostname.toLowerCase().replace(/\.$/, "")
   if (isIpLiteral(host)) return refuse("ip-literal", url.href)
-  // A public name has a dot. This also stops `localhost`, which the runtime may resolve by itself.
   if (!host.includes(".") || host.endsWith(".localhost")) return refuse("blocked-host", url.href)
 
   const addresses = await resolve(host, fetcher, signal, cached)
@@ -149,7 +144,6 @@ const RECORD_TYPES = { A: 1, AAAA: 28 } as const
 const NOERROR = 0
 const NXDOMAIN = 3
 
-// A Free Worker invocation has 50 subrequests and each lookup costs two, so answers are cached for their TTL.
 const DNS_CACHE = new WeakMap<Fetcher, Map<string, { addresses: string[]; until: number }>>()
 const cacheFor = (fetcher: Fetcher, options: SafeFetchOptions) => options.dnsCache ?? fetcher === globalFetcher
 const DNS_MIN_TTL_S = 30
@@ -179,7 +173,6 @@ async function resolve(host: string, fetcher: Fetcher, signal: AbortSignal, cach
     if (answer.Status === NXDOMAIN) return []
     if (answer.Status !== NOERROR) return null
     const records: unknown[] = Array.isArray(answer.Answer) ? answer.Answer : []
-    // A CNAME record is skipped. The resolver also returns the addresses at the end of the chain.
     return records.flatMap((record) => {
       if (!isRecord(record) || record.type !== type || typeof record.data !== "string") return []
       if (typeof record.TTL === "number") ttl = Math.min(ttl, record.TTL)
@@ -202,7 +195,6 @@ async function resolve(host: string, fetcher: Fetcher, signal: AbortSignal, cach
 function isIpLiteral(host: string): boolean {
   if (host.startsWith("[")) return true
   const lastLabel = host.slice(host.lastIndexOf(".") + 1)
-  // A host whose last label is a number is an IPv4 address to every URL parser.
   return /^(\d+|0x[0-9a-f]*)$/.test(lastLabel)
 }
 

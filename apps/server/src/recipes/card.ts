@@ -2,10 +2,8 @@ import type { RecipeApp, RecipeCard } from "@kiko/protocol"
 import { iconFor } from "./icons"
 import type { Recipe } from "./recipe"
 
-/** The toolkit slug Composio uses for an app name: "Google Calendar" is "googlecalendar". */
 export const toolkitSlug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "")
 
-/** `connected` is null for every app when Composio cannot say which apps are connected. */
 export function recipeCard(r: Recipe, custom: boolean, connected: ReadonlySet<string> | null): RecipeCard {
   const { icon, glyph, tone } = iconFor(r.title, r.description, r.icon)
   const apps: RecipeApp[] = r.apps.map((name) => {

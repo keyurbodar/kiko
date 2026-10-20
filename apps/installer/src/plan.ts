@@ -5,9 +5,7 @@ export type Grant = { kind: "oauth"; code: string; verifier: string; redirectUri
 export type StoredGrant = {
   kind: Grant["kind"]
   accountId: string
-  /** The script this grant may replace, so the backend can update itself without asking which one it is. */
   scriptName: string
-  /** The OAuth client the refresh token belongs to. */
   clientId?: string
   accessToken?: string
   refreshToken?: string
@@ -20,10 +18,6 @@ type BoundInput = { ownerId: string; clerkJwtKey: string; trustedOrigins: string
 
 const secret = (name: string, text: string): SecretBinding => ({ type: "secret_text", name, text })
 
-/**
- * What ties a backend to this front door. Existing backends receive these only after accepting the caller's
- * Clerk identity. A backend without verifiable ownership is never adopted automatically.
- */
 export function boundSecrets(input: BoundInput): SecretBinding[] {
   return [
     secret("OWNER_ID", input.ownerId),
@@ -34,7 +28,6 @@ export function boundSecrets(input: BoundInput): SecretBinding[] {
   ]
 }
 
-/** A new backend also gets its own keys. An existing one keeps them, or its sessions and stored credentials break. */
 export function firstInstallSecrets(input: BoundInput & { random: () => string }): SecretBinding[] {
   return [secret("SESSION_SECRET", input.random()), secret("CREDENTIALS_KEK", input.random()), ...boundSecrets(input)]
 }
@@ -45,7 +38,6 @@ export async function ownScriptName(sub: string, length = 6): Promise<string> {
   return `${DEFAULT_SCRIPT}-${hex.slice(0, length)}`
 }
 
-/** As the token form names them. Workers Admin was called Workers Scripts Write; Workers Editor cannot create a Worker. */
 export const TOKEN_PERMISSIONS = [
   "Account: Workers Admin (it may show as Workers Scripts: Edit)",
   "Account: Account Settings: Read",
@@ -58,7 +50,6 @@ const TEMPLATE_KEYS = [
   { key: "workers_r2", type: "edit" },
 ]
 
-/** The create-token form with the permissions ticked, for every account the person has. */
 export const TOKEN_TEMPLATE_URL = `https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=${encodeURIComponent(JSON.stringify(TEMPLATE_KEYS))}&accountId=*&zoneId=all&name=Kiko`
 
 export const OAUTH_SCOPES = ["workers-scripts.write", "account-settings.read", "workers-r2.write", "offline_access"] as const

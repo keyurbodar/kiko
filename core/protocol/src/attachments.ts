@@ -1,23 +1,10 @@
-
 const MiB = 1024 * 1024
 
 export const MAX_ATTACHMENTS = 100
-/** The most text a message shows as its bubble. The room keeps longer text whole as a file (`RoomDO.humanSend`). */
 export const MAX_MESSAGE_TEXT = 16_000
-/**
- * The largest frame the room socket takes, in characters. Cloudflare's limit for a received
- * WebSocket message is 32 MiB (https://developers.cloudflare.com/durable-objects/platform/limits/),
- * so this leaves a wide margin.
- */
 export const MAX_FRAME = 512 * 1024
-/** What a frame keeps for its ids, its reply, and its quote beside the text and the file references. */
 const FRAME_ROOM = 8 * 1024
 
-/**
- * Whether a send fits one frame. The frame is JSON, where a control character takes six characters,
- * so the text and the file references are measured as JSON. A long file name takes its share.
- * Client and server both use this.
- */
 export function sendFits(text: string, refs: readonly unknown[] = []): boolean {
 	return JSON.stringify(text).length + JSON.stringify(refs).length <= MAX_FRAME - FRAME_ROOM
 }
@@ -37,10 +24,6 @@ const IMAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
 
 type Named = { name: string; type: string }
 
-/**
- * The type a file is stored with. A drag from another app or a shell can hand over an empty or
- * generic type, so a `photo.jpg` with none is still a JPEG. Anything else without one is bytes.
- */
 export function attachmentType(file: Named): string {
 	const type = (file.type.split(";", 1)[0] ?? "").trim().toLowerCase()
 	if (type && type !== "application/octet-stream") return type
@@ -50,10 +33,6 @@ export function attachmentType(file: Named): string {
 
 export const isImageType = (type: string) => IMAGE_TYPES.includes(type.toLowerCase())
 
-/**
- * A picture, any other file, or a picture kiko cannot send (an SVG, a HEIC). t3code converts HEIC
- * to JPEG with a decoder library; kiko does not ship one, so a HEIC is refused like an SVG.
- */
 export function attachmentKind(file: Named): "image" | "file" | "unsupported-image" {
 	const type = attachmentType(file)
 	if (isImageType(type)) return "image"
@@ -94,28 +73,16 @@ export function attachmentsError(files: readonly { type: string; size: number }[
 	return images > MAX_TOTAL_IMAGE_BYTES ? attachmentMessages.imagesTotal : null
 }
 
-/**
- * An attachment named inside the text, as t3code's context chips: `[name](attachment:<id>)`. The
- * composer writes it with its own id, the send swaps in the upload's pending id, and the room
- * swaps that for the stored file's path (`linkAttachments`), so the bubble draws a file chip and
- * the agent reads the file where the human put it.
- */
 const ATTACHMENT_LINK = /\[([^\]\n]*)\]\(attachment:([\w-]+)\)/g
 
 export function attachmentToken(id: string, name: string): string {
 	return `[${name.replace(/[[\]\n\\]/g, "")}](attachment:${id})`
 }
 
-/**
- * A path as a markdown link target. A name with a space or a parenthesis, such as
- * `Screenshot 2026-10-16.png` or `report (1).pdf`, ends a bare target early, so it goes in angle
- * brackets and stays readable to the agent as the real path.
- */
 export function linkTarget(path: string): string {
 	return /[\s()<>]/.test(path) ? `<${path.replace(/</g, "%3C").replace(/>/g, "%3E")}>` : path
 }
 
-/** Rewrites each token's id through `to`. A token `to` does not know becomes its plain name. */
 export function linkAttachments(text: string, to: (id: string) => string | undefined): string {
 	return text.replace(ATTACHMENT_LINK, (_, name: string, id: string) => {
 		const target = to(id)
@@ -123,7 +90,6 @@ export function linkAttachments(text: string, to: (id: string) => string | undef
 	})
 }
 
-/** The ids of the tokens in `text`, in order. */
 export function attachmentIds(text: string): string[] {
 	return Array.from(text.matchAll(ATTACHMENT_LINK), (match) => match[2]!)
 }

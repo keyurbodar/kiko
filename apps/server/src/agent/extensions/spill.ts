@@ -1,12 +1,6 @@
 import { sha256Hex } from "@kiko/durable/hash"
 import type { RoomFs } from "../../files/room-fs"
 
-// Big tool output. pi-durable keeps a result to 50 KB and cuts at the last line break that fits, so
-// a large single-line JSON document (an OpenAPI spec, a connected app's listing) came back as its first
-// line and nothing else, and the agent fetched it again and again. A result over `SPILL_BYTES` is
-// saved whole in the chat's files, as lines a model can search, and the agent gets its start and
-// the path.
-
 const SPILL_BYTES = 40 * 1024
 const HEAD_BYTES = 8 * 1024
 

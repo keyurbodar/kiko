@@ -1,11 +1,3 @@
-// The user's own data: for now, the chat list.
-//
-// Same shape as the room store, smaller. It paints the chat list from
-// IndexedDB, connects with `hello {lastSeq}`, applies events in `seq` order,
-// and lays pending chat edits over the server's list. Pending edits are kept
-// in IndexedDB and go out again after a reload or a reconnect. Each carries a
-// stable id (a create names its room), so a replay changes nothing twice.
-
 import type { OwnerToClient, Agent, AgentModel, AgentSlug, Chat, ChatOp, ClientToUser, FileOp, FileRef, KikoError, RoomId, ThinkingLevel, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
 import { batch } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
@@ -20,16 +12,13 @@ type AgentModelFrame = Extract<ClientToUser, { t: "agent_model" }>
 import { setFileToken } from "../lib/file-token"
 import { APP_VERSION, backendSkew, type Skew } from "../lib/version-skew"
 
-/** The user's drive, /home. */
 export type Home = { files: FileRef[]; folders: string[] }
 export type UserData = { seq: number; chats: Chat[]; agents: Agent[]; home: Home }
 
-/** Applies one event in place. An event at or below `data.seq` is skipped. Returns false then. */
 export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 	if (e.seq <= data.seq) return false
 	data.seq = e.seq
-	if (e.t === "theme" || e.t === "agent_model") return true // the theme client and the agent models read these. The chat list has nothing to change.
-	// The drive's events, by the same rules as a room's files: a path holds one file, a move keeps the id.
+	if (e.t === "theme" || e.t === "agent_model") return true
 	if (e.t === "file" || e.t === "file_removed" || e.t === "folders") {
 		if (e.t === "file") {
 			data.home.files = data.home.files.filter((x) => x.name !== e.file.name || x.id === e.file.id)
@@ -59,7 +48,6 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 import { clampThinking, defaultThinking, newRoomId, PROTOCOL, sameAgentChat } from "@kiko/protocol"
 export { newRoomId }
 
-// The app's own build. The backend's answer is checked against it.
 const clientBuild = () => ({ version: APP_VERSION, protocol: PROTOCOL })
 
 
@@ -67,25 +55,15 @@ export type UserState = UserData & {
 	loaded: boolean
 	connection: SocketStatus
 	patches: UserPatch[]
-	/** Drive changes the server has not confirmed yet, laid over `home`. */
 	pendingHome: RoomPatch[]
-	/** Every agent's model and reasoning level, Kiko included, as the server last said. One entry per agent, whatever chat is open. */
 	agentModels: Record<string, AgentModel>
-	/** Model picks the server has not confirmed yet, laid over `agentModels`. */
 	pendingModels: Record<string, AgentModel>
-	/** The saved look as the server last said it, as JSON text. Undefined until it says. `theme/live.ts` applies it. */
 	theme?: string | null
-	/** True once the server has answered `hello`: the list is the server's, not only this device's. */
 	synced: boolean
-	/** The chat the server says the user was last in, from the last snapshot. */
 	lastChat: RoomId | null
-	/** Second direct chats the server refused, each with the chat that agent already has. */
 	refused: Record<string, RoomId>
-	/** The display names typing in each chat, from the `typing` frame. Memory only. */
 	typing: Record<string, readonly string[]>
-	/** Whether the backend can serve this build. Set from the first `hello` reply. Undefined until then. */
 	skew?: Skew
-	/** The backend's version as its `hello` reply said it. Undefined from an older backend. */
 	backendVersion?: string
 }
 
@@ -97,53 +75,33 @@ export type UserStoreOptions = {
 	now?: () => number
 	newId?: () => string
 	ttlMs?: number
-	/** Where the socket is shared with the look, memory, and Composio. The app's channel by default. */
 	channel?: UserChannelHost
-	/** Something the human must know about, from the server. */
-	/** `roomId` is the chat the error belongs to, when it has one. */
 	onError?: (error: KikoError, roomId?: RoomId) => void
 }
 
 export type UserStore = {
 	readonly state: UserState
-	/** Pinned first, then the most recently updated, with pending edits applied. */
 	chats(): Chat[]
 	readonly ready: Promise<void>
-	/** The user's agents. */
 	agents(): Agent[]
-	/** The agent's model and level, with a pending pick applied. Undefined until the server has said. */
 	agentModel(slug: string): AgentModel | undefined
-	/** Sets an agent's model, its level, or both, for every chat. Shown at once; the server confirms it. `levels` are the new model's supported levels. */
 	setAgentModel(slug: AgentSlug, pick: { ref?: string; thinking?: ThinkingLevel; levels?: readonly ThinkingLevel[]; roomId?: RoomId }): void
-	/**
-	 * The room that holds exactly these agents: the one already there, else a new one, shown at
-	 * once. The server decides the same way, so a refusal only follows a race with another device.
-	 */
 	createChat(title: string, agents?: readonly string[]): RoomId
-	/**
-	 * An agent and its own chat, shown at once while the server makes them. The server's events replace both by id.
-	 * Returns the undo for a refusal.
-	 */
 	addAgentChat(agent: Agent, roomId: RoomId): () => void
-	/** Tells the server the user is in this chat, at most once every `OPEN_DEBOUNCE_MS`. */
 	open(roomId: RoomId): void
 
 	rename(roomId: RoomId, title: string): void
 	pin(roomId: RoomId, pinned: boolean): void
 	mute(roomId: RoomId, muted: boolean): void
-	/** A private chat: its agents save no memory, change no soul, and write nothing to /home. */
 	setPrivate(roomId: RoomId, value: boolean): void
 	remove(roomId: RoomId): void
-	/** The drive's files and folders, with pending changes applied. */
 	homeFiles(): FileRef[]
 	homeFolders(): string[]
-	/** `rm`, `mv`, or `mkdir` on the drive, shown at once. A refusal rolls it back and calls `onHomeRefused`. */
 	homeOp(op: FileOp): void
 	onHomeRefused(listener: (op: FileOp, reason: string) => void): () => void
 	close(): void
 }
 
-/** How long the user stays in a chat before the server hears of it. A quick tab switch sends one frame. */
 export const OPEN_DEBOUNCE_MS = 2_000
 
 export function createUserStore(options: UserStoreOptions): UserStore {
@@ -175,7 +133,6 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	let closed = false
 	let detach = () => {}
 	let expiry: ReturnType<typeof setTimeout> | undefined
-	// True from each `hello` until the first events or reset that answers it. That answer carries the backend's build.
 	let awaitingHello = false
 	const unsentModels = new Map<string, AgentModelFrame>()
 
@@ -243,7 +200,6 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home, lastChat: snapshot.lastChat ?? null })
 		if (snapshot.theme !== undefined) setState("theme", snapshot.theme)
 		const agentModels = { ...snapshot.agentModels }
-		// A pick the server has not confirmed stays on screen: it is sent again when the socket opens.
 		setState({ agentModels, pendingModels: Object.fromEntries(Object.entries(unwrap(state.pendingModels)).filter(([slug]) => unsentModels.has(slug))) })
 		putAgentModels(warm, agentModels)
 		replaceChats(warm, snapshot.chats, snapshot.seq)
@@ -263,7 +219,6 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			else reset(frame.snapshot)
 			if (!state.synced) setState("synced", true)
 		} else if (frame.t === "chat_refused") {
-			// Nothing was made. The create is dropped, and a reader in it is sent to the agent's one chat.
 			batch(() => {
 				setState("refused", frame.roomId, frame.existing)
 				setPatches((list) => list.filter((p) => p.op.roomId !== frame.roomId))
@@ -284,7 +239,6 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	async function boot() {
 		const [chats, seq, agents, home, pending, agentModels] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm), getHome(warm), getPendingChats(warm), allAgentModels(warm)])
 		if (closed) return
-		// A cache with no drive predates the drive cache. Ask for a snapshot, not the events after `seq`.
 		const first = chats.length ? chats : [kikoPlaceholder(now())]
 		setState({ chats: first, seq: home ? seq : 0, agents, agentModels, home: home ?? { files: [], folders: [] }, patches: [...pending, ...state.patches], loaded: true })
 		socket = createSyncSocket<OwnerToClient>({
@@ -304,7 +258,6 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 				if (frame.t === "room") channel.deliver(frame)
 				else onFrame(frame)
 			},
-			// A socket that drops misses the frame that ends the typing, so it forgets who was.
 			onStatus: (c) => {
 				channel.status(c)
 				setState(c === "open" ? { connection: c } : { connection: c, typing: {} })
@@ -327,7 +280,6 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			const nextLevels = levels ?? current?.thinkingLevels
 			const model = ref ?? current?.model
 			if (model && nextLevels) setState("pendingModels", slug, { model, thinking: clampThinking(nextLevels, thinking ?? current?.thinking ?? defaultThinking(nextLevels)), thinkingLevels: nextLevels })
-			// Kept until the server answers, and sent again on every open, so a pick made while offline is not lost.
 			const frame: AgentModelFrame = { ...unsentModels.get(slug), t: "agent_model", slug, ...(ref ? { ref } : {}), ...(thinking ? { thinking } : {}), ...(roomId ? { roomId } : {}) }
 			unsentModels.set(slug, frame)
 			socket?.send(frame)

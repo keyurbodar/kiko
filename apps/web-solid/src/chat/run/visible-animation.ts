@@ -1,13 +1,5 @@
 import "./shine.css"
 
-/*
- * A port of t3code's `observeVisibleAnimation` (apps/web/src/lib/visibleAnimation.ts). An element
- * that shines runs its animation only while it is on screen, the tab is visible, and the reader
- * has not asked for reduced motion. It sets `--visible-animation-state` and
- * `--visible-animation-will-change` for the CSS to read. All elements share one observer. The
- * shine's look comes with it, so the run tree loads both only once a step runs.
- */
-
 type Observed = { element: HTMLElement | SVGElement; intersecting: boolean }
 
 const observed = new Map<Element, Observed>()
@@ -24,7 +16,6 @@ const updateAll = () => {
   for (const animation of observed.values()) update(animation)
 }
 
-/** Attach to a stable animation container. Returns the call that detaches it. */
 export function observeVisibleAnimation(element: HTMLElement | SVGElement | null): (() => void) | undefined {
   if (element === null) return undefined
   element.style.setProperty("--visible-animation-state", "paused")

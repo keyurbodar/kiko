@@ -20,7 +20,6 @@ type Ports = {
   openChat(title: string, agentIds: readonly string[]): Promise<RoomId>
   chiefModel(): Promise<string>
   composio: {
-    /** The connected toolkit slugs; "off" when Composio has no key; null when it cannot say. Always fresh. */
     connected(): Promise<ReadonlySet<string> | "off" | null>
     link(app: string): Promise<string | null>
   }
@@ -29,7 +28,6 @@ type Ports = {
 
 type InstallOutcome = { ok: true; install: RecipeInstall; setup: string; existed: boolean } | { ok: false; error: string } | { ok: false; needsConnect: RecipeNeedsConnect }
 
-/** Installs and removals. A recipe is a file; an install is a row plus links to its routines. Nothing reconciles them. */
 export class RecipeService {
   private queue: Promise<unknown> = Promise.resolve()
 
@@ -41,23 +39,19 @@ export class RecipeService {
 
   constructor(private readonly p: Ports) {}
 
-  /** The recipe files that load, which of them the owner wrote, the installs with their live routines, and the broken files. */
   async list(): Promise<{ cards: Recipe[]; custom: ReadonlySet<string>; installs: RecipeInstall[]; broken: string[] }> {
     const lib = await this.p.library.read()
     return { cards: lib.recipes, custom: lib.custom, installs: listInstalls(this.p.sql).map((i) => this.withRoutines(i)), broken: lib.broken }
   }
 
-  /** Writes the built-in recipe to the drive. Null when no built-in has that slug. */
   edit(slug: string): Promise<string | null> {
     return this.p.library.edit(slug)
   }
 
-  /** Removes the copies an older build put in the drive. */
   retireSeeded(): Promise<void> {
     return this.p.library.retireSeeded()
   }
 
-  /** Adds a recipe to one agent in one chat. The same recipe, agent, and chat is one install: a second add returns the first. */
   install(input: InstallRecipe, by?: string): Promise<InstallOutcome> {
     return this.serial(() => this.addInstall(input, by))
   }
@@ -88,7 +82,6 @@ export class RecipeService {
     return this.add(recipe, input.installId, roomId, agent, by)
   }
 
-  /** Null when every app the recipe needs is connected. Else the links that connect the missing ones, and nothing is made. */
   private async gate(recipe: Recipe): Promise<RecipeNeedsConnect | null> {
     if (!recipe.apps.length) return null
     const have = await this.p.composio.connected()
@@ -133,7 +126,6 @@ export class RecipeService {
     }
   }
 
-  /** Stops one agent's use of a recipe: its routines are cancelled and the install is gone. The recipe file stays. */
   uninstall(installId: string): Promise<boolean> {
     return this.serial(() => this.removeInstall(installId))
   }
@@ -146,7 +138,6 @@ export class RecipeService {
     return true
   }
 
-  /** A routine of an install was cancelled. When it was the install's last one, the install is over too. */
   routineGone(routineId: string): void {
     const row = this.p.sql.exec<{ install_id: string }>("SELECT install_id FROM recipe_links WHERE routine_id = ?", routineId).toArray()[0]
     if (!row) return
@@ -155,7 +146,6 @@ export class RecipeService {
     if (!left) deleteInstall(this.p.sql, row.install_id)
   }
 
-  /** The chat is gone. Its installs go with it, and their routines are cancelled. */
   chatGone(roomId: string): Promise<void> {
     return this.serial(async () => {
       for (const install of listInstalls(this.p.sql).filter((i) => i.roomId === roomId)) await this.removeInstall(install.installId)
@@ -168,14 +158,12 @@ export class RecipeService {
     })
   }
 
-  /** What an agent's skills list says about each recipe. A recipe with no schedule that the human turned on for this agent here says so. */
   async briefs(roomId: string, agent: string): Promise<{ name: string; description: string }[]> {
     const { recipes } = await this.p.library.read()
     const on = new Set(this.p.sql.exec<{ slug: string }>("SELECT slug FROM recipe_installs WHERE room_id = ? AND agent = ?", roomId, agent).toArray().map((r) => r.slug))
     return recipes.map((r) => ({ name: r.slug, description: `${r.title} recipe: ${r.description}${on.has(r.slug) && !r.triggers.length ? ON_FOR_YOU : ""}` }))
   }
 
-  /** The recipe as `read_skill` shows it, and where it came from. */
   async skillText(slug: string): Promise<string | null> {
     const lib = await this.p.library.read()
     const r = lib.recipes.find((x) => x.slug === slug)
@@ -185,7 +173,6 @@ export class RecipeService {
     return `the ${r.title.toLowerCase()} recipe, from ${from}. it runs: ${r.when.toLowerCase()}.${apps}\n\n${r.body}`
   }
 
-  /** An install with its routines that are still live. A routine that is done or cancelled is not shown. */
   private withRoutines(install: Install): RecipeInstall {
     const links = this.p.sql.exec<{ routine_id: string }>("SELECT routine_id FROM recipe_links WHERE install_id = ?", install.installId).toArray()
     const routines = links.flatMap(({ routine_id }) => {

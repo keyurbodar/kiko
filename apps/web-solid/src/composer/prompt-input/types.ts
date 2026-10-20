@@ -34,13 +34,11 @@ export type PromptInputV2AgentPart = PromptInputV2PartBase & {
   name: string
 }
 
-/** A file in the composer. `type` is "image" for every file; `mime` tells a picture from the rest. */
 export type PromptInputV2Attachment = {
   type: "image"
   id: string
   filename: string
   mime: string
-  /** Bytes. */
   size: number
   blob: { id: string; url: string }
 }

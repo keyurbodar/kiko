@@ -1,7 +1,6 @@
 export const BROWSER = {
   tabsPerBrowser: 8,
   urlsPerBrowse: 4,
-  /** One browse call: up to four pages open at once, so a page still out after this is stuck, not slow. */
   browseMs: 90_000,
   stepsPerAct: 10,
   commandMs: 10_000,

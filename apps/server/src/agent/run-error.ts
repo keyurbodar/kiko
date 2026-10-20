@@ -1,8 +1,6 @@
 import type { ErrorAction, RunErrorAction, RunErrorKind } from "@kiko/protocol"
 import { RETRY_AFTER_TOO_LONG } from "./retry"
 
-// Sorted by what the human can do about it. The first row that matches wins, so the rows that mean
-// "your key" come before the ones that mean "the provider is busy".
 const KINDS: readonly (readonly [RunErrorKind, RegExp])[] = [
   ["too_long", /context[ _-]?(length|window)|maximum context|prompt is too long|too many tokens|input is too long|token limit|exceeds the (model|context)/i],
   ["model_not_found", /model[^.]{0,40}(not found|does not exist|not available|unknown|unsupported|is not supported)|unknown model|no such model|invalid model|\bnot[_ ]found\b.{0,40}model|\b404\b/i],
@@ -11,7 +9,6 @@ const KINDS: readonly (readonly [RunErrorKind, RegExp])[] = [
   ["rate_limit", /\b429\b|rate[ _-]?limit|too many requests|resource[ _]exhausted/i],
   ["refused", /content[ _-]?(filter|policy)|safety|refus|violat|blocked|moderation/i],
   ["timeout", /timed? ?out|timeout|deadline exceeded|\b504\b|stalled|stopped responding/i],
-  // pi-ai's words when the provider closes the stream before its last chunk (api/openai-completions.js).
   ["cut_off", /stream ended without finish_reason|terminated|premature close|unexpected end of (stream|json input)/i],
   ["overloaded", /overloaded|\b(502|503|529)\b|unavailable|bad gateway|capacity|\b5\d\d\b/i],
   ["network", /connection (error|reset|refused|closed)|fetch failed|network|econn|enotfound|socket hang up|dns|offline/i],
@@ -19,12 +16,6 @@ const KINDS: readonly (readonly [RunErrorKind, RegExp])[] = [
 
 const DETAIL_MAX = 300
 
-/**
- * Whether a failed run leaves its workers running. A failure the provider will repeat on the next
- * request (a key, a plan, a model that is gone, a request the model rejects) is fatal: the lead
- * cannot go on, so its workers stop too. A busy or unreachable provider is transient: the lead's
- * failure says nothing about the workers, so they finish and report.
- */
 const FATAL: Readonly<Record<RunErrorKind, boolean>> = {
   no_key: true,
   signed_out: true,
@@ -46,7 +37,6 @@ export const stopsWorkers = (kind: RunErrorKind): boolean => FATAL[kind]
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** Cuts out anything that looks like a key or a bearer token. A UUID is an id, not a key, so it stays. */
 export function redact(text: string): string {
   return text
     .replace(/(bearer\s+)\S+/gi, "$1[hidden]")
@@ -56,11 +46,6 @@ export function redact(text: string): string {
 
 const HTML = /<!doctype html|<html[\s>]/i
 
-/**
- * A gateway or a proxy in front of a provider sometimes answers with a web page instead of JSON. Its markup and
- * styles are not words, and their keywords ("blocked", "safety") would pick the wrong kind. Keeps the text before
- * the page (often the status code), the page's title, and its first heading.
- */
 function providerWords(message: string | undefined): string {
   const text = message ?? ""
   const start = text.search(HTML)
@@ -71,10 +56,6 @@ function providerWords(message: string | undefined): string {
   return [text.slice(0, start).trim(), `The provider answered with a web page instead of an answer${said ? `: ${said}` : "."}`].filter(Boolean).join(" ")
 }
 
-/**
- * The provider's own words, shown small under kiko's sentence so the human sees what actually went wrong.
- * Anything that looks like a key or a bearer token is cut out, and the text is capped.
- */
 export function runErrorDetail(message: string | undefined): string | undefined {
   const text = redact(providerWords(message)).replace(/\s+/g, " ").trim()
   if (!text) return undefined
@@ -85,13 +66,11 @@ export function classifyRunError(message: string | undefined): RunErrorKind {
   const text = providerWords(message)
   if (text.includes(RETRY_AFTER_TOO_LONG)) return "rate_limit"
   const kind = KINDS.find(([, pattern]) => pattern.test(text))?.[0] ?? "other"
-  // A web page that says "blocked" is a proxy turning the request away, not the model refusing it.
   return kind === "refused" && HTML.test(message ?? "") ? "other" : kind
 }
 
 type Reply = { reason: string; actions: readonly RunErrorAction[] }
 
-/** A short reason for each failure and the (at most two) things the human can do. Never the provider's own words. */
 const REPLIES: Record<RunErrorKind, Reply> = {
   no_key: { reason: "not connected", actions: ["open_settings", "retry"] },
   signed_out: { reason: "sign-in expired", actions: ["open_settings", "retry"] },
@@ -111,7 +90,6 @@ const REPLIES: Record<RunErrorKind, Reply> = {
 
 type RunFailure = { kind: RunErrorKind; message: string; actions: readonly RunErrorAction[]; toast: ErrorAction | undefined }
 
-/** `provider` is the provider's display name, empty when the run never reached one. The message reads "OpenAI: rate limited". */
 export function describeRunError(kind: RunErrorKind, provider: string): RunFailure {
   const reply = REPLIES[kind]
   return { kind, message: provider ? `${provider}: ${reply.reason}` : reply.reason, actions: reply.actions, toast: reply.actions.includes("open_settings") ? "open_models" : undefined }

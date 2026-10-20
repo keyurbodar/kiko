@@ -6,10 +6,6 @@ import { For, Show } from "solid-js"
 import { cn } from "../lib/cn"
 import { canReason } from "./agent-model"
 
-/**
- * The reasoning picker: a brain, the current level, and a menu of the levels the model supports.
- * It renders nothing for a model that cannot reason. The levels come from pi-ai through the member.
- */
 export function ReasoningMenu(props: {
   levels: readonly ThinkingLevel[] | undefined
   value: ThinkingLevel | undefined

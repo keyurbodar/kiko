@@ -11,14 +11,12 @@ function randomSecret(): string {
 }
 
 
-/** Long enough to pick an account. Nothing else is kept. */
 const CODE_KEEP_MS = 10 * 60_000
 
 async function sha(text: string): Promise<string> {
   return Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))).toString("hex")
 }
 
-// One object per Clerk user, so two clicks of "install" never run at once.
 export class Installer extends DurableObject<Env> {
   async install(req: InstallRequest): Promise<InstallOutcome> {
     const clerk = createClerkClient({ secretKey: this.env.CLERK_SECRET_KEY })
@@ -42,8 +40,6 @@ export class Installer extends DurableObject<Env> {
             },
             put: async (code, tokens) => {
               const now = Date.now()
-              // The stored entry expires on its own timestamp, so the only stale keys are ones older than that.
-              // One delete for all of them keeps this to a single write instead of a deleteAll on every install.
               const stale = [...(await this.ctx.storage.list<{ at: number }>({ prefix: "code:" }))].filter(([, kept]) => now - kept.at >= CODE_KEEP_MS).map(([key]) => key)
               if (stale.length > 0) await this.ctx.storage.delete(stale)
               await this.ctx.storage.put(`code:${await sha(code)}`, { tokens, at: now })

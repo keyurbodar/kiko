@@ -1,11 +1,6 @@
-// The file tree's pure parts: the path index, sorting, hidden files, and the
-// per-room expanded set. No Solid and no DOM, so a table of cases covers them.
-
-/** The root's id. Every other node's id is its full path, with no leading slash. */
 export const ROOT = ""
 
 export type TreeIndex = {
-	/** Child ids by parent id, folders first and then files, each by name. */
 	children: Map<string, string[]>
 	folders: Set<string>
 }
@@ -14,15 +9,10 @@ export const basename = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 export const dirname = (path: string) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ROOT)
 export const join = (dir: string, name: string) => (dir === ROOT ? name : `${dir}/${name}`)
 
-/** A dot file, or anything inside a dot folder. */
 export const isHidden = (path: string) => path.split("/").some((part) => part.startsWith("."))
 
 const byName = (a: string, b: string) => basename(a).localeCompare(basename(b), undefined, { numeric: true })
 
-/**
- * Builds the tree from the room's file paths. `emptyFolders` are folders the
- * user made that hold no file yet, since the index only knows files.
- */
 export function buildIndex(paths: Iterable<string>, emptyFolders: Iterable<string> = []): TreeIndex {
 	const folders = new Set<string>()
 	const files = new Set<string>()
@@ -41,7 +31,6 @@ export function buildIndex(paths: Iterable<string>, emptyFolders: Iterable<strin
 		folders.add(path)
 		addFolders(path)
 	}
-	// A path that is both a file and a folder prefix shows as the folder.
 	for (const dir of folders) files.delete(dir)
 	const children = new Map<string, string[]>([[ROOT, []]])
 	for (const dir of folders) children.set(dir, [])
@@ -56,12 +45,9 @@ export function buildIndex(paths: Iterable<string>, emptyFolders: Iterable<strin
 	return { children, folders }
 }
 
-/** Every file path at or under `path`, for a delete or a rename of a folder. */
 export function pathsUnder(paths: Iterable<string>, path: string): string[] {
 	return [...paths].filter((p) => p === path || p.startsWith(`${path}/`))
 }
-
-// The expanded set, one per room.
 
 export type KeyValueStore = Pick<Storage, "getItem" | "setItem">
 
@@ -80,29 +66,16 @@ export function saveExpanded(roomId: string, store: KeyValueStore | undefined, e
 	try {
 		store?.setItem(expandedKey(roomId), JSON.stringify(expanded))
 	} catch {
-		// Private windows and full quotas throw. The tree works without it.
 	}
 }
 
-/** The tree virtualizes past this many visible rows. */
 export const VIRTUALIZE_AFTER = 500
 
-/*
- * The tree shows the user's drive as a top folder, home/, beside the chat's own files. A path
- * under it belongs to the drive: its bytes are served from /api/files/home, and its changes go to
- * the user socket. Moving between the two is refused, as for agents: it is a copy.
- */
 export const HOME = "home"
 export const inHome = (p: string) => p === HOME || p.startsWith(`${HOME}/`)
 export const strip = (p: string) => (p === HOME ? "" : p.slice(HOME.length + 1))
-/** Where a tree path lives: its space (a room id or `home`) and its path there. */
 export const where = (chatId: string, p: string) => (inHome(p) ? { space: HOME, path: strip(p) } : { space: chatId, path: p })
 
-/**
- * The folder a new file or folder goes into, from the row the user last touched. A folder row
- * (a trailing slash) is its own target, and a compacted `a / b` row stands for its deepest folder.
- * A file row gives its folder, and no row gives the root.
- */
 export const createParent = (touched: string | null | undefined): string => {
 	if (!touched) return ROOT
 	return touched.endsWith("/") ? touched.replace(/\/+$/, "") : dirname(touched)

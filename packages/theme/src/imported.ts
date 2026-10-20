@@ -1,13 +1,8 @@
-// The VS Code themes a person imported from Open VSX, kept in this browser under their own key so
-// the look record (`look.ts`) and the server's theme slot stay as they are. Each appearance can
-// use one imported theme. Parsing happens here, at the edge, like `look.ts`.
-
 import { PALETTE_KEYS, type Palette, type ThemeAppearance } from "./palette"
 
 export type ImportedTheme = {
   id: string
   name: string
-  /** Where the theme came from, shown under its name, for example `dracula-theme.dracula`. */
   source: string
   appearance: ThemeAppearance
   accent: string
@@ -46,7 +41,6 @@ function readTheme(raw: unknown): ImportedTheme | null {
   return { id, name, source, appearance: appearance as ThemeAppearance, accent, palette: palette as Palette }
 }
 
-/** Reads stored text. Anything it cannot read is no imported themes, never an error. */
 export function parseImported(text: string | null): Imported {
   if (!text) return EMPTY_IMPORTED
   let raw: unknown

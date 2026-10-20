@@ -6,23 +6,16 @@ const REJECTED = /\b(401|403)\b|unauthori[sz]ed|forbidden|authentication|invalid
 
 const KEY_REFUSED = "The provider refused that key"
 
-/** What the person reads: kiko's sentence, then what the provider said, keys removed. */
 export const keyRefusedText = (said: string): string => {
   const detail = runErrorDetail(said)
   return detail ? `${KEY_REFUSED}. It said: ${detail}` : `${KEY_REFUSED}.`
 }
 
-/**
- * Sends the cheapest request the provider offers with the candidate key. Only an answer that says the key
- * is refused fails the check; a limit, an outage, or a network error cannot prove the key bad, so the save goes on.
- * Returns the provider's words when it refused the key, else null.
- */
 export async function keyRefused(models: Models, provider: string, headers?: Record<string, string>): Promise<string | null> {
   const said = await providerSaid(models, provider, headers)
   return said !== null && REJECTED.test(said) ? said : null
 }
 
-/** The provider's error text for the cheapest request it offers, or null when it answered. A provider with no text model answers null. */
 export async function providerSaid(models: Models, provider: string, headers?: Record<string, string>): Promise<string | null> {
   const cheapest = models
     .getModels(provider)

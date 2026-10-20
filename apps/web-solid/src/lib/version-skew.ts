@@ -1,4 +1,3 @@
-// Set by vite.config.ts at build time. Tests run without the define, so they read 0.0.0.
 declare const __KIKO_VERSION__: string | undefined
 export const APP_VERSION: string = typeof __KIKO_VERSION__ === "string" ? __KIKO_VERSION__ : "0.0.0"
 

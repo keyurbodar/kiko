@@ -74,7 +74,6 @@ export function parse(raw: string | ArrayBuffer): ClientToRoom | null {
 			return sendFits(frame.text, refs) && (frame.text.trim() !== "" || refs.length > 0) ? frame : null
 		}
 		case "edit":
-			// An edit cannot carry a file, so it stays within the bubble limit.
 			return frame.text.length <= MAX_MESSAGE_TEXT && sendFits(frame.text) && frame.text.trim() !== "" ? frame : null
 		case "answer":
 			return typeof frame.value === "string"

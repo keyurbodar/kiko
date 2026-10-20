@@ -79,7 +79,6 @@ export class OwnerDO extends DurableObject<Env> {
       egress: async (request) => {
         if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
         this.runs.countActive()
-        // check-rules: allow egress OwnerDO owns the agent's outgoing request.
         return fetch(request.url, { redirect: "manual", method: request.method, headers: request.headers, ...(request.body ? { body: request.body } : {}) })
       },
       countOutgoing: () => this.runs.countActive(),
@@ -144,8 +143,6 @@ export class OwnerDO extends DurableObject<Env> {
   private async humanInput<T>(admit: () => Promise<T>): Promise<T> {
     const requested = new Map<string, string>()
     const result = await this.incoming.run(requested, admit)
-    // Admission queues have released before any model work starts. Runs themselves do not
-    // inherit this context: mail and continuations must remain on the alarm path.
     const budget = this.runs.budget()
     const outcomes = await Promise.allSettled([...requested].map(async ([key, requestId]) => {
       const [roomId, slug] = key.split(":")

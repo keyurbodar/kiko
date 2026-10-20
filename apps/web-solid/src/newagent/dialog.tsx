@@ -10,10 +10,6 @@ import { faceOptions, MAX_DESCRIPTION, MAX_NAME, problems, ready, suggestHandle 
 import { closeNewAgent } from "./state"
 
 
-/*
- * The new agent form: a name, a handle, a face, and what it should do. Create opens the agent's own chat at
- * once, and the agent speaks first. Lazy: loaded the first time it opens.
- */
 export default function NewAgentDialog() {
   let nameInput: HTMLInputElement | undefined
   const navigate = useNavigate()

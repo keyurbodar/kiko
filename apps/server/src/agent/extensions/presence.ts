@@ -62,7 +62,6 @@ const OUTPUT_CHARS = 4_000
 const cut = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
 const str = (v: unknown) => (typeof v === "string" ? v : "")
 
-/** The past-tense words for a call, keyed by tool name. A tool that is not here reads "Used <name>". */
 const LABELS: Readonly<Record<string, (args: Record<string, unknown>) => string>> = {
   read: (a) => `Read${path(a)}`,
   ls: (a) => `Listed${path(a) || " the files"}`,
@@ -99,12 +98,10 @@ function inputOf(name: string, args: Record<string, unknown>): string | undefine
   return full ? cut(redact(full), INPUT_CHARS) : undefined
 }
 
-/** What a tool knows about its own call that the table above cannot: a connected app's name and what it did. */
 export type Describe = (name: string, args: Record<string, unknown>) => { label: string; app?: string; input?: string } | null
 
 type StepShown = Pick<RunStep, "tool" | "name" | "label" | "input" | "app">
 
-/** What the run panel shows for one call, or null for a call the human should not see. It asks `describeCall` first, so the two cannot drift. */
 function stepOf(name: string, args: Record<string, unknown>, describe?: Describe): StepShown | null {
   const described = describeCall(name, args)
   if (!described) return null
@@ -115,7 +112,6 @@ function stepOf(name: string, args: Record<string, unknown>, describe?: Describe
   return { tool, name, label: PATH_TOOLS.has(name) ? label : redact(label), ...(input ? { input: cut(redact(input), INPUT_CHARS) } : {}), ...(own?.app ? { app: own.app } : {}) }
 }
 
-/** A tool result as the panel's output text: its text parts, credentials removed, cut to 4,000 characters. */
 function outputOf(content: readonly { type: string; text?: string }[] | undefined): string | undefined {
   const text = (content ?? []).flatMap((c) => (c.type === "text" && c.text ? [c.text] : [])).join("\n")
   return text ? cut(redact(text), OUTPUT_CHARS) : undefined
@@ -133,20 +129,16 @@ function failedCall(described: Described, content: readonly { type: string; text
   return { doing: caption, activity: { kind: "failed", caption } }
 }
 
-/** One tool call, as the agent hands it to the room: the step, and what the agent is doing now. */
 export type StepItem = { step: Omit<RunStep, "slug" | "after">; doing?: string; activity?: Activity }
 
-/** Whose call it is: the run it belongs to, and the worker that made it. */
 type StepScope = { runId: string; worker?: { id: string; task: string } }
 
 export type StepsPort = {
-  /** Null for a call that is no one's to show. */
   scope(conversationId: ConversationId): StepScope | null
   push(item: StepItem): void
   describe?: Describe
 }
 
-/** Reports every tool call the human should see, when it starts and when it ends. The end carries the whole step, so it stands alone after a restart. */
 export function presenceExtension(port: StepsPort): Extension {
   const started = new Map<string, number>()
   const key = (conversationId: ConversationId, id: string) => `${conversationId}:${id}`

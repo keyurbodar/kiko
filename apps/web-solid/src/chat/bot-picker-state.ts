@@ -1,9 +1,5 @@
 import { createRoot, createSignal } from "solid-js"
 
-/*
- * Whether the bot picker is open. Kept apart from the picker so the commands and the sidebar can
- * open it without importing the picker, which loads on first use.
- */
 const [open, setOpen] = createRoot(() => createSignal(false))
 
 export const botPickerOpen = open

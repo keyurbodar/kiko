@@ -69,7 +69,6 @@ const MAX_DOING = 160
 const DELEGATED_TITLE = 100
 const edit = (caption: string): Activity => ({ kind: "tool", tool: "edit", caption })
 
-/** A model reference as the human reads it, such as "Claude Opus 4.6", else the reference itself. */
 const modelNamed = (ref: string): string => {
 	const found = parseModelRef(ref)
 	return (
@@ -296,7 +295,6 @@ export class Room implements SocketRoom {
 		return this.log.meta("title") ?? (await this.chat(home))?.title ?? ""
 	}
 
-	/** The Kiko chat is always Kiko alone. A member that got in before this rule is removed once, so its agent stops. */
 	private setKiko(value: boolean): void {
 		const stored = value ? "1" : "0"
 		if (this.log.meta(KIKO_CHAT) !== stored) this.log.setMeta(KIKO_CHAT, stored)
@@ -332,7 +330,6 @@ export class Room implements SocketRoom {
 		await this.trySeedChatFile(chat.title)
 	}
 
-	/** A pair room holds exactly its two agents. Kiko is there only when it is one of them, and the room has no group notice and no chat file. */
 	private async seedPair(home: Home, chat: Chat): Promise<void> {
 		if (this.members.seeded()) return
 		const mine = await this.services.user().listAgents()
@@ -373,7 +370,6 @@ export class Room implements SocketRoom {
 		return file !== null
 	}
 
-	/** Says a recipe was added, and wakes its agent to set it up unless the agent added it itself. Safe to run twice. */
 	async addRecipe(userId: string, input: { installId: string; agent: AgentSlug; title: string; wake: string | null }): Promise<WakeResult> {
 		if (!this.adopt(userId)) return "refused"
 		const out = input.wake === null ? "delivered" : await this.wakes.wake({ id: `recipe:${input.installId}`, to: input.agent, why: "created", body: input.wake, chain: null })
@@ -445,7 +441,6 @@ export class Room implements SocketRoom {
 		await this.services.agent(home.roomId, slug).receive(d.envelopes, d.brief, this.agentHome(home, slug, member))
 	}
 
-	/** Opens a new group: its /chat.md when `chat` is set, then the creator's kickoff to every other member, as the creator's first message. */
 	async startGroup(userId: string, input: { chat: string | null; creator: AgentSlug; kickoff: string }): Promise<void> {
 		const home = this.adopt(userId)
 		if (!home) return
@@ -769,10 +764,6 @@ export class Room implements SocketRoom {
 		return this.wakes.wake(w)
 	}
 
-	/**
-	 * Sends run one at a time, in the order the sockets delivered them. A long send waits on R2
-	 * before its transaction, so a short send that came after it must wait too, or it takes an earlier seq.
-	 */
 	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<SendOutcome> {
 		const out = this.sends.then(() => this.storeSend(frame))
 		this.sends = out.catch(() => {})
@@ -797,7 +788,6 @@ export class Room implements SocketRoom {
 				const filed = whole ? this.files.put({ id: whole.id, path: attachmentPath(WHOLE_NAME, now, (p) => this.files.stat(p) !== null), r2Key: whole.r2Key, size: whole.size, type: WHOLE_TYPE, sha256: whole.sha256, author: { kind: "human" }, expectSha256: "none" }) : null
 				if (filed && (!filed.file || filed.refused || filed.drop)) throw new ClaimRefused("The message's text could not be stored as a file.")
 				const refs = [...claimed.refs, ...(filed?.file ? [filed.file] : [])]
-				// Each attachment the human named in the text links to where it was stored.
 				const paths = new Map((frame.attachments ?? []).map((a, i) => [a.pendingId, `/${claimed.refs[i]!.name}`]))
 				const body = linkAttachments(text, (id) => paths.get(id))
 				const target = frame.replyTo ? this.log.message(frame.replyTo) : null
@@ -950,18 +940,12 @@ export class Room implements SocketRoom {
 		return out
 	}
 
-	/**
-	 * Tool calls that started or ended, in order, from one agent in one message. A running step is kept in memory and sent on;
-	 * an ended one is written once. Each item may also say what the agent is doing now, so a call costs no second request.
-	 * A non-member's report is dropped, and a step that starts after its run ended.
-	 */
 	async reportSteps(slug: AgentSlug, items: readonly StepItem[]): Promise<void> {
 		if (!this.members.list().some((m) => m.slug === slug)) return
 		const over = new Map<string, boolean>()
 		let latest: StepItem | undefined
 		for (const item of items) {
 			const step: HeardStep = { ...item.step, slug }
-			// A worker's steps keep coming after the run that started it ends.
 			if (step.status === "running" && !step.worker) {
 				const done = over.get(step.runId) ?? this.bubbles.ended(step.runId)
 				over.set(step.runId, done)
@@ -971,7 +955,6 @@ export class Room implements SocketRoom {
 			if (stored) this.broadcast({ t: "step", step: stored })
 			if (item.doing && item.activity) latest = item
 		}
-		// Only the newest caption shows, so a batch writes it once.
 		if (latest?.doing && latest.activity) {
 			const doing = latest.doing.slice(0, MAX_DOING)
 			this.working(slug, [], doing, "caption" in latest.activity ? { ...latest.activity, caption: doing } : latest.activity)
@@ -1002,7 +985,6 @@ export class Room implements SocketRoom {
 		return out
 	}
 
-	/** The human's messages still in the burst window are not dropped: they go out after the stop, as sent. */
 	stop(): void {
 		const home = this.home()
 		if (!home) return
@@ -1059,7 +1041,6 @@ export class Room implements SocketRoom {
 		return null
 	}
 
-	/** The frame for a model pick. The user keeps it for every chat, so this passes it on. */
 	setModel(ref: string, slug?: AgentSlug): void {
 		const home = this.home()
 		if (!home || ref.indexOf("/") <= 0) return
@@ -1070,7 +1051,6 @@ export class Room implements SocketRoom {
 		this.ctx.waitUntil(this.services.user().setAgentModels(slugs, ref, home.roomId))
 	}
 
-	/** The user calls this when an agent in this chat changes model here. `was` is the model it ran on before. */
 	async modelChanged(slug: AgentSlug, ref: string, was?: string): Promise<void> {
 		const member = this.members.get(slug)
 		if (!member) return
@@ -1151,12 +1131,10 @@ export class Room implements SocketRoom {
 		return this.cannotRun(slug, `no_provider:${slug}:${requestId}`, kind, provider, because, heard, inputs)
 	}
 
-	/** The agent's model is one pi-ai does not list, such as a retired one. It stays picked; the human picks another. */
 	async modelGone(slug: AgentSlug, provider: string, model: string, requestId: string, heard: readonly string[] = [], inputs: readonly string[] = []): Promise<boolean> {
 		return this.cannotRun(slug, `model_gone:${slug}:${requestId}`, "model_not_found", provider, `its model ${model} is not one Kiko can run`, heard, inputs, `${model} is not in the model list this version of Kiko knows.`)
 	}
 
-	/** The agent has no model because the human never picked one. Kiko does not pick for them. */
 	async noModel(slug: AgentSlug, requestId: string, heard: readonly string[] = [], inputs: readonly string[] = []): Promise<boolean> {
 		return this.cannotRun(slug, `no_model:${slug}:${requestId}`, "no_model", "", "the human has not picked a model for it", heard, inputs)
 	}
@@ -1176,11 +1154,6 @@ export class Room implements SocketRoom {
 		this.reportRunError(slug, `run-error:${slug}:${runId}`, error.kind, error.provider, error.inputs, typeof error.detail === "string" ? error.detail.slice(0, 300) : undefined)
 	}
 
-	/**
-	 * A failed run is a row in the transcript the human can act on, and one toast for a human who is
-	 * in another chat. `key` makes a repeat store nothing. Retry needs the human messages the run
-	 * answered, so it is offered only when there are some.
-	 */
 	private reportRunError(slug: AgentSlug, key: string, kind: RunErrorKind, provider: string, inputs: readonly string[], detail?: string): { id: MessageId; seq: number } | null {
 		const member = this.members.get(slug)
 		const home = this.home()
@@ -1201,7 +1174,6 @@ export class Room implements SocketRoom {
 		return stored
 	}
 
-	/** Runs again the input of a failed run, as new deliveries of the same human messages. Nothing is sent again. */
 	async retryRun(messageId: MessageId): Promise<void> {
 		const saved = this.log.meta(`retry:${messageId}`)
 		if (!saved) return
@@ -1220,10 +1192,6 @@ export class Room implements SocketRoom {
 		this.broadcast({ t: "draft", slug, runId, index, text: replyTag(text).text })
 	}
 
-	/**
-	 * The words a run wrote between two tool calls, as a step of its own. It is not a call: the panel shows it as a
-	 * paragraph, in order with the calls around it, so the chat keeps only the ack and the answer.
-	 */
 	async note(slug: AgentSlug, runId: string, id: string, text: string): Promise<void> {
 		if (!this.members.list().some((m) => m.slug === slug)) return
 		const at = Date.now()
@@ -1238,7 +1206,6 @@ export class Room implements SocketRoom {
 			this.reports.run(this.routines.ended(slug), "ended")
 		} else if (this.members.get(slug)?.status === "idle") this.routines.started(slug, this.log.lastSeq())
 		if (!this.members.setStatus(slug, state)) return false
-		// What the typing row says. A string sets it, null puts back "writing a reply", and no argument leaves a tool's caption.
 		if (state === "typing" && detail !== undefined) this.team.doing(slug, detail ?? "writing a reply", Date.now(), { kind: "writing" })
 		else if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now(), { kind: "writing" })
 		this.broadcastStatus(slug)
@@ -1295,7 +1262,6 @@ export class Room implements SocketRoom {
 		return { t: "typing", who: [...this.members.busy().keys()] }
 	}
 
-	/** What a new room socket needs to know: who is busy and what each is doing. Statuses are not part of a catch-up. */
 	presence(): RoomToClient[] {
 		const statuses = this.members
 			.list()
@@ -1307,7 +1273,6 @@ export class Room implements SocketRoom {
 		return statuses.length ? [this.activeFrame(), ...statuses.map((s): RoomToClient => ({ t: "status", ...s }))] : []
 	}
 
-	/** The sidebar says "typing" for an agent that is writing a reply, not for one using a tool. One chain keeps the frames in order. */
 	private pushTyping(): Promise<void> {
 		const home = this.home()
 		if (!home) return Promise.resolve()
@@ -1323,8 +1288,6 @@ export class Room implements SocketRoom {
 		return this.typingChain
 	}
 
-	// The dev-only bodies live in room/dev.ts, which only a development build can load. One cached load
-	// per object reaches every dev method below.
 	private devCache?: Promise<RoomDev>
 
 	private dev(): Promise<RoomDev> {
@@ -1364,7 +1327,6 @@ export class Room implements SocketRoom {
 		return (await this.dev()).agePending(ms)
 	}
 
-	/** A card in the chat that asks the human to take control of the browser. `key` names the spell of control, so a retry adds nothing. */
 	async browserAsk(slug: AgentSlug, reason: string, key: string): Promise<boolean> {
 		const member = this.members.get(slug)
 		if (!member) return false

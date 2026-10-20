@@ -3,8 +3,6 @@ import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import { CliError, type Context } from "../main"
 
-// The CLI keeps one bearer token per server origin in a JSON file.
-// KIKO_SESSION_FILE moves it, so tests never touch the real one.
 type Sessions = Record<string, string>
 
 export function sessionFile(): string {
@@ -44,7 +42,6 @@ async function request(url: URL, init: RequestInit): Promise<Response> {
 }
 
 export async function login(ctx: Context): Promise<void> {
-  // A deployed Worker has the access code and no dev route. A local one has the dev route.
   const code = process.env.KIKO_ACCESS_CODE
   if (!ctx.dev && !code) throw new CliError("set KIKO_ACCESS_CODE to sign in to a deployed server, or pass --dev for a local one")
   const url = endpoint(ctx, ctx.dev ? "api/auth/dev/session" : "api/auth/access-code")

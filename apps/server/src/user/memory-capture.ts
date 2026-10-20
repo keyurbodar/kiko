@@ -23,7 +23,6 @@ const MEMORY_POLICY = "memory_policy"
 const REFUSED = /\((401|403)\)/
 const CAPTURE_QUEUE_MAX = 200
 const CAPTURE_PER_RUN = 24
-// Rows per judge request. A request grows with rows times candidates times known facts, and a long one times out.
 const CAPTURE_CHUNK = 4
 const CAPTURE_TEXT_MAX = 8_000
 const CAPTURE_TIMEOUT_MS = 8_000
@@ -101,7 +100,6 @@ export class MemoryCapture {
     }
   }
 
-  // Only a dev route reads these counters, so production skips the settings write on every model call.
   count(delta: Record<string, number>): void {
     if (!DEV || !Object.values(delta).some((n) => n !== 0)) return
     const spent = this.usage()
@@ -139,7 +137,6 @@ export class MemoryCapture {
     await this.captureNow()
   }
 
-  /** Writes down what the queue holds. A row the judge does not answer stays queued for the next human run. */
   async captureNow(): Promise<void> {
     if (!this.captures()) {
       if (this.sql.exec("SELECT 1 FROM capture_queue LIMIT 1").toArray().length) this.sql.exec("DELETE FROM capture_queue")
@@ -164,7 +161,6 @@ export class MemoryCapture {
     }
   }
 
-  /** Summarizes up to a few spans. A span that fails stays pending for the next human run. */
   async napLife(): Promise<void> {
     for (const span of this.life.pending(NAPS_PER_RUN)) {
       const prompt = this.life.prompt(span)
@@ -184,7 +180,6 @@ export class MemoryCapture {
     if (this.#compressing >= MAX_NAPS) return { retryAt: Date.now() + 5_000 + Math.floor(Math.random() * 5_000) }
     this.#compressing++
     try {
-      // Summaries run on the model the human set for them, else on Kiko's. Never on one nobody picked.
       const kiko = agentModel(this.sql, KIKO)
       const ref = this.memoryModel() ?? (kiko ? parseModelRef(kiko.model) : null)
       if (!ref) return { retryAt: Date.now() + 10 * 60_000 }

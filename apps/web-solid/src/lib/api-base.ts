@@ -1,8 +1,3 @@
-/*
- * The part of the API module that tier 1 needs: where the backend is and who is asking. The base is "" (this
- * origin) unless `kiko:backend` is stored or VITE_API_BASE is set.
- */
-
 const TOKEN_KEY = "kiko:token"
 const BACKEND_KEY = "kiko:backend"
 
@@ -19,7 +14,6 @@ export function write(key: string, value: string | null): void {
     if (value) localStorage.setItem(key, value)
     else localStorage.removeItem(key)
   } catch {
-    // storage can be blocked. the token still works for this page load.
   }
 }
 

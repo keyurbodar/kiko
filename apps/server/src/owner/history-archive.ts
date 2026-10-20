@@ -78,7 +78,6 @@ export class HistoryArchive {
     } else existing = await archive.readDay(this.roomId, pending.day)
     const same = existing.length === pending.rows.length && existing.every((row, index) => {
       const next = pending.rows[index]!
-      // The fingerprint already covers the row and its reactions, so only the derived preview needs its own look.
       return row.id === next.id && row.fingerprint === next.fingerprint && JSON.stringify(row.preview) === JSON.stringify(next.preview)
     })
     if (!same) await archive.writeDay(this.roomId, pending.day, pending.rows)

@@ -1,8 +1,5 @@
 import type { Trigger } from "@kiko/protocol"
 
-// A chat's routines, as the panel lists them: what starts each one,
-// in words. Pure, so the table of cases is tested without a DOM.
-
 const DAYS: Record<string, string> = { MO: "Mon", TU: "Tue", WE: "Wed", TH: "Thu", FR: "Fri", SA: "Sat", SU: "Sun" }
 
 const clock = (at: number, timeZone?: string) =>
@@ -10,7 +7,6 @@ const clock = (at: number, timeZone?: string) =>
 
 const date = (at: number, timeZone?: string) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone }).format(at)
 
-/** The parts of an RRULE the panel speaks. BYHOUR and BYMINUTE are wall-clock times in the routine's zone. */
 function readRule(rrule: string) {
   const parts = new Map(rrule.replace(/^RRULE:/i, "").split(";").map((p) => p.split("=") as [string, string]))
   const interval = Number(parts.get("INTERVAL") ?? 1)
@@ -26,7 +22,6 @@ function readRule(rrule: string) {
 
 const UNITS: Record<string, string> = { HOURLY: "hour", DAILY: "day", WEEKLY: "week", MONTHLY: "month", YEARLY: "year" }
 
-/** A wall-clock hour in 12-hour style. The minutes show when they are not zero, or when `always` is set. */
 const hourLabel = (hour: number, minute: number, always: boolean) =>
   `${hour % 12 || 12}${always || minute ? `:${String(minute).padStart(2, "0")}` : ""} ${hour < 12 ? "AM" : "PM"}`
 
@@ -54,7 +49,6 @@ function timeLabel(trigger: Extract<Trigger, { on: "time" }>, timeZone?: string)
   return `${rule.interval === 1 ? `Every ${unit}` : `Every ${rule.interval} ${unit}s`} ${when}`
 }
 
-/** What starts a routine, as a line under its name. */
 export function triggerLabel(trigger: Trigger, timeZone?: string): string {
   switch (trigger.on) {
     case "time":

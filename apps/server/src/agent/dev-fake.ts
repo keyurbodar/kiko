@@ -70,7 +70,6 @@ function workerReply(messages: readonly Message[], toolNames: () => string) {
 
 const toolsOf = (transcript: readonly Message[]) => new Set([...JSON.stringify(transcript.filter((m) => m.role === "system")).matchAll(/"name":"([\w-]+)","description"/g)].map((m) => capture(m, 1)))
 
-// The inputs that already failed once: `[model-error-once]` fails the first request and answers the retry.
 const failedOnce = new Set<string>()
 
 export function fakeReply(transcript: readonly Message[]) {
@@ -182,7 +181,6 @@ function anyToolCall(raw: string) {
   return direct ? fauxToolCall(capture(direct, 1), JSON.parse(capture(direct, 2))) : null
 }
 
-/** `[textcall name {json}]` answers the way an open model does when it writes its tool call as text. */
 function textCall(raw: string) {
   const m = /\[textcall (\w+) (\{.*\})\]\s*$/m.exec(raw.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&"))
   if (!m) return null

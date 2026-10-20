@@ -6,11 +6,8 @@ import { type Step } from "@kiko/durable/migrate"
 
 const context = BACKGROUND_CONTEXT
 
-// Workers share the human's one API key.
 export const MAX_WORKERS = 3
-// The inbox refuses an entry over 128 KB.
 export const REPORT_CHARS = 16_000
-// How many changed paths a note or a report names before it says "and N more".
 const LISTED_PATHS = 20
 const KEEP_DELIVERED_MS = 7 * 86_400_000
 export const MAX_WORKER_RESUMES = 3
@@ -20,10 +17,6 @@ export type WorkStatus = "pending" | "running" | "done" | "failed" | "stopped"
 
 type WorkEvent = "submit" | "done" | "lose" | "stop"
 
-/**
- * What a worker becomes when an event reaches it. A row that already ended takes no event but
- * `submit`, so a late report cannot reopen a stopped worker, and a stop cannot revive a done one.
- */
 const TRANSITIONS: Readonly<Record<WorkStatus, Partial<Record<WorkEvent, WorkStatus>>>> = {
   pending: { submit: "running", stop: "stopped", lose: "failed" },
   running: { done: "done", lose: "failed", stop: "stopped" },
@@ -34,7 +27,6 @@ const TRANSITIONS: Readonly<Record<WorkStatus, Partial<Record<WorkEvent, WorkSta
 
 export const transition = (from: WorkStatus, event: WorkEvent): WorkStatus => TRANSITIONS[from][event] ?? from
 
-/** No event moves a worker out of these. */
 export const ended = (status: WorkStatus): boolean => status === "done" || status === "failed" || status === "stopped"
 
 export type Work = {
@@ -46,7 +38,6 @@ export type Work = {
   step: string | null
   steps: number
   delivered: boolean
-  /** The run that started it. Its tool calls show in that run's steps. */
   runId: string | null
   startedAt: number
   updatedAt: number
@@ -81,7 +72,6 @@ const toWork = (r: Row): Work => ({
 })
 
 export type WorkersOptions = {
-  // Must not wait for a run.
   deliver: (envelope: Envelope) => Promise<unknown>
   onChange?: (running: number) => void
   now?: () => number
@@ -135,7 +125,6 @@ export class Workers {
     return this.list().filter((w) => w.status === "running")
   }
 
-  /** Every worker that holds a slot: one still being placed, and one at work. */
   live(): Work[] {
     return this.list().filter((w) => !ended(w.status))
   }
@@ -170,7 +159,6 @@ export class Workers {
   placed(id: string, conversationId: ConversationId): void {
     const work = this.get(id)
     if (!work) return
-    // A placement only promotes a reserved worker. One stopped in between stays stopped.
     this.sql.exec("UPDATE workers SET conversation_id = ?, status = ?, updated_at = ? WHERE id = ? AND agent = ?", conversationId, work.status === "pending" ? transition(work.status, "submit") : work.status, this.now(), id, this.agent)
     if (work.status === "pending") this.changed()
   }
@@ -188,7 +176,6 @@ export class Workers {
     return cursor.rowsWritten > 0
   }
 
-  // A path is kept once, so a replayed call adds nothing. The files extension calls this at each commit, so a stop or a restart after the commit keeps the path.
   touched(conversationId: ConversationId, paths: readonly string[]): void {
     if (!paths.length) return
     const row = this.sql.exec<{ id: string }>("SELECT id FROM workers WHERE conversation_id = ? AND agent = ?", conversationId, this.agent).toArray()[0]
@@ -196,18 +183,12 @@ export class Workers {
     this.sql.exec("INSERT OR IGNORE INTO worker_changes (agent, work_id, path, n) SELECT ?, ?, value, (SELECT coalesce(max(n), 0) FROM worker_changes WHERE agent = ? AND work_id = ?) + CAST(key AS INTEGER) + 1 FROM json_each(?)", this.agent, row.id, this.agent, row.id, JSON.stringify(paths))
   }
 
-  // The first paths a worker changed, in the order they changed, and how many more.
   changedPaths(id: string): { paths: string[]; more: number } {
     const paths = this.sql.exec<{ path: string }>("SELECT path FROM worker_changes WHERE work_id = ? AND agent = ? ORDER BY n, path LIMIT ?", id, this.agent, LISTED_PATHS).toArray()
     const total = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM worker_changes WHERE work_id = ? AND agent = ?", id, this.agent).one().n
     return { paths: paths.map((r) => r.path), more: total - paths.length }
   }
 
-  /**
-   * Stops a worker. The status is written first, so a crash between the write and the abort still
-   * converges, and the wait on the abort cannot be awaited from a run that holds this object: the
-   * abort needs an invocation of its own. A caller that must know the work is idle awaits `settle`.
-   */
   async stop(id: string): Promise<Work | null> {
     const work = this.get(id)
     if (!work || ended(work.status)) return work
@@ -226,7 +207,6 @@ export class Workers {
     await Promise.all(live.map((work) => this.abort(work)))
   }
 
-  // Their ids start over, so no row may point into them.
   forget(): void {
     this.sql.exec(
       "UPDATE workers SET status = CASE WHEN status IN ('pending', 'running') THEN 'failed' ELSE status END, delivered = 1, task_id = 'gone:' || id, conversation_id = NULL, submission_id = NULL, updated_at = ? WHERE task_id NOT LIKE 'gone:%' AND agent = ?",
@@ -237,7 +217,6 @@ export class Workers {
 
   async invalidate(harness: Harness): Promise<void> {
     const previous = this.list()
-    // Detach first so a settling report cannot race the abort.
     this.forget()
     this.sql.exec("UPDATE workers SET task = '', step = NULL WHERE agent = ?", this.agent)
     this.sql.exec("DELETE FROM worker_changes WHERE agent = ?", this.agent)
@@ -287,7 +266,6 @@ export class Workers {
       const conversation = await harness.conversation(work.conversationId, context)
       await conversation?.abort(context)
     } catch (error) {
-      // The status is written before this runs, so a failed abort is logged and the next open retries.
       console.error(`worker ${work.id} abort failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
@@ -298,7 +276,6 @@ export class Workers {
     const work = this.get(id)
     if (harness !== this.harness || !work || work.delivered || !work.conversationId) return
     if (work.submissionId !== submissionId) return
-    // An input that joined after this one, such as a steer, may still be live.
     const newer = (await harness.inspect(context)).submissions.filter((s) => s.conversationId === work.conversationId).at(-1)
     if (harness !== this.harness) return
     if (newer) {
@@ -307,7 +284,6 @@ export class Workers {
     }
     const marked = this.get(id)?.status
     const status: WorkStatus = marked === "stopped" || marked === "failed" ? marked : settled?.status === "done" ? transition("running", "done") : transition("running", "lose")
-    // The agent stopped it, so it already knows. A report would only wake it to say so again, unless files changed.
     if (status === "stopped" && !this.changedPaths(id).paths.length) {
       this.sql.exec("UPDATE workers SET status = 'stopped', delivered = 1, resumes = 0, updated_at = ? WHERE id = ? AND submission_id = ? AND agent = ?", this.now(), id, submissionId, this.agent)
       return this.changed()
@@ -316,11 +292,9 @@ export class Workers {
     const now = this.get(id)
     if (harness !== this.harness || !now || now.delivered || now.submissionId !== submissionId) return
     this.sql.exec("UPDATE workers SET status = ?, updated_at = ? WHERE id = ? AND agent = ?", status, this.now(), id, this.agent)
-    // A done worker's report is its own words. A worker that ended early says what it left behind.
     const text = status === "done" ? report : `${report} changed: ${listed(this.changedPaths(id))}.`
     await this.options.deliver(workEnvelope(now, submissionId, status, text))
     this.sql.exec("UPDATE workers SET delivered = 1, resumes = 0 WHERE id = ? AND submission_id = ? AND agent = ?", id, submissionId, this.agent)
-    // After the report is in the inbox, so the agent does not show idle before the run that tells the human.
     if (now.status === "running") this.changed()
   }
 
@@ -336,11 +310,6 @@ export class Workers {
   }
 }
 
-/**
- * A worker's words with the harness's own diagnostics taken out. A tool refusal comes back to the
- * worker as a `<harness>` block; a report that quotes one is machinery, and the agent that reads
- * it would tell the human the same.
- */
 export const plainReport = (text: string): string => text.replace(/<harness>[\s\S]*?(?:<\/harness>|$)/g, "").trim()
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)

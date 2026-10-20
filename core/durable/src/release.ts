@@ -1,7 +1,3 @@
-// Ed25519 release signatures. The owner signs manifest.json with a private key that never leaves the
-// machine that built the release. The installer and the update path check the signature with the
-// public key `x` (base64url, the JWK form) before they trust any module the manifest names.
-
 import { sha256Hex } from "./hash"
 
 const ALGORITHM = { name: "Ed25519" } as const
@@ -31,8 +27,6 @@ function fromBase64(text: string): Uint8Array | null {
   }
 }
 
-// Returns true only when `sigB64` is a valid Ed25519 signature of `manifestBytes` under `publicKeyX`.
-// Any malformed input returns false; it never throws, so a caller cannot mistake an error for a pass.
 export async function verifyRelease(manifestBytes: Uint8Array, sigB64: string, publicKeyX: string): Promise<boolean> {
   const signature = fromBase64(sigB64.trim())
   const rawKey = fromBase64Url(publicKeyX.trim())
@@ -64,7 +58,6 @@ export type ReleaseManifest = {
   modules: ReleaseModule[]
 }
 
-// Parses manifest bytes that already passed verifyRelease. Returns null when the shape is wrong.
 export function parseManifest(manifestBytes: Uint8Array): ReleaseManifest | null {
   try {
     const m = JSON.parse(new TextDecoder().decode(manifestBytes)) as Partial<ReleaseManifest>
@@ -85,7 +78,6 @@ export function parseManifest(manifestBytes: Uint8Array): ReleaseManifest | null
   }
 }
 
-// True when the bytes hash to the module's recorded sha256.
 export async function verifyModuleHash(module: ReleaseModule, bytes: Uint8Array): Promise<boolean> {
   return (await sha256Hex(bytes)) === module.sha256.toLowerCase()
 }

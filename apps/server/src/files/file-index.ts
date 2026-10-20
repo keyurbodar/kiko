@@ -42,7 +42,6 @@ export type PutResult<E = unknown> = {
 
 export const fail = (code: FsFail["code"], message: string): FsFail => ({ ok: false, code, message })
 
-/** The changes every batch shares. A batch of writes carries bytes where the index carries a stored file. */
 export type TreeChange =
   | { op: "move"; from: string; to: string; sha256: string }
   | { op: "remove"; path: string; sha256: string }
@@ -71,7 +70,6 @@ export function parents(path: string): string[] {
   return out
 }
 
-// The half-open range of paths under a folder. The root's range is open at the top. A range, not substr(), so SQLite reads the path index.
 function under(dir: string): [string, string | null] {
   return dir ? [`${dir}/`, `${dir}0`] : ["", null]
 }
@@ -85,7 +83,6 @@ type Tables = { files: string; dirs: string }
 export const ROOM_TABLES: Tables = { files: "files", dirs: "directories" }
 export const HOME_TABLES: Tables = { files: "files", dirs: "directories" }
 
-// The index's two tables under the given names. The object's schema list spreads these.
 export function fileIndexSteps(t: Tables): Step[] {
   return [
     `CREATE TABLE IF NOT EXISTS ${t.files} (
@@ -148,7 +145,6 @@ export class FileIndex<E> {
   private isDir(path: string): boolean {
     if (path === "") return true
     if (this.sql.exec(`SELECT 1 FROM ${this.t.dirs} WHERE path = ?1 AND ${this.t.dirs}.room_id = ?2`, path, this.roomId).toArray().length) return true
-    // A file below a path makes it a folder even without a row, as for a file written before rows existed.
     return this.files(path, 1).length > 0
   }
 

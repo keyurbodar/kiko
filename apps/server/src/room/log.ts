@@ -32,15 +32,12 @@ export const KEEP_EVENTS = 2 * REPLAY_LIMIT
 const TRIM_EVERY = 100
 export const SNAPSHOT_MESSAGES = 200
 
-// A private event is for the owner's transcript only: no agent, memory pass, search or chat preview reads it.
 const PUBLIC_MESSAGE = "(event IS NULL OR json_extract(event, '$.private') IS NOT 1)"
 
-// Mail between agents sits behind a divider in the transcript, so a preview or a search result does not quote it either.
 export const LISTED_MESSAGE = `${PUBLIC_MESSAGE} AND addressed IS NULL`
 
 const PREVIEW_CHARS = 140
 
-/** What a reply's quote shows for a message: its words cut short, or what its files are. */
 function previewText(text: string, files: readonly Pick<FileRef, "name" | "type">[] = []): string {
 	const body = text.replace(/\s+/g, " ").trim()
 	if (body) return body.length > PREVIEW_CHARS ? `${Array.from(body).slice(0, PREVIEW_CHARS - 1).join("")}…` : body
@@ -108,9 +105,7 @@ function actorFromKey(key: string): Actor {
 }
 
 export class RoomLog {
-	/** The tool calls of agents. The log stamps them as it hears them and counts each agent's since its last message. */
 	readonly steps: RunSteps
-	/** Each agent's open window: the seq of its last message to the human, and how many steps it made since. Read once per wake. */
 	private readonly windows = new Map<string, { after: number; count: number }>()
 
 	constructor(
@@ -143,7 +138,6 @@ export class RoomLog {
 		return open
 	}
 
-	/** A step began or ended. Stamps it with its agent's open window and returns it when the panel should hear of it. */
 	hearStep(heard: HeardStep): RunStep | null {
 		const open = this.window(heard.slug)
 		if (heard.status === "running") {
@@ -169,7 +163,6 @@ export class RoomLog {
 	}
 
 	setMeta(key: string, value: string): void {
-		// A value the row already holds costs a row for nothing, and the free plan counts rows written.
 		this.scopedStorage.sql.exec(
 			"INSERT INTO owner_meta (key, value, scope) VALUES (?1, ?2, 'room:' || ?3) ON CONFLICT(key, scope) DO UPDATE SET value = excluded.value WHERE NOT value IS excluded.value",
 			key,
@@ -203,7 +196,6 @@ export class RoomLog {
 			)
 			.toArray()
 		const members = listMembers(this.scopedStorage, this.roomId)
-		// Only an agent with steps since its last message has a tail to send.
 		const open = new Map(members.map((m) => [m.slug as string, this.window(m.slug)] as const))
 		const pending = new Map([...open].flatMap(([slug, w]) => (w.count ? [[slug, w.after] as const] : [])))
 		const steps = this.steps.tails(pending)
@@ -220,10 +212,6 @@ export class RoomLog {
 		}
 	}
 
-	/**
-	 * Live messages around `seq`, oldest first: up to `before` older than `seq`, then up to `after`
-	 * at or after it. Both ends read the seq index, so the cost is the window, not the room.
-	 */
 	around(seq: number, before: number, after: number): Message[] {
 		const older = before
 			? this.sql
@@ -237,7 +225,6 @@ export class RoomLog {
 		return this.withReactions([...older, ...newer])
 	}
 
-	/** What each message in `ids` says now, deleted or not, so a reply to it can quote it. Another kind of sender has no quote. */
 	private previews(ids: readonly string[]): Map<string, ReplyPreview> {
 		const out = new Map<string, ReplyPreview>()
 		if (!ids.length) return out
@@ -256,7 +243,6 @@ export class RoomLog {
 		return out
 	}
 
-	/** Messages for rows, with the reactions of every row read in one query, not one per message. */
 	private withReactions(rows: MessageRow[]): Message[] {
 		if (!rows.length) return []
 		const replies = this.previews([...new Set(rows.flatMap((r) => (r.reply_to ? [r.reply_to] : [])))])
@@ -316,7 +302,6 @@ export class RoomLog {
     }))
   }
 
-  /** Hard-deletes archived rows that still match their snapshot. Search filters and prunes stale FTS entries. */
   deleteArchived(snapshot: ArchivedMessage[]): void {
     const expected = new Map(snapshot.map((row) => [row.id, row.fingerprint]))
     const replayFloor = this.lastSeq() - REPLAY_LIMIT
@@ -335,7 +320,6 @@ export class RoomLog {
     this.sql.exec("DELETE FROM messages WHERE room_id = ? AND seq IN (SELECT value FROM json_each(?))", this.roomId, seqs)
   }
 
-	/** A live (not deleted) message, or null. */
 	message(id: string): Message | null {
 		const row = this.sql
 			.exec<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND seq = ? AND deleted_at IS NULL", this.roomId, messageSeq(this.roomId, id))
@@ -343,7 +327,6 @@ export class RoomLog {
 		return row ? this.toMessage(row) : null
 	}
 
-	/** The first ack for a clientId that was already stored. */
 	sentBefore(clientId: string): { id: MessageId; seq: number } | null {
 		const row = this.sql
 			.exec<{ id: string; seq: number }>("SELECT id, seq FROM (SELECT id, seq, client_id FROM messages WHERE room_id = ? ORDER BY seq DESC LIMIT 200) WHERE client_id = ?", this.roomId, clientId)
@@ -351,7 +334,6 @@ export class RoomLog {
 		return row ? { id: row.id as MessageId, seq: row.seq } : null
 	}
 
-	/** The id of the message stored for one agent bubble, deleted or not. */
 	messageForRun(run: RunRef): { id: MessageId; seq: number } | null {
 		const row = this.sql
 			.exec<{ id: string; seq: number }>(
@@ -365,7 +347,6 @@ export class RoomLog {
 		return row ? { id: row.id as MessageId, seq: row.seq } : null
 	}
 
-	/** Live message ids of a run from attempts before `attempt`, at `fromIndex` or later. */
 	earlierAttempts(runId: string, attempt: number, fromIndex = 0): MessageId[] {
 		return this.sql
 			.exec<{ id: string }>(
@@ -379,10 +360,6 @@ export class RoomLog {
 			.map((r) => r.id as MessageId)
 	}
 
-	/**
-	 * Moves a live bubble of an earlier attempt to `run`'s attempt when it holds the same text at the
-	 * same index, so a restarted run that writes it again keeps the bubble where it was. True when moved.
-	 */
 	adoptBubble(run: RunRef, text: string, replyTo: string | null): boolean {
 		const row = this.sql
 			.exec<{ id: string }>(
@@ -400,18 +377,12 @@ export class RoomLog {
 		return true
 	}
 
-	/**
-	 * Stores a message. With a clientId that was stored before, or a run key that
-	 * was stored before, it stores nothing and returns `event: null` with the first id and seq.
-	 */
 	addMessage(input: NewMessage): { id: MessageId; seq: number; event: RoomEvent | null } {
 		return this.storage.transactionSync(() => {
 			const earlier = input.clientId ? this.sentBefore(input.clientId) : input.run ? this.messageForRun(input.run) : null
 			if (earlier) return { ...earlier, event: null }
 			const seq = this.lastSeq() + 1
 			const id = messageIdAt(this.roomId, seq)
-			// Counted once, when the message is posted, and kept: the agent's steps the room has heard of since its last message.
-			// Mail to another agent is not one: the human reads it behind a divider, so the steps wait for the next message.
 			const open = input.from.kind === "agent" && !input.to ? this.window(input.from.slug) : null
 			const steps = open?.count ?? 0
 			const reply = input.replyTo ? this.previews([input.replyTo]).get(input.replyTo) : undefined
@@ -508,7 +479,6 @@ export class RoomLog {
 		})
 	}
 
-	/** Sets or removes `by`'s reaction. Returns null when nothing changes. */
 	react(messageId: MessageId, by: Actor, emoji: string | null): RoomEvent | null {
 		return this.storage.transactionSync(() => {
 			if (!this.message(messageId)) return null
@@ -532,13 +502,11 @@ export class RoomLog {
 		})
 	}
 
-	/** Moves the human's read mark forward. It never moves back or past the log. */
 	markRead(seq: number): RoomEvent | null {
 		return this.storage.transactionSync(() => {
 			const from = this.readSeq()
 			const upTo = Math.min(seq, this.lastSeq())
 			if (upTo <= from) return null
-			// The read event itself is after upTo, so it never counts as unread.
 			const event = this.append("human", { t: "read", upTo })
 			this.setMeta("read_seq", String(upTo))
       this.sql.exec("DELETE FROM archived_unread WHERE room_id = ? AND seq <= ?", this.roomId, upTo)
@@ -546,12 +514,10 @@ export class RoomLog {
 		})
 	}
 
-	/** Unread is a query over live and archived source rows after the read mark. */
 	unread(): number {
 		return this.countNonHuman(this.readSeq(), Number.MAX_SAFE_INTEGER)
 	}
 
-	/** Live messages from anyone but the human with seq in (after, upTo]. */
 	private countNonHuman(after: number, upTo: number): number {
 		return this.sql
 			.exec<{ n: number }>(
@@ -563,8 +529,6 @@ export class RoomLog {
 			.one().n
 	}
 
-	/** Stores one event and returns it with its seq. Call inside a transaction with the state change. */
-	/** The newest message `slug` posted after `after`, or null. */
 	lastAgentMessage(slug: string, after: number): { seq: number; text: string } | null {
 		return (
 			this.sql
@@ -575,7 +539,6 @@ export class RoomLog {
 
 	append(actor: string, body: Body): RoomEvent {
 		const at = this.now()
-		// The caller wraps this with the state change it belongs to in one transaction, so a nested transaction is avoided.
 		const seq = this.lastSeq() + 1
 		this.sql.exec(
 			"INSERT INTO events (room_id, seq, kind, at, actor, payload) VALUES (?, ?, ?, ?, ?, ?)",
@@ -589,7 +552,6 @@ export class RoomLog {
 		if (seq % TRIM_EVERY === 0) this.sql.exec("DELETE FROM events WHERE room_id = ? AND seq <= ?", this.roomId, seq - KEEP_EVENTS)
 	}
 
-	/** Human input routed to this member after its durable delivery cursor. */
 	unansweredFor(agentSlug: AgentSlug, after: number, limit = 200): Pending[] {
 		const members = listMembers(this.scopedStorage, this.roomId)
 		const membership = this.sql.exec<{ added_seq: number; lead_seq: number }>(
@@ -613,7 +575,6 @@ export class RoomLog {
 		}).slice(0, limit)
 	}
 
-	/** `reactions` are the message's, when the caller loaded them for many rows at once. */
 	private toMessage(r: MessageRow, preloaded?: Reaction[], replies?: ReadonlyMap<string, ReplyPreview>): Message {
 		const reply = r.reply_to ? (replies ?? this.previews([r.reply_to])).get(r.reply_to) : undefined
 		const reactions: Reaction[] =

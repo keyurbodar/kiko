@@ -8,8 +8,6 @@ export const ROOM_ID_HEADER = "x-kiko-room-id"
 
 export class NameError extends Error {}
 
-// A Better Auth id is opaque, but it must not contain the separator, or two users could
-// build the same name.
 const USER_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 
 function checkUser(userId: string): UserId {

@@ -3,21 +3,14 @@ import type { Chat } from "./user"
 
 export const KIKO = "kiko"
 
-/** The room id of the Kiko chat a new account gets. Fixed, so the client can paint the pinned tile before the server answers. */
 export const KIKO_HOME_ROOM = "00000000-0000-7000-8000-6b696b6f0000" as RoomId
 
-/** Two agent lists name the same chat when they hold the same agents, in any order, with repeats counted once. */
 function sameAgents(a: readonly string[], b: readonly string[]): boolean {
 	const x = new Set(a)
 	const y = new Set(b)
 	return x.size > 0 && x.size === y.size && [...x].every((id) => y.has(id))
 }
 
-/**
- * The chat that already holds exactly these agents, or null. A create that would make a second
- * one (a direct chat with one agent, the kiko chat with kiko alone, or a group) gets this room
- * back instead. Of several, the kiko chat wins, then the most recently active, then the lowest id.
- */
 export function sameAgentChat(chats: readonly Chat[], agents: readonly string[], except?: RoomId): Chat | null {
 	let best: Chat | null = null
 	for (const c of chats) {
@@ -29,10 +22,6 @@ export function sameAgentChat(chats: readonly Chat[], agents: readonly string[],
 
 const rank = (a: Chat, b: Chat) => Number(!!b.kiko) - Number(!!a.kiko) || b.updatedAt - a.updatedAt || (a.roomId < b.roomId ? -1 : 1)
 
-/**
- * The room id of the hidden chat where two agents talk privately. It depends only on the two slugs, in any order, so
- * every send between the same pair reaches the same room. It is shaped like a UUIDv7 with a zero time, as the Kiko chat is.
- */
 export function pairRoomId(a: string, b: string): RoomId {
 	const [x, y] = a < b ? [a, b] : [b, a]
 	const key = `pair:${x}:${y}`

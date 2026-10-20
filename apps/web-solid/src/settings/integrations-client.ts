@@ -1,9 +1,3 @@
-// The integration request clients (Composio, Kernel). One frame goes
-// out on the user socket with a `reqId`, and the frame of the same type with the same `reqId`
-// answers it. A frame with no `reqId` is a push, for example when another tab connects or
-// disconnects. A request made while the socket is down goes out on connect. No answer in
-// `timeoutMs` is an error.
-
 import type { ClientToUser, ComposioResult, KernelResult, UserToClient } from "@kiko/protocol"
 import { type UserChannel, userChannel } from "../sync/socket"
 
@@ -15,7 +9,6 @@ type Result = { ok: boolean }
 
 export type RequestClient<Ask, R extends Result> = {
 	request(frame: Ask): Promise<R>
-	/** Frames the server sends to every socket. Returns the stop function. */
 	onPush(fn: (result: R) => void): () => void
 	close(): void
 }
@@ -23,7 +16,6 @@ export type RequestClient<Ask, R extends Result> = {
 export type ComposioClient = RequestClient<ComposioAsk, ComposioResult>
 export type KernelClient = RequestClient<KernelAsk, KernelResult>
 
-/** The user socket's channel: the app's one by default. */
 export type ComposioClientOptions = { channel?: UserChannel; timeoutMs?: number }
 
 type Pending<R> = { frame: ClientToUser; resolve: (r: R) => void; timer: ReturnType<typeof setTimeout> }

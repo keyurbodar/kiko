@@ -4,7 +4,6 @@ import type { Reminder } from "./reminders"
 
 type Row = { install_id: string; slug: string; room_id: string; agent: string; at: number }
 
-/** An install as its table holds it. Its routines come from recipe_links, in the service. */
 export type Install = Omit<RecipeInstall, "routines">
 
 const toInstall = (r: Row): Install => ({ installId: r.install_id, slug: r.slug, roomId: r.room_id as RoomId, agent: r.agent, at: r.at })
@@ -32,10 +31,8 @@ export function saveInstall(sql: SqlStorage, install: Install): void {
   sql.exec("INSERT OR IGNORE INTO recipe_installs (install_id, slug, room_id, agent, at) VALUES (?, ?, ?, ?, ?)", install.installId, install.slug, install.roomId, install.agent, install.at)
 }
 
-/** A recipe's rule, given the minute it names: without BYSECOND the routine would fire at the second the human added it. */
 export const recipeRule = (every: string) => (/BYMINUTE=/i.test(every) && !/BYSECOND=/i.test(every) ? `${every};BYSECOND=0` : every)
 
-/** What the agent hears once, right after the human adds the recipe. */
 export function recipeWake(r: Recipe, routines: readonly Reminder[]): string {
   const lines = [`the human just added the "${r.title}" recipe to this chat. its instructions are the ${r.slug} skill: load it with read_skill("${r.slug}") first.`]
   lines.push(routines.length ? `it made these routines: ${routines.map((t) => `"${t.name}" (id ${t.id})`).join(", ")}. it runs: ${r.when.toLowerCase()}.` : `it runs: ${r.when.toLowerCase()}.`)

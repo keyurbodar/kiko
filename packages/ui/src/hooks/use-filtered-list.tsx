@@ -31,7 +31,6 @@ export function useFilteredList<T>(props: FilteredListProps<T>) {
       const query = filter ?? ""
       const needle = query.toLowerCase()
       const all = (await Promise.resolve(items)) || []
-      // fuzzysort loads on the first typed filter, so it stays out of the first paint.
       const fuzzysort = needle ? (await import("fuzzysort")).default : undefined
       const result = pipe(
         all,
@@ -104,7 +103,6 @@ export function useFilteredList<T>(props: FilteredListProps<T>) {
         list.onKeyDown(navEvent)
       }
     } else {
-      // Skip list navigation for text editing shortcuts (e.g., Option+Arrow, Option+Backspace on macOS)
       if (event.altKey || event.metaKey) return
       list.onKeyDown(event)
     }

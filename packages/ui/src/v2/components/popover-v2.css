@@ -1,6 +1,5 @@
 @layer v2 {
 
-  /* Above the sidecar and the chat's own layers, under menus (60) and dialogs (70). */
   [data-popper-positioner]:has([data-component="popover-v2-content"]) {
     z-index: 55;
   }

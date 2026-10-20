@@ -6,13 +6,11 @@ import { EntryIcon } from "../lib/EntryIcon"
 
 export interface ReplyBarProps {
   summary: ReplySummary
-  /** Who is being answered: "Replying to Kiko". Or "Edit message". */
   label: string
   onJump: () => void
   onDismiss: () => void
 }
 
-/** The card above the input for the message being answered or edited: whose words, a snippet, and a button that drops it. */
 export function ReplyBar(props: ReplyBarProps): JSX.Element {
   return (
     <div class="reply-bar" data-component="composer-reply-bar" role="group" aria-label={props.label}>

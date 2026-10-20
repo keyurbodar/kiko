@@ -5,7 +5,6 @@ import type { Members } from "./members"
 import { receive, type ReceiveDeps } from "./receive"
 import { parseRichText } from "./rich-text"
 
-/** A message from `from` in the room `origin`, for `to` in this pair room. `askId` is the origin's expectation, and names the message here. */
 export type PairIn = { askId: string; origin: RoomId; from: AgentSlug; to: AgentSlug; text: string; rootId: string; hop: number }
 
 type PairDeps = ReceiveDeps & {
@@ -17,11 +16,9 @@ type PairDeps = ReceiveDeps & {
 	seedMembers: (home: Home, chat: Chat) => Promise<void>
 }
 
-/** The pair room's side of a private talk. */
 export class RoomPair {
 	constructor(private readonly d: PairDeps) {}
 
-	/** Stores the message and the origin's expectation, then delivers it to the recipient on the carried chain. A repeat stores nothing twice and delivers the same envelope id. */
 	async receive(userId: string, input: PairIn): Promise<"ok" | "full" | "refused"> {
 		const home = this.d.adopt(userId)
 		const chat = home ? await this.d.chat(home) : null

@@ -4,19 +4,11 @@ import { base, read, write } from "../lib/api-base"
 import { clearFileToken } from "../lib/file-token"
 import { hosted, setProfile } from "./hosted"
 
-/*
- * The session, as the client sees it. A cached flag in
- * localStorage answers on the first frame, so a signed-in person never waits on
- * the network. `/api/me` confirms it in the background. A 401 from any call, or
- * signing out, removes that user's warm tier and shows sign-in.
- */
-
 export interface SessionUser {
   id: string
   name: string
 }
 
-/** unknown: no cached flag yet, so the first `/api/me` decides. */
 export type SessionState = { status: "unknown" } | { status: "signed-in"; user: SessionUser } | { status: "signed-out" }
 
 const FLAG_KEY = "kiko:session"
@@ -53,11 +45,6 @@ export const cancelAuthAttempt = () => { generation++ }
 export const allowClerkResume = () => setAutoResume(true)
 
 
-/*
- * ASSUMPTION: the warm tier (P2-05) names each user's database
- * `kiko-warm:<userId>`, optionally with more after a second colon. Clearing deletes
- * every database with that name or prefix.
- */
 export const warmDbPrefix = (userId: string) => `kiko:warm:${userId}`
 
 function readFlag(): SessionUser | null {
@@ -75,11 +62,9 @@ function writeFlag(user: SessionUser | null): void {
     if (user) localStorage.setItem(FLAG_KEY, JSON.stringify(user))
     else localStorage.removeItem(FLAG_KEY)
   } catch {
-    // storage can be blocked. the session still works for this page load.
   }
 }
 
-/** Deletes every IndexedDB database that belongs to a user. Resolves when all are gone. */
 export async function clearWarmTier(userId: string): Promise<void> {
   if (typeof indexedDB === "undefined" || typeof indexedDB.databases !== "function") return
   const prefix = warmDbPrefix(userId)
@@ -98,9 +83,6 @@ export async function clearWarmTier(userId: string): Promise<void> {
   )
 }
 
-/*
- * A signed-in browser always has the cached flag, so no flag means sign-in shows on the first frame.
- */
 const cached = readFlag()
 const [state, setState] = createSignal<SessionState>(
   cached ? { status: "signed-in", user: cached } : { status: "signed-out" },
@@ -126,7 +108,6 @@ async function finishCleanup(): Promise<void> {
   await clearing
 }
 
-/** Drops the flag and the user's warm tier, then shows sign-in. */
 async function signedOut(reset = true): Promise<void> {
   generation++
   const current = state()
@@ -144,7 +125,6 @@ async function signedOut(reset = true): Promise<void> {
   await finishCleanup()
 }
 
-/** Confirms the cached flag with the server. Call once on boot. */
 export async function bootstrapSession(): Promise<void> {
   const attempt = generation
   const backend = base()
@@ -154,7 +134,6 @@ export async function bootstrapSession(): Promise<void> {
     const boot = globalThis.__kikoBoot
     let early = boot?.token === token && boot?.url === `${backend}/api/me` ? boot.me : undefined
     if (globalThis.__kikoBoot) globalThis.__kikoBoot.me = undefined
-    // Development only: /api/auth/dev/session redirects here with the token in the hash.
     const handed = import.meta.env.DEV ? /^#token=(\S+)$/.exec(location.hash)?.[1] : undefined
     if (handed) {
       setToken(handed)
@@ -171,27 +150,19 @@ export async function bootstrapSession(): Promise<void> {
     if (!res.ok) throw new Error(String(res.status))
     const { user } = (await res.json()) as { user: SessionUser }
     if (!current()) return
-    // A different user than the cached one: the old user's data must not stay.
     const before = state()
     if (before.status === "signed-in" && before.user.id !== user.id) await clearWarmTier(before.user.id)
     await finishCleanup()
     if (current()) signedIn(user)
   } catch {
-    // offline or a server error. keep the cached flag, and with none show sign-in.
     if (current() && state().status === "unknown") setState({ status: "signed-out" })
   }
 }
 
-// A 401 from any call drops the token (api.ts), then shows sign-in.
 setUnauthorizedHandler(() => {
   if (state().status === "signed-in") void signedOut()
 })
 
-/*
- * Signing out, from any button or command. It drops this person's token, warm tier and
- * profile. A hosted build also ends the Clerk session. `kiko:backend` stays, so the next sign-in
- * goes straight back to the same backend.
- */
 export async function signOut(): Promise<void> {
   setAutoResume(false)
   const done = signedOut()
@@ -211,7 +182,6 @@ async function adopt(res: Response | null, failure: string, attempt: number): Pr
   signedIn(user)
 }
 
-/** Signs in with the access code. A wrong code throws the server's message. */
 export async function signInWithAccessCode(code: string): Promise<void> {
   const attempt = ++generation
   const res = await apiFetch("/api/auth/access-code", {
@@ -226,7 +196,6 @@ export async function signInWithAccessCode(code: string): Promise<void> {
   await adopt(res, "Could not sign in. Try again", attempt)
 }
 
-/** Development Workers only. Mints a session for a test user. */
 export async function signInAsDev(name = "dev"): Promise<void> {
   const attempt = ++generation
   const res = await apiFetch("/api/auth/dev/session", {
@@ -237,10 +206,6 @@ export async function signInAsDev(name = "dev"): Promise<void> {
   await adopt(res, "dev sign-in failed", attempt)
 }
 
-/**
- * Hosted sign-in, after Clerk has a session. Trades the Clerk token for the backend's own. Returns
- * "connect" when this person has no backend yet, and "none" when Clerk holds no session.
- */
 export async function signInWithClerk(): Promise<"in" | "connect" | "none"> {
   let attempt = ++generation
   const { clerkSignIn } = await import("./clerk")
@@ -254,7 +219,6 @@ export async function signInWithClerk(): Promise<"in" | "connect" | "none"> {
   setBackendConnectionNotice("")
   const identity = JSON.stringify([found.userId, found.backendUrl?.replace(/\/+$/, "") ?? null])
   if (read("kiko:identity") !== identity) {
-    // Stop the old store before changing the address; both backends call their owner "owner".
     const previous = attempt
     await signedOut()
     if (previous + 1 !== generation) return "none"
@@ -278,17 +242,14 @@ export async function signInWithClerk(): Promise<"in" | "connect" | "none"> {
         setBackendConnectionNotice("This backend belongs to another Kiko account. Connect your own Cloudflare backend to continue, or sign out and use the account that owns it.")
         return "connect"
       }
-      // Invalid or expired tokens and other forbidden responses are not missing backends.
       if (e.status === 401 || e.status === 403) throw e
     }
-    // The address Clerk remembers answers, but not as Kiko: the Worker was deleted or replaced. Install again.
     if (!(e instanceof Unreachable) && (await backendGone()) && attempt === generation) return "connect"
     throw e
   }
   return attempt === generation ? "in" : "none"
 }
 
-/** True when the stored address answers but is not a Kiko backend (deleted on Cloudflare, or another Worker). */
 async function backendGone(): Promise<boolean> {
   const res = await fetch(`${base()}/api/version`, { cache: "no-store" }).catch(() => null)
   if (!res) return false
@@ -297,7 +258,6 @@ async function backendGone(): Promise<boolean> {
   return typeof body?.version !== "string"
 }
 
-/** The backend did not answer at all: no response, so DNS, the network, or a blocker. */
 class Unreachable extends Error {}
 
 class ClerkRejected extends Error {
@@ -331,15 +291,9 @@ async function exchangeClerkToken(clerkToken: string, attempt: number): Promise<
   await adopt(res, "Could not sign in. Try again", attempt)
 }
 
-/** How long a fresh install is given to become reachable from this device before the person is asked. */
 const REACH_MS = 90_000
 const REACH_STEP_MS = 3_000
 
-/**
- * After an install stored `kiko:backend`: trades a fresh Clerk token for the backend's own. A new workers.dev
- * address can take a minute to reach this device's network, so no answer at all is tried again for a while.
- * Each try gets a new Clerk token, because one lives for a minute.
- */
 export async function signInToInstalledBackend(): Promise<void> {
   let attempt = ++generation
   const { clerkSignIn } = await import("./clerk")

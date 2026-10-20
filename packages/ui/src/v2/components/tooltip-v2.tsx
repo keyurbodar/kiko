@@ -5,10 +5,6 @@ import "./tooltip-v2.css"
 
 export type { TooltipV2Props } from "./tooltip-v2-impl"
 
-/*
- * The real tooltip lives in tooltip-v2-impl.tsx and loads after first paint. See overlays.tsx.
- * Until then the trigger is the same div a closed tooltip renders.
- */
 function ClosedTooltip(props: TooltipV2Props): JSX.Element {
   const intent = () => void loadOverlaysV2()
   return (

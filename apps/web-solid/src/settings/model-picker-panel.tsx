@@ -25,10 +25,6 @@ function Star(props: { on: boolean }) {
   )
 }
 
-/**
- * The model picker: a rail of providers with favorites first, a search across all of them, and
-
-/** The picker's panel. It loads when the picker first opens, so the composer's first paint does not carry it. */
 export default function ModelPickerPanel(props: { current?: string; onPick: (ref: string, thinking: readonly ThinkingLevel[]) => void; onOpenChange: (open: boolean) => void; trigger: () => HTMLButtonElement | undefined }) {
   const [catalog] = createResource(loadCatalog)
   const providers = createMemo(() => {
@@ -37,7 +33,6 @@ export default function ModelPickerPanel(props: { current?: string; onPick: (ref
   })
   const problemOf = (id: string) => connectedProviders().find((p) => p.provider === id)?.problem
   const [picked, setRail] = createSignal<string | null>(null)
-  /** Favorites when there are any, else the current model's provider, until the human picks a tab. */
   const rail = () => {
     if (picked()) return picked()!
     if (favoriteModels().length) return FAVORITES
@@ -113,9 +108,6 @@ export default function ModelPickerPanel(props: { current?: string; onPick: (ref
   const railButton = (active: boolean) =>
     `relative grid size-9 shrink-0 place-items-center rounded-lg ${active ? "bg-accent-strong text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`
 
-  // The panel also opens inside the settings dialog, from a portal outside it. So it sits above the dialog,
-  // takes back the pointer events Kobalte's modal turns off, and `data-kb-top-layer` tells Kobalte that a
-  // click or focus in it is not outside the dialog.
   return (
         <Portal>
           <div

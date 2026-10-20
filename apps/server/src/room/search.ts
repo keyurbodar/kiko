@@ -10,7 +10,6 @@ export type SearchOptions = {
 	before?: number
 	beforeAt?: number
 	limit?: number
-	/** Include mail between agents. The transcript folds it behind a line, so a person's search leaves it out. */
 	mail?: boolean
 }
 
@@ -24,10 +23,6 @@ const queryWords = (query: string) =>
 		.filter(Boolean)
 		.slice(0, 12)
 
-/**
- * A window of the message's plain words around the first match, with the matches between the
- * snippet marks. The index holds the markdown, so the window is cut from the plain text instead.
- */
 export function snippetOf(plain: string, query: string): string {
 	const flat = plain.replace(/\s+/g, " ").trim()
 	const words = queryWords(query)
@@ -91,7 +86,6 @@ function indexChunks(storage: DurableObjectStorage, roomId: string, roomToken: s
 			let chunk = ""
 			let bytes = 0
 			let members: Member[] = []
-			// A token absent from every message prevents FTS phrases crossing message boundaries.
 			let boundary = `kikoboundary${crypto.randomUUID().replaceAll("-", "")}`
 			while (rows.some((row) => row.text.toLowerCase().includes(boundary))) boundary += "x"
 			const separator = `\n${boundary}\n`
@@ -144,7 +138,6 @@ function indexChunks(storage: DurableObjectStorage, roomId: string, roomToken: s
 	})
 }
 
-/** Map FTS's exact unicode61 phrase/prefix matches back to individual message ranges in JS. */
 function matchingMembers(storage: DurableObjectStorage, doc: Chunk, terms: string[]): Set<number> {
 	const members = JSON.parse(doc.members) as Member[]
 	let matches = new Set(members.map(([seq]) => seq))

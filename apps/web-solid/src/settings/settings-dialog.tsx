@@ -15,19 +15,9 @@ import { SETTINGS_GROUPS, SETTINGS_SECTIONS, searchSections, type SettingsSectio
 import Tools from "./tools"
 import "./settings-dialog.css"
 
-/*
- * Settings, as a dialog over the chat: a search and the sections under their group on the left
- * (monocode's settings rail), the open section's page on the right. While searching, the hits are one
- * flat list. The keyboard section preloads separately; the other sections share this chunk.
- */
-
-// The shortcut page carries the hotkey library, which the shell already loads lazily, so it is its own
-// chunk. It starts loading with this one, so opening the section never waits on the network.
 const KeyboardPage = lazy(() => import("./keyboard"))
 void KeyboardPage.preload()
 
-// A `/settings` link can open the dialog before the idle preload has fetched Kobalte, and ModalV2 draws
-// nothing until it has.
 void loadOverlaysV2()
 
 const PAGES: Record<SettingsSection["id"], () => JSX.Element> = { models: ModelsPage, tools: Tools, appearance: Appearance, general: Initiative, keyboard: KeyboardPage, account: Account }
@@ -42,7 +32,6 @@ const ICON: Record<SettingsSection["id"], Glyph> = {
 }
 
 export default function SettingsDialog() {
-  // Kobalte hands focus back to a dialog's trigger, and this one has none, so it keeps where focus was.
   const returnTo = document.activeElement
   const section = () => settingsSection() ?? "models"
   const meta = () => SETTINGS_SECTIONS.find((s) => s.id === section())
@@ -50,9 +39,6 @@ export default function SettingsDialog() {
   const rows = () => searchSections(query())
   const groups = () => (query().trim() ? [{ name: null, rows: rows() }] : SETTINGS_GROUPS.map((name) => ({ name, rows: rows().filter((s) => s.group === name) })))
   let body: HTMLDivElement | undefined
-  // A narrow screen turns the sections into one row that scrolls sideways, so the open one can be off
-  // the end of it. Bring it in after the next frame, once the dialog's content is in the document:
-  // this component's effects run before Kobalte mounts the content, so a ref here is still unset.
   const reveal = () =>
     requestAnimationFrame(() =>
       document
@@ -70,7 +56,6 @@ export default function SettingsDialog() {
     narrow?.addEventListener("change", reveal)
     onCleanup(() => narrow?.removeEventListener("change", reveal))
   })
-  // Signing out unmounts the shell with the dialog in it. The next sign-in starts with it closed.
   onCleanup(closeSettings)
 
   const row = (s: SettingsSection) => (
@@ -81,8 +66,6 @@ export default function SettingsDialog() {
   )
 
   return (
-    // No scroll lock: the model picker and the select open their lists in a portal outside the dialog, and
-    // the lock would swallow their wheel. Nothing under the dialog scrolls the page anyway.
     <ModalV2 open preventScroll={false} onOpenChange={(open: boolean) => !open && closeSettings()}>
       <ModalV2.Portal>
         <ModalV2.Overlay />
@@ -90,12 +73,10 @@ export default function SettingsDialog() {
           class="settings-dialog"
           role="dialog"
           onOpenAutoFocus={(e: Event) => {
-            // The open section's row rather than the search, so a touch screen does not raise its keyboard.
             e.preventDefault()
             const content = e.currentTarget as HTMLElement
             const active = content.querySelector<HTMLElement>("[aria-current=page]") ?? content
             active.focus({ preventScroll: true })
-            // Focused without scrolling, so a narrow screen still has to bring the open row into view.
             reveal()
           }}
           onCloseAutoFocus={(e: Event) => {
@@ -114,7 +95,6 @@ export default function SettingsDialog() {
                   value={query()}
                   onInput={(e) => setQuery(e.currentTarget.value)}
                   onKeyDown={(e) => {
-                    // Escape empties the search first. Kobalte closes the dialog only on an Escape nobody took.
                     if (e.key !== "Escape" || !query()) return
                     e.preventDefault()
                     e.stopPropagation()

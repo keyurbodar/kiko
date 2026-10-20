@@ -76,13 +76,11 @@ export function tokensFor(mode: ThemeAppearance, darkTheme: DarkThemeId = DEFAUL
     "--success": mode === "dark" ? "oklch(0.7937 0.12 150)" : "oklch(0.52 0.12 150)",
   }
   for (const [token, dark, light] of NEUTRALS) vars[token] = ink(mode === "dark" ? dark : light)
-  // One solid raised surface: an agent's bubble, a card, a menu, the composer. Near white on paper, a lifted night in dark.
   vars["--surface"] = p.sidebar
   vars["--popover"] = vars["--surface"]!
   vars["--message-assistant"] = vars["--surface"]!
   vars["--tooltip"] = mode === "dark" ? `color-mix(in oklab, ${p.text} 14%, ${p.canvas})` : p.text
   vars["--tooltip-foreground"] = mode === "dark" ? p.text : p.canvas
-  // Your bubble is a solid pastel of the accent: honey on paper, a deep glow at night.
   vars["--message-user"] = mode === "dark" ? `oklch(from ${accent} 0.32 calc(c * 0.42) h)` : `oklch(from ${accent} 0.93 calc(c * 0.6) h)`
   vars["--message-user-deep"] = vars["--message-user"]!
   vars["--message-user-foreground"] = p.text

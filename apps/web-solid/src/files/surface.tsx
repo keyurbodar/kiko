@@ -9,11 +9,6 @@ import { wrap, setWrap } from "./prefs"
 import { FileViewer } from "./viewer"
 import type { FileView } from "./view"
 
-/*
- * The header actions and the body of one open file. The panel and the full-size dialog both draw
- * them, so a file looks and behaves the same in either.
- */
-
 const RENDERED_LABELS = {
 	markdown: ["Show rendered markdown", "Show markdown source"],
 	table: ["Show table", "Show source"],

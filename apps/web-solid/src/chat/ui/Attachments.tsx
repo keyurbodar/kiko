@@ -8,7 +8,6 @@ import { openFile } from "../side/surfaces"
 import { formatBytes } from "../info/format"
 import type { DialogImage } from "./image-dialog"
 
-/** A stored file drags to the composer as a reference to where it lives. */
 const dragProps = (file: MessageFile) => ({
   draggable: file.path !== undefined,
   onDragStart: (event: DragEvent) => {

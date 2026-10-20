@@ -25,11 +25,8 @@ type Envelope = { seq: Seq; writes: readonly StorageWrite[] }
 type Batch = { seq: Seq; commits: readonly Envelope[] }
 type Row = { seq: number; part: number; parts: number; bytes: number; data: ArrayBuffer }
 type IdLease = { next: number; end: number }
-// Reopening a paused Harness in the same object can finish its already durable reservation.
-// A fresh storage object after eviction starts beyond the persisted high watermark.
 const idLeases = new WeakMap<DurableObjectStorage, Map<string, IdLease>>()
 
-// One namespace belongs to one Harness, including all its worker conversations and their shared allocator.
 export class JournalStorage extends MemoryStorage {
   private tail: Promise<unknown> = Promise.resolve()
   private readonly ids: IdLease
@@ -92,13 +89,10 @@ export class JournalStorage extends MemoryStorage {
     return journal
   }
 
-  // The owner closes the Harness before clearing its namespace at the existing compaction boundary.
   static clear(storage: DurableObjectStorage, key: string): void {
     storage.sql.exec("DELETE FROM journal WHERE agent = ?", key).toArray()
   }
 
-  // Keep one terminal bookkeeping input without its model context. No conversation record
-  // survives, so Harness.root starts fresh while public submission scans retain delivery.
   static reset(storage: DurableObjectStorage, key: string): void {
     const checkpoint = JournalStorage.open(storage, key).checkpoint
     storage.transactionSync(() => {
@@ -121,8 +115,6 @@ export class JournalStorage extends MemoryStorage {
       const envelope = { seq, writes: prepared.writes }
       this.pending.push(envelope)
       this.pendingBytes += encoder.encode(JSON.stringify(envelope)).length
-      // The public StorageWrite includes the committed assistant response and usage.
-      // Flush on the storage mutation line: publication listeners cannot propagate an I/O failure.
       const boundary = prepared.writes.some((write) =>
         write.type === "entry" && write.value.model?.some((message) => message.role === "assistant") ||
         write.type === "submission" && (write.value.status === "done" || write.value.status === "unanswered"))
@@ -159,7 +151,6 @@ export class JournalStorage extends MemoryStorage {
     })
   }
 
-  // Synchronous so a tool boundary checkpoints before its outside work starts.
   flush(): void {
     const last = this.pending.at(-1)
     if (!last) return

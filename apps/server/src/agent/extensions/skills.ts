@@ -27,7 +27,6 @@ async function roomSkills(fs: RoomFs | undefined): Promise<Skill[]> {
   return out
 }
 
-/** The owner's recipes as the user object keeps them: one call lists them, and a body is fetched only when a skill is read. */
 export type RecipesPort = {
   list(): Promise<{ name: string; description: string }[]>
   body(name: string): Promise<string | null>

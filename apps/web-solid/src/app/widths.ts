@@ -4,11 +4,6 @@ export const CHAT_MIN = 360
 
 type Rule = typeof SIDEBAR
 
-/**
- * The width a column opens at before anyone drags it. A window has to fit three columns, so the
- * right panel takes a share of the window rather than a fixed 340 px: on a wide screen that share
- * is a readable column of details, and on a laptop it leaves the chat its floor.
- */
 export function defaultWidth(rule: Rule, viewport = globalThis.innerWidth ?? 1280): number {
   const raw = rule === INFO ? Math.round(viewport * 0.26) : rule.fallback
   return Math.round(Math.max(rule.min, Math.min(rule.max, raw)))
@@ -24,7 +19,6 @@ export function readWidth(rule: Rule, viewport = globalThis.innerWidth ?? 1280):
   }
 }
 
-/** Saves the width a panel has right now. A collapsed panel keeps the width it had. */
 export function saveWidth(rule: Rule, panelId: string) {
   const width = Math.round(document.getElementById(panelId)?.getBoundingClientRect().width ?? 0)
   if (width < rule.min) return
@@ -33,7 +27,6 @@ export function saveWidth(rule: Rule, panelId: string) {
   } catch {}
 }
 
-/** Puts a column back to its default width for this window, the one a double click on its handle restores. */
 export function resetWidth(
   rule: Rule,
   panel: { resize: (size: `${number}px`) => void } | undefined,
@@ -46,10 +39,6 @@ export function resetWidth(
   } catch {}
 }
 
-/**
- * Two columns that still leave the chat its floor. A narrow window shrinks the right panel first,
- * because the chat is what the human is reading, and the left rail only after that.
- */
 export function fitWidths(viewport: number, sidebar: number, info: number) {
   const room = Math.max(0, viewport - CHAT_MIN)
   let right = info > 0 ? Math.max(INFO.min, info) : 0
@@ -59,10 +48,6 @@ export function fitWidths(viewport: number, sidebar: number, info: number) {
   return { sidebar: side, info: right }
 }
 
-/**
- * The three columns as fractions of the window, for Corvu's first layout. A collapsed or absent
- * column is 0, and the chat takes the rest. A column gives way before the chat drops under 360 px.
- */
 export function initialSizes(width: number, sidebar: number | null, info: number | null) {
   let side = sidebar ?? 0
   let right = info ?? 0

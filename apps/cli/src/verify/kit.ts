@@ -5,7 +5,6 @@ import { VerifyError } from "./client"
 
 type Truthy<T> = Exclude<Awaited<T>, false | null | undefined | 0 | "">
 
-/** Runs `test` until it returns something truthy, and returns that. Fails after `ms`. */
 export async function poll<T>(what: string, test: () => T | Promise<T>, ms = 30_000, every = 200): Promise<Truthy<T>> {
   const end = Date.now() + ms
   for (;;) {
@@ -16,7 +15,6 @@ export async function poll<T>(what: string, test: () => T | Promise<T>, ms = 30_
   }
 }
 
-/** Creates a chat and opens its room. The room handle also carries the id. */
 export async function newRoom(s: Session, title: string, agents?: string[]): Promise<{ roomId: string; room: RoomHandle & { id: string } }> {
   const roomId = newRoomId()
   const user = await s.user()
@@ -33,7 +31,6 @@ export const idles = (room: RoomHandle) => frames(room).filter((f) => f.t === "s
 
 export const statuses = (room: RoomHandle) => frames(room).flatMap((f) => (f.t === "status" ? [f.state] : []))
 
-/** Every message the room has delivered, once each, in seq order. */
 export function messages(room: RoomHandle): Message[] {
   const byId = new Map<string, Message>()
   for (const f of frames(room)) if (f.t === "events") for (const e of f.events) if (e.t === "message") byId.set(e.id, e)
@@ -42,7 +39,6 @@ export function messages(room: RoomHandle): Message[] {
 
 export const agentTexts = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "agent").map((m) => m.text)
 
-/** The agent's bubbles from log entry `from` on, in arrival order, one per line. */
 export function agentText(room: RoomHandle, from = 0): string {
   return room.raw.log
     .slice(from)
@@ -54,7 +50,6 @@ export function agentText(room: RoomHandle, from = 0): string {
     .join("\n")
 }
 
-/** The agent's bubbles: all of them, the ones not deleted, and how many were deleted. */
 export function seen(room: RoomHandle): { all: Message[]; live: Message[]; deleted: number } {
   const all: Message[] = []
   const gone = new Set<string>()

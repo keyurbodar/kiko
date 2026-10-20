@@ -1,13 +1,3 @@
-/*
- * Kiko's logo. The mark is Lahn's bunny from the warm-refresh PR, flattened: one cream body, two
- * leaves, red eyes with a white catchlight. No gradient, no glow, no drop shadow, because the mark
- * sits on the aurora band, on a black favicon tile and on near-white, and a lit edge would only work
- * on one of the three.
- *
- * Each leaf is a `[data-leaf]` group that turns about its stem, so onboarding can wiggle it. The eyes
- * are one `[data-eyes]` group so a blink is a transform on the group, not a path swap.
- */
-
 const MARK_VIEWBOX = "14 4 92 100"
 const MARK_CENTER = { x: 60, y: 54 }
 
@@ -60,10 +50,6 @@ export function KikoMark(props: { class?: string; size?: number; mood?: string }
   )
 }
 
-/**
- * The "kiko" wordmark: Bricolage Grotesque ExtraBold, the face of the app's headings, as outlines so
- * it needs no font. The dot of its "i" is the bunny's red berry. It takes the text color.
- */
 export function KikoWordmark(props: { class?: string }) {
   return (
     <svg
@@ -81,10 +67,6 @@ export function KikoWordmark(props: { class?: string }) {
   )
 }
 
-/**
- * The mark on its tile, for the favicon, the app icon and the boot screen. `tile` is the tile colour,
- * so the light-mode favicon can sit on near-white without a black square in the tab.
- */
 export function KikoIcon(props: { class?: string; size?: number; tile?: string }) {
   return (
     <svg

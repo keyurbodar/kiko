@@ -2,7 +2,6 @@ import { splitProps, type ComponentProps } from "solid-js"
 import { RemixIcon } from "./remix-icon"
 import { ArrowUpIcon, type Glyph, LinkIcon, ReplyIcon, SearchIcon, StopIcon } from "../icons.gen"
 
-/* The older icon names still in use, each drawn by one of kiko's icons. */
 const NAMES = {
   "arrow-up": ArrowUpIcon,
   stop: StopIcon,
@@ -18,7 +17,6 @@ export interface IconProps extends Omit<ComponentProps<"svg">, "children"> {
   size?: "small" | "normal" | "medium" | "large"
 }
 
-/** Sized by `icon.css` through `data-size`, so the glyph fills the box it sits in. */
 export function Icon(props: IconProps) {
   const [local, others] = splitProps(props, ["name", "size"])
   return (

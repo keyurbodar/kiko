@@ -13,11 +13,6 @@ type Option =
   | { kind: "member"; key: string; target: RecipeTarget }
   | { kind: "own"; key: "own" }
 
-/**
- * Where a recipe goes: a chat with one agent adds at once, and a group opens to its members, since
- * each member keeps its own recipes. The chat the human came from comes first. Up, Down, and Enter
- * work from the search field.
- */
 export function AddPicker(props: { card: RecipeCard; roomId?: string | null; navigate: (to: string) => void }) {
   const [query, setQuery] = createSignal("")
   const [expanded, setExpanded] = createSignal<string | null>(null)
@@ -43,7 +38,6 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
     return out
   })
 
-  /** The highlight follows a row, not a position, so the list loading in under it cannot move Enter to another chat. */
   const cursor = () => {
     const i = options().findIndex((o) => o.key === picked())
     return i === -1 ? Math.max(0, options().findIndex((o) => !added(o))) : i

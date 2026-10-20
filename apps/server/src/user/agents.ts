@@ -16,7 +16,6 @@ export function listAgents(sql: SqlStorage): Agent[] {
 
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
 
-/** The agent that already has this name, ignoring case and surrounding spaces. */
 export const agentNamed = (sql: SqlStorage, name: string): Agent | null => listAgents(sql).find((a) => sameName(a.name, name)) ?? null
 
 export function createAgent(sql: SqlStorage, agent: Agent, now: number): Agent | null {

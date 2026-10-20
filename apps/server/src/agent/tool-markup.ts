@@ -5,7 +5,6 @@ type TextCall = { name: string; args: Record<string, string> }
 type Family = {
   open: RegExp
   close: RegExp
-  /** What the block holds. A hidden block holds none and is only removed. */
   calls?: (inner: string) => TextCall[]
 }
 
@@ -61,7 +60,6 @@ function deepseek(inner: string): TextCall[] {
 
 const hidden = (tag: string): Family => ({ open: new RegExp(`<${tag}(?:\\s[^>]*)?>`), close: new RegExp(`</${tag}>`) })
 
-/** Each family is a span a model wrote that must never reach a bubble. The first line of the Anthropic family may have lost its `<`. */
 const FAMILIES: readonly Family[] = [
   { open: new RegExp(String.raw`(?:<${NS}|(?<![^\n])[\w-]+:)function_calls>?`), close: new RegExp(`</${NS}function_calls>`), calls: invokes },
   { open: /<tool_call>/, close: /<\/tool_call>/, calls: hermes },
@@ -88,7 +86,6 @@ function firstOpen(text: string, from: number): Hit | null {
   return best
 }
 
-/** A tail that could still become the start of a span: a `<` followed by a word with no `>` yet, or a first line like `atem` or `atem:function_c`. */
 function pendingFrom(text: string): number {
   const lt = text.lastIndexOf("<")
   if (lt !== -1 && /^<[^\s>]*$/.test(text.slice(lt)) && text.length - lt <= 40) return lt
@@ -98,10 +95,6 @@ function pendingFrom(text: string): number {
 
 type Parsed = { prose: string; calls: TextCall[] }
 
-/**
- * Splits model text into the prose a person may read and the tool calls written as markup. `final` is false while text still streams:
- * the tail that might open a span is held back, so a bubble never shows half a tag.
- */
 function parseToolMarkup(text: string, final: boolean): Parsed {
   let prose = ""
   const calls: TextCall[] = []
@@ -142,7 +135,6 @@ function argsOf(call: TextCall, schema: Schemaed | undefined): ToolCall["argumen
   return out
 }
 
-/** Maps `default.ask_human`, `functions.ask_human` and the like onto the name a tool is registered under. */
 function registered(name: string, context: Context): { name: string; schema: Schemaed | undefined } {
   const tools = getCurrentTools(context.messages as never)
   const clean = name.replace(/:\d+$/, "")
@@ -197,7 +189,6 @@ function rewriteEvent(event: AssistantMessageEvent, context: Context, seen: Map<
 
 type Stream = Provider["streamSimple"]
 
-/** Wraps a provider call so text that is really a tool call becomes a tool call part, and no markup reaches a partial or a final message. */
 export function withTextToolCalls(call: Stream): Stream {
   return ((model, context, options) => {
     const inner = call(model, context, options)

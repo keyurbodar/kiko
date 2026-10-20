@@ -38,7 +38,6 @@ export async function loadRoutines(): Promise<void> {
 }
 
 let refreshTimer: ReturnType<typeof setTimeout> | undefined
-/** The room moved, so a routine may have been made. Asks once after the burst. */
 export function refreshRoutines(delay = 1200): void {
   clearTimeout(refreshTimer)
   refreshTimer = setTimeout(() => void loadRoutines(), delay)

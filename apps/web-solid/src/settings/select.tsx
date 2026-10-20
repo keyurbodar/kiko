@@ -114,7 +114,6 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
         </svg>
       </button>
       <Show when={open()}>
-        {/* The list opens inside the settings dialog, from a portal outside it: above the dialog, with pointer events back under Kobalte's modal, and `data-kb-top-layer` so a click or focus in it is not outside the dialog. */}
         <Portal>
           <DismissableLayerV2
             active={open()}

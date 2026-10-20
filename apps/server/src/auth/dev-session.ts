@@ -3,8 +3,6 @@ import { type AuthEnv, OWNER_NAME, signedInResponse } from "./auth"
 
 export const DEV_SESSION_PATH = "/api/auth/dev/session"
 
-// Signs in as a named owner, so each verify suite gets its own objects. Reached only through dev-guard.ts,
-// and a development build that reached a deployed or tunneled host still answers as if the route did not exist.
 export async function devSessionRoute(request: Request, env: AuthEnv): Promise<Response | null> {
   const url = new URL(request.url)
   if (url.pathname !== DEV_SESSION_PATH) return null
@@ -18,7 +16,6 @@ export async function devSessionRoute(request: Request, env: AuthEnv): Promise<R
   }
   const signedIn = await signedInResponse(env, name)
   if (request.method !== "GET") return signedIn
-  // A browser opens this route with GET. The app reads the token from the hash, stores it, and drops the hash.
   const { token } = (await signedIn.json()) as { token: string }
   return new Response(null, { status: 302, headers: { location: `/#token=${token}` } })
 }

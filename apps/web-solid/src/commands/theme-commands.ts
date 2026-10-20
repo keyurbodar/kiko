@@ -10,21 +10,13 @@ const MODES: [Mode, string][] = [
   ["system", "Follow the system"],
 ]
 
-/*
- * Switching the look from the palette: one submenu with the appearances, every theme (Kiko's own and
- * the imported VS Code ones), and changing the open chat's avatar. Each look row
- * previews itself while highlighted. The pure table; `use-kat-commands.ts` wires it.
- */
 export function themeCommands(deps: {
   mode: () => Mode
   darkTheme: () => DarkThemeId
   setMode: (mode: Mode) => void
   setBuiltin: (id: ThemeId) => void
-  /** The imported themes and which one each appearance uses. */
   imported: () => Imported
-  /** Saves a theme: its appearance becomes the mode, and `id` (or Kiko's own, for "") is that appearance's theme. */
   setTheme: (appearance: ThemeAppearance, id: string) => void
-  /** Paints a look without saving it. Returns what paints the saved look back. */
   preview: (look: { mode?: Mode; darkTheme?: DarkThemeId; active?: Imported["active"] }) => () => void
   activeAgent: () => string | null
   changeAvatar: (slug: string) => void

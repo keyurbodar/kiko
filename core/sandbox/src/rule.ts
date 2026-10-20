@@ -1,6 +1,5 @@
 export const MIN_REPEAT_MS = 30 * 60_000;
 
-// A trigger may not fire every minute. The gap check that needs rrule runs in recurrence.ts.
 export function triggerProblem(rrule: string): string | null {
   if (/FREQ=MINUTELY/.test(rrule)) return "a schedule repeats at most every 30 minutes";
   return ruleProblem(rrule);
@@ -24,7 +23,6 @@ const ints = (v: string, min: number, max: number) =>
 
 export function ruleProblem(rrule: string): string | null {
   const parts = new Map<string, string>();
-  // No caller sets a start time: the first occurrence comes from the time the schedule is given.
   if (/^DTSTART[:;]/im.test(rrule.trim())) return "rrule takes no DTSTART line. the first time comes from the time you give";
   const lines = rrule.trim().split(/\r?\n/);
   if (lines.length !== 1) return "rrule must be one RRULE line";

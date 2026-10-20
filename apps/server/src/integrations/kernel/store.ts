@@ -1,13 +1,6 @@
 import { type Keyring, open, seal } from "@kiko/durable/crypto"
 import type { Mode } from "./client"
 
-/**
- * One user's Kernel rows in `UserDO`. `kernel` holds the sealed key (AAD `kernel/key`) and plain
- * flags. `kernel_lease` holds the one browser: its CDP and live view URLs are sealed together
- * (AAD `kernel/lease`), because each is a bearer capability for the life of the browser. Tab URLs
- * are plain and never leave the object. Disconnect deletes every row.
- */
-
 export type Tabs = Record<string, Record<string, string>>
 
 export type LeaseRow = {
@@ -21,7 +14,6 @@ export type LeaseRow = {
   dead: boolean
 }
 
-/** One spell of human control: when it began and the agents to wake when it ends. */
 type Control = { at: number; waiters: { agentId: string; roomId: string }[] }
 
 type LeaseUrls = { cdpUrl: string; liveUrl?: string }
@@ -43,14 +35,12 @@ const LEASE_AAD = "kernel/lease"
 
 export class KernelStore {
   #generation = 0
-  /** Bumped by `clear`, so a write that started before a disconnect is dropped. */
   get generation(): number {
     return this.#generation
   }
 
   constructor(
     private readonly sql: SqlStorage,
-    // Resolved only when sealing or opening, so reading browser state needs no key ring.
     private readonly secrets: () => { keyring: Keyring; userId: string },
   ) {
   }

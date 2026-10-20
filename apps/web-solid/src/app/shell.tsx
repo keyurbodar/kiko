@@ -34,7 +34,6 @@ import { sectionOf } from "./sections";
 import { TopBar } from "./top-bar";
 import { CHAT_MIN, defaultWidth, fitWidths, INFO, initialSizes, readWidth, resetWidth, saveWidth, SIDEBAR } from "./widths";
 
-/** Lazy menu and picker chunks, warmed once the rich editor is in, so no first right click or open waits on the network. */
 const idlePreloads = [preloadMessageMenu, preloadModelPicker, preloadMessageSearch];
 
 const fill = (
@@ -66,15 +65,9 @@ const AvatarPicker = lazy(() => import("../avatar/picker"));
 const BotPicker = lazy(() => import("../chat/bot-picker"));
 const NewAgent = lazy(() => import("../newagent/dialog"));
 const SettingsDialog = lazy(() => import("../settings/settings-dialog"));
-// A destructive confirm is not on the first-paint path: its dialog chunk loads when one is asked for.
 const DeleteChatDialog = lazy(() => import("../sidebar/delete-chat-dialog"));
 const CHAT_PATH = /^\/chat\/([^/]+)\/?$/;
 
-/**
- * What a section paints while its chunk loads. The router unmounts the page it leaves before the
- * next one is ready, so without this the main panel is simply empty for the length of a download.
- * A quiet, motion-free stand-in reads as "loading" without inventing content.
- */
 function PageSkeleton() {
   return (
     <div class="flex min-h-0 flex-1 flex-col gap-3 p-6" data-component="page-skeleton" aria-hidden="true">
@@ -96,7 +89,6 @@ function readCollapsed() {
   }
 }
 
-/** The root's size list, which is the only way to set a rightmost column's width in Corvu 0.2.5. */
 function GrabLayout(props: { onGrab: (layout: ContextValue) => void }) {
   props.onGrab(Resizable.useContext())
   return null
@@ -128,17 +120,7 @@ export function Shell(props: ParentProps) {
   })
   let sidebarPanel: PanelContextValue | undefined
   const [sidePanel, setSidePanel] = createSignal<PanelContextValue | undefined>();
-  /**
-   * Corvu 0.2.5 cannot resize the last panel through its own context: a rightmost panel is forced
-   * into the "preceding" strategy, and that path silently does nothing, so a double click on its
-   * handle left the width where it was. The root context can write the whole size list, which is
-   * the one path that works for every column.
-   */
   const [layout, setLayout] = createSignal<ContextValue | undefined>()
-  /**
-   * Puts one column at a pixel width and lets the chat absorb the difference, so the row always
-   * sums to one. `index` counts from the left, in the order the panels mounted.
-   */
   const setColumnWidth = (index: number, px: number) => {
     const ctx = layout()
     if (!ctx) return
@@ -149,8 +131,6 @@ export function Shell(props: ParentProps) {
     const delta = want - sizes[index]
     if (Math.abs(delta) < 0.0005) return
     sizes[index] = want
-    // The chat column is the one that gives way: the sidebar and the right column are what the
-    // human set, and the chat is what is left over.
     const chat = sizes.length === 3 ? 1 : 0
     sizes[chat] = Math.max(CHAT_MIN / total, sizes[chat] - delta)
     const sum = sizes.reduce((a, b) => a + b, 0)
@@ -161,7 +141,6 @@ export function Shell(props: ParentProps) {
   onMount(() => {
     const root = document.documentElement;
     const keys = (e: KeyboardEvent) => {
-      // Only Tab moves focus on its own; typing in a field or pressing a shortcut is not navigation.
       if (e.key === "Tab") root.dataset.input = "keys";
     };
     const pointer = () => delete root.dataset.input;
@@ -214,8 +193,6 @@ export function Shell(props: ParentProps) {
     });
   });
   const closed = () => (narrow() ? !drawer() : collapsed());
-  // A sidebar opening or closing slides. Its panels carry `motion-slide` for the length of the slide
-  // only, so a drag on a resize handle stays under the pointer. Nothing slides while the shell mounts.
   let mounted = false;
   let sliding: ReturnType<typeof setTimeout> | undefined;
   onMount(() => requestAnimationFrame(() => (mounted = true)));
@@ -269,15 +246,12 @@ export function Shell(props: ParentProps) {
     if (sideOpen()) void loadSidecar();
     const warm = () => {
       preloadRoute("/chat");
-      // The settings chunk does not depend on the editor, so it does not wait behind it. The pickers
-      // below do: they share the editor's chunk, and racing the first keystroke is what costs a frame.
       void SettingsDialog.preload();
       setTimeout(() => void import("../settings/catalog").then((m) => m.prefetchCatalog()), 3000);
     };
     if (idle) idle(warm);
     else setTimeout(warm, 300);
   });
-  // After the composer's rich editor has loaded, so the settings download never races it.
   createEffect(() => {
     if (!richLoaded()) return;
     for (const load of idlePreloads) load();
@@ -302,7 +276,6 @@ export function Shell(props: ParentProps) {
     on(
       dockedSide,
       (docked) => {
-        // The panel mounts with the row, so its width is set once it is in the size list.
         requestAnimationFrame(() => {
           if (!layout()) return;
           const sizes = layout()!.sizes();
@@ -323,9 +296,6 @@ export function Shell(props: ParentProps) {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => {
-          // A narrower window must not squeeze the chat under its floor: the columns are fitted to
-          // what is left, not each restored to the width it had on the wider window. The right
-          // column keeps its share of the window, which is what a fraction-based layout does well.
           const side = sidePanel();
           const fitted = fitWidths(window.innerWidth, sidebarPanel && !sidebarPanel.collapsed() ? readWidth(SIDEBAR) : 0, side && !side.collapsed() ? readWidth(INFO) : 0);
           if (sidebarPanel && !sidebarPanel.collapsed()) sidebarPanel.resize(`${fitted.sidebar}px`);
@@ -434,7 +404,6 @@ export function Shell(props: ParentProps) {
                     onHandleDragEnd={() => saveWidth(INFO, "kiko-sidecar-panel")}
                     onKeyUp={() => saveWidth(INFO, "kiko-sidecar-panel")}
                     onDblClick={() => {
-                      // Back to the default width for this window, and remember it as the width to open at.
                       const want = defaultWidth(INFO, window.innerWidth)
                       try {
                         localStorage.setItem(INFO.key, String(want))
@@ -495,7 +464,6 @@ export function Shell(props: ParentProps) {
             <NewAgent />
           </Suspense>
         </Show>
-        {/* Outside Suspense: a page that reads a loading resource, such as the model catalog, would blank the whole dialog. */}
         <Show when={settingsSection()}>
           <SettingsDialog />
         </Show>

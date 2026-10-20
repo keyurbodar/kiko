@@ -35,7 +35,6 @@ export const keywords = (text: string): string[] => [...new Set(norm(text).split
 
 const LIFE_TREE = "memory_tree"
 
-// The life log's tables, with its tree's. Its object's schema list spreads these.
 const LIFE_STEPS: Step[] = [
   `CREATE TABLE IF NOT EXISTS life (
     pos INTEGER PRIMARY KEY,
@@ -55,8 +54,6 @@ const LIFE_STEPS: Step[] = [
   ...treeSteps(LIFE_TREE),
 ]
 
-// The substring index for recall. It is its own list so an object can append it at the end of its schema: a step
-// placed in the middle of LIFE_STEPS would shift the version of every step after it.
 const LIFE_TRI_STEPS: Step[] = [
   "CREATE VIRTUAL TABLE IF NOT EXISTS life_tri USING fts5(text, tokenize = 'trigram')",
   "INSERT INTO life_tri (rowid, text) SELECT pos, text FROM life WHERE redacted = 0 AND pos NOT IN (SELECT rowid FROM life_tri)",
@@ -147,7 +144,6 @@ export class Life {
       .toArray()
     const longest = (words.map((w) => w.replace(/[%_\\]/g, "")).sort((a, b) => b.length - a.length)[0] ?? "").slice(0, 40)
     if (!rows.length && longest.length > 2) {
-      // A trigram index finds the substring. A LIKE scan read the whole life log on every miss.
       rows = this.sql
         .exec<Row>(
           `SELECT l.* FROM life_tri t JOIN life l ON l.pos = t.rowid WHERE life_tri MATCH ? AND l.redacted = 0 AND l.superseded_by IS NULL AND l.pos NOT IN (SELECT value FROM json_each(?)) ORDER BY l.pos DESC LIMIT ?`,
@@ -164,8 +160,6 @@ export class Life {
     const words = keywords(text)
     const hits = words.length ? this.recall(words.join(" "), limit) : []
     const card = this.card().map((c) => c.pos)
-    // The loop below stops at `limit` lines, and at most `hits` of the rows it reads are already in `out`, so
-    // `limit` rows are enough. Without the LIMIT every call read the whole life log.
     const rows = this.sql
       .exec<Row>(`SELECT * FROM life WHERE ${LIVE} AND (pos IN (SELECT value FROM json_each(?)) OR pos >= ?) ORDER BY pos DESC LIMIT ?`, JSON.stringify(card), this.count() - limit, limit)
       .toArray()
@@ -231,7 +225,6 @@ export class Life {
     return Number(this.settings.get("life_forget_revision") ?? 0)
   }
 
-  // Old chat remains readable, but deleting saved memory must not let its queued source save it again.
   captureAllowed(at: number): boolean {
     const cutoff = this.settings.get("life_capture_cutoff")
     return cutoff === null || at > Number(cutoff)

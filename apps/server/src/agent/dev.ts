@@ -5,12 +5,8 @@ import type { Work } from "@kiko/agent/workers"
 import type { AgentHome } from "../room/room-do"
 import { DEV_FAKE_KEY } from "./agent-do"
 
-// The bodies never reach a production bundle: dev-guard loads this module only in a dev build.
-
 export type Usage = { input: number; output: number; cacheRead: number; cacheWrite: number }
 
-// What a dev method needs from AgentDO. AgentDO exposes the Durable Object state and its own helpers here,
-// so the bodies can live in this dev-only module.
 export interface AgentDevHost {
   storage: DurableObjectStorage
   home(): AgentHome | null

@@ -44,10 +44,6 @@ export function Composer(props: ComposerProps) {
     cursor: 0,
   })
   const store = createPromptInputV2Store([persisted, setPersisted])
-  // Escape drops the quote, the way it closes a menu. A menu, a dialog or the mention list that
-  // wants the key has already used it by the time it reaches the document.
-  // Capture phase: the editor prevents Escape itself before a bubbling listener would see it. A
-  // list, menu or dialog that is open takes the key first, so it is checked here.
   const dropReply = (event: KeyboardEvent) => {
     if (event.key !== "Escape" || (!props.replyTo && !props.editing)) return
     const target = event.target
@@ -60,8 +56,6 @@ export function Composer(props: ComposerProps) {
     } else props.onClearReply?.()
   }
   document.addEventListener("keydown", dropReply, true)
-  // Up in an empty composer edits the last message. Any text, attachment or open
-  // list (the mention menu uses the arrows) leaves the key alone.
   const editLast = (event: KeyboardEvent) => {
     if (event.key !== "ArrowUp" || event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return
     const target = event.target
@@ -96,15 +90,11 @@ export function Composer(props: ComposerProps) {
     for (const [id, url] of held) discard(id, url)
   })
   const leaveChat = () => {
-    // The box now belongs to another chat, so its pictures go. Their uploads do not: an upload
-    // belongs to the draft, and cancelling it here made coming back restart from zero. The part is
-    // still in that chat's draft file, so `restoreFiles` puts it back with its upload intact.
     for (const [, url] of held) releaseBlobUrl(url)
     held = new Map()
     keptFor.clear()
     if (boxed().length) store.setPrompt(store.state.prompt.filter((part) => part.type !== "image"))
   }
-  // Saved files come back as chips. The restore is raced by chat switches, so it is built in draft-restore.ts.
   const restoreFiles = createDraftRestore<{ id: string; part: PromptInputV2Attachment; file: File }>({
     list: (key) => draftFiles().then((m) => m.listDraftFiles(key)),
     current: () => draftKey(),
@@ -123,13 +113,10 @@ export function Composer(props: ComposerProps) {
       store.setPrompt([...store.state.prompt, ...items.map((item) => item.part)], store.state.cursor)
     },
   })
-  // Typing always works. A send that could only come back as an error waits, and says why.
   const modelBlock = () => (props.editing || question.ask() ? null : (props.sendBlock ?? null))
   const blocked = () => modelBlock()?.reason ?? uploadBlockReason(boxed().map((part) => part.id))
   const draftText = () =>
     store.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")
-  // A file lives in the text as its chip, so deleting the chip takes the file out of the message.
-  // A memo, so adding a file before its chip lands does not count as the chip being deleted.
   createEffect(
     on(createMemo(draftText), (text) => {
       const named = new Set(attachmentIds(text))
@@ -137,16 +124,6 @@ export function Composer(props: ComposerProps) {
     }),
   )
 
-  /*
-   * Unsent text follows the chat. Switching refills the input from the draft in
-   * memory, in the same tick, so the first painted frame already has it. Saves
-   * are guarded by the key the input was filled for, so the text of the chat you
-   * are leaving never lands under the one you are entering.
-   */
-  /**
-   * Puts the caret after filled text, once the dialog that asked for it has handed focus back.
-   * A line's trailing space does not survive the editor's markdown, so it is typed after.
-   */
   const typeHere = (text: string) =>
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
@@ -175,7 +152,6 @@ export function Composer(props: ComposerProps) {
       },
     ),
   )
-  // Text sent to the chat already on screen. A chat that is not open takes it when it fills.
   createEffect(
     on(
       composerFill,
@@ -197,8 +173,6 @@ export function Composer(props: ComposerProps) {
     }, { defer: true }),
   )
 
-  // Entering an edit puts the message's text in the box; leaving it empties the box. While the edit
-  // is open the box is not the draft, so its text must not be saved over the draft the human left.
   createEffect(
     on(
       () => props.editing?.id,
@@ -219,7 +193,6 @@ export function Composer(props: ComposerProps) {
     ),
   )
 
-  /* The strip's thumbnails open the composer's own image dialog, over every picture in the box. */
   const viewer = createImageDialog()
   const pictures = () =>
     store.state.prompt.flatMap((part) => (part.type === "image" && isImage({ name: part.filename, type: part.mime }) ? [part] : []))
@@ -227,10 +200,6 @@ export function Composer(props: ComposerProps) {
   const botById = (botId: string | undefined) =>
     botId === undefined ? undefined : props.bots.find((bot) => bot.id === botId)
 
-  /*
-   * The `@` list is the open room's members. A mention is the slug, because the slug is what
-   * the room routes by and it never changes; a rename only changes the display name.
-   */
   const context = (): PromptInputV2Suggestion[] =>
     props.bots.map((bot) => ({
       id: `agent-${bot.id}`,
@@ -241,11 +210,6 @@ export function Composer(props: ComposerProps) {
       mention: { type: "agent", name: bot.id, content: `@${bot.id}`, start: 0, end: 0 },
     }))
 
-  /*
-   * The placeholder names the conversation, the way kat's says `Message kat`.
-   * The name keeps its own casing, and it is taken from the roster rather than
-   * hardcoded so it stays true when the reader switches conversation.
-   */
   const selectAnswer = (value: string) => batch(() => {
     const key = props.draftKey
     const displaced = question.progress().customAnswer
@@ -294,16 +258,11 @@ export function Composer(props: ComposerProps) {
         onSubmit: () => {
           if (props.busy || blocked()) return
           if (question.ask()) return question.advance()
-          // There is no conversation to land in, so there is nothing to send.
           if (!props.threadId) return
           const text = draftText()
           const editing = props.editing
-          // Every attachment is already uploaded: the send names the uploads, and the message shows
-          // the blob URLs until the room's copy arrives. The frame's size counts the names too.
           const parts = boxed()
           const attachments = readyAttachments(parts.map((part) => ({ id: part.id, name: part.filename, type: part.mime, size: part.size })))
-          // A refused draft stays in the box, untouched, with the reason in a toast.
-          // Each chip names its upload, which the room turns into the stored file's path.
           const pending = new Map(parts.map((part, i) => [part.id, attachments?.[i]?.pendingId]))
           const body = linkAttachments(text, (id) => {
             const to = pending.get(id)
@@ -320,8 +279,6 @@ export function Composer(props: ComposerProps) {
           if (!attachments) return
           const files = parts.map((part): MessageFile => ({ name: part.filename, size: part.size, type: part.mime, src: part.blob.url }))
           if (!body.trim() && files.length === 0) return
-          // The chat may not be open yet (the shell paints before IndexedDB answers), and a send with
-          // nowhere to land is refused. The box keeps the words rather than losing them silently.
           const sentDraftKey = draftKey()
           const accepted = props.onSend(files.length ? { body, files, attachments } : { body })
           if (accepted === false) return
@@ -336,11 +293,6 @@ export function Composer(props: ComposerProps) {
     },
   })
 
-  /*
-   * `Show` rather than a bare ternary: a component body runs once, so an
-   * eagerly-built element would freeze whichever reply was armed at mount.
-   * The `when` accessor is what makes the bar track the prop.
-   */
   const above = (
     <>
       <Show when={props.editing}>

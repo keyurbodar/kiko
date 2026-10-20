@@ -4,33 +4,23 @@ import { apiFetch } from "../lib/api"
 
 export type InstallResult = { ok: true; install: RecipeInstall } | { ok: false; error: string } | { ok: false; connect: RecipeNeedsConnect }
 
-/**
- * The last list the server sent. `cards` is there only when the server sent it, so a build's
- * catalog is never cached and a new build's cards win at once.
- */
 export type Listing = { cards?: readonly RecipeCard[]; installs: readonly RecipeInstall[]; broken?: readonly string[] }
 
-// The card shape changed with app logos and setup questions, so the old cache is left behind.
 const CACHE_KEY = "kiko:recipes:v2"
 
-/** The list this device saw last, so the page paints with the user's installs at once. */
 export function loadListing(): Listing {
   try {
     const cached = JSON.parse(localStorage.getItem(CACHE_KEY) ?? "null") as Listing | null
     if (cached && Array.isArray(cached.installs)) return cached
   } catch {
-    // A corrupt cache reads as none.
   }
   return { installs: [] }
 }
 
-/** The server's cards when it has sent some, else the build's catalog. */
 export const cardsOf = (list: Listing): readonly RecipeCard[] => list.cards ?? RECIPES
 
-/** The cards to show before any request: the cached list's, else the build's catalog. Synchronous, so the page paints at once. */
 export const loadCards = (): readonly RecipeCard[] => cardsOf(loadListing())
 
-/** The list from the server, cached for the next visit. Null when the request fails, so the cache stays as it was. */
 export async function fetchListing(): Promise<Listing | null> {
   const res = await apiFetch("/api/recipes").catch(() => null)
   if (!res?.ok) return null
@@ -48,7 +38,6 @@ export function cacheListing(next: Listing): void {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(next))
   } catch {
-    // Storage full or off: the page still works, it just does not paint from cache next time.
   }
 }
 
@@ -63,7 +52,6 @@ export async function updateRecipeRoutine(id: string, status: "active" | "paused
   return res?.ok ?? false
 }
 
-/** Adds a recipe. A retry with the same `installId` is safe: the server answers with the same install. A recipe whose apps are not connected comes back as `connect`, and nothing was made. */
 export async function postInstall(body: InstallRecipe): Promise<InstallResult> {
   const res = await apiFetch("/api/recipes", {
     method: "POST",
@@ -77,7 +65,6 @@ export async function postInstall(body: InstallRecipe): Promise<InstallResult> {
   return { ok: false, error: data?.error ?? "Could not add that recipe." }
 }
 
-/** Makes the recipe's file in the drive when it is a built-in, and answers its home path. Null when the server refuses. */
 export async function postEdit(slug: string): Promise<string | null> {
   const res = await apiFetch(`/api/recipes/${encodeURIComponent(slug)}/edit`, { method: "POST" }).catch(() => null)
   const data = res?.ok ? ((await res.json().catch(() => null)) as { path?: unknown } | null) : null

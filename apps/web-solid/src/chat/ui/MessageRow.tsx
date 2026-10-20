@@ -58,12 +58,9 @@ export function MessageRow(props: {
   const own = () => props.message.sender === "user"
   const grouped = () => !!props.group && !own() && props.message.botId !== undefined
   const senderName = () => props.bot?.name ?? props.message.botId ?? ""
-  // A file the human named in the text is its chip there, so the list under the pictures leaves it out.
   const files = () => unnamedFiles(props.message.files ?? [], props.message.body)
   const hasFiles = () => files().length > 0
-  // A photo carries its own height and would be cut in half by clamping, so its bubble never folds.
   const photo = () => !!props.message.rich && isPhotoTree(props.message.rich)
-  // The first bubble of a run that made steps opens the run panel. A bubble the pacer holds is not in the list yet.
   const windowKey = () => (own() ? undefined : useApp.runWindow(props.message))
   return (
     <div

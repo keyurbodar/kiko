@@ -8,7 +8,6 @@ type Touch = {
 	lastSeq: number
 	lastPreview: string
 	unread: number
-	/** The newest activity. Absent from a room that predates it. */
 	last?: ChatLast
 	mentions?: number
 	group?: boolean
@@ -98,5 +97,4 @@ function next(current: Chat | null, op: ChatOp, now: number, pair: boolean): Cha
 	}
 }
 
-/** Distinct ids, capped. A chat's agents are a set: a repeat adds nothing. */
 const agentIds = (agents: readonly string[]): string[] => [...new Set(agents.map((id) => id.slice(0, 64)))].slice(0, MAX_AGENTS)

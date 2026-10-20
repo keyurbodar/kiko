@@ -3,9 +3,6 @@ import { GlobeIcon } from "@kiko/ui/icons"
 import { createSignal, Show, type JSX } from "solid-js"
 import { fileUrl } from "../../lib/file-token"
 
-/* t3code's MarkdownLinkFavicon. The icon comes from the backend's own route, so the reader's browser
- * never asks the linked site. The 14px box is always there, so an icon that loads, or fails and turns
- * into a globe, moves nothing. */
 const failed = new Set<string>()
 const GITHUB = /(^|\.)github\.com$/
 const MARK =

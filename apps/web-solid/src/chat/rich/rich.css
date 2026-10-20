@@ -1,4 +1,3 @@
-
 :root {
   --rich-border: var(--border);
   --rich-surface: var(--muted);
@@ -175,7 +174,6 @@
 
 
 .rich { font-size: 0.875rem; line-height: 1.625; word-break: break-word; }
-/* A jumbo emoji bubble sets its own size; the server copy must follow it, as the optimistic one does. */
 [data-slot="bubble"][data-variant="ghost"] .rich { font-size: inherit; line-height: inherit; }
 
 [data-side="bot"] .rich { color: color-mix(in srgb, var(--foreground) 80%, transparent); }

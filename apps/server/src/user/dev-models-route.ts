@@ -4,8 +4,6 @@ import { DEV, devRequest } from "../lib/dev-guard"
 import { ownerStub } from "../lib/names"
 import { type CatalogOverlay, findProvider } from "../models/catalog"
 
-// DEVELOPMENT ONLY: `verify models-sync` installs fake remote models, copied from the provider's first
-// bundled model, or clears them with an empty list.
 export async function devModelsRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   if (!DEV || url.pathname !== "/api/dev/user/model-overlay" || request.method !== "POST") return null

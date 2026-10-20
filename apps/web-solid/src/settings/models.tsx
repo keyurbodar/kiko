@@ -37,14 +37,11 @@ export const POPULAR: readonly { id: string; note: string }[] = [
 type Pick = { kind: "all" } | { kind: "provider"; id: string }
 
 export function ModelsPage() {
-  // The catalog is a Providers-tab dependency: the Agents tab reads agent models, not the provider
-  // list. Asking for it on mount made every visit to Models download it even when it was never shown.
   const [wantsCatalog, setWantsCatalog] = createSignal(false)
   createEffect(() => {
     if (modelsTab() === "providers") setWantsCatalog(true)
   })
   const [catalog] = createResource(wantsCatalog, () => loadCatalog())
-  // A deep link straight to a provider (a failed connection's "Reconnect") needs the catalog too.
   createEffect(() => {
     if (reconnectTarget()) setWantsCatalog(true)
   })
@@ -404,7 +401,6 @@ export function AddProviderDialog(props: { open: boolean; loading: boolean; prov
   )
 }
 
-/** `only` limits the dialog to one way in, so a first-run "sign in" row opens straight into the sign-in. */
 export function ConnectDialog(props: { provider: CatalogProvider | null; only?: "sign_in" | "api_key"; onClose: () => void }) {
   const [error, setError] = createSignal<string | null>(null)
   const [busy, setBusy] = createSignal(false)
@@ -436,7 +432,6 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; only?: 
     setError(null)
     props.onClose()
   }
-  // A provider that has a problem is fixed the way it was connected: a new key, or a new sign-in.
   const methods = () => {
     const provider = props.provider
     const saved = provider ? connectedProviders().find((p) => p.provider === provider.id) : undefined
@@ -444,7 +439,6 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; only?: 
     if (!provider || !saved?.problem) return offered
     return offered.filter((m) => (saved.kind === "oauth" ? m !== "api_key" : m === "api_key"))
   }
-  // While a sign-in runs, the key field and its buttons would compete with it, so only the sign-in shows.
   const [signingIn, setSigningIn] = createSignal(false)
   const byKey = () => methods().includes("api_key") && !signingIn()
 

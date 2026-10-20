@@ -1,7 +1,6 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Harness, TaskId, TaskInspection } from "@earendil-works/pi-durable"
 
-/** Attach while the Harness is paused, before any submit or progress wait enables scheduling. */
 export async function continueAtBoundary(harness: Harness, due: () => boolean, sleeping: (task: TaskInspection["record"]) => boolean = () => false): Promise<{
   readonly closed: Promise<void>
   readonly continuing: () => boolean
@@ -20,8 +19,6 @@ export async function continueAtBoundary(harness: Harness, due: () => boolean, s
     }
     if (continuing || running.size || !due()) return
     continuing = true
-    // A publication listener cannot call Session APIs. Seal admission off the mutation line,
-    // after this complete checkpoint, before another task phase can issue outside work.
     queueMicrotask(() => { void harness.close(BACKGROUND_CONTEXT).then(finished.resolve, finished.reject) })
   })
   return { closed: finished.promise, continuing: () => continuing, dispose }

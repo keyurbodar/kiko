@@ -38,7 +38,6 @@ const QUOTE = 60
 
 export type ReactionNote = { by: string; emoji: string; text: string }
 
-/** The most of the reactions block, in the bytes the brief escapes it to. The newest reactions are kept; the rest are counted. */
 const MAX_REACTIONS_BYTES = 1024
 
 function reactionLines(notes: readonly ReactionNote[]): string | null {

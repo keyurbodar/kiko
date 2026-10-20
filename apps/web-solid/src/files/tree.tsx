@@ -60,8 +60,6 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 	const wanted = createMemo(() => [...filePaths(), ...folderPaths().map(asFolder)])
 	let held = new Set<string>()
 
-	// The row the user last clicked or focused. The tree itself focuses its first row before any touch, and it
-	// does not keep a folder selected, so neither says where the user is working.
 	const parentForNew = () => {
 		const path = touched && tree?.getItem(touched) ? touched : tree?.getSelectedPaths().at(-1)
 		return createParent(path)
@@ -75,7 +73,6 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		}
 	}
 
-	// Pierre only reports a rename that changes the name, so a row committed as typed is found by its input leaving.
 	const watchNew = (id: string, kind: "file" | "folder") => {
 		const root = host.querySelector(FILE_TREE_TAG_NAME)?.shadowRoot
 		if (!root) return
@@ -112,7 +109,6 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		else props.onNewFile?.(plain(id))
 	}
 
-	// Renaming selects the row. A selection is an open, and renaming a file must not open it.
 	const quietly = <T,>(run: () => T): T => {
 		syncing = true
 		try {
@@ -128,7 +124,6 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		return true
 	}
 
-	// The tree ends the rename on a refused name and leaves the row. A new row asks again, so it is neither lost nor saved as it stands.
 	const refused = (error: string) => {
 		showToastV2({ title: error, variant: "error" })
 		for (const [id, kind] of pending) {
@@ -207,12 +202,10 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 			initialExpandedPaths: expanded,
 			fileTreeSearchMode: "hide-non-matches",
 			search: false,
-			// Rows are only draggable if the tree's drag is on. It never moves a file: `dragFile` below takes every drag.
 			dragAndDrop: { canDrag: () => false, canDrop: () => false },
 			renaming: {
 				canRename: (item) => plain(item.path) !== HOME,
 				onError: refused,
-				// The tree moves the row after this returns. A change the room echoes first would find the old path.
 				onRename: (event) =>
 					queueMicrotask(() => {
 						const from = plain(event.sourcePath)
@@ -231,7 +224,6 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 			onSelectionChange: (selected) => {
 				if (syncing) return
 				const path = selected.at(-1)
-				// A folder only opens and closes. It is not the open file, so it must not stay highlighted.
 				if (path?.endsWith("/") && !pending.has(path)) {
 					syncing = true
 					tree?.getItem(path)?.deselect()
@@ -245,8 +237,6 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		tree = instance
 		held = new Set(wanted())
 		instance.render({ containerWrapper: host })
-		// A file row drags to the composer under Kiko's own type. The listener runs first and keeps the drag from the tree's own
-		// drag session, which would select the row (opening the file under the pointer) and refuses to start while a search is on.
 		const rowPath = (event: Event) => event.composedPath().find((node): node is HTMLElement => node instanceof HTMLElement && node.dataset.itemPath !== undefined)?.dataset.itemPath
 		const dragFile = (event: DragEvent) => {
 			event.stopPropagation()
@@ -259,7 +249,6 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		const touch = (event: Event) => {
 			touched = rowPath(event) ?? touched
 		}
-		// The tree rings its focused row. A click must not show it, and the next key brings it back.
 		const pointer = () => host.setAttribute("data-pointer", "")
 		const keyboard = () => host.removeAttribute("data-pointer")
 		host.addEventListener("click", touch)

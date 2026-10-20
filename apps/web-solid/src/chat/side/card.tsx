@@ -33,7 +33,6 @@ function Row(props: { icon: Glyph; label: string; meta?: string; kind: FixedKind
   )
 }
 
-/** The chat card beside the transcript: who is here and what they are doing, then one row per surface. */
 export default function ChatCard(props: { chatId: string }) {
   const navigate = useNavigate()
   const memory = useMemoryStore()
@@ -42,7 +41,6 @@ export default function ChatCard(props: { chatId: string }) {
   })
   const members = () => useApp.roomMembers()
   const chat = () => useApp.chatById(props.chatId)
-  /** The Kiko chat never gets members, so an add there opens a group of Kiko and the agent. */
   const add = (agent: Agent) => {
     if (props.chatId !== useApp.kikoChatId()) return useApp.memberOp(addOp(agent))
     const roomId = useApp.user()?.createChat(groupTitle(["Kiko", agent.name]), roomFor([KIKO, agent.id]))

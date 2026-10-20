@@ -1,14 +1,7 @@
 import { boundedWait } from "@kiko/durable/bounded-wait"
 
-/**
- * pi-durable's retry policy for a run: a transient model error (a rate limit, a 5xx, a dropped connection, a timeout)
- * is retried after a pause, up to this many times, so a hiccup does not end the human's turn. Anything else, such as a
- * bad key or a model the provider retired, ends the run at once. One table, because the typing line says the same
- * count the policy uses.
- */
 export const RETRY = { enabled: true, maxRetries: 3, baseDelayMs: 2_000 } as const
 
-/** What the typing line says while a retry waits: "retrying, 2 of 3". */
 export const retrying = (attempt: number): string => `retrying, ${attempt} of ${RETRY.maxRetries}`
 
 const MAX_RETRY_AFTER_MS = 60_000
@@ -19,7 +12,6 @@ const RETRYABLE = (status: number) => status === 408 || status === 409 || status
 
 const NUMERIC = /^\d+(\.\d+)?$/
 
-/** Milliseconds take precedence over Retry-After's seconds or HTTP date. */
 function retryAfterMs(headers: Headers, now: number): number | undefined {
   const millis = headers.get("retry-after-ms")?.trim()
   if (millis && NUMERIC.test(millis)) return Number(millis)
@@ -30,8 +22,6 @@ function retryAfterMs(headers: Headers, now: number): number | undefined {
   return Number.isNaN(date) ? undefined : date - now
 }
 
-// Keep retries in pi-durable so stream failures and retry status events retain their existing behavior.
-// This wrapper waits only for the part of Retry-After that the outer backoff has not already covered.
 export function withRetryAfter(egress: typeof fetch): typeof fetch {
   let notBefore = 0
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -52,7 +42,6 @@ export function withRetryAfter(egress: typeof fetch): typeof fetch {
   }) as typeof fetch
 }
 
-/** 400, because the outer policy retries a 429 or a 5xx and this error must end the run at once. */
 function tooLong(): Response {
   return new Response(JSON.stringify({ error: { message: RETRY_AFTER_TOO_LONG } }), { status: 400, headers: { "content-type": "application/json" } })
 }

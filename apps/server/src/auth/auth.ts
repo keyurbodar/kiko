@@ -11,7 +11,6 @@ export interface SessionUser {
   name: string
 }
 
-// A deployed Worker has one owner. Development signs in as a named owner so each suite gets its own objects.
 export const PRODUCTION_OWNER = "owner"
 export const OWNER_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/
 
@@ -23,7 +22,6 @@ async function digest(text: string): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(text)))
 }
 
-// Both digests are 32 bytes, and the loop always runs all of them, so the answer does not depend on where they differ.
 async function matches(expected: string, given: string): Promise<boolean> {
   const [a, b] = await Promise.all([digest(expected), digest(given)])
   let diff = 0
@@ -47,11 +45,8 @@ function fromHex(hex: string): Uint8Array | null {
 type Scope = "session" | "files"
 
 const SCOPE_TTL_S: Record<Scope, number> = { session: 30 * 24 * 60 * 60, files: 60 * 60 }
-// A file token is the same for ten minutes, so a reconnect does not change every file URL and reload every image.
 const SCOPE_STEP_S: Record<Scope, number> = { session: 1, files: 600 }
 
-// A token is `owner.scope.expiry.mac`. The mac covers the first three parts, so the Worker needs no session table
-// and a file token cannot pass as a session token.
 export async function signToken(secret: string, ownerId: string, scope: Scope, nowMs = Date.now()): Promise<string> {
   const step = SCOPE_STEP_S[scope]
   const body = `${ownerId}.${scope}.${Math.floor((Math.floor(nowMs / 1000) + SCOPE_TTL_S[scope]) / step) * step}`
@@ -69,7 +64,6 @@ export async function verifyToken(secret: string | undefined, token: string | nu
   return ok ? { id, name: id } : null
 }
 
-// A fetch sends `Authorization: Bearer`. A browser socket cannot, so it offers `["kiko", token]` as subprotocols.
 function bearerToken(request: Request): string | null {
   const header = request.headers.get("authorization")
   if (header) return /^Bearer (\S+)$/.exec(header)?.[1] ?? null
@@ -83,7 +77,6 @@ export function getSessionUser(request: Request, env: AuthEnv): Promise<SessionU
   return verifyToken(env.SESSION_SECRET, bearerToken(request), "session")
 }
 
-// The download route also accepts `?t=`, because an image or link cannot carry a header.
 export function getFileUser(request: Request, env: AuthEnv): Promise<SessionUser | null> {
   return verifyToken(env.SESSION_SECRET, new URL(request.url).searchParams.get("t"), "files")
 }
@@ -104,7 +97,6 @@ export async function authRoute(request: Request, env: AuthEnv): Promise<Respons
     }
     return signedInResponse(env, PRODUCTION_OWNER)
   }
-  // A hosted backend sets both secrets. Without them the route does not exist.
   if (pathname === `${AUTH_PATH}/clerk` && env.CLERK_JWT_KEY && env.OWNER_ID) {
     const input = (await request.json().catch(() => null)) as { token?: unknown } | null
     if (typeof input?.token !== "string") return Response.json({ message: "token is required" }, { status: 400 })

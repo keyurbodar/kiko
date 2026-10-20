@@ -30,10 +30,6 @@ export const FILE_STEPS: Step[] = [
 
 const partKey = (uploadId: string, n: number) => `part:${uploadId}:${n}`
 
-/**
- * File bytes for an install without R2, held in the owner database. A file is rows of at most one
- * megabyte. Keys are immutable in practice (a write makes a new key), so nothing here edits a file in place.
- */
 export class BlobStore {
 	constructor(private readonly ctx: DurableObjectState) {}
 

@@ -16,16 +16,10 @@ import { isProviderId } from "./credentials"
 
 export const MAX_LOGINS = 4
 
-// Workers cannot dynamically import pi-ai's OAuth modules, so the flows are registered statically here.
 registerBunOAuthFlows()
 
-// Every pi-ai provider with a sign-in is offered, so a pi-ai release that adds one needs no change here. These are
-// the exceptions. OpenRouter and Radius only finish on a loopback server, which a Worker cannot run. OpenAI Codex
-// signs in, but chatgpt.com answers every request from a Worker with a 403 "Unable to load site" page.
-// "Sign in with ChatGPT" under OpenAI uses api.openai.com and works.
 const CANNOT_RUN = new Set(["openai-codex", "openrouter", "radius"])
 
-// How a flow differs from the default: a device code, every prompt shown to the person.
 const FLOWS: Record<string, { method: ConnectMethod; select?: string; wrap?: (provider: Provider) => Provider }> = {
   anthropic: { method: "paste_code", select: "copy_code" },
   openai: { method: "paste_code", wrap: withChatgptPaste },
@@ -40,7 +34,6 @@ export function hasSignIn(provider: string): boolean {
   return !CANNOT_RUN.has(provider) && findProvider(provider)?.auth.oauth !== undefined
 }
 
-/** How the client offers a provider's sign-in, or undefined when the server refuses it. */
 export function signInMethod(provider: string): ConnectMethod | undefined {
   return hasSignIn(provider) ? (FLOWS[provider]?.method ?? "device_code") : undefined
 }
@@ -49,11 +42,9 @@ const NO_AMBIENT: AuthContext = { env: async () => undefined, fileExists: async 
 
 export interface LoginDeps<Owner> {
   store: CredentialStore
-  /** The stable id OpenAI keeps for this installation. Created once, then always the same. */
   deviceId(): string
   info(provider: string): ProviderInfo | null
   send(owner: Owner, frame: UserToClient): void
-  /** A provider only a development build offers. */
   devProvider?(id: string): Promise<Provider | undefined>
 }
 
@@ -114,7 +105,6 @@ export class ProviderLogins<Owner> {
     try {
       await models.login(providerId, "oauth", interaction, { getDeviceId: () => this.deps.deviceId(), agentName: "Kiko" })
     } catch (error) {
-      // Errors are short and hold no secret, but are never logged.
       if (this.live(login)) this.end(login, { reason: "failed", message: signInFailure(error) })
       return
     }
@@ -213,7 +203,6 @@ function wirePrompt(prompt: AuthPrompt): LoginPrompt {
     : { type: rest.type, message: rest.message, placeholder: rest.placeholder }
 }
 
-// The first row that matches wins. The sentence is kiko's; the provider's own words follow as detail.
 const FAILURES: readonly (readonly [RegExp, string])[] = [
   [/state|pasted|callback|redirect|authorization code|client id|not a web address/i, "That address does not match this sign-in. Start again and paste the address from the same tab."],
   [/expired|expired_token|code .*invalid|timed? ?out/i, "The sign-in code expired. Start again and finish it sooner."],

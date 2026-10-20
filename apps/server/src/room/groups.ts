@@ -20,10 +20,6 @@ type GroupsDeps = {
 	publish: (events: RoomEvent[]) => void
 }
 
-/**
- * Makes agents and groups in one call each. A repeat of the same call returns the first answer,
- * so a replayed tool call makes nothing twice.
- */
 export class Groups {
 	constructor(private readonly d: GroupsDeps) {}
 
@@ -84,7 +80,6 @@ export class Groups {
 			const role = (a: Agent) => tagline(a.prompt)
 			const chat = groupChatFile(checked.title, checked.goal, [{ slug: CHIEF, role: "leads" }, ...everyone.map((a) => ({ slug: a.slug, role: role(a) }))])
 			if (typeof chat !== "string") return { ok: false, error: chat.error }
-			// A group is always its own chat. Asking again for the same agents names the chat already made.
 			const { roomId, created } = await user.openChat(checked.title, [CHIEF, ...everyone.map((a) => a.id)])
 			await this.d.services.room(roomId)
 				.startGroup(home.userId, { chat: created ? chat : null, creator: slug, kickoff: checked.kickoff })
@@ -107,7 +102,6 @@ export class Groups {
 		return a
 	}
 
-	/** No model is passed: the user object starts a new agent on Kiko's current pick. The room's member row can be stale. */
 	private async make(home: Home, spec: NewAgentSpec): Promise<Agent> {
 		const agent = await this.d.services.user().makeAgent({ name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model: "" })
 		if (!agent) throw new Error(`@${spec.handle} could not be made (the handle may be taken)`)
