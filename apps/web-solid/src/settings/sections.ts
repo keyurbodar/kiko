@@ -8,7 +8,7 @@ export const SETTINGS_SECTIONS = [
   { id: "appearance", group: "all", label: "Appearance", hint: undefined, keywords: "theme json dark light font radius spacing colors open vsx accent contrast" },
   { id: "general", group: "all", label: "General", hint: undefined, keywords: "initiative proactive nudge digest speak up memory capture auto off" },
   { id: "keyboard", group: "all", label: "Keyboard shortcuts", hint: "Change the key for any command.", keywords: "keybindings hotkeys keys shortcut bind record reset browser conflict" },
-  { id: "account", group: "all", label: "Account", hint: undefined, keywords: "profile sign out backend address version update google github email" },
+  { id: "account", group: "all", label: "Account", hint: undefined, keywords: "profile sign out backend address version update google github email storage object r2 archive history space full" },
 ] as const
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]

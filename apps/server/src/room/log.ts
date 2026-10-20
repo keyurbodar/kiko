@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 
 import type {
 	Actor,
@@ -21,6 +22,8 @@ import { listAsks } from "./human-asks"
 import { agentStatuses } from "./status"
 import { type HeardStep, RunSteps } from "./steps"
 import { listTasks } from "./workspace"
+
+import type { ArchivedMessage } from "../owner/history-archive"
 
 export const REPLAY_LIMIT = 500
 export const KEEP_EVENTS = 2 * REPLAY_LIMIT
@@ -261,6 +264,34 @@ export class RoomLog {
 		}
 		return rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [], replies))
 	}
+
+  archiveSnapshot(day: string): ArchivedMessage[] {
+    const start = Date.parse(day)
+    return this.archiveRows(this.sql.exec<MessageRow>("SELECT * FROM messages WHERE at >= ? AND at < ? ORDER BY seq", start, start + 86_400_000).toArray())
+  }
+
+  archiveOverrides(ids: string[]): ArchivedMessage[] {
+    return this.archiveRows(this.sql.exec<MessageRow>("SELECT * FROM messages WHERE id IN (SELECT value FROM json_each(?)) ORDER BY seq", JSON.stringify(ids)).toArray())
+  }
+
+  private archiveRows(rows: MessageRow[]): ArchivedMessage[] {
+    const messages = new Map(this.withReactions(rows.filter((row) => row.deleted_at === null)).map((message) => [message.id as string, message]))
+    const reactions = this.sql.exec<{ message_id: string; actor: string; emoji: string; at: number }>(
+      "SELECT * FROM reactions WHERE message_id IN (SELECT value FROM json_each(?)) ORDER BY message_id, actor", JSON.stringify(rows.map((row) => row.id)),
+    ).toArray()
+    const previews = this.previews(rows.map((row) => row.id))
+    return rows.map((row) => ({ id: row.id, seq: row.seq, at: row.at, message: messages.get(row.id) ?? null, ...(previews.has(row.id) ? { preview: previews.get(row.id) } : {}), fingerprint: createHash("sha256").update(JSON.stringify([row, reactions.filter((reaction) => reaction.message_id === row.id)])).digest("hex") }))
+  }
+
+  deleteArchived(snapshot: ArchivedMessage[]): void {
+    const expected = new Map(snapshot.map((row) => [row.id, row.fingerprint]))
+    const ids = this.archiveOverrides(snapshot.map((row) => row.id)).filter((row) => expected.get(row.id) === row.fingerprint).map((row) => row.id)
+    const json = JSON.stringify(ids)
+    // The external-content FTS table must lose its entry before its content row disappears.
+    this.sql.exec("INSERT INTO messages_fts (messages_fts, rowid, text) SELECT 'delete', rowid, text FROM messages WHERE deleted_at IS NULL AND id IN (SELECT value FROM json_each(?))", json)
+    this.sql.exec("DELETE FROM reactions WHERE message_id IN (SELECT value FROM json_each(?))", json)
+    this.sql.exec("DELETE FROM messages WHERE id IN (SELECT value FROM json_each(?))", json)
+  }
 
 	/** A live (not deleted) message, or null. */
 	message(id: string): Message | null {

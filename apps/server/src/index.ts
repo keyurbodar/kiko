@@ -18,6 +18,7 @@ import { recipesRoute } from "./recipes/route"
 import { newAgentRoute } from "./user/new-agent-route"
 import { faviconRoute } from "./favicon/route"
 import { openVsxRoute } from "./themes/open-vsx-route"
+import { storageRoute } from "./owner/storage-route"
 
 
 export { OwnerDO } from "./owner/owner-do"
@@ -27,6 +28,8 @@ export interface Env extends AuthEnv {
   OWNER: DurableObjectNamespace<OwnerDO>
   /** Optional file storage. Without R2, bytes live in OwnerDO. */
   FILES?: R2Bucket
+  /** Optional archive for room history older than 30 days. */
+  ARCHIVE?: R2Bucket
   ASSETS: Fetcher
   CREDENTIALS_KEK: string
   /** The install's Cloudflare grant as JSON. UserDO keeps a rotated copy of its own. */
@@ -59,6 +62,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
     if (routines) return routines
     const settings = await settingsRoute(request, env)
     if (settings) return settings
+    const storage = await storageRoute(request, env)
+    if (storage) return storage
     const soul = await soulRoute(request, env)
     if (soul) return soul
     const searched = await searchRoute(request, env)

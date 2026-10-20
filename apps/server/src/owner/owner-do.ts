@@ -19,6 +19,9 @@ type Result<T> = T extends (...args: never[]) => infer R ? Awaited<R> : never
 
 export class OwnerDO extends DurableObject<Env> {
   private readonly runs: Runs
+  async storageUsage() {
+    return { objectBytes: this.ctx.storage.sql.databaseSize, archiveEnabled: Boolean(this.env.ARCHIVE) }
+  }
   protected readonly services: OwnerServices
   private readonly rooms = new Map<string, Room>()
   private readonly agents = new Map<string, Agent>()

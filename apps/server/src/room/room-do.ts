@@ -1,3 +1,6 @@
+import { HistoryArchive } from "../owner/history-archive"
+import { RoomHistoryStore } from "../owner/history-store"
+import { historyR2 } from "../owner/history-r2"
 import { fileStore } from "../files/store"
 import { humanAnswerText, KIKO, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
 import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, RunErrorKind, RunStep, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
@@ -107,6 +110,7 @@ export class Room implements SocketRoom {
 	private pairs!: RoomPair
 	private receiver!: ReceiveDeps
 	private pending!: PendingUploads
+	private archive?: HistoryArchive
 	private typingChain: Promise<void> = Promise.resolve()
 	private typingSent: string | null = null
 	private sends: Promise<unknown> = Promise.resolve()
@@ -619,9 +623,24 @@ export class Room implements SocketRoom {
 		this.publishFrame(frame)
 	}
 
-	search(query: string, options?: SearchOptions) {
-		return searchMessages(this.sql, query, options)
-	}
+  private historyArchive(): HistoryArchive | undefined {
+    const env = this.env
+    const home = this.home()
+    if (!env.ARCHIVE || !home) return undefined
+    return this.archive ??= new HistoryArchive(home.roomId, new RoomHistoryStore(this.ctx.storage, this.log), historyR2(env.ARCHIVE))
+  }
+
+  archiveHistory(): Promise<void> {
+    return this.historyArchive()?.afterRun() ?? Promise.resolve()
+  }
+
+  async history(seq: number, before: number, after: number) {
+    return this.historyArchive()?.around(seq, before, after) ?? this.log.around(seq, before, after)
+  }
+
+  async search(query: string, options?: SearchOptions) {
+    return this.historyArchive()?.search(query, options) ?? searchMessages(this.ctx.storage.sql, query, options)
+  }
 
 	initiativeWake(input: { id: string; to: AgentSlug | null; body: string; reason: string }): Promise<WakeResult | "busy"> {
 		return this.wakes.initiativeWake(input)
@@ -1147,6 +1166,7 @@ export class Room implements SocketRoom {
 		await this.memoryNaps.arm()
 		this.services.user().roomChanged(home.roomId)
 		this.bubbles.markEnded(runId)
+    this.ctx.waitUntil(this.archiveHistory().catch((error: unknown) => console.error("history archive failed", error instanceof Error ? error.message : String(error))))
 	}
 
 	private activeFrame(): RoomToClient {
@@ -1182,6 +1202,8 @@ export class Room implements SocketRoom {
 	private dev(): Promise<RoomDev> {
 		this.devCache ??= loadRoomDev().then((m) => new m.RoomDev({
 			sql: this.sql,
+      storage: this.ctx.storage,
+      archive: () => this.historyArchive(),
 			log: this.log,
 			members: this.members,
 			memory: this.memory,
@@ -1193,6 +1215,10 @@ export class Room implements SocketRoom {
 		}))
 		return this.devCache
 	}
+
+  async devArchive() {
+    return (await this.dev()).archive()
+  }
 
 	async devSeed(turns: { from: string; text: string }[]): Promise<number> {
 		return (await this.dev()).seed(turns)

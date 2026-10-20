@@ -13,7 +13,7 @@ const slugOf = (body: { slug?: unknown } | null) => (typeof body?.slug === "stri
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
-  if (!["fake", "status", "workers", "seed", "memory", "usage", "trace", "age", "seen", "due", "pending", "policy", "pass", "composio", "browser"].includes(action ?? "")) return null
+  if (!["archive", "fake", "status", "workers", "seed", "memory", "usage", "trace", "age", "seen", "due", "pending", "policy", "pass", "composio", "browser"].includes(action ?? "")) return null
   if (!devRequest(url)) return Response.json({ error: "not found" }, { status: 404 })
   const user = await getSessionUser(request, env)
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
@@ -64,6 +64,7 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     }
     return Response.json({ turns: await ownerStub(env.OWNER, user.id).roomCall(roomId, "devSeed", [turns as { from: string; text: string }[]]) })
   }
+  if (action === "archive") return Response.json(await ownerStub(env.OWNER, user.id).roomCall(roomId, "devArchive", []))
   if (action === "memory") return Response.json(await ownerStub(env.OWNER, user.id).roomCall(roomId, "devMemory", []))
   if (action === "pending") return Response.json({ pending: await ownerStub(env.OWNER, user.id).roomCall(roomId, "devAgePending", [Number((body as { ms?: unknown }).ms ?? 0)]) })
   if (action === "age") return Response.json({ open: await ownerStub(env.OWNER, user.id).roomCall(roomId, "devAge", [Number((body as { ms?: unknown }).ms ?? 0)]) })

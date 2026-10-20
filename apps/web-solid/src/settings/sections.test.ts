@@ -13,6 +13,7 @@ describe("settings sections", () => {
     expect(searchSections("api key").map((s) => s.id)).toEqual(["models"])
     expect(searchSections("sign out").map((s) => s.id)).toEqual(["account"])
     expect(searchSections("open vsx").map((s) => s.id)).toEqual(["appearance"])
+    expect(searchSections("r2 storage").map((s) => s.id)).toEqual(["account"])
     expect(searchSections("nothing like this")).toEqual([])
   })
 

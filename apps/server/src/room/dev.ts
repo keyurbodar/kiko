@@ -1,3 +1,5 @@
+import { seedArchiveHistory } from "../owner/history-dev"
+import type { HistoryArchive } from "../owner/history-archive"
 import type { AgentSlug, RoomEvent, Sender } from "@kiko/protocol"
 import type { Members } from "./members"
 import type { RoomLog } from "./log"
@@ -5,6 +7,8 @@ import type { PendingUploads } from "./pending"
 import type { RoomMemory } from "./memory"
 
 type DevDeps = {
+  storage: DurableObjectStorage
+  archive: () => HistoryArchive | undefined
 	sql: SqlStorage
 	log: RoomLog
 	members: Members
@@ -19,6 +23,13 @@ type DevDeps = {
 // The bodies never reach a production bundle: dev-guard loads this module only in a dev build.
 export class RoomDev {
 	constructor(private readonly d: DevDeps) {}
+
+  async archive() {
+    const history = this.d.archive()
+    if (!history) throw new Error("Archive binding is required")
+    await seedArchiveHistory(this.d.storage, history, Date.now())
+    return { hotMessages: this.d.log.snapshot().messages.length, search: await history.search("kumquat"), history: await history.around(Number.MAX_SAFE_INTEGER, 300, 0) }
+  }
 
 	async seed(turns: { from: string; text: string }[]): Promise<number> {
 		const call = crypto.randomUUID()

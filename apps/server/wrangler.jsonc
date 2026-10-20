@@ -25,5 +25,9 @@
     { "tag": "v5", "deleted_classes": ["UserDO", "RoomDO", "AgentDO", "FileDO"], "new_sqlite_classes": ["OwnerDO"] }
   ],
   // Optional. An install without R2 drops this line and keeps files in OwnerDO.
-  "r2_buckets": [{ "binding": "FILES", "bucket_name": "kiko-files" }]
+  "r2_buckets": [
+    { "binding": "FILES", "bucket_name": "kiko-files" },
+    // Optional. Remove ARCHIVE to retain all history in OwnerDO.
+    { "binding": "ARCHIVE", "bucket_name": "kiko-history" }
+  ]
 }
