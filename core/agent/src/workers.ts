@@ -199,12 +199,12 @@ export class Workers {
     return this.get(id)
   }
 
-  async stopAll(): Promise<void> {
+  async stopAll({ deferAbort = false }: { deferAbort?: boolean } = {}): Promise<void> {
     const live = this.live()
     if (!live.length) return
     this.sql.exec("UPDATE workers SET status = 'stopped', delivered = 1, updated_at = ? WHERE status IN ('pending', 'running') AND agent = ?", this.now(), this.agent)
     this.changed()
-    await Promise.all(live.map((work) => this.abort(work)))
+    if (!deferAbort) await Promise.all(live.map((work) => this.abort(work)))
   }
 
   forget(): void {
