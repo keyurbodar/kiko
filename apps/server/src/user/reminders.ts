@@ -1,20 +1,17 @@
 import type { RoomId, RoutineRunStatus, Trigger } from "@kiko/protocol"
-import type { Alarms } from "@kiko/durable/alarm"
+import type { RoutineDelivery, RoutineScheduler, ScheduledRoutine } from "../owner/schedules"
 import { RRule } from "rrule"
 import { sha256Hex, toHex } from "@kiko/durable/hash"
 import { getSetting, setSetting } from "../lib/settings"
 import { nextOccurrence, repeatProblem, validZone } from "@kiko/sandbox/recurrence"
 import { MIN_REPEAT_MS, ruleProblem } from "@kiko/sandbox/rule"
 
-export const REMINDERS_WAKEUP = "reminders"
 export const MAX_ROUTINES = 50
 const YEAR_MS = 365 * 86_400_000
 export const RUNS_KEPT = 20
 const LATE_MS = 60 * 60_000
-export const MAX_FAILS = 3
-const RUNS_PER_PASS = 10
+const MAX_FAILS = 3
 const LOST_RUN_MS = 2 * 60 * 60_000
-const RETRY_MS = 30_000
 const MAX_SKIPS = 10_000
 const MAX_TEXT = 2000
 
@@ -51,7 +48,7 @@ export type NewRoutine = {
 
 export type RunDelivery = "delivered" | "held" | "refused" | "gone" | "duplicate" | "skipped"
 
-export type DeliverRun = (input: { deliveryId: string; routine: Reminder; body: string }) => Promise<RunDelivery>
+type DeliverRun = (input: { requestId: string; deliveryId: string; routine: Reminder; body: string }) => Promise<RunDelivery>
 
 export type Notice = (roomId: RoomId, id: string, text: string) => Promise<void>
 
@@ -120,7 +117,7 @@ export class Reminders {
 
   constructor(
     private readonly sql: SqlStorage,
-    private readonly alarms: Alarms,
+    private readonly scheduler: RoutineScheduler,
     private readonly now: () => number = Date.now,
     private readonly ports?: RoutinePorts,
     private readonly changed: () => void = () => {},
@@ -163,7 +160,7 @@ export class Reminders {
     } else if (this.owner() !== owner) {
       throw new ReminderError("wrong owner")
     }
-    if (!this.sql.exec("SELECT 1 FROM chats WHERE room_id = ?", roomId).toArray().length) {
+    if (!this.sql.exec("SELECT 1 FROM room_directory WHERE room_id = ?", roomId).toArray().length) {
       throw new ReminderError("unknown chat")
     }
   }
@@ -237,6 +234,11 @@ export class Reminders {
     const fields = this.routineFields({ name: patch.name ?? current.name ?? "", instructions: patch.instructions ?? current.text, trigger, tz: current.tz, target: current.target }, retimed)
     const due = retimed ? fields.due : current.dueUtc
     const status = patch.status ?? (current.status === "done" ? "active" : current.status)
+    const resetFails = patch.status === "active" || current.status === "done"
+    if (!freshHash && fields.name === current.name && fields.text === current.text && JSON.stringify(trigger) === JSON.stringify(current.trigger)
+      && fields.rrule === current.rrule && due === current.dueUtc && status === current.status && (!resetFails || current.fails === 0)) {
+      return { routine: current }
+    }
     this.sql.exec(
       `UPDATE reminders SET name = ?, text = ?, trigger = ?, rrule = ?, due_utc = ?, status = ?, fails = CASE WHEN ? = 'active' THEN 0 ELSE fails END,
        hook_hash = coalesce(?, hook_hash) WHERE id = ?`,
@@ -309,7 +311,7 @@ export class Reminders {
     if (!changed.rowsWritten) return
     this.changed()
     if (status === "failed" || status === "timeout") await this.countFailure(routineId, occurrence)
-    else this.sql.exec("UPDATE reminders SET fails = 0 WHERE id = ?", routineId)
+    else this.sql.exec("UPDATE reminders SET fails = 0 WHERE id = ? AND fails != 0", routineId)
   }
 
   // One failed run. At MAX_FAILS a routine pauses. The human hears once per occurrence.
@@ -346,7 +348,7 @@ export class Reminders {
     const fresh = this.beginRun(routine.id, occurrence)
     const delivery = this.ports.gate.away() ? "held" : await this.deliver(routine, occurrence, body)
     if (delivery === "gone") {
-      this.sql.exec("UPDATE reminders SET status = 'cancelled' WHERE id = ?", routine.id)
+      this.sql.exec("UPDATE reminders SET status = 'cancelled' WHERE id = ? AND status != 'cancelled'", routine.id)
       await this.rearm()
     }
     if (fresh && delivery === "refused") await this.countFailure(routine.id, occurrence)
@@ -358,7 +360,7 @@ export class Reminders {
     if (!this.ports) return "refused"
     const pending = this.deliveries.get(routine.id) ?? new Set<Promise<RunDelivery>>()
     this.deliveries.set(routine.id, pending)
-    const delivery = this.ports.deliverRun({ deliveryId: `${routine.id}:${occurrence}`, routine, body }).catch(thrownAsRefused)
+    const delivery = this.ports.deliverRun({ requestId: `${routine.id}:${occurrence}`, deliveryId: `${routine.id}:${occurrence}`, routine, body }).catch(thrownAsRefused)
     pending.add(delivery)
     try {
       return await delivery
@@ -381,8 +383,9 @@ export class Reminders {
   }
 
   async makeDue(id: string): Promise<void> {
-    this.sql.exec("UPDATE reminders SET due_utc = ? WHERE id = ? AND status = 'active' AND due_utc > 0", this.now(), id)
-    await this.rearm()
+    const now = this.now()
+    const changed = this.sql.exec("UPDATE reminders SET due_utc = ? WHERE id = ? AND status = 'active' AND due_utc > 0 AND due_utc != ?", now, id, now)
+    if (changed.rowsWritten) await this.rearm()
   }
 
   async cancel(id: string): Promise<Reminder | null> {
@@ -416,13 +419,7 @@ export class Reminders {
     const list = JSON.stringify(ids)
     this.sql.exec("DELETE FROM routine_runs WHERE routine_id IN (SELECT value FROM json_each(?))", list)
     this.sql.exec("DELETE FROM recipe_links WHERE routine_id IN (SELECT value FROM json_each(?))", list)
-    this.sql.exec("DELETE FROM loop_reminders WHERE reminder_id IN (SELECT value FROM json_each(?))", list)
     this.sql.exec("DELETE FROM reminders WHERE id IN (SELECT value FROM json_each(?))", list)
-  }
-
-  /** Drops a routine that was just created, when the wiring around it failed. */
-  remove(id: string): void {
-    this.sql.exec("DELETE FROM reminders WHERE id = ?", id)
   }
 
   async cancelCreatedBy(createdBy: string): Promise<number> {
@@ -431,47 +428,34 @@ export class Reminders {
     return changed.rowsWritten
   }
 
-  async fire(): Promise<void> {
-    const now = this.now()
-    await this.alarms.setWakeup(REMINDERS_WAKEUP, now + RETRY_MS)
-    const due = this.sql
-      .exec<Row>("SELECT * FROM reminders WHERE status = 'active' AND trigger IS NOT NULL AND due_utc > 0 AND due_utc <= ? ORDER BY due_utc, id", now)
-      .toArray()
-      .map(toReminder)
-    let failed = false
-    let delivered = 0
-    this.expireLostRuns()
-    for (const reminder of due) {
-      if (++delivered > RUNS_PER_PASS) {
-        failed = true
-        continue
-      }
-      try {
-        if (reminder.rrule === null || this.now() - reminder.dueUtc <= LATE_MS) await this.run(reminder, String(reminder.dueUtc), "its scheduled time", "")
-      } catch {
-        failed = true
-        continue
-      }
-      const next = nextTime(reminder, this.now())
-      this.sql.exec(
-        `UPDATE reminders SET last_fired = due_utc, due_utc = ?, status = ?
-         WHERE id = ? AND due_utc = ? AND status = 'active'`,
-        next ?? reminder.dueUtc,
-        next === null ? "done" : "active",
-        reminder.id,
-        reminder.dueUtc,
-      )
-    }
-    await this.rearm(failed ? this.now() + (delivered > RUNS_PER_PASS ? 1_000 : RETRY_MS) : 0)
+  scheduled(): ScheduledRoutine[] {
+    return this.sql.exec<{ id: string; due_utc: number; room_id: string; target: string }>(
+      "SELECT id, due_utc, room_id, target FROM reminders WHERE status = 'active' AND due_utc > 0 AND json_extract(trigger, '$.on') = 'time' ORDER BY due_utc, id",
+    ).toArray().map((row) => ({ routineId: row.id, runAt: row.due_utc, roomId: row.room_id, target: row.target }))
   }
 
-  private async rearm(notBefore = 0): Promise<void> {
+  async fireScheduled({ routineId, runAt, requestId }: RoutineDelivery): Promise<void> {
+    const routine = this.get(routineId)
+    if (routine?.status !== "active" || routine.trigger?.on !== "time" || routine.dueUtc !== runAt) {
+      await this.rearm()
+      return
+    }
+    if (this.now() < runAt) return
+    if (requestId !== `${routineId}:${runAt}`) throw new ReminderError("invalid routine requestId")
+    this.expireLostRuns()
+    if (routine.rrule === null || this.now() - runAt <= LATE_MS) await this.run(routine, String(runAt), "its scheduled time", "")
+    const next = nextTime(routine, this.now())
+    this.sql.exec(
+      `UPDATE reminders SET last_fired = due_utc, due_utc = ?, status = ?
+       WHERE id = ? AND due_utc = ? AND status = 'active'`,
+      next ?? runAt, next === null ? "done" : "active", routineId, runAt,
+    )
+    await this.rearm()
+  }
+
+  async rearm(): Promise<void> {
     this.changed()
-    const { at } = this.sql
-      .exec<{ at: number | null }>("SELECT min(due_utc) AS at FROM reminders WHERE status = 'active' AND due_utc > 0")
-      .one()
-    if (at === null) await this.alarms.clearWakeup(REMINDERS_WAKEUP)
-    else await this.alarms.setWakeup(REMINDERS_WAKEUP, Math.max(at, notBefore))
+    await this.scheduler.sync(this.scheduled())
   }
 }
 

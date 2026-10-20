@@ -47,7 +47,7 @@ function otherAgent(agent: string | undefined): string | undefined {
   return handle && !["you", "me", "self", "myself", "yourself", "default", "none"].includes(handle) ? handle : undefined
 }
 
-export function parseTrigger(value: unknown): Trigger | string {
+function parseTrigger(value: unknown): Trigger | string {
   try {
     return decodeTrigger(tidyTrigger(value)) as Trigger
   } catch (e) {

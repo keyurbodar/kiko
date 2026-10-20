@@ -1,21 +1,15 @@
-import type { AgentSlug, } from "@kiko/protocol"
-import type { Alarms } from "@kiko/durable/alarm"
-import type { Env } from "../index"
-import { userStub } from "../lib/names"
+import type { OwnerServices } from "../owner/services"
+import type { AgentSlug } from "@kiko/protocol"
 import type { RoomLog } from "./log"
 import type { Members } from "./members"
 import type { RoomMemory } from "./memory"
 import type { Home } from "./home"
 
-export const MEMORY_WAKEUP = "memory_naps"
 const NAPS_PER_PASS = 24
 const NAPS_AT_ONCE = 4
 
-
 export type MemoryNapsDeps = {
-	ctx: DurableObjectState
-	env: Env
-	alarms: Alarms
+	services: OwnerServices
 	log: RoomLog
 	members: Members
 	memory: RoomMemory
@@ -43,52 +37,36 @@ export class MemoryNaps {
 		return this.d.memory.zoom(id, Date.now())
 	}
 
-	async arm(): Promise<void> {
-		if (this.d.memory.pending(1).length) await this.d.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 2_000)
-	}
-
 	async forget(): Promise<void> {
 		const home = this.d.home()
 		if (!home) return
 		const changes = this.d.memory.changes()
 		if (!changes) return
-		const user = userStub(this.d.env.USER, home.userId)
+		const user = this.d.services.user()
 		try {
 			await user.forgetMessages(home.roomId, changes.deleted, this.d.log.meta("private") === "1" ? [] : changes.edited, changes.positions)
 			this.d.memory.forwarded(changes.upto)
 		} catch (error) {
 			console.error(`forget failed: ${error instanceof Error ? error.message : String(error)}`)
-			await this.d.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 30_000)
 		}
 	}
 
+	/** Summarizes this room's pending spans for one pass, awaited by the caller after a human run. A failed span waits for the next human run. */
 	async naps(): Promise<void> {
-		const home = this.d.home()
-		if (!home || this.#napping) return
+		if (!this.d.home() || this.#napping) return
 		this.#napping = true
-		await this.d.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 120_000)
-		await this.forget()
-		const user = userStub(this.d.env.USER, home.userId)
-		const pass = async () => {
+		try {
+			await this.forget()
+			const user = this.d.services.user()
 			for (let done = 0; done < NAPS_PER_PASS; done += NAPS_AT_ONCE) {
-				if (this.d.members.list().some((m) => m.status !== "idle")) return void (await this.d.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 30_000))
+				if (this.d.members.list().some((m) => m.status !== "idle")) return
 				const spans = this.d.memory.pending(NAPS_AT_ONCE)
-				if (!spans.length) return void (await (this.d.memory.changes() ? this.d.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 30_000) : this.d.alarms.clearWakeup(MEMORY_WAKEUP)))
+				if (!spans.length) return
 				const outs = await Promise.all(spans.map((span) => this.d.memory.nap(span, (prompt) => user.compress(prompt))))
-				const retryAt = outs.find((o) => o.retryAt)?.retryAt
-				if (retryAt) return void (await this.d.alarms.setWakeup(MEMORY_WAKEUP, retryAt))
+				if (outs.some((o) => o.retryAt)) return
 			}
-			await this.d.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 1_000)
+		} finally {
+			this.#napping = false
 		}
-		this.d.ctx.waitUntil(
-			pass()
-				.catch(async (error: unknown) => {
-					console.error(`memory summary failed: ${error instanceof Error ? error.message : String(error)}`)
-					await this.d.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 60_000)
-				})
-				.finally(() => {
-					this.#napping = false
-				}),
-		)
 	}
 }

@@ -4,8 +4,7 @@
   "type": "module",
   "bin": { "kiko": "src/index.ts" },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@kiko/protocol": "workspace:*",

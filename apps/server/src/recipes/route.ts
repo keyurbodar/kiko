@@ -1,7 +1,7 @@
 import type { InstallRecipe, RecipeList } from "@kiko/protocol"
 import { isAgentSlug, isRoomId } from "@kiko/protocol"
 import type { Env } from "../index"
-import { userStub } from "../lib/names"
+import { ownerStub } from "../lib/names"
 import { error, signedIn } from "../lib/route"
 import { SLUG } from "./recipe"
 
@@ -25,23 +25,23 @@ export async function recipesRoute(request: Request, env: Env): Promise<Response
   if (pathname !== "/api/recipes" && !one && !edit) return null
   const user = await signedIn(request, env)
   if (user instanceof Response) return user
-  const stub = userStub(env.USER, user.id)
+  const stub = ownerStub(env.OWNER, user.id)
   if (edit) {
     if (request.method !== "POST") return error(405, "method not allowed")
     const slug = edit[1] ?? ""
     if (!SLUG.test(slug) || slug.length > 64) return error(400, "name must be lowercase words joined by dashes")
-    const path = await stub.editRecipe(slug)
+    const path = await stub.userCall("editRecipe", [slug])
     return path ? Response.json({ path }) : error(404, `no built-in recipe named ${slug}`)
   }
   if (one) {
     if (request.method !== "DELETE") return error(405, "method not allowed")
-    return (await stub.uninstallRecipe(one[1] ?? "")) ? Response.json({ ok: true }) : error(404, "no such install")
+    return (await stub.userCall("uninstallRecipe", [one[1] ?? ""])) ? Response.json({ ok: true }) : error(404, "no such install")
   }
-  if (request.method === "GET") return Response.json((await stub.recipeList()) satisfies RecipeList)
+  if (request.method === "GET") return Response.json((await stub.userCall("recipeList", [])) satisfies RecipeList)
   if (request.method !== "POST") return error(405, "method not allowed")
   const input = parseInstall(await request.json().catch(() => null))
   if (!input) return error(400, "need installId, slug, and roomId with agent, or own")
-  const out = await stub.installRecipe(user.id, input)
+  const out = await stub.userCall("installRecipe", [user.id, input])
   if (!out.ok && "needsConnect" in out) return Response.json(out.needsConnect)
   return out.ok ? Response.json({ install: out.install }) : error(400, out.error)
 }

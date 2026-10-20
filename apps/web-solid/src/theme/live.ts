@@ -1,11 +1,11 @@
 // The saved look for the signed-in user. The look loads after the first paint, listens on the
-// shared user socket (`sync/user-channel.ts`), applies what the server holds, and applies a change
+// shared user socket (`sync/socket.ts`), applies what the server holds, and applies a change
 // from another device at once. Saving applies locally first, then sends. The inline script in
 // `index.html` already painted from the cache, so nothing here is on the first-paint path.
 
 import { createEffect, createMemo, createRoot, createSignal, on } from "solid-js"
 import { useApp } from "../lib/store"
-import { type UserChannel, userChannel } from "../sync/user-channel"
+import { type UserChannel, userChannel } from "../sync/socket"
 import { applyCommitted, selectBuiltin, importedThemes, previewLook as preview, readCache, saveImported, writeCache } from "@kiko/theme/apply"
 import type { Imported, ImportedTheme } from "@kiko/theme/imported"
 import { setAvatarPicks } from "../avatar/picks"

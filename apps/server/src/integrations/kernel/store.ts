@@ -24,7 +24,7 @@ export type LeaseRow = {
 /** One spell of human control: when it began and the agents to wake when it ends. */
 type Control = { at: number; waiters: { agentId: string; roomId: string }[] }
 
-export type LeaseUrls = { cdpUrl: string; liveUrl?: string }
+type LeaseUrls = { cdpUrl: string; liveUrl?: string }
 
 type Sealed = { kek_version: number; iv: ArrayBuffer; ciphertext: ArrayBuffer }
 type LeaseSql = Sealed & {

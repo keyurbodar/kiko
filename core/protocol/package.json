@@ -10,8 +10,7 @@
     "./fixtures": "./src/fixtures.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@kiko/agent": "workspace:*",

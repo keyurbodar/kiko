@@ -4,10 +4,10 @@
 
 import { type Keyring, open, seal } from "@kiko/durable/crypto"
 import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
-import { buildMetadata, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
+import { buildMetadata, destructiveMigration, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
 import type { UpdateStage } from "@kiko/protocol"
 
-export type CfGrant = {
+type CfGrant = {
   kind: "oauth" | "token"
   accountId: string
   scriptName: string
@@ -19,7 +19,7 @@ export type CfGrant = {
 
 export type UpdateConfig = { releaseBase: string; publicKey: string; cfApi: string; oauthUrl: string }
 
-export type UpdateDeps = {
+type UpdateDeps = {
   fetch: (url: string, init?: RequestInit) => Promise<Response>
   config: UpdateConfig
   /** The grant UserDO stored last, else the install's CF_GRANT secret. */
@@ -100,7 +100,10 @@ export async function runUpdate(deps: UpdateDeps, version: string): Promise<void
     } catch (e) {
       throw new UpdateFailure(e instanceof Error ? e.message : "The release does not fit this backend.")
     }
-    await cf(deps, token, `/accounts/${grant.accountId}/workers/scripts/${grant.scriptName}`, { method: "PUT", body: uploadBody(manifest, files, buildMetadata(manifest, migrations, null, "inherit")) })
+    if (destructiveMigration(migrations)) throw new UpdateFailure("This release resets the backend's stored data. Export your data, then reconnect Cloudflare in the installer to review and confirm the reset.")
+    const settings = await cf<{ bindings?: { name: string; type: string }[] }>(deps, token, `/accounts/${grant.accountId}/workers/scripts/${grant.scriptName}/settings`)
+    const inheritedR2 = settings.bindings?.filter((binding) => binding.type === "r2_bucket").map((binding) => binding.name) ?? []
+    await cf(deps, token, `/accounts/${grant.accountId}/workers/scripts/${grant.scriptName}`, { method: "PUT", body: uploadBody(manifest, files, buildMetadata(manifest, migrations, null, "inherit", inheritedR2)) })
 
     deps.report("restarting")
   } catch (e) {

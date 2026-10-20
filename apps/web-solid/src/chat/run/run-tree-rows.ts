@@ -5,7 +5,7 @@ import { anyRunning, buildEntries, type Entry, extraInput, iconOf, liveLabel, pa
  * The run tree as data: the rows the thread draws under an agent's bubble for the steps that led
  * to it. While the agent still works on them the tree shows the newest few and folds the rest
  * under one row. Once a bubble opens them and nothing runs, the tree is one sentence that opens the
- * whole list. Nothing here touches the DOM, so every rule has a table in `run-tree-rows.test.ts`.
+ * whole list. Nothing here touches the DOM.
  */
 
 /** How many entries a live tree shows. Older ones fold under one row. */

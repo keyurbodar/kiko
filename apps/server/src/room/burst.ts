@@ -1,15 +1,20 @@
-import type { Envelope, Message, RoomId } from "@kiko/protocol"
-import type { Alarms } from "@kiko/durable/alarm"
-import { MAX_ENTRY_BYTES, MAX_OPEN } from "@kiko/agent/inbox"
+import type { AgentSlug, Envelope, RoomId } from "@kiko/protocol"
+import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
+import { JournalStorage } from "@kiko/agent/journal"
+import type { RoomLog } from "./log"
+import { messageSeqs } from "./message-position"
+import type { Members } from "./members"
+
+const MAX_ENTRY_BYTES = 256 * 1024
+const MAX_OPEN = 1000
 
 export const BURST_WAKEUP = "burst"
 
-export const AFTER_MESSAGE_MS = 1_000
+const AFTER_MESSAGE_MS = 1_000
 export const AFTER_TYPING_MS = 2_500
 export const AFTER_FRAGMENT_MS = 2_500
 export const MAX_BURST_MS = 8_000
-
-type Row = { id: string; seq: number; at: number; text: string; reply_to: string | null; mentions: string }
 
 const DANGLING = new Set(
 	"a an the and or but so because cause if then than that which who whom whose when while where though although unless until since as nor yet plus also like with without of to for from in on at by about into onto over under after before between through during against toward towards via per".split(
@@ -30,7 +35,7 @@ export function debounce(event: "message" | "typing" | "fragment", now: number, 
 	return Math.min(now + wait, startedAt + MAX_BURST_MS)
 }
 
-export const MAX_DELIVERY_ENVELOPES = MAX_OPEN / 5
+const MAX_DELIVERY_ENVELOPES = MAX_OPEN / 5
 export const MAX_DELIVERY_BYTES = MAX_ENTRY_BYTES / 2
 
 export function deliverable<T>(envelopes: readonly T[], maxCount = MAX_DELIVERY_ENVELOPES, maxBytes = MAX_DELIVERY_BYTES): T[] {
@@ -50,78 +55,125 @@ export const envelopeId = (messageId: string) => `human:${messageId}`
 export type Pending = { envelope: Envelope; mentions: string[] }
 
 export class Burst {
-	private readonly sql: SqlStorage
+  private readyAt?: number
+  private settling = false
+  private restored?: Promise<void>
+  private readonly durable = new Map<AgentSlug, number>()
+  private readonly admitted = new Map<AgentSlug, number>()
 
-	constructor(
-		storage: DurableObjectStorage,
-		private readonly alarms: Alarms,
-		private readonly now: () => number = Date.now,
-	) {
-		this.sql = storage.sql
-	}
+  constructor(
+    private readonly storage: DurableObjectStorage,
+    private readonly roomId: string,
+    private readonly alarms: Alarms,
+    private readonly log: RoomLog,
+    private readonly members: Members,
+    private readonly now: () => number = Date.now,
+  ) {}
 
-	pending(): boolean {
-		return this.sql.exec("SELECT 1 FROM pending LIMIT 1").toArray().length > 0
-	}
+  /** Read only persisted pi state; in-flight admission is deliberately absent after eviction. */
+  restore(): Promise<void> {
+    return this.restored ??= this.restoreCursors()
+  }
 
-	private startedAt(): number | null {
-		// A pending row's seq is the order it was sent in, and it is staged with its message, so its seq follows the
-		// message's at. The lowest seq therefore holds the window's first at, read through pending_seq.
-		return this.sql.exec<{ at: number | null }>("SELECT at FROM pending ORDER BY seq LIMIT 1").one().at
-	}
+  private async restoreCursors(): Promise<void> {
+    for (const { slug } of this.members.list()) {
+      const journal = JournalStorage.open(this.storage, `${this.roomId}:${slug}`)
+      let cursor: Parameters<JournalStorage["scanSubmissions"]>[2]
+      let after = 0
+      do {
+        const page = await journal.scanSubmissions({}, 200, cursor, BACKGROUND_CONTEXT)
+        for (const submission of page.items) {
+          if (submission.type !== "input" || submission.entry === undefined) continue
+          const data = (await journal.entry(submission.entry, BACKGROUND_CONTEXT))?.entry.data
+          if (!data || typeof data !== "object" || Array.isArray(data)) continue
+          if (typeof data.humanDeliveredSeq === "number") after = Math.max(after, data.humanDeliveredSeq)
+          if (!Array.isArray(data.envelopeIds)) continue
+          const ids = data.envelopeIds.flatMap((id) => typeof id === "string" && id.startsWith("human:") ? [id.slice(6).split("#")[0]] : [])
+          const seq = this.storage.sql.exec<{ seq: number | null }>(
+            "SELECT max(seq) AS seq FROM messages WHERE room_id = ? AND json_extract(sender, '$.kind') = 'human' AND seq IN (SELECT value FROM json_each(?))",
+            this.roomId, messageSeqs(this.roomId, ids),
+          ).one().seq
+          after = Math.max(after, seq ?? 0)
+        }
+        cursor = page.next
+      } while (cursor)
+      await journal.close(BACKGROUND_CONTEXT)
+      this.durable.set(slug, after)
+    }
+  }
 
-	/** Records a human message in the window, in the same transaction that stores the message. */
-	stage(message: Pick<Message, "id" | "seq" | "text" | "replyTo">, mentions: readonly string[]): void {
-		this.sql.exec(
-			"INSERT OR IGNORE INTO pending (id, seq, at, text, reply_to, mentions) VALUES (?, ?, ?, ?, ?, ?)",
-			message.id,
-			message.seq,
-			this.now(),
-			message.text,
-			message.replyTo ?? null,
-			JSON.stringify(mentions),
-		)
-	}
+  forAgent(slug: AgentSlug, limit = MAX_DELIVERY_ENVELOPES): Pending[] {
+    // unansweredFor's base is exclusively the durable inbox-delivery cursor.
+    return this.log.unansweredFor(slug, this.durable.get(slug) ?? 0, Number.MAX_SAFE_INTEGER)
+      .filter(({ envelope }) => envelope.seq > (this.admitted.get(slug) ?? 0)).slice(0, limit)
+  }
 
-	/** Sets the wakeup for a staged message: the window closes a pause after it, or at the cap. */
+  accepted(slug: AgentSlug, envelopes: readonly Envelope[]): void {
+    for (const envelope of envelopes) this.admitted.set(slug, Math.max(this.admitted.get(slug) ?? 0, envelope.seq))
+  }
+
+  pending(): boolean { return this.members.list().some(({ slug }) => this.forAgent(slug, 1).length > 0) }
+
+  private startedAt(): number | null {
+    const first = this.envelopes().at(0)
+    return first ? this.log.message(first.envelope.rootId)?.at ?? null : null
+  }
+
+	/** Sets the wakeup for a durable human message: the window closes a pause after it, or at the cap. */
 	async arm(text: string): Promise<void> {
+    await this.restore()
 		const now = this.now()
-		await this.alarms.setWakeup(BURST_WAKEUP, debounce(isFragment(text) ? "fragment" : "message", now, this.startedAt() ?? now))
+    this.readyAt = debounce(isFragment(text) ? "fragment" : "message", now, this.startedAt() ?? now)
+		await this.alarms.setWakeup(BURST_WAKEUP, this.readyAt)
 	}
+
+  /** Keep the burst in its incoming event; the deadline is recovered from unanswered messages. */
+  async settle(flush: () => Promise<void>): Promise<void> {
+    await this.restore()
+    if (this.settling || !this.pending()) return
+    this.settling = true
+    try {
+      while (this.pending()) {
+        const at = this.deadline() ?? this.now()
+        if (at > this.now()) {
+          await scheduler.wait(at - this.now())
+          continue
+        }
+        const before = this.envelopes().map(({ envelope }) => envelope.id).join("\n")
+        await flush()
+        if (this.pending() && before === this.envelopes().map(({ envelope }) => envelope.id).join("\n")) return
+      }
+      await this.alarms.clearWakeup(BURST_WAKEUP)
+    } finally {
+      this.settling = false
+    }
+  }
 
 	async typing(): Promise<void> {
+    await this.restore()
 		const startedAt = this.startedAt()
 		if (startedAt === null) return
-		await this.alarms.setWakeup(BURST_WAKEUP, debounce("typing", this.now(), startedAt))
+    this.readyAt = debounce("typing", this.now(), startedAt)
+		await this.alarms.setWakeup(BURST_WAKEUP, this.readyAt)
 	}
 
-	/** The window's messages in send order. */
-	envelopes(roomId: RoomId, limit = MAX_DELIVERY_ENVELOPES): Pending[] {
-		return this.sql
-			.exec<Row>("SELECT id, seq, at, text, reply_to, mentions FROM pending ORDER BY seq LIMIT ?", limit)
-			.toArray()
-			.map((r) => ({
-				envelope: {
-					id: envelopeId(r.id),
-					roomId,
-					from: { kind: "human" },
-					body: r.text,
-					...(r.reply_to ? { replyTo: r.reply_to as Envelope["replyTo"] } : {}),
-					hop: 0,
-					rootId: r.id,
-					seq: r.seq,
-				},
-				mentions: JSON.parse(r.mentions) as string[],
-			}))
-	}
+  /** Union only still-unanswered routes; partially delivered @all batches keep their remaining recipients. */
+  envelopes(_roomId?: RoomId, limit = MAX_DELIVERY_ENVELOPES): Pending[] {
+    const unique = new Map<string, Pending>()
+    for (const { slug } of this.members.list()) for (const pending of this.forAgent(slug, limit)) unique.set(pending.envelope.id, pending)
+    return [...unique.values()].sort((a, b) => a.envelope.seq - b.envelope.seq).slice(0, limit)
+  }
 
-	delivered(envelopes: readonly Envelope[]): void {
-		for (const e of envelopes) this.sql.exec("DELETE FROM pending WHERE id = ?", e.rootId)
-	}
-
-	clear(): void {
-		this.sql.exec("DELETE FROM pending")
-	}
+  deadline(): number | undefined {
+    const pending = this.envelopes(undefined, Number.MAX_SAFE_INTEGER)
+    const first = pending[0]
+    const last = pending.at(-1)
+    if (!first || !last) return undefined
+    const firstAt = this.log.message(first.envelope.rootId)?.at
+    const lastAt = this.log.message(last.envelope.rootId)?.at
+    if (firstAt === undefined || lastAt === undefined) return undefined
+    return this.readyAt ?? debounce(isFragment(last.envelope.body) ? "fragment" : "message", lastAt, firstAt)
+  }
 
 	async retry(ms: number): Promise<void> {
 		if (this.pending()) await this.alarms.setWakeup(BURST_WAKEUP, this.now() + ms)

@@ -1,10 +1,5 @@
 import { write } from "../lib/api-base"
 
-/*
- * The Connect Cloudflare flow (the install steps). Pure steps with the network
- * passed in, so tests drive them with a fake fetch. The screen is connect.tsx.
- */
-
 export type Fetch = (input: string, init?: RequestInit) => Promise<Response>
 
 export interface OAuthConfig {
@@ -23,11 +18,11 @@ export type Grant = { kind: "oauth"; code: string; verifier: string; redirectUri
 export interface InstallError {
   code: string
   message: string
-  /** What Cloudflare itself said, and the step. Shown small under the message. */
+
   detail?: string
-  /** For `choose_account`: the accounts this sign-in can install into. */
+
   accounts?: { id: string; name: string }[]
-  /** The install finished and only signing in to the new backend failed, so a retry signs in again. */
+
   installed?: boolean
 }
 
@@ -39,7 +34,6 @@ const b64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replac
 
 const randomString = () => b64url(crypto.getRandomValues(new Uint8Array(32)))
 
-/** base64url(SHA-256(verifier)) without padding. */
 export async function challengeOf(verifier: string): Promise<string> {
   return b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))))
 }
@@ -80,7 +74,6 @@ export function takePending(): { verifier: string; state: string; reconnect: boo
   }
 }
 
-/** The grant a Cloudflare redirect carries, or the reason it cannot be used. State is checked before anything is sent. */
 export function oauthGrant(search: string, pending: { verifier: string; state: string } | null, uri: string): { grant: Grant } | { error: InstallError } {
   const params = new URLSearchParams(search)
   const denied = params.get("error")
@@ -104,29 +97,18 @@ const WORKERS_DASHBOARD = "https://dash.cloudflare.com/?to=/:account/workers-and
 const WORKERS_LINK = { href: WORKERS_DASHBOARD, label: "Open Workers in Cloudflare" }
 const TOKENS_LINK = { href: "https://dash.cloudflare.com/profile/api-tokens", label: "Open API tokens in Cloudflare" }
 
-/**
- * What "Try again" does after a failure. "sign-in": the backend is installed, only signing in to it failed.
- * "new-grant": an OAuth sign-in starts over. "token": a token Cloudflare does not know is pasted again.
- * "same": the same token again.
- */
 export function retryKind(error: InstallError, grant: Grant["kind"] = "oauth"): "sign-in" | "new-grant" | "token" | "same" {
   if (error.installed) return "sign-in"
   if (grant === "token") return error.code === "bad_token" ? "token" : "same"
-  // An OAuth code works once. The installer holds its tokens only while an account is picked.
   return "new-grant"
 }
 
-/**
- * What is wrong with a pasted token before it is sent, or null. Cloudflare's token page also shows a token's ID,
- * and the profile page shows the Global API Key. Both are hex, and neither works as a token.
- */
 export function tokenProblem(token: string): string | null {
   if (/^[0-9a-f]{37}$/i.test(token)) return "That looks like your Global API Key. Kiko needs an API token: create one with the link above and paste the value Cloudflare shows."
   if (/^[0-9a-f]{32}$/i.test(token)) return "That looks like a token's ID. Paste the token value Cloudflare showed once when you created it. If you no longer have it, roll the token or create a new one."
   return null
 }
 
-/** What to show for an installer error: a plain sentence and at most one link. "Try again" is always offered, and an install that stopped halfway picks up where it left off. */
 export function failureOf(error: InstallError): Failure {
   const base = sentence(error)
   return error.detail && !base.detail ? { ...base, detail: error.detail } : base
@@ -180,7 +162,6 @@ async function errorOf(res: Response): Promise<InstallError> {
   }
 }
 
-/** A GET to the installer. Anything but a JSON answer, such as a page from a host with no installer, is one error. */
 async function installerGet<T>(path: string, valid: (body: Record<string, unknown>) => boolean, f: Fetch): Promise<T> {
   const res = await f(`${INSTALLER_URL}${path}`).catch(() => null)
   const body = res?.ok ? ((await res.json().catch(() => null)) as Record<string, unknown> | null) : null
@@ -195,13 +176,13 @@ export const loadTokenLink = (f: Fetch = fetch) => installerGet<TokenLink>("/tok
 
 export type InstallResult = { ok: true; backendUrl: string } | { ok: false; error: InstallError }
 
-export async function install(clerkToken: string, grant: Grant, f: Fetch = fetch, accountId?: string): Promise<InstallResult> {
+export async function install(clerkToken: string, grant: Grant, f: Fetch = fetch, accountId?: string, reset?: "delete-existing-data"): Promise<InstallResult> {
   let res: Response
   try {
     res = await f(`${INSTALLER_URL}/install`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ clerkToken, grant, ...(accountId ? { accountId } : {}) }),
+      body: JSON.stringify({ clerkToken, grant, ...(accountId ? { accountId } : {}), ...(reset ? { reset } : {}) }),
     })
   } catch {
     return { ok: false, error: { code: "network", message: "Could not reach the installer. Check your connection." } }
@@ -212,21 +193,20 @@ export async function install(clerkToken: string, grant: Grant, f: Fetch = fetch
   return { ok: true, backendUrl: body.backendUrl }
 }
 
-/** Installs, then keeps the new address and signs in to it. The address is stored before the exchange runs. */
 export async function connect(
   clerkToken: string,
   grant: Grant,
   exchange: () => Promise<void>,
   f: Fetch = fetch,
   accountId?: string,
+  reset?: "delete-existing-data",
 ): Promise<InstallError | null> {
-  const result = await install(clerkToken, grant, f, accountId)
+  const result = await install(clerkToken, grant, f, accountId, reset)
   if (!result.ok) return result.error
   write("kiko:backend", result.backendUrl)
   return finish(exchange)
 }
 
-/** Signs in to the installed backend. A failure keeps the install: "Try again" only signs in again. */
 export async function finish(exchange: () => Promise<void>): Promise<InstallError | null> {
   try {
     await exchange()

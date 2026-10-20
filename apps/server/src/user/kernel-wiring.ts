@@ -1,4 +1,5 @@
-import type { Alarms } from "@kiko/durable/alarm"
+import type { OwnerServices } from "../owner/services"
+import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 import { keyringFromEnv } from "@kiko/durable/crypto"
 import { isAgentSlug, isRoomId, type BrowserLinkResult, type BrowserState, type ClientToUser as UserFrame, type KernelResult, type KernelStatus, type KikoError, type UserToClient } from "@kiko/protocol"
 import type { Env } from "../index"
@@ -7,9 +8,8 @@ import { browserState, checkAgentId, checkTabs, kernelErrorText, profileName, WA
 import { humanHolds, KernelLease, type LeaseInfo, REAP_WAKEUP } from "../integrations/kernel/lease"
 import { KernelStore } from "../integrations/kernel/store"
 import { kernelFailure } from "./user-errors"
-import { roomStub } from "../lib/names"
 import { checkApiKey } from "./credentials"
-import { type Attachment, send, trySend } from "./sockets"
+import { type Attachment, send, trySend } from "./socket-frames"
 
 export type LiveLinkResult = { ok: true; url: string; posted: boolean } | { ok: false; error: string }
 
@@ -23,9 +23,11 @@ export type BrowserCheck = {
 }
 
 type KernelDeps = {
+  fetch?: typeof fetch
   ctx: DurableObjectState
   sql: SqlStorage
   env: Env
+ services: OwnerServices
   alarms: Alarms
   userId: () => string
   /** Tells the human a browser start failed and why. */
@@ -61,7 +63,7 @@ export class KernelWiring {
   constructor(d: KernelDeps) {
     this.d = d
     this.store = d.store ?? new KernelStore(d.sql, () => ({ keyring: keyringFromEnv(d.env), userId: d.userId() }))
-    this.clientFor = d.clientFor ?? sdkClient
+    this.clientFor = d.clientFor ?? ((key) => sdkClient(key, d.fetch))
     this.browser = new KernelLease({
       store: this.store,
       client: () => this.client(),
@@ -136,7 +138,7 @@ export class KernelWiring {
     if (mode === "control") this.join(agentId, roomId)
     const why = typeof reason === "string" ? reason.trim().slice(0, 300) : ""
     if (!why) return { ok: true, url, posted: false }
-    const room = roomStub(this.d.env.ROOM, this.d.userId(), roomId)
+    const room = this.d.services.room(roomId)
     const posted = mode === "control" ? await room.browserAsk(slug, why, `${this.store.control()?.at ?? Date.now()}`) : await room.browserShare(slug, `${why} [Watch the browser](${url})`)
     return { ok: true, url, posted }
   }
@@ -192,7 +194,7 @@ export class KernelWiring {
     for (const { agentId, roomId } of control?.waiters ?? []) {
       const slug = slugOf(agentId)
       if (agentId === except || !isRoomId(roomId) || !isAgentSlug(slug)) continue
-      const wake = roomStub(this.d.env.ROOM, this.d.userId(), roomId).wake({ id: `browser-back:${control?.at}:${slug}`, to: slug, why: "system", body: `${RESUMED[why]}${RESUME}`, chain: null })
+      const wake = this.d.services.room(roomId).wake({ id: `browser-back:${control?.at}:${slug}`, to: slug, why: "system", body: `${RESUMED[why]}${RESUME}`, chain: null })
       this.d.ctx.waitUntil(Promise.resolve(wake).catch((e) => console.error(`browser resume wake failed: ${e instanceof Error ? e.message : String(e)}`)))
     }
   }

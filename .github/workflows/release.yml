@@ -6,7 +6,7 @@ name: release
 # Two ways in:
 #   - the nightly schedule patch-bumps main, so whatever merged since the last release is
 #     live within a day without anyone remembering to cut one. A night with no new commits
-#     releases nothing: bumping anyway would move releases/latest.json and ask every open tab
+#     releases nothing: bumping anyway would move releases/latest-owner.json and ask every open tab
 #     to update for no code change.
 #   - a manual run, nightly or stable by choice, always cuts a release.
 #
@@ -19,7 +19,7 @@ name: release
 # bumps can never deploy: the nightly is what stops main from going stale.
 #
 # A nightly is a full production release. Kiko serves one channel, so a nightly moves
-# releases/latest.json and an open tab offers the update, exactly as a stable release does.
+# releases/latest-owner.json and an open tab offers the update, exactly as a stable release does.
 # The `--prerelease` marking only keeps it out of the repository's Latest slot. Both channels
 # run `bun run check` before they deploy, because a scheduled run is not a `workflow_run` and
 # so deploy.yml gates it.

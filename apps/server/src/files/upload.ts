@@ -3,7 +3,7 @@ import { fileStore, type FileBucket, maxFileBytes } from "./store"
 import { sha256Stream } from "@kiko/durable/hash"
 import { type Actor, isRoomId } from "@kiko/protocol"
 import type { Env } from "../index"
-import { roomStub, userStub } from "../lib/names"
+import { ownerStub } from "../lib/names"
 import type { SessionLookup } from "../router"
 import type { NewFile } from "../room/files"
 import { pendingRoute } from "./pending"
@@ -95,8 +95,8 @@ export function refuse(size: number, env: Env): Response | null {
 }
 
 async function index(env: Env, userId: string, roomId: string, input: NewFile): Promise<Response> {
-	const room = roomId === HOME ? null : roomStub(env.ROOM, userId, roomId)
-	const { file, drop, conflict, refused } = room ? await room.putFile(input) : await userStub(env.USER, userId).homePut(input)
+	const owner = ownerStub(env.OWNER, userId)
+	const { file, drop, conflict, refused } = roomId === HOME ? await owner.userCall("homePut", [input]) : await owner.roomCall(roomId, "putFile", [input])
 	if (drop) await deleteFiles(fileStore(env), drop)
 	if (refused) return Response.json({ error: refused.message }, { status: 409 })
 	if (conflict) return Response.json({ error: "conflict", file }, { status: 409 })

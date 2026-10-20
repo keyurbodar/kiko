@@ -11,9 +11,9 @@ const MAX_HANDLE = 40
 /**
  * The most of the board one brief carries. A human message rides with its brief in one inbox entry
  * of 128 KB. Its bubble is at most 64 KB of JSON (`whole-text.ts`), so the board takes 24 KB. Every
- * other part of the entry is capped too, and the worst case in `human-delivery.test.ts` measures the sum.
+ * other part of the entry is capped too.
  */
-export const MAX_BOARD_BYTES = 24 * 1024
+const MAX_BOARD_BYTES = 24 * 1024
 
 export type BriefView = {
 	goal: string
@@ -88,7 +88,7 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 	return lines.join("\n")
 }
 
-export function readBriefView(sql: SqlStorage, member: MemberRow, members: readonly MemberRow[], goal: string, reactions: string | null): BriefView {
-	return { goal, members, tasks: briefTasks(sql, member.slug, member.lead), reactions }
+export function readBriefView(sql: SqlStorage, member: MemberRow, members: readonly MemberRow[], goal: string, reactions: string | null, roomId: string): BriefView {
+	return { goal, members, tasks: briefTasks(sql, member.slug, roomId, member.lead), reactions }
 }
 

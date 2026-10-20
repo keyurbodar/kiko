@@ -1,26 +1,21 @@
-import type { AgentSlug, RoomEvent, } from "@kiko/protocol"
-import type { Alarms } from "@kiko/durable/alarm"
-import type { Env } from "../index"
-import { userStub } from "../lib/names"
-import { DELIVERY_RETRY_MS } from "./wake-delivery"
-import type { Inflight } from "./routines"
-import type { RoomRoutines } from "./routines"
-import { matches, type Signal, type SignalWindow, signalOf, SIGNALS_WAKEUP } from "./signals"
+import type { AgentSlug, RoomEvent } from "@kiko/protocol"
+import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
+import type { OwnerServices } from "../owner/services"
+import type { Inflight, RoomRoutines } from "./routines"
+import { matches, type Signal, signalOf } from "./routine-events"
 import type { RoomLog } from "./log"
 import type { Members } from "./members"
-import type { Mail } from "./mail"
+import type { MessageChains } from "./messaging"
 import type { Home } from "./home"
-
 
 export type ReportsDeps = {
 	ctx: DurableObjectState
-	env: Env
+	services: OwnerServices
 	alarms: Alarms
 	log: RoomLog
 	members: Members
-	mail: Mail
+	mail: MessageChains
 	routines: RoomRoutines
-	signals: SignalWindow
 	home: () => Home | null
 }
 
@@ -29,38 +24,44 @@ export class Reports {
 
 	gather(events: readonly RoomEvent[]): void {
 		const routines = this.d.routines.list()
-		const roomId = this.d.log.meta("room_id")
-		if (!roomId || !events.some((e) => e.t === "message" || e.t === "task" || e.t === "file")) return
-		const seqs = events.map((e) => e.seq)
-		let actors: Map<number, string> | null = null
-		const actorOf = (seq: number) => {
-			actors ??= new Map(this.d.ctx.storage.sql.exec<{ seq: number; actor: string }>("SELECT seq, actor FROM events WHERE seq IN (SELECT value FROM json_each(?))", JSON.stringify(seqs)).toArray().map((r) => [r.seq, r.actor]))
-			return actors.get(seq) ?? null
-		}
-		const eventRun = (slug: AgentSlug) => /^routine:[^:]+:(event|hook|watch):/.test(this.d.mail.chainRoot(slug) ?? "")
-		const now = Date.now()
-		const signals: Signal[] = []
-		for (const event of events) {
-			const actor = event.t === "message" && event.from.kind === "human" ? "human" : actorOf(event.seq)
-			const agent = actor?.startsWith("agent:") ? (actor.slice(6) as AgentSlug) : null
-			const by = actor === "human" ? ({ kind: "human" } as const) : agent ? ({ kind: "agent", slug: agent, name: this.d.members.get(agent)?.name ?? agent, eventRun: eventRun(agent) } as const) : null
-			const signal = signalOf(event, { roomId, at: now, by })
-			if (signal && (signal.kind === "burst" || routines.some((r) => matches(r, signal)))) signals.push(signal)
-		}
-		const closes = this.d.signals.add(signals, now)
-		if (closes !== null) this.d.ctx.waitUntil(this.d.alarms.setWakeup(SIGNALS_WAKEUP, closes))
+		if (!routines.length) return
+		const signals = this.signals(events)
+		if (!signals.some((s) => routines.some((r) => matches(r, s)))) return
+		// Only event-triggered routines need a window. The room event log already stores its contents.
+		if (this.d.log.meta("routine_window") !== null) return
+		this.d.log.setMeta("routine_window", JSON.stringify({ after: Math.min(...events.map((e) => e.seq)) - 1, at: Date.now() }))
+		this.d.ctx.waitUntil(this.d.alarms.setWakeup("routine_events", Date.now() + 60_000))
+	}
+
+	private signals(events: readonly RoomEvent[]): Signal[] {
+		const home = this.d.home()
+		if (!home) return []
+		return events.flatMap((event) => {
+			if (event.t !== "message" || event.from.kind === "system") return []
+			const from = event.from
+			const by =
+				from.kind === "human"
+					? { kind: "human" as const }
+					: {
+							kind: "agent" as const,
+							slug: from.slug,
+							name: this.d.members.get(from.slug)?.name ?? from.slug,
+							eventRun: /^routine:[^:]+:(event|hook|watch):/.test(this.d.mail.chainRoot(from.slug) ?? ""),
+						}
+			const signal = signalOf(event, { roomId: home.roomId, at: event.at, by })
+			return signal ? [signal] : []
+		})
 	}
 
 	async flush(): Promise<void> {
-		await this.sendResults()
+		const stored = this.d.log.meta("routine_window")
 		const home = this.d.home()
-		const due = this.d.signals.due(Date.now())
-		if (home && due) {
-			await userStub(this.d.env.USER, home.userId).signals(due.batch)
-			this.d.signals.sent(due.upto, due.batch.more)
-		}
-		const next = this.d.signals.nextClose()
-		if (next !== null) await this.d.alarms.setWakeup(SIGNALS_WAKEUP, next)
+		if (!stored || !home) return
+		const { after, at } = JSON.parse(stored) as { after: number; at: number }
+		const caught = this.d.log.catchUp(after)
+		const events = caught.t === "events" ? caught.events : []
+		await this.d.services.user().signals({ roomId: home.roomId, openedAt: at, signals: this.signals(events), more: 0 })
+		this.d.ctx.storage.sql.exec("DELETE FROM owner_meta WHERE key = 'routine_window' AND owner_meta.scope = 'room:' || ?1", this.d.log.roomId)
 	}
 
 	run(runs: readonly Inflight[], status: "ended" | "stopped" | "failed"): void {
@@ -69,24 +70,10 @@ export class Reports {
 		const now = Date.now()
 		const signals = runs.map((r): Signal => {
 			const posted = status === "ended" ? this.d.log.lastAgentMessage(r.slug, r.seq) : null
-			const outcome = status === "ended" ? (posted !== null ? "ok" : "quiet") : status === "stopped" ? "quiet" : status
+			const outcome = status === "ended" ? (posted ? "ok" : "quiet") : status === "stopped" ? "quiet" : status
 			return { kind: "routine_result", roomId: home.roomId, at: now, routineId: r.routineId, occurrence: r.occurrence, outcome, seq: posted?.seq ?? null }
 		})
-		this.d.signals.hold(signals)
-		this.d.ctx.waitUntil(
-			this.sendResults().catch(async (e: unknown) => {
-				console.error(`routine report failed: ${e instanceof Error ? e.message : String(e)}`)
-				await this.d.alarms.setWakeup(SIGNALS_WAKEUP, Date.now() + DELIVERY_RETRY_MS)
-			}),
-		)
+		this.d.ctx.waitUntil(this.d.services.user().signals({ roomId: home.roomId, openedAt: now, signals, more: 0 }))
 	}
-
-	async sendResults(): Promise<void> {
-		const home = this.d.home()
-		if (!home) return
-		for (let held = this.d.signals.held(); held; held = this.d.signals.held()) {
-			await userStub(this.d.env.USER, home.userId).signals({ roomId: home.roomId, openedAt: held.signals[0]?.at ?? 0, signals: held.signals, more: 0 })
-			this.d.signals.released(held.upto)
-		}
-	}
+	async sendResults(): Promise<void> {}
 }

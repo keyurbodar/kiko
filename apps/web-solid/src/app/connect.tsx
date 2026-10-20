@@ -39,7 +39,6 @@ type TokenSteps =
 
 const link = "text-sm text-foreground underline underline-offset-2"
 
-/** The `/connect` page a signed-in person opens to reconnect (`?reconnect=1`). */
 export default function ConnectPage() {
   return (
     <div class="flex min-h-full w-full items-center justify-center px-4 py-8">
@@ -52,11 +51,6 @@ export default function ConnectPage() {
 
 const STAGE_MS = 7000
 
-/*
- * The install is one request of 20 to 60 s with no stages of its own. The line lights the first stage on the
- * click and walks on at a steady pace, holding on the last one until the answer, while the meter eases toward
- * full and fills when it lands.
- */
 function InstallProgress() {
   const [stage, setStage] = createSignal(0)
   const [on, setOn] = createSignal(false)
@@ -73,10 +67,6 @@ function InstallProgress() {
   )
 }
 
-/*
- * Connect Cloudflare. A step of the welcome screen for a signed-out person with no backend yet (`/connect`
- * and `/connect/callback`), and the body of the reconnect page.
- */
 export function ConnectCloudflare() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -125,15 +115,21 @@ export function ConnectCloudflare() {
     show(await finish(signIn), () => void finishOnly())
   }
 
-  const run = async (grant: Grant, accountId?: string) => {
+  const run = async (grant: Grant, accountId?: string, reset?: "delete-existing-data"): Promise<void> => {
     setView({ name: "installing" })
-    const again = () => void run(grant, accountId)
+    const again = () => void run(grant, accountId, reset)
     try {
       const clerkToken = await import("./clerk").then((m) => m.clerkSignIn()).then((c) => c?.token)
       if (!clerkToken) throw new Error("Your Kiko sign-in ended. Reload the page and sign in again.")
-      const error = await connect(clerkToken, grant, signIn, fetch, accountId)
+      const error = await connect(clerkToken, grant, signIn, fetch, accountId, reset)
       if (error?.code === "choose_account" && error.accounts?.length) {
-        return setView({ name: "choose", accounts: error.accounts, pick: (id) => void run(grant, id) })
+        setView({ name: "choose", accounts: error.accounts, pick: (id) => void run(grant, id) })
+        return
+      }
+      if (error?.code === "reset_required") {
+        if (window.confirm(error.message)) return run(grant, accountId, "delete-existing-data")
+        setView({ name: "failed", failure: { message: error.message }, retry: () => void run(grant, accountId) })
+        return
       }
       show(error, again, grant.kind)
     } catch (e) {

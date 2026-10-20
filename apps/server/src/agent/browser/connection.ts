@@ -5,12 +5,12 @@ import { count } from "../../lib/dev-guard"
 import type { LeasePort } from "./lease"
 
 /** With no call for this long the socket closes, so the object can sleep. The tabs stay open in the browser. */
-export const IDLE_CLOSE_MS = 15_000
+const IDLE_CLOSE_MS = 15_000
 /** A worker keeps its tab to itself while it made a call this recently. After that another worker may take it over. */
-export const CLAIM_MS = 60_000
+const CLAIM_MS = 60_000
 export const BROWSER_IDLE_WAKEUP = "browser-idle"
 
-export const RESTARTED = "The browser was replaced, so your tab was reopened at its last address. Anything the page did not save, like a half-filled form, is gone."
+const RESTARTED = "The browser was replaced, so your tab was reopened at its last address. Anything the page did not save, like a half-filled form, is gone."
 
 export type IdleTimer = { arm(at: number): Promise<void> }
 
@@ -25,7 +25,7 @@ export type ConnectionDeps = {
 /** A worker's current tab. `id` outlives the socket, so the next socket attaches to the same page. */
 type Held = { id?: string; tab?: Tab; url: string; opening?: Promise<Tab> }
 
-export class Busy extends Error {
+class Busy extends Error {
   constructor(holders: Record<string, number>) {
     const who = Object.entries(holders).filter(([, n]) => n > 0).map(([agent, n]) => `${agent.split(/[:/]/).at(-1)} has ${n}`)
     super(`the browser is full: ${BROWSER.tabsPerBrowser} tabs are open (${who.join(", ")}). ask one of them to finish, or try again later.`)

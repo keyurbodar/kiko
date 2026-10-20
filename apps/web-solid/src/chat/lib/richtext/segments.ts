@@ -32,7 +32,7 @@ export type RichSegment = {
  * THE INVARIANT: joining every `segment.text` reproduces `text` exactly. The
  * gaps between entities are emitted as `text` runs rather than dropped, so
  * nothing a sender typed can disappear because a matcher claimed a neighbour of
- * it. `segments.test.ts` asserts this on every case it renders.
+ * it.
  *
  * Entities come back from the parser already in order, but they are sorted
  * anyway: the walk below is only correct on a sorted list, and a sort of a

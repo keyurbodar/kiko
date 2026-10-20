@@ -1,15 +1,14 @@
-import type { AgentSlug } from "@kiko/protocol"
+import type { AgentSlug, RoomId } from "@kiko/protocol"
 import { sha256Hex } from "@kiko/durable/hash"
-import type { Env } from "../index"
-import { roomStub } from "../lib/names"
 import type { NewRoutine, Reminder, Reminders } from "./reminders"
-import { matchWebhook, roomRoutine, type RoutineResult, routineResult } from "./routines"
+import { matchWebhook, roomRoutine, type RoomRoutine, type RoutineResult, routineResult } from "./routines"
 
 const HOOK_EXCERPT = 6_000
 
 type RoutineDeps = {
-  env: Env
   reminders: Reminders
+  setRoutines(roomId: RoomId, routines: RoomRoutine[]): Promise<void>
+  routineCreated(roomId: RoomId, slug: AgentSlug, id: string, name: string, byAgent: boolean): Promise<void>
 }
 
 export class RoutineWiring {
@@ -41,20 +40,20 @@ export class RoutineWiring {
       try {
         await this.routineChanged(out.routine)
       } catch (e) {
-        this.d.reminders.remove(out.routine.id)
+        await this.d.reminders.deleteRoutine(out.routine.id)
         throw e
       }
       const { routine } = out
-      await this.postDivider(owner, routine)
+      await this.postDivider(routine)
       return out
     })
   }
 
-  private async postDivider(owner: string, routine: Reminder): Promise<void> {
+  private async postDivider(routine: Reminder): Promise<void> {
     const byAgent = routine.createdBy !== "human"
     const slug = (byAgent ? routine.createdBy : routine.target) as AgentSlug
     try {
-      await roomStub(this.d.env.ROOM, owner, routine.roomId).routineCreated(slug, routine.id, routine.name ?? routine.text, byAgent)
+      await this.d.routineCreated(routine.roomId, slug, routine.id, routine.name ?? routine.text, byAgent)
     } catch {}
   }
 
@@ -84,9 +83,7 @@ export class RoutineWiring {
   }
 
   async routineChanged(routine: Reminder, before?: Reminder | null): Promise<void> {
-    const owner = this.d.reminders.owner()
-    if (!owner) return
     const event = (r?: Reminder | null) => r?.trigger?.on === "message"
-    if (event(routine) || event(before)) await roomStub(this.d.env.ROOM, owner, routine.roomId).setRoutines(this.d.reminders.roomRoutines(routine.roomId).map(roomRoutine))
+    if (event(routine) || event(before)) await this.d.setRoutines(routine.roomId, this.d.reminders.roomRoutines(routine.roomId).map(roomRoutine))
   }
 }

@@ -1,7 +1,7 @@
 import type { AgentSlug, Message } from "@kiko/protocol"
 
 /** `mentions` are the slugs the whole text names, from `tags`, so a long message routes on all of it. `replyTo` are the agents the message it answers was for. */
-export type RecipientMessage = {
+type RecipientMessage = {
 	mentions: readonly string[]
 	replyTo?: readonly string[]
 }

@@ -2,7 +2,7 @@ import { sha256Hex } from "@kiko/durable/hash"
 
 export const MAX_SOUL = 3_000
 
-export const KIKO_SOUL = `# kiko
+const KIKO_SOUL = `# kiko
 
 i'm kiko, their chief: the one they text first about anything. i work out what they actually need, get it done, and keep things moving.
 

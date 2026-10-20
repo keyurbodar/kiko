@@ -13,11 +13,13 @@ export type Attachment = {
 
 export interface SocketRoom {
 	readonly log: RoomLog
+  mutateMessage?<T>(id: string, apply: () => T): Promise<T>
 	publish(events: readonly RoomEvent[]): void
 	humanTyping(): void
 	presence(): RoomToClient[]
 	stop(): void
-	search(query: string, options?: SearchOptions): SearchPage
+	search(query: string, options?: SearchOptions): SearchPage | Promise<SearchPage>
+  history?(seq: number, before: number, after: number): Promise<import("@kiko/protocol").Message[]>
 	stepWindow(slug: AgentSlug, after: number): RunStep[]
 	memberOp(op: MemberOp): MemberRefusal | null
 	fileOp(op: FileOp): string | null
@@ -118,23 +120,25 @@ async function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): Prom
 			return out.events
 		}
 		case "edit":
-			return log.message(frame.messageId)?.from.kind === "human" ? log.editMessage(frame.messageId, frame.text, parseRichText(frame.text)) : null
+			return room.mutateMessage ? room.mutateMessage(frame.messageId, () => log.message(frame.messageId)?.from.kind === "human" ? log.editMessage(frame.messageId, frame.text, parseRichText(frame.text)) : null) : log.message(frame.messageId)?.from.kind === "human" ? log.editMessage(frame.messageId, frame.text, parseRichText(frame.text)) : null
 		case "delete":
-			return log.deleteMessages([frame.messageId], human)
+			return room.mutateMessage ? room.mutateMessage(frame.messageId, () => log.deleteMessages([frame.messageId], human)) : log.deleteMessages([frame.messageId], human)
 		case "react":
-			return log.react(frame.messageId, human, frame.emoji)
+			return room.mutateMessage ? room.mutateMessage(frame.messageId, () => log.react(frame.messageId, human, frame.emoji)) : log.react(frame.messageId, human, frame.emoji)
 		case "read":
 			return log.markRead(frame.seq)
 		case "typing":
 			room.humanTyping()
 			return null
 		case "search": {
-			const page = room.search(frame.query.slice(0, 200), { before: frame.before, limit: frame.limit })
+			const page = await room.search(frame.query.slice(0, 200), { before: frame.before, limit: frame.limit })
 			send(ws, { t: "search", query: frame.query, ...(frame.before !== undefined ? { before: frame.before } : {}), ...page })
 			return null
 		}
 		case "history": {
-			const messages = log.around(frame.seq, Math.min(frame.before, MAX_HISTORY), Math.min(frame.after, MAX_HISTORY))
+			const before = Math.min(frame.before, MAX_HISTORY)
+      const after = Math.min(frame.after, MAX_HISTORY)
+      const messages = room.history ? await room.history(frame.seq, before, after) : log.around(frame.seq, before, after)
 			send(ws, { t: "history", seq: frame.seq, before: frame.before, after: frame.after, messages })
 			return null
 		}

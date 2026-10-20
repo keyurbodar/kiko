@@ -3,7 +3,7 @@
 // frame and after a reconnect, so an open panel stays true without a reopen.
 
 import type { UserChange } from "@kiko/protocol"
-import { userChannel } from "./user-channel"
+import { userChannel } from "./socket"
 
 const RELOAD_AFTER_MS = 300
 

@@ -11,7 +11,7 @@ export const WHOLE_TYPE = "text/plain"
  * Most of a bubble's JSON. The agent's inbox entry is 128 KB and holds the bubble with its brief and
  * context, so a control character (6 bytes of JSON) cannot push one entry past the cap.
  */
-export const MAX_BUBBLE_BYTES = 64 * 1024
+const MAX_BUBBLE_BYTES = 64 * 1024
 
 export type WholeText = { id: string; r2Key: string; size: number; sha256: string }
 
@@ -29,7 +29,7 @@ export function bubbleOf(text: string): string {
 }
 
 /** A UUID-shaped id that one client id always gives, so a resend names the same file. */
-export async function fileIdOf(clientId: string): Promise<string> {
+async function fileIdOf(clientId: string): Promise<string> {
 	const hex = await sha256Hex(`text:${clientId}`)
 	return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20, 32)].join("-")
 }

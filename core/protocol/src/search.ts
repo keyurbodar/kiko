@@ -27,7 +27,7 @@ export function snippetParts(snippet: string): SnippetPart[] {
 	return parts
 }
 
-export const snippetText = (snippet: string) => snippetParts(snippet).map((p) => p.text).join("")
+const snippetText = (snippet: string) => snippetParts(snippet).map((p) => p.text).join("")
 
 /**
  * Merges per-chat pages, each newest first, into one page of at most `limit`, newest first. Scores

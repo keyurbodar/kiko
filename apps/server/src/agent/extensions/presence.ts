@@ -105,7 +105,7 @@ export type Describe = (name: string, args: Record<string, unknown>) => { label:
 type StepShown = Pick<RunStep, "tool" | "name" | "label" | "input" | "app">
 
 /** What the run panel shows for one call, or null for a call the human should not see. It asks `describeCall` first, so the two cannot drift. */
-export function stepOf(name: string, args: Record<string, unknown>, describe?: Describe): StepShown | null {
+function stepOf(name: string, args: Record<string, unknown>, describe?: Describe): StepShown | null {
   const described = describeCall(name, args)
   if (!described) return null
   const tool = described.activity.kind === "tool" ? described.activity.tool : "other"
@@ -116,7 +116,7 @@ export function stepOf(name: string, args: Record<string, unknown>, describe?: D
 }
 
 /** A tool result as the panel's output text: its text parts, credentials removed, cut to 4,000 characters. */
-export function outputOf(content: readonly { type: string; text?: string }[] | undefined): string | undefined {
+function outputOf(content: readonly { type: string; text?: string }[] | undefined): string | undefined {
   const text = (content ?? []).flatMap((c) => (c.type === "text" && c.text ? [c.text] : [])).join("\n")
   return text ? cut(redact(text), OUTPUT_CHARS) : undefined
 }
@@ -128,7 +128,7 @@ export function failed(doing: string, content: readonly { type: string; text?: s
   return `failed: ${doing}${error ? ` (${error.length > ERROR_CHARS ? `${error.slice(0, ERROR_CHARS - 1)}…` : error})` : ""}`
 }
 
-export function failedCall(described: Described, content: readonly { type: string; text?: string }[] | undefined): Described {
+function failedCall(described: Described, content: readonly { type: string; text?: string }[] | undefined): Described {
   const caption = failed(described.doing, content)
   return { doing: caption, activity: { kind: "failed", caption } }
 }

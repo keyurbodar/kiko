@@ -3,7 +3,7 @@ export type RecallHit = { id: string | null; line: string }
 
 const RECALL_MAX = 6
 
-export function hitId(log: RecallLog, line: string): string | null {
+function hitId(log: RecallLog, line: string): string | null {
   const m = /^#(\d+)\s/.exec(line)
   return m ? `${log}:${m[1]}` : null
 }

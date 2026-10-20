@@ -1,8 +1,5 @@
-import { type AgentSlug, isAgentSlug, isRoomId, type RoomId, type UserId } from "@kiko/protocol"
-import type { AgentDO } from "../agent/agent-do"
-import type { FileDO } from "../files/file-do"
-import type { RoomDO } from "../room/room-do"
-import type { UserDO } from "../user/user-do"
+import { type UserId } from "@kiko/protocol"
+import type { OwnerDO } from "../owner/owner-do"
 import { rpc } from "./dev-guard"
 
 export const USER_ID_HEADER = "x-kiko-user-id"
@@ -20,54 +17,18 @@ function checkUser(userId: string): UserId {
   return userId as UserId
 }
 
-function checkRoom(roomId: string): RoomId {
-  if (!isRoomId(roomId)) throw new NameError("bad room id")
-  return roomId
-}
-
-function checkSlug(slug: string): AgentSlug {
-  if (!isAgentSlug(slug)) throw new NameError("bad agent slug")
-  return slug
-}
-
 export async function composioUserId(userId: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`composio:${checkUser(userId)}`))
   return `kiko_${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32)}`
 }
 
-export function userName(userId: string): string {
-  return `user:${checkUser(userId)}`
+function ownerName(userId: string): string {
+  const id = checkUser(userId)
+  return id === "owner" ? "owner" : `owner:${id}`
 }
 
-export function roomName(userId: string, roomId: string): string {
-  return `room:${checkUser(userId)}:${checkRoom(roomId)}`
-}
+type OwnerRpc = Omit<DurableObjectStub<OwnerDO>, "userCall" | "roomCall" | "agentCall"> & Pick<OwnerDO, "userCall" | "roomCall" | "agentCall">
 
-export function fileName(userId: string, spaceId: string): string {
-  return `files:${checkUser(userId)}:${spaceId === "home" ? spaceId : checkRoom(spaceId)}`
-}
-
-export function agentName(userId: string, roomId: string, slug: string): string {
-  return `agent:${checkUser(userId)}:${checkRoom(roomId)}:${checkSlug(slug)}`
-}
-
-export function userStub(ns: DurableObjectNamespace<UserDO>, userId: string): DurableObjectStub<UserDO> {
-  return rpc(ns.get(ns.idFromName(userName(userId))), "user")
-}
-
-export function roomStub(ns: DurableObjectNamespace<RoomDO>, userId: string, roomId: string): DurableObjectStub<RoomDO> {
-  return rpc(ns.get(ns.idFromName(roomName(userId, roomId))), "room")
-}
-
-export function agentStub(
-  ns: DurableObjectNamespace<AgentDO>,
-  userId: string,
-  roomId: string,
-  slug: string,
-): DurableObjectStub<AgentDO> {
-  return rpc(ns.get(ns.idFromName(agentName(userId, roomId, slug))), "agent")
-}
-
-export function fileStub(ns: DurableObjectNamespace<FileDO>, userId: string, spaceId: string): DurableObjectStub<FileDO> {
-  return rpc(ns.get(ns.idFromName(fileName(userId, spaceId))), "file")
+export function ownerStub(ns: DurableObjectNamespace<OwnerDO>, userId: string): OwnerRpc {
+  return rpc(ns.get(ns.idFromName(ownerName(userId))), "owner") as OwnerRpc
 }

@@ -69,8 +69,8 @@ export async function devPass(engine: () => InitiativeEngine): Promise<unknown> 
 }
 
 // The sign-in test provider. Its flow shows a device code, then asks for it back.
-export const FAKE_PROVIDER = "kiko-fake"
-export const FAKE_CODE = "KIKO-0000"
+const FAKE_PROVIDER = "kiko-fake"
+const FAKE_CODE = "KIKO-0000"
 
 type FakeRefresh = "fail" | "offline" | "ok"
 

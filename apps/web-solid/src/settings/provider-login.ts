@@ -1,11 +1,5 @@
 import type { LoginEvent, LoginPrompt, UserToClient } from "@kiko/protocol"
-import { socketProtocols } from "../lib/api"
-import { urls } from "../lib/store"
-
-// Provider sign-in from the browser. The server runs the flow; this
-// side shows what it says and sends back what it asks. Each sign-in opens its own
-// user socket and closes it when the sign-in ends or the dialog closes, and the server
-// drops a login whose socket closed. Nothing here is stored.
+import { type UserChannel, userChannel } from "../sync/socket"
 
 export type SignIn = {
   status: "running" | "done" | "error"
@@ -47,48 +41,45 @@ export type SignInHandle = {
 }
 
 /** Starts a sign-in for `provider`. `onState` sees every change, the last one final. */
-export function startSignIn(provider: string, onState: (state: SignIn) => void): SignInHandle {
+export function startSignIn(provider: string, onState: (state: SignIn) => void, channel: UserChannel = userChannel): SignInHandle {
   const loginId = crypto.randomUUID()
-  const socket = new WebSocket(urls.user(), socketProtocols())
   let state = started
   let ended = false
-  const send = (frame: object) => {
-    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(frame))
-  }
+  let sent = false
+  const offs: (() => void)[] = []
   const finish = () => {
     ended = true
-    socket.close()
+    for (const off of offs) off()
   }
-  onState(state)
-  socket.onopen = () => send({ t: "login.start", loginId, provider })
-  socket.onmessage = (event) => {
-    let frame: LoginFrame
-    try {
-      frame = JSON.parse(String(event.data))
-    } catch {
-      return
-    }
-    if (!frame || typeof frame.t !== "string" || !frame.t.startsWith("login.") || frame.loginId !== loginId) return
+  const receive = (frame: LoginFrame) => {
+    if (ended || frame.loginId !== loginId) return
     state = reduceSignIn(state, frame)
     onState(state)
     if (state.status !== "running") finish()
   }
-  socket.onclose = () => {
-    if (ended) return
-    ended = true
+  for (const t of ["login.notify", "login.prompt", "login.done", "login.error"] as const) offs.push(channel.on(t, receive))
+  const start = () => {
+    if (!ended && !sent) sent = channel.send({ t: "login.start", loginId, provider })
+  }
+  offs.push(channel.onOpen(start))
+  offs.push(channel.onStatus((status) => {
+    if (status !== "closed" || !sent || ended) return
+    finish()
     state = { ...state, status: "error", prompt: null, error: "The connection closed. Try again." }
     onState(state)
-  }
+  }))
+  onState(state)
+  start()
   return {
     answer(promptId, value) {
       if (ended) return
       state = { ...state, prompt: null }
       onState(state)
-      send({ t: "login.answer", loginId, promptId, value })
+      channel.send({ t: "login.answer", loginId, promptId, value })
     },
     cancel() {
       if (ended) return
-      send({ t: "login.cancel", loginId })
+      if (sent) channel.send({ t: "login.cancel", loginId })
       finish()
     },
   }

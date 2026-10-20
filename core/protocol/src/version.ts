@@ -1,3 +1,3 @@
 // The wire protocol version. Bump it when a frame changes in a way an older client cannot read.
-// A client speaks this version and the one before it. A backend further behind is blocked.
-export const PROTOCOL = 1
+// The OwnerDO socket is a new protocol epoch. Clients require an exact match.
+export const PROTOCOL = 3

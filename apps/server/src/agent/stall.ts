@@ -3,7 +3,7 @@ import { boundedWait } from "@kiko/durable/bounded-wait"
 export const FIRST_BYTE_MS = 120_000
 export const STALL_MS = 90_000
 
-export class StallError extends Error {
+class StallError extends Error {
   constructor() {
     super("the model stopped responding and the request timed out")
   }

@@ -1,7 +1,7 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, type ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { AgentSlug, HumanQuestion } from "@kiko/protocol"
-import type { AgentSend } from "../../room/mail"
+import type { AgentSend } from "../../room/messaging"
 import { declareEffect } from "@kiko/agent/effects"
 
 export const MESSAGING = "messaging"

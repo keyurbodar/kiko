@@ -5,7 +5,7 @@ import { type PromptSection, section } from "@earendil-works/pi-durable"
 // what the agent is, how Kiko works, then how to behave. Per-agent text (role, soul, chat, skills)
 // comes last.
 
-export const SECTION_ORDER = ["role", "runtime", "kiko", "tools", "pacing", "voice", "team", "work", "autonomy", "files", "reactions", "soul", "chat", "skills"] as const
+const SECTION_ORDER = ["role", "runtime", "kiko", "tools", "pacing", "voice", "team", "work", "autonomy", "files", "reactions", "soul", "chat", "skills"] as const
 export type SectionKey = (typeof SECTION_ORDER)[number]
 
 export type RoleInput = {

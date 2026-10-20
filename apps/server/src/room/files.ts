@@ -15,5 +15,5 @@ export {
 } from "../files/file-index"
 
 export function roomFiles(storage: DurableObjectStorage, log: RoomLog): FileIndex<RoomEvent> {
-  return new FileIndex<RoomEvent>(storage, ROOM_TABLES, (author, body) => log.append(author, body), actorKey)
+  return new FileIndex<RoomEvent>(storage, ROOM_TABLES, (author, body) => log.append(author, body), actorKey, log.roomId)
 }

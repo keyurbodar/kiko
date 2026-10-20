@@ -52,7 +52,7 @@ function retryAfterSeconds(res: Response): number | undefined {
  * The JSON-RPC response with `id` from a response body. An event stream carries it as the `data`
  * of one event; other events and `:` comment lines are skipped.
  */
-export function parseRpcResponse(body: string, contentType: string, id: number): unknown {
+function parseRpcResponse(body: string, contentType: string, id: number): unknown {
   const candidates = contentType.includes("text/event-stream") ? eventData(body) : [body]
   for (const data of candidates) {
     let message: { id?: unknown; result?: unknown; error?: { message?: unknown } }
@@ -88,7 +88,7 @@ let nextId = 1
 /** True when Composio says the session no longer exists, so a new one is worth one retry. */
 export const sessionGone = (e: unknown): boolean => e instanceof ComposioError && (e.status === 404 || e.status === 410)
 
-export async function composioRpc(target: Target, method: string, params: Record<string, unknown>, fetchImpl: typeof fetch = fetch, timeoutMs = 120_000): Promise<unknown> {
+async function composioRpc(target: Target, method: string, params: Record<string, unknown>, fetchImpl: typeof fetch = fetch, timeoutMs = 120_000): Promise<unknown> {
   const id = nextId++
   const res = await fetchImpl(target.url, {
     method: "POST",

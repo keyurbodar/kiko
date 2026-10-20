@@ -1,7 +1,11 @@
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
+import { Harness, type Storage } from "@earendil-works/pi-durable"
+import { JournalStorage } from "@kiko/agent/journal"
+import type { AgentSetup } from "@kiko/agent/host"
 import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { providers } from "../models/catalog"
-import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry } from "@earendil-works/pi-durable"
+import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry, type RegistryReader } from "@earendil-works/pi-durable"
 import { workExtensions } from "./extensions/work"
 import { withTextToolCalls } from "./tool-markup"
 import type { Workers } from "@kiko/agent/workers"
@@ -26,7 +30,7 @@ import { forRole } from "./roles"
 import { count } from "../lib/dev-guard"
 import type { ThinkingLevel } from "@kiko/protocol"
 import { thinkingFor } from "./thinking"
-import { RETRY } from "./retry"
+import { RETRY, withRetryAfter } from "./retry"
 
 export type BuildAgentInput = RoleInput & {
   /** Absent until the human picks one. A run then stops before it reaches a model. */
@@ -55,7 +59,8 @@ export type BuiltAgent = {
   agent: AgentChange
 }
 
-export const BASE = "base"
+const BASE = "base"
+const journals = new WeakMap<RegistryReader, JournalStorage>()
 
 function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]): Extension[] {
   return [
@@ -78,10 +83,21 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
 }
 
 export function buildAgent(input: BuildAgentInput): BuiltAgent {
-  const builtins = extensionsFor(input, () => builtins)
-  // Throws when a tool declares no effect or two tools share a name with different effects.
-  effectTable(builtins)
   const registry = createRegistry()
+  const extensions = extensionsFor(input, () => builtins)
+  // Throws when a tool declares no effect or two tools share a name with different effects.
+  const effects = effectTable(extensions)
+  const builtins = extensions.map((extension) => ({
+    ...extension,
+    tools: extension.tools?.map((tool) => {
+      const effect = effects.get(tool.name)
+      if (effect !== "external" && effect !== "write") return tool
+      return { ...tool, execute: async (args, api, context) => {
+        journals.get(registry)?.flush()
+        return tool.execute(args, api, context)
+      } } satisfies typeof tool
+    }),
+  }))
   for (const extension of builtins) registry.install(extension)
   return { registry, agent: { ...(input.model ? { model: input.model } : {}), thinkingLevel: input.thinkingLevel ?? (input.model ? thinkingFor(input.model) : "off"), extensions: forRole(builtins, "talker") } }
 }
@@ -122,15 +138,35 @@ export const RUN_SETTINGS: HarnessSettings = { toolExecution: "parallel", retry:
  * answers 400 MissingSessionID without the `x-opencode-session` header (P0-05), and pi-durable
  * passes headers only through `settings.stream.headers`.
  */
-export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fetch): { models: Models; settings: HarnessSettings } {
+export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fetch, directCall?: () => void): { models: Models; settings: HarnessSettings } {
   const models = createModels({ authContext: { env: async () => undefined, fileExists: async () => false } })
   for (const provider of providers()) {
-    const via = (model: { api: string }, options: object | undefined) => (egress && !NO_CUSTOM_FETCH.has(model.api) ? { ...options, fetch: egress } : options)
+    // A provider's cooldown must not delay requests to another provider.
+    const through = egress ? withRetryAfter(egress) : undefined
+    const via = (model: { api: string }, options: object | undefined) => {
+      if (through && !NO_CUSTOM_FETCH.has(model.api)) return { ...options, fetch: through }
+      directCall?.()
+      return options
+    }
+    const classify = provider.classify
+    const fetchDeferred = provider.fetchDeferred
+    const cancelDeferred = provider.cancelDeferred
+    const generateImages = provider.generateImages
     const routed = {
+      ...(classify ? { classify: ((model, context, options) => classify(model, context, via(model, options))) as typeof classify } : {}),
+      ...(fetchDeferred ? { fetchDeferred: ((model, handle, options) => fetchDeferred(model, handle, via(model, options))) as typeof fetchDeferred } : {}),
+      ...(cancelDeferred ? { cancelDeferred: ((model, handle, options) => cancelDeferred(model, handle, via(model, options))) as typeof cancelDeferred } : {}),
+      ...(generateImages ? { generateImages: ((model, context, options) => generateImages(model, context, via(model, options))) as typeof generateImages } : {}),
       stream: ((model, context, options) => timed(model.id, withTextToolCalls(provider.stream as never)(unanchored(model), context, via(model, options) as never))) as typeof provider.stream,
       streamSimple: ((model, context, options) => timed(model.id, withTextToolCalls(provider.streamSimple)(unanchored(model), context, via(model, options) as never), options?.reasoning)) as typeof provider.streamSimple,
     }
     models.setProvider({ ...provider, ...routed, auth: { apiKey: { name: provider.name, resolve: () => auth(provider.id) } } })
   }
   return { models, settings: { ...RUN_SETTINGS, stream: { headers: { "x-opencode-session": sessionId } } } }
+}
+
+export function openAgentHarness(storage: Storage, setup: AgentSetup): Promise<Harness> {
+  if (storage instanceof JournalStorage) journals.set(setup.registry, storage)
+  const env = setup.env
+  return Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(env ? { env: (target) => env(target.conversationId) } : {}) }, BACKGROUND_CONTEXT)
 }

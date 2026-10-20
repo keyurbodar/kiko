@@ -1,5 +1,7 @@
-import { erase } from "../lib/erase"
-import { DurableObject } from "cloudflare:workers"
+import { agentStorage } from "./storage"
+import { JournalStorage } from "@kiko/agent/journal"
+import type { ClockPort } from "@kiko/durable/clock-port"
+import type { ClockMetadata } from "../owner/clock"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult } from "@earendil-works/pi-ai"
 import { type Conversation, type ConversationId, configure, type Harness, type ModelRef, type SubmissionId } from "@earendil-works/pi-durable"
@@ -7,13 +9,14 @@ import type { Activity, Envelope, ProviderProblem, RoomId, ThinkingLevel, Worker
 import { runKindFor } from "../user/provider-health"
 import type { Env } from "../index"
 import { AnswerWaiters } from "@kiko/agent/answers"
-import { roomStub, userStub } from "../lib/names"
+import type { OwnerServices, ServiceOptions } from "../owner/services"
 import type { AgentHome } from "../room/room-do"
 import type { Soul } from "../user/souls"
 import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
 import type { GroupsPort } from "./extensions/chief"
 import { shortBrief } from "../room/brief"
+import { messageIdOf } from "../room/messaging"
 import { CHIEF } from "../room/chief"
 import { HOME } from "../files/upload"
 import { homeBackend, ObjectCache, RoomFs, roomBackend, roomViews, type SoulPort, withMount, withSoul } from "../files/room-fs"
@@ -29,24 +32,22 @@ import { type ComposioTool, learnedSignature } from "../integrations/composio/cl
 import { learnedNote } from "../integrations/composio/tools"
 import { integrationNote } from "./prompt"
 
-import { buildAgent, userModels } from "./factory"
+import { buildAgent, openAgentHarness, userModels } from "./factory"
 import { isKnownModel, parseModelRef, thinkingFor } from "./thinking"
 import { setOverlay } from "../models/catalog"
-import { createAlarms } from "@kiko/durable/alarm"
-import { migrate } from "@kiko/durable/migrate"
-import { AGENT_STEPS } from "./schema"
-import { AgentHost, type AgentSetup, HEARTBEAT_WAKEUP, type HostOptions, type HostStatus } from "@kiko/agent/host"
-import type { Batch } from "@kiko/agent/inbox"
+import { projectRecovery } from "../owner/clock"
+import { RoutineSchedules, captureRoutineTasks, scheduledRoutine, scheduledDeadline, type ScheduledRoutine } from "../owner/schedules"
+import { AgentHost, type AgentSetup, type HostOptions, type HostStatus } from "@kiko/agent/host"
+import type { Batch } from "@kiko/agent/input"
 import type { Work } from "@kiko/agent/workers"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
 
-import { count, DEV, instrument, loadAgentDev } from "../lib/dev-guard"
+import { count, DEV, loadAgentDev } from "../lib/dev-guard"
 import type { AgentDevHost, Usage } from "./dev"
 import { Outbox, type RoomPort } from "./outbox"
 import { stopsWorkers } from "./run-error"
 import type { StepItem, StepsPort } from "./extensions/presence"
-import { StepBatch } from "./step-batch"
 
 const WORKER_TASK_CHARS = 200
 import { FIRST_BYTE_MS, guardStall, orStall, STALL_MS } from "./stall"
@@ -64,32 +65,61 @@ const COMPACTIONS_KEY = "compactions"
 type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
 const RECENT_WORKERS = 8
 const MODEL_APPLIED_KEY = "model:applied"
-/** Set before a handoff resets the context and cleared once the new model is configured, so a crash between them is not redone. */
-const HANDOFF_KEY = "model:handoff"
-const HUMAN_INPUTS_KEY = "run:human-inputs"
 
 const PRIVATE_REFUSAL = "this chat is private: nothing from it is saved to memory, your soul, or /home. carry on without saving."
 const PRIVATE_NOTE = "this chat is private. use what you know, but save nothing from it: no memory, no soul edits, nothing in /home."
 
-export class AgentDO extends DurableObject<Env> {
+export class Agent {
   protected readonly hostOptions: Partial<HostOptions> = {}
   private hostInstance?: AgentHost
   private outboxInstance?: Outbox
+  private afterHumanRun = false
   protected readonly answers = new AnswerWaiters()
 
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env)
-    instrument(ctx, "agent")
-    void ctx.blockConcurrencyWhile(async () => {
-      migrate(ctx.storage, AGENT_STEPS)
-      void this.host
-      void this.outbox
-      this.home()
-    })
+  protected readonly ctx: DurableObjectState
+  protected readonly env: Env
+  private readonly services: OwnerServices
+  private readonly requestRun: (requestId: string) => void | Promise<void>
+  private readonly countOutgoing: () => void
+  private readonly identity: { ownerId: string; roomId: string; slug: string }
+  private readonly clock: ClockPort
+  private readonly metadata: ClockMetadata
+  private readonly agentKey: string
+  constructor({ ctx, env, services, requestRun, countOutgoing = () => {}, identity, clock, metadata }: ServiceOptions & {
+    identity: { ownerId: string; roomId: string; slug: string }
+    clock: ClockPort
+    metadata: ClockMetadata
+    requestRun: (requestId: string) => void | Promise<void>
+    countOutgoing?: () => void
+  }) {
+    this.identity = identity
+    this.agentKey = `${identity.roomId}:${identity.slug}`
+    this.clock = clock
+    this.metadata = metadata
+    const storage = agentStorage(ctx.storage, this.agentKey, clock)
+    this.ctx = new Proxy(ctx, { get(target, key) {
+      if (key === "storage") return storage
+      const value = Reflect.get(target, key, target)
+      return typeof value === "function" ? value.bind(target) : value
+    } })
+    this.env = env
+    this.services = services
+    this.requestRun = requestRun
+    this.countOutgoing = countOutgoing
   }
 
+  loaded(): boolean { return this.hostInstance?.loaded() ?? false }
+  async busy(): Promise<boolean> { return this.hostInstance?.busy() ?? false }
+  async unload(): Promise<void> { await this.hostInstance?.unload() }
+  async invalidate(): Promise<void> { await this.hostInstance?.invalidate() }
   protected get host(): AgentHost {
     this.hostInstance ??= new AgentHost(this.ctx, {
+      clock: this.clock,
+      agentKey: this.agentKey,
+      projectTasks: (tasks, watches, current) => projectRecovery(tasks, watches, current, Date.now(), scheduledDeadline),
+      openHarness: openAgentHarness,
+      scheduledDeadline,
+      requestRun: this.requestRun,
       progress: () => this.outbox.progress(),
       shortBrief,
       onReset: () => this.outbox.clear(),
@@ -97,15 +127,47 @@ export class AgentDO extends DurableObject<Env> {
       waitUntil: (work) => this.ctx.waitUntil(work),
       ...this.hostOptions,
       setup: () => this.setup(),
+      beforeIdle: (opened) => this.outbox.settle(opened.root),
+      onIdle: async () => {
+        await this.hostOptions.onIdle?.()
+        const home = this.home()
+        if (home && this.afterHumanRun) {
+          this.afterHumanRun = false
+          await this.services.afterRun(home.roomId, home.slug)
+        }
+        await this.services.trimAgents()
+      },
       onOpen: async (opened) => {
         await this.hostOptions.onOpen?.(opened)
         this.#rootId = opened.root.id
-        await this.outbox.attach(opened.harness, opened.root.id)
+        const home = this.home()
+        if (home) {
+          const { entries } = await opened.root.context(BACKGROUND_CONTEXT)
+          const data = entries.findLast((entry) => entry.kind === "kiko.input")?.data
+          if (data && typeof data === "object" && !Array.isArray(data) && Array.isArray(data.envelopeIds)) {
+            this.#humanInputs = data.envelopeIds.flatMap((id) => typeof id === "string" && id.startsWith("human:") ? [id.slice(6).split("#")[0]!] : [])
+          }
+          if (data && typeof data === "object" && !Array.isArray(data) && Array.isArray(data.chain)) {
+            const chain = data.chain.flatMap((value) => value && typeof value === "object" && !Array.isArray(value) && typeof value.rootId === "string" && typeof value.hop === "number" ? [{ rootId: value.rootId, hop: value.hop }] : [])
+            this.services.room(home.roomId).restoreChain(home.slug, chain)
+          }
+        }
+        await this.outbox.attach(opened.harness, opened.root.id, opened.storage)
+        this.ctx.waitUntil(this.services.trimAgents())
+      },
+      onError: async (error, requestId) => {
+        await this.hostOptions.onError?.(error, requestId)
+        const inputs = (await this.host.envelopeIds(requestId))
+          .filter((id) => id.startsWith("human:"))
+          .map((id) => id.slice("human:".length).split("#")[0]!)
+        if (inputs.length) this.#humanInputs = inputs
+        if (this.#run) this.#run.errored = true
+        await this.outbox.fail(requestId, error, this.#run?.provider ?? "")
       },
       onGiveUp: async () => {
         await this.hostOptions.onGiveUp?.()
         const home = this.home()
-        if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).runDropped(home.slug)
+        if (home) await this.services.room(home.roomId).runDropped(home.slug)
       },
     })
     return this.hostInstance
@@ -131,16 +193,20 @@ export class AgentDO extends DurableObject<Env> {
       () => this.roomPort(),
       () => {
         const epoch = this.host.epoch()
-        return `${this.home()?.slug ?? "agent"}${epoch ? `~${epoch}` : ""}`
+        return `${this.agentKey}${epoch ? `~${epoch}` : ""}`
       },
+      Date.now,
+      this.agentKey,
     )
     return this.outboxInstance
   }
 
   async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
-    if (this.ctx.storage.sql.exec("SELECT 1 FROM meta WHERE key = 'deleted'").toArray().length) throw new Error("agent deleted")
+    if (this.metadata.get("deleted")) throw new Error("agent deleted")
     if (home) this.setHome(home)
-    const result = await this.host.receive(envelopes, brief)
+    const only = envelopes.length === 1 ? envelopes[0] : undefined
+    const requestId = only?.from.kind === "agent" ? messageIdOf(only.id) ?? undefined : undefined
+    const result = await this.host.receive(envelopes, brief, requestId)
     // A human message ends whatever ask_human is waiting on, so the agent answers them first.
     if (!result.refused && envelopes.some((e) => e.from.kind === "human")) this.answers.interrupt()
     return result
@@ -151,29 +217,41 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async erase(): Promise<void> {
+    this.metadata.set("deleted", "1")
+    await this.services.cancelRun(this.identity.roomId, this.identity.slug)
     await this.host.stop()
     await this.host.workers.stopAll()
     await this.releaseTabs()
-    erase(this.ctx.storage)
+    await this.host.shutdown()
+    this.ctx.storage.transactionSync(() => {
+      JournalStorage.clear(this.ctx.storage, this.agentKey)
+      for (const table of ["workers", "worker_changes", "harness_epoch", "journal_ids", "agent_handoff"]) {
+        this.ctx.storage.sql.exec(`DELETE FROM ${table} WHERE agent = ?`, this.agentKey)
+      }
+      this.metadata.delete("home")
+      this.metadata.set("deleted", "1")
+    })
     const keys = [...(await this.ctx.storage.list()).keys()]
     if (keys.length) await this.ctx.storage.delete(keys)
-    await this.ctx.storage.deleteAlarm()
+    for (const key of await this.clock.dueWakeups(Number.MAX_SAFE_INTEGER)) await this.clock.clearWakeup(key)
+    await this.services.cancelRun(this.identity.roomId, this.identity.slug)
+  }
+
+  async unfinished(): Promise<boolean> {
+    return this.host.unfinished()
   }
 
   async wake(): Promise<boolean> {
-    const at = this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", HEARTBEAT_WAKEUP).toArray()[0]?.at
-    if (at === undefined) return false
-    if (at > Date.now()) await createAlarms(this.ctx).setWakeup(HEARTBEAT_WAKEUP, Date.now())
-    return true
+    return this.host.wake()
   }
 
-  async status(): Promise<HostStatus> {
-    return this.host.status()
+  async status(): Promise<HostStatus & { alarmAt: number | null }> {
+    return { ...(await this.host.status()), alarmAt: await this.ctx.storage.getAlarm() }
   }
 
   protected home(): AgentHome | null {
-    const row = this.ctx.storage.sql.exec<{ home: string }>("SELECT home FROM agent_home WHERE id = 1").toArray()[0]
-    return row ? (JSON.parse(row.home) as AgentHome) : null
+    const home = this.metadata.get("home")
+    return home ? JSON.parse(home) as AgentHome : null
   }
 
   private homeOrThrow(): AgentHome {
@@ -184,14 +262,13 @@ export class AgentDO extends DurableObject<Env> {
 
   private setHome(home: AgentHome): void {
     const text = JSON.stringify(home)
-    if (this.home() && this.ctx.storage.sql.exec("SELECT 1 FROM agent_home WHERE home = ?", text).toArray().length) return
-    this.ctx.storage.sql.exec("INSERT INTO agent_home (id, home) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET home = excluded.home", text)
+    if (this.metadata.get("home") !== text) this.metadata.set("home", text)
   }
 
   protected roomPort(): RoomPort | null {
     const home = this.home()
     if (!home) return null
-    const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
+    const room = () => this.services.room(home.roomId)
     return {
       post: (runId, attempt, index, block) => room().post(home.slug, runId, attempt, index, block),
       draft: (runId, index, text) => room().draft(home.slug, runId, index, text),
@@ -201,7 +278,8 @@ export class AgentDO extends DurableObject<Env> {
       },
       workers: (rows) => room().setWorkers(home.slug, rows),
       endRun: async (runId, inputs = [], working = false) => {
-        const { mail, mailOnly } = await this.heard(inputs).catch(() => ({ mail: [], mailOnly: false }))
+        const { mail, mailOnly, human } = await this.heard(inputs).catch(() => ({ mail: [], mailOnly: false, human: false }))
+        this.afterHumanRun ||= human
         this.recovered(home.userId)
         const ended = await room().endRun(home.slug, runId, mail, working, mailOnly)
         // The agent's tabs belong to its run: at the end of it the room's browser chip goes away. A worker still
@@ -210,12 +288,12 @@ export class AgentDO extends DurableObject<Env> {
         return ended
       },
       react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
-      // Read from storage: a long run can outlive this instance, and Retry needs the human messages it answered.
+      // Restored from the durable input when the harness opens; Retry needs the messages it answered.
       runError: async (runId, error) => {
         const run = this.#run?.provider === error.provider ? this.#run : null
         if (run) run.errored = true
         const kind = runKindFor(error.kind, run?.credential)
-        const out = await room().runError(home.slug, runId, { ...error, kind, inputs: (await this.ctx.storage.get<string[]>(HUMAN_INPUTS_KEY)) ?? this.#humanInputs })
+        const out = await room().runError(home.slug, runId, { ...error, kind, inputs: this.#humanInputs })
         // A failure the provider repeats on the next request ends the work with the run. A busy or
         // unreachable provider leaves the workers alone: they may still finish and report.
         if (stopsWorkers(kind)) await this.host.workers.stopAll()
@@ -230,21 +308,21 @@ export class AgentDO extends DurableObject<Env> {
     if (!run?.problem || run.errored || !run.auth) return
     run.problem = undefined
     this.ctx.waitUntil(
-      userStub(this.env.USER, userId)
+      this.services.user()
         .providerRecovered(run.provider)
         .catch((e: unknown) => console.error(`provider recovery failed: ${e instanceof Error ? e.message : String(e)}`)),
     )
   }
 
   private recipesPort(home: { userId: string; roomId: string; slug: string }): RecipesPort {
-    const user = () => userStub(this.env.USER, home.userId)
+    const user = () => this.services.user()
     return { list: () => user().recipeBriefs(home.roomId, home.slug), body: (name) => user().recipeSkillText(name) }
   }
 
   private routinesPort(): RoutinesPort | null {
     const home = this.home()
     if (!home) return null
-    const user = () => userStub(this.env.USER, home.userId)
+    const user = () => this.services.user()
     const tz = () => this.#run?.timezone ?? "UTC"
     const mine = async (id: string) => (await user().listRoutines()).some((r) => r.id === id && canManageRoutine(home, r))
     const notHere = { ok: false as const, error: "no such routine available to you" }
@@ -278,7 +356,7 @@ export class AgentDO extends DurableObject<Env> {
   private async composioTools(): Promise<ComposioTool[] | null | "unreachable"> {
     const home = this.home()
     if (!home) return null
-    return userStub(this.env.USER, home.userId)
+    return this.services.user()
       .composioTools()
       .catch(() => "unreachable" as const)
   }
@@ -293,16 +371,16 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   /** The agent mail a run answered, and whether mail was all it was given: such a run says nothing the human committed to. */
-  private async heard(inputs: readonly SubmissionId[]): Promise<{ mail: string[]; mailOnly: boolean }> {
-    if (!inputs.length) return { mail: [], mailOnly: false }
+  private async heard(inputs: readonly SubmissionId[]): Promise<{ mail: string[]; mailOnly: boolean; human: boolean }> {
+    if (!inputs.length) return { mail: [], mailOnly: false, human: false }
     const { storage } = await this.host.open()
     const all: string[] = []
     for (const input of inputs) {
       const submission = await storage.submission(input, BACKGROUND_CONTEXT)
-      if (submission?.requestId) all.push(...this.host.inbox.envelopeIds(submission.requestId))
+      if (submission?.requestId) all.push(...await this.host.envelopeIds(submission.requestId))
     }
     const mail = all.filter((id) => id.startsWith("agent:"))
-    return { mail, mailOnly: mail.length > 0 && mail.length === all.length }
+    return { mail, mailOnly: mail.length > 0 && mail.length === all.length, human: all.some((id) => id.startsWith("human:")) }
   }
 
   async askAnswered(id: string, answer: string): Promise<boolean> {
@@ -312,7 +390,7 @@ export class AgentDO extends DurableObject<Env> {
   private messagingPort(): MessagingPort | null {
     const home = this.home()
     if (!home) return null
-    const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
+    const room = () => this.services.room(home.roomId)
     return {
       send: (input) => room().agentMessage(home.slug, input),
       waitAnswer: (id, ms, signal) => this.answers.wait(id, ms, signal),
@@ -323,16 +401,14 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  /** Every tool call goes to the room in these batches. See `StepBatch`. */
-  readonly #steps = new StepBatch<StepItem>(async (items) => {
-    const home = this.home()
-    if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).reportSteps(home.slug, items)
-  })
   #rootId: ConversationId | null = null
 
   private stepsPort(): StepsPort {
     return {
-      push: (item) => this.#steps.push(item),
+      push: (item) => {
+        const home = this.home()
+        if (home) this.ctx.waitUntil(this.services.room(home.roomId).reportSteps(home.slug, [item]))
+      },
       scope: (conversationId) => {
         if (conversationId === this.#rootId) {
           const runId = this.outbox.runId()
@@ -347,23 +423,23 @@ export class AgentDO extends DurableObject<Env> {
   private groupsPort(): GroupsPort | undefined {
     const home = this.home()
     if (!home) return undefined
-    const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
+    const room = () => this.services.room(home.roomId)
     return {
       chief: home.slug === CHIEF,
-      agents: () => userStub(this.env.USER, home.userId).listAgents(),
+      agents: () => this.services.user().listAgents(),
       createAgent: (spec) => room().createAgent(home.slug, spec),
       createGroup: (input) => room().createGroup(home.slug, input),
       deleteGroup: (roomId) => room().deleteGroup(home.slug, roomId),
       deleteAgent: (handle) => room().deleteOwnedAgent(home.slug, handle),
       removeMember: (handle, roomId) => room().removeGroupMember(home.slug, handle, roomId),
-      overview: () => userStub(this.env.USER, home.userId).overview(),
+      overview: () => this.services.user().overview(),
     }
   }
 
   private soulPort(): SoulPort {
     const user = () => {
       const home = this.homeOrThrow()
-      return { stub: userStub(this.env.USER, home.userId), slug: home.slug }
+      return { stub: this.services.user(), slug: home.slug }
     }
     return {
       get: () => {
@@ -381,13 +457,30 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
+  /** Routines are durable pi tasks in this agent's Harness, so they share the run mechanism and the one clock. */
+  private readonly routineScheduler = new RoutineSchedules(async (delivery) => {
+    await this.services.fireRoutine(delivery)
+  })
+
+  /** Replaces this agent's durable routine inventory. Repeated syncs with the same occurrences add nothing. */
+  async syncRoutines(routines: readonly ScheduledRoutine[]): Promise<void> {
+    await this.host.updateTasks(async (opened) => {
+      await this.routineScheduler.bind(opened.harness, opened.root.id).sync(routines)
+    })
+  }
+
   protected async setup(): Promise<AgentSetup> {
+    const rollover: NonNullable<AgentSetup["rollover"]> = {
+      capture: (tasks) => captureRoutineTasks(tasks),
+      restore: (harness, root, input) => this.routineScheduler.bind(harness, root.id).sync(input.map(scheduledRoutine)),
+    }
     const home = this.home()
     const role = { role: home?.role ?? "", lead: home?.lead ?? true }
     const messaging = () => this.messagingPort()
     if (DEV && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) {
       const browserOn = await this.browserOn()
-      const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, {
+      const fake = fakeSetup(role, roomWorkspacePort(this.services, () => this.home()), messaging, {
+        testExtensions: [this.routineScheduler.extension],
         ...(browserOn && home ? { browser: { connection: () => this.browser(), lease: () => this.browserLease(), acceptsImages: () => false } } : {}),
         routines: { port: () => this.routinesPort() },
         groups: this.groupsPort(),
@@ -396,23 +489,24 @@ export class AgentDO extends DurableObject<Env> {
       })
       return {
         ...fake,
+        rollover,
         beginRun: async () => true,
         inputMemory: (batch, fresh, joined) => this.inputMemory(batch, fresh, joined, false),
         beforeCompact: (harness) => this.beforeCompact(harness),
       }
     }
     const egress = this.egressFetch()
-    const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString(), egress)
+    const user = userModels((provider) => this.runAuth(provider), `${this.identity.ownerId}:${this.agentKey}`, egress, this.countOutgoing)
     const soul = this.soulPort()
     const cache = new ObjectCache()
     const where = () => this.home()
     const notice = (text: string) => {
       const h = this.home()
-      return h ? roomStub(this.env.ROOM, h.userId, h.roomId).homeNotice(h.slug, text) : Promise.resolve()
+      return h ? this.services.room(h.roomId).homeNotice(h.slug, text) : Promise.resolve()
     }
     const locked = () => (this.home()?.private ? PRIVATE_REFUSAL : null)
-    const backend = withMount(withMount(roomBackend(this.env, where, cache), HOME, homeBackend(this.env, where, notice, cache, locked)), KIKO, kikoDocsBackend())
-    const id = `room-files:${this.ctx.id.toString()}`
+    const backend = withMount(withMount(roomBackend(this.services, where, cache), HOME, homeBackend(this.services, where, notice, cache, locked)), KIKO, kikoDocsBackend())
+    const id = `room-files:${this.identity.ownerId}:${this.agentKey}`
     const space = withSoul(backend, soul)
     const views = roomViews(id, space)
     const files = { fs: new RoomFs(id, space), acceptsImages: imageReader(user.models) }
@@ -424,14 +518,15 @@ export class AgentDO extends DurableObject<Env> {
       ? { connection: () => this.browser(), lease: () => this.browserLease(), acceptsImages: imageReader(user.models) }
       : undefined
     const picked = await this.picked()
-    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, ...(picked.model ? { model: picked.model } : {}), thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: this.stepsPort(), runId: () => this.outbox.runId(), memory, messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args), resolve: (app) => userStub(this.env.USER, home.userId).composioToolkit(app) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers })
+    const built = buildAgent({ ...(browser ? { browser } : {}), testExtensions: [this.routineScheduler.extension], ...role, ...(picked.model ? { model: picked.model } : {}), thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: this.stepsPort(), runId: () => this.outbox.runId(), memory, messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => this.services.user().composioCall(name, args, egress), resolve: (app) => this.services.user().composioToolkit(app) } } : {}), workspace: roomWorkspacePort(this.services, () => this.home()), work: this.host.workers })
     return {
       ...built,
       ...user,
+      rollover,
       env: views,
       beginRun: async (batch, root) => {
         this.prefetchDelta(batch)
-        return this.beginRun(batch.requestId, root)
+        return this.beginRun(batch, root)
       },
       inputContext: async () => {
         const tz = this.#run?.timezone ?? "UTC"
@@ -443,7 +538,7 @@ export class AgentDO extends DurableObject<Env> {
         const routines = await this.routineContext()
         return [clock, integrations, down, learned, quiet, routines].filter(Boolean).join("\n\n")
       },
-      ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (await userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false))) } : {}),
+      ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (this.services.user().composioSignature() !== signature)) } : {}),
       inputInvalidated: () => this.inputInvalidated(),
       inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined),
       beforeCompact: (harness) => this.beforeCompact(harness),
@@ -462,59 +557,48 @@ export class AgentDO extends DurableObject<Env> {
     const [known, forgotten, current] = await Promise.all([
       this.ctx.storage.get<number>(MEMORY_REVISION_KEY),
       this.ctx.storage.get<number>(MEMORY_FORGOTTEN_KEY),
-      userStub(this.env.USER, home.userId).lifeRevisions(),
+      this.services.user().lifeRevisions(),
     ])
     if ((forgotten ?? 0) !== current.forgotten) return "forget"
     return known !== current.revision ? "refresh" : null
   }
 
-  private async inputMemory(batch: Batch, fresh: boolean, joined: number[], withLife = true): Promise<{ text?: string; fresh: boolean }> {
+  private async inputMemory(batch: Batch, fresh: boolean, joined: number[], withLife = true): Promise<{ text?: string; fresh: boolean; data?: { memoryPos: number } }> {
     const ahead = this.#delta?.requestId === batch.requestId ? this.#delta.since : null
     this.#delta = undefined
     const home = this.home()
     if (!home) return { fresh }
-    const room = roomStub(this.env.ROOM, home.userId, home.roomId)
+    const room = this.services.room(home.roomId)
     const seqs = [...batch.envelopes.map((e) => e.seq), ...joined]
     this.#seqs = seqs
     this.#heard = batch.envelopes.findLast((e) => e.from.kind === "human")?.rootId ?? null
     this.#humanInputs = batch.envelopes.filter((e) => e.from.kind === "human").map((e) => e.rootId)
-    const inputs = this.changedHumanInputs()
     const [seen, previousLife, previousRevision, state] = await Promise.all([
-      this.ctx.storage.get<number>(MEMORY_POS_KEY),
+      this.memoryPos(),
       withLife ? this.ctx.storage.get<string>(MEMORY_LIFE_KEY) : undefined,
       withLife ? this.ctx.storage.get<number>(MEMORY_REVISION_KEY) : undefined,
-      withLife ? userStub(this.env.USER, home.userId).lifeState() : { text: "", revision: 0, forgotten: 0 },
+      withLife ? this.services.user().lifeState() : { text: "", revision: 0, forgotten: 0 },
     ])
     const life = state.text
     const changedLife = withLife && (state.revision !== previousRevision || life !== previousLife)
     if (!fresh && !changedLife && seen !== undefined) {
       const delta = (await ahead) ?? (await room.memorySince(home.slug, seen, seqs))
       if (delta.count - seen <= MAX_DELTA_TURNS) {
-        await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: delta.count })
-        if (inputs) this.#storedInputs = inputs
-        return { fresh: false, ...(delta.text ? { text: memoryDelta(delta.text) } : {}) }
+        return { fresh: false, data: { memoryPos: delta.count }, ...(delta.text ? { text: memoryDelta(delta.text) } : {}) }
       }
     }
     const currentSeqs = batch.envelopes.map((envelope) => envelope.seq)
     this.#seqs = currentSeqs
     const view = await room.memoryView(currentSeqs)
-    await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: view.count, ...(withLife ? { [MEMORY_LIFE_KEY]: life, [MEMORY_REVISION_KEY]: state.revision, [MEMORY_FORGOTTEN_KEY]: state.forgotten } : {}) })
-    if (inputs) this.#storedInputs = inputs
+    if (withLife) await this.ctx.storage.put({ [MEMORY_LIFE_KEY]: life, [MEMORY_REVISION_KEY]: state.revision, [MEMORY_FORGOTTEN_KEY]: state.forgotten })
     this.#shown.clear()
-    return { fresh: true, text: memoryBlock(life, view.text) }
+    return { fresh: true, text: memoryBlock(life, view.text), data: { memoryPos: view.count } }
   }
 
-  /**
-   * The human messages this run is answering, or null when they are the ones already stored. They are stored with the
-   * memory position, before the run can fail, so a retry knows what to run again. A run that answers the same messages
-   * as the run before it stores none of them: every put is a billed row, and a tool follow-up answers the same message.
-   */
-  private changedHumanInputs(): string[] | null {
-    const held = this.#humanInputs
-    if (held.length === this.#storedInputs.length && held.every((id, i) => id === this.#storedInputs[i])) return null
-    return held
+  private async memoryPos(): Promise<number | undefined> {
+    const data = await this.host.inputData("memoryPos")
+    return typeof data?.memoryPos === "number" ? data.memoryPos : this.ctx.storage.get<number>(MEMORY_POS_KEY)
   }
-  #storedInputs: string[] = []
 
   #seqs: number[] = []
   #heard: string | null = null
@@ -527,10 +611,10 @@ export class AgentDO extends DurableObject<Env> {
     const home = this.home()
     if (!home) return
     const since = (async () => {
-      const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
+      const seen = await this.memoryPos()
       if (seen === undefined) return null
       const seqs = [...batch.envelopes.map((e) => e.seq), ...(await this.host.joinedSeqs())]
-      return roomStub(this.env.ROOM, home.userId, home.roomId).memorySince(home.slug, seen, seqs)
+      return this.services.room(home.roomId).memorySince(home.slug, seen, seqs)
     })().catch(() => null)
     this.#delta = { requestId: batch.requestId, since }
   }
@@ -547,7 +631,7 @@ export class AgentDO extends DurableObject<Env> {
     const count = ((await this.ctx.storage.get<number>(COMPACTIONS_KEY)) ?? 0) + 1
     // One put for both keys: the usage this compaction carries and the compaction count.
     await this.ctx.storage.put({ [USAGE_CARRIED_KEY]: usage, [COMPACTIONS_KEY]: count })
-    await roomStub(this.env.ROOM, home.userId, home.roomId).compacted(home.slug, String(count)).catch(() => {})
+    await this.services.room(home.roomId).compacted(home.slug, String(count)).catch(() => {})
   }
 
   private async carriedUsage(): Promise<Usage> {
@@ -578,17 +662,10 @@ export class AgentDO extends DurableObject<Env> {
     return sum
   }
 
-  /**
-   * One outside request, made in its own invocation. On the Free plan an
-   * invocation may make 50 subrequests, and a run's work all belongs to the invocation that started
-   * it, so a long run would fail partway. A call through this object's own stub is a new incoming
-   * request with a fresh budget, and RPC calls do not count against the 50 (measured 2026-10-04).
-   * Only this object calls it, through `egressFetch`.
-   */
+  /** The owner transport reserves the active invocation budget once per network attempt. */
   async egress(request: EgressRequest): Promise<Response> {
     if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
-    // check-rules: allow egress the one outside request, made in this object's own invocation, which is the point of egress
-    return fetch(request.url, { method: request.method, headers: request.headers, ...(request.body ? { body: request.body } : {}) })
+    return this.services.egress(request)
   }
 
   /**
@@ -596,14 +673,13 @@ export class AgentDO extends DurableObject<Env> {
    * here: before the call it throws, and after it the body stream is cut.
    */
   private egressFetch(): typeof fetch {
-    const self = () => this.env.AGENT.get(this.ctx.id) as unknown as { egress(request: EgressRequest): Promise<Response> }
     return (async (input: RequestInfo | URL, init?: RequestInit) => {
       const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined)
       signal?.throwIfAborted()
       // The request crosses as plain data: a request body streamed over RPC can be cut off before the
       const request = new Request(input as RequestInfo, { ...init, signal: null })
       const body = request.body ? await request.arrayBuffer() : null
-      const sent = await orStall(self().egress({ url: request.url, method: request.method, headers: [...request.headers], body }), FIRST_BYTE_MS)
+      const sent = await orStall(this.egress({ url: request.url, method: request.method, headers: [...request.headers], body }), FIRST_BYTE_MS)
       const response = guardStall(sent, STALL_MS)
       if (!signal || !response.body) return response
       const { readable, writable } = new TransformStream()
@@ -615,15 +691,15 @@ export class AgentDO extends DurableObject<Env> {
   private memoryPort(): MemoryPort | undefined {
     const home = this.home()
     if (!home) return undefined
-    const user = () => userStub(this.env.USER, home.userId)
-    const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
+    const user = () => this.services.user()
+    const room = () => this.services.room(home.roomId)
     return {
       note: async (text, replaces) =>
         this.home()?.private ? { ok: false, error: PRIVATE_REFUSAL } : user().lifeNote(home.slug, text, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", replaces),
       captures: () => this.#run?.captures ?? false,
       recall: async (query, conversationId) => {
         const root = await this.isRootConversation(conversationId)
-        const seen = root ? await this.ctx.storage.get<number>(MEMORY_POS_KEY) : undefined
+        const seen = root ? await this.memoryPos() : undefined
         const [life, chat] = await Promise.all([user().lifeRecall(query), room().memoryRecall(query, seen, root ? this.#seqs : [])])
         return mergeRecall(tagHits("life", life), tagHits("chat", chat), root ? this.#shown : new Set())
       },
@@ -649,17 +725,17 @@ export class AgentDO extends DurableObject<Env> {
     return (await root.context(BACKGROUND_CONTEXT)).messages.length > 0
   }
 
-  /**
-   * A new model reads a plain-text handoff of the old model's context, never its native history. The marker is stored
-   * before the reset and cleared after the configure, so a crash between them configures without resetting twice.
-   */
   private async handoff(root: Conversation, was: Applied, next: Applied): Promise<void> {
-    const marked = await this.ctx.storage.get<Applied>(HANDOFF_KEY)
-    if (JSON.stringify(marked) !== JSON.stringify(next)) {
-      const { entries } = await root.context(BACKGROUND_CONTEXT)
+    const { entries } = await root.context(BACKGROUND_CONTEXT)
+    const previous = entries.findLast((entry) => entry.kind === "kiko.handoff")
+    const marker = previous?.data
+    const applied = marker && typeof marker === "object" && !Array.isArray(marker) ? marker.applied : undefined
+    if (JSON.stringify(applied) !== JSON.stringify(next)) {
       const text = renderHandoff(entries, { from: modelName(was.model), to: modelName(next.model) })
-      await this.ctx.storage.put(HANDOFF_KEY, next)
-      await root.reset(text, BACKGROUND_CONTEXT)
+      await root.commit((tx) => tx.appendEntry(root.id, {
+        kind: "kiko.handoff", data: { applied: next }, head: "self",
+        model: [{ role: "user", content: text, timestamp: Date.now() }],
+      }), BACKGROUND_CONTEXT)
     }
     await root.configure(next, BACKGROUND_CONTEXT)
   }
@@ -667,11 +743,11 @@ export class AgentDO extends DurableObject<Env> {
   #run: { provider: string; auth: AuthResult | null; timezone: string; captures: boolean; soul?: Soul; credential?: "api_key" | "oauth"; problem?: ProviderProblem; errored?: boolean } | null = null
   #runStamp = 0
 
-  private async beginRun(requestId: string, root: Conversation): Promise<boolean> {
+  protected async beginRun(batch: Batch, root: Conversation): Promise<boolean> {
     const home = this.home()
     if (!home) return false
     this.#runStamp++
-    const turn = await userStub(this.env.USER, home.userId).agentTurn(home.slug)
+    const turn = await this.services.user().agentTurn(home.slug)
     if (turn.provider) setOverlay(turn.provider, turn.catalog.models)
     const model = turn.model ? parseModelRef(turn.model) : null
     // pi-durable ends a run on a model it cannot find as unanswered, with no error entry, so the human would see nothing.
@@ -686,14 +762,14 @@ export class AgentDO extends DurableObject<Env> {
         if (was && switchedModel(was, applied) && (await this.hasContext(root))) await this.handoff(root, was, applied)
         else await root.configure(applied, BACKGROUND_CONTEXT)
         await this.ctx.storage.put(MODEL_APPLIED_KEY, applied)
-        await this.ctx.storage.delete(HANDOFF_KEY)
       }
       if (turn.auth) return true
     }
-    const ids = this.host.inbox.envelopeIds(requestId)
+    const requestId = batch.requestId
+    const ids = batch.envelopes.map((e) => e.id)
     const heard = ids.filter((id) => id.startsWith("agent:"))
     const humans = ids.filter((id) => id.startsWith("human:")).map((id) => id.slice("human:".length).split("#")[0]!)
-    const room = roomStub(this.env.ROOM, home.userId, home.roomId)
+    const room = this.services.room(home.roomId)
     if (!model) await room.noModel(home.slug, requestId, heard, humans)
     else if (!listed) await room.modelGone(home.slug, model.provider, `${model.provider}/${model.modelId}`, requestId, heard, humans)
     else {
@@ -710,7 +786,7 @@ export class AgentDO extends DurableObject<Env> {
 
   private async loadAuth(provider: string): Promise<AuthResult | null> {
     const home = this.home()
-    const context = home ? await userStub(this.env.USER, home.userId).turnContext(provider, home.slug) : null
+    const context = home ? await this.services.user().turnContext(provider, home.slug) : null
     if (context) setOverlay(provider, context.catalog.models)
     this.#run = { provider, auth: context?.auth ?? null, timezone: context?.timezone ?? "UTC", captures: context?.captures ?? false, ...(context?.credential ? { credential: context.credential } : {}), ...(context?.problem ? { problem: context.problem } : {}), ...(context?.agent ? { soul: context.agent.soul } : {}) }
     return this.#run.auth
@@ -719,7 +795,7 @@ export class AgentDO extends DurableObject<Env> {
   /** The model and level this agent runs on. Kept by the user, so every chat with this agent agrees. */
   private async picked(): Promise<{ model: ModelRef | null; thinking: ThinkingLevel }> {
     const home = this.home()
-    const picked = home ? await userStub(this.env.USER, home.userId).agentModel(home.slug) : null
+    const picked = home ? await this.services.user().agentModel(home.slug) : null
     return { model: picked ? parseModelRef(picked.model) : null, thinking: picked?.thinking ?? "off" }
   }
 
@@ -732,13 +808,18 @@ export class AgentDO extends DurableObject<Env> {
     await this.host.alarm()
   }
 
+  async runInvocation(due: () => boolean): Promise<"done" | "continue"> {
+    if (await this.browserIdle()) return "done"
+    return this.host.runInvocation(due)
+  }
+
   #browser?: BrowserConnection
   #browserLease?: LeasePort
 
   private async browserOn(): Promise<boolean> {
     const home = this.home()
     if (!home) return false
-    return (userStub(this.env.USER, home.userId) as unknown as UserBrowserRpc).browserCheck().then((s) => s.connected, () => false)
+    return (this.services.user() as unknown as UserBrowserRpc).browserCheck().then((s) => s.connected, () => false)
   }
 
   /**
@@ -755,7 +836,7 @@ export class AgentDO extends DurableObject<Env> {
 
   private browserLease(): LeasePort {
     const home = this.homeOrThrow()
-    this.#browserLease ??= userLease(() => userStub(this.env.USER, home.userId) as unknown as UserBrowserRpc, `${home.roomId}:${home.slug}`, home.roomId)
+    this.#browserLease ??= userLease(() => this.services.user() as unknown as UserBrowserRpc, `${home.roomId}:${home.slug}`, home.roomId)
     return this.#browserLease
   }
 
@@ -764,7 +845,7 @@ export class AgentDO extends DurableObject<Env> {
     this.#browser ??= new BrowserConnection({
       agentId: `${home.roomId}:${home.slug}`,
       lease: this.browserLease(),
-      idle: { arm: (at) => createAlarms(this.ctx).setWakeup(BROWSER_IDLE_WAKEUP, at) },
+      idle: { arm: (at) => this.clock.setWakeup(BROWSER_IDLE_WAKEUP, at) },
     })
     return this.#browser
   }
@@ -774,12 +855,12 @@ export class AgentDO extends DurableObject<Env> {
    * due without knowing it, so this runs first. True when nothing else was due.
    */
   private async browserIdle(): Promise<boolean> {
-    const now = Date.now()
-    const due = this.ctx.storage.sql.exec<{ key: string }>("SELECT key FROM wakeups WHERE at <= ?", now).toArray().map((r) => r.key)
-    if (!due.includes(BROWSER_IDLE_WAKEUP)) return false
-    await createAlarms(this.ctx).clearWakeup(BROWSER_IDLE_WAKEUP)
+    const clock = this.clock
+    const at = clock.deadline(BROWSER_IDLE_WAKEUP)
+    if (at === undefined || at > Date.now()) return false
+    await clock.clearWakeup(BROWSER_IDLE_WAKEUP)
     if (this.#browser && (await this.#browser.idle()) === "closed") count("browser.idle.closed")
-    return due.length === 1
+    return false
   }
 
   // The dev-only bodies live in agent/dev.ts, which only a development build can load. One cached load

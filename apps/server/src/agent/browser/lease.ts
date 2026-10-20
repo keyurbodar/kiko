@@ -1,12 +1,12 @@
 import type { LeaseInfo } from "../../integrations/kernel/lease"
 import type { BrowserCheck } from "../../user/kernel-wiring"
-import type { UserDO } from "../../user/user-do"
+import type { User } from "../../user/user-do"
 
 export type Lease = LeaseInfo
 
 export type BrowserState = BrowserCheck
 
-export type LiveLink = { ok: true; url: string; posted: boolean } | { ok: false; error: string }
+type LiveLink = { ok: true; url: string; posted: boolean } | { ok: false; error: string }
 
 export class BrowserNotConnected extends Error {
   constructor() {
@@ -28,8 +28,8 @@ export interface LeasePort {
   handBack(): Promise<boolean>
 }
 
-/** The user's RPC surface, read from `UserDO` so each signature is declared once. */
-export type UserBrowserRpc = Pick<UserDO, "browserLease" | "browserTouch" | "browserDead" | "browserCheck" | "browserTakeover" | "browserLive" | "browserHandBack">
+/** The user's RPC surface, read from `User` so each signature is declared once. */
+export type UserBrowserRpc = Pick<User, "browserLease" | "browserTouch" | "browserDead" | "browserCheck" | "browserTakeover" | "browserLive" | "browserHandBack">
 
 const NOT_CONNECTED = /not connected/i
 const PAUSE_MEMO_MS = 1_000

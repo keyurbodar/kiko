@@ -3,20 +3,9 @@ import type { Env } from "./index"
 import { humanHandle } from "@kiko/protocol"
 import { boundedWait } from "@kiko/durable/bounded-wait"
 import { DEV } from "./lib/dev-guard"
-import { HANDLE_HEADER, NameError, ROOM_ID_HEADER, roomStub, USER_ID_HEADER, userStub } from "./lib/names"
+import { HANDLE_HEADER, NameError, ROOM_ID_HEADER, USER_ID_HEADER, ownerStub } from "./lib/names"
 
 export type SessionLookup = (request: Request, env: AuthEnv) => Promise<{ id: string; name?: string } | null>
-
-type Target = { kind: "user" } | { kind: "room"; roomId: string }
-
-const ROOM_PATH = /^\/api\/ws\/room\/([^/]+)$/
-
-function match(pathname: string): Target | null {
-  if (pathname === "/api/ws/user") return { kind: "user" }
-  const room = ROOM_PATH.exec(pathname)
-  const roomId = room?.[1]
-  return roomId === undefined ? null : { kind: "room", roomId }
-}
 
 function error(status: number, message: string): Response {
   return Response.json({ error: message }, { status })
@@ -35,12 +24,11 @@ export function originAllowed(request: Request, url: URL, env: AuthEnv): boolean
 export async function route(request: Request, env: Env, lookup: SessionLookup = getSessionUser): Promise<Response | null> {
   const url = new URL(request.url)
   if (!url.pathname.startsWith("/api/") || url.pathname.startsWith("/api/auth/")) return null
-  const target = match(url.pathname)
-  if (!target) return null
-  return within(UPGRADE_TIMEOUT_MS, upgrade(request, env, url, target, lookup))
+  if (url.pathname !== "/api/ws") return null
+  return within(UPGRADE_TIMEOUT_MS, upgrade(request, env, url, lookup))
 }
 
-export const UPGRADE_TIMEOUT_MS = 5_000
+const UPGRADE_TIMEOUT_MS = 5_000
 
 // If this Worker invocation ends first, the object's own hello deadline closes the socket.
 async function within(ms: number, work: Promise<Response>): Promise<Response> {
@@ -63,7 +51,7 @@ async function within(ms: number, work: Promise<Response>): Promise<Response> {
   }
 }
 
-async function upgrade(request: Request, env: Env, url: URL, target: Target, lookup: SessionLookup): Promise<Response> {
+async function upgrade(request: Request, env: Env, url: URL, lookup: SessionLookup): Promise<Response> {
   if (!originAllowed(request, url, env)) return error(403, "forbidden origin")
   const user = await lookup(request, env)
   if (!user) return error(401, "unauthorized")
@@ -71,16 +59,10 @@ async function upgrade(request: Request, env: Env, url: URL, target: Target, loo
 
   const headers = new Headers(request.headers)
   headers.set(USER_ID_HEADER, user.id)
+  headers.delete(ROOM_ID_HEADER)
   try {
-    let response: Response
-    if (target.kind === "user") {
-      headers.delete(ROOM_ID_HEADER)
-      response = await userStub(env.USER, user.id).fetch(new Request(request, { headers }))
-    } else {
-      headers.set(ROOM_ID_HEADER, target.roomId)
-      headers.set(HANDLE_HEADER, humanHandle(user.name))
-      response = await roomStub(env.ROOM, user.id, target.roomId).fetch(new Request(request, { headers }))
-    }
+    headers.set(HANDLE_HEADER, humanHandle(user.name))
+    const response = await ownerStub(env.OWNER, user.id).fetch(new Request(request, { headers }))
     // A client fails a socket whose answer names a subprotocol it did not offer, and a browser that offered
     // one fails it unless the answer names it. So echo `kiko` exactly when the client offered it.
     const offered = (request.headers.get("sec-websocket-protocol") ?? "").split(",").map((p) => p.trim())

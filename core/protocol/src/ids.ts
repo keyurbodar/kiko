@@ -37,7 +37,7 @@ export function newRoomId(now?: number, random?: Uint8Array): RoomId {
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
-export function roomIdTime(roomId: string): number | null {
+function roomIdTime(roomId: string): number | null {
 	if (UUID_V7_PATTERN.test(roomId)) return Number.parseInt(roomId.slice(0, 8) + roomId.slice(9, 13), 16)
 	if (!ULID_PATTERN.test(roomId)) return null
 	let time = 0

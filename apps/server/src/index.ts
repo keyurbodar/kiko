@@ -1,18 +1,14 @@
-import type { AgentDO } from "./agent/agent-do"
 import { serveAsset } from "./lib/assets"
 import { devResponse } from "./lib/dev-guard"
 import { BACKEND } from "./lib/version"
 import { type AuthEnv, authRoute, getSessionUser } from "./auth/auth"
 import { withCors } from "./lib/cors"
-import { userStub } from "./lib/names"
+import { ownerStub } from "./lib/names"
 import { downloadRoute } from "./files/download"
 import { uploadRoute } from "./files/upload"
 import { route } from "./router"
 import { credentialsRoute } from "./user/credentials-route"
 import { modelsRoute } from "./models/route"
-import type { FileDO } from "./files/file-do"
-import type { RoomDO } from "./room/room-do"
-import type { UserDO } from "./user/user-do"
 import { hooksRoute } from "./user/hooks-route"
 import { settingsRoute } from "./user/settings-route"
 import { routinesRoute } from "./user/routines-route"
@@ -22,19 +18,18 @@ import { recipesRoute } from "./recipes/route"
 import { newAgentRoute } from "./user/new-agent-route"
 import { faviconRoute } from "./favicon/route"
 import { openVsxRoute } from "./themes/open-vsx-route"
+import { storageRoute } from "./owner/storage-route"
 
-export { AgentDO } from "./agent/agent-do"
-export { FileDO } from "./files/file-do"
-export { RoomDO } from "./room/room-do"
-export { UserDO } from "./user/user-do"
+
+export { OwnerDO } from "./owner/owner-do"
+import type { OwnerDO } from "./owner/owner-do"
 
 export interface Env extends AuthEnv {
-  USER: DurableObjectNamespace<UserDO>
-  ROOM: DurableObjectNamespace<RoomDO>
-  AGENT: DurableObjectNamespace<AgentDO>
-  /** Absent on an install without R2. Files then live in `FILE`, one Durable Object per chat. */
+  OWNER: DurableObjectNamespace<OwnerDO>
+  /** Optional file storage. Without R2, bytes live in OwnerDO. */
   FILES?: R2Bucket
-  FILE: DurableObjectNamespace<FileDO>
+  /** Optional archive for room history older than 30 days. */
+  ARCHIVE?: R2Bucket
   ASSETS: Fetcher
   CREDENTIALS_KEK: string
   /** The install's Cloudflare grant as JSON. UserDO keeps a rotated copy of its own. */
@@ -47,7 +42,7 @@ export interface Env extends AuthEnv {
 async function withHome(response: Response, env: Env): Promise<Response> {
   if (!response.ok) return response
   const body = (await response.clone().json().catch(() => null)) as { user?: { id?: unknown } } | null
-  if (typeof body?.user?.id === "string") await userStub(env.USER, body.user.id).ensureHome()
+  if (typeof body?.user?.id === "string") await ownerStub(env.OWNER, body.user.id).userCall("ensureHome", [])
   return response
 }
 
@@ -67,6 +62,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
     if (routines) return routines
     const settings = await settingsRoute(request, env)
     if (settings) return settings
+    const storage = await storageRoute(request, env)
+    if (storage) return storage
     const soul = await soulRoute(request, env)
     if (soul) return soul
     const searched = await searchRoute(request, env)
@@ -86,7 +83,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
     if (url.pathname === "/api/me") {
       const user = await getSessionUser(request, env)
       if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
-      await userStub(env.USER, user.id).ensureHome()
+      await ownerStub(env.OWNER, user.id).userCall("ensureHome", [])
       return Response.json({ user })
     }
     const authResponse = await authRoute(request, env)

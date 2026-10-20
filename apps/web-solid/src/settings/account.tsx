@@ -7,6 +7,7 @@ import { base } from "../lib/api-base"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { APP_VERSION } from "../lib/version-skew"
 import { Button, Group, Item, Pill, Row, Spinner } from "./kit"
+import { StorageGroup } from "./storage-group"
 
 const PROVIDER_LABEL: Record<string, string> = { google: "Google", github: "GitHub", apple: "Apple", microsoft: "Microsoft" }
 const providerLabel = (id: string) => PROVIDER_LABEL[id] ?? id.charAt(0).toUpperCase() + id.slice(1)
@@ -106,9 +107,12 @@ export function Account() {
       <Show
         when={hosted}
         fallback={
-          <Group title="Account">
-            <Item icon={<IdentityAvatar seed={user()?.id ?? "you"} size={24} />} title={user()?.name ?? "You"} actions={signOutButton()} />
-          </Group>
+          <>
+            <Group title="Account">
+              <Item icon={<IdentityAvatar seed={user()?.id ?? "you"} size={24} />} title={user()?.name ?? "You"} actions={signOutButton()} />
+            </Group>
+            <StorageGroup />
+          </>
         }
       >
         <Group title="Profile">
@@ -126,6 +130,7 @@ export function Account() {
           />
         </Group>
         <Backend />
+        <StorageGroup />
         <Group>
           <Row label="Sign out" description="Ends this session. Your backend and its data stay as they are.">
             {signOutButton()}

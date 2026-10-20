@@ -1,5 +1,6 @@
 import type { AgentSlug, MessageId, RoomEvent } from "@kiko/protocol"
 import { escapeXml } from "@kiko/agent/text"
+import type { Pending } from "./burst"
 import type { RoomLog } from "./log"
 
 const ALLOWED = [
@@ -10,26 +11,23 @@ const ALLOWED = [
 const bare = (emoji: string) => emoji.replace(/[︎️]|\uD83C[\uDFFB-\uDFFF]/g, "")
 const CANONICAL = new Map<string, string>(ALLOWED.map((e) => [bare(e), e]))
 
-export function allowedReaction(emoji: string): string | null {
+function allowedReaction(emoji: string): string | null {
 	return CANONICAL.get(bare(emoji.trim())) ?? null
 }
 
-export function defaultTarget(sql: SqlStorage): MessageId | null {
+export function defaultTarget(sql: SqlStorage, roomId: string, pending: readonly Pending[]): MessageId | null {
 	const row = sql
 		.exec<{ id: string }>(
-			`SELECT id FROM messages
-			 WHERE deleted_at IS NULL AND json_extract(sender, '$.kind') = 'human'
-			   AND id NOT IN (SELECT id FROM pending)
-			 ORDER BY seq DESC LIMIT 1`,
+			"SELECT id FROM messages WHERE (deleted_at IS NULL AND JSON_EXTRACT(sender, '$.kind') = 'human' AND NOT id IN (SELECT value FROM json_each(?2))) AND messages.room_id = ?1 ORDER BY seq DESC LIMIT 1", roomId, JSON.stringify(pending.map(({ envelope }) => envelope.rootId)),
 		)
 		.toArray()[0]
 	return (row?.id as MessageId | undefined) ?? null
 }
 
-export function agentReact(log: RoomLog, sql: SqlStorage, slug: AgentSlug, emoji: string, messageId?: string): RoomEvent | null {
+export function agentReact(log: RoomLog, sql: SqlStorage, slug: AgentSlug, emoji: string, messageId: string | undefined, pending: readonly Pending[]): RoomEvent | null {
 	const allowed = allowedReaction(emoji)
 	if (!allowed) return null
-	const target = (messageId as MessageId | undefined) ?? defaultTarget(sql)
+	const target = (messageId as MessageId | undefined) ?? defaultTarget(sql, log.roomId, pending)
 	if (!target) return null
 	return log.react(target, { kind: "agent", slug }, allowed)
 }
@@ -41,9 +39,9 @@ const QUOTE = 60
 export type ReactionNote = { by: string; emoji: string; text: string }
 
 /** The most of the reactions block, in the bytes the brief escapes it to. The newest reactions are kept; the rest are counted. */
-export const MAX_REACTIONS_BYTES = 1024
+const MAX_REACTIONS_BYTES = 1024
 
-export function reactionLines(notes: readonly ReactionNote[]): string | null {
+function reactionLines(notes: readonly ReactionNote[]): string | null {
 	if (!notes.length) return null
 	const kept: string[] = []
 	let bytes = 0
@@ -63,18 +61,13 @@ export function reactionLines(notes: readonly ReactionNote[]): string | null {
 
 export function reactionBrief(log: RoomLog, sql: SqlStorage, slug: AgentSlug): { text: string | null; upTo: number } {
 	const since = Number(log.meta(cursorKey(slug)) ?? 0)
-	const upTo = log.lastSeq()
+	const upTo = sql.exec<{ seq: number }>("SELECT coalesce(max(seq), 0) AS seq FROM events WHERE room_id = ? AND kind = 'react'", log.roomId).one().seq
 	const rows = sql
 		.exec<{ actor: string; emoji: string; text: string }>(
-			`SELECT r.actor, r.emoji, m.text FROM reactions r JOIN messages m ON m.id = r.message_id
-			 WHERE m.deleted_at IS NULL AND json_extract(m.sender, '$.kind') = 'agent' AND json_extract(m.sender, '$.slug') = ?
-			   AND r.actor != ?
-			   AND EXISTS (SELECT 1 FROM events e WHERE e.kind = 'react' AND e.seq > ? AND e.actor = r.actor
-			               AND json_extract(e.payload, '$.messageId') = r.message_id)
-			 ORDER BY r.at`,
+			"SELECT r.actor, r.emoji, m.text FROM reactions AS r JOIN messages AS m ON m.room_id = r.room_id AND m.seq = CAST(r.message_id AS INTEGER) AND m.id = r.message_id WHERE ((m.deleted_at IS NULL AND JSON_EXTRACT(m.sender, '$.kind') = 'agent' AND JSON_EXTRACT(m.sender, '$.slug') = ?1 AND r.actor <> ?2 AND EXISTS(SELECT 1 FROM events AS e WHERE (e.kind = 'react' AND e.seq > ?3 AND e.actor = r.actor AND JSON_EXTRACT(e.payload, '$.messageId') = r.message_id) AND e.room_id = ?4)) AND r.room_id = ?4) AND m.room_id = ?4 ORDER BY r.at",
 			slug,
 			`agent:${slug}`,
-			since,
+			since, log.roomId,
 		)
 		.toArray()
 	const notes = rows.map((r) => ({ by: r.actor === "human" ? "the human" : `@${r.actor.slice("agent:".length)}`, emoji: r.emoji, text: r.text }))

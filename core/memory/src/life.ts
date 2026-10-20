@@ -1,7 +1,7 @@
 import { type Item, LIFE_SHAPE, LINE_BYTES, napPrompt, region, type Span, type Step, Tree, treeSteps } from "./optmem"
 
-export const MAX_PINS = 10
-export const CARD_MAX = 12
+const MAX_PINS = 10
+const CARD_MAX = 12
 export const CARD_TAGS = ["IDENTITY", "ATTRIBUTE", "RELATIONSHIP", "INSTRUCTION"] as const
 export type CardTag = (typeof CARD_TAGS)[number]
 export const isCardTag = (value: unknown): value is CardTag => CARD_TAGS.includes(value as CardTag)
@@ -33,10 +33,10 @@ export const norm = (text: string) =>
 
 export const keywords = (text: string): string[] => [...new Set(norm(text).split(" ").filter((w) => w.length >= 3 && !STOP.has(w)))]
 
-const LIFE_TREE = "life_tree"
+const LIFE_TREE = "memory_tree"
 
 // The life log's tables, with its tree's. Its object's schema list spreads these.
-export const LIFE_STEPS: Step[] = [
+const LIFE_STEPS: Step[] = [
   `CREATE TABLE IF NOT EXISTS life (
     pos INTEGER PRIMARY KEY,
     at INTEGER NOT NULL,
@@ -57,7 +57,7 @@ export const LIFE_STEPS: Step[] = [
 
 // The substring index for recall. It is its own list so an object can append it at the end of its schema: a step
 // placed in the middle of LIFE_STEPS would shift the version of every step after it.
-export const LIFE_TRI_STEPS: Step[] = [
+const LIFE_TRI_STEPS: Step[] = [
   "CREATE VIRTUAL TABLE IF NOT EXISTS life_tri USING fts5(text, tokenize = 'trigram')",
   "INSERT INTO life_tri (rowid, text) SELECT pos, text FROM life WHERE redacted = 0 AND pos NOT IN (SELECT rowid FROM life_tri)",
 ]

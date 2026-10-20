@@ -7,7 +7,7 @@ import type { RoomFs } from "../../files/room-fs"
 // saved whole in the chat's files, as lines a model can search, and the agent gets its start and
 // the path.
 
-export const SPILL_BYTES = 40 * 1024
+const SPILL_BYTES = 40 * 1024
 const HEAD_BYTES = 8 * 1024
 
 const encoder = new TextEncoder()

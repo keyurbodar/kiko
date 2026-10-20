@@ -1,7 +1,6 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
-import type { Env } from "../../index"
-import { roomStub } from "../../lib/names"
+import type { OwnerServices } from "../../owner/services"
 import type { AgentHome } from "../../room/room-do"
 import { TASK_TITLE_WORD_LIMIT } from "../../room/task-title"
 import { TASK_STATUSES, type WorkspaceAnswer, type WorkspaceCall } from "../../room/workspace"
@@ -66,12 +65,12 @@ export function workspaceExtension(port: WorkspacePort, lead: boolean): Extensio
   return defineExtension({ name: WORKSPACE, tools })
 }
 
-export function roomWorkspacePort(env: Env, home: () => AgentHome | null): WorkspacePort {
+export function roomWorkspacePort(services: OwnerServices, home: () => AgentHome | null): WorkspacePort {
   return {
     async call(call) {
       const h = home()
       if (!h) return { ok: false, error: "this agent has no room yet" }
-      return roomStub(env.ROOM, h.userId, h.roomId).workspaceCall(h.slug, call)
+      return services.room(h.roomId).workspaceCall(h.slug, call)
     },
   }
 }

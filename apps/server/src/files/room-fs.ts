@@ -1,4 +1,3 @@
-import { fileStore } from "./store"
 import { sha256Hex } from "@kiko/durable/hash"
 import type { Context } from "@earendil-works/chord"
 import {
@@ -21,8 +20,7 @@ import {
 } from "@earendil-works/pi-durable/env"
 import type { ConversationId, ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { AgentSlug } from "@kiko/protocol"
-import type { Env } from "../index"
-import { roomStub, userStub } from "../lib/names"
+import type { OwnerServices } from "../owner/services"
 import type { FsChange, FsEntry, FsFail } from "../room/files"
 import type { AgentHome } from "../room/room-do"
 import { type BashResult, runCommand } from "./bash"
@@ -472,14 +470,14 @@ type SpaceIndex = {
   commit(changes: readonly IndexChange[]): Promise<CommitResult>
 }
 
-function spaceBackend(env: Env, home: () => AgentHome, index: () => SpaceIndex, cache: ObjectCache): FilesBackend {
+function spaceBackend(services: OwnerServices, home: () => AgentHome, index: () => SpaceIndex, cache: ObjectCache): FilesBackend {
   return {
     stat: (path) => index().stat(path),
     list: (dir, recursive) => index().list(dir, recursive),
     async bytes(r2Key, maxBytes) {
       const hit = cache.get(r2Key)
       if (hit) return maxBytes === undefined ? hit : hit.subarray(0, maxBytes)
-      const object = await fileStore(env).get(r2Key, maxBytes === undefined ? undefined : { range: { offset: 0, length: maxBytes } })
+      const object = await services.files().get(r2Key, maxBytes === undefined ? undefined : { range: { offset: 0, length: maxBytes } })
       if (!object) return null
       const bytes = new Uint8Array(await object.arrayBuffer())
       if (maxBytes === undefined) cache.set(r2Key, bytes)
@@ -491,11 +489,11 @@ function spaceBackend(env: Env, home: () => AgentHome, index: () => SpaceIndex, 
       const id = crypto.randomUUID()
       const r2Key = fileKey(h.userId, at.space, id)
       const sha256 = await sha256Hex(bytes)
-      await fileStore(env).put(r2Key, bytes, { httpMetadata: { contentType: type } })
+      await services.files().put(r2Key, bytes, { httpMetadata: { contentType: type } })
       const out = await at.put({ id, path, r2Key, size: bytes.length, type, sha256, author: { kind: "agent", slug: h.slug as AgentSlug }, expectSha256 })
-      if (out.drop) await deleteFiles(fileStore(env), out.drop)
+      if (out.drop) await deleteFiles(services.files(), out.drop)
       if (out.refused || out.conflict) {
-        await deleteFiles(fileStore(env), [r2Key])
+        await deleteFiles(services.files(), [r2Key])
         return out.refused ?? { ok: false, code: "conflict", message: `${path} holds other bytes` }
       }
       const entry = out.entry
@@ -516,14 +514,14 @@ function spaceBackend(env: Env, home: () => AgentHome, index: () => SpaceIndex, 
           const id = crypto.randomUUID()
           const r2Key = fileKey(h.userId, at.space, id)
           const sha256 = await sha256Hex(c.bytes)
-          await fileStore(env).put(r2Key, c.bytes, { httpMetadata: { contentType: c.type } })
+          await services.files().put(r2Key, c.bytes, { httpMetadata: { contentType: c.type } })
           stored.push({ key: r2Key, bytes: c.bytes })
           return { op: "put", file: { id, path: c.path, r2Key, size: c.bytes.length, type: c.type, sha256, author: { kind: "agent", slug: h.slug as AgentSlug }, expectSha256: c.expect } }
         }),
       )
       const out = await at.commit(indexed)
       if (!out.ok) {
-        await deleteFiles(fileStore(env), stored.map((s) => s.key))
+        await deleteFiles(services.files(), stored.map((s) => s.key))
         return out
       }
       for (const s of stored) cache.set(s.key, s.bytes)
@@ -538,11 +536,11 @@ const homeOf = (home: () => AgentHome | null) => () => {
   return h
 }
 
-export function roomBackend(env: Env, home: () => AgentHome | null, cache = new ObjectCache()): FilesBackend {
+export function roomBackend(services: OwnerServices, home: () => AgentHome | null, cache = new ObjectCache()): FilesBackend {
   const h = homeOf(home)
-  return spaceBackend(env, h, () => {
-    const { userId, roomId, slug } = h()
-    const room = roomStub(env.ROOM, userId, roomId)
+  return spaceBackend(services, h, () => {
+    const { roomId, slug } = h()
+    const room = services.room(roomId)
     const me = slug as AgentSlug
     return {
       space: roomId,
@@ -558,7 +556,7 @@ export function roomBackend(env: Env, home: () => AgentHome | null, cache = new 
 }
 
 export function homeBackend(
-  env: Env,
+  services: OwnerServices,
   home: () => AgentHome | null,
   notice: (text: string) => Promise<unknown>,
   cache = new ObjectCache(),
@@ -569,9 +567,9 @@ export function homeBackend(
     if (out.ok) await notice(text).catch(() => undefined)
     return out
   }
-  const base = spaceBackend(env, h, () => {
-    const { userId, slug } = h()
-    const user = userStub(env.USER, userId)
+  const base = spaceBackend(services, h, () => {
+    const { slug } = h()
+    const user = services.user()
     const me = { kind: "agent", slug: slug as AgentSlug } as const
     return {
       space: HOME,

@@ -9,7 +9,7 @@ import { chatFaces, chatSeed } from "./identity"
 //      so the first frame never waits on this file.
 //   2. `start` opens the user's IndexedDB. The user store and the open room
 //      paint the chat list and the newest messages from it.
-//   3. Each store then connects its socket with `hello {lastSeq}`.
+//   3. The user store connects once; open rooms subscribe with their cached cursors.
 //
 // The protocol is the data: `Chat`, `Member`, and `Message` from
 // `@kiko/protocol`. The view shapes in `types.ts` are built from them here, by
@@ -31,7 +31,7 @@ import type { LocalAttachment, ViewMessage } from "../sync/patches"
 import { createRoomStore, NO_MORE, type RoomSeed, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
 import { socketUrl } from "./api"
 import { fileToken, fileUrl } from "./file-token"
-import { browserConnect, type Connect } from "../sync/socket"
+import { browserConnect, userChannel, type Connect } from "../sync/socket"
 import { createUserStore, newRoomId, type UserStore } from "../sync/user-store"
 import { createDraftBook, type DraftBook } from "../warm/drafts"
 import { openWarm, type Warm, type WarmOptions } from "../warm/db"
@@ -42,15 +42,14 @@ import { distinctTitles, resumeChat, rosterChats } from "./chats"
 // The URLs. The one place a socket or file URL is built.
 
 export const urls = {
-  user: () => socketUrl("/api/ws/user"),
-  room: (roomId: RoomId) => socketUrl(`/api/ws/room/${roomId}`),
+  owner: () => socketUrl("/api/ws"),
   file: (roomId: string, fileId: string) => fileUrl(`/api/files/${roomId}/${encodeURIComponent(fileId)}`),
 }
 
 /** How the stores reach the server. The browser's `WebSocket` unless a test or the dev mock says otherwise. */
-export type Transport = { user: Connect; room: (roomId: RoomId) => Connect }
+export type Transport = Connect
 
-const liveTransport: Transport = { user: browserConnect, room: () => browserConnect }
+const liveTransport: Transport = browserConnect
 
 // Pure projections, exported for the tests.
 
@@ -255,7 +254,9 @@ export function createApp(options: AppOptions = {}) {
      */
     const [preloaded, setPreloaded] = createSignal<Record<string, ViewMessage[]>>({})
 
-    let session: { userId: string; warm: Warm; transport: Transport } | null = null
+    const channel = userChannel
+
+    let session: { userId: string; warm: Warm } | null = null
     let olderBusy = false
     let olderDone: RoomStore | null = null
     let booting: Promise<void> | null = null
@@ -420,9 +421,7 @@ export function createApp(options: AppOptions = {}) {
       const next = createRoomStore({
         roomId,
         warm: session.warm,
-        url: urls.room(roomId),
-        connect: session.transport.room(roomId),
-        backoff: options.backoff,
+        channel,
         onError: showKikoError,
         ...(roomCache.has(roomId) ? { seed: roomCache.get(roomId) } : {}),
       })
@@ -598,11 +597,11 @@ export function createApp(options: AppOptions = {}) {
             (options.transport ?? defaultTransport)(),
           ])
           if (bootUser !== userId) return void warm.close()
-          session = { userId, warm, transport }
+          session = { userId, warm }
           batch(() => {
             setLocalLast(readLast())
             setDrafts(createDraftBook(warm))
-            setUserStore(createUserStore({ warm, url: urls.user(), connect: transport.user, backoff: options.backoff, onError: (error, roomId) => seenInChat(roomId, activeId(), document.visibilityState === "visible") || showKikoError(error) }))
+            setUserStore(createUserStore({ warm, url: urls.owner(), connect: transport, channel, backoff: options.backoff, onError: (error, roomId) => seenInChat(roomId, activeId(), document.visibilityState === "visible") || showKikoError(error) }))
             openRoom(activeId())
           })
         })()
@@ -1056,19 +1055,15 @@ function devTransport(mock: MockModule, fixtureRoom: RoomId): Transport {
   const rooms = new Map<string, MockRoom>()
   // Dev only: the rooms are reachable from the console, so a check can send steps by hand.
   ;(globalThis as { __mockRooms?: unknown }).__mockRooms = rooms
-  return {
-    user: user.connect,
-    room: (roomId) => {
-      let r = rooms.get(roomId)
-      if (!r) {
-        // The fixture room keeps the shared fixtures. Any other room starts empty.
-        // A first connect gets the snapshot, because only the snapshot carries the members.
-        r = mock.createMockRoom(roomId === fixtureRoom ? { resetAfter: 0 } : { events: [], resetAfter: 0 })
-        rooms.set(roomId, r)
-      }
-      return answering(r)
-    },
-  }
+  return mock.multiplexMock(user.connect, (roomId) => {
+    let r = rooms.get(roomId)
+    if (!r) {
+      // A snapshot carries the initial members that an event-only replay cannot.
+      r = mock.createMockRoom(roomId === fixtureRoom ? { resetAfter: 0 } : { events: [], resetAfter: 0 })
+      rooms.set(roomId, r)
+    }
+    return answering(r)
+  })
 }
 
 function manyChats(count: number): Chat[] {

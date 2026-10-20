@@ -1,8 +1,8 @@
 import type { Sender } from "./envelope"
 
-export const MAX_RESTARTS = 2
+const MAX_RESTARTS = 2
 
-export type MidRunAction =
+type MidRunAction =
   | "restart"
   | "steer"
   | "interrupt"
@@ -20,7 +20,7 @@ export type RunState = {
 
 export type RunProgress = Pick<RunState, "bubblePosted" | "toolStarted" | "tools">
 
-export type Arrival = { kind: Sender["kind"] }
+type Arrival = { kind: Sender["kind"] }
 
 export const FRESH_RUN: Omit<RunState, "restarts" | "queued"> = { bubblePosted: false, toolStarted: false, tools: new Map() }
 

@@ -9,7 +9,7 @@ const mentions = (text: string, terms: readonly string[]): boolean => {
 }
 
 /** The paragraphs that mention any term, in page order, up to the limit. No model is involved. */
-export function findPassages(text: string, find: string, limit: number = BROWSER.textMax): string {
+function findPassages(text: string, find: string, limit: number = BROWSER.textMax): string {
   const terms = words(find)
   if (!terms.length) return text.slice(0, limit)
   const paragraphs = text

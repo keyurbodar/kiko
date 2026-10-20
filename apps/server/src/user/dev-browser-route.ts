@@ -1,7 +1,7 @@
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { devRequest, DEV } from "../lib/dev-guard"
-import { userStub } from "../lib/names"
+import { ownerStub } from "../lib/names"
 
 export async function devBrowserRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
@@ -14,17 +14,17 @@ export async function devBrowserRoute(request: Request, env: Env): Promise<Respo
   const agentId = body?.agentId
   if (typeof agentId !== "string") return Response.json({ error: "agentId required" }, { status: 400 })
   try {
-    const stub = userStub(env.USER, user.id)
+    const stub = ownerStub(env.OWNER, user.id)
     if (share) {
       const roomId = body?.roomId
       const reason = body?.reason
       const mode = body?.mode === "control" ? "control" : "watch"
       if (typeof roomId !== "string" || (reason !== undefined && typeof reason !== "string")) return Response.json({ error: "roomId required" }, { status: 400 })
-      const out = await stub.browserLive(agentId, roomId, mode, reason)
+      const out = await stub.userCall("browserLive", [agentId, roomId, mode, reason])
       return Response.json(out.ok ? { ok: true, posted: out.posted } : out)
     }
     const tabs = body?.tabs
-    return Response.json({ ok: await stub.browserTouch(agentId, tabs as Record<string, string> | undefined) })
+    return Response.json({ ok: await stub.userCall("browserTouch", [agentId, tabs as Record<string, string> | undefined]) })
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 409 })
   }

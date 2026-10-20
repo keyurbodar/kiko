@@ -3,7 +3,7 @@ import type { RunStep, RunStepStatus, ToolKind } from "@kiko/protocol"
 /*
  * The run log as data: what each step looks like, how a run reads in one sentence, and how steps
  * merge. Ported from t3code's work log (`summarizeToolGroup`, `liveWorkEntryLabel`), cut to kiko's
- * six tool kinds. Nothing here touches the DOM, so every rule has a table in `run-log.test.ts`.
+ * six tool kinds. Nothing here touches the DOM.
  */
 
 /** A glyph id: `file-view` is `FileViewIcon` in `@kiko/ui/icons`. `app` is a Composio toolkit's logo. */

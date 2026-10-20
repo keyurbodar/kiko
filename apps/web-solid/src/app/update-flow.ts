@@ -1,5 +1,3 @@
-// The update state one tab shares: the one-click update, what the backend and the front door say now, and the checks.
-// The sidebar pill, the composer notice and the Account page all read it.
 import { createSignal } from "solid-js"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { PROTOCOL } from "@kiko/protocol"
@@ -8,7 +6,7 @@ import { showFailure } from "../lib/errors"
 import { useApp } from "../lib/store"
 import { checkStall, LATEST_POLL_MS, landed, pillView, reduceUpdate, RESTART_ERROR, RESTART_LIMIT_MS, RESTART_POLL_MS, sent, STALL_MS, type UpdateProgress, updateTarget } from "../lib/update"
 import { APP_VERSION, type BackendBuild, backendSkew, clientBehind, type Skew } from "../lib/version-skew"
-import { userChannel } from "../sync/user-channel"
+import { userChannel } from "../sync/socket"
 import { hosted } from "./hosted"
 
 const [progress, setProgress] = createSignal<UpdateProgress>(null)
@@ -16,19 +14,15 @@ const [latest, setLatest] = createSignal<string | undefined>()
 const [fetched, setFetched] = createSignal<BackendBuild | null | undefined>()
 export { progress }
 
-/** True when the front door serves a newer client than this tab runs. Always false off the hosted app. */
 export const clientIsBehind = () => hosted && clientBehind(APP_VERSION, latest())
-/** Where the backend keeps files. Unknown until the first version check answers. */
+
 export const backendStorage = () => fetched()?.storage
 
-/** The backend as the last check saw it, else as the socket's hello said. */
 export const backendVersion = () => fetched()?.version ?? useApp.user()?.state.backendVersion
 export const currentSkew = (): Skew | undefined => {
 	const build = fetched()
 	return build ? backendSkew({ version: APP_VERSION, protocol: PROTOCOL }, build) : useApp.user()?.state.skew
 }
-
-// The pill in the sidebar shows each stage. Only the end of an update, or its failure, is a toast.
 function set(next: UpdateProgress) {
 	setProgress(next)
 	if (next?.stage === "failed") showFailure(next.error ?? "The update failed. Try again.")
@@ -74,12 +68,16 @@ function wire() {
 	})
 }
 
-/** One click: installs the newest release on the backend, then reloads this tab into it when it is newer too. */
 export async function startUpdate() {
 	wire()
 	target = updateTarget(APP_VERSION, latest())
 	set(sent(Date.now()))
 	const build = await refreshBackend()
+	if (build && build.protocol !== PROTOCOL) {
+		set(null)
+		showToastV2({ title: "Reconnect Cloudflare to install this version", description: "This upgrade starts fresh. Your existing chats will be removed after you confirm in the installer.", action: { label: "Reconnect Cloudflare", onClick: () => location.assign("/connect?reconnect=1") } })
+		return
+	}
 	if (landed(target, build?.version)) {
 		if (clientIsBehind()) return location.reload()
 		return set(null)
@@ -92,7 +90,6 @@ export async function startUpdate() {
 	}, STALL_MS)
 }
 
-/** Asks the backend for its build. Keeps the last answer when the request fails. */
 export async function refreshBackend(): Promise<BackendBuild | null> {
 	const res = await apiFetch("/api/version").catch(() => null)
 	const build = res?.ok ? ((await res.json().catch(() => null)) as BackendBuild | null) : null
@@ -100,10 +97,9 @@ export async function refreshBackend(): Promise<BackendBuild | null> {
 	return build
 }
 
-/** Asks the front door for the newest client. Never cached, or a stale answer would hide a deploy. */
 export async function refreshLatest(): Promise<void> {
 	if (!hosted) return
-	const res = await fetch("/releases/latest.json", { cache: "no-store" }).catch(() => null)
+	const res = await fetch("/releases/latest-owner.json", { cache: "no-store" }).catch(() => null)
 	const body = (res?.ok ? await res.json().catch(() => null) : null) as { version?: unknown } | null
 	if (typeof body?.version !== "string") return
 	const was = clientIsBehind()
@@ -114,7 +110,7 @@ export async function refreshLatest(): Promise<void> {
 }
 
 let watching = false
-/** Checks on focus, when the tab shows again, and every few minutes. It never reloads by itself. */
+
 export function watchLatest() {
 	if (watching || !hosted) return
 	watching = true
@@ -125,7 +121,6 @@ export function watchLatest() {
 	setInterval(() => void refreshLatest(), LATEST_POLL_MS)
 }
 
-/** "Check for updates": asks both, then says what it found. */
 export async function checkForUpdates(): Promise<void> {
 	const [build] = await Promise.all([refreshBackend(), refreshLatest()])
 	if (!build) return void showFailure("Could not reach your backend. Try again.")
@@ -133,5 +128,4 @@ export async function checkForUpdates(): Promise<void> {
 	showToastV2({ title: "Kiko is up to date", variant: "success" })
 }
 
-/** What the pill, the notice and the Account page show right now. */
 export const view = () => pillView(currentSkew(), clientIsBehind(), progress())

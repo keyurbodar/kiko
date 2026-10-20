@@ -2,11 +2,10 @@ import { fileStore } from "./store"
 import { sha256Stream, toHex } from "@kiko/durable/hash"
 import { attachmentError, attachmentType } from "@kiko/protocol"
 import type { Env } from "../index"
-import { roomStub } from "../lib/names"
-import type { RoomDO } from "../room/room-do"
+import { ownerStub } from "../lib/names"
 import { declaredSize, deleteFiles, error, fileKey, HOME, isControl, isFileId, json, MAX_SINGLE_PUT_BYTES, mime, part, refuse, storageRefusal } from "./upload"
 
-type Room = DurableObjectStub<RoomDO>
+type Room = { owner: ReturnType<typeof ownerStub>; roomId: string }
 
 function cleanName(raw: unknown): string | null {
 	if (typeof raw !== "string") return null
@@ -49,7 +48,7 @@ async function store(request: Request, env: Env, key: string, type: string, size
 }
 
 async function finish(env: Env, stub: Room, id: string, key: string, sha256: string, size: number): Promise<Response> {
-	const out = await stub.pendingReady(id, sha256, size)
+	const out = await stub.owner.roomCall(stub.roomId, "pendingReady", [id, sha256, size])
 	if (out === "ok") return new Response(null, { status: 204 })
 	await fileStore(env).delete(key)
 	return out === "gone" ? error(410, "the upload was removed") : error(400, "Content-Length must match the upload size.")
@@ -65,13 +64,13 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 	if (refused) return refused
 	if (declaredSize(request.headers.get("content-length")) !== size) return error(400, "Content-Length must match the upload size.")
 	if (size > MAX_SINGLE_PUT_BYTES) return error(413, "too large for one request, use a multipart upload")
-	const stub = roomStub(env.ROOM, userId, roomId)
+	const stub: Room = { owner: ownerStub(env.OWNER, userId), roomId }
 	const key = fileKey(userId, roomId, id)
-	const taken = await stub.pendingOpen({ id, name, type, size, r2Key: key })
+	const taken = await stub.owner.roomCall(stub.roomId, "pendingOpen", [{ id, name, type, size, r2Key: key }])
 	if (taken) return error(409, taken)
 	const stored = await store(request, env, key, type, size)
 	if ("error" in stored) {
-		await stub.pendingRemove(id)
+		await stub.owner.roomCall(stub.roomId, "pendingRemove", [id])
 		return error(stored.status, stored.error)
 	}
 	return finish(env, stub, id, key, stored.sha256, size)
@@ -87,10 +86,10 @@ async function createParts(request: Request, env: Env, userId: string, roomId: s
 	const type = attachmentType({ name, type: mime(typeof body.type === "string" ? body.type : "") })
 	const refused = admit(env, name, type, size)
 	if (refused) return refused
-	const stub = roomStub(env.ROOM, userId, roomId)
+	const stub: Room = { owner: ownerStub(env.OWNER, userId), roomId }
 	const key = fileKey(userId, roomId, id)
 	const upload = await fileStore(env).createMultipartUpload(key, { httpMetadata: { contentType: type } })
-	const taken = await stub.pendingOpen({ id, name, type, size, r2Key: key, uploadId: upload.uploadId })
+	const taken = await stub.owner.roomCall(stub.roomId, "pendingOpen", [{ id, name, type, size, r2Key: key, uploadId: upload.uploadId }])
 	if (taken) {
 		await upload.abort().catch(() => {})
 		return error(409, taken)
@@ -104,7 +103,7 @@ async function complete(request: Request, env: Env, userId: string, roomId: stri
 	if (!Array.isArray(parts) || !parts.every((p) => p && Number.isSafeInteger(p.partNumber) && typeof p.etag === "string")) {
 		return error(400, "bad parts")
 	}
-	const stub = roomStub(env.ROOM, userId, roomId)
+	const stub: Room = { owner: ownerStub(env.OWNER, userId), roomId }
 	const key = fileKey(userId, roomId, id)
 	await fileStore(env).resumeMultipartUpload(key, uploadId)
 		.complete(parts.map((p) => ({ partNumber: p.partNumber, etag: p.etag })))
@@ -115,8 +114,8 @@ async function complete(request: Request, env: Env, userId: string, roomId: stri
 }
 
 async function remove(env: Env, userId: string, roomId: string, id: string): Promise<Response> {
-	const stub = roomStub(env.ROOM, userId, roomId)
-	const row = await stub.pendingRemove(id)
+	const stub: Room = { owner: ownerStub(env.OWNER, userId), roomId }
+	const row = await stub.owner.roomCall(stub.roomId, "pendingRemove", [id])
 	if (!row) return error(404, "not pending")
 	if (row.uploadId) await fileStore(env).resumeMultipartUpload(row.r2Key, row.uploadId).abort().catch(() => {})
 	await deleteFiles(fileStore(env), row.r2Key)

@@ -1,7 +1,5 @@
 import type { Provider } from "@earendil-works/pi-ai"
 import { isAgentSlug } from "@kiko/protocol"
-import { agentStub } from "../lib/names"
-import { fileStore } from "../files/store"
 import { KIKO, newRoomId, pairRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
@@ -13,8 +11,8 @@ import { makeAgentChat } from "../room/new-agent"
 import { RecipeService } from "./recipe-service"
 import { recipeCard } from "../recipes/card"
 import { ClientToUser, INITIATIVE_LEVELS, type UserSettings, type UserSettingsPatch } from "@kiko/protocol/schema"
-import { DurableObject } from "cloudflare:workers"
-import { instrument, loadUserDev } from "../lib/dev-guard"
+import type { OwnerServices, ServiceOptions } from "../owner/services"
+import { loadUserDev } from "../lib/dev-guard"
 import { signToken } from "../auth/auth"
 import { BACKEND } from "../lib/version"
 import { Schema } from "effect"
@@ -26,43 +24,44 @@ import { connectLinkFor, MANAGE_CONNECTIONS } from "../integrations/composio/con
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
 import type { Lease } from "../agent/browser/lease"
-import { type Alarms, createAlarms, runDue } from "@kiko/durable/alarm"
+import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
+import { runDue } from "../owner/clock"
+import { waitForHello } from "../owner/socket"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@kiko/durable/hello-deadline"
 import { kikoChatOps, kikoChatRoom, markKikoChat, movesKikoChat } from "./kiko-chat"
 import { keyringFromEnv } from "@kiko/durable/crypto"
-import { checkApiKey, CredentialVault, userIdFromObjectName } from "./credentials"
+import { checkApiKey, CredentialVault } from "./credentials"
 import { keyRefused } from "./credentials-check"
 import { problemOfRun } from "./provider-health"
-import { PROVIDERS_WAKEUP, ProviderWatch } from "./provider-watch"
+import { ProviderCheck } from "./provider-check"
 import { userModels } from "../agent/factory"
 import { agentNamed, createAgent, listAgents } from "./agents"
 import { agentModel, allAgentModels, saveAgentModel } from "./agent-models"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
 import { type CommitResult, type FileBody, FileIndex, type IndexChange, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
 import { actorKey } from "../room/log"
-import { applyChatOp, type ChatChange, getChat, listChats, renameLegacyAgent, searchChats, setChatAgents, type Touch, touchChat } from "./chats"
+import { RoomDirectory, type ChatChange } from "../room/directory"
 import { Life } from "@kiko/memory/life"
 import { itemLine, spanOf } from "@kiko/memory/optmem"
 import type { NoteAnswer } from "@kiko/memory/tools"
 import { ProviderLogins, signInMethod } from "./provider-login"
-import { CATALOG_WAKEUP, ModelCatalog } from "../models/service"
+import { ModelCatalog } from "../models/service"
+import { restoreOverlay } from "../models/sync"
 import { type CatalogOverlay, findProvider } from "../models/catalog"
-import { type NewRoutine, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery } from "./reminders"
+import { type NewRoutine, Reminders, type RoutineRun, type RunDelivery } from "./reminders"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
-import { type ChatTasks, overview, removeBoardRow, setBoardRow } from "./overview"
-import { routineRun, type SignalBatch } from "../room/signals"
+import { roomOverview } from "../room/overview"
+import { routineRun, type SignalBatch } from "../room/routine-events"
 import { createAgentRoutine, roomRoutine, type RoutineResult } from "./routines"
-import { migrate } from "@kiko/durable/migrate"
-import { USER_STEPS } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
-import { composioUserId, roomStub } from "../lib/names"
-import { INITIATIVE_RUN, INITIATIVE_WAKEUP, InitiativeEngine, type Level } from "../initiative/engine"
+import { composioUserId, } from "../lib/names"
+import { INITIATIVE_RUN, InitiativeEngine, type Level } from "../initiative/engine"
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
 import type { DevBrowserOp } from "./dev"
 import { type BrowserCheck, KernelWiring, type LiveLinkResult } from "./kernel-wiring"
-import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
-import { type Attachment, send, trySend } from "./sockets"
+import { MemoryCapture } from "./memory-capture"
+import { type Attachment, send, trySend } from "./socket-frames"
 import { AWAY_MS, LAST_SEEN } from "./keys"
 import { UpdateWiring } from "./update-wiring"
 
@@ -81,7 +80,7 @@ const LAST_CHAT = "last_chat"
 
 type NewAgentOutcome = { ok: true; agent: Agent; roomId: RoomId } | { ok: false; error: string }
 
-export class UserDO extends DurableObject<Env> {
+export class User {
   private readonly sql: SqlStorage
   private alarms!: Alarms
   private models!: ModelCatalog
@@ -89,19 +88,35 @@ export class UserDO extends DurableObject<Env> {
   private souls!: Souls
   private home!: FileIndex<UserEvent>
   private holding: UserEvent[] | null = null
+  private lastSeen = 0
+  private readonly directory:RoomDirectory
 
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env)
-    instrument(ctx, "user")
-    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"))
-    this.sql = ctx.storage.sql
-    void ctx.blockConcurrencyWhile(async () => {
-      migrate(ctx.storage, USER_STEPS)
-      this.alarms = createAlarms(ctx)
-      // check-rules: allow egress the one pi.dev request an hour, made in this object's own invocation
-      this.models = new ModelCatalog({ sql: this.sql, alarms: this.alarms, now: Date.now, fetch: (url, init) => fetch(url, init), signInMethod, changed: () => this.changed("models") })
-      await this.models.init()
-      await this.#watch.init()
+  private readonly ctx:DurableObjectState
+ private readonly env:Env
+ private readonly services:OwnerServices
+ private readonly ownerId:string
+ private readonly publishFrame:(frame:unknown)=>void
+ private readonly egress: typeof fetch = async (input, init) => {
+   const request = new Request(input, init)
+   return this.services.egress({ url: request.url, method: request.method, headers: [...request.headers], body: request.body ? await request.arrayBuffer() : null })
+ }
+ constructor(options:ServiceOptions) {
+  const {ctx,env,services,sql,broadcast}=options
+  this.ctx=ctx
+  this.ownerId=options.identity.ownerId
+  this.env=env
+  this.services=services
+  this.sql=sql
+  this.publishFrame=broadcast
+
+
+    this.directory=new RoomDirectory(this.sql,this.services)
+    {
+      this.alarms = options.clock
+      restoreOverlay(this.sql)
+      this.models = new ModelCatalog({ sql: this.sql, now: Date.now, fetch: (url, init) => this.services.egress({ url, method: init.method ?? "GET", headers: [...new Headers(init.headers)], body: null }), signInMethod, changed: () => this.changed("models") })
+
+
       this.life = new Life(this.sql, (fn) => ctx.storage.transactionSync(fn), { get: (key) => this.setting(key), set: (key, value) => this.putSetting(key, value) })
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => {
@@ -109,21 +124,22 @@ export class UserDO extends DurableObject<Env> {
         if (!event) throw new Error("file change produced no event")
         return event
       }, actorKey)
-      this.reminders = new Reminders(this.sql, this.alarms, Date.now, {
+      this.reminders = new Reminders(this.sql, { sync: (routines) => this.services.syncRoutines(routines) }, Date.now, {
         deliverRun: async ({ deliveryId, routine, body }) => {
-          return roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body })
+          return this.services.room(routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body })
         },
-        notice: (roomId, id, text) => roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), roomId).systemNotice(id, text, "routine"),
+        notice: (roomId, id, text) => this.services.room(roomId).systemNotice(id, text, "routine"),
         gate: {
           away: () => {
-            const last = this.setting(LAST_SEEN)
-            const away = last !== null && Date.now() - Number(last) > AWAY_MS
+            const last = Math.max(this.lastSeen, Number(this.setting(LAST_SEEN) ?? 0))
+            const connected = this.ctx.getWebSockets().some((ws) => (ws.deserializeAttachment() as Attachment | null)?.ready)
+            const away = !connected && last > 0 && Date.now() - last > AWAY_MS
             if (away) this.ctx.waitUntil(this.awayNotice(Date.now()).catch(() => {}))
             return away
           },
         },
       }, () => this.changed("routines"))
-    })
+    }
   }
 
   private reminders!: Reminders
@@ -160,14 +176,14 @@ export class UserDO extends DurableObject<Env> {
 
   /** Makes an agent from the new agent form: the agent, its own chat, and its greeting. The chat id is the client's, so it is already open there. */
   async createAgentChat(input: { id: string; roomId: RoomId; name: string; handle: string; description: string }): Promise<NewAgentOutcome> {
-    const owner = userIdFromObjectName(this.ctx.id.name)
+    const owner = this.ownerId
     const out = await makeAgentChat(
       {
         agents: async () => listAgents(this.sql),
         make: (spec) => this.makeAgent({ id: spec.id, name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model: "" }),
         openChat: (title, agentIds, roomId) => this.openChat(title, agentIds, roomId),
         recipes: (description) => this.recipeHints(description),
-        introduce: (roomId, agent, text) => roomStub(this.env.ROOM, owner, roomId).introduce(owner, agent.slug, text),
+        introduce: (roomId, agent, text) => this.services.room(roomId).introduce(owner, agent.slug, text),
       },
       { name: input.name, handle: input.handle, description: input.description, soul: soulFromDescription(capitalized(input.name.trim()), input.description) },
       "human",
@@ -201,10 +217,10 @@ export class UserDO extends DurableObject<Env> {
   #recipeService?: RecipeService
   get #recipes(): RecipeService {
     if (this.#recipeService) return this.#recipeService
-    const owner = () => userIdFromObjectName(this.ctx.id.name)
+    const owner = () => this.ownerId
     const library = new RecipeLibrary({
       sql: this.sql,
-      files: fileStore(this.env),
+      files: this.services.files(),
       userId: owner,
       list: (dir, recursive) => this.#homeWiring.list(dir, recursive),
       put: (input) => this.#homeWiring.put(input),
@@ -228,7 +244,7 @@ export class UserDO extends DurableObject<Env> {
       openChat: async (title, agentIds) => (await this.openChat(title, agentIds)).roomId,
       chiefModel: async () => {
         const roomId = kikoChatRoom(this.sql)
-        return roomId ? roomStub(this.env.ROOM, owner(), roomId).modelOf("kiko").catch(() => "") : ""
+        return roomId ? this.services.room(roomId).modelOf("kiko").catch(() => "") : ""
       },
       composio: {
         connected: async () => (this.#composio.status().connected ? await this.#composio.connectedToolkits(Date.now(), true).catch(() => null) : "off"),
@@ -238,29 +254,19 @@ export class UserDO extends DurableObject<Env> {
           return out && out.kind === "link" ? out.link : null
         },
       },
-      announce: (roomId, input) => roomStub(this.env.ROOM, owner(), roomId).addRecipe(owner(), { ...input, agent: input.agent as AgentSlug }),
+      announce: (roomId, input) => this.services.room(roomId).addRecipe(owner(), { ...input, agent: input.agent as AgentSlug }),
     })
     return this.#recipeService
   }
 
   async overview(): Promise<string> {
     const tz = this.setting("timezone") ?? DEFAULT_TIMEZONE
-    return overview(this.sql, { reminders: this.reminders.list(), runs: this.reminders.runs(), tz, now: Date.now() })
+    return roomOverview(this.directory,this.services, { reminders: this.reminders.list(), runs: this.reminders.runs(), tz, now: Date.now() })
   }
 
-  async chatTasks(roomId: string, tasks: ChatTasks): Promise<void> {
-    setBoardRow(this.sql, roomId, tasks)
-    await this.#initiative.arm()
-  }
 
-  // The dev-only bodies live in user/dev.ts, which only a development build can load. One cached load
-  // per object reaches every dev method below.
-  private devCache?: Promise<typeof import("./dev")>
-
-  private dev(): Promise<typeof import("./dev")> {
-    this.devCache ??= loadUserDev()
-    return this.devCache
-  }
+  private devCache?:Promise<typeof import("./dev")>
+  private dev():Promise<typeof import("./dev")>{this.devCache??=loadUserDev();return this.devCache}
 
   async devSeen(ago: number): Promise<void> {
     return (await this.dev()).devSeen(this.sql, ago)
@@ -315,19 +321,19 @@ export class UserDO extends DurableObject<Env> {
   async createChat(roomId: RoomId, title: string, agents?: readonly string[]): Promise<Chat> {
     const op: ChatOp = { op: "create", roomId, title, ...(agents?.length ? { agents } : {}) }
     this.apply(op)
-    const chat = getChat(this.sql, this.existingFor(op) ?? roomId)
+    const chat = this.directory.get( this.existingFor(op) ?? roomId)
     if (!chat) throw new Error(`chat ${roomId} is missing right after create`)
     return chat
   }
 
   async renameChat(roomId: RoomId, title: string): Promise<Chat | null> {
     this.apply({ op: "rename", roomId, title })
-    return getChat(this.sql, roomId)
+    return this.directory.get( roomId)
   }
 
   async pinChat(roomId: RoomId, pinned: boolean): Promise<Chat | null> {
     this.apply({ op: "pin", roomId, pinned })
-    return getChat(this.sql, roomId)
+    return this.directory.get( roomId)
   }
 
   async deleteChat(roomId: RoomId): Promise<boolean> {
@@ -336,11 +342,10 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private async cleanDeletedChats(): Promise<void> {
-    await this.alarms.setWakeup("deletion", Date.now() + 30_000)
     for (const { room_id } of this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM deletion_rooms").toArray()) {
       await this.reminders.cancelRoom(room_id)
       await this.#recipes.chatGone(room_id)
-      await roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), room_id).erase()
+      await this.services.room(room_id).erase()
       this.sql.exec("DELETE FROM deletion_rooms WHERE room_id = ?", room_id)
     }
     await this.alarms.clearWakeup("deletion")
@@ -358,7 +363,6 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private async cleanDeletedAgents(): Promise<void> {
-    await this.alarms.setWakeup("deletion_agents", Date.now() + 30_000)
     for (const { slug } of this.sql.exec<{ slug: AgentSlug }>("SELECT slug FROM deletion_agents").toArray()) {
       const result = await this.deleteAgentNow(slug)
       if (!result.ok) throw new Error(result.error)
@@ -370,24 +374,23 @@ export class UserDO extends DurableObject<Env> {
   private async deleteAgentNow(slug: AgentSlug) {
     const agent = listAgents(this.sql).find((a) => a.slug === slug)
     if (!agent) return { ok: true as const, text: "agent already deleted" }
-    const owner = userIdFromObjectName(this.ctx.id.name)
-    for (const row of this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM chats WHERE EXISTS (SELECT 1 FROM json_each(chats.agents) WHERE value = ?)", agent.id).toArray()) {
-      const chat = getChat(this.sql, row.room_id)
+    const owner = this.ownerId
+    for (const row of this.directory.list(true).filter(c=>c.agents?.includes(agent.id)).map(c=>({room_id:c.roomId}))) {
+      const chat = this.directory.get( row.room_id)
       if (!chat) continue
       if (chat.pair || (chat.agents?.length ?? 0) <= 1) await this.deleteChat(chat.roomId)
       else {
-        const room = roomStub(this.env.ROOM, owner, chat.roomId)
+        const room = this.services.room(chat.roomId)
         const reason = await room.memberOp({ op: "remove", slug })
         if (reason && reason !== "unknown") return { ok: false as const, error: reason }
-        await agentStub(this.env.AGENT, owner, chat.roomId, slug).erase()
+        await this.services.agent(chat.roomId, slug).erase()
         await this.chatMembers(chat.roomId, (await room.memberSlugs()).filter((s) => s !== slug))
       }
     }
-    for (const { room_id } of this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM chats").toArray()) await roomStub(this.env.ROOM, owner, room_id).eraseFormerAgent(slug)
+    for (const { room_id } of this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM room_directory").toArray()) await this.services.room(room_id).eraseFormerAgent(slug)
     await this.#recipes.agentGone(slug)
     await this.reminders.cancelAgent(slug)
     for (const { pos } of this.sql.exec<{ pos: number }>("SELECT pos FROM life WHERE source = ? AND redacted = 0", `@${slug}`).toArray()) this.life.redact(pos)
-    await this.#mem.armNaps()
     this.changed("memory")
     this.sql.exec("DELETE FROM souls WHERE slug = ?", slug)
     deleteSetting(this.sql, `agentModel:${slug}`)
@@ -396,15 +399,17 @@ export class UserDO extends DurableObject<Env> {
     return { ok: true as const, text: `@${slug} deleted` }
   }
 
-  async touchChat(roomId: RoomId, touch: Touch): Promise<boolean> {
-    return this.commit(touchChat(this.sql, roomId, touch, Date.now())) !== null
+  roomChanged(roomId:RoomId):void {
+    const chat=this.directory.get(roomId)
+    if(chat&&!chat.pair)this.broadcast({t:"events",events:[{t:"chat",chat:markKikoChat(this.sql,chat),seq:this.currentSeq(),at:Date.now()}]})
   }
+
 
   /** Who is typing in each chat, for a socket that connects mid-run. Memory only: a clear always arrives as a frame. */
   readonly #typing = new Map<RoomId, readonly string[]>()
 
   async chatTyping(roomId: RoomId, names: readonly string[]): Promise<void> {
-    if (!getChat(this.sql, roomId)) return
+    if (!this.directory.get( roomId)) return
     if (names.length) this.#typing.set(roomId, names)
     else this.#typing.delete(roomId)
     this.broadcast({ t: "typing", roomId, names })
@@ -416,21 +421,21 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async searchChats(query: string): Promise<Chat[]> {
-    return searchChats(this.sql, query)
+    return this.directory.search( query)
   }
 
   async listChats(): Promise<Chat[]> {
-    return listChats(this.sql)
+    return this.directory.list()
   }
 
   /** The room calls this when its members change. Slugs become agent ids; Kiko's id is its slug. */
   async chatMembers(roomId: RoomId, slugs: readonly string[]): Promise<void> {
     const ids = new Map(listAgents(this.sql).map((a) => [a.slug as string, a.id]))
-    this.commit(setChatAgents(this.sql, roomId, slugs.flatMap((s) => (s === KIKO ? [KIKO] : ids.has(s) ? [ids.get(s)!] : []))))
+    this.commit(this.directory.agents( roomId, slugs.flatMap((s) => (s === KIKO ? [KIKO] : ids.has(s) ? [ids.get(s)!] : []))))
   }
 
   async getChat(roomId: RoomId): Promise<Chat | null> {
-    const chat = getChat(this.sql, roomId)
+    const chat = this.directory.get( roomId)
     return chat && markKikoChat(this.sql, chat)
   }
 
@@ -509,7 +514,7 @@ export class UserDO extends DurableObject<Env> {
       return { ok: false, error: `not sent: no agent @${ids[1] === undefined ? b : a}. the human has: ${known.map((s) => `@${s}`).join(", ")}.` }
     }
     const roomId = pairRoomId(a, b)
-    if (!getChat(this.sql, roomId)) this.commit(applyChatOp(this.sql, { op: "create", roomId, title: [a, b].sort().map((s) => `@${s}`).join(" and "), agents: ids as string[] }, Date.now(), true))
+    if (!this.directory.get( roomId)) this.commit(this.directory.apply( { op: "create", roomId, title: [a, b].sort().map((s) => `@${s}`).join(" and "), agents: ids as string[] }, Date.now(), true))
     return { ok: true, roomId }
   }
 
@@ -539,7 +544,6 @@ export class UserDO extends DurableObject<Env> {
     const old = replaces === undefined ? null : /^(?:life:)?\s*#?(\d+)$/i.exec(replaces.trim())
     const replaced = old ? this.life.supersede(Number(old[1]), out.pos) : false
     if (!out.duplicate || replaced) {
-      await this.#mem.armNaps()
       this.changed("memory")
     }
     return { ok: true, pos: out.pos, ...(out.duplicate ? { duplicate: true as const } : {}), ...(replaces === undefined ? {} : { replaced }) }
@@ -549,6 +553,52 @@ export class UserDO extends DurableObject<Env> {
     return this.life
       .recall(query, 10, { skipCard: true })
       .map((l) => itemLine({ pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}` }, 400, true, "life"))
+  }
+
+  /** Writes down what the capture queue holds. Called after a human run. */
+  async captureNow(): Promise<void> {
+    await this.#mem.captureNow()
+    await this.#mem.napLife()
+  }
+
+  /** The initiative pass. Called after a human run, and by the dev route. */
+  async initiativePass(): Promise<void> {
+    await this.#initiative.pass()
+  }
+
+  private routineSync: Promise<void> = Promise.resolve()
+
+  /** Points each agent's durable routine tasks at the current inventory of its exact-time routines. */
+  syncRoutines(routines: readonly import("../owner/schedules").ScheduledRoutine[]): Promise<void> {
+    const work = this.routineSync.then(() => this.applyRoutineInventory(routines))
+    this.routineSync = work.catch(() => {})
+    return work
+  }
+
+  private async applyRoutineInventory(routines: readonly import("../owner/schedules").ScheduledRoutine[]): Promise<void> {
+    const byAgent = new Map<string, import("../owner/schedules").ScheduledRoutine[]>()
+    for (const routine of routines) {
+      const key = `${routine.roomId}:${routine.target}`
+      const list = byAgent.get(key)
+      if (list) list.push(routine)
+      else byAgent.set(key, [routine])
+    }
+    const previous = JSON.parse(this.setting("routine_agents") ?? "[]") as string[]
+    for (const key of previous) if (!byAgent.has(key)) {
+      const [roomId, target] = key.split(":")
+      if (roomId && target) await this.services.agent(roomId, target).syncRoutines([])
+    }
+    for (const list of byAgent.values()) {
+      const { roomId, target } = list[0]!
+      await this.services.agent(roomId, target).syncRoutines(list)
+    }
+    this.putSetting("routine_agents", JSON.stringify([...byAgent.keys()]))
+  }
+
+  /** A routine task delivered its occurrence, so record the run and schedule the next one. */
+  async fireRoutine(delivery: import("../owner/schedules").RoutineDelivery): Promise<void> {
+    await this.reminders.fireScheduled(delivery)
+    this.changed("routines")
   }
 
   async captureHuman(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
@@ -565,7 +615,6 @@ export class UserDO extends DurableObject<Env> {
       return m !== null && turns.some((pos) => Number(m[1]) <= pos && pos < Number(m[2]))
     })
     if (gone.length + this.life.redactRefs(spans).length) {
-      await this.#mem.armNaps()
       this.changed("memory")
     }
     if (turns.length) await this.captureHuman(roomId, requeue)
@@ -589,19 +638,17 @@ export class UserDO extends DurableObject<Env> {
 
   async providerKeyRefused(provider: string, apiKey: string): Promise<string | null> {
     const key = checkApiKey(apiKey)
-    const { models, settings } = userModels(async () => ({ auth: { apiKey: key } }), `check-${this.ctx.id.toString()}`)
+    const { models, settings } = userModels(async () => ({ auth: { apiKey: key } }), `check-${this.ctx.id.toString()}`, this.egress, () => this.services.countOutgoing())
     return keyRefused(models, provider, settings.stream?.headers)
   }
 
   async connectProvider(provider: string, apiKey: string): Promise<ProviderInfo> {
     const info = await this.#credentials.connect(provider, apiKey)
-    await this.#mem.keyChanged(provider)
     return this.#mem.describe(info)
   }
 
   async disconnectProvider(provider: string): Promise<boolean> {
     const removed = await this.#credentials.disconnect(provider)
-    await this.#mem.keyChanged(provider)
     return removed
   }
 
@@ -643,20 +690,16 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private seen(): void {
-    const now = Date.now()
-    const last = Number(this.setting(LAST_SEEN) ?? 0)
-    const wasAway = last > 0 && now - last > AWAY_MS
-    if (now - last < 3_600_000) return
-    this.putSetting(LAST_SEEN, String(now))
-    if (wasAway) deleteSetting(this.sql, AWAY_NOTICE)
+    this.lastSeen = Date.now()
   }
 
   private async awayNotice(now: number): Promise<void> {
-    if (this.setting(AWAY_NOTICE) !== null) return
+    const notice = this.setting(AWAY_NOTICE)
+    if (notice !== null && Number(notice) >= this.lastSeen) return
     this.putSetting(AWAY_NOTICE, String(now))
     const roomId = kikoChatRoom(this.sql)
-    const owner = userIdFromObjectName(this.ctx.id.name)
-    if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and follow-ups while you were away. they start again when you open kiko.", "limit")
+    const owner = this.ownerId
+    if (roomId) await this.services.room(roomId).systemNotice(`away:${now}`, "i paused your routines and follow-ups while you were away. they start again when you open kiko.", "limit")
   }
 
   /** What an agent runs on, for every chat. */
@@ -701,7 +744,7 @@ export class UserDO extends DurableObject<Env> {
 
   #vault?: CredentialVault
   get #credentials(): CredentialVault {
-    this.#vault ??= new CredentialVault(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name), () => this.changed("providers"))
+    this.#vault ??= new CredentialVault(this.sql, keyringFromEnv(this.env), this.ownerId, () => this.changed("providers"))
     return this.#vault
   }
 
@@ -716,38 +759,39 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
-  #providerWatch?: ProviderWatch
-  get #watch(): ProviderWatch {
-    this.#providerWatch ??= new ProviderWatch({
+  #providerCheck?: ProviderCheck
+  get #watch(): ProviderCheck {
+    this.#providerCheck ??= new ProviderCheck({
       vault: () => this.#credentials,
-      alarms: this.alarms,
-      sql: this.sql,
-      now: Date.now,
       lookup: (id) => this.lookupProvider(id),
       label: this.ctx.id.toString(),
+      fetch: this.egress,
+      countOutgoing: () => this.services.countOutgoing(),
     })
-    return this.#providerWatch
+    return this.#providerCheck
   }
 
   #homeWiringCache?: HomeWiring
   get #homeWiring(): HomeWiring {
-    this.#homeWiringCache ??= new HomeWiring({ ctx: this.ctx, env: this.env, home: this.home, holding: { set: (held) => { this.holding = held } }, broadcast: (frame) => this.broadcast(frame) })
+    this.#homeWiringCache ??= new HomeWiring({ files:this.services.files(), ctx: this.ctx, env: this.env, home: this.home, holding: { set: (held) => { this.holding = held } }, broadcast: (frame) => this.broadcast(frame) })
     return this.#homeWiringCache
   }
 
   #routinesWiring?: RoutineWiring
   get #routines(): RoutineWiring {
-    this.#routinesWiring ??= new RoutineWiring({ env: this.env, reminders: this.reminders })
+    this.#routinesWiring ??= new RoutineWiring({ reminders: this.reminders, setRoutines: (roomId, routines) => this.services.room(roomId).setRoutines(routines), routineCreated: (roomId, slug, id, name, byAgent) => this.services.room(roomId).routineCreated(slug, id, name, byAgent) })
     return this.#routinesWiring
   }
 
   #memory?: MemoryCapture
   get #mem(): MemoryCapture {
     this.#memory ??= new MemoryCapture({
+      chat:roomId=>this.directory.get(roomId),
       sql: this.sql,
       life: this.life,
-      alarms: this.alarms,
       label: this.ctx.id.toString(),
+      fetch: this.egress,
+      countOutgoing: () => this.services.countOutgoing(),
       credentials: () => this.#credentials,
       turn: (provider) => this.turnContext(provider),
     })
@@ -757,18 +801,31 @@ export class UserDO extends DurableObject<Env> {
   #initiativeModule?: InitiativeEngine
   get #initiative(): InitiativeEngine {
     this.#initiativeModule ??= new InitiativeEngine({
+      // One scan of the open boards, not a chat view per chat: the pass must not pay for every room's activity.
+      boards: () => {
+        const rows = this.sql
+          .exec<{ room_id: string; id: string; title: string; status: string; owner: string | null; updated_at: number }>(
+            "SELECT room_id, id, title, status, owner, updated_at FROM ws_tasks WHERE NOT status IN ('done', 'cancelled') AND NOT id IS NULL ORDER BY updated_at",
+          )
+          .toArray()
+        const boards = new Map<string, { roomId: string; oldest: { id: string; title: string; status: string; owner?: string; updatedAt: number }[] }>()
+        for (const row of rows) {
+          const board = boards.get(row.room_id) ?? { roomId: row.room_id, oldest: [] }
+          if (board.oldest.length < 3) board.oldest.push({ id: row.id, title: row.title, status: row.status, ...(row.owner ? { owner: row.owner } : {}), updatedAt: row.updated_at })
+          boards.set(row.room_id, board)
+        }
+        return [...boards.values()]
+      },
       sql: this.sql,
       tz: () => getSetting(this.sql, "timezone") ?? DEFAULT_TIMEZONE,
       level: () => this.initiativeLevel(),
       // A chat the human keeps private never reaches initiative.
       title: (roomId) => {
-        const chat = getChat(this.sql, roomId)
+        const chat = this.directory.get( roomId)
         return chat && !chat.private ? chat.title : null
       },
-      wake: (roomId, input) => roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId).initiativeWake(input),
+      wake: (roomId, input) => this.services.room(roomId).initiativeWake(input),
       count: (delta) => this.#mem.count(delta),
-      setWakeup: (at) => this.alarms.setWakeup(INITIATIVE_WAKEUP, at),
-      clearWakeup: () => this.alarms.clearWakeup(INITIATIVE_WAKEUP),
     })
     return this.#initiativeModule
   }
@@ -792,9 +849,9 @@ export class UserDO extends DurableObject<Env> {
     return this.#composio.signature()
   }
 
-  async composioCall(name: string, args: Record<string, unknown>): Promise<ComposioCallResult> {
+  async composioCall(name: string, args: Record<string, unknown>, egress?: typeof fetch): Promise<ComposioCallResult> {
     try {
-      return await this.#composio.call(name, args)
+      return await this.#composio.call(name, args, egress)
     } catch (e) {
       return this.fail(composioFailure(e), e)
     }
@@ -823,9 +880,9 @@ export class UserDO extends DurableObject<Env> {
   #composioConnection?: ComposioConnection
   get #composio(): ComposioConnection {
     this.#composioConnection ??= new ComposioConnection(
-      new ComposioStore(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name)),
-      () => composioUserId(userIdFromObjectName(this.ctx.id.name)),
-      undefined,
+      new ComposioStore(this.sql, keyringFromEnv(this.env), this.ownerId),
+      () => composioUserId(this.ownerId),
+      this.egress,
       (work) => this.ctx.waitUntil(work),
     )
     return this.#composioConnection
@@ -858,7 +915,7 @@ export class UserDO extends DurableObject<Env> {
 
   #kernelWiring?: KernelWiring
   get #kr(): KernelWiring {
-    this.#kernelWiring ??= new KernelWiring({ ctx: this.ctx, sql: this.sql, env: this.env, alarms: this.alarms, userId: () => userIdFromObjectName(this.ctx.id.name), notify: (error) => this.broadcast({ t: "error", error }) })
+    this.#kernelWiring ??= new KernelWiring({ fetch: this.egress, services:this.services, ctx: this.ctx, sql: this.sql, env: this.env, alarms: this.alarms, userId: () => this.ownerId, notify: (error) => this.broadcast({ t: "error", error }) })
     return this.#kernelWiring
   }
 
@@ -898,22 +955,15 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async devBrowser(op: DevBrowserOp): Promise<Record<string, unknown>> {
-    return (await this.dev()).devBrowser(() => this.#kr, userIdFromObjectName(this.ctx.id.name), op)
+    return (await this.dev()).devBrowser(() => this.#kr, this.ownerId, op)
   }
 
-  async fetch(request: Request): Promise<Response> {
-    if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
-      return new Response("expected a websocket upgrade", { status: 426 })
-    }
-    const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
-    this.ctx.acceptWebSocket(server)
-    // Opening the app checks pi.dev for new models, so they show without waiting for the next alarm.
+  async openSocket(server:WebSocket,request:Request):Promise<void>{
     this.models.syncIfStale()
-    server.serializeAttachment({ ready: false, helloBy: helloBy() } satisfies Attachment)
-    const origin = request.headers.get("origin") ?? new URL(request.url).origin
-    if (this.setting(PUBLIC_ORIGIN) !== origin) this.putSetting(PUBLIC_ORIGIN, origin)
-    await enforceHello(this.ctx, this.alarms)
-    return new Response(null, { status: 101, webSocket: client })
+    server.serializeAttachment({ready:false,helloBy:helloBy()} satisfies Attachment)
+    const origin=request.headers.get("origin")??new URL(request.url).origin
+    if(this.setting(PUBLIC_ORIGIN)!==origin)this.putSetting(PUBLIC_ORIGIN,origin)
+    this.ctx.waitUntil(waitForHello(server))
   }
 
   private deviceId(): string {
@@ -947,7 +997,7 @@ export class UserDO extends DurableObject<Env> {
     this.#updateWiring ??= new UpdateWiring({
       env: this.env,
       sql: this.sql,
-      userId: () => userIdFromObjectName(this.ctx.id.name),
+      userId: () => this.ownerId,
       broadcast: (frame) => this.broadcast(frame),
     })
     return this.#updateWiring
@@ -976,7 +1026,7 @@ export class UserDO extends DurableObject<Env> {
     if (frame.t === "hello") {
       this.seen()
       // The reply says which build answered, so the client can tell it is out of date.
-      const fileToken = await signToken(this.env.SESSION_SECRET, userIdFromObjectName(this.ctx.id.name), "files")
+      const fileToken = await signToken(this.env.SESSION_SECRET, this.ownerId, "files")
       send(ws, { ...this.resume(frame.lastSeq), ...BACKEND, ...{ fileToken } })
       // The client starts with no browser, so a hello sends a browser only when there is one.
       const browser = this.#kr.browserState()
@@ -1009,7 +1059,7 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "search") {
-      send(ws, { t: "search", query: frame.query, chats: searchChats(this.sql, frame.query.slice(0, 200)) })
+      send(ws, { t: "search", query: frame.query, chats: this.directory.search( frame.query.slice(0, 200)) })
       return
     }
     if (frame.t === "agent") {
@@ -1054,6 +1104,9 @@ export class UserDO extends DurableObject<Env> {
 
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
     this.#logins?.dropOwner(ws)
+    // Presence lives in memory while a socket is open; the close keeps it for away detection after an unload.
+    const now = Date.now()
+    if ((ws.deserializeAttachment() as Attachment | null)?.ready && now - Number(this.setting(LAST_SEEN) ?? 0) >= 3_600_000) this.putSetting(LAST_SEEN, String(now))
     try {
       ws.close(code === 1005 || code === 1006 ? 1000 : code)
     } catch {
@@ -1063,15 +1116,9 @@ export class UserDO extends DurableObject<Env> {
   async alarm(): Promise<void> {
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
-      deletion_agents: () => this.cleanDeletedAgents().catch(async () => { await this.alarms.setWakeup("deletion_agents", Date.now() + 30_000) }),
-      deletion: () => this.cleanDeletedChats().catch(async () => { await this.alarms.setWakeup("deletion", Date.now() + 30_000) }),
+      deletion_agents: () => this.cleanDeletedAgents(),
+      deletion: () => this.cleanDeletedChats(),
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
-      [CATALOG_WAKEUP]: () => this.models.wake(),
-      [PROVIDERS_WAKEUP]: () => this.#watch.wake(),
-      [REMINDERS_WAKEUP]: () => this.reminders.fire(),
-      [LIFE_WAKEUP]: () => this.#mem.napLife().finally(() => this.changed("memory")),
-      [CAPTURE_WAKEUP]: () => this.#mem.captureNow().finally(() => this.changed("memory")),
-      [INITIATIVE_WAKEUP]: () => this.#initiative.pass(),
       [REAP_WAKEUP]: () => this.#kr.reap(),
     })
   }
@@ -1083,11 +1130,10 @@ export class UserDO extends DurableObject<Env> {
 
   private apply(op: ChatOp): UserEvent | null {
     if (movesKikoChat(this.sql, op) || this.existingFor(op)) return null
-    const event = this.commit(applyChatOp(this.sql, op, Date.now()))
+    const event = this.commit(this.directory.apply( op, Date.now()))
     // A deleted chat keeps no reminders or routines.
     if (event && op.op === "delete") {
 
-      removeBoardRow(this.sql, op.roomId)
       this.sql.exec("DELETE FROM capture_queue WHERE room_id = ?", op.roomId)
       this.life.redactRefs(this.life.refsLike(`room:${op.roomId}:`))
       this.changed("memory")
@@ -1095,7 +1141,7 @@ export class UserDO extends DurableObject<Env> {
       this.ctx.waitUntil(this.alarms.setWakeup("deletion", Date.now()))
     }
     if (event && op.op === "private") {
-      const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), op.roomId)
+      const room = this.services.room(op.roomId)
       this.ctx.waitUntil(Promise.resolve(room.setPrivate(op.private)).catch((e: unknown) => console.error(`private flag not sent: ${e instanceof Error ? e.message : String(e)}`)))
     }
     return event
@@ -1104,22 +1150,21 @@ export class UserDO extends DurableObject<Env> {
   /** A create that would make a second chat with the same agents names the chat that is already there. */
   private existingFor(op: ChatOp): RoomId | null {
     if (op.op !== "create") return null
-    return sameAgentChat(listChats(this.sql).map((c) => markKikoChat(this.sql, c)), op.agents ?? [], op.roomId)?.roomId ?? null
+    return sameAgentChat(this.directory.list().map((c) => markKikoChat(this.sql, c)), op.agents ?? [], op.roomId)?.roomId ?? null
   }
 
   private lastChat(): RoomId | undefined {
     const stored = this.setting(LAST_CHAT)
-    const chat = stored ? getChat(this.sql, stored) : null
+    const chat = stored ? this.directory.get( stored) : null
     return chat?.roomId ?? kikoChatRoom(this.sql) ?? undefined
   }
 
   async ensureHome(): Promise<void> {
-    renameLegacyAgent(this.sql)
     this.ctx.waitUntil(this.#recipes.retireSeeded().catch((e: unknown) => console.error(`recipe cleanup failed: ${e instanceof Error ? e.message : String(e)}`)))
-    for (const op of kikoChatOps(this.sql, listChats(this.sql))) this.apply(op)
+    for (const op of kikoChatOps(this.sql, this.directory.list())) this.apply(op)
     // The Kiko chat is Kiko alone, also for a chat record that listed an agent added before that rule.
     const home = kikoChatRoom(this.sql)
-    if (home) this.commit(setChatAgents(this.sql, home, [KIKO]))
+    if (home) this.commit(this.directory.agents( home, [KIKO]))
     const old = this.setting(OLD_CHECK_IN)
     if (old !== null) {
       await this.reminders.cancel(old)
@@ -1150,7 +1195,11 @@ export class UserDO extends DurableObject<Env> {
     if (!saved) return null
     if (!announce && JSON.stringify(saved) === JSON.stringify(before)) return saved
     this.commit({ t: "agent_model", slug, ...saved })
-    if (roomId && saved.model !== before?.model) this.ctx.waitUntil(Promise.resolve(roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId).modelChanged(slug, saved.model, before?.model)).catch(() => {}))
+    if (roomId && saved.model !== before?.model) {
+      this.ctx.waitUntil(Promise.resolve(this.services.room(roomId).modelChanged(slug, saved.model, before?.model)).catch(() => {}))
+      // The harness keeps its model until it reloads, so an idle agent drops it now and a busy one drops it when the run ends.
+      this.ctx.waitUntil(Promise.resolve(this.services.agent(roomId, slug).invalidate()).catch(() => {}))
+    }
     return saved
   }
 
@@ -1178,21 +1227,18 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private broadcast(frame: UserToClient): void {
-    const text = JSON.stringify(frame)
-    for (const ws of this.ctx.getWebSockets()) {
-      if ((ws.deserializeAttachment() as Attachment | null)?.ready) trySend(ws, text)
-    }
+    this.publishFrame(frame)
   }
 
   private resume(lastSeq: number): UserToClient {
     const seq = this.currentSeq()
     const { oldest } = this.sql.exec<{ oldest: number | null }>("SELECT min(seq) AS oldest FROM user_events").one()
-    const replayable = lastSeq > 0 && lastSeq <= seq && (oldest === null || lastSeq >= oldest - 1)
+    const replayable = false // Room activity is projected from room state, so every reconnect refreshes the chat list.
     if (!replayable) {
       const lastChat = this.lastChat()
       return {
         t: "reset",
-        snapshot: { seq, chats: listChats(this.sql).map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), agentModels: allAgentModels(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, ...(lastChat ? { lastChat } : {}) },
+        snapshot: { seq, chats: this.directory.list().map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), agentModels: allAgentModels(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, ...(lastChat ? { lastChat } : {}) },
       }
     }
     const events = this.sql
@@ -1216,14 +1262,8 @@ export class UserDO extends DurableObject<Env> {
 
   async setUserSettings(patch: UserSettingsPatch): Promise<UserSettings> {
     // The route checked the zone. The daily pass is at nine in it, so the pass is set again.
-    if (patch.timezone) {
-      this.putSetting("timezone", patch.timezone)
-      await this.#initiative.arm()
-    }
-    if (patch.initiative) {
-      this.putSetting("initiative", patch.initiative)
-      await this.#initiative.arm()
-    }
+    if (patch.timezone) this.putSetting("timezone", patch.timezone)
+    if (patch.initiative) this.putSetting("initiative", patch.initiative)
     if (patch.capture) this.#mem.setCapture(patch.capture)
     if (patch.onboarded) this.putSetting("onboarded", "1")
     return this.userSettings()

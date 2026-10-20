@@ -1,11 +1,4 @@
-// One reconnecting socket.
-//
-// The client holds one for the user and one for each open room. On every
-// connect the first frame is `hello` with the newest `seq` the client has
-// applied, so the server replays what was missed. A lost connection retries
-// with exponential backoff and jitter, and at once when the browser says it is
-// back online. Frames are JSON. A frame that is not an object with a string `t`
-// is dropped here, at the edge.
+import type { ClientToOwner, ClientToRoom, OwnerToClient, RoomId, RoomToClient, ClientToUser, UserToClient } from "@kiko/protocol"
 import { socketProtocols } from "../lib/api"
 //
 // A socket can die without a close event (a laptop that slept, a network that
@@ -95,6 +88,7 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 	let attempt = 0
 	let timer: ReturnType<typeof setTimeout> | undefined
 	let closed = false
+	let stable: ReturnType<typeof setTimeout> | undefined
 	const pingMs = options.pingMs ?? 10_000
 	const pongMs = options.pongMs ?? 5_000
 	let heardAt = 0
@@ -120,7 +114,9 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 		socket = s
 		s.onopen = () => {
 			if (socket !== s) return
-			attempt = 0
+			stable = setTimeout(() => {
+				if (socket === s) attempt = 0
+			}, 10_000)
 			heardAt = Date.now()
 			pingedAt = undefined
 			watch()
@@ -151,6 +147,8 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 	}
 
 	function unwatch() {
+		if (stable !== undefined) clearTimeout(stable)
+		stable = undefined
 		if (probe !== undefined) clearInterval(probe)
 		probe = undefined
 	}
@@ -168,7 +166,6 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 			try {
 				s.close(4000, "no pong")
 			} catch {}
-			attempt = 0
 			unwatch()
 			setStatus("closed")
 			return open()
@@ -186,7 +183,6 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 		const s = socket
 		socket = null
 		pingedAt = undefined
-		attempt = 0
 		unwatch()
 		if (timer !== undefined) {
 			clearTimeout(timer)
@@ -257,3 +253,128 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 	open()
 	return api
 }
+
+type FrameOf<T extends UserToClient["t"]> = Extract<UserToClient, { t: T }>
+
+export type UserChannel = {
+	/** False when the socket is not open. The caller keeps the frame and resends it from `onOpen`. */
+	send(frame: ClientToUser): boolean
+	/** Calls `fn` with every frame of type `t`. Returns the unsubscribe. */
+	on<T extends UserToClient["t"]>(t: T, fn: (frame: FrameOf<T>) => void): () => void
+	/** Runs after `hello` on every connect. Returns the unsubscribe. */
+	onOpen(fn: () => void): () => void
+	onStatus(fn: (status: SocketStatus) => void): () => void
+	room(options: RoomChannelOptions): RoomChannel
+}
+
+/** The socket owner's side. */
+export type UserChannelHost = UserChannel & {
+	/** Makes `send` the channel's socket. Returns the detach, which does nothing once another socket attached. */
+	attach(send: (frame: ClientToOwner) => boolean): () => void
+	deliver(frame: OwnerToClient): void
+	opened(): void
+	status(status: SocketStatus): void
+}
+
+export function createUserChannel(): UserChannelHost {
+	const listeners = new Map<string, Set<(frame: never) => void>>()
+	const openers = new Set<() => void>()
+	const statuses = new Set<(status: SocketStatus) => void>()
+	let sender: ((frame: ClientToOwner) => boolean) | null = null
+	let status: SocketStatus = "closed"
+	const rooms = new Map<RoomId, Set<RoomChannelOptions>>()
+	const subscribe = (roomId: RoomId, room: RoomChannelOptions) => {
+		sender?.({ t: "subscribe", roomId, lastSeq: room.lastSeq() })
+		room.onStatus("open")
+		room.onOpen()
+	}
+	return {
+		send: (frame) => sender?.(frame) ?? false,
+		on(t, fn) {
+			let set = listeners.get(t)
+			if (!set) listeners.set(t, (set = new Set()))
+			set.add(fn as (frame: never) => void)
+			return () => {
+				set.delete(fn as (frame: never) => void)
+				if (set.size === 0) listeners.delete(t)
+			}
+		},
+		onOpen(fn) {
+			openers.add(fn)
+			return () => void openers.delete(fn)
+		},
+		onStatus(fn) {
+			statuses.add(fn)
+			return () => void statuses.delete(fn)
+		},
+		attach(send) {
+			sender = send
+			return () => {
+				if (sender === send) {
+					sender = null
+					status = "closed"
+					for (const fn of [...statuses]) fn(status)
+					for (const set of rooms.values()) for (const room of set) room.onStatus(status)
+				}
+			}
+		},
+		room(options) {
+			const { roomId } = options
+			let set = rooms.get(roomId)
+			if (!set) rooms.set(roomId, (set = new Set()))
+			set.add(options)
+			if (status === "open") queueMicrotask(() => {
+				if (!set.has(options)) return
+				if (status === "open") subscribe(roomId, options)
+				else options.onStatus(status)
+			})
+			else options.onStatus(status)
+			return {
+				send: (frame) => set.has(options) && status === "open" && (sender?.({ t: "room", roomId, frame }) ?? false),
+				close() {
+					if (!set.delete(options)) return
+					if (!set.size) {
+						rooms.delete(roomId)
+						sender?.({ t: "unsubscribe", roomId })
+					}
+					options.onStatus("closed")
+				},
+			}
+		},
+		status(next) {
+			if (next === "open") return
+			status = next
+			for (const fn of [...statuses]) fn(next)
+			for (const set of rooms.values()) for (const room of set) room.onStatus(next)
+		},
+		deliver(frame) {
+			if (frame.t === "room") {
+				for (const room of rooms.get(frame.roomId) ?? []) room.onFrame(frame.frame)
+				return
+			}
+			for (const fn of listeners.get(frame.t) ?? []) (fn as (f: UserToClient) => void)(frame)
+		},
+		opened() {
+			status = "open"
+			for (const fn of [...statuses]) fn(status)
+			for (const [roomId, set] of rooms) for (const room of set) subscribe(roomId, room)
+			for (const fn of [...openers]) fn()
+		},
+	}
+}
+
+export type RoomChannelOptions = {
+	roomId: RoomId
+	lastSeq(): number
+	onFrame(frame: RoomToClient): void
+	onOpen(): void
+	onStatus(status: SocketStatus): void
+}
+
+export type RoomChannel = {
+	send(frame: ClientToRoom): boolean
+	close(): void
+}
+
+/** The app's channel. The user store attaches its socket to it. */
+export const userChannel = createUserChannel()

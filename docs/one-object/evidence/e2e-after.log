@@ -1,0 +1,31 @@
+$ bun apps/cli/src/index.ts verify journal-overhead --url "http://localhost:8881"
+kiko: target http://localhost:8881
+  warm prompt 1: billable writes 32 = SQL 30 + KV put keys 0 + deleted keys 0 + setAlarm 2
+  warm prompt 1: 30 rows written (owner 30, agent 0, room 0, user 0), 2 setAlarm calls [owner 2, agent 0, room 0, user 0, file 0], agent alarm none armed
+    kv by object: owner [setAlarm 2, put 0, delete 1]; agent [setAlarm 0, put 0, delete 0]; room [setAlarm 0, put 0, delete 0]; user [setAlarm 0, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+  warm prompt 2: billable writes 33 = SQL 31 + KV put keys 0 + deleted keys 0 + setAlarm 2
+  warm prompt 2: 31 rows written (owner 31, agent 0, room 0, user 0), 2 setAlarm calls [owner 2, agent 0, room 0, user 0, file 0], agent alarm none armed
+    kv by object: owner [setAlarm 2, put 0, delete 1]; agent [setAlarm 0, put 0, delete 0]; room [setAlarm 0, put 0, delete 0]; user [setAlarm 0, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+  warm prompt 3: billable writes 33 = SQL 30 + KV put keys 0 + deleted keys 0 + setAlarm 3
+  warm prompt 3: 30 rows written (owner 30, agent 0, room 0, user 0), 3 setAlarm calls [owner 3, agent 0, room 0, user 0, file 0], agent alarm none armed
+    kv by object: owner [setAlarm 3, put 0, delete 1]; agent [setAlarm 0, put 0, delete 0]; room [setAlarm 0, put 0, delete 0]; user [setAlarm 0, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+  warm prompt 4: billable writes 33 = SQL 30 + KV put keys 0 + deleted keys 0 + setAlarm 3
+  warm prompt 4: 30 rows written (owner 30, agent 0, room 0, user 0), 3 setAlarm calls [owner 3, agent 0, room 0, user 0, file 0], agent alarm none armed
+    kv by object: owner [setAlarm 3, put 0, delete 1]; agent [setAlarm 0, put 0, delete 0]; room [setAlarm 0, put 0, delete 0]; user [setAlarm 0, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+  warm prompt 5: billable writes 33 = SQL 30 + KV put keys 0 + deleted keys 0 + setAlarm 3
+  warm prompt 5: 30 rows written (owner 30, agent 0, room 0, user 0), 3 setAlarm calls [owner 3, agent 0, room 0, user 0, file 0], agent alarm none armed
+    kv by object: owner [setAlarm 3, put 0, delete 1]; agent [setAlarm 0, put 0, delete 0]; room [setAlarm 0, put 0, delete 0]; user [setAlarm 0, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+  quiet minute after the prompt (60 s): billable writes 0 = SQL 0 + KV put keys 0 + deleted keys 0 + setAlarm 0
+  quiet minute after the prompt (60 s): 0 rows written (owner 0, agent 0, room 0, user 0), 0 setAlarm calls [owner 0, agent 0, room 0, user 0, file 0], agent alarm none armed
+    kv by object: owner [setAlarm 0, put 0, delete 0]; agent [setAlarm 0, put 0, delete 0]; room [setAlarm 0, put 0, delete 0]; user [setAlarm 0, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+  always-failing prompt: billable writes 42 = SQL 39 + KV put keys 0 + deleted keys 0 + setAlarm 3
+  always-failing prompt: 39 rows written (owner 39, agent 0, room 0, user 0), 3 setAlarm calls [owner 3, agent 0, room 0, user 0, file 0], agent alarm none armed
+    kv by object: owner [setAlarm 3, put 0, delete 1]; agent [setAlarm 0, put 0, delete 0]; room [setAlarm 0, put 0, delete 0]; user [setAlarm 0, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+  quiet minute after the error (60 s): billable writes 0 = SQL 0 + KV put keys 0 + deleted keys 0 + setAlarm 0
+  quiet minute after the error (60 s): 0 rows written (owner 0, agent 0, room 0, user 0), 0 setAlarm calls [owner 0, agent 0, room 0, user 0, file 0], agent alarm none armed
+    kv by object: owner [setAlarm 0, put 0, delete 0]; agent [setAlarm 0, put 0, delete 0]; room [setAlarm 0, put 0, delete 0]; user [setAlarm 0, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+    always-failing prompt: 1 live error rows, 1 on a fresh socket
+  wrote ./after.json
+  gate: billable writes median 33/33 (SQL 30), inter-object RPC 0, 0, 0, 0, 0, error rows live 1 persisted 1
+pass journal-overhead (149553ms)
+exit 0

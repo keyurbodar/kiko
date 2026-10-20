@@ -1,19 +1,15 @@
-import type { Alarms } from "@kiko/durable/alarm"
 import type { Catalog, ConnectMethod } from "@kiko/protocol"
 import { BACKEND } from "../lib/version"
 import { buildCatalog } from "./build"
 import { overlayRevision, providers } from "./catalog"
-import { isStale, restoreOverlay, SYNC_INTERVAL_MS, type SyncDeps, syncCatalog } from "./sync"
-
-export const CATALOG_WAKEUP = "models"
+import { isStale, restoreOverlay, type SyncDeps, syncCatalog } from "./sync"
 
 type Deps = SyncDeps & {
-  alarms: Alarms
   signInMethod: (providerId: string) => ConnectMethod | undefined
   changed: () => void
 }
 
-/** The live model catalog of one owner: the hourly sync, the check on open, and the client's catalog json. */
+/** The model catalog refreshes on open once its saved check is older than a day. */
 export class ModelCatalog {
   #syncing: Promise<boolean> | undefined
   #built: { revision: string; json: string } | undefined
@@ -22,16 +18,9 @@ export class ModelCatalog {
 
   async init(): Promise<void> {
     restoreOverlay(this.d.sql)
-    const armed = this.d.sql.exec("SELECT 1 FROM wakeups WHERE key = ?", CATALOG_WAKEUP).toArray().length > 0
-    if (!armed) await this.d.alarms.setWakeup(CATALOG_WAKEUP, this.d.now() + SYNC_INTERVAL_MS)
   }
 
-  async wake(): Promise<void> {
-    await this.d.alarms.setWakeup(CATALOG_WAKEUP, this.d.now() + SYNC_INTERVAL_MS)
-    await this.sync()
-  }
-
-  /** Starts a sync without waiting when the last check is older than pi.dev's own cache time. */
+  /** Starts a sync without waiting when the last check is older than a day. */
   syncIfStale(): void {
     if (isStale(this.d.sql, this.d.now())) void this.sync()
   }

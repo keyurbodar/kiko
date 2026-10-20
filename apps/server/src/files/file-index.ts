@@ -80,25 +80,25 @@ export function toRef(r: FileRow): FileRef {
   return { id: r.id, name: r.path, size: r.size, type: r.type }
 }
 
-export type Tables = { files: string; dirs: string }
+type Tables = { files: string; dirs: string }
 
-export const ROOM_TABLES: Tables = { files: "ws_files", dirs: "ws_dirs" }
-export const HOME_TABLES: Tables = { files: "home_files", dirs: "home_dirs" }
+export const ROOM_TABLES: Tables = { files: "files", dirs: "directories" }
+export const HOME_TABLES: Tables = { files: "files", dirs: "directories" }
 
 // The index's two tables under the given names. The object's schema list spreads these.
 export function fileIndexSteps(t: Tables): Step[] {
   return [
     `CREATE TABLE IF NOT EXISTS ${t.files} (
-      id TEXT PRIMARY KEY, path TEXT NOT NULL UNIQUE, r2_key TEXT NOT NULL, size INTEGER NOT NULL, type TEXT NOT NULL,
-      sha256 TEXT NOT NULL, width INTEGER, height INTEGER, thumbhash TEXT, author TEXT NOT NULL, at INTEGER NOT NULL)`,
-    `CREATE TABLE IF NOT EXISTS ${t.dirs} (path TEXT PRIMARY KEY)`,
+      room_id TEXT NOT NULL, id TEXT NOT NULL, path TEXT NOT NULL, r2_key TEXT NOT NULL, size INTEGER NOT NULL, type TEXT NOT NULL,
+      sha256 TEXT NOT NULL, author TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (room_id, id), UNIQUE (room_id, path)) WITHOUT ROWID`,
+    `CREATE TABLE IF NOT EXISTS ${t.dirs} (room_id TEXT NOT NULL, path TEXT NOT NULL, PRIMARY KEY (room_id, path)) WITHOUT ROWID`,
   ]
 }
 
-export function listSpace(storage: DurableObjectStorage, t: Tables): { files: FileRef[]; folders: string[] } {
+export function listSpace(storage: DurableObjectStorage, t: Tables, roomId = ""): { files: FileRef[]; folders: string[] } {
   return {
-    files: storage.sql.exec<FileRow>(`SELECT * FROM ${t.files} ORDER BY path`).toArray().map(toRef),
-    folders: storage.sql.exec<{ path: string }>(`SELECT path FROM ${t.dirs} ORDER BY path`).toArray().map((r) => r.path),
+    files: storage.sql.exec<FileRow>(`SELECT * FROM ${t.files} WHERE ${t.files}.room_id = ?1 ORDER BY path`, roomId).toArray().map(toRef),
+    folders: storage.sql.exec<{ path: string }>(`SELECT path FROM ${t.dirs} WHERE ${t.dirs}.room_id = ?1 ORDER BY path`, roomId).toArray().map((r) => r.path),
   }
 }
 
@@ -108,6 +108,7 @@ export class FileIndex<E> {
     private readonly t: Tables,
     private readonly append: (author: string, body: FileBody) => E,
     private readonly actorKey: (actor: Actor) => string,
+    private readonly roomId: string = "",
   ) {}
 
   private get sql() {
@@ -115,23 +116,23 @@ export class FileIndex<E> {
   }
 
   private row(column: "id" | "path", value: string): FileRow | null {
-    return this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE ${column} = ?`, value).toArray()[0] ?? null
+    return this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE ${column} = ?1 AND ${this.t.files}.room_id = ?2`, value, this.roomId).toArray()[0] ?? null
   }
 
   all(): FileRef[] {
-    return this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} ORDER BY path`).toArray().map(toRef)
+    return this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE ${this.t.files}.room_id = ?1 ORDER BY path`, this.roomId).toArray().map(toRef)
   }
 
   folders(): string[] {
-    return this.sql.exec<{ path: string }>(`SELECT path FROM ${this.t.dirs} ORDER BY path`).toArray().map((r) => r.path)
+    return this.sql.exec<{ path: string }>(`SELECT path FROM ${this.t.dirs} WHERE ${this.t.dirs}.room_id = ?1 ORDER BY path`, this.roomId).toArray().map((r) => r.path)
   }
 
   private dirRows(dir: string): string[] {
     const [lo, hi] = under(dir)
     return (
       hi === null
-        ? this.sql.exec<{ path: string }>(`SELECT path FROM ${this.t.dirs} WHERE path >= ? ORDER BY path`, lo)
-        : this.sql.exec<{ path: string }>(`SELECT path FROM ${this.t.dirs} WHERE path >= ? AND path < ? ORDER BY path`, lo, hi)
+        ? this.sql.exec<{ path: string }>(`SELECT path FROM ${this.t.dirs} WHERE path >= ?1 AND ${this.t.dirs}.room_id = ?2 ORDER BY path`, lo, this.roomId)
+        : this.sql.exec<{ path: string }>(`SELECT path FROM ${this.t.dirs} WHERE (path >= ?1 AND path < ?2) AND ${this.t.dirs}.room_id = ?3 ORDER BY path`, lo, hi, this.roomId)
     )
       .toArray()
       .map((r) => r.path)
@@ -140,20 +141,20 @@ export class FileIndex<E> {
   private files(dir: string, limit = -1): FileRow[] {
     const [lo, hi] = under(dir)
     return hi === null
-      ? this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE path >= ? ORDER BY path LIMIT ?`, lo, limit).toArray()
-      : this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE path >= ? AND path < ? ORDER BY path LIMIT ?`, lo, hi, limit).toArray()
+      ? this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE path >= ?1 AND ${this.t.files}.room_id = ?3 ORDER BY path LIMIT ?2`, lo, limit, this.roomId).toArray()
+      : this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE (path >= ?1 AND path < ?2) AND ${this.t.files}.room_id = ?4 ORDER BY path LIMIT ?3`, lo, hi, limit, this.roomId).toArray()
   }
 
   private isDir(path: string): boolean {
     if (path === "") return true
-    if (this.sql.exec(`SELECT 1 FROM ${this.t.dirs} WHERE path = ?`, path).toArray().length) return true
+    if (this.sql.exec(`SELECT 1 FROM ${this.t.dirs} WHERE path = ?1 AND ${this.t.dirs}.room_id = ?2`, path, this.roomId).toArray().length) return true
     // A file below a path makes it a folder even without a row, as for a file written before rows existed.
     return this.files(path, 1).length > 0
   }
 
   private insertDirs(paths: readonly string[]): number {
     let added = 0
-    for (const p of paths) if (p) added += this.sql.exec(`INSERT OR IGNORE INTO ${this.t.dirs} (path) VALUES (?)`, p).rowsWritten
+    for (const p of paths) if (p) added += this.sql.exec(`INSERT OR IGNORE INTO ${this.t.dirs} (path, room_id) VALUES (?1, ?2)`, p, this.roomId).rowsWritten
     return added
   }
 
@@ -199,9 +200,9 @@ export class FileIndex<E> {
       const file = toRef(row)
       const at = Date.now()
       events.push(this.append(author, { t: "file", file }))
-      if (current) this.sql.exec(`DELETE FROM ${this.t.files} WHERE id = ?`, current.id)
+      if (current) this.sql.exec(`DELETE FROM ${this.t.files} WHERE id = ?1 AND ${this.t.files}.room_id = ?2`, current.id, this.roomId)
       this.sql.exec(
-        `INSERT INTO ${this.t.files} (id, path, r2_key, size, type, sha256, author, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO ${this.t.files} (id, path, r2_key, size, type, sha256, author, at, room_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
         row.id,
         row.path,
         row.r2_key,
@@ -209,7 +210,7 @@ export class FileIndex<E> {
         row.type,
         row.sha256,
         author,
-        at,
+        at, this.roomId,
       )
       return { file, drop: current?.r2_key ?? null, events }
     })
@@ -229,8 +230,8 @@ export class FileIndex<E> {
     const [lo, hi] = under(dir)
     const row =
       hi === null
-        ? this.sql.exec<{ n: number; size: number | null }>(`SELECT count(*) AS n, sum(size) AS size FROM ${this.t.files} WHERE path >= ?`, lo).one()
-        : this.sql.exec<{ n: number; size: number | null }>(`SELECT count(*) AS n, sum(size) AS size FROM ${this.t.files} WHERE path >= ? AND path < ?`, lo, hi).one()
+        ? this.sql.exec<{ n: number; size: number | null }>(`SELECT COUNT(*) AS n, SUM(size) AS size FROM ${this.t.files} WHERE path >= ?1 AND ${this.t.files}.room_id = ?2`, lo, this.roomId).one()
+        : this.sql.exec<{ n: number; size: number | null }>(`SELECT COUNT(*) AS n, SUM(size) AS size FROM ${this.t.files} WHERE (path >= ?1 AND path < ?2) AND ${this.t.files}.room_id = ?3`, lo, hi, this.roomId).one()
     return { files: row.n, size: row.size ?? 0 }
   }
 
@@ -282,7 +283,7 @@ export class FileIndex<E> {
           if (clash) return clash
         }
         if (there?.kind === "file") {
-          this.sql.exec(`DELETE FROM ${this.t.files} WHERE id = ?`, there.id)
+          this.sql.exec(`DELETE FROM ${this.t.files} WHERE id = ?1 AND ${this.t.files}.room_id = ?2`, there.id, this.roomId)
           drop.push(there.r2Key)
           events.push(this.append(author, { t: "file_removed", ids: [there.id] }))
         }
@@ -298,7 +299,7 @@ export class FileIndex<E> {
       const rows = this.files(from)
       for (const r of rows) events.push(this.rename(r, target + r.path.slice(from.length), author))
       const moved = [from, ...this.dirRows(from)]
-      for (const p of moved) this.sql.exec(`DELETE FROM ${this.t.dirs} WHERE path = ?`, p)
+      for (const p of moved) this.sql.exec(`DELETE FROM ${this.t.dirs} WHERE path = ?1 AND ${this.t.dirs}.room_id = ?2`, p, this.roomId)
       this.insertDirs([...parents(target), ...moved.map((p) => target + p.slice(from.length))])
       events.push(this.foldersEvent(author))
       return { ok: true, events, drop, changed: rows.length || 1 }
@@ -306,7 +307,7 @@ export class FileIndex<E> {
   }
 
   private rename(r: FileRow, path: string, author: string): E {
-    this.sql.exec(`UPDATE ${this.t.files} SET path = ? WHERE id = ?`, path, r.id)
+    this.sql.exec(`UPDATE ${this.t.files} SET path = ?1 WHERE id = ?2 AND ${this.t.files}.room_id = ?3`, path, r.id, this.roomId)
     return this.append(author, { t: "file", file: toRef({ ...r, path }) })
   }
 
@@ -331,9 +332,9 @@ export class FileIndex<E> {
       }
       const author = this.actorKey(by)
       const events: E[] = []
-      for (const id of rows.keys()) this.sql.exec(`DELETE FROM ${this.t.files} WHERE id = ?`, id)
+      for (const id of rows.keys()) this.sql.exec(`DELETE FROM ${this.t.files} WHERE id = ?1 AND ${this.t.files}.room_id = ?2`, id, this.roomId)
       if (rows.size) events.push(this.append(author, { t: "file_removed", ids: [...rows.keys()] }))
-      for (const d of dirs) this.sql.exec(`DELETE FROM ${this.t.dirs} WHERE path = ?`, d)
+      for (const d of dirs) this.sql.exec(`DELETE FROM ${this.t.dirs} WHERE path = ?1 AND ${this.t.dirs}.room_id = ?2`, d, this.roomId)
       if (dirs.size) events.push(this.foldersEvent(author))
       return { ok: true, events, drop: [...rows.values()].map((r) => r.r2_key), changed: rows.size, folders: dirs.size }
     })

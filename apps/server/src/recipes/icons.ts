@@ -14,7 +14,7 @@ export const stem = (w: string) => w.replace(/ies$/, "y").replace(/(ing|ers|es|s
 export const words = (s: string) => s.toLowerCase().replace(/follow-up/g, "followup").split(/[^a-z]+/).filter((w) => w.length > 2 && !STOP.has(w))
 
 /** Picks a curated icon from the recipe's words. An unknown topic gets the sparkle. */
-export function pickIcon(title: string, description: string): string {
+function pickIcon(title: string, description: string): string {
   for (const w of [...words(title), ...words(description)]) {
     const hit = SYNONYMS[w] ?? SYNONYMS[stem(w)]
     if (hit) return hit

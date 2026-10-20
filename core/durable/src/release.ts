@@ -59,6 +59,7 @@ export type ReleaseManifest = {
   main_module: string
   compatibility_date: string
   compatibility_flags: string[]
+  durable_objects?: { name: string; class_name: string }[]
   migrations: ReleaseMigration[]
   modules: ReleaseModule[]
 }
@@ -70,6 +71,7 @@ export function parseManifest(manifestBytes: Uint8Array): ReleaseManifest | null
     const ok =
       typeof m.version === "string" &&
       typeof m.protocol === "number" &&
+      (m.durable_objects === undefined || Array.isArray(m.durable_objects) && m.durable_objects.length > 0 && m.durable_objects.every((binding) => binding && typeof binding.name === "string" && typeof binding.class_name === "string")) &&
       typeof m.main_module === "string" &&
       typeof m.compatibility_date === "string" &&
       Array.isArray(m.compatibility_flags) &&

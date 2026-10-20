@@ -14,9 +14,9 @@ import type { BrowserConnection } from "./connection"
 import type { LeasePort } from "./lease"
 
 export const BROWSER_EXT = "browser"
-export const BROWSER_INFO_EXT = "browser-info"
+const BROWSER_INFO_EXT = "browser-info"
 
-export const PAUSED = "The human has control of the browser, so your browser tools are paused. Your tabs stay open. When they press Release control you are told to carry on."
+const PAUSED = "The human has control of the browser, so your browser tools are paused. Your tabs stay open. When they press Release control you are told to carry on."
 const NO_TAB = "You have no tab open yet. Call browse with a url first."
 
 const BROWSER_RULES = [

@@ -1,7 +1,7 @@
+import type { OwnerServices } from "../owner/services"
 import { type Agent, type AgentSlug, type RoomEvent, tagline } from "@kiko/protocol"
 import { sha256Hex } from "@kiko/durable/hash"
 import type { Env } from "../index"
-import { roomStub, userStub } from "../lib/names"
 import { CHIEF, checkGroup, groupChatFile, type GroupInput, type NewAgentSpec } from "./chief"
 import { makeAgentChat } from "./new-agent"
 import type { Home } from "./home"
@@ -13,6 +13,7 @@ export type GroupResult = { ok: true; text: string } | { ok: false; error: strin
 type GroupsDeps = {
 	ctx: DurableObjectState
 	env: Env
+ services: OwnerServices
 	log: RoomLog
 	members: Members
 	home: () => Home | null
@@ -31,7 +32,7 @@ export class Groups {
 		if (!home || slug !== CHIEF) return { ok: false, error: "only kiko makes agents" }
 		const key = `made:agent:${spec.handle.trim().toLowerCase().replace(/^@/, "")}`
 		const done = this.d.log.meta(key)
-		const user = userStub(this.d.env.USER, home.userId)
+		const user = this.d.services.user()
 		if (done) {
 			const handle = spec.handle.trim().toLowerCase().replace(/^@/, "")
 			if ((await user.listAgents()).some((agent) => agent.slug === handle)) return { ok: true, text: done }
@@ -45,7 +46,7 @@ export class Groups {
 					make: (spec) => user.makeAgent({ name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model: "" }),
 					openChat: (title, agentIds) => user.openChat(title, agentIds),
 					recipes: (description) => user.recipeHints(description),
-					introduce: (roomId, agent, text) => roomStub(this.d.env.ROOM, home.userId, roomId).introduce(home.userId, agent.slug, text),
+					introduce: (roomId, agent, text) => this.d.services.room(roomId).introduce(home.userId, agent.slug, text),
 				},
 				spec,
 				"kiko",
@@ -70,7 +71,7 @@ export class Groups {
 		const key = `made:group:${(await sha256Hex(JSON.stringify([slug, input]))).slice(0, 16)}`
 		const done = this.d.log.meta(key)
 		if (done) return { ok: true, text: done }
-		const user = userStub(this.d.env.USER, home.userId)
+		const user = this.d.services.user()
 		const mine = await user.listAgents()
 		const checked = checkGroup(input, slug, mine)
 		if ("error" in checked) return { ok: false, error: checked.error }
@@ -85,7 +86,7 @@ export class Groups {
 			if (typeof chat !== "string") return { ok: false, error: chat.error }
 			// A group is always its own chat. Asking again for the same agents names the chat already made.
 			const { roomId, created } = await user.openChat(checked.title, [CHIEF, ...everyone.map((a) => a.id)])
-			await roomStub(this.d.env.ROOM, home.userId, roomId)
+			await this.d.services.room(roomId)
 				.startGroup(home.userId, { chat: created ? chat : null, creator: slug, kickoff: checked.kickoff })
 				.catch((e: unknown) => console.error(`start group failed: ${e instanceof Error ? e.message : String(e)}`))
 			const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "created" }, text: `${checked.title} is ready.`, clientId: key, event: { kind: "created", roomId, title: checked.title }, goto: roomId })
@@ -108,7 +109,7 @@ export class Groups {
 
 	/** No model is passed: the user object starts a new agent on Kiko's current pick. The room's member row can be stale. */
 	private async make(home: Home, spec: NewAgentSpec): Promise<Agent> {
-		const agent = await userStub(this.d.env.USER, home.userId).makeAgent({ name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model: "" })
+		const agent = await this.d.services.user().makeAgent({ name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model: "" })
 		if (!agent) throw new Error(`@${spec.handle} could not be made (the handle may be taken)`)
 		return agent
 	}
