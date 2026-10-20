@@ -26,6 +26,7 @@ Kiko is a general-purpose AI chat web app. People text one agent or a team of ag
 ## Ways to hurt yourself
 
 - `pi-durable` is an npm dependency. Extend it only through its extension points.
+- Pin `@earendil-works/pi-durable`, `pi-ai`, and `chord` to one exact version, and bump them together.
 - Do not wait on another Durable Object inside `receive()`. Store, set an alarm, return.
 - Do not do CPU-heavy work in a Worker handler. Put it in a Durable Object.
 - Do not fetch the outside from an agent's run except through `AgentDO.egress`.
