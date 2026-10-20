@@ -18,7 +18,7 @@ export class VaultDO extends DurableObject {
   }
 
   async call({ keyring, op, provider, apiKey }: VaultCall): Promise<unknown> {
-    const vault = new CredentialVault(this.ctx.storage.sql, keyring, userIdFromObjectName(this.ctx.id.name))
+    const vault = new CredentialVault(this.ctx.storage.sql, () => keyring, userIdFromObjectName(this.ctx.id.name))
     if (op === "connect") return vault.connect(provider!, apiKey)
     if (op === "read") return vault.read(provider!)
     return this.ctx.storage.sql.exec("SELECT provider_id, kek_version FROM credentials ORDER BY provider_id").toArray()

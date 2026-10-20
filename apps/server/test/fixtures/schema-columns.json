@@ -4196,6 +4196,37 @@
       ],
       "indexes": []
     },
+    "user_rows": {
+      "columns": [
+        {
+          "cid": 0,
+          "name": "kind",
+          "type": "TEXT",
+          "notnull": 1,
+          "dflt_value": null,
+          "pk": 1
+        },
+        {
+          "cid": 1,
+          "name": "id",
+          "type": "TEXT",
+          "notnull": 1,
+          "dflt_value": null,
+          "pk": 2
+        },
+        {
+          "cid": 2,
+          "name": "body",
+          "type": "TEXT",
+          "notnull": 1,
+          "dflt_value": null,
+          "pk": 0
+        }
+      ],
+      "indexes": [
+        "sqlite_autoindex_user_rows_1"
+      ]
+    },
     "wakeups": {
       "columns": [
         {

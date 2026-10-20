@@ -732,7 +732,7 @@ export class UserDO extends DurableObject<Env> {
 
   #vault?: CredentialVault
   get #credentials(): CredentialVault {
-    this.#vault ??= new CredentialVault(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name), () => this.project("provider"))
+    this.#vault ??= new CredentialVault(this.sql, () => keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name), () => this.project("provider"))
     return this.#vault
   }
 

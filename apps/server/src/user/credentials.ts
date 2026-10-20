@@ -38,7 +38,8 @@ export class CredentialVault implements CredentialStore {
 
   constructor(
     private readonly sql: SqlStorage,
-    private readonly keyring: Keyring,
+    /** Read only when a secret is sealed or opened, so listing providers needs no key. */
+    private readonly keyring: () => Keyring,
     private readonly userId: string,
     /** Called after any write. The listed providers may have changed. */
     private readonly onChange: () => void = () => {},
@@ -131,7 +132,7 @@ export class CredentialVault implements CredentialStore {
       .exec<Row>("SELECT kind, kek_version, iv, ciphertext FROM credentials WHERE provider_id = ?", providerId)
       .toArray()[0]
     if (!row) return undefined
-    const plain = await open(this.keyring, this.userId, providerId, {
+    const plain = await open(this.keyring(), this.userId, providerId, {
       kekVersion: row.kek_version,
       iv: new Uint8Array(row.iv),
       ciphertext: new Uint8Array(row.ciphertext),
@@ -140,7 +141,7 @@ export class CredentialVault implements CredentialStore {
   }
 
   private async store(providerId: string, credential: Credential): Promise<void> {
-    const sealed = await seal(this.keyring, this.userId, providerId, JSON.stringify(credential))
+    const sealed = await seal(this.keyring(), this.userId, providerId, JSON.stringify(credential))
     this.sql.exec(
       `INSERT INTO credentials (provider_id, kind, last4, kek_version, iv, ciphertext, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)
