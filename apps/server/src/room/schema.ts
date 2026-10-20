@@ -1,3 +1,4 @@
+import { HISTORY_ARCHIVE_STEPS } from "../owner/history-archive"
 import { addColumn, dropColumn, rebuildTable, type Step } from "@kiko/durable/migrate"
 import { treeSteps } from "@kiko/memory/optmem"
 import { KEEP_EVENTS } from "./log"
@@ -327,4 +328,5 @@ export const ROOM_STEPS: Step[] = [
   "DROP TABLE IF EXISTS signal_window",
   "DROP TABLE IF EXISTS signal_more",
   "DROP TABLE IF EXISTS signal_results",
+  ...HISTORY_ARCHIVE_STEPS,
 ]

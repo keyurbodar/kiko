@@ -1,3 +1,5 @@
+import { createServiceClock, projectRecovery } from "../src/owner/clock"
+import { scheduledDeadline } from "../src/owner/schedules"
 import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { Type } from "@earendil-works/pi-ai"
@@ -21,6 +23,8 @@ export class T extends DurableObject {
     super(ctx, env)
     migrate(ctx.storage, [...HOST_STEPS, ...JOURNAL_STEPS, ...HOST_TAIL])
     this.host = new AgentHost(ctx, {
+      clock: createServiceClock(ctx),
+      projectTasks: (tasks, watches, current) => projectRecovery(tasks, watches, current, Date.now(), scheduledDeadline),
       requestRun: (id) => { this.requested.push(id) },
       waitUntil: (work) => ctx.waitUntil(work),
       onError: async (error) => { this.errors.push(String(error)) },

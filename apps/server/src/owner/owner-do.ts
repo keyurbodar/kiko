@@ -100,7 +100,6 @@ export class OwnerDO extends DurableObject<Env> {
 
   private async afterRun(roomId: string, slug: string): Promise<void> {
     await this.afterRunHook.run(roomId, slug)
-    await archive(this.ctx.storage, roomId)
   }
 
   private user(): User {
@@ -335,5 +334,3 @@ export class OwnerDO extends DurableObject<Env> {
 }
 
 
-// PR6 replaces this hook without moving the dispatch site.
-async function archive(_storage: DurableObjectStorage, _roomId: string): Promise<void> {}

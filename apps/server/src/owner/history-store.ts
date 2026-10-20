@@ -1,11 +1,17 @@
+import { ownerStorage } from "../owner/context"
 import type { RoomLog } from "../room/log"
 import { searchMessages, type SearchOptions } from "../room/search"
-import { HISTORY_ARCHIVE_STEPS, type ArchivedMessage, type HistoryStore, type PendingArchive } from "./history-archive"
+import { type ArchivedMessage, type HistoryStore, type PendingArchive } from "./history-archive"
 
-/** Uses RoomLog's room-scoped SQL surface, including inside OwnerDO. */
+/**
+ * Archive state and pending rows live in the scoped storage passed in. Shared message reads go through
+ * the owner storage and this room's id, so one room never reads or archives another room's rows.
+ */
 export class RoomHistoryStore implements HistoryStore {
+  private readonly shared: DurableObjectStorage
+
   constructor(private readonly storage: DurableObjectStorage, private readonly log: RoomLog) {
-    for (const step of HISTORY_ARCHIVE_STEPS) storage.sql.exec(step)
+    this.shared = ownerStorage(storage)
   }
 
   state(): { writtenDay: string | null; pending: PendingArchive | null } {
@@ -14,14 +20,14 @@ export class RoomHistoryStore implements HistoryStore {
   }
 
   oldestDay(before: number): string | null {
-    const at = this.storage.sql.exec<{ at: number | null }>("SELECT min(at) AS at FROM messages WHERE at < ?", before).one().at
+    const at = this.shared.sql.exec<{ at: number | null }>("SELECT min(at) AS at FROM messages WHERE room_id = ? AND at < ?", this.log.roomId, before).one().at
     return at === null ? null : new Date(at).toISOString().slice(0, 10)
   }
 
   snapshot(day: string) { return this.log.archiveSnapshot(day) }
   overrides(ids: string[]) { return this.log.archiveOverrides(ids) }
   around(seq: number, before: number, after: number) { return this.log.around(seq, before, after) }
-  search(query: string, options: SearchOptions) { return searchMessages(this.storage.sql, query, options) }
+  search(query: string, options: SearchOptions) { return searchMessages(this.shared.sql, this.log.roomId, query, options) }
 
   private readPending(kind: string): ArchivedMessage[] {
     const result: ArchivedMessage[] = []

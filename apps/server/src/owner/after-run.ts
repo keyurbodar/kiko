@@ -15,9 +15,7 @@ export class AfterRun {
   constructor(private readonly d: AfterRunDeps) {}
 
   async run(roomId: string, _slug: string): Promise<void> {
-    // Room.afterRun lands with the room's own background hook; the room type is shared across that change.
-    const room = this.d.services().room(roomId) as unknown as { afterRun?: () => Promise<unknown> }
-    await step("room background", () => room.afterRun?.() ?? Promise.resolve())
+    await step("room background", () => this.d.services().room(roomId).afterRun())
     await step("memory capture", () => this.d.services().user().captureNow())
     await step("initiative", () => this.d.services().user().initiativePass())
   }

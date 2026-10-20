@@ -11,7 +11,7 @@ import { fake, readStats, resetStats } from "./latency"
 const QUIET_MS = Number(process.env.KIKO_JOURNAL_QUIET_MS ?? 60_000)
 const BASELINE = process.env.PR2_BASELINE === "1" || process.env.PR1_BASELINE === "1"
 const EVIDENCE = process.env.PR2_EVIDENCE ?? process.env.PR1_EVIDENCE
-const ROW_GATE = 15
+const ROW_GATE = 8
 const WARM_RUNS = 5
 const AGENT = "kiko"
 

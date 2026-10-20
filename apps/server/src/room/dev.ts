@@ -27,7 +27,7 @@ export class RoomDev {
   async archive() {
     const history = this.d.archive()
     if (!history) throw new Error("Archive binding is required")
-    await seedArchiveHistory(this.d.storage, history, Date.now())
+    await seedArchiveHistory(this.d.storage, this.d.log.roomId, history, Date.now())
     return { hotMessages: this.d.log.snapshot().messages.length, search: await history.search("kumquat"), history: await history.around(Number.MAX_SAFE_INTEGER, 300, 0) }
   }
 

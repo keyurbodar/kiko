@@ -32,8 +32,8 @@ import { integrationNote } from "./prompt"
 import { buildAgent, openAgentHarness, userModels } from "./factory"
 import { isKnownModel, parseModelRef, thinkingFor } from "./thinking"
 import { setOverlay } from "../models/catalog"
-import { createServiceClock as createAlarms } from "../owner/clock"
-import { RoutineSchedules, type RoutineScheduler, type ScheduledRoutine } from "../owner/schedules"
+import { createServiceClock as createAlarms, projectRecovery } from "../owner/clock"
+import { RoutineSchedules, scheduledDeadline, type ScheduledRoutine } from "../owner/schedules"
 import { migrate } from "@kiko/durable/migrate"
 import { AGENT_STEPS } from "./schema"
 import { AgentHost, type AgentSetup, type HostOptions, type HostStatus } from "@kiko/agent/host"
@@ -102,11 +102,13 @@ export class Agent {
   async unload(): Promise<void> { await this.hostInstance?.unload() }
   async invalidate(): Promise<void> { await this.hostInstance?.invalidate() }
   nextDeadline(): number | null {
-    return this.ctx.storage.sql.exec<{ at: number }>("SELECT min(at) AS at FROM owner_deadlines WHERE scope = ?", `agent:${this.ctx.id.name ?? ""}`).toArray()[0]?.at ?? null
+    return this.ctx.storage.sql.exec<{ at: number }>("SELECT min(at) AS at FROM owner_deadlines WHERE scope = ?", this.ctx.id.name ?? "").toArray()[0]?.at ?? null
   }
 
   protected get host(): AgentHost {
     this.hostInstance ??= new AgentHost(this.ctx, {
+      clock: createAlarms(this.ctx),
+      projectTasks: (tasks, watches, current) => projectRecovery(tasks, watches, current, Date.now(), scheduledDeadline),
       openHarness: openAgentHarness,
       requestRun: this.requestRun,
       progress: () => this.outbox.progress(),
@@ -427,13 +429,11 @@ export class Agent {
   private readonly routineScheduler = new RoutineSchedules(async (delivery) => {
     await this.services.fireRoutine(delivery)
   })
-  private boundRoutines?: RoutineScheduler
 
   /** Replaces this agent's durable routine inventory. Repeated syncs with the same occurrences add nothing. */
   async syncRoutines(routines: readonly ScheduledRoutine[]): Promise<void> {
     const opened = await this.host.open()
-    this.boundRoutines ??= this.routineScheduler.bind(opened.harness, opened.root.id)
-    await this.boundRoutines.sync(routines)
+    await this.routineScheduler.bind(opened.harness, opened.root.id).sync(routines)
   }
 
   protected async setup(): Promise<AgentSetup> {

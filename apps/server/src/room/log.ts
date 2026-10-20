@@ -273,30 +273,48 @@ export class RoomLog {
 
   archiveSnapshot(day: string): ArchivedMessage[] {
     const start = Date.parse(day)
-    return this.archiveRows(this.sql.exec<MessageRow>("SELECT * FROM messages WHERE at >= ? AND at < ? ORDER BY seq", start, start + 86_400_000).toArray())
+    return this.archiveRows(
+      this.sql.exec<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND at >= ? AND at < ? ORDER BY seq", this.roomId, start, start + 86_400_000).toArray(),
+    )
   }
 
   archiveOverrides(ids: string[]): ArchivedMessage[] {
-    return this.archiveRows(this.sql.exec<MessageRow>("SELECT * FROM messages WHERE id IN (SELECT value FROM json_each(?)) ORDER BY seq", JSON.stringify(ids)).toArray())
+    return this.archiveRows(
+      this.sql.exec<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND id IN (SELECT value FROM json_each(?)) ORDER BY seq", this.roomId, JSON.stringify(ids)).toArray(),
+    )
   }
 
   private archiveRows(rows: MessageRow[]): ArchivedMessage[] {
     const messages = new Map(this.withReactions(rows.filter((row) => row.deleted_at === null)).map((message) => [message.id as string, message]))
-    const reactions = this.sql.exec<{ message_id: string; actor: string; emoji: string; at: number }>(
-      "SELECT * FROM reactions WHERE message_id IN (SELECT value FROM json_each(?)) ORDER BY message_id, actor", JSON.stringify(rows.map((row) => row.id)),
-    ).toArray()
+    const reactions = this.sql
+      .exec<{ message_id: string; actor: string; emoji: string; at: number }>(
+        "SELECT message_id, actor, emoji, at FROM reactions WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?)) ORDER BY message_id, actor",
+        this.roomId,
+        JSON.stringify(rows.map((row) => row.id)),
+      )
+      .toArray()
     const previews = this.previews(rows.map((row) => row.id))
-    return rows.map((row) => ({ id: row.id, seq: row.seq, at: row.at, message: messages.get(row.id) ?? null, ...(previews.has(row.id) ? { preview: previews.get(row.id) } : {}), fingerprint: createHash("sha256").update(JSON.stringify([row, reactions.filter((reaction) => reaction.message_id === row.id)])).digest("hex") }))
+    return rows.map((row) => ({
+      id: row.id,
+      seq: row.seq,
+      at: row.at,
+      message: messages.get(row.id) ?? null,
+      ...(previews.has(row.id) ? { preview: previews.get(row.id) } : {}),
+      fingerprint: createHash("sha256")
+        .update(JSON.stringify([row, reactions.filter((reaction) => reaction.message_id === row.id)]))
+        .digest("hex"),
+    }))
   }
 
+  /** Hard-deletes archived rows that still match their snapshot. The FTS delete trigger (PR4 schema) removes their index entries. */
   deleteArchived(snapshot: ArchivedMessage[]): void {
     const expected = new Map(snapshot.map((row) => [row.id, row.fingerprint]))
-    const ids = this.archiveOverrides(snapshot.map((row) => row.id)).filter((row) => expected.get(row.id) === row.fingerprint).map((row) => row.id)
+    const ids = this.archiveOverrides(snapshot.map((row) => row.id))
+      .filter((row) => expected.get(row.id) === row.fingerprint)
+      .map((row) => row.id)
     const json = JSON.stringify(ids)
-    // The external-content FTS table must lose its entry before its content row disappears.
-    this.sql.exec("INSERT INTO messages_fts (messages_fts, rowid, text) SELECT 'delete', rowid, text FROM messages WHERE deleted_at IS NULL AND id IN (SELECT value FROM json_each(?))", json)
-    this.sql.exec("DELETE FROM reactions WHERE message_id IN (SELECT value FROM json_each(?))", json)
-    this.sql.exec("DELETE FROM messages WHERE id IN (SELECT value FROM json_each(?))", json)
+    this.sql.exec("DELETE FROM reactions WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", this.roomId, json)
+    this.sql.exec("DELETE FROM messages WHERE room_id = ? AND id IN (SELECT value FROM json_each(?))", this.roomId, json)
   }
 
 	/** A live (not deleted) message, or null. */
