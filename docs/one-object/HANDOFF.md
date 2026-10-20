@@ -86,13 +86,24 @@ What remains in those 11:
 | 2 | `journal` | Track C, batching |
 | 1 | Reaction-brief cursor upsert in `owner_meta` | Make it an upsert that writes only on change, or derive it |
 
+**Track A is done, uncommitted.** The combined tree measures the same 11 writes, now with 0 alarms and 0 KV writes. Reconnect recovery resumes unfinished work from the journal's durable tasks and submissions. A final clock-query change that suppresses offline recovery alarms after a reconnect landed after its last verification, so it needs the combined check. Report: `/home/keyur/.cache/kiko-takeover/journal-impl/socket-clock-report.md`.
+
+**Round 4 started**, running in parallel with Track C:
+
+| Track | Task id (`clientRequestId`) | Cuts | Files it owns |
+|---|---|---|---|
+| D: derive pending input; write the reaction cursor only on change | `ship-writes-v4-pending` | ~4 | `room/burst.ts`, `room/reactions.ts`, `room/room-do.ts`, `owner/owner-do.ts`, `owner/clock.ts` |
+| E: message ids encode (room, seq); drop `messages_id` and `messages_run` | `ship-writes-v4-msgidx` | ~2–3 | `room/log.ts`, `room/search.ts`, `owner/schema.ts`, `room/bubbles.ts` |
+
+Expected once C, D and E land: about 3 to 4 writes per prompt.
+
 ### Tracks in flight
 
 All three edit the same worktree, uncommitted, in separate files. Read each result with `task_status`.
 
 | Track | Task id (`clientRequestId`) | Files it owns |
 |---|---|---|
-| A: alarms, clock and run ticket | `ship-writes-v3-clock` | `owner/owner-do.ts`, `owner/clock.ts`, `owner/runs.ts`, `room/burst.ts`, `agent/agent-do.ts` |
+| A (done): alarms, clock and run ticket | `ship-writes-v3-clock` | `owner/owner-do.ts`, `owner/clock.ts`, `owner/runs.ts`, `room/burst.ts`, `agent/agent-do.ts` |
 | B (done): fold room rows, lazy search | `ship-writes-v3-log` | `room/log.ts`, `room/search.ts`, `room/memory.ts`, `owner/schema.ts` (append only) |
 | C: one journal row per finished turn | `ship-writes-v3-journal` | `core/agent/src/journal.ts`, `core/agent/src/host.ts`, `agent/factory.ts` |
 
