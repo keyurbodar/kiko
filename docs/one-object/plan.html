@@ -1,0 +1,243 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{font-family:var(--font-sans);color:var(--foreground);margin:0}
+.wrap{display:flex;flex-direction:column;gap:30px}
+h2{font-size:16px;margin:0 0 4px;font-weight:650}
+h3{font-size:13px;margin:0 0 6px;font-weight:600}
+.sub{margin:0 0 12px;color:var(--muted-foreground);font-size:13px;line-height:1.45}
+.lead{font-size:18px;font-weight:600;line-height:1.4}
+.lead em{font-style:normal;color:var(--success)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:600px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{border:1px solid var(--border);border-radius:var(--radius);padding:12px}
+.kpi .v{font-size:20px;font-weight:700;color:var(--success);font-variant-numeric:tabular-nums}
+.kpi .v s{color:var(--destructive);font-size:13px;font-weight:500;margin-right:6px}
+.kpi .l{font-size:12px;color:var(--muted-foreground);margin-top:2px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.two{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;margin-bottom:10px}
+.bad{background:rgba(220,60,60,.15);color:var(--destructive)}
+.good{background:rgba(40,180,100,.15);color:var(--success)}
+svg text{font-family:var(--font-sans);fill:var(--foreground)}
+svg .m{fill:var(--muted-foreground)}
+.box{fill:var(--secondary);stroke:var(--border)}
+.boxr{fill:rgba(220,60,60,.10);stroke:var(--destructive)}
+.boxg{fill:rgba(40,180,100,.08);stroke:var(--success)}
+.ln{stroke:var(--muted-foreground);stroke-width:1.2;fill:none}
+.lr{stroke:var(--destructive);stroke-width:1.4;fill:none;stroke-dasharray:4 3}
+.lg{stroke:var(--success);stroke-width:1.6;fill:none}
+ol.flow{margin:0;padding-left:20px;font-size:13px;line-height:1.5}
+ol.flow li{margin:3px 0}
+ol.flow .c{font-family:var(--font-mono);font-size:11px;margin-left:4px}
+.r{color:var(--destructive)}.g{color:var(--success)}.a{color:var(--warning)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.4}
+th{color:var(--muted-foreground);font-weight:500;font-size:12px}
+td code,li code,p code{font-family:var(--font-mono);font-size:11.5px}
+td.n{font-family:var(--font-mono);text-align:right;white-space:nowrap;color:var(--muted-foreground)}
+.grp td{background:var(--secondary);font-weight:600;font-size:12px}
+.pill{font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:99px;white-space:nowrap}
+.del{background:rgba(220,60,60,.15);color:var(--destructive)}
+.mer{background:rgba(230,160,40,.15);color:var(--warning)}
+.new{background:rgba(40,180,100,.15);color:var(--success)}
+.tree{font-family:var(--font-mono);font-size:12px;line-height:1.6;white-space:pre;overflow-x:auto;margin:0}
+.tree .d{color:var(--muted-foreground)}
+.pr{display:grid;grid-template-columns:52px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.pr .k{font-family:var(--font-mono);font-size:12px;color:var(--muted-foreground);padding-top:2px}
+.pr b{font-size:13.5px}
+.pr p{margin:4px 0 0;font-size:13px;line-height:1.45}
+.pr .gate{font-family:var(--font-mono);font-size:11.5px;color:var(--success);margin-top:6px}
+.ux{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;font-size:13px;line-height:1.45}
+@media(max-width:600px){.ux{grid-template-columns:1fr}}
+.ux div::before{content:"✓ ";color:var(--success);font-weight:700}
+.risk td:first-child{font-weight:600;width:30%}
+</style></head><body><div class="wrap">
+
+<div class="lead">Kiko becomes <em>one Durable Object per owner</em>, holding every room, agent and worker in memory, writing one journal, and setting at most one alarm. Everything that existed only to move data between objects gets deleted.</div>
+
+<div class="kpis">
+<div class="kpi"><div class="v"><s>4</s>1</div><div class="l">Durable Object classes</div></div>
+<div class="kpi"><div class="v"><s>140</s>~6</div><div class="l">rows written per prompt</div></div>
+<div class="kpi"><div class="v"><s>~18</s>0</div><div class="l">calls between objects per prompt</div></div>
+<div class="kpi"><div class="v"><s>58k</s>1</div><div class="l">rows a day from a broken agent</div></div>
+<div class="kpi"><div class="v"><s>~148</s>0</div><div class="l">alarms on an idle day</div></div>
+<div class="kpi"><div class="v"><s>~73</s>~15</div><div class="l">tables, plus pi-durable's 9</div></div>
+<div class="kpi"><div class="v"><s>2</s>1</div><div class="l">sockets per tab</div></div>
+<div class="kpi"><div class="v"><s>~700</s>~12k</div><div class="l">runs a day on the free plan</div></div>
+</div>
+
+<!-- ARCH -->
+<div>
+<h2>1. Architecture</h2>
+<p class="sub">Today every room and every agent is its own object. Each boundary between them needs a billed call, a stored queue, an alarm to drain it and a retry when it fails. The redesign removes the boundaries, so none of that is needed anymore.</p>
+<div class="two">
+<div class="panel"><span class="tag bad">Before</span>
+<svg viewBox="0 0 320 300" width="100%">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" style="fill:var(--muted-foreground)"/></marker>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" style="fill:var(--destructive)"/></marker></defs>
+<rect class="box" x="100" y="4" width="120" height="28" rx="6"/><text x="160" y="22" text-anchor="middle" font-size="12">Browser: 2 sockets</text>
+<rect class="box" x="110" y="52" width="100" height="28" rx="6"/><text x="160" y="70" text-anchor="middle" font-size="12">Worker</text>
+<rect class="box" x="10" y="110" width="110" height="46" rx="6"/><text x="65" y="129" text-anchor="middle" font-size="12">UserDO</text><text x="65" y="145" text-anchor="middle" font-size="10" class="m">34 tables, 1,129-line class</text>
+<rect class="box" x="200" y="110" width="110" height="46" rx="6"/><text x="255" y="129" text-anchor="middle" font-size="12">RoomDO × rooms</text><text x="255" y="145" text-anchor="middle" font-size="10" class="m">37 tables, 1,213-line class</text>
+<rect class="boxr" x="140" y="200" width="170" height="56" rx="6"/><text x="225" y="219" text-anchor="middle" font-size="12">AgentDO × agents</text><text x="225" y="235" text-anchor="middle" font-size="10" class="m">pi-durable: 9 tables, 17 indexes</text><text x="225" y="249" text-anchor="middle" font-size="10" class="m">30s heartbeat, retry backoff</text>
+<rect class="box" x="10" y="208" width="100" height="40" rx="6"/><text x="60" y="232" text-anchor="middle" font-size="12">FileDO</text>
+<path class="ln" d="M160 32V52" marker-end="url(#a)"/><path class="ln" d="M140 80L80 110" marker-end="url(#a)"/><path class="ln" d="M180 80L240 110" marker-end="url(#a)"/>
+<path class="lr" d="M240 156L232 200" marker-end="url(#ar)"/><path class="lr" d="M268 200L276 156" marker-end="url(#ar)"/>
+<path class="lr" d="M160 200C130 185 110 175 100 156" marker-end="url(#ar)"/><path class="lr" d="M200 133H120" marker-end="url(#ar)"/>
+<path class="lr" d="M140 228H110" marker-end="url(#ar)"/>
+<text x="160" y="282" text-anchor="middle" font-size="11" style="fill:var(--destructive)">122 call sites between objects, 47 wakeup sites</text>
+</svg></div>
+<div class="panel"><span class="tag good">After</span>
+<svg viewBox="0 0 320 300" width="100%">
+<defs><marker id="gg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" style="fill:var(--success)"/></marker></defs>
+<rect class="box" x="100" y="4" width="120" height="28" rx="6"/><text x="160" y="22" text-anchor="middle" font-size="12">Browser: 1 socket</text>
+<rect class="box" x="100" y="52" width="120" height="28" rx="6"/><text x="160" y="70" text-anchor="middle" font-size="12">Worker: auth, upgrade</text>
+<rect class="boxg" x="20" y="96" width="280" height="166" rx="10"/>
+<text x="160" y="116" text-anchor="middle" font-size="13" font-weight="600">OwnerDO "owner"</text>
+<rect class="box" x="34" y="126" width="80" height="32" rx="5"/><text x="74" y="146" text-anchor="middle" font-size="11">Room</text>
+<rect class="box" x="120" y="126" width="80" height="32" rx="5"/><text x="160" y="146" text-anchor="middle" font-size="11">Agent</text>
+<rect class="box" x="206" y="126" width="80" height="32" rx="5"/><text x="246" y="146" text-anchor="middle" font-size="11">Settings, keys</text>
+<text x="160" y="174" text-anchor="middle" font-size="10" class="m">plain classes; a delivery is a method call</text>
+<rect class="box" x="34" y="182" width="252" height="30" rx="5"/><text x="160" y="201" text-anchor="middle" font-size="11">Journal: pi-durable commits, 1 row each</text>
+<rect class="box" x="34" y="220" width="252" height="30" rx="5"/><text x="160" y="239" text-anchor="middle" font-size="11">Clock: one alarm, next run or routine</text>
+<path class="lg" d="M160 32V52" marker-end="url(#gg)"/><path class="lg" d="M160 80V96" marker-end="url(#gg)"/>
+<rect class="box" x="226" y="268" width="80" height="26" rx="5"/><text x="266" y="285" text-anchor="middle" font-size="11">R2: files, archive</text>
+<text x="20" y="285" font-size="11" style="fill:var(--success)">0 calls between objects, 0 timers at rest</text>
+</svg></div>
+</div></div>
+
+<!-- LIFE OF A PROMPT -->
+<div>
+<h2>2. One prompt, step by step</h2>
+<p class="sub">The human sends "find me a flight to Lisbon" to a room with one agent.</p>
+<div class="two">
+<div class="panel"><span class="tag bad">Before: ~140 rows, ~18 calls, ~6 alarms</span>
+<ol class="flow">
+<li>Room socket gets the message, stores it with FTS <span class="c r">~6 rows</span></li>
+<li>Burst row and a burst alarm are written <span class="c r">2 rows</span></li>
+<li>Burst alarm fires and calls <code>AgentDO.receive</code> <span class="c r">1 call</span></li>
+<li>Agent stores an inbox row, sets the heartbeat <span class="c r">~4 rows</span></li>
+<li>Heartbeat alarm opens pi-durable and runs <span class="c r">1 alarm</span></li>
+<li>Each step writes tasks, submissions and entries across 17 indexes <span class="c r">~100 rows</span></li>
+<li>Drafts go to the room every 300 ms, and the client ignores them <span class="c r">~6 calls</span></li>
+<li>Steps, typing and touch go to the room and UserDO <span class="c r">~8 calls</span></li>
+<li>Room stores the reply bubbles and FTS, then tells UserDO <span class="c r">~15 rows</span></li>
+<li>If any call fails, a 2 s retry runs forever <span class="c r">∞</span></li>
+</ol></div>
+<div class="panel"><span class="tag good">After: ~6 rows, 0 calls, 1 alarm</span>
+<ol class="flow">
+<li>Owner socket gets the message and appends it to the room <span class="c g">1 row</span></li>
+<li>One <code>setAlarm</code> at the end of the burst window starts the run <span class="c g">1 row</span></li>
+<li>The alarm runs the agent: pi-durable on the journal store <span class="c g">0 rows</span></li>
+<li>Tokens, steps and typing go straight to the socket <span class="c g">0 rows</span></li>
+<li>Each finished model turn is one journal row <span class="c g">~3 rows</span></li>
+<li>The reply bubbles and search index are written once, in one transaction <span class="c g">~1–2 rows</span></li>
+<li>The chat list and unread count update in memory and are pushed to the socket <span class="c g">0 rows</span></li>
+<li>If it fails: one error bubble with a retry button, and nothing else <span class="c g">1 row</span></li>
+</ol></div>
+</div></div>
+
+<!-- DELETIONS -->
+<div>
+<h2>3. What gets deleted, and why it was never needed</h2>
+<p class="sub">Line counts are from <code>main</code> at 6167d2b1. "→" means the logic moves into a plain class and its transport code is removed.</p>
+<table>
+<tr><th>File</th><th class="n">Lines</th><th></th><th>Why it goes</th></tr>
+<tr class="grp"><td colspan="4">Moving data between objects (nothing to move once there's one object)</td></tr>
+<tr><td><code>room/mail-drain.ts</code>, <code>room/mail.ts</code></td><td class="n">412</td><td><span class="pill del">delete</span></td><td>Agent-to-agent mail through pair rooms becomes a direct call into the other agent's inbox</td></tr>
+<tr><td><code>room/wake-delivery.ts</code>, <code>room/wake.ts</code></td><td class="n">154</td><td><span class="pill del">delete</span></td><td>Task wakes and reports with a 2 s retry forever. The source of one unbounded loop</td></tr>
+<tr><td><code>room/burst-flush.ts</code></td><td class="n">130</td><td><span class="pill del">delete</span></td><td>Redelivers bursts after a failed RPC. With no RPC there's no failure to redeliver</td></tr>
+<tr><td><code>room/signals.ts</code>, <code>room/chat-touch.ts</code>, <code>room/open-tasks.ts</code></td><td class="n">231</td><td><span class="pill del">delete</span></td><td>Batch room activity to UserDO so the chat list can show it. The chat list reads rooms directly</td></tr>
+<tr><td><code>user/chats.ts</code>, <code>user/overview.ts</code>, <code>user/sockets.ts</code></td><td class="n">261</td><td><span class="pill del">delete</span></td><td>UserDO's second copy of every room's state. Becomes a query over the real rooms</td></tr>
+<tr><td><code>agent/step-batch.ts</code></td><td class="n">30</td><td><span class="pill del">delete</span></td><td>Batches step reports into RPCs to the room</td></tr>
+<tr><td><code>agent/outbox.ts</code></td><td class="n">430</td><td><span class="pill mer">→ ~120</span></td><td>Drafts every 300 ms, typing and step RPCs go away. Splitting into bubbles stays</td></tr>
+<tr><td><code>room/receive.ts</code> "full" refusal and retry-later path</td><td class="n">67</td><td><span class="pill mer">→ ~20</span></td><td>Back-pressure between objects. In memory the agent's inbox can't be "full"</td></tr>
+<tr><td><code>lib/names.ts</code> room, agent and file stubs</td><td class="n">~40</td><td><span class="pill mer">→ 1 stub</span></td><td>One name: <code>owner</code></td></tr>
+<tr class="grp"><td colspan="4">Timers and retry loops (work happens when the human acts)</td></tr>
+<tr><td><code>core/agent/src/host.ts</code> heartbeat, backoff, reset-after-3</td><td class="n">~120</td><td><span class="pill del">delete</span></td><td>The loop that burned 115k rows a day. A run lives inside one alarm invocation; a crashed run resumes from the journal on the next wake</td></tr>
+<tr><td><code>models/sync.ts</code></td><td class="n">128</td><td><span class="pill mer">→ ~30</span></td><td>10-minute catalog sync. Becomes: refresh when the app opens, if older than a day</td></tr>
+<tr><td><code>user/provider-watch.ts</code></td><td class="n">64</td><td><span class="pill del">delete</span></td><td>Polls providers to notice an expired sign-in. A run that fails says so in its error bubble, and settings checks on open</td></tr>
+<tr><td><code>room/memory-naps.ts</code></td><td class="n">94</td><td><span class="pill mer">→ hook</span></td><td>Timed room summaries, retried every 10 min. Runs once at the end of a run instead</td></tr>
+<tr><td><code>user/memory-capture.ts</code> queue and requeue</td><td class="n">~80</td><td><span class="pill mer">→ hook</span></td><td>Captures at the end of a run. A failed chunk waits for the next run instead of a 60 s loop</td></tr>
+<tr><td><code>core/durable/src/alarm.ts</code> wakeups table</td><td class="n">84</td><td><span class="pill mer">→ clock</span></td><td>Many wakeups per object become one clock: the next routine time, or now if a run is queued</td></tr>
+<tr class="grp"><td colspan="4">Storage overhead</td></tr>
+<tr><td><code>core/agent/src/sqlite.ts</code>, <code>coalescing-storage.ts</code></td><td class="n">235</td><td><span class="pill mer">→ journal</span></td><td>pi-durable's SQLite store with 17 indexes, plus a wrapper to soften it. Replaced by an in-memory store with a 1-row journal</td></tr>
+<tr><td><code>files/file-do.ts</code></td><td class="n">191</td><td><span class="pill del">delete</span></td><td>A whole object to hold bytes without R2. A blob table in OwnerDO does the same; R2 stays the default</td></tr>
+<tr><td>Tables that exist only to pass data between objects</td><td class="n">~25</td><td><span class="pill del">drop</span></td><td><code>deliveries</code>, <code>mail_queue</code>, <code>mail_refused</code>, <code>held_wakes</code>, <code>signal_*</code>, <code>chats</code>, <code>chat_tasks</code>, <code>clients*</code>, <code>events_next</code>, <code>capture_queue</code>, <code>nap_applied</code> and more</td></tr>
+<tr class="grp"><td colspan="4">Durable Object shells (logic moves, transport goes)</td></tr>
+<tr><td><code>room-do.ts</code>, <code>user-do.ts</code>, <code>agent-do.ts</code></td><td class="n">3,099</td><td><span class="pill mer">→ ~900</span></td><td>Three classes of RPC methods, socket handlers and alarm routers become one <code>OwnerDO</code> plus plain <code>Room</code> and <code>Agent</code> classes</td></tr>
+<tr class="grp"><td colspan="4">Client</td></tr>
+<tr><td><code>sync/user-channel.ts</code> and the second socket</td><td class="n">—</td><td><span class="pill mer">→ 1 socket</span></td><td>One socket carries the chat list and the open room. The <code>onopen</code> backoff reset is fixed along the way</td></tr>
+</table>
+<p class="sub" style="margin-top:10px">Net: roughly 3,500 to 4,500 fewer server lines, about 60 fewer tables, and no code path that can schedule work without a human, a routine or a running run behind it.</p>
+</div>
+
+<!-- IMPLEMENTATION -->
+<div>
+<h2>4. How it's built</h2>
+<div class="two">
+<div class="panel"><h3>New layout</h3>
+<pre class="tree">apps/server/src/
+  owner/
+    owner-do.ts   <span class="d">the one Durable Object</span>
+    socket.ts     <span class="d">1 socket, hibernation, ping auto-reply</span>
+    clock.ts      <span class="d">the single alarm</span>
+    runs.ts       <span class="d">1 run = 1 invocation</span>
+    journal.ts    <span class="d">pi-durable Storage, 1 row/commit</span>
+    archive.ts    <span class="d">old history to R2</span>
+    after-run.ts  <span class="d">memory, naps, initiative</span>
+    schema.ts     <span class="d">~15 tables</span>
+  room/   <span class="d">Room class: burst, members, log, search</span>
+  agent/  <span class="d">Agent class: factory, prompt, pacing</span>
+  user/   <span class="d">settings, keys, routines, recipes</span></pre></div>
+<div class="panel"><h3>The four mechanisms</h3>
+<p class="sub" style="color:var(--foreground);margin:0 0 8px"><b>Journal.</b> pi-durable writes only through <code>Storage.commit(writes)</code>. <code>journal.ts</code> wraps its <code>MemoryStorage</code>, applies the commit in memory, and appends the write list as one row to <code>journal(seq PRIMARY KEY, data)</code>. On wake it loads the latest snapshot plus the rows after it. Past 500 rows it writes a new snapshot and drops the old rows.</p>
+<p class="sub" style="color:var(--foreground);margin:0 0 8px"><b>Runs.</b> <code>runs.ts</code> works out pending runs from messages an agent hasn't answered yet, so queuing a run writes nothing. Each run starts as its own invocation by calling the object's own stub, so every run gets its own 50 outgoing calls, 6 connections and 30 s of CPU. After 40 calls it saves and continues in a new invocation.</p>
+<p class="sub" style="color:var(--foreground);margin:0 0 8px"><b>Clock.</b> One alarm, set to the soonest due item: a queued run, the next routine, or a browser lease ending. Routines due in the same minute fire from one alarm and share awake time. Nothing is rescheduled after an error.</p>
+<p class="sub" style="color:var(--foreground);margin:0"><b>After a run.</b> Memory capture, room summaries and initiative run once at the end of the human's run, in the same invocation, after the reply is sent. If one fails it waits for the next run.</p>
+</div>
+</div></div>
+
+<!-- UX -->
+<div>
+<h2>5. What the human sees</h2>
+<p class="sub">Nothing about the experience gets worse. These all keep working exactly as today:</p>
+<div class="ux">
+<div>Paint from IndexedDB first, optimistic sends</div>
+<div>Token streaming, steps panel, typing</div>
+<div>Bursts: an agent reads several messages and answers once</div>
+<div>Several agents in a room answering in parallel</div>
+<div>Agents asking each other and handing off work</div>
+<div>Background workers inside an agent</div>
+<div>Routines that run while the browser is closed</div>
+<div>Full-text search over all history</div>
+<div>Extensions, Composio tools, the browser tool</div>
+<div>A deploy mid-run resumes from the last finished turn</div>
+</div>
+<p class="sub" style="margin-top:10px">What changes: a failed run shows an error bubble with a retry button instead of the agent staying quiet or retrying in the background. Scrolling past about a month of history loads it from R2, which takes a moment the first time.</p>
+</div>
+
+<!-- PLAN -->
+<div>
+<h2>6. Plan: six PRs, each measured before it merges</h2>
+<p class="sub">Your data isn't carried over. PR 2 starts a fresh namespace and deletes the old classes. Every PR runs the overhead suite and has to reach its gate.</p>
+<div class="pr"><span class="k">PR 1</span><div><b>Journal storage, and a run is one alarm</b><p>Add <code>journal.ts</code> and plug it into pi-durable inside today's AgentDO. Delete the heartbeat and retry backoff. Errors become bubbles. This alone stops what killed your account today.</p><div class="gate">gate: ≤ 40 rows per prompt, 0 alarms 1 min after a run, broken agent writes 1 row</div></div></div>
+<div class="pr"><span class="k">PR 2</span><div><b>OwnerDO: one object, one socket</b><p>Move Room, Agent and User logic into plain classes inside <code>OwnerDO</code>. Delete mail, wake delivery, burst flush, signals, chat touch, the UserDO copies of rooms, FileDO, and the second client socket. New wrangler migration: delete 4 classes, add 1.</p><div class="gate">gate: 0 calls between objects, ≤ 15 rows per prompt, all model-free suites pass</div></div></div>
+<div class="pr"><span class="k">PR 3</span><div><b>Background work rides on runs</b><p>Add <code>after-run.ts</code> and <code>clock.ts</code>. Delete the catalog sync timer, provider watch, memory-nap timers and the capture requeue. Routines due in the same minute share one alarm.</p><div class="gate">gate: idle 24 h = 0 alarms, 0 rows; 35 routines due in one minute = 1 alarm</div></div></div>
+<div class="pr"><span class="k">PR 4</span><div><b>One schema</b><p>Merge the three schemas into about 15 tables on composite primary keys, without extra indexes. Search keeps FTS5 and is written once per reply.</p><div class="gate">gate: ≤ 8 rows per prompt, search suites pass</div></div></div>
+<div class="pr"><span class="k">PR 5</span><div><b>Runs as their own invocations</b><p>Each run calls its own stub so it gets its own limits, and continues in a new invocation after 40 outgoing calls. Covers 20 agents running at once.</p><div class="gate">gate: 20 parallel fake runs of 60 tool calls each finish without a limit error</div></div></div>
+<div class="pr"><span class="k">PR 6</span><div><b>R2 archive</b><p>Move history older than 30 days to R2 as compressed daily files and load it when the human scrolls up. Keeps the object under its 1 GB free limit.</p><div class="gate">gate: storage stays flat in a 90-day simulated run, scroll-back works</div></div></div>
+</div>
+
+<!-- RISKS -->
+<div>
+<h2>7. Risks and the answer to each</h2>
+<table class="risk">
+<tr><td>One object is a single thread</td><td>Runs wait on the network, not the CPU. Your heaviest AgentDO call last week used 766 ms of CPU. One object handles about 1,000 requests a second; one human sends a few a minute.</td></tr>
+<tr><td>128 MB of memory for 20 agents</td><td>An agent's harness and extension sandbox load when it runs and load when it runs. When more than a few are loaded, the least recently used one is unloaded. The journal keeps memory small after a snapshot.</td></tr>
+<tr><td>A bug in one agent affects all of them</td><td>That's also true today: they share one account and the same daily quota. Now one failure costs 1 row instead of the whole day.</td></tr>
+<tr><td>A run longer than 15 minutes</td><td>It saves to the journal and continues in a new invocation, the same path as the 40-call limit.</td></tr>
+<tr><td>A big rewrite</td><td>PR 1 is small and fixes today's outage on its own. Each later PR has a measured gate, and the model-free suites cover rooms, teams, routines and files.</td></tr>
+</table></div>
+
+</div></body></html>
