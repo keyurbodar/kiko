@@ -763,7 +763,7 @@ export class User {
 
   #routinesWiring?: RoutineWiring
   get #routines(): RoutineWiring {
-    this.#routinesWiring ??= new RoutineWiring({ services:this.services, reminders: this.reminders })
+    this.#routinesWiring ??= new RoutineWiring({ reminders: this.reminders, setRoutines: (roomId, routines) => this.services.room(roomId).setRoutines(routines), routineCreated: (roomId, slug, id, name, byAgent) => this.services.room(roomId).routineCreated(slug, id, name, byAgent) })
     return this.#routinesWiring
   }
 
