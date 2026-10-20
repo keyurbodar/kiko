@@ -426,6 +426,7 @@ export class AgentHost {
   }
 
   private async openHarness(setup: AgentSetup): Promise<Opened> {
+    setup = { ...setup, settings: { ...setup.settings, followUpMode: "all" } }
     const storage = await JournalStorage.open(this.ctx.storage, this.options.agentKey)
     const env = setup.env
     const harness = this.options.openHarness ? await this.options.openHarness(storage, setup) : await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(env ? { env: (target) => env(target.conversationId) } : {}) }, context)

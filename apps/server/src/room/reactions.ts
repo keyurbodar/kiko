@@ -24,12 +24,13 @@ export function defaultTarget(sql: SqlStorage, roomId: string, pending: readonly
 	return (row?.id as MessageId | undefined) ?? null
 }
 
-export function agentReact(log: RoomLog, sql: SqlStorage, slug: AgentSlug, emoji: string, messageId: string | undefined, pending: readonly Pending[]): RoomEvent | null {
+export function agentReact(log: RoomLog, sql: SqlStorage, slug: AgentSlug, emoji: string, messageId: string | undefined, pending: readonly Pending[], deliveryId: string): RoomEvent | null {
+  if (log.reactionDelivered(deliveryId)) return null
 	const allowed = allowedReaction(emoji)
 	if (!allowed) return null
 	const target = (messageId as MessageId | undefined) ?? defaultTarget(sql, log.roomId, pending)
 	if (!target) return null
-	return log.react(target, { kind: "agent", slug }, allowed)
+	return log.react(target, { kind: "agent", slug }, allowed, deliveryId)
 }
 
 const cursorKey = (slug: AgentSlug) => `reactions_briefed:${slug}`

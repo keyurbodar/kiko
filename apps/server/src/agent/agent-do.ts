@@ -282,7 +282,7 @@ export class Agent {
         if (!working) await this.releaseTabs()
         return ended
       },
-      react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
+      react: (deliveryId, emoji, messageId) => room().react(home.slug, deliveryId, emoji, messageId),
       runError: async (runId, error) => {
         const run = this.#run?.provider === error.provider ? this.#run : null
         if (run) run.errored = true

@@ -1135,8 +1135,8 @@ export class Room implements SocketRoom {
 		return posted !== undefined
 	}
 
-	async react(slug: AgentSlug, emoji: string, messageId?: string): Promise<boolean> {
-		const event = agentReact(this.log, this.sql, slug, emoji, messageId, this.burst.envelopes(undefined, Number.MAX_SAFE_INTEGER))
+	async react(slug: AgentSlug, deliveryId: string, emoji: string, messageId?: string): Promise<boolean> {
+		const event = agentReact(this.log, this.sql, slug, emoji, messageId, this.burst.envelopes(undefined, Number.MAX_SAFE_INTEGER), deliveryId)
 		if (event) this.publish([event])
 		return event !== null
 	}
