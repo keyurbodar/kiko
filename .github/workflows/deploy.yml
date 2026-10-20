@@ -87,11 +87,6 @@ jobs:
           cp -r "$store" apps/web-solid/dist/releases
           cp dist-release/latest-owner.json apps/web-solid/dist/releases/
           curl -fsS https://app.kiko.works/releases/latest.json -o apps/web-solid/dist/releases/latest.json
-      - name: deploy the backend
-        working-directory: apps/server
-        env:
-          NODE_ENV: production
-        run: bunx wrangler deploy
       - name: deploy the front door
         working-directory: apps/server
         run: bunx wrangler deploy --config wrangler.front-door.jsonc
