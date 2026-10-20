@@ -1,4 +1,5 @@
 import type { ErrorAction, RunErrorAction, RunErrorKind } from "@kiko/protocol"
+import { RETRY_AFTER_TOO_LONG } from "./retry"
 
 // Sorted by what the human can do about it. The first row that matches wins, so the rows that mean
 // "your key" come before the ones that mean "the provider is busy".
@@ -82,6 +83,7 @@ export function runErrorDetail(message: string | undefined): string | undefined 
 
 export function classifyRunError(message: string | undefined): RunErrorKind {
   const text = providerWords(message)
+  if (text.includes(RETRY_AFTER_TOO_LONG)) return "rate_limit"
   const kind = KINDS.find(([, pattern]) => pattern.test(text))?.[0] ?? "other"
   // A web page that says "blocked" is a proxy turning the request away, not the model refusing it.
   return kind === "refused" && HTML.test(message ?? "") ? "other" : kind

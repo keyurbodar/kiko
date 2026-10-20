@@ -26,7 +26,7 @@ import { forRole } from "./roles"
 import { count } from "../lib/dev-guard"
 import type { ThinkingLevel } from "@kiko/protocol"
 import { thinkingFor } from "./thinking"
-import { RETRY } from "./retry"
+import { RETRY, withRetryAfter } from "./retry"
 
 export type BuildAgentInput = RoleInput & {
   /** Absent until the human picks one. A run then stops before it reaches a model. */
@@ -125,7 +125,9 @@ export const RUN_SETTINGS: HarnessSettings = { toolExecution: "parallel", retry:
 export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fetch): { models: Models; settings: HarnessSettings } {
   const models = createModels({ authContext: { env: async () => undefined, fileExists: async () => false } })
   for (const provider of providers()) {
-    const via = (model: { api: string }, options: object | undefined) => (egress && !NO_CUSTOM_FETCH.has(model.api) ? { ...options, fetch: egress } : options)
+    // A provider's cooldown must not delay requests to another provider.
+    const through = egress ? withRetryAfter(egress) : undefined
+    const via = (model: { api: string }, options: object | undefined) => (through && !NO_CUSTOM_FETCH.has(model.api) ? { ...options, fetch: through } : options)
     const routed = {
       stream: ((model, context, options) => timed(model.id, withTextToolCalls(provider.stream as never)(unanchored(model), context, via(model, options) as never))) as typeof provider.stream,
       streamSimple: ((model, context, options) => timed(model.id, withTextToolCalls(provider.streamSimple)(unanchored(model), context, via(model, options) as never), options?.reasoning)) as typeof provider.streamSimple,
