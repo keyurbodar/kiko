@@ -1,6 +1,6 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { JsonValue } from "@earendil-works/chord"
-import { GenerationTask, ToolTask, type Conversation, type Harness, type RegistryReader, type TaskId } from "@earendil-works/pi-durable"
+import { GenerationTask, InboxDoc, ToolTask, type Conversation, type Harness, type RegistryReader, type TaskId, type TaskInspection } from "@earendil-works/pi-durable"
 import { stoppable } from "./effects"
 import type { JournalStorage } from "./journal"
 
@@ -10,14 +10,28 @@ export const RESTARTS_KEY = "mid-run:restarts"
 
 export type RestartInput = { requestId: string; content: string; entry: { kind: string; data: Record<string, JsonValue> } }
 
-export async function generationStarted(harness: Harness, root: Conversation): Promise<boolean> {
+export async function rootGeneration(harness: Harness, root: Conversation): Promise<TaskInspection["record"] | undefined> {
   const live = await harness.inspect(context)
-  return live.tasks.some(({ record }) => record.conversationId === root.id && record.kind === GenerationTask.definition.name && record.startedAt !== undefined)
+  return live.tasks.find(({ record }) => record.conversationId === root.id && record.kind === GenerationTask.definition.name)?.record
 }
 
 export async function rememberRestart(root: Conversation, storage: JournalStorage, input: RestartInput, restarts: number): Promise<void> {
   await root.commit((tx) => tx.appendEntry(root.id, { kind: RESTART, data: { ...input, restarts } }), context)
   storage.flush()
+}
+
+export async function cancelPaused(harness: Harness, root: Conversation, live: Pick<Awaited<ReturnType<Harness["inspect"]>>, "tasks" | "submissions">): Promise<void> {
+  const conversations = new Set([root.id, ...live.tasks.map(({ record }) => record.conversationId), ...live.submissions.map((submission) => submission.conversationId)])
+  await root.commit(async (tx) => {
+    const inboxes = await Promise.all([...conversations].map((id) => tx.doc(InboxDoc, id)))
+    for (const inbox of inboxes) {
+      for (const item of inbox.items) {
+        if (item.mode !== "write") tx.settleSubmission(item.id, { status: "unanswered", reason: "aborted" })
+      }
+      inbox.items = inbox.items.filter((item) => item.mode === "write")
+    }
+  }, context)
+  for (const { record } of live.tasks) await harness.abortTask(record.id, context)
 }
 
 export async function cancelRestart(root: Conversation, storage: JournalStorage): Promise<void> {
