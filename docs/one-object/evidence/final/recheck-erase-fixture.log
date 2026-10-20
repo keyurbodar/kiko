@@ -1,0 +1,10 @@
+bun test v1.3.14 (0d9b296a)
+
+test/host-lifecycle.test.ts:
+(pass) erasing an agent closes its retained harness and clears journal recovery [90.13ms]
+
+ 1 pass
+ 8 filtered out
+ 0 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [3.31s]

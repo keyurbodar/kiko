@@ -37,7 +37,7 @@ Still blocking release:
 - The agent long-transcript read gate observed 935 reads against a 263 bound after durable harness reopen. Do not raise the bound to hide this.
 - The 10,000-message prefix latency test observed 17.4 ms against a 12 ms bound under the verification workload.
 - Large user/room measurement fixtures encountered reset/timeouts during seeding. Their read budgets have not been proven after the shared-schema changes.
-- Memory-context still timed out; lifecycle recovery retained a failing physical-alarm assertion after unrelated wakeup projection. The erase fixture now supplies its cancellation service; that narrow rerun is recorded separately.
+- Memory-context still timed out; lifecycle recovery retained a failing physical-alarm assertion after unrelated wakeup projection. The erase fixture cancellation regression passes. Waiting for physical alarm convergence did not resolve the remaining future-task/browser-wakeup assertion; its failed narrow rerun is recorded separately.
 
 Browser smoke validation used the real built client on localhost:8847: sign-in, provider setup skip, main chat, and settings rendered successfully. No live provider was configured in that isolated browser owner. This is not full end-to-end feature verification.
 
