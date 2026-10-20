@@ -101,6 +101,15 @@ What remains in those 11:
 
 Expected once C, D and E land: about 3 to 4 writes per prompt.
 
+**Round 5 started** at the same time as D and E. None of these agents runs a server or the e2e; the coordinator runs one combined e2e at the end.
+
+| Track | Task id (`clientRequestId`) | Agent | Goal | Files it owns |
+|---|---|---|---|---|
+| F | `ship-v5-fts-chunk` | Codex | One FTS document per batch of messages, built at search time | `room/search.ts` (schema steps appended at the end) |
+| G | `ship-v5-open-path` | DeepSeek | Opening the app writes 0 rows | `owner/socket.ts`, user socket and hello code |
+| H | `ship-v5-after-run` | DeepSeek | After-run work writes only real changes | `owner/after-run.ts`, `user/memory-capture.ts`, `room/memory-naps.ts`, `user/reminders.ts`, `owner/schedules.ts` |
+| I | `ship-v5-error-path` | Haiku | A failing run writes the message plus 1 error row | `agent/run-error.ts`, `agent/retry.ts`, `agent/stall.ts` |
+
 ### Tracks in flight
 
 All three edit the same worktree, uncommitted, in separate files. Read each result with `task_status`.
