@@ -125,12 +125,16 @@ export const RUN_SETTINGS: HarnessSettings = { toolExecution: "parallel", retry:
  * answers 400 MissingSessionID without the `x-opencode-session` header (P0-05), and pi-durable
  * passes headers only through `settings.stream.headers`.
  */
-export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fetch): { models: Models; settings: HarnessSettings } {
+export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fetch, directCall?: () => void): { models: Models; settings: HarnessSettings } {
   const models = createModels({ authContext: { env: async () => undefined, fileExists: async () => false } })
   for (const provider of providers()) {
     // A provider's cooldown must not delay requests to another provider.
     const through = egress ? withRetryAfter(egress) : undefined
-    const via = (model: { api: string }, options: object | undefined) => (through && !NO_CUSTOM_FETCH.has(model.api) ? { ...options, fetch: through } : options)
+    const via = (model: { api: string }, options: object | undefined) => {
+      if (through && !NO_CUSTOM_FETCH.has(model.api)) return { ...options, fetch: through }
+      directCall?.()
+      return options
+    }
     const routed = {
       stream: ((model, context, options) => timed(model.id, withTextToolCalls(provider.stream as never)(unanchored(model), context, via(model, options) as never))) as typeof provider.stream,
       streamSimple: ((model, context, options) => timed(model.id, withTextToolCalls(provider.streamSimple)(unanchored(model), context, via(model, options) as never), options?.reasoning)) as typeof provider.streamSimple,
