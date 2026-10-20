@@ -1,8 +1,8 @@
 import type { AgentSlug } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { RoomLog } from "../src/room/log"
-import { ROOM_STEPS } from "../src/room/schema"
-import { migrate } from "@kiko/durable/migrate"
+import { initializeSchema, initializeRoomSchema } from "../src/owner/schema"
+import { scopedContext, scopePrefix } from "../src/owner/context"
 import { RoomWorkspace, runCall, type WorkspaceCall } from "../src/room/workspace"
 
 const MEMBERS = ["bob", "ada", "cy"] as AgentSlug[]
@@ -11,8 +11,12 @@ export class WorkspaceDO extends DurableObject {
 	private ws: RoomWorkspace
 	constructor(ctx: DurableObjectState, env: unknown) {
 		super(ctx, env as never)
-		migrate(ctx.storage, ROOM_STEPS)
-		this.ws = new RoomWorkspace(ctx.storage, new RoomLog(ctx.storage))
+		initializeSchema(ctx.storage)
+		const roomId = ctx.id.name!
+		const name = `room:alice:${roomId}`
+		const storage = scopedContext(ctx, name, () => []).storage
+		initializeRoomSchema(ctx.storage, storage, roomId, scopePrefix(name))
+		this.ws = new RoomWorkspace(storage, new RoomLog(ctx.storage, roomId, Date.now, storage))
 	}
 	async call(slug: AgentSlug, lead: boolean, call: WorkspaceCall) {
 		const { answer, events } = runCall(this.ws, slug, lead, call, MEMBERS, { rootId: `m-${slug}`, hop: 1 })

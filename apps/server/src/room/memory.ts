@@ -1,6 +1,6 @@
 import type { AgentSlug, Sender } from "@kiko/protocol"
 import { dayOf, region, type Item, itemLine, MAX_NAP_FAILS, napPrompt, oneLine, ROOM_SHAPE, type Span, spanOf, Tree, ZOOM_CUT } from "@kiko/memory/optmem"
-import { searchMessages } from "./search"
+import type { SearchOptions, SearchPage } from "./search"
 
 const HUMAN_GAP_MS = 30 * 60_000
 const RECALL_CUT = 300
@@ -24,6 +24,7 @@ export class RoomMemory {
   constructor(
     private readonly storage: DurableObjectStorage,
     private readonly meta: { get(key: string): string | null; set(key: string, value: string): void },
+    private readonly search: (query: string, options: SearchOptions) => SearchPage,
   ) {
     this.sql = storage.sql
     this.tree = new Tree(this.sql, "mem_tree", ROOM_SHAPE, (lo, hi) => this.items(lo, hi))
@@ -203,11 +204,11 @@ export class RoomMemory {
     const count = this.sync()
     const lo = region(count, ROOM_SHAPE)
     const fetch = seen === undefined && !skip.size ? limit : limit * 3
-    let hits = searchMessages(this.sql, query, { limit: fetch, mail: true }).results
+    let hits = this.search(query, { limit: fetch, mail: true }).results
     if (!hits.length) {
       const words = [...new Set(query.toLowerCase().split(/\W+/).filter((w) => w.length > 2))].sort((a, b) => b.length - a.length).slice(0, 4)
       const found = new Map<string, (typeof hits)[number]>()
-      for (const w of words) for (const h of searchMessages(this.sql, w, { limit: fetch, mail: true }).results) found.set(h.id, h)
+      for (const w of words) for (const h of this.search(w, { limit: fetch, mail: true }).results) found.set(h.id, h)
       hits = [...found.values()].sort((a, b) => b.seq - a.seq).slice(0, fetch)
     }
     const poss = new Map(hits.map((h) => [h.id, this.posOfMessage(h.id)]))

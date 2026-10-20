@@ -1,16 +1,14 @@
+import { ownerRoomFixture } from "./owner-room-fixture"
 import { expect, test } from "bun:test"
 import type { AgentSlug, Envelope } from "@kiko/protocol"
 import { Asks } from "../src/room/asks"
 import { Deliveries } from "../src/room/deliver"
-import { RoomLog } from "../src/room/log"
 import { checkSend } from "../src/room/limits"
 import { MessageChains as Mail } from "../src/room/messaging"
 import { RoomMessaging as RoomMail } from "../src/room/messaging"
 import type { MemberRow } from "../src/room/members"
 import { receive, type ReceiveDeps } from "../src/room/receive"
 import { Reports } from "../src/room/reports"
-import { ROOM_STEPS } from "../src/room/schema"
-import { sqlWith } from "./sql-shim"
 
 const ROOM = "01J0000000000000000000000A"
 const home = { userId: "alice", roomId: ROOM as never }
@@ -19,9 +17,7 @@ const bob = { slug: "bob" } as MemberRow
 const members = [ada, bob]
 
 function setup(refusal: string | null) {
-	const sql = sqlWith(ROOM_STEPS)
-	const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
-	const log = new RoomLog(storage, () => 1)
+	const { sql, storage, log } = ownerRoomFixture({ roomId: ROOM, now: () => 1 })
 	let onDeliver=(mail:import("../src/room/messaging").QueuedMail)=>{}
  const mail = new Mail(storage,log,new Asks(sql),()=>false,Date.now,m=>onDeliver(m))
 	const deliveries = new Deliveries(storage, log)

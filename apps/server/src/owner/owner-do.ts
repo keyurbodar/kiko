@@ -13,6 +13,7 @@ import type { OwnerServices, ServiceOptions } from "./services"
 import { scopedContext } from "./context"
 import { Clock } from "./clock"
 import { AfterRun } from "./after-run"
+import { initializeSchema } from "./schema"
 import { ownerAttachment, socketView } from "./socket"
 
 type Method<T> = { [K in keyof T]: T[K] extends (...args: never[]) => unknown ? K : never }[keyof T]
@@ -333,10 +334,6 @@ export class OwnerDO extends DurableObject<Env> {
   async setUserSettings(...args: Parameters<User["setUserSettings"]>): Promise<Awaited<ReturnType<User["setUserSettings"]>>> { return this.user().setUserSettings(...args) }
 }
 
-// PR4 replaces the body with the consolidated owner schema initializer.
-export function initializeSchema(storage: DurableObjectStorage): void {
-  storage.sql.exec("CREATE TABLE IF NOT EXISTS owner_deadlines (scope TEXT PRIMARY KEY, at INTEGER NOT NULL)")
-}
 
 // PR6 replaces this hook without moving the dispatch site.
 async function archive(_storage: DurableObjectStorage, _roomId: string): Promise<void> {}

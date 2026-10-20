@@ -1,28 +1,23 @@
+import { ownerRoomFixture } from "./owner-room-fixture"
 import { expect, test } from "bun:test"
 import type { AgentSlug, Sender, SystemEvent } from "@kiko/protocol"
 import { roomActivity as chatTouch } from "../src/room/activity"
-import { RoomLog } from "../src/room/log"
 import { RoomMemory } from "../src/room/memory"
-import { ROOM_STEPS } from "../src/room/schema"
-import { searchMessages } from "../src/room/search"
 import { dividerMessage } from "../src/room/dividers"
-import { sqlWith } from "./sql-shim"
 
 const ada = "ada" as AgentSlug
 const human: Sender = { kind: "human" }
 const agent: Sender = { kind: "agent", slug: ada }
 
 function room() {
-	const sql = sqlWith(ROOM_STEPS)
-	const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
 	let clock = Date.UTC(2026, 8, 1)
-	const log = new RoomLog(storage, () => (clock += 60_000))
-	const memory = new RoomMemory(storage, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) })
-	return { sql, log, memory }
+	const { sql, storage, log, search } = ownerRoomFixture({ now: () => (clock += 60_000) })
+	const memory = new RoomMemory(storage, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) }, search)
+	return { sql, log, memory, search }
 }
 
 test("a private divider event reaches the owner's transcript and no agent, memory pass, search or chat preview", () => {
-	const { sql, log, memory } = room()
+	const { sql, log, memory, search } = room()
 	log.addMessage({ from: human, text: "find the pricing pages" })
 	log.addMessage({ from: agent, text: "on it", run: { runId: "run-1", attempt: 0, index: 0 } })
 	const stored = log.addMessage(dividerMessage("routine-created:r1", "Ada created a routine: find the three pricing pages", { kind: "routine_created", agent: ada, title: "find the three pricing pages", private: true }))
@@ -38,8 +33,8 @@ test("a private divider event reaches the owner's transcript and no agent, memor
 	expect(remembered).not.toContain("routine")
 	expect(remembered).not.toContain("find the three pricing pages")
 
-	expect(searchMessages(sql, "routine").results).toEqual([])
-	expect(searchMessages(sql, "pricing").results.map((r) => r.snippet)).not.toContain(expect.stringContaining("created a routine"))
+	expect(search("routine").results).toEqual([])
+	expect(search("pricing").results.map((r) => r.snippet)).not.toContain(expect.stringContaining("created a routine"))
 
 	const touch = chatTouch(sql, log)
 	expect(touch.lastPreview).toBe("still on it")
@@ -50,10 +45,10 @@ test("a private divider event reaches the owner's transcript and no agent, memor
 })
 
 test("a public system event is read like any system line", () => {
-	const { sql, log } = room()
+	const { log, search } = room()
 	const event: SystemEvent = { kind: "delegated", from: ada, to: "bob" as AgentSlug, title: "write the tests" }
 	log.addMessage({ from: { kind: "system", reason: "files" }, text: "@ada handed @bob a task: write the tests", event })
-	expect(searchMessages(sql, "handed").results).toHaveLength(1)
+	expect(search("handed").results).toHaveLength(1)
 	expect(log.snapshot().messages[0]?.event).toEqual(event)
 })
 

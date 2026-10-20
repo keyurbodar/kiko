@@ -1,13 +1,12 @@
+import { ownerRoomFixture } from "./owner-room-fixture"
 import { expect, test } from "bun:test"
 import type { AgentSlug, RunStep } from "@kiko/protocol"
-import { ROOM_STEPS } from "../src/room/schema"
 import { RoomLog } from "../src/room/log"
 import { type HeardStep, HIGH_WATER, KEEP_STEPS, RunSteps } from "../src/room/steps"
-import { sqlWith } from "./sql-shim"
 
 const room = () => {
-	const sql = sqlWith(ROOM_STEPS)
-	return { sql, steps: new RunSteps({ sql } as unknown as DurableObjectStorage, () => 9_000) }
+	const { sql, owner, roomId } = ownerRoomFixture()
+	return { sql, steps: new RunSteps(owner, roomId, () => 9_000) }
 }
 
 const rows = (sql: SqlStorage) => (sql.exec("SELECT count(*) AS n FROM run_steps").toArray()[0] as { n: number }).n
@@ -83,9 +82,9 @@ test("storage is cut down in one statement only past the high-water mark", () =>
 })
 
 const log = () => {
-	const sql = sqlWith(ROOM_STEPS)
+	const { sql, log } = ownerRoomFixture({ now: () => 9_000 })
 	for (const slug of ["kiko", "ada"]) sql.exec("INSERT INTO members (slug, name, role, model, lead, status, added_seq) VALUES (?, ?, '', '', 0, 'idle', 1)", slug, slug)
-	return new RoomLog({ sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage, () => 9_000)
+	return log
 }
 const kiko = { kind: "agent", slug: "kiko" as AgentSlug } as const
 const ada = { kind: "agent", slug: "ada" as AgentSlug } as const
@@ -118,15 +117,31 @@ test("each message opens its agent's steps since that agent's previous message, 
 })
 
 test("a window read after a wake counts what was heard before it, once", () => {
-	const sql = sqlWith(ROOM_STEPS)
-	const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
-	const before = new RoomLog(storage, () => 9_000)
+	const { owner, storage, roomId, log: before } = ownerRoomFixture({ now: () => 9_000 })
 	before.addMessage({ from: kiko, text: "zero" })
 	before.hearStep(ended({ id: "a" }))
-	const woken = new RoomLog(storage, () => 9_000)
+	const woken = new RoomLog(owner, roomId, () => 9_000, storage)
 	woken.hearStep(ended({ id: "b" }))
 	woken.hearStep(ended({ id: "b" }))
 	const next = woken.addMessage({ from: kiko, text: "one" })
 	expect(woken.message(next.id)?.steps).toBe(2)
 })
 
+
+test("rooms sharing owner storage keep messages, replay ids, steps and search separate", () => {
+	const first = ownerRoomFixture({ roomId: "first", now: () => 9_000 })
+	const second = ownerRoomFixture({ db: first.db, roomId: "second", now: () => 9_000 })
+	const run = { runId: "shared-run", attempt: 0, index: 0 }
+	const one = first.log.addMessage({ from: kiko, text: "first zebra", run })
+	const two = second.log.addMessage({ from: kiko, text: "second zebra", run })
+	expect(one.seq).toBe(two.seq)
+	expect(first.log.snapshot().messages.map((m) => m.text)).toEqual(["first zebra"])
+	expect(second.log.snapshot().messages.map((m) => m.text)).toEqual(["second zebra"])
+	first.log.hearStep(ended({ output: "first output" }))
+	second.log.hearStep(ended({ output: "second output" }))
+	expect(first.log.steps.window("kiko", one.seq)[0]?.output).toBe("first output")
+	expect(second.log.steps.window("kiko", two.seq)[0]?.output).toBe("second output")
+	first.log.deleteMessages([one.id], { kind: "human" })
+	expect(first.search("zebra").results).toEqual([])
+	expect(second.search("zebra").results.map((hit) => hit.id)).toEqual([two.id])
+})

@@ -1,6 +1,8 @@
 import { HistoryArchive } from "../owner/history-archive"
 import { RoomHistoryStore } from "../owner/history-store"
 import { historyR2 } from "../owner/history-r2"
+import { eraseRoomSchema, initializeRoomSchema } from "../owner/schema"
+import { ownerStorage, scopePrefix } from "../owner/context"
 import { fileStore } from "../files/store"
 import { humanAnswerText, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
 import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, RunErrorKind, RunStep, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
@@ -47,8 +49,6 @@ import { agentReact, reactionBrief } from "./reactions"
 import { attachmentPath, claim, ClaimRefused, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
 import { bubbleOf, discardWhole, putWhole, WHOLE_NAME, WHOLE_TYPE, type WholeText } from "./whole-text"
 import { tags } from "./recipients"
-import { migrate } from "@kiko/durable/migrate"
-import { ROOM_STEPS } from "./schema"
 import { searchMessages, type SearchOptions } from "./search"
 import { STORAGE_ERROR } from "../lib/storage-error"
 import { handleFrame, send, type SocketRoom } from "./socket"
@@ -124,9 +124,11 @@ export class Room implements SocketRoom {
 	private readonly env: Env
 	private readonly services: OwnerServices
 	private readonly publishFrame: (frame: unknown) => void
+	private readonly ownerStorage: DurableObjectStorage
 	private readonly sql: SqlStorage
 	constructor(options: ServiceOptions) {
 		const { ctx, env, services, sql, broadcast } = options
+		this.ownerStorage = ownerStorage(ctx.storage)
 		this.ctx = ctx
 		this.env = env
 		this.services = services
@@ -134,8 +136,9 @@ export class Room implements SocketRoom {
 		this.publishFrame = broadcast
 
 		{
-			migrate(ctx.storage, ROOM_STEPS)
-			this.log = new RoomLog(ctx.storage)
+			const roomId = ctx.id.name!.split(":").at(-1)!
+			initializeRoomSchema(ownerStorage(ctx.storage), ctx.storage, roomId, scopePrefix(ctx.id.name!))
+			this.log = new RoomLog(ownerStorage(ctx.storage), roomId, Date.now, ctx.storage)
 			this.deliveries = new Deliveries(ctx.storage, this.log)
 			this.files = roomFiles(ctx.storage, this.log)
 			this.team = new Team(ctx.storage.sql)
@@ -170,7 +173,7 @@ export class Room implements SocketRoom {
 			this.members = new Members(ctx.storage, this.log)
 			this.workspace = new RoomWorkspace(ctx.storage, this.log)
 			this.routines = new RoomRoutines(ctx.storage.sql, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
-			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
+			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) }, (query, options) => searchMessages(this.ownerStorage.sql, this.log.roomId, query, options))
 			this.memoryNaps = new MemoryNaps({ services: this.services, log: this.log, members: this.members, memory: this.memory, home: () => this.home() })
 			this.groups = new Groups({ ctx, env: this.env, services: this.services, log: this.log, members: this.members, home: () => this.home(), publish: (events) => this.publish(events) })
 			this.pending = new PendingUploads(ctx.storage.sql)
@@ -629,6 +632,7 @@ export class Room implements SocketRoom {
 			.map((r) => r.r2_key)
 		if (keys.length) await deleteFiles(this.services.files(), keys)
 		for (const ws of this.ctx.getWebSockets()) ws.close(1000, "Chat deleted")
+		eraseRoomSchema(this.ownerStorage, this.log.roomId)
 		erase(this.ctx.storage)
 		await this.ctx.storage.deleteAlarm()
 	}
@@ -709,7 +713,7 @@ export class Room implements SocketRoom {
   }
 
   async search(query: string, options?: SearchOptions) {
-    return this.historyArchive()?.search(query, options) ?? searchMessages(this.ctx.storage.sql, query, options)
+    return this.historyArchive()?.search(query, options) ?? searchMessages(this.ownerStorage.sql, this.log.roomId, query, options)
   }
 
 	initiativeWake(input: { id: string; to: AgentSlug | null; body: string; reason: string }): Promise<WakeResult | "busy"> {

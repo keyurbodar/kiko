@@ -1,3 +1,4 @@
+import { ownerRoomFixture } from "./owner-room-fixture"
 import { expect, test } from "bun:test"
 import type { AgentSlug, Chat, Envelope, Task } from "@kiko/protocol"
 const MAX_ENTRY_BYTES=128*1024
@@ -5,14 +6,11 @@ import { Burst } from "../src/room/burst"
 import { buildBrief, MAX_BOARD_BYTES } from "../src/room/brief"
 import { attachedLine, Deliveries, withContext } from "../src/room/deliver"
 import { reactionLines } from "../src/room/reactions"
-import { RoomLog } from "../src/room/log"
 import { Asks } from "../src/room/asks"
 import { MAX_MEMBERS, type MemberRow } from "../src/room/members"
 import { tags } from "../src/room/recipients"
 import { MAX_TASKS } from "../src/room/workspace"
 import { bubbleOf, MAX_BUBBLE_BYTES } from "../src/room/whole-text"
-import { ROOM_STEPS } from "../src/room/schema"
-import { sqlWith } from "./sql-shim"
 
 const ROOM = "01J0000000000000000000000A"
 const NOW = 1_000_000
@@ -21,7 +19,7 @@ const ada = { slug: "ada", name: "Ada", role: "", model: "", lead: true, status:
 const bob = { slug: "bob", name: "Bob", role: "", model: "", lead: false, status: "idle" } as MemberRow
 
 
-function setup(_refusal:unknown){const sql=sqlWith(ROOM_STEPS);const storage={sql,transactionSync:<T>(f:()=>T)=>f()} as unknown as DurableObjectStorage;return {log:new RoomLog(storage,()=>NOW)}}
+function setup(_refusal: unknown) { return ownerRoomFixture({ roomId: ROOM, now: () => NOW }) }
 
 test("a human message rides with the board's largest brief and is admitted", () => {
   const tasks = Array.from({ length: MAX_TASKS }, (_, i) => ({ id: `t${i}`, owner: "ada", status: "todo", title: "漢".repeat(200), dependsOn: [] }) as unknown as Task)

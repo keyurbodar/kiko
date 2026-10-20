@@ -1,3 +1,11 @@
+const owners = new WeakMap<DurableObjectStorage, DurableObjectStorage>()
+
+export function ownerStorage(scoped: DurableObjectStorage): DurableObjectStorage {
+  const storage = owners.get(scoped)
+  if (!storage) throw new Error("Missing owner storage for SQL scope")
+  return storage
+}
+
 export function scopePrefix(name: string): string {
   return `s${Array.from(new TextEncoder().encode(name), (byte) => byte.toString(16).padStart(2, "0")).join("")}_`
 }
@@ -121,6 +129,7 @@ export function scopedContext(
       return typeof value === "function" ? value.bind(target) : value
     },
   })
+  owners.set(storage, owner.storage)
   return new Proxy(owner, {
     get(target, property) {
       if (property === "storage") return storage

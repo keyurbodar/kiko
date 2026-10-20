@@ -1,13 +1,11 @@
+import { ownerRoomFixture } from "./owner-room-fixture"
 import { expect, test } from "bun:test"
 import type { AgentSlug, Envelope } from "@kiko/protocol"
 import { Asks } from "../src/room/asks"
 import { Room } from "../src/room/room-do"
 import { Deliveries } from "../src/room/deliver"
-import { RoomLog } from "../src/room/log"
 import { MessageChains as Mail } from "../src/room/messaging"
 import type { MemberRow } from "../src/room/members"
-import { ROOM_STEPS } from "../src/room/schema"
-import { sqlWith } from "./sql-shim"
 
 const ROOM = "01J0000000000000000000000A"
 const home = { userId: "alice", roomId: ROOM as never }
@@ -15,9 +13,7 @@ const ada = { slug: "ada" } as MemberRow
 
 
 function setup(){
- const sql=sqlWith(ROOM_STEPS)
- const storage={sql,transactionSync:<T>(f:()=>T)=>f()} as unknown as DurableObjectStorage
- const log=new RoomLog(storage,()=>1)
+ const { sql, storage, log } = ownerRoomFixture({ roomId: ROOM, now: ()=>1 })
  const received:{slug:string;envelopes:Envelope[]}[]=[]
  const dependencies={services:{agent:(_room:string,slug:string)=>({receive:async(envelopes:Envelope[])=>{received.push({slug,envelopes});return {refused:null}}})} as never,log,mail:new Mail(storage,log,new Asks(sql)),deliveries:new Deliveries(storage,log),publish:()=>{},agentHome:(_h:unknown,slug:AgentSlug)=>({...home,slug}),delivery:(_m:unknown,_ms:unknown,_g:string,raw:Envelope[])=>({envelopes:raw,brief:"",reactionsUpTo:0})}
  // The public retry operation resolves its error message before reaching this delivery path.

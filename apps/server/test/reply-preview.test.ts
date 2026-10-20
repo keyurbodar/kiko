@@ -1,13 +1,10 @@
+import { ownerRoomFixture } from "./owner-room-fixture"
 import { describe, expect, test } from "bun:test"
 import type { AgentSlug } from "@kiko/protocol"
-import { previewText, RoomLog } from "../src/room/log"
-import { ROOM_STEPS } from "../src/room/schema"
-import { sqlWith } from "./sql-shim"
+import { previewText } from "../src/room/log"
 
 function room() {
-	const sql = sqlWith(ROOM_STEPS)
-	const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
-	return new RoomLog(storage, () => 1)
+	return ownerRoomFixture({ now: () => 1 }).log
 }
 
 const human = { kind: "human" } as const

@@ -1,18 +1,14 @@
+import { ownerRoomFixture } from "./owner-room-fixture"
 import { expect, test } from "bun:test"
 import type { Sender } from "@kiko/protocol"
 import { region, ROOM_SHAPE } from "@kiko/memory/optmem"
 import { hitId, mergeRecall, tagHits } from "../src/agent/recall"
-import { RoomLog } from "../src/room/log"
 import { RoomMemory } from "../src/room/memory"
-import { ROOM_STEPS } from "../src/room/schema"
-import { sqlWith } from "./sql-shim"
 
 function room() {
-  const sql = sqlWith(ROOM_STEPS)
-  const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
   let clock = Date.UTC(2026, 8, 1)
-  const log = new RoomLog(storage, () => (clock += 60_000))
-  const memory = new RoomMemory(storage, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) })
+  const { sql, storage, log, search } = ownerRoomFixture({ now: () => (clock += 60_000) })
+  const memory = new RoomMemory(storage, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) }, search)
   const human: Sender = { kind: "human" }
   const say = (text: string, run?: string) => log.addMessage({ from: run ? ({ kind: "agent", slug: "ada" } as Sender) : human, text, ...(run ? { run: { runId: run, attempt: 0, index: 0 } } : {}) })
   return { memory, say, sql, now: () => clock }

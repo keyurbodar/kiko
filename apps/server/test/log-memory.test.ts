@@ -1,21 +1,19 @@
+import { ownerRoomFixture } from "./owner-room-fixture"
 import { expect, test } from "bun:test"
 import type { AgentSlug, Sender } from "@kiko/protocol"
 import { ROOM_SHAPE } from "@kiko/memory/optmem"
-import { RoomLog } from "../src/room/log"
 import { RoomMemory } from "../src/room/memory"
-import { ROOM_STEPS } from "../src/room/schema"
 import { Life, LIFE_STEPS, LIFE_TRI_STEPS, MAX_PINS } from "@kiko/memory/life"
 import { MemoryNaps } from "../src/room/memory-naps"
 import { sqlWith } from "./sql-shim"
 
 function room() {
-  const sql = sqlWith(ROOM_STEPS)
-  const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
   let clock = Date.UTC(2026, 8, 1)
-  const log = new RoomLog(storage, () => (clock += 60_000))
-  const memory = new RoomMemory(storage, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) })
+  const { sql, storage, log, search } = ownerRoomFixture({ now: () => (clock += 60_000) })
+  const memory = new RoomMemory(storage, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) }, search)
+  let index = 0
   const say = (from: Sender, text: string, run?: string) =>
-    log.addMessage({ from, text, ...(run ? { run: { runId: run, attempt: 0, index: Math.random() } } : {}) })
+    log.addMessage({ from, text, ...(run ? { run: { runId: run, attempt: 0, index: index++ } } : {}) })
   const prompts: string[] = []
   const compress = async (prompt: string) => {
     prompts.push(prompt)

@@ -52,23 +52,21 @@ export function toMatch(query: string): string | null {
 	return words.map((w, i) => `"${w}"${i === words.length - 1 ? "*" : ""}`).join(" ")
 }
 
-export function searchMessages(sql: SqlStorage, query: string, options: SearchOptions = {}): SearchPage {
+export function searchMessages(sql: SqlStorage, roomId: string, query: string, options: SearchOptions = {}): SearchPage {
 	const match = toMatch(query)
 	if (!match) return { results: [], next: null }
 	const size = Math.min(Math.max(options.limit || DEFAULT_LIMIT, 1), MAX_LIMIT)
-	const below =
-		options.before === undefined
-			? Number.MAX_SAFE_INTEGER
-			: (sql.exec<{ r: number | null }>("SELECT min(rowid) AS r FROM messages WHERE seq >= ?", options.before).one().r ??
-				Number.MAX_SAFE_INTEGER)
+	const roomToken = `r${Array.from(new TextEncoder().encode(roomId), (byte) => byte.toString(16).padStart(2, "0")).join("")}`
 	const rows = sql
 		.exec<{ id: string; seq: number; at: number; sender: string; text: string; rich: string | null }>(
 			`SELECT m.id, m.seq, m.at, m.sender, m.text, m.rich
-			 FROM messages_fts JOIN messages m ON m.rowid = messages_fts.rowid
-			 WHERE messages_fts MATCH ? AND messages_fts.rowid < ? AND m.at < ? AND (m.event IS NULL OR json_extract(m.event, '$.private') IS NOT 1)${options.mail ? "" : " AND m.addressed IS NULL"}
-			 ORDER BY messages_fts.rowid DESC LIMIT ?`,
-			match,
-			below,
+			 FROM messages_fts JOIN messages m ON m.room_id = messages_fts.room_id AND m.seq = messages_fts.seq
+			 WHERE messages_fts MATCH ? AND m.room_id = ? AND m.seq < ? AND m.at < ? AND m.deleted_at IS NULL
+			 AND (m.event IS NULL OR json_extract(m.event, '$.private') IS NOT 1)${options.mail ? "" : " AND m.addressed IS NULL"}
+			 ORDER BY m.seq DESC LIMIT ?`,
+			`room:${roomToken} AND text:(${match})`,
+			roomId,
+			options.before ?? Number.MAX_SAFE_INTEGER,
 			options.beforeAt ?? Number.MAX_SAFE_INTEGER,
 			size + 1,
 		)

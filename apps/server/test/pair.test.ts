@@ -1,14 +1,12 @@
+import { ownerRoomFixture } from "./owner-room-fixture"
 import { expect, test } from "bun:test"
 import { type AgentSlug, type Envelope, pairRoomId, type RoomId } from "@kiko/protocol"
 import { Asks } from "../src/room/asks"
 import { Deliveries } from "../src/room/deliver"
-import { RoomLog } from "../src/room/log"
 import { MessageChains as Mail } from "../src/room/messaging"
 import { RoomMessaging as RoomMail } from "../src/room/messaging"
 import type { MemberRow } from "../src/room/members"
 import { type PairIn, RoomPair } from "../src/room/pair"
-import { ROOM_STEPS } from "../src/room/schema"
-import { sqlWith } from "./sql-shim"
 
 const A = "ada" as AgentSlug
 const B = "bob" as AgentSlug
@@ -32,9 +30,7 @@ function world(options: { failDelivery?: () => boolean; refuseDelivery?: (slug: 
  }
 
 	const build = (roomId: RoomId, members: MemberRow[], chat: { pair?: true; title: string }) => {
-		const sql = sqlWith(ROOM_STEPS)
-		const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
-		const log = new RoomLog(storage, () => 1)
+		const { sql, storage, log } = ownerRoomFixture({ roomId, now: () => 1 })
 		const asks = new Asks(sql)
 		let mailer:RoomMail
   const mail = new Mail(storage,log,asks,()=>false,Date.now,delivery=>{pending.push(mailer.deliver(home,delivery))})
