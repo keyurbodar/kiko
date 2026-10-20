@@ -29,7 +29,7 @@ const DEADLINES = `SELECT m.scope, min(j.value) AS at FROM owner_meta m, json_ea
 
 export class OwnerDO extends DurableObject<Env> {
   private readonly runs: Runs
-  private readonly incoming = new AsyncLocalStorage<Map<string, string>>()
+  private readonly incoming = new AsyncLocalStorage<{ requests: Map<string, string>; accepting: boolean }>()
   async storageUsage() {
     return { objectBytes: this.ctx.storage.sql.databaseSize, archiveEnabled: Boolean(this.env.ARCHIVE) }
   }
@@ -128,8 +128,8 @@ export class OwnerDO extends DurableObject<Env> {
     const [roomId, slug, ...extra] = agent.split(":")
     if (!isRoomId(roomId) || !slug || extra.length) throw new Error("bad agent key")
     const incoming = this.incoming.getStore()
-    if (incoming) {
-      incoming.set(agent, requestId)
+    if (incoming?.accepting) {
+      incoming.requests.set(agent, requestId)
       if (this.connected()) return
     }
     this.ctx.storage.sql.exec(
@@ -142,7 +142,13 @@ export class OwnerDO extends DurableObject<Env> {
 
   private async humanInput<T>(admit: () => Promise<T>): Promise<T> {
     const requested = new Map<string, string>()
-    const result = await this.incoming.run(requested, admit)
+    const admission = { requests: requested, accepting: true }
+    let result: T
+    try {
+      result = await this.incoming.run(admission, admit)
+    } finally {
+      admission.accepting = false
+    }
     const budget = this.runs.budget()
     const outcomes = await Promise.allSettled([...requested].map(async ([key, requestId]) => {
       const [roomId, slug] = key.split(":")
@@ -355,7 +361,7 @@ export class OwnerDO extends DurableObject<Env> {
   private async resumeSocket(): Promise<void> {
     await this.humanInput(async () => {
       for (const roomId of await this.pendingRooms()) await this.room(roomId).settleHumanInput()
-      for (const run of await this.unfinishedRuns()) this.incoming.getStore()?.set(run.agent, run.request_id)
+      for (const run of await this.unfinishedRuns()) this.incoming.getStore()?.requests.set(run.agent, run.request_id)
     })
   }
 

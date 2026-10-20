@@ -127,7 +127,7 @@ function indexChunks(storage: DurableObjectStorage, roomId: string, roomToken: s
 				"SELECT seq, text FROM messages WHERE room_id = ? AND seq IN (SELECT value FROM json_each(?)) AND deleted_at IS NULL ORDER BY seq",
 				roomId, JSON.stringify(members.map(([seq]) => seq)),
 			).toArray()
-			sql.exec("DELETE FROM messages_fts WHERE rowid = ?", doc.rowid)
+			sql.exec("DELETE FROM messages_fts WHERE rowid = CAST(? AS INTEGER)", doc.rowid)
 			insert(rows)
 		}
 		const current = sql.exec<IndexedMessage>(
@@ -151,7 +151,7 @@ function matchingMembers(storage: DurableObjectStorage, doc: Chunk, terms: strin
 	const close = `${marker}c${marker}`
 	for (const term of terms) {
 		const marked = storage.sql.exec<{ marked: string }>(
-			"SELECT highlight(messages_fts, 1, ?, ?) AS marked FROM messages_fts WHERE rowid = ? AND messages_fts MATCH ?",
+			"SELECT highlight(messages_fts, 1, ?, ?) AS marked FROM messages_fts WHERE rowid = CAST(? AS INTEGER) AND messages_fts MATCH ?",
 			open, close, doc.rowid, `chunk:(${term})`,
 		).toArray()[0]?.marked
 		if (marked === undefined) return new Set()
