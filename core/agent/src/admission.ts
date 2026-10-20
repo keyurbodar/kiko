@@ -9,8 +9,10 @@ export async function submitPaused(root: Conversation, draft: Input): Promise<vo
     if (draft.requestId && await tx.submissionByRequest(root.id, draft.requestId)) return
     const live = await tx.doc(LiveDoc, root.id)
     const inbox = await tx.doc(InboxDoc, root.id)
+    const task = live.run ? await tx.task(live.run.taskId) : undefined
+    const unstarted = task?.kind === GenerationTask.definition.name && task.state.status === "pending" && task.startedAt === undefined
     const submission = await tx.createSubmission({ conversationId: root.id, requestId: draft.requestId, type: "input", status: "queued" })
-    if (live.run) {
+    if (live.run && !unstarted) {
       inbox.items.push({ id: submission.id, mode: draft.whenBusy === "steer" ? "steer" : "followUp", content: draft.content, ...(draft.entry ? { entry: draft.entry } : {}) })
       return
     }
@@ -25,6 +27,7 @@ export async function submitPaused(root: Conversation, draft: Input): Promise<vo
       users.push(item.id)
     }
     inbox.items = []
-    live.run = { taskId: await tx.createTask(GenerationTask, {}, { ownership: { kind: "conversation" }, conversationId: root.id }), inputs: users }
+    if (live.run) live.run.inputs.push(...users)
+    else live.run = { taskId: await tx.createTask(GenerationTask, {}, { ownership: { kind: "conversation" }, conversationId: root.id }), inputs: users }
   }, BACKGROUND_CONTEXT)
 }

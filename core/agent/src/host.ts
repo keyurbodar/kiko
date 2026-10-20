@@ -180,6 +180,7 @@ export class AgentHost {
     const submit = this.admission.then(async () => {
       const opened = await this.current()
       await this.drain(opened, [batch])
+      if (envelopes.some((envelope) => envelope.from.kind !== "human")) opened.storage.flush()
       if (this.invocation && !this.invocation.settling) this.pulse(opened)
       else await this.options.requestRun(batch.requestId)
     })
