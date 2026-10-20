@@ -452,6 +452,11 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		}
 	}
 
+	function missedEvent(e: RoomEvent, change: NonNullable<ReturnType<typeof applyRoomEvent>>): boolean {
+		return ((e.t === "edit" || e.t === "react") && !change.put) ||
+			(e.t === "delete" && (change.deleted?.length ?? 0) < e.messageIds.length)
+	}
+
 	function drain() {
 		draining = false
 		if (closed) return
@@ -461,6 +466,18 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		const deleted: number[] = []
 		let meta = false
 		const offWindow: RoomEvent[] = []
+		function recordChange(e: RoomEvent, change: NonNullable<ReturnType<typeof applyRoomEvent>>): void {
+			if (change.put) puts.set(change.put.id, change.put)
+			recordDeleted(change)
+			if (change.meta) meta = true
+			if (missedEvent(e, change)) offWindow.push(e)
+		}
+		function recordDeleted(change: NonNullable<ReturnType<typeof applyRoomEvent>>): void {
+			for (const m of change.deleted ?? []) {
+				puts.delete(m.id)
+				deleted.push(m.seq)
+			}
+		}
 		batch(() => {
 			setState(
 				produce((s) => {
@@ -469,16 +486,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 						const change = applyRoomEvent(s, e)
 						if (!change) continue
 						applied.push(e)
-						if (change.put) puts.set(change.put.id, change.put)
-						for (const m of change.deleted ?? []) {
-							puts.delete(m.id)
-							deleted.push(m.seq)
-						}
-						if (change.meta) meta = true
-						const missed =
-							((e.t === "edit" || e.t === "react") && !change.put) ||
-							(e.t === "delete" && (change.deleted?.length ?? 0) < e.messageIds.length)
-						if (missed) offWindow.push(e)
+						recordChange(e, change)
 						if (s.history) applyToHistory(s.history, e)
 						if (performance.now() - start >= budget) break
 					}

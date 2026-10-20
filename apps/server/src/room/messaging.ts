@@ -45,6 +45,29 @@ export class MessageChains {
 		this.sql = storage.sql
 	}
 
+	private storeSend(from: AgentSlug, input: AgentSend, pair: RoomId | null, text: string, recipients: AgentSlug[], rootId: string, hop: number): SendOutcome {
+		const shown = `@${input.to} ${text}`
+		const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown), to: input.to })
+		const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, recipients }
+		this.count(rootId, recipients.length)
+		const settled = pair || input.to === "all" ? false : this.asks.answer(from, input.to, text)
+		const back = pair || input.to === "all" ? [] : this.asks.answerRemote(from, input.to, text)
+		if (back.length) send.returns = back
+		this.sql.exec("INSERT INTO agent_sends (id, send, at, room_id) VALUES (?1, ?2, ?3, ?4)", input.id, JSON.stringify(send), this.now(), this.log.roomId)
+		for (const ask of back) this.giveBack(ask.id, from, input.to as AgentSlug, text, ask.remote, { rootId, hop })
+		if (!back.length) this.enqueue(from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
+		if (!back.length && !settled) for (const to of recipients) this.asks.expect(`${input.id}:${to}`, from, to, stored.id, this.now(), pair)
+		this.prune()
+		return { ok: true, send, events: stored.event ? [stored.event] : [] }
+	}
+
+	private resend(earlier: { send: string }, from: AgentSlug, input: AgentSend, pair: RoomId | null): SendOutcome {
+		const send = JSON.parse(earlier.send) as StoredSend
+		if (send.returns?.length) for (const ask of send.returns) this.giveBack(ask.id, from, input.to as AgentSlug, send.text, ask.remote, { rootId: send.rootId, hop: send.hop })
+		else this.enqueue(from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
+		return { ok: true, send, events: [] }
+	}
+
 	refused(envelopeId: string, rootId: string): void {
 		this.storage.transactionSync(() => {
 			if (this.sql.exec("SELECT 1 FROM mail_refused WHERE id = ?1 AND mail_refused.room_id = ?2", envelopeId, this.log.roomId).toArray().length) return
@@ -93,10 +116,7 @@ export class MessageChains {
 		return this.storage.transactionSync((): SendOutcome => {
 			const earlier = this.sql.exec<{ send: string }>("SELECT send FROM agent_sends WHERE id = ?1 AND agent_sends.room_id = ?2", input.id, this.log.roomId).toArray()[0]
 			if (earlier) {
-				const send = JSON.parse(earlier.send) as StoredSend
-				if (send.returns?.length) for (const ask of send.returns) this.giveBack(ask.id, from, input.to as AgentSlug, send.text, ask.remote, { rootId: send.rootId, hop: send.hop })
-				else this.enqueue(from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
-				return { ok: true, send, events: [] }
+				return this.resend(earlier, from, input, pair)
 			}
 			const text = input.text.trim()
 			if (!text) return { ok: false, error: "not sent: the message is empty.", events: [] }
@@ -112,19 +132,7 @@ export class MessageChains {
 			const hop = was + 1
 			const check = checkSend(hop, this.deliveries(rootId), recipients.length)
 			if (!check.ok) return { ok: false, error: limitError(check.limit), events: this.trip(rootId, check.limit) }
-			const shown = `@${input.to} ${text}`
-			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown), to: input.to })
-			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, recipients }
-			this.count(rootId, recipients.length)
-			const settled = pair || input.to === "all" ? false : this.asks.answer(from, input.to, text)
-			const back = pair || input.to === "all" ? [] : this.asks.answerRemote(from, input.to, text)
-			if (back.length) send.returns = back
-			this.sql.exec("INSERT INTO agent_sends (id, send, at, room_id) VALUES (?1, ?2, ?3, ?4)", input.id, JSON.stringify(send), this.now(), this.log.roomId)
-			for (const ask of back) this.giveBack(ask.id, from, input.to as AgentSlug, text, ask.remote, { rootId, hop })
-			if (!back.length) this.enqueue(from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
-			if (!back.length && !settled) for (const to of recipients) this.asks.expect(`${input.id}:${to}`, from, to, stored.id, this.now(), pair)
-			this.prune()
-			return { ok: true, send, events: stored.event ? [stored.event] : [] }
+			return this.storeSend(from, input, pair, text, recipients, rootId, hop)
 		})
 	}
 

@@ -117,6 +117,55 @@ export class RoomLog {
 		this.steps = new RunSteps(storage, roomId, now)
 	}
 
+	private insertMessage(input: NewMessage, id: MessageId, event: Extract<RoomEvent, { t: "message" }>, steps: number, open: { after: number; count: number } | null): void {
+		this.sql.exec(
+			`INSERT INTO messages (room_id, id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, addressed, initiative, event, steps, step_after, client_id, message_payload, mentions)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			this.roomId,
+			id,
+			event.seq,
+			event.at,
+			JSON.stringify(input.from),
+			input.text,
+			input.rich ? JSON.stringify(input.rich) : null,
+			input.replyTo ?? null,
+			input.files?.length ? JSON.stringify(input.files) : null,
+			input.run?.runId ?? null,
+			input.run?.attempt ?? null,
+			input.run?.index ?? null,
+			input.goto ?? null,
+			input.quote ?? null,
+			input.to ?? null,
+			input.initiative?.reason ?? null,
+			input.event ? JSON.stringify(input.event) : null,
+			steps || null,
+			open && steps ? open.after : null,
+			input.clientId ?? null,
+			JSON.stringify(event),
+			input.mentions ? JSON.stringify(input.mentions) : null,
+		)
+	}
+
+	private messagePayload(input: NewMessage, id: MessageId, open: { after: number; count: number } | null, steps: number, reply: ReplyPreview | undefined): Omit<Message, "seq" | "at"> {
+		const message: Omit<Message, "seq" | "at"> = {
+			id,
+			from: input.from,
+			text: input.text,
+			...(input.rich ? { rich: input.rich } : {}),
+			...(input.replyTo ? { replyTo: input.replyTo } : {}),
+			...(reply ? { reply } : {}),
+			...(input.files?.length ? { files: input.files } : {}),
+			...(input.run ? { run: input.run } : {}),
+			...(open && steps ? { steps, stepAfter: open.after } : {}),
+			...(input.goto ? { goto: input.goto } : {}),
+			...(input.quote ? { quote: input.quote } : {}),
+			...(input.to ? { to: input.to } : {}),
+			...(input.initiative ? { initiative: input.initiative } : {}),
+			...(input.event ? { event: input.event } : {}),
+		}
+		return message
+	}
+
 	private get sql() {
 		return this.storage.sql
 	}
@@ -386,22 +435,7 @@ export class RoomLog {
 			const open = input.from.kind === "agent" && !input.to ? this.window(input.from.slug) : null
 			const steps = open?.count ?? 0
 			const reply = input.replyTo ? this.previews([input.replyTo]).get(input.replyTo) : undefined
-			const message: Omit<Message, "seq" | "at"> = {
-				id,
-				from: input.from,
-				text: input.text,
-				...(input.rich ? { rich: input.rich } : {}),
-				...(input.replyTo ? { replyTo: input.replyTo } : {}),
-				...(reply ? { reply } : {}),
-				...(input.files?.length ? { files: input.files } : {}),
-				...(input.run ? { run: input.run } : {}),
-				...(open && steps ? { steps, stepAfter: open.after } : {}),
-				...(input.goto ? { goto: input.goto } : {}),
-				...(input.quote ? { quote: input.quote } : {}),
-				...(input.to ? { to: input.to } : {}),
-				...(input.initiative ? { initiative: input.initiative } : {}),
-				...(input.event ? { event: input.event } : {}),
-			}
+			const message = this.messagePayload(input, id, open, steps, reply)
 			const event = {
 				t: "message",
 				...(input.clientId ? { clientId: input.clientId } : {}),
@@ -409,32 +443,7 @@ export class RoomLog {
 				seq,
 				at: this.now(),
 			} satisfies RoomEvent
-			this.sql.exec(
-				`INSERT INTO messages (room_id, id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, addressed, initiative, event, steps, step_after, client_id, message_payload, mentions)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				this.roomId,
-				id,
-				event.seq,
-				event.at,
-				JSON.stringify(input.from),
-				input.text,
-				input.rich ? JSON.stringify(input.rich) : null,
-				input.replyTo ?? null,
-				input.files?.length ? JSON.stringify(input.files) : null,
-				input.run?.runId ?? null,
-				input.run?.attempt ?? null,
-				input.run?.index ?? null,
-				input.goto ?? null,
-				input.quote ?? null,
-				input.to ?? null,
-				input.initiative?.reason ?? null,
-				input.event ? JSON.stringify(input.event) : null,
-				steps || null,
-				open && steps ? open.after : null,
-				input.clientId ?? null,
-				JSON.stringify(event),
-				input.mentions ? JSON.stringify(input.mentions) : null,
-			)
+			this.insertMessage(input, id, event, steps, open)
 			if (open && input.from.kind === "agent") this.windows.set(input.from.slug, { after: event.seq, count: 0 })
 			this.trim(event.seq)
 			return { id, seq: event.seq, event }

@@ -214,9 +214,12 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
           }
           done.push(describe(step))
         }
-        const head = failed
-          ? `did: ${done.join("; ") || "nothing"}. ${describe(failed.step)} failed: ${failed.result.reason}${failed.result.detail ? ` (${failed.result.detail})` : ""}${failed.result.reason === "stale" ? ". the page changed: use the ids below" : ""}.`
-          : `did: ${done.join("; ")}.`
+        const describeResult = () => {
+          return failed
+            ? `did: ${done.join("; ") || "nothing"}. ${describe(failed.step)} failed: ${failed.result.reason}${failed.result.detail ? ` (${failed.result.detail})` : ""}${failed.result.reason === "stale" ? ". the page changed: use the ids below" : ""}.`
+            : `did: ${done.join("; ")}.`
+        }
+        const head = describeResult()
         return `${head}\n\n${pageText(await tab.read())}`
       })(ctx.abortSignal),
   })

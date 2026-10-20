@@ -270,11 +270,7 @@ export function Composer(props: ComposerProps) {
           })
           const refusal = sendRefusal(body, !!editing, attachments ?? [])
           if (refusal) return void showToastV2({ title: refusal, variant: "error" })
-          if (editing) {
-            if (text.trim() && text !== editing.body) props.onEdit?.(editing.id, text)
-            props.onCancelEdit?.()
-            return
-          }
+          if (editing) return finishEdit(editing, text)
           if (runSlash(text)) return void store.reset()
           if (!attachments) return
           const files = parts.map((part): MessageFile => ({ name: part.filename, size: part.size, type: part.mime, src: part.blob.url }))
@@ -292,6 +288,11 @@ export function Composer(props: ComposerProps) {
       },
     },
   })
+
+  function finishEdit(editing: NonNullable<typeof props.editing>, text: string): void {
+    if (text.trim() && text !== editing.body) props.onEdit?.(editing.id, text)
+    props.onCancelEdit?.()
+  }
 
   const above = (
     <>

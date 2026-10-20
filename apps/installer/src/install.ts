@@ -181,17 +181,21 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   const host = (name: string) => `https://${name}.${subdomain}.workers.dev`
 
   const byName = new Map(scripts.map((s) => [s.id, s]))
-  let name: string | undefined
-  for (const candidate of [ours, legacy, DEFAULT_SCRIPT]) {
-    if (byName.has(candidate) && await ownedByCaller(f, host(candidate), req.clerkToken)) {
-      name = candidate
-      break
+  const findScriptName = async () => {
+    let name: string | undefined
+    for (const candidate of [ours, legacy, DEFAULT_SCRIPT]) {
+      if (byName.has(candidate) && await ownedByCaller(f, host(candidate), req.clerkToken)) {
+        name = candidate
+        break
+      }
     }
+    if (!name) {
+      if (byName.has(ours)) throw new InstallError("owner_conflict", "The owner-specific Worker name is already in use. No backend was changed.", 409)
+      name = ours
+    }
+    return name
   }
-  if (!name) {
-    if (byName.has(ours)) throw new InstallError("owner_conflict", "The owner-specific Worker name is already in use. No backend was changed.", 409)
-    name = ours
-  }
+  const name = await findScriptName()
   const existing = byName.get(name)
   const fileStore: FilesBinding = existing ? "inherit" : "none"
 

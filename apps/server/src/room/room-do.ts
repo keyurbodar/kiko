@@ -205,6 +205,42 @@ export class Room implements SocketRoom {
 		}
 	}
 
+	private replyTarget(frame: Extract<ClientToRoom, { t: "send" }>): MessageId | undefined {
+		const target = frame.replyTo ? this.log.message(frame.replyTo) : null
+		const replyTo = target && !isPrivate(target) ? target.id : undefined
+		return replyTo
+	}
+
+	private memberNotices(op: MemberOp, name: string | undefined, result: { events: RoomEvent[] }): RoomEvent[] {
+		const notice: RoomEvent[] = []
+		if (op.op === "add") {
+			const count = this.files.stat("")
+			const n = count?.kind === "directory" ? count.files : 0
+			if (n) {
+				const { event } = this.log.addMessage({ from: { kind: "system", reason: "files" }, text: `@${op.slug} can now see this chat's ${n} file${n === 1 ? "" : "s"}` })
+				if (event) notice.push(event)
+			}
+		}
+		if (op.op !== "rename" && result.events.length) {
+			const activity: MemberActivity = { seq: this.log.lastSeq(), at: result.events[0]?.at ?? 0, kind: op.op === "add" ? "joined" : "left", name: op.op === "add" ? op.name : (name ?? op.slug) }
+			this.log.setMeta(MEMBER_ACTIVITY, JSON.stringify(activity))
+		}
+		if (op.op !== "rename") {
+			const joined = op.op === "add"
+			const who = joined ? op.name : (name ?? op.slug)
+			const slug = op.slug
+			const line = this.log.addMessage(dividerMessage(`member:${result.events[0]?.seq}`, `${who} ${joined ? "joined" : "left"}`, joined ? { kind: "member_added", slug, name: who, private: true } : { kind: "member_removed", slug, name: who, private: true })).event
+			if (line) notice.push(line)
+		}
+		return notice
+	}
+
+	private fileWhole(whole: WholeText | null, now: number) {
+		const filed = whole ? this.files.put({ id: whole.id, path: attachmentPath(WHOLE_NAME, now, (p) => this.files.stat(p) !== null), r2Key: whole.r2Key, size: whole.size, type: WHOLE_TYPE, sha256: whole.sha256, author: { kind: "human" }, expectSha256: "none" }) : null
+		if (filed && (!filed.file || filed.refused || filed.drop)) throw new ClaimRefused("The message's text could not be stored as a file.")
+		return filed
+	}
+
 	private async flushBurst(): Promise<void> {
 		const home = this.home()
 		if (!home) return
@@ -785,13 +821,11 @@ export class Room implements SocketRoom {
 				if (earlier) return { ack: earlier, events: [] }
 				const now = Date.now()
 				const claimed = frame.attachments?.length ? claim(this.pending, this.files, frame.attachments, now) : { refs: [], events: [] }
-				const filed = whole ? this.files.put({ id: whole.id, path: attachmentPath(WHOLE_NAME, now, (p) => this.files.stat(p) !== null), r2Key: whole.r2Key, size: whole.size, type: WHOLE_TYPE, sha256: whole.sha256, author: { kind: "human" }, expectSha256: "none" }) : null
-				if (filed && (!filed.file || filed.refused || filed.drop)) throw new ClaimRefused("The message's text could not be stored as a file.")
+				const filed = this.fileWhole(whole, now)
 				const refs = [...claimed.refs, ...(filed?.file ? [filed.file] : [])]
 				const paths = new Map((frame.attachments ?? []).map((a, i) => [a.pendingId, `/${claimed.refs[i]!.name}`]))
 				const body = linkAttachments(text, (id) => paths.get(id))
-				const target = frame.replyTo ? this.log.message(frame.replyTo) : null
-				const replyTo = target && !isPrivate(target) ? target.id : undefined
+				const replyTo = this.replyTarget(frame)
 				const stored = this.log.addMessage({
 					from: { kind: "human" },
 					text: body,
@@ -1011,26 +1045,7 @@ export class Room implements SocketRoom {
 		const name = op.op === "remove" ? this.members.get(op.slug)?.name : undefined
 		const result = this.members.apply(op)
 		if (!result.ok) return result.reason
-		const notice: RoomEvent[] = []
-		if (op.op === "add") {
-			const count = this.files.stat("")
-			const n = count?.kind === "directory" ? count.files : 0
-			if (n) {
-				const { event } = this.log.addMessage({ from: { kind: "system", reason: "files" }, text: `@${op.slug} can now see this chat's ${n} file${n === 1 ? "" : "s"}` })
-				if (event) notice.push(event)
-			}
-		}
-		if (op.op !== "rename" && result.events.length) {
-			const activity: MemberActivity = { seq: this.log.lastSeq(), at: result.events[0]?.at ?? 0, kind: op.op === "add" ? "joined" : "left", name: op.op === "add" ? op.name : (name ?? op.slug) }
-			this.log.setMeta(MEMBER_ACTIVITY, JSON.stringify(activity))
-		}
-		if (op.op !== "rename") {
-			const joined = op.op === "add"
-			const who = joined ? op.name : (name ?? op.slug)
-			const slug = op.slug
-			const line = this.log.addMessage(dividerMessage(`member:${result.events[0]?.seq}`, `${who} ${joined ? "joined" : "left"}`, joined ? { kind: "member_added", slug, name: who, private: true } : { kind: "member_removed", slug, name: who, private: true })).event
-			if (line) notice.push(line)
-		}
+		const notice = this.memberNotices(op, name, result)
 		this.publish([...result.events, ...notice])
 		const home = this.home()
 		if (op.op === "remove" && home) this.stopAgent(home, op.slug)

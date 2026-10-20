@@ -221,6 +221,10 @@ export function createApp() {
     const lingerTimers = new Map<string, ReturnType<typeof setTimeout>>()
     let wasTyping = new Map<string, number>()
 
+    function seedPacer(list: ReturnType<typeof roomMessages>): void {
+      for (const m of list) pacer.offer({ id: m.id, slug: "", chars: 0, live: false })
+    }
+
     createComputed(() => {
       const r = room()
       if (!r) return
@@ -240,7 +244,7 @@ export function createApp() {
         if (!loaded) return
         if (!seeded) {
           seeded = true
-          for (const m of list) pacer.offer({ id: m.id, slug: "", chars: 0, live: false })
+          seedPacer(list)
           return
         }
         const t = Date.now()
@@ -353,29 +357,31 @@ export function createApp() {
       const next = new Map<string, RosterBot>()
       const typingIn = userStore()?.state.typing ?? {}
       const rows = distinctTitles(userStore()?.chats() ?? []).map((c) => {
-        let row: RosterBot
-        if (!r || r.state.roomId !== c.roomId) row = chatRow(c, "idle", { typing: typingIn[c.roomId] })
-        else {
-          const working = Object.values(r.state.status).includes("working")
-          const members = r.members()
-          const name = (slug: string) => agentDisplayName(slug, members)
-          const newest = roomMessages().findLast(isListed)
-          const fresh = newest && (newest.pending || newest.seq > c.lastSeq) ? viewLast(newest, name) : undefined
-          row = chatRow(c, presenceOf(false, working ? "working" : undefined), {
-            ...(fresh ? { last: fresh } : {}),
-            typing: Object.entries(r.state.status).filter(([, state]) => state === "typing").map(([slug]) => name(slug)),
-            ...(members.length ? { group: members.length > 1 } : {}),
-          })
-          if (r.readSeq() >= newestSeq(roomMessages())) {
-            row.unread = 0
-            delete row.mentions
-          }
-        }
+        let row = roomRow(c)
         const old = lastRows.get(row.id)
         if (old && sameRow(old, row)) row = old
         next.set(row.id, row)
         return row
       })
+      function roomRow(c: Parameters<typeof chatRow>[0]): RosterBot {
+        let row: RosterBot
+        if (!r || r.state.roomId !== c.roomId) return chatRow(c, "idle", { typing: typingIn[c.roomId] })
+        const working = Object.values(r.state.status).includes("working")
+        const members = r.members()
+        const name = (slug: string) => agentDisplayName(slug, members)
+        const newest = roomMessages().findLast(isListed)
+        const fresh = newest && (newest.pending || newest.seq > c.lastSeq) ? viewLast(newest, name) : undefined
+        row = chatRow(c, presenceOf(false, working ? "working" : undefined), {
+          ...(fresh ? { last: fresh } : {}),
+          typing: Object.entries(r.state.status).filter(([, state]) => state === "typing").map(([slug]) => name(slug)),
+          ...(members.length ? { group: members.length > 1 } : {}),
+        })
+        if (r.readSeq() >= newestSeq(roomMessages())) {
+          row.unread = 0
+          delete row.mentions
+        }
+        return row
+      }
       lastRows = next
       return rows
     })

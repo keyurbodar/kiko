@@ -95,6 +95,23 @@ export class Outbox {
     this.sql = storage.sql
   }
 
+  private replayEntries(run: Run, row: Row, entries: SnapshotEvent["entries"], liveId: string | null, livePartial: boolean): void {
+    if (livePartial && this.run?.id === row.run_id) {
+      run.generation = this.run.generation
+      run.bubbled = this.run.bubbled
+      run.toolStarted = this.run.toolStarted
+      run.tools = this.run.tools
+      run.quiet = this.run.quiet
+    }
+    for (const entry of entries) {
+      if ((entry.kind === "pi.user" || entry.kind === "kiko.input")) run.quiet = entry.id <= run.cursor ? quietInput(entry) : run.quiet && quietInput(entry)
+      if (entry.id <= run.cursor) continue
+      if (row.until !== undefined && entry.id > row.until) break
+      if (row.until === undefined && row.run_id !== liveId && (entry.kind === "pi.user" || entry.kind === "kiko.input")) break
+      this.finishGeneration(run, entry)
+    }
+  }
+
   private nextQuiet = false
 
   private see(entry: EntryRecord | undefined): void {
@@ -248,20 +265,7 @@ export class Outbox {
     const liveId = snapshot.run ? `${this.prefix()}:${snapshot.run.inputs[0]}` : null
     for (const row of await this.openRows(snapshot)) {
       const run = this.load(row)
-      if (livePartial && this.run?.id === row.run_id) {
-        run.generation = this.run.generation
-        run.bubbled = this.run.bubbled
-        run.toolStarted = this.run.toolStarted
-        run.tools = this.run.tools
-        run.quiet = this.run.quiet
-      }
-      for (const entry of entries) {
-        if ((entry.kind === "pi.user" || entry.kind === "kiko.input")) run.quiet = entry.id <= run.cursor ? quietInput(entry) : run.quiet && quietInput(entry)
-        if (entry.id <= run.cursor) continue
-        if (row.until !== undefined && entry.id > row.until) break
-        if (row.until === undefined && row.run_id !== liveId && (entry.kind === "pi.user" || entry.kind === "kiko.input")) break
-        this.finishGeneration(run, entry)
-      }
+      this.replayEntries(run, row, entries, liveId, livePartial)
       this.run = run
       if (run.posted > run.blocks.length + (run.generation?.blocks.length ?? 0)) this.rebase(run)
       await this.notes(run)

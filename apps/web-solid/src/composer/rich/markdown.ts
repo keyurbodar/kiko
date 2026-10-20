@@ -198,17 +198,7 @@ function parseBlocks(lines: string[], options: ParseOptions): Json[] {
     }
     const fence = FENCE.exec(line)
     if (fence) {
-      const marker = fence[2]!
-      const body: string[] = []
-      at++
-      while (at < lines.length && !closes(lines[at]!, marker)) body.push(lines[at++]!)
-      const closed = at < lines.length
-      if (closed) at++
-      out.push({
-        type: "codeBlock",
-        attrs: { language: fence[3] ?? "", fence: marker, close: closed ? `\n${lines[at - 1]!.trim()}` : "" },
-        ...(body.length ? { content: [{ type: "text", text: body.join("\n") }] } : {}),
-      })
+      parseFence(fence)
       continue
     }
     if (RULE.test(line)) {
@@ -231,51 +221,76 @@ function parseBlocks(lines: string[], options: ParseOptions): Json[] {
     }
     const marker = BULLET.exec(line) ?? ORDERED.exec(line)
     if (marker) {
-      const ordered = ORDERED.test(line)
-      const kind = ordered ? ORDERED : BULLET
-      const items: Json[] = []
-      let start = 1
-      while (at < lines.length) {
-        const head = kind.exec(lines[at]!)
-        if (!head) break
-        if (items.length === 0 && ordered) start = Number.parseInt(head[2]!, 10)
-        const width = head[1]!.length + head[2]!.length + 1
-        const body = [head[3]!]
-        at++
-        while (at < lines.length) {
-          const next = lines[at]!
-          if (next.trim() === "") {
-            const after = lines[at + 1]
-            if (after !== undefined && new RegExp(`^ {${width}}\\S`).test(after)) {
-              body.push("")
-              at++
-              continue
-            }
-            break
-          }
-          if (!new RegExp(`^ {${width}}`).test(next)) break
-          body.push(next.slice(width))
-          at++
-        }
-        const task = ordered ? null : TASK.exec(body[0]!)
-        if (task) body[0] = task[2]!
-        const content = itemBlocks(body, options)
-        items.push(task ? { type: "taskItem", attrs: { checked: task[1] !== " " }, content } : { type: "listItem", attrs: { marker: head[2]! }, content })
-      }
-      const tasks = items.every((item) => item.type === "taskItem")
-      out.push(
-        ordered
-          ? { type: "orderedList", attrs: { start }, content: items }
-          : { type: tasks ? "taskList" : "bulletList", content: tasks ? items : items.map(untask) },
-      )
+      parseList(line)
       continue
     }
+    parseParagraph()
+  }
+  function parseParagraph(): void {
     const text: string[] = []
     while (at < lines.length && lines[at]!.trim() !== "" && !FENCE.test(lines[at]!) && !(text.length > 0 && (/^ {0,3}>/.test(lines[at]!) || startsBlock(lines[at]!)))) {
       if (text.length > 0 && (BULLET.test(lines[at]!) || ORDERED.test(lines[at]!))) break
       text.push(lines[at++]!)
     }
     out.push(paragraph(text, options))
+  }
+  function parseFence(fence: RegExpExecArray): void {
+    const marker = fence[2]!
+    const body: string[] = []
+    at++
+    while (at < lines.length && !closes(lines[at]!, marker)) body.push(lines[at++]!)
+    const closed = at < lines.length
+    if (closed) at++
+    out.push({
+      type: "codeBlock",
+      attrs: { language: fence[3] ?? "", fence: marker, close: closed ? `\n${lines[at - 1]!.trim()}` : "" },
+      ...(body.length ? { content: [{ type: "text", text: body.join("\n") }] } : {}),
+    })
+  }
+
+  function parseList(line: string): void {
+    const ordered = ORDERED.test(line)
+    const kind = ordered ? ORDERED : BULLET
+    const items: Json[] = []
+    let start = 1
+    while (at < lines.length) {
+      const head = kind.exec(lines[at]!)
+      if (!head) break
+      if (items.length === 0 && ordered) start = Number.parseInt(head[2]!, 10)
+      const body = listBody(head)
+      const task = ordered ? null : TASK.exec(body[0]!)
+      if (task) body[0] = task[2]!
+      const content = itemBlocks(body, options)
+      items.push(task ? { type: "taskItem", attrs: { checked: task[1] !== " " }, content } : { type: "listItem", attrs: { marker: head[2]! }, content })
+    }
+    const tasks = items.every((item) => item.type === "taskItem")
+    out.push(
+      ordered
+        ? { type: "orderedList", attrs: { start }, content: items }
+        : { type: tasks ? "taskList" : "bulletList", content: tasks ? items : items.map(untask) },
+    )
+  }
+
+  function listBody(head: RegExpExecArray): string[] {
+    const width = head[1]!.length + head[2]!.length + 1
+    const body = [head[3]!]
+    at++
+    while (at < lines.length) {
+      const next = lines[at]!
+      if (next.trim() === "") {
+        const after = lines[at + 1]
+        if (after !== undefined && new RegExp(`^ {${width}}\\S`).test(after)) {
+          body.push("")
+          at++
+          continue
+        }
+        break
+      }
+      if (!new RegExp(`^ {${width}}`).test(next)) break
+      body.push(next.slice(width))
+      at++
+    }
+    return body
   }
   return out
 }

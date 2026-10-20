@@ -126,12 +126,13 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
             let routine = current
             let hook = ""
             if (changes || args.status) {
-              const out = await user().updateRoutine(args.id, {
+              const routineChanges = () => ({
                 ...(args.name !== undefined ? { name: args.name } : {}),
                 ...(args.instructions !== undefined ? { instructions: args.instructions } : {}),
                 ...(trigger !== undefined ? { trigger } : {}),
                 ...(args.status ? { status: args.status } : {}),
               })
+              const out = await user().updateRoutine(args.id, routineChanges())
               if (!out.ok) return { output: text(`not changed: ${out.error}`), isError: true }
               routine = out.routine
               if (out.token) hook = `\nits webhook url is ${(await user().origin()) ?? ""}/api/hooks/${out.token} . tell the human this url once; it is not shown again.`

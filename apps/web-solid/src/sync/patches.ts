@@ -158,14 +158,13 @@ export function overlayMessages(messages: readonly Message[], patches: readonly 
 	const stored = new Set<MessageId>()
 	for (const m of messages) {
 		stored.add(m.id)
-		let v: ViewMessage | null = m
-		for (const p of byId.get(m.id) ?? []) if (v) v = patchMessage(v, p)
+		const v = applyMessagePatches(m, byId.get(m.id) ?? [])
 		if (v) out.push(v)
 	}
 	for (const s of sends) {
 		if (s.ack && stored.has(s.ack.id)) continue
-		let v: ViewMessage | null = pendingMessage(s)
-		for (const p of byId.get(v.id) ?? []) if (v) v = patchMessage(v, p)
+		const pending = pendingMessage(s)
+		const v = applyMessagePatches(pending, byId.get(pending.id) ?? [])
 		if (v) out.push(v)
 	}
 	return out
@@ -305,4 +304,10 @@ export function overlayChats(chats: readonly Chat[], patches: readonly UserPatch
 		}
 	}
 	return out.sort(chatOrder)
+}
+
+function applyMessagePatches(message: ViewMessage, patches: readonly RoomPatch[]): ViewMessage | null {
+	let value: ViewMessage | null = message
+	for (const patch of patches) if (value) value = patchMessage(value, patch)
+	return value
 }

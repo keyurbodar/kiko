@@ -30,7 +30,7 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
   if (request.method === "POST" && !request.headers.get("content-type")?.includes("application/json")) return error(415, "expected json")
   const stub = ownerStub(env.OWNER, user.id)
 
-  if (!action) {
+  const collectionRoute = async () => {
     if (request.method === "GET") {
       return Response.json({ routines: await stub.userCall("listRoutines", []), runs: await stub.userCall("routineRuns", []) })
     }
@@ -48,6 +48,7 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
     const tz = (await stub.userCall("timezone", [])) ?? "UTC"
     return reply(await stub.userCall("createRoutine", [user.id, { name: b.name, instructions: b.instructions, trigger, tz, roomId, target: agent, createdBy: "human" }]))
   }
+  if (!action) return collectionRoute()
 
   if (request.method !== "POST") return error(405, "method not allowed")
   const id = action[1]

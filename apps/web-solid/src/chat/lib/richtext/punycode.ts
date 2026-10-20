@@ -71,7 +71,7 @@ function decode(input: string, preserveCase?: boolean): string {
   const case_flags: boolean[] = []
   const input_length = input.length
 
-  let n, out, i, bias, basic, j, ic, oldi, w, k, digit, t, len
+  let n, out, i, bias, basic, ic, oldi, w, k, digit, t
 
   n = initial_n
   i = 0
@@ -80,13 +80,7 @@ function decode(input: string, preserveCase?: boolean): string {
   basic = input.lastIndexOf(delimiter)
   if (basic < 0) basic = 0
 
-  for (j = 0; j < basic; ++j) {
-    if (preserveCase) case_flags[output.length] = input.charCodeAt(j) - 65 < 26
-    if (input.charCodeAt(j) >= 0x80) {
-      throw new RangeError("Illegal input >= 0x80")
-    }
-    output.push(input.charCodeAt(j))
-  }
+  decodeBasic(input, basic, output, case_flags, preserveCase)
 
   for (ic = basic > 0 ? basic + 1 : 0; ic < input_length; ) {
 
@@ -103,7 +97,7 @@ function decode(input: string, preserveCase?: boolean): string {
         throw new RangeError("punycode_overflow(1)")
       }
       i += digit * w
-      t = k <= bias ? tmin : k >= bias + tmax ? tmax : k - bias
+      t = threshold(k, bias)
       if (digit < t) {
         break
       }
@@ -129,15 +123,7 @@ function decode(input: string, preserveCase?: boolean): string {
     output.splice(i, 0, n)
     i++
   }
-  if (preserveCase) {
-    for (i = 0, len = output.length; i < len; i++) {
-      if (case_flags[i]) {
-        output[i] = String.fromCharCode(output[i])
-          .toUpperCase()
-          .charCodeAt(0)
-      }
-    }
-  }
+  if (preserveCase) restoreCase(output, case_flags)
   return utf16.encode(output)
 }
 
@@ -152,3 +138,24 @@ function toUnicode(domain: string): string {
 }
 
 export default toUnicode
+
+function restoreCase(output: number[], case_flags: boolean[]): void {
+  for (let i = 0, len = output.length; i < len; i++) {
+    if (case_flags[i]) output[i] = String.fromCharCode(output[i]).toUpperCase().charCodeAt(0)
+  }
+}
+
+function decodeBasic(input: string, basic: number, output: number[], case_flags: boolean[], preserveCase?: boolean): void {
+  for (let j = 0; j < basic; ++j) {
+    if (preserveCase) case_flags[output.length] = input.charCodeAt(j) - 65 < 26
+    if (input.charCodeAt(j) >= 0x80) {
+      throw new RangeError("Illegal input >= 0x80")
+    }
+    output.push(input.charCodeAt(j))
+  }
+}
+
+function threshold(k: number, bias: number): number {
+  if (k <= bias) return tmin
+  return k >= bias + tmax ? tmax : k - bias
+}

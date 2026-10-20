@@ -31,14 +31,30 @@ export function measure(entries: readonly { kind: string; model?: readonly unkno
     const first = (entry.kind === "pi.user" || entry.kind === "kiko.input") && t.inputs === 0
     if (entry.kind === "pi.user" || entry.kind === "kiko.input") t.inputs++
     for (const m of (entry.model ?? []) as ModelMessage[]) {
-      let n = 0
-      if (typeof m.content === "string") n = m.content.length - (first ? opening(m.content) : 0)
-      else for (const p of m.content ?? []) n += (p.text?.length ?? 0) - (first ? opening(p.text ?? "") : 0) + (p.thinking?.length ?? 0) + (p.arguments ? JSON.stringify(p.arguments).length : 0)
+      const n = messageChars(m, first)
       t.chars += n
       if (m.role === "toolResult") t.toolChars += n
     }
   }
   return t
+}
+
+function messageChars(m: ModelMessage, first: boolean): number {
+  let n = 0
+  if (typeof m.content === "string") n = m.content.length - (first ? opening(m.content) : 0)
+  else for (const p of m.content ?? []) n += (p.text?.length ?? 0) - (first ? opening(p.text ?? "") : 0) + (p.thinking?.length ?? 0) + (p.arguments ? JSON.stringify(p.arguments).length : 0)
+  return n
+}
+
+function deliveredSeq(envelopes: Batch["envelopes"], initial: number): number {
+  let humanDeliveredSeq = initial
+  for (const envelope of envelopes) {
+    if (envelope.from.kind !== "human") continue
+    const match = /^human:([1-9][0-9]*)\.[0-9a-f]+(?:#.*)?$/.exec(envelope.id)
+    const seq = match ? Number(match[1]) : 0
+    if (Number.isSafeInteger(seq)) humanDeliveredSeq = Math.max(humanDeliveredSeq, seq)
+  }
+  return humanDeliveredSeq
 }
 
 function opening(text: string): number {
@@ -583,62 +599,62 @@ export class AgentHost {
       await root.abort(context)
       await this.ctx.storage.delete([STOP_KEY, RESTARTS_KEY])
     }
-    for (const batch of batches) {
-      if (await storage.submissionByRequest(root.id, batch.requestId, context)) {
-        continue
-      }
-      const human = batch.envelopes.some((e) => e.from.kind === "human")
-      let run = await this.runState(harness, root)
-      if (human) await this.alarms.clearWakeup(HUMAN_COMING)
-      const invalidated = (await setup.inputInvalidated?.()) ?? null
-      if (invalidated) {
-        await root.abort(context)
-        if (invalidated === "forget") await this.workers.invalidate(harness)
-        run = null
-      }
-      batch.envelopes = batch.envelopes.filter((envelope) => !envelope.work || this.workers.get(envelope.work.id)?.conversationId != null)
-      if (!batch.envelopes.length) {
-        continue
-      }
-      if (!run && beginRun && !(await beginRun(batch, root))) {
-        continue
-      }
-      if (run) await joinRun?.(batch, root)
-      const whenBusy = human ? "steer" as const : "followUp" as const
-      let memory: string | undefined
-      let fresh = false
-      let inputData: Record<string, JsonValue> = {}
-      if (!run && inputMemory) {
-        const out = await inputMemory(batch, invalidated !== null || await this.contextFull(root), await this.joinedSeqs())
-        fresh = out.fresh
-        inputData = out.data ?? {}
-        if (out.fresh) {
-          if (!this.invocation || this.invocation.settling) await root.commit((tx) => tx.appendEntry(root.id, { kind: "pi.reset", head: "self" }), context)
-          else await root.reset(undefined, context)
-        }
-        await this.ctx.storage.delete(JOINED_KEY)
-        memory = out.text
-      }
-      const [extra, last] = await Promise.all([inputContext?.(), this.ctx.storage.get<{ epoch: number; key: string }>(BRIEF_KEY)])
-      const shown = briefToShow(batch.briefs, fresh, last?.epoch === this.epoch() ? last.key : undefined, this.options.shortBrief)
-      const work = this.workers.note()
-      const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : []), ...(work ? [work] : [])] }, memory)
-      let humanDeliveredSeq = storage.humanDeliveredSeq
-      for (const envelope of batch.envelopes) {
-        if (envelope.from.kind !== "human") continue
-        const match = /^human:([1-9][0-9]*)\.[0-9a-f]+(?:#.*)?$/.exec(envelope.id)
-        const seq = match ? Number(match[1]) : 0
-        if (Number.isSafeInteger(seq)) humanDeliveredSeq = Math.max(humanDeliveredSeq, seq)
-      }
-      const submission = { type: "input" as const, content, requestId: batch.requestId, whenBusy,
-        entry: { kind: "kiko.input", data: { ...inputData, humanDeliveredSeq, at: Date.now(), envelopeIds: batch.envelopes.map((e) => e.id), chain: batch.envelopes.map(({ rootId, hop }) => ({ rootId, hop })) } },
-      }
-      if (!this.invocation || this.invocation.settling) await submitPaused(root, submission)
-      else await root.submit(submission, context)
-      await this.refreshRecovery({ harness, root, storage, setup })
-      if (shown.key && (last?.epoch !== this.epoch() || last.key !== shown.key)) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
-      if (run) await this.ctx.storage.put(JOINED_KEY, [...(await this.joinedSeqs()), ...batch.envelopes.map((e) => e.seq)].slice(-500))
+    for (const batch of batches) await this.drainBatch({ harness, root, storage, setup }, batch, { beginRun, joinRun, inputContext, inputMemory })
+  }
+
+  private async drainBatch({ harness, root, storage, setup }: Opened, batch: Batch, { beginRun, joinRun, inputContext, inputMemory }: Pick<AgentSetup, "beginRun" | "joinRun" | "inputContext" | "inputMemory">): Promise<void> {
+    if (await storage.submissionByRequest(root.id, batch.requestId, context)) {
+      return
     }
+    const human = batch.envelopes.some((e) => e.from.kind === "human")
+    let run = await this.runState(harness, root)
+    if (human) await this.alarms.clearWakeup(HUMAN_COMING)
+    const invalidated = (await setup.inputInvalidated?.()) ?? null
+    if (invalidated) {
+      await root.abort(context)
+      if (invalidated === "forget") await this.workers.invalidate(harness)
+      run = null
+    }
+    batch.envelopes = batch.envelopes.filter((envelope) => !envelope.work || this.workers.get(envelope.work.id)?.conversationId != null)
+    if (!batch.envelopes.length) {
+      return
+    }
+    if (!run && beginRun && !(await beginRun(batch, root))) {
+      return
+    }
+    if (run) await joinRun?.(batch, root)
+    const whenBusy = human ? "steer" as const : "followUp" as const
+    let memory: string | undefined
+    let fresh = false
+    let inputData: Record<string, JsonValue> = {}
+    if (!run && inputMemory) {
+      const out = await inputMemory(batch, invalidated !== null || await this.contextFull(root), await this.joinedSeqs())
+      fresh = out.fresh
+      inputData = out.data ?? {}
+      if (out.fresh) {
+        if (!this.invocation || this.invocation.settling) await root.commit((tx) => tx.appendEntry(root.id, { kind: "pi.reset", head: "self" }), context)
+        else await root.reset(undefined, context)
+      }
+      await this.ctx.storage.delete(JOINED_KEY)
+      memory = out.text
+    }
+    const [extra, last] = await Promise.all([inputContext?.(), this.ctx.storage.get<{ epoch: number; key: string }>(BRIEF_KEY)])
+    const shown = briefToShow(batch.briefs, fresh, last?.epoch === this.epoch() ? last.key : undefined, this.options.shortBrief)
+    const content = this.batchContent(batch, shown.brief, extra, memory)
+    const humanDeliveredSeq = deliveredSeq(batch.envelopes, storage.humanDeliveredSeq)
+    const submission = { type: "input" as const, content, requestId: batch.requestId, whenBusy,
+      entry: { kind: "kiko.input", data: { ...inputData, humanDeliveredSeq, at: Date.now(), envelopeIds: batch.envelopes.map((e) => e.id), chain: batch.envelopes.map(({ rootId, hop }) => ({ rootId, hop })) } },
+    }
+    if (!this.invocation || this.invocation.settling) await submitPaused(root, submission)
+    else await root.submit(submission, context)
+    await this.refreshRecovery({ harness, root, storage, setup })
+    if (shown.key && (last?.epoch !== this.epoch() || last.key !== shown.key)) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
+    if (run) await this.ctx.storage.put(JOINED_KEY, [...(await this.joinedSeqs()), ...batch.envelopes.map((e) => e.seq)].slice(-500))
+  }
+
+  private batchContent(batch: Batch, brief: string | undefined, extra: string | undefined, memory: string | undefined): string {
+    const work = this.workers.note()
+    return renderInput({ ...batch, briefs: [...(brief ? [brief] : []), ...(extra ? [extra] : []), ...(work ? [work] : [])] }, memory)
   }
 
   private async contextFull(root: Conversation): Promise<boolean> {

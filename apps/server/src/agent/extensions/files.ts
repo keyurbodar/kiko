@@ -78,9 +78,8 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     execute: (args, api, context) => filesOf(api).within(async () => {
       const fs = filesOf(api)
       const found = await fs.stat(args.path)
-      if (found.ok && found.value.kind === "file") {
-        const entry = found.value
-        if (IMAGE_TYPES.has(entry.type)) {
+      const readMedia = async (entry: Extract<Awaited<ReturnType<typeof fs.stat>>, { ok: true }>["value"] & { kind: "file" }) => {
+        const readImage = async () => {
           const agent = await api.agent(context)
           if (!acceptsImages(agent.model)) return { output: text(`${args.path} is an image (${entry.type}, ${size(entry.size)}). this model cannot read images.`) }
           if (entry.size > MAX_IMAGE_BYTES) return refused(`${args.path} is an image of ${size(entry.size)}, over the ${size(MAX_IMAGE_BYTES)} limit`)
@@ -88,6 +87,7 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
           if (!bytes) return refused(`no file at ${args.path}`)
           return { output: [{ type: "image" as const, data: encodeBase64(bytes), mimeType: entry.type }] }
         }
+        if (IMAGE_TYPES.has(entry.type)) return readImage()
         if (entry.type === "application/pdf" || entry.path.toLowerCase().endsWith(".pdf")) {
           if (entry.size > MAX_PDF_BYTES) return refused(`${args.path} is a pdf of ${size(entry.size)}, over the ${size(MAX_PDF_BYTES)} limit`)
           const bytes = await fs.bytesOf(entry)
@@ -95,6 +95,10 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
           if (!extracted) return refused(`${args.path} is a pdf whose text could not be read (it may be scanned images)`)
           return { output: text(`${args.path}: a pdf of ${extracted.pages} pages.\n\n${extracted.text}`) }
         }
+      }
+      if (found.ok && found.value.kind === "file") {
+        const media = await readMedia(found.value)
+        if (media) return media
       }
       if (found.ok && found.value.kind === "file") {
         const bytes = await fs.bytesOf(found.value)

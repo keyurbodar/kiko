@@ -35,28 +35,7 @@ export function parseEntities(text: string): TextEntity[] {
           length: groups.url.length,
         })
       } else {
-        let url = groups.url
-        let protocol = groups.protocol
-        const tld = groups.tld
-        if (tld) {
-          if (!protocol && (tld.substr(0, 4) === "xn--" || TLD.indexOf(tld.toLowerCase()) !== -1)) {
-            protocol = "http://"
-          }
-
-          if (protocol) {
-            url = checkBrackets(url)
-          }
-        } else {
-        }
-
-        const inPath = !groups.protocol && /[/\\]/.test(text[matchIndex - 1] ?? "")
-        if ((protocol || !tld) && !inPath) {
-          entities.push({
-            kind: "url",
-            offset: matchIndex,
-            length: url.length,
-          })
-        }
+        addUrl(entities, groups, text, matchIndex)
       }
     } else if (groups.hashtag) {
       entities.push({
@@ -71,4 +50,28 @@ export function parseEntities(text: string): TextEntity[] {
   }
 
   return entities
+}
+
+function addUrl(entities: TextEntity[], groups: Record<string, string>, text: string, matchIndex: number): void {
+  let url = groups.url
+  let protocol = groups.protocol
+  const tld = groups.tld
+  if (tld) {
+    if (!protocol && (tld.substr(0, 4) === "xn--" || TLD.indexOf(tld.toLowerCase()) !== -1)) {
+      protocol = "http://"
+    }
+
+    if (protocol) {
+      url = checkBrackets(url)
+    }
+  }
+
+  const inPath = !groups.protocol && /[/\\]/.test(text[matchIndex - 1] ?? "")
+  if ((protocol || !tld) && !inPath) {
+    entities.push({
+      kind: "url",
+      offset: matchIndex,
+      length: url.length,
+    })
+  }
 }

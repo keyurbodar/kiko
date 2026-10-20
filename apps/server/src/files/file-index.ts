@@ -272,7 +272,8 @@ export class FileIndex<E> {
       const events: E[] = []
       const drop: string[] = []
       const there = this.stat(target)
-      if (src.kind === "file") {
+      type SourceFile = Extract<typeof src, { kind: "file" }>
+      const moveFile = (src: SourceFile): FsChange<E> | FsFail => {
         if (there?.kind === "directory") return fail("is_directory", `${target} is a folder`)
         if (!there) {
           const clash = this.clash(target, "file")
@@ -289,6 +290,7 @@ export class FileIndex<E> {
         events.push(this.rename(srcRow, target, author))
         return { ok: true, events, drop, changed: 1 }
       }
+      if (src.kind === "file") return moveFile(src)
       if (there) return fail(there.kind === "file" ? "not_directory" : "is_directory", `${target} already exists`)
       const clash = this.clash(target, "folder")
       if (clash) return clash
@@ -311,20 +313,24 @@ export class FileIndex<E> {
     return this.storage.transactionSync(() => {
       const rows = new Map<string, FileRow>()
       const dirs = new Set<string>()
-      for (const path of paths) {
+      const collect = (path: string) => {
         const entry = this.stat(path)
         if (!entry || path === "") return fail("not_found", `no such file or folder: ${path || "/"}`)
         if (entry.kind === "file") {
           const row = this.row("id", entry.id)
           if (!row) throw new Error(`no file row for ${entry.id}`)
           rows.set(entry.id, row)
-          continue
+          return
         }
         const inside = this.files(path)
         const subdirs = this.dirRows(path)
         if (!recursive && (inside.length || subdirs.length)) return fail("is_directory", `${path} is a folder with things in it. remove it with recursive`)
         for (const r of inside) rows.set(r.id, r)
         for (const d of [path, ...subdirs]) dirs.add(d)
+      }
+      for (const path of paths) {
+        const refused = collect(path)
+        if (refused) return refused
       }
       const author = this.actorKey(by)
       const events: E[] = []
@@ -347,16 +353,18 @@ export class FileIndex<E> {
           events.push(...out.events)
           drop.push(...out.drop)
         }
-        for (const c of changes) {
+        const putChange = (c: Extract<IndexChange, { op: "put" }>) => {
+          const out = this.put(c.file)
+          if (out.conflict) throw changed(c.file.path)
+          if (out.refused) throw new Refused(c.file.path, out.refused.message, false)
+          events.push(...out.events)
+          if (out.drop) drop.push(out.drop)
+        }
+        const applyChange = (c: IndexChange) => {
           switch (c.op) {
-            case "put": {
-              const out = this.put(c.file)
-              if (out.conflict) throw changed(c.file.path)
-              if (out.refused) throw new Refused(c.file.path, out.refused.message, false)
-              events.push(...out.events)
-              if (out.drop) drop.push(out.drop)
+            case "put":
+              putChange(c)
               break
-            }
             case "move": {
               const src = this.stat(c.from)
               if (src?.kind !== "file" || src.sha256 !== c.sha256) throw changed(c.from)
@@ -383,6 +391,7 @@ export class FileIndex<E> {
               break
           }
         }
+        for (const c of changes) applyChange(c)
         return { ok: true as const, events, drop }
       })
     } catch (e) {

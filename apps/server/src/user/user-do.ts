@@ -267,6 +267,7 @@ export class User {
   private dev():Promise<typeof import("./dev")>{this.devCache??=loadUserDev();return this.devCache}
 
   async devSeen(ago: number): Promise<void> {
+    this.lastSeen = Date.now() - ago
     return (await this.dev()).devSeen(this.sql, ago)
   }
 
@@ -1014,6 +1015,10 @@ export class User {
       await this.#kr.kernelFrame(ws, frame)
       return
     }
+    return this.handleUserFrame(ws, frame)
+  }
+
+  private async handleUserFrame(ws: WebSocket, frame: Exclude<typeof ClientToUser.Type, { t: "hello" | "connectComposio" | "disconnectComposio" | "composioStatus" | "browserLink" | "handBack" | "closeBrowser" | "connectKernel" | "disconnectKernel" | "kernelStatus" }>): Promise<void> {
     if (frame.t === "memory") {
       const result = await this.#mem.call(frame.op)
       if (result.ok && (frame.op.op === "note" || frame.op.op === "redact" || frame.op.op === "pin")) this.changed("memory")

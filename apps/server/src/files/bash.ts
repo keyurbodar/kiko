@@ -110,21 +110,27 @@ function plan(start: ReadonlyMap<string, Node>, tree: ReadonlyMap<string, Node>)
     }
   }
   for (const c of writes) if (c.op === "write") c.expect = movedFrom.has(c.path) ? "none" : (startFile(c.path)?.sha256 ?? "none")
-  for (const [path, node] of tree) {
-    if (node.kind !== "directory" || scratch(path) || start.has(path)) continue
-    if (![...tree.keys()].some((p) => under(path, p))) writes.push({ op: "mkdir", path })
+  const planDirectories = () => {
+    for (const [path, node] of tree) {
+      if (node.kind !== "directory" || scratch(path) || start.has(path)) continue
+      if (![...tree.keys()].some((p) => under(path, p))) writes.push({ op: "mkdir", path })
+    }
   }
-  const goneDirs = [...start].filter(([p, n]) => n.kind === "directory" && p !== "/" && !scratch(p) && !tree.has(p)).map(([p]) => p)
-  const topDirs = goneDirs.filter((d) => !goneDirs.some((o) => o !== d && under(o, d)))
-  for (const dir of topDirs) {
-    const files: Record<string, string> = {}
-    for (const [p, n] of start) if (under(dir, p) && n.kind === "file" && n.base && !movedFrom.has(p)) files[p] = n.base.sha256
-    deletions.push({ op: "rmdir", path: dir, files })
+  planDirectories()
+  const planDeletions = () => {
+    const goneDirs = [...start].filter(([p, n]) => n.kind === "directory" && p !== "/" && !scratch(p) && !tree.has(p)).map(([p]) => p)
+    const topDirs = goneDirs.filter((d) => !goneDirs.some((o) => o !== d && under(o, d)))
+    for (const dir of topDirs) {
+      const files: Record<string, string> = {}
+      for (const [p, n] of start) if (under(dir, p) && n.kind === "file" && n.base && !movedFrom.has(p)) files[p] = n.base.sha256
+      deletions.push({ op: "rmdir", path: dir, files })
+    }
+    for (const [path, node] of start) {
+      if (node.kind !== "file" || !node.base || scratch(path) || tree.has(path) || movedFrom.has(path) || topDirs.some((d) => under(d, path))) continue
+      deletions.push({ op: "remove", path, sha256: node.base.sha256 })
+    }
   }
-  for (const [path, node] of start) {
-    if (node.kind !== "file" || !node.base || scratch(path) || tree.has(path) || movedFrom.has(path) || topDirs.some((d) => under(d, path))) continue
-    deletions.push({ op: "remove", path, sha256: node.base.sha256 })
-  }
+  planDeletions()
   return [...moves, ...writes, ...deletions]
 }
 

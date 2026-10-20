@@ -29,6 +29,29 @@ export class Clock {
     private readonly now: () => number = Date.now,
   ) {}
 
+  private considerLoaded(snapshot: ClockSnapshot, now: number, consider: (at: number | undefined) => void): void {
+    const agents = new Set<string>()
+    for (const agent of snapshot.loaded) {
+      agents.add(agent.id)
+      const previous = this.recovery.get(agent.id) ?? new Map<TaskId, number>()
+      const active = new Map<TaskId, number>()
+      for (const task of agent.tasks) {
+        if (task.state.kind === "blocked") continue
+        const scheduled = agent.scheduledDeadline(task)
+        if (scheduled !== undefined && scheduled > now && !task.record.abortRequested) {
+          consider(scheduled)
+          continue
+        }
+        const before = previous.get(task.record.id)
+        const deadline = before !== undefined && before > now ? before : now + RECOVERY_DELAY_MS
+        active.set(task.record.id, deadline)
+        consider(deadline)
+      }
+      this.recovery.set(agent.id, active)
+    }
+    for (const id of this.recovery.keys()) if (!agents.has(id)) this.recovery.delete(id)
+  }
+
   refresh(): Promise<void> {
     const operation = this.update.then(async () => {
       const snapshot = await this.snapshot()
@@ -37,26 +60,7 @@ export class Clock {
       const consider = (at: number | undefined) => {
         if (at !== undefined) next = Math.min(next ?? at, at)
       }
-      const agents = new Set<string>()
-      for (const agent of snapshot.loaded) {
-        agents.add(agent.id)
-        const previous = this.recovery.get(agent.id) ?? new Map<TaskId, number>()
-        const active = new Map<TaskId, number>()
-        for (const task of agent.tasks) {
-          if (task.state.kind === "blocked") continue
-          const scheduled = agent.scheduledDeadline(task)
-          if (scheduled !== undefined && scheduled > now && !task.record.abortRequested) {
-            consider(scheduled)
-            continue
-          }
-          const before = previous.get(task.record.id)
-          const deadline = before !== undefined && before > now ? before : now + RECOVERY_DELAY_MS
-          active.set(task.record.id, deadline)
-          consider(deadline)
-        }
-        this.recovery.set(agent.id, active)
-      }
-      for (const id of this.recovery.keys()) if (!agents.has(id)) this.recovery.delete(id)
+      this.considerLoaded(snapshot, now, consider)
       for (const at of snapshot.unloaded) consider(at)
       consider(snapshot.lease)
       consider(snapshot.hello)

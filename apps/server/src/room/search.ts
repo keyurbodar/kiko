@@ -50,6 +50,19 @@ type Chunk = { rowid: number; chunk: string; members: string; edit_seq: number }
 type IndexedMessage = { seq: number; text: string }
 type ResultRow = { id: string; seq: number; at: number; sender: string; text: string; rich: string | null }
 
+function collectDirty(sql: SqlStorage, roomId: string, editSeq: number, dirty: Set<number>): void {
+	for (const event of sql.exec<{ kind: string; payload: string }>(
+		"SELECT kind, payload FROM events WHERE room_id = ? AND seq > ? AND kind IN ('edit', 'delete')", roomId, editSeq,
+	)) {
+		const payload = JSON.parse(event.payload) as { messageId?: string; messageIds?: string[] }
+		for (const id of payload.messageIds ?? (payload.messageId ? [payload.messageId] : [])) {
+			const position = messageSeq(roomId, id)
+			const seq = position > 0 ? position : sql.exec<{ seq: number }>("SELECT seq FROM messages WHERE room_id = ? AND id = ?", roomId, id).toArray()[0]?.seq
+			if (seq !== undefined) dirty.add(seq)
+		}
+	}
+}
+
 function indexChunks(storage: DurableObjectStorage, roomId: string, roomToken: string): void {
 	const sql = storage.sql
 	const scope = `room:${roomId}`
@@ -63,16 +76,7 @@ function indexChunks(storage: DurableObjectStorage, roomId: string, roomToken: s
 		if (state && lastSeq <= state.last_seq && editSeq <= state.edit_seq && !hydrated.length) return
 		const dirty = new Set(hydrated.map((row) => row.seq))
 		if (state) {
-			for (const event of sql.exec<{ kind: string; payload: string }>(
-				"SELECT kind, payload FROM events WHERE room_id = ? AND seq > ? AND kind IN ('edit', 'delete')", roomId, state.edit_seq,
-			)) {
-				const payload = JSON.parse(event.payload) as { messageId?: string; messageIds?: string[] }
-				for (const id of payload.messageIds ?? (payload.messageId ? [payload.messageId] : [])) {
-					const position = messageSeq(roomId, id)
-					const seq = position > 0 ? position : sql.exec<{ seq: number }>("SELECT seq FROM messages WHERE room_id = ? AND id = ?", roomId, id).toArray()[0]?.seq
-					if (seq !== undefined) dirty.add(seq)
-				}
-			}
+			collectDirty(sql, roomId, state.edit_seq, dirty)
 		} else {
 			sql.exec("DELETE FROM messages_fts WHERE messages_fts MATCH ?", `room:${roomToken}`)
 		}

@@ -58,28 +58,27 @@ export class InitiativeEngine {
     this.prune(now)
     const report: PassReport = { at: now, woke: [] }
     const level = this.d.level()
-    if (level === "digest" || level === "active") {
-      const raised = new Set<string>()
-      let tried = 0
-      let landed = 0
-      for (const { room: roomId, task } of this.due(now)) {
-        if (this.d.title(roomId) === null || raised.has(roomId)) continue
-        if (++tried > TRIES) break
-        const own = task.owner !== undefined
-        const id = `task:${roomId}:${task.id}#${Math.floor(now / DAY)}`
-        const result = await this.d.wake(roomId, {
-          id,
-          to: own ? (task.owner as AgentSlug) : null,
-          body: wakeBody(task, own, now),
-          reason: `${own ? `Promised ${day(task.updatedAt, this.d.tz())}` : `Not touched since ${day(task.updatedAt, this.d.tz())}`}`,
-        })
-        report.woke.push({ id, room: roomId, to: own ? (task.owner as string) : "lead", result })
-        if (result === "delivered" || result === "duplicate") {
-          this.d.sql.exec("INSERT OR IGNORE INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES (?, ?, ?, ?, ?, ?, 'sent')", id, roomId, own ? (task.owner as string) : "lead", task.status, `task:${roomId}:${task.id}`, now)
-          this.d.count({ initiative_woke: 1 })
-          raised.add(roomId)
-          if (++landed >= PER_PASS[level]) break
-        }
+    if (level !== "digest" && level !== "active") return report
+    const raised = new Set<string>()
+    let tried = 0
+    let landed = 0
+    for (const { room: roomId, task } of this.due(now)) {
+      if (this.d.title(roomId) === null || raised.has(roomId)) continue
+      if (++tried > TRIES) break
+      const own = task.owner !== undefined
+      const id = `task:${roomId}:${task.id}#${Math.floor(now / DAY)}`
+      const result = await this.d.wake(roomId, {
+        id,
+        to: own ? (task.owner as AgentSlug) : null,
+        body: wakeBody(task, own, now),
+        reason: `${own ? `Promised ${day(task.updatedAt, this.d.tz())}` : `Not touched since ${day(task.updatedAt, this.d.tz())}`}`,
+      })
+      report.woke.push({ id, room: roomId, to: own ? (task.owner as string) : "lead", result })
+      if (result === "delivered" || result === "duplicate") {
+        this.d.sql.exec("INSERT OR IGNORE INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES (?, ?, ?, ?, ?, ?, 'sent')", id, roomId, own ? (task.owner as string) : "lead", task.status, `task:${roomId}:${task.id}`, now)
+        this.d.count({ initiative_woke: 1 })
+        raised.add(roomId)
+        if (++landed >= PER_PASS[level]) break
       }
     }
     return report

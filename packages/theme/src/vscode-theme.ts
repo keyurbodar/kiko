@@ -81,9 +81,9 @@ export function parseJsonc(text: string): unknown {
   while (i < text.length) {
     const c = text[i]!
     if (c === '"') {
-      const start = i++
-      while (i < text.length && text[i] !== '"') i += text[i] === "\\" ? 2 : 1
-      out += text.slice(start, ++i)
+      const end = stringEnd(text, i)
+      out += text.slice(i, end)
+      i = end
       comma = -1
       continue
     }
@@ -124,4 +124,10 @@ export async function readVsCodeTheme(path: string, read: (path: string) => Prom
   if (typeof value.include !== "string") return value
   const base = await readVsCodeTheme(packagePath(path, value.include), read, depth + 1)
   return { ...base, ...value, colors: { ...base.colors, ...value.colors } }
+}
+
+function stringEnd(text: string, start: number): number {
+  let i = start + 1
+  while (i < text.length && text[i] !== '"') i += text[i] === "\\" ? 2 : 1
+  return i + 1
 }

@@ -54,6 +54,45 @@ export class HistoryArchive {
     private readonly now: () => number = Date.now,
   ) {}
 
+  private scanMessages(messages: Message[], cursor: number, deadline: number, results: SearchHit[], size: number, options: SearchOptions, seen: Set<string>, patterns: RegExp[], query: string): { cursor: number; page: SearchPage | null } {
+    let scanned = 0
+    for (const message of messages) {
+      if (message.seq >= cursor) continue
+      if (scanned > 0 && this.now() >= deadline) {
+        results.sort((a, b) => b.seq - a.seq)
+        const safe = results.filter((hit) => hit.seq >= cursor).slice(0, size)
+        return { cursor, page: { results: safe, next: safe.length === size ? safe[size - 1]!.seq : cursor } }
+      }
+      scanned++
+      cursor = message.seq
+      if (message.at >= (options.beforeAt ?? Number.MAX_SAFE_INTEGER)) continue
+      if (message.event && "private" in message.event && message.event.private || !options.mail && message.to) continue
+      const text = message.rich ? plainText(message.rich) : message.text
+      if (!seen.has(message.id) && patterns.every((pattern) => pattern.test(text))) {
+        results.push({ id: message.id, seq: message.seq, at: message.at, from: message.from, snippet: snippetOf(text, query) })
+        seen.add(message.id)
+        results.sort((a, b) => b.seq - a.seq)
+        if (results.length > size && cursor <= results[size - 1]!.seq) return { cursor, page: { results: results.slice(0, size), next: results[size - 1]!.seq } }
+      }
+    }
+    return { cursor, page: null }
+  }
+
+  private finishAround(candidates: Map<string, Message>, previews: Map<string, ReplyPreview>, seq: number, before: number, after: number): Message[] {
+    for (const row of this.store.overrides([...candidates.keys()])) {
+      if (row.message) candidates.set(row.id, row.message)
+      else candidates.delete(row.id)
+    }
+    for (const row of this.store.overrides([...candidates.values()].flatMap((m) => m.replyTo ? [m.replyTo] : []))) {
+      if (row.preview) previews.set(row.id, row.preview)
+    }
+    const values = [...candidates.values()].sort((a, b) => a.seq - b.seq).map((message) => {
+      const reply = message.replyTo ? previews.get(message.replyTo) : undefined
+      return reply ? { ...message, reply } : message
+    })
+    return [...(before ? values.filter((m) => m.seq < seq).slice(-before) : []), ...values.filter((m) => m.seq >= seq).slice(0, after)]
+  }
+
   afterRun(): Promise<void> {
     if (!this.archive || this.erased) return Promise.resolve()
     return this.running ??= this.moveDay().finally(() => { this.running = undefined })
@@ -148,18 +187,7 @@ export class HistoryArchive {
       const floor = Math.min(seq, older[0]?.seq ?? seq)
       if (older.length === before && newer.length === after && rows.some((row) => row.seq <= floor) && [...older, ...newer].every((m) => !m.replyTo || m.reply || previews.has(m.replyTo))) break
     }
-    for (const row of this.store.overrides([...candidates.keys()])) {
-      if (row.message) candidates.set(row.id, row.message)
-      else candidates.delete(row.id)
-    }
-    for (const row of this.store.overrides([...candidates.values()].flatMap((m) => m.replyTo ? [m.replyTo] : []))) {
-      if (row.preview) previews.set(row.id, row.preview)
-    }
-    const values = [...candidates.values()].sort((a, b) => a.seq - b.seq).map((message) => {
-      const reply = message.replyTo ? previews.get(message.replyTo) : undefined
-      return reply ? { ...message, reply } : message
-    })
-    return [...(before ? values.filter((m) => m.seq < seq).slice(-before) : []), ...values.filter((m) => m.seq >= seq).slice(0, after)]
+    return this.finishAround(candidates, previews, seq, before, after)
   }
 
   async search(query: string, options: SearchOptions = {}, budgetMs = 40): Promise<SearchPage> {
@@ -180,26 +208,9 @@ export class HistoryArchive {
       const day = days[index]!
       const rows = await this.archive.readDay(this.roomId, day)
       const messages = this.current(rows).sort((a, b) => b.seq - a.seq)
-      let scanned = 0
-      for (const message of messages) {
-        if (message.seq >= cursor) continue
-        if (scanned > 0 && this.now() >= deadline) {
-          results.sort((a, b) => b.seq - a.seq)
-          const safe = results.filter((hit) => hit.seq >= cursor).slice(0, size)
-          return { results: safe, next: safe.length === size ? safe[size - 1]!.seq : cursor }
-        }
-        scanned++
-        cursor = message.seq
-        if (message.at >= (options.beforeAt ?? Number.MAX_SAFE_INTEGER)) continue
-        if (message.event && "private" in message.event && message.event.private || !options.mail && message.to) continue
-        const text = message.rich ? plainText(message.rich) : message.text
-        if (!seen.has(message.id) && patterns.every((pattern) => pattern.test(text))) {
-          results.push({ id: message.id, seq: message.seq, at: message.at, from: message.from, snippet: snippetOf(text, query) })
-          seen.add(message.id)
-          results.sort((a, b) => b.seq - a.seq)
-          if (results.length > size && cursor <= results[size - 1]!.seq) return { results: results.slice(0, size), next: results[size - 1]!.seq }
-        }
-      }
+      const scanned = this.scanMessages(messages, cursor, deadline, results, size, options, seen, patterns, query)
+      if (scanned.page) return scanned.page
+      cursor = scanned.cursor
       cursor = Math.min(cursor, ...rows.map((row) => row.seq))
       results.sort((a, b) => b.seq - a.seq)
       if (results.length > size && cursor <= results[size - 1]!.seq) return { results: results.slice(0, size), next: results[size - 1]!.seq }
