@@ -3,7 +3,7 @@ import type { Env } from "./index"
 import { humanHandle } from "@kiko/protocol"
 import { boundedWait } from "@kiko/durable/bounded-wait"
 import { DEV } from "./lib/dev-guard"
-import { HANDLE_HEADER, NameError, USER_ID_HEADER, ownerStub } from "./lib/names"
+import { HANDLE_HEADER, NameError, ROOM_ID_HEADER, USER_ID_HEADER, ownerStub } from "./lib/names"
 
 export type SessionLookup = (request: Request, env: AuthEnv) => Promise<{ id: string; name?: string } | null>
 
@@ -59,6 +59,7 @@ async function upgrade(request: Request, env: Env, url: URL, lookup: SessionLook
 
   const headers = new Headers(request.headers)
   headers.set(USER_ID_HEADER, user.id)
+  headers.delete(ROOM_ID_HEADER)
   try {
     headers.set(HANDLE_HEADER, humanHandle(user.name))
     const response = await ownerStub(env.OWNER, user.id).fetch(new Request(request, { headers }))

@@ -61,14 +61,15 @@ async function until<T>(read: () => Promise<T>, done: (value: T) => boolean, ms 
   }
 }
 
-test("a human message during a running read stops it", async () => {
+test("a human message steers the answer after a running read finishes", async () => {
   const a = await agent()
   await a.say("HANG one")
   await until(a.counts, (c) => c.hangStarted === 1)
   await a.say("two")
-  await until(a.counts, (c) => c.hangAborted === 1)
+  expect((await a.counts()).hangAborted).toBe(0)
+  await a.release()
   const posts = await until(a.posts, (p) => p.includes("reply to: two"))
-  expect(posts.some((t) => t.includes("released"))).toBe(false)
+  expect(posts).toContain("reply to: two")
   expect((await a.counts()).hangStarted).toBe(1)
 }, 30_000)
 
@@ -83,16 +84,6 @@ test("a human message during a running write does not stop it, and the write run
   const posts = await until(a.posts, (p) => p.includes("reply to: two"))
   expect(posts.some((t) => t.includes("aborted"))).toBe(false)
   expect((await a.counts()).holdFinished).toBe(1)
-}, 30_000)
-
-test("a human message stops a running read before the answer is submitted", async () => {
-  const a = await agent()
-  await a.say("HANG one")
-  await until(a.counts, (c) => c.hangStarted === 1)
-  await a.say("two")
-  const order = await until(a.calls, (c) => c.indexOf("abort") >= 0 && c.length >= c.indexOf("abort") + 3)
-  const at = order.indexOf("abort")
-  expect(order.slice(at, at + 3)).toEqual(["abort", "submit", "submitted"])
 }, 30_000)
 
 test("a refused human message stops nothing that waits on an answer", async () => {

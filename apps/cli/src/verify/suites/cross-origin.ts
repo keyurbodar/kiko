@@ -37,7 +37,7 @@ const suite: Suite = {
     if (evil.headers.get("access-control-allow-origin")) throw new VerifyError("an untrusted origin got an allow-origin header")
     console.log("  ok cors: preflight allowed for the trusted origin, none for a stranger")
 
-    const wsUrl = new URL("api/ws/user", v.url)
+    const wsUrl = new URL("api/ws", v.url)
     wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:"
     const connect = (protocols: string[], origin: string) =>
       new Promise<WebSocket | null>((resolve) => {

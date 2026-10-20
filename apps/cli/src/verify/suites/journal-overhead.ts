@@ -6,20 +6,12 @@ import { messages, newRoom, poll } from "../kit"
 import type { Suite } from "../runner"
 import { fake, readStats, resetStats } from "./latency"
 
-// PR 1's gate, measured on a running dev Worker:
-// - at most 30 AgentDO rows per warm prompt, median of five
-// - no armed alarm on the agent 1 minute after a run
-// - an agent whose model always throws shows one error row and holds no alarm a minute later
-//
-// `PR1_BASELINE=1` records the same numbers on `main` and asserts nothing, so the before and after columns
-// come from one command. `PR1_EVIDENCE=<path>` writes the raw counters to that file; it holds counts, ids and
-// alarm times, never a token. `KIKO_JOURNAL_QUIET_MS` shortens the minute for a smoke run, which is not a
-// gate measurement.
-
+// PR2 measures physical OWNER SQL writes. Legacy object counters remain in baseline evidence.
+// KIKO_JOURNAL_QUIET_MS can shorten a smoke run, but a gate requires the full minute.
 const QUIET_MS = Number(process.env.KIKO_JOURNAL_QUIET_MS ?? 60_000)
-const BASELINE = process.env.PR1_BASELINE === "1"
-const EVIDENCE = process.env.PR1_EVIDENCE
-const ROW_GATE = 30
+const BASELINE = process.env.PR2_BASELINE === "1" || process.env.PR1_BASELINE === "1"
+const EVIDENCE = process.env.PR2_EVIDENCE ?? process.env.PR1_EVIDENCE
+const ROW_GATE = 15
 const WARM_RUNS = 5
 const AGENT = "kiko"
 
@@ -28,6 +20,7 @@ type AlarmAt = number | null | undefined
 type Phase = {
   name: string
   counters: Counters
+  interObjectCalls: number
   rowsWritten: { total: number; byObject: Record<string, number> }
   alarms: { setAlarm: { total: number; byObject: Record<string, number> }; armedAgent: AlarmAt }
 }
@@ -43,13 +36,14 @@ type Evidence = {
   errors: { liveRows: number; persistedRows: number }
 }
 
-const KIND_PARTS = ["agent", "room", "user", "file"] as const
+const KIND_PARTS = ["owner", "agent", "room", "user", "file"] as const
 
 const sum = (c: Counters, test: (key: string) => boolean): number =>
   Object.entries(c).reduce((n, [k, v]) => (test(k) ? n + v : n), 0)
 
-const rowsWritten = (c: Counters): number => sum(c, (k) => k.endsWith(".rowsWritten"))
-const setAlarm = (c: Counters): number => sum(c, (k) => k.endsWith(".kv.setAlarm"))
+export const rowsWritten = (c: Counters): number => c["owner.rowsWritten"] ?? sum(c, (k) => k.endsWith(".rowsWritten"))
+export const interObjectCalls = (c: Counters): number => sum(c, (k) => k.startsWith("rpc.") && k !== "rpc.owner" && !k.startsWith("rpc.owner."))
+const setAlarm = (c: Counters): number => c["owner.kv.setAlarm"] ?? sum(c, (k) => k.endsWith(".kv.setAlarm"))
 
 /** Rows and alarm calls per object, so a room's own background alarm is never read as the agent's. */
 function byObject(c: Counters, suffix: string): Record<string, number> {
@@ -113,7 +107,7 @@ function report(label: string, p: Phase): void {
     ]),
   )
   console.log(
-    `  ${label}: ${p.rowsWritten.total} rows written (agent ${rows.agent}, room ${rows.room}, user ${rows.user}), ` +
+    `  ${label}: ${p.rowsWritten.total} rows written (owner ${rows.owner}, agent ${rows.agent}, room ${rows.room}, user ${rows.user}), ` +
       `${p.alarms.setAlarm.total} setAlarm calls [${KIND_PARTS.map((k) => `${k} ${alarms[k]}`).join(", ")}], ` +
       `agent alarm ${describeAlarm(p.alarms.armedAgent)}`,
   )
@@ -133,6 +127,7 @@ async function turn(v: Verifier, s: Session, name: string, roomId: string): Prom
   const phase: Phase = {
     name,
     counters,
+    interObjectCalls: interObjectCalls(counters),
     rowsWritten: { total: rowsWritten(counters), byObject: byObject(counters, "rowsWritten") },
     alarms: {
       setAlarm: { total: setAlarm(counters), byObject: byObject(counters, "kv.setAlarm") },
@@ -220,30 +215,22 @@ const suite: Suite = {
       console.log(`  wrote ${EVIDENCE}`)
     }
 
-    const [prompt, quietPrompt, , quietError] = phases
-    const promptRows = warmMedian.total
-    const agentRows = warmMedian.byObject.agent ?? 0
-    const agentAlarmAfterPrompt = quietPrompt?.alarms.armedAgent
-    const agentAlarmAfterError = quietError?.alarms.armedAgent
-    const backgroundRoomAlarms = (quietPrompt?.alarms.setAlarm.byObject.room ?? 0) + (quietError?.alarms.setAlarm.byObject.room ?? 0)
-    console.log(
-      BASELINE
-        ? `  baseline: ${promptRows} rows per prompt (agent ${prompt?.rowsWritten.byObject.agent ?? 0}), quiet rows ${quietPrompt?.rowsWritten.total ?? 0} then ${quietError?.rowsWritten.total ?? 0}, agent alarm ${describeAlarm(agentAlarmAfterPrompt)} then ${describeAlarm(agentAlarmAfterError)}, room background setAlarm ${backgroundRoomAlarms}, error rows live ${liveErrors} persisted ${persistedErrors}`
-        : `  gate: agent median ${agentRows}/${ROW_GATE}, whole prompt median ${promptRows} rows, quiet rows ${quietPrompt?.rowsWritten.total ?? 0} then ${quietError?.rowsWritten.total ?? 0}, agent alarm ${describeAlarm(agentAlarmAfterPrompt)} then ${describeAlarm(agentAlarmAfterError)}, room background setAlarm ${backgroundRoomAlarms}, error rows live ${liveErrors} persisted ${persistedErrors}`,
-    )
-
-    // PR 1's gates. The room's and user's own quiet work is reported, not gated: PR 3 moves it onto the run.
-    gate(agentRows <= ROW_GATE, `AgentDO wrote a median of ${agentRows} rows across ${WARM_RUNS} warm prompts, the gate is ${ROW_GATE}`)
-    gate(agentAlarmAfterPrompt === null, `the agent had an alarm armed ${QUIET_MS / 1000} s after the prompt: ${describeAlarm(agentAlarmAfterPrompt)}`)
-    gate((quietPrompt?.rowsWritten.byObject.agent ?? 0) === 0, `the agent wrote ${quietPrompt?.rowsWritten.byObject.agent ?? 0} rows in a quiet minute after the prompt`)
-    gate((quietPrompt?.alarms.setAlarm.byObject.agent ?? 0) === 0, `the agent set ${quietPrompt?.alarms.setAlarm.byObject.agent ?? 0} alarms in a quiet minute after the prompt`)
+    const quietPhases = [phases[1], phases[3]]
+    console.log(`  ${BASELINE ? "baseline" : "gate"}: physical rows median ${warmMedian.total}/${ROW_GATE}, inter-object RPC ${warmPrompts.map((p) => p.interObjectCalls).join(", ")}, error rows live ${liveErrors} persisted ${persistedErrors}`)
+    gate(QUIET_MS >= 60_000, "the quiet gate requires at least 60 seconds; shorter intervals are smoke runs only")
+    gate(warmPrompts.every((p) => "owner.rowsWritten" in p.counters), "physical owner.rowsWritten counters are missing")
+    gate(warmMedian.total <= ROW_GATE, `OWNER wrote a median of ${warmMedian.total} rows across ${WARM_RUNS} warm prompts, the gate is ${ROW_GATE}`)
+    for (const phase of [...warmPrompts, ...phases]) {
+      gate(phase.interObjectCalls === 0, `${phase.name}: ${phase.interObjectCalls} calls between objects`)
+    }
+    for (const phase of quietPhases) {
+      if (!phase) throw new VerifyError("missing quiet measurement")
+      gate(phase.rowsWritten.total === 0, `${phase.name}: ${phase.rowsWritten.total} physical rows written`)
+      gate(phase.alarms.setAlarm.total === 0, `${phase.name}: ${phase.alarms.setAlarm.total} setAlarm calls`)
+      gate(phase.alarms.armedAgent === null, `${phase.name}: ${describeAlarm(phase.alarms.armedAgent)}`)
+    }
     gate(liveErrors === 1, `an always-failing prompt showed ${liveErrors} error rows live, the gate is 1`)
     gate(persistedErrors === 1, `an always-failing prompt persisted ${persistedErrors} error rows, the gate is 1`)
-    gate(agentAlarmAfterError === null, `the agent had an alarm armed ${QUIET_MS / 1000} s after the error: ${describeAlarm(agentAlarmAfterError)}`)
-    gate((quietError?.rowsWritten.byObject.agent ?? 0) === 0, `the agent wrote ${quietError?.rowsWritten.byObject.agent ?? 0} rows in a quiet minute after the error`)
-    gate((quietError?.alarms.setAlarm.byObject.agent ?? 0) === 0, `the agent set ${quietError?.alarms.setAlarm.byObject.agent ?? 0} alarms in a quiet minute after the error`)
-    // A room's own background alarm is labelled, not folded into the agent's gate: PR 3 moves it onto the run.
-    if (!BASELINE && backgroundRoomAlarms > 0) console.log(`  note: ${backgroundRoomAlarms} background RoomDO setAlarm calls in the quiet minutes (PR 3 scope)`)
 
     normal.room.raw.close()
     failing.room.raw.close()

@@ -6,7 +6,7 @@ import { parseRichText } from "./rich-text"
 
 export type AgentSend = { id: string; to: AgentSlug | "all"; text: string }
 
-export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; recipients: AgentSlug[] }
+export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; recipients: AgentSlug[]; returns?: {id:string;remote:RoomId}[] }
 
 export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[] } | { ok: false; error: string; events: RoomEvent[] }
 
@@ -30,9 +30,10 @@ export function messageIdOf(envelopeId: string): string | null {
 }
 
 export class MessageChains {
- private readonly chains = new Map<AgentSlug, {current: Chain; next?: Chain}>()
- private readonly stoppedRoots = new Set<string>()
+	private readonly chains = new Map<AgentSlug, { current: Chain; next?: Chain }>()
+	private readonly stoppedRoots = new Set<string>()
 	private readonly sql: SqlStorage
+	private readonly admissions: Promise<void>[] = []
 
 	constructor(
 		private readonly storage: DurableObjectStorage,
@@ -40,7 +41,7 @@ export class MessageChains {
 		private readonly asks: Asks,
 		private readonly busy: (slug: AgentSlug) => boolean = () => false,
 		private readonly now: () => number = Date.now,
- private readonly deliver: (mail: QueuedMail) => void = () => {},
+		private readonly deliver: (mail: QueuedMail) => void|Promise<void> = () => {},
 	) {
 		this.sql = storage.sql
 	}
@@ -53,20 +54,37 @@ export class MessageChains {
 		})
 	}
 
- stop(): void { for (const c of this.chains.values()) { this.stoppedRoots.add(c.current.rootId); if(c.next) this.stoppedRoots.add(c.next.rootId) } }
- delivered(slug: AgentSlug, envelopes: readonly Envelope[]): void {
-  const last = envelopes.at(-1)
-  if (!last) return
-  const chain = {rootId:last.rootId,hop:last.hop}
-  const current = this.chains.get(slug)
-  if (current && this.busy(slug) && !envelopes.some(e=>e.from.kind === "human")) current.next=chain
-  else this.chains.set(slug,{current:chain})
- }
- runEnded(slug: AgentSlug): void { const chain=this.chains.get(slug); if(chain?.next) this.chains.set(slug,{current:chain.next}) }
- restore(slug:AgentSlug,envelopes:readonly Pick<Envelope,"rootId"|"hop">[]):void {const last=envelopes.at(-1);if(last)this.chains.set(slug,{current:{rootId:last.rootId,hop:last.hop}})}
- chain(slug: AgentSlug): Chain { return this.chains.get(slug)?.current ?? {rootId:`agent:${slug}`,hop:0} }
- chainRoot(slug: AgentSlug): string | null { return this.chains.get(slug)?.current.rootId ?? null }
- stopped(rootId: string): boolean { return this.stoppedRoots.has(rootId) }
+	stop(): void {
+		for (const c of this.chains.values()) {
+			this.stoppedRoots.add(c.current.rootId)
+			if (c.next) this.stoppedRoots.add(c.next.rootId)
+		}
+	}
+	delivered(slug: AgentSlug, envelopes: readonly Envelope[]): void {
+		const last = envelopes.at(-1)
+		if (!last) return
+		const chain = { rootId: last.rootId, hop: last.hop }
+		const current = this.chains.get(slug)
+		if (current && this.busy(slug) && !envelopes.some((e) => e.from.kind === "human")) current.next = chain
+		else this.chains.set(slug, { current: chain })
+	}
+	runEnded(slug: AgentSlug): void {
+		const chain = this.chains.get(slug)
+		if (chain?.next) this.chains.set(slug, { current: chain.next })
+	}
+	restore(slug: AgentSlug, envelopes: readonly Pick<Envelope, "rootId" | "hop">[]): void {
+		const last = envelopes.at(-1)
+		if (last) this.chains.set(slug, { current: { rootId: last.rootId, hop: last.hop } })
+	}
+	chain(slug: AgentSlug): Chain {
+		return this.chains.get(slug)?.current ?? { rootId: `agent:${slug}`, hop: 0 }
+	}
+	chainRoot(slug: AgentSlug): string | null {
+		return this.chains.get(slug)?.current.rootId ?? null
+	}
+	stopped(rootId: string): boolean {
+		return this.stoppedRoots.has(rootId)
+	}
 
 	deliveries(rootId: string): number {
 		return this.sql.exec<{ n: number }>("SELECT deliveries AS n FROM root_counts WHERE root_id = ?", rootId).toArray()[0]?.n ?? 0
@@ -76,7 +94,12 @@ export class MessageChains {
 	send(from: AgentSlug, input: AgentSend, members: readonly { slug: AgentSlug }[], pair: RoomId | null = null): SendOutcome {
 		return this.storage.transactionSync((): SendOutcome => {
 			const earlier = this.sql.exec<{ send: string }>("SELECT send FROM agent_sends WHERE id = ?", input.id).toArray()[0]
-			if (earlier) return { ok: true, send: JSON.parse(earlier.send) as StoredSend, events: [] }
+			if (earlier) {
+				const send = JSON.parse(earlier.send) as StoredSend
+				if (send.returns?.length) for (const ask of send.returns) this.giveBack(ask.id, from, input.to as AgentSlug, send.text, ask.remote, { rootId: send.rootId, hop: send.hop })
+				else this.enqueue(from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
+				return { ok: true, send, events: [] }
+			}
 			const text = input.text.trim()
 			if (!text) return { ok: false, error: "not sent: the message is empty.", events: [] }
 			if (input.to === from) return { ok: false, error: "not sent: you cannot message yourself.", events: [] }
@@ -95,9 +118,10 @@ export class MessageChains {
 			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown), to: input.to })
 			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, recipients }
 			this.count(rootId, recipients.length)
-			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", input.id, JSON.stringify(send), this.now())
 			const settled = pair || input.to === "all" ? false : this.asks.answer(from, input.to, text)
 			const back = pair || input.to === "all" ? [] : this.asks.answerRemote(from, input.to, text)
+			if (back.length) send.returns = back
+			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", input.id, JSON.stringify(send), this.now())
 			for (const ask of back) this.giveBack(ask.id, from, input.to as AgentSlug, text, ask.remote, { rootId, hop })
 			// A send that answers another room's message is relayed there, so no recipient needs it.
 			if (!back.length) this.enqueue(from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
@@ -111,7 +135,7 @@ export class MessageChains {
 	/** An answer to an ask, relayed to its asker as mail. Recorded and queued in one transaction, like `send`. */
 	relay(id: string, from: AgentSlug, to: AgentSlug, message: { id: string; seq: number; text: string }): StoredSend | null {
 		return this.storage.transactionSync(() => {
-			if (this.sql.exec("SELECT 1 FROM agent_sends WHERE id = ?", id).toArray().length) return null
+			const previous=this.replay(id,from);if(previous)return previous
 			const { rootId, hop: was } = this.chain(from)
 			const hop = was + 1
 			if (this.stopped(rootId) || !checkSend(hop, this.deliveries(rootId), 1).ok) return null
@@ -123,9 +147,21 @@ export class MessageChains {
 		})
 	}
 
- private enqueue(from: AgentSlug, send: StoredSend, remote: Remote | null = null): void {
-  for (const to of send.recipients) this.deliver({n:0,from,to,send,remote})
- }
+	async settle(): Promise<void> {
+		await Promise.all(this.admissions.splice(0))
+	}
+
+	private replay(id: string, from: AgentSlug, remote: Remote | null = null): StoredSend | null {
+		const row = this.sql.exec<{ send: string }>("SELECT send FROM agent_sends WHERE id = ?", id).toArray()[0]
+		if (!row) return null
+		const send = JSON.parse(row.send) as StoredSend
+		this.enqueue(from, send, remote)
+		return send
+	}
+
+	private enqueue(from: AgentSlug, send: StoredSend, remote: Remote | null = null): void {
+		for (const to of send.recipients) this.admissions.push(Promise.resolve(this.deliver({ n: 0, from, to, send, remote })))
+	}
 
 	/**
 	 * In a pair room, queues the answer to what `to` asked in `room`. Once per ask, so a replay queues nothing.
@@ -134,7 +170,7 @@ export class MessageChains {
 	giveBack(askId: string, from: AgentSlug, to: AgentSlug, text: string, room: RoomId, chain?: Chain): void {
 		this.storage.transactionSync(() => {
 			const id = `back:${askId}`
-			if (this.sql.exec("SELECT 1 FROM agent_sends WHERE id = ?", id).toArray().length) return
+			if (this.replay(id, from, { room, askId, back: true })) return
 			const own = chain ?? { rootId: this.chain(from).rootId, hop: this.chain(from).hop + 1 }
 			const send: StoredSend = { messageId: "", seq: 0, text, hop: own.hop, rootId: own.rootId, recipients: [to] }
 			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", id, JSON.stringify(send), this.now())
@@ -150,7 +186,8 @@ export class MessageChains {
 	returned(askId: string, from: AgentSlug, text: string, chain: Chain): Returned | null {
 		return this.storage.transactionSync((): Returned | null => {
 			const ask = this.asks.remote(askId)
-			if (!ask || ask.answer !== null || this.stopped(chain.rootId)) return null
+			if (!ask || this.stopped(chain.rootId)) return null
+			if (ask.answer !== null) return { events: [], asker: ask.asker, queued: this.replay(`answer:${askId}`, from) !== null }
 			this.asks.settle(askId, text)
 			if (!text) return { events: [], asker: ask.asker, queued: false }
 			const shown = `@${ask.asker} ${text}`
@@ -212,7 +249,6 @@ import type { Team } from "./team"
 import type { Members } from "./members"
 import { receive, type ReceiveDeps } from "./receive"
 
-
 export type MailOutcome = { ok: true; to: AgentSlug[] } | { ok: false; error: string }
 
 export type MailDeps = ReceiveDeps & {
@@ -229,7 +265,6 @@ export type MailDeps = ReceiveDeps & {
 }
 
 export class RoomMessaging {
-
 	constructor(private readonly d: MailDeps) {}
 
 	async send(slug: AgentSlug, send: AgentSend): Promise<MailOutcome> {
@@ -249,6 +284,7 @@ export class RoomMessaging {
 		}
 		this.d.publish(out.events)
 		if (!out.ok) return out
+		await this.d.mail.settle()
 		return { ok: true, to: out.send.recipients }
 	}
 
@@ -256,21 +292,28 @@ export class RoomMessaging {
 	 * Sends what `slug` posted in this run back to whoever messaged it, as mail. The answer reaches
 	 * the asker as a new delivery, which is the one path every agent message takes.
 	 */
-	answerAsks(slug: AgentSlug, runId: string, heard: readonly string[]): void {
+	async answerAsks(slug: AgentSlug, runId: string, heard: readonly string[]): Promise<void> {
 		const bubbles = this.d.ctx.storage.sql
 			.exec<{ id: string; seq: number; text: string }>("SELECT id, seq, text FROM messages WHERE run_id = ? AND deleted_at IS NULL ORDER BY seq", runId)
 			.toArray()
-		const text = bubbles.map((b) => b.text).join("\n\n").trim()
+		const text = bubbles
+			.map((b) => b.text)
+			.join("\n\n")
+			.trim()
 		const last = bubbles.at(-1)
-		this.relayHeard(slug, heard, text, last ? { id: last.id, seq: last.seq } : null)
+		await this.relayHeard(slug, heard, text, last ? { id: last.id, seq: last.seq } : null)
 	}
 
 	/** A run with no reply bubbles (empty, `[skip]`, or only reactions, none of which become messages) has nothing to say: its asks settle empty and are not relayed. */
-	relayHeard(slug: AgentSlug, heard: readonly string[], text: string, message: { id: string; seq: number } | null): void {
+	async relayHeard(slug: AgentSlug, heard: readonly string[], text: string, message: { id: string; seq: number } | null): Promise<void> {
 		let relayed = false
-		for (const ask of this.d.asks.unanswered(slug, heard.flatMap((id) => messageIdOf(id) ?? []))) {
+		for (const ask of this.d.asks.unanswered(
+			slug,
+			heard.flatMap((id) => messageIdOf(id) ?? []),
+		)) {
 			if (ask.remote) {
 				this.d.mail.giveBack(ask.id, slug, ask.asker, text, ask.remote)
+		await this.d.mail.settle()
 				this.d.asks.settle(ask.id, text)
 				relayed = true
 				continue
@@ -280,6 +323,7 @@ export class RoomMessaging {
 				continue
 			}
 			if (!this.d.mail.relay(`answer:${ask.id}`, slug, ask.asker, { ...message, text })) continue
+		await this.d.mail.settle()
 			this.d.asks.settle(ask.id, text)
 			relayed = true
 		}
@@ -298,7 +342,7 @@ export class RoomMessaging {
 		const out = this.d.mail.returned(input.askId, input.from, input.text, input)
 		if (!out) return
 		this.d.publish(out.events)
-
+		await this.d.mail.settle()
 	}
 
 	private async deliverRemote(home: Home, mail: QueuedMail, remote: NonNullable<QueuedMail["remote"]>): Promise<void> {
@@ -308,7 +352,14 @@ export class RoomMessaging {
 		if (this.d.mail.stopped(rootId)) return
 		const receipt = await room.pairIn(home.userId, { askId: remote.askId, origin: home.roomId, from: mail.from, to: mail.to, text, rootId, hop })
 		if (receipt === "full") throw new Error(`${mail.to}'s inbox is full`)
-		if (receipt === "refused") await this.pairBack({ askId: remote.askId, from: mail.to, text: `Your message to @${mail.to} could not be delivered. Check that the agent still exists and send a shorter message.`, rootId, hop })
+		if (receipt === "refused")
+			await this.pairBack({
+				askId: remote.askId,
+				from: mail.to,
+				text: `Your message to @${mail.to} could not be delivered. Check that the agent still exists and send a shorter message.`,
+				rootId,
+				hop,
+			})
 	}
 
 	async deliver(home: Home, mail: QueuedMail): Promise<void> {

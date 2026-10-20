@@ -49,7 +49,7 @@ const suite: Suite = {
     while (echoed.length < 3) echoed.push(...chatEvents(await a.expect((f) => chatEvents(f, rooms).length > 0), rooms))
     expectEqual(echoed, seen, "events on the sending socket")
 
-    const wsUrl = new URL("api/ws/user", v.url)
+    const wsUrl = new URL("api/ws", v.url)
     wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:"
     const resumed = new Channel(`${s.name}/user resumed`, wsUrl, s.auth, UserToClientSchema, ClientToUser, {
       t: "hello",

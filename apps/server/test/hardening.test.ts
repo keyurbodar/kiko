@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import type { Envelope } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
-import { MAX_ENTRY_BYTES, MAX_OPEN, RECLAIM_MS } from "@kiko/agent/inbox"
 import { MAX_WAKEUPS } from "@kiko/durable/alarm"
 import { HELLO_TIMEOUT_CODE, HELLO_TIMEOUT_MS } from "@kiko/durable/hello-deadline"
 import { bundleWorker } from "./bundle"
@@ -42,102 +41,6 @@ async function call<R = any>(id: string, op: string, args: Record<string, unknow
   if (!res.ok) throw new Error(await res.text())
   return (await res.json()) as R
 }
-
-const envelope = (body = "hi", from: Envelope["from"] = { kind: "human" }): Envelope => ({
-  id: `e${++n}`,
-  roomId: "01J00000000000000000000000" as Envelope["roomId"],
-  from,
-  body,
-  hop: 0,
-  rootId: `r${n}`,
-})
-
-type Batch = { requestId: string; envelopes: Envelope[] }
-const T0 = 1_000_000
-
-describe("inbox entries in flight", () => {
-  test("a run that dies after taking an entry gets it back after the timeout and handles it once", async () => {
-    const id = fresh()
-    const e = envelope("one")
-    expect((await call(id, "admit", { envelopes: [e] })).inserted).toBe(1)
-
-    const taken = await call<Batch[]>(id, "claim", { now: T0 })
-    expect(taken.map((b) => b.envelopes.map((x) => x.id))).toEqual([[e.id]])
-
-    expect(await call<Batch[]>(id, "claim", { now: T0 + RECLAIM_MS - 1 })).toEqual([])
-
-    const back = await call<Batch[]>(id, "claim", { now: T0 + RECLAIM_MS })
-    expect(back.map((b) => b.requestId)).toEqual([taken[0]!.requestId])
-
-    expect(await call<boolean>(id, "submitted", { requestId: back[0]!.requestId })).toBe(true)
-    expect(await call<boolean>(id, "submitted", { requestId: back[0]!.requestId })).toBe(false)
-    expect(await call<Batch[]>(id, "claim", { now: T0 + 2 * RECLAIM_MS })).toEqual([])
-    expect(await call(id, "counts")).toEqual({ waiting: 0, claimed: 0, submitted: 1 })
-  })
-
-  test("an entry taken by a process that is gone comes back at once", async () => {
-    const id = fresh()
-    const e = envelope("two")
-    await call(id, "admit", { envelopes: [e] })
-    const taken = await call<Batch[]>(id, "claim", { now: T0 })
-    await call(id, "restart")
-    const back = await call<Batch[]>(id, "claim", { now: T0 + 1 })
-    expect(back.map((b) => b.requestId)).toEqual([taken[0]!.requestId])
-    expect(await call<Batch[]>(id, "claim", { now: T0 + 2 })).toEqual([])
-  })
-
-  test("a repeated delivery of a handled entry stores nothing", async () => {
-    const id = fresh()
-    const e = envelope("three")
-    await call(id, "admit", { envelopes: [e] })
-    const [batch] = await call<Batch[]>(id, "claim", { now: T0 })
-    await call(id, "submitted", { requestId: batch!.requestId })
-    expect(await call(id, "admit", { envelopes: [e] })).toEqual({ admitted: [e.id], inserted: 0 })
-    expect(await call<Batch[]>(id, "claim", { now: T0 + 2 * RECLAIM_MS })).toEqual([])
-  })
-
-  test("two worker reports that land while the lead is busy are one submission", async () => {
-    const id = fresh()
-    const first = envelope("job one done", { kind: "system", reason: "work" })
-    const second = envelope("job two done", { kind: "system", reason: "work" })
-    await call(id, "admit", { envelopes: [first] })
-    await call(id, "admit", { envelopes: [second] })
-    const claimed = await call<Batch[]>(id, "claim", { now: T0 })
-    expect(claimed).toHaveLength(1)
-    expect(claimed[0]!.envelopes.map((e) => e.id)).toEqual([first.id, second.id])
-    expect(await call<Batch[]>(id, "claim", { now: T0 + 1 })).toEqual([])
-  })
-})
-
-describe("inbox caps", () => {
-  test("a full inbox refuses a delivery with a full reason and stores none of it", async () => {
-    const id = fresh()
-    const filler = Array.from({ length: MAX_OPEN - 1 }, () => envelope("x"))
-    expect((await call(id, "admit", { envelopes: filler })).inserted).toBe(MAX_OPEN - 1)
-    const two = [envelope("a"), envelope("b")]
-    expect(await call(id, "admit", { envelopes: two })).toEqual({ admitted: [], inserted: 0, refused: "full" })
-    expect((await call(id, "counts")).waiting).toBe(MAX_OPEN - 1)
-    expect((await call(id, "admit", { envelopes: filler.slice(0, 3) })).admitted).toHaveLength(3)
-    expect((await call(id, "admit", { envelopes: two.slice(0, 1) })).inserted).toBe(1)
-    expect((await call(id, "admit", { envelopes: two.slice(1) })).refused).toBe("full")
-  })
-
-  test("submitted entries free the room they held", async () => {
-    const id = fresh()
-    await call(id, "admit", { envelopes: Array.from({ length: MAX_OPEN }, () => envelope("x")) })
-    expect((await call(id, "admit", { envelopes: [envelope()] })).refused).toBe("full")
-    const [batch] = await call<Batch[]>(id, "claim", { now: T0 })
-    await call(id, "submitted", { requestId: batch!.requestId })
-    expect((await call(id, "admit", { envelopes: [envelope()] })).inserted).toBe(1)
-  })
-
-  test("an entry past the size cap is refused", async () => {
-    const id = fresh()
-    const big = envelope("x".repeat(MAX_ENTRY_BYTES))
-    expect(await call(id, "admit", { envelopes: [envelope(), big] })).toEqual({ admitted: [], inserted: 0, refused: "too_large" })
-    expect(await call(id, "counts")).toEqual({ waiting: 0, claimed: 0, submitted: 0 })
-  })
-})
 
 describe("wakeups", () => {
   test("the 1,001st wakeup on one object is refused, and an existing key still moves", async () => {

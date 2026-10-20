@@ -51,18 +51,6 @@ const wrote = (rows: Row[]) => rows.reduce((sum, r) => sum + r.written, 0)
 const report = (action: string, rows: Row[]) => console.log(`ROW ${action} read=${read(rows)} written=${wrote(rows)}`)
 const written = (rows: Row[], label: string) => rows.filter((r) => r.label === label).reduce((sum, r) => sum + r.calls, 0)
 
-test("a turn reads about the same rows with 3,000 inbox rows as with none", async () => {
-	const small = await agent()
-	const fresh = await small.turn("hello")
-	const inbox = await agent()
-	await inbox.seed(3000)
-	const large = await inbox.turn("hello")
-	report("turn, fresh", fresh.rows)
-	report("turn, 3,000 inbox rows", large.rows)
-	expect(large.posted).toBe(1)
-	expect(read(large.rows)).toBeLessThanOrEqual(read(fresh.rows) + 100)
-}, 120_000)
-
 test("an ended run leaves no outbox row, so the outbox stays as small as the open runs", async () => {
 	const a = await agent()
 	for (let i = 0; i < 5; i++) expect((await a.turn("hello")).posted).toBe(1)
@@ -70,15 +58,6 @@ test("an ended run leaves no outbox row, so the outbox stays as small as the ope
 	const rows = await a.reopen()
 	report("reopen, 5 ended runs", rows)
 	expect(read(rows)).toBeLessThanOrEqual(300)
-}, 120_000)
-
-test("pruning the inbox reads the rows it deletes, not every submitted row", async () => {
-	const a = await agent()
-	await a.turn("hello")
-	await a.seed(3000)
-	const rows = await a.prune()
-	report("prune, 3,000 submitted rows", rows)
-	expect(read(rows)).toBeLessThanOrEqual(100)
 }, 120_000)
 
 test("a long transcript costs about the same as a short one", async () => {

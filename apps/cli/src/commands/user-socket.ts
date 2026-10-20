@@ -4,7 +4,7 @@ import { sessionToken } from "./login"
 export async function askUser<R>(ctx: Context, frame: Record<string, unknown>, answer: string): Promise<R> {
   const token = await sessionToken(ctx.url)
   if (!token) throw new CliError("not signed in. run `kiko login --dev` first")
-  const target = new URL("api/ws/user", ctx.url)
+  const target = new URL("api/ws", ctx.url)
   target.protocol = target.protocol === "https:" ? "wss:" : "ws:"
   // Bun takes headers here. The DOM type that the default lib adds does not know that.
   const options: Bun.WebSocketOptions = { headers: { authorization: `Bearer ${token}` } }

@@ -16,7 +16,7 @@ const suite: Suite = {
     expectEqual(http.protocol, PROTOCOL, "/api/version protocol")
 
     const s = await v.as("versions")
-    const wsUrl = new URL("api/ws/user", v.url)
+    const wsUrl = new URL("api/ws", v.url)
     wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:"
     const user = new Channel(`${s.name}/user hello`, wsUrl, s.auth, UserToClientSchema, ClientToUser, { t: "hello", lastSeq: 0 })
     try {

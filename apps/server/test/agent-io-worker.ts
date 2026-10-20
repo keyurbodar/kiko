@@ -166,34 +166,6 @@ class TService extends AgentDO {
 			settle()
 			return Response.json(tallies.size ? [...tallies].map(([label, t]) => ({ label, ...t })) : [])
 		}
-		if (body.op === "prune") {
-			// The inbox prunes at most hourly, when an admit finds its last prune an hour old. Force that admit.
-			settle()
-			tallies.clear()
-			this.ctx.storage.sql.exec("UPDATE inbox_state SET pruned_at = 0 WHERE id = 1")
-			this.host.inbox.admit([], "")
-			settle()
-			return Response.json([...tallies].map(([label, t]) => ({ label, ...t })))
-		}
-		if (body.op === "seed") {
-			// Submitted inbox rows from earlier days: history the inbox keeps for seven days.
-			const sql = this.ctx.storage.sql
-			const now = Date.now()
-			this.ctx.storage.transactionSync(() => {
-				for (let i = 0; i < body.rows; i++) {
-					sql.exec(
-						"INSERT INTO inbox (id, arrival, priority, envelope, brief, request_id, submitted, at) VALUES (?, ?, 2, '{}', '', ?, 1, ?)",
-						`seed:${this.nextSeq}`,
-						-this.nextSeq,
-						`seed-request:${i % 500}`,
-						now - 86_400_000 * 2,
-					)
-					this.nextSeq++
-				}
-			})
-			settle()
-			return Response.json(true)
-		}
 		// One human message, run to its answer and back to idle. Returns the rows it read and wrote.
 		settle()
 		tallies.clear()

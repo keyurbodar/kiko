@@ -13,6 +13,7 @@ import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
 import type { GroupsPort } from "./extensions/chief"
 import { shortBrief } from "../room/brief"
+import { messageIdOf } from "../room/messaging"
 import { CHIEF } from "../room/chief"
 import { HOME } from "../files/upload"
 import { homeBackend, ObjectCache, RoomFs, roomBackend, roomViews, type SoulPort, withMount, withSoul } from "../files/room-fs"
@@ -98,6 +99,7 @@ export class Agent {
   loaded(): boolean { return this.hostInstance?.loaded() ?? false }
   async busy(): Promise<boolean> { return this.hostInstance?.busy() ?? false }
   async unload(): Promise<void> { await this.hostInstance?.unload() }
+  async invalidate(): Promise<void> { await this.hostInstance?.invalidate() }
   nextDeadline(): number | null {
     return this.ctx.storage.sql.exec<{ at: number }>("SELECT min(at) AS at FROM wakeups").toArray()[0]?.at ?? null
   }
@@ -181,7 +183,9 @@ export class Agent {
   async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
     if (this.ctx.storage.sql.exec("SELECT 1 FROM meta WHERE key = 'deleted'").toArray().length) throw new Error("agent deleted")
     if (home) this.setHome(home)
-    const result = await this.host.receive(envelopes, brief)
+    const only = envelopes.length === 1 ? envelopes[0] : undefined
+    const requestId = only?.from.kind === "agent" ? messageIdOf(only.id) ?? undefined : undefined
+    const result = await this.host.receive(envelopes, brief, requestId)
     // A human message ends whatever ask_human is waiting on, so the agent answers them first.
     if (!result.refused && envelopes.some((e) => e.from.kind === "human")) this.answers.interrupt()
     return result

@@ -1,7 +1,5 @@
 import type { Provider } from "@earendil-works/pi-ai"
 import { isAgentSlug } from "@kiko/protocol"
-import { } from "../lib/names"
-import { fileStore } from "../files/store"
 import { KIKO, newRoomId, pairRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
@@ -14,7 +12,7 @@ import { RecipeService } from "./recipe-service"
 import { recipeCard } from "../recipes/card"
 import { ClientToUser, INITIATIVE_LEVELS, type UserSettings, type UserSettingsPatch } from "@kiko/protocol/schema"
 import type { OwnerServices, ServiceOptions } from "../owner/services"
-import { instrument, loadUserDev } from "../lib/dev-guard"
+import { loadUserDev } from "../lib/dev-guard"
 import { signToken } from "../auth/auth"
 import { BACKEND } from "../lib/version"
 import { Schema } from "effect"
@@ -763,6 +761,7 @@ export class User {
   #initiativeModule?: InitiativeEngine
   get #initiative(): InitiativeEngine {
     this.#initiativeModule ??= new InitiativeEngine({
+      boards: () => this.directory.list().map((chat) => ({ roomId: chat.roomId, oldest: this.services.room(chat.roomId).openTasks().oldest })),
       sql: this.sql,
       tz: () => getSetting(this.sql, "timezone") ?? DEFAULT_TIMEZONE,
       level: () => this.initiativeLevel(),
@@ -1147,7 +1146,11 @@ export class User {
     if (!saved) return null
     if (!announce && JSON.stringify(saved) === JSON.stringify(before)) return saved
     this.commit({ t: "agent_model", slug, ...saved })
-    if (roomId && saved.model !== before?.model) this.ctx.waitUntil(Promise.resolve(this.services.room(roomId).modelChanged(slug, saved.model, before?.model)).catch(() => {}))
+    if (roomId && saved.model !== before?.model) {
+      this.ctx.waitUntil(Promise.resolve(this.services.room(roomId).modelChanged(slug, saved.model, before?.model)).catch(() => {}))
+      // The harness keeps its model until it reloads, so an idle agent drops it now and a busy one drops it when the run ends.
+      this.ctx.waitUntil(Promise.resolve(this.services.agent(roomId, slug).invalidate()).catch(() => {}))
+    }
     return saved
   }
 

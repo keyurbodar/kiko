@@ -64,11 +64,12 @@ const suite: Suite = {
 
 		const resumed = new Channel<In, typeof ClientToRoom.Type>(
 			`${s.name}/room ${roomId} resumed`,
-			wsUrl(v.url, `api/ws/room/${roomId}`),
+			wsUrl(v.url, "api/ws"),
 			s.auth,
 			RoomToClientSchema,
 			ClientToRoom,
 			{ t: "hello", lastSeq: 4 },
+			roomId,
 		)
 		try {
 			await resumed.connect()

@@ -5,7 +5,7 @@ import type {
   RoomToClient as RoomIn,
   UserToClient as UserIn,
 } from "@kiko/protocol"
-import { ClientToRoom, ClientToUser, RoomToClient, UserToClient } from "@kiko/protocol/schema"
+import { ClientToRoom, ClientToUser, OwnerToClient, RoomToClient, UserToClient } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 
 export class VerifyError extends Error {}
@@ -29,6 +29,7 @@ export class Channel<In, Out> {
     private readonly incoming: Schema.Codec<In, unknown>,
     private readonly outgoing: Schema.Codec<Out, unknown>,
     private readonly hello: Out | null,
+    private readonly roomId?: string,
   ) {}
 
   async connect(): Promise<void> {
@@ -37,12 +38,23 @@ export class Channel<In, Out> {
     const headers = this.auth ? { authorization: this.auth } : undefined
     const socket = new WebSocket(this.target, { headers } as never)
     this.socket = socket
+    let ready: (() => void) | undefined
+    const userReady = this.roomId ? new Promise<void>((resolve) => { ready = resolve }) : null
     socket.onmessage = (ev) => {
       const text = typeof ev.data === "string" ? ev.data : new TextDecoder().decode(ev.data as ArrayBuffer)
       let frame: unknown = text
       this.texts.push(text)
       try {
         frame = JSON.parse(text)
+        if (this.roomId) {
+          const owner = Schema.decodeUnknownSync(OwnerToClient)(frame)
+          if (owner.t !== "room") {
+            if (owner.t === "reset" || owner.t === "events") ready?.()
+            return
+          }
+          if (owner.roomId !== this.roomId) return
+          frame = owner.frame
+        }
         this.log.push({ at: this.now(), dir: "in", frame: Schema.decodeUnknownSync(this.incoming)(frame) })
       } catch (e) {
         this.log.push({ at: this.now(), dir: "bad", frame })
@@ -57,6 +69,23 @@ export class Channel<In, Out> {
       socket.onopen = () => resolve()
       socket.onerror = () => reject(new VerifyError(`${this.label}: cannot connect to ${this.target}`))
     })
+    if (userReady) {
+      socket.send(JSON.stringify({ t: "hello", lastSeq: 0 }))
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([
+          userReady,
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new VerifyError(`${this.label}: user hello timed out`)), 5000)
+          }),
+        ])
+      } catch (error) {
+        socket.close()
+        throw error
+      } finally {
+        clearTimeout(timer)
+      }
+    }
     if (this.hello) this.send(this.hello)
   }
 
@@ -71,11 +100,24 @@ export class Channel<In, Out> {
   send(frame: Out): void {
     const wire = Schema.encodeSync(this.outgoing)(frame)
     this.log.push({ at: this.now(), dir: "out", frame })
-    this.socket.send(JSON.stringify(wire))
+    this.socket.send(JSON.stringify(this.envelope(wire)))
+  }
+
+  private envelope(wire: unknown): unknown {
+    if (!this.roomId) return wire
+    if (typeof wire === "object" && wire !== null && "t" in wire && wire.t === "hello") {
+      return { t: "subscribe", roomId: this.roomId, lastSeq: "lastSeq" in wire ? wire.lastSeq : 0 }
+    }
+    return { t: "room", roomId: this.roomId, frame: wire }
   }
 
   sendRaw(text: string): void {
     this.log.push({ at: this.now(), dir: "out", frame: text })
+    if (this.roomId) {
+      try {
+        text = JSON.stringify(this.envelope(JSON.parse(text)))
+      } catch {}
+    }
     this.socket.send(text)
   }
 
@@ -268,7 +310,7 @@ export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}
         userId,
         auth,
         async user() {
-          const user: UserChannel = new Channel(`${name}/user`, wsUrl("api/ws/user"), auth, UserToClient, ClientToUser, {
+          const user: UserChannel = new Channel(`${name}/user`, wsUrl("api/ws"), auth, UserToClient, ClientToUser, {
             t: "hello",
             lastSeq: 0,
           })
@@ -277,7 +319,7 @@ export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}
           return user
         },
         async signInSocket() {
-          const socket: UserChannel = new Channel(`${name}/sign-in`, wsUrl("api/ws/user"), auth, UserToClient, ClientToUser, null)
+          const socket: UserChannel = new Channel(`${name}/sign-in`, wsUrl("api/ws"), auth, UserToClient, ClientToUser, null)
           open.push(socket)
           await socket.connect()
           return socket
@@ -285,11 +327,12 @@ export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}
         async room(roomId) {
           const raw: RoomChannel = new Channel(
             `${name}/room ${roomId}`,
-            wsUrl(`api/ws/room/${roomId}`),
+            wsUrl("api/ws"),
             auth,
             RoomToClient,
             ClientToRoom,
             { t: "hello", lastSeq: 0 },
+            roomId,
           )
           open.push(raw)
           await raw.connect()

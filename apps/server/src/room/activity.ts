@@ -19,7 +19,14 @@ function messageCandidate(m: Posted, nameOf: (slug: string) => string): Candidat
 	const { from, files } = m
 	return {
 		seq: m.seq,
-		last: messageLast({ from: from.kind, ...(from.kind === "agent" ? { name: nameOf(from.slug) } : {}), text: m.text, ...(m.rich ? { rich: m.rich, mentionName: nameOf } : {}), ...(files?.length ? { files } : {}), at: m.at }),
+		last: messageLast({
+			from: from.kind,
+			...(from.kind === "agent" ? { name: nameOf(from.slug) } : {}),
+			text: m.text,
+			...(m.rich ? { rich: m.rich, mentionName: nameOf } : {}),
+			...(files?.length ? { files } : {}),
+			at: m.at,
+		}),
 	}
 }
 
@@ -31,7 +38,12 @@ export function bubbleTouch(sql: SqlStorage, log: RoomLog, row: Posted): RoomAct
 }
 
 export function roomActivity(sql: SqlStorage, log: RoomLog): RoomActivity {
-	const names = new Map(sql.exec<{ slug: string; name: string; removed_at: number | null }>("SELECT slug, name, removed_at FROM members").toArray().map((r) => [r.slug, r]))
+	const names = new Map(
+		sql
+			.exec<{ slug: string; name: string; removed_at: number | null }>("SELECT slug, name, removed_at FROM members")
+			.toArray()
+			.map((r) => [r.slug, r]),
+	)
 	const nameOf = (slug: string) => names.get(slug)?.name ?? slug
 	const group = [...names.values()].filter((m) => m.removed_at === null).length > 1
 	const candidates: Candidate[] = []
@@ -41,10 +53,23 @@ export function roomActivity(sql: SqlStorage, log: RoomLog): RoomActivity {
 			`SELECT seq, at, sender, text, rich, files FROM messages WHERE deleted_at IS NULL AND ${LISTED_MESSAGE} ORDER BY seq DESC LIMIT 1`,
 		)
 		.toArray()[0]
-	if (message) candidates.push(messageCandidate({ ...message, from: JSON.parse(message.sender) as Sender, rich: message.rich ? (JSON.parse(message.rich) as RichText) : undefined, files: message.files ? (JSON.parse(message.files) as FileRef[]) : undefined }, nameOf))
+	if (message)
+		candidates.push(
+			messageCandidate(
+				{
+					...message,
+					from: JSON.parse(message.sender) as Sender,
+					rich: message.rich ? (JSON.parse(message.rich) as RichText) : undefined,
+					files: message.files ? (JSON.parse(message.files) as FileRef[]) : undefined,
+				},
+				nameOf,
+			),
+		)
 
 	const react = sql
-		.exec<{ seq: number; at: number; actor: string; payload: string }>("SELECT seq, at, actor, payload FROM events WHERE kind = 'react' AND actor LIKE 'agent:%' ORDER BY seq DESC LIMIT 1")
+		.exec<{ seq: number; at: number; actor: string; payload: string }>(
+			"SELECT seq, at, actor, payload FROM events WHERE kind = 'react' AND actor LIKE 'agent:%' ORDER BY seq DESC LIMIT 1",
+		)
 		.toArray()[0]
 	if (react) {
 		const { messageId, emoji } = JSON.parse(react.payload) as { messageId: string; emoji: string | null }

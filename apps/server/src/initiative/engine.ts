@@ -26,6 +26,7 @@ type EngineDeps = {
   sql: SqlStorage
   tz: () => string
   level: () => Level
+  boards: () => readonly Board[]
   /** The chat's title, or null when the chat is private or gone: nothing there may be raised. */
   title: (roomId: string) => string | null
   wake: (roomId: string, input: WakeInput) => Promise<WakeResult | "busy">
@@ -38,13 +39,7 @@ export class InitiativeEngine {
   constructor(private readonly d: EngineDeps) {}
 
   private boards(): Board[] {
-    return this.d.sql
-      .exec<{ room_id: string; tasks: string }>("SELECT room_id, tasks FROM chat_tasks")
-      .toArray()
-      .flatMap((r) => {
-        const tasks = JSON.parse(r.tasks) as { oldest?: BoardTask[] }
-        return tasks.oldest?.length ? [{ roomId: r.room_id, oldest: tasks.oldest }] : []
-      })
+    return [...this.d.boards()]
   }
 
   /** The open tasks that are old enough to raise: oldest change first, one per chat, none nudged in the last three days. */

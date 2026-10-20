@@ -2,10 +2,10 @@ import { HistoryArchive } from "../owner/history-archive"
 import { RoomHistoryStore } from "../owner/history-store"
 import { historyR2 } from "../owner/history-r2"
 import { fileStore } from "../files/store"
-import { humanAnswerText, KIKO, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
+import { humanAnswerText, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
 import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, RunErrorKind, RunStep, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
 import type { OwnerServices, ServiceOptions } from "../owner/services"
-import { instrument, loadRoomDev } from "../lib/dev-guard"
+import { loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 import { createServiceClock as createAlarms, runDue } from "../owner/clock"
@@ -14,7 +14,6 @@ import { RoomRoutines } from "./routines"
 import type { Wake, WakeResult } from "./delivery"
 
 import type { RoomRoutine } from "../user/routines"
-import { HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, } from "../lib/names"
 import { sha256Hex } from "@kiko/durable/hash"
 import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
@@ -24,7 +23,7 @@ import { Bubbles, replyTag } from "./bubbles"
 import type { StepItem } from "../agent/extensions/presence"
 import { roomActivity, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./activity"
 import { Deliveries, withContext } from "./deliver"
-import { type AgentSend, type Chain, MessageChains } from "./messaging"
+import { type AgentSend, MessageChains } from "./messaging"
 import { erase } from "../lib/erase"
 import { isRoomId } from "@kiko/protocol"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
@@ -36,7 +35,7 @@ import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult,
 import { isPrivate, RoomLog } from "./log"
 import type { HeardStep } from "./steps"
 import { cleanOptions, HumanAsks, MAX_QUESTION } from "./human-asks"
-import { activityOf, workersKey } from "./status"
+import { activityOf } from "./status"
 import { dividerMessage, type Divider } from "./dividers"
 import { findProvider } from "../models/catalog"
 import { describeRunError } from "../agent/run-error"
@@ -52,7 +51,7 @@ import { migrate } from "@kiko/durable/migrate"
 import { ROOM_STEPS } from "./schema"
 import { searchMessages, type SearchOptions } from "./search"
 import { STORAGE_ERROR } from "../lib/storage-error"
-import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
+import { handleFrame, send, type SocketRoom } from "./socket"
 import type { RoomDev } from "./dev"
 import { MemoryNaps, MEMORY_WAKEUP } from "./memory-naps"
 import { applyTaskOp, RoomWorkspace, runCall, type WorkspaceAnswer, type WorkspaceCall } from "./workspace"
@@ -75,14 +74,19 @@ const edit = (caption: string): Activity => ({ kind: "tool", tool: "edit", capti
 /** A model reference as the human reads it, such as "Claude Opus 4.6", else the reference itself. */
 const modelNamed = (ref: string): string => {
 	const found = parseModelRef(ref)
-	return (found && findProvider(found.provider)?.getModels().find((m) => m.id === found.modelId)?.name) || ref
+	return (
+		(found &&
+			findProvider(found.provider)
+				?.getModels()
+				.find((m) => m.id === found.modelId)?.name) ||
+		ref
+	)
 }
 
 export const DEFAULT_AGENT = CHIEF
 const CHIEF_NAME = "Kiko"
 const KIKO_CHAT = "kiko_chat"
 export type { AgentHome }
-
 
 const ROW_EVENTS: ReadonlySet<RoomEvent["t"]> = new Set(["message", "edit", "delete", "react", "read", "member", "member_removed"])
 
@@ -116,19 +120,18 @@ export class Room implements SocketRoom {
 	private typingSent: string | null = null
 	private sends: Promise<unknown> = Promise.resolve()
 
-	private readonly ctx:DurableObjectState
- private readonly env:Env
- private readonly services:OwnerServices
- private readonly publishFrame:(frame:unknown)=>void
- private readonly sql:SqlStorage
- constructor(options:ServiceOptions) {
-  const {ctx,env,services,sql,broadcast}=options
-  this.ctx=ctx
-  this.env=env
-  this.services=services
-  this.sql=sql
-  this.publishFrame=broadcast
-
+	private readonly ctx: DurableObjectState
+	private readonly env: Env
+	private readonly services: OwnerServices
+	private readonly publishFrame: (frame: unknown) => void
+	private readonly sql: SqlStorage
+	constructor(options: ServiceOptions) {
+		const { ctx, env, services, sql, broadcast } = options
+		this.ctx = ctx
+		this.env = env
+		this.services = services
+		this.sql = sql
+		this.publishFrame = broadcast
 
 		{
 			migrate(ctx.storage, ROOM_STEPS)
@@ -144,7 +147,17 @@ export class Room implements SocketRoom {
 			})
 			this.asks = new Asks(ctx.storage.sql)
 			this.humanAsks = new HumanAsks(ctx.storage.sql)
-			this.mail = new MessageChains(ctx.storage, this.log, this.asks, (slug) => (this.members.get(slug)?.status ?? "idle") !== "idle", Date.now, (mail) => { const home=this.home(); if(home) this.ctx.waitUntil(this.mailer.deliver(home,mail)) })
+			this.mail = new MessageChains(
+				ctx.storage,
+				this.log,
+				this.asks,
+				(slug) => (this.members.get(slug)?.status ?? "idle") !== "idle",
+				Date.now,
+				(mail) => {
+					const home = this.home()
+					return home?this.mailer.deliver(home,mail):Promise.resolve()
+				},
+			)
 			this.receiver = {
 				services: this.services,
 				log: this.log,
@@ -158,11 +171,11 @@ export class Room implements SocketRoom {
 			this.workspace = new RoomWorkspace(ctx.storage, this.log)
 			this.routines = new RoomRoutines(ctx.storage.sql, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
-			this.memoryNaps = new MemoryNaps({ ctx, env: this.env, services: this.services, alarms: this.alarms, log: this.log, members: this.members, memory: this.memory, home: () => this.home() })
+			this.memoryNaps = new MemoryNaps({ services: this.services, log: this.log, members: this.members, memory: this.memory, home: () => this.home() })
 			this.groups = new Groups({ ctx, env: this.env, services: this.services, log: this.log, members: this.members, home: () => this.home(), publish: (events) => this.publish(events) })
 			this.pending = new PendingUploads(ctx.storage.sql)
-   this.reports = new Reports({ ctx, services: this.services, alarms: this.alarms, log: this.log, members: this.members, mail: this.mail, routines: this.routines, home: () => this.home() })
-   this.wakes = new RoomDelivery({services:this.services,log:this.log,members:this.members,routines:this.routines,workspace:this.workspace,burst:this.burst,home:()=>this.home(),chat:home=>this.chat(home),seedMembers:(home,chat)=>this.seedMembers(home,chat),receiver:this.receiver})
+			this.reports = new Reports({ ctx, services: this.services, alarms: this.alarms, log: this.log, members: this.members, mail: this.mail, routines: this.routines, home: () => this.home() })
+			this.wakes = new RoomDelivery({ services: this.services, log: this.log, members: this.members, routines: this.routines, workspace: this.workspace, burst: this.burst, home: () => this.home(), chat: (home) => this.chat(home), seedMembers: (home, chat) => this.seedMembers(home, chat), receiver: this.receiver })
 
 			this.mailer = new RoomMessaging({
 				...this.receiver,
@@ -188,43 +201,69 @@ export class Room implements SocketRoom {
 		}
 	}
 
- private async flushBurst():Promise<void>{
-  const home=this.home();if(!home)return
-  const pending=this.burst.envelopes(home.roomId)
-  const batch=deliverable(pending);if(!batch.length)return
-  const chat=await this.chat(home);if(!chat){this.burst.clear();return}
-  await this.seedMembers(home,chat)
-  const members=this.members.list()
-  const routes=route(batch,members,id=>replyAddressees(at=>this.log.message(at),id))
-  for(const [slug,envelopes] of routes){
-   const member=members.find(m=>m.slug===slug);if(member)await receive(this.receiver,home,member,members,chat.title,envelopes)
-  }
-  this.burst.delivered(batch.map(p=>p.envelope))
-  if(this.log.meta("private")!=="1")await this.services.user().captureHuman(home.roomId,batch.flatMap(({envelope:e})=>{const message=this.log.message(e.rootId);return message?[{messageId:e.rootId,text:e.body,at:message.at}]:[]}))
-  if(this.burst.pending())await this.burst.arm("")
- }
- private async redeliver(slug:AgentSlug,ids:readonly string[],errorId:string):Promise<void>{
-  const home=this.home();if(!home)return
-  const members=this.members.list();const member=members.find(m=>m.slug===slug);const chat=await this.chat(home)
-  if(!member||!chat)return
-  const envelopes=ids.flatMap((id):Envelope[]=>{const m=this.log.message(id);return m?[{id:`${envelopeId(id)}#${errorId}`,roomId:home.roomId,from:{kind:"human"},body:m.text,...(m.replyTo?{replyTo:m.replyTo}:{}),hop:0,rootId:id,seq:m.seq}]:[]})
-  if(envelopes.length)await receive(this.receiver,home,member,members,chat.title,envelopes)
- }
- saveChat(chat:Chat):void {
-  const {lastSeq:_seq,lastPreview:_preview,unread:_unread,last:_last,mentions:_mentions,group:_group,...settings}=chat
-  this.log.setMeta("chat_settings",JSON.stringify(settings))
-  this.log.setMeta("title",chat.title)
-  this.setPrivate(chat.private??false)
- }
- chatView():Chat|null {
-  const value=this.log.meta("chat_settings");if(!value)return null
-  const settings=JSON.parse(value) as Omit<Chat,"lastSeq"|"lastPreview"|"unread">
-  const activity=this.activity()
-  const {group,...rest}=activity
-  return {...settings,...rest,...(group?{group:true as const}:{}),updatedAt:Math.max(settings.updatedAt,activity.last?.at??0)}
- }
- activity(){return roomActivity(this.sql,this.log)}
- openTasks(){const rows=this.sql.exec<{id:string;title:string;status:string;owner:string|null;updated_at:number}>("SELECT id,title,status,owner,updated_at FROM ws_tasks WHERE status NOT IN ('done','cancelled') ORDER BY updated_at").toArray();return {open:rows.length,oldest:rows.slice(0,3).map(t=>({id:t.id,title:t.title,status:t.status,...(t.owner?{owner:t.owner}:{}),updatedAt:t.updated_at}))}}
+	private async flushBurst(): Promise<void> {
+		const home = this.home()
+		if (!home) return
+		const pending = this.burst.envelopes(home.roomId)
+		const batch = deliverable(pending)
+		if (!batch.length) return
+		const chat = await this.chat(home)
+		if (!chat) {
+			this.burst.clear()
+			return
+		}
+		await this.seedMembers(home, chat)
+		const members = this.members.list()
+		const routes = route(batch, members, (id) => replyAddressees((at) => this.log.message(at), id))
+		for (const [slug, envelopes] of routes) {
+			const member = members.find((m) => m.slug === slug)
+			if (member) await receive(this.receiver, home, member, members, chat.title, envelopes)
+		}
+		this.burst.delivered(batch.map((p) => p.envelope))
+		if (this.log.meta("private") !== "1")
+			await this.services.user().captureHuman(
+				home.roomId,
+				batch.flatMap(({ envelope: e }) => {
+					const message = this.log.message(e.rootId)
+					return message ? [{ messageId: e.rootId, text: e.body, at: message.at }] : []
+				}),
+			)
+		if (this.burst.pending()) await this.burst.arm("")
+	}
+	private async redeliver(slug: AgentSlug, ids: readonly string[], errorId: string): Promise<void> {
+		const home = this.home()
+		if (!home) return
+		const members = this.members.list()
+		const member = members.find((m) => m.slug === slug)
+		const chat = await this.chat(home)
+		if (!member || !chat) return
+		const envelopes = ids.flatMap((id): Envelope[] => {
+			const m = this.log.message(id)
+			return m ? [{ id: `${envelopeId(id)}#${errorId}`, roomId: home.roomId, from: { kind: "human" }, body: m.text, ...(m.replyTo ? { replyTo: m.replyTo } : {}), hop: 0, rootId: id, seq: m.seq }] : []
+		})
+		if (envelopes.length) await receive(this.receiver, home, member, members, chat.title, envelopes)
+	}
+	saveChat(chat: Chat): void {
+		const { lastSeq: _seq, lastPreview: _preview, unread: _unread, last: _last, mentions: _mentions, group: _group, ...settings } = chat
+		this.log.setMeta("chat_settings", JSON.stringify(settings))
+		this.log.setMeta("title", chat.title)
+		this.setPrivate(chat.private ?? false)
+	}
+	chatView(): Chat | null {
+		const value = this.log.meta("chat_settings")
+		if (!value) return null
+		const settings = JSON.parse(value) as Omit<Chat, "lastSeq" | "lastPreview" | "unread">
+		const activity = this.activity()
+		const { group, ...rest } = activity
+		return { ...settings, ...rest, ...(group ? { group: true as const } : {}), updatedAt: Math.max(settings.updatedAt, activity.last?.at ?? 0) }
+	}
+	activity() {
+		return roomActivity(this.sql, this.log)
+	}
+	openTasks() {
+		const rows = this.sql.exec<{ id: string; title: string; status: string; owner: string | null; updated_at: number }>("SELECT id,title,status,owner,updated_at FROM ws_tasks WHERE status NOT IN ('done','cancelled') ORDER BY updated_at").toArray()
+		return { open: rows.length, oldest: rows.slice(0, 3).map((t) => ({ id: t.id, title: t.title, status: t.status, ...(t.owner ? { owner: t.owner } : {}), updatedAt: t.updated_at })) }
+	}
 
 	private home(): Home | null {
 		const userId = this.log.meta("user_id")
@@ -451,7 +490,9 @@ export class Room implements SocketRoom {
 		})
 	}
 
- restoreChain(slug:AgentSlug,envelopes:readonly Pick<Envelope,"rootId"|"hop">[]):void{this.mail.restore(slug,envelopes)}
+	restoreChain(slug: AgentSlug, envelopes: readonly Pick<Envelope, "rootId" | "hop">[]): void {
+		this.mail.restore(slug, envelopes)
+	}
 
 	private delivery(member: MemberRow, members: readonly MemberRow[], goal: string, raw: Envelope[]) {
 		const envelopes = raw.map((e) => withContext(this.log, e))
@@ -470,17 +511,25 @@ export class Room implements SocketRoom {
 	async askHuman(slug: AgentSlug, input: { id: string; question?: string; options?: readonly string[]; questions?: readonly HumanQuestion[] }): Promise<{ ok: true } | { ok: false; error: string }> {
 		if (!this.members.get(slug)) return { ok: false, error: "you are not a member of this room" }
 		const questions = input.questions
-		if (questions && (
-			!questions.length || questions.length > 8 ||
-			new Set(questions.map((q) => q.id)).size !== questions.length ||
-			questions.some((q) =>
-				!q.id.trim() || !q.header.trim() || q.header.length > 120 ||
-				!q.question.trim() || q.question.length > MAX_QUESTION ||
-				q.options.length > 8 || (!q.options.length && q.allowCustomAnswer === false) ||
-				new Set(q.options.map((o) => o.value ?? o.label)).size !== q.options.length ||
-				q.options.some((o) => !o.label.trim() || o.label.length > 120 || (o.description?.length ?? 0) > MAX_QUESTION),
-			)
-		)) return { ok: false, error: "provide 1 to 8 questions with unique ids, short headers, and distinct options" }
+		if (
+			questions &&
+			(!questions.length ||
+				questions.length > 8 ||
+				new Set(questions.map((q) => q.id)).size !== questions.length ||
+				questions.some(
+					(q) =>
+						!q.id.trim() ||
+						!q.header.trim() ||
+						q.header.length > 120 ||
+						!q.question.trim() ||
+						q.question.length > MAX_QUESTION ||
+						q.options.length > 8 ||
+						(!q.options.length && q.allowCustomAnswer === false) ||
+						new Set(q.options.map((o) => o.value ?? o.label)).size !== q.options.length ||
+						q.options.some((o) => !o.label.trim() || o.label.length > 120 || (o.description?.length ?? 0) > MAX_QUESTION),
+				))
+		)
+			return { ok: false, error: "provide 1 to 8 questions with unique ids, short headers, and distinct options" }
 		const text = questions ? questions.map((q) => q.question).join("\n\n") : (input.question ?? "").trim().slice(0, MAX_QUESTION)
 		if (!text || text.length > MAX_MESSAGE_TEXT) return { ok: false, error: "the questions must fit in one message" }
 		const options = cleanOptions(input.options)
@@ -509,7 +558,12 @@ export class Room implements SocketRoom {
 		if (!event) return
 		this.publish([event])
 		const home = this.home()
-		const heard = home ? await this.services.agent(home.roomId, ask.from).askAnswered(id, text).catch(() => false) : false
+		const heard = home
+			? await this.services
+					.agent(home.roomId, ask.from)
+					.askAnswered(id, text)
+					.catch(() => false)
+			: false
 		if (heard) {
 			const { event: message } = this.log.addMessage({ from: { kind: "human" }, text, replyTo: ask.messageId, clientId: `answer:${id}` })
 			if (message) this.publish([message], { deliver: false })
@@ -526,7 +580,11 @@ export class Room implements SocketRoom {
 		if (!event) return
 		this.publish([event])
 		const home = this.home()
-		if (home) await this.services.agent(home.roomId, ask.from).askAnswered(id, "").catch(() => false)
+		if (home)
+			await this.services
+				.agent(home.roomId, ask.from)
+				.askAnswered(id, "")
+				.catch(() => false)
 	}
 
 	private resolveAsk(id: string, how: "answered" | "skipped", answer: string | null): RoomEvent | null {
@@ -553,10 +611,9 @@ export class Room implements SocketRoom {
 		return this.memoryNaps.zoom(id)
 	}
 
-
-
-
-	memberSlugs(): AgentSlug[] { return this.members.list().map((m) => m.slug) }
+	memberSlugs(): AgentSlug[] {
+		return this.members.list().map((m) => m.slug)
+	}
 
 	async eraseFormerAgent(slug: AgentSlug): Promise<void> {
 		const home = this.home()
@@ -569,23 +626,29 @@ export class Room implements SocketRoom {
 		for (const slug of this.members.everyone()) await this.services.agent(home.roomId, slug).erase()
 		const pending = this.sql.exec<{ r2_key: string; upload_id: string | null }>("SELECT r2_key, upload_id FROM pending_uploads").toArray()
 		for (const row of pending) if (row.upload_id) await this.services.files().resumeMultipartUpload(row.r2_key, row.upload_id).abort()
-		const keys = this.sql.exec<{ r2_key: string }>("SELECT r2_key FROM ws_files UNION SELECT r2_key FROM pending_uploads").toArray().map((r) => r.r2_key)
+		const keys = this.sql
+			.exec<{ r2_key: string }>("SELECT r2_key FROM ws_files UNION SELECT r2_key FROM pending_uploads")
+			.toArray()
+			.map((r) => r.r2_key)
 		if (keys.length) await deleteFiles(this.services.files(), keys)
 		for (const ws of this.ctx.getWebSockets()) ws.close(1000, "Chat deleted")
 		erase(this.ctx.storage)
 		await this.ctx.storage.deleteAlarm()
 	}
 
- async subscribe(ws:WebSocket,lastSeq:number,handle?:string):Promise<void>{
-  const name=this.ctx.id.name??"";const bits=name.split(":");const userId=bits[1]
-  if(!userId)return
-  this.adopt(userId)
-  if(handle && handle!==this.log.meta(HUMAN_HANDLE))this.log.setMeta(HUMAN_HANDLE,handle)
-  const home=this.home();if(!home)return
-  const chat=await this.chat(home)
-  if(chat)await this.seedMembers(home,chat)
-  await handleFrame(this,ws,JSON.stringify({t:"hello",lastSeq}))
- }
+	async subscribe(ws: WebSocket, lastSeq: number, handle?: string): Promise<void> {
+		const name = this.ctx.id.name ?? ""
+		const bits = name.split(":")
+		const userId = bits[1]
+		if (!userId) return
+		this.adopt(userId)
+		if (handle && handle !== this.log.meta(HUMAN_HANDLE)) this.log.setMeta(HUMAN_HANDLE, handle)
+		const home = this.home()
+		if (!home) return
+		const chat = await this.chat(home)
+		if (chat) await this.seedMembers(home, chat)
+		await handleFrame(this, ws, JSON.stringify({ t: "hello", lastSeq }))
+	}
 
 	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
 		if (this.log.meta("deleted") === "1") return
@@ -600,8 +663,7 @@ export class Room implements SocketRoom {
 	async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
 		try {
 			ws.close(code, reason)
-		} catch {
-		}
+		} catch {}
 	}
 
 	publish(events: readonly RoomEvent[], { touch = true, deliver = true }: { touch?: boolean; deliver?: boolean } = {}): void {
@@ -617,8 +679,13 @@ export class Room implements SocketRoom {
 		}
 	}
 
- private touchSoon():void { const home=this.home(); if(home) this.services.user().roomChanged(home.roomId) }
- private touchBubble(_message:Extract<RoomEvent,{t:"message"}>):void {this.touchSoon()}
+	private touchSoon(): void {
+		const home = this.home()
+		if (home) this.services.user().roomChanged(home.roomId)
+	}
+	private touchBubble(_message: Extract<RoomEvent, { t: "message" }>): void {
+		this.touchSoon()
+	}
 
 	broadcast(frame: RoomToClient): void {
 		this.publishFrame(frame)
@@ -688,9 +755,7 @@ export class Room implements SocketRoom {
 				if (earlier) return { ack: earlier, events: [] }
 				const now = Date.now()
 				const claimed = frame.attachments?.length ? claim(this.pending, this.files, frame.attachments, now) : { refs: [], events: [] }
-				const filed = whole
-					? this.files.put({ id: whole.id, path: attachmentPath(WHOLE_NAME, now, (p) => this.files.stat(p) !== null), r2Key: whole.r2Key, size: whole.size, type: WHOLE_TYPE, sha256: whole.sha256, author: { kind: "human" }, expectSha256: "none" })
-					: null
+				const filed = whole ? this.files.put({ id: whole.id, path: attachmentPath(WHOLE_NAME, now, (p) => this.files.stat(p) !== null), r2Key: whole.r2Key, size: whole.size, type: WHOLE_TYPE, sha256: whole.sha256, author: { kind: "human" }, expectSha256: "none" }) : null
 				if (filed && (!filed.file || filed.refused || filed.drop)) throw new ClaimRefused("The message's text could not be stored as a file.")
 				const refs = [...claimed.refs, ...(filed?.file ? [filed.file] : [])]
 				// Each attachment the human named in the text links to where it was stored.
@@ -736,9 +801,18 @@ export class Room implements SocketRoom {
 	async sweepPending(now = Date.now()): Promise<number> {
 		const stale = this.pending.expired(now - PENDING_TTL_MS)
 		for (const row of stale) {
-			if (row.upload_id) await this.services.files().resumeMultipartUpload(row.r2_key, row.upload_id).abort().catch(() => {})
+			if (row.upload_id)
+				await this.services
+					.files()
+					.resumeMultipartUpload(row.r2_key, row.upload_id)
+					.abort()
+					.catch(() => {})
 		}
-		if (stale.length) await deleteFiles(this.services.files(), stale.map((r) => r.r2_key))
+		if (stale.length)
+			await deleteFiles(
+				this.services.files(),
+				stale.map((r) => r.r2_key),
+			)
 		this.pending.drop(stale.map((r) => r.id))
 		await this.armPending()
 		return stale.length
@@ -878,9 +952,7 @@ export class Room implements SocketRoom {
 		const human = { kind: "human" } as const
 		const paths = op.op === "rm" ? op.paths : op.op === "mv" ? [op.from, op.to] : [op.path]
 		if (paths.some((p) => cleanPath(p) === null)) return "that is not a path in this chat's files"
-		const out = this.applyFs(
-			op.op === "rm" ? this.files.remove(op.paths, op.recursive ?? false, human) : op.op === "mv" ? this.files.move(op.from, op.to, human) : this.files.mkdir(op.path, human),
-		)
+		const out = this.applyFs(op.op === "rm" ? this.files.remove(op.paths, op.recursive ?? false, human) : op.op === "mv" ? this.files.move(op.from, op.to, human) : this.files.mkdir(op.path, human))
 		return out.ok ? null : out.message
 	}
 
@@ -935,9 +1007,7 @@ export class Room implements SocketRoom {
 			const joined = op.op === "add"
 			const who = joined ? op.name : (name ?? op.slug)
 			const slug = op.slug
-			const line = this.log.addMessage(
-				dividerMessage(`member:${result.events[0]?.seq}`, `${who} ${joined ? "joined" : "left"}`, joined ? { kind: "member_added", slug, name: who, private: true } : { kind: "member_removed", slug, name: who, private: true }),
-			).event
+			const line = this.log.addMessage(dividerMessage(`member:${result.events[0]?.seq}`, `${who} ${joined ? "joined" : "left"}`, joined ? { kind: "member_added", slug, name: who, private: true } : { kind: "member_removed", slug, name: who, private: true })).event
 			if (line) notice.push(line)
 		}
 		this.publish([...result.events, ...notice])
@@ -954,7 +1024,10 @@ export class Room implements SocketRoom {
 	setModel(ref: string, slug?: AgentSlug): void {
 		const home = this.home()
 		if (!home || ref.indexOf("/") <= 0) return
-		const slugs = this.members.list().filter((m) => !slug || m.slug === slug).map((m) => m.slug)
+		const slugs = this.members
+			.list()
+			.filter((m) => !slug || m.slug === slug)
+			.map((m) => m.slug)
 		this.ctx.waitUntil(this.services.user().setAgentModels(slugs, ref, home.roomId))
 	}
 
@@ -964,16 +1037,21 @@ export class Room implements SocketRoom {
 		if (!member) return
 		const to = modelNamed(ref)
 		const from = was ? modelNamed(was) : undefined
-		this.divider(
-			`model:${slug}:${crypto.randomUUID()}`,
-			from ? `Context handoff from ${from} to ${to}` : `${member.name} now uses ${to}`,
-			{ kind: "model_changed", agent: slug, model: to, ...(from ? { from } : {}), private: true },
-		)
+		this.divider(`model:${slug}:${crypto.randomUUID()}`, from ? `Context handoff from ${from} to ${to}` : `${member.name} now uses ${to}`, { kind: "model_changed", agent: slug, model: to, ...(from ? { from } : {}), private: true })
 	}
 
 	taskOp(op: TaskOp): string | null {
 		let reason: string | null = null
-		this.publish(applyTaskOp(this.workspace, op, this.members.list().map((m) => m.slug), (error) => { reason = error }))
+		this.publish(
+			applyTaskOp(
+				this.workspace,
+				op,
+				this.members.list().map((m) => m.slug),
+				(error) => {
+					reason = error
+				},
+			),
+		)
 		this.ctx.waitUntil(this.deliverWakes())
 		return reason
 	}
@@ -983,11 +1061,19 @@ export class Room implements SocketRoom {
 		const member = members.find((m) => m.slug === slug)
 		if (!member) return { ok: false, error: "you are not a member of this room" }
 		const { answer, events } = this.ctx.storage.transactionSync(() => {
-			const result = runCall(this.workspace, slug, member.lead, call, members.map((m) => m.slug), this.mail.chain(slug))
+			const result = runCall(
+				this.workspace,
+				slug,
+				member.lead,
+				call,
+				members.map((m) => m.slug),
+				this.mail.chain(slug),
+			)
 			const lead = members.find((m) => m.lead)
-			if (lead && lead.slug !== slug) for (const event of result.events) {
-				if (event.t === "task" && (event.task.status === "review" || event.task.status === "done" || event.task.status === "blocked")) this.workspace.queueReport(event, slug, lead.slug)
-			}
+			if (lead && lead.slug !== slug)
+				for (const event of result.events) {
+					if (event.t === "task" && (event.task.status === "review" || event.task.status === "done" || event.task.status === "blocked")) this.workspace.queueReport(event, slug, lead.slug)
+				}
 			return result
 		})
 		this.publish(events)
@@ -1041,7 +1127,7 @@ export class Room implements SocketRoom {
 		const home = this.home()
 		if (home) {
 			const why = `(no answer: @${slug} cannot run, because ${because}. tell the human, or go on without it.)`
-			this.mailer.relayHeard(slug, heard, why, { id: key, seq: stored?.seq ?? this.log.sentBefore(key)?.seq ?? 0 })
+			await this.mailer.relayHeard(slug, heard, why, { id: key, seq: stored?.seq ?? this.log.sentBefore(key)?.seq ?? 0 })
 		}
 		this.reports.run(this.routines.dropped(slug), "failed")
 		return stored !== null
@@ -1069,10 +1155,9 @@ export class Room implements SocketRoom {
 		this.publish([stored.event])
 		const user = this.services.user()
 		this.ctx.waitUntil(
-			Promise.all([
-				user.notifyError({ code: "model", message: `${member.name} could not answer. ${failure.message}`, ...(failure.toast ? { action: failure.toast } : {}) }, home.roomId),
-				problemOfRun(kind) && provider ? user.recordProviderProblem(provider, kind) : undefined,
-			]).catch((e: unknown) => console.error(`run error notice failed: ${e instanceof Error ? e.message : String(e)}`)),
+			Promise.all([user.notifyError({ code: "model", message: `${member.name} could not answer. ${failure.message}`, ...(failure.toast ? { action: failure.toast } : {}) }, home.roomId), problemOfRun(kind) && provider ? user.recordProviderProblem(provider, kind) : undefined]).catch((e: unknown) =>
+				console.error(`run error notice failed: ${e instanceof Error ? e.message : String(e)}`),
+			),
 		)
 		return stored
 	}
@@ -1112,8 +1197,7 @@ export class Room implements SocketRoom {
 		if (state === "idle") {
 			this.team.clear(slug)
 			this.reports.run(this.routines.ended(slug), "ended")
-		}
-		else if (this.members.get(slug)?.status === "idle") this.routines.started(slug, this.log.lastSeq())
+		} else if (this.members.get(slug)?.status === "idle") this.routines.started(slug, this.log.lastSeq())
 		if (!this.members.setStatus(slug, state)) return false
 		// What the typing row says. A string sets it, null puts back "writing a reply", and no argument leaves a tool's caption.
 		if (state === "typing" && detail !== undefined) this.team.doing(slug, detail ?? "writing a reply", Date.now(), { kind: "writing" })
@@ -1125,14 +1209,15 @@ export class Room implements SocketRoom {
 		return true
 	}
 
- private agentStatus(slug:AgentSlug):import("@kiko/protocol").AgentStatus|null{
-  const member=this.members.get(slug);if(!member)return null
-  const workers=this.workerRows.get(slug)??[]
-  const activity=activityOf(member.status,this.team.activity(slug),workers)
-  const doing=this.team.now(slug)
-  return {slug,state:member.status,...(member.status!=="idle"&&doing?{doing}:{}),...(activity?{activity}:{})}
- }
- private readonly workerRows=new Map<AgentSlug,readonly WorkerRow[]>()
+	private agentStatus(slug: AgentSlug): import("@kiko/protocol").AgentStatus | null {
+		const member = this.members.get(slug)
+		if (!member) return null
+		const workers = this.workerRows.get(slug) ?? []
+		const activity = activityOf(member.status, this.team.activity(slug), workers)
+		const doing = this.team.now(slug)
+		return { slug, state: member.status, ...(member.status !== "idle" && doing ? { doing } : {}), ...(activity ? { activity } : {}) }
+	}
+	private readonly workerRows = new Map<AgentSlug, readonly WorkerRow[]>()
 
 	private broadcastStatus(slug: AgentSlug): void {
 		const status = this.agentStatus(slug)
@@ -1143,9 +1228,9 @@ export class Room implements SocketRoom {
 		const member = this.members.get(slug)
 		if (!member) return
 		const next = JSON.stringify(rows)
-		const before = JSON.stringify(this.workerRows.get(slug)??[])
+		const before = JSON.stringify(this.workerRows.get(slug) ?? [])
 		if (before === next) return
-		this.workerRows.set(slug,rows)
+		this.workerRows.set(slug, rows)
 		if (member.status !== "idle") this.broadcastStatus(slug)
 	}
 
@@ -1157,17 +1242,17 @@ export class Room implements SocketRoom {
 		const first = !this.bubbles.ended(runId)
 		if (home && first) {
 			this.memory.trace(slug, runId, Date.now())
-			this.mailer.answerAsks(slug, runId, heard)
+			await this.mailer.answerAsks(slug, runId, heard)
 		}
 		this.mail.runEnded(slug)
 		if (working) this.team.clearDoing(slug)
+		if (home && first) {
+			this.services.user().roomChanged(home.roomId)
+			this.bubbles.markEnded(runId)
+		}
 		const changed = await this.setStatus(slug, working ? "working" : "idle")
 		if (working && !changed) this.broadcastStatus(slug)
-		if (!home || !first) return
-		await this.memoryNaps.arm()
-		this.services.user().roomChanged(home.roomId)
-		this.bubbles.markEnded(runId)
-    this.ctx.waitUntil(this.archiveHistory().catch((error: unknown) => console.error("history archive failed", error instanceof Error ? error.message : String(error))))
+    if (home && first) this.ctx.waitUntil(this.archiveHistory().catch((error: unknown) => console.error("history archive failed", error instanceof Error ? error.message : String(error))))
 	}
 
 	private activeFrame(): RoomToClient {
@@ -1176,7 +1261,13 @@ export class Room implements SocketRoom {
 
 	/** What a new room socket needs to know: who is busy and what each is doing. Statuses are not part of a catch-up. */
 	presence(): RoomToClient[] {
-		const statuses = this.members.list().filter(m=>m.status!=="idle").flatMap(m=>{const status=this.agentStatus(m.slug);return status?[status]:[]})
+		const statuses = this.members
+			.list()
+			.filter((m) => m.status !== "idle")
+			.flatMap((m) => {
+				const status = this.agentStatus(m.slug)
+				return status ? [status] : []
+			})
 		return statuses.length ? [this.activeFrame(), ...statuses.map((s): RoomToClient => ({ t: "status", ...s }))] : []
 	}
 
@@ -1210,7 +1301,7 @@ export class Room implements SocketRoom {
 			memory: this.memory,
 			pending: this.pending,
 			publish: (events) => this.publish(events),
-			armMemory: () => this.memoryNaps.arm(),
+			armMemory: () => this.memoryNaps.naps(),
 			tasksChanged: async () => this.touchSoon(),
 			sweepPending: () => this.sweepPending(),
 		}))
@@ -1228,7 +1319,6 @@ export class Room implements SocketRoom {
 	async devMemory(): Promise<{ turns: number; pending: number; view: string }> {
 		return (await this.dev()).memory()
 	}
-
 
 	async devAge(ms: number): Promise<number> {
 		return (await this.dev()).age(ms)
@@ -1253,5 +1343,4 @@ export class Room implements SocketRoom {
 		if (event) this.publish([event])
 		return true
 	}
-
 }

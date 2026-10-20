@@ -168,7 +168,7 @@ class TService extends AgentDO {
       if (turn === "STOP") return fauxAssistantMessage(fauxToolCall("stop_work", { id: "w1" }), { stopReason: "toolUse" })
       return fauxAssistantMessage(`reply to: ${turn}`)
     }
-    const faux = fauxProvider()
+    const faux = fauxProvider({ tokensPerSecond: 10000 })
     faux.setResponses(Array.from({ length: 300 }, () => step))
     const models = createModels()
     models.setProvider(faux.provider)
@@ -232,7 +232,7 @@ class TService extends AgentDO {
     }
     const { root } = await this.host.open()
     const view = await root.context(context)
-    const of = (kind: string) => view.entries.filter((e) => e.kind === kind).map((e) => textOf(e.model?.[0] as Msg | undefined))
+    const of = (kind: string) => view.entries.filter((e) => e.kind === kind || (kind === "pi.user" && e.kind === "kiko.input")).map((e) => textOf(e.model?.[0] as Msg | undefined))
     return Response.json({ users: of("pi.user"), assistants: of("pi.assistant") })
   }
 }

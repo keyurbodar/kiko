@@ -1,18 +1,14 @@
 import { DurableObject } from "cloudflare:workers"
-import type { Envelope } from "@kiko/protocol"
-import { INBOX_STEPS, Inbox } from "@kiko/agent/inbox"
 import { ALARM_STEPS, createAlarms } from "@kiko/durable/alarm"
 import { migrate } from "@kiko/durable/migrate"
 
 export class H extends DurableObject {
   clock = 1_000_000
-  inbox: Inbox
   alarms = createAlarms(this.ctx)
 
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env as never)
-    migrate(ctx.storage, [...INBOX_STEPS, ...ALARM_STEPS])
-    this.inbox = new Inbox(ctx.storage, () => this.clock)
+    migrate(ctx.storage, ALARM_STEPS)
   }
 
   async alarm() {}
@@ -20,18 +16,6 @@ export class H extends DurableObject {
   async fetch(req: Request) {
     const b = (await req.json()) as any
     switch (b.op) {
-      case "admit":
-        return Response.json(this.inbox.admit(b.envelopes as Envelope[], b.brief ?? ""))
-      case "claim":
-        if (b.now !== undefined) this.clock = b.now
-        return Response.json(await this.inbox.claim())
-      case "submitted":
-        return Response.json(this.inbox.submitted(b.requestId))
-      case "restart":
-        this.inbox = new Inbox(this.ctx.storage, () => this.clock)
-        return Response.json(true)
-      case "counts":
-        return Response.json(this.inbox.counts())
       case "wakeups": {
         let stored = 0
         try {

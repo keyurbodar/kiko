@@ -23,3 +23,13 @@ ServiceOptions explicitly carries ctx, sql, broadcast, env and services. factory
 Current implementation still requires lifecycle, worker reporter, full service schema, invalidation and gate validation. Root owns the commit and gate measurements; this task makes no commits.
 
 The scope adapter now restricts table-position substitutions to schema-declared or discovered table/index/trigger names, preserving table-valued functions such as json_each and CTE names. File integration exposed the function-name case after the initial context fixture passed; this was fixed before claiming file integration success.
+
+## Runtime checkpoint after skeleton d88bb3a4
+
+The orchestrator committed the skeleton; this backend task did not commit. Subsequent targeted server and core/agent typechecks also completed successfully. The real Agent.beginRun model test passes, proving a retained Harness configures the changed model on the next run. The initial focused native-background-worker test passes, proving a human reply can finish while a worker tool remains pending; stop/crash checks remain in progress.
+
+A live smoke against the orchestrator's existing localhost:8894 server passed health, POST dev session and authenticated /api/me. One websocket received the unchanged user snapshot, subscribed to its home room, received wrapped room replay, unsubscribed, and received bare pong from the runtime ping auto-response. The smoke used a separate pr2-backend-smoke dev owner and did not restart or reconfigure the server.
+
+Native workers use pi's background anchor and durable reporter pattern. Kiko retains the application projection for concurrency slots, worker status, changed paths, report formatting/deduplication and crash-resume limits. pi background support is present; ordinary waitForIdle ignores background anchors, so worker lifetime is held through explicit task waiting. The old retained watcher/settle loop is removed. Full worker lifecycle checks are still required before claiming completion.
+
+File integration runs exposed json_each table-function rewriting and the Cloudflare LIKE pattern length limit in scope discovery. Both are fixed. Later file reruns timed out during Miniflare setup under shared-host memory pressure and provide no assertion evidence. The passing earlier focused SQL test covers aliases, overlapping column/table names, FTS external content and triggers, table_info, catalog predicates and isolated erase.

@@ -35,10 +35,8 @@ class IService extends AgentDO {
       const log = this.calls()
       const { submit } = root
       const abortTask = harness.abortTask.bind(harness)
-      const submitted = this.host.inbox.submitted.bind(this.host.inbox)
       Object.assign(root, { submit: (input: Parameters<typeof submit>[0], context: Parameters<typeof submit>[1]) => (log.push("submit"), submit.call(root, input, context)) })
       Object.assign(harness, { abortTask: (id: Parameters<typeof abortTask>[0], context: Parameters<typeof abortTask>[1]) => (log.push("abort"), abortTask(id, context)) })
-      Object.assign(this.host.inbox, { submitted: (requestId: string) => (log.push("submitted"), submitted(requestId)) })
     },
   }
 

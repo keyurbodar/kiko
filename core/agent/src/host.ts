@@ -191,11 +191,12 @@ export class AgentHost {
     this.alarms = options.clock
   }
 
+  private invalidated = false
   private admission: Promise<unknown> = Promise.resolve()
 
-  async receive(envelopes: readonly Envelope[], brief: string): Promise<{ admitted: string[]; refused?: Refusal }> {
+  async receive(envelopes: readonly Envelope[], brief: string, requestId?: string): Promise<{ admitted: string[]; refused?: Refusal }> {
     if (envelopes.some((e) => new TextEncoder().encode(JSON.stringify(e) + brief).byteLength > 128 * 1024)) return { admitted: [], refused: "too_large" }
-    const batch: Batch = { requestId: envelopes.length === 1 && envelopes[0]?.from.kind !== "human" ? envelopes[0]!.id : await requestIdFor(envelopes.map((e) => e.id)), envelopes: [...envelopes], briefs: brief ? [brief] : [] }
+    const batch: Batch = { requestId: requestId ?? (envelopes.length === 1 && envelopes[0]?.from.kind !== "human" ? envelopes[0]!.id : await requestIdFor(envelopes.map((e) => e.id))), envelopes: [...envelopes], briefs: brief ? [brief] : [] }
     const submit = this.admission.then(async () => {
       const opened = await this.current()
       await this.drain(opened, [batch])
@@ -226,6 +227,14 @@ export class AgentHost {
   async unload(): Promise<void> {
     if (await this.busy()) return
     await this.drop()
+  }
+  async invalidate(): Promise<void> {
+    if (await this.busy()) {
+      this.invalidated = true
+      return
+    }
+    await this.drop()
+    this.invalidated = false
   }
 
   async envelopeIds(requestId: string): Promise<string[]> {
@@ -392,10 +401,12 @@ export class AgentHost {
 
   private async current(): Promise<Opened> {
     const opened = await this.open()
-    if (!opened.setup.stale) return opened
+    if (!this.invalidated && (!opened.setup.stale || !(await opened.setup.stale()))) return opened
     const live = await opened.harness.inspect(context)
-    if (live.tasks.length || live.submissions.length || !(await opened.setup.stale())) return opened
+    // Work is already running: it keeps the harness it started on, and this flag makes the next idle open reload.
+    if (live.tasks.length || live.submissions.length) return opened
     await this.drop()
+    this.invalidated = false
     return this.open()
   }
 

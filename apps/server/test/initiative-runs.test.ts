@@ -17,7 +17,9 @@ function world(opts: { level?: Level; hidden?: string[] } = {}) {
   const counts: Record<string, number> = {}
   const hidden = new Set(opts.hidden ?? [])
   let answer: WakeResult | "busy" = "delivered"
+  const boards = new Map<string, Task[]>()
   const engine = new InitiativeEngine({
+    boards: () => [...boards].map(([roomId, oldest]) => ({ roomId, oldest })),
     sql,
     tz: () => "UTC",
     level: () => opts.level ?? "digest",
@@ -34,7 +36,7 @@ function world(opts: { level?: Level; hidden?: string[] } = {}) {
   })
   /** What RoomDO pushes to `UserDO.chatTasks` when a chat's board changes. */
   const board = (room: string, tasks: Task[]) => {
-    sql.exec("INSERT OR REPLACE INTO chat_tasks (room_id, tasks) VALUES (?, ?)", room, JSON.stringify({ open: tasks.length, oldest: tasks }))
+    boards.set(room, tasks)
   }
   const task = (id: string, updatedAt: number, extra: Partial<Task> = {}): Task => ({ id, title: `task ${id}`, status: "open", updatedAt, ...extra })
   return { sql, engine, wakes, armed, counts, board, task, answer: (a: WakeResult | "busy") => void (answer = a) }

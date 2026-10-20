@@ -2,15 +2,24 @@ import type { RoomEvent } from "@kiko/protocol"
 import * as Schema from "effect/Schema"
 import type { RoomRoutine } from "../user/routines"
 
-
-const By = Schema.Union([Schema.Struct({ kind: Schema.Literal("human") }), Schema.Struct({ kind: Schema.Literal("agent"), slug: Schema.String, name: Schema.String, eventRun: Schema.Boolean })])
+const By = Schema.Union([
+	Schema.Struct({ kind: Schema.Literal("human") }),
+	Schema.Struct({ kind: Schema.Literal("agent"), slug: Schema.String, name: Schema.String, eventRun: Schema.Boolean }),
+])
 
 const base = { roomId: Schema.String, at: Schema.Number }
 
 export const Signal = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("burst"), ...base, seq: Schema.Number, text: Schema.String, by: By }),
 	Schema.Struct({ kind: Schema.Literal("agent_final"), ...base, seq: Schema.Number, text: Schema.String, by: By }),
-	Schema.Struct({ kind: Schema.Literal("routine_result"), ...base, routineId: Schema.String, occurrence: Schema.String, outcome: Schema.Literals(["ok", "quiet", "failed", "timeout"]), seq: Schema.NullOr(Schema.Number) }),
+	Schema.Struct({
+		kind: Schema.Literal("routine_result"),
+		...base,
+		routineId: Schema.String,
+		occurrence: Schema.String,
+		outcome: Schema.Literals(["ok", "quiet", "failed", "timeout"]),
+		seq: Schema.NullOr(Schema.Number),
+	}),
 ])
 export type Signal = typeof Signal.Type
 
@@ -58,4 +67,3 @@ export function routineRun(routine: RoomRoutine, batch: SignalBatch): { body: st
 	if (hits.length > MAX_SIGNALS || batch.more) lines.push("and more")
 	return { body: `what happened:\n${lines.map((l) => `- ${l}`).join("\n")}` }
 }
-
