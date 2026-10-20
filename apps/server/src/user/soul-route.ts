@@ -1,7 +1,7 @@
 import { isAgentSlug } from "@kiko/protocol"
 import type { Env } from "../index"
 import { error, signedIn } from "../lib/route"
-import { userStub } from "../lib/names"
+import { ownerStub } from "../lib/names"
 
 const PREFIX = "/api/souls/"
 
@@ -12,7 +12,7 @@ export async function soulRoute(request: Request, env: Env): Promise<Response | 
   if (user instanceof Response) return user
   const slug = path.slice(PREFIX.length)
   if (!isAgentSlug(slug)) return error(404, "no such agent")
-  const stub = userStub(env.USER, user.id)
+  const stub = ownerStub(env.OWNER, user.id)
   if (request.method === "GET") {
     const { body, sha } = await stub.soul(slug)
     return Response.json({ body, sha })

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { INITIATIVE_WAKEUP, InitiativeEngine, type Level, type WakeInput } from "../src/initiative/engine"
-import type { WakeResult } from "../src/room/wake"
+import type { WakeResult } from "../src/room/delivery"
 import { sqlWith } from "./sql-shim"
 import { USER_STEPS } from "../src/user/schema"
 

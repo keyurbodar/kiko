@@ -1,5 +1,6 @@
 import type { Env } from "../index"
-import { fileStub } from "../lib/names"
+import { ownerStub } from "../lib/names"
+import type { BlobStore } from "./blob-store"
 import { MAX_STORE_FILE_BYTES, type StoredInfo } from "./file-limits"
 
 /** Where file bytes live: the R2 bucket when the install has one, else Durable Object storage. Both answer to this one shape. */
@@ -32,7 +33,7 @@ export interface FileBucket {
 	): { uploadPart(n: number, body: ReadableStream<Uint8Array>): Promise<Part>; complete(parts: Part[]): Promise<unknown>; abort(): Promise<void> }
 }
 
-// u/<user>/r/<space>/<id>: the user and the chat (or "home") pick the object that holds the bytes.
+// u/<user>/r/<space>/<id>: the owner holds all room and home file bytes.
 const KEY = /^u\/([^/]+)\/r\/([^/]+)\/[^/]+$/
 
 function describe(key: string, info: StoredInfo): StoredObject {
@@ -51,29 +52,29 @@ function bytesOf(value: ArrayBuffer | ArrayBufferView | string): Uint8Array {
 	return value instanceof ArrayBuffer ? new Uint8Array(value) : new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
 }
 
-class DoBucket implements FileBucket {
-	constructor(private readonly ns: Env["FILE"]) {}
+class OwnerBucket implements FileBucket {
+	constructor(private readonly ns: Env["OWNER"]) {}
 
 	#stub(key: string) {
 		const m = KEY.exec(key)
 		if (!m) throw new Error("not a file key")
-		return fileStub(this.ns, m[1] as string, m[2] as string)
+		return ownerStub(this.ns, m[1] as string)
 	}
 
 	async put(key: string, value: ReadableStream<Uint8Array> | ArrayBuffer | ArrayBufferView | string, options: PutOptions = {}) {
 		const body = value instanceof ReadableStream ? value : bytesOf(value)
-		return this.#stub(key).put(key, body, options.httpMetadata?.contentType ?? "application/octet-stream", options.customMetadata ?? {})
+		return this.#stub(key).blobPut(key, body, options.httpMetadata?.contentType ?? "application/octet-stream", options.customMetadata ?? {})
 	}
 
 	async get(key: string, options: { range?: { offset: number; length: number } } = {}): Promise<StoredBody | null> {
-		const out = await this.#stub(key).get(key, options.range?.offset, options.range?.length)
+		const out = await this.#stub(key).blobGet(key, options.range?.offset, options.range?.length)
 		if (!out) return null
 		const { body } = out
 		return { ...describe(key, out.info), body, arrayBuffer: () => new Response(body).arrayBuffer() }
 	}
 
 	async head(key: string) {
-		const info = await this.#stub(key).head(key)
+		const info = await this.#stub(key).blobHead(key)
 		return info ? describe(key, info) : null
 	}
 
@@ -83,28 +84,59 @@ class DoBucket implements FileBucket {
 			const m = KEY.exec(key)
 			if (m) byObject.set(`${m[1]}/${m[2]}`, [...(byObject.get(`${m[1]}/${m[2]}`) ?? []), key])
 		}
-		for (const group of byObject.values()) await this.#stub(group[0] as string).remove(group)
+		for (const group of byObject.values()) await this.#stub(group[0] as string).blobRemove(group)
 	}
 
 	async createMultipartUpload(key: string, options: PutOptions = {}) {
 		const stub = this.#stub(key)
-		const uploadId = await stub.startUpload(key, options.httpMetadata?.contentType ?? "application/octet-stream", options.customMetadata ?? {})
-		return { uploadId, abort: async () => stub.abort(uploadId) }
+		const uploadId = await stub.blobStartUpload(key, options.httpMetadata?.contentType ?? "application/octet-stream", options.customMetadata ?? {})
+		return { uploadId, abort: async () => stub.blobAbort(uploadId) }
 	}
 
 	resumeMultipartUpload(key: string, uploadId: string) {
 		const stub = this.#stub(key)
 		return {
-			uploadPart: (n: number, body: ReadableStream<Uint8Array>) => stub.putPart(uploadId, n, body),
-			complete: (parts: Part[]) => stub.finish(key, uploadId, parts),
-			abort: async () => stub.abort(uploadId),
+			uploadPart: (n: number, body: ReadableStream<Uint8Array>) => stub.blobPutPart(uploadId, n, body),
+			complete: (parts: Part[]) => stub.blobFinish(key, uploadId, parts),
+			abort: async () => stub.blobAbort(uploadId),
 		}
 	}
 }
 
-export function fileStore(env: Pick<Env, "FILES" | "FILE">): FileBucket {
-	return env.FILES ? (env.FILES as unknown as FileBucket) : new DoBucket(env.FILE)
+export function fileStore(env: Pick<Env, "FILES" | "OWNER">, local?: FileBucket): FileBucket {
+	return local ?? (env.FILES ? (env.FILES as unknown as FileBucket) : new OwnerBucket(env.OWNER))
 }
 
 /** The largest file this install stores: R2's cap, or the built-in store's. */
 export const maxFileBytes = (env: Pick<Env, "FILES">, r2Max: number) => (env.FILES ? r2Max : Math.min(r2Max, MAX_STORE_FILE_BYTES))
+
+/** Adapt the shared local blob service to the same interface as the optional R2 bucket. */
+export function localBucket(blobs: BlobStore): FileBucket {
+  return {
+    async put(key, value, options = {}) {
+      return blobs.put(key, value instanceof ReadableStream ? value : bytesOf(value), options.httpMetadata?.contentType ?? "application/octet-stream", options.customMetadata ?? {})
+    },
+    async get(key, options = {}) {
+      const out = blobs.get(key, options.range?.offset, options.range?.length)
+      if (!out) return null
+      const { body } = out
+      return { ...describe(key, out.info), body, arrayBuffer: () => new Response(body).arrayBuffer() }
+    },
+    async head(key) {
+      const info = blobs.head(key)
+      return info ? describe(key, info) : null
+    },
+    async delete(keys) { blobs.remove(typeof keys === "string" ? [keys] : keys) },
+    async createMultipartUpload(key, options = {}) {
+      const uploadId = blobs.startUpload(key, options.httpMetadata?.contentType ?? "application/octet-stream", options.customMetadata ?? {})
+      return { uploadId, abort: async () => blobs.abort(uploadId) }
+    },
+    resumeMultipartUpload(key, uploadId) {
+      return {
+        uploadPart: (n, body) => blobs.putPart(uploadId, n, body),
+        complete: async (parts) => blobs.finish(key, uploadId, parts),
+        abort: async () => blobs.abort(uploadId),
+      }
+    },
+  }
+}

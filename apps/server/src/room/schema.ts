@@ -320,4 +320,12 @@ export const ROOM_STEPS: Step[] = [
 			"CREATE INDEX IF NOT EXISTS events_edit ON events (seq) WHERE kind IN ('edit', 'delete')",
 		],
 	),
+  "DROP TABLE IF EXISTS deliveries",
+  "DROP TABLE IF EXISTS agent_chains",
+  "DROP TABLE IF EXISTS stopped_roots",
+  "DROP TABLE IF EXISTS mail_queue",
+  "DROP TABLE IF EXISTS held_wakes",
+  "DROP TABLE IF EXISTS signal_window",
+  "DROP TABLE IF EXISTS signal_more",
+  "DROP TABLE IF EXISTS signal_results",
 ]

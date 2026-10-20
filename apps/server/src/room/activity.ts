@@ -2,7 +2,7 @@ import { type ChatLast, messageLast, mentionsHuman, oneLine, type RichText } fro
 import type { FileRef, Sender } from "@kiko/protocol"
 import { LISTED_MESSAGE, type RoomLog } from "./log"
 
-export type Touch = { lastSeq: number; lastPreview: string; unread: number; last?: ChatLast; mentions?: number; group: boolean }
+export type RoomActivity = { lastSeq: number; lastPreview: string; unread: number; last?: ChatLast; mentions?: number; group: boolean }
 
 export const MEMBER_ACTIVITY = "member_activity"
 export const HUMAN_HANDLE = "human_handle"
@@ -24,13 +24,13 @@ function messageCandidate(m: Posted, nameOf: (slug: string) => string): Candidat
 }
 
 /** The touch for one bubble that just landed: no scan, so a bubble in a long run costs the same as the first. Mentions stay as they are until the run ends. Mail between agents is counted but not quoted as the last line. */
-export function bubbleTouch(sql: SqlStorage, log: RoomLog, row: Posted): Touch {
+export function bubbleTouch(sql: SqlStorage, log: RoomLog, row: Posted): RoomActivity {
 	const name = (slug: string) => sql.exec<{ name: string }>("SELECT name FROM members WHERE slug = ?", slug).toArray()[0]?.name ?? slug
 	const group = (sql.exec<{ n: number }>("SELECT count(*) AS n FROM members WHERE removed_at IS NULL").one().n ?? 0) > 1
 	return { lastSeq: log.lastSeq(), lastPreview: row.text, unread: log.unread(), ...(row.to === undefined ? { last: messageCandidate(row, name).last } : {}), group }
 }
 
-export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
+export function roomActivity(sql: SqlStorage, log: RoomLog): RoomActivity {
 	const names = new Map(sql.exec<{ slug: string; name: string; removed_at: number | null }>("SELECT slug, name, removed_at FROM members").toArray().map((r) => [r.slug, r]))
 	const nameOf = (slug: string) => names.get(slug)?.name ?? slug
 	const group = [...names.values()].filter((m) => m.removed_at === null).length > 1

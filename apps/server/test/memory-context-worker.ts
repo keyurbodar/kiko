@@ -5,10 +5,10 @@ import { Type } from "@earendil-works/pi-ai"
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool } from "@earendil-works/pi-durable"
 import type { AgentSetup } from "@kiko/agent/host"
-import type { Batch } from "@kiko/agent/inbox"
+import type { Batch } from "@kiko/agent/input"
 import { isAgentSlug, isRoomId, type Envelope } from "@kiko/protocol"
 import { declareEffect } from "@kiko/agent/effects"
-import { AgentDO } from "../src/agent/agent-do"
+import { AgentProbe as AgentDO, agentObject } from "./agent-service"
 import { userStub } from "../src/lib/names"
 import { buildAgent } from "../src/agent/factory"
 import type { RoomPort } from "../src/agent/outbox"
@@ -32,7 +32,7 @@ type MemoryAccess = {
   inputMemory(batch: Batch, fresh: boolean, joined: number[]): Promise<{ text?: string; fresh: boolean }>
 }
 
-export class AgentProbe extends AgentDO {
+class AgentProbeService extends AgentDO {
   protected override home() {
     const roomId = "01J00000000000000000000000"
     const slug = "kiko"
@@ -110,3 +110,5 @@ export class WriterProbe extends AgentProbe {
 export default { fetch(request: Request, env: { USER: DurableObjectNamespace<UserDO> }) {
   return env.USER.get(env.USER.idFromName("user:alice")).fetch(request)
 } }
+
+export const AgentProbe = agentObject(AgentProbeService)

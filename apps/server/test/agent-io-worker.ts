@@ -3,7 +3,7 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import type { AgentSetup } from "@kiko/agent/host"
 import type { Envelope } from "@kiko/protocol"
-import { AgentDO } from "../src/agent/agent-do"
+import { AgentProbe as AgentDO, agentObject } from "./agent-service"
 import { buildAgent } from "../src/agent/factory"
 import type { RoomPort } from "../src/agent/outbox"
 import { type FilesBackend, RoomFs, roomViews } from "../src/files/room-fs"
@@ -103,7 +103,7 @@ let tps = 50
 
 const context = BACKGROUND_CONTEXT
 
-export class T extends AgentDO {
+class TService extends AgentDO {
 	private posted = 0
 	private nextSeq = 1
 
@@ -214,3 +214,5 @@ export default {
 		return new Response("not found", { status: 404 })
 	},
 }
+
+export const T = agentObject(TService)

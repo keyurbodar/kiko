@@ -124,7 +124,6 @@ export class Workers {
   private readonly sql: SqlStorage
   private readonly now: () => number
   private harness?: Harness
-  private readonly watching = new Set<string>()
 
   constructor(
     storage: DurableObjectStorage,
@@ -193,10 +192,9 @@ export class Workers {
 
   follow(id: string, submissionId: SubmissionId): void {
     const work = this.get(id)
-    if (!work) return
+    if (!work || work.submissionId === submissionId) return
     this.sql.exec("UPDATE workers SET submission_id = ?, status = ?, delivered = 0, updated_at = ? WHERE id = ?", submissionId, transition(work.status, "submit"), this.now(), id)
     this.changed()
-    this.watch(id)
   }
 
   step(conversationId: ConversationId, step: string): boolean {
@@ -268,12 +266,6 @@ export class Workers {
 
   rearm(harness: Harness): void {
     this.harness = harness
-    this.watching.clear()
-    for (const work of this.list()) {
-      if (work.delivered) continue
-      if (ended(work.status)) void this.abort(work)
-      this.watch(work.id)
-    }
     this.changed()
   }
 
@@ -315,33 +307,18 @@ export class Workers {
     }
   }
 
-  private watch(id: string): void {
+  async complete(id: string, submissionId: SubmissionId, settled: SettledSubmissionRecord): Promise<void> {
     const harness = this.harness
-    const work = this.get(id)
-    if (!harness || !work?.submissionId || work.delivered) return
-    const key = `${id}:${work.submissionId}`
-    if (this.watching.has(key)) return
-    this.watching.add(key)
-    void this.settle(harness, id, work.submissionId)
-      .catch((error: unknown) => {
-        // A closed harness rejects its waits. The next open watches again.
-        if (harness === this.harness) console.error(`worker ${id} watch failed: ${error instanceof Error ? error.message : String(error)}`)
-      })
-      .finally(() => this.watching.delete(key))
-  }
-
-  private async settle(harness: Harness, id: string, submissionId: SubmissionId): Promise<void> {
-    const submission = await harness.submission(submissionId, context)
-    const settled = submission ? await submission.wait(context) : undefined
+    if (!harness) throw new Error("worker harness not attached")
     const work = this.get(id)
     if (harness !== this.harness || !work || work.delivered || !work.conversationId) return
-    if (work.submissionId !== submissionId) return this.watch(id)
+    if (work.submissionId !== submissionId) return
     // An input that joined after this one, such as a steer, may still be live.
     const newer = (await harness.inspect(context)).submissions.filter((s) => s.conversationId === work.conversationId).at(-1)
     if (harness !== this.harness) return
     if (newer) {
       this.sql.exec("UPDATE workers SET submission_id = ? WHERE id = ? AND submission_id = ?", newer.id, id, submissionId)
-      return this.watch(id)
+      return
     }
     const marked = this.get(id)?.status
     const status: WorkStatus = marked === "stopped" || marked === "failed" ? marked : settled?.status === "done" ? transition("running", "done") : transition("running", "lose")

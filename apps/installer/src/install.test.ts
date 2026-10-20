@@ -213,13 +213,13 @@ describe("runInstall", () => {
     expect(JSON.parse(grant)).toEqual({ kind: "oauth", clientId: expect.any(String), accessToken: "at", refreshToken: "rt", accountId: "acc1", scriptName: NEW_SCRIPT })
   })
 
-  const filesBindings = (upload: Call) => ((upload.body as { bindings: { type: string; name: string }[] }).bindings).filter((b) => ["FILES", "FILE"].includes(b.name))
+  const storageBindings = (upload: Call) => ((upload.body as { bindings: { type: string; name: string }[] }).bindings).filter((b) => b.type === "durable_object_namespace" || b.name === "FILES")
 
   for (const r2 of ["ok", "exists", "disabled"] as const) {
     test(`fresh backends keep files private when R2 is ${r2}`, async () => {
       const release = await makeRelease()
       const { upload, calls, result } = await install({ release, scripts: [], r2 })
-      expect(filesBindings(upload)).toEqual([expect.objectContaining({ type: "durable_object_namespace", name: "FILE" })])
+      expect(storageBindings(upload)).toEqual([{ type: "durable_object_namespace", name: "OWNER", class_name: "OwnerDO" }])
       expect(calls.some((c) => c.url.endsWith("/r2/buckets"))).toBe(false)
       expect(result.backendUrl).toBe(`https://${NEW_SCRIPT}.me.workers.dev`)
     })

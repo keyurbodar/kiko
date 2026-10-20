@@ -12,7 +12,7 @@ beforeAll(async () => {
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
     bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars" },
-		durableObjects: { ROOM: { className: "RoomDO", useSQLite: true }, USER: { className: "UserDO", useSQLite: true } },
+		durableObjects: { OWNER: { className: "OwnerDO", useSQLite: true } },
 		r2Buckets: ["FILES"],
 	})
 	origin = (await mf.ready).origin
@@ -34,6 +34,7 @@ async function put(room: string, path: string, body: string, expect = "none", ty
 		headers: { ...as("alice"), "content-type": type, "x-kiko-if-sha256": expect },
 		body,
 	})
+	if (res.status >= 500) throw new Error(await res.text())
 	return { status: res.status, body: (await res.json()) as FileBody }
 }
 

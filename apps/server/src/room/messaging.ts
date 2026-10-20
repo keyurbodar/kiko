@@ -29,7 +29,9 @@ export function messageIdOf(envelopeId: string): string | null {
 	return end > 6 ? envelopeId.slice(6, end) : null
 }
 
-export class Mail {
+export class MessageChains {
+ private readonly chains = new Map<AgentSlug, {current: Chain; next?: Chain}>()
+ private readonly stoppedRoots = new Set<string>()
 	private readonly sql: SqlStorage
 
 	constructor(
@@ -38,23 +40,9 @@ export class Mail {
 		private readonly asks: Asks,
 		private readonly busy: (slug: AgentSlug) => boolean = () => false,
 		private readonly now: () => number = Date.now,
+ private readonly deliver: (mail: QueuedMail) => void = () => {},
 	) {
 		this.sql = storage.sql
-	}
-
-	pending(): QueuedMail[] {
-		return this.sql
-			.exec<{ n: number; sender: string; send: string; recipient: string; remote: string | null }>("SELECT n, sender, send, recipient, remote FROM mail_queue ORDER BY n")
-			.toArray()
-			.map((r) => ({ n: r.n, from: r.sender as AgentSlug, to: r.recipient as AgentSlug, send: JSON.parse(r.send) as StoredSend, remote: r.remote ? (JSON.parse(r.remote) as Remote) : null }))
-	}
-
-	queued(): boolean {
-		return this.sql.exec("SELECT 1 FROM mail_queue LIMIT 1").toArray().length > 0
-	}
-
-	done(n: number): void {
-		this.sql.exec("DELETE FROM mail_queue WHERE n = ?", n)
 	}
 
 	refused(envelopeId: string, rootId: string): void {
@@ -65,60 +53,20 @@ export class Mail {
 		})
 	}
 
-	stop(): void {
-		const now = this.now()
-		this.sql.exec("INSERT OR IGNORE INTO stopped_roots (root_id, at) SELECT root_id, ? FROM agent_chains", now)
-		this.sql.exec("INSERT OR IGNORE INTO stopped_roots (root_id, at) SELECT next_root_id, ? FROM agent_chains WHERE next_root_id IS NOT NULL", now)
-	}
-
-	delivered(slug: AgentSlug, envelopes: readonly Envelope[]): void {
-		const last = envelopes.at(-1)
-		if (!last) return
-		const human = envelopes.some((e) => e.from.kind === "human")
-		if (human || !this.busy(slug)) {
-			this.sql.exec(
-				`INSERT INTO agent_chains (slug, root_id, hop) VALUES (?, ?, ?)
-				 ON CONFLICT(slug) DO UPDATE SET root_id = excluded.root_id, hop = excluded.hop,
-				   next_root_id = NULL, next_hop = NULL`,
-				slug,
-				last.rootId,
-				last.hop,
-			)
-		} else {
-			this.sql.exec(
-				`INSERT INTO agent_chains (slug, root_id, hop, next_root_id, next_hop) VALUES (?, ?, ?, ?, ?)
-				 ON CONFLICT(slug) DO UPDATE SET next_root_id = excluded.next_root_id, next_hop = excluded.next_hop`,
-				slug,
-				last.rootId,
-				last.hop,
-				last.rootId,
-				last.hop,
-			)
-		}
-	}
-
-	runEnded(slug: AgentSlug): void {
-		this.sql.exec(
-			`UPDATE agent_chains SET root_id = next_root_id, hop = next_hop,
-			   next_root_id = NULL, next_hop = NULL
-			 WHERE slug = ? AND next_root_id IS NOT NULL`,
-			slug,
-		)
-	}
-
-	chain(slug: AgentSlug): Chain {
-		const row = this.sql.exec<{ root_id: string; hop: number }>("SELECT root_id, hop FROM agent_chains WHERE slug = ?", slug).toArray()[0]
-		if (!row) return { rootId: `agent:${slug}`, hop: 0 }
-		return { rootId: row.root_id, hop: row.hop }
-	}
-
-	chainRoot(slug: AgentSlug): string | null {
-		return this.sql.exec<{ root_id: string }>("SELECT root_id FROM agent_chains WHERE slug = ?", slug).toArray()[0]?.root_id ?? null
-	}
-
-	stopped(rootId: string): boolean {
-		return this.sql.exec("SELECT 1 FROM stopped_roots WHERE root_id = ?", rootId).toArray().length > 0
-	}
+ stop(): void { for (const c of this.chains.values()) { this.stoppedRoots.add(c.current.rootId); if(c.next) this.stoppedRoots.add(c.next.rootId) } }
+ delivered(slug: AgentSlug, envelopes: readonly Envelope[]): void {
+  const last = envelopes.at(-1)
+  if (!last) return
+  const chain = {rootId:last.rootId,hop:last.hop}
+  const current = this.chains.get(slug)
+  if (current && this.busy(slug) && !envelopes.some(e=>e.from.kind === "human")) current.next=chain
+  else this.chains.set(slug,{current:chain})
+ }
+ runEnded(slug: AgentSlug): void { const chain=this.chains.get(slug); if(chain?.next) this.chains.set(slug,{current:chain.next}) }
+ restore(slug:AgentSlug,envelopes:readonly Pick<Envelope,"rootId"|"hop">[]):void {const last=envelopes.at(-1);if(last)this.chains.set(slug,{current:{rootId:last.rootId,hop:last.hop}})}
+ chain(slug: AgentSlug): Chain { return this.chains.get(slug)?.current ?? {rootId:`agent:${slug}`,hop:0} }
+ chainRoot(slug: AgentSlug): string | null { return this.chains.get(slug)?.current.rootId ?? null }
+ stopped(rootId: string): boolean { return this.stoppedRoots.has(rootId) }
 
 	deliveries(rootId: string): number {
 		return this.sql.exec<{ n: number }>("SELECT deliveries AS n FROM root_counts WHERE root_id = ?", rootId).toArray()[0]?.n ?? 0
@@ -175,9 +123,9 @@ export class Mail {
 		})
 	}
 
-	private enqueue(from: AgentSlug, send: StoredSend, remote: Remote | null = null): void {
-		for (const to of send.recipients) this.sql.exec("INSERT INTO mail_queue (sender, send, recipient, remote) VALUES (?, ?, ?, ?)", from, JSON.stringify(send), to, remote ? JSON.stringify(remote) : null)
-	}
+ private enqueue(from: AgentSlug, send: StoredSend, remote: Remote | null = null): void {
+  for (const to of send.recipients) this.deliver({n:0,from,to,send,remote})
+ }
 
 	/**
 	 * In a pair room, queues the answer to what `to` asked in `room`. Once per ask, so a replay queues nothing.
@@ -230,7 +178,7 @@ export class Mail {
 	private prune(): void {
 		const now = this.now()
 		if (now - Number(this.log.meta("mail_pruned_at") ?? 0) < PRUNE_EVERY_MS) return
-		for (const table of ["agent_sends", "root_counts", "stopped_roots", "mail_refused"]) this.sql.exec(`DELETE FROM ${table} WHERE at < ?`, now - KEEP_SENDS_MS)
+		for (const table of ["agent_sends", "root_counts", "mail_refused"]) this.sql.exec(`DELETE FROM ${table} WHERE at < ?`, now - KEEP_SENDS_MS)
 		this.log.setMeta("mail_pruned_at", String(now))
 	}
 
@@ -252,5 +200,123 @@ export class Mail {
 		this.sql.exec("INSERT INTO root_counts (root_id, deliveries, tripped, at) VALUES (?, 0, 1, ?) ON CONFLICT(root_id) DO UPDATE SET tripped = 1", rootId, this.now())
 		const { event } = this.log.addMessage({ from: { kind: "system", reason: "run_budget" }, text: limitNotice(limit) })
 		return event ? [event] : []
+	}
+}
+
+import type { Alarms } from "@kiko/durable/alarm"
+import type { Burst } from "./burst"
+import { route } from "./deliver"
+import { replyAddressees } from "./recipients"
+import type { Home } from "./home"
+import type { Team } from "./team"
+import type { Members } from "./members"
+import { receive, type ReceiveDeps } from "./receive"
+
+
+export type MailOutcome = { ok: true; to: AgentSlug[] } | { ok: false; error: string }
+
+export type MailDeps = ReceiveDeps & {
+	ctx: DurableObjectState
+	members: Members
+	burst: Burst
+	asks: Asks
+	team: Team
+	alarms: Alarms
+	home: () => Home | null
+	title: (home: Home) => Promise<string>
+	/** The pair room where `from` and `to` talk, made if it is new. An error names the agents the human has. */
+	pair: (from: AgentSlug, to: AgentSlug) => Promise<{ ok: true; roomId: RoomId } | { ok: false; error: string }>
+}
+
+export class RoomMessaging {
+
+	constructor(private readonly d: MailDeps) {}
+
+	async send(slug: AgentSlug, send: AgentSend): Promise<MailOutcome> {
+		const home = this.d.home()
+		const members = this.d.members.list()
+		if (!home || !members.some((m) => m.slug === slug)) return { ok: false, error: "not sent: you are not a member of this room." }
+		let pair: RoomId | null = null
+		if (send.to !== "all" && send.to !== slug && !members.some((m) => m.slug === send.to)) {
+			const made = await this.d.pair(slug, send.to).catch(() => ({ ok: false as const, error: `not sent: @${send.to} cannot be reached right now. try again.` }))
+			if (!made.ok) return made
+			pair = made.roomId
+		}
+		const out = this.d.mail.send(slug, send, members, pair)
+		if (out.ok) {
+			const doing = `messaging ${send.to === "all" ? "everyone" : `@${send.to}`}`
+			this.d.team.doing(slug, doing, Date.now(), { kind: "tool", tool: "other", caption: doing })
+		}
+		this.d.publish(out.events)
+		if (!out.ok) return out
+		return { ok: true, to: out.send.recipients }
+	}
+
+	/**
+	 * Sends what `slug` posted in this run back to whoever messaged it, as mail. The answer reaches
+	 * the asker as a new delivery, which is the one path every agent message takes.
+	 */
+	answerAsks(slug: AgentSlug, runId: string, heard: readonly string[]): void {
+		const bubbles = this.d.ctx.storage.sql
+			.exec<{ id: string; seq: number; text: string }>("SELECT id, seq, text FROM messages WHERE run_id = ? AND deleted_at IS NULL ORDER BY seq", runId)
+			.toArray()
+		const text = bubbles.map((b) => b.text).join("\n\n").trim()
+		const last = bubbles.at(-1)
+		this.relayHeard(slug, heard, text, last ? { id: last.id, seq: last.seq } : null)
+	}
+
+	/** A run with no reply bubbles (empty, `[skip]`, or only reactions, none of which become messages) has nothing to say: its asks settle empty and are not relayed. */
+	relayHeard(slug: AgentSlug, heard: readonly string[], text: string, message: { id: string; seq: number } | null): void {
+		let relayed = false
+		for (const ask of this.d.asks.unanswered(slug, heard.flatMap((id) => messageIdOf(id) ?? []))) {
+			if (ask.remote) {
+				this.d.mail.giveBack(ask.id, slug, ask.asker, text, ask.remote)
+				this.d.asks.settle(ask.id, text)
+				relayed = true
+				continue
+			}
+			if (!message) {
+				this.d.asks.settle(ask.id, "")
+				continue
+			}
+			if (!this.d.mail.relay(`answer:${ask.id}`, slug, ask.asker, { ...message, text })) continue
+			this.d.asks.settle(ask.id, text)
+			relayed = true
+		}
+		void relayed
+	}
+
+	burstAddressed(home: Home): Set<AgentSlug> {
+		if (!this.d.burst.pending()) return new Set()
+		return new Set(route(this.d.burst.envelopes(home.roomId), this.d.members.list(), (id) => replyAddressees((at) => this.d.log.message(at), id)).keys())
+	}
+
+	/** The answer from a pair room. It is taken once, whatever the retries. */
+	async pairBack(input: { askId: string; from: AgentSlug; text: string } & Chain): Promise<void> {
+		const home = this.d.home()
+		if (!home) return
+		const out = this.d.mail.returned(input.askId, input.from, input.text, input)
+		if (!out) return
+		this.d.publish(out.events)
+
+	}
+
+	private async deliverRemote(home: Home, mail: QueuedMail, remote: NonNullable<QueuedMail["remote"]>): Promise<void> {
+		const { rootId, hop, text } = mail.send
+		const room = this.d.services.room(remote.room)
+		if (remote.back) return await room.pairBack({ askId: remote.askId, from: mail.from, text, rootId, hop })
+		if (this.d.mail.stopped(rootId)) return
+		const receipt = await room.pairIn(home.userId, { askId: remote.askId, origin: home.roomId, from: mail.from, to: mail.to, text, rootId, hop })
+		if (receipt === "full") throw new Error(`${mail.to}'s inbox is full`)
+		if (receipt === "refused") await this.pairBack({ askId: remote.askId, from: mail.to, text: `Your message to @${mail.to} could not be delivered. Check that the agent still exists and send a shorter message.`, rootId, hop })
+	}
+
+	async deliver(home: Home, mail: QueuedMail): Promise<void> {
+		if (mail.remote) return this.deliverRemote(home, mail, mail.remote)
+		const members = this.d.members.list()
+		const member = members.find((m) => m.slug === mail.to)
+		if (!member || this.d.mail.stopped(mail.send.rootId)) return
+		const envelope = this.d.mail.envelope(home.roomId, mail.from, mail.send, mail.to)
+		if ((await receive(this.d, home, member, members, await this.d.title(home), [envelope])) === "full") throw new Error(`${mail.to}'s inbox is full`)
 	}
 }

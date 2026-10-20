@@ -6,7 +6,7 @@ import { defineExtension, defineTool } from "@earendil-works/pi-durable"
 import { declareEffect } from "@kiko/agent/effects"
 import type { AgentSetup, HostOptions } from "@kiko/agent/host"
 import type { Envelope } from "@kiko/protocol"
-import { AgentDO } from "../src/agent/agent-do"
+import { AgentProbe as AgentDO, agentObject } from "./agent-service"
 import { buildAgent } from "../src/agent/factory"
 import type { RoomPort } from "../src/agent/outbox"
 import { type FilesBackend, RoomFs, roomViews } from "../src/files/room-fs"
@@ -71,7 +71,7 @@ type Body =
   | { op: "ungate" }
   | { op: "held" }
 
-export class T extends AgentDO {
+class TService extends AgentDO {
   protected override readonly hostOptions: Partial<HostOptions> = {
     onOpen: async () => {
       await this.ctx.storage.put("opens", ((await this.ctx.storage.get<number>("opens")) ?? 0) + 1)
@@ -242,3 +242,5 @@ export default {
     return new Response("not found", { status: 404 })
   },
 }
+
+export const T = agentObject(TService)

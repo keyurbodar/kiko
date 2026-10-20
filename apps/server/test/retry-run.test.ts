@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test"
 import type { AgentSlug, Envelope } from "@kiko/protocol"
 import { Asks } from "../src/room/asks"
-import { BurstFlush } from "../src/room/burst-flush"
+import { Room } from "../src/room/room-do"
 import { Deliveries } from "../src/room/deliver"
 import { RoomLog } from "../src/room/log"
-import { Mail } from "../src/room/mail"
+import { MessageChains as Mail } from "../src/room/messaging"
 import type { MemberRow } from "../src/room/members"
 import { ROOM_STEPS } from "../src/room/schema"
 import { sqlWith } from "./sql-shim"
@@ -13,39 +13,17 @@ const ROOM = "01J0000000000000000000000A"
 const home = { userId: "alice", roomId: ROOM as never }
 const ada = { slug: "ada" } as MemberRow
 
-function setup() {
-	const sql = sqlWith(ROOM_STEPS)
-	const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
-	const log = new RoomLog(storage, () => 1)
-	const received: { slug: string; envelopes: Envelope[] }[] = []
-	const env = {
-		AGENT: {
-			idFromName: (name: string) => name,
-			get: (name: string) => ({
-				receive: async (envelopes: Envelope[]) => {
-					received.push({ slug: name.split(":").at(-1)!, envelopes })
-					return { refused: null }
-				},
-			}),
-		},
-	}
-	const flush = new BurstFlush({
-		env: env as never,
-		log,
-		mail: new Mail(storage, log, new Asks(sql)),
-		deliveries: new Deliveries(storage, log),
-		publish: () => {},
-		agentHome: (_h, slug) => ({ ...home, slug }),
-		delivery: (_m, _ms, _g, raw) => ({ envelopes: raw, brief: "", reactionsUpTo: 0 }),
-		ctx: {} as never,
-		members: { list: () => [ada] } as never,
-		burst: {} as never,
-		home: () => home,
-		chat: async () => ({ title: "t" }) as never,
-		seedMembers: async () => {},
-		drainMail: async () => {},
-	})
-	return { flush, log, received }
+
+function setup(){
+ const sql=sqlWith(ROOM_STEPS)
+ const storage={sql,transactionSync:<T>(f:()=>T)=>f()} as unknown as DurableObjectStorage
+ const log=new RoomLog(storage,()=>1)
+ const received:{slug:string;envelopes:Envelope[]}[]=[]
+ const dependencies={services:{agent:(_room:string,slug:string)=>({receive:async(envelopes:Envelope[])=>{received.push({slug,envelopes});return {refused:null}}})} as never,log,mail:new Mail(storage,log,new Asks(sql)),deliveries:new Deliveries(storage,log),publish:()=>{},agentHome:(_h:unknown,slug:AgentSlug)=>({...home,slug}),delivery:(_m:unknown,_ms:unknown,_g:string,raw:Envelope[])=>({envelopes:raw,brief:"",reactionsUpTo:0})}
+ // The public retry operation resolves its error message before reaching this delivery path.
+ const room=new Room({ctx:{id:{name:`room:alice:${ROOM}`},storage} as never,sql,env:{} as never,services:dependencies.services,broadcast:()=>{}})
+ Object.assign(room,{log,receiver:dependencies,members:{list:()=>[ada]},home:()=>home,chat:async()=>({title:"t"})})
+ return {flush:{redeliver:(slug:AgentSlug,ids:readonly string[],errorId:string)=>(room as unknown as {redeliver(slug:AgentSlug,ids:readonly string[],errorId:string):Promise<void>}).redeliver(slug,ids,errorId)},log,received}
 }
 
 test("a retry gives the agent the same human messages again, as new deliveries, and stores nothing", async () => {

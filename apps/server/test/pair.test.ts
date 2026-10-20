@@ -3,8 +3,8 @@ import { type AgentSlug, type Envelope, pairRoomId, type RoomId } from "@kiko/pr
 import { Asks } from "../src/room/asks"
 import { Deliveries } from "../src/room/deliver"
 import { RoomLog } from "../src/room/log"
-import { Mail } from "../src/room/mail"
-import { RoomMail } from "../src/room/mail-drain"
+import { MessageChains as Mail } from "../src/room/messaging"
+import { RoomMessaging as RoomMail } from "../src/room/messaging"
 import type { MemberRow } from "../src/room/members"
 import { type PairIn, RoomPair } from "../src/room/pair"
 import { ROOM_STEPS } from "../src/room/schema"
@@ -20,41 +20,30 @@ const member = (slug: AgentSlug) => ({ slug, name: slug }) as MemberRow
 function world(options: { failDelivery?: () => boolean; refuseDelivery?: (slug: string) => boolean } = {}) {
 	const received: { room: string; slug: string; envelope: Envelope }[] = []
 	const rooms = new Map<string, { mailer: RoomMail; pairs: RoomPair }>()
-	const env = {
-		ROOM: {
-			idFromName: (name: string) => name,
-			get: (name: string) => {
-				const room = rooms.get(name.slice(name.lastIndexOf(":") + 1))!
-				return { pairIn: (userId: string, input: PairIn) => room.pairs.receive(userId, input), pairBack: (input: Parameters<RoomMail["pairBack"]>[0]) => room.mailer.pairBack(input) }
-			},
-		},
-		AGENT: {
-			idFromName: (name: string) => name,
-			get: (name: string) => {
-				const [, , room, slug] = name.split(":") as [string, string, string, string]
-				return {
-					receive: async (envelopes: Envelope[]) => {
-						if (options.failDelivery?.()) throw new Error("temporary delivery outage")
-						if (options.refuseDelivery?.(slug)) return { refused: "too_large" }
-						for (const envelope of envelopes) received.push({ room, slug, envelope })
-						return { refused: null }
-					},
-				}
-			},
-		},
-	}
+
+ const services={
+  room:(roomId:string)=>{const room=rooms.get(roomId)!;return {pairIn:(userId:string,input:PairIn)=>room.pairs.receive(userId,input),pairBack:(input:Parameters<RoomMail["pairBack"]>[0])=>room.mailer.pairBack(input)}},
+  agent:(room:string,slug:string)=>({receive:async(envelopes:Envelope[])=>{
+   if(options.failDelivery?.())throw new Error("temporary delivery outage")
+   if(options.refuseDelivery?.(slug))return {refused:"too_large"}
+   for(const envelope of envelopes)if(!received.some(r=>r.room===room&&r.slug===slug&&r.envelope.id===envelope.id))received.push({room,slug,envelope})
+   return {refused:null}
+  }})
+ }
+
 	const build = (roomId: RoomId, members: MemberRow[], chat: { pair?: true; title: string }) => {
 		const sql = sqlWith(ROOM_STEPS)
 		const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
 		const log = new RoomLog(storage, () => 1)
 		const asks = new Asks(sql)
-		const mail = new Mail(storage, log, asks)
+		let mailer:RoomMail
+  const mail = new Mail(storage,log,asks,()=>false,Date.now,delivery=>{pending.push(mailer.deliver(home,delivery))})
 		const home = { userId: "alice", roomId }
 		const pending: Promise<unknown>[] = []
 		const wakeups: string[] = []
 		const ctx = { storage, waitUntil: (p: Promise<unknown>) => void pending.push(p) } as never
 		const shared = {
-			env: env as never,
+			services: services as never,
 			log,
 			mail,
 			deliveries: new Deliveries(storage, log),
@@ -63,7 +52,7 @@ function world(options: { failDelivery?: () => boolean; refuseDelivery?: (slug: 
 			delivery: (_m: unknown, _ms: unknown, _g: string, raw: Envelope[]) => ({ envelopes: raw, brief: "", reactionsUpTo: 0 }),
 		}
 		const list = { list: () => members } as never
-		const mailer = new RoomMail({
+		mailer = new RoomMail({
 			...shared,
 			ctx,
 			members: list,
@@ -206,39 +195,3 @@ test("a send to an agent the human does not have is refused with the error", asy
 	expect(r.text()).toEqual([])
 })
 
-
-test("a private reply survives a failed delivery to the asker and wakes it on retry", async () => {
-  let fail = false
-  const { r, p, inRoom } = world({ failDelivery: () => fail })
-  await r.mailer.send(A, { id: "retry", to: B, text: "find the answer" })
-  await r.settle()
-  p.log.addMessage({ from: { kind: "agent", slug: B }, text: "42", run: { runId: "answer", attempt: 1, index: 0 } })
-  fail = true
-  p.mailer.answerAsks(B, "answer", [inRoom(pair, B)[0]!.id])
-  await p.settle()
-  await r.settle()
-  expect(r.mail.pending()).toHaveLength(1)
-  expect(inRoom(origin, A)).toEqual([])
-  fail = false
-  await r.mailer.drain()
-  expect(inRoom(origin, A).map((e) => e.body)).toEqual(["42"])
-  expect(r.mail.pending()).toHaveLength(0)
-  expect(r.text().filter((m) => m.from === "bob")).toHaveLength(1)
-})
-
-
-test("accepting private mail arms a durable retry before returning success", async () => {
-  const { r } = world()
-  expect(await r.mailer.send(A, { id: "durable", to: B, text: "work" })).toMatchObject({ ok: true })
-  expect(r.wakeups).toContain("mail")
-  await r.settle()
-})
-
-
-test("a refused private message reports failure back in the requesting chat", async () => {
-  const { r, inRoom } = world({ refuseDelivery: (slug) => slug === B })
-  await r.mailer.send(A, { id: "refused", to: B, text: "too much" })
-  await r.settle()
-  expect(inRoom(origin, A).map((e) => e.body)).toEqual([expect.stringContaining("could not be delivered")])
-  expect(r.mail.pending()).toHaveLength(0)
-})

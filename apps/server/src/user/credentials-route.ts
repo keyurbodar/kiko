@@ -1,6 +1,6 @@
 import type { Env } from "../index"
 import { error, signedIn } from "../lib/route"
-import { userStub } from "../lib/names"
+import { ownerStub } from "../lib/names"
 import { keyRefusedText } from "./credentials-check"
 import { checkApiKey, CredentialError, isProviderId } from "./credentials"
 
@@ -26,7 +26,7 @@ export async function credentialsRoute(request: Request, env: Env): Promise<Resp
   if (url.pathname !== PREFIX && !url.pathname.startsWith(`${PREFIX}/`)) return null
   const user = await signedIn(request, env)
   if (user instanceof Response) return user
-  const stub = userStub(env.USER, user.id)
+  const stub = ownerStub(env.OWNER, user.id)
 
   if (url.pathname === PREFIX) {
     if (request.method !== "GET") return error(405, "method not allowed")

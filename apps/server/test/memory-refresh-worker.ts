@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
-import type { Batch } from "@kiko/agent/inbox"
-import { AgentDO } from "../src/agent/agent-do"
+import type { Batch } from "@kiko/agent/input"
+import { AgentProbe as AgentDO, agentObject } from "./agent-service"
 import { isAgentSlug, isRoomId } from "@kiko/protocol"
 
 export class UserDO extends DurableObject {
@@ -19,7 +19,7 @@ export class RoomDO extends DurableObject {
   async memorySince() { return { count: 1, text: "" } }
 }
 
-export class AgentProbe extends AgentDO {
+class AgentProbeService extends AgentDO {
   protected override home() {
     const roomId = "01J00000000000000000000000"
     const slug = "kiko"
@@ -34,3 +34,5 @@ export class AgentProbe extends AgentDO {
 }
 
 export default { fetch() { return new Response("ok") } }
+
+export const AgentProbe = agentObject(AgentProbeService)

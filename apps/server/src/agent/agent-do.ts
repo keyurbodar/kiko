@@ -1,5 +1,4 @@
 import { erase } from "../lib/erase"
-import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult } from "@earendil-works/pi-ai"
 import { type Conversation, type ConversationId, configure, type Harness, type ModelRef, type SubmissionId } from "@earendil-works/pi-durable"
@@ -7,7 +6,7 @@ import type { Activity, Envelope, ProviderProblem, RoomId, ThinkingLevel, Worker
 import { runKindFor } from "../user/provider-health"
 import type { Env } from "../index"
 import { AnswerWaiters } from "@kiko/agent/answers"
-import { roomStub, userStub } from "../lib/names"
+import type { OwnerServices, ServiceOptions } from "../owner/services"
 import type { AgentHome } from "../room/room-do"
 import type { Soul } from "../user/souls"
 import { fakeSetup } from "./dev-fake"
@@ -29,24 +28,23 @@ import { type ComposioTool, learnedSignature } from "../integrations/composio/cl
 import { learnedNote } from "../integrations/composio/tools"
 import { integrationNote } from "./prompt"
 
-import { buildAgent, userModels } from "./factory"
+import { buildAgent, openAgentHarness, userModels } from "./factory"
 import { isKnownModel, parseModelRef, thinkingFor } from "./thinking"
 import { setOverlay } from "../models/catalog"
 import { createAlarms } from "@kiko/durable/alarm"
 import { migrate } from "@kiko/durable/migrate"
 import { AGENT_STEPS } from "./schema"
 import { AgentHost, type AgentSetup, type HostOptions, type HostStatus } from "@kiko/agent/host"
-import type { Batch } from "@kiko/agent/inbox"
+import type { Batch } from "@kiko/agent/input"
 import type { Work } from "@kiko/agent/workers"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
 
-import { count, DEV, instrument, loadAgentDev } from "../lib/dev-guard"
+import { count, DEV, loadAgentDev } from "../lib/dev-guard"
 import type { AgentDevHost, Usage } from "./dev"
 import { Outbox, type RoomPort } from "./outbox"
 import { stopsWorkers } from "./run-error"
 import type { StepItem, StepsPort } from "./extensions/presence"
-import { StepBatch } from "./step-batch"
 
 const WORKER_TASK_CHARS = 200
 import { FIRST_BYTE_MS, guardStall, orStall, STALL_MS } from "./stall"
@@ -71,27 +69,35 @@ const HUMAN_INPUTS_KEY = "run:human-inputs"
 const PRIVATE_REFUSAL = "this chat is private: nothing from it is saved to memory, your soul, or /home. carry on without saving."
 const PRIVATE_NOTE = "this chat is private. use what you know, but save nothing from it: no memory, no soul edits, nothing in /home."
 
-export class AgentDO extends DurableObject<Env> {
+export class Agent {
   protected readonly hostOptions: Partial<HostOptions> = {}
   private hostInstance?: AgentHost
   private outboxInstance?: Outbox
   protected readonly answers = new AnswerWaiters()
 
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env)
-    instrument(ctx, "agent")
-    void ctx.blockConcurrencyWhile(async () => {
-      migrate(ctx.storage, AGENT_STEPS)
-      void this.host
-      void this.outbox
-      this.home()
-      if (ctx.storage.sql.exec("SELECT 1 FROM wakeups WHERE key = ?", "heartbeat").toArray().length) await createAlarms(this.ctx).clearWakeup("heartbeat")
-      await this.host.wake()
-    })
+  protected readonly ctx: DurableObjectState
+  protected readonly env: Env
+  private readonly services: OwnerServices
+  constructor({ ctx, env, services }: ServiceOptions) {
+    this.ctx = ctx
+    this.env = env
+    this.services = services
+  }
+
+  async initialize(): Promise<void> {
+    migrate(this.ctx.storage, AGENT_STEPS)
+  }
+
+  loaded(): boolean { return this.hostInstance?.loaded() ?? false }
+  async busy(): Promise<boolean> { return this.hostInstance?.busy() ?? false }
+  async unload(): Promise<void> { await this.hostInstance?.unload() }
+  nextDeadline(): number | null {
+    return this.ctx.storage.sql.exec<{ at: number }>("SELECT min(at) AS at FROM wakeups").toArray()[0]?.at ?? null
   }
 
   protected get host(): AgentHost {
     this.hostInstance ??= new AgentHost(this.ctx, {
+      openHarness: openAgentHarness,
       progress: () => this.outbox.progress(),
       shortBrief,
       onReset: () => this.outbox.clear(),
@@ -99,14 +105,30 @@ export class AgentDO extends DurableObject<Env> {
       waitUntil: (work) => this.ctx.waitUntil(work),
       ...this.hostOptions,
       setup: () => this.setup(),
+      onIdle: () => {
+        this.hostOptions.onIdle?.()
+        const home = this.home()
+        if (home) this.ctx.waitUntil(this.services.afterRun(home.roomId, home.slug))
+        this.ctx.waitUntil(this.services.trimAgents())
+      },
       onOpen: async (opened) => {
         await this.hostOptions.onOpen?.(opened)
         this.#rootId = opened.root.id
+        const home = this.home()
+        if (home) {
+          const { entries } = await opened.root.context(BACKGROUND_CONTEXT)
+          const data = entries.findLast((entry) => entry.kind === "kiko.input")?.data
+          if (data && typeof data === "object" && !Array.isArray(data) && Array.isArray(data.chain)) {
+            const chain = data.chain.flatMap((value) => value && typeof value === "object" && !Array.isArray(value) && typeof value.rootId === "string" && typeof value.hop === "number" ? [{ rootId: value.rootId, hop: value.hop }] : [])
+            this.services.room(home.roomId).restoreChain(home.slug, chain)
+          }
+        }
         await this.outbox.attach(opened.harness, opened.root.id)
+        this.ctx.waitUntil(this.services.trimAgents())
       },
       onError: async (error, requestId) => {
         await this.hostOptions.onError?.(error, requestId)
-        const inputs = this.host.inbox.envelopeIds(requestId)
+        const inputs = (await this.host.envelopeIds(requestId))
           .filter((id) => id.startsWith("human:"))
           .map((id) => id.slice("human:".length).split("#")[0]!)
         if (inputs.length) await this.ctx.storage.put(HUMAN_INPUTS_KEY, inputs)
@@ -116,7 +138,7 @@ export class AgentDO extends DurableObject<Env> {
       onGiveUp: async () => {
         await this.hostOptions.onGiveUp?.()
         const home = this.home()
-        if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).runDropped(home.slug)
+        if (home) await this.services.room(home.roomId).runDropped(home.slug)
       },
     })
     return this.hostInstance
@@ -200,7 +222,7 @@ export class AgentDO extends DurableObject<Env> {
   protected roomPort(): RoomPort | null {
     const home = this.home()
     if (!home) return null
-    const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
+    const room = () => this.services.room(home.roomId)
     return {
       post: (runId, attempt, index, block) => room().post(home.slug, runId, attempt, index, block),
       draft: (runId, index, text) => room().draft(home.slug, runId, index, text),
@@ -239,21 +261,21 @@ export class AgentDO extends DurableObject<Env> {
     if (!run?.problem || run.errored || !run.auth) return
     run.problem = undefined
     this.ctx.waitUntil(
-      userStub(this.env.USER, userId)
+      this.services.user()
         .providerRecovered(run.provider)
         .catch((e: unknown) => console.error(`provider recovery failed: ${e instanceof Error ? e.message : String(e)}`)),
     )
   }
 
   private recipesPort(home: { userId: string; roomId: string; slug: string }): RecipesPort {
-    const user = () => userStub(this.env.USER, home.userId)
+    const user = () => this.services.user()
     return { list: () => user().recipeBriefs(home.roomId, home.slug), body: (name) => user().recipeSkillText(name) }
   }
 
   private routinesPort(): RoutinesPort | null {
     const home = this.home()
     if (!home) return null
-    const user = () => userStub(this.env.USER, home.userId)
+    const user = () => this.services.user()
     const tz = () => this.#run?.timezone ?? "UTC"
     const mine = async (id: string) => (await user().listRoutines()).some((r) => r.id === id && canManageRoutine(home, r))
     const notHere = { ok: false as const, error: "no such routine available to you" }
@@ -287,7 +309,7 @@ export class AgentDO extends DurableObject<Env> {
   private async composioTools(): Promise<ComposioTool[] | null | "unreachable"> {
     const home = this.home()
     if (!home) return null
-    return userStub(this.env.USER, home.userId)
+    return this.services.user()
       .composioTools()
       .catch(() => "unreachable" as const)
   }
@@ -308,7 +330,7 @@ export class AgentDO extends DurableObject<Env> {
     const all: string[] = []
     for (const input of inputs) {
       const submission = await storage.submission(input, BACKGROUND_CONTEXT)
-      if (submission?.requestId) all.push(...this.host.inbox.envelopeIds(submission.requestId))
+      if (submission?.requestId) all.push(...await this.host.envelopeIds(submission.requestId))
     }
     const mail = all.filter((id) => id.startsWith("agent:"))
     return { mail, mailOnly: mail.length > 0 && mail.length === all.length }
@@ -321,7 +343,7 @@ export class AgentDO extends DurableObject<Env> {
   private messagingPort(): MessagingPort | null {
     const home = this.home()
     if (!home) return null
-    const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
+    const room = () => this.services.room(home.roomId)
     return {
       send: (input) => room().agentMessage(home.slug, input),
       waitAnswer: (id, ms, signal) => this.answers.wait(id, ms, signal),
@@ -332,16 +354,14 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  /** Every tool call goes to the room in these batches. See `StepBatch`. */
-  readonly #steps = new StepBatch<StepItem>(async (items) => {
-    const home = this.home()
-    if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).reportSteps(home.slug, items)
-  })
   #rootId: ConversationId | null = null
 
   private stepsPort(): StepsPort {
     return {
-      push: (item) => this.#steps.push(item),
+      push: (item) => {
+        const home = this.home()
+        if (home) this.ctx.waitUntil(this.services.room(home.roomId).reportSteps(home.slug, [item]))
+      },
       scope: (conversationId) => {
         if (conversationId === this.#rootId) {
           const runId = this.outbox.runId()
@@ -356,23 +376,23 @@ export class AgentDO extends DurableObject<Env> {
   private groupsPort(): GroupsPort | undefined {
     const home = this.home()
     if (!home) return undefined
-    const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
+    const room = () => this.services.room(home.roomId)
     return {
       chief: home.slug === CHIEF,
-      agents: () => userStub(this.env.USER, home.userId).listAgents(),
+      agents: () => this.services.user().listAgents(),
       createAgent: (spec) => room().createAgent(home.slug, spec),
       createGroup: (input) => room().createGroup(home.slug, input),
       deleteGroup: (roomId) => room().deleteGroup(home.slug, roomId),
       deleteAgent: (handle) => room().deleteOwnedAgent(home.slug, handle),
       removeMember: (handle, roomId) => room().removeGroupMember(home.slug, handle, roomId),
-      overview: () => userStub(this.env.USER, home.userId).overview(),
+      overview: () => this.services.user().overview(),
     }
   }
 
   private soulPort(): SoulPort {
     const user = () => {
       const home = this.homeOrThrow()
-      return { stub: userStub(this.env.USER, home.userId), slug: home.slug }
+      return { stub: this.services.user(), slug: home.slug }
     }
     return {
       get: () => {
@@ -396,7 +416,7 @@ export class AgentDO extends DurableObject<Env> {
     const messaging = () => this.messagingPort()
     if (DEV && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) {
       const browserOn = await this.browserOn()
-      const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, {
+      const fake = fakeSetup(role, roomWorkspacePort(this.services, () => this.home()), messaging, {
         ...(browserOn && home ? { browser: { connection: () => this.browser(), lease: () => this.browserLease(), acceptsImages: () => false } } : {}),
         routines: { port: () => this.routinesPort() },
         groups: this.groupsPort(),
@@ -417,10 +437,10 @@ export class AgentDO extends DurableObject<Env> {
     const where = () => this.home()
     const notice = (text: string) => {
       const h = this.home()
-      return h ? roomStub(this.env.ROOM, h.userId, h.roomId).homeNotice(h.slug, text) : Promise.resolve()
+      return h ? this.services.room(h.roomId).homeNotice(h.slug, text) : Promise.resolve()
     }
     const locked = () => (this.home()?.private ? PRIVATE_REFUSAL : null)
-    const backend = withMount(withMount(roomBackend(this.env, where, cache), HOME, homeBackend(this.env, where, notice, cache, locked)), KIKO, kikoDocsBackend())
+    const backend = withMount(withMount(roomBackend(this.services, where, cache), HOME, homeBackend(this.services, where, notice, cache, locked)), KIKO, kikoDocsBackend())
     const id = `room-files:${this.ctx.id.toString()}`
     const space = withSoul(backend, soul)
     const views = roomViews(id, space)
@@ -433,14 +453,14 @@ export class AgentDO extends DurableObject<Env> {
       ? { connection: () => this.browser(), lease: () => this.browserLease(), acceptsImages: imageReader(user.models) }
       : undefined
     const picked = await this.picked()
-    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, ...(picked.model ? { model: picked.model } : {}), thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: this.stepsPort(), runId: () => this.outbox.runId(), memory, messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args), resolve: (app) => userStub(this.env.USER, home.userId).composioToolkit(app) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers })
+    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, ...(picked.model ? { model: picked.model } : {}), thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: this.stepsPort(), runId: () => this.outbox.runId(), memory, messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => this.services.user().composioCall(name, args), resolve: (app) => this.services.user().composioToolkit(app) } } : {}), workspace: roomWorkspacePort(this.services, () => this.home()), work: this.host.workers })
     return {
       ...built,
       ...user,
       env: views,
       beginRun: async (batch, root) => {
         this.prefetchDelta(batch)
-        return this.beginRun(batch.requestId, root)
+        return this.beginRun(batch, root)
       },
       inputContext: async () => {
         const tz = this.#run?.timezone ?? "UTC"
@@ -452,7 +472,7 @@ export class AgentDO extends DurableObject<Env> {
         const routines = await this.routineContext()
         return [clock, integrations, down, learned, quiet, routines].filter(Boolean).join("\n\n")
       },
-      ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (await userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false))) } : {}),
+      ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (this.services.user().composioSignature() !== signature)) } : {}),
       inputInvalidated: () => this.inputInvalidated(),
       inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined),
       beforeCompact: (harness) => this.beforeCompact(harness),
@@ -471,7 +491,7 @@ export class AgentDO extends DurableObject<Env> {
     const [known, forgotten, current] = await Promise.all([
       this.ctx.storage.get<number>(MEMORY_REVISION_KEY),
       this.ctx.storage.get<number>(MEMORY_FORGOTTEN_KEY),
-      userStub(this.env.USER, home.userId).lifeRevisions(),
+      this.services.user().lifeRevisions(),
     ])
     if ((forgotten ?? 0) !== current.forgotten) return "forget"
     return known !== current.revision ? "refresh" : null
@@ -482,7 +502,7 @@ export class AgentDO extends DurableObject<Env> {
     this.#delta = undefined
     const home = this.home()
     if (!home) return { fresh }
-    const room = roomStub(this.env.ROOM, home.userId, home.roomId)
+    const room = this.services.room(home.roomId)
     const seqs = [...batch.envelopes.map((e) => e.seq), ...joined]
     this.#seqs = seqs
     this.#heard = batch.envelopes.findLast((e) => e.from.kind === "human")?.rootId ?? null
@@ -492,7 +512,7 @@ export class AgentDO extends DurableObject<Env> {
       this.ctx.storage.get<number>(MEMORY_POS_KEY),
       withLife ? this.ctx.storage.get<string>(MEMORY_LIFE_KEY) : undefined,
       withLife ? this.ctx.storage.get<number>(MEMORY_REVISION_KEY) : undefined,
-      withLife ? userStub(this.env.USER, home.userId).lifeState() : { text: "", revision: 0, forgotten: 0 },
+      withLife ? this.services.user().lifeState() : { text: "", revision: 0, forgotten: 0 },
     ])
     const life = state.text
     const changedLife = withLife && (state.revision !== previousRevision || life !== previousLife)
@@ -539,7 +559,7 @@ export class AgentDO extends DurableObject<Env> {
       const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
       if (seen === undefined) return null
       const seqs = [...batch.envelopes.map((e) => e.seq), ...(await this.host.joinedSeqs())]
-      return roomStub(this.env.ROOM, home.userId, home.roomId).memorySince(home.slug, seen, seqs)
+      return this.services.room(home.roomId).memorySince(home.slug, seen, seqs)
     })().catch(() => null)
     this.#delta = { requestId: batch.requestId, since }
   }
@@ -556,7 +576,7 @@ export class AgentDO extends DurableObject<Env> {
     const count = ((await this.ctx.storage.get<number>(COMPACTIONS_KEY)) ?? 0) + 1
     // One put for both keys: the usage this compaction carries and the compaction count.
     await this.ctx.storage.put({ [USAGE_CARRIED_KEY]: usage, [COMPACTIONS_KEY]: count })
-    await roomStub(this.env.ROOM, home.userId, home.roomId).compacted(home.slug, String(count)).catch(() => {})
+    await this.services.room(home.roomId).compacted(home.slug, String(count)).catch(() => {})
   }
 
   private async carriedUsage(): Promise<Usage> {
@@ -605,7 +625,7 @@ export class AgentDO extends DurableObject<Env> {
    * here: before the call it throws, and after it the body stream is cut.
    */
   private egressFetch(): typeof fetch {
-    const self = () => this.env.AGENT.get(this.ctx.id) as unknown as { egress(request: EgressRequest): Promise<Response> }
+    const self = () => this.services
     return (async (input: RequestInfo | URL, init?: RequestInit) => {
       const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined)
       signal?.throwIfAborted()
@@ -624,8 +644,8 @@ export class AgentDO extends DurableObject<Env> {
   private memoryPort(): MemoryPort | undefined {
     const home = this.home()
     if (!home) return undefined
-    const user = () => userStub(this.env.USER, home.userId)
-    const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
+    const user = () => this.services.user()
+    const room = () => this.services.room(home.roomId)
     return {
       note: async (text, replaces) =>
         this.home()?.private ? { ok: false, error: PRIVATE_REFUSAL } : user().lifeNote(home.slug, text, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", replaces),
@@ -676,11 +696,11 @@ export class AgentDO extends DurableObject<Env> {
   #run: { provider: string; auth: AuthResult | null; timezone: string; captures: boolean; soul?: Soul; credential?: "api_key" | "oauth"; problem?: ProviderProblem; errored?: boolean } | null = null
   #runStamp = 0
 
-  private async beginRun(requestId: string, root: Conversation): Promise<boolean> {
+  protected async beginRun(batch: Batch, root: Conversation): Promise<boolean> {
     const home = this.home()
     if (!home) return false
     this.#runStamp++
-    const turn = await userStub(this.env.USER, home.userId).agentTurn(home.slug)
+    const turn = await this.services.user().agentTurn(home.slug)
     if (turn.provider) setOverlay(turn.provider, turn.catalog.models)
     const model = turn.model ? parseModelRef(turn.model) : null
     // pi-durable ends a run on a model it cannot find as unanswered, with no error entry, so the human would see nothing.
@@ -699,10 +719,11 @@ export class AgentDO extends DurableObject<Env> {
       }
       if (turn.auth) return true
     }
-    const ids = this.host.inbox.envelopeIds(requestId)
+    const requestId = batch.requestId
+    const ids = batch.envelopes.map((e) => e.id)
     const heard = ids.filter((id) => id.startsWith("agent:"))
     const humans = ids.filter((id) => id.startsWith("human:")).map((id) => id.slice("human:".length).split("#")[0]!)
-    const room = roomStub(this.env.ROOM, home.userId, home.roomId)
+    const room = this.services.room(home.roomId)
     if (!model) await room.noModel(home.slug, requestId, heard, humans)
     else if (!listed) await room.modelGone(home.slug, model.provider, `${model.provider}/${model.modelId}`, requestId, heard, humans)
     else {
@@ -719,7 +740,7 @@ export class AgentDO extends DurableObject<Env> {
 
   private async loadAuth(provider: string): Promise<AuthResult | null> {
     const home = this.home()
-    const context = home ? await userStub(this.env.USER, home.userId).turnContext(provider, home.slug) : null
+    const context = home ? await this.services.user().turnContext(provider, home.slug) : null
     if (context) setOverlay(provider, context.catalog.models)
     this.#run = { provider, auth: context?.auth ?? null, timezone: context?.timezone ?? "UTC", captures: context?.captures ?? false, ...(context?.credential ? { credential: context.credential } : {}), ...(context?.problem ? { problem: context.problem } : {}), ...(context?.agent ? { soul: context.agent.soul } : {}) }
     return this.#run.auth
@@ -728,7 +749,7 @@ export class AgentDO extends DurableObject<Env> {
   /** The model and level this agent runs on. Kept by the user, so every chat with this agent agrees. */
   private async picked(): Promise<{ model: ModelRef | null; thinking: ThinkingLevel }> {
     const home = this.home()
-    const picked = home ? await userStub(this.env.USER, home.userId).agentModel(home.slug) : null
+    const picked = home ? await this.services.user().agentModel(home.slug) : null
     return { model: picked ? parseModelRef(picked.model) : null, thinking: picked?.thinking ?? "off" }
   }
 
@@ -747,7 +768,7 @@ export class AgentDO extends DurableObject<Env> {
   private async browserOn(): Promise<boolean> {
     const home = this.home()
     if (!home) return false
-    return (userStub(this.env.USER, home.userId) as unknown as UserBrowserRpc).browserCheck().then((s) => s.connected, () => false)
+    return (this.services.user() as unknown as UserBrowserRpc).browserCheck().then((s) => s.connected, () => false)
   }
 
   /**
@@ -764,7 +785,7 @@ export class AgentDO extends DurableObject<Env> {
 
   private browserLease(): LeasePort {
     const home = this.homeOrThrow()
-    this.#browserLease ??= userLease(() => userStub(this.env.USER, home.userId) as unknown as UserBrowserRpc, `${home.roomId}:${home.slug}`, home.roomId)
+    this.#browserLease ??= userLease(() => this.services.user() as unknown as UserBrowserRpc, `${home.roomId}:${home.slug}`, home.roomId)
     return this.#browserLease
   }
 

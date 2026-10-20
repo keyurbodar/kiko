@@ -1,4 +1,4 @@
-import { fileStore } from "../files/store"
+import type { FileBucket } from "../files/store"
 import type { Actor, FileOp, UserEvent } from "@kiko/protocol"
 import type { Env } from "../index"
 import type { CommitResult, FileIndex, FsChange, FsEntry, FsFail, IndexChange, NewFile, PutResult } from "../files/file-index"
@@ -7,6 +7,7 @@ import { cleanPath, deleteFiles } from "../files/upload"
 type HomeDeps = {
   ctx: DurableObjectState
   env: Env
+  files: FileBucket
   home: FileIndex<UserEvent>
   holding: { set(held: UserEvent[] | null): void }
   broadcast: (frame: { t: "events"; events: UserEvent[] }) => void
@@ -64,7 +65,7 @@ export class HomeWiring {
   }
 
   private dropAfter<T extends FsChange | FsFail>(out: T): T {
-    if (out.ok && out.drop.length) this.d.ctx.waitUntil(deleteFiles(fileStore(this.d.env), out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
+    if (out.ok && out.drop.length) this.d.ctx.waitUntil(deleteFiles(this.d.files, out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
     return out
   }
 }

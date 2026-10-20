@@ -1,6 +1,4 @@
 import { migrate, type Step } from "@kiko/durable/migrate"
-import { DurableObject } from "cloudflare:workers"
-import type { Env } from "../index"
 import { CHUNK_BYTES, FILE_TOO_LARGE, MAX_SPACE_BYTES, MAX_STORE_FILE_BYTES, STORAGE_FULL, type StoredInfo } from "./file-limits"
 
 const FILE_STEPS: Step[] = [
@@ -33,17 +31,25 @@ const FILE_STEPS: Step[] = [
 const partKey = (uploadId: string, n: number) => `part:${uploadId}:${n}`
 
 /**
- * File bytes for an install without R2, one object per chat or drive. A file is rows of at most one
+ * File bytes for an install without R2, held in the owner database. A file is rows of at most one
  * megabyte. Keys are immutable in practice (a write makes a new key), so nothing here edits a file in place.
  */
-export class FileDO extends DurableObject<Env> {
-	constructor(ctx: DurableObjectState, env: Env) {
-		super(ctx, env)
-		void ctx.blockConcurrencyWhile(async () => migrate(ctx.storage, FILE_STEPS))
+export class BlobStore {
+	constructor(private readonly ctx: DurableObjectState) {}
+
+	initialize(): void {
+		migrate(this.ctx.storage, FILE_STEPS)
 	}
 
-	#used(): number {
-		return this.ctx.storage.sql.exec<{ n: number }>("SELECT COALESCE(SUM(size), 0) AS n FROM obj").one().n
+	#used(key: string): number {
+		const sql = this.ctx.storage.sql
+		const uploadId = /^part:([^:]+):/.exec(key)?.[1]
+		const target = uploadId ? sql.exec<{ key: string }>("SELECT key FROM upload WHERE id = ?", uploadId).one().key : key
+		const prefix = target.slice(0, target.lastIndexOf("/") + 1)
+		return sql.exec<{ n: number }>(
+			"SELECT COALESCE(SUM(size), 0) AS n FROM obj o WHERE substr(o.key, 1, length(?)) = ? OR EXISTS (SELECT 1 FROM upload u WHERE substr(u.key, 1, length(?)) = ? AND substr(o.key, 1, length('part:' || u.id || ':')) = 'part:' || u.id || ':')",
+			prefix, prefix, prefix, prefix,
+		).one().n
 	}
 
 	#drop(keys: readonly string[]): void {
@@ -56,7 +62,7 @@ export class FileDO extends DurableObject<Env> {
 	async #write(key: string, body: ReadableStream<Uint8Array> | Uint8Array, type: string, meta: Record<string, string>): Promise<StoredInfo> {
 		const sql = this.ctx.storage.sql
 		this.#drop([key])
-		const room = MAX_SPACE_BYTES - this.#used()
+		const room = MAX_SPACE_BYTES - this.#used(key)
 		let size = 0
 		let idx = 0
 		let written = 0

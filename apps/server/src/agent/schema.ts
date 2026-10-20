@@ -25,4 +25,6 @@ export const AGENT_STEPS: Step[] = [
   // A model error waits here until the run ends, so a retry that recovers posts no error row.
   addColumn("outbox", "failure", "TEXT"),
   ...JOURNAL_STEPS,
+  "DROP TABLE IF EXISTS inbox",
+  "DROP TABLE IF EXISTS inbox_state",
 ]

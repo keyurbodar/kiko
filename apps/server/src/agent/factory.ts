@@ -1,3 +1,6 @@
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
+import { Harness, type Storage } from "@earendil-works/pi-durable"
+import type { AgentSetup } from "@kiko/agent/host"
 import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { providers } from "../models/catalog"
@@ -135,4 +138,9 @@ export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fet
     models.setProvider({ ...provider, ...routed, auth: { apiKey: { name: provider.name, resolve: () => auth(provider.id) } } })
   }
   return { models, settings: { ...RUN_SETTINGS, stream: { headers: { "x-opencode-session": sessionId } } } }
+}
+
+export function openAgentHarness(storage: Storage, setup: AgentSetup): Promise<Harness> {
+  const env = setup.env
+  return Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(env ? { env: (target) => env(target.conversationId) } : {}) }, BACKGROUND_CONTEXT)
 }

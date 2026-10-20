@@ -1,7 +1,7 @@
+import type { OwnerServices } from "../owner/services"
 import type { AgentSlug } from "@kiko/protocol"
 import { sha256Hex } from "@kiko/durable/hash"
 import type { Env } from "../index"
-import { roomStub } from "../lib/names"
 import type { NewRoutine, Reminder, Reminders } from "./reminders"
 import { matchWebhook, roomRoutine, type RoutineResult, routineResult } from "./routines"
 
@@ -9,6 +9,7 @@ const HOOK_EXCERPT = 6_000
 
 type RoutineDeps = {
   env: Env
+ services: OwnerServices
   reminders: Reminders
 }
 
@@ -54,7 +55,7 @@ export class RoutineWiring {
     const byAgent = routine.createdBy !== "human"
     const slug = (byAgent ? routine.createdBy : routine.target) as AgentSlug
     try {
-      await roomStub(this.d.env.ROOM, owner, routine.roomId).routineCreated(slug, routine.id, routine.name ?? routine.text, byAgent)
+      await this.d.services.room(routine.roomId).routineCreated(slug, routine.id, routine.name ?? routine.text, byAgent)
     } catch {}
   }
 
@@ -87,6 +88,6 @@ export class RoutineWiring {
     const owner = this.d.reminders.owner()
     if (!owner) return
     const event = (r?: Reminder | null) => r?.trigger?.on === "message"
-    if (event(routine) || event(before)) await roomStub(this.d.env.ROOM, owner, routine.roomId).setRoutines(this.d.reminders.roomRoutines(routine.roomId).map(roomRoutine))
+    if (event(routine) || event(before)) await this.d.services.room(routine.roomId).setRoutines(this.d.reminders.roomRoutines(routine.roomId).map(roomRoutine))
   }
 }

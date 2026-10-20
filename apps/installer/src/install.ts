@@ -212,7 +212,7 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
     name = ours
   }
   const existing = byName.get(name)
-  // Fresh backends use their private FileDO namespace; the legacy R2 bucket is shared across owners.
+  // Fresh backends keep files in OwnerDO; the legacy R2 bucket is shared across owners.
   const fileStore: FilesBinding = existing ? "inherit" : "none"
 
   const { manifest, files } = await loadRelease(env, f)

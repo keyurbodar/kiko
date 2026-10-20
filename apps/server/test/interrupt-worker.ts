@@ -6,7 +6,7 @@ import { defineExtension, defineTool } from "@earendil-works/pi-durable"
 import { declareEffect } from "@kiko/agent/effects"
 import type { AgentSetup, HostOptions } from "@kiko/agent/host"
 import type { Envelope } from "@kiko/protocol"
-import { AgentDO } from "../src/agent/agent-do"
+import { AgentProbe as AgentDO, agentObject } from "./agent-service"
 import { buildAgent } from "../src/agent/factory"
 
 const context = BACKGROUND_CONTEXT
@@ -29,7 +29,7 @@ type Body =
   | { op: "calls" }
 
 // A read that waits until released or aborted, and a write that waits until released. Each counts its starts and ends.
-export class I extends AgentDO {
+class IService extends AgentDO {
   protected override readonly hostOptions: Partial<HostOptions> = {
     onOpen: ({ harness, root }) => {
       const log = this.calls()
@@ -153,3 +153,5 @@ export default {
     return new Response("not found", { status: 404 })
   },
 }
+
+export const I = agentObject(IService)

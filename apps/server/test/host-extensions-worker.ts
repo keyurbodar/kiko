@@ -3,7 +3,7 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import type { AgentSetup } from "@kiko/agent/host"
 import type { Envelope } from "@kiko/protocol"
-import { AgentDO } from "../src/agent/agent-do"
+import { AgentProbe as AgentDO, agentObject } from "./agent-service"
 import { buildAgent } from "../src/agent/factory"
 import type { RoomPort } from "../src/agent/outbox"
 
@@ -14,7 +14,7 @@ let seen: string[] = []
 
 const stub = new Proxy({}, { get: () => () => ({}) }) as never
 
-export class T extends AgentDO {
+class TService extends AgentDO {
 	protected override roomPort(): RoomPort {
 		return { post: async () => {}, draft: async () => {}, note: async () => {}, status: async () => {}, workers: async () => {}, endRun: async () => {}, react: async () => {} }
 	}
@@ -65,3 +65,5 @@ export default {
 		return new Response("not found", { status: 404 })
 	},
 }
+
+export const T = agentObject(TService)

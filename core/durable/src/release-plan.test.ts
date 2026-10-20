@@ -28,7 +28,7 @@ describe("buildMetadata", () => {
 
   test("first install carries secrets and no keep_bindings", () => {
     const meta = buildMetadata(manifest, plan, [{ type: "secret_text", name: "OWNER_ID", text: "u" }], "r2")
-    expect(meta.bindings.map((b) => b.name)).toEqual(["USER", "ROOM", "AGENT", "FILE", "FILES", "OWNER_ID"])
+    expect(meta.bindings.map((b) => b.name)).toEqual(["OWNER", "FILES", "OWNER_ID"])
     expect("keep_bindings" in meta).toBe(false)
   })
 
@@ -45,6 +45,8 @@ describe("buildMetadata", () => {
   ])("files %s", (files, expected) => {
     const meta = buildMetadata(manifest, plan, null, files)
     expect(meta.bindings.filter((b) => b.name === "FILES") as unknown[]).toEqual(expected)
-    expect(meta.bindings.some((b) => b.name === "FILE" && b.type === "durable_object_namespace")).toBe(true)
+    expect(meta.bindings.filter((b) => b.type === "durable_object_namespace")).toEqual([
+      { type: "durable_object_namespace", name: "OWNER", class_name: "OwnerDO" },
+    ])
   })
 })

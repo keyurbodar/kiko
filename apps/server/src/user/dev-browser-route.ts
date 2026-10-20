@@ -1,7 +1,7 @@
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { devRequest, DEV } from "../lib/dev-guard"
-import { userStub } from "../lib/names"
+import { ownerStub } from "../lib/names"
 
 export async function devBrowserRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
@@ -14,7 +14,7 @@ export async function devBrowserRoute(request: Request, env: Env): Promise<Respo
   const agentId = body?.agentId
   if (typeof agentId !== "string") return Response.json({ error: "agentId required" }, { status: 400 })
   try {
-    const stub = userStub(env.USER, user.id)
+    const stub = ownerStub(env.OWNER, user.id)
     if (share) {
       const roomId = body?.roomId
       const reason = body?.reason

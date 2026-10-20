@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import type { Envelope } from "@kiko/agent/envelope"
-import { renderInput } from "@kiko/agent/inbox"
+import { renderInput } from "@kiko/agent/input"
 
 const envelope = (from: Envelope["from"], work?: Envelope["work"]): Envelope => ({ id: "system:1", from, body: "body", hop: 0, rootId: "root", seq: 1, work })
 

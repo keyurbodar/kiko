@@ -1,6 +1,6 @@
 import { RoomDO } from "../src/room/room-do"
 import { UserDO } from "../src/user/user-do"
-import { AgentDO } from "../src/agent/agent-do"
+import { AgentProbe as AgentDO, agentObject } from "./agent-service"
 
 // The real objects, plus one method that reads their storage. PRAGMA table_info keeps column order and
 // type, so a column that moves, changes type, or changes NOT NULL shows up too, not only a missing one.
@@ -29,7 +29,7 @@ export class UserProbe extends UserDO {
 	}
 }
 
-export class AgentProbe extends AgentDO {
+class AgentProbeService extends AgentDO {
 	schemaDump() {
 		return schemaOf(this.ctx.storage.sql)
 	}
@@ -45,3 +45,5 @@ export default {
 		return Response.json(await env.USER.get(env.USER.newUniqueId()).schemaDump())
 	},
 }
+
+export const AgentProbe = agentObject(AgentProbeService)

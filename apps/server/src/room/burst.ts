@@ -1,6 +1,7 @@
 import type { Envelope, Message, RoomId } from "@kiko/protocol"
 import type { Alarms } from "@kiko/durable/alarm"
-import { MAX_ENTRY_BYTES, MAX_OPEN } from "@kiko/agent/inbox"
+const MAX_ENTRY_BYTES = 256 * 1024
+const MAX_OPEN = 1000
 
 export const BURST_WAKEUP = "burst"
 
@@ -116,7 +117,7 @@ export class Burst {
 	}
 
 	delivered(envelopes: readonly Envelope[]): void {
-		for (const e of envelopes) this.sql.exec("DELETE FROM pending WHERE id = ?", e.rootId)
+		this.sql.exec("DELETE FROM pending WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify(envelopes.map(e=>e.rootId)))
 	}
 
 	clear(): void {

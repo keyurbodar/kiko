@@ -77,22 +77,7 @@ export class Deliveries {
 	) {
 	}
 
-	seen(id: string): boolean {
-		return this.storage.sql.exec("SELECT 1 FROM deliveries WHERE id = ?", id).toArray().length > 0
-	}
-
-	mark(id: string): void {
-		const now = Date.now()
-		this.storage.sql.exec("INSERT OR IGNORE INTO deliveries (id, at) VALUES (?, ?)", id, now)
-		if (Math.random() < 0.02) this.storage.sql.exec("DELETE FROM deliveries WHERE at < ?", now - 30 * 86_400_000)
-	}
-
-	notice(id: string, text: string, reason: SystemReason = "run_budget", detail?: SystemEvent): RoomEvent | null {
-		return this.storage.transactionSync(() => {
-			if (this.seen(id)) return null
-			const { event } = this.log.addMessage({ from: { kind: "system", reason }, text, ...(detail ? { event: detail } : {}) })
-			this.storage.sql.exec("INSERT INTO deliveries (id, at) VALUES (?, ?)", id, Date.now())
-			return event
-		})
-	}
+ notice(id:string,text:string,reason:SystemReason="run_budget",detail?:SystemEvent):RoomEvent|null{
+  return this.log.addMessage({from:{kind:"system",reason},text,clientId:`notice:${id}`,...(detail?{event:detail}:{})}).event
+ }
 }

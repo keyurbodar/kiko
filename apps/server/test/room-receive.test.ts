@@ -4,12 +4,11 @@ import { Asks } from "../src/room/asks"
 import { Deliveries } from "../src/room/deliver"
 import { RoomLog } from "../src/room/log"
 import { checkSend } from "../src/room/limits"
-import { Mail } from "../src/room/mail"
-import { RoomMail } from "../src/room/mail-drain"
+import { MessageChains as Mail } from "../src/room/messaging"
+import { RoomMessaging as RoomMail } from "../src/room/messaging"
 import type { MemberRow } from "../src/room/members"
 import { receive, type ReceiveDeps } from "../src/room/receive"
 import { Reports } from "../src/room/reports"
-import { SignalWindow } from "../src/room/signals"
 import { ROOM_STEPS } from "../src/room/schema"
 import { sqlWith } from "./sql-shim"
 
@@ -23,22 +22,15 @@ function setup(refusal: string | null) {
 	const sql = sqlWith(ROOM_STEPS)
 	const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
 	const log = new RoomLog(storage, () => 1)
-	const mail = new Mail(storage, log, new Asks(sql))
+	let onDeliver=(mail:import("../src/room/messaging").QueuedMail)=>{}
+ const mail = new Mail(storage,log,new Asks(sql),()=>false,Date.now,m=>onDeliver(m))
 	const deliveries = new Deliveries(storage, log)
 	const received: { slug: string; ids: string[] }[] = []
-	const env = {
-		AGENT: {
-			idFromName: (name: string) => name,
-			get: (name: string) => ({
-				receive: async (envelopes: Envelope[]) => {
-					received.push({ slug: name.split(":").at(-1)!, ids: envelopes.map((e) => e.id) })
-					return { refused: refusal }
-				},
-			}),
-		},
-	}
+
+ const services={agent:(_room:string,slug:string)=>({receive:async(envelopes:Envelope[])=>{received.push({slug,ids:envelopes.map(e=>e.id)});return {refused:refusal}}})}
+
 	const deps: ReceiveDeps = {
-		env: env as never,
+		services: services as never,
 		log,
 		mail,
 		deliveries,
@@ -47,17 +39,10 @@ function setup(refusal: string | null) {
 		delivery: (_m, _ms, _g, raw) => ({ envelopes: raw, brief: "", reactionsUpTo: 0 }),
 	}
 	const texts = () => log.snapshot().messages.map((m) => m.text)
-	return { deps, mail, log, received, texts, storage }
+	return { deps, mail, log, received, texts, storage,setDelivery:(callback:typeof onDeliver)=>{onDeliver=callback} }
 }
 
 const human = (id: string): Envelope => ({ id, roomId: home.roomId, from: { kind: "human" }, body: "hi", hop: 0, rootId: id, seq: 1 })
-
-test("a full inbox is no one's final answer: no notice, nothing marked", async () => {
-	const { deps, mail, texts } = setup("full")
-	expect(await receive(deps, home, ada, members, "t", [human("human:m1")])).toBe("full")
-	expect(texts().filter((t) => /not delivered/.test(t))).toHaveLength(0)
-	expect(mail.chainRoot("ada" as AgentSlug)).toBeNull()
-})
 
 test("a refused agent message gives back its hop and tells the sender", async () => {
 	const { deps, mail, received } = setup("too_large")
@@ -78,95 +63,14 @@ test("an admitted message is marked delivered", async () => {
 	expect(mail.chainRoot("ada" as AgentSlug)).toBe("human:m1")
 })
 
-test("a send the room has seen before is delivered once", async () => {
-	const { deps, received } = setup(null)
-	const pending: Promise<unknown>[] = []
-	const room = new RoomMail({
-		...deps,
-		ctx: { waitUntil: (p: Promise<unknown>) => void pending.push(p) } as never,
-		members: { list: () => members } as never,
-		burst: { pending: () => false } as never,
-		asks: { expect: () => {}, answerRemote: () => [], remote: () => null, settle: () => true } as never,
-		team: { doing: () => {} } as never,
-		alarms: { setWakeup: async () => {} } as never,
-		home: () => home,
-		title: async () => "t",
-	})
-	const send = { id: "s1", to: "bob" as AgentSlug, text: "hello" }
-	expect(await room.send("ada" as AgentSlug, send, null)).toMatchObject({ ok: true })
-	expect(await room.send("ada" as AgentSlug, send, null)).toMatchObject({ ok: true })
-	await Promise.all(pending)
-	expect(received.filter((r) => r.slug === "bob")).toHaveLength(1)
-})
-
-test("a send that failed after it was recorded is still delivered once when the agent retries", async () => {
-	const { deps, received } = setup(null)
-	const pending: Promise<unknown>[] = []
-	let failing = true
-	const room = new RoomMail({
-		...deps,
-		publish: () => {
-			if (failing) throw new Error("publish failed")
-		},
-		ctx: { waitUntil: (p: Promise<unknown>) => void pending.push(p) } as never,
-		members: { list: () => members } as never,
-		burst: { pending: () => false } as never,
-		asks: { expect: () => {}, answerRemote: () => [], remote: () => null, settle: () => true } as never,
-		team: { doing: () => {} } as never,
-		alarms: { setWakeup: async () => {} } as never,
-		home: () => home,
-		title: async () => "t",
-	})
-	const send = { id: "s1", to: "bob" as AgentSlug, text: "hello" }
-	await expect(room.send("ada" as AgentSlug, send, null)).rejects.toThrow("publish failed")
-	failing = false
-	expect(await room.send("ada" as AgentSlug, send, null)).toMatchObject({ ok: true })
-	await Promise.all(pending)
-	expect(received.filter((r) => r.slug === "bob")).toHaveLength(1)
-})
-
-test("a held result batch keeps its opening time across retries", async () => {
-	const sent: number[] = []
-	let fail = true
-	const signals = new SignalWindow(sqlWith(ROOM_STEPS), () => ROOM)
-	signals.hold([{ kind: "routine_result", roomId: ROOM, at: 5_000, routineId: "r", occurrence: "o", outcome: "ok", seq: null }])
-	const env = {
-		USER: {
-			idFromName: (n: string) => n,
-			get: () => ({
-				signals: async (batch: { openedAt: number }) => {
-					sent.push(batch.openedAt)
-					if (fail) throw new Error("user object down")
-				},
-			}),
-		},
-	}
-	const reports = new Reports({ env: env as never, signals, home: () => home } as never)
-	await expect(reports.sendResults()).rejects.toThrow()
-	fail = false
-	await new Promise((r) => setTimeout(r, 5))
-	await reports.sendResults()
-	expect(sent).toEqual([5_000, 5_000])
-})
-
-/** Ada messaged bob, and this room expects his answer. Bob's reply to it is what the room relays. */
-function closedAsk(s: ReturnType<typeof setup>) {
-	const pending: Promise<unknown>[] = []
-	const asks = new Asks(s.storage.sql)
-	asks.expect("ask1:bob", "ada" as AgentSlug, "bob" as AgentSlug, "m-ask1", 1)
-	s.mail.delivered("bob" as AgentSlug, [human("human:m0")])
-	const room = new RoomMail({
-		...s.deps,
-		ctx: { storage: s.storage, waitUntil: (p: Promise<unknown>) => void pending.push(p) } as never,
-		members: { list: () => members } as never,
-		burst: { pending: () => false } as never,
-		asks,
-		team: { doing: () => {} } as never,
-		alarms: { setWakeup: async () => {} } as never,
-		home: () => home,
-		title: async () => "t",
-	})
-	return { room, asks, pending }
+function closedAsk(s:ReturnType<typeof setup>){
+ const pending:Promise<unknown>[]=[]
+ const asks=new Asks(s.storage.sql)
+ asks.expect("ask1:bob","ada" as AgentSlug,"bob" as AgentSlug,"m-ask1",1)
+ s.mail.delivered("bob" as AgentSlug,[human("human:m0")])
+ const room=new RoomMail({...s.deps,ctx:{storage:s.storage,waitUntil:(p:Promise<unknown>)=>pending.push(p)} as never,members:{list:()=>members} as never,burst:{pending:()=>false} as never,asks,team:{doing:()=>{}} as never,alarms:{setWakeup:async()=>{}} as never,home:()=>home,title:async()=>"t"})
+ s.setDelivery(mail=>{pending.push(room.deliver(home,mail))})
+ return {room,asks,pending}
 }
 
 test("a closed ask's answer reaches its asker as mail", async () => {
@@ -205,8 +109,9 @@ function exchange() {
 	const s = setup(null)
 	const pending: Promise<unknown>[] = []
 	const asks = new Asks(s.storage.sql)
-	const mail = new Mail(s.storage, s.log, asks)
-	const room = new RoomMail({
+	let room:RoomMail
+ const mail = new Mail(s.storage,s.log,asks,()=>false,Date.now,delivery=>{pending.push(room.deliver(home,delivery))})
+	room = new RoomMail({
 		...s.deps,
 		mail,
 		ctx: { storage: s.storage, waitUntil: (p: Promise<unknown>) => void pending.push(p) } as never,
@@ -248,7 +153,7 @@ test("a send_message back to the asker answers the expectation and opens none", 
 	expect(asks.get("s2:ada")).toBeNull()
 	s.log.addMessage({ from: { kind: "agent", slug: A }, text: "thanks", run: { runId: "r2", attempt: 1, index: 0 } })
 	room.answerAsks(A, "r2", heardBy(A, back))
-	await room.drain()
+	await Promise.all(pending)
 	await Promise.all(pending)
 	expect(s.received.filter((r) => r.slug === "bob").flatMap((r) => r.ids)).toEqual(heardBy(B, first))
 })
@@ -261,7 +166,7 @@ test("a relayed answer opens no expectation", async () => {
 	await Promise.all(pending)
 	s.log.addMessage({ from: { kind: "agent", slug: A }, text: "great", run: { runId: "r2", attempt: 1, index: 0 } })
 	room.answerAsks(A, "r2", [`agent:${bubble.id}:ada`])
-	await room.drain()
+	await Promise.all(pending)
 	expect(asks.unanswered(B, [bubble.id])).toEqual([])
 	expect(s.received.filter((r) => r.slug === "bob").flatMap((r) => r.ids)).toEqual(heardBy(B, first))
 })

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
-// No r2Buckets: the install has no R2 binding, so every byte goes through FileDO.
+// No r2Buckets: the install has no R2 binding, so every byte goes through OwnerDO’s local blob store.
 let mf: Miniflare
 let origin: string
 
@@ -13,11 +13,7 @@ beforeAll(async () => {
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
 		bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars" },
-		durableObjects: {
-			ROOM: { className: "RoomDO", useSQLite: true },
-			USER: { className: "UserDO", useSQLite: true },
-			FILE: { className: "FileDO", useSQLite: true },
-		},
+		durableObjects: { OWNER: { className: "OwnerDO", useSQLite: true } },
 	})
 	origin = (await mf.ready).origin
 }, 60_000)
@@ -38,6 +34,7 @@ async function put(room: string, path: string, body: Uint8Array, expect = "none"
 		headers: { ...alice, "content-type": "application/octet-stream", "x-kiko-if-sha256": expect },
 		body,
 	})
+	if (res.status >= 500) throw new Error(await res.text())
 	return { status: res.status, body: (await res.json()) as { file: { id: string; size: number } } }
 }
 

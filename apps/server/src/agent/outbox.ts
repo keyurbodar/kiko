@@ -98,8 +98,8 @@ export class Outbox {
   private nextQuiet = false
 
   private see(entry: EntryRecord | undefined): void {
-    if (entry?.kind === "pi.user" && this.run) this.run.quiet = this.run.quiet && quietInput(entry)
-    else if (entry?.kind === "pi.user") this.nextQuiet = quietInput(entry)
+    if ((entry?.kind === "pi.user" || entry?.kind === "kiko.input") && this.run) this.run.quiet = this.run.quiet && quietInput(entry)
+    else if ((entry?.kind === "pi.user" || entry?.kind === "kiko.input")) this.nextQuiet = quietInput(entry)
   }
 
   async attach(harness: Harness, conversationId: Parameters<typeof watchEvents>[1]): Promise<void> {
@@ -231,9 +231,9 @@ export class Outbox {
         run.quiet = this.run.quiet
       }
       for (const entry of entries) {
-        if (entry.kind === "pi.user") run.quiet = entry.id <= run.cursor ? quietInput(entry) : run.quiet && quietInput(entry)
+        if ((entry.kind === "pi.user" || entry.kind === "kiko.input")) run.quiet = entry.id <= run.cursor ? quietInput(entry) : run.quiet && quietInput(entry)
         if (entry.id <= run.cursor) continue
-        if (row.run_id !== liveId && entry.kind === "pi.user") break
+        if (row.run_id !== liveId && (entry.kind === "pi.user" || entry.kind === "kiko.input")) break
         this.finishGeneration(run, entry)
       }
       this.run = run
@@ -243,7 +243,7 @@ export class Outbox {
       if (row.run_id !== liveId) await this.end(row.run_id)
     }
     if (liveId && this.run?.id !== liveId) {
-      const last = entries.findLast((e) => e.kind === "pi.user")
+      const last = entries.findLast((e) => (e.kind === "pi.user" || e.kind === "kiko.input"))
       const input = last?.id ?? 0
       await this.start(liveId, input)
       const run = this.run

@@ -163,7 +163,7 @@ export class Reminders {
     } else if (this.owner() !== owner) {
       throw new ReminderError("wrong owner")
     }
-    if (!this.sql.exec("SELECT 1 FROM chats WHERE room_id = ?", roomId).toArray().length) {
+    if (!this.sql.exec("SELECT 1 FROM room_directory WHERE room_id = ?", roomId).toArray().length) {
       throw new ReminderError("unknown chat")
     }
   }

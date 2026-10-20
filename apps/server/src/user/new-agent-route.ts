@@ -1,6 +1,6 @@
 import { isAgentSlug, isRoomId } from "@kiko/protocol"
 import type { Env } from "../index"
-import { userStub } from "../lib/names"
+import { ownerStub } from "../lib/names"
 import { error, signedIn } from "../lib/route"
 
 const ID = /^[0-9a-f-]{36}$/
@@ -21,6 +21,6 @@ export async function newAgentRoute(request: Request, env: Env): Promise<Respons
   if (!name || name.length > MAX_NAME) return error(400, `the name is 1 to ${MAX_NAME} characters`)
   if (!isAgentSlug(handle)) return error(400, `"${handle}" is not a usable handle: lowercase letters, digits, and dashes`)
   if (!description || description.length > MAX_DESCRIPTION) return error(400, `the description is 1 to ${MAX_DESCRIPTION} characters`)
-  const out = await userStub(env.USER, user.id).createAgentChat({ id: b.id, roomId: b.roomId, name, handle, description })
+  const out = await ownerStub(env.OWNER, user.id).createAgentChat({ id: b.id, roomId: b.roomId, name, handle, description })
   return out.ok ? Response.json({ agent: out.agent, roomId: out.roomId }) : error(409, out.error)
 }

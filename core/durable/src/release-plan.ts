@@ -8,16 +8,13 @@ export type MigrationPlan = { old_tag?: string; new_tag: string; steps: ReleaseM
 const BUCKET = "kiko-files"
 
 const BINDINGS = [
-  { type: "durable_object_namespace", name: "USER", class_name: "UserDO" },
-  { type: "durable_object_namespace", name: "ROOM", class_name: "RoomDO" },
-  { type: "durable_object_namespace", name: "AGENT", class_name: "AgentDO" },
-  { type: "durable_object_namespace", name: "FILE", class_name: "FileDO" },
+  { type: "durable_object_namespace", name: "OWNER", class_name: "OwnerDO" },
 ] as const
 
 /**
  * Where file bytes live. "r2" binds the bucket (a new install whose bucket exists). "inherit" keeps the
  * binding the running script has, or none (an update, or a new upload to an existing script). "none"
- * leaves it out: files then live in FileDO.
+ * leaves it out: files then live in OwnerDO.
  */
 export type FilesBinding = "r2" | "inherit" | "none"
 

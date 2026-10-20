@@ -1,6 +1,6 @@
 import type { Actor, AgentSlug, RoomEvent, Task, TaskOp, TaskStatus } from "@kiko/protocol"
 import { actorKey, type RoomLog } from "./log"
-import type { Chain } from "./mail"
+import type { Chain } from "./messaging"
 import { TASK_TITLE_WORD_LIMIT } from "./task-title"
 
 export const TASK_STATUSES: readonly TaskStatus[] = ["todo", "doing", "blocked", "review", "done", "cancelled"]

@@ -15,19 +15,13 @@ function echo(ctx: DurableObjectState, request: Request): Response {
   return new Response(null, { status: 101, webSocket: client })
 }
 
-export class UserDO extends DurableObject {
+export class OwnerDO extends DurableObject {
   async fetch(request: Request) {
     return echo(this.ctx, request)
   }
 
   async recordRoom() {
     return true
-  }
-}
-
-export class RoomDO extends DurableObject {
-  async fetch(request: Request) {
-    return echo(this.ctx, request)
   }
 }
 

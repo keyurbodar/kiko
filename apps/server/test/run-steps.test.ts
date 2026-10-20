@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test"
 import type { AgentSlug, RunStep } from "@kiko/protocol"
-import { StepBatch } from "../src/agent/step-batch"
 import { ROOM_STEPS } from "../src/room/schema"
 import { RoomLog } from "../src/room/log"
 import { type HeardStep, HIGH_WATER, KEEP_STEPS, RunSteps } from "../src/room/steps"
@@ -131,22 +130,3 @@ test("a window read after a wake counts what was heard before it, once", () => {
 	expect(woken.message(next.id)?.steps).toBe(2)
 })
 
-test("parallel reports go out as one request, in order, and nothing waits on a timer", async () => {
-	const sent: number[][] = []
-	let release: () => void = () => {}
-	const batch = new StepBatch<number>((items) => {
-		sent.push([...items])
-		return new Promise<void>((resolve) => (release = resolve))
-	})
-	batch.push(1)
-	batch.push(2)
-	batch.push(3)
-	await Promise.resolve()
-	expect(sent).toEqual([[1, 2, 3]])
-	batch.push(4)
-	batch.push(5)
-	release()
-	await new Promise((r) => setTimeout(r, 0))
-	expect(sent).toEqual([[1, 2, 3], [4, 5]])
-	release()
-})

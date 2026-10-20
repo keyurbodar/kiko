@@ -1,7 +1,7 @@
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { DEV, devRequest } from "../lib/dev-guard"
-import { userStub } from "../lib/names"
+import { ownerStub } from "../lib/names"
 import { type CatalogOverlay, findProvider } from "../models/catalog"
 
 // DEVELOPMENT ONLY: `verify models-sync` installs fake remote models, copied from the provider's first
@@ -16,6 +16,6 @@ export async function devModelsRoute(request: Request, env: Env): Promise<Respon
   const base = typeof body?.provider === "string" ? findProvider(body.provider)?.getModels()[0] : undefined
   if (!base || !Array.isArray(body?.models)) return Response.json({ error: "provider and models required" }, { status: 400 })
   const overlay = (body.models.length ? { [base.provider]: body.models.map((m) => ({ ...base, id: m.id, name: m.name })) } : {}) as CatalogOverlay
-  await userStub(env.USER, user.id).devModelOverlay(overlay)
+  await ownerStub(env.OWNER, user.id).devModelOverlay(overlay)
   return Response.json({ ok: true })
 }

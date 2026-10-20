@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import type { AgentSlug, Sender, SystemEvent } from "@kiko/protocol"
-import { chatTouch } from "../src/room/chat-touch"
+import { roomActivity as chatTouch } from "../src/room/activity"
 import { RoomLog } from "../src/room/log"
 import { RoomMemory } from "../src/room/memory"
 import { ROOM_STEPS } from "../src/room/schema"

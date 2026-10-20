@@ -2,7 +2,7 @@ import type { AgentSlug } from "@kiko/protocol"
 import type { UserSettings } from "@kiko/protocol/schema"
 import { nextOccurrence, validZone } from "@kiko/sandbox/recurrence"
 import { getSetting, setSetting } from "../lib/settings"
-import type { WakeResult } from "../room/wake"
+import type { WakeResult } from "../room/delivery"
 
 export const INITIATIVE_RUN = "initiative"
 export const INITIATIVE_WAKEUP = "initiative_pass"

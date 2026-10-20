@@ -1,7 +1,7 @@
+import type { OwnerServices } from "../owner/services"
 import type { AgentSlug, } from "@kiko/protocol"
 import type { Alarms } from "@kiko/durable/alarm"
 import type { Env } from "../index"
-import { userStub } from "../lib/names"
 import type { RoomLog } from "./log"
 import type { Members } from "./members"
 import type { RoomMemory } from "./memory"
@@ -15,6 +15,7 @@ const NAPS_AT_ONCE = 4
 export type MemoryNapsDeps = {
 	ctx: DurableObjectState
 	env: Env
+ services: OwnerServices
 	alarms: Alarms
 	log: RoomLog
 	members: Members
@@ -52,7 +53,7 @@ export class MemoryNaps {
 		if (!home) return
 		const changes = this.d.memory.changes()
 		if (!changes) return
-		const user = userStub(this.d.env.USER, home.userId)
+		const user = this.d.services.user()
 		try {
 			await user.forgetMessages(home.roomId, changes.deleted, this.d.log.meta("private") === "1" ? [] : changes.edited, changes.positions)
 			this.d.memory.forwarded(changes.upto)
@@ -68,7 +69,7 @@ export class MemoryNaps {
 		this.#napping = true
 		await this.d.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 120_000)
 		await this.forget()
-		const user = userStub(this.d.env.USER, home.userId)
+		const user = this.d.services.user()
 		const pass = async () => {
 			for (let done = 0; done < NAPS_PER_PASS; done += NAPS_AT_ONCE) {
 				if (this.d.members.list().some((m) => m.status !== "idle")) return void (await this.d.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 30_000))

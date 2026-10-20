@@ -1,5 +1,4 @@
 import type { AgentSlug, RoomEvent, Sender } from "@kiko/protocol"
-import { openTasks } from "./open-tasks"
 import type { Members } from "./members"
 import type { RoomLog } from "./log"
 import type { PendingUploads } from "./pending"
@@ -42,7 +41,7 @@ export class RoomDev {
 	async age(ms: number): Promise<number> {
 		this.d.sql.exec("UPDATE ws_tasks SET updated_at = updated_at - ? WHERE status NOT IN ('done', 'cancelled')", ms)
 		await this.d.tasksChanged()
-		return openTasks(this.d.sql).length
+		return this.d.sql.exec<{n:number}>("SELECT count(*) AS n FROM ws_tasks WHERE status NOT IN ('done','cancelled')").one().n
 	}
 
 	async agePending(ms: number): Promise<number> {

@@ -1,13 +1,12 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Models } from "@earendil-works/pi-ai"
-import { type AgentChange, type Conversation, type ConversationId, Harness, type HarnessSettings, type RegistryReader, type TaskId, type TaskInspection, type ToolTaskInput } from "@earendil-works/pi-durable"
+import { type AgentChange, type Conversation, type ConversationId, Harness, type HarnessSettings, type Storage, type RegistryReader, type TaskId, type TaskInspection } from "@earendil-works/pi-durable"
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
 import { ALARM_STEPS, type Alarms, createAlarms } from "@kiko/durable/alarm"
 import type { Step } from "@kiko/durable/migrate"
 import { JournalStorage } from "./journal"
-import { type Batch, INBOX_STEPS, Inbox, type Refusal, renderInput } from "./inbox"
-import { stoppable } from "./effects"
-import { type Arrival, decide, FRESH_RUN, type RunProgress, type RunState } from "./mid-run"
+import { type Batch, type Refusal, renderInput, requestIdFor } from "./input"
+import { FRESH_RUN, type RunProgress, type RunState } from "./mid-run"
 import type { Envelope } from "./envelope"
 import { WORKERS_RUN, WORKERS_STEPS, WORKERS_TAIL, Workers } from "./workers"
 
@@ -25,8 +24,8 @@ type ModelMessage = { role?: string; content?: string | { type: string; text?: s
 export function measure(entries: readonly { kind: string; model?: readonly unknown[] }[], idleMs: number): Transcript {
   const t: Transcript = { inputs: 0, chars: 0, toolChars: 0, idleMs }
   for (const entry of entries) {
-    const first = entry.kind === "pi.user" && t.inputs === 0
-    if (entry.kind === "pi.user") t.inputs++
+    const first = (entry.kind === "pi.user" || entry.kind === "kiko.input") && t.inputs === 0
+    if (entry.kind === "pi.user" || entry.kind === "kiko.input") t.inputs++
     for (const m of (entry.model ?? []) as ModelMessage[]) {
       let n = 0
       if (typeof m.content === "string") n = m.content.length - (first ? opening(m.content) : 0)
@@ -92,6 +91,7 @@ export type AgentSetup = {
 }
 
 export type HostOptions = {
+  openHarness?: (storage: Storage, setup: AgentSetup) => Promise<Harness>
   setup: () => AgentSetup | Promise<AgentSetup>
   onOpen?: (opened: Opened) => void | Promise<void>
   onGiveUp?: () => void | Promise<void>
@@ -120,7 +120,6 @@ export type HostStatus = {
   submissions: number
 }
 
-const TOOL_TASK = "pi.tool"
 const HUMAN_COMING = "human-coming"
 const HUMAN_COMING_MS = 10_000
 
@@ -130,6 +129,24 @@ const RECOVERY_DELAY_MS = 60_000
 const MAX_RESUMES = 3
 const RESUMES_KEY = "crash:resumes"
 const EXTENSIONS_KEY = "agent:extensions"
+
+export const INBOX_STEPS: Step[] = [
+  `CREATE TABLE IF NOT EXISTS inbox (
+    id TEXT PRIMARY KEY,
+    arrival INTEGER NOT NULL,
+    priority INTEGER NOT NULL,
+    envelope TEXT NOT NULL,
+    brief TEXT NOT NULL,
+    request_id TEXT,
+    submitted INTEGER NOT NULL DEFAULT 0,
+    in_flight_at INTEGER,
+    in_flight_by TEXT,
+    at INTEGER
+  ) STRICT`,
+  "CREATE INDEX IF NOT EXISTS inbox_open ON inbox (submitted, request_id, priority, arrival)",
+  "CREATE TABLE IF NOT EXISTS inbox_state (id INTEGER PRIMARY KEY CHECK (id = 1), arrival INTEGER NOT NULL, pruned_at INTEGER NOT NULL)",
+]
+
 
 // Everything the host's objects store. Its object's schema list spreads this, so the host adds its tables in one place.
 export const HOST_STEPS: Step[] = [
@@ -144,7 +161,6 @@ export const HOST_STEPS: Step[] = [
 export const HOST_TAIL: Step[] = [...WORKERS_TAIL, "DROP TABLE IF EXISTS run_origin", ...WORKERS_RUN]
 
 export class AgentHost {
-  readonly inbox: Inbox
   readonly workers: Workers
   private readonly alarms: Alarms
   private opened?: Promise<Opened>
@@ -162,27 +178,57 @@ export class AgentHost {
     private readonly ctx: DurableObjectState,
     private readonly options: HostOptions,
   ) {
-    this.inbox = new Inbox(ctx.storage)
-    this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), onChange: (running) => options.onWorkers?.(running, this.inbox.hasOpen()) })
+    this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), onChange: (running) => options.onWorkers?.(running, false) })
     this.alarms = createAlarms(ctx)
   }
 
+  private admission: Promise<unknown> = Promise.resolve()
+
   async receive(envelopes: readonly Envelope[], brief: string): Promise<{ admitted: string[]; refused?: Refusal }> {
-    const { admitted, inserted, refused } = this.inbox.admit(envelopes, brief)
-    if (refused) return { admitted, refused }
-    if (inserted > 0) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
-    return { admitted }
+    if (envelopes.some((e) => new TextEncoder().encode(JSON.stringify(e) + brief).byteLength > 128 * 1024)) return { admitted: [], refused: "too_large" }
+    const batch: Batch = { requestId: envelopes.length === 1 && envelopes[0]?.from.kind !== "human" ? envelopes[0]!.id : await requestIdFor(envelopes.map((e) => e.id)), envelopes: [...envelopes], briefs: brief ? [brief] : [] }
+    const submit = this.admission.then(async () => {
+      const opened = await this.current()
+      await this.drain(opened, [batch])
+      this.pulse(opened)
+    })
+    this.admission = submit.catch(() => {})
+    await submit
+    return { admitted: envelopes.map((e) => e.id) }
   }
 
   async stop(): Promise<{ discarded: number }> {
-    const discarded = this.inbox.discard()
-    await this.ctx.storage.put(STOP_KEY, true)
-    await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
+    const opened = await this.opened
+    if (!opened) return { discarded: 0 }
+    const discarded = (await opened.harness.inspect(context)).submissions.filter((s) => s.status === "queued").length
+    await this.workers.stopAll()
+    await opened.root.abort(context)
+    await this.refreshRecovery(opened)
     return { discarded }
   }
 
+  loaded(): boolean { return this.opened !== undefined }
+  async busy(): Promise<boolean> {
+    if (!this.opened) return false
+    const live = await (await this.opened).harness.inspect(context)
+    return live.tasks.length > 0 || live.submissions.length > 0
+  }
+  async unload(): Promise<void> {
+    if (await this.busy()) return
+    await this.drop()
+  }
+
+  async envelopeIds(requestId: string): Promise<string[]> {
+    const { root, storage } = await this.open()
+    const submission = await storage.submissionByRequest(root.id, requestId, context)
+    if (!submission || submission.type !== "input") return []
+    const data = submission.entry === undefined ? undefined : (await storage.entry(submission.entry, context))?.entry.data
+    if (!data || typeof data !== "object" || Array.isArray(data) || !Array.isArray(data.envelopeIds)) return []
+    return data.envelopeIds.filter((id): id is string => typeof id === "string")
+  }
+
   async wake(): Promise<boolean> {
-    const pending = this.inbox.hasOpen() || await this.ctx.storage.get<boolean>(STOP_KEY) || (!this.opened && await this.unfinished())
+    const pending = await this.ctx.storage.get<boolean>(STOP_KEY) || (!this.opened && await this.unfinished())
     if (!pending) {
       if (!this.opened) return false
       const live = await (await this.opened).harness.inspect(context)
@@ -221,7 +267,6 @@ export class AgentHost {
       this.draining++
       draining = true
       await this.serializeAlarm(async () => { await this.alarms.dueWakeups(Date.now()) })
-      batches = await this.inbox.claim()
       if (!batches.length && !this.opened && !(await this.ctx.storage.get<boolean>(STOP_KEY)) && !(await this.unfinished())) return
       opened = await this.current()
       await this.drain(opened, batches)
@@ -240,14 +285,11 @@ export class AgentHost {
       console.error("agent alarm failed")
       if (opened) this.retiring.add(opened)
       const stopped = await this.ctx.storage.get<boolean>(STOP_KEY)
-      const requestId = batches[0]?.requestId ?? this.ctx.storage.sql
-        .exec<{ request_id: string }>("SELECT request_id FROM inbox WHERE request_id IS NOT NULL ORDER BY arrival DESC LIMIT 1")
-        .toArray()[0]?.request_id ?? `epoch:${this.epoch()}`
-      for (const batch of batches) this.inbox.submitted(batch.requestId)
+      const requestId = batches[0]?.requestId ?? `epoch:${this.epoch()}`
       // The failure consumed the stop it was handling, the same way `drain` does. A stop that arrives later sets the
       // marker again after this delete, so it survives.
       if (stopped) await this.ctx.storage.delete([STOP_KEY, RESTARTS_KEY])
-      if (!this.inbox.hasOpen()) await this.alarms.clearWakeup(INBOX_WAKEUP)
+      await this.alarms.clearWakeup(INBOX_WAKEUP)
       try {
         await this.options.onError?.(error, requestId)
       } finally {
@@ -300,7 +342,7 @@ export class AgentHost {
 
   private async current(): Promise<Opened> {
     const opened = await this.open()
-    if (!opened.setup.stale || !this.inbox.hasOpen()) return opened
+    if (!opened.setup.stale) return opened
     const live = await opened.harness.inspect(context)
     if (live.tasks.length || live.submissions.length || !(await opened.setup.stale())) return opened
     await this.drop()
@@ -310,7 +352,7 @@ export class AgentHost {
   private async openHarness(setup: AgentSetup): Promise<Opened> {
     const storage = await JournalStorage.open(this.ctx.storage, "agent")
     const env = setup.env
-    const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(env ? { env: (target) => env(target.conversationId) } : {}) }, context)
+    const harness = this.options.openHarness ? await this.options.openHarness(storage, setup) : await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(env ? { env: (target) => env(target.conversationId) } : {}) }, context)
     void harness.closed.then((end) => {
       if (end.reason === "failed") this.ctx.abort("Harness failed")
     })
@@ -357,11 +399,6 @@ export class AgentHost {
     const update = this.alarmUpdate.then(operation, operation)
     this.alarmUpdate = update
     return update
-  }
-
-  private async armRecovery(deadline: number): Promise<void> {
-    const current = this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", RECOVERY_WAKEUP).toArray()[0]?.at
-    await this.alarms.setWakeup(RECOVERY_WAKEUP, Math.min(current ?? deadline, deadline))
   }
 
   private refreshRecovery(opened: Opened): Promise<void> {
@@ -425,7 +462,7 @@ export class AgentHost {
   }
 
   async status(): Promise<HostStatus> {
-    const inbox = this.inbox.counts()
+    const inbox = { waiting: 0, claimed: 0, submitted: 0 }
     if (!this.opened) return { open: false, inbox, tasks: 0, submissions: 0 }
     const { harness } = await this.opened
     const live = await harness.inspect(context)
@@ -433,7 +470,7 @@ export class AgentHost {
   }
 
   private async drain({ harness, root, storage, setup }: Opened, batches: readonly Batch[]): Promise<void> {
-    const { registry, beginRun, joinRun, inputContext, inputMemory } = setup
+    const { beginRun, joinRun, inputContext, inputMemory } = setup
     if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
       await this.workers.stopAll()
       await root.abort(context)
@@ -441,18 +478,11 @@ export class AgentHost {
     }
     for (const batch of batches) {
       if (await storage.submissionByRequest(root.id, batch.requestId, context)) {
-        this.inbox.submitted(batch.requestId)
         continue
       }
-      const arrival = arrivalOf(batch)
+      const human = batch.envelopes.some((e) => e.from.kind === "human")
       let run = await this.runState(harness, root)
-      const humanSoon = this.humanComingUntil() > Date.now()
-      if (arrival.kind === "human") this.ctx.storage.sql.exec("DELETE FROM wakeups WHERE key = ?", HUMAN_COMING)
-      if (humanSoon && arrival.kind !== "human") {
-        this.inbox.hold(batch.requestId)
-        await this.alarms.setWakeup(INBOX_WAKEUP, this.humanComingUntil())
-        continue
-      }
+      if (human) this.ctx.storage.sql.exec("DELETE FROM wakeups WHERE key = ?", HUMAN_COMING)
       const invalidated = (await setup.inputInvalidated?.()) ?? null
       if (invalidated) {
         await root.abort(context)
@@ -461,26 +491,13 @@ export class AgentHost {
       }
       batch.envelopes = batch.envelopes.filter((envelope) => !envelope.work || this.workers.get(envelope.work.id)?.conversationId != null)
       if (!batch.envelopes.length) {
-        this.inbox.submitted(batch.requestId)
-        continue
-      }
-      const action = decide(run, arrival)
-      if (action === "hold" && (await this.rootPlaced(harness, root))) {
-        this.inbox.hold(batch.requestId)
         continue
       }
       if (!run && beginRun && !(await beginRun(batch, root))) {
-        this.inbox.submitted(batch.requestId)
         continue
       }
       if (run) await joinRun?.(batch, root)
-      if (action === "restart") {
-        await root.abort(context)
-        await this.ctx.storage.put(RESTARTS_KEY, (run?.restarts ?? 0) + 1)
-      } else if (!run) await this.ctx.storage.delete(RESTARTS_KEY)
-      // Read before the steer: a tool the steer starts must not be stopped by it.
-      const stopping = run && action === "interrupt" ? await this.stoppableTools(harness, root, registry, run.tools) : []
-      const whenBusy = action === "steer" || action === "interrupt" ? ({ whenBusy: "steer" } as const) : {}
+      const whenBusy = human ? "steer" as const : "followUp" as const
       let memory: string | undefined
       let fresh = false
       if (!run && inputMemory) {
@@ -496,31 +513,14 @@ export class AgentHost {
       const shown = briefToShow(batch.briefs, fresh, last?.epoch === this.epoch() ? last.key : undefined, this.options.shortBrief)
       const work = this.workers.note()
       const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : []), ...(work ? [work] : [])] }, memory)
-      // Abort before submit: a crash after the submit must not leave the stopped tool running.
-      for (const id of stopping) this.options.waitUntil(harness.abortTask(id, context).catch(() => {}))
-      await this.serializeAlarm(() => this.armRecovery(Date.now() + RECOVERY_DELAY_MS))
-      await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
-      this.inbox.submitted(batch.requestId)
+      await root.submit({ type: "input", content, requestId: batch.requestId, whenBusy,
+        entry: { kind: "kiko.input", data: { envelopeIds: batch.envelopes.map((e) => e.id), chain: batch.envelopes.map(({ rootId, hop }) => ({ rootId, hop })) } },
+      }, context)
+      await this.refreshRecovery({ harness, root, storage, setup })
       this.inputs++
       if (shown.key && (last?.epoch !== this.epoch() || last.key !== shown.key)) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
       if (run) await this.ctx.storage.put(JOINED_KEY, [...(await this.joinedSeqs()), ...batch.envelopes.map((e) => e.seq)].slice(-500))
     }
-  }
-
-  // The running tools the host may stop, so a human message is answered after the tool, not after it finishes.
-  private async stoppableTools(harness: Harness, root: Conversation, registry: AgentSetup["registry"], tools: ReadonlyMap<string, string>): Promise<TaskId[]> {
-    const live = await harness.inspect(context)
-    const installed = registry.snapshot().tools()
-    const ids: TaskId[] = []
-    for (const task of live.tasks) {
-      if (task.record.kind !== TOOL_TASK || task.record.conversationId !== root.id || task.state.kind !== "running") continue
-      const input = task.record.input as ToolTaskInput
-      if (input.kind !== "model") continue
-      const name = tools.get(input.callId)
-      const tool = installed.find((t) => t.tool.name === name)?.tool
-      if (tool && stoppable(tool)) ids.push(task.record.id)
-    }
-    return ids
   }
 
   private async contextFull(root: Conversation): Promise<boolean> {
@@ -535,7 +535,7 @@ export class AgentHost {
   private async runState(harness: Harness, root: Conversation): Promise<RunState | null> {
     const live = await harness.inspect(context)
     const mine = live.submissions.filter((s) => s.conversationId === root.id)
-    if (!mine.some((s) => s.status === "placed") && !live.tasks.some((t) => t.record.conversationId === root.id)) return null
+    if (!mine.some((s) => s.status === "placed") && !live.tasks.some((t) => t.record.conversationId === root.id && !t.record.background)) return null
     return {
       ...(this.options.progress?.() ?? FRESH_RUN),
       queued: mine.some((s) => s.status === "queued"),
@@ -549,7 +549,6 @@ export class AgentHost {
 
   async humanGone(): Promise<void> {
     if (!this.ctx.storage.sql.exec("DELETE FROM wakeups WHERE key = ?", HUMAN_COMING).rowsWritten) return
-    if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
   }
 
   async rootId(): Promise<ConversationId | null> {
@@ -561,43 +560,20 @@ export class AgentHost {
   }
 
   humanWaiting(): boolean {
-    return this.inbox.humanWaiting() || this.humanComingUntil() > Date.now()
+    return this.humanComingUntil() > Date.now()
   }
 
   private humanComingUntil(): number {
     return this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", HUMAN_COMING).toArray()[0]?.at ?? 0
   }
 
-  private async rootPlaced(harness: Harness, root: Conversation): Promise<boolean> {
-    const live = await harness.inspect(context)
-    return live.submissions.some((s) => s.conversationId === root.id && s.status === "placed")
-  }
-
   private pulse(opened: Opened): void {
     const { harness } = opened
-    this.watchIdle(opened)
     // A background worker can outlive the root. Its work belongs to this invocation too.
     this.options.waitUntil((async () => {
       await harness.waitForIdle(context)
       await this.idle()
       this.options.onIdle?.()
-      if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Math.max(Date.now(), this.humanComingUntil()))
-    })().catch((error) => {
-      if (!this.retiring.has(opened)) return this.fail(error, [], opened)
-    }))
-  }
-
-  // Held input can run as soon as the talker ends, while its background workers keep going.
-  private watchIdle(opened: Opened): void {
-    const { harness, root } = opened
-    this.options.waitUntil((async () => {
-      for (;;) {
-        await root.waitForIdle(context)
-        const seen = this.inputs
-        const live = await harness.inspect(context)
-        if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Math.max(Date.now(), this.humanComingUntil()))
-        if (!isTalking(live, root.id) && this.inputs === seen) return
-      }
     })().catch((error) => {
       if (!this.retiring.has(opened)) return this.fail(error, [], opened)
     }))
@@ -629,10 +605,3 @@ export class AgentHost {
   }
 }
 
-function isTalking(live: { tasks: readonly { record: { conversationId: ConversationId } }[]; submissions: readonly { conversationId: ConversationId }[] }, root: ConversationId): boolean {
-  return live.tasks.some((t) => t.record.conversationId === root) || live.submissions.some((s) => s.conversationId === root)
-}
-
-function arrivalOf(batch: Batch): Arrival {
-  return { kind: batch.envelopes.some((e) => e.from.kind === "human") ? "human" : (batch.envelopes[0]?.from.kind ?? "system") }
-}

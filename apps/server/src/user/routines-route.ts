@@ -3,7 +3,7 @@ import { Trigger } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import type { Env } from "../index"
 import { error, signedIn } from "../lib/route"
-import { userStub } from "../lib/names"
+import { ownerStub } from "../lib/names"
 import type { RoutineResult } from "./routines"
 
 const ACTION = /^\/api\/routines\/([0-9a-f-]{36})(\/run|\/cancel)?$/
@@ -28,7 +28,7 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
   const user = await signedIn(request, env)
   if (user instanceof Response) return user
   if (request.method === "POST" && !request.headers.get("content-type")?.includes("application/json")) return error(415, "expected json")
-  const stub = userStub(env.USER, user.id)
+  const stub = ownerStub(env.OWNER, user.id)
 
   if (!action) {
     if (request.method === "GET") {

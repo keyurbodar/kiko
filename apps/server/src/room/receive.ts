@@ -1,9 +1,8 @@
 import type { AgentSlug, Envelope, RoomEvent, } from "@kiko/protocol"
-import type { Env } from "../index"
-import { agentStub } from "../lib/names"
+import type { OwnerServices } from "../owner/services"
 import type { Deliveries } from "./deliver"
 import type { RoomLog } from "./log"
-import type { Mail } from "./mail"
+import type { MessageChains } from "./messaging"
 import type { MemberRow } from "./members"
 import { markReactionsBriefed } from "./reactions"
 import type { AgentHome } from "./home"
@@ -14,9 +13,9 @@ import type { Home } from "./home"
 type Receipt = "admitted" | "full" | "refused"
 
 export type ReceiveDeps = {
-	env: Env
+	services: OwnerServices
 	log: RoomLog
-	mail: Mail
+	mail: MessageChains
 	deliveries: Deliveries
 	publish: (events: RoomEvent[]) => void
 	agentHome: (home: Home, slug: AgentSlug, member: MemberRow) => AgentHome
@@ -44,7 +43,7 @@ const REFUSED: Record<Envelope["from"]["kind"], ((d: ReceiveDeps, r: Refusal) =>
 		const id = `refused:${r.first.id}`
 		const notice: Envelope = { id, roomId: r.home.roomId, from: { kind: "system", reason: "run_budget" }, body: `your message to @${r.to} was not delivered: ${reasonText(r.why)}. send a shorter one, or put the detail in a file.`, hop: 0, rootId: id, seq: d.log.lastSeq() }
 		const n = d.delivery(sender, r.members, r.title, [notice])
-		await agentStub(d.env.AGENT, r.home.userId, r.home.roomId, sender.slug).receive(n.envelopes, n.brief, d.agentHome(r.home, sender.slug, sender))
+		await d.services.agent(r.home.roomId, sender.slug).receive(n.envelopes, n.brief, d.agentHome(r.home, sender.slug, sender))
 	},
 	system: null,
 }
@@ -54,7 +53,7 @@ export async function receive(d: ReceiveDeps, home: Home, member: MemberRow, mem
 	const first = raw[0]
 	if (!first) throw new Error("receive: no envelopes")
 	const delivery = d.delivery(member, members, title, raw)
-	const { refused } = await agentStub(d.env.AGENT, home.userId, home.roomId, member.slug).receive(delivery.envelopes, delivery.brief, d.agentHome(home, member.slug, member))
+	const { refused } = await d.services.agent(home.roomId, member.slug).receive(delivery.envelopes, delivery.brief, d.agentHome(home, member.slug, member))
 	if (refused === "full") return "full"
 	if (refused) {
 		console.error(`${first.from.kind} delivery to ${member.slug} refused: ${refused}`)

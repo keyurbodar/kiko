@@ -10,27 +10,16 @@ export type Holder = { slug: AgentSlug; path: string; doing: string | null }
 const under = (path: string, p: string) => path === p || path.startsWith(`${p}/`) || p.startsWith(`${path}/`)
 
 export class Team {
+  private readonly activities=new Map<AgentSlug,{text:string;activity:Activity}>()
   constructor(private readonly sql: SqlStorage) {
   }
 
   doing(slug: AgentSlug, text: string, now: number, activity: Activity): void {
-    this.sql.exec(
-      "INSERT INTO team_doing (slug, doing, at, activity) VALUES (?, ?, ?, ?) ON CONFLICT(slug) DO UPDATE SET doing = excluded.doing, at = excluded.at, activity = excluded.activity",
-      slug,
-      text,
-      now,
-      JSON.stringify(activity),
-    )
+    this.activities.set(slug,{text,activity})
   }
-
-  clearDoing(slug: AgentSlug): void {
-    this.sql.exec("DELETE FROM team_doing WHERE slug = ?", slug)
-  }
-
-  clear(slug: AgentSlug): void {
-    this.sql.exec("DELETE FROM team_doing WHERE slug = ?", slug)
-    this.sql.exec("DELETE FROM team_leases WHERE slug = ?", slug)
-  }
+  activity(slug:AgentSlug):Activity|null{return this.activities.get(slug)?.activity??null}
+  clearDoing(slug:AgentSlug):void{this.activities.delete(slug)}
+  clear(slug:AgentSlug):void{this.activities.delete(slug);this.sql.exec("DELETE FROM team_leases WHERE slug = ?",slug)}
 
   holder(slug: AgentSlug, paths: readonly string[], now: number): Holder | null {
     const live = this.sql.exec<{ path: string; slug: string }>("SELECT path, slug FROM team_leases WHERE slug != ? AND at > ?", slug, now - LEASE_MS).toArray()
@@ -49,7 +38,7 @@ export class Team {
   }
 
   now(slug: AgentSlug): string | null {
-    return this.sql.exec<{ doing: string }>("SELECT doing FROM team_doing WHERE slug = ?", slug).toArray()[0]?.doing ?? null
+    return this.activities.get(slug)?.text??null
   }
 
   held(slug: AgentSlug, now: number): string[] {

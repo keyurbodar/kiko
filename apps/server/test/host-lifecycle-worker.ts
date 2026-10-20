@@ -7,7 +7,7 @@ import { createAlarms } from "@kiko/durable/alarm"
 import { declareEffect } from "@kiko/agent/effects"
 import type { AgentSetup, HostOptions } from "@kiko/agent/host"
 import type { Envelope } from "@kiko/protocol"
-import { AgentDO } from "../src/agent/agent-do"
+import { AgentProbe as AgentDO, agentObject } from "./agent-service"
 import { buildAgent } from "../src/agent/factory"
 import type { RoomPort } from "../src/agent/outbox"
 
@@ -20,7 +20,7 @@ const future = defineTask<{ at: number }, { phase: "wait" }, null>({
 })
 const missing = defineTask({ ...future.definition, name: "test.missing" })
 
-export class T extends AgentDO {
+class TService extends AgentDO {
   private readonly instance = crypto.randomUUID()
   private waited = 0
   private futureIds: TaskId[] = []
@@ -198,3 +198,5 @@ export class T extends AgentDO {
 }
 
 export default { fetch: () => new Response("not found", { status: 404 }) }
+
+export const T = agentObject(TService)

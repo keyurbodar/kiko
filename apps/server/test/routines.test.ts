@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import type { AgentSlug, RoomEvent } from "@kiko/protocol"
 import { Trigger } from "@kiko/protocol/schema"
 import { Schema } from "effect"
-import { matches, routineRun, Signal, signalOf, SignalWindow } from "../src/room/signals"
+import { matches, routineRun, Signal, signalOf } from "../src/room/routine-events"
 import { sqlWith } from "./sql-shim"
 import { ROOM_STEPS } from "../src/room/schema"
 import { parseTrigger } from "../src/agent/extensions/routines"
@@ -74,18 +74,3 @@ describe("triggers", () => {
   })
 })
 
-describe("signal window", () => {
-  test("a sent batch subtracts its overflow, so overflow that arrived in flight stays for the next window", () => {
-    const window = new SignalWindow(sqlWith(ROOM_STEPS), () => "r1")
-    const hit = (n: number): Signal => ({ kind: "burst", roomId: "r1", at: 1, seq: n, text: `t${n}`, by: { kind: "human" } })
-    window.add(Array.from({ length: 25 }, (_, i) => hit(i)), 1)
-    const due = window.due(1 + 60_001)!
-    expect(due.batch.more).toBe(5)
-    window.add([hit(100), hit(101), hit(102)], 2)
-    window.sent(due.upto, due.batch.more)
-    window.add([hit(103)], 3)
-    const next = window.due(3 + 60_001)!
-    expect(next.batch.signals.length).toBe(1)
-    expect(next.batch.more).toBe(3)
-  })
-})

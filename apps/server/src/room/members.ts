@@ -48,6 +48,7 @@ const clip = (text: string | undefined, max: number) => (text ?? "").trim().slic
 export type MemberResult = { ok: true; events: RoomEvent[] } | { ok: false; reason: MemberRefusal }
 
 export class Members {
+ private readonly statuses=new Map<AgentSlug,AgentState>()
 	private readonly sql: SqlStorage
 
 	constructor(
@@ -69,7 +70,7 @@ export class Members {
 		return this.sql
 			.exec<Row>("SELECT * FROM members WHERE removed_at IS NULL ORDER BY lead DESC, added_seq, slug")
 			.toArray()
-			.map(toRow)
+			.map(row=>{const member=toRow(row);return {...member,status:this.statuses.get(member.slug)??"idle"}})
 	}
 
 	everyone(): AgentSlug[] {
@@ -81,7 +82,8 @@ export class Members {
 
 	get(slug: string): MemberRow | null {
 		const row = this.sql.exec<Row>("SELECT * FROM members WHERE slug = ? AND removed_at IS NULL", slug).toArray()[0]
-		return row ? toRow(row) : null
+		if(!row)return null
+  const member=toRow(row);return {...member,status:this.statuses.get(member.slug)??"idle"}
 	}
 
 	seeded(): boolean {
@@ -173,8 +175,9 @@ export class Members {
 	}
 
 	setStatus(slug: AgentSlug, status: AgentState): boolean {
-		const changed = this.sql.exec("UPDATE members SET status = ? WHERE slug = ? AND removed_at IS NULL AND status != ?", status, slug, status)
-			.rowsWritten > 0
+  const member=this.get(slug)
+  const changed=member!==null && member.status!==status
+  if(changed)this.statuses.set(slug,status)
 		if (changed && this.#busy) {
 			if (status === "idle") this.#busy.delete(slug)
 			else this.#busy.set(slug, { name: this.#busy.get(slug)?.name ?? this.get(slug)?.name ?? slug, status })

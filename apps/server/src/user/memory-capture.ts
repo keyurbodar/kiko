@@ -12,7 +12,6 @@ import { agentModel } from "./agent-models"
 import { DEV } from "../lib/dev-guard"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import type { CredentialVault } from "./credentials"
-import { getChat } from "./chats"
 import { findProvider } from "../models/catalog"
 import { pickJudge, providerUses, type TurnContext } from "./turn-context"
 
@@ -33,6 +32,7 @@ const CAPTURE_TEXT_MAX = 8_000
 const CAPTURE_TIMEOUT_MS = 8_000
 
 export type MemoryDeps = {
+  chat: (roomId:RoomId)=>import("@kiko/protocol").Chat|null
   sql: SqlStorage
   life: Life
   alarms: Alarms
@@ -60,7 +60,7 @@ export class MemoryCapture {
   }
 
   capturable(roomId: RoomId): boolean {
-    const chat = getChat(this.sql, roomId)
+    const chat = this.d.chat(roomId)
     return chat !== null && !chat.private
   }
 
