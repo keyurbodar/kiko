@@ -10,7 +10,7 @@ class RunCallLimitError extends Error {
   }
 }
 
-export class RunBudget {
+class RunBudget {
   private outgoing = 0
   private rejected = false
   readonly deadline: number
