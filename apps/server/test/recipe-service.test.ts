@@ -22,7 +22,7 @@ function setup(apps = "", have: Have = new Set()) {
   let connected: Have = have
   const linked: string[] = []
   let inherited = ""
-  const reminders = new Reminders(sql, { setWakeup: async () => {}, clearWakeup: async () => {}, dueWakeups: async () => [] })
+  const reminders = new Reminders(sql, { sync: async () => {} })
   const library = { read: async () => ({ recipes, custom: new Set<string>(), broken: [] }), edit: async () => null, retireSeeded: async () => {} } as unknown as RecipeLibrary
   let service: RecipeService
   service = new RecipeService({

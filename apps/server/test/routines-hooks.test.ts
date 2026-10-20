@@ -1,7 +1,5 @@
 import { expect, spyOn, test } from "bun:test"
 import type { RoomId } from "@kiko/protocol"
-import type { Alarms } from "@kiko/durable/alarm"
-import type { Env } from "../src/index"
 import { sha256Hex } from "@kiko/durable/hash"
 import { Reminders } from "../src/user/reminders"
 import { RoutineWiring } from "../src/user/routines-wiring"
@@ -13,9 +11,9 @@ const ROOM = "01J0000000000000000000000R" as RoomId
 function routines() {
   const sql = sqlWith(USER_STEPS)
   sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'plans', 0)", ROOM)
-  const alarms = { setWakeup: async () => {}, clearWakeup: async () => {} } as unknown as Alarms
-  const reminders = new Reminders(sql, alarms, () => Date.now())
-  const wiring = new RoutineWiring({ env: {} as Env, reminders, extensions: {} as never })
+  const scheduler = { sync: async () => {} }
+  const reminders = new Reminders(sql, scheduler, () => Date.now())
+  const wiring = new RoutineWiring({ reminders, setRoutines: async () => {}, routineCreated: async () => {} })
   return { sql, reminders, wiring }
 }
 

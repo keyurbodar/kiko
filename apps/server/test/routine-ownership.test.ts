@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test"
 import { KIKO, type AgentSlug, type RoomId } from "@kiko/protocol"
-import type { Alarms } from "@kiko/durable/alarm"
 import { createAgent } from "../src/user/agents"
 import { applyChatOp, getChat, listChats } from "../src/user/chats"
 import { Reminders, type NewRoutine } from "../src/user/reminders"
@@ -14,7 +13,7 @@ function world() {
   const sql = sqlWith(USER_STEPS)
   const agent = createAgent(sql, { id: "radar-id", slug: "radar" as AgentSlug, name: "Radar", prompt: "Research", model: "test" }, 1)!
   applyChatOp(sql, { op: "create", roomId: HOME, title: "Kiko", agents: [KIKO] }, 1)
-  const reminders = new Reminders(sql, { setWakeup: async () => {}, clearWakeup: async () => {} } as unknown as Alarms, Date.now)
+  const reminders = new Reminders(sql, { sync: async () => {} }, Date.now)
   const create = (target: string) => createAgentRoutine({ name: "daily research", instructions: "Report findings", trigger: { on: "time", at: new Date(Date.now() + 3600000).toISOString(), rrule: "FREQ=DAILY" }, target, tz: "UTC", roomId: HOME, createdBy: KIKO }, {
     chat: async (id) => getChat(sql, id),
     agents: async () => [agent],

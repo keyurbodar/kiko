@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test"
 import type { RoomId } from "@kiko/protocol"
-import type { Alarms } from "@kiko/durable/alarm"
 import { MAX_FAILS, type DeliverRun, Reminders, type RunDelivery } from "../src/user/reminders"
 import { sqlWith } from "./sql-shim"
 import { USER_STEPS } from "../src/user/schema"
@@ -13,7 +12,7 @@ function setup(results: RunDelivery[] = [], runFails = false) {
   const sql = sqlWith(USER_STEPS)
   sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'plans', 0)", ROOM)
   const clock = { now: Date.UTC(2026, 9, 10, 12) }
-  const alarms = { setWakeup: async () => {}, clearWakeup: async () => {} } as unknown as Alarms
+  const scheduler = { sync: async () => {} }
   const runs: { deliveryId: string; body: string }[] = []
   const notices: string[] = []
   const away = { now: false }
@@ -22,7 +21,7 @@ function setup(results: RunDelivery[] = [], runFails = false) {
     if (runFails) throw new Error("room unreachable")
     return results.shift() ?? "delivered"
   }
-  const reminders = new Reminders(sql, alarms, () => clock.now, {
+  const reminders = new Reminders(sql, scheduler, () => clock.now, {
     deliverRun,
     notice: async (_roomId, _id, text) => void notices.push(text),
     gate: { away: () => away.now },
@@ -46,11 +45,11 @@ const timeRoutine = (at: number, extra: Record<string, unknown> = {}) => ({ name
 test("a one-time routine runs once at its time, then is done, like a reminder did", async () => {
   const { clock, reminders, runs } = setup()
   const { routine } = await reminders.createRoutine("u", timeRoutine(clock.now + 5 * MIN))
-  await reminders.fire()
+  await fire(reminders)
   expect(runs).toEqual([])
   clock.now += 5 * MIN
-  await reminders.fire()
-  await reminders.fire()
+  await fire(reminders)
+  await fire(reminders)
   expect(runs.map((r) => r.deliveryId)).toEqual([`${routine.id}:${routine.dueUtc}`])
   expect(runs[0]!.body).toContain("tell the human to drink water")
   expect(reminders.get(routine.id)).toMatchObject({ status: "done", lastFired: routine.dueUtc })
@@ -61,7 +60,7 @@ test("a one-time routine that is a day late still runs, a repeating one skips wh
   const once = await reminders.createRoutine("u", timeRoutine(clock.now + MIN))
   const daily = await reminders.createRoutine("u", { ...timeRoutine(clock.now + MIN, { rrule: "FREQ=DAILY" }), name: "daily" })
   clock.now += DAY + MIN
-  await reminders.fire()
+  await fire(reminders)
   expect(runs.map((r) => r.deliveryId)).toEqual([`${once.routine.id}:${once.routine.dueUtc}`])
   expect(reminders.get(daily.routine.id)).toMatchObject({ status: "active", dueUtc: daily.routine.dueUtc + 2 * DAY })
 })
@@ -80,7 +79,7 @@ test("a routine with a trigger kiko dropped is refused, and resuming a stored on
   sql.exec("UPDATE reminders SET trigger = ?, status = 'paused', due_utc = 0 WHERE id = ?", JSON.stringify(watch), routine.id)
   await expect(reminders.updateRoutine(routine.id, { status: "active" })).rejects.toThrow("no longer supported")
   expect(await reminders.runNow(routine.id)).toBeNull()
-  await reminders.fire()
+  await fire(reminders)
   expect(reminders.get(routine.id)?.status).toBe("paused")
 })
 
@@ -109,3 +108,7 @@ test("a time more than a year away is refused", async () => {
   const { reminders } = setup()
   await expect(reminders.createRoutine("u", timeRoutine(Date.parse("9999-12-31T00:00:00Z")))).rejects.toThrow("more than a year away")
 })
+
+async function fire(reminders: Reminders): Promise<void> {
+  for (const input of reminders.scheduled()) await reminders.fireScheduled({ ...input, requestId: `${input.routineId}:${input.runAt}` })
+}

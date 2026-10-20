@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test"
 import type { RoomId } from "@kiko/protocol"
-import type { Alarms } from "@kiko/durable/alarm"
 import { sha256Hex } from "@kiko/durable/hash"
 import { routineLine, routinesExtension, type RoutinesPort } from "../src/agent/extensions/routines"
 import { Reminders, type DeliverRun } from "../src/user/reminders"
@@ -15,7 +14,7 @@ function setup(deliverRun: DeliverRun = async () => "delivered") {
   const sql = sqlWith(USER_STEPS)
   sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'plans', 0)", ROOM)
   const clock = { now: Date.UTC(2026, 9, 10, 12) }
-  const reminders = new Reminders(sql, { setWakeup: async () => {}, clearWakeup: async () => {} } as unknown as Alarms, () => clock.now, {
+  const reminders = new Reminders(sql, { sync: async () => {} }, () => clock.now, {
     deliverRun,
     notice: async () => {},
     gate: { away: () => false },
@@ -53,7 +52,7 @@ test("listing includes completed and failed routines with instructions and last 
   const cancelled = await create()
   await reminders.cancel(cancelled.routine.id)
   clock.now += MIN
-  await reminders.fire()
+  await fire(reminders)
   await reminders.finishRun(routine.id, String(routine.dueUtc), "failed", null)
   const result = await call("list_routines")
   const output = result.output[0]!.text!
@@ -82,13 +81,13 @@ test("a completed one-time routine can be rescheduled and runs at its new time",
   const { clock, reminders, call, create } = setup()
   const { routine } = await create()
   clock.now += MIN
-  await reminders.fire()
+  await fire(reminders)
   expect((await call("update_routine", { id: routine.id, status: "active" })).isError).toBe(true)
   expect((await call("update_routine", { id: routine.id, trigger: { on: "time", at: new Date(clock.now - MIN).toISOString() } })).isError).toBe(true)
   expect((await call("update_routine", { id: routine.id, trigger: { on: "time", at: new Date(clock.now + MIN).toISOString() } })).isError).toBeUndefined()
   expect(reminders.get(routine.id)?.status).toBe("active")
   clock.now += MIN
-  await reminders.fire()
+  await fire(reminders)
   expect(reminders.runs(routine.id)).toHaveLength(2)
   expect(reminders.get(routine.id)?.status).toBe("done")
 })
@@ -163,7 +162,7 @@ test("a deleted routine in an already selected due batch never delivers or recre
   const a = (await create()).routine
   const b = (await create()).routine
   clock.now += MIN
-  const firing = reminders.fire()
+  const firing = fire(reminders)
   await waiting
   const deleted = delivered[0] === a.id ? b : a
   await reminders.deleteRoutine(deleted.id)
@@ -198,3 +197,7 @@ test("a delivery settling after deletion cannot recreate the routine or run hist
   expect(reminders.get(routine.id)).toBeNull()
   expect(reminders.runs(routine.id)).toEqual([])
 })
+
+async function fire(reminders: Reminders): Promise<void> {
+  for (const input of reminders.scheduled()) await reminders.fireScheduled({ ...input, requestId: `${input.routineId}:${input.runAt}` })
+}
