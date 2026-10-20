@@ -1,6 +1,7 @@
-import type { Agent, AgentModel, Chat, RoomId } from "@kiko/protocol"
+import type { Agent, AgentModel, Chat, RoomId, RowKind } from "@kiko/protocol"
+import { ROW_KINDS } from "@kiko/protocol"
 import type { UserPatch } from "../sync/patches"
-import type { Home } from "../sync/user-store"
+import type { Home, RowData } from "../sync/user-store"
 import type { Warm } from "./db"
 import { clearDraft } from "./drafts"
 import { clearRoom } from "./messages"
@@ -60,4 +61,17 @@ export const putAgentModels = (warm: Warm, models: Readonly<Record<string, Agent
 
 export async function allAgentModels(warm: Warm): Promise<Record<string, AgentModel>> {
 	return { ...((await warm.get<Record<string, AgentModel>>("meta", AGENT_MODELS)) ?? {}) }
+}
+
+export function putRows(warm: Warm, rows: RowData, kinds: readonly RowKind[] = ROW_KINDS): void {
+	for (const kind of kinds) warm.put("meta", `rows:${kind}`, rows[kind])
+}
+
+export async function getRows(warm: Warm): Promise<RowData | undefined> {
+	const [routine, soul, provider] = await Promise.all([
+		warm.get<RowData["routine"]>("meta", "rows:routine"),
+		warm.get<RowData["soul"]>("meta", "rows:soul"),
+		warm.get<RowData["provider"]>("meta", "rows:provider"),
+	])
+	return routine && soul && provider ? { routine, soul, provider } : undefined
 }

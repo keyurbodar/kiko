@@ -15,6 +15,7 @@ export * from "./search"
 export * from "./thinking"
 export * from "./version"
 export type * from "./user"
+export * from "./rows"
 export type * from "./catalog"
 export type * from "./providers"
 

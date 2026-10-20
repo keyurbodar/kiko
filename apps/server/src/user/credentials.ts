@@ -38,9 +38,9 @@ export class CredentialVault implements CredentialStore {
 
   constructor(
     private readonly sql: SqlStorage,
-    private readonly keyring: Keyring,
+    private readonly keyring: () => Keyring,
     private readonly userId: string,
-    private readonly onProblem: () => void = () => {},
+    private readonly onChange: () => void = () => {},
   ) {
   }
 
@@ -73,6 +73,7 @@ export class CredentialVault implements CredentialStore {
     return this.enqueue(providerId, async () => {
       options?.signal?.throwIfAborted()
       this.sql.exec("DELETE FROM credentials WHERE provider_id = ?", providerId)
+      this.onChange()
     })
   }
 
@@ -115,7 +116,7 @@ export class CredentialVault implements CredentialStore {
     if (!row || row.problem === (problem ?? undefined)) return false
     if (problem === null) this.sql.exec("UPDATE credentials SET problem = NULL, problem_at = NULL WHERE provider_id = ?", provider)
     else this.sql.exec("UPDATE credentials SET problem = ?, problem_at = ? WHERE provider_id = ?", problem, Date.now(), provider)
-    this.onProblem()
+    this.onChange()
     return true
   }
 
@@ -128,7 +129,7 @@ export class CredentialVault implements CredentialStore {
       .exec<Row>("SELECT kind, kek_version, iv, ciphertext FROM credentials WHERE provider_id = ?", providerId)
       .toArray()[0]
     if (!row) return undefined
-    const plain = await open(this.keyring, this.userId, providerId, {
+    const plain = await open(this.keyring(), this.userId, providerId, {
       kekVersion: row.kek_version,
       iv: new Uint8Array(row.iv),
       ciphertext: new Uint8Array(row.ciphertext),
@@ -137,8 +138,7 @@ export class CredentialVault implements CredentialStore {
   }
 
   private async store(providerId: string, credential: Credential): Promise<void> {
-    const sealed = await seal(this.keyring, this.userId, providerId, JSON.stringify(credential))
-    const had = this.problem(providerId) !== undefined
+    const sealed = await seal(this.keyring(), this.userId, providerId, JSON.stringify(credential))
     this.sql.exec(
       `INSERT INTO credentials (provider_id, kind, last4, kek_version, iv, ciphertext, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -153,7 +153,7 @@ export class CredentialVault implements CredentialStore {
       sealed.ciphertext,
       Date.now(),
     )
-    if (had) this.onProblem()
+    this.onChange()
   }
 
   private enqueue<T>(providerId: string, task: () => Promise<T>): Promise<T> {

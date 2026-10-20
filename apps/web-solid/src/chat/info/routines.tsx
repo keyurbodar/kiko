@@ -1,4 +1,4 @@
-import type { RecipeCard, Trigger } from "@kiko/protocol"
+import type { RecipeCard, RoutineRow as RoutineData } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, ClockIcon, PauseIcon, PlayIcon, TrashIcon } from "@kiko/ui/icons"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
@@ -8,62 +8,26 @@ import { RecipeIcon } from "../../recipes/icon"
 import { recipeForRoutine } from "../../recipes/model"
 import { triggerLabel } from "./routines-model"
 import { apiFetch } from "../../lib/api"
-import { watchChanged } from "../../sync/changed"
+import { useApp } from "../../lib/store"
 
-export type Routine = { id: string; name: string; roomId: string; status: "active" | "paused"; trigger: Trigger; tz: string }
+export type Routine = RoutineData
 
-const [all, setAll] = createSignal<readonly Routine[] | undefined>(undefined)
 const [started, setStarted] = createSignal<ReadonlySet<string>>(new Set())
 export const ranNow = (id: string): boolean => started().has(id)
 
-function read(value: unknown): Routine[] {
-  const rows = (value as { routines?: unknown })?.routines
-  if (!Array.isArray(rows)) return []
-  return rows.flatMap((r: Record<string, unknown>) =>
-    typeof r?.id === "string" && typeof r.roomId === "string" && r.trigger && (r.status === "active" || r.status === "paused")
-      ? [{ id: r.id, name: typeof r.name === "string" && r.name ? r.name : "Routine", roomId: r.roomId, status: r.status, trigger: r.trigger as Trigger, tz: typeof r.tz === "string" ? r.tz : "UTC" }]
-      : [],
-  )
-}
-
-export async function loadRoutines(): Promise<void> {
-  watchChanged("routines", loadRoutines)
-  const res = await apiFetch("/api/routines").catch(() => null)
-  if (!res?.ok) {
-    if (all() === undefined) setAll([])
-    return
-  }
-  const body = await res.json().catch(() => null)
-  setAll(read(body))
-}
-
-let refreshTimer: ReturnType<typeof setTimeout> | undefined
-export function refreshRoutines(delay = 1200): void {
-  clearTimeout(refreshTimer)
-  refreshTimer = setTimeout(() => void loadRoutines(), delay)
-}
-
-export const routinesOf = (chatId: string): readonly Routine[] | undefined => all()?.filter((r) => r.roomId === chatId)
+export const routinesOf = (chatId: string): readonly Routine[] => useApp.rows("routine").filter((r) => r.roomId === chatId)
 
 const post = (path: string, body: unknown) =>
   apiFetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.ok).catch(() => false)
 
 export async function setStatus(routine: Routine, status: Routine["status"]): Promise<void> {
-  const put = (s: Routine["status"]) => setAll((list) => list?.map((r) => (r.id === routine.id ? { ...r, status: s } : r)))
-  put(status)
-  if (!(await post(`/api/routines/${routine.id}`, { status }))) {
-    put(routine.status)
+  if (!(await useApp.editRow("routine", routine.id, { ...routine, status }, () => post(`/api/routines/${routine.id}`, { status }))))
     showToastV2({ title: `Could not ${status === "paused" ? "pause" : "resume"} ${routine.name}`, variant: "error" })
-  }
 }
 
 export async function cancelRoutine(routine: Routine): Promise<void> {
-  const before = all()
-  setAll((list) => list?.filter((r) => r.id !== routine.id))
-  if (!(await post(`/api/routines/${routine.id}/cancel`, {}))) {
-    setAll(before)
+  if (!(await useApp.editRow("routine", routine.id, null, () => post(`/api/routines/${routine.id}/cancel`, {}))))
     showToastV2({ title: `Could not delete ${routine.name}`, variant: "error" })
-  }
 }
 
 const STARTED_MS = 2500
@@ -143,7 +107,7 @@ export function RoutinesPage(props: { chatId: string }) {
   const [recipes] = createResource(() => import("../../recipes/api").then((m) => m.loadCards()))
   return (
     <div class="px-2 py-2" data-component="info-routines">
-      <Show when={routinesOf(props.chatId)} fallback={<p class={`px-2 py-6 text-center text-[12px] ${faint}`}>Loading</p>}>
+      <Show when={routinesOf(props.chatId)}>
         {(list) => (
           <>
             <Show when={!list().length}>

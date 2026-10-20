@@ -1,9 +1,10 @@
+import { diffRows, type RowChange, rowLists } from "./rows"
 import type { Provider } from "@earendil-works/pi-ai"
 import { isAgentSlug } from "@kiko/protocol"
-import { KIKO, newRoomId, pairRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
+import { KIKO, ROW_KINDS, newRoomId, pairRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
-import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, KikoError, ProviderInfo, RecipeList, RoomId, RunErrorKind, UserChange, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, KikoError, ProviderInfo, RecipeList, RoomId, RowKind, UserRows, RunErrorKind, UserChange, UserEvent, UserToClient } from "@kiko/protocol"
 import { RecipeLibrary } from "./recipe-library"
 import { matchRecipes, type RecipeHint } from "../recipes/match"
 import { capitalized, soulFromDescription } from "../room/chief"
@@ -138,7 +139,7 @@ export class User {
             return away
           },
         },
-      }, () => this.changed("routines"))
+      }, () => this.project("routine"))
     }
   }
 
@@ -354,7 +355,9 @@ export class User {
     const slug = handle.trim().toLowerCase().replace(/^@/, "")
     if (!isAgentSlug(slug) || slug === KIKO) return { ok: false as const, error: "kiko cannot be deleted; use a valid agent handle" }
     this.sql.exec("INSERT OR IGNORE INTO deleted_agent_handles (slug) VALUES (?)", slug)
+    const agent = this.sql.exec<{ id: string }>("SELECT id FROM agents WHERE slug = ?", slug).toArray()[0]
     this.sql.exec("INSERT OR IGNORE INTO deletion_agents (slug) VALUES (?)", slug)
+    if (agent) this.commit({ t: "agent_removed", id: agent.id, slug })
     await this.alarms.setWakeup("deletion_agents", Date.now() + 30_000)
     const result = await this.deleteAgentNow(slug)
     if (result.ok) this.sql.exec("DELETE FROM deletion_agents WHERE slug = ?", slug)
@@ -371,7 +374,7 @@ export class User {
   }
 
   private async deleteAgentNow(slug: AgentSlug) {
-    const agent = listAgents(this.sql).find((a) => a.slug === slug)
+    const agent = this.sql.exec<{ id: string }>("SELECT id FROM agents WHERE slug = ?", slug).toArray()[0]
     if (!agent) return { ok: true as const, text: "agent already deleted" }
     const owner = this.ownerId
     for (const row of this.directory.list(true).filter(c=>c.agents?.includes(agent.id)).map(c=>({room_id:c.roomId}))) {
@@ -392,9 +395,9 @@ export class User {
     for (const { pos } of this.sql.exec<{ pos: number }>("SELECT pos FROM life WHERE source = ? AND redacted = 0", `@${slug}`).toArray()) this.life.redact(pos)
     this.changed("memory")
     this.sql.exec("DELETE FROM souls WHERE slug = ?", slug)
+    this.project("soul")
     deleteSetting(this.sql, `agentModel:${slug}`)
     this.sql.exec("DELETE FROM agents WHERE id = ?", agent.id)
-    this.commit({ t: "agent_removed", id: agent.id, slug })
     return { ok: true as const, text: `@${slug} deleted` }
   }
 
@@ -411,6 +414,21 @@ export class User {
     if (names.length) this.#typing.set(roomId, names)
     else this.#typing.delete(roomId)
     this.broadcast({ t: "typing", roomId, names })
+  }
+
+  private loadRows<K extends RowKind>(kind: K): UserRows[K][] {
+    const rows: { [L in RowKind]: () => UserRows[L][] } = {
+      routine: () => this.reminders.list().flatMap((r) => r.trigger && (r.status === "active" || r.status === "paused") ? [{ id: r.id, name: r.name || "Routine", roomId: r.roomId, status: r.status, trigger: r.trigger, tz: r.tz }] : []),
+      soul: () => this.souls.all().map(({ slug, ...soul }) => ({ id: slug as AgentSlug, ...soul })),
+      provider: () => this.#credentials.listProviders().map((p) => ({ id: p.provider, ...this.#mem.describe(p) })),
+    }
+    return rows[kind]() as UserRows[K][]
+  }
+
+  private project(kind: RowKind): void {
+    this.ctx.storage.transactionSync(() => {
+      for (const change of diffRows(this.sql, kind, this.loadRows(kind))) this.commit(change)
+    })
   }
 
   private changed(what: UserChange): void {
@@ -445,11 +463,15 @@ export class User {
   }
 
   async soul(slug: string): Promise<Soul> {
-    return this.souls.get(slug)
+    const soul = await this.souls.get(slug)
+    this.project("soul")
+    return soul
   }
 
   async setSoul(slug: string, body: string, expectSha: string): Promise<SoulWrite> {
-    return this.souls.set(slug, body, expectSha)
+    const result = await this.souls.set(slug, body, expectSha)
+    if (result.ok) this.project("soul")
+    return result
   }
 
   async homePut(input: NewFile): Promise<Omit<PutResult, "events"> & { fresh: boolean; entry: FsEntry | null }> {
@@ -489,6 +511,7 @@ export class User {
     const agent = this.saveAgent({ id: input.id ?? crypto.randomUUID(), name: input.name, slug: input.slug as AgentSlug, prompt: input.description, model: input.model })
     if (!agent) return null
     await this.souls.seed(agent.slug, input.soul)
+    this.project("soul")
     return agent
   }
 
@@ -514,7 +537,9 @@ export class User {
   }
 
   async seedSoul(slug: string, name: string, role: string): Promise<Soul> {
-    return this.souls.seed(slug, firstSoul(name, role))
+    const soul = await this.souls.seed(slug, firstSoul(name, role))
+    this.project("soul")
+    return soul
   }
 
   async getTheme(): Promise<string | null> {
@@ -589,7 +614,7 @@ export class User {
 
   async fireRoutine(delivery: import("../owner/schedules").RoutineDelivery): Promise<void> {
     await this.reminders.fireScheduled(delivery)
-    this.changed("routines")
+    this.project("routine")
   }
 
   async captureHuman(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
@@ -706,7 +731,7 @@ export class User {
   async turnContext(provider: string, slug?: string): Promise<TurnContext> {
     const setting = (key: string) =>
       getSetting(this.sql, key)
-    const agent = slug ? { soul: await this.souls.get(slug) } : undefined
+    const agent = slug ? { soul: await this.soul(slug) } : undefined
     return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), captures: this.#mem.captures() }, agent, await this.lookupProvider(provider))
   }
 
@@ -728,7 +753,7 @@ export class User {
 
   #vault?: CredentialVault
   get #credentials(): CredentialVault {
-    this.#vault ??= new CredentialVault(this.sql, keyringFromEnv(this.env), this.ownerId, () => this.changed("providers"))
+    this.#vault ??= new CredentialVault(this.sql, () => keyringFromEnv(this.env), this.ownerId, () => this.project("provider"))
     return this.#vault
   }
 
@@ -995,6 +1020,7 @@ export class User {
     if (frame.t === "hello") {
       this.seen()
       const fileToken = await signToken(this.env.SESSION_SECRET, this.ownerId, "files")
+      for (const kind of ROW_KINDS) this.project(kind)
       send(ws, { ...this.resume(frame.lastSeq), ...BACKEND, ...{ fileToken } })
       const browser = this.#kr.browserState()
       if (browser) send(ws, { t: "browserState", state: browser })
@@ -1172,7 +1198,7 @@ export class User {
     return this.sql.exec<{ seq: number | null }>("SELECT max(seq) AS seq FROM user_events").one().seq ?? 0
   }
 
-  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "agent_removed"; id: string; slug: AgentSlug } | ({ t: "agent_model"; slug: AgentSlug } & AgentModel) | { t: "theme"; theme: string | null } | FileBody | null): UserEvent | null {
+  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "agent_removed"; id: string; slug: AgentSlug } | ({ t: "agent_model"; slug: AgentSlug } & AgentModel) | { t: "theme"; theme: string | null } | FileBody | RowChange | null): UserEvent | null {
     if (!change || (change.t === "chat" && change.chat.pair)) return null
     if (change.t === "chat") change = { ...change, chat: markKikoChat(this.sql, change.chat) }
     const at = Date.now()
@@ -1197,7 +1223,7 @@ export class User {
       const lastChat = this.lastChat()
       return {
         t: "reset",
-        snapshot: { seq, chats: this.directory.list().map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), agentModels: allAgentModels(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, ...(lastChat ? { lastChat } : {}) },
+        snapshot: { seq, chats: this.directory.list().map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), agentModels: allAgentModels(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, rows: rowLists(this.sql), ...(lastChat ? { lastChat } : {}) },
       }
     }
     const events = this.sql
