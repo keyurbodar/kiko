@@ -35,7 +35,7 @@ import { setOverlay } from "../models/catalog"
 import { createAlarms } from "@kiko/durable/alarm"
 import { migrate } from "@kiko/durable/migrate"
 import { AGENT_STEPS } from "./schema"
-import { AgentHost, type AgentSetup, HEARTBEAT_WAKEUP, type HostOptions, type HostStatus } from "@kiko/agent/host"
+import { AgentHost, type AgentSetup, type HostOptions, type HostStatus } from "@kiko/agent/host"
 import type { Batch } from "@kiko/agent/inbox"
 import type { Work } from "@kiko/agent/workers"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
@@ -85,6 +85,8 @@ export class AgentDO extends DurableObject<Env> {
       void this.host
       void this.outbox
       this.home()
+      if (ctx.storage.sql.exec("SELECT 1 FROM wakeups WHERE key = ?", "heartbeat").toArray().length) await createAlarms(this.ctx).clearWakeup("heartbeat")
+      await this.host.wake()
     })
   }
 
@@ -101,6 +103,15 @@ export class AgentDO extends DurableObject<Env> {
         await this.hostOptions.onOpen?.(opened)
         this.#rootId = opened.root.id
         await this.outbox.attach(opened.harness, opened.root.id)
+      },
+      onError: async (error, requestId) => {
+        await this.hostOptions.onError?.(error, requestId)
+        const inputs = this.host.inbox.envelopeIds(requestId)
+          .filter((id) => id.startsWith("human:"))
+          .map((id) => id.slice("human:".length).split("#")[0]!)
+        if (inputs.length) await this.ctx.storage.put(HUMAN_INPUTS_KEY, inputs)
+        if (this.#run) this.#run.errored = true
+        await this.outbox.fail(requestId, error, this.#run?.provider ?? "")
       },
       onGiveUp: async () => {
         await this.hostOptions.onGiveUp?.()
@@ -154,6 +165,7 @@ export class AgentDO extends DurableObject<Env> {
     await this.host.stop()
     await this.host.workers.stopAll()
     await this.releaseTabs()
+    await this.host.shutdown()
     erase(this.ctx.storage)
     const keys = [...(await this.ctx.storage.list()).keys()]
     if (keys.length) await this.ctx.storage.delete(keys)
@@ -161,14 +173,11 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async wake(): Promise<boolean> {
-    const at = this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", HEARTBEAT_WAKEUP).toArray()[0]?.at
-    if (at === undefined) return false
-    if (at > Date.now()) await createAlarms(this.ctx).setWakeup(HEARTBEAT_WAKEUP, Date.now())
-    return true
+    return this.host.wake()
   }
 
-  async status(): Promise<HostStatus> {
-    return this.host.status()
+  async status(): Promise<HostStatus & { alarmAt: number | null }> {
+    return { ...(await this.host.status()), alarmAt: await this.ctx.storage.getAlarm() }
   }
 
   protected home(): AgentHome | null {

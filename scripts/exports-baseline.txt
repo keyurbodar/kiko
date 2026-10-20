@@ -85,12 +85,8 @@ apps/server/src/user/reminders.ts:routineBody
 apps/server/src/user/theme.ts:THEME_KEY
 apps/server/src/user/theme.ts:THEME_MAX_CHARS
 apps/server/src/user/theme.ts:isStorableTheme
-core/agent/src/coalescing-storage.ts:CoalescingOptions
-core/agent/src/coalescing-storage.ts:holdsPartialOutput
 core/agent/src/effects.ts:EFFECTS
-core/agent/src/host.ts:COMPACT_EVERY_RUNS
 core/agent/src/host.ts:INBOX_WAKEUP
-core/agent/src/host.ts:RUNS_KEY
 core/agent/src/host.ts:Transcript
 core/agent/src/inbox.ts:Admission
 core/agent/src/inbox.ts:KEEP_SUBMITTED_MS

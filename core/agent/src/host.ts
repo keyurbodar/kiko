@@ -1,24 +1,19 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Models } from "@earendil-works/pi-ai"
-import { type AgentChange, type Conversation, type ConversationId, Harness, type HarnessSettings, type RegistryReader, type TaskId, type ToolTaskInput } from "@earendil-works/pi-durable"
+import { type AgentChange, type Conversation, type ConversationId, Harness, type HarnessSettings, type RegistryReader, type TaskId, type TaskInspection, type ToolTaskInput } from "@earendil-works/pi-durable"
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
-import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import { ALARM_STEPS, type Alarms, createAlarms } from "@kiko/durable/alarm"
 import type { Step } from "@kiko/durable/migrate"
-import { type CoalescingStorage, createCoalescingStorage } from "./coalescing-storage"
+import { JournalStorage } from "./journal"
 import { type Batch, INBOX_STEPS, Inbox, type Refusal, renderInput } from "./inbox"
 import { stoppable } from "./effects"
 import { type Arrival, decide, FRESH_RUN, type RunProgress, type RunState } from "./mid-run"
 import type { Envelope } from "./envelope"
-import { openDurableObjectSqlite } from "./sqlite"
 import { WORKERS_RUN, WORKERS_STEPS, WORKERS_TAIL, Workers } from "./workers"
 
 const context = BACKGROUND_CONTEXT
 
 export const INBOX_WAKEUP = "inbox"
-export const HEARTBEAT_WAKEUP = "heartbeat"
-const HEARTBEAT_MS = 30_000
-const RETRY_MS = 1_000
 export const CONTEXT_BUDGET_CHARS = 60_000
 export const TASK_BUDGET_CHARS = 240_000
 export const TASK_IDLE_MS = 15 * 60_000
@@ -75,10 +70,7 @@ export function startsFresh(t: Transcript): boolean {
   const working = t.toolChars * 2 > t.chars && t.idleMs < TASK_IDLE_MS
   return !working || t.chars > TASK_BUDGET_CHARS
 }
-export const COMPACT_EVERY_RUNS = 50
-export const RUNS_KEY = "runs:since-compact"
 const LAST_RUN_KEY = "runs:last-at"
-const COMPACT_DUE_KEY = "compact:due"
 const STOP_KEY = "mid-run:stop"
 const RESTARTS_KEY = "mid-run:restarts"
 const BRIEF_KEY = "brief:last"
@@ -103,11 +95,12 @@ export type HostOptions = {
   setup: () => AgentSetup | Promise<AgentSetup>
   onOpen?: (opened: Opened) => void | Promise<void>
   onGiveUp?: () => void | Promise<void>
+  scheduledDeadline?: (task: TaskInspection) => number | undefined
   progress?: () => RunProgress | null
   onIdle?: () => void
   shortBrief?: (brief: string) => string
   onReset?: () => void
-  heartbeatMs?: number
+  onError?: (error: unknown, requestId: string) => void | Promise<void>
   onWorkers?: (running: number, pending: boolean) => void
   // Keeps an un-awaited promise alive past the handler's return, so an abort still commits.
   waitUntil: (work: Promise<unknown>) => void
@@ -116,7 +109,7 @@ export type HostOptions = {
 export type Opened = {
   harness: Harness
   root: Conversation
-  storage: CoalescingStorage
+  storage: JournalStorage
   setup: AgentSetup
 }
 
@@ -131,12 +124,12 @@ const TOOL_TASK = "pi.tool"
 const HUMAN_COMING = "human-coming"
 const HUMAN_COMING_MS = 10_000
 
-const RESET_AFTER = 3
-const UNRECOVERABLE = /unresolvable path|unsafe path|sqlite database is closed|malformed/i
+const RECOVERY_WAKEUP = "recovery"
+const RECOVERY_DELAY_MS = 60_000
+
 const MAX_RESUMES = 3
 const RESUMES_KEY = "crash:resumes"
 const EXTENSIONS_KEY = "agent:extensions"
-const PI_DURABLE_TABLES = ["document_revisions", "documents", "submissions", "tasks", "entries", "conversations", "record_ids", "durable_metadata", "durable_schema"]
 
 // Everything the host's objects store. Its object's schema list spreads this, so the host adds its tables in one place.
 export const HOST_STEPS: Step[] = [
@@ -155,18 +148,20 @@ export class AgentHost {
   readonly workers: Workers
   private readonly alarms: Alarms
   private opened?: Promise<Opened>
-  private readonly heartbeatMs: number
-  private failures = 0
-  private watchingIdle = false
+  private failure?: Promise<void>
+  private compaction?: Promise<void>
+  private draining = 0
+  private readonly retiring = new WeakSet<Opened>()
   private resumed = false
-  // Bumped when input is joined and again once it is submitted. An idle check that saw it move must not clear the heartbeat.
+  private alarmUpdate: Promise<void> = Promise.resolve()
+  private readonly taskWatches = new WeakMap<Harness, Map<TaskId, number>>()
+  // An idle check that saw input move must wait for the new work too.
   private inputs = 0
 
   constructor(
     private readonly ctx: DurableObjectState,
     private readonly options: HostOptions,
   ) {
-    this.heartbeatMs = Math.min(options.heartbeatMs ?? HEARTBEAT_MS, HEARTBEAT_MS)
     this.inbox = new Inbox(ctx.storage)
     this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), onChange: (running) => options.onWorkers?.(running, this.inbox.hasOpen()) })
     this.alarms = createAlarms(ctx)
@@ -186,27 +181,87 @@ export class AgentHost {
     return { discarded }
   }
 
-  async alarm(): Promise<void> {
-    try {
-      await this.alarms.dueWakeups(Date.now())
-      await this.compactIfDue()
-      const opened = await this.current()
-      await this.drain(opened)
-      await this.pulse(opened)
-      this.failures = 0
-    } catch (error) {
-      this.failures++
-      const message = error instanceof Error ? error.message : String(error)
-      console.error(`agent alarm failed (${this.failures}): ${message}`)
-      await this.drop()
-      if (this.failures >= RESET_AFTER && UNRECOVERABLE.test(message)) {
-        this.reset()
-        this.failures = 0
-      }
-      this.inbox.release()
-      const delay = Math.min(RETRY_MS * 2 ** (this.failures - 1), this.heartbeatMs)
-      await this.alarms.setWakeup(HEARTBEAT_WAKEUP, Date.now() + delay)
+  async wake(): Promise<boolean> {
+    const pending = this.inbox.hasOpen() || await this.ctx.storage.get<boolean>(STOP_KEY) || (!this.opened && await this.unfinished())
+    if (!pending) {
+      if (!this.opened) return false
+      const live = await (await this.opened).harness.inspect(context)
+      return live.tasks.length > 0 || live.submissions.length > 0
     }
+    await this.alarms.setWakeup(INBOX_WAKEUP, Math.max(Date.now(), this.humanComingUntil()))
+    return true
+  }
+
+  private async unfinished(): Promise<boolean> {
+    const storage = await JournalStorage.open(this.ctx.storage, "agent")
+    try {
+      for (const status of ["pending", "running", "waiting", "completing"] as const) {
+        if ((await storage.scanTasks({ status }, 1, undefined, context)).items.length) {
+          return true
+        }
+      }
+      for (const status of ["queued", "placed"] as const) {
+        if ((await storage.scanSubmissions({ status }, 1, undefined, context)).items.length) {
+          return true
+        }
+      }
+      return false
+    } finally {
+      await storage.close(context)
+    }
+  }
+
+  async alarm(): Promise<void> {
+    let batches: Batch[] = []
+    let opened: Opened | undefined
+    let draining = false
+    try {
+      await this.failure
+      while (this.compaction) await this.compaction
+      this.draining++
+      draining = true
+      await this.serializeAlarm(async () => { await this.alarms.dueWakeups(Date.now()) })
+      batches = await this.inbox.claim()
+      if (!batches.length && !this.opened && !(await this.ctx.storage.get<boolean>(STOP_KEY)) && !(await this.unfinished())) return
+      opened = await this.current()
+      await this.drain(opened, batches)
+      await this.refreshRecovery(opened)
+      this.pulse(opened)
+    } catch (error) {
+      await this.fail(error, batches, opened)
+    } finally {
+      if (draining) this.draining--
+    }
+  }
+
+  private fail(error: unknown, batches: readonly Batch[], opened?: Opened): Promise<void> {
+    if (this.failure) return this.failure
+    const work = (async () => {
+      console.error("agent alarm failed")
+      if (opened) this.retiring.add(opened)
+      const stopped = await this.ctx.storage.get<boolean>(STOP_KEY)
+      const requestId = batches[0]?.requestId ?? this.ctx.storage.sql
+        .exec<{ request_id: string }>("SELECT request_id FROM inbox WHERE request_id IS NOT NULL ORDER BY arrival DESC LIMIT 1")
+        .toArray()[0]?.request_id ?? `epoch:${this.epoch()}`
+      for (const batch of batches) this.inbox.submitted(batch.requestId)
+      // The failure consumed the stop it was handling, the same way `drain` does. A stop that arrives later sets the
+      // marker again after this delete, so it survives.
+      if (stopped) await this.ctx.storage.delete([STOP_KEY, RESTARTS_KEY])
+      if (!this.inbox.hasOpen()) await this.alarms.clearWakeup(INBOX_WAKEUP)
+      try {
+        await this.options.onError?.(error, requestId)
+      } finally {
+        try {
+          await this.workers.stopAll()
+          if (opened) await opened.root.abort(context, { background: true })
+        } finally {
+          await this.drop()
+        }
+      }
+    })()
+    this.failure = work
+    void work.finally(() => { if (this.failure === work) this.failure = undefined }).catch(() => {})
+    return work
   }
 
   open(): Promise<Opened> {
@@ -214,17 +269,27 @@ export class AgentHost {
     const opening = (async () => {
       const setup = await this.options.setup()
       let opened = await this.openHarness(setup)
-      if (await this.crashLooping(opened)) {
-        await opened.harness.close(context).catch(() => {})
-        this.reset(false)
-        opened = await this.openHarness(setup)
-        await this.options.onGiveUp?.()
+      try {
+        if (await this.crashLooping(opened)) {
+          await opened.harness.close(context).catch(() => {})
+          this.reset()
+          opened = await this.openHarness(setup)
+          await this.options.onGiveUp?.()
+        }
+        await this.options.onOpen?.(opened)
+        await this.refreshRecovery(opened)
+        opened.harness.resume()
+        this.workers.rearm(opened.harness)
+        await this.workers.resumed(opened.harness)
+        return opened
+      } catch (error) {
+        try {
+          await opened.root.abort(context, { background: true })
+        } finally {
+          await opened.harness.close(context)
+        }
+        throw error
       }
-      await this.options.onOpen?.(opened)
-      opened.harness.resume()
-      this.workers.rearm(opened.harness)
-      await this.workers.resumed(opened.harness)
-      return opened
     })()
     opening.catch(() => {
       if (this.opened === opening) this.opened = undefined
@@ -243,9 +308,12 @@ export class AgentHost {
   }
 
   private async openHarness(setup: AgentSetup): Promise<Opened> {
-    const storage = createCoalescingStorage(await SqliteStorage.open(openDurableObjectSqlite(this.ctx.storage)))
+    const storage = await JournalStorage.open(this.ctx.storage, "agent")
     const env = setup.env
     const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(env ? { env: (target) => env(target.conversationId) } : {}) }, context)
+    void harness.closed.then((end) => {
+      if (end.reason === "failed") this.ctx.abort("Harness failed")
+    })
     const root = await harness.root(context, { agent: setup.agent })
     // `root` keeps the agent it was first made with. An integration added later (a browser key) changes the extensions, so write them again.
     const extensions = setup.agent.extensions
@@ -256,7 +324,16 @@ export class AgentHost {
         await this.ctx.storage.put(EXTENSIONS_KEY, names)
       }
     }
-    return { harness, root, storage, setup }
+    const opened = { harness, root, storage, setup }
+    this.taskWatches.set(harness, new Map())
+    harness.subscribeCommits((publication) => {
+      if (publication.changes.some((change) => change.type === "task")) {
+        this.options.waitUntil(this.refreshRecovery(opened).catch((error) => {
+          if (!this.retiring.has(opened)) return this.fail(error, [], opened)
+        }))
+      }
+    })
+    return opened
   }
 
   private async crashLooping({ harness, root }: Opened): Promise<boolean> {
@@ -276,28 +353,75 @@ export class AgentHost {
     return false
   }
 
+  private serializeAlarm(operation: () => Promise<void>): Promise<void> {
+    const update = this.alarmUpdate.then(operation, operation)
+    this.alarmUpdate = update
+    return update
+  }
+
+  private async armRecovery(deadline: number): Promise<void> {
+    const current = this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", RECOVERY_WAKEUP).toArray()[0]?.at
+    await this.alarms.setWakeup(RECOVERY_WAKEUP, Math.min(current ?? deadline, deadline))
+  }
+
+  private refreshRecovery(opened: Opened): Promise<void> {
+    return this.serializeAlarm(async () => {
+      if (this.retiring.has(opened)) return
+      const { harness } = opened
+      const { tasks } = await harness.inspect(context)
+      if (this.retiring.has(opened)) return
+      const now = Date.now()
+      const current = this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", RECOVERY_WAKEUP).toArray()[0]?.at
+      const watches = this.taskWatches.get(harness)!
+      let next: number | undefined
+      const resume: { id: TaskId; deadline: number }[] = []
+      for (const task of tasks) {
+        if (task.state.kind === "blocked") continue
+        const scheduled = this.options.scheduledDeadline?.(task)
+        const future = scheduled !== undefined && scheduled > now && !task.record.abortRequested
+        const previous = watches.get(task.record.id) ?? Math.min(current ?? Infinity, now + RECOVERY_DELAY_MS)
+        const fallback = previous > now ? previous : now + RECOVERY_DELAY_MS
+        const deadline = future ? scheduled : fallback
+        next = Math.min(next ?? deadline, deadline)
+        if (!future) resume.push({ id: task.record.id, deadline: fallback })
+      }
+      if (next === undefined) await this.alarms.clearWakeup(RECOVERY_WAKEUP)
+      else await this.alarms.setWakeup(RECOVERY_WAKEUP, next)
+      // waitForTask enables scheduling, so the recovery alarm must be durable first.
+      for (const { id, deadline } of resume) {
+        const watching = watches.has(id)
+        watches.set(id, deadline)
+        if (watching) continue
+        this.options.waitUntil(harness.waitForTask(id, context)
+          .then(() => this.refreshRecovery(opened))
+          .catch((error) => {
+            if (!this.retiring.has(opened)) return this.fail(error, [], opened)
+          })
+          .finally(() => watches.delete(id)))
+      }
+    })
+  }
+
   private async idle(): Promise<void> {
     if (this.resumed) {
       this.resumed = false
       await this.ctx.storage.delete(RESUMES_KEY)
     }
-    await this.compact()
+    await (this.compaction ??= this.compact().finally(() => { this.compaction = undefined }))
   }
 
   private async compact(): Promise<void> {
-    if (((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) >= COMPACT_EVERY_RUNS) await this.ctx.storage.put(COMPACT_DUE_KEY, true)
-  }
-
-  private async compactIfDue(): Promise<void> {
-    if (!(await this.ctx.storage.get<boolean>(COMPACT_DUE_KEY))) return
+    if (this.draining) return
+    const size = this.ctx.storage.sql.exec<{ rows: number; bytes: number }>(
+      "SELECT count(*) AS rows, coalesce(sum(length(data)), 0) AS bytes FROM journal WHERE agent = ?", "agent",
+    ).one()
+    if (size.rows <= 500 && size.bytes <= 4 * 1024 * 1024) return
     const opened = await this.open()
     const live = await opened.harness.inspect(context)
-    if (live.tasks.length || live.submissions.length) return
+    if (this.draining || live.tasks.length || live.submissions.length || this.retiring.has(opened)) return
     await opened.setup.beforeCompact?.(opened.harness)
     await this.drop()
-    this.reset(false)
-    await this.ctx.storage.put(RUNS_KEY, 0)
-    await this.ctx.storage.delete(COMPACT_DUE_KEY)
+    this.reset()
   }
 
   async status(): Promise<HostStatus> {
@@ -308,14 +432,14 @@ export class AgentHost {
     return { open: true, inbox, tasks: live.tasks.length, submissions: live.submissions.length }
   }
 
-  private async drain({ harness, root, storage, setup }: Opened): Promise<void> {
+  private async drain({ harness, root, storage, setup }: Opened, batches: readonly Batch[]): Promise<void> {
     const { registry, beginRun, joinRun, inputContext, inputMemory } = setup
     if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
       await this.workers.stopAll()
       await root.abort(context)
       await this.ctx.storage.delete([STOP_KEY, RESTARTS_KEY])
     }
-    for (const batch of await this.inbox.claim()) {
+    for (const batch of batches) {
       if (await storage.submissionByRequest(root.id, batch.requestId, context)) {
         this.inbox.submitted(batch.requestId)
         continue
@@ -362,10 +486,7 @@ export class AgentHost {
       if (!run && inputMemory) {
         const out = await inputMemory(batch, invalidated !== null || await this.contextFull(root), await this.joinedSeqs())
         fresh = out.fresh
-        if (out.fresh) {
-          await root.reset(undefined, context)
-          await this.ctx.storage.put(RUNS_KEY, ((await this.ctx.storage.get<number>(RUNS_KEY)) ?? 0) + 1)
-        }
+        if (out.fresh) await root.reset(undefined, context)
         await this.ctx.storage.put(LAST_RUN_KEY, Date.now())
         await this.ctx.storage.delete(JOINED_KEY)
         memory = out.text
@@ -377,6 +498,7 @@ export class AgentHost {
       const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : []), ...(work ? [work] : [])] }, memory)
       // Abort before submit: a crash after the submit must not leave the stopped tool running.
       for (const id of stopping) this.options.waitUntil(harness.abortTask(id, context).catch(() => {}))
+      await this.serializeAlarm(() => this.armRecovery(Date.now() + RECOVERY_DELAY_MS))
       await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
       this.inbox.submitted(batch.requestId)
       this.inputs++
@@ -451,72 +573,59 @@ export class AgentHost {
     return live.submissions.some((s) => s.conversationId === root.id && s.status === "placed")
   }
 
-  // Only an idle harness clears the heartbeat, which must outlive an eviction mid-work.
-  private async pulse({ harness, root }: Opened): Promise<void> {
-    const seen = this.inputs
-    const live = await harness.inspect(context)
-    const talking = isTalking(live, root.id)
-    // Nothing awaits between the check and the delete, so no input can join in between.
-    if (live.tasks.length === 0 && live.submissions.length === 0 && this.inputs === seen) {
+  private pulse(opened: Opened): void {
+    const { harness } = opened
+    this.watchIdle(opened)
+    // A background worker can outlive the root. Its work belongs to this invocation too.
+    this.options.waitUntil((async () => {
+      await harness.waitForIdle(context)
       await this.idle()
-      await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
       this.options.onIdle?.()
-      if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
-      return
-    }
-    await this.alarms.setWakeup(HEARTBEAT_WAKEUP, Date.now() + this.heartbeatMs)
-    if (talking) this.watchIdle(harness, root)
+      if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Math.max(Date.now(), this.humanComingUntil()))
+    })().catch((error) => {
+      if (!this.retiring.has(opened)) return this.fail(error, [], opened)
+    }))
   }
 
-  // Waits for the talker, not the harness: harness.waitForIdle also waits on every worker.
-  private watchIdle(harness: Harness, root: Conversation): void {
-    if (this.watchingIdle) return
-    this.watchingIdle = true
-    root
-      .waitForIdle(context)
-      .then(async () => {
-        this.watchingIdle = false
+  // Held input can run as soon as the talker ends, while its background workers keep going.
+  private watchIdle(opened: Opened): void {
+    const { harness, root } = opened
+    this.options.waitUntil((async () => {
+      for (;;) {
+        await root.waitForIdle(context)
         const seen = this.inputs
         const live = await harness.inspect(context)
         if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Math.max(Date.now(), this.humanComingUntil()))
-        if (isTalking(live, root.id) || this.inputs !== seen) return this.watchIdle(harness, root)
-        if (live.tasks.length || live.submissions.length) return
-        await this.idle()
-        await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
-        this.options.onIdle?.()
-      })
-      .catch(() => {
-        this.watchingIdle = false
-      })
+        if (!isTalking(live, root.id) && this.inputs === seen) return
+      }
+    })().catch((error) => {
+      if (!this.retiring.has(opened)) return this.fail(error, [], opened)
+    }))
   }
 
-  private reset(requeue = true): void {
-    const sql = this.ctx.storage.sql
-    for (const table of PI_DURABLE_TABLES) sql.exec(`DROP TABLE IF EXISTS ${table}`)
-    sql.exec("INSERT INTO harness_epoch (id, n) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET n = n + 1")
+  private reset(): void {
+    JournalStorage.clear(this.ctx.storage, "agent")
+    this.ctx.storage.sql.exec("INSERT INTO harness_epoch (id, n) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET n = n + 1")
     this.workers.forget()
     this.options.onReset?.()
-    if (!requeue) return
-    const newest = sql
-      .exec<{ request_id: string }>("SELECT request_id FROM inbox WHERE submitted = 1 AND request_id IS NOT NULL AND request_id != 'stopped' ORDER BY arrival DESC LIMIT 1")
-      .toArray()[0]
-    if (newest) sql.exec("UPDATE inbox SET submitted = 0, in_flight_at = NULL, in_flight_by = NULL WHERE request_id = ?", newest.request_id)
-    console.error("agent harness reset after repeated unrecoverable failures")
   }
 
   async shutdown(): Promise<void> {
     const opened = await this.opened?.catch(() => undefined)
     this.opened = undefined
     if (!opened) return
+    this.retiring.add(opened)
     await opened.root.abort(context, { background: true }).catch(() => {})
     await opened.harness.close(context).catch(() => {})
+    await this.serializeAlarm(() => this.alarms.clearWakeup(RECOVERY_WAKEUP))
   }
 
   private async drop(): Promise<void> {
     const opened = this.opened
     this.opened = undefined
     if (!opened) return
-    await opened.then((o) => o.harness.close(context)).catch(() => {})
+    await opened.then((o) => { this.retiring.add(o); return o.harness.close(context) }).catch(() => {})
+    await this.serializeAlarm(() => this.alarms.clearWakeup(RECOVERY_WAKEUP))
   }
 }
 

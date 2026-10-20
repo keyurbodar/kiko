@@ -131,6 +131,14 @@ export class Outbox {
     return this.run?.id ?? null
   }
 
+  async fail(requestId: string, error: unknown, provider = ""): Promise<void> {
+    const id = this.run?.id ?? `${this.prefix()}:host:${requestId}`
+    const message = error instanceof Error ? error.message : String(error)
+    const detail = runErrorDetail(message)
+    await this.room()?.runError(id, { kind: classifyRunError(message), provider, ...(detail ? { detail } : {}) })
+    await this.end(id)
+  }
+
   progress(): RunProgress | null {
     const run = this.run
     if (!run) return null

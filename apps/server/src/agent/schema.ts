@@ -1,4 +1,5 @@
 import { addColumn, type Step } from "@kiko/durable/migrate"
+import { JOURNAL_STEPS } from "@kiko/agent/journal"
 import { HOST_STEPS, HOST_TAIL } from "@kiko/agent/host"
 
 // The agent's tables, in one list. An object at version N runs only the steps after the first N. A step is
@@ -23,4 +24,5 @@ export const AGENT_STEPS: Step[] = [
   ...HOST_TAIL,
   // A model error waits here until the run ends, so a retry that recovers posts no error row.
   addColumn("outbox", "failure", "TEXT"),
+  ...JOURNAL_STEPS,
 ]
