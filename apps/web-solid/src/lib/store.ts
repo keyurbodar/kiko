@@ -562,10 +562,16 @@ export function createApp(options: AppOptions = {}) {
       return roomMessages().find((m) => m.id === id)
     }
 
+    /** The room's members without an agent deleted since the room last caught up. */
+    function liveMembers(r: RoomStore): Member[] {
+      const gone = userStore()?.state.gone
+      return gone ? r.members().filter((m) => !gone[m.slug]) : r.members()
+    }
+
     function members(): RosterBot[] {
       const r = room()
       if (!r) return []
-      return r.members().map((m) => memberRow(m, presenceOf(r.state.status[m.slug] === "typing", r.state.status[m.slug])))
+      return liveMembers(r).map((m) => memberRow(m, presenceOf(r.state.status[m.slug] === "typing", r.state.status[m.slug])))
     }
 
     function send(message: OutgoingMessage, replyTo?: string, quote?: string): string | undefined {
@@ -843,7 +849,8 @@ export function createApp(options: AppOptions = {}) {
 
       /** The open room's agents as the protocol has them: role and lead included. */
       roomMembers(): Member[] {
-        return room()?.members() ?? []
+        const r = room()
+        return r ? liveMembers(r) : []
       },
 
       /** True once the owner's agent models have loaded, from disk or the server. Before that, a missing model means nothing. */

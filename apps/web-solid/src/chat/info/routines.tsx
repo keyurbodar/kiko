@@ -8,7 +8,7 @@ import { RecipeIcon } from "../../recipes/icon"
 import { recipeForRoutine } from "../../recipes/model"
 import { triggerLabel } from "./routines-model"
 import { apiFetch } from "../../lib/api"
-import { watchChanged } from "../../sync/changed"
+import { onChanged } from "../../sync/changed"
 
 export type Routine = { id: string; name: string; roomId: string; status: "active" | "paused"; trigger: Trigger; tz: string }
 
@@ -26,8 +26,9 @@ function read(value: unknown): Routine[] {
   )
 }
 
+let watching: (() => void) | undefined
 export async function loadRoutines(): Promise<void> {
-  watchChanged("routines", loadRoutines)
+  watching ??= onChanged("routines", loadRoutines)
   const res = await apiFetch("/api/routines").catch(() => null)
   if (!res?.ok) {
     if (all() === undefined) setAll([])
@@ -141,6 +142,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
 const heading = `px-2 pt-2 pb-1 text-[11px] font-medium leading-4 ${faint}`
 
 export function RoutinesPage(props: { chatId: string }) {
+  // check-rules: allow live-server-data the recipe catalog ships with the server build
   const [recipes] = createResource(() => import("../../recipes/api").then((m) => m.loadCards()))
   return (
     <div class="px-2 py-2" data-component="info-routines">

@@ -617,7 +617,7 @@ export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("chat_refused"), roomId: RoomId, existing: RoomId }),
 	Schema.Struct({ t: Schema.Literal("model_refused"), slug: AgentSlug, message: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("typing"), roomId: RoomId, names: Schema.Array(Schema.String) }),
-	Schema.Struct({ t: Schema.Literal("changed"), what: Schema.Literals(["routines", "memory", "models", "providers"]) }),
+	Schema.Struct({ t: Schema.Literal("changed"), what: Schema.Literals(["routines", "memory", "models", "providers", "souls"]) }),
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: UserSnapshot, version: Schema.optionalKey(Schema.String), protocol: Schema.optionalKey(Schema.Number), fileToken: Schema.optionalKey(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("memory_result"), reqId: Id, result: MemoryResult }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String, chats: Schema.Array(Chat) }),

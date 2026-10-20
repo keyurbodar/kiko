@@ -8,6 +8,7 @@ import { SurfaceFailure, SurfaceLoading, SurfaceNotice, UNREADABLE } from "../ch
  * notice the way the source view does. The file's id keys the read, so a new version reads again.
  */
 export function WithText(props: { roomId: string; file: FileRef; children: (text: string) => JSX.Element }) {
+	// check-rules: allow live-server-data a file version has its own id, so the read keys on it
 	const [read, { refetch }] = createResource(
 		() => props.file.id,
 		(id) => readText(props.roomId, id, PREVIEW_BYTES),

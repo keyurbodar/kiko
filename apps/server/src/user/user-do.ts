@@ -350,8 +350,11 @@ export class UserDO extends DurableObject<Env> {
     const slug = handle.trim().toLowerCase().replace(/^@/, "")
     if (!isAgentSlug(slug) || slug === KIKO) return { ok: false as const, error: "kiko cannot be deleted; use a valid agent handle" }
     this.sql.exec("INSERT OR IGNORE INTO deleted_agent_handles (slug) VALUES (?)", slug)
+    const agent = this.sql.exec<{ id: string }>("SELECT id FROM agents WHERE slug = ?", slug).toArray()[0]
     this.sql.exec("INSERT OR IGNORE INTO deletion_agents (slug) VALUES (?)", slug)
     await this.alarms.setWakeup("deletion_agents", Date.now() + 30_000)
+    // The human sees the agent go now. The cleanup below may wait on other objects or retry.
+    if (agent) this.commit({ t: "agent_removed", id: agent.id, slug })
     const result = await this.deleteAgentNow(slug)
     if (result.ok) this.sql.exec("DELETE FROM deletion_agents WHERE slug = ?", slug)
     return result
@@ -368,7 +371,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private async deleteAgentNow(slug: AgentSlug) {
-    const agent = listAgents(this.sql).find((a) => a.slug === slug)
+    const agent = this.sql.exec<{ id: string }>("SELECT id FROM agents WHERE slug = ?", slug).toArray()[0]
     if (!agent) return { ok: true as const, text: "agent already deleted" }
     const owner = userIdFromObjectName(this.ctx.id.name)
     for (const row of this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM chats WHERE EXISTS (SELECT 1 FROM json_each(chats.agents) WHERE value = ?)", agent.id).toArray()) {
@@ -392,7 +395,6 @@ export class UserDO extends DurableObject<Env> {
     this.sql.exec("DELETE FROM souls WHERE slug = ?", slug)
     deleteSetting(this.sql, `agentModel:${slug}`)
     this.sql.exec("DELETE FROM agents WHERE id = ?", agent.id)
-    this.commit({ t: "agent_removed", id: agent.id, slug })
     return { ok: true as const, text: `@${slug} deleted` }
   }
 
@@ -447,7 +449,9 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async setSoul(slug: string, body: string, expectSha: string): Promise<SoulWrite> {
-    return this.souls.set(slug, body, expectSha)
+    const result = await this.souls.set(slug, body, expectSha)
+    if (result.ok) this.changed("souls")
+    return result
   }
 
   async homePut(input: NewFile): Promise<Omit<PutResult, "events"> & { fresh: boolean; entry: FsEntry | null }> {

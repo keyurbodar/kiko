@@ -273,6 +273,7 @@ export function MemoryError(props: { store: MemoryStore }) {
 }
 
 export function useMemoryStore() {
+	// check-rules: allow live-server-data opens the memory store, which reloads itself on changed memory
 	const [store] = createResource(
 		() => {
 			const s = session()

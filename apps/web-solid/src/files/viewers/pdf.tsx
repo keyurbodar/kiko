@@ -9,6 +9,7 @@ import { apiFetch } from "../../lib/api"
  */
 export default function PdfView(props: { src: string; title: string }) {
 	let url: string | undefined
+	// check-rules: allow live-server-data a file version has its own id, so the src changes with it
 	const [blob, { refetch }] = createResource(
 		() => props.src,
 		async (src) => {

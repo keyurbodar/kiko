@@ -67,6 +67,14 @@ export const RULES: readonly Rule[] = [
     match: (line) => (/["'`]\?["'`]/.test(line) && /\.(map|fill)\(|Array\.from\(/.test(line)) || /["'`]\?[^"'`]*["'`]\.repeat\(/.test(line),
     enforce: true,
   },
+  {
+    id: "live-server-data",
+    description: "Client server data reloads on the server's changed frame. Use createLive or onChanged from sync/changed.ts, not createResource.",
+    roots: ["apps/web-solid/src"],
+    skip: (path) => path === "apps/web-solid/src/sync/changed.ts" || isTest(path),
+    match: (line) => /(?<![\w.])createResource\s*[<(]/.test(line),
+    enforce: true,
+  },
 ]
 
 function files(dir: string): string[] {

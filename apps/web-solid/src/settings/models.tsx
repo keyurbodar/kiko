@@ -1,4 +1,5 @@
-import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js"
+import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
+import { createLive } from "../sync/changed"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { formatContext, loadCatalog, modelRef, type CatalogProvider, type ConnectMethod } from "./catalog"
@@ -43,7 +44,7 @@ export function ModelsPage() {
   createEffect(() => {
     if (modelsTab() === "providers") setWantsCatalog(true)
   })
-  const [catalog] = createResource(wantsCatalog, () => loadCatalog())
+  const [catalog] = createLive("models", wantsCatalog, () => loadCatalog())
   // A deep link straight to a provider (a failed connection's "Reconnect") needs the catalog too.
   createEffect(() => {
     if (reconnectTarget()) setWantsCatalog(true)

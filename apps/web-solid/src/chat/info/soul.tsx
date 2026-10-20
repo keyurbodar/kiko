@@ -1,5 +1,6 @@
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { createResource, createSignal, Show } from "solid-js"
+import { createSignal, Show } from "solid-js"
+import { createLive } from "../../sync/changed"
 import { buttonClass } from "../../settings/kit"
 import { apiFetch } from "../../lib/api"
 
@@ -12,7 +13,7 @@ async function load(slug: string): Promise<Soul | null> {
 }
 
 export function SoulCard(props: { slug: string }) {
-	const [soul, { mutate }] = createResource(() => props.slug, load)
+	const [soul, { mutate }] = createLive("souls", () => props.slug, load)
 	const [draft, setDraft] = createSignal<string | null>(null)
 	const [saving, setSaving] = createSignal(false)
 

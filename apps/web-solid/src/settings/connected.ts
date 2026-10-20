@@ -1,8 +1,8 @@
-import { createResource, createRoot } from "solid-js"
+import { createRoot } from "solid-js"
 import { authIdentity, session } from "../app/session"
 import { listProviders, type ProviderInfo } from "./credentials"
 import { hasModelProvider } from "./provider-kinds"
-import { watchChanged } from "../sync/changed"
+import { createLive } from "../sync/changed"
 import { readStored, writeStored } from "./connected-store"
 
 // One shared list of connected providers, so settings and the chat top bar agree.
@@ -22,7 +22,8 @@ function initialList(): ProviderList | undefined {
 }
 
 const [providers, actions] = createRoot(() => {
-  const res = createResource<ProviderList, string>(
+  const res = createLive<ProviderList, string>(
+    "providers",
     () => identity() ?? false,
     async (userId) => {
       try {
@@ -40,7 +41,6 @@ const [providers, actions] = createRoot(() => {
       if (document.visibilityState === "visible" && session().status === "signed-in") void res[1].refetch()
     })
   }
-  watchChanged("providers", () => res[1].refetch())
   return res
 })
 

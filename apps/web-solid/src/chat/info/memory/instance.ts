@@ -1,11 +1,11 @@
 // The one memory store for the signed-in user. It outlives the route, so coming back to
 // /memory paints the list from what is already here, then refreshes it.
 
-import { watchChanged } from "../../../sync/changed"
+import { onChanged } from "../../../sync/changed"
 import { createMemoryClient, type MemoryClient } from "./client"
 import { createMemoryStore, type MemoryStore } from "./store"
 
-let current: { userId: string; store: MemoryStore; client: MemoryClient } | null = null
+let current: { userId: string; store: MemoryStore; client: MemoryClient; stop: () => void } | null = null
 
 async function openClient(): Promise<MemoryClient> {
 	// The dev mock, same rule as the chat data layer. A production build drops this branch.
@@ -17,9 +17,10 @@ async function openClient(): Promise<MemoryClient> {
 export async function memoryFor(userId: string): Promise<MemoryStore> {
 	if (current?.userId === userId) return current.store
 	current?.client.close()
+	current?.stop()
 	const client = await openClient()
 	const store = createMemoryStore(client)
-	current = { userId, store, client }
-	watchChanged("memory", () => (current?.store.state.loaded ? current.store.load() : undefined))
+	const stop = onChanged("memory", () => (store.state.loaded ? store.load() : undefined))
+	current = { userId, store, client, stop }
 	return store
 }

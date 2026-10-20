@@ -45,7 +45,9 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 		return true
 	}
 	if (e.t === "agent") {
-		if (!data.agents.some((a) => a.id === e.agent.id)) data.agents.push(e.agent)
+		const i = data.agents.findIndex((a) => a.id === e.agent.id)
+		if (i === -1) data.agents.push(e.agent)
+		else data.agents[i] = e.agent
 		return true
 	}
 	const i = data.chats.findIndex((c) => c.roomId === (e.t === "chat" ? e.chat.roomId : e.roomId))
@@ -81,6 +83,11 @@ export type UserState = UserData & {
 	lastChat: RoomId | null
 	/** Second direct chats the server refused, each with the chat that agent already has. */
 	refused: Record<string, RoomId>
+	/**
+	 * Agents deleted while this page was open. A room drops its members only after the server's
+	 * cleanup reaches it, so every room view hides these at once. Memory only.
+	 */
+	gone: Record<string, true>
 	/** The display names typing in each chat, from the `typing` frame. Memory only. */
 	typing: Record<string, readonly string[]>
 	/** Whether the backend can serve this build. Set from the first `hello` reply. Undefined until then. */
@@ -168,6 +175,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		lastChat: null,
 		refused: {},
 		typing: {},
+		gone: {},
 	})
 	const homeRefusals = new Set<(op: FileOp, reason: string) => void>()
 	let opening: ReturnType<typeof setTimeout> | undefined
@@ -207,7 +215,11 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		batch(() => {
 			setState(
 				produce((s) => {
-					for (const e of sorted) if (applyUserEvent(s, e)) applied.push(e)
+					for (const e of sorted) {
+						if (!applyUserEvent(s, e)) continue
+						applied.push(e)
+						if (e.t === "agent_removed") s.gone[e.slug] = true
+					}
 				}),
 			)
 			const next = settleUser(state.patches, applied)

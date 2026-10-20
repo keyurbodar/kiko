@@ -33,6 +33,7 @@ function caretIn(editor: HTMLElement): Range | undefined {
 export function createShortcodes(editor: () => HTMLElement | undefined) {
   const [typed, setTyped] = createSignal<{ node: Text; start: number; end: number; query: string }>()
   const [active, setActive] = createSignal(0)
+  // check-rules: allow live-server-data emoji data ships with the app
   const [data] = createResource(() => typed() !== undefined || undefined, loadEmoji)
   const matches = createMemo<EmojiMatch[]>(() => {
     const at = typed()

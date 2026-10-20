@@ -1,7 +1,8 @@
 import { useNavigate } from "@solidjs/router"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
-import { For, Show, createMemo, createResource, createSignal } from "solid-js"
+import { For, Show, createMemo, createSignal } from "solid-js"
+import { createLive } from "../../sync/changed"
 import { KIKO, KIKO_HOME_ROOM, type AgentSlug } from "@kiko/protocol"
 import { useApp } from "../../lib/store"
 import { loadCatalog, modelRef, type CatalogProvider } from "../../settings/catalog"
@@ -29,7 +30,7 @@ function focusComposer(tries = 40): void {
  */
 export function ConnectStep() {
   const navigate = useNavigate()
-  const [catalog, { refetch }] = createResource(loadCatalog)
+  const [catalog, { refetch }] = createLive("models", () => true, loadCatalog)
   const providers = () => catalog.error ? [] : (catalog()?.providers ?? [])
   const [dialog, setDialog] = createSignal<{ provider: CatalogProvider; only?: ConnectVia } | null>(null)
   const [browsing, setBrowsing] = createSignal(false)

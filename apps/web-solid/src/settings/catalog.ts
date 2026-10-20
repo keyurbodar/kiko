@@ -4,11 +4,12 @@
 
 import type { Catalog, CatalogModel, CatalogProvider, ConnectMethod } from "@kiko/protocol"
 import { apiFetch } from "../lib/api"
-import { watchChanged } from "../sync/changed"
+import { onChanged } from "../sync/changed"
 
 export type { Catalog, CatalogModel, CatalogProvider, ConnectMethod }
 
 let cached: Promise<Catalog> | undefined
+let watching: (() => void) | undefined
 let forget: ReturnType<typeof setTimeout> | undefined
 /**
  * How long the parsed catalog outlives its last request. The response is about 314 KB of JSON
@@ -29,7 +30,7 @@ export async function prefetchCatalog(): Promise<void> {
 
 /** Loads the catalog once. A failed load is not cached, so the next open retries. The server's `changed: models` frame drops it. */
 export function loadCatalog(): Promise<Catalog> {
-  watchChanged("models", () => {
+  watching ??= onChanged("models", () => {
     cached = undefined
   })
   if (forget !== undefined) clearTimeout(forget)

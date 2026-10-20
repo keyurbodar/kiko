@@ -34,6 +34,7 @@ interface Section {
 const key = (at: GridAt) => `${at.section}:${at.index}`
 
 export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
+  // check-rules: allow live-server-data emoji data ships with the app
   const [data] = createResource(loadEmoji)
   const [query, setQuery] = createSignal("")
   const [active, setActive] = createSignal<GridAt | null>(null)
