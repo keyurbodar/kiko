@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers"
+import { Runs } from "./runs"
 import { isRoomId, MAX_FRAME } from "@kiko/protocol"
 import { Agent } from "../agent/agent-do"
 import { Room } from "../room/room-do"
@@ -17,6 +18,7 @@ type Args<T> = T extends (...args: infer A) => unknown ? A : never
 type Result<T> = T extends (...args: never[]) => infer R ? Awaited<R> : never
 
 export class OwnerDO extends DurableObject<Env> {
+  private readonly runs: Runs
   protected readonly services: OwnerServices
   private readonly rooms = new Map<string, Room>()
   private readonly agents = new Map<string, Agent>()
@@ -30,6 +32,10 @@ export class OwnerDO extends DurableObject<Env> {
     const name = ctx.id.name ?? "owner"
     this.ownerId = name === "owner" ? "owner" : name.replace(/^owner:/, "")
     initializeSchema(ctx.storage)
+    this.runs = new Runs({
+      dispatch: async (agent, requestId) => { ctx.waitUntil(env.OWNER.get(ctx.id).run(agent, requestId)) },
+      schedule: async (agent) => { await this.context(`agent:${this.ownerId}:${agent}`).storage.setAlarm(Date.now()) },
+    })
     this.blobs = new BlobStore(this.context(`files:${this.ownerId}`))
     this.blobs.initialize()
     this.services = {
@@ -71,9 +77,14 @@ export class OwnerDO extends DurableObject<Env> {
     }
   }
 
-  /** PR5 replaces this direct dispatch with invocation scheduling. */
   async dispatchRun(roomId: string, slug: string): Promise<void> {
-    await this.agent(roomId, slug).alarm()
+    await this.runs.start(`${roomId}:${slug}`, "pending")
+  }
+
+  async run(agent: string, requestId: string): Promise<void> {
+    const [roomId, slug, ...extra] = agent.split(":")
+    if (!isRoomId(roomId) || !slug || extra.length) throw new Error("bad agent key")
+    await this.runs.run(agent, requestId, (budget) => this.agent(roomId, slug).runInvocation(() => budget.due()))
   }
 
   private async afterRun(roomId: string, slug: string): Promise<void> {
@@ -99,7 +110,10 @@ export class OwnerDO extends DurableObject<Env> {
     const key = `${roomId}:${slug}`
     let agent = this.agents.get(key)
     if (!agent) {
-      agent = new Agent(this.options(`agent:${this.ownerId}:${key}`))
+      agent = new Agent({ ...this.options(`agent:${this.ownerId}:${key}`),
+        requestRun: (requestId) => this.runs.start(key, requestId),
+        countOutgoing: () => this.runs.count(key),
+      })
       agent.initialize()
     }
     this.agents.delete(key)

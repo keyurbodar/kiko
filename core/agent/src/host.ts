@@ -5,6 +5,8 @@ import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
 import { ALARM_STEPS, type Alarms, createAlarms } from "@kiko/durable/alarm"
 import type { Step } from "@kiko/durable/migrate"
 import { JournalStorage } from "./journal"
+import { continueAtBoundary } from "./continuation"
+import { submitPaused } from "./admission"
 import { type Batch, type Refusal, renderInput, requestIdFor } from "./input"
 import { FRESH_RUN, type RunProgress, type RunState } from "./mid-run"
 import type { Envelope } from "./envelope"
@@ -91,11 +93,15 @@ export type AgentSetup = {
 }
 
 export type HostOptions = {
+  /** Persist pi input while paused, then ask the owner to dispatch a run RPC. */
+  requestRun?: (requestId: string) => void | Promise<void>
   openHarness?: (storage: Storage, setup: AgentSetup) => Promise<Harness>
   setup: () => AgentSetup | Promise<AgentSetup>
   onOpen?: (opened: Opened) => void | Promise<void>
   onGiveUp?: () => void | Promise<void>
   scheduledDeadline?: (task: TaskInspection) => number | undefined
+  /** Project recovery onto the owner clock; undefined clears this agent's recovery deadline. */
+  recoveryDeadline?: (at: number | undefined) => Promise<void>
   progress?: () => RunProgress | null
   onIdle?: () => void
   shortBrief?: (brief: string) => string
@@ -164,6 +170,8 @@ export class AgentHost {
   readonly workers: Workers
   private readonly alarms: Alarms
   private opened?: Promise<Opened>
+  private plannedSetup?: AgentSetup
+  private invocation?: { due: () => boolean; boundary?: Awaited<ReturnType<typeof continueAtBoundary>> }
   private failure?: Promise<void>
   private compaction?: Promise<void>
   private draining = 0
@@ -190,7 +198,8 @@ export class AgentHost {
     const submit = this.admission.then(async () => {
       const opened = await this.current()
       await this.drain(opened, [batch])
-      this.pulse(opened)
+      if (!this.options.requestRun || this.invocation) this.pulse(opened)
+      else await this.options.requestRun(batch.requestId)
     })
     this.admission = submit.catch(() => {})
     await submit
@@ -257,6 +266,40 @@ export class AgentHost {
     }
   }
 
+  /** Run RPC boundary. Planned continuations retain setup and replay the existing pi submission. */
+  async runInvocation(due: () => boolean): Promise<"done" | "continue"> {
+    if (this.invocation) throw new Error("An agent invocation is already running")
+    // A warm idle Harness already enabled scheduling. Reopen it paused so the guard precedes progress.
+    if (this.opened) {
+      this.plannedSetup = (await this.opened).setup
+      await this.drop()
+    }
+    const invocation: NonNullable<AgentHost["invocation"]> = { due }
+    this.invocation = invocation
+    try {
+      await this.alarm()
+      const opened = await this.opened
+      const boundary = invocation.boundary
+      if (!boundary) return "done"
+      const outcome = await Promise.race([
+        boundary.closed.then(() => "continue" as const),
+        opened ? opened.harness.waitForIdle(context).then(() => "done" as const, (error: unknown) => {
+          if (!boundary.continuing()) throw error
+          return "continue" as const
+        }) : Promise.resolve(boundary.continuing() ? "continue" as const : "done" as const),
+      ])
+      if (outcome === "continue") {
+        await boundary.closed
+        this.resumed = false
+        await this.ctx.storage.delete(RESUMES_KEY)
+      }
+      return outcome
+    } finally {
+      invocation.boundary?.dispose()
+      this.invocation = undefined
+    }
+  }
+
   async alarm(): Promise<void> {
     let batches: Batch[] = []
     let opened: Opened | undefined
@@ -273,6 +316,7 @@ export class AgentHost {
       await this.refreshRecovery(opened)
       this.pulse(opened)
     } catch (error) {
+      if (this.invocation?.boundary?.continuing()) return
       await this.fail(error, batches, opened)
     } finally {
       if (draining) this.draining--
@@ -309,22 +353,27 @@ export class AgentHost {
   open(): Promise<Opened> {
     if (this.opened) return this.opened
     const opening = (async () => {
-      const setup = await this.options.setup()
+      const planned = this.plannedSetup
+      this.plannedSetup = undefined
+      const setup = planned ?? await this.options.setup()
       let opened = await this.openHarness(setup)
       try {
-        if (await this.crashLooping(opened)) {
+        if (!planned && await this.crashLooping(opened)) {
           await opened.harness.close(context).catch(() => {})
           this.reset()
           opened = await this.openHarness(setup)
           await this.options.onGiveUp?.()
         }
         await this.options.onOpen?.(opened)
-        await this.refreshRecovery(opened)
-        opened.harness.resume()
-        this.workers.rearm(opened.harness)
-        await this.workers.resumed(opened.harness)
+        if (!this.options.requestRun || this.invocation) {
+          await this.refreshRecovery(opened)
+          opened.harness.resume()
+          this.workers.rearm(opened.harness)
+          if (!planned) await this.workers.resumed(opened.harness)
+        }
         return opened
       } catch (error) {
+        if (this.invocation?.boundary?.continuing()) throw error
         try {
           await opened.root.abort(context, { background: true })
         } finally {
@@ -369,12 +418,22 @@ export class AgentHost {
     const opened = { harness, root, storage, setup }
     this.taskWatches.set(harness, new Map())
     harness.subscribeCommits((publication) => {
-      if (publication.changes.some((change) => change.type === "task")) {
+      if ((!this.options.requestRun || this.invocation) && publication.changes.some((change) => change.type === "task")) {
         this.options.waitUntil(this.refreshRecovery(opened).catch((error) => {
           if (!this.retiring.has(opened)) return this.fail(error, [], opened)
         }))
       }
     })
+    if (this.invocation) {
+      const boundary = await continueAtBoundary(harness, this.invocation.due)
+      this.invocation.boundary = boundary
+      harness.subscribeClose(() => {
+        if (!boundary.continuing()) return
+        this.retiring.add(opened)
+        this.plannedSetup = setup
+        this.opened = undefined
+      })
+    }
     return opened
   }
 
@@ -401,6 +460,7 @@ export class AgentHost {
     return update
   }
 
+
   private refreshRecovery(opened: Opened): Promise<void> {
     return this.serializeAlarm(async () => {
       if (this.retiring.has(opened)) return
@@ -422,7 +482,8 @@ export class AgentHost {
         next = Math.min(next ?? deadline, deadline)
         if (!future) resume.push({ id: task.record.id, deadline: fallback })
       }
-      if (next === undefined) await this.alarms.clearWakeup(RECOVERY_WAKEUP)
+      if (this.options.recoveryDeadline) await this.options.recoveryDeadline(next)
+      else if (next === undefined) await this.alarms.clearWakeup(RECOVERY_WAKEUP)
       else await this.alarms.setWakeup(RECOVERY_WAKEUP, next)
       // waitForTask enables scheduling, so the recovery alarm must be durable first.
       for (const { id, deadline } of resume) {
@@ -503,7 +564,10 @@ export class AgentHost {
       if (!run && inputMemory) {
         const out = await inputMemory(batch, invalidated !== null || await this.contextFull(root), await this.joinedSeqs())
         fresh = out.fresh
-        if (out.fresh) await root.reset(undefined, context)
+        if (out.fresh) {
+          if (this.options.requestRun && !this.invocation) await root.commit((tx) => tx.appendEntry(root.id, { kind: "pi.reset", head: "self" }), context)
+          else await root.reset(undefined, context)
+        }
         await this.ctx.storage.put(LAST_RUN_KEY, Date.now())
         await this.ctx.storage.delete(JOINED_KEY)
         memory = out.text
@@ -513,10 +577,12 @@ export class AgentHost {
       const shown = briefToShow(batch.briefs, fresh, last?.epoch === this.epoch() ? last.key : undefined, this.options.shortBrief)
       const work = this.workers.note()
       const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : []), ...(work ? [work] : [])] }, memory)
-      await root.submit({ type: "input", content, requestId: batch.requestId, whenBusy,
+      const submission = { type: "input" as const, content, requestId: batch.requestId, whenBusy,
         entry: { kind: "kiko.input", data: { envelopeIds: batch.envelopes.map((e) => e.id), chain: batch.envelopes.map(({ rootId, hop }) => ({ rootId, hop })) } },
-      }, context)
-      await this.refreshRecovery({ harness, root, storage, setup })
+      }
+      if (this.options.requestRun && !this.invocation) await submitPaused(root, submission)
+      else await root.submit(submission, context)
+      if (!this.options.requestRun || this.invocation) await this.refreshRecovery({ harness, root, storage, setup })
       this.inputs++
       if (shown.key && (last?.epoch !== this.epoch() || last.key !== shown.key)) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
       if (run) await this.ctx.storage.put(JOINED_KEY, [...(await this.joinedSeqs()), ...batch.envelopes.map((e) => e.seq)].slice(-500))
@@ -593,7 +659,7 @@ export class AgentHost {
     this.retiring.add(opened)
     await opened.root.abort(context, { background: true }).catch(() => {})
     await opened.harness.close(context).catch(() => {})
-    await this.serializeAlarm(() => this.alarms.clearWakeup(RECOVERY_WAKEUP))
+    await this.serializeAlarm(() => this.options.recoveryDeadline ? this.options.recoveryDeadline(undefined) : this.alarms.clearWakeup(RECOVERY_WAKEUP))
   }
 
   private async drop(): Promise<void> {
@@ -601,7 +667,7 @@ export class AgentHost {
     this.opened = undefined
     if (!opened) return
     await opened.then((o) => { this.retiring.add(o); return o.harness.close(context) }).catch(() => {})
-    await this.serializeAlarm(() => this.alarms.clearWakeup(RECOVERY_WAKEUP))
+    await this.serializeAlarm(() => this.options.recoveryDeadline ? this.options.recoveryDeadline(undefined) : this.alarms.clearWakeup(RECOVERY_WAKEUP))
   }
 }
 

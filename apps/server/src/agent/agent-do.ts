@@ -78,10 +78,17 @@ export class Agent {
   protected readonly ctx: DurableObjectState
   protected readonly env: Env
   private readonly services: OwnerServices
-  constructor({ ctx, env, services }: ServiceOptions) {
+  private readonly requestRun?: (requestId: string) => void | Promise<void>
+  private readonly countOutgoing: () => void
+  constructor({ ctx, env, services, requestRun, countOutgoing = () => {} }: ServiceOptions & {
+    requestRun?: (requestId: string) => void | Promise<void>
+    countOutgoing?: () => void
+  }) {
     this.ctx = ctx
     this.env = env
     this.services = services
+    this.requestRun = requestRun
+    this.countOutgoing = countOutgoing
   }
 
   async initialize(): Promise<void> {
@@ -98,6 +105,7 @@ export class Agent {
   protected get host(): AgentHost {
     this.hostInstance ??= new AgentHost(this.ctx, {
       openHarness: openAgentHarness,
+      requestRun: this.requestRun,
       progress: () => this.outbox.progress(),
       shortBrief,
       onReset: () => this.outbox.clear(),
@@ -431,7 +439,7 @@ export class Agent {
       }
     }
     const egress = this.egressFetch()
-    const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString(), egress)
+    const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString(), egress, this.countOutgoing)
     const soul = this.soulPort()
     const cache = new ObjectCache()
     const where = () => this.home()
@@ -607,17 +615,11 @@ export class Agent {
     return sum
   }
 
-  /**
-   * One outside request, made in its own invocation. On the Free plan an
-   * invocation may make 50 subrequests, and a run's work all belongs to the invocation that started
-   * it, so a long run would fail partway. A call through this object's own stub is a new incoming
-   * request with a fresh budget, and RPC calls do not count against the 50 (measured 2026-10-04).
-   * Only this object calls it, through `egressFetch`.
-   */
+  /** Count each outgoing attempt against this agent's active run before the owner fetches it. */
   async egress(request: EgressRequest): Promise<Response> {
     if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
-    // check-rules: allow egress the one outside request, made in this object's own invocation, which is the point of egress
-    return fetch(request.url, { method: request.method, headers: request.headers, ...(request.body ? { body: request.body } : {}) })
+    this.countOutgoing()
+    return this.services.egress(request)
   }
 
   /**
@@ -625,14 +627,13 @@ export class Agent {
    * here: before the call it throws, and after it the body stream is cut.
    */
   private egressFetch(): typeof fetch {
-    const self = () => this.services
     return (async (input: RequestInfo | URL, init?: RequestInit) => {
       const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined)
       signal?.throwIfAborted()
       // The request crosses as plain data: a request body streamed over RPC can be cut off before the
       const request = new Request(input as RequestInfo, { ...init, signal: null })
       const body = request.body ? await request.arrayBuffer() : null
-      const sent = await orStall(self().egress({ url: request.url, method: request.method, headers: [...request.headers], body }), FIRST_BYTE_MS)
+      const sent = await orStall(this.egress({ url: request.url, method: request.method, headers: [...request.headers], body }), FIRST_BYTE_MS)
       const response = guardStall(sent, STALL_MS)
       if (!signal || !response.body) return response
       const { readable, writable } = new TransformStream()
@@ -760,6 +761,11 @@ export class Agent {
   async alarm() {
     if (await this.browserIdle()) return
     await this.host.alarm()
+  }
+
+  async runInvocation(due: () => boolean): Promise<"done" | "continue"> {
+    if (await this.browserIdle()) return "done"
+    return this.host.runInvocation(due)
   }
 
   #browser?: BrowserConnection
