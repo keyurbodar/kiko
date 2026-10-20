@@ -424,9 +424,9 @@ export class Reminders {
   }
 
   scheduled(): ScheduledRoutine[] {
-    return this.sql.exec<{ id: string; due_utc: number }>(
-      "SELECT id, due_utc FROM reminders WHERE status = 'active' AND due_utc > 0 AND json_extract(trigger, '$.on') = 'time' ORDER BY due_utc, id",
-    ).toArray().map((row) => ({ routineId: row.id, runAt: row.due_utc }))
+    return this.sql.exec<{ id: string; due_utc: number; room_id: string; target: string }>(
+      "SELECT id, due_utc, room_id, target FROM reminders WHERE status = 'active' AND due_utc > 0 AND json_extract(trigger, '$.on') = 'time' ORDER BY due_utc, id",
+    ).toArray().map((row) => ({ routineId: row.id, runAt: row.due_utc, roomId: row.room_id, target: row.target }))
   }
 
   async fireScheduled({ routineId, runAt, requestId }: RoutineDelivery): Promise<void> {

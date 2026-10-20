@@ -32,7 +32,7 @@ import { keyringFromEnv } from "@kiko/durable/crypto"
 import { checkApiKey, CredentialVault, userIdFromObjectName } from "./credentials"
 import { keyRefused } from "./credentials-check"
 import { problemOfRun } from "./provider-health"
-import { PROVIDERS_WAKEUP, ProviderWatch } from "./provider-watch"
+import { ProviderCheck } from "./provider-check"
 import { userModels } from "../agent/factory"
 import { agentNamed, createAgent, listAgents } from "./agents"
 import { agentModel, allAgentModels, saveAgentModel } from "./agent-models"
@@ -44,10 +44,10 @@ import { Life } from "@kiko/memory/life"
 import { itemLine, spanOf } from "@kiko/memory/optmem"
 import type { NoteAnswer } from "@kiko/memory/tools"
 import { ProviderLogins, signInMethod } from "./provider-login"
-import { CATALOG_WAKEUP, ModelCatalog } from "../models/service"
+import { ModelCatalog } from "../models/service"
 import { restoreOverlay } from "../models/sync"
 import { type CatalogOverlay, findProvider } from "../models/catalog"
-import { type NewRoutine, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery } from "./reminders"
+import { type NewRoutine, Reminders, type RoutineRun, type RunDelivery } from "./reminders"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import { roomOverview } from "../room/overview"
 import { routineRun, type SignalBatch } from "../room/routine-events"
@@ -57,11 +57,11 @@ import { USER_STEPS } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
 import { composioUserId, } from "../lib/names"
-import { INITIATIVE_RUN, INITIATIVE_WAKEUP, InitiativeEngine, type Level } from "../initiative/engine"
+import { INITIATIVE_RUN, InitiativeEngine, type Level } from "../initiative/engine"
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
 import type { DevBrowserOp } from "./dev"
 import { type BrowserCheck, KernelWiring, type LiveLinkResult } from "./kernel-wiring"
-import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
+import { MemoryCapture } from "./memory-capture"
 import { type Attachment, send, trySend } from "./socket-frames"
 import { AWAY_MS, LAST_SEEN } from "./keys"
 import { UpdateWiring } from "./update-wiring"
@@ -110,7 +110,7 @@ export class User {
       this.alarms = createAlarms(ctx)
       // check-rules: allow egress the one pi.dev request an hour, made in this object's own invocation
       restoreOverlay(this.sql)
-      this.models = new ModelCatalog({ sql: this.sql, alarms: this.alarms, now: Date.now, fetch: (url, init) => fetch(url, init), signInMethod, changed: () => this.changed("models") })
+      this.models = new ModelCatalog({ sql: this.sql, now: Date.now, fetch: (url, init) => fetch(url, init), signInMethod, changed: () => this.changed("models") })
 
 
       this.life = new Life(this.sql, (fn) => ctx.storage.transactionSync(fn), { get: (key) => this.setting(key), set: (key, value) => this.putSetting(key, value) })
@@ -120,7 +120,7 @@ export class User {
         if (!event) throw new Error("file change produced no event")
         return event
       }, actorKey)
-      this.reminders = new Reminders(this.sql, this.alarms, Date.now, {
+      this.reminders = new Reminders(this.sql, { sync: (routines) => this.services.syncRoutines(routines) }, Date.now, {
         deliverRun: async ({ deliveryId, routine, body }) => {
           return this.services.room(routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body })
         },
@@ -388,7 +388,6 @@ export class User {
     await this.#recipes.agentGone(slug)
     await this.reminders.cancelAgent(slug)
     for (const { pos } of this.sql.exec<{ pos: number }>("SELECT pos FROM life WHERE source = ? AND redacted = 0", `@${slug}`).toArray()) this.life.redact(pos)
-    await this.#mem.armNaps()
     this.changed("memory")
     this.sql.exec("DELETE FROM souls WHERE slug = ?", slug)
     deleteSetting(this.sql, `agentModel:${slug}`)
@@ -542,7 +541,6 @@ export class User {
     const old = replaces === undefined ? null : /^(?:life:)?\s*#?(\d+)$/i.exec(replaces.trim())
     const replaced = old ? this.life.supersede(Number(old[1]), out.pos) : false
     if (!out.duplicate || replaced) {
-      await this.#mem.armNaps()
       this.changed("memory")
     }
     return { ok: true, pos: out.pos, ...(out.duplicate ? { duplicate: true as const } : {}), ...(replaces === undefined ? {} : { replaced }) }
@@ -552,6 +550,38 @@ export class User {
     return this.life
       .recall(query, 10, { skipCard: true })
       .map((l) => itemLine({ pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}` }, 400, true, "life"))
+  }
+
+  /** Writes down what the capture queue holds. Called after a human run. */
+  async captureNow(): Promise<void> {
+    await this.#mem.captureNow()
+    await this.#mem.napLife()
+  }
+
+  /** The initiative pass. Called after a human run, and by the dev route. */
+  async initiativePass(): Promise<void> {
+    await this.#initiative.pass()
+  }
+
+  /** Points each agent's durable routine tasks at the current inventory of its exact-time routines. */
+  async syncRoutines(routines: readonly import("../owner/schedules").ScheduledRoutine[]): Promise<void> {
+    const byAgent = new Map<string, import("../owner/schedules").ScheduledRoutine[]>()
+    for (const routine of routines) {
+      const key = `${routine.roomId}:${routine.target}`
+      const list = byAgent.get(key)
+      if (list) list.push(routine)
+      else byAgent.set(key, [routine])
+    }
+    for (const list of byAgent.values()) {
+      const { roomId, target } = list[0]!
+      await this.services.agent(roomId, target).syncRoutines(list)
+    }
+  }
+
+  /** A routine task delivered its occurrence, so record the run and schedule the next one. */
+  async fireRoutine(delivery: import("../owner/schedules").RoutineDelivery): Promise<void> {
+    await this.reminders.fireScheduled(delivery)
+    this.changed("routines")
   }
 
   async captureHuman(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
@@ -568,7 +598,6 @@ export class User {
       return m !== null && turns.some((pos) => Number(m[1]) <= pos && pos < Number(m[2]))
     })
     if (gone.length + this.life.redactRefs(spans).length) {
-      await this.#mem.armNaps()
       this.changed("memory")
     }
     if (turns.length) await this.captureHuman(roomId, requeue)
@@ -598,13 +627,11 @@ export class User {
 
   async connectProvider(provider: string, apiKey: string): Promise<ProviderInfo> {
     const info = await this.#credentials.connect(provider, apiKey)
-    await this.#mem.keyChanged(provider)
     return this.#mem.describe(info)
   }
 
   async disconnectProvider(provider: string): Promise<boolean> {
     const removed = await this.#credentials.disconnect(provider)
-    await this.#mem.keyChanged(provider)
     return removed
   }
 
@@ -719,17 +746,14 @@ export class User {
     }
   }
 
-  #providerWatch?: ProviderWatch
-  get #watch(): ProviderWatch {
-    this.#providerWatch ??= new ProviderWatch({
+  #providerCheck?: ProviderCheck
+  get #watch(): ProviderCheck {
+    this.#providerCheck ??= new ProviderCheck({
       vault: () => this.#credentials,
-      alarms: this.alarms,
-      sql: this.sql,
-      now: Date.now,
       lookup: (id) => this.lookupProvider(id),
       label: this.ctx.id.toString(),
     })
-    return this.#providerWatch
+    return this.#providerCheck
   }
 
   #homeWiringCache?: HomeWiring
@@ -750,7 +774,6 @@ export class User {
       chat:roomId=>this.directory.get(roomId),
       sql: this.sql,
       life: this.life,
-      alarms: this.alarms,
       label: this.ctx.id.toString(),
       credentials: () => this.#credentials,
       turn: (provider) => this.turnContext(provider),
@@ -772,8 +795,6 @@ export class User {
       },
       wake: (roomId, input) => this.services.room(roomId).initiativeWake(input),
       count: (delta) => this.#mem.count(delta),
-      setWakeup: (at) => this.alarms.setWakeup(INITIATIVE_WAKEUP, at),
-      clearWakeup: () => this.alarms.clearWakeup(INITIATIVE_WAKEUP),
     })
     return this.#initiativeModule
   }
@@ -1064,12 +1085,6 @@ export class User {
       deletion_agents: () => this.cleanDeletedAgents().catch(async () => { await this.alarms.setWakeup("deletion_agents", Date.now() + 30_000) }),
       deletion: () => this.cleanDeletedChats().catch(async () => { await this.alarms.setWakeup("deletion", Date.now() + 30_000) }),
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
-      [CATALOG_WAKEUP]: () => this.models.wake(),
-      [PROVIDERS_WAKEUP]: () => this.#watch.wake(),
-      [REMINDERS_WAKEUP]: () => this.reminders.fire(),
-      [LIFE_WAKEUP]: () => this.#mem.napLife().finally(() => this.changed("memory")),
-      [CAPTURE_WAKEUP]: () => this.#mem.captureNow().finally(() => this.changed("memory")),
-      [INITIATIVE_WAKEUP]: () => this.#initiative.pass(),
       [REAP_WAKEUP]: () => this.#kr.reap(),
     })
   }
@@ -1213,14 +1228,8 @@ export class User {
 
   async setUserSettings(patch: UserSettingsPatch): Promise<UserSettings> {
     // The route checked the zone. The daily pass is at nine in it, so the pass is set again.
-    if (patch.timezone) {
-      this.putSetting("timezone", patch.timezone)
-      await this.#initiative.arm()
-    }
-    if (patch.initiative) {
-      this.putSetting("initiative", patch.initiative)
-      await this.#initiative.arm()
-    }
+    if (patch.timezone) this.putSetting("timezone", patch.timezone)
+    if (patch.initiative) this.putSetting("initiative", patch.initiative)
     if (patch.capture) this.#mem.setCapture(patch.capture)
     if (patch.onboarded) this.putSetting("onboarded", "1")
     return this.userSettings()

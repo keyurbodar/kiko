@@ -33,6 +33,7 @@ import { buildAgent, openAgentHarness, userModels } from "./factory"
 import { isKnownModel, parseModelRef, thinkingFor } from "./thinking"
 import { setOverlay } from "../models/catalog"
 import { createServiceClock as createAlarms } from "../owner/clock"
+import { RoutineSchedules, type RoutineScheduler, type ScheduledRoutine } from "../owner/schedules"
 import { migrate } from "@kiko/durable/migrate"
 import { AGENT_STEPS } from "./schema"
 import { AgentHost, type AgentSetup, type HostOptions, type HostStatus } from "@kiko/agent/host"
@@ -101,7 +102,7 @@ export class Agent {
   async unload(): Promise<void> { await this.hostInstance?.unload() }
   async invalidate(): Promise<void> { await this.hostInstance?.invalidate() }
   nextDeadline(): number | null {
-    return this.ctx.storage.sql.exec<{ at: number }>("SELECT min(at) AS at FROM wakeups").toArray()[0]?.at ?? null
+    return this.ctx.storage.sql.exec<{ at: number }>("SELECT min(at) AS at FROM owner_deadlines WHERE scope = ?", `agent:${this.ctx.id.name ?? ""}`).toArray()[0]?.at ?? null
   }
 
   protected get host(): AgentHost {
@@ -422,6 +423,19 @@ export class Agent {
     }
   }
 
+  /** Routines are durable pi tasks in this agent's Harness, so they share the run mechanism and the one clock. */
+  private readonly routineScheduler = new RoutineSchedules(async (delivery) => {
+    await this.services.fireRoutine(delivery)
+  })
+  private boundRoutines?: RoutineScheduler
+
+  /** Replaces this agent's durable routine inventory. Repeated syncs with the same occurrences add nothing. */
+  async syncRoutines(routines: readonly ScheduledRoutine[]): Promise<void> {
+    const opened = await this.host.open()
+    this.boundRoutines ??= this.routineScheduler.bind(opened.harness, opened.root.id)
+    await this.boundRoutines.sync(routines)
+  }
+
   protected async setup(): Promise<AgentSetup> {
     const home = this.home()
     const role = { role: home?.role ?? "", lead: home?.lead ?? true }
@@ -465,7 +479,7 @@ export class Agent {
       ? { connection: () => this.browser(), lease: () => this.browserLease(), acceptsImages: imageReader(user.models) }
       : undefined
     const picked = await this.picked()
-    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, ...(picked.model ? { model: picked.model } : {}), thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: this.stepsPort(), runId: () => this.outbox.runId(), memory, messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => this.services.user().composioCall(name, args), resolve: (app) => this.services.user().composioToolkit(app) } } : {}), workspace: roomWorkspacePort(this.services, () => this.home()), work: this.host.workers })
+    const built = buildAgent({ ...(browser ? { browser } : {}), testExtensions: [this.routineScheduler.extension], ...role, ...(picked.model ? { model: picked.model } : {}), thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: this.stepsPort(), runId: () => this.outbox.runId(), memory, messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => this.services.user().composioCall(name, args), resolve: (app) => this.services.user().composioToolkit(app) } } : {}), workspace: roomWorkspacePort(this.services, () => this.home()), work: this.host.workers })
     return {
       ...built,
       ...user,

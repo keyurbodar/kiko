@@ -1,7 +1,7 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type ConversationId, defineDoc, defineExtension, defineTask, type Harness, type TaskId, type TaskInspection } from "@earendil-works/pi-durable"
 
-export type ScheduledRoutine = { routineId: string; runAt: number }
+export type ScheduledRoutine = { routineId: string; runAt: number; roomId: string; target: string }
 export type RoutineDelivery = ScheduledRoutine & { requestId: string }
 export type RoutineScheduler = { sync(routines: readonly ScheduledRoutine[]): Promise<void> }
 

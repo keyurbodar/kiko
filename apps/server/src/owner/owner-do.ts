@@ -12,6 +12,7 @@ import { HANDLE_HEADER } from "../lib/names"
 import type { OwnerServices, ServiceOptions } from "./services"
 import { scopedContext } from "./context"
 import { Clock } from "./clock"
+import { AfterRun } from "./after-run"
 import { ownerAttachment, socketView } from "./socket"
 
 type Method<T> = { [K in keyof T]: T[K] extends (...args: never[]) => unknown ? K : never }[keyof T]
@@ -30,6 +31,7 @@ export class OwnerDO extends DurableObject<Env> {
   private readonly ownerId: string
   private settings?: User
   private readonly clock: Clock
+  private readonly afterRunHook = new AfterRun({ services: () => this.services })
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -57,6 +59,8 @@ export class OwnerDO extends DurableObject<Env> {
       trimAgents: () => this.trimAgents(),
       dispatchRun: (roomId, slug) => this.dispatchRun(roomId, slug),
       afterRun: (roomId, slug) => this.afterRun(roomId, slug),
+      syncRoutines: (routines) => this.user().syncRoutines(routines),
+      fireRoutine: (delivery) => this.user().fireRoutine(delivery),
     }
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"))
   }
@@ -94,7 +98,7 @@ export class OwnerDO extends DurableObject<Env> {
   }
 
   private async afterRun(roomId: string, slug: string): Promise<void> {
-    await afterRun(this.ctx.storage, roomId, slug)
+    await this.afterRunHook.run(roomId, slug)
     await archive(this.ctx.storage, roomId)
   }
 
@@ -334,6 +338,5 @@ export function initializeSchema(storage: DurableObjectStorage): void {
   storage.sql.exec("CREATE TABLE IF NOT EXISTS owner_deadlines (scope TEXT PRIMARY KEY, at INTEGER NOT NULL)")
 }
 
-// PR3 and PR6 replace these hooks without moving the dispatch sites.
-async function afterRun(_storage: DurableObjectStorage, _roomId: string, _slug: string): Promise<void> {}
+// PR6 replaces this hook without moving the dispatch site.
 async function archive(_storage: DurableObjectStorage, _roomId: string): Promise<void> {}
