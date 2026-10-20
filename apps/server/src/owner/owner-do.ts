@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
-import { Runs } from "./runs"
+import { AsyncLocalStorage } from "node:async_hooks"
+import { type RunBudget, Runs } from "./runs"
 import { isRoomId, MAX_FRAME } from "@kiko/protocol"
 import { Agent } from "../agent/agent-do"
 import { Room } from "../room/room-do"
@@ -23,8 +24,11 @@ type QueuedRun = { agent: string; room_id: string; slug: string; request_id: str
 
 const RUN_GAP_MS = 250
 
+const DEADLINES = `SELECT m.scope, min(j.value) AS at FROM owner_meta m, json_each(m.value) j WHERE m.key = 'clock:application' GROUP BY m.scope`
+
 export class OwnerDO extends DurableObject<Env> {
   private readonly runs: Runs
+  private readonly incoming = new AsyncLocalStorage<Set<string>>()
   async storageUsage() {
     return { objectBytes: this.ctx.storage.sql.databaseSize, archiveEnabled: Boolean(this.env.ARCHIVE) }
   }
@@ -50,7 +54,7 @@ export class OwnerDO extends DurableObject<Env> {
       return {
         loaded: [],
         unloaded: ctx.storage.sql.exec<{ at: number }>(
-          "SELECT at FROM owner_deadlines d WHERE NOT EXISTS (SELECT 1 FROM owner_runs r WHERE d.scope = 'agent:' || r.agent)",
+          `SELECT at FROM (${DEADLINES}) d WHERE NOT EXISTS (SELECT 1 FROM owner_runs r WHERE d.scope = 'agent:' || r.agent)`,
         ).toArray().map((row) => row.at),
         queued: queued === null ? undefined : Math.max(queued, this.nextRunAt),
       }
@@ -88,12 +92,8 @@ export class OwnerDO extends DurableObject<Env> {
       .map((ws) => socketView(ws, roomId)))
   }
 
-  private async publishDeadline(scope: string, at: number | undefined, persist: () => void = () => {}): Promise<void> {
-    this.ctx.storage.transactionSync(() => {
-      persist()
-    if (at === undefined) this.ctx.storage.sql.exec("DELETE FROM owner_deadlines WHERE scope = ?", scope)
-    else this.ctx.storage.sql.exec("INSERT INTO owner_deadlines (scope, at) VALUES (?, ?) ON CONFLICT(scope) DO UPDATE SET at = excluded.at WHERE at IS NOT excluded.at", scope, at)
-    })
+  private async publishDeadline(persist: () => void): Promise<void> {
+    this.ctx.storage.transactionSync(persist)
     await this.refreshClock()
   }
 
@@ -103,7 +103,7 @@ export class OwnerDO extends DurableObject<Env> {
     return {
       identity: { ownerId: this.ownerId, ...(roomId ? { roomId } : {}) },
       metadata: meta,
-      clock: createServiceClock({ metadata: meta, publish: (at, persist) => this.publishDeadline(scope, at, persist) }),
+      clock: createServiceClock({ metadata: meta, publish: (_at, persist) => this.publishDeadline(persist) }),
       ctx, sql: this.ctx.storage.sql, env: this.env, services: this.services,
       broadcast: (frame) => {
         const raw = JSON.stringify(frame)
@@ -119,19 +119,48 @@ export class OwnerDO extends DurableObject<Env> {
   private async enqueueRun(agent: string, requestId: string): Promise<void> {
     const [roomId, slug, ...extra] = agent.split(":")
     if (!isRoomId(roomId) || !slug || extra.length) throw new Error("bad agent key")
+    const incoming = this.incoming.getStore()
     this.ctx.storage.sql.exec(
       `INSERT INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(agent) DO UPDATE SET ready_at = min(owner_runs.ready_at, excluded.ready_at), version = owner_runs.version + 1`,
-      agent, roomId, slug, requestId, Date.now(),
+      agent, roomId, slug, requestId, Date.now() + (incoming || this.runs.has(agent) ? RECOVERY_DELAY_MS : 0),
     )
+    incoming?.add(agent)
     await this.refreshClock()
+  }
+
+  private async humanInput<T>(admit: () => Promise<T>): Promise<T> {
+    const requested = new Set<string>()
+    const result = await this.incoming.run(requested, admit)
+    // Admission queues have released before any model work starts. Runs themselves do not
+    // inherit this context: mail and continuations must remain on the alarm path.
+    const budget = this.runs.budget()
+    const outcomes = await Promise.allSettled([...requested].map(async (key) => {
+      const queued = this.ctx.storage.sql.exec<QueuedRun>(
+        "SELECT agent, room_id, slug, request_id, version FROM owner_runs WHERE agent = ?", key,
+      ).toArray()[0]
+      if (queued) await this.executeRun(queued, budget)
+    }))
+    await this.refreshClock()
+    for (const outcome of outcomes) if (outcome.status === "rejected") throw outcome.reason
+    return result
+  }
+
+  private async executeRun(queued: QueuedRun, budget?: RunBudget): Promise<void> {
+    if (this.runs.has(queued.agent)) return
+    await this.runs.run(queued.agent, queued.request_id, async (budget) => {
+      const agent = this.agent(queued.room_id, queued.slug)
+      await agent.scheduleRecovery(Date.now() + RECOVERY_DELAY_MS)
+      return agent.runInvocation(() => budget.due())
+    }, budget)
+    this.ctx.storage.sql.exec("DELETE FROM owner_runs WHERE agent = ? AND version = ?", queued.agent, queued.version)
   }
 
   private async cancelRun(roomId: string, slug: string): Promise<void> {
     const agent = `${roomId}:${slug}`
     this.ctx.storage.transactionSync(() => {
       this.ctx.storage.sql.exec("DELETE FROM owner_runs WHERE agent = ?", agent)
-      this.ctx.storage.sql.exec("DELETE FROM owner_deadlines WHERE scope = ?", `agent:${agent}`)
+      this.ctx.storage.sql.exec("DELETE FROM owner_meta WHERE scope = ? AND key = 'clock:application'", `agent:${agent}`)
     })
     await this.refreshClock()
   }
@@ -164,7 +193,6 @@ export class OwnerDO extends DurableObject<Env> {
     if (!agent) {
       agent = new Agent({ ...this.options(`agent:${key}`, roomId),
         identity: { ownerId: this.ownerId, roomId, slug },
-        recoveryDeadline: (at) => this.publishDeadline(`agent:${key}`, at),
         requestRun: (requestId) => this.runs.start(key, requestId),
         countOutgoing: () => this.runs.count(key),
       })
@@ -223,10 +251,10 @@ export class OwnerDO extends DurableObject<Env> {
         return
       }
       if (!saved.rooms[roomId] || !("frame" in frame)) { ws.close(1008, "room not subscribed"); return }
-      await this.room(roomId).webSocketMessage(socketView(ws, roomId), JSON.stringify(frame.frame))
+      await this.humanInput(() => this.room(roomId).webSocketMessage(socketView(ws, roomId), JSON.stringify(frame.frame)))
       return
     }
-    await this.user().webSocketMessage(socketView(ws), raw)
+    await this.humanInput(() => this.user().webSocketMessage(socketView(ws), raw))
   }
 
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
@@ -241,7 +269,7 @@ export class OwnerDO extends DurableObject<Env> {
     if (this.alarmRunning) return
     this.alarmRunning = true
     try {
-      const due = this.ctx.storage.sql.exec<{ scope: string; at: number }>("SELECT scope, at FROM owner_deadlines WHERE at <= ? ORDER BY at, scope", Date.now()).toArray()
+      const due = this.ctx.storage.sql.exec<{ scope: string; at: number }>(`SELECT scope, at FROM (${DEADLINES}) WHERE at <= ? ORDER BY at, scope`, Date.now()).toArray()
       for (const { scope, at } of due) {
         if (scope.startsWith("agent:")) {
           const key = scope.slice("agent:".length)
@@ -255,19 +283,16 @@ export class OwnerDO extends DurableObject<Env> {
         }
         if (scope === "user") await this.user().alarm()
         else if (scope.startsWith("room:")) await this.room(scope.slice("room:".length)).alarm()
-        this.ctx.storage.sql.exec("DELETE FROM owner_deadlines WHERE scope = ? AND at = ?", scope, at)
       }
       if (Date.now() >= this.nextRunAt) {
         const queued = this.ctx.storage.sql.exec<QueuedRun>(
           "SELECT agent, room_id, slug, request_id, version FROM owner_runs WHERE ready_at <= ? ORDER BY ready_at, agent LIMIT 1", Date.now(),
         ).toArray()[0]
         if (queued) {
-          const agent = this.agent(queued.room_id, queued.slug)
-          await agent.scheduleRecovery(Date.now() + RECOVERY_DELAY_MS)
-          this.ctx.storage.sql.exec("UPDATE owner_runs SET ready_at = ? WHERE agent = ? AND version = ?", Date.now(), queued.agent, queued.version)
           try {
-            await this.runs.run(queued.agent, queued.request_id, (budget) => agent.runInvocation(() => budget.due()))
-            this.ctx.storage.sql.exec("DELETE FROM owner_runs WHERE agent = ? AND version = ?", queued.agent, queued.version)
+            if (this.runs.has(queued.agent)) {
+              this.ctx.storage.sql.exec("UPDATE owner_runs SET ready_at = ? WHERE agent = ?", Date.now() + RECOVERY_DELAY_MS, queued.agent)
+            } else await this.executeRun(queued)
           } finally {
             this.nextRunAt = Date.now() + RUN_GAP_MS
           }
@@ -294,6 +319,13 @@ export class OwnerDO extends DurableObject<Env> {
   async roomCall<M extends Method<Room>>(roomId: string, method: M, args: Args<Room[M]>): Promise<Result<Room[M]>> {
     const room = this.room(roomId)
     const call = room[method] as (...args: Args<Room[M]>) => Result<Room[M]>
+    if (method === "humanSend" || method === "answerAsk" || method === "skipAsk" || method === "retryRun") {
+      return this.humanInput(async () => {
+        const result = await call.apply(room, args)
+        await room.settleHumanInput()
+        return result
+      })
+    }
     return call.apply(room, args)
   }
 

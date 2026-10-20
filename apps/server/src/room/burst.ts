@@ -1,5 +1,6 @@
 import type { Envelope, Message, RoomId } from "@kiko/protocol"
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
+import { RECOVERY_DELAY_MS } from "../owner/clock"
 const MAX_ENTRY_BYTES = 256 * 1024
 const MAX_OPEN = 1000
 
@@ -52,6 +53,8 @@ export type Pending = { envelope: Envelope; mentions: string[] }
 
 export class Burst {
 	private readonly sql: SqlStorage
+  private readyAt?: number
+  private settling = false
 
 	constructor(
 		storage: DurableObjectStorage,
@@ -88,13 +91,35 @@ export class Burst {
 	/** Sets the wakeup for a staged message: the window closes a pause after it, or at the cap. */
 	async arm(text: string): Promise<void> {
 		const now = this.now()
-		await this.alarms.setWakeup(BURST_WAKEUP, debounce(isFragment(text) ? "fragment" : "message", now, this.startedAt() ?? now))
+    this.readyAt = debounce(isFragment(text) ? "fragment" : "message", now, this.startedAt() ?? now)
+		await this.alarms.setWakeup(BURST_WAKEUP, this.readyAt + (this.settling ? RECOVERY_DELAY_MS : 0))
 	}
+
+  /** Keep the burst in its incoming event; the durable wakeup remains a crash fallback. */
+  async settle(flush: () => Promise<void>): Promise<void> {
+    if (this.settling || !this.pending()) return
+    this.settling = true
+    try {
+      while (this.pending()) {
+        const at = this.readyAt ?? this.alarms.deadline(BURST_WAKEUP) ?? this.now()
+        await this.alarms.setWakeup(BURST_WAKEUP, at + RECOVERY_DELAY_MS)
+        if (at > this.now()) {
+          await scheduler.wait(at - this.now())
+          continue
+        }
+        await flush()
+      }
+      await this.alarms.clearWakeup(BURST_WAKEUP)
+    } finally {
+      this.settling = false
+    }
+  }
 
 	async typing(): Promise<void> {
 		const startedAt = this.startedAt()
 		if (startedAt === null) return
-		await this.alarms.setWakeup(BURST_WAKEUP, debounce("typing", this.now(), startedAt))
+    this.readyAt = debounce("typing", this.now(), startedAt)
+		await this.alarms.setWakeup(BURST_WAKEUP, this.readyAt + (this.settling ? RECOVERY_DELAY_MS : 0))
 	}
 
 	/** The window's messages in send order. */

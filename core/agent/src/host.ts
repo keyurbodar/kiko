@@ -89,7 +89,7 @@ export type AgentSetup = {
   joinRun?: (batch: Batch, root: Conversation) => Promise<void>
   inputContext?: () => Promise<string | undefined>
   inputInvalidated?: () => Promise<"refresh" | "forget" | null>
-  inputMemory?: (batch: Batch, fresh: boolean, joined: number[]) => Promise<{ text?: string; fresh: boolean }>
+  inputMemory?: (batch: Batch, fresh: boolean, joined: number[]) => Promise<{ text?: string; fresh: boolean; data?: Record<string, JsonValue> }>
   beforeCompact?: (harness: Harness) => Promise<void>
   stale?: () => Promise<boolean>
   rollover?: {
@@ -602,14 +602,15 @@ export class AgentHost {
       const whenBusy = human ? "steer" as const : "followUp" as const
       let memory: string | undefined
       let fresh = false
+      let inputData: Record<string, JsonValue> = {}
       if (!run && inputMemory) {
         const out = await inputMemory(batch, invalidated !== null || await this.contextFull(root), await this.joinedSeqs())
         fresh = out.fresh
+        inputData = out.data ?? {}
         if (out.fresh) {
           if (!this.invocation || this.invocation.settling) await root.commit((tx) => tx.appendEntry(root.id, { kind: "pi.reset", head: "self" }), context)
           else await root.reset(undefined, context)
         }
-        await this.ctx.storage.put(LAST_RUN_KEY, Date.now())
         await this.ctx.storage.delete(JOINED_KEY)
         memory = out.text
       }
@@ -618,7 +619,7 @@ export class AgentHost {
       const work = this.workers.note()
       const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : []), ...(work ? [work] : [])] }, memory)
       const submission = { type: "input" as const, content, requestId: batch.requestId, whenBusy,
-        entry: { kind: "kiko.input", data: { envelopeIds: batch.envelopes.map((e) => e.id), chain: batch.envelopes.map(({ rootId, hop }) => ({ rootId, hop })) } },
+        entry: { kind: "kiko.input", data: { ...inputData, at: Date.now(), envelopeIds: batch.envelopes.map((e) => e.id), chain: batch.envelopes.map(({ rootId, hop }) => ({ rootId, hop })) } },
       }
       if (!this.invocation || this.invocation.settling) await submitPaused(root, submission)
       else await root.submit(submission, context)
@@ -630,7 +631,9 @@ export class AgentHost {
 
   private async contextFull(root: Conversation): Promise<boolean> {
     const view = await root.context(context)
-    return startsFresh(measure(view.entries, Date.now() - ((await this.ctx.storage.get<number>(LAST_RUN_KEY)) ?? 0)))
+    const data = view.entries.findLast((entry) => entry.kind === "kiko.input")?.data
+    const at = data && typeof data === "object" && !Array.isArray(data) && typeof data.at === "number" ? data.at : (await this.ctx.storage.get<number>(LAST_RUN_KEY)) ?? 0
+    return startsFresh(measure(view.entries, Date.now() - at))
   }
 
   async joinedSeqs(): Promise<number[]> {
@@ -655,6 +658,14 @@ export class AgentHost {
   async humanGone(): Promise<void> {
     if (this.alarms.deadline(HUMAN_COMING) === undefined) return
     await this.alarms.clearWakeup(HUMAN_COMING)
+  }
+
+  async inputData(field?: string): Promise<Record<string, JsonValue> | undefined> {
+    if (!this.opened) return undefined
+    const { root } = await this.opened
+    const view = await root.context(context)
+    const data = view.entries.findLast((entry) => entry.kind === "kiko.input" && entry.data && typeof entry.data === "object" && !Array.isArray(entry.data) && (field === undefined || field in entry.data))?.data
+    return data && typeof data === "object" && !Array.isArray(data) ? data : undefined
   }
 
   async rootId(): Promise<ConversationId | null> {

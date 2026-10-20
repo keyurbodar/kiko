@@ -1,6 +1,7 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
-import { type AgentEvent, type Conversation, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, watchEvents } from "@earendil-works/pi-durable"
+import { type AgentEvent, type Conversation, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, type Storage, watchEvents } from "@earendil-works/pi-durable"
 import type { AgentState, RunErrorKind, WorkerRow } from "@kiko/protocol"
+import type { JournalStorage } from "@kiko/agent/journal"
 import type { RunProgress } from "@kiko/agent/mid-run"
 import { classifyRunError, runErrorDetail } from "./run-error"
 import { retrying } from "./retry"
@@ -23,7 +24,7 @@ export interface RoomPort {
   runError(runId: string, error: { kind: RunErrorKind; provider: string; detail?: string }): Promise<void>
 }
 
-type Row = { run_id: string; attempt: number; cursor: number; blocks: string; posted: number; failure: string | null }
+type Row = { run_id: string; attempt: number; cursor: number; posted: number; until?: number }
 
 /** A model error the run has not recovered from. pi-durable may still retry it, so it is reported only when the run ends. */
 type Failure = { errorMessage?: string; provider?: string }
@@ -78,6 +79,8 @@ const noteId = (entry: number) => `note:${entry}`
 
 export class Outbox {
   private readonly sql: SqlStorage
+  private journal?: JournalStorage
+  private conversationId?: Parameters<typeof watchEvents>[1]
   private run: Run | null = null
   private lastEntry = 0
   private lastDraft = 0
@@ -104,7 +107,9 @@ export class Outbox {
     else if ((entry?.kind === "pi.user" || entry?.kind === "kiko.input")) this.nextQuiet = quietInput(entry)
   }
 
-  async attach(harness: Harness, conversationId: Parameters<typeof watchEvents>[1]): Promise<void> {
+  async attach(harness: Harness, conversationId: Parameters<typeof watchEvents>[1], journal: JournalStorage): Promise<void> {
+    this.journal = journal
+    this.conversationId = conversationId
     const stream = await watchEvents(harness, conversationId, context)
     this.run = null
     this.state = "idle"
@@ -152,7 +157,7 @@ export class Outbox {
   }
 
   clear(): void {
-    this.sql.exec("DELETE FROM outbox WHERE agent = ?", this.agent)
+    this.run = null
   }
 
   /** The run that is going now, or null between runs. */
@@ -234,7 +239,6 @@ export class Outbox {
       case "auto_retry_start":
         if (this.run?.failure) {
           this.run.failure = null
-          this.save(this.run)
         }
         return this.setStatus("typing", retrying(event.attempt))
       case "auto_retry_end":
@@ -250,7 +254,7 @@ export class Outbox {
     const entries = snapshot.entries
     this.lastEntry = entries.reduce((max, e) => Math.max(max, e.id), this.lastEntry)
     const liveId = snapshot.run ? `${this.prefix()}:${snapshot.run.inputs[0]}` : null
-    for (const row of this.openRows()) {
+    for (const row of await this.openRows(snapshot)) {
       const run = this.load(row)
       if (livePartial && this.run?.id === row.run_id) {
         run.generation = this.run.generation
@@ -262,12 +266,12 @@ export class Outbox {
       for (const entry of entries) {
         if ((entry.kind === "pi.user" || entry.kind === "kiko.input")) run.quiet = entry.id <= run.cursor ? quietInput(entry) : run.quiet && quietInput(entry)
         if (entry.id <= run.cursor) continue
-        if (row.run_id !== liveId && (entry.kind === "pi.user" || entry.kind === "kiko.input")) break
+        if (row.until !== undefined && entry.id > row.until) break
+        if (row.until === undefined && row.run_id !== liveId && (entry.kind === "pi.user" || entry.kind === "kiko.input")) break
         this.finishGeneration(run, entry)
       }
       this.run = run
       if (run.posted > run.blocks.length + (run.generation?.blocks.length ?? 0)) this.rebase(run)
-      this.save(run)
       await this.notes(run)
       if (row.run_id !== liveId) await this.end(row.run_id)
     }
@@ -281,7 +285,6 @@ export class Outbox {
       for (const entry of entries) {
         if (entry.id > input) this.finishGeneration(run, entry)
       }
-      this.save(run)
       await this.notes(run)
     }
     if (!this.run) return
@@ -300,8 +303,7 @@ export class Outbox {
   }
 
   private async start(id: string, cursor: number): Promise<void> {
-    this.sql.exec("INSERT OR IGNORE INTO outbox (agent, run_id, attempt, cursor, blocks, posted) VALUES (?, ?, 0, ?, '[]', 0)", this.agent, id, cursor)
-    const row = this.sql.exec<Row>("SELECT * FROM outbox WHERE run_id = ? AND agent = ?", id, this.agent).one()
+    const row = this.row(id, cursor)
     this.run = this.load(row)
     this.run.quiet = this.nextQuiet
     await this.setStatus("typing")
@@ -329,7 +331,6 @@ export class Outbox {
     const before = run.blocks.length
     const lost = this.finishGeneration(run, entry)
     if (lost && run.posted > before) this.rebase(run)
-    this.save(run)
     await this.flush()
     await this.notes(run)
   }
@@ -339,11 +340,6 @@ export class Outbox {
     const port = this.room()
     if (!run.notes.length || !port) return
     for (const note of run.notes.splice(0)) await port.note(run.id, note.id, note.text)
-  }
-
-  private failureOf(runId: string): Failure | null {
-    const row = this.sql.exec<{ failure: string | null }>("SELECT failure FROM outbox WHERE run_id = ? AND agent = ?", runId, this.agent).toArray()[0]
-    return row?.failure ? (JSON.parse(row.failure) as Failure) : null
   }
 
   private async reportError(runId: string, message: Failure): Promise<void> {
@@ -394,7 +390,6 @@ export class Outbox {
       if (block === undefined) break
       await room.post(run.id, run.attempt, run.posted, block)
       run.posted++
-      this.sql.exec("UPDATE outbox SET posted = ?, attempt = ? WHERE run_id = ? AND agent = ? AND (posted != ? OR attempt != ?)", run.posted, run.attempt, run.id, this.agent, run.posted, run.attempt)
     }
     while (run.reactions.length) {
       const reaction = run.reactions[0]
@@ -409,14 +404,12 @@ export class Outbox {
     const run = this.run?.id === id ? this.run : null
     if (run) {
       run.generation = null
-      this.save(run)
       await this.flush()
     }
-    const failure = run?.failure ?? this.failureOf(id)
+    const failure = run?.failure
     if (failure) await this.reportError(id, failure)
     const working = this.backgroundRunning
     await this.room()?.endRun(id, inputs, working)
-    this.sql.exec("DELETE FROM outbox WHERE run_id = ? AND agent = ?", id, this.agent)
     if (this.run?.id === id) this.run = null
     this.state = working ? "working" : "idle"
     if (!this.run) await this.setStatus(this.backgroundRunning ? "working" : "idle")
@@ -431,8 +424,44 @@ export class Outbox {
     await this.room()?.status(state, detail)
   }
 
-  private openRows(): Row[] {
-    return this.sql.exec<Row>("SELECT run_id, attempt, cursor, blocks, posted, failure FROM outbox WHERE agent = ? ORDER BY cursor, run_id", this.agent).toArray()
+  private row(id: string, cursor: number): Row {
+    const roomId = this.agent.split(":")[0]!
+    const posted = this.sql.exec<{ attempt: number; posted: number }>(
+      "SELECT run_attempt AS attempt, max(run_index) + 1 AS posted FROM messages WHERE room_id = ? AND run_id = ? GROUP BY run_attempt ORDER BY run_attempt DESC LIMIT 1", roomId, id,
+    ).toArray()[0]
+    return { run_id: id, cursor, posted: posted?.posted ?? 0, attempt: posted?.attempt ?? 0 }
+  }
+
+  private async openRows(snapshot: SnapshotEvent): Promise<Row[]> {
+    if (!this.journal) return []
+    const rows: Row[] = []
+    const groups = new Map<number, { first: number; last: number; id: SubmissionId; answer?: number }>()
+    let cursor: Parameters<Storage["scanSubmissions"]>[2]
+    do {
+      const page = await this.journal.scanSubmissions({ conversationId: this.conversationId }, 100, cursor, context)
+      for (const submission of page.items) {
+        if (submission.type !== "input" || submission.entry === undefined) continue
+        if (snapshot.run?.inputs.includes(submission.id) && snapshot.run.inputs[0] !== submission.id) continue
+        const settlement = this.journal.settlement(submission.id)
+        const groupId = settlement ?? -submission.id
+        const group = groups.get(groupId)
+        if (group) {
+          group.last = Math.max(group.last, submission.entry)
+          continue
+        }
+        groups.set(groupId, { first: submission.entry, last: submission.entry, id: submission.id, ...(submission.status === "done" ? { answer: submission.answer } : {}) })
+      }
+      cursor = page.next
+    } while (cursor)
+    const ordered = [...groups.values()].sort((a, b) => a.first - b.first)
+    for (const [index, group] of ordered.entries()) {
+      const id = `${this.prefix()}:${group.id}`
+      if (this.sql.exec("SELECT 1 FROM ended_runs WHERE room_id = ? AND run_id = ?", this.agent.split(":")[0]!, id).toArray().length) continue
+      const next = ordered[index + 1]?.first
+      const until = group.answer ?? (snapshot.run?.inputs[0] === group.id ? undefined : next === undefined ? Infinity : next - 1)
+      rows.push({ ...this.row(id, group.first), ...(until === undefined ? {} : { until }) })
+    }
+    return rows
   }
 
   private load(row: Row): Run {
@@ -440,7 +469,7 @@ export class Outbox {
       id: row.run_id,
       attempt: row.attempt,
       cursor: row.cursor,
-      blocks: JSON.parse(row.blocks) as string[],
+      blocks: [],
       posted: row.posted,
       reactions: [],
       generation: null,
@@ -449,25 +478,8 @@ export class Outbox {
       tools: new Map(),
       quiet: false,
       notes: [],
-      failure: row.failure ? (JSON.parse(row.failure) as Failure) : null,
+      failure: null,
     }
   }
 
-  private save(run: Run): void {
-    this.sql.exec(
-      "UPDATE outbox SET attempt = ?, cursor = ?, blocks = ?, posted = ?, failure = ? WHERE run_id = ? AND agent = ? AND (attempt != ? OR cursor != ? OR blocks != ? OR posted != ? OR failure IS NOT ?)",
-      run.attempt,
-      run.cursor,
-      JSON.stringify(run.blocks),
-      run.posted,
-      run.failure ? JSON.stringify(run.failure) : null,
-      run.id,
-      this.agent,
-      run.attempt,
-      run.cursor,
-      JSON.stringify(run.blocks),
-      run.posted,
-      run.failure ? JSON.stringify(run.failure) : null,
-    )
-  }
 }

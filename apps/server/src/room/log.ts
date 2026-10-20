@@ -28,8 +28,6 @@ export const REPLAY_LIMIT = 500
 export const KEEP_EVENTS = 2 * REPLAY_LIMIT
 const TRIM_EVERY = 100
 export const SNAPSHOT_MESSAGES = 200
-// The meta key of the kept unread count (see RoomLog.unread).
-const UNREAD = "unread"
 
 // A private event is for the owner's transcript only: no agent, memory pass, search or chat preview reads it.
 const PUBLIC_MESSAGE = "(event IS NULL OR json_extract(event, '$.private') IS NOT 1)"
@@ -455,8 +453,6 @@ export class RoomLog {
 			if (input.clientId) {
 				this.sql.exec("INSERT INTO clients (room_id, client_id, message_id, seq) VALUES (?, ?, ?, ?)", this.roomId, input.clientId, id, event.seq)
 			}
-			// A new message is past the read mark, so it is unread unless the human wrote it.
-			if (input.from.kind !== "human" && !isPrivate(input)) this.adjustUnread(1)
 			return { id, seq: event.seq, event }
 		})
 	}
@@ -491,14 +487,10 @@ export class RoomLog {
 			})
 			if (!live.length) return null
 			const event = this.append(actorKey(by), { t: "delete", messageIds: live.map((m) => m.id) })
-			const read = this.readSeq()
-			let unread = 0
 			for (const m of live) {
 				this.sql.exec("UPDATE messages SET deleted_at = ? WHERE room_id = ? AND id = ?", event.at, this.roomId, m.id)
 				this.sql.exec("DELETE FROM reactions WHERE room_id = ? AND message_id = ?", this.roomId, m.id)
-				if (m.from.kind !== "human" && !isPrivate(m) && m.seq > read) unread++
 			}
-			this.adjustUnread(-unread)
 			return event
 		})
 	}
@@ -536,28 +528,14 @@ export class RoomLog {
 			// The read event itself is after upTo, so it never counts as unread.
 			const event = this.append("human", { t: "read", upTo })
 			this.setMeta("read_seq", String(upTo))
-			this.adjustUnread(-this.countNonHuman(from, upTo))
       this.sql.exec("DELETE FROM archived_unread WHERE room_id = ? AND seq <= ?", this.roomId, upTo)
 			return event
 		})
 	}
 
-	/**
-	 * Live messages from anyone but the human, after the read mark: the chat's unread count. It is kept in
-	 * meta once counted, so a send does not count the chat again. The first call counts it.
-	 */
+	/** Unread is a query over live and archived source rows after the read mark. */
 	unread(): number {
-		const kept = this.meta(UNREAD)
-		if (kept !== null) return Number(kept)
-		const n = this.countNonHuman(this.readSeq(), Number.MAX_SAFE_INTEGER)
-		this.setMeta(UNREAD, String(n))
-		return n
-	}
-
-	/** Moves the kept count, if one is kept. When none is, the next unread() counts the chat from the rows. */
-	private adjustUnread(by: number): void {
-		const kept = this.meta(UNREAD)
-		if (kept !== null && by !== 0) this.setMeta(UNREAD, String(Number(kept) + by))
+		return this.countNonHuman(this.readSeq(), Number.MAX_SAFE_INTEGER)
 	}
 
 	/** Live messages from anyone but the human with seq in (after, upTo]. */

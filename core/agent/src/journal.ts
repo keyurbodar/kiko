@@ -1,5 +1,5 @@
 import type { Context } from "@earendil-works/chord"
-import { type Id, type Seq, type StorageWrite } from "@earendil-works/pi-durable"
+import { type Id, type Seq, type StorageWrite, type SubmissionId } from "@earendil-works/pi-durable"
 import { MemoryStorage } from "@earendil-works/pi-durable/storage/memory"
 import type { Step } from "@kiko/durable/migrate"
 
@@ -22,22 +22,36 @@ const encoder = new TextEncoder()
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false })
 type Envelope = { seq: Seq; writes: readonly StorageWrite[] }
 type Row = { seq: number; part: number; parts: number; bytes: number; data: ArrayBuffer }
+type IdLease = { next: number; end: number }
+// Reopening a paused Harness in the same object can finish its already durable reservation.
+// A fresh storage object after eviction starts beyond the persisted high watermark.
+const idLeases = new WeakMap<DurableObjectStorage, Map<string, IdLease>>()
 
 // One namespace belongs to one Harness, including all its worker conversations and their shared allocator.
 export class JournalStorage extends MemoryStorage {
   private tail: Promise<unknown> = Promise.resolve()
-  private nextCandidate = 2
-  private reservedUntil = 2
+  private readonly ids: IdLease
   private finished = false
+  private readonly settlements = new Map<SubmissionId, Seq>()
 
   private constructor(private readonly durable: DurableObjectStorage, private readonly key: string) {
     super()
+    let leases = idLeases.get(durable)
+    if (!leases) {
+      leases = new Map()
+      idLeases.set(durable, leases)
+    }
+    let lease = leases.get(key)
+    if (!lease) {
+      const end = durable.sql.exec<{ next_id: number }>("SELECT next_id FROM journal_ids WHERE agent = ?", key).toArray()[0]?.next_id ?? 2
+      lease = { next: end, end }
+      leases.set(key, lease)
+    }
+    this.ids = lease
   }
 
   static open(storage: DurableObjectStorage, key: string): JournalStorage {
     const journal = new JournalStorage(storage, key)
-    journal.reservedUntil = storage.sql.exec<{ next_id: number }>("SELECT next_id FROM journal_ids WHERE agent = ?", key).toArray()[0]?.next_id ?? 2
-    journal.nextCandidate = journal.reservedUntil
     let group: Row[] = []
     const replay = () => {
       const first = group[0]
@@ -55,7 +69,7 @@ export class JournalStorage extends MemoryStorage {
       const envelope: Envelope = JSON.parse(decoder.decode(bytes))
       if (envelope.seq !== first.seq || !Array.isArray(envelope.writes)) throw new Error("Invalid journal envelope")
       journal.prepareCommit(envelope.writes, envelope.seq).apply()
-      journal.observeIds(envelope.writes)
+      journal.observeIds(envelope.writes, envelope.seq)
       group = []
     }
     for (const row of storage.sql.exec<Row>("SELECT seq, part, parts, bytes, data FROM journal WHERE agent = ? ORDER BY seq, part", key)) {
@@ -76,7 +90,7 @@ export class JournalStorage extends MemoryStorage {
       const prepared = this.prepareCommit(writes)
       this.append({ seq: prepared.seq, writes: prepared.writes })
       const seq = prepared.apply()
-      this.observeIds(prepared.writes)
+      this.observeIds(prepared.writes, prepared.seq)
       return seq
     })
   }
@@ -84,18 +98,18 @@ export class JournalStorage extends MemoryStorage {
   override mintId<I extends Id<string>>(): Promise<I> {
     return this.serial(async () => {
       if (this.finished) throw new Error("Storage is closed")
-      if (this.nextCandidate >= this.reservedUntil) {
+      if (this.ids.next >= this.ids.end) {
         this.durable.transactionSync(() => {
           const persisted = this.durable.sql.exec<{ next_id: number }>("SELECT next_id FROM journal_ids WHERE agent = ?", this.key).toArray()[0]?.next_id ?? 2
-          const start = Math.max(this.nextCandidate, persisted)
+          const start = Math.max(this.ids.next, persisted)
           if (!Number.isSafeInteger(start)) throw new Error("ID space is exhausted")
           const end = Math.min(start + ID_RANGE, Number.MAX_SAFE_INTEGER + 1)
           this.durable.sql.exec("INSERT INTO journal_ids (agent, next_id) VALUES (?, ?) ON CONFLICT(agent) DO UPDATE SET next_id = excluded.next_id", this.key, end)
-          this.nextCandidate = start
-          this.reservedUntil = end
+          this.ids.next = start
+          this.ids.end = end
         })
       }
-      const value = this.nextCandidate++
+      const value = this.ids.next++
       return value as I
     })
   }
@@ -107,11 +121,14 @@ export class JournalStorage extends MemoryStorage {
     })
   }
 
-  private observeIds(writes: readonly StorageWrite[]): void {
+  settlement(id: SubmissionId): Seq | undefined { return this.settlements.get(id) }
+
+  private observeIds(writes: readonly StorageWrite[], seq: Seq): void {
     for (const write of writes) {
+      if (write.type === "submission" && (write.value.status === "done" || write.value.status === "unanswered")) this.settlements.set(write.value.id, seq)
       const id = write.type === "document.create" || write.type === "document.copy" ? write.record.id
         : write.type === "document.change" || write.type === "document.retire" ? write.id : write.value.id
-      this.nextCandidate = Math.max(this.nextCandidate, id + 1)
+      this.ids.next = Math.max(this.ids.next, id + 1)
     }
   }
 

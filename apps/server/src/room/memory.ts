@@ -7,7 +7,6 @@ const RECALL_CUT = 300
 const TRACE_MAX = 6
 
 const TILING = "mem_tiling"
-const SYNCED = "mem_synced"
 const EVENTS = "mem_events"
 const FORWARDED = "mem_forwarded"
 
@@ -38,7 +37,7 @@ export class RoomMemory {
 
   sync(): number {
     return this.storage.transactionSync(() => {
-      const synced = Number(this.meta.get(SYNCED) ?? 0)
+      const synced = this.sql.exec<{ seq: number }>("SELECT coalesce(max(last_seq), 0) AS seq FROM mem_turns WHERE room_id = ?", this.roomId).one().seq
       const rows = this.sql
         .exec<{ seq: number; at: number; sender: string; run_id: string | null; id: string }>("SELECT seq, at, sender, run_id, id FROM messages WHERE (seq > ?1 AND (event IS NULL OR NOT JSON_EXTRACT(event, '$.private') IS 1)) AND messages.room_id = ?2 ORDER BY seq LIMIT 5000", synced, this.roomId)
         .toArray()
@@ -55,8 +54,6 @@ export class RoomMemory {
           last = { pos, key, first_seq: row.seq, last_seq: row.seq, at: row.at, at_last: row.at, trace: null }
         }
       }
-      const tail = rows.at(-1)
-      if (tail) this.meta.set(SYNCED, String(tail.seq))
       this.forgetChanged()
       return this.count()
     })
@@ -67,7 +64,7 @@ export class RoomMemory {
     const events = this.sql
       .exec<{ seq: number; kind: string; payload: string }>("SELECT seq, kind, payload FROM events WHERE (seq > ?1 AND kind IN ('edit', 'delete')) AND events.room_id = ?2 ORDER BY seq", from, this.roomId)
       .toArray()
-    const newest = this.sql.exec<{ seq: number | null }>("SELECT MAX(seq) AS seq FROM events WHERE events.room_id = ?1", this.roomId).one().seq ?? 0
+    const newest = events.at(-1)?.seq ?? from
     for (const e of events) {
       const body = JSON.parse(e.payload) as { messageId?: string; messageIds?: string[] }
       for (const id of body.messageIds ?? (body.messageId ? [body.messageId] : [])) {
@@ -127,7 +124,7 @@ export class RoomMemory {
 
   private posOfSeq(seq: number): number | null {
     const turn = this.sql
-      .exec<{ pos: number; last_seq: number | null }>("SELECT pos, last_seq FROM mem_turns WHERE first_seq <= ?1 AND mem_turns.room_id = ?2 ORDER BY first_seq DESC LIMIT 1", seq, this.roomId)
+      .exec<{ pos: number; last_seq: number | null }>("SELECT pos, last_seq FROM mem_turns WHERE first_seq <= ?1 AND mem_turns.room_id = ?2 ORDER BY pos DESC LIMIT 1", seq, this.roomId)
       .toArray()[0]
     return turn && turn.last_seq !== null && seq <= turn.last_seq ? turn.pos : null
   }

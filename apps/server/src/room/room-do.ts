@@ -663,10 +663,15 @@ export class Room implements SocketRoom {
 		await handleFrame(this, ws, JSON.stringify({ t: "hello", lastSeq }))
 	}
 
+  async settleHumanInput(): Promise<void> {
+    await this.burst.settle(() => this.flushBurst())
+  }
+
 	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
 		if (this.log.meta("deleted") === "1" || this.log.meta("erasing") === "1") return
 		try {
 			await handleFrame(this, ws, message)
+      await this.settleHumanInput()
 		} catch (e) {
 			console.error(`room frame failed: ${e instanceof Error ? e.message : String(e)}`)
 			send(ws, { t: "error", error: STORAGE_ERROR })

@@ -65,7 +65,6 @@ const COMPACTIONS_KEY = "compactions"
 type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
 const RECENT_WORKERS = 8
 const MODEL_APPLIED_KEY = "model:applied"
-const HUMAN_INPUTS_KEY = "run:human-inputs"
 
 const PRIVATE_REFUSAL = "this chat is private: nothing from it is saved to memory, your soul, or /home. carry on without saving."
 const PRIVATE_NOTE = "this chat is private. use what you know, but save nothing from it: no memory, no soul edits, nothing in /home."
@@ -90,7 +89,6 @@ export class Agent {
     identity: { ownerId: string; roomId: string; slug: string }
     clock: ClockPort
     metadata: ClockMetadata
-    recoveryDeadline(at: number | undefined): Promise<void>
     requestRun: (requestId: string) => void | Promise<void>
     countOutgoing?: () => void
   }) {
@@ -146,12 +144,15 @@ export class Agent {
         if (home) {
           const { entries } = await opened.root.context(BACKGROUND_CONTEXT)
           const data = entries.findLast((entry) => entry.kind === "kiko.input")?.data
+          if (data && typeof data === "object" && !Array.isArray(data) && Array.isArray(data.envelopeIds)) {
+            this.#humanInputs = data.envelopeIds.flatMap((id) => typeof id === "string" && id.startsWith("human:") ? [id.slice(6).split("#")[0]!] : [])
+          }
           if (data && typeof data === "object" && !Array.isArray(data) && Array.isArray(data.chain)) {
             const chain = data.chain.flatMap((value) => value && typeof value === "object" && !Array.isArray(value) && typeof value.rootId === "string" && typeof value.hop === "number" ? [{ rootId: value.rootId, hop: value.hop }] : [])
             this.services.room(home.roomId).restoreChain(home.slug, chain)
           }
         }
-        await this.outbox.attach(opened.harness, opened.root.id)
+        await this.outbox.attach(opened.harness, opened.root.id, opened.storage)
         this.ctx.waitUntil(this.services.trimAgents())
       },
       onError: async (error, requestId) => {
@@ -159,7 +160,7 @@ export class Agent {
         const inputs = (await this.host.envelopeIds(requestId))
           .filter((id) => id.startsWith("human:"))
           .map((id) => id.slice("human:".length).split("#")[0]!)
-        if (inputs.length) await this.ctx.storage.put(HUMAN_INPUTS_KEY, inputs)
+        if (inputs.length) this.#humanInputs = inputs
         if (this.#run) this.#run.errored = true
         await this.outbox.fail(requestId, error, this.#run?.provider ?? "")
       },
@@ -224,7 +225,7 @@ export class Agent {
     await this.host.shutdown()
     this.ctx.storage.transactionSync(() => {
       JournalStorage.clear(this.ctx.storage, this.agentKey)
-      for (const table of ["workers", "worker_changes", "outbox", "harness_epoch", "journal_ids", "agent_handoff"]) {
+      for (const table of ["workers", "worker_changes", "harness_epoch", "journal_ids", "agent_handoff"]) {
         this.ctx.storage.sql.exec(`DELETE FROM ${table} WHERE agent = ?`, this.agentKey)
       }
       this.metadata.delete("home")
@@ -237,6 +238,8 @@ export class Agent {
   }
 
   async scheduleRecovery(at: number): Promise<void> {
+    const current = this.clock.deadline("recovery")
+    if (current !== undefined && current > Date.now() && current <= at) return
     await this.clock.setWakeup("recovery", at)
   }
 
@@ -287,12 +290,12 @@ export class Agent {
         return ended
       },
       react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
-      // Read from storage: a long run can outlive this instance, and Retry needs the human messages it answered.
+      // Restored from the durable input when the harness opens; Retry needs the messages it answered.
       runError: async (runId, error) => {
         const run = this.#run?.provider === error.provider ? this.#run : null
         if (run) run.errored = true
         const kind = runKindFor(error.kind, run?.credential)
-        const out = await room().runError(home.slug, runId, { ...error, kind, inputs: (await this.ctx.storage.get<string[]>(HUMAN_INPUTS_KEY)) ?? this.#humanInputs })
+        const out = await room().runError(home.slug, runId, { ...error, kind, inputs: this.#humanInputs })
         // A failure the provider repeats on the next request ends the work with the run. A busy or
         // unreachable provider leaves the workers alone: they may still finish and report.
         if (stopsWorkers(kind)) await this.host.workers.stopAll()
@@ -562,7 +565,7 @@ export class Agent {
     return known !== current.revision ? "refresh" : null
   }
 
-  private async inputMemory(batch: Batch, fresh: boolean, joined: number[], withLife = true): Promise<{ text?: string; fresh: boolean }> {
+  private async inputMemory(batch: Batch, fresh: boolean, joined: number[], withLife = true): Promise<{ text?: string; fresh: boolean; data?: { memoryPos: number } }> {
     const ahead = this.#delta?.requestId === batch.requestId ? this.#delta.since : null
     this.#delta = undefined
     const home = this.home()
@@ -572,9 +575,8 @@ export class Agent {
     this.#seqs = seqs
     this.#heard = batch.envelopes.findLast((e) => e.from.kind === "human")?.rootId ?? null
     this.#humanInputs = batch.envelopes.filter((e) => e.from.kind === "human").map((e) => e.rootId)
-    const inputs = this.changedHumanInputs()
     const [seen, previousLife, previousRevision, state] = await Promise.all([
-      this.ctx.storage.get<number>(MEMORY_POS_KEY),
+      this.memoryPos(),
       withLife ? this.ctx.storage.get<string>(MEMORY_LIFE_KEY) : undefined,
       withLife ? this.ctx.storage.get<number>(MEMORY_REVISION_KEY) : undefined,
       withLife ? this.services.user().lifeState() : { text: "", revision: 0, forgotten: 0 },
@@ -584,31 +586,21 @@ export class Agent {
     if (!fresh && !changedLife && seen !== undefined) {
       const delta = (await ahead) ?? (await room.memorySince(home.slug, seen, seqs))
       if (delta.count - seen <= MAX_DELTA_TURNS) {
-        await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: delta.count })
-        if (inputs) this.#storedInputs = inputs
-        return { fresh: false, ...(delta.text ? { text: memoryDelta(delta.text) } : {}) }
+        return { fresh: false, data: { memoryPos: delta.count }, ...(delta.text ? { text: memoryDelta(delta.text) } : {}) }
       }
     }
     const currentSeqs = batch.envelopes.map((envelope) => envelope.seq)
     this.#seqs = currentSeqs
     const view = await room.memoryView(currentSeqs)
-    await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: view.count, ...(withLife ? { [MEMORY_LIFE_KEY]: life, [MEMORY_REVISION_KEY]: state.revision, [MEMORY_FORGOTTEN_KEY]: state.forgotten } : {}) })
-    if (inputs) this.#storedInputs = inputs
+    if (withLife) await this.ctx.storage.put({ [MEMORY_LIFE_KEY]: life, [MEMORY_REVISION_KEY]: state.revision, [MEMORY_FORGOTTEN_KEY]: state.forgotten })
     this.#shown.clear()
-    return { fresh: true, text: memoryBlock(life, view.text) }
+    return { fresh: true, text: memoryBlock(life, view.text), data: { memoryPos: view.count } }
   }
 
-  /**
-   * The human messages this run is answering, or null when they are the ones already stored. They are stored with the
-   * memory position, before the run can fail, so a retry knows what to run again. A run that answers the same messages
-   * as the run before it stores none of them: every put is a billed row, and a tool follow-up answers the same message.
-   */
-  private changedHumanInputs(): string[] | null {
-    const held = this.#humanInputs
-    if (held.length === this.#storedInputs.length && held.every((id, i) => id === this.#storedInputs[i])) return null
-    return held
+  private async memoryPos(): Promise<number | undefined> {
+    const data = await this.host.inputData("memoryPos")
+    return typeof data?.memoryPos === "number" ? data.memoryPos : this.ctx.storage.get<number>(MEMORY_POS_KEY)
   }
-  #storedInputs: string[] = []
 
   #seqs: number[] = []
   #heard: string | null = null
@@ -621,7 +613,7 @@ export class Agent {
     const home = this.home()
     if (!home) return
     const since = (async () => {
-      const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
+      const seen = await this.memoryPos()
       if (seen === undefined) return null
       const seqs = [...batch.envelopes.map((e) => e.seq), ...(await this.host.joinedSeqs())]
       return this.services.room(home.roomId).memorySince(home.slug, seen, seqs)
@@ -709,7 +701,7 @@ export class Agent {
       captures: () => this.#run?.captures ?? false,
       recall: async (query, conversationId) => {
         const root = await this.isRootConversation(conversationId)
-        const seen = root ? await this.ctx.storage.get<number>(MEMORY_POS_KEY) : undefined
+        const seen = root ? await this.memoryPos() : undefined
         const [life, chat] = await Promise.all([user().lifeRecall(query), room().memoryRecall(query, seen, root ? this.#seqs : [])])
         return mergeRecall(tagHits("life", life), tagHits("chat", chat), root ? this.#shown : new Set())
       },

@@ -254,6 +254,13 @@ export const OWNER_STEPS: readonly Step[] = [
   `CREATE TRIGGER IF NOT EXISTS messages_search_delete AFTER DELETE ON messages BEGIN
     DELETE FROM messages_fts WHERE rowid IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ('message:m' || hex(old.room_id) || 'x' || old.seq));
   END`,
+  // History pages use the room/seq primary key. Age scans run only during archival.
+  `DROP INDEX IF EXISTS messages_at`,
+  // One owner's bounded ready queue is cheaper to scan than index on every ticket write.
+  `DROP INDEX IF EXISTS owner_runs_ready`,
+  `DROP TABLE IF EXISTS outbox`,
+  `DROP INDEX IF EXISTS mem_turns_seq`,
+  `DROP INDEX IF EXISTS mem_turns_key`,
 ]
 
 export function initializeSchema(storage: DurableObjectStorage): void {

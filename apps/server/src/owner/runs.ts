@@ -35,14 +35,14 @@ export class RunBudget {
 }
 
 type RunsOptions = {
-  /** Persist a versioned ready ticket; only a distinct fully awaited owner alarm may execute it. */
+  /** Persist a versioned ready ticket before executing it. */
   schedule: (agent: string, requestId: string) => Promise<void>
   now?: () => number
 }
 
 /** Pending input lives in pi's inbox; this class stores only active invocations in memory. */
 export class Runs {
-  private active?: { agent: string; budget: RunBudget; work: Promise<void> }
+  private readonly active = new Map<string, { budget: RunBudget; work: Promise<void> }>()
 
   constructor(private readonly options: RunsOptions) {}
 
@@ -51,26 +51,38 @@ export class Runs {
   }
 
   /** Called by egress and by model adapters that do not use instrumented egress. */
-  count(agent: string): void { if (this.active?.agent === agent) this.active.budget.count() }
-  countActive(): void { this.active?.budget.count() }
+  count(agent: string): void { this.active.get(agent)?.budget.count() }
+  countActive(): void {
+    const errors: unknown[] = []
+    // Runs started by one incoming event share its budget, so each distinct budget is charged once.
+    for (const budget of new Set([...this.active.values()].map((a) => a.budget))) {
+      try { budget.count() } catch (error) { errors.push(error) }
+    }
+    if (errors.length) throw errors[0]
+  }
 
-  /** Called for one ticket by a distinct owner alarm. No same-event fanout is allowed. */
-  run(agent: string, requestId: string, invoke: (budget: RunBudget) => Promise<RunOutcome>): Promise<void> {
-    const existing = this.active
-    if (existing?.agent === agent) return existing.work
-    if (existing) return Promise.reject(new Error("An owner run is already active"))
-    const budget = new RunBudget(this.options.now)
+  has(agent: string): boolean { return this.active.has(agent) }
+
+  budget(): RunBudget { return new RunBudget(this.options.now) }
+
+  /**
+   * Cloudflare meters outgoing calls per incoming event, so every run an event starts shares one budget.
+   * Incoming human events may overlap; alarms execute one ticket at a time.
+   */
+  run(agent: string, requestId: string, invoke: (budget: RunBudget) => Promise<RunOutcome>, budget = this.budget()): Promise<void> {
+    const existing = this.active.get(agent)
+    if (existing) return existing.work
     const work = Promise.resolve().then(async () => {
       let outcome: RunOutcome
       try {
         outcome = await invoke(budget)
       } finally {
-        this.active = undefined
+        this.active.delete(agent)
       }
       // A failed invocation never schedules more work. A continuation keeps its submission id.
       if (outcome === "continue") await this.options.schedule(agent, requestId)
     })
-    this.active = { agent, budget, work }
+    this.active.set(agent, { budget, work })
     return work
   }
 }
