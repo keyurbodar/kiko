@@ -4,7 +4,7 @@ import type { Chat, ChatLast, ChatOp, RoomId } from "@kiko/protocol"
 const MAX_TITLE = 200
 const MAX_AGENTS = 20
 
-export type Touch = {
+type Touch = {
 	lastSeq: number
 	lastPreview: string
 	unread: number

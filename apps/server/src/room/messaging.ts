@@ -6,7 +6,7 @@ import { parseRichText } from "./rich-text"
 
 export type AgentSend = { id: string; to: AgentSlug | "all"; text: string }
 
-export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; recipients: AgentSlug[]; returns?: {id:string;remote:RoomId}[] }
+type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; recipients: AgentSlug[]; returns?: {id:string;remote:RoomId}[] }
 
 export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[] } | { ok: false; error: string; events: RoomEvent[] }
 
@@ -20,7 +20,7 @@ export type QueuedMail = { n: number; from: AgentSlug; to: AgentSlug; send: Stor
 /** What the room does after an answer came back from a pair room. */
 type Returned = { events: RoomEvent[]; asker: AgentSlug; queued: boolean }
 
-export const KEEP_SENDS_MS = 7 * 86_400_000
+const KEEP_SENDS_MS = 7 * 86_400_000
 const PRUNE_EVERY_MS = 3_600_000
 
 export function messageIdOf(envelopeId: string): string | null {
@@ -249,9 +249,9 @@ import type { Team } from "./team"
 import type { Members } from "./members"
 import { receive, type ReceiveDeps } from "./receive"
 
-export type MailOutcome = { ok: true; to: AgentSlug[] } | { ok: false; error: string }
+type MailOutcome = { ok: true; to: AgentSlug[] } | { ok: false; error: string }
 
-export type MailDeps = ReceiveDeps & {
+type MailDeps = ReceiveDeps & {
 	ctx: DurableObjectState
 	members: Members
 	burst: Burst

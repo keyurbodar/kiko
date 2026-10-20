@@ -31,7 +31,7 @@ export function debounce(event: "message" | "typing" | "fragment", now: number, 
 	return Math.min(now + wait, startedAt + MAX_BURST_MS)
 }
 
-export const MAX_DELIVERY_ENVELOPES = MAX_OPEN / 5
+const MAX_DELIVERY_ENVELOPES = MAX_OPEN / 5
 export const MAX_DELIVERY_BYTES = MAX_ENTRY_BYTES / 2
 
 export function deliverable<T>(envelopes: readonly T[], maxCount = MAX_DELIVERY_ENVELOPES, maxBytes = MAX_DELIVERY_BYTES): T[] {

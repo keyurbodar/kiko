@@ -1,8 +1,8 @@
-export const RUN_CALL_LIMIT = 40
+const RUN_CALL_LIMIT = 40
 export const RUN_DURATION_MS = 12 * 60_000
 
-export type RunOutcome = "done" | "continue"
-export type RunPolicy = "self-call" | "alarm"
+type RunOutcome = "done" | "continue"
+type RunPolicy = "self-call" | "alarm"
 
 /** One invocation's allowance; instrumentation counts actual attempts, including retries. */
 export class RunBudget {

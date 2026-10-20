@@ -1,7 +1,7 @@
 import type { Attachment as RoomAttachment } from "../room/socket"
 
 type UserAttachment = { ready: boolean; helloBy?: number }
-export type OwnerAttachment = {
+type OwnerAttachment = {
   user: UserAttachment
   rooms: Record<string, RoomAttachment>
   handle?: string

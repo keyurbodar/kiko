@@ -828,12 +828,12 @@ export class Agent {
    * due without knowing it, so this runs first. True when nothing else was due.
    */
   private async browserIdle(): Promise<boolean> {
-    const now = Date.now()
-    const due = this.ctx.storage.sql.exec<{ key: string }>("SELECT key FROM wakeups WHERE at <= ?", now).toArray().map((r) => r.key)
-    if (!due.includes(BROWSER_IDLE_WAKEUP)) return false
-    await createAlarms(this.ctx).clearWakeup(BROWSER_IDLE_WAKEUP)
+    const clock = createAlarms(this.ctx)
+    const at = clock.deadline(BROWSER_IDLE_WAKEUP)
+    if (at === undefined || at > Date.now()) return false
+    await clock.clearWakeup(BROWSER_IDLE_WAKEUP)
     if (this.#browser && (await this.#browser.idle()) === "closed") count("browser.idle.closed")
-    return due.length === 1
+    return false
   }
 
   // The dev-only bodies live in agent/dev.ts, which only a development build can load. One cached load

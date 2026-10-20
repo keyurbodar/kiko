@@ -138,7 +138,7 @@ const MAX_RESUMES = 3
 const RESUMES_KEY = "crash:resumes"
 const EXTENSIONS_KEY = "agent:extensions"
 
-export const INBOX_STEPS: Step[] = [
+const INBOX_STEPS: Step[] = [
   `CREATE TABLE IF NOT EXISTS inbox (
     id TEXT PRIMARY KEY,
     arrival INTEGER NOT NULL,

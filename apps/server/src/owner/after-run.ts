@@ -1,6 +1,6 @@
 import type { OwnerServices } from "./services"
 
-export type AfterRunDeps = {
+type AfterRunDeps = {
   services: () => OwnerServices
 }
 

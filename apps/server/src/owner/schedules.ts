@@ -10,7 +10,7 @@ const schedules = defineDoc<{ entries: Array<ScheduledRoutine & { taskId: TaskId
   kind: "kiko.routine-schedules", version: 1, scope: "conversation", history: "latest", fork: "initial", initial: () => ({ entries: [] }),
 })
 
-export const routineRequestId = ({ routineId, runAt }: ScheduledRoutine): string => `${routineId}:${runAt}`
+const routineRequestId = ({ routineId, runAt }: ScheduledRoutine): string => `${routineId}:${runAt}`
 
 /** One instance per Harness. The callback must durably deduplicate requestId before acknowledging delivery. */
 export class RoutineSchedules {

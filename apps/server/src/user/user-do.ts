@@ -108,9 +108,8 @@ export class User {
     {
       migrate(ctx.storage, USER_STEPS)
       this.alarms = createAlarms(ctx)
-      // check-rules: allow egress the one pi.dev request an hour, made in this object's own invocation
       restoreOverlay(this.sql)
-      this.models = new ModelCatalog({ sql: this.sql, now: Date.now, fetch: (url, init) => fetch(url, init), signInMethod, changed: () => this.changed("models") })
+      this.models = new ModelCatalog({ sql: this.sql, now: Date.now, fetch: (url, init) => this.services.egress({ url, method: init.method ?? "GET", headers: [...new Headers(init.headers)], body: null }), signInMethod, changed: () => this.changed("models") })
 
 
       this.life = new Life(this.sql, (fn) => ctx.storage.transactionSync(fn), { get: (key) => this.setting(key), set: (key, value) => this.putSetting(key, value) })

@@ -2,7 +2,7 @@ import { type ChatLast, messageLast, mentionsHuman, oneLine, type RichText } fro
 import type { FileRef, Sender } from "@kiko/protocol"
 import { LISTED_MESSAGE, type RoomLog } from "./log"
 
-export type RoomActivity = { lastSeq: number; lastPreview: string; unread: number; last?: ChatLast; mentions?: number; group: boolean }
+type RoomActivity = { lastSeq: number; lastPreview: string; unread: number; last?: ChatLast; mentions?: number; group: boolean }
 
 export const MEMBER_ACTIVITY = "member_activity"
 export const HUMAN_HANDLE = "human_handle"

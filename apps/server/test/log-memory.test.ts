@@ -242,16 +242,12 @@ test("forgetting edits and deletes is one UserDO call however many turns changed
   const calls: [string, unknown[]][] = []
   let fail = true
   const user = new Proxy({}, { get: (_, method: string) => async (...args: unknown[]) => { calls.push([method, args]); if (fail) throw new Error("budget") } })
-  const env = { USER: { idFromName: (n: string) => n, get: () => user } }
   const naps = new MemoryNaps({
-    ctx: {} as DurableObjectState,
-    env: env as never,
-    alarms: { setWakeup: async () => {}, clearWakeup: async () => {} } as never,
+    services: { user: () => user } as never,
     log,
     members: { list: () => [] } as never,
     memory,
     home: () => ({ userId: "u1", roomId: "r1" as never }),
-    isWiped: async () => false,
   })
   await naps.forget()
   expect(calls.map(([m]) => m)).toEqual(["forgetMessages"])

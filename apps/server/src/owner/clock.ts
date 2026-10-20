@@ -4,7 +4,7 @@ export const RECOVERY_DELAY_MS = 60_000
 
 type AlarmStorage = Pick<DurableObjectStorage, "getAlarm" | "setAlarm" | "deleteAlarm">
 
-export type ClockAgent = {
+type ClockAgent = {
   id: string
   tasks: readonly TaskInspection[]
   scheduledDeadline: (task: TaskInspection) => number | undefined

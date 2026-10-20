@@ -12,7 +12,7 @@ export type Wake = {
 
 export type WakeResult = "delivered" | "refused" | "gone" | "duplicate"
 
-export function wakeStamp(w: Pick<Wake, "id" | "chain">, stopped: (rootId: string) => boolean): Pick<Envelope, "rootId" | "hop"> {
+function wakeStamp(w: Pick<Wake, "id" | "chain">, stopped: (rootId: string) => boolean): Pick<Envelope, "rootId" | "hop"> {
 	const chain = w.chain
 	if (!chain || stopped(chain.rootId)) return { rootId: w.id, hop: 0 }
 	return { rootId: chain.rootId, hop: chain.hop }

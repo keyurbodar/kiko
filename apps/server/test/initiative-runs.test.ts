@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { INITIATIVE_WAKEUP, InitiativeEngine, type Level, type WakeInput } from "../src/initiative/engine"
+import { InitiativeEngine, type Level, type WakeInput } from "../src/initiative/engine"
 import type { WakeResult } from "../src/room/delivery"
 import { sqlWith } from "./sql-shim"
 import { USER_STEPS } from "../src/user/schema"
@@ -13,7 +13,6 @@ type Task = { id: string; title: string; status: string; owner?: string; updated
 function world(opts: { level?: Level; hidden?: string[] } = {}) {
   const sql = sqlWith(USER_STEPS)
   const wakes: { room: string; input: WakeInput }[] = []
-  const armed: (number | null)[] = []
   const counts: Record<string, number> = {}
   const hidden = new Set(opts.hidden ?? [])
   let answer: WakeResult | "busy" = "delivered"
@@ -31,15 +30,13 @@ function world(opts: { level?: Level; hidden?: string[] } = {}) {
     count: (delta) => {
       for (const [k, n] of Object.entries(delta)) counts[k] = (counts[k] ?? 0) + n
     },
-    setWakeup: async (at) => void armed.push(at),
-    clearWakeup: async () => void armed.push(null),
   })
   /** What RoomDO pushes to `UserDO.chatTasks` when a chat's board changes. */
   const board = (room: string, tasks: Task[]) => {
     boards.set(room, tasks)
   }
   const task = (id: string, updatedAt: number, extra: Partial<Task> = {}): Task => ({ id, title: `task ${id}`, status: "open", updatedAt, ...extra })
-  return { sql, engine, wakes, armed, counts, board, task, answer: (a: WakeResult | "busy") => void (answer = a) }
+  return { sql, engine, wakes, counts, board, task, answer: (a: WakeResult | "busy") => void (answer = a) }
 }
 
 test("the pass wakes the chat's lead about its oldest open task, and no other", async () => {
@@ -64,20 +61,19 @@ test("a chat that is private or gone is skipped", async () => {
   expect(wakes.map((w) => w.room)).toEqual(["r2"])
 })
 
-test("a wake that is busy, gone or refused is tried again in an hour, not a day", async () => {
+test("a wake that is busy, gone or refused waits for the next human-triggered pass, with no retry of its own", async () => {
   for (const result of ["busy", "gone", "refused"] as const) {
-    const { board, task, engine, wakes, armed, answer } = world()
+    const { board, task, engine, wakes, answer } = world()
     board("r1", [task("t1", NOW - DAY)])
     answer(result)
     const first = await engine.pass(NOW)
-    expect(first.retryAt).toBe(NOW + HOUR)
-    expect(armed.at(-1)).toBe(NOW + HOUR)
-    expect(await engine.arm(NOW + 1_000)).toBe(NOW + HOUR)
+    expect(first.woke.map((w) => w.result)).toEqual([result])
+    // Nothing landed, so nothing is recorded and no later pass is scheduled: only a human reply runs another.
+    expect(wakes.length).toBe(1)
     answer("delivered")
     await engine.pass(NOW + HOUR)
     expect(wakes.length).toBe(2)
     expect(wakes[1]!.input.id).toBe(wakes[0]!.input.id)
-    expect(armed.at(-1)! - (NOW + HOUR)).toBeGreaterThan(HOUR)
   }
 })
 
@@ -101,19 +97,12 @@ test("the same task is raised again once the three days pass", async () => {
   expect(wakes.length).toBe(2)
 })
 
-test("the daily pass runs at nine in the owner's time zone", async () => {
-  const { engine, armed } = world()
-  expect(await engine.arm(Date.UTC(2026, 9, 16, 10))).toBe(Date.UTC(2026, 9, 17, 9))
-  expect(armed.at(-1)).toBe(Date.UTC(2026, 9, 17, 9))
-})
-
-test("levels off and chat never wake a chat and arm no pass", async () => {
+test("levels off and chat never wake a chat", async () => {
   for (const level of ["off", "chat"] as const) {
-    const { board, task, engine, wakes, armed } = world({ level })
+    const { board, task, engine, wakes } = world({ level })
     board("r1", [task("t1", NOW - DAY)])
     await engine.pass(NOW)
     expect(wakes.length).toBe(0)
-    expect(armed.at(-1)).toBeNull()
   }
 })
 

@@ -67,8 +67,8 @@ async function fakeRun(split: boolean) {
     const transcript = (await root.context(context)).messages.map((message) => {
       const copy = { ...message }
       delete copy.timestamp
+      if (copy.role === "assistant" || copy.role === "toolResult") delete copy.durationMs
       if (copy.role === "assistant") {
-        delete copy.durationMs
         delete copy.api
         delete copy.usage
       }

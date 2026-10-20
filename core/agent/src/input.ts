@@ -4,7 +4,7 @@ import type { Envelope, Sender } from "./envelope"
 
 export type Refusal = "full" | "too_large"
 
-export type Admission = {
+type Admission = {
   admitted: string[]
   inserted: number
   refused?: Refusal
