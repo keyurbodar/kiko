@@ -73,6 +73,19 @@ The owner's rule: **no extra token cost to users and no UX change.** That's why 
 | 5 | `messages` rows and indexes | Key by (room, seq) with no extra index, if query plans allow | Track B checks |
 | 6 | `journal`, one per pi commit | One row per finished model turn, plus one before each outside action | Track C, in flight |
 
+### Track results so far
+
+**Track B is done, uncommitted.** With A and C's work in progress in the same tree, the e2e measured **11 writes per prompt**: idle 0 and 0, error rows 1 and 1, gate still 33. Room events for messages, `clients`, `ended_runs` and `mem_turns` now write nothing. Search indexes lazily: one transaction per search reindexes new, edited, deleted and archived messages. Exact replay JSON lives in `messages.message_payload`. Report: `/home/keyur/.cache/kiko-takeover/room-lazy-impl/report.md`.
+
+What remains in those 11:
+
+| Writes | Source | Next move |
+|---|---|---|
+| 5 | `messages` rows plus the `messages_id` and `messages_run` indexes | Query plans use both. To drop them, make message ids encode (room, seq), so id lookups become primary-key reads, and find run recovery by a bounded recent-seq scan |
+| 3 | `pending` insert, plus its `pending_seq` index, plus delete | Wire `RoomLog.unansweredFor(agentSlug, after, limit?)` into `room/burst.ts` using the durable human-delivery cursor, never the reactions cursor. Also update `room/reactions.ts` `defaultTarget`'s pending exclusion |
+| 2 | `journal` | Track C, batching |
+| 1 | Reaction-brief cursor upsert in `owner_meta` | Make it an upsert that writes only on change, or derive it |
+
 ### Tracks in flight
 
 All three edit the same worktree, uncommitted, in separate files. Read each result with `task_status`.
@@ -80,7 +93,7 @@ All three edit the same worktree, uncommitted, in separate files. Read each resu
 | Track | Task id (`clientRequestId`) | Files it owns |
 |---|---|---|
 | A: alarms, clock and run ticket | `ship-writes-v3-clock` | `owner/owner-do.ts`, `owner/clock.ts`, `owner/runs.ts`, `room/burst.ts`, `agent/agent-do.ts` |
-| B: fold room rows, lazy search | `ship-writes-v3-log` | `room/log.ts`, `room/search.ts`, `room/memory.ts`, `owner/schema.ts` (append only) |
+| B (done): fold room rows, lazy search | `ship-writes-v3-log` | `room/log.ts`, `room/search.ts`, `room/memory.ts`, `owner/schema.ts` (append only) |
 | C: one journal row per finished turn | `ship-writes-v3-journal` | `core/agent/src/journal.ts`, `core/agent/src/host.ts`, `agent/factory.ts` |
 
 The full task ids start with `node:delegated-task:command%3Amcp%3A64e01d09-d867-4365-9b08-4f04a2a3d5fb%3Adelegate-task%3A`, followed by the client request id.
