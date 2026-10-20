@@ -88,6 +88,10 @@ What remains in those 11:
 
 **Track A is done, uncommitted.** The combined tree measures the same 11 writes, now with 0 alarms and 0 KV writes. Reconnect recovery resumes unfinished work from the journal's durable tasks and submissions. A final clock-query change that suppresses offline recovery alarms after a reconnect landed after its last verification, so it needs the combined check. Report: `/home/keyur/.cache/kiko-takeover/journal-impl/socket-clock-report.md`.
 
+**Track C is done, uncommitted.** Journal rows per one-call prompt went from 6 to 1. Batches flush on a committed assistant message (public `StorageWrite`), on submission settlement, before `write` or `external` tools, on close or continuation, on run idle, and above 1 MB. `journal_ids` reservations stay durable. The combined tree measures **10 writes per prompt**, with idle 0 and 0 and one persisted error row. A crash after a finished model turn gave exactly one reply. Evidence: `/home/keyur/.cache/kiko-takeover/journal-batch-20261020/`.
+
+**Blocking gap, do not commit until it's fixed:** a crash before the first model turn finishes can lose the human's input. Burst delivery deletes `pending` after inbox admission, but the inbox entry isn't durable until the first flush. Track D's change fixes it, because pending becomes "messages after the agent's durable delivery cursor", so unflushed delivery counts as unanswered again. Before committing, confirm that owner recovery (socket reconnect and the alarm) also redelivers unanswered messages for every agent, not only the journal's persisted work. Prove it: kill the server after the ack but before the first turn completes (the fake model's slow-tool mode, or a delay), restart, reconnect, and expect exactly one reply.
+
 **Round 4 started**, running in parallel with Track C:
 
 | Track | Task id (`clientRequestId`) | Cuts | Files it owns |
@@ -105,7 +109,7 @@ All three edit the same worktree, uncommitted, in separate files. Read each resu
 |---|---|---|
 | A (done): alarms, clock and run ticket | `ship-writes-v3-clock` | `owner/owner-do.ts`, `owner/clock.ts`, `owner/runs.ts`, `room/burst.ts`, `agent/agent-do.ts` |
 | B (done): fold room rows, lazy search | `ship-writes-v3-log` | `room/log.ts`, `room/search.ts`, `room/memory.ts`, `owner/schema.ts` (append only) |
-| C: one journal row per finished turn | `ship-writes-v3-journal` | `core/agent/src/journal.ts`, `core/agent/src/host.ts`, `agent/factory.ts` |
+| C (done): one journal row per finished turn | `ship-writes-v3-journal` | `core/agent/src/journal.ts`, `core/agent/src/host.ts`, `agent/factory.ts` |
 
 The full task ids start with `node:delegated-task:command%3Amcp%3A64e01d09-d867-4365-9b08-4f04a2a3d5fb%3Adelegate-task%3A`, followed by the client request id.
 
