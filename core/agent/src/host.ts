@@ -583,7 +583,6 @@ export class AgentHost {
       if (this.options.requestRun && !this.invocation) await submitPaused(root, submission)
       else await root.submit(submission, context)
       if (!this.options.requestRun || this.invocation) await this.refreshRecovery({ harness, root, storage, setup })
-      this.inputs++
       if (shown.key && (last?.epoch !== this.epoch() || last.key !== shown.key)) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
       if (run) await this.ctx.storage.put(JOINED_KEY, [...(await this.joinedSeqs()), ...batch.envelopes.map((e) => e.seq)].slice(-500))
     }
