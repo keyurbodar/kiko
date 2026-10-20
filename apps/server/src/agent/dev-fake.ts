@@ -70,7 +70,6 @@ function workerReply(messages: readonly Message[], toolNames: () => string) {
 
 const toolsOf = (transcript: readonly Message[]) => new Set([...JSON.stringify(transcript.filter((m) => m.role === "system")).matchAll(/"name":"([\w-]+)","description"/g)].map((m) => capture(m, 1)))
 
-// The inputs that already failed once: `[model-error-once]` fails the first request and answers the retry.
 const failedOnce = new Set<string>()
 
 export function fakeReply(transcript: readonly Message[]) {
@@ -94,6 +93,11 @@ export function fakeReply(transcript: readonly Message[]) {
   const toWorker = handOff(last)
   if (toWorker) return fauxAssistantMessage(fauxToolCall("start_work", { task: toWorker[0] }), { stopReason: "toolUse" })
   if (last?.role === "toolResult" && last.toolName === "start_work" && handOff(messages.findLast((m) => m.role === "user"))) return fauxAssistantMessage("[skip]")
+  return replyToMessages(messages, toolNames)
+}
+
+function replyToMessages(messages: readonly Message[], toolNames: () => string) {
+  const last = messages.at(-1)
   const answered = messages.findLastIndex((m) => m.role === "assistant" && !callsTool(m) && m.stopReason !== "aborted")
   const since = messages.slice(answered + 1)
   const users = since.filter((m) => m.role === "user").map(textOf)
@@ -110,6 +114,18 @@ export function fakeReply(transcript: readonly Message[]) {
   if (typed) return fauxAssistantMessage(typed)
   const any = last && ((last.role === "user" && !fetchFirst) || page) ? anyToolCall(rawOf(last)) : null
   if (any) return fauxAssistantMessage(any, { stopReason: "toolUse" })
+  const scripted = replyWithDelay(users, results, last)
+  if (scripted) return scripted
+  const team = last?.role === "user" ? teamCall(textOf(last)) : null
+  if (team) return fauxAssistantMessage(team, { stopReason: "toolUse" })
+  const calls = fakeCalls(messages)
+  if (calls.length) return fauxAssistantMessage(calls, { stopReason: "toolUse" })
+  const ran = fakeResults(since)
+  if (ran) return fauxAssistantMessage(ran)
+  return replyToBurst(since, users, results, last)
+}
+
+function replyWithDelay(users: string[], results: string[], last: Message | undefined) {
   const twoPart = users.at(-1)?.includes("[two-part]")
   if (twoPart && last?.role === "user") return fauxAssistantMessage([fauxText("part one."), fauxToolCall(SLOW_TOOL, { ms: 1 })], { stopReason: "toolUse" })
   if (twoPart && last?.role === "toolResult" && last.toolName === SLOW_TOOL) return fauxAssistantMessage(`${LONG} heard: ${users.join(" | ")}`)
@@ -122,12 +138,10 @@ export function fakeReply(transcript: readonly Message[]) {
   if (last?.role === "user" && users.some((u) => u.includes("[write]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_WRITE_TOOL, {}), { stopReason: "toolUse" })
   }
-  const team = last?.role === "user" ? teamCall(textOf(last)) : null
-  if (team) return fauxAssistantMessage(team, { stopReason: "toolUse" })
-  const calls = fakeCalls(messages)
-  if (calls.length) return fauxAssistantMessage(calls, { stopReason: "toolUse" })
-  const ran = fakeResults(since)
-  if (ran) return fauxAssistantMessage(ran)
+  return null
+}
+
+function replyToBurst(since: readonly Message[], users: string[], results: string[], last: Message | undefined) {
   const briefed = since.filter((m) => m.role === "user" && textOf(m).includes("[missed]"))
   const missed = briefed.length ? `; missed: ${briefed.flatMap((m) => missedOf(rawOf(m))).join(" | ")}` : ""
   const heard = `heard: ${users.join(" | ")}${results.length ? `; tool: ${results.join(", ")}` : ""}${missed}`
@@ -182,7 +196,6 @@ function anyToolCall(raw: string) {
   return direct ? fauxToolCall(capture(direct, 1), JSON.parse(capture(direct, 2))) : null
 }
 
-/** `[textcall name {json}]` answers the way an open model does when it writes its tool call as text. */
 function textCall(raw: string) {
   const m = /\[textcall (\w+) (\{.*\})\]\s*$/m.exec(raw.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&"))
   if (!m) return null

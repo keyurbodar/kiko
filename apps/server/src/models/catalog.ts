@@ -2,10 +2,8 @@ import type { AnyModel, Provider } from "@earendil-works/pi-ai"
 import { getModelType } from "@earendil-works/pi-ai/models"
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 
-/** Remote models that a bundled provider lacks or lists differently, by provider id. */
 export type CatalogOverlay = Record<string, AnyModel[]>
 
-/** A model as it crosses an RPC: plain data, which the RPC types accept where they refuse pi-ai's own model type. */
 export type WireModel = { [key: string]: string | number | boolean | null | WireModel | (string | number | boolean | null | WireModel)[] }
 
 const MODEL_TYPES = new Set(["chat", "image", "classifier"])
@@ -44,7 +42,6 @@ function overlaid(provider: Provider): Provider {
   }
 }
 
-/** pi-ai's built-in providers, wrapped once so every read merges the current overlay. */
 export function providers(): Provider[] {
   wrapped ??= new Map(bundledProviders().map((p) => [p.id, overlaid(p)]))
   return [...wrapped.values()]
@@ -95,12 +92,6 @@ function stable(value: unknown): string {
   )
 }
 
-/**
- * Port of pi's remote catalog rules for the one aggregate response `{ [providerId]: models }`.
- * Keeps only models a bundled provider can stream: its id is bundled, its api is one the provider
- * already uses, and it differs from the bundled model of the same type and id. Nothing is kept
- * unless the response is newer than the bundled data. Malformed entries are dropped.
- */
 export function computeOverlay(
   remote: unknown,
   lastModified: number,

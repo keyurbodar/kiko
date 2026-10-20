@@ -12,12 +12,6 @@ import { backspaceLeaves, createPreview, emptyText, enterLabel, iconFor, keyChip
 import { backView, closePalette, enterView, paletteStack } from "./state"
 import "./palette.css"
 
-/*
- * The command palette, in t3code's shape: a glass panel over a dimmed, blurred app, a search, groups of rows,
- * and a footer of key hints. cmdk-solid filters, ranks, and moves the highlight. A row with a chevron opens a
- * second list; Backspace in an empty search goes back. The palette opens from state alone, so no network is
- * waited on, and it is interactive from its first frame.
- */
 const EXIT_MS = 150
 
 function Chips(props: { keys: string[] }) {
@@ -28,7 +22,6 @@ function Chips(props: { keys: string[] }) {
   )
 }
 
-/** The query inside a line, in bold where it matches, as t3code marks a search hit. */
 function Marked(props: { text: string; query?: string }) {
   const parts = createMemo(() => {
     const q = props.query?.trim().toLowerCase()
@@ -67,7 +60,6 @@ function Plain(props: { item: Item }) {
 
 export default function Palette() {
   const [query, setQuery] = createSignal("")
-  // The panel stays mounted for a short exit, but stops taking input the moment the palette closes.
   const [kept, setKept] = createSignal<readonly string[] | null>(null)
   const open = () => paletteStack() !== null
   const stack = () => paletteStack() ?? kept() ?? []
@@ -82,10 +74,8 @@ export default function Palette() {
   })
   onCleanup(() => clearTimeout(timer))
 
-  // Only whether something is typed changes the root list, so a keystroke keeps its rows and the highlight.
   const typed = createMemo(() => query().trim() !== "")
   const view = createMemo(() => viewFor(stack(), commands(), typed()))
-  // A search view ranks its own rows, so it follows the query. The other views leave filtering to cmdk.
   const searching = () => view().parent?.search
   const groups = createMemo(() => {
     const parent = view().parent
@@ -94,7 +84,6 @@ export default function Palette() {
   let input: HTMLInputElement | undefined
   const [highlight, setHighlight] = createSignal("")
 
-  // Focus goes back to where it was, so closing the palette does not strand the person on the page body.
   let before: Element | null = null
   createEffect(() => {
     if (open()) {
@@ -104,10 +93,8 @@ export default function Palette() {
     }
   })
   createEffect(on(() => stack().length, () => setQuery(""), { defer: true }))
-  // A search that fills in later is told what is typed, and told to stand down when its view closes.
   createEffect(() => view().parent?.onQuery?.(query()))
   createEffect(on(() => view().parent, (_now, before) => before?.onQuery?.(""), { defer: true }))
-  // The highlighted row previews itself, but only once the person has moved: the row the list starts on is not a choice.
   const preview = createPreview()
   let engaged = false
   const items = () => groups().flatMap((g) => g.items)

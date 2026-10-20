@@ -30,11 +30,6 @@ function Empty(props: { title: string; children?: JSX.Element }) {
   )
 }
 
-/*
- * The recipes page, `/recipes`. Two tabs: "Yours" shows what runs now, "Discover" is the book, with
- * its categories as a second row of tabs. Both rows stick to the top, so any of it is one click
- * away. Search filters both tabs. `?room=` is the chat the human came from, so Add goes there first.
- */
 export default function RecipesPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -50,7 +45,6 @@ export default function RecipesPage() {
   const matching = createMemo(() => new Set(filterRecipes(cards(), query(), "all").map((c) => c.slug)))
   const yours = createMemo(() => byChatOrder(installs().filter((i) => matching().has(i.slug)), useApp.bots().map((b) => b.id)))
   const tags = createMemo(() => ["all", ...recipeTags(cards())])
-  // Only the selected category's panel is mounted, so one list serves every panel.
   const shown = createMemo(() => filterRecipes(cards(), query(), tag()))
   const [section, setSection] = createSignal<Section>(installs().length && !roomId() ? "yours" : "discover")
   const add = (card: RecipeCard) => {
@@ -63,7 +57,6 @@ export default function RecipesPage() {
 
   let scroller!: HTMLDivElement
   let tabsTop!: HTMLDivElement
-  // A switch from far down the page lands at the top of the new list, with the tabs still in view.
   const toTabs = () => {
     const y = tabsTop.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
     if (scroller.scrollTop > y) scroller.scrollTop = y

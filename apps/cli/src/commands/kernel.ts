@@ -1,10 +1,6 @@
 import { CliError, type Context } from "../main"
 import { askUser } from "./user-socket"
 
-// kiko kernel connect | disconnect | status: speaks the user socket frames of the Kernel browser
-// integration. `connect` reads the key from KERNEL_API_KEY, so it does not land in shell history.
-// Sign in first with `kiko login --dev`.
-
 type Result = { ok: true; status: { connected: boolean; broken: boolean; browser: { mode: string; tabs: Record<string, number> } | null } } | { ok: false; error: string }
 
 export async function kernel(ctx: Context): Promise<void> {

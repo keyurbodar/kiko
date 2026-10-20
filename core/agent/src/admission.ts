@@ -3,7 +3,6 @@ import { GenerationTask, InboxDoc, LiveDoc, type Conversation, type SubmissionDr
 
 type Input = Extract<SubmissionDraft, { type: "input" }>
 
-/** Raw Tx admission is public pi API. Use pi's inbox and generation task without enabling scheduling. */
 export async function submitPaused(root: Conversation, draft: Input): Promise<void> {
   await root.commit(async (tx) => {
     if (draft.requestId && await tx.submissionByRequest(root.id, draft.requestId)) return
@@ -16,7 +15,6 @@ export async function submitPaused(root: Conversation, draft: Input): Promise<vo
       inbox.items.push({ id: submission.id, mode: draft.whenBusy === "steer" ? "steer" : "followUp", content: draft.content, ...(draft.entry ? { entry: draft.entry } : {}) })
       return
     }
-    // No live run owns a boundary: place the new input and any already queued host inputs in order.
     const users = []
     for (const item of [...inbox.items, { id: submission.id, mode: "followUp" as const, content: draft.content, entry: draft.entry }]) {
       if (item.mode === "write") throw new Error("A paused idle input cannot bypass a queued write")

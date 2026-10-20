@@ -38,13 +38,8 @@ export function middleTruncate(name: string, max = 36): string {
   return `${stem.slice(0, head)}…${tail > 0 ? stem.slice(-tail) : ""}${extension}`
 }
 
-/** Draws an attachment chip into `dom` and returns what tears it down. */
 export type ChipView = (dom: HTMLElement, attachment: { id: string; name: string }) => () => void
 
-/**
- * A file or picture named in the text, as t3code's context chip. The text holds it as
- * `[name](attachment:<id>)` (markdown.ts), so it is sent where the human put it.
- */
 export function attachmentExtension(view: ChipView) {
   return Node.create({
     name: "attachment",
@@ -75,11 +70,6 @@ export function attachmentExtension(view: ChipView) {
 
 export type FileRefView = (dom: HTMLElement, ref: { path: string; folder: boolean }) => () => void
 
-/**
- * A file of the chat's workspace named in the text, dragged in from the Files tree or a chat chip.
- * Nothing uploads: the text holds `[name](/path)` (markdown.ts), which points the agent at the file.
- * A folder keeps a trailing slash on that link, which is how a reader tells the two apart.
- */
 export function fileRefExtension(view: FileRefView) {
   return Node.create({
     name: "fileRef",

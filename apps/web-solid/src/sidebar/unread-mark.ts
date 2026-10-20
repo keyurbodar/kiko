@@ -1,14 +1,5 @@
 import { createSignal } from "solid-js"
 
-/*
- * "Mark as unread", as a client-only overlay. The protocol has no such op, so the mark lives on
- * this device and a reload keeps it. It is cleared when the chat is opened, whichever door was used.
- *
- * Its own module because two unrelated callers need it: the sidebar's menu, and the chat route,
- * which clears it whenever a chat becomes active. Importing the sidebar's actions from the route
- * pulled the whole action table into the chat's chunk for one call.
- */
-
 const MARKS = "kiko:marked-unread"
 
 const saved = (): ReadonlySet<string> => {
@@ -27,7 +18,6 @@ const setForced = (update: (marks: ReadonlySet<string>) => ReadonlySet<string>) 
   try {
     localStorage.setItem(MARKS, JSON.stringify([...next]))
   } catch {
-    // Blocked storage keeps the mark for this tab only.
   }
 }
 

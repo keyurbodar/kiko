@@ -22,6 +22,5 @@ async function searchChat(query: string, before?: number): Promise<HitPage | nul
   return page && { results: page.results.map((hit) => ({ ...hit, roomId })), next: page.next }
 }
 
-/** One page of hits for the overlay and the palette: the open chat over its socket, or every chat over the Worker. */
 export const fetchHits = (scope: SearchScope, query: string, before?: number): Promise<HitPage | null> =>
   scope === "chat" ? searchChat(query, before) : searchAll(query, before)

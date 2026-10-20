@@ -1,6 +1,3 @@
-// Effect schemas for the wire types, for the server and the CLI. The client
-// never imports this entry: it trusts frames from its own server.
-
 import * as Schema from "effect/Schema"
 import { isAgentSlug, isRoomId } from "./ids"
 import type * as P from "./index"
@@ -67,7 +64,6 @@ export const Inline: Schema.Codec<P.Inline, unknown> = Schema.Union([
 export const Block: Schema.Codec<P.Block, unknown> = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("paragraph"), children: inlines }),
 	Schema.Struct({ t: Schema.Literal("heading"), level: Schema.Literals([1, 2, 3, 4, 5, 6]), children: inlines }),
-	// `loose` is absent on trees stored before the flag, and an absent flag reads as a tight list.
 	Schema.Struct({ t: Schema.Literal("list"), start: Schema.optionalKey(Count), loose: Schema.optionalKey(Schema.Boolean), items: Schema.Array(blocks) }),
 	Schema.Struct({ t: Schema.Literal("quote"), children: blocks }),
 	Schema.Struct({ t: Schema.Literal("rule") }),
@@ -469,7 +465,6 @@ export const UserSettings = Schema.Struct({
 	initiative: Schema.Literals(INITIATIVE_LEVELS),
 	capture: Schema.Literals(CAPTURE_MODES),
 	timezone: Schema.optionalKey(Schema.String),
-	/** The owner finished or skipped first run, on any device. */
 	onboarded: Schema.optionalKey(Schema.Boolean),
 })
 export type UserSettings = typeof UserSettings.Type
@@ -651,9 +646,6 @@ export const OwnerToClient = Schema.Union([
 	UserToClient,
 	Schema.Struct({ t: Schema.Literal("room"), roomId: RoomId, frame: RoomToClient }),
 ])
-
-// A schema and its plain type must accept exactly the same values. `Inline`
-// and `Block` are recursive, so their annotations check them instead.
 
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
 type Assert<T extends true> = T

@@ -21,7 +21,6 @@ export function Cover() {
   )
 }
 
-/** A self-hosted build signs in with the access code. A wrong code keeps the person here with the server's message. */
 export function AccessCode() {
   const [busy, setBusy] = createSignal(false)
   const [error, setError] = createSignal("")

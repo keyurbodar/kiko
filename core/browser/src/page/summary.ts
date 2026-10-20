@@ -8,7 +8,6 @@ const mentions = (text: string, terms: readonly string[]): boolean => {
   return terms.some((term) => lower.includes(term))
 }
 
-/** The paragraphs that mention any term, in page order, up to the limit. No model is involved. */
 function findPassages(text: string, find: string, limit: number = BROWSER.textMax): string {
   const terms = words(find)
   if (!terms.length) return text.slice(0, limit)
@@ -33,10 +32,6 @@ function findPassages(text: string, find: string, limit: number = BROWSER.textMa
 
 const controlLine = (control: Control): string => `${control.id} ${control.role} "${control.label}"${control.href ? ` -> ${control.href}` : ""}`
 
-/**
- * What the model sees of a page: the address, the controls it can act on, and the text. With `find`, only the controls
- * and paragraphs that mention it. Page content is data, and the model is told so at the tool.
- */
 export function summarize(page: PageView, find?: string): string {
   const terms = find ? words(find) : []
   const matching = terms.length ? page.controls.filter((c) => mentions(`${c.label} ${c.hint ?? ""}`, terms)) : page.controls

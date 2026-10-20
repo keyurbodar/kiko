@@ -3,22 +3,14 @@ import { createSignal } from "solid-js"
 import { urls } from "../lib/store"
 import { apiFetch } from "../lib/api"
 
-// The file viewer's HTTP calls. The server's edit rule: a PUT that
-// names the SHA-256 it started from is refused with 409 when the path holds other bytes.
-
 export const sha256Hex = async (data: BufferSource): Promise<string> =>
 	Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", data)), (b) => b.toString(16).padStart(2, "0")).join("")
 
 export type SaveResult =
 	| { kind: "saved"; file: FileRef }
-	/** Another writer got there first. `theirs` is what the path holds now, or null when it was removed. */
 	| { kind: "conflict"; theirs: FileRef | null }
 	| { kind: "error"; message: string }
 
-/**
- * Writes `body` at `path`. `expect` is the SHA-256 of the bytes this edit started from, or
- * "none" for a new file.
- */
 export async function putFile(roomId: string, path: string, body: string, type: string, expect: string): Promise<SaveResult> {
 	try {
 		const res = await apiFetch(`/api/files/${roomId}?path=${encodeURIComponent(path)}`, {
@@ -34,18 +26,14 @@ export async function putFile(roomId: string, path: string, body: string, type: 
 	}
 }
 
-/** A text preview reads at most this much, as t3code's does. A longer file shows its head, read only. */
 export const PREVIEW_BYTES = 1024 * 1024
-/** A zero byte this early means the file is binary. */
 const SNIFF_BYTES = 8192
 
 export type TextRead =
-	/** `truncated` when `size` is past the bytes read. `sha256` is of the whole file, or empty when truncated. */
 	| { kind: "text"; text: string; sha256: string; truncated: boolean; size: number }
 	| { kind: "binary" }
 	| { kind: "not-utf8" }
 
-/** What some bytes of a `size` byte file are as text. A cut may split a character, so a truncated read decodes as a stream. */
 export function decodeText(bytes: Uint8Array, size: number): { kind: "text"; text: string; truncated: boolean } | { kind: "binary" } | { kind: "not-utf8" } {
 	if (bytes.subarray(0, SNIFF_BYTES).includes(0)) return { kind: "binary" }
 	const truncated = size > bytes.length
@@ -56,10 +44,6 @@ export function decodeText(bytes: Uint8Array, size: number): { kind: "text"; tex
 	}
 }
 
-/**
- * One stored version as text. `limit` reads the head with a Range request; leave it out to read
- * the whole file. The server answers a range with its total size in `content-range`.
- */
 export async function readText(roomId: string, id: string, limit?: number): Promise<TextRead> {
 	const res = await apiFetch(urls.file(roomId, id), limit ? { headers: { range: `bytes=0-${limit - 1}` } } : undefined)
 	if (!res.ok) throw new Error(`The server said ${res.status}`)
@@ -76,8 +60,6 @@ const TEXT_EXT = /\.(txt|md|mdx|json|jsonc|ya?ml|toml|ini|env|csv|tsx?|jsx?|mjs|
 export const isTextFile = (f: Pick<FileRef, "name" | "type">) =>
 	TEXT_TYPES.test(f.type) || TEXT_EXT.test(f.name) || /(^|\/)\.[^/.]+$/.test(f.name)
 
-// A file the user just made. The index event can lag the PUT answer, so the new file shows at once
-// and drops out when the index has the path.
 const [made, setMade] = createSignal<readonly (FileRef & { roomId: string })[]>([])
 
 export function withMade(roomId: string, indexed: readonly FileRef[]): FileRef[] {
@@ -85,12 +67,10 @@ export function withMade(roomId: string, indexed: readonly FileRef[]): FileRef[]
 	return [...indexed, ...made().filter((f) => f.roomId === roomId && !have.has(f.name))]
 }
 
-/** Drops the made files at `path` or under it. A rename or delete calls it, or the old name would stay in the tree. */
 export function forgetMade(roomId: string, path: string) {
 	setMade((list) => list.filter((f) => f.roomId !== roomId || (f.name !== path && !f.name.startsWith(`${path}/`))))
 }
 
-/** Makes an empty file. True when it was made, false when the path already holds one or the call failed. */
 export async function createFile(roomId: string, path: string): Promise<boolean> {
 	const res = await putFile(roomId, path, "", "text/plain", "none")
 	if (res.kind !== "saved") return false

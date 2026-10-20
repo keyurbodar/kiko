@@ -7,7 +7,6 @@ export const INITIATIVE_RUN = "initiative"
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
-/** A task nudged in the last three days waits: the lead has heard about it. */
 const RENUDGE_MS = 3 * DAY
 const KEEP_MS = 90 * DAY
 const TRIES = 5
@@ -17,7 +16,6 @@ export type Level = UserSettings["initiative"]
 
 type WakeInput = { id: string; to: AgentSlug | null; body: string; reason: string }
 
-/** One row of the board summary a room reports to `UserDO.chatTasks` when its tasks change. */
 type BoardTask = { id?: string; title: string; status: string; owner?: string; updatedAt: number }
 
 type Board = { roomId: string; oldest: readonly BoardTask[] }
@@ -27,7 +25,6 @@ type EngineDeps = {
   tz: () => string
   level: () => Level
   boards: () => readonly Board[]
-  /** The chat's title, or null when the chat is private or gone: nothing there may be raised. */
   title: (roomId: string) => string | null
   wake: (roomId: string, input: WakeInput) => Promise<WakeResult | "busy">
   count: (delta: Record<string, number>) => void
@@ -42,7 +39,6 @@ export class InitiativeEngine {
     return [...this.d.boards()]
   }
 
-  /** The open tasks that are old enough to raise: oldest change first, one per chat, none nudged in the last three days. */
   private due(now: number): { room: string; task: BoardTask & { id: string } }[] {
     const seen = new Set(
       this.d.sql
@@ -58,34 +54,31 @@ export class InitiativeEngine {
       .sort((a, b) => a.task.updatedAt - b.task.updatedAt)
   }
 
-  /** Runs once after a human reply: the oldest open task that nobody nudged wakes its room. A wake that did not land is raised by the next pass. */
   async pass(now = Date.now()): Promise<PassReport> {
     this.prune(now)
     const report: PassReport = { at: now, woke: [] }
     const level = this.d.level()
-    if (level === "digest" || level === "active") {
-      const raised = new Set<string>()
-      let tried = 0
-      let landed = 0
-      for (const { room: roomId, task } of this.due(now)) {
-        if (this.d.title(roomId) === null || raised.has(roomId)) continue
-        if (++tried > TRIES) break
-        const own = task.owner !== undefined
-        // A task has no due date, so the reason names the day it last changed.
-        const id = `task:${roomId}:${task.id}#${Math.floor(now / DAY)}`
-        const result = await this.d.wake(roomId, {
-          id,
-          to: own ? (task.owner as AgentSlug) : null,
-          body: wakeBody(task, own, now),
-          reason: `${own ? `Promised ${day(task.updatedAt, this.d.tz())}` : `Not touched since ${day(task.updatedAt, this.d.tz())}`}`,
-        })
-        report.woke.push({ id, room: roomId, to: own ? (task.owner as string) : "lead", result })
-        if (result === "delivered" || result === "duplicate") {
-          this.d.sql.exec("INSERT OR IGNORE INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES (?, ?, ?, ?, ?, ?, 'sent')", id, roomId, own ? (task.owner as string) : "lead", task.status, `task:${roomId}:${task.id}`, now)
-          this.d.count({ initiative_woke: 1 })
-          raised.add(roomId)
-          if (++landed >= PER_PASS[level]) break
-        }
+    if (level !== "digest" && level !== "active") return report
+    const raised = new Set<string>()
+    let tried = 0
+    let landed = 0
+    for (const { room: roomId, task } of this.due(now)) {
+      if (this.d.title(roomId) === null || raised.has(roomId)) continue
+      if (++tried > TRIES) break
+      const own = task.owner !== undefined
+      const id = `task:${roomId}:${task.id}#${Math.floor(now / DAY)}`
+      const result = await this.d.wake(roomId, {
+        id,
+        to: own ? (task.owner as AgentSlug) : null,
+        body: wakeBody(task, own, now),
+        reason: `${own ? `Promised ${day(task.updatedAt, this.d.tz())}` : `Not touched since ${day(task.updatedAt, this.d.tz())}`}`,
+      })
+      report.woke.push({ id, room: roomId, to: own ? (task.owner as string) : "lead", result })
+      if (result === "delivered" || result === "duplicate") {
+        this.d.sql.exec("INSERT OR IGNORE INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES (?, ?, ?, ?, ?, ?, 'sent')", id, roomId, own ? (task.owner as string) : "lead", task.status, `task:${roomId}:${task.id}`, now)
+        this.d.count({ initiative_woke: 1 })
+        raised.add(roomId)
+        if (++landed >= PER_PASS[level]) break
       }
     }
     return report

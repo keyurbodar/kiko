@@ -5,7 +5,6 @@ import solid from "vite-plugin-solid";
 import { firstPaintPreload } from "./scripts/preload-plugin";
 import pkg from "../../package.json";
 
-// A hosted build (one with a Clerk key) sends people to the installer, so it cannot ship without one.
 function requireInstaller(mode: string): void {
   const env = { ...loadEnv(mode, import.meta.dirname, "VITE_"), ...process.env };
   if (mode === "production" && env.VITE_CLERK_PUBLISHABLE_KEY && !env.VITE_INSTALLER_URL) {
@@ -17,10 +16,8 @@ export default defineConfig(({ mode }) => {
   requireInstaller(mode);
   return {
   plugins: [solid(), tailwindcss(), firstPaintPreload()],
-  // The build version, from the root package.json. The client compares it with the backend (src/lib/version-skew.ts).
   define: { __KIKO_VERSION__: JSON.stringify(pkg.version) },
   optimizeDeps: {
-    // Plain JS that Kobalte (kept out of the optimizer by vite-plugin-solid) imports file by file.
     include: ["@kiko/ui > @kobalte/core > @internationalized/date", "@kiko/ui > @kobalte/core > @internationalized/number"],
   },
   server: {

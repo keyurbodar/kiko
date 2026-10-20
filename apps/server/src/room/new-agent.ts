@@ -2,7 +2,6 @@ import type { Agent, RoomId } from "@kiko/protocol"
 import { checkNewAgent, introduction, type Maker, type NewAgentSpec } from "./chief"
 import type { RecipeHint } from "../recipes/match"
 
-/** What making an agent needs from the human's account. Kiko's tool reaches it by stub, the new agent form from inside `UserDO`. */
 type NewAgentPorts = {
   agents(): Promise<readonly Agent[]>
   make(spec: NewAgentSpec & { id?: string }): Promise<Agent | null>
@@ -12,13 +11,9 @@ type NewAgentPorts = {
 }
 
 type NewAgentResult =
-  | { ok: true; agent: Agent; roomId: RoomId; /** The agent's greeting. The caller keeps it alive with `waitUntil`. */ introduced: Promise<void> }
+  | { ok: true; agent: Agent; roomId: RoomId;  introduced: Promise<void> }
   | { ok: false; error: string }
 
-/**
- * The one way an agent is made: check the name, handle and soul, save the agent, give it its own chat, and start its
- * introduction. A repeat with the same `id` returns the agent already made and greets nobody twice.
- */
 export async function makeAgentChat(p: NewAgentPorts, spec: NewAgentSpec, by: Maker, ids: { id?: string; roomId?: RoomId } = {}): Promise<NewAgentResult> {
   const mine = await p.agents()
   const again = ids.id ? mine.find((a) => a.id === ids.id) : undefined

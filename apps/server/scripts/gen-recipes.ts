@@ -1,10 +1,3 @@
-/*
- * Built-in recipes live in apps/server/recipes/<slug>/RECIPE.md. This writes:
- * - src/recipes/icons.gen.ts: the curated Phosphor duotone glyphs, their tones, and their tag words,
- * - src/recipes/catalog.gen.ts: the built-in recipe files, copied into each owner's /home/recipes once,
- * - the client's first-paint gallery cards, before the owner's own list arrives.
- * Run `bun apps/server/scripts/gen-recipes.ts` after an edit.
- */
 import { readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { icons } from "@phosphor-icons/core"
@@ -52,7 +45,6 @@ export const SERVER_OUT = join(root, "src/recipes/catalog.gen.ts")
 export const ICONS_OUT = join(root, "src/recipes/icons.gen.ts")
 export const CLIENT_OUT = join(root, "../web-solid/src/recipes/catalog.gen.ts")
 
-/** The client's cards come from the same function the Worker uses, so first paint and the live list agree. */
 export async function clientGenerated(): Promise<string> {
   const { recipeCard } = await import("../src/recipes/card")
   const cards: RecipeCard[] = sources.map(([name, content]) => recipeCard(parseRecipe(content, name), false, null))

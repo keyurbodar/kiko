@@ -1,9 +1,5 @@
-// One schema step: a SQL string, or a function for a change that must look at the table first.
 export type Step = string | ((sql: SqlStorage) => void)
 
-// Runs the steps the object has not run yet, in one transaction, and records how many have run.
-// An object with no recorded version starts at step 0, so every step must be safe on a table that
-// already exists. A list only grows at its end.
 export function migrate(storage: Pick<DurableObjectStorage, "sql" | "transactionSync">, steps: readonly Step[]): void {
 	const sql = storage.sql
 	storage.transactionSync(() => {

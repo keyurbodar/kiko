@@ -7,13 +7,6 @@ import { cn } from "../lib/cn"
 import { browserKey, refusal, sameKey } from "./browser-keys"
 import { Button, Empty, fieldClass, Group, Hint, muted, Row } from "./kit"
 
-/*
- * Keyboard shortcuts, after t3code's keybindings settings (MIT, apps/web/src/components/settings/
- * KeybindingsSettings.tsx): every command with the key it answers to. Click a key and press the new
- * one. Escape cancels and Backspace removes the key. A key another command had moves here, and a key
- * the browser keeps is refused, because kiko would never see it.
- */
-
 const platform = detectPlatform()
 const ORDER = Object.keys(GROUP_LABEL) as CommandGroup[]
 
@@ -83,7 +76,6 @@ function KeyRow(props: { command: Command }) {
         data-action="record-shortcut"
         data-recording={recorder.isRecording() ? "" : undefined}
         onClick={toggle}
-        // Clicking another row ends this recording.
         onBlur={() => recorder.isRecording() && recorder.cancelRecording()}
       >
         <Show when={!recorder.isRecording()} fallback={<span class="text-foreground">Press keys…</span>}>

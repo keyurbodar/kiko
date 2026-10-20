@@ -51,7 +51,6 @@ export function deliverable<T>(envelopes: readonly T[], maxCount = MAX_DELIVERY_
 
 export const envelopeId = (messageId: string) => `human:${messageId}`
 
-/** A human message waiting in the window: its envelope, and the slugs its whole text names. */
 export type Pending = { envelope: Envelope; mentions: string[] }
 
 export class Burst {
@@ -70,7 +69,6 @@ export class Burst {
     private readonly now: () => number = Date.now,
   ) {}
 
-  /** Read only persisted pi state; in-flight admission is deliberately absent after eviction. */
   restore(): Promise<void> {
     return this.restored ??= this.restoreCursors()
   }
@@ -103,7 +101,6 @@ export class Burst {
   }
 
   forAgent(slug: AgentSlug, limit = MAX_DELIVERY_ENVELOPES): Pending[] {
-    // unansweredFor's base is exclusively the durable inbox-delivery cursor.
     return this.log.unansweredFor(slug, this.durable.get(slug) ?? 0, Number.MAX_SAFE_INTEGER)
       .filter(({ envelope }) => envelope.seq > (this.admitted.get(slug) ?? 0)).slice(0, limit)
   }
@@ -119,7 +116,6 @@ export class Burst {
     return first ? this.log.message(first.envelope.rootId)?.at ?? null : null
   }
 
-	/** Sets the wakeup for a durable human message: the window closes a pause after it, or at the cap. */
 	async arm(text: string): Promise<void> {
     await this.restore()
 		const now = this.now()
@@ -127,7 +123,6 @@ export class Burst {
 		await this.alarms.setWakeup(BURST_WAKEUP, this.readyAt)
 	}
 
-  /** Keep the burst in its incoming event; the deadline is recovered from unanswered messages. */
   async settle(flush: () => Promise<void>): Promise<void> {
     await this.restore()
     if (this.settling || !this.pending()) return
@@ -157,7 +152,6 @@ export class Burst {
 		await this.alarms.setWakeup(BURST_WAKEUP, this.readyAt)
 	}
 
-  /** Union only still-unanswered routes; partially delivered @all batches keep their remaining recipients. */
   envelopes(_roomId?: RoomId, limit = MAX_DELIVERY_ENVELOPES): Pending[] {
     const unique = new Map<string, Pending>()
     for (const { slug } of this.members.list()) for (const pending of this.forAgent(slug, limit)) unique.set(pending.envelope.id, pending)

@@ -16,7 +16,6 @@ const requiredFlags = (schema: unknown): string[] => {
   return s.required.filter((k): k is string => typeof k === "string" && s.properties?.[k]?.type === "boolean")
 }
 
-/** Models often omit a required boolean that Composio's meta tools accept as false. Learned tools keep theirs: those are the model's choice. */
 export function relaxSchema<T>(schema: T): T {
   const flags = requiredFlags(schema)
   if (!flags.length) return schema
@@ -24,7 +23,6 @@ export function relaxSchema<T>(schema: T): T {
   return { ...schema, required: s.required.filter((k) => !flags.includes(k)) }
 }
 
-/** Sets each boolean the schema required but the model left out to false. */
 export const fillFlags = (schema: unknown, args: Record<string, unknown>): Record<string, unknown> => {
   const flags = requiredFlags(schema).filter((k) => args[k] === undefined)
   return flags.length ? { ...args, ...Object.fromEntries(flags.map((k) => [k, false])) } : args
@@ -43,11 +41,6 @@ const parsed = (value: unknown): unknown => {
   }
 }
 
-/**
- * A model sometimes sends a JSON object as a string, or a one-item array where the schema says object.
- * Composio rejects the call with "Invalid request data provided", which reads to the model as a dead
- * tool. Repair the shapes its schemas name, and leave everything else for the harness to reject.
- */
 function repairArguments(schema: unknown, args: Record<string, unknown>): Record<string, unknown> {
   const s = schema as JsonSchema | null
   if (!s || s.type !== "object" || !s.properties) return args
@@ -66,10 +59,8 @@ function repairArguments(schema: unknown, args: Record<string, unknown>): Record
   return out
 }
 
-/** `COMPOSIO_SEARCH_TOOLS` becomes `composio_search_tools`. */
 export const toolName = (name: string) => `composio_${name.replace(/^COMPOSIO_/, "").toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`.slice(0, 64)
 
-/** Learned tools after the listed ones, with the first of any two that map to the same name, so the prompt prefix stays stable. */
 function shown(tools: readonly ComposioTool[]): ComposioTool[] {
   const byName = (a: ComposioTool, b: ComposioTool) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
   const taken = new Set<string>()
@@ -84,7 +75,6 @@ function shown(tools: readonly ComposioTool[]): ComposioTool[] {
 
 const learned = (tools: readonly ComposioTool[]) => shown(tools).flatMap((t) => (t.direct ? [toolName(t.name)] : []))
 
-/** The learned connected-app tools the agent and its workers can call. */
 export function learnedNote(tools: readonly ComposioTool[]): string | undefined {
   const names = learned(tools)
   return names.length ? `connected-app tools you can call directly: ${names.join(", ")}.` : undefined
@@ -95,7 +85,6 @@ export function composioExtension(tools: readonly ComposioTool[], rawCall: Compo
   const names = learned(tools)
   return defineExtension({
     name: COMPOSIO,
-    // Composio's search description says to always search first, which would skip learned tools.
     sections: names.length ? [section("composio", () => `connected-app tools you can call directly, no search needed: ${names.join(", ")}.`)] : [],
     tools: shown(tools).map((t) => {
         const name = toolName(t.name)
@@ -122,7 +111,6 @@ export function composioExtension(tools: readonly ComposioTool[], rawCall: Compo
   })
 }
 
-/** Dev stats, spill of big text, and a throw turned into a tool error. */
 async function timed(name: string, fs: RoomFs | undefined, run: () => Promise<ComposioCallResult>) {
   count(`composio.call.${name}`)
   try {

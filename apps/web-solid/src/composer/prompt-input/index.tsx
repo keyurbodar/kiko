@@ -84,7 +84,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
     })
   })
 
-  // The shelf holds pictures. Files are chips in the text.
   const pictures = () => props.controller.attachments().filter((part) => isImage({ name: part.filename, type: part.mime }))
   return (
     <div class={`relative flex flex-col ${props.class ?? ""}`}>

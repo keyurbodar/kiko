@@ -1,4 +1,3 @@
-
 export type ChatWidth = "comfortable" | "wide" | "full"
 
 export type Display = Readonly<{
@@ -30,7 +29,6 @@ export const CHAT_WIDTHS: Record<ChatWidth, { label: string; width: string }> = 
   full: { label: "Full", width: "100%" },
 }
 
-// Empty font preferences follow the device, including headings.
 export const SANS_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
 export const DISPLAY_STACK = SANS_STACK
 export const MONO_STACK = '"SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace'
@@ -76,7 +74,6 @@ export function displayVars(display: Display): Record<string, string> {
     "--font-base": `${b + 1}px`,
     "--chat-content-max-width": CHAT_WIDTHS[display.chatWidth].width,
     "--font-family-sans": fontFamily(display.interfaceFont, SANS_STACK),
-    // A font the person chose sets the headings too, so their choice never sits beside Kiko's.
     "--font-family-display": display.interfaceFont ? fontFamily(display.interfaceFont, SANS_STACK) : DISPLAY_STACK,
     "--font-family-mono": fontFamily(display.codeFont, MONO_STACK),
     "--font-smoothing": display.smoothing ? "antialiased" : "auto",

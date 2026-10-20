@@ -44,10 +44,8 @@ function isBinary(bytes: Uint8Array): boolean {
 const text = (value: string) => [{ type: "text" as const, text: value }]
 const refused = (message: string) => ({ output: text(message), isError: true })
 
-// The paths a tool saved, in its result's details.
 type Saved = { changed: string[] }
 
-// The room path RoomFs writes for a path a tool was given.
 const roomPathOf = (api: Pick<ToolExecutionApi, "env">, path: string) => `/${getOrThrow(filesOf(api).roomPath(path))}`
 
 
@@ -63,11 +61,9 @@ function line(e: FsEntry): string {
 
 export type FilesOptions = {
   acceptsImages(model: ModelRef | undefined): boolean
-  // The paths a call saved, once they committed. The worker's list reads them.
   touched(conversationId: ConversationId, paths: readonly string[]): void
 }
 
-// Recorded at the commit, not after the call: a stopped call's hook does not run, and a save before the stop must still be listed.
 export function filesExtension({ acceptsImages, touched }: FilesOptions): Extension {
   const saved = (api: Pick<ToolExecutionApi, "conversationId">, paths: readonly string[]): Saved | undefined => {
     if (!paths.length) return undefined
@@ -82,9 +78,8 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     execute: (args, api, context) => filesOf(api).within(async () => {
       const fs = filesOf(api)
       const found = await fs.stat(args.path)
-      if (found.ok && found.value.kind === "file") {
-        const entry = found.value
-        if (IMAGE_TYPES.has(entry.type)) {
+      const readMedia = async (entry: Extract<Awaited<ReturnType<typeof fs.stat>>, { ok: true }>["value"] & { kind: "file" }) => {
+        const readImage = async () => {
           const agent = await api.agent(context)
           if (!acceptsImages(agent.model)) return { output: text(`${args.path} is an image (${entry.type}, ${size(entry.size)}). this model cannot read images.`) }
           if (entry.size > MAX_IMAGE_BYTES) return refused(`${args.path} is an image of ${size(entry.size)}, over the ${size(MAX_IMAGE_BYTES)} limit`)
@@ -92,6 +87,7 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
           if (!bytes) return refused(`no file at ${args.path}`)
           return { output: [{ type: "image" as const, data: encodeBase64(bytes), mimeType: entry.type }] }
         }
+        if (IMAGE_TYPES.has(entry.type)) return readImage()
         if (entry.type === "application/pdf" || entry.path.toLowerCase().endsWith(".pdf")) {
           if (entry.size > MAX_PDF_BYTES) return refused(`${args.path} is a pdf of ${size(entry.size)}, over the ${size(MAX_PDF_BYTES)} limit`)
           const bytes = await fs.bytesOf(entry)
@@ -101,7 +97,10 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
         }
       }
       if (found.ok && found.value.kind === "file") {
-        // pi's read would decode any bytes as text. The bytes are cached, so pi's read fetches nothing again.
+        const media = await readMedia(found.value)
+        if (media) return media
+      }
+      if (found.ok && found.value.kind === "file") {
         const bytes = await fs.bytesOf(found.value)
         if (bytes && isBinary(bytes)) return refused(`${args.path} is a binary file (${found.value.type}, ${size(found.value.size)}) and cannot be read as text`)
       }
@@ -190,7 +189,6 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
       if ((await fs.stat(target)).ok) return refused(`${target} already exists`)
       const files = getOrThrow(await fs.list(args.from, true)).filter((e) => e.kind === "file")
       if (files.length > MAX_COPIED) return refused(`${args.from} holds ${files.length} files, over the ${MAX_COPIED} a copy takes. move it, or copy a folder inside`)
-      // Every write runs to its end, so one refused file does not cancel the rest. The result names what saved and what did not.
       const copies = await Promise.allSettled(
         files.map(async (f) => {
           const to = `${target}/${f.path.slice(src.path.length + 1)}`
@@ -207,7 +205,6 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     },
   })
 
-  // pi's write and edit change only the path they are given. A failed call saved nothing, so it reports nothing.
   const piWrite = createWriteTool()
   const write = defineTool({
     ...piWrite,
@@ -216,7 +213,6 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
       return out.isError ? out : { ...out, details: saved(api, [roomPathOf(api, args.path)]) }
     },
   })
-  // pi's edit asks for the file's info and then reads it: one room call for both, and the write
   const piEdit = createEditTool()
   const edit = defineTool({
     ...piEdit,
@@ -227,8 +223,6 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
       }),
   })
 
-  // pi's bash only reads the env's cwd and runs its exec. This call's exec records the paths the command saved. It sets no details: a
-  // stopped call's api.details throws, and the saves it would report have already happened.
   const piBash = createBashTool()
   const bash = defineTool({
     ...piBash,
@@ -254,7 +248,6 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     declareEffect("write", mv) as ToolRegistration,
     declareEffect("write", cp) as ToolRegistration,
     declareEffect("write", mkdir) as ToolRegistration,
-    // A stopped bash call saves none of a command it did not finish, so a human message may stop it.
     declareEffect("write", bash, { stoppable: true }) as ToolRegistration,
   ]
   return defineExtension({ name: FILES, tools })

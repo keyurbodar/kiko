@@ -1,4 +1,3 @@
-
 import { displayVars } from "./display"
 import { formatImported, IMPORTED_KEY, parseImported, themeFor, type Imported } from "./imported"
 import { DEFAULT_LOOK, parseLook, type Look } from "./look"
@@ -14,7 +13,6 @@ const systemDark = () => typeof matchMedia !== "function" || !matchMedia("(prefe
 export const appearanceOf = (mode: ThemeMode): ThemeAppearance => resolveAppearance(mode, systemDark())
 
 let imported: Imported = parseImported(storedImported())
-// Imported themes belong to this browser, not to a person, so the signed-out screens skip them.
 let importedOn = true
 
 function storedImported(): string | null {
@@ -60,7 +58,6 @@ function paint(look: Look): void {
   root.style.colorScheme = appearance
   const canvas = next["--background"] ?? PALETTES[appearance].canvas
   root.style.backgroundColor = canvas
-  // The page's own colors come from the pre-paint guess. They follow the look, or text that sets no color of its own keeps the other mode's ink.
   root.style.setProperty("--boot-bg", canvas)
   root.style.setProperty("--boot-fg", next["--foreground"] ?? PALETTES[appearance].text)
   for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.setAttribute("content", canvas)
@@ -81,10 +78,6 @@ export function applyCommitted(look: Look, withImported = true): void {
   watch()
 }
 
-/**
- * Paints a look the person has not saved, as the palette's live preview. It never touches the saved
- * look or the stored themes. The returned function paints the saved look back.
- */
 export function previewLook(look: Look, themes: Imported = imported): () => void {
   const real = imported
   imported = themes

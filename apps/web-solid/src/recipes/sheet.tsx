@@ -11,10 +11,6 @@ import { addToTarget, editRecipe, installsFor, isAdded, isEditing, refreshListin
 const label = "px-1 text-[11.5px] font-semibold text-muted-foreground"
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-/**
- * A recipe up close: what it does, the apps it uses, what the agent will ask, and where it runs.
- * Add swaps the body for the chat picker, or adds at once from a chat with one agent.
- */
 export function RecipeSheet(props: { recipe: RecipeCard; onClose: () => void; roomId?: string | null; mode?: "add" | "details" }) {
   const navigate = useNavigate()
   const go = (to: string) => {

@@ -10,10 +10,6 @@ export type {
   ToastV2Variant,
 } from "./toast-v2-impl"
 
-/*
- * The toaster is not needed to paint, so it loads after first paint. The region starts the
- * import when it mounts. A toast shown before the module lands is shown as soon as it does.
- */
 const impl = deferred(() => import("./toast-v2-impl"))
 
 export const loadToastV2 = impl.load
@@ -32,7 +28,6 @@ function ToastV2Region(props: ToastV2RegionProps) {
 
 export const ToastV2 = { Region: ToastV2Region }
 
-/* Returns the toast id, or undefined when the toaster was not loaded yet. */
 export function showToastV2(options: ToastV2Options | string): number | undefined {
   const module = impl.module()
   if (module) return module.showToastV2(options)
@@ -48,7 +43,6 @@ export function dismissToastV2(id?: number) {
   impl.module()?.dismissToastV2(id)
 }
 
-/* A loading toast that becomes the success or error toast when the promise settles. */
 export function promiseToastV2<T>(promise: Promise<T>, steps: ToastV2PromiseOptions<T>): Promise<T> {
   void impl.load().then((loaded) => loaded.promiseToastV2(promise, steps))
   return promise

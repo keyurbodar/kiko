@@ -1,8 +1,3 @@
-/*
- * Picks an icon for a recipe from its words, with no model call: a synonym wins outright, otherwise the
- * curated icons are scored by their names and Phosphor tags. The glyphs and tones are generated into
- * icons.gen.ts by scripts/gen-recipes.ts, so this runs in the Worker.
- */
 import type { RecipeTone } from "@kiko/protocol"
 import { ICONS } from "./icons.gen"
 import { SYNONYMS } from "./icon-words"
@@ -13,7 +8,6 @@ const STOP = new Set("the and for you your with from into that this each every w
 export const stem = (w: string) => w.replace(/ies$/, "y").replace(/(ing|ers|es|s|ed)$/, "")
 export const words = (s: string) => s.toLowerCase().replace(/follow-up/g, "followup").split(/[^a-z]+/).filter((w) => w.length > 2 && !STOP.has(w))
 
-/** Picks a curated icon from the recipe's words. An unknown topic gets the sparkle. */
 function pickIcon(title: string, description: string): string {
   for (const w of [...words(title), ...words(description)]) {
     const hit = SYNONYMS[w] ?? SYNONYMS[stem(w)]
@@ -34,7 +28,6 @@ function pickIcon(title: string, description: string): string {
   return top >= 3 ? best : "sparkle"
 }
 
-/** The icon a recipe shows: the one it names when it is in the set, else a pick from its words. */
 export function iconFor(title: string, description: string, named: string | null): { icon: string } & IconInfo {
   const icon = named && ICONS[named] ? named : pickIcon(title, description)
   return { icon, ...(ICONS[icon] ?? ICONS.sparkle!) }

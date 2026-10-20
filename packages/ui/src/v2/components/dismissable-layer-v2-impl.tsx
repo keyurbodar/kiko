@@ -10,10 +10,6 @@ export interface DismissableLayerV2HooksProps {
   element: Accessor<HTMLDivElement | undefined>
 }
 
-/*
- * The behaviour of a dismissable layer, as a component that renders nothing. The layer's
- * element is in dismissable-layer-v2.tsx; this part loads with the overlays chunk.
- */
 export function DismissableLayerV2Hooks(props: DismissableLayerV2HooksProps): JSX.Element {
   createInteractOutside(
     {

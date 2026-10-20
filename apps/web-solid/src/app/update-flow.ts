@@ -31,10 +31,6 @@ function set(next: UpdateProgress) {
 let target = APP_VERSION
 let polling = false
 
-/**
- * After the upload, asks the backend for its version until the new one answers. The socket's own reconnect is
- * not waited on: Cloudflare can keep the old socket open, or drop it before the last stage arrives.
- */
 async function awaitRestart() {
 	if (polling) return
 	polling = true
@@ -61,7 +57,6 @@ function wire() {
 		set(reduceUpdate(frame))
 		if (frame.stage === "restarting") void awaitRestart()
 	})
-	// A drop during the upload can lose the "restarting" frame. The upload may still have landed, so look.
 	userChannel.onOpen(() => {
 		const stage = progress()?.stage
 		if (stage === "uploading" || stage === "restarting") void awaitRestart()

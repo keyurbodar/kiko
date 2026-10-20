@@ -169,12 +169,10 @@ export class User {
     return { cards: cards.map((r) => recipeCard(r, custom.has(r.slug), connected)), installs, broken }
   }
 
-  /** The catalog recipes that may fit a new agent's description. */
   async recipeHints(description: string): Promise<RecipeHint[]> {
     return matchRecipes(description, (await this.#recipes.list()).cards)
   }
 
-  /** Makes an agent from the new agent form: the agent, its own chat, and its greeting. The chat id is the client's, so it is already open there. */
   async createAgentChat(input: { id: string; roomId: RoomId; name: string; handle: string; description: string }): Promise<NewAgentOutcome> {
     const owner = this.ownerId
     const out = await makeAgentChat(
@@ -269,6 +267,7 @@ export class User {
   private dev():Promise<typeof import("./dev")>{this.devCache??=loadUserDev();return this.devCache}
 
   async devSeen(ago: number): Promise<void> {
+    this.lastSeen = Date.now() - ago
     return (await this.dev()).devSeen(this.sql, ago)
   }
 
@@ -405,7 +404,6 @@ export class User {
   }
 
 
-  /** Who is typing in each chat, for a socket that connects mid-run. Memory only: a clear always arrives as a frame. */
   readonly #typing = new Map<RoomId, readonly string[]>()
 
   async chatTyping(roomId: RoomId, names: readonly string[]): Promise<void> {
@@ -428,7 +426,6 @@ export class User {
     return this.directory.list()
   }
 
-  /** The room calls this when its members change. Slugs become agent ids; Kiko's id is its slug. */
   async chatMembers(roomId: RoomId, slugs: readonly string[]): Promise<void> {
     const ids = new Map(listAgents(this.sql).map((a) => [a.slug as string, a.id]))
     this.commit(this.directory.agents( roomId, slugs.flatMap((s) => (s === KIKO ? [KIKO] : ids.has(s) ? [ids.get(s)!] : []))))
@@ -495,7 +492,6 @@ export class User {
     return agent
   }
 
-  /** The chat with exactly these agents: the existing one, or a new one (`created`). */
   async openChat(title: string, agents: readonly string[], roomId: RoomId = newRoomId()): Promise<{ roomId: RoomId; created: boolean }> {
     const op: ChatOp = { op: "create", roomId, title, agents }
     const existing = this.existingFor(op)
@@ -504,7 +500,6 @@ export class User {
     return { roomId: op.roomId, created: true }
   }
 
-  /** The hidden chat where two of the human's agents talk. It is made once, from the two slugs, and no client hears of it. */
   async openPair(a: string, b: string): Promise<{ ok: true; roomId: RoomId } | { ok: false; error: string }> {
     const mine = listAgents(this.sql)
     const idOf = (slug: string) => (slug === KIKO ? KIKO : mine.find((x) => x.slug === slug)?.id)
@@ -555,20 +550,17 @@ export class User {
       .map((l) => itemLine({ pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}` }, 400, true, "life"))
   }
 
-  /** Writes down what the capture queue holds. Called after a human run. */
   async captureNow(): Promise<void> {
     await this.#mem.captureNow()
     await this.#mem.napLife()
   }
 
-  /** The initiative pass. Called after a human run, and by the dev route. */
   async initiativePass(): Promise<void> {
     await this.#initiative.pass()
   }
 
   private routineSync: Promise<void> = Promise.resolve()
 
-  /** Points each agent's durable routine tasks at the current inventory of its exact-time routines. */
   syncRoutines(routines: readonly import("../owner/schedules").ScheduledRoutine[]): Promise<void> {
     const work = this.routineSync.then(() => this.applyRoutineInventory(routines))
     this.routineSync = work.catch(() => {})
@@ -595,7 +587,6 @@ export class User {
     this.putSetting("routine_agents", JSON.stringify([...byAgent.keys()]))
   }
 
-  /** A routine task delivered its occurrence, so record the run and schedule the next one. */
   async fireRoutine(delivery: import("../owner/schedules").RoutineDelivery): Promise<void> {
     await this.reminders.fireScheduled(delivery)
     this.changed("routines")
@@ -652,7 +643,6 @@ export class User {
     return removed
   }
 
-  /** The model catalog json for the client, or null json when it already holds `have`. */
   async modelCatalog(have: string | null): Promise<{ revision: string; json: string | null }> {
     return this.models.catalog(have)
   }
@@ -662,18 +652,15 @@ export class User {
     this.changed("models")
   }
 
-  /** A run or a probe heard the provider refuse the key, say the credit is gone, or refuse the sign-in. Broadcasts only a change. */
   async recordProviderProblem(provider: string, kind: RunErrorKind): Promise<void> {
     const problem = problemOfRun(kind)
     if (problem) this.#credentials.setProblem(provider, problem)
   }
 
-  /** A run that began with a problem ended without a model error, so the provider works. */
   async providerRecovered(provider: string): Promise<void> {
     this.#credentials.setProblem(provider, null)
   }
 
-  /** "Check again": refreshes an OAuth sign-in, sends the cheapest request, and sets or clears the problem. */
   async checkProvider(provider: string): Promise<ProviderInfo | null> {
     const info = await this.#watch.check(provider)
     return info ? this.#mem.describe(info) : null
@@ -702,17 +689,14 @@ export class User {
     if (roomId) await this.services.room(roomId).systemNotice(`away:${now}`, "i paused your routines and follow-ups while you were away. they start again when you open kiko.", "limit")
   }
 
-  /** What an agent runs on, for every chat. */
   async agentModel(slug: string): Promise<AgentModel | null> {
     return agentModel(this.sql, slug)
   }
 
-  /** The room frame's setter: one model for the named agent, or for each of the room's agents. */
   async setAgentModels(slugs: readonly AgentSlug[], ref: string, roomId: RoomId): Promise<void> {
     for (const slug of slugs) this.setAgentModel(slug, ref, undefined, roomId)
   }
 
-  /** One round trip for a run: the agent's model and level, then the credentials for that model's provider. */
   async agentTurn(slug: string): Promise<TurnContext & { model: string | null; thinking: ThinkingLevel }> {
     const picked = agentModel(this.sql, slug)
     if (!picked) return { ...(await this.turnContext("", slug)), model: null, thinking: "off" }
@@ -748,7 +732,6 @@ export class User {
     return this.#vault
   }
 
-  /** A provider pi-ai knows, or in a development build the sign-in test provider. */
   private async lookupProvider(id: string): Promise<Provider | undefined> {
     const found = findProvider(id)
     if (found) return found
@@ -801,7 +784,6 @@ export class User {
   #initiativeModule?: InitiativeEngine
   get #initiative(): InitiativeEngine {
     this.#initiativeModule ??= new InitiativeEngine({
-      // One scan of the open boards, not a chat view per chat: the pass must not pay for every room's activity.
       boards: () => {
         const rows = this.sql
           .exec<{ room_id: string; id: string; title: string; status: string; owner: string | null; updated_at: number }>(
@@ -819,7 +801,6 @@ export class User {
       sql: this.sql,
       tz: () => getSetting(this.sql, "timezone") ?? DEFAULT_TIMEZONE,
       level: () => this.initiativeLevel(),
-      // A chat the human keeps private never reaches initiative.
       title: (roomId) => {
         const chat = this.directory.get( roomId)
         return chat && !chat.private ? chat.title : null
@@ -835,7 +816,6 @@ export class User {
     return (INITIATIVE_LEVELS as readonly string[]).includes(level ?? "") ? (level as Level) : "digest"
   }
 
-  /** Null when no key is stored. A cold object serves the saved listing and refreshes it behind. */
   async composioTools(): Promise<ComposioTool[] | null> {
     try {
       return await this.#composio.tools()
@@ -844,7 +824,6 @@ export class User {
     }
   }
 
-  /** What an open agent compares with the tools it opened with. Reads one row, never calls Composio. */
   composioSignature(): string | null {
     return this.#composio.signature()
   }
@@ -857,7 +836,6 @@ export class User {
     }
   }
 
-  /** The real toolkit slug for an app the agent named, so a connect link is not made for a slug that does not exist. */
   async composioToolkit(app: string): Promise<string | null> {
     try {
       return await this.#composio.resolveToolkit(app)
@@ -866,12 +844,10 @@ export class User {
     }
   }
 
-  /** A chat's agent failed to answer. Every open client hears it; the one showing that chat has the line in its transcript and skips the toast. */
   async notifyError(error: KikoError, roomId: RoomId): Promise<void> {
     this.broadcast({ t: "error", error, roomId })
   }
 
-  /** Tells the human what broke, then lets the caller see the error as before. */
   private fail(error: KikoError | null, cause: unknown): never {
     if (error) this.broadcast({ t: "error", error })
     throw cause
@@ -919,37 +895,30 @@ export class User {
     return this.#kernelWiring
   }
 
-  /** The user's browser for `agentId`, always headful so it has a live view. Creates it when there is none. */
   async browserLease(agentId: string): Promise<Lease> {
     return this.#kr.lease(agentId)
   }
 
-  /** Stamps last use. `tabs` (tab id to last URL) replaces the agent's tabs. False when the browser it knew is gone. */
   async browserTouch(agentId: string, tabs?: Record<string, string>): Promise<boolean> {
     return this.#kr.touch(agentId, tabs)
   }
 
-  /** Whether the human holds the browser. A paused agent is woken when control comes back. */
   async browserTakeover(agentId: string, roomId: string): Promise<boolean> {
     return this.#kr.paused(agentId, roomId)
   }
 
-  /** The live view link for the human, with a reason it is also posted to the room. */
   async browserLive(agentId: string, roomId: string, mode: "watch" | "control", reason?: string): Promise<LiveLinkResult> {
     return this.#kr.liveLink(agentId, roomId, mode, reason)
   }
 
-  /** An agent gives control back on the human's word in the chat. False when the agents already had it. */
   async browserHandBack(agentId: string): Promise<boolean> {
     return this.#kr.handBack(agentId)
   }
 
-  /** The agent's socket died: the next lease makes a new browser. */
   async browserDead(agentId: string, sessionId: string): Promise<boolean> {
     return this.#kr.dead(agentId, sessionId)
   }
 
-  /** Read before each browser call. Holds no URL. */
   async browserCheck(agentId?: string): Promise<BrowserCheck> {
     return this.#kr.check(agentId)
   }
@@ -1025,10 +994,8 @@ export class User {
     }
     if (frame.t === "hello") {
       this.seen()
-      // The reply says which build answered, so the client can tell it is out of date.
       const fileToken = await signToken(this.env.SESSION_SECRET, this.ownerId, "files")
       send(ws, { ...this.resume(frame.lastSeq), ...BACKEND, ...{ fileToken } })
-      // The client starts with no browser, so a hello sends a browser only when there is one.
       const browser = this.#kr.browserState()
       if (browser) send(ws, { t: "browserState", state: browser })
       for (const [roomId, names] of this.#typing) send(ws, { t: "typing", roomId, names })
@@ -1048,6 +1015,10 @@ export class User {
       await this.#kr.kernelFrame(ws, frame)
       return
     }
+    return this.handleUserFrame(ws, frame)
+  }
+
+  private async handleUserFrame(ws: WebSocket, frame: Exclude<typeof ClientToUser.Type, { t: "hello" | "connectComposio" | "disconnectComposio" | "composioStatus" | "browserLink" | "handBack" | "closeBrowser" | "connectKernel" | "disconnectKernel" | "kernelStatus" }>): Promise<void> {
     if (frame.t === "memory") {
       const result = await this.#mem.call(frame.op)
       if (result.ok && (frame.op.op === "note" || frame.op.op === "redact" || frame.op.op === "pin")) this.changed("memory")
@@ -1084,11 +1055,8 @@ export class User {
     }
     if (frame.t === "update.start") return this.#update.start(frame.version)
     if (frame.t === "login.start") {
-      // A sign-in socket never sends hello, and a person takes longer than the hello deadline to approve in the browser.
       const before = ws.deserializeAttachment() as Attachment | null
       if (!before?.ready) ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
-      // The person leaves to approve in another tab, often for minutes. A promise outside waitUntil does not keep
-      // the object awake, so it would hibernate after 10 s and forget the sign-in. waitUntil holds it up to 15 min.
       return void this.ctx.waitUntil(this.#loginState.start(ws, frame.loginId, frame.provider).catch(() => {}))
     }
     if (frame.t === "login.answer") return this.#loginState.answer(ws, frame.loginId, frame.promptId, frame.value)
@@ -1104,7 +1072,6 @@ export class User {
 
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
     this.#logins?.dropOwner(ws)
-    // Presence lives in memory while a socket is open; the close keeps it for away detection after an unload.
     const now = Date.now()
     if ((ws.deserializeAttachment() as Attachment | null)?.ready && now - Number(this.setting(LAST_SEEN) ?? 0) >= 3_600_000) this.putSetting(LAST_SEEN, String(now))
     try {
@@ -1123,7 +1090,6 @@ export class User {
     })
   }
 
-  /** The daily initiative pass runs now. The dev route asks for it. */
   async devPass(): Promise<unknown> {
     return (await this.dev()).devPass(() => this.#initiative)
   }
@@ -1131,7 +1097,6 @@ export class User {
   private apply(op: ChatOp): UserEvent | null {
     if (movesKikoChat(this.sql, op) || this.existingFor(op)) return null
     const event = this.commit(this.directory.apply( op, Date.now()))
-    // A deleted chat keeps no reminders or routines.
     if (event && op.op === "delete") {
 
       this.sql.exec("DELETE FROM capture_queue WHERE room_id = ?", op.roomId)
@@ -1147,7 +1112,6 @@ export class User {
     return event
   }
 
-  /** A create that would make a second chat with the same agents names the chat that is already there. */
   private existingFor(op: ChatOp): RoomId | null {
     if (op.op !== "create") return null
     return sameAgentChat(this.directory.list().map((c) => markKikoChat(this.sql, c)), op.agents ?? [], op.roomId)?.roomId ?? null
@@ -1162,7 +1126,6 @@ export class User {
   async ensureHome(): Promise<void> {
     this.ctx.waitUntil(this.#recipes.retireSeeded().catch((e: unknown) => console.error(`recipe cleanup failed: ${e instanceof Error ? e.message : String(e)}`)))
     for (const op of kikoChatOps(this.sql, this.directory.list())) this.apply(op)
-    // The Kiko chat is Kiko alone, also for a chat record that listed an agent added before that rule.
     const home = kikoChatRoom(this.sql)
     if (home) this.commit(this.directory.agents( home, [KIKO]))
     const old = this.setting(OLD_CHECK_IN)
@@ -1181,14 +1144,11 @@ export class User {
     const stored = createAgent(this.sql, agent, Date.now())
     if (!stored) return null
     this.commit({ t: "agent", agent: stored })
-    // A new agent starts on the model it was made with, or on Kiko's. With neither it has none, and its first run asks.
-    // Always announce it: the pick can equal what it already resolves to, and the client still needs an entry for the new agent.
     const model = stored.model || agentModel(this.sql, KIKO)?.model
     if (model) this.setAgentModel(stored.slug, model, undefined, undefined, true)
     return stored
   }
 
-  /** The one setter for an agent's model and level. Every chat, Settings, and the next run read what it saves. */
   setAgentModel(slug: AgentSlug, ref?: string, thinking?: ThinkingLevel, roomId?: RoomId, announce = false): AgentModel | null {
     const before = agentModel(this.sql, slug)
     const saved = saveAgentModel(this.sql, slug, ref, thinking)
@@ -1197,7 +1157,6 @@ export class User {
     this.commit({ t: "agent_model", slug, ...saved })
     if (roomId && saved.model !== before?.model) {
       this.ctx.waitUntil(Promise.resolve(this.services.room(roomId).modelChanged(slug, saved.model, before?.model)).catch(() => {}))
-      // The harness keeps its model until it reloads, so an idle agent drops it now and a busy one drops it when the run ends.
       this.ctx.waitUntil(Promise.resolve(this.services.agent(roomId, slug).invalidate()).catch(() => {}))
     }
     return saved
@@ -1233,7 +1192,7 @@ export class User {
   private resume(lastSeq: number): UserToClient {
     const seq = this.currentSeq()
     const { oldest } = this.sql.exec<{ oldest: number | null }>("SELECT min(seq) AS oldest FROM user_events").one()
-    const replayable = false // Room activity is projected from room state, so every reconnect refreshes the chat list.
+    const replayable = false
     if (!replayable) {
       const lastChat = this.lastChat()
       return {
@@ -1248,8 +1207,6 @@ export class User {
     return { t: "events", events }
   }
 
-  // How much the initiative engine may speak up unasked, and whether memory capture writes down what it hears.
-
   async userSettings(): Promise<UserSettings> {
     const timezone = this.setting("timezone")
     return {
@@ -1261,7 +1218,6 @@ export class User {
   }
 
   async setUserSettings(patch: UserSettingsPatch): Promise<UserSettings> {
-    // The route checked the zone. The daily pass is at nine in it, so the pass is set again.
     if (patch.timezone) this.putSetting("timezone", patch.timezone)
     if (patch.initiative) this.putSetting("initiative", patch.initiative)
     if (patch.capture) this.#mem.setCapture(patch.capture)

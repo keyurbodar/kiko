@@ -1,5 +1,3 @@
-// The composer's unsent text per room, so it survives a reload.
-
 import type { MessageId, RoomId } from "@kiko/protocol"
 import { createSignal } from "solid-js"
 import type { Warm } from "./db"
@@ -8,11 +6,9 @@ export type Draft = {
 	roomId: RoomId
 	text: string
 	replyTo?: MessageId
-	/** Epoch milliseconds. */
 	updatedAt: number
 }
 
-/** An empty draft with no reply is removed, not stored. */
 export function saveDraft(warm: Warm, draft: Draft) {
 	if (draft.text === "" && !draft.replyTo) warm.delete("drafts", draft.roomId)
 	else warm.put("drafts", draft.roomId, draft)
@@ -27,10 +23,8 @@ export function clearDraft(warm: Warm, roomId: RoomId) {
 	warm.delete("meta", scrollKey(roomId))
 }
 
-/** Where the reader was: the message at the top of the view and how far into it. */
 export type ScrollPosition = {
 	messageId: MessageId | string
-	/** Pixels the top of the view sits below the top of that message. */
 	offset: number
 }
 
@@ -44,14 +38,8 @@ export const saveScroll = (warm: Warm, roomId: RoomId | string, position: Scroll
 export const getScroll = (warm: Warm, roomId: RoomId | string) =>
 	warm.get<ScrollPosition>("meta", scrollKey(roomId))
 
-/** Longest time a typed character waits before it is queued for IndexedDB. */
 export const DRAFT_DEBOUNCE_MS = 300
 
-/**
- * Every draft and scroll position, held in memory so a chat switch reads them in
- * the same frame. IndexedDB is the copy that survives a reload. One book per
- * user. `ready` is false until the first read from IndexedDB finishes.
- */
 export function createDraftBook(warm: Warm, debounceMs = DRAFT_DEBOUNCE_MS) {
 	const drafts = new Map<string, Draft>()
 	const scrolls = new Map<string, ScrollPosition>()
@@ -66,8 +54,6 @@ export function createDraftBook(warm: Warm, debounceMs = DRAFT_DEBOUNCE_MS) {
 		if (timer !== undefined) clearTimeout(timer)
 		timers.delete(roomId)
 		const draft = drafts.get(roomId)
-		// An empty draft is a delete, and the delete lives in the debounce timer above. Flushing has
-		// just cancelled it, so without this a send followed by a quick close brings the words back.
 		if (!draft) warm.delete("drafts", roomId)
 		else saveDraft(warm, draft)
 	}
@@ -78,7 +64,6 @@ export function createDraftBook(warm: Warm, debounceMs = DRAFT_DEBOUNCE_MS) {
 	]).then(([all, saved]) => {
 		if (closed) return
 		for (const { roomId, ...position } of saved) if (!scrolls.has(roomId)) scrolls.set(roomId, position)
-		// A draft typed before the read finished is newer than the stored one.
 		for (const d of all) if (!drafts.has(d.roomId)) drafts.set(d.roomId, d)
 		setReady(true)
 		setVersion((v) => v + 1)
@@ -90,12 +75,10 @@ export function createDraftBook(warm: Warm, debounceMs = DRAFT_DEBOUNCE_MS) {
 	const book = {
 		ready,
 		get: (roomId: string): Draft | undefined => drafts.get(roomId),
-		/** Reactive. True when the chat has unsent text. A bare reply target is not a draft marker. */
 		has(roomId: string): boolean {
 			version()
 			return (drafts.get(roomId)?.text ?? "") !== ""
 		},
-		/** Change the text and, when given, the reply target. Persists after the debounce. */
 		save(roomId: string, patch: { text?: string; replyTo?: MessageId | null }) {
 			const before = drafts.get(roomId)
 			const next: Draft = {
@@ -120,7 +103,6 @@ export function createDraftBook(warm: Warm, debounceMs = DRAFT_DEBOUNCE_MS) {
 			)
 		},
 		scroll: (roomId: string) => scrolls.get(roomId),
-		/** Remember where the reader is. Cheap enough to call on every scroll. */
 		saveScroll(roomId: string, position: ScrollPosition | null) {
 			if (position) scrolls.set(roomId, position)
 			else scrolls.delete(roomId)
@@ -133,7 +115,6 @@ export function createDraftBook(warm: Warm, debounceMs = DRAFT_DEBOUNCE_MS) {
 				}, debounceMs),
 			)
 		},
-		/** Writes every pending draft now, for a reload. */
 		flush() {
 			for (const roomId of [...timers.keys()]) persist(roomId)
 			for (const [roomId, timer] of scrollTimers) {

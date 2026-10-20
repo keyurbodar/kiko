@@ -9,7 +9,6 @@ export const GROUPS_EXT = "groups"
 type Made = { ok: true; text: string } | { ok: false; error: string }
 
 export type GroupsPort = {
-  /** Only Kiko makes agents and sees the overview. */
   chief: boolean
   agents(): Promise<Agent[]>
   createAgent(spec: NewAgentSpec): Promise<Made>

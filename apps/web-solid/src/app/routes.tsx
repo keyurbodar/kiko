@@ -6,31 +6,19 @@ import { openSettings } from "../settings/dialog-state"
 import { landingSection } from "../settings/sections"
 import { sectionOf } from "./sections"
 
-/*
- * The route table. One lazy route per rail item (chat and recipes), so each section's code
- * loads on intent.
- * The shell is the router's `root`, so it stays mounted across every route change and only the
- * main panel's content swaps.
- */
 const pages = {
   chat: lazy(() => import("./routes/chat")),
   recipes: lazy(() => import("../recipes/page")),
   connect: lazy(() => import("./connect")),
 }
 
-/** Starts fetching a section's chunk on intent. Safe to repeat: `lazy` loads once. */
 export function preloadRoute(href: string): void {
   const id = sectionOf(href)
   if (id) void pages[id].preload()
 }
 
-/** The chat a redirect lands on when the path names none: the open one, else the one to resume. */
 const activeChat = () => useApp.activeThreadId() ?? useApp.resumeChat()
 
-/*
- * `/` and `/chat` name no chat, so the app goes back to the one the user was last in: this device's
- * copy at once, else the server's, else the kiko chat.
- */
 function Resume() {
   const navigate = useNavigate()
   void pages.chat.preload()
@@ -41,20 +29,12 @@ function Resume() {
   return null
 }
 
-/*
- * Memory is part of a chat now. `/memory` (and the old `/memory/:id`) open the active chat with the
- * side panel on memory.
- */
 function MemoryRedirect() {
   const chat = activeChat()
   if (chat) openSurface(chat, fixedSurface("memory"))
   return <Navigate href={chat ? `/chat/${chat}` : "/chat"} />
 }
 
-/*
- * Files are part of a chat too. `/files/<chat>/<path>` opens that chat with the right panel on
- * the file, and `/files` opens the active chat's file tree. Old links keep working.
- */
 function FilesRedirect() {
   const params = useParams<{ chatId?: string; path?: string }>()
   const chat = params.chatId ?? activeChat()

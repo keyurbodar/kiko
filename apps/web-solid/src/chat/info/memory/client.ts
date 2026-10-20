@@ -1,8 +1,3 @@
-// The memory request client. One `memory` frame goes out on the
-// user socket with a `reqId`, and the `memory_result` with the same `reqId` answers it.
-// A request made while the socket is down waits and goes out on connect. A request that
-// gets no answer in `timeoutMs` fails, so a screen never waits for ever.
-
 import type { MemoryOp, MemoryResult } from "@kiko/protocol"
 import { type UserChannel, userChannel } from "../../../sync/socket"
 
@@ -11,7 +6,6 @@ export type MemoryClient = {
 	close(): void
 }
 
-/** The user socket's channel: the app's one by default. */
 export type MemoryClientOptions = { channel?: UserChannel; timeoutMs?: number }
 
 type Pending = { op: MemoryOp; resolve: (r: MemoryResult) => void; timer: ReturnType<typeof setTimeout> }

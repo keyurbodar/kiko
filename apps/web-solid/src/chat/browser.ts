@@ -1,7 +1,3 @@
-// The user's browser as the client knows it. `browserState` pushes
-// carry hosts and never a URL. The live view URL comes back once, to the socket that pressed the
-// button, and goes straight into the tab the click opened.
-
 import type { BrowserState } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal } from "solid-js"
@@ -11,11 +7,9 @@ import { userChannel } from "../sync/socket"
 const [state, setState] = createSignal<BrowserState>(null)
 export const browser = state
 
-/** A toast, so the failure shows wherever the press came from: the bar, a card, Settings, or the palette. */
 const setError = (error: string) => showToastV2({ title: error, variant: "error" })
 
 let started = false
-/** Listens for pushes and asks for the current state once. The server also pushes it on every hello. */
 export function startBrowser(): void {
 	if (started) return
 	started = true
@@ -25,11 +19,6 @@ export function startBrowser(): void {
 
 let n = 0
 
-/**
- * Opens the live view in a new tab. The tab opens on the click, empty, because a browser blocks a
- * tab opened later from a socket frame. Take control shows as taken at once, and a headless
- * browser shows as switching until the server's state says otherwise.
- */
 export function openLive(mode: "watch" | "control"): void {
 	const tab = window.open("about:blank", "_blank")
 	if (tab) tab.opener = null
@@ -66,7 +55,6 @@ export function handBack(): void {
 	userChannel.send({ t: "handBack" })
 }
 
-/** The browser in the palette, any time: watch it, take control, or give control back. Watching or taking control opens one when none is open. */
 export function browserCommands(): Command[] {
 	return [
 		{ id: "browser.watch", title: "Watch the browser", group: "browser", icon: "globe", when: () => !state()?.takeover, run: () => openLive("watch") },

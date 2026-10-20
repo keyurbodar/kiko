@@ -4,8 +4,6 @@ import type { Env } from "../index"
 import { DEV, devRequest } from "../lib/dev-guard"
 import {  ownerStub } from "../lib/names"
 
-// DEVELOPMENT ONLY: `verify provider-health` makes the fake sign-in's token refresh fail or work, and runs the six-hourly refresh now.
-// `record` stores a provider problem as a failed run would, and `runError` writes the line a run that could not start leaves in Kiko's chat.
 export async function devHealthRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   if (!DEV || url.pathname !== "/api/dev/user/provider-health" || request.method !== "POST") return null

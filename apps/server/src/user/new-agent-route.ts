@@ -7,7 +7,6 @@ const ID = /^[0-9a-f-]{36}$/
 const MAX_NAME = 60
 const MAX_DESCRIPTION = 500
 
-/** `POST /api/agents`: makes an agent and its own chat from the new agent form. The client names the agent and the chat, so it opens the chat before this answers. */
 export async function newAgentRoute(request: Request, env: Env): Promise<Response | null> {
   if (new URL(request.url).pathname !== "/api/agents") return null
   const user = await signedIn(request, env)

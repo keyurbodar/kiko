@@ -1,7 +1,6 @@
 import { triggerProblem } from "@kiko/sandbox/rule"
 import { parseFrontmatter } from "../skills/frontmatter"
 
-/** A schedule the recipe starts with. `every` is an RRULE in the owner's time zone; `run` is the routine's instructions. */
 type RecipeTrigger = { name: string; every: string; run: string }
 
 export type Recipe = {
@@ -28,7 +27,6 @@ const MAX_RUN = 2000
 const text = (v: unknown): string => (typeof v === "string" ? v.trim() : "")
 const texts = (v: unknown): string[] | null => (Array.isArray(v) && v.every((x) => typeof x === "string" && x.trim()) ? v.map((x: string) => x.trim()) : v === undefined ? [] : null)
 
-/** Parses `RECIPE.md`. Throws with the reason, so a broken built-in recipe fails the build, not a run. */
 export function parseRecipe(content: string, dir: string): Recipe {
   const fail = (why: string): never => {
     throw new Error(`recipe ${dir}: ${why}`)

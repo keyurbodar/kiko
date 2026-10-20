@@ -36,7 +36,6 @@ export function matchWebhook(match: readonly WebhookMatch[], body: unknown): boo
   })
 }
 
-/** Keep a teammate's routine here; an outside agent runs it in its own visible chat. */
 export async function createAgentRoutine(input: NewRoutine, port: {
   chat(roomId: RoomId): Promise<Chat | null>
   agents(): Promise<Agent[]>

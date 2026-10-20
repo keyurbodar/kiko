@@ -3,10 +3,6 @@ import { createResource, Match, Show, Switch, type JSX } from "solid-js"
 import { PREVIEW_BYTES, readText } from "../api"
 import { SurfaceFailure, SurfaceLoading, SurfaceNotice, UNREADABLE } from "../chrome"
 
-/**
- * Reads a file's first 1 MB as text for a rendered view, and draws its loading, failure and cut
- * notice the way the source view does. The file's id keys the read, so a new version reads again.
- */
 export function WithText(props: { roomId: string; file: FileRef; children: (text: string) => JSX.Element }) {
 	const [read, { refetch }] = createResource(
 		() => props.file.id,

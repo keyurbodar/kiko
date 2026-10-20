@@ -59,7 +59,6 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
           const children = () => <For each={e().children}>{(child) => <Node node={child} onMasked={props.onMasked} />}</For>
           if (e().attrs.class === "rich-table-scroll") return <RichTable copy={e().copy}>{children()}</RichTable>
           if (e().tag === "a") {
-            // The URL shows on hover, as t3code's link does, so the link itself carries no native title.
             return (
               <TooltipV2 class="rich-link-anchor" placement="top" value={e().attrs.href ?? ""}>
                 <Dynamic component="a" {...e().attrs}>
@@ -70,7 +69,6 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
               </TooltipV2>
             )
           }
-          // t3code widens an ol's gutter so a wide marker ("10.") is not clipped by the bubble.
           const style = () => (e().tag === "ol" ? orderedGutter(e().attrs.start, e().children.length) : undefined)
           return (
             <Dynamic component={e().tag} {...e().attrs} style={style()}>
@@ -83,7 +81,6 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
   )
 }
 
-/** A link's children with the site icon in front. The icon and the first character share one run that cannot break, so the icon never wraps alone. */
 function IconLead(props: { host: string; nodes: RichNode[]; onMasked: (href: string) => void }): JSX.Element {
   const first = () => props.nodes[0]
   const lead = () => {
@@ -103,7 +100,6 @@ function IconLead(props: { host: string; nodes: RichNode[]; onMasked: (href: str
   )
 }
 
-/** The gutter for an ordered list whose widest marker has more than one digit, as t3code's ol does. */
 function orderedGutter(start: string | undefined, count: number): { "--list-gutter": string } | undefined {
   const first = Number.parseInt(start ?? "1", 10)
   if (!Number.isSafeInteger(first) || count < 1) return undefined
@@ -111,10 +107,6 @@ function orderedGutter(start: string | undefined, count: number): { "--list-gutt
   return width <= 1 ? undefined : { "--list-gutter": `${width + 2}ch` }
 }
 
-/**
- * A table with t3code's footer: a toggle that wraps or truncates its cells, and a menu that copies
- * the rows as Markdown or CSV. Cells wrap by default, as t3code's wordWrap setting does.
- */
 function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Element {
   const [expanded, setExpanded] = createSignal(true)
   const [copied, setCopied] = createSignal(false)
@@ -123,7 +115,6 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
   let timer: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(timer))
 
-  // t3code's scroll fade: an edge fades only where the table overflows that way, over 1.5rem.
   const fade = () => {
     if (!scroller) return
     scroller.style.setProperty("--overflow-start", `${scroller.scrollLeft}px`)
@@ -136,7 +127,6 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
     onCleanup(() => observer?.disconnect())
   })
 
-  // Wrapping cells would narrow the columns, so pin each header cell to its current width first, as t3code does.
   const toggle = () => {
     const table = root?.querySelector("table")
     if (table && !expanded()) {
@@ -148,7 +138,6 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
     }
     setExpanded(!expanded())
   }
-  // The text comes from the source cells, so bold, code and links survive a Copy as Markdown.
   const copy = async (text: string | undefined) => {
     if (text === undefined) return
     try {
@@ -196,11 +185,6 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
   )
 }
 
-/**
- * Renders the tree the server parsed. No markdown parser and no innerHTML. Text runs set
- * their emoji in the emoji font, a mention as the member's chip, and a file as a chip that
- * opens it in the files tab, all inline. A masked link opens the warning before it goes anywhere.
- */
 export function RichText(props: { tree: RichTextTree; class?: string }): JSX.Element {
   const [maskedHref, setMaskedHref] = createSignal<string | null>(null)
   return (

@@ -1,12 +1,6 @@
 import { Fragment, Slice, type Node as PMNode, type Schema } from "@tiptap/pm/model"
 import { markdownToDoc, type ParseOptions } from "./markdown"
 
-/**
- * The slice a paste of plain text inserts. The text is read as the composer reads
- * its own source, so pasted `**bold**`, lists and headings show as they will be
- * sent. A first or last paragraph opens into the caret's line, so a paste with no
- * blank lines lands inline, the way plain text does.
- */
 export function markdownSlice(schema: Schema, text: string, options: ParseOptions = {}): Slice {
   const doc = schema.nodeFromJSON(markdownToDoc(text, options))
   const nodes: PMNode[] = []

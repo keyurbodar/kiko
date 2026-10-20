@@ -16,12 +16,6 @@ import { groupTitle, roomFor, togglePick } from "./bot-picker-model"
 
 const NEW_AGENT = "new-agent"
 
-/*
- * The new chat picker (kat's palette look). With nothing picked, a row, clicked or entered, opens
- * that agent's one chat at once. The checkbox at a row's end starts a group instead: from then on
- * a row adds or drops that agent, and the footer names the group, which Kiko leads. A chat with
- * the same agents is opened rather than made again. Lazy: loaded on first use.
- */
 export default function BotPicker() {
   const navigate = useNavigate()
   const [picked, setPicked] = createSignal<string[]>([])
@@ -53,7 +47,6 @@ export default function BotPicker() {
     openNewAgent()
   }
 
-  // Mod+Enter opens the pick. Space picks the highlighted row, but only while the search is empty, so a space can still be typed.
   const keys = (event: KeyboardEvent) => {
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault()

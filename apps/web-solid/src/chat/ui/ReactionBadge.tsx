@@ -29,7 +29,7 @@ export function ReactionStack(props: ReactionStackProps) {
                 "active:scale-[0.92]",
                 reaction.count > 1 && "px-2",
                 reaction.viewerReacted
-                  ? // The viewer's own reaction takes their own bubble colour,
+                  ?
                     "z-[1] bg-message-user text-message-user-foreground hover:bg-message-user"
                   : "hover:bg-background focus-visible:bg-background",
               )}

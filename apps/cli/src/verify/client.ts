@@ -222,7 +222,6 @@ export interface Session {
   userId: string
   auth: string
   user(): Promise<UserChannel>
-  /** A user socket that never sends hello, as the client's sign-in socket does. */
   signInSocket(): Promise<UserChannel>
   room(roomId: string): Promise<RoomHandle>
   connectProvider(provider: string, apiKey: string): Promise<void>
@@ -234,7 +233,6 @@ export const TEST_PROVIDER = "opencode-go"
 
 export const TEST_MODEL = process.env.KIKO_TEST_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
 
-/** Connects the test provider and picks Kiko's model, as the human does. Kiko never picks one on its own. */
 export async function connectTestModel(s: Session): Promise<void> {
   const key = process.env.OPENCODE_API_KEY
   if (!key) throw new VerifyError("OPENCODE_API_KEY is not set in this shell. source the dev vars first")
@@ -255,12 +253,7 @@ function withSlash(url: string) {
   return url.endsWith("/") ? url : `${url}/`
 }
 
-/**
- * Signs a test user in. A deployed Worker has no dev route, so with `KIKO_ACCESS_CODE` in the shell the
- * CLI signs in through the access code instead, as the owner would. Every name then shares the one owner.
- */
 export async function devSession(url: string, name: string): Promise<{ auth: string; userId: string }> {
-  // A hosted backend signs in through Clerk, so the CLI takes a session token minted for it instead.
   if (process.env.KIKO_BEARER) return { auth: `Bearer ${process.env.KIKO_BEARER}`, userId: "owner" }
   const code = process.env.KIKO_ACCESS_CODE
   const res = await fetch(new URL(code ? "api/auth/access-code" : "api/auth/dev/session", withSlash(url)), {
@@ -290,7 +283,6 @@ export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}
       method,
       headers: body === undefined ? { authorization: auth } : { authorization: auth, "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
-      // A PUT asks the provider whether it takes the key, which alone can pass 5 seconds.
       signal: AbortSignal.timeout(20_000),
     })
     if (!res.ok) throw new VerifyError(`${method} api/credentials/${provider} answered ${res.status}`)

@@ -1,16 +1,5 @@
 name: deploy
 
-# Deploys the hosted front door (the client plus every signed release), the backend, and the
-# installer Worker to the kiko.works account. The release workflow calls it, and it can run by
-# hand.
-#
-# It deliberately has no `push`/`workflow_run` trigger. A merge to main carries the version
-# that was already released, because only the release workflow bumps `package.json`. So a
-# deploy of a merge could only ever do one of two things: fail the version guard below, or
-# re-upload the version already live. The second is worse than useless. On the first run of
-# the nightly release, a merge commit's deploy started after the release had shipped 0.4.2
-# and put 0.4.1 back live, because a merge of version 0.4.1 passes the guard when 0.4.1 is
-# already released. Deploys come from releases instead: the nightly, or a manual run.
 on:
   workflow_call:
     inputs:
@@ -27,19 +16,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    # Two deploys never run at once. They upload the same three Workers, so a slower older one
-    # finishing last would put an older bundle live.
-    #
-    # This lives on the job, not on the workflow, because the release workflow calls this file:
-    # a workflow-level group is not evaluated for a called workflow, while a job-level one is.
-    # Declaring it once here is also what keeps a release's caller job and this job out of the
-    # same group, which would deadlock against itself.
-    #
-    # `queue: max` is what makes the waiting one survive. The default queue is `single`: a new
-    # run entering the group cancels the pending one and takes its place. A release would then
-    # have pushed its tag and bumped main, but its deploy would never run, and a tag with no
-    # GitHub release is left behind. actionlint 1.7.12 does not know `queue` yet; the key is in
-    # GitHub's concurrency reference.
     concurrency:
       group: deploy
       cancel-in-progress: false
@@ -54,8 +30,6 @@ jobs:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
-          # The release build must match what a local bun produces, so the version guard
-          # below can compare manifests byte for byte.
           bun-version: "1.3.14"
       - uses: actions/cache@v4
         with:
@@ -64,14 +38,10 @@ jobs:
           restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
       - name: fetch the release tags
-        # The tags are the index of every released version.
         run: git fetch --force --tags origin
       - name: gate every run on the full check
-        # Nothing triggers this by a push any more, and a release's version bump is pushed
-        # with GITHUB_TOKEN, which starts no ci. So every run is ungated and checks itself.
         run: bun run check
       - name: write the release signing key
-        # scripts/release.ts reads ~/.config/kiko/release-key.json. The value never prints.
         env:
           RELEASE_KEY_JSON: ${{ secrets.RELEASE_KEY_JSON }}
         run: |
@@ -88,23 +58,10 @@ jobs:
       - name: build and sign the release
         run: bun scripts/release.ts
       - name: guard a released version
-        # A released version is never replaced with other code: a backend on it would think
-        # it is current and never update. A version is also never replaced by an older one.
-        #
-        # The second half is what a push deploy needed and did not have. A merge to main still
-        # carries the version that was released before it, so deploying a merge would put that
-        # older version back live over a newer release. That is not hypothetical: it happened
-        # on the first nightly release, which shipped 0.4.2 and was then overwritten with 0.4.1
-        # by the deploy of the merge commit it had just released. Deploying an older version is
-        # refused outright now, so a stale deploy fails loudly instead of silently rolling
-        # production back, whichever way it was started.
         run: |
           version="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' dist-release/latest-owner.json)"
           case "$version" in *[!0-9.]*|"") echo "unreadable built version: $version" >&2; exit 1 ;; esac
           live_version="$(curl -sf https://app.kiko.works/releases/latest-owner.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
-          # The first release that serves an owner index has no latest-owner.json live yet. Fall
-          # back to the frozen legacy index, which is still served, so the version guards are not
-          # silently skipped on that release.
           [ -n "$live_version" ] || live_version="$(curl -sf https://app.kiko.works/releases/latest.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
           live="$(curl -sf "https://app.kiko.works/releases/$version/manifest.json" || true)"
           case "$live" in *"\"version\": \"$version\""*) ;; *) live="" ;; esac
@@ -112,21 +69,16 @@ jobs:
             echo "Version $version is already released with other code. Bump the version in package.json." >&2
             exit 1
           fi
-          # Sort both as versions, not strings, so 0.4.10 counts as newer than 0.4.9.
           newest="$(printf '%s\n%s\n' "$version" "$live_version" | sort -V | tail -1)"
           if [ -n "$live_version" ] && [ "$newest" != "$version" ]; then
             echo "$version is older than the live $live_version. Refusing to put an older release back." >&2
             exit 1
           fi
       - name: assemble every served release
-        # Every release stays served: a tab on an older app updates its backend to that
-        # app's version. The store is rebuilt from the live front door, indexed by the tags.
         run: |
           store="$RUNNER_TEMP/releases"
           mkdir -p "$store"
           live="$(curl -sf https://app.kiko.works/releases/latest-owner.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
-          # Same first-release fallback as the version guard: before this release, only the frozen
-          # legacy index was ever served.
           [ -n "$live" ] || live="$(curl -sf https://app.kiko.works/releases/latest.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
           bun scripts/sync-releases.ts "$store" https://app.kiko.works/releases $(git tag -l 'v*' | sed 's/^v//') $live
           version="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' dist-release/latest-owner.json)"
@@ -134,19 +86,10 @@ jobs:
           rm -rf apps/web-solid/dist/releases
           cp -r "$store" apps/web-solid/dist/releases
           cp dist-release/latest-owner.json apps/web-solid/dist/releases/
-          # Legacy clients bake in the pre-OwnerDO bindings. Keep their release index frozen;
-          # they must use the new installer and explicitly confirm the destructive reset.
           curl -fsS https://app.kiko.works/releases/latest.json -o apps/web-solid/dist/releases/latest.json
       - name: deploy the backend
-        # The front door and the installer deploy here, so the backend must too. Otherwise it keeps whatever
-        # version its owner last clicked Update to and silently runs the old schema steps, which is how a
-        # shipped write fix can sit in the repo for two releases and never reach a single room.
-        #
-        # It goes before the front door so the client is never newer than the backend it talks to. A backend
-        # uses an explicit protocol epoch; existing tabs must reload after this breaking deployment.
         working-directory: apps/server
         env:
-          # dev-guard folds on this literal. Without it the dev routes and counters stay in the bundle.
           NODE_ENV: production
         run: bunx wrangler deploy
       - name: deploy the front door

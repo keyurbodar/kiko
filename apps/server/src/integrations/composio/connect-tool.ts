@@ -10,7 +10,6 @@ export const MANAGE_CONNECTIONS = "COMPOSIO_MANAGE_CONNECTIONS"
 
 const text = (t: string, isError = false) => ({ output: [{ type: "text" as const, text: t }], ...(isError ? { isError } : {}) })
 
-/** The toolkits item is a plain slug or an object, as the session's own schema says. */
 function toolkitArgs(tool: ComposioTool, toolkit: string): Record<string, unknown> {
   const props = (tool.inputSchema as { properties?: Record<string, { items?: { type?: unknown } }> }).properties
   const item = props?.toolkits?.items?.type === "object" ? { name: toolkit, action: "add" } : toolkit
@@ -19,7 +18,6 @@ function toolkitArgs(tool: ComposioTool, toolkit: string): Record<string, unknow
 
 const URL_KEYS = ["redirect_url", "redirectUrl", "connect_url", "url", "link"]
 
-/** The first https link under a known key, else the first https link in the text. */
 function connectLink(out: ComposioCallResult): string | undefined {
   const body = out.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n")
   const walk = (v: unknown): string | undefined => {
@@ -41,11 +39,6 @@ function connectLink(out: ComposioCallResult): string | undefined {
   return body.match(/https:\/\/[^\s"'<>)\]\\]+/)?.[0]
 }
 
-/**
- * Why Composio refused a toolkit. A wrong slug comes back as a successful MCP result whose body says
- * "toolkit not found", so a caller that reads only `isError` reports nothing and the agent says
- * "it may already be connected".
- */
 function refusal(out: ComposioCallResult): string | undefined {
   const body = out.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n")
   try {
@@ -62,14 +55,8 @@ function refusal(out: ComposioCallResult): string | undefined {
 
 type ConnectLink = { kind: "link"; link: string } | { kind: "none"; reply: string } | { kind: "error"; error: string }
 
-/**
- * The toolkit a person named, as Composio's slug. "Google Calendar" must reach Composio as
- * `googlecalendar`: the manage tool answers "toolkit not found" inside a successful result for
- * `google_calendar`, so an agent that never resolves the name gets no link.
- */
 type ResolveToolkit = (app: string) => Promise<string | null>
 
-/** One link that connects one app, made the one way both the connect_app tool and the recipe gate make it. */
 export async function connectLinkFor(manage: ComposioTool, call: ComposioCall, app: string, resolve?: ResolveToolkit): Promise<ConnectLink> {
   const named = app.trim()
   if (!named) return { kind: "error", error: "name the app to connect." }
@@ -91,7 +78,6 @@ export async function connectLinkFor(manage: ComposioTool, call: ComposioCall, a
   }
 }
 
-/** The talker's one way to get a link that connects an app, so it never writes a how-to. Absent when the session has no connections tool. */
 export function connectAppExtension(tools: readonly ComposioTool[], call: ComposioCall, resolve?: ResolveToolkit): Extension[] {
   const manage = tools.find((t) => t.name === MANAGE_CONNECTIONS)
   if (!manage) return []

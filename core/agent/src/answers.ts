@@ -6,7 +6,6 @@ export class AnswerWaiters {
   private readonly waiting = new Map<string, (answer: Answer | null) => void>()
   private readonly early = new Map<string, Answer>()
 
-  // The signal is the waiting tool's: an abort ends the wait with no answer, as a human message does.
   wait(id: string, ms: number, signal?: AbortSignal): Promise<Answer | null> {
     const early = this.early.get(id)
     if (early !== undefined) {
@@ -29,7 +28,6 @@ export class AnswerWaiters {
     })
   }
 
-  // True when a tool was waiting on it.
   answer(id: string, answer: Answer): boolean {
     const settle = this.waiting.get(id)
     if (settle) settle(answer)

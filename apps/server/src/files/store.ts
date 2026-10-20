@@ -3,7 +3,6 @@ import { ownerStub } from "../lib/names"
 import type { BlobStore } from "./blob-store"
 import { MAX_STORE_FILE_BYTES, type StoredInfo } from "./file-limits"
 
-/** Where file bytes live: the R2 bucket when the install has one, else Durable Object storage. Both answer to this one shape. */
 export interface StoredObject {
 	key: string
 	size: number
@@ -33,7 +32,6 @@ export interface FileBucket {
 	): { uploadPart(n: number, body: ReadableStream<Uint8Array>): Promise<Part>; complete(parts: Part[]): Promise<unknown>; abort(): Promise<void> }
 }
 
-// u/<user>/r/<space>/<id>: the owner holds all room and home file bytes.
 const KEY = /^u\/([^/]+)\/r\/([^/]+)\/[^/]+$/
 
 function describe(key: string, info: StoredInfo): StoredObject {
@@ -107,10 +105,8 @@ export function fileStore(env: Pick<Env, "FILES" | "OWNER">, local?: FileBucket)
 	return local ?? (env.FILES ? (env.FILES as unknown as FileBucket) : new OwnerBucket(env.OWNER))
 }
 
-/** The largest file this install stores: R2's cap, or the built-in store's. */
 export const maxFileBytes = (env: Pick<Env, "FILES">, r2Max: number) => (env.FILES ? r2Max : Math.min(r2Max, MAX_STORE_FILE_BYTES))
 
-/** Adapt the shared local blob service to the same interface as the optional R2 bucket. */
 export function localBucket(blobs: BlobStore): FileBucket {
   return {
     async put(key, value, options = {}) {

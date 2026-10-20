@@ -3,13 +3,10 @@ import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, CopyIcon, WrapTextIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 
-/* One highlighted line: tokens as [token type, text]. Built from sugar-high's
- * syntax tree, so the result is rendered as elements and never as markup. */
 type Line = { type: string; text: string }[]
 
 const MAX_HIGHLIGHT_CHARS = 20_000
 
-/* sugar-high loads on first use, in its own chunk, after a block is visible. */
 async function highlight(text: string, lang: string | undefined): Promise<Line[] | null> {
   if (!lang || text.length > MAX_HIGHLIGHT_CHARS) return null
   const [core, langs] = await Promise.all([import("sugar-high/core"), import("sugar-high/lang")])
@@ -25,7 +22,6 @@ export function CodeBlock(props: { lang?: string; text: string }): JSX.Element {
   let root!: HTMLDivElement
   const [lines, setLines] = createSignal<Line[] | null>(null)
   const [copied, setCopied] = createSignal(false)
-  // t3code's wordWrap setting defaults on, so a block wraps its long lines until the reader turns it off.
   const [wrap, setWrap] = createSignal(true)
   let timer: ReturnType<typeof setTimeout> | undefined
   let dead = false

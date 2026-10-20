@@ -10,7 +10,6 @@ export type SearchOptions = {
 	before?: number
 	beforeAt?: number
 	limit?: number
-	/** Include mail between agents. The transcript folds it behind a line, so a person's search leaves it out. */
 	mail?: boolean
 }
 
@@ -24,10 +23,6 @@ const queryWords = (query: string) =>
 		.filter(Boolean)
 		.slice(0, 12)
 
-/**
- * A window of the message's plain words around the first match, with the matches between the
- * snippet marks. The index holds the markdown, so the window is cut from the plain text instead.
- */
 export function snippetOf(plain: string, query: string): string {
 	const flat = plain.replace(/\s+/g, " ").trim()
 	const words = queryWords(query)
@@ -55,6 +50,19 @@ type Chunk = { rowid: number; chunk: string; members: string; edit_seq: number }
 type IndexedMessage = { seq: number; text: string }
 type ResultRow = { id: string; seq: number; at: number; sender: string; text: string; rich: string | null }
 
+function collectDirty(sql: SqlStorage, roomId: string, editSeq: number, dirty: Set<number>): void {
+	for (const event of sql.exec<{ kind: string; payload: string }>(
+		"SELECT kind, payload FROM events WHERE room_id = ? AND seq > ? AND kind IN ('edit', 'delete')", roomId, editSeq,
+	)) {
+		const payload = JSON.parse(event.payload) as { messageId?: string; messageIds?: string[] }
+		for (const id of payload.messageIds ?? (payload.messageId ? [payload.messageId] : [])) {
+			const position = messageSeq(roomId, id)
+			const seq = position > 0 ? position : sql.exec<{ seq: number }>("SELECT seq FROM messages WHERE room_id = ? AND id = ?", roomId, id).toArray()[0]?.seq
+			if (seq !== undefined) dirty.add(seq)
+		}
+	}
+}
+
 function indexChunks(storage: DurableObjectStorage, roomId: string, roomToken: string): void {
 	const sql = storage.sql
 	const scope = `room:${roomId}`
@@ -68,16 +76,7 @@ function indexChunks(storage: DurableObjectStorage, roomId: string, roomToken: s
 		if (state && lastSeq <= state.last_seq && editSeq <= state.edit_seq && !hydrated.length) return
 		const dirty = new Set(hydrated.map((row) => row.seq))
 		if (state) {
-			for (const event of sql.exec<{ kind: string; payload: string }>(
-				"SELECT kind, payload FROM events WHERE room_id = ? AND seq > ? AND kind IN ('edit', 'delete')", roomId, state.edit_seq,
-			)) {
-				const payload = JSON.parse(event.payload) as { messageId?: string; messageIds?: string[] }
-				for (const id of payload.messageIds ?? (payload.messageId ? [payload.messageId] : [])) {
-					const position = messageSeq(roomId, id)
-					const seq = position > 0 ? position : sql.exec<{ seq: number }>("SELECT seq FROM messages WHERE room_id = ? AND id = ?", roomId, id).toArray()[0]?.seq
-					if (seq !== undefined) dirty.add(seq)
-				}
-			}
+			collectDirty(sql, roomId, state.edit_seq, dirty)
 		} else {
 			sql.exec("DELETE FROM messages_fts WHERE messages_fts MATCH ?", `room:${roomToken}`)
 		}
@@ -91,7 +90,6 @@ function indexChunks(storage: DurableObjectStorage, roomId: string, roomToken: s
 			let chunk = ""
 			let bytes = 0
 			let members: Member[] = []
-			// A token absent from every message prevents FTS phrases crossing message boundaries.
 			let boundary = `kikoboundary${crypto.randomUUID().replaceAll("-", "")}`
 			while (rows.some((row) => row.text.toLowerCase().includes(boundary))) boundary += "x"
 			const separator = `\n${boundary}\n`
@@ -129,7 +127,7 @@ function indexChunks(storage: DurableObjectStorage, roomId: string, roomToken: s
 				"SELECT seq, text FROM messages WHERE room_id = ? AND seq IN (SELECT value FROM json_each(?)) AND deleted_at IS NULL ORDER BY seq",
 				roomId, JSON.stringify(members.map(([seq]) => seq)),
 			).toArray()
-			sql.exec("DELETE FROM messages_fts WHERE rowid = ?", doc.rowid)
+			sql.exec("DELETE FROM messages_fts WHERE rowid = CAST(? AS INTEGER)", doc.rowid)
 			insert(rows)
 		}
 		const current = sql.exec<IndexedMessage>(
@@ -144,7 +142,6 @@ function indexChunks(storage: DurableObjectStorage, roomId: string, roomToken: s
 	})
 }
 
-/** Map FTS's exact unicode61 phrase/prefix matches back to individual message ranges in JS. */
 function matchingMembers(storage: DurableObjectStorage, doc: Chunk, terms: string[]): Set<number> {
 	const members = JSON.parse(doc.members) as Member[]
 	let matches = new Set(members.map(([seq]) => seq))
@@ -154,7 +151,7 @@ function matchingMembers(storage: DurableObjectStorage, doc: Chunk, terms: strin
 	const close = `${marker}c${marker}`
 	for (const term of terms) {
 		const marked = storage.sql.exec<{ marked: string }>(
-			"SELECT highlight(messages_fts, 1, ?, ?) AS marked FROM messages_fts WHERE rowid = ? AND messages_fts MATCH ?",
+			"SELECT highlight(messages_fts, 1, ?, ?) AS marked FROM messages_fts WHERE rowid = CAST(? AS INTEGER) AND messages_fts MATCH ?",
 			open, close, doc.rowid, `chunk:(${term})`,
 		).toArray()[0]?.marked
 		if (marked === undefined) return new Set()

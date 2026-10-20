@@ -2,18 +2,11 @@ import { closeSettings, openSettings, settingsSection } from "../settings/dialog
 import { SETTINGS_SECTIONS } from "../settings/sections"
 import type { Choice, Command } from "./registry"
 
-/*
- * Commands that move around the app and open settings. Every screen the rail reaches has one, and
- * so does the first-run path: "Models and providers" under Settings connects one, two keystrokes from anywhere.
- * The table takes what it acts on, so it tests without a router.
- */
 export function navCommands(deps: {
   go: (href: string) => void
   signOut: () => void
   chooseModel: () => void
-  /** Opens the palette on one command's submenu. */
   openView: (id: string) => void
-  /** True when the agent the composer's model chip targets can reason. */
   canReason: () => boolean
   reasoningChoices: () => Choice[]
 }): Command[] {

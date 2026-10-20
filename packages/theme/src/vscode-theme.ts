@@ -1,8 +1,3 @@
-// Maps a VS Code color theme onto Kiko's palette. A VS Code theme has a few hundred workbench
-// colors and most are unset. Kiko has ten palette roles and one accent. Each role takes the first
-// workbench color that reads on its surface, and falls back to Kiko's own value for that appearance
-// when none does, so a theme can never leave the text unreadable.
-
 import { formatHex, interpolate, parse, rgb, wcagContrast, wcagLuminance } from "culori"
 import type { ImportedTheme } from "./imported"
 import { THEMES, PALETTES, type ThemeAppearance } from "./palette"
@@ -17,7 +12,6 @@ const SHAPE_CONTRAST = 3
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
 const clamp = (n: number) => Math.min(1, Math.max(0, n))
 
-/** Flattens a color with alpha onto an opaque base. `null` when the value is not a color. */
 function flatten(value: unknown, base = "#000000"): string | null {
   if (typeof value !== "string" || value.length > MAX_COLOR_LENGTH) return null
   const color = parse(value.trim())
@@ -33,7 +27,6 @@ const mix = (from: string, to: string, share: number) => formatHex(interpolate([
 const readableOn = (surface: string, preferred: string) =>
   wcagContrast(preferred, surface) >= TEXT_CONTRAST ? preferred : wcagContrast("#000000", surface) >= wcagContrast("#ffffff", surface) ? "#000000" : "#ffffff"
 
-/** The first candidate that reads on `surface` at `min`, or the fallback. */
 function ink(surface: string, min: number, candidates: ReadonlyArray<string | null>, fallback: string): string {
   return candidates.find((candidate): candidate is string => candidate !== null && wcagContrast(candidate, surface) >= min) ?? fallback
 }
@@ -81,7 +74,6 @@ export function themeFromVsCode(json: VsCodeTheme, meta: { id: string; name: str
   }
 }
 
-/** VS Code reads themes as JSON with comments and trailing commas. Strings are copied untouched. */
 export function parseJsonc(text: string): unknown {
   let out = ""
   let comma = -1
@@ -89,9 +81,9 @@ export function parseJsonc(text: string): unknown {
   while (i < text.length) {
     const c = text[i]!
     if (c === '"') {
-      const start = i++
-      while (i < text.length && text[i] !== '"') i += text[i] === "\\" ? 2 : 1
-      out += text.slice(start, ++i)
+      const end = stringEnd(text, i)
+      out += text.slice(i, end)
+      i = end
       comma = -1
       continue
     }
@@ -115,7 +107,6 @@ export function parseJsonc(text: string): unknown {
   return JSON.parse(out)
 }
 
-/** The path of `relative`, read from the file at `from`, both inside one extension package. */
 export function packagePath(from: string, relative: string): string {
   const parts = from.split("/").slice(0, -1)
   for (const part of relative.replaceAll("\\", "/").split("/")) {
@@ -127,11 +118,16 @@ export function packagePath(from: string, relative: string): string {
   return parts.join("/")
 }
 
-/** Reads a theme and the themes it includes, merged the way VS Code merges them. */
 export async function readVsCodeTheme(path: string, read: (path: string) => Promise<VsCodeTheme>, depth = 0): Promise<VsCodeTheme> {
   if (depth >= MAX_INCLUDE_DEPTH) throw new Error("Theme includes are nested too deeply.")
   const value = await read(path)
   if (typeof value.include !== "string") return value
   const base = await readVsCodeTheme(packagePath(path, value.include), read, depth + 1)
   return { ...base, ...value, colors: { ...base.colors, ...value.colors } }
+}
+
+function stringEnd(text: string, start: number): number {
+  let i = start + 1
+  while (i < text.length && text[i] !== '"') i += text[i] === "\\" ? 2 : 1
+  return i + 1
 }

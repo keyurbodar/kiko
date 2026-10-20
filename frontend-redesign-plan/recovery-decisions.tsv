@@ -1,9 +1,0 @@
-ts	phase	decision	why	evidence	result
-2026-10-18T13:15:01.708574+00:00	start	Recover failed UI redesign agents	Resume existing work without discarding uncommitted edits	58a3fa44; thread 4d830ef6-6852-4941-8f5b-e51c12199b8d	active
-2026-10-18T13:15:01.708593+00:00	recovery	Keep implementation in ui/redesign	All inherited code changes are in this worktree	/home/keyur/.t3/worktrees/kiko/redesign	109 tracked files changed
-2026-10-18T13:15:01.708598+00:00	parallel	Start eight Codex GPT-6.1-Sol medium tasks through Orchestrator v2	User explicitly requested this provider and model	/tmp/kiko-recovery-{onboarding,settings,sidebar,chat,quality,verification,brand,runtime}	running; patches isolated by output directory
-2026-10-18T13:15:01.708606+00:00	verification	Run integration gate once and check bundle sizes	Check actual artifact before calling work complete	/tmp/kiko-recovery-check.log; /tmp/kiko-recovery-budget.log	typecheck and lint pass; bundle budget passes; tests still running
-2026-10-18T13:15:01.708610+00:00	theme	Use main sidebar tokens for moonlit band	User requires band to follow selected theme without conflicts	6167d2b1:apps/web-solid/src/sidebar/sidebar.css; packages/theme/src/palette.ts	sidebar task updated
-2026-10-18T13:22:12.887454+00:00	fixes	Apply reviewed recovery patches	Fix reproduced failures at their source	/tmp/kiko-recovery-*/report.md	picker, scroll, brand, theme, settings and onboarding fixes applied
-2026-10-18T13:22:12.887463+00:00	overlap	Restore three main frontend fixes	Copied files had removed working behavior	/tmp/kiko-recovery-overlap/report.md	folder drag, file search reset and palette reset restored
-2026-10-18T13:22:12.887466+00:00	verification	Remove implementation-only source assertions	Tests must fail on broken observable behavior	apps/web-solid/src/chat/thread-scroll.test.ts; browser evidence in parent thread	deleted three untracked source-only test files; kept real behavior tests

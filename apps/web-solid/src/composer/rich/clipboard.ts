@@ -10,7 +10,6 @@ export function rememberClipboardFile(attachment: PromptInputV2Attachment, file:
   ready.set(attachment.id, { attachment, file })
 }
 
-/** Keep bytes independently of the source draft, whose object URLs are revoked on removal. */
 export function prepareClipboardFiles(attachments: readonly PromptInputV2Attachment[]): void {
   const held = new Set(attachments.map((attachment) => attachment.id))
   for (const id of ready.keys()) if (!held.has(id)) ready.delete(id)
@@ -83,7 +82,6 @@ export function copyComposerFragment(markdown: string, transfer: Pick<DataTransf
       "text/plain": new Blob([markdown], { type: "text/plain" }),
     })]).catch(() => {})
   } catch {
-    // The synchronous clipboard remains available if asynchronous writes are unsupported.
   }
 }
 
@@ -126,7 +124,6 @@ export function pastedComposerFragment(transfer: Pick<DataTransfer, "getData">) 
   const html = transfer.getData("text/html")
   const key = /data-kiko-clipboard="([\w-]+)"/.exec(html)?.[1]
   const local = fragments.get(custom) ?? (key ? fragments.get(key) : undefined)
-  // Retain synchronous File references while their portable representation is preparing.
   if (local) return local
   const portable = readPortableFragment(custom)
   if (portable) return portable

@@ -4,7 +4,6 @@ import sprite from "./file-icons/sprite.svg"
 import { spriteSubset } from "./sprite-subset"
 import type { IconName } from "./file-icons/types"
 
-/** Only the icons in use are copied into the page. See `sprite-subset.ts`. */
 const fileIcon = spriteSubset(sprite, "file-icon-")
 
 export type FileIconProps = JSX.GSVGAttributes<SVGSVGElement> & {
@@ -51,7 +50,6 @@ type IconMaps = {
 
 const ICON_MAPS: IconMaps = {
   fileNames: {
-    // Documentation files
     "readme.md": "Readme",
     "changelog.md": "Changelog",
     "contributing.md": "Contributing",
@@ -61,7 +59,6 @@ const ICON_MAPS: IconMaps = {
     credits: "Credits",
     install: "Installation",
 
-    // Node.js files
     "package.json": "Nodejs",
     "package-lock.json": "Nodejs",
     "yarn.lock": "Yarn",
@@ -72,13 +69,11 @@ const ICON_MAPS: IconMaps = {
     ".nvmrc": "Nodejs",
     ".node-version": "Nodejs",
 
-    // Docker files
     dockerfile: "Docker",
     "docker-compose.yml": "Docker",
     "docker-compose.yaml": "Docker",
     ".dockerignore": "Docker",
 
-    // Config files
     "jest.config.js": "Jest",
     "jest.config.ts": "Jest",
     "jest.config.mjs": "Jest",
@@ -166,7 +161,6 @@ const ICON_MAPS: IconMaps = {
     "nx.json": "Nx",
   },
   fileExtensions: {
-    // Test files
     "spec.ts": "TestTs",
     "test.ts": "TestTs",
     "spec.tsx": "TestJsx",
@@ -176,7 +170,6 @@ const ICON_MAPS: IconMaps = {
     "spec.jsx": "TestJsx",
     "test.jsx": "TestJsx",
 
-    // JavaScript/TypeScript
     "js.map": "JavascriptMap",
     "d.ts": "TypescriptDef",
     ts: "Typescript",
@@ -186,7 +179,6 @@ const ICON_MAPS: IconMaps = {
     mjs: "Javascript",
     cjs: "Javascript",
 
-    // Web languages
     html: "Html",
     htm: "Html",
     css: "Css",
@@ -195,7 +187,6 @@ const ICON_MAPS: IconMaps = {
     less: "Less",
     styl: "Stylus",
 
-    // Data formats
     json: "Json",
     xml: "Xml",
     yml: "Yaml",
@@ -203,12 +194,10 @@ const ICON_MAPS: IconMaps = {
     toml: "Toml",
     hjson: "Hjson",
 
-    // Documentation
     md: "Markdown",
     mdx: "Mdx",
     tex: "Tex",
 
-    // Programming languages
     py: "Python",
     pyx: "Python",
     pyw: "Python",
@@ -252,20 +241,17 @@ const ICON_MAPS: IconMaps = {
     roc: "Rocket",
     fs: "Fsharp",
 
-    // Shell scripts
     sh: "Console",
     bash: "Console",
     zsh: "Console",
     fish: "Console",
     ps1: "Powershell",
 
-    // Config/build files
     cfg: "Settings",
     ini: "Settings",
     conf: "Settings",
     properties: "Settings",
 
-    // Media files
     svg: "Svg",
     png: "Image",
     jpg: "Image",
@@ -282,14 +268,12 @@ const ICON_MAPS: IconMaps = {
     wav: "Audio",
     flac: "Audio",
 
-    // Archive files
     zip: "Zip",
     tar: "Zip",
     gz: "Zip",
     rar: "Zip",
     "7z": "Zip",
 
-    // Document files
     pdf: "Pdf",
     doc: "Word",
     docx: "Word",
@@ -298,12 +282,10 @@ const ICON_MAPS: IconMaps = {
     xls: "Document",
     xlsx: "Document",
 
-    // Database files
     sql: "Database",
     db: "Database",
     sqlite: "Database",
 
-    // Other
     env: "Tune",
     log: "Log",
     lock: "Lock",
@@ -317,13 +299,11 @@ const ICON_MAPS: IconMaps = {
     dockerfile: "Docker",
   },
   folderNames: {
-    // Source code
     src: "FolderSrc",
     source: "FolderSrc",
     lib: "FolderLib",
     libs: "FolderLib",
 
-    // Testing
     test: "FolderTest",
     tests: "FolderTest",
     testing: "FolderTest",
@@ -335,20 +315,17 @@ const ICON_MAPS: IconMaps = {
     unit: "FolderTest",
     cypress: "FolderCypress",
 
-    // Dependencies
     node_modules: "FolderNode",
     vendor: "FolderPackages",
     packages: "FolderPackages",
     deps: "FolderPackages",
 
-    // Build/dist
     build: "FolderBuildkite",
     dist: "FolderDist",
     out: "FolderDist",
     output: "FolderDist",
     target: "FolderTarget",
 
-    // Configuration
     config: "FolderConfig",
     configs: "FolderConfig",
     configuration: "FolderConfig",
@@ -356,18 +333,15 @@ const ICON_MAPS: IconMaps = {
     env: "FolderEnvironment",
     environments: "FolderEnvironment",
 
-    // Docker
     docker: "FolderDocker",
     dockerfiles: "FolderDocker",
     containers: "FolderDocker",
 
-    // Documentation
     docs: "FolderDocs",
     doc: "FolderDocs",
     documentation: "FolderDocs",
     readme: "FolderDocs",
 
-    // Public/assets
     public: "FolderPublic",
     static: "FolderPublic",
     assets: "FolderImages",
@@ -383,7 +357,6 @@ const ICON_MAPS: IconMaps = {
     scss: "FolderSass",
     less: "FolderLess",
 
-    // Scripts
     scripts: "FolderScripts",
     script: "FolderScripts",
     tools: "FolderTools",
@@ -391,7 +364,6 @@ const ICON_MAPS: IconMaps = {
     utilities: "FolderUtils",
     helpers: "FolderHelper",
 
-    // Framework specific
     components: "FolderComponents",
     component: "FolderComponents",
     views: "FolderViews",
@@ -427,7 +399,6 @@ const ICON_MAPS: IconMaps = {
     seeders: "FolderSeeders",
     seeder: "FolderSeeders",
 
-    // TypeScript
     types: "FolderTypescript",
     typing: "FolderTypescript",
     typings: "FolderTypescript",
@@ -435,13 +406,11 @@ const ICON_MAPS: IconMaps = {
     interfaces: "FolderInterface",
     interface: "FolderInterface",
 
-    // Mobile
     android: "FolderAndroid",
     ios: "FolderIos",
     mobile: "FolderMobile",
     flutter: "FolderFlutter",
 
-    // Infrastructure
     kubernetes: "FolderKubernetes",
     k8s: "FolderKubernetes",
     terraform: "FolderTerraform",
@@ -452,7 +421,6 @@ const ICON_MAPS: IconMaps = {
     vercel: "FolderVercel",
     netlify: "FolderNetlify",
 
-    // CI/CD
     ".github": "FolderGithub",
     ".gitlab": "FolderGitlab",
     ".circleci": "FolderCircleci",
@@ -460,24 +428,20 @@ const ICON_MAPS: IconMaps = {
     ".ci": "FolderCi",
     workflows: "FolderGhWorkflows",
 
-    // Git
     ".git": "FolderGit",
 
-    // Development tools
     ".vscode": "FolderVscode",
     ".idea": "FolderIntellij",
     ".cursor": "FolderCursor",
     ".devcontainer": "FolderContainer",
     ".storybook": "FolderStorybook",
 
-    // Localization
     i18n: "FolderI18n",
     locales: "FolderI18n",
     locale: "FolderI18n",
     lang: "FolderI18n",
     languages: "FolderI18n",
 
-    // Other common patterns
     temp: "FolderTemp",
     tmp: "FolderTemp",
     logs: "FolderLog",
@@ -500,7 +464,6 @@ const ICON_MAPS: IconMaps = {
     prisma: "FolderPrisma",
     drizzle: "FolderDrizzle",
 
-    // Security
     security: "FolderSecure",
     auth: "FolderSecure",
     authentication: "FolderSecure",
@@ -509,20 +472,17 @@ const ICON_MAPS: IconMaps = {
     certs: "FolderKeys",
     certificates: "FolderKeys",
 
-    // Content
     content: "FolderContent",
     posts: "FolderContent",
     articles: "FolderContent",
     blog: "FolderContent",
 
-    // Functions
     functions: "FolderFunctions",
     function: "FolderFunctions",
     lambda: "FolderFunctions",
     lambdas: "FolderFunctions",
     serverless: "FolderServerless",
 
-    // Jobs/tasks
     jobs: "FolderJob",
     job: "FolderJob",
     tasks: "FolderTasks",
@@ -531,7 +491,6 @@ const ICON_MAPS: IconMaps = {
     queue: "FolderQueue",
     queues: "FolderQueue",
 
-    // Desktop platforms
     desktop: "FolderDesktop",
     windows: "FolderWindows",
     macos: "FolderMacos",
@@ -563,9 +522,9 @@ const dottedSuffixesDesc = (name: string) => {
   const idxs: number[] = []
   for (let i = 0; i < n.length; i++) if (n[i] === ".") idxs.push(i)
   const out = new Set<string>()
-  out.add(n) // allow exact whole-name "extensions" like "dockerfile"
+  out.add(n)
   for (const i of idxs) if (i + 1 < n.length) out.add(n.slice(i + 1))
-  return Array.from(out).sort((a, b) => b.length - a.length) // longest first
+  return Array.from(out).sort((a, b) => b.length - a.length)
 }
 
 export function chooseIconName(path: string, type: "directory" | "file", expanded: boolean): IconName {

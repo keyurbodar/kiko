@@ -4,18 +4,10 @@ import { CLERK_KEY, type Profile } from "./hosted"
 type Options = NonNullable<Parameters<Clerk["load"]>[0]>
 type ClerkUI = Awaited<NonNullable<NonNullable<Options["ui"]>["ClerkUI"]>>
 
-/*
- * Clerk with its prebuilt sign-in modal. Imported only by the sign-in screen and sign-out, so no tier 1
- * to 3 chunk carries it. `@clerk/clerk-js` ships without the prebuilt components, so the UI script is
- * hotloaded from the instance's own front-end host, the way `@clerk/react` does it. The app asks Clerk
- * once, trades the session token for the backend's own, and never talks to Clerk again on the hot path.
- */
-
 const UI_VERSION = "1"
 
 const BLOCKED = "Could not load the sign-in form. Check your connection. If you use an ad blocker or Private DNS, allow clerk.kiko.works, then try again."
 
-/** The Clerk front-end host is the publishable key's payload: base64 of `host$`. */
 function frontendHost(key: string): string {
   return atob(key.split("_").slice(2).join("_")).replace(/\$$/, "")
 }
@@ -39,11 +31,6 @@ function loadUi(key: string): Promise<ClerkUI> {
   })
 }
 
-/*
- * Clerk's stock structure with its colors bound to kiko's live palette through CSS variables, so a theme
- * change reaches the portaled modal without a remount (t3code's clerkAppearance). The palette's card is
- * translucent, so the modal takes the opaque popover surface.
- */
 export const appearance = {
   elements: {
     formButtonPrimary: { boxShadow: "none" },
@@ -76,7 +63,6 @@ export function loadClerk(): Promise<Clerk> {
     const clerk = new Clerk(key)
     const ui = loadUi(key)
     ui.catch(() => {})
-    // Clerk's own load errors are written for developers, so the person gets one plain sentence.
     await clerk.load({ ui: { ClerkUI: ui }, appearance }).catch((e: unknown) => {
       console.error("clerk load failed", e)
       throw new Error(BLOCKED)
@@ -89,14 +75,12 @@ export function loadClerk(): Promise<Clerk> {
   return loading
 }
 
-/** Opens Clerk's prebuilt sign-in modal. Sign-up lives in the same modal and returns here too. */
 export async function openSignIn(): Promise<void> {
   const clerk = await loadClerk()
   const href = window.location.href
   clerk.openSignIn({ forceRedirectUrl: href, signUpForceRedirectUrl: href })
 }
 
-/** Calls back each time Clerk gains a session, for example when the modal finishes without a page load. */
 export async function onClerkSession(callback: (active: boolean) => void): Promise<() => void> {
   const clerk = await loadClerk()
   let previous: string | null | undefined
@@ -115,7 +99,6 @@ export interface ClerkSignIn {
   profile: Profile
 }
 
-/** The signed-in Clerk person, or null when Clerk holds no session. */
 export async function clerkSignIn(): Promise<ClerkSignIn | null> {
   const clerk = await loadClerk()
   const { session, user } = clerk

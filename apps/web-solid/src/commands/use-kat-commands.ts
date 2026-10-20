@@ -26,18 +26,12 @@ import { useCommands } from "./registry"
 import { browserCommands, startBrowser } from "../chat/browser"
 import { isMac } from "../lib/platform"
 
-/** The file ranking loads with the "Go to file" view, so the shell does not carry it. */
 const [goTo, setGoTo] = createSignal<typeof import("../files/go-to") & { HOME: string; recentFiles: typeof import("../files/recent").recentFiles }>()
 const loadGoTo = () =>
   void Promise.all([import("../files/go-to"), import("../files/model"), import("../files/recent")]).then(([g, m, r]) => setGoTo(() => ({ ...g, HOME: m.HOME, recentFiles: r.recentFiles })))
 
 const CHAT_PATH = /^\/chat\/([^/]+)$/
 
-/*
- * The router glue, kept apart from the table so the table tests without a
- * router. Call it once in the shell: kat's map registers for the shell's life.
- */
-/** Register kat's map for the life of the calling component. Call it in the shell. */
 export function useKatCommands(deps: { toggleSidebar: () => void }): void {
   startBrowser()
   useCommands(browserCommands())
@@ -51,7 +45,6 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
     katCommands({
       mac: isMac,
       toggleSidebar: deps.toggleSidebar,
-      // The one way to start a chat: pick the agent, or several for a group (chat/bot-picker.tsx).
       newChat: openBotPicker,
       openPalette: () => openPalette(),
       openChats: () => openPalette("chats.go"),
@@ -153,14 +146,12 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       openView: openPalette,
     }),
   ])
-  // The agent the composer's model chip targets when the draft tags no one: the lead.
   const chipAgent = () => answeringMember(useApp.roomMembers(), "")
   useCommands(
     navCommands({
       go: (href) => navigate(href),
       signOut: () => void signOut(),
       chooseModel: () => {
-        // The picker lives in the chat top bar, so go there first when somewhere else.
         if (!location.pathname.startsWith("/chat")) navigate("/chat")
         openModelPicker()
       },
@@ -177,7 +168,6 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
   const live = () => import("../theme/live")
   useCommands(
     themeCommands({
-      // The saved look is cached for the first paint, so the check mark reads it without loading the look.
       mode: () => parseLook(readCache()?.text ?? null).mode,
       darkTheme: () => parseLook(readCache()?.text ?? null).darkTheme,
       setMode: (mode) => void live().then((m) => m.updateLook({ mode })),

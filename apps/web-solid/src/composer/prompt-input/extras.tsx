@@ -26,7 +26,6 @@ function RetryButton(props: { name: string; reason: string; onRetry: () => void 
   )
 }
 
-/** The pictures above the text, as t3code's shelf: a square each, its upload under it, and a remove button on it. */
 export function PromptInputV2Attachments(props: {
   attachments: PromptInputV2Attachment[]
   onImageClick?: (attachment: PromptInputV2Attachment) => void

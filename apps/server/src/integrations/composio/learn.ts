@@ -1,8 +1,5 @@
 import type { ComposioCallResult } from "./client"
 
-// A learned tool skips the search and its extra model turns on the next chat, so it is kept
-// once a multi-execute of it succeeds.
-
 export type LearnedTool = { slug: string; toolkit: string; description: string; inputSchema: Record<string, unknown>; usedAt: number; readOnly?: boolean }
 export type Candidate = Omit<LearnedTool, "usedAt" | "readOnly">
 
@@ -35,11 +32,6 @@ export function candidates(body: Obj): Candidate[] {
   )
 }
 
-/**
- * A search answers with `schemaRef` instead of `input_schema` for some tools. Those cannot be called
- * without a second lookup, and dropping them from `candidates` left them unlearned forever, so the
- * model kept searching and then guessed their arguments.
- */
 export function schemaRefs(body: Obj): string[] {
   const schemas = isObj(body.data) ? body.data.tool_schemas : undefined
   const entries = Array.isArray(schemas) ? schemas : isObj(schemas) ? Object.values(schemas) : []

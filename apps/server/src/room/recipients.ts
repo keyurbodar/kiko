@@ -1,6 +1,5 @@
 import type { AgentSlug, Message } from "@kiko/protocol"
 
-/** `mentions` are the slugs the whole text names, from `tags`, so a long message routes on all of it. `replyTo` are the agents the message it answers was for. */
 type RecipientMessage = {
 	mentions: readonly string[]
 	replyTo?: readonly string[]
@@ -31,11 +30,6 @@ export function resolveRecipients(message: RecipientMessage, members: readonly R
 
 const REPLY_DEPTH = 6
 
-/**
- * Who a reply is for. A reply to an agent's bubble is for that agent. A reply to the human's own
- * message is for whoever that message was for: the agents it tags, and the agents of the message it
- * answered in turn, so a chain of replies keeps talking to the same agent.
- */
 export function replyAddressees(find: (id: string) => Pick<Message, "from" | "text" | "replyTo"> | null, id: string | undefined, depth = REPLY_DEPTH): string[] {
 	const target = id !== undefined && depth > 0 ? find(id) : null
 	if (!target) return []

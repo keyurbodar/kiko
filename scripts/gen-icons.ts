@@ -1,9 +1,3 @@
-/*
- * Writes packages/ui/src/icons.gen.ts: the Remix Icon glyphs kiko uses, copied as data.
- * The package ships one svg file per icon, so the app carries only the glyphs it names here.
- * Add a row, then run `bun scripts/gen-icons.ts`. A row named `chevron-down` is exported as
- * `ChevronDownIcon`. Remix Icon License v1.0: free in an app, never as a logo or app icon.
- */
 import { readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 
@@ -140,7 +134,6 @@ const rows = Object.entries(ICONS).map(([name, icon]) => {
   if (!path) throw new Error(`no remix icon named ${icon}`)
   const body = readFileSync(path, "utf8").match(/<svg[^>]*>([\s\S]*)<\/svg>/)?.[1]
   if (!body) throw new Error(`no svg body in ${icon}`)
-  // Two decimals on a 24 unit grid is a hundredth of a pixel at 24px.
   const svg = body.trim().replace(/\d*\.\d+/g, (n) => String(Math.round(Number(n) * 100) / 100))
   const id = name.replace(/(^|-)([a-z0-9])/g, (_, __, c: string) => c.toUpperCase())
   return `export const ${id}Icon = ${JSON.stringify(svg)} as Glyph`

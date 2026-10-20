@@ -13,7 +13,6 @@ import { openThreadImages } from "./image-dialog"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { basename, resolveFile, type FileTarget } from "../rich/file-links"
 
-/** Where a named path is: the chat's own files and folders first, then the user's home drive. */
 function find(path: string) {
   const own = resolveFile(path, useApp.activeFiles().map((f) => f.name), useApp.activeFolders())
   if (own.kind !== "none") return own
@@ -24,18 +23,10 @@ function find(path: string) {
   )
 }
 
-/**
- * A file an agent's message names, as t3code's file mention: the file's icon and name in a
- * small tinted pill. A click opens it in the files tab. A name the chat has no file for draws
- * a dashed edge and says so on click. A name several files share opens the tree to pick from.
- */
 export function FileChip(props: { file: FileTarget; label: string; bare?: boolean }): JSX.Element {
   const full = () => `${props.file.path}${props.file.line ? `:${props.file.line}` : ""}`
-  // A bare name the chat does not have is code, not a missing file, so it does not show a chip.
-  // It is a reactive check: the chat's file list can arrive after the first paint of a message.
   const isChip = () => !props.bare || find(props.file.path).kind !== "none"
   const chat = () => useApp.activeThreadId()
-  /** The chat's own file at this path, when there is exactly one. */
   const ref = () => {
     const found = find(props.file.path)
     return found.kind === "file" ? useApp.activeFiles().find((f) => f.name === found.path) : undefined
@@ -45,7 +36,6 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
     const id = chat()
     return f && id && isImage({ name: f.name, type: f.type }) ? urls.file(id, f.id) : null
   }
-  // An attachment says its size, as t3code's chip does.
   const size = () => {
     const f = ref()
     return f?.name.startsWith("attachments/") ? formatBytes(f.size) : null
@@ -58,7 +48,6 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
     if (src) return openThreadImages([{ src, name: props.label }], 0, from?.querySelector("img") ?? from)
     const found = find(props.file.path)
     if (found.kind === "file") return openFile(id, found.path, props.file.line)
-    // A folder has no page of its own: it is the files panel, opened at that chat's tree.
     if (found.kind === "folder" || found.kind === "many") return openSurface(id, fixedSurface("files"))
     showToastV2({ title: `No file named ${basename(props.file.path)} in this chat`, variant: "error" })
   }

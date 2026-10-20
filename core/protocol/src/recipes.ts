@@ -1,42 +1,31 @@
 import type { RoomId } from "./ids"
 import type { Trigger } from "./routines"
 
-/** A recipe's tile color. The client maps each to a light and a dark pair. */
 export type RecipeTone = "amber" | "violet" | "green" | "teal" | "pink" | "blue" | "red" | "orange" | "slate"
 
-/** A Composio app a recipe needs. `slug` is the toolkit slug; `connected` is whether the owner has it connected, or null when Composio cannot say. */
 export type RecipeApp = { name: string; slug: string; connected: boolean | null }
 
-/** What the gallery shows for a recipe. */
 export type RecipeCard = {
   slug: string
   title: string
   description: string
-  /** When it runs, in words: "Daily at 7:55", "When you ask". */
   when: string
   apps: readonly RecipeApp[]
-  /** Questions the agent asks once the recipe is added. */
   setup: readonly string[]
   agent: { name: string; handle: string }
-  /** True when the owner's drive file supplies this recipe, not the built-in. */
   custom: boolean
   tags: readonly string[]
-  /** The Phosphor icon name, and its duotone svg body on a 256 unit grid. */
   icon: string
   glyph: string
   tone: RecipeTone
 }
 
-/** A recipe added to one agent in one chat. */
 export type RecipeRoutine = { id: string; name: string; trigger: Trigger; tz: string; status: "active" | "paused"; dueUtc: number }
 
 export type RecipeInstall = { installId: string; slug: string; roomId: RoomId; agent: string; at: number; routines: readonly RecipeRoutine[] }
 
-/** `own` gives the recipe a new agent with its own chat. */
 export type InstallRecipe = { installId: string; slug: string } & ({ roomId: RoomId; agent: string } | { own: true })
 
-/** The answer to an add that waits on apps. Nothing was made. `links` is empty, with a `reason`, when Composio is not set up or cannot make a link. */
 export type RecipeNeedsConnect = { state: "needs_connect"; links: readonly { app: string; url: string }[]; reason?: string }
 
-/** The owner's recipes from /home/recipes, what is added where, and why any file did not load. */
 export type RecipeList = { cards: readonly RecipeCard[]; installs: readonly RecipeInstall[]; broken: readonly string[] }

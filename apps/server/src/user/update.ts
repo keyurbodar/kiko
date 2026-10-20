@@ -1,7 +1,3 @@
-// The owner's one-click update. It checks a signed release, refreshes the Cloudflare
-// grant, and uploads this Worker's own script. It runs in UserDO, which has its own request budget; nothing here
-// waits on a timer. Every step is safe to run again.
-
 import { type Keyring, open, seal } from "@kiko/durable/crypto"
 import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
 import { buildMetadata, destructiveMigration, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
@@ -22,7 +18,6 @@ export type UpdateConfig = { releaseBase: string; publicKey: string; cfApi: stri
 type UpdateDeps = {
   fetch: (url: string, init?: RequestInit) => Promise<Response>
   config: UpdateConfig
-  /** The grant UserDO stored last, else the install's CF_GRANT secret. */
   loadGrant: () => Promise<CfGrant | null>
   saveGrant: (grant: CfGrant) => Promise<void>
   report: (stage: UpdateStage, error?: string) => void
@@ -60,7 +55,6 @@ async function accessToken(deps: UpdateDeps, grant: CfGrant): Promise<string> {
   }
   const body = (await res.json().catch(() => null)) as { access_token?: string; refresh_token?: string } | null
   if (!res.ok || !body?.access_token) throw new UpdateFailure(`Cloudflare refused the saved sign-in. ${RECONNECT}`)
-  // The refresh token may rotate. The new one is stored before the new access token is used, so a crash cannot lose it.
   await deps.saveGrant({ ...grant, accessToken: body.access_token, refreshToken: body.refresh_token ?? grant.refreshToken })
   return body.access_token
 }

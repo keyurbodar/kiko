@@ -15,20 +15,16 @@ export interface CreateTreeOptions<T> {
   isItemFolder: (item: ItemInstance<T>) => boolean;
   getItem: (id: string) => T;
   getChildren: (id: string) => string[];
-  /** Arrow keys move the selection together with focus. */
   selectionFollowsFocus?: boolean;
   initialExpanded?: string[];
 }
 
 export interface SolidTree<T> {
-  /** The visible rows, in order. Re-evaluates when expansion changes. */
   items: Accessor<ItemInstance<T>[]>;
   expanded: Accessor<string[]>;
   focused: Accessor<string | null>;
   selected: Accessor<string[]>;
-  /** Props for one row. Reactive: tracks every state change. */
   itemProps: (item: ItemInstance<T>) => Record<string, unknown>;
-  /** Props for the container. Pass as a spread. */
   containerProps: () => Record<string, unknown>;
   core: TreeInstance<T>;
 }

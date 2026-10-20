@@ -15,7 +15,6 @@ const LOST_RUN_MS = 2 * 60 * 60_000
 const MAX_SKIPS = 10_000
 const MAX_TEXT = 2000
 
-// failed is only on rows stored before reminders became routines.
 export type ReminderStatus = "active" | "paused" | "done" | "cancelled" | "failed"
 
 export type Reminder = {
@@ -88,7 +87,6 @@ const toReminder = (r: Row): Reminder => ({
   lastFired: r.last_fired,
 })
 
-// The one place a time is parsed, so every routine obeys the same horizon.
 function parseTime(time: string, now: number): number {
   if (!/(z|[+-]\d{2}:?\d{2})$/i.test(time.trim())) throw new ReminderError("time must include an offset or z")
   const at = Date.parse(time)
@@ -144,7 +142,6 @@ export class Reminders {
       .map(toReminder)
   }
 
-  /** The routines that can still run or be reported on. Done and cancelled rows only grow the table. */
   triggered(): Reminder[] {
     return this.sql.exec<Row>("SELECT * FROM reminders WHERE trigger IS NOT NULL AND status IN ('active', 'paused')").toArray().map(toReminder)
   }
@@ -226,7 +223,6 @@ export class Reminders {
   async updateRoutine(id: string, patch: { name?: string; instructions?: string; trigger?: Trigger; status?: "active" | "paused" }): Promise<{ routine: Reminder; token?: string } | null> {
     const current = this.get(id)
     if (!current?.trigger || current.status === "cancelled" || (current.status === "done" && patch.trigger === undefined)) return null
-    // Only a routine that becomes a webhook gets a token; an existing webhook keeps the one it has.
     const fresh = patch.trigger?.on === "webhook" && current.trigger.on !== "webhook" ? toHex(crypto.getRandomValues(new Uint8Array(24))) : undefined
     const freshHash = fresh ? await sha256Hex(fresh) : null
     const trigger = patch.trigger ?? current.trigger
@@ -256,7 +252,6 @@ export class Reminders {
     return { routine: this.required(id), ...(fresh ? { token: fresh } : {}) }
   }
 
-  /** The active routine whose webhook token hashes to `hash`. The token is the credential, so no id comes with it. */
   byHook(hash: string): Reminder | null {
     const row = this.sql.exec<Row>("SELECT * FROM reminders WHERE hook_hash = ? AND status = 'active'", hash).toArray()[0]
     return row ? toReminder(row) : null
@@ -314,7 +309,6 @@ export class Reminders {
     else this.sql.exec("UPDATE reminders SET fails = 0 WHERE id = ? AND fails != 0", routineId)
   }
 
-  // One failed run. At MAX_FAILS a routine pauses. The human hears once per occurrence.
   private async countFailure(id: string, occurrence: string): Promise<void> {
     this.sql.exec("UPDATE reminders SET fails = fails + 1 WHERE id = ?", id)
     const routine = this.get(id)
@@ -342,7 +336,6 @@ export class Reminders {
 
   private async run(routine: Reminder, occurrence: string, why: string, extra: string): Promise<RunDelivery> {
     if (!this.ports) return "refused"
-    // A due batch can outlive a deletion while an earlier delivery awaits its room.
     if (this.get(routine.id)?.status !== "active") return "gone"
     const body = routineBody(routine, why, this.lastRun(routine.id), extra)
     const fresh = this.beginRun(routine.id, occurrence)
@@ -398,12 +391,10 @@ export class Reminders {
 
   async deleteRoutine(id: string): Promise<void> {
     this.purge([id])
-    // Do not acknowledge deletion while a dispatch can still reach the room.
     await Promise.all(this.deliveries.get(id) ?? [])
     await this.rearm()
   }
 
-  /** A deleted chat takes its reminders and routines with it. */
   async cancelRoom(roomId: string): Promise<void> {
     this.purge(this.sql.exec<{ id: string }>("SELECT id FROM reminders WHERE room_id = ?", roomId).toArray().map((row) => row.id))
     await this.rearm()
@@ -467,7 +458,6 @@ const fail = (message: string): never => {
   throw new ReminderError(message)
 }
 
-// A throw from the room is a refusal, so the failure counts the same way a refused run does.
 const thrownAsRefused = (e: unknown): "refused" => {
   console.error(`delivery refused: ${e instanceof Error ? e.message : String(e)}`)
   return "refused"
@@ -483,7 +473,6 @@ export function nextTime(r: Pick<Reminder, "rrule" | "tz" | "dueUtc">, now: numb
   return r.rrule ? nextAfter(r.rrule, r.tz, r.dueUtc, Math.max(now, r.dueUtc + MIN_REPEAT_MS - 1)) : null
 }
 
-// Built from parts so the text does not depend on the host ICU version, which joins date and time differently.
 export function localTime(at: number, tz: string): string {
   const p = Object.fromEntries(
     new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })

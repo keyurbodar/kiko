@@ -1,13 +1,9 @@
-// Verifies a Clerk session token offline: an RS256 signature against the instance's public key, then the claims.
-// No call to Clerk is made. The key is the PEM from the Clerk dashboard, in the CLERK_JWT_KEY secret.
-
 export interface ClerkEnv {
   CLERK_JWT_KEY?: string
   OWNER_ID?: string
   TRUSTED_ORIGINS?: string
 }
 
-// Clock skew allowed on exp and nbf, in seconds.
 const SKEW_S = 5
 
 type ClerkVerdict = { ok: true } | { ok: false; status: 401 | 403; message: string }

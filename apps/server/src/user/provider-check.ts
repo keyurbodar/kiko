@@ -19,7 +19,6 @@ type Deps = {
 export class ProviderCheck {
   constructor(private readonly d: Deps) {}
 
-  /** One refresh per OAuth provider, so the subrequests stay far below the limit. */
   async refreshAll(): Promise<void> {
     for (const info of this.d.vault().listProviders()) {
       if (info.kind !== "oauth") continue
@@ -28,7 +27,6 @@ export class ProviderCheck {
     }
   }
 
-  /** Sends the cheapest request with the stored credential, then sets or clears the provider's problem. */
   async check(provider: string): Promise<ProviderInfo | null> {
     const info = this.d.vault().listProviders().find((p) => p.provider === provider)
     const found = info ? await this.d.lookup(provider) : undefined

@@ -36,10 +36,6 @@ async function enter(before?: () => Promise<void>): Promise<void> {
   setBusy(false)
 }
 
-/*
- * Called once as the sign-in step mounts in a hosted build. A Clerk session already in this browser
- * signs in without a click, and a session the modal makes later is picked up without a page load.
- */
 export function resumeClerk(search: string): () => void {
   let disposed = false
   let unsubscribe: (() => void) | undefined
@@ -63,7 +59,6 @@ export function resumeClerk(search: string): () => void {
   return () => { disposed = true; unsubscribe?.(); cancelAuthAttempt() }
 }
 
-/** Opens Clerk's sign-in modal, where the person chooses a sign-in method. */
 export function ClerkStep() {
   onCleanup(resumeClerk(useLocation().search))
   return (

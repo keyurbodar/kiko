@@ -16,8 +16,6 @@ export type InstallDeps = {
   randomSecret: () => string
   sleep: (ms: number) => Promise<void>
   setMetadata: (sub: string, metadata: { backendUrl: string; accountId: string; version: string }) => Promise<void>
-  /** Tokens an OAuth code was already traded for. A code works once, and picking an account sends it again. */
-  /** Holds an OAuth code's tokens while the person picks an account. `take` hands them over once. */
   codes?: { take(code: string): Promise<OAuthTokens | undefined>; put(code: string, tokens: OAuthTokens): Promise<void> }
 }
 
@@ -48,7 +46,6 @@ async function exchange(env: InstallEnv, grant: Extract<Grant, { kind: "oauth" }
   return { accessToken: body.access_token, ...(body.refresh_token ? { refreshToken: body.refresh_token } : {}) }
 }
 
-// Fetches the latest release and refuses it unless the signature and every module hash match.
 export async function loadRelease(env: InstallEnv, f: FetchLike) {
   try {
     return await loadVerifiedRelease({ baseUrl: env.RELEASE_BASE_URL, publicKey: env.RELEASE_PUBLIC_KEY, index: "latest-owner.json" }, (url) => f(url))
@@ -68,7 +65,6 @@ async function isKiko(f: FetchLike, url: string): Promise<boolean> {
   }
 }
 
-// A public version is not ownership proof. Only the existing backend may accept this identity.
 async function ownedByCaller(f: FetchLike, backend: string, clerkToken: string): Promise<boolean> {
   try {
     const res = await f(`${backend}/api/auth/clerk`, {
@@ -81,7 +77,6 @@ async function ownedByCaller(f: FetchLike, backend: string, clerkToken: string):
     const body: unknown = await res.json()
     if (res.ok && typeof body === "object" && body !== null && "token" in body && typeof body.token === "string" && "user" in body && typeof body.user === "object" && body.user !== null && "id" in body.user && body.user.id === "owner") return true
   } catch {
-    // An unavailable backend is not permission to replace it.
   }
   throw new InstallError("owner_unverified", "Could not verify this backend's owner. Sign in again and retry when the backend is reachable.", 409)
 }
@@ -93,7 +88,6 @@ function blockingOrNull(e: unknown): null {
 
 const randomLabel = () => `kiko-${[...crypto.getRandomValues(new Uint8Array(4))].map((b) => b.toString(16).padStart(2, "0")).join("")}`
 
-// A new Cloudflare account has no workers.dev address until someone opens Workers in the dashboard, so make one.
 async function ensureSubdomain(token: string, accountId: string, f: FetchLike, label = randomLabel): Promise<{ subdomain: string; made: boolean }> {
   const path = `/accounts/${accountId}/workers/subdomain`
   const sub = await cf<{ subdomain?: string } | null>(token, path, {}, f).catch(blockingOrNull)
@@ -107,11 +101,6 @@ async function ensureSubdomain(token: string, accountId: string, f: FetchLike, l
 
 type Account = { id: string; name?: string }
 
-/**
- * The account to install into. One that already runs Kiko wins, so a reinstall never lands in a second account.
- * With one usable account it is that one. With several and none chosen, the person picks: taking the first one
- * that answered could be a team account where they may list Workers but not create one.
- */
 async function pickAccount(token: string, accounts: Account[], chosen: string | undefined, ours: string[], clerkToken: string, f: FetchLike): Promise<{ accountId: string; scripts: Script[] }> {
   let first: unknown = null
   const usable: { account: Account; scripts: Script[] }[] = []
@@ -125,7 +114,6 @@ async function pickAccount(token: string, accounts: Account[], chosen: string | 
   }
   const pick = (u: { account: Account; scripts: Script[] }) => ({ accountId: u.account.id, scripts: u.scripts })
   if (usable.length === 1) return pick(usable[0] as (typeof usable)[number])
-  // Check identity, not just a script name, before preferring an account during reinstall.
   for (const name of [...ours, DEFAULT_SCRIPT]) {
     for (const u of usable) {
       if (!u.scripts.some((s) => s.id === name)) continue
@@ -139,13 +127,9 @@ async function pickAccount(token: string, accounts: Account[], chosen: string | 
   throw first ?? new InstallError("no_account", "No Cloudflare account was found for this sign-in.", 400)
 }
 
-/** Public resolvers that must see a fresh workers.dev address before a phone or laptop is sent to it. */
 const RESOLVERS = ["https://cloudflare-dns.com/dns-query", "https://dns.google/resolve"]
 const DNS_LIMIT_MS = 90_000
 
-// A workers.dev address made a moment ago answers inside Cloudflare at once, but a resolver that looks it up before
-// it is published caches "no such name" for minutes. Waiting until public resolvers see it keeps the browser's first
-// lookup from being that one.
 async function awaitDns(host: string, f: FetchLike, sleep: (ms: number) => Promise<void>): Promise<void> {
   const seen = async (resolver: string) => {
     try {
@@ -178,7 +162,6 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   }
 
   const accounts = await cf<Account[]>(token, "/accounts", {}, f).catch((e: unknown) => {
-    // A fresh sign-in that Cloudflare already calls invalid was revoked or replaced, so only a new sign-in helps.
     if (req.grant.kind === "oauth" && e instanceof InstallError && e.code === "bad_token") {
       throw new InstallError("oauth_failed", "Cloudflare did not accept the sign-in. Try connecting again.", 400, e.cfCodes, e.detail)
     }
@@ -190,7 +173,6 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   const ours = await ownScriptName(req.sub, 32)
   const legacy = await ownScriptName(req.sub)
   const { accountId, scripts } = await pickAccount(token, accounts, req.accountId, [ours, legacy], req.clerkToken, f).catch(async (e: unknown) => {
-    // An OAuth code works once, so the tokens it was traded for wait for the person's pick, and only for that.
     if (oauth && e instanceof InstallError && e.code === "choose_account") await deps.codes?.put(oauth.code, oauth.tokens)
     throw e
   })
@@ -199,20 +181,22 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   const host = (name: string) => `https://${name}.${subdomain}.workers.dev`
 
   const byName = new Map(scripts.map((s) => [s.id, s]))
-  let name: string | undefined
-  for (const candidate of [ours, legacy, DEFAULT_SCRIPT]) {
-    if (byName.has(candidate) && await ownedByCaller(f, host(candidate), req.clerkToken)) {
-      name = candidate
-      break
+  const findScriptName = async () => {
+    let name: string | undefined
+    for (const candidate of [ours, legacy, DEFAULT_SCRIPT]) {
+      if (byName.has(candidate) && await ownedByCaller(f, host(candidate), req.clerkToken)) {
+        name = candidate
+        break
+      }
     }
+    if (!name) {
+      if (byName.has(ours)) throw new InstallError("owner_conflict", "The owner-specific Worker name is already in use. No backend was changed.", 409)
+      name = ours
+    }
+    return name
   }
-  if (!name) {
-    if (byName.has(ours)) throw new InstallError("owner_conflict", "The owner-specific Worker name is already in use. No backend was changed.", 409)
-    // New installs never contend for the shared default name. Keep legacy names only for verified upgrades.
-    name = ours
-  }
+  const name = await findScriptName()
   const existing = byName.get(name)
-  // Fresh backends keep files in OwnerDO; the legacy R2 bucket is shared across owners.
   const fileStore: FilesBinding = existing ? "inherit" : "none"
 
   const { manifest, files } = await loadRelease(env, f)
@@ -232,7 +216,6 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   const bound = { ownerId: req.sub, clerkJwtKey: env.CLERK_JWT_KEY, trustedOrigins: env.FRONT_DOOR_ORIGIN, releaseBase: env.RELEASE_BASE_URL, grant }
   const secrets = existing ? null : firstInstallSecrets({ ...bound, random: deps.randomSecret })
   await cf(token, `/accounts/${accountId}/workers/scripts/${name}`, { method: "PUT", body: uploadBody(manifest, files, buildMetadata(manifest, migrations, secrets, fileStore, inheritedR2)) }, f).catch((e: unknown) => {
-    // Since Cloudflare's Workers roles (2026-09), Workers Editor may change a Worker but not create one.
     if (!existing && e instanceof InstallError && e.code === "no_permission") {
       throw new InstallError("cannot_create", "This sign-in may change Workers but not create one. Give the token Workers Admin, not Workers Editor, then try again.", 403, e.cfCodes, e.detail)
     }

@@ -3,7 +3,6 @@ import type { RoomLog } from "./log"
 import type { Pending } from "./burst"
 import { type RecipientMember, resolveRecipients } from "./recipients"
 
-/** The attached line's budget in the JSON bytes the entry counts. The files past it are counted, not named. */
 const MAX_ATTACHED_BYTES = 4 * 1024
 
 function attachedLine(files: readonly FileRef[]): string {
@@ -23,7 +22,6 @@ function attachedLine(files: readonly FileRef[]): string {
 
 const WORKSPACE_LINK = /\]\((?:<(\/[^>\n]+)>|(\/[^)\s<>]+))\)/g
 
-/** The workspace files a human's text links to, as the composer's file chips write them: `[name](/path)`. */
 function referencedFiles(text: string, attached: readonly FileRef[] = []): string[] {
 	const named = new Set(attached.map((f) => `/${f.name}`))
 	const out = new Set<string>()

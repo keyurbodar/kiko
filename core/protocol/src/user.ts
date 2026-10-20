@@ -1,4 +1,3 @@
-
 import type { ChatLast } from "./activity"
 import type { KikoError } from "./errors"
 import type { AgentSlug, RoomId } from "./ids"
@@ -21,7 +20,6 @@ export type Chat = {
 	last?: ChatLast
 	mentions?: number
 	group?: true
-	/** Where two agents talk privately. Never listed, never shown to the client. */
 	pair?: true
 }
 
@@ -33,7 +31,6 @@ export type Agent = {
 	model: string
 }
 
-/** What an agent runs on, for every chat it is in. `thinkingLevels` are the levels pi-ai says the model supports. */
 export type AgentModel = { model: string; name?: string; thinking: ThinkingLevel; thinkingLevels: readonly ThinkingLevel[] }
 
 export type AgentOp = { op: "create"; agent: Agent } | { op: "delete"; slug: AgentSlug }
@@ -66,11 +63,9 @@ export type UserSnapshot = {
 	seq: number
 	chats: readonly Chat[]
 	agents?: readonly Agent[]
-	/** Every agent's model and level, Kiko included, keyed by slug. */
 	agentModels?: Readonly<Record<string, AgentModel>>
 	theme?: string | null
 	home: { files: readonly FileRef[]; folders: readonly string[] }
-	/** The chat the user was last in, so a new device opens there. The kiko chat when that one is gone. */
 	lastChat?: RoomId
 }
 
@@ -109,10 +104,8 @@ export type BrowserLinkResult = { ok: true; url: string } | { ok: false; error: 
 export type ClientToUser =
 	| { t: "hello"; lastSeq: number }
 	| { t: "chat"; op: ChatOp }
-	/** The user is in this chat now. Stored, not broadcast, so the next device opens it (`lastChat`). */
 	| { t: "open"; roomId: RoomId }
 	| { t: "agent"; op: AgentOp }
-	/** Sets an agent's model, its level, or both, for every chat. `roomId` is the chat the human was in. */
 	| { t: "agent_model"; slug: AgentSlug; ref?: string; thinking?: ThinkingLevel; roomId?: RoomId }
 	| { t: "memory"; reqId: string; op: MemoryOp }
 	| { t: "theme"; theme: string | null }
@@ -123,7 +116,6 @@ export type ClientToUser =
 	| { t: "connectKernel"; reqId: string; apiKey: string }
 	| { t: "disconnectKernel"; reqId: string }
 	| { t: "kernelStatus"; reqId: string }
-	/** Opens the live view. `control` also sets the takeover flag. A headless browser is switched to headful first. */
 	| { t: "browserLink"; reqId: string; mode: "watch" | "control" }
 	| { t: "handBack" }
 	| { t: "closeBrowser" }
@@ -131,10 +123,8 @@ export type ClientToUser =
 	| { t: "login.answer"; loginId: string; promptId: string; value: string }
 	| { t: "login.cancel"; loginId: string }
 	| { t: "home"; op: FileOp }
-	/** Update this backend to this exact release. Only the owner's socket can ask. */
 	| { t: "update.start"; version: string }
 
-/** Where an update is. `restarting` is the last frame the old code sends. */
 export type UpdateStage = "checking" | "authorizing" | "uploading" | "restarting" | "failed"
 
 export type UserChange = "routines" | "memory" | "models" | "providers"
@@ -152,18 +142,14 @@ export type UserToClient =
 	| { t: "login.prompt"; loginId: string; promptId: string; prompt: LoginPrompt }
 	| { t: "login.done"; loginId: string; provider: { provider: string; kind: "api_key" | "oauth"; last4: string } }
 	| { t: "login.error"; loginId: string; reason: LoginErrorReason; message: string }
-	/** Not stored. Something the human must know about, as one toast. `roomId` names the chat it happened in, so the client can skip the toast for the chat on screen. */
 	| { t: "error"; error: KikoError; roomId?: RoomId }
 	| { t: "chat_refused"; roomId: RoomId; existing: RoomId }
-	/** The server kept the agent's model as it was. `message` says why, in words for the human. */
 	| { t: "model_refused"; slug: AgentSlug; message: string }
 	| { t: "home_refused"; op: FileOp; reason: string }
 	| { t: "typing"; roomId: RoomId; names: readonly string[] }
-	/** A list the user socket does not carry changed: reload it. */
 	| { t: "changed"; what: UserChange }
 	| { t: "update.state"; stage: UpdateStage; error?: string }
 
-/** What a sign-in flow tells the user. The same shapes as pi-ai's `AuthEvent`. */
 export type LoginEvent =
 	| { type: "info"; message: string; links?: readonly { url: string; label?: string }[] }
 	| { type: "auth_url"; url: string; instructions?: string }
@@ -176,13 +162,11 @@ export type LoginEvent =
 	  }
 	| { type: "progress"; message: string }
 
-/** What a sign-in flow asks the user. The same shapes as pi-ai's `AuthPrompt`, without its signal. */
 export type LoginPrompt =
 	| { type: "text" | "secret" | "manual_code"; message: string; placeholder?: string }
 	| { type: "select"; message: string; options: readonly { id: string; label: string; description?: string }[] }
 
 export type LoginErrorReason =
-	/** The provider has no sign-in flow that kiko runs on Workers. */
 	| "unsupported"
 	| "disabled"
 	| "unknown"

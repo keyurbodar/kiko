@@ -1,8 +1,3 @@
-// Searches Open VSX for color themes and installs one as Kiko palettes. Every request goes through
-// the Worker's `/api/open-vsx` route, which only fetches open-vsx.org, so the browser never talks
-// to another host. The package is checked against its published SHA-256 and its own manifest
-// before any theme in it is read.
-
 import type { ImportedTheme } from "./imported"
 import { packagePath, parseJsonc, readVsCodeTheme, themeFromVsCode, type VsCodeTheme } from "./vscode-theme"
 import { readZipEntries } from "./zip"
@@ -19,7 +14,6 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 const text = (v: unknown) => (typeof v === "string" ? v.trim() : "")
 const unreadable = () => new Error("Open VSX returned an unreadable response.")
 
-// How a request reaches the Worker. The app passes its own, which adds the backend's address and the sign-in.
 export type Send = (path: string, init: { signal?: AbortSignal }) => Promise<Response>
 
 async function download(url: string, signal: AbortSignal | undefined, send: Send): Promise<Uint8Array> {

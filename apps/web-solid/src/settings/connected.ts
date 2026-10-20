@@ -5,11 +5,6 @@ import { hasModelProvider } from "./provider-kinds"
 import { watchChanged } from "../sync/changed"
 import { readStored, writeStored } from "./connected-store"
 
-// One shared list of connected providers, so settings and the chat top bar agree.
-// It holds provider ids and last four characters only. It is keyed by the signed-in user, so a list
-// fetched before sign-in (an empty 401) never sticks, and it refreshes when the tab comes back, so a
-// key connected in another tab or from the CLI shows up without a reload. The last list is kept
-// on this device, so a reload paints the connected providers at once instead of an empty list.
 const identity = () => {
   const s = session()
   return s.status === "signed-in" ? JSON.stringify([authIdentity(), s.user.id]) : null

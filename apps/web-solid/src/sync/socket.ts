@@ -1,14 +1,6 @@
 import type { ClientToOwner, ClientToRoom, OwnerToClient, RoomId, RoomToClient, ClientToUser, UserToClient } from "@kiko/protocol"
 import { socketProtocols } from "../lib/api"
-//
-// A socket can die without a close event (a laptop that slept, a network that
-// changed), and the chat would sit stale. So the client sends a bare `ping`
-// after `pingMs` of silence, and at once when the tab returns or the network
-// comes back. The Durable Object answers `pong` through the runtime's
-// auto-response, which never wakes it. Any frame counts as life. A socket silent
-// for `pongMs` after a ping is dropped and reconnected at once.
 
-/** The liveness probe, sent as is. Not JSON, so it never reaches a frame handler. */
 export const PING = "ping"
 export const PONG = "pong"
 
@@ -21,7 +13,6 @@ export type SocketLike = {
 	onerror: ((event: unknown) => void) | null
 }
 
-/** Opens one connection. The browser's `WebSocket` by default, the mock room in tests. */
 export type Connect = (url: string) => SocketLike
 
 export const browserConnect: Connect = (url) => new WebSocket(url, socketProtocols()) as unknown as SocketLike
@@ -29,46 +20,35 @@ export const browserConnect: Connect = (url) => new WebSocket(url, socketProtoco
 export type SocketStatus = "connecting" | "open" | "closed"
 
 export type Backoff = {
-	/** The first retry waits about this long. Defaults to 250 ms. */
 	baseMs?: number
-	/** No retry waits longer. Defaults to 10 s. */
 	maxMs?: number
 }
 
 export type SyncSocketOptions<In> = {
 	url: string
 	connect?: Connect
-	/** The frame sent first on every connect. Read at connect time, so it carries the current `lastSeq`. */
 	hello: () => { t: "hello"; lastSeq: number }
-	/** Runs right after `hello` on every connect. Resends go here. */
 	onOpen?: () => void
 	onFrame: (frame: In) => void
 	onStatus?: (status: SocketStatus) => void
 	backoff?: Backoff
 	random?: () => number
-	/** Silence before a ping. Defaults to 25 s. */
 	pingMs?: number
-	/** How long a ping may go unanswered. Defaults to 8 s. */
 	pongMs?: number
 }
 
 export type SyncSocket = {
 	readonly status: SocketStatus
-	/** False when the socket is not open. The caller keeps the frame and resends it from `onOpen`. */
 	send<F extends { t: string }>(frame: F): boolean
-	/** Connects now when waiting to retry, or checks an open socket is still alive. */
 	reconnect(): void
-	/** Closes for good. */
 	close(): void
 }
 
-/** The wait before retry number `attempt`, starting at 0. Full doubling, half of it jittered. */
 export function backoffDelay(attempt: number, baseMs = 250, maxMs = 10_000, random = Math.random): number {
 	const ceiling = Math.min(maxMs, baseMs * 2 ** Math.min(attempt, 30))
 	return Math.round(ceiling / 2 + (ceiling / 2) * random())
 }
 
-/** Null unless the data is JSON for an object with a string `t`. */
 export function parseFrame<In>(data: unknown): In | null {
 	if (typeof data !== "string") return null
 	try {
@@ -139,7 +119,6 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 		}
 	}
 
-	/** Probes while a socket is open. Unref'd where the runtime allows, so it never holds a process open. */
 	function watch() {
 		if (probe !== undefined) return
 		probe = setInterval(() => check(), Math.min(2_000, pongMs))
@@ -153,14 +132,12 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 		probe = undefined
 	}
 
-	/** Sends a ping, or drops a socket whose ping went unanswered. `now` pings regardless of silence. */
 	function check(now = false) {
 		const s = socket
 		if (!s || status !== "open") return
 		const t = Date.now()
 		if (pingedAt !== undefined) {
 			if (t - pingedAt < pongMs) return
-			// Dead without a close event. Forget it and connect again at once.
 			socket = null
 			pingedAt = undefined
 			try {
@@ -177,7 +154,6 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 		} catch {}
 	}
 
-	/** Drops the socket this client has and connects again at once, with no backoff. */
 	function reopen() {
 		if (closed) return
 		const s = socket
@@ -204,11 +180,7 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 		timer = setTimeout(open, backoffDelay(attempt++, baseMs, maxMs, random))
 	}
 
-	// The network came back: the socket on the old one is gone even when it never said so.
 	const onOnline = () => reopen()
-	// A tab that was hidden may have had its timers frozen for minutes. A socket silent longer than one
-	// probe cycle is replaced rather than pinged: waiting for the pong is what made a returning tab sit
-	// on stale content.
 	const onVisible = () => {
 		if (globalThis.document?.visibilityState !== "visible") return
 		if (socket && Date.now() - heardAt > pingMs + pongMs) reopen()
@@ -257,19 +229,14 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 type FrameOf<T extends UserToClient["t"]> = Extract<UserToClient, { t: T }>
 
 export type UserChannel = {
-	/** False when the socket is not open. The caller keeps the frame and resends it from `onOpen`. */
 	send(frame: ClientToUser): boolean
-	/** Calls `fn` with every frame of type `t`. Returns the unsubscribe. */
 	on<T extends UserToClient["t"]>(t: T, fn: (frame: FrameOf<T>) => void): () => void
-	/** Runs after `hello` on every connect. Returns the unsubscribe. */
 	onOpen(fn: () => void): () => void
 	onStatus(fn: (status: SocketStatus) => void): () => void
 	room(options: RoomChannelOptions): RoomChannel
 }
 
-/** The socket owner's side. */
 export type UserChannelHost = UserChannel & {
-	/** Makes `send` the channel's socket. Returns the detach, which does nothing once another socket attached. */
 	attach(send: (frame: ClientToOwner) => boolean): () => void
 	deliver(frame: OwnerToClient): void
 	opened(): void
@@ -376,5 +343,4 @@ export type RoomChannel = {
 	close(): void
 }
 
-/** The app's channel. The user store attaches its socket to it. */
 export const userChannel = createUserChannel()

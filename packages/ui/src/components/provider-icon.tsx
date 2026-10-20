@@ -4,7 +4,6 @@ import sprite from "./provider-icons/sprite.svg"
 import { spriteSubset } from "./sprite-subset"
 import { iconNames, type IconName } from "./provider-icons/types"
 
-/** Only the icons in use are copied into the page. See `sprite-subset.ts`. */
 const providerIcon = spriteSubset(sprite, "provider-icon-")
 
 export type ProviderIconProps = JSX.SVGElementTags["svg"] & {

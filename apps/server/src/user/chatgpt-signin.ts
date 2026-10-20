@@ -1,11 +1,9 @@
 import type { LoginOptions, OAuthAuth, OAuthCredential, ProviderAuthInteraction } from "@earendil-works/pi-ai"
 
-// Ported from pi-ai's openai-chatgpt flow. A Worker cannot listen on a port, so only the paste path is left.
 const DYNAMIC_CLIENT_ID = "dynamic_agent_client"
 const AUTHORIZE_URL = "https://auth.openai.com/api/accounts/authorize"
 const TOKEN_URL = "https://auth.openai.com/api/accounts/oauth/token"
 const RESOURCE = "https://api.openai.com/v1"
-// OpenAI registered this address for the flow, so it cannot change. Nothing listens there for kiko.
 const REDIRECT_URI = "http://127.0.0.1:1455/auth/callback"
 const DIRECT_TOKEN_SCOPE = "chatgpt.tokens.use.direct"
 const SCOPE = `openid profile email offline_access resource.invoke ${DIRECT_TOKEN_SCOPE}`
@@ -54,7 +52,6 @@ export function authorizeUrl(input: { hostId: string; state: string; nonce: stri
   return url.toString()
 }
 
-/** Reads the address the person copied from the browser after approving. */
 function parseCallback(input: string, expectedState: string): { code: string; clientId: string } {
   let url: URL
   try {
@@ -80,7 +77,6 @@ function parseCallback(input: string, expectedState: string): { code: string; cl
 type TokenResponse = { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown; id_token?: unknown; scope?: unknown }
 
 async function requestToken(body: URLSearchParams, signal: AbortSignal): Promise<TokenResponse> {
-  // check-rules: allow egress the sign-in runs in UserDO's own invocation and calls one fixed OpenAI host
   const response = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },

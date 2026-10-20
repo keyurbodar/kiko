@@ -1,4 +1,3 @@
-
 import { readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { tokensFor } from "../src/palette"
@@ -25,7 +24,6 @@ export function withPalette(css: string): string {
 
 if (import.meta.main) writeFileSync(KAT, withPalette(readFileSync(KAT, "utf8")))
 
-/** Bundle the canonical parsers and resolver into the synchronous pre-paint script. */
 export async function withBootPalettes(html: string): Promise<string> {
   const result = await Bun.build({
     entrypoints: ["kiko-boot"],

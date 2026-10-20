@@ -1,6 +1,5 @@
 import type { Recipe } from "./recipe"
 
-/** What a new agent is told about a recipe that may fit it. */
 export type RecipeHint = { slug: string; title: string; description: string }
 
 const STOP = new Set(["about", "after", "agent", "also", "always", "and", "any", "assistant", "are", "ask", "can", "daily", "for", "from", "get", "give", "have", "help", "into", "just", "keep", "like", "make", "need", "that", "the", "their", "them", "then", "they", "this", "what", "when", "with", "will", "want", "your", "you", "every", "each", "something", "someone", "things", "thing"])
@@ -8,7 +7,6 @@ const STOP = new Set(["about", "after", "agent", "also", "always", "and", "any",
 const stem = (w: string) => (w.length > 4 ? w.replace(/(ing|ers|er|es|s|ed)$/, "") : w)
 const words = (text: string): Set<string> => new Set((text.toLowerCase().match(/[a-z]{3,}/g) ?? []).filter((w) => !STOP.has(w)).map(stem))
 
-/** The recipes whose words overlap the description most, best first. Cheap on purpose: the agent decides whether one fits. */
 export function matchRecipes(description: string, recipes: readonly Recipe[], limit = 3): RecipeHint[] {
   const wanted = words(description)
   if (!wanted.size) return []

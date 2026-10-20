@@ -89,7 +89,6 @@ export class PendingUploads {
 	}
 }
 
-/** The name as a path under `attachments/`: a dropped folder keeps its folders, and nothing climbs out. */
 export function safeName(name: string): string {
 	const parts = name
 		.replaceAll("\\", "/")
@@ -99,11 +98,6 @@ export function safeName(name: string): string {
 	return parts.join("/").slice(-120).replace(/^\/+/, "") || "file"
 }
 
-/**
- * `attachments/<time>-<name>`, at a path nothing holds yet. Two files of one message with the
- * same name, or a send in the same millisecond, take the next free time. The client reads the
- * name back with `fileName`.
- */
 export function attachmentPath(name: string, now: number, taken: (path: string) => boolean): string {
 	for (let t = now; ; t++) {
 		const path = `attachments/${t.toString(36)}-${safeName(name)}`
@@ -111,12 +105,6 @@ export function attachmentPath(name: string, now: number, taken: (path: string) 
 	}
 }
 
-/**
- * Moves a send's pending uploads into the chat's files, in order, and returns what the message
- * carries and the events to publish. Throws `ClaimRefused` with the reason the composer shows; the
- * caller runs this inside the send's transaction, so a refusal leaves no row changed. The object
- * stays at its key: a claimed file is indexed where its bytes already are.
- */
 export function claim(
 	pending: PendingUploads,
 	files: FileIndex<RoomEvent>,

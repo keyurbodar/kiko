@@ -53,7 +53,6 @@ const WORKER_TASK_CHARS = 200
 import { FIRST_BYTE_MS, guardStall, orStall, STALL_MS } from "./stall"
 import { type Applied, modelName, renderHandoff, sameApplied, switchedModel } from "./handoff"
 
-// Read by the dev methods in agent/dev.ts too, so they share one key per setting.
 export const DEV_FAKE_KEY = "dev-fake"
 const MEMORY_POS_KEY = "memory:pos"
 const MEMORY_LIFE_KEY = "memory:life"
@@ -176,7 +175,6 @@ export class Agent {
   private async workersChanged(running: number, pending: boolean): Promise<void> {
     await this.outbox.workers(this.workerRows()).catch(() => undefined)
     await this.outbox.background(running > 0, pending).catch(() => undefined)
-    // The last worker settled and no run is going: its tabs go with it, so the chip hides while the agent is idle.
     if (running === 0 && !this.outbox.runId()) await this.releaseTabs()
   }
 
@@ -207,7 +205,6 @@ export class Agent {
     const only = envelopes.length === 1 ? envelopes[0] : undefined
     const requestId = only?.from.kind === "agent" ? messageIdOf(only.id) ?? undefined : undefined
     const result = await this.host.receive(envelopes, brief, requestId)
-    // A human message ends whatever ask_human is waiting on, so the agent answers them first.
     if (!result.refused && envelopes.some((e) => e.from.kind === "human")) this.answers.interrupt()
     return result
   }
@@ -282,27 +279,21 @@ export class Agent {
         this.afterHumanRun ||= human
         this.recovered(home.userId)
         const ended = await room().endRun(home.slug, runId, mail, working, mailOnly)
-        // The agent's tabs belong to its run: at the end of it the room's browser chip goes away. A worker still
-        // running keeps them, and a human in control keeps them until they press Release control.
         if (!working) await this.releaseTabs()
         return ended
       },
-      react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
-      // Restored from the durable input when the harness opens; Retry needs the messages it answered.
+      react: (deliveryId, emoji, messageId) => room().react(home.slug, deliveryId, emoji, messageId),
       runError: async (runId, error) => {
         const run = this.#run?.provider === error.provider ? this.#run : null
         if (run) run.errored = true
         const kind = runKindFor(error.kind, run?.credential)
         const out = await room().runError(home.slug, runId, { ...error, kind, inputs: this.#humanInputs })
-        // A failure the provider repeats on the next request ends the work with the run. A busy or
-        // unreachable provider leaves the workers alone: they may still finish and report.
         if (stopsWorkers(kind)) await this.host.workers.stopAll()
         return out
       },
     }
   }
 
-  /** A run that started with a provider problem and ended without a model error proves the provider works. */
   private recovered(userId: string): void {
     const run = this.#run
     if (!run?.problem || run.errored || !run.auth) return
@@ -370,7 +361,6 @@ export class Agent {
     await this.host.humanGone()
   }
 
-  /** The agent mail a run answered, and whether mail was all it was given: such a run says nothing the human committed to. */
   private async heard(inputs: readonly SubmissionId[]): Promise<{ mail: string[]; mailOnly: boolean; human: boolean }> {
     if (!inputs.length) return { mail: [], mailOnly: false, human: false }
     const { storage } = await this.host.open()
@@ -457,12 +447,10 @@ export class Agent {
     }
   }
 
-  /** Routines are durable pi tasks in this agent's Harness, so they share the run mechanism and the one clock. */
   private readonly routineScheduler = new RoutineSchedules(async (delivery) => {
     await this.services.fireRoutine(delivery)
   })
 
-  /** Replaces this agent's durable routine inventory. Repeated syncs with the same occurrences add nothing. */
   async syncRoutines(routines: readonly ScheduledRoutine[]): Promise<void> {
     await this.host.updateTasks(async (opened) => {
       await this.routineScheduler.bind(opened.harness, opened.root.id).sync(routines)
@@ -602,7 +590,6 @@ export class Agent {
 
   #seqs: number[] = []
   #heard: string | null = null
-  /** The human messages the run in flight is answering, so a failed run can be run again. */
   #humanInputs: string[] = []
   #shown = new Set<string>()
   #delta?: { requestId: string; since: Promise<{ text: string; count: number } | null> }
@@ -629,7 +616,6 @@ export class Agent {
       return
     }
     const count = ((await this.ctx.storage.get<number>(COMPACTIONS_KEY)) ?? 0) + 1
-    // One put for both keys: the usage this compaction carries and the compaction count.
     await this.ctx.storage.put({ [USAGE_CARRIED_KEY]: usage, [COMPACTIONS_KEY]: count })
     await this.services.room(home.roomId).compacted(home.slug, String(count)).catch(() => {})
   }
@@ -638,7 +624,6 @@ export class Agent {
     return (await this.ctx.storage.get<Usage>(USAGE_CARRIED_KEY)) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
   }
 
-  // The one guarded entry for the dev methods in agent/dev.ts: they reach the object's state here.
   private agentDevHost(): AgentDevHost {
     return {
       storage: this.ctx.storage,
@@ -662,21 +647,15 @@ export class Agent {
     return sum
   }
 
-  /** The owner transport reserves the active invocation budget once per network attempt. */
   async egress(request: EgressRequest): Promise<Response> {
     if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
     return this.services.egress(request)
   }
 
-  /**
-   * A `fetch` that goes out through `egress`. An abort signal cannot cross RPC, so it is applied
-   * here: before the call it throws, and after it the body stream is cut.
-   */
   private egressFetch(): typeof fetch {
     return (async (input: RequestInfo | URL, init?: RequestInit) => {
       const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined)
       signal?.throwIfAborted()
-      // The request crosses as plain data: a request body streamed over RPC can be cut off before the
       const request = new Request(input as RequestInfo, { ...init, signal: null })
       const body = request.body ? await request.arrayBuffer() : null
       const sent = await orStall(this.egress({ url: request.url, method: request.method, headers: [...request.headers], body }), FIRST_BYTE_MS)
@@ -715,12 +694,10 @@ export class Agent {
     return conversationId === (await this.host.rootId())
   }
 
-  /** The model and level the conversation was last configured with, and the one it needs now. */
   private async applied(): Promise<Applied | undefined> {
     return this.ctx.storage.get<Applied>(MODEL_APPLIED_KEY)
   }
 
-  /** True when the conversation has model context to hand over. A fresh conversation has none. */
   private async hasContext(root: Conversation): Promise<boolean> {
     return (await root.context(BACKGROUND_CONTEXT)).messages.length > 0
   }
@@ -750,15 +727,12 @@ export class Agent {
     const turn = await this.services.user().agentTurn(home.slug)
     if (turn.provider) setOverlay(turn.provider, turn.catalog.models)
     const model = turn.model ? parseModelRef(turn.model) : null
-    // pi-durable ends a run on a model it cannot find as unanswered, with no error entry, so the human would see nothing.
     const listed = model ? isKnownModel(model) : false
     if (model && listed) {
       this.#run = { provider: model.provider, auth: turn.auth, timezone: turn.timezone, captures: turn.captures, ...(turn.credential ? { credential: turn.credential } : {}), ...(turn.problem ? { problem: turn.problem } : {}), ...(turn.agent ? { soul: turn.agent.soul } : {}) }
       const applied = { model, thinkingLevel: turn.thinking }
       const was = await this.ctx.storage.get<Applied>(MODEL_APPLIED_KEY)
       if (!sameApplied(was, applied)) {
-        // A new model never reads the old model's native history: a thinking signature or tool-call shape it does not
-        // know answers 400 on every later message. It reads a plain-text handoff instead.
         if (was && switchedModel(was, applied) && (await this.hasContext(root))) await this.handoff(root, was, applied)
         else await root.configure(applied, BACKGROUND_CONTEXT)
         await this.ctx.storage.put(MODEL_APPLIED_KEY, applied)
@@ -792,7 +766,6 @@ export class Agent {
     return this.#run.auth
   }
 
-  /** The model and level this agent runs on. Kept by the user, so every chat with this agent agrees. */
   private async picked(): Promise<{ model: ModelRef | null; thinking: ThinkingLevel }> {
     const home = this.home()
     const picked = home ? await this.services.user().agentModel(home.slug) : null
@@ -822,10 +795,6 @@ export class Agent {
     return (this.services.user() as unknown as UserBrowserRpc).browserCheck().then((s) => s.connected, () => false)
   }
 
-  /**
-   * Closes the agent's tabs and drops its claim from the lease, once its run ends. The browser and its logins stay for
-   * the next run; the chip above the composer hides because no tab is left. Safe to call twice, and when no tab was open.
-   */
   async releaseTabs(): Promise<number> {
     if (!this.#browser) return 0
     return this.#browser.release().catch((e: unknown) => {
@@ -850,10 +819,6 @@ export class Agent {
     return this.#browser
   }
 
-  /**
-   * Closes the browser socket when its idle wakeup is due. The host's alarm would drop the row as
-   * due without knowing it, so this runs first. True when nothing else was due.
-   */
   private async browserIdle(): Promise<boolean> {
     const clock = this.clock
     const at = clock.deadline(BROWSER_IDLE_WAKEUP)
@@ -863,8 +828,6 @@ export class Agent {
     return false
   }
 
-  // The dev-only bodies live in agent/dev.ts, which only a development build can load. One cached load
-  // per object reaches every dev method below.
   #dev?: Promise<typeof import("./dev")>
 
   private dev(): Promise<typeof import("./dev")> {

@@ -51,7 +51,6 @@ export class MemoryNaps {
 		}
 	}
 
-	/** Summarizes this room's pending spans for one pass, awaited by the caller after a human run. A failed span waits for the next human run. */
 	async naps(): Promise<void> {
 		if (!this.d.home() || this.#napping) return
 		this.#napping = true

@@ -5,7 +5,6 @@ const SWEEP_FLOOR_MS = 24;
 
 export interface Clock {
   now: () => number;
-  /** Schedules `fn` and returns a cancel function. */
   after: (fn: () => void, ms: number) => () => void;
 }
 
@@ -20,7 +19,6 @@ const realClock: Clock = {
 export interface TypingPresenceOptions {
   timeout?: number;
   minVisible?: number;
-  /** Injected by tests. */
   clock?: Clock;
 }
 

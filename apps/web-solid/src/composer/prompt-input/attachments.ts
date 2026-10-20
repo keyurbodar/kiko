@@ -8,14 +8,6 @@ import { rememberClipboardFile } from "../rich/clipboard"
 import { entriesOf, hasFolder, walkEntries } from "./dropped"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 
-/*
- * Files into the composer: the attach button's picker, a paste, and a drop anywhere on the page,
- * decided the way t3code's composer decides (`lib/attachments.ts` holds the rules). A picture over
- * 10 MB is shrunk to fit; a picture kiko cannot send, an empty file, a file over 50 MB, and a file
- * past the 100th are refused, and the last refusal is said in a toast. Each file taken starts
- * uploading at once (`onAdded`), so it is usually on the server before the human presses send.
- */
-
 type PromptTarget = {
   current: () => PromptInputV2Prompt
   cursor: () => number | undefined
@@ -24,11 +16,8 @@ type PromptTarget = {
 
 export type PromptInputV2AttachmentConfig = {
   blocked?: () => string | null
-  /** Says why files were left out: too large, the wrong kind, or past the count. */
   refuse: (reasons: string[]) => void
-  /** A file entered the box, as `file` (a picture possibly re-encoded). Its upload starts here. */
   onAdded?: (attachment: PromptInputV2Attachment, file: File) => void
-  /** The draft this box is filling. A switch during an await means the parts belong to another chat. */
   key?: () => string
 }
 
@@ -38,9 +27,7 @@ export function createPromptInputV2Attachments(
     editor: () => HTMLElement | undefined
     focusEditor: () => void
     addPart: (part: PromptInputV2Prompt[number]) => boolean
-    /** Puts chips for these attachments where `at` points on screen, or at the caret. */
     chip: (items: readonly { id: string; name: string }[], at?: { x: number; y: number }) => void
-    /** Puts a reference chip for each workspace file where `at` points, or at the caret. */
     fileRef: (paths: readonly string[], at?: { x: number; y: number }) => void
     hasText: () => boolean
     setDragging: (dragging: boolean) => void
@@ -62,7 +49,6 @@ export function createPromptInputV2Attachments(
     const added: PromptInputV2Attachment[] = []
     const take = async (file: File) => {
       const id = await blobId(file)
-      // The same bytes twice, as a double paste makes, are attached once.
       if ([...held, ...added].some((part) => part.blob.id === id)) return
       const attachment: PromptInputV2Attachment = {
         type: "image",
@@ -78,7 +64,6 @@ export function createPromptInputV2Attachments(
     }
     for (const file of others) await take(file)
     for (const file of images) {
-      // Pictures over the limit are shrunk rather than refused; one within it passes byte for byte.
       const typed = file.type === attachmentType(file) ? file : new File([file], file.name, { type: attachmentType(file), lastModified: file.lastModified })
       const prepared = await prepareImageForAttachment(typed, MAX_IMAGE_BYTES)
       if (prepared.ok) await take(prepared.file)
@@ -86,13 +71,10 @@ export function createPromptInputV2Attachments(
     }
     if (refusals.length) input.refuse([refusals.at(-1)!])
     if (!added.length) return
-    // A chat switch while a picture was being prepared means this box is now a different draft. The
-    // attachment would land in a chat the human never added it to, so it is dropped instead.
     if (openedFor !== undefined && input.key?.() !== openedFor) {
       for (const part of added) URL.revokeObjectURL(part.blob.url)
       return
     }
-    // As t3code: a file is always named in the text. A picture is too once there is text to place it in.
     const prose = input.hasText()
     target.set([...target.current(), ...added], target.cursor())
     const named = added.filter((part) => prose || !isImage({ name: part.filename, type: part.mime }))
@@ -129,7 +111,6 @@ export function createPromptInputV2Attachments(
     input.setDragging(false)
     const transfer = event.dataTransfer
     const at = { x: event.clientX, y: event.clientY }
-    // A file of the chat's own, dragged from the tree or a chip, is named in the text, not uploaded again.
     const path = droppedFilePath(transfer)
     if (path) {
       event.preventDefault()
@@ -138,10 +119,8 @@ export function createPromptInputV2Attachments(
       input.fileRef([path], at)
       return
     }
-    // Only a file is ours. Text dropped anywhere else keeps its own drop, such as a text field.
     if (!transfer?.files.length) return
     event.preventDefault()
-    // The browser empties the drop's list when this handler yields, so a folder is read first.
     const entries = entriesOf(transfer.items)
     const files = Array.from(transfer.files)
     const target = capture()
@@ -152,7 +131,6 @@ export function createPromptInputV2Attachments(
     await addAttachments(walked.files, target, at, notes)
   }
 
-  // A drop anywhere on the page attaches, so the overlay shows while files are dragged over it.
   onMount(() => {
     makeEventListener(document, "dragover", (event) => {
       const reference = hasFileDrag(event.dataTransfer)
@@ -165,7 +143,6 @@ export function createPromptInputV2Attachments(
     makeEventListener(document, "dragleave", (event) => {
       if (!event.relatedTarget) input.setDragging(false)
     })
-    // A drag cancelled with Escape can end without a dragleave.
     makeEventListener(window, "dragend", () => input.setDragging(false))
     makeEventListener(document, "drop", handleDrop)
   })
@@ -173,13 +150,8 @@ export function createPromptInputV2Attachments(
   return { addAttachments, handlePaste, handleDrop, dragKind }
 }
 
-/** How much of each end of a file the duplicate check reads. */
 const EDGE_BYTES = 64 * 1024
 
-/**
- * An id for a file's bytes that reads at most 128 KB of it: the size and both ends. Hashing the
- * whole file held a second copy of a 30 MB video in memory just to spot a double paste.
- */
 export async function blobId(file: Blob): Promise<string> {
   const head = new Uint8Array(await file.slice(0, EDGE_BYTES).arrayBuffer())
   const tail = file.size > EDGE_BYTES ? new Uint8Array(await file.slice(-EDGE_BYTES).arrayBuffer()) : new Uint8Array()
@@ -193,11 +165,6 @@ export async function blobId(file: Blob): Promise<string> {
     .join("")
 }
 
-/**
- * Frees an attachment's object URL. The composer calls it when an attachment is removed or the
- * composer goes away; a sent attachment belongs to its message, and the room store frees it once
- * the upload has landed. Only `blob:` URLs are ours to revoke.
- */
 export function releaseBlobUrl(url: string | undefined): void {
   if (url?.startsWith("blob:")) URL.revokeObjectURL(url)
 }

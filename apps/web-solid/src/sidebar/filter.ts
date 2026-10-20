@@ -5,12 +5,6 @@ export interface ListFilter {
   unreadOnly: boolean
 }
 
-/**
- * The rows the search field and the filter button leave visible. Local and
- * synchronous: it matches the title and the preview, case-insensitively, and
- * never asks the network. Order is kept, so pinned-first order survives.
- * `unreadOf` lets the caller count a chat marked unread by hand.
- */
 export function filterRows(
   rows: readonly RosterBot[],
   filter: ListFilter,

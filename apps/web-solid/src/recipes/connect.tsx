@@ -4,7 +4,6 @@ import { Button, buttonClass } from "../settings/kit"
 import { RecipeIcon } from "./icon"
 import { connectAsk, dismissConnect, isWaiting, retryConnect } from "./state"
 
-/** What stops an add: apps that are not connected yet. Nothing has been added. One button per app opens its Composio link; "Done, add it" asks the server again. */
 export function ConnectSheet() {
   return (
     <Show when={connectAsk()}>

@@ -2,7 +2,6 @@ import { splitProps, type ComponentProps } from "solid-js"
 import { RemixIcon } from "../../components/remix-icon"
 import * as g from "../../icons.gen"
 
-/* The v2 set's names, each drawn by one of kiko's icons. */
 const NAMES = {
   plus: g.PlusIcon,
   "chevron-down": g.ChevronDownIcon,

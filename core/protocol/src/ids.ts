@@ -1,16 +1,9 @@
-// Branded ids. A brand exists only in the type checker, so a `RoomId` cannot be
-// passed where a `MessageId` is expected, and the wire value stays a string.
-
 import { v7 } from "uuid"
 
 declare const brand: unique symbol
 type Brand<Name extends string> = string & { readonly [brand]: Name }
 
 export type UserId = Brand<"UserId">
-/**
- * A UUIDv7 that the client generates, so a new chat exists before the server hears of it.
- * Rooms made before UUIDv7 keep their ULID, so both forms are room ids.
- */
 export type RoomId = Brand<"RoomId">
 export type MessageId = Brand<"MessageId">
 export type AgentSlug = Brand<"AgentSlug">
@@ -25,12 +18,7 @@ export const isAgentSlug = (value: string): value is AgentSlug => AGENT_SLUG_PAT
 
 export const isRoomId = (value: string): value is RoomId => UUID_V7_PATTERN.test(value) || ULID_PATTERN.test(value)
 
-/**
- * A UUIDv7, so a new chat has its room id before the server hears of it. Ids made here sort in
- * the order they were made. `now` and `random` are for tests.
- */
 export function newRoomId(now?: number, random?: Uint8Array): RoomId {
-	// Without options, `v7` keeps a counter so ids from one process stay in order.
 	if (now === undefined && !random) return v7() as RoomId
 	return v7({ ...(now === undefined ? {} : { msecs: now }), ...(random ? { random } : {}) }) as RoomId
 }

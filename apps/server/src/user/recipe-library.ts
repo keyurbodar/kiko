@@ -6,10 +6,6 @@ import { deleteSetting, getSetting } from "../lib/settings"
 import { BUILTIN_RECIPES } from "../recipes/catalog.gen"
 import { parseRecipe, type Recipe } from "../recipes/recipe"
 
-/**
- * The owner's recipes are files: /home/recipes/<slug>/RECIPE.md. A file there overrides the built-in with the same slug.
- * Nothing copies built-ins into the drive; the edit route writes one only when the owner asks to change it.
- */
 const RECIPES_DIR = "recipes"
 const SEEDED = "recipes_seeded"
 const FILE = /^recipes\/([^/]+)\/RECIPE\.md$/
@@ -25,7 +21,6 @@ type Deps = {
   remove: (paths: string[], recursive: boolean) => { ok: boolean }
 }
 
-/** The recipes that load, the slugs the owner's drive files supply, and why any file did not load. */
 type Library = { recipes: Recipe[]; custom: ReadonlySet<string>; broken: string[] }
 
 const builtinParsed = new Map<string, { text: string; recipe: Recipe }>()
@@ -36,7 +31,6 @@ export class RecipeLibrary {
 
   constructor(private readonly d: Deps) {}
 
-  /** Built-ins, with each drive file that parses taking the place of the built-in of its slug. A broken file leaves the built-in in place. */
   async read(): Promise<Library> {
     const recipes = new Map<string, Recipe>()
     for (const [slug, b] of builtinParsed) recipes.set(slug, b.recipe)
@@ -64,10 +58,6 @@ export class RecipeLibrary {
     return { recipes: sorted, custom, broken }
   }
 
-  /**
-   * Writes the built-in recipe to the drive, once. A file already there is left as it is. Returns the file's path, or null
-   * when no built-in has that slug.
-   */
   async edit(slug: string): Promise<string | null> {
     const builtin = builtinParsed.get(slug)
     if (!builtin) return null
@@ -84,15 +74,10 @@ export class RecipeLibrary {
     throw new Error(`recipe ${slug}: the file could not be written`)
   }
 
-  /**
-   * Removes the copies an older build put in the drive. A copy goes only when it is still exactly a version we shipped, and
-   * it sits alone in its folder. Owner edits are kept. Idempotent: the setting is removed at the end.
-   */
   async retireSeeded(): Promise<void> {
     const raw = getSetting(this.d.sql, SEEDED)
     if (raw === null) return
     const stored = JSON.parse(raw) as string[] | Record<string, string>
-    // An older build kept only the names, so it cannot say whether a copy was edited. Those copies stay.
     const shipped: Record<string, string> = Array.isArray(stored) ? {} : stored
     for (const [slug, sha] of Object.entries(shipped)) {
       if (!sha) continue

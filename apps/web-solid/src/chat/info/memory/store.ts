@@ -1,8 +1,3 @@
-// The memory screen's state: the user's life log. Every change applies
-// here first and goes to the server after, the way the chat does. When the server says no, the
-// change is undone and the reason is kept in `error`. The log is append-only: the human pins,
-// redacts, and adds lines, and never rewrites one.
-
 import type { LifeLine, MemoryModel, MemoryOp, MemoryResult } from "@kiko/protocol"
 import { createStore, produce } from "solid-js/store"
 import type { MemoryClient } from "./client"
@@ -10,13 +5,9 @@ import type { MemoryClient } from "./client"
 export type MemoryState = {
 	loaded: boolean
 	error: string | null
-	/** Newest first. */
 	lines: LifeLine[]
-	/** The `before` of the next page, or null when the oldest line is loaded. */
 	next: number | null
-	/** What every agent reads: pinned lines, then the log with older lines compressed. */
 	view: string[]
-	/** Summary lines opened by `zoom`, by id. */
 	opened: Record<string, string[]>
 	results: LifeLine[] | null
 	model: MemoryModel
@@ -56,7 +47,6 @@ export function createMemoryStore(client: MemoryClient, now: () => number = Date
 		if (view && "text" in view) setState("view", [...view.text])
 	}
 
-	/** Runs one change: applies `apply` now, sends `op`, and calls `undo` when it fails. */
 	async function change(op: MemoryOp, apply: () => void, undo: () => void): Promise<boolean> {
 		setState("error", null)
 		apply()

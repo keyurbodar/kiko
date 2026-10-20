@@ -306,7 +306,6 @@ export class RoomFs implements ExecutionEnv {
     return ok(undefined)
   }
 
-  // `to` is the path the move wrote: a folder given as `to` keeps the name, as the backend does.
   async move(from: string, to: string): Promise<Result<FsChange & { to: string }, FileError>> {
     const a = this.roomPath(from)
     if (!a.ok) return a
@@ -637,7 +636,6 @@ export function withMount(base: FilesBackend, at: string, mounted: FilesBackend)
       const all = await mounted.list("", true)
       return [self, ...(Array.isArray(all) ? all.map(add) : []), ...out]
     },
-    // A mount names its bytes either by its own prefix (`kiko:index.md`) or by a store key under it.
     bytes: (key, max) => (key.startsWith(`${at}:`) || key.includes(`/r/${at}/`) ? mounted.bytes(key, max) : base.bytes(key, max)),
     async write(path, bytes, type, expect) {
       if (!inside(path)) return base.write(path, bytes, type, expect)

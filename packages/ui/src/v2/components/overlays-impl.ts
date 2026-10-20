@@ -1,4 +1,3 @@
-/* The Kobalte overlays, in one chunk that loads after first paint. Only overlays.tsx imports it. */
 export { HoverCardV2 } from "./hover-card-v2-impl"
 export { MenuV2 } from "./menu-v2-impl"
 export { ModalV2 } from "./modal-v2-impl"

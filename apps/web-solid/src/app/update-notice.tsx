@@ -1,5 +1,3 @@
-// The note above the composer, after t3code's ComposerServerUpdateStatus. It shows only when the backend is
-// too old for this app to talk to, because then sending fails. Progress and failures live in the sidebar pill.
 import { Show } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { DownloadIcon } from "@kiko/ui/icons"

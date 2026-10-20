@@ -1,18 +1,10 @@
 import type { RunStep, RunStepStatus, ToolKind } from "@kiko/protocol"
 
-/*
- * The run log as data: what each step looks like, how a run reads in one sentence, and how steps
- * merge. Ported from t3code's work log (`summarizeToolGroup`, `liveWorkEntryLabel`), cut to kiko's
- * six tool kinds. Nothing here touches the DOM.
- */
-
-/** A glyph id: `file-view` is `FileViewIcon` in `@kiko/ui/icons`. `app` is a Composio toolkit's logo. */
 export type StepIcon =
   | "file-view" | "folder" | "file-add" | "edit" | "copy" | "trash" | "folder-add" | "move" | "terminal" | "link" | "globe" | "search"
   | "cursor" | "eye" | "code" | "file-text" | "browser" | "monitor" | "chat" | "help" | "memory" | "notes" | "book" | "clock" | "tasks"
   | "group" | "integrations" | "sparkles" | "scan" | "worker" | "stop" | "send" | "skills" | "wrench" | "alert-circle" | "app"
 
-/** What each tool kiko ships looks like, by the name the model calls it. */
 export const NAME_ICON: Record<string, StepIcon> = {
   read: "file-view",
   ls: "folder",
@@ -55,7 +47,6 @@ export const NAME_ICON: Record<string, StepIcon> = {
   add_recipe: "sparkles",
 }
 
-/** The icon for a tool kind, for a name the table does not know. t3code's: eye, pen, terminal, search, globe, wrench. */
 export const KIND_ICON: Record<ToolKind, StepIcon> = {
   read: "file-view",
   edit: "edit",
@@ -65,22 +56,15 @@ export const KIND_ICON: Record<ToolKind, StepIcon> = {
   other: "wrench",
 }
 
-/** A failed call shows the alert glyph. Else the tool's own by name, then its Composio app, then its kind. A note has no icon. */
 export function iconOf(step: Pick<RunStep, "tool" | "status" | "name" | "app" | "note">): StepIcon | undefined {
   if (step.note) return undefined
   if (step.status === "failed") return "alert-circle"
   return NAME_ICON[step.name] ?? (step.app ? "app" : KIND_ICON[step.tool])
 }
 
-/** The calls whose label names a file or a folder, as the server writes it ("Wrote /notes.md"). A delete names nothing left to open. */
 const FILE_CALLS = new Set(["read", "write", "edit", "cp", "mv"])
 const FOLDER_CALLS = new Set(["ls", "mkdir"])
 
-/**
- * The file or folder a call touched, read off its label, as a path in the chat's files (no leading
- * slash): "Wrote /notes.md" is notes.md, and a copy or a move names where it went. Null for a call
- * that names neither, such as a command or a search. A folder call with no path is the chat's root.
- */
 export function pathOf(step: Pick<RunStep, "name" | "label" | "note">): { path: string; folder: boolean } | null {
   const folder = FOLDER_CALLS.has(step.name)
   if (step.note || (!folder && !FILE_CALLS.has(step.name))) return null
@@ -89,11 +73,8 @@ export function pathOf(step: Pick<RunStep, "name" | "label" | "note">): { path: 
   return { path: step.label.slice(at + 1), folder }
 }
 
-// Summary
-
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
-/** The sentence part for each kind, and how early it is picked when a run did more than two kinds of thing. */
 const GROUPS: Record<ToolKind, { label: (count: number) => string; priority: number }> = {
   run: { label: (n) => `Ran ${plural(n, "command", "commands")}`, priority: 0 },
   edit: { label: (n) => `Changed ${plural(n, "file", "files")}`, priority: 0 },
@@ -103,12 +84,7 @@ const GROUPS: Record<ToolKind, { label: (count: number) => string; priority: num
   other: { label: (n) => `Used ${plural(n, "tool", "tools")}`, priority: 2 },
 }
 
-/**
- * t3code's `summarizeToolGroup`: at most two kinds of action, picked by priority and shown in the
- * order they first appeared, then "Performed N other actions" for every call left over.
- */
 export function summarizeSteps(steps: readonly Pick<RunStep, "tool" | "status" | "note">[]): { summary: string; hasFailure: boolean; failed: number } {
-  // A note is not an action: it is words the run wrote, so the summary counts only real calls.
   const calls = steps.filter((step) => !step.note)
   const groups = new Map<ToolKind, number>()
   for (const step of calls) groups.set(step.tool, (groups.get(step.tool) ?? 0) + 1)
@@ -126,9 +102,6 @@ export function summarizeSteps(steps: readonly Pick<RunStep, "tool" | "status" |
   return { summary, hasFailure: failed > 0, failed }
 }
 
-// Live labels
-
-/** The label's first word in the past tense, and the same word while the call runs. */
 const PRESENT: Record<string, string> = {
   Read: "Reading",
   Ran: "Running",
@@ -155,7 +128,6 @@ const PRESENT: Record<string, string> = {
 const WRAPPERS = new Set(["sudo", "env", "time", "command", "exec", "nohup"])
 const SKIPPED = new Set(["cd", "export", "set"])
 
-/** The program a shell command starts, such as "bun" for `cd app && FOO=1 bun test`. */
 export function programOf(command: string): string | undefined {
   for (const segment of command.split(/&&|\|\||[;|\n]/)) {
     const words = segment
@@ -169,7 +141,6 @@ export function programOf(command: string): string | undefined {
   return undefined
 }
 
-/** What a step says while it runs: "Reading /plan.md", "Running bun". A finished step keeps its own label. */
 export function liveLabel(step: Pick<RunStep, "tool" | "label" | "input" | "status">): string {
   if (step.status !== "running") return step.label
   if (step.tool === "run") return `Running ${programOf(step.input ?? step.label.replace(/^Ran\s+/, "")) ?? "command"}`
@@ -180,7 +151,6 @@ export function liveLabel(step: Pick<RunStep, "tool" | "label" | "input" | "stat
   return space === -1 ? present : `${present}${step.label.slice(space)}`
 }
 
-/** Input worth showing under the label: only when it says more than the label does. */
 export function extraInput(step: Pick<RunStep, "label" | "input">): string | undefined {
   const input = step.input?.trim()
   if (!input) return undefined
@@ -189,9 +159,6 @@ export function extraInput(step: Pick<RunStep, "label" | "input">): string | und
   return input
 }
 
-// Time
-
-/** t3code's `formatDuration`: 420ms, 3.4s, 42s, 1m 5s, 2h 3m. */
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return "0ms"
   if (ms < 1000) return `${Math.max(1, Math.round(ms))}ms`
@@ -211,7 +178,6 @@ export function formatDuration(ms: number): string {
   return parts.join(" ")
 }
 
-/** The running clock in the header, in whole seconds so it ticks once a second: 0s, 12s, 1m 5s. */
 export function formatClock(ms: number): string {
   const seconds = Math.floor(Math.max(0, ms) / 1000)
   return seconds < 60 ? `${seconds}s` : formatDuration(seconds * 1000)
@@ -219,26 +185,17 @@ export function formatClock(ms: number): string {
 
 export const startOf = (steps: readonly Pick<RunStep, "startedAt">[]): number | undefined => (steps.length ? Math.min(...steps.map((s) => s.startedAt)) : undefined)
 
-/** Start of the first step to end of the last. Undefined while any step is running. */
 export function totalDuration(steps: readonly Pick<RunStep, "startedAt" | "endedAt" | "status">[]): number | undefined {
   if (!steps.length || steps.some((s) => s.status === "running")) return undefined
   const end = Math.max(...steps.map((s) => s.endedAt ?? s.startedAt))
   return end - (startOf(steps) ?? end)
 }
 
-// Merging
-
-/** A step only moves forward: running, then done or failed. */
 const RANK: Record<RunStepStatus, number> = { running: 0, done: 1, failed: 1 }
 const rank = (step: Pick<RunStep, "status">) => RANK[step.status]
 
-/** Array.sort is stable, so steps that start in the same millisecond keep the order they came in. */
 const byStart = (a: RunStep, b: RunStep) => a.startedAt - b.startedAt
 
-/**
- * A run's steps with `step` in: replaced by id, in start order. A frame that arrives late never
- * takes a finished step back to running.
- */
 export function upsertStep(steps: readonly RunStep[], step: RunStep): RunStep[] {
   const at = steps.findIndex((s) => s.id === step.id)
   if (at === -1) return [...steps, step].sort(byStart)
@@ -248,13 +205,6 @@ export function upsertStep(steps: readonly RunStep[], step: RunStep): RunStep[] 
   return next.sort(byStart)
 }
 
-// Which bubble opens which steps
-
-/**
- * A run panel opens one window of an agent's steps: those it made after its message at `after`, which its
- * next message opens. The room stamps each step with it. The key names the agent and `after`, so the typing
- * row's window and the bubble that later lands for it share a key, and an open panel follows from one to the other.
- */
 export type StepWindow = { key: string; slug: string; after: number; steps: number }
 
 export const windowKey = (slug: string, after: number) => `${slug}#${after}`
@@ -264,7 +214,6 @@ export function parseWindow(key: string): { slug: string; after: number } {
   return { slug: key.slice(0, at), after: Number(key.slice(at + 1)) }
 }
 
-/** The windows the agent messages in view open, by key. Each opens its agent's steps since that agent's previous message. */
 export function stepWindows(messages: readonly { botId?: string; steps?: number; stepAfter?: number }[]): Map<string, StepWindow> {
   const out = new Map<string, StepWindow>()
   for (const m of messages) {
@@ -275,23 +224,14 @@ export function stepWindows(messages: readonly { botId?: string; steps?: number;
   return out
 }
 
-/** The steps of one agent in one window, in start order. */
 export const inWindow = (steps: readonly RunStep[], after: number) => steps.filter((s) => s.after === after)
 
-/** The newest window an agent's steps reach: the one its typing row opens, unless a message in view opens it already. */
 export const newestAfter = (steps: readonly RunStep[]) => steps.reduce((n, s) => Math.max(n, s.after), -1)
-
-// The panel's rows
 
 export type Entry =
   | { key: string; kind: "step"; step: RunStep; child: boolean }
   | { key: string; kind: "worker"; id: string; task: string; steps: readonly RunStep[]; open: boolean }
 
-/**
- * The panel's flat list. Steps in start order. The steps of one background worker fold into a
- * single row placed after the last step that began before the worker's first step, which is the
- * call that started it. An open worker is followed by its steps.
- */
 export function buildEntries(steps: readonly RunStep[], open: ReadonlySet<string>): Entry[] {
   type Item = { at: number; order: number; step?: RunStep; worker?: { id: string; task: string; steps: RunStep[] } }
   const items: Item[] = []
@@ -330,7 +270,6 @@ const sameEntry = (a: Entry, b: Entry): boolean => {
   return false
 }
 
-/** Keeps the object of every entry that did not change, so the list re-renders only the rows that did. */
 export function keepEntries(previous: ReadonlyMap<string, Entry>, next: readonly Entry[]): Entry[] {
   return next.map((entry) => {
     const before = previous.get(entry.key)
@@ -338,19 +277,12 @@ export function keepEntries(previous: ReadonlyMap<string, Entry>, next: readonly
   })
 }
 
-/** Whether any step of the run, a worker's included, is still going. */
 export const anyRunning = (steps: readonly Pick<RunStep, "status">[]): boolean => steps.some((s) => s.status === "running")
-
-// Where the panel sits
 
 export type Placement = "right-start" | "left-start" | "bottom-start" | "top-start"
 
 type Box = { left: number; right: number; top: number; bottom: number }
 
-/**
- * The side of its anchor that a positioned card landed on, as a start-aligned placement. The panel
- * keeps this side while it is open. Undefined when the card overlaps the anchor on every side.
- */
 export function placementOf(anchor: Box, card: Box): Placement | undefined {
   if (card.left >= anchor.right - 1) return "right-start"
   if (card.right <= anchor.left + 1) return "left-start"

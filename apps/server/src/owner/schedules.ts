@@ -13,7 +13,6 @@ const schedules = defineDoc<{ entries: Array<ScheduledRoutine & { taskId: TaskId
 
 const routineRequestId = ({ routineId, runAt }: ScheduledRoutine): string => `${routineId}:${runAt}`
 
-/** One instance per Harness. The callback must durably deduplicate requestId before acknowledging delivery. */
 export class RoutineSchedules {
   private updating: Promise<unknown> = Promise.resolve()
   readonly task
@@ -41,7 +40,6 @@ export class RoutineSchedules {
     this.extension = defineExtension({ name: "kiko.routines", tasks: [this.task] })
   }
 
-  /** Bind to a stable conversation and pass the complete active time-routine inventory on every CRUD change. */
   bind(harness: Harness, conversationId: ConversationId): RoutineScheduler {
     return { sync: async (routines) => {
       const update = this.updating.then(async () => {
@@ -65,12 +63,10 @@ export class RoutineSchedules {
         }, BACKGROUND_CONTEXT)
       })
       this.updating = update.catch(() => {})
-      // An active callback can sync its successor while abortTask joins that callback.
       const obsolete = await update
       await Promise.all(obsolete.map(async (id) => {
         const task = await harness.getTask(id, BACKGROUND_CONTEXT)
         const checkpoint = task?.state.checkpoint
-        // A delivery removes its own occurrence while committing the next one.
         if (checkpoint && typeof checkpoint === "object" && "phase" in checkpoint && checkpoint.phase === "deliver") return
         await harness.abortTask(id, BACKGROUND_CONTEXT)
       }))

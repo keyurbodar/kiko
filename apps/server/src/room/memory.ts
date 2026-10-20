@@ -55,7 +55,6 @@ export class RoomMemory {
     return this.count()
   }
 
-  /** Recall and compression persist the derived projection once, in one batch transaction. */
   capture(): void {
     this.storage.transactionSync(() => {
       const turns = this.turns()
@@ -128,8 +127,6 @@ export class RoomMemory {
     this.meta.set(FORWARDED, String(upto))
   }
 
-  // Turns cover disjoint seq ranges in pos order, so the turn for a seq is the last one that starts at or before it.
-  // A join on BETWEEN read every turn for each lookup, and recall looks up each hit.
   private posOfMessage(id: string): number | null {
     const seq = this.sql.exec<{ seq: number }>("SELECT seq FROM messages WHERE seq = ?1 AND messages.room_id = ?2", messageSeq(this.roomId, id), this.roomId).toArray()[0]?.seq
     return seq === undefined ? null : this.posOfSeq(seq)

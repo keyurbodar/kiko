@@ -77,7 +77,6 @@ export class OwnerDO extends DurableObject<Env> {
       egress: async (request) => {
         if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
         this.runs.countActive()
-        // check-rules: allow egress OwnerDO owns the agent's outgoing request.
         return fetch(request.url, { redirect: "manual", method: request.method, headers: request.headers, ...(request.body ? { body: request.body } : {}) })
       },
       countOutgoing: () => this.runs.countActive(),

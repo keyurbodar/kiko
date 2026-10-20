@@ -1,15 +1,8 @@
 import { basename, HOME, inHome, strip } from "./model"
 
-/*
- * The file search behind "Go to file…". It ranks the way t3code's palette does: every word of the
- * query must be in the field, and a hit in the name beats a hit in the path. Letters in order are
- * the last resort. The lists come from client state, so nothing here waits on the network.
- */
 export interface FileHit {
-  /** The tree path: `home/notes/a.md` for a home file, the plain path for the chat's own. */
   path: string
   name: string
-  /** The path as the person knows it, without the `home/` prefix. */
   shown: string
   home: boolean
 }
@@ -32,13 +25,11 @@ const inOrder = (word: string, text: string): boolean => {
   return true
 }
 
-/** 3 whole, 2 starts with, 1 contains, 0 every word is in it somewhere, -1 no match. */
 function words(field: string, query: string, tokens: readonly string[]): number {
   if (!tokens.every((t) => field.includes(t))) return -1
   return field === query ? 3 : field.startsWith(query) ? 2 : field.includes(query) ? 1 : 0
 }
 
-/** How well a file matches. Higher is better, 0 is no match. The name outranks the path outranks letters in order. */
 export function scoreFile(hit: FileHit, query: string): number {
   const q = norm(query).trim().replace(/\s+/g, " ")
   if (!q) return 1
@@ -53,10 +44,6 @@ export function scoreFile(hit: FileHit, query: string): number {
   return 0
 }
 
-/**
- * The files to list. With no query, the recent ones come first in the order they were opened, then
- * the rest by path. With one, best match first, shorter names before longer on a tie.
- */
 export function rankFiles(hits: readonly FileHit[], query: string, recent: readonly string[], limit = MAX_HITS): FileHit[] {
   const seen = new Map(recent.map((p, i) => [p, i]))
   const rank = (h: FileHit) => seen.get(h.path) ?? Infinity
@@ -74,10 +61,6 @@ export const RECENT = "Recent"
 export const THIS_CHAT = "This chat"
 export const HOME_LABEL = "Home"
 
-/**
- * The ranked files under their headings. With no query, the recent files come first under "Recent".
- * Rows of one heading stay together: in a fixed order with no query, else the heading hit first leads.
- */
 export function listFiles(hits: readonly FileHit[], query: string, recent: readonly string[]): { hit: FileHit; group: string }[] {
   const empty = !query.trim()
   const open = new Set(recent)

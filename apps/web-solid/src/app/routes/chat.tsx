@@ -25,8 +25,6 @@ const JUMP_CLASS =
 export default function ChatRoute() {
   const params = useParams<{ id?: string }>();
   const navigate = useNavigate();
-  // Opening a chat clears its manual unread mark, whichever door was used: a row click, the palette,
-  // a search hit, or Alt+Arrow. Clearing it in the row handler alone left every other path marked.
   createEffect(
     on(
       () => params.id,
@@ -75,7 +73,6 @@ export default function ChatRoute() {
   const [threadState, setThreadState] = createSignal<VirtualThreadState | null>(null);
   const book = () => useApp.drafts();
   const draftKey = () => (book()?.ready() ? (useApp.activeThreadId() ?? "") : "");
-  // The words typed so far, so the composer's model chip follows an @tag in the draft.
   const [draft, setDraft] = createSignal("");
   let replyKey = "";
   createEffect(
@@ -94,7 +91,6 @@ export default function ChatRoute() {
   );
   createEffect(() => {
     const id = useApp.activeThreadId();
-    // Only a reader at the end of the transcript has seen what arrives there.
     if (id && readingLatest() && useApp.hasUnread()) useApp.markRead(id);
   });
   const members = createMemo(() => new Map(useApp.members().map((member) => [member.id, member])));
@@ -102,8 +98,6 @@ export default function ChatRoute() {
   const block = createMemo(() =>
     sendBlock({ known: connectedReady() && useApp.modelsSynced(), providers: connectedProviders(), model: answering() && useApp.agentModel(answering()!.slug)?.model, agent: answering()?.name }),
   );
-  // A switch to a chat that has nothing to paint yet (not in memory, or a cold browser waiting on the
-  // server) keeps the last chat on screen until the first rows land, so the transcript never blanks.
   let held: { key: string; rows: ChatMessage[] } | undefined;
   const shown = createMemo(() => {
     const key = useApp.activeThreadId() ?? undefined;
@@ -123,8 +117,6 @@ export default function ChatRoute() {
   const byId = createMemo(
     () => new Map<string, ChatMessage>(messages().map((message) => [message.id, message])),
   );
-  // The message being answered, kept from the moment it was picked: a window that moves on (a jump
-  // to older history, a long chat) must not drop the reply bar while the target is still armed.
   const [armed, setArmed] = createSignal<ChatMessage | null>(null);
   const aim = (id: string) => {
     setArmed(byId().get(id) ?? null);
@@ -136,7 +128,6 @@ export default function ChatRoute() {
     const kept = armed();
     return byId().get(id) ?? (kept?.id === id ? kept : null);
   });
-  // A reply restored from a draft whose message is older than the window has nothing to show in the bar, so it is dropped rather than sent unseen.
   createEffect(() => {
     const id = replyTarget();
     if (id !== null && useApp.activeMessages().length > 0 && !useApp.showingHistory() && replyTo() === null) {
@@ -202,12 +193,7 @@ export default function ChatRoute() {
     useApp.seeMentions([id]);
   };
 
-  // A divider is something to read, so a chat that has one is not empty; an event this client does
-  // not draw is nothing. A room is only settled once its window has arrived: `loaded` alone says
-  // the warm tier answered, and painting the empty state there hid a chat that had plenty to show.
   const empty = () => roomEmpty(useApp.room()?.state, messages(), params.id ? useApp.chat(params.id)?.lastSeq : undefined)
-  // The reader is looking at the newest message, so nothing can arrive unseen. Scrolled up, a reply
-  // is unseen until they come back to it, and marking it read there would erase its divider.
   const readingLatest = () => !scrolled();
   let dock: HTMLDivElement | undefined;
   let launch: Launch | null = null;
@@ -351,7 +337,6 @@ export default function ChatRoute() {
                 target === null
                   ? useApp.appendMessage(message)
                   : useApp.appendReply(message, target, replyQuote());
-              // Nothing landed: the room is not open yet, so the composer keeps the words.
               if (sent === undefined) return false;
               setDraft("");
               if (empty()) launch = captureLaunch(dock);

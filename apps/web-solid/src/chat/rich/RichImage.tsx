@@ -4,12 +4,6 @@ import { createSignal, Show, type JSX } from "solid-js"
 import { urls, useApp } from "../../lib/store"
 import { openThreadImages } from "../ui/image-dialog"
 
-/**
- * An image a message shows on its own, after t3code's ChatMarkdownImage. A slot holds the place
- * until the picture decodes, then the bubble takes the picture's own proportions, never above
- * 30rem wide and never above the viewport. A click opens the image dialog. A picture that fails
- * to load leaves one small line saying so, with the address when it is a web one.
- */
 export function RichImage(props: { alt: string; url?: string; fileId?: string }): JSX.Element {
   const [loaded, setLoaded] = createSignal(false)
   const [broken, setBroken] = createSignal(false)

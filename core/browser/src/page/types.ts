@@ -41,9 +41,7 @@ export interface Tab {
   read(): Promise<PageView>
   act(step: Step): Promise<StepResult>
   screenshot(opts?: { fullPage?: boolean }): Promise<Uint8Array>
-  /** Dialogs the page raised since the last call, answered automatically. */
   takeNotes(): string[]
-  /** Brings the tab's window to the front, so the live view shows it. */
   front(): Promise<void>
   close(): Promise<void>
 }
@@ -51,7 +49,6 @@ export interface Tab {
 export interface BrowserSession {
   openTab(url?: string): Promise<Tab>
   tab(id: string): Tab | undefined
-  /** Attaches to a tab this browser already has, such as one opened before the socket closed. Undefined when it is gone. */
   attach(id: string): Promise<Tab | undefined>
   listTabs(): Promise<{ id: string; url: string; title: string }[]>
   closed: Promise<void>

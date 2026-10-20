@@ -76,10 +76,6 @@ export function validZone(tz: string): boolean {
   }
 }
 
-// A schedule may repeat no faster than MIN_REPEAT_MS. The walk samples the first GAP_SAMPLES
-// occurrences from now, however far off they are. A rule's gaps repeat through its cycle, so this
-// finds the fastest gap in practice. It is a sample, not a proof: a gap that first appears after the
-// sample is not seen.
 const GAP_SAMPLES = 500;
 
 export function repeatProblem(rrule: string, tz: string, from: number): string | null {

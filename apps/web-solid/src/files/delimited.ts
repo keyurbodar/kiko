@@ -1,10 +1,3 @@
-/*
- * Rows of a CSV or TSV, after t3code's parseDelimitedPreview. A quoted field may hold the
- * separator, doubled quotes and line breaks. A byte order mark is skipped, and a cell past
- * CELL_LIMIT characters is cut and reported. Stops after `limit` rows, so a large file draws its
- * head at once. No Solid and no DOM, so the cases are tested as data.
- */
-
 export const CELL_LIMIT = 2000
 
 export type Delimited = { rows: string[][]; cut: boolean }

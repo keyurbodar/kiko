@@ -10,14 +10,8 @@ import { look, previewLook, updateLook } from "./live"
 import { choose, chooseBuiltin, DEFAULT, remove, themes } from "./live"
 import { ThemeBrowser } from "./open-vsx-themes"
 
-/*
- * Appearance is chosen by eye: every theme is a small picture of Kiko in its colors. The dark and
- * the light theme are picked apart, and the mode says which one shows now.
- */
-
 const shown = () => appearanceOf(look().mode)
 
-/** Kiko in miniature: the sidebar, an agent bubble, and your bubble in the accent. */
 function Preview(props: { palette: Palette; accent: string }) {
   const p = () => props.palette
   const tint = (color: string, pct: number) => `color-mix(in oklab, ${color} ${pct}%, transparent)`
@@ -128,7 +122,6 @@ export default function Appearance(): JSX.Element {
   const [browsing, setBrowsing] = createSignal(false)
   const d = () => look().display
   const set = (patch: Partial<Display>) => updateLook({ display: { ...d(), ...patch } })
-  // A slider drag repaints the palette as it moves and saves only on release.
   let stopPreview: (() => void) | undefined
   const previewContrast = (contrast: number) => {
     stopPreview?.()
@@ -173,8 +166,6 @@ export default function Appearance(): JSX.Element {
             min={CONTRAST.min}
             max={CONTRAST.max}
             step={CONTRAST.step}
-            // A drag repaints the palette on every step, but only the release is saved and sent: the
-            // server stores a theme per write, and a slider fires dozens of them.
             onInput={(contrast) => previewContrast(contrast)}
             onChange={(contrast) => set({ contrast })}
           />

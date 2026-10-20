@@ -15,18 +15,16 @@ export const DRAFT_INTERVAL_MS = 300
 export interface RoomPort {
   post(runId: string, attempt: number, index: number, block: string): Promise<unknown>
   draft(runId: string, index: number, text: string): Promise<void>
-  /** Words the run wrote between two calls: a step of its own in the panel, not a bubble. */
   note(runId: string, id: string, text: string): Promise<void>
   status(state: AgentState, detail?: string | null): Promise<void>
   workers(rows: readonly WorkerRow[]): Promise<void>
   endRun(runId: string, inputs?: readonly SubmissionId[], working?: boolean): Promise<void>
-  react(emoji: string, messageId?: string): Promise<unknown>
+  react(deliveryId: string, emoji: string, messageId?: string): Promise<unknown>
   runError(runId: string, error: { kind: RunErrorKind; provider: string; detail?: string }): Promise<void>
 }
 
 type Row = { run_id: string; attempt: number; cursor: number; posted: number; until?: number }
 
-/** A model error the run has not recovered from. pi-durable may still retry it, so it is reported only when the run ends. */
 type Failure = { errorMessage?: string; provider?: string }
 
 type AssistantLike = Assistant
@@ -47,9 +45,9 @@ const assistant = (entry: EntryRecord): AssistantLike | undefined => {
   return message?.role === "assistant" ? message : undefined
 }
 
-type Generation = { texts: Map<number, string>; fed: string; splitter: Splitter; blocks: string[] }
+type Generation = { reactionIndex: number; texts: Map<number, string>; fed: string; splitter: Splitter; blocks: string[] }
 
-const newGeneration = (): Generation => ({ texts: new Map(), fed: "", splitter: createSplitter(), blocks: [] })
+const newGeneration = (): Generation => ({ reactionIndex: 0, texts: new Map(), fed: "", splitter: createSplitter(), blocks: [] })
 
 type Run = {
   id: string
@@ -57,13 +55,13 @@ type Run = {
   cursor: number
   blocks: string[]
   posted: number
-  reactions: Reaction[]
+  reactions: (Reaction & { deliveryId: string })[]
+  generationIndex: number
   generation: Generation | null
   bubbled: boolean
   toolStarted: boolean
   tools: Map<string, string>
   quiet: boolean
-  /** The narration the run wrote between two calls, waiting to be pushed to the step pane. */
   notes: { id: string; text: string }[]
   failure: Failure | null
 }
@@ -74,7 +72,6 @@ const quietInput = (entry: EntryRecord): boolean => {
   return text.includes("<system-event") && !text.includes("<context>message id")
 }
 
-/** A narration's step id: stable across a replay, so a note is stored once. */
 const noteId = (entry: number) => `note:${entry}`
 
 export class Outbox {
@@ -85,7 +82,6 @@ export class Outbox {
   private lastEntry = 0
   private lastDraft = 0
   private state: AgentState = "idle"
-  /** What the current state says beside the three dots, such as "retrying, 2 of 3". */
   private detail: string | undefined
   private backgroundRunning = false
   private readonly idleWaiters = new Set<{ entry: number; resolve(): void; reject(error: Error): void }>()
@@ -98,6 +94,23 @@ export class Outbox {
     private readonly agent: string,
   ) {
     this.sql = storage.sql
+  }
+
+  private replayEntries(run: Run, row: Row, entries: SnapshotEvent["entries"], liveId: string | null, livePartial: boolean): void {
+    if (livePartial && this.run?.id === row.run_id) {
+      run.bubbled = this.run.bubbled
+      run.toolStarted = this.run.toolStarted
+      run.tools = this.run.tools
+      run.quiet = this.run.quiet
+    }
+    for (const entry of entries) {
+      if ((entry.kind === "pi.user" || entry.kind === "kiko.input")) run.quiet = entry.id <= run.cursor ? quietInput(entry) : run.quiet && quietInput(entry)
+      if (entry.id <= run.cursor) continue
+      if (row.until !== undefined && entry.id > row.until) break
+      if (row.until === undefined && row.run_id !== liveId && (entry.kind === "pi.user" || entry.kind === "kiko.input")) break
+      this.finishGeneration(run, entry)
+    }
+    if (livePartial && this.run?.id === row.run_id) run.generation = this.run.generation
   }
 
   private nextQuiet = false
@@ -152,7 +165,6 @@ export class Outbox {
 
   async background(running: boolean, pending = false): Promise<void> {
     this.backgroundRunning = running
-    // A worker's report waits in the inbox: the run that tells the human comes next, so do not flash idle first.
     if (!this.run && !(pending && !running)) await this.setStatus(running ? "working" : "idle")
   }
 
@@ -160,7 +172,6 @@ export class Outbox {
     this.run = null
   }
 
-  /** The run that is going now, or null between runs. */
   runId(): string | null {
     return this.run?.id ?? null
   }
@@ -235,7 +246,6 @@ export class Outbox {
         this.see(event.entry)
         this.run?.tools.delete(event.toolCallId)
         return this.setStatus("typing")
-      // pi-durable waits out a transient error and tries again; the typing line says so instead of "writing a reply".
       case "auto_retry_start":
         if (this.run?.failure) {
           this.run.failure = null
@@ -256,20 +266,7 @@ export class Outbox {
     const liveId = snapshot.run ? `${this.prefix()}:${snapshot.run.inputs[0]}` : null
     for (const row of await this.openRows(snapshot)) {
       const run = this.load(row)
-      if (livePartial && this.run?.id === row.run_id) {
-        run.generation = this.run.generation
-        run.bubbled = this.run.bubbled
-        run.toolStarted = this.run.toolStarted
-        run.tools = this.run.tools
-        run.quiet = this.run.quiet
-      }
-      for (const entry of entries) {
-        if ((entry.kind === "pi.user" || entry.kind === "kiko.input")) run.quiet = entry.id <= run.cursor ? quietInput(entry) : run.quiet && quietInput(entry)
-        if (entry.id <= run.cursor) continue
-        if (row.until !== undefined && entry.id > row.until) break
-        if (row.until === undefined && row.run_id !== liveId && (entry.kind === "pi.user" || entry.kind === "kiko.input")) break
-        this.finishGeneration(run, entry)
-      }
+      this.replayEntries(run, row, entries, liveId, livePartial)
       this.run = run
       if (run.posted > run.blocks.length + (run.generation?.blocks.length ?? 0)) this.rebase(run)
       await this.notes(run)
@@ -317,7 +314,8 @@ export class Outbox {
     const out = generation.splitter.push(text.slice(generation.fed.length))
     generation.fed = text
     generation.blocks.push(...out.blocks)
-    run.reactions.push(...out.reactions)
+    this.queueReactions(run, out.reactions, run.generationIndex, generation.reactionIndex)
+    generation.reactionIndex += out.reactions.length
     await this.flush()
     if (out.draft !== null && this.now() - this.lastDraft >= DRAFT_INTERVAL_MS) {
       this.lastDraft = this.now()
@@ -335,7 +333,6 @@ export class Outbox {
     await this.notes(run)
   }
 
-  /** The narration a run wrote between two calls, pushed to the step pane in the order it was written. */
   private async notes(run: Run): Promise<void> {
     const port = this.room()
     if (!run.notes.length || !port) return
@@ -344,7 +341,6 @@ export class Outbox {
 
   private async reportError(runId: string, message: Failure): Promise<void> {
     const detail = runErrorDetail(message.errorMessage)
-    // A failed report must not stop the run from being saved and its bubbles flushed.
     await this.room()
       ?.runError(runId, { kind: classifyRunError(message.errorMessage), provider: message.provider ?? "", ...(detail ? { detail } : {}) })
       .catch((e: unknown) => console.error(`run error not reported: ${e instanceof Error ? e.message : String(e)}`))
@@ -354,24 +350,24 @@ export class Outbox {
     run.cursor = Math.max(run.cursor, entry.id)
     const message = assistant(entry)
     if (!message) return false
+    const generationIndex = run.generationIndex++
     run.failure = message.stopReason === "error" ? { ...(message.errorMessage ? { errorMessage: message.errorMessage } : {}), ...(message.provider ? { provider: message.provider } : {}) } : null
     if (hasToolCall(message)) run.toolStarted = true
     const streamed = run.generation?.blocks ?? []
     run.generation = null
     if (message.stopReason === "aborted") return true
-    // A failed message says nothing new. What it streamed before the failure stays: a cut-off answer is still the
-    // best the human got, and the run's error row offers Retry.
     if (message.stopReason === "error") return false
     const post = postOf(message, { posted: run.blocks.length > 0, quiet: run.quiet })
     const text = textOf(message)
-    // A run's narration belongs to the step pane, not the chat, so eight tool calls never stack eight bubbles.
     if (post === "none" && !run.quiet && hasToolCall(message) && text.trim()) run.notes.push({ id: noteId(entry.id), text: noteOf(text) })
     const { blocks: final, reactions } = partsOf(post === "ack" ? ackOf(text) : post === "answer" ? text : "")
     run.blocks.push(...final)
-    run.reactions.push(...reactions)
-    // True when the words streamed while this message grew are not what it turned out to be: the caller then
-    // raises the attempt, which makes the room drop those bubbles and adopt the ones that stay.
+    this.queueReactions(run, reactions, generationIndex)
     return streamed.some((block, i) => block !== final[i])
+  }
+
+  private queueReactions(run: Run, reactions: Reaction[], generation: number, start = 0): void {
+    for (const [index, reaction] of reactions.entries()) run.reactions.push({ ...reaction, deliveryId: `${run.id}:reaction:${generation}:${start + index}` })
   }
 
   private rebase(run: Run): void {
@@ -395,7 +391,7 @@ export class Outbox {
       const reaction = run.reactions[0]
       if (reaction === undefined) break
       const { emoji, messageId } = reaction
-      await room.react(emoji, messageId)
+      await room.react(reaction.deliveryId, emoji, messageId)
       run.reactions.shift()
     }
   }
@@ -416,7 +412,6 @@ export class Outbox {
   }
 
   private async setStatus(state: AgentState, detail?: string | null): Promise<void> {
-    // Undefined means "the same as last time", and null means "the default wording": a retry's end passes null.
     const next = detail === undefined ? this.detail : (detail ?? undefined)
     if (state === this.state && next === this.detail) return
     this.state = state
@@ -432,8 +427,6 @@ export class Outbox {
     return { run_id: id, cursor, posted: posted?.posted ?? 0, attempt: posted?.attempt ?? 0 }
   }
 
-  // Journal settlement can precede the final outbox flush. Recover settled inputs too;
-  // the exact room/run lookup keeps already delivered bubbles idempotent.
   private async openRows(snapshot: SnapshotEvent): Promise<Row[]> {
     if (!this.journal) return []
     const rows: Row[] = []
@@ -473,6 +466,7 @@ export class Outbox {
       blocks: [],
       posted: row.posted,
       reactions: [],
+      generationIndex: 0,
       generation: null,
       bubbled: false,
       toolStarted: false,

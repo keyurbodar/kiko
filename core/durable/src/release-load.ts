@@ -1,6 +1,3 @@
-// Fetches a release and refuses it unless the signature and every module hash match. Both the installer
-// and the in-place update call this, so nothing unsigned reaches an upload.
-
 import { type ReleaseManifest, parseManifest, verifyModuleHash, verifyRelease } from "./release"
 
 type ReleaseFetch = (url: string) => Promise<Response>
@@ -27,7 +24,6 @@ async function fetchBytes(f: ReleaseFetch, url: string): Promise<Uint8Array> {
 
 type LoadedRelease = { manifest: ReleaseManifest; files: Map<string, Uint8Array> }
 
-/** `version` names an exact release. Without it the release the base calls `latest`. */
 export async function loadVerifiedRelease(
   input: { baseUrl: string; publicKey: string; version?: string; index?: "latest.json" | "latest-owner.json" },
   f: ReleaseFetch,

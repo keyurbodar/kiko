@@ -8,7 +8,6 @@ export interface DismissableLayerV2Props extends JSX.HTMLAttributes<HTMLDivEleme
   excludedElements?: () => (Element | undefined)[]
 }
 
-/* The outside-click, escape and focus behaviour is Kobalte's and loads with the overlays chunk. */
 const Hooks = part<(props: DismissableLayerV2HooksProps) => JSX.Element>((i) => i.DismissableLayerV2Hooks)
 
 export function DismissableLayerV2(props: DismissableLayerV2Props): JSX.Element {

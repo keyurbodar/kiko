@@ -6,10 +6,6 @@ import { toolName } from "./tools"
 
 const capital = (word: string) => (word ? `${word[0]?.toUpperCase()}${word.slice(1)}` : word)
 
-/**
- * `GMAIL_SEND_EMAIL` in the `gmail` toolkit reads "Send email". The app's logo says which app, so the label does not, and a slug like `googlecalendar` never shows as a word.
- * Only the toolkit's first word goes: `COMPOSIO_SEARCH_WEB` in `composio_search` reads "Search web", not "Web". The words come from the slug, so no action is named here.
- */
 function action(slug: string, toolkit: string): string {
   const prefix = `${toolkit.toLowerCase().split("_")[0]}_`
   const rest = slug.toLowerCase().startsWith(prefix) ? slug.slice(prefix.length) : slug
@@ -18,7 +14,6 @@ function action(slug: string, toolkit: string): string {
 
 const toolkitOf = (slug: string) => slug.split("_")[0]?.toLowerCase() ?? ""
 
-/** The label and app of a call to a connected app, or null for a tool that is not one. */
 export function composioDescribe(tools: readonly ComposioTool[]): Describe {
   const byName = new Map(tools.map((t) => [toolName(t.name), t]))
   return (name, args) => {
@@ -41,7 +36,6 @@ export function composioDescribe(tools: readonly ComposioTool[]): Describe {
       case MANAGE_CONNECTIONS:
         return { label: "Managed app connections" }
       default:
-        // Another of Composio's own tools, such as its workbench, reads from its slug like an app action.
         return { label: action(tool.name, "composio"), app: "composio" }
     }
   }

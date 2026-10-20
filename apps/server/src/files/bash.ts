@@ -11,9 +11,6 @@ export const MAX_TIMEOUT_S = 120
 const PREFETCH_FILES = 32
 const PREFETCH_MAX_FILE = 256 * 1024
 const PREFETCH_BYTES = 8 * 1024 * 1024
-// UNVERIFIED: the Free plan allows 50 subrequests per invocation, which this
-// budget does not fit. Whether R2 reads inside a Durable Object count against that limit is still open.
-// Measure it before changing this number.
 const MAX_READS = 400
 const DIRTY_BYTES = 16 * 1024 * 1024
 
@@ -113,21 +110,27 @@ function plan(start: ReadonlyMap<string, Node>, tree: ReadonlyMap<string, Node>)
     }
   }
   for (const c of writes) if (c.op === "write") c.expect = movedFrom.has(c.path) ? "none" : (startFile(c.path)?.sha256 ?? "none")
-  for (const [path, node] of tree) {
-    if (node.kind !== "directory" || scratch(path) || start.has(path)) continue
-    if (![...tree.keys()].some((p) => under(path, p))) writes.push({ op: "mkdir", path })
+  const planDirectories = () => {
+    for (const [path, node] of tree) {
+      if (node.kind !== "directory" || scratch(path) || start.has(path)) continue
+      if (![...tree.keys()].some((p) => under(path, p))) writes.push({ op: "mkdir", path })
+    }
   }
-  const goneDirs = [...start].filter(([p, n]) => n.kind === "directory" && p !== "/" && !scratch(p) && !tree.has(p)).map(([p]) => p)
-  const topDirs = goneDirs.filter((d) => !goneDirs.some((o) => o !== d && under(o, d)))
-  for (const dir of topDirs) {
-    const files: Record<string, string> = {}
-    for (const [p, n] of start) if (under(dir, p) && n.kind === "file" && n.base && !movedFrom.has(p)) files[p] = n.base.sha256
-    deletions.push({ op: "rmdir", path: dir, files })
+  planDirectories()
+  const planDeletions = () => {
+    const goneDirs = [...start].filter(([p, n]) => n.kind === "directory" && p !== "/" && !scratch(p) && !tree.has(p)).map(([p]) => p)
+    const topDirs = goneDirs.filter((d) => !goneDirs.some((o) => o !== d && under(o, d)))
+    for (const dir of topDirs) {
+      const files: Record<string, string> = {}
+      for (const [p, n] of start) if (under(dir, p) && n.kind === "file" && n.base && !movedFrom.has(p)) files[p] = n.base.sha256
+      deletions.push({ op: "rmdir", path: dir, files })
+    }
+    for (const [path, node] of start) {
+      if (node.kind !== "file" || !node.base || scratch(path) || tree.has(path) || movedFrom.has(path) || topDirs.some((d) => under(d, path))) continue
+      deletions.push({ op: "remove", path, sha256: node.base.sha256 })
+    }
   }
-  for (const [path, node] of start) {
-    if (node.kind !== "file" || !node.base || scratch(path) || tree.has(path) || movedFrom.has(path) || topDirs.some((d) => under(d, path))) continue
-    deletions.push({ op: "remove", path, sha256: node.base.sha256 })
-  }
+  planDeletions()
   return [...moves, ...writes, ...deletions]
 }
 
@@ -376,8 +379,6 @@ class CommandFs implements IFileSystem {
     return path
   }
 
-  // Writes commit before deletions, and a deletion commits only when every write saved, so a refused write
-  // keeps the file it would have moved. Each space commits its group in one call. `changed` lists what saved.
   async commit(): Promise<{ saved: string[]; changed: string[]; refused: Refusal[] }> {
     const changes = plan(this.start, this.tree)
     const batch = await Promise.all(
@@ -420,7 +421,6 @@ class CommandFs implements IFileSystem {
 
 const LIMIT_EXIT = 126
 
-// The paths a command saved. The bash tool reports them as its details, so the work hook can list them.
 export type BashResult = ShellExecResult & { changed: string[] }
 
 const stopped = (timer: AbortSignal, seconds: number) =>
@@ -438,7 +438,6 @@ export async function runCommand(files: RoomFs, command: string, options: ShellE
     return ok({ exitCode: LIMIT_EXIT, changed: [] })
   }
   let fs: CommandFs | undefined
-  // Once the commit starts it runs to its end: a stop after this point cannot undo a save, so the result names what saved.
   let committing = false
   try {
     fs = await CommandFs.open(files)

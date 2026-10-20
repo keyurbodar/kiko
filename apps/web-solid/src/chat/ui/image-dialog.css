@@ -1,5 +1,3 @@
-/* The lightbox's own motion. The picture grows out of its thumbnail (flip.ts), so the dialog's
- * default fade-and-scale is off for it, and only the backdrop and the controls fade. */
 @media (prefers-reduced-motion: no-preference) {
   [data-component="modal-v2-content"][data-lightbox][data-expanded],
   [data-component="modal-v2-content"][data-lightbox][data-closed] {

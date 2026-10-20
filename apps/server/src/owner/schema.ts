@@ -254,9 +254,7 @@ const OWNER_STEPS: readonly Step[] = [
   `CREATE TRIGGER IF NOT EXISTS messages_search_delete AFTER DELETE ON messages BEGIN
     DELETE FROM messages_fts WHERE rowid IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ('message:m' || hex(old.room_id) || 'x' || old.seq));
   END`,
-  // History pages use the room/seq primary key. Age scans run only during archival.
   `DROP INDEX IF EXISTS messages_at`,
-  // One owner's bounded ready queue is cheaper to scan than index on every ticket write.
   `DROP INDEX IF EXISTS owner_runs_ready`,
   `DROP TABLE IF EXISTS outbox`,
   `DROP INDEX IF EXISTS mem_turns_seq`,
@@ -272,7 +270,6 @@ const OWNER_STEPS: readonly Step[] = [
   `DROP TABLE clients`,
   `DROP INDEX IF EXISTS messages_id`,
   `DROP INDEX IF EXISTS messages_run`,
-  // Search lazily rebuilds its disposable index as bounded batches, not individual messages.
   `DROP TABLE messages_fts`,
   `CREATE VIRTUAL TABLE messages_fts USING fts5(room, chunk, room_id UNINDEXED, first_seq UNINDEXED, last_seq UNINDEXED, edit_seq UNINDEXED, members UNINDEXED)`,
   `DROP INDEX IF EXISTS pending_seq`,
@@ -282,6 +279,7 @@ const OWNER_STEPS: readonly Step[] = [
    BEGIN INSERT OR IGNORE INTO owner_meta (scope, key, value) VALUES ('room:' || new.room_id, 'search-hydrated:' || new.seq, CAST(new.seq AS TEXT)); END`,
   `ALTER TABLE members ADD COLUMN lead_seq INTEGER NOT NULL DEFAULT 0`,
   `UPDATE members SET lead_seq = COALESCE((SELECT MIN(events.seq) FROM events WHERE events.room_id = members.room_id AND events.seq >= members.added_seq AND kind = 'member' AND json_extract(payload, '$.member.slug') = members.slug AND json_extract(payload, '$.member.lead') = 1 AND events.seq > COALESCE((SELECT MAX(previous.seq) FROM events AS previous WHERE previous.room_id = members.room_id AND previous.seq >= members.added_seq AND previous.kind = 'member' AND json_extract(previous.payload, '$.member.slug') = members.slug AND json_extract(previous.payload, '$.member.lead') = 0), 0)), added_seq)`,
+  `ALTER TABLE events ADD COLUMN deliveries TEXT NOT NULL DEFAULT '[]'`,
 ]
 
 export function initializeSchema(storage: DurableObjectStorage): void {

@@ -35,7 +35,6 @@ const [fresh, setFresh] = createSignal(false)
 const [needsBackend, setNeedsBackend] = createSignal(hosted && /^\/connect(\/callback)?$/.test(location.pathname))
 
 export const [working, setWorking] = createSignal(false)
-/** Hosted only: Clerk signed the person in, and they have no backend yet. */
 export const installBackend = () => setNeedsBackend(true)
 
 export async function useDifferentSignIn(): Promise<void> {
@@ -44,7 +43,6 @@ export async function useDifferentSignIn(): Promise<void> {
   setNeedsBackend(false)
 }
 
-/** Call as a sign-in goes up, so the first frame after it is already the connect step. */
 export const enteringFresh = () => setFresh(true)
 export const codeFailed = () => setFresh(false)
 
@@ -55,7 +53,6 @@ const savedStep = (): Step | null => {
   return s?.userId === id ? s.step : read(id)
 }
 
-/** The step to show now. "done" means first run has nothing to show. */
 export function currentStep(): Step {
   const id = userId()
   const known = probe()?.userId === id && id !== null
@@ -80,7 +77,6 @@ export function move(how: Move): void {
   if (step === "done") void remember()
 }
 
-/** Tells the server first run is over, so a browser with nothing saved, or another device, skips it too. */
 const remember = () =>
   apiFetch("/api/settings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ onboarded: true }) }).catch(() => {})
 
@@ -98,7 +94,6 @@ createRoot(() => {
     setProbe(null)
     setWorking(false)
   })
-  // Ask the server once, so a first run finished or skipped elsewhere wins over a step this browser saved earlier.
   createEffect(() => {
     const id = userId()
     if (!id || savedStep() === "done" || probe()?.userId === id) return
@@ -107,7 +102,6 @@ createRoot(() => {
       .then(([list, onboarded]) => { if (attempt === authGeneration()) setProbe({ userId: id, connected: hasModelProvider(list), onboarded }) })
       .catch(() => {})
   })
-  // Remember the step, so a reload resumes it and a finished first run stays finished.
   createEffect(() => {
     const id = userId()
     if (!id) return

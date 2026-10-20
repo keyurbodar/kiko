@@ -7,7 +7,6 @@
   margin-left: auto;
   padding: 0 12px 14px;
   background: var(--dock-bg);
-  /* Unify's layering: the composer is one step lighter than the page, with a crisp hairline edge. */
   --composer-edge: var(--border);
   --composer-fill: color-mix(in oklab, var(--foreground) 3%, var(--background));
 }

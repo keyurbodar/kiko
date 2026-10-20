@@ -1,27 +1,14 @@
-/*
- * The run tree: what an agent did for a bubble, hung under it as small muted rows on a thin line
- * that grows down out of the bubble's bottom edge, a ├ for each row and a └ for the last, drawn in
- * CSS. A row is a 13px label with a 12px glyph after it. The running label shines, a waiting state
- * like the panel's (shine.css). The only other motion is the list growing open or shut when the
- * reader toggles it, and its chevron turning. All of it is off under reduced motion.
- */
-
 .run-tree {
-  /* The tone every label reads in, and the one the shine sweeps over. */
   --run-text: var(--muted-foreground);
   --run-tree-line: color-mix(in oklab, var(--secondary-label) 55%, transparent);
   display: flex;
   flex-direction: column;
   width: fit-content;
   min-width: 0;
-  /* The bubble's cap. Not its 3.5rem for hover actions, which the tree has none of: under the typing
-     bubble that share of its own width would cut every label short. */
   max-width: min(100%, 36rem);
-  /* No space above: the line starts at the bubble's bottom edge, 6px in, where its joint corner ends. */
   margin-bottom: 4px;
   font-size: var(--font-sm);
   line-height: 20px;
-  /* It is focused only to pass focus on to a row. */
   outline: none;
 }
 
@@ -39,8 +26,6 @@
   cursor: default;
   user-select: none;
 }
-/* Every row is a button: it brightens and takes a soft fill under the pointer, and a row that opens a
-   file underlines its path, so the tree reads as something to click. */
 button.run-tree-row {
   cursor: pointer;
 }
@@ -55,7 +40,6 @@ button.run-tree-row[data-file]:hover .run-tree-label {
   text-underline-offset: 3px;
 }
 
-/* ├: the line runs the whole row, top edge included, and a tick reaches for the label at the middle of its 24px. */
 .run-tree-row::before,
 .run-tree-row::after {
   content: "";
@@ -74,7 +58,6 @@ button.run-tree-row[data-file]:hover .run-tree-label {
   border-top: 1px solid var(--run-tree-line);
 }
 
-/* └: the last row ends the line in a small round corner, level with the ticks above it. */
 .run-tree > .run-tree-row:last-child::before,
 .run-tree > .run-tree-fold:last-child > div > .run-tree-row:last-child::before {
   bottom: auto;
@@ -113,7 +96,6 @@ button.run-tree-row[data-file]:hover .run-tree-label {
   transform: rotate(90deg);
 }
 
-/* The rows the head opens. One grid row from 0fr to 1fr is the list's own height, with no measuring. */
 .run-tree-fold {
   display: grid;
   grid-template-rows: 1fr;
@@ -128,7 +110,6 @@ button.run-tree-row[data-file]:hover .run-tree-label {
   overflow: hidden;
 }
 
-/* A call's details, open under its row, on the surface kiko's code blocks use. */
 .run-tree-detail {
   display: flex;
   min-width: 0;

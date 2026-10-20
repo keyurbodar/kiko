@@ -1,6 +1,5 @@
 import { loadClerk } from "./clerk"
 
-/** Development builds only. A Clerk sign-in token (POST /v1/sign_in_tokens) stands in for the Google or GitHub round trip. */
 export async function signInWithTicket(ticket: string): Promise<void> {
   const clerk = await loadClerk()
   if (!clerk.client) throw new Error("Clerk did not load")

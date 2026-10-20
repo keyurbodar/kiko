@@ -56,7 +56,6 @@ function KeyField(props: { id: string; label: string; placeholder: string; submi
 	)
 }
 
-/** Composio and Kernel: their status, pushed live, and the calls that connect and disconnect them. */
 export function useIntegrations(props: { client?: ComposioClient; kernel?: KernelClient } = {}) {
 	const [status, setStatus] = createSignal<ComposioStatus | null>(null)
 	const [error, setError] = createSignal<{ where: Where; text: string } | null>(null)
@@ -80,10 +79,6 @@ export function useIntegrations(props: { client?: ComposioClient; kernel?: Kerne
 	}
 
 	onMount(() => {
-		if (!props.client && import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC === "mock") {
-			setKernel({ connected: false, broken: false, browser: null })
-			return setStatus({ connected: false, rows: 0 })
-		}
 		client = props.client ?? createComposioClient()
 		client.onPush(apply)
 		void client.request({ t: "composioStatus" }).then((r) => !closed && apply(r))
@@ -146,7 +141,6 @@ export function appState(api: Integrations, id: AppId): "connected" | "broken" |
 	return k?.broken ? "broken" : k?.connected ? "connected" : "empty"
 }
 
-/** One app's settings: its key while it is not connected, and Disconnect once it is. */
 export function AppDetail(props: { id: AppId; api: Integrations }) {
 	const app = () => APPS[props.id]
 	const state = () => appState(props.api, props.id)

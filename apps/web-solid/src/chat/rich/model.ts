@@ -2,19 +2,13 @@ import type { Block, Inline, RichText } from "@kiko/protocol"
 import isSuspiciousUrl from "../lib/richtext/suspicious"
 import { bareFileName, chipLabel, hrefFile, inlineCodeFile, isFileLabel, parentSuffixes, type FileTarget } from "./file-links"
 
-/* The rich text tree as plain element data. `RichText.tsx` renders this and
- * nothing else, so the table test covers the whole tree-to-DOM mapping. No node
- * carries markup: every string is text, and the renderer never sets innerHTML. */
 export type RichNode =
   | { kind: "text"; text: string }
   | { kind: "code"; lang?: string; text: string }
   | { kind: "mention"; slug: string }
-  /** `bare` is a name, not a path: it shows as code unless the chat has a file of that name. */
   | { kind: "file"; file: FileTarget; label: string; bare?: true }
   | { kind: "masked"; href: string; children: RichNode[] }
-  /** A paragraph that is only a picture: an https `url`, or the id of one of the chat's files. */
   | { kind: "image"; alt: string; url?: string; fileId?: string }
-  /** `copy` is set on a table: the Markdown and CSV text its footer copies, read from the source cells. */
   | { kind: "el"; tag: string; attrs: Record<string, string>; children: RichNode[]; copy?: TableCopy }
 
 export type TableCopy = { markdown: string; csv: string }
@@ -28,10 +22,8 @@ const el = (tag: string, children: RichNode[], attrs: Record<string, string> = {
 
 const text = (value: string): RichNode => ({ kind: "text", text: value })
 
-/** Only these become links. A file href becomes a chip, and anything else renders as plain text. */
 export const safeHref = (href: string): boolean => /^(https?:|mailto:)/i.test(href) && URL.canParse(href)
 
-/** The host a web link goes to, or null for a mail link. The favicon is asked for by this name. */
 export const linkHost = (href: string): string | null => (/^https?:/i.test(href) && URL.canParse(href) ? new URL(href).hostname : null)
 
 const fileChip = (file: FileTarget): RichNode => ({ kind: "file", file, label: chipLabel(file) })
@@ -48,7 +40,6 @@ const shownHosts = (label: string): string[] => {
   return whole ? [whole] : Array.from(label.matchAll(EMBEDDED_HOST), (m) => m[1]!)
 }
 
-/** Where a link's first text splits: the icon and this lead share one unbreakable run, so the icon never wraps alone. */
 export function linkLead(text: string): [string, string] {
   const lead = /^https?:\/\//i.exec(text)?.[0] ?? Array.from(text)[0] ?? ""
   return [lead, text.slice(lead.length)]
@@ -64,7 +55,6 @@ export function maskedLink(href: string, label: string): boolean {
 export function inline(node: Inline): RichNode {
   switch (node.t) {
     case "text":
-      // The parser spells a hard break as a lone newline. Soft breaks stay inside text and fold to a space.
       return node.text === "\n" ? el("br", []) : text(node.text)
     case "bold":
       return el("strong", node.children.map(inline))
@@ -85,7 +75,6 @@ export function inline(node: Inline): RichNode {
       if (!safeHref(node.href)) {
         const file = hrefFile(node.href)
         if (!file) return el("span", node.children.map(inline))
-        // A link that says more than its file's name keeps its words, with the chip after them.
         if (isFileLabel(plain(node.children), file)) return fileChip(file)
         return el("span", [...node.children.map(inline), text(" "), fileChip(file)])
       }
@@ -100,14 +89,12 @@ export function inline(node: Inline): RichNode {
   }
 }
 
-/** The server draws a task item's box as its first character, `☐ ` or `☑ `. Its list has no bullet. */
 const isTaskItem = (item: readonly Block[]): boolean => {
   const first = item[0]
   return first?.t === "paragraph" && first.children[0]?.t === "text" && /^[☐☑] /.test(first.children[0].text)
 }
 
 
-/** A code span's fence: one backtick more than the longest run inside, padded when the code starts or ends with one. */
 function codeSpan(code: string): string {
   const runs = code.match(/`+/g) ?? []
   const longest = runs.reduce((max, run) => Math.max(max, run.length), 0)
@@ -116,7 +103,6 @@ function codeSpan(code: string): string {
   return `${fence}${pad}${code}${pad}${fence}`
 }
 
-/** One inline run as Markdown, marks kept, so a pasted cell still reads as the source did. */
 function inlineMarkdown(nodes: readonly Inline[]): string {
   return nodes
     .map((node) => {
@@ -140,7 +126,6 @@ function inlineMarkdown(nodes: readonly Inline[]): string {
     .join("")
 }
 
-/** One inline run as plain text, for CSV, which carries no marks. */
 function inlinePlain(nodes: readonly Inline[]): string {
   return nodes
     .map((node) => {
@@ -157,7 +142,6 @@ function inlinePlain(nodes: readonly Inline[]): string {
     .join("")
 }
 
-/** t3code's cell: one line, and a pipe escaped so it cannot end the cell. */
 const markdownCell = (cell: readonly Inline[]): string => inlineMarkdown(cell).replace(/\n+/g, " ").trim().replaceAll("|", "\\|")
 
 const csvCell = (cell: readonly Inline[]): string => {
@@ -165,7 +149,6 @@ const csvCell = (cell: readonly Inline[]): string => {
   return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value
 }
 
-/** The table as t3code's Copy as Markdown and Copy as CSV write it, from the source cells. */
 function tableCopy(node: Extract<Block, { t: "table" }>): TableCopy {
   const line = (cells: string[]) => `| ${cells.join(" | ")} |`
   const separator = node.head.map((_, i) => (node.align[i] === "center" ? ":---:" : node.align[i] === "right" ? "---:" : "---"))
@@ -182,7 +165,6 @@ export function block(node: Block): RichNode {
       return el(`h${node.level}`, node.children.map(inline))
     case "list": {
       const items = node.items.map((item) => el("li", item.map(block), isTaskItem(item) ? { class: "task-list-item" } : {}))
-      // t3code's loose list: each item's paragraphs take the block gap. A tight item's paragraph has none.
       const loose: Record<string, string> = node.loose ? { class: "rich-loose" } : {}
       return node.start === undefined
         ? el("ul", items, loose)
@@ -218,14 +200,8 @@ function chips(nodes: readonly RichNode[], out: Extract<RichNode, { kind: "file"
   return out
 }
 
-/** Words a caption may have under a photo and the message is still a photo. Past this it is prose. */
 const PHOTO_CAPTION_CHARS = 120
 
-/**
- * True when the tree is a photo: one image or more, and nothing but images and one caption line
- * of a few words. The bubble then never collapses under "Show full message", because clamping a
- * picture to a text height cuts it in half, and the picture's own height is the bubble's.
- */
 export function isPhotoTree(tree: RichText): boolean {
   if (!tree.some((block) => block.t === "image")) return false
   let captions = 0
@@ -238,7 +214,6 @@ export function isPhotoTree(tree: RichText): boolean {
   return captions <= 1
 }
 
-/** The message's tree. Two chips that share a file name show the parent folders that tell them apart. */
 export function richNodes(tree: RichText): RichNode[] {
   const nodes = tree.map(block)
   const files = chips(nodes)

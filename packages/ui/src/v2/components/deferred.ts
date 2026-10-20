@@ -1,10 +1,5 @@
 import { createSignal, type Accessor } from "solid-js"
 
-/*
- * A module that loads after first paint. `module()` is undefined until it lands, and is a
- * tracked read, so a component can render a plain fallback and switch once it arrives.
- * `load()` is safe to call many times: the import runs once.
- */
 export interface Deferred<T> {
   load: () => Promise<T>
   module: Accessor<T | undefined>

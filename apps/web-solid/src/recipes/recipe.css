@@ -1,4 +1,3 @@
-/* The nine recipe tones. Each reads on its theme: a mid tone on light, a bright one on dark. */
 :root {
   --recipe-amber: oklch(0.82 0.15 85);
   --recipe-violet: oklch(0.75 0.16 295);
@@ -39,7 +38,6 @@
   height: 56%;
 }
 
-/* App logos ride the icon's lower edge like stickers. The ring is the surface behind, so it reads on any card. */
 .recipe-stickers {
   position: absolute;
   right: -10%;
@@ -64,7 +62,6 @@
   height: 60%;
 }
 
-/* A card tinted by its recipe: a wash of the tone from the top left corner, under the content. */
 .recipe-card {
   position: relative;
   isolation: isolate;
@@ -98,7 +95,6 @@
   opacity: 0.11;
 }
 
-/* A paused recipe keeps its shape but loses its color, so the running ones stand out. */
 .recipe-card[data-status="paused"] {
   --recipe-tone: var(--recipe-slate) !important;
 }

@@ -15,9 +15,6 @@
   overflow-y: auto;
 }
 
-/* The heading and the composer are centred as one group, so the transcript must take no room.
-   Main removed it with `display: none`, which also unmounted its box; a zero basis keeps the
-   element and its scroll state in place while giving the group the whole shell to centre in. */
 [data-component="chat-shell"][data-session-empty="true"] > [data-component="chat-transcript"] {
   flex: 0 0 0;
   overflow: hidden;

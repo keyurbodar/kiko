@@ -5,11 +5,6 @@ import { cn } from "../lib/cn"
 import { AppDetail, type AppId, APPS, appState, useIntegrations } from "./integrations"
 import { fieldClass, Segmented } from "./kit"
 
-/*
- * Tools: every app your agents can use, in one searchable list. A row says what it is and whether it
- * is on. Everything you can do with it lives in its detail, so the list stays short.
- */
-
 type Entry = { key: string; id: AppId; name: string; about: string; added: boolean; state: string }
 
 type Filter = "all" | "added" | "available"

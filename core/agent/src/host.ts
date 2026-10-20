@@ -32,9 +32,7 @@ export function measure(entries: readonly { kind: string; model?: readonly unkno
     const first = (entry.kind === "pi.user" || entry.kind === "kiko.input") && t.inputs === 0
     if (entry.kind === "pi.user" || entry.kind === "kiko.input") t.inputs++
     for (const m of (entry.model ?? []) as ModelMessage[]) {
-      let n = 0
-      if (typeof m.content === "string") n = m.content.length - (first ? opening(m.content) : 0)
-      else for (const p of m.content ?? []) n += (p.text?.length ?? 0) - (first ? opening(p.text ?? "") : 0) + (p.thinking?.length ?? 0) + (p.arguments ? JSON.stringify(p.arguments).length : 0)
+      const n = messageChars(m, first)
       t.chars += n
       if (m.role === "toolResult") t.toolChars += n
     }
@@ -42,15 +40,22 @@ export function measure(entries: readonly { kind: string; model?: readonly unkno
   return t
 }
 
-function deliveredSeq(batch: Batch, previous: number): number {
-  let seq = previous
-  for (const envelope of batch.envelopes) {
+function messageChars(m: ModelMessage, first: boolean): number {
+  let n = 0
+  if (typeof m.content === "string") n = m.content.length - (first ? opening(m.content) : 0)
+  else for (const p of m.content ?? []) n += (p.text?.length ?? 0) - (first ? opening(p.text ?? "") : 0) + (p.thinking?.length ?? 0) + (p.arguments ? JSON.stringify(p.arguments).length : 0)
+  return n
+}
+
+function deliveredSeq(envelopes: Batch["envelopes"], initial: number): number {
+  let humanDeliveredSeq = initial
+  for (const envelope of envelopes) {
     if (envelope.from.kind !== "human") continue
     const match = /^human:([1-9][0-9]*)\.[0-9a-f]+(?:#.*)?$/.exec(envelope.id)
-    const current = match ? Number(match[1]) : 0
-    if (Number.isSafeInteger(current)) seq = Math.max(seq, current)
+    const seq = match ? Number(match[1]) : 0
+    if (Number.isSafeInteger(seq)) humanDeliveredSeq = Math.max(humanDeliveredSeq, seq)
   }
-  return seq
+  return humanDeliveredSeq
 }
 
 function opening(text: string): number {
@@ -110,7 +115,6 @@ export type AgentSetup = {
 }
 
 export type HostOptions = {
-  /** Persist pi input while paused, then ask the owner to dispatch a run RPC. */
   requestRun: (requestId: string) => void | Promise<void>
   agentKey: string
   clock: Alarms
@@ -127,7 +131,6 @@ export type HostOptions = {
   onReset?: () => void
   onError?: (error: unknown, requestId: string) => void | Promise<void>
   onWorkers?: (running: number, pending: boolean) => void
-  // Keeps an un-awaited promise alive past the handler's return, so an abort still commits.
   waitUntil: (work: Promise<unknown>) => void
 }
 
@@ -285,11 +288,8 @@ export class AgentHost {
     }
   }
 
-  /** Run RPC boundary. Planned continuations retain setup and replay the existing pi submission. */
   async runInvocation(due: () => boolean): Promise<"done" | "continue"> {
     if (this.invocation) throw new Error("An agent invocation is already running")
-    // Reuse paused admission without flushing its inbox. An enabled Harness must reopen
-    // paused so the continuation guard still precedes progress.
     if (this.opened) {
       const opened = await this.opened
       if ((await opened.harness.inspect(context)).scheduling !== "paused") {
@@ -379,8 +379,6 @@ export class AgentHost {
       if (opened) this.retiring.add(opened)
       const stopped = await this.ctx.storage.get<boolean>(STOP_KEY)
       const requestId = batches[0]?.requestId ?? `epoch:${this.epoch()}`
-      // The failure consumed the stop it was handling, the same way `drain` does. A stop that arrives later sets the
-      // marker again after this delete, so it survives.
       if (stopped) await this.ctx.storage.delete([STOP_KEY, RESTARTS_KEY])
       await this.alarms.clearWakeup(INBOX_WAKEUP)
       try {
@@ -444,7 +442,6 @@ export class AgentHost {
     const opened = await this.open()
     if (!this.invalidated && (!opened.setup.stale || !(await opened.setup.stale()))) return opened
     const live = await opened.harness.inspect(context)
-    // Work is already running: it keeps the harness it started on, and this flag makes the next idle open reload.
     if (live.tasks.some((task) => !this.futureTask(task)) || live.submissions.length) return opened
     await this.drop(true)
     this.invalidated = false
@@ -452,6 +449,7 @@ export class AgentHost {
   }
 
   private async openHarness(setup: AgentSetup): Promise<Opened> {
+    setup = { ...setup, settings: { ...setup.settings, followUpMode: "all" } }
     const storage = await JournalStorage.open(this.ctx.storage, this.options.agentKey)
     const env = setup.env
     const harness = this.options.openHarness ? await this.options.openHarness(storage, setup) : await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(env ? { env: (target) => env(target.conversationId) } : {}) }, context)
@@ -459,7 +457,6 @@ export class AgentHost {
       if (end.reason === "failed") this.ctx.abort("Harness failed")
     })
     const root = await harness.root(context, { agent: setup.agent })
-    // `root` keeps the agent it was first made with. An integration added later (a browser key) changes the extensions, so write them again.
     const extensions = setup.agent.extensions
     if (Array.isArray(extensions)) {
       const names = extensions.map((e) => e.name)
@@ -539,7 +536,6 @@ export class AgentHost {
       const { next, resume } = this.options.projectTasks(tasks, watches, current)
       if (next === undefined) await this.alarms.clearWakeup(RECOVERY_WAKEUP)
       else await this.alarms.setWakeup(RECOVERY_WAKEUP, next)
-      // The owner recovers runnable tasks from the journal; only routine times need a projection.
       if (!this.invocation || this.invocation.settling) return
       for (const { id, deadline } of resume) {
         const watching = watches.has(id)
@@ -677,7 +673,7 @@ export class AgentHost {
     const work = this.workers.note()
     const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : []), ...(work ? [work] : [])] }, memory)
     const input: RestartInput = { content, requestId: batch.requestId,
-      entry: { kind: "kiko.input", data: { ...inputData, humanDeliveredSeq: deliveredSeq(batch, storage.humanDeliveredSeq), at: Date.now(), envelopeIds: batch.envelopes.map((e) => e.id), chain: batch.envelopes.map(({ rootId, hop }) => ({ rootId, hop })) } },
+      entry: { kind: "kiko.input", data: { ...inputData, humanDeliveredSeq: deliveredSeq(batch.envelopes, storage.humanDeliveredSeq), at: Date.now(), envelopeIds: batch.envelopes.map((e) => e.id), chain: batch.envelopes.map(({ rootId, hop }) => ({ rootId, hop })) } },
     }
     return { input, shown, last }
   }

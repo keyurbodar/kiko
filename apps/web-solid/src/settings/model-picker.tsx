@@ -9,18 +9,14 @@ import { ReasoningMenu } from "./reasoning-menu"
 import { connectedProviders } from "./connected"
 import { hasModelProvider } from "./provider-kinds"
 
-/** The panel reads the saved model choices through this module, so they stay in the chunk the chat route already loads. */
 export { favoriteModels, hiddenModels, toggleFavorite } from "./model-prefs"
 
 const loadPanel = () => import("./model-picker-panel")
-/** The panel loads on first open, or on the first hover or focus of the button. */
 const ModelPickerPanel = lazy(loadPanel)
 export const preloadModelPicker = () => void loadPanel()
 
 const [pickerOpen, setPickerOpen] = createSignal(false)
-/** The agent a failed run or a blocked send wants the picker for. Null means the one the draft addresses. */
 const [pickerFor, setPickerFor] = createSignal<string | null>(null)
-/** Opens the composer's model picker, from the palette or Mod+Shift+M, or for one agent from an error line. */
 export const openModelPicker = (slug?: string) => {
   setPickerFor(slug ?? null)
   setPickerOpen(true)
@@ -30,10 +26,6 @@ const changePicker = (open: boolean) => {
   setPickerOpen(open)
 }
 
-/**
- * The model picker: a rail of providers with favorites first, a search across all of them, and
- * one virtual list, so a hundred providers with a thousand models each still open at once.
- */
 export function ModelPicker(props: { current?: string; onPick: (ref: string, thinking: readonly ThinkingLevel[]) => void; open: boolean; onOpenChange: (open: boolean) => void; children: JSX.Element; class?: string; title?: string }) {
   let trigger: HTMLButtonElement | undefined
   return (
@@ -61,10 +53,6 @@ export function ModelPicker(props: { current?: string; onPick: (ref: string, thi
   )
 }
 
-/**
- * The composer's model and reasoning controls, for the agent that will answer: the lead, or the
- * agent the draft tags. In a group the avatar says whose model it is.
- */
 export function ModelPickerButton(props: { draft: string }) {
   const members = () => useApp.roomMembers()
   const target = () => members().find((m) => m.slug === pickerFor()) ?? answeringMember(members(), props.draft)

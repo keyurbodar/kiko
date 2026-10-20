@@ -15,18 +15,12 @@ import { primary } from "./welcome"
 
 const FEW = 5
 
-/** Puts the caret in the Kiko chat's composer once the chat has mounted. Gives up after about two seconds. */
 function focusComposer(tries = 40): void {
   const editor = document.querySelector<HTMLElement>(".composer-dock .ProseMirror")
   if (editor) editor.focus()
   else if (tries > 0) setTimeout(() => focusComposer(tries - 1), 50)
 }
 
-/*
- * Connect a model provider, and pick the model Kiko thinks with. It reuses the settings dialogs, so the
- * key check, the error message and the busy state are the ones Settings has. A connected provider writes
- * the model line under the list; "Change" opens the same model list the model screen used to show.
- */
 export function ConnectStep() {
   const navigate = useNavigate()
   const [catalog, { refetch }] = createResource(loadCatalog)
@@ -44,14 +38,9 @@ export function ConnectStep() {
       .filter((p) => ids.has(p.id))
       .flatMap((provider) => provider.models.map((model) => ({ provider, model, ref: modelRef(provider.id, model.id) })))
   })
-  /** The list to browse: reasoning and large context first. The default below stays the catalog's own first model. */
   const ranked = createMemo(() => [...rows()].sort((a, b) => Number(b.model.reasoning) - Number(a.model.reasoning) || b.model.contextWindow - a.model.contextWindow))
   const shown = () => (all() ? ranked() : ranked().slice(0, FEW))
   const running = () => useApp.agentModel(KIKO)?.model
-  /**
-   * What Kiko will think with: the model it already runs on when that one is here, else the provider's own
-   * default, which is the first model the pi-ai catalog lists for it. Never a name in this file.
-   */
   const fallback = () => {
     const refs = rows().map((r) => r.ref)
     const on = running()
@@ -117,7 +106,6 @@ export function ConnectStep() {
               data-component="first-run-models"
               ref={(el) =>
                 queueMicrotask(() => {
-                  // The card scrolls, not the page: bring the list and the button under it into view.
                   const card = el.closest(".welcome-card")
                   if (card) card.scrollTop = card.scrollHeight
                 })

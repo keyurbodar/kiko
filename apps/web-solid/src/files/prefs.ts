@@ -1,12 +1,5 @@
 import { createSignal } from "solid-js"
 
-/*
- * The file viewer's saved switches and its full-size state. The panel and the full-size dialog
- * read the same signals, so a switch flipped in one holds in the other. Reading rendered or as
- * source is a preference, not a property of one file, as in t3code.
- */
-
-/** A saved switch. Storage can throw in a private window; the switch then lasts the session. */
 function stored(key: string, fallback: boolean) {
 	let initial = fallback
 	try {

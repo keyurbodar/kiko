@@ -1,8 +1,3 @@
-// Builds a signed backend release. Usage:
-//   bun scripts/release.ts --init-key   create the signing key once and print its public x
-//   bun scripts/release.ts              build dist-release/<version>/ and dist-release/latest-owner.json
-// The private key stays in ~/.config/kiko/release-key.json (mode 600). It is never printed or copied.
-
 import { chmod, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { extname, join, resolve } from "node:path"

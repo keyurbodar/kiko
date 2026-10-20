@@ -6,7 +6,6 @@ export interface Suite {
   name: string
   model?: boolean
   human?: boolean
-  /** A load test: it sends thousands of writes, so it runs only against a local server, never a deployed one. */
   load?: boolean
   run(v: Verifier): Promise<void>
 }
@@ -38,7 +37,6 @@ export interface RunOptions {
 
 export const isLocal = (url: string): boolean => ["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname)
 
-/** Why this suite will not run, or null when it will. */
 function skipReason(s: Suite, opts: RunOptions): string | null {
   if (s.model && opts.noModel) return "needs a model"
   if (s.human && !opts.names.includes(s.name)) return "needs a person; run it by name"

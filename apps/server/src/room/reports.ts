@@ -27,7 +27,6 @@ export class Reports {
 		if (!routines.length) return
 		const signals = this.signals(events)
 		if (!signals.some((s) => routines.some((r) => matches(r, s)))) return
-		// Only event-triggered routines need a window. The room event log already stores its contents.
 		if (this.d.log.meta("routine_window") !== null) return
 		this.d.log.setMeta("routine_window", JSON.stringify({ after: Math.min(...events.map((e) => e.seq)) - 1, at: Date.now() }))
 		this.d.ctx.waitUntil(this.d.alarms.setWakeup("routine_events", Date.now() + 60_000))

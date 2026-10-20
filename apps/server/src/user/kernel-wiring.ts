@@ -13,7 +13,6 @@ import { type Attachment, send, trySend } from "./socket-frames"
 
 export type LiveLinkResult = { ok: true; url: string; posted: boolean } | { ok: false; error: string }
 
-/** What an agent reads before a browser call. `list` holds every open tab with its owner's agent id. */
 export type BrowserCheck = {
   connected: boolean
   takeover: boolean
@@ -30,14 +29,11 @@ type KernelDeps = {
  services: OwnerServices
   alarms: Alarms
   userId: () => string
-  /** Tells the human a browser start failed and why. */
   notify?: (error: KikoError) => void
-  /** Tests pass a fake store and Kernel client. */
   store?: KernelStore
   clientFor?: (key: string) => KernelClient
 }
 
-/** What a paused agent is told when control comes back, by why it came back. */
 const RESUMED = {
   released: "The human released control of the browser: it is yours again.",
   expired: "The human's control of the browser timed out after 30 minutes: it is yours again.",
@@ -45,13 +41,10 @@ const RESUMED = {
 const RESUME =
   " Carry on with the browser work that was waiting. Tell the worker that was waiting to continue with tell_work; its tabs are still open where the human left them, so it must not load the page again. Say one short line to the human only if there is something to say."
 
-/** The agent slug at the end of a lease id such as `room/slug`. */
 function slugOf(agentId: string): string {
   return agentId.split(/[/:]/).pop() ?? agentId
 }
 
-// The user's one Kernel browser, leased to their agents. The CDP URL
-// goes to the agent that asked and nowhere else. The Kernel key never leaves this object.
 export class KernelWiring {
   readonly browser: KernelLease
   private switching = false
@@ -85,7 +78,6 @@ export class KernelWiring {
       if (e instanceof KernelError && e.kind === "unauthorized") throw new KernelError("unauthorized", REJECTED)
       throw e
     }
-    // A browser on the old key must not outlive it.
     await this.closeBrowser()
     this.store.clear()
     await this.store.putKey(key, this.store.generation)
@@ -98,7 +90,6 @@ export class KernelWiring {
     await this.d.alarms.clearWakeup(REAP_WAKEUP)
   }
 
-  /** The user's browser for `agentId`, always headful so it has a live view. Creates it when there is none. */
   async lease(agentId: string): Promise<LeaseInfo> {
     const info = await this.browser.lease(checkAgentId(agentId)).catch((e) => {
       const error = kernelFailure(e)
@@ -109,20 +100,12 @@ export class KernelWiring {
     return info
   }
 
-  /** Stamps last use. `tabs` (tab id to last URL) replaces the agent's tabs. False when the browser it knew is gone. */
   touch(agentId: string, tabs?: Record<string, string>): boolean {
     const known = this.browser.touch(checkAgentId(agentId), checkTabs(tabs))
     this.push()
     return known
   }
 
-  /**
-   * The live view link, for an agent to hand to the human. `control` pauses every agent's browser tools until the
-   * human releases it, so it is the request for a login, a captcha, or a payment. With a `reason`, a control request
-   * becomes a card in the chat with Take control and Release control buttons, and holds no link. A watch link with a
-   * reason is posted as a plain message from the agent, because the owner asked for it in the chat.
-   * A worker never posts, and it is the worker that hits the login. `agentId` ends in the agent's slug.
-   */
   async liveLink(agentId: string, roomId: string, mode: "watch" | "control", reason?: string): Promise<LiveLinkResult> {
     checkAgentId(agentId)
     const slug = slugOf(agentId)
@@ -143,7 +126,6 @@ export class KernelWiring {
     return { ok: true, url, posted }
   }
 
-  /** Every open tab with its owner, for an agent to see. Other agents' addresses lose their query and fragment. */
   tabList(agentId: string): { id: string; agent: string; url: string }[] {
     const row = this.store.connected() ? this.store.lease() : undefined
     if (!row || row.dead) return []
@@ -152,7 +134,6 @@ export class KernelWiring {
     )
   }
 
-  /** The agent's socket died: the next lease makes a new browser. */
   async dead(agentId: string, sessionId: string): Promise<boolean> {
     checkAgentId(agentId)
     if (typeof sessionId !== "string" || !sessionId) return false
@@ -167,11 +148,6 @@ export class KernelWiring {
     this.push()
   }
 
-  /**
-   * Gives control back to the agents, from any of the human's Release control buttons or from an agent the human
-   * told in the chat. Every agent that asked for control or was paused by it is woken, so its work carries on without
-   * the human saying so; the agent that released is already running. False when the agents already had control.
-   */
   handBack(by?: string): boolean {
     const row = this.store.lease()
     const held = row !== undefined && humanHolds(row, Date.now())
@@ -181,7 +157,6 @@ export class KernelWiring {
     return held
   }
 
-  /** The human's control began, or an agent waits on it. One spell of control is one record, so each agent is woken once. */
   private join(agentId?: string, roomId?: string): void {
     const now = this.store.control() ?? { at: Date.now(), waiters: [] }
     if (agentId && roomId && !now.waiters.some((w) => w.agentId === agentId)) now.waiters.push({ agentId, roomId })
@@ -199,7 +174,6 @@ export class KernelWiring {
     }
   }
 
-  /** Whether the human holds the browser. An agent that asks while they do is woken when control comes back. */
   paused(agentId: string, roomId: string): boolean {
     const held = this.takeover()
     if (held) this.join(checkAgentId(agentId), roomId)
@@ -225,12 +199,6 @@ export class KernelWiring {
     })
   }
 
-  /**
-   * The live view URL for the human. Every browser is made headful, so this reads the open one's URL. With no
-   * browser open, or a headless one left from an older version, one is made headful (about 5 s, `onSwitching`
-   * tells the caller): asking to watch is a reason to open it. `control` sets the takeover flag before the switch, so agents stop at once,
-   * and the switch carries it over. Watch keeps the browser for `WATCH_MS`.
-   */
   private async openLink(mode: "watch" | "control", onSwitching: (on: boolean) => void): Promise<string> {
     if (!this.store.connected()) throw new KernelError("failed", "Kernel is not connected")
     const hold = () => (mode === "control" ? this.browser.setTakeover(true) : this.browser.watchUntil(Date.now() + WATCH_MS))
@@ -260,12 +228,10 @@ export class KernelWiring {
     })
   }
 
-  /** The current browser's Kernel session id. It is no secret: it names the browser, it does not reach it. */
   sessionId(): string | null {
     return this.store.lease()?.sessionId ?? null
   }
 
-  /** DEVELOPMENT ONLY. Moves the browser's clocks back, so the reaper's time is up. */
   age(ms: number): void {
     const row = this.store.lease()
     if (row) this.store.patchLease({ lastUse: row.lastUse - ms, ...(row.watchUntil ? { watchUntil: Math.max(1, row.watchUntil - ms) } : {}) })
@@ -273,7 +239,6 @@ export class KernelWiring {
 
   private async closeBrowser(): Promise<void> {
     if (!this.store.connected()) return
-    // Best effort: the key may be dead already, and Kernel's own timeout is the net.
     await this.browser.close().catch(() => undefined)
   }
 
@@ -283,7 +248,6 @@ export class KernelWiring {
     return this.clientFor(key)
   }
 
-  /** Tells every ready socket the browser changed. A touch that changes nothing the client shows sends nothing. */
   push(): void {
     const text = JSON.stringify({ t: "browserState", state: this.browserState() } satisfies UserToClient)
     if (text === this.sent) return
@@ -308,7 +272,6 @@ export class KernelWiring {
       } catch (e) {
         result = { ok: false, error: kernelErrorText(e) }
       }
-      // The URL goes to this socket alone and is never stored.
       send(ws, { t: "browserLink", reqId: frame.reqId, result })
     }
     this.push()

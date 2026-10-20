@@ -1,11 +1,5 @@
 import { createFileTreeIconResolver, getBuiltInSpriteSheet, type FileTreeIcons } from "@pierre/trees"
 
-/*
- * Pierre's icon set with t3code's additions (`pierre-icons.ts`): its sprite of extra languages and
- * its name and extension maps. The file tree and every chip draw from this one set. It is loaded on
- * demand from entry-icon.ts, so the sprite and the resolver stay out of the first paint.
- */
-
 const EXTRA_SPRITE = `
 <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true">
   <!-- Lucide Film icon, ISC license. -->
@@ -88,7 +82,6 @@ export const KIKO_FILE_ICONS = {
   },
   byFileExtension: {
     ...Object.fromEntries(VIDEO_EXTENSIONS.map((extension) => [extension, "t3-file-icon-video"])),
-    // Languages the complete set has no icon for.
     cs: "t3-file-icon-csharp",
     csx: "t3-file-icon-csharp",
     dart: "t3-file-icon-dart",
@@ -117,7 +110,6 @@ const resolver = createFileTreeIconResolver(KIKO_FILE_ICONS)
 
 export const entrySpriteSheet = (): string => `${getBuiltInSpriteSheet("complete")}${EXTRA_SPRITE}`
 
-/** The sprite id and the color token of a file name or path. */
 export function resolveEntryIcon(path: string): { name: string; token: string } {
   const icon = resolver.resolveIcon("file-tree-icon-file", path)
   return { name: icon.name, token: icon.token ?? "default" }

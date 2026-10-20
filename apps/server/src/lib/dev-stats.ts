@@ -1,5 +1,3 @@
-// Under `wrangler dev` every object of one Worker shares one isolate, so this module-level table sees them all.
-
 import type { DevCounterPort } from "./dev-stats-patch"
 
 type StatementRow = {
@@ -12,8 +10,6 @@ type StatementRow = {
 
 const counters = new Map<string, number>()
 const instrumentation = new Map<string, boolean>()
-// One row per (object, normalized statement). The label never holds a binding, so a parameter value cannot
-// reach the stats route.
 const statements = new Map<string, StatementRow>()
 const open: { kind: string; write: boolean; sql: string; cursor: SqlStorageCursor<Record<string, SqlStorageValue>> }[] = []
 const MAX_OPEN = 10_000
@@ -33,9 +29,6 @@ function statementRow(kind: string, sql: string): StatementRow {
   return row
 }
 
-// The cursor's row counts are only reliable once it has drained, so every statement is settled later, in one
-// pass. The totals still add each cursor exactly once; the per-statement rows are the same numbers split by
-// label.
 function settle(): void {
   for (const { kind, write, sql, cursor } of open.splice(0)) {
     const rowsRead = cursor.rowsRead
@@ -52,8 +45,6 @@ function settle(): void {
   }
 }
 
-// The storage patch is dev-only and lives in dev-stats-patch.ts; the fold in dev-guard drops it from a
-// production bundle. A dev build wires the patch to these counters through one port.
 const port: DevCounterPort = {
   bump,
   instrumentation(kind, complete) {
@@ -82,7 +73,6 @@ export function proxyRpc<T extends object>(stub: T, target: string): T {
 
 const live = new Map<string, number>()
 
-// Records the most calls of one key running at once, as a counter that holds the peak until the next reset.
 export async function trackInFlight<T>(key: string, run: () => Promise<T>): Promise<T> {
   const now = (live.get(key) ?? 0) + 1
   live.set(key, now)

@@ -13,8 +13,9 @@
     "dev:web": "bun run --cwd apps/web-solid dev --port 5173",
     "typecheck": "bun run --filter '*' typecheck",
     "lint": "biome check",
-    "check": "bun scripts/check.ts",
-    "kiko": "bun apps/cli/src/index.ts"
+    "check": "bun run typecheck && biome check && bun scripts/check-imports.ts",
+    "kiko": "bun apps/cli/src/index.ts",
+    "prepare": "git rev-parse --git-path hooks >/dev/null 2>&1 && printf '#!/bin/sh\\nexec bunx biome check --staged --no-errors-on-unmatched --diagnostic-level=error\\n' > \"$(git rev-parse --git-path hooks)/pre-commit\" && chmod +x \"$(git rev-parse --git-path hooks)/pre-commit\" || true"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

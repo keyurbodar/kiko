@@ -1,27 +1,3 @@
-/* Motion tokens and the opt-in motion classes. Architecture 19.5.
- *
- * Policy. Navigation, route changes, tabs, buttons, and the composer stay at 0 ms and never wait on
- * the network. Motion is for two things: an overlay entering or leaving (dialog, palette, menu,
- * popover, tooltip), and a place where the user is already waiting (spinner, skeleton, progress,
- * a busy label). The durations follow t3code. Nothing motion ever delays input: an overlay is
- * interactive from its first frame, and every rule is off under `prefers-reduced-motion`.
- *
- * Rules:
- * - Durations and easings are tokens. No literal time appears below the tokens.
- * - Keyframes move `transform` and `opacity`. A collapsing panel also moves `height`, and a switch
- *   and a sliding sidebar use a transition, because each has a "from" state on screen already.
- * - Everything is inside `prefers-reduced-motion: no-preference`. The tokens stay outside because
- *   a custom property is not motion.
- * - Animation for anything that mounts: it has no "from" state for a transition to start at.
- * - Nothing overshoots or bounces. Things travel a short way, fade in, and settle.
- * - Overlays are named by their `data-component` and by Kobalte's `data-expanded` and `data-closed`,
- *   so an element leaves with its exit animation before it unmounts.
- * - `motion.test.ts` scans this file and fails on motion aimed at navigation, buttons, tabs, or
- *   the composer.
- *
- * The composer's glide to the dock on a chat's first send is the one motion outside this file: it
- * measures where the composer was, so it runs as a web animation in `chat/send-motion.ts`. */
-
 :root {
   --motion-fast: 120ms;
   --motion-base: 180ms;
@@ -59,7 +35,6 @@
     to { opacity: 0; transform: scale(0.92); }
   }
 
-  /* Your message rises out of the composer into its place. */
   @keyframes motion-bubble-in {
     from { opacity: 0; transform: translateY(28px); }
     to { opacity: 1; transform: translateY(0); }
@@ -73,7 +48,6 @@
     animation: motion-fade-scale-in var(--motion-base) var(--motion-ease-out) both;
   }
 
-  /* Set `data-leaving` and remove the node on `animationend`. */
   .motion-attachment-in[data-leaving] {
     animation: motion-fade-scale-out var(--motion-fast) var(--motion-ease-in) both;
   }
@@ -82,7 +56,6 @@
     animation: motion-bubble-in var(--motion-rise) var(--motion-ease-settle) both;
   }
 
-  /* An agent's reply fades up into place where its typing bubble sat. */
   @keyframes motion-reply-in {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
@@ -100,7 +73,6 @@
     animation: motion-spin var(--motion-spin) var(--motion-ease-linear) infinite;
   }
 
-  /* Overlays: opacity and scale 0.98, interactive from the first frame. */
   @keyframes motion-overlay-in {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -167,7 +139,6 @@
     animation: motion-popover-in var(--motion-dialog) var(--motion-ease-in-out) both;
   }
 
-  /* A panel that opens and closes in place. Kobalte sets the measured height. */
   @keyframes motion-collapse-down {
     from { height: 0; }
     to { height: var(--kb-collapsible-content-height); }
@@ -190,7 +161,6 @@
     animation: motion-collapse-up var(--motion-collapse) var(--motion-ease-out);
   }
 
-  /* A switch slides its thumb and fades its track. */
   .motion-switch {
     transition: background-color var(--motion-switch) var(--motion-ease-out);
   }
@@ -199,13 +169,10 @@
     transition: transform var(--motion-switch) var(--motion-ease-out);
   }
 
-  /* A sidebar opening or closing: the shell puts this on its panels for the length of the slide only,
-     so a drag on a resize handle follows the pointer with no lag. */
   .motion-slide {
     transition: flex-basis var(--motion-slide) var(--motion-ease-settle);
   }
 
-  /* Placeholder bars while a load is in flight. */
   @keyframes motion-skeleton {
     0%, 42% { opacity: 1; animation-timing-function: steps(4); }
     50%, 92% { opacity: 0.55; animation-timing-function: steps(4); }
@@ -217,24 +184,15 @@
     animation: motion-skeleton var(--motion-skeleton) var(--motion-ease-linear) infinite;
   }
 
-  /*
-   * The run panel has no motion of its own: it appears where the row is, and a step updates in place.
-   * The opt-out is declared after the overlay rules so it wins on source order as well as specificity.
-   */
   [data-component="popover-v2-content"][data-expanded][data-instant],
   [data-component="popover-v2-content"][data-closed][data-instant] {
     animation: none;
   }
 
-  /* A busy label fades in, so a save that takes a moment does not flash. */
   .motion-busy {
     animation: motion-overlay-in var(--motion-base) var(--motion-ease-out) both;
   }
 
-  /*
-   * The run tree's waiting state, ported from t3code's live-tool-shine. It runs only while on screen:
-   * observeVisibleAnimation sets --visible-animation-state, and chat/run/shine.css draws the look.
-   */
   @keyframes motion-shine {
     from { background-position: -4.5rem 0, 0 0; }
     to { background-position: calc(100% + 4.5rem) 0, 0 0; }
@@ -247,7 +205,6 @@
     }
   }
 
-  /* The run tree's folded rows grow open or shut when the reader toggles them, and the chevron turns. */
   .motion-run-fold {
     transition: grid-template-rows var(--motion-collapse) var(--motion-ease-out);
   }

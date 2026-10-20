@@ -1,10 +1,5 @@
 import type { Plugin } from "vite";
 
-/*
- * The entry chunk loads the app and the first route with dynamic imports, so a browser finds
- * them only after it has run the entry. This puts the app chunk, the chat route chunk, their
- * static imports and their stylesheets in the HTML as preloads, so all of it downloads at once.
- */
 const FIRST_PAINT = ["src/main.tsx", "src/app/routes/chat.tsx"];
 
 export function firstPaintPreload(): Plugin {

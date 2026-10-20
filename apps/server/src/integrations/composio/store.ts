@@ -23,7 +23,6 @@ export class ComposioStore {
   ) {
   }
 
-  /** Read before the first await, so a caller that clears the store right after still gets what was stored. */
   target(): Promise<StoredTarget | undefined> {
     const row = this.sql.exec<KeyRow>("SELECT kek_version, iv, ciphertext, value FROM composio WHERE name = 'key'").toArray()[0]
     if (!row) return Promise.resolve(undefined)

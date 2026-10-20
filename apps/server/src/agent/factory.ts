@@ -33,7 +33,6 @@ import { thinkingFor } from "./thinking"
 import { RETRY, withRetryAfter } from "./retry"
 
 export type BuildAgentInput = RoleInput & {
-  /** Absent until the human picks one. A run then stops before it reaches a model. */
   model?: ModelRef
   thinkingLevel?: ThinkingLevel
   files?: Omit<FilesOptions, "touched"> & { fs: RoomFs }
@@ -41,7 +40,6 @@ export type BuildAgentInput = RoleInput & {
   runStamp?: () => number
   groups?: GroupsPort
   presence?: StepsPort
-  /** The run the agent is in now, so a worker it starts knows whose steps its calls are. */
   runId?: () => string | null
   memory?: MemoryPort
   workspace?: WorkspacePort
@@ -85,7 +83,6 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
 export function buildAgent(input: BuildAgentInput): BuiltAgent {
   const registry = createRegistry()
   const extensions = extensionsFor(input, () => builtins)
-  // Throws when a tool declares no effect or two tools share a name with different effects.
   const effects = effectTable(extensions)
   const builtins = extensions.map((extension) => ({
     ...extension,
@@ -102,7 +99,6 @@ export function buildAgent(input: BuildAgentInput): BuiltAgent {
   return { registry, agent: { ...(input.model ? { model: input.model } : {}), thinkingLevel: input.thinkingLevel ?? (input.model ? thinkingFor(input.model) : "off"), extensions: forRole(builtins, "talker") } }
 }
 
-/** pi-ai APIs whose adapter throws on a custom fetch (`api/google-generative-ai.js`, `api/google-vertex.js`). */
 const NO_CUSTOM_FETCH = new Set(["google-generative-ai", "google-vertex"])
 
 function timed<S extends { result(): Promise<unknown> }>(modelId: string, stream: S, reasoning?: string): S {
@@ -114,34 +110,17 @@ function timed<S extends { result(): Promise<unknown> }>(modelId: string, stream
   return stream
 }
 
-/**
- * pi-durable writes a run's system entries after its first input, so the transcript never opens with a system
- * message. For a model that may add tools mid-conversation (Kimi K3), pi-ai then sends the agent's whole tool list
- * as a `{ role: "system", tools }` message with no content, and OpenCode Go answers 400 "Invalid request
- * parameters". With the flag off, every tool goes in the request's `tools` field, as for every other model.
- */
 function unanchored<M extends { compat?: object }>(model: M): M {
   return { ...model, compat: { ...model.compat, supportsMidConvoToolAdditions: false } }
 }
 
 export type RunAuth = (provider: string) => Promise<AuthResult | undefined>
 
-/**
- * A run retries a transient model error on its own; see `retry.ts`.
- */
 export const RUN_SETTINGS: HarnessSettings = { toolExecution: "parallel", retry: { ...RETRY } }
 
-/**
- * A `Models` whose every provider takes its auth from `auth` and nothing else: no environment, no
- * files, no stored credential. The host fills `auth` once per run, so each run answers with the
- * user's credential as it was when the run began. `sessionId` must be stable per agent: OpenCode Go
- * answers 400 MissingSessionID without the `x-opencode-session` header (P0-05), and pi-durable
- * passes headers only through `settings.stream.headers`.
- */
 export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fetch, directCall?: () => void): { models: Models; settings: HarnessSettings } {
   const models = createModels({ authContext: { env: async () => undefined, fileExists: async () => false } })
   for (const provider of providers()) {
-    // A provider's cooldown must not delay requests to another provider.
     const through = egress ? withRetryAfter(egress) : undefined
     const via = (model: { api: string }, options: object | undefined) => {
       if (through && !NO_CUSTOM_FETCH.has(model.api)) return { ...options, fetch: through }

@@ -59,6 +59,7 @@ export class RoomDelivery {
 		const slug = members.find((m) => m.slug === input.to)?.slug ?? members.find((m) => m.lead)?.slug ?? members[0]?.slug
 		if (!slug) return "gone"
 		const run = { routineId: INITIATIVE_RUN, occurrence: input.id, slug, seq: this.d.log.lastSeq() }
+		this.d.log.setMeta(`initiative:initiative:${input.id}`, input.reason)
 		this.d.routines.follow(run)
 		const result = await this.wake({ id: `initiative:${input.id}`, to: slug, why: "initiative", body: input.body, chain: null })
 		if (result !== "delivered") this.d.routines.unfollow(run)

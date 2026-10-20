@@ -18,7 +18,7 @@
         "useConst": "warn",
         "useTemplate": "warn"
       },
-      "complexity": { "noForEach": "warn" },
+      "complexity": { "noForEach": "warn", "noExcessiveCognitiveComplexity": { "level": "error", "options": { "maxAllowedComplexity": 30 } } },
       "suspicious": {
         "noExplicitAny": "error",
         "noAssignInExpressions": "warn",

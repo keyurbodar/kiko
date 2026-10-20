@@ -221,7 +221,6 @@ return new Response(new Blob([json]).stream().pipeThrough(new CompressionStream(
 });
 `
 
-// Large views come back gzipped: 41 KB of JSON took 2-4 round trips from Kernel, 8.7 KB took one.
 export const READ_SCRIPT = `(async () => {${RUNTIME}${READ_BODY}})()`
 
 export const guardScript = (id: number, label: string, focus: boolean) => `(() => {

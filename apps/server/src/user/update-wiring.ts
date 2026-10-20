@@ -31,7 +31,6 @@ export class UpdateWiring {
     })
   }
 
-  /** Runs an update, or tells the asking socket where the one in flight is. */
   async start(version: string): Promise<void> {
     if (this.#running) {
       if (this.#stage) this.deps.broadcast({ t: "update.state", ...this.#stage })
@@ -43,7 +42,6 @@ export class UpdateWiring {
     try {
       await runUpdate(
         {
-          // check-rules: allow egress the owner's update runs in UserDO's own invocation; the release and Cloudflare hosts are fixed by the baked config
           fetch: (url, init) => fetch(url, init),
           config: updateConfig(this.deps.env, dev),
           loadGrant: async () => {

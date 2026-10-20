@@ -1,9 +1,5 @@
 import { createSignal } from "solid-js"
 
-/*
- * The files opened most recently in each chat, newest first. "Go to file…" lists them before the
- * rest. Every open goes through `openFile`, so the tree and the palette both count.
- */
 const KEY = "kiko:recent-files:v1"
 const KEEP = 20
 

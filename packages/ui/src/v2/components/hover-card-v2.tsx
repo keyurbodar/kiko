@@ -3,7 +3,6 @@ import { Children, part, trigger } from "./overlays"
 
 export type { HoverCardV2ContentProps, HoverCardV2Props } from "./hover-card-v2-impl"
 
-/* The real hover card lives in hover-card-v2-impl.tsx and loads after first paint. See overlays.tsx. */
 type H = typeof Impl
 
 export const HoverCardV2 = Object.assign(part<H>((i) => i.HoverCardV2, Children), {

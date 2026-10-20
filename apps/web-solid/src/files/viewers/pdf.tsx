@@ -2,11 +2,6 @@ import { createResource, Match, onCleanup, Switch } from "solid-js"
 import { SurfaceFailure, SurfaceLoading } from "../chrome"
 import { apiFetch } from "../../lib/api"
 
-/*
- * A PDF in the browser's own viewer. The file route answers with `content-security-policy:
- * sandbox`, and Chrome will not run its PDF viewer in a sandboxed document, so the bytes are
- * fetched once and shown from a blob URL, which carries no such header.
- */
 export default function PdfView(props: { src: string; title: string }) {
 	let url: string | undefined
 	const [blob, { refetch }] = createResource(

@@ -10,12 +10,6 @@ import type { PromptInputV2Attachment } from "./types"
 
 type Source = { attachments: () => PromptInputV2Attachment[]; openAttachment: (attachment: PromptInputV2Attachment) => void }
 
-/**
- * An attachment named in the composer's text, as t3code's context chip: the picture or the
- * file's icon, its name, and its size, or how far its upload has got. A picture opens the
- * preview, a file opens in a new tab, and a failed upload retries. A chip whose file is gone
- * (a draft restored without it) is drawn dashed.
- */
 function Chip(props: { id: string; name: string; source: Source }) {
   const part = () => props.source.attachments().find((p) => p.id === props.id)
   const image = () => {

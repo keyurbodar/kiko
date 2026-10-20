@@ -1,5 +1,3 @@
-
-
 @layer theme, base, v2, components, utilities;
 
 @import "tailwindcss";
@@ -11,8 +9,6 @@
 
 @import "./styles/motion.css";
 
-/* Kiko's faces, served from public/fonts and preloaded by index.html. Text paints at once in the system
-   font and takes these as they arrive. */
 @font-face {
   font-family: Figtree;
   font-style: normal;
@@ -40,13 +36,6 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* A stand-in for Figtree with the same box, so the screen saved before the fonts arrive does not move when
-   Figtree takes over. Measured in headless Chrome at 100px on "The quick brown fox jumps over the lazy dog.
-   0123456789": Figtree is 2604.13px wide and Arial's metrics (Arimo, its metric-compatible clone) are
-   2590.48px, so size-adjust is 100.53%. Figtree's line box is 95% above the baseline and 25% below it, with
-   no gap. A browser scales an override by size-adjust, so each one is divided by it: 94.5% and 24.87% read
-   back as 95% and 25% once 1.0053 is applied. At 11, 13, 14, 16, 24 and 100px both faces then measure the
-   same width to within 0.03% and the same line height. */
 @font-face {
   font-family: "Figtree Fallback";
   src: local("Arial"), local("Liberation Sans"), local("Arimo");
@@ -216,7 +205,6 @@
   }
 }
 
-/* palette:start */
 :root {
   --background: #08131c;
   --sidebar: #101a24;
@@ -290,7 +278,6 @@
   --message-user-foreground: #16191e;
   --ring-wash: color-mix(in oklab, #505f78 11%, transparent);
 }
-/* palette:end */
 
 :root {
 
@@ -638,7 +625,6 @@
     user-select: none;
   }
 
-  /* Chrome is not text to copy: a drag that leaves a bubble must not pick it up. */
   [data-component="top-bar"],
   [data-component="sidebar"],
   [data-component="sidebar-panel"],
@@ -735,7 +721,6 @@ html {
   scrollbar-width: thin;
 }
 
-/* Chromium gives standard scrollbar rules precedence over the narrow custom track. */
 @supports selector(::-webkit-scrollbar) {
   * {
     scrollbar-width: auto;

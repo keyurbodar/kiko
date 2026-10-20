@@ -9,7 +9,6 @@ class StallError extends Error {
   }
 }
 
-/** Races a pending read or request against a quiet period, so a stalled provider ends the run instead of leaving it typing. */
 export async function orStall<T>(work: Promise<T>, ms: number): Promise<T> {
   const wait = boundedWait(ms)
   try {
@@ -19,7 +18,6 @@ export async function orStall<T>(work: Promise<T>, ms: number): Promise<T> {
   }
 }
 
-/** The same response, whose body errors when no chunk arrives for `ms`. Long answers are normal, so a body that keeps sending is never cut. */
 export function guardStall(response: Response, ms: number): Response {
   if (!response.body) return response
   const reader = response.body.getReader()

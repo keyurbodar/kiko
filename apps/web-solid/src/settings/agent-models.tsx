@@ -38,7 +38,6 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
   )
 }
 
-/** Every agent the owner has, Kiko first, with its model and reasoning level. The same in every chat. */
 export function AgentModels() {
   return (
     <Show when={hasModelProvider(connectedProviders())} fallback={<Hint>Connect a provider in the Providers tab to choose models for your agents.</Hint>}>

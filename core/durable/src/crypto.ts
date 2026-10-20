@@ -1,4 +1,3 @@
-// The label stays kiko: changing it would make every stored credential undecryptable.
 const INFO = "kiko-cred-v1"
 const IV_BYTES = 12
 const utf8 = new TextEncoder()

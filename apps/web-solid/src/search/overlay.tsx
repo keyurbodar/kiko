@@ -9,15 +9,6 @@ import { createSearch, type Hit, type SearchView, senderName } from "./model"
 import { closeSearch, requestJump, type SearchScope, searchScope, setSearchScope } from "./state"
 import "./search.css"
 
-/*
- * Message search, as kat has it (⌘F, ⌘⇧F): a rounded bar at the top of the chat panel with the
- * query and a chat / all toggle, results under it, the transcript dimmed behind. Arrow keys move,
- * enter jumps to the message (opening its chat first), escape closes. Nothing animates.
- *
- * "chat" asks the open room over its socket. "all" asks the Worker, which searches the user's most
- * recently active chats (room/search-route.ts on the server).
- */
-
 export default function SearchOverlay() {
   const navigate = useNavigate()
   const [view, setView] = createSignal<SearchView>()
@@ -32,10 +23,8 @@ export default function SearchOverlay() {
 
   let input: HTMLInputElement | undefined
   let list: HTMLDivElement | undefined
-  // Focus goes back where it was when the overlay closes without a jump.
   const before = document.activeElement
   onMount(() => input?.focus())
-  // ⌘F or ⌘⇧F while open switches the scope and puts the cursor back in the field.
   createEffect(
     on(searchScope, (scope) => {
       if (!scope) return
@@ -44,8 +33,6 @@ export default function SearchOverlay() {
       input?.select()
     }),
   )
-  // A chat search answers for the room that is open. Switching chats re-asks, or the results would
-  // keep naming messages of the chat you left, and Enter would drag you back to it.
   createEffect(
     on(
       () => useApp.activeThreadId(),
@@ -55,7 +42,6 @@ export default function SearchOverlay() {
       { defer: true },
     ),
   )
-  // Escape closes from anywhere in the overlay, not only while the field holds focus.
   const onEscape = (e: KeyboardEvent) => {
     if (e.key !== "Escape" || e.defaultPrevented) return
     e.preventDefault()
@@ -77,7 +63,6 @@ export default function SearchOverlay() {
     setSearchScope(scope)
     input?.focus()
   }
-  // The selected row stays in view as the arrows move it.
   createEffect(
     on(
       () => view()?.selected,

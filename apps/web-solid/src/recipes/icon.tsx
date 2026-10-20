@@ -4,7 +4,6 @@ import "./recipe.css"
 
 export const logoUrl = (app: Pick<RecipeApp, "slug">) => `https://logos.composio.dev/api/${app.slug}`
 
-/** One app's logo on a white disc, the way it looks in the app's own icon. */
 export function AppLogo(props: { app: RecipeApp; size: number; overlap?: number }) {
   return (
     <span class="recipe-logo" style={{ width: `${props.size}px`, height: `${props.size}px`, "margin-left": props.overlap ? `-${props.overlap}px` : undefined }} title={props.app.name}>
@@ -13,18 +12,12 @@ export function AppLogo(props: { app: RecipeApp; size: number; overlap?: number 
   )
 }
 
-/** The CSS variable that carries a recipe's tone, set on any element whose children tint by it. */
 export const toneStyle = (recipe: Pick<RecipeCard, "tone">) => ({ "--recipe-tone": `var(--recipe-${recipe.tone})` })
 
-/** The recipe's glyph drawn large and faint in a card's corner, so each card carries its recipe's mark. */
 export function RecipeWatermark(props: { recipe: Pick<RecipeCard, "glyph"> }) {
   return <svg class="recipe-watermark" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" innerHTML={props.recipe.glyph} />
 }
 
-/**
- * A recipe's icon: its glyph on a tint of its tone, in an app icon's rounded square. With `stickers`, the logos of the apps it
- * uses sit on its lower edge. The glyph is a build constant, so innerHTML is safe.
- */
 export function RecipeIcon(props: { recipe: Pick<RecipeCard, "glyph" | "tone" | "apps">; size: number; stickers?: boolean }) {
   const sticker = () => Math.max(16, Math.round(props.size * 0.42))
   return (

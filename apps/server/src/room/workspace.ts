@@ -93,6 +93,34 @@ export class RoomWorkspace implements Workspace {
 		this.sql = storage.sql
 	}
 
+	private resolveAssignment(by: Actor, id: string, patch: Parameters<Workspace["update"]>[2], members: readonly AgentSlug[], lead: boolean, current: Task): { owner: string | null; status: TaskStatus } | ReturnType<typeof fail> {
+		const asked = patch.owner === undefined ? undefined : patch.owner || null
+		let owner = asked === undefined ? (current.owner ?? null) : asked
+		const taking = owner !== null && owner !== current.owner
+		if (by.kind === "agent" && !lead && taking && owner !== by.slug) return fail(`task ${id} can only be assigned to @${by.slug}`)
+		if (by.kind === "agent" && !lead && current.owner && current.owner !== by.slug) return fail(`task ${id} is owned by @${current.owner}`)
+		if (taking && CLOSED.has(current.status)) return fail(`task ${id} is ${current.status}`)
+		if (asked === undefined && !owner && by.kind === "agent" && patch.status === "doing") owner = by.slug
+		if (owner && owner !== current.owner && !members.includes(owner as AgentSlug)) return fail(`@${owner} is not a member of this room`)
+		if (by.kind === "agent" && !owner && asked === undefined) return fail(`task ${id} has no owner. set it to doing to take it`)
+		const starts = patch.status === undefined && taking && !current.owner && (current.status === "todo" || current.status === "blocked") && !this.openDeps(id).length
+		const status = (patch.status as TaskStatus | undefined) ?? (starts ? "doing" : current.status)
+		if (status === "done" && current.status !== "done") {
+			const open = this.openDeps(id)
+			if (open.length) return fail(`task ${id} waits on ${open.join(", ")}, which are not done`)
+		}
+		return { owner, status }
+	}
+
+	private validateDependencies(input: Parameters<Workspace["create"]>[1]): string[] | ReturnType<typeof fail> {
+		const deps = [...new Set(input.dependsOn ?? [])]
+		if (deps.length > MAX_DEPS) return fail(`a task can depend on at most ${MAX_DEPS} tasks`)
+		if (deps.includes(input.id)) return fail(`task ${input.id} cannot depend on itself`)
+		const missing = deps.filter((d) => !this.task(d))
+		if (missing.length) return fail(`no task ${missing.join(", ")}`)
+		return deps
+	}
+
 	private deps(id: string): string[] {
 		return this.sql.exec<{ d: string }>("SELECT depends_on AS d FROM ws_task_deps WHERE task_id = ?1 AND ws_task_deps.room_id = ?2 ORDER BY rowid", id, this.log.roomId).toArray().map((r) => r.d)
 	}
@@ -133,11 +161,9 @@ export class RoomWorkspace implements Workspace {
 			if (this.sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM ws_tasks WHERE ws_tasks.room_id = ?1", this.log.roomId).one().n >= MAX_TASKS) return fail(`the board is full (${MAX_TASKS} tasks)`)
 			const owner = input.owner || null
 			if (owner && !members.includes(owner as AgentSlug)) return fail(`@${owner} is not a member of this room`)
-			const deps = [...new Set(input.dependsOn ?? [])]
-			if (deps.length > MAX_DEPS) return fail(`a task can depend on at most ${MAX_DEPS} tasks`)
-			if (deps.includes(input.id)) return fail(`task ${input.id} cannot depend on itself`)
-			const missing = deps.filter((d) => !this.task(d))
-			if (missing.length) return fail(`no task ${missing.join(", ")}`)
+			const checked = this.validateDependencies(input)
+			if (!Array.isArray(checked)) return checked
+			const deps = checked
 			const seq = this.log.lastSeq() + 1
 			const made = chain ?? (by.kind === "human" ? { rootId: `task:${input.id}`, hop: 0 } : null)
 			this.sql.exec(
@@ -172,25 +198,9 @@ export class RoomWorkspace implements Workspace {
 			const current = this.task(id)
 			if (!current) return fail(`no task ${id}`)
 			if (patch.status !== undefined && !isStatus(patch.status)) return fail(`status must be one of ${TASK_STATUSES.join(", ")}`)
-			const asked = patch.owner === undefined ? undefined : patch.owner || null
-			let owner = asked === undefined ? (current.owner ?? null) : asked
-			// Taking a task is a claim: only for yourself unless you lead, never out of a closed task,
-			// and it starts the work when the task has not started. Starting an unowned task takes it.
-			const taking = owner !== null && owner !== current.owner
-			if (by.kind === "agent" && !lead && taking && owner !== by.slug) return fail(`task ${id} can only be assigned to @${by.slug}`)
-			if (by.kind === "agent" && !lead && current.owner && current.owner !== by.slug) return fail(`task ${id} is owned by @${current.owner}`)
-			if (taking && CLOSED.has(current.status)) return fail(`task ${id} is ${current.status}`)
-			if (asked === undefined && !owner && by.kind === "agent" && patch.status === "doing") owner = by.slug
-			if (owner && owner !== current.owner && !members.includes(owner as AgentSlug)) return fail(`@${owner} is not a member of this room`)
-			// An agent names a task by taking it. Only a lead can leave one unowned.
-			if (by.kind === "agent" && !owner && asked === undefined) return fail(`task ${id} has no owner. set it to doing to take it`)
-			// Taking a task starts it, unless something it waits on is still open.
-			const starts = patch.status === undefined && taking && !current.owner && (current.status === "todo" || current.status === "blocked") && !this.openDeps(id).length
-			const status = (patch.status as TaskStatus | undefined) ?? (starts ? "doing" : current.status)
-			if (status === "done" && current.status !== "done") {
-				const open = this.openDeps(id)
-				if (open.length) return fail(`task ${id} waits on ${open.join(", ")}, which are not done`)
-			}
+			const assignment = this.resolveAssignment(by, id, patch, members, lead, current)
+			if ("ok" in assignment) return assignment
+			const { owner, status } = assignment
 			const title = patch.title === undefined ? current.title : clip(patch.title, MAX_TITLE) || current.title
 			const note = patch.note === undefined ? (current.note ?? null) : clip(patch.note, MAX_NOTE) || null
 			const next: Task = { ...current, title, status, ...(owner ? { owner: owner as AgentSlug } : {}), ...(note ? { note } : {}) }
@@ -281,8 +291,6 @@ export function runCall(ws: Workspace, slug: AgentSlug, lead: boolean, call: Wor
 		r.ok ? { answer: { ok: true as const, text: text(r.value) }, events: r.events } : { answer: fail(r.error), events: [] }
 	switch (call.op) {
 		case "update_task": {
-			// `update` follows the claim rules itself: setting doing takes an unowned task for the caller,
-			// and `owner` takes it for the named agent or ("me") for the caller.
 			const owner = call.owner?.replace(/^@/, "").trim().toLowerCase()
 			const who = owner === "me" ? slug : owner
 			return done(ws.update(by, call.id, { status: call.status, note: call.note, title: call.title, ...(who ? { owner: who } : {}) }, members, lead), (t) => `updated ${line(t)}`)

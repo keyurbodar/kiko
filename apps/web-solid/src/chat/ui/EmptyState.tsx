@@ -1,6 +1,5 @@
 import "./empty-state.css"
 
-/** A new chat opens to one heading with the composer under it. The first send carries the composer down to the dock. */
 export function EmptyState() {
   return (
     <div class="chat-empty" data-component="chat-empty">

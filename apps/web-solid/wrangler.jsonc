@@ -1,7 +1,5 @@
 {
   "$schema": "../server/node_modules/wrangler/config-schema.json",
-  // The hosted front door: the client and the signed backend releases, as static assets only. It has no
-  // Durable Objects and no name in common with a backend, so the installer never mistakes it for one.
   "name": "kiko-app",
   "compatibility_date": "2026-09-01",
   "assets": {

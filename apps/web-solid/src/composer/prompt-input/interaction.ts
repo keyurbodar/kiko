@@ -38,9 +38,7 @@ export type PromptInputV2ViewConfig = {
   variant?: PromptInputV2SelectControl
   submit: {
     canSubmit?: Accessor<boolean | undefined>
-    /** Attachments are still being read for sending. The send button says so. */
     preparing?: Accessor<boolean>
-    /** Why sending waits, such as an attachment still uploading. The send button is off and says so. */
     blocked?: Accessor<string | null>
     onSubmit: () => void
   }
@@ -277,7 +275,6 @@ export function createPromptInputV2Controller(input: {
     if (!input.history || !editor) return false
     const selection = window.getSelection()
     if (!selection?.isCollapsed || !editor.contains(selection.anchorNode)) return false
-    // The caret is measured in rendered text, so the length is too. A formatted draft's markdown is longer.
     const length = editor.textContent?.length ?? 0
     if (!canNavigateHistory(direction, length, editorCursor(editor), state.historyIndex >= 0)) return false
     const entries = input.history.entries(state.mode)

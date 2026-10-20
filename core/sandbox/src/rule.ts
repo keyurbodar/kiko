@@ -1,6 +1,5 @@
 export const MIN_REPEAT_MS = 30 * 60_000;
 
-// A trigger may not fire every minute. The gap check that needs rrule runs in recurrence.ts.
 export function triggerProblem(rrule: string): string | null {
   if (/FREQ=MINUTELY/.test(rrule)) return "a schedule repeats at most every 30 minutes";
   return ruleProblem(rrule);
@@ -24,7 +23,6 @@ const ints = (v: string, min: number, max: number) =>
 
 export function ruleProblem(rrule: string): string | null {
   const parts = new Map<string, string>();
-  // No caller sets a start time: the first occurrence comes from the time the schedule is given.
   if (/^DTSTART[:;]/im.test(rrule.trim())) return "rrule takes no DTSTART line. the first time comes from the time you give";
   const lines = rrule.trim().split(/\r?\n/);
   if (lines.length !== 1) return "rrule must be one RRULE line";
@@ -40,6 +38,20 @@ export function ruleProblem(rrule: string): string | null {
   if (!freq || !FREQS.includes(freq)) return "rrule needs FREQ: MINUTELY, HOURLY, DAILY, WEEKLY, MONTHLY, or YEARLY";
   const interval = Number(parts.get("INTERVAL") ?? 1);
   if (!Number.isInteger(interval) || interval < 1 || interval > 1000) return "rrule INTERVAL must be 1 to 1000";
+  const problem = partProblem(parts);
+  if (problem) return problem;
+  if (interval > 1) {
+    for (const k of parts.keys()) {
+      if (k.startsWith("BY") && !EXPANDS[freq].includes(k)) return `rrule ${k} with INTERVAL=${interval} can skip every match. use a smaller FREQ with INTERVAL=1, or drop ${k}`;
+    }
+  }
+  const days = parts.get("BYMONTHDAY")?.split(",").map(Number) ?? [];
+  const months = parts.get("BYMONTH")?.split(",").map(Number) ?? Array.from({ length: 12 }, (_, i) => i + 1);
+  if (days.length && !days.some((d) => months.some((m) => Math.abs(d) <= (MONTH_DAYS[m - 1] ?? -Infinity)))) return "rrule BYMONTHDAY never falls in the chosen months";
+  return null;
+}
+
+function partProblem(parts: Map<string, string>): string | null {
   const count = parts.get("COUNT");
   if (count !== undefined && !ints(count, 1, 10_000)) return "rrule COUNT must be 1 to 10000";
   const byHour = parts.get("BYHOUR");
@@ -54,13 +66,5 @@ export function ruleProblem(rrule: string): string | null {
   if (byMonthDay !== undefined && !ints(byMonthDay, -31, 31)) return "rrule BYMONTHDAY must be 1 to 31, or -1 to -31";
   const byDay = parts.get("BYDAY");
   if (byDay !== undefined && !byDay.split(",").every((d) => DAYS.has(d.replace(/^[+-]?[1-5]/, "")))) return "rrule BYDAY must be days like MO,TU or 1MO, -1FR";
-  if (interval > 1) {
-    for (const k of parts.keys()) {
-      if (k.startsWith("BY") && !EXPANDS[freq].includes(k)) return `rrule ${k} with INTERVAL=${interval} can skip every match. use a smaller FREQ with INTERVAL=1, or drop ${k}`;
-    }
-  }
-  const days = parts.get("BYMONTHDAY")?.split(",").map(Number) ?? [];
-  const months = parts.get("BYMONTH")?.split(",").map(Number) ?? Array.from({ length: 12 }, (_, i) => i + 1);
-  if (days.length && !days.some((d) => months.some((m) => Math.abs(d) <= (MONTH_DAYS[m - 1] ?? -Infinity)))) return "rrule BYMONTHDAY never falls in the chosen months";
   return null;
 }

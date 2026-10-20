@@ -5,8 +5,6 @@ const ALLOW_HEADERS = "Authorization, Content-Type, Range, X-Kiko-If-Sha256"
 const ALLOW_METHODS = "GET, HEAD, POST, PUT, DELETE, OPTIONS"
 const EXPOSE_HEADERS = "Content-Range, Content-Length, Accept-Ranges, ETag"
 
-// The page may live on another origin (hosted kiko). Auth is a bearer token, not a cookie, so no credentials
-// mode is needed. Only an Origin that originAllowed accepts gets the headers; any other origin gets none.
 function crossOrigin(request: Request, env: AuthEnv): string | null {
   const origin = request.headers.get("origin")
   const url = new URL(request.url)

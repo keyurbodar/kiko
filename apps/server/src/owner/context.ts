@@ -9,7 +9,6 @@ export function metadata(storage: DurableObjectStorage, scope: string): Metadata
   }
 }
 
-/** Only socket views differ between local services. SQLite and object identity remain the owner's. */
 export function serviceContext(owner: DurableObjectState, sockets: () => WebSocket[]): DurableObjectState {
   return new Proxy(owner, {
     get(target, property) {

@@ -2,10 +2,6 @@ import { For } from "solid-js";
 import { render } from "solid-js/web";
 import { createTree } from "@kiko/ui/v2/tree/create-tree";
 
-/*
- * Experiment 9: a 1,000-node tree on the Solid binding. 10 roots, 9 folders in
- * each, 10 files in each folder. Indent only, no other styling.
- */
 const children = new Map<string, string[]>();
 const names = new Map<string, string>();
 const folders = new Set<string>();

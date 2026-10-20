@@ -1,17 +1,7 @@
-// One function turns agent markdown into the
-// protocol tree. The `marked` lexer is confined to this file. Nothing here
-// emits HTML: a raw HTML token becomes text. A link keeps its href when it is
-// http, https, or mailto, or when it names a file (no scheme, or `file:`). The
-// client draws a file href as a chip that opens the files tab, never as a link. A link whose href
-// does not parse as a URL loses its href. A paragraph that is only an image becomes an image
-// block: an https address as is, a path as the id of the chat file it names, and a path with no
-// image file behind it as a file link.
-
 import { isAgentSlug, type Block, type ColumnAlign, type HeadingLevel, type Inline, type RichText } from "@kiko/protocol"
 import { Lexer, type Token, type Tokens } from "marked"
 
 const SAFE_LINK = /^(https?|mailto|file):/i
-/** A scheme, as in `javascript:`. `notes.md:3` is a file with a line, not a scheme. */
 const SCHEME = /^[a-z][a-z0-9+.-]*:(?!\d)/i
 const MENTION = /(^|[^\w@/.-])@([a-z0-9-]{1,32})(?![\w-])/g
 const TASK_MARKER = /^\[[ xX]\]\s*/
@@ -24,12 +14,9 @@ function parses(href: string): boolean {
 	}
 }
 
-/** The id of the image file at a path in the chat, or null. */
 export type ImageFile = (path: string) => string | null
 
 export function parseRichText(markdown: string, imageFile: ImageFile = () => null): RichText {
-	// `breaks`: a single newline is a line break. In a chat bubble a new line is meant, and
-	// joining the lines of a quote or a short list of facts into one run of text misreads it.
 	return blocks(Lexer.lex(markdown, { gfm: true, breaks: true }), imageFile)
 }
 
@@ -43,11 +30,6 @@ function blocks(tokens: readonly Token[], imageFile: ImageFile): Block[] {
 	return out
 }
 
-/**
- * A picture on a line of its own is a picture, even when a line of words sits above or below it in the same
- * paragraph: the agent writes "here it is" and the address on the next line, and a paragraph with a stray image in it
- * used to flatten the whole thing to alt text. An image inside a sentence stays that sentence's alt text.
- */
 function withImages(t: Tokens.Paragraph | Tokens.Text, imageFile: ImageFile): Block[] {
 	const tokens = t.tokens ?? []
 	if (!tokens.some((each) => each.type === "image")) return [{ t: "paragraph", children: t.tokens ? inlines(t.tokens) : mentions(t.text) }]
@@ -119,7 +101,7 @@ function toBlock(token: Token, imageFile: ImageFile): Block | Block[] | null {
 			return text ? { t: "paragraph", children: [{ t: "text", text }] } : null
 		}
 		default:
-			return null // space, def
+			return null
 	}
 }
 
@@ -132,10 +114,6 @@ function imageBlock(image: Tokens.Image, imageFile: ImageFile): Block {
 	return fileId ? { t: "image", alt, fileId } : { t: "paragraph", children: [{ t: "link", href, children: [{ t: "text", text: alt }] }] }
 }
 
-/**
- * A task item's box, drawn as a character at the start of its first line. The `[ ]` marker is
- * already in the item's text, so it is dropped first. The client finds a task item by this box.
- */
 function ticked(item: Block[], checked: boolean): Block[] {
 	const box: Inline = { t: "text", text: checked ? "☑ " : "☐ " }
 	const [first, ...rest] = item
@@ -186,7 +164,6 @@ function push(out: Inline[], token: Token): void {
 		case "image":
 			return void out.push({ t: "text", text: (token as Tokens.Image).text })
 		default:
-			// raw inline html and anything unknown: the source as plain text
 			return void out.push({ t: "text", text: (token as { raw: string }).raw })
 	}
 }

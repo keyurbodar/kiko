@@ -2,9 +2,6 @@ import { type Fetcher, safeFetch } from "@kiko/durable/safe-fetch"
 import { getFileUser, getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 
-// A link's icon comes from here, so the reader's browser never asks the
-// linked site, and no third party sees which hosts a chat names. Only a public host with a dot is
-// fetched, through the safe fetch helper, and the result is kept in the Cache API.
 const PREFIX = "/api/favicon/"
 const MAX_BYTES = 64 * 1024
 const TIMEOUT_MS = 3000
@@ -13,7 +10,6 @@ const MISS_SECONDS = 3600
 const IMAGE = /^image\/(png|x-icon|vnd\.microsoft\.icon|jpeg|gif|webp|svg\+xml)$/i
 const LABEL = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
 
-/** A public DNS name, lower case, or null. An IP literal, a name with no dot, and a bad label are refused here. */
 function faviconHost(raw: string): string | null {
 	const host = raw.toLowerCase().replace(/\.$/, "")
 	if (host.length > 253) return null
@@ -34,7 +30,6 @@ const reply = (body: BodyInit | null, status: number, type: string | null, secon
 		},
 	})
 
-// Google's favicon service finds icons declared in a page's <link rel=icon>; the site's own /favicon.ico is the fallback.
 const sources = (host: string) => [`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32`, `https://${host}/favicon.ico`]
 
 async function fetchFavicon(host: string, fetcher?: Fetcher): Promise<Response> {

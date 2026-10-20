@@ -2,7 +2,6 @@ import { getSetting, setSetting } from "../lib/settings"
 import { isRoomId, KIKO, KIKO_HOME_ROOM, sameAgentChat, type Chat, type ChatOp, type RoomId } from "@kiko/protocol"
 
 const KEY = "kiko_home"
-// The key and agent id from before the rename. An account made then still holds them.
 const LEGACY_KEY = "yuki_home"
 const TITLE = "Kiko"
 const LEGACY_TITLE = "Yuki"
@@ -12,11 +11,6 @@ export function kikoChatRoom(sql: SqlStorage): RoomId | null {
   return value && isRoomId(value) ? value : null
 }
 
-/**
- * What ensureHome applies so the account has exactly one pinned Kiko chat. The chat the account
- * already has is adopted: the one the setting names, the one the old setting names, or else the
- * most recent chat with Kiko alone. Only an account with none gets a new one.
- */
 export function kikoChatOps(sql: SqlStorage, chats: readonly Chat[]): ChatOp[] {
   const has = (id: string | null) => (id ? chats.find((c) => c.roomId === id) : undefined)
   const found = has(kikoChatRoom(sql)) ?? has(getSetting(sql, LEGACY_KEY)) ?? sameAgentChat(chats, [KIKO])

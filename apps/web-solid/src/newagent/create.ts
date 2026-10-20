@@ -7,11 +7,6 @@ import { useApp } from "../lib/store"
 import { look, saveLook } from "../theme/live"
 import { type Form, tidyName } from "./model"
 
-/**
- * Makes the agent. Its chat, its avatar, and its place in the list are in at once; the server then makes the
- * agent and starts its greeting. If the server refuses, all of it is taken back and the person is told why.
- * Returns the chat to open.
- */
 export function createAgent(form: Form, pins: AvatarPins, back: () => void): RoomId | null {
   const user = useApp.user()
   if (!user) return null
@@ -21,7 +16,6 @@ export function createAgent(form: Form, pins: AvatarPins, back: () => void): Roo
   const roomId = newRoomId()
   const undo = user.addAgentChat(agent, roomId)
   const before = look()
-  // No pins is the face the handle draws, which every view shows for an agent with no pick.
   if (Object.keys(pins).length) saveLook({ ...before, avatars: { ...before.avatars, [slug]: pins } })
   void send(agent, roomId, description).then((error) => {
     if (error === null) return

@@ -10,7 +10,6 @@ type Declaration = { effect: Effect; stoppable: boolean }
 
 type Declared = { [DECLARED]?: Declaration }
 
-// A tool may be stopped mid-call when it is a read: it changes nothing outside the run. `stoppable` opts in the rest.
 export function declareEffect<T extends ToolRegistration>(effect: Effect, tool: T, options: { stoppable?: boolean } = {}): T {
   if (!EFFECTS.includes(effect)) throw new Error(`tool ${tool.name}: unknown effect ${String(effect)}`)
   return Object.assign({ ...tool }, { [DECLARED]: { effect, stoppable: options.stoppable ?? false } }) as T

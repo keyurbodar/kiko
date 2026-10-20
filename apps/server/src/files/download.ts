@@ -1,4 +1,3 @@
-
 import { fileStore, type StoredObject } from "./store"
 import { getFileUser, signToken } from "../auth/auth"
 import type { Env } from "../index"
@@ -9,7 +8,6 @@ type Span = { start: number; end: number }
 
 export function parseRange(header: string | null, size: number): Span | null | "bad" {
 	const m = header ? /^bytes=(\d*)-(\d*)$/.exec(header.trim()) : null
-	// An empty file has no bytes to range over. Serving it whole lets a viewer read a new file.
 	if (!m || (m[1] === "" && m[2] === "") || size === 0) return null
 	if (m[1] === "") {
 		const suffix = Number(m[2])
@@ -31,10 +29,8 @@ function headersFor(object: StoredObject): Headers {
 	headers.set("etag", object.httpEtag)
 	headers.set("cache-control", "private, max-age=31536000, immutable")
 	headers.set("accept-ranges", "bytes")
-	// A user's HTML or SVG must not run as kiko's origin.
 	headers.set("x-content-type-options", "nosniff")
 	headers.set("content-security-policy", "sandbox")
-	// A page that can run script is saved, never shown, when someone opens its address.
 	if (ACTIVE_TYPE.test(headers.get("content-type")?.toLowerCase() ?? "")) headers.set("content-disposition", "attachment")
 	return headers
 }

@@ -6,10 +6,6 @@ import { openSession, type SessionOptions } from "./session"
 
 export type ConnectOptions = SessionOptions & { now?: () => number }
 
-/**
- * A page dialog blocks every later command, so one is always answered for the page: alerts and beforeunload are
- * accepted, and a confirm or a prompt is accepted and reported back, so the agent can see what its click agreed to.
- */
 export async function connect(cdpUrl: string, options: ConnectOptions = {}): Promise<BrowserSession> {
   const cdp = await openSession(cdpUrl, options)
   const tabs = new Map<string, Tab>()
@@ -25,7 +21,6 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
         page.channel.send("Page.handleJavaScriptDialog", { accept: true }).catch(() => {})
         if (dialog.type === "confirm" || dialog.type === "prompt") page.notes.push(`${dialog.type} said "${dialog.message}": accepted`)
       }),
-      // The load waiter is registered from the start event, so it exists before the load can fire.
       page.channel.on("Page.frameStartedLoading", (event) => {
         if (event.frameId !== targetId) return
         const loading: Promise<unknown> = page.channel
@@ -44,7 +39,6 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
       for (const off of subscriptions) off()
     }
     try {
-      // A tab created at its url loads while we attach, so wait for its load unless it already finished.
       const loaded = url ? page.channel.waitFor("Page.loadEventFired", BROWSER.loadMs) : undefined
       const [, , ready] = await Promise.all([
         page.channel.send("Page.enable"),
@@ -95,7 +89,6 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     openTab: async (url) => {
       const invalid = url === undefined ? undefined : schemeError(url)
       if (invalid) throw new Error(invalid)
-      // Background tabs in a shared window get ~0 animation frames on Kernel; their own unactivated window keeps rendering.
       const { targetId } = await cdp.send("Target.createTarget", { url: url ?? "about:blank", background: true, newWindow: true })
       return adopt(targetId, url)
     },

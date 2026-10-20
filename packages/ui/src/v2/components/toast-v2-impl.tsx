@@ -26,13 +26,6 @@ import {
 } from "./toast-v2-logic"
 import "./toast-v2.css"
 
-/*
- * Kiko's toaster, after t3code's (MIT, apps/web/src/components/ui/toast.tsx on Base UI's
- * toast): a glass card at the top right under the top bar, a stack of three that fans out on
- * hover or focus, a dismiss orb on the corner, and small toasts anchored to the control that
- * raised them. Alt+T focuses the newest toast and Escape dismisses the focused one.
- */
-
 export type { ToastV2Variant }
 
 export interface ToastV2Action {
@@ -46,14 +39,11 @@ export interface ToastV2Options {
   description?: string
   icon?: JSX.Element
   variant?: ToastV2Variant
-  /* Milliseconds before it closes on its own. Zero keeps it until dismissed. */
   duration?: number
   persistent?: boolean
   action?: ToastV2Action
   actions?: ToastV2Action[]
-  /* Shows a small toast next to this element instead of in the stack, as t3code's copy buttons do. */
   anchor?: Element
-  /* An error with a description gets a copy button, as in t3code. Set this to leave it out. */
   hideCopyButton?: boolean
 }
 
@@ -67,7 +57,6 @@ interface ToastItem {
   id: number
   key: string
   options: ToastV2Options
-  /* Bumped by every update, which restarts the timer. */
   version: number
   ending?: Ending
   anchor?: { x: number; top: number; bottom: number }
@@ -100,7 +89,6 @@ const anchorOf = (element: Element | undefined) => {
 const reducedMotion = () =>
   typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches
 
-/* Shows a toast and returns its id. The same toast again refreshes the one on screen. */
 export function showToastV2(input: ToastV2Options | string): number {
   const options = typeof input === "string" ? { title: input } : input
   const key = toastKey(options)
@@ -119,7 +107,6 @@ export function showToastV2(input: ToastV2Options | string): number {
   return id
 }
 
-/* Replaces a toast's content and restarts its timer, as when a loading toast gets its result. */
 export function updateToastV2(id: number, options: ToastV2Options) {
   setToasts(
     (toast) => toast.id === id && !toast.ending,
@@ -132,7 +119,6 @@ export function updateToastV2(id: number, options: ToastV2Options) {
   )
 }
 
-/* Closes one toast, or every toast when no id is given. */
 export function dismissToastV2(id?: number, ending: Ending = "close") {
   const closing = toasts.filter((toast) => !toast.ending && (id === undefined || toast.id === id)).map((toast) => toast.id)
   if (!closing.length) return
@@ -148,7 +134,6 @@ export interface ToastV2PromiseOptions<T> {
   error: ToastV2Step<unknown>
 }
 
-/* A loading toast that becomes the success or error toast when the promise settles. */
 export function promiseToastV2<T>(promise: Promise<T>, steps: ToastV2PromiseOptions<T>): Promise<T> {
   const asOptions = (step: string | ToastV2Options) => (typeof step === "string" ? { title: step } : step)
   const id = showToastV2({ ...asOptions(steps.loading), variant: "loading" })
@@ -161,7 +146,6 @@ export function promiseToastV2<T>(promise: Promise<T>, steps: ToastV2PromiseOpti
   return promise
 }
 
-/* A toast shown again is nudged, so the repeat reads as heard. */
 function pulse(id: number) {
   if (typeof requestAnimationFrame === "undefined" || reducedMotion()) return
   requestAnimationFrame(() => {
@@ -171,7 +155,6 @@ function pulse(id: number) {
   })
 }
 
-/* Runs a toast's timer, held while `paused` is true, and restarted by each update. */
 function autoDismiss(toast: ToastItem, paused: () => boolean, close: () => void) {
   createEffect(
     on(
@@ -224,7 +207,6 @@ function ToastV2Region(props: ToastV2RegionProps) {
     return front
   }
 
-  /* Closes a toast, and keeps focus in the region, or gives it back, if it was there. */
   const close = (id: number, ending: Ending = "close") => {
     const hadFocus = Boolean(list?.contains(document.activeElement))
     dismissToastV2(id, ending)
@@ -403,7 +385,6 @@ function ToastCard(props: {
       data-swiping={swiping() || undefined}
       style={{ "--toast-index": props.slot?.index ?? 0, "--toast-offset-y": `${props.slot?.offset ?? 0}px` }}
       onPointerDown={(event) => {
-        /* Swipe to dismiss is for touch. A mouse selects text and has the dismiss orb. */
         if (event.pointerType === "mouse" || (event.target as Element).closest("button")) return
         start = { x: event.clientX, y: event.clientY }
         axis = null
@@ -488,7 +469,6 @@ function ToastCard(props: {
   )
 }
 
-/* t3code's tooltip-style anchored toast: one line, above the control, or below it near the top. */
 function AnchoredToast(props: { toast: ToastItem }) {
   autoDismiss(props.toast, () => false, () => dismissToastV2(props.toast.id))
   const anchor = () => props.toast.anchor!

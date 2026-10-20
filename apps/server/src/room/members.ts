@@ -5,7 +5,6 @@ import { CHIEF } from "./chief"
 
 export const MAX_MEMBERS = 8
 const MAX_NAME = 60
-/** The brief shows a role whole, so the stored role is the text a member reads. */
 export const MAX_ROLE = 400
 const MAX_MODEL = 200
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set(["all"])
@@ -60,7 +59,6 @@ export class Members {
 
 	#busy: Map<AgentSlug, { name: string; status: AgentState }> | null = null
 
-	/** The members that are not idle, in order. Kept in memory and rebuilt from the table after a wake, so reading it costs no rows. */
 	busy(): ReadonlyMap<AgentSlug, { name: string; status: AgentState }> {
 		this.#busy ??= new Map(this.list().filter((m) => m.status !== "idle").map((m) => [m.slug, { name: m.name, status: m.status }]))
 		return this.#busy

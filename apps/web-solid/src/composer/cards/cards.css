@@ -1,4 +1,3 @@
-/* Ported from T3 Code ComposerBanner, ComposerTasksBadge, and ComposerPendingUserInputPanel. See T3-LICENSE. */
 .composer-cards, .composer-card-choices {
   --card-active: var(--ring);
   --card-complete: var(--success);

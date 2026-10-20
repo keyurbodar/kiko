@@ -37,7 +37,6 @@ export async function deleteFiles(bucket: FileBucket, keys: string | readonly st
 	for (let i = 0; i < all.length; i += R2_DELETE_LIMIT) await bucket.delete(all.slice(i, i + R2_DELETE_LIMIT))
 }
 
-/** A refusal the built-in store raises when a file or a chat's storage is over its cap. Across an RPC only the message survives. */
 export function storageRefusal(e: unknown): string | null {
 	const message = e instanceof Error ? e.message : ""
 	return message === STORAGE_FULL || message === FILE_TOO_LARGE ? message : null

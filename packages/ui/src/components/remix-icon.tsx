@@ -4,13 +4,10 @@ import type { Glyph } from "../icons.gen"
 export type { Glyph }
 
 export type RemixIconProps = Omit<ComponentProps<"svg">, "children"> & {
-  /** A glyph from `@kiko/ui/icons`, such as `SearchIcon`. */
   icon: Glyph
-  /** Pixels. Defaults to 16. */
   size?: number
 }
 
-/** One of kiko's icons. The glyphs are Remix Icon, copied into `icons.gen.ts` by `scripts/gen-icons.ts`. */
 export function RemixIcon(props: RemixIconProps) {
   const [own, rest] = splitProps(props, ["icon", "size"])
   return (

@@ -20,7 +20,6 @@ type DevDeps = {
 	sweepPending: () => Promise<number>
 }
 
-// The bodies never reach a production bundle: dev-guard loads this module only in a dev build.
 export class RoomDev {
 	constructor(private readonly d: DevDeps) {}
 

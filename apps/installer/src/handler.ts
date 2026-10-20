@@ -31,11 +31,6 @@ function reply(body: unknown, status: number, origin: string | null): Response {
   return new Response(JSON.stringify(body), { status, headers })
 }
 
-/**
- * The token as Cloudflare wants it. A paste can carry spaces, quotes, or the "Bearer " of the test command
- * Cloudflare shows. A character a header cannot hold would make fetch throw, which reads as Cloudflare being
- * down, so it is dropped and Cloudflare answers that the token is invalid.
- */
 export function cleanToken(raw: string): string {
   const bearer = /Bearer\s+([^\s"']+)/.exec(raw)
   return (bearer?.[1] ?? raw).replace(/[^\x21-\x7e]/g, "").replace(/^["']+|["']+$/g, "")
@@ -50,7 +45,6 @@ function parseGrant(value: unknown): Grant | null {
   return null
 }
 
-// The Worker only checks who is asking. The upload is built in the Installer object, which has the CPU budget for it.
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
@@ -70,8 +64,6 @@ export default {
       return reply({ clientId: env.CF_OAUTH_CLIENT_ID, authorizeUrl: "https://dash.cloudflare.com/oauth2/auth", scopes: OAUTH_SCOPES }, 200, origin)
     }
     if (request.method === "GET" && url.pathname === "/token-link") {
-      // A token template URL opens the create form with the permissions ticked
-      // (https://developers.cloudflare.com/fundamentals/api/how-to/account-owned-token-template/).
       return reply({ url: TOKEN_TEMPLATE_URL, permissions: TOKEN_PERMISSIONS }, 200, origin)
     }
 

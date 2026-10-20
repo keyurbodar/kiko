@@ -15,10 +15,6 @@ import { ChatPanel } from "./chat-panel"
 const UpdatePill = lazy(() => import("../app/update-pill"))
 import "./sidebar.css"
 
-/*
- * One panel per section, chosen from this table. Chat paints with the first frame; the others
- * load the first time their section opens, and then stay mounted so each keeps its scroll.
- */
 const PANELS: Record<SectionId, Component> = {
   chat: ChatPanel,
   recipes: lazy(() => import("./recipes/sidebar")),
@@ -39,27 +35,11 @@ const ACTIONS: Record<SectionId, PanelAction | null> = {
 }
 
 export interface SidebarProps {
-  /** The active section, read from the URL by the shell. */
   section: SectionId | null
   collapsed: boolean
-  /** The sidebar's own button and `Mod+\` both call this. */
   onToggle: () => void
 }
 
-/**
- * The one sidebar: the brand and its two actions on top, the section's panel in the middle,
- * and you and settings at the foot. The stylesheet scopes every rule under `.sidebar-shell`,
- * the shell's own class, so nothing here can reach the main panel beside it. Which section it
- * shows, whether it is collapsed, and its width come from the shell.
- *
- * Deliberately NOT `.chat-shell`: that name is already the `data-component`
- * handle for the app's chat pane, and a bare class of it collided with the
- * transcript's scroller once before.
- *
- * Neither collapse nor resize is animated. kat runs both on a `spring250`
- * curve; here the column is either there or it is not, because a panel that
- * takes a quarter second to get out of the way is a panel the user waits on.
- */
 export function Sidebar(props: SidebarProps) {
   const collapsed = () => props.collapsed
   const shown = (): SectionId => props.section ?? "chat"
@@ -109,7 +89,6 @@ export function Sidebar(props: SidebarProps) {
   )
 }
 
-/** Opens and closes the sidebar. The top bar shows the same button while the sidebar is shut. */
 export function SidebarToggle(props: { open: boolean; onToggle: () => void; class?: string }) {
   return (
     <TooltipV2 placement="bottom" openDelay={400} value={props.open ? "Hide sidebar" : "Show sidebar"}>
@@ -179,7 +158,6 @@ function Foot() {
   )
 }
 
-/** The compose button in the panel header. It opens the bot picker, the same as `Mod+Shift+O` and `/new`. */
 function HeaderAction(props: { action: PanelAction }) {
   const navigate = useNavigate()
   return (

@@ -1,16 +1,9 @@
 import type { FileRef } from "@kiko/protocol"
 import { isTextFile } from "./api"
 
-/*
- * Which viewer opens a file, after t3code's filePreviewKind. One table, read in order: the first
- * row that matches wins. A row matches on the stored type or the extension, because agents often
- * store text as octet-stream. No Solid and no DOM, so the cases are tested as data.
- */
 export type ViewerKind = "markdown" | "json" | "csv" | "html" | "diff" | "text" | "image" | "pdf" | "audio" | "video" | "other"
 
-/** The kinds read as text. Each shows its source, and some have a rendered view too. */
 export const TEXT_KINDS: ReadonlySet<ViewerKind> = new Set(["markdown", "json", "csv", "html", "diff", "text"])
-/** The kinds with a rendered view, and what that view is. */
 export const RENDERED: Partial<Record<ViewerKind, "markdown" | "table" | "html">> = { markdown: "markdown", csv: "table", html: "html" }
 
 type FileLike = Pick<FileRef, "name" | "type">

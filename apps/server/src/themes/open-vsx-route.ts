@@ -2,9 +2,6 @@ import { safeFetch } from "@kiko/durable/safe-fetch"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 
-// The browser asks the Worker for Open VSX pages and packages, so it never reaches another host.
-// The request names open-vsx.org under /api/. Package downloads redirect to the Eclipse CDN, the
-// only other host the route follows to. Only for a signed-in owner.
 const PATH = "/api/open-vsx"
 const HOST = "open-vsx.org"
 const CDN_HOST = "openvsx.eclipsecontent.org"

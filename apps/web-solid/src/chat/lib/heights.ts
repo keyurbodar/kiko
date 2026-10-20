@@ -5,7 +5,6 @@ import { graphemes, jumboEmojiClass } from "./reply";
 import { currentLimit, FOLD_BUTTON_PX } from "./fold";
 
 const FONT_BASE = 14;
-// A bubble's line is the font size plus 6px (bubble.tsx).
 const LINE_BOX = FONT_BASE + 6;
 
 const BUBBLE_PAD_TOP = 8;
@@ -13,9 +12,7 @@ const BUBBLE_PAD_Y = BUBBLE_PAD_TOP * 2;
 const ROW_GAP_PX = 1;
 const RUN_GAP_PX = 11;
 
-// A system row (SystemRow.tsx) is a 16px line with 8px above and below.
 const EVENT_ROW_PX = 32;
-// A failed run adds pills: a 26px pill in the line.
 const RUN_ERROR_ROW_PX = 42;
 const CHARS_PER_LINE = 87;
 
@@ -26,16 +23,12 @@ const QUOTE_CHROME_Y = 5 + 5 + 4;
 const JUMBO_SINGLE_PX = 42 * 1.25;
 const JUMBO_GROUP_PX = 31 * 1.25;
 
-// The picture grid (chat/ui/Attachments.tsx): 210px wide, two columns 8px apart, 4:3 tiles. A lone picture spans both.
 const GRID_WIDTH = 210;
 const GRID_GAP = 8;
-// A file row is a 20px line with 4px above and below; rows sit 4px apart.
 const FILE_ROW_PX = 28;
 const FILE_ROW_GAP = 4;
-// The gap between the grid and the rows, and between the attachments and the text.
 const ATTACHMENT_GAP = 8;
 
-/** The height of a message's attachments, without the gap to its text. */
 function attachmentsHeight(message: ChatMessage): number {
   const { images, others } = splitFiles(message.files ?? []);
   const rows = Math.ceil(images.length / 2);
@@ -50,7 +43,6 @@ function bubbleTextLines(body: string): number {
 }
 
 export function estimateRowHeight(item: TimelineItem): number {
-  // The day, unread, event and thread rows (SystemRow.tsx): `py-2` around a `text-xs` line.
   if (item.kind === "event" && item.message.event?.kind === "run_error") return RUN_ERROR_ROW_PX;
   if (item.kind === "day-divider" || item.kind === "unread-divider" || item.kind === "event" || item.kind === "thread") return EVENT_ROW_PX;
 
@@ -67,8 +59,6 @@ export function estimateRowHeight(item: TimelineItem): number {
         : BUBBLE_PAD_Y + attachments + (attachments && hasText ? ATTACHMENT_GAP : 0) + text;
   const quote = message.replyToId === undefined ? 0 : QUOTE_LINE * QUOTE_LINES + QUOTE_CHROME_Y;
 
-  // A body the bubble folds renders at the fold limit, not at its full height. Estimating it whole
-  // made a long chat's scroll size far larger than the rows, so the end moved while scrolling.
   const fold = currentLimit();
   const shown = bubble > fold + FOLD_BUTTON_PX ? fold + FOLD_BUTTON_PX : bubble;
 

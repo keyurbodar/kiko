@@ -3,10 +3,8 @@ import { type UserChannel, userChannel } from "../sync/socket"
 
 export type SignIn = {
   status: "running" | "done" | "error"
-  /** The device code or the sign-in link to show. The newest one wins. */
   code: Extract<LoginEvent, { type: "device_code" }> | null
   link: Extract<LoginEvent, { type: "auth_url" }> | null
-  /** The newest progress or info line. */
   note: string | null
   prompt: { promptId: string; prompt: LoginPrompt } | null
   error: string | null
@@ -16,7 +14,6 @@ export const started: SignIn = { status: "running", code: null, link: null, note
 
 type LoginFrame = Extract<UserToClient, { t: `login.${string}` }>
 
-/** The next state after one frame of this login. Pure, so the table of cases is tested. */
 export function reduceSignIn(state: SignIn, frame: LoginFrame): SignIn {
   switch (frame.t) {
     case "login.notify": {
@@ -36,11 +33,9 @@ export function reduceSignIn(state: SignIn, frame: LoginFrame): SignIn {
 
 export type SignInHandle = {
   answer(promptId: string, value: string): void
-  /** Ends the sign-in. Safe to call more than once and after it ended. */
   cancel(): void
 }
 
-/** Starts a sign-in for `provider`. `onState` sees every change, the last one final. */
 export function startSignIn(provider: string, onState: (state: SignIn) => void, channel: UserChannel = userChannel): SignInHandle {
   const loginId = crypto.randomUUID()
   let state = started

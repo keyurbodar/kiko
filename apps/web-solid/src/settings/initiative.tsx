@@ -4,11 +4,6 @@ import { createSignal, onMount, Show } from "solid-js"
 import { Group, Row, Segmented, Skeleton } from "./kit"
 import { apiFetch } from "../lib/api"
 
-/*
- * Initiative: how much Kiko may speak up unasked, and whether it writes down
- * facts it hears. Each choice applies at once and is put back, with a toast, if the server refuses it.
- */
-
 type Settings = UserSettings
 export type Level = Settings["initiative"]
 export type Capture = Settings["capture"]
@@ -26,7 +21,6 @@ const DEFAULTS: Settings = { initiative: "digest", capture: "auto" }
 const [settings, setSettings] = createSignal<Settings>(DEFAULTS)
 const [loaded, setLoaded] = createSignal(false)
 
-/** A server answer reduced to values the page knows. Anything else keeps the default. */
 export function readSettings(value: unknown): Settings {
   const v = (value ?? {}) as Record<string, unknown>
   return {
@@ -35,7 +29,6 @@ export function readSettings(value: unknown): Settings {
   }
 }
 
-// The newest save of each field. A failed save puts a field back only if no later save touched it.
 const latest: Partial<Record<keyof Settings, number>> = {}
 let counter = 0
 

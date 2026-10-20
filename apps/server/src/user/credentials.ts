@@ -110,7 +110,6 @@ export class CredentialVault implements CredentialStore {
     return this.info(provider)?.problem
   }
 
-  /** Notes why a provider stopped working, or clears it with null. Returns whether the stored problem changed. */
   setProblem(provider: string, problem: ProviderProblem | null): boolean {
     const row = this.info(provider)
     if (!row || row.problem === (problem ?? undefined)) return false

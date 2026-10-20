@@ -14,7 +14,6 @@ import { agentName, editRecipe, isEditing, removeInstall, setInstallPaused, targ
 
 const pillClass = "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs text-muted-foreground hover:bg-control-strong hover:text-foreground"
 
-/** When an install runs next, as a calm chip. Paused says so and keeps its schedule beside it. */
 export function StatusChip(props: { status: InstallStatus }) {
   const chip = "flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs"
   return (
@@ -38,7 +37,6 @@ export function StatusChip(props: { status: InstallStatus }) {
   )
 }
 
-/** Pause or resume, and the menu: open the chat, edit the recipe's file, or remove it. */
 function InstallActions(props: { install: RecipeInstall; card: RecipeCard; go: (to: string) => void }) {
   const status = () => installStatus(props.install, props.card)
   return (
@@ -66,7 +64,6 @@ function InstallActions(props: { install: RecipeInstall; card: RecipeCard; go: (
   )
 }
 
-/** Who runs an install, when the chat has more than one agent: their face and name. */
 function Runner(props: { install: RecipeInstall }) {
   return (
     <Show when={targetsForChat(props.install.roomId).length > 1}>
@@ -78,7 +75,6 @@ function Runner(props: { install: RecipeInstall }) {
   )
 }
 
-/** One recipe at work, as a card on the page's "Yours" tab. The card opens its chat. */
 export function InstallCard(props: { install: RecipeInstall; card: RecipeCard }) {
   const navigate = useNavigate()
   const chatName = () => useApp.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
@@ -117,7 +113,6 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
   )
 }
 
-/** One chat a recipe runs in, as a row in the recipe's sheet. The row opens the chat. */
 export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; navigate: (to: string) => void }) {
   const title = () => useApp.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
   return (

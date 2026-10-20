@@ -4,7 +4,6 @@ import { splitFiles } from "../../lib/attachments";
 export type ReplySummary = {
   text: string;
   thumb?: string;
-  /** The first file's name: its icon stands in for the thumbnail. */
   glyph?: string;
 };
 
@@ -35,14 +34,12 @@ export function replyQuoteText(parent: string | null | undefined): string {
   return `${out}…`;
 }
 
-/** What a message of only attachments is called in a quote: `Photo`, `3 photos`, or its first file. */
 function filesLabel(images: number, others: readonly { name: string }[]): string {
   if (others.length === 0) return images > 1 ? `${images} photos` : "Photo";
   const rest = images + others.length - 1;
   return rest > 0 ? `${others[0]!.name} and ${rest} more` : others[0]!.name;
 }
 
-/** The reply header for a quote: the words the sender picked, in quote marks, cut like any reply. */
 export function quoteSummary(quote: string): ReplySummary {
   return { text: `“${replyQuoteText(quote)}”` };
 }
@@ -57,24 +54,15 @@ export function replySummary(message: ChatMessage): ReplySummary {
   return summary;
 }
 
-/** What a reply shows above its words: who and what it answers, and whether a tap can still find it. */
 export type QuoteModel = {
-  /** The message it answers. */
   id: string;
-  /** Where that message sits, so a tap can load it when it is not in the window. */
   seq?: number;
   label: string;
   summary: ReplySummary;
-  /** The original was deleted: the quote stays, with no words and nowhere to go. */
   gone: boolean;
-  /** The agent whose words these are, for its colour in a group. */
   botId?: string;
 };
 
-/**
- * The quote of a reply, from the original when the window holds it, else from what the room sent
- * with the reply. Null when there is nothing to quote, such as a reply to a system line.
- */
 export function quoteOf(message: ChatMessage, parent: ChatMessage | undefined, name: (slug: string) => string | undefined): QuoteModel | null {
   const id = message.replyToId;
   if (!id) return null;

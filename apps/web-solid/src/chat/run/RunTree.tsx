@@ -10,23 +10,8 @@ import { GLYPH } from "./glyphs"
 import { isLive, type TreeRow, treeOf } from "./run-tree-rows"
 import "./run-tree.css"
 
-/*
- * What an agent did for a bubble, drawn in the thread as a small muted tree hung under it: under
- * the bubble that opens the steps, or under the typing bubble while the agent still makes them. A
- * live tree shows its newest rows and the running one shines; a finished one is a single sentence
- * the reader can open. A row that wrote or read a file opens that file beside the chat; any other
- * row opens the run panel, which hangs beside the tree. Which rows to draw is `run-tree-rows.ts`;
- * this file only draws them.
- */
-
-/**
- * The trees the reader opened, by room, window, and whether the window was live. A tree that leaves
- * the virtual window comes back as it was left, and a tree opened while the agent worked starts
- * closed once the work is done. A session cache, like the long message fold.
- */
 const [opened, setOpened] = createSignal<ReadonlySet<string>>(new Set())
 
-/** The reader opens a few trees, not hundreds. Past this the earliest opened closes again. */
 const MAX_OPENED = 100
 
 function setOpen(key: string, value: boolean) {
@@ -37,16 +22,10 @@ function setOpen(key: string, value: boolean) {
   setOpened(next)
 }
 
-/** The folded rows: not in the page, open, growing open from nothing, or shutting. */
 type Fold = "gone" | "open" | "grow" | "shut"
 
-/** How long the fold takes to grow or shut, from its CSS. Zero under reduced motion. */
 const foldMs = (element: HTMLElement) => Math.max(0, ...getComputedStyle(element).transitionDuration.split(",").map((s) => Number.parseFloat(s) * 1000 || 0))
 
-/**
- * A label that shines while its step runs, and only while it is on screen. The shine's code and look
- * load with the first label that runs: a finished transcript never needs them.
- */
 function Label(props: { text: string; running: boolean }) {
   let element!: HTMLSpanElement
   const running = createMemo(() => props.running)
@@ -69,7 +48,6 @@ function Label(props: { text: string; running: boolean }) {
   )
 }
 
-/** What a call said and did, under its row. A worker lists its calls. */
 function Detail(props: { row: TreeRow; loading: boolean }) {
   const detail = () => props.row.detail!
   return (
@@ -96,7 +74,6 @@ function Detail(props: { row: TreeRow; loading: boolean }) {
   )
 }
 
-/** A step, a worker, or a note. A click opens the file it touched, else its details under it. The wait for the rest only shines. */
 function Row(props: { row: TreeRow; open: boolean; loading: boolean; onOpen: (row: TreeRow) => void }) {
   const icon = () => props.row.icon
   return (
@@ -127,7 +104,7 @@ function Row(props: { row: TreeRow; open: boolean; loading: boolean; onOpen: (ro
   )
 }
 
-export function RunTree(props: { windowKey: string; /** The steps the bubble says it opens. Absent under the typing bubble. */ count?: number }): JSX.Element {
+export function RunTree(props: { windowKey: string;  count?: number }): JSX.Element {
   const steps = createMemo(() => unwrap(useApp.runSteps(props.windowKey)) as readonly RunStep[])
   const working = () => useApp.runLive(props.windowKey)
   const live = createMemo(() => isLive(steps(), working()))
@@ -135,14 +112,10 @@ export function RunTree(props: { windowKey: string; /** The steps the bubble say
   const open = createMemo(() => opened().has(openKey()))
   const tree = createMemo(() => treeOf(steps(), { working: working(), open: open(), count: props.count, fetching: useApp.runFetching(props.windowKey) }))
 
-  // An open finished tree asks the room for the steps it lacks. Never on render alone, so scrolling
-  // the thread sends no request per message.
   createEffect(() => {
     if (open() && !live()) untrack(() => useApp.loadRunSteps(props.windowKey))
   })
 
-  // The folded rows are in the page while open and while they shut. Only the reader's own click
-  // moves them: a tree that mounts open, or that finished work closes, changes at once.
   const [fold, setFold] = createSignal<Fold>(untrack(open) ? "open" : "gone")
   let clicked = false
   let list: HTMLDivElement | undefined
@@ -168,7 +141,6 @@ export function RunTree(props: { windowKey: string; /** The steps the bubble say
     clicked = false
   }
 
-  // The calls the reader opened, by id. A step's details open under its row: there is no panel.
   const [shownRows, setShownRows] = createSignal<ReadonlySet<string>>(new Set())
   const openDetail = (row: TreeRow) => {
     setShownRows((current) => {
@@ -178,8 +150,6 @@ export function RunTree(props: { windowKey: string; /** The steps the bubble say
     })
     useApp.loadRunSteps(props.windowKey)
   }
-  // A file the call wrote or read opens beside the chat, and a folder opens the file tree. A file the
-  // chat no longer has, and every other call, opens the step's details under its row instead.
   const openRow = (row: TreeRow) => {
     const chat = useApp.activeThreadId()
     const target = row.target

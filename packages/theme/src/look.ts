@@ -1,7 +1,3 @@
-// A person's look: the appearance mode, the dark theme, the avatar each agent wears, and the display
-// settings. It is one JSON record, synced through the user socket's theme slot, so the server
-// keeps it as opaque text. Parsing happens here, at the edge. Everything past it trusts the type.
-
 import { CHARM_NAMES, EYE_NAMES, FLAVOUR_NAMES, LEAF_NAMES, OUTFIT_NAMES, type CharmName, type EyeName, type FlavourName, type LeafName, type OutfitName } from "@kiko/avatar"
 import { DEFAULT_DISPLAY, readDisplay, type Display } from "./display"
 import { DEFAULT_DARK_THEME, isDarkThemeId, type DarkThemeId, type ThemeMode } from "./palette"
@@ -9,7 +5,6 @@ import { DEFAULT_DARK_THEME, isDarkThemeId, type DarkThemeId, type ThemeMode } f
 export type Mode = ThemeMode
 export const MODES: readonly Mode[] = ["system", "light", "dark"]
 
-/** What a person chose for one avatar. Only the choices are stored; the rest is generated from the name. */
 export type AvatarPins = {
   flavour?: FlavourName
   leaf?: LeafName
@@ -21,9 +16,7 @@ export type AvatarPins = {
 export type Look = {
   mode: Mode
   darkTheme: DarkThemeId
-  /** An agent slug to what it wears. A slug without an entry gets the avatar its slug generates. */
   avatars: Readonly<Record<string, AvatarPins>>
-  /** Contrast, text size, chat width, fonts (display.ts). */
   display: Display
 }
 
@@ -32,7 +25,6 @@ export const DEFAULT_LOOK: Look = { mode: "dark", darkTheme: DEFAULT_DARK_THEME,
 const MAX_AVATARS = 200
 const SLUG = /^[a-z0-9_-]{1,40}$/
 
-/** Version 2 chose one of Kiko's birds per agent, as `flavor.outfit`. Each one maps to the nearest avatar choice. */
 const BIRD_FLAVOURS: Record<string, FlavourName> = {
   kiko: "fubuki", matcha: "matcha", sakura: "sakura", hojicha: "hojicha", ichigo: "ichigo", kinako: "kinako",
   ramune: "ramune", yuzu: "yuzu", mintchoco: "chocomint", peach: "momo", lavender: "ajisai", earlgrey: "usuzumi", sesame: "goma",
@@ -74,7 +66,6 @@ function readAvatars(raw: Record<string, unknown>, convert: boolean): Record<str
   return avatars
 }
 
-/** Reads stored text. Anything it cannot read falls back to the default look, never an error. */
 export function parseLook(text: string | null): Look {
   if (!text) return DEFAULT_LOOK
   let raw: unknown

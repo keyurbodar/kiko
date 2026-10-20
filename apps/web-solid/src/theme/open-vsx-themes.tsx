@@ -1,5 +1,3 @@
-// Settings, themes: the installed VS Code themes, which one each appearance uses, and the Open VSX
-// browser. The importer loads on the first search, so the settings route does not carry it.
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { appearanceOf } from "@kiko/theme/apply"
 import { MAX_IMPORTED, type Imported, type ImportedTheme } from "@kiko/theme/imported"
