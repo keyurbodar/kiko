@@ -6,11 +6,12 @@ Kiko is a general-purpose AI chat web app. People text one agent or a team of ag
 
 1. **Instant.** Navigation, tabs, buttons, and the composer do not animate or wait on the network. The app paints from IndexedDB first. Overlays, toasts, and waiting states may animate, from `styles/motion.css`, which honors `prefers-reduced-motion`. The tool-call panel has no motion, and surfaces separate by tone, never by a border or a ring.
 2. **Optimistic.** Every user action applies locally before the server answers.
-3. **Human pacing.** An agent reads a burst of messages together and answers once, in short bubbles.
-4. **The human outranks every agent.**
-5. **One owner per Worker.** Only the Worker builds a Durable Object name, through `apps/server/src/lib/names.ts`, from the session's owner id (`"owner"` in production).
-6. **Keys stay on the server.** Credentials are encrypted in `UserDO`, never logged, never sent to the client.
-7. **Sentence case.** Interface strings are sentence case. Names keep their own casing: Kiko, Anthropic, Claude Opus 4.6.
+3. **Live.** Server data reaches the interface as events on the user or room socket, and every screen reads the stores. A new list is a row kind in `core/protocol/src/rows.ts` with one loader in `UserDO.loadRows`, and a write calls `project(kind)`. Only a query too large to sync (the memory log, the model catalog) loads on demand, through `createLive` or `onChanged`.
+4. **Human pacing.** An agent reads a burst of messages together and answers once, in short bubbles.
+5. **The human outranks every agent.**
+6. **One owner per Worker.** Only the Worker builds a Durable Object name, through `apps/server/src/lib/names.ts`, from the session's owner id (`"owner"` in production).
+7. **Keys stay on the server.** Credentials are encrypted in `UserDO`, never logged, never sent to the client.
+8. **Sentence case.** Interface strings are sentence case. Names keep their own casing: Kiko, Anthropic, Claude Opus 4.6.
 
 ## Glossary
 

@@ -2,10 +2,10 @@ import type { Provider } from "@earendil-works/pi-ai"
 import { isAgentSlug } from "@kiko/protocol"
 import { agentStub } from "../lib/names"
 import { fileStore } from "../files/store"
-import { KIKO, newRoomId, pairRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
+import { KIKO, newRoomId, ROW_KINDS, pairRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
-import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, KikoError, ProviderInfo, RecipeList, RoomId, RunErrorKind, UserChange, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, KikoError, ProviderInfo, RecipeList, RoomId, RowKind, RunErrorKind, UserChange, UserEvent, UserRows, UserToClient } from "@kiko/protocol"
 import { RecipeLibrary } from "./recipe-library"
 import { matchRecipes, type RecipeHint } from "../recipes/match"
 import { capitalized, soulFromDescription } from "../room/chief"
@@ -38,6 +38,7 @@ import { userModels } from "../agent/factory"
 import { agentNamed, createAgent, listAgents } from "./agents"
 import { agentModel, allAgentModels, saveAgentModel } from "./agent-models"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
+import { diffRows, type RowChange, rowLists } from "./rows"
 import { type CommitResult, type FileBody, FileIndex, type IndexChange, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
 import { actorKey } from "../room/log"
 import { applyChatOp, type ChatChange, getChat, listChats, renameLegacyAgent, searchChats, setChatAgents, type Touch, touchChat } from "./chats"
@@ -122,7 +123,7 @@ export class UserDO extends DurableObject<Env> {
             return away
           },
         },
-      }, () => this.changed("routines"))
+      }, () => this.project("routine"))
     })
   }
 
@@ -355,6 +356,7 @@ export class UserDO extends DurableObject<Env> {
     await this.alarms.setWakeup("deletion_agents", Date.now() + 30_000)
     // The human sees the agent go now. The cleanup below may wait on other objects or retry.
     if (agent) this.commit({ t: "agent_removed", id: agent.id, slug })
+    this.project("soul")
     const result = await this.deleteAgentNow(slug)
     if (result.ok) this.sql.exec("DELETE FROM deletion_agents WHERE slug = ?", slug)
     return result
@@ -393,6 +395,7 @@ export class UserDO extends DurableObject<Env> {
     await this.#mem.armNaps()
     this.changed("memory")
     this.sql.exec("DELETE FROM souls WHERE slug = ?", slug)
+    this.project("soul")
     deleteSetting(this.sql, `agentModel:${slug}`)
     this.sql.exec("DELETE FROM agents WHERE id = ?", agent.id)
     return { ok: true as const, text: `@${slug} deleted` }
@@ -410,6 +413,24 @@ export class UserDO extends DurableObject<Env> {
     if (names.length) this.#typing.set(roomId, names)
     else this.#typing.delete(roomId)
     this.broadcast({ t: "typing", roomId, names })
+  }
+
+  /** Reads the truth for each row kind, the way clients see it. */
+  private loadRows<K extends RowKind>(kind: K): UserRows[K][] {
+    const rows: { [L in RowKind]: () => UserRows[L][] } = {
+      routine: () =>
+        this.reminders.list().flatMap((r) =>
+          r.trigger && (r.status === "active" || r.status === "paused") ? [{ id: r.id, name: r.name || "Routine", roomId: r.roomId, status: r.status, trigger: r.trigger, tz: r.tz }] : [],
+        ),
+      soul: () => this.souls.all().map(({ slug, ...soul }) => ({ id: slug as AgentSlug, ...soul })),
+      provider: () => this.#credentials.listProviders().map((p) => ({ id: p.provider, ...this.#mem.describe(p) })),
+    }
+    return rows[kind]() as UserRows[K][]
+  }
+
+  /** Sends clients whatever changed in this kind's rows. Safe to call after any write that may touch them. */
+  private project(kind: RowKind): void {
+    for (const change of diffRows(this.sql, kind, this.loadRows(kind))) this.commit(change)
   }
 
   private changed(what: UserChange): void {
@@ -445,12 +466,15 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async soul(slug: string): Promise<Soul> {
-    return this.souls.get(slug)
+    const seeded = this.sql.exec("SELECT 1 FROM souls WHERE slug = ?", slug).toArray().length === 0
+    const soul = await this.souls.get(slug)
+    if (seeded) this.project("soul")
+    return soul
   }
 
   async setSoul(slug: string, body: string, expectSha: string): Promise<SoulWrite> {
     const result = await this.souls.set(slug, body, expectSha)
-    if (result.ok) this.changed("souls")
+    if (result.ok) this.project("soul")
     return result
   }
 
@@ -491,6 +515,7 @@ export class UserDO extends DurableObject<Env> {
     const agent = this.saveAgent({ id: input.id ?? crypto.randomUUID(), name: input.name, slug: input.slug as AgentSlug, prompt: input.description, model: input.model })
     if (!agent) return null
     await this.souls.seed(agent.slug, input.soul)
+    this.project("soul")
     return agent
   }
 
@@ -518,7 +543,9 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async seedSoul(slug: string, name: string, role: string): Promise<Soul> {
-    return this.souls.seed(slug, firstSoul(name, role))
+    const soul = await this.souls.seed(slug, firstSoul(name, role))
+    this.project("soul")
+    return soul
   }
 
   async getTheme(): Promise<string | null> {
@@ -705,7 +732,7 @@ export class UserDO extends DurableObject<Env> {
 
   #vault?: CredentialVault
   get #credentials(): CredentialVault {
-    this.#vault ??= new CredentialVault(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name), () => this.changed("providers"))
+    this.#vault ??= new CredentialVault(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name), () => this.project("provider"))
     return this.#vault
   }
 
@@ -981,6 +1008,8 @@ export class UserDO extends DurableObject<Env> {
       this.seen()
       // The reply says which build answered, so the client can tell it is out of date.
       const fileToken = await signToken(this.env.SESSION_SECRET, userIdFromObjectName(this.ctx.id.name), "files")
+      // A row write this object missed (an older build, a crash between write and event) is sent here.
+      for (const kind of ROW_KINDS) this.project(kind)
       send(ws, { ...this.resume(frame.lastSeq), ...BACKEND, ...{ fileToken } })
       // The client starts with no browser, so a hello sends a browser only when there is one.
       const browser = this.#kr.browserState()
@@ -1168,7 +1197,7 @@ export class UserDO extends DurableObject<Env> {
     return this.sql.exec<{ seq: number | null }>("SELECT max(seq) AS seq FROM user_events").one().seq ?? 0
   }
 
-  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "agent_removed"; id: string; slug: AgentSlug } | ({ t: "agent_model"; slug: AgentSlug } & AgentModel) | { t: "theme"; theme: string | null } | FileBody | null): UserEvent | null {
+  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "agent_removed"; id: string; slug: AgentSlug } | ({ t: "agent_model"; slug: AgentSlug } & AgentModel) | { t: "theme"; theme: string | null } | FileBody | RowChange | null): UserEvent | null {
     if (!change || (change.t === "chat" && change.chat.pair)) return null
     if (change.t === "chat") change = { ...change, chat: markKikoChat(this.sql, change.chat) }
     const at = Date.now()
@@ -1196,7 +1225,7 @@ export class UserDO extends DurableObject<Env> {
       const lastChat = this.lastChat()
       return {
         t: "reset",
-        snapshot: { seq, chats: listChats(this.sql).map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), agentModels: allAgentModels(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, ...(lastChat ? { lastChat } : {}) },
+        snapshot: { seq, chats: listChats(this.sql).map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), agentModels: allAgentModels(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, rows: rowLists(this.sql), ...(lastChat ? { lastChat } : {}) },
       }
     }
     const events = this.sql

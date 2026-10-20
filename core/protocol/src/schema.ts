@@ -3,6 +3,7 @@
 
 import * as Schema from "effect/Schema"
 import { isAgentSlug, isRoomId } from "./ids"
+import { ROW_KINDS } from "./rows"
 import type * as P from "./index"
 
 const Count = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
@@ -441,6 +442,19 @@ export const ChatOp = Schema.Union([
 
 export const AgentModel = Schema.Struct({ model: Schema.String, name: Schema.optionalKey(Schema.String), thinking: ThinkingLevel, thinkingLevels: Schema.Array(ThinkingLevel) })
 
+export const RoutineRow = Schema.Struct({ id: Schema.String, name: Schema.String, roomId: RoomId, status: Schema.Literals(["active", "paused"]), trigger: Trigger, tz: Schema.String })
+export const SoulRow = Schema.Struct({ id: AgentSlug, body: Schema.String, sha: Schema.String, at: Count })
+export const ProviderRow = Schema.Struct({
+	id: Schema.String,
+	provider: Schema.String,
+	kind: Schema.Literals(["api_key", "oauth"]),
+	last4: Schema.String,
+	chat: Schema.optionalKey(Schema.Boolean),
+	judge: Schema.optionalKey(Schema.Boolean),
+	problem: Schema.optionalKey(Schema.Literals(["signed_out", "key_refused", "no_credit"])),
+	problemAt: Schema.optionalKey(Count),
+})
+
 export const UserEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("chat"), chat: Chat }),
 	Schema.Struct({ ...stored, t: Schema.Literal("chat_removed"), roomId: RoomId }),
@@ -451,6 +465,10 @@ export const UserEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("file"), file: FileRef }),
 	Schema.Struct({ ...stored, t: Schema.Literal("file_removed"), ids: Schema.Array(Id) }),
 	Schema.Struct({ ...stored, t: Schema.Literal("folders"), folders: Schema.Array(Schema.String) }),
+	Schema.Struct({ ...stored, t: Schema.Literal("row"), kind: Schema.Literal("routine"), row: RoutineRow }),
+	Schema.Struct({ ...stored, t: Schema.Literal("row"), kind: Schema.Literal("soul"), row: SoulRow }),
+	Schema.Struct({ ...stored, t: Schema.Literal("row"), kind: Schema.Literal("provider"), row: ProviderRow }),
+	Schema.Struct({ ...stored, t: Schema.Literal("row_removed"), kind: Schema.Literals(ROW_KINDS), id: Schema.String }),
 ])
 
 export const UserSnapshot = Schema.Struct({
@@ -460,6 +478,7 @@ export const UserSnapshot = Schema.Struct({
 	agentModels: Schema.optionalKey(Schema.Record(Schema.String, AgentModel)),
 	theme: Schema.optionalKey(Schema.NullOr(Schema.String)),
 	home: Schema.Struct({ files: Schema.Array(FileRef), folders: Schema.Array(Schema.String) }),
+	rows: Schema.optionalKey(Schema.Struct({ routine: Schema.optionalKey(Schema.Array(RoutineRow)), soul: Schema.optionalKey(Schema.Array(SoulRow)), provider: Schema.optionalKey(Schema.Array(ProviderRow)) })),
 	lastChat: Schema.optionalKey(RoomId),
 })
 
@@ -617,7 +636,7 @@ export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("chat_refused"), roomId: RoomId, existing: RoomId }),
 	Schema.Struct({ t: Schema.Literal("model_refused"), slug: AgentSlug, message: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("typing"), roomId: RoomId, names: Schema.Array(Schema.String) }),
-	Schema.Struct({ t: Schema.Literal("changed"), what: Schema.Literals(["routines", "memory", "models", "providers", "souls"]) }),
+	Schema.Struct({ t: Schema.Literal("changed"), what: Schema.Literals(["memory", "models"]) }),
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: UserSnapshot, version: Schema.optionalKey(Schema.String), protocol: Schema.optionalKey(Schema.Number), fileToken: Schema.optionalKey(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("memory_result"), reqId: Id, result: MemoryResult }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String, chats: Schema.Array(Chat) }),
@@ -670,6 +689,9 @@ export type InSync = Assert<
 	| Same<typeof ChatLast.Type, P.ChatLast>
 	| Same<typeof UserEvent.Type, P.UserEvent>
 	| Same<typeof UserSnapshot.Type, P.UserSnapshot>
+	| Same<typeof RoutineRow.Type, P.RoutineRow>
+	| Same<typeof SoulRow.Type, P.SoulRow>
+	| Same<typeof ProviderRow.Type, P.ProviderRow>
 	| Same<typeof MemoryOp.Type, P.MemoryOp>
 	| Same<typeof MemoryResult.Type, P.MemoryResult>
 	| Same<typeof ComposioStatus.Type, P.ComposioStatus>

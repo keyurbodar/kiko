@@ -135,7 +135,7 @@ test("a socket that connects mid-run is told who is typing, and a clear removes 
   after.close()
 })
 
-test("a routine and a memory note each push a change frame", async () => {
+test("a routine pushes its row and a memory note pushes a change frame", async () => {
   const user = fresh()
   await rpc(user, "createChat", ROOM_A, "plans")
   const ws = await socket(user, 1)
@@ -143,8 +143,10 @@ test("a routine and a memory note each push a change frame", async () => {
   const made = await rpc(user, "createRoutine", "u", { name: "daily", instructions: "say hi", trigger: { on: "time", at }, tz: "UTC", roomId: ROOM_A, target: "kiko", createdBy: "kiko" })
   expect(made.ok).toBe(true)
   await rpc(user, "lifeNote", "ada", "likes tea at four")
-  const changed = (await ws.settle()).filter((f: Frame) => f.t === "changed").map((f: any) => f.what)
-  expect(changed).toEqual(expect.arrayContaining(["routines", "memory"]))
+  const frames = await ws.settle()
+  const rows = frames.flatMap((f: any) => (f.t === "events" ? f.events : [])).filter((e: any) => e.t === "row" && e.kind === "routine")
+  expect(rows.map((e: any) => [e.row.id, e.row.name, e.row.status])).toEqual([[made.routine.id, "daily", "active"]])
+  expect(frames.filter((f: Frame) => f.t === "changed").map((f: any) => f.what)).toContain("memory")
   ws.close()
 })
 

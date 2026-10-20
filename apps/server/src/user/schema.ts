@@ -264,4 +264,6 @@ export const USER_STEPS: Step[] = [
   "CREATE TABLE IF NOT EXISTS deletion_agents (slug TEXT PRIMARY KEY)",
   "CREATE TABLE IF NOT EXISTS deleted_agent_handles (slug TEXT PRIMARY KEY)",
   "INSERT OR IGNORE INTO deleted_agent_handles (slug) SELECT slug FROM deletion_agents",
+  // What clients were last told of each row kind (rows.ts), so a change sends only the rows that differ.
+  "CREATE TABLE IF NOT EXISTS user_rows (kind TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (kind, id))",
 ]

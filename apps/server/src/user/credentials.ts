@@ -40,7 +40,8 @@ export class CredentialVault implements CredentialStore {
     private readonly sql: SqlStorage,
     private readonly keyring: Keyring,
     private readonly userId: string,
-    private readonly onProblem: () => void = () => {},
+    /** Called after any write. The listed providers may have changed. */
+    private readonly onChange: () => void = () => {},
   ) {
   }
 
@@ -73,6 +74,7 @@ export class CredentialVault implements CredentialStore {
     return this.enqueue(providerId, async () => {
       options?.signal?.throwIfAborted()
       this.sql.exec("DELETE FROM credentials WHERE provider_id = ?", providerId)
+      this.onChange()
     })
   }
 
@@ -116,7 +118,7 @@ export class CredentialVault implements CredentialStore {
     if (!row || row.problem === (problem ?? undefined)) return false
     if (problem === null) this.sql.exec("UPDATE credentials SET problem = NULL, problem_at = NULL WHERE provider_id = ?", provider)
     else this.sql.exec("UPDATE credentials SET problem = ?, problem_at = ? WHERE provider_id = ?", problem, Date.now(), provider)
-    this.onProblem()
+    this.onChange()
     return true
   }
 
@@ -139,7 +141,6 @@ export class CredentialVault implements CredentialStore {
 
   private async store(providerId: string, credential: Credential): Promise<void> {
     const sealed = await seal(this.keyring, this.userId, providerId, JSON.stringify(credential))
-    const had = this.problem(providerId) !== undefined
     this.sql.exec(
       `INSERT INTO credentials (provider_id, kind, last4, kek_version, iv, ciphertext, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -154,7 +155,7 @@ export class CredentialVault implements CredentialStore {
       sealed.ciphertext,
       Date.now(),
     )
-    if (had) this.onProblem()
+    this.onChange()
   }
 
   private enqueue<T>(providerId: string, task: () => Promise<T>): Promise<T> {

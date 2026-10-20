@@ -2,7 +2,7 @@
 
 import type { Agent, AgentModel, Chat, RoomId } from "@kiko/protocol"
 import type { UserPatch } from "../sync/patches"
-import type { Home } from "../sync/user-store"
+import type { Home, RowData } from "../sync/user-store"
 import type { Warm } from "./db"
 import { clearDraft } from "./drafts"
 import { clearRoom } from "./messages"
@@ -12,6 +12,7 @@ const AGENTS = "agents"
 const HOME = "home"
 const AGENT_MODELS = "agentModels"
 const PENDING_CHATS = "pendingChats"
+const ROWS = "rows"
 
 export function putChats(warm: Warm, chats: readonly Chat[]) {
 	for (const c of chats) warm.put("chats", c.roomId, c)
@@ -69,3 +70,9 @@ export const putAgentModels = (warm: Warm, models: Readonly<Record<string, Agent
 export async function allAgentModels(warm: Warm): Promise<Record<string, AgentModel>> {
 	return { ...((await warm.get<Record<string, AgentModel>>("meta", AGENT_MODELS)) ?? {}) }
 }
+
+/** Every row kind's list (`@kiko/protocol` rows.ts), kept under one key. */
+export const putRows = (warm: Warm, rows: RowData) => warm.put("meta", ROWS, rows)
+
+/** Undefined when this device has never kept rows. */
+export const getRows = (warm: Warm): Promise<RowData | undefined> => warm.get<RowData>("meta", ROWS)

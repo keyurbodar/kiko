@@ -69,7 +69,7 @@ export const RULES: readonly Rule[] = [
   },
   {
     id: "live-server-data",
-    description: "Client server data reloads on the server's changed frame. Use createLive or onChanged from sync/changed.ts, not createResource.",
+    description: "Server data comes from the user or room store (a row kind for a new list). A query too large to sync uses createLive or onChanged from sync/changed.ts, never a bare createResource.",
     roots: ["apps/web-solid/src"],
     skip: (path) => path === "apps/web-solid/src/sync/changed.ts" || isTest(path),
     match: (line) => /(?<![\w.])createResource\s*[<(]/.test(line),

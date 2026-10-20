@@ -46,7 +46,6 @@ apps/server/src/room/burst.ts:isFragment
 apps/server/src/room/limits.ts:MAX_DELIVERIES_PER_ROOT
 apps/server/src/room/limits.ts:MAX_HOP
 apps/server/src/room/limits.ts:SendCheck
-apps/server/src/room/log.ts:KEEP_EVENTS
 apps/server/src/room/log.ts:SNAPSHOT_MESSAGES
 apps/server/src/room/mail-drain.ts:MailDeps
 apps/server/src/room/mail-drain.ts:MailOutcome
@@ -56,7 +55,6 @@ apps/server/src/room/members.ts:MemberResult
 apps/server/src/room/members.ts:RESERVED_SLUGS
 apps/server/src/room/memory-naps.ts:MemoryNapsDeps
 apps/server/src/room/memory.ts:Compress
-apps/server/src/room/pending.ts:PendingRow
 apps/server/src/room/pending.ts:safeName
 apps/server/src/room/reactions.ts:ReactionNote
 apps/server/src/room/reactions.ts:defaultTarget

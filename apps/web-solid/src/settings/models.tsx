@@ -4,7 +4,7 @@ import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { formatContext, loadCatalog, modelRef, type CatalogProvider, type ConnectMethod } from "./catalog"
 import { isJudgeOnly, JUDGE_NOTE, modelProviders } from "./provider-kinds"
-import { connectedProviders, connectedReady, refreshConnected } from "./connected"
+import { connectedProviders, connectedReady } from "./connected"
 import { checkProvider, connectProvider, disconnectProvider } from "./credentials"
 import { clearReconnect, FIX_LABEL, PROBLEM_LINE, PROBLEM_SHORT, reconnectTarget } from "./provider-problem"
 import { startSignIn, type SignIn, type SignInHandle } from "./provider-login"
@@ -311,7 +311,6 @@ function CheckAgain(props: { id: string }) {
       showToastV2({ title: "Could not check the provider", description: e instanceof Error ? e.message : undefined, variant: "error" })
     } finally {
       setChecking(false)
-      await refreshConnected()
     }
   }
   return (
@@ -333,7 +332,6 @@ function DisconnectButton(props: { id: string }) {
     } finally {
       setRemoving(false)
       setSure(false)
-      await refreshConnected()
     }
   }
   return (
@@ -422,7 +420,6 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; only?: 
     setError(null)
     try {
       await connectProvider(provider.id, key)
-      await refreshConnected()
       props.onClose()
     } catch (e) {
       const message = e instanceof Error ? e.message : "Could not save the key."
@@ -498,10 +495,7 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; only?: 
                 method={method}
                 label={props.provider!.signIn?.method === method ? props.provider!.signIn.label : undefined}
                 onRunning={setSigningIn}
-                onDone={async () => {
-                  await refreshConnected()
-                  props.onClose()
-                }}
+                onDone={() => props.onClose()}
               />
             )
           }

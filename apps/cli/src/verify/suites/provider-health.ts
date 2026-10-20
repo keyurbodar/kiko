@@ -30,7 +30,7 @@ const suite: Suite = {
       expectEqual(res.status, 200, "status of the check")
       return ((await res.json()) as { provider: ProviderInfo }).provider
     }
-    const changed = (f: UserToClient) => f.t === "changed" && f.what === "providers"
+    const changed = (f: UserToClient) => f.t === "events" && f.events.some((e) => e.t === "row" && e.kind === "provider" && e.row.id === FAKE)
 
     const user = await s.user()
     await api(`api/credentials/${FAKE}`, "DELETE")

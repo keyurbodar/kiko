@@ -8,7 +8,7 @@ const MIN = 60_000
 const HOUR = 60 * MIN
 
 const member = (slug: string, lead = false): Member => ({ slug, name: slug, lead }) as Member
-const routine = (id: string, status: "active" | "paused"): Routine => ({ id, name: id, roomId: "r", status, trigger: { on: "time", at: "" } as never, tz: "UTC" })
+const routine = (id: string, status: "active" | "paused"): Routine => ({ id, name: id, roomId: "r" as Routine["roomId"], status, trigger: { on: "time", at: "" } as never, tz: "UTC" })
 const file = (name: string): FileRef => ({ id: name, name, size: 1, type: "text/plain" })
 const line = (pos: number, at: number, extra: Partial<LifeLine> = {}): LifeLine => ({ pos, at, text: `line ${pos}`, source: "you", pinned: false, redacted: false, ...extra })
 

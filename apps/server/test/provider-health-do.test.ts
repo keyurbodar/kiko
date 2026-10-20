@@ -51,7 +51,8 @@ async function socket(user: string) {
   return {
     wait,
     send: (frame: unknown) => ws.send(JSON.stringify(frame)),
-    changes: () => frames.filter((f) => f.t === "changed" && f.what === "providers").length,
+    /** Provider row events: the sign-in or connect itself, then one per change to the row. */
+    changes: () => frames.flatMap((f) => (f.t === "events" ? f.events : [])).filter((e: { t: string; kind?: string }) => e.t === "row" && e.kind === "provider").length,
     close: () => ws.close(),
   }
 }
@@ -79,14 +80,14 @@ test("a refused refresh marks the sign-in expired once, and a good check clears 
   expect(await providerRow(user, "kiko-fake")).toMatchObject({ kind: "oauth", problem: "signed_out" })
   await rpc(user, "turnContext", "kiko-fake")
   await settle()
-  expect(ws.changes()).toBe(1)
+  expect(ws.changes()).toBe(2)
 
   await rpc(user, "devProviderHealth", { refresh: "ok" })
   const checked = await rpc(user, "checkProvider", "kiko-fake")
   expect(checked.problem).toBeUndefined()
   expect(await providerRow(user, "kiko-fake")).not.toHaveProperty("problem")
   await settle()
-  expect(ws.changes()).toBe(2)
+  expect(ws.changes()).toBe(3)
   ws.close()
 })
 
@@ -99,7 +100,7 @@ test("a refresh that cannot reach the server is not a problem with the sign-in",
   expect((await rpc(user, "checkProvider", "kiko-fake")).problem).toBeUndefined()
   expect(await providerRow(user, "kiko-fake")).not.toHaveProperty("problem")
   await settle()
-  expect(ws.changes()).toBe(0)
+  expect(ws.changes()).toBe(1)
   await rpc(user, "devProviderHealth", { refresh: "ok" })
   ws.close()
 })
@@ -140,7 +141,7 @@ test("a run's refusal, an empty balance, a recovery and a new key move the probl
   await rpc(user, "connectProvider", "opencode-go", "sk-test-health-key-0002")
   expect(await providerRow(user, "opencode-go")).not.toHaveProperty("problem")
   await settle()
-  expect(ws.changes()).toBe(5)
+  expect(ws.changes()).toBe(6)
   ws.close()
 })
 

@@ -3,11 +3,11 @@ import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ChevronRightIcon, FolderOpenIcon, type Glyph, MemoryIcon, PlusIcon, RepeatIcon, SparklesIcon, TasksIcon } from "@kiko/ui/icons"
 import { useNavigate } from "@solidjs/router"
-import { createEffect, For, onCleanup, onMount, Show } from "solid-js"
+import { createEffect, For, onCleanup, Show } from "solid-js"
 import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
 import { useMemoryStore } from "../info/memory/views"
-import { loadRoutines, routinesOf } from "../info/routines"
+import { routinesOf } from "../info/routines"
 import { triggerLabel } from "../info/routines-model"
 import { groupTitle, roomFor } from "../bot-picker-model"
 import { addable, addOp } from "../members/model"
@@ -37,9 +37,6 @@ function Row(props: { icon: Glyph; label: string; meta?: string; kind: FixedKind
 export default function ChatCard(props: { chatId: string }) {
   const navigate = useNavigate()
   const memory = useMemoryStore()
-  onMount(() => {
-    void loadRoutines()
-  })
   const members = () => useApp.roomMembers()
   const chat = () => useApp.chatById(props.chatId)
   /** The Kiko chat never gets members, so an add there opens a group of Kiko and the agent. */
@@ -57,7 +54,7 @@ export default function ChatCard(props: { chatId: string }) {
   }
   const busy = () => statusChip(chat()?.presence).tone === "working" || working() !== null
   const files = () => useApp.activeFiles()
-  const routines = () => routinesOf(props.chatId) ?? []
+  const routines = () => routinesOf(props.chatId)
   const tasks = () => useApp.room()?.tasks() ?? []
   const open = () => tasks().filter((t) => t.status !== "done" && t.status !== "cancelled").length
   const next = () => routines().find((r) => r.status === "active")

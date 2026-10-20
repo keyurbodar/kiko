@@ -30,7 +30,7 @@ import * as fixtures from "@kiko/protocol/fixtures"
 import { applyRoomEvent, emptyRoom, type RoomData } from "./room-store"
 import { overlayFiles, overlayFolders } from "./patches"
 import { type Connect, PING, PONG, type SocketLike } from "./socket"
-import { applyUserEvent, type UserData } from "./user-store"
+import { applyUserEvent, emptyRows, type UserData } from "./user-store"
 
 /** Distributes `Omit` over a union, so each event keeps its own fields. */
 type WithoutStored<E> = E extends unknown ? Omit<E, "seq" | "at"> : never
@@ -405,7 +405,7 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 	const now = options.now ?? Date.now
 	const resetAfter = options.resetAfter ?? 500
 	const log: UserEvent[] = []
-	const data: UserData = { seq: 0, chats: [], agents: [], home: { files: [], folders: [] } }
+	const data: UserData = { seq: 0, chats: [], agents: [], home: { files: [], folders: [] }, rows: emptyRows() }
 	const peers = new Set<Peer<UserToClient>>()
 	const received: ClientToUser[] = []
 	const agentModels: Record<string, AgentModel> = {}
@@ -433,7 +433,7 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 			if (frame.t === "hello") {
 				const last = log[log.length - 1]?.seq ?? 0
 				if (frame.lastSeq === 0 || frame.lastSeq > last || last - frame.lastSeq > resetAfter)
-					return peer.push({ t: "reset", snapshot: structuredClone({ seq: data.seq, chats: data.chats, agents: data.agents, agentModels: agentModels, home: data.home }) })
+					return peer.push({ t: "reset", snapshot: structuredClone({ seq: data.seq, chats: data.chats, agents: data.agents, agentModels: agentModels, home: data.home, rows: data.rows }) })
 				return peer.push({ t: "events", events: log.filter((e) => e.seq > frame.lastSeq) })
 			}
 			if (frame.t === "agent") {

@@ -33,6 +33,11 @@ type Row = { body: string; sha: string; at: number }
 export class Souls {
   constructor(private readonly sql: SqlStorage) {}
 
+  /** Every stored soul, by slug. A soul not yet seeded is not here. */
+  all(): (Soul & { slug: string })[] {
+    return this.sql.exec<Row & { slug: string }>("SELECT slug, body, sha, at FROM souls ORDER BY slug").toArray().map((r) => ({ slug: r.slug, body: r.body, sha: r.sha, at: r.at }))
+  }
+
   private row(slug: string): Row | null {
     return this.sql.exec<Row>("SELECT body, sha, at FROM souls WHERE slug = ?", slug).toArray()[0] ?? null
   }

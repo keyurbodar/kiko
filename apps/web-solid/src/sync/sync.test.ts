@@ -804,6 +804,27 @@ describe("the user store", () => {
 		expect(memory).toEqual([])
 	})
 
+	test("row events keep a kind's list live, and a refused edit puts the server's row back", async () => {
+		const mock = createMockUser()
+		const store = createUserStore({ warm: await freshWarm(), url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
+		await store.ready
+		const daily = { id: "r1", name: "daily", roomId: "room-a" as RoomId, status: "active" as const, trigger: { on: "time" as const, at: "09:00" }, tz: "UTC" }
+		mock.store({ t: "row", kind: "routine", row: daily })
+		await until(() => store.rows("routine").length === 1)
+		mock.store({ t: "row", kind: "routine", row: { ...daily, name: "standup" } })
+		await until(() => store.rows("routine")[0]?.name === "standup")
+		expect(await store.editRow("routine", "r1", null, async () => false)).toBe(false)
+		expect(store.rows("routine").map((r) => r.name)).toEqual(["standup"])
+		let answer = (_: boolean) => {}
+		const paused = store.editRow("routine", "r1", { ...daily, status: "paused" }, () => new Promise((r) => (answer = r)))
+		expect(store.rows("routine")[0]?.status).toBe("paused")
+		answer(true)
+		await paused
+		mock.store({ t: "row_removed", kind: "routine", id: "r1" })
+		await until(() => store.rows("routine").length === 0)
+		store.close()
+	})
+
 	test("a model picked while the socket is down stays on screen and reaches the server when it opens", async () => {
 		const mock = createMockUser()
 		mock.online = false

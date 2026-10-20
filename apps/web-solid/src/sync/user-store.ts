@@ -6,10 +6,10 @@
 // in IndexedDB and go out again after a reload or a reconnect. Each carries a
 // stable id (a create names its room), so a replay changes nothing twice.
 
-import type { Agent, AgentModel, AgentSlug, Chat, ChatOp, ClientToUser, FileOp, FileRef, KikoError, RoomId, ThinkingLevel, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
+import type { Agent, AgentModel, AgentSlug, Chat, ChatOp, ClientToUser, FileOp, FileRef, KikoError, RoomId, RowKind, ThinkingLevel, UserEvent, UserRows, UserSnapshot, UserToClient } from "@kiko/protocol"
 import { batch } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
-import { allAgentModels, allAgents, allChats, getHome, getPendingChats, getUserSeq, putAgentModels, putAgents, putChats, putHome, putPendingChats, removeChat, replaceChats, setUserSeq } from "../warm/chats"
+import { allAgentModels, allAgents, allChats, getHome, getPendingChats, getRows, getUserSeq, putAgentModels, putAgents, putChats, putHome, putPendingChats, putRows, removeChat, replaceChats, setUserSeq } from "../warm/chats"
 import type { Warm } from "../warm/db"
 import { expire, overlayChats, overlayFiles, overlayFolders, PATCH_TTL_MS, type RoomPatch, roomConfirmedBy, settleUser, type UserPatch } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
@@ -22,7 +22,16 @@ import { APP_VERSION, backendSkew, type Skew } from "../lib/version-skew"
 
 /** The user's drive, /home. */
 export type Home = { files: FileRef[]; folders: string[] }
-export type UserData = { seq: number; chats: Chat[]; agents: Agent[]; home: Home }
+/** One list per row kind, in the server's order. */
+export type RowData = { [K in RowKind]: UserRows[K][] }
+export const emptyRows = (): RowData => ({ routine: [], soul: [], provider: [] })
+export type UserData = { seq: number; chats: Chat[]; agents: Agent[]; home: Home; rows: RowData }
+
+/** A row edit the server has not confirmed, laid over its row. `row` null hides the row. */
+type PendingRow = { kind: RowKind; id: string; row: UserRows[RowKind] | null; at: number }
+const rowKey = (kind: RowKind, id: string) => `${kind}:${id}`
+/** How long an edit the server accepted waits for its row event before the server's row shows again. */
+const PENDING_ROW_MS = 10_000
 
 /** Applies one event in place. An event at or below `data.seq` is skipped. Returns false then. */
 export function applyUserEvent(data: UserData, e: UserEvent): boolean {
@@ -38,6 +47,17 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 			else data.home.files[i] = e.file
 		} else if (e.t === "file_removed") data.home.files = data.home.files.filter((x) => !e.ids.includes(x.id))
 		else data.home.folders = [...e.folders]
+		return true
+	}
+	if (e.t === "row") {
+		const list = data.rows[e.kind] as { id: string }[]
+		const i = list.findIndex((r) => r.id === e.row.id)
+		if (i === -1) list.push(e.row)
+		else list[i] = e.row
+		return true
+	}
+	if (e.t === "row_removed") {
+		;(data.rows as Record<RowKind, { id: string }[]>)[e.kind] = data.rows[e.kind].filter((r) => r.id !== e.id)
 		return true
 	}
 	if (e.t === "agent_removed") {
@@ -88,6 +108,8 @@ export type UserState = UserData & {
 	 * cleanup reaches it, so every room view hides these at once. Memory only.
 	 */
 	gone: Record<string, true>
+	/** Row edits the server has not confirmed, by `kind:id`. */
+	pendingRows: Record<string, PendingRow>
 	/** The display names typing in each chat, from the `typing` frame. Memory only. */
 	typing: Record<string, readonly string[]>
 	/** Whether the backend can serve this build. Set from the first `hello` reply. Undefined until then. */
@@ -118,6 +140,13 @@ export type UserStore = {
 	readonly ready: Promise<void>
 	/** The user's agents. */
 	agents(): Agent[]
+	/** A row kind's list, with pending edits applied. */
+	rows<K extends RowKind>(kind: K): UserRows[K][]
+	/**
+	 * Shows `next` for the row at once (null hides it) and runs `send`, the server request. A false
+	 * answer puts the server's row back. A true one keeps `next` until the row's event arrives.
+	 */
+	editRow<K extends RowKind>(kind: K, id: string, next: UserRows[K] | null, send: () => Promise<boolean>): Promise<boolean>
 	/** The agent's model and level, with a pending pick applied. Undefined until the server has said. */
 	agentModel(slug: string): AgentModel | undefined
 	/** Sets an agent's model, its level, or both, for every chat. Shown at once; the server confirms it. `levels` are the new model's supported levels. */
@@ -165,6 +194,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		chats: [],
 		agents: [],
 		home: { files: [], folders: [] },
+		rows: emptyRows(),
+		pendingRows: {},
 		loaded: false,
 		connection: "closed",
 		patches: [],
@@ -219,6 +250,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 						if (!applyUserEvent(s, e)) continue
 						applied.push(e)
 						if (e.t === "agent_removed") s.gone[e.slug] = true
+						if (e.t === "row" || e.t === "row_removed") delete s.pendingRows[rowKey(e.kind, e.t === "row" ? e.row.id : e.id)]
 					}
 				}),
 			)
@@ -246,13 +278,16 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		if (applied.some((e) => e.t === "agent" || e.t === "agent_removed")) putAgents(warm, unwrap(state.agents))
 		if (applied.some((e) => e.t === "agent_model" || e.t === "agent_removed")) putAgentModels(warm, unwrap(state.agentModels))
 		if (applied.some((e) => e.t === "file" || e.t === "file_removed" || e.t === "folders")) putHome(warm, unwrap(state.home))
+		if (applied.some((e) => e.t === "row" || e.t === "row_removed")) putRows(warm, unwrap(state.rows))
 		if (applied.length) setUserSeq(warm, state.seq)
 	}
 
 	function reset(snapshot: UserSnapshot) {
 		const agents = [...(snapshot.agents ?? [])]
 		const home = { files: [...snapshot.home.files], folders: [...snapshot.home.folders] }
-		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home, lastChat: snapshot.lastChat ?? null })
+		const rows = { ...emptyRows(), ...structuredClone(snapshot.rows ?? {}) } as RowData
+		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home, rows, lastChat: snapshot.lastChat ?? null })
+		putRows(warm, rows)
 		if (snapshot.theme !== undefined) setState("theme", snapshot.theme)
 		const agentModels = { ...snapshot.agentModels }
 		// A pick the server has not confirmed stays on screen: it is sent again when the socket opens.
@@ -294,11 +329,11 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	}
 
 	async function boot() {
-		const [chats, seq, agents, home, pending, agentModels] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm), getHome(warm), getPendingChats(warm), allAgentModels(warm)])
+		const [chats, seq, agents, home, pending, agentModels, rows] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm), getHome(warm), getPendingChats(warm), allAgentModels(warm), getRows(warm)])
 		if (closed) return
-		// A cache with no drive predates the drive cache. Ask for a snapshot, not the events after `seq`.
+		// A cache with no drive or no rows predates that cache. Ask for a snapshot, not the events after `seq`.
 		const first = chats.length ? chats : [kikoPlaceholder(now())]
-		setState({ chats: first, seq: home ? seq : 0, agents, agentModels, home: home ?? { files: [], folders: [] }, patches: [...pending, ...state.patches], loaded: true })
+		setState({ chats: first, seq: home && rows ? seq : 0, agents, agentModels, home: home ?? { files: [], folders: [] }, rows: { ...emptyRows(), ...rows }, patches: [...pending, ...state.patches], loaded: true })
 		socket = createSyncSocket<UserToClient>({
 			url: options.url,
 			connect: options.connect,
@@ -327,6 +362,30 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		chats: () => overlayChats(state.chats, state.patches),
 		ready,
 		agents: () => state.agents,
+		rows<K extends RowKind>(kind: K): UserRows[K][] {
+			const list = state.rows[kind] as UserRows[K][]
+			const pending = Object.values(state.pendingRows).filter((p) => p.kind === kind)
+			if (!pending.length) return list
+			const out = list.flatMap((r) => {
+				const p = state.pendingRows[rowKey(kind, r.id)]
+				return !p ? [r] : p.row ? [p.row as UserRows[K]] : []
+			})
+			for (const p of pending) if (p.row && !list.some((r) => r.id === p.id)) out.push(p.row as UserRows[K])
+			return out
+		},
+		async editRow(kind, id, next, send) {
+			const key = rowKey(kind, id)
+			const at = now()
+			setState("pendingRows", key, { kind, id, row: next, at })
+			const ok = await send().catch(() => false)
+			const mine = () => state.pendingRows[key]?.at === at
+			if (!ok) {
+				if (mine()) setState("pendingRows", produce((p) => void delete p[key]))
+				return false
+			}
+			setTimeout(() => mine() && setState("pendingRows", produce((p) => void delete p[key])), PENDING_ROW_MS)
+			return true
+		},
 		agentModel: (slug) => state.pendingModels[slug] ?? state.agentModels[slug],
 		setAgentModel(slug, { ref, thinking, levels, roomId }) {
 			const current = state.pendingModels[slug] ?? state.agentModels[slug]

@@ -5,6 +5,7 @@ import type { AgentSlug, RoomId } from "./ids"
 import type { ThinkingLevel } from "./thinking"
 import type { MemoryOp, MemoryResult } from "./memory"
 import type { FileOp, FileRef } from "./room"
+import type { RowKind, RowLists, UserRows } from "./rows"
 
 export type Chat = {
 	roomId: RoomId
@@ -61,6 +62,8 @@ export type UserEvent =
 	| (Stored & { t: "file"; file: FileRef })
 	| (Stored & { t: "file_removed"; ids: readonly string[] })
 	| (Stored & { t: "folders"; folders: readonly string[] })
+	| { [K in RowKind]: Stored & { t: "row"; kind: K; row: UserRows[K] } }[RowKind]
+	| (Stored & { t: "row_removed"; kind: RowKind; id: string })
 
 export type UserSnapshot = {
 	seq: number
@@ -70,6 +73,7 @@ export type UserSnapshot = {
 	agentModels?: Readonly<Record<string, AgentModel>>
 	theme?: string | null
 	home: { files: readonly FileRef[]; folders: readonly string[] }
+	rows?: RowLists
 	/** The chat the user was last in, so a new device opens there. The kiko chat when that one is gone. */
 	lastChat?: RoomId
 }
@@ -137,7 +141,8 @@ export type ClientToUser =
 /** Where an update is. `restarting` is the last frame the old code sends. */
 export type UpdateStage = "checking" | "authorizing" | "uploading" | "restarting" | "failed"
 
-export type UserChange = "routines" | "memory" | "models" | "providers" | "souls"
+/** A query the user socket does not carry as rows: the memory log and the model catalog. */
+export type UserChange = "memory" | "models"
 
 export type UserToClient =
 	| { t: "events"; events: readonly UserEvent[]; version?: string; protocol?: number; fileToken?: string }

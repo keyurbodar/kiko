@@ -1,7 +1,7 @@
 // Every type that crosses the network. This entry has no runtime dependency.
 // Its only runtime code is the id patterns and the room id generator in `ids.ts`, and the
 // pure chat list rules in `chats.ts`, the reasoning levels in `thinking.ts`, the small pure helpers of `activity.ts` that the
-// room and the client share, and the attachment limits of `attachments.ts`.
+// room and the client share, and the attachment limits of `attachments.ts`, and the row kinds of `rows.ts`.
 
 export * from "./human-input"
 export * from "./chats"
@@ -20,5 +20,6 @@ export * from "./search"
 export * from "./thinking"
 export * from "./version"
 export type * from "./user"
+export * from "./rows"
 export type * from "./catalog"
 export type * from "./providers"

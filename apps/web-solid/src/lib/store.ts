@@ -15,7 +15,7 @@ import { chatFaces, chatSeed } from "./identity"
 // `@kiko/protocol`. The view shapes in `types.ts` are built from them here, by
 // the pure functions below, and nowhere else.
 
-import type { Agent, AgentModel, AgentSlug, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp, RunStep } from "@kiko/protocol"
+import type { Agent, AgentModel, AgentSlug, RowKind, UserRows, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp, RunStep } from "@kiko/protocol"
 import { fileName, KIKO, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
 import { isListed } from "../sidebar/activity"
 import { agentDisplayName } from "./names"
@@ -1028,6 +1028,21 @@ export function createApp(options: AppOptions = {}) {
       /** The user's own agents, in the order they were made. */
       agents(): Agent[] {
         return userStore()?.agents() ?? []
+      },
+
+      /** A row kind's list (`@kiko/protocol` rows.ts), live, with pending edits applied. */
+      rows<K extends RowKind>(kind: K): UserRows[K][] {
+        return userStore()?.rows(kind) ?? []
+      },
+
+      /** One row by id, or undefined. */
+      row<K extends RowKind>(kind: K, id: string): UserRows[K] | undefined {
+        return userStore()?.rows(kind).find((r) => r.id === id)
+      },
+
+      /** Shows a row edit at once and sends it. See `UserStore.editRow`. False when the server refused or no one is signed in. */
+      editRow<K extends RowKind>(kind: K, id: string, next: UserRows[K] | null, send: () => Promise<boolean>): Promise<boolean> {
+        return userStore()?.editRow(kind, id, next, send) ?? Promise.resolve(false)
       },
 
       /** The kiko chat stays pinned. */
