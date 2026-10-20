@@ -11,7 +11,7 @@ const MAX_HANDLE = 40
 /**
  * The most of the board one brief carries. A human message rides with its brief in one inbox entry
  * of 128 KB. Its bubble is at most 64 KB of JSON (`whole-text.ts`), so the board takes 24 KB. Every
- * other part of the entry is capped too, and the worst case in `human-delivery.test.ts` measures the sum.
+ * other part of the entry is capped too.
  */
 export const MAX_BOARD_BYTES = 24 * 1024
 

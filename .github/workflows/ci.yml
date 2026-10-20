@@ -21,8 +21,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Which paths a push touched. A client-only change does not need the 15-minute backend suites: the
-  # client build is covered by bundle-budget, and its tests by check. Anything the worker loads does.
+  # Which paths a push touched. A client-only change does not need the backend e2e: the client build is
+  # covered by bundle-budget. Anything the worker loads does.
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -57,9 +57,7 @@ jobs:
           fi
 
   check:
-    # The safety net: typecheck, lint, the import and rule checks, and the unit tests for every package.
-    # It runs on any push that is not docs-only, because it is the only thing that typechecks and tests
-    # the client.
+    # Typecheck, lint, and the import, rule and export checks. It runs on any push that is not docs-only.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -73,43 +71,20 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
-      # Server test files already run in their own process and cache a pass by a hash of the test and every
-      # repo file it reaches (apps/server/scripts/test-each.ts). A fresh runner had no cache, so all of them
-      # ran every time: 358 s against 28 s on a warm machine. Restoring the newest cache is safe because
-      # every entry is checked against that hash and a stale one just runs again; the key only has to be
-      # newer than the cache it replaces. Restored after install, since install owns node_modules.
-      - uses: actions/cache@v4
-        with:
-          path: node_modules/.cache/kiko-tests
-          key: kiko-tests-${{ runner.os }}-${{ github.sha }}
-          restore-keys: kiko-tests-${{ runner.os }}-
       - run: bun run check
 
   # Real backend verification. It needs no repository secret and no model key, so it is
   # safe for a pull request from a fork. It has only the read-only `contents` permission.
   #
-  # It is the expensive job: it boots a worker and runs the model-free suites. It changes nothing
-  # outside the backend and the code the backend loads, so a change that only touches the client, the
-  # docs, or CI config does not need it. `check` still runs for those, and runs the unit tests for every
-  # package including this one.
+  # It boots a worker and runs the one e2e suite. A change that only touches the client, the docs, or CI
+  # config does not need it.
   verify:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # The suites ran one after another on one runner, so the job took as long as the sum: 14 minutes, with
-    # the ten slowest suites 73 percent of it. Four shards run them side by side, each ~3.5 minutes. The
-    # shard assignment is weighted by recorded duration (apps/cli/src/verify/weights.ts), so the slow suites
-    # spread out instead of piling onto one runner.
-    #
-    # The load tests are skipped here. They send thousands of writes to measure scale rather than behavior;
-    # they run against a local server by name when a change touches routines or search.
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -132,19 +107,6 @@ jobs:
             echo "SESSION_SECRET=$(openssl rand -hex 32)"
             echo "CREDENTIALS_KEK=$(openssl rand -base64 32)"
           } > .dev.vars
-      - name: write the release key
-        # The update suite signs a release that the worker's baked-in public key must trust,
-        # so the real key is written. Where secrets are withheld, a throwaway key stands in.
-        env:
-          RELEASE_KEY_JSON: ${{ secrets.RELEASE_KEY_JSON }}
-        run: |
-          mkdir -p "$HOME/.config/kiko"
-          if [ -n "$RELEASE_KEY_JSON" ]; then
-            printf '%s' "$RELEASE_KEY_JSON" > "$HOME/.config/kiko/release-key.json"
-          else
-            bun scripts/release.ts --init-key
-          fi
-          chmod 600 "$HOME/.config/kiko/release-key.json"
       - name: start the worker
         working-directory: apps/server
         env:
@@ -159,23 +121,18 @@ jobs:
           echo "the worker did not become healthy"
           tail -n 50 "$RUNNER_TEMP/wrangler.log"
           exit 1
-      - name: run the model-free suites
-        # A failing suite prints its last frames. They go to a file for the artifact.
-        # 20k filler messages do not fit the suite's 120 s window on a shared runner, so the
-        # load is shrunk; the functional checks and pagination still run.
-        env:
-          KIKO_SEARCH_MESSAGES: "2000"
-          SHARD: ${{ matrix.shard }}
-          SHARDS: ${{ strategy.job-total }}
+      - name: run the e2e
+        # One suite: five warm prompts, a quiet minute, an always-failing prompt and a quiet minute,
+        # counting billed Durable Object writes, alarms and calls between objects.
         shell: bash
         run: |
           set -o pipefail
-          bun kiko verify --no-model --no-load --shard "$SHARD" --shards "$SHARDS" --url http://localhost:8787 2>&1 | tee "$RUNNER_TEMP/verify.log"
+          bun kiko verify journal-overhead --url http://localhost:8787 2>&1 | tee "$RUNNER_TEMP/verify.log"
       - name: upload the last frames and the worker log
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: verify-frames-${{ matrix.shard }}
+          name: verify-frames
           path: |
             ${{ runner.temp }}/verify.log
             ${{ runner.temp }}/wrangler.log

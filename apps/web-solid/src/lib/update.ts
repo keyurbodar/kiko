@@ -1,4 +1,4 @@
-// Where a one-click update is, as the backend reports it. Pure, so the table is tested in update.test.ts.
+// Where a one-click update is, as the backend reports it.
 
 import type { UpdateStage, UserToClient } from "@kiko/protocol"
 import { clientBehind, type Skew } from "./version-skew"

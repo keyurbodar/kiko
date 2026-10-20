@@ -61,16 +61,12 @@ Several sessions run dev servers at once. Never `pkill` or `killall` wrangler, w
 ## Checks
 
 ```bash
-bun run check                                   # typecheck, lint, imports, rules, exports, tests; cached, so a rerun is fast
-bun run --cwd apps/server test                  # server tests only, one process per file
-bun kiko verify --list                          # backend suites
-bun kiko verify <suite> --url http://localhost:<n>
-bun scripts/bundle-budget.ts                    # client tier sizes
+bun run check                                          # typecheck, lint, imports, rules, exports
+bun kiko verify journal-overhead --url http://localhost:<n>   # the one e2e: billed writes, alarms, failures
+bun scripts/bundle-budget.ts                           # client tier sizes
 ```
 
-Run only the tests and suites your change touches. CI runs the full gate and every model-free suite on each push, so a full local run repeats it. Frontend behavior is checked in a real browser with the `verify-kiko` skill in `.cursor/skills/`.
-
-A test must fail when the behavior breaks. A test that only proves the code runs does not count.
+There are no unit tests. Do not add any. The one e2e suite is `journal-overhead`, and CI runs it on each backend push. Frontend behavior is checked in a real browser with the `verify-kiko` skill in `.cursor/skills/`.
 
 ## Code style
 

@@ -24,11 +24,6 @@ export interface Context {
   fake: boolean
   runs: string
   tail?: string
-  /** Runs only one shard of the verify suites, of `shards` total. */
-  shard?: number
-  shards?: number
-  /** Skips the load tests. */
-  noLoad?: boolean
 }
 
 const commands: Record<string, (ctx: Context) => Promise<void>> = { health, ws, login, whoami, verify, composio, kernel }
@@ -51,9 +46,6 @@ export async function main(argv: string[]): Promise<number> {
         fake: { type: "boolean", default: false },
         runs: { type: "string", default: "5" },
         tail: { type: "string" },
-        shard: { type: "string" },
-        shards: { type: "string" },
-        "no-load": { type: "boolean", default: false },
       },
     })
     const [name, ...args] = positionals
@@ -62,12 +54,7 @@ export async function main(argv: string[]): Promise<number> {
     const idle = Number(values.idle)
     if (!Number.isFinite(idle) || idle < 0) throw new CliError(`bad --idle: ${values.idle}`)
     console.error(`kiko: target ${values.url}`)
-    const shard = values.shard === undefined ? undefined : Number(values.shard)
-    const shards = values.shards === undefined ? undefined : Number(values.shards)
-    if (shards !== undefined && (!Number.isInteger(shards) || shards < 1)) throw new CliError(`bad --shards: ${values.shards}`)
-    if (shard !== undefined && (!Number.isInteger(shard) || shard < 1)) throw new CliError(`bad --shard: ${values.shard}`)
-    if ((shard === undefined) !== (shards === undefined)) throw new CliError("--shard and --shards go together")
-    await run({ url: withSlash(values.url), json: values.json, args, idle, dev: values.dev, name: values.name, list: values.list, noModel: values["no-model"], fake: values.fake, runs: values.runs, tail: values.tail, shard, shards, noLoad: values["no-load"] })
+    await run({ url: withSlash(values.url), json: values.json, args, idle, dev: values.dev, name: values.name, list: values.list, noModel: values["no-model"], fake: values.fake, runs: values.runs, tail: values.tail })
     return 0
   } catch (e) {
     console.error(`kiko: ${e instanceof Error ? e.message : String(e)}`)

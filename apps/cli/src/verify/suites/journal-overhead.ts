@@ -4,7 +4,18 @@ import type { RoomHandle, Session, Verifier } from "../client"
 import { VerifyError } from "../client"
 import { messages, newRoom, poll } from "../kit"
 import type { Suite } from "../runner"
-import { fake, resetStats } from "./latency"
+
+async function call(v: Verifier, s: Session, path: string, body: unknown): Promise<Response> {
+  const res = await fetch(new URL(path, v.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: s.auth },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new VerifyError(`${path} answered ${res.status}. start the Worker with NODE_ENV=development`)
+  return res
+}
+const fake = (v: Verifier, s: Session, roomId: string) => call(v, s, "api/dev/agent/fake", { roomId })
+const resetStats = (v: Verifier, s: Session) => call(v, s, "api/dev/stats/reset", {})
 
 // SQL cursor rows exclude hidden KV and alarm writes. The gate includes all three meters.
 // KIKO_JOURNAL_QUIET_MS can shorten a smoke run, but a gate requires the full minute.
