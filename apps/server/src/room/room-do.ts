@@ -53,7 +53,7 @@ import { searchMessages, type SearchOptions } from "./search"
 import { STORAGE_ERROR } from "../lib/storage-error"
 import { handleFrame, send, type SocketRoom } from "./socket"
 import type { RoomDev } from "./dev"
-import { MemoryNaps, MEMORY_WAKEUP } from "./memory-naps"
+import { MemoryNaps } from "./memory-naps"
 import { applyTaskOp, RoomWorkspace, runCall, type WorkspaceAnswer, type WorkspaceCall } from "./workspace"
 import { Reports } from "./reports"
 import { Groups, type GroupResult } from "./groups"
@@ -484,7 +484,6 @@ export class Room implements SocketRoom {
 		await runDue(this.alarms, due, {
 			[HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
 			[BURST_WAKEUP]: () => this.flushBurst(),
-			[MEMORY_WAKEUP]: () => this.memoryNaps.naps(),
 			["routine_events"]: () => this.reports.flush(),
 			[PENDING_WAKEUP]: () => this.sweepPending(),
 		})
@@ -593,13 +592,11 @@ export class Room implements SocketRoom {
 
 	async memoryView(seqs: number[]): Promise<{ text: string; count: number }> {
 		const out = this.memoryNaps.view(seqs)
-		await this.memoryNaps.arm()
 		return out
 	}
 
 	async memorySince(slug: AgentSlug, pos: number, seqs: number[]): Promise<{ text: string; count: number }> {
 		const out = this.memoryNaps.since(slug, pos, seqs)
-		await this.memoryNaps.arm()
 		return out
 	}
 
@@ -696,6 +693,11 @@ export class Room implements SocketRoom {
     const home = this.home()
     if (!env.ARCHIVE || !home) return undefined
     return this.archive ??= new HistoryArchive(home.roomId, new RoomHistoryStore(this.ctx.storage, this.log), historyR2(env.ARCHIVE))
+  }
+
+  async afterRun(): Promise<void> {
+    await this.memoryNaps.naps()
+    await this.archiveHistory()
   }
 
   archiveHistory(): Promise<void> {
@@ -1252,7 +1254,6 @@ export class Room implements SocketRoom {
 		}
 		const changed = await this.setStatus(slug, working ? "working" : "idle")
 		if (working && !changed) this.broadcastStatus(slug)
-    if (home && first) this.ctx.waitUntil(this.archiveHistory().catch((error: unknown) => console.error("history archive failed", error instanceof Error ? error.message : String(error))))
 	}
 
 	private activeFrame(): RoomToClient {

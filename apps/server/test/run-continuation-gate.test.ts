@@ -80,11 +80,13 @@ async function fakeRun(split: boolean) {
   }
 }
 
-test("committed boundary close reopens without repeating effects or changing the transcript", async () => {
+test("20 concurrent split runs match one unsplit reference in local transcript and effect isolation, not Cloudflare quotas", async () => {
   const baseline = await fakeRun(false)
-  const split = await fakeRun(true)
-  expect(split.invocations).toBeGreaterThan(1)
-  expect(split.peak).toBeLessThanOrEqual(40)
-  expect(split.effects).toEqual(Array.from({ length: 60 }, (_, n) => n))
-  expect(split.transcript).toEqual(baseline.transcript)
-}, 30_000)
+  const splits = await Promise.all(Array.from({ length: 20 }, () => fakeRun(true)))
+  for (const split of splits) {
+    expect(split.invocations).toBeGreaterThan(1)
+    expect(split.peak).toBeLessThanOrEqual(40)
+    expect(split.effects).toEqual(Array.from({ length: 60 }, (_, n) => n))
+    expect(split.transcript).toEqual(baseline.transcript)
+  }
+}, 120_000)
