@@ -20,7 +20,7 @@ afterEach(async () => {
 
 async function setup(result: RunDelivery = "delivered") {
   const sql = sqlWith([...USER_STEPS, ...JOURNAL_STEPS])
-  sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'plans', 0)", ROOM)
+  sql.exec("INSERT INTO room_directory (room_id) VALUES (?)", ROOM)
   const clock = { now: Date.UTC(2026, 9, 10, 12) }
   const delivered: string[] = []
   let scheduler: RoutineScheduler = { sync: async () => { throw new Error("scheduler not attached") } }

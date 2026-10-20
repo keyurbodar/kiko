@@ -11,6 +11,7 @@ import { instrument } from "../lib/dev-guard"
 import { HANDLE_HEADER } from "../lib/names"
 import type { OwnerServices, ServiceOptions } from "./services"
 import { scopedContext } from "./context"
+import { Clock } from "./clock"
 import { ownerAttachment, socketView } from "./socket"
 
 type Method<T> = { [K in keyof T]: T[K] extends (...args: never[]) => unknown ? K : never }[keyof T]
@@ -28,6 +29,7 @@ export class OwnerDO extends DurableObject<Env> {
   private readonly blobs: BlobStore
   private readonly ownerId: string
   private settings?: User
+  private readonly clock: Clock
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -35,6 +37,7 @@ export class OwnerDO extends DurableObject<Env> {
     const name = ctx.id.name ?? "owner"
     this.ownerId = name === "owner" ? "owner" : name.replace(/^owner:/, "")
     initializeSchema(ctx.storage)
+    this.clock = new Clock(ctx.storage, () => ({ loaded: [], unloaded: ctx.storage.sql.exec<{ at: number }>("SELECT at FROM owner_deadlines").toArray().map((row) => row.at) }))
     this.runs = new Runs({
       dispatch: async (agent, requestId) => { ctx.waitUntil(env.OWNER.get(ctx.id).run(agent, requestId)) },
       schedule: async (agent) => { await this.context(`agent:${this.ownerId}:${agent}`).storage.setAlarm(Date.now()) },
@@ -203,7 +206,7 @@ export class OwnerDO extends DurableObject<Env> {
   }
 
   private async refreshClock(): Promise<void> {
-    await refreshClock(this.ctx)
+    await this.clock.refresh()
   }
 
   async roomCall<M extends Method<Room>>(roomId: string, method: M, args: Args<Room[M]>): Promise<Result<Room[M]>> {
@@ -334,10 +337,3 @@ export function initializeSchema(storage: DurableObjectStorage): void {
 // PR3 and PR6 replace these hooks without moving the dispatch sites.
 async function afterRun(_storage: DurableObjectStorage, _roomId: string, _slug: string): Promise<void> {}
 async function archive(_storage: DurableObjectStorage, _roomId: string): Promise<void> {}
-async function refreshClock(ctx: DurableObjectState): Promise<void> {
-  const at = ctx.storage.sql.exec<{ at: number | null }>("SELECT min(at) AS at FROM owner_deadlines").one().at
-  const current = await ctx.storage.getAlarm()
-  if (current === at) return
-  if (at === null) { if (current !== null) await ctx.storage.deleteAlarm() }
-  else await ctx.storage.setAlarm(at)
-}

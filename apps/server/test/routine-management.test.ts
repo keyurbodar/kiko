@@ -12,7 +12,7 @@ const MIN = 60_000
 
 function setup(deliverRun: DeliverRun = async () => "delivered") {
   const sql = sqlWith(USER_STEPS)
-  sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'plans', 0)", ROOM)
+  sql.exec("INSERT INTO room_directory (room_id) VALUES (?)", ROOM)
   const clock = { now: Date.UTC(2026, 9, 10, 12) }
   const reminders = new Reminders(sql, { sync: async () => {} }, () => clock.now, {
     deliverRun,

@@ -1,5 +1,5 @@
 import type { Envelope, Message, RoomId } from "@kiko/protocol"
-import type { Alarms } from "@kiko/durable/alarm"
+import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 const MAX_ENTRY_BYTES = 256 * 1024
 const MAX_OPEN = 1000
 

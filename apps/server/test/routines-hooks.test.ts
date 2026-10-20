@@ -10,7 +10,7 @@ const ROOM = "01J0000000000000000000000R" as RoomId
 
 function routines() {
   const sql = sqlWith(USER_STEPS)
-  sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'plans', 0)", ROOM)
+  sql.exec("INSERT INTO room_directory (room_id) VALUES (?)", ROOM)
   const scheduler = { sync: async () => {} }
   const reminders = new Reminders(sql, scheduler, () => Date.now())
   const wiring = new RoutineWiring({ reminders, setRoutines: async () => {}, routineCreated: async () => {} })

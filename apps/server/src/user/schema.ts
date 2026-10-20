@@ -1,4 +1,3 @@
-import { ALARM_STEPS } from "@kiko/durable/alarm"
 import { addColumn, type Step } from "@kiko/durable/migrate"
 import { fileIndexSteps, HOME_TABLES } from "../files/file-index"
 import { LIFE_STEPS, LIFE_TRI_STEPS } from "@kiko/memory/life"
@@ -195,7 +194,7 @@ export const USER_STEPS: Step[] = [
   "CREATE INDEX IF NOT EXISTS loops_ref ON loops (ref)",
   "CREATE VIRTUAL TABLE IF NOT EXISTS loops_fts USING fts5(text)",
   ...fileIndexSteps(HOME_TABLES),
-  ...ALARM_STEPS,
+  
   // Both `loop_heard` and its attempts column belonged to the Jev pass, which is gone. The step stays so the
   // steps after it keep their positions on an object that already ran them.
   addColumn("loop_heard", "attempts", "INTEGER NOT NULL DEFAULT 0"),

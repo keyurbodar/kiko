@@ -1,4 +1,3 @@
-import { ALARM_STEPS } from "@kiko/durable/alarm"
 import { addColumn, dropColumn, rebuildTable, type Step } from "@kiko/durable/migrate"
 import { treeSteps } from "@kiko/memory/optmem"
 import { KEEP_EVENTS } from "./log"
@@ -214,7 +213,7 @@ export const ROOM_STEPS: Step[] = [
 	"CREATE TABLE IF NOT EXISTS team_leases (path TEXT PRIMARY KEY, slug TEXT NOT NULL, at INTEGER NOT NULL)",
 	// ws_files is in version 1 above. The index needs only its directory table here.
 	"CREATE TABLE IF NOT EXISTS ws_dirs (path TEXT PRIMARY KEY)",
-	...ALARM_STEPS,
+	
 	// Every human send reads the burst window in send order (warnBusyAgents), so the window needs the seq index
 	// to stop at its first few rows, not sort every row. The start of the window needs held_until before at.
 	"CREATE INDEX IF NOT EXISTS pending_seq ON pending (seq)",

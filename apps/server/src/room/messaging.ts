@@ -203,7 +203,7 @@ export class MessageChains {
 	}
 }
 
-import type { Alarms } from "@kiko/durable/alarm"
+import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 import type { Burst } from "./burst"
 import { route } from "./deliver"
 import { replyAddressees } from "./recipients"

@@ -1,5 +1,4 @@
 import type { JsonObject } from "@earendil-works/pi-ai"
-import type { Alarms } from "@kiko/durable/alarm"
 import type { Life } from "@kiko/memory/life"
 import { cleanLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@kiko/memory/optmem"
 import { candidates, type CaptureCount, type CapturePolicy, captureWithJudge, mergePolicy } from "@kiko/memory/capture"
@@ -15,17 +14,15 @@ import type { CredentialVault } from "./credentials"
 import { findProvider } from "../models/catalog"
 import { pickJudge, providerUses, type TurnContext } from "./turn-context"
 
-export const LIFE_WAKEUP = "life_naps"
-const NAPS_PER_ALARM = 4
+const NAPS_PER_RUN = 4
 const MAX_NAPS = 4
 const COMPRESS_TIMEOUT_MS = 120_000
 const MEMORY_USAGE = "memory_usage"
 const MEMORY_MODEL = "memory_model"
 const MEMORY_POLICY = "memory_policy"
 const REFUSED = /\((401|403)\)/
-export const CAPTURE_WAKEUP = "life_capture"
 const CAPTURE_QUEUE_MAX = 200
-const CAPTURE_PER_ALARM = 24
+const CAPTURE_PER_RUN = 24
 // Rows per judge request. A request grows with rows times candidates times known facts, and a long one times out.
 const CAPTURE_CHUNK = 4
 const CAPTURE_TEXT_MAX = 8_000
@@ -35,7 +32,6 @@ export type MemoryDeps = {
   chat: (roomId:RoomId)=>import("@kiko/protocol").Chat|null
   sql: SqlStorage
   life: Life
-  alarms: Alarms
   label: string
   credentials: () => CredentialVault
   turn: (provider: string) => Promise<TurnContext>
@@ -44,7 +40,6 @@ export type MemoryDeps = {
 export class MemoryCapture {
   private readonly sql: SqlStorage
   private readonly life: Life
-  private readonly alarms: Alarms
   private readonly d: MemoryDeps
   #compressing = 0
 
@@ -52,7 +47,6 @@ export class MemoryCapture {
     this.d = d
     this.sql = d.sql
     this.life = d.life
-    this.alarms = d.alarms
   }
 
   policy(): CapturePolicy {
@@ -121,13 +115,6 @@ export class MemoryCapture {
     this.count({ facts_added: c.added, facts_replaced: c.replaced, facts_same: c.same, facts_private: c.private })
   }
 
-  private async armCapture(): Promise<void> {
-    const { n, newest } = this.sql.exec<{ n: number; newest: number }>("SELECT count(*) AS n, coalesce(max(queued_at), 0) AS newest FROM capture_queue").one()
-    if (!n) return this.alarms.clearWakeup(CAPTURE_WAKEUP)
-    if (!this.captures()) return this.captureNow()
-    await this.alarms.setWakeup(CAPTURE_WAKEUP, newest + this.policy().jevDelayMs)
-  }
-
   private queued(roomId: string, messageId: string, text: string): boolean {
     return this.sql.exec("SELECT 1 FROM capture_queue WHERE room_id = ? AND message_id = ? AND text = ?", roomId, messageId, text).toArray().length > 0
   }
@@ -147,22 +134,20 @@ export class MemoryCapture {
       JSON.stringify(rows),
     )
     this.sql.exec("DELETE FROM capture_queue WHERE rowid NOT IN (SELECT rowid FROM capture_queue ORDER BY queued_at DESC LIMIT ?)", CAPTURE_QUEUE_MAX)
-    await this.armCapture()
+    await this.captureNow()
   }
 
+  /** Writes down what the queue holds. A row the judge does not answer stays queued for the next human run. */
   async captureNow(): Promise<void> {
     if (!this.captures()) {
       this.sql.exec("DELETE FROM capture_queue")
-      return this.alarms.clearWakeup(CAPTURE_WAKEUP)
+      return
     }
     type QueueRow = { room_id: RoomId; message_id: string; text: string; at: number }
-    const queue = this.sql.exec<QueueRow>("SELECT room_id, message_id, text, at FROM capture_queue ORDER BY queued_at, at LIMIT ?", CAPTURE_PER_ALARM).toArray()
+    const queue = this.sql.exec<QueueRow>("SELECT room_id, message_id, text, at FROM capture_queue ORDER BY queued_at, at LIMIT ?", CAPTURE_PER_RUN).toArray()
     for (const r of queue.filter((r) => !this.capturable(r.room_id))) this.dequeue(r.room_id, [r.message_id])
     const rows = queue.filter((r) => this.capturable(r.room_id))
     const judge = this.judge(CAPTURE_TIMEOUT_MS)
-    let learned = false
-    // A chunk the judge does not answer stays queued. The chunks around it still settle, so one slow chunk cannot hold up the queue.
-    let unanswered = false
     for (let i = 0; i < rows.length; i += CAPTURE_CHUNK) {
       const chunk = rows.slice(i, i + CAPTURE_CHUNK)
       this.count({ capture_jev: 1 })
@@ -171,25 +156,15 @@ export class MemoryCapture {
         judge,
         chunk.map((r) => ({ heard: { messageId: r.message_id, text: r.text, at: r.at }, ref: `room:${r.room_id}:msg:${r.message_id}`, keep: () => this.queued(r.room_id, r.message_id, r.text) })),
       )
-      if (!out) {
-        unanswered = true
-        continue
-      }
+      if (!out) continue
       this.tally(out)
-      learned ||= out.added + out.replaced > 0
       for (const r of chunk) if (this.queued(r.room_id, r.message_id, r.text)) this.dequeue(r.room_id, [r.message_id])
     }
-    if (learned) await this.armNaps()
-    if (unanswered) return void (await this.alarms.setWakeup(CAPTURE_WAKEUP, Date.now() + this.policy().idleMs))
-    await this.armCapture()
   }
 
-  async armNaps(): Promise<void> {
-    if (this.life.pending(1).length) await this.alarms.setWakeup(LIFE_WAKEUP, Date.now() + 2_000)
-  }
-
+  /** Summarizes up to a few spans. A span that fails stays pending for the next human run. */
   async napLife(): Promise<void> {
-    for (const span of this.life.pending(NAPS_PER_ALARM)) {
+    for (const span of this.life.pending(NAPS_PER_RUN)) {
       const prompt = this.life.prompt(span)
       if (!prompt) {
         this.life.settle(span, null)
@@ -197,11 +172,10 @@ export class MemoryCapture {
       }
       const out = await this.compress(prompt)
       if (this.life.prompt(span) !== prompt) continue
-      if ("retryAt" in out) return void (await this.alarms.setWakeup(LIFE_WAKEUP, out.retryAt))
-      if ("error" in out && this.life.tree.failed(span) < MAX_NAP_FAILS) throw new Error(out.error)
+      if ("retryAt" in out) return
+      if ("error" in out && this.life.tree.failed(span) < MAX_NAP_FAILS) return void console.error(`memory nap failed: ${out.error}`)
       this.life.settle(span, "text" in out ? out.text : null)
     }
-    await this.armNaps()
   }
 
   async compress(prompt: string): Promise<{ text: string } | { retryAt: number } | { error: string }> {
@@ -264,14 +238,12 @@ export class MemoryCapture {
       }
       case "note": {
         const out = this.life.append(op.text, "you")
-        if (out.ok) await this.armNaps()
         return out.ok ? { ok: true } : out
       }
       case "pin":
         return this.life.pin(op.pos, op.pinned)
       case "redact":
         if (!this.life.redact(op.pos)) return { ok: false, error: "no such memory" }
-        await this.armNaps()
         return { ok: true }
       case "model":
         return { ok: true, model: this.memoryModel() }
@@ -296,10 +268,5 @@ export class MemoryCapture {
 
   describe(p: ProviderInfo): ProviderInfo {
     return { ...p, ...providerUses(p.provider) }
-  }
-
-  async keyChanged(provider: string): Promise<void> {
-    if (!providerUses(provider).judge) return
-    await this.armCapture()
   }
 }

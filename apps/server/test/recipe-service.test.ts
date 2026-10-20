@@ -17,7 +17,7 @@ type Have = ReadonlySet<string> | "off" | null
 
 function setup(apps = "", have: Have = new Set()) {
   const sql = sqlWith(USER_STEPS)
-  for (const id of [roomId, "01J0000000000000000000000S"]) sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'Test', 0)", id)
+  for (const id of [roomId, "01J0000000000000000000000S"]) sql.exec("INSERT INTO room_directory (room_id) VALUES (?)", id)
   let recipes = [makeRecipe(rule, "follow the tea-time skill.", apps)]
   let connected: Have = have
   const linked: string[] = []

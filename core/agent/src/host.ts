@@ -2,7 +2,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Models } from "@earendil-works/pi-ai"
 import { type AgentChange, type Conversation, type ConversationId, Harness, type HarnessSettings, type Storage, type RegistryReader, type TaskId, type TaskInspection } from "@earendil-works/pi-durable"
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
-import { ALARM_STEPS, type Alarms, createAlarms } from "@kiko/durable/alarm"
+import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 import type { Step } from "@kiko/durable/migrate"
 import { JournalStorage } from "./journal"
 import { continueAtBoundary } from "./continuation"
@@ -95,6 +95,8 @@ export type AgentSetup = {
 export type HostOptions = {
   /** Persist pi input while paused, then ask the owner to dispatch a run RPC. */
   requestRun?: (requestId: string) => void | Promise<void>
+  clock: Alarms
+  projectTasks: (tasks: readonly TaskInspection[], watches: ReadonlyMap<TaskId, number>, current: number | undefined) => { next: number | undefined; resume: { id: TaskId; deadline: number }[] }
   openHarness?: (storage: Storage, setup: AgentSetup) => Promise<Harness>
   setup: () => AgentSetup | Promise<AgentSetup>
   onOpen?: (opened: Opened) => void | Promise<void>
@@ -156,7 +158,6 @@ export const INBOX_STEPS: Step[] = [
 
 // Everything the host's objects store. Its object's schema list spreads this, so the host adds its tables in one place.
 export const HOST_STEPS: Step[] = [
-  ...ALARM_STEPS,
   ...INBOX_STEPS,
   ...WORKERS_STEPS,
   "CREATE TABLE IF NOT EXISTS harness_epoch (id INTEGER PRIMARY KEY CHECK (id = 1), n INTEGER NOT NULL)",
@@ -187,7 +188,7 @@ export class AgentHost {
     private readonly options: HostOptions,
   ) {
     this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), onChange: (running) => options.onWorkers?.(running, false) })
-    this.alarms = createAlarms(ctx)
+    this.alarms = options.clock
   }
 
   private admission: Promise<unknown> = Promise.resolve()
@@ -467,21 +468,9 @@ export class AgentHost {
       const { harness } = opened
       const { tasks } = await harness.inspect(context)
       if (this.retiring.has(opened)) return
-      const now = Date.now()
-      const current = this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", RECOVERY_WAKEUP).toArray()[0]?.at
+      const current = this.alarms.deadline(RECOVERY_WAKEUP)
       const watches = this.taskWatches.get(harness)!
-      let next: number | undefined
-      const resume: { id: TaskId; deadline: number }[] = []
-      for (const task of tasks) {
-        if (task.state.kind === "blocked") continue
-        const scheduled = this.options.scheduledDeadline?.(task)
-        const future = scheduled !== undefined && scheduled > now && !task.record.abortRequested
-        const previous = watches.get(task.record.id) ?? Math.min(current ?? Infinity, now + RECOVERY_DELAY_MS)
-        const fallback = previous > now ? previous : now + RECOVERY_DELAY_MS
-        const deadline = future ? scheduled : fallback
-        next = Math.min(next ?? deadline, deadline)
-        if (!future) resume.push({ id: task.record.id, deadline: fallback })
-      }
+      const { next, resume } = this.options.projectTasks(tasks, watches, current)
       if (this.options.recoveryDeadline) await this.options.recoveryDeadline(next)
       else if (next === undefined) await this.alarms.clearWakeup(RECOVERY_WAKEUP)
       else await this.alarms.setWakeup(RECOVERY_WAKEUP, next)
@@ -543,7 +532,7 @@ export class AgentHost {
       }
       const human = batch.envelopes.some((e) => e.from.kind === "human")
       let run = await this.runState(harness, root)
-      if (human) this.ctx.storage.sql.exec("DELETE FROM wakeups WHERE key = ?", HUMAN_COMING)
+      if (human) await this.alarms.clearWakeup(HUMAN_COMING)
       const invalidated = (await setup.inputInvalidated?.()) ?? null
       if (invalidated) {
         await root.abort(context)
@@ -609,11 +598,12 @@ export class AgentHost {
   }
 
   humanComing(): void {
-    this.ctx.storage.sql.exec("INSERT OR REPLACE INTO wakeups (key, at) VALUES (?, ?)", HUMAN_COMING, Date.now() + HUMAN_COMING_MS)
+    this.options.waitUntil(this.alarms.setWakeup(HUMAN_COMING, Date.now() + HUMAN_COMING_MS))
   }
 
   async humanGone(): Promise<void> {
-    if (!this.ctx.storage.sql.exec("DELETE FROM wakeups WHERE key = ?", HUMAN_COMING).rowsWritten) return
+    if (this.alarms.deadline(HUMAN_COMING) === undefined) return
+    await this.alarms.clearWakeup(HUMAN_COMING)
   }
 
   async rootId(): Promise<ConversationId | null> {
@@ -629,7 +619,7 @@ export class AgentHost {
   }
 
   private humanComingUntil(): number {
-    return this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", HUMAN_COMING).toArray()[0]?.at ?? 0
+    return this.alarms.deadline(HUMAN_COMING) ?? 0
   }
 
   private pulse(opened: Opened): void {

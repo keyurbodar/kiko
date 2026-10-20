@@ -1,5 +1,5 @@
 import type { OwnerServices } from "../owner/services"
-import type { Alarms } from "@kiko/durable/alarm"
+import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 import { keyringFromEnv } from "@kiko/durable/crypto"
 import { isAgentSlug, isRoomId, type BrowserLinkResult, type BrowserState, type ClientToUser as UserFrame, type KernelResult, type KernelStatus, type KikoError, type UserToClient } from "@kiko/protocol"
 import type { Env } from "../index"

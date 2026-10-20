@@ -1,13 +1,10 @@
 import type { AgentSlug } from "@kiko/protocol"
 import type { UserSettings } from "@kiko/protocol/schema"
-import { nextOccurrence, validZone } from "@kiko/sandbox/recurrence"
-import { getSetting, setSetting } from "../lib/settings"
+import { validZone } from "@kiko/sandbox/recurrence"
 import type { WakeResult } from "../room/delivery"
 
 export const INITIATIVE_RUN = "initiative"
-export const INITIATIVE_WAKEUP = "initiative_pass"
 
-const DAILY_AT_NINE = "FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0"
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
 /** A task nudged in the last three days waits: the lead has heard about it. */
@@ -15,7 +12,6 @@ const RENUDGE_MS = 3 * DAY
 const KEEP_MS = 90 * DAY
 const TRIES = 5
 const PER_PASS = { digest: 1, active: 3 }
-const RETRY_AT = "initiative_retry_at"
 
 export type Level = UserSettings["initiative"]
 
@@ -34,11 +30,9 @@ type EngineDeps = {
   title: (roomId: string) => string | null
   wake: (roomId: string, input: WakeInput) => Promise<WakeResult | "busy">
   count: (delta: Record<string, number>) => void
-  setWakeup: (at: number) => Promise<void>
-  clearWakeup: () => Promise<void>
 }
 
-type PassReport = { at: number; woke: { id: string; room: string; to: string; result: WakeResult | "busy" }[]; retryAt: number | null }
+type PassReport = { at: number; woke: { id: string; room: string; to: string; result: WakeResult | "busy" }[] }
 
 export class InitiativeEngine {
   constructor(private readonly d: EngineDeps) {}
@@ -69,29 +63,15 @@ export class InitiativeEngine {
       .sort((a, b) => a.task.updatedAt - b.task.updatedAt)
   }
 
-  async arm(now = Date.now()): Promise<number | null> {
-    const level = this.d.level()
-    if (level === "off" || level === "chat") {
-      await this.d.clearWakeup()
-      return null
-    }
-    const retry = Number(getSetting(this.d.sql, RETRY_AT) ?? 0)
-    const tz = this.d.tz()
-    const at = retry > now ? retry : (nextOccurrence(DAILY_AT_NINE, validZone(tz) ? tz : "UTC", now)?.getTime() ?? now + DAY)
-    await this.d.setWakeup(at)
-    return at
-  }
-
-  /** The daily pass: the oldest open task that nobody nudged wakes its room once. A wake that did not land retries in an hour. */
+  /** Runs once after a human reply: the oldest open task that nobody nudged wakes its room. A wake that did not land is raised by the next pass. */
   async pass(now = Date.now()): Promise<PassReport> {
-    setSetting(this.d.sql, RETRY_AT, "0")
     this.prune(now)
-    const report: PassReport = { at: now, woke: [], retryAt: null }
+    const report: PassReport = { at: now, woke: [] }
     const level = this.d.level()
-    let tried = 0
-    let landed = 0
     if (level === "digest" || level === "active") {
       const raised = new Set<string>()
+      let tried = 0
+      let landed = 0
       for (const { room: roomId, task } of this.due(now)) {
         if (this.d.title(roomId) === null || raised.has(roomId)) continue
         if (++tried > TRIES) break
@@ -112,12 +92,7 @@ export class InitiativeEngine {
           if (++landed >= PER_PASS[level]) break
         }
       }
-      if (tried && !landed) {
-        report.retryAt = now + HOUR
-        setSetting(this.d.sql, RETRY_AT, String(report.retryAt))
-      }
     }
-    await this.arm(now)
     return report
   }
 

@@ -70,3 +70,84 @@ export class Clock {
     return operation
   }
 }
+
+// A service's application deadlines share one document; pi task state remains in its journal.
+// OwnerDO persists the minimum per scope, including unloaded agents, through scopedContext.
+export function createServiceClock(ctx: DurableObjectState): import("@kiko/durable/clock-port").ClockPort {
+  const sql = ctx.storage.sql
+  const read = (): Record<string, number> => {
+    const row = sql.exec<{ value: string }>("SELECT value FROM meta WHERE key = 'clock:application'").toArray()[0]
+    return row ? JSON.parse(row.value) : {}
+  }
+  let update = Promise.resolve()
+  const change = (apply: (deadlines: Record<string, number>) => void): Promise<void> => {
+    const next = update.then(async () => {
+      const deadlines = read()
+      const before = JSON.stringify(deadlines)
+      apply(deadlines)
+      const after = JSON.stringify(deadlines)
+      if (before !== after) {
+        if (Object.keys(deadlines).length) sql.exec("INSERT INTO meta (key, value) VALUES ('clock:application', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", after)
+        else sql.exec("DELETE FROM meta WHERE key = 'clock:application'")
+      }
+      const at = Math.min(...Object.values(deadlines))
+      const current = await ctx.storage.getAlarm()
+      if (Number.isFinite(at)) { if (current !== at) await ctx.storage.setAlarm(at) }
+      else if (current !== null) await ctx.storage.deleteAlarm()
+    })
+    update = next.catch(() => {})
+    return next
+  }
+  return {
+    deadline: (key) => read()[key],
+    setWakeup: (key, at) => change((deadlines) => { deadlines[key] = at }),
+    clearWakeup: (key) => change((deadlines) => { delete deadlines[key] }),
+    dueWakeups: async (now) => {
+      const due: string[] = []
+      await change((deadlines) => {
+        for (const [key, at] of Object.entries(deadlines)) if (at <= now) { due.push(key); delete deadlines[key] }
+      })
+      return due
+    },
+  }
+}
+
+export async function runDue(
+  _clock: import("@kiko/durable/clock-port").ClockPort,
+  due: readonly string[],
+  handlers: Readonly<Record<string, () => unknown>>,
+): Promise<string[]> {
+  const failed: string[] = []
+  for (const key of due) {
+    const handler = handlers[key]
+    if (!handler) continue
+    try { await handler() }
+    catch (error) {
+      failed.push(key)
+      console.error(`clock ${key} failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  return failed
+}
+
+export function projectRecovery(
+  tasks: readonly TaskInspection[],
+  watches: ReadonlyMap<TaskId, number>,
+  current: number | undefined,
+  now: number,
+  scheduledDeadline: (task: TaskInspection) => number | undefined,
+): { next: number | undefined; resume: { id: TaskId; deadline: number }[] } {
+  let next: number | undefined
+  const resume: { id: TaskId; deadline: number }[] = []
+  for (const task of tasks) {
+    if (task.state.kind === "blocked") continue
+    const scheduled = scheduledDeadline(task)
+    const future = scheduled !== undefined && scheduled > now && !task.record.abortRequested
+    const before = watches.get(task.record.id) ?? Math.min(current ?? Infinity, now + RECOVERY_DELAY_MS)
+    const fallback = before > now ? before : now + RECOVERY_DELAY_MS
+    const deadline = future ? scheduled : fallback
+    next = Math.min(next ?? deadline, deadline)
+    if (!future) resume.push({ id: task.record.id, deadline: fallback })
+  }
+  return { next, resume }
+}
