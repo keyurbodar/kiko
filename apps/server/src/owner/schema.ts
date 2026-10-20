@@ -280,6 +280,7 @@ const OWNER_STEPS: readonly Step[] = [
    BEGIN INSERT OR IGNORE INTO owner_meta (scope, key, value) VALUES ('room:' || new.room_id, 'search-hydrated:' || new.seq, CAST(new.seq AS TEXT)); END`,
   `ALTER TABLE members ADD COLUMN lead_seq INTEGER NOT NULL DEFAULT 0`,
   `UPDATE members SET lead_seq = COALESCE((SELECT MIN(events.seq) FROM events WHERE events.room_id = members.room_id AND events.seq >= members.added_seq AND kind = 'member' AND json_extract(payload, '$.member.slug') = members.slug AND json_extract(payload, '$.member.lead') = 1 AND events.seq > COALESCE((SELECT MAX(previous.seq) FROM events AS previous WHERE previous.room_id = members.room_id AND previous.seq >= members.added_seq AND previous.kind = 'member' AND json_extract(previous.payload, '$.member.slug') = members.slug AND json_extract(previous.payload, '$.member.lead') = 0), 0)), added_seq)`,
+  `ALTER TABLE events ADD COLUMN deliveries TEXT NOT NULL DEFAULT '[]'`,
 ]
 
 export function initializeSchema(storage: DurableObjectStorage): void {

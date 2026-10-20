@@ -19,7 +19,7 @@ export interface RoomPort {
   status(state: AgentState, detail?: string | null): Promise<void>
   workers(rows: readonly WorkerRow[]): Promise<void>
   endRun(runId: string, inputs?: readonly SubmissionId[], working?: boolean): Promise<void>
-  react(emoji: string, messageId?: string): Promise<unknown>
+  react(deliveryId: string, emoji: string, messageId?: string): Promise<unknown>
   runError(runId: string, error: { kind: RunErrorKind; provider: string; detail?: string }): Promise<void>
 }
 
@@ -45,9 +45,9 @@ const assistant = (entry: EntryRecord): AssistantLike | undefined => {
   return message?.role === "assistant" ? message : undefined
 }
 
-type Generation = { texts: Map<number, string>; fed: string; splitter: Splitter; blocks: string[] }
+type Generation = { reactionIndex: number; texts: Map<number, string>; fed: string; splitter: Splitter; blocks: string[] }
 
-const newGeneration = (): Generation => ({ texts: new Map(), fed: "", splitter: createSplitter(), blocks: [] })
+const newGeneration = (): Generation => ({ reactionIndex: 0, texts: new Map(), fed: "", splitter: createSplitter(), blocks: [] })
 
 type Run = {
   id: string
@@ -55,7 +55,8 @@ type Run = {
   cursor: number
   blocks: string[]
   posted: number
-  reactions: Reaction[]
+  reactions: (Reaction & { deliveryId: string })[]
+  generationIndex: number
   generation: Generation | null
   bubbled: boolean
   toolStarted: boolean
@@ -97,7 +98,6 @@ export class Outbox {
 
   private replayEntries(run: Run, row: Row, entries: SnapshotEvent["entries"], liveId: string | null, livePartial: boolean): void {
     if (livePartial && this.run?.id === row.run_id) {
-      run.generation = this.run.generation
       run.bubbled = this.run.bubbled
       run.toolStarted = this.run.toolStarted
       run.tools = this.run.tools
@@ -110,6 +110,7 @@ export class Outbox {
       if (row.until === undefined && row.run_id !== liveId && (entry.kind === "pi.user" || entry.kind === "kiko.input")) break
       this.finishGeneration(run, entry)
     }
+    if (livePartial && this.run?.id === row.run_id) run.generation = this.run.generation
   }
 
   private nextQuiet = false
@@ -313,7 +314,8 @@ export class Outbox {
     const out = generation.splitter.push(text.slice(generation.fed.length))
     generation.fed = text
     generation.blocks.push(...out.blocks)
-    run.reactions.push(...out.reactions)
+    this.queueReactions(run, out.reactions, run.generationIndex, generation.reactionIndex)
+    generation.reactionIndex += out.reactions.length
     await this.flush()
     if (out.draft !== null && this.now() - this.lastDraft >= DRAFT_INTERVAL_MS) {
       this.lastDraft = this.now()
@@ -348,6 +350,7 @@ export class Outbox {
     run.cursor = Math.max(run.cursor, entry.id)
     const message = assistant(entry)
     if (!message) return false
+    const generationIndex = run.generationIndex++
     run.failure = message.stopReason === "error" ? { ...(message.errorMessage ? { errorMessage: message.errorMessage } : {}), ...(message.provider ? { provider: message.provider } : {}) } : null
     if (hasToolCall(message)) run.toolStarted = true
     const streamed = run.generation?.blocks ?? []
@@ -359,8 +362,12 @@ export class Outbox {
     if (post === "none" && !run.quiet && hasToolCall(message) && text.trim()) run.notes.push({ id: noteId(entry.id), text: noteOf(text) })
     const { blocks: final, reactions } = partsOf(post === "ack" ? ackOf(text) : post === "answer" ? text : "")
     run.blocks.push(...final)
-    run.reactions.push(...reactions)
+    this.queueReactions(run, reactions, generationIndex)
     return streamed.some((block, i) => block !== final[i])
+  }
+
+  private queueReactions(run: Run, reactions: Reaction[], generation: number, start = 0): void {
+    for (const [index, reaction] of reactions.entries()) run.reactions.push({ ...reaction, deliveryId: `${run.id}:reaction:${generation}:${start + index}` })
   }
 
   private rebase(run: Run): void {
@@ -384,7 +391,7 @@ export class Outbox {
       const reaction = run.reactions[0]
       if (reaction === undefined) break
       const { emoji, messageId } = reaction
-      await room.react(emoji, messageId)
+      await room.react(reaction.deliveryId, emoji, messageId)
       run.reactions.shift()
     }
   }
@@ -459,6 +466,7 @@ export class Outbox {
       blocks: [],
       posted: row.posted,
       reactions: [],
+      generationIndex: 0,
       generation: null,
       bubbled: false,
       toolStarted: false,

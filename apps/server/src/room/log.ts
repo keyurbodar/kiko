@@ -488,15 +488,19 @@ export class RoomLog {
 		})
 	}
 
-	react(messageId: MessageId, by: Actor, emoji: string | null): RoomEvent | null {
+	react(messageId: MessageId, by: Actor, emoji: string | null, deliveryId?: string): RoomEvent | null {
 		return this.storage.transactionSync(() => {
+			if (deliveryId && this.reactionDelivered(deliveryId)) return null
 			if (!this.message(messageId)) return null
 			const key = actorKey(by)
 			const current = this.sql
 				.exec<{ emoji: string }>("SELECT emoji FROM reactions WHERE room_id = ? AND message_id = ? AND actor = ?", this.roomId, messageId, key)
 				.toArray()[0]?.emoji
-			if ((current ?? null) === emoji) return null
-			const event = this.append(key, { t: "react", messageId, by, emoji })
+			if ((current ?? null) === emoji) {
+				if (deliveryId) this.rememberReaction(messageId, key, deliveryId)
+				return null
+			}
+			const event = this.append(key, { t: "react", messageId, by, emoji }, deliveryId)
 			if (emoji === null) this.sql.exec("DELETE FROM reactions WHERE room_id = ? AND message_id = ? AND actor = ?", this.roomId, messageId, key)
 			else
 				this.sql.exec(
@@ -509,6 +513,15 @@ export class RoomLog {
 				)
 			return event
 		})
+	}
+
+	reactionDelivered(deliveryId: string): boolean {
+		return this.meta(`reaction:${deliveryId}`) !== null || this.sql.exec("SELECT 1 FROM events, json_each(events.deliveries) AS delivery WHERE room_id = ? AND delivery.value = ? LIMIT 1", this.roomId, deliveryId).toArray().length > 0
+	}
+
+	private rememberReaction(messageId: MessageId, actor: string, deliveryId: string): void {
+		const receipt = this.sql.exec("UPDATE events SET deliveries = json_insert(deliveries, '$[#]', ?) WHERE room_id = ? AND seq = (SELECT max(seq) FROM events WHERE room_id = ? AND kind = 'react' AND actor = ? AND json_extract(payload, '$.messageId') = ?) RETURNING seq", deliveryId, this.roomId, this.roomId, actor, messageId).toArray()
+		if (!receipt.length) this.setMeta(`reaction:${deliveryId}`, messageId)
 	}
 
 	markRead(seq: number): RoomEvent | null {
@@ -546,19 +559,19 @@ export class RoomLog {
 		)
 	}
 
-	append(actor: string, body: Body): RoomEvent {
+	append(actor: string, body: Body, deliveryId?: string): RoomEvent {
 		const at = this.now()
 		const seq = this.lastSeq() + 1
 		this.sql.exec(
-			"INSERT INTO events (room_id, seq, kind, at, actor, payload) VALUES (?, ?, ?, ?, ?, ?)",
-			this.roomId, seq, body.t, at, actor, JSON.stringify(body),
+			"INSERT INTO events (room_id, seq, kind, at, actor, payload, deliveries) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			this.roomId, seq, body.t, at, actor, JSON.stringify(body), JSON.stringify(deliveryId ? [deliveryId] : []),
 		)
 		this.trim(seq)
 		return { ...body, seq, at } as RoomEvent
 	}
 
 	private trim(seq: number): void {
-		if (seq % TRIM_EVERY === 0) this.sql.exec("DELETE FROM events WHERE room_id = ? AND seq <= ?", this.roomId, seq - KEEP_EVENTS)
+		if (seq % TRIM_EVERY === 0) this.sql.exec("DELETE FROM events WHERE room_id = ? AND seq <= ? AND deliveries = '[]'", this.roomId, seq - KEEP_EVENTS)
 	}
 
 	unansweredFor(agentSlug: AgentSlug, after: number, limit = 200): Pending[] {
