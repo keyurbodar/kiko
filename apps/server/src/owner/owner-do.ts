@@ -1,6 +1,5 @@
 import { DurableObject } from "cloudflare:workers"
-import { AsyncLocalStorage } from "node:async_hooks"
-import { type RunBudget, Runs } from "./runs"
+import { Runs } from "./runs"
 import { isRoomId, MAX_FRAME } from "@kiko/protocol"
 import { Agent } from "../agent/agent-do"
 import { Room } from "../room/room-do"
@@ -29,7 +28,6 @@ const DEADLINES = `SELECT m.scope, min(j.value) AS at FROM owner_meta m, json_ea
 
 export class OwnerDO extends DurableObject<Env> {
   private readonly runs: Runs
-  private readonly incoming = new AsyncLocalStorage<{ requests: Map<string, string>; accepting: boolean }>()
   async storageUsage() {
     return { objectBytes: this.ctx.storage.sql.databaseSize, archiveEnabled: Boolean(this.env.ARCHIVE) }
   }
@@ -52,7 +50,7 @@ export class OwnerDO extends DurableObject<Env> {
     initializeSchema(ctx.storage)
     this.clock = new Clock(ctx.storage, async () => {
       const queued = ctx.storage.sql.exec<{ at: number | null }>(
-        "SELECT min(ready_at) AS at FROM owner_runs WHERE request_id != 'socket-recovery' OR ? = 0", this.connected() ? 1 : 0,
+        "SELECT min(ready_at) AS at FROM owner_runs",
       ).one().at
       return {
         loaded: [],
@@ -127,11 +125,6 @@ export class OwnerDO extends DurableObject<Env> {
   private async enqueueRun(agent: string, requestId: string): Promise<void> {
     const [roomId, slug, ...extra] = agent.split(":")
     if (!isRoomId(roomId) || !slug || extra.length) throw new Error("bad agent key")
-    const incoming = this.incoming.getStore()
-    if (incoming?.accepting) {
-      incoming.requests.set(agent, requestId)
-      if (this.connected()) return
-    }
     this.ctx.storage.sql.exec(
       `INSERT INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(agent) DO UPDATE SET ready_at = min(owner_runs.ready_at, excluded.ready_at), version = owner_runs.version + 1`,
@@ -140,39 +133,15 @@ export class OwnerDO extends DurableObject<Env> {
     await this.refreshClock()
   }
 
-  private async humanInput<T>(admit: () => Promise<T>): Promise<T> {
-    const requested = new Map<string, string>()
-    const admission = { requests: requested, accepting: true }
-    let result: T
-    try {
-      result = await this.incoming.run(admission, admit)
-    } finally {
-      admission.accepting = false
-    }
-    const budget = this.runs.budget()
-    const outcomes = await Promise.allSettled([...requested].map(async ([key, requestId]) => {
-      const [roomId, slug] = key.split(":")
-      if (!roomId || !slug) throw new Error("bad agent key")
-      const ticket = this.ctx.storage.sql.exec<QueuedRun>(
-        "SELECT agent, room_id, slug, request_id, version FROM owner_runs WHERE agent = ?", key,
-      ).toArray()[0]
-      await this.executeRun(ticket ?? { agent: key, room_id: roomId, slug, request_id: requestId }, budget)
-    }))
-    await this.refreshClock()
-    for (const outcome of outcomes) if (outcome.status === "rejected") throw outcome.reason
-    return result
-  }
-
-  private async executeRun(queued: Run | QueuedRun, budget?: RunBudget): Promise<void> {
+  private async executeRun(queued: QueuedRun): Promise<void> {
     if (this.runs.has(queued.agent)) return
     try {
       await this.runs.run(queued.agent, queued.request_id, async (budget) => {
         const agent = this.agent(queued.room_id, queued.slug)
         return agent.runInvocation(() => budget.due())
-      }, budget)
+      })
     } finally {
-      if ("version" in queued) this.ctx.storage.sql.exec("DELETE FROM owner_runs WHERE agent = ? AND version = ?", queued.agent, queued.version)
-      else this.ctx.storage.sql.exec("DELETE FROM owner_runs WHERE agent = ? AND request_id = ?", queued.agent, "socket-recovery")
+      this.ctx.storage.sql.exec("DELETE FROM owner_runs WHERE agent = ? AND version = ?", queued.agent, queued.version)
     }
   }
 
@@ -272,10 +241,10 @@ export class OwnerDO extends DurableObject<Env> {
         return
       }
       if (!saved.rooms[roomId] || !("frame" in frame)) { ws.close(1008, "room not subscribed"); return }
-      await this.humanInput(() => this.room(roomId).webSocketMessage(socketView(ws, roomId), JSON.stringify(frame.frame)))
+      await this.room(roomId).webSocketMessage(socketView(ws, roomId), JSON.stringify(frame.frame))
       return
     }
-    await this.humanInput(() => this.user().webSocketMessage(socketView(ws), raw))
+    await this.user().webSocketMessage(socketView(ws), raw)
   }
 
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
@@ -359,10 +328,8 @@ export class OwnerDO extends DurableObject<Env> {
   }
 
   private async resumeSocket(): Promise<void> {
-    await this.humanInput(async () => {
-      for (const roomId of await this.pendingRooms()) await this.room(roomId).settleHumanInput()
-      for (const run of await this.unfinishedRuns()) this.incoming.getStore()?.requests.set(run.agent, run.request_id)
-    })
+    for (const roomId of await this.pendingRooms()) await this.room(roomId).settleHumanInput()
+    for (const run of await this.unfinishedRuns()) await this.enqueueRun(run.agent, run.request_id)
   }
 
   private async recoverDisconnected(): Promise<void> {
@@ -391,11 +358,9 @@ export class OwnerDO extends DurableObject<Env> {
     const room = this.room(roomId)
     const call = room[method] as (...args: Args<Room[M]>) => Result<Room[M]>
     if (method === "humanSend" || method === "answerAsk" || method === "skipAsk" || method === "retryRun") {
-      return this.humanInput(async () => {
-        const result = await call.apply(room, args)
-        await room.settleHumanInput()
-        return result
-      })
+      const result = await call.apply(room, args)
+      await room.settleHumanInput()
+      return result
     }
     return call.apply(room, args)
   }
