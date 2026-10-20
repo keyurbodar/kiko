@@ -35,12 +35,12 @@ Everything an owner has lives in one `OwnerDO` with one SQLite database. Rooms, 
 1. The client applies the message locally, then sends it over the socket.
 2. `OwnerDO` stores the message row and acknowledges it.
 3. Human messages that arrive before a short pause form a burst. The burst goes to the agents it addresses.
-4. The run executes inside that socket event. All runs started by one event share one budget of 40 outbound calls.
+4. Admission persists a ready ticket and returns. A real alarm executes one queued run to completion, with a budget of 40 outbound calls. Runs share one owner and execute serially because overlapping events can share Cloudflare's subrequest limit.
 5. Each agent writes its reply as short bubbles. Each finished model turn writes one journal row.
 
 ## Writes are the budget
 
-Cloudflare bills rows written, and the Free plan allows 100,000 a day. A simple prompt writes 3 rows: the human's message, the reply, and one journal row. Opening the app and an idle minute write 0.
+Cloudflare bills rows written, and the Free plan allows 100,000 a day. A simple prompt uses 6 billed writes: the human's message, the reply, one journal row, a ready ticket and its deletion, and one alarm. Opening the app and an idle minute write 0.
 
 - **Derive instead of store.** An agent's unanswered input is the human messages after its delivery cursor. The cursor is `humanDeliveredSeq` in the agent's journal input, and it survives journal resets. A member only receives messages posted after it joined, or after it became lead.
 - **No extra indexes.** Message ids are `<seq>.<hex room>`, so lookups use the `(room_id, seq)` key.
@@ -49,7 +49,7 @@ Cloudflare bills rows written, and the Free plan allows 100,000 a day. A simple 
 - **Lazy search.** The FTS index stores one document per batch of messages. It is built when someone searches, and it rereads only what changed.
 - **Cold history** moves to R2 (`owner/history-*.ts`).
 
-`bun kiko verify journal-overhead` measures billed writes, alarms and error rows. CI fails if a warm prompt writes more than 4.
+`bun kiko verify journal-overhead` measures billed writes, alarms and error rows. CI fails if the median warm prompt writes more than 7.
 
 ## Rules that keep it safe
 
