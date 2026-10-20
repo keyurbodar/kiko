@@ -31,8 +31,9 @@ Kiko is a general-purpose AI chat web app. People text one agent or a team of ag
 - Do not fetch the outside from an agent's run except through `AgentDO.egress`.
 - Do not bind one SQL value per list item. Pass the list as one JSON value and read it with `json_each(?)`.
 - Do not edit or move a table's step in `schema.ts`. Append a new step at the end.
-- Do not use `setTimeout` to schedule work in a Durable Object. Use `alarm.ts`.
+- Do not use `setTimeout` to schedule work in a Durable Object. Use `owner/clock.ts`.
 - Make every alarm handler and delivery safe to run twice. Give each one a stable id.
+- No code schedules work after an error. Every alarm traces back to a pi task, a routine, a lease or the hello deadline.
 - Every tool declares `read`, `write`, `message`, or `external`.
 - Build agents only in `factory.ts`.
 - An extension script gets no I/O except the bridge in `core/sandbox/src/compile.ts`.
