@@ -17,7 +17,10 @@ import type {
 	SystemEvent,
 	RoomId } from "@kiko/protocol"
 import { listSpace, ROOM_TABLES } from "../files/file-index"
+import { messageIdAt, messageSeq, messageSeqs } from "./message-position"
 import { listMembers } from "./members"
+import { replyAddressees, resolveRecipients, tags } from "./recipients"
+import type { Pending } from "./burst"
 import { listAsks } from "./human-asks"
 import { type HeardStep, RunSteps } from "./steps"
 import { listTasks } from "./workspace"
@@ -74,6 +77,9 @@ type MessageRow = {
 	steps: number | null
 	step_after: number | null
 	event: string | null
+	client_id: string | null
+	message_payload: string | null
+	mentions: string | null
 }
 
 export type NewMessage = {
@@ -84,6 +90,7 @@ export type NewMessage = {
 	files?: readonly FileRef[]
 	run?: RunRef
 	clientId?: string
+	mentions?: readonly string[]
 	goto?: RoomId
 	quote?: string
 	to?: AgentSlug | "all"
@@ -150,7 +157,7 @@ export class RoomLog {
 	}
 
 	lastSeq(): number {
-		return this.sql.exec<{ seq: number | null }>("SELECT max(seq) AS seq FROM events WHERE room_id = ?", this.roomId).one().seq ?? 0
+		return this.sql.exec<{ seq: number | null }>("SELECT max(seq) AS seq FROM (SELECT max(seq) AS seq FROM events WHERE room_id = ?1 UNION ALL SELECT max(seq) FROM messages WHERE room_id = ?1)", this.roomId).one().seq ?? 0
 	}
 
 	readSeq(): number {
@@ -173,7 +180,7 @@ export class RoomLog {
 	since(seq: number): RoomEvent[] {
 		return this.sql
 			.exec<{ seq: number; at: number; payload: string }>(
-				"SELECT seq, at, payload FROM events WHERE room_id = ? AND seq > ? ORDER BY seq",
+				"SELECT seq, at, payload FROM events WHERE room_id = ?1 AND seq > ?2 UNION ALL SELECT seq, at, message_payload AS payload FROM messages WHERE room_id = ?1 AND seq > ?2 AND message_payload IS NOT NULL ORDER BY seq",
 				this.roomId,
 				seq,
 			)
@@ -235,7 +242,7 @@ export class RoomLog {
 		const out = new Map<string, ReplyPreview>()
 		if (!ids.length) return out
 		for (const r of this.sql
-			.exec<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND id IN (SELECT value FROM json_each(?))", this.roomId, JSON.stringify(ids))
+			.exec<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND seq IN (SELECT value FROM json_each(?))", this.roomId, messageSeqs(this.roomId, ids))
 			.toArray()) {
 			const from = JSON.parse(r.sender) as Sender
 			if (from.kind === "system") continue
@@ -277,7 +284,7 @@ export class RoomLog {
 
   archiveOverrides(ids: string[]): ArchivedMessage[] {
     return this.archiveRows(
-      this.sql.exec<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND id IN (SELECT value FROM json_each(?)) ORDER BY seq", this.roomId, JSON.stringify(ids)).toArray(),
+      this.sql.exec<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND seq IN (SELECT value FROM json_each(?)) ORDER BY seq", this.roomId, messageSeqs(this.roomId, ids)).toArray(),
     )
   }
 
@@ -309,27 +316,29 @@ export class RoomLog {
     }))
   }
 
-  /** Hard-deletes archived rows that still match their snapshot. The FTS delete trigger (PR4 schema) removes their index entries. */
+  /** Hard-deletes archived rows that still match their snapshot. Search filters and prunes stale FTS entries. */
   deleteArchived(snapshot: ArchivedMessage[]): void {
     const expected = new Map(snapshot.map((row) => [row.id, row.fingerprint]))
+    const replayFloor = this.lastSeq() - REPLAY_LIMIT
     const ids = this.archiveOverrides(snapshot.map((row) => row.id))
-      .filter((row) => expected.get(row.id) === row.fingerprint)
+      .filter((row) => row.seq <= replayFloor && expected.get(row.id) === row.fingerprint)
       .map((row) => row.id)
     const json = JSON.stringify(ids)
+    const seqs = messageSeqs(this.roomId, ids)
     this.sql.exec(
       `INSERT OR IGNORE INTO archived_unread (room_id, seq)
-       SELECT room_id, seq FROM messages WHERE room_id = ? AND id IN (SELECT value FROM json_each(?))
+       SELECT room_id, seq FROM messages WHERE room_id = ? AND seq IN (SELECT value FROM json_each(?))
        AND seq > ? AND deleted_at IS NULL AND json_extract(sender, '$.kind') != 'human' AND ${PUBLIC_MESSAGE}`,
-      this.roomId, json, this.readSeq(),
+      this.roomId, seqs, this.readSeq(),
     )
     this.sql.exec("DELETE FROM reactions WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", this.roomId, json)
-    this.sql.exec("DELETE FROM messages WHERE room_id = ? AND id IN (SELECT value FROM json_each(?))", this.roomId, json)
+    this.sql.exec("DELETE FROM messages WHERE room_id = ? AND seq IN (SELECT value FROM json_each(?))", this.roomId, seqs)
   }
 
 	/** A live (not deleted) message, or null. */
 	message(id: string): Message | null {
 		const row = this.sql
-			.exec<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND id = ? AND deleted_at IS NULL", this.roomId, id)
+			.exec<MessageRow>("SELECT * FROM messages WHERE room_id = ? AND seq = ? AND deleted_at IS NULL", this.roomId, messageSeq(this.roomId, id))
 			.toArray()[0]
 		return row ? this.toMessage(row) : null
 	}
@@ -337,16 +346,16 @@ export class RoomLog {
 	/** The first ack for a clientId that was already stored. */
 	sentBefore(clientId: string): { id: MessageId; seq: number } | null {
 		const row = this.sql
-			.exec<{ message_id: string; seq: number }>("SELECT message_id, seq FROM clients WHERE room_id = ? AND client_id = ?", this.roomId, clientId)
+			.exec<{ id: string; seq: number }>("SELECT id, seq FROM (SELECT id, seq, client_id FROM messages WHERE room_id = ? ORDER BY seq DESC LIMIT 200) WHERE client_id = ?", this.roomId, clientId)
 			.toArray()[0]
-		return row ? { id: row.message_id as MessageId, seq: row.seq } : null
+		return row ? { id: row.id as MessageId, seq: row.seq } : null
 	}
 
 	/** The id of the message stored for one agent bubble, deleted or not. */
 	messageForRun(run: RunRef): { id: MessageId; seq: number } | null {
 		const row = this.sql
 			.exec<{ id: string; seq: number }>(
-				"SELECT id, seq FROM messages WHERE room_id = ? AND run_id = ? AND run_attempt = ? AND run_index = ?",
+				`SELECT id, seq FROM messages WHERE room_id = ? AND run_id = ? AND run_attempt = ? AND run_index = ?`,
 				this.roomId,
 				run.runId,
 				run.attempt,
@@ -360,7 +369,7 @@ export class RoomLog {
 	earlierAttempts(runId: string, attempt: number, fromIndex = 0): MessageId[] {
 		return this.sql
 			.exec<{ id: string }>(
-				"SELECT id FROM messages WHERE room_id = ? AND run_id = ? AND run_attempt < ? AND run_index >= ? AND deleted_at IS NULL ORDER BY seq",
+				`SELECT id FROM messages WHERE room_id = ? AND run_id = ? AND run_attempt < ? AND run_index >= ? AND deleted_at IS NULL ORDER BY seq`,
 				this.roomId,
 				runId,
 				attempt,
@@ -377,7 +386,7 @@ export class RoomLog {
 	adoptBubble(run: RunRef, text: string, replyTo: string | null): boolean {
 		const row = this.sql
 			.exec<{ id: string }>(
-				"SELECT id FROM messages WHERE room_id = ? AND run_id = ? AND run_attempt < ? AND run_index = ? AND text = ? AND reply_to IS ? AND deleted_at IS NULL",
+				`SELECT id FROM messages WHERE room_id = ? AND run_id = ? AND run_attempt < ? AND run_index = ? AND text = ? AND reply_to IS ? AND deleted_at IS NULL`,
 				this.roomId,
 				run.runId,
 				run.attempt,
@@ -387,7 +396,7 @@ export class RoomLog {
 			)
 			.toArray()[0]
 		if (!row) return false
-		this.sql.exec("UPDATE messages SET run_attempt = ? WHERE room_id = ? AND id = ?", run.attempt, this.roomId, row.id)
+		this.sql.exec("UPDATE messages SET run_attempt = ? WHERE room_id = ? AND seq = ?", run.attempt, this.roomId, messageSeq(this.roomId, row.id))
 		return true
 	}
 
@@ -399,7 +408,8 @@ export class RoomLog {
 		return this.storage.transactionSync(() => {
 			const earlier = input.clientId ? this.sentBefore(input.clientId) : input.run ? this.messageForRun(input.run) : null
 			if (earlier) return { ...earlier, event: null }
-			const id = crypto.randomUUID() as MessageId
+			const seq = this.lastSeq() + 1
+			const id = messageIdAt(this.roomId, seq)
 			// Counted once, when the message is posted, and kept: the agent's steps the room has heard of since its last message.
 			// Mail to another agent is not one: the human reads it behind a divider, so the steps wait for the next message.
 			const open = input.from.kind === "agent" && !input.to ? this.window(input.from.slug) : null
@@ -421,14 +431,16 @@ export class RoomLog {
 				...(input.initiative ? { initiative: input.initiative } : {}),
 				...(input.event ? { event: input.event } : {}),
 			}
-			const event = this.append(actorKey(input.from), {
+			const event = {
 				t: "message",
 				...(input.clientId ? { clientId: input.clientId } : {}),
 				...message,
-			} as Body)
+				seq,
+				at: this.now(),
+			} satisfies RoomEvent
 			this.sql.exec(
-				`INSERT INTO messages (room_id, id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, addressed, initiative, event, steps, step_after)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO messages (room_id, id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, addressed, initiative, event, steps, step_after, client_id, message_payload, mentions)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				this.roomId,
 				id,
 				event.seq,
@@ -448,11 +460,12 @@ export class RoomLog {
 				input.event ? JSON.stringify(input.event) : null,
 				steps || null,
 				open && steps ? open.after : null,
+				input.clientId ?? null,
+				JSON.stringify(event),
+				input.mentions ? JSON.stringify(input.mentions) : null,
 			)
 			if (open && input.from.kind === "agent") this.windows.set(input.from.slug, { after: event.seq, count: 0 })
-			if (input.clientId) {
-				this.sql.exec("INSERT INTO clients (room_id, client_id, message_id, seq) VALUES (?, ?, ?, ?)", this.roomId, input.clientId, id, event.seq)
-			}
+			this.trim(event.seq)
 			return { id, seq: event.seq, event }
 		})
 	}
@@ -468,12 +481,12 @@ export class RoomLog {
 				...(rich ? { rich } : {}),
 			})
 			this.sql.exec(
-				"UPDATE messages SET text = ?, rich = ?, edited_at = ? WHERE room_id = ? AND id = ?",
+				"UPDATE messages SET text = ?, rich = ?, edited_at = ? WHERE room_id = ? AND seq = ?",
 				text,
 				rich ? JSON.stringify(rich) : current.rich ? JSON.stringify(current.rich) : null,
 				event.at,
 				this.roomId,
-				id,
+				current.seq,
 			)
 			return event
 		})
@@ -488,7 +501,7 @@ export class RoomLog {
 			if (!live.length) return null
 			const event = this.append(actorKey(by), { t: "delete", messageIds: live.map((m) => m.id) })
 			for (const m of live) {
-				this.sql.exec("UPDATE messages SET deleted_at = ? WHERE room_id = ? AND id = ?", event.at, this.roomId, m.id)
+				this.sql.exec("UPDATE messages SET deleted_at = ? WHERE room_id = ? AND seq = ?", event.at, this.roomId, m.seq)
 				this.sql.exec("DELETE FROM reactions WHERE room_id = ? AND message_id = ?", this.roomId, m.id)
 			}
 			return event
@@ -563,24 +576,41 @@ export class RoomLog {
 	append(actor: string, body: Body): RoomEvent {
 		const at = this.now()
 		// The caller wraps this with the state change it belongs to in one transaction, so a nested transaction is avoided.
-		const { seq } = this.sql
-			.exec<{ seq: number }>(
-				"INSERT INTO events (room_id, seq, kind, at, actor, payload) SELECT ?, coalesce(max(seq), 0) + 1, ?, ?, ?, ? FROM events WHERE room_id = ? RETURNING seq",
-				this.roomId,
-				body.t,
-				at,
-				actor,
-				JSON.stringify(body),
-				this.roomId,
-			)
-			.one()
-		if (seq % TRIM_EVERY === 0) {
-			this.sql.exec("DELETE FROM events WHERE room_id = ? AND seq <= ?", this.roomId, seq - KEEP_EVENTS)
-			// Send dedupe only answers a resend of a message this client just sent. A client's window is shorter
-			// than the replay window, so a row older than the events kept can never be asked for again.
-			this.sql.exec("DELETE FROM clients WHERE room_id = ? AND seq <= ?", this.roomId, seq - KEEP_EVENTS)
-		}
+		const seq = this.lastSeq() + 1
+		this.sql.exec(
+			"INSERT INTO events (room_id, seq, kind, at, actor, payload) VALUES (?, ?, ?, ?, ?, ?)",
+			this.roomId, seq, body.t, at, actor, JSON.stringify(body),
+		)
+		this.trim(seq)
 		return { ...body, seq, at } as RoomEvent
+	}
+
+	private trim(seq: number): void {
+		if (seq % TRIM_EVERY === 0) this.sql.exec("DELETE FROM events WHERE room_id = ? AND seq <= ?", this.roomId, seq - KEEP_EVENTS)
+	}
+
+	/** Human input routed to this member after its durable delivery cursor. */
+	unansweredFor(agentSlug: AgentSlug, after: number, limit = 200): Pending[] {
+		const members = listMembers(this.scopedStorage, this.roomId)
+		const membership = this.sql.exec<{ added_seq: number; lead_seq: number }>(
+			"SELECT added_seq, lead_seq FROM members WHERE room_id = ? AND slug = ? AND removed_at IS NULL",
+			this.roomId, agentSlug,
+		).toArray()[0]
+		if (!membership) return []
+		return this.sql.exec<MessageRow>(
+			"SELECT * FROM messages WHERE room_id = ? AND seq > ? AND json_extract(sender, '$.kind') = 'human' ORDER BY seq",
+			this.roomId, Math.max(after, membership.added_seq),
+		).toArray().flatMap((row): Pending[] => {
+			const mentions = row.mentions ? JSON.parse(row.mentions) as string[] : tags(row.text)
+			const replyTo = row.reply_to ? replyAddressees((id) => this.message(id), row.reply_to) : []
+			const addressed = mentions.includes("all") || members.some((member) => mentions.includes(member.slug) || replyTo.includes(member.slug))
+			if (!addressed && row.seq <= membership.lead_seq) return []
+			if (!resolveRecipients({ mentions, replyTo }, members).includes(agentSlug)) return []
+			return [{ envelope: {
+				id: `human:${row.id}`, roomId: this.roomId as RoomId, from: { kind: "human" }, body: row.text,
+				...(row.reply_to ? { replyTo: row.reply_to as MessageId } : {}), hop: 0, rootId: row.id, seq: row.seq,
+			}, mentions }]
+		}).slice(0, limit)
 	}
 
 	/** `reactions` are the message's, when the caller loaded them for many rows at once. */

@@ -144,7 +144,7 @@ export class Room implements SocketRoom {
 			this.files = roomFiles(ctx.storage, this.log)
 			this.team = new Team(ctx.storage.sql, roomId)
 			this.alarms = options.clock
-			this.burst = new Burst(ctx.storage, roomId, this.alarms)
+
 			this.bubbles = new Bubbles(ctx.storage, this.log, (path) => {
 				const entry = this.files.stat(path)
 				return entry?.kind === "file" && entry.type.startsWith("image/") ? entry.id : null
@@ -172,9 +172,10 @@ export class Room implements SocketRoom {
 				delivery: (member, members, goal, raw) => this.delivery(member, members, goal, raw),
 			}
 			this.members = new Members(ctx.storage, this.log)
+            this.burst = new Burst(ctx.storage, roomId, this.alarms, this.log, this.members)
 			this.workspace = new RoomWorkspace(ctx.storage, this.log)
 			this.routines = new RoomRoutines(ctx.storage.sql, roomId, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
-			this.memory = new RoomMemory(ctx.storage, roomId, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) }, (query, options) => searchMessages(this.ownerStorage.sql, this.log.roomId, query, options))
+			this.memory = new RoomMemory(ctx.storage, roomId, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) }, (query, options) => searchMessages(this.ownerStorage, this.log.roomId, query, options))
 			this.memoryNaps = new MemoryNaps({ services: this.services, log: this.log, members: this.members, memory: this.memory, home: () => this.home() })
 			this.groups = new Groups({ ctx, env: this.env, services: this.services, log: this.log, members: this.members, home: () => this.home(), publish: (events) => this.publish(events) })
 			this.pending = new PendingUploads(ctx.storage.sql, roomId)
@@ -213,7 +214,7 @@ export class Room implements SocketRoom {
 		if (!batch.length) return
 		const chat = await this.chat(home)
 		if (!chat) {
-			this.burst.clear()
+
 			return
 		}
 		await this.seedMembers(home, chat)
@@ -221,9 +222,13 @@ export class Room implements SocketRoom {
 		const routes = route(batch, members, (id) => replyAddressees((at) => this.log.message(at), id))
 		for (const [slug, envelopes] of routes) {
 			const member = members.find((m) => m.slug === slug)
-			if (member) await receive(this.receiver, home, member, members, chat.title, envelopes)
+			if (!member) continue
+      const unanswered = new Set(this.burst.forAgent(slug, Number.MAX_SAFE_INTEGER).map(({ envelope }) => envelope.id))
+      const remaining = envelopes.filter((envelope) => unanswered.has(envelope.id))
+      if (!remaining.length) continue
+      const receipt = await receive(this.receiver, home, member, members, chat.title, remaining)
+      if (receipt !== "full") this.burst.accepted(slug, remaining)
 		}
-		this.burst.delivered(batch.map((p) => p.envelope))
 		if (this.log.meta("private") !== "1")
 			await this.services.user().captureHuman(
 				home.roomId,
@@ -634,7 +639,7 @@ export class Room implements SocketRoom {
 	async erase(): Promise<void> {
 		const home = this.home()
 		if (!home || this.log.meta("deleted") === "1") return
-		const archive = this.archive ?? (this.env.ARCHIVE ? new HistoryArchive(home.roomId, new RoomHistoryStore(this.ctx.storage, this.log), historyR2(this.env.ARCHIVE)) : undefined)
+		const archive = this.archive ?? (this.env.ARCHIVE ? new HistoryArchive(home.roomId, new RoomHistoryStore(this.ctx.storage, this.log, () => this.memory.capture()), historyR2(this.env.ARCHIVE)) : undefined)
     this.erasing = true
     this.log.setMeta("erasing", "1")
     for (const slug of this.members.everyone()) await this.services.agent(home.roomId, slug).stop()
@@ -662,6 +667,10 @@ export class Room implements SocketRoom {
 		if (chat) await this.seedMembers(home, chat)
 		await handleFrame(this, ws, JSON.stringify({ t: "hello", lastSeq }))
 	}
+
+  async restoreHumanInput(): Promise<void> { await this.burst.restore() }
+  humanInputPending(): boolean { return this.burst.pending() }
+  humanInputDeadline(): number | undefined { return this.burst.deadline() }
 
   async settleHumanInput(): Promise<void> {
     await this.burst.settle(() => this.flushBurst())
@@ -714,7 +723,7 @@ export class Room implements SocketRoom {
     const home = this.home()
     if ((this.erasing || this.log.meta("erasing") === "1") && !this.archive) return undefined
     if (!env.ARCHIVE || !home) return undefined
-    return this.archive ??= new HistoryArchive(home.roomId, new RoomHistoryStore(this.ctx.storage, this.log), historyR2(env.ARCHIVE))
+    return this.archive ??= new HistoryArchive(home.roomId, new RoomHistoryStore(this.ctx.storage, this.log, () => this.memory.capture()), historyR2(env.ARCHIVE))
   }
 
   async afterRun(): Promise<void> {
@@ -736,7 +745,7 @@ export class Room implements SocketRoom {
   }
 
   async search(query: string, options?: SearchOptions) {
-    return this.historyArchive()?.search(query, options) ?? searchMessages(this.ownerStorage.sql, this.log.roomId, query, options)
+    return this.historyArchive()?.search(query, options) ?? searchMessages(this.ownerStorage, this.log.roomId, query, options)
   }
 
 	initiativeWake(input: { id: string; to: AgentSlug | null; body: string; reason: string }): Promise<WakeResult | "busy"> {
@@ -798,12 +807,11 @@ export class Room implements SocketRoom {
 					text: body,
 					rich: parseRichText(body),
 					clientId: frame.clientId,
+					mentions: tags(frame.text),
 					...(replyTo ? { replyTo } : {}),
 					...(replyTo && frame.quote?.trim() ? { quote: frame.quote.trim() } : {}),
 					...(refs.length ? { files: refs } : {}),
 				})
-				// The burst row takes the whole text's mentions, so routing does not depend on the bubble.
-				if (stored.event) this.burst.stage({ id: stored.id, seq: stored.seq, text: body, replyTo }, tags(frame.text))
 				return { ack: { id: stored.id, seq: stored.seq }, events: [...claimed.events, ...(filed?.events ?? []), ...(stored.event ? [stored.event] : [])] }
 			})
       return frame.replyTo ? await this.mutateMessage(frame.replyTo, store) : store()
@@ -1133,7 +1141,7 @@ export class Room implements SocketRoom {
 	}
 
 	async react(slug: AgentSlug, emoji: string, messageId?: string): Promise<boolean> {
-		const event = agentReact(this.log, this.sql, slug, emoji, messageId)
+		const event = agentReact(this.log, this.sql, slug, emoji, messageId, this.burst.envelopes(undefined, Number.MAX_SAFE_INTEGER))
 		if (event) this.publish([event])
 		return event !== null
 	}
@@ -1270,16 +1278,14 @@ export class Room implements SocketRoom {
 		if (settled) this.publish([settled], { touch: false })
 		for (const step of this.log.steps.abandon(runId)) this.broadcast({ t: "step", step })
 		const home = this.home()
-		const first = !this.bubbles.ended(runId)
-		if (home && first) {
+		if (home) {
 			this.memory.trace(slug, runId, Date.now())
 			await this.mailer.answerAsks(slug, runId, heard)
 		}
 		this.mail.runEnded(slug)
 		if (working) this.team.clearDoing(slug)
-		if (home && first) {
+		if (home) {
 			this.services.user().roomChanged(home.roomId)
-			this.bubbles.markEnded(runId)
 		}
 		const changed = await this.setStatus(slug, working ? "working" : "idle")
 		if (working && !changed) this.broadcastStatus(slug)

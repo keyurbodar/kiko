@@ -1,10 +1,11 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { Harness, type Storage } from "@earendil-works/pi-durable"
+import { JournalStorage } from "@kiko/agent/journal"
 import type { AgentSetup } from "@kiko/agent/host"
 import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { providers } from "../models/catalog"
-import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry } from "@earendil-works/pi-durable"
+import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry, type RegistryReader } from "@earendil-works/pi-durable"
 import { workExtensions } from "./extensions/work"
 import { withTextToolCalls } from "./tool-markup"
 import type { Workers } from "@kiko/agent/workers"
@@ -59,6 +60,7 @@ export type BuiltAgent = {
 }
 
 const BASE = "base"
+const journals = new WeakMap<RegistryReader, JournalStorage>()
 
 function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]): Extension[] {
   return [
@@ -81,10 +83,21 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
 }
 
 export function buildAgent(input: BuildAgentInput): BuiltAgent {
-  const builtins = extensionsFor(input, () => builtins)
-  // Throws when a tool declares no effect or two tools share a name with different effects.
-  effectTable(builtins)
   const registry = createRegistry()
+  const extensions = extensionsFor(input, () => builtins)
+  // Throws when a tool declares no effect or two tools share a name with different effects.
+  const effects = effectTable(extensions)
+  const builtins = extensions.map((extension) => ({
+    ...extension,
+    tools: extension.tools?.map((tool) => {
+      const effect = effects.get(tool.name)
+      if (effect !== "external" && effect !== "write") return tool
+      return { ...tool, execute: async (args, api, context) => {
+        journals.get(registry)?.flush()
+        return tool.execute(args, api, context)
+      } } satisfies typeof tool
+    }),
+  }))
   for (const extension of builtins) registry.install(extension)
   return { registry, agent: { ...(input.model ? { model: input.model } : {}), thinkingLevel: input.thinkingLevel ?? (input.model ? thinkingFor(input.model) : "off"), extensions: forRole(builtins, "talker") } }
 }
@@ -153,6 +166,7 @@ export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fet
 }
 
 export function openAgentHarness(storage: Storage, setup: AgentSetup): Promise<Harness> {
+  if (storage instanceof JournalStorage) journals.set(setup.registry, storage)
   const env = setup.env
   return Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(env ? { env: (target) => env(target.conversationId) } : {}) }, BACKGROUND_CONTEXT)
 }

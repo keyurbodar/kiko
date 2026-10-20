@@ -103,7 +103,7 @@ export class MemoryCapture {
 
   // Only a dev route reads these counters, so production skips the settings write on every model call.
   count(delta: Record<string, number>): void {
-    if (!DEV) return
+    if (!DEV || !Object.values(delta).some((n) => n !== 0)) return
     const spent = this.usage()
     for (const [k, n] of Object.entries(delta)) if (n) spent[k] = (spent[k] ?? 0) + n
     setSetting(this.sql, MEMORY_USAGE, JSON.stringify(spent))
@@ -129,20 +129,20 @@ export class MemoryCapture {
     if (!this.captures() || !this.capturable(roomId)) return
     const rows = items.flatMap((i) => (i.messageId && candidates(i.text).length ? [{ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }] : []))
     if (!rows.length) return
-    this.sql.exec(
+    const inserted = this.sql.exec(
       "INSERT OR IGNORE INTO capture_queue (room_id, message_id, text, at, queued_at) SELECT ?, json_extract(value, '$.id'), json_extract(value, '$.text'), json_extract(value, '$.at'), ? FROM json_each(?)",
       roomId,
       Date.now(),
       JSON.stringify(rows),
     )
-    this.sql.exec("DELETE FROM capture_queue WHERE (room_id, message_id) NOT IN (SELECT room_id, message_id FROM capture_queue ORDER BY queued_at DESC, room_id, message_id LIMIT ?)", CAPTURE_QUEUE_MAX)
+    if (inserted.rowsWritten) this.sql.exec("DELETE FROM capture_queue WHERE (room_id, message_id) NOT IN (SELECT room_id, message_id FROM capture_queue ORDER BY queued_at DESC, room_id, message_id LIMIT ?)", CAPTURE_QUEUE_MAX)
     await this.captureNow()
   }
 
   /** Writes down what the queue holds. A row the judge does not answer stays queued for the next human run. */
   async captureNow(): Promise<void> {
     if (!this.captures()) {
-      this.sql.exec("DELETE FROM capture_queue")
+      if (this.sql.exec("SELECT 1 FROM capture_queue LIMIT 1").toArray().length) this.sql.exec("DELETE FROM capture_queue")
       return
     }
     type QueueRow = { room_id: RoomId; message_id: string; text: string; at: number }

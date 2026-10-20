@@ -26,6 +26,7 @@ import type { ComposioCallResult, ComposioTool } from "../integrations/composio/
 import type { Lease } from "../agent/browser/lease"
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 import { runDue } from "../owner/clock"
+import { waitForHello } from "../owner/socket"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@kiko/durable/hello-deadline"
 import { kikoChatOps, kikoChatRoom, markKikoChat, movesKikoChat } from "./kiko-chat"
 import { keyringFromEnv } from "@kiko/durable/crypto"
@@ -87,6 +88,7 @@ export class User {
   private souls!: Souls
   private home!: FileIndex<UserEvent>
   private holding: UserEvent[] | null = null
+  private lastSeen = 0
   private readonly directory:RoomDirectory
 
   private readonly ctx:DurableObjectState
@@ -129,8 +131,9 @@ export class User {
         notice: (roomId, id, text) => this.services.room(roomId).systemNotice(id, text, "routine"),
         gate: {
           away: () => {
-            const last = this.setting(LAST_SEEN)
-            const away = last !== null && Date.now() - Number(last) > AWAY_MS
+            const last = Math.max(this.lastSeen, Number(this.setting(LAST_SEEN) ?? 0))
+            const connected = this.ctx.getWebSockets().some((ws) => (ws.deserializeAttachment() as Attachment | null)?.ready)
+            const away = !connected && last > 0 && Date.now() - last > AWAY_MS
             if (away) this.ctx.waitUntil(this.awayNotice(Date.now()).catch(() => {}))
             return away
           },
@@ -687,16 +690,12 @@ export class User {
   }
 
   private seen(): void {
-    const now = Date.now()
-    const last = Number(this.setting(LAST_SEEN) ?? 0)
-    const wasAway = last > 0 && now - last > AWAY_MS
-    if (now - last < 3_600_000) return
-    this.putSetting(LAST_SEEN, String(now))
-    if (wasAway) deleteSetting(this.sql, AWAY_NOTICE)
+    this.lastSeen = Date.now()
   }
 
   private async awayNotice(now: number): Promise<void> {
-    if (this.setting(AWAY_NOTICE) !== null) return
+    const notice = this.setting(AWAY_NOTICE)
+    if (notice !== null && Number(notice) >= this.lastSeen) return
     this.putSetting(AWAY_NOTICE, String(now))
     const roomId = kikoChatRoom(this.sql)
     const owner = this.ownerId
@@ -964,7 +963,7 @@ export class User {
     server.serializeAttachment({ready:false,helloBy:helloBy()} satisfies Attachment)
     const origin=request.headers.get("origin")??new URL(request.url).origin
     if(this.setting(PUBLIC_ORIGIN)!==origin)this.putSetting(PUBLIC_ORIGIN,origin)
-    await enforceHello(this.ctx,this.alarms)
+    this.ctx.waitUntil(waitForHello(server))
   }
 
   private deviceId(): string {
@@ -1105,6 +1104,9 @@ export class User {
 
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
     this.#logins?.dropOwner(ws)
+    // Presence lives in memory while a socket is open; the close keeps it for away detection after an unload.
+    const now = Date.now()
+    if ((ws.deserializeAttachment() as Attachment | null)?.ready && now - Number(this.setting(LAST_SEEN) ?? 0) >= 3_600_000) this.putSetting(LAST_SEEN, String(now))
     try {
       ws.close(code === 1005 || code === 1006 ? 1000 : code)
     } catch {

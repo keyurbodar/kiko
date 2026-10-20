@@ -130,7 +130,7 @@ export class Members {
 		}
 		const event = this.log.append("human", { t: "member", member: toMember(row) })
 		this.sql.exec(
-			"INSERT INTO members (slug, name, role, model, lead, status, added_seq, removed_at, room_id) VALUES (?1, ?2, ?3, ?4, ?5, 'idle', ?6, NULL, ?7) ON CONFLICT(slug, room_id) DO UPDATE SET name = excluded.name, role = excluded.role, model = excluded.model, lead = excluded.lead, status = 'idle', added_seq = excluded.added_seq, removed_at = NULL",
+			"INSERT INTO members (slug, name, role, model, lead, status, added_seq, lead_seq, removed_at, room_id) VALUES (?1, ?2, ?3, ?4, ?5, 'idle', ?6, ?6, NULL, ?7) ON CONFLICT(slug, room_id) DO UPDATE SET name = excluded.name, role = excluded.role, model = excluded.model, lead = excluded.lead, status = 'idle', added_seq = excluded.added_seq, lead_seq = excluded.lead_seq, removed_at = NULL",
 			row.slug,
 			row.name,
 			row.role,
@@ -154,8 +154,9 @@ export class Members {
 		this.sql.exec("UPDATE members SET removed_at = ?1, lead = 0, status = 'idle' WHERE slug = ?2 AND members.room_id = ?3", removed.at, slug, this.log.roomId)
 		if (current.lead) {
 			const next = { ...successor, lead: true }
-			events.push(this.log.append("human", { t: "member", member: toMember(next) }))
-			this.sql.exec("UPDATE members SET lead = 1 WHERE slug = ?1 AND members.room_id = ?2", next.slug, this.log.roomId)
+			const promoted = this.log.append("human", { t: "member", member: toMember(next) })
+			events.push(promoted)
+			this.sql.exec("UPDATE members SET lead = 1, lead_seq = ?3 WHERE slug = ?1 AND members.room_id = ?2", next.slug, this.log.roomId, promoted.seq)
 		}
 		return { ok: true, events }
 	}

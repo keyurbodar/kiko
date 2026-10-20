@@ -1,6 +1,7 @@
 import type { AgentSlug, Envelope, RoomEvent, RoomId } from "@kiko/protocol"
 import { checkSend, type Limit, limitError, limitNotice } from "./limits"
 import type { Asks } from "./asks"
+import { RECENT_MESSAGES } from "./message-position"
 import type { RoomLog } from "./log"
 import { parseRichText } from "./rich-text"
 
@@ -294,7 +295,7 @@ export class RoomMessaging {
 	 */
 	async answerAsks(slug: AgentSlug, runId: string, heard: readonly string[]): Promise<void> {
 		const bubbles = this.d.ctx.storage.sql
-			.exec<{ id: string; seq: number; text: string }>("SELECT id, seq, text FROM messages WHERE (run_id = ?1 AND deleted_at IS NULL) AND messages.room_id = ?2 ORDER BY seq", runId, this.d.log.roomId)
+			.exec<{ id: string; seq: number; text: string }>(`SELECT id, seq, text FROM ${RECENT_MESSAGES} WHERE run_id = ? AND deleted_at IS NULL ORDER BY seq`, this.d.log.roomId, runId)
 			.toArray()
 		const text = bubbles
 			.map((b) => b.text)

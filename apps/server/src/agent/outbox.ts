@@ -242,7 +242,7 @@ export class Outbox {
         }
         return this.setStatus("typing", retrying(event.attempt))
       case "auto_retry_end":
-        return this.setStatus("typing")
+        return this.setStatus("typing", null)
       case "run_end":
         return this.end(`${this.prefix()}:${event.inputs[0]}`, event.inputs)
       default:
@@ -432,6 +432,8 @@ export class Outbox {
     return { run_id: id, cursor, posted: posted?.posted ?? 0, attempt: posted?.attempt ?? 0 }
   }
 
+  // Journal settlement can precede the final outbox flush. Recover settled inputs too;
+  // the exact room/run lookup keeps already delivered bubbles idempotent.
   private async openRows(snapshot: SnapshotEvent): Promise<Row[]> {
     if (!this.journal) return []
     const rows: Row[] = []
@@ -456,7 +458,6 @@ export class Outbox {
     const ordered = [...groups.values()].sort((a, b) => a.first - b.first)
     for (const [index, group] of ordered.entries()) {
       const id = `${this.prefix()}:${group.id}`
-      if (this.sql.exec("SELECT 1 FROM ended_runs WHERE room_id = ? AND run_id = ?", this.agent.split(":")[0]!, id).toArray().length) continue
       const next = ordered[index + 1]?.first
       const until = group.answer ?? (snapshot.run?.inputs[0] === group.id ? undefined : next === undefined ? Infinity : next - 1)
       rows.push({ ...this.row(id, group.first), ...(until === undefined ? {} : { until }) })

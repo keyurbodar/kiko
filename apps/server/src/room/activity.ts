@@ -1,5 +1,6 @@
 import { type ChatLast, messageLast, mentionsHuman, oneLine, type RichText } from "@kiko/protocol"
 import type { FileRef, Sender } from "@kiko/protocol"
+import { messageSeq } from "./message-position"
 import { LISTED_MESSAGE, type RoomLog } from "./log"
 
 type RoomActivity = { lastSeq: number; lastPreview: string; unread: number; last?: ChatLast; mentions?: number; group: boolean }
@@ -75,9 +76,9 @@ export function roomActivity(sql: SqlStorage, log: RoomLog): RoomActivity {
 		const { messageId, emoji } = JSON.parse(react.payload) as { messageId: string; emoji: string | null }
 		const target = sql
 			.exec<{ text: string; sender: string; emoji: string | null }>(
-				"SELECT m.text, m.sender, (SELECT emoji FROM reactions WHERE (message_id = m.id AND actor = ?1) AND reactions.room_id = ?3) AS emoji FROM messages AS m WHERE (m.id = ?2 AND m.deleted_at IS NULL) AND m.room_id = ?3",
+				"SELECT m.text, m.sender, (SELECT emoji FROM reactions WHERE (message_id = m.id AND actor = ?1) AND reactions.room_id = ?3) AS emoji FROM messages AS m WHERE (m.seq = ?2 AND m.deleted_at IS NULL) AND m.room_id = ?3",
 				react.actor,
-				messageId, log.roomId,
+				messageSeq(log.roomId, messageId), log.roomId,
 			)
 			.toArray()[0]
 		if (emoji && target && target.emoji === emoji && (JSON.parse(target.sender) as Sender).kind === "human") {
@@ -104,7 +105,7 @@ export function roomActivity(sql: SqlStorage, log: RoomLog): RoomActivity {
 	const handle = stored && !names.has(stored) ? stored : null
 	const mentions = sql
 		.exec<{ text: string; reply_sender: string | null }>(
-			"SELECT m.text, r.sender AS reply_sender FROM messages AS m LEFT JOIN messages AS r ON r.id = m.reply_to AND r.room_id = ?3 WHERE (m.deleted_at IS NULL AND m.seq > ?1 AND JSON_EXTRACT(m.sender, '$.kind') = 'agent' AND m.addressed IS NULL) AND m.room_id = ?3 ORDER BY m.seq DESC LIMIT ?2",
+			"SELECT m.text, r.sender AS reply_sender FROM messages AS m LEFT JOIN messages AS r ON r.seq = CAST(m.reply_to AS INTEGER) AND r.id = m.reply_to AND r.room_id = ?3 WHERE (m.deleted_at IS NULL AND m.seq > ?1 AND JSON_EXTRACT(m.sender, '$.kind') = 'agent' AND m.addressed IS NULL) AND m.room_id = ?3 ORDER BY m.seq DESC LIMIT ?2",
 			readSeq,
 			MENTION_SCAN, log.roomId,
 		)

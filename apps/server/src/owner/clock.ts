@@ -16,6 +16,7 @@ type ClockSnapshot = {
   lease?: number
   hello?: number
   queued?: number
+  burst?: number
 }
 
 /** A runnable task keeps its first recovery deadline until it settles or that alarm fires. */
@@ -61,6 +62,7 @@ export class Clock {
       consider(snapshot.lease)
       consider(snapshot.hello)
       consider(snapshot.queued)
+      consider(snapshot.burst)
       const current = await this.storage.getAlarm()
       if (next === undefined) {
         if (current !== null) await this.storage.deleteAlarm()
@@ -79,18 +81,20 @@ export type ClockMetadata = {
   delete(key: string): void
 }
 
-export function createServiceClock({ metadata, publish }: {
+export function createServiceClock({ metadata, publish, derived = () => ({}) }: {
   metadata: ClockMetadata
+  derived?: () => Record<string, number | undefined>
   publish(at: number | undefined, persist: () => void): Promise<void>
 }): import("@kiko/durable/clock-port").ClockPort {
-  const read = (): Record<string, number> => {
+  const stored = (): Record<string, number> => {
     const value = metadata.get("clock:application")
     return value ? JSON.parse(value) : {}
   }
+  const read = () => ({ ...stored(), ...derived() })
   let update = Promise.resolve()
   const change = (apply: (deadlines: Record<string, number>) => void): Promise<void> => {
     const next = update.then(async () => {
-      const deadlines = read()
+      const deadlines = stored()
       const before = JSON.stringify(deadlines)
       apply(deadlines)
       const after = JSON.stringify(deadlines)
@@ -106,9 +110,9 @@ export function createServiceClock({ metadata, publish }: {
   }
   return {
     deadline: (key) => read()[key],
-    setWakeup: (key, at) => change((deadlines) => { deadlines[key] = at }),
+    setWakeup: (key, at) => change((deadlines) => { if (key in derived()) delete deadlines[key]; else deadlines[key] = at }),
     clearWakeup: (key) => change((deadlines) => { delete deadlines[key] }),
-    dueWakeups: async (now) => Object.entries(read()).filter(([, at]) => at <= now).sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0])).map(([key]) => key),
+    dueWakeups: async (now) => Object.entries(read()).flatMap(([key, at]) => at !== undefined && at <= now ? [{ key, at }] : []).sort((a, b) => a.at - b.at || a.key.localeCompare(b.key)).map(({ key }) => key),
   }
 }
 
@@ -150,7 +154,7 @@ export function projectRecovery(
     const before = watches.get(task.record.id) ?? Math.min(current ?? Infinity, now + RECOVERY_DELAY_MS)
     const fallback = before > now ? before : now + RECOVERY_DELAY_MS
     const deadline = future ? scheduled : fallback
-    next = Math.min(next ?? deadline, deadline)
+    if (future) next = Math.min(next ?? deadline, deadline)
     if (!future) resume.push({ id: task.record.id, deadline: fallback })
   }
   return { next, resume }

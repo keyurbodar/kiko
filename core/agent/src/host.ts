@@ -108,7 +108,7 @@ export type HostOptions = {
   setup: () => AgentSetup | Promise<AgentSetup>
   onOpen?: (opened: Opened) => void | Promise<void>
   onGiveUp?: () => void | Promise<void>
-  scheduledDeadline?: (task: TaskInspection) => number | undefined
+  scheduledDeadline?: (task: Pick<TaskInspection, "record">) => number | undefined
   progress?: () => RunProgress | null
   beforeIdle?: (opened: Opened) => Promise<void>
   onIdle?: () => void | Promise<void>
@@ -204,7 +204,7 @@ export class AgentHost {
     const live = await (await this.opened).harness.inspect(context)
     return live.tasks.some((task) => !this.futureTask(task)) || live.submissions.length > 0
   }
-  private futureTask(task: TaskInspection): boolean {
+  private futureTask(task: Pick<TaskInspection, "record">): boolean {
     const at = this.options.scheduledDeadline?.(task)
     return at !== undefined && at > Date.now() && !task.record.abortRequested
   }
@@ -241,13 +241,16 @@ export class AgentHost {
     return true
   }
 
-  private async unfinished(): Promise<boolean> {
+  async unfinished(): Promise<boolean> {
     const storage = await JournalStorage.open(this.ctx.storage, this.options.agentKey)
     try {
       for (const status of ["pending", "running", "waiting", "completing"] as const) {
-        if ((await storage.scanTasks({ status }, 1, undefined, context)).items.length) {
-          return true
-        }
+        let cursor: Parameters<JournalStorage["scanTasks"]>[2]
+        do {
+          const page = await storage.scanTasks({ status }, 100, cursor, context)
+          if (page.items.some((record) => !this.futureTask({ record }))) return true
+          cursor = page.next
+        } while (cursor)
       }
       for (const status of ["queued", "placed"] as const) {
         if ((await storage.scanSubmissions({ status }, 1, undefined, context)).items.length) {
@@ -263,14 +266,23 @@ export class AgentHost {
   /** Run RPC boundary. Planned continuations retain setup and replay the existing pi submission. */
   async runInvocation(due: () => boolean): Promise<"done" | "continue"> {
     if (this.invocation) throw new Error("An agent invocation is already running")
-    // A warm idle Harness already enabled scheduling. Reopen it paused so the guard precedes progress.
+    // Reuse paused admission without flushing its inbox. An enabled Harness must reopen
+    // paused so the continuation guard still precedes progress.
     if (this.opened) {
-      this.plannedSetup = (await this.opened).setup
-      await this.drop(true)
+      const opened = await this.opened
+      if ((await opened.harness.inspect(context)).scheduling !== "paused") {
+        this.plannedSetup = opened.setup
+        await this.drop(true)
+      }
     }
     const invocation: NonNullable<AgentHost["invocation"]> = { due }
     this.invocation = invocation
     try {
+      if (this.opened) {
+        const opened = await this.opened
+        await this.attachBoundary(opened)
+        this.workers.rearm(opened.harness)
+      }
       await this.alarm()
       const opened = await this.opened
       const boundary = invocation.boundary
@@ -297,7 +309,7 @@ export class AgentHost {
   }
 
   async alarm(): Promise<void> {
-    let batches: Batch[] = []
+    const batches: Batch[] = []
     let opened: Opened | undefined
     let draining = false
     try {
@@ -314,8 +326,6 @@ export class AgentHost {
       await this.serializeAlarm(async () => {
         const now = Date.now()
         const due = await this.alarms.dueWakeups(now)
-        const recovery = this.alarms.deadline(RECOVERY_WAKEUP)
-        if (recovery === undefined || recovery <= now) await this.alarms.setWakeup(RECOVERY_WAKEUP, now + 60_000)
         for (const key of due) if (key !== RECOVERY_WAKEUP) await this.alarms.clearWakeup(key)
       })
       opened = await this.current()
@@ -442,8 +452,14 @@ export class AgentHost {
         }))
       }
     })
+    await this.attachBoundary(opened)
+    return opened
+  }
+
+  private async attachBoundary(opened: Opened): Promise<void> {
+    const { harness, setup } = opened
     if (this.invocation && !this.invocation.settling) {
-      const boundary = await continueAtBoundary(harness, this.invocation.due, (record) => this.futureTask({ record, state: { kind: "running" } }))
+      const boundary = await continueAtBoundary(harness, this.invocation.due, (record) => this.futureTask({ record }))
       this.invocation.boundary = boundary
       harness.subscribeClose(() => {
         if (!boundary.continuing()) return
@@ -452,7 +468,6 @@ export class AgentHost {
         this.opened = undefined
       })
     }
-    return opened
   }
 
   private async crashLooping({ harness, root }: Opened): Promise<boolean> {
@@ -490,7 +505,7 @@ export class AgentHost {
       const { next, resume } = this.options.projectTasks(tasks, watches, current)
       if (next === undefined) await this.alarms.clearWakeup(RECOVERY_WAKEUP)
       else await this.alarms.setWakeup(RECOVERY_WAKEUP, next)
-      // waitForTask enables scheduling, so the recovery alarm must be durable first.
+      // The owner recovers runnable tasks from the journal; only routine times need a projection.
       if (!this.invocation || this.invocation.settling) return
       for (const { id, deadline } of resume) {
         const watching = watches.has(id)
@@ -618,8 +633,15 @@ export class AgentHost {
       const shown = briefToShow(batch.briefs, fresh, last?.epoch === this.epoch() ? last.key : undefined, this.options.shortBrief)
       const work = this.workers.note()
       const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : []), ...(work ? [work] : [])] }, memory)
+      let humanDeliveredSeq = storage.humanDeliveredSeq
+      for (const envelope of batch.envelopes) {
+        if (envelope.from.kind !== "human") continue
+        const match = /^human:([1-9][0-9]*)\.[0-9a-f]+(?:#.*)?$/.exec(envelope.id)
+        const seq = match ? Number(match[1]) : 0
+        if (Number.isSafeInteger(seq)) humanDeliveredSeq = Math.max(humanDeliveredSeq, seq)
+      }
       const submission = { type: "input" as const, content, requestId: batch.requestId, whenBusy,
-        entry: { kind: "kiko.input", data: { ...inputData, at: Date.now(), envelopeIds: batch.envelopes.map((e) => e.id), chain: batch.envelopes.map(({ rootId, hop }) => ({ rootId, hop })) } },
+        entry: { kind: "kiko.input", data: { ...inputData, humanDeliveredSeq, at: Date.now(), envelopeIds: batch.envelopes.map((e) => e.id), chain: batch.envelopes.map(({ rootId, hop }) => ({ rootId, hop })) } },
       }
       if (!this.invocation || this.invocation.settling) await submitPaused(root, submission)
       else await root.submit(submission, context)
@@ -696,6 +718,7 @@ export class AgentHost {
       for (;;) {
         const observed = revision
         await opened.harness.waitForIdle(context)
+        opened.storage.flush()
         await this.options.beforeIdle?.(opened)
         const settle = this.admission.then(async () => {
           const live = await opened.harness.inspect(context)
@@ -722,7 +745,7 @@ export class AgentHost {
   }
 
   private reset(): void {
-    JournalStorage.clear(this.ctx.storage, this.options.agentKey)
+    JournalStorage.reset(this.ctx.storage, this.options.agentKey)
     this.ctx.storage.sql.exec("INSERT INTO harness_epoch (agent, n) VALUES (?, 1) ON CONFLICT(agent) DO UPDATE SET n = n + 1", this.options.agentKey)
     this.workers.forget()
     this.options.onReset?.()

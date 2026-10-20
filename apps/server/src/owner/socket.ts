@@ -1,3 +1,4 @@
+import { HELLO_TIMEOUT_REASON } from "@kiko/durable/hello-deadline"
 import type { Attachment as RoomAttachment } from "../room/socket"
 
 type UserAttachment = { ready: boolean; helloBy?: number }
@@ -46,4 +47,14 @@ export function socketView(ws: WebSocket, roomId?: string): WebSocket {
   })
   sockets.set(key, view)
   return view
+}
+
+/** The accepted socket's event stays alive until its short handshake deadline. */
+export async function waitForHello(ws: WebSocket): Promise<void> {
+  const attachment = ws.deserializeAttachment() as UserAttachment
+  if (attachment.helloBy === undefined) return
+  await scheduler.wait(Math.max(0, attachment.helloBy - Date.now()))
+  const current = ws.deserializeAttachment() as UserAttachment
+  if (current.ready) return
+  try { ws.close(4408, HELLO_TIMEOUT_REASON) } catch {}
 }

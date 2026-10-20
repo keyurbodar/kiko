@@ -1,9 +1,9 @@
 import type { RoomLog } from "../room/log"
 import { searchMessages, type SearchOptions } from "../room/search"
-import { type ArchivedMessage, type HistoryStore, type PendingArchive } from "./history-archive"
+import type { ArchivedMessage, HistoryStore, PendingArchive } from "./history-archive"
 
 export class RoomHistoryStore implements HistoryStore {
-  constructor(private readonly storage: DurableObjectStorage, private readonly log: RoomLog) {}
+  constructor(private readonly storage: DurableObjectStorage, private readonly log: RoomLog, private readonly capture: () => void) {}
 
   state(): { writtenDay: string | null; pending: PendingArchive | null } {
     const row = this.storage.sql.exec<{ written_day: string | null; pending: string | null }>("SELECT written_day, pending FROM history_archive_state WHERE room_id = ?", this.log.roomId).toArray()[0]
@@ -15,10 +15,10 @@ export class RoomHistoryStore implements HistoryStore {
     return at === undefined ? null : new Date(at).toISOString().slice(0, 10)
   }
 
-  snapshot(day: string) { return this.log.archiveSnapshot(day) }
+  snapshot(day: string) { this.capture(); return this.log.archiveSnapshot(day) }
   overrides(ids: string[]) { return this.log.archiveOverrides(ids) }
   around(seq: number, before: number, after: number) { return this.log.around(seq, before, after) }
-  search(query: string, options: SearchOptions) { return searchMessages(this.storage.sql, this.log.roomId, query, options) }
+  search(query: string, options: SearchOptions) { return searchMessages(this.storage, this.log.roomId, query, options) }
 
   hydrate(row: ArchivedMessage): void {
     const message = row.message

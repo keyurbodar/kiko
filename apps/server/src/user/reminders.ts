@@ -234,6 +234,11 @@ export class Reminders {
     const fields = this.routineFields({ name: patch.name ?? current.name ?? "", instructions: patch.instructions ?? current.text, trigger, tz: current.tz, target: current.target }, retimed)
     const due = retimed ? fields.due : current.dueUtc
     const status = patch.status ?? (current.status === "done" ? "active" : current.status)
+    const resetFails = patch.status === "active" || current.status === "done"
+    if (!freshHash && fields.name === current.name && fields.text === current.text && JSON.stringify(trigger) === JSON.stringify(current.trigger)
+      && fields.rrule === current.rrule && due === current.dueUtc && status === current.status && (!resetFails || current.fails === 0)) {
+      return { routine: current }
+    }
     this.sql.exec(
       `UPDATE reminders SET name = ?, text = ?, trigger = ?, rrule = ?, due_utc = ?, status = ?, fails = CASE WHEN ? = 'active' THEN 0 ELSE fails END,
        hook_hash = coalesce(?, hook_hash) WHERE id = ?`,
@@ -306,7 +311,7 @@ export class Reminders {
     if (!changed.rowsWritten) return
     this.changed()
     if (status === "failed" || status === "timeout") await this.countFailure(routineId, occurrence)
-    else this.sql.exec("UPDATE reminders SET fails = 0 WHERE id = ?", routineId)
+    else this.sql.exec("UPDATE reminders SET fails = 0 WHERE id = ? AND fails != 0", routineId)
   }
 
   // One failed run. At MAX_FAILS a routine pauses. The human hears once per occurrence.
@@ -343,7 +348,7 @@ export class Reminders {
     const fresh = this.beginRun(routine.id, occurrence)
     const delivery = this.ports.gate.away() ? "held" : await this.deliver(routine, occurrence, body)
     if (delivery === "gone") {
-      this.sql.exec("UPDATE reminders SET status = 'cancelled' WHERE id = ?", routine.id)
+      this.sql.exec("UPDATE reminders SET status = 'cancelled' WHERE id = ? AND status != 'cancelled'", routine.id)
       await this.rearm()
     }
     if (fresh && delivery === "refused") await this.countFailure(routine.id, occurrence)
@@ -378,8 +383,9 @@ export class Reminders {
   }
 
   async makeDue(id: string): Promise<void> {
-    this.sql.exec("UPDATE reminders SET due_utc = ? WHERE id = ? AND status = 'active' AND due_utc > 0", this.now(), id)
-    await this.rearm()
+    const now = this.now()
+    const changed = this.sql.exec("UPDATE reminders SET due_utc = ? WHERE id = ? AND status = 'active' AND due_utc > 0 AND due_utc != ?", now, id, now)
+    if (changed.rowsWritten) await this.rearm()
   }
 
   async cancel(id: string): Promise<Reminder | null> {

@@ -95,7 +95,6 @@ core/browser/src/cdp/session.ts:Payload
 core/browser/src/config.ts:BrowserConfig
 core/durable/src/crypto.ts:Kek
 core/durable/src/crypto.ts:KeyringEnv
-core/durable/src/hello-deadline.ts:HELLO_TIMEOUT_REASON
 core/durable/src/safe-fetch.ts:SafeFetchOptions
 core/durable/src/safe-fetch.ts:SafeFetchRefusal
 core/durable/src/safe-fetch.ts:SafeFetchResult

@@ -237,10 +237,8 @@ export class Agent {
     await this.services.cancelRun(this.identity.roomId, this.identity.slug)
   }
 
-  async scheduleRecovery(at: number): Promise<void> {
-    const current = this.clock.deadline("recovery")
-    if (current !== undefined && current > Date.now() && current <= at) return
-    await this.clock.setWakeup("recovery", at)
+  async unfinished(): Promise<boolean> {
+    return this.host.unfinished()
   }
 
   async wake(): Promise<boolean> {

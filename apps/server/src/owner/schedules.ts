@@ -44,21 +44,26 @@ export class RoutineSchedules {
   /** Bind to a stable conversation and pass the complete active time-routine inventory on every CRUD change. */
   bind(harness: Harness, conversationId: ConversationId): RoutineScheduler {
     return { sync: async (routines) => {
-      const update = this.updating.then(() => harness.commit(async (tx) => {
-        const doc = await tx.doc(schedules, conversationId)
-        const wanted = new Set(routines.map(routineRequestId))
-        const obsolete = doc.entries.filter((entry) => !wanted.has(routineRequestId(entry)))
-        doc.entries = doc.entries.filter((entry) => wanted.has(routineRequestId(entry)))
-        const present = new Set(doc.entries.map(routineRequestId))
-        for (const input of routines) {
-          const key = routineRequestId(input)
-          if (present.has(key)) continue
-          const taskId = await tx.createTask(this.task, input, { ownership: { kind: "conversation" }, conversationId, background: true })
-          doc.entries.push({ ...input, taskId })
-          present.add(key)
-        }
-        return obsolete.map((entry) => entry.taskId)
-      }, BACKGROUND_CONTEXT))
+      const update = this.updating.then(async () => {
+        const current = await harness.snapshot(schedules, conversationId, BACKGROUND_CONTEXT)
+        const keys = new Set(routines.map(routineRequestId))
+        if ((current?.entries.length ?? 0) === keys.size && (current?.entries ?? []).every((entry) => keys.has(routineRequestId(entry)))) return []
+        return harness.commit(async (tx) => {
+          const doc = await tx.doc(schedules, conversationId)
+          const wanted = new Set(routines.map(routineRequestId))
+          const obsolete = doc.entries.filter((entry) => !wanted.has(routineRequestId(entry)))
+          if (obsolete.length) doc.entries = doc.entries.filter((entry) => wanted.has(routineRequestId(entry)))
+          const present = new Set(doc.entries.map(routineRequestId))
+          for (const input of routines) {
+            const key = routineRequestId(input)
+            if (present.has(key)) continue
+            const taskId = await tx.createTask(this.task, input, { ownership: { kind: "conversation" }, conversationId, background: true })
+            doc.entries.push({ ...input, taskId })
+            present.add(key)
+          }
+          return obsolete.map((entry) => entry.taskId)
+        }, BACKGROUND_CONTEXT)
+      })
       this.updating = update.catch(() => {})
       // An active callback can sync its successor while abortTask joins that callback.
       const obsolete = await update
@@ -73,7 +78,7 @@ export class RoutineSchedules {
   }
 }
 
-export function scheduledDeadline(task: TaskInspection): number | undefined {
+export function scheduledDeadline(task: Pick<TaskInspection, "record">): number | undefined {
   if (task.record.kind !== TASK || task.record.abortRequested || task.record.state.status === "terminal" || task.record.state.status === "completing") return undefined
   const { input, state } = task.record
   const checkpoint = state.checkpoint

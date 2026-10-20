@@ -261,6 +261,27 @@ const OWNER_STEPS: readonly Step[] = [
   `DROP TABLE IF EXISTS outbox`,
   `DROP INDEX IF EXISTS mem_turns_seq`,
   `DROP INDEX IF EXISTS mem_turns_key`,
+  `DROP TRIGGER IF EXISTS messages_search_insert`,
+  `DROP TRIGGER IF EXISTS messages_search_update`,
+  `DROP TRIGGER IF EXISTS messages_search_delete`,
+  `ALTER TABLE messages ADD COLUMN client_id TEXT`,
+  `ALTER TABLE messages ADD COLUMN message_payload TEXT`,
+  `ALTER TABLE messages ADD COLUMN mentions TEXT`,
+  `UPDATE messages SET message_payload = (SELECT payload FROM events WHERE events.room_id = messages.room_id AND events.seq = messages.seq AND kind = 'message'), client_id = (SELECT client_id FROM clients WHERE clients.room_id = messages.room_id AND clients.message_id = messages.id)`,
+  `DELETE FROM events WHERE kind = 'message'`,
+  `DROP TABLE clients`,
+  `DROP INDEX IF EXISTS messages_id`,
+  `DROP INDEX IF EXISTS messages_run`,
+  // Search lazily rebuilds its disposable index as bounded batches, not individual messages.
+  `DROP TABLE messages_fts`,
+  `CREATE VIRTUAL TABLE messages_fts USING fts5(room, chunk, room_id UNINDEXED, first_seq UNINDEXED, last_seq UNINDEXED, edit_seq UNINDEXED, members UNINDEXED)`,
+  `DROP INDEX IF EXISTS pending_seq`,
+  `DROP TABLE IF EXISTS pending`,
+  `CREATE TRIGGER search_hydrated_insert AFTER INSERT ON messages
+   WHEN new.seq <= (SELECT json_extract(value, '$.last_seq') FROM owner_meta WHERE scope = 'room:' || new.room_id AND key = 'search-state')
+   BEGIN INSERT OR IGNORE INTO owner_meta (scope, key, value) VALUES ('room:' || new.room_id, 'search-hydrated:' || new.seq, CAST(new.seq AS TEXT)); END`,
+  `ALTER TABLE members ADD COLUMN lead_seq INTEGER NOT NULL DEFAULT 0`,
+  `UPDATE members SET lead_seq = COALESCE((SELECT MIN(events.seq) FROM events WHERE events.room_id = members.room_id AND events.seq >= members.added_seq AND kind = 'member' AND json_extract(payload, '$.member.slug') = members.slug AND json_extract(payload, '$.member.lead') = 1 AND events.seq > COALESCE((SELECT MAX(previous.seq) FROM events AS previous WHERE previous.room_id = members.room_id AND previous.seq >= members.added_seq AND previous.kind = 'member' AND json_extract(previous.payload, '$.member.slug') = members.slug AND json_extract(previous.payload, '$.member.lead') = 0), 0)), added_seq)`,
 ]
 
 export function initializeSchema(storage: DurableObjectStorage): void {
@@ -272,7 +293,6 @@ export function eraseRoomSchema(storage: DurableObjectStorage, roomId: string): 
     storage.sql.exec("DELETE FROM events WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM messages WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM reactions WHERE room_id = ?", roomId)
-    storage.sql.exec("DELETE FROM clients WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM run_steps WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM files WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM directories WHERE room_id = ?", roomId)
@@ -286,7 +306,6 @@ export function eraseRoomSchema(storage: DurableObjectStorage, roomId: string): 
     storage.sql.exec("DELETE FROM root_counts WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM agent_sends WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM mail_refused WHERE room_id = ?", roomId)
-    storage.sql.exec("DELETE FROM ended_runs WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM routine_inflight WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM members WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM agent_asks WHERE room_id = ?", roomId)
@@ -297,7 +316,6 @@ export function eraseRoomSchema(storage: DurableObjectStorage, roomId: string): 
     storage.sql.exec("DELETE FROM team_leases WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM human_asks WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM ws_task_reports WHERE room_id = ?", roomId)
-    storage.sql.exec("DELETE FROM pending WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM owner_meta WHERE scope = ?", `room:${roomId}`)
     storage.sql.exec("INSERT INTO owner_meta (scope, key, value) VALUES (?, 'deleted', '1')", `room:${roomId}`)
     storage.sql.exec("DELETE FROM owner_deadlines WHERE scope = ?", `room:${roomId}`)
