@@ -10,7 +10,7 @@ import { continueAtBoundary } from "./continuation"
 import { submitPaused } from "./admission"
 import { type Batch, type Refusal, renderInput, requestIdFor } from "./input"
 import { decide, FRESH_RUN, type RunProgress, type RunState } from "./mid-run"
-import { cancelRestart, generationStarted, recoverRestart, rememberRestart, RESTARTS_KEY, stoppableTools, type RestartInput } from "./human-priority"
+import { cancelPaused, cancelRestart, rootGeneration, recoverRestart, rememberRestart, RESTARTS_KEY, stoppableTools, type RestartInput } from "./human-priority"
 import type { Envelope } from "./envelope"
 import { ROLLOVER_STEPS, restoreRollover, rollover } from "./rollover"
 import { INITIAL_WORKERS_STEPS, Workers } from "./workers"
@@ -207,12 +207,15 @@ export class AgentHost {
   }
 
   private async stopNow(): Promise<{ discarded: number }> {
-    const opened = await this.opened
-    if (!opened) return { discarded: 0 }
+    await this.ctx.storage.put(STOP_KEY, true)
+    let opened = await this.open()
+    if ((!this.invocation || this.invocation.settling) && (await opened.harness.inspect(context)).scheduling !== "paused") {
+      this.plannedSetup = opened.setup
+      await this.drop(true)
+      opened = await this.open()
+    }
     const discarded = (await opened.harness.inspect(context)).submissions.filter((s) => s.status === "queued").length
-    await cancelRestart(opened.root, opened.storage)
-    await this.workers.stopAll()
-    await opened.root.abort(context)
+    await this.drain(opened, [])
     await this.refreshRecovery(opened)
     return { discarded }
   }
@@ -349,8 +352,12 @@ export class AgentHost {
       })
       opened = await this.current()
       if (this.invocation && !this.invocation.settling) {
-        const { root, storage } = opened
-        const recovery = this.admission.then(() => recoverRestart(root, storage, this.ctx.storage))
+        const current = opened
+        const { root, storage } = current
+        const recovery = this.admission.then(async () => {
+          await this.drain(current, [])
+          await recoverRestart(root, storage, this.ctx.storage)
+        })
         this.admission = recovery.catch(() => {})
         await recovery
       }
@@ -408,6 +415,7 @@ export class AgentHost {
         }
         await this.options.onOpen?.(opened)
         if (this.invocation && !this.invocation.settling) {
+          await this.drain(opened, [])
           await recoverRestart(opened.root, opened.storage, this.ctx.storage)
           await this.refreshRecovery(opened)
           opened.harness.resume()
@@ -614,8 +622,13 @@ export class AgentHost {
 
   private async drain(opened: Opened, batches: readonly Batch[]): Promise<void> {
     if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
-      await this.workers.stopAll()
-      await opened.root.abort(context)
+      await cancelRestart(opened.root, opened.storage)
+      const live = await opened.harness.inspect(context)
+      const paused = live.scheduling === "paused"
+      await this.workers.stopAll({ deferAbort: paused })
+      if (paused) await cancelPaused(opened.harness, opened.root, { ...live, tasks: live.tasks.filter((task) => this.options.scheduledDeadline?.(task) === undefined) })
+      else await opened.root.abort(context)
+      opened.storage.flush()
       await this.ctx.storage.delete([STOP_KEY, RESTARTS_KEY])
     }
     for (const batch of batches) await this.drainBatch(opened, batch)
@@ -671,7 +684,8 @@ export class AgentHost {
 
   private async admitInput({ harness, root, storage, setup }: Opened, input: RestartInput, run: RunState | null, human: boolean): Promise<void> {
     const action = decide(run, { kind: human ? "human" : "agent" })
-    if (action === "restart" && await generationStarted(harness, root)) {
+    const generation = run ? await rootGeneration(harness, root) : undefined
+    if (generation?.abortRequested || action === "restart" && generation?.startedAt !== undefined) {
       await rememberRestart(root, storage, input, (run?.restarts ?? 0) + 1)
       if (this.invocation && !this.invocation.settling) await recoverRestart(root, storage, this.ctx.storage)
       return
@@ -790,7 +804,7 @@ export class AgentHost {
     this.opened = undefined
     if (!opened) return
     this.retiring.add(opened)
-    await opened.root.abort(context, { background: true }).catch(() => {})
+    if (this.invocation && !this.invocation.settling) await opened.root.abort(context, { background: true }).catch(() => {})
     await opened.harness.close(context).catch(() => {})
     await this.serializeAlarm(() => this.alarms.clearWakeup(RECOVERY_WAKEUP))
   }
