@@ -1,19 +1,15 @@
 import { Database } from "bun:sqlite"
 import { expect, test } from "bun:test"
-import { RoomLog } from "../src/room/log"
-import { ROOM_STEPS } from "../src/room/schema"
 import { HistoryArchive, UTC_DAY, type ArchivedMessage, type HistoryArchiveIO } from "../src/owner/history-archive"
 import { RoomHistoryStore } from "../src/owner/history-store"
-import { sqlWith } from "./sql-shim"
+import { ownerRoomFixture } from "./owner-room-fixture"
 
 const epoch = Date.parse("2026-01-01")
 
 function fixture() {
   const db = new Database(":memory:")
-  const sql = sqlWith(ROOM_STEPS, db)
-  const storage = { sql, transactionSync: <T>(fn: () => T) => db.transaction(fn)() } as DurableObjectStorage
   let now = epoch
-  const log = new RoomLog(storage, () => now)
+  const { owner, storage, sql, log } = ownerRoomFixture({ db, roomId: "room", now: () => now })
   const store = new RoomHistoryStore(storage, log)
   const days = new Map<string, ArchivedMessage[]>()
   const writes: string[] = []
@@ -23,7 +19,7 @@ function fixture() {
     listDays: async () => [...days.keys()].sort().reverse(),
   }
   const history = new HistoryArchive("room", store, io, () => now)
-  return { db, sql, storage, log, store, days, writes, io, history, now: (value: number) => { now = value }, close: () => db.close() }
+  return { db, owner, sql, storage, log, store, days, writes, io, history, now: (value: number) => { now = value }, close: () => db.close() }
 }
 
 test("archives only complete days older than 30 days and writes once per current day", async () => {
@@ -50,12 +46,12 @@ test("full Message semantics survive and reaction edits during R2 I/O stay hot",
   try {
     const original = f.log.addMessage({ from: { kind: "human" }, text: "quoted kumquat" })
     const reply = f.log.addMessage({ from: { kind: "human" }, text: "reply kumquat", replyTo: original.id, quote: "quoted" })
-    f.sql.exec("INSERT INTO reactions (message_id, actor, emoji, at) VALUES (?, 'human', '👍', ?)", reply.id, epoch)
+    f.owner.sql.exec("INSERT INTO reactions (room_id, message_id, actor, emoji, at) VALUES ('room', ?, 'human', '👍', ?)", reply.id, epoch)
     const expected = f.log.message(reply.id)
     const put = f.io.writeDay
     f.io.writeDay = async (...args) => {
       await put(...args)
-      f.sql.exec("UPDATE reactions SET emoji = '❤️' WHERE message_id = ?", reply.id)
+      f.owner.sql.exec("UPDATE reactions SET emoji = '❤️' WHERE room_id = 'room' AND message_id = ?", reply.id)
     }
     f.now(epoch + 31 * UTC_DAY)
     await f.history.afterRun()

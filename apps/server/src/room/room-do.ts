@@ -1128,7 +1128,7 @@ export class Room implements SocketRoom {
 		return this.cannotRun(slug, `no_model:${slug}:${requestId}`, "no_model", "", "the human has not picked a model for it", heard, inputs)
 	}
 
-	private cannotRun(slug: AgentSlug, key: string, kind: RunErrorKind, provider: string, because: string, heard: readonly string[], inputs: readonly string[], detail?: string): boolean {
+	private async cannotRun(slug: AgentSlug, key: string, kind: RunErrorKind, provider: string, because: string, heard: readonly string[], inputs: readonly string[], detail?: string): Promise<boolean> {
 		const stored = this.reportRunError(slug, key, kind, provider, inputs, detail)
 		const home = this.home()
 		if (home) {

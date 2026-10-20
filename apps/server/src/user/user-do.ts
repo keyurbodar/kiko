@@ -764,7 +764,7 @@ export class User {
 
   #routinesWiring?: RoutineWiring
   get #routines(): RoutineWiring {
-    this.#routinesWiring ??= new RoutineWiring({ env: this.env, services:this.services, reminders: this.reminders })
+    this.#routinesWiring ??= new RoutineWiring({ services:this.services, reminders: this.reminders })
     return this.#routinesWiring
   }
 

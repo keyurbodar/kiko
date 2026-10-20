@@ -97,7 +97,7 @@ async function install(cfg: Parameters<typeof fakeCloudflare>[0], grant: Paramet
   return { calls, upload, result, metadata }
 }
 
-const secretNames = (upload: Call) => ((upload.body as { bindings: { type: string; name: string }[] }).bindings).filter((b) => b.type === "secret_text").map((b) => b.name)
+const secretNames = (upload: Call) => ((upload.body as { bindings: { type: string; name: string; class_name?: string }[] }).bindings).filter((b) => b.type === "secret_text").map((b) => b.name)
 
 describe("runInstall", () => {
   test("another Clerk owner cannot rebind the default Kiko Worker", async () => {
@@ -186,7 +186,7 @@ describe("runInstall", () => {
   test("second run keeps secrets, never regenerates the two keys, and sends only later migration steps", async () => {
     const release = await makeRelease()
     const { upload, calls } = await install({ release, scripts: [{ id: "kiko", migration_tag: "v1" }], r2: "exists" })
-    const body = upload.body as { keep_bindings: string[]; migrations: unknown; bindings: { type: string; name: string }[] }
+    const body = upload.body as { keep_bindings: string[]; migrations: unknown; bindings: { type: string; name: string; class_name?: string }[] }
     expect(body.keep_bindings).toEqual(["secret_text"])
     expect(body.bindings.filter((b) => b.name === "FILES")).toEqual([{ type: "inherit", name: "FILES" }])
     expect(calls.some((c) => c.url.endsWith("/r2/buckets"))).toBe(false)
@@ -213,7 +213,7 @@ describe("runInstall", () => {
     expect(JSON.parse(grant)).toEqual({ kind: "oauth", clientId: expect.any(String), accessToken: "at", refreshToken: "rt", accountId: "acc1", scriptName: NEW_SCRIPT })
   })
 
-  const storageBindings = (upload: Call) => ((upload.body as { bindings: { type: string; name: string }[] }).bindings).filter((b) => b.type === "durable_object_namespace" || b.name === "FILES")
+  const storageBindings = (upload: Call) => ((upload.body as { bindings: { type: string; name: string; class_name?: string }[] }).bindings).filter((b) => b.type === "durable_object_namespace" || b.name === "FILES")
 
   for (const r2 of ["ok", "exists", "disabled"] as const) {
     test(`fresh backends keep files private when R2 is ${r2}`, async () => {

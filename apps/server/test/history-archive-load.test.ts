@@ -3,19 +3,15 @@ import { expect, test } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { RoomLog } from "../src/room/log"
-import { ROOM_STEPS } from "../src/room/schema"
 import { HistoryArchive, UTC_DAY, type ArchivedMessage } from "../src/owner/history-archive"
 import { RoomHistoryStore } from "../src/owner/history-store"
-import { sqlWith } from "./sql-shim"
+import { ownerRoomFixture } from "./owner-room-fixture"
 
 test("90 days at 2840 runs per day plateaus hot history with at most one write per room per day", async () => {
   const directory = mkdtempSync(join(tmpdir(), "kiko-archive-load-"))
   const db = new Database(join(directory, "history.sqlite"))
   try {
-    const sql = sqlWith(ROOM_STEPS, db)
-    const storage = { sql, transactionSync: <T>(fn: () => T) => db.transaction(fn)() } as DurableObjectStorage
-    const log = new RoomLog(storage)
+    const { storage, sql, log } = ownerRoomFixture({ db, roomId: "room" })
     const start = Date.parse("2026-01-01")
     let now = start
     const written = new Set<string>()
@@ -33,7 +29,7 @@ test("90 days at 2840 runs per day plateaus hot history with at most one write p
       },
       listDays: async () => [...days].sort().reverse(),
     }, () => now)
-    const insert = db.prepare("INSERT INTO messages (id, seq, at, sender, text) VALUES (?, ?, ?, ?, ?)")
+    const insert = db.prepare("INSERT INTO messages (room_id, id, seq, at, sender, text) VALUES ('room', ?, ?, ?, ?, ?)")
     const text = "Archive load fixture kumquat ".repeat(36)
     const counts: number[] = []
     const bytes: number[] = []
