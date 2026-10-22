@@ -6,8 +6,6 @@ export type { Catalog, CatalogModel, CatalogProvider, ConnectMethod }
 
 let cached: Promise<Catalog> | undefined
 let watching: (() => void) | undefined
-let forget: ReturnType<typeof setTimeout> | undefined
-export const CATALOG_KEEP_MS = 30 * 60_000
 
 export async function prefetchCatalog(): Promise<void> {
   try {
@@ -20,11 +18,6 @@ export function loadCatalog(): Promise<Catalog> {
   watching ??= onChanged("models", () => {
     cached = undefined
   }, 0)
-  if (forget !== undefined) clearTimeout(forget)
-  forget = setTimeout(() => {
-    cached = undefined
-    forget = undefined
-  }, CATALOG_KEEP_MS)
   cached ??= (async () => {
     const response = await apiFetch("/api/models")
     if (!response.ok) throw new Error("catalog request failed")

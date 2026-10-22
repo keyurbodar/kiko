@@ -1,5 +1,5 @@
 import { displayVars } from "./display"
-import { formatImported, IMPORTED_KEY, parseImported, themeFor, type Imported } from "./imported"
+import { EMPTY_IMPORTED, IMPORTED_KEY, parseImported, themeFor, type Imported } from "./imported"
 import { DEFAULT_LOOK, parseLook, type Look } from "./look"
 import { PALETTES, resolveAppearance, tokensFor, type ThemeAppearance, type ThemeMode, type ThemeId } from "./palette"
 
@@ -12,35 +12,29 @@ const systemDark = () => typeof matchMedia !== "function" || !matchMedia("(prefe
 
 export const appearanceOf = (mode: ThemeMode): ThemeAppearance => resolveAppearance(mode, systemDark())
 
-let imported: Imported = parseImported(storedImported())
 let importedOn = true
 
-function storedImported(): string | null {
+export function legacyImported(): Imported {
   try {
-    return localStorage.getItem(IMPORTED_KEY)
+    return parseImported(localStorage.getItem(IMPORTED_KEY))
   } catch {
-    return null
+    return EMPTY_IMPORTED
   }
 }
 
+export function dropLegacyImported(): void {
+  try {
+    localStorage.removeItem(IMPORTED_KEY)
+  } catch {}
+}
+
 const half = (look: Look, h: ThemeAppearance) => ({
-  ...tokensFor(h, look.darkTheme, look.display.contrast, importedOn ? themeFor(imported, h) : undefined),
+  ...tokensFor(h, look.darkTheme, look.display.contrast, importedOn ? themeFor(look.imported, h) : undefined),
   ...displayVars(look.display),
 })
 
 export const resolveLook = (look: Look): Record<ThemeAppearance, Record<string, string>> => ({ light: half(look, "light"), dark: half(look, "dark") })
 
-export const importedThemes = (): Imported => imported
-
-export function saveImported(next: Imported): void {
-  imported = next
-  try {
-    localStorage.setItem(IMPORTED_KEY, formatImported(next))
-  } catch {}
-  const cached = readCache()
-  if (cached) writeCache(cached.text, committed)
-  paint(committed)
-}
 
 let applied = new Set<string>()
 let committed: Look = DEFAULT_LOOK
@@ -78,15 +72,27 @@ export function applyCommitted(look: Look, withImported = true): void {
   watch()
 }
 
-export function previewLook(look: Look, themes: Imported = imported): () => void {
-  const real = imported
-  imported = themes
-  try {
-    paint(look)
-  } finally {
-    imported = real
-  }
+export function previewLook(look: Look): () => void {
+  paint(look)
   return () => paint(committed)
+}
+
+const listeners = new Set<() => void>()
+
+export function subscribeCache(listener: () => void): () => void {
+  listeners.add(listener)
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === CACHE_KEY) listener()
+  }
+  globalThis.addEventListener?.("storage", onStorage)
+  return () => {
+    listeners.delete(listener)
+    globalThis.removeEventListener?.("storage", onStorage)
+  }
+}
+
+function notifyCache(): void {
+  for (const listener of [...listeners]) listener()
 }
 
 export function readCache(): Cache | null {
@@ -107,12 +113,12 @@ export function writeCache(text: string | null, look: Look): void {
     else localStorage.setItem(CACHE_KEY, JSON.stringify({ v: 6, text, mode: look.mode, vars: resolveLook(look) } satisfies Cache))
   } catch {
   }
+  notifyCache()
 }
 
 export function selectBuiltin(look: Look, id: ThemeId): Look {
   const mode = id === "snow" ? "light" : "dark"
-  const active = { ...imported.active }
+  const active = { ...look.imported.active }
   delete active[mode]
-  saveImported({ ...imported, active })
-  return { ...look, mode, darkTheme: id === "snow" ? look.darkTheme : id }
+  return { ...look, mode, darkTheme: id === "snow" ? look.darkTheme : id, imported: { ...look.imported, active } }
 }

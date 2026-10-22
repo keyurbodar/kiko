@@ -6,8 +6,17 @@ export default function HtmlView(props: { roomId: string; file: FileRef }) {
 	return (
 		<WithText roomId={props.roomId} file={props.file}>
 			{(text) => {
-				const url = createMemo(() => URL.createObjectURL(new Blob([text], { type: "text/html" })))
-				onCleanup(() => URL.revokeObjectURL(url()))
+				let previous: string | undefined
+				const url = createMemo(() => {
+					const next = URL.createObjectURL(new Blob([text], { type: "text/html" }))
+					if (previous) URL.revokeObjectURL(previous)
+					previous = next
+					return next
+				})
+				onCleanup(() => {
+					if (previous) URL.revokeObjectURL(previous)
+					previous = undefined
+				})
 				return (
 					<iframe
 						class="min-h-0 flex-1 border-0 bg-white"

@@ -248,9 +248,19 @@ export function ModelsPage() {
               <VList class="kit-card" style={{ height: `${Math.min(rows().length * 36, 540)}px` }} data={rows()} itemSize={36}>
                 {(r) => (
                   <div
-                    class="flex h-9 cursor-pointer items-center gap-2.5 border-b border-border px-3 hover:bg-accent"
+                    class="flex h-9 cursor-pointer items-center gap-2.5 border-b border-border px-3 outline-none hover:bg-accent focus-visible:bg-accent"
+                    role="switch"
+                    tabIndex={0}
+                    aria-checked={!hidden().has(r.ref)}
+                    aria-label={`Show ${r.model.name} in the model picker`}
                     data-model={r.ref}
                     onClick={() => setHidden([r.ref], !hidden().has(r.ref))}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return
+                      if (e.key !== "Enter" && e.key !== " ") return
+                      e.preventDefault()
+                      setHidden([r.ref], !hidden().has(r.ref))
+                    }}
                   >
                     <Show when={!current()}>
                       <ProviderIcon id={r.provider.id} width="14" height="14" />

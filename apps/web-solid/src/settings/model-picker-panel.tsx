@@ -1,11 +1,14 @@
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
-import { A } from "@solidjs/router"
 import { createEffect, createMemo, createSignal, createUniqueId, For, on, onCleanup, onMount, Show, type JSX } from "solid-js"
+import { openSettings } from "./dialog-state"
+import { setModelsTab } from "./models-tab"
 import { createLive } from "../sync/changed"
 import { Portal } from "solid-js/web"
 import { VList, type VListHandle } from "virtua/solid"
-import { loadCatalog, modelRef, searchModels, type ModelRow } from "./catalog"
+import { formatContext, formatPrice, loadCatalog, modelRef, searchModels, type ModelRow } from "./catalog"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CheckIcon } from "@kiko/ui/icons"
 import type { ThinkingLevel } from "@kiko/protocol"
 import { connectedProviders } from "./connected"
 import { favoriteModels, hiddenModels, toggleFavorite } from "./model-picker"
@@ -72,7 +75,27 @@ export default function ModelPickerPanel(props: { current?: string; onPick: (ref
     const anchor = form ? { top: r.top, bottom: r.bottom, left: r.left + 18, right: r.right } : r
     setPlace(placePanel(anchor, PANEL_W, PANEL_H, { width: window.innerWidth, height: window.innerHeight }, form ? "above" : "below", form ? "start" : "end"))
   })
-  createEffect(on([query, rail], () => setAt(0), { defer: true }))
+  let centered: string | undefined
+  createEffect(
+    on([rows, handle, query], ([list, vlist]) => {
+      const typed = query().trim() !== ""
+      const key = `${rail()}|${typed ? "q" : ""}`
+      const fresh = key !== centered
+      centered = key
+      if (typed) {
+        if (!fresh) return
+        setAt(0)
+        if (vlist) requestAnimationFrame(() => vlist.scrollToIndex(0, { align: "start" }))
+        return
+      }
+      const here = list.findIndex((r) => modelRef(r.provider.id, r.model.id) === props.current)
+      const target = Math.max(0, here)
+      if (!fresh && target === at()) return
+      setAt(target)
+      if (here >= 0) requestAnimationFrame(() => vlist?.scrollToIndex(here, { align: "center" }))
+    }),
+  )
+  const mixed = () => query().trim() !== "" || rail() === FAVORITES
   createEffect(() => {
     const outside = (e: PointerEvent) => {
       const t = e.target as Node
@@ -122,7 +145,20 @@ export default function ModelPickerPanel(props: { current?: string; onPick: (ref
               when={providers().length || catalog.loading}
               fallback={
                 <p class="m-auto px-6 text-center text-md text-muted-foreground" data-component="model-empty">
-                  No provider is connected. <A href="/settings/models" class="text-foreground underline" onClick={() => props.onOpenChange(false)}>Connect one</A> to pick a model.
+                  No provider is connected.{" "}
+                  <button
+                    type="button"
+                    class="text-foreground underline"
+                    data-action="connect-provider"
+                    onClick={() => {
+                      setModelsTab("providers")
+                      openSettings("models")
+                      props.onOpenChange(false)
+                    }}
+                  >
+                    Connect one
+                  </button>{" "}
+                  to pick a model.
                 </p>
               }
             >
@@ -190,13 +226,19 @@ export default function ModelPickerPanel(props: { current?: string; onPick: (ref
                           <span class="flex min-w-0 flex-1 flex-col">
                             <span class="truncate text-md text-foreground">{row.model.name}</span>
                             <span class="flex items-center gap-1 truncate text-xs text-muted-foreground">
-                              <ProviderIcon id={row.provider.id} width="11" height="11" />
-                              {row.provider.name}
+                              <Show when={mixed()}>
+                                <ProviderIcon id={row.provider.id} width="11" height="11" />
+                                {row.provider.name} ·
+                              </Show>
+                              {formatContext(row.model.contextWindow)} context · {formatPrice(row.model.pricing)}
                               <Show when={problemOf(row.provider.id)}>
-                                {(problem) => <span class="text-error" data-part="provider-problem">{PROBLEM_SHORT[problem()]}</span>}
+                                {(problem) => <span class="text-error" data-part="provider-problem">· {PROBLEM_SHORT[problem()]}</span>}
                               </Show>
                             </span>
                           </span>
+                          <Show when={props.current === ref}>
+                            <RemixIcon icon={CheckIcon} size={15} class="shrink-0 text-foreground" />
+                          </Show>
                           <button
                             type="button"
                             class={`grid size-7 shrink-0 place-items-center rounded-md hover:bg-accent-strong ${starred() ? "text-warning" : "text-secondary-label opacity-0 group-hover/model:opacity-100"}`}

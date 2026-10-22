@@ -18,9 +18,16 @@ export const IMPORTED_KEY = "kiko:imported-themes"
 export const MAX_IMPORTED = 50
 const HEX = /^#[0-9a-f]{6}$/i
 const ID = /^[\w:./-]{1,160}$/
+const ID_UNSAFE = /[^\w:./-]+/g
+const ID_EDGE = /^[-.:/]+|[-.:/]+$/g
 const APPEARANCES: readonly ThemeAppearance[] = ["light", "dark"]
 
 export const EMPTY_IMPORTED: Imported = { themes: [], active: {} }
+
+export function themeId(value: string): string {
+  const cleaned = value.replace(ID_UNSAFE, "-").slice(0, 160).replace(ID_EDGE, "")
+  return cleaned.length > 0 ? cleaned : "theme"
+}
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
 
@@ -49,8 +56,12 @@ export function parseImported(text: string | null): Imported {
   } catch {
     return EMPTY_IMPORTED
   }
+  return readImported(raw)
+}
+
+export function readImported(raw: unknown): Imported {
   if (!isObject(raw) || raw.v !== 1 || !Array.isArray(raw.themes)) return EMPTY_IMPORTED
-  const themes = raw.themes.slice(0, MAX_IMPORTED).map(readTheme).filter((theme): theme is ImportedTheme => theme !== null)
+  const themes = uniqueThemes(raw.themes)
   const active: Imported["active"] = {}
   if (isObject(raw.active)) {
     for (const appearance of APPEARANCES) {
@@ -59,6 +70,19 @@ export function parseImported(text: string | null): Imported {
     }
   }
   return { themes, active }
+}
+
+function uniqueThemes(raw: unknown[]): ImportedTheme[] {
+  const seen = new Set<string>()
+  const themes: ImportedTheme[] = []
+  for (const value of raw) {
+    if (themes.length >= MAX_IMPORTED) break
+    const theme = readTheme(value)
+    if (!theme || seen.has(theme.id)) continue
+    seen.add(theme.id)
+    themes.push(theme)
+  }
+  return themes
 }
 
 export function formatImported(state: Imported): string {

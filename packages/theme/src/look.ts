@@ -1,5 +1,6 @@
 import { CHARM_NAMES, EYE_NAMES, FLAVOUR_NAMES, LEAF_NAMES, OUTFIT_NAMES, type CharmName, type EyeName, type FlavourName, type LeafName, type OutfitName } from "@kiko/avatar"
 import { DEFAULT_DISPLAY, readDisplay, type Display } from "./display"
+import { EMPTY_IMPORTED, readImported, type Imported } from "./imported"
 import { DEFAULT_DARK_THEME, isDarkThemeId, type DarkThemeId, type ThemeMode } from "./palette"
 
 export type Mode = ThemeMode
@@ -18,9 +19,10 @@ export type Look = {
   darkTheme: DarkThemeId
   avatars: Readonly<Record<string, AvatarPins>>
   display: Display
+  imported: Imported
 }
 
-export const DEFAULT_LOOK: Look = { mode: "dark", darkTheme: DEFAULT_DARK_THEME, avatars: {}, display: DEFAULT_DISPLAY }
+export const DEFAULT_LOOK: Look = { mode: "dark", darkTheme: DEFAULT_DARK_THEME, avatars: {}, display: DEFAULT_DISPLAY, imported: EMPTY_IMPORTED }
 
 const MAX_AVATARS = 200
 const SLUG = /^[a-z0-9_-]{1,40}$/
@@ -81,9 +83,18 @@ export function parseLook(text: string | null): Look {
     darkTheme: raw.version === 4 && isDarkThemeId(raw.darkTheme) ? raw.darkTheme : DEFAULT_DARK_THEME,
     avatars,
     display: readDisplay(raw.display),
+    imported: readImported(raw.imported),
+  }
+}
+
+export function isCurrentLook(text: string | null): boolean {
+  try {
+    return text !== null && (JSON.parse(text) as { version?: unknown }).version === 4
+  } catch {
+    return false
   }
 }
 
 export function formatLook(look: Look): string {
-  return JSON.stringify({ version: 4, kind: "look", mode: look.mode, darkTheme: look.darkTheme, avatars: look.avatars, display: look.display })
+  return JSON.stringify({ version: 4, kind: "look", mode: look.mode, darkTheme: look.darkTheme, avatars: look.avatars, display: look.display, imported: { v: 1, ...look.imported } })
 }
