@@ -89,6 +89,15 @@ export async function verifyTranscript(browser: Browser, origin: string, observe
     observe(page)
     await page.goto(`${origin}/chat/${KIKO_HOME_ROOM}`)
     await page.locator('[data-component="prompt-input"]').waitFor()
+    for (let visit = 0; visit < 3; visit++) {
+      await page.getByRole("link", { name: "Recipes", exact: true }).click()
+      await page.getByRole("searchbox", { name: "Search recipes" }).waitFor()
+      await page.getByRole("navigation", { name: "Recipes navigation" }).getByRole("link", { name: "Chats", exact: true }).click()
+      await page.locator('[data-component="crash"], [data-component="prompt-input"]').first().waitFor()
+      assert.equal(await page.locator('[data-component="crash"]').count(), 0, "Returning from Recipes crashed the chat timeline")
+      await page.locator('[data-component="prompt-input"]').waitFor()
+    }
+    console.log("pass Recipes to populated chat navigation")
     await transcript(page, texts)
     await page.reload()
     await page.locator('[data-component="prompt-input"]').waitFor()

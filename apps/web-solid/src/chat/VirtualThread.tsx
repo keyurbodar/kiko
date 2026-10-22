@@ -110,6 +110,7 @@ export function VirtualThread(props: {
   let shifted = false
   let firstKey: string | undefined
   let itemsOwner: string | undefined
+  let restoreMisses = 0
   const items = createMemo<TimelineItem[]>(() => {
     const next = keepUnchanged(
       lastItems,
@@ -258,7 +259,6 @@ export function VirtualThread(props: {
   let restoredFor: string | undefined
   let restoredOk = false
   let restoreGeneration = 0
-  let restoreMisses = 0
   onCleanup(() => { restoreGeneration += 1 })
 
   const showsKey = () => {
