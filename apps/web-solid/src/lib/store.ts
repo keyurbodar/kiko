@@ -51,7 +51,7 @@ export function nextReaction(reactions: readonly WireReaction[] | undefined, emo
 export function signature(m: ViewMessage): string {
   let reactions = ""
   for (const r of m.reactions ?? []) reactions += `${reactionKey(r)}=${r.emoji},`
-  return `${m.id}|${m.seq}|${m.at}|${m.text.length}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.reply?.gone ? 1 : 0}|${m.reply?.text ?? ""}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote ?? ""}|${m.to ?? ""}|${m.event ? 1 : 0}|${m.steps ?? 0}|${m.stepAfter ?? 0}`
+  return `${m.id}|${m.seq}|${m.at}|${m.text?.length ?? 0}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.reply?.gone ? 1 : 0}|${m.reply?.text ?? ""}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote ?? ""}|${m.to ?? ""}|${m.event ? 1 : 0}|${m.steps ?? 0}|${m.stepAfter ?? 0}`
 }
 
 export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
@@ -274,7 +274,7 @@ export function createApp() {
         const t = Date.now()
         for (const m of list) {
           const live = m.from.kind === "agent" && !!m.run && !m.pending && t - m.at < LIVE_WINDOW_MS
-          pacer.offer({ id: m.id, slug: m.from.kind === "agent" ? m.from.slug : "", chars: m.text.length, live })
+          pacer.offer({ id: m.id, slug: m.from.kind === "agent" ? m.from.slug : "", chars: m.text?.length ?? 0, live })
         }
       })
     })
