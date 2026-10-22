@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright"
+import { verifyTranscript } from "./verify-transcript"
 
 const arg = process.argv.indexOf("--url")
 const origin = new URL(arg < 0 ? "http://localhost:8787" : process.argv[arg + 1]).origin
@@ -87,6 +88,13 @@ async function interactions(page: Page): Promise<void> {
   await agent.getByRole("button", { name: "Cancel", exact: true }).click()
   await page.keyboard.press("Escape")
   const prompt = page.locator('[data-component="prompt-input"]')
+  await prompt.fill("")
+  await prompt.pressSequentially("Typing :lol: keeps going", { delay: 40 })
+  assert.equal(await prompt.innerText(), "Typing :lol: keeps going", "Loading emoji suggestions interrupted typing")
+  assert(await prompt.evaluate((element) => document.activeElement === element), "Emoji suggestions stole composer focus")
+  await prompt.press("Home")
+  await prompt.pressSequentially("Start ", { delay: 40 })
+  assert.equal(await prompt.innerText(), "Start Typing :lol: keeps going", "Typing moved the composer cursor")
   await prompt.fill("A draft that survives refresh")
   await page.waitForTimeout(1500)
   await page.reload()
@@ -201,6 +209,7 @@ try {
   } finally {
     await context.close()
   }
+  await verifyTranscript(browser, origin, observe)
   await verifyDesktop(browser)
   await verifyColdStarts(browser)
   assert.deepEqual([...failures], [])
