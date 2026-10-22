@@ -403,7 +403,7 @@ export class User {
 
   roomChanged(roomId:RoomId):void {
     const chat=this.directory.get(roomId)
-    if(chat&&!chat.pair)this.broadcast({t:"events",events:[{t:"chat",chat:markKikoChat(this.sql,chat),seq:this.currentSeq(),at:Date.now()}]})
+    if(chat&&!chat.pair)this.broadcast({t:"events",events:[{t:"chat",chat:markKikoChat(this.sql,chat),seq:this.currentSeq(),at:Date.now(),projection:true}]})
   }
 
 
@@ -655,7 +655,7 @@ export class User {
   async providerKeyRefused(provider: string, apiKey: string): Promise<string | null> {
     const key = checkApiKey(apiKey)
     const { models, settings } = userModels(async () => ({ auth: { apiKey: key } }), `check-${this.ctx.id.toString()}`, this.egress, () => this.services.countOutgoing())
-    return keyRefused(models, provider, settings.stream?.headers)
+    return keyRefused(models, provider, settings.stream?.headers, `check-${this.ctx.id.toString()}`)
   }
 
   async connectProvider(provider: string, apiKey: string): Promise<ProviderInfo> {
@@ -1015,6 +1015,10 @@ export class User {
     try {
       frame = decodeFrame(JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)))
     } catch {
+      send(ws, { t: "error", error: { code: "protocol", message: "This client and your backend are speaking different versions. Reload to update." } })
+      try {
+        ws.close(1002, "bad frame")
+      } catch {}
       return
     }
     if (frame.t === "hello") {

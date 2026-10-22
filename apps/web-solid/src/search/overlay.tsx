@@ -1,6 +1,8 @@
 import { useNavigate } from "@solidjs/router"
 import { Icon } from "@kiko/ui/v2/icon"
-import { type RoomId, snippetParts } from "@kiko/protocol"
+import { ModalV2 } from "@kiko/ui/v2/modal-v2"
+import { loadOverlaysV2 } from "@kiko/ui/v2/overlays"
+import { snippetParts } from "@kiko/protocol"
 import { For, Show, createEffect, createSignal, on, onCleanup, onMount } from "solid-js"
 import { dividerLabel } from "../chat/lib/time-label"
 import { useApp } from "../lib/store"
@@ -8,6 +10,8 @@ import { fetchHits } from "./fetch"
 import { createSearch, type Hit, type SearchView, senderName } from "./model"
 import { closeSearch, requestJump, type SearchScope, searchScope, setSearchScope } from "./state"
 import "./search.css"
+
+void loadOverlaysV2()
 
 export default function SearchOverlay() {
   const navigate = useNavigate()
@@ -88,91 +92,100 @@ export default function SearchOverlay() {
   const now = Date.now()
 
   return (
-    <div class="search-overlay" data-component="search-overlay" data-scope={view()?.scope}>
-      <div class="search-scrim" aria-hidden="true" onPointerDown={close} />
-      <div class="search-panel" role="dialog" aria-label="Search messages">
-        <div class="search-bar">
-          <Icon name="magnifying-glass" size="small" class="search-glass" />
-          <input
-            ref={input}
-            class="search-input"
-            data-component="search-input"
-            placeholder="Search messages…"
-            aria-label="Search messages"
-            aria-controls="search-results"
-            aria-activedescendant={view()?.hits.length ? `search-hit-${view()!.selected}` : undefined}
-            autocomplete="off"
-            spellcheck={false}
-            onInput={(e) => search.type(e.currentTarget.value)}
-            onKeyDown={onKeyDown}
-          />
-          <div class="search-scope" role="radiogroup" aria-label="Search in">
-            <For each={["chat", "all"] as const}>
-              {(scope) => (
-                <button
-                  type="button"
-                  role="radio"
-                  class="search-scope-option"
-                  data-component={`search-scope-${scope}`}
-                  aria-checked={view()?.scope === scope}
-                  disabled={scope === "chat" && !hasChat()}
-                  onPointerDown={(e) => e.preventDefault()}
-                  onClick={() => pickScope(scope)}
-                >
-                  {scope === "chat" ? "Chat" : "All"}
-                </button>
-              )}
-            </For>
+    <ModalV2 open onOpenChange={(open: boolean) => !open && close()}>
+      <ModalV2.Portal>
+        <ModalV2.Overlay
+          class="search-overlay"
+          data-component="search-overlay"
+          data-scope={view()?.scope}
+          onPointerDown={(event: PointerEvent) => {
+            if (event.target === event.currentTarget) close()
+          }}
+        />
+        <ModalV2.Content class="search-panel" aria-label="Search messages" data-scope={view()?.scope} data-no-focus-ring="">
+          <div class="search-bar">
+            <Icon name="magnifying-glass" size="small" class="search-glass" />
+            <input
+              ref={input}
+              class="search-input"
+              data-component="search-input"
+              placeholder="Search messages…"
+              aria-label="Search messages"
+              aria-controls="search-results"
+              aria-activedescendant={view()?.hits.length ? `search-hit-${view()!.selected}` : undefined}
+              autocomplete="off"
+              spellcheck={false}
+              onInput={(e) => search.type(e.currentTarget.value)}
+              onKeyDown={onKeyDown}
+            />
+            <div class="search-scope" role="radiogroup" aria-label="Search in">
+              <For each={["chat", "all"] as const}>
+                {(scope) => (
+                  <button
+                    type="button"
+                    role="radio"
+                    class="search-scope-option"
+                    data-component={`search-scope-${scope}`}
+                    aria-checked={view()?.scope === scope}
+                    disabled={scope === "chat" && !hasChat()}
+                    onPointerDown={(e) => e.preventDefault()}
+                    onClick={() => pickScope(scope)}
+                  >
+                    {scope === "chat" ? "Chat" : "All"}
+                  </button>
+                )}
+              </For>
+            </div>
           </div>
-        </div>
-        <Show when={view()?.query.trim()}>
-          <div
-            ref={list}
-            id="search-results"
-            class="search-results"
-            role="listbox"
-            data-component="search-results"
-            data-status={view()?.status}
-            onScroll={(e) => {
-              const el = e.currentTarget
-              if (el.scrollTop + el.clientHeight >= el.scrollHeight - 80) void search.more()
-            }}
-          >
-            <For each={view()?.hits}>
-              {(hit, i) => (
-                <div
-                  id={`search-hit-${i()}`}
-                  class="search-hit"
-                  role="option"
-                  data-component="search-hit"
-                  data-index={i()}
-                  data-message-id={hit.id}
-                  aria-selected={view()?.selected === i()}
-                  onPointerMove={() => search.select(i())}
-                  onPointerDown={(e) => e.preventDefault()}
-                  onClick={() => choose(hit)}
-                >
-                  <div class="search-hit-head">
-                    <span class="search-hit-from">{senderName(hit.from, useApp.agents())}</span>
-                    <Show when={view()?.scope === "all"}>
-                      <span class="search-hit-chat" data-component="search-hit-chat">{chatName(hit.roomId)}</span>
-                    </Show>
-                    <span class="search-hit-time">{dividerLabel(hit.at, now)}</span>
+          <Show when={view()?.query.trim()}>
+            <div
+              ref={list}
+              id="search-results"
+              class="search-results"
+              role="listbox"
+              data-component="search-results"
+              data-status={view()?.status}
+              onScroll={(e) => {
+                const el = e.currentTarget
+                if (el.scrollTop + el.clientHeight >= el.scrollHeight - 80) void search.more()
+              }}
+            >
+              <For each={view()?.hits}>
+                {(hit, i) => (
+                  <div
+                    id={`search-hit-${i()}`}
+                    class="search-hit"
+                    role="option"
+                    data-component="search-hit"
+                    data-index={i()}
+                    data-message-id={hit.id}
+                    aria-selected={view()?.selected === i()}
+                    onPointerMove={() => search.select(i())}
+                    onPointerDown={(e) => e.preventDefault()}
+                    onClick={() => choose(hit)}
+                  >
+                    <div class="search-hit-head">
+                      <span class="search-hit-from">{senderName(hit.from, useApp.agents())}</span>
+                      <Show when={view()?.scope === "all"}>
+                        <span class="search-hit-chat" data-component="search-hit-chat">{chatName(hit.roomId)}</span>
+                      </Show>
+                      <span class="search-hit-time">{dividerLabel(hit.at, now)}</span>
+                    </div>
+                    <div class="search-hit-snippet">
+                      <For each={snippetParts(hit.snippet)}>{(part) => (part.match ? <mark>{part.text}</mark> : part.text)}</For>
+                    </div>
                   </div>
-                  <div class="search-hit-snippet">
-                    <For each={snippetParts(hit.snippet)}>{(part) => (part.match ? <mark>{part.text}</mark> : part.text)}</For>
-                  </div>
+                )}
+              </For>
+              <Show when={!view()?.hits.length}>
+                <div class="search-empty" data-component="search-empty">
+                  {view()?.status === "error" ? "Search is not reachable" : view()?.status === "done" ? "No messages found" : "Searching…"}
                 </div>
-              )}
-            </For>
-            <Show when={!view()?.hits.length}>
-              <div class="search-empty" data-component="search-empty">
-                {view()?.status === "error" ? "Search is not reachable" : view()?.status === "done" ? "No messages found" : "Searching…"}
-              </div>
-            </Show>
-          </div>
-        </Show>
-      </div>
-    </div>
+              </Show>
+            </div>
+          </Show>
+        </ModalV2.Content>
+      </ModalV2.Portal>
+    </ModalV2>
   )
 }

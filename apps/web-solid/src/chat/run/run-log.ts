@@ -194,11 +194,28 @@ export function totalDuration(steps: readonly Pick<RunStep, "startedAt" | "ended
 const RANK: Record<RunStepStatus, number> = { running: 0, done: 1, failed: 1 }
 const rank = (step: Pick<RunStep, "status">) => RANK[step.status]
 
-const byStart = (a: RunStep, b: RunStep) => a.startedAt - b.startedAt
+const byStart = (a: RunStep, b: RunStep) => a.startedAt - b.startedAt || (a.id < b.id ? -1 : 1)
+
+const STEP_LIMIT = 600
+const STEP_RUNS = 24
+
+const stepKey = (step: Pick<RunStep, "runId" | "id">) => `${step.runId}:${step.id}`
+
+function pruneSteps(steps: RunStep[]): RunStep[] {
+  if (steps.length <= STEP_LIMIT) return steps
+  const newest = new Map<string, number>()
+  for (const step of steps) newest.set(step.runId, Math.max(newest.get(step.runId) ?? 0, step.startedAt))
+  const keep = new Set(
+    [...newest].sort((a, b) => b[1] - a[1]).slice(0, STEP_RUNS).map(([runId]) => runId),
+  )
+  const kept = steps.filter((step) => keep.has(step.runId))
+  return kept.length === steps.length ? steps : kept
+}
 
 export function upsertStep(steps: readonly RunStep[], step: RunStep): RunStep[] {
-  const at = steps.findIndex((s) => s.id === step.id)
-  if (at === -1) return [...steps, step].sort(byStart)
+  const key = stepKey(step)
+  const at = steps.findIndex((s) => stepKey(s) === key)
+  if (at === -1) return pruneSteps([...steps, step].sort(byStart))
   if (rank(step) < rank(steps[at])) return [...steps]
   const next = [...steps]
   next[at] = step
@@ -262,19 +279,6 @@ export function buildEntries(steps: readonly RunStep[], open: ReadonlySet<string
     if (isOpen) for (const step of w.steps) out.push({ key: `s:${step.id}`, kind: "step", step, child: true })
   }
   return out
-}
-
-const sameEntry = (a: Entry, b: Entry): boolean => {
-  if (a.kind === "step" && b.kind === "step") return a.step === b.step && a.child === b.child
-  if (a.kind === "worker" && b.kind === "worker") return a.open === b.open && a.task === b.task && a.steps.length === b.steps.length && a.steps.every((s, i) => s === b.steps[i])
-  return false
-}
-
-export function keepEntries(previous: ReadonlyMap<string, Entry>, next: readonly Entry[]): Entry[] {
-  return next.map((entry) => {
-    const before = previous.get(entry.key)
-    return before && sameEntry(before, entry) ? before : entry
-  })
 }
 
 export const anyRunning = (steps: readonly Pick<RunStep, "status">[]): boolean => steps.some((s) => s.status === "running")

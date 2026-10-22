@@ -4,7 +4,7 @@ import type { KeyRange, Warm } from "./db"
 export const BOOT_WINDOW = 50
 export const KEEP_ON_DISK = 2000
 
-const roomRange = (roomId: RoomId, from = -Infinity, to = Infinity): KeyRange => ({
+export const roomRange = (roomId: RoomId, from = -Infinity, to = Infinity): KeyRange => ({
 	lower: [roomId, from],
 	upper: [roomId, to],
 })

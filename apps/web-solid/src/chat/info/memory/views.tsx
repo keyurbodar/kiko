@@ -280,7 +280,7 @@ export function useMemoryStore() {
 		},
 		async (userId) => {
 			const s = await memoryFor(userId)
-			void s.load()
+			if (!s.state.loaded) void s.load()
 			return s
 		},
 	)

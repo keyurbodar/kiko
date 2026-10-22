@@ -1,4 +1,4 @@
-import { humanAnswerText, type HumanAnswers, type KikoError } from "@kiko/protocol"
+import { humanAnswerText, messageSeq, type HumanAnswers, type KikoError } from "@kiko/protocol"
 
 import type { LocalAttachment } from "./patches"
 import type {
@@ -28,7 +28,7 @@ import type {
 import { batch } from "solid-js"
 import { $RAW, createStore, produce } from "solid-js/store"
 import type { Warm } from "../warm/db"
-import { clearRoom, deleteMessages, getLastSeq, KEEP_ON_DISK, messagesBefore, newestMessages, putMessages, setLastSeq, storedMessages, dropBefore } from "../warm/messages"
+import { deleteMessages, getLastSeq, KEEP_ON_DISK, messagesBefore, newestMessages, putMessages, roomRange, setLastSeq, storedMessages, dropBefore } from "../warm/messages"
 import { addToOutbox, outbox, removeFromOutbox } from "../warm/outbox"
 import {
 	expire,
@@ -42,6 +42,7 @@ import {
 	type RoomPatch,
 	type RoomPatchFrame,
 	settleRoom,
+	settleSends,
 	type ViewMessage,
 } from "./patches"
 import { upsertStep, windowKey } from "../chat/run/run-log"
@@ -62,6 +63,7 @@ export type RoomData = {
 
 export const MAX_MESSAGES_IN_MEMORY = 200
 export const WINDOW_SLACK = 50
+export const HELD_MESSAGES = 600
 
 export const emptyRoom = (): RoomData => ({
 	seq: 0,
@@ -90,7 +92,7 @@ export function fromSnapshot(s: RoomSnapshot): RoomData {
 }
 
 export function toMessage(e: Extract<RoomEvent, { t: "message" }>): Message {
-	const { t: _, clientId: __, ...m } = e
+	const { t: _, ...m } = e
 	return m
 }
 
@@ -293,7 +295,7 @@ export type RoomStore = {
 	remove(messageId: MessageId): void
 	markRead(seq: number): void
 	typing(): void
-	requestSteps(slug: string, after: number): void
+	requestSteps(slug: string, after: number, force?: boolean): void
 	suspend(): void
 	resume(): void
 	model(ref: string): void
@@ -305,6 +307,8 @@ export type RoomStore = {
 	onFilesRefused(listener: (op: FileOp, reason: string) => void): () => void
 	onSendRefused(listener: (reason: string) => void): () => void
 	retry(messageId: MessageId): void
+	retrySend(clientId: string): void
+	discardSend(clientId: string): void
 	search(query: string, before?: number, limit?: number): Promise<SearchPage | null>
 	jumpTo(seq: number): Promise<boolean>
 	live(): void
@@ -379,6 +383,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	let waiters: (() => void)[] = []
 	let expiry: ReturnType<typeof setTimeout> | undefined
 	let following = true
+	let droppedTail: number | undefined
 	const refusalListeners = new Set<(op: MemberOp, reason: MemberRefusal) => void>()
 	const fileRefusalListeners = new Set<(op: FileOp, reason: string) => void>()
 	const sendRefusalListeners = new Set<(reason: string) => void>()
@@ -435,21 +440,53 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 
 	function trimWindow(force = false) {
 		const n = state.messages.length
-		if (!following || n <= MAX_MESSAGES_IN_MEMORY || (!force && n <= MAX_MESSAGES_IN_MEMORY + WINDOW_SLACK)) return
+		if (n <= MAX_MESSAGES_IN_MEMORY) return
+		if (!force && n <= MAX_MESSAGES_IN_MEMORY + WINDOW_SLACK) return
+		if (!following) return holdWindow()
 		setState("messages", (m) => m.slice(m.length - MAX_MESSAGES_IN_MEMORY))
 	}
 
+	async function refillTail() {
+		const from = droppedTail
+		droppedTail = undefined
+		if (from !== undefined) {
+			const page = await history(from + 1, 0, HISTORY_PAGE * 4)
+			if (page && !closed) setState("messages", (m) => mergeBySeq(m, page))
+		}
+		trimWindow(true)
+	}
+
+	function holdWindow() {
+		const held = raw(state.messages)
+		if (held.length <= HELD_MESSAGES) return
+		droppedTail = held[HELD_MESSAGES - 1]?.seq ?? droppedTail
+		setState("messages", (m) => m.slice(0, HELD_MESSAGES))
+	}
+
 	async function patchDisk(events: readonly RoomEvent[]) {
-		const rows = await storedMessages(warm, roomId)
 		for (const e of events) {
-			const ids: readonly string[] = e.t === "delete" ? e.messageIds : e.t === "edit" || e.t === "react" ? [e.messageId] : []
+			const ids = eventTargets(e)
+			if (ids.length === 0) continue
+			const seqs = seqsOf(ids)
+			if (seqs.length === 0) continue
+			const rows = await Promise.all(seqs.map((seq) => warm.get<Message>("messages", [roomId, seq])))
 			for (const m of rows) {
-				if (!ids.includes(m.id)) continue
+				if (!m) continue
 				const change = applyRoomEvent({ ...emptyRoom(), seq: e.seq - 1, messages: [m] }, e)
 				if (change?.put) putMessages(warm, roomId, [change.put])
 				if (change?.deleted?.length) deleteMessages(warm, roomId, change.deleted.map((x) => x.seq))
 			}
 		}
+	}
+
+	function eventTargets(e: RoomEvent): readonly MessageId[] {
+		if (e.t === "delete") return e.messageIds
+		if (e.t === "edit" || e.t === "react") return [e.messageId]
+		return []
+	}
+
+	function seqsOf(ids: readonly MessageId[]): number[] {
+		return ids.map((id) => messageSeq(roomId, id)).filter((seq) => seq > 0)
 	}
 
 	function missedEvent(e: RoomEvent, change: NonNullable<ReturnType<typeof applyRoomEvent>>): boolean {
@@ -478,6 +515,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 				deleted.push(m.seq)
 			}
 		}
+		const head = queue[0]
+		if (head && head.seq > state.seq + 1) return repair()
 		batch(() => {
 			setState(
 				produce((s) => {
@@ -495,7 +534,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			dropPatches(settleRoom(state.patches, applied, state.seq))
 			trimWindow()
 		})
-		if (offWindow.length) void patchDisk(offWindow)
+		if (offWindow.length) void patchDisk(offWindow).catch(() => {})
 		if (applied.length > 0) {
 			putMessages(warm, roomId, [...puts.values()])
 			deleteMessages(warm, roomId, deleted)
@@ -514,6 +553,15 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		schedule(drain)
 	}
 
+	function repair() {
+		queue = []
+		if (closed || suspended) return
+		const s = socket
+		socket = null
+		s?.close()
+		openSocket()
+	}
+
 	function enqueue(events: readonly RoomEvent[]) {
 		if (events.length === 0) return
 		queue.push(...events)
@@ -529,10 +577,16 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	async function ask<T>(key: string, frame: ClientToRoom): Promise<T | null> {
 		if (state.connection !== "open" && !closed && !suspended) {
 			await new Promise<void>((resolve) => {
-				const timer = setTimeout(resolve, ASK_TIMEOUT_MS)
-				openWaiters.push(() => (clearTimeout(timer), resolve()))
+				const done = () => {
+					clearTimeout(timer)
+					openWaiters = openWaiters.filter((w) => w !== done)
+					resolve()
+				}
+				const timer = setTimeout(done, ASK_TIMEOUT_MS)
+				openWaiters.push(done)
 			})
 		}
+		if (closed) return null
 		return new Promise<T | null>((resolve) => {
 			const timer = setTimeout(() => finish(null), ASK_TIMEOUT_MS)
 			const finish = (answer: unknown) => {
@@ -572,23 +626,33 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	function reset(snapshot: RoomSnapshot) {
 		queue = queue.filter((e) => e.seq > snapshot.seq)
 		const data = fromSnapshot(snapshot)
-		following = true
 		const held = raw(state.messages)
 		const first = snapshot.messages[0]?.seq
-		const last = held.at(-1)?.seq
-		const overlap = held.length > 0 && first !== undefined && last !== undefined && first <= last + 1
-		const messages = overlap ? mergeBySeq(held, snapshot.messages) : data.messages
+		const heldFirst = held[0]?.seq
+		const heldLast = held.at(-1)?.seq
+		const overlap =
+			heldFirst !== undefined && heldLast !== undefined && first !== undefined && heldFirst <= snapshot.seq && first <= heldLast + 1
+		const newer = overlap ? held.filter((m) => m.seq > snapshot.seq) : []
+		const messages = overlap ? mergeBySeq(snapshot.messages, newer) : data.messages
+		if (!overlap) following = true
 		batch(() => {
 			setState({ ...data, messages, history: null })
-			dropPatches(settleRoom(state.patches, [], snapshot.seq))
+			dropPatches(settleRoom(settleSends(state.patches, snapshot), [], snapshot.seq))
 			trimWindow(true)
 		})
 		takeSteps(snapshot.steps ?? [], true)
-		clearRoom(warm, roomId)
+		if (first !== undefined) void purgeSnapshotRange(first, snapshot.seq, snapshot.messages)
 		putMessages(warm, roomId, messages)
 		writeMeta()
 		setLastSeq(warm, roomId, snapshot.seq)
 		kick()
+	}
+
+	async function purgeSnapshotRange(from: number, to: number, keep: readonly Message[]): Promise<void> {
+		const live = new Set(keep.map((m) => m.seq))
+		const rows = await warm.getAll<Message>("messages", roomRange(roomId, from, to))
+		const stale = rows.map((m) => m.seq).filter((seq) => !live.has(seq))
+		if (stale.length) deleteMessages(warm, roomId, stale)
 	}
 
 	const handlers: { [K in RoomToClient["t"]]: (f: Extract<RoomToClient, { t: K }>) => void } = {
@@ -611,7 +675,9 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			}),
 		step: (f) => takeSteps([f.step], false),
 		steps: (f) => {
-			setState("fetching", windowKey(f.slug, f.after), undefined)
+			const key = windowKey(f.slug, f.after)
+			fetchedWindows.add(key)
+			setState("fetching", key, undefined)
 			takeSteps(f.steps, false)
 		},
 		search: (f) => answer(searchKey(f.query, f.before), { results: f.results, next: f.next }),
@@ -668,14 +734,13 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			outbox(warm, roomId),
 		])
 		if (closed) return
-		const seq = meta ? lastSeq : 0
 		batch(() => {
 			setState(
 				produce((s) => {
-					const disk = seq > 0 && (!s.loaded || seq > s.seq)
+					const disk = lastSeq > 0 && (!s.loaded || lastSeq > s.seq)
 					if (disk) {
 						s.messages = messages
-						s.seq = seq
+						s.seq = lastSeq
 					}
 					if (meta) {
 						s.readSeq = Math.max(s.readSeq, meta.readSeq)
@@ -691,7 +756,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 					const restored = pending
 						.filter((i) => !have.has(i.frame.clientId))
 						.map((i): RoomPatch => ({ clientId: i.frame.clientId, frame: i.frame, at: i.createdAt }))
-					s.patches = [...restored, ...s.patches]
+					s.patches = settleSends([...restored, ...s.patches], { messages: s.messages, seq: s.seq })
 				}),
 			)
 		})
@@ -789,12 +854,15 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			if (lastTypingAt !== undefined && t - lastTypingAt < TYPING_EVERY_MS) return
 			if (socket?.send({ t: "typing" })) lastTypingAt = t
 		},
-		requestSteps(slug, after) {
+		requestSteps(slug, after, force = false) {
 			const key = windowKey(slug, after)
-			if (state.fetching[key] || fetchedWindows.has(key) || !socket?.send({ t: "steps", slug: slug as AgentSlug, after })) return
-			fetchedWindows.add(key)
+			if (state.fetching[key] || (!force && fetchedWindows.has(key))) return
+			if (!socket?.send({ t: "steps", slug: slug as AgentSlug, after })) return
 			setState("fetching", key, true)
-			setTimeout(() => setState("fetching", key, undefined), ASK_TIMEOUT_MS)
+			setTimeout(() => {
+				if (!state.fetching[key]) return
+				setState("fetching", key, undefined)
+			}, ASK_TIMEOUT_MS)
 		},
 		suspend() {
 			suspended = true
@@ -823,6 +891,17 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		},
 		retry(messageId) {
 			socket?.send({ t: "retry", messageId })
+		},
+		retrySend(clientId) {
+			const patch = raw(state.patches).find((p) => p.clientId === clientId && p.frame.t === "send")
+			if (!patch) return
+			setPatches((list) => list.map((p) => (p.clientId === clientId ? { clientId: p.clientId, frame: p.frame, at: p.at } : p)))
+			transmit({ clientId: patch.clientId, frame: patch.frame, at: patch.at })
+		},
+		discardSend(clientId) {
+			void removeFromOutbox(warm, clientId)
+			for (const p of raw(state.patches)) if (p.clientId === clientId) freeLocal(p.local)
+			dropPatches(raw(state.patches).filter((p) => p.clientId !== clientId))
 		},
 		onSendRefused(listener) {
 			sendRefusalListeners.add(listener)
@@ -882,7 +961,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 				return
 			}
 			following = true
-			trimWindow(true)
+			if (droppedTail !== undefined) void refillTail()
+			else trimWindow(true)
 		},
 		hold() {
 			following = false

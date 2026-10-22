@@ -18,8 +18,13 @@ export type PromptInputV2AttachmentConfig = {
   blocked?: () => string | null
   refuse: (reasons: string[]) => void
   onAdded?: (attachment: PromptInputV2Attachment, file: File) => void
+  onDiscarded?: (attachment: PromptInputV2Attachment) => void
   key?: () => string
 }
+
+const [preparing, setPreparing] = createSignal(0)
+
+export const preparingAttachments = () => preparing() > 0
 
 export function createPromptInputV2Attachments(
   input: PromptInputV2AttachmentConfig & {
@@ -47,8 +52,17 @@ export function createPromptInputV2Attachments(
     const { images, files: others, error } = admit(held.length, files)
     const refusals = [...notes, ...(error ? [error] : [])]
     const added: PromptInputV2Attachment[] = []
+    const abandoned = () => openedFor !== undefined && input.key?.() !== openedFor
+    const release = () => {
+      for (const part of added.splice(0)) {
+        releaseBlobUrl(part.blob.url)
+        input.onDiscarded?.(part)
+      }
+    }
     const take = async (file: File) => {
+      if (abandoned()) return
       const id = await blobId(file)
+      if (abandoned()) return
       if ([...held, ...added].some((part) => part.blob.id === id)) return
       const attachment: PromptInputV2Attachment = {
         type: "image",
@@ -62,23 +76,30 @@ export function createPromptInputV2Attachments(
       added.push(attachment)
       input.onAdded?.(attachment, file)
     }
-    for (const file of others) await take(file)
-    for (const file of images) {
-      const typed = file.type === attachmentType(file) ? file : new File([file], file.name, { type: attachmentType(file), lastModified: file.lastModified })
-      const prepared = await prepareImageForAttachment(typed, MAX_IMAGE_BYTES)
-      if (prepared.ok) await take(prepared.file)
-      else refusals.push(prepared.reason === "unreadable" ? attachmentMessages.unreadable(file.name) : attachmentMessages.tooLargeCompressed(file.name))
+    setPreparing((count) => count + 1)
+    try {
+      for (const file of others) await take(file)
+      await prepareImages(images, take, refusals, abandoned)
+    } finally {
+      setPreparing((count) => count - 1)
     }
+    if (abandoned()) return release()
     if (refusals.length) input.refuse([refusals.at(-1)!])
     if (!added.length) return
-    if (openedFor !== undefined && input.key?.() !== openedFor) {
-      for (const part of added) URL.revokeObjectURL(part.blob.url)
-      return
-    }
     const prose = input.hasText()
     target.set([...target.current(), ...added], target.cursor())
     const named = added.filter((part) => prose || !isImage({ name: part.filename, type: part.mime }))
     if (named.length) input.chip(named.map((part) => ({ id: part.id, name: part.filename })), at)
+  }
+  const insertPastedText = (text: string) => {
+    const put = () => {
+      if (input.addPart({ type: "text", content: text, start: 0, end: 0 })) return
+      input.focusEditor()
+      input.addPart({ type: "text", content: text, start: 0, end: 0 })
+    }
+    if (text.includes("\n") || largePaste(text)) return put()
+    if (typeof document.execCommand === "function" && document.execCommand("insertText", false, text)) return
+    put()
   }
   const handlePaste = async (event: ClipboardEvent) => {
     const clipboardData = event.clipboardData
@@ -91,21 +112,15 @@ export function createPromptInputV2Attachments(
       const file = item.getAsFile()
       return file ? [file] : []
     })
-    if (files.length > 0) return addAttachments(files, target)
     const plainText = clipboardData.getData("text/plain") ?? ""
-    if (!plainText) return
     const text = plainText.includes("\r") ? plainText.replace(/\r\n?/g, "\n") : plainText
-    const put = () => {
-      if (input.addPart({ type: "text", content: text, start: 0, end: 0 })) return true
-      input.focusEditor()
-      return input.addPart({ type: "text", content: text, start: 0, end: 0 })
-    }
-    if (text.includes("\n") || largePaste(text)) {
-      put()
+    if (files.length > 0) {
+      await addAttachments(files, target)
+      if (text) insertPastedText(text)
       return
     }
-    if (typeof document.execCommand === "function" && document.execCommand("insertText", false, text)) return
-    put()
+    if (!text) return
+    insertPastedText(text)
   }
   const handleDrop = async (event: DragEvent) => {
     input.setDragging(false)
@@ -148,6 +163,17 @@ export function createPromptInputV2Attachments(
   })
 
   return { addAttachments, handlePaste, handleDrop, dragKind }
+}
+
+async function prepareImages(images: File[], take: (file: File) => Promise<void>, refusals: string[], abandoned: () => boolean) {
+  for (const file of images) {
+    if (abandoned()) return
+    const type = attachmentType(file)
+    const typed = file.type === type ? file : new File([file], file.name, { type, lastModified: file.lastModified })
+    const prepared = await prepareImageForAttachment(typed, MAX_IMAGE_BYTES)
+    if (prepared.ok) await take(prepared.file)
+    else refusals.push(prepared.reason === "unreadable" ? attachmentMessages.unreadable(file.name) : attachmentMessages.tooLargeCompressed(file.name))
+  }
 }
 
 const EDGE_BYTES = 64 * 1024

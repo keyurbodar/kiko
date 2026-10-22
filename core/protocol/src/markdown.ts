@@ -1,4 +1,5 @@
-import { isAgentSlug, type Block, type ColumnAlign, type HeadingLevel, type Inline, type RichText } from "@kiko/protocol"
+import { isAgentSlug } from "./ids"
+import type { Block, ColumnAlign, HeadingLevel, Inline, RichText } from "./rich-text"
 import { Lexer, type Token, type Tokens } from "marked"
 
 const SAFE_LINK = /^(https?|mailto|file):/i

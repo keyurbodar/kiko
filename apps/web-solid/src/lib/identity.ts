@@ -27,13 +27,6 @@ type AgentIds = readonly { id: string; slug: string }[]
 
 const slugOf = (id: string, agents: AgentIds) => agents.find((a) => a.id === id)?.slug ?? id
 
-export function chatSeed(chat: ChatAgents, agents: AgentIds): string {
-  const ids = chat.agents ?? []
-  if (ids.length > 1) return chat.roomId
-  if (!ids.length) return DEFAULT_AGENT_SLUG
-  return slugOf(ids[0]!, agents)
-}
-
 export const MAX_FACES = 3
 
 export function chatFaces(chat: ChatAgents, agents: AgentIds): string[] {

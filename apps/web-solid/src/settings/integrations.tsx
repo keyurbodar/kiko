@@ -4,6 +4,7 @@ import { cn } from "../lib/cn"
 import { Button, Notice, fieldClass } from "./kit"
 import { createComposioClient, createKernelClient, type ComposioClient, type KernelClient } from "./integrations-client"
 import { SECRET_FIELD } from "../lib/secret-field"
+import { onChanged } from "../sync/changed"
 
 export const COMPOSIO_PLATFORM = "https://platform.composio.dev"
 const LiveBrowser = lazy(() => import("./live-browser"))
@@ -81,10 +82,15 @@ export function useIntegrations(props: { client?: ComposioClient; kernel?: Kerne
 	onMount(() => {
 		client = props.client ?? createComposioClient()
 		client.onPush(apply)
-		void client.request({ t: "composioStatus" }).then((r) => !closed && apply(r))
 		kernelClient = props.kernel ?? createKernelClient()
 		kernelClient.onPush(applyKernel)
-		void kernelClient.request({ t: "kernelStatus" }).then((r) => !closed && applyKernel(r))
+		const refresh = () => {
+			void client?.request({ t: "composioStatus" }).then((r) => !closed && apply(r))
+			void kernelClient?.request({ t: "kernelStatus" }).then((r) => !closed && applyKernel(r))
+		}
+		refresh()
+		const stop = onChanged("memory", refresh)
+		onCleanup(stop)
 	})
 	onCleanup(() => {
 		closed = true

@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, Show, type JSX } from "solid-js"
+import { createEffect, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
 import { appearanceOf } from "@kiko/theme/apply"
 import { BASE_SIZE, CHAT_WIDTHS, CONTRAST, DEFAULT_DISPLAY, type ChatWidth, type Display } from "@kiko/theme/display"
 import { themeFor } from "@kiko/theme/imported"
@@ -69,6 +69,7 @@ function ThemeCard(props: { name: string; palette: Palette; accent: string; sele
 function Gallery(props: { appearance: ThemeAppearance; onMore: () => void }) {
   const active = () => themeFor(themes(), props.appearance)?.id ?? DEFAULT
   const installed = () => themes().themes.filter((t) => t.appearance === props.appearance)
+  let more: HTMLButtonElement | undefined
   return (
     <section class="flex flex-col gap-2" data-component="theme-gallery" data-appearance={props.appearance}>
       <h2 class="flex items-center gap-2 px-1 text-sm font-medium text-muted-foreground">
@@ -79,9 +80,10 @@ function Gallery(props: { appearance: ThemeAppearance; onMore: () => void }) {
       </h2>
       <div role="radiogroup" aria-label={props.appearance === "dark" ? "Dark theme" : "Light theme"} class="grid grid-cols-2 gap-2 @min-[560px]/settings:grid-cols-4">
         <For each={installed()}>
-          {(theme) => <ThemeCard name={theme.name} palette={theme.palette} accent={theme.accent} selected={active() === theme.id} onPick={() => { choose(props.appearance, theme.id); updateLook({ mode: props.appearance }) }} onRemove={() => remove(theme)} />}
+          {(theme) => <ThemeCard name={theme.name} palette={theme.palette} accent={theme.accent} selected={active() === theme.id} onPick={() => { choose(props.appearance, theme.id); updateLook({ mode: props.appearance }) }} onRemove={() => { remove(theme); more?.focus() }} />}
         </For>
         <button
+          ref={more}
           type="button"
           class="flex min-h-[110px] flex-col items-center justify-center gap-1 rounded-lg bg-control text-sm text-muted-foreground hover:bg-control-strong hover:text-foreground"
           data-action="browse-themes"
@@ -123,10 +125,15 @@ export default function Appearance(): JSX.Element {
   const d = () => look().display
   const set = (patch: Partial<Display>) => updateLook({ display: { ...d(), ...patch } })
   let stopPreview: (() => void) | undefined
-  const previewContrast = (contrast: number) => {
+  const release = () => {
     stopPreview?.()
+    stopPreview = undefined
+  }
+  const previewContrast = (contrast: number) => {
+    release()
     stopPreview = previewLook({ ...look(), display: { ...d(), contrast } })
   }
+  onCleanup(release)
   const reset = <K extends keyof Display>(key: K) => (d()[key] !== DEFAULT_DISPLAY[key] ? () => set({ [key]: DEFAULT_DISPLAY[key] } as Partial<Display>) : undefined)
   const sizes = Array.from({ length: BASE_SIZE.max - BASE_SIZE.min + 1 }, (_, i) => BASE_SIZE.min + i)
   return (
@@ -159,16 +166,21 @@ export default function Appearance(): JSX.Element {
           <Select label="Chat width" value={d().chatWidth} options={(Object.keys(CHAT_WIDTHS) as ChatWidth[]).map((value) => ({ value, label: CHAT_WIDTHS[value].label }))} onChange={(chatWidth) => set({ chatWidth })} />
         </Row>
         <Row label="Contrast" description="Borders, lines, and fills." onReset={reset("contrast")}>
-          <Slider
-            label="Contrast"
-            value={d().contrast}
-            display={`${d().contrast}%`}
-            min={CONTRAST.min}
-            max={CONTRAST.max}
-            step={CONTRAST.step}
-            onInput={(contrast) => previewContrast(contrast)}
-            onChange={(contrast) => set({ contrast })}
-          />
+          <div class="contents" onPointerCancel={release}>
+            <Slider
+              label="Contrast"
+              value={d().contrast}
+              display={`${d().contrast}%`}
+              min={CONTRAST.min}
+              max={CONTRAST.max}
+              step={CONTRAST.step}
+              onInput={(contrast) => previewContrast(contrast)}
+              onChange={(contrast) => {
+                set({ contrast })
+                release()
+              }}
+            />
+          </div>
         </Row>
         <Row label="Interface font" description="Any font on this device. Empty uses the system font." onReset={reset("interfaceFont")}>
           <FontField label="Interface font" placeholder="System" value={d().interfaceFont} onInput={(interfaceFont) => set({ interfaceFont })} />

@@ -36,10 +36,32 @@ function read(): string | null {
   }
 }
 
+let writing: ReturnType<typeof setTimeout> | undefined
+let pending: string | null = null
+
 function write(value: string) {
-  try {
-    localStorage.setItem(KEY, value)
-  } catch {}
+  pending = value
+  if (writing !== undefined) return
+  writing = setTimeout(() => {
+    writing = undefined
+    const out = pending
+    pending = null
+    if (out === null) return
+    try {
+      localStorage.setItem(KEY, out)
+    } catch {}
+  }, 250)
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "hidden" || pending === null) return
+    const out = pending
+    pending = null
+    try {
+      localStorage.setItem(KEY, out)
+    } catch {}
+  })
 }
 
 function parseSurface(value: unknown): Surface | null {
@@ -179,6 +201,10 @@ export function dropFileSurfaces(chatId: string, path: string) {
   }
 }
 
+export function dropAgentSurfaces(chatId: string, gone: (slug: string) => boolean) {
+  for (const x of sidecarSurfaces(chatId)) if (x.kind === "agent" && gone(x.slug)) closeSurface(chatId, x.id)
+}
+
 export function openFile(chatId: string, path: string, line?: number) {
   openSurface(chatId, fileSurface(path))
   rememberFile(chatId, path)
@@ -191,7 +217,7 @@ export const sidecarOpen = (chatId: string): boolean => (all()[chatId] ?? EMPTY)
 export const sidecarSurfaces = (chatId: string): readonly Surface[] => (all()[chatId] ?? EMPTY).surfaces
 export const activeSurface = (chatId: string): Surface | null => {
   const s = all()[chatId] ?? EMPTY
-  return s.surfaces.find((x) => x.id === s.active) ?? null
+  return s.surfaces.find((x) => x.id === s.active) ?? s.surfaces[0] ?? null
 }
 
 export function fileReveal(chatId: string, path: string): { line: number | null; n: number } | null {

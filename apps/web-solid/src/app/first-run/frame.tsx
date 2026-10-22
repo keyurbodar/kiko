@@ -7,6 +7,7 @@ import { backendConnectionNotice } from "../session"
 import { Backdrop } from "./backdrop"
 import { ClerkStep } from "./clerk-step"
 import { ConnectStep } from "./connect-step"
+import { ModelStep } from "./model-step"
 import { currentStep, useDifferentSignIn, working } from "./progress"
 import { indexOf, stepsFor } from "./steps"
 import { AccessCode } from "./welcome"
@@ -46,7 +47,7 @@ export default function FirstRun() {
             </For>
           </ol>
         </Show>
-        <div class="welcome-card">
+        <div class="welcome-card" data-fill={currentStep() === "model" ? "" : undefined}>
           <Show when={currentStep()} keyed>
             {(step) => (
               <Switch>
@@ -61,6 +62,9 @@ export default function FirstRun() {
                 </Match>
                 <Match when={step === "connect"}>
                   <ConnectStep />
+                </Match>
+                <Match when={step === "model"}>
+                  <ModelStep />
                 </Match>
               </Switch>
             )}

@@ -173,21 +173,34 @@ function MemoryBody() {
   )
 }
 
-function SurfaceBody(props: { chatId: string; surface: Surface }) {
+function SurfaceBody(props: { chatId: string; surface: Surface; hidden: boolean }) {
   const key = () => `${props.chatId}:${props.surface.id}`
   let scroller: HTMLDivElement | undefined
   let observer: ResizeObserver | undefined
-  onMount(() => {
-    const saved = scrolls.get(key()) ?? 0
-    if (!scroller || !scroller.firstElementChild || saved === 0) return
+  const restore = () => {
     const el = scroller
-    observer = new ResizeObserver(() => {
+    const target = el?.firstElementChild
+    const saved = scrolls.get(key()) ?? 0
+    if (!el || !target || saved === 0) return
+    observer?.disconnect()
+    const next = new ResizeObserver(() => {
       el.scrollTop = saved
-      if (el.scrollTop === saved) observer?.disconnect()
+      if (el.scrollTop === saved) next.disconnect()
     })
-    observer.observe(el.firstElementChild!)
-    onCleanup(() => observer?.disconnect())
-  })
+    observer = next
+    next.observe(target)
+  }
+  createEffect(
+    on(
+      () => props.hidden,
+      (hidden) => {
+        if (hidden) return observer?.disconnect()
+        restore()
+      },
+      { defer: false },
+    ),
+  )
+  onCleanup(() => observer?.disconnect())
   const selfScrolling = props.surface.kind === "file" || props.surface.kind === "files" || props.surface.kind === "memory"
   return (
     <div
@@ -195,10 +208,12 @@ function SurfaceBody(props: { chatId: string; surface: Surface }) {
       id={panelId(props.surface)}
       role="tabpanel"
       aria-labelledby={tabId(props.surface)}
+      style={{ display: props.hidden ? "none" : undefined }}
       class={`flex min-h-0 flex-1 flex-col ${selfScrolling ? "overflow-hidden" : "overflow-y-auto overscroll-none"}`}
       data-component="sidecar-body"
       data-kind={props.surface.kind}
       onScroll={(e) => {
+        if (props.hidden) return
         observer?.disconnect()
         scrolls.set(key(), e.currentTarget.scrollTop)
       }}
@@ -232,8 +247,14 @@ function SurfaceBody(props: { chatId: string; surface: Surface }) {
 export default function Sidecar(props: { chatId: string }) {
   const surfaces = () => sidecarSurfaces(props.chatId)
   const active = () => activeSurface(props.chatId)
-  const kind = () => active()?.kind
   const group = () => roomMembers().length > 1
+
+  createEffect(() => {
+    const members = useApp.roomMembers()
+    if (members.length === 0) return
+    const here = new Set(members.map((m) => m.slug as string))
+    for (const surface of sidecarSurfaces(props.chatId)) if (surface.kind === "agent" && !here.has(surface.slug)) closeSurface(props.chatId, surface.id)
+  })
 
   const onKey = (e: KeyboardEvent) => {
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.isComposing) return
@@ -336,9 +357,12 @@ export default function Sidecar(props: { chatId: string }) {
             </MenuV2.Portal>
         </MenuV2>
       </header>
-      <Show when={active()} keyed fallback={<Launcher chatId={props.chatId} />}>
-        {(surface) => <SurfaceBody chatId={props.chatId} surface={surface} />}
+      <Show when={!active()}>
+        <Launcher chatId={props.chatId} />
       </Show>
+      <For each={surfaces()}>
+        {(surface) => <SurfaceBody chatId={props.chatId} surface={surface} hidden={active()?.id !== surface.id} />}
+      </For>
     </aside>
   )
 }

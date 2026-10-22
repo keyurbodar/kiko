@@ -4,9 +4,11 @@ const MONTH_DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "num
 const MONTH_DAY_YEAR = new Intl.DateTimeFormat(undefined, { month: "long", day: "numeric", year: "numeric" });
 const MONTH_DAY_YEAR_SHORT = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
 
+const usable = (at: number): number => (Number.isFinite(at) ? at : Date.now());
+
 export function dayChipLabel(dayStart: number, now: number): string {
   const target = dayStartOf(dayStart);
-  const today = dayStartOf(now);
+  const today = dayStartOf(usable(now));
   if (target === today) return "Today";
 
   const d = new Date(today);
@@ -18,7 +20,7 @@ export function dayChipLabel(dayStart: number, now: number): string {
 }
 
 export function formatTimeOfDay(sentAt: number): string {
-  const d = new Date(sentAt);
+  const d = new Date(usable(sentAt));
   const h24 = d.getHours();
   const hours = h24 % 12 === 0 ? 12 : h24 % 12;
   const minutes = String(d.getMinutes()).padStart(2, "0");
@@ -26,7 +28,7 @@ export function formatTimeOfDay(sentAt: number): string {
 }
 
 export function formatFullTimestamp(sentAt: number): string {
-  const d = new Date(sentAt);
-  const date = MONTH_DAY_YEAR.format(d);
-  return `${date} at ${formatTimeOfDay(sentAt)}`;
+  const stamp = usable(sentAt);
+  const date = MONTH_DAY_YEAR.format(new Date(stamp));
+  return `${date} at ${formatTimeOfDay(stamp)}`;
 }

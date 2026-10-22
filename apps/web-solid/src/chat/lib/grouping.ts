@@ -1,6 +1,5 @@
 import { createSignal, type Setter } from "solid-js";
 import type { ChatMessage } from "../../lib/types";
-import { eventRow } from "./event-line";
 import { startsTimeBreak } from "./time-label";
 
 export const MESSAGE_GROUPING_WINDOW_MS = 300_000;
@@ -39,7 +38,7 @@ export type TimelineOptions = {
 };
 
 export function dayStartOf(sentAt: number): number {
-  const d = new Date(sentAt);
+  const d = new Date(Number.isFinite(sentAt) ? sentAt : Date.now());
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
@@ -58,8 +57,6 @@ type Entry =
   | { kind: "message"; message: ChatMessage; inThread: boolean }
   | { kind: "event"; message: ChatMessage }
   | { kind: "thread"; key: string; messages: ChatMessage[]; slugs: string[]; expanded: boolean };
-
-const visibleMessage = (m: ChatMessage) => !m.event || eventRow(m, String) !== null;
 
 const isEvent = (m: ChatMessage) => m.event !== undefined || m.goto !== undefined;
 
@@ -96,7 +93,7 @@ function entries(messages: readonly ChatMessage[], options: TimelineOptions): En
 }
 
 const entryTime = (e: Entry): number =>
-  e.kind === "thread" ? e.messages[0].sentAt : e.message.sentAt;
+  e.kind === "thread" ? (e.messages[e.messages.length - 1]?.sentAt ?? 0) : e.message.sentAt;
 
 export function buildTimelineItems(
   messages: readonly ChatMessage[],
@@ -104,14 +101,14 @@ export function buildTimelineItems(
   options: TimelineOptions = {},
 ): TimelineItem[] {
   const drawable = (m: ChatMessage) =>
-    visibleMessage(m) && !(options.members && addressee(m) !== undefined);
+    !(options.members && addressee(m) !== undefined);
   const unreadIndex = messages.findIndex((m) => m.id === firstUnreadMessageId);
   if (unreadIndex >= 0 && !drawable(messages[unreadIndex])) {
     firstUnreadMessageId = messages
       .slice(unreadIndex + 1)
       .find((m) => drawable(m) && m.sender !== "user")?.id;
   }
-  const list = entries(messages.filter(visibleMessage), options);
+  const list = entries(messages, options);
   const n = list.length;
   if (n === 0) return [];
 
@@ -176,7 +173,7 @@ export function buildTimelineItems(
     const start = list[runStarts[i]];
     items.push({
       kind: "message",
-      key: `msg:${message.id}`,
+      key: `msg:${message.clientId ?? message.id}`,
       message,
       runKey: start.kind === "message" ? start.message.id : message.id,
       runIndex,
@@ -224,14 +221,17 @@ const sameRun = (a: Run, b: Run) =>
   a.isRunEnd === b.isRunEnd &&
   a.hasRunGapBefore === b.hasRunGapBefore;
 
-const moves = new WeakMap<TimelineItem, Setter<Run>>();
+type Moves = { run: Setter<Run>; message: Setter<ChatMessage> };
+
+const moves = new WeakMap<TimelineItem, Moves>();
 
 function live(item: MessageItem): MessageItem {
   const [run, setRun] = createSignal(runOf(item), { equals: sameRun });
+  const [message, setMessage] = createSignal(item.message);
   const out: MessageItem = {
     kind: "message",
     key: item.key,
-    message: item.message,
+    get message() { return message(); },
     get runKey() { return run().runKey; },
     get runIndex() { return run().runIndex; },
     get runSize() { return run().runSize; },
@@ -239,7 +239,7 @@ function live(item: MessageItem): MessageItem {
     get isRunEnd() { return run().isRunEnd; },
     get hasRunGapBefore() { return run().hasRunGapBefore; },
   };
-  moves.set(out, setRun);
+  moves.set(out, { run: setRun, message: setMessage });
   return out;
 }
 
@@ -248,22 +248,14 @@ export function keepUnchanged(previous: Map<string, TimelineItem>, next: Timelin
     const old = previous.get(item.key);
     if (old && sameItem(old, item)) return old;
     if (item.kind !== "message") return item;
-    const move = old?.kind === "message" && old.message === item.message ? moves.get(old) : undefined;
-    if (!move) return live(item);
-    move(runOf(item));
-    return old!;
+    const movesFor = old?.kind === "message" && old.key === item.key ? moves.get(old) : undefined;
+    if (!movesFor) return live(item);
+    movesFor.run(runOf(item));
+    if ((old as MessageItem).message !== item.message) movesFor.message(item.message);
+    return old as MessageItem;
   });
   previous.clear();
   for (const item of out) previous.set(item.key, item);
   return out;
 }
 
-export function firstUnreadIndex(
-  items: readonly TimelineItem[],
-  firstUnreadMessageId?: string | null,
-): number {
-  if (firstUnreadMessageId == null) return -1;
-  return items.findIndex(
-    (item) => item.kind === "unread-divider" && item.afterMessageId === firstUnreadMessageId,
-  );
-}

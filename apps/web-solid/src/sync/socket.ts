@@ -17,7 +17,16 @@ export type Connect = (url: string) => SocketLike
 
 export const browserConnect: Connect = (url) => new WebSocket(url, socketProtocols()) as unknown as SocketLike
 
-export type SocketStatus = "connecting" | "open" | "closed"
+export type SocketStatus = "connecting" | "open" | "closed" | "blocked"
+
+const FINAL_CLOSE = new Set([1002, 1008])
+
+const SLOW_RETRY_MS = 60_000
+
+const closeIsFinal = (event: unknown): boolean => {
+	const code = (event as { code?: unknown } | null)?.code
+	return typeof code === "number" && FINAL_CLOSE.has(code)
+}
 
 export type Backoff = {
 	baseMs?: number
@@ -68,10 +77,10 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 	let attempt = 0
 	let timer: ReturnType<typeof setTimeout> | undefined
 	let closed = false
-	let stable: ReturnType<typeof setTimeout> | undefined
 	const pingMs = options.pingMs ?? 10_000
 	const pongMs = options.pongMs ?? 5_000
 	let heardAt = 0
+	let pongAt = 0
 	let pingedAt: number | undefined
 	let probe: ReturnType<typeof setInterval> | undefined
 
@@ -94,10 +103,8 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 		socket = s
 		s.onopen = () => {
 			if (socket !== s) return
-			stable = setTimeout(() => {
-				if (socket === s) attempt = 0
-			}, 10_000)
 			heardAt = Date.now()
+			pongAt = heardAt
 			pingedAt = undefined
 			watch()
 			setStatus("open")
@@ -107,15 +114,17 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 		s.onmessage = (event) => {
 			if (socket !== s) return
 			heardAt = Date.now()
+			pongAt = heardAt
 			pingedAt = undefined
+			attempt = 0
 			const frame = parseFrame<In>(event.data)
 			if (frame) options.onFrame(frame)
 		}
 		s.onerror = () => {}
-		s.onclose = () => {
+		s.onclose = (event) => {
 			if (socket !== s) return
 			socket = null
-			retry()
+			retry(closeIsFinal(event))
 		}
 	}
 
@@ -126,8 +135,6 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 	}
 
 	function unwatch() {
-		if (stable !== undefined) clearTimeout(stable)
-		stable = undefined
 		if (probe !== undefined) clearInterval(probe)
 		probe = undefined
 	}
@@ -145,7 +152,7 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 			} catch {}
 			unwatch()
 			setStatus("closed")
-			return open()
+			return retry()
 		}
 		if (!now && t - heardAt < pingMs) return
 		try {
@@ -159,6 +166,7 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 		const s = socket
 		socket = null
 		pingedAt = undefined
+		attempt = 0
 		unwatch()
 		if (timer !== undefined) {
 			clearTimeout(timer)
@@ -171,23 +179,40 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 		open()
 	}
 
-	function retry() {
+	function retry(final = false) {
 		unwatch()
 		if (closed) return
-		setStatus("closed")
+		setStatus(final ? "blocked" : "closed")
 		if (timer !== undefined) return
 		const { baseMs, maxMs } = options.backoff ?? {}
-		timer = setTimeout(open, backoffDelay(attempt++, baseMs, maxMs, random))
+		const wait = final ? SLOW_RETRY_MS : backoffDelay(attempt++, baseMs, maxMs, random)
+		timer = setTimeout(open, wait)
 	}
 
-	const onOnline = () => reopen()
-	const onVisible = () => {
-		if (globalThis.document?.visibilityState !== "visible") return
-		if (socket && Date.now() - heardAt > pingMs + pongMs) reopen()
-		else if (socket) check(true)
+	const onOnline = () => {
+		if (socket) check(true)
 		else reopen()
 	}
+	const onOffline = () => {
+		if (!socket) return
+		const s = socket
+		socket = null
+		pingedAt = undefined
+		unwatch()
+		setStatus("closed")
+		try {
+			s.close(4001, "offline")
+		} catch {}
+		retry()
+	}
+	const onVisible = () => {
+		if (globalThis.document?.visibilityState !== "visible") return
+		if (!socket) return reopen()
+		if (Date.now() - pongAt > pingMs + pongMs) return reopen()
+		check(true)
+	}
 	globalThis.addEventListener?.("online", onOnline)
+	globalThis.addEventListener?.("offline", onOffline)
 	globalThis.document?.addEventListener?.("visibilitychange", onVisible)
 
 	const api: SyncSocket = {
@@ -213,6 +238,7 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 			closed = true
 			if (timer !== undefined) clearTimeout(timer)
 			globalThis.removeEventListener?.("online", onOnline)
+			globalThis.removeEventListener?.("offline", onOffline)
 			globalThis.document?.removeEventListener?.("visibilitychange", onVisible)
 			unwatch()
 			const s = socket

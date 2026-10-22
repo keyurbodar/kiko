@@ -39,7 +39,7 @@ const ROOT_PLACEHOLDER = "Search commands and chats…"
 export const listed = (list: readonly Command[]): Command[] => list.filter((c) => c.group !== "palette" && !c.unlisted && isEnabled(c))
 
 const commandItem = (c: Command): Item => ({
-  key: c.id,
+  key: encodeURIComponent(c.id),
   title: c.title,
   icon: c.icon,
   shortcut: shortcutOf(c),
@@ -47,7 +47,7 @@ const commandItem = (c: Command): Item => ({
   run: c.run,
 })
 
-const choiceItem = (c: Choice): Item => ({ key: c.id, title: c.title, icon: c.icon, seed: c.seed, chatId: c.chatId, detail: c.detail, file: c.file, snippet: c.snippet, swatch: c.swatch, current: c.current, preview: c.preview, run: c.run })
+const choiceItem = (c: Choice): Item => ({ key: encodeURIComponent(c.id), title: c.title, icon: c.icon, seed: c.seed, chatId: c.chatId, detail: c.detail, file: c.file, snippet: c.snippet, swatch: c.swatch, current: c.current, preview: c.preview, run: c.run })
 
 export const searchGroups = (parent: Command, query: string): PaletteGroup[] => groupChoices(parent.search?.(query) ?? [], parent.highlight ? query.trim() : undefined)
 
@@ -87,7 +87,7 @@ export function viewFor(stack: readonly string[], list: readonly Command[] = com
   const jump = list.find((c) => c.id === "chats.go" && c.submenu && isEnabled(c))
   const chats = (jump?.submenu?.() ?? []).slice(0, typed ? undefined : RECENT_CHATS)
   const rows = [...groups.values()]
-  if (chats.length) rows.push({ label: typed ? "Chats" : "Recent chats", items: chats.map((c) => ({ ...choiceItem(c), chat: true })) })
+  if (chats.length) rows.push({ label: "Recent chats", items: chats.map((c) => ({ ...choiceItem(c), chat: true })) })
   return { placeholder: ROOT_PLACEHOLDER, groups: rows }
 }
 

@@ -39,18 +39,27 @@ export function installStatus(install: RecipeInstall, card: RecipeCard): Install
   return { kind: "ask", label: card.when }
 }
 
+const formats = new Map<string, Intl.DateTimeFormat>()
+
+const formatter = (locale: string, key: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat => {
+  const id = `${locale}|${key}|${JSON.stringify(options)}`
+  let found = formats.get(id)
+  if (!found) formats.set(id, (found = new Intl.DateTimeFormat(locale, options)))
+  return found
+}
+
 const dayNumber = (ms: number, tz?: string): number => {
-  const [y, m, d] = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(ms).split("-").map(Number)
+  const [y, m, d] = formatter("en-CA", "ymd", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(ms).split("-").map(Number)
   return Date.UTC(y, m - 1, d) / 86_400_000
 }
 
 export function nextLabel(at: number, now: number, tz?: string): string {
-  const time = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at)
+  const time = formatter("en-US", "hm", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at)
   const days = dayNumber(at, tz) - dayNumber(now, tz)
   if (days === 0) return `Today at ${time}`
   if (days === 1) return `Tomorrow at ${time}`
-  if (days > 1 && days <= 6) return `${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(at)} at ${time}`
-  return `${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at)} at ${time}`
+  if (days > 1 && days <= 6) return `${formatter("en-US", "wd", { timeZone: tz, weekday: "short" }).format(at)} at ${time}`
+  return `${formatter("en-US", "md", { timeZone: tz, month: "short", day: "numeric" }).format(at)} at ${time}`
 }
 
 export function nextRunLabel(at: number, now: number, tz?: string): string {

@@ -47,10 +47,37 @@ async function entryBytes(bytes: Uint8Array, view: DataView, local: number, meth
   if (view.getUint32(local, true) !== LOCAL) throw new Error("That extension package has an invalid file header.")
   const start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true)
   const data = bytes.subarray(start, start + compressed)
-  if (method === 0) return data
+  if (method === 0) {
+    if (data.byteLength > maxBytes) tooLarge()
+    return data
+  }
   if (method !== 8) throw new Error("That extension package uses an unsupported compression method.")
-  const inflated = new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw")))
-  const out = new Uint8Array(await inflated.arrayBuffer())
-  if (out.byteLength > maxBytes) throw new Error("A file in that extension package is too large.")
+  return inflate(data, maxBytes)
+}
+
+function tooLarge(): never {
+  throw new Error("A file in that extension package is too large.")
+}
+
+async function inflate(data: Uint8Array, maxBytes: number): Promise<Uint8Array> {
+  const reader = new Blob([data.slice()]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined)
+      tooLarge()
+    }
+    chunks.push(value)
+  }
+  const out = new Uint8Array(total)
+  let at = 0
+  for (const chunk of chunks) {
+    out.set(chunk, at)
+    at += chunk.byteLength
+  }
   return out
 }

@@ -3,7 +3,7 @@ import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ChevronRightIcon, FolderOpenIcon, type Glyph, MemoryIcon, PlusIcon, RepeatIcon, SparklesIcon, TasksIcon } from "@kiko/ui/icons"
 import { useNavigate } from "@solidjs/router"
-import { createEffect, For, onCleanup, Show } from "solid-js"
+import { createEffect, createSignal, For, onCleanup, Show } from "solid-js"
 import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
 import { useMemoryStore } from "../info/memory/views"
@@ -38,6 +38,9 @@ export default function ChatCard(props: { chatId: string }) {
   const memory = useMemoryStore()
   const members = () => useApp.roomMembers()
   const chat = () => useApp.chatById(props.chatId)
+  const [clock, setClock] = createSignal(Date.now())
+  const ticker = setInterval(() => setClock(Date.now()), 30_000)
+  onCleanup(() => clearInterval(ticker))
   const add = (agent: Agent) => {
     if (props.chatId !== useApp.kikoChatId()) return useApp.memberOp(addOp(agent))
     const roomId = useApp.user()?.createChat(groupTitle(["Kiko", agent.name]), roomFor([KIKO, agent.id]))
@@ -81,13 +84,13 @@ export default function ChatCard(props: { chatId: string }) {
         <ChatAvatar faces={useApp.chatFaces(props.chatId)} size={32} />
         <div class="flex min-w-0 flex-1 flex-col">
           <span class="truncate text-md font-medium text-foreground" data-component="card-name">
-            {chat()?.name ?? "New chat"}
+            {chat()?.name ?? ""}
           </span>
           <span class={`flex items-center gap-1 truncate text-xs ${busy() ? "text-ring" : "text-muted-foreground"}`} data-component="card-live">
             <Show when={busy()}>
               <RemixIcon icon={SparklesIcon} size={11} class="shrink-0" />
             </Show>
-            {liveLine(working(), chat(), Date.now())}
+            {liveLine(working(), chat(), clock())}
           </span>
         </div>
       </div>

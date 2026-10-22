@@ -15,6 +15,7 @@
     "@kiko/agent": "workspace:*",
     "@kiko/sandbox": "workspace:*",
     "effect": "4.0.0",
+    "marked": "18.0.14",
     "uuid": "14.0.2"
   },
   "devDependencies": {

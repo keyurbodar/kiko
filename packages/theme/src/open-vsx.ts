@@ -14,6 +14,17 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 const text = (v: unknown) => (typeof v === "string" ? v.trim() : "")
 const unreadable = () => new Error("Open VSX returned an unreadable response.")
 
+const NO_THEMES = "That extension has no compatible color themes."
+const UNKNOWN_REASON = "That theme could not be imported."
+
+type Outcome = { theme?: ImportedTheme; reason?: string }
+
+function reasonOf(error: unknown): string {
+  const message = error instanceof Error ? error.message.trim() : ""
+  const safe = message.length > 0 && message.length <= 200 && !/[\\/]/.test(message)
+  return safe ? message : UNKNOWN_REASON
+}
+
 export type Send = (path: string, init: { signal?: AbortSignal }) => Promise<Response>
 
 async function download(url: string, signal: AbortSignal | undefined, send: Send): Promise<Uint8Array> {
@@ -71,7 +82,7 @@ export async function installTheme(item: OpenVsxItem, signal?: AbortSignal, send
   if (contributions.length > MAX_THEMES) throw new Error("That extension contains too many color themes to import safely.")
 
   const vsix = await download(text(files.download), signal, send)
-  const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", vsix))].map((byte) => byte.toString(16).padStart(2, "0")).join("")
+  const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", vsix.slice()))].map((byte) => byte.toString(16).padStart(2, "0")).join("")
   const expected = new TextDecoder().decode(await download(text(files.sha256), signal, send)).trim().split(/\s+/)[0]?.toLowerCase()
   if (digest !== expected) throw new Error("That theme failed its integrity check.")
 
@@ -84,18 +95,18 @@ export async function installTheme(item: OpenVsxItem, signal?: AbortSignal, send
 
   const read = async (path: string): Promise<VsCodeTheme> => parseObject(entries.get(path)) as VsCodeTheme
   const source = `${item.namespace}.${item.name}`
-  const themes = await Promise.all(
-    contributions.map(async ({ path, label }) => {
-      const file = packagePath("extension/package.json", path)
+  const outcomes: Outcome[] = await Promise.all(
+    contributions.map(async ({ path, label }): Promise<Outcome> => {
       try {
+        const file = packagePath("extension/package.json", path)
         const json = await readVsCodeTheme(file, read)
-        return themeFromVsCode(json, { id: `${source}:${file}`.slice(0, 160), name: label || item.displayName || item.name, source })
-      } catch {
-        return null
+        return { theme: themeFromVsCode(json, { id: `${source}:${file}`, name: label || item.displayName || item.name, source }) }
+      } catch (error) {
+        return { reason: reasonOf(error) }
       }
     }),
   )
-  const imported = themes.filter((theme): theme is ImportedTheme => theme !== null)
-  if (imported.length === 0) throw new Error("That extension has no compatible color themes.")
+  const imported = outcomes.flatMap((outcome) => (outcome.theme ? [outcome.theme] : []))
+  if (imported.length === 0) throw new Error(outcomes[0]?.reason ?? NO_THEMES)
   return imported
 }

@@ -63,8 +63,10 @@ const roomConfirms: Confirms = {
 	files: (f, e) => {
 		const op = f.op
 		if (op.op === "mkdir") return e.t === "folders" && e.folders.includes(op.path)
-		if (op.op === "rm") return e.t === "file_removed" || (e.t === "folders" && !op.paths.some((p) => e.folders.includes(p)))
-		return (e.t === "file" && (e.file.name === op.to || e.file.name.startsWith(`${op.to}/`))) || (e.t === "folders" && e.folders.some((p) => p === op.to || p.startsWith(`${op.to}/`)))
+		if (op.op === "rm") return e.t === "file_removed"
+		if (e.t === "file") return e.file.name === op.to || e.file.name.startsWith(`${op.to}/`)
+		if (e.t === "folders") return e.folders.some((f) => f === op.to || f.startsWith(`${op.to}/`))
+		return false
 	},
 }
 
@@ -77,6 +79,13 @@ export function settleRoom(patches: readonly RoomPatch[], events: readonly RoomE
 	return patches.filter(
 		(p) => !(p.ack && p.ack.seq <= appliedSeq) && !events.some((e) => roomConfirmedBy(p, e)),
 	)
+}
+
+export function settleSends(patches: readonly RoomPatch[], snapshot: { messages: readonly Message[]; seq: number }): RoomPatch[] {
+	const landed = new Set<string>()
+	for (const m of snapshot.messages) if (m.clientId) landed.add(m.clientId)
+	if (!landed.size) return [...patches]
+	return patches.filter((p) => !(p.frame.t === "send" && landed.has(p.clientId)))
 }
 
 type UserConfirms = { [K in ChatOp["op"]]: (op: Extract<ChatOp, { op: K }>, event: UserEvent) => boolean }

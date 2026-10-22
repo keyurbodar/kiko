@@ -3,6 +3,7 @@ import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ArrowUpIcon, ChevronRightIcon, CheckIcon } from "@kiko/ui/icons"
 import { snippetParts } from "@kiko/protocol"
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
+import { Portal } from "solid-js/web"
 import { displayShortcut } from "../commands/hotkeys"
 import { commands } from "../commands/registry"
 import { EntryIcon } from "../lib/EntryIcon"
@@ -133,6 +134,7 @@ export default function Palette() {
 
   return (
     <Show when={kept()}>
+      <Portal mount={document.body}>
       <div
         class="palette-scrim"
         data-component="palette"
@@ -156,9 +158,11 @@ export default function Palette() {
           onKeyDown={(e: KeyboardEvent) => {
             if (e.key === "Escape") {
               e.preventDefault()
+              e.stopPropagation()
               close()
             } else if (e.key === "Backspace" && backspaceLeaves(stack(), query())) {
               e.preventDefault()
+              e.stopPropagation()
               backView()
             }
           }}
@@ -223,6 +227,7 @@ export default function Palette() {
           </div>
         </Cmdk>
       </div>
+      </Portal>
     </Show>
   )
 }

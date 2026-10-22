@@ -69,9 +69,12 @@ export function currentStep(): Step {
 }
 
 export function move(how: Move): void {
+  setStep(advance(currentStep(), how))
+}
+
+export function setStep(step: Step): void {
   const id = userId()
   if (!id) return
-  const step = advance(currentStep(), how)
   write(id, step)
   setSaved({ userId: id, step })
   if (step === "done") void remember()

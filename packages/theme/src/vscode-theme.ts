@@ -1,5 +1,5 @@
 import { formatHex, interpolate, parse, rgb, wcagContrast, wcagLuminance } from "culori"
-import type { ImportedTheme } from "./imported"
+import { themeId, type ImportedTheme } from "./imported"
 import { THEMES, PALETTES, type ThemeAppearance } from "./palette"
 
 export type VsCodeTheme = { type?: unknown; include?: unknown; colors?: Record<string, unknown>; [key: string]: unknown }
@@ -12,12 +12,22 @@ const SHAPE_CONTRAST = 3
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
 const clamp = (n: number) => Math.min(1, Math.max(0, n))
 
-function flatten(value: unknown, base = "#000000"): string | null {
+function colorOf(value: unknown) {
   if (typeof value !== "string" || value.length > MAX_COLOR_LENGTH) return null
   const color = parse(value.trim())
-  if (!color) return null
-  const top = rgb(color)
-  const under = rgb(parse(base)!)
+  return color ? rgb(color) : null
+}
+
+function opaque(value: unknown): string | null {
+  const top = colorOf(value)
+  if (!top || (top.alpha ?? 1) === 0) return null
+  return formatHex({ mode: "rgb", r: top.r, g: top.g, b: top.b })
+}
+
+function flatten(value: unknown, base: string): string | null {
+  const top = colorOf(value)
+  const under = colorOf(base)
+  if (!top || !under) return null
   const a = top.alpha ?? 1
   const mixed = (t: number | undefined, u: number | undefined) => clamp((t ?? 0) * a + (u ?? 0) * (1 - a))
   return formatHex({ mode: "rgb", r: mixed(top.r, under.r), g: mixed(top.g, under.g), b: mixed(top.b, under.b) })
@@ -40,13 +50,13 @@ function appearanceOf(type: unknown, canvas: string): ThemeAppearance {
 
 export function themeFromVsCode(json: VsCodeTheme, meta: { id: string; name: string; source: string }): ImportedTheme {
   const colors = isObject(json.colors) ? json.colors : {}
-  const pick = (...keys: string[]) => keys.map((key) => flatten(colors[key]))
   const firstOf = (candidates: ReadonlyArray<string | null>) => candidates.find((candidate) => candidate !== null) ?? null
 
-  const canvas = firstOf(pick("editor.background", "editorPane.background"))
+  const canvas = firstOf([opaque(colors["editor.background"]), opaque(colors["editorPane.background"])])
   if (!canvas) throw new Error("That theme has no editor background, so there is nothing to build a palette from.")
   const appearance = appearanceOf(json.type, canvas)
   const fallback = PALETTES[appearance]
+  const pick = (...keys: string[]) => keys.map((key) => flatten(colors[key], canvas))
 
   const text = ink(canvas, TEXT_CONTRAST, pick("editor.foreground", "foreground"), readableOn(canvas, fallback.text))
   const muted = ink(canvas, TEXT_CONTRAST, pick("descriptionForeground"), mix(text, canvas, 0.35))
@@ -54,7 +64,7 @@ export function themeFromVsCode(json: VsCodeTheme, meta: { id: string; name: str
   const onAction = ink(action, TEXT_CONTRAST, pick("button.foreground"), readableOn(action, canvas))
 
   return {
-    id: meta.id,
+    id: themeId(meta.id),
     name: meta.name.slice(0, 48),
     source: meta.source,
     appearance,

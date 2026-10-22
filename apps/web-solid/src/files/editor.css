@@ -8,6 +8,18 @@
 
 
 .file-editor {
+  --sh-class: #79c0ff;
+  --sh-identifier: #e6edf3;
+  --sh-sign: #8b949e;
+  --sh-property: #7ee787;
+  --sh-entity: #d2a8ff;
+  --sh-jsxliterals: #a5d6ff;
+  --sh-string: #a5d6ff;
+  --sh-keyword: #ff7b72;
+  --sh-comment: #8b949e;
+}
+
+:root:not(.dark) .file-editor {
   --sh-class: #2d5e9d;
   --sh-identifier: inherit;
   --sh-sign: #8996a3;

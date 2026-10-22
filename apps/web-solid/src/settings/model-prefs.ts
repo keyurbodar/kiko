@@ -1,6 +1,10 @@
-import { createSignal } from "solid-js"
+import { createEffect, createMemo, createRoot, createSignal } from "solid-js"
+import { connectedProviders, connectedReady } from "./connected"
 
 const KEY = "kiko.model-prefs"
+const FAVORITES_KEY = "kiko.model-favorites"
+
+const providerOf = (ref: string): string => ref.split("/")[0] ?? ""
 
 export function parseHidden(text: string | null): readonly string[] {
   try {
@@ -19,21 +23,22 @@ function read(): readonly string[] {
   }
 }
 
-const [hidden, setHiddenList] = createSignal<readonly string[]>(read())
+const [hidden, setHiddenList] = createRoot(() => createSignal<readonly string[]>(read()))
 
 export const hiddenModels = hidden
 
-export function setHidden(refs: readonly string[], hide: boolean) {
-  const set = new Set(hidden())
-  for (const ref of refs) hide ? set.add(ref) : set.delete(ref)
-  const next = [...set]
+function writeHidden(next: readonly string[]) {
   setHiddenList(next)
   try {
     localStorage.setItem(KEY, JSON.stringify({ hidden: next }))
   } catch {}
 }
 
-const FAVORITES_KEY = "kiko.model-favorites"
+export function setHidden(refs: readonly string[], hide: boolean) {
+  const set = new Set(hidden())
+  for (const ref of refs) hide ? set.add(ref) : set.delete(ref)
+  writeHidden([...set])
+}
 
 function readFavorites(): readonly string[] {
   try {
@@ -44,14 +49,39 @@ function readFavorites(): readonly string[] {
   }
 }
 
-const [favorites, setFavorites] = createSignal<readonly string[]>(readFavorites())
+const [favorites, setFavorites] = createRoot(() => createSignal<readonly string[]>(readFavorites()))
 
-export const favoriteModels = favorites
-
-export function toggleFavorite(ref: string) {
-  const next = favorites().includes(ref) ? favorites().filter((r) => r !== ref) : [...favorites(), ref]
+function writeFavorites(next: readonly string[]) {
   setFavorites(next)
   try {
     localStorage.setItem(FAVORITES_KEY, JSON.stringify(next))
   } catch {}
+}
+
+const connectedIds = () => new Set(connectedProviders().map((p) => p.provider))
+
+export const favoriteModels = createRoot(() =>
+  createMemo(() => {
+    const ids = connectedIds()
+    return favorites().filter((ref) => ids.has(providerOf(ref)))
+  }),
+)
+
+export function toggleFavorite(ref: string) {
+  writeFavorites(favorites().includes(ref) ? favorites().filter((r) => r !== ref) : [...favorites(), ref])
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === KEY) setHiddenList(read())
+    else if (e.key === FAVORITES_KEY) setFavorites(readFavorites())
+  })
+  createRoot(() => {
+    createEffect(() => {
+      if (!connectedReady() || !connectedProviders().length) return
+      const ids = connectedIds()
+      const kept = favorites().filter((ref) => ids.has(providerOf(ref)))
+      if (kept.length !== favorites().length) writeFavorites(kept)
+    })
+  })
 }

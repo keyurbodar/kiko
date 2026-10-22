@@ -1,5 +1,5 @@
 import { DismissableLayerV2 } from "@kiko/ui/v2/dismissable-layer-v2"
-import { For, Show, createSignal, createUniqueId, type JSX } from "solid-js"
+import { For, Show, createEffect, createSignal, createUniqueId, onCleanup, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
 import { selectClass } from "./kit"
 import { placePanel } from "../lib/place-panel"
@@ -25,16 +25,30 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
   const chosen = () => props.options[chosenIndex()]
   const hasActions = () => props.options.some((o) => o.actions)
 
-  const show = () => {
-    const r = trigger!.getBoundingClientRect()
+  const measure = () => {
+    if (!trigger) return
+    const r = trigger.getBoundingClientRect()
     const width = Math.max(r.width, props.width ?? 0)
     setPlace({
       ...placePanel(r, width, PANEL_H, { width: window.innerWidth, height: window.innerHeight }, "below", "end"),
       "min-width": `${width}px`,
     })
+  }
+  const show = () => {
+    measure()
     setActive(chosenIndex())
     setOpen(true)
   }
+  createEffect(() => {
+    if (!open()) return
+    const reposition = () => measure()
+    window.addEventListener("resize", reposition)
+    window.addEventListener("scroll", reposition, true)
+    onCleanup(() => {
+      window.removeEventListener("resize", reposition)
+      window.removeEventListener("scroll", reposition, true)
+    })
+  })
   const close = () => {
     setOpen(false)
     trigger?.focus()

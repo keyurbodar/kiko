@@ -51,7 +51,7 @@ export function eventRow(message: ChatMessage, name: (slug: string) => string): 
     case "agent_message":
       return { label: `${name(e.from)} messaged ${name(e.to)}` }
     default:
-      return null
+      return { label: text(loose.label) ?? (message.body || "Activity") }
   }
 }
 

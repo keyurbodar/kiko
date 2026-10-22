@@ -36,6 +36,23 @@ type Op =
 	| { op: "deleteRange"; store: StoreName; range: KeyRange }
 	| { op: "clear"; store: StoreName }
 
+type Stamp = { seq: number; edited: number }
+
+function stampOf(value: unknown): Stamp | null {
+	if (typeof value === "number") return Number.isFinite(value) ? { seq: value, edited: 0 } : null
+	if (typeof value !== "object" || value === null) return null
+	const row = value as { seq?: unknown; editedAt?: unknown }
+	if (typeof row.seq !== "number" || !Number.isFinite(row.seq)) return null
+	return { seq: row.seq, edited: typeof row.editedAt === "number" ? row.editedAt : 0 }
+}
+
+function newer(existing: unknown, incoming: unknown): boolean {
+	const stored = stampOf(existing)
+	const next = stampOf(incoming)
+	if (!stored || !next) return false
+	return stored.seq === next.seq ? stored.edited > next.edited : stored.seq > next.seq
+}
+
 type Backend = {
 	mode: "idb" | "memory"
 	get(store: StoreName, key: WarmKey): Promise<unknown>
@@ -60,6 +77,36 @@ function idbBackend(db: IDBDatabase, onLost: () => void): Backend {
 	}
 	db.onclose = onLost
 	const read = (store: StoreName) => db.transaction(store, "readonly").objectStore(store)
+
+	function writeOp(tx: IDBTransaction, op: Op) {
+		const store = tx.objectStore(op.store)
+		if (op.op === "put") store.put(op.value, op.key as IDBValidKey)
+		else if (op.op === "delete") store.delete(op.key as IDBValidKey)
+		else if (op.op === "deleteRange") store.delete(idbRange(op.range))
+		else store.clear()
+	}
+
+	function applyOps(tx: IDBTransaction, ops: readonly Op[], start: number, fail: (error: unknown) => void): void {
+		let i = start
+		while (i < ops.length) {
+			const op = ops[i]
+			if (op.op === "put" && stampOf(op.value) !== null) {
+				const get = tx.objectStore(op.store).get(op.key as IDBValidKey)
+				get.onsuccess = () => {
+					try {
+						if (!newer(get.result, op.value)) writeOp(tx, op)
+						applyOps(tx, ops, i + 1, fail)
+					} catch (error) {
+						fail(error)
+					}
+				}
+				return
+			}
+			writeOp(tx, op)
+			i += 1
+		}
+	}
+
 	return {
 		mode: "idb",
 		get: (store, key) => request(read(store).get(key as IDBValidKey)),
@@ -85,12 +132,10 @@ function idbBackend(db: IDBDatabase, onLost: () => void): Backend {
 				tx.oncomplete = () => resolve()
 				tx.onerror = () => reject(tx.error)
 				tx.onabort = () => reject(tx.error ?? new Error("transaction aborted"))
-				for (const o of ops) {
-					const s = tx.objectStore(o.store)
-					if (o.op === "put") s.put(o.value, o.key as IDBValidKey)
-					else if (o.op === "delete") s.delete(o.key as IDBValidKey)
-					else if (o.op === "deleteRange") s.delete(idbRange(o.range))
-					else s.clear()
+				try {
+					applyOps(tx, ops, 0, reject)
+				} catch (error) {
+					reject(error)
 				}
 			}),
 		close: () => db.close(),
@@ -134,6 +179,7 @@ function memoryBackend(): Backend {
 				const t = table(o.store)
 				if (o.op === "put") {
 					const k = JSON.stringify(o.key)
+					if (newer(t.get(k)?.value, o.value)) continue
 					t.delete(k)
 					t.set(k, { key: o.key, value: structuredClone(o.value) })
 					if (t.size > MEMORY_ROWS_PER_STORE) t.delete(t.keys().next().value as string)
@@ -149,8 +195,8 @@ function memoryBackend(): Backend {
 }
 
 function upgrade(db: IDBDatabase, tx: IDBTransaction, version: number) {
-	for (const name of [...db.objectStoreNames]) db.deleteObjectStore(name)
-	for (const name of STORES) db.createObjectStore(name)
+	for (const name of [...db.objectStoreNames]) if (!STORES.includes(name as StoreName)) db.deleteObjectStore(name)
+	for (const name of STORES) if (!db.objectStoreNames.contains(name)) db.createObjectStore(name)
 	tx.objectStore("meta").put(version, "schema")
 }
 
@@ -177,15 +223,7 @@ function openIdb(idb: IDBFactory, name: string, version: number, timeoutMs: numb
 		r.onsuccess = () => finish(r.result)
 		r.onerror = (event) => {
 			event.preventDefault()
-			if (r.error?.name !== "VersionError" || done) return finish(null)
-			const del = idb.deleteDatabase(name)
-			del.onsuccess = () => {
-				const again = idb.open(name, version)
-				again.onupgradeneeded = () => upgrade(again.result, again.transaction as IDBTransaction, version)
-				again.onsuccess = () => finish(again.result)
-				again.onerror = () => finish(null)
-			}
-			del.onerror = () => finish(null)
+			finish(null)
 		}
 		r.onblocked = () => finish(null)
 	})

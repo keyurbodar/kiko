@@ -20,21 +20,42 @@ export type UserData = { seq: number; chats: Chat[]; agents: Agent[]; home: Home
 type PendingRow = { kind: RowKind; id: string; row: UserRows[RowKind] | null; at: number }
 const rowKey = (kind: RowKind, id: string) => `${kind}:${id}`
 const PENDING_ROW_MS = 10_000
+const ROW_SETTLE_MS = 2_500
+const ROW_SETTLE_TRIES = 20
 
 export function applyUserEvent(data: UserData, e: UserEvent): boolean {
-	if (e.seq <= data.seq) return false
-	data.seq = e.seq
+	const projection = e.t === "chat" && e.projection === true
+	if (projection ? e.seq < data.seq : e.seq <= data.seq) return false
+	if (!claimed(data, e)) return false
+	if (!projection) data.seq = e.seq
+	return true
+}
+
+function claimed(data: UserData, e: UserEvent): boolean {
+	return applyHomeEvent(data, e) || applyDirectoryEvent(data, e) || applyChatEvent(data, e)
+}
+
+function applyHomeEvent(data: UserData, e: UserEvent): boolean {
 	if (e.t === "theme" || e.t === "agent_model") return true
-	if (e.t === "file" || e.t === "file_removed" || e.t === "folders") {
-		if (e.t === "file") {
-			data.home.files = data.home.files.filter((x) => x.name !== e.file.name || x.id === e.file.id)
-			const i = data.home.files.findIndex((x) => x.id === e.file.id)
-			if (i === -1) data.home.files.push(e.file)
-			else data.home.files[i] = e.file
-		} else if (e.t === "file_removed") data.home.files = data.home.files.filter((x) => !e.ids.includes(x.id))
-		else data.home.folders = [...e.folders]
+	if (e.t === "file") {
+		data.home.files = data.home.files.filter((x) => x.name !== e.file.name || x.id === e.file.id)
+		const i = data.home.files.findIndex((x) => x.id === e.file.id)
+		if (i === -1) data.home.files.push(e.file)
+		else data.home.files[i] = e.file
 		return true
 	}
+	if (e.t === "file_removed") {
+		data.home.files = data.home.files.filter((x) => !e.ids.includes(x.id))
+		return true
+	}
+	if (e.t === "folders") {
+		data.home.folders = [...e.folders]
+		return true
+	}
+	return false
+}
+
+function applyDirectoryEvent(data: UserData, e: UserEvent): boolean {
 	if (e.t === "row") {
 		const list = data.rows[e.kind] as { id: string }[]
 		const i = list.findIndex((r) => r.id === e.row.id)
@@ -56,6 +77,11 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 		else data.agents[i] = e.agent
 		return true
 	}
+	return false
+}
+
+function applyChatEvent(data: UserData, e: UserEvent): boolean {
+	if (e.t !== "chat" && e.t !== "chat_removed") return false
 	const i = data.chats.findIndex((c) => c.roomId === (e.t === "chat" ? e.chat.roomId : e.roomId))
 	if (e.t === "chat") {
 		if (i === -1) data.chats.push(e.chat)
@@ -159,7 +185,48 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	let detach = () => {}
 	let expiry: ReturnType<typeof setTimeout> | undefined
 	let awaitingHello = false
+	let greetingTimer: ReturnType<typeof setTimeout> | undefined
+	const GREETING_MS = 15_000
 	const unsentModels = new Map<string, AgentModelFrame>()
+	const unsentHome: FileOp[] = []
+
+	function dropModel(slug: string): void {
+		setState("pendingModels", produce((map) => { delete map[slug] }))
+	}
+
+	function dropTyping(roomId: RoomId): void {
+		setState("typing", produce((map) => { delete map[roomId] }))
+	}
+
+	function forgetProviderModels(provider: string): void {
+		const gone = (ref: string | undefined) => ref !== undefined && ref.split("/")[0] === provider
+		setState("pendingModels", produce((models) => { for (const slug in models) if (gone(models[slug]?.model)) delete models[slug] }))
+		for (const [slug, frame] of unsentModels) if (gone(frame.ref)) unsentModels.delete(slug)
+	}
+
+	function expireHome(op: FileOp, at: number): void {
+		if (closed) return
+		setState("pendingHome", (list) => list.filter((p) => p.at !== at))
+		const same = JSON.stringify(op)
+		for (let i = unsentHome.length - 1; i >= 0; i--) if (JSON.stringify(unsentHome[i]) === same) unsentHome.splice(i, 1)
+	}
+
+	function armRowSettle(key: string, at: number, mine: () => boolean): void {
+		const check = (tries: number) => {
+			if (closed || !mine()) return
+			if (tries <= 0) return setState("pendingRows", produce((p) => void delete p[key]))
+			setTimeout(() => check(tries - 1), ROW_SETTLE_MS)
+		}
+		setTimeout(() => check(ROW_SETTLE_TRIES), ROW_SETTLE_MS)
+	}
+
+	function armModelExpiry(slug: string, frame: AgentModelFrame): void {
+		setTimeout(() => {
+			if (unsentModels.get(slug) !== frame) return
+			unsentModels.delete(slug)
+			dropModel(slug)
+		}, PENDING_ROW_MS)
+	}
 
 	function setPatches(next: UserPatch[] | ((list: UserPatch[]) => UserPatch[])) {
 		setState("patches", next)
@@ -170,11 +237,16 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		if (!socket?.send({ t: "chat", op: p.op })) return
 		const sentAt = now()
 		setState("patches", (list) => list.map((x) => (x.clientId === p.clientId ? { ...x, sentAt } : x)))
-		if (expiry === undefined)
-			expiry = setTimeout(() => {
-				expiry = undefined
-				setPatches((list) => expire(list, now(), ttl))
-			}, ttl)
+		if (expiry === undefined) armExpiry()
+	}
+
+	function armExpiry() {
+		expiry = setTimeout(() => {
+			expiry = undefined
+			if (closed) return
+			setPatches((list) => expire(list, now(), ttl))
+			if (state.patches.some((p) => p.sentAt !== undefined)) armExpiry()
+		}, ttl)
 	}
 
 	function act(op: ChatOp) {
@@ -202,12 +274,14 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			for (const e of applied) {
 				if (e.t === "agent_removed") {
 					setState("agentModels", produce((models) => { delete models[e.slug] }))
+					dropModel(e.slug)
 					unsentModels.delete(e.slug)
 				}
 				else if (e.t === "theme") setState("theme", e.theme)
+				else if (e.t === "row_removed" && e.kind === "provider") forgetProviderModels(e.id)
 				else if (e.t === "agent_model") {
 					setState("agentModels", e.slug, { model: e.model, name: e.name, thinking: e.thinking, thinkingLevels: e.thinkingLevels })
-					setState("pendingModels", e.slug, undefined!)
+					dropModel(e.slug)
 					unsentModels.delete(e.slug)
 				}
 			}
@@ -230,7 +304,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		const agents = [...(snapshot.agents ?? [])]
 		const home = { files: [...snapshot.home.files], folders: [...snapshot.home.folders] }
 		const rows = { ...emptyRows(), ...structuredClone(snapshot.rows ?? {}) } as RowData
-		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home, rows, lastChat: snapshot.lastChat ?? null })
+		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home, rows, lastChat: snapshot.lastChat ?? null, gone: {}, refused: {}, pendingRows: {} })
 		putRows(warm, rows)
 		if (snapshot.theme !== undefined) setState("theme", snapshot.theme)
 		const agentModels = { ...snapshot.agentModels }
@@ -247,6 +321,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			if (frame.fileToken) setFileToken(frame.fileToken)
 			if (awaitingHello) {
 				awaitingHello = false
+				clearTimeout(greetingTimer)
+				greetingTimer = undefined
 				setState({ skew: backendSkew(clientBuild(), frame), backendVersion: frame.version })
 			}
 			if (frame.t === "events") applyEvents(frame.events)
@@ -259,13 +335,17 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			})
 		} else if (frame.t === "model_refused") {
 			unsentModels.delete(frame.slug)
-			setState("pendingModels", frame.slug, undefined!)
+			dropModel(frame.slug)
 			options.onError?.({ code: "model", message: frame.message, action: "open_models" })
 		} else if (frame.t === "error") options.onError?.(frame.error, frame.roomId)
-		else if (frame.t === "typing") setState("typing", frame.roomId, frame.names.length ? [...frame.names] : undefined!)
+		else if (frame.t === "typing") {
+			if (frame.names.length) setState("typing", frame.roomId, [...frame.names])
+			else dropTyping(frame.roomId)
+		}
 		else if (frame.t === "home_refused") {
 			const same = JSON.stringify(frame.op)
 			setState("pendingHome", (list) => list.filter((p) => p.frame.t !== "files" || JSON.stringify(p.frame.op) !== same))
+			for (let i = unsentHome.length - 1; i >= 0; i--) if (JSON.stringify(unsentHome[i]) === same) unsentHome.splice(i, 1)
 			for (const listener of homeRefusals) listener(frame.op, frame.reason)
 		}
 	}
@@ -281,11 +361,16 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			backoff: options.backoff,
 			hello: () => {
 				awaitingHello = true
+				clearTimeout(greetingTimer)
+				greetingTimer = setTimeout(() => {
+					if (awaitingHello && !closed) socket?.reconnect()
+				}, GREETING_MS)
 				return { t: "hello", lastSeq: state.seq }
 			},
 			onOpen: () => {
 				for (const p of [...unwrap(state.patches)]) transmit(p)
-				for (const frame of unsentModels.values()) socket?.send(frame)
+				for (const op of unsentHome.splice(0)) socket?.send({ t: "home", op })
+				for (const [slug, frame] of [...unsentModels]) if (socket?.send(frame)) armModelExpiry(slug, frame)
 				channel.opened()
 			},
 			onFrame: (frame) => {
@@ -329,10 +414,16 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 				if (mine()) setState("pendingRows", produce((p) => void delete p[key]))
 				return false
 			}
-			setTimeout(() => mine() && setState("pendingRows", produce((p) => void delete p[key])), PENDING_ROW_MS)
+			armRowSettle(key, at, mine)
 			return true
 		},
-		agentModel: (slug) => state.pendingModels[slug] ?? state.agentModels[slug],
+		agentModel: (slug) => {
+			const pick = state.pendingModels[slug] ?? state.agentModels[slug]
+			if (!pick || !state.synced) return pick
+			const provider = pick.model.split("/")[0] ?? ""
+			const providers = state.rows.provider as readonly { id: string }[]
+			return !provider || providers.some((p) => p.id === provider) ? pick : undefined
+		},
 		setAgentModel(slug, { ref, thinking, levels, roomId }) {
 			const current = state.pendingModels[slug] ?? state.agentModels[slug]
 			const nextLevels = levels ?? current?.thinkingLevels
@@ -340,7 +431,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			if (model && nextLevels) setState("pendingModels", slug, { model, thinking: clampThinking(nextLevels, thinking ?? current?.thinking ?? defaultThinking(nextLevels)), thinkingLevels: nextLevels })
 			const frame: AgentModelFrame = { ...unsentModels.get(slug), t: "agent_model", slug, ...(ref ? { ref } : {}), ...(thinking ? { thinking } : {}), ...(roomId ? { roomId } : {}) }
 			unsentModels.set(slug, frame)
-			socket?.send(frame)
+			if (socket?.send(frame)) armModelExpiry(slug, frame)
 		},
 		createChat(title, agents) {
 			const existing = agents?.length ? sameAgentChat(overlayChats(state.chats, state.patches), agents) : null
@@ -376,8 +467,10 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		homeFiles: () => overlayFiles(state.home.files, state.pendingHome, state.home.folders),
 		homeFolders: () => overlayFolders(state.home.folders, state.pendingHome),
 		homeOp(op) {
-			setState("pendingHome", (list) => [...list, { clientId: newId(), at: now(), frame: { t: "files", op } }])
-			socket?.send({ t: "home", op })
+			const at = now()
+			setState("pendingHome", (list) => [...list, { clientId: newId(), at, frame: { t: "files", op } }])
+			if (!socket?.send({ t: "home", op })) unsentHome.push(op)
+			setTimeout(() => expireHome(op, at), PENDING_ROW_MS * 6)
 		},
 		onHomeRefused(listener) {
 			homeRefusals.add(listener)
@@ -385,6 +478,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		},
 		close() {
 			closed = true
+			clearTimeout(greetingTimer)
 			if (expiry !== undefined) clearTimeout(expiry)
 			detach()
 			if (opening !== undefined) clearTimeout(opening)

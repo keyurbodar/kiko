@@ -1,21 +1,17 @@
-
 .search-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 40;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 12px 16px 0;
-}
-.search-scrim {
-  position: absolute;
-  inset: 0;
+  z-index: 86;
   background: color-mix(in oklab, var(--background) 60%, transparent);
 }
 .search-panel {
-  position: relative;
-  width: min(720px, 100%);
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  z-index: 87;
+  display: block;
+  width: min(720px, calc(100vw - 32px));
+  transform: translateX(-50%);
   background: var(--popover);
   color: var(--foreground);
   border-radius: var(--radius-lg);
@@ -113,6 +109,6 @@
 .search-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 10px; font-size: 13px; color: var(--muted-foreground); }
 
 @media (width < 768px) {
-  .search-overlay { padding: 8px 8px 0; }
+  .search-panel { top: calc(8px + env(safe-area-inset-top, 0px)); width: calc(100vw - 16px); }
   .search-hit { padding: 10px; }
 }

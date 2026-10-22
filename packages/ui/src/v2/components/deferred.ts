@@ -9,11 +9,18 @@ export function deferred<T>(importer: () => Promise<T>): Deferred<T> {
   const [module, setModule] = createSignal<T>()
   let loading: Promise<T> | undefined
   return {
-    load: () =>
-      (loading ??= importer().then((value) => {
-        setModule(() => value)
-        return value
-      })),
+    load: () => {
+      loading ??= importer()
+        .then((value) => {
+          setModule(() => value)
+          return value
+        })
+        .catch((error: unknown) => {
+          loading = undefined
+          throw error
+        })
+      return loading
+    },
     module,
   }
 }

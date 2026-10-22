@@ -1,4 +1,4 @@
-import type { CatalogProvider } from "../../settings/catalog"
+import type { CatalogModel, CatalogProvider } from "../../settings/catalog"
 
 export type ConnectVia = "sign_in" | "api_key"
 
@@ -28,3 +28,17 @@ export function firstRunChoices(providers: readonly CatalogProvider[]): FirstRun
 }
 
 export const CHOICE_ROWS = CHOICES.length
+
+export interface ModelChoice {
+  provider: CatalogProvider
+  model: CatalogModel
+  ref: string
+}
+
+const isFree = (c: ModelChoice) => c.model.pricing.input === 0 && c.model.pricing.output === 0
+
+export const rankModels = (list: readonly ModelChoice[]): ModelChoice[] =>
+  [...list].sort((a, b) => Number(b.model.reasoning) - Number(a.model.reasoning) || Number(isFree(a)) - Number(isFree(b)) || b.model.contextWindow - a.model.contextWindow)
+
+export const startingModel = (ranked: readonly ModelChoice[], running: string | undefined): string | undefined =>
+  ranked.find((c) => c.ref === running)?.ref ?? ranked[0]?.ref

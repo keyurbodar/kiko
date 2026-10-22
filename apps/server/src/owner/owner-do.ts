@@ -40,6 +40,7 @@ export class OwnerDO extends DurableObject<Env> {
   private readonly clock: Clock
   private readonly afterRunHook = new AfterRun({ services: () => this.services })
   private alarmRunning = false
+  private readonly greeting = new WeakMap<WebSocket, Promise<void>>()
   private nextRunAt = 0
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -219,10 +220,21 @@ export class OwnerDO extends DurableObject<Env> {
   }
 
   async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
+    const greeting = this.greeting.get(ws)
+    if (greeting) await greeting
+    await this.receive(ws, raw)
+  }
+
+  private async receive(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
     if (typeof raw !== "string" || raw.length > MAX_FRAME) { ws.close(1008, "bad frame"); return }
     let frame: unknown
     try { frame = JSON.parse(raw) } catch { ws.close(1008, "bad frame"); return }
     if (!frame || typeof frame !== "object" || !("t" in frame)) { ws.close(1008, "bad frame"); return }
+    if (frame.t === "hello") {
+      const greeting = this.user().webSocketMessage(socketView(ws), raw)
+      this.greeting.set(ws, greeting.catch(() => {}))
+      return greeting
+    }
     if (frame.t === "subscribe" || frame.t === "unsubscribe" || frame.t === "room") {
       if (!("roomId" in frame) || typeof frame.roomId !== "string" || !isRoomId(frame.roomId)) { ws.close(1008, "bad room id"); return }
       const saved = ownerAttachment(ws)
