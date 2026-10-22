@@ -3,7 +3,7 @@ import type { Asks } from "./asks"
 import type { Home } from "./home"
 import type { Members } from "./members"
 import { receive, type ReceiveDeps } from "./receive"
-import { parseRichText } from "./rich-text"
+import { parseRichText } from "@kiko/protocol"
 
 export type PairIn = { askId: string; origin: RoomId; from: AgentSlug; to: AgentSlug; text: string; rootId: string; hop: number }
 

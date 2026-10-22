@@ -3,7 +3,7 @@ import { checkSend, type Limit, limitError, limitNotice } from "./limits"
 import type { Asks } from "./asks"
 import { RECENT_MESSAGES } from "./message-position"
 import type { RoomLog } from "./log"
-import { parseRichText } from "./rich-text"
+import { parseRichText } from "@kiko/protocol"
 
 export type AgentSend = { id: string; to: AgentSlug | "all"; text: string }
 

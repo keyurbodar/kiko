@@ -3,7 +3,7 @@ import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, MessageId, RoomE
 import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import type { RoomLog } from "./log"
-import { parseRichText } from "./rich-text"
+import { parseRichText } from "@kiko/protocol"
 import type { SearchOptions, SearchPage } from "./search"
 
 export type Attachment = {
@@ -62,31 +62,36 @@ export function send(ws: WebSocket, frame: RoomToClient): void {
 
 export function parse(raw: string | ArrayBuffer): ClientToRoom | null {
 	if (typeof raw !== "string" || raw.length > MAX_FRAME) return null
-	let frame: ClientToRoom
 	try {
-		frame = decode(JSON.parse(raw))
+		return decode(JSON.parse(raw))
 	} catch {
 		return null
 	}
+}
+
+function refused(frame: ClientToRoom): string | null {
 	switch (frame.t) {
 		case "send": {
 			const refs = frame.attachments ?? []
-			return sendFits(frame.text, refs) && (frame.text.trim() !== "" || refs.length > 0) ? frame : null
+			if (frame.text.trim() === "" && refs.length === 0) return "that message is empty"
+			return frame.text.length <= MAX_MESSAGE_TEXT && sendFits(frame.text, refs) ? null : "that message is too long to send"
 		}
 		case "edit":
-			return frame.text.length <= MAX_MESSAGE_TEXT && sendFits(frame.text) && frame.text.trim() !== "" ? frame : null
+			return frame.text.length <= MAX_MESSAGE_TEXT && sendFits(frame.text) && frame.text.trim() !== "" ? null : "that edit is too long to save"
 		case "answer":
 			return typeof frame.value === "string"
-        ? frame.value.length <= MAX_MESSAGE_TEXT && sendFits(frame.value) && frame.value.trim() !== "" ? frame : null
-        : sendFits("", [frame.value]) ? frame : null
+				? frame.value.length <= MAX_MESSAGE_TEXT && sendFits(frame.value) && frame.value.trim() !== ""
+					? null
+					: "that answer is too long to send"
+				: sendFits("", [frame.value])
+					? null
+					: "that answer is too long to send"
 		case "react":
-			return frame.emoji === null || (frame.emoji.length > 0 && frame.emoji.length <= MAX_EMOJI && !/\s/.test(frame.emoji))
-				? frame
-				: null
+			return frame.emoji === null || (frame.emoji.length > 0 && frame.emoji.length <= MAX_EMOJI && !/\s/.test(frame.emoji)) ? null : "that reaction is not usable"
 		case "member":
-			return frame.op.op === "remove" || frame.op.name.trim() !== "" ? frame : null
+			return frame.op.op === "remove" || frame.op.name.trim() !== "" ? null : "that member needs a name"
 		default:
-			return frame
+			return null
 	}
 }
 
@@ -94,6 +99,11 @@ export async function handleFrame(room: SocketRoom, ws: WebSocket, raw: string |
 	const frame = parse(raw)
 	if (!frame) {
 		if (!retired(raw)) ws.close(BAD_FRAME, "bad frame")
+		return
+	}
+	const why = refused(frame)
+	if (why) {
+		send(ws, { t: "send_refused", clientId: "clientId" in frame ? frame.clientId : "", reason: why })
 		return
 	}
 	const events = await apply(room, ws, frame)

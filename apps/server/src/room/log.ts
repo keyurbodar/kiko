@@ -625,6 +625,7 @@ export class RoomLog {
 			...(r.steps ? { steps: r.steps, stepAfter: r.step_after ?? 0 } : {}),
 			...(r.edited_at !== null ? { editedAt: r.edited_at } : {}),
 			...(r.goto ? { goto: r.goto as RoomId } : {}),
+			...(r.client_id ? { clientId: r.client_id } : {}),
 			...(r.quote ? { quote: r.quote } : {}),
 			...(r.addressed ? { to: r.addressed as AgentSlug | "all" } : {}),
 			...(r.initiative ? { initiative: { reason: r.initiative } } : {}),
