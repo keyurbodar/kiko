@@ -1,8 +1,9 @@
-import { chatFaces, chatSeed } from "./identity"
+import { chatFaces } from "./identity"
 
 import type { Agent, AgentModel, AgentSlug, RowKind, UserRows, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp, RunStep } from "@kiko/protocol"
-import { fileName, KIKO, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
+import { fileName, isRoomId, KIKO, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
 import { isListed } from "../sidebar/activity"
+import { clearUnreadMark } from "../sidebar/unread-mark"
 import { agentDisplayName } from "./names"
 import { seenInChat, showFailure, showKikoError } from "./errors"
 import { session as signedIn } from "../app/session"
@@ -14,8 +15,8 @@ import { inWindow, newestAfter, parseWindow, stepWindows, windowKey } from "../c
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
 import { createRoomStore, NO_MORE, type RoomSeed, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
 import { socketUrl } from "./api"
-import { fileToken, fileUrl } from "./file-token"
-import { browserConnect, userChannel } from "../sync/socket"
+import { fileUrl } from "./file-token"
+import { browserConnect, type SocketStatus, userChannel } from "../sync/socket"
 import { createUserStore, type UserStore } from "../sync/user-store"
 import { createDraftBook, type DraftBook } from "../warm/drafts"
 import { openWarm, type Warm } from "../warm/db"
@@ -50,7 +51,7 @@ export function nextReaction(reactions: readonly WireReaction[] | undefined, emo
 export function signature(m: ViewMessage): string {
   let reactions = ""
   for (const r of m.reactions ?? []) reactions += `${reactionKey(r)}=${r.emoji},`
-  return `${m.id}|${m.seq}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.reply?.gone ? 1 : 0}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote?.length ?? ""}|${m.steps ?? 0}|${m.stepAfter ?? 0}`
+  return `${m.id}|${m.seq}|${m.at}|${m.text.length}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.reply?.gone ? 1 : 0}|${m.reply?.text ?? ""}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote ?? ""}|${m.to ?? ""}|${m.event ? 1 : 0}|${m.steps ?? 0}|${m.stepAfter ?? 0}`
 }
 
 export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
@@ -59,9 +60,10 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
     threadId: roomId,
     sender: m.from.kind === "human" ? "user" : "bot",
     body: m.text,
-    sentAt: m.at,
+    sentAt: Number.isFinite(m.at) ? m.at : Date.now(),
   }
   if (m.from.kind === "agent") out.botId = m.from.slug
+  if (m.clientId) out.clientId = m.clientId
   if (!m.pending) out.seq = m.seq
   if (m.rich) out.rich = m.rich
   if (m.replyTo) out.replyToId = m.replyTo
@@ -139,6 +141,15 @@ function shared<T>(fn: () => T): () => T {
   return isServer ? fn : createMemo(fn)
 }
 
+export function releaseFrontier<T extends { id: MessageId; seq: number; from: { kind: string } }>(
+  messages: readonly T[],
+  held: ReadonlySet<string>,
+): (m: T) => boolean {
+  let frontier = Infinity
+  for (const m of messages) if (held.has(m.id) && m.seq < frontier) frontier = m.seq
+  return (m) => !held.has(m.id) && !(m.seq > frontier && m.from.kind !== "human")
+}
+
 export function sameRow(a: RosterBot, b: RosterBot): boolean {
   const x = a as unknown as Record<string, unknown>
   const y = b as unknown as Record<string, unknown>
@@ -172,6 +183,16 @@ export function createApp() {
     const roomMessages = shared(() => room()?.messages() ?? [])
 
     const [preloaded, setPreloaded] = createSignal<Record<string, ViewMessage[]>>({})
+    const preloadedAt: Record<string, number> = {}
+
+    function forgetPreload(roomId: string): void {
+      delete preloadedAt[roomId]
+      if (!(roomId in preloaded())) return
+      setPreloaded((all) => {
+        const { [roomId]: _gone, ...rest } = all
+        return rest
+      })
+    }
 
     const channel = userChannel
 
@@ -216,6 +237,7 @@ export function createApp() {
     let pacer = createPacer({ onChange: () => bumpPaced((n) => n + 1) })
     let pacedRoom: RoomStore | null = null
     let seeded = false
+    let openedUnder: SocketStatus | undefined
     const RESTART_GRACE_MS = 1500
     const [lingering, setLingering] = createSignal<string[]>([])
     const lingerTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -242,8 +264,10 @@ export function createApp() {
           setLingering([])
         }
         if (!loaded) return
-        if (!seeded) {
+        const connection = r.state.connection
+        if (!seeded || connection !== openedUnder) {
           seeded = true
+          openedUnder = connection
           seedPacer(list)
           return
         }
@@ -288,9 +312,11 @@ export function createApp() {
       const prev = views
       const next = new Map<string, { sig: string; view: ChatMessage }>()
       const rows: ChatMessage[] = []
-      for (const m of roomMessages()) {
-        if (pacer.isHeld(m.id)) continue
-        const sig = signature(m) + (m.files?.length ? fileToken() : "")
+      const list = roomMessages()
+      const release = releaseFrontier(list, new Set(list.filter((m) => pacer.isHeld(m.id)).map((m) => m.id)))
+      for (const m of list) {
+        if (!release(m)) continue
+        const sig = signature(m)
         const key = m.clientId ?? m.id
         const cached = prev.get(key)
         const entry = cached && cached.sig === sig ? cached : { sig, view: toChatMessage(m, roomId) }
@@ -303,17 +329,28 @@ export function createApp() {
 
     const windows = shared(() => stepWindows(activeRows()))
 
+    function typingOf(r: RoomStore | null): string[] {
+      if (!r) return []
+      paced()
+      const known = new Set(r.state.members.map((m) => m.slug as string))
+      const slugs = new Set<string>([...r.state.typing, ...lingering(), ...pacer.holders()])
+      slugs.delete("")
+      return [...slugs].filter((slug) => known.has(slug))
+    }
+
     function openRoom(roomId: RoomId | null) {
       const current = room()
       if (current?.state.roomId === roomId) return
       if (current) {
         anchors.delete(current)
         if (current.state.loaded) keepRoom(current)
+        forgetPreload(current.state.roomId)
       }
       current?.close()
       views = new Map()
       setUnseen([])
       if (!session || !roomId) return void setRoom(null)
+      forgetPreload(roomId)
       const next = createRoomStore({
         roomId,
         warm: session.warm,
@@ -376,7 +413,7 @@ export function createApp() {
           typing: Object.entries(r.state.status).filter(([, state]) => state === "typing").map(([slug]) => name(slug)),
           ...(members.length ? { group: members.length > 1 } : {}),
         })
-        if (r.readSeq() >= newestSeq(roomMessages())) {
+        if (!r.state.history && r.readSeq() >= newestSeq(roomMessages())) {
           row.unread = 0
           delete row.mentions
         }
@@ -483,19 +520,30 @@ export function createApp() {
         session?.warm.close()
         session = null
         views = new Map()
+        for (const key of Object.keys(preloadedAt)) delete preloadedAt[key]
+        lastRows = new Map()
+        olderDone = null
+        seeded = false
+        wasTyping = new Map()
+        localRead.clear()
         batch(() => {
           setPreloaded({})
           setRoom(null)
           setUserStore(null)
           setDrafts(null)
+          setActiveId(null)
+          setLocalLast(null)
         })
       },
 
       async preloadChat(threadId: string): Promise<void> {
         const current = session
-        if (!current || threadId === activeId() || threadId in preloaded()) return
+        if (!current || threadId === activeId()) return
+        const seen = chat(threadId)?.lastSeq ?? 0
+        if (preloadedAt[threadId] === seen) return
         const rows = await newestMessages(current.warm, threadId as RoomId, 3)
-        if (session !== current) return
+        if (session !== current || threadId === activeId()) return
+        preloadedAt[threadId] = seen
         setPreloaded((all) => keepNewest({ ...all, [threadId]: rows }, MAX_PRELOADED))
       },
       drafts,
@@ -552,6 +600,7 @@ export function createApp() {
       },
 
       selectThread(threadId: string) {
+        if (!isRoomId(threadId)) return
         const id = threadId as RoomId
         if (activeId() === id) return
         setActiveId(id)
@@ -643,11 +692,6 @@ export function createApp() {
         return firstUnread(held, read)
       },
 
-      chatSeed(roomId: string): string {
-        const chat = userStore()?.chats().find((c) => c.roomId === roomId)
-        return chatSeed(chat ?? { roomId }, userStore()?.agents() ?? [])
-      },
-
       chatFaces(roomId: string): string[] {
         const chat = userStore()?.chats().find((c) => c.roomId === roomId)
         return chatFaces(chat ?? { roomId }, userStore()?.agents() ?? [])
@@ -709,10 +753,10 @@ export function createApp() {
         return !windows().has(key) && !!room()?.state.live[parseWindow(key).slug]
       },
 
-      loadRunSteps(key: string) {
+      loadRunSteps(key: string, force = false) {
         const r = room()
         const w = windows().get(key)
-        if (r && w && inWindow(r.state.steps[w.slug] ?? [], w.after).length < w.steps) r.requestSteps(w.slug, w.after)
+        if (r && w && inWindow(r.state.steps[w.slug] ?? [], w.after).length < w.steps) r.requestSteps(w.slug, w.after, force)
       },
 
       runFetching(key: string): boolean {
@@ -720,21 +764,13 @@ export function createApp() {
       },
 
       typingSlugs(): string[] {
-        const r = room()
-        if (!r) return []
-        paced()
-        const slugs = new Set<string>([...r.state.typing, ...lingering(), ...pacer.holders()])
-        slugs.delete("")
-        return [...slugs]
+        return typingOf(room())
       },
 
       typingNames(): string[] {
         const r = room()
         if (!r) return []
-        paced()
-        const slugs = new Set<string>([...r.state.typing, ...lingering(), ...pacer.holders()])
-        slugs.delete("")
-        return [...slugs].map((slug) => agentDisplayName(slug, r.state.members))
+        return typingOf(r).map((slug) => agentDisplayName(slug, r.state.members))
       },
 
       typing() {
@@ -763,13 +799,17 @@ export function createApp() {
       },
 
       retryRun(messageId: string) {
+        const m = findView(messageId)
+        if (m?.pending && !m.failed) return
+        if (m?.failed && m.clientId) return room()?.retrySend(m.clientId)
         room()?.retry(messageId as MessageId)
       },
 
       deleteMessage(messageId: string) {
         const r = room()
         const m = findView(messageId)
-        if (!r || !m || m.pending || m.from.kind !== "human") return
+        if (!r || !m || (m.pending && !m.failed) || m.from.kind !== "human") return
+        if (m.failed && m.clientId) return void r.discardSend(m.clientId)
         r.remove(m.id)
       },
 
@@ -784,6 +824,7 @@ export function createApp() {
       markRead(threadId: string) {
         const r = room()
         if (!r || r.state.roomId !== threadId) return
+        clearUnreadMark(threadId)
         const read = Math.max(r.readSeq(), localRead.get(r.state.roomId) ?? 0)
         const fresh = roomMentions().filter((m) => m.seq > read && !unseen().includes(m.id))
         if (fresh.length) setUnseen((list) => [...list, ...fresh.map((m) => m.id)])

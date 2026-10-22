@@ -37,8 +37,11 @@ export function ReactionPopover(props: {
   onPointerLeave: () => void
 }): JSX.Element {
   const [full, setFull] = createSignal(false)
+  const [frame, setFrame] = createSignal(0)
   let panel: HTMLDivElement | undefined
+  const reposition = () => setFrame((value) => value + 1)
   const place = () => {
+    frame()
     const rect = props.anchor.getBoundingClientRect()
     const at = placeAbove(rect, full() ? PICKER : POPOVER, { width: window.innerWidth, height: window.innerHeight })
     return { left: `${at.left}px`, top: `${at.top}px` }
@@ -59,6 +62,8 @@ export function ReactionPopover(props: {
     const target = event.target as Node
     if (!panel?.contains(target) && !props.anchor.contains(target)) props.onClose()
   })
+  createEventListener(window, "resize", reposition)
+  createEventListener(window, "scroll", reposition, { capture: true, passive: true })
 
   return (
     <Portal>

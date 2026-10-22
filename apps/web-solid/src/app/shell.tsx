@@ -121,10 +121,11 @@ export function Shell(props: ParentProps) {
   let sidebarPanel: PanelContextValue | undefined
   const [sidePanel, setSidePanel] = createSignal<PanelContextValue | undefined>();
   const [layout, setLayout] = createSignal<ContextValue | undefined>()
+  let groupWidth = 0
   const setColumnWidth = (index: number, px: number) => {
     const ctx = layout()
     if (!ctx) return
-    const total = window.innerWidth
+    const total = groupWidth > 0 ? groupWidth : window.innerWidth
     const sizes = [...ctx.sizes()]
     if (index >= sizes.length) return
     const want = Math.max(0, px) / total
@@ -330,7 +331,19 @@ export function Shell(props: ParentProps) {
             const fitted = fitWidths(window.innerWidth, narrow() ? 0 : collapsed() ? 0 : readWidth(SIDEBAR), compact() ? 0 : dockedSide() ? readWidth(INFO) : 0);
             const sizes = initialSizes(window.innerWidth, narrow() ? null : fitted.sidebar, compact() ? null : dockedSide() ? fitted.info : 0);
             return (
-              <Resizable class="min-w-0 flex-1" keyboardDelta="16px" handleCursorStyle={false} data-component="app-panels">
+              <Resizable
+                class="min-w-0 flex-1"
+                keyboardDelta="16px"
+                handleCursorStyle={false}
+                data-component="app-panels"
+                ref={(el) => {
+                  const measure = () => (groupWidth = el.getBoundingClientRect().width)
+                  measure()
+                  const observer = new ResizeObserver(measure)
+                  observer.observe(el)
+                  onCleanup(() => observer.disconnect())
+                }}
+              >
                 <Show when={!narrow()}>
                   <Resizable.Panel
                     panelId="kiko-sidebar-panel"

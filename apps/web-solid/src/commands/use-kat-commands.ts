@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js"
+import { createSignal, onCleanup } from "solid-js"
 import { useLocation, useNavigate } from "@solidjs/router"
 import { withMade } from "../files/api"
 import { askDeleteChat, closeChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
@@ -6,12 +6,14 @@ import { signOut } from "../app/session"
 import { toggleCard } from "../chat/side/card-state"
 import { fixedSurface, openFile, openSurface, toggleSidecar } from "../chat/side/surfaces"
 import { answeringMember, canReason } from "../settings/agent-model"
+import { connectedProviders } from "../settings/connected"
+import { hasModelProvider } from "../settings/provider-kinds"
 import { THINKING_LABELS } from "@kiko/protocol"
 import type { Choice } from "./registry"
 import { openModelPicker } from "../settings/model-picker"
 import { openPalette } from "../palette/state"
 import { agentList } from "../lib/chats"
-import { importedThemes, previewLook, readCache } from "@kiko/theme/apply"
+import { previewLook, readCache, subscribeCache } from "@kiko/theme/apply"
 import { parseLook } from "@kiko/theme/look"
 import { openSearch, requestJump } from "../search/state"
 import { messageSearchCommand } from "./message-search"
@@ -163,25 +165,31 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         if (!agent || !picked) return []
         return picked.thinkingLevels.map((level): Choice => ({ id: level, title: THINKING_LABELS[level], current: level === picked.thinking, run: () => useApp.setAgentModel(agent.slug, { thinking: level }) }))
       },
+      canChooseModel: () => hasModelProvider(connectedProviders()),
     }),
   )
   const live = () => import("../theme/live")
+  const [cacheEpoch, bumpCache] = createSignal(0)
+  onCleanup(subscribeCache(() => bumpCache((n) => n + 1)))
+  const cachedLook = () => {
+    cacheEpoch()
+    return parseLook(readCache()?.text ?? null)
+  }
   useCommands(
     themeCommands({
-      mode: () => parseLook(readCache()?.text ?? null).mode,
-      darkTheme: () => parseLook(readCache()?.text ?? null).darkTheme,
+      mode: () => cachedLook().mode,
+      darkTheme: () => cachedLook().darkTheme,
       setMode: (mode) => void live().then((m) => m.updateLook({ mode })),
       setBuiltin: (id) => void live().then((m) => m.chooseBuiltin(id)),
-      imported: importedThemes,
+      imported: () => cachedLook().imported,
       setTheme: (appearance, id) =>
         void live().then((m) => {
           m.updateLook({ mode: appearance })
           m.choose(appearance, id)
         }),
       preview: ({ mode, darkTheme, active }) => {
-        const saved = parseLook(readCache()?.text ?? null)
-        const imported = importedThemes()
-        return previewLook({ ...saved, mode: mode ?? saved.mode, darkTheme: darkTheme ?? saved.darkTheme }, active ? { ...imported, active } : imported)
+        const saved = cachedLook()
+        return previewLook({ ...saved, mode: mode ?? saved.mode, darkTheme: darkTheme ?? saved.darkTheme, imported: active ? { ...saved.imported, active } : saved.imported })
       },
       openView: openPalette,
       activeAgent: () => {

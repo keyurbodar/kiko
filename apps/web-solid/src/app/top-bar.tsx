@@ -15,9 +15,18 @@ export function TopBar(props: { pathname: string; sidebarOpen: boolean; onToggle
     const id = /^\/chat\/([^/]+)\/?$/.exec(props.pathname)?.[1]
     return id ? decodeURIComponent(id) : null
   }
+  const offline = () => {
+    const status = useApp.user()?.state.connection
+    if (status === "blocked") return "Reload to reconnect"
+    if (status === "closed") return "Reconnecting"
+    return null
+  }
   const title = () => {
     const id = chatId()
-    return (id && useApp.chatById(id)?.name) || "New chat"
+    if (!id) return "Chats"
+    const name = useApp.chatById(id)?.name
+    if (name) return name
+    return useApp.user()?.state.loaded ? "" : "Loading…"
   }
   const toggle = (on: boolean) => `top-bar-button ${on ? "bg-accent text-foreground" : ""}`
   return (
@@ -32,6 +41,13 @@ export function TopBar(props: { pathname: string; sidebarOpen: boolean; onToggle
           <h1 class="min-w-0 truncate text-md font-medium text-foreground" data-component="top-bar-title">
             {title()}
           </h1>
+          <Show when={offline()}>
+            {(message) => (
+              <span class="shrink-0 rounded-full bg-warning-surface px-2 py-0.5 text-[11px] text-warning" role="status" data-component="connection-status">
+                {message()}
+              </span>
+            )}
+          </Show>
         </div>
         <TooltipV2 placement="bottom" openDelay={400} value="Search messages">
           <button

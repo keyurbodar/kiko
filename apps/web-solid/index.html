@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#08131c" />
     <title>Kiko</title>
@@ -11,8 +11,6 @@
     <link rel="icon" type="image/png" href="/favicon-16x16.png" sizes="16x16" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="preload" href="/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin />
     <script>
       (function () {
         var d = document.documentElement, boot = {}, mode = "dark";
@@ -35,7 +33,7 @@
             if (look.version === 4 && typeof look.darkTheme === "string" && look.darkTheme !== "snow" && Object.hasOwn(boot.THEMES, look.darkTheme)) id = look.darkTheme;
             display = boot.readDisplay(look.display);
           }
-          imported = boot.parseImported(stored("kiko:imported-themes"));
+          imported = boot.parseImported(look && look.imported ? JSON.stringify(look.imported) : stored("kiko:imported-themes"));
         }
         var light = mode === "light" || (mode === "system" && typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: light)").matches);
         var appearance = light ? "light" : "dark";

@@ -36,6 +36,7 @@ export interface MessageFile {
 
 export interface ChatMessage {
   id: MessageId | string;
+  clientId?: string;
   threadId: string;
   sender: "user" | "bot";
   botId?: string;

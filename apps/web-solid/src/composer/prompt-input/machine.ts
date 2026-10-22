@@ -184,6 +184,13 @@ function suggestionSelected(
   return changed({ ...state, popover: { type: "closed" }, focus: "editor" }, commands)
 }
 
+function suggestionKey(state: PromptInputV2InteractionState, event: Extract<PromptInputV2InteractionEvent, { type: "key.down" }>): PromptInputV2Transition | null {
+  if (event.key !== "Tab" && !(event.key === "Enter" && !event.composing)) return null
+  const id = state.popover.type === "closed" ? undefined : state.popover.activeID
+  if (id) return unchanged(state, true, [{ type: "suggestion.select", id }])
+  return event.key === "Tab" ? unchanged(state, true) : unchanged(state)
+}
+
 function keyDown(
   state: PromptInputV2InteractionState,
   event: Extract<PromptInputV2InteractionEvent, { type: "key.down" }>,
@@ -201,10 +208,8 @@ function keyDown(
   if (event.key === "Escape") {
     return changed({ ...state, popover: { type: "closed" }, focus: "editor" }, [{ type: "focus.editor" }], true)
   }
-  if (event.key === "Tab" || (event.key === "Enter" && !event.composing)) {
-    if (!state.popover.activeID) return unchanged(state, true)
-    return unchanged(state, true, [{ type: "suggestion.select", id: state.popover.activeID }])
-  }
+  const suggestion = suggestionKey(state, event)
+  if (suggestion) return suggestion
   const direction =
     event.key === "ArrowDown" || (event.ctrl && event.key === "n")
       ? 1

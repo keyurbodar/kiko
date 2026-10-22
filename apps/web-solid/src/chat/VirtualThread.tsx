@@ -17,7 +17,6 @@ import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
 import type { SystemEvent } from "@kiko/protocol"
 import type { ChatMessage, RosterBot } from "../lib/types"
 import { buildTimelineItems, dayStartOf, keepUnchanged, type TimelineItem } from "./lib/grouping"
-import { estimateRowHeight } from "./lib/heights"
 import { AT_BOTTOM_THRESHOLD_PX, isAtBottom } from "./lib/drift"
 import { dividerParts } from "./lib/time-label"
 import { jumboEmojiClass, quoteOf } from "./lib/reply"
@@ -120,6 +119,7 @@ export function VirtualThread(props: {
       }),
     )
     const owner = props.scrollKey
+    if (owner !== itemsOwner) restoreMisses = 0
     shifted = owner === itemsOwner && firstKey !== undefined && next.length > 0 && next[0].key !== firstKey
     itemsOwner = owner
     firstKey = next[0]?.key
@@ -128,7 +128,15 @@ export function VirtualThread(props: {
   const isShifted = () => shifted
 
   let heard = new Set<string>()
-  const fresh = new Set<string>()
+  const [fresh, setFresh] = createSignal<ReadonlySet<string>>(new Set())
+  const markFresh = (id: string, on: boolean) =>
+    setFresh((now) => {
+      if (now.has(id) === on) return now
+      const next = new Set(now)
+      if (on) next.add(id)
+      else next.delete(id)
+      return next
+    })
   let heardKey: string | undefined
   let primed = false
   createComputed(() => {
@@ -140,16 +148,16 @@ export function VirtualThread(props: {
       primed = true
       heardKey = key
       heard = now
-      fresh.clear()
+      setFresh(new Set<string>())
       return
     }
     for (const m of messages) {
       if (heard.has(m.id)) continue
       const own = m.sender === "user" && !m.id.startsWith("local:")
       if (own || Date.now() - m.sentAt >= 10_000) continue
-      fresh.add(m.id)
       const id = m.id
-      setTimeout(() => fresh.delete(id), 600)
+      markFresh(id, true)
+      setTimeout(() => markFresh(id, false), 700)
     }
     heard = now
   })
@@ -240,11 +248,6 @@ export function VirtualThread(props: {
     commitState(readState())
   }
 
-  const messageCount = createMemo(
-    () => items().reduce((total, item) => total + (item.kind === "message" ? 1 : 0), 0),
-  )
-  const [pinnedCount, setPinnedCount] = createSignal(0)
-
   const isAtLatest = () => {
     const state = scrollState()
     return state
@@ -255,6 +258,7 @@ export function VirtualThread(props: {
   let restoredFor: string | undefined
   let restoredOk = false
   let restoreGeneration = 0
+  let restoreMisses = 0
   onCleanup(() => { restoreGeneration += 1 })
 
   const showsKey = () => {
@@ -289,14 +293,24 @@ export function VirtualThread(props: {
     const key = props.scrollKey
     if (!key || !props.scrollBook || restoredFor === key || !showsKey()) return false
     if (props.scrollBook.ready && !props.scrollBook.ready()) return false
+    if (props.scrollKey !== key) return false
     const saved = props.scrollBook.scroll(key)
-    restoredFor = key
     if (!saved) {
+      restoredFor = key
       restoredOk = true
       return false
     }
     const index = items().findIndex((item) => item.kind === "message" && item.message.id === saved.messageId)
-    if (index < 0) return false
+    if (index < 0) {
+      restoreMisses += 1
+      if (restoreMisses < 3) return false
+      props.scrollBook.saveScroll(key, null)
+      restoredFor = key
+      restoredOk = true
+      return false
+    }
+    restoreMisses = 0
+    restoredFor = key
     const generation = ++restoreGeneration
     const current = () => generation === restoreGeneration && props.scrollKey === key
     let tries = 0
@@ -307,6 +321,7 @@ export function VirtualThread(props: {
       const scroller = scrollElement
       if (!virtualizer || !scroller) {
         if ((tries += 1) < 10) requestAnimationFrame(() => apply(pass))
+        else finish()
         return
       }
       if (pass === 0) {
@@ -347,7 +362,6 @@ export function VirtualThread(props: {
       return
     }
     if (isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)) {
-      setPinnedCount(messageCount())
       props.onAtLatest?.()
     } else if (state.scrollSize > state.viewportSize) {
       props.onLeftLatest?.()
@@ -431,12 +445,12 @@ export function VirtualThread(props: {
     }
     onCleanup(() => clearTimeout(blankCheck))
     createEffect(on(() => props.scrollKey, checkBlank))
+    createEffect(on(items, checkBlank))
     const onScroll = () => {
       const state = readState()
       const atEnd = isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)
-      if (atEnd && restoredOk) stuck = true
+      if (atEnd && (restoredOk || !props.scrollBook?.scroll(props.scrollKey ?? ""))) stuck = true
       else if (readerScrolling || dragging) stuck = false
-      if (readerScrolling && restoredFor === props.scrollKey) restoredOk = true
       commitState(state)
       checkBlank()
       if (!firstLoad && state.rangeStart < NEAR_TOP_ROWS && state.scrollSize > state.viewportSize) props.onNearTop?.()
@@ -501,8 +515,7 @@ export function VirtualThread(props: {
         restoredOk = false
         stuck = true
         readerScrolling = false
-        setPinnedCount(messageCount())
-      }
+        }
       const rows = items().length > 0
       if (restorePosition()) firstLoad = false
       else if (rows) {
@@ -546,7 +559,7 @@ export function VirtualThread(props: {
           runKey={item.runKey}
           hasRunGapBefore={item.hasRunGapBefore}
           group={props.groupChat}
-          class={fresh.has(message.id) ? (message.sender === "bot" ? "motion-reply-in" : "motion-bubble-in") : undefined}
+          class={fresh().has(message.id) ? (message.sender === "bot" ? "motion-reply-in" : "motion-bubble-in") : undefined}
           highlighted={landed() === message.id}
           replying={activeReply() === message.id}
           jumboClass={jumboEmojiClass(message.body)}
@@ -576,9 +589,6 @@ export function VirtualThread(props: {
     }
     if (item.kind === "event" && item.message.event?.kind === "run_error") {
       return <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} latest={props.messages.at(-1)?.id === item.message.id} />
-    }
-    if (item.kind === "event" && item.message.event?.kind === "browser_control") {
-      return <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} />
     }
     if (item.kind === "event") {
       return <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} />
@@ -618,6 +628,10 @@ export function VirtualThread(props: {
           class={COLUMN_CLASS}
           data-component="chat-column"
           data-virtual-column=""
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions"
+          aria-label="Messages"
           ref={(element) => {
             columnElement = element
           }}
@@ -631,16 +645,7 @@ export function VirtualThread(props: {
               shift={isShifted()}
               ref={setHandle}
             >
-              {(item) => (
-                <div
-                  data-component="chat-vrow"
-                  style={{
-                    "contain-intrinsic-size": `auto ${estimateRowHeight(item)}px`,
-                  }}
-                >
-                  {renderItem(item)}
-                </div>
-              )}
+              {(item) => <div data-component="chat-vrow">{renderItem(item)}</div>}
             </Virtualizer>
 
             <Show when={props.waitingNames.length > 0}>

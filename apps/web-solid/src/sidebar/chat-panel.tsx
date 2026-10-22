@@ -12,7 +12,7 @@ import { ChatAvatar } from "../lib/IdentityAvatar"
 import { intentRef } from "../lib/intent"
 import { agentDisplayName } from "../lib/names"
 import { useApp } from "../lib/store"
-import type { BotPresence, RosterBot } from "../lib/types"
+import type { BotPresence, ChatMessage, RosterBot } from "../lib/types"
 import {
   cancelRename,
   clearUnreadMark,
@@ -164,7 +164,9 @@ function PinTile(props: { bot: RosterBot; active: boolean; main: boolean; onSele
 
 function ChatPreview(props: { bot: RosterBot }) {
   const tail = createMemo(() => useApp.messagesFor(props.bot.id).filter(isListed).slice(-3))
-  const name = (slug: string) => useApp.memberById(slug)?.name ?? agentDisplayName(slug, [])
+  const name = (slug: string) => agentDisplayName(slug, useApp.agents())
+  const speaker = (message: ChatMessage) =>
+    message.sender === "user" ? "You" : message.botId === undefined ? props.bot.name : agentDisplayName(message.botId, useApp.agents())
 
   return (
     <div class="w-[280px] p-3" data-component="sidebar-preview">
@@ -181,7 +183,7 @@ function ChatPreview(props: { bot: RosterBot }) {
           <For each={tail()}>
             {(message) => (
               <p class="line-clamp-2 text-[12px] leading-snug text-muted-foreground">
-                <span class="font-semibold text-foreground">{message.sender === "user" ? "You" : (useApp.memberById(message.botId)?.name ?? props.bot.name)}:</span>{" "}
+                <span class="font-semibold text-foreground">{speaker(message)}:</span>{" "}
                 {quoteOf(message, name)}
               </p>
             )}

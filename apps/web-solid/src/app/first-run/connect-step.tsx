@@ -1,62 +1,27 @@
-import { useNavigate } from "@solidjs/router"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { For, Show, createMemo, createSignal } from "solid-js"
 import { createLive } from "../../sync/changed"
-import { KIKO, KIKO_HOME_ROOM, type AgentSlug } from "@kiko/protocol"
-import { useApp } from "../../lib/store"
-import { loadCatalog, modelRef, type CatalogProvider } from "../../settings/catalog"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CheckIcon } from "@kiko/ui/icons"
+import { loadCatalog, type CatalogProvider } from "../../settings/catalog"
 import { connectedProviders } from "../../settings/connected"
 import { AddProviderDialog, ConnectDialog } from "../../settings/models"
 import { modelProviders } from "../../settings/provider-kinds"
 import { CHOICE_ROWS, type ConnectVia, type FirstRunChoice, firstRunChoices } from "./choices"
 import { move } from "./progress"
-import { modelToSave, shownModel } from "./steps"
 import { primary } from "./welcome"
 
-const FEW = 5
-
-function focusComposer(tries = 40): void {
-  const editor = document.querySelector<HTMLElement>(".composer-dock .ProseMirror")
-  if (editor) editor.focus()
-  else if (tries > 0) setTimeout(() => focusComposer(tries - 1), 50)
-}
-
 export function ConnectStep() {
-  const navigate = useNavigate()
   const [catalog, { refetch }] = createLive("models", () => true, loadCatalog)
   const providers = () => catalog.error ? [] : (catalog()?.providers ?? [])
   const [dialog, setDialog] = createSignal<{ provider: CatalogProvider; only?: ConnectVia } | null>(null)
   const [browsing, setBrowsing] = createSignal(false)
-  const [picking, setPicking] = createSignal(false)
-  const [all, setAll] = createSignal(false)
-  const [chosen, setChosen] = createSignal<string | null>(null)
   const choices = createMemo(() => firstRunChoices(providers()))
+  const linked = createMemo(() => new Set(modelProviders(connectedProviders()).map((p) => p.provider)))
   const group = (via: ConnectVia) => choices().filter((c) => c.via === via)
-  const rows = createMemo(() => {
-    const ids = new Set(modelProviders(connectedProviders()).map((p) => p.provider))
-    return providers()
-      .filter((p) => ids.has(p.id))
-      .flatMap((provider) => provider.models.map((model) => ({ provider, model, ref: modelRef(provider.id, model.id) })))
-  })
-  const ranked = createMemo(() => [...rows()].sort((a, b) => Number(b.model.reasoning) - Number(a.model.reasoning) || b.model.contextWindow - a.model.contextWindow))
-  const shown = () => (all() ? ranked() : ranked().slice(0, FEW))
-  const running = () => useApp.agentModel(KIKO)?.model
-  const fallback = () => {
-    const refs = rows().map((r) => r.ref)
-    const on = running()
-    return on && refs.includes(on) ? on : refs[0]
-  }
-  const current = () => shownModel(chosen(), fallback(), rows().map((r) => r.ref))
-  const modelName = () => rows().find((r) => r.ref === current())?.model.name
-
-  const land = () => {
-    const row = rows().find((r) => r.ref === modelToSave(current(), running()))
-    if (row) useApp.setAgentModel(KIKO as AgentSlug, { ref: row.ref, levels: row.model.thinking })
-    move("next")
-    navigate(`/chat/${useApp.kikoChatId() ?? KIKO_HOME_ROOM}`, { replace: true })
-    focusComposer()
-  }
+  const others = createMemo(() => providers().filter((p) => linked().has(p.id) && !choices().some((c) => c.provider.id === p.id)))
+  const ready = () => linked().size > 0
 
   return (
     <div class="welcome-step flex w-full flex-col gap-3" data-step="connect">
@@ -79,69 +44,25 @@ export function ConnectStep() {
               </button>
             </p>
           </Show>
-          <ChoiceGroup label="Use a plan you already pay for" choices={group("sign_in")} onPick={(c) => setDialog({ provider: c.provider, only: c.via })} />
-          <ChoiceGroup label="Or an API key" choices={group("api_key")} onPick={(c) => setDialog({ provider: c.provider, only: c.via })} />
+          <ChoiceGroup label="Use a plan you already pay for" choices={group("sign_in")} linked={linked()} onPick={(c) => setDialog({ provider: c.provider, only: c.via })} />
+          <ChoiceGroup label="Or an API key" choices={group("api_key")} linked={linked()} onPick={(c) => setDialog({ provider: c.provider, only: c.via })} />
+          <ChoiceGroup label="Also connected" choices={others().map((provider) => ({ provider, via: "api_key" as const, title: provider.name, note: "Connected from More providers." }))} linked={linked()} onPick={(c) => setDialog({ provider: c.provider })} />
         </Show>
       </div>
       <div class="welcome-foot" style={{ "--i": 3 }}>
         <button type="button" data-action="view-all-providers" onClick={() => setBrowsing(true)}>
           More providers
         </button>
-        <button type="button" data-action="skip-first-run" onClick={() => move("skip")}>
-          Skip for now
-        </button>
-      </div>
-      <Show when={rows().length > 0}>
-        <div class="welcome-model">
-          <p>
-            Kiko will think with <span class="welcome-model-name">{modelName()}</span>.{" "}
-            <button type="button" data-action="change-model" onClick={() => setPicking((open) => !open)}>
-              Change
-            </button>
-          </p>
-          <Show when={picking()}>
-            <div
-              class="flex max-h-[min(220px,32dvh)] flex-col gap-1.5 overflow-y-auto"
-              role="radiogroup"
-              aria-label="Model"
-              data-component="first-run-models"
-              ref={(el) =>
-                queueMicrotask(() => {
-                  const card = el.closest(".welcome-card")
-                  if (card) card.scrollTop = card.scrollHeight
-                })
-              }
-            >
-              <For each={shown()}>
-                {(row) => (
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={current() === row.ref}
-                    class="flex w-full cursor-pointer items-center gap-3 rounded-lg bg-control px-3 py-2.5 text-left hover:bg-control-strong aria-checked:bg-accent"
-                    data-model={row.ref}
-                    onClick={() => {
-                      setChosen(row.ref)
-                      useApp.setAgentModel(KIKO as AgentSlug, { ref: row.ref, levels: row.model.thinking })
-                    }}
-                  >
-                    <ProviderIcon id={row.provider.id} width="16" height="16" />
-                    <span class="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{row.model.name}</span>
-                    <span class="shrink-0 text-xs text-muted-foreground">{row.provider.name}</span>
-                  </button>
-                )}
-              </For>
-              <Show when={!all() && rows().length > FEW}>
-                <button type="button" class="cursor-pointer self-center py-1 text-xs text-muted-foreground hover:text-foreground" onClick={() => setAll(true)}>
-                  Show all models
-                </button>
-              </Show>
-            </div>
-          </Show>
-          <button type="button" class={primary} data-action="finish-first-run" onClick={land}>
-            Start chatting
+        <Show when={!ready()}>
+          <button type="button" data-action="skip-first-run" onClick={() => move("skip")}>
+            Skip for now
           </button>
-        </div>
+        </Show>
+      </div>
+      <Show when={ready()}>
+        <button type="button" class={primary} data-action="first-run-continue" style={{ "--i": 4 }} onClick={() => move("next")}>
+          Continue
+        </button>
       </Show>
       <AddProviderDialog
         open={browsing()}
@@ -158,7 +79,7 @@ export function ConnectStep() {
   )
 }
 
-function ChoiceGroup(props: { label: string; choices: FirstRunChoice[]; onPick: (choice: FirstRunChoice) => void }) {
+function ChoiceGroup(props: { label: string; choices: FirstRunChoice[]; linked: ReadonlySet<string>; onPick: (choice: FirstRunChoice) => void }) {
   return (
     <Show when={props.choices.length > 0}>
       <div class="flex flex-col gap-2" data-component="first-run-group">
@@ -171,13 +92,20 @@ function ChoiceGroup(props: { label: string; choices: FirstRunChoice[]; onPick: 
               data-provider={choice.provider.id}
               data-via={choice.via}
               data-action="connect"
+              data-connected={props.linked.has(choice.provider.id) ? "" : undefined}
               onClick={() => props.onPick(choice)}
             >
               <ProviderIcon id={choice.provider.id} width="16" height="16" />
-              <span class="flex min-w-0 flex-col">
+              <span class="flex min-w-0 flex-1 flex-col">
                 <span class="truncate text-sm font-medium text-foreground">{choice.title}</span>
-                <span class="truncate text-xs text-muted-foreground">{choice.note}</span>
+                <span class="truncate text-xs text-muted-foreground">{props.linked.has(choice.provider.id) ? "Connected. Select to change it." : choice.note}</span>
               </span>
+              <Show when={props.linked.has(choice.provider.id)}>
+                <span class="welcome-connected">
+                  <RemixIcon icon={CheckIcon} size={13} />
+                  Connected
+                </span>
+              </Show>
             </button>
           )}
         </For>

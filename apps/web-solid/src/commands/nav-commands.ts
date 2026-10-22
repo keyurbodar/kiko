@@ -9,6 +9,7 @@ export function navCommands(deps: {
   openView: (id: string) => void
   canReason: () => boolean
   reasoningChoices: () => Choice[]
+  canChooseModel: () => boolean
 }): Command[] {
   return [
     { id: "go.chat", title: "Chats", group: "go", icon: "chat", global: true, run: () => deps.go("/chat") },
@@ -24,7 +25,7 @@ export function navCommands(deps: {
       run: () => deps.openView("settings.pages"),
     },
     { id: "chat.reasoning", title: "Reasoning…", group: "chat", icon: "model", placeholder: "Reasoning…", when: deps.canReason, submenu: deps.reasoningChoices, run: () => deps.openView("chat.reasoning") },
-    { id: "chat.model", title: "Choose model", group: "chat", icon: "model", shortcut: "Mod+Shift+M", global: true, run: deps.chooseModel },
+    { id: "chat.model", title: "Choose model", group: "chat", icon: "model", shortcut: "Mod+Shift+M", global: true, when: deps.canChooseModel, run: deps.chooseModel },
     { id: "account.sign-out", title: "Sign out", group: "account", icon: "signout", run: deps.signOut },
   ]
 }

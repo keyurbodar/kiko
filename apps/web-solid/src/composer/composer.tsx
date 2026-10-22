@@ -8,7 +8,8 @@ import "./composer.css"
 import { PromptInputV2 } from "./prompt-input"
 import { createPromptInputV2Controller } from "./prompt-input/interaction"
 import { createPromptInputV2Store } from "./prompt-input/store"
-import { blobId, releaseBlobUrl } from "./prompt-input/attachments"
+import { blobId, preparingAttachments, releaseBlobUrl } from "./prompt-input/attachments"
+import { composingKey } from "./ime"
 import type { PromptInputV2Attachment, PromptInputV2PersistedState, PromptInputV2Suggestion } from "./prompt-input/types"
 import { ReplyBar } from "./reply-bar"
 import { openSettings } from "../lib/errors"
@@ -50,14 +51,13 @@ export function Composer(props: ComposerProps) {
     if (!(target instanceof HTMLElement) || !target.closest('[data-component="composer-dock"]')) return
     if (document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')) return
     event.preventDefault()
-    if (props.editing) {
-      props.onCancelEdit?.()
-      store.reset()
-    } else props.onClearReply?.()
+    if (props.editing) props.onCancelEdit?.()
+    else props.onClearReply?.()
   }
   document.addEventListener("keydown", dropReply, true)
   const editLast = (event: KeyboardEvent) => {
     if (event.key !== "ArrowUp" || event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return
+    if (composingKey(event)) return
     const target = event.target
     if (!(target instanceof HTMLElement) || !target.closest('[data-component="prompt-input"]')) return
     if (question.ask() || props.editing || draftText() !== "" || store.state.prompt.some((part) => part.type === "image")) return
@@ -114,7 +114,7 @@ export function Composer(props: ComposerProps) {
     },
   })
   const modelBlock = () => (props.editing || question.ask() ? null : (props.sendBlock ?? null))
-  const blocked = () => modelBlock()?.reason ?? uploadBlockReason(boxed().map((part) => part.id))
+  const blocked = () => modelBlock()?.reason ?? (preparingAttachments() ? "Still preparing the attachment" : null) ?? uploadBlockReason(boxed().map((part) => part.id))
   const draftText = () =>
     store.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")
   createEffect(
@@ -136,7 +136,8 @@ export function Composer(props: ComposerProps) {
   createEffect(
     on(
       () => draftKey() ?? "",
-      (key) => {
+      (key, before) => {
+        if (before && before !== key && before.includes(":ask:")) props.onDraftChange?.(before, "")
         filledFor = ""
         leaveChat()
         if (!key) return
@@ -173,19 +174,25 @@ export function Composer(props: ComposerProps) {
     }, { defer: true }),
   )
 
+  let stagedFor: PromptInputV2Attachment[] | undefined
   createEffect(
     on(
       () => props.editing?.id,
       (id, previous) => {
         if (id) {
           filledFor = ""
+          stagedFor = boxed()
           store.setText(props.editing!.body)
           queueMicrotask(() => document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus())
         } else if (previous) {
-          store.reset()
+          const live = new Set(boxed().map((part) => part.id))
+          const staged = (stagedFor ?? []).filter((part) => live.has(part.id))
+          stagedFor = undefined
           const key = draftKey()
           const text = key ? (props.draftFor?.(key) ?? "") : ""
-          if (text) store.setText(text)
+          if (staged.length) store.setPrompt([{ type: "text", content: text, start: 0, end: text.length }, ...staged], text.length)
+          else if (text) store.setText(text)
+          else store.reset()
           filledFor = key ?? ""
         }
       },
@@ -249,11 +256,18 @@ export function Composer(props: ComposerProps) {
         keptFor.set(attachment.id, key)
         void draftFiles().then((m) => m.putDraftFile(key, { id: attachment.id, name: attachment.filename, type: attachment.mime, size: attachment.size, blob: file }))
       },
+      onDiscarded: (attachment) => {
+        releaseUpload(attachment.id)
+        const key = keptFor.get(attachment.id)
+        if (key) void draftFiles().then((m) => m.deleteDraftFile(key, attachment.id))
+        keptFor.delete(attachment.id)
+      },
     },
     view: {
       placeholder,
       submit: {
         canSubmit: () => question.ask() ? (question.progress().isLastQuestion ? question.progress().isComplete : question.progress().canAdvance) : undefined,
+        preparing: () => preparingAttachments(),
         blocked,
         onSubmit: () => {
           if (props.busy || blocked()) return

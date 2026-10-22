@@ -14,7 +14,8 @@ import { jumpRequest, requestJump } from "../../search/state";
 import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
 import { clearUnreadMark } from "../../sidebar/unread-mark";
-import { roomEmpty, roomSettled } from "./chat-empty";
+import { roomEmpty } from "./chat-empty";
+import { useRefusalToasts } from "../../chat/members/members";
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 const UpdateNotice = lazy(() => import("../update-notice"));
 const BrowserChip = lazy(() => import("../../chat/BrowserChip"));
@@ -23,6 +24,7 @@ const JUMP_CLASS =
   "pointer-events-auto relative grid size-[26px] place-items-center rounded-md border border-[color-mix(in_oklab,var(--foreground)_15%,transparent)] bg-[color-mix(in_oklab,var(--foreground)_10%,transparent)] text-foreground shadow-md backdrop-blur-md";
 
 export default function ChatRoute() {
+  useRefusalToasts();
   const params = useParams<{ id?: string }>();
   const navigate = useNavigate();
   createEffect(
@@ -98,15 +100,8 @@ export default function ChatRoute() {
   const block = createMemo(() =>
     sendBlock({ known: connectedReady() && useApp.modelsSynced(), providers: connectedProviders(), model: answering() && useApp.agentModel(answering()!.slug)?.model, agent: answering()?.name }),
   );
-  let held: { key: string; rows: ChatMessage[] } | undefined;
-  const shown = createMemo(() => {
-    const key = useApp.activeThreadId() ?? undefined;
-    const rows = useApp.activeMessages();
-    if (key && rows.length > 0) held = { key, rows };
-    const loading = key !== undefined && rows.length === 0 && !roomSettled(useApp.room()?.state, useApp.chat(key)?.lastSeq);
-    return loading && held && held.key !== key ? held : { key, rows };
-  });
-  const messages = createMemo(() => shown().rows);
+  const messages = createMemo(() => useApp.activeMessages());
+  const scrollKey = () => useApp.activeThreadId() ?? undefined;
   const speaker = (id: string): RosterBot | undefined => {
     const member = members().get(id);
     if (member) return member;
@@ -242,7 +237,7 @@ export default function ChatRoute() {
               useApp.deleteMessage(id);
             }}
             replyTarget={replyTarget()}
-            scrollKey={shown().key}
+            scrollKey={scrollKey()}
             scrollBook={book() ?? undefined}
             onJumpHandle={(handle) => {
               jumpToMessage = handle.jumpToMessage;

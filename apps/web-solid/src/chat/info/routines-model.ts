@@ -2,10 +2,19 @@ import type { Trigger } from "@kiko/protocol"
 
 const DAYS: Record<string, string> = { MO: "Mon", TU: "Tue", WE: "Wed", TH: "Thu", FR: "Fri", SA: "Sat", SU: "Sun" }
 
-const clock = (at: number, timeZone?: string) =>
-  new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone }).format(at).replace(/\s/g, " ")
+const formats = new Map<string, Intl.DateTimeFormat>()
 
-const date = (at: number, timeZone?: string) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone }).format(at)
+const formatter = (key: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat => {
+  const id = `${key}|${JSON.stringify(options)}`
+  let found = formats.get(id)
+  if (!found) formats.set(id, (found = new Intl.DateTimeFormat("en-US", options)))
+  return found
+}
+
+const clock = (at: number, timeZone?: string) =>
+  formatter("clock", { hour: "numeric", minute: "2-digit", hour12: true, timeZone }).format(at).replace(/\s/g, " ")
+
+const date = (at: number, timeZone?: string) => formatter("date", { month: "short", day: "numeric", timeZone }).format(at)
 
 function readRule(rrule: string) {
   const parts = new Map(rrule.replace(/^RRULE:/i, "").split(";").map((p) => p.split("=") as [string, string]))

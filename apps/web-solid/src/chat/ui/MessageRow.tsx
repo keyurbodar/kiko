@@ -1,5 +1,7 @@
 import { preloadMessageMenu } from "./MessageMenu"
 import { unnamedFiles } from "../../lib/attachments"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { AlertCircleIcon } from "@kiko/ui/icons"
 import { lazy, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage, RosterBot } from "../../lib/types"
@@ -34,6 +36,9 @@ function tailRun(isRunStart: boolean, isRunEnd: boolean): "start" | "mid" | "bot
 
 const GROUP_GUTTER = "pl-[calc(1rem+40px)]"
 
+const FAILED_ACTION =
+  "shrink-0 cursor-pointer rounded-full border border-error/40 bg-background px-2 py-0.5 text-xs font-medium text-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+
 export function MessageRow(props: {
   message: ChatMessage
   bot: RosterBot | undefined
@@ -62,6 +67,8 @@ export function MessageRow(props: {
   const hasFiles = () => files().length > 0
   const photo = () => !!props.message.rich && isPhotoTree(props.message.rich)
   const windowKey = () => (own() ? undefined : useApp.runWindow(props.message))
+  const failed = () => props.message.status === "failed"
+  const failure = () => (failed() ? useApp.room()?.messages().find((m) => m.id === props.message.id)?.reason : undefined)
   return (
     <div
       class={cn(
@@ -74,6 +81,7 @@ export function MessageRow(props: {
       data-component="chat-row"
       data-message-id={props.message.id}
       data-side={props.message.sender}
+      data-failed={failed() ? "" : undefined}
       data-run={tailRun(props.isRunStart, props.isRunEnd)}
       data-run-key={props.runKey}
       data-run-first={props.isRunStart ? "" : undefined}
@@ -86,7 +94,7 @@ export function MessageRow(props: {
         <RunAvatar seed={props.message.botId!} runKey={props.runKey ?? props.message.id} isRunEnd={props.isRunEnd} />
       </Show>
       <Bubble
-        variant={props.jumboClass ? "ghost" : own() ? "default" : "secondary"}
+        variant={failed() ? "destructive" : props.jumboClass ? "ghost" : own() ? "default" : "secondary"}
         align={own() ? "end" : "start"}
         position={bubblePosition(props.isRunStart, props.isRunEnd)}
         class={
@@ -150,6 +158,20 @@ export function MessageRow(props: {
                 )}
               </Show>
             </Collapsible>
+          </Show>
+          <Show when={failed()}>
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1" data-component="chat-send-failed" role="alert">
+              <RemixIcon icon={AlertCircleIcon} class="size-3.5 shrink-0" />
+              <span class="min-w-0 flex-1 truncate text-xs font-medium" title={failure() ?? undefined} data-part="reason">
+                {failure() ?? "Not sent"}
+              </span>
+              <button type="button" class={FAILED_ACTION} data-action="retry-send" onClick={() => useApp.retryRun(props.message.id)}>
+                Retry
+              </button>
+              <button type="button" class={FAILED_ACTION} data-action="delete-send" onClick={() => useApp.deleteMessage(props.message.id)}>
+                Delete
+              </button>
+            </div>
           </Show>
         </BubbleContent>
         <ReactionStack

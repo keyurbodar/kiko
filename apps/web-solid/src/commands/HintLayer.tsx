@@ -1,6 +1,7 @@
-import { For, createSignal, onMount } from "solid-js"
+import { For, Show, createSignal, onMount } from "solid-js"
 import { displayShortcut } from "./hotkeys"
 import { findCommand, isEnabled, shortcutOf } from "./registry"
+import { paletteStack } from "../palette/state"
 
 export type Side = "bottom" | "top" | "left" | "right"
 export type Box = { x: number; y: number; w: number; h: number }
@@ -93,22 +94,24 @@ export default function HintLayer() {
     setBoxes(place(wanted, pills.map((p) => p.side), innerWidth, innerHeight))
   })
   return (
-    <div class="pointer-events-none fixed inset-0 z-[100]" data-component="shortcut-hints" aria-hidden="true">
-      <For each={pills}>
-        {(pill, i) => (
-          <span
-            ref={(el) => (els[i()] = el)}
-            class="absolute top-0 left-0 flex h-6 items-center gap-1.5 rounded-[8px] bg-popover px-2 text-[12px] whitespace-nowrap text-foreground shadow-menu"
-            style={{
-              visibility: boxes() ? "visible" : "hidden",
-              transform: boxes() ? `translate(${boxes()![i()]!.x}px, ${boxes()![i()]!.y}px)` : undefined,
-            }}
-          >
-            {pill.label}
-            <kbd class="rounded-[5px] bg-control px-1 font-sans text-[11px] text-muted-foreground">{pill.keys}</kbd>
-          </span>
-        )}
-      </For>
-    </div>
+    <Show when={paletteStack() === null}>
+      <div class="pointer-events-none fixed inset-0 z-[100]" data-component="shortcut-hints" aria-hidden="true">
+        <For each={pills}>
+          {(pill, i) => (
+            <span
+              ref={(el) => (els[i()] = el)}
+              class="absolute top-0 left-0 flex h-6 items-center gap-1.5 rounded-[8px] bg-popover px-2 text-[12px] whitespace-nowrap text-foreground shadow-menu"
+              style={{
+                visibility: boxes() ? "visible" : "hidden",
+                transform: boxes() ? `translate(${boxes()![i()]!.x}px, ${boxes()![i()]!.y}px)` : undefined,
+              }}
+            >
+              {pill.label}
+              <kbd class="rounded-[5px] bg-control px-1 font-sans text-[11px] text-muted-foreground">{pill.keys}</kbd>
+            </span>
+          )}
+        </For>
+      </div>
+    </Show>
   )
 }

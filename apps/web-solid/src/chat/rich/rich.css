@@ -154,7 +154,7 @@
 
 
 
-:root:not(.dark) [data-side="bot"] .rich-code {
+:root:not(.dark) .rich-code {
   --sh-class: #0550ae;
   --sh-identifier: #1f2328;
   --sh-sign: #6e7781;

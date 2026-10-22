@@ -3,7 +3,7 @@ import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, ClockIcon, PauseIcon, PlayIcon, TrashIcon } from "@kiko/ui/icons"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { createResource, createSignal, For, Show, type JSX } from "solid-js"
+import { createResource, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
 import { RecipeIcon } from "../../recipes/icon"
 import { recipeForRoutine } from "../../recipes/model"
 import { triggerLabel } from "./routines-model"
@@ -39,14 +39,12 @@ const forget = (id: string) =>
     return next
   })
 
-export async function runNow(routine: Routine): Promise<void> {
+export async function runNow(routine: Routine): Promise<boolean> {
   setStarted((s) => new Set(s).add(routine.id))
-  if (await post(`/api/routines/${routine.id}/run`, {})) {
-    setTimeout(() => forget(routine.id), STARTED_MS)
-    return
-  }
+  if (await post(`/api/routines/${routine.id}/run`, {})) return true
   forget(routine.id)
   showToastV2({ title: `Could not run ${routine.name}`, variant: "error" })
+  return false
 }
 
 const faint = "text-[color-mix(in_oklab,var(--foreground)_40%,transparent)]"
@@ -65,6 +63,18 @@ function Tool(props: { label: string; action: string; disabled?: boolean; onClic
 function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
   const on = () => props.routine.status === "active"
   const ran = () => started().has(props.routine.id)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let disposed = false
+  onCleanup(() => {
+    disposed = true
+    clearTimeout(timer)
+    forget(props.routine.id)
+  })
+  const run = async () => {
+    clearTimeout(timer)
+    if (!(await runNow(props.routine)) || disposed) return
+    timer = setTimeout(() => forget(props.routine.id), STARTED_MS)
+  }
   return (
     <li class="flex items-center gap-1 rounded-md pr-1 hover:bg-[color-mix(in_oklab,var(--foreground)_5%,transparent)]" data-routine={props.routine.id} data-status={props.routine.status}>
       <div class="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2">
@@ -88,7 +98,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
           </span>
         </span>
       </div>
-      <Tool label={ran() ? "Started" : "Run now"} action="routine-run" disabled={ran()} onClick={() => void runNow(props.routine)}>
+      <Tool label={ran() ? "Started" : "Run now"} action="routine-run" disabled={ran()} onClick={() => void run()}>
         <RemixIcon icon={ran() ? CheckIcon : PlayIcon} size={14} />
       </Tool>
       <Tool label={on() ? "Pause" : "Resume"} action="routine-toggle" onClick={() => void setStatus(props.routine, on() ? "paused" : "active")}>
