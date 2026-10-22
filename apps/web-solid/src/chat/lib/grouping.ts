@@ -1,5 +1,6 @@
 import { createSignal, type Setter } from "solid-js";
 import type { ChatMessage } from "../../lib/types";
+import { dayStartOf } from "./day-start";
 import { startsTimeBreak } from "./time-label";
 
 export const MESSAGE_GROUPING_WINDOW_MS = 300_000;
@@ -37,10 +38,7 @@ export type TimelineOptions = {
   expanded?: ReadonlySet<string>;
 };
 
-export function dayStartOf(sentAt: number): number {
-  const d = new Date(Number.isFinite(sentAt) ? sentAt : Date.now());
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
+export { dayStartOf };
 
 export function canGroup(a: ChatMessage, b: ChatMessage): boolean {
   if (a.sender !== b.sender) return false;

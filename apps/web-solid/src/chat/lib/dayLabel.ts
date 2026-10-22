@@ -1,4 +1,4 @@
-import { dayStartOf } from "./grouping";
+import { dayStartOf } from "./day-start";
 
 const MONTH_DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 const MONTH_DAY_YEAR = new Intl.DateTimeFormat(undefined, { month: "long", day: "numeric", year: "numeric" });

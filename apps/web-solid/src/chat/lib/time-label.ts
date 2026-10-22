@@ -1,4 +1,4 @@
-import { dayStartOf } from "./grouping";
+import { dayStartOf } from "./day-start";
 
 export const TIME_DIVIDER_GAP_MS = 20 * 60_000;
 
