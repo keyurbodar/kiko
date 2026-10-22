@@ -41,7 +41,7 @@ export function Quote(props: {
       style={tone()}
       class={cn(
         "relative flex w-full flex-row items-center gap-2 overflow-hidden",
-        props.quote.gone ? "cursor-default italic" : "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--quote-bar)]",
+        props.quote.gone ? "cursor-default italic" : "cursor-pointer",
         "mb-1 py-[3px] ps-2.5 pe-2 text-start text-inherit text-sm leading-[1.35]",
         "rounded-[4px] bg-[var(--quote-bg)]",
         "before:absolute before:inset-y-0 before:start-0 before:w-[2px] before:bg-[var(--quote-bar)] before:content-['']",

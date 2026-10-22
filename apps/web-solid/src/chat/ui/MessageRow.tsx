@@ -37,7 +37,7 @@ function tailRun(isRunStart: boolean, isRunEnd: boolean): "start" | "mid" | "bot
 const GROUP_GUTTER = "pl-[calc(1rem+40px)]"
 
 const FAILED_ACTION =
-  "shrink-0 cursor-pointer rounded-full border border-error/40 bg-background px-2 py-0.5 text-xs font-medium text-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+  "shrink-0 cursor-pointer rounded-full border border-error/40 bg-background px-2 py-0.5 text-xs font-medium text-foreground hover:bg-accent"
 
 export function MessageRow(props: {
   message: ChatMessage

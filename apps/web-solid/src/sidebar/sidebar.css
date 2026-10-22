@@ -40,7 +40,7 @@
   padding: 0 8px 0 12px;
 }
 
-.sidebar-shell :is(.panel-brand, .chat-row, .pin-tile-slot, .settings-panel-row, .panel-tab) {
+.sidebar-shell :is(.panel-brand, .chat-row, .settings-panel-row, .panel-tab) {
   user-select: none;
 }
 
@@ -124,21 +124,6 @@
   z-index: 5;
   top: 10px;
   left: 10px;
-}
-
-.sidebar-shell .unread-dot {
-  width: 8px;
-  height: 8px;
-  flex-shrink: 0;
-  background: var(--ring);
-  border-radius: 50%;
-}
-
-.sidebar-shell .panel-icon-dot {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  pointer-events: none;
 }
 
 .sidebar-shell .panel-scroll {
@@ -306,21 +291,19 @@
   color: var(--muted-foreground);
 }
 
-.sidebar-shell .pinned-grid {
-  display: grid;
+.sidebar-shell .pinned-chats {
+  display: flex;
   max-height: 240px;
   flex-shrink: 0;
-  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
-  gap: 2px;
+  flex-direction: column;
   margin: 2px 8px 6px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
 }
 
-.sidebar-shell .pin-tile-slot {
-  display: flex;
-  min-width: 0;
+.sidebar-shell .pinned-chats > .chat-row {
+  flex-shrink: 0;
 }
 
 .sidebar-shell .chat-section {
@@ -334,117 +317,6 @@
   font-weight: var(--font-weight-bold);
   line-height: 20px;
   user-select: none;
-}
-
-.sidebar-shell .pin-tile {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 2px 7px;
-  color: var(--muted-foreground);
-  font-family: inherit;
-  background: none;
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  appearance: none;
-}
-
-@media (hover: hover) {
-  .sidebar-shell .pin-tile:hover {
-    background: var(--accent);
-  }
-}
-
-.sidebar-shell .pin-tile[data-active] {
-  color: var(--foreground);
-  background: var(--accent-strong);
-}
-
-.sidebar-shell .pin-tile-circle {
-  position: relative;
-  display: block;
-  width: 48px;
-  height: 42px;
-}
-
-.sidebar-shell .pin-tile-icon {
-  display: grid;
-  width: 100%;
-  height: 100%;
-  place-items: center;
-}
-
-.sidebar-shell .pin-tile-dot {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  box-shadow: 0 0 0 2px var(--sidebar);
-}
-
-.sidebar-shell .pin-tile-name {
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
-  font-size: var(--font-xs);
-  font-weight: var(--font-weight-medium);
-  line-height: 1.25;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sidebar-shell .pin-tile[data-unread] .pin-tile-name {
-  color: var(--foreground);
-}
-
-.sidebar-shell .pin-tile-slot[data-main] {
-  grid-column: 1 / -1;
-}
-
-.sidebar-shell .pin-tile[data-main] {
-  flex-direction: row;
-  justify-content: flex-start;
-  gap: 10px;
-  padding: 7px 10px 7px 7px;
-  text-align: left;
-}
-
-.sidebar-shell .pin-tile[data-main] .pin-tile-circle {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-}
-
-.sidebar-shell .pin-tile[data-main] .pin-tile-avatar {
-  width: 40px;
-  height: 40px;
-}
-
-.sidebar-shell .pin-tile-text {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sidebar-shell .pin-tile[data-main] .pin-tile-name {
-  color: var(--foreground);
-  font-size: var(--font-md);
-  font-weight: var(--font-weight-bold);
-  text-align: left;
-}
-
-.sidebar-shell .pin-tile-sub {
-  overflow: hidden;
-  color: var(--muted-foreground);
-  font-size: var(--font-xs);
-  line-height: 1.3;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .sidebar-shell .chat-list {
@@ -520,8 +392,7 @@
   background: var(--accent-strong);
 }
 
-.sidebar-shell .chat-avatar,
-.sidebar-shell .pin-tile-avatar {
+.sidebar-shell .chat-avatar {
   display: block;
   flex: none;
   overflow: visible;
@@ -532,13 +403,7 @@
   height: 44px;
 }
 
-.sidebar-shell .pin-tile-avatar {
-  width: 46px;
-  height: 46px;
-}
-
-.sidebar-shell .chat-avatar > *,
-.sidebar-shell .pin-tile-avatar > * {
+.sidebar-shell .chat-avatar > * {
   display: block;
   width: 100%;
   height: 100%;
@@ -695,10 +560,6 @@
   padding: 0;
   color: var(--primary-foreground);
   background: var(--primary);
-}
-
-.sidebar-shell .chat-unread-dot {
-  margin: 0 5px;
 }
 
 .sidebar-shell .chat-rename {

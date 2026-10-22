@@ -15,6 +15,7 @@
     "lint": "biome check",
     "check": "bun run typecheck && biome check && bun scripts/check-imports.ts && bun scripts/check-cycles.ts",
     "kiko": "bun apps/cli/src/index.ts",
+    "verify:web": "bun apps/web-solid/scripts/verify-runtime.ts",
     "prepare": "git rev-parse --git-path hooks >/dev/null 2>&1 && printf '#!/bin/sh\\nexec bunx biome check --staged --no-errors-on-unmatched --diagnostic-level=error\\n' > \"$(git rev-parse --git-path hooks)/pre-commit\" && chmod +x \"$(git rev-parse --git-path hooks)/pre-commit\" || true"
   },
   "devDependencies": {

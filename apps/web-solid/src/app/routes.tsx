@@ -30,14 +30,19 @@ function Resume() {
 }
 
 function MemoryRedirect() {
-  const chat = activeChat()
-  if (chat) openSurface(chat, fixedSurface("memory"))
-  return <Navigate href={chat ? `/chat/${chat}` : "/chat"} />
+  const navigate = useNavigate()
+  createEffect(() => {
+    const chat = activeChat()
+    if (!chat) return
+    openSurface(chat, fixedSurface("memory"))
+    navigate(`/chat/${chat}`, { replace: true })
+  })
+  return null
 }
 
 function FilesRedirect() {
   const params = useParams<{ chatId?: string; path?: string }>()
-  const chat = params.chatId ?? activeChat()
+  const navigate = useNavigate()
   let path: string | null = null
   if (params.path) {
     try {
@@ -46,8 +51,13 @@ function FilesRedirect() {
       path = params.path
     }
   }
-  if (chat) path ? openFile(chat, path) : openSurface(chat, fixedSurface("files"))
-  return <Navigate href={chat ? `/chat/${chat}` : "/chat"} />
+  createEffect(() => {
+    const chat = params.chatId ?? activeChat()
+    if (!chat) return
+    path ? openFile(chat, path) : openSurface(chat, fixedSurface("files"))
+    navigate(`/chat/${chat}`, { replace: true })
+  })
+  return null
 }
 
 function SettingsRedirect() {

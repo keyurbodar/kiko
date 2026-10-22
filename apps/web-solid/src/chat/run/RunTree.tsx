@@ -17,7 +17,7 @@ const [asked, setAsked] = createSignal<ReadonlySet<string>>(new Set())
 const MAX_OPENED = 100
 
 const PILL =
-  "cursor-pointer rounded-full border border-border/70 bg-background px-2.5 py-1 text-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+  "cursor-pointer rounded-full border border-border/70 bg-background px-2.5 py-1 text-foreground hover:bg-accent"
 
 function withKey(current: ReadonlySet<string>, key: string): ReadonlySet<string> {
   const next = new Set(current)

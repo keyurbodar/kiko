@@ -2,7 +2,7 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
-    "includes": ["apps/*/src/**", "packages/*/src/**", "core/*/src/**", "scripts/**", "!**/*.css", "!**/*.gen.ts"]
+    "includes": ["apps/*/src/**", "apps/web-solid/scripts/**", "packages/*/src/**", "core/*/src/**", "scripts/**", "!**/*.css", "!**/*.gen.ts"]
   },
   "formatter": { "enabled": false },
   "assist": { "enabled": false },

@@ -2,8 +2,8 @@ import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, loadEnv } from "vite";
 import solid from "vite-plugin-solid";
-import { firstPaintPreload } from "./scripts/preload-plugin";
-import pkg from "../../package.json";
+import { firstPaintPreload } from "./scripts/preload-plugin.ts";
+import pkg from "../../package.json" with { type: "json" };
 
 function requireInstaller(mode: string): void {
   const env = { ...loadEnv(mode, import.meta.dirname, "VITE_"), ...process.env };

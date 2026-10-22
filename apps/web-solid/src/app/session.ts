@@ -141,6 +141,11 @@ export async function bootstrapSession(): Promise<void> {
       history.replaceState(null, "", location.pathname + location.search)
       early = undefined
     }
+    if (!token) {
+      if (state().status !== "signed-out") await signedOut()
+      else await finishCleanup()
+      return
+    }
     const res = await (early ?? apiFetch("/api/me"))
     if (!current()) return
     if (res.status === 401) {

@@ -705,22 +705,16 @@ html {
   background: var(--scrollbar-thumb-hover);
 }
 
+:focus {
+  outline: none !important;
+}
+
 .cl-rootBox :focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--ring) 70%, transparent) !important;
-  outline-offset: 2px;
+  box-shadow: none !important;
   filter: brightness(1.12);
 }
 .cl-formFieldInput:focus {
   background: var(--control-strong);
-}
-
-:focus-visible:not([data-no-focus-ring]) {
-  outline: 2px solid color-mix(in oklab, var(--ring) 70%, transparent);
-  outline-offset: 2px;
-}
-
-[data-no-focus-ring]:focus-visible {
-  outline: none;
 }
 
 [data-component="top-bar"] {

@@ -22,7 +22,7 @@ const RULE: Record<RowTone, string> = {
 }
 
 const PILL =
-  "shrink-0 cursor-pointer rounded-full border border-border/70 bg-background px-2.5 py-1 text-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+  "shrink-0 cursor-pointer rounded-full border border-border/70 bg-background px-2.5 py-1 text-foreground hover:bg-accent"
 
 export function SystemRow(props: {
   label: string
