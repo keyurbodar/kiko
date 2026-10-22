@@ -90,6 +90,7 @@ export type ReplyPreview = { seq: number; from: Actor; text: string; gone?: true
 
 export type Message = {
 	id: MessageId
+	clientId?: string
 	seq: number
 	at: number
 	from: Sender

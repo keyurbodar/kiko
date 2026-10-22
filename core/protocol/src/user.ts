@@ -50,7 +50,7 @@ type Stored = {
 }
 
 export type UserEvent =
-	| (Stored & { t: "chat"; chat: Chat })
+	| (Stored & { t: "chat"; chat: Chat; projection?: true })
 	| (Stored & { t: "chat_removed"; roomId: RoomId })
 	| (Stored & { t: "agent"; agent: Agent })
 	| (Stored & { t: "agent_removed"; id: string; slug: AgentSlug })

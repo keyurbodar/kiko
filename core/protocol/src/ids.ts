@@ -18,6 +18,15 @@ export const isAgentSlug = (value: string): value is AgentSlug => AGENT_SLUG_PAT
 
 export const isRoomId = (value: string): value is RoomId => UUID_V7_PATTERN.test(value) || ULID_PATTERN.test(value)
 
+const roomKey = (roomId: string) => Array.from(new TextEncoder().encode(roomId), (byte) => byte.toString(16).padStart(2, "0")).join("")
+
+export const messageIdAt = (roomId: string, seq: number): MessageId => `${seq}.${roomKey(roomId)}` as MessageId
+
+export function messageSeq(roomId: string, id: string): number {
+	const seq = Number(id.slice(0, id.indexOf(".")))
+	return Number.isSafeInteger(seq) && seq > 0 && messageIdAt(roomId, seq) === id ? seq : -1
+}
+
 export function newRoomId(now?: number, random?: Uint8Array): RoomId {
 	if (now === undefined && !random) return v7() as RoomId
 	return v7({ ...(now === undefined ? {} : { msecs: now }), ...(random ? { random } : {}) }) as RoomId

@@ -15,6 +15,7 @@ export const KikoError = Schema.Struct({
 		"kernel_down",
 		"storage",
 		"model",
+		"protocol",
 	]),
 	message: Id,
 	action: Schema.optionalKey(Schema.Literals(["open_models", "open_integrations"])),
@@ -189,6 +190,7 @@ const ReplyPreview = Schema.Struct({ seq: Count, from: Actor, text: Schema.Strin
 
 export const Message = Schema.Struct({
 	id: MessageId,
+	clientId: Schema.optionalKey(Schema.String),
 	...stored,
 	from: Sender,
 	text: Schema.String,
@@ -276,7 +278,7 @@ export const TaskOp = Schema.Union([
 ])
 
 export const RoomEvent = Schema.Union([
-	Schema.Struct({ t: Schema.Literal("message"), clientId: Schema.optionalKey(Id), ...Message.fields }),
+	Schema.Struct({ t: Schema.Literal("message"), ...Message.fields }),
 	Schema.Struct({
 		...stored,
 		t: Schema.Literal("edit"),
@@ -452,7 +454,7 @@ export const ProviderRow = Schema.Struct({
 })
 
 export const UserEvent = Schema.Union([
-	Schema.Struct({ ...stored, t: Schema.Literal("chat"), chat: Chat }),
+	Schema.Struct({ ...stored, t: Schema.Literal("chat"), chat: Chat, projection: Schema.optionalKey(Schema.Literal(true)) }),
 	Schema.Struct({ ...stored, t: Schema.Literal("chat_removed"), roomId: RoomId }),
 	Schema.Struct({ ...stored, t: Schema.Literal("agent"), agent: Agent }),
 	Schema.Struct({ ...stored, t: Schema.Literal("agent_removed"), id: Schema.String, slug: AgentSlug }),

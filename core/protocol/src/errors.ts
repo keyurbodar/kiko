@@ -7,6 +7,7 @@ type ErrorCode =
 	| "kernel_down"
 	| "storage"
 	| "model"
+	| "protocol"
 
 export type ErrorAction = "open_models" | "open_integrations"
 
