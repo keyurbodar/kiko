@@ -122,6 +122,16 @@ export function Shell(props: ParentProps) {
   const [sidePanel, setSidePanel] = createSignal<PanelContextValue | undefined>();
   const [layout, setLayout] = createSignal<ContextValue | undefined>()
   let groupWidth = 0
+  const watchGroup = (el: Element) => {
+    if (!(el instanceof HTMLElement)) return
+    const measure = () => {
+      groupWidth = el.getBoundingClientRect().width
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    onCleanup(() => observer.disconnect())
+  }
   const setColumnWidth = (index: number, px: number) => {
     const ctx = layout()
     if (!ctx) return
@@ -331,19 +341,7 @@ export function Shell(props: ParentProps) {
             const fitted = fitWidths(window.innerWidth, narrow() ? 0 : collapsed() ? 0 : readWidth(SIDEBAR), compact() ? 0 : dockedSide() ? readWidth(INFO) : 0);
             const sizes = initialSizes(window.innerWidth, narrow() ? null : fitted.sidebar, compact() ? null : dockedSide() ? fitted.info : 0);
             return (
-              <Resizable
-                class="min-w-0 flex-1"
-                keyboardDelta="16px"
-                handleCursorStyle={false}
-                data-component="app-panels"
-                ref={(el) => {
-                  const measure = () => (groupWidth = el.getBoundingClientRect().width)
-                  measure()
-                  const observer = new ResizeObserver(measure)
-                  observer.observe(el)
-                  onCleanup(() => observer.disconnect())
-                }}
-              >
+              <Resizable class="min-w-0 flex-1" keyboardDelta="16px" handleCursorStyle={false} data-component="app-panels" ref={watchGroup}>
                 <Show when={!narrow()}>
                   <Resizable.Panel
                     panelId="kiko-sidebar-panel"
