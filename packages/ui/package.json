@@ -44,7 +44,7 @@
   },
   "peerDependencies": {
     "@solid-primitives/event-listener": "2.4.5",
-    "solid-js": "1.9.17"
+    "solid-js": "1.9.13"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",

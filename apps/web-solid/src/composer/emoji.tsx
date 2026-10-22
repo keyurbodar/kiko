@@ -3,7 +3,7 @@ import { RemixIcon } from "@kiko/ui/remix-icon"
 import { SmileIcon } from "@kiko/ui/icons"
 import { createEffect, createMemo, createResource, createSignal, For, lazy, on, Show, Suspense, type JSX } from "solid-js"
 import { composingKey } from "./ime"
-import { loadEmoji, recordRecent, searchEmoji, shortcodeQuery, warmEmoji, type EmojiMatch } from "../lib/emoji-data"
+import { loadEmoji, recordRecent, searchEmoji, shortcodeQuery, warmEmoji, type EmojiEntry, type EmojiMatch } from "../lib/emoji-data"
 
 const pickerModule = () => import("../chat/ui/EmojiPicker")
 const EmojiPicker = lazy(() => pickerModule().then((m) => ({ default: m.EmojiPicker })))
@@ -33,10 +33,10 @@ function caretIn(editor: HTMLElement): Range | undefined {
 export function createShortcodes(editor: () => HTMLElement | undefined) {
   const [typed, setTyped] = createSignal<{ node: Text; start: number; end: number; query: string }>()
   const [active, setActive] = createSignal(0)
-  const [data] = createResource(() => typed() !== undefined || undefined, loadEmoji)
+  const [data] = createResource(() => typed() !== undefined || undefined, () => loadEmoji().catch(() => []), { initialValue: [] as readonly EmojiEntry[] })
   const matches = createMemo<EmojiMatch[]>(() => {
     const at = typed()
-    return at ? searchEmoji(data() ?? [], at.query) : []
+    return at ? searchEmoji(data.latest, at.query) : []
   })
   createEffect(on(() => typed()?.query, () => setActive(0)))
   const open = () => matches().length > 0
