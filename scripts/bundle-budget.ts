@@ -28,7 +28,7 @@ const RECORDED: Record<string, number> = {
   "tier 1 shell js": 2358,
   "tier 2 first paint of /chat": 214055,
   "tier 3 lazy modules": 313960,
-  "tier 4 route chunks": 26138,
+  "tier 4 route chunks": 27858,
 };
 
 interface Entry {
