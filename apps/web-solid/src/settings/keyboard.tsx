@@ -69,7 +69,7 @@ function KeyRow(props: { command: Command }) {
       <button
         type="button"
         class={cn(
-          "inline-flex h-7 min-w-24 cursor-pointer items-center justify-end rounded-md px-2 text-sm outline-none hover:bg-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+          "inline-flex h-7 min-w-24 cursor-pointer items-center justify-end rounded-md px-2 text-sm outline-none hover:bg-[var(--accent)]",
           recorder.isRecording() && "bg-[var(--accent)] ring-2 ring-[var(--ring)]",
         )}
         aria-label={recorder.isRecording() ? `Press the new shortcut for ${props.command.title}` : `Change the shortcut for ${props.command.title}`}

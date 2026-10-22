@@ -8,7 +8,7 @@ import { FLIP_MS, flip, reducedMotion } from "./flip"
 import type { DialogImage } from "./image-dialog"
 import { anchorAt, clampZoom, clickZoom, fitScale, keyZoom, maxHeight, panStep, scrollFor, wheelZoom, type Point } from "./zoom"
 
-const NAV = "absolute top-1/2 z-20 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-white/90 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
+const NAV = "absolute top-1/2 z-20 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-white/90 hover:bg-white/10 hover:text-white"
 
 export default function ImageDialog(props: { images: readonly DialogImage[]; index: number; from?: Element | null; onClose: () => void }) {
   const [offset, setOffset] = createSignal(0)
@@ -59,7 +59,7 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
           <button
             type="button"
             data-chrome=""
-            class="absolute top-0 right-0 z-30 grid size-8 place-items-center rounded-lg bg-black/65 text-white shadow-sm ring-1 ring-white/20 hover:bg-black/80 focus-visible:ring-white"
+            class="absolute top-0 right-0 z-30 grid size-8 place-items-center rounded-lg bg-black/65 text-white shadow-sm ring-1 ring-white/20 hover:bg-black/80"
             aria-label="Close image preview"
             onClick={close}
           >
@@ -183,7 +183,7 @@ function ZoomableImage(props: { src: string; name: string; from: Element | null;
         aria-describedby={hint}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region takes focus so the keyboard can scroll it
         tabIndex={0}
-        class="max-w-[calc(92vw-96px)] overflow-auto overscroll-contain rounded-lg border border-white/15 shadow-2xl outline-none focus-visible:ring-2 focus-visible:ring-white max-sm:max-w-[92vw]"
+        class="max-w-[calc(92vw-96px)] overflow-auto overscroll-contain rounded-lg border border-white/15 shadow-2xl outline-none max-sm:max-w-[92vw]"
         style={{
           width: width() ? `${width()}px` : undefined,
           height: height() ? `${height()}px` : undefined,

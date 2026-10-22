@@ -57,7 +57,7 @@ export function MessageAttachments(props: {
             {(file) => (
               <button
                 type="button"
-                class="flex min-w-0 cursor-pointer items-center gap-2 rounded-md py-1 text-start text-sm hover:underline focus-visible:outline-2"
+                class="flex min-w-0 cursor-pointer items-center gap-2 rounded-md py-1 text-start text-sm hover:underline"
                 aria-label={`Preview ${file.name}`}
                 data-component="chat-attachment-file"
                 {...dragProps(file)}

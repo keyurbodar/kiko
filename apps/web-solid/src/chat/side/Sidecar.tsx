@@ -162,11 +162,11 @@ function Launcher(props: { chatId: string }) {
 function MemoryBody() {
   const store = useMemoryStore()
   return (
-    <Show when={store()}>
+    <Show when={store()} keyed>
       {(s) => (
         <div class="flex min-h-0 flex-1 flex-col gap-2" data-component="info-memory">
-          <MemoryError store={s()} />
-          <MemoryList store={s()} />
+          <MemoryError store={s} />
+          <MemoryList store={s} />
         </div>
       )}
     </Show>

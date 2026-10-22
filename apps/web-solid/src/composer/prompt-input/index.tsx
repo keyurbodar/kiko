@@ -231,7 +231,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
                     </span>
                     <button
                       type="button"
-                      class="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-control hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                      class="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-control hover:text-foreground"
                       aria-label={`Remove ${attachment.filename}`}
                       onClick={() => props.controller.removeAttachment(attachment.id)}
                     >

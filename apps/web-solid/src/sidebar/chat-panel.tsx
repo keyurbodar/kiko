@@ -98,70 +98,6 @@ function previewState(id: string) {
   return [open, set] as const
 }
 
-function PinTile(props: { bot: RosterBot; active: boolean; main: boolean; onSelect: () => void; hint?: string }) {
-  const [menuOpen, setMenuOpen] = createSignal(false)
-  const [previewOpen, setPreviewOpen] = previewState(props.bot.id)
-  const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id)
-  return (
-    <MenuV2.Context gutter={8} onOpenChange={setMenuOpen}>
-      <MenuV2.Context.Trigger as="div" class="pin-tile-slot" data-chat-id={props.bot.id} data-main={props.main ? "" : undefined} data-hint={props.hint} data-hint-label="Chat" data-hint-side="right">
-        <HoverCardV2
-          open={previewOpen() && !menuOpen()}
-          onOpenChange={setPreviewOpen}
-          openDelay={400}
-          closeDelay={150}
-          placement="right-start"
-          gutter={12}
-        >
-          <HoverCardV2.Trigger
-            as="button"
-            type="button"
-            class="pin-tile"
-            ref={intentRef(() => void useApp.preloadChat(props.bot.id))}
-            data-component="sidebar-pin-tile"
-            data-chat-id={props.bot.id}
-            data-active={props.active ? "" : undefined}
-            data-unread={unread() ? "" : undefined}
-            data-main={props.main ? "" : undefined}
-            aria-current={props.active ? "true" : undefined}
-            onClick={() => {
-              setPreviewOpen(false)
-              props.onSelect()
-            }}
-          >
-            <span class="pin-tile-circle">
-              <span class="pin-tile-icon">
-                <ChatAvatar faces={useApp.chatFaces(props.bot.id)} class="pin-tile-avatar" />
-              </span>
-              <Show when={unread()}>
-                <span class="unread-dot pin-tile-dot" aria-hidden="true" />
-              </Show>
-            </span>
-            <Show when={props.main} fallback={<span class="pin-tile-name">{props.bot.name}</span>}>
-              <span class="pin-tile-text">
-                <span class="pin-tile-name">{props.bot.name}</span>
-                <span class="pin-tile-sub">{props.bot.presence === "idle" ? props.bot.preview || "Your main agent" : PRESENCE[props.bot.presence]}</span>
-              </span>
-            </Show>
-          </HoverCardV2.Trigger>
-
-          <HoverCardV2.Portal>
-            <HoverCardV2.Content>
-              <ChatPreview bot={props.bot} />
-            </HoverCardV2.Content>
-          </HoverCardV2.Portal>
-        </HoverCardV2>
-      </MenuV2.Context.Trigger>
-
-      <MenuV2.Context.Portal>
-        <MenuV2.Context.Content data-component="sidebar-pin-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
-          <ChatMenuItems id={props.bot.id} />
-        </MenuV2.Context.Content>
-      </MenuV2.Context.Portal>
-    </MenuV2.Context>
-  )
-}
-
 function ChatPreview(props: { bot: RosterBot }) {
   const tail = createMemo(() => useApp.messagesFor(props.bot.id).filter(isListed).slice(-3))
   const name = (slug: string) => agentDisplayName(slug, useApp.agents())
@@ -241,7 +177,7 @@ function RowTitle(props: { id: string; title: string }) {
   )
 }
 
-function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: number; hint?: string }) {
+function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: number; hint?: string; main?: boolean }) {
   const [menuOpen, setMenuOpen] = createSignal(false)
   const [previewOpen, setPreviewOpen] = previewState(props.bot.id)
   const navigate = useNavigate()
@@ -270,6 +206,8 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
         class="chat-row"
         ref={intentRef(() => void useApp.preloadChat(props.bot.id))}
         data-component="sidebar-row"
+        data-main={props.main ? "" : undefined}
+        data-pinned={props.bot.pinned ? "" : undefined}
         data-chat-id={props.bot.id}
         data-hint={props.hint}
         data-hint-label="Chat"
@@ -345,15 +283,10 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
             <Show when={props.bot.mentions}>
               <i class="chat-mention-badge" data-component="sidebar-mention-badge" role="img" aria-label="You were mentioned">@</i>
             </Show>
-            <Show when={unread()}>
-              <Show
-                when={props.bot.unread > 0}
-                fallback={<i class="unread-dot chat-unread-dot" data-component="sidebar-unread-dot" aria-label="Marked unread" role="img" />}
-              >
-                <span class="chat-count" data-component="sidebar-unread-count" role="img" aria-label={`${props.bot.unread} unread`}>
-                  {props.bot.unread > 99 ? "99+" : props.bot.unread}
-                </span>
-              </Show>
+            <Show when={props.bot.unread > 0}>
+              <span class="chat-count" data-component="sidebar-unread-count" role="img" aria-label={`${props.bot.unread} unread`}>
+                {props.bot.unread > 99 ? "99+" : props.bot.unread}
+              </span>
             </Show>
           </span>
         </span>
@@ -421,7 +354,6 @@ export function ChatPanel() {
   const [now, setNow] = createSignal(Date.now())
   const clock = setInterval(() => setNow(Date.now()), 60_000)
   onCleanup(() => clearInterval(clock))
-  const navigate = useNavigate()
   const [query, setQuery] = createSignal("")
   const [unreadOnly, setUnreadOnly] = createSignal(false)
 
@@ -445,18 +377,16 @@ export function ChatPanel() {
     <div class="chat-panel" data-component="sidebar-chats">
       <SearchRow query={query()} onQuery={setQuery} unreadOnly={unreadOnly()} onUnreadOnly={setUnreadOnly} />
       <Show when={pinned().length > 0}>
-        <div class="pinned-grid">
+        <div class="pinned-chats">
           <For each={pinned()}>
             {(bot) => (
-              <PinTile
+              <ChatRow
                 bot={bot}
                 hint={jumpHint().get(bot.id)}
                 active={active() === bot.id}
                 main={bot.id === useApp.kikoChatId()}
-                onSelect={() => {
-                  clearUnreadMark(bot.id)
-                  navigate(`/chat/${bot.id}`)
-                }}
+                muted={muted().has(bot.id)}
+                now={now()}
               />
             )}
           </For>

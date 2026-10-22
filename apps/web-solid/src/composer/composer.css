@@ -28,15 +28,6 @@
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
 }
 
-.composer-dock .composer-box:focus-within {
-  border-color: color-mix(in oklab, var(--ring) 55%, var(--composer-edge));
-}
-
-.composer-dock .composer-input:focus-visible,
-.composer-dock .composer-input:focus {
-  outline: none;
-}
-
 .composer-dock .composer-main {
   display: flex;
   min-width: 0;

@@ -268,12 +268,6 @@
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
 }
 
-.kit-range:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--ring) 55%, transparent);
-  outline-offset: -2px;
-  border-radius: var(--radius-xs);
-}
-
 
 .kit-value {
   min-width: 2.5rem;
@@ -363,9 +357,4 @@
   height: 2px;
   border-radius: var(--radius-pill);
   background: var(--foreground);
-}
-
-.kit-tab:focus-visible {
-  border-radius: var(--radius-xs);
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 60%, transparent);
 }

@@ -102,7 +102,6 @@
 }
 .rich-table-action:hover { color: var(--foreground); background: var(--rich-accent); }
 .rich-table-action[data-active] { color: var(--foreground); background: var(--rich-surface); }
-.rich-table-action:focus-visible, .rich-code-action:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
 
 .rich-code {
 
