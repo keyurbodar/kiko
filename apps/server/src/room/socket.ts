@@ -3,7 +3,7 @@ import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, MessageId, RoomE
 import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import type { RoomLog } from "./log"
-import { parseRichText } from "@kiko/protocol"
+import { parseRichText } from "@kiko/protocol/markdown"
 import type { SearchOptions, SearchPage } from "./search"
 
 export type Attachment = {

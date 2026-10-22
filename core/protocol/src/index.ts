@@ -20,4 +20,3 @@ export type * from "./catalog"
 export type * from "./providers"
 
 export type * from "./socket"
-export { parseRichText, type ImageFile } from "./markdown"
