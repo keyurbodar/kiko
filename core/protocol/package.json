@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
+    "./markdown": "./src/markdown.ts",
     "./schema": "./src/schema.ts"
   },
   "scripts": {

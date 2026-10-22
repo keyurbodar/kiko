@@ -1,5 +1,5 @@
 import type { FileRef } from "@kiko/protocol"
-import { parseRichText } from "@kiko/protocol"
+import { parseRichText } from "@kiko/protocol/markdown"
 import { RichText } from "../../chat/rich/RichText"
 import { WithText } from "./with-text"
 

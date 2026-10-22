@@ -1,7 +1,7 @@
 import type { AgentSlug, MessageId, RoomEvent, RunRef } from "@kiko/protocol"
 import { RECENT_MESSAGES } from "./message-position"
 import type { RoomLog } from "./log"
-import { type ImageFile, parseRichText } from "@kiko/protocol"
+import { type ImageFile, parseRichText } from "@kiko/protocol/markdown"
 
 
 const REPLY_TAG = /^\[reply:([^\]\s]+)\]\s*/
