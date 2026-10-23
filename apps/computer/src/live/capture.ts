@@ -7,7 +7,7 @@ export function platform(): Platform {
 }
 
 const MAX_LONG_EDGE = 1920
-const KEYFRAME_SECONDS = 2
+const KEYFRAME_SECONDS = 1
 const VAAPI_DEVICE = "/dev/dri/renderD128"
 
 export type Screen = { width: number; height: number; originX?: number; originY?: number }
@@ -111,8 +111,37 @@ export function capturePlans(options: CaptureOptions): string[][] {
   )
 }
 
-const HARDWARE_ORDER = HARDWARE.map(({ name }) => name)
+async function encodes(ffmpeg: string, encoder: Encoder): Promise<boolean> {
+  const vaapi = encoder.name === "h264_vaapi"
+  const probe = Bun.spawn(
+    [
+      ffmpeg,
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-nostdin",
+      ...(vaapi ? ["-vaapi_device", VAAPI_DEVICE] : []),
+      "-f",
+      "lavfi",
+      "-i",
+      "color=s=256x256:d=0.1",
+      ...(vaapi ? ["-vf", "format=nv12,hwupload"] : []),
+      "-frames:v",
+      "1",
+      "-c:v",
+      encoder.name,
+      ...encoder.args,
+      "-f",
+      "null",
+      "-",
+    ],
+    { stdout: "ignore", stderr: "ignore", timeout: 5_000 },
+  )
+  return (await probe.exited) === 0
+}
 
-export function orderEncoders(available: readonly string[]): string[] {
-  return HARDWARE_ORDER.filter((name) => available.includes(name))
+export async function workingEncoders(ffmpeg: string, available: readonly string[]): Promise<string[]> {
+  const candidates = HARDWARE.filter(({ name }) => available.includes(name))
+  const results = await Promise.all(candidates.map((encoder) => encodes(ffmpeg, encoder)))
+  return candidates.filter((_, index) => results[index]).map(({ name }) => name)
 }

@@ -39,6 +39,8 @@ type Encoded = {
 
 type DesktopShot = { frame: Frame; pointScale: number }
 
+const DRIVER_WINDOW = /^Cua\.|cua-driver/i
+
 type WindowInfo = { pid: number; windowId: number; app: string; title: string; z: number }
 
 type Origin = { x: number; y: number; pixelsPerPoint: number }
@@ -48,6 +50,7 @@ export class Desktop {
   private frames: Frame[] = []
   private current: Frame | null = null
   private heldDrag: { frame: Frame; from: { x: number; y: number } } | null = null
+  pointer: ((x: number, y: number) => void) | null = null
 
   constructor(
     private readonly driver: DriverHandle,
@@ -103,6 +106,7 @@ export class Desktop {
 
   private async step(frame: Frame, step: Step, deadline: Deadline): Promise<void> {
     if (deadline.signal.aborted) throw new Fail("cancelled", "the call was cancelled")
+    this.showPointer(frame, step)
     if (step.op === "wait") return Bun.sleep(Math.min(step.ms, Math.max(0, deadline.remaining() - 500)))
     if (step.op === "key") return this.keys(this.targetArgs(frame, {}), step.keys, deadline)
     if (step.op === "open") return this.launch(step.app, deadline)
@@ -181,6 +185,12 @@ export class Desktop {
     const element = frame.elements.get(id)
     if (!element) throw new Fail("stale", `control ${id} is gone; look again for fresh ids`)
     return element
+  }
+
+  private showPointer(frame: Frame, step: Step): void {
+    if (!this.pointer || frame.space !== "desktop" || frame.width <= 0 || frame.height <= 0) return
+    const at = targetOf(frame, step)
+    if (at) this.pointer(at.x / frame.width, at.y / frame.height)
   }
 
   private elementScope(frame: Frame, element: Element): Record<string, unknown> {
@@ -446,6 +456,7 @@ function pickFront(windows: unknown[]): WindowInfo | null {
       title: text(window.title) ?? "",
       z: num(window.z_index),
     }
+    if (DRIVER_WINDOW.test(candidate.title) || DRIVER_WINDOW.test(candidate.app)) continue
     if (!best || candidate.z > best.z) best = candidate
   }
   return best
@@ -527,6 +538,15 @@ function originOf(structured: Record<string, unknown>, frame: Frame, shotWidth: 
     y: num(bounds.y),
     pixelsPerPoint: deliveredPerPoint / (frame.toDriver || 1) || 1,
   }
+}
+
+function targetOf(frame: Frame, step: Step): { x: number; y: number } | null {
+  if (step.op === "drag") return { x: step.to[0], y: step.to[1] }
+  if (step.op !== "click" && step.op !== "type" && step.op !== "scroll" && step.op !== "move") return null
+  const element = "id" in step && step.id !== undefined ? frame.elements.get(step.id) : undefined
+  if (element) return { x: element.x + element.w / 2, y: element.y + element.h / 2 }
+  if (step.x === undefined || step.y === undefined) return null
+  return { x: step.x, y: step.y }
 }
 
 function describe(error: unknown): string {

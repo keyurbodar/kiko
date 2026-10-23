@@ -192,7 +192,7 @@ export class ComputerHub {
         name: row.name,
         os: row.os,
         online: this.online(row.id),
-        caps: this.d.store.caps(row),
+        caps: this.helloOf(row.id)?.caps ?? this.d.store.caps(row),
         holder: hold.holder,
         busy: this.busy(row.id),
         ...(heldBy ? { heldBy } : {}),

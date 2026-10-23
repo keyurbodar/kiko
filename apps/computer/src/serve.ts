@@ -60,6 +60,10 @@ export async function serve(dir = configDir()): Promise<number> {
       configDir: dir,
     })
   }
+  const point = (next: Detection) => {
+    if (next.desktop) next.desktop.pointer = (x, y) => live.agentCursor(x, y)
+  }
+  point(detection)
   const shutdown = () => {
     log.info("stopping")
     link.stop()
@@ -74,7 +78,9 @@ export async function serve(dir = configDir()): Promise<number> {
   )
   const refresh = setInterval(() => {
     void redetect(dir, log, policy, () => detection).then((next) => {
-      if (next) detection = next
+      if (!next) return
+      detection = next
+      point(next)
     })
   }, REDETECT_MS)
   try {

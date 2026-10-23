@@ -102,13 +102,10 @@ export function createSession(id: string, rtc: PeerModule, events: SessionEvents
     const payloadType = videoPayloadType(offer)
     const video = new rtc.default.Video(videoMid(offer), "SendOnly")
     video.addH264Codec(payloadType)
+    const ssrc = Math.floor(Math.random() * 0x7fff_ffff) + 1
+    video.addSSRC(ssrc, `kiko-${id}`, "kiko", "screen")
     const out = connection.addTrack(video)
-    const rtp = new rtc.default.RtpPacketizationConfig(
-      Math.floor(Math.random() * 0x7fff_ffff),
-      `kiko-${id}`,
-      payloadType,
-      H264_CLOCK,
-    )
+    const rtp = new rtc.default.RtpPacketizationConfig(ssrc, `kiko-${id}`, payloadType, H264_CLOCK)
     const packetizer = new rtc.default.H264RtpPacketizer("StartSequence", rtp, 1200)
     packetizer.addToChain(new rtc.default.RtcpSrReporter(rtp))
     out.setMediaHandler(packetizer)

@@ -61,7 +61,10 @@ function toDriverResult(result: { content?: unknown; structuredContent?: unknown
 }
 
 export async function connectDriver(binary: string): Promise<DriverHandle> {
-  const transport = new StdioClientTransport({ command: binary, args: ["mcp"], stderr: "ignore" })
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+  )
+  const transport = new StdioClientTransport({ command: binary, args: ["mcp"], env, stderr: "ignore" })
   const client = new Client({ name: "kiko-computer", version: "0" }, { capabilities: {} })
   await client.connect(transport)
   const listed = await client.listTools()

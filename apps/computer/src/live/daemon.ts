@@ -2,7 +2,8 @@ import * as Schema from "effect/Schema"
 import { InputEvent, type Display, type Holder, type IceServer, type RtcSignal } from "@kiko/computer/wire"
 import { encodeFrame } from "@kiko/computer/frame"
 import { findBinary, probeEncoders } from "./binary"
-import { orderEncoders, type Screen } from "./capture"
+import type { AccessUnit } from "./annexb"
+import { workingEncoders, type Screen } from "./capture"
 import { startH264, startMjpeg, type H264Capture, type MjpegCapture } from "./captures"
 import { createInput, type Injected } from "./input"
 import { createSession, type Session } from "./session"
@@ -16,6 +17,7 @@ const RELAY_WIDTH = 1280
 const RELAY_QUALITY = 60
 const H264_FPS = 30
 const H264_WIDTH = 1920
+const GOP_LIMIT = 90
 
 const decodeEvents = Schema.decodeUnknownOption(Schema.Array(InputEvent))
 
@@ -31,12 +33,23 @@ class Daemon implements Live {
   private h264: H264Capture | null = null
   private mjpeg: MjpegCapture | null = null
   private relay: Relay | null = null
+  private gop: { unit: AccessUnit; timestamp: number }[] = []
+  private encoders: readonly string[] = []
 
   constructor(deps: LiveDeps) {
     this.deps = deps
     const area = screenOf(deps.display)
     this.input = createInput(area, { holder: () => this.holder, allowed: () => this.deps.policy.input })
     this.screen = area ?? this.input?.screen() ?? { width: 1920, height: 1080 }
+    this.probe()
+  }
+
+  private probe(): void {
+    const ffmpeg = findBinary("ffmpeg", this.deps.configDir)
+    if (!ffmpeg) return
+    void workingEncoders(ffmpeg, this.deps.encoders ?? probeEncoders(ffmpeg)).then((found) => {
+      this.encoders = found
+    })
   }
 
   onRtc(session: string, signal: RtcSignal, iceServers?: readonly IceServer[]): void {
@@ -44,8 +57,10 @@ class Daemon implements Live {
       this.drop(session)
       return
     }
-    if (signal.type === "offer" && signal.sdp) this.session(session).answer(signal.sdp, iceServers ?? [])
-    else if (signal.type === "ice") this.session(session).candidate(signal)
+    if (signal.type === "offer" && signal.sdp) {
+      this.startCapture()
+      this.session(session).answer(signal.sdp, iceServers ?? [])
+    } else if (signal.type === "ice") this.session(session).candidate(signal)
   }
 
   onLive(frame: LiveFrame): void {
@@ -100,11 +115,25 @@ class Daemon implements Live {
       signal: (target, signal) => this.deps.send({ t: "rtc", session: target, signal }),
       input: (_target, events) => this.deliver(events),
       closed: (target) => this.drop(target),
-      watching: () => this.attach(),
+      watching: (target) => {
+        this.attach()
+        this.replay(target)
+      },
       needKeyframe: () => this.requestKeyframe(),
     })
     this.sessions.set(id, created)
     return created
+  }
+
+  private remember(unit: AccessUnit, timestamp: number): void {
+    if (unit.key) this.gop = []
+    if (this.gop.length < GOP_LIMIT) this.gop.push({ unit, timestamp })
+  }
+
+  private replay(id: string): void {
+    const peer = this.sessions.get(id)
+    if (!peer || this.gop[0]?.unit.key !== true) return
+    for (const { unit, timestamp } of this.gop) peer.send(unit, timestamp)
   }
 
   private attach(): void {
@@ -141,9 +170,10 @@ class Daemon implements Live {
       screen: this.screen,
       fps: H264_FPS,
       maxWidth: Math.min(H264_WIDTH, Math.round(this.screen.width) || H264_WIDTH),
-      encoders: orderEncoders(this.deps.encoders ?? probeEncoders(ffmpeg)),
+      encoders: this.encoders,
       handlers: {
         unit: (unit, timestamp) => {
+          this.remember(unit, timestamp)
           for (const peer of this.sessions.values()) peer.send(unit, timestamp)
         },
         failed: (reason) => {
@@ -224,6 +254,7 @@ class Daemon implements Live {
   }
 
   private stopCapture(): void {
+    this.gop = []
     this.h264?.stop()
     this.h264 = null
     this.mjpeg?.stop()

@@ -28,6 +28,7 @@ const STARTUP_GRACE_MS = 4_000
 const RESTART_LIMIT = 5
 const RESTART_DELAY_MS = 500
 const KEYFRAME_HOLD_MS = 400
+const FRESH_MS = 2_000
 
 type Child = Subprocess<"ignore", "pipe", "pipe">
 
@@ -61,6 +62,7 @@ class H264 {
   requestKeyframe(): void {
     if (this.stopped) return
     if (performance.now() - this.keyframeAt < KEYFRAME_HOLD_MS) return
+    if (performance.now() - this.launchedAt < FRESH_MS) return
     this.restarts = 0
     this.schedule(() => {
       if (this.stopped) return
