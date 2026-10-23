@@ -1,4 +1,9 @@
-import Resizable, { type ContextValue, type PanelContextValue } from "@corvu/resizable"
+import Resizable, {
+  type ContextValue,
+  type PanelContextValue,
+  useContext as useResizableContext,
+  usePanelContext as useResizablePanelContext,
+} from "@corvu/resizable"
 import { useLocation } from "@solidjs/router"
 import { I18nProvider, pluralCategory, pluralKey, type UiI18n } from "@kiko/ui/context/i18n"
 import { dict } from "@kiko/ui/i18n/en"
@@ -102,12 +107,12 @@ function readCollapsed() {
 }
 
 function GrabLayout(props: { onGrab: (layout: ContextValue) => void }) {
-  props.onGrab(Resizable.useContext())
+  props.onGrab(useResizableContext())
   return null
 }
 
 function GrabPanel(props: { onGrab: (panel: PanelContextValue | undefined) => void }) {
-  props.onGrab(Resizable.usePanelContext())
+  props.onGrab(useResizablePanelContext())
   onCleanup(() => props.onGrab(undefined))
   return null
 }
@@ -161,6 +166,19 @@ export function Shell(props: ParentProps) {
   }
   const drawer = drawerOpen
   const setDrawer = setDrawerOpen
+  const sideChat = () => {
+    const id = CHAT_PATH.exec(location.pathname)?.[1]
+    return id && id !== "new" ? decodeURIComponent(id) : null
+  }
+  const sideOpen = () => {
+    const id = sideChat()
+    return id !== null && sidecarOpen(id)
+  }
+  const closeSide = () => {
+    const id = sideChat()
+    if (id) closeSidecar(id)
+  }
+  const overlaidSide = () => (compact() && sideOpen() ? sideChat() : null)
   onMount(() => {
     const root = document.documentElement
     const keys = (e: KeyboardEvent) => {
@@ -257,18 +275,6 @@ export function Shell(props: ParentProps) {
     if (prev !== undefined && prev !== path && narrow()) setDrawer(false)
     return path
   })
-  const sideChat = () => {
-    const id = CHAT_PATH.exec(location.pathname)?.[1]
-    return id && id !== "new" ? decodeURIComponent(id) : null
-  }
-  const sideOpen = () => {
-    const id = sideChat()
-    return id !== null && sidecarOpen(id)
-  }
-  const closeSide = () => {
-    const id = sideChat()
-    if (id) closeSidecar(id)
-  }
   useKatCommands({ toggleSidebar: toggle })
   const owner = getOwner()
   onMount(() => {
@@ -340,7 +346,6 @@ export function Shell(props: ParentProps) {
       window.removeEventListener("resize", on)
     })
   })
-  const overlaidSide = () => (compact() && sideOpen() ? sideChat() : null)
   return (
     <I18nProvider value={i18n}>
       <div

@@ -25,6 +25,7 @@ export function openLive(mode: "watch" | "control"): void {
   const now = state()
   if (now) setState({ ...now, takeover: now.takeover || mode === "control", switching: now.mode === "headless" })
   const reqId = `browser${++n}`
+  let timer: ReturnType<typeof setTimeout> | undefined
   const off = userChannel.on("browserLink", (frame) => {
     if (frame.reqId !== reqId) return
     off()
@@ -36,7 +37,7 @@ export function openLive(mode: "watch" | "control"): void {
       setError(frame.result.error)
     }
   })
-  const timer = setTimeout(() => {
+  timer = setTimeout(() => {
     off()
     tab?.close()
     setError("The browser did not open. Try again.")

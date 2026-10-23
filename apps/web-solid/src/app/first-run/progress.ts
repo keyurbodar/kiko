@@ -80,12 +80,13 @@ export function setStep(step: Step): void {
   if (step === "done") void remember()
 }
 
-const remember = () =>
-  apiFetch("/api/settings", {
+function remember() {
+  return apiFetch("/api/settings", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ onboarded: true }),
   }).catch(() => {})
+}
 
 async function onboardedOnServer(): Promise<boolean> {
   const res = await apiFetch("/api/settings")

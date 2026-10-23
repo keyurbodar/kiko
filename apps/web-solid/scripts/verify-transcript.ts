@@ -17,7 +17,7 @@ function exchange(socket: WebSocket, frame: ClientToOwner, match: (frame: OwnerT
       const incoming: OwnerToClient = JSON.parse(String(event.data))
       if (match(incoming)) finish()
     }
-    const finish = (error?: Error) => {
+    function finish(error?: Error) {
       clearTimeout(timer)
       socket.removeEventListener("message", receive)
       if (error) reject(error)
@@ -92,7 +92,7 @@ async function transcript(page: Page, texts: string[]): Promise<void> {
   await page.locator('[data-component="chat-scroll"]').evaluate((element) => {
     element.scrollTop = element.scrollHeight
   })
-  for (const text of [...texts].reverse()) {
+  for (const text of texts.toReversed()) {
     await page.getByText(text, { exact: true }).first().waitFor()
     await page
       .getByText(text, { exact: true })

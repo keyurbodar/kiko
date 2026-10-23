@@ -6,10 +6,10 @@ import { createComposioClient, createKernelClient, type ComposioClient, type Ker
 import { SECRET_FIELD } from "../lib/secret-field"
 import { onChanged } from "../sync/changed"
 
-export const COMPOSIO_PLATFORM = "https://platform.composio.dev"
+const COMPOSIO_PLATFORM = "https://platform.composio.dev"
 const LiveBrowser = lazy(() => import("./live-browser"))
 
-export const KERNEL_HOME = "https://dashboard.onkernel.com"
+const KERNEL_HOME = "https://dashboard.onkernel.com"
 
 function GridIcon() {
   return (

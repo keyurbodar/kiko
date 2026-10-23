@@ -59,7 +59,7 @@ import { APP_VERSION, backendSkew, type Skew } from "../lib/version-skew"
 
 export type Home = { files: FileRef[]; folders: string[] }
 export type RowData = { [K in RowKind]: UserRows[K][] }
-export const emptyRows = (): RowData => ({ routine: [], soul: [], provider: [] })
+const emptyRows = (): RowData => ({ routine: [], soul: [], provider: [] })
 export type UserData = { seq: number; chats: Chat[]; agents: Agent[]; home: Home; rows: RowData }
 
 type PendingRow = { kind: RowKind; id: string; row: UserRows[RowKind] | null; at: number }
@@ -68,7 +68,7 @@ const PENDING_ROW_MS = 10_000
 const ROW_SETTLE_MS = 2_500
 const ROW_SETTLE_TRIES = 20
 
-export function applyUserEvent(data: UserData, e: UserEvent): boolean {
+function applyUserEvent(data: UserData, e: UserEvent): boolean {
   const projection = e.t === "chat" && e.projection === true
   if (projection ? e.seq < data.seq : e.seq <= data.seq) return false
   if (!claimed(data, e)) return false
@@ -136,7 +136,6 @@ function applyChatEvent(data: UserData, e: UserEvent): boolean {
 }
 
 import { clampThinking, defaultThinking, newRoomId, PROTOCOL, sameAgentChat } from "@kiko/protocol"
-export { newRoomId }
 
 const clientBuild = () => ({ version: APP_VERSION, protocol: PROTOCOL })
 
@@ -203,7 +202,7 @@ export type UserStore = {
   close(): void
 }
 
-export const OPEN_DEBOUNCE_MS = 2_000
+const OPEN_DEBOUNCE_MS = 2_000
 
 export function createUserStore(options: UserStoreOptions): UserStore {
   const { warm } = options
@@ -489,9 +488,9 @@ export function createUserStore(options: UserStoreOptions): UserStore {
         return { t: "hello", lastSeq: state.seq }
       },
       onOpen: () => {
-        for (const p of [...unwrap(state.patches)]) transmit(p)
+        for (const p of Array.from(unwrap(state.patches))) transmit(p)
         for (const op of unsentHome.splice(0)) socket?.send({ t: "home", op })
-        for (const [slug, frame] of [...unsentModels]) if (socket?.send(frame)) armModelExpiry(slug, frame)
+        for (const [slug, frame] of Array.from(unsentModels)) if (socket?.send(frame)) armModelExpiry(slug, frame)
         channel.opened()
       },
       onFrame: (frame) => {

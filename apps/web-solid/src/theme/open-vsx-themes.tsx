@@ -1,13 +1,11 @@
-import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
+import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { appearanceOf } from "@kiko/theme/apply"
-import { MAX_IMPORTED, type Imported, type ImportedTheme } from "@kiko/theme/imported"
+import { MAX_IMPORTED } from "@kiko/theme/imported"
 import { apiFetch } from "../lib/api"
 import type { OpenVsxItem } from "@kiko/theme/open-vsx"
 import { Dialog } from "../lib/dialog"
 import { Button, IconButton, Notice } from "../settings/kit"
 import { choose, commit, look, remove, themes, updateLook } from "./live"
-
-export { DEFAULT } from "./live"
 
 const importer = () => import("@kiko/theme/open-vsx")
 export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {

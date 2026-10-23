@@ -193,15 +193,13 @@ export class KernelWiring {
     for (const { agentId, roomId } of control?.waiters ?? []) {
       const slug = slugOf(agentId)
       if (agentId === except || !isRoomId(roomId) || !isAgentSlug(slug)) continue
-      const wake = this.d.services
-        .room(roomId)
-        .wake({
-          id: `browser-back:${control?.at}:${slug}`,
-          to: slug,
-          why: "system",
-          body: `${RESUMED[why]}${RESUME}`,
-          chain: null,
-        })
+      const wake = this.d.services.room(roomId).wake({
+        id: `browser-back:${control?.at}:${slug}`,
+        to: slug,
+        why: "system",
+        body: `${RESUMED[why]}${RESUME}`,
+        chain: null,
+      })
       this.d.ctx.waitUntil(
         Promise.resolve(wake).catch((e) =>
           console.error(`browser resume wake failed: ${e instanceof Error ? e.message : String(e)}`),

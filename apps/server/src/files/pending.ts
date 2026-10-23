@@ -17,7 +17,7 @@ import {
   part,
   refuse,
   storageRefusal,
-} from "./upload"
+} from "./paths"
 
 type Room = { owner: ReturnType<typeof ownerStub>; roomId: string }
 

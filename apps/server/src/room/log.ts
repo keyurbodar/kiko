@@ -25,13 +25,14 @@ import type { Pending } from "./burst"
 import { listAsks } from "./human-asks"
 import { type HeardStep, RunSteps } from "./steps"
 import { listTasks } from "./workspace"
+import { actorFromKey, actorKey } from "./actor-key"
 
 import type { ArchivedMessage } from "../owner/history-archive"
 
-export const REPLAY_LIMIT = 500
-export const KEEP_EVENTS = 2 * REPLAY_LIMIT
+const REPLAY_LIMIT = 500
+const KEEP_EVENTS = 2 * REPLAY_LIMIT
 const TRIM_EVERY = 100
-export const SNAPSHOT_MESSAGES = 200
+const SNAPSHOT_MESSAGES = 200
 
 const PUBLIC_MESSAGE = "(event IS NULL OR json_extract(event, '$.private') IS NOT 1)"
 
@@ -100,15 +101,6 @@ export type NewMessage = {
   to?: AgentSlug | "all"
   initiative?: { reason: string }
   event?: SystemEvent
-}
-
-export function actorKey(who: Sender): string {
-  if (who.kind === "human") return "human"
-  return who.kind === "agent" ? `agent:${who.slug}` : `system:${who.reason}`
-}
-
-function actorFromKey(key: string): Actor {
-  return key === "human" ? { kind: "human" } : ({ kind: "agent", slug: key.slice("agent:".length) } as Actor)
 }
 
 export class RoomLog {
@@ -306,7 +298,7 @@ export class RoomLog {
             before,
           )
           .toArray()
-          .reverse()
+          .toReversed()
       : []
     const newer = after
       ? this.sql

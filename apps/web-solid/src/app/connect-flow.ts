@@ -28,7 +28,7 @@ export interface InstallError {
   installed?: boolean
 }
 
-export const INSTALLER_URL: string = (import.meta.env.VITE_INSTALLER_URL ?? "").replace(/\/+$/, "")
+const INSTALLER_URL: string = (import.meta.env.VITE_INSTALLER_URL ?? "").replace(/\/+$/, "")
 
 export const redirectUri = (origin: string) => `${origin}/connect/callback`
 
@@ -40,7 +40,7 @@ const b64url = (bytes: Uint8Array) =>
 
 const randomString = () => b64url(crypto.getRandomValues(new Uint8Array(32)))
 
-export async function challengeOf(verifier: string): Promise<string> {
+async function challengeOf(verifier: string): Promise<string> {
   return b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))))
 }
 
@@ -227,7 +227,7 @@ export const loadTokenLink = (f: Fetch = fetch) =>
 
 export type InstallResult = { ok: true; backendUrl: string } | { ok: false; error: InstallError }
 
-export async function install(
+async function install(
   clerkToken: string,
   grant: Grant,
   f: Fetch = fetch,

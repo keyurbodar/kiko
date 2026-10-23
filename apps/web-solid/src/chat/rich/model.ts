@@ -30,7 +30,7 @@ const el = (tag: string, children: RichNode[], attrs: Record<string, string> = {
 
 const text = (value: string): RichNode => ({ kind: "text", text: value })
 
-export const safeHref = (href: string): boolean => /^(https?:|mailto:)/i.test(href) && URL.canParse(href)
+const safeHref = (href: string): boolean => /^(https?:|mailto:)/i.test(href) && URL.canParse(href)
 
 export const linkHost = (href: string): string | null =>
   /^https?:/i.test(href) && URL.canParse(href) ? new URL(href).hostname : null
@@ -56,14 +56,14 @@ export function linkLead(text: string): [string, string] {
   return [lead, text.slice(lead.length)]
 }
 
-export function maskedLink(href: string, label: string): boolean {
+function maskedLink(href: string, label: string): boolean {
   if (!/^https?:/i.test(href)) return false
   if (isSuspiciousUrl(href)) return true
   const real = bareHost(new URL(href).hostname)
   return shownHosts(label).some((shown) => bareHost(shown) !== real)
 }
 
-export function inline(node: Inline): RichNode {
+function inline(node: Inline): RichNode {
   switch (node.t) {
     case "text":
       return node.text === "\n" ? el("br", []) : text(node.text)
@@ -175,7 +175,7 @@ function tableCopy(node: Extract<Block, { t: "table" }>): TableCopy {
   return { markdown: markdown.join("\n"), csv }
 }
 
-export function block(node: Block): RichNode {
+function block(node: Block): RichNode {
   switch (node.t) {
     case "paragraph":
       return el("p", node.children.map(inline))
@@ -207,7 +207,7 @@ export function block(node: Block): RichNode {
       const row = (cells: readonly (readonly Inline[])[], tag: "th" | "td") =>
         el(
           "tr",
-          cells.map((cell, i) => el(tag, cell.map(inline))),
+          cells.map((cell) => el(tag, cell.map(inline))),
         )
       return {
         kind: "el",

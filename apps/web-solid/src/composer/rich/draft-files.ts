@@ -20,7 +20,7 @@ function open(): Promise<IDBDatabase> {
       request.result.createObjectStore(STORE, { keyPath: "key" }).createIndex("draftKey", "draftKey")
     }
     request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error)
+    request.addEventListener("error", () => reject(request.error))
   })
   return opened
 }
@@ -40,8 +40,8 @@ async function run<T>(
     const tx = db.transaction(STORE, mode)
     const request = body(tx.objectStore(STORE))
     tx.oncomplete = () => resolve(request ? request.result : undefined)
-    tx.onerror = () => reject(tx.error)
-    tx.onabort = () => reject(tx.error)
+    tx.addEventListener("error", () => reject(tx.error))
+    tx.addEventListener("abort", () => reject(tx.error))
   })
 }
 

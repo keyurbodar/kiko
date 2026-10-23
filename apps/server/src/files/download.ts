@@ -2,11 +2,11 @@ import { fileStore, type StoredObject } from "./store"
 import { getFileUser, signToken } from "../auth/auth"
 import type { Env } from "../index"
 import type { SessionLookup } from "../router"
-import { error, fileKey, filesPath, isFileId, isSpace } from "./upload"
+import { error, fileKey, filesPath, isFileId, isSpace } from "./paths"
 
 type Span = { start: number; end: number }
 
-export function parseRange(header: string | null, size: number): Span | null | "bad" {
+function parseRange(header: string | null, size: number): Span | null | "bad" {
   const m = header ? /^bytes=(\d*)-(\d*)$/.exec(header.trim()) : null
   if (!m || (m[1] === "" && m[2] === "") || size === 0) return null
   if (m[1] === "") {

@@ -21,7 +21,7 @@ import { findProvider } from "../models/catalog"
 import { withPasteLogin } from "./chatgpt-signin"
 import { isProviderId } from "./credentials"
 
-export const MAX_LOGINS = 4
+const MAX_LOGINS = 4
 
 registerBunOAuthFlows()
 
@@ -37,7 +37,7 @@ function withChatgptPaste(provider: Provider): Provider {
   return oauth ? { ...provider, auth: { ...provider.auth, oauth: withPasteLogin(oauth) } } : provider
 }
 
-export function hasSignIn(provider: string): boolean {
+function hasSignIn(provider: string): boolean {
   return !CANNOT_RUN.has(provider) && findProvider(provider)?.auth.oauth !== undefined
 }
 
@@ -84,7 +84,7 @@ export class ProviderLogins<Owner> {
     const provider = await this.provider(providerId)
     const oauth = provider?.auth.oauth
     if (!provider || !oauth) return refuse("unsupported", "this provider has no sign-in kiko can run. use an api key")
-    for (const other of [...this.logins.values()]) {
+    for (const other of this.logins.values()) {
       if (other.provider === providerId)
         this.end(other, { reason: "cancelled", message: "a newer sign-in replaced this one" })
     }
@@ -147,7 +147,7 @@ export class ProviderLogins<Owner> {
   }
 
   dropOwner(owner: Owner): void {
-    for (const login of [...this.logins.values()]) if (login.owner === owner) this.end(login, null)
+    for (const login of this.logins.values()) if (login.owner === owner) this.end(login, null)
   }
 
   private async provider(id: string): Promise<Provider | undefined> {

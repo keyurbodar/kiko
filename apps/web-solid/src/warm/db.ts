@@ -1,6 +1,6 @@
-export const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 3
 
-export const STORES = ["chats", "messages", "outbox", "drafts", "meta"] as const
+const STORES = ["chats", "messages", "outbox", "drafts", "meta"] as const
 export type StoreName = (typeof STORES)[number]
 
 export type WarmKey = string | number | readonly (string | number)[]
@@ -28,7 +28,7 @@ export type Warm = {
   close(): void
 }
 
-export const warmName = (userId: string) => `kiko:warm:${userId}`
+const warmName = (userId: string) => `kiko:warm:${userId}`
 
 type Op =
   | { op: "put"; store: StoreName; key: WarmKey; value: unknown }
@@ -65,7 +65,7 @@ type Backend = {
 const request = <T>(r: IDBRequest<T>) =>
   new Promise<T>((resolve, reject) => {
     r.onsuccess = () => resolve(r.result)
-    r.onerror = () => reject(r.error)
+    r.addEventListener("error", () => reject(r.error))
   })
 
 const idbRange = (range: KeyRange) => IDBKeyRange.bound(range.lower, range.upper)
@@ -75,7 +75,7 @@ function idbBackend(db: IDBDatabase, onLost: () => void): Backend {
     db.close()
     onLost()
   }
-  db.onclose = onLost
+  db.addEventListener("close", onLost)
   const read = (store: StoreName) => db.transaction(store, "readonly").objectStore(store)
 
   function writeOp(tx: IDBTransaction, op: Op) {
@@ -116,7 +116,7 @@ function idbBackend(db: IDBDatabase, onLost: () => void): Backend {
         const out: unknown[] = []
         if (limit <= 0) return resolve(out)
         const r = read(store).openCursor(idbRange(range), "prev")
-        r.onerror = () => reject(r.error)
+        r.addEventListener("error", () => reject(r.error))
         r.onsuccess = () => {
           const cursor = r.result
           if (!cursor) return resolve(out)
@@ -130,8 +130,8 @@ function idbBackend(db: IDBDatabase, onLost: () => void): Backend {
         const names = [...new Set(ops.map((o) => o.store))]
         const tx = db.transaction(names, "readwrite")
         tx.oncomplete = () => resolve()
-        tx.onerror = () => reject(tx.error)
-        tx.onabort = () => reject(tx.error ?? new Error("transaction aborted"))
+        tx.addEventListener("error", () => reject(tx.error))
+        tx.addEventListener("abort", () => reject(tx.error ?? new Error("transaction aborted")))
         try {
           applyOps(tx, ops, 0, reject)
         } catch (error) {
@@ -142,7 +142,7 @@ function idbBackend(db: IDBDatabase, onLost: () => void): Backend {
   }
 }
 
-export function compareKeys(a: WarmKey, b: WarmKey): number {
+function compareKeys(a: WarmKey, b: WarmKey): number {
   const rank = (k: WarmKey) => (typeof k === "number" ? 0 : typeof k === "string" ? 1 : 2)
   const ra = rank(a)
   const rb = rank(b)
@@ -157,7 +157,7 @@ export function compareKeys(a: WarmKey, b: WarmKey): number {
   return a < b ? -1 : a > b ? 1 : 0
 }
 
-export const MEMORY_ROWS_PER_STORE = 2000
+const MEMORY_ROWS_PER_STORE = 2000
 
 function memoryBackend(): Backend {
   const stores = new Map<StoreName, Map<string, { key: WarmKey; value: unknown }>>(STORES.map((s) => [s, new Map()]))
@@ -171,7 +171,7 @@ function memoryBackend(): Backend {
     getAll: async (store, range) => sorted(store, range).map((e) => e.value),
     newest: async (store, range, limit) =>
       sorted(store, range)
-        .reverse()
+        .toReversed()
         .slice(0, Math.max(0, limit))
         .map((e) => e.value),
     apply: async (ops) => {
@@ -194,7 +194,8 @@ function memoryBackend(): Backend {
 }
 
 function upgrade(db: IDBDatabase, tx: IDBTransaction, version: number) {
-  for (const name of [...db.objectStoreNames]) if (!STORES.includes(name as StoreName)) db.deleteObjectStore(name)
+  for (const name of Array.from(db.objectStoreNames))
+    if (!STORES.includes(name as StoreName)) db.deleteObjectStore(name)
   for (const name of STORES) if (!db.objectStoreNames.contains(name)) db.createObjectStore(name)
   tx.objectStore("meta").put(version, "schema")
 }
@@ -202,6 +203,7 @@ function upgrade(db: IDBDatabase, tx: IDBTransaction, version: number) {
 function openIdb(idb: IDBFactory, name: string, version: number, timeoutMs: number): Promise<IDBDatabase | null> {
   return new Promise((resolve) => {
     let done = false
+    let timer: ReturnType<typeof setTimeout>
     const finish = (db: IDBDatabase | null) => {
       if (done) {
         db?.close()
@@ -211,7 +213,7 @@ function openIdb(idb: IDBFactory, name: string, version: number, timeoutMs: numb
       clearTimeout(timer)
       resolve(db)
     }
-    const timer = setTimeout(() => finish(null), timeoutMs)
+    timer = setTimeout(() => finish(null), timeoutMs)
     let r: IDBOpenDBRequest
     try {
       r = idb.open(name, version)
@@ -220,10 +222,10 @@ function openIdb(idb: IDBFactory, name: string, version: number, timeoutMs: numb
     }
     r.onupgradeneeded = () => upgrade(r.result, r.transaction as IDBTransaction, version)
     r.onsuccess = () => finish(r.result)
-    r.onerror = (event) => {
+    r.addEventListener("error", (event) => {
       event.preventDefault()
       finish(null)
-    }
+    })
     r.onblocked = () => finish(null)
   })
 }
@@ -313,18 +315,4 @@ export async function openWarm(options: WarmOptions): Promise<Warm> {
       globalThis.document?.removeEventListener?.("visibilitychange", onVisibility)
     },
   }
-}
-
-export function deleteWarm(userId: string, idb: IDBFactory | null = globalThis.indexedDB ?? null): Promise<void> {
-  if (!idb) return Promise.resolve()
-  return new Promise((resolve) => {
-    try {
-      const r = idb.deleteDatabase(warmName(userId))
-      r.onsuccess = () => resolve()
-      r.onerror = () => resolve()
-      r.onblocked = () => resolve()
-    } catch {
-      resolve()
-    }
-  })
 }

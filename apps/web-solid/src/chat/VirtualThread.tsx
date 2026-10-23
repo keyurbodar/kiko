@@ -5,16 +5,13 @@ import {
   createEffect,
   createMemo,
   createSignal,
-  lazy,
   on,
   onCleanup,
   onMount,
   Show,
-  Suspense,
   type JSX,
 } from "solid-js"
 import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
-import type { SystemEvent } from "@kiko/protocol"
 import type { ChatMessage, RosterBot } from "../lib/types"
 import { buildTimelineItems, dayStartOf, keepUnchanged, type TimelineItem } from "./lib/grouping"
 import { AT_BOTTOM_THRESHOLD_PX, isAtBottom } from "./lib/drift"
@@ -204,6 +201,11 @@ export function VirtualThread(props: {
     landingGeneration += 1
   })
 
+  let stuck = true
+  let readerScrolling = false
+  let dragging = false
+  let dragFrom: { id: number; x: number; y: number } | undefined
+
   const jumpToMessage = (messageId: string) => {
     const fold = items().find(
       (item) => item.kind === "thread" && !item.expanded && item.messages.some((m) => m.id === messageId),
@@ -311,6 +313,11 @@ export function VirtualThread(props: {
     const current = () => generation === restoreGeneration && props.scrollKey === key
     let tries = 0
     stuck = false
+    function finish() {
+      if (!current()) return
+      restoredOk = true
+      commitState(readState())
+    }
     const apply = (pass = 0) => {
       if (!current()) return
       const virtualizer = handle()
@@ -340,49 +347,13 @@ export function VirtualThread(props: {
       }
       finish()
     }
-    const finish = () => {
-      if (!current()) return
-      restoredOk = true
-      commitState(readState())
-    }
     apply()
     return true
   }
 
   const NEAR_TOP_ROWS = 8
-  const commitState = (state: VirtualThreadState) => {
-    setScrollState(state)
-    recordScroll(state)
-    if (!restoredOk && props.scrollKey && props.scrollBook?.scroll(props.scrollKey)) {
-      props.onStateChange(state)
-      return
-    }
-    if (isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)) {
-      props.onAtLatest?.()
-    } else if (state.scrollSize > state.viewportSize) {
-      props.onLeftLatest?.()
-    }
-    props.onStateChange(state)
-  }
 
-  const scrollToLatest = () => {
-    const scroller = scrollElement
-    if (!scroller) return
-    stuck = true
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    scroller.scrollTo({ top: scroller.scrollHeight, behavior: reduced ? "auto" : "smooth" })
-    if (reduced) return
-    scroller.addEventListener("scrollend", () => scroller.scrollTo({ top: scroller.scrollHeight, behavior: "auto" }), {
-      once: true,
-    })
-  }
-
-  let stuck = true
-  let readerScrolling = false
-  let dragging = false
-  let dragFrom: { id: number; x: number; y: number } | undefined
-
-  const readState = (): VirtualThreadState => {
+  function readState(): VirtualThreadState {
     const virtualizer = handle()
     const count = items().length
     const scrollOffset = scrollElement?.scrollTop ?? virtualizer?.scrollOffset ?? 0
@@ -400,6 +371,33 @@ export function VirtualThread(props: {
     }
   }
 
+  function commitState(state: VirtualThreadState) {
+    setScrollState(state)
+    recordScroll(state)
+    if (!restoredOk && props.scrollKey && props.scrollBook?.scroll(props.scrollKey)) {
+      props.onStateChange(state)
+      return
+    }
+    if (isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)) {
+      props.onAtLatest?.()
+    } else if (state.scrollSize > state.viewportSize) {
+      props.onLeftLatest?.()
+    }
+    props.onStateChange(state)
+  }
+
+  function scrollToLatest() {
+    const scroller = scrollElement
+    if (!scroller) return
+    stuck = true
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior: reduced ? "auto" : "smooth" })
+    if (reduced) return
+    scroller.addEventListener("scrollend", () => scroller.scrollTo({ top: scroller.scrollHeight, behavior: "auto" }), {
+      once: true,
+    })
+  }
+
   const followEnd = () => {
     const scroller = scrollElement
     if (!scroller || !stuck || dragging) return
@@ -407,6 +405,8 @@ export function VirtualThread(props: {
       scroller.scrollTop = scroller.scrollHeight
   }
 
+  let firstLoad = true
+  let lastOwner: unknown
   let blankTries = 0
   let blankKey: string | undefined
   const repairBlank = () => {
@@ -526,8 +526,6 @@ export function VirtualThread(props: {
     })
   })
 
-  let firstLoad = true
-  let lastOwner: unknown
   createEffect(
     on(
       () => [items(), props.scrollKey, props.scrollBook?.ready?.()],

@@ -1,12 +1,12 @@
 import { createSignal } from "solid-js"
 
-export const HOLD_MS = 450
+const HOLD_MS = 450
 
 export type HoldEvent = { type: "down" | "up"; key: string; repeat?: boolean } | { type: "blur" }
 
 export type HoldState = "idle" | "holding" | "shown"
 
-export function nextHold(state: HoldState, event: HoldEvent): HoldState {
+function nextHold(state: HoldState, event: HoldEvent): HoldState {
   if (event.type === "blur") return "idle"
   const modifier = event.key === "Meta" || event.key === "Control"
   if (event.type === "up") return "idle"

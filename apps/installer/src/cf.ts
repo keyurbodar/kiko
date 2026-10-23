@@ -19,7 +19,7 @@ type CfBody<T> = { success: boolean; result: T; errors?: { code: number; message
 
 const API = "https://api.cloudflare.com/client/v4"
 
-const DENIED = [10000, 9109]
+const DENIED = new Set([10000, 9109])
 
 const unknownToken = (errors: { code: number; message: string }[]) =>
   errors.some((e) => e.code === 6003 || /invalid (access|api) token/i.test(e.message))
@@ -30,7 +30,7 @@ function codeOf(status: number, errors: { code: number; message: string }[]): st
   const codes = errors.map((e) => e.code)
   if (unknownToken(errors)) return "bad_token"
   if (errors.some((e) => ROWS_FULL.test(e.message))) return "storage_full"
-  if (status === 401 || status === 403 || codes.some((c) => DENIED.includes(c))) return "no_permission"
+  if (status === 401 || status === 403 || codes.some((c) => DENIED.has(c))) return "no_permission"
   if (status === 429) return "busy"
   if (status >= 500) return "cloudflare_down"
   return "cloudflare_error"

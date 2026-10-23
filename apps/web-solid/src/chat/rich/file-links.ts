@@ -97,7 +97,7 @@ const decode = (value: string) => {
   }
 }
 
-export function splitPosition(path: string, hash = ""): FileTarget {
+function splitPosition(path: string, hash = ""): FileTarget {
   const suffix = path.match(POSITION_CAPTURE)
   const match = suffix ?? hash.match(POSITION_HASH)
   if (!match?.[1]) return { path }

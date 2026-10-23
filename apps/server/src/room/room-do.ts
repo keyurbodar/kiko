@@ -2,7 +2,6 @@ import { HistoryArchive } from "../owner/history-archive"
 import { RoomHistoryStore } from "../owner/history-store"
 import { historyR2 } from "../owner/history-r2"
 import { eraseRoomSchema } from "../owner/schema"
-import { fileStore } from "../files/store"
 import {
   humanAnswerText,
   MAX_MESSAGE_TEXT,
@@ -39,7 +38,7 @@ import { loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 import { runDue } from "../owner/clock"
-import { enforceHello, HELLO_WAKEUP, helloBy } from "@kiko/durable/hello-deadline"
+import { enforceHello, HELLO_WAKEUP } from "@kiko/durable/hello-deadline"
 import { RoomRoutines } from "./routines"
 import type { Wake, WakeResult } from "./delivery"
 
@@ -55,7 +54,7 @@ import { roomActivity, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from
 import { Deliveries, withContext } from "./deliver"
 import { type AgentSend, MessageChains } from "./messaging"
 import { isRoomId } from "@kiko/protocol"
-import { cleanPath, deleteFiles, fileKey } from "../files/upload"
+import { cleanPath, deleteFiles, fileKey } from "../files/paths"
 import { changePaths, type CommitResult, type FileIndex, type IndexChange } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
 import { Team } from "./team"
@@ -453,15 +452,13 @@ export class Room implements SocketRoom {
       .toArray()
     return {
       open: rows.length,
-      oldest: rows
-        .slice(0, 3)
-        .map((t) => ({
-          id: t.id,
-          title: t.title,
-          status: t.status,
-          ...(t.owner ? { owner: t.owner } : {}),
-          updatedAt: t.updated_at,
-        })),
+      oldest: rows.slice(0, 3).map((t) => ({
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        ...(t.owner ? { owner: t.owner } : {}),
+        updatedAt: t.updated_at,
+      })),
     }
   }
 
@@ -1339,15 +1336,13 @@ export class Room implements SocketRoom {
     { slug: AgentSlug; name: string; status: AgentState; doing: string | null; holds: string[] }[]
   > {
     const now = Date.now()
-    return this.members
-      .list()
-      .map((m) => ({
-        slug: m.slug,
-        name: m.name,
-        status: m.status,
-        doing: this.team.now(m.slug),
-        holds: this.team.held(m.slug, now),
-      }))
+    return this.members.list().map((m) => ({
+      slug: m.slug,
+      name: m.name,
+      status: m.status,
+      doing: this.team.now(m.slug),
+      holds: this.team.held(m.slug, now),
+    }))
   }
 
   fileOp(op: FileOp): string | null {
@@ -1747,13 +1742,7 @@ export class Room implements SocketRoom {
     if (member.status !== "idle") this.broadcastStatus(slug)
   }
 
-  async endRun(
-    slug: AgentSlug,
-    runId: string,
-    heard: readonly string[] = [],
-    working = false,
-    mailOnly = false,
-  ): Promise<void> {
+  async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = [], working = false): Promise<void> {
     const settled = this.bubbles.settle(slug, runId)
     if (settled) this.publish([settled], { touch: false })
     for (const step of this.log.steps.abandon(runId)) this.broadcast({ t: "step", step })

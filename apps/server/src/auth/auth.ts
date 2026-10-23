@@ -54,7 +54,7 @@ export async function signToken(secret: string, ownerId: string, scope: Scope, n
   return `${body}.${mac}`
 }
 
-export async function verifyToken(
+async function verifyToken(
   secret: string | undefined,
   token: string | null,
   scope: Scope,
@@ -74,14 +74,14 @@ export async function verifyToken(
   return ok ? { id, name: id } : null
 }
 
+export const SOCKET_PROTOCOL = "kiko"
+
 function bearerToken(request: Request): string | null {
   const header = request.headers.get("authorization")
   if (header) return /^Bearer (\S+)$/.exec(header)?.[1] ?? null
   const offered = (request.headers.get("sec-websocket-protocol") ?? "").split(",").map((p) => p.trim())
   return offered[0] === SOCKET_PROTOCOL ? (offered[1] ?? null) : null
 }
-
-export const SOCKET_PROTOCOL = "kiko"
 
 export function getSessionUser(request: Request, env: AuthEnv): Promise<SessionUser | null> {
   return verifyToken(env.SESSION_SECRET, bearerToken(request), "session")

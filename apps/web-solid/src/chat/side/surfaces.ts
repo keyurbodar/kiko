@@ -25,7 +25,7 @@ const FIXED: { [K in FixedKind]: Extract<Surface, { kind: K }> } = {
   tasks: { id: "tasks", kind: "tasks" },
 }
 export const fixedSurface = (kind: FixedKind): Surface => FIXED[kind]
-export const fileSurface = (path: string): Surface => ({ id: `file:${path}`, kind: "file", path })
+const fileSurface = (path: string): Surface => ({ id: `file:${path}`, kind: "file", path })
 export const agentSurface = (slug: string): Surface => ({ id: `agent:${slug}`, kind: "agent", slug })
 
 function read(): string | null {
@@ -108,6 +108,9 @@ function readAll(): Record<string, SidecarState> {
 const [all, setAll] = createSignal<Readonly<Record<string, SidecarState>>>(readAll())
 const [reveal, setReveal] = createSignal<Reveal | null>(null)
 
+export const sidecarOpen = (chatId: string): boolean => (all()[chatId] ?? EMPTY).open
+export const sidecarSurfaces = (chatId: string): readonly Surface[] => (all()[chatId] ?? EMPTY).surfaces
+
 function edit(chatId: string, change: (s: SidecarState) => SidecarState) {
   setAll((map) => {
     const before = map[chatId] ?? EMPTY
@@ -164,17 +167,6 @@ export function closeAll(chatId: string) {
   edit(chatId, (s) => ({ ...s, surfaces: [], active: null }))
 }
 
-export function moveSurface(chatId: string, id: string, toIndex: number) {
-  edit(chatId, (s) => {
-    const from = s.surfaces.findIndex((x) => x.id === id)
-    if (from < 0) return s
-    const moved = s.surfaces[from]
-    const rest = s.surfaces.filter((_, i) => i !== from)
-    const at = Math.min(Math.max(toIndex, 0), rest.length)
-    return { ...s, surfaces: [...rest.slice(0, at), moved, ...rest.slice(at)] }
-  })
-}
-
 export function toggleSidecar(chatId: string) {
   edit(chatId, (s) => ({ ...s, open: !s.open }))
 }
@@ -203,10 +195,6 @@ export function dropFileSurfaces(chatId: string, path: string) {
   }
 }
 
-export function dropAgentSurfaces(chatId: string, gone: (slug: string) => boolean) {
-  for (const x of sidecarSurfaces(chatId)) if (x.kind === "agent" && gone(x.slug)) closeSurface(chatId, x.id)
-}
-
 export function openFile(chatId: string, path: string, line?: number) {
   openSurface(chatId, fileSurface(path))
   rememberFile(chatId, path)
@@ -215,8 +203,6 @@ export function openFile(chatId: string, path: string, line?: number) {
 
 export const loadSidecar = () => import("./Sidecar")
 
-export const sidecarOpen = (chatId: string): boolean => (all()[chatId] ?? EMPTY).open
-export const sidecarSurfaces = (chatId: string): readonly Surface[] => (all()[chatId] ?? EMPTY).surfaces
 export const activeSurface = (chatId: string): Surface | null => {
   const s = all()[chatId] ?? EMPTY
   return s.surfaces.find((x) => x.id === s.active) ?? s.surfaces[0] ?? null

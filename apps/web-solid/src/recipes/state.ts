@@ -78,7 +78,9 @@ export function targetsForChat(roomId: string): RecipeTarget[] {
 
 export const installs = (): readonly RecipeInstall[] => listing().installs
 export const installsFor = (slug: string): readonly RecipeInstall[] => listing().installs.filter((i) => i.slug === slug)
-export const agentName = (slug: string): string => agentDisplayName(slug, useApp.agents())
+export function agentName(slug: string): string {
+  return agentDisplayName(slug, useApp.agents())
+}
 export const isAdded = (slug: string, target?: RecipeTarget): boolean =>
   !!target && installedSlugs(listing().installs, target).has(slug)
 

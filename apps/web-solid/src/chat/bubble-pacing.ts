@@ -1,10 +1,10 @@
-export const BASE_GAP_MS = 350
-export const PER_CHAR_MS = 12
-export const MAX_GAP_MS = 1200
+const BASE_GAP_MS = 350
+const PER_CHAR_MS = 12
+const MAX_GAP_MS = 1200
 
-export const gapMs = (chars: number): number => Math.min(MAX_GAP_MS, BASE_GAP_MS + PER_CHAR_MS * Math.max(0, chars))
+const gapMs = (chars: number): number => Math.min(MAX_GAP_MS, BASE_GAP_MS + PER_CHAR_MS * Math.max(0, chars))
 
-export function showAt(previous: number | undefined, arrivedAt: number, chars: number): number {
+function showAt(previous: number | undefined, arrivedAt: number, chars: number): number {
   if (previous === undefined) return arrivedAt
   return Math.max(arrivedAt, previous + gapMs(chars))
 }

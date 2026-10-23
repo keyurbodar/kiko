@@ -1,6 +1,6 @@
 import type { PromptInputV2Attachment } from "../prompt-input/types"
 
-export const COMPOSER_CLIPBOARD = "application/x-kiko-composer"
+const COMPOSER_CLIPBOARD = "application/x-kiko-composer"
 type CopiedFile = { attachment: PromptInputV2Attachment; file: File; dataUrl?: string }
 const files = new Map<string, Promise<CopiedFile>>()
 const ready = new Map<string, CopiedFile>()
@@ -22,9 +22,10 @@ export function prepareClipboardFiles(attachments: readonly PromptInputV2Attachm
       const file = new File([blob], attachment.filename, { type: attachment.mime })
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
-        reader.onload = () =>
-          typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Invalid attachment"))
-        reader.onerror = () => reject(reader.error)
+        reader.addEventListener("load", () =>
+          typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Invalid attachment")),
+        )
+        reader.addEventListener("error", () => reject(reader.error))
         reader.readAsDataURL(file)
       })
       const copied = { attachment, file, dataUrl }

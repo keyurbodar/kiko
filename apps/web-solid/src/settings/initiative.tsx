@@ -8,8 +8,8 @@ type Settings = UserSettings
 export type Level = Settings["initiative"]
 export type Capture = Settings["capture"]
 
-const LEVELS: readonly Level[] = ["off", "chat", "digest", "active"]
-const CAPTURES: readonly Capture[] = ["auto", "off"]
+const LEVELS = new Set<Level>(["off", "chat", "digest", "active"])
+const CAPTURES = new Set<Capture>(["auto", "off"])
 const HELP: Record<Level, string> = {
   off: "No initiative and no background judge cost.",
   chat: "Brings things up only inside replies.",
@@ -21,11 +21,11 @@ const DEFAULTS: Settings = { initiative: "digest", capture: "auto" }
 const [settings, setSettings] = createSignal<Settings>(DEFAULTS)
 const [loaded, setLoaded] = createSignal(false)
 
-export function readSettings(value: unknown): Settings {
+function readSettings(value: unknown): Settings {
   const v = (value ?? {}) as Record<string, unknown>
   return {
-    initiative: LEVELS.includes(v.initiative as Level) ? (v.initiative as Level) : DEFAULTS.initiative,
-    capture: CAPTURES.includes(v.capture as Capture) ? (v.capture as Capture) : DEFAULTS.capture,
+    initiative: LEVELS.has(v.initiative as Level) ? (v.initiative as Level) : DEFAULTS.initiative,
+    capture: CAPTURES.has(v.capture as Capture) ? (v.capture as Capture) : DEFAULTS.capture,
   }
 }
 

@@ -11,7 +11,7 @@ import type {
   NewFile,
   PutResult,
 } from "../files/file-index"
-import { cleanPath, deleteFiles } from "../files/upload"
+import { cleanPath, deleteFiles } from "../files/paths"
 
 type HomeDeps = {
   ctx: DurableObjectState

@@ -11,7 +11,7 @@ import {
   summarizeSteps,
 } from "./run-log"
 
-export const LIVE_ROWS = 3
+const LIVE_ROWS = 3
 
 export type DetailStatus = "idle" | "loading" | "ready" | "error"
 

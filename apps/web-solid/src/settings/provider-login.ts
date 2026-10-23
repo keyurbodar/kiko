@@ -10,11 +10,11 @@ export type SignIn = {
   error: string | null
 }
 
-export const started: SignIn = { status: "running", code: null, link: null, note: null, prompt: null, error: null }
+const started: SignIn = { status: "running", code: null, link: null, note: null, prompt: null, error: null }
 
 type LoginFrame = Extract<UserToClient, { t: `login.${string}` }>
 
-export function reduceSignIn(state: SignIn, frame: LoginFrame): SignIn {
+function reduceSignIn(state: SignIn, frame: LoginFrame): SignIn {
   switch (frame.t) {
     case "login.notify": {
       const e = frame.event

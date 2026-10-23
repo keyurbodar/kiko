@@ -10,7 +10,7 @@ export type Skill = {
   disableModelInvocation: boolean
 }
 
-export const MAX_DESCRIPTION = 1024
+const MAX_DESCRIPTION = 1024
 const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 export function parseSkill(content: string, fallbackName: string, source: SkillSource): Skill | { warning: string } {

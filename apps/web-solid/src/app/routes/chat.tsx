@@ -105,10 +105,6 @@ export default function ChatRoute() {
       { defer: true },
     ),
   )
-  createEffect(() => {
-    const id = useApp.activeThreadId()
-    if (id && readingLatest() && useApp.hasUnread()) useApp.markRead(id)
-  })
   const members = createMemo(() => new Map(useApp.members().map((member) => [member.id, member])))
   const answering = createMemo(() => answeringMember(useApp.roomMembers(), draft()))
   const block = createMemo(() =>
@@ -208,6 +204,10 @@ export default function ChatRoute() {
   const empty = () =>
     roomEmpty(useApp.room()?.state, messages(), params.id ? useApp.chat(params.id)?.lastSeq : undefined)
   const readingLatest = () => !scrolled()
+  createEffect(() => {
+    const id = useApp.activeThreadId()
+    if (id && readingLatest() && useApp.hasUnread()) useApp.markRead(id)
+  })
   let dock: HTMLDivElement | undefined
   let launch: Launch | null = null
   createEffect(
@@ -360,8 +360,9 @@ export default function ChatRoute() {
           onEdit={(id, text) => useApp.editMessage(id, text)}
           onCancelEdit={() => setEditTarget(null)}
           onEditLast={() => {
-            const last = [...useApp.activeMessages()]
-              .reverse()
+            const last = useApp
+              .activeMessages()
+              .toReversed()
               .find((m) => m.sender === "user" && m.seq !== undefined && m.body.trim() !== "")
             if (last) startEdit(last.id)
           }}

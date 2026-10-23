@@ -1,6 +1,6 @@
 import { dayStartOf } from "./day-start"
 
-export const TIME_DIVIDER_GAP_MS = 20 * 60_000
+const TIME_DIVIDER_GAP_MS = 20 * 60_000
 
 export interface TimeLabelOptions {
   locale?: string
@@ -60,8 +60,4 @@ export function dividerParts(
 export function dividerLabel(at: number, now: number, opts: TimeLabelOptions = {}): string {
   const { day, time, dated } = dividerParts(at, now, opts)
   return dated ? `${day}, ${time}` : `${day} ${time}`
-}
-
-export function timeLabel(prev: number, at: number, now: number, opts: TimeLabelOptions = {}): string | undefined {
-  return startsTimeBreak(prev, at) ? dividerLabel(at, now, opts) : undefined
 }

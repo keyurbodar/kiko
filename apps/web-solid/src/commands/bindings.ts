@@ -4,7 +4,7 @@ export type Bindings = Readonly<Record<string, string | null>>
 
 const KEY = "kiko.keybindings"
 
-export function parseBindings(text: string | null): Bindings {
+function parseBindings(text: string | null): Bindings {
   try {
     const value: unknown = JSON.parse(text ?? "{}")
     if (!value || typeof value !== "object" || Array.isArray(value)) return {}

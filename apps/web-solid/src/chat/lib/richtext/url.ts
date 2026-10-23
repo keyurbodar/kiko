@@ -16,9 +16,16 @@ export function checkBrackets(url: string): string {
 }
 
 const STRIPPED_REG_EXP = /[\t\n\r]/g
-const PROTOCOL_REG_EXP = /^[\x00-\x20]*([a-z][a-z\d+\-.]*):/i
+const PROTOCOL_REG_EXP = /^([a-z][a-z\d+\-.]*):/i
+
+function stripLeadingControls(text: string): string {
+  let at = 0
+  while (at < text.length && text.charCodeAt(at) <= 0x20) at += 1
+  return text.slice(at)
+}
+
 function matchUrlProtocolText(text: string): string | false {
-  const match = text?.replace(STRIPPED_REG_EXP, "").match(PROTOCOL_REG_EXP)
+  const match = stripLeadingControls(text.replace(STRIPPED_REG_EXP, "")).match(PROTOCOL_REG_EXP)
   return match ? match[1].toLowerCase() + ":" : false
 }
 

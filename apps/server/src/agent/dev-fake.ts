@@ -12,10 +12,10 @@ import type { AgentSetup } from "@kiko/agent/host"
 import type { RoleInput } from "./prompt"
 import type { WorkspacePort } from "./extensions/workspace"
 
-export const FAKE_MODEL = { provider: "faux", modelId: "faux-1" } as const
-export const SLOW_TOOL = "slow_tool"
+const FAKE_MODEL = { provider: "faux", modelId: "faux-1" } as const
+const SLOW_TOOL = "slow_tool"
 const SLOW_WRITE_TOOL = "slow_write"
-export const SLOW_TOOL_MS = 5_000
+const SLOW_TOOL_MS = 5_000
 const LATER_MS = 3_000
 const TOKENS_PER_SECOND = 25
 const LONG = Array.from({ length: 12 }, (_, i) => `slow words ${i + 1} keep this paragraph open for a while,`).join(" ")
@@ -56,6 +56,8 @@ function capture(match: readonly string[], index: number): string {
 const directCall = (text: string) =>
   /\[(?:ws|tool) (\w+) (\{.*?\})\]/.exec(text.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&"))
 
+const BROWSE_LINE = /\[browse (\S+) click ([^\]]+)\]/
+
 function workerReply(messages: readonly Message[], toolNames: () => string) {
   const users = messages.filter((m) => m.role === "user").map(textOf)
   if (users[0] === "[tools]") return fauxAssistantMessage(`tools: ${toolNames()}`)
@@ -88,7 +90,7 @@ const toolsOf = (transcript: readonly Message[]) =>
 
 const failedOnce = new Set<string>()
 
-export function fakeReply(transcript: readonly Message[]) {
+function fakeReply(transcript: readonly Message[]) {
   const toolNames = () =>
     getCurrentTools(transcript as never)
       .map((t) => t.name)
@@ -131,7 +133,7 @@ function replyToMessages(messages: readonly Message[], toolNames: () => string) 
   const ws = last?.role === "user" ? /\[ws (\w+) (\{.*?\})\]/.exec(textOf(last)) : null
   if (ws)
     return fauxAssistantMessage(fauxToolCall(capture(ws, 1), JSON.parse(capture(ws, 2))), { stopReason: "toolUse" })
-  const fetchFirst = last?.role === "user" && /^\[fetch\]/.test(textOf(last))
+  const fetchFirst = last?.role === "user" && textOf(last).startsWith("[fetch]")
   const page = last?.role === "toolResult" && last.toolName === "fake_fetch"
   if (last?.role === "user" && textOf(last) === "[tools]") return fauxAssistantMessage(`tools: ${toolNames()}`)
   const browse = browseScript(messages, users)
@@ -210,8 +212,6 @@ function replyToBurst(since: readonly Message[], users: string[], results: strin
   return fauxAssistantMessage(heard)
 }
 
-const BROWSE_LINE = /\[browse (\S+) click ([^\]]+)\]/
-
 function browseScript(messages: readonly Message[], users: readonly string[]) {
   const last = messages.at(-1)
   const ask = users.map((u) => BROWSE_LINE.exec(u)).findLast(Boolean)
@@ -267,7 +267,7 @@ const slowTool = (name: string, effect: Effect) =>
     }),
   )
 
-export const SLOW_TOOL_EXTENSION: Extension = defineExtension({
+const SLOW_TOOL_EXTENSION: Extension = defineExtension({
   name: "test-slow-tool",
   tools: [slowTool(SLOW_TOOL, "read"), slowTool(SLOW_WRITE_TOOL, "write")],
 })
@@ -327,6 +327,13 @@ const FAKE_TOOLS_EXTENSION: Extension = defineExtension({ name: "test-fake-tools
 
 const isFakeTool = (name: string): name is keyof typeof FAKE_TOOLS => Object.hasOwn(FAKE_TOOLS, name)
 
+function directives(text: string) {
+  return [...text.matchAll(/\[call (\w+)\]/g)].flatMap((m) => {
+    const name = capture(m, 1)
+    return isFakeTool(name) && name !== "fake_fetch" ? [fauxToolCall(name, {})] : []
+  })
+}
+
 function fakeCalls(messages: readonly Message[]) {
   const last = messages.at(-1)
   if (last?.role === "user") {
@@ -339,12 +346,6 @@ function fakeCalls(messages: readonly Message[]) {
   const round = messages.slice(messages.findLastIndex((m) => m.role === "assistant") + 1)
   return round.flatMap((m) => directives(textOf(m)))
 }
-
-const directives = (text: string) =>
-  [...text.matchAll(/\[call (\w+)\]/g)].flatMap((m) => {
-    const name = capture(m, 1)
-    return isFakeTool(name) && name !== "fake_fetch" ? [fauxToolCall(name, {})] : []
-  })
 
 function fakeResults(since: readonly Message[]): string | null {
   const results = since.filter((m) => m.role === "toolResult" && isFakeTool(m.toolName ?? ""))

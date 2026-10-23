@@ -2,7 +2,7 @@ import { BROWSER } from "../config"
 import { CdpError } from "../cdp/session"
 import { evaluate, flush, navigates, type PageState } from "./read"
 import { guardScript, selectScript } from "./script"
-import type { ControlId, Step, StepResult } from "./types"
+import type { Step, StepResult } from "./types"
 
 type Guard =
   | { status: "ok"; x: number; y: number; menu: boolean }

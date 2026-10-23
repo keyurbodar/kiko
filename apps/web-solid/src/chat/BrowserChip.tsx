@@ -16,7 +16,7 @@ function openAsk(): string | null {
     : null
 }
 
-export function BrowserButtons(): JSX.Element {
+function BrowserButtons(): JSX.Element {
   return (
     <span class="flex shrink-0 gap-1.5" data-component="browser-buttons">
       <Show

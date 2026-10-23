@@ -11,6 +11,9 @@ function sameAgents(a: readonly string[], b: readonly string[]): boolean {
   return x.size > 0 && x.size === y.size && [...x].every((id) => y.has(id))
 }
 
+const rank = (a: Chat, b: Chat) =>
+  Number(!!b.kiko) - Number(!!a.kiko) || b.updatedAt - a.updatedAt || (a.roomId < b.roomId ? -1 : 1)
+
 export function sameAgentChat(chats: readonly Chat[], agents: readonly string[], except?: RoomId): Chat | null {
   let best: Chat | null = null
   for (const c of chats) {
@@ -19,9 +22,6 @@ export function sameAgentChat(chats: readonly Chat[], agents: readonly string[],
   }
   return best
 }
-
-const rank = (a: Chat, b: Chat) =>
-  Number(!!b.kiko) - Number(!!a.kiko) || b.updatedAt - a.updatedAt || (a.roomId < b.roomId ? -1 : 1)
 
 export function pairRoomId(a: string, b: string): RoomId {
   const [x, y] = a < b ? [a, b] : [b, a]

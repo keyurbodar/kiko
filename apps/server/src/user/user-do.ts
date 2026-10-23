@@ -72,7 +72,7 @@ import {
   type NewFile,
   type PutResult,
 } from "../files/file-index"
-import { actorKey } from "../room/log"
+import { actorKey } from "../room/actor-key"
 import { RoomDirectory, type ChatChange } from "../room/directory"
 import { Life } from "@kiko/memory/life"
 import { itemLine, spanOf } from "@kiko/memory/optmem"
@@ -486,7 +486,6 @@ export class User {
   private async deleteAgentNow(slug: AgentSlug) {
     const agent = this.sql.exec<{ id: string }>("SELECT id FROM agents WHERE slug = ?", slug).toArray()[0]
     if (!agent) return { ok: true as const, text: "agent already deleted" }
-    const owner = this.ownerId
     for (const row of this.directory
       .list(true)
       .filter((c) => c.agents?.includes(agent.id))
@@ -544,22 +543,20 @@ export class User {
   private loadRows<K extends RowKind>(kind: K): UserRows[K][] {
     const rows: { [L in RowKind]: () => UserRows[L][] } = {
       routine: () =>
-        this.reminders
-          .list()
-          .flatMap((r) =>
-            r.trigger && (r.status === "active" || r.status === "paused")
-              ? [
-                  {
-                    id: r.id,
-                    name: r.name || "Routine",
-                    roomId: r.roomId,
-                    status: r.status,
-                    trigger: r.trigger,
-                    tz: r.tz,
-                  },
-                ]
-              : [],
-          ),
+        this.reminders.list().flatMap((r) =>
+          r.trigger && (r.status === "active" || r.status === "paused")
+            ? [
+                {
+                  id: r.id,
+                  name: r.name || "Routine",
+                  roomId: r.roomId,
+                  status: r.status,
+                  trigger: r.trigger,
+                  tz: r.tz,
+                },
+              ]
+            : [],
+        ),
       soul: () => this.souls.all().map(({ slug, ...soul }) => ({ id: slug as AgentSlug, ...soul })),
       provider: () => this.#credentials.listProviders().map((p) => ({ id: p.provider, ...this.#mem.describe(p) })),
     }
@@ -920,7 +917,6 @@ export class User {
     if (notice !== null && Number(notice) >= this.lastSeen) return
     this.putSetting(AWAY_NOTICE, String(now))
     const roomId = kikoChatRoom(this.sql)
-    const owner = this.ownerId
     if (roomId)
       await this.services
         .room(roomId)
@@ -1318,7 +1314,8 @@ export class User {
       this.seen()
       const fileToken = await signToken(this.env.SESSION_SECRET, this.ownerId, "files")
       for (const kind of ROW_KINDS) this.project(kind)
-      send(ws, { ...this.resume(frame.lastSeq), ...BACKEND, ...{ fileToken } })
+      const hello = { ...this.resume(frame.lastSeq), ...BACKEND, fileToken }
+      send(ws, hello)
       const browser = this.#kr.browserState()
       if (browser) send(ws, { t: "browserState", state: browser })
       for (const [roomId, names] of this.#typing) send(ws, { t: "typing", roomId, names })
@@ -1576,7 +1573,6 @@ export class User {
 
   private resume(lastSeq: number): UserToClient {
     const seq = this.currentSeq()
-    const { oldest } = this.sql.exec<{ oldest: number | null }>("SELECT min(seq) AS oldest FROM user_events").one()
     const replayable = false
     if (!replayable) {
       const lastChat = this.lastChat()

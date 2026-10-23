@@ -7,7 +7,7 @@ export const MAX_MEMBERS = 8
 const MAX_NAME = 60
 export const MAX_ROLE = 400
 const MAX_MODEL = 200
-export const RESERVED_SLUGS: ReadonlySet<string> = new Set(["all"])
+const RESERVED_SLUGS: ReadonlySet<string> = new Set(["all"])
 
 export type MemberRow = {
   slug: AgentSlug
@@ -167,8 +167,7 @@ export class Members {
     const current = this.get(slug)
     if (!current) return { ok: false, reason: "unknown" }
     if (slug === CHIEF) return { ok: false, reason: "chief" }
-    const rest = this.list().filter((m) => m.slug !== slug)
-    const [successor] = rest
+    const successor = this.list().find((m) => m.slug !== slug)
     if (!successor) return { ok: false, reason: "last" }
     const removed = this.log.append("human", { t: "member_removed", slug })
     const events: RoomEvent[] = [removed]

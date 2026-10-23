@@ -1,7 +1,7 @@
 import { devRequest } from "../lib/dev-guard"
 import { type AuthEnv, OWNER_NAME, signedInResponse } from "./auth"
 
-export const DEV_SESSION_PATH = "/api/auth/dev/session"
+const DEV_SESSION_PATH = "/api/auth/dev/session"
 
 export async function devSessionRoute(request: Request, env: AuthEnv): Promise<Response | null> {
   const url = new URL(request.url)

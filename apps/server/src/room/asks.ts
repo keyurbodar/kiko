@@ -4,7 +4,7 @@ export type Unanswered = { id: string; asker: AgentSlug; state: "open" | "closed
 
 type RemoteAsk = { asker: AgentSlug; state: "open" | "closed"; answer: string | null }
 
-export const KEEP_ASKS_MS = 7 * 86_400_000
+const KEEP_ASKS_MS = 7 * 86_400_000
 
 export class Asks {
   constructor(

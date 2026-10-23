@@ -7,7 +7,7 @@ import { basename, dirname, ROOT, type TreeIndex } from "./model"
 
 const label = (path: string) => (path === ROOT ? "Files" : basename(path))
 
-export function crumbFolders(path: string): string[] {
+function crumbFolders(path: string): string[] {
   const out: string[] = []
   for (let dir = dirname(path); ; dir = dirname(dir)) {
     out.unshift(dir)

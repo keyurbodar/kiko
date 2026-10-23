@@ -62,7 +62,7 @@ async function exchange(env: InstallEnv, grant: Extract<Grant, { kind: "oauth" }
   return { accessToken: body.access_token, ...(body.refresh_token ? { refreshToken: body.refresh_token } : {}) }
 }
 
-export async function loadRelease(env: InstallEnv, f: FetchLike) {
+async function loadRelease(env: InstallEnv, f: FetchLike) {
   try {
     return await loadVerifiedRelease(
       { baseUrl: env.RELEASE_BASE_URL, publicKey: env.RELEASE_PUBLIC_KEY, index: "latest-owner.json" },

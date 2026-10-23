@@ -5,26 +5,11 @@ import { health } from "./commands/health"
 import { login, whoami } from "./commands/login"
 import { verify } from "./commands/verify"
 import { ws } from "./commands/ws"
+import { CliError, type Context } from "./context"
 
-export const defaultUrl = process.env.KIKO_URL ?? "http://localhost:8787"
+const defaultUrl = process.env.KIKO_URL ?? "http://localhost:8787"
 
 const withSlash = (url: string) => (url.endsWith("/") ? url : `${url}/`)
-
-export class CliError extends Error {}
-
-export interface Context {
-  url: string
-  json: boolean
-  args: string[]
-  idle: number
-  dev: boolean
-  name: string
-  list: boolean
-  noModel: boolean
-  fake: boolean
-  runs: string
-  tail?: string
-}
 
 const commands: Record<string, (ctx: Context) => Promise<void>> = {
   health,
@@ -36,7 +21,7 @@ const commands: Record<string, (ctx: Context) => Promise<void>> = {
   kernel,
 }
 
-export const usage =
+const usage =
   "usage: kiko <health | ws <path> | login --dev [--name <name>] | whoami | composio <connect | disconnect | status> | kernel <connect | disconnect | status> | verify [--list] [--no-model] [--fake] [suite...]> [--url <url>] [--json] [--idle <ms>] (--url defaults to $KIKO_URL, then http://localhost:8787)"
 
 export async function main(argv: string[]): Promise<number> {

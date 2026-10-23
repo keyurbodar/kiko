@@ -98,6 +98,15 @@ export const INITIAL_WORKERS_STEPS: Step[] = [
   ) WITHOUT ROWID, STRICT`,
 ]
 
+function clip(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}
+
+function listed({ paths, more }: { paths: readonly string[]; more: number }): string {
+  if (!paths.length) return "no files"
+  return more > 0 ? `${paths.join(", ")} and ${more} more` : paths.join(", ")
+}
+
 export class Workers {
   private readonly sql: SqlStorage
   private readonly now: () => number
@@ -368,9 +377,7 @@ export class Workers {
     const work = this.get(id)
     if (harness !== this.harness || !work || work.delivered || !work.conversationId) return
     if (work.submissionId !== submissionId) return
-    const newer = (await harness.inspect(context)).submissions
-      .filter((s) => s.conversationId === work.conversationId)
-      .at(-1)
+    const newer = (await harness.inspect(context)).submissions.findLast((s) => s.conversationId === work.conversationId)
     if (harness !== this.harness) return
     if (newer) {
       this.sql.exec(
@@ -438,13 +445,8 @@ export class Workers {
   }
 }
 
-export const plainReport = (text: string): string => text.replace(/<harness>[\s\S]*?(?:<\/harness>|$)/g, "").trim()
-
-const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
-
-const listed = ({ paths, more }: { paths: readonly string[]; more: number }) => {
-  if (!paths.length) return "no files"
-  return more > 0 ? `${paths.join(", ")} and ${more} more` : paths.join(", ")
+export function plainReport(text: string): string {
+  return text.replace(/<harness>[\s\S]*?(?:<\/harness>|$)/g, "").trim()
 }
 
 export function workEnvelope(

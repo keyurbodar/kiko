@@ -273,7 +273,7 @@ export function createPromptInputV2Controller(input: {
     draft.setPrompt(clonePrompt(entry.prompt), cursor)
     restoreFocus(cursor)
   }
-  const navigateHistory = (direction: "up" | "down") => {
+  function navigateHistory(direction: "up" | "down") {
     if (!input.history || !editor) return false
     const selection = window.getSelection()
     if (!selection?.isCollapsed || !editor.contains(selection.anchorNode)) return false

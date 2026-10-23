@@ -85,7 +85,8 @@ export class BlobStore {
         at += part.length
       }
       let offset = 0
-      while (joined.length - offset >= CHUNK_BYTES || (all && offset < joined.length)) {
+      const limit = all ? joined.length : joined.length - (joined.length % CHUNK_BYTES)
+      while (offset < limit) {
         const piece = joined.slice(offset, offset + CHUNK_BYTES)
         sql.exec(
           "INSERT INTO chunk (key, idx, pos, len, data) VALUES (?, ?, ?, ?, ?)",

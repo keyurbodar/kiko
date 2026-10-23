@@ -66,7 +66,7 @@ export async function listDays(bucket: ArchiveBucket, roomId: string): Promise<s
       const day = object.key.slice(prefix.length, -SUFFIX.length)
       if (validDay(day)) days.add(day)
     }
-    if (!page.truncated) return [...days].sort().reverse()
+    if (!page.truncated) return [...days].sort().toReversed()
     if (page.cursor === undefined || page.cursor === cursor) throw new Error("Archive list cursor did not advance")
     cursor = page.cursor
   }

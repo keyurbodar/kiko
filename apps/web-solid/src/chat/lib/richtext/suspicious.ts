@@ -86,7 +86,7 @@ export default function isSuspiciousUrl(url: string): boolean {
   let parsed: URL
   try {
     parsed = new URL(url)
-  } catch (e) {
+  } catch {
     return true
   }
 
@@ -97,7 +97,7 @@ export default function isSuspiciousUrl(url: string): boolean {
   let hostname: string
   try {
     hostname = convertPunycode(parsed.hostname)
-  } catch (e) {
+  } catch {
     return true
   }
 

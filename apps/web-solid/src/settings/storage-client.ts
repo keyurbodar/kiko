@@ -4,9 +4,9 @@ export type Storage = { objectBytes: number; archiveEnabled: boolean }
 
 export const OBJECT_LIMIT_BYTES = 1_000_000_000
 
-export const WARN_BYTES = 800_000_000
+const WARN_BYTES = 800_000_000
 
-export function readStorage(value: unknown): Storage | null {
+function readStorage(value: unknown): Storage | null {
   const v = (value ?? {}) as Record<string, unknown>
   if (
     typeof v.objectBytes !== "number" ||

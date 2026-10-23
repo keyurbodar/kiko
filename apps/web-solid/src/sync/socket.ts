@@ -9,16 +9,15 @@ import type {
 } from "@kiko/protocol"
 import { socketProtocols } from "../lib/api"
 
-export const PING = "ping"
-export const PONG = "pong"
+const PING = "ping"
 
 export type SocketLike = {
   send(data: string): void
   close(code?: number, reason?: string): void
-  onopen: ((event: unknown) => void) | null
-  onmessage: ((event: { data: unknown }) => void) | null
-  onclose: ((event: unknown) => void) | null
-  onerror: ((event: unknown) => void) | null
+  addEventListener(type: "open", listener: (event: unknown) => void): void
+  addEventListener(type: "message", listener: (event: { data: unknown }) => void): void
+  addEventListener(type: "close", listener: (event: unknown) => void): void
+  addEventListener(type: "error", listener: (event: unknown) => void): void
 }
 
 export type Connect = (url: string) => SocketLike
@@ -61,12 +60,12 @@ export type SyncSocket = {
   close(): void
 }
 
-export function backoffDelay(attempt: number, baseMs = 250, maxMs = 10_000, random = Math.random): number {
+function backoffDelay(attempt: number, baseMs = 250, maxMs = 10_000, random = Math.random): number {
   const ceiling = Math.min(maxMs, baseMs * 2 ** Math.min(attempt, 30))
   return Math.round(ceiling / 2 + (ceiling / 2) * random())
 }
 
-export function parseFrame<In>(data: unknown): In | null {
+function parseFrame<In>(data: unknown): In | null {
   if (typeof data !== "string") return null
   try {
     const value: unknown = JSON.parse(data)
@@ -109,7 +108,7 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
       return retry()
     }
     socket = s
-    s.onopen = () => {
+    s.addEventListener("open", () => {
       if (socket !== s) return
       heardAt = Date.now()
       pongAt = heardAt
@@ -118,8 +117,8 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
       setStatus("open")
       s.send(JSON.stringify(options.hello()))
       options.onOpen?.()
-    }
-    s.onmessage = (event) => {
+    })
+    s.addEventListener("message", (event) => {
       if (socket !== s) return
       heardAt = Date.now()
       pongAt = heardAt
@@ -127,13 +126,13 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
       attempt = 0
       const frame = parseFrame<In>(event.data)
       if (frame) options.onFrame(frame)
-    }
-    s.onerror = () => {}
-    s.onclose = (event) => {
+    })
+    s.addEventListener("error", () => {})
+    s.addEventListener("close", (event) => {
       if (socket !== s) return
       socket = null
       retry(closeIsFinal(event))
-    }
+    })
   }
 
   function watch() {
@@ -277,7 +276,7 @@ export type UserChannelHost = UserChannel & {
   status(status: SocketStatus): void
 }
 
-export function createUserChannel(): UserChannelHost {
+function createUserChannel(): UserChannelHost {
   const listeners = new Map<string, Set<(frame: never) => void>>()
   const openers = new Set<() => void>()
   const statuses = new Set<(status: SocketStatus) => void>()
@@ -314,7 +313,7 @@ export function createUserChannel(): UserChannelHost {
         if (sender === send) {
           sender = null
           status = "closed"
-          for (const fn of [...statuses]) fn(status)
+          for (const fn of Array.from(statuses)) fn(status)
           for (const set of rooms.values()) for (const room of set) room.onStatus(status)
         }
       }
@@ -346,7 +345,7 @@ export function createUserChannel(): UserChannelHost {
     status(next) {
       if (next === "open") return
       status = next
-      for (const fn of [...statuses]) fn(next)
+      for (const fn of Array.from(statuses)) fn(next)
       for (const set of rooms.values()) for (const room of set) room.onStatus(next)
     },
     deliver(frame) {
@@ -358,9 +357,9 @@ export function createUserChannel(): UserChannelHost {
     },
     opened() {
       status = "open"
-      for (const fn of [...statuses]) fn(status)
+      for (const fn of Array.from(statuses)) fn(status)
       for (const [roomId, set] of rooms) for (const room of set) subscribe(roomId, room)
-      for (const fn of [...openers]) fn()
+      for (const fn of Array.from(openers)) fn()
     },
   }
 }

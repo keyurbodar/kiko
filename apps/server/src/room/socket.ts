@@ -44,15 +44,15 @@ export interface SocketRoom {
   retryRun(messageId: MessageId): Promise<void>
 }
 
-export const BAD_FRAME = 1008
+const BAD_FRAME = 1008
 const MAX_EMOJI = 32
-export const MAX_HISTORY = 100
+const MAX_HISTORY = 100
 
 const decode = Schema.decodeUnknownSync(ClientToRoomSchema)
 
 const RETIRED = new Set(["catalog"])
 
-export function retired(raw: string | ArrayBuffer): boolean {
+function retired(raw: string | ArrayBuffer): boolean {
   if (typeof raw !== "string" || raw.length > MAX_FRAME) return false
   try {
     const t = (JSON.parse(raw) as { t?: unknown } | null)?.t
@@ -62,7 +62,7 @@ export function retired(raw: string | ArrayBuffer): boolean {
   }
 }
 
-export function attachment(ws: WebSocket): Attachment {
+function attachment(ws: WebSocket): Attachment {
   return (ws.deserializeAttachment() as Attachment | null) ?? { ready: false }
 }
 
@@ -72,7 +72,7 @@ export function send(ws: WebSocket, frame: RoomToClient): void {
   } catch {}
 }
 
-export function parse(raw: string | ArrayBuffer): ClientToRoom | null {
+function parse(raw: string | ArrayBuffer): ClientToRoom | null {
   if (typeof raw !== "string" || raw.length > MAX_FRAME) return null
   try {
     return decode(JSON.parse(raw))

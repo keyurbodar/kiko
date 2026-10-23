@@ -43,7 +43,7 @@ export function loadEmoji(): Promise<readonly EmojiEntry[]> {
   return loading
 }
 
-export function newestSupported(entries: readonly EmojiEntry[], draws: (emoji: string) => boolean): number {
+function newestSupported(entries: readonly EmojiEntry[], draws: (emoji: string) => boolean): number {
   const probes = new Map<number, string>()
   for (const entry of entries) if (!probes.has(entry.version)) probes.set(entry.version, entry.emoji)
   const versions = [...probes.keys()].sort((a, b) => b - a)
@@ -51,7 +51,7 @@ export function newestSupported(entries: readonly EmojiEntry[], draws: (emoji: s
   return versions.at(-1) ?? Infinity
 }
 
-export const EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'
+const EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'
 
 function drawsAsOneGlyph(emoji: string): boolean {
   const canvas = document.createElement("canvas")
@@ -74,7 +74,7 @@ export function warmEmoji(): void {
   void loadEmoji().catch(() => undefined)
 }
 
-export const DEFAULT_RECENTS: readonly string[] = [
+const DEFAULT_RECENTS: readonly string[] = [
   "🙂",
   "❤️",
   "😂",
@@ -93,11 +93,11 @@ export const DEFAULT_RECENTS: readonly string[] = [
 const RECENTS_KEY = "kiko.emoji.recent"
 const RECENTS_MAX = 32
 
-export function pushRecent(list: readonly string[], emoji: string, max = RECENTS_MAX): string[] {
+function pushRecent(list: readonly string[], emoji: string, max = RECENTS_MAX): string[] {
   return [emoji, ...list.filter((entry) => entry !== emoji)].slice(0, max)
 }
 
-export function withDefaults(stored: readonly string[]): string[] {
+function withDefaults(stored: readonly string[]): string[] {
   return [...stored, ...DEFAULT_RECENTS.filter((entry) => !stored.includes(entry))]
 }
 

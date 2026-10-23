@@ -37,7 +37,6 @@ import {
   putMessages,
   roomRange,
   setLastSeq,
-  storedMessages,
   dropBefore,
 } from "../warm/messages"
 import { addToOutbox, outbox, removeFromOutbox } from "../warm/outbox"
@@ -72,11 +71,11 @@ export type RoomData = {
   asks: HumanAsk[]
 }
 
-export const MAX_MESSAGES_IN_MEMORY = 200
-export const WINDOW_SLACK = 50
-export const HELD_MESSAGES = 600
+const MAX_MESSAGES_IN_MEMORY = 200
+const WINDOW_SLACK = 50
+const HELD_MESSAGES = 600
 
-export const emptyRoom = (): RoomData => ({
+const emptyRoom = (): RoomData => ({
   seq: 0,
   readSeq: 0,
   members: [],
@@ -88,7 +87,7 @@ export const emptyRoom = (): RoomData => ({
   asks: [],
 })
 
-export function fromSnapshot(s: RoomSnapshot): RoomData {
+function fromSnapshot(s: RoomSnapshot): RoomData {
   return {
     seq: s.seq,
     readSeq: s.readSeq,
@@ -102,7 +101,7 @@ export function fromSnapshot(s: RoomSnapshot): RoomData {
   }
 }
 
-export function toMessage(e: Extract<RoomEvent, { t: "message" }>): Message {
+function toMessage(e: Extract<RoomEvent, { t: "message" }>): Message {
   const { t: _, ...m } = e
   return m
 }
@@ -130,7 +129,7 @@ const removeWhere = <T>(list: T[], match: (x: T) => boolean) => {
 
 export type Change = { put?: Message; deleted?: Message[]; meta?: true }
 
-export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
+function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
   if (e.seq <= data.seq) return null
   data.seq = e.seq
   switch (e.t) {
@@ -211,12 +210,12 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
   }
 }
 
-export function applyStatus(data: RoomData, status: AgentStatus): void {
+function applyStatus(data: RoomData, status: AgentStatus): void {
   if (status.state === "idle") removeWhere(data.agents, (x) => x.slug === status.slug)
   else upsert(data.agents, status, (x) => x.slug === status.slug)
 }
 
-export function mergeBySeq(a: readonly Message[], b: readonly Message[]): Message[] {
+function mergeBySeq(a: readonly Message[], b: readonly Message[]): Message[] {
   const out: Message[] = []
   let i = 0
   let j = 0
@@ -232,7 +231,7 @@ export function mergeBySeq(a: readonly Message[], b: readonly Message[]): Messag
   return out
 }
 
-export function applyToHistory(history: Message[], e: RoomEvent): void {
+function applyToHistory(history: Message[], e: RoomEvent): void {
   if (e.t === "message") {
     const i = findMessage(history, e.id)
     if (i !== -1) history[i] = toMessage(e)
@@ -280,10 +279,10 @@ export type RoomSeed = Pick<
 export type SearchPage = { results: readonly SearchHit[]; next: number | null }
 
 const ASK_TIMEOUT_MS = 8000
-export const HISTORY_PAGE = 30
+const HISTORY_PAGE = 30
 export const NO_MORE = 0
-export const NO_ANSWER = -1
-export const TYPING_EVERY_MS = 2000
+const NO_ANSWER = -1
+const TYPING_EVERY_MS = 2000
 
 export type SendOptions = {
   replyTo?: MessageId
@@ -337,18 +336,18 @@ export type RoomStore = {
 type RoomMeta = Omit<RoomData, "messages" | "seq" | "agents">
 const metaKey = (roomId: RoomId) => `room:${roomId}`
 
-export function freeLocal(local: readonly LocalAttachment[] | undefined): void {
+function freeLocal(local: readonly LocalAttachment[] | undefined): void {
   for (const f of local ?? []) if (f.src.startsWith("blob:")) URL.revokeObjectURL(f.src)
 }
 
-export function defaultSchedule(run: () => void) {
+function defaultSchedule(run: () => void) {
   const MC = (globalThis as { MessageChannel?: typeof MessageChannel }).MessageChannel
   if (!MC) return void setTimeout(run, 0)
   const channel = new MC()
-  channel.port1.onmessage = () => {
+  channel.port1.addEventListener("message", () => {
     channel.port1.close()
     run()
-  }
+  })
   channel.port2.postMessage(null)
 }
 
@@ -598,21 +597,22 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
   }
 
   async function ask<T>(key: string, frame: ClientToRoom): Promise<T | null> {
+    let openTimer: ReturnType<typeof setTimeout> | undefined
     if (state.connection !== "open" && !closed && !suspended) {
       await new Promise<void>((resolve) => {
         const done = () => {
-          clearTimeout(timer)
+          clearTimeout(openTimer)
           openWaiters = openWaiters.filter((w) => w !== done)
           resolve()
         }
-        const timer = setTimeout(done, ASK_TIMEOUT_MS)
+        openTimer = setTimeout(done, ASK_TIMEOUT_MS)
         openWaiters.push(done)
       })
     }
     if (closed) return null
     return new Promise<T | null>((resolve) => {
-      const timer = setTimeout(() => finish(null), ASK_TIMEOUT_MS)
-      const finish = (answer: unknown) => {
+      let timer: ReturnType<typeof setTimeout>
+      function finish(answer: unknown) {
         clearTimeout(timer)
         const list = asked.get(key)
         if (list)
@@ -622,6 +622,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
           )
         resolve(answer as T | null)
       }
+      timer = setTimeout(() => finish(null), ASK_TIMEOUT_MS)
       if (!socket?.send(frame)) return finish(null)
       asked.set(key, [...(asked.get(key) ?? []), finish])
     })
@@ -633,8 +634,9 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
     for (const done of waiting ?? []) done(value)
   }
 
-  const history = (seq: number, before: number, after: number) =>
-    ask<readonly Message[]>(historyKey(seq, before, after), { t: "history", seq, before, after })
+  function history(seq: number, before: number, after: number) {
+    return ask<readonly Message[]>(historyKey(seq, before, after), { t: "history", seq, before, after })
+  }
 
   function takeSteps(incoming: readonly RunStep[], live: boolean) {
     if (incoming.length === 0) return
@@ -697,7 +699,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
     },
     reset: (f) => reset(f.snapshot),
     typing: (f) => setState("typing", [...f.who]),
-    status: ({ t: _, ...f }) =>
+    status: ({ t: _t, ...f }) =>
       batch(() => {
         setState("status", f.slug, f.state)
         setState("doing", f.slug, f.state === "idle" ? undefined : f.doing)
@@ -746,7 +748,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
     const waiting = openWaiters
     openWaiters = []
     for (const w of waiting) w()
-    for (const p of [...raw(state.patches)]) if (!p.ack) transmit(p)
+    for (const p of Array.from(raw(state.patches))) if (!p.ack) transmit(p)
     retryFailedUploads()
   }
 

@@ -45,7 +45,7 @@ function allowedReaction(emoji: string): string | null {
   return CANONICAL.get(bare(emoji.trim())) ?? null
 }
 
-export function defaultTarget(sql: SqlStorage, roomId: string, pending: readonly Pending[]): MessageId | null {
+function defaultTarget(sql: SqlStorage, roomId: string, pending: readonly Pending[]): MessageId | null {
   const row = sql
     .exec<{ id: string }>(
       "SELECT id FROM messages WHERE (deleted_at IS NULL AND JSON_EXTRACT(sender, '$.kind') = 'human' AND NOT id IN (SELECT value FROM json_each(?2))) AND messages.room_id = ?1 ORDER BY seq DESC LIMIT 1",
@@ -86,7 +86,7 @@ function reactionLines(notes: readonly ReactionNote[]): string | null {
   const kept: string[] = []
   let bytes = 0
   let left = notes.length
-  for (const { by, emoji, text } of [...notes].reverse()) {
+  for (const { by, emoji, text } of notes.toReversed()) {
     const quote = text.length > QUOTE ? `${text.slice(0, QUOTE - 1)}…` : text
     const line = `- ${by} reacted ${emoji} to your "${quote}"`
     const size = new TextEncoder().encode(escapeXml(line)).length + 1

@@ -15,7 +15,7 @@ import { agentName, editRecipe, isEditing, removeInstall, setInstallPaused, targ
 const pillClass =
   "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs text-muted-foreground hover:bg-control-strong hover:text-foreground"
 
-export function StatusChip(props: { status: InstallStatus }) {
+function StatusChip(props: { status: InstallStatus }) {
   const chip = "flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs"
   return (
     <span class="flex min-w-0 items-center gap-2" data-component="recipe-status">

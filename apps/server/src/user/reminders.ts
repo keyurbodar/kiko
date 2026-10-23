@@ -6,9 +6,9 @@ import { getSetting, setSetting } from "../lib/settings"
 import { nextOccurrence, repeatProblem, validZone } from "@kiko/sandbox/recurrence"
 import { MIN_REPEAT_MS, ruleProblem } from "@kiko/sandbox/rule"
 
-export const MAX_ROUTINES = 50
+const MAX_ROUTINES = 50
 const YEAR_MS = 365 * 86_400_000
-export const RUNS_KEPT = 20
+const RUNS_KEPT = 20
 const LATE_MS = 60 * 60_000
 const MAX_FAILS = 3
 const LOST_RUN_MS = 2 * 60 * 60_000
@@ -108,7 +108,7 @@ function parseTime(time: string, now: number): number {
   return due
 }
 
-export function nextAfter(rrule: string, tz: string, due: number, now: number): number | null {
+function nextAfter(rrule: string, tz: string, due: number, now: number): number | null {
   if (ruleProblem(rrule)) return null
   let at = due
   for (let i = 0; i < MAX_SKIPS; i++) {
@@ -581,20 +581,22 @@ type RunRow = {
   seq: number | null
 }
 
-const toRun = (r: RunRow): RoutineRun => ({
-  routineId: r.routine_id,
-  occurrence: r.occurrence,
-  startedAt: r.started_at,
-  endedAt: r.ended_at,
-  status: r.status as RoutineRunStatus,
-  seq: r.seq,
-})
+function toRun(r: RunRow): RoutineRun {
+  return {
+    routineId: r.routine_id,
+    occurrence: r.occurrence,
+    startedAt: r.started_at,
+    endedAt: r.ended_at,
+    status: r.status as RoutineRunStatus,
+    seq: r.seq,
+  }
+}
 
-const fail = (message: string): never => {
+function fail(message: string): never {
   throw new ReminderError(message)
 }
 
-const thrownAsRefused = (e: unknown): "refused" => {
+function thrownAsRefused(e: unknown): "refused" {
   console.error(`delivery refused: ${e instanceof Error ? e.message : String(e)}`)
   return "refused"
 }
@@ -604,7 +606,7 @@ function checkRepeat(rrule: string, tz: string, from: number): void {
   if (problem) throw new ReminderError(problem)
 }
 
-export function nextTime(r: Pick<Reminder, "rrule" | "tz" | "dueUtc">, now: number): number | null {
+function nextTime(r: Pick<Reminder, "rrule" | "tz" | "dueUtc">, now: number): number | null {
   return r.rrule ? nextAfter(r.rrule, r.tz, r.dueUtc, Math.max(now, r.dueUtc + MIN_REPEAT_MS - 1)) : null
 }
 
@@ -650,7 +652,7 @@ export function describeTrigger(trigger: Trigger, tz: string, due: number): stri
   }
 }
 
-export function routineBody(routine: Reminder, why: string, last: RoutineRun | null, extra: string): string {
+function routineBody(routine: Reminder, why: string, last: RoutineRun | null, extra: string): string {
   const trigger = routine.trigger
   if (!trigger) throw new ReminderError("routine has no trigger")
   const lines = [

@@ -7,6 +7,8 @@ import { HANDLE_HEADER, NameError, ROOM_ID_HEADER, USER_ID_HEADER, ownerStub } f
 
 export type SessionLookup = (request: Request, env: AuthEnv) => Promise<{ id: string; name?: string } | null>
 
+const UPGRADE_TIMEOUT_MS = 5_000
+
 function error(status: number, message: string): Response {
   return Response.json({ error: message }, { status })
 }
@@ -29,8 +31,6 @@ export async function route(
   if (url.pathname !== "/api/ws") return null
   return within(UPGRADE_TIMEOUT_MS, upgrade(request, env, url, lookup))
 }
-
-const UPGRADE_TIMEOUT_MS = 5_000
 
 async function within(ms: number, work: Promise<Response>): Promise<Response> {
   const wait = boundedWait(ms)

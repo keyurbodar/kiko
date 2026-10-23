@@ -1,4 +1,4 @@
-export const iconNames = [
+const iconNames = [
   "Zip",
   "Zig",
   "Zeabur_light",

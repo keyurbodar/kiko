@@ -1,5 +1,4 @@
 import type {
-  AgentSlug,
   ClientToRoom as RoomOut,
   ClientToUser as UserOut,
   RoomToClient as RoomIn,
@@ -13,7 +12,7 @@ export class VerifyError extends Error {}
 type Entry = { at: number; dir: "in" | "out" | "bad"; frame: unknown }
 type Match<In> = ((f: In) => boolean) | Record<string, unknown>
 
-export class Channel<In, Out> {
+class Channel<In, Out> {
   readonly log: Entry[] = []
   readonly texts: string[] = []
   private socket!: WebSocket
@@ -44,7 +43,7 @@ export class Channel<In, Out> {
           ready = resolve
         })
       : null
-    socket.onmessage = (ev) => {
+    socket.addEventListener("message", (ev) => {
       const text = typeof ev.data === "string" ? ev.data : new TextDecoder().decode(ev.data as ArrayBuffer)
       let frame: unknown = text
       this.texts.push(text)
@@ -67,11 +66,11 @@ export class Channel<In, Out> {
         )
       }
       this.wake()
-    }
-    socket.onclose = () => this.wake()
+    })
+    socket.addEventListener("close", () => this.wake())
     await new Promise<void>((resolve, reject) => {
-      socket.onopen = () => resolve()
-      socket.onerror = () => reject(new VerifyError(`${this.label}: cannot connect to ${this.target}`))
+      socket.addEventListener("open", () => resolve())
+      socket.addEventListener("error", () => reject(new VerifyError(`${this.label}: cannot connect to ${this.target}`)))
     })
     if (userReady) {
       socket.send(JSON.stringify({ t: "hello", lastSeq: 0 }))
@@ -98,7 +97,7 @@ export class Channel<In, Out> {
   }
 
   private wake() {
-    for (const w of [...this.waiters]) w()
+    for (const w of this.waiters) w()
   }
 
   send(frame: Out): void {
@@ -137,12 +136,13 @@ export class Channel<In, Out> {
       const left = deadline - Date.now()
       if (left <= 0) throw new VerifyError(this.timeoutMessage(match, timeout))
       await new Promise<void>((resolve) => {
+        let timer: ReturnType<typeof setTimeout> | undefined
         const done = () => {
           clearTimeout(timer)
           this.waiters.delete(done)
           resolve()
         }
-        const timer = setTimeout(done, left)
+        timer = setTimeout(done, left)
         this.waiters.add(done)
       })
     }
@@ -193,26 +193,6 @@ function subset(want: unknown, got: unknown): boolean {
   return Object.is(want, got)
 }
 
-export function diff(expected: unknown, actual: unknown): string {
-  const a = JSON.stringify(expected, null, 2).split("\n")
-  const b = JSON.stringify(actual, null, 2).split("\n")
-  const out: string[] = []
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    if (a[i] === b[i]) out.push(`  ${a[i]}`)
-    else {
-      if (a[i] !== undefined) out.push(`- ${a[i]}`)
-      if (b[i] !== undefined) out.push(`+ ${b[i]}`)
-    }
-  }
-  return out.join("\n")
-}
-
-export function expectEqual(actual: unknown, expected: unknown, what = "value"): void {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new VerifyError(`${what} differs (- expected, + actual)\n${diff(expected, actual)}`)
-  }
-}
-
 export type UserChannel = Channel<UserIn, UserOut>
 export type RoomChannel = Channel<RoomIn, RoomOut>
 
@@ -236,23 +216,6 @@ export interface Session {
   putFile(roomId: string, path: string, body: BodyInit, options?: { expect?: string; type?: string }): Promise<Response>
 }
 
-export const TEST_PROVIDER = "opencode-go"
-
-export const TEST_MODEL = process.env.KIKO_TEST_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
-
-export async function connectTestModel(s: Session): Promise<void> {
-  const key = process.env.OPENCODE_API_KEY
-  if (!key) throw new VerifyError("OPENCODE_API_KEY is not set in this shell. source the dev vars first")
-  await s.connectProvider(TEST_PROVIDER, key)
-  const user = await s.user()
-  user.send({ t: "agent_model", slug: "kiko" as AgentSlug, ref: TEST_MODEL })
-  await user.expect(
-    (f) =>
-      (f.t === "reset" && f.snapshot.agentModels?.kiko?.model === TEST_MODEL) ||
-      (f.t === "events" && f.events.some((e) => e.t === "agent_model" && e.slug === "kiko" && e.model === TEST_MODEL)),
-  )
-}
-
 export interface Verifier {
   url: string
   fake: boolean
@@ -264,7 +227,7 @@ function withSlash(url: string) {
   return url.endsWith("/") ? url : `${url}/`
 }
 
-export async function devSession(url: string, name: string): Promise<{ auth: string; userId: string }> {
+async function devSession(url: string, name: string): Promise<{ auth: string; userId: string }> {
   if (process.env.KIKO_BEARER) return { auth: `Bearer ${process.env.KIKO_BEARER}`, userId: "owner" }
   const code = process.env.KIKO_ACCESS_CODE
   const res = await fetch(new URL(code ? "api/auth/access-code" : "api/auth/dev/session", withSlash(url)), {

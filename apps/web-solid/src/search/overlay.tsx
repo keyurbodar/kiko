@@ -46,6 +46,10 @@ export default function SearchOverlay() {
       { defer: true },
     ),
   )
+  const close = () => {
+    closeSearch()
+    if (before instanceof HTMLElement && before.isConnected) before.focus()
+  }
   const onEscape = (e: KeyboardEvent) => {
     if (e.key !== "Escape" || e.defaultPrevented) return
     e.preventDefault()
@@ -53,10 +57,6 @@ export default function SearchOverlay() {
   }
   document.addEventListener("keydown", onEscape, true)
   onCleanup(() => document.removeEventListener("keydown", onEscape, true))
-  const close = () => {
-    closeSearch()
-    if (before instanceof HTMLElement && before.isConnected) before.focus()
-  }
   const choose = (hit: Hit | undefined) => {
     if (!hit) return
     closeSearch()

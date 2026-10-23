@@ -44,7 +44,7 @@ export const enterLabel = (view: View): string => view.parent?.enter ?? "Select"
 
 const ROOT_PLACEHOLDER = "Search commands and chats…"
 
-export const listed = (list: readonly Command[]): Command[] =>
+const listed = (list: readonly Command[]): Command[] =>
   list.filter((c) => c.group !== "palette" && !c.unlisted && isEnabled(c))
 
 const commandItem = (c: Command): Item => ({
@@ -167,7 +167,16 @@ export const keyChips = (display: string): string[] =>
     ? display.split("+").filter(Boolean)
     : (display.match(/[⌘⇧⌥⌃]|[^⌘⇧⌥⌃]+/g) ?? [])
 
-export function matchScore(search: string, title: string, group: string): number {
+const inOrder = (word: string, text: string): boolean => {
+  let at = 0
+  for (const ch of word) {
+    at = text.indexOf(ch, at) + 1
+    if (at === 0) return false
+  }
+  return true
+}
+
+function matchScore(search: string, title: string, group: string): number {
   const words = search.toLowerCase().split(/\s+/).filter(Boolean)
   if (!words.length) return 1
   const t = title.toLowerCase()
@@ -180,15 +189,6 @@ export function matchScore(search: string, title: string, group: string): number
     total += part
   }
   return total / words.length
-}
-
-const inOrder = (word: string, text: string): boolean => {
-  let at = 0
-  for (const ch of word) {
-    at = text.indexOf(ch, at) + 1
-    if (at === 0) return false
-  }
-  return true
 }
 
 export function rowScore(search: string, title: string, group: string, chat: boolean): number {

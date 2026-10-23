@@ -4,7 +4,7 @@ import { clientBehind, type Skew } from "./version-skew"
 export type UpdateProgress = { stage: UpdateStage; error?: string; sentAt?: number } | null
 
 export const STALL_MS = 20_000
-export const STALL_ERROR = "This backend cannot update itself. Reconnect Cloudflare to reinstall it."
+const STALL_ERROR = "This backend cannot update itself. Reconnect Cloudflare to reinstall it."
 
 export const sent = (now: number): UpdateProgress => ({ stage: "checking", sentAt: now })
 
@@ -13,7 +13,7 @@ export function checkStall(progress: UpdateProgress, now: number): UpdateProgres
   return { stage: "failed", error: STALL_ERROR }
 }
 
-export const STAGE_TEXT: Record<Exclude<UpdateStage, "failed">, string> = {
+const STAGE_TEXT: Record<Exclude<UpdateStage, "failed">, string> = {
   checking: "Checking the release",
   authorizing: "Authorizing",
   uploading: "Uploading",
@@ -28,7 +28,7 @@ export function reduceUpdate(frame: StateFrame): UpdateProgress {
     : { stage: frame.stage }
 }
 
-export function stageText(progress: UpdateProgress): string | undefined {
+function stageText(progress: UpdateProgress): string | undefined {
   return progress && progress.stage !== "failed" ? STAGE_TEXT[progress.stage] : undefined
 }
 

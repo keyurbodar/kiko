@@ -66,7 +66,7 @@ const mark = (type: string) => {
   return m
 }
 
-export function languageOf(path: string) {
+function languageOf(path: string) {
   const ext = /\.([^./]+)$/.exec(path)?.[1]?.toLowerCase()
   const name = ext ? lang(ext) : undefined
   if (!name || name === "plaintext") return undefined

@@ -1,5 +1,6 @@
 import type { Actor, AgentSlug, RoomEvent, Task, TaskOp, TaskStatus } from "@kiko/protocol"
-import { actorKey, type RoomLog } from "./log"
+import type { RoomLog } from "./log"
+import { actorKey } from "./actor-key"
 import type { Chain } from "./messaging"
 import { TASK_TITLE_WORD_LIMIT } from "./task-title"
 
@@ -69,6 +70,17 @@ export function briefTasks(sql: SqlStorage, slug: AgentSlug, roomId: string, lea
   return [...mine, ...blockers]
 }
 
+function toTask(r: TaskRow, dependsOn: string[]): Task {
+  return {
+    id: r.id,
+    title: r.title,
+    status: r.status as TaskStatus,
+    ...(r.owner ? { owner: r.owner as AgentSlug } : {}),
+    dependsOn,
+    ...(r.note ? { note: r.note } : {}),
+  }
+}
+
 function readTasks(sql: SqlStorage, roomId: string): Task[] {
   const exists = sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ws_tasks'").toArray().length > 0
   if (!exists) return []
@@ -89,15 +101,6 @@ function readTasks(sql: SqlStorage, roomId: string): Task[] {
     .toArray()
     .map((r) => toTask(r, deps.get(r.id) ?? []))
 }
-
-const toTask = (r: TaskRow, dependsOn: string[]): Task => ({
-  id: r.id,
-  title: r.title,
-  status: r.status as TaskStatus,
-  ...(r.owner ? { owner: r.owner as AgentSlug } : {}),
-  dependsOn,
-  ...(r.note ? { note: r.note } : {}),
-})
 
 export const wakeBody = (wake: Pick<Wake, "taskId" | "title">) =>
   `task ${wake.taskId} "${wake.title}" is unblocked: everything it depends on is done. start it now.`

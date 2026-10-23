@@ -58,7 +58,7 @@ export type ViewMessage = Message & {
 
 export const PATCH_TTL_MS = 15_000
 
-export const localMessageId = (clientId: string) => `local:${clientId}` as MessageId
+const localMessageId = (clientId: string) => `local:${clientId}` as MessageId
 
 type Confirms = {
   [K in RoomPatchFrame["t"]]: (frame: Extract<RoomPatchFrame, { t: K }>, event: RoomEvent, clientId: string) => boolean
@@ -124,7 +124,7 @@ const userConfirms: UserConfirms = {
   delete: (op, e) => e.t === "chat_removed" && e.roomId === op.roomId,
 }
 
-export function userConfirmedBy(patch: UserPatch, event: UserEvent): boolean {
+function userConfirmedBy(patch: UserPatch, event: UserEvent): boolean {
   const check = userConfirms[patch.op.op] as (op: ChatOp, e: UserEvent) => boolean
   return check(patch.op, event)
 }
@@ -244,7 +244,7 @@ export function overlayTasks(tasks: readonly Task[], patches: readonly RoomPatch
 }
 
 export function overlayMembers(members: readonly Member[], patches: readonly RoomPatch[]): Member[] {
-  let out = members as Member[]
+  let out = members.slice()
   for (const p of patches) {
     const f = p.frame
     if (f.t !== "member") continue
@@ -254,7 +254,7 @@ export function overlayMembers(members: readonly Member[], patches: readonly Roo
       const m: Member = { slug: op.slug, name: op.name, lead: out.length === 0 }
       if (op.role) m.role = op.role
       if (op.model) m.model = op.model
-      out = [...out, m]
+      out.push(m)
     } else if (op.op === "remove") {
       out = out.filter((m) => m.slug !== op.slug)
     } else {
@@ -320,7 +320,7 @@ export function overlayReadSeq(readSeq: number, patches: readonly RoomPatch[]): 
   return out
 }
 
-export const chatOrder = (a: Chat, b: Chat) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt
+const chatOrder = (a: Chat, b: Chat) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt
 
 export function overlayChats(chats: readonly Chat[], patches: readonly UserPatch[]): Chat[] {
   if (patches.length === 0) return [...chats].sort(chatOrder)

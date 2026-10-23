@@ -30,7 +30,7 @@ function blocks(nodes: Json[], gap: string): string {
   return parts.join("")
 }
 
-export function isClosingFence(line: string, fence: string): boolean {
+function isClosingFence(line: string, fence: string): boolean {
   const match = /^(`{3,}|~{3,})[ \t]*$/.exec(line)
   if (!match) return false
   const run = match[1]!

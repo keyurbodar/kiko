@@ -67,6 +67,8 @@ const EXIT_MS = 200
 const [toasts, setToasts] = createStore<ToastItem[]>([])
 let lastId = 0
 
+const actionsOf = (options: ToastV2Options) => [...(options.action ? [options.action] : []), ...(options.actions ?? [])]
+
 const toastKey = (options: ToastV2Options) =>
   JSON.stringify([
     options.title,
@@ -77,8 +79,6 @@ const toastKey = (options: ToastV2Options) =>
     actionsOf(options).map((action) => [action.label, action.variant]),
     Boolean(options.anchor),
   ])
-
-const actionsOf = (options: ToastV2Options) => [...(options.action ? [options.action] : []), ...(options.actions ?? [])]
 
 const anchorOf = (element: Element | undefined) => {
   if (!element) return undefined
@@ -308,6 +308,16 @@ function ToastV2Region(props: ToastV2RegionProps) {
   )
 }
 
+const variantIcon = (icon: Glyph) => () => <RemixIcon icon={icon} />
+
+const VARIANT_ICONS: Partial<Record<ToastV2Variant, () => JSX.Element>> = {
+  success: variantIcon(CheckCircleIcon),
+  error: variantIcon(AlertCircleIcon),
+  warning: variantIcon(AlertTriangleIcon),
+  info: variantIcon(InfoIcon),
+  loading: variantIcon(LoaderIcon),
+}
+
 function ToastCard(props: {
   toast: ToastItem
   slot: ToastSlot | undefined
@@ -502,16 +512,6 @@ function AnchoredToast(props: { toast: ToastItem }) {
       {props.toast.options.title}
     </div>
   )
-}
-
-const variantIcon = (icon: Glyph) => () => <RemixIcon icon={icon} />
-
-const VARIANT_ICONS: Partial<Record<ToastV2Variant, () => JSX.Element>> = {
-  success: variantIcon(CheckCircleIcon),
-  error: variantIcon(AlertCircleIcon),
-  warning: variantIcon(AlertTriangleIcon),
-  info: variantIcon(InfoIcon),
-  loading: variantIcon(LoaderIcon),
 }
 
 export const ToastV2 = { Region: ToastV2Region }

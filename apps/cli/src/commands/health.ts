@@ -1,4 +1,4 @@
-import { CliError, type Context } from "../main"
+import { CliError, type Context } from "../context"
 
 export async function health(ctx: Context): Promise<void> {
   const url = new URL("api/health", ctx.url)

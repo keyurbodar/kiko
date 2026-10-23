@@ -20,8 +20,9 @@ import {
   type RmOptions,
 } from "just-bash"
 import type { FsEntry } from "../room/files"
-import { HOME } from "./upload"
-import { type BatchChange, batchPaths, type RoomFs, typeForPath } from "./room-fs"
+import { HOME } from "./paths"
+import type { RoomFs } from "./room-fs"
+import { type BatchChange, batchPaths, typeForPath } from "./batch"
 
 export const DEFAULT_TIMEOUT_S = 30
 export const MAX_TIMEOUT_S = 120
@@ -40,7 +41,7 @@ const DEV_NULL = "/dev/null"
 
 const failure = (code: string, message: string) => Object.assign(new Error(`${code}: ${message}`), { code })
 
-export function resolve(base: string, path: string): string {
+function resolve(base: string, path: string): string {
   const parts: string[] = []
   for (const part of (path.startsWith("/") ? path : `${base}/${path}`).split("/")) {
     if (part === "" || part === ".") continue

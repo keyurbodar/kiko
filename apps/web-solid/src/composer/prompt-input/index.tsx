@@ -361,7 +361,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
   )
 }
 
-export function PromptInputV2SubmitButton(props: {
+function PromptInputV2SubmitButton(props: {
   mode: PromptInputV2Mode
   disabled: boolean
   blocked?: string | null

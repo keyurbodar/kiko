@@ -5,7 +5,7 @@ import {
   type PendingAttachment,
   type RoomEvent,
 } from "@kiko/protocol"
-import { cleanPath, isControl } from "../files/upload"
+import { cleanPath, isControl } from "../files/paths"
 import type { FileIndex } from "../files/file-index"
 
 export const PENDING_TTL_MS = 24 * 3_600_000
@@ -146,7 +146,7 @@ export class PendingUploads {
   }
 }
 
-export function safeName(name: string): string {
+function safeName(name: string): string {
   const parts = name
     .replaceAll("\\", "/")
     .split("/")

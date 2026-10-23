@@ -94,7 +94,7 @@ export function subscribeCache(listener: () => void): () => void {
 }
 
 function notifyCache(): void {
-  for (const listener of [...listeners]) listener()
+  for (const listener of Array.from(listeners)) listener()
 }
 
 export function readCache(): Cache | null {

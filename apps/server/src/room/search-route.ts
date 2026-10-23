@@ -4,7 +4,7 @@ import type { Env } from "../index"
 import { ownerStub } from "../lib/names"
 
 const PATH = "/api/search"
-export const MAX_ROOMS = 30
+const MAX_ROOMS = 30
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 50
 

@@ -1,11 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
-import { CliError, type Context } from "../main"
+import { CliError, type Context } from "../context"
 
 type Sessions = Record<string, string>
 
-export function sessionFile(): string {
+function sessionFile(): string {
   return process.env.KIKO_SESSION_FILE ?? join(homedir(), ".config", "kiko", "cli-session.json")
 }
 

@@ -3,7 +3,6 @@ import { useApp } from "../../lib/store"
 import { TaskList } from "./task-list"
 import { groupTasks, TASK_LABEL } from "./tasks-model"
 import "../../composer/cards/cards.css"
-export { groupTasks, openTasks } from "./tasks-model"
 
 export function TasksView() {
   const room = () => useApp.room()

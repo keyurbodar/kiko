@@ -83,7 +83,7 @@ export async function openSession(url: string, options: SessionOptions = {}): Pr
     if (!message.method) return
     const set = listeners.get(message.method)
     if (!set) return
-    for (const listener of [...set]) listener(message.params, message.sessionId)
+    for (const listener of Array.from(set)) listener(message.params, message.sessionId)
   }
 
   const acquire = Effect.callback<WebSocket, CdpError>((resume) => {

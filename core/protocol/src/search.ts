@@ -26,11 +26,6 @@ export function snippetParts(snippet: string): SnippetPart[] {
   return parts
 }
 
-const snippetText = (snippet: string) =>
-  snippetParts(snippet)
-    .map((p) => p.text)
-    .join("")
-
 export function mergeHits(
   pages: readonly { results: readonly ChatSearchHit[]; more: boolean }[],
   limit: number,

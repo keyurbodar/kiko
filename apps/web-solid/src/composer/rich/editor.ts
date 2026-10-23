@@ -27,7 +27,7 @@ import { UndoRedo } from "@tiptap/extensions"
 import { chainCommands, newlineInCode, setBlockType, splitBlock, splitBlockKeepMarks } from "@tiptap/pm/commands"
 import { keymap } from "@tiptap/pm/keymap"
 import { Fragment, Slice, type Node as PMNode, type NodeType } from "@tiptap/pm/model"
-import { EditorState, Plugin, Selection, TextSelection, type Command, type Transaction } from "@tiptap/pm/state"
+import { EditorState, Plugin, Selection, TextSelection, type Command } from "@tiptap/pm/state"
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view"
 import {
   backspaceAcrossList,
@@ -159,7 +159,7 @@ function taskInputRule(type: NodeType): InputRule {
 
 const MARKER: Record<string, string> = { bold: "**", italic: "_", strike: "~~", code: "`" }
 
-export const PLAIN_PASTE_CHARS = 20_000
+const PLAIN_PASTE_CHARS = 20_000
 
 function styledRanges(doc: PMNode): { from: number; to: number; text: string }[] {
   const ranges: { from: number; to: number; text: string }[] = []
@@ -173,11 +173,11 @@ function styledRanges(doc: PMNode): { from: number; to: number; text: string }[]
     }
     block.forEach((child) => {
       const names = new Set(child.marks.map((m) => m.type.name).filter((n) => n in MARKER))
-      for (const name of [...open.keys()]) if (!names.has(name)) close(name, pos)
+      for (const name of Array.from(open.keys())) if (!names.has(name)) close(name, pos)
       for (const name of names) if (!open.has(name)) open.set(name, pos)
       pos += child.nodeSize
     })
-    for (const name of [...open.keys()]) close(name, pos)
+    for (const name of Array.from(open.keys())) close(name, pos)
     return false
   })
   return ranges
@@ -357,10 +357,12 @@ export function mountRichEditor(options: RichOptions) {
         if (event.key === "Enter" && !event.metaKey && !event.ctrlKey && !event.isComposing) {
           if (selectionInOneCodeBlock(view.state)) {
             event.preventDefault()
-            exitCodeBlockOnClosingFence(view.state, view.dispatch) ||
+            void (
+              exitCodeBlockOnClosingFence(view.state, view.dispatch) ||
               exitCodeBlockOnTrailingBlankLines(view) ||
               indentedNewlineInCodeBlock(view.state, view.dispatch) ||
               newlineInCode(view.state, view.dispatch)
+            )
             return true
           }
           if (openFenceOnEnter(view.state, view.dispatch)) {

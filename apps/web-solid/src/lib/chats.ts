@@ -1,6 +1,6 @@
 import { type Agent, type AgentSlug, type Chat, KIKO, KIKO_HOME_ROOM, type RoomId } from "@kiko/protocol"
 
-export const BUILTIN_AGENT: Agent = { id: KIKO, name: "Kiko", slug: KIKO as AgentSlug, prompt: "", model: "" }
+const BUILTIN_AGENT: Agent = { id: KIKO, name: "Kiko", slug: KIKO as AgentSlug, prompt: "", model: "" }
 
 export function agentList(stored: readonly Agent[]): Agent[] {
   return [BUILTIN_AGENT, ...stored.filter((a) => a.id !== BUILTIN_AGENT.id)]

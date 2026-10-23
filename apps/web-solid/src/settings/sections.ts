@@ -48,7 +48,7 @@ export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
 
 export const SETTINGS_GROUPS = ["all"] as const
 
-export const SECTION_ALIAS: Record<string, SettingsSection["id"]> = {
+const SECTION_ALIAS: Record<string, SettingsSection["id"]> = {
   providers: "models",
   integrations: "tools",
   extensions: "tools",

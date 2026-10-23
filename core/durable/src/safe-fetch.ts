@@ -56,6 +56,9 @@ export async function safeFetch(
   }
 }
 
+const DNS_CACHE = new WeakMap<Fetcher, Map<string, { addresses: string[]; until: number }>>()
+const cacheFor = (fetcher: Fetcher, options: SafeFetchOptions) => options.dnsCache ?? fetcher === globalFetcher
+
 async function follow(
   rawUrl: string,
   fetcher: Fetcher,
@@ -118,11 +121,13 @@ async function read(
   const chunks: Uint8Array[] = []
   let size = 0
   const reader = response.body?.getReader()
-  while (reader && size <= max) {
-    const { done, value } = await untilAbort(reader.read(), signal)
-    if (done) break
-    chunks.push(value)
-    size += value.byteLength
+  if (reader) {
+    while (size <= max) {
+      const { done, value } = await untilAbort(reader.read(), signal)
+      if (done) break
+      chunks.push(value)
+      size += value.byteLength
+    }
   }
   const truncated = size > max
   if (truncated) discard(reader?.cancel())
@@ -141,8 +146,6 @@ const RECORD_TYPES = { A: 1, AAAA: 28 } as const
 const NOERROR = 0
 const NXDOMAIN = 3
 
-const DNS_CACHE = new WeakMap<Fetcher, Map<string, { addresses: string[]; until: number }>>()
-const cacheFor = (fetcher: Fetcher, options: SafeFetchOptions) => options.dnsCache ?? fetcher === globalFetcher
 const DNS_MIN_TTL_S = 30
 const DNS_MAX_TTL_S = 300
 const DNS_MAX_HOSTS = 500
