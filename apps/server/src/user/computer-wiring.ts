@@ -91,6 +91,7 @@ export class ComputerWiring {
     if (!row) return Promise.resolve({ ok: false, code: "unsupported", message: "there is no such computer" })
     return this.hub.call(row.id, op, args, {
       deadlineMs: Math.min(Number(deadlineMs ?? MAX_DEADLINE_MS), MAX_DEADLINE_MS),
+      user: { key: `${roomId}:${agentId}`, name: slug },
     })
   }
 

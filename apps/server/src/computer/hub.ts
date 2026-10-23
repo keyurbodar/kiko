@@ -27,6 +27,9 @@ export const MAX_DEADLINE_MS = 10 * 60_000
 export const COMPUTER_WAKEUP = "computer_hold"
 
 const BUSY_OPS: ReadonlySet<Op> = new Set<Op>(["shell", "look", "act"])
+const DESK_OPS: ReadonlySet<Op> = new Set<Op>(["look", "act"])
+const DESK_MS = 60_000
+const MAX_WAITERS = 8
 
 const STUN: IceServer = { urls: "stun:stun.cloudflare.com:3478" }
 const TURN_TTL_S = 3600
@@ -43,6 +46,7 @@ type PcHold = {
   heldBy?: string
   heldSince?: number
   agent?: PcAgent
+  waiters?: PcAgent[]
   hello?: Hello
 }
 
@@ -54,6 +58,7 @@ export type PcAttachment = {
   heldBy?: string
   heldSince?: number
   agent?: PcAgent
+  waiters?: PcAgent[]
   at: number
 }
 
@@ -91,7 +96,7 @@ export function pcSocketId(ws: WebSocket): string | null {
 
 export class ComputerHub {
   private readonly pending = new Map<string, Pending>()
-  private readonly waiters = new Map<string, PcAgent[]>()
+  private readonly desk = new Map<string, { user: string; name: string; until: number }>()
   private readonly watching = new Map<string, Set<WebSocket>>()
   private readonly memory = new Map<string, PcHold>()
   private readonly running = new Map<string, number>()
@@ -141,6 +146,7 @@ export class ComputerHub {
       ...(saved.heldBy ? { heldBy: saved.heldBy } : {}),
       ...(saved.heldSince ? { heldSince: saved.heldSince } : {}),
       ...(saved.agent ? { agent: saved.agent } : {}),
+      ...(saved.waiters?.length ? { waiters: saved.waiters } : {}),
       ...(saved.hello ? { hello: saved.hello } : {}),
     }
   }
@@ -284,6 +290,7 @@ export class ComputerHub {
     if (!(await verify(row.public_key, sig, connectMessage(user, id, ts, protocol))))
       return new Response("bad signature", { status: 401 })
 
+    const inherited = this.hold(id)
     for (const older of this.sockets(id)) {
       if (older.readyState !== WebSocket.OPEN) continue
       try {
@@ -295,7 +302,7 @@ export class ComputerHub {
     const client = pair[0]
     const server = pair[1]
     this.d.ctx.acceptWebSocket(server, ["pc", `pc:${id}`])
-    const hold = this.memory.get(id) ?? { holder: "agent" as const }
+    const { hello: _hello, ...hold } = inherited
     server.serializeAttachment({ ...hold, kind: "pc", id, hello: null, at: Date.now() } satisfies PcAttachment)
     this.push()
     return new Response(null, { status: 101, webSocket: client })
@@ -372,7 +379,7 @@ export class ComputerHub {
     pcId: string,
     op: Op,
     args: unknown,
-    options: { deadlineMs?: number; signal?: AbortSignal } = {},
+    options: { deadlineMs?: number; signal?: AbortSignal; user?: { key: string; name: string } } = {},
   ): Promise<CallOutcome> {
     const row = this.d.store.get(pcId)
     if (!row) return { ok: false, code: "unsupported", message: "there is no such computer" }
@@ -387,6 +394,13 @@ export class ComputerHub {
       return { ok: false, code: "unsupported", message: `${row.name} has input off` }
     if ((op === "look" || op === "act") && saved.holder === "human")
       return { ok: false, code: "busy", message: `the human has control of ${row.name} right now` }
+    const taken = DESK_OPS.has(op) && options.user ? this.claimDesk(pcId, options.user) : null
+    if (taken)
+      return {
+        ok: false,
+        code: "busy",
+        message: `${taken.name} is using the screen of ${row.name} for about ${Math.ceil((taken.until - Date.now()) / 1000)}s more. Shell and files still work; try the screen again after that.`,
+      }
     let parsed: unknown
     try {
       parsed = Schema.decodeUnknownSync(Calls[op].args)(args)
@@ -543,6 +557,14 @@ export class ComputerHub {
     } catch {}
   }
 
+  private claimDesk(pcId: string, user: { key: string; name: string }): { name: string; until: number } | null {
+    const now = Date.now()
+    const current = this.desk.get(pcId)
+    if (current && current.user !== user.key && current.until > now) return current
+    this.desk.set(pcId, { user: user.key, name: user.name, until: now + DESK_MS })
+    return null
+  }
+
   private tellHolder(pcId: string, holder: Holder): void {
     const ws = this.socket(pcId)
     if (ws) this.send(ws, { t: "control", holder })
@@ -568,17 +590,15 @@ export class ComputerHub {
   link(pcId: string, agent: PcAgent): "human" | "agent" | "missing" {
     if (!this.d.store.get(pcId)) return "missing"
     const hold = this.hold(pcId)
-    this.save(pcId, { ...hold, agent })
-    const list = this.waiters.get(pcId) ?? []
-    if (!list.some((w) => w.slug === agent.slug && w.roomId === agent.roomId)) list.push(agent)
-    this.waiters.set(pcId, list)
+    const others = (hold.waiters ?? []).filter((w) => w.slug !== agent.slug || w.roomId !== agent.roomId)
+    this.save(pcId, { ...hold, agent, waiters: [...others, agent].slice(-MAX_WAITERS) })
     this.push()
     return hold.holder
   }
 
   release(pcId: string, except?: string): PcReleased {
-    const waiters = (this.waiters.get(pcId) ?? []).filter((w) => w.slug !== except)
-    this.waiters.delete(pcId)
+    const waiters = (this.hold(pcId).waiters ?? []).filter((w) => w.slug !== except)
+    this.desk.delete(pcId)
     this.save(pcId, { holder: "agent" })
     this.tellHolder(pcId, "agent")
     this.push()
@@ -633,7 +653,7 @@ export class ComputerHub {
     this.d.store.remove(id)
     this.dropCalls(id)
     this.watching.delete(id)
-    this.waiters.delete(id)
+    this.desk.delete(id)
     this.memory.delete(id)
     this.push()
   }

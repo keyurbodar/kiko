@@ -96,7 +96,7 @@ function failText(code: FailCode, message: string, pc: ComputerSummary): string 
     case "denied":
       return `The owner's policy on ${pc.name} blocks this.${detail}`
     case "busy":
-      return `${paused(pc)}${detail}`
+      return pc.holder === "human" ? `${paused(pc)}${detail}` : reason || `${pc.name} is busy; try again shortly.`
     case "stale":
       return STALE
     case "timeout":
