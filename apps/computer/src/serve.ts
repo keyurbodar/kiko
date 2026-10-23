@@ -9,6 +9,7 @@ import type { LiveCaps } from "./live"
 import { createLogger, type Logger } from "./log"
 
 const REDETECT_MS = 10 * 60 * 1000
+const REPAIR_POLL_MS = 30_000
 
 export async function serve(dir = configDir()): Promise<number> {
   const log = createLogger("kiko-computer", paths(dir).log)
@@ -88,7 +89,20 @@ export async function serve(dir = configDir()): Promise<number> {
   } finally {
     clearInterval(refresh)
   }
+  if (!link.removed) return 0
+  await live.close()
+  await detection.driver?.close().catch(() => undefined)
+  await repaired(dir, config.pcId)
+  log.info("paired again; restarting")
   return 0
+}
+
+async function repaired(dir: string, pcId: string): Promise<void> {
+  for (;;) {
+    await Bun.sleep(REPAIR_POLL_MS)
+    const next = await loadConfig(dir).catch(() => null)
+    if (next && next.pcId !== pcId) return
+  }
 }
 
 async function redetect(dir: string, log: Logger, live: LiveCaps, current: () => Detection): Promise<Detection | null> {

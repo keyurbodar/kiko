@@ -82,6 +82,8 @@ class Link {
   private ping: ReturnType<typeof setInterval> | null = null
   private pending = new Map<string, Deadline>()
   private stopping = false
+  private rejection: Promise<void> | null = null
+  removed = false
 
   constructor(private readonly host: Host) {}
 
@@ -89,7 +91,9 @@ class Link {
     let attempt = 0
     while (!this.stopping) {
       const opened = await this.open()
-      if (this.stopping) return
+      await this.rejection
+      this.rejection = null
+      if (this.stopping || this.removed) return
       attempt = opened !== null && Date.now() - opened > STABLE_MS ? 0 : attempt + 1
       const wait = backoffMs(attempt)
       this.host.log.info(`reconnecting in ${Math.round(wait / 1000)}s`)
@@ -154,7 +158,7 @@ class Link {
     socket.addEventListener("message", (event) => this.receive(event.data))
     socket.addEventListener("error", () => {
       if (this.socket !== socket) return
-      void this.explainRejection(url, headers)
+      this.rejection = this.explainRejection(url, headers)
     })
     socket.addEventListener("close", (event) => {
       this.release("the worker closed the socket")
@@ -176,10 +180,15 @@ class Link {
     const probe = url.replace(/^ws/, "http")
     try {
       const response = await fetch(probe, { headers, signal: AbortSignal.timeout(10_000) })
+      if (response.status === 410) {
+        this.removed = true
+        log.error(`${endpoint.url} no longer has this machine; pair it again with kiko-computer pair <url>`)
+        return
+      }
       const advertised = response.headers.get(CONNECT_HEADERS.protocol)
-      if (response.status === 426 || advertised) {
+      if (advertised) {
         log.error(
-          `that worker speaks computer protocol ${advertised ?? "unknown"} and this daemon speaks ${PROTOCOL}; update one of them`,
+          `that worker speaks computer protocol ${advertised} and this daemon speaks ${PROTOCOL}; update one of them`,
         )
         return
       }

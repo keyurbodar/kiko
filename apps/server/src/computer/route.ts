@@ -69,7 +69,6 @@ function connect(request: Request, env: Env): Promise<Response> | Response {
       headers: { [CONNECT_HEADERS.protocol]: String(PROTOCOL) },
     })
   if (!user) return error(401, "unauthorized")
-  if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return error(426, "expected a websocket upgrade")
   try {
     return ownerStub(env.OWNER, user).fetch(request)
   } catch (e) {

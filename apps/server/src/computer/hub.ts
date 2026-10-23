@@ -283,12 +283,12 @@ export class ComputerHub {
       })
     if (!Number.isSafeInteger(ts) || Math.abs(Date.now() - ts) > CONNECT_SKEW_MS)
       return new Response("stale connect", { status: 401 })
-    if (request.headers.get("upgrade")?.toLowerCase() !== "websocket")
-      return new Response("expected a websocket upgrade", { status: 426 })
     const row = this.d.store.get(id)
-    if (!row) return new Response("unknown computer", { status: 401 })
+    if (!row) return new Response("this computer was removed", { status: 410 })
     if (!(await verify(row.public_key, sig, connectMessage(user, id, ts, protocol))))
       return new Response("bad signature", { status: 401 })
+    if (request.headers.get("upgrade")?.toLowerCase() !== "websocket")
+      return new Response("expected a websocket upgrade", { status: 426 })
 
     const inherited = this.hold(id)
     for (const older of this.sockets(id)) {

@@ -265,9 +265,9 @@ export class OwnerDO extends DurableObject<Env> {
   }
 
   async fetch(request: Request): Promise<Response> {
+    if (request.headers.get(CONNECT_HEADERS.id) !== null) return this.computers.connect(request)
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket")
       return new Response("expected a websocket upgrade", { status: 426 })
-    if (request.headers.get(CONNECT_HEADERS.id) !== null) return this.computers.connect(request)
     const pair = new WebSocketPair()
     const client = pair[0]
     const server = pair[1]

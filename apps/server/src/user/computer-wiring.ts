@@ -109,7 +109,8 @@ export class ComputerWiring {
     const why = typeof reason === "string" ? reason.trim().slice(0, MAX_REASON) : ""
     if (this.hub.link(row.id, { slug, roomId, ...(why ? { reason: why } : {}) }) === "missing")
       return { ok: false, error: "there is no such computer" }
-    if (mode === "control") await this.d.services.room(roomId).computerAsk(slug, row.name, why, `${Date.now()}`)
+    if (mode === "control")
+      await this.d.services.room(roomId).computerAsk(slug, { id: row.id, name: row.name }, why, `${Date.now()}`)
     return { ok: true }
   }
 
