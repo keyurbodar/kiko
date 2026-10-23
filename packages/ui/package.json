@@ -32,16 +32,12 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
-    "@corvu/calendar": "0.1.2",
     "@headless-tree/core": "^1.7.0",
     "@kobalte/core": "0.13.11",
-    "@solid-primitives/event-listener": "2.4.5",
-    "@solid-primitives/resize-observer": "2.1.3",
     "fuzzysort": "3.1.0",
-    "motion": "12.34.5",
     "remeda": "2.26.0",
     "solid-list": "0.3.0"
   },
@@ -51,7 +47,6 @@
     "vite": "8.3.2"
   },
   "peerDependencies": {
-    "@solid-primitives/event-listener": "2.4.5",
     "solid-js": "1.9.13"
   }
 }

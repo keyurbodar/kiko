@@ -5,14 +5,18 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
+    name: Check
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -26,13 +30,15 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run check
       - run: bun run build
-        working-directory: apps/web-solid
-      - run: bun scripts/bundle-budget.ts
+      - name: bundle every worker
+        run: |
+          (cd apps/server && bunx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/owner")
+          (cd apps/server && bunx wrangler deploy --dry-run --config wrangler.front-door.jsonc --outdir "$RUNNER_TEMP/front-door")
+          (cd apps/installer && bunx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/installer")
 
   e2e:
+    name: E2E
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -45,8 +51,7 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
-      - run: bun run build
-        working-directory: apps/web-solid
+      - run: bun run --cwd apps/web-solid build
       - working-directory: apps/server
         run: |
           {

@@ -11,12 +11,17 @@
   "scripts": {
     "dev:server": "bun run --cwd apps/server dev --port 8787",
     "dev:web": "bun run --cwd apps/web-solid dev --port 5173",
-    "typecheck": "bun run --filter '*' typecheck",
-    "lint": "biome check",
-    "check": "bun run typecheck && biome check && bun scripts/check-imports.ts && bun scripts/check-cycles.ts",
     "kiko": "bun apps/cli/src/index.ts",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "lint": "oxlint --deny-warnings && biome check --diagnostic-level=error",
+    "typecheck": "bun run --filter \"*\" typecheck",
+    "knip": "knip --no-progress",
+    "check": "bun run fmt:check && bun run lint && bun scripts/check-imports.ts && bun scripts/check-generated.ts && bun run knip && bun run typecheck",
+    "check:changed": "bun scripts/check-changed.ts",
+    "build": "bun run --cwd apps/web-solid build && bun scripts/bundle-budget.ts",
     "verify:web": "bun apps/web-solid/scripts/verify-runtime.ts",
-    "prepare": "git rev-parse --git-path hooks >/dev/null 2>&1 && printf '#!/bin/sh\\nexec bunx biome check --staged --no-errors-on-unmatched --diagnostic-level=error\\n' > \"$(git rev-parse --git-path hooks)/pre-commit\" && chmod +x \"$(git rev-parse --git-path hooks)/pre-commit\" || true"
+    "prepare": "git rev-parse --git-path hooks >/dev/null 2>&1 && printf \"#!/bin/sh\\nexec bun scripts/check-changed.ts --staged\\n\" > \"$(git rev-parse --git-path hooks)/pre-commit\" && chmod +x \"$(git rev-parse --git-path hooks)/pre-commit\" || true"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

@@ -62,7 +62,7 @@ function judge(
 function judgeRelative(at: string, file: string, label: string, strict: boolean, spec: string): string | null {
   const rel = relative(ROOT, resolve(dirname(file), spec))
   if (strict) return rel.startsWith(label) ? null : `${at}: ${spec} leaves ${label}`
-  if (/^apps\/server\//.test(rel) && !at.startsWith("apps/server")) return `${at}: ${spec} reaches into the server`
+  if (rel.startsWith("apps/server/") && !at.startsWith("apps/server")) return `${at}: ${spec} reaches into the server`
   if (/^(core|packages)\//.test(rel)) return `${at}: ${spec} reaches into ${rel.split("/").slice(0, 2).join("/")}`
   return null
 }

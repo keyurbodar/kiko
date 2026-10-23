@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  checks: read
 
 jobs:
   deploy:
@@ -39,6 +40,11 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: fetch the release tags
         run: git fetch --force --tags origin
+      - name: require green ci on a manually deployed commit
+        if: inputs.ref == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/require-green-ci.sh "$(git rev-parse HEAD)"
       - name: gate every run on the full check
         run: bun run check
       - name: write the release signing key

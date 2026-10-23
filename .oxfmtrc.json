@@ -10,6 +10,7 @@
     "refs/**",
     "dist-release/**",
     "bun.lock",
-    "**/*.md"
+    "**/*.md",
+    "**/public/**"
   ]
 }
