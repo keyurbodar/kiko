@@ -2,11 +2,12 @@ import { randomBytes } from "node:crypto"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { Effect } from "effect"
 import { unstable_startWorker } from "wrangler"
 
-export type LocalWorker = AsyncDisposable & { readonly url: URL }
+type LocalWorker = AsyncDisposable & { readonly url: URL }
 
-export async function startLocalWorker(): Promise<LocalWorker> {
+async function startLocalWorker(): Promise<LocalWorker> {
   const dir = await mkdtemp(join(tmpdir(), "kiko-worker-"))
   const assets = join(dir, "assets")
   await mkdir(assets)
@@ -47,3 +48,8 @@ export async function startLocalWorker(): Promise<LocalWorker> {
     throw error
   }
 }
+
+export const localWorker = Effect.acquireRelease(
+  Effect.promise(() => startLocalWorker()),
+  (worker) => Effect.promise(() => worker[Symbol.asyncDispose]()),
+)

@@ -1,7 +1,8 @@
 import { assert, describe, it } from "@effect/vitest"
 import { Effect, Exit, Schema } from "effect"
 import { isRoomId, messageIdAt, messageSeq, newRoomId } from "./ids"
-import { ClientToRoom, RoomId } from "./schema"
+import { RoomId } from "./brands"
+import { ClientToRoom } from "./room"
 
 const ROOM = newRoomId(1_767_225_600_000, new Uint8Array(16).fill(7))
 const OTHER_ROOM = newRoomId(1_767_225_600_000, new Uint8Array(16).fill(9))

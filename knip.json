@@ -13,7 +13,7 @@
       "entry": ["src/front-door.ts", "scripts/*.ts"]
     },
     "apps/web-solid": {
-      "entry": ["src/main.tsx", "scripts/*.ts"]
+      "entry": ["src/main.tsx"]
     },
     "packages/theme": {
       "entry": ["scripts/*.ts"]

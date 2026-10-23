@@ -1,207 +1,165 @@
-import type { ClientToOwner, Message, OwnerToClient, RoomId, RoomToClient } from "@kiko/protocol"
-import { newRoomId } from "@kiko/protocol"
-import { OwnerToClient as OwnerFrames } from "@kiko/protocol/schema"
-import { Schema } from "effect"
-
-const decodeFrame = Schema.decodeUnknownSync(OwnerFrames)
+import {
+  CommandId,
+  type Message,
+  newRoomId,
+  OWNER_RPC_PATH,
+  OwnerRpcs,
+  type RoomId,
+  type RoomStreamItem,
+} from "@kiko/protocol"
+import { Effect, Fiber, Layer, Schema, Stream, SubscriptionRef } from "effect"
+import * as RpcClient from "effect/rpc/RpcClient"
+import * as RpcSerialization from "effect/rpc/RpcSerialization"
+import * as Socket from "effect/socket/Socket"
 
 export type Counters = Record<string, number>
 export type Meter = { counters: Counters; billingVersion?: number }
 
-class OwnerSocket {
-  readonly frames: OwnerToClient[] = []
-  private failure: Error | null = null
-  private closed = false
-  private readonly waiters = new Set<() => void>()
+type Followed<A> = {
+  readonly items: SubscriptionRef.SubscriptionRef<readonly A[]>
+  readonly until: (ready: (all: readonly A[]) => boolean) => Effect.Effect<void>
+}
 
-  private constructor(private readonly socket: WebSocket) {
-    socket.addEventListener("message", (event) => {
-      const text = typeof event.data === "string" ? event.data : new TextDecoder().decode(event.data as ArrayBuffer)
-      try {
-        this.frames.push(decodeFrame(JSON.parse(text)))
-      } catch (error) {
-        this.failure = new Error(
-          `invalid frame ${text.slice(0, 200)}\n${error instanceof Error ? error.message : error}`,
-        )
-      }
-      this.wake()
-    })
-    socket.addEventListener("close", () => {
-      this.closed = true
-      this.wake()
-    })
-  }
+const newCommandId = () => Schema.decodeSync(CommandId)(crypto.randomUUID())
 
-  static async open(url: URL, token: string): Promise<OwnerSocket> {
-    const target = new URL("api/ws", url)
-    target.protocol = "ws:"
-    const socket = new WebSocket(target, ["kiko", token])
-    await new Promise<void>((resolve, reject) => {
-      socket.addEventListener("open", () => resolve(), { once: true })
-      socket.addEventListener("error", () => reject(new Error(`cannot connect to ${target}`)), { once: true })
-    })
-    const owner = new OwnerSocket(socket)
-    owner.send({ t: "hello", lastSeq: 0 })
-    await owner.until(() => owner.frames.some((frame) => frame.t === "reset" || frame.t === "events"))
-    return owner
-  }
+const protocol = (url: URL, token: string) => {
+  const target = new URL(OWNER_RPC_PATH, url)
+  target.protocol = "ws:"
+  return RpcClient.layerProtocolSocket().pipe(
+    Layer.provide(Socket.layerWebSocket(target.href, { protocols: ["kiko", token] })),
+    Layer.provide(Socket.layerWebSocketConstructorGlobal),
+    Layer.provide(RpcSerialization.layerJson),
+  )
+}
 
-  send(frame: ClientToOwner): void {
-    this.socket.send(JSON.stringify(frame))
-  }
+const makeClient = (url: URL, token: string) =>
+  Effect.gen(function* () {
+    const context = yield* Layer.build(protocol(url, token))
+    return yield* RpcClient.make(OwnerRpcs).pipe(Effect.provide(context))
+  })
 
-  async until(ready: () => boolean): Promise<void> {
-    for (;;) {
-      if (this.failure) throw this.failure
-      if (ready()) return
-      if (this.closed) throw new Error(`socket closed. last frames:\n${this.tail()}`)
-      await new Promise<void>((resolve) => {
-        const done = () => {
-          this.waiters.delete(done)
-          resolve()
-        }
-        this.waiters.add(done)
-      })
-    }
-  }
+type OwnerClient = Effect.Success<ReturnType<typeof makeClient>>
 
-  close(): void {
-    this.socket.close()
-  }
+const follow = <A, E>(stream: Stream.Stream<A, E>) =>
+  Effect.gen(function* () {
+    const items = yield* SubscriptionRef.make<readonly A[]>([])
+    const fiber = yield* stream.pipe(
+      Stream.runForEach((item) => SubscriptionRef.update(items, (all) => [...all, item])),
+      Effect.orDie,
+      Effect.forkScoped,
+    )
+    const until = (ready: (all: readonly A[]) => boolean) =>
+      Effect.raceFirst(
+        SubscriptionRef.changes(items).pipe(Stream.filter(ready), Stream.runHead, Effect.asVoid),
+        Fiber.join(fiber).pipe(Effect.andThen(Effect.die(new Error("the stream ended before the milestone")))),
+      )
+    return { items, until } satisfies Followed<A>
+  })
 
-  private wake(): void {
-    for (const waiter of this.waiters) waiter()
-  }
+const isSynchronized = (item: { kind: string }) => item.kind === "synchronized"
 
-  private tail(): string {
-    return this.frames
-      .slice(-20)
-      .map((frame) => `  ${JSON.stringify(frame).slice(0, 300)}`)
-      .join("\n")
+function messagesOf(items: readonly RoomStreamItem[]): Message[] {
+  const byId = new Map<string, Message>()
+  for (const item of items) {
+    if (item.kind === "snapshot") for (const message of item.snapshot.messages) byId.set(message.id, message)
+    if (item.kind === "event" && item.event.t === "message") byId.set(item.event.id, item.event)
   }
+  return [...byId.values()].sort((a, b) => a.seq - b.seq)
 }
 
 export class Room {
-  private cursor = 0
-
   constructor(
     readonly roomId: RoomId,
-    private readonly socket: OwnerSocket,
+    private readonly client: OwnerClient,
+    private readonly stream: Followed<RoomStreamItem>,
   ) {}
 
-  frames(): RoomToClient[] {
-    return this.socket.frames.flatMap((frame) =>
-      frame.t === "room" && frame.roomId === this.roomId ? [frame.frame] : [],
+  messages(): Effect.Effect<Message[]> {
+    return SubscriptionRef.get(this.stream.items).pipe(Effect.map(messagesOf))
+  }
+
+  errorRows(): Effect.Effect<number> {
+    return this.messages().pipe(
+      Effect.map((messages) => messages.filter((message) => message.event?.kind === "run_error").length),
     )
   }
 
-  messages(): Message[] {
-    const byId = new Map<string, Message>()
-    for (const frame of this.frames()) {
-      if (frame.t !== "events") continue
-      for (const event of frame.events) if (event.t === "message") byId.set(event.id, event)
-    }
-    return [...byId.values()].sort((a, b) => a.seq - b.seq)
+  mark(): Effect.Effect<number> {
+    return SubscriptionRef.get(this.stream.items).pipe(Effect.map((items) => items.length))
   }
 
-  errorRows(): Message[] {
-    return this.messages().filter((message) => message.event?.kind === "run_error")
+  send(text: string) {
+    return this.client["room.send"]({ roomId: this.roomId, commandId: newCommandId(), text })
   }
 
-  send(text: string): string {
-    const clientId = crypto.randomUUID()
-    this.socket.send({ t: "room", roomId: this.roomId, frame: { t: "send", clientId, text } })
-    return clientId
+  untilMessage(ready: (messages: Message[]) => boolean): Effect.Effect<void> {
+    return this.stream.until((items) => ready(messagesOf(items)))
   }
 
-  async next(match: (frame: RoomToClient) => boolean): Promise<RoomToClient> {
-    let found: RoomToClient | undefined
-    await this.socket.until(() => {
-      const frames = this.frames()
-      while (!found && this.cursor < frames.length) {
-        const frame = frames[this.cursor++]
-        if (frame && match(frame)) found = frame
-      }
-      return found !== undefined
-    })
-    return found as RoomToClient
-  }
-
-  until(ready: () => boolean): Promise<void> {
-    return this.socket.until(ready)
-  }
-
-  close(): void {
-    this.socket.close()
+  untilIdleAfter(mark: number): Effect.Effect<void> {
+    return this.stream.until((items) =>
+      items
+        .slice(mark)
+        .some((item) => item.kind === "signal" && item.signal.t === "status" && item.signal.state === "idle"),
+    )
   }
 }
 
-export type Owner = AsyncDisposable & {
-  readonly url: URL
-  newRoom(title: string): Promise<Room>
-  openRoom(roomId: RoomId): Promise<Room>
-  post(path: string, body: unknown): Promise<unknown>
-  meter(): Promise<Meter>
-}
-
-export async function signIn(url: URL, name: string): Promise<Owner> {
-  const response = await fetch(new URL("api/auth/dev/session", url), {
-    method: "POST",
-    headers: { "content-type": "application/json", origin: url.origin },
-    body: JSON.stringify({ name }),
-  })
-  if (!response.ok) throw new Error(`dev sign-in answered ${response.status}`)
-  const { token } = (await response.json()) as { token: string }
-  const auth = `Bearer ${token}`
-  const sockets: OwnerSocket[] = []
-  const connect = async () => {
-    const socket = await OwnerSocket.open(url, token)
-    sockets.push(socket)
-    return socket
-  }
-  const subscribe = async (socket: OwnerSocket, roomId: RoomId) => {
-    socket.send({ t: "subscribe", roomId, lastSeq: 0 })
-    const room = new Room(roomId, socket)
-    await room.next((frame) => frame.t === "events" || frame.t === "reset")
-    return room
-  }
-  const user = await connect()
-  return {
-    url,
-    async newRoom(title) {
-      const roomId = newRoomId()
-      user.send({ t: "chat", op: { op: "create", roomId, title } })
-      await user.until(() =>
-        user.frames.some(
-          (frame) =>
-            frame.t === "events" && frame.events.some((event) => event.t === "chat" && event.chat.roomId === roomId),
-        ),
-      )
-      return subscribe(await connect(), roomId)
-    },
-    async openRoom(roomId) {
-      return subscribe(await connect(), roomId)
-    },
-    async post(path, body) {
-      const answer = await fetch(new URL(path, url), {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: auth },
-        body: JSON.stringify(body),
+export const connect = (url: URL, token: string) =>
+  Effect.gen(function* () {
+    const client = yield* makeClient(url, token)
+    const user = yield* follow(client["user.subscribe"]({}))
+    yield* user.until((items) => items.some(isSynchronized))
+    const openRoom = (roomId: RoomId) =>
+      Effect.gen(function* () {
+        const stream = yield* follow(client["room.subscribe"]({ roomId }))
+        yield* stream.until((items) => items.some(isSynchronized))
+        return new Room(roomId, client, stream)
       })
-      if (!answer.ok) throw new Error(`${path} answered ${answer.status}`)
-      return answer.json()
-    },
-    async meter() {
-      const answer = await fetch(new URL("api/dev/stats", url), { headers: { authorization: auth } })
-      if (!answer.ok) throw new Error(`api/dev/stats answered ${answer.status}`)
-      return (await answer.json()) as Meter
-    },
-    async [Symbol.asyncDispose]() {
-      for (const socket of sockets) socket.close()
-    },
-  }
+    const newRoom = (title: string) =>
+      Effect.gen(function* () {
+        const roomId = newRoomId()
+        yield* client["chat.command"]({ commandId: newCommandId(), op: { op: "create", roomId, title } })
+        return yield* openRoom(roomId)
+      })
+    return { openRoom, newRoom }
+  })
+
+export type Owner = {
+  readonly token: string
+  post(path: string, body: unknown): Effect.Effect<unknown, Error>
+  meter(): Effect.Effect<Meter, Error>
 }
 
-export function idle(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+const request = (url: URL, init: RequestInit) =>
+  Effect.tryPromise({
+    try: async () => {
+      const answer = await fetch(url, init)
+      if (!answer.ok) throw new Error(`${url.pathname} answered ${answer.status}`)
+      return (await answer.json()) as unknown
+    },
+    catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+  })
+
+export const signIn = (url: URL, name: string): Effect.Effect<Owner, Error> =>
+  Effect.gen(function* () {
+    const { token } = (yield* request(new URL("api/auth/dev/session", url), {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: url.origin },
+      body: JSON.stringify({ name }),
+    })) as { token: string }
+    const authorization = `Bearer ${token}`
+    return {
+      token,
+      post: (path, body) =>
+        request(new URL(path, url), {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization },
+          body: JSON.stringify(body),
+        }),
+      meter: () =>
+        request(new URL("api/dev/stats", url), { headers: { authorization } }) as Effect.Effect<Meter, Error>,
+    }
+  })
+
+export const idle = (ms: number): Effect.Effect<void> => Effect.sleep(ms)
