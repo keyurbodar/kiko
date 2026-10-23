@@ -109,9 +109,10 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
 
 export function buildAgent(input: BuildAgentInput): BuiltAgent {
   const registry = createRegistry()
+  let builtins: Extension[] = []
   const extensions = extensionsFor(input, () => builtins)
   const effects = effectTable(extensions)
-  const builtins = extensions.map((extension) => ({
+  builtins = extensions.map((extension) => ({
     ...extension,
     tools: extension.tools?.map((tool) => {
       const effect = effects.get(tool.name)

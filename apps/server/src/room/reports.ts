@@ -1,4 +1,4 @@
-import type { AgentSlug, RoomEvent } from "@kiko/protocol"
+import type { RoomEvent } from "@kiko/protocol"
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 import type { OwnerServices } from "../owner/services"
 import type { Inflight, RoomRoutines } from "./routines"

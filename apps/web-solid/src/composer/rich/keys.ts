@@ -8,6 +8,10 @@ import { nextOrderedMarker } from "./markdown"
 
 type Dispatch = ((tr: Transaction) => void) | undefined
 
+const ORDERED_MARKER = /^\d+[.)]$/
+
+const LIST_NODES = new Set(["bulletList", "orderedList", "taskList"])
+
 function hasAncestor($pos: ResolvedPos, name: string): boolean {
   for (let depth = $pos.depth; depth > 0; depth -= 1) {
     if ($pos.node(depth).type.name === name) return true
@@ -43,8 +47,6 @@ function numberSplitItems(tr: Transaction): Transaction {
   })
   return tr
 }
-
-const ORDERED_MARKER = /^\d+[.)]$/
 
 export function bulletItemToTask(tr: Transaction, from: number, to: number, checked: boolean): void {
   tr.delete(from, to)
@@ -88,8 +90,6 @@ export function backspaceAcrossList(state: EditorState, dispatch?: Dispatch): bo
   return false
 }
 
-const LIST_NODES = new Set(["bulletList", "orderedList", "taskList"])
-
 export function deleteAcrossList(state: EditorState, dispatch?: Dispatch): boolean {
   const { $from, empty } = state.selection
   if (!empty || !$from.parent.isTextblock || $from.depth === 0) return false
@@ -123,7 +123,7 @@ export function leaveEmptyQuote(state: EditorState, dispatch?: Dispatch): boolea
   return true
 }
 
-export function parseOpeningFence(line: string): { fence: string; language: string } | null {
+function parseOpeningFence(line: string): { fence: string; language: string } | null {
   const match = /^(`{3,}|~{3,})([^\n]*)$/.exec(line)
   if (!match) return null
   const fence = match[1]!
@@ -132,7 +132,7 @@ export function parseOpeningFence(line: string): { fence: string; language: stri
   return { fence, language }
 }
 
-export function isClosingFence(line: string, fence: string): boolean {
+function isClosingFence(line: string, fence: string): boolean {
   const match = /^(`{3,}|~{3,})[ \t]*$/.exec(line)
   if (!match) return false
   const run = match[1]!

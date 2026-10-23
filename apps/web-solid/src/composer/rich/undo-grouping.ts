@@ -6,7 +6,7 @@ export const UNDO_GROUP_DELAY = 1000
 
 export type ChangeKind = "insert" | "delete" | "other"
 
-export function changeKindOf(tr: Transaction): ChangeKind | null {
+function changeKindOf(tr: Transaction): ChangeKind | null {
   if (!tr.docChanged) return null
   const uiEvent = tr.getMeta("uiEvent")
   if (uiEvent === "paste" || uiEvent === "drop" || uiEvent === "cut") return "other"

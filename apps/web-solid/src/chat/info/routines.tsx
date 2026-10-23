@@ -13,7 +13,6 @@ import { useApp } from "../../lib/store"
 export type Routine = RoutineData
 
 const [started, setStarted] = createSignal<ReadonlySet<string>>(new Set())
-export const ranNow = (id: string): boolean => started().has(id)
 
 export const routinesOf = (chatId: string): readonly Routine[] =>
   useApp.rows("routine").filter((r) => r.roomId === chatId)
@@ -23,7 +22,7 @@ const post = (path: string, body: unknown) =>
     .then((r) => r.ok)
     .catch(() => false)
 
-export async function setStatus(routine: Routine, status: Routine["status"]): Promise<void> {
+async function setStatus(routine: Routine, status: Routine["status"]): Promise<void> {
   if (
     !(await useApp.editRow("routine", routine.id, { ...routine, status }, () =>
       post(`/api/routines/${routine.id}`, { status }),
@@ -32,7 +31,7 @@ export async function setStatus(routine: Routine, status: Routine["status"]): Pr
     showToastV2({ title: `Could not ${status === "paused" ? "pause" : "resume"} ${routine.name}`, variant: "error" })
 }
 
-export async function cancelRoutine(routine: Routine): Promise<void> {
+async function cancelRoutine(routine: Routine): Promise<void> {
   if (!(await useApp.editRow("routine", routine.id, null, () => post(`/api/routines/${routine.id}/cancel`, {}))))
     showToastV2({ title: `Could not delete ${routine.name}`, variant: "error" })
 }
@@ -46,7 +45,7 @@ const forget = (id: string) =>
     return next
   })
 
-export async function runNow(routine: Routine): Promise<boolean> {
+async function runNow(routine: Routine): Promise<boolean> {
   setStarted((s) => new Set(s).add(routine.id))
   if (await post(`/api/routines/${routine.id}/run`, {})) return true
   forget(routine.id)

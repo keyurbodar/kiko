@@ -1,4 +1,4 @@
-export const DRAFT_THRESHOLD = 400
+const DRAFT_THRESHOLD = 400
 const MAX_TAG = 96
 const TAG_PREFIX = "[react:"
 const SKIP = /^\[skip\]$/i

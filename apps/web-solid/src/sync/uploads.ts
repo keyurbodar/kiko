@@ -48,7 +48,7 @@ export function uploadState(id: string): UploadState | undefined {
   return uploads[id]
 }
 
-export function refusal(status: number, body: string): string {
+function refusal(status: number, body: string): string {
   try {
     const said = (JSON.parse(body) as { error?: unknown }).error
     if (typeof said === "string" && said.includes(" ")) return said
@@ -138,7 +138,7 @@ async function run(job: Job): Promise<void> {
 
 let toasted: { at: number; reason: string } | null = null
 
-export function isNewFailure(last: { at: number; reason: string } | null, now: number, reason: string): boolean {
+function isNewFailure(last: { at: number; reason: string } | null, now: number, reason: string): boolean {
   return !last || last.reason !== reason || now - last.at >= TOAST_WINDOW_MS
 }
 

@@ -1,4 +1,4 @@
-import { CliError, type Context } from "../main"
+import { CliError, type Context } from "../context"
 import { askUser } from "./user-socket"
 
 type Result =

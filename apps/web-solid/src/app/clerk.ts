@@ -22,12 +22,12 @@ function loadUi(key: string): Promise<ClerkUI> {
     script.async = true
     script.crossOrigin = "anonymous"
     script.setAttribute("data-clerk-publishable-key", key)
-    script.onerror = () => reject(new Error(BLOCKED))
-    script.onload = () => {
+    script.addEventListener("error", () => reject(new Error(BLOCKED)))
+    script.addEventListener("load", () => {
       const ctor = w.__internal_ClerkUICtor
       if (ctor) resolve(ctor)
       else reject(new Error(BLOCKED))
-    }
+    })
     document.head.append(script)
   })
 }

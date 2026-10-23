@@ -54,14 +54,16 @@ export const getHome = (warm: Warm): Promise<Home | undefined> => warm.get<Home>
 export const putPendingChats = (warm: Warm, patches: readonly UserPatch[]) => warm.put("meta", PENDING_CHATS, patches)
 
 export async function getPendingChats(warm: Warm): Promise<UserPatch[]> {
-  return [...((await warm.get<UserPatch[]>("meta", PENDING_CHATS)) ?? [])]
+  const held = await warm.get<UserPatch[]>("meta", PENDING_CHATS)
+  return held ? held.slice() : []
 }
 
 export const putAgentModels = (warm: Warm, models: Readonly<Record<string, AgentModel>>) =>
   warm.put("meta", AGENT_MODELS, models)
 
 export async function allAgentModels(warm: Warm): Promise<Record<string, AgentModel>> {
-  return { ...((await warm.get<Record<string, AgentModel>>("meta", AGENT_MODELS)) ?? {}) }
+  const held = await warm.get<Record<string, AgentModel>>("meta", AGENT_MODELS)
+  return held ? { ...held } : {}
 }
 
 export function putRows(warm: Warm, rows: RowData, kinds: readonly RowKind[] = ROW_KINDS): void {

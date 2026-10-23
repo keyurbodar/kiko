@@ -13,11 +13,6 @@ export function addOp(agent: Agent): MemberOp {
   return op
 }
 
-export function renameOp(member: Member, name: string): MemberOp | null {
-  const next = name.trim()
-  return next && next !== member.name ? { op: "rename", slug: member.slug, name: next } : null
-}
-
 export function refusalText(op: MemberOp, reason: MemberRefusal): string {
   const who = "name" in op ? op.name : op.slug
   switch (reason) {
@@ -36,10 +31,4 @@ export function refusalText(op: MemberOp, reason: MemberRefusal): string {
     case "kiko":
       return "The Kiko chat stays with Kiko. Start a new group instead"
   }
-}
-
-export function roleLabel(member: Member): string {
-  if (member.lead) return "Lead"
-  const role = member.role?.split("\n")[0]?.trim()
-  return role || "Agent"
 }

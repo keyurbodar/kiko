@@ -38,7 +38,7 @@ export type StepIcon =
   | "alert-circle"
   | "app"
 
-export const NAME_ICON: Record<string, StepIcon> = {
+const NAME_ICON: Record<string, StepIcon> = {
   read: "file-view",
   ls: "folder",
   write: "file-add",
@@ -80,7 +80,7 @@ export const NAME_ICON: Record<string, StepIcon> = {
   add_recipe: "sparkles",
 }
 
-export const KIND_ICON: Record<ToolKind, StepIcon> = {
+const KIND_ICON: Record<ToolKind, StepIcon> = {
   read: "file-view",
   edit: "edit",
   run: "terminal",
@@ -172,13 +172,13 @@ const PRESENT: Record<string, string> = {
 const WRAPPERS = new Set(["sudo", "env", "time", "command", "exec", "nohup"])
 const SKIPPED = new Set(["cd", "export", "set"])
 
-export function programOf(command: string): string | undefined {
+function programOf(command: string): string | undefined {
   for (const segment of command.split(/&&|\|\||[;|\n]/)) {
-    const words = segment
+    const word = segment
       .trim()
       .split(/\s+/)
-      .filter((w) => w && !/^\w+=/.test(w) && !WRAPPERS.has(w))
-    const first = words[0]?.replace(/^["']|["']$/g, "")
+      .find((w) => w && !/^\w+=/.test(w) && !WRAPPERS.has(w))
+    const first = word?.replace(/^["']|["']$/g, "")
     if (!first || SKIPPED.has(first)) continue
     return first.split("/").pop() || undefined
   }
@@ -201,39 +201,6 @@ export function extraInput(step: Pick<RunStep, "label" | "input">): string | und
   const label = step.label.trim()
   if (label === input || label.endsWith(` ${input}`)) return undefined
   return input
-}
-
-export function formatDuration(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return "0ms"
-  if (ms < 1000) return `${Math.max(1, Math.round(ms))}ms`
-  if (ms < 10_000) {
-    const tenths = Math.round(ms / 100) / 10
-    return tenths >= 10 ? "10s" : `${tenths.toFixed(1)}s`
-  }
-  if (ms < 60_000) return `${Math.round(ms / 1000)}s`
-  const total = Math.round(ms / 1000)
-  const parts: string[] = []
-  const h = Math.floor(total / 3600)
-  const m = Math.floor((total % 3600) / 60)
-  const s = total % 60
-  if (h > 0) parts.push(`${h}h`)
-  if (m > 0) parts.push(`${m}m`)
-  if (s > 0) parts.push(`${s}s`)
-  return parts.join(" ")
-}
-
-export function formatClock(ms: number): string {
-  const seconds = Math.floor(Math.max(0, ms) / 1000)
-  return seconds < 60 ? `${seconds}s` : formatDuration(seconds * 1000)
-}
-
-export const startOf = (steps: readonly Pick<RunStep, "startedAt">[]): number | undefined =>
-  steps.length ? Math.min(...steps.map((s) => s.startedAt)) : undefined
-
-export function totalDuration(steps: readonly Pick<RunStep, "startedAt" | "endedAt" | "status">[]): number | undefined {
-  if (!steps.length || steps.some((s) => s.status === "running")) return undefined
-  const end = Math.max(...steps.map((s) => s.endedAt ?? s.startedAt))
-  return end - (startOf(steps) ?? end)
 }
 
 const RANK: Record<RunStepStatus, number> = { running: 0, done: 1, failed: 1 }
@@ -333,15 +300,3 @@ export function buildEntries(steps: readonly RunStep[], open: ReadonlySet<string
 
 export const anyRunning = (steps: readonly Pick<RunStep, "status">[]): boolean =>
   steps.some((s) => s.status === "running")
-
-export type Placement = "right-start" | "left-start" | "bottom-start" | "top-start"
-
-type Box = { left: number; right: number; top: number; bottom: number }
-
-export function placementOf(anchor: Box, card: Box): Placement | undefined {
-  if (card.left >= anchor.right - 1) return "right-start"
-  if (card.right <= anchor.left + 1) return "left-start"
-  if (card.top >= anchor.bottom - 1) return "bottom-start"
-  if (card.bottom <= anchor.top + 1) return "top-start"
-  return undefined
-}

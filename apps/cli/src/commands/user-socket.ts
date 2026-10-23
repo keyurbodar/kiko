@@ -1,4 +1,4 @@
-import { CliError, type Context } from "../main"
+import { CliError, type Context } from "../context"
 import { sessionToken } from "./login"
 
 export async function askUser<R>(ctx: Context, frame: Record<string, unknown>, answer: string): Promise<R> {
@@ -12,9 +12,9 @@ export async function askUser<R>(ctx: Context, frame: Record<string, unknown>, a
   try {
     return await new Promise<R>((resolve, reject) => {
       const timer = setTimeout(() => reject(new CliError("no answer from the user socket in 30 s")), 30_000)
-      socket.onopen = () => socket.send(JSON.stringify({ ...frame, reqId }))
-      socket.onerror = () => reject(new CliError(`cannot connect to ${target}`))
-      socket.onmessage = (ev) => {
+      socket.addEventListener("open", () => socket.send(JSON.stringify({ ...frame, reqId })))
+      socket.addEventListener("error", () => reject(new CliError(`cannot connect to ${target}`)))
+      socket.addEventListener("message", (ev) => {
         try {
           const f = JSON.parse(String(ev.data)) as { t?: string; reqId?: string; result?: R }
           if (f.t === answer && f.reqId === reqId && f.result) {
@@ -22,7 +22,7 @@ export async function askUser<R>(ctx: Context, frame: Record<string, unknown>, a
             resolve(f.result)
           }
         } catch {}
-      }
+      })
     })
   } finally {
     socket.close()

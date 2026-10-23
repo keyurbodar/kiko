@@ -1,9 +1,9 @@
 export type ToastV2Variant = "default" | "success" | "error" | "warning" | "info" | "loading"
 
-export const TOAST_DURATION_MS = 5000
-export const ANCHORED_TOAST_DURATION_MS = 1000
-export const TOAST_LIMIT = 3
-export const SWIPE_THRESHOLD_PX = 40
+const TOAST_DURATION_MS = 5000
+const ANCHORED_TOAST_DURATION_MS = 1000
+const TOAST_LIMIT = 3
+const SWIPE_THRESHOLD_PX = 40
 export const ERROR_CLAMP_CHARS = 180
 
 export function toastDuration(options: {

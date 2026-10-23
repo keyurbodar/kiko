@@ -19,7 +19,7 @@ export function dayChipLabel(dayStart: number, now: number): string {
   return (day.getFullYear() === d.getFullYear() ? MONTH_DAY : MONTH_DAY_YEAR_SHORT).format(day)
 }
 
-export function formatTimeOfDay(sentAt: number): string {
+function formatTimeOfDay(sentAt: number): string {
   const d = new Date(usable(sentAt))
   const h24 = d.getHours()
   const hours = h24 % 12 === 0 ? 12 : h24 % 12

@@ -31,7 +31,7 @@ export function checkTabs(value: unknown): Record<string, string> | undefined {
 
 export const WATCH_MS = 10 * 60_000
 
-export function hostOf(url: string): string {
+function hostOf(url: string): string {
   try {
     return new URL(url).hostname || "blank"
   } catch {

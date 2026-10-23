@@ -25,7 +25,6 @@ import { hosted } from "./hosted"
 const [progress, setProgress] = createSignal<UpdateProgress>(null)
 const [latest, setLatest] = createSignal<string | undefined>()
 const [fetched, setFetched] = createSignal<BackendBuild | null | undefined>()
-export { progress }
 
 export const clientIsBehind = () => hosted && clientBehind(APP_VERSION, latest())
 

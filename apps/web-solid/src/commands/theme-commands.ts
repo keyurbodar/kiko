@@ -32,14 +32,9 @@ export function themeCommands(deps: {
       submenu: (): Choice[] => {
         const shown = appearanceOf(deps.mode())
         const imported = deps.imported()
-        const themes: [ThemeAppearance, string, string, string?][] = [
-          ...imported.themes.map((t): [ThemeAppearance, string, string, string] => [
-            t.appearance,
-            t.id,
-            t.name,
-            t.source,
-          ]),
-        ]
+        const themes: [ThemeAppearance, string, string, string?][] = imported.themes.map(
+          (t): [ThemeAppearance, string, string, string] => [t.appearance, t.id, t.name, t.source],
+        )
         return [
           ...MODES.map(([mode, title]): Choice => ({
             id: `mode.${mode}`,

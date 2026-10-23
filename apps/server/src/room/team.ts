@@ -1,6 +1,6 @@
 import type { Activity, AgentSlug } from "@kiko/protocol"
 
-export const LEASE_MS = 10 * 60_000
+const LEASE_MS = 10 * 60_000
 const UNLEASED = new Set(["chat.md"])
 
 export type Holder = { slug: AgentSlug; path: string; doing: string | null }

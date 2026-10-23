@@ -3,7 +3,7 @@ import type { ChatMessage } from "../../lib/types"
 import { dayStartOf } from "./day-start"
 import { startsTimeBreak } from "./time-label"
 
-export const MESSAGE_GROUPING_WINDOW_MS = 300_000
+const MESSAGE_GROUPING_WINDOW_MS = 300_000
 
 export type TimelineItem =
   | {
@@ -40,7 +40,7 @@ export type TimelineOptions = {
 
 export { dayStartOf }
 
-export function canGroup(a: ChatMessage, b: ChatMessage): boolean {
+function canGroup(a: ChatMessage, b: ChatMessage): boolean {
   if (a.sender !== b.sender) return false
   if (a.botId !== b.botId) return false
   if (a.replyToId !== undefined || b.replyToId !== undefined) return false
@@ -118,9 +118,9 @@ export function buildTimelineItems(
       canGroup(a.message, b.message)
     )
   }
-  const runStarts: number[] = new Array(n)
+  const runStarts: number[] = Array.from({ length: n }, () => 0)
   for (let i = 0; i < n; i += 1) runStarts[i] = continues(i) ? runStarts[i - 1] : i
-  const runEnds: number[] = new Array(n)
+  const runEnds: number[] = Array.from({ length: n }, () => 0)
   for (let i = n - 1; i >= 0; i -= 1) {
     runEnds[i] = i + 1 < n && runStarts[i + 1] === runStarts[i] ? runEnds[i + 1] : i
   }

@@ -57,7 +57,7 @@ export const urls = {
 
 const reactionKey = (r: WireReaction) => (r.by.kind === "human" ? "human" : `agent:${r.by.slug}`)
 
-export function reactionChips(reactions: readonly WireReaction[] | undefined): Reaction[] | undefined {
+function reactionChips(reactions: readonly WireReaction[] | undefined): Reaction[] | undefined {
   if (!reactions?.length) return undefined
   const chips: Reaction[] = []
   for (const r of reactions) {
@@ -69,18 +69,18 @@ export function reactionChips(reactions: readonly WireReaction[] | undefined): R
   return chips
 }
 
-export function nextReaction(reactions: readonly WireReaction[] | undefined, emoji: string): string | null {
+function nextReaction(reactions: readonly WireReaction[] | undefined, emoji: string): string | null {
   const own = reactions?.find((r) => r.by.kind === "human")
   return own?.emoji === emoji ? null : emoji
 }
 
-export function signature(m: ViewMessage): string {
+function signature(m: ViewMessage): string {
   let reactions = ""
   for (const r of m.reactions ?? []) reactions += `${reactionKey(r)}=${r.emoji},`
   return `${m.id}|${m.seq}|${m.at}|${m.text?.length ?? 0}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.reply?.gone ? 1 : 0}|${m.reply?.text ?? ""}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote ?? ""}|${m.to ?? ""}|${m.event ? 1 : 0}|${m.steps ?? 0}|${m.stepAfter ?? 0}`
 }
 
-export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
+function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   const out: ChatMessage = {
     id: m.id,
     threadId: roomId,
@@ -119,24 +119,24 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   return out
 }
 
-export function firstUnread(messages: readonly ViewMessage[], readSeq: number): MessageId | null {
+function firstUnread(messages: readonly ViewMessage[], readSeq: number): MessageId | null {
   for (const m of messages) if (!m.pending && !m.event && m.from.kind !== "human" && m.seq > readSeq) return m.id
   return null
 }
 
-export function newestSeq(messages: readonly ViewMessage[]): number {
+function newestSeq(messages: readonly ViewMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i--) if (!messages[i].pending) return messages[i].seq
   return 0
 }
 
-export function presenceOf(typing: boolean, state: AgentState | undefined): BotPresence {
+function presenceOf(typing: boolean, state: AgentState | undefined): BotPresence {
   if (typing) return "typing"
   return state === "working" ? "working" : "idle"
 }
 
 export type LiveRow = { last?: ChatLast; typing?: readonly string[]; group?: boolean }
 
-export function chatRow(chat: Chat, presence: BotPresence = "idle", live: LiveRow = {}): RosterBot {
+function chatRow(chat: Chat, presence: BotPresence = "idle", live: LiveRow = {}): RosterBot {
   const group = live.group ?? !!chat.group
   const last = live.last ?? chat.last
   const line = last ? describeLast(last, group) : { text: chat.lastPreview }
@@ -157,7 +157,7 @@ export function chatRow(chat: Chat, presence: BotPresence = "idle", live: LiveRo
   return row
 }
 
-export function viewLast(m: ViewMessage, name: (slug: string) => string): ChatLast {
+function viewLast(m: ViewMessage, name: (slug: string) => string): ChatLast {
   const files = m.files ?? m.local
   return messageLast({
     from: m.from.kind,
@@ -169,7 +169,7 @@ export function viewLast(m: ViewMessage, name: (slug: string) => string): ChatLa
   })
 }
 
-export function mentionIds(
+function mentionIds(
   messages: readonly ViewMessage[],
   handle: string | null,
   slugs: readonly string[],
@@ -191,7 +191,7 @@ function shared<T>(fn: () => T): () => T {
   return isServer ? fn : createMemo(fn)
 }
 
-export function releaseFrontier<T extends { id: MessageId; seq: number; from: { kind: string } }>(
+function releaseFrontier<T extends { id: MessageId; seq: number; from: { kind: string } }>(
   messages: readonly T[],
   held: ReadonlySet<string>,
 ): (m: T) => boolean {
@@ -200,7 +200,7 @@ export function releaseFrontier<T extends { id: MessageId; seq: number; from: { 
   return (m) => !held.has(m.id) && !(m.seq > frontier && m.from.kind !== "human")
 }
 
-export function sameRow(a: RosterBot, b: RosterBot): boolean {
+function sameRow(a: RosterBot, b: RosterBot): boolean {
   const x = a as unknown as Record<string, unknown>
   const y = b as unknown as Record<string, unknown>
   for (const k in x) if (x[k] !== y[k]) return false
@@ -208,7 +208,7 @@ export function sameRow(a: RosterBot, b: RosterBot): boolean {
   return true
 }
 
-export function memberRow(member: Member, presence: BotPresence = "idle"): RosterBot {
+function memberRow(member: Member, presence: BotPresence = "idle"): RosterBot {
   const row: RosterBot = {
     id: member.slug,
     name: member.name,
@@ -222,9 +222,9 @@ export function memberRow(member: Member, presence: BotPresence = "idle"): Roste
   return row
 }
 
-export const MAX_PRELOADED = 20
+const MAX_PRELOADED = 20
 
-export function keepNewest<T>(record: Record<string, T>, max: number): Record<string, T> {
+function keepNewest<T>(record: Record<string, T>, max: number): Record<string, T> {
   const keys = Object.keys(record)
   if (keys.length <= max) return record
   return Object.fromEntries(keys.slice(-max).map((k) => [k, record[k]]))
@@ -232,7 +232,7 @@ export function keepNewest<T>(record: Record<string, T>, max: number): Record<st
 
 export type App = ReturnType<typeof createApp>
 
-export function createApp() {
+function createApp() {
   return createRoot(() => {
     const [userStore, setUserStore] = createSignal<UserStore | null>(null)
     const [room, setRoom] = createSignal<RoomStore | null>(null)
@@ -401,6 +401,7 @@ export function createApp() {
       return [...slugs].filter((slug) => known.has(slug))
     }
 
+    const [unseen, setUnseen] = createSignal<readonly MessageId[]>([])
     function openRoom(roomId: RoomId | null) {
       const current = room()
       if (current?.state.roomId === roomId) return
@@ -539,7 +540,6 @@ export function createApp() {
           )
         : []
     })
-    const [unseen, setUnseen] = createSignal<readonly MessageId[]>([])
 
     function findView(id: string): ViewMessage | undefined {
       return roomMessages().find((m) => m.id === id)

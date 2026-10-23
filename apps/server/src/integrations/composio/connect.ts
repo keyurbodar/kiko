@@ -135,15 +135,13 @@ export class ComposioConnection {
   }
 
   private learnedTools(): ComposioTool[] {
-    return this.store
-      .learned()
-      .map((t) => ({
-        name: t.slug,
-        description: t.description,
-        inputSchema: t.inputSchema,
-        ...(t.readOnly ? { readOnly: true } : {}),
-        direct: { slug: t.slug, toolkit: t.toolkit },
-      }))
+    return this.store.learned().map((t) => ({
+      name: t.slug,
+      description: t.description,
+      inputSchema: t.inputSchema,
+      ...(t.readOnly ? { readOnly: true } : {}),
+      direct: { slug: t.slug, toolkit: t.toolkit },
+    }))
   }
 
   private async listed(now: number): Promise<ComposioTool[] | null> {

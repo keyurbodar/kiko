@@ -37,8 +37,9 @@ function savePendingCleanup(): void {
     throw new Error("Could not safely clear this account's local data. Allow browser storage and try again.")
   }
 }
-export const [authReset, setAuthReset] = createSignal(0)
-export const [autoResume, setAutoResume] = createSignal(true)
+const [authReset, setAuthReset] = createSignal(0)
+const [autoResume, setAutoResume] = createSignal(true)
+export { authReset, autoResume }
 export const authIdentity = () => read("kiko:identity") ?? base()
 export const authGeneration = () => generation
 export const cancelAuthAttempt = () => {
@@ -46,7 +47,7 @@ export const cancelAuthAttempt = () => {
 }
 export const allowClerkResume = () => setAutoResume(true)
 
-export const warmDbPrefix = (userId: string) => `kiko:warm:${userId}`
+const warmDbPrefix = (userId: string) => `kiko:warm:${userId}`
 
 function readFlag(): SessionUser | null {
   try {
@@ -65,7 +66,7 @@ function writeFlag(user: SessionUser | null): void {
   } catch {}
 }
 
-export async function clearWarmTier(userId: string): Promise<void> {
+async function clearWarmTier(userId: string): Promise<void> {
   if (typeof indexedDB === "undefined" || typeof indexedDB.databases !== "function") return
   const prefix = warmDbPrefix(userId)
   const names = (await indexedDB.databases())
@@ -76,8 +77,10 @@ export async function clearWarmTier(userId: string): Promise<void> {
       (name) =>
         new Promise<void>((resolve, reject) => {
           const request = indexedDB.deleteDatabase(name)
+          const fail = () => reject(new Error("Close other Kiko tabs and try again"))
           request.onsuccess = () => resolve()
-          request.onerror = request.onblocked = () => reject(new Error("Close other Kiko tabs and try again"))
+          request.addEventListener("error", fail)
+          request.addEventListener("blocked", fail)
         }),
     ),
   )
@@ -213,6 +216,17 @@ export async function signInAsDev(name = "dev"): Promise<void> {
   await adopt(res, "dev sign-in failed", attempt)
 }
 
+class Unreachable extends Error {}
+
+class ClerkRejected extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message)
+  }
+}
+
 export async function signInWithClerk(): Promise<"in" | "connect" | "none"> {
   let attempt = ++generation
   const { clerkSignIn } = await import("./clerk")
@@ -267,17 +281,6 @@ async function backendGone(): Promise<boolean> {
   return typeof body?.version !== "string"
 }
 
-class Unreachable extends Error {}
-
-class ClerkRejected extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message)
-  }
-}
-
 const hostOf = () => {
   try {
     return new URL(base()).host
@@ -286,7 +289,7 @@ const hostOf = () => {
   }
 }
 
-export const unreachableText = () =>
+const unreachableText = () =>
   `This device cannot reach ${hostOf()} yet. A new Cloudflare address can take a few minutes to reach every network. Try again in a minute. If you use a VPN, Private DNS, or an ad blocker, allow workers.dev.`
 
 async function exchangeClerkToken(clerkToken: string, attempt: number): Promise<void> {

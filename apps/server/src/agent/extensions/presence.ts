@@ -2,7 +2,7 @@ import { type ConversationId, defineExtension, type Extension, hook, ToolTask } 
 import type { Activity, RunStep, ToolKind } from "@kiko/protocol"
 import { redact } from "../run-error"
 
-export const PRESENCE = "presence"
+const PRESENCE = "presence"
 
 const path = (args: Record<string, unknown>) =>
   typeof args.path === "string" ? ` ${args.path.startsWith("/") ? "" : "/"}${args.path}` : ""
@@ -30,7 +30,7 @@ const tool = (name: string, doing: string): Described => ({
   activity: { kind: "tool", tool: KINDS[name] ?? "other", caption: doing },
 })
 
-export function describeCall(name: string, args: Record<string, unknown>): Described | null {
+function describeCall(name: string, args: Record<string, unknown>): Described | null {
   if (name.startsWith("memory_") || name === "read_skill") return null
   switch (name) {
     case "read":
@@ -140,7 +140,7 @@ function outputOf(content: readonly { type: string; text?: string }[] | undefine
 
 const ERROR_CHARS = 60
 
-export function failed(doing: string, content: readonly { type: string; text?: string }[] | undefined): string {
+function failed(doing: string, content: readonly { type: string; text?: string }[] | undefined): string {
   const error = (content ?? [])
     .flatMap((c) => (c.type === "text" && c.text ? [c.text] : []))
     .join(" ")

@@ -1,7 +1,7 @@
 import type { FileBucket } from "../files/store"
 import { sha256Hex } from "@kiko/durable/hash"
 import type { FsEntry, FsFail, NewFile } from "../files/file-index"
-import { deleteFiles, fileKey, HOME } from "../files/upload"
+import { deleteFiles, fileKey, HOME } from "../files/paths"
 import { deleteSetting, getSetting } from "../lib/settings"
 import { BUILTIN_RECIPES } from "../recipes/catalog.gen"
 import { parseRecipe, type Recipe } from "../recipes/recipe"

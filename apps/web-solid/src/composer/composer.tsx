@@ -152,7 +152,9 @@ export function Composer(props: ComposerProps) {
     modelBlock()?.reason ??
     (preparingAttachments() ? "Still preparing the attachment" : null) ??
     uploadBlockReason(boxed().map((part) => part.id))
-  const draftText = () => store.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")
+  function draftText() {
+    return store.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")
+  }
   createEffect(
     on(createMemo(draftText), (text) => {
       const named = new Set(attachmentIds(text))
@@ -160,15 +162,6 @@ export function Composer(props: ComposerProps) {
         if (!named.has(part.id) && !isImage({ name: part.filename, type: part.mime })) store.removeAttachment(part.id)
     }),
   )
-
-  const typeHere = (text: string) =>
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        document.querySelector<HTMLElement>(".composer-dock .ProseMirror")?.focus()
-        const tail = /\s*$/.exec(text)![0]
-        if (tail) controller.addPart({ type: "text", content: tail, start: 0, end: 0 })
-      }),
-    )
   let filledFor = ""
   createEffect(
     on(
@@ -377,6 +370,16 @@ export function Composer(props: ComposerProps) {
       },
     },
   })
+
+  function typeHere(text: string) {
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>(".composer-dock .ProseMirror")?.focus()
+        const tail = /\s*$/.exec(text)![0]
+        if (tail) controller.addPart({ type: "text", content: tail, start: 0, end: 0 })
+      }),
+    )
+  }
 
   function finishEdit(editing: NonNullable<typeof props.editing>, text: string): void {
     if (text.trim() && text !== editing.body) props.onEdit?.(editing.id, text)

@@ -48,7 +48,7 @@ export type BrowserToolDeps = {
 
 export type TextResult = { output: { type: "text"; text: string }[]; isError: boolean }
 
-export const text = (value: string, isError = false): TextResult => ({
+const text = (value: string, isError = false): TextResult => ({
   output: [{ type: "text", text: value }],
   isError,
 })
@@ -81,7 +81,7 @@ const StepSchema = Type.Object({
 
 export type StepArgs = Static<typeof StepSchema>
 
-export function toStep(s: StepArgs): Step | string {
+function toStep(s: StepArgs): Step | string {
   const needId = (make: (id: number) => Step) => (typeof s.id === "number" ? make(s.id) : `${s.op} needs a control id`)
   switch (s.op) {
     case "click":
@@ -128,7 +128,7 @@ function firstBadUrl(urls: (string | undefined)[]): string | undefined {
   return undefined
 }
 
-export async function timed<T>(tool: string, run: () => Promise<T>): Promise<T> {
+async function timed<T>(tool: string, run: () => Promise<T>): Promise<T> {
   const t = performance.now()
   try {
     return await run()
@@ -140,7 +140,7 @@ export async function timed<T>(tool: string, run: () => Promise<T>): Promise<T> 
 
 const scopeOf = (api: { conversationId?: unknown } | undefined): string => String(api?.conversationId ?? "")
 
-export function call(
+function call(
   deps: BrowserToolDeps,
   tool: string,
   api: { conversationId?: unknown } | undefined,

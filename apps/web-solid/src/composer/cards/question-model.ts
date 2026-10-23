@@ -36,7 +36,7 @@ function normalizeSelectedOptionValues(value: string[] | undefined): string[] {
   return Array.from(new Set(value.filter((entry) => typeof entry === "string")))
 }
 
-export function resolvePendingUserInputAnswer(
+function resolvePendingUserInputAnswer(
   question: UserInputQuestion,
   draft: PendingUserInputDraftAnswer | undefined,
 ): string | string[] | null {
@@ -121,24 +121,13 @@ export function buildPendingUserInputAnswers(
   return answers
 }
 
-export function countAnsweredPendingUserInputQuestions(
+function countAnsweredPendingUserInputQuestions(
   questions: ReadonlyArray<UserInputQuestion>,
   draftAnswers: Record<string, PendingUserInputDraftAnswer>,
 ): number {
   return questions.reduce((count, question) => {
     return resolvePendingUserInputAnswer(question, draftAnswers[question.id]) !== null ? count + 1 : count
   }, 0)
-}
-
-export function findFirstUnansweredPendingUserInputQuestionIndex(
-  questions: ReadonlyArray<UserInputQuestion>,
-  draftAnswers: Record<string, PendingUserInputDraftAnswer>,
-): number {
-  const unansweredIndex = questions.findIndex(
-    (question) => resolvePendingUserInputAnswer(question, draftAnswers[question.id]) === null,
-  )
-
-  return unansweredIndex === -1 ? Math.max(questions.length - 1, 0) : unansweredIndex
 }
 
 export function derivePendingUserInputProgress(

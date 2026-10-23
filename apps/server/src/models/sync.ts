@@ -28,7 +28,7 @@ export async function revisionOf(overlay: CatalogOverlay): Promise<string> {
   return [...new Uint8Array(digest).slice(0, 6)].map((b) => b.toString(16).padStart(2, "0")).join("")
 }
 
-export function readState(sql: SqlStorage): CatalogState | null {
+function readState(sql: SqlStorage): CatalogState | null {
   const raw = getSetting(sql, STATE_KEY)
   return raw ? (JSON.parse(raw) as CatalogState) : null
 }

@@ -8,7 +8,7 @@ export type BrowserState = BrowserCheck
 
 type LiveLink = { ok: true; url: string; posted: boolean } | { ok: false; error: string }
 
-export class BrowserNotConnected extends Error {
+class BrowserNotConnected extends Error {
   constructor() {
     super("no browser: the human has not connected a Kernel key in settings")
     this.name = "BrowserNotConnected"

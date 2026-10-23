@@ -117,7 +117,7 @@ export function ConnectCloudflare() {
     setView({ name: "failed", failure, retry })
   }
 
-  const finishOnly = async () => {
+  async function finishOnly() {
     setView({ name: "installing" })
     show(await finish(signIn), () => void finishOnly())
   }
@@ -158,7 +158,7 @@ export function ConnectCloudflare() {
     else void run(result.grant)
   })
 
-  const withCloudflare = async () => {
+  async function withCloudflare() {
     setNote("")
     setRedirecting(true)
     try {
@@ -172,7 +172,7 @@ export function ConnectCloudflare() {
     }
   }
 
-  const openToken = async () => {
+  async function openToken() {
     setTokenOpen(true)
     if (tokenSteps().status === "ready" || tokenSteps().status === "loading") return
     setTokenSteps({ status: "loading" })

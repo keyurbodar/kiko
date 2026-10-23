@@ -66,7 +66,7 @@ const dayNumber = (ms: number, tz?: string): number => {
   return Date.UTC(y, m - 1, d) / 86_400_000
 }
 
-export function nextLabel(at: number, now: number, tz?: string): string {
+function nextLabel(at: number, now: number, tz?: string): string {
   const time = formatter("en-US", "hm", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at)
   const days = dayNumber(at, tz) - dayNumber(now, tz)
   if (days === 0) return `Today at ${time}`

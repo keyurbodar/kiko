@@ -43,7 +43,7 @@ export type PutResult<E = unknown> = {
   refused?: FsFail
 }
 
-export const fail = (code: FsFail["code"], message: string): FsFail => ({ ok: false, code, message })
+const fail = (code: FsFail["code"], message: string): FsFail => ({ ok: false, code, message })
 
 export type TreeChange =
   | { op: "move"; from: string; to: string; sha256: string }
@@ -70,7 +70,7 @@ class Refused {
 
 export const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 
-export function parents(path: string): string[] {
+function parents(path: string): string[] {
   const out: string[] = []
   for (let i = path.indexOf("/"); i !== -1; i = path.indexOf("/", i + 1)) out.push(path.slice(0, i))
   return out
@@ -80,7 +80,7 @@ function under(dir: string): [string, string | null] {
   return dir ? [`${dir}/`, `${dir}0`] : ["", null]
 }
 
-export function toRef(r: FileRow): FileRef {
+function toRef(r: FileRow): FileRef {
   return { id: r.id, name: r.path, size: r.size, type: r.type }
 }
 

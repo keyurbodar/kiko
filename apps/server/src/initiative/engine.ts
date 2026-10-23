@@ -116,12 +116,19 @@ function wakeBody(task: BoardTask & { id: string }, own: boolean, now: number): 
   ].join("\n")
 }
 
-const day = (at: number, tz: string) =>
-  new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: validZone(tz) ? tz : "UTC" })
+function day(at: number, tz: string): string {
+  return new Date(at).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: validZone(tz) ? tz : "UTC",
+  })
+}
 
 function span(ms: number): string {
   const h = Math.round(ms / HOUR)
   return h < 36 ? `${Math.max(1, h)} hours` : `${Math.round(h / 24)} days`
 }
 
-const ago = (at: number, now: number) => (now - at < HOUR ? "just now" : `${span(now - at)} ago`)
+function ago(at: number, now: number): string {
+  return now - at < HOUR ? "just now" : `${span(now - at)} ago`
+}

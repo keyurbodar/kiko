@@ -11,7 +11,7 @@ import {
   sendFits,
 } from "@kiko/protocol"
 
-export { attachmentType, MAX_ATTACHMENTS }
+export { attachmentType }
 
 export function sendRefusal(
   text: string,

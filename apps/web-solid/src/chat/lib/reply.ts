@@ -17,11 +17,11 @@ const SKIN_TONE = /[\u{1F3FB}-\u{1F3FF}]/gu
 const ZERO_WIDTH_JOINER = /\u200D/u
 const KEYCAP = /\u20E3/u
 
-export function graphemes(value: string): string[] {
+function graphemes(value: string): string[] {
   return Array.from(GRAPHEMES.segment(value), (part) => part.segment)
 }
 
-export function replyQuoteText(parent: string | null | undefined): string {
+function replyQuoteText(parent: string | null | undefined): string {
   if (!parent) return ""
   const collapsed = parent.replace(/\s+/g, " ").trim()
   if (collapsed.length <= REPLY_QUOTE_MAX_CHARS) return collapsed

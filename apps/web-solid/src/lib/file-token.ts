@@ -8,7 +8,7 @@ const [fileToken, setSignal] = createSignal(read(KEY))
 const REFRESH_BEFORE_MS = 10 * 60 * 1000
 let timer: ReturnType<typeof setTimeout> | undefined
 
-export const expiresAt = (token: string): number => Number(token.split(".")[2]) * 1000
+const expiresAt = (token: string): number => Number(token.split(".")[2]) * 1000
 
 export function setFileToken(next: string): void {
   write(KEY, next)
@@ -17,7 +17,7 @@ export function setFileToken(next: string): void {
   timer = setTimeout(() => void refreshFileToken(), Math.max(0, expiresAt(next) - REFRESH_BEFORE_MS - Date.now()))
 }
 
-export async function refreshFileToken(): Promise<void> {
+async function refreshFileToken(): Promise<void> {
   const res = await apiFetch("/api/files/token").catch(() => null)
   if (res?.ok) setFileToken(((await res.json()) as { fileToken: string }).fileToken)
   else timer = setTimeout(() => void refreshFileToken(), 60_000)
@@ -41,5 +41,3 @@ if (typeof document !== "undefined") {
       void refreshFileToken()
   })
 }
-
-export { fileToken }

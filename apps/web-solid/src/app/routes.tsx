@@ -54,7 +54,8 @@ function FilesRedirect() {
   createEffect(() => {
     const chat = params.chatId ?? activeChat()
     if (!chat) return
-    path ? openFile(chat, path) : openSurface(chat, fixedSurface("files"))
+    if (path) openFile(chat, path)
+    else openSurface(chat, fixedSurface("files"))
     navigate(`/chat/${chat}`, { replace: true })
   })
   return null

@@ -1,4 +1,4 @@
-import { type FileRef, KIKO, type LifeLine, type Member } from "@kiko/protocol"
+import type { Member } from "@kiko/protocol"
 import type { BotPresence } from "../../lib/types"
 import { typingLine } from "../../sidebar/activity"
 
@@ -11,7 +11,7 @@ export function statusChip(presence: BotPresence | undefined): Chip {
   return presence === "typing" || presence === "working" ? WORKING : IDLE
 }
 
-export function since(ms: number): string {
+function since(ms: number): string {
   const minutes = Math.floor(Math.max(0, ms) / 60_000)
   if (minutes < 1) return "just now"
   if (minutes < 60) return `${minutes}m ago`
@@ -41,26 +41,3 @@ export function workingLine(agents: readonly { name: string; doing?: string }[],
 }
 
 export const isGroup = (members: readonly Member[]): boolean => members.length > 1
-
-export type AgentRow = { slug: string; name: string; lead: boolean; chip: Chip; removable: boolean }
-
-export function agentRows(members: readonly Member[], presence: (slug: string) => BotPresence | undefined): AgentRow[] {
-  return members.map((m) => ({
-    slug: m.slug,
-    name: m.name,
-    lead: m.lead,
-    chip: statusChip(presence(m.slug)),
-    removable: isGroup(members) && m.slug !== KIKO,
-  }))
-}
-
-export function fileList(files: readonly FileRef[], n = 5): FileRef[] {
-  return [...files].sort((a, b) => a.name.localeCompare(b.name)).slice(0, n)
-}
-
-export function memoryPick(lines: readonly LifeLine[], n = 3): LifeLine[] {
-  return lines
-    .filter((l) => !l.redacted && l.text.trim() !== "")
-    .sort((a, b) => b.at - a.at)
-    .slice(0, n)
-}

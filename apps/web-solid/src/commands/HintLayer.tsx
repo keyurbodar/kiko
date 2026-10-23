@@ -11,7 +11,7 @@ const GAP = 6
 const EDGE = 8
 const SPACE = 4
 
-export function pillLabel(title: string): string {
+function pillLabel(title: string): string {
   return title.replace(/…$/, "")
 }
 
@@ -38,7 +38,7 @@ const clamp = (box: Box, vw: number, vh: number): Box => ({
   y: Math.min(Math.max(box.y, EDGE), vh - EDGE - box.h),
 })
 
-export function place(boxes: readonly Box[], sides: readonly Side[], vw: number, vh: number): Box[] {
+function place(boxes: readonly Box[], sides: readonly Side[], vw: number, vh: number): Box[] {
   const placed: Box[] = []
   boxes.forEach((wanted, i) => {
     const side = sides[i] ?? "bottom"

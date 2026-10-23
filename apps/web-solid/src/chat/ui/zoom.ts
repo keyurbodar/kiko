@@ -1,5 +1,5 @@
-export const MAX_ZOOM = 8
-export const PAN_STEP = 40
+const MAX_ZOOM = 8
+const PAN_STEP = 40
 
 export type Size = { width: number; height: number }
 export type Point = { x: number; y: number }

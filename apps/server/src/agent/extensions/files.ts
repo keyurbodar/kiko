@@ -18,9 +18,9 @@ import { filesOf } from "../../files/room-fs"
 import { encodeBase64 } from "../../lib/base64"
 import { declareEffect } from "@kiko/agent/effects"
 
-export const FILES = "files"
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
-export const MAX_PDF_BYTES = 20 * 1024 * 1024
+const FILES = "files"
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const MAX_PDF_BYTES = 20 * 1024 * 1024
 const MAX_LISTED = 500
 const MAX_COPIED = 200
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"])
@@ -56,7 +56,7 @@ type Saved = { changed: string[] }
 
 const roomPathOf = (api: Pick<ToolExecutionApi, "env">, path: string) => `/${getOrThrow(filesOf(api).roomPath(path))}`
 
-export function size(bytes: number): string {
+function size(bytes: number): string {
   if (bytes < 1024) return `${bytes} b`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} kb`
   return `${(bytes / 1024 / 1024).toFixed(1)} mb`

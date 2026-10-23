@@ -75,6 +75,8 @@ export function tile(prev: readonly Span[] | null, end: number, shape: Shape): S
   return cover(end / page, shape.retile).map((s) => ({ lo: s.lo * page, hi: s.hi * page }))
 }
 
+const isPow2 = (n: number) => Number.isInteger(n) && n > 0 && (n & (n - 1)) === 0
+
 function validPrefix(prev: readonly Span[], end: number, page: number): boolean {
   let at = 0
   for (const s of prev) {
@@ -83,13 +85,6 @@ function validPrefix(prev: readonly Span[], end: number, page: number): boolean 
     at = s.hi
   }
   return at <= end
-}
-
-const isPow2 = (n: number) => Number.isInteger(n) && n > 0 && (n & (n - 1)) === 0
-
-function isNode(span: Span, page: number): boolean {
-  const size = span.hi - span.lo
-  return size >= page && size % page === 0 && isPow2(size / page) && span.lo % size === 0
 }
 
 export function spanOf(id: string): Span | null {
@@ -118,6 +113,28 @@ export function treeSteps(name: string): Step[] {
     `CREATE TABLE IF NOT EXISTS ${name} (room_id TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL, k INTEGER NOT NULL, text TEXT NOT NULL, at_from INTEGER NOT NULL, at_to INTEGER NOT NULL, PRIMARY KEY (room_id, size, k)) WITHOUT ROWID`,
     `CREATE TABLE IF NOT EXISTS ${name}_fails (room_id TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL, k INTEGER NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (room_id, size, k)) WITHOUT ROWID`,
   ]
+}
+
+const TAIL_CUT = 300
+const PAGE_CUT = 160
+export const ZOOM_CUT = 4_000
+
+const encoder = new TextEncoder()
+
+function cutBytes(text: string, max: number): string {
+  let out = ""
+  let size = 0
+  for (const ch of text) {
+    size += encoder.encode(ch).byteLength
+    if (size > max) break
+    out += ch
+  }
+  return out
+}
+
+function capBytes(text: string, max: number): string {
+  if (encoder.encode(text).byteLength <= max) return text
+  return `${cutBytes(text, max - 3)}…`
 }
 
 export class Tree {
@@ -305,10 +322,6 @@ export class Tree {
   }
 }
 
-const TAIL_CUT = 300
-const PAGE_CUT = 160
-export const ZOOM_CUT = 4_000
-
 export function itemLine(item: Item, cut: number, withDay = true, log: ZoomLog = "chat"): string {
   const d = new Date(item.at)
   const time = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`
@@ -375,22 +388,4 @@ export function cleanLine(answer: string): string | null {
     .replace(/^#\d+(-\d+)?\s*/, "")
     .trim()
   return line ? capBytes(line, LINE_BYTES) : null
-}
-
-const encoder = new TextEncoder()
-
-function cutBytes(text: string, max: number): string {
-  let out = ""
-  let size = 0
-  for (const ch of text) {
-    size += encoder.encode(ch).byteLength
-    if (size > max) break
-    out += ch
-  }
-  return out
-}
-
-function capBytes(text: string, max: number): string {
-  if (encoder.encode(text).byteLength <= max) return text
-  return `${cutBytes(text, max - 3)}…`
 }

@@ -8,8 +8,6 @@ const focus = "outline-none"
 
 export const muted = "text-[var(--kit-meta)]"
 
-export const line = "border-[color-mix(in_oklab,var(--foreground)_12%,transparent)]"
-
 type Variant = "primary" | "secondary" | "ghost" | "danger"
 
 export function buttonClass(variant: Variant = "secondary", extra?: string) {
@@ -73,42 +71,6 @@ export function IconButton(
   )
 }
 
-export function DetailsButton(props: {
-  open: boolean
-  onToggle: () => void
-  label?: string
-  class?: string
-  [data: `data-${string}`]: string | undefined
-}): JSX.Element {
-  const [local, rest] = splitProps(props, ["open", "onToggle", "label", "class"])
-  return (
-    <button
-      type="button"
-      class={buttonClass("ghost", local.class)}
-      aria-expanded={local.open}
-      onClick={() => local.onToggle()}
-      {...rest}
-    >
-      {local.label ?? (local.open ? "Hide details" : "Details")}
-      <svg
-        class="size-3.5 shrink-0"
-        classList={{ "rotate-180": local.open }}
-        viewBox="0 0 16 16"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M4 6l4 4 4-4"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-    </button>
-  )
-}
-
 export const fieldClass = "kit-field"
 
 export function Page(props: { title: string; description?: string; children: JSX.Element }): JSX.Element {
@@ -160,7 +122,7 @@ export function Group(props: {
   )
 }
 
-export const rowLine = "border-b border-[color-mix(in_oklab,var(--foreground)_6%,transparent)] last:border-b-0"
+const rowLine = "border-b border-[color-mix(in_oklab,var(--foreground)_6%,transparent)] last:border-b-0"
 
 export function Row(props: {
   label: JSX.Element

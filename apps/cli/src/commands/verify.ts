@@ -1,4 +1,4 @@
-import { CliError, type Context } from "../main"
+import { CliError, type Context } from "../context"
 import { loadSuites, runSuites } from "../verify/runner"
 
 export async function verify(ctx: Context): Promise<void> {

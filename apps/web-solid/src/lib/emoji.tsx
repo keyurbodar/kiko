@@ -17,7 +17,7 @@ function pattern(): RegExp | undefined {
   return emojiPattern ?? undefined
 }
 
-export function emojiSegments(text: string): readonly EmojiRun[] {
+function emojiSegments(text: string): readonly EmojiRun[] {
   const matcher = pattern()
   if (matcher === undefined) return [{ text }]
   const runs: EmojiRun[] = []

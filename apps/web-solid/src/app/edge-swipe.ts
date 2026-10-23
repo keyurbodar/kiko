@@ -1,5 +1,5 @@
-export const EDGE_PX = 20
-export const SWIPE_PX = 56
+const EDGE_PX = 20
+const SWIPE_PX = 56
 
 export type SwipeRegion = "edge" | "drawer" | "scrim" | "sidecar" | "other"
 export type SwipeAction = "open-drawer" | "close-drawer" | "close-sidecar"

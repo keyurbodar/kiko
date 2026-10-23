@@ -27,7 +27,7 @@ const opened = (value: unknown): unknown =>
         ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, opened(v)]))
         : value
 
-export function readable(text: string): string {
+function readable(text: string): string {
   const value = parsed(text)
   return value === text ? text : JSON.stringify(opened(value), null, 2)
 }

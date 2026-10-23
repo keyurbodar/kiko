@@ -20,14 +20,14 @@ function inkColor(seed: string): string {
 export const identityTint = (seed: string, percent: number) =>
   `color-mix(in oklch, ${identityLook(seed).color} ${percent}%, transparent)`
 
-export const DEFAULT_AGENT_SLUG = KIKO
+const DEFAULT_AGENT_SLUG = KIKO
 
 type ChatAgents = { roomId: string; agents?: readonly string[] }
 type AgentIds = readonly { id: string; slug: string }[]
 
 const slugOf = (id: string, agents: AgentIds) => agents.find((a) => a.id === id)?.slug ?? id
 
-export const MAX_FACES = 3
+const MAX_FACES = 3
 
 export function chatFaces(chat: ChatAgents, agents: AgentIds): string[] {
   let slugs = (chat.agents ?? []).map((id) => slugOf(id, agents))

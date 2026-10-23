@@ -1,7 +1,7 @@
 import type { FileBucket } from "../files/store"
 import { MAX_MESSAGE_TEXT } from "@kiko/protocol"
 import { sha256Hex } from "@kiko/durable/hash"
-import { deleteFiles, fileKey } from "../files/upload"
+import { deleteFiles, fileKey } from "../files/paths"
 
 export const WHOLE_NAME = "message.txt"
 export const WHOLE_TYPE = "text/plain"

@@ -1,5 +1,4 @@
 import type { FileOp } from "@kiko/protocol"
-import { FileAddIcon, FolderAddIcon } from "@kiko/ui/icons"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createEffect, createMemo, lazy, onCleanup, Show, Suspense } from "solid-js"
 import { dropFileSurfaces, moveFileSurfaces, openFile } from "../chat/side/surfaces"

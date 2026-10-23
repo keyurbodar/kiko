@@ -24,13 +24,26 @@ import type { OwnerServices } from "../owner/services"
 import type { FsChange, FsEntry, FsFail } from "../room/files"
 import type { AgentHome } from "../room/room-do"
 import { type BashResult, runCommand } from "./bash"
-import { cleanPath, deleteFiles, fileKey, HOME } from "./upload"
-import { baseName, type CommitResult, type IndexChange, type NewFile, type TreeChange } from "./file-index"
+import { cleanPath, deleteFiles, fileKey, HOME } from "./paths"
+import { type BatchChange, batchPaths, typeForPath } from "./batch"
+import { baseName, type CommitResult, type IndexChange, type NewFile } from "./file-index"
 
-export const MAX_WRITE_BYTES = 1024 * 1024
 export const CHAT_PATH = "chat.md"
 export const MAX_CHAT = 3_000
+const MAX_WRITE_BYTES = 1024 * 1024
 const CACHE_BYTES = 4 * 1024 * 1024
+
+function normalize(path: string, cwd = "/"): string | null {
+  const parts: string[] = []
+  for (const part of (path.startsWith("/") ? path : `${cwd}/${path}`).split("/")) {
+    if (part === "" || part === ".") continue
+    if (part === "..") {
+      if (!parts.length) return null
+      parts.pop()
+    } else parts.push(part)
+  }
+  return `/${parts.join("/")}`
+}
 
 export interface FilesBackend {
   stat(path: string): Promise<FsEntry | null>
@@ -50,52 +63,13 @@ export interface FilesBackend {
   commit(changes: readonly BatchChange[]): Promise<BatchResult>
 }
 
-export type BatchChange = { op: "write"; path: string; bytes: Uint8Array; type: string; expect: string } | TreeChange
-
 export type BatchResult = { ok: true } | { ok: false; path: string; message: string; conflict: boolean }
-
-export const batchPaths = (c: BatchChange): [string, ...string[]] => (c.op === "move" ? [c.from, c.to] : [c.path])
 
 const CODE: Record<string, FileErrorCode> = {
   not_found: "not_found",
   is_directory: "is_directory",
   not_directory: "not_directory",
   invalid: "invalid",
-}
-
-export function normalize(path: string, cwd = "/"): string | null {
-  const parts: string[] = []
-  for (const part of (path.startsWith("/") ? path : `${cwd}/${path}`).split("/")) {
-    if (part === "" || part === ".") continue
-    if (part === "..") {
-      if (!parts.length) return null
-      parts.pop()
-    } else parts.push(part)
-  }
-  return `/${parts.join("/")}`
-}
-
-const MIME_BY_EXTENSION: Record<string, string> = {
-  md: "text/markdown",
-  txt: "text/plain",
-  csv: "text/csv",
-  json: "application/json",
-  html: "text/html",
-  css: "text/css",
-  js: "text/javascript",
-  ts: "text/plain",
-  tsx: "text/plain",
-  py: "text/x-python",
-  svg: "image/svg+xml",
-  xml: "application/xml",
-  yaml: "text/yaml",
-  yml: "text/yaml",
-}
-
-export function typeForPath(path: string): string {
-  const dot = path.lastIndexOf(".")
-  const ext = dot > path.lastIndexOf("/") ? path.slice(dot + 1).toLowerCase() : ""
-  return MIME_BY_EXTENSION[ext] ?? "text/plain"
 }
 
 export class RoomFs implements ExecutionEnv {
@@ -811,7 +785,7 @@ export interface SoulPort {
 }
 
 const ME = "me"
-export const SOUL_PATH = "me/soul.md"
+const SOUL_PATH = "me/soul.md"
 
 export function withSoul(base: FilesBackend, soul: SoulPort): FilesBackend {
   const enc = new TextEncoder()

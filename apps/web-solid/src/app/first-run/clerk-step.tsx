@@ -36,7 +36,7 @@ async function enter(before?: () => Promise<void>): Promise<void> {
   setBusy(false)
 }
 
-export function resumeClerk(search: string): () => void {
+function resumeClerk(search: string): () => void {
   let disposed = false
   let unsubscribe: (() => void) | undefined
   const run = (active: boolean) => {

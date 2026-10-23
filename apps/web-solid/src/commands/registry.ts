@@ -61,7 +61,7 @@ export function isEnabled(command: Command): boolean {
   return command.when ? command.when() : true
 }
 
-export function registerCommands(added: readonly Command[]): () => void {
+function registerCommands(added: readonly Command[]): () => void {
   setList((current) => [...current.filter((c) => !added.some((a) => a.id === c.id)), ...added])
   return () => setList((current) => current.filter((c) => !added.includes(c)))
 }

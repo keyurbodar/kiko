@@ -20,12 +20,6 @@ export function checkApiKey(value: unknown): string {
   return key
 }
 
-function userIdFromObjectName(name: string | undefined): string {
-  const id = name ? /^user:([A-Za-z0-9_-]{1,64})$/.exec(name)?.[1] : undefined
-  if (id === undefined) throw new CredentialError("this object has no user name")
-  return id
-}
-
 function last4(credential: Credential): string {
   if (credential.type !== "api_key" || !credential.key || credential.key.length < MIN_KEY_FOR_LAST4) return ""
   return credential.key.slice(-4)

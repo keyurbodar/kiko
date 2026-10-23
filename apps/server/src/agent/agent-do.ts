@@ -7,12 +7,11 @@ import type { AuthResult } from "@earendil-works/pi-ai"
 import {
   type Conversation,
   type ConversationId,
-  configure,
   type Harness,
   type ModelRef,
   type SubmissionId,
 } from "@earendil-works/pi-durable"
-import type { Activity, Envelope, ProviderProblem, RoomId, ThinkingLevel, WorkerRow } from "@kiko/protocol"
+import type { Envelope, ProviderProblem, RoomId, ThinkingLevel, WorkerRow } from "@kiko/protocol"
 import { runKindFor } from "../user/provider-health"
 import type { Env } from "../index"
 import { AnswerWaiters } from "@kiko/agent/answers"
@@ -25,7 +24,7 @@ import type { GroupsPort } from "./extensions/chief"
 import { shortBrief } from "../room/brief"
 import { messageIdOf } from "../room/messaging"
 import { CHIEF } from "../room/chief"
-import { HOME } from "../files/upload"
+import { HOME } from "../files/paths"
 import {
   homeBackend,
   ObjectCache,
@@ -49,7 +48,7 @@ import { learnedNote } from "../integrations/composio/tools"
 import { integrationNote } from "./prompt"
 
 import { buildAgent, openAgentHarness, userModels } from "./factory"
-import { isKnownModel, parseModelRef, thinkingFor } from "./thinking"
+import { isKnownModel, parseModelRef } from "./thinking"
 import { setOverlay } from "../models/catalog"
 import { projectRecovery } from "../owner/clock"
 import {
@@ -69,7 +68,7 @@ import { count, DEV, loadAgentDev } from "../lib/dev-guard"
 import type { AgentDevHost, Usage } from "./dev"
 import { Outbox, type RoomPort } from "./outbox"
 import { stopsWorkers } from "./run-error"
-import type { StepItem, StepsPort } from "./extensions/presence"
+import type { StepsPort } from "./extensions/presence"
 
 const WORKER_TASK_CHARS = 200
 import { FIRST_BYTE_MS, guardStall, orStall, STALL_MS } from "./stall"
@@ -155,7 +154,12 @@ export class Agent {
     await this.hostInstance?.invalidate()
   }
   protected get host(): AgentHost {
-    this.hostInstance ??= new AgentHost(this.ctx, {
+    this.hostInstance ??= this.openHost()
+    return this.hostInstance
+  }
+
+  private openHost(): AgentHost {
+    return new AgentHost(this.ctx, {
       clock: this.clock,
       agentKey: this.agentKey,
       projectTasks: (tasks, watches, current) =>
@@ -223,7 +227,6 @@ export class Agent {
         if (home) await this.services.room(home.roomId).runDropped(home.slug)
       },
     })
-    return this.hostInstance
   }
 
   private async workersChanged(running: number, pending: boolean): Promise<void> {
@@ -329,14 +332,10 @@ export class Agent {
       },
       workers: (rows) => room().setWorkers(home.slug, rows),
       endRun: async (runId, inputs = [], working = false) => {
-        const { mail, mailOnly, human } = await this.heard(inputs).catch(() => ({
-          mail: [],
-          mailOnly: false,
-          human: false,
-        }))
+        const { mail, human } = await this.heard(inputs).catch(() => ({ mail: [], human: false }))
         this.afterHumanRun ||= human
-        this.recovered(home.userId)
-        const ended = await room().endRun(home.slug, runId, mail, working, mailOnly)
+        this.recovered()
+        const ended = await room().endRun(home.slug, runId, mail, working)
         if (!working) await this.releaseTabs()
         return ended
       },
@@ -352,7 +351,7 @@ export class Agent {
     }
   }
 
-  private recovered(userId: string): void {
+  private recovered(): void {
     const run = this.#run
     if (!run?.problem || run.errored || !run.auth) return
     run.problem = undefined
@@ -439,18 +438,16 @@ export class Agent {
     await this.host.humanGone()
   }
 
-  private async heard(inputs: readonly SubmissionId[]): Promise<{ mail: string[]; mailOnly: boolean; human: boolean }> {
-    if (!inputs.length) return { mail: [], mailOnly: false, human: false }
+  private async heard(inputs: readonly SubmissionId[]): Promise<{ mail: string[]; human: boolean }> {
+    if (!inputs.length) return { mail: [], human: false }
     const { storage } = await this.host.open()
     const all: string[] = []
     for (const input of inputs) {
       const submission = await storage.submission(input, BACKGROUND_CONTEXT)
       if (submission?.requestId) all.push(...(await this.host.envelopeIds(submission.requestId)))
     }
-    const mail = all.filter((id) => id.startsWith("agent:"))
     return {
-      mail,
-      mailOnly: mail.length > 0 && mail.length === all.length,
+      mail: all.filter((id) => id.startsWith("agent:")),
       human: all.some((id) => id.startsWith("human:")),
     }
   }

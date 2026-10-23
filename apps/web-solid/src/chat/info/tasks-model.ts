@@ -1,6 +1,6 @@
 import type { Agent, Member, Task, TaskStatus } from "@kiko/protocol"
 
-export const TASK_ORDER: readonly TaskStatus[] = ["doing", "blocked", "todo", "review", "done", "cancelled"]
+const TASK_ORDER: readonly TaskStatus[] = ["doing", "blocked", "todo", "review", "done", "cancelled"]
 export const TASK_LABEL: Record<TaskStatus, string> = {
   doing: "Running",
   blocked: "Blocked",
@@ -9,8 +9,6 @@ export const TASK_LABEL: Record<TaskStatus, string> = {
   done: "Completed",
   cancelled: "Cancelled",
 }
-export const openTasks = (tasks: readonly Task[]) =>
-  tasks.filter((t) => t.status !== "done" && t.status !== "cancelled")
 export const groupTasks = (tasks: readonly Task[]) =>
   TASK_ORDER.map((status) => ({ status, tasks: tasks.filter((t) => t.status === status) })).filter(
     (g) => g.tasks.length,

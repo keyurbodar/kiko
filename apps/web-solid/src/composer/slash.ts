@@ -7,7 +7,7 @@ interface Slash {
   commandId?: string
 }
 
-export const SLASH: readonly Slash[] = [
+const SLASH: readonly Slash[] = [
   { trigger: "new", title: "Start a new chat", commandId: "chat.new" },
   { trigger: "file", title: "Go to a file", commandId: "files.go" },
   { trigger: "search", title: "Search messages", commandId: "chats.search-all" },

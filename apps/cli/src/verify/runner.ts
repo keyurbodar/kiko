@@ -10,7 +10,7 @@ export interface Suite {
   run(v: Verifier): Promise<void>
 }
 
-export const suitesDir = join(import.meta.dir, "suites")
+const suitesDir = join(import.meta.dir, "suites")
 
 export async function loadSuites(dir = suitesDir): Promise<Suite[]> {
   const files = (await readdir(dir)).filter((f) => f.endsWith(".ts")).sort()
@@ -35,7 +35,7 @@ export interface RunOptions {
   log?: (line: string) => void
 }
 
-export const isLocal = (url: string): boolean => ["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname)
+const isLocal = (url: string): boolean => ["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname)
 
 function skipReason(s: Suite, opts: RunOptions): string | null {
   if (s.model && opts.noModel) return "needs a model"

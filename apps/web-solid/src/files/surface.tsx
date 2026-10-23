@@ -1,5 +1,4 @@
 import type { FileRef } from "@kiko/protocol"
-import { RemixIcon } from "@kiko/ui/remix-icon"
 import {
   CheckIcon,
   CodeIcon,

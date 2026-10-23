@@ -2,7 +2,7 @@ import type { Member } from "@kiko/protocol"
 import type { JSX } from "solid-js"
 import { useApp } from "../../lib/store"
 
-export const EDGE = "border-[var(--border)]"
+const EDGE = "border-[var(--border)]"
 
 export function Properties(props: { children: JSX.Element }) {
   return (

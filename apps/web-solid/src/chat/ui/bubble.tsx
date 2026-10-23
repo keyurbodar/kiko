@@ -5,6 +5,18 @@ import "./bubble.css"
 
 export type BubbleVariant = "default" | "secondary" | "muted" | "tinted" | "outline" | "ghost" | "destructive"
 
+const VARIANTS: Record<BubbleVariant, string> = {
+  default: "[&>[data-slot=bubble-content]]:bg-message-user [&>[data-slot=bubble-content]]:text-message-user-foreground",
+  secondary:
+    "[&>[data-slot=bubble-content]]:bg-message-assistant [&>[data-slot=bubble-content]]:text-message-assistant-foreground",
+  muted: "[&>[data-slot=bubble-content]]:bg-card [&>[data-slot=bubble-content]]:text-foreground",
+  tinted: "[&>[data-slot=bubble-content]]:bg-control [&>[data-slot=bubble-content]]:text-foreground",
+  outline:
+    "[&>[data-slot=bubble-content]]:bg-card [&>[data-slot=bubble-content]]:text-foreground [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1px_var(--border)]",
+  ghost: "[&>[data-slot=bubble-content]]:bg-transparent [&>[data-slot=bubble-content]]:p-0",
+  destructive: "[&>[data-slot=bubble-content]]:bg-error/15 [&>[data-slot=bubble-content]]:text-error",
+}
+
 export type BubbleAlign = "start" | "end"
 
 export type BubblePosition = "only" | "first" | "middle" | "last"
@@ -40,18 +52,6 @@ export function Bubble(rawProps: BubbleProps) {
       {...others}
     />
   )
-}
-
-const VARIANTS: Record<BubbleVariant, string> = {
-  default: "[&>[data-slot=bubble-content]]:bg-message-user [&>[data-slot=bubble-content]]:text-message-user-foreground",
-  secondary:
-    "[&>[data-slot=bubble-content]]:bg-message-assistant [&>[data-slot=bubble-content]]:text-message-assistant-foreground",
-  muted: "[&>[data-slot=bubble-content]]:bg-card [&>[data-slot=bubble-content]]:text-foreground",
-  tinted: "[&>[data-slot=bubble-content]]:bg-control [&>[data-slot=bubble-content]]:text-foreground",
-  outline:
-    "[&>[data-slot=bubble-content]]:bg-card [&>[data-slot=bubble-content]]:text-foreground [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1px_var(--border)]",
-  ghost: "[&>[data-slot=bubble-content]]:bg-transparent [&>[data-slot=bubble-content]]:p-0",
-  destructive: "[&>[data-slot=bubble-content]]:bg-error/15 [&>[data-slot=bubble-content]]:text-error",
 }
 
 export type BubbleContentProps<T extends ValidComponent = "div"> = {

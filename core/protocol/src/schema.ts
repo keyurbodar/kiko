@@ -21,7 +21,7 @@ export const KikoError = Schema.Struct({
   action: Schema.optionalKey(Schema.Literals(["open_models", "open_integrations"])),
 })
 
-const opaque = <T extends string>() => Id.pipe(Schema.refine((value): value is T => true))
+const opaque = <T extends string>() => Id.pipe(Schema.refine((value): value is T => typeof value === "string"))
 
 export const UserId = opaque<P.UserId>()
 export const RoomId = Schema.String.pipe(Schema.refine(isRoomId))
@@ -61,18 +61,21 @@ export const Envelope = Schema.Struct({
   seq: Count,
 })
 
-const inlines = Schema.Array(Schema.suspend((): Schema.Codec<P.Inline, unknown> => Inline))
-const blocks = Schema.Array(Schema.suspend((): Schema.Codec<P.Block, unknown> => Block))
-
 export const Inline: Schema.Codec<P.Inline, unknown> = Schema.Union([
   Schema.Struct({ t: Schema.Literal("text"), text: Schema.String }),
-  Schema.Struct({ t: Schema.Literal("bold"), children: inlines }),
-  Schema.Struct({ t: Schema.Literal("italic"), children: inlines }),
-  Schema.Struct({ t: Schema.Literal("strike"), children: inlines }),
+  Schema.Struct({ t: Schema.Literal("bold"), children: Schema.Array(Schema.suspend(() => Inline)) }),
+  Schema.Struct({ t: Schema.Literal("italic"), children: Schema.Array(Schema.suspend(() => Inline)) }),
+  Schema.Struct({ t: Schema.Literal("strike"), children: Schema.Array(Schema.suspend(() => Inline)) }),
   Schema.Struct({ t: Schema.Literal("code"), text: Schema.String }),
-  Schema.Struct({ t: Schema.Literal("link"), href: Schema.String, children: inlines }),
+  Schema.Struct({
+    t: Schema.Literal("link"),
+    href: Schema.String,
+    children: Schema.Array(Schema.suspend(() => Inline)),
+  }),
   Schema.Struct({ t: Schema.Literal("mention"), slug: AgentSlug }),
 ])
+
+const inlines = Schema.Array(Inline)
 
 export const Block: Schema.Codec<P.Block, unknown> = Schema.Union([
   Schema.Struct({ t: Schema.Literal("paragraph"), children: inlines }),
@@ -81,9 +84,9 @@ export const Block: Schema.Codec<P.Block, unknown> = Schema.Union([
     t: Schema.Literal("list"),
     start: Schema.optionalKey(Count),
     loose: Schema.optionalKey(Schema.Boolean),
-    items: Schema.Array(blocks),
+    items: Schema.Array(Schema.Array(Schema.suspend(() => Block))),
   }),
-  Schema.Struct({ t: Schema.Literal("quote"), children: blocks }),
+  Schema.Struct({ t: Schema.Literal("quote"), children: Schema.Array(Schema.suspend(() => Block)) }),
   Schema.Struct({ t: Schema.Literal("rule") }),
   Schema.Struct({ t: Schema.Literal("code_block"), lang: Schema.optionalKey(Schema.String), text: Schema.String }),
   Schema.Struct({
@@ -100,7 +103,7 @@ export const Block: Schema.Codec<P.Block, unknown> = Schema.Union([
   }),
 ])
 
-export const RichText = blocks
+export const RichText = Schema.Array(Block)
 
 export const AgentState = Schema.Literals(["idle", "typing", "working"])
 

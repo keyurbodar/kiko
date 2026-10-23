@@ -142,14 +142,14 @@ export default function ModelPickerPanel(props: {
     setAt(index)
     handle()?.scrollToIndex(index, { align: "nearest" })
   }
+  const close = () => {
+    props.onOpenChange(false)
+    props.trigger()?.focus()
+  }
   const pick = (row: ModelRow | undefined) => {
     if (!row) return
     props.onPick(modelRef(row.provider.id, row.model.id), row.model.thinking)
     close()
-  }
-  const close = () => {
-    props.onOpenChange(false)
-    props.trigger()?.focus()
   }
   const onKeyDown = (event: KeyboardEvent) => {
     const last = rows().length - 1

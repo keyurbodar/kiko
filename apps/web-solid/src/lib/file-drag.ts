@@ -1,4 +1,4 @@
-export const FILE_DRAG_TYPE = "application/x-kiko-file"
+const FILE_DRAG_TYPE = "application/x-kiko-file"
 
 type Transfer = Pick<DataTransfer, "types" | "getData">
 

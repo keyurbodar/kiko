@@ -42,7 +42,7 @@ export type TextRead =
   | { kind: "binary" }
   | { kind: "not-utf8" }
 
-export function decodeText(
+function decodeText(
   bytes: Uint8Array,
   size: number,
 ): { kind: "text"; text: string; truncated: boolean } | { kind: "binary" } | { kind: "not-utf8" } {

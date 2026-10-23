@@ -1,8 +1,8 @@
 import { sha256Hex } from "@kiko/durable/hash"
 import { KIKO_DOCS } from "../agent/kiko-docs.gen"
 import type { FsEntry, FsFail } from "../room/files"
-import type { BatchChange, FilesBackend } from "./room-fs"
-import { batchPaths } from "./room-fs"
+import type { FilesBackend } from "./room-fs"
+import { type BatchChange, batchPaths } from "./batch"
 
 export const KIKO = "kiko"
 

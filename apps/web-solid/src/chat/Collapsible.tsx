@@ -5,7 +5,7 @@ import { foldLimitFor, shouldFold } from "./lib/fold"
 
 const [expandedIds, setExpandedIds] = createSignal<ReadonlySet<string>>(new Set())
 
-export function isExpanded(messageId: string): boolean {
+function isExpanded(messageId: string): boolean {
   return expandedIds().has(messageId)
 }
 

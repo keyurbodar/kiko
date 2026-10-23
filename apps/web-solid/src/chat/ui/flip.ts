@@ -7,7 +7,7 @@ export const reducedMotion = () =>
 
 type Box = { left: number; top: number; width: number; height: number }
 
-export function flipTransform(box: Box, thumb: Box): string {
+function flipTransform(box: Box, thumb: Box): string {
   const scale = thumb.width / (box.width || 1)
   const dx = thumb.left + thumb.width / 2 - (box.left + box.width / 2)
   const dy = thumb.top + thumb.height / 2 - (box.top + box.height / 2)

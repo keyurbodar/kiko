@@ -29,8 +29,8 @@ export const CHAT_WIDTHS: Record<ChatWidth, { label: string; width: string }> = 
   full: { label: "Full", width: "100%" },
 }
 
-export const SANS_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
-export const DISPLAY_STACK = SANS_STACK
+const SANS_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
+const DISPLAY_STACK = SANS_STACK
 export const MONO_STACK = '"SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace'
 
 export function fontFamily(name: string, stack: string): string {

@@ -33,16 +33,6 @@ export function newRoomId(now?: number, random?: Uint8Array): RoomId {
   return v7({ ...(now === undefined ? {} : { msecs: now }), ...(random ? { random } : {}) }) as RoomId
 }
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-
-function roomIdTime(roomId: string): number | null {
-  if (UUID_V7_PATTERN.test(roomId)) return Number.parseInt(roomId.slice(0, 8) + roomId.slice(9, 13), 16)
-  if (!ULID_PATTERN.test(roomId)) return null
-  let time = 0
-  for (const char of roomId.slice(0, 10)) time = time * 32 + CROCKFORD.indexOf(char)
-  return time
-}
-
 export function tagline(description: string): string {
   const line = description.trim().split(/\n/)[0] ?? ""
   const first = (line.split(/(?<=[.!?])\s/)[0] ?? "").trim()

@@ -8,7 +8,7 @@ export type EntryLike = {
   createReader?: () => { readEntries: (ok: (entries: EntryLike[]) => void, fail: (error: unknown) => void) => void }
 }
 
-export const MAX_WALKED = 2000
+const MAX_WALKED = 2000
 const MAX_DEPTH = 12
 const SKIPPED_FILES = new Set([".DS_Store", "Thumbs.db", "desktop.ini"])
 const SKIPPED_FOLDERS = new Set([".git", "node_modules", ".svn", ".hg"])

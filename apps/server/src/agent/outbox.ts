@@ -19,7 +19,7 @@ import { scrubToolMarkup } from "./tool-markup"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
 const context = BACKGROUND_CONTEXT
-export const DRAFT_INTERVAL_MS = 300
+const DRAFT_INTERVAL_MS = 300
 
 export interface RoomPort {
   post(runId: string, attempt: number, index: number, block: string): Promise<unknown>
@@ -38,7 +38,7 @@ type Failure = { errorMessage?: string; provider?: string }
 
 type AssistantLike = Assistant
 
-export function textOf(message: AssistantLike | undefined, final = true): string {
+function textOf(message: AssistantLike | undefined, final = true): string {
   return (message?.content ?? [])
     .flatMap((part) => (part.type === "text" && part.text ? [scrubToolMarkup(part.text, final)] : []))
     .join("\n\n")

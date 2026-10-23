@@ -1,13 +1,13 @@
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 
-export const THEME_KEY = "theme"
-export const THEME_MAX_CHARS = 64 * 1024
+const THEME_KEY = "theme"
+const THEME_MAX_CHARS = 64 * 1024
 
 export function getTheme(sql: SqlStorage): string | null {
   return getSetting(sql, THEME_KEY)
 }
 
-export function isStorableTheme(text: unknown): text is string {
+function isStorableTheme(text: unknown): text is string {
   if (typeof text !== "string" || text.length > THEME_MAX_CHARS) return false
   try {
     const value = JSON.parse(text) as unknown

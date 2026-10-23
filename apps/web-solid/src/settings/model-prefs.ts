@@ -6,7 +6,7 @@ const FAVORITES_KEY = "kiko.model-favorites"
 
 const providerOf = (ref: string): string => ref.split("/")[0] ?? ""
 
-export function parseHidden(text: string | null): readonly string[] {
+function parseHidden(text: string | null): readonly string[] {
   try {
     const value = JSON.parse(text ?? "{}") as { hidden?: unknown }
     return Array.isArray(value.hidden)
@@ -38,7 +38,10 @@ function writeHidden(next: readonly string[]) {
 
 export function setHidden(refs: readonly string[], hide: boolean) {
   const set = new Set(hidden())
-  for (const ref of refs) hide ? set.add(ref) : set.delete(ref)
+  for (const ref of refs) {
+    if (hide) set.add(ref)
+    else set.delete(ref)
+  }
   writeHidden([...set])
 }
 

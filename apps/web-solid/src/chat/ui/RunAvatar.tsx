@@ -1,7 +1,7 @@
 import { createEffect, createSignal, on, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 
-export const RUN_AVATAR_PX = 32
+const RUN_AVATAR_PX = 32
 
 const FAR = 100_000
 

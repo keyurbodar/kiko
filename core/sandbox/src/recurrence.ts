@@ -76,7 +76,7 @@ function fromWall(wall: Date, tz: string): Date {
 export function validZone(tz: string): boolean {
   if (!tz || tz.length > 64) return false
   try {
-    new Intl.DateTimeFormat("en-US", { timeZone: tz })
+    new Intl.DateTimeFormat("en-US", { timeZone: tz }).format(0)
     return true
   } catch {
     return false

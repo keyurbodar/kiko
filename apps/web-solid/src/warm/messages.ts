@@ -1,7 +1,7 @@
 import type { Message, RoomId } from "@kiko/protocol"
 import type { KeyRange, Warm } from "./db"
 
-export const BOOT_WINDOW = 50
+const BOOT_WINDOW = 50
 export const KEEP_ON_DISK = 2000
 
 export const roomRange = (roomId: RoomId, from = -Infinity, to = Infinity): KeyRange => ({
@@ -20,23 +20,12 @@ export function deleteMessages(warm: Warm, roomId: RoomId, seqs: readonly number
 
 export async function newestMessages(warm: Warm, roomId: RoomId, limit = BOOT_WINDOW): Promise<Message[]> {
   const rows = await warm.newest<Message>("messages", roomRange(roomId), limit)
-  return rows.reverse()
+  return rows.toReversed()
 }
 
 export async function messagesBefore(warm: Warm, roomId: RoomId, seq: number, limit: number): Promise<Message[]> {
   const rows = await warm.newest<Message>("messages", roomRange(roomId, -Infinity, seq - 1), limit)
-  return rows.reverse()
-}
-
-export function storedMessages(warm: Warm, roomId: RoomId): Promise<Message[]> {
-  return warm.getAll<Message>("messages", roomRange(roomId))
-}
-
-export async function trimRoom(warm: Warm, roomId: RoomId, keep: number) {
-  const kept = await warm.newest<Message>("messages", roomRange(roomId), keep)
-  if (kept.length < keep) return
-  const oldestKept = kept[kept.length - 1].seq
-  warm.deleteRange("messages", roomRange(roomId, -Infinity, oldestKept - 1))
+  return rows.toReversed()
 }
 
 export function dropBefore(warm: Warm, roomId: RoomId, seq: number) {

@@ -16,7 +16,7 @@ const requiredFlags = (schema: unknown): string[] => {
   return s.required.filter((k): k is string => typeof k === "string" && s.properties?.[k]?.type === "boolean")
 }
 
-export function relaxSchema<T>(schema: T): T {
+function relaxSchema<T>(schema: T): T {
   const flags = requiredFlags(schema)
   if (!flags.length) return schema
   const s = schema as unknown as { required: string[] }

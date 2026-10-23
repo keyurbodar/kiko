@@ -16,8 +16,8 @@ export type SearchView = {
   selected: number
 }
 
-export const SEARCH_DEBOUNCE_MS = 120
-export const PAGE_AHEAD = 5
+const SEARCH_DEBOUNCE_MS = 120
+const PAGE_AHEAD = 5
 
 export type Timer = { set(run: () => void, ms: number): unknown; clear(handle: unknown): void }
 const realTimer: Timer = {

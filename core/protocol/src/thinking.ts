@@ -22,7 +22,7 @@ export function clampThinking(supported: readonly ThinkingLevel[], wanted: Think
   return (
     ORDER.slice(at).find((l) => supported.includes(l)) ??
     ORDER.slice(0, at)
-      .reverse()
+      .toReversed()
       .find((l) => supported.includes(l)) ??
     supported[0] ??
     "off"

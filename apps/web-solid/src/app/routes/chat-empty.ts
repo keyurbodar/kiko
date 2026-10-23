@@ -7,7 +7,7 @@ export type RoomWindow = {
   seq: number
 }
 
-export function roomSettled(room: RoomWindow | undefined, lastSeq: number | undefined): boolean {
+function roomSettled(room: RoomWindow | undefined, lastSeq: number | undefined): boolean {
   if (!room?.loaded) return false
   if (lastSeq === undefined) return false
   return room.seq >= lastSeq && (lastSeq > 0 || room.connection === "open")

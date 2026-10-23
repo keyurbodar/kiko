@@ -1,4 +1,4 @@
-export const ALPHA_CHARS_REG_EXP =
+const ALPHA_CHARS_REG_EXP =
   "a-z" +
   "\\u00c0-\\u00d6\\u00d8-\\u00f6\\u00f8-\\u00ff" +
   "\\u0100-\\u024f" +
@@ -25,9 +25,9 @@ export const ALPHA_CHARS_REG_EXP =
   "\\uff66-\\uff9f" +
   "\\uffa1-\\uffdc"
 
-export const ALPHA_NUMERIC_REG_EXP = "0-9\\_" + ALPHA_CHARS_REG_EXP
+const ALPHA_NUMERIC_REG_EXP = "0-9\\_" + ALPHA_CHARS_REG_EXP
 
-export const DOMAIN_ADD_CHARS = "\\u00b7"
+const DOMAIN_ADD_CHARS = "\\u00b7"
 
 const URL_ALPHANUMERIC_REG_EXP_PART = "[" + ALPHA_CHARS_REG_EXP + "0-9]"
 
@@ -35,7 +35,7 @@ const URL_PROTOCOL_REG_EXP_PART = "(?<protocol>(?:https?|ftp)://|mailto:)?"
 
 const MENTION_BODY_REG_EXP = "[a-zA-Z\\d_]{2,32}"
 
-export const URL_REG_EXP =
+const URL_REG_EXP =
   URL_PROTOCOL_REG_EXP_PART +
   "(?:" +
   URL_ALPHANUMERIC_REG_EXP_PART +
@@ -63,9 +63,9 @@ export const URL_REG_EXP =
   "(?::\\d{1,5})?" +
   "(?:/(?:\\S{0,255}[^\\s.;,!?:(\\[\\]{}<>\"'])?)?"
 
-export const USERNAME_REG_EXP = "[a-zA-Z\\d_]{5,32}"
+const USERNAME_REG_EXP = "[a-zA-Z\\d_]{5,32}"
 
-export const TAG_REG_EXP = "(?:#[" + ALPHA_NUMERIC_REG_EXP + "]{2,64})" + "(?:@" + USERNAME_REG_EXP + ")?"
+const TAG_REG_EXP = "(?:#[" + ALPHA_NUMERIC_REG_EXP + "]{2,64})(?:@" + USERNAME_REG_EXP + ")?"
 
 export const FULL_REG_EXP = new RegExp(
   "(?<mentionPrefix>^|[\\s(])(?<mentionAt>@)(?<mentionBody>" +

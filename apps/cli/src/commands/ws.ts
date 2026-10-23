@@ -1,4 +1,4 @@
-import { CliError, type Context } from "../main"
+import { CliError, type Context } from "../context"
 import { sessionToken } from "./login"
 
 export async function ws(ctx: Context): Promise<void> {
@@ -12,13 +12,15 @@ export async function ws(ctx: Context): Promise<void> {
   const options: Bun.WebSocketOptions = { headers }
   const socket = new WebSocket(target, options as unknown as string[])
   const opened = Promise.withResolvers<void>()
-  socket.onopen = () => opened.resolve()
-  socket.onerror = () => {
+  const onConnectError = () => {
     void refusal(target, headers).then((why) =>
       opened.reject(new CliError(`ws failed: cannot connect to ${target}${why}`)),
     )
   }
+  socket.addEventListener("open", () => opened.resolve())
+  socket.addEventListener("error", onConnectError)
   await opened.promise
+  socket.removeEventListener("error", onConnectError)
 
   let timer: ReturnType<typeof setTimeout> | undefined
   let stdinDone = false
@@ -28,7 +30,7 @@ export async function ws(ctx: Context): Promise<void> {
   }
 
   const closed = Promise.withResolvers<void>()
-  socket.onmessage = (ev) => {
+  socket.addEventListener("message", (ev) => {
     const text = typeof ev.data === "string" ? ev.data : new TextDecoder().decode(ev.data as ArrayBuffer)
     let frame: unknown = text
     try {
@@ -36,12 +38,12 @@ export async function ws(ctx: Context): Promise<void> {
     } catch {}
     console.log(JSON.stringify(frame))
     if (stdinDone) arm()
-  }
-  socket.onerror = () => closed.reject(new CliError(`ws failed: connection to ${target} broke`))
-  socket.onclose = () => {
+  })
+  socket.addEventListener("error", () => closed.reject(new CliError(`ws failed: connection to ${target} broke`)))
+  socket.addEventListener("close", () => {
     clearTimeout(timer)
     closed.resolve()
-  }
+  })
   ;(async () => {
     for await (const line of lines()) {
       if (socket.readyState !== WebSocket.OPEN) return

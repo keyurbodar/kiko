@@ -46,27 +46,6 @@ function messageCandidate(m: Posted, nameOf: (slug: string) => string): Candidat
   }
 }
 
-function bubbleTouch(sql: SqlStorage, log: RoomLog, row: Posted): RoomActivity {
-  const name = (slug: string) =>
-    sql
-      .exec<{ name: string }>("SELECT name FROM members WHERE slug = ?1 AND members.room_id = ?2", slug, log.roomId)
-      .toArray()[0]?.name ?? slug
-  const group =
-    (sql
-      .exec<{ n: number }>(
-        "SELECT COUNT(*) AS n FROM members WHERE removed_at IS NULL AND members.room_id = ?1",
-        log.roomId,
-      )
-      .one().n ?? 0) > 1
-  return {
-    lastSeq: log.lastSeq(),
-    lastPreview: row.text,
-    unread: log.unread(),
-    ...(row.to === undefined ? { last: messageCandidate(row, name).last } : {}),
-    group,
-  }
-}
-
 export function roomActivity(sql: SqlStorage, log: RoomLog): RoomActivity {
   const names = new Map(
     sql

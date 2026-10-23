@@ -25,7 +25,7 @@ const METHOD_LABEL: Record<ConnectMethod, string> = {
   paste_code: "Browser sign-in",
 }
 
-export const POPULAR: readonly { id: string; note: string }[] = [
+const POPULAR: readonly { id: string; note: string }[] = [
   { id: "opencode-go", note: "Low-cost open models from OpenCode." },
   { id: "opencode", note: "Models picked and tested by the OpenCode team." },
   { id: "anthropic", note: "Claude models." },
@@ -65,6 +65,8 @@ export function ModelsPage() {
     ),
   )
   const [dialog, setDialog] = createSignal<CatalogProvider | null>(null)
+  const [browsing, setBrowsing] = createSignal(false)
+  const [pick, setPick] = createSignal<Pick>({ kind: "all" })
   createEffect(() => {
     const wanted = reconnectTarget()
     const provider = wanted ? catalog()?.providers.find((p) => p.id === wanted) : undefined
@@ -73,8 +75,6 @@ export function ModelsPage() {
     setDialog(provider)
     clearReconnect()
   })
-  const [browsing, setBrowsing] = createSignal(false)
-  const [pick, setPick] = createSignal<Pick>({ kind: "all" })
   const [query, setQuery] = createSignal("")
   const hidden = createMemo(() => new Set(hiddenModels()))
 

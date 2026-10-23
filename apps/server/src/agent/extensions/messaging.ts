@@ -22,7 +22,7 @@ export type MessagingPort = {
 
 const text = (t: string) => [{ type: "text" as const, text: t }]
 
-export const ASK_WAIT_MS = 120_000
+const ASK_WAIT_MS = 120_000
 
 export function messagingExtension(port: () => MessagingPort | null): Extension {
   const room = () => {

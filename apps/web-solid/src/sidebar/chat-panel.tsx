@@ -7,7 +7,6 @@ import { openAvatarPicker } from "../avatar/picker-state"
 import { useNavigate } from "@solidjs/router"
 import { createEffect, createMemo, createSignal, For, type JSX, onCleanup, Show } from "solid-js"
 import { VList } from "virtua/solid"
-import { useCommands, type Command } from "../commands/registry"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { intentRef } from "../lib/intent"
 import { agentDisplayName } from "../lib/names"
@@ -33,10 +32,10 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-export const ROW_H = 52
+const ROW_H = 52
 const SKELETON_ROWS = [62, 48, 70, 54, 66, 44]
 
-export function rowStamp(updatedAt: number, now: number): string {
+function rowStamp(updatedAt: number, now: number): string {
   const delta = now - updatedAt
   if (delta < MINUTE) return "now"
   if (delta < HOUR) return `${Math.floor(delta / MINUTE)}m`

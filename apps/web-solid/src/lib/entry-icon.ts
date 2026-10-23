@@ -66,7 +66,7 @@ let pierre: Pierre | undefined
 const [loaded, setLoaded] = createSignal(false)
 let loading: Promise<void> | undefined
 
-export function loadEntryIcons(): Promise<void> {
+function loadEntryIcons(): Promise<void> {
   loading ??= import("./entry-icon-pierre").then((mod) => {
     if (typeof document !== "undefined" && !document.getElementById(SPRITE_ID)) {
       const container = document.createElement("div")

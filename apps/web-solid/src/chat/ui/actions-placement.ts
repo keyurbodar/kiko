@@ -1,4 +1,4 @@
-export const ACTIONS_WIDTH = 3 * 32 + 2 * 2 + 6
+const ACTIONS_WIDTH = 3 * 32 + 2 * 2 + 6
 
 export type ActionsPlacement = "outside" | "inside"
 

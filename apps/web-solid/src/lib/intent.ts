@@ -2,7 +2,7 @@ import { makeEventListener } from "@solid-primitives/event-listener"
 import { debounce } from "@solid-primitives/scheduled"
 import { onCleanup } from "solid-js"
 
-export const HOVER_MS = 80
+const HOVER_MS = 80
 
 export type IntentOptions = {
   delayMs?: number
@@ -10,13 +10,13 @@ export type IntentOptions = {
   timer?: typeof debounce
 }
 
-export function intentAllowed(): boolean {
+function intentAllowed(): boolean {
   if (typeof document !== "undefined" && document.visibilityState === "hidden") return false
   const connection = (globalThis.navigator as { connection?: { saveData?: boolean } } | undefined)?.connection
   return connection?.saveData !== true
 }
 
-export function createIntent(el: EventTarget, onIntent: () => void, options: IntentOptions = {}): void {
+function createIntent(el: EventTarget, onIntent: () => void, options: IntentOptions = {}): void {
   const allowed = options.allowed ?? intentAllowed
   const fire = () => {
     if (allowed()) onIntent()

@@ -37,7 +37,7 @@ async function pkce(): Promise<{ verifier: string; challenge: string }> {
   return { verifier, challenge: base64url(new Uint8Array(hash)) }
 }
 
-export function authorizeUrl(input: {
+function authorizeUrl(input: {
   hostId: string
   state: string
   nonce: string

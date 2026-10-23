@@ -1,14 +1,8 @@
 import { sha256Hex } from "@kiko/durable/hash"
 import { escapeAttr, escapeXml } from "./text"
-import type { Envelope, Sender } from "./envelope"
+import type { Envelope } from "./envelope"
 
 export type Refusal = "full" | "too_large"
-
-type Admission = {
-  admitted: string[]
-  inserted: number
-  refused?: Refusal
-}
 
 export type Batch = {
   requestId: string

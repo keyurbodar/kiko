@@ -65,6 +65,12 @@ export function FileTree(props: FileTreeProps): JSX.Element {
   const wanted = createMemo(() => [...filePaths(), ...folderPaths().map(asFolder)])
   let held = new Set<string>()
 
+  const folderSet = () => {
+    const out = new Set(folderPaths())
+    for (const path of filePaths()) for (let dir = dirname(path); dir !== ROOT; dir = dirname(dir)) out.add(dir)
+    return out
+  }
+
   const parentForNew = () => {
     const path = touched && tree?.getItem(touched) ? touched : tree?.getSelectedPaths().at(-1)
     return createParent(path)
@@ -89,12 +95,13 @@ export function FileTree(props: FileTreeProps): JSX.Element {
       if (e.key === "Escape") escaped = true
     }
     host.addEventListener("keydown", onKey, true)
-    const stop = () => {
-      watch.disconnect()
+    let stopWatching: MutationObserver
+    function stop() {
+      stopWatching.disconnect()
       host.removeEventListener("keydown", onKey, true)
       watchers.delete(id)
     }
-    const watch = new MutationObserver(() => {
+    stopWatching = new MutationObserver(() => {
       if (input()) return void (seen = true)
       if (!seen) return
       stop()
@@ -105,11 +112,11 @@ export function FileTree(props: FileTreeProps): JSX.Element {
       }
       created(id, kind)
     })
-    watch.observe(root, { childList: true, subtree: true })
+    stopWatching.observe(root, { childList: true, subtree: true })
     watchers.set(id, stop)
   }
 
-  const created = (id: string, kind: "file" | "folder") => {
+  function created(id: string, kind: "file" | "folder") {
     touched = id
     if (kind === "folder") props.onNewFolder?.(plain(id))
     else props.onNewFile?.(plain(id))
@@ -291,18 +298,12 @@ export function FileTree(props: FileTreeProps): JSX.Element {
       host.removeEventListener("pointerdown", pointer, true)
       host.removeEventListener("keydown", keyboard, true)
       stop()
-      for (const stop of [...watchers.values()]) stop()
+      for (const stop of Array.from(watchers.values())) stop()
       clearTimeout(timer)
       instance.unmount()
       tree = undefined
     })
   })
-
-  const folderSet = () => {
-    const out = new Set(folderPaths())
-    for (const path of filePaths()) for (let dir = dirname(path); dir !== ROOT; dir = dirname(dir)) out.add(dir)
-    return out
-  }
 
   createEffect(
     on(wanted, (next) => {
@@ -341,7 +342,10 @@ export function FileTree(props: FileTreeProps): JSX.Element {
     const open = !allOpen()
     for (const dir of folderSet()) {
       const item = tree?.getItem(asFolder(dir))
-      if (item?.isDirectory() && "expand" in item) open ? item.expand() : item.collapse()
+      if (item?.isDirectory() && "expand" in item) {
+        if (open) item.expand()
+        else item.collapse()
+      }
     }
     setAllOpen(open)
   }

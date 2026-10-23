@@ -1,17 +1,11 @@
 import type { OwnerServices } from "../owner/services"
-import type { Chat, ChatLast, ChatOp, RoomId } from "@kiko/protocol"
+import type { Chat, ChatOp, RoomId } from "@kiko/protocol"
 
 const MAX_TITLE = 200
 const MAX_AGENTS = 20
 
-type Touch = {
-  lastSeq: number
-  lastPreview: string
-  unread: number
-  last?: ChatLast
-  mentions?: number
-  group?: boolean
-}
+const agentIds = (agents: readonly string[]): string[] =>
+  [...new Set(agents.map((id) => id.slice(0, 64)))].slice(0, MAX_AGENTS)
 
 export type ChatChange = { t: "chat"; chat: Chat } | { t: "chat_removed"; roomId: RoomId }
 
@@ -102,6 +96,3 @@ function next(current: Chat | null, op: ChatOp, now: number, pair: boolean): Cha
       return current ? undefined : null
   }
 }
-
-const agentIds = (agents: readonly string[]): string[] =>
-  [...new Set(agents.map((id) => id.slice(0, 64)))].slice(0, MAX_AGENTS)

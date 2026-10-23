@@ -18,7 +18,7 @@ function host(): SVGSVGElement | null {
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
-export function copySymbol(text: string, name: string, id: string): string | null {
+function copySymbol(text: string, name: string, id: string): string | null {
   const open = new RegExp(`<symbol[^>]*\\sid="${escapeRe(name)}"`).exec(text)
   if (!open) return null
   const start = open.index

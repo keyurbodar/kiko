@@ -11,7 +11,7 @@ export type Problems = Partial<Record<keyof Form, string>>
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
 
-export function handleFrom(name: string): string {
+function handleFrom(name: string): string {
   return name
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
@@ -22,7 +22,7 @@ export function handleFrom(name: string): string {
     .replace(/-+$/, "")
 }
 
-export function uniqueHandle(base: string, taken: Taken): string {
+function uniqueHandle(base: string, taken: Taken): string {
   const used = new Set(["kiko", ...taken.map((a) => a.slug)])
   if (!base) return ""
   for (let n = 1; ; n++) {
@@ -59,7 +59,7 @@ export function ready(form: Form, taken: Taken): boolean {
 
 const pick = <T>(list: readonly T[], random: () => number): T => list[Math.floor(random() * list.length)]!
 
-export function shufflePins(random: () => number = Math.random): AvatarPins {
+function shufflePins(random: () => number = Math.random): AvatarPins {
   const flavour = pick(FLAVOUR_NAMES, random)
   const roll = random()
   if (roll < 0.35) return { flavour, charm: pick(CHARM_NAMES, random), outfit: "none" }

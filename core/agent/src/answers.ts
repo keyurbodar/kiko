@@ -15,13 +15,14 @@ export class AnswerWaiters {
     if (signal?.aborted) return Promise.resolve(null)
     return new Promise((resolve) => {
       const wait = boundedWait(ms)
-      const onAbort = () => settle(null)
+      let onAbort = () => {}
       const settle = (answer: Answer | null) => {
         wait.cancel()
         signal?.removeEventListener("abort", onAbort)
         this.waiting.delete(id)
         resolve(answer)
       }
+      onAbort = () => settle(null)
       wait.then(() => settle(null))
       signal?.addEventListener("abort", onAbort)
       this.waiting.set(id, settle)
@@ -36,6 +37,6 @@ export class AnswerWaiters {
   }
 
   interrupt(): void {
-    for (const settle of [...this.waiting.values()]) settle(null)
+    for (const settle of Array.from(this.waiting.values())) settle(null)
   }
 }

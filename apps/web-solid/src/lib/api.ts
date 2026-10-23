@@ -1,7 +1,7 @@
 import { apiUrl, base, getToken, setToken } from "./api-base"
 
 export { apiUrl, getToken, setToken }
-export const SOCKET_PROTOCOL = "kiko"
+const SOCKET_PROTOCOL = "kiko"
 
 let onUnauthorized = () => {}
 export function setUnauthorizedHandler(handler: () => void): void {

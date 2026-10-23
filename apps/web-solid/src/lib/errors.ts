@@ -11,7 +11,7 @@ const ACTIONS: Record<ErrorAction, { label: string; run: () => void }> = {
   open_integrations: { label: "Open settings", run: () => openSettings("tools") },
 }
 
-export function errorToast(message: string, action?: ToastV2Action | undefined): ToastV2Options & { title: string } {
+function errorToast(message: string, action?: ToastV2Action | undefined): ToastV2Options & { title: string } {
   return { title: message, variant: "error", ...(action ? { action, persistent: true } : { duration: PLAIN_ERROR_MS }) }
 }
 
@@ -19,7 +19,7 @@ export function showFailure(message: string, action?: ToastV2Action): number | u
   return showToastV2(errorToast(message, action))
 }
 
-export function showMissing(message: string, action: ErrorAction): number | undefined {
+function showMissing(message: string, action: ErrorAction): number | undefined {
   return showFailure(message, { label: ACTIONS[action].label, onClick: ACTIONS[action].run })
 }
 

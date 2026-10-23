@@ -9,14 +9,14 @@ export type Draft = {
   updatedAt: number
 }
 
-export function saveDraft(warm: Warm, draft: Draft) {
+function saveDraft(warm: Warm, draft: Draft) {
   if (draft.text === "" && !draft.replyTo) warm.delete("drafts", draft.roomId)
   else warm.put("drafts", draft.roomId, draft)
 }
 
-export const getDraft = (warm: Warm, roomId: RoomId) => warm.get<Draft>("drafts", roomId)
+const allDrafts = (warm: Warm) => warm.getAll<Draft>("drafts")
 
-export const allDrafts = (warm: Warm) => warm.getAll<Draft>("drafts")
+const scrollKey = (roomId: RoomId | string) => `scroll:${roomId}`
 
 export function clearDraft(warm: Warm, roomId: RoomId) {
   warm.delete("drafts", roomId)
@@ -28,16 +28,12 @@ export type ScrollPosition = {
   offset: number
 }
 
-const scrollKey = (roomId: RoomId | string) => `scroll:${roomId}`
-
-export const saveScroll = (warm: Warm, roomId: RoomId | string, position: ScrollPosition | null) => {
+const saveScroll = (warm: Warm, roomId: RoomId | string, position: ScrollPosition | null) => {
   if (position) warm.put("meta", scrollKey(roomId), { ...position, roomId })
   else warm.delete("meta", scrollKey(roomId))
 }
 
-export const getScroll = (warm: Warm, roomId: RoomId | string) => warm.get<ScrollPosition>("meta", scrollKey(roomId))
-
-export const DRAFT_DEBOUNCE_MS = 300
+const DRAFT_DEBOUNCE_MS = 300
 
 export function createDraftBook(warm: Warm, debounceMs = DRAFT_DEBOUNCE_MS) {
   const drafts = new Map<string, Draft>()
@@ -67,9 +63,6 @@ export function createDraftBook(warm: Warm, debounceMs = DRAFT_DEBOUNCE_MS) {
     setReady(true)
     setVersion((v) => v + 1)
   })
-
-  const onHide = () => void book.flush()
-  globalThis.addEventListener?.("pagehide", onHide)
 
   const book = {
     ready,
@@ -115,7 +108,7 @@ export function createDraftBook(warm: Warm, debounceMs = DRAFT_DEBOUNCE_MS) {
       )
     },
     flush() {
-      for (const roomId of [...timers.keys()]) persist(roomId)
+      for (const roomId of Array.from(timers.keys())) persist(roomId)
       for (const [roomId, timer] of scrollTimers) {
         clearTimeout(timer)
         saveScroll(warm, roomId, scrolls.get(roomId) ?? null)
@@ -129,6 +122,10 @@ export function createDraftBook(warm: Warm, debounceMs = DRAFT_DEBOUNCE_MS) {
       void book.flush()
     },
   }
+  function onHide() {
+    void book.flush()
+  }
+  globalThis.addEventListener?.("pagehide", onHide)
   return book
 }
 

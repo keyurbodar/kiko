@@ -1,4 +1,4 @@
-import { type Item, LIFE_SHAPE, LINE_BYTES, napPrompt, region, type Span, type Step, Tree, treeSteps } from "./optmem"
+import { type Item, LIFE_SHAPE, LINE_BYTES, napPrompt, region, type Span, Tree } from "./optmem"
 
 const MAX_PINS = 10
 const CARD_MAX = 12
@@ -89,30 +89,6 @@ export const keywords = (text: string): string[] => [
 ]
 
 const LIFE_TREE = "memory_tree"
-
-const LIFE_STEPS: Step[] = [
-  `CREATE TABLE IF NOT EXISTS life (
-    pos INTEGER PRIMARY KEY,
-    at INTEGER NOT NULL,
-    text TEXT NOT NULL,
-    source TEXT NOT NULL DEFAULT '',
-    norm TEXT NOT NULL,
-    pinned INTEGER NOT NULL DEFAULT 0,
-    redacted INTEGER NOT NULL DEFAULT 0,
-    ref TEXT NOT NULL DEFAULT '',
-    superseded_by INTEGER,
-    card TEXT
-  )`,
-  "CREATE INDEX IF NOT EXISTS life_norm ON life (norm)",
-  "CREATE INDEX IF NOT EXISTS life_ref ON life (ref)",
-  "CREATE VIRTUAL TABLE IF NOT EXISTS life_fts USING fts5(text)",
-  ...treeSteps(LIFE_TREE),
-]
-
-const LIFE_TRI_STEPS: Step[] = [
-  "CREATE VIRTUAL TABLE IF NOT EXISTS life_tri USING fts5(text, tokenize = 'trigram')",
-  "INSERT INTO life_tri (rowid, text) SELECT pos, text FROM life WHERE redacted = 0 AND pos NOT IN (SELECT rowid FROM life_tri)",
-]
 
 export class Life {
   readonly tree: Tree

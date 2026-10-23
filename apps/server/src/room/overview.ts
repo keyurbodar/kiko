@@ -2,11 +2,6 @@ import type { RoomDirectory } from "../room/directory"
 import type { OwnerServices } from "../owner/services"
 import { localTime, type Reminder, type RoutineRun } from "../user/reminders"
 
-type ChatTasks = {
-  open: number
-  oldest: { id?: string; title: string; status: string; owner?: string; updatedAt: number }[]
-}
-
 const MAX_CHATS = 12
 const DAY = 86_400_000
 

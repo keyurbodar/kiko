@@ -26,7 +26,7 @@ export type Env = InstallEnv & {
 
 type InstallBody = { clerkToken?: unknown; grant?: unknown; accountId?: unknown; reset?: unknown }
 
-export function allowedOrigin(origin: string | null, trusted: string): string | null {
+function allowedOrigin(origin: string | null, trusted: string): string | null {
   if (!origin) return null
   return trusted
     .split(",")
@@ -45,7 +45,7 @@ function reply(body: unknown, status: number, origin: string | null): Response {
   return new Response(JSON.stringify(body), { status, headers })
 }
 
-export function cleanToken(raw: string): string {
+function cleanToken(raw: string): string {
   const bearer = /Bearer\s+([^\s"']+)/.exec(raw)
   return (bearer?.[1] ?? raw).replace(/[^\x21-\x7e]/g, "").replace(/^["']+|["']+$/g, "")
 }
