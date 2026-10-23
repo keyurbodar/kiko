@@ -7,6 +7,7 @@ import {
   STORAGE_FULL,
   type StoredInfo,
 } from "./file-limits"
+import { UploadError } from "./errors"
 
 export const FILE_STEPS: Step[] = [
   `
@@ -105,8 +106,8 @@ export class BlobStore {
     try {
       const take = (bytes: Uint8Array) => {
         size += bytes.length
-        if (size > MAX_STORE_FILE_BYTES) throw new Error(FILE_TOO_LARGE)
-        if (size > room) throw new Error(STORAGE_FULL)
+        if (size > MAX_STORE_FILE_BYTES) throw new UploadError({ reason: "too_large", message: FILE_TOO_LARGE })
+        if (size > room) throw new UploadError({ reason: "storage_full", message: STORAGE_FULL })
         pending.push(bytes)
         pendingBytes += bytes.length
         if (pendingBytes >= CHUNK_BYTES) flush(false)
@@ -211,7 +212,7 @@ export class BlobStore {
     body: ReadableStream<Uint8Array>,
   ): Promise<{ partNumber: number; etag: string }> {
     const known = this.ctx.storage.sql.exec("SELECT 1 FROM upload WHERE id = ?", uploadId).toArray().length > 0
-    if (!known) throw new Error("no such upload")
+    if (!known) throw new UploadError({ reason: "no_upload", message: "no such upload" })
     const info = await this.#write(partKey(uploadId, n), body, "application/octet-stream", {})
     return { partNumber: n, etag: info.etag }
   }
@@ -222,14 +223,15 @@ export class BlobStore {
       const upload = sql
         .exec<{ type: string; meta: string }>("SELECT type, meta FROM upload WHERE id = ? AND key = ?", uploadId, key)
         .toArray()[0]
-      if (!upload) throw new Error("no such upload")
+      if (!upload) throw new UploadError({ reason: "no_upload", message: "no such upload" })
       this.#drop([key])
       let size = 0
       let chunks = 0
       for (const part of parts) {
         const from = partKey(uploadId, part.partNumber)
         const info = this.#info(from)
-        if (!info || info.etag !== part.etag) throw new Error("a part is missing")
+        if (!info || info.etag !== part.etag)
+          throw new UploadError({ reason: "part_missing", message: "a part is missing" })
         sql.exec("UPDATE chunk SET key = ?, idx = idx + ?, pos = pos + ? WHERE key = ?", key, chunks, size, from)
         chunks = sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM chunk WHERE key = ?", key).one().n
         size += info.size

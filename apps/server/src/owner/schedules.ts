@@ -9,6 +9,7 @@ import {
   type TaskId,
   type TaskInspection,
 } from "@earendil-works/pi-durable"
+import { ScheduleError } from "./errors"
 
 export type ScheduledRoutine = { routineId: string; runAt: number; roomId: string; target: string }
 export type RoutineDelivery = ScheduledRoutine & { requestId: string }
@@ -120,7 +121,11 @@ export function scheduledDeadline(task: Pick<TaskInspection, "record">): number 
     !Number.isSafeInteger(input.runAt) ||
     input.runAt < 0
   )
-    throw new Error(`Invalid routine deadline in task ${task.record.id}`)
+    throw new ScheduleError({
+      kind: "deadline",
+      taskId: String(task.record.id),
+      message: `Invalid routine deadline in task ${task.record.id}`,
+    })
   return input.runAt
 }
 
@@ -161,6 +166,6 @@ export function scheduledRoutine(value: JsonValue): ScheduledRoutine {
     !Number.isSafeInteger(value.runAt) ||
     value.runAt < 0
   )
-    throw new Error("Invalid routine handoff")
+    throw new ScheduleError({ kind: "handoff", message: "Invalid routine handoff" })
   return { routineId: value.routineId, roomId: value.roomId, target: value.target, runAt: value.runAt }
 }

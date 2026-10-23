@@ -1,3 +1,5 @@
+import { ArchiveError } from "./errors"
+
 type ArchiveBucket = {
   put(key: string, value: Uint8Array): Promise<unknown>
   get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer> } | null>
@@ -18,12 +20,13 @@ function validDay(day: string): boolean {
 }
 
 function roomPrefix(roomId: string): string {
-  if (!/^[A-Za-z0-9_-]{1,64}$/.test(roomId)) throw new Error("Invalid archive room id")
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(roomId))
+    throw new ArchiveError({ kind: "invalid_room", message: "Invalid archive room id" })
   return `${ROOT}${roomId}/`
 }
 
 function dayKey(roomId: string, day: string): string {
-  if (!validDay(day)) throw new Error("Invalid archive UTC day")
+  if (!validDay(day)) throw new ArchiveError({ kind: "invalid_day", message: "Invalid archive UTC day" })
   return `${roomPrefix(roomId)}${day}${SUFFIX}`
 }
 
@@ -37,7 +40,8 @@ export async function writeDay(
   const jsonl = rows
     .map((row) => {
       const json = JSON.stringify(row)
-      if (json === undefined) throw new Error("Archive row is not JSON serializable")
+      if (json === undefined)
+        throw new ArchiveError({ kind: "not_serializable", message: "Archive row is not JSON serializable" })
       return `${json}\n`
     })
     .join("")
@@ -67,7 +71,8 @@ export async function listDays(bucket: ArchiveBucket, roomId: string): Promise<s
       if (validDay(day)) days.add(day)
     }
     if (!page.truncated) return [...days].sort().toReversed()
-    if (page.cursor === undefined || page.cursor === cursor) throw new Error("Archive list cursor did not advance")
+    if (page.cursor === undefined || page.cursor === cursor)
+      throw new ArchiveError({ kind: "cursor_stuck", message: "Archive list cursor did not advance" })
     cursor = page.cursor
   }
 }

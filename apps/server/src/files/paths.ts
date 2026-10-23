@@ -1,5 +1,6 @@
 import { isRoomId } from "@kiko/protocol"
 import type { Env } from "../index"
+import { UploadError } from "./errors"
 import { FILE_TOO_LARGE, STORAGE_FULL } from "./file-limits"
 import { fileStore, type FileBucket, maxFileBytes } from "./store"
 
@@ -33,6 +34,7 @@ export async function deleteFiles(bucket: FileBucket, keys: string | readonly st
 }
 
 export function storageRefusal(e: unknown): string | null {
+  if (e instanceof UploadError) return e.reason === "too_large" || e.reason === "storage_full" ? e.message : null
   const message = e instanceof Error ? e.message : ""
   return message === STORAGE_FULL || message === FILE_TOO_LARGE ? message : null
 }

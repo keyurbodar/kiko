@@ -10,6 +10,7 @@ import { fileStore, localBucket } from "../files/store"
 import { instrument } from "../lib/dev-guard"
 import { HANDLE_HEADER } from "../lib/names"
 import type { OwnerServices, ServiceOptions } from "./services"
+import { AgentKeyError, EgressError } from "./errors"
 import { serviceContext, metadata } from "./context"
 import { Clock, createServiceClock, RECOVERY_DELAY_MS } from "./clock"
 import { AfterRun } from "./after-run"
@@ -101,7 +102,8 @@ export class OwnerDO extends DurableObject<Env> {
       agent: (roomId, slug) => this.agent(roomId, slug),
       files: () => (env.FILES ? fileStore(env) : localBucket(this.blobs)),
       egress: async (request) => {
-        if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
+        if (new URL(request.url).protocol !== "https:")
+          throw new EgressError({ url: request.url, message: "egress is https only" })
         this.runs.countActive()
         return fetch(request.url, {
           redirect: "manual",
@@ -167,7 +169,8 @@ export class OwnerDO extends DurableObject<Env> {
 
   private async enqueueRun(agent: string, requestId: string): Promise<void> {
     const [roomId, slug, ...extra] = agent.split(":")
-    if (!isRoomId(roomId) || !slug || extra.length) throw new Error("bad agent key")
+    if (!isRoomId(roomId) || !slug || extra.length)
+      throw new AgentKeyError({ kind: "agent_key", key: agent, message: "bad agent key" })
     this.ctx.storage.sql.exec(
       `INSERT INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(agent) DO UPDATE SET ready_at = min(owner_runs.ready_at, excluded.ready_at), version = owner_runs.version + 1`,
@@ -229,7 +232,7 @@ export class OwnerDO extends DurableObject<Env> {
   }
 
   protected room(roomId: string): Room {
-    if (!isRoomId(roomId)) throw new Error("bad room id")
+    if (!isRoomId(roomId)) throw new AgentKeyError({ kind: "room", key: roomId, message: "bad room id" })
     let room = this.rooms.get(roomId)
     if (!room) {
       room = new Room(this.options(`room:${roomId}`, roomId))
@@ -326,7 +329,8 @@ export class OwnerDO extends DurableObject<Env> {
         if (scope.startsWith("agent:")) {
           const key = scope.slice("agent:".length)
           const [roomId, slug, ...extra] = key.split(":")
-          if (!isRoomId(roomId) || !slug || extra.length) throw new Error("bad agent deadline")
+          if (!isRoomId(roomId) || !slug || extra.length)
+            throw new AgentKeyError({ kind: "deadline", key, message: "bad agent deadline" })
           this.ctx.storage.sql.exec(
             "INSERT OR IGNORE INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)",
             key,

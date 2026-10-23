@@ -1,7 +1,14 @@
+import * as Schema from "effect/Schema"
 import { triggerProblem } from "@kiko/sandbox/rule"
 import { parseFrontmatter } from "../skills/frontmatter"
 
 type RecipeTrigger = { name: string; every: string; run: string }
+
+class RecipeError extends Schema.TaggedError<RecipeError>()("RecipeError", {
+  slug: Schema.String,
+  reason: Schema.String,
+  message: Schema.String,
+}) {}
 
 export type Recipe = {
   slug: string
@@ -34,7 +41,7 @@ const texts = (v: unknown): string[] | null =>
 
 export function parseRecipe(content: string, dir: string): Recipe {
   const fail = (why: string): never => {
-    throw new Error(`recipe ${dir}: ${why}`)
+    throw new RecipeError({ slug: dir, reason: why, message: `recipe ${dir}: ${why}` })
   }
   const { frontmatter: f, body } = parseFrontmatter(content)
   const slug = text(f.name) || dir

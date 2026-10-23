@@ -1,5 +1,6 @@
 import type { Actor, FileRef } from "@kiko/protocol"
 import type { Step } from "@kiko/durable/migrate"
+import { FileRowError } from "./errors"
 
 export type FileRow = {
   id: string
@@ -388,7 +389,7 @@ export class FileIndex<E> {
         }
         events.push(...this.addDirs(parents(target), author))
         const srcRow = this.row("id", src.id)
-        if (!srcRow) throw new Error(`no file row for ${src.id}`)
+        if (!srcRow) throw new FileRowError({ path: target, message: `no file row for ${src.id}` })
         events.push(this.rename(srcRow, target, author))
         return { ok: true, events, drop, changed: 1 }
       }
@@ -426,7 +427,7 @@ export class FileIndex<E> {
         if (!entry || path === "") return fail("not_found", `no such file or folder: ${path || "/"}`)
         if (entry.kind === "file") {
           const row = this.row("id", entry.id)
-          if (!row) throw new Error(`no file row for ${entry.id}`)
+          if (!row) throw new FileRowError({ path: entry.path, message: `no file row for ${entry.id}` })
           rows.set(entry.id, row)
           return
         }
