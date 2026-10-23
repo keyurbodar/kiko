@@ -1,5 +1,7 @@
 import * as Schema from "effect/Schema"
-import { ThinkingLevel } from "./thinking"
+
+export const ThinkingLevel = Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"])
+export type ThinkingLevel = typeof ThinkingLevel.Type
 
 export const ConnectMethod = Schema.Literals(["api_key", "device_code", "paste_code"])
 export type ConnectMethod = typeof ConnectMethod.Type

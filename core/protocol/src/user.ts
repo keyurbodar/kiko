@@ -1,12 +1,69 @@
 import * as Schema from "effect/Schema"
-import { ChatLast } from "./activity"
 import { Count, Id, stored } from "./base"
 import { NoticeError } from "./errors"
-import { AgentSlug, RoomId } from "./ids"
+import { AgentSlug, RoomId } from "./brands"
 import { MemoryOp, MemoryResult } from "./memory"
 import { FileOp, FileRef, Hello } from "./room"
-import { ProviderRow, RoutineRow, RowKind, RowLists, SoulRow } from "./rows"
-import { ThinkingLevel } from "./thinking"
+import { ThinkingLevel } from "./catalog"
+import { ProviderInfo } from "./providers"
+import { Trigger } from "./routines"
+import { ROW_KINDS } from "./rows"
+
+export const LastKind = Schema.Literals([
+  "text",
+  "photo",
+  "video",
+  "album",
+  "file",
+  "voice",
+  "audio",
+  "link",
+  "react",
+  "joined",
+  "left",
+  "renamed",
+  "created",
+  "notice",
+])
+export type LastKind = typeof LastKind.Type
+
+export const ChatLast = Schema.Struct({
+  from: Schema.Literals(["human", "agent", "system"]),
+  name: Schema.optionalKey(Schema.String),
+  kind: LastKind,
+  text: Schema.optionalKey(Schema.String),
+  file: Schema.optionalKey(Schema.String),
+  count: Schema.optionalKey(Count),
+  emoji: Schema.optionalKey(Schema.String),
+  at: Count,
+})
+export type ChatLast = typeof ChatLast.Type
+
+export const RoutineRow = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  roomId: RoomId,
+  status: Schema.Literals(["active", "paused"]),
+  trigger: Trigger,
+  tz: Schema.String,
+})
+export type RoutineRow = typeof RoutineRow.Type
+
+export const SoulRow = Schema.Struct({ id: AgentSlug, body: Schema.String, sha: Schema.String, at: Count })
+export type SoulRow = typeof SoulRow.Type
+
+export const ProviderRow = Schema.Struct({ id: Schema.String, ...ProviderInfo.fields })
+export type ProviderRow = typeof ProviderRow.Type
+
+export const RowKind = Schema.Literals(ROW_KINDS)
+export type RowKind = typeof RowKind.Type
+
+export const RowLists = Schema.Struct({
+  routine: Schema.optionalKey(Schema.Array(RoutineRow)),
+  soul: Schema.optionalKey(Schema.Array(SoulRow)),
+  provider: Schema.optionalKey(Schema.Array(ProviderRow)),
+})
+export type RowLists = typeof RowLists.Type
 
 export const Chat = Schema.Struct({
   roomId: RoomId,

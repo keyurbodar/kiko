@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
 import { Count, Id } from "./base"
-import { RoomId } from "./ids"
+import { RoomId } from "./brands"
 import { Trigger } from "./routines"
 
 export const RecipeTone = Schema.Literals([

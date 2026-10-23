@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
 import { Count, Id } from "./base"
-import { AgentSlug, MessageId, RoomId } from "./ids"
+import { AgentSlug, MessageId, RoomId } from "./brands"
 
 export const SystemReason = Schema.Literals([
   "task_updated",

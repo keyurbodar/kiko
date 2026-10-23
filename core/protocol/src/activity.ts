@@ -1,38 +1,7 @@
-import * as Schema from "effect/Schema"
-import { Count } from "./base"
 import type { RichText } from "./rich-text"
 import { plainText } from "./rich-text"
 import type { FileRef } from "./room"
-
-export const LastKind = Schema.Literals([
-  "text",
-  "photo",
-  "video",
-  "album",
-  "file",
-  "voice",
-  "audio",
-  "link",
-  "react",
-  "joined",
-  "left",
-  "renamed",
-  "created",
-  "notice",
-])
-export type LastKind = typeof LastKind.Type
-
-export const ChatLast = Schema.Struct({
-  from: Schema.Literals(["human", "agent", "system"]),
-  name: Schema.optionalKey(Schema.String),
-  kind: LastKind,
-  text: Schema.optionalKey(Schema.String),
-  file: Schema.optionalKey(Schema.String),
-  count: Schema.optionalKey(Count),
-  emoji: Schema.optionalKey(Schema.String),
-  at: Count,
-})
-export type ChatLast = typeof ChatLast.Type
+import type { ChatLast } from "./user"
 
 const MAX_TEXT = 120
 const URL_ONLY = /^https?:\/\/\S+$/i

@@ -1,4 +1,4 @@
-import type { RoomId } from "./ids"
+import type { RoomId } from "./brands"
 import type { Chat } from "./user"
 
 export const KIKO = "kiko"

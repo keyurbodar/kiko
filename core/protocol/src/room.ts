@@ -2,8 +2,8 @@ import * as Schema from "effect/Schema"
 import { Count, Id, stored } from "./base"
 import { Actor, Sender } from "./envelope"
 import { NoticeError } from "./errors"
-import { AgentSlug, MessageId, RoomId } from "./ids"
-import { RichText } from "./rich-text"
+import { AgentSlug, MessageId, RoomId } from "./brands"
+import { RichText } from "./rich-text-codec"
 
 export const AgentState = Schema.Literals(["idle", "typing", "working"])
 export type AgentState = typeof AgentState.Type

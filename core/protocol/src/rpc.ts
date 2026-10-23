@@ -4,7 +4,7 @@ import * as Schema from "effect/Schema"
 import { Count, Id } from "./base"
 import { Catalog } from "./catalog"
 import { ConflictError, IntegrationError, NotFoundError, ProtocolError, RefusedError, StorageError } from "./errors"
-import { AgentSlug, CommandId, MessageId, RoomId } from "./ids"
+import { AgentSlug, CommandId, MessageId, RoomId } from "./brands"
 import { MemoryOp, MemoryResult } from "./memory"
 import { ProviderInfo } from "./providers"
 import { InstallRecipe, RecipeInstall, RecipeList, RecipeNeedsConnect } from "./recipes"
@@ -24,8 +24,8 @@ import {
   RunStep,
   TaskOp,
 } from "./room"
-import { SoulRow } from "./rows"
-import { ThinkingLevel } from "./thinking"
+import { SoulRow } from "./user"
+import { ThinkingLevel } from "./catalog"
 import {
   AgentOp,
   BrowserLinkResult,
