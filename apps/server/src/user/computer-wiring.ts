@@ -5,7 +5,7 @@ import { MAX_DEADLINE_MS, type ComputerHub } from "../computer/hub"
 import { mintPairCode } from "../computer/pairing"
 import type { ComputerLinkResult, PcCallOutcome, PcReleased } from "../computer/types"
 import type { Env } from "../index"
-import { send } from "./socket-frames"
+import { send, type Attachment } from "./socket-frames"
 
 export type ComputerFrame = Extract<UserFrame, { t: `pc.${string}` }>
 
@@ -31,6 +31,10 @@ type ComputerDeps = {
 
 function slugOf(agentId: string): string {
   return agentId.split(/[/:]/).pop() ?? agentId
+}
+
+function workerOrigin(ws: WebSocket): string | null {
+  return (ws.deserializeAttachment() as Attachment | null)?.workerOrigin ?? null
 }
 
 function pairUrl(origin: string | null, code: string): string {
@@ -130,7 +134,7 @@ export class ComputerWiring {
         t: "pc.pairCode",
         reqId: frame.reqId,
         code: minted.code,
-        url: pairUrl(await this.d.publicOrigin(), minted.code),
+        url: pairUrl(workerOrigin(ws) ?? (await this.d.publicOrigin()), minted.code),
         expiresAt: minted.expiresAt,
       })
       return

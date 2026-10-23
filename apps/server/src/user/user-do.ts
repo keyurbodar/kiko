@@ -1312,7 +1312,11 @@ export class User {
 
   async openSocket(server: WebSocket, request: Request): Promise<void> {
     this.models.syncIfStale()
-    server.serializeAttachment({ ready: false, helloBy: helloBy() } satisfies Attachment)
+    server.serializeAttachment({
+      ready: false,
+      helloBy: helloBy(),
+      workerOrigin: new URL(request.url).origin,
+    } satisfies Attachment)
     const origin = request.headers.get("origin") ?? new URL(request.url).origin
     if (this.setting(PUBLIC_ORIGIN) !== origin) this.putSetting(PUBLIC_ORIGIN, origin)
     this.ctx.waitUntil(waitForHello(server))

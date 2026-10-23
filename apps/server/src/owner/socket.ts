@@ -1,7 +1,7 @@
 import { HELLO_TIMEOUT_REASON } from "@kiko/durable/hello-deadline"
 import type { Attachment as RoomAttachment } from "../room/socket"
 
-type UserAttachment = { ready: boolean; helloBy?: number }
+type UserAttachment = { ready: boolean; helloBy?: number; workerOrigin?: string }
 type OwnerAttachment = {
   user: UserAttachment
   rooms: Record<string, RoomAttachment>
