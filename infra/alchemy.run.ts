@@ -6,8 +6,6 @@ import * as Effect from "effect/Effect"
 const ZONE = "kiko.works"
 const COMPATIBILITY = "2026-09-01"
 
-const state = process.env.KIKO_ALCHEMY_LOCAL_STATE === "1" ? Alchemy.localState() : Cloudflare.state()
-
 export const FrontDoor = Cloudflare.Worker("FrontDoor", {
   name: "kiko-app",
   main: "../apps/server/src/front-door.ts",
@@ -38,7 +36,7 @@ export const Installer = Cloudflare.Worker("Installer", {
 
 export default Alchemy.Stack(
   "Kiko",
-  { providers: Cloudflare.providers(), state },
+  { providers: Cloudflare.providers(), state: Cloudflare.state() },
   Effect.gen(function* () {
     const frontDoor = yield* FrontDoor
     const installer = yield* Installer
