@@ -46,8 +46,6 @@ import { connectLinkFor, MANAGE_CONNECTIONS } from "../integrations/composio/con
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
 import type { Lease } from "../agent/browser/lease"
-import type { ComputerCallOutcome, ComputerLinkOutcome, ComputerMode, ComputerSummary } from "../agent/computer/types"
-import type { Holder, Op } from "@kiko/computer/wire"
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 import { runDue } from "../owner/clock"
 import { waitForHello } from "../owner/socket"
@@ -1717,34 +1715,5 @@ export class User {
     if (patch.capture) this.#mem.setCapture(patch.capture)
     if (patch.onboarded) this.putSetting("onboarded", "1")
     return this.userSettings()
-  }
-
-  async computerList(): Promise<ComputerSummary[]> {
-    return []
-  }
-
-  async computerCall(
-    _agentId: string,
-    _roomId: string,
-    _pcId: string,
-    _op: Op,
-    _args: unknown,
-    _deadlineMs: number,
-  ): Promise<ComputerCallOutcome> {
-    return { ok: false, code: "unsupported", message: "no computer hub" }
-  }
-
-  async computerLink(
-    _agentId: string,
-    _roomId: string,
-    _pcId: string,
-    _mode: ComputerMode,
-    _reason?: string,
-  ): Promise<ComputerLinkOutcome> {
-    return { ok: false, error: "no computer hub" }
-  }
-
-  async computerHolder(_pcId: string): Promise<Holder> {
-    return "agent"
   }
 }

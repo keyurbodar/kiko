@@ -39,10 +39,10 @@ export function userComputer(user: () => UserComputerRpc, agentId: string, roomI
     throw new Error(`there is no computer called ${want}. the computers are: ${names(all)}.`)
   }
   return {
-    list: () => user().computerList(),
+    list: async () => user().computerList(),
     resolve,
     call: (pcId, op, args, deadlineMs) => user().computerCall(agentId, roomId, pcId, op, args, deadlineMs),
     link: (pcId, mode, reason) => user().computerLink(agentId, roomId, pcId, mode, reason),
-    holder: (pcId) => user().computerHolder(pcId),
+    holder: async (pcId) => user().computerHolder(pcId),
   }
 }

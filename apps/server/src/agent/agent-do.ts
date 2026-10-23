@@ -64,7 +64,7 @@ import type { Work } from "@kiko/agent/workers"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
 import { userComputer } from "./computer/port"
-import type { ComputerPort, UserComputerRpc } from "./computer/port"
+import type { ComputerPort } from "./computer/port"
 
 import { count, DEV, loadAgentDev } from "../lib/dev-guard"
 import type { AgentDevHost, Usage } from "./dev"
@@ -1027,10 +1027,11 @@ export class Agent {
 
   private async computersOn(): Promise<boolean> {
     if (!this.home()) return false
-    return (this.services.user() as unknown as UserComputerRpc).computerList().then(
-      (all) => all.length > 0,
-      () => false,
-    )
+    try {
+      return this.services.user().computerList().length > 0
+    } catch {
+      return false
+    }
   }
 
   async releaseTabs(): Promise<number> {
@@ -1076,11 +1077,7 @@ export class Agent {
 
   private computer(): ComputerPort {
     const home = this.homeOrThrow()
-    this.#computer ??= userComputer(
-      () => this.services.user() as unknown as UserComputerRpc,
-      `${home.roomId}:${home.slug}`,
-      home.roomId,
-    )
+    this.#computer ??= userComputer(() => this.services.user(), `${home.roomId}:${home.slug}`, home.roomId)
     return this.#computer
   }
 
