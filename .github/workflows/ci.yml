@@ -2,15 +2,13 @@ name: ci
 
 on:
   pull_request:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   check:
@@ -85,14 +83,3 @@ jobs:
             ${{ runner.temp }}/wrangler.log
           if-no-files-found: ignore
           retention-days: 7
-
-  check-all:
-    name: All checks
-    if: ${{ always() }}
-    needs: [check, e2e]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - env:
-          RESULTS: ${{ toJSON(needs) }}
-        run: echo "$RESULTS" | jq -e 'all(.[]; .result == "success")' > /dev/null

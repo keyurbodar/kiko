@@ -68,7 +68,7 @@ There are no unit or integration tests. Correctness rests on static gates that a
 | Bundles | `vite build`, `wrangler deploy --dry-run` | Imports that resolve in types but not in the bundle |
 | Behavior | `bun kiko verify journal-overhead`, `verify:web` | Real prompts and a real browser against `wrangler dev` |
 
-`scripts/check-changed.ts` runs the static gates for only the files and packages a change touches. The pre-commit hook runs it on staged files. CI runs every gate. A release refuses to start until the `All checks` job is green on the commit it ships, and a manual deploy refuses a commit CI has not passed.
+`scripts/check-changed.ts` runs the static gates for only the files and packages a change touches. The pre-commit hook runs it on staged files. CI runs every gate on each pull request, and `main` requires the `Check` and `E2E` jobs to pass before a merge, so every commit a release ships has already passed CI.
 
 ## Computers
 
