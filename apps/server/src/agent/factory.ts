@@ -34,6 +34,7 @@ import type { ComposioCall, ComposioTool } from "../integrations/composio/client
 import { composioExtension } from "../integrations/composio/tools"
 import { connectAppExtension } from "../integrations/composio/connect-tool"
 import { type BrowserToolDeps, browserExtension, browserInfoExtension } from "./browser/tools"
+import { type ComputerToolDeps, computerExtension, computerInfoExtension } from "./computer/tools"
 import { baseSections, type RoleInput } from "./prompt"
 import { forRole } from "./roles"
 import { count } from "../lib/dev-guard"
@@ -54,6 +55,7 @@ export type BuildAgentInput = RoleInput & {
   workspace?: WorkspacePort
   composio?: { tools: readonly ComposioTool[]; call: ComposioCall; resolve?: (app: string) => Promise<string | null> }
   browser?: BrowserToolDeps
+  computers?: ComputerToolDeps
   routines?: { port: () => RoutinesPort | null }
   recipes?: RecipesPort
   messaging?: () => MessagingPort | null
@@ -102,6 +104,7 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
       ? connectAppExtension(input.composio.tools, input.composio.call, input.composio.resolve)
       : []),
     ...(input.browser ? [browserExtension(input.browser), browserInfoExtension(input.browser)] : []),
+    ...(input.computers ? [computerExtension(input.computers), computerInfoExtension(input.computers)] : []),
     ...(input.work ? workExtensions(input.work, all, input.runId) : []),
     ...(input.testExtensions ?? []),
   ]
