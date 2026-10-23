@@ -63,6 +63,8 @@ import type { Batch } from "@kiko/agent/input"
 import type { Work } from "@kiko/agent/workers"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
+import { userComputer } from "./computer/port"
+import type { ComputerPort, UserComputerRpc } from "./computer/port"
 
 import { count, DEV, loadAgentDev } from "../lib/dev-guard"
 import type { AgentDevHost, Usage } from "./dev"
@@ -548,6 +550,7 @@ export class Agent {
     const messaging = () => this.messagingPort()
     if (DEV && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) {
       const browserOn = await this.browserOn()
+      const computersOn = await this.computersOn()
       const fake = fakeSetup(
         role,
         roomWorkspacePort(this.services, () => this.home()),
@@ -563,6 +566,7 @@ export class Agent {
                 },
               }
             : {}),
+          ...(computersOn && home ? { computers: { port: () => this.computer(), acceptsImages: () => false } } : {}),
           routines: { port: () => this.routinesPort() },
           groups: this.groupsPort(),
           work: this.host.workers,
@@ -619,8 +623,10 @@ export class Agent {
           }
         : undefined
     const picked = await this.picked()
+    const computersOn = await this.computersOn()
     const built = buildAgent({
       ...(browser ? { browser } : {}),
+      ...(computersOn ? { computers: { port: () => this.computer(), acceptsImages: imageReader(user.models) } } : {}),
       testExtensions: [this.routineScheduler.extension],
       ...role,
       ...(picked.model ? { model: picked.model } : {}),
@@ -673,6 +679,7 @@ export class Agent {
         ? {
             stale: async () =>
               (await this.browserOn()) !== browserOn ||
+              (await this.computersOn()) !== computersOn ||
               (signature !== "unreachable" && this.services.user().composioSignature() !== signature),
           }
         : {}),
@@ -1018,6 +1025,14 @@ export class Agent {
     )
   }
 
+  private async computersOn(): Promise<boolean> {
+    if (!this.home()) return false
+    return (this.services.user() as unknown as UserComputerRpc).computerList().then(
+      (all) => all.length > 0,
+      () => false,
+    )
+  }
+
   async releaseTabs(): Promise<number> {
     if (!this.#browser) return 0
     return this.#browser.release().catch((e: unknown) => {
@@ -1056,6 +1071,18 @@ export class Agent {
   }
 
   #dev?: Promise<typeof import("./dev")>
+
+  #computer?: ComputerPort
+
+  private computer(): ComputerPort {
+    const home = this.homeOrThrow()
+    this.#computer ??= userComputer(
+      () => this.services.user() as unknown as UserComputerRpc,
+      `${home.roomId}:${home.slug}`,
+      home.roomId,
+    )
+    return this.#computer
+  }
 
   private dev(): Promise<typeof import("./dev")> {
     this.#dev ??= loadAgentDev()

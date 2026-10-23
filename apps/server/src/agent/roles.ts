@@ -1,6 +1,7 @@
 import type { Extension } from "@earendil-works/pi-durable"
 import { MEMORY_NOTE } from "@kiko/memory/tools"
 import { BROWSER_EXT } from "./browser/tools"
+import { COMPUTER_INFO_EXT } from "./computer/tools"
 import { GROUPS_EXT } from "./extensions/chief"
 import { MESSAGING } from "./extensions/messaging"
 import { ROUTINES } from "./extensions/routines"
@@ -17,6 +18,7 @@ const TABLE: Readonly<Record<string, readonly Role[]>> = {
   [ROUTINES]: ["talker"],
   [GROUPS_EXT]: ["talker"],
   [BROWSER_EXT]: ["worker"],
+  [COMPUTER_INFO_EXT]: ["talker"],
 }
 
 const hasRole = (name: string, role: Role): boolean => (TABLE[name] ?? ["talker", "worker"]).includes(role)
