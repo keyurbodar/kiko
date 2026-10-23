@@ -3,6 +3,7 @@ import tailwindcss from "@tailwindcss/vite"
 import { defineConfig, loadEnv } from "vite"
 import solid from "vite-plugin-solid"
 import { firstPaintPreload } from "./scripts/preload-plugin.ts"
+import { serviceWorker } from "./scripts/service-worker-plugin.ts"
 import pkg from "../../package.json" with { type: "json" }
 
 function requireInstaller(mode: string): void {
@@ -17,7 +18,7 @@ function requireInstaller(mode: string): void {
 export default defineConfig(({ mode }) => {
   requireInstaller(mode)
   return {
-    plugins: [solid(), tailwindcss(), firstPaintPreload()],
+    plugins: [solid(), tailwindcss(), firstPaintPreload(), serviceWorker()],
     define: { __KIKO_VERSION__: JSON.stringify(pkg.version) },
     optimizeDeps: {
       include: [

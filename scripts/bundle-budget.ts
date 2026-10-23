@@ -17,18 +17,21 @@ const TIER3 = [
   "../../packages/ui/src/v2/components/toast-v2-impl.tsx",
   "src/composer/prompt-input/extras.tsx",
   "src/composer/rich/bind.ts",
+  "src/app/idle-preload.ts",
   "src/chat/ui/ImageDialog.tsx",
   "src/chat/ui/EmojiPicker.tsx",
   "src/chat/ui/ReactionPopover.tsx",
   "src/chat/ui/SuspiciousLinkDialog.tsx",
 ]
 const TIER4 = ["src/settings/settings-dialog.tsx"]
+const FIRST_RUN = ["src/app/first-run/frame.tsx"]
 
 const RECORDED: Record<string, number> = {
-  "tier 1 shell js": 2358,
+  "tier 1 shell js": 2011,
   "tier 2 first paint of /chat": 214055,
   "tier 3 lazy modules": 313960,
   "tier 4 route chunks": 27858,
+  "first-run closure": 36188,
 }
 
 interface Entry {
@@ -77,12 +80,14 @@ const tier1 = closure([entryKey])
 const tier2 = closure([APP_ENTRY, FIRST_PAINT_ROUTE], tier1)
 const tier3 = closure(TIER3, new Set([...tier1, ...tier2]))
 const tier4 = closure(TIER4, new Set([...tier1, ...tier2, ...tier3]))
+const firstRun = closure(FIRST_RUN, new Set([...tier1, ...tier2]))
 
 const measured: Record<string, number> = {
   "tier 1 shell js": size(tier1),
   "tier 2 first paint of /chat": size(tier2),
   "tier 3 lazy modules": size(tier3),
   "tier 4 route chunks": size(tier4),
+  "first-run closure": size(firstRun),
 }
 
 const BANNED: Record<string, RegExp> = {
