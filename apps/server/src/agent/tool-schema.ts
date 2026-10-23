@@ -48,12 +48,11 @@ const KEEP: Record<string, (value: unknown) => boolean> = {
   maxProperties: isCount,
   uniqueItems: (v) => typeof v === "boolean",
   required: (v) => Array.isArray(v) && v.every(isString),
-  $ref: isString,
 }
 
 const SUBSCHEMA = new Set(["additionalProperties", "items", "not", "contains", "propertyNames", "if", "then", "else"])
 const SCHEMA_LISTS = new Set(["allOf", "anyOf", "oneOf", "prefixItems"])
-const SCHEMA_MAPS = new Set(["properties", "patternProperties", "$defs"])
+const SCHEMA_MAPS = new Set(["properties", "patternProperties"])
 
 function legacyBound(out: Schema, value: Schema, flag: "exclusiveMinimum" | "exclusiveMaximum"): void {
   const bound = flag === "exclusiveMinimum" ? "minimum" : "maximum"
@@ -64,8 +63,7 @@ function legacyBound(out: Schema, value: Schema, flag: "exclusiveMinimum" | "exc
 }
 
 function keyword(out: Schema, key: string, child: unknown, value: Schema): void {
-  if (key === "$ref" && isString(child)) out.$ref = child.replace("#/definitions/", "#/$defs/")
-  else if (KEEP[key]?.(child)) out[key] = child
+  if (KEEP[key]?.(child)) out[key] = child
   else if (SUBSCHEMA.has(key) && (typeof child === "boolean" || isSchema(child))) out[key] = clean(child)
   else if (key === "items" && Array.isArray(child)) {
     out.prefixItems = child.map(clean)
@@ -83,25 +81,50 @@ function clean(value: unknown): unknown {
   if (!isSchema(value)) return {}
   const out: Schema = {}
   for (const [key, child] of Object.entries(value)) keyword(out, key, child, value)
-  if (isSchema(value.definitions)) out.$defs = { ...cleanMap(value.definitions), ...(out.$defs as Schema | undefined) }
   legacyBound(out, value, "exclusiveMinimum")
   legacyBound(out, value, "exclusiveMaximum")
   return out
 }
 
+const MAX_REF_DEPTH = 6
+
+function definitionsOf(root: Schema): Schema {
+  return { ...(isSchema(root.definitions) ? root.definitions : {}), ...(isSchema(root.$defs) ? root.$defs : {}) }
+}
+
+function target(defs: Schema, ref: string): unknown {
+  const name = /^#\/(?:\$defs|definitions)\/([^/]+)$/.exec(ref)?.[1]
+  return name === undefined ? undefined : defs[decodeURIComponent(name).replaceAll("~1", "/").replaceAll("~0", "~")]
+}
+
+function inline(value: unknown, defs: Schema, depth: number): unknown {
+  if (Array.isArray(value)) return value.map((item) => inline(item, defs, depth))
+  if (!isSchema(value)) return value
+  const { $ref, $defs: _defs, definitions: _definitions, ...rest } = value
+  const resolved = isString($ref) && depth < MAX_REF_DEPTH ? target(defs, $ref) : undefined
+  const base = isSchema(resolved) ? inline(resolved, defs, depth + 1) : {}
+  const own = Object.fromEntries(Object.entries(rest).map(([key, child]) => [key, inline(child, defs, depth)]))
+  return { ...(isSchema(base) ? base : {}), ...own }
+}
+
 function toolParameters(parameters: unknown): Schema {
-  const out = clean(parameters)
+  const root = isSchema(parameters) ? parameters : {}
+  const out = clean(inline(root, definitionsOf(root), 0))
   const { allOf: _all, anyOf: _any, oneOf: _one, ...schema } = isSchema(out) ? out : {}
   return { ...schema, type: "object", properties: isSchema(schema.properties) ? schema.properties : {} }
 }
 
+const cleanTools = <T extends { parameters: unknown }>(tools: readonly T[]): T[] =>
+  tools.map((tool) => ({ ...tool, parameters: toolParameters(tool.parameters) as T["parameters"] }))
+
 export function withDraft2020Tools<C extends Context>(context: C): C {
-  if (!context.tools?.length) return context
   return {
     ...context,
-    tools: context.tools.map((tool) => ({
-      ...tool,
-      parameters: toolParameters(tool.parameters) as typeof tool.parameters,
-    })),
+    ...(context.tools?.length ? { tools: cleanTools(context.tools) } : {}),
+    messages: context.messages.map((message) =>
+      "toolsAdded" in message && message.toolsAdded?.length
+        ? { ...message, toolsAdded: cleanTools(message.toolsAdded) }
+        : message,
+    ),
   }
 }
