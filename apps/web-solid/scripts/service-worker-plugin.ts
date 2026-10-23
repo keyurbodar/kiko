@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
-import { readFileSync } from "node:fs"
+import { readFileSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
 import { transformWithOxc, type Plugin } from "vite"
 
 const SKIPPED_FACADES = ["src/app/clerk.ts"]
@@ -9,7 +10,8 @@ export function serviceWorker(): Plugin {
   return {
     name: "kiko-service-worker",
     apply: "build",
-    async generateBundle(_options, bundle) {
+    async writeBundle(options, bundle) {
+      const outDir = options.dir ?? "dist"
       const skipped = new Set<string>()
       for (const item of Object.values(bundle)) {
         if (item.type !== "chunk" || !SKIPPED_FACADES.some((key) => item.facadeModuleId?.endsWith(key))) continue
@@ -22,15 +24,11 @@ export function serviceWorker(): Plugin {
         .sort()
       const precache = assets.filter((url) => /\.(js|css)$/.test(url) && !skipped.has(url.slice(1)))
       const version = createHash("sha256").update(assets.join("\n")).digest("hex").slice(0, 16)
-      this.emitFile({
-        type: "asset",
-        fileName: "sw-manifest.json",
-        source: JSON.stringify({ version, assets, precache }),
-      })
+      writeFileSync(join(outDir, "sw-manifest.json"), JSON.stringify({ version, assets, precache }))
       const worker = await transformWithOxc(readFileSync(WORKER_SOURCE, "utf8"), WORKER_SOURCE.pathname, {
         lang: "ts",
       })
-      this.emitFile({ type: "asset", fileName: "sw.js", source: worker.code })
+      writeFileSync(join(outDir, "sw.js"), worker.code)
     },
   }
 }

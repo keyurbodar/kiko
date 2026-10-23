@@ -25,7 +25,7 @@ const scope = self as unknown as {
 }
 
 const CACHE = "kiko-assets-v1"
-const CONCURRENCY = 3
+const CONCURRENCY = 2
 let running: Promise<void> | null = null
 let disabled = false
 
