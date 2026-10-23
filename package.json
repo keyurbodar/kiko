@@ -27,7 +27,6 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
-    "@effect/vitest": "4.0.6",
     "@phosphor-icons/core": "2.1.1",
     "@resvg/resvg-js": "2.6.2",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
