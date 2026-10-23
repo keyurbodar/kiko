@@ -198,6 +198,8 @@ function installPs1(origin: string, release: DaemonRelease): string {
 )
 
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 $origin = '${origin}'
 $version = '${release.version}'
 $base = '${release.base}'

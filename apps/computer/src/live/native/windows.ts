@@ -10,6 +10,7 @@ const KEYEVENTF_UNICODE = 0x0004
 const KEYEVENTF_SCANCODE = 0x0008
 const MOUSEEVENTF_MOVE = 0x0001
 const MOUSEEVENTF_ABSOLUTE = 0x8000
+const MOUSEEVENTF_VIRTUALDESK = 0x4000
 const MOUSEEVENTF_LEFTDOWN = 0x0002
 const MOUSEEVENTF_LEFTUP = 0x0004
 const MOUSEEVENTF_RIGHTDOWN = 0x0008
@@ -24,8 +25,9 @@ const SM_XVIRTUALSCREEN = 76
 const SM_YVIRTUALSCREEN = 77
 const SM_CXVIRTUALSCREEN = 78
 const SM_CYVIRTUALSCREEN = 79
-const MOUSE_STRUCT = 28
-const INPUT_SIZE = MOUSE_STRUCT + 4
+const INPUT_SIZE = 40
+const UNION = 8
+const PER_MONITOR_AWARE_V2 = -4
 const EXTENDED = new Set([
   "ArrowLeft",
   "ArrowRight",
@@ -53,6 +55,7 @@ type User32 = {
   SetCursorPos: (x: number, y: number) => boolean
   GetCursorPos: (point: Uint8Array) => boolean
   SendInput: (count: number, inputs: Uint8Array, size: number) => number
+  SetProcessDpiAwarenessContext: (context: number) => boolean
 }
 
 function open(): User32 | null {
@@ -62,6 +65,7 @@ function open(): User32 | null {
       SetCursorPos: { args: [FFIType.i32, FFIType.i32], returns: "bool" },
       GetCursorPos: { args: [FFIType.ptr], returns: "bool" },
       SendInput: { args: [FFIType.u32, FFIType.ptr, FFIType.i32], returns: "u32" },
+      SetProcessDpiAwarenessContext: { args: [FFIType.i64], returns: "bool" },
     })
     return user32.symbols as unknown as User32
   } catch {
@@ -69,30 +73,34 @@ function open(): User32 | null {
   }
 }
 
-function mouseInput(buffer: Uint8Array, flags: number, dx: number, dy: number, data: number): void {
-  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength)
-  view.setUint32(0, INPUT_MOUSE, true)
-  view.setUint32(4, flags, true)
-  view.setInt32(8, dx, true)
-  view.setInt32(12, dy, true)
-  view.setUint32(16, data, true)
+function slot(buffer: Uint8Array, type: number): DataView {
+  buffer.fill(0, 0, INPUT_SIZE)
+  const view = new DataView(buffer.buffer, buffer.byteOffset, INPUT_SIZE)
+  view.setUint32(0, type, true)
+  return view
 }
 
-function keyInput(buffer: Uint8Array, flags: number, virtualKey: number, scan: number, char: number): void {
-  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength)
-  view.setUint32(0, INPUT_KEYBOARD, true)
-  view.setUint16(4, flags, true)
-  view.setUint16(6, scan, true)
-  view.setUint32(8, virtualKey, true)
-  view.setUint32(12, 0, true)
-  const wide = new Uint16Array(buffer.buffer, buffer.byteOffset + MOUSE_STRUCT, 2)
-  wide[0] = char
-  wide[1] = 0
+function mouseInput(buffer: Uint8Array, flags: number, dx: number, dy: number, data: number): void {
+  const view = slot(buffer, INPUT_MOUSE)
+  view.setInt32(UNION, dx, true)
+  view.setInt32(UNION + 4, dy, true)
+  view.setInt32(UNION + 8, data, true)
+  view.setUint32(UNION + 12, flags, true)
+}
+
+function keyInput(buffer: Uint8Array, flags: number, virtualKey: number, scan: number): void {
+  const view = slot(buffer, INPUT_KEYBOARD)
+  view.setUint16(UNION, virtualKey, true)
+  view.setUint16(UNION + 2, scan, true)
+  view.setUint32(UNION + 4, flags, true)
 }
 
 export function windowsNative(): Native | null {
   const user32 = open()
   if (!user32) return null
+  try {
+    user32.SetProcessDpiAwarenessContext(PER_MONITOR_AWARE_V2)
+  } catch {}
   const point = new Uint8Array(8)
   const input = new Uint8Array(INPUT_SIZE * 2)
   const held = new Set<string>()
@@ -107,8 +115,8 @@ export function windowsNative(): Native | null {
   const absolute = (x: number, y: number): { dx: number; dy: number } => {
     const area = screen()
     return {
-      dx: Math.round(((x - area.x) / Math.max(1, area.width)) * UNIT),
-      dy: Math.round(((y - area.y) / Math.max(1, area.height)) * UNIT),
+      dx: Math.round(((x - area.x) / Math.max(1, area.width - 1)) * UNIT),
+      dy: Math.round(((y - area.y) / Math.max(1, area.height - 1)) * UNIT),
     }
   }
 
@@ -129,7 +137,13 @@ export function windowsNative(): Native | null {
     button(slot, down, x, y) {
       user32.SetCursorPos(x, y)
       const at = absolute(x, y)
-      mouseInput(input, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | buttonFlag(slot, down), at.dx, at.dy, 0)
+      mouseInput(
+        input,
+        MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | buttonFlag(slot, down),
+        at.dx,
+        at.dy,
+        0,
+      )
       send(1)
     },
     wheel(steps, horizontal) {
@@ -149,7 +163,7 @@ export function windowsNative(): Native | null {
         (scan ? KEYEVENTF_SCANCODE : 0) |
         (EXTENDED.has(code) ? KEYEVENTF_EXTENDEDKEY : 0)
       const virtualKey = windowsVirtualKey(code, key)
-      keyInput(input, flags, virtualKey, scan, 0)
+      keyInput(input, flags, virtualKey, scan)
       send(1)
     },
     text(value) {
@@ -159,7 +173,7 @@ export function windowsNative(): Native | null {
         for (const unit of code > 0xffff
           ? [0xd800 + ((code - 0x10000) >> 10), 0xdc00 + ((code - 0x10000) & 0x3ff)]
           : [code]) {
-          keyInput(input.subarray(count * INPUT_SIZE), KEYEVENTF_UNICODE, 0, unit, unit)
+          keyInput(input.subarray(count * INPUT_SIZE), KEYEVENTF_UNICODE, 0, unit)
           count++
           if (count === 2) {
             send(count)
@@ -187,7 +201,6 @@ export function windowsNative(): Native | null {
           KEYEVENTF_KEYUP | (scan ? KEYEVENTF_SCANCODE : 0) | (EXTENDED.has(code) ? KEYEVENTF_EXTENDEDKEY : 0),
           virtualKey,
           scan,
-          0,
         )
         send(1)
       }
