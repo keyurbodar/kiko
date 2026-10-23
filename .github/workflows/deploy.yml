@@ -94,4 +94,9 @@ jobs:
           curl -fsS https://app.kiko.works/releases/latest.json -o apps/web-solid/dist/releases/latest.json
       - name: deploy the front door and the installer
         working-directory: infra
-        run: bun run deploy
+        env:
+          ALCHEMY_TELEMETRY_DISABLED: "1"
+          CI: "1"
+        run: |
+          bunx alchemy provider cloudflare bootstrap --no-input
+          bun run deploy --no-input
