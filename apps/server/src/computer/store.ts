@@ -1,0 +1,69 @@
+import type { ComputerCaps } from "@kiko/protocol"
+
+export type ComputerOs = "macos" | "linux" | "windows"
+
+export type ComputerRow = {
+  id: string
+  name: string
+  public_key: string
+  os: ComputerOs
+  arch: string
+  host: string
+  caps_json: string
+  pair_nonce: string
+  created_at: number
+}
+
+export type NewComputer = {
+  id: string
+  name: string
+  publicKey: string
+  os: ComputerOs
+  arch: string
+  host: string
+  caps: ComputerCaps
+  pairNonce: string
+  at: number
+}
+
+const COLUMNS = "id, name, public_key, os, arch, host, caps_json, pair_nonce, created_at"
+
+export class ComputerStore {
+  constructor(private readonly sql: SqlStorage) {}
+
+  list(): ComputerRow[] {
+    return this.sql.exec<ComputerRow>(`SELECT ${COLUMNS} FROM computers ORDER BY created_at, id`).toArray()
+  }
+
+  get(id: string): ComputerRow | null {
+    return this.sql.exec<ComputerRow>(`SELECT ${COLUMNS} FROM computers WHERE id = ?`, id).toArray()[0] ?? null
+  }
+
+  insert(input: NewComputer): boolean {
+    const inserted = this.sql.exec(
+      `INSERT INTO computers (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(pair_nonce) DO NOTHING`,
+      input.id,
+      input.name,
+      input.publicKey,
+      input.os,
+      input.arch,
+      input.host,
+      JSON.stringify(input.caps),
+      input.pairNonce,
+      input.at,
+    )
+    return inserted.rowsWritten > 0
+  }
+
+  rename(id: string, name: string): boolean {
+    return this.sql.exec("UPDATE computers SET name = ? WHERE id = ? AND name IS NOT ?", name, id, name).rowsWritten > 0
+  }
+
+  remove(id: string): boolean {
+    return this.sql.exec("DELETE FROM computers WHERE id = ?", id).rowsWritten > 0
+  }
+
+  caps(row: ComputerRow): ComputerCaps {
+    return JSON.parse(row.caps_json) as ComputerCaps
+  }
+}

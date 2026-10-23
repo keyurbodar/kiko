@@ -19,6 +19,7 @@ import { newAgentRoute } from "./user/new-agent-route"
 import { faviconRoute } from "./favicon/route"
 import { openVsxRoute } from "./themes/open-vsx-route"
 import { storageRoute } from "./owner/storage-route"
+import { computerRoute } from "./computer/route"
 
 export { OwnerDO } from "./owner/owner-do"
 import type { OwnerDO } from "./owner/owner-do"
@@ -29,6 +30,8 @@ export interface Env extends AuthEnv {
   ARCHIVE?: R2Bucket
   ASSETS: Fetcher
   CREDENTIALS_KEK: string
+  CF_TURN_KEY_ID?: string
+  CF_TURN_KEY_TOKEN?: string
   CF_GRANT?: string
   RELEASE_BASE_URL?: string
 }
@@ -47,6 +50,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url)
   if (url.pathname === "/api/health") return Response.json({ ok: true })
   if (url.pathname === "/api/version") return Response.json({ ...BACKEND, storage: env.FILES ? "r2" : "built-in" })
+  const computer = await computerRoute(request, env)
+  if (computer) return computer
   const routed = await route(request, env)
   if (routed) return routed
   const credentials = await credentialsRoute(request, env)

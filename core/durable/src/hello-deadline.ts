@@ -16,7 +16,7 @@ export const helloBy = (now = Date.now()) => now + HELLO_TIMEOUT_MS
 
 export async function enforceHello(ctx: DurableObjectState, alarms: HelloClock, now = Date.now()): Promise<void> {
   let next = Number.POSITIVE_INFINITY
-  for (const ws of ctx.getWebSockets()) {
+  for (const ws of ctx.getWebSockets("tab")) {
     const a = waiting(ws)
     if (!a || a.ready || a.helloBy === undefined) continue
     if (a.helloBy > now) {

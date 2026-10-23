@@ -93,6 +93,12 @@ import { INITIATIVE_RUN, InitiativeEngine, type Level } from "../initiative/engi
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
 import type { DevBrowserOp } from "./dev"
 import { type BrowserCheck, KernelWiring, type LiveLinkResult } from "./kernel-wiring"
+import { ComputerWiring } from "./computer-wiring"
+import { COMPUTER_WAKEUP } from "../computer/hub"
+import type { ComputerHub } from "../computer/hub"
+import type { ComputerSummary } from "@kiko/protocol"
+import type { Op } from "@kiko/computer/wire"
+import type { ComputerLinkResult, PcCallOutcome, PcReleased } from "../computer/types"
 import { MemoryCapture } from "./memory-capture"
 import { type Attachment, send, trySend } from "./socket-frames"
 import { AWAY_MS, LAST_SEEN } from "./keys"
@@ -125,6 +131,7 @@ export class User {
 
   private readonly ctx: DurableObjectState
   private readonly env: Env
+  private readonly computers: ComputerHub
   private readonly services: OwnerServices
   private readonly ownerId: string
   private readonly publishFrame: (frame: unknown) => void
@@ -138,8 +145,9 @@ export class User {
     })
   }
   constructor(options: ServiceOptions) {
-    const { ctx, env, services, sql, broadcast } = options
+    const { ctx, env, services, sql, broadcast, computers } = options
     this.ctx = ctx
+    this.computers = computers
     this.ownerId = options.identity.ownerId
     this.env = env
     this.services = services
@@ -192,7 +200,7 @@ export class User {
             away: () => {
               const last = Math.max(this.lastSeen, Number(this.setting(LAST_SEEN) ?? 0))
               const connected = this.ctx
-                .getWebSockets()
+                .getWebSockets("tab")
                 .some((ws) => (ws.deserializeAttachment() as Attachment | null)?.ready)
               const away = !connected && last > 0 && Date.now() - last > AWAY_MS
               if (away) this.ctx.waitUntil(this.awayNotice(Date.now()).catch(() => {}))
@@ -1177,7 +1185,7 @@ export class User {
     if (result.ok && frame.t !== "composioStatus") {
       const { tools: _, ...others } = result
       const text = JSON.stringify({ t: "composio", result: others } satisfies UserToClient)
-      for (const other of this.ctx.getWebSockets()) {
+      for (const other of this.ctx.getWebSockets("tab")) {
         if (other !== ws && (other.deserializeAttachment() as Attachment | null)?.ready) trySend(other, text)
       }
     }
@@ -1196,6 +1204,73 @@ export class User {
       notify: (error) => this.broadcast({ t: "error", error }),
     })
     return this.#kernelWiring
+  }
+
+  #computerWiring?: ComputerWiring
+  get #pc(): ComputerWiring {
+    this.#computerWiring ??= new ComputerWiring({
+      hub: this.computers,
+      ctx: this.ctx,
+      env: this.env,
+      services: this.services,
+      userId: () => this.ownerId,
+      publicOrigin: () => this.publicOrigin(),
+    })
+    return this.#computerWiring
+  }
+
+  computerList(): ComputerSummary[] {
+    return this.#pc.list()
+  }
+
+  async computerCall(
+    agentId: string,
+    roomId: string,
+    pcId: string,
+    op: Op,
+    args: unknown,
+    deadlineMs?: number,
+  ): Promise<PcCallOutcome> {
+    return this.#pc.call(agentId, roomId, pcId, op, args, deadlineMs)
+  }
+
+  async computerLink(
+    agentId: string,
+    roomId: string,
+    pcId: string,
+    mode: "watch" | "control",
+    reason?: string,
+  ): Promise<ComputerLinkResult> {
+    return this.#pc.link(agentId, roomId, pcId, mode, reason)
+  }
+
+  computerHolder(pcId: string): "agent" | "human" {
+    return this.#pc.holder(pcId)
+  }
+
+  async computerPair(input: {
+    publicKey: string
+    name: string
+    hello: import("@kiko/computer/wire").Hello
+    pairNonce: string
+  }): Promise<{ ok: true; id: string; name: string } | { ok: false; error: string }> {
+    return this.#pc.pair(input)
+  }
+
+  computerReleased(out: PcReleased): void {
+    this.#pc.released(out)
+  }
+
+  setComputerWakeup(at: number): Promise<void> {
+    return this.alarms.setWakeup(COMPUTER_WAKEUP, at)
+  }
+
+  clearComputerWakeup(): Promise<void> {
+    return this.alarms.clearWakeup(COMPUTER_WAKEUP)
+  }
+
+  devComputerAge(pcId: string, ms: number): boolean {
+    return this.#pc.hub.ageHold(pcId, ms)
   }
 
   async browserLease(agentId: string): Promise<Lease> {
@@ -1318,6 +1393,7 @@ export class User {
       send(ws, hello)
       const browser = this.#kr.browserState()
       if (browser) send(ws, { t: "browserState", state: browser })
+      this.#pc.onTabHello(ws)
       for (const [roomId, names] of this.#typing) send(ws, { t: "typing", roomId, names })
       const before = ws.deserializeAttachment() as Attachment | null
       ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
@@ -1333,6 +1409,20 @@ export class User {
     }
     if (frame.t === "connectKernel" || frame.t === "disconnectKernel" || frame.t === "kernelStatus") {
       await this.#kr.kernelFrame(ws, frame)
+      return
+    }
+    if (
+      frame.t === "pc.pairCode" ||
+      frame.t === "pc.remove" ||
+      frame.t === "pc.rename" ||
+      frame.t === "pc.watch" ||
+      frame.t === "pc.take" ||
+      frame.t === "pc.release" ||
+      frame.t === "pc.rtc" ||
+      frame.t === "pc.input" ||
+      frame.t === "pc.ack"
+    ) {
+      await this.#pc.frame(ws, frame)
       return
     }
     return this.handleUserFrame(ws, frame)
@@ -1354,6 +1444,15 @@ export class User {
           | "connectKernel"
           | "disconnectKernel"
           | "kernelStatus"
+          | "pc.pairCode"
+          | "pc.remove"
+          | "pc.rename"
+          | "pc.watch"
+          | "pc.take"
+          | "pc.release"
+          | "pc.rtc"
+          | "pc.input"
+          | "pc.ack"
       }
     >,
   ): Promise<void> {
@@ -1413,10 +1512,12 @@ export class User {
 
   async webSocketError(ws: WebSocket): Promise<void> {
     this.#logins?.dropOwner(ws)
+    void this.#pc.close(ws)
   }
 
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
     this.#logins?.dropOwner(ws)
+    await this.#pc.close(ws)
     const now = Date.now()
     if (
       (ws.deserializeAttachment() as Attachment | null)?.ready &&
@@ -1435,6 +1536,7 @@ export class User {
       deletion: () => this.cleanDeletedChats(),
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
       [REAP_WAKEUP]: () => this.#kr.reap(),
+      [COMPUTER_WAKEUP]: () => this.#pc.hub.reap(),
     })
   }
 

@@ -1851,4 +1851,18 @@ export class Room implements SocketRoom {
     if (event) this.publish([event])
     return true
   }
+
+  async computerAsk(slug: AgentSlug, pc: string, reason: string, key: string): Promise<boolean> {
+    const member = this.members.get(slug)
+    if (!member) return false
+    const asked = reason || "the agent needs you at the computer"
+    this.divider(`computer-ask:${key}:${slug}:${pc}`, `${member.name} needs you at ${pc}: ${asked}`, {
+      kind: "computer_control",
+      agent: slug,
+      pc,
+      reason: asked,
+      private: true,
+    })
+    return true
+  }
 }

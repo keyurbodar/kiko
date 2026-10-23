@@ -60,6 +60,7 @@ export type SystemEvent =
   | { kind: "member_added"; slug: AgentSlug; name: string; private: true }
   | { kind: "member_removed"; slug: AgentSlug; name: string; private: true }
   | { kind: "browser_control"; agent: AgentSlug; reason: string; private: true }
+  | { kind: "computer_control"; agent: AgentSlug; pc: string; reason: string; private: true }
   | {
       kind: "run_error"
       slug: AgentSlug
