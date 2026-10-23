@@ -57,6 +57,7 @@ import { changePaths, type CommitResult, type FileIndex, type IndexChange } from
 import { CHAT_PATH } from "../files/room-fs"
 import { Team } from "./team"
 import { CHIEF, type GroupInput, type NewAgentSpec } from "./chief"
+import { RoomClosed, RoomIdentityError } from "./errors"
 import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { isPrivate, RoomLog } from "./log"
 import type { HeardStep } from "./steps"
@@ -167,7 +168,7 @@ export class Room implements CommandRoom {
   private readonly sql: SqlStorage
   constructor(options: ServiceOptions) {
     const { ctx, env, services, sql, broadcast } = options
-    if (!options.identity.roomId) throw new Error("Room identity required")
+    if (!options.identity.roomId) throw new RoomIdentityError({ message: "Room identity required" })
     this.identity = { ownerId: options.identity.ownerId, roomId: options.identity.roomId }
     this.ownerStorage = ctx.storage
     this.ctx = ctx
@@ -1036,7 +1037,7 @@ export class Room implements CommandRoom {
   }
 
   async mutateMessage<T>(id: string, apply: () => T): Promise<T> {
-    if (this.erasing || this.log.meta("erasing") === "1") throw new Error("Chat is being deleted")
+    if (this.erasing || this.log.meta("erasing") === "1") throw new RoomClosed({ message: "Chat is being deleted" })
     return this.historyArchive()?.mutate(id, apply) ?? apply()
   }
 

@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 import type { OAuthCredential, Provider } from "@earendil-works/pi-ai"
 import type { Mode } from "../integrations/kernel/client"
 import type { ComposioConnection } from "../integrations/composio/connect"
@@ -10,12 +11,16 @@ import { LAST_SEEN } from "./keys"
 import { applyOverlay, type CatalogOverlay } from "../models/catalog"
 import { revisionOf, writeOverlay, writeState } from "../models/sync"
 
+class FakeProviderError extends Schema.TaggedError<FakeProviderError>()("FakeProviderError", {
+  message: Schema.String,
+}) {}
+
 export async function devSeen(sql: SqlStorage, ago: number): Promise<void> {
   setSetting(sql, LAST_SEEN, String(Date.now() - ago))
 }
 
 export async function devSetting(sql: SqlStorage, key: "memory_policy", value: string): Promise<void> {
-  if (key !== "memory_policy") throw new Error("not found")
+  if (key !== "memory_policy") throw new FakeProviderError({ message: "not found" })
   setSetting(sql, key, value)
 }
 
@@ -99,13 +104,14 @@ export function fakeProvider(id: string): Provider | undefined {
             expiresInSeconds: 600,
           })
           const code = await interaction.prompt({ type: "manual_code", message: "type the code shown above" })
-          if (code.trim() !== FAKE_CODE) throw new Error("that code is wrong")
+          if (code.trim() !== FAKE_CODE) throw new FakeProviderError({ message: "that code is wrong" })
           interaction.notify({ type: "progress", message: "code accepted" })
           return { type: "oauth", access: `fake-${crypto.randomUUID()}`, refresh: "fake", expires: Date.now() + 60_000 }
         },
         refresh: async (credential) => {
-          if (fakeRefresh === "fail") throw new Error("OAuth token request failed (400): invalid_grant")
-          if (fakeRefresh === "offline") throw new Error("fetch failed")
+          if (fakeRefresh === "fail")
+            throw new FakeProviderError({ message: "OAuth token request failed (400): invalid_grant" })
+          if (fakeRefresh === "offline") throw new FakeProviderError({ message: "fetch failed" })
           return { ...credential, expires: Date.now() + 3_600_000 }
         },
         toAuth: async (credential) => ({ apiKey: credential.access }),
@@ -126,5 +132,5 @@ export async function devModelOverlay(sql: SqlStorage, overlay: CatalogOverlay):
 }
 
 function noModels(): never {
-  throw new Error("the fake provider only signs in")
+  throw new FakeProviderError({ message: "the fake provider only signs in" })
 }

@@ -1,4 +1,5 @@
 import type { AgentSlug, Message, SearchHit, Sender } from "@kiko/protocol"
+import { MemoryNapError } from "./errors"
 import {
   dayOf,
   region,
@@ -487,7 +488,7 @@ export class RoomMemory {
     const free = this.tree.free(input)
     const out = free !== null ? { text: free } : await compress(napPrompt(input, "turns"))
     if ("retryAt" in out) return { retryAt: out.retryAt }
-    if ("error" in out && this.tree.failed(span) < MAX_NAP_FAILS) throw new Error(out.error)
+    if ("error" in out && this.tree.failed(span) < MAX_NAP_FAILS) throw new MemoryNapError({ message: out.error })
     const node = this.tree.nodeFor(input, "text" in out ? out.text : this.tree.fallback(input))
     this.tree.put(span, node)
     return {}

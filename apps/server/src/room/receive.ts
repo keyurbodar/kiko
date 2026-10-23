@@ -5,6 +5,7 @@ import type { RoomLog } from "./log"
 import type { MessageChains } from "./messaging"
 import type { MemberRow } from "./members"
 import { markReactionsBriefed } from "./reactions"
+import { ReceiveError } from "./errors"
 import type { AgentHome } from "./home"
 import type { Home } from "./home"
 
@@ -79,7 +80,7 @@ export async function receive(
   raw: Envelope[],
 ): Promise<Receipt> {
   const first = raw[0]
-  if (!first) throw new Error("receive: no envelopes")
+  if (!first) throw new ReceiveError({ message: "receive: no envelopes" })
   const delivery = d.delivery(member, members, title, raw)
   const { refused } = await d.services
     .agent(home.roomId, member.slug)

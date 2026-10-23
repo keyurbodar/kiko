@@ -517,7 +517,7 @@ export class User {
   private async cleanDeletedAgents(): Promise<void> {
     for (const { slug } of this.sql.exec<{ slug: AgentSlug }>("SELECT slug FROM deletion_agents").toArray()) {
       const result = await this.deleteAgentNow(slug)
-      if (!result.ok) throw new Error(result.error)
+      if (!result.ok) throw new RefusedError({ reason: "agent", message: result.error })
       this.sql.exec("DELETE FROM deletion_agents WHERE slug = ?", slug)
     }
     await this.alarms.clearWakeup("deletion_agents")
@@ -697,7 +697,8 @@ export class User {
     soul: string
     model: string
   }): Promise<Agent | null> {
-    if (this.handleDeleted(input.slug.trim().toLowerCase().replace(/^@/, ""))) throw new Error(DELETED_HANDLE)
+    if (this.handleDeleted(input.slug.trim().toLowerCase().replace(/^@/, "")))
+      throw new RefusedError({ reason: "agent", message: DELETED_HANDLE })
     const agent = this.saveAgent({
       id: input.id ?? crypto.randomUUID(),
       name: input.name,

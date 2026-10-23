@@ -6,6 +6,7 @@ import { Schema } from "effect"
 import { describeTrigger, type Reminder, type RoutineRun, type RunDelivery } from "../../user/reminders"
 import type { RoutineResult } from "../../user/routines"
 import { declareEffect } from "@kiko/agent/effects"
+import { AgentHomeMissing } from "../errors"
 
 export const ROUTINES = "routines"
 
@@ -90,7 +91,7 @@ const text = (t: string) => [{ type: "text" as const, text: t }]
 export function routinesExtension(port: () => RoutinesPort | null): Extension {
   const user = () => {
     const p = port()
-    if (!p) throw new Error("this agent is not in a room yet")
+    if (!p) throw new AgentHomeMissing({ message: "this agent is not in a room yet" })
     return p
   }
   return defineExtension({

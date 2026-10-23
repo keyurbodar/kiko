@@ -4,6 +4,7 @@ import { BROWSER } from "@kiko/browser/config"
 import type { BrowserSession, Tab } from "@kiko/browser/page/types"
 import { count } from "../../lib/dev-guard"
 import type { LeasePort } from "./lease"
+import { BrowserError } from "../errors"
 
 const IDLE_CLOSE_MS = 15_000
 const CLAIM_MS = 60_000
@@ -267,7 +268,9 @@ export class BrowserConnection {
       const tab = await this.tabOf(held, scope)
       const result = await tab.act({ op: "goto", url })
       if (!result.ok)
-        throw new Error(`could not open ${url}: ${result.reason}${result.detail ? ` (${result.detail})` : ""}`)
+        throw new BrowserError({
+          message: `could not open ${url}: ${result.reason}${result.detail ? ` (${result.detail})` : ""}`,
+        })
       held.url = url
       return tab
     }

@@ -18,6 +18,7 @@ import { AnswerWaiters } from "@kiko/agent/answers"
 import type { OwnerServices, ServiceOptions } from "../owner/services"
 import type { AgentHome } from "../room/room-do"
 import type { Soul } from "../user/souls"
+import { AgentEgressError, AgentGone, AgentHomeMissing } from "./errors"
 import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
 import type { GroupsPort } from "./extensions/chief"
@@ -259,7 +260,7 @@ export class Agent {
   }
 
   async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
-    if (this.metadata.get("deleted")) throw new Error("agent deleted")
+    if (this.metadata.get("deleted")) throw new AgentGone({ message: "agent deleted" })
     if (home) this.setHome(home)
     const only = envelopes.length === 1 ? envelopes[0] : undefined
     const requestId = only?.from.kind === "agent" ? (messageIdOf(only.id) ?? undefined) : undefined
@@ -312,7 +313,7 @@ export class Agent {
 
   private homeOrThrow(): AgentHome {
     const home = this.home()
-    if (!home) throw new Error("this agent has no room yet")
+    if (!home) throw new AgentHomeMissing({ message: "this agent has no room yet" })
     return home
   }
 
@@ -830,7 +831,8 @@ export class Agent {
   }
 
   async egress(request: EgressRequest): Promise<Response> {
-    if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
+    if (new URL(request.url).protocol !== "https:")
+      throw new AgentEgressError({ url: request.url, message: "egress is https only" })
     return this.services.egress(request)
   }
 

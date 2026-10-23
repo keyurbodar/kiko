@@ -4,6 +4,7 @@ import type { Asks } from "./asks"
 import { RECENT_MESSAGES } from "./message-position"
 import type { RoomLog } from "./log"
 import { parseRichText } from "@kiko/protocol/markdown"
+import { InboxFull } from "./errors"
 
 export type AgentSend = { id: string; to: AgentSlug | "all"; text: string }
 
@@ -502,7 +503,7 @@ export class RoomMessaging {
       rootId,
       hop,
     })
-    if (receipt === "full") throw new Error(`${mail.to}'s inbox is full`)
+    if (receipt === "full") throw new InboxFull({ recipient: mail.to, message: `${mail.to}'s inbox is full` })
     if (receipt === "refused")
       await this.pairBack({
         askId: remote.askId,
@@ -520,6 +521,6 @@ export class RoomMessaging {
     if (!member || this.d.mail.stopped(mail.send.rootId)) return
     const envelope = this.d.mail.envelope(home.roomId, mail.from, mail.send, mail.to)
     if ((await receive(this.d, home, member, members, await this.d.title(home), [envelope])) === "full")
-      throw new Error(`${mail.to}'s inbox is full`)
+      throw new InboxFull({ recipient: mail.to, message: `${mail.to}'s inbox is full` })
   }
 }

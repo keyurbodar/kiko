@@ -14,7 +14,7 @@ const PASTE_MESSAGE =
   "After you approve, the browser shows a page that cannot load. Copy its full address and paste it here."
 
 class SignInError extends Schema.TaggedError<SignInError>()("SignInError", {
-  code: Schema.Literals(["wrong_address", "denied", "exchange"]),
+  code: Schema.Literals(["wrong_address", "denied", "exchange", "no_installation"]),
   message: Schema.String,
 }) {}
 
@@ -139,7 +139,7 @@ function credentialFrom(token: TokenResponse, clientId: string): OAuthCredential
 
 async function pasteLogin(interaction: ProviderAuthInteraction, options?: LoginOptions): Promise<OAuthCredential> {
   const hostId = options?.getDeviceId?.()
-  if (!hostId) throw new Error("sign-in needs an installation id")
+  if (!hostId) throw new SignInError({ code: "no_installation", message: "sign-in needs an installation id" })
   const { verifier, challenge } = await pkce()
   const state = randomValue()
   const nonce = randomValue()
