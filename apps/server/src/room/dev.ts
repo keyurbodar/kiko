@@ -1,4 +1,5 @@
 import { seedArchiveHistory } from "../owner/history-dev"
+import { ArchiveError } from "../owner/errors"
 import type { HistoryArchive } from "../owner/history-archive"
 import type { AgentSlug, RoomEvent, Sender } from "@kiko/protocol"
 import type { Members } from "./members"
@@ -25,7 +26,7 @@ export class RoomDev {
 
   async archive() {
     const history = this.d.archive()
-    if (!history) throw new Error("Archive binding is required")
+    if (!history) throw new ArchiveError({ kind: "no_binding", message: "Archive binding is required" })
     await seedArchiveHistory(this.d.storage, this.d.log.roomId, history, Date.now())
     return {
       hotMessages: this.d.log.snapshot().messages.length,

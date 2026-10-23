@@ -4,7 +4,7 @@ import type { RoutineDelivery, RoutineScheduler, ScheduledRoutine } from "../own
 import { RRule } from "rrule"
 import { sha256Hex, toHex } from "@kiko/durable/hash"
 import { getSetting, setSetting } from "../lib/settings"
-import { nextOccurrence, RecurrenceError, repeatProblem, validZone } from "@kiko/sandbox/recurrence"
+import { nextOccurrence, repeatProblem, validZone } from "@kiko/sandbox/recurrence"
 import { MIN_REPEAT_MS, ruleProblem } from "@kiko/sandbox/rule"
 
 const MAX_ROUTINES = 50
@@ -115,16 +115,11 @@ function parseTime(time: string, now: number): number {
 function nextAfter(rrule: string, tz: string, due: number, now: number): number | null {
   if (ruleProblem(rrule)) return null
   let at = due
-  try {
-    for (let i = 0; i < MAX_SKIPS; i++) {
-      const next = nextOccurrence(rrule, tz, at)
-      if (!next) return null
-      if (next.getTime() > now) return next.getTime()
-      at = next.getTime()
-    }
-  } catch (error) {
-    if (error instanceof RecurrenceError) return null
-    throw error
+  for (let i = 0; i < MAX_SKIPS; i++) {
+    const next = nextOccurrence(rrule, tz, at)
+    if (!next) return null
+    if (next.getTime() > now) return next.getTime()
+    at = next.getTime()
   }
   return null
 }

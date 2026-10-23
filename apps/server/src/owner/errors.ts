@@ -1,7 +1,14 @@
 import * as Schema from "effect/Schema"
 
 export class ArchiveError extends Schema.TaggedError<ArchiveError>()("ArchiveError", {
-  kind: Schema.Literals(["invalid_room", "invalid_day", "not_serializable", "cursor_stuck", "incomplete"]),
+  kind: Schema.Literals([
+    "invalid_room",
+    "invalid_day",
+    "not_serializable",
+    "cursor_stuck",
+    "incomplete",
+    "no_binding",
+  ]),
   message: Schema.String,
 }) {}
 
