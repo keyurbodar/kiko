@@ -18,3 +18,9 @@
   Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
 /manifest.webmanifest
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/sw.js
+  Cache-Control: no-cache
+/sw-manifest.json
+  Cache-Control: no-cache
+/sw-off
+  Cache-Control: no-store

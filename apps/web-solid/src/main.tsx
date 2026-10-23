@@ -7,6 +7,7 @@ import { bootstrapSession, session } from "./app/session"
 import "./index.css"
 import { routes } from "./app/routes"
 import { Shell } from "./app/shell"
+import { whenIdle } from "./lib/idle"
 import { loadOverlaysV2 } from "@kiko/ui/v2/overlays"
 import { applyCommitted } from "@kiko/theme/apply"
 import { DEFAULT_LOOK } from "@kiko/theme/look"
@@ -101,9 +102,4 @@ export async function start(): Promise<void> {
 
 function preload(): void {
   void loadOverlaysV2()
-}
-
-function whenIdle(task: () => void): void {
-  if ("requestIdleCallback" in window) requestIdleCallback(task, { timeout: 1500 })
-  else setTimeout(task, 200)
 }

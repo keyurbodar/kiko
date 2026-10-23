@@ -23,7 +23,6 @@ import {
   type ParentProps,
 } from "solid-js"
 import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces"
-import { preloadRoute } from "./routes"
 import { preloadMessageMenu } from "../chat/ui/MessageMenu"
 import { preloadModelPicker } from "../settings/model-picker"
 import { preloadMessageSearch } from "../commands/message-search"
@@ -43,6 +42,7 @@ import { deletingChatId } from "../sidebar/actions"
 import { drawerOpen, setDrawerOpen } from "./drawer"
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe"
 import { sectionOf } from "./sections"
+import { whenIdle } from "../lib/idle"
 import { TopBar } from "./top-bar"
 import {
   CHAT_MIN,
@@ -281,15 +281,14 @@ export function Shell(props: ParentProps) {
     void import("../commands/hotkeys").then((m) => runWithOwner(owner, () => m.bindCommandHotkeys()))
   })
   onMount(() => {
-    const idle = (globalThis as { requestIdleCallback?: (run: () => void) => number }).requestIdleCallback
     if (sideOpen()) void loadSidecar()
-    const warm = () => {
-      preloadRoute("/chat")
+    whenIdle(() => {
       void SettingsDialog.preload()
+        .catch(() => {})
+        .then(() => import("./idle-preload"))
+        .then((m) => m.warmApp())
       setTimeout(() => void import("../settings/catalog").then((m) => m.prefetchCatalog()), 3000)
-    }
-    if (idle) idle(warm)
-    else setTimeout(warm, 300)
+    })
   })
   createEffect(() => {
     if (!richLoaded()) return
