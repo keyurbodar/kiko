@@ -15,6 +15,9 @@ artifacts/
 *.swo
 .DS_Store
 
+# Alchemy state for the hosted Workers. Never committed.
+.alchemy/
+
 # Local secrets. Never committed.
 .dev.vars
 .env
