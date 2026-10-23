@@ -5,6 +5,7 @@ import * as Rpc from "effect/rpc/Rpc"
 import * as RpcSchema from "effect/rpc/RpcSchema"
 import type * as Exit from "effect/Exit"
 
+export const RPC_PING = JSON.stringify({ _tag: "Ping" })
 export const RPC_PONG = JSON.stringify({ _tag: "Pong" })
 
 const RequestId = Schema.Union([Schema.String, Schema.Number])

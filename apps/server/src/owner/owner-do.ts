@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
 import { Runs } from "./runs"
-import { isRoomId, MAX_FRAME, OWNER_RPC_PATH } from "@kiko/protocol"
+import { isRoomId, MAX_FRAME } from "@kiko/protocol"
 import { Agent } from "../agent/agent-do"
 import { Room } from "../room/room-do"
 import { User } from "../user/user-do"
@@ -14,12 +14,14 @@ import { serviceContext, metadata } from "./context"
 import { Clock, createServiceClock, RECOVERY_DELAY_MS } from "./clock"
 import { AfterRun } from "./after-run"
 import { initializeSchema } from "./schema"
-import { ownerAttachment, socketView } from "./socket"
+import { openAttachment, ownerAttachment, socketView } from "./socket"
 import { CONNECT_HEADERS } from "@kiko/computer/sign"
 import { ComputerHub, pcSocketId } from "../computer/hub"
 import { ComputerStore } from "../computer/store"
 import { dispatch } from "../rpc/dispatcher"
-import type { RpcHost } from "../rpc/handlers"
+import { HANDLERS, type RpcHost } from "../rpc/handlers"
+import { makeStreams } from "../rpc/subscriptions"
+import { RPC_PING, RPC_PONG } from "../rpc/wire"
 
 type Method<T> = { [K in keyof T]: T[K] extends (...args: never[]) => unknown ? K : never }[keyof T]
 type Args<T> = T extends (...args: infer A) => unknown ? A : never
@@ -28,14 +30,13 @@ type Run = { agent: string; room_id: string; slug: string; request_id: string }
 type QueuedRun = Run & { version: number }
 
 const RUN_GAP_MS = 250
+const LEGACY_PING = "ping"
+const LEGACY_PONG = "pong"
 
 const DEADLINES = `SELECT m.scope, min(j.value) AS at FROM owner_meta m, json_each(m.value) j WHERE m.key = 'clock:application' GROUP BY m.scope`
 
 export class OwnerDO extends DurableObject<Env> {
   private readonly runs: Runs
-  async storageUsage() {
-    return { objectBytes: this.ctx.storage.sql.databaseSize, archiveEnabled: Boolean(this.env.ARCHIVE) }
-  }
   protected readonly services: OwnerServices
   private readonly rooms = new Map<string, Room>()
   private readonly agents = new Map<string, Agent>()
@@ -46,8 +47,11 @@ export class OwnerDO extends DurableObject<Env> {
   private readonly clock: Clock
   private readonly afterRunHook = new AfterRun({ services: () => this.services })
   private alarmRunning = false
-  private readonly greeting = new WeakMap<WebSocket, Promise<void>>()
-  private readonly rpcHost: RpcHost = { user: () => this.user(), room: (roomId) => this.room(roomId) }
+  private readonly rpcHost: RpcHost = {
+    streams: makeStreams({ user: () => this.user(), room: (roomId) => this.room(roomId) }),
+    user: () => this.user(),
+    room: (roomId) => this.room(roomId).commands,
+  }
   private nextRunAt = 0
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -114,7 +118,7 @@ export class OwnerDO extends DurableObject<Env> {
       syncRoutines: (routines) => this.user().syncRoutines(routines),
       fireRoutine: (delivery) => this.user().fireRoutine(delivery),
     }
-    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"))
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(RPC_PING, RPC_PONG))
   }
 
   private context(roomId?: string): DurableObjectState {
@@ -275,96 +279,17 @@ export class OwnerDO extends DurableObject<Env> {
     const client = pair[0]
     const server = pair[1]
     this.ctx.acceptWebSocket(server, ["tab"])
-    server.serializeAttachment({
-      user: { ready: false },
-      rooms: {},
-      handle: request.headers.get(HANDLE_HEADER) ?? undefined,
-      ...(new URL(request.url).pathname === OWNER_RPC_PATH ? { rpc: [] } : {}),
-    })
+    server.serializeAttachment(openAttachment(request.headers.get(HANDLE_HEADER) ?? undefined))
     await this.user().openSocket(socketView(server), request)
     this.ctx.waitUntil(this.resumeSocket())
     return new Response(null, { status: 101, webSocket: client })
   }
 
   async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
-    const pcId = pcSocketId(ws)
-    if (pcId !== null) {
-      await this.computers.message(ws, raw)
-      return
-    }
-    if (ownerAttachment(ws).rpc) {
-      if (typeof raw === "string" && raw.length > MAX_FRAME) ws.close(1009, "rpc frame too large")
-      else await dispatch(this.rpcHost, ws, raw)
-      return
-    }
-    const greeting = this.greeting.get(ws)
-    if (greeting) await greeting
-    await this.receive(ws, raw)
-  }
-
-  private async receive(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
-    if (typeof raw !== "string" || raw.length > MAX_FRAME) {
-      ws.close(1008, "bad frame")
-      return
-    }
-    let frame: unknown
-    try {
-      frame = JSON.parse(raw)
-    } catch {
-      ws.close(1008, "bad frame")
-      return
-    }
-    if (!frame || typeof frame !== "object" || !("t" in frame)) {
-      ws.close(1008, "bad frame")
-      return
-    }
-    if (frame.t === "hello") {
-      const greeting = this.user().webSocketMessage(socketView(ws), raw)
-      this.greeting.set(
-        ws,
-        greeting.catch(() => {}),
-      )
-      return greeting
-    }
-    if (frame.t === "subscribe" || frame.t === "unsubscribe" || frame.t === "room") {
-      if (!("roomId" in frame) || typeof frame.roomId !== "string" || !isRoomId(frame.roomId)) {
-        ws.close(1008, "bad room id")
-        return
-      }
-      const saved = ownerAttachment(ws)
-      if (!saved.user.ready) {
-        ws.close(1008, "hello required")
-        return
-      }
-      const roomId = frame.roomId
-      if (frame.t === "unsubscribe") {
-        delete saved.rooms[roomId]
-        ws.serializeAttachment(saved)
-        return
-      }
-      if (frame.t === "subscribe") {
-        if (
-          !("lastSeq" in frame) ||
-          !Number.isSafeInteger(frame.lastSeq) ||
-          Number(frame.lastSeq) < 0 ||
-          (Object.keys(saved.rooms).length >= 32 && !saved.rooms[roomId])
-        ) {
-          ws.close(1008, "bad subscription")
-          return
-        }
-        saved.rooms[roomId] = { ready: false }
-        ws.serializeAttachment(saved)
-        await this.room(roomId).subscribe(socketView(ws, roomId), Number(frame.lastSeq), saved.handle)
-        return
-      }
-      if (!saved.rooms[roomId] || !("frame" in frame)) {
-        ws.close(1008, "room not subscribed")
-        return
-      }
-      await this.room(roomId).webSocketMessage(socketView(ws, roomId), JSON.stringify(frame.frame))
-      return
-    }
-    await this.user().webSocketMessage(socketView(ws), raw)
+    if (raw === LEGACY_PING) return ws.send(LEGACY_PONG)
+    if (pcSocketId(ws) !== null) return this.computers.message(ws, raw)
+    if (typeof raw === "string" && raw.length > MAX_FRAME) return ws.close(1009, "rpc frame too large")
+    await dispatch(HANDLERS, { host: this.rpcHost, ws, socket: socketView(ws) }, raw)
   }
 
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {

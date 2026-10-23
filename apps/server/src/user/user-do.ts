@@ -12,7 +12,8 @@ import type {
   Chat,
   ChatOp,
   FileOp,
-  ClientToUser as UserFrame,
+  AgentOp,
+  MemoryOp,
   ComposioResult,
   InstallRecipe,
   NoticeError,
@@ -33,9 +34,14 @@ import { makeAgentChat } from "../room/new-agent"
 import { RecipeService } from "./recipe-service"
 import { recipeCard } from "../recipes/card"
 import {
-  ClientToUser,
+  ConflictError,
+  DuplicateChatError,
+  FileConflictError,
   INITIATIVE_LEVELS,
+  mergeHits,
+  NotFoundError,
   ProtocolError,
+  RefusedError,
   StorageError,
   type UserSettings,
   type UserSettingsPatch,
@@ -44,23 +50,24 @@ import type { OwnerServices, ServiceOptions } from "../owner/services"
 import { loadUserDev } from "../lib/dev-guard"
 import { signToken } from "../auth/auth"
 import { BACKEND } from "../lib/version"
-import { Schema } from "effect"
+import * as Effect from "effect/Effect"
+import { validZone } from "@kiko/sandbox/recurrence"
+import { sha256Hex } from "@kiko/durable/hash"
+import { cleanPath, deleteFiles, fileKey, MAX_SINGLE_PUT_BYTES, mime } from "../files/paths"
+import { SLUG } from "../recipes/recipe"
 import type { Env } from "../index"
-import { ComposioConnection, composioErrorText } from "../integrations/composio/connect"
-import { STORAGE_ERROR } from "../lib/storage-error"
-import { composioFailure } from "./user-errors"
+import { ComposioConnection } from "../integrations/composio/connect"
+import { composioFailure, composioIntegrationError } from "./user-errors"
 import { connectLinkFor, MANAGE_CONNECTIONS } from "../integrations/composio/connect-tool"
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
 import type { Lease } from "../agent/browser/lease"
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 import { runDue } from "../owner/clock"
-import { waitForHello } from "../owner/socket"
-import { enforceHello, HELLO_WAKEUP, helloBy } from "@kiko/durable/hello-deadline"
 import { kikoChatOps, kikoChatRoom, markKikoChat, movesKikoChat } from "./kiko-chat"
 import { keyringFromEnv } from "@kiko/durable/crypto"
-import { checkApiKey, CredentialVault } from "./credentials"
-import { keyRefused } from "./credentials-check"
+import { checkApiKey, CredentialVault, isProviderId } from "./credentials"
+import { keyRefused, keyRefusedText } from "./credentials-check"
 import { problemOfRun } from "./provider-health"
 import { ProviderCheck } from "./provider-check"
 import { userModels } from "../agent/factory"
@@ -107,13 +114,31 @@ import type { ComputerSummary } from "@kiko/protocol"
 import type { Op } from "@kiko/computer/wire"
 import type { ComputerLinkResult, PcCallOutcome, PcReleased } from "../computer/types"
 import { MemoryCapture } from "./memory-capture"
-import { type Attachment, send, trySend } from "./socket-frames"
+import { type Attachment, send } from "./socket-frames"
 import { AWAY_MS, LAST_SEEN } from "./keys"
 import { UpdateWiring } from "./update-wiring"
 
 const REPLAY_LIMIT = 500
 
-const decodeFrame = Schema.decodeUnknownSync(ClientToUser)
+const DELETED_HANDLE = "This agent handle was deleted and cannot be reused. Choose a new handle."
+const MAX_QUERY = 200
+const MAX_SEARCH_ROOMS = 30
+const SEARCH_LIMIT = 20
+const AGENT_ID = /^[0-9a-f-]{36}$/
+const MAX_AGENT_NAME = 60
+const MAX_AGENT_DESCRIPTION = 500
+const MAX_RECIPE_SLUG = 64
+const EXPECT_SHA = /^(none|[0-9a-f]{64})$/
+const EXPECT_ERROR = "say what you saw at the path: the sha256 of its bytes, or none for a new file"
+
+const routineOutcome = (out: RoutineResult) =>
+  out.ok
+    ? Effect.void
+    : Effect.fail(
+        out.error === "no such routine"
+          ? new NotFoundError({ resource: "routine", message: out.error })
+          : new ProtocolError({ message: out.error }),
+      )
 
 const AWAY_NOTICE = "away_notice"
 const PUBLIC_ORIGIN = "public_origin"
@@ -672,12 +697,7 @@ export class User {
     soul: string
     model: string
   }): Promise<Agent | null> {
-    if (
-      this.sql
-        .exec("SELECT 1 FROM deleted_agent_handles WHERE slug = ?", input.slug.trim().toLowerCase().replace(/^@/, ""))
-        .toArray().length
-    )
-      throw new Error("This agent handle was deleted and cannot be reused. Choose a new handle.")
+    if (this.handleDeleted(input.slug.trim().toLowerCase().replace(/^@/, ""))) throw new Error(DELETED_HANDLE)
     const agent = this.saveAgent({
       id: input.id ?? crypto.randomUUID(),
       name: input.name,
@@ -888,10 +908,6 @@ export class User {
   async disconnectProvider(provider: string): Promise<boolean> {
     const removed = await this.#credentials.disconnect(provider)
     return removed
-  }
-
-  async modelCatalog(have: string | null): Promise<{ revision: string; json: string | null }> {
-    return this.models.catalog(have)
   }
 
   async devModelOverlay(overlay: CatalogOverlay): Promise<void> {
@@ -1164,40 +1180,6 @@ export class User {
     return this.#composioConnection
   }
 
-  private async composioFrame(
-    ws: WebSocket,
-    frame: Extract<UserFrame, { t: "connectComposio" | "disconnectComposio" | "composioStatus" }>,
-  ) {
-    const composio = this.#composio
-    let result: ComposioResult
-    try {
-      if (frame.t === "connectComposio") result = { ok: true, ...(await composio.connect(frame.apiKey)) }
-      else if (frame.t === "disconnectComposio") {
-        composio.disconnect()
-        result = { ok: true, status: composio.status() }
-      } else {
-        const tools = frame.tools ? await composio.tools() : null
-        result = {
-          ok: true,
-          status: composio.status(),
-          ...(tools
-            ? { tools: tools.map((t) => t.name), readOnly: tools.flatMap((t) => (t.readOnly ? [t.name] : [])) }
-            : {}),
-        }
-      }
-    } catch (e) {
-      result = { ok: false, error: composioErrorText(e) }
-    }
-    send(ws, { t: "composio", reqId: frame.reqId, result })
-    if (result.ok && frame.t !== "composioStatus") {
-      const { tools: _, ...others } = result
-      const text = JSON.stringify({ t: "composio", result: others } satisfies UserToClient)
-      for (const other of this.ctx.getWebSockets("tab")) {
-        if (other !== ws && (other.deserializeAttachment() as Attachment | null)?.ready) trySend(other, text)
-      }
-    }
-  }
-
   #kernelWiring?: KernelWiring
   get #kr(): KernelWiring {
     this.#kernelWiring ??= new KernelWiring({
@@ -1319,14 +1301,9 @@ export class User {
 
   async openSocket(server: WebSocket, request: Request): Promise<void> {
     this.models.syncIfStale()
-    server.serializeAttachment({
-      ready: false,
-      helloBy: helloBy(),
-      workerOrigin: new URL(request.url).origin,
-    } satisfies Attachment)
+    server.serializeAttachment({ ready: false, workerOrigin: new URL(request.url).origin } satisfies Attachment)
     const origin = request.headers.get("origin") ?? new URL(request.url).origin
     if (this.setting(PUBLIC_ORIGIN) !== origin) this.putSetting(PUBLIC_ORIGIN, origin)
-    this.ctx.waitUntil(waitForHello(server))
   }
 
   private deviceId(): string {
@@ -1370,160 +1347,361 @@ export class User {
     return (await this.dev()).devUpdateConfig(this.sql, config)
   }
 
-  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    try {
-      await this.handleMessage(ws, message)
-    } catch (e) {
-      console.error(`user frame failed: ${e instanceof Error ? e.message : String(e)}`)
-      send(ws, { t: "error", error: STORAGE_ERROR })
-    }
+  get kernel(): KernelWiring {
+    return this.#kr
   }
 
-  private async handleMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    let frame: typeof ClientToUser.Type
-    try {
-      frame = decodeFrame(JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)))
-    } catch {
-      send(ws, {
-        t: "error",
-        error: new ProtocolError({
-          message: "This client and your backend are speaking different versions. Reload to update.",
-        }),
+  get pc(): ComputerWiring {
+    return this.#pc
+  }
+
+  readonly subscribe = Effect.fn("User.subscribe")({ self: this }, function* (ws: WebSocket, afterSequence: number) {
+    this.seen()
+    const fileToken = yield* Effect.promise(() => signToken(this.env.SESSION_SECRET, this.ownerId, "files"))
+    for (const kind of ROW_KINDS) this.project(kind)
+    send(ws, { ...this.resume(afterSequence), ...BACKEND, fileToken })
+    const browser = this.#kr.browserState()
+    if (browser) send(ws, { t: "browserState", state: browser })
+    this.#pc.onTabHello(ws)
+    for (const [roomId, names] of this.#typing) send(ws, { t: "typing", roomId, names })
+    const before = ws.deserializeAttachment() as Attachment | null
+    ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
+  })
+
+  readonly chatCommand = Effect.fn("User.chatCommand")({ self: this }, function* (op: ChatOp) {
+    const existing = this.existingFor(op)
+    if (existing)
+      return yield* new DuplicateChatError({
+        roomId: op.roomId,
+        existing,
+        message: "A chat with these agents already exists.",
       })
-      try {
-        ws.close(1002, "bad frame")
-      } catch {}
-      return
+    this.apply(op)
+  })
+
+  readonly chatOpened = Effect.fn("User.chatOpened")({ self: this }, function* (roomId: RoomId) {
+    if (!this.directory.get(roomId))
+      return yield* new NotFoundError({ resource: "room", message: "That chat does not exist." })
+    if (this.setting(LAST_CHAT) !== roomId) this.putSetting(LAST_CHAT, roomId)
+  })
+
+  readonly chatSearch = Effect.fn("User.chatSearch")({ self: this }, function (query: string) {
+    return Effect.sync(() => this.directory.search(query.slice(0, MAX_QUERY)))
+  })
+
+  readonly searchMessages = Effect.fn("User.searchMessages")(
+    { self: this },
+    function* (query: string, before?: number) {
+      const q = query.slice(0, MAX_QUERY)
+      if (!q.trim()) return { results: [], next: null, partial: false }
+      const chats = [...this.directory.list()].sort((a, b) => b.updatedAt - a.updatedAt)
+      const searched = chats.slice(0, MAX_SEARCH_ROOMS)
+      const pages = yield* Effect.promise(() =>
+        Promise.all(searched.map((chat) => this.searchRoom(chat.roomId, q, before))),
+      )
+      return { ...mergeHits(pages, SEARCH_LIMIT), partial: chats.length > searched.length }
+    },
+  )
+
+  private async searchRoom(roomId: RoomId, query: string, before?: number) {
+    try {
+      const page = await this.services.room(roomId).search(query, { beforeAt: before, limit: SEARCH_LIMIT })
+      return { results: page.results.map((hit) => ({ ...hit, roomId })), more: page.next !== null }
+    } catch (error) {
+      console.error(`search failed in a room: ${error instanceof Error ? error.message : String(error)}`)
+      return { results: [], more: false }
     }
-    if (frame.t === "hello") {
-      this.seen()
-      const fileToken = await signToken(this.env.SESSION_SECRET, this.ownerId, "files")
-      for (const kind of ROW_KINDS) this.project(kind)
-      const hello = { ...this.resume(frame.lastSeq), ...BACKEND, fileToken }
-      send(ws, hello)
-      const browser = this.#kr.browserState()
-      if (browser) send(ws, { t: "browserState", state: browser })
-      this.#pc.onTabHello(ws)
-      for (const [roomId, names] of this.#typing) send(ws, { t: "typing", roomId, names })
-      const before = ws.deserializeAttachment() as Attachment | null
-      ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
-      return
-    }
-    if (frame.t === "connectComposio" || frame.t === "disconnectComposio" || frame.t === "composioStatus") {
-      await this.composioFrame(ws, frame)
-      return
-    }
-    if (frame.t === "browserLink" || frame.t === "handBack" || frame.t === "closeBrowser") {
-      await this.#kr.browserFrame(ws, frame)
-      return
-    }
-    if (frame.t === "connectKernel" || frame.t === "disconnectKernel" || frame.t === "kernelStatus") {
-      await this.#kr.kernelFrame(ws, frame)
-      return
-    }
-    if (
-      frame.t === "pc.pairCode" ||
-      frame.t === "pc.remove" ||
-      frame.t === "pc.rename" ||
-      frame.t === "pc.watch" ||
-      frame.t === "pc.take" ||
-      frame.t === "pc.release" ||
-      frame.t === "pc.rtc" ||
-      frame.t === "pc.input" ||
-      frame.t === "pc.ack"
-    ) {
-      await this.#pc.frame(ws, frame)
-      return
-    }
-    return this.handleUserFrame(ws, frame)
   }
 
-  private async handleUserFrame(
-    ws: WebSocket,
-    frame: Exclude<
-      typeof ClientToUser.Type,
-      {
-        t:
-          | "hello"
-          | "connectComposio"
-          | "disconnectComposio"
-          | "composioStatus"
-          | "browserLink"
-          | "handBack"
-          | "closeBrowser"
-          | "connectKernel"
-          | "disconnectKernel"
-          | "kernelStatus"
-          | "pc.pairCode"
-          | "pc.remove"
-          | "pc.rename"
-          | "pc.watch"
-          | "pc.take"
-          | "pc.release"
-          | "pc.rtc"
-          | "pc.input"
-          | "pc.ack"
-      }
-    >,
-  ): Promise<void> {
-    if (frame.t === "memory") {
-      const result = await this.#mem.call(frame.op)
-      if (result.ok && (frame.op.op === "note" || frame.op.op === "redact" || frame.op.op === "pin"))
-        this.changed("memory")
-      send(ws, { t: "memory_result", reqId: frame.reqId, result })
-      return
-    }
-    if (frame.t === "theme") {
-      this.saveTheme(frame.theme)
-      return
-    }
-    if (frame.t === "search") {
-      send(ws, { t: "search", query: frame.query, chats: this.directory.search(frame.query.slice(0, 200)) })
-      return
-    }
-    if (frame.t === "agent") {
-      if (frame.op.op === "delete") await this.deleteAgent(frame.op.slug)
-      else this.saveAgent(frame.op.agent)
-      return
-    }
-    if (frame.t === "agent_model") {
-      if (!this.setAgentModel(frame.slug, frame.ref, frame.thinking, frame.roomId)) {
-        send(ws, {
-          t: "model_refused",
-          slug: frame.slug,
-          message: frame.ref
-            ? `The model did not change. Kiko does not know ${frame.ref}. Pick another one.`
-            : "The model did not change. Pick a model first.",
+  readonly newAgent = Effect.fn("User.newAgent")(
+    { self: this },
+    function* (input: {
+      readonly id: string
+      readonly roomId: RoomId
+      readonly name: string
+      readonly handle: string
+      readonly description: string
+    }) {
+      const name = input.name.trim()
+      const handle = input.handle.trim().toLowerCase()
+      const description = input.description.trim()
+      if (!AGENT_ID.test(input.id))
+        return yield* new RefusedError({ reason: "agent", message: "need an id and a roomId" })
+      if (!name || name.length > MAX_AGENT_NAME)
+        return yield* new RefusedError({ reason: "agent", message: `the name is 1 to ${MAX_AGENT_NAME} characters` })
+      if (!isAgentSlug(handle))
+        return yield* new RefusedError({
+          reason: "agent",
+          message: `"${handle}" is not a usable handle: lowercase letters, digits, and dashes`,
         })
-      }
+      if (!description || description.length > MAX_AGENT_DESCRIPTION)
+        return yield* new RefusedError({
+          reason: "agent",
+          message: `the description is 1 to ${MAX_AGENT_DESCRIPTION} characters`,
+        })
+      const out = yield* Effect.promise(() =>
+        this.createAgentChat({ id: input.id, roomId: input.roomId, name, handle, description }),
+      )
+      if (!out.ok) return yield* new RefusedError({ reason: "agent", message: out.error })
+    },
+  )
+
+  readonly agentCommand = Effect.fn("User.agentCommand")({ self: this }, function* (op: AgentOp) {
+    if (op.op === "delete") {
+      const out = yield* Effect.promise(() => this.deleteAgent(op.slug))
+      if (!out.ok) return yield* new RefusedError({ reason: "agent", message: out.error })
       return
     }
-    if (frame.t === "open") {
-      if (this.setting(LAST_CHAT) !== frame.roomId) this.putSetting(LAST_CHAT, frame.roomId)
-      return
+    if (this.handleDeleted(op.agent.slug)) return yield* new RefusedError({ reason: "agent", message: DELETED_HANDLE })
+    this.saveAgent(op.agent)
+  })
+
+  readonly agentSetModel = Effect.fn("User.agentSetModel")(
+    { self: this },
+    function* (input: {
+      readonly slug: AgentSlug
+      readonly ref?: string
+      readonly thinking?: ThinkingLevel
+      readonly roomId?: RoomId
+    }) {
+      if (this.setAgentModel(input.slug, input.ref, input.thinking, input.roomId)) return
+      return yield* new RefusedError({
+        reason: "model",
+        message: input.ref
+          ? `The model did not change. Kiko does not know ${input.ref}. Pick another one.`
+          : "The model did not change. Pick a model first.",
+      })
+    },
+  )
+
+  readonly soulGet = Effect.fn("User.soulGet")({ self: this }, function* (slug: AgentSlug) {
+    const soul = yield* Effect.promise(() => this.soul(slug))
+    return { id: slug, ...soul }
+  })
+
+  readonly soulUpdate = Effect.fn("User.soulUpdate")(
+    { self: this },
+    function* (slug: AgentSlug, body: string, expectSha: string) {
+      const out = yield* Effect.promise(() => this.setSoul(slug, body, expectSha))
+      if (out.ok) return { id: slug, ...out.soul }
+      if (out.code === "conflict") return yield* new ConflictError({ message: "changed since you opened it" })
+      return yield* new ProtocolError({ message: out.message })
+    },
+  )
+
+  readonly memoryRun = Effect.fn("User.memoryRun")({ self: this }, function* (op: MemoryOp) {
+    const result = yield* Effect.promise(() => this.#mem.call(op))
+    if (result.ok && (op.op === "note" || op.op === "redact" || op.op === "pin")) this.changed("memory")
+    return result
+  })
+
+  readonly themeSet = Effect.fn("User.themeSet")({ self: this }, function (theme: string | null) {
+    return Effect.sync(() => {
+      this.saveTheme(theme)
+    })
+  })
+
+  readonly settingsGet = Effect.fn("User.settingsGet")({ self: this }, function () {
+    return Effect.promise(() => this.userSettings())
+  })
+
+  readonly settingsUpdate = Effect.fn("User.settingsUpdate")({ self: this }, function* (patch: UserSettingsPatch) {
+    if (patch.timezone !== undefined && !validZone(patch.timezone))
+      return yield* new ProtocolError({ message: "timezone must be an IANA time zone, such as Europe/Berlin" })
+    return yield* Effect.promise(() => this.setUserSettings(patch))
+  })
+
+  readonly storageUsage = Effect.fn("User.storageUsage")({ self: this }, function () {
+    return Effect.sync(() => ({
+      objectBytes: this.ctx.storage.sql.databaseSize,
+      archiveEnabled: Boolean(this.env.ARCHIVE),
+    }))
+  })
+
+  readonly catalog = Effect.fn("User.catalog")({ self: this }, function () {
+    return Effect.sync(() => this.models.current())
+  })
+
+  readonly version = Effect.fn("User.version")({ self: this }, function () {
+    return Effect.succeed({ ...BACKEND, storage: this.env.FILES ? ("r2" as const) : ("built-in" as const) })
+  })
+
+  readonly fileToken = Effect.fn("User.fileToken")({ self: this }, function* () {
+    return { fileToken: yield* Effect.promise(() => signToken(this.env.SESSION_SECRET, this.ownerId, "files")) }
+  })
+
+  readonly writeText = Effect.fn("User.writeText")(
+    { self: this },
+    function* (input: {
+      readonly roomId: RoomId
+      readonly path: string
+      readonly type: string
+      readonly text: string
+      readonly expectSha: string
+    }) {
+      const path = cleanPath(input.path)
+      if (!path) return yield* new ProtocolError({ message: "bad path" })
+      if (!EXPECT_SHA.test(input.expectSha)) return yield* new ProtocolError({ message: EXPECT_ERROR })
+      if (!this.directory.get(input.roomId))
+        return yield* new NotFoundError({ resource: "room", message: "That chat does not exist." })
+      const bytes = new TextEncoder().encode(input.text)
+      if (bytes.byteLength > MAX_SINGLE_PUT_BYTES)
+        return yield* new ProtocolError({ message: "too large for one request, use a multipart upload" })
+      const id = crypto.randomUUID()
+      const r2Key = fileKey(this.ownerId, input.roomId, id)
+      const type = mime(input.type)
+      const files = this.services.files()
+      yield* Effect.promise(() =>
+        files.put(r2Key, bytes, { httpMetadata: { contentType: type }, customMetadata: { path } }),
+      )
+      const sha256 = yield* Effect.promise(() => sha256Hex(bytes))
+      const out = yield* Effect.promise(() =>
+        this.services.room(input.roomId).putFile({
+          id,
+          path,
+          r2Key,
+          size: bytes.byteLength,
+          type,
+          sha256,
+          author: { kind: "human" },
+          expectSha256: input.expectSha,
+        }),
+      )
+      if (out.drop) yield* Effect.promise(() => deleteFiles(files, out.drop ?? []))
+      if (out.refused) return yield* new ProtocolError({ message: out.refused.message })
+      if (out.conflict || !out.file) return yield* new FileConflictError({ theirs: out.file, message: "conflict" })
+      return out.file
+    },
+  )
+
+  readonly homeFiles = Effect.fn("User.homeFiles")({ self: this }, function* (op: FileOp) {
+    const why = this.homeOp(op)
+    if (why) return yield* new RefusedError({ reason: "home", message: why })
+  })
+
+  readonly credentialsList = Effect.fn("User.credentialsList")({ self: this }, function () {
+    return Effect.promise(() => this.listProviders())
+  })
+
+  readonly credentialsConnect = Effect.fn("User.credentialsConnect")(
+    { self: this },
+    function* (provider: string, apiKey: string) {
+      if (!isProviderId(provider)) return yield* new ProtocolError({ message: "bad provider id" })
+      const key = yield* Effect.try({
+        try: () => checkApiKey(apiKey),
+        catch: (e) =>
+          new RefusedError({ reason: "credentials", message: e instanceof Error ? e.message : "bad request" }),
+      })
+      const why = yield* Effect.promise(() => this.providerKeyRefused(provider, key))
+      if (why !== null) return yield* new RefusedError({ reason: "credentials", message: keyRefusedText(why) })
+      return yield* Effect.promise(() => this.connectProvider(provider, key))
+    },
+  )
+
+  readonly credentialsDisconnect = Effect.fn("User.credentialsDisconnect")(
+    { self: this },
+    function* (provider: string) {
+      if (!isProviderId(provider)) return yield* new ProtocolError({ message: "bad provider id" })
+      yield* Effect.promise(() => this.disconnectProvider(provider))
+    },
+  )
+
+  readonly credentialsCheck = Effect.fn("User.credentialsCheck")({ self: this }, function* (provider: string) {
+    if (!isProviderId(provider)) return yield* new ProtocolError({ message: "bad provider id" })
+    const info = yield* Effect.promise(() => this.checkProvider(provider))
+    if (!info) return yield* new NotFoundError({ resource: "provider", message: "that provider is not connected" })
+    return info
+  })
+
+  readonly loginStart = Effect.fn("User.loginStart")(
+    { self: this },
+    function (socket: WebSocket, loginId: string, provider: string) {
+      return Effect.sync(() => {
+        this.ctx.waitUntil(this.#loginState.start(socket, loginId, provider).catch(() => {}))
+      })
+    },
+  )
+
+  readonly loginAnswer = Effect.fn("User.loginAnswer")(
+    { self: this },
+    function (socket: WebSocket, loginId: string, promptId: string, value: string) {
+      return Effect.sync(() => this.#loginState.answer(socket, loginId, promptId, value))
+    },
+  )
+
+  readonly loginCancel = Effect.fn("User.loginCancel")({ self: this }, function (socket: WebSocket, loginId: string) {
+    return Effect.sync(() => this.#loginState.cancel(socket, loginId))
+  })
+
+  readonly composioConnect = Effect.fn("User.composioConnect")({ self: this }, function* (apiKey: string) {
+    const connected = yield* Effect.tryPromise({
+      try: () => this.#composio.connect(apiKey),
+      catch: composioIntegrationError,
+    })
+    return this.announceComposio({ ok: true, ...connected })
+  })
+
+  readonly composioDisconnect = Effect.fn("User.composioDisconnect")({ self: this }, function* () {
+    yield* Effect.try({ try: () => this.#composio.disconnect(), catch: composioIntegrationError })
+    return this.announceComposio({ ok: true, status: this.#composio.status() })
+  })
+
+  readonly composioStatus = Effect.fn("User.composioStatus")({ self: this }, function* (tools?: boolean) {
+    const list = tools
+      ? yield* Effect.tryPromise({ try: () => this.#composio.tools(), catch: composioIntegrationError })
+      : null
+    const result: ComposioResult = {
+      ok: true,
+      status: this.#composio.status(),
+      ...(list ? { tools: list.map((t) => t.name), readOnly: list.flatMap((t) => (t.readOnly ? [t.name] : [])) } : {}),
     }
-    if (frame.t === "home") {
-      const refused = this.homeOp(frame.op)
-      if (refused) send(ws, { t: "home_refused", op: frame.op, reason: refused })
-      return
-    }
-    if (frame.t === "update.start") return this.#update.start(frame.version)
-    if (frame.t === "login.start") {
-      const before = ws.deserializeAttachment() as Attachment | null
-      if (!before?.ready) ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
-      return void this.ctx.waitUntil(this.#loginState.start(ws, frame.loginId, frame.provider).catch(() => {}))
-    }
-    if (frame.t === "login.answer") return this.#loginState.answer(ws, frame.loginId, frame.promptId, frame.value)
-    if (frame.t === "login.cancel") return this.#loginState.cancel(ws, frame.loginId)
-    if (frame.t !== "chat") return
-    this.chatFrame(ws, frame)
+    return result
+  })
+
+  private announceComposio(result: ComposioResult): ComposioResult {
+    this.broadcast({ t: "composio", result })
+    return result
   }
 
-  private chatFrame(ws: WebSocket, frame: Extract<typeof ClientToUser.Type, { t: "chat" }>): void {
-    const existing = this.existingFor(frame.op)
-    if (existing) return send(ws, { t: "chat_refused", roomId: frame.op.roomId, existing })
-    this.apply(frame.op)
-  }
+  readonly recipesList = Effect.fn("User.recipesList")({ self: this }, function () {
+    return Effect.promise(() => this.recipeList())
+  })
+
+  readonly recipesInstall = Effect.fn("User.recipesInstall")({ self: this }, function* (input: InstallRecipe) {
+    const out = yield* Effect.promise(() => this.installRecipe(this.ownerId, input))
+    if (out.ok) return { install: out.install }
+    if ("needsConnect" in out) return out.needsConnect
+    return yield* new RefusedError({ reason: "recipe", message: out.error })
+  })
+
+  readonly recipesUninstall = Effect.fn("User.recipesUninstall")({ self: this }, function* (installId: string) {
+    yield* Effect.promise(() => this.uninstallRecipe(installId))
+  })
+
+  readonly recipesEdit = Effect.fn("User.recipesEdit")({ self: this }, function* (slug: string) {
+    if (!SLUG.test(slug) || slug.length > MAX_RECIPE_SLUG)
+      return yield* new ProtocolError({ message: "name must be lowercase words joined by dashes" })
+    const path = yield* Effect.promise(() => this.editRecipe(slug))
+    if (!path) return yield* new NotFoundError({ resource: "recipe", message: `no built-in recipe named ${slug}` })
+    return { path }
+  })
+
+  readonly routineStatus = Effect.fn("User.routineStatus")(
+    { self: this },
+    function* (id: string, status: "active" | "paused") {
+      yield* routineOutcome(yield* Effect.promise(() => this.updateRoutine(id, { status })))
+    },
+  )
+
+  readonly routineCancel = Effect.fn("User.routineCancel")({ self: this }, function* (id: string) {
+    yield* routineOutcome(yield* Effect.promise(() => this.cancelRoutine(id)))
+  })
+
+  readonly updateStart = Effect.fn("User.updateStart")({ self: this }, function (version: string) {
+    return Effect.sync(() => {
+      this.ctx.waitUntil(this.#update.start(version))
+    })
+  })
 
   async webSocketError(ws: WebSocket): Promise<void> {
     this.#logins?.dropOwner(ws)
@@ -1549,7 +1727,6 @@ export class User {
     await runDue(this.alarms, due, {
       deletion_agents: () => this.cleanDeletedAgents(),
       deletion: () => this.cleanDeletedChats(),
-      [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
       [REAP_WAKEUP]: () => this.#kr.reap(),
       [COMPUTER_WAKEUP]: () => this.#pc.hub.reap(),
     })
@@ -1614,14 +1791,13 @@ export class User {
     }
   }
 
+  private handleDeleted(slug: string): boolean {
+    return this.sql.exec("SELECT 1 FROM deleted_agent_handles WHERE slug = ?", slug).toArray().length > 0
+  }
+
   private saveAgent(agent: Agent): Agent | null {
-    if (this.sql.exec("SELECT 1 FROM deleted_agent_handles WHERE slug = ?", agent.slug).toArray().length) {
-      this.broadcast({
-        t: "error",
-        error: new StorageError({
-          message: "This agent handle was deleted and cannot be reused. Choose a new handle.",
-        }),
-      })
+    if (this.handleDeleted(agent.slug)) {
+      this.broadcast({ t: "error", error: new StorageError({ message: DELETED_HANDLE }) })
       return null
     }
     const stored = createAgent(this.sql, agent, Date.now())
@@ -1690,30 +1866,34 @@ export class User {
     this.publishFrame(frame)
   }
 
-  private resume(lastSeq: number): UserToClient {
+  private resume(afterSequence: number): Extract<UserToClient, { t: "events" | "reset" }> {
     const seq = this.currentSeq()
-    const replayable = false
-    if (!replayable) {
-      const lastChat = this.lastChat()
-      return {
-        t: "reset",
-        snapshot: {
-          seq,
-          chats: this.directory.list().map((c) => markKikoChat(this.sql, c)),
-          agents: listAgents(this.sql),
-          agentModels: allAgentModels(this.sql),
-          theme: getTheme(this.sql),
-          home: { files: this.home.all(), folders: this.home.folders() },
-          rows: rowLists(this.sql),
-          ...(lastChat ? { lastChat } : {}),
-        },
-      }
+    if (afterSequence > 0 && afterSequence <= seq && seq - afterSequence < REPLAY_LIMIT) {
+      const events = this.sql
+        .exec<{ body: string }>("SELECT body FROM user_events WHERE seq > ? ORDER BY seq", afterSequence)
+        .toArray()
+        .map((r) => JSON.parse(r.body) as UserEvent)
+      const at = Date.now()
+      const chats = this.directory
+        .list()
+        .filter((chat) => !chat.pair)
+        .map((chat): UserEvent => ({ t: "chat", chat: markKikoChat(this.sql, chat), seq, at, projection: true }))
+      return { t: "events", events: [...events, ...chats] }
     }
-    const events = this.sql
-      .exec<{ body: string }>("SELECT body FROM user_events WHERE seq > ? ORDER BY seq", lastSeq)
-      .toArray()
-      .map((r) => JSON.parse(r.body) as UserEvent)
-    return { t: "events", events }
+    const lastChat = this.lastChat()
+    return {
+      t: "reset",
+      snapshot: {
+        seq,
+        chats: this.directory.list().map((c) => markKikoChat(this.sql, c)),
+        agents: listAgents(this.sql),
+        agentModels: allAgentModels(this.sql),
+        theme: getTheme(this.sql),
+        home: { files: this.home.all(), folders: this.home.folders() },
+        rows: rowLists(this.sql),
+        ...(lastChat ? { lastChat } : {}),
+      },
+    }
   }
 
   async userSettings(): Promise<UserSettings> {

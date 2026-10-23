@@ -4,9 +4,7 @@ import { keyringFromEnv } from "@kiko/durable/crypto"
 import {
   isAgentSlug,
   isRoomId,
-  type BrowserLinkResult,
   type BrowserState,
-  type ClientToUser as UserFrame,
   type KernelResult,
   type KernelStatus,
   type NoticeError,
@@ -24,7 +22,8 @@ import {
 } from "../integrations/kernel/connect"
 import { humanHolds, KernelLease, type LeaseInfo, REAP_WAKEUP } from "../integrations/kernel/lease"
 import { KernelStore } from "../integrations/kernel/store"
-import { kernelFailure } from "./user-errors"
+import * as Effect from "effect/Effect"
+import { kernelFailure, kernelIntegrationError } from "./user-errors"
 import { checkApiKey } from "./credentials"
 import { type Attachment, send, trySend } from "./socket-frames"
 
@@ -302,52 +301,51 @@ export class KernelWiring {
     }
   }
 
-  async browserFrame(
-    ws: WebSocket,
-    frame: Extract<UserFrame, { t: "browserLink" | "handBack" | "closeBrowser" }>,
-  ): Promise<void> {
-    if (frame.t === "handBack") {
-      this.handBack()
-    } else if (frame.t === "closeBrowser") {
-      await this.browser.close().catch((e) => console.error(`close browser failed: ${kernelErrorText(e)}`))
-      if (this.store.control()) this.resume("released")
-    } else {
-      let result: BrowserLinkResult
-      try {
-        const url = await this.link(frame.mode)
-        if (frame.mode === "control") this.join()
-        result = { ok: true, url }
-      } catch (e) {
-        result = { ok: false, error: kernelErrorText(e) }
-      }
-      send(ws, { t: "browserLink", reqId: frame.reqId, result })
-    }
+  readonly browserLink = Effect.fn("Kernel.browserLink")({ self: this }, function* (mode: "watch" | "control") {
+    const url = yield* Effect.tryPromise({ try: () => this.link(mode), catch: kernelIntegrationError })
+    if (mode === "control") this.join()
     this.push()
-  }
+    return { ok: true as const, url }
+  })
 
-  async kernelFrame(
-    ws: WebSocket,
-    frame: Extract<UserFrame, { t: "connectKernel" | "disconnectKernel" | "kernelStatus" }>,
-  ): Promise<KernelResult> {
-    let result: KernelResult
-    try {
-      if (frame.t === "connectKernel") result = { ok: true, status: await this.connect(frame.apiKey) }
-      else if (frame.t === "disconnectKernel") {
-        await this.disconnect()
-        result = { ok: true, status: this.status() }
-      } else result = { ok: true, status: this.status() }
-    } catch (e) {
-      result = { ok: false, error: kernelErrorText(e) }
-    }
-    send(ws, { t: "kernel", reqId: frame.reqId, result })
-    if (frame.t === "kernelStatus") send(ws, { t: "browserState", state: this.browserState() })
+  readonly browserHandBack = Effect.fn("Kernel.browserHandBack")({ self: this }, function () {
+    return Effect.sync(() => {
+      this.handBack()
+      this.push()
+    })
+  })
+
+  readonly browserClose = Effect.fn("Kernel.browserClose")({ self: this }, function* () {
+    yield* Effect.promise(() =>
+      this.browser.close().catch((e) => console.error(`close browser failed: ${kernelErrorText(e)}`)),
+    )
+    if (this.store.control()) this.resume("released")
     this.push()
-    if (result.ok && frame.t !== "kernelStatus") {
-      const text = JSON.stringify({ t: "kernel", result } satisfies UserToClient)
-      for (const other of this.d.ctx.getWebSockets("tab")) {
-        if (other !== ws && (other.deserializeAttachment() as Attachment | null)?.ready) trySend(other, text)
-      }
-    }
+  })
+
+  readonly kernelConnect = Effect.fn("Kernel.connect")({ self: this }, function* (apiKey: string) {
+    const status = yield* Effect.tryPromise({ try: () => this.connect(apiKey), catch: kernelIntegrationError })
+    return this.announce({ ok: true, status })
+  })
+
+  readonly kernelDisconnect = Effect.fn("Kernel.disconnect")({ self: this }, function* () {
+    yield* Effect.tryPromise({ try: () => this.disconnect(), catch: kernelIntegrationError })
+    return this.announce({ ok: true, status: this.status() })
+  })
+
+  readonly kernelStatus = Effect.fn("Kernel.status")({ self: this }, function (socket: WebSocket) {
+    return Effect.sync((): KernelResult => {
+      send(socket, { t: "browserState", state: this.browserState() })
+      this.push()
+      return { ok: true, status: this.status() }
+    })
+  })
+
+  private announce(result: KernelResult): KernelResult {
+    this.push()
+    const text = JSON.stringify({ t: "kernel", result } satisfies UserToClient)
+    for (const tab of this.d.ctx.getWebSockets("tab"))
+      if ((tab.deserializeAttachment() as Attachment | null)?.ready) trySend(tab, text)
     return result
   }
 }

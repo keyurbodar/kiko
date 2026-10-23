@@ -19,6 +19,8 @@ import { Fail, failureCode, failureMessage, type Logger } from "./log"
 import { read, shell, write } from "./ops"
 
 const PING_MS = 20_000
+const PING = JSON.stringify({ _tag: "Ping" })
+const PONGS = new Set(["pong", JSON.stringify({ _tag: "Pong" })])
 const MIN_BACKOFF_MS = 1_000
 const MAX_BACKOFF_MS = 300_000
 const STABLE_MS = 30_000
@@ -172,7 +174,7 @@ class Link {
     this.host.log.info(`connected to ${this.host.endpoint.url}`)
     this.send(this.host.hello())
     if (this.ping) clearInterval(this.ping)
-    this.ping = setInterval(() => this.send("ping"), PING_MS)
+    this.ping = setInterval(() => this.send(PING), PING_MS)
   }
 
   private async explainRejection(url: string, headers: Record<string, string>): Promise<void> {
@@ -199,7 +201,7 @@ class Link {
   }
 
   private receive(data: unknown): void {
-    if (typeof data !== "string" || data === "pong") return
+    if (typeof data !== "string" || PONGS.has(data)) return
     let parsed: unknown
     try {
       parsed = JSON.parse(data)

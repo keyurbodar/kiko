@@ -8,18 +8,10 @@ import { installRoute } from "./computer/install-route"
 import { downloadRoute } from "./files/download"
 import { uploadRoute } from "./files/upload"
 import { route } from "./router"
-import { credentialsRoute } from "./user/credentials-route"
-import { modelsRoute } from "./models/route"
 import { hooksRoute } from "./user/hooks-route"
-import { settingsRoute } from "./user/settings-route"
 import { routinesRoute } from "./user/routines-route"
-import { soulRoute } from "./user/soul-route"
-import { searchRoute } from "./room/search-route"
-import { recipesRoute } from "./recipes/route"
-import { newAgentRoute } from "./user/new-agent-route"
 import { faviconRoute } from "./favicon/route"
 import { openVsxRoute } from "./themes/open-vsx-route"
-import { storageRoute } from "./owner/storage-route"
 import { computerRoute } from "./computer/route"
 
 export { OwnerDO } from "./owner/owner-do"
@@ -55,26 +47,10 @@ async function handle(request: Request, env: Env): Promise<Response> {
   if (computer) return computer
   const routed = await route(request, env)
   if (routed) return routed
-  const credentials = await credentialsRoute(request, env)
-  if (credentials) return credentials
-  const models = await modelsRoute(request, env)
-  if (models) return models
   const hooked = await hooksRoute(request, env)
   if (hooked) return hooked
   const routines = await routinesRoute(request, env)
   if (routines) return routines
-  const settings = await settingsRoute(request, env)
-  if (settings) return settings
-  const storage = await storageRoute(request, env)
-  if (storage) return storage
-  const soul = await soulRoute(request, env)
-  if (soul) return soul
-  const searched = await searchRoute(request, env)
-  if (searched) return searched
-  const made = await newAgentRoute(request, env)
-  if (made) return made
-  const recipes = await recipesRoute(request, env)
-  if (recipes) return recipes
   const themed = await openVsxRoute(request, env)
   if (themed) return themed
   const icon = await faviconRoute(request, env)
