@@ -1,8 +1,6 @@
 {
   "compilerOptions": {
-    "incremental": true,
-    "tsBuildInfoFile": "../../node_modules/.cache/tsc/apps_cli.tsbuildinfo",
-    "target": "ES2022",
+    "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,

@@ -8,7 +8,7 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
     "@earendil-works/chord": "1.3.0",

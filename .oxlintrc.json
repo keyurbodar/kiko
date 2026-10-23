@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "oxc", "typescript", "unicorn", "import"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+  "ignorePatterns": ["**/*.gen.ts", "**/dist/**", "**/.astro/**", "**/.wrangler/**", "refs/**", "dist-release/**"],
+  "rules": {
+    "eslint/no-use-before-define": [
+      "error",
+      { "functions": false, "classes": true, "variables": true, "typedefs": false }
+    ],
+    "eslint/no-await-in-loop": "off",
+    "eslint/no-shadow": "off",
+    "eslint/no-underscore-dangle": "off",
+    "unicorn/consistent-function-scoping": "off",
+    "unicorn/no-array-sort": "off",
+    "oxc/no-map-spread": "off",
+    "import/no-unassigned-import": "off",
+    "import/no-cycle": ["error", { "ignoreTypes": true }]
+  },
+  "overrides": [
+    {
+      "files": ["**/*.tsx"],
+      "rules": { "eslint/no-unassigned-vars": "off" }
+    }
+  ]
+}

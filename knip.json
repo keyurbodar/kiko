@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "rules": { "types": "off", "nsTypes": "off" },
+  "ignoreDependencies": ["cloudflare", "remixicon"],
+  "workspaces": {
+    ".": { "entry": ["scripts/*.ts"] },
+    "apps/cli": { "entry": ["src/verify/suites/*.ts"] },
+    "apps/server": { "entry": ["src/front-door.ts", "scripts/*.ts"] },
+    "apps/web-solid": { "entry": ["src/main.tsx", "scripts/*.ts"] },
+    "packages/theme": { "entry": ["scripts/*.ts"] }
+  }
+}

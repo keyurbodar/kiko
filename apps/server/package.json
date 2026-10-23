@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsgo --noEmit",
     "deploy": "NODE_ENV=production wrangler deploy",
     "deploy:dry": "NODE_ENV=production wrangler deploy --dry-run"
   },
@@ -21,15 +21,12 @@
     "@onkernel/sdk": "^0.123.0",
     "effect": "4.0.0",
     "just-bash": "3.6.0",
-    "marked": "18.0.14",
     "rrule": "2.8.1",
-    "typebox": "^1.3.34",
     "unpdf": "^1.8.1",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260101.0",
-    "miniflare": "^4",
     "typescript": "^5.9.0",
     "wrangler": "^4.0.0"
   }

@@ -1,7 +1,5 @@
 {
   "compilerOptions": {
-    "incremental": true,
-    "tsBuildInfoFile": "../../node_modules/.cache/tsc/packages_ui.tsbuildinfo",
     "target": "ESNext",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "module": "ESNext",
