@@ -117,7 +117,7 @@ case "$(uname -s)" in
 esac
 case "$(uname -m)" in
   x86_64|amd64) arch=x64 ;;
-  arm64|aarch64) arrm64 ;;
+  arm64|aarch64) arch=arm64 ;;
   *) die "unsupported architecture $(uname -m)" ;;
 esac
 asset="kiko-computer-$os-$arch"
