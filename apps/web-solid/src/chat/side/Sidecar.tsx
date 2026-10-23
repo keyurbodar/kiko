@@ -1,26 +1,13 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import {
-  CloseIcon,
-  FileTextIcon,
-  FolderOpenIcon,
-  type Glyph,
-  MemoryIcon,
-  PlusIcon,
-  RepeatIcon,
-  TasksIcon,
-  WorkerIcon,
-} from "@kiko/ui/icons"
-import { createEffect, createSignal, For, Match, on, onCleanup, onMount, Show, Switch } from "solid-js"
+import { CloseIcon, PlusIcon } from "@kiko/ui/icons"
+import { createEffect, createSignal, For, on, onCleanup, onMount, Show, Suspense } from "solid-js"
+import { Dynamic } from "solid-js/web"
 import { EntryIcon } from "../../lib/EntryIcon"
-import { FileSurface, FilesTree } from "../../files/pane"
 import { useApp } from "../../lib/store"
 import { roomMembers } from "../info/sections"
-import { MemoryError, MemoryList, useMemoryStore } from "../info/memory/views"
-import { RoutinesPage } from "../info/routines"
-import { TasksView } from "../info/tasks"
-import { AgentPage } from "./agent"
+import { launcherEntries, PANELS, panelLabel, panelOf } from "./panels"
 import {
   activateSurface,
   activeSurface,
@@ -29,8 +16,6 @@ import {
   closeSurface,
   closeToRight,
   fixedSurface,
-  LAUNCHER,
-  launcherEntries,
   openSurface,
   sidecarOpen,
   sidecarSurfaces,
@@ -38,16 +23,6 @@ import {
 } from "./surfaces"
 
 type FileTab = Extract<Surface, { kind: "file" }>
-type AgentTab = Extract<Surface, { kind: "agent" }>
-
-const ICON: Record<Surface["kind"], Glyph> = {
-  files: FolderOpenIcon,
-  file: FileTextIcon,
-  memory: MemoryIcon,
-  routines: RepeatIcon,
-  tasks: TasksIcon,
-  agent: WorkerIcon,
-}
 
 const TYPING = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])'
 const OVERLAYS = '[role="dialog"], [role="alertdialog"], [aria-modal="true"], [role="menu"], [role="listbox"]'
@@ -56,15 +31,8 @@ const ICON_BUTTON =
 
 const scrolls = new Map<string, number>()
 
-const basename = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 const tabId = (surface: Surface) => `sidecar-tab-${encodeURIComponent(surface.id)}`
 const panelId = (surface: Surface) => `sidecar-panel-${encodeURIComponent(surface.id)}`
-
-function labelOf(surface: Surface): string {
-  if (surface.kind === "file") return basename(surface.path)
-  if (surface.kind === "agent") return roomMembers().find((m) => m.slug === surface.slug)?.name ?? surface.slug
-  return LAUNCHER.find((item) => item.kind === surface.kind)?.label ?? ""
-}
 
 function Tab(props: {
   chatId: string
@@ -75,8 +43,8 @@ function Tab(props: {
   tabbable: boolean
 }) {
   let el: HTMLDivElement | undefined
-  const label = () => labelOf(props.surface)
-  const glyph = ICON[props.surface.kind]
+  const label = () => panelLabel(props.surface)
+  const glyph = PANELS[props.surface.kind].icon
   const activate = () => activateSurface(props.chatId, props.surface.id)
   createEffect(
     on(
@@ -172,7 +140,7 @@ function Launcher(props: { chatId: string }) {
         <h3 class="mb-3 text-center text-base font-medium text-foreground">Open a surface</h3>
         <For each={launcherEntries(roomMembers().length > 1)}>
           {(entry) => {
-            const glyph = ICON[entry.kind]
+            const glyph = PANELS[entry.kind].icon
             return (
               <button
                 type="button"
@@ -191,20 +159,6 @@ function Launcher(props: { chatId: string }) {
         </For>
       </div>
     </div>
-  )
-}
-
-function MemoryBody() {
-  const store = useMemoryStore()
-  return (
-    <Show when={store()} keyed>
-      {(s) => (
-        <div class="flex min-h-0 flex-1 flex-col gap-2" data-component="info-memory">
-          <MemoryError store={s} />
-          <MemoryList store={s} />
-        </div>
-      )}
-    </Show>
   )
 }
 
@@ -236,8 +190,7 @@ function SurfaceBody(props: { chatId: string; surface: Surface; hidden: boolean 
     ),
   )
   onCleanup(() => observer?.disconnect())
-  const selfScrolling =
-    props.surface.kind === "file" || props.surface.kind === "files" || props.surface.kind === "memory"
+  const entry = panelOf(props.surface.kind)
   return (
     <div
       ref={scroller}
@@ -245,7 +198,7 @@ function SurfaceBody(props: { chatId: string; surface: Surface; hidden: boolean 
       role="tabpanel"
       aria-labelledby={tabId(props.surface)}
       style={{ display: props.hidden ? "none" : undefined }}
-      class={`flex min-h-0 flex-1 flex-col ${selfScrolling ? "overflow-hidden" : "overflow-y-auto overscroll-none"}`}
+      class={`flex min-h-0 flex-1 flex-col ${entry.selfScrolling ? "overflow-hidden" : "overflow-y-auto overscroll-none"}`}
       data-component="sidecar-body"
       data-kind={props.surface.kind}
       onScroll={(e) => {
@@ -254,32 +207,14 @@ function SurfaceBody(props: { chatId: string; surface: Surface; hidden: boolean 
         scrolls.set(key(), e.currentTarget.scrollTop)
       }}
     >
-      <Switch>
-        <Match when={props.surface.kind === "files"}>
-          <FilesTree chatId={props.chatId} />
-        </Match>
-        <Match when={props.surface.kind === "file"}>
-          <FileSurface chatId={props.chatId} path={(props.surface as FileTab).path} />
-        </Match>
-        <Match when={props.surface.kind === "memory"}>
-          <MemoryBody />
-        </Match>
-        <Match when={props.surface.kind === "routines"}>
-          <RoutinesPage chatId={props.chatId} />
-        </Match>
-        <Match when={props.surface.kind === "tasks"}>
-          <div class="px-2.5 pb-3">
-            <TasksView />
-          </div>
-        </Match>
-        <Match when={props.surface.kind === "agent"}>
-          <AgentPage
-            slug={(props.surface as AgentTab).slug}
-            chatId={props.chatId}
-            onRemoved={() => closeSurface(props.chatId, props.surface.id)}
-          />
-        </Match>
-      </Switch>
+      <Suspense>
+        <Dynamic
+          component={entry.component}
+          chatId={props.chatId}
+          surface={props.surface as never}
+          close={() => closeSurface(props.chatId, props.surface.id)}
+        />
+      </Suspense>
     </div>
   )
 }
@@ -410,7 +345,7 @@ export default function Sidecar(props: { chatId: string }) {
             >
               <For each={launcherEntries(group())}>
                 {(entry) => {
-                  const glyph = ICON[entry.kind]
+                  const glyph = PANELS[entry.kind].icon
                   return (
                     <MenuV2.Item
                       data-action={`open-${entry.kind}`}

@@ -1,15 +1,8 @@
 import { createSignal } from "solid-js"
 import { rememberFile } from "../../files/recent"
+import { type FixedKind, loadPanelViews, PANELS, type PanelKind, panelOf, type Surface } from "./panels"
 
-export type FixedKind = "files" | "memory" | "routines" | "tasks"
-
-export type Surface =
-  | { id: "files"; kind: "files" }
-  | { id: `file:${string}`; kind: "file"; path: string }
-  | { id: "memory"; kind: "memory" }
-  | { id: "routines"; kind: "routines" }
-  | { id: "tasks"; kind: "tasks" }
-  | { id: `agent:${string}`; kind: "agent"; slug: string }
+export type { FixedKind, Surface }
 
 export type SidecarState = { open: boolean; active: string | null; surfaces: Surface[] }
 
@@ -18,15 +11,13 @@ export type Reveal = { chatId: string; path: string; line: number | null; n: num
 const KEY = "kiko:sidecar:v1"
 const EMPTY: SidecarState = { open: false, active: null, surfaces: [] }
 
-const FIXED: { [K in FixedKind]: Extract<Surface, { kind: K }> } = {
-  files: { id: "files", kind: "files" },
-  memory: { id: "memory", kind: "memory" },
-  routines: { id: "routines", kind: "routines" },
-  tasks: { id: "tasks", kind: "tasks" },
-}
-export const fixedSurface = (kind: FixedKind): Surface => FIXED[kind]
-const fileSurface = (path: string): Surface => ({ id: `file:${path}`, kind: "file", path })
-export const agentSurface = (slug: string): Surface => ({ id: `agent:${slug}`, kind: "agent", slug })
+export const fixedSurface = (kind: FixedKind): Surface => ({ id: kind, kind }) as Surface
+const fileSurface = (path: string): Surface => ({ id: PANELS.file.instance!.id({ path }), kind: "file", path })
+export const agentSurface = (slug: string): Surface => ({
+  id: PANELS.agent.instance!.id({ slug }),
+  kind: "agent",
+  slug,
+})
 
 function read(): string | null {
   try {
@@ -66,12 +57,15 @@ if (typeof document !== "undefined") {
 
 function parseSurface(value: unknown): Surface | null {
   if (typeof value !== "object" || value === null) return null
-  const s = value as { kind?: unknown; path?: unknown; slug?: unknown }
-  if (s.kind === "file") return typeof s.path === "string" ? fileSurface(s.path) : null
-  if (s.kind === "agent") return typeof s.slug === "string" ? agentSurface(s.slug) : null
-  if (s.kind === "files" || s.kind === "memory" || s.kind === "routines" || s.kind === "tasks")
-    return fixedSurface(s.kind)
-  return null
+  const raw = value as Record<string, unknown>
+  const kind = raw.kind
+  if (typeof kind !== "string" || !Object.hasOwn(PANELS, kind)) return null
+  const instance = panelOf(kind as PanelKind).instance as
+    | { id: (fields: object) => string; parse: (raw: Record<string, unknown>) => object | null }
+    | undefined
+  if (!instance) return fixedSurface(kind as FixedKind)
+  const fields = instance.parse(raw)
+  return fields ? ({ ...fields, kind, id: instance.id(fields) } as Surface) : null
 }
 
 function parseState(value: unknown): SidecarState | null {
@@ -201,7 +195,7 @@ export function openFile(chatId: string, path: string, line?: number) {
   setReveal({ chatId, path, line: line !== undefined && line > 0 ? line : null, n: (reveal()?.n ?? 0) + 1 })
 }
 
-export const loadSidecar = () => import("./Sidecar")
+export const loadSidecar = () => Promise.all([import("./Sidecar"), loadPanelViews()]).then(([sidecar]) => sidecar)
 
 export const activeSurface = (chatId: string): Surface | null => {
   const s = all()[chatId] ?? EMPTY
@@ -211,17 +205,4 @@ export const activeSurface = (chatId: string): Surface | null => {
 export function fileReveal(chatId: string, path: string): { line: number | null; n: number } | null {
   const r = reveal()
   return r && r.chatId === chatId && r.path === path ? { line: r.line, n: r.n } : null
-}
-
-export type LauncherItem = { kind: FixedKind; label: string; key: string; group?: true }
-
-export const LAUNCHER: readonly LauncherItem[] = [
-  { kind: "files", label: "Files", key: "F" },
-  { kind: "memory", label: "Memory", key: "M" },
-  { kind: "routines", label: "Routines", key: "R" },
-  { kind: "tasks", label: "Tasks", key: "T", group: true },
-]
-
-export function launcherEntries(group: boolean): LauncherItem[] {
-  return LAUNCHER.filter((item) => group || !item.group)
 }
