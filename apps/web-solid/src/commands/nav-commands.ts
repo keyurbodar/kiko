@@ -1,18 +1,18 @@
-import { closeSettings, openSettings, settingsSection } from "../settings/dialog-state"
+import { openSettings, toggleSettings } from "../settings/open"
 import { SETTINGS_SECTIONS } from "../settings/sections"
-import type { Choice, Command } from "./registry"
+import type { Choice, Command, CommandId } from "./registry"
 
 export function navCommands(deps: {
-  go: (href: string) => void
+  openChats: () => void
   signOut: () => void
   chooseModel: () => void
-  openView: (id: string) => void
+  openView: (id: CommandId) => void
   canReason: () => boolean
   reasoningChoices: () => Choice[]
   canChooseModel: () => boolean
 }): Command[] {
   return [
-    { id: "go.chat", title: "Chats", group: "go", icon: "chat", global: true, run: () => deps.go("/chat") },
+    { id: "go.chat", title: "Chats", group: "go", icon: "chat", global: true, run: deps.openChats },
     {
       id: "settings.open",
       title: "Open settings",
@@ -20,7 +20,7 @@ export function navCommands(deps: {
       icon: "settings",
       shortcut: "Mod+,",
       global: true,
-      run: () => (settingsSection() ? closeSettings() : openSettings()),
+      run: toggleSettings,
     },
     {
       id: "settings.models",

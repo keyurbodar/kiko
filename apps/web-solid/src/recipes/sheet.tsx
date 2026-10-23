@@ -1,5 +1,5 @@
 import type { RecipeCard } from "@kiko/protocol"
-import { useNavigate } from "@solidjs/router"
+import { openChat } from "../app/history"
 import { createSignal, For, onMount, Show } from "solid-js"
 import { Dialog } from "../lib/dialog"
 import { Button, buttonClass } from "../settings/kit"
@@ -17,10 +17,9 @@ export function RecipeSheet(props: {
   roomId?: string | null
   mode?: "add" | "details"
 }) {
-  const navigate = useNavigate()
-  const go = (to: string) => {
+  const go = (roomId: string) => {
     props.onClose()
-    navigate(to)
+    openChat(roomId)
   }
   const [adding, setAdding] = createSignal(props.mode === "add")
   const installs = () => installsFor(props.recipe.slug)

@@ -1,4 +1,4 @@
-import { useLocation } from "@solidjs/router"
+import { useLocation } from "@tanstack/solid-router"
 import { Show, createSignal, onCleanup } from "solid-js"
 import { allowClerkResume, autoResume, cancelAuthAttempt, signInWithClerk } from "../session"
 import { currentStep, installBackend, setWorking } from "./progress"
@@ -69,7 +69,7 @@ function resumeClerk(search: string): () => void {
 }
 
 export function ClerkStep() {
-  onCleanup(resumeClerk(useLocation().search))
+  onCleanup(resumeClerk(useLocation()().searchStr))
   return (
     <div class="welcome-step flex w-full flex-col gap-3" data-step="sign-in">
       <Cover />

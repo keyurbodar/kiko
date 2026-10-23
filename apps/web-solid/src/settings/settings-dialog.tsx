@@ -1,61 +1,23 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import {
-  AppearanceIcon,
-  CloseIcon,
-  CommandIcon,
-  ExtensionsIcon,
-  type Glyph,
-  ModelIcon,
-  MonitorIcon,
-  SearchIcon,
-  SettingsIcon,
-  UserIcon,
-} from "@kiko/ui/icons"
+import { CloseIcon, SearchIcon } from "@kiko/ui/icons"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { loadOverlaysV2 } from "@kiko/ui/v2/overlays"
-import { createEffect, createSignal, For, lazy, on, onCleanup, onMount, Show, type JSX } from "solid-js"
-import { Dynamic } from "solid-js/web"
+import { useLocation, useNavigate } from "@tanstack/solid-router"
+import { createEffect, createSignal, For, on, onCleanup, onMount, type ParentProps, Show } from "solid-js"
 import { cn } from "../lib/cn"
-import Appearance from "../theme/appearance"
-import { Account } from "./account"
-import { closeSettings, openSettings, settingsSection } from "./dialog-state"
-import Initiative from "./initiative"
 import { iconButtonClass, Page } from "./kit"
-import { ModelsPage } from "./models"
-import { SETTINGS_GROUPS, SETTINGS_SECTIONS, searchSections, type SettingsSection } from "./sections"
-import Tools from "./tools"
+import { closeSettings } from "./open"
+import { SETTINGS_GROUPS, searchSections, sectionAt, type SettingsSection } from "./sections"
 import "./settings-dialog.css"
-
-const KeyboardPage = lazy(() => import("./keyboard"))
-void KeyboardPage.preload()
-const ComputersPage = lazy(() => import("./computers"))
 
 void loadOverlaysV2()
 
-const PAGES: Record<SettingsSection["id"], () => JSX.Element> = {
-  models: ModelsPage,
-  tools: Tools,
-  computers: ComputersPage,
-  appearance: Appearance,
-  general: Initiative,
-  keyboard: KeyboardPage,
-  account: Account,
-}
-
-const ICON: Record<SettingsSection["id"], Glyph> = {
-  models: ModelIcon,
-  tools: ExtensionsIcon,
-  computers: MonitorIcon,
-  appearance: AppearanceIcon,
-  general: SettingsIcon,
-  keyboard: CommandIcon,
-  account: UserIcon,
-}
-
-export default function SettingsDialog() {
+export function SettingsDialog(props: ParentProps) {
   const returnTo = document.activeElement
-  const section = () => settingsSection() ?? "models"
-  const meta = () => SETTINGS_SECTIONS.find((s) => s.id === section())
+  const navigate = useNavigate()
+  const pathname = useLocation({ select: (location) => location.pathname })
+  const meta = () => sectionAt(pathname())
+  const section = () => meta()?.id
   const [query, setQuery] = createSignal("")
   const rows = () => searchSections(query())
   const groups = () =>
@@ -80,17 +42,15 @@ export default function SettingsDialog() {
     narrow?.addEventListener("change", reveal)
     onCleanup(() => narrow?.removeEventListener("change", reveal))
   })
-  onCleanup(closeSettings)
-
   const row = (s: SettingsSection) => (
     <button
       type="button"
       class="settings-nav-row"
       aria-current={s.id === section() ? "page" : undefined}
       data-section={s.id}
-      onClick={() => openSettings(s.id)}
+      onClick={() => void navigate({ to: s.to })}
     >
-      <RemixIcon icon={ICON[s.id]} size={16} />
+      <RemixIcon icon={s.icon} size={16} />
       <span class="settings-nav-label">{s.label}</span>
     </button>
   )
@@ -152,7 +112,7 @@ export default function SettingsDialog() {
             >
               <div class="mx-auto w-full max-w-3xl px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:py-8">
                 <Page title={meta()?.label ?? "Settings"} description={meta()?.hint}>
-                  <Dynamic component={PAGES[section()]} />
+                  {props.children}
                 </Page>
               </div>
             </div>

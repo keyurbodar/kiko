@@ -1,10 +1,11 @@
 import { createRoot, createSignal } from "solid-js"
-import { closeSettings } from "../settings/dialog-state"
+import type { CommandId } from "../commands/ids"
+import { closeSettings } from "../settings/open"
 
 const [stack, setStack] = createRoot(() => createSignal<readonly string[] | null>(null))
 
 export const paletteStack = stack
-export const openPalette = (view?: string) => {
+export const openPalette = (view?: CommandId) => {
   closeSettings()
   setStack(view ? [view] : [])
 }

@@ -1,4 +1,4 @@
-import { A } from "@solidjs/router"
+import { Link } from "@tanstack/solid-router"
 import { RemixIcon, type Glyph } from "@kiko/ui/remix-icon"
 import { For, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
@@ -8,7 +8,7 @@ export type RowTone = "muted" | "danger" | "warning" | "accent"
 export type RowAction = {
   label: string
   busy?: string | undefined
-  href?: string
+  chat?: string
   onClick?: () => void
   "data-action"?: string
 }
@@ -85,7 +85,7 @@ export function SystemRow(props: {
           {(action) => (
             <Show when={!action.busy} fallback={<span class="shrink-0 text-muted-foreground">{action.busy}</span>}>
               <Show
-                when={action.href}
+                when={action.chat}
                 fallback={
                   <button
                     type="button"
@@ -97,10 +97,10 @@ export function SystemRow(props: {
                   </button>
                 }
               >
-                {(href) => (
-                  <A class={PILL} href={href()}>
+                {(roomId) => (
+                  <Link class={PILL} to="/chat/$roomId" params={{ roomId: roomId() }}>
                     {action.label}
-                  </A>
+                  </Link>
                 )}
               </Show>
             </Show>

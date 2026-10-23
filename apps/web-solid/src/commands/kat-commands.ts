@@ -1,4 +1,5 @@
-import type { Choice, Command } from "./registry"
+import { CHAT_SLOTS } from "./ids"
+import type { Choice, Command, CommandId } from "./registry"
 
 export function katCommands(deps: {
   mac: boolean
@@ -11,7 +12,7 @@ export function katCommands(deps: {
   toggleSidecar: () => void
   copyLink: () => void
   agentChoices: () => Choice[]
-  openView: (id: string) => void
+  openView: (id: CommandId) => void
   newGroup: () => void
   newAgent: () => void
   openPalette: () => void
@@ -164,16 +165,16 @@ export function katCommands(deps: {
       empty: { none: "No files yet", noMatch: "No matching files" },
       run: () => deps.openView("files.go"),
     },
-    ...Array.from({ length: 9 }, (_, i): Command => ({
-      id: `chats.go-${i + 1}`,
-      title: `Go to chat ${i + 1}`,
+    ...CHAT_SLOTS.map((slot, i): Command => ({
+      id: `chats.go-${slot}`,
+      title: `Go to chat ${slot}`,
       group: "chats",
       icon: "chat",
-      shortcut: `${deps.mac ? "Control" : "Alt"}+${i + 1}`,
+      shortcut: `${deps.mac ? "Control" : "Alt"}+${slot}`,
       global: true,
       unlisted: true,
       when: () => deps.chatCount() > i,
-      run: () => deps.goToChat(i + 1),
+      run: () => deps.goToChat(slot),
     })),
     {
       id: "chats.previous",

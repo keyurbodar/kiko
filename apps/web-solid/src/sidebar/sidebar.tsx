@@ -1,4 +1,4 @@
-import { A, useLocation, useNavigate } from "@solidjs/router"
+import { Link, useLocation } from "@tanstack/solid-router"
 import { type Component, createEffect, createSignal, For, lazy, Show, Suspense } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ComposeIcon, SettingsIcon, SidebarLeftIcon, SparklesIcon } from "@kiko/ui/icons"
@@ -9,7 +9,7 @@ import { SECTIONS, type SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { KikoMark, KikoWordmark } from "../lib/brand"
-import { openSettings, settingsSection } from "../settings/dialog-state"
+import { inSettings, openSettings } from "../settings/open"
 import { Sky } from "../sky/Sky"
 import { ChatPanel } from "./chat-panel"
 const UpdatePill = lazy(() => import("../app/update-pill"))
@@ -23,7 +23,7 @@ const SECTION_IDS = SECTIONS.map((section) => section.id)
 
 type PanelAction = {
   label: string
-  run: (navigate: (to: string) => void) => void
+  run: () => void
 }
 
 const ACTIONS: Record<SectionId, PanelAction | null> = {
@@ -58,10 +58,10 @@ export function Sidebar(props: SidebarProps) {
     >
       <Sky />
       <header class="panel-header">
-        <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
+        <Link to="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
           <KikoMark class="panel-brand-mark" />
           <KikoWordmark class="panel-brand-wordmark" />
-        </A>
+        </Link>
         <span class="flex-1" aria-hidden="true" />
         <Show when={ACTIONS[shown()]}>{(action) => <HeaderAction action={action()} />}</Show>
         <SidebarToggle open onToggle={props.onToggle} />
@@ -109,8 +109,9 @@ export function SidebarToggle(props: { open: boolean; onToggle: () => void; clas
 }
 
 function Foot() {
-  const location = useLocation()
-  const onRecipes = () => location.pathname.startsWith("/recipes")
+  const pathname = useLocation({ select: (location) => location.pathname })
+  const onRecipes = () => pathname().startsWith("/recipes")
+  const onSettings = () => inSettings(pathname())
   const user = () => {
     const s = session()
     return s.status === "signed-in" ? s.user : null
@@ -133,8 +134,8 @@ function Foot() {
           <span class="panel-me-name">{profile()?.name ?? user()?.name ?? "You"}</span>
         </button>
         <TooltipV2 placement="top" openDelay={400} value="Recipes">
-          <A
-            href="/recipes"
+          <Link
+            to="/recipes"
             class="panel-icon-button"
             data-component="sidebar-recipes"
             data-active={onRecipes() ? "" : undefined}
@@ -142,7 +143,7 @@ function Foot() {
             aria-label="Recipes"
           >
             <RemixIcon icon={SparklesIcon} size={17} />
-          </A>
+          </Link>
         </TooltipV2>
         <TooltipV2 placement="top" openDelay={400} value="Settings">
           <button
@@ -151,9 +152,9 @@ function Foot() {
             data-component="sidebar-settings"
             data-hint="settings.open"
             data-hint-label="Settings"
-            data-active={settingsSection() ? "" : undefined}
+            data-active={onSettings() ? "" : undefined}
             aria-haspopup="dialog"
-            aria-expanded={settingsSection() !== null}
+            aria-expanded={onSettings()}
             aria-label="Settings"
             onClick={() => openSettings()}
           >
@@ -166,7 +167,6 @@ function Foot() {
 }
 
 function HeaderAction(props: { action: PanelAction }) {
-  const navigate = useNavigate()
   return (
     <TooltipV2 placement="bottom" openDelay={400} value={props.action.label}>
       <button
@@ -175,7 +175,7 @@ function HeaderAction(props: { action: PanelAction }) {
         data-component="sidebar-add"
         aria-label={props.action.label}
         title={props.action.label}
-        onClick={() => props.action.run(navigate)}
+        onClick={() => props.action.run()}
       >
         <RemixIcon icon={ComposeIcon} size={17} />
       </button>

@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from "@solidjs/router"
+import { useLocation, useNavigate } from "@tanstack/solid-router"
 import { For, Match, Show, Switch, createEffect, createSignal, onCleanup, onMount } from "solid-js"
 import { Button } from "../settings/kit"
 import {
@@ -70,9 +70,9 @@ function InstallProgress() {
 export function ConnectCloudflare() {
   const location = useLocation()
   const navigate = useNavigate()
-  const reconnect = () => new URLSearchParams(location.search).get("reconnect") === "1"
+  const reconnect = () => new URLSearchParams(location().searchStr).get("reconnect") === "1"
   const [view, setView] = createSignal<View>({
-    name: location.pathname === "/connect/callback" ? "installing" : "start",
+    name: location().pathname === "/connect/callback" ? "installing" : "start",
   })
   const [tokenOpen, setTokenOpen] = createSignal(false)
   const [tokenSteps, setTokenSteps] = createSignal<TokenSteps>({ status: "idle" })
@@ -90,7 +90,7 @@ export function ConnectCloudflare() {
 
   const startAgain = () => {
     setView({ name: "start" })
-    navigate(reconnect() ? "/connect?reconnect=1" : "/connect", { replace: true })
+    void navigate({ to: "/connect", search: reconnect() ? { reconnect: 1 } : {}, replace: true })
   }
 
   const signIn = () => {
@@ -106,7 +106,7 @@ export function ConnectCloudflare() {
   }
 
   const show = (error: InstallError | null, again: () => void, grant: Grant["kind"] = "oauth") => {
-    if (!error) return navigate("/", { replace: true })
+    if (!error) return void navigate({ to: "/", replace: true })
     const failure = failureOf(error)
     const retry = {
       "sign-in": () => void finishOnly(),
@@ -152,8 +152,8 @@ export function ConnectCloudflare() {
   onCleanup(() => setWorking(false))
 
   onMount(() => {
-    if (location.pathname !== "/connect/callback") return
-    const result = oauthGrant(location.search, takePending(), redirectUri(globalThis.location.origin))
+    if (location().pathname !== "/connect/callback") return
+    const result = oauthGrant(location().searchStr, takePending(), redirectUri(globalThis.location.origin))
     if ("error" in result) setView({ name: "failed", failure: failureOf(result.error), retry: startAgain })
     else void run(result.grant)
   })

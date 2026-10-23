@@ -1,4 +1,3 @@
-import { useNavigate } from "@solidjs/router"
 import type { JSX } from "solid-js"
 import { Button } from "../settings/kit"
 import { useApp } from "../lib/store"
@@ -6,7 +5,6 @@ import { Dialog } from "../lib/dialog"
 import { cancelDeleteChat, deleteChat, deletingChatId } from "./actions"
 
 export default function DeleteChatDialog(): JSX.Element {
-  const navigate = useNavigate()
   const id = deletingChatId
   const description = () => {
     const row = id() === null ? undefined : useApp.chatById(id()!)
@@ -17,7 +15,7 @@ export default function DeleteChatDialog(): JSX.Element {
   const confirm = () => {
     const target = id()
     cancelDeleteChat()
-    if (target) deleteChat(target, useApp.activeThreadId(), (to) => navigate(to))
+    if (target) deleteChat(target, useApp.activeThreadId())
   }
   return (
     <Dialog

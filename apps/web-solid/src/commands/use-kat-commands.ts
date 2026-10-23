@@ -1,5 +1,6 @@
 import { createSignal, onCleanup } from "solid-js"
-import { useLocation, useNavigate } from "@solidjs/router"
+import { history, openChat } from "../app/history"
+import { useChatInView } from "../app/sections"
 import { withMade } from "../files/api"
 import { askDeleteChat, closeChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
 import { signOut } from "../app/session"
@@ -36,17 +37,10 @@ const loadGoTo = () =>
     setGoTo(() => ({ ...g, HOME: m.HOME, recentFiles: r.recentFiles })),
   )
 
-const CHAT_PATH = /^\/chat\/([^/]+)$/
-
 export function useKatCommands(deps: { toggleSidebar: () => void }): void {
   startBrowser()
   useCommands(browserCommands())
-  const navigate = useNavigate()
-  const location = useLocation()
-  const activeId = () => {
-    const id = CHAT_PATH.exec(location.pathname)?.[1]
-    return id ? decodeURIComponent(id) : null
-  }
+  const activeId = useChatInView()
   useCommands(
     katCommands({
       mac: isMac,
@@ -56,9 +50,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       openChats: () => openPalette("chats.go"),
       openView: openPalette,
       chatChoices: () =>
-        useApp
-          .bots()
-          .map((chat) => ({ id: chat.id, title: chat.name, chatId: chat.id, run: () => navigate(`/chat/${chat.id}`) })),
+        useApp.bots().map((chat) => ({ id: chat.id, title: chat.name, chatId: chat.id, run: () => openChat(chat.id) })),
       agentChoices: () =>
         agentList(useApp.agents()).map((agent) => ({
           id: agent.id,
@@ -66,7 +58,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
           seed: agent.slug,
           run: () => {
             const roomId = useApp.user()?.createChat(agent.name, [agent.id])
-            if (roomId) navigate(`/chat/${roomId}`)
+            if (roomId) openChat(roomId)
           },
         })),
       fileSearch: (query) => {
@@ -108,23 +100,23 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       },
       closeChat: () => {
         const id = activeId()
-        if (id) closeChat(id, id, navigate)
+        if (id) closeChat(id, id)
       },
       goToChat: (n) => {
         const row = sidebarOrder()[n - 1]
-        if (row) navigate(`/chat/${row.id}`)
+        if (row) openChat(row.id)
       },
       stepChat: (step) => {
         const order = sidebarOrder()
         const at = order.findIndex((r) => r.id === activeId())
         const row = order[at === -1 ? 0 : Math.max(0, Math.min(order.length - 1, at + step))]
-        if (row && row.id !== activeId()) navigate(`/chat/${row.id}`)
+        if (row && row.id !== activeId()) openChat(row.id)
       },
       chatCount: () => useApp.bots().length,
       searchChat: () => openSearch("chat"),
       reopenClosed: () => {
         const id = reopenClosedChat()
-        if (id) navigate(`/chat/${id}`)
+        if (id) openChat(id)
       },
       attach: () => document.querySelector<HTMLButtonElement>('[data-hint="chat.attach"]')?.click(),
       rename: () => {
@@ -149,7 +141,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
     messageSearchCommand({
       open: (hit) => {
         requestJump({ roomId: hit.roomId, id: hit.id, seq: hit.seq })
-        if (hit.roomId !== activeId()) navigate(`/chat/${hit.roomId}`)
+        if (hit.roomId !== activeId()) openChat(hit.roomId)
       },
       openView: openPalette,
     }),
@@ -157,10 +149,10 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
   const chipAgent = () => answeringMember(useApp.roomMembers(), "")
   useCommands(
     navCommands({
-      go: (href) => navigate(href),
+      openChats: () => openChat(null),
       signOut: () => void signOut(),
       chooseModel: () => {
-        if (!location.pathname.startsWith("/chat")) navigate("/chat")
+        if (!history.location.pathname.startsWith("/chat")) openChat(useApp.activeThreadId())
         openModelPicker()
       },
       openView: openPalette,

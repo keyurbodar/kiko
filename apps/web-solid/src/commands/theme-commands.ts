@@ -2,7 +2,7 @@ import type { Imported } from "@kiko/theme/imported"
 import type { Mode } from "@kiko/theme/look"
 import { appearanceOf } from "@kiko/theme/apply"
 import { THEME_IDS, THEMES, type DarkThemeId, type ThemeId, type ThemeAppearance } from "@kiko/theme/palette"
-import type { Choice, Command } from "./registry"
+import type { Choice, Command, CommandId } from "./registry"
 
 const MODES: [Mode, string][] = [
   ["dark", "Dark mode"],
@@ -20,7 +20,7 @@ export function themeCommands(deps: {
   preview: (look: { mode?: Mode; darkTheme?: DarkThemeId; active?: Imported["active"] }) => () => void
   activeAgent: () => string | null
   changeAvatar: (slug: string) => void
-  openView: (id: string) => void
+  openView: (id: CommandId) => void
 }): Command[] {
   return [
     {

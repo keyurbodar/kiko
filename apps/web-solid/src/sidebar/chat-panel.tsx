@@ -4,7 +4,7 @@ import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { openAvatarPicker } from "../avatar/picker-state"
-import { useNavigate } from "@solidjs/router"
+import { openChat } from "../app/history"
 import { createEffect, createMemo, createSignal, For, type JSX, onCleanup, Show } from "solid-js"
 import { VList } from "virtua/solid"
 import { ChatAvatar } from "../lib/IdentityAvatar"
@@ -51,7 +51,6 @@ const PRESENCE: Record<BotPresence, string> = {
 }
 
 function ChatMenuItems(props: { id: string }) {
-  const navigate = useNavigate()
   const chat = createMemo(() =>
     useApp
       .user()
@@ -75,13 +74,13 @@ function ChatMenuItems(props: { id: string }) {
       </Show>
       <MenuV2.Separator />
       <MenuV2.Item onSelect={() => markUnread(props.id)}>Mark as unread</MenuV2.Item>
-      <MenuV2.Item onSelect={() => closeChat(props.id, active(), navigate)}>Close</MenuV2.Item>
+      <MenuV2.Item onSelect={() => closeChat(props.id, active())}>Close</MenuV2.Item>
       <MenuV2.Separator />
       <Show when={!chat()?.kiko} fallback={<MenuV2.Item disabled>Kiko can't be deleted</MenuV2.Item>}>
         <MenuV2.Item
           class="text-error"
           closeOnSelect={false}
-          onSelect={() => (sure() ? deleteChat(props.id, active(), navigate) : setSure(true))}
+          onSelect={() => (sure() ? deleteChat(props.id, active()) : setSure(true))}
         >
           {sure() ? "Delete chat?" : "Delete"}
         </MenuV2.Item>
@@ -205,7 +204,6 @@ function ChatRow(props: {
 }) {
   const [menuOpen, setMenuOpen] = createSignal(false)
   const [previewOpen, setPreviewOpen] = previewState(props.bot.id)
-  const navigate = useNavigate()
   const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id)
   const draft = () => {
     const book = useApp.drafts()
@@ -214,7 +212,7 @@ function ChatRow(props: {
 
   const select = () => {
     clearUnreadMark(props.bot.id)
-    navigate(`/chat/${props.bot.id}`)
+    openChat(props.bot.id)
   }
 
   const onKeyDown = (event: KeyboardEvent) => {

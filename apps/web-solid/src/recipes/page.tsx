@@ -2,8 +2,9 @@ import type { RecipeCard } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { SearchIcon } from "@kiko/ui/icons"
 import { TabsV2 } from "@kiko/ui/v2/tabs-v2"
-import { useNavigate, useSearchParams } from "@solidjs/router"
-import { createEffect, createMemo, createSignal, For, type JSX, onMount, Show } from "solid-js"
+import { getRouteApi } from "@tanstack/solid-router"
+import { openChat } from "../app/history"
+import { createMemo, createSignal, For, type JSX, onMount, Show } from "solid-js"
 import { useApp } from "../lib/store"
 import { buttonClass } from "../settings/kit"
 import { byChatOrder, filterRecipes, recipeTags, type TagFilter, tagLabel } from "./model"
@@ -30,14 +31,10 @@ function Empty(props: { title: string; children?: JSX.Element }) {
   )
 }
 
+const route = getRouteApi("/recipes")
+
 export default function RecipesPage() {
-  const navigate = useNavigate()
-  const [params] = useSearchParams()
-  const roomId = () => (typeof params.room === "string" ? params.room : undefined)
-  createEffect(() => {
-    const id = roomId()
-    if (id) useApp.selectThread(id)
-  })
+  const roomId = route.useSearch({ select: (search) => search.room })
   const [query, setQuery] = createSignal("")
   const [tag, setTag] = createSignal<TagFilter>("all")
   const [open, setOpen] = createSignal<{ card: RecipeCard; mode?: "add" } | null>(null)
@@ -55,7 +52,7 @@ export default function RecipesPage() {
   const add = (card: RecipeCard) => {
     const id = roomId()
     const targets = id ? targetsForChat(id) : []
-    if (targets.length === 1 && !isAdded(card.slug, targets[0])) addToTarget(card, targets[0], navigate)
+    if (targets.length === 1 && !isAdded(card.slug, targets[0])) addToTarget(card, targets[0], openChat)
     else setOpen({ card, mode: "add" })
   }
   onMount(() => void refreshListing())

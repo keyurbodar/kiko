@@ -2,7 +2,7 @@ import type { RecipeCard, RecipeInstall } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { MoreIcon, PauseIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
-import { useNavigate } from "@solidjs/router"
+import { openChat } from "../app/history"
 import { Show } from "solid-js"
 import { cn } from "../lib/cn"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
@@ -43,7 +43,7 @@ function StatusChip(props: { status: InstallStatus }) {
   )
 }
 
-function InstallActions(props: { install: RecipeInstall; card: RecipeCard; go: (to: string) => void }) {
+function InstallActions(props: { install: RecipeInstall; card: RecipeCard; go: (roomId: string) => void }) {
   const status = () => installStatus(props.install, props.card)
   return (
     <span class="relative flex shrink-0 items-center gap-0.5">
@@ -65,7 +65,7 @@ function InstallActions(props: { install: RecipeInstall; card: RecipeCard; go: (
         </MenuV2.Trigger>
         <MenuV2.Portal>
           <MenuV2.Content class="z-[80]">
-            <MenuV2.Item onSelect={() => props.go(`/chat/${props.install.roomId}`)}>Open chat</MenuV2.Item>
+            <MenuV2.Item onSelect={() => props.go(props.install.roomId)}>Open chat</MenuV2.Item>
             <MenuV2.Item onSelect={() => void editRecipe(props.card.slug, props.go)}>Edit recipe</MenuV2.Item>
             <MenuV2.Item onSelect={() => removeInstall(props.install)}>
               Remove from {agentName(props.install.agent)}
@@ -89,7 +89,6 @@ function Runner(props: { install: RecipeInstall }) {
 }
 
 export function InstallCard(props: { install: RecipeInstall; card: RecipeCard }) {
-  const navigate = useNavigate()
   const chatName = () => useApp.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
   return (
     <article
@@ -104,7 +103,7 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
         class="flex min-w-0 cursor-pointer items-center gap-3.5 text-left outline-none after:absolute after:inset-0 after:rounded-[inherit]"
         data-action="open-recipe-chat"
         aria-label={`Open ${chatName()}`}
-        onClick={() => navigate(`/chat/${props.install.roomId}`)}
+        onClick={() => openChat(props.install.roomId)}
       >
         <RecipeIcon recipe={props.card} size={48} stickers />
         <span class="flex min-w-0 flex-1 flex-col gap-1">
@@ -120,13 +119,13 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
         <span class="min-w-0 flex-1">
           <StatusChip status={installStatus(props.install, props.card)} />
         </span>
-        <InstallActions install={props.install} card={props.card} go={navigate} />
+        <InstallActions install={props.install} card={props.card} go={openChat} />
       </div>
     </article>
   )
 }
 
-export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; navigate: (to: string) => void }) {
+export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; navigate: (roomId: string) => void }) {
   const title = () => useApp.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
   return (
     <div
@@ -138,7 +137,7 @@ export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; na
         type="button"
         class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none"
         data-action="open-recipe-chat"
-        onClick={() => props.navigate(`/chat/${props.install.roomId}`)}
+        onClick={() => props.navigate(props.install.roomId)}
       >
         <ChatAvatar faces={useApp.chatFaces(props.install.roomId)} size={36} />
         <span class="flex min-w-0 flex-1 flex-col gap-1">

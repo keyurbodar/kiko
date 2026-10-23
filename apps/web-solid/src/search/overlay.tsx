@@ -1,4 +1,4 @@
-import { useNavigate } from "@solidjs/router"
+import { openChat } from "../app/history"
 import { Icon } from "@kiko/ui/v2/icon"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { loadOverlaysV2 } from "@kiko/ui/v2/overlays"
@@ -14,7 +14,6 @@ import "./search.css"
 void loadOverlaysV2()
 
 export default function SearchOverlay() {
-  const navigate = useNavigate()
   const [view, setView] = createSignal<SearchView>()
   const hasChat = () => !!useApp.activeThreadId()
   const search = createSearch({
@@ -61,7 +60,7 @@ export default function SearchOverlay() {
     if (!hit) return
     closeSearch()
     requestJump({ roomId: hit.roomId, id: hit.id, seq: hit.seq })
-    if (hit.roomId !== useApp.activeThreadId()) navigate(`/chat/${hit.roomId}`)
+    if (hit.roomId !== useApp.activeThreadId()) openChat(hit.roomId)
   }
   const pickScope = (scope: SearchScope) => {
     setSearchScope(scope)

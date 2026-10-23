@@ -1,5 +1,5 @@
 import { cachedUri } from "@kiko/avatar/uri"
-import { useLocation, useNavigate } from "@solidjs/router"
+import { history, openChat } from "../app/history"
 import { createMemo, createSignal, For, onMount, Show } from "solid-js"
 import { Dialog } from "../lib/dialog"
 import { cn } from "../lib/cn"
@@ -11,8 +11,6 @@ import { closeNewAgent } from "./state"
 
 export default function NewAgentDialog() {
   let nameInput: HTMLInputElement | undefined
-  const navigate = useNavigate()
-  const location = useLocation()
   const [name, setName] = createSignal("")
   const [handle, setHandle] = createSignal("")
   const [handleEdited, setHandleEdited] = createSignal(false)
@@ -41,11 +39,11 @@ export default function NewAgentDialog() {
   const create = (event?: SubmitEvent) => {
     event?.preventDefault()
     if (!ready(form(), taken())) return
-    const here = location.pathname + location.search
-    const roomId = createAgent(form(), pins(), () => navigate(here))
+    const here = history.location.href
+    const roomId = createAgent(form(), pins(), () => history.replace(here))
     if (!roomId) return
     closeNewAgent()
-    navigate(`/chat/${roomId}`)
+    openChat(roomId)
   }
 
   return (

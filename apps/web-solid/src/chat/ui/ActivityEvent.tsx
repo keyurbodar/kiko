@@ -80,7 +80,7 @@ export function ActivityEvent(props: { message: ChatMessage; name: (slug: string
   const actions = (): RowAction[] | undefined => {
     const event = failed()
     if (event) return props.latest ? event.actions.slice(0, 2).map((action) => failureAction(event, action)) : undefined
-    return props.message.goto ? [{ label: "Open chat", href: `/chat/${props.message.goto}` }] : undefined
+    return props.message.goto ? [{ label: "Open chat", chat: props.message.goto }] : undefined
   }
 
   return (

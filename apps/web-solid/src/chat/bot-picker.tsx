@@ -1,4 +1,4 @@
-import { useNavigate } from "@solidjs/router"
+import { openChat } from "../app/history"
 import { type Agent, KIKO } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, PlusIcon } from "@kiko/ui/icons"
@@ -17,7 +17,6 @@ import { groupTitle, roomFor, togglePick } from "./bot-picker-model"
 const NEW_AGENT = "new-agent"
 
 export default function BotPicker() {
-  const navigate = useNavigate()
   const [picked, setPicked] = createSignal<string[]>([])
   const [highlight, setHighlight] = createSignal("")
   const [query, setQuery] = createSignal("")
@@ -32,7 +31,7 @@ export default function BotPicker() {
     const roomId = useApp.user()?.createChat(chatTitle, agentIds)
     if (!roomId) return
     closeBotPicker()
-    navigate(`/chat/${roomId}`)
+    openChat(roomId)
   }
 
   const start = () => {
