@@ -24,7 +24,10 @@ export async function withCors(request: Request, env: AuthEnv, handle: () => Pro
     }
     return new Response(null, { status: 204, headers })
   }
-  const response = await handle()
+  const response = await handle().catch((error: unknown) => {
+    console.error(error)
+    return Response.json({ error: "internal error" }, { status: 500 })
+  })
   if (response.webSocket) return response
   const out = new Response(response.body, response)
   out.headers.append("vary", "Origin")

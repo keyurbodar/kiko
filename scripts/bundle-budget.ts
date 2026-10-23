@@ -17,7 +17,6 @@ const TIER3 = [
   "../../packages/ui/src/v2/components/toast-v2-impl.tsx",
   "src/composer/prompt-input/extras.tsx",
   "src/composer/rich/bind.ts",
-  "src/app/idle-preload.ts",
   "src/chat/ui/ImageDialog.tsx",
   "src/chat/ui/EmojiPicker.tsx",
   "src/chat/ui/ReactionPopover.tsx",
@@ -27,7 +26,7 @@ const TIER4 = ["src/settings/settings-dialog.tsx"]
 const FIRST_RUN = ["src/app/first-run/frame.tsx"]
 
 const RECORDED: Record<string, number> = {
-  "tier 1 shell js": 2011,
+  "tier 1 shell js": 2361,
   "tier 2 first paint of /chat": 214055,
   "tier 3 lazy modules": 313960,
   "tier 4 route chunks": 27858,

@@ -44,9 +44,7 @@ A warm prompt writes 6 billed rows: the human's message, the reply, one journal 
 
 The client paints from IndexedDB first and applies every action locally before the server answers. The first-paint tiers stay small, and `scripts/bundle-budget.ts` fails the build when one grows past its limit.
 
-After first paint the client warms every lazy module in `apps/web-solid/src/app/idle-preload.ts`, so opening the sidecar, palette, search, emoji picker, composer extras or a route page never waits on a chunk. Add a new lazy boundary to that list.
-
-A service worker (`apps/web-solid/scripts/service-worker.ts`, built to `/sw.js`) caches hashed `/assets/*` files cache-first and, once the client is idle, downloads every lazy chunk listed in the build's `/sw-manifest.json`. It never touches `/`, `/index.html`, `/api/*`, `/pc/*`, websockets or non-GET requests, so a release still reaches an install through the network-first HTML. It deletes cached files the current manifest no longer lists and unregisters itself when `/sw-off` exists or the manifest is missing. To switch it off in every install without a release, serve a `/sw-off` file.
+There is no service worker. `/sw.js` is a kill switch that unregisters the old one and clears its caches in installs that registered it. Hashed `/assets/*` files are served `public, max-age=31536000, immutable`, and `index.html` is served `no-cache`, so every load picks up the current build. A deploy removes the previous build's chunks, so an open tab can hit a 404 on its next lazy import. `vite:preloadError` then reloads the page once, guarded by a `sessionStorage` key that a clean startup clears. Without `sessionStorage` it does not reload, and the import rejects as usual.
 
 Solid components run top to bottom once, and memos and effects evaluate as soon as they are created. Declaration order inside a component is runtime order, which is why lint rejects any use before definition.
 

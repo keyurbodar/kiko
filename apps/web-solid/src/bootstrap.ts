@@ -1,10 +1,23 @@
 import { apiUrl, getToken } from "./lib/api-base"
 
-import { recover, recoveryPending, clearRecovery } from "./lib/chunk-recovery"
+const RELOAD_KEY = "kiko:chunk-reload"
+let chunkFailed = false
+let reloading = false
 
-window.addEventListener("vite:preloadError", (event) => {
-  event.preventDefault()
-  void recover((event as Event & { payload?: unknown }).payload)
+function reloadOnce(): boolean {
+  try {
+    if (sessionStorage.getItem(RELOAD_KEY)) return false
+    sessionStorage.setItem(RELOAD_KEY, "1")
+  } catch {
+    return false
+  }
+  location.reload()
+  return true
+}
+
+window.addEventListener("vite:preloadError", () => {
+  chunkFailed = true
+  reloading ||= reloadOnce()
 })
 
 declare global {
@@ -19,8 +32,15 @@ globalThis.__kikoBoot = {
 
 void Promise.all([import("./main"), import("./app/routes/chat"), token ? undefined : import("./app/first-run/frame")])
   .then(async ([main]) => {
-    if (recoveryPending()) return
+    if (reloading) return
     await main.start()
-    if (!recoveryPending()) clearRecovery()
+    if (chunkFailed) return
+    try {
+      sessionStorage.removeItem(RELOAD_KEY)
+    } catch {}
   })
-  .catch(recover)
+  .catch(() => {
+    if (reloading) return
+    const el = document.getElementById("boot-error")
+    if (el) el.style.display = "block"
+  })

@@ -285,10 +285,7 @@ export function Shell(props: ParentProps) {
   onMount(() => {
     if (sideOpen()) void loadSidecar()
     whenIdle(() => {
-      void SettingsDialog.preload()
-        .catch(() => {})
-        .then(() => import("./idle-preload"))
-        .then((m) => m.warmApp())
+      void SettingsDialog.preload().catch(() => {})
       setTimeout(() => void import("../settings/catalog").then((m) => m.prefetchCatalog()), 3000)
     })
   })

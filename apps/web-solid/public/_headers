@@ -1,7 +1,7 @@
 /
-  Cache-Control: public, max-age=0, must-revalidate
+  Cache-Control: no-cache
 /index.html
-  Cache-Control: public, max-age=0, must-revalidate
+  Cache-Control: no-cache
 /releases/latest.json
   Cache-Control: no-store
 /assets/*
@@ -20,7 +20,3 @@
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 /sw.js
   Cache-Control: no-cache
-/sw-manifest.json
-  Cache-Control: no-cache
-/sw-off
-  Cache-Control: no-store
