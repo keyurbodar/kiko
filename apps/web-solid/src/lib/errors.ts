@@ -1,6 +1,6 @@
 import type { ErrorAction } from "@kiko/protocol"
 import { showToastV2, type ToastV2Action, type ToastV2Options } from "@kiko/ui/v2/toast-v2"
-import { openSettings } from "../settings/dialog-state"
+import { openSettings } from "../settings/open"
 
 const PLAIN_ERROR_MS = 10_000
 

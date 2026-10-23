@@ -12,7 +12,7 @@ import {
   Show,
   type JSX,
 } from "solid-js"
-import { openSettings } from "./dialog-state"
+import { openSettings } from "./open"
 import { setModelsTab } from "./models-tab"
 import { createLive } from "../sync/changed"
 import { Portal } from "solid-js/web"

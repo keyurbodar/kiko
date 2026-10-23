@@ -50,14 +50,14 @@ export const broken = (): readonly string[] => listing().broken ?? []
 
 export const isEditing = (slug: string): boolean => editing().has(slug)
 
-export async function editRecipe(slug: string, navigate: (to: string) => void): Promise<void> {
+export async function editRecipe(slug: string, navigate: (roomId: string) => void): Promise<void> {
   if (editing().has(slug)) return
   const roomId = useApp.kikoChatId()
   setEditing((set) => new Set(set).add(slug))
   const path = await postEdit(slug).finally(() => setEditing((set) => new Set([...set].filter((s) => s !== slug))))
   if (!roomId || !path) return void showToastV2({ title: "Could not open the recipe", variant: "error" })
   openFile(roomId, `home/${path}`)
-  navigate(`/chat/${roomId}`)
+  navigate(roomId)
 }
 
 export type RecipeTarget = { roomId: RoomId; agent: string; name: string }
@@ -142,7 +142,7 @@ const failed = (card: RecipeCard, error: string) =>
 export type ConnectAsk = {
   card: RecipeCard
   body: InstallRecipe
-  navigate: (to: string) => void
+  navigate: (roomId: string) => void
   connect: RecipeNeedsConnect
 }
 
@@ -155,7 +155,7 @@ export const isWaiting = (slug: string): boolean => waiting().has(slug)
 async function submit(
   card: RecipeCard,
   body: InstallRecipe,
-  navigate: (to: string) => void,
+  navigate: (roomId: string) => void,
 ): Promise<RecipeInstall | null> {
   const result = await postInstall(body)
   if (result.ok) {
@@ -169,7 +169,11 @@ async function submit(
 
 const ready = (card: RecipeCard) => card.apps.every((a) => a.connected === true)
 
-export function addToTarget(card: RecipeCard, target: RecipeTarget | undefined, navigate: (to: string) => void): void {
+export function addToTarget(
+  card: RecipeCard,
+  target: RecipeTarget | undefined,
+  navigate: (roomId: string) => void,
+): void {
   if (!target || isAdded(card.slug, target) || isWaiting(card.slug)) return
   const install: RecipeInstall = {
     installId: crypto.randomUUID(),
@@ -189,7 +193,7 @@ export function addToTarget(card: RecipeCard, target: RecipeTarget | undefined, 
   const optimistic = ready(card)
   if (optimistic) {
     recorded(install)
-    navigate(`/chat/${target.roomId}`)
+    navigate(target.roomId)
   } else mark(setWaiting, card.slug, true)
   void submit(card, body, navigate).then((made) => {
     mutations--
@@ -197,17 +201,17 @@ export function addToTarget(card: RecipeCard, target: RecipeTarget | undefined, 
     changeInstalls((list) => list.filter((i) => i.installId !== install.installId))
     if (!made) return
     recorded(made)
-    if (!optimistic) navigate(`/chat/${target.roomId}`)
+    if (!optimistic) navigate(target.roomId)
   })
 }
 
-export function addOwnChat(card: RecipeCard, navigate: (to: string) => void): void {
+export function addOwnChat(card: RecipeCard, navigate: (roomId: string) => void): void {
   mark(setOwning, card.slug, true)
   void submit(card, { installId: crypto.randomUUID(), slug: card.slug, own: true }, navigate).then((made) => {
     mark(setOwning, card.slug, false)
     if (!made) return
     recorded(made)
-    navigate(`/chat/${made.roomId}`)
+    navigate(made.roomId)
   })
 }
 
@@ -220,6 +224,6 @@ export function retryConnect(): void {
     mark(setWaiting, card.slug, false)
     if (!made) return
     recorded(made)
-    navigate(`/chat/${made.roomId}`)
+    navigate(made.roomId)
   })
 }

@@ -1,76 +1,60 @@
 import { Suspense, Show, createEffect, createMemo, createSignal, lazy, on } from "solid-js"
-import { useNavigate, useParams } from "@solidjs/router"
+import { useNavigate } from "@tanstack/solid-router"
 import { Icon as IconV2 } from "@kiko/ui/v2/icon"
-import { MessageList, type VirtualThreadState } from "../../chat/MessageList"
-import { Composer } from "../../composer/composer"
-import { ModelPickerButton } from "../../settings/model-picker"
-import { answeringMember } from "../../settings/agent-model"
-import { connectedProviders, connectedReady } from "../../settings/connected"
-import { sendBlock } from "../../settings/send-block"
-import { useApp } from "../../lib/store"
+import { MessageList, type VirtualThreadState } from "../chat/MessageList"
+import { Composer } from "../composer/composer"
+import { ModelPickerButton } from "../settings/model-picker"
+import { answeringMember } from "../settings/agent-model"
+import { connectedProviders, connectedReady } from "../settings/connected"
+import { sendBlock } from "../settings/send-block"
+import { useApp } from "../lib/store"
 import type { MessageId } from "@kiko/protocol"
-import type { ChatMessage, RosterBot } from "../../lib/types"
-import { jumpRequest, requestJump } from "../../search/state"
-import { EmptyState } from "../../chat/ui/EmptyState"
-import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion"
-import { clearUnreadMark } from "../../sidebar/unread-mark"
+import type { ChatMessage, RosterBot } from "../lib/types"
+import { jumpRequest, requestJump } from "../search/state"
+import { EmptyState } from "../chat/ui/EmptyState"
+import { captureLaunch, glideToDock, type Launch } from "../chat/send-motion"
+import { clearUnreadMark } from "../sidebar/unread-mark"
 import { roomEmpty } from "./chat-empty"
-import { useRefusalToasts } from "../../chat/members/members"
-const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"))
-const UpdateNotice = lazy(() => import("../update-notice"))
-const BrowserChip = lazy(() => import("../../chat/BrowserChip"))
+import { useRefusalToasts } from "../chat/members/members"
+const QuoteOnSelect = lazy(() => import("../chat/QuoteOnSelect"))
+const UpdateNotice = lazy(() => import("./update-notice"))
+const BrowserChip = lazy(() => import("../chat/BrowserChip"))
 
 const JUMP_CLASS =
   "pointer-events-auto relative grid size-[26px] place-items-center rounded-md border border-[color-mix(in_oklab,var(--foreground)_15%,transparent)] bg-[color-mix(in_oklab,var(--foreground)_10%,transparent)] text-foreground shadow-md backdrop-blur-md"
 
-export default function ChatRoute() {
+export function ChatView() {
   useRefusalToasts()
-  const params = useParams<{ id?: string }>()
   const navigate = useNavigate()
+  const roomId = () => useApp.activeThreadId()
   createEffect(
-    on(
-      () => params.id,
-      (id) => {
-        if (id) clearUnreadMark(id)
-      },
-    ),
+    on(roomId, (id) => {
+      if (id) clearUnreadMark(id)
+    }),
   )
   createEffect(() => {
-    const id = params.id
-    if (id && id !== useApp.activeThreadId()) useApp.selectThread(id)
-  })
-  createEffect(() => {
-    const id = params.id
+    const id = roomId()
     const user = useApp.user()
     if (!id || !user?.state.synced || useApp.chat(id)) return
     const next = user.state.refused[id] ?? useApp.resumeChat()
-    if (next && next !== id) navigate(`/chat/${next}`, { replace: true })
+    if (next && next !== id) void navigate({ to: "/chat/$roomId", params: { roomId: next }, replace: true })
   })
   createEffect(
-    on(
-      () => params.id,
-      (id) => {
-        if (!id || window.matchMedia("(pointer: coarse)").matches) return
-        requestAnimationFrame(() => {
-          const active = document.activeElement
-          const typing =
-            active instanceof HTMLElement &&
-            (active.isContentEditable || /^(input|textarea|select)$/i.test(active.tagName))
-          if (typing || (active instanceof HTMLElement && active.closest('[role="tab"]'))) return
-          document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus()
-        })
-      },
-    ),
+    on(roomId, (id) => {
+      if (!id || window.matchMedia("(pointer: coarse)").matches) return
+      requestAnimationFrame(() => {
+        const active = document.activeElement
+        const typing =
+          active instanceof HTMLElement &&
+          (active.isContentEditable || /^(input|textarea|select)$/i.test(active.tagName))
+        if (typing || (active instanceof HTMLElement && active.closest('[role="tab"]'))) return
+        document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus()
+      })
+    }),
   )
   const [replyTarget, setReplyTarget] = createSignal<string | null>(null)
   const [editTarget, setEditTarget] = createSignal<string | null>(null)
-  createEffect(
-    on(
-      () => params.id,
-      () => setEditTarget(null),
-      { defer: true },
-    ),
-  )
+  createEffect(on(roomId, () => setEditTarget(null), { defer: true }))
   const startEdit = (id: string) => {
     setReplyTarget(null)
     setEditTarget(id)
@@ -82,7 +66,7 @@ export default function ChatRoute() {
   }
   const [threadState, setThreadState] = createSignal<VirtualThreadState | null>(null)
   const book = () => useApp.drafts()
-  const draftKey = () => (book()?.ready() ? (useApp.activeThreadId() ?? "") : "")
+  const draftKey = () => (book()?.ready() ? (roomId() ?? "") : "")
   const [draft, setDraft] = createSignal("")
   let replyKey = ""
   createEffect(
@@ -116,7 +100,7 @@ export default function ChatRoute() {
     }),
   )
   const messages = createMemo(() => useApp.activeMessages())
-  const scrollKey = () => useApp.activeThreadId() ?? undefined
+  const scrollKey = () => roomId() ?? undefined
   const speaker = (id: string): RosterBot | undefined => {
     const member = members().get(id)
     if (member) return member
@@ -150,7 +134,7 @@ export default function ChatRoute() {
   let landing = false
   createEffect(() => {
     const request = jumpRequest()
-    if (!request || request.roomId !== useApp.activeThreadId()) return
+    if (!request || request.roomId !== roomId()) return
     requestJump(null)
     landing = true
     void useApp.jumpTo(request.seq).then((found) => {
@@ -201,11 +185,10 @@ export default function ChatRoute() {
     useApp.seeMentions([id])
   }
 
-  const empty = () =>
-    roomEmpty(useApp.room()?.state, messages(), params.id ? useApp.chat(params.id)?.lastSeq : undefined)
+  const empty = () => roomEmpty(useApp.room()?.state, messages(), useApp.chat(roomId())?.lastSeq)
   const readingLatest = () => !scrolled()
   createEffect(() => {
-    const id = useApp.activeThreadId()
+    const id = roomId()
     if (id && readingLatest() && useApp.hasUnread()) useApp.markRead(id)
   })
   let dock: HTMLDivElement | undefined
@@ -234,8 +217,8 @@ export default function ChatRoute() {
           onJumpToMessage={() => {}}
           onReplyTarget={aim}
           onJumpToSeq={(id, seq) => {
-            const roomId = useApp.activeThreadId()
-            if (roomId) requestJump({ roomId, id: id as MessageId, seq })
+            const room = roomId()
+            if (room) requestJump({ roomId: room, id: id as MessageId, seq })
           }}
           scrollRef={() => {}}
           onStateChange={setThreadState}
@@ -312,15 +295,16 @@ export default function ChatRoute() {
             Scroll to end
           </button>
         </div>
-        <BrowserChip slugs={[...members().keys()]} />
-
-        <QuoteOnSelect
-          onQuote={(id, text) => {
-            aim(id)
-            setQuote({ target: id, text })
-            document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus()
-          }}
-        />
+        <Suspense>
+          <BrowserChip slugs={[...members().keys()]} />
+          <QuoteOnSelect
+            onQuote={(id, text) => {
+              aim(id)
+              setQuote({ target: id, text })
+              document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus()
+            }}
+          />
+        </Suspense>
 
         <Suspense>
           <UpdateNotice />
@@ -330,8 +314,8 @@ export default function ChatRoute() {
           tray={<ModelPickerButton draft={draft()} />}
           sendBlock={block()}
           sendBlockAgent={answering()?.slug}
-          threadId={useApp.activeThreadId() ?? ""}
-          title={useApp.chatById(useApp.activeThreadId() ?? "")?.name}
+          threadId={roomId() ?? ""}
+          title={useApp.chatById(roomId() ?? "")?.name}
           draftKey={draftKey()}
           draftFor={(key) => book()?.get(key)?.text ?? ""}
           onDraftChange={(key, text) => {

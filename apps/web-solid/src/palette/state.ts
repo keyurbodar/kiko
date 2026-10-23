@@ -1,5 +1,5 @@
 import { createRoot, createSignal } from "solid-js"
-import { closeSettings } from "../settings/dialog-state"
+import { closeSettings } from "../settings/open"
 
 const [stack, setStack] = createRoot(() => createSignal<readonly string[] | null>(null))
 

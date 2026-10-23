@@ -11,7 +11,7 @@ import {
   SparklesIcon,
   TasksIcon,
 } from "@kiko/ui/icons"
-import { useNavigate } from "@solidjs/router"
+import { openChat } from "../../app/history"
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js"
 import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
@@ -47,7 +47,6 @@ function Row(props: { icon: Glyph; label: string; meta?: string; kind: FixedKind
 }
 
 export default function ChatCard(props: { chatId: string }) {
-  const navigate = useNavigate()
   const memory = useMemoryStore()
   const members = () => useApp.roomMembers()
   const chat = () => useApp.chatById(props.chatId)
@@ -57,7 +56,7 @@ export default function ChatCard(props: { chatId: string }) {
   const add = (agent: Agent) => {
     if (props.chatId !== useApp.kikoChatId()) return useApp.memberOp(addOp(agent))
     const roomId = useApp.user()?.createChat(groupTitle(["Kiko", agent.name]), roomFor([KIKO, agent.id]))
-    if (roomId) navigate(`/chat/${roomId}`)
+    if (roomId) openChat(roomId)
   }
   const working = () => {
     const doings = useApp.typingDoings()

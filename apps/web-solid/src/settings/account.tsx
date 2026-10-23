@@ -1,4 +1,4 @@
-import { useNavigate } from "@solidjs/router"
+import { useNavigate } from "@tanstack/solid-router"
 import { Match, Show, Switch, createSignal, onMount } from "solid-js"
 import { hosted, profile } from "../app/hosted"
 import { session, signOut } from "../app/session"
@@ -123,7 +123,10 @@ function Backend() {
         )}
       </Show>
       <Row label="Cloudflare" description="Install or update your backend again in your Cloudflare account.">
-        <Button data-action="reconnect-cloudflare" onClick={() => navigate("/connect?reconnect=1")}>
+        <Button
+          data-action="reconnect-cloudflare"
+          onClick={() => void navigate({ to: "/connect", search: { reconnect: 1 } })}
+        >
           Reconnect Cloudflare
         </Button>
       </Row>

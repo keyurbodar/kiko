@@ -1,5 +1,5 @@
-import { eventRow } from "../../chat/lib/event-line"
-import type { ChatMessage } from "../../lib/types"
+import { eventRow } from "../chat/lib/event-line"
+import type { ChatMessage } from "../lib/types"
 
 export type RoomWindow = {
   loaded: boolean

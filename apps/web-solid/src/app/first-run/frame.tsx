@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from "@solidjs/router"
+import { useLocation, useNavigate } from "@tanstack/solid-router"
 import { For, Match, Show, Switch, createEffect, lazy } from "solid-js"
 import "./first-run.css"
 import { KikoMark, KikoWordmark } from "../../lib/brand"
@@ -23,8 +23,8 @@ export default function FirstRun() {
   if (hosted) void ConnectCloudflare.preload()
 
   createEffect(() => {
-    const path = location.pathname
-    if (path !== "/welcome" && path !== "/connect/callback") navigate("/welcome", { replace: true })
+    const path = location().pathname
+    if (path !== "/welcome" && path !== "/connect/callback") void navigate({ to: "/welcome", replace: true })
   })
 
   return (
@@ -82,7 +82,7 @@ export default function FirstRun() {
                 disabled={working()}
                 class="disabled:cursor-default disabled:opacity-50"
                 onClick={() => {
-                  navigate("/welcome", { replace: true })
+                  void navigate({ to: "/welcome", replace: true })
                   void useDifferentSignIn()
                 }}
               >

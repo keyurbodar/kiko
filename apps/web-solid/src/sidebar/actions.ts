@@ -1,3 +1,4 @@
+import { openChat } from "../app/history"
 import type { RoomId } from "@kiko/protocol"
 import { createSignal } from "solid-js"
 import { chatAfter } from "../lib/chats"
@@ -59,21 +60,21 @@ export function reopenClosedChat(): string | null {
   return id && useApp.chat(id) ? id : null
 }
 
-export function closeChat(id: string, active: string | null, go: (path: string) => void): void {
+export function closeChat(id: string, active: string | null): void {
   const next = chatAfter(
     sidebarOrder().map((r) => r.id),
     id,
   )
   lastClosed = id
-  if (active === id) go(next ? `/chat/${next}` : "/chat")
+  if (active === id) openChat(next)
 }
 
-export function deleteChat(id: string, active: string | null, go: (path: string) => void): void {
+export function deleteChat(id: string, active: string | null): void {
   const next = chatAfter(
     sidebarOrder().map((r) => r.id),
     id,
   )
   useApp.user()?.remove(id as RoomId)
   clearUnreadMark(id)
-  if (active === id) go(next ? `/chat/${next}` : "/chat")
+  if (active === id) openChat(next)
 }

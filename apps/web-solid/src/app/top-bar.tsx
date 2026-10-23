@@ -11,11 +11,8 @@ import { useApp } from "../lib/store"
 import { preloadSearch } from "../search/state"
 import { SidebarToggle } from "../sidebar"
 
-export function TopBar(props: { pathname: string; sidebarOpen: boolean; onToggleSidebar: () => void }) {
-  const chatId = () => {
-    const id = /^\/chat\/([^/]+)\/?$/.exec(props.pathname)?.[1]
-    return id ? decodeURIComponent(id) : null
-  }
+export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onToggleSidebar: () => void }) {
+  const chatId = () => props.chatId
   const offline = () => {
     const status = useApp.user()?.state.connection
     if (status === "blocked") return "Reload to reconnect"

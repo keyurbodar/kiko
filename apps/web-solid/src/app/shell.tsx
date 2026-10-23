@@ -4,7 +4,7 @@ import Resizable, {
   useContext as useResizableContext,
   usePanelContext as useResizablePanelContext,
 } from "@corvu/resizable"
-import { useLocation } from "@solidjs/router"
+import { useLocation, useRouter } from "@tanstack/solid-router"
 import { I18nProvider, pluralCategory, pluralKey, type UiI18n } from "@kiko/ui/context/i18n"
 import { dict } from "@kiko/ui/i18n/en"
 import { ToastV2 } from "@kiko/ui/v2/toast-v2"
@@ -35,14 +35,13 @@ import { Palette, preloadPalette } from "../palette"
 import { botPickerOpen } from "../chat/bot-picker-state"
 import { newAgentOpen } from "../newagent/state"
 import { preloadSearch, SearchOverlay, searchScope } from "../search/state"
-import { settingsSection } from "../settings/dialog-state"
 import { hintsShown, watchHold } from "../commands/hints"
 const HintLayer = lazy(() => import("../commands/HintLayer"))
 import { Sidebar, SidebarToggle } from "../sidebar"
 import { deletingChatId } from "../sidebar/actions"
 import { drawerOpen, setDrawerOpen } from "./drawer"
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe"
-import { sectionOf } from "./sections"
+import { sectionOf, useChatInView } from "./sections"
 import { whenIdle } from "../lib/idle"
 import { TopBar } from "./top-bar"
 import {
@@ -82,21 +81,8 @@ const watchPanel = (el: HTMLElement) => {
 const AvatarPicker = lazy(() => import("../avatar/picker"))
 const BotPicker = lazy(() => import("../chat/bot-picker"))
 const NewAgent = lazy(() => import("../newagent/dialog"))
-const SettingsDialog = lazy(() => import("../settings/settings-dialog"))
 const ComputerViewer = lazy(() => import("../chat/computer/Viewer"))
 const DeleteChatDialog = lazy(() => import("../sidebar/delete-chat-dialog"))
-const CHAT_PATH = /^\/chat\/([^/]+)\/?$/
-
-function PageSkeleton() {
-  return (
-    <div class="flex min-h-0 flex-1 flex-col gap-3 p-6" data-component="page-skeleton" aria-hidden="true">
-      <span class="motion-skeleton h-6 w-40 rounded-md" />
-      <span class="motion-skeleton h-4 w-64 rounded-md" />
-      <span class="motion-skeleton mt-2 h-24 w-full rounded-lg" />
-      <span class="motion-skeleton h-4 w-3/4 rounded-md" />
-    </div>
-  )
-}
 
 const KEY = "kiko:sidebar-collapsed"
 
@@ -126,7 +112,8 @@ function writeCollapsed(value: boolean) {
 }
 
 export function Shell(props: ParentProps) {
-  const location = useLocation()
+  const pathname = useLocation({ select: (location) => location.pathname })
+  const router = useRouter()
   const [collapsed, setCollapsed] = createSignal(readCollapsed())
   const narrowQuery = typeof matchMedia === "function" ? matchMedia("(width < 768px)") : undefined
   const [narrow, setNarrow] = createSignal(narrowQuery?.matches ?? false)
@@ -168,10 +155,7 @@ export function Shell(props: ParentProps) {
   }
   const drawer = drawerOpen
   const setDrawer = setDrawerOpen
-  const sideChat = () => {
-    const id = CHAT_PATH.exec(location.pathname)?.[1]
-    return id && id !== "new" ? decodeURIComponent(id) : null
-  }
+  const sideChat = useChatInView()
   const sideOpen = () => {
     const id = sideChat()
     return id !== null && sidecarOpen(id)
@@ -273,7 +257,7 @@ export function Shell(props: ParentProps) {
     } else sidebarPanel.collapse()
   }
   createEffect((prev: string | undefined) => {
-    const path = location.pathname
+    const path = pathname()
     if (prev !== undefined && prev !== path && narrow()) setDrawer(false)
     return path
   })
@@ -285,7 +269,7 @@ export function Shell(props: ParentProps) {
   onMount(() => {
     if (sideOpen()) void loadSidecar()
     whenIdle(() => {
-      void SettingsDialog.preload().catch(() => {})
+      void router.preloadRoute({ to: "/settings/models" }).catch(() => {})
       setTimeout(() => void import("../settings/catalog").then((m) => m.prefetchCatalog()), 3000)
     })
   })
@@ -305,7 +289,7 @@ export function Shell(props: ParentProps) {
     window.addEventListener("keydown", on, true)
     onCleanup(() => window.removeEventListener("keydown", on, true))
   })
-  const sidebar = () => <Sidebar section={sectionOf(location.pathname)} collapsed={closed()} onToggle={toggle} />
+  const sidebar = () => <Sidebar section={sectionOf(pathname())} collapsed={closed()} onToggle={toggle} />
   const dockedSide = () => (compact() || !sideOpen() ? null : sideChat())
   createEffect(
     on(dockedSide, (docked) => {
@@ -349,7 +333,7 @@ export function Shell(props: ParentProps) {
       <div
         class="sidebar-shell relative flex h-dvh overflow-hidden bg-[var(--sidebar)]"
         data-component="app-shell"
-        data-section={sectionOf(location.pathname) ?? undefined}
+        data-section={sectionOf(pathname()) ?? undefined}
       >
         <Show when={narrow()}>{sidebar()}</Show>
         <Show when={narrow() && drawer()}>
@@ -413,16 +397,16 @@ export function Shell(props: ParentProps) {
                   minSize={`${CHAT_MIN}px`}
                 >
                   <main class="relative flex min-w-0 flex-1 flex-col overflow-hidden" data-component="main-column">
-                    <Show when={sectionOf(location.pathname) === "chat"}>
-                      <TopBar pathname={location.pathname} sidebarOpen={!closed()} onToggleSidebar={toggle} />
+                    <Show when={sectionOf(pathname()) === "chat"}>
+                      <TopBar chatId={sideChat()} sidebarOpen={!closed()} onToggleSidebar={toggle} />
                     </Show>
-                    <Show when={closed() && sectionOf(location.pathname) !== "chat"}>
+                    <Show when={closed() && sectionOf(pathname()) !== "chat"}>
                       <SidebarToggle open={false} onToggle={toggle} class="main-sidebar-toggle" />
                     </Show>
                     <div
                       class="main-row relative flex min-h-0 min-w-0 flex-1"
                       data-component="main-row"
-                      data-top={sectionOf(location.pathname) === "chat" ? undefined : ""}
+                      data-top={sectionOf(pathname()) === "chat" ? undefined : ""}
                     >
                       <div
                         class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
@@ -435,7 +419,7 @@ export function Shell(props: ParentProps) {
                             "padding-right": sideChat() !== null && cardBeside() ? `${CARD_WIDTH + 24}px` : undefined,
                           }}
                         >
-                          <Suspense fallback={<PageSkeleton />}>{props.children}</Suspense>
+                          {props.children}
                         </div>
                         <Show when={cardShown() ? sideChat() : null} keyed>
                           {(id) => (
@@ -524,7 +508,9 @@ export function Shell(props: ParentProps) {
             </>
           )}
         </Show>
-        <Palette />
+        <Suspense>
+          <Palette />
+        </Suspense>
         <Show when={deletingChatId() !== null}>
           <Suspense>
             <DeleteChatDialog />
@@ -539,9 +525,6 @@ export function Shell(props: ParentProps) {
           <Suspense>
             <NewAgent />
           </Suspense>
-        </Show>
-        <Show when={settingsSection()}>
-          <SettingsDialog />
         </Show>
         <Show when={hintsShown()}>
           <Suspense>

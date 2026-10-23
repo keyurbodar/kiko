@@ -13,7 +13,7 @@ type Option =
   | { kind: "member"; key: string; target: RecipeTarget }
   | { kind: "own"; key: "own" }
 
-export function AddPicker(props: { card: RecipeCard; roomId?: string | null; navigate: (to: string) => void }) {
+export function AddPicker(props: { card: RecipeCard; roomId?: string | null; navigate: (roomId: string) => void }) {
   const [query, setQuery] = createSignal("")
   const [expanded, setExpanded] = createSignal<string | null>(null)
   const [picked, setPicked] = createSignal<string | null>(null)

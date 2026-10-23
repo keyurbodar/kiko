@@ -237,7 +237,11 @@ function createApp() {
     const [userStore, setUserStore] = createSignal<UserStore | null>(null)
     const [room, setRoom] = createSignal<RoomStore | null>(null)
     const [drafts, setDrafts] = createSignal<DraftBook | null>(null)
-    const [activeId, setActiveId] = createSignal<RoomId | null>(null)
+    const [routeRoom, setRouteRoom] = createSignal<() => string | null>(() => null)
+    const activeId = createMemo(() => {
+      const id = routeRoom()()
+      return id !== null && isRoomId(id) ? (id as RoomId) : null
+    })
     const roomMessages = shared(() => room()?.messages() ?? [])
 
     const [preloaded, setPreloaded] = createSignal<Record<string, ViewMessage[]>>({})
@@ -525,6 +529,10 @@ function createApp() {
       const id = activeId()
       if (id && userStore()) untrack(() => remember(id))
     })
+    createComputed(() => {
+      const id = activeId()
+      untrack(() => openRoom(id))
+    })
 
     const handle = () => {
       const s = signedIn()
@@ -626,7 +634,6 @@ function createApp() {
           setRoom(null)
           setUserStore(null)
           setDrafts(null)
-          setActiveId(null)
           setLocalLast(null)
         })
       },
@@ -694,12 +701,8 @@ function createApp() {
         return room()?.onFilesRefused(listener) ?? (() => {})
       },
 
-      selectThread(threadId: string) {
-        if (!isRoomId(threadId)) return
-        const id = threadId as RoomId
-        if (activeId() === id) return
-        setActiveId(id)
-        openRoom(id)
+      followRoute(room: () => string | null): void {
+        setRouteRoom(() => room)
       },
 
       resumeChat(): RoomId | null {

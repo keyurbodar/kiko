@@ -1,4 +1,4 @@
-import { useNavigate } from "@solidjs/router"
+import { openChat } from "../history"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { RemixIcon } from "@kiko/ui/remix-icon"
@@ -24,7 +24,6 @@ function focusComposer(tries = 40): void {
 }
 
 export function ModelStep() {
-  const navigate = useNavigate()
   const [catalog, { refetch }] = createLive("models", () => true, loadCatalog)
   const [query, setQuery] = createSignal("")
   const [chosen, setChosen] = createSignal<string | null>(null)
@@ -69,7 +68,7 @@ export function ModelStep() {
     if (pick && pick.ref !== useApp.agentModel(KIKO)?.model)
       useApp.setAgentModel(KIKO as AgentSlug, { ref: pick.ref, levels: pick.model.thinking })
     move("next")
-    navigate(`/chat/${useApp.kikoChatId() ?? KIKO_HOME_ROOM}`, { replace: true })
+    openChat(useApp.kikoChatId() ?? KIKO_HOME_ROOM, { replace: true })
     focusComposer()
   }
 

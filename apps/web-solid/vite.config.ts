@@ -1,5 +1,6 @@
 import { resolve } from "node:path"
 import tailwindcss from "@tailwindcss/vite"
+import { tanstackRouter } from "@tanstack/router-plugin/vite"
 import { defineConfig, loadEnv, type Plugin } from "vite"
 import solid from "vite-plugin-solid"
 import pkg from "../../package.json" with { type: "json" }
@@ -35,7 +36,7 @@ function requireInstaller(mode: string): void {
 export default defineConfig(({ mode }) => {
   requireInstaller(mode)
   return {
-    plugins: [solid(), tailwindcss(), swKillSwitch],
+    plugins: [tanstackRouter({ target: "solid", autoCodeSplitting: true }), solid(), tailwindcss(), swKillSwitch],
     define: { __KIKO_VERSION__: JSON.stringify(pkg.version) },
     optimizeDeps: {
       include: [
