@@ -11,6 +11,7 @@
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
+    "effect": "4.0.6",
     "rrule": "2.8.1"
   },
   "devDependencies": {

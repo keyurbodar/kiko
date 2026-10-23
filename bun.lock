@@ -168,6 +168,7 @@
         "@earendil-works/pi-ai": "1.3.0",
         "@earendil-works/pi-durable": "1.3.0",
         "@kiko/durable": "workspace:*",
+        "effect": "4.0.6",
       },
       "devDependencies": {
         "@cloudflare/workers-types": "^4.20260101.0",
@@ -240,6 +241,7 @@
       "name": "@kiko/sandbox",
       "version": "0.0.1",
       "dependencies": {
+        "effect": "4.0.6",
         "rrule": "2.8.1",
       },
       "devDependencies": {

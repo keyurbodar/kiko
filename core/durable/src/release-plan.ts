@@ -1,4 +1,10 @@
+import * as Schema from "effect/Schema"
 import type { ReleaseManifest, ReleaseMigration } from "./release"
+
+export class ReleasePlanRefused extends Schema.TaggedError<ReleasePlanRefused>()("ReleasePlanRefused", {
+  reason: Schema.Literals(["no_bindings", "bad_bindings", "no_migrations", "unknown_migration"]),
+  message: Schema.String,
+}) {}
 
 type MigrationPlan = { old_tag?: string; new_tag: string; steps: ReleaseMigration[] }
 
@@ -12,7 +18,10 @@ function releaseBindings(manifest: ReleaseManifest): ReleaseBindings {
     !Array.isArray(manifest.durable_objects) ||
     !manifest.durable_objects.length
   ) {
-    throw new Error("This release has no signed Durable Object bindings. Use the installer for the OwnerDO upgrade.")
+    throw new ReleasePlanRefused({
+      reason: "no_bindings",
+      message: "This release has no signed Durable Object bindings. Use the installer for the OwnerDO upgrade.",
+    })
   }
   return manifest.durable_objects.map((binding: unknown) => {
     if (
@@ -23,7 +32,10 @@ function releaseBindings(manifest: ReleaseManifest): ReleaseBindings {
       !("class_name" in binding) ||
       typeof binding.class_name !== "string"
     )
-      throw new Error("The release has invalid Durable Object bindings.")
+      throw new ReleasePlanRefused({
+        reason: "bad_bindings",
+        message: "The release has invalid Durable Object bindings.",
+      })
     return { name: binding.name, class_name: binding.class_name }
   })
 }
@@ -41,10 +53,14 @@ function filesBinding(files: FilesBinding) {
 
 export function selectMigrations(all: ReleaseMigration[], currentTag: string | null): MigrationPlan {
   const last = all.at(-1)
-  if (!last) throw new Error("The release has no migrations.")
+  if (!last) throw new ReleasePlanRefused({ reason: "no_migrations", message: "The release has no migrations." })
   if (currentTag === null) return { new_tag: last.tag, steps: all }
   const at = all.findIndex((m) => m.tag === currentTag)
-  if (at < 0) throw new Error(`The backend is at migration ${currentTag}, which this release does not know.`)
+  if (at < 0)
+    throw new ReleasePlanRefused({
+      reason: "unknown_migration",
+      message: `The backend is at migration ${currentTag}, which this release does not know.`,
+    })
   return { old_tag: currentTag, new_tag: last.tag, steps: all.slice(at + 1) }
 }
 

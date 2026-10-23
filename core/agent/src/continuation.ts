@@ -1,5 +1,6 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Harness, TaskId, TaskInspection } from "@earendil-works/pi-durable"
+import { HarnessNotPaused } from "./errors"
 
 export async function continueAtBoundary(
   harness: Harness,
@@ -11,7 +12,8 @@ export async function continueAtBoundary(
   dispose(): void
 }> {
   const live = await harness.inspect(BACKGROUND_CONTEXT)
-  if (live.scheduling !== "paused") throw new Error("Attach continuation before enabling the Harness")
+  if (live.scheduling !== "paused")
+    throw new HarnessNotPaused({ message: "Attach continuation before enabling the Harness" })
   const running = new Set<TaskId>(
     live.tasks
       .filter((task) => task.record.state.status === "running" && !sleeping(task.record))

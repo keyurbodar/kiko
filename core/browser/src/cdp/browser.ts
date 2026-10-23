@@ -1,4 +1,5 @@
 import { BROWSER } from "../config"
+import { BrowserFailure } from "../errors"
 import { act, schemeError, screenshot } from "../page/act"
 import { evaluate, type PageState, read } from "../page/read"
 import type { BrowserSession, Tab } from "../page/types"
@@ -93,7 +94,7 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
   return {
     openTab: async (url) => {
       const invalid = url === undefined ? undefined : schemeError(url)
-      if (invalid) throw new Error(invalid)
+      if (invalid) throw new BrowserFailure({ reason: "scheme", message: invalid })
       const { targetId } = await cdp.send("Target.createTarget", {
         url: url ?? "about:blank",
         background: true,

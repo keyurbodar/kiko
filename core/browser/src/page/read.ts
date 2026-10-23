@@ -1,6 +1,7 @@
 import type { Channel } from "../cdp/session"
 import { GZIP_MARK, READ_SCRIPT, settleScript } from "./script"
 import type { PageView } from "./types"
+import { BrowserFailure } from "../errors"
 
 export type PageState = {
   channel: Channel
@@ -27,7 +28,7 @@ export async function evaluate<T>(page: PageState, expression: string, awaitProm
   })
   if (out.exceptionDetails) {
     const description = out.exceptionDetails.exception?.description ?? out.exceptionDetails.text
-    throw new Error(`Page script failed: ${description}`)
+    throw new BrowserFailure({ reason: "script", message: `Page script failed: ${description}` })
   }
   return out.result.value as T
 }
