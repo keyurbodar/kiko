@@ -45,9 +45,19 @@ export const makeCachePersister = Effect.fnUntraced(function* <A, E>(
   }).pipe(Effect.forkScoped)
   const flush = Effect.suspend(() => (Option.isSome(latest) ? write(latest.value) : Effect.void))
   const flushOnHide = () => void Effect.runFork(flush)
+  const flushWhenHidden = () => {
+    if (globalThis.document?.visibilityState === "hidden") flushOnHide()
+  }
   yield* Effect.acquireRelease(
-    Effect.sync(() => globalThis.addEventListener?.("pagehide", flushOnHide)),
-    () => Effect.sync(() => globalThis.removeEventListener?.("pagehide", flushOnHide)),
+    Effect.sync(() => {
+      globalThis.addEventListener?.("pagehide", flushOnHide)
+      globalThis.document?.addEventListener("visibilitychange", flushWhenHidden)
+    }),
+    () =>
+      Effect.sync(() => {
+        globalThis.removeEventListener?.("pagehide", flushOnHide)
+        globalThis.document?.removeEventListener("visibilitychange", flushWhenHidden)
+      }),
   )
   yield* Effect.addFinalizer(() => flush)
   return {

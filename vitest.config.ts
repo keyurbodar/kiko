@@ -3,6 +3,7 @@ import { defineConfig } from "vitest/config"
 export const TEST_EXCLUDE = [
   "**/node_modules/**",
   "**/dist/**",
+  "refs/**",
   "**/.wrangler/**",
   "**/.{idea,git,cache,output,temp}/**",
 ]
