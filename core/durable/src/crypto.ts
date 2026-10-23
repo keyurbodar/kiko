@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 const INFO = "kiko-cred-v1"
 const IV_BYTES = 12
 const utf8 = new TextEncoder()
@@ -15,10 +16,12 @@ export interface KeyringEnv {
   CREDENTIALS_KEK: string
 }
 
-class CryptoError extends Error {}
+class CryptoError extends Schema.TaggedError<CryptoError>()("CryptoError", {
+  message: Schema.String,
+}) {}
 
 export function keyringFromEnv(env: KeyringEnv): Keyring {
-  if (!env.CREDENTIALS_KEK) throw new CryptoError("CREDENTIALS_KEK is not set")
+  if (!env.CREDENTIALS_KEK) throw new CryptoError({ message: "CREDENTIALS_KEK is not set" })
   return { current: { version: 1, secret: env.CREDENTIALS_KEK } }
 }
 
@@ -65,6 +68,6 @@ export async function open(keyring: Keyring, userId: string, providerId: string,
     )
     return new TextDecoder().decode(plain)
   } catch {
-    throw new CryptoError("credential did not decrypt")
+    throw new CryptoError({ message: "credential did not decrypt" })
   }
 }

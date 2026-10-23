@@ -127,7 +127,7 @@ async function launchd(action: ServiceAction): Promise<number> {
   if (action === "install") {
     await writeUnit(file, launchdPlist())
     await bootout(domain, file)
-    if (!(await bootstrap(domain, file))) throw new CliError(`launchctl could not load ${file}`)
+    if (!(await bootstrap(domain, file))) throw new CliError({ message: `launchctl could not load ${file}` })
     console.log(`installed ${file}`)
     return 0
   }
@@ -152,7 +152,7 @@ async function systemd(action: ServiceAction): Promise<number> {
     await writeUnit(file, systemdUnit())
     await run(["systemctl", "--user", "daemon-reload"])
     const code = await run(["systemctl", "--user", "enable", "--now", UNIT])
-    if (code !== 0) throw new CliError(`systemctl could not enable ${UNIT}. Run it yourself to see why.`)
+    if (code !== 0) throw new CliError({ message: `systemctl could not enable ${UNIT}. Run it yourself to see why.` })
     console.log(`installed ${file}`)
     return 0
   }
@@ -186,7 +186,7 @@ async function windows(action: ServiceAction): Promise<number> {
     return 0
   }
   const code = await run(["reg", "add", RUN_KEY, "/v", "kiko-computer", "/t", "REG_SZ", "/d", quote(program), "/f"])
-  if (code !== 0) throw new CliError("could not register kiko-computer to start at logon")
+  if (code !== 0) throw new CliError({ message: "could not register kiko-computer to start at logon" })
   Bun.spawn(program, { detached: true, stdio: ["ignore", "ignore", "ignore"] }).unref()
   console.log("kiko-computer starts at logon and is running now")
   return 0

@@ -28,7 +28,7 @@ export async function route(
 ): Promise<Response | null> {
   const url = new URL(request.url)
   if (!url.pathname.startsWith("/api/") || url.pathname.startsWith("/api/auth/")) return null
-  if (url.pathname !== "/api/ws" && url.pathname !== OWNER_RPC_PATH) return null
+  if (url.pathname !== OWNER_RPC_PATH) return null
   return within(UPGRADE_TIMEOUT_MS, upgrade(request, env, url, lookup))
 }
 

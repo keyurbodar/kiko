@@ -1,10 +1,16 @@
 import { ProtocolError, type OwnerRpcs } from "@kiko/protocol"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
-import { HANDLERS, unsubscribe, type Cx, type RpcHost } from "./handlers"
+import { STORAGE_ERROR } from "../lib/storage-error"
+import { unsubscribe } from "../owner/socket"
+import type { Cx } from "./handlers"
 import { codecs, dieFrame, exitFrame, parseIncoming, RPC_PONG, type IncomingRequest } from "./wire"
 
 const BAD_FRAME = 1008
+
+type AnyHandler = (payload: unknown, cx: Cx) => Effect.Effect<unknown, unknown>
+export type HandlerTable = { readonly [Tag in OwnerRpcs["_tag"]]?: unknown }
+export type Context = Omit<Cx, "requestId">
 
 const send = (ws: WebSocket, text: string) => {
   try {
@@ -21,9 +27,14 @@ const sendExit = (ws: WebSocket, request: IncomingRequest, exit: Exit.Exit<unkno
   }
 }
 
-type AnyHandler = (payload: unknown, cx: Cx) => Effect.Effect<unknown, unknown>
+const storageOnDefect = (tag: string) =>
+  Effect.catchDefect((defect: unknown) => {
+    console.error(`rpc ${tag} failed: ${defect instanceof Error ? defect.message : String(defect)}`)
+    return Effect.fail(STORAGE_ERROR)
+  })
 
-async function request(host: RpcHost, ws: WebSocket, req: IncomingRequest): Promise<void> {
+async function request(handlers: HandlerTable, cx: Context, req: IncomingRequest): Promise<void> {
+  const { ws } = cx
   const codec = codecs(req.tag)
   if (!codec) return send(ws, dieFrame(req.id, `Kiko does not know ${req.tag}.`))
   let payload: unknown
@@ -32,23 +43,25 @@ async function request(host: RpcHost, ws: WebSocket, req: IncomingRequest): Prom
   } catch (e) {
     return sendExit(ws, req, Exit.fail(new ProtocolError({ message: `Bad ${req.tag} payload: ${String(e)}` })))
   }
-  const handler = HANDLERS[req.tag as OwnerRpcs["_tag"]] as AnyHandler | undefined
-  if (!handler) return sendExit(ws, req, Exit.fail(new ProtocolError({ message: `${req.tag} is not served yet.` })))
-  const exit = await Effect.runPromiseExit(handler(payload, { host, ws, requestId: req.id }))
+  const handler = handlers[req.tag as OwnerRpcs["_tag"]] as AnyHandler | undefined
+  if (!handler) return sendExit(ws, req, Exit.fail(new ProtocolError({ message: `${req.tag} is not served.` })))
+  const exit = await Effect.runPromiseExit(
+    Effect.suspend(() => handler(payload, { ...cx, requestId: req.id })).pipe(storageOnDefect(req.tag)),
+  )
   if (codec.stream && Exit.isSuccess(exit)) return
   if (codec.stream) unsubscribe(ws, req.id)
   sendExit(ws, req, exit)
 }
 
-export async function dispatch(host: RpcHost, ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
+export async function dispatch(handlers: HandlerTable, cx: Context, raw: string | ArrayBuffer): Promise<void> {
   const messages = typeof raw === "string" ? parseIncoming(raw) : null
   if (!messages) {
-    ws.close(BAD_FRAME, "bad rpc frame")
+    cx.ws.close(BAD_FRAME, "bad rpc frame")
     return
   }
   for (const message of messages) {
-    if (message._tag === "Ping") send(ws, RPC_PONG)
-    else if (message._tag === "Interrupt") unsubscribe(ws, message.requestId)
-    else if (message._tag === "Request") await request(host, ws, message)
+    if (message._tag === "Ping") send(cx.ws, RPC_PONG)
+    else if (message._tag === "Interrupt") unsubscribe(cx.ws, message.requestId)
+    else if (message._tag === "Request") await request(handlers, cx, message)
   }
 }

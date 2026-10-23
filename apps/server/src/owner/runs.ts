@@ -1,16 +1,12 @@
+import * as Schema from "effect/Schema"
 const RUN_CALL_LIMIT = 40
 const RUN_DURATION_MS = 12 * 60_000
 
 type RunOutcome = "done" | "continue"
 
-class RunCallLimitError extends Error {
-  constructor() {
-    super(
-      "This run reached its network call budget during a tool. Completed actions were kept. Check those actions before retrying.",
-    )
-    this.name = "RunCallLimitError"
-  }
-}
+class RunCallLimitError extends Schema.TaggedError<RunCallLimitError>()("RunCallLimitError", {
+  message: Schema.String,
+}) {}
 
 class RunBudget {
   private outgoing = 0
@@ -27,7 +23,10 @@ class RunBudget {
   count(): void {
     if (this.outgoing >= RUN_CALL_LIMIT) {
       this.rejected = true
-      throw new RunCallLimitError()
+      throw new RunCallLimitError({
+        message:
+          "This run reached its network call budget during a tool. Completed actions were kept. Check those actions before retrying.",
+      })
     }
     this.outgoing++
   }

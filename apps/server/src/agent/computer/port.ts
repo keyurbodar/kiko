@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 import type { Op } from "@kiko/computer/wire"
 import type { Holder } from "@kiko/computer/wire"
 import type { User } from "../../user/user-do"
@@ -13,12 +14,9 @@ export interface ComputerPort {
   holder(pcId: string): Promise<Holder>
 }
 
-class NoComputer extends Error {
-  constructor() {
-    super("no computer is paired with kiko: the human pairs one in settings, computers")
-    this.name = "NoComputer"
-  }
-}
+class NoComputer extends Schema.TaggedError<NoComputer>()("NoComputer", {
+  message: Schema.String,
+}) {}
 
 const names = (all: readonly ComputerSummary[]): string =>
   all.map((pc) => `${pc.name} (${pc.os}${pc.online ? "" : ", offline"})`).join(", ")
@@ -27,7 +25,8 @@ export function userComputer(user: () => UserComputerRpc, agentId: string, roomI
   const resolve = async (which?: string): Promise<ComputerSummary> => {
     const all = await user().computerList()
     const first = all[0]
-    if (!first) throw new NoComputer()
+    if (!first)
+      throw new NoComputer({ message: "no computer is paired with kiko: the human pairs one in settings, computers" })
     const want = which?.trim()
     if (!want) {
       if (all.length === 1) return first

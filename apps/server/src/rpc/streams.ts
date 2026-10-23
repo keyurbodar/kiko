@@ -1,11 +1,12 @@
 import {
   RoomSignal,
+  RoomToClient,
   UserSignal,
+  UserToClient,
   type RoomStreamItem,
-  type RoomToClient,
   type UserStreamItem,
-  type UserToClient,
 } from "@kiko/protocol"
+import * as Schema from "effect/Schema"
 import { codecs, chunkFrame, type RequestId } from "./wire"
 
 export type StreamKey = "user" | `room:${string}`
@@ -58,6 +59,9 @@ function roomItems(frame: RoomToClient, cursor: number): Translated<RoomStreamIt
   return { items: isRoomSignal(frame) ? [{ kind: "signal", signal: frame }] : [], cursor }
 }
 
+const decodeUserFrame = Schema.decodeUnknownSync(Schema.toCodecJson(UserToClient))
+const decodeRoomFrame = Schema.decodeUnknownSync(Schema.toCodecJson(RoomToClient))
+
 const userCodecs = () => codecs("user.subscribe")!
 const roomCodecs = () => codecs("room.subscribe")!
 
@@ -73,10 +77,12 @@ export function encodeItems(
 }
 
 export function streamFrame(sub: Subscription, raw: string): { readonly text: string | null; readonly cursor: number } {
-  const frame: unknown = JSON.parse(raw)
-  const out =
-    sub.stream === "user" ? userItems(frame as UserToClient, sub.cursor) : roomItems(frame as RoomToClient, sub.cursor)
   try {
+    const frame: unknown = JSON.parse(raw)
+    const out =
+      sub.stream === "user"
+        ? userItems(decodeUserFrame(frame), sub.cursor)
+        : roomItems(decodeRoomFrame(frame), sub.cursor)
     return { text: encodeItems(sub.stream, sub.requestId, out.items), cursor: out.cursor }
   } catch (e) {
     console.error(`rpc stream frame dropped: ${e instanceof Error ? e.message : String(e)}`)

@@ -1,23 +1,52 @@
-import { HELLO_TIMEOUT_REASON } from "@kiko/durable/hello-deadline"
-import type { Attachment as RoomAttachment } from "../room/socket"
+import { NotFoundError } from "@kiko/protocol"
+import * as Exit from "effect/Exit"
+import type { Attachment as RoomAttachment } from "../room/commands"
 import { streamFrame, type StreamKey, type Subscription } from "../rpc/streams"
+import { codecs, exitFrame, type RequestId } from "../rpc/wire"
 
-type UserAttachment = { ready: boolean; helloBy?: number; workerOrigin?: string }
+type UserAttachment = { ready: boolean; workerOrigin?: string; pcSession?: string }
 type OwnerAttachment = {
   user: UserAttachment
   rooms: Record<string, RoomAttachment>
   handle?: string
   pcSession?: string
-  rpc?: Subscription[]
+  rpc: Subscription[]
 }
 
 export function ownerAttachment(ws: WebSocket): OwnerAttachment {
   return ws.deserializeAttachment() as OwnerAttachment
 }
 
-function forward(target: WebSocket, stream: StreamKey, raw: string): void {
+export function openAttachment(handle: string | undefined): OwnerAttachment {
+  return { user: { ready: false }, rooms: {}, rpc: [], ...(handle ? { handle } : {}) }
+}
+
+export function subscribe(ws: WebSocket, sub: Subscription): void {
+  const saved = ownerAttachment(ws)
+  saved.rpc = [...saved.rpc.filter((s) => s.stream !== sub.stream), sub]
+  ws.serializeAttachment(saved)
+}
+
+export function unsubscribe(ws: WebSocket, requestId: RequestId): Subscription | null {
+  const saved = ownerAttachment(ws)
+  const sub = saved.rpc.find((s) => s.requestId === requestId)
+  if (!sub) return null
+  saved.rpc = saved.rpc.filter((s) => s !== sub)
+  if (sub.stream === "user") saved.user = { ...saved.user, ready: false }
+  else delete saved.rooms[sub.stream.slice("room:".length)]
+  ws.serializeAttachment(saved)
+  return sub
+}
+
+function forward(target: WebSocket, stream: StreamKey, raw: string | ArrayBuffer | ArrayBufferView): void {
+  if (typeof raw !== "string") {
+    try {
+      target.send(raw)
+    } catch {}
+    return
+  }
   const saved = ownerAttachment(target)
-  const sub = saved.rpc?.find((s) => s.stream === stream)
+  const sub = saved.rpc.find((s) => s.stream === stream)
   if (!sub) return
   const { text, cursor } = streamFrame(sub, raw)
   if (cursor !== sub.cursor) {
@@ -27,6 +56,16 @@ function forward(target: WebSocket, stream: StreamKey, raw: string): void {
   if (text === null) return
   try {
     target.send(text)
+  } catch {}
+}
+
+function endRoomStream(target: WebSocket, roomId: string): void {
+  const sub = ownerAttachment(target).rpc.find((s) => s.stream === `room:${roomId}`)
+  if (!sub) return
+  unsubscribe(target, sub.requestId)
+  const exit = Exit.fail(new NotFoundError({ resource: "room", message: "That chat was deleted." }))
+  try {
+    target.send(exitFrame(sub.requestId, codecs("room.subscribe")?.encodeExit(exit)))
   } catch {}
 }
 
@@ -41,6 +80,7 @@ export function socketView(ws: WebSocket, roomId?: string): WebSocket {
   const key = roomId ?? "user"
   const existing = sockets.get(key)
   if (existing) return existing
+  const stream: StreamKey = roomId === undefined ? "user" : `room:${roomId}`
   const view = new Proxy(ws, {
     get(target, property) {
       if (property === "serializeAttachment")
@@ -55,34 +95,12 @@ export function socketView(ws: WebSocket, roomId?: string): WebSocket {
           const saved = ownerAttachment(target)
           return roomId === undefined ? saved.user : (saved.rooms[roomId] ?? { ready: false })
         }
-      if (property === "send" && ownerAttachment(target).rpc)
-        return (raw: string) => forward(target, roomId === undefined ? "user" : `room:${roomId}`, raw)
-      if (property === "send" && roomId !== undefined)
-        return (raw: string) => target.send(JSON.stringify({ t: "room", roomId, frame: JSON.parse(raw) }))
-      if (property === "close" && roomId !== undefined)
-        return (code?: number, reason?: string) => {
-          const saved = ownerAttachment(target)
-          delete saved.rooms[roomId]
-          target.serializeAttachment(saved)
-          try {
-            target.close(code, reason)
-          } catch {}
-        }
+      if (property === "send") return (raw: string | ArrayBuffer | ArrayBufferView) => forward(target, stream, raw)
+      if (property === "close" && roomId !== undefined) return () => endRoomStream(target, roomId)
       const value = Reflect.get(target, property, target)
       return typeof value === "function" ? value.bind(target) : value
     },
   })
   sockets.set(key, view)
   return view
-}
-
-export async function waitForHello(ws: WebSocket): Promise<void> {
-  const attachment = ws.deserializeAttachment() as UserAttachment
-  if (attachment.helloBy === undefined) return
-  await scheduler.wait(Math.max(0, attachment.helloBy - Date.now()))
-  const current = ws.deserializeAttachment() as UserAttachment
-  if (current.ready) return
-  try {
-    ws.close(4408, HELLO_TIMEOUT_REASON)
-  } catch {}
 }

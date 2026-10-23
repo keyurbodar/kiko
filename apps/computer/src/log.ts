@@ -1,14 +1,11 @@
 import { appendFile } from "node:fs/promises"
-import type { FailCode } from "@kiko/computer/wire"
+import { FailCode } from "@kiko/computer/wire"
+import * as Schema from "effect/Schema"
 
-export class Fail extends Error {
-  readonly code: FailCode
-
-  constructor(code: FailCode, message: string) {
-    super(message)
-    this.code = code
-  }
-}
+export class Fail extends Schema.TaggedError<Fail>()("Fail", {
+  code: FailCode,
+  message: Schema.String,
+}) {}
 
 export function failureCode(error: unknown): FailCode {
   return error instanceof Fail ? error.code : "failed"

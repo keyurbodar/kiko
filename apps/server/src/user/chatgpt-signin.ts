@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 import type { LoginOptions, OAuthAuth, OAuthCredential, ProviderAuthInteraction } from "@earendil-works/pi-ai"
 
 const DYNAMIC_CLIENT_ID = "dynamic_agent_client"
@@ -12,14 +13,10 @@ const EXPIRY_MARGIN_MS = 3 * 60 * 1000
 const PASTE_MESSAGE =
   "After you approve, the browser shows a page that cannot load. Copy its full address and paste it here."
 
-class SignInError extends Error {
-  constructor(
-    readonly code: "wrong_address" | "denied" | "exchange",
-    message: string,
-  ) {
-    super(message)
-  }
-}
+class SignInError extends Schema.TaggedError<SignInError>()("SignInError", {
+  code: Schema.Literals(["wrong_address", "denied", "exchange"]),
+  message: Schema.String,
+}) {}
 
 function base64url(bytes: Uint8Array): string {
   let binary = ""
@@ -66,21 +63,24 @@ function parseCallback(input: string, expectedState: string): { code: string; cl
   try {
     url = new URL(input.trim())
   } catch {
-    throw new SignInError("wrong_address", "The pasted text is not a web address")
+    throw new SignInError({ code: "wrong_address", message: "The pasted text is not a web address" })
   }
   const expected = new URL(REDIRECT_URI)
   if (url.origin !== expected.origin || url.pathname !== expected.pathname) {
-    throw new SignInError("wrong_address", "The pasted address does not start with the sign-in address")
+    throw new SignInError({
+      code: "wrong_address",
+      message: "The pasted address does not start with the sign-in address",
+    })
   }
   const denied = url.searchParams.get("error")
-  if (denied) throw new SignInError("denied", `ChatGPT sign-in was refused: ${denied}`)
+  if (denied) throw new SignInError({ code: "denied", message: `ChatGPT sign-in was refused: ${denied}` })
   const code = url.searchParams.get("code")
-  if (!code) throw new SignInError("wrong_address", "The pasted address has no authorization code")
+  if (!code) throw new SignInError({ code: "wrong_address", message: "The pasted address has no authorization code" })
   const state = url.searchParams.get("state")
   if (!state || state !== expectedState)
-    throw new SignInError("wrong_address", "The pasted address belongs to another sign-in")
+    throw new SignInError({ code: "wrong_address", message: "The pasted address belongs to another sign-in" })
   const clientId = url.searchParams.get("client_id")?.trim()
-  if (!clientId) throw new SignInError("wrong_address", "The pasted address has no client id")
+  if (!clientId) throw new SignInError({ code: "wrong_address", message: "The pasted address has no client id" })
   return { code, clientId }
 }
 
@@ -101,20 +101,20 @@ async function requestToken(body: URLSearchParams, signal: AbortSignal): Promise
   })
   if (!response.ok) {
     const text = await response.text().catch(() => "")
-    throw new SignInError(
-      "exchange",
-      `OpenAI token request failed (${response.status}): ${text || response.statusText}`,
-    )
+    throw new SignInError({
+      code: "exchange",
+      message: `OpenAI token request failed (${response.status}): ${text || response.statusText}`,
+    })
   }
   const data: unknown = await response.json()
   if (typeof data !== "object" || data === null || Array.isArray(data))
-    throw new SignInError("exchange", "OpenAI token response must be an object")
+    throw new SignInError({ code: "exchange", message: "OpenAI token response must be an object" })
   return data as TokenResponse
 }
 
 function field(value: unknown, name: string): string {
   if (typeof value !== "string" || value.trim().length === 0)
-    throw new SignInError("exchange", `OpenAI token response has invalid ${name}`)
+    throw new SignInError({ code: "exchange", message: `OpenAI token response has invalid ${name}` })
   return value
 }
 
@@ -123,10 +123,10 @@ function credentialFrom(token: TokenResponse, clientId: string): OAuthCredential
   const refresh = field(token.refresh_token, "refresh_token")
   const scopes = field(token.scope, "scope").trim().split(/\s+/).filter(Boolean)
   if (typeof token.expires_in !== "number" || !Number.isFinite(token.expires_in) || token.expires_in <= 0) {
-    throw new SignInError("exchange", "OpenAI token response has invalid expires_in")
+    throw new SignInError({ code: "exchange", message: "OpenAI token response has invalid expires_in" })
   }
   if (!scopes.includes(DIRECT_TOKEN_SCOPE))
-    throw new SignInError("exchange", `OpenAI grant did not include ${DIRECT_TOKEN_SCOPE}`)
+    throw new SignInError({ code: "exchange", message: `OpenAI grant did not include ${DIRECT_TOKEN_SCOPE}` })
   return {
     type: "oauth",
     access,

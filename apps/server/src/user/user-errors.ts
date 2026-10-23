@@ -1,6 +1,8 @@
 import { IntegrationError, type NoticeError } from "@kiko/protocol"
 import { ComposioError, REJECTED as COMPOSIO_REJECTED_TEXT } from "../integrations/composio/client"
+import { composioErrorText } from "../integrations/composio/connect"
 import { KernelError } from "../integrations/kernel/client"
+import { kernelErrorText } from "../integrations/kernel/connect"
 import { CredentialError } from "./credentials"
 
 const COMPOSIO_MISSING = new IntegrationError({
@@ -57,3 +59,11 @@ export function kernelFailure(e: unknown): NoticeError | null {
   }
   return e instanceof CredentialError ? KERNEL_MISSING : KERNEL_DOWN
 }
+
+const reasonOf = (known: NoticeError | null) => (known instanceof IntegrationError ? known.reason : "down")
+
+export const composioIntegrationError = (e: unknown) =>
+  new IntegrationError({ integration: "composio", reason: reasonOf(composioFailure(e)), message: composioErrorText(e) })
+
+export const kernelIntegrationError = (e: unknown) =>
+  new IntegrationError({ integration: "kernel", reason: reasonOf(kernelFailure(e)), message: kernelErrorText(e) })

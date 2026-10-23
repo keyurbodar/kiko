@@ -22,12 +22,14 @@ Everything an owner has lives in one `OwnerDO` with one SQLite database. Rooms, 
 
 ## Socket RPC
 
-`core/protocol` is the contract: every wire type is an Effect Schema, and `OwnerRpcs` (`core/protocol/src/rpc.ts`) lists every call a client makes over `/api/rpc`. `apps/server/src/rpc/` speaks the Effect RPC JSON wire format, so the stock `RpcClient` with a socket protocol works against it. The old frame protocol on `/api/ws` stays until the client moves.
+`core/protocol` is the contract: every wire type is an Effect Schema, and `OwnerRpcs` (`core/protocol/src/rpc.ts`) lists every call a client makes over `/api/rpc`. `apps/server/src/rpc/` speaks the Effect RPC JSON wire format, so the stock `RpcClient` with a socket protocol works against it. There is no other client socket, and the REST routes that duplicated an RPC are gone. HTTP stays for sign-in, `/api/me`, `/api/health`, `/api/version` (probed before sign-in), file bytes and uploads, webhooks, the computer daemon and dev-only routes.
+
+- **Transports stay thin.** Each entry in `rpc/handlers.ts` calls one service method: `room/commands.ts` for a room, `User`, its `kernel` and `pc` wirings, or `rpc/subscriptions.ts` for streams. Methods are `Effect.fn` spans that fail with the contract's tagged errors, and the dispatcher turns any defect into the `StorageError` every RPC declares.
 
 - **Nothing lives in memory between messages.** Each unary request is decoded, run as an Effect and answered with an `Exit` inside one `webSocketMessage`. A stream subscription is a `{requestId, stream, cursor}` entry in the socket attachment, and broadcasts are turned into `Chunk` frames for it, so a stream survives hibernation. Updating the cursor rewrites the attachment, which is not a billed row.
-- **Streams follow t3code.** `user.subscribe` and `room.subscribe` send a snapshot or the events after `afterSequence`, then `synchronized`, then live events and signals. Events at or below the cursor are dropped.
+- **Streams follow t3code.** `user.subscribe` and `room.subscribe` send a snapshot when `afterSequence` is 0 or too far behind to replay, otherwise the events after it, then `synchronized`, then live events and signals. A user replay ends with a projection of every chat, because chat activity is projected from room state and not stored as events. Events at or below the cursor are dropped. Broadcast frames are decoded through the contract's JSON codec before they become stream items, so tagged errors in signals survive the trip.
 - **Retries are free.** Every command carries a client `commandId`. A send stores it in the message's existing `client_id` column and a repeat returns the first ack. Creates use client-made ids (room, agent, task, install) as their primary key, and most other commands set a value, so a repeat changes nothing and writes nothing.
-- **One auto-response pair.** A Durable Object can only auto-answer one exact frame. It stays `ping`/`pong`, which the computer daemon and the old client send, so an RPC `Ping` wakes the object to get its `Pong`. When the old client is gone, move the pair to the RPC frames and the daemon with it.
+- **One auto-response pair.** A Durable Object can only auto-answer one exact frame. It is the stock client's `{"_tag":"Ping"}` to `{"_tag":"Pong"}`, so an idle tab never wakes the object, and the computer daemon sends the same frame. Daemons that still send `ping` get `pong` from `webSocketMessage`.
 
 ## Writes are the budget
 

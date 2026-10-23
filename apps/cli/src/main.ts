@@ -43,9 +43,9 @@ export async function main(argv: string[]): Promise<number> {
     })
     const [name, ...args] = positionals
     const run = name ? commands[name] : undefined
-    if (!run) throw new CliError(name ? `unknown command: ${name}. ${usage}` : usage)
+    if (!run) throw new CliError({ message: name ? `unknown command: ${name}. ${usage}` : usage })
     const idle = Number(values.idle)
-    if (!Number.isFinite(idle) || idle < 0) throw new CliError(`bad --idle: ${values.idle}`)
+    if (!Number.isFinite(idle) || idle < 0) throw new CliError({ message: `bad --idle: ${values.idle}` })
     console.error(`kiko: target ${values.url}`)
     await run({
       url: withSlash(values.url),

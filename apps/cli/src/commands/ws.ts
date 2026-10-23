@@ -3,7 +3,7 @@ import { sessionToken } from "./login"
 
 export async function ws(ctx: Context): Promise<void> {
   const path = ctx.args[0]
-  if (!path) throw new CliError("ws needs a path, for example: kiko ws /api/ws")
+  if (!path) throw new CliError({ message: "ws needs a path, for example: kiko ws /api/rpc" })
   const target = new URL(path, ctx.url)
   target.protocol = target.protocol === "https:" ? "wss:" : "ws:"
 
@@ -14,7 +14,7 @@ export async function ws(ctx: Context): Promise<void> {
   const opened = Promise.withResolvers<void>()
   const onConnectError = () => {
     void refusal(target, headers).then((why) =>
-      opened.reject(new CliError(`ws failed: cannot connect to ${target}${why}`)),
+      opened.reject(new CliError({ message: `ws failed: cannot connect to ${target}${why}` })),
     )
   }
   socket.addEventListener("open", () => opened.resolve())
@@ -39,7 +39,9 @@ export async function ws(ctx: Context): Promise<void> {
     console.log(JSON.stringify(frame))
     if (stdinDone) arm()
   })
-  socket.addEventListener("error", () => closed.reject(new CliError(`ws failed: connection to ${target} broke`)))
+  socket.addEventListener("error", () =>
+    closed.reject(new CliError({ message: `ws failed: connection to ${target} broke` })),
+  )
   socket.addEventListener("close", () => {
     clearTimeout(timer)
     closed.resolve()

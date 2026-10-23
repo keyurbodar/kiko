@@ -1,141 +1,109 @@
-import {
-  DuplicateChatError,
-  NotFoundError,
-  ProtocolError,
-  RefusedError,
-  StorageError,
-  type OwnerRpcs,
-  type RoomId,
-} from "@kiko/protocol"
-import * as Effect from "effect/Effect"
+import type { OwnerRpcs, RoomId } from "@kiko/protocol"
+import type * as Effect from "effect/Effect"
 import type * as Rpc from "effect/rpc/Rpc"
-import type { Room } from "../room/room-do"
+import type { RoomCommands } from "../room/commands"
 import type { User } from "../user/user-do"
-import { ownerAttachment, socketView } from "../owner/socket"
-import { capture, replyOf, type Captured } from "./capture"
-import { encodeItems, type StreamKey, type Subscription } from "./streams"
+import type { Streams } from "./subscriptions"
 import type { RequestId } from "./wire"
 
 export interface RpcHost {
+  readonly streams: Streams
   user(): User
-  room(roomId: RoomId): Room
+  room(roomId: RoomId): RoomCommands
 }
 
-export type Cx = { readonly host: RpcHost; readonly ws: WebSocket; readonly requestId: RequestId }
+export type Cx = {
+  readonly host: RpcHost
+  readonly ws: WebSocket
+  readonly socket: WebSocket
+  readonly requestId: RequestId
+}
 
 type Of<Tag extends OwnerRpcs["_tag"]> = Extract<OwnerRpcs, { readonly _tag: Tag }>
 type Handler<R> = (payload: Rpc.Payload<R>, cx: Cx) => Effect.Effect<Rpc.SuccessExit<R>, Rpc.ErrorExit<R>>
-export type Handlers = { readonly [Tag in OwnerRpcs["_tag"]]?: Handler<Of<Tag>> }
-
-const MAX_ROOM_STREAMS = 32
-
-const ASK_FOR_SNAPSHOT = Number.MAX_SAFE_INTEGER
-
-const noticeOf = (captured: Captured) => {
-  const frame = replyOf(captured, "error")
-  const error = frame?.error as { _tag?: unknown; message?: unknown } | undefined
-  if (!error) return null
-  const message = typeof error.message === "string" ? error.message : "Kiko could not do that."
-  return error._tag === "ProtocolError" ? new ProtocolError({ message }) : new StorageError({ message })
-}
-
-const settle = (captured: Captured) =>
-  Effect.gen(function* () {
-    if (captured.closed !== null) return yield* new ProtocolError({ message: captured.closed })
-    const notice = noticeOf(captured)
-    if (notice) return yield* notice
-  })
-
-function subscribe(ws: WebSocket, sub: Subscription): void {
-  const saved = ownerAttachment(ws)
-  saved.rpc = [...(saved.rpc ?? []).filter((s) => s.stream !== sub.stream), sub]
-  ws.serializeAttachment(saved)
-}
-
-export function unsubscribe(ws: WebSocket, requestId: RequestId): void {
-  const saved = ownerAttachment(ws)
-  const sub = saved.rpc?.find((s) => s.requestId === requestId)
-  if (!sub || !saved.rpc) return
-  saved.rpc = saved.rpc.filter((s) => s !== sub)
-  if (sub.stream === "user") saved.user = { ...saved.user, ready: false }
-  else delete saved.rooms[sub.stream.slice("room:".length)]
-  ws.serializeAttachment(saved)
-}
-
-const synchronized = (ws: WebSocket, stream: StreamKey, requestId: RequestId) => {
-  const text = encodeItems(stream, requestId, [{ kind: "synchronized" }])
-  if (text) ws.send(text)
-}
-
-const userStream: Handler<Of<"user.subscribe">> = ({ afterSequence }, { host, ws, requestId }) =>
-  Effect.gen(function* () {
-    subscribe(ws, { requestId, stream: "user", cursor: afterSequence ?? 0 })
-    yield* Effect.promise(() =>
-      host.user().webSocketMessage(socketView(ws), JSON.stringify({ t: "hello", lastSeq: afterSequence ?? 0 })),
-    )
-    if (!ownerAttachment(ws).user.ready) return yield* new StorageError({ message: "Kiko could not open your chats." })
-    synchronized(ws, "user", requestId)
-  })
-
-const roomStream: Handler<Of<"room.subscribe">> = ({ roomId, afterSequence }, { host, ws, requestId }) =>
-  Effect.gen(function* () {
-    const saved = ownerAttachment(ws)
-    if (!saved.user.ready) return yield* new ProtocolError({ message: "Subscribe to the user stream first." })
-    if (Object.keys(saved.rooms).length >= MAX_ROOM_STREAMS && !saved.rooms[roomId])
-      return yield* new ProtocolError({ message: "Too many open chats on this connection." })
-    if (!(yield* Effect.promise(() => host.user().getChat(roomId))))
-      return yield* new NotFoundError({ resource: "room", message: "That chat does not exist." })
-    saved.rooms[roomId] = { ready: false }
-    ws.serializeAttachment(saved)
-    const stream: StreamKey = `room:${roomId}`
-    subscribe(ws, { requestId, stream, cursor: afterSequence ?? 0 })
-    yield* Effect.promise(() =>
-      host
-        .room(roomId)
-        .subscribe(socketView(ws, roomId), afterSequence ?? ASK_FOR_SNAPSHOT, ownerAttachment(ws).handle),
-    )
-    if (!ownerAttachment(ws).rooms[roomId]?.ready) {
-      unsubscribe(ws, requestId)
-      return yield* new NotFoundError({ resource: "room", message: "That chat does not exist." })
-    }
-    synchronized(ws, stream, requestId)
-  })
-
-const chatCommand: Handler<Of<"chat.command">> = ({ op }, { host, ws }) =>
-  Effect.gen(function* () {
-    const captured = yield* Effect.promise(() =>
-      capture(socketView(ws), (view) => host.user().webSocketMessage(view, JSON.stringify({ t: "chat", op }))),
-    )
-    const refused = replyOf(captured, "chat_refused")
-    if (refused)
-      return yield* new DuplicateChatError({
-        roomId: op.roomId,
-        existing: refused.existing as RoomId,
-        message: "A chat with these agents already exists.",
-      })
-    yield* settle(captured)
-  })
-
-const roomSend: Handler<Of<"room.send">> = ({ roomId, commandId, ...message }, { host, ws }) =>
-  Effect.gen(function* () {
-    if (!ownerAttachment(ws).rooms[roomId]?.ready)
-      return yield* new ProtocolError({ message: "Subscribe to the chat before sending to it." })
-    const captured = yield* Effect.promise(() =>
-      capture(socketView(ws, roomId), (view) =>
-        host.room(roomId).webSocketMessage(view, JSON.stringify({ t: "send", clientId: commandId, ...message })),
-      ),
-    )
-    const refused = replyOf(captured, "send_refused")
-    if (refused) return yield* new RefusedError({ reason: "send", message: String(refused.reason) })
-    yield* settle(captured)
-    const ack = replyOf(captured, "ack")
-    if (!ack) return yield* new StorageError({ message: "Kiko could not save that message." })
-    return { id: ack.id as Rpc.SuccessExit<Of<"room.send">>["id"], seq: Number(ack.seq) }
-  })
+export type Handlers = { readonly [Tag in OwnerRpcs["_tag"]]: Handler<Of<Tag>> }
 
 export const HANDLERS: Handlers = {
-  "user.subscribe": userStream,
-  "room.subscribe": roomStream,
-  "chat.command": chatCommand,
-  "room.send": roomSend,
+  "user.subscribe": ({ afterSequence }, { host, ws, requestId }) =>
+    host.streams.user(ws, requestId, afterSequence ?? 0),
+  "room.subscribe": ({ roomId, afterSequence }, { host, ws, requestId }) =>
+    host.streams.room(ws, requestId, roomId, afterSequence ?? 0),
+
+  "room.send": ({ roomId, commandId, ...input }, { host }) => host.room(roomId).send({ clientId: commandId, ...input }),
+  "room.edit": ({ roomId, ...input }, { host }) => host.room(roomId).edit(input),
+  "room.delete": ({ roomId, ...input }, { host }) => host.room(roomId).delete(input),
+  "room.react": ({ roomId, ...input }, { host }) => host.room(roomId).react(input),
+  "room.read": ({ roomId, ...input }, { host }) => host.room(roomId).read(input),
+  "room.typing": ({ roomId }, { host }) => host.room(roomId).typing(),
+  "room.stop": ({ roomId }, { host }) => host.room(roomId).stop(),
+  "room.setModel": ({ roomId, ...input }, { host }) => host.room(roomId).setModel(input),
+  "room.task": ({ roomId, op }, { host }) => host.room(roomId).task({ op }),
+  "room.member": ({ roomId, op }, { host }) => host.room(roomId).member({ op }),
+  "room.files": ({ roomId, op }, { host }) => host.room(roomId).files({ op }),
+  "room.answer": ({ roomId, ...input }, { host }) => host.room(roomId).answer(input),
+  "room.skip": ({ roomId, ...input }, { host }) => host.room(roomId).skip(input),
+  "room.retry": ({ roomId, ...input }, { host }) => host.room(roomId).retry(input),
+  "room.search": ({ roomId, ...input }, { host }) => host.room(roomId).search(input),
+  "room.history": ({ roomId, ...input }, { host }) => host.room(roomId).history(input),
+  "room.steps": ({ roomId, ...input }, { host }) => host.room(roomId).steps(input),
+
+  "chat.command": ({ op }, { host }) => host.user().chatCommand(op),
+  "chat.open": ({ roomId }, { host }) => host.user().chatOpened(roomId),
+  "chat.search": ({ query }, { host }) => host.user().chatSearch(query),
+  "search.messages": ({ query, before }, { host }) => host.user().searchMessages(query, before),
+
+  "agent.create": (input, { host }) => host.user().newAgent(input),
+  "agent.command": ({ op }, { host }) => host.user().agentCommand(op),
+  "agent.setModel": (input, { host }) => host.user().agentSetModel(input),
+  "soul.get": ({ slug }, { host }) => host.user().soulGet(slug),
+  "soul.update": ({ slug, body, expectSha }, { host }) => host.user().soulUpdate(slug, body, expectSha),
+
+  "memory.run": ({ op }, { host }) => host.user().memoryRun(op),
+  "theme.set": ({ theme }, { host }) => host.user().themeSet(theme),
+  "settings.get": (_, { host }) => host.user().settingsGet(),
+  "settings.update": ({ patch }, { host }) => host.user().settingsUpdate(patch),
+  "storage.usage": (_, { host }) => host.user().storageUsage(),
+  "models.catalog": (_, { host }) => host.user().catalog(),
+  "version.get": (_, { host }) => host.user().version(),
+  "files.token": (_, { host }) => host.user().fileToken(),
+  "files.writeText": (input, { host }) => host.user().writeText(input),
+  "home.files": ({ op }, { host }) => host.user().homeFiles(op),
+
+  "credentials.list": (_, { host }) => host.user().credentialsList(),
+  "credentials.connect": ({ provider, apiKey }, { host }) => host.user().credentialsConnect(provider, apiKey),
+  "credentials.disconnect": ({ provider }, { host }) => host.user().credentialsDisconnect(provider),
+  "credentials.check": ({ provider }, { host }) => host.user().credentialsCheck(provider),
+  "login.start": ({ loginId, provider }, { host, socket }) => host.user().loginStart(socket, loginId, provider),
+  "login.answer": ({ loginId, promptId, value }, { host, socket }) =>
+    host.user().loginAnswer(socket, loginId, promptId, value),
+  "login.cancel": ({ loginId }, { host, socket }) => host.user().loginCancel(socket, loginId),
+
+  "composio.connect": ({ apiKey }, { host }) => host.user().composioConnect(apiKey),
+  "composio.disconnect": (_, { host }) => host.user().composioDisconnect(),
+  "composio.status": ({ tools }, { host }) => host.user().composioStatus(tools),
+  "kernel.connect": ({ apiKey }, { host }) => host.user().kernel.kernelConnect(apiKey),
+  "kernel.disconnect": (_, { host }) => host.user().kernel.kernelDisconnect(),
+  "kernel.status": (_, { host, socket }) => host.user().kernel.kernelStatus(socket),
+  "browser.link": ({ mode }, { host }) => host.user().kernel.browserLink(mode),
+  "browser.handBack": (_, { host }) => host.user().kernel.browserHandBack(),
+  "browser.close": (_, { host }) => host.user().kernel.browserClose(),
+
+  "pc.pairCode": (_, { host, socket }) => host.user().pc.pairCode(socket),
+  "pc.remove": ({ pcId }, { host }) => host.user().pc.remove(pcId),
+  "pc.rename": ({ pcId, name }, { host }) => host.user().pc.rename(pcId, name),
+  "pc.watch": ({ pcId, on, mode }, { host, socket }) => host.user().pc.watch(socket, pcId, on, mode),
+  "pc.take": ({ pcId }, { host, socket }) => host.user().pc.take(socket, pcId),
+  "pc.release": ({ pcId }, { host }) => host.user().pc.release(pcId),
+  "pc.rtc": ({ pcId, signal }, { host, socket }) => host.user().pc.rtc(socket, pcId, signal),
+  "pc.input": ({ pcId, events }, { host }) => host.user().pc.input(pcId, events),
+  "pc.ack": ({ pcId, seq }, { host }) => host.user().pc.ack(pcId, seq),
+
+  "recipes.list": (_, { host }) => host.user().recipesList(),
+  "recipes.install": (input, { host }) => host.user().recipesInstall(input),
+  "recipes.uninstall": ({ installId }, { host }) => host.user().recipesUninstall(installId),
+  "recipes.edit": ({ slug }, { host }) => host.user().recipesEdit(slug),
+  "routines.update": ({ id, status }, { host }) => host.user().routineStatus(id, status),
+  "routines.cancel": ({ id }, { host }) => host.user().routineCancel(id),
+
+  "update.start": ({ version }, { host }) => host.user().updateStart(version),
 }

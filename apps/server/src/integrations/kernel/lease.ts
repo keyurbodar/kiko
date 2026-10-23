@@ -241,7 +241,11 @@ export class KernelLease {
       if (e.kind === "rate_limited") {
         const wait = e.retryAfter ?? 2
         if (wait > MAX_RETRY_AFTER_S)
-          throw new KernelError("rate_limited", `Kernel is busy. Try again in ${Math.ceil(wait)} s`, wait)
+          throw new KernelError({
+            kind: "rate_limited",
+            message: `Kernel is busy. Try again in ${Math.ceil(wait)} s`,
+            retryAfter: wait,
+          })
         await this.#sleep(wait * 1_000)
         return op()
       }

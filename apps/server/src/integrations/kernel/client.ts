@@ -1,18 +1,15 @@
+import * as Schema from "effect/Schema"
 import Kernel, { APIConnectionError, APIError } from "@onkernel/sdk"
 
 export type Mode = "headless" | "headful"
 
 export type KernelErrorKind = "unauthorized" | "rate_limited" | "capacity" | "not_found" | "conflict" | "failed"
 
-export class KernelError extends Error {
-  constructor(
-    readonly kind: KernelErrorKind,
-    message: string,
-    readonly retryAfter?: number,
-  ) {
-    super(message)
-  }
-}
+export class KernelError extends Schema.TaggedError<KernelError>()("KernelError", {
+  kind: Schema.Literals(["unauthorized", "rate_limited", "capacity", "not_found", "conflict", "failed"]),
+  message: Schema.String,
+  retryAfter: Schema.optional(Schema.Number),
+}) {}
 
 export type CreatedBrowser = { sessionId: string; cdpUrl: string; liveUrl?: string }
 
@@ -29,18 +26,22 @@ export const REJECTED = "Kernel rejected this key"
 function classify(e: unknown): KernelError {
   if (e instanceof KernelError) return e
   if (e instanceof APIError && e.status !== undefined) {
-    if (e.status === 401 || e.status === 403) return new KernelError("unauthorized", REJECTED)
-    if (e.status === 404) return new KernelError("not_found", "Kernel has no such item")
-    if (e.status === 409) return new KernelError("conflict", "Kernel already has this item")
+    if (e.status === 401 || e.status === 403) return new KernelError({ kind: "unauthorized", message: REJECTED })
+    if (e.status === 404) return new KernelError({ kind: "not_found", message: "Kernel has no such item" })
+    if (e.status === 409) return new KernelError({ kind: "conflict", message: "Kernel already has this item" })
     if (e.status === 429) {
       const wait = Number(e.headers?.get("retry-after"))
-      return new KernelError("rate_limited", "Kernel is busy", Number.isFinite(wait) && wait > 0 ? wait : undefined)
+      return new KernelError({
+        kind: "rate_limited",
+        message: "Kernel is busy",
+        retryAfter: Number.isFinite(wait) && wait > 0 ? wait : undefined,
+      })
     }
-    if (e.status === 529) return new KernelError("capacity", "Kernel is out of capacity")
-    return new KernelError("failed", `Kernel answered ${e.status}`)
+    if (e.status === 529) return new KernelError({ kind: "capacity", message: "Kernel is out of capacity" })
+    return new KernelError({ kind: "failed", message: `Kernel answered ${e.status}` })
   }
-  if (e instanceof APIConnectionError) return new KernelError("failed", "Kernel did not answer")
-  return new KernelError("failed", "Kernel failed")
+  if (e instanceof APIConnectionError) return new KernelError({ kind: "failed", message: "Kernel did not answer" })
+  return new KernelError({ kind: "failed", message: "Kernel failed" })
 }
 
 async function call<T>(op: () => Promise<T>): Promise<T> {
