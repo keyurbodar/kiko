@@ -17,7 +17,7 @@ globalThis.__kikoBoot = {
   me: token ? fetch(apiUrl("/api/me"), { headers: { authorization: `Bearer ${token}` } }) : undefined,
 }
 
-void Promise.all([import("./main"), import("./app/routes/chat"), import("./app/first-run/frame")])
+void Promise.all([import("./main"), import("./app/routes/chat"), token ? undefined : import("./app/first-run/frame")])
   .then(async ([main]) => {
     if (recoveryPending()) return
     await main.start()

@@ -88,7 +88,7 @@ function Root(props: ParentProps) {
 }
 
 export async function start(): Promise<void> {
-  await FirstRun.preload()
+  if (currentStep() !== "done") await FirstRun.preload()
   if (session().status !== "signed-in") applyCommitted(DEFAULT_LOOK, false)
   const root = document.getElementById("root")
   if (!root) throw new Error("Root element #root not found")
