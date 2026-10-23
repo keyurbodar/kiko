@@ -297,7 +297,7 @@ export class KernelWiring {
     const text = JSON.stringify({ t: "browserState", state: this.browserState() } satisfies UserToClient)
     if (text === this.sent) return
     this.sent = text
-    for (const ws of this.d.ctx.getWebSockets()) {
+    for (const ws of this.d.ctx.getWebSockets("tab")) {
       if ((ws.deserializeAttachment() as Attachment | null)?.ready) trySend(ws, text)
     }
   }
@@ -344,7 +344,7 @@ export class KernelWiring {
     this.push()
     if (result.ok && frame.t !== "kernelStatus") {
       const text = JSON.stringify({ t: "kernel", result } satisfies UserToClient)
-      for (const other of this.d.ctx.getWebSockets()) {
+      for (const other of this.d.ctx.getWebSockets("tab")) {
         if (other !== ws && (other.deserializeAttachment() as Attachment | null)?.ready) trySend(other, text)
       }
     }

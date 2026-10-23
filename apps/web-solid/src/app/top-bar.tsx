@@ -1,7 +1,8 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { NotesIcon, SearchIcon, SidebarRightIcon } from "@kiko/ui/icons"
+import { MonitorIcon, NotesIcon, SearchIcon, SidebarRightIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { Show } from "solid-js"
+import { Show, onMount } from "solid-js"
+import { computers, openViewer, startComputers, watchTarget } from "../chat/computers"
 import { cardShown, loadCard, toggleCard } from "../chat/side/card-state"
 import { loadSidecar, sidecarOpen, toggleSidecar } from "../chat/side/surfaces"
 import { runCommand } from "../commands/registry"
@@ -28,6 +29,7 @@ export function TopBar(props: { pathname: string; sidebarOpen: boolean; onToggle
     if (name) return name
     return useApp.user()?.state.loaded ? "" : "Loading…"
   }
+  onMount(startComputers)
   const toggle = (on: boolean) => `top-bar-button ${on ? "bg-accent text-foreground" : ""}`
   return (
     <header class="flex h-[50px] shrink-0 items-center gap-2 px-3" data-component="top-bar">
@@ -67,6 +69,19 @@ export function TopBar(props: { pathname: string; sidebarOpen: boolean; onToggle
           <RemixIcon icon={SearchIcon} size={16} />
         </button>
       </TooltipV2>
+      <Show when={computers().length > 0}>
+        <TooltipV2 placement="bottom" openDelay={400} value="Watch your computer">
+          <button
+            type="button"
+            class="top-bar-button"
+            aria-label="Watch your computer"
+            data-action="computer-watch"
+            onClick={() => openViewer(watchTarget(chatId()))}
+          >
+            <RemixIcon icon={MonitorIcon} size={16} />
+          </button>
+        </TooltipV2>
+      </Show>
       <Show when={chatId()} keyed>
         {(id) => (
           <>

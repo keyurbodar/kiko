@@ -2,6 +2,7 @@ import type { Room } from "../room/room-do"
 import type { User } from "../user/user-do"
 import type { Agent } from "../agent/agent-do"
 import type { FileBucket } from "../files/store"
+import type { ComputerHub } from "../computer/hub"
 
 export interface OwnerServices {
   trimAgents(): Promise<void>
@@ -32,5 +33,6 @@ export interface ServiceOptions {
   sql: SqlStorage
   env: import("../index").Env
   services: OwnerServices
+  computers: ComputerHub
   broadcast(frame: unknown): void
 }

@@ -191,6 +191,13 @@ export const SystemEvent = Schema.Union([
     private: Schema.Literal(true),
   }),
   Schema.Struct({
+    kind: Schema.Literal("computer_control"),
+    agent: AgentSlug,
+    pc: Schema.String,
+    reason: Schema.String,
+    private: Schema.Literal(true),
+  }),
+  Schema.Struct({
     kind: Schema.Literal("run_error"),
     slug: AgentSlug,
     reason: RunErrorKind,
@@ -727,6 +734,67 @@ export const BrowserLinkResult = Schema.Union([
   Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
 ])
 
+const ComputerId = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(64))
+const Unit = Schema.Number.check(Schema.isGreaterThanOrEqualTo(0), Schema.isLessThanOrEqualTo(1))
+
+export const ComputerCaps = Schema.Struct({
+  shell: Schema.Boolean,
+  files: Schema.Boolean,
+  desktop: Schema.Boolean,
+  live: Schema.Boolean,
+  input: Schema.Boolean,
+})
+
+export const ComputerDisplay = Schema.Struct({ id: Id, width: Count, height: Count, scale: Schema.Number })
+
+export const ComputerSignal = Schema.Struct({
+  type: Schema.Literals(["offer", "answer", "ice", "bye"]),
+  sdp: Schema.optionalKey(Schema.String),
+  candidate: Schema.optionalKey(Schema.String),
+  mid: Schema.optionalKey(Schema.String),
+})
+
+export const ComputerIceServer = Schema.Struct({
+  urls: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
+  username: Schema.optionalKey(Schema.String),
+  credential: Schema.optionalKey(Schema.String),
+})
+
+export const ComputerInput = Schema.Union([
+  Schema.Struct({ k: Schema.Literal("move"), x: Unit, y: Unit }),
+  Schema.Struct({ k: Schema.Literal("down"), x: Unit, y: Unit, b: Count }),
+  Schema.Struct({ k: Schema.Literal("up"), x: Unit, y: Unit, b: Count }),
+  Schema.Struct({ k: Schema.Literal("wheel"), x: Unit, y: Unit, dx: Schema.Number, dy: Schema.Number }),
+  Schema.Struct({
+    k: Schema.Literal("key"),
+    code: Schema.String,
+    key: Schema.String,
+    down: Schema.Boolean,
+    mods: Count,
+  }),
+  Schema.Struct({ k: Schema.Literal("text"), s: Schema.String }),
+  Schema.Struct({ k: Schema.Literal("cursor"), who: Schema.Literals(["agent", "real"]), x: Unit, y: Unit }),
+])
+
+export const ComputerAgent = Schema.Struct({
+  slug: AgentSlug,
+  roomId: RoomId,
+  reason: Schema.optionalKey(Schema.String),
+})
+
+export const ComputerSummary = Schema.Struct({
+  id: ComputerId,
+  name: Schema.String,
+  os: Schema.Literals(["macos", "linux", "windows"]),
+  online: Schema.Boolean,
+  caps: ComputerCaps,
+  holder: Schema.Literals(["agent", "human"]),
+  heldBy: Schema.optionalKey(Schema.Literals(["you", "other"])),
+  busy: Schema.optionalKey(Schema.Boolean),
+  agent: Schema.optionalKey(ComputerAgent),
+  displays: Schema.Array(ComputerDisplay),
+})
+
 export const ClientToUser = Schema.Union([
   Hello,
   Schema.Struct({ t: Schema.Literal("home"), op: FileOp }),
@@ -752,6 +820,20 @@ export const ClientToUser = Schema.Union([
   Schema.Struct({ t: Schema.Literal("browserLink"), reqId: Id, mode: Schema.Literals(["watch", "control"]) }),
   Schema.Struct({ t: Schema.Literal("handBack") }),
   Schema.Struct({ t: Schema.Literal("closeBrowser") }),
+  Schema.Struct({ t: Schema.Literal("pc.pairCode"), reqId: Id }),
+  Schema.Struct({ t: Schema.Literal("pc.remove"), reqId: Id, pcId: ComputerId }),
+  Schema.Struct({ t: Schema.Literal("pc.rename"), reqId: Id, pcId: ComputerId, name: Schema.String }),
+  Schema.Struct({
+    t: Schema.Literal("pc.watch"),
+    pcId: ComputerId,
+    on: Schema.Boolean,
+    mode: Schema.optionalKey(Schema.Literals(["rtc", "relay"])),
+  }),
+  Schema.Struct({ t: Schema.Literal("pc.take"), pcId: ComputerId }),
+  Schema.Struct({ t: Schema.Literal("pc.release"), pcId: ComputerId }),
+  Schema.Struct({ t: Schema.Literal("pc.rtc"), pcId: ComputerId, signal: ComputerSignal }),
+  Schema.Struct({ t: Schema.Literal("pc.input"), pcId: ComputerId, events: Schema.Array(ComputerInput) }),
+  Schema.Struct({ t: Schema.Literal("pc.ack"), pcId: ComputerId, seq: Count }),
   Schema.Struct({ t: Schema.Literal("login.start"), loginId: Id, provider: Id }),
   Schema.Struct({ t: Schema.Literal("login.answer"), loginId: Id, promptId: Id, value: Schema.String }),
   Schema.Struct({ t: Schema.Literal("login.cancel"), loginId: Id }),
@@ -835,6 +917,26 @@ export const UserToClient = Schema.Union([
   Schema.Struct({ t: Schema.Literal("kernel"), reqId: Schema.optionalKey(Id), result: KernelResult }),
   Schema.Struct({ t: Schema.Literal("browserState"), state: BrowserState }),
   Schema.Struct({ t: Schema.Literal("browserLink"), reqId: Id, result: BrowserLinkResult }),
+  Schema.Struct({ t: Schema.Literal("pcState"), computers: Schema.Array(ComputerSummary) }),
+  Schema.Struct({
+    t: Schema.Literal("pc.pairCode"),
+    reqId: Id,
+    code: Schema.String,
+    url: Schema.String,
+    expiresAt: Count,
+  }),
+  Schema.Struct({
+    t: Schema.Literal("pc.result"),
+    reqId: Id,
+    ok: Schema.Boolean,
+    error: Schema.optionalKey(Schema.String),
+  }),
+  Schema.Struct({
+    t: Schema.Literal("pc.rtc"),
+    pcId: ComputerId,
+    signal: ComputerSignal,
+    iceServers: Schema.optionalKey(Schema.Array(ComputerIceServer)),
+  }),
   Schema.Struct({ t: Schema.Literal("login.notify"), loginId: Id, event: LoginEvent }),
   Schema.Struct({ t: Schema.Literal("login.prompt"), loginId: Id, promptId: Id, prompt: LoginPrompt }),
   Schema.Struct({
@@ -900,6 +1002,13 @@ export type InSync = Assert<
   | Same<typeof KernelResult.Type, P.KernelResult>
   | Same<typeof BrowserState.Type, P.BrowserState>
   | Same<typeof BrowserLinkResult.Type, P.BrowserLinkResult>
+  | Same<typeof ComputerCaps.Type, P.ComputerCaps>
+  | Same<typeof ComputerDisplay.Type, P.ComputerDisplay>
+  | Same<typeof ComputerSignal.Type, P.ComputerSignal>
+  | Same<typeof ComputerIceServer.Type, P.ComputerIceServer>
+  | Same<typeof ComputerInput.Type, P.ComputerInput>
+  | Same<typeof ComputerAgent.Type, P.ComputerAgent>
+  | Same<typeof ComputerSummary.Type, P.ComputerSummary>
   | Same<typeof ClientToOwner.Type, P.ClientToOwner>
   | Same<typeof OwnerToClient.Type, P.OwnerToClient>
   | Same<typeof ClientToUser.Type, P.ClientToUser>

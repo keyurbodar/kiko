@@ -110,6 +110,53 @@ export type BrowserState = {
 
 export type BrowserLinkResult = { ok: true; url: string } | { ok: false; error: string }
 
+export type ComputerCaps = {
+  shell: boolean
+  files: boolean
+  desktop: boolean
+  live: boolean
+  input: boolean
+}
+
+export type ComputerDisplay = { id: string; width: number; height: number; scale: number }
+
+export type ComputerSignal = {
+  type: "offer" | "answer" | "ice" | "bye"
+  sdp?: string
+  candidate?: string
+  mid?: string
+}
+
+export type ComputerIceServer = {
+  urls: string | readonly string[]
+  username?: string
+  credential?: string
+}
+
+export type ComputerInput =
+  | { k: "move"; x: number; y: number }
+  | { k: "down"; x: number; y: number; b: number }
+  | { k: "up"; x: number; y: number; b: number }
+  | { k: "wheel"; x: number; y: number; dx: number; dy: number }
+  | { k: "key"; code: string; key: string; down: boolean; mods: number }
+  | { k: "text"; s: string }
+  | { k: "cursor"; who: "agent" | "real"; x: number; y: number }
+
+export type ComputerAgent = { slug: AgentSlug; roomId: RoomId; reason?: string }
+
+export type ComputerSummary = {
+  id: string
+  name: string
+  os: "macos" | "linux" | "windows"
+  online: boolean
+  caps: ComputerCaps
+  holder: "agent" | "human"
+  heldBy?: "you" | "other"
+  busy?: boolean
+  agent?: ComputerAgent
+  displays: readonly ComputerDisplay[]
+}
+
 export type ClientToUser =
   | { t: "hello"; lastSeq: number }
   | { t: "chat"; op: ChatOp }
@@ -128,6 +175,15 @@ export type ClientToUser =
   | { t: "browserLink"; reqId: string; mode: "watch" | "control" }
   | { t: "handBack" }
   | { t: "closeBrowser" }
+  | { t: "pc.pairCode"; reqId: string }
+  | { t: "pc.remove"; reqId: string; pcId: string }
+  | { t: "pc.rename"; reqId: string; pcId: string; name: string }
+  | { t: "pc.watch"; pcId: string; on: boolean; mode?: "rtc" | "relay" }
+  | { t: "pc.take"; pcId: string }
+  | { t: "pc.release"; pcId: string }
+  | { t: "pc.rtc"; pcId: string; signal: ComputerSignal }
+  | { t: "pc.input"; pcId: string; events: readonly ComputerInput[] }
+  | { t: "pc.ack"; pcId: string; seq: number }
   | { t: "login.start"; loginId: string; provider: string }
   | { t: "login.answer"; loginId: string; promptId: string; value: string }
   | { t: "login.cancel"; loginId: string }
@@ -147,6 +203,10 @@ export type UserToClient =
   | { t: "kernel"; reqId?: string; result: KernelResult }
   | { t: "browserState"; state: BrowserState }
   | { t: "browserLink"; reqId: string; result: BrowserLinkResult }
+  | { t: "pcState"; computers: readonly ComputerSummary[] }
+  | { t: "pc.pairCode"; reqId: string; code: string; url: string; expiresAt: number }
+  | { t: "pc.result"; reqId: string; ok: boolean; error?: string }
+  | { t: "pc.rtc"; pcId: string; signal: ComputerSignal; iceServers?: readonly ComputerIceServer[] }
   | { t: "login.notify"; loginId: string; event: LoginEvent }
   | { t: "login.prompt"; loginId: string; promptId: string; prompt: LoginPrompt }
   | { t: "login.done"; loginId: string; provider: { provider: string; kind: "api_key" | "oauth"; last4: string } }

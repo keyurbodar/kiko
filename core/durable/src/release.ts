@@ -50,6 +50,7 @@ export async function verifyRelease(manifestBytes: Uint8Array, sigB64: string, p
 
 type ReleaseModule = { name: string; type: string; sha256: string }
 export type ReleaseMigration = { tag: string; new_sqlite_classes?: string[]; deleted_classes?: string[] }
+export type ReleaseComputer = { version: string; base: string; assets: { name: string; sha256: string }[] }
 export type ReleaseManifest = {
   version: string
   protocol: number
@@ -59,6 +60,19 @@ export type ReleaseManifest = {
   durable_objects?: { name: string; class_name: string }[]
   migrations: ReleaseMigration[]
   modules: ReleaseModule[]
+  computer?: ReleaseComputer
+}
+
+function isComputer(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false
+  const computer = value as Partial<ReleaseComputer>
+  return (
+    typeof computer.version === "string" &&
+    typeof computer.base === "string" &&
+    Array.isArray(computer.assets) &&
+    computer.assets.length > 0 &&
+    computer.assets.every((asset) => asset && typeof asset.name === "string" && typeof asset.sha256 === "string")
+  )
 }
 
 export function parseManifest(manifestBytes: Uint8Array): ReleaseManifest | null {
@@ -77,6 +91,7 @@ export function parseManifest(manifestBytes: Uint8Array): ReleaseManifest | null
       typeof m.compatibility_date === "string" &&
       Array.isArray(m.compatibility_flags) &&
       Array.isArray(m.migrations) &&
+      (m.computer === undefined || isComputer(m.computer)) &&
       Array.isArray(m.modules) &&
       m.modules.every(
         (x) => x && typeof x.name === "string" && typeof x.type === "string" && typeof x.sha256 === "string",

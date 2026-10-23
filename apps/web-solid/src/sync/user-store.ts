@@ -497,6 +497,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
         if (frame.t === "room") channel.deliver(frame)
         else onFrame(frame)
       },
+      onBinary: (data) => channel.deliverBinary(data),
       onStatus: (c) => {
         channel.status(c)
         setState(c === "open" ? { connection: c } : { connection: c, typing: {} })

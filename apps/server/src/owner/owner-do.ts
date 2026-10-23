@@ -15,6 +15,9 @@ import { Clock, createServiceClock, RECOVERY_DELAY_MS } from "./clock"
 import { AfterRun } from "./after-run"
 import { initializeSchema } from "./schema"
 import { ownerAttachment, socketView } from "./socket"
+import { CONNECT_HEADERS } from "@kiko/computer/sign"
+import { ComputerHub, pcSocketId } from "../computer/hub"
+import { ComputerStore } from "../computer/store"
 
 type Method<T> = { [K in keyof T]: T[K] extends (...args: never[]) => unknown ? K : never }[keyof T]
 type Args<T> = T extends (...args: infer A) => unknown ? A : never
@@ -35,6 +38,7 @@ export class OwnerDO extends DurableObject<Env> {
   private readonly rooms = new Map<string, Room>()
   private readonly agents = new Map<string, Agent>()
   private readonly blobs: BlobStore
+  private readonly computers: ComputerHub
   private readonly ownerId: string
   private settings?: User
   private readonly clock: Clock
@@ -72,6 +76,17 @@ export class OwnerDO extends DurableObject<Env> {
       schedule: (agent, requestId) => this.enqueueRun(agent, requestId),
     })
     this.blobs = new BlobStore(this.ctx)
+    this.computers = new ComputerHub({
+      ctx,
+      env,
+      store: new ComputerStore(ctx.storage.sql),
+      ownerId: this.ownerId,
+      released: (out) => this.user().computerReleased(out),
+      wakeup: {
+        set: (at) => this.user().setComputerWakeup(at),
+        clear: () => this.user().clearComputerWakeup(),
+      },
+    })
 
     this.services = {
       user: () => this.user(),
@@ -102,7 +117,7 @@ export class OwnerDO extends DurableObject<Env> {
   private context(roomId?: string): DurableObjectState {
     return serviceContext(this.ctx, () =>
       this.ctx
-        .getWebSockets()
+        .getWebSockets("tab")
         .filter((ws) => roomId === undefined || ownerAttachment(ws).rooms[roomId] !== undefined)
         .map((ws) => socketView(ws, roomId)),
     )
@@ -129,9 +144,10 @@ export class OwnerDO extends DurableObject<Env> {
       sql: this.ctx.storage.sql,
       env: this.env,
       services: this.services,
+      computers: this.computers,
       broadcast: (frame) => {
         const raw = JSON.stringify(frame)
-        for (const socket of ctx.getWebSockets()) {
+        for (const socket of ctx.getWebSockets("tab")) {
           const attachment = socket.deserializeAttachment() as { ready?: boolean } | null
           if (!attachment?.ready) continue
           try {
@@ -190,7 +206,19 @@ export class OwnerDO extends DurableObject<Env> {
   }
 
   protected user(): User {
-    return (this.settings ??= new User(this.options("user")))
+    if (this.settings) return this.settings
+    const user = new User({ ...this.options("user"), computers: this.computers })
+    this.settings = user
+    return user
+  }
+
+  async pcPair(input: {
+    publicKey: string
+    name: string
+    hello: import("@kiko/computer/wire").Hello
+    pairNonce: string
+  }) {
+    return this.user().computerPair(input)
   }
 
   protected room(roomId: string): Room {
@@ -237,12 +265,13 @@ export class OwnerDO extends DurableObject<Env> {
   }
 
   async fetch(request: Request): Promise<Response> {
+    if (request.headers.get(CONNECT_HEADERS.id) !== null) return this.computers.connect(request)
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket")
       return new Response("expected a websocket upgrade", { status: 426 })
     const pair = new WebSocketPair()
     const client = pair[0]
     const server = pair[1]
-    this.ctx.acceptWebSocket(server)
+    this.ctx.acceptWebSocket(server, ["tab"])
     server.serializeAttachment({
       user: { ready: false },
       rooms: {},
@@ -254,6 +283,11 @@ export class OwnerDO extends DurableObject<Env> {
   }
 
   async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
+    const pcId = pcSocketId(ws)
+    if (pcId !== null) {
+      await this.computers.message(ws, raw)
+      return
+    }
     const greeting = this.greeting.get(ws)
     if (greeting) await greeting
     await this.receive(ws, raw)
@@ -325,11 +359,21 @@ export class OwnerDO extends DurableObject<Env> {
   }
 
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
+    if (pcSocketId(ws) !== null) {
+      await this.computers.close(ws)
+      await this.refreshClock()
+      return
+    }
     await this.user().webSocketClose(socketView(ws), code)
     await this.recoverDisconnected()
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {
+    if (pcSocketId(ws) !== null) {
+      await this.computers.close(ws)
+      await this.refreshClock()
+      return
+    }
     await this.user().webSocketError(socketView(ws))
     await this.recoverDisconnected()
   }
@@ -396,7 +440,7 @@ export class OwnerDO extends DurableObject<Env> {
   }
 
   private connected(): boolean {
-    return this.ctx.getWebSockets().some((socket) => socket.readyState === WebSocket.OPEN)
+    return this.ctx.getWebSockets("tab").some((socket) => socket.readyState === WebSocket.OPEN)
   }
 
   private async pendingRooms(): Promise<string[]> {

@@ -6,6 +6,7 @@ type OwnerAttachment = {
   user: UserAttachment
   rooms: Record<string, RoomAttachment>
   handle?: string
+  pcSession?: string
 }
 
 export function ownerAttachment(ws: WebSocket): OwnerAttachment {
