@@ -63,6 +63,13 @@ jobs:
         run: bun run build
       - name: build and sign the release
         run: bun scripts/release.ts
+      - name: keep the computer binaries for the release
+        uses: actions/upload-artifact@v4
+        with:
+          name: computer-binaries
+          path: dist-release/computer
+          retention-days: 1
+          if-no-files-found: error
       - name: guard a released version
         run: |
           version="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' dist-release/latest-owner.json)"

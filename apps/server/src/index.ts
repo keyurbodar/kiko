@@ -4,6 +4,7 @@ import { BACKEND } from "./lib/version"
 import { type AuthEnv, authRoute, getSessionUser } from "./auth/auth"
 import { withCors } from "./lib/cors"
 import { ownerStub } from "./lib/names"
+import { installRoute } from "./computer/install-route"
 import { downloadRoute } from "./files/download"
 import { uploadRoute } from "./files/upload"
 import { route } from "./router"
@@ -78,6 +79,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
   if (themed) return themed
   const icon = await faviconRoute(request, env)
   if (icon) return icon
+  const install = await installRoute(request, env)
+  if (install) return install
   const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
   if (filed) return filed
   const dev = await devResponse(request, env)

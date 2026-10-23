@@ -150,8 +150,12 @@ jobs:
     needs: [preflight, bump, deploy]
     if: needs.bump.outputs.released == 'true' && needs.deploy.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: computer-binaries
+          path: computer
       - name: publish the github release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -166,3 +170,10 @@ jobs:
           fi
           gh release create "v$VERSION" --repo "${{ github.repository }}" \
             --title "v$VERSION" --generate-notes $extra
+      - name: attach the computer binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.bump.outputs.version }}
+        run: |
+          ls -l computer
+          gh release upload "v$VERSION" --repo "${{ github.repository }}" --clobber computer/*

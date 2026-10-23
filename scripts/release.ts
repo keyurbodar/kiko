@@ -1,11 +1,24 @@
 import { chmod, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { extname, join, resolve } from "node:path"
+import {
+  COMPUTER_ASSETS,
+  COMPUTER_REPO,
+  COMPUTER_SUMS_FILE,
+  computerAssetBase,
+  computerSums,
+} from "../core/computer/src/install.ts"
 import { sha256Hex } from "../core/durable/src/hash.ts"
-import { type ReleaseManifest, verifyModuleHash, verifyRelease } from "../core/durable/src/release.ts"
+import {
+  type ReleaseComputer,
+  type ReleaseManifest,
+  verifyModuleHash,
+  verifyRelease,
+} from "../core/durable/src/release.ts"
 
 const ROOT = resolve(import.meta.dir, "..")
 const SERVER = join(ROOT, "apps/server")
+const COMPUTER = join(ROOT, "apps/computer")
 const OUT = join(ROOT, "dist-release")
 const KEY_DIR = join(homedir(), ".config", "kiko")
 const KEY_PATH = join(KEY_DIR, "release-key.json")
@@ -84,6 +97,29 @@ async function moduleFiles(dir: string): Promise<string[]> {
   return out.sort()
 }
 
+async function buildComputer(): Promise<{ assets: ReleaseComputer["assets"]; files: Map<string, Uint8Array> }> {
+  const pkg = JSON.parse(await readFile(join(COMPUTER, "package.json"), "utf8")) as {
+    scripts?: Record<string, string>
+  }
+  if (!pkg.scripts?.build)
+    throw new Error("apps/computer needs a build script that compiles the five daemon binaries into dist")
+  const proc = Bun.spawn(["bun", "run", "build"], { cwd: COMPUTER, stdout: "inherit", stderr: "inherit" })
+  if ((await proc.exited) !== 0) throw new Error("the computer daemon build failed")
+  const files = new Map<string, Uint8Array>()
+  const assets: ReleaseComputer["assets"] = []
+  for (const name of COMPUTER_ASSETS) {
+    const bytes = new Uint8Array(await readFile(join(COMPUTER, "dist", name)))
+    files.set(name, bytes)
+    assets.push({ name, sha256: await sha256Hex(bytes) })
+  }
+  return { assets, files }
+}
+
+function computerRelease(version: string, assets: ReleaseComputer["assets"]): ReleaseComputer {
+  const repo = process.env.GITHUB_REPOSITORY ?? COMPUTER_REPO
+  return { version, base: process.env.COMPUTER_ASSET_BASE ?? computerAssetBase(repo, version), assets }
+}
+
 async function main(): Promise<void> {
   if (process.argv.includes("--init-key")) return initKey()
 
@@ -94,6 +130,7 @@ async function main(): Promise<void> {
   const { privateKey, x } = await loadKey()
   const staging = join(OUT, ".staging")
   await dryRun(staging)
+  const computer = await buildComputer()
 
   const config = Bun.JSONC.parse(await readFile(join(SERVER, "wrangler.jsonc"), "utf8")) as {
     main: string
@@ -128,6 +165,7 @@ async function main(): Promise<void> {
     migrations: config.migrations,
     durable_objects: config.durable_objects.bindings,
     modules,
+    computer: computerRelease(version, computer.assets),
   }
   const manifestBytes = new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`)
   const signature = Buffer.from(await crypto.subtle.sign({ name: "Ed25519" }, privateKey, manifestBytes)).toString(
@@ -145,9 +183,14 @@ async function main(): Promise<void> {
   for (const [name, bytes] of contents) await Bun.write(join(dir, name), bytes)
   await Bun.write(join(dir, "manifest.json"), manifestBytes)
   await Bun.write(join(dir, "manifest.sig"), `${signature}\n`)
+  const computerDir = join(OUT, "computer")
+  await rm(computerDir, { recursive: true, force: true })
+  for (const [name, bytes] of computer.files) await Bun.write(join(computerDir, name), bytes)
+  await Bun.write(join(computerDir, COMPUTER_SUMS_FILE), computerSums(computer.assets))
   await Bun.write(join(OUT, "latest-owner.json"), `${JSON.stringify({ version })}\n`)
   await rm(staging, { recursive: true, force: true })
   console.log(`Built ${dir}`)
+  console.log(`Built ${computerDir}`)
   console.log(new TextDecoder().decode(manifestBytes))
 }
 
