@@ -44,9 +44,10 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
   )
   const status = (): Status => {
     const pc = computer()
-    if (!latest() || !pc?.agent) return "done"
+    if (!latest() || !pc) return "done"
     if (!pc.online) return "offline"
-    return pc.holder === "human" ? "working" : "action"
+    if (pc.busy === true || pc.holder === "human") return "working"
+    return pc.agent ? "action" : "done"
   }
   const open = () => status() === "action" || status() === "working"
   const ratio = () => {

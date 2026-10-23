@@ -20,9 +20,18 @@ export default function Viewer(): JSX.Element {
   }
   let panel: HTMLDivElement | undefined
 
+  const inSink = (event: KeyboardEvent) => event.target instanceof HTMLElement && event.target.dataset.part === "sink"
   const leave = (event: KeyboardEvent) => {
-    const typing = event.target instanceof HTMLElement && event.target.dataset.part === "sink"
-    if (event.key === "Escape" && !typing && !event.defaultPrevented) closeViewer()
+    if (event.key !== "Escape" || event.defaultPrevented) return
+    if (interactive()) {
+      if (!event.shiftKey || inSink(event)) return
+      event.preventDefault()
+      closeViewer()
+      return
+    }
+    if (event.shiftKey) return
+    event.preventDefault()
+    closeViewer()
   }
   createEffect(() => {
     if (!pc()) closeViewer()
@@ -61,6 +70,14 @@ export default function Viewer(): JSX.Element {
               <span class="min-w-0 flex-1 truncate text-md font-medium" data-field="viewer-reason">
                 {reason() ?? (interactive() ? `You are controlling ${computer().name}` : `Watching ${computer().name}`)}
               </span>
+              <Show when={interactive()}>
+                <span
+                  class="hidden shrink-0 text-[12px] font-normal whitespace-nowrap opacity-70 sm:inline"
+                  data-field="escape-hint"
+                >
+                  Esc goes to the computer · Shift+Esc leaves
+                </span>
+              </Show>
               <Show when={computers().length > 1}>
                 <select
                   class="h-8 max-w-40 rounded-full bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] px-3 text-[13px] text-foreground outline-none"

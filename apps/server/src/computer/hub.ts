@@ -22,8 +22,11 @@ import type { ComputerRow, ComputerStore, NewComputer } from "./store"
 const HOLD_MS = 30 * 60_000
 const PRESENCE_MS = 45_000
 const DEFAULT_DEADLINE_MS = 60_000
+const BUSY_PUSH_MS = 500
 export const MAX_DEADLINE_MS = 10 * 60_000
 export const COMPUTER_WAKEUP = "computer_hold"
+
+const BUSY_OPS: ReadonlySet<Op> = new Set<Op>(["shell", "look", "act"])
 
 const STUN: IceServer = { urls: "stun:stun.cloudflare.com:3478" }
 const TURN_TTL_S = 3600
@@ -58,6 +61,8 @@ export type CallOutcome = { ok: true; value: unknown } | { ok: false; code: Fail
 
 export type PcReleased = { pcId: string; name: string; waiters: PcAgent[]; expired: boolean }
 
+type TabAttachment = { pcSession?: string; user?: { pcSession?: string } }
+
 type Pending = {
   pcId: string
   resolve: (outcome: CallOutcome) => void
@@ -88,10 +93,13 @@ export class ComputerHub {
   private readonly pending = new Map<string, Pending>()
   private readonly waiters = new Map<string, PcAgent[]>()
   private readonly watching = new Map<string, Set<WebSocket>>()
-  private readonly sessions = new WeakMap<WebSocket, string>()
   private readonly memory = new Map<string, PcHold>()
+  private readonly running = new Map<string, number>()
+  private readonly busyPushAt = new Map<string, number>()
+  private readonly busyTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private readonly sentTo = new WeakMap<WebSocket, string>()
   private turn?: { at: number; servers: IceServer[] }
-  private sent = ""
+  private turning?: Promise<IceServer[]>
 
   constructor(private readonly d: HubDeps) {}
 
@@ -158,10 +166,6 @@ export class ComputerHub {
     return this.hold(id).holder
   }
 
-  agentOf(id: string): PcAgent | undefined {
-    return this.hold(id).agent
-  }
-
   online(id: string): boolean {
     for (const ws of this.sockets(id)) {
       if (ws.readyState !== WebSocket.OPEN) continue
@@ -173,32 +177,76 @@ export class ComputerHub {
     return false
   }
 
-  summaries(): ComputerSummary[] {
+  private sessionOf(tab: WebSocket): string | undefined {
+    const saved = tab.deserializeAttachment() as TabAttachment | null
+    return saved?.pcSession ?? saved?.user?.pcSession
+  }
+
+  summaries(tab?: WebSocket): ComputerSummary[] {
+    const mine = tab && this.sessionOf(tab)
     return this.rows().map((row) => {
-      const agent = this.agentOf(row.id)
+      const hold = this.hold(row.id)
+      const heldBy = tab && hold.heldBy ? (mine === hold.heldBy ? "you" : "other") : undefined
       return {
         id: row.id,
         name: row.name,
         os: row.os,
         online: this.online(row.id),
         caps: this.d.store.caps(row),
-        holder: this.holder(row.id),
-        ...(agent ? { agent } : {}),
+        holder: hold.holder,
+        busy: this.busy(row.id),
+        ...(heldBy ? { heldBy } : {}),
+        ...(hold.agent ? { agent: hold.agent } : {}),
         displays: this.helloOf(row.id)?.displays ?? [],
       }
     })
   }
 
+  sendState(tab: WebSocket): void {
+    const text = JSON.stringify({ t: "pcState", computers: this.summaries(tab) })
+    if (this.sentTo.get(tab) === text) return
+    this.sentTo.set(tab, text)
+    try {
+      tab.send(text)
+    } catch {}
+  }
+
   push(): void {
-    const text = JSON.stringify({ t: "pcState", computers: this.summaries() })
-    if (text === this.sent) return
-    this.sent = text
     for (const ws of this.d.ctx.getWebSockets("tab")) {
       if (!(ws.deserializeAttachment() as { user?: { ready?: boolean } } | null)?.user?.ready) continue
-      try {
-        ws.send(text)
-      } catch {}
+      this.sendState(ws)
     }
+  }
+
+  private busy(id: string): boolean {
+    return (this.running.get(id) ?? 0) > 0
+  }
+
+  private track(id: string, active: boolean): void {
+    const before = this.running.get(id) ?? 0
+    const after = Math.max(0, before + (active ? 1 : -1))
+    if (after) this.running.set(id, after)
+    else this.running.delete(id)
+    if (before > 0 === after > 0) return
+    this.scheduleBusyPush(id)
+  }
+
+  private scheduleBusyPush(id: string): void {
+    if (this.busyTimers.has(id)) return
+    const wait = Math.max(0, BUSY_PUSH_MS - (Date.now() - (this.busyPushAt.get(id) ?? 0)))
+    if (!wait) {
+      this.busyPushAt.set(id, Date.now())
+      this.push()
+      return
+    }
+    this.busyTimers.set(
+      id,
+      setTimeout(() => {
+        this.busyTimers.delete(id)
+        this.busyPushAt.set(id, Date.now())
+        this.push()
+      }, wait),
+    )
   }
 
   pair(input: Omit<NewComputer, "os" | "arch" | "host" | "caps" | "at"> & { hello: Hello }): boolean {
@@ -299,6 +347,7 @@ export class ComputerHub {
     ws.serializeAttachment({ ...saved, hello } satisfies PcAttachment)
     this.memory.set(saved.id, { ...saved, hello })
     this.send(ws, { t: "welcome", id: saved.id, name: this.name(saved.id) })
+    void this.iceServers().catch(() => {})
     this.push()
   }
 
@@ -346,7 +395,13 @@ export class ComputerHub {
     }
     const deadlineMs = Math.min(Math.max(1_000, Number(options.deadlineMs ?? DEFAULT_DEADLINE_MS)), MAX_DEADLINE_MS)
     const id = crypto.randomUUID()
+    const busy = BUSY_OPS.has(op)
+    if (busy) this.track(pcId, true)
     const outcome = new Promise<CallOutcome>((resolve) => {
+      const done = (out: CallOutcome) => {
+        if (busy) this.track(pcId, false)
+        resolve(out)
+      }
       const timer = setTimeout(() => {
         this.send(ws, { t: "cancel", id })
         this.settle(id, { ok: false, code: "timeout", message: `${op} timed out after ${deadlineMs}ms` })
@@ -357,7 +412,7 @@ export class ComputerHub {
         this.settle(id, { ok: false, code: "cancelled", message: `${op} was cancelled` })
       }
       signal?.addEventListener("abort", abort, { once: true })
-      this.pending.set(id, { pcId, resolve, timer, detach: () => signal?.removeEventListener("abort", abort) })
+      this.pending.set(id, { pcId, resolve: done, timer, detach: () => signal?.removeEventListener("abort", abort) })
     })
     this.send(ws, { t: "call", id, op, args: parsed, deadlineMs })
     return outcome
@@ -391,6 +446,16 @@ export class ComputerHub {
     this.send(ws, watchers.size > 0 ? { t: "live", on: true, ...RELAY } : { t: "live", on: false })
   }
 
+  async watchRtc(pcId: string, tab: WebSocket): Promise<void> {
+    const ws = this.socket(pcId)
+    if (!ws) return
+    const iceServers = await this.iceServers()
+    try {
+      tab.send(JSON.stringify({ t: "pc.rtc", pcId, signal: { type: "ice" }, iceServers }))
+    } catch {}
+    this.session(tab)
+  }
+
   unwatch(tab: WebSocket): void {
     for (const [pcId, watchers] of this.watching) {
       if (!watchers.delete(tab) || watchers.size) continue
@@ -401,10 +466,15 @@ export class ComputerHub {
   }
 
   session(tab: WebSocket): string {
-    const known = this.sessions.get(tab)
+    const known = this.sessionOf(tab)
     if (known) return known
     const id = crypto.randomUUID()
-    this.sessions.set(tab, id)
+    const saved = (tab.deserializeAttachment() ?? {}) as TabAttachment & Record<string, unknown>
+    tab.serializeAttachment({
+      ...saved,
+      pcSession: id,
+      ...(saved.user ? { user: { ...saved.user, pcSession: id } } : {}),
+    })
     return id
   }
 
@@ -416,7 +486,7 @@ export class ComputerHub {
 
   private daemonRtc(pcId: string, session: string, signal: RtcSignal): void {
     for (const tab of this.d.ctx.getWebSockets("tab")) {
-      if (this.sessions.get(tab) !== session) continue
+      if (this.sessionOf(tab) !== session) continue
       try {
         tab.send(JSON.stringify({ t: "pc.rtc", pcId, signal }))
       } catch {}
@@ -426,9 +496,16 @@ export class ComputerHub {
 
   async iceServers(): Promise<IceServer[]> {
     if (this.turn && Date.now() - this.turn.at < TURN_CACHE_MS) return this.turn.servers
+    this.turning ??= this.mintIceServers().finally(() => {
+      this.turning = undefined
+    })
+    return this.turning
+  }
+
+  private async mintIceServers(): Promise<IceServer[]> {
+    const servers: IceServer[] = [STUN]
     const keyId = this.d.env.CF_TURN_KEY_ID
     const token = this.d.env.CF_TURN_KEY_TOKEN
-    const servers: IceServer[] = [STUN]
     if (!keyId || !token) return servers
     try {
       const response = await (this.d.fetch ?? fetch)(
@@ -471,6 +548,14 @@ export class ComputerHub {
     if (ws) this.send(ws, { t: "control", holder })
   }
 
+  private enterHuman(pcId: string): void {
+    const hold = this.hold(pcId)
+    if (hold.holder === "human") return
+    this.save(pcId, { ...hold, holder: "human", heldSince: Date.now() })
+    this.tellHolder(pcId, "human")
+    this.arm()
+  }
+
   take(pcId: string, tab: WebSocket): boolean {
     if (!this.socket(pcId)) return false
     this.save(pcId, { ...this.hold(pcId), holder: "human", heldBy: this.session(tab), heldSince: Date.now() })
@@ -478,14 +563,6 @@ export class ComputerHub {
     this.push()
     this.arm()
     return true
-  }
-
-  private enterHuman(pcId: string): void {
-    const hold = this.hold(pcId)
-    if (hold.holder === "human") return
-    this.save(pcId, { ...hold, holder: "human", heldSince: Date.now() })
-    this.tellHolder(pcId, "human")
-    this.arm()
   }
 
   link(pcId: string, agent: PcAgent): "human" | "agent" | "missing" {
@@ -536,7 +613,6 @@ export class ComputerHub {
   async close(ws: WebSocket): Promise<void> {
     const saved = attachmentOf(ws)
     this.unwatch(ws)
-    this.sessions.delete(ws)
     if (!saved) return
     const replaced = this.sockets(saved.id).some((other) => other !== ws && other.readyState === WebSocket.OPEN)
     if (!replaced) {

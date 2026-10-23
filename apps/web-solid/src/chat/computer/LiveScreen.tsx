@@ -3,7 +3,7 @@ import { cn } from "../../lib/cn"
 import { userChannel } from "../../sync/socket"
 import { computerById } from "../computers"
 import { Cursor } from "./Cursor"
-import { bindInput, type Point } from "./input"
+import { bindInput, escapeEvents, type Point } from "./input"
 import { type Cursor as AgentPoint, type Mode, type Session, startSession } from "./session"
 
 const DEFAULT_RATIO = 16 / 10
@@ -67,6 +67,21 @@ export default function LiveScreen(props: {
     const unbind = bindInput({ stage, sink, send: (events) => session?.send(events), onPointer: place })
     sink.focus({ preventScroll: true })
     onCleanup(unbind)
+  })
+
+  createEffect(() => {
+    if (!props.interactive) return
+    const remote = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.shiftKey || event.defaultPrevented) return
+      if (event.target === sink) return
+      event.preventDefault()
+      session?.send(escapeEvents(event))
+      sink.focus({ preventScroll: true })
+    }
+    document.addEventListener("keydown", remote)
+    onCleanup(() => {
+      document.removeEventListener("keydown", remote)
+    })
   })
 
   const showing = (which: Mode) => (mode() === which ? "opacity-100" : "opacity-0")

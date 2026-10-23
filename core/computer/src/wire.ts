@@ -133,6 +133,7 @@ export const InputEvent = Schema.Union([
   Schema.Struct({ k: Schema.Literal("wheel"), x: Unit, y: Unit, dx: Schema.Number, dy: Schema.Number }),
   Schema.Struct({ k: Schema.Literal("key"), code: Text, key: Text, down: Schema.Boolean, mods: Count }),
   Schema.Struct({ k: Schema.Literal("text"), s: Text }),
+  Schema.Struct({ k: Schema.Literal("cursor"), who: Schema.Literals(["agent", "real"]), x: Unit, y: Unit }),
 ])
 export type InputEvent = typeof InputEvent.Type
 

@@ -773,6 +773,7 @@ export const ComputerInput = Schema.Union([
     mods: Count,
   }),
   Schema.Struct({ k: Schema.Literal("text"), s: Schema.String }),
+  Schema.Struct({ k: Schema.Literal("cursor"), who: Schema.Literals(["agent", "real"]), x: Unit, y: Unit }),
 ])
 
 export const ComputerAgent = Schema.Struct({
@@ -788,6 +789,8 @@ export const ComputerSummary = Schema.Struct({
   online: Schema.Boolean,
   caps: ComputerCaps,
   holder: Schema.Literals(["agent", "human"]),
+  heldBy: Schema.optionalKey(Schema.Literals(["you", "other"])),
+  busy: Schema.optionalKey(Schema.Boolean),
   agent: Schema.optionalKey(ComputerAgent),
   displays: Schema.Array(ComputerDisplay),
 })

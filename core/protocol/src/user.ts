@@ -140,6 +140,7 @@ export type ComputerInput =
   | { k: "wheel"; x: number; y: number; dx: number; dy: number }
   | { k: "key"; code: string; key: string; down: boolean; mods: number }
   | { k: "text"; s: string }
+  | { k: "cursor"; who: "agent" | "real"; x: number; y: number }
 
 export type ComputerAgent = { slug: AgentSlug; roomId: RoomId; reason?: string }
 
@@ -150,6 +151,8 @@ export type ComputerSummary = {
   online: boolean
   caps: ComputerCaps
   holder: "agent" | "human"
+  heldBy?: "you" | "other"
+  busy?: boolean
   agent?: ComputerAgent
   displays: readonly ComputerDisplay[]
 }

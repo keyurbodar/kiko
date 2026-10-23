@@ -26,13 +26,13 @@ function patch(pcId: string, change: (computer: ComputerSummary) => ComputerSumm
 }
 
 export function takeOver(pcId: string): void {
-  patch(pcId, (c) => ({ ...c, holder: "human" }))
+  patch(pcId, (c) => ({ ...c, holder: "human", heldBy: "you" }))
   userChannel.send({ t: "pc.take", pcId })
   openViewer(pcId)
 }
 
 export function release(pcId: string): void {
-  patch(pcId, ({ agent: _agent, ...c }) => ({ ...c, holder: "agent" }))
+  patch(pcId, ({ agent: _agent, heldBy: _heldBy, ...c }) => ({ ...c, holder: "agent" }))
   userChannel.send({ t: "pc.release", pcId })
   if (viewing() === pcId) closeViewer()
 }

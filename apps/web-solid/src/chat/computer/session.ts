@@ -135,6 +135,11 @@ function startRtc(pcId: string, hooks: Hooks, on: RtcEvents): Rtc {
         begins()
       }
     }
+    if (frame.signal.type === "ice" && !frame.signal.candidate && !begun) {
+      clearTimeout(wait)
+      begins()
+      return
+    }
     void remote(frame.signal).catch(on.fail)
   })
 

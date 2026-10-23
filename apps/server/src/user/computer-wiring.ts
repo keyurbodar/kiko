@@ -118,7 +118,7 @@ export class ComputerWiring {
   }
 
   onTabHello(ws: WebSocket): void {
-    send(ws, { t: "pcState", computers: this.list() })
+    this.hub.sendState(ws)
   }
 
   async frame(ws: WebSocket, frame: ComputerFrame): Promise<void> {
@@ -136,8 +136,10 @@ export class ComputerWiring {
     if (frame.t === "pc.remove" || frame.t === "pc.rename") return this.nameFrame(ws, frame)
     const row = this.find(frame.pcId)
     if (!row) return
-    if (frame.t === "pc.watch") this.hub.watch(row.id, ws, frame.on, frame.mode ?? "rtc")
-    else if (frame.t === "pc.take") this.take(ws, row.id, row.name)
+    if (frame.t === "pc.watch") {
+      if (frame.on && (frame.mode ?? "rtc") === "rtc") await this.hub.watchRtc(row.id, ws)
+      else this.hub.watch(row.id, ws, frame.on, frame.mode ?? "rtc")
+    } else if (frame.t === "pc.take") this.take(ws, row.id, row.name)
     else if (frame.t === "pc.release") this.released(this.hub.release(row.id))
     else if (frame.t === "pc.rtc") await this.hub.rtcFromTab(ws, row.id, frame.signal)
     else if (frame.t === "pc.input") this.hub.input(row.id, frame.events)

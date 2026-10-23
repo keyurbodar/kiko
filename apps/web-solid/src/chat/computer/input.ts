@@ -92,6 +92,14 @@ function pointerHandlers(target: InputTarget) {
   }
 }
 
+export function escapeEvents(event: KeyboardEvent): ComputerInput[] {
+  const key = { k: "key", code: "Escape", key: "Escape", mods: modsOf(event) } as const
+  return [
+    { ...key, down: true },
+    { ...key, down: false },
+  ]
+}
+
 function keyHandlers(target: InputTarget) {
   const { sink, send } = target
   const down = new Map<string, { key: string; mods: number }>()
@@ -104,8 +112,13 @@ function keyHandlers(target: InputTarget) {
   return {
     keydown(event: KeyboardEvent) {
       if (event.isComposing || event.key === "Process" || event.key === "Unidentified") return
-      if (event.key === "Escape") return sink.blur()
       if (isPasteChord(event)) return
+      if (event.key === "Escape") {
+        event.preventDefault()
+        if (event.shiftKey) return sink.blur()
+        send(escapeEvents(event))
+        return
+      }
       event.preventDefault()
       const mods = modsOf(event)
       down.set(event.code, { key: event.key, mods })
