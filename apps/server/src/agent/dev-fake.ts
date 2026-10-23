@@ -6,6 +6,7 @@ import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-
 import { type Effect, declareEffect } from "@kiko/agent/effects"
 import { plainReport } from "@kiko/agent/workers"
 import { boundedWait } from "@kiko/durable/bounded-wait"
+import { DevFakeError } from "./errors"
 import { type BuildAgentInput, buildAgent, RUN_SETTINGS } from "./factory"
 import { withTextToolCalls } from "./tool-markup"
 import type { AgentSetup } from "@kiko/agent/host"
@@ -49,7 +50,7 @@ const WORK_STEP_MS = 3_000
 
 function capture(match: readonly string[], index: number): string {
   const value = match[index]
-  if (value === undefined) throw new Error(`regex group ${index} did not participate in the match`)
+  if (value === undefined) throw new DevFakeError({ message: `regex group ${index} did not participate in the match` })
   return value
 }
 

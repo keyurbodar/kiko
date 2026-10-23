@@ -13,7 +13,16 @@ export class AgentEgressError extends Schema.TaggedError<AgentEgressError>()("Ag
   message: Schema.String,
 }) {}
 
+export class DevFakeError extends Schema.TaggedError<DevFakeError>()("DevFakeError", {
+  message: Schema.String,
+}) {}
+
 export class BrowserError extends Schema.TaggedError<BrowserError>()("BrowserError", {
+  message: Schema.String,
+}) {}
+
+export class JournalRunMissing extends Schema.TaggedError<JournalRunMissing>()("JournalRunMissing", {
+  runId: Schema.String,
   message: Schema.String,
 }) {}
 

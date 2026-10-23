@@ -27,6 +27,8 @@ import { type BashResult, runCommand } from "./bash"
 import { cleanPath, deleteFiles, fileKey, HOME } from "./paths"
 import { type BatchChange, batchPaths, typeForPath } from "./batch"
 import { baseName, type CommitResult, type IndexChange, type NewFile } from "./file-index"
+import { AgentHomeMissing } from "../agent/errors"
+import { AgentFilesMissing } from "./errors"
 
 export const CHAT_PATH = "chat.md"
 export const MAX_CHAT = 3_000
@@ -445,7 +447,7 @@ export function roomViews(id: string, backend: FilesBackend): (conversationId: C
 
 export function filesOf(api: Pick<ToolExecutionApi, "env">): RoomFs {
   if (api.env instanceof RoomFs) return api.env
-  throw new Error("this agent has no chat files")
+  throw new AgentFilesMissing({ message: "this agent has no chat files" })
 }
 
 export class ObjectCache {
@@ -577,7 +579,7 @@ function spaceBackend(
 
 const homeOf = (home: () => AgentHome | null) => () => {
   const h = home()
-  if (!h) throw new Error("this agent has no room yet")
+  if (!h) throw new AgentHomeMissing({ message: "this agent has no room yet" })
   return h
 }
 
