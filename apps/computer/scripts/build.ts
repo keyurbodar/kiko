@@ -63,8 +63,10 @@ async function compile(target: Target): Promise<string> {
 
 const only = process.argv.slice(2)
 await mkdir(outdir, { recursive: true })
-for (const target of TARGETS.filter((t) => only.length === 0 || only.includes(t.name))) {
-  const outfile = await compile(target)
-  const size = await stat(outfile).then((info) => info.size)
-  console.log(`${target.name}: ${outfile} (${(size / 1024 / 1024).toFixed(1)} MiB)`)
-}
+await Promise.all(
+  TARGETS.filter((t) => only.length === 0 || only.includes(t.name)).map(async (target) => {
+    const outfile = await compile(target)
+    const size = await stat(outfile).then((info) => info.size)
+    console.log(`${target.name}: ${outfile} (${(size / 1024 / 1024).toFixed(1)} MiB)`)
+  }),
+)
