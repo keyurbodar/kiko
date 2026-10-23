@@ -143,9 +143,22 @@ function optional<T extends Record<string, { args: FFIType[]; returns: FFIType |
 
 const DRAGGED = [EVENT.leftDragged, EVENT.rightDragged, EVENT.otherDragged] as const
 
+function requestAccess(): void {
+  const access = optional(`${FRAMEWORKS}/CoreGraphics.framework/CoreGraphics`, {
+    CGPreflightPostEventAccess: { args: [], returns: FFIType.bool },
+    CGRequestPostEventAccess: { args: [], returns: FFIType.bool },
+    CGPreflightScreenCaptureAccess: { args: [], returns: FFIType.bool },
+    CGRequestScreenCaptureAccess: { args: [], returns: FFIType.bool },
+  })
+  if (!access) return
+  if (!access.CGPreflightPostEventAccess()) access.CGRequestPostEventAccess()
+  if (!access.CGPreflightScreenCaptureAccess()) access.CGRequestScreenCaptureAccess()
+}
+
 export function macNative(): Native | null {
   const core = open()
   if (!core) return null
+  requestAccess()
   let flags = 0
   let pressed: number | null = null
   let last = { at: 0, x: 0, y: 0, slot: -1, clicks: 0 }
