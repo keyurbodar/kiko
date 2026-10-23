@@ -1,3 +1,4 @@
+import { dlopen } from "bun:ffi"
 import { parseArgs } from "node:util"
 import { configDir } from "./config"
 import { detect } from "./caps"
@@ -27,6 +28,7 @@ export async function main(argv: string[]): Promise<number> {
       name: { type: "string" },
       dir: { type: "string" },
       help: { type: "boolean", default: false, short: "h" },
+      background: { type: "boolean", default: false },
     },
   })
   if (values.help || positionals.length === 0) {
@@ -40,11 +42,19 @@ export async function main(argv: string[]): Promise<number> {
     if (command === "pair") return await runPair(dir, rest, values.name ?? null)
     if (command === "service") return await runService(rest)
     if (command === "doctor") return await runDoctor(dir)
+    if (values.background) detachConsole()
     return await serve(dir)
   } catch (error) {
     console.error(`kiko-computer: ${error instanceof Error ? error.message : String(error)}`)
     return 1
   }
+}
+
+function detachConsole(): void {
+  if (process.platform !== "win32") return
+  try {
+    dlopen("kernel32.dll", { FreeConsole: { args: [], returns: "bool" } }).symbols.FreeConsole()
+  } catch {}
 }
 
 async function runPair(dir: string, rest: string[], name: string | null): Promise<number> {

@@ -58,7 +58,9 @@ function linuxSources(screen: Screen, fps: number): string[][] {
 }
 
 function macSources(fps: number, index: number): string[][] {
-  return [["-f", "avfoundation", "-capture_cursor", "0", "-framerate", String(fps), "-i", `${index}:none`]]
+  return [
+    ["-f", "avfoundation", "-capture_cursor", "0", "-framerate", String(fps), "-i", `Capture screen ${index}:none`],
+  ]
 }
 
 function windowsSources(screen: Screen, fps: number): string[][] {
@@ -72,7 +74,7 @@ function windowsSources(screen: Screen, fps: number): string[][] {
 
 function sources(options: CaptureOptions): string[][] {
   const name = platform()
-  if (name === "macos") return macSources(options.fps, options.screenIndex ?? 1)
+  if (name === "macos") return macSources(options.fps, options.screenIndex ?? 0)
   if (name === "windows") return windowsSources(options.screen, options.fps)
   return linuxSources(options.screen, options.fps)
 }
@@ -88,9 +90,10 @@ function videoEncoders(options: CaptureOptions): Encoder[] {
   return [...hardware, { name: "libx264", args: ["-c:v", ...SOFTWARE, ...gop, ...force] }]
 }
 
-function inputFilter(options: CaptureOptions, encoder: string): string[] {
+function inputFilter(options: CaptureOptions, encoder: string, source: readonly string[]): string[] {
   const size = scaled(options.screen, options.maxWidth)
-  const scale = `scale=${size.width}:${size.height}:flags=fast_bilinear`
+  const gpuFrames = source.some((part) => part.startsWith("ddagrab"))
+  const scale = `${gpuFrames ? "hwdownload,format=bgra," : ""}scale=${size.width}:${size.height}:flags=fast_bilinear`
   return ["-vf", encoder === "h264_vaapi" ? `${scale},format=nv12,hwupload` : scale]
 }
 
@@ -104,7 +107,7 @@ export function capturePlans(options: CaptureOptions): string[][] {
       ...(encoder.name === "h264_vaapi" ? ["-vaapi_device", VAAPI_DEVICE] : []),
       ...source,
       ...fixed,
-      ...inputFilter(options, encoder.name),
+      ...inputFilter(options, encoder.name, source),
       ...encoder.args,
       ...output,
     ]),

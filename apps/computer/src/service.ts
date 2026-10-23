@@ -5,6 +5,10 @@ import { homeDir } from "./platform"
 
 const LABEL = "com.kiko.computer"
 const UNIT = "kiko-computer.service"
+const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+const MAC_PATHS = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
+const BOOTOUT_WAIT_MS = 5_000
+const BOOTSTRAP_TRIES = 3
 
 export type ServiceAction = "install" | "uninstall" | "status"
 
@@ -18,8 +22,14 @@ function quote(argv: string[]): string {
   return argv.map((part) => `"${part.replaceAll('"', '\\"')}"`).join(" ")
 }
 
-function shellQuote(argv: string[]): string {
-  return argv.map((part) => `'${part.replaceAll("'", "'\\''")}'`).join(" ")
+function xml(text: string): string {
+  return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+}
+
+function macPath(): string {
+  const local = join(homeDir(), ".local", "bin")
+  const parts = [...(process.env.PATH ?? "").split(":"), ...MAC_PATHS, local]
+  return [...new Set(parts.filter(Boolean))].join(":")
 }
 
 function launchdPath(): string {
@@ -39,8 +49,12 @@ function launchdPlist(): string {
   <key>Label</key><string>${LABEL}</string>
   <key>ProgramArguments</key>
   <array>
-${program.map((part) => `    <string>${part}</string>`).join("\n")}
+${program.map((part) => `    <string>${xml(part)}</string>`).join("\n")}
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>${xml(macPath())}</string>
+  </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>ProcessType</key><string>Interactive</string>
@@ -89,25 +103,43 @@ export async function service(action: ServiceAction): Promise<number> {
   return systemd(action)
 }
 
+async function quiet(argv: string[]): Promise<number> {
+  return Bun.spawn(argv, { stdout: "ignore", stderr: "ignore" }).exited
+}
+
+async function bootout(domain: string, file: string): Promise<void> {
+  await quiet(["launchctl", "bootout", domain, file])
+  const until = Date.now() + BOOTOUT_WAIT_MS
+  while (Date.now() < until && (await quiet(["launchctl", "print", `${domain}/${LABEL}`])) === 0) await Bun.sleep(200)
+}
+
+async function bootstrap(domain: string, file: string): Promise<boolean> {
+  for (let attempt = 0; attempt < BOOTSTRAP_TRIES; attempt++) {
+    if ((await quiet(["launchctl", "bootstrap", domain, file])) === 0) return true
+    await Bun.sleep(500)
+  }
+  return (await run(["launchctl", "bootstrap", domain, file])) === 0
+}
+
 async function launchd(action: ServiceAction): Promise<number> {
   const file = launchdPath()
+  const domain = `gui/${process.getuid?.() ?? 501}`
   if (action === "install") {
     await writeUnit(file, launchdPlist())
-    await run(["launchctl", "bootout", `gui/${process.getuid?.() ?? 501}`, file])
-    const code = await run(["launchctl", "bootstrap", `gui/${process.getuid?.() ?? 501}`, file])
-    if (code !== 0) throw new CliError(`launchctl could not load ${file}`)
+    await bootout(domain, file)
+    if (!(await bootstrap(domain, file))) throw new CliError(`launchctl could not load ${file}`)
     console.log(`installed ${file}`)
     return 0
   }
   if (action === "uninstall") {
-    await run(["launchctl", "bootout", `gui/${process.getuid?.() ?? 501}`, file])
+    await bootout(domain, file)
     if (await exists(file)) await writeFile(file, "")
     return run(["rm", "-f", file]).then(() => {
       console.log(`removed ${file}`)
       return 0
     })
   }
-  const loaded = await run(["launchctl", "print", `gui/${process.getuid?.() ?? 501}/${LABEL}`])
+  const loaded = await quiet(["launchctl", "print", `${domain}/${LABEL}`])
   console.log(
     loaded === 0 ? `${LABEL} is loaded from ${file}` : `${LABEL} is not loaded (run kiko-computer service install)`,
   )
@@ -136,20 +168,26 @@ async function systemd(action: ServiceAction): Promise<number> {
   return 0
 }
 
-function scheduledTaskCommand(action: ServiceAction): string[] {
-  const program = selfCommand()
-  const base = ["schtasks", "/tn", "kiko-computer"]
-  if (action === "install") {
-    return [...base, "/create", "/f", "/sc", "onlogon", "/tr", `"${shellQuote(program)}"`]
-  }
-  return [...base, action === "uninstall" ? "/delete" : "/query", "/f"]
-}
-
 async function windows(action: ServiceAction): Promise<number> {
-  const code = await run(scheduledTaskCommand(action))
-  if (code !== 0 && action !== "status") {
-    throw new CliError(`schtasks could not ${action} the logon task for kiko-computer`)
+  const program = [...selfCommand(), "--background"]
+  if (action === "status") {
+    const found = await quiet(["reg", "query", RUN_KEY, "/v", "kiko-computer"])
+    console.log(
+      found === 0
+        ? "kiko-computer starts at logon"
+        : "kiko-computer is not set to start (run kiko-computer service install)",
+    )
+    return 0
   }
-  if (action === "install") console.log("installed the kiko-computer logon task")
+  await quiet(["taskkill", "/F", "/IM", "kiko-computer.exe", "/FI", `PID ne ${process.pid}`])
+  if (action === "uninstall") {
+    await quiet(["reg", "delete", RUN_KEY, "/v", "kiko-computer", "/f"])
+    console.log("kiko-computer no longer starts at logon")
+    return 0
+  }
+  const code = await run(["reg", "add", RUN_KEY, "/v", "kiko-computer", "/t", "REG_SZ", "/d", quote(program), "/f"])
+  if (code !== 0) throw new CliError("could not register kiko-computer to start at logon")
+  Bun.spawn(program, { detached: true, stdio: ["ignore", "ignore", "ignore"] }).unref()
+  console.log("kiko-computer starts at logon and is running now")
   return 0
 }

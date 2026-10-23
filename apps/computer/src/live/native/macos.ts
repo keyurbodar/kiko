@@ -1,8 +1,13 @@
-import { dlopen, FFIType, ptr, read, toBuffer } from "bun:ffi"
+import { dlopen, FFIType, ptr } from "bun:ffi"
 import type { Native } from "./contract"
 import { macKeyCode } from "../keymap"
 
 const FRAMEWORKS = "/System/Library/Frameworks"
+const HITOOLBOX = `${FRAMEWORKS}/Carbon.framework/Frameworks/HIToolbox.framework/HIToolbox`
+const GLOBAL_POINTS = 1
+const CLICK_STATE = 1
+const DOUBLE_CLICK_MS = 500
+const DOUBLE_CLICK_PX = 4
 
 const EVENT = {
   leftDown: 1,
@@ -10,6 +15,9 @@ const EVENT = {
   rightDown: 3,
   rightUp: 4,
   mouseMoved: 5,
+  leftDragged: 6,
+  rightDragged: 7,
+  otherDragged: 27,
   otherDown: 25,
   otherUp: 26,
   scrollWheel: 22,
@@ -35,7 +43,7 @@ const FLAGS: Record<string, number> = {
 }
 
 type Core = {
-  mouse: (type: number, x: number, y: number, button: number, flags: number) => void
+  mouse: (type: number, x: number, y: number, button: number, flags: number, clicks: number) => void
   scroll: (vertical: number, horizontal: number, flags: number) => void
   keyboard: (keycode: number, down: boolean, flags: number) => void
   unicode: (text: string, flags: number) => void
@@ -56,28 +64,43 @@ function open(): Core | null {
       },
       CGEventKeyboardSetUnicodeString: { args: [FFIType.ptr, FFIType.u64, FFIType.ptr], returns: "void" },
       CGEventSetFlags: { args: [FFIType.ptr, FFIType.u64], returns: "void" },
+      CGEventSetIntegerValueField: { args: [FFIType.ptr, FFIType.u32, FFIType.i64], returns: "void" },
       CGEventPost: { args: [FFIType.u32, FFIType.ptr], returns: "void" },
-      CGEventGetLocation: { args: [FFIType.ptr], returns: "ptr" },
       CGEventSourceCreate: { args: [FFIType.u32], returns: "ptr" },
     })
     const cf = dlopen(`${FRAMEWORKS}/CoreFoundation.framework/CoreFoundation`, {
       CFRelease: { args: [FFIType.ptr], returns: "void" },
     })
     const source = cg.symbols.CGEventSourceCreate(HID)
+    const scroll2 = optional(`${FRAMEWORKS}/CoreGraphics.framework/CoreGraphics`, {
+      CGEventCreateScrollWheelEvent2: {
+        args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.i32, FFIType.i32, FFIType.i32],
+        returns: "ptr",
+      },
+    })
+    const mouseAt = optional(HITOOLBOX, {
+      HIGetMousePosition: { args: [FFIType.u32, FFIType.ptr, FFIType.ptr], returns: FFIType.i32 },
+    })
+    const point = new Float64Array(2)
     const emit = (event: never): void => {
       if (!event) return
       cg.symbols.CGEventPost(HID, event)
       cf.symbols.CFRelease(event)
     }
     return {
-      mouse(type, x, y, button, flags) {
+      mouse(type, x, y, button, flags, clicks) {
         const event = cg.symbols.CGEventCreateMouseEvent(null, type, x, y, button)
         if (!event) return
         if (flags) cg.symbols.CGEventSetFlags(event, flags)
+        if (clicks > 1) cg.symbols.CGEventSetIntegerValueField(event, CLICK_STATE, clicks)
         emit(event as never)
       },
       scroll(vertical, horizontal, flags) {
-        const event = cg.symbols.CGEventCreateScrollWheelEvent(source, HID, 2, vertical, horizontal)
+        const event = scroll2
+          ? scroll2.CGEventCreateScrollWheelEvent2(source, HID, 2, vertical, horizontal, 0)
+          : horizontal === 0
+            ? cg.symbols.CGEventCreateScrollWheelEvent(source, HID, 1, vertical, 0)
+            : null
         if (!event) return
         if (flags) cg.symbols.CGEventSetFlags(event, flags)
         emit(event as never)
@@ -98,16 +121,8 @@ function open(): Core | null {
         emit(event as never)
       },
       cursor() {
-        const event = cg.symbols.CGEventCreateMouseEvent(source, EVENT.mouseMoved, 0, 0, 0)
-        if (!event) return null
-        try {
-          const at = cg.symbols.CGEventGetLocation(event)
-          if (!at) return null
-          const buffer = toBuffer(at, 0, 16)
-          return { x: read.f64(ptr(buffer), 0), y: read.f64(ptr(buffer), 8) }
-        } finally {
-          cf.symbols.CFRelease(event)
-        }
+        if (!mouseAt || mouseAt.HIGetMousePosition(GLOBAL_POINTS, null, ptr(point)) !== 0) return null
+        return { x: point[0] ?? 0, y: point[1] ?? 0 }
       },
     }
   } catch {
@@ -115,17 +130,56 @@ function open(): Core | null {
   }
 }
 
+function optional<T extends Record<string, { args: FFIType[]; returns: FFIType | string }>>(
+  path: string,
+  symbols: T,
+): Record<keyof T, (...args: unknown[]) => never> | null {
+  try {
+    return dlopen(path, symbols as never).symbols as never
+  } catch {
+    return null
+  }
+}
+
+const DRAGGED = [EVENT.leftDragged, EVENT.rightDragged, EVENT.otherDragged] as const
+
+function requestAccess(): void {
+  const access = optional(`${FRAMEWORKS}/CoreGraphics.framework/CoreGraphics`, {
+    CGPreflightPostEventAccess: { args: [], returns: FFIType.bool },
+    CGRequestPostEventAccess: { args: [], returns: FFIType.bool },
+    CGPreflightScreenCaptureAccess: { args: [], returns: FFIType.bool },
+    CGRequestScreenCaptureAccess: { args: [], returns: FFIType.bool },
+  })
+  if (!access) return
+  if (!access.CGPreflightPostEventAccess()) access.CGRequestPostEventAccess()
+  if (!access.CGPreflightScreenCaptureAccess()) access.CGRequestScreenCaptureAccess()
+}
+
 export function macNative(): Native | null {
   const core = open()
   if (!core) return null
+  requestAccess()
   let flags = 0
+  let pressed: number | null = null
+  let last = { at: 0, x: 0, y: 0, slot: -1, clicks: 0 }
   const held = new Set<string>()
+
+  const clicksFor = (slot: number, x: number, y: number): number => {
+    const now = Date.now()
+    const near = Math.abs(x - last.x) <= DOUBLE_CLICK_PX && Math.abs(y - last.y) <= DOUBLE_CLICK_PX
+    const clicks = slot === last.slot && near && now - last.at <= DOUBLE_CLICK_MS ? last.clicks + 1 : 1
+    last = { at: now, x, y, slot, clicks }
+    return clicks
+  }
 
   return {
     move(x, y) {
-      core.mouse(EVENT.mouseMoved, x, y, 0, flags)
+      const dragged = pressed === null ? undefined : DRAGGED[pressed]
+      core.mouse(dragged ?? EVENT.mouseMoved, x, y, pressed ?? 0, flags, 0)
     },
     button(slot, down, x, y) {
+      const clicks = down ? clicksFor(slot, x, y) : last.clicks
+      pressed = down ? slot : null
       const type =
         slot === 1
           ? down
@@ -138,7 +192,7 @@ export function macNative(): Native | null {
             : down
               ? EVENT.leftDown
               : EVENT.leftUp
-      core.mouse(type, x, y, slot, flags)
+      core.mouse(type, x, y, slot, flags, clicks)
     },
     wheel(steps, horizontal) {
       core.scroll(horizontal ? 0 : -steps, horizontal ? -steps : 0, flags)
@@ -168,6 +222,7 @@ export function macNative(): Native | null {
       }
       held.clear()
       flags = 0
+      pressed = null
     },
   }
 }

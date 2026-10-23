@@ -117,7 +117,7 @@ case "$(uname -s)" in
 esac
 case "$(uname -m)" in
   x86_64|amd64) arch=x64 ;;
-  arm64|aarch64) arrm64 ;;
+  arm64|aarch64) arch=arm64 ;;
   *) die "unsupported architecture $(uname -m)" ;;
 esac
 asset="kiko-computer-$os-$arch"
@@ -198,6 +198,8 @@ function installPs1(origin: string, release: DaemonRelease): string {
 )
 
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 $origin = '${origin}'
 $version = '${release.version}'
 $base = '${release.base}'
