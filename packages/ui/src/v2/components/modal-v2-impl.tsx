@@ -41,11 +41,7 @@ export interface ModalV2TitleProps extends ComponentProps<typeof Dialog.Title> {
 function ModalV2Title(props: ModalV2TitleProps) {
   const [s, r] = splitProps(props, ["class", "classList"])
   return (
-    <Dialog.Title
-      {...r}
-      data-component="modal-v2-title"
-      classList={{ ...s.classList, [s.class ?? ""]: !!s.class }}
-    />
+    <Dialog.Title {...r} data-component="modal-v2-title" classList={{ ...s.classList, [s.class ?? ""]: !!s.class }} />
   )
 }
 

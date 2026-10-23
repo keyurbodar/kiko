@@ -7,7 +7,18 @@ export function agentList(stored: readonly Agent[]): Agent[] {
 }
 
 export function kikoPlaceholder(now: number): Chat {
-  return { roomId: KIKO_HOME_ROOM, title: "Kiko", pinned: true, muted: false, lastSeq: 0, lastPreview: "", unread: 0, updatedAt: now, agents: [KIKO], kiko: true }
+  return {
+    roomId: KIKO_HOME_ROOM,
+    title: "Kiko",
+    pinned: true,
+    muted: false,
+    lastSeq: 0,
+    lastPreview: "",
+    unread: 0,
+    updatedAt: now,
+    agents: [KIKO],
+    kiko: true,
+  }
 }
 
 export function rosterChats(chats: readonly Chat[]): Chat[] {
@@ -15,7 +26,11 @@ export function rosterChats(chats: readonly Chat[]): Chat[] {
   return kiko > 0 ? [chats[kiko]!, ...chats.slice(0, kiko), ...chats.slice(kiko + 1)] : [...chats]
 }
 
-export function resumeChat(chats: readonly Chat[], loaded: boolean, wanted: readonly (string | null | undefined)[]): RoomId | null {
+export function resumeChat(
+  chats: readonly Chat[],
+  loaded: boolean,
+  wanted: readonly (string | null | undefined)[],
+): RoomId | null {
   if (!loaded) return (wanted.find(Boolean) as RoomId | undefined) ?? null
   for (const id of wanted) {
     const chat = id ? chats.find((c) => c.roomId === id) : undefined
@@ -39,5 +54,7 @@ export function distinctTitles(chats: readonly Chat[]): Chat[] {
     seen.set(key, n)
     if (n > 1) suffix.set(c.roomId, `${c.title.trim()} ${n}`)
   }
-  return suffix.size ? chats.map((c) => (suffix.has(c.roomId) ? { ...c, title: suffix.get(c.roomId)! } : c)) : [...chats]
+  return suffix.size
+    ? chats.map((c) => (suffix.has(c.roomId) ? { ...c, title: suffix.get(c.roomId)! } : c))
+    : [...chats]
 }

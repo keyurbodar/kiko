@@ -3,12 +3,34 @@ import { ComposioError, REJECTED as COMPOSIO_REJECTED_TEXT } from "../integratio
 import { KernelError } from "../integrations/kernel/client"
 import { CredentialError } from "./credentials"
 
-const COMPOSIO_MISSING: KikoError = { code: "composio_missing", message: "Composio is not connected. Add your key in integrations.", action: "open_integrations" }
-const COMPOSIO_REJECTED: KikoError = { code: "composio_rejected", message: "Composio did not accept your key. Check it in integrations.", action: "open_integrations" }
-const COMPOSIO_DOWN: KikoError = { code: "composio_down", message: "Composio is not answering. Your apps are unavailable for now." }
-const KERNEL_MISSING: KikoError = { code: "kernel_missing", message: "The browser needs a Kernel key. Add one in integrations.", action: "open_integrations" }
-const KERNEL_REJECTED: KikoError = { code: "kernel_rejected", message: "Kernel did not accept your key. Check it in integrations.", action: "open_integrations" }
-const KERNEL_DOWN: KikoError = { code: "kernel_down", message: "The browser could not start. Kernel is busy or not answering." }
+const COMPOSIO_MISSING: KikoError = {
+  code: "composio_missing",
+  message: "Composio is not connected. Add your key in integrations.",
+  action: "open_integrations",
+}
+const COMPOSIO_REJECTED: KikoError = {
+  code: "composio_rejected",
+  message: "Composio did not accept your key. Check it in integrations.",
+  action: "open_integrations",
+}
+const COMPOSIO_DOWN: KikoError = {
+  code: "composio_down",
+  message: "Composio is not answering. Your apps are unavailable for now.",
+}
+const KERNEL_MISSING: KikoError = {
+  code: "kernel_missing",
+  message: "The browser needs a Kernel key. Add one in integrations.",
+  action: "open_integrations",
+}
+const KERNEL_REJECTED: KikoError = {
+  code: "kernel_rejected",
+  message: "Kernel did not accept your key. Check it in integrations.",
+  action: "open_integrations",
+}
+const KERNEL_DOWN: KikoError = {
+  code: "kernel_down",
+  message: "The browser could not start. Kernel is busy or not answering.",
+}
 
 export function composioFailure(e: unknown): KikoError | null {
   if (e instanceof ComposioError) {
@@ -29,4 +51,3 @@ export function kernelFailure(e: unknown): KikoError | null {
   }
   return e instanceof CredentialError ? KERNEL_MISSING : KERNEL_DOWN
 }
-

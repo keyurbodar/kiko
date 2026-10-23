@@ -4,7 +4,9 @@ import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 
 export type CatalogOverlay = Record<string, AnyModel[]>
 
-export type WireModel = { [key: string]: string | number | boolean | null | WireModel | (string | number | boolean | null | WireModel)[] }
+export type WireModel = {
+  [key: string]: string | number | boolean | null | WireModel | (string | number | boolean | null | WireModel)[]
+}
 
 const MODEL_TYPES = new Set(["chat", "image", "classifier"])
 
@@ -88,7 +90,9 @@ function parseModel(value: unknown, providerId: string): AnyModel | null {
 
 function stable(value: unknown): string {
   return JSON.stringify(value, (_, v) =>
-    v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1))) : v,
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1)))
+      : v,
   )
 }
 

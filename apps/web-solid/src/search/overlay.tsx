@@ -102,7 +102,12 @@ export default function SearchOverlay() {
             if (event.target === event.currentTarget) close()
           }}
         />
-        <ModalV2.Content class="search-panel" aria-label="Search messages" data-scope={view()?.scope} data-no-focus-ring="">
+        <ModalV2.Content
+          class="search-panel"
+          aria-label="Search messages"
+          data-scope={view()?.scope}
+          data-no-focus-ring=""
+        >
           <div class="search-bar">
             <Icon name="magnifying-glass" size="small" class="search-glass" />
             <input
@@ -167,19 +172,27 @@ export default function SearchOverlay() {
                     <div class="search-hit-head">
                       <span class="search-hit-from">{senderName(hit.from, useApp.agents())}</span>
                       <Show when={view()?.scope === "all"}>
-                        <span class="search-hit-chat" data-component="search-hit-chat">{chatName(hit.roomId)}</span>
+                        <span class="search-hit-chat" data-component="search-hit-chat">
+                          {chatName(hit.roomId)}
+                        </span>
                       </Show>
                       <span class="search-hit-time">{dividerLabel(hit.at, now)}</span>
                     </div>
                     <div class="search-hit-snippet">
-                      <For each={snippetParts(hit.snippet)}>{(part) => (part.match ? <mark>{part.text}</mark> : part.text)}</For>
+                      <For each={snippetParts(hit.snippet)}>
+                        {(part) => (part.match ? <mark>{part.text}</mark> : part.text)}
+                      </For>
                     </div>
                   </div>
                 )}
               </For>
               <Show when={!view()?.hits.length}>
                 <div class="search-empty" data-component="search-empty">
-                  {view()?.status === "error" ? "Search is not reachable" : view()?.status === "done" ? "No messages found" : "Searching…"}
+                  {view()?.status === "error"
+                    ? "Search is not reachable"
+                    : view()?.status === "done"
+                      ? "No messages found"
+                      : "Searching…"}
                 </div>
               </Show>
             </div>

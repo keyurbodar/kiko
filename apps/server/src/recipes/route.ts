@@ -14,7 +14,8 @@ function parseInstall(b: unknown): InstallRecipe | null {
   const o = b as Record<string, unknown>
   if (typeof o.installId !== "string" || !ID.test(o.installId) || typeof o.slug !== "string" || !o.slug) return null
   if (o.own === true) return { installId: o.installId, slug: o.slug, own: true }
-  if (typeof o.roomId !== "string" || !isRoomId(o.roomId) || typeof o.agent !== "string" || !isAgentSlug(o.agent)) return null
+  if (typeof o.roomId !== "string" || !isRoomId(o.roomId) || typeof o.agent !== "string" || !isAgentSlug(o.agent))
+    return null
   return { installId: o.installId, slug: o.slug, roomId: o.roomId, agent: o.agent }
 }
 
@@ -35,7 +36,9 @@ export async function recipesRoute(request: Request, env: Env): Promise<Response
   }
   if (one) {
     if (request.method !== "DELETE") return error(405, "method not allowed")
-    return (await stub.userCall("uninstallRecipe", [one[1] ?? ""])) ? Response.json({ ok: true }) : error(404, "no such install")
+    return (await stub.userCall("uninstallRecipe", [one[1] ?? ""]))
+      ? Response.json({ ok: true })
+      : error(404, "no such install")
   }
   if (request.method === "GET") return Response.json((await stub.userCall("recipeList", [])) satisfies RecipeList)
   if (request.method !== "POST") return error(405, "method not allowed")

@@ -1,4 +1,18 @@
-import { createEffect, createMemo, createSignal, createUniqueId, For, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type JSX } from "solid-js"
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  createUniqueId,
+  For,
+  getOwner,
+  lazy,
+  onCleanup,
+  onMount,
+  runWithOwner,
+  Show,
+  Suspense,
+  type JSX,
+} from "solid-js"
 import { Portal } from "solid-js/web"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ArrowUpIcon, AtIcon, AttachIcon, CloseIcon, EnterIcon } from "@kiko/ui/icons"
@@ -48,7 +62,10 @@ export function PromptInputV2(props: PromptInputV2Props) {
   let lite: LiteField | undefined
   const field = () => binding?.editor ?? lite
   const shortcodes = createShortcodes(() => field()?.dom as HTMLDivElement | undefined)
-  const emoji = createComposerEmoji(() => field()?.dom as HTMLDivElement | undefined, () => !!props.disabled || !!props.readOnly)
+  const emoji = createComposerEmoji(
+    () => field()?.dom as HTMLDivElement | undefined,
+    () => !!props.disabled || !!props.readOnly,
+  )
   const popoverID = createUniqueId()
   const statusID = createUniqueId()
   const [editable, setEditable] = createSignal<HTMLElement>()
@@ -59,13 +76,24 @@ export function PromptInputV2(props: PromptInputV2Props) {
     const column = richHost?.closest('[data-component="chat-shell"]') ?? richHost?.closest("form")
     const box = column?.getBoundingClientRect()
     if (!box) return null
-    return { top: `${box.top + 8}px`, left: `${box.left + 8}px`, width: `${box.width - 16}px`, height: `${box.height - 16}px` }
+    return {
+      top: `${box.top + 8}px`,
+      left: `${box.left + 8}px`,
+      width: `${box.width - 16}px`,
+      height: `${box.height - 16}px`,
+    }
   })
 
   onMount(() => {
     const owner = getOwner()
     const label = i18n.t("ui.promptInput.label")
-    lite = mountLite({ host: richHost, controller: props.controller, label, disabled: () => !!props.disabled || !!props.readOnly, onEdit: syncBlank })
+    lite = mountLite({
+      host: richHost,
+      controller: props.controller,
+      label,
+      disabled: () => !!props.disabled || !!props.readOnly,
+      onEdit: syncBlank,
+    })
     setEditable(lite.dom)
     syncBlank()
     void import("../rich/bind").then(({ bindRich }) => {
@@ -136,11 +164,15 @@ export function PromptInputV2(props: PromptInputV2Props) {
   })
 
   const submitStatus = createMemo(() =>
-    [view.submit.preparing?.() ? i18n.t("ui.promptInput.preparing") : "", view.submit.blocked?.() ?? "", uploadStatus()].filter(Boolean).join(". "),
+    [view.submit.preparing?.() ? i18n.t("ui.promptInput.preparing") : "", view.submit.blocked?.() ?? "", uploadStatus()]
+      .filter(Boolean)
+      .join(". "),
   )
 
-  const pictures = () => props.controller.attachments().filter((part) => isImage({ name: part.filename, type: part.mime }))
-  const documents = () => props.controller.attachments().filter((part) => !isImage({ name: part.filename, type: part.mime }))
+  const pictures = () =>
+    props.controller.attachments().filter((part) => isImage({ name: part.filename, type: part.mime }))
+  const documents = () =>
+    props.controller.attachments().filter((part) => !isImage({ name: part.filename, type: part.mime }))
   return (
     <div class={`relative flex flex-col ${props.class ?? ""}`}>
       <input
@@ -189,9 +221,16 @@ export function PromptInputV2(props: PromptInputV2Props) {
               style={area()}
               data-component="composer-drop-overlay"
             >
-              <div role="status" class="flex items-center gap-2 rounded-full border border-ring/25 bg-background/95 px-4 py-2.5 text-sm font-medium text-foreground shadow-lg">
+              <div
+                role="status"
+                class="flex items-center gap-2 rounded-full border border-ring/25 bg-background/95 px-4 py-2.5 text-sm font-medium text-foreground shadow-lg"
+              >
                 <RemixIcon icon={AttachIcon} class="size-4 text-ring" />
-                {i18n.t(props.controller.dragKind() === "reference" ? "ui.promptInput.dropReference" : "ui.promptInput.dropFiles")}
+                {i18n.t(
+                  props.controller.dragKind() === "reference"
+                    ? "ui.promptInput.dropReference"
+                    : "ui.promptInput.dropFiles",
+                )}
               </div>
             </div>
           </Portal>
@@ -242,7 +281,11 @@ export function PromptInputV2(props: PromptInputV2Props) {
               </For>
             </ul>
           </Show>
-          <div class="composer-main" data-component="prompt-input-box" onPointerDown={(e) => e.target === e.currentTarget && field()?.focus()}>
+          <div
+            class="composer-main"
+            data-component="prompt-input-box"
+            onPointerDown={(e) => e.target === e.currentTarget && field()?.focus()}
+          >
             <div class="composer-field">
               <div ref={richHost} class="composer-rich" classList={{ "opacity-50": props.disabled }} />
               <Show when={blank()}>
@@ -254,15 +297,26 @@ export function PromptInputV2(props: PromptInputV2Props) {
             <div class="composer-tray">
               <Show when={!props.answering && !props.readOnly && props.controller.agents().length > 0}>
                 <MenuV2 gutter={6} placement="top-start">
-                  <MenuV2.Trigger class="composer-icon" aria-label="Mention an agent" title="Mention an agent" data-action="composer-mention">
+                  <MenuV2.Trigger
+                    class="composer-icon"
+                    aria-label="Mention an agent"
+                    title="Mention an agent"
+                    data-action="composer-mention"
+                  >
                     <RemixIcon icon={AtIcon} class="size-4" />
                   </MenuV2.Trigger>
                   <MenuV2.Portal>
                     <MenuV2.Content class="z-[80] min-w-44" data-component="mention-menu">
                       <For each={props.controller.agents()}>
                         {(item) => (
-                          <MenuV2.Item onSelect={() => props.controller.mention(item)} data-agent={item.mention?.type === "agent" ? item.mention.name : undefined}>
-                            <IdentityAvatar seed={item.mention?.type === "agent" ? item.mention.name : item.id} size={18} />
+                          <MenuV2.Item
+                            onSelect={() => props.controller.mention(item)}
+                            data-agent={item.mention?.type === "agent" ? item.mention.name : undefined}
+                          >
+                            <IdentityAvatar
+                              seed={item.mention?.type === "agent" ? item.mention.name : item.id}
+                              size={18}
+                            />
                             <span class="truncate">{item.title ?? item.label}</span>
                           </MenuV2.Item>
                         )}

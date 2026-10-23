@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#08131c" />
     <title>Kiko</title>
@@ -12,53 +15,450 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <script>
-      (function () {
-        var d = document.documentElement, boot = {}, mode = "dark";
+      ;(function () {
+        var d = document.documentElement,
+          boot = {},
+          mode = "dark"
         /* boot-palettes:start */
-        (function () { var PALETTE_KEYS=["canvas","sidebar","text","muted","faint","action","actionHover","onAction","danger","gold"],DARK_THEME_IDS=["glacier","slate","graphite","moss","tide","dusk","plum"],THEME_IDS=[...DARK_THEME_IDS,"snow"],DEFAULT_DARK_THEME="glacier";var THEMES={glacier:{label:"Glacier",accent:"#96c8eb",palette:{canvas:"#08131c",sidebar:"#101a24",text:"#e7f0f6",muted:"#a5b7c4",faint:"#a5b7c4",action:"#e7f0f6",actionHover:"#96c8eb",onAction:"#08131c",danger:"#ffb4ac",gold:"#e8c47b"}},slate:{label:"Slate",accent:"#becde1",palette:{canvas:"#0c0d10",sidebar:"#121418",text:"#e9ecf0",muted:"#9298a2",faint:"#9298a2",action:"#e9ecf0",actionHover:"#becde1",onAction:"#0c0d10",danger:"#ffb4ac",gold:"#e8c47b"}},graphite:{label:"Graphite",accent:"#dcdcdc",palette:{canvas:"#0c0c0c",sidebar:"#131313",text:"#ededed",muted:"#959595",faint:"#959595",action:"#ededed",actionHover:"#dcdcdc",onAction:"#0c0c0c",danger:"#ffb4ac",gold:"#e8c47b"}},moss:{label:"Moss",accent:"#86a38d",palette:{canvas:"#0a0e0c",sidebar:"#0f1512",text:"#e8efe9",muted:"#8fa196",faint:"#8fa196",action:"#e8efe9",actionHover:"#86a38d",onAction:"#0a0e0c",danger:"#ffb4ac",gold:"#e8c47b"}},tide:{label:"Tide",accent:"#78afc8",palette:{canvas:"#080c10",sidebar:"#0c1318",text:"#e6eff3",muted:"#8a9ea8",faint:"#8a9ea8",action:"#e6eff3",actionHover:"#78afc8",onAction:"#080c10",danger:"#ffb4ac",gold:"#e8c47b"}},dusk:{label:"Dusk",accent:"#e6aa82",palette:{canvas:"#0f0c0b",sidebar:"#181311",text:"#f1ebe6",muted:"#a59a92",faint:"#a59a92",action:"#f1ebe6",actionHover:"#e6aa82",onAction:"#0f0c0b",danger:"#ffb4ac",gold:"#e8c47b"}},plum:{label:"Plum",accent:"#afa0dc",palette:{canvas:"#0d0c11",sidebar:"#14121a",text:"#ece9f2",muted:"#9a95a6",faint:"#9a95a6",action:"#ece9f2",actionHover:"#afa0dc",onAction:"#0d0c11",danger:"#ffb4ac",gold:"#e8c47b"}},snow:{label:"Snow",accent:"#505f78",palette:{canvas:"#eef0f3",sidebar:"#fafbfc",text:"#16191e",muted:"#5b616b",faint:"#5b616b",action:"#16191e",actionHover:"#505f78",onAction:"#eef0f3",danger:"#b32632",gold:"#805500"}}};function paletteFor(mode,darkTheme="glacier"){return THEMES[mode==="light"?"snow":darkTheme].palette}var PALETTES={light:paletteFor("light"),dark:paletteFor("dark")},NEUTRALS=[["--card",6,7],["--muted",3,3.5],["--secondary",4,4],["--accent",4,4.5],["--sidebar-row-hover",4,4.5],["--accent-strong",8,7],["--sidebar-row-active",8,7],["--control",7,6],["--control-strong",11,9],["--border",6,9],["--input",8,13],["--scrollbar-thumb",18,18],["--scrollbar-thumb-hover",30,30]],round=(n,places)=>Math.round(n*10**places)/10**places;function tokensFor(mode,darkTheme="glacier",contrast=100,imported){let p=imported?.palette??paletteFor(mode,darkTheme),accent=imported?.accent??THEMES[mode==="light"?"snow":darkTheme].accent,ink=(share)=>`color-mix(in oklab, ${p.text} ${Math.min(100,round(share*contrast/100,2))}%, transparent)`,vars={"--background":p.canvas,"--sidebar":p.sidebar,"--foreground":p.text,"--muted-foreground":p.muted,"--secondary-label":p.faint,"--ring":accent,"--primary":p.action,"--primary-hover":p.actionHover,"--primary-foreground":p.onAction,"--error":p.danger,"--warning":p.gold,"--success":mode==="dark"?"oklch(0.7937 0.12 150)":"oklch(0.52 0.12 150)"};for(let[token,dark,light]of NEUTRALS)vars[token]=ink(mode==="dark"?dark:light);return vars["--surface"]=p.sidebar,vars["--popover"]=vars["--surface"],vars["--message-assistant"]=vars["--surface"],vars["--tooltip"]=mode==="dark"?`color-mix(in oklab, ${p.text} 14%, ${p.canvas})`:p.text,vars["--tooltip-foreground"]=mode==="dark"?p.text:p.canvas,vars["--message-user"]=mode==="dark"?`oklch(from ${accent} 0.32 calc(c * 0.42) h)`:`oklch(from ${accent} 0.93 calc(c * 0.6) h)`,vars["--message-user-deep"]=vars["--message-user"],vars["--message-user-foreground"]=p.text,vars["--ring-wash"]=`color-mix(in oklab, ${accent} ${mode==="dark"?14:11}%, transparent)`,vars}var CONTRAST={min:80,max:150,step:5,default:100},BASE_SIZE={min:12,max:16,default:14};var DEFAULT_DISPLAY={contrast:100,chatWidth:"comfortable",interfaceFont:"",codeFont:"",baseSize:BASE_SIZE.default,smoothing:!0},CHAT_WIDTHS={comfortable:{label:"Comfortable",width:"736px"},wide:{label:"Wide",width:"1152px"},full:{label:"Full",width:"100%"}};function fontFamily(name,stack){let names=name.split(",").map((n)=>n.trim()).filter(Boolean).map((n)=>/^[\p{L}\p{N}-]+$/u.test(n)?n:`"${n}"`);return names.length?`${names.join(", ")}, ${stack}`:stack}var isObject=(v)=>typeof v==="object"&&v!==null&&!Array.isArray(v),oneOf=(table,v,fallback)=>typeof v==="string"&&(v in table)?v:fallback,PRESET_KEYS=new Set(["kiko","system","rounded","serif","mono","fantasque","interface"]),familyName=(v)=>{if(typeof v!=="string"||PRESET_KEYS.has(v))return"";return v.replace(/["';\\{}<>]/g,"").trim().slice(0,80)};function readDisplay(value){if(!isObject(value))return DEFAULT_DISPLAY;let c=typeof value.contrast==="number"&&Number.isFinite(value.contrast)?value.contrast:CONTRAST.default,size=typeof value.baseSize==="number"&&Number.isFinite(value.baseSize)?Math.round(value.baseSize):BASE_SIZE.default;return{contrast:Math.round(Math.min(CONTRAST.max,Math.max(CONTRAST.min,c))/CONTRAST.step)*CONTRAST.step,chatWidth:oneOf(CHAT_WIDTHS,value.chatWidth,DEFAULT_DISPLAY.chatWidth),interfaceFont:familyName(value.interfaceFont),codeFont:familyName(value.codeFont),baseSize:Math.min(BASE_SIZE.max,Math.max(BASE_SIZE.min,size)),smoothing:typeof value.smoothing==="boolean"?value.smoothing:DEFAULT_DISPLAY.smoothing}}function displayVars(display){let b=display.baseSize;return{"--font-xs":`${b-2}px`,"--font-sm":`${b-1}px`,"--font-md":`${b}px`,"--font-base":`${b+1}px`,"--chat-content-max-width":CHAT_WIDTHS[display.chatWidth].width,"--font-family-sans":fontFamily(display.interfaceFont,'-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'),"--font-family-display":display.interfaceFont?fontFamily(display.interfaceFont,'-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'):'-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',"--font-family-mono":fontFamily(display.codeFont,'"SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace'),"--font-smoothing":display.smoothing?"antialiased":"auto"}}var MAX_IMPORTED=50,HEX=/^#[0-9a-f]{6}$/i,ID=/^[\w:./-]{1,160}$/,APPEARANCES=["light","dark"],EMPTY_IMPORTED={themes:[],active:{}},isObject2=(v)=>typeof v==="object"&&v!==null&&!Array.isArray(v);function readTheme(raw){if(!isObject2(raw)||!isObject2(raw.palette))return null;let{id,name,source,appearance,accent}=raw;if(typeof id!=="string"||!ID.test(id))return null;if(typeof name!=="string"||name.length===0||name.length>48)return null;if(typeof source!=="string"||source.length>160)return null;if(!APPEARANCES.includes(appearance))return null;if(typeof accent!=="string"||!HEX.test(accent))return null;let palette={};for(let key of PALETTE_KEYS){let value=raw.palette[key];if(typeof value!=="string"||!HEX.test(value))return null;palette[key]=value}return{id,name,source,appearance,accent,palette}}function parseImported(text){if(!text)return EMPTY_IMPORTED;let raw;try{raw=JSON.parse(text)}catch{return EMPTY_IMPORTED}if(!isObject2(raw)||raw.v!==1||!Array.isArray(raw.themes))return EMPTY_IMPORTED;let themes=raw.themes.slice(0,MAX_IMPORTED).map(readTheme).filter((theme)=>theme!==null),active={};if(isObject2(raw.active))for(let appearance of APPEARANCES){let id=raw.active[appearance];if(themes.some((theme)=>theme.id===id&&theme.appearance===appearance))active[appearance]=id}return{themes,active}}var themeFor=(state,appearance)=>state.themes.find((theme)=>theme.id===state.active[appearance]);Object.assign(boot,{THEMES,DEFAULT_DARK_THEME,tokensFor,readDisplay,displayVars,parseImported,themeFor}); })();
+        ;(function () {
+          var PALETTE_KEYS = [
+              "canvas",
+              "sidebar",
+              "text",
+              "muted",
+              "faint",
+              "action",
+              "actionHover",
+              "onAction",
+              "danger",
+              "gold",
+            ],
+            DARK_THEME_IDS = ["glacier", "slate", "graphite", "moss", "tide", "dusk", "plum"],
+            THEME_IDS = [...DARK_THEME_IDS, "snow"],
+            DEFAULT_DARK_THEME = "glacier"
+          var THEMES = {
+            glacier: {
+              label: "Glacier",
+              accent: "#96c8eb",
+              palette: {
+                canvas: "#08131c",
+                sidebar: "#101a24",
+                text: "#e7f0f6",
+                muted: "#a5b7c4",
+                faint: "#a5b7c4",
+                action: "#e7f0f6",
+                actionHover: "#96c8eb",
+                onAction: "#08131c",
+                danger: "#ffb4ac",
+                gold: "#e8c47b",
+              },
+            },
+            slate: {
+              label: "Slate",
+              accent: "#becde1",
+              palette: {
+                canvas: "#0c0d10",
+                sidebar: "#121418",
+                text: "#e9ecf0",
+                muted: "#9298a2",
+                faint: "#9298a2",
+                action: "#e9ecf0",
+                actionHover: "#becde1",
+                onAction: "#0c0d10",
+                danger: "#ffb4ac",
+                gold: "#e8c47b",
+              },
+            },
+            graphite: {
+              label: "Graphite",
+              accent: "#dcdcdc",
+              palette: {
+                canvas: "#0c0c0c",
+                sidebar: "#131313",
+                text: "#ededed",
+                muted: "#959595",
+                faint: "#959595",
+                action: "#ededed",
+                actionHover: "#dcdcdc",
+                onAction: "#0c0c0c",
+                danger: "#ffb4ac",
+                gold: "#e8c47b",
+              },
+            },
+            moss: {
+              label: "Moss",
+              accent: "#86a38d",
+              palette: {
+                canvas: "#0a0e0c",
+                sidebar: "#0f1512",
+                text: "#e8efe9",
+                muted: "#8fa196",
+                faint: "#8fa196",
+                action: "#e8efe9",
+                actionHover: "#86a38d",
+                onAction: "#0a0e0c",
+                danger: "#ffb4ac",
+                gold: "#e8c47b",
+              },
+            },
+            tide: {
+              label: "Tide",
+              accent: "#78afc8",
+              palette: {
+                canvas: "#080c10",
+                sidebar: "#0c1318",
+                text: "#e6eff3",
+                muted: "#8a9ea8",
+                faint: "#8a9ea8",
+                action: "#e6eff3",
+                actionHover: "#78afc8",
+                onAction: "#080c10",
+                danger: "#ffb4ac",
+                gold: "#e8c47b",
+              },
+            },
+            dusk: {
+              label: "Dusk",
+              accent: "#e6aa82",
+              palette: {
+                canvas: "#0f0c0b",
+                sidebar: "#181311",
+                text: "#f1ebe6",
+                muted: "#a59a92",
+                faint: "#a59a92",
+                action: "#f1ebe6",
+                actionHover: "#e6aa82",
+                onAction: "#0f0c0b",
+                danger: "#ffb4ac",
+                gold: "#e8c47b",
+              },
+            },
+            plum: {
+              label: "Plum",
+              accent: "#afa0dc",
+              palette: {
+                canvas: "#0d0c11",
+                sidebar: "#14121a",
+                text: "#ece9f2",
+                muted: "#9a95a6",
+                faint: "#9a95a6",
+                action: "#ece9f2",
+                actionHover: "#afa0dc",
+                onAction: "#0d0c11",
+                danger: "#ffb4ac",
+                gold: "#e8c47b",
+              },
+            },
+            snow: {
+              label: "Snow",
+              accent: "#505f78",
+              palette: {
+                canvas: "#eef0f3",
+                sidebar: "#fafbfc",
+                text: "#16191e",
+                muted: "#5b616b",
+                faint: "#5b616b",
+                action: "#16191e",
+                actionHover: "#505f78",
+                onAction: "#eef0f3",
+                danger: "#b32632",
+                gold: "#805500",
+              },
+            },
+          }
+          function paletteFor(mode, darkTheme = "glacier") {
+            return THEMES[mode === "light" ? "snow" : darkTheme].palette
+          }
+          var PALETTES = { light: paletteFor("light"), dark: paletteFor("dark") },
+            NEUTRALS = [
+              ["--card", 6, 7],
+              ["--muted", 3, 3.5],
+              ["--secondary", 4, 4],
+              ["--accent", 4, 4.5],
+              ["--sidebar-row-hover", 4, 4.5],
+              ["--accent-strong", 8, 7],
+              ["--sidebar-row-active", 8, 7],
+              ["--control", 7, 6],
+              ["--control-strong", 11, 9],
+              ["--border", 6, 9],
+              ["--input", 8, 13],
+              ["--scrollbar-thumb", 18, 18],
+              ["--scrollbar-thumb-hover", 30, 30],
+            ],
+            round = (n, places) => Math.round(n * 10 ** places) / 10 ** places
+          function tokensFor(mode, darkTheme = "glacier", contrast = 100, imported) {
+            let p = imported?.palette ?? paletteFor(mode, darkTheme),
+              accent = imported?.accent ?? THEMES[mode === "light" ? "snow" : darkTheme].accent,
+              ink = (share) =>
+                `color-mix(in oklab, ${p.text} ${Math.min(100, round((share * contrast) / 100, 2))}%, transparent)`,
+              vars = {
+                "--background": p.canvas,
+                "--sidebar": p.sidebar,
+                "--foreground": p.text,
+                "--muted-foreground": p.muted,
+                "--secondary-label": p.faint,
+                "--ring": accent,
+                "--primary": p.action,
+                "--primary-hover": p.actionHover,
+                "--primary-foreground": p.onAction,
+                "--error": p.danger,
+                "--warning": p.gold,
+                "--success": mode === "dark" ? "oklch(0.7937 0.12 150)" : "oklch(0.52 0.12 150)",
+              }
+            for (let [token, dark, light] of NEUTRALS) vars[token] = ink(mode === "dark" ? dark : light)
+            return (
+              (vars["--surface"] = p.sidebar),
+              (vars["--popover"] = vars["--surface"]),
+              (vars["--message-assistant"] = vars["--surface"]),
+              (vars["--tooltip"] = mode === "dark" ? `color-mix(in oklab, ${p.text} 14%, ${p.canvas})` : p.text),
+              (vars["--tooltip-foreground"] = mode === "dark" ? p.text : p.canvas),
+              (vars["--message-user"] =
+                mode === "dark"
+                  ? `oklch(from ${accent} 0.32 calc(c * 0.42) h)`
+                  : `oklch(from ${accent} 0.93 calc(c * 0.6) h)`),
+              (vars["--message-user-deep"] = vars["--message-user"]),
+              (vars["--message-user-foreground"] = p.text),
+              (vars["--ring-wash"] = `color-mix(in oklab, ${accent} ${mode === "dark" ? 14 : 11}%, transparent)`),
+              vars
+            )
+          }
+          var CONTRAST = { min: 80, max: 150, step: 5, default: 100 },
+            BASE_SIZE = { min: 12, max: 16, default: 14 }
+          var DEFAULT_DISPLAY = {
+              contrast: 100,
+              chatWidth: "comfortable",
+              interfaceFont: "",
+              codeFont: "",
+              baseSize: BASE_SIZE.default,
+              smoothing: !0,
+            },
+            CHAT_WIDTHS = {
+              comfortable: { label: "Comfortable", width: "736px" },
+              wide: { label: "Wide", width: "1152px" },
+              full: { label: "Full", width: "100%" },
+            }
+          function fontFamily(name, stack) {
+            let names = name
+              .split(",")
+              .map((n) => n.trim())
+              .filter(Boolean)
+              .map((n) => (/^[\p{L}\p{N}-]+$/u.test(n) ? n : `"${n}"`))
+            return names.length ? `${names.join(", ")}, ${stack}` : stack
+          }
+          var isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v),
+            oneOf = (table, v, fallback) => (typeof v === "string" && v in table ? v : fallback),
+            PRESET_KEYS = new Set(["kiko", "system", "rounded", "serif", "mono", "fantasque", "interface"]),
+            familyName = (v) => {
+              if (typeof v !== "string" || PRESET_KEYS.has(v)) return ""
+              return v
+                .replace(/["';\\{}<>]/g, "")
+                .trim()
+                .slice(0, 80)
+            }
+          function readDisplay(value) {
+            if (!isObject(value)) return DEFAULT_DISPLAY
+            let c =
+                typeof value.contrast === "number" && Number.isFinite(value.contrast)
+                  ? value.contrast
+                  : CONTRAST.default,
+              size =
+                typeof value.baseSize === "number" && Number.isFinite(value.baseSize)
+                  ? Math.round(value.baseSize)
+                  : BASE_SIZE.default
+            return {
+              contrast: Math.round(Math.min(CONTRAST.max, Math.max(CONTRAST.min, c)) / CONTRAST.step) * CONTRAST.step,
+              chatWidth: oneOf(CHAT_WIDTHS, value.chatWidth, DEFAULT_DISPLAY.chatWidth),
+              interfaceFont: familyName(value.interfaceFont),
+              codeFont: familyName(value.codeFont),
+              baseSize: Math.min(BASE_SIZE.max, Math.max(BASE_SIZE.min, size)),
+              smoothing: typeof value.smoothing === "boolean" ? value.smoothing : DEFAULT_DISPLAY.smoothing,
+            }
+          }
+          function displayVars(display) {
+            let b = display.baseSize
+            return {
+              "--font-xs": `${b - 2}px`,
+              "--font-sm": `${b - 1}px`,
+              "--font-md": `${b}px`,
+              "--font-base": `${b + 1}px`,
+              "--chat-content-max-width": CHAT_WIDTHS[display.chatWidth].width,
+              "--font-family-sans": fontFamily(
+                display.interfaceFont,
+                '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+              ),
+              "--font-family-display": display.interfaceFont
+                ? fontFamily(
+                    display.interfaceFont,
+                    '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+                  )
+                : '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+              "--font-family-mono": fontFamily(
+                display.codeFont,
+                '"SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace',
+              ),
+              "--font-smoothing": display.smoothing ? "antialiased" : "auto",
+            }
+          }
+          var MAX_IMPORTED = 50,
+            HEX = /^#[0-9a-f]{6}$/i,
+            ID = /^[\w:./-]{1,160}$/,
+            APPEARANCES = ["light", "dark"],
+            EMPTY_IMPORTED = { themes: [], active: {} },
+            isObject2 = (v) => typeof v === "object" && v !== null && !Array.isArray(v)
+          function readTheme(raw) {
+            if (!isObject2(raw) || !isObject2(raw.palette)) return null
+            let { id, name, source, appearance, accent } = raw
+            if (typeof id !== "string" || !ID.test(id)) return null
+            if (typeof name !== "string" || name.length === 0 || name.length > 48) return null
+            if (typeof source !== "string" || source.length > 160) return null
+            if (!APPEARANCES.includes(appearance)) return null
+            if (typeof accent !== "string" || !HEX.test(accent)) return null
+            let palette = {}
+            for (let key of PALETTE_KEYS) {
+              let value = raw.palette[key]
+              if (typeof value !== "string" || !HEX.test(value)) return null
+              palette[key] = value
+            }
+            return { id, name, source, appearance, accent, palette }
+          }
+          function parseImported(text) {
+            if (!text) return EMPTY_IMPORTED
+            let raw
+            try {
+              raw = JSON.parse(text)
+            } catch {
+              return EMPTY_IMPORTED
+            }
+            if (!isObject2(raw) || raw.v !== 1 || !Array.isArray(raw.themes)) return EMPTY_IMPORTED
+            let themes = raw.themes
+                .slice(0, MAX_IMPORTED)
+                .map(readTheme)
+                .filter((theme) => theme !== null),
+              active = {}
+            if (isObject2(raw.active))
+              for (let appearance of APPEARANCES) {
+                let id = raw.active[appearance]
+                if (themes.some((theme) => theme.id === id && theme.appearance === appearance)) active[appearance] = id
+              }
+            return { themes, active }
+          }
+          var themeFor = (state, appearance) => state.themes.find((theme) => theme.id === state.active[appearance])
+          Object.assign(boot, {
+            THEMES,
+            DEFAULT_DARK_THEME,
+            tokensFor,
+            readDisplay,
+            displayVars,
+            parseImported,
+            themeFor,
+          })
+        })()
         /* boot-palettes:end */
-        var id = boot.DEFAULT_DARK_THEME, display = boot.readDisplay(null), imported = boot.parseImported(null);
+        var id = boot.DEFAULT_DARK_THEME,
+          display = boot.readDisplay(null),
+          imported = boot.parseImported(null)
         function stored(key) {
-          try { return localStorage.getItem(key); } catch (e) { return null; }
+          try {
+            return localStorage.getItem(key)
+          } catch (e) {
+            return null
+          }
         }
         function json(text) {
-          try { return JSON.parse(text); } catch (e) { return null; }
-        }
-        try { localStorage.removeItem("kiko:snap"); } catch (e) {}
-        if (stored("kiko:session")) {
-          var c = json(stored("kiko:look"));
-          var look = c && (c.v === 5 || c.v === 6) && typeof c.text === "string" && json(c.text);
-          if (look && !Array.isArray(look) && look.kind === "look") {
-            if (["dark", "light", "system"].includes(look.mode)) mode = look.mode;
-            if (look.version === 4 && typeof look.darkTheme === "string" && look.darkTheme !== "snow" && Object.hasOwn(boot.THEMES, look.darkTheme)) id = look.darkTheme;
-            display = boot.readDisplay(look.display);
+          try {
+            return JSON.parse(text)
+          } catch (e) {
+            return null
           }
-          imported = boot.parseImported(look && look.imported ? JSON.stringify(look.imported) : stored("kiko:imported-themes"));
         }
-        var light = mode === "light" || (mode === "system" && typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: light)").matches);
-        var appearance = light ? "light" : "dark";
-        var t = Object.assign(boot.tokensFor(appearance, id, display.contrast, boot.themeFor(imported, appearance)), boot.displayVars(display));
-        d.classList.toggle("dark", !light);
-        d.style.colorScheme = light ? "light" : "dark";
-        for (var k in t) d.style.setProperty(k, t[k]);
-        d.style.setProperty("--boot-bg", t["--background"]);
-        d.style.setProperty("--boot-fg", t["--foreground"]);
-        d.style.backgroundColor = t["--background"];
-      })();
+        try {
+          localStorage.removeItem("kiko:snap")
+        } catch (e) {}
+        if (stored("kiko:session")) {
+          var c = json(stored("kiko:look"))
+          var look = c && (c.v === 5 || c.v === 6) && typeof c.text === "string" && json(c.text)
+          if (look && !Array.isArray(look) && look.kind === "look") {
+            if (["dark", "light", "system"].includes(look.mode)) mode = look.mode
+            if (
+              look.version === 4 &&
+              typeof look.darkTheme === "string" &&
+              look.darkTheme !== "snow" &&
+              Object.hasOwn(boot.THEMES, look.darkTheme)
+            )
+              id = look.darkTheme
+            display = boot.readDisplay(look.display)
+          }
+          imported = boot.parseImported(
+            look && look.imported ? JSON.stringify(look.imported) : stored("kiko:imported-themes"),
+          )
+        }
+        var light =
+          mode === "light" ||
+          (mode === "system" && typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: light)").matches)
+        var appearance = light ? "light" : "dark"
+        var t = Object.assign(
+          boot.tokensFor(appearance, id, display.contrast, boot.themeFor(imported, appearance)),
+          boot.displayVars(display),
+        )
+        d.classList.toggle("dark", !light)
+        d.style.colorScheme = light ? "light" : "dark"
+        for (var k in t) d.style.setProperty(k, t[k])
+        d.style.setProperty("--boot-bg", t["--background"])
+        d.style.setProperty("--boot-fg", t["--foreground"])
+        d.style.backgroundColor = t["--background"]
+      })()
     </script>
     <style>
-      html, body { margin: 0; height: 100%; background: var(--boot-bg, #08131c); color: var(--boot-fg, #e7f0f6); }
-      body { font: var(--font-md, 14px) var(--font-family-sans, system-ui, sans-serif); }
-      #root { height: 100%; }
-      #boot { display: grid; place-items: center; height: 100%; }
-      #boot img { width: 64px; height: 64px; max-width: 64px; max-height: 64px; object-fit: contain; }
-      #boot-error { display: none; position: fixed; bottom: 24px; left: 0; right: 0; text-align: center; }
-      #boot-error button { color: inherit; background: var(--control); border: 0; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--boot-bg, #08131c);
+        color: var(--boot-fg, #e7f0f6);
+      }
+      body {
+        font: var(--font-md, 14px) var(--font-family-sans, system-ui, sans-serif);
+      }
+      #root {
+        height: 100%;
+      }
+      #boot {
+        display: grid;
+        place-items: center;
+        height: 100%;
+      }
+      #boot img {
+        width: 64px;
+        height: 64px;
+        max-width: 64px;
+        max-height: 64px;
+        object-fit: contain;
+      }
+      #boot-error {
+        display: none;
+        position: fixed;
+        bottom: 24px;
+        left: 0;
+        right: 0;
+        text-align: center;
+      }
+      #boot-error button {
+        color: inherit;
+        background: var(--control);
+        border: 0;
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
-    <div id="root"><div id="boot" role="status" aria-label="Loading Kiko"><img src="/kiko.svg" width="64" height="64" alt="" /></div></div>
-    <div id="boot-error" role="alert">Could not load Kiko. <button type="button" onclick="location.reload()">Reload</button></div>
+    <div id="root">
+      <div id="boot" role="status" aria-label="Loading Kiko"><img src="/kiko.svg" width="64" height="64" alt="" /></div>
+    </div>
+    <div id="boot-error" role="alert">
+      Could not load Kiko. <button type="button" onclick="location.reload()">Reload</button>
+    </div>
     <script type="module" src="/src/bootstrap.ts"></script>
   </body>
 </html>

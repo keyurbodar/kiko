@@ -35,9 +35,18 @@ export function RichImage(props: { alt: string; url?: string; fileId?: string })
             data-component="chat-image"
             data-state={loaded() ? "ready" : "loading"}
             aria-label={`View ${name()}`}
-            onClick={(event) => openThreadImages([{ src: href(), name: name() }], 0, event.currentTarget.querySelector("img"))}
+            onClick={(event) =>
+              openThreadImages([{ src: href(), name: name() }], 0, event.currentTarget.querySelector("img"))
+            }
           >
-            <img src={href()} alt={props.alt} decoding="async" draggable={false} onLoad={() => setLoaded(true)} onError={() => setBroken(true)} />
+            <img
+              src={href()}
+              alt={props.alt}
+              decoding="async"
+              draggable={false}
+              onLoad={() => setLoaded(true)}
+              onError={() => setBroken(true)}
+            />
           </button>
         </Show>
       )}

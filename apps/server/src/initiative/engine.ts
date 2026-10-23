@@ -75,7 +75,15 @@ export class InitiativeEngine {
       })
       report.woke.push({ id, room: roomId, to: own ? (task.owner as string) : "lead", result })
       if (result === "delivered" || result === "duplicate") {
-        this.d.sql.exec("INSERT OR IGNORE INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES (?, ?, ?, ?, ?, ?, 'sent')", id, roomId, own ? (task.owner as string) : "lead", task.status, `task:${roomId}:${task.id}`, now)
+        this.d.sql.exec(
+          "INSERT OR IGNORE INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES (?, ?, ?, ?, ?, ?, 'sent')",
+          id,
+          roomId,
+          own ? (task.owner as string) : "lead",
+          task.status,
+          `task:${roomId}:${task.id}`,
+          now,
+        )
         this.d.count({ initiative_woke: 1 })
         raised.add(roomId)
         if (++landed >= PER_PASS[level]) break
@@ -89,7 +97,8 @@ export class InitiativeEngine {
   }
 }
 
-const NUDGE_RULE = "one short message in your own words, at most two sentences. no text around tool calls. reply only [skip] when this chat shows it is already handled."
+const NUDGE_RULE =
+  "one short message in your own words, at most two sentences. no text around tool calls. reply only [skip] when this chat shows it is already handled."
 
 function wakeBody(task: BoardTask & { id: string }, own: boolean, now: number): string {
   const line = `${task.id} [${task.status}] ${task.title}${task.owner ? ` (owner @${task.owner})` : ""} (last changed ${ago(task.updatedAt, now)})`
@@ -107,7 +116,8 @@ function wakeBody(task: BoardTask & { id: string }, own: boolean, now: number): 
   ].join("\n")
 }
 
-const day = (at: number, tz: string) => new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: validZone(tz) ? tz : "UTC" })
+const day = (at: number, tz: string) =>
+  new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: validZone(tz) ? tz : "UTC" })
 
 function span(ms: number): string {
   const h = Math.round(ms / HOUR)

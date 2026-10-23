@@ -8,7 +8,8 @@ const IDLE_CLOSE_MS = 15_000
 const CLAIM_MS = 60_000
 export const BROWSER_IDLE_WAKEUP = "browser-idle"
 
-const RESTARTED = "The browser was replaced, so your tab was reopened at its last address. Anything the page did not save, like a half-filled form, is gone."
+const RESTARTED =
+  "The browser was replaced, so your tab was reopened at its last address. Anything the page did not save, like a half-filled form, is gone."
 
 export type IdleTimer = { arm(at: number): Promise<void> }
 
@@ -24,8 +25,12 @@ type Held = { id?: string; tab?: Tab; url: string; opening?: Promise<Tab> }
 
 class Busy extends Error {
   constructor(holders: Record<string, number>) {
-    const who = Object.entries(holders).filter(([, n]) => n > 0).map(([agent, n]) => `${agent.split(/[:/]/).at(-1)} has ${n}`)
-    super(`the browser is full: ${BROWSER.tabsPerBrowser} tabs are open (${who.join(", ")}). ask one of them to finish, or try again later.`)
+    const who = Object.entries(holders)
+      .filter(([, n]) => n > 0)
+      .map(([agent, n]) => `${agent.split(/[:/]/).at(-1)} has ${n}`)
+    super(
+      `the browser is full: ${BROWSER.tabsPerBrowser} tabs are open (${who.join(", ")}). ask one of them to finish, or try again later.`,
+    )
     this.name = "Busy"
   }
 }
@@ -158,13 +163,23 @@ export class BrowserConnection {
   private async reclaim(n: number): Promise<void> {
     const now = this.now()
     const free = [...this.held]
-      .filter(([key, h]) => h.id && !this.running.get(key) && this.seen.has(key) && now - (this.seen.get(key) ?? 0) >= CLAIM_MS)
+      .filter(
+        ([key, h]) =>
+          h.id && !this.running.get(key) && this.seen.has(key) && now - (this.seen.get(key) ?? 0) >= CLAIM_MS,
+      )
       .sort(([a], [b]) => (this.seen.get(a) ?? 0) - (this.seen.get(b) ?? 0))
       .map(([, h]) => h.id as string)
       .slice(0, n)
     if (!free.length) return
     const session = await this.socket()
-    await Promise.all(free.map((id) => session.tab(id)?.close().catch(() => {})))
+    await Promise.all(
+      free.map((id) =>
+        session
+          .tab(id)
+          ?.close()
+          .catch(() => {}),
+      ),
+    )
     for (const id of free) this.forget(id)
   }
 
@@ -234,7 +249,10 @@ export class BrowserConnection {
   private async adoptFree(scope: string): Promise<Held | undefined> {
     await this.seed()
     const claimed = this.claimed(scope)
-    const free = [...this.parked, ...[...this.held.values()].flatMap((h) => (h.id ? [[h.id, h.url] as const] : []))].filter(([id]) => !claimed.has(id))
+    const free = [
+      ...this.parked,
+      ...[...this.held.values()].flatMap((h) => (h.id ? [[h.id, h.url] as const] : [])),
+    ].filter(([id]) => !claimed.has(id))
     if (free.length !== 1) return undefined
     const [id, url] = free[0] as readonly [string, string]
     this.forget(id)
@@ -248,7 +266,8 @@ export class BrowserConnection {
     if (held) {
       const tab = await this.tabOf(held, scope)
       const result = await tab.act({ op: "goto", url })
-      if (!result.ok) throw new Error(`could not open ${url}: ${result.reason}${result.detail ? ` (${result.detail})` : ""}`)
+      if (!result.ok)
+        throw new Error(`could not open ${url}: ${result.reason}${result.detail ? ` (${result.detail})` : ""}`)
       held.url = url
       return tab
     }

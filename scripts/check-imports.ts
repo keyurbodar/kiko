@@ -44,7 +44,14 @@ function inspect(file: string, label: string, allowed: readonly string[], strict
   }
 }
 
-function judge(at: string, file: string, label: string, allowed: readonly string[], strict: boolean, spec: string): string | null {
+function judge(
+  at: string,
+  file: string,
+  label: string,
+  allowed: readonly string[],
+  strict: boolean,
+  spec: string,
+): string | null {
   if (spec.startsWith(".")) return judgeRelative(at, file, label, strict, spec)
   if (!spec.startsWith("@kiko/") || !strict) return null
   const dep = spec.split("/").slice(0, 2).join("/")

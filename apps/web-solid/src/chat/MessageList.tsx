@@ -27,10 +27,7 @@ export function MessageList(props: {
   onLeftLatest?: () => void
   scrollKey?: string
   scrollBook?: Pick<DraftBook, "scroll" | "saveScroll"> & Partial<Pick<DraftBook, "ready">>
-  onJumpHandle?: (handle: {
-    jumpToMessage: (messageId: string) => void
-    scrollToLatest: () => void
-  }) => void
+  onJumpHandle?: (handle: { jumpToMessage: (messageId: string) => void; scrollToLatest: () => void }) => void
 }): JSX.Element {
   return <VirtualThread {...props} />
 }

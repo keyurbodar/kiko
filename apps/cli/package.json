@@ -1,8 +1,10 @@
 {
   "name": "@kiko/cli",
   "private": true,
+  "bin": {
+    "kiko": "src/index.ts"
+  },
   "type": "module",
-  "bin": { "kiko": "src/index.ts" },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },

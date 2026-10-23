@@ -41,15 +41,43 @@ export function PromptInputV2Attachments(props: {
             return u?.status === "failed" ? u.reason : null
           }
           return (
-            <div class="composer-attachment" data-component="composer-attachment" data-id={attachment.id} data-state={upload()?.status} title={failure() ?? attachment.filename}>
-              <button type="button" class="composer-attachment-open" aria-label={`Preview ${attachment.filename}`} onClick={() => props.onImageClick?.(attachment)}>
+            <div
+              class="composer-attachment"
+              data-component="composer-attachment"
+              data-id={attachment.id}
+              data-state={upload()?.status}
+              title={failure() ?? attachment.filename}
+            >
+              <button
+                type="button"
+                class="composer-attachment-open"
+                aria-label={`Preview ${attachment.filename}`}
+                onClick={() => props.onImageClick?.(attachment)}
+              >
                 <img src={attachment.blob.url} alt={attachment.filename} draggable={false} />
               </button>
               <Show when={upload()?.status === "uploading" && upload()}>
-                {(u) => <span class="composer-attachment-progress" aria-hidden="true">{progressLabel((u() as { progress: number }).progress)}</span>}
+                {(u) => (
+                  <span class="composer-attachment-progress" aria-hidden="true">
+                    {progressLabel((u() as { progress: number }).progress)}
+                  </span>
+                )}
               </Show>
-              <Show when={failure()}>{(reason) => <RetryButton name={attachment.filename} reason={reason()} onRetry={() => retryUpload(attachment.id)} />}</Show>
-              <button type="button" class="composer-attachment-remove" aria-label={`Remove ${attachment.filename}`} onClick={() => props.onRemove(attachment)}>
+              <Show when={failure()}>
+                {(reason) => (
+                  <RetryButton
+                    name={attachment.filename}
+                    reason={reason()}
+                    onRetry={() => retryUpload(attachment.id)}
+                  />
+                )}
+              </Show>
+              <button
+                type="button"
+                class="composer-attachment-remove"
+                aria-label={`Remove ${attachment.filename}`}
+                onClick={() => props.onRemove(attachment)}
+              >
                 <RemixIcon icon={CloseIcon} size={11} />
               </button>
             </div>

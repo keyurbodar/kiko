@@ -69,7 +69,8 @@ function parseSurface(value: unknown): Surface | null {
   const s = value as { kind?: unknown; path?: unknown; slug?: unknown }
   if (s.kind === "file") return typeof s.path === "string" ? fileSurface(s.path) : null
   if (s.kind === "agent") return typeof s.slug === "string" ? agentSurface(s.slug) : null
-  if (s.kind === "files" || s.kind === "memory" || s.kind === "routines" || s.kind === "tasks") return fixedSurface(s.kind)
+  if (s.kind === "files" || s.kind === "memory" || s.kind === "routines" || s.kind === "tasks")
+    return fixedSurface(s.kind)
   return null
 }
 
@@ -185,7 +186,8 @@ export function closeSidecar(chatId: string) {
 export function moveFileSurfaces(chatId: string, from: string, to: string) {
   edit(chatId, (s) => {
     const under = (p: string) => p === from || p.startsWith(`${from}/`)
-    const moved = (x: Surface): Surface => (x.kind === "file" && under(x.path) ? fileSurface(to + x.path.slice(from.length)) : x)
+    const moved = (x: Surface): Surface =>
+      x.kind === "file" && under(x.path) ? fileSurface(to + x.path.slice(from.length)) : x
     if (!s.surfaces.some((x) => moved(x) !== x)) return s
     const surfaces: Surface[] = []
     for (const x of s.surfaces.map(moved)) if (!surfaces.some((y) => y.id === x.id)) surfaces.push(x)

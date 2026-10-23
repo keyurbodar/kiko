@@ -53,17 +53,13 @@ const READER_SCROLL_MS = 250
 
 const DATE_CHIP_EDGE_PX = 56
 
-
 const STAGE_CLASS = "relative flex min-h-0 flex-1 flex-col"
 
-const SCROLLER_CLASS =
-  "relative flex min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
+const SCROLLER_CLASS = "relative flex min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
 
-const COLUMN_CLASS =
-  "mx-auto flex min-h-full w-full max-w-(--chat-content-max-width) self-start flex-col pt-12 pb-12"
+const COLUMN_CLASS = "mx-auto flex min-h-full w-full max-w-(--chat-content-max-width) self-start flex-col pt-12 pb-12"
 
-const clampIndex = (index: number, count: number): number =>
-  Math.min(Math.max(index, 0), Math.max(count - 1, 0))
+const clampIndex = (index: number, count: number): number => Math.min(Math.max(index, 0), Math.max(count - 1, 0))
 
 export function VirtualThread(props: {
   messages: readonly ChatMessage[]
@@ -89,10 +85,7 @@ export function VirtualThread(props: {
   onLeftLatest?: () => void
   scrollKey?: string
   scrollBook?: Pick<DraftBook, "scroll" | "saveScroll"> & Partial<Pick<DraftBook, "ready">>
-  onJumpHandle?: (handle: {
-    jumpToMessage: (messageId: string) => void
-    scrollToLatest: () => void
-  }) => void
+  onJumpHandle?: (handle: { jumpToMessage: (messageId: string) => void; scrollToLatest: () => void }) => void
 }): JSX.Element {
   let scrollElement: HTMLDivElement | undefined
   let columnElement: HTMLDivElement | undefined
@@ -212,11 +205,11 @@ export function VirtualThread(props: {
   })
 
   const jumpToMessage = (messageId: string) => {
-    const fold = items().find((item) => item.kind === "thread" && !item.expanded && item.messages.some((m) => m.id === messageId))
-    if (fold) toggleThread(fold.key)
-    const index = items().findIndex(
-      (item) => item.kind === "message" && item.message.id === messageId,
+    const fold = items().find(
+      (item) => item.kind === "thread" && !item.expanded && item.messages.some((m) => m.id === messageId),
     )
+    if (fold) toggleThread(fold.key)
+    const index = items().findIndex((item) => item.kind === "message" && item.message.id === messageId)
     if (index < 0) return
     stuck = false
     handle()?.scrollToIndex(index, { align: "start" })
@@ -229,7 +222,9 @@ export function VirtualThread(props: {
   }
 
   const openReplyTarget = (messageId: string, seq?: number) => {
-    const held = items().some((item) => item.kind === "message" && item.message.id === messageId) || items().some((item) => item.kind === "thread" && item.messages.some((m) => m.id === messageId))
+    const held =
+      items().some((item) => item.kind === "message" && item.message.id === messageId) ||
+      items().some((item) => item.kind === "thread" && item.messages.some((m) => m.id === messageId))
     if (!held && seq !== undefined) return props.onJumpToSeq?.(messageId, seq)
     jumpToMessage(messageId)
   }
@@ -240,9 +235,7 @@ export function VirtualThread(props: {
 
   const days = createMemo(() => new Set(props.messages.map((m) => dayStartOf(m.sentAt))))
   const jumpToDay = (dayStart: number) => {
-    const index = items().findIndex(
-      (item) => item.kind === "message" && dayStartOf(item.message.sentAt) === dayStart,
-    )
+    const index = items().findIndex((item) => item.kind === "message" && dayStartOf(item.message.sentAt) === dayStart)
     if (index < 0) return
     stuck = false
     handle()?.scrollToIndex(index, { align: "start" })
@@ -251,15 +244,15 @@ export function VirtualThread(props: {
 
   const isAtLatest = () => {
     const state = scrollState()
-    return state
-      ? isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)
-      : true
+    return state ? isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX) : true
   }
 
   let restoredFor: string | undefined
   let restoredOk = false
   let restoreGeneration = 0
-  onCleanup(() => { restoreGeneration += 1 })
+  onCleanup(() => {
+    restoreGeneration += 1
+  })
 
   const showsKey = () => {
     const first = props.messages[0]
@@ -283,7 +276,10 @@ export function VirtualThread(props: {
       const row = columnElement?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(item.message.id)}"]`)
       const rect = row?.getBoundingClientRect()
       const viewport = scrollElement?.getBoundingClientRect()
-      const offset = rect && viewport ? Math.round(rect.top - viewport.top) : Math.round(virtualizer.getItemOffset(i) - state.scrollOffset)
+      const offset =
+        rect && viewport
+          ? Math.round(rect.top - viewport.top)
+          : Math.round(virtualizer.getItemOffset(i) - state.scrollOffset)
       props.scrollBook.saveScroll(key, { messageId: item.message.id, offset })
       return
     }
@@ -376,7 +372,9 @@ export function VirtualThread(props: {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     scroller.scrollTo({ top: scroller.scrollHeight, behavior: reduced ? "auto" : "smooth" })
     if (reduced) return
-    scroller.addEventListener("scrollend", () => scroller.scrollTo({ top: scroller.scrollHeight, behavior: "auto" }), { once: true })
+    scroller.addEventListener("scrollend", () => scroller.scrollTo({ top: scroller.scrollHeight, behavior: "auto" }), {
+      once: true,
+    })
   }
 
   let stuck = true
@@ -405,7 +403,8 @@ export function VirtualThread(props: {
   const followEnd = () => {
     const scroller = scrollElement
     if (!scroller || !stuck || dragging) return
-    if (scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1) scroller.scrollTop = scroller.scrollHeight
+    if (scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1)
+      scroller.scrollTop = scroller.scrollHeight
   }
 
   let blankTries = 0
@@ -477,24 +476,49 @@ export function VirtualThread(props: {
     createEventListener(() => scroller, "wheel", readerMoved, { passive: true })
     createEventListener(() => scroller, "touchmove", readerMoved, { passive: true })
     createEventListener(() => scroller, "keydown", readerMoved)
-    createEventListener(() => scroller, "pointerdown", (event: PointerEvent) => {
-      if (event.target === scroller) readerMoved()
-      dragging = event.pointerType === "mouse" && event.button === 0
-      dragFrom = dragging ? { id: event.pointerId, x: event.clientX, y: event.clientY } : undefined
-    }, { passive: true })
-    createEventListener(() => scroller, "pointermove", (event: PointerEvent) => {
-      if (!dragFrom || event.pointerId !== dragFrom.id || Math.hypot(event.clientX - dragFrom.x, event.clientY - dragFrom.y) < 4) return
-      scroller.setPointerCapture(dragFrom.id)
-      dragFrom = undefined
-    }, { passive: true })
+    createEventListener(
+      () => scroller,
+      "pointerdown",
+      (event: PointerEvent) => {
+        if (event.target === scroller) readerMoved()
+        dragging = event.pointerType === "mouse" && event.button === 0
+        dragFrom = dragging ? { id: event.pointerId, x: event.clientX, y: event.clientY } : undefined
+      },
+      { passive: true },
+    )
+    createEventListener(
+      () => scroller,
+      "pointermove",
+      (event: PointerEvent) => {
+        if (
+          !dragFrom ||
+          event.pointerId !== dragFrom.id ||
+          Math.hypot(event.clientX - dragFrom.x, event.clientY - dragFrom.y) < 4
+        )
+          return
+        scroller.setPointerCapture(dragFrom.id)
+        dragFrom = undefined
+      },
+      { passive: true },
+    )
     const endDrag = () => {
       dragging = false
       dragFrom = undefined
     }
     createEventListener(document, "pointerup", endDrag, { passive: true })
     createEventListener(document, "pointercancel", endDrag, { passive: true })
-    createEventListener(() => scroller, "pointermove", (event: PointerEvent) => setNearTopEdge(event.clientY - scroller.getBoundingClientRect().top < DATE_CHIP_EDGE_PX), { passive: true })
-    createEventListener(() => scroller, "pointerleave", () => setNearTopEdge(false), { passive: true })
+    createEventListener(
+      () => scroller,
+      "pointermove",
+      (event: PointerEvent) => setNearTopEdge(event.clientY - scroller.getBoundingClientRect().top < DATE_CHIP_EDGE_PX),
+      { passive: true },
+    )
+    createEventListener(
+      () => scroller,
+      "pointerleave",
+      () => setNearTopEdge(false),
+      { passive: true },
+    )
     onCleanup(() => {
       sizes.unobserve(scroller)
       sizes.unobserve(column)
@@ -505,25 +529,28 @@ export function VirtualThread(props: {
   let firstLoad = true
   let lastOwner: unknown
   createEffect(
-    on(() => [items(), props.scrollKey, props.scrollBook?.ready?.()], () => {
-      const owner: unknown = props.scrollKey ?? props.messages
-      if (owner !== lastOwner) {
-        lastOwner = owner
-        firstLoad = true
-        restoreGeneration += 1
-        restoredFor = undefined
-        restoredOk = false
-        stuck = true
-        readerScrolling = false
+    on(
+      () => [items(), props.scrollKey, props.scrollBook?.ready?.()],
+      () => {
+        const owner: unknown = props.scrollKey ?? props.messages
+        if (owner !== lastOwner) {
+          lastOwner = owner
+          firstLoad = true
+          restoreGeneration += 1
+          restoredFor = undefined
+          restoredOk = false
+          stuck = true
+          readerScrolling = false
         }
-      const rows = items().length > 0
-      if (restorePosition()) firstLoad = false
-      else if (rows) {
-        firstLoad = false
-        followEnd()
-      }
-      commitState(readState())
-    }),
+        const rows = items().length > 0
+        if (restorePosition()) firstLoad = false
+        else if (rows) {
+          firstLoad = false
+          followEnd()
+        }
+        commitState(readState())
+      },
+    ),
   )
 
   const viewer = createImageDialog()
@@ -540,12 +567,14 @@ export function VirtualThread(props: {
       },
       side: message.sender,
       onReply: () => aimReplyAt(menu.targetId() ?? message.id),
-      onEdit: message.sender === "user" && !message.id.startsWith("local:") && message.body.trim() && props.onEdit
-        ? () => props.onEdit!(menu.targetId() ?? message.id)
-        : undefined,
-      onDelete: message.sender === "user" && !message.id.startsWith("local:") && props.onDelete
-        ? () => props.onDelete!(menu.targetId() ?? message.id)
-        : undefined,
+      onEdit:
+        message.sender === "user" && !message.id.startsWith("local:") && message.body.trim() && props.onEdit
+          ? () => props.onEdit!(menu.targetId() ?? message.id)
+          : undefined,
+      onDelete:
+        message.sender === "user" && !message.id.startsWith("local:") && props.onDelete
+          ? () => props.onDelete!(menu.targetId() ?? message.id)
+          : undefined,
       onReact: (emoji) => props.onReact?.(menu.targetId() ?? message.id, emoji),
     })
     return (
@@ -559,7 +588,9 @@ export function VirtualThread(props: {
           runKey={item.runKey}
           hasRunGapBefore={item.hasRunGapBefore}
           group={props.groupChat}
-          class={fresh().has(message.id) ? (message.sender === "bot" ? "motion-reply-in" : "motion-bubble-in") : undefined}
+          class={
+            fresh().has(message.id) ? (message.sender === "bot" ? "motion-reply-in" : "motion-bubble-in") : undefined
+          }
           highlighted={landed() === message.id}
           replying={activeReply() === message.id}
           jumboClass={jumboEmojiClass(message.body)}
@@ -573,7 +604,12 @@ export function VirtualThread(props: {
           onContextMenu={menu.onContextMenu}
           onOpenImages={(images, index, from) => {
             const clicked = images[index]
-            const chat = clicked ? chatImages(items().flatMap((entry) => (entry.kind === "message" ? [entry.message] : [])), clicked) : { images, index }
+            const chat = clicked
+              ? chatImages(
+                  items().flatMap((entry) => (entry.kind === "message" ? [entry.message] : [])),
+                  clicked,
+                )
+              : { images, index }
             viewer.open(chat.images, chat.index, from)
           }}
         />
@@ -588,10 +624,21 @@ export function VirtualThread(props: {
       return <SystemRow label={parts.day} detail={parts.time} data-component="chat-divider" />
     }
     if (item.kind === "event" && item.message.event?.kind === "run_error") {
-      return <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} latest={props.messages.at(-1)?.id === item.message.id} />
+      return (
+        <ActivityEvent
+          message={item.message}
+          name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])}
+          latest={props.messages.at(-1)?.id === item.message.id}
+        />
+      )
     }
     if (item.kind === "event") {
-      return <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} />
+      return (
+        <ActivityEvent
+          message={item.message}
+          name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])}
+        />
+      )
     }
     if (item.kind === "thread") {
       return (
@@ -604,9 +651,7 @@ export function VirtualThread(props: {
       )
     }
     if (item.kind === "unread-divider") {
-      return (
-        <SystemRow label="New messages" tone="accent" data-component="chat-unread-rule" />
-      )
+      return <SystemRow label="New messages" tone="accent" data-component="chat-unread-rule" />
     }
     return renderMessage(item)
   }
@@ -637,29 +682,34 @@ export function VirtualThread(props: {
           }}
         >
           <MentionLookup.Provider value={(slug) => props.botById(slug)}>
-          <Show when={hasMessages()}>
-            <Virtualizer
-              data={items()}
-              scrollRef={scrollElement}
-              bufferSize={BUFFER_SIZE}
-              shift={isShifted()}
-              ref={setHandle}
-            >
-              {(item) => <div data-component="chat-vrow">{renderItem(item)}</div>}
-            </Virtualizer>
-
-            <Show when={props.waitingNames.length > 0}>
-              <div
-                class={cn(
-                  "mx-auto flex w-full max-w-(--chat-content-max-width) px-4 pb-(--row-gap)",
-                  props.messages.at(-1)?.sender === "bot" ? "pt-(--row-gap)" : "pt-(--run-gap)",
-                )}
-                data-component="chat-typing-row"
+            <Show when={hasMessages()}>
+              <Virtualizer
+                data={items()}
+                scrollRef={scrollElement}
+                bufferSize={BUFFER_SIZE}
+                shift={isShifted()}
+                ref={setHandle}
               >
-                <TypingIndicator typists={[...props.waitingNames]} seeds={props.waitingSlugs} doings={props.waitingDoings} group={props.groupChat} />
-              </div>
+                {(item) => <div data-component="chat-vrow">{renderItem(item)}</div>}
+              </Virtualizer>
+
+              <Show when={props.waitingNames.length > 0}>
+                <div
+                  class={cn(
+                    "mx-auto flex w-full max-w-(--chat-content-max-width) px-4 pb-(--row-gap)",
+                    props.messages.at(-1)?.sender === "bot" ? "pt-(--row-gap)" : "pt-(--run-gap)",
+                  )}
+                  data-component="chat-typing-row"
+                >
+                  <TypingIndicator
+                    typists={[...props.waitingNames]}
+                    seeds={props.waitingSlugs}
+                    doings={props.waitingDoings}
+                    group={props.groupChat}
+                  />
+                </div>
+              </Show>
             </Show>
-          </Show>
           </MentionLookup.Provider>
         </div>
       </div>
@@ -671,10 +721,7 @@ export function VirtualThread(props: {
         onJumpToDay={jumpToDay}
         hasDay={(day) => days().has(day) || day === dayStartOf(now())}
       />
-      <ScrollFades
-        showTop={(scrollState()?.scrollOffset ?? 0) > 0}
-        showBottom={!isAtLatest()}
-      />
+      <ScrollFades showTop={(scrollState()?.scrollOffset ?? 0) > 0} showBottom={!isAtLatest()} />
 
       {viewer.view}
     </div>

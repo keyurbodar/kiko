@@ -3,7 +3,9 @@ let pending = false
 
 export const recoveryPending = () => pending
 export function clearRecovery(): void {
-  try { sessionStorage.removeItem(RELOAD_KEY) } catch {}
+  try {
+    sessionStorage.removeItem(RELOAD_KEY)
+  } catch {}
 }
 
 export async function recover(error: unknown): Promise<void> {
@@ -17,8 +19,10 @@ export async function recover(error: unknown): Promise<void> {
     if (el) el.style.display = "block"
     return
   }
-  await Promise.all([...new Set(String(error).match(/\/assets\/[^\s"'<>]+?\.js/g) ?? [])].map((file) =>
-    fetch(file, { cache: "reload", signal: AbortSignal.timeout(3000) }).catch(() => {}),
-  ))
+  await Promise.all(
+    [...new Set(String(error).match(/\/assets\/[^\s"'<>]+?\.js/g) ?? [])].map((file) =>
+      fetch(file, { cache: "reload", signal: AbortSignal.timeout(3000) }).catch(() => {}),
+    ),
+  )
   location.reload()
 }

@@ -10,4 +10,5 @@ export function answeringMember(members: readonly Member[], draft: string): Memb
   return members.find((m) => m.lead) ?? members[0]
 }
 
-export const canReason = (levels: readonly ThinkingLevel[] | undefined): boolean => !!levels?.some((level) => level !== "off")
+export const canReason = (levels: readonly ThinkingLevel[] | undefined): boolean =>
+  !!levels?.some((level) => level !== "off")

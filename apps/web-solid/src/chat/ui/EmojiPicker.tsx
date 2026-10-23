@@ -1,6 +1,16 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { SearchIcon } from "@kiko/ui/icons"
-import { createMemo, createResource, createSelector, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
+import {
+  createMemo,
+  createResource,
+  createSelector,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  type JSX,
+} from "solid-js"
 import { cn } from "../../lib/cn"
 import {
   EMOJI_SECTIONS,
@@ -60,7 +70,10 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
       return [
         {
           title: "Results",
-          cells: searchEmoji(entries, text, Infinity).map((match) => ({ emoji: match.entry.emoji, label: match.entry.annotation })),
+          cells: searchEmoji(entries, text, Infinity).map((match) => ({
+            emoji: match.entry.emoji,
+            label: match.entry.annotation,
+          })),
         },
       ]
     }
@@ -78,9 +91,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
   let scroller: HTMLDivElement | undefined
   const reveal = (at: GridAt) => {
     setMounted(Number.POSITIVE_INFINITY)
-    queueMicrotask(() =>
-      scroller?.querySelector(`[data-at="${key(at)}"]`)?.scrollIntoView({ block: "nearest" }),
-    )
+    queueMicrotask(() => scroller?.querySelector(`[data-at="${key(at)}"]`)?.scrollIntoView({ block: "nearest" }))
   }
   const pick = (emoji: string) => {
     recordRecent(emoji)
@@ -174,7 +185,9 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
                   }}
                   data-component="emoji-section"
                 >
-                  <h3 class="flex h-8 items-center px-1.5 text-[15px] font-semibold text-foreground">{section.title}</h3>
+                  <h3 class="flex h-8 items-center px-1.5 text-[15px] font-semibold text-foreground">
+                    {section.title}
+                  </h3>
                   <div class="grid grid-cols-8" role="listbox" aria-label={section.title}>
                     <For each={section.cells}>
                       {(cell, at) => (

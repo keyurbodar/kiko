@@ -20,12 +20,30 @@ export type RecipeCard = {
   tone: RecipeTone
 }
 
-export type RecipeRoutine = { id: string; name: string; trigger: Trigger; tz: string; status: "active" | "paused"; dueUtc: number }
+export type RecipeRoutine = {
+  id: string
+  name: string
+  trigger: Trigger
+  tz: string
+  status: "active" | "paused"
+  dueUtc: number
+}
 
-export type RecipeInstall = { installId: string; slug: string; roomId: RoomId; agent: string; at: number; routines: readonly RecipeRoutine[] }
+export type RecipeInstall = {
+  installId: string
+  slug: string
+  roomId: RoomId
+  agent: string
+  at: number
+  routines: readonly RecipeRoutine[]
+}
 
 export type InstallRecipe = { installId: string; slug: string } & ({ roomId: RoomId; agent: string } | { own: true })
 
-export type RecipeNeedsConnect = { state: "needs_connect"; links: readonly { app: string; url: string }[]; reason?: string }
+export type RecipeNeedsConnect = {
+  state: "needs_connect"
+  links: readonly { app: string; url: string }[]
+  reason?: string
+}
 
 export type RecipeList = { cards: readonly RecipeCard[]; installs: readonly RecipeInstall[]; broken: readonly string[] }

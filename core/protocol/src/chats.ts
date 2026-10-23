@@ -6,31 +6,37 @@ export const KIKO = "kiko"
 export const KIKO_HOME_ROOM = "00000000-0000-7000-8000-6b696b6f0000" as RoomId
 
 function sameAgents(a: readonly string[], b: readonly string[]): boolean {
-	const x = new Set(a)
-	const y = new Set(b)
-	return x.size > 0 && x.size === y.size && [...x].every((id) => y.has(id))
+  const x = new Set(a)
+  const y = new Set(b)
+  return x.size > 0 && x.size === y.size && [...x].every((id) => y.has(id))
 }
 
 export function sameAgentChat(chats: readonly Chat[], agents: readonly string[], except?: RoomId): Chat | null {
-	let best: Chat | null = null
-	for (const c of chats) {
-		if (c.pair || c.roomId === except || !sameAgents(c.agents ?? [], agents)) continue
-		if (!best || rank(c, best) < 0) best = c
-	}
-	return best
+  let best: Chat | null = null
+  for (const c of chats) {
+    if (c.pair || c.roomId === except || !sameAgents(c.agents ?? [], agents)) continue
+    if (!best || rank(c, best) < 0) best = c
+  }
+  return best
 }
 
-const rank = (a: Chat, b: Chat) => Number(!!b.kiko) - Number(!!a.kiko) || b.updatedAt - a.updatedAt || (a.roomId < b.roomId ? -1 : 1)
+const rank = (a: Chat, b: Chat) =>
+  Number(!!b.kiko) - Number(!!a.kiko) || b.updatedAt - a.updatedAt || (a.roomId < b.roomId ? -1 : 1)
 
 export function pairRoomId(a: string, b: string): RoomId {
-	const [x, y] = a < b ? [a, b] : [b, a]
-	const key = `pair:${x}:${y}`
-	let h = [0x243f6a88, 0x85a308d3, 0x13198a2e, 0x03707344]
-	for (let i = 0; i < key.length; i++) {
-		const c = key.charCodeAt(i)
-		h = [Math.imul(h[0]! ^ c, 0x9e3779b1), Math.imul(h[1]! ^ c, 0x85ebca6b), Math.imul(h[2]! ^ c, 0xc2b2ae35), Math.imul(h[3]! ^ c, 0x27d4eb2f)]
-		h = [h[1]! ^ (h[0]! >>> 15), h[2]! ^ (h[1]! >>> 13), h[3]! ^ (h[2]! >>> 16), h[0]! ^ (h[3]! >>> 11)]
-	}
-	const hex = h.map((n) => (n >>> 0).toString(16).padStart(8, "0")).join("")
-	return `00000000-0000-7${hex.slice(0, 3)}-8${hex.slice(3, 6)}-${hex.slice(6, 18)}` as RoomId
+  const [x, y] = a < b ? [a, b] : [b, a]
+  const key = `pair:${x}:${y}`
+  let h = [0x243f6a88, 0x85a308d3, 0x13198a2e, 0x03707344]
+  for (let i = 0; i < key.length; i++) {
+    const c = key.charCodeAt(i)
+    h = [
+      Math.imul(h[0]! ^ c, 0x9e3779b1),
+      Math.imul(h[1]! ^ c, 0x85ebca6b),
+      Math.imul(h[2]! ^ c, 0xc2b2ae35),
+      Math.imul(h[3]! ^ c, 0x27d4eb2f),
+    ]
+    h = [h[1]! ^ (h[0]! >>> 15), h[2]! ^ (h[1]! >>> 13), h[3]! ^ (h[2]! >>> 16), h[0]! ^ (h[3]! >>> 11)]
+  }
+  const hex = h.map((n) => (n >>> 0).toString(16).padStart(8, "0")).join("")
+  return `00000000-0000-7${hex.slice(0, 3)}-8${hex.slice(3, 6)}-${hex.slice(6, 18)}` as RoomId
 }

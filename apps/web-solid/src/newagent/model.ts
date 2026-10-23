@@ -38,7 +38,8 @@ export function problems(form: Form, taken: Taken): Problems {
   const out: Problems = {}
   const name = form.name.trim()
   if (name.length > MAX_NAME) out.name = `Use ${MAX_NAME} characters or fewer`
-  else if (name && (same(name, "kiko") || taken.some((a) => same(a.name, name)))) out.name = "An agent already has this name"
+  else if (name && (same(name, "kiko") || taken.some((a) => same(a.name, name))))
+    out.name = "An agent already has this name"
   const handle = form.handle.trim().replace(/^@/, "")
   if (handle && !AGENT_SLUG_PATTERN.test(handle)) out.handle = "Use lowercase letters, digits, and dashes"
   else if (handle && (handle === "kiko" || taken.some((a) => a.slug === handle))) out.handle = "This handle is taken"
@@ -48,10 +49,15 @@ export function problems(form: Form, taken: Taken): Problems {
 
 export function ready(form: Form, taken: Taken): boolean {
   const handle = form.handle.trim().replace(/^@/, "")
-  return form.name.trim() !== "" && handle !== "" && form.description.trim() !== "" && Object.keys(problems(form, taken)).length === 0
+  return (
+    form.name.trim() !== "" &&
+    handle !== "" &&
+    form.description.trim() !== "" &&
+    Object.keys(problems(form, taken)).length === 0
+  )
 }
 
-const pick = <T,>(list: readonly T[], random: () => number): T => list[Math.floor(random() * list.length)]!
+const pick = <T>(list: readonly T[], random: () => number): T => list[Math.floor(random() * list.length)]!
 
 export function shufflePins(random: () => number = Math.random): AvatarPins {
   const flavour = pick(FLAVOUR_NAMES, random)
@@ -61,7 +67,10 @@ export function shufflePins(random: () => number = Math.random): AvatarPins {
   return { flavour, charm: "none", outfit: "none" }
 }
 
-export const faceOptions = (random: () => number = Math.random): AvatarPins[] => [{}, ...Array.from({ length: 7 }, () => shufflePins(random))]
+export const faceOptions = (random: () => number = Math.random): AvatarPins[] => [
+  {},
+  ...Array.from({ length: 7 }, () => shufflePins(random)),
+]
 
 export const tidyName = (name: string): string => {
   const n = name.trim()

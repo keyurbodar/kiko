@@ -68,7 +68,13 @@ export function MessageRow(props: {
   const photo = () => !!props.message.rich && isPhotoTree(props.message.rich)
   const windowKey = () => (own() ? undefined : useApp.runWindow(props.message))
   const failed = () => props.message.status === "failed"
-  const failure = () => (failed() ? useApp.room()?.messages().find((m) => m.id === props.message.id)?.reason : undefined)
+  const failure = () =>
+    failed()
+      ? useApp
+          .room()
+          ?.messages()
+          .find((m) => m.id === props.message.id)?.reason
+      : undefined
   return (
     <div
       class={cn(
@@ -135,7 +141,10 @@ export function MessageRow(props: {
           </Show>
           <Show when={props.message.initiative}>
             {(reason) => (
-              <div class="px-(--bubble-pad-x) pt-1 text-sm leading-5 text-[color-mix(in_oklab,currentColor_55%,transparent)]" data-component="noticed">
+              <div
+                class="px-(--bubble-pad-x) pt-1 text-sm leading-5 text-[color-mix(in_oklab,currentColor_55%,transparent)]"
+                data-component="noticed"
+              >
                 Noticed: {reason()}
               </div>
             )}
@@ -149,8 +158,10 @@ export function MessageRow(props: {
           </Show>
           <Show when={props.message.body.length > 0}>
             <Collapsible messageId={props.message.id} fixed={photo()}>
-
-              <Show when={props.message.rich?.length ? props.message.rich : undefined} fallback={<RichText text={props.message.body} />}>
+              <Show
+                when={props.message.rich?.length ? props.message.rich : undefined}
+                fallback={<RichText text={props.message.body} />}
+              >
                 {(tree) => (
                   <Suspense fallback={<RichText text={props.message.body} />}>
                     <RichTree tree={tree()} class="bubble-rich" />
@@ -160,25 +171,39 @@ export function MessageRow(props: {
             </Collapsible>
           </Show>
           <Show when={failed()}>
-            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1" data-component="chat-send-failed" role="alert">
+            <div
+              class="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1"
+              data-component="chat-send-failed"
+              role="alert"
+            >
               <RemixIcon icon={AlertCircleIcon} class="size-3.5 shrink-0" />
-              <span class="min-w-0 flex-1 truncate text-xs font-medium" title={failure() ?? undefined} data-part="reason">
+              <span
+                class="min-w-0 flex-1 truncate text-xs font-medium"
+                title={failure() ?? undefined}
+                data-part="reason"
+              >
                 {failure() ?? "Not sent"}
               </span>
-              <button type="button" class={FAILED_ACTION} data-action="retry-send" onClick={() => useApp.retryRun(props.message.id)}>
+              <button
+                type="button"
+                class={FAILED_ACTION}
+                data-action="retry-send"
+                onClick={() => useApp.retryRun(props.message.id)}
+              >
                 Retry
               </button>
-              <button type="button" class={FAILED_ACTION} data-action="delete-send" onClick={() => useApp.deleteMessage(props.message.id)}>
+              <button
+                type="button"
+                class={FAILED_ACTION}
+                data-action="delete-send"
+                onClick={() => useApp.deleteMessage(props.message.id)}
+              >
                 Delete
               </button>
             </div>
           </Show>
         </BubbleContent>
-        <ReactionStack
-          reactions={props.message.reactions}
-          side={props.message.sender}
-          onToggle={props.onReact}
-        />
+        <ReactionStack reactions={props.message.reactions} side={props.message.sender} onToggle={props.onReact} />
         <Show when={props.onReact && props.onReply && props.onMore}>
           <MessageActions
             side={props.message.sender}

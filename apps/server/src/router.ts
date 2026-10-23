@@ -19,7 +19,11 @@ export function originAllowed(request: Request, url: URL, env: AuthEnv): boolean
   return DEV && /^http:\/\/localhost(:\d+)?$/.test(origin)
 }
 
-export async function route(request: Request, env: Env, lookup: SessionLookup = getSessionUser): Promise<Response | null> {
+export async function route(
+  request: Request,
+  env: Env,
+  lookup: SessionLookup = getSessionUser,
+): Promise<Response | null> {
   const url = new URL(request.url)
   if (!url.pathname.startsWith("/api/") || url.pathname.startsWith("/api/auth/")) return null
   if (url.pathname !== "/api/ws") return null
@@ -62,7 +66,11 @@ async function upgrade(request: Request, env: Env, url: URL, lookup: SessionLook
     const response = await ownerStub(env.OWNER, user.id).fetch(new Request(request, { headers }))
     const offered = (request.headers.get("sec-websocket-protocol") ?? "").split(",").map((p) => p.trim())
     if (!response.webSocket || !offered.includes(SOCKET_PROTOCOL)) return response
-    return new Response(null, { status: 101, webSocket: response.webSocket, headers: { "sec-websocket-protocol": SOCKET_PROTOCOL } })
+    return new Response(null, {
+      status: 101,
+      webSocket: response.webSocket,
+      headers: { "sec-websocket-protocol": SOCKET_PROTOCOL },
+    })
   } catch (e) {
     if (e instanceof NameError) return error(400, e.message)
     throw e

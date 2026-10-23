@@ -36,9 +36,18 @@ export async function devDue(reminders: Reminders, id: string): Promise<void> {
   await reminders.makeDue(id)
 }
 
-export type DevBrowserOp = { action: "lease" | "touch" | "dead" | "age" | "reap" | "switch" | "state"; agentId?: string; mode?: Mode; ms?: number }
+export type DevBrowserOp = {
+  action: "lease" | "touch" | "dead" | "age" | "reap" | "switch" | "state"
+  agentId?: string
+  mode?: Mode
+  ms?: number
+}
 
-export async function devBrowser(kernel: () => KernelWiring, userId: string, op: DevBrowserOp): Promise<Record<string, unknown>> {
+export async function devBrowser(
+  kernel: () => KernelWiring,
+  userId: string,
+  op: DevBrowserOp,
+): Promise<Record<string, unknown>> {
   const k = kernel()
   if (op.action === "lease") {
     const { cdpUrl: _, ...rest } = await k.lease(op.agentId ?? "")

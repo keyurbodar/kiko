@@ -1,29 +1,29 @@
 export type LifeLine = {
-	pos: number
-	at: number
-	text: string
-	source: string
-	pinned: boolean
-	redacted: boolean
-	supersededBy?: number | null
+  pos: number
+  at: number
+  text: string
+  source: string
+  pinned: boolean
+  redacted: boolean
+  supersededBy?: number | null
 }
 
 export type MemoryModel = { provider: string; modelId: string } | null
 
 export type MemoryOp =
-	| { op: "list"; before?: number; limit?: number }
-	| { op: "view" }
-	| { op: "search"; query: string }
-	| { op: "zoom"; id: string }
-	| { op: "note"; text: string }
-	| { op: "pin"; pos: number; pinned: boolean }
-	| { op: "redact"; pos: number }
-	| { op: "model" }
-	| { op: "set_model"; model: MemoryModel }
+  | { op: "list"; before?: number; limit?: number }
+  | { op: "view" }
+  | { op: "search"; query: string }
+  | { op: "zoom"; id: string }
+  | { op: "note"; text: string }
+  | { op: "pin"; pos: number; pinned: boolean }
+  | { op: "redact"; pos: number }
+  | { op: "model" }
+  | { op: "set_model"; model: MemoryModel }
 
 export type MemoryResult =
-	| { ok: true; lines: readonly LifeLine[]; next: number | null }
-	| { ok: true; text: readonly string[] }
-	| { ok: true; model: MemoryModel }
-	| { ok: true }
-	| { ok: false; error: string }
+  | { ok: true; lines: readonly LifeLine[]; next: number | null }
+  | { ok: true; text: readonly string[] }
+  | { ok: true; model: MemoryModel }
+  | { ok: true }
+  | { ok: false; error: string }

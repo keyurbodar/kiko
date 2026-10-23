@@ -43,7 +43,8 @@ async function request(url: URL, init: RequestInit): Promise<Response> {
 
 export async function login(ctx: Context): Promise<void> {
   const code = process.env.KIKO_ACCESS_CODE
-  if (!ctx.dev && !code) throw new CliError("set KIKO_ACCESS_CODE to sign in to a deployed server, or pass --dev for a local one")
+  if (!ctx.dev && !code)
+    throw new CliError("set KIKO_ACCESS_CODE to sign in to a deployed server, or pass --dev for a local one")
   const url = endpoint(ctx, ctx.dev ? "api/auth/dev/session" : "api/auth/access-code")
   const res = await request(url, {
     method: "POST",

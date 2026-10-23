@@ -19,7 +19,16 @@ async function entry(name: string): Promise<FsEntry & { kind: "file" }> {
     digest = await sha256Hex(text)
     sha.set(name, digest)
   }
-  return { kind: "file", path: name, id: `kiko:${name}`, size: encoder.encode(text).length, type: "text/markdown", sha256: digest, r2Key: `kiko:${name}`, at: 0 }
+  return {
+    kind: "file",
+    path: name,
+    id: `kiko:${name}`,
+    size: encoder.encode(text).length,
+    type: "text/markdown",
+    sha256: digest,
+    r2Key: `kiko:${name}`,
+    at: 0,
+  }
 }
 
 const root = (files: number, size: number): FsEntry => ({ kind: "directory", path: "", files, size })
@@ -41,7 +50,10 @@ export function kikoDocsBackend(): FilesBackend {
       return DOCS.has(path) ? await entry(path) : null
     },
     async list(dir) {
-      if (dir !== "") return DOCS.has(dir) ? [await entry(dir)] : { ok: false, code: "not_found", message: `no such file or folder: /${KIKO}/${dir}` }
+      if (dir !== "")
+        return DOCS.has(dir)
+          ? [await entry(dir)]
+          : { ok: false, code: "not_found", message: `no such file or folder: /${KIKO}/${dir}` }
       const { files } = await sizes()
       return files
     },
@@ -65,7 +77,12 @@ export function kikoDocsBackend(): FilesBackend {
       return refuse()
     },
     async commit(changes: readonly BatchChange[]) {
-      return { ok: false, path: batchPaths(changes[0] ?? { op: "mkdir", path: "" })[0] ?? "", message: REFUSAL, conflict: false }
+      return {
+        ok: false,
+        path: batchPaths(changes[0] ?? { op: "mkdir", path: "" })[0] ?? "",
+        message: REFUSAL,
+        conflict: false,
+      }
     },
   }
 }

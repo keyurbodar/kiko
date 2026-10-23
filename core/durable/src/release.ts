@@ -4,7 +4,10 @@ const ALGORITHM = { name: "Ed25519" } as const
 
 function fromBase64Url(text: string): Uint8Array | null {
   if (!/^[A-Za-z0-9_-]*$/.test(text)) return null
-  const padded = text.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(text.length / 4) * 4, "=")
+  const padded = text
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(Math.ceil(text.length / 4) * 4, "=")
   try {
     const binary = atob(padded)
     const bytes = new Uint8Array(binary.length)
@@ -64,13 +67,20 @@ export function parseManifest(manifestBytes: Uint8Array): ReleaseManifest | null
     const ok =
       typeof m.version === "string" &&
       typeof m.protocol === "number" &&
-      (m.durable_objects === undefined || Array.isArray(m.durable_objects) && m.durable_objects.length > 0 && m.durable_objects.every((binding) => binding && typeof binding.name === "string" && typeof binding.class_name === "string")) &&
+      (m.durable_objects === undefined ||
+        (Array.isArray(m.durable_objects) &&
+          m.durable_objects.length > 0 &&
+          m.durable_objects.every(
+            (binding) => binding && typeof binding.name === "string" && typeof binding.class_name === "string",
+          ))) &&
       typeof m.main_module === "string" &&
       typeof m.compatibility_date === "string" &&
       Array.isArray(m.compatibility_flags) &&
       Array.isArray(m.migrations) &&
       Array.isArray(m.modules) &&
-      m.modules.every((x) => x && typeof x.name === "string" && typeof x.type === "string" && typeof x.sha256 === "string") &&
+      m.modules.every(
+        (x) => x && typeof x.name === "string" && typeof x.type === "string" && typeof x.sha256 === "string",
+      ) &&
       m.modules.some((x) => x.name === m.main_module)
     return ok ? (m as ReleaseManifest) : null
   } catch {

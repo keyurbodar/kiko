@@ -4,7 +4,14 @@ import type { ClockPort } from "@kiko/durable/clock-port"
 import type { ClockMetadata } from "../owner/clock"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult } from "@earendil-works/pi-ai"
-import { type Conversation, type ConversationId, configure, type Harness, type ModelRef, type SubmissionId } from "@earendil-works/pi-durable"
+import {
+  type Conversation,
+  type ConversationId,
+  configure,
+  type Harness,
+  type ModelRef,
+  type SubmissionId,
+} from "@earendil-works/pi-durable"
 import type { Activity, Envelope, ProviderProblem, RoomId, ThinkingLevel, WorkerRow } from "@kiko/protocol"
 import { runKindFor } from "../user/provider-health"
 import type { Env } from "../index"
@@ -19,7 +26,16 @@ import { shortBrief } from "../room/brief"
 import { messageIdOf } from "../room/messaging"
 import { CHIEF } from "../room/chief"
 import { HOME } from "../files/upload"
-import { homeBackend, ObjectCache, RoomFs, roomBackend, roomViews, type SoulPort, withMount, withSoul } from "../files/room-fs"
+import {
+  homeBackend,
+  ObjectCache,
+  RoomFs,
+  roomBackend,
+  roomViews,
+  type SoulPort,
+  withMount,
+  withSoul,
+} from "../files/room-fs"
 import { kikoDocsBackend, KIKO } from "../files/kiko-docs"
 import { mergeRecall, tagHits } from "./recall"
 import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "@kiko/memory/tools"
@@ -36,7 +52,13 @@ import { buildAgent, openAgentHarness, userModels } from "./factory"
 import { isKnownModel, parseModelRef, thinkingFor } from "./thinking"
 import { setOverlay } from "../models/catalog"
 import { projectRecovery } from "../owner/clock"
-import { RoutineSchedules, captureRoutineTasks, scheduledRoutine, scheduledDeadline, type ScheduledRoutine } from "../owner/schedules"
+import {
+  RoutineSchedules,
+  captureRoutineTasks,
+  scheduledRoutine,
+  scheduledDeadline,
+  type ScheduledRoutine,
+} from "../owner/schedules"
 import { AgentHost, type AgentSetup, type HostOptions, type HostStatus } from "@kiko/agent/host"
 import type { Batch } from "@kiko/agent/input"
 import type { Work } from "@kiko/agent/workers"
@@ -65,8 +87,10 @@ type EgressRequest = { url: string; method: string; headers: [string, string][];
 const RECENT_WORKERS = 8
 const MODEL_APPLIED_KEY = "model:applied"
 
-const PRIVATE_REFUSAL = "this chat is private: nothing from it is saved to memory, your soul, or /home. carry on without saving."
-const PRIVATE_NOTE = "this chat is private. use what you know, but save nothing from it: no memory, no soul edits, nothing in /home."
+const PRIVATE_REFUSAL =
+  "this chat is private: nothing from it is saved to memory, your soul, or /home. carry on without saving."
+const PRIVATE_NOTE =
+  "this chat is private. use what you know, but save nothing from it: no memory, no soul edits, nothing in /home."
 
 export class Agent {
   protected readonly hostOptions: Partial<HostOptions> = {}
@@ -84,7 +108,16 @@ export class Agent {
   private readonly clock: ClockPort
   private readonly metadata: ClockMetadata
   private readonly agentKey: string
-  constructor({ ctx, env, services, requestRun, countOutgoing = () => {}, identity, clock, metadata }: ServiceOptions & {
+  constructor({
+    ctx,
+    env,
+    services,
+    requestRun,
+    countOutgoing = () => {},
+    identity,
+    clock,
+    metadata,
+  }: ServiceOptions & {
     identity: { ownerId: string; roomId: string; slug: string }
     clock: ClockPort
     metadata: ClockMetadata
@@ -96,26 +129,37 @@ export class Agent {
     this.clock = clock
     this.metadata = metadata
     const storage = agentStorage(ctx.storage, this.agentKey, clock)
-    this.ctx = new Proxy(ctx, { get(target, key) {
-      if (key === "storage") return storage
-      const value = Reflect.get(target, key, target)
-      return typeof value === "function" ? value.bind(target) : value
-    } })
+    this.ctx = new Proxy(ctx, {
+      get(target, key) {
+        if (key === "storage") return storage
+        const value = Reflect.get(target, key, target)
+        return typeof value === "function" ? value.bind(target) : value
+      },
+    })
     this.env = env
     this.services = services
     this.requestRun = requestRun
     this.countOutgoing = countOutgoing
   }
 
-  loaded(): boolean { return this.hostInstance?.loaded() ?? false }
-  async busy(): Promise<boolean> { return this.hostInstance?.busy() ?? false }
-  async unload(): Promise<void> { await this.hostInstance?.unload() }
-  async invalidate(): Promise<void> { await this.hostInstance?.invalidate() }
+  loaded(): boolean {
+    return this.hostInstance?.loaded() ?? false
+  }
+  async busy(): Promise<boolean> {
+    return this.hostInstance?.busy() ?? false
+  }
+  async unload(): Promise<void> {
+    await this.hostInstance?.unload()
+  }
+  async invalidate(): Promise<void> {
+    await this.hostInstance?.invalidate()
+  }
   protected get host(): AgentHost {
     this.hostInstance ??= new AgentHost(this.ctx, {
       clock: this.clock,
       agentKey: this.agentKey,
-      projectTasks: (tasks, watches, current) => projectRecovery(tasks, watches, current, Date.now(), scheduledDeadline),
+      projectTasks: (tasks, watches, current) =>
+        projectRecovery(tasks, watches, current, Date.now(), scheduledDeadline),
       openHarness: openAgentHarness,
       scheduledDeadline,
       requestRun: this.requestRun,
@@ -144,10 +188,20 @@ export class Agent {
           const { entries } = await opened.root.context(BACKGROUND_CONTEXT)
           const data = entries.findLast((entry) => entry.kind === "kiko.input")?.data
           if (data && typeof data === "object" && !Array.isArray(data) && Array.isArray(data.envelopeIds)) {
-            this.#humanInputs = data.envelopeIds.flatMap((id) => typeof id === "string" && id.startsWith("human:") ? [id.slice(6).split("#")[0]!] : [])
+            this.#humanInputs = data.envelopeIds.flatMap((id) =>
+              typeof id === "string" && id.startsWith("human:") ? [id.slice(6).split("#")[0]!] : [],
+            )
           }
           if (data && typeof data === "object" && !Array.isArray(data) && Array.isArray(data.chain)) {
-            const chain = data.chain.flatMap((value) => value && typeof value === "object" && !Array.isArray(value) && typeof value.rootId === "string" && typeof value.hop === "number" ? [{ rootId: value.rootId, hop: value.hop }] : [])
+            const chain = data.chain.flatMap((value) =>
+              value &&
+              typeof value === "object" &&
+              !Array.isArray(value) &&
+              typeof value.rootId === "string" &&
+              typeof value.hop === "number"
+                ? [{ rootId: value.rootId, hop: value.hop }]
+                : [],
+            )
             this.services.room(home.roomId).restoreChain(home.slug, chain)
           }
         }
@@ -203,7 +257,7 @@ export class Agent {
     if (this.metadata.get("deleted")) throw new Error("agent deleted")
     if (home) this.setHome(home)
     const only = envelopes.length === 1 ? envelopes[0] : undefined
-    const requestId = only?.from.kind === "agent" ? messageIdOf(only.id) ?? undefined : undefined
+    const requestId = only?.from.kind === "agent" ? (messageIdOf(only.id) ?? undefined) : undefined
     const result = await this.host.receive(envelopes, brief, requestId)
     if (!result.refused && envelopes.some((e) => e.from.kind === "human")) this.answers.interrupt()
     return result
@@ -248,7 +302,7 @@ export class Agent {
 
   protected home(): AgentHome | null {
     const home = this.metadata.get("home")
-    return home ? JSON.parse(home) as AgentHome : null
+    return home ? (JSON.parse(home) as AgentHome) : null
   }
 
   private homeOrThrow(): AgentHome {
@@ -275,7 +329,11 @@ export class Agent {
       },
       workers: (rows) => room().setWorkers(home.slug, rows),
       endRun: async (runId, inputs = [], working = false) => {
-        const { mail, mailOnly, human } = await this.heard(inputs).catch(() => ({ mail: [], mailOnly: false, human: false }))
+        const { mail, mailOnly, human } = await this.heard(inputs).catch(() => ({
+          mail: [],
+          mailOnly: false,
+          human: false,
+        }))
         this.afterHumanRun ||= human
         this.recovered(home.userId)
         const ended = await room().endRun(home.slug, runId, mail, working, mailOnly)
@@ -299,9 +357,12 @@ export class Agent {
     if (!run?.problem || run.errored || !run.auth) return
     run.problem = undefined
     this.ctx.waitUntil(
-      this.services.user()
+      this.services
+        .user()
         .providerRecovered(run.provider)
-        .catch((e: unknown) => console.error(`provider recovery failed: ${e instanceof Error ? e.message : String(e)}`)),
+        .catch((e: unknown) =>
+          console.error(`provider recovery failed: ${e instanceof Error ? e.message : String(e)}`),
+        ),
     )
   }
 
@@ -315,7 +376,8 @@ export class Agent {
     if (!home) return null
     const user = () => this.services.user()
     const tz = () => this.#run?.timezone ?? "UTC"
-    const mine = async (id: string) => (await user().listRoutines()).some((r) => r.id === id && canManageRoutine(home, r))
+    const mine = async (id: string) =>
+      (await user().listRoutines()).some((r) => r.id === id && canManageRoutine(home, r))
     const notHere = { ok: false as const, error: "no such routine available to you" }
     return {
       list: async () => (await user().listRoutines()).filter((r) => canManageRoutine(home, r)),
@@ -326,18 +388,33 @@ export class Agent {
       },
       cancel: async (id) => ((await mine(id)) ? user().cancelRoutine(id) : notHere),
       createRoutine: async (input) => {
-        return user().createRoutine(home.userId, { ...input, target: input.target ?? home.slug, tz: tz(), roomId: home.roomId as RoomId, createdBy: home.slug })
+        return user().createRoutine(home.userId, {
+          ...input,
+          target: input.target ?? home.slug,
+          tz: tz(),
+          roomId: home.roomId as RoomId,
+          createdBy: home.slug,
+        })
       },
       updateRoutine: async (id, patch) => ((await mine(id)) ? user().updateRoutine(id, patch) : notHere),
       runRoutine: async (id) => ((await mine(id)) ? user().runRoutine(id) : null),
       runs: async (id) => ((await mine(id)) ? user().routineRuns(id) : []),
       origin: () => user().publicOrigin(),
       addRecipe: async (slug) => {
-        const out = await user().installRecipe(home.userId, { installId: crypto.randomUUID(), slug, roomId: home.roomId as RoomId, agent: home.slug }, home.slug)
+        const out = await user().installRecipe(
+          home.userId,
+          { installId: crypto.randomUUID(), slug, roomId: home.roomId as RoomId, agent: home.slug },
+          home.slug,
+        )
         if (out.ok) return { ok: true, setup: out.setup, existed: out.existed }
         if ("needsConnect" in out) {
           const { links, reason } = out.needsConnect
-          return { ok: false, error: links.length ? `nothing was added. these apps are not connected yet. send the human these links, and add the recipe again once they connect: ${links.map((l) => `[Connect ${l.app}](${l.url})`).join(" ")}` : `nothing was added. ${reason}` }
+          return {
+            ok: false,
+            error: links.length
+              ? `nothing was added. these apps are not connected yet. send the human these links, and add the recipe again once they connect: ${links.map((l) => `[Connect ${l.app}](${l.url})`).join(" ")}`
+              : `nothing was added. ${reason}`,
+          }
         }
         return out
       },
@@ -347,7 +424,8 @@ export class Agent {
   private async composioTools(): Promise<ComposioTool[] | null | "unreachable"> {
     const home = this.home()
     if (!home) return null
-    return this.services.user()
+    return this.services
+      .user()
       .composioTools()
       .catch(() => "unreachable" as const)
   }
@@ -367,10 +445,14 @@ export class Agent {
     const all: string[] = []
     for (const input of inputs) {
       const submission = await storage.submission(input, BACKGROUND_CONTEXT)
-      if (submission?.requestId) all.push(...await this.host.envelopeIds(submission.requestId))
+      if (submission?.requestId) all.push(...(await this.host.envelopeIds(submission.requestId)))
     }
     const mail = all.filter((id) => id.startsWith("agent:"))
-    return { mail, mailOnly: mail.length > 0 && mail.length === all.length, human: all.some((id) => id.startsWith("human:")) }
+    return {
+      mail,
+      mailOnly: mail.length > 0 && mail.length === all.length,
+      human: all.some((id) => id.startsWith("human:")),
+    }
   }
 
   async askAnswered(id: string, answer: string): Promise<boolean> {
@@ -405,7 +487,9 @@ export class Agent {
           return runId ? { runId } : null
         }
         const work = this.host.workers.byConversation(conversationId)
-        return work?.runId ? { runId: work.runId, worker: { id: work.id, task: work.task.slice(0, WORKER_TASK_CHARS) } } : null
+        return work?.runId
+          ? { runId: work.runId, worker: { id: work.id, task: work.task.slice(0, WORKER_TASK_CHARS) } }
+          : null
       },
     }
   }
@@ -467,14 +551,28 @@ export class Agent {
     const messaging = () => this.messagingPort()
     if (DEV && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) {
       const browserOn = await this.browserOn()
-      const fake = fakeSetup(role, roomWorkspacePort(this.services, () => this.home()), messaging, {
-        testExtensions: [this.routineScheduler.extension],
-        ...(browserOn && home ? { browser: { connection: () => this.browser(), lease: () => this.browserLease(), acceptsImages: () => false } } : {}),
-        routines: { port: () => this.routinesPort() },
-        groups: this.groupsPort(),
-        work: this.host.workers,
-        presence: this.stepsPort(), runId: () => this.outbox.runId(),
-      })
+      const fake = fakeSetup(
+        role,
+        roomWorkspacePort(this.services, () => this.home()),
+        messaging,
+        {
+          testExtensions: [this.routineScheduler.extension],
+          ...(browserOn && home
+            ? {
+                browser: {
+                  connection: () => this.browser(),
+                  lease: () => this.browserLease(),
+                  acceptsImages: () => false,
+                },
+              }
+            : {}),
+          routines: { port: () => this.routinesPort() },
+          groups: this.groupsPort(),
+          work: this.host.workers,
+          presence: this.stepsPort(),
+          runId: () => this.outbox.runId(),
+        },
+      )
       return {
         ...fake,
         rollover,
@@ -484,7 +582,12 @@ export class Agent {
       }
     }
     const egress = this.egressFetch()
-    const user = userModels((provider) => this.runAuth(provider), `${this.identity.ownerId}:${this.agentKey}`, egress, this.countOutgoing)
+    const user = userModels(
+      (provider) => this.runAuth(provider),
+      `${this.identity.ownerId}:${this.agentKey}`,
+      egress,
+      this.countOutgoing,
+    )
     const soul = this.soulPort()
     const cache = new ObjectCache()
     const where = () => this.home()
@@ -493,7 +596,15 @@ export class Agent {
       return h ? this.services.room(h.roomId).homeNotice(h.slug, text) : Promise.resolve()
     }
     const locked = () => (this.home()?.private ? PRIVATE_REFUSAL : null)
-    const backend = withMount(withMount(roomBackend(this.services, where, cache), HOME, homeBackend(this.services, where, notice, cache, locked)), KIKO, kikoDocsBackend())
+    const backend = withMount(
+      withMount(
+        roomBackend(this.services, where, cache),
+        HOME,
+        homeBackend(this.services, where, notice, cache, locked),
+      ),
+      KIKO,
+      kikoDocsBackend(),
+    )
     const id = `room-files:${this.identity.ownerId}:${this.agentKey}`
     const space = withSoul(backend, soul)
     const views = roomViews(id, space)
@@ -502,11 +613,43 @@ export class Agent {
     const composio = await this.composioTools()
     const signature = Array.isArray(composio) ? learnedSignature(composio) : composio
     const browserOn = await this.browserOn()
-    const browser = browserOn && home
-      ? { connection: () => this.browser(), lease: () => this.browserLease(), acceptsImages: imageReader(user.models) }
-      : undefined
+    const browser =
+      browserOn && home
+        ? {
+            connection: () => this.browser(),
+            lease: () => this.browserLease(),
+            acceptsImages: imageReader(user.models),
+          }
+        : undefined
     const picked = await this.picked()
-    const built = buildAgent({ ...(browser ? { browser } : {}), testExtensions: [this.routineScheduler.extension], ...role, ...(picked.model ? { model: picked.model } : {}), thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: this.stepsPort(), runId: () => this.outbox.runId(), memory, messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => this.services.user().composioCall(name, args, egress), resolve: (app) => this.services.user().composioToolkit(app) } } : {}), workspace: roomWorkspacePort(this.services, () => this.home()), work: this.host.workers })
+    const built = buildAgent({
+      ...(browser ? { browser } : {}),
+      testExtensions: [this.routineScheduler.extension],
+      ...role,
+      ...(picked.model ? { model: picked.model } : {}),
+      thinkingLevel: picked.thinking,
+      files,
+      soul,
+      runStamp: () => this.#runStamp,
+      groups: this.groupsPort(),
+      presence: this.stepsPort(),
+      runId: () => this.outbox.runId(),
+      memory,
+      messaging,
+      routines: { port: () => this.routinesPort() },
+      ...(home ? { recipes: this.recipesPort(home) } : {}),
+      ...(Array.isArray(composio) && home
+        ? {
+            composio: {
+              tools: composio,
+              call: (name, args) => this.services.user().composioCall(name, args, egress),
+              resolve: (app) => this.services.user().composioToolkit(app),
+            },
+          }
+        : {}),
+      workspace: roomWorkspacePort(this.services, () => this.home()),
+      work: this.host.workers,
+    })
     return {
       ...built,
       ...user,
@@ -519,14 +662,23 @@ export class Agent {
       inputContext: async () => {
         const tz = this.#run?.timezone ?? "UTC"
         const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
-        const down = composio === "unreachable" ? "composio (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined
+        const down =
+          composio === "unreachable"
+            ? "composio (the human's connected apps) is unreachable right now, so its tools are missing this run."
+            : undefined
         const integrations = integrationNote(composio, browserOn)
         const learned = Array.isArray(composio) ? learnedNote(composio) : undefined
         const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
         const routines = await this.routineContext()
         return [clock, integrations, down, learned, quiet, routines].filter(Boolean).join("\n\n")
       },
-      ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (this.services.user().composioSignature() !== signature)) } : {}),
+      ...(home
+        ? {
+            stale: async () =>
+              (await this.browserOn()) !== browserOn ||
+              (signature !== "unreachable" && this.services.user().composioSignature() !== signature),
+          }
+        : {}),
       inputInvalidated: () => this.inputInvalidated(),
       inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined),
       beforeCompact: (harness) => this.beforeCompact(harness),
@@ -534,7 +686,9 @@ export class Agent {
   }
 
   private async routineContext(): Promise<string> {
-    const live = (await this.routinesPort()?.list() ?? []).filter((routine) => routine.status === "active" || routine.status === "paused" || routine.status === "failed")
+    const live = ((await this.routinesPort()?.list()) ?? []).filter(
+      (routine) => routine.status === "active" || routine.status === "paused" || routine.status === "failed",
+    )
     const inventory = live.slice(0, 32).map((routine) => routineLine(routine))
     return `Live routines (current; replaces earlier inventories):\n${inventory.join("\n") || "(none)"}${live.length > inventory.length ? `\n${live.length - inventory.length} more; use list_routines for the full list.` : ""}`
   }
@@ -551,7 +705,12 @@ export class Agent {
     return known !== current.revision ? "refresh" : null
   }
 
-  private async inputMemory(batch: Batch, fresh: boolean, joined: number[], withLife = true): Promise<{ text?: string; fresh: boolean; data?: { memoryPos: number } }> {
+  private async inputMemory(
+    batch: Batch,
+    fresh: boolean,
+    joined: number[],
+    withLife = true,
+  ): Promise<{ text?: string; fresh: boolean; data?: { memoryPos: number } }> {
     const ahead = this.#delta?.requestId === batch.requestId ? this.#delta.since : null
     this.#delta = undefined
     const home = this.home()
@@ -572,13 +731,22 @@ export class Agent {
     if (!fresh && !changedLife && seen !== undefined) {
       const delta = (await ahead) ?? (await room.memorySince(home.slug, seen, seqs))
       if (delta.count - seen <= MAX_DELTA_TURNS) {
-        return { fresh: false, data: { memoryPos: delta.count }, ...(delta.text ? { text: memoryDelta(delta.text) } : {}) }
+        return {
+          fresh: false,
+          data: { memoryPos: delta.count },
+          ...(delta.text ? { text: memoryDelta(delta.text) } : {}),
+        }
       }
     }
     const currentSeqs = batch.envelopes.map((envelope) => envelope.seq)
     this.#seqs = currentSeqs
     const view = await room.memoryView(currentSeqs)
-    if (withLife) await this.ctx.storage.put({ [MEMORY_LIFE_KEY]: life, [MEMORY_REVISION_KEY]: state.revision, [MEMORY_FORGOTTEN_KEY]: state.forgotten })
+    if (withLife)
+      await this.ctx.storage.put({
+        [MEMORY_LIFE_KEY]: life,
+        [MEMORY_REVISION_KEY]: state.revision,
+        [MEMORY_FORGOTTEN_KEY]: state.forgotten,
+      })
     this.#shown.clear()
     return { fresh: true, text: memoryBlock(life, view.text), data: { memoryPos: view.count } }
   }
@@ -609,7 +777,12 @@ export class Agent {
   private async beforeCompact(harness: Harness): Promise<void> {
     const now = await this.usageOf(harness)
     const carried = await this.carriedUsage()
-    const usage = { input: carried.input + now.input, output: carried.output + now.output, cacheRead: carried.cacheRead + now.cacheRead, cacheWrite: carried.cacheWrite + now.cacheWrite }
+    const usage = {
+      input: carried.input + now.input,
+      output: carried.output + now.output,
+      cacheRead: carried.cacheRead + now.cacheRead,
+      cacheWrite: carried.cacheWrite + now.cacheWrite,
+    }
     const home = this.home()
     if (!home) {
       await this.ctx.storage.put(USAGE_CARRIED_KEY, usage)
@@ -617,11 +790,16 @@ export class Agent {
     }
     const count = ((await this.ctx.storage.get<number>(COMPACTIONS_KEY)) ?? 0) + 1
     await this.ctx.storage.put({ [USAGE_CARRIED_KEY]: usage, [COMPACTIONS_KEY]: count })
-    await this.services.room(home.roomId).compacted(home.slug, String(count)).catch(() => {})
+    await this.services
+      .room(home.roomId)
+      .compacted(home.slug, String(count))
+      .catch(() => {})
   }
 
   private async carriedUsage(): Promise<Usage> {
-    return (await this.ctx.storage.get<Usage>(USAGE_CARRIED_KEY)) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+    return (
+      (await this.ctx.storage.get<Usage>(USAGE_CARRIED_KEY)) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+    )
   }
 
   private agentDevHost(): AgentDevHost {
@@ -658,12 +836,19 @@ export class Agent {
       signal?.throwIfAborted()
       const request = new Request(input as RequestInfo, { ...init, signal: null })
       const body = request.body ? await request.arrayBuffer() : null
-      const sent = await orStall(this.egress({ url: request.url, method: request.method, headers: [...request.headers], body }), FIRST_BYTE_MS)
+      const sent = await orStall(
+        this.egress({ url: request.url, method: request.method, headers: [...request.headers], body }),
+        FIRST_BYTE_MS,
+      )
       const response = guardStall(sent, STALL_MS)
       if (!signal || !response.body) return response
       const { readable, writable } = new TransformStream()
       response.body.pipeTo(writable, { signal }).catch(() => {})
-      return new Response(readable, { status: response.status, statusText: response.statusText, headers: response.headers })
+      return new Response(readable, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      })
     }) as typeof fetch
   }
 
@@ -674,12 +859,17 @@ export class Agent {
     const room = () => this.services.room(home.roomId)
     return {
       note: async (text, replaces) =>
-        this.home()?.private ? { ok: false, error: PRIVATE_REFUSAL } : user().lifeNote(home.slug, text, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", replaces),
+        this.home()?.private
+          ? { ok: false, error: PRIVATE_REFUSAL }
+          : user().lifeNote(home.slug, text, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", replaces),
       captures: () => this.#run?.captures ?? false,
       recall: async (query, conversationId) => {
         const root = await this.isRootConversation(conversationId)
         const seen = root ? await this.memoryPos() : undefined
-        const [life, chat] = await Promise.all([user().lifeRecall(query), room().memoryRecall(query, seen, root ? this.#seqs : [])])
+        const [life, chat] = await Promise.all([
+          user().lifeRecall(query),
+          room().memoryRecall(query, seen, root ? this.#seqs : []),
+        ])
         return mergeRecall(tagHits("life", life), tagHits("chat", chat), root ? this.#shown : new Set())
       },
       zoom: async (raw) => {
@@ -709,15 +899,30 @@ export class Agent {
     const applied = marker && typeof marker === "object" && !Array.isArray(marker) ? marker.applied : undefined
     if (JSON.stringify(applied) !== JSON.stringify(next)) {
       const text = renderHandoff(entries, { from: modelName(was.model), to: modelName(next.model) })
-      await root.commit((tx) => tx.appendEntry(root.id, {
-        kind: "kiko.handoff", data: { applied: next }, head: "self",
-        model: [{ role: "user", content: text, timestamp: Date.now() }],
-      }), BACKGROUND_CONTEXT)
+      await root.commit(
+        (tx) =>
+          tx.appendEntry(root.id, {
+            kind: "kiko.handoff",
+            data: { applied: next },
+            head: "self",
+            model: [{ role: "user", content: text, timestamp: Date.now() }],
+          }),
+        BACKGROUND_CONTEXT,
+      )
     }
     await root.configure(next, BACKGROUND_CONTEXT)
   }
 
-  #run: { provider: string; auth: AuthResult | null; timezone: string; captures: boolean; soul?: Soul; credential?: "api_key" | "oauth"; problem?: ProviderProblem; errored?: boolean } | null = null
+  #run: {
+    provider: string
+    auth: AuthResult | null
+    timezone: string
+    captures: boolean
+    soul?: Soul
+    credential?: "api_key" | "oauth"
+    problem?: ProviderProblem
+    errored?: boolean
+  } | null = null
   #runStamp = 0
 
   protected async beginRun(batch: Batch, root: Conversation): Promise<boolean> {
@@ -729,7 +934,15 @@ export class Agent {
     const model = turn.model ? parseModelRef(turn.model) : null
     const listed = model ? isKnownModel(model) : false
     if (model && listed) {
-      this.#run = { provider: model.provider, auth: turn.auth, timezone: turn.timezone, captures: turn.captures, ...(turn.credential ? { credential: turn.credential } : {}), ...(turn.problem ? { problem: turn.problem } : {}), ...(turn.agent ? { soul: turn.agent.soul } : {}) }
+      this.#run = {
+        provider: model.provider,
+        auth: turn.auth,
+        timezone: turn.timezone,
+        captures: turn.captures,
+        ...(turn.credential ? { credential: turn.credential } : {}),
+        ...(turn.problem ? { problem: turn.problem } : {}),
+        ...(turn.agent ? { soul: turn.agent.soul } : {}),
+      }
       const applied = { model, thinkingLevel: turn.thinking }
       const was = await this.ctx.storage.get<Applied>(MODEL_APPLIED_KEY)
       if (!sameApplied(was, applied)) {
@@ -745,9 +958,11 @@ export class Agent {
     const humans = ids.filter((id) => id.startsWith("human:")).map((id) => id.slice("human:".length).split("#")[0]!)
     const room = this.services.room(home.roomId)
     if (!model) await room.noModel(home.slug, requestId, heard, humans)
-    else if (!listed) await room.modelGone(home.slug, model.provider, `${model.provider}/${model.modelId}`, requestId, heard, humans)
+    else if (!listed)
+      await room.modelGone(home.slug, model.provider, `${model.provider}/${model.modelId}`, requestId, heard, humans)
     else {
-      const why = turn.authProblem === "signed_out" ? "signed_out" : turn.authProblem === "unreachable" ? "network" : "no_key"
+      const why =
+        turn.authProblem === "signed_out" ? "signed_out" : turn.authProblem === "unreachable" ? "network" : "no_key"
       await room.noProvider(home.slug, model.provider, requestId, heard, humans, why)
     }
     return false
@@ -762,7 +977,15 @@ export class Agent {
     const home = this.home()
     const context = home ? await this.services.user().turnContext(provider, home.slug) : null
     if (context) setOverlay(provider, context.catalog.models)
-    this.#run = { provider, auth: context?.auth ?? null, timezone: context?.timezone ?? "UTC", captures: context?.captures ?? false, ...(context?.credential ? { credential: context.credential } : {}), ...(context?.problem ? { problem: context.problem } : {}), ...(context?.agent ? { soul: context.agent.soul } : {}) }
+    this.#run = {
+      provider,
+      auth: context?.auth ?? null,
+      timezone: context?.timezone ?? "UTC",
+      captures: context?.captures ?? false,
+      ...(context?.credential ? { credential: context.credential } : {}),
+      ...(context?.problem ? { problem: context.problem } : {}),
+      ...(context?.agent ? { soul: context.agent.soul } : {}),
+    }
     return this.#run.auth
   }
 
@@ -792,7 +1015,10 @@ export class Agent {
   private async browserOn(): Promise<boolean> {
     const home = this.home()
     if (!home) return false
-    return (this.services.user() as unknown as UserBrowserRpc).browserCheck().then((s) => s.connected, () => false)
+    return (this.services.user() as unknown as UserBrowserRpc).browserCheck().then(
+      (s) => s.connected,
+      () => false,
+    )
   }
 
   async releaseTabs(): Promise<number> {
@@ -805,7 +1031,11 @@ export class Agent {
 
   private browserLease(): LeasePort {
     const home = this.homeOrThrow()
-    this.#browserLease ??= userLease(() => this.services.user() as unknown as UserBrowserRpc, `${home.roomId}:${home.slug}`, home.roomId)
+    this.#browserLease ??= userLease(
+      () => this.services.user() as unknown as UserBrowserRpc,
+      `${home.roomId}:${home.slug}`,
+      home.roomId,
+    )
     return this.#browserLease
   }
 

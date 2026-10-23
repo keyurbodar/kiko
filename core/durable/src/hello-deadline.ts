@@ -1,4 +1,3 @@
-
 const HELLO_TIMEOUT_MS = 5_000
 export const HELLO_WAKEUP = "hello"
 const HELLO_TIMEOUT_CODE = 4408
@@ -26,8 +25,7 @@ export async function enforceHello(ctx: DurableObjectState, alarms: HelloClock, 
     }
     try {
       ws.close(HELLO_TIMEOUT_CODE, HELLO_TIMEOUT_REASON)
-    } catch {
-    }
+    } catch {}
   }
   if (next === Number.POSITIVE_INFINITY) await alarms.clearWakeup(HELLO_WAKEUP)
   else await alarms.setWakeup(HELLO_WAKEUP, next)

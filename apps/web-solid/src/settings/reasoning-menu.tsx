@@ -19,7 +19,10 @@ export function ReasoningMenu(props: {
     <Show when={canReason(props.levels)}>
       <MenuV2 gutter={6} placement={props.placement ?? "top-start"}>
         <MenuV2.Trigger
-          class={cn("flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground", props.class)}
+          class={cn(
+            "flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground",
+            props.class,
+          )}
           aria-label="Reasoning"
           title="Reasoning"
           data-component="reasoning-trigger"
@@ -31,11 +34,17 @@ export function ReasoningMenu(props: {
         <MenuV2.Portal>
           <MenuV2.Content class="z-[80] min-w-44" data-component="reasoning-menu">
             <MenuV2.Group>
-              <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">Reasoning</MenuV2.GroupLabel>
+              <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
+                Reasoning
+              </MenuV2.GroupLabel>
               <MenuV2.RadioGroup value={value()} onChange={(level) => props.onChange(level as ThinkingLevel)}>
                 <For each={levels()}>
                   {(level) => (
-                    <MenuV2.RadioItem value={level} badge={level === defaultThinking(levels()) ? "Default" : undefined} data-level={level}>
+                    <MenuV2.RadioItem
+                      value={level}
+                      badge={level === defaultThinking(levels()) ? "Default" : undefined}
+                      data-level={level}
+                    >
                       {THINKING_LABELS[level]}
                     </MenuV2.RadioItem>
                   )}

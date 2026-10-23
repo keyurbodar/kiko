@@ -2,7 +2,10 @@ import type { Provider } from "@earendil-works/pi-ai"
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai/models"
 import type { Catalog, CatalogModel, CatalogProvider, ConnectMethod } from "@kiko/protocol"
 
-export function buildCatalog(all: readonly Provider[], signInMethod: (providerId: string) => ConnectMethod | undefined): Catalog {
+export function buildCatalog(
+  all: readonly Provider[],
+  signInMethod: (providerId: string) => ConnectMethod | undefined,
+): Catalog {
   const providers: CatalogProvider[] = all.map((provider) => {
     const connect: ConnectMethod[] = []
     if (provider.auth?.apiKey) connect.push("api_key")
@@ -22,7 +25,14 @@ export function buildCatalog(all: readonly Provider[], signInMethod: (providerId
       }))
       .sort((a, b) => a.id.localeCompare(b.id))
     const classifiers = (provider.getAllModels?.() ?? []).filter((model) => model.type === "classifier").length
-    return { id: provider.id, name: provider.name ?? provider.id, connect, ...(offer ? { signIn: offer } : {}), models, classifiers }
+    return {
+      id: provider.id,
+      name: provider.name ?? provider.id,
+      connect,
+      ...(offer ? { signIn: offer } : {}),
+      models,
+      classifiers,
+    }
   })
   return { providers: providers.filter((p) => p.connect.length > 0).sort((a, b) => a.id.localeCompare(b.id)) }
 }

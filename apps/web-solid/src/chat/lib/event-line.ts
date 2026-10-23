@@ -24,7 +24,9 @@ export function eventRow(message: ChatMessage, name: (slug: string) => string): 
     case "routine_created":
       return { label: e.byAgent ? `${name(e.agent)} created a routine` : "Routine added", detail: e.title }
     case "model_changed":
-      return e.from ? { label: "Context handoff", detail: `${e.from} to ${e.model}` } : { label: `${name(e.agent)} now uses ${e.model}` }
+      return e.from
+        ? { label: "Context handoff", detail: `${e.from} to ${e.model}` }
+        : { label: `${name(e.agent)} now uses ${e.model}` }
     case "compacted": {
       const detail = tokens(loose)
       return { label: "Context compacted", ...(detail ? { detail } : {}) }
@@ -44,7 +46,12 @@ export function eventRow(message: ChatMessage, name: (slug: string) => string): 
     case "run_error": {
       const detail = message.body || undefined
       const title = [detail, e.detail].filter(Boolean).join("\n")
-      return { label: `${name(e.slug)} could not answer`, tone: "danger", ...(detail ? { detail } : {}), ...(title ? { title } : {}) }
+      return {
+        label: `${name(e.slug)} could not answer`,
+        tone: "danger",
+        ...(detail ? { detail } : {}),
+        ...(title ? { title } : {}),
+      }
     }
     case "browser_control":
       return { label: message.body }
@@ -63,5 +70,7 @@ function joinNames(names: readonly string[]): string {
 const messageCount = (n: number) => `${n} ${n === 1 ? "message" : "messages"}`
 
 export function threadLabel(names: readonly string[], count: number): string {
-  return count === 1 && names.length === 2 ? `${names[0]} messaged ${names[1]}` : `${joinNames(names)} exchanged ${messageCount(count)}`
+  return count === 1 && names.length === 2
+    ? `${names[0]} messaged ${names[1]}`
+    : `${joinNames(names)} exchanged ${messageCount(count)}`
 }

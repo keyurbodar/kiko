@@ -1,10 +1,27 @@
 import type { OwnerServices } from "../owner/services"
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 import { keyringFromEnv } from "@kiko/durable/crypto"
-import { isAgentSlug, isRoomId, type BrowserLinkResult, type BrowserState, type ClientToUser as UserFrame, type KernelResult, type KernelStatus, type KikoError, type UserToClient } from "@kiko/protocol"
+import {
+  isAgentSlug,
+  isRoomId,
+  type BrowserLinkResult,
+  type BrowserState,
+  type ClientToUser as UserFrame,
+  type KernelResult,
+  type KernelStatus,
+  type KikoError,
+  type UserToClient,
+} from "@kiko/protocol"
 import type { Env } from "../index"
 import { type KernelClient, KernelError, REJECTED, sdkClient } from "../integrations/kernel/client"
-import { browserState, checkAgentId, checkTabs, kernelErrorText, profileName, WATCH_MS } from "../integrations/kernel/connect"
+import {
+  browserState,
+  checkAgentId,
+  checkTabs,
+  kernelErrorText,
+  profileName,
+  WATCH_MS,
+} from "../integrations/kernel/connect"
 import { humanHolds, KernelLease, type LeaseInfo, REAP_WAKEUP } from "../integrations/kernel/lease"
 import { KernelStore } from "../integrations/kernel/store"
 import { kernelFailure } from "./user-errors"
@@ -26,7 +43,7 @@ type KernelDeps = {
   ctx: DurableObjectState
   sql: SqlStorage
   env: Env
- services: OwnerServices
+  services: OwnerServices
   alarms: Alarms
   userId: () => string
   notify?: (error: KikoError) => void
@@ -122,7 +139,10 @@ export class KernelWiring {
     const why = typeof reason === "string" ? reason.trim().slice(0, 300) : ""
     if (!why) return { ok: true, url, posted: false }
     const room = this.d.services.room(roomId)
-    const posted = mode === "control" ? await room.browserAsk(slug, why, `${this.store.control()?.at ?? Date.now()}`) : await room.browserShare(slug, `${why} [Watch the browser](${url})`)
+    const posted =
+      mode === "control"
+        ? await room.browserAsk(slug, why, `${this.store.control()?.at ?? Date.now()}`)
+        : await room.browserShare(slug, `${why} [Watch the browser](${url})`)
     return { ok: true, url, posted }
   }
 
@@ -130,7 +150,11 @@ export class KernelWiring {
     const row = this.store.connected() ? this.store.lease() : undefined
     if (!row || row.dead) return []
     return Object.entries(row.tabs).flatMap(([owner, tabs]) =>
-      Object.entries(tabs).map(([id, url]) => ({ id, agent: owner, url: owner === agentId ? url : url.replace(/[?#].*$/, "") })),
+      Object.entries(tabs).map(([id, url]) => ({
+        id,
+        agent: owner,
+        url: owner === agentId ? url : url.replace(/[?#].*$/, ""),
+      })),
     )
   }
 
@@ -169,8 +193,20 @@ export class KernelWiring {
     for (const { agentId, roomId } of control?.waiters ?? []) {
       const slug = slugOf(agentId)
       if (agentId === except || !isRoomId(roomId) || !isAgentSlug(slug)) continue
-      const wake = this.d.services.room(roomId).wake({ id: `browser-back:${control?.at}:${slug}`, to: slug, why: "system", body: `${RESUMED[why]}${RESUME}`, chain: null })
-      this.d.ctx.waitUntil(Promise.resolve(wake).catch((e) => console.error(`browser resume wake failed: ${e instanceof Error ? e.message : String(e)}`)))
+      const wake = this.d.services
+        .room(roomId)
+        .wake({
+          id: `browser-back:${control?.at}:${slug}`,
+          to: slug,
+          why: "system",
+          body: `${RESUMED[why]}${RESUME}`,
+          chain: null,
+        })
+      this.d.ctx.waitUntil(
+        Promise.resolve(wake).catch((e) =>
+          console.error(`browser resume wake failed: ${e instanceof Error ? e.message : String(e)}`),
+        ),
+      )
     }
   }
 
@@ -182,7 +218,13 @@ export class KernelWiring {
 
   check(agentId?: string): BrowserCheck {
     const status = this.browser.status()
-    return { connected: this.store.connected(), takeover: this.takeover(), mode: status?.mode ?? null, tabs: status?.tabs ?? {}, list: this.tabList(agentId ?? "") }
+    return {
+      connected: this.store.connected(),
+      takeover: this.takeover(),
+      mode: status?.mode ?? null,
+      tabs: status?.tabs ?? {},
+      list: this.tabList(agentId ?? ""),
+    }
   }
 
   takeover(): boolean {
@@ -201,7 +243,8 @@ export class KernelWiring {
 
   private async openLink(mode: "watch" | "control", onSwitching: (on: boolean) => void): Promise<string> {
     if (!this.store.connected()) throw new KernelError("failed", "Kernel is not connected")
-    const hold = () => (mode === "control" ? this.browser.setTakeover(true) : this.browser.watchUntil(Date.now() + WATCH_MS))
+    const hold = () =>
+      mode === "control" ? this.browser.setTakeover(true) : this.browser.watchUntil(Date.now() + WATCH_MS)
     const row = this.store.lease()
     if (row && !row.dead) hold()
     if (!row || row.dead || row.mode === "headless") {
@@ -234,7 +277,11 @@ export class KernelWiring {
 
   age(ms: number): void {
     const row = this.store.lease()
-    if (row) this.store.patchLease({ lastUse: row.lastUse - ms, ...(row.watchUntil ? { watchUntil: Math.max(1, row.watchUntil - ms) } : {}) })
+    if (row)
+      this.store.patchLease({
+        lastUse: row.lastUse - ms,
+        ...(row.watchUntil ? { watchUntil: Math.max(1, row.watchUntil - ms) } : {}),
+      })
   }
 
   private async closeBrowser(): Promise<void> {
@@ -257,7 +304,10 @@ export class KernelWiring {
     }
   }
 
-  async browserFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "browserLink" | "handBack" | "closeBrowser" }>): Promise<void> {
+  async browserFrame(
+    ws: WebSocket,
+    frame: Extract<UserFrame, { t: "browserLink" | "handBack" | "closeBrowser" }>,
+  ): Promise<void> {
     if (frame.t === "handBack") {
       this.handBack()
     } else if (frame.t === "closeBrowser") {
@@ -277,7 +327,10 @@ export class KernelWiring {
     this.push()
   }
 
-  async kernelFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "connectKernel" | "disconnectKernel" | "kernelStatus" }>): Promise<KernelResult> {
+  async kernelFrame(
+    ws: WebSocket,
+    frame: Extract<UserFrame, { t: "connectKernel" | "disconnectKernel" | "kernelStatus" }>,
+  ): Promise<KernelResult> {
     let result: KernelResult
     try {
       if (frame.t === "connectKernel") result = { ok: true, status: await this.connect(frame.apiKey) }

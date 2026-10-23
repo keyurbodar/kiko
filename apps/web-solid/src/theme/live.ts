@@ -1,7 +1,15 @@
 import { createEffect, createMemo, createRoot, createSignal, on } from "solid-js"
 import { useApp } from "../lib/store"
 import { type UserChannel, userChannel } from "../sync/socket"
-import { applyCommitted, dropLegacyImported, legacyImported, previewLook as preview, readCache, selectBuiltin, writeCache } from "@kiko/theme/apply"
+import {
+  applyCommitted,
+  dropLegacyImported,
+  legacyImported,
+  previewLook as preview,
+  readCache,
+  selectBuiltin,
+  writeCache,
+} from "@kiko/theme/apply"
 import { type Imported, type ImportedTheme, MAX_IMPORTED } from "@kiko/theme/imported"
 import { setAvatarPicks } from "../avatar/picks"
 import type { ThemeId } from "@kiko/theme/palette"
@@ -20,7 +28,13 @@ const [saved, setSaved] = createSignal<string | null>(cached?.text ?? null)
 function withThemes(base: Look, extra: Imported | null): Look {
   if (!extra) return base
   const known = new Set(base.imported.themes.map((t) => t.id))
-  return { ...base, imported: { themes: [...base.imported.themes, ...extra.themes.filter((t) => !known.has(t.id))].slice(-MAX_IMPORTED), active: { ...extra.active, ...base.imported.active } } }
+  return {
+    ...base,
+    imported: {
+      themes: [...base.imported.themes, ...extra.themes.filter((t) => !known.has(t.id))].slice(-MAX_IMPORTED),
+      active: { ...extra.active, ...base.imported.active },
+    },
+  }
 }
 
 export const look = createRoot(() => createMemo(() => parseLook(saved())))

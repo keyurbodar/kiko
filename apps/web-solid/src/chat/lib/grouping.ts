@@ -1,174 +1,173 @@
-import { createSignal, type Setter } from "solid-js";
-import type { ChatMessage } from "../../lib/types";
-import { dayStartOf } from "./day-start";
-import { startsTimeBreak } from "./time-label";
+import { createSignal, type Setter } from "solid-js"
+import type { ChatMessage } from "../../lib/types"
+import { dayStartOf } from "./day-start"
+import { startsTimeBreak } from "./time-label"
 
-export const MESSAGE_GROUPING_WINDOW_MS = 300_000;
+export const MESSAGE_GROUPING_WINDOW_MS = 300_000
 
 export type TimelineItem =
   | {
-      kind: "day-divider";
-      key: string;
-      dayStart: number;
-      firstSentAt: number;
+      kind: "day-divider"
+      key: string
+      dayStart: number
+      firstSentAt: number
     }
   | { kind: "unread-divider"; key: string; afterMessageId: string }
   | { kind: "event"; key: string; message: ChatMessage }
   | {
-      kind: "thread";
-      key: string;
-      messages: readonly ChatMessage[];
-      slugs: readonly string[];
-      expanded: boolean;
+      kind: "thread"
+      key: string
+      messages: readonly ChatMessage[]
+      slugs: readonly string[]
+      expanded: boolean
     }
   | {
-      kind: "message";
-      key: string;
-      message: ChatMessage;
-      runKey: string;
-      runIndex: number;
-      runSize: number;
-      isRunStart: boolean;
-      isRunEnd: boolean;
-      hasRunGapBefore: boolean;
-    };
+      kind: "message"
+      key: string
+      message: ChatMessage
+      runKey: string
+      runIndex: number
+      runSize: number
+      isRunStart: boolean
+      isRunEnd: boolean
+      hasRunGapBefore: boolean
+    }
 
 export type TimelineOptions = {
-  members?: ReadonlySet<string>;
-  expanded?: ReadonlySet<string>;
-};
-
-export { dayStartOf };
-
-export function canGroup(a: ChatMessage, b: ChatMessage): boolean {
-  if (a.sender !== b.sender) return false;
-  if (a.botId !== b.botId) return false;
-  if (a.replyToId !== undefined || b.replyToId !== undefined) return false;
-  if (dayStartOf(a.sentAt) !== dayStartOf(b.sentAt)) return false;
-  const gap = b.sentAt - a.sentAt;
-  return gap >= 0 && gap <= MESSAGE_GROUPING_WINDOW_MS;
+  members?: ReadonlySet<string>
+  expanded?: ReadonlySet<string>
 }
 
-const addressee = (message: ChatMessage): string | undefined => (message.sender === "bot" ? message.to : undefined);
+export { dayStartOf }
+
+export function canGroup(a: ChatMessage, b: ChatMessage): boolean {
+  if (a.sender !== b.sender) return false
+  if (a.botId !== b.botId) return false
+  if (a.replyToId !== undefined || b.replyToId !== undefined) return false
+  if (dayStartOf(a.sentAt) !== dayStartOf(b.sentAt)) return false
+  const gap = b.sentAt - a.sentAt
+  return gap >= 0 && gap <= MESSAGE_GROUPING_WINDOW_MS
+}
+
+const addressee = (message: ChatMessage): string | undefined => (message.sender === "bot" ? message.to : undefined)
 
 type Entry =
   | { kind: "message"; message: ChatMessage; inThread: boolean }
   | { kind: "event"; message: ChatMessage }
-  | { kind: "thread"; key: string; messages: ChatMessage[]; slugs: string[]; expanded: boolean };
+  | { kind: "thread"; key: string; messages: ChatMessage[]; slugs: string[]; expanded: boolean }
 
-const isEvent = (m: ChatMessage) => m.event !== undefined || m.goto !== undefined;
+const isEvent = (m: ChatMessage) => m.event !== undefined || m.goto !== undefined
 
 function entries(messages: readonly ChatMessage[], options: TimelineOptions): Entry[] {
-  const out: Entry[] = [];
-  let thread: Extract<Entry, { kind: "thread" }> | null = null;
+  const out: Entry[] = []
+  let thread: Extract<Entry, { kind: "thread" }> | null = null
   const close = () => {
-    if (!thread) return;
-    out.push(thread);
-    if (thread.expanded) for (const message of thread.messages) out.push({ kind: "message", message, inThread: true });
-    thread = null;
-  };
+    if (!thread) return
+    out.push(thread)
+    if (thread.expanded) for (const message of thread.messages) out.push({ kind: "message", message, inThread: true })
+    thread = null
+  }
   for (const message of messages) {
     if (isEvent(message)) {
-      close();
-      out.push({ kind: "event", message });
-      continue;
+      close()
+      out.push({ kind: "event", message })
+      continue
     }
-    const to = options.members ? addressee(message) : undefined;
+    const to = options.members ? addressee(message) : undefined
     if (to === undefined) {
-      close();
-      out.push({ kind: "message", message, inThread: false });
-      continue;
+      close()
+      out.push({ kind: "message", message, inThread: false })
+      continue
     }
     if (!thread) {
-      const key = `thread:${message.id}`;
-      thread = { kind: "thread", key, messages: [], slugs: [], expanded: options.expanded?.has(key) ?? false };
+      const key = `thread:${message.id}`
+      thread = { kind: "thread", key, messages: [], slugs: [], expanded: options.expanded?.has(key) ?? false }
     }
-    thread.messages.push(message);
-    for (const slug of [message.botId!, to]) if (slug !== "all" && !thread.slugs.includes(slug)) thread.slugs.push(slug);
+    thread.messages.push(message)
+    for (const slug of [message.botId!, to]) if (slug !== "all" && !thread.slugs.includes(slug)) thread.slugs.push(slug)
   }
-  close();
-  return out;
+  close()
+  return out
 }
 
 const entryTime = (e: Entry): number =>
-  e.kind === "thread" ? (e.messages[e.messages.length - 1]?.sentAt ?? 0) : e.message.sentAt;
+  e.kind === "thread" ? (e.messages[e.messages.length - 1]?.sentAt ?? 0) : e.message.sentAt
 
 export function buildTimelineItems(
   messages: readonly ChatMessage[],
   firstUnreadMessageId?: string | null,
   options: TimelineOptions = {},
 ): TimelineItem[] {
-  const drawable = (m: ChatMessage) =>
-    !(options.members && addressee(m) !== undefined);
-  const unreadIndex = messages.findIndex((m) => m.id === firstUnreadMessageId);
+  const drawable = (m: ChatMessage) => !(options.members && addressee(m) !== undefined)
+  const unreadIndex = messages.findIndex((m) => m.id === firstUnreadMessageId)
   if (unreadIndex >= 0 && !drawable(messages[unreadIndex])) {
-    firstUnreadMessageId = messages
-      .slice(unreadIndex + 1)
-      .find((m) => drawable(m) && m.sender !== "user")?.id;
+    firstUnreadMessageId = messages.slice(unreadIndex + 1).find((m) => drawable(m) && m.sender !== "user")?.id
   }
-  const list = entries(messages, options);
-  const n = list.length;
-  if (n === 0) return [];
+  const list = entries(messages, options)
+  const n = list.length
+  if (n === 0) return []
 
   const continues = (i: number) => {
-    const a = list[i - 1];
-    const b = list[i];
+    const a = list[i - 1]
+    const b = list[i]
     return (
       i > 0 &&
       a.kind === "message" &&
       b.kind === "message" &&
       a.inThread === b.inThread &&
       canGroup(a.message, b.message)
-    );
-  };
-  const runStarts: number[] = new Array(n);
-  for (let i = 0; i < n; i += 1) runStarts[i] = continues(i) ? runStarts[i - 1] : i;
-  const runEnds: number[] = new Array(n);
+    )
+  }
+  const runStarts: number[] = new Array(n)
+  for (let i = 0; i < n; i += 1) runStarts[i] = continues(i) ? runStarts[i - 1] : i
+  const runEnds: number[] = new Array(n)
   for (let i = n - 1; i >= 0; i -= 1) {
-    runEnds[i] = i + 1 < n && runStarts[i + 1] === runStarts[i] ? runEnds[i + 1] : i;
+    runEnds[i] = i + 1 < n && runStarts[i + 1] === runStarts[i] ? runEnds[i + 1] : i
   }
 
-  const items: TimelineItem[] = [];
+  const items: TimelineItem[] = []
   for (let i = 0; i < n; i += 1) {
-    const entry = list[i];
-    const at = entryTime(entry);
-    const dayStart = dayStartOf(at);
+    const entry = list[i]
+    const at = entryTime(entry)
+    const dayStart = dayStartOf(at)
 
     if (i > 0 && startsTimeBreak(entryTime(list[i - 1]), at)) {
-      const newDay = dayStartOf(entryTime(list[i - 1])) !== dayStart;
-      const id = entry.kind === "thread" ? entry.key : entry.message.id;
+      const newDay = dayStartOf(entryTime(list[i - 1])) !== dayStart
+      const id = entry.kind === "thread" ? entry.key : entry.message.id
       items.push({
         kind: "day-divider",
         key: newDay ? `day:${dayStart}` : `gap:${id}`,
         dayStart,
         firstSentAt: at,
-      });
+      })
     }
     if (entry.kind === "event") {
-      items.push({ kind: "event", key: `event:${entry.message.id}`, message: entry.message });
-      continue;
+      items.push({ kind: "event", key: `event:${entry.message.id}`, message: entry.message })
+      continue
     }
     if (entry.kind === "thread") {
-      items.push({ kind: "thread", key: entry.key, messages: entry.messages, slugs: entry.slugs, expanded: entry.expanded });
-      continue;
+      items.push({
+        kind: "thread",
+        key: entry.key,
+        messages: entry.messages,
+        slugs: entry.slugs,
+        expanded: entry.expanded,
+      })
+      continue
     }
-    const message = entry.message;
-    if (
-      firstUnreadMessageId != null &&
-      message.id === firstUnreadMessageId &&
-      message.sender !== "user"
-    ) {
+    const message = entry.message
+    if (firstUnreadMessageId != null && message.id === firstUnreadMessageId && message.sender !== "user") {
       items.push({
         kind: "unread-divider",
         key: `unread:${message.id}`,
         afterMessageId: message.id,
-      });
+      })
     }
 
-    const runIndex = i - runStarts[i];
-    const runSize = runEnds[i] - runStarts[i] + 1;
-    const isRunStart = runIndex === 0;
-    const start = list[runStarts[i]];
+    const runIndex = i - runStarts[i]
+    const runSize = runEnds[i] - runStarts[i] + 1
+    const isRunStart = runIndex === 0
+    const start = list[runStarts[i]]
     items.push({
       kind: "message",
       key: `msg:${message.clientId ?? message.id}`,
@@ -179,28 +178,28 @@ export function buildTimelineItems(
       isRunStart,
       isRunEnd: runIndex === runSize - 1,
       hasRunGapBefore: isRunStart,
-    });
+    })
   }
-  return items;
+  return items
 }
 
 const sameValue = (a: unknown, b: unknown): boolean => {
-  if (a === b) return true;
-  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
-  return true;
-};
-
-function sameItem(a: TimelineItem, b: TimelineItem): boolean {
-  const x = a as Record<string, unknown>;
-  const y = b as Record<string, unknown>;
-  for (const k in x) if (!sameValue(x[k], y[k])) return false;
-  for (const k in y) if (!(k in x)) return false;
-  return true;
+  if (a === b) return true
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false
+  return true
 }
 
-type MessageItem = TimelineItem & { kind: "message" };
-type Run = Pick<MessageItem, "runKey" | "runIndex" | "runSize" | "isRunStart" | "isRunEnd" | "hasRunGapBefore">;
+function sameItem(a: TimelineItem, b: TimelineItem): boolean {
+  const x = a as Record<string, unknown>
+  const y = b as Record<string, unknown>
+  for (const k in x) if (!sameValue(x[k], y[k])) return false
+  for (const k in y) if (!(k in x)) return false
+  return true
+}
+
+type MessageItem = TimelineItem & { kind: "message" }
+type Run = Pick<MessageItem, "runKey" | "runIndex" | "runSize" | "isRunStart" | "isRunEnd" | "hasRunGapBefore">
 
 const runOf = (item: MessageItem): Run => ({
   runKey: item.runKey,
@@ -209,7 +208,7 @@ const runOf = (item: MessageItem): Run => ({
   isRunStart: item.isRunStart,
   isRunEnd: item.isRunEnd,
   hasRunGapBefore: item.hasRunGapBefore,
-});
+})
 
 const sameRun = (a: Run, b: Run) =>
   a.runKey === b.runKey &&
@@ -217,43 +216,56 @@ const sameRun = (a: Run, b: Run) =>
   a.runSize === b.runSize &&
   a.isRunStart === b.isRunStart &&
   a.isRunEnd === b.isRunEnd &&
-  a.hasRunGapBefore === b.hasRunGapBefore;
+  a.hasRunGapBefore === b.hasRunGapBefore
 
-type Moves = { run: Setter<Run>; message: Setter<ChatMessage> };
+type Moves = { run: Setter<Run>; message: Setter<ChatMessage> }
 
-const moves = new WeakMap<TimelineItem, Moves>();
+const moves = new WeakMap<TimelineItem, Moves>()
 
 function live(item: MessageItem): MessageItem {
-  const [run, setRun] = createSignal(runOf(item), { equals: sameRun });
-  const [message, setMessage] = createSignal(item.message);
+  const [run, setRun] = createSignal(runOf(item), { equals: sameRun })
+  const [message, setMessage] = createSignal(item.message)
   const out: MessageItem = {
     kind: "message",
     key: item.key,
-    get message() { return message(); },
-    get runKey() { return run().runKey; },
-    get runIndex() { return run().runIndex; },
-    get runSize() { return run().runSize; },
-    get isRunStart() { return run().isRunStart; },
-    get isRunEnd() { return run().isRunEnd; },
-    get hasRunGapBefore() { return run().hasRunGapBefore; },
-  };
-  moves.set(out, { run: setRun, message: setMessage });
-  return out;
+    get message() {
+      return message()
+    },
+    get runKey() {
+      return run().runKey
+    },
+    get runIndex() {
+      return run().runIndex
+    },
+    get runSize() {
+      return run().runSize
+    },
+    get isRunStart() {
+      return run().isRunStart
+    },
+    get isRunEnd() {
+      return run().isRunEnd
+    },
+    get hasRunGapBefore() {
+      return run().hasRunGapBefore
+    },
+  }
+  moves.set(out, { run: setRun, message: setMessage })
+  return out
 }
 
 export function keepUnchanged(previous: Map<string, TimelineItem>, next: TimelineItem[]): TimelineItem[] {
   const out = next.map((item) => {
-    const old = previous.get(item.key);
-    if (old && sameItem(old, item)) return old;
-    if (item.kind !== "message") return item;
-    const movesFor = old?.kind === "message" && old.key === item.key ? moves.get(old) : undefined;
-    if (!movesFor) return live(item);
-    movesFor.run(runOf(item));
-    if ((old as MessageItem).message !== item.message) movesFor.message(item.message);
-    return old as MessageItem;
-  });
-  previous.clear();
-  for (const item of out) previous.set(item.key, item);
-  return out;
+    const old = previous.get(item.key)
+    if (old && sameItem(old, item)) return old
+    if (item.kind !== "message") return item
+    const movesFor = old?.kind === "message" && old.key === item.key ? moves.get(old) : undefined
+    if (!movesFor) return live(item)
+    movesFor.run(runOf(item))
+    if ((old as MessageItem).message !== item.message) movesFor.message(item.message)
+    return old as MessageItem
+  })
+  previous.clear()
+  for (const item of out) previous.set(item.key, item)
+  return out
 }
-

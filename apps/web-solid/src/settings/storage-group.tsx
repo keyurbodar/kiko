@@ -5,7 +5,9 @@ import { fetchStorage, formatSize, nearlyFull, OBJECT_LIMIT_BYTES, type Storage 
 const R2_URL = "https://developers.cloudflare.com/r2/pricing/"
 
 const about = (s: Storage) =>
-  s.archiveEnabled ? "Chats and agent history. History older than 30 days moves to R2." : "Chats and agent history. R2 is not turned on, so all of it stays here."
+  s.archiveEnabled
+    ? "Chats and agent history. History older than 30 days moves to R2."
+    : "Chats and agent history. R2 is not turned on, so all of it stays here."
 
 function Meter(props: { storage: Storage }) {
   const used = () => Math.min(props.storage.objectBytes, OBJECT_LIMIT_BYTES)
@@ -22,7 +24,10 @@ function Meter(props: { storage: Storage }) {
     >
       <div
         class="h-full rounded-full"
-        classList={{ "bg-[var(--error)]": nearlyFull(props.storage), "bg-[color-mix(in_oklab,var(--foreground)_45%,transparent)]": !nearlyFull(props.storage) }}
+        classList={{
+          "bg-[var(--error)]": nearlyFull(props.storage),
+          "bg-[color-mix(in_oklab,var(--foreground)_45%,transparent)]": !nearlyFull(props.storage),
+        }}
         style={{ width: `${(used() / OBJECT_LIMIT_BYTES) * 100}%` }}
       />
     </div>
@@ -44,7 +49,15 @@ export function StorageGroup() {
         <Match when={storage()}>
           {(s) => (
             <>
-              <Row label="Object storage" description={about(s())} details={<div class="pt-1"><Meter storage={s()} /></div>}>
+              <Row
+                label="Object storage"
+                description={about(s())}
+                details={
+                  <div class="pt-1">
+                    <Meter storage={s()} />
+                  </div>
+                }
+              >
                 <span class="text-md" data-field="object-bytes">
                   {formatSize(s().objectBytes)} of {formatSize(OBJECT_LIMIT_BYTES)}
                 </span>
@@ -52,7 +65,8 @@ export function StorageGroup() {
               <Show when={nearlyFull(s())}>
                 <div class="px-4 py-2.5" data-part="storage-warning">
                   <Notice>
-                    The object is nearly full. Turn on R2 in your Cloudflare account so Kiko can move history older than 30 days out of it.{" "}
+                    The object is nearly full. Turn on R2 in your Cloudflare account so Kiko can move history older than
+                    30 days out of it.{" "}
                     <a class="underline underline-offset-2" href={R2_URL} target="_blank" rel="noreferrer">
                       About R2
                     </a>

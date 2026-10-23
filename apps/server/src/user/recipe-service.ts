@@ -2,7 +2,16 @@ import type { Agent, InstallRecipe, RecipeInstall, RecipeNeedsConnect, RoomId } 
 import { toolkitSlug } from "../recipes/card"
 import type { Recipe } from "../recipes/recipe"
 import type { RecipeLibrary } from "./recipe-library"
-import { deleteInstall, findInstall, findTarget, type Install, listInstalls, recipeRule, recipeWake, saveInstall } from "./recipes"
+import {
+  deleteInstall,
+  findInstall,
+  findTarget,
+  type Install,
+  listInstalls,
+  recipeRule,
+  recipeWake,
+  saveInstall,
+} from "./recipes"
 import type { NewRoutine, Reminder } from "./reminders"
 import type { RoutineResult } from "./routines"
 
@@ -23,10 +32,16 @@ type Ports = {
     connected(): Promise<ReadonlySet<string> | "off" | null>
     link(app: string): Promise<string | null>
   }
-  announce(roomId: RoomId, input: { installId: string; agent: string; title: string; wake: string | null }): Promise<"delivered" | "refused" | "gone" | "duplicate">
+  announce(
+    roomId: RoomId,
+    input: { installId: string; agent: string; title: string; wake: string | null },
+  ): Promise<"delivered" | "refused" | "gone" | "duplicate">
 }
 
-type InstallOutcome = { ok: true; install: RecipeInstall; setup: string; existed: boolean } | { ok: false; error: string } | { ok: false; needsConnect: RecipeNeedsConnect }
+type InstallOutcome =
+  | { ok: true; install: RecipeInstall; setup: string; existed: boolean }
+  | { ok: false; error: string }
+  | { ok: false; needsConnect: RecipeNeedsConnect }
 
 export class RecipeService {
   private queue: Promise<unknown> = Promise.resolve()
@@ -41,7 +56,12 @@ export class RecipeService {
 
   async list(): Promise<{ cards: Recipe[]; custom: ReadonlySet<string>; installs: RecipeInstall[]; broken: string[] }> {
     const lib = await this.p.library.read()
-    return { cards: lib.recipes, custom: lib.custom, installs: listInstalls(this.p.sql).map((i) => this.withRoutines(i)), broken: lib.broken }
+    return {
+      cards: lib.recipes,
+      custom: lib.custom,
+      installs: listInstalls(this.p.sql).map((i) => this.withRoutines(i)),
+      broken: lib.broken,
+    }
   }
 
   edit(slug: string): Promise<string | null> {
@@ -58,18 +78,27 @@ export class RecipeService {
 
   private async addInstall(input: InstallRecipe, by?: string): Promise<InstallOutcome> {
     const done = findInstall(this.p.sql, input.installId)
-    if (done) return { ok: true, install: this.withRoutines(done), setup: `${done.slug} is already on here.`, existed: true }
+    if (done)
+      return { ok: true, install: this.withRoutines(done), setup: `${done.slug} is already on here.`, existed: true }
     const lib = await this.p.library.read()
     const recipe = lib.recipes.find((r) => r.slug === input.slug)
     if (!recipe) return { ok: false, error: `no recipe named ${input.slug} in /home/recipes` }
     const on = "own" in input ? undefined : findTarget(this.p.sql, recipe.slug, input.roomId, input.agent)
-    if (on) return { ok: true, install: this.withRoutines(on), setup: `${recipe.title} is already on for @${on.agent} in this chat.`, existed: true }
+    if (on)
+      return {
+        ok: true,
+        install: this.withRoutines(on),
+        setup: `${recipe.title} is already on for @${on.agent} in this chat.`,
+        existed: true,
+      }
     const needsConnect = await this.gate(recipe)
     if (needsConnect) return { ok: false, needsConnect }
     let roomId: RoomId
     let agent: string
     if ("own" in input) {
-      const made = this.p.agentNamed(recipe.agent.name) ?? (await this.p.makeAgent(recipe.agent.name, recipe.agent.handle, recipe.description, await this.p.chiefModel()))
+      const made =
+        this.p.agentNamed(recipe.agent.name) ??
+        (await this.p.makeAgent(recipe.agent.name, recipe.agent.handle, recipe.description, await this.p.chiefModel()))
       if (!made) return { ok: false, error: `@${recipe.agent.handle} could not be made. pick a chat instead.` }
       roomId = await this.p.openChat(made.name, [made.id])
       agent = made.slug
@@ -78,23 +107,44 @@ export class RecipeService {
       agent = input.agent
     }
     const there = findTarget(this.p.sql, recipe.slug, roomId, agent)
-    if (there) return { ok: true, install: this.withRoutines(there), setup: `${recipe.title} is already on for @${agent} in this chat.`, existed: true }
+    if (there)
+      return {
+        ok: true,
+        install: this.withRoutines(there),
+        setup: `${recipe.title} is already on for @${agent} in this chat.`,
+        existed: true,
+      }
     return this.add(recipe, input.installId, roomId, agent, by)
   }
 
   private async gate(recipe: Recipe): Promise<RecipeNeedsConnect | null> {
     if (!recipe.apps.length) return null
     const have = await this.p.composio.connected()
-    if (have === "off") return { state: "needs_connect", links: [], reason: "Add a Composio key in Settings, Integrations, then add this recipe again." }
+    if (have === "off")
+      return {
+        state: "needs_connect",
+        links: [],
+        reason: "Add a Composio key in Settings, Integrations, then add this recipe again.",
+      }
     if (!have) return { state: "needs_connect", links: [], reason: "Kiko could not check your apps. Try again." }
     const missing = recipe.apps.filter((app) => !have.has(toolkitSlug(app)))
     if (!missing.length) return null
     const made = await Promise.all(missing.map(async (app) => ({ app, url: await this.p.composio.link(app) })))
     const links = made.flatMap((l) => (l.url ? [{ app: l.app, url: l.url }] : []))
-    return { state: "needs_connect", links, ...(links.length ? {} : { reason: "Kiko could not make a connect link. Try again." }) }
+    return {
+      state: "needs_connect",
+      links,
+      ...(links.length ? {} : { reason: "Kiko could not make a connect link. Try again." }),
+    }
   }
 
-  private async add(recipe: Recipe, installId: string, roomId: RoomId, agent: string, by: string | undefined): Promise<InstallOutcome> {
+  private async add(
+    recipe: Recipe,
+    installId: string,
+    roomId: RoomId,
+    agent: string,
+    by: string | undefined,
+  ): Promise<InstallOutcome> {
     const tz = (await this.p.timezone()) ?? "UTC"
     const at = new Date(Math.floor(Date.now() / 1000) * 1000).toISOString()
     const made: Reminder[] = []
@@ -103,7 +153,15 @@ export class RecipeService {
     }
     try {
       for (const t of recipe.triggers) {
-        const out = await this.p.createRoutine({ name: t.name, instructions: t.run, trigger: { on: "time", at, rrule: recipeRule(t.every) }, tz, roomId, target: agent, createdBy: "human" })
+        const out = await this.p.createRoutine({
+          name: t.name,
+          instructions: t.run,
+          trigger: { on: "time", at, rrule: recipeRule(t.every) },
+          tz,
+          roomId,
+          target: agent,
+          createdBy: "human",
+        })
         if (!out.ok) {
           await undo()
           return { ok: false, error: out.error }
@@ -111,14 +169,23 @@ export class RecipeService {
         made.push(out.routine)
       }
       const setup = recipeWake(recipe, made)
-      const woke = await this.p.announce(roomId, { installId, agent, title: recipe.title, wake: by === agent ? null : setup })
+      const woke = await this.p.announce(roomId, {
+        installId,
+        agent,
+        title: recipe.title,
+        wake: by === agent ? null : setup,
+      })
       if (woke !== "delivered" && woke !== "duplicate") {
         await undo()
-        return { ok: false, error: woke === "gone" ? `@${agent} is not in that chat` : "that chat could not take the recipe. try again." }
+        return {
+          ok: false,
+          error: woke === "gone" ? `@${agent} is not in that chat` : "that chat could not take the recipe. try again.",
+        }
       }
       const install: Install = { installId, slug: recipe.slug, roomId, agent, at: Date.now() }
       saveInstall(this.p.sql, install)
-      for (const r of made) this.p.sql.exec("INSERT OR IGNORE INTO recipe_links (routine_id, install_id) VALUES (?, ?)", r.id, installId)
+      for (const r of made)
+        this.p.sql.exec("INSERT OR IGNORE INTO recipe_links (routine_id, install_id) VALUES (?, ?)", r.id, installId)
       return { ok: true, install: this.withRoutines(install), setup, existed: false }
     } catch (error) {
       await undo()
@@ -132,36 +199,52 @@ export class RecipeService {
 
   private async removeInstall(installId: string): Promise<boolean> {
     if (!findInstall(this.p.sql, installId)) return false
-    const rows = this.p.sql.exec<{ routine_id: string }>("SELECT routine_id FROM recipe_links WHERE install_id = ?", installId).toArray()
+    const rows = this.p.sql
+      .exec<{ routine_id: string }>("SELECT routine_id FROM recipe_links WHERE install_id = ?", installId)
+      .toArray()
     for (const r of rows) await this.p.cancelRoutine(r.routine_id)
     deleteInstall(this.p.sql, installId)
     return true
   }
 
   routineGone(routineId: string): void {
-    const row = this.p.sql.exec<{ install_id: string }>("SELECT install_id FROM recipe_links WHERE routine_id = ?", routineId).toArray()[0]
+    const row = this.p.sql
+      .exec<{ install_id: string }>("SELECT install_id FROM recipe_links WHERE routine_id = ?", routineId)
+      .toArray()[0]
     if (!row) return
     this.p.sql.exec("DELETE FROM recipe_links WHERE routine_id = ?", routineId)
-    const left = this.p.sql.exec<{ n: number }>("SELECT count(*) AS n FROM recipe_links WHERE install_id = ?", row.install_id).one().n
+    const left = this.p.sql
+      .exec<{ n: number }>("SELECT count(*) AS n FROM recipe_links WHERE install_id = ?", row.install_id)
+      .one().n
     if (!left) deleteInstall(this.p.sql, row.install_id)
   }
 
   chatGone(roomId: string): Promise<void> {
     return this.serial(async () => {
-      for (const install of listInstalls(this.p.sql).filter((i) => i.roomId === roomId)) await this.removeInstall(install.installId)
+      for (const install of listInstalls(this.p.sql).filter((i) => i.roomId === roomId))
+        await this.removeInstall(install.installId)
     })
   }
 
   agentGone(slug: string): Promise<void> {
     return this.serial(async () => {
-      for (const install of listInstalls(this.p.sql).filter((i) => i.agent === slug)) await this.removeInstall(install.installId)
+      for (const install of listInstalls(this.p.sql).filter((i) => i.agent === slug))
+        await this.removeInstall(install.installId)
     })
   }
 
   async briefs(roomId: string, agent: string): Promise<{ name: string; description: string }[]> {
     const { recipes } = await this.p.library.read()
-    const on = new Set(this.p.sql.exec<{ slug: string }>("SELECT slug FROM recipe_installs WHERE room_id = ? AND agent = ?", roomId, agent).toArray().map((r) => r.slug))
-    return recipes.map((r) => ({ name: r.slug, description: `${r.title} recipe: ${r.description}${on.has(r.slug) && !r.triggers.length ? ON_FOR_YOU : ""}` }))
+    const on = new Set(
+      this.p.sql
+        .exec<{ slug: string }>("SELECT slug FROM recipe_installs WHERE room_id = ? AND agent = ?", roomId, agent)
+        .toArray()
+        .map((r) => r.slug),
+    )
+    return recipes.map((r) => ({
+      name: r.slug,
+      description: `${r.title} recipe: ${r.description}${on.has(r.slug) && !r.triggers.length ? ON_FOR_YOU : ""}`,
+    }))
   }
 
   async skillText(slug: string): Promise<string | null> {
@@ -174,7 +257,9 @@ export class RecipeService {
   }
 
   private withRoutines(install: Install): RecipeInstall {
-    const links = this.p.sql.exec<{ routine_id: string }>("SELECT routine_id FROM recipe_links WHERE install_id = ?", install.installId).toArray()
+    const links = this.p.sql
+      .exec<{ routine_id: string }>("SELECT routine_id FROM recipe_links WHERE install_id = ?", install.installId)
+      .toArray()
     const routines = links.flatMap(({ routine_id }) => {
       const r = this.p.routine(routine_id)
       if (!r?.trigger || (r.status !== "active" && r.status !== "paused")) return []

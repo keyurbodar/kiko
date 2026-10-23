@@ -23,7 +23,10 @@ const LONG = Array.from({ length: 12 }, (_, i) => `slow words ${i + 1} keep this
 type Part = { type: string; text?: string }
 type Message = { role?: string; content?: string | Part[]; stopReason?: string; toolName?: string; toolCallId?: string }
 
-const rawOf = (m: Message) => (typeof m.content === "string" ? m.content : (m.content ?? []).map((p) => (p.type === "text" ? (p.text ?? "") : "")).join(""))
+const rawOf = (m: Message) =>
+  typeof m.content === "string"
+    ? m.content
+    : (m.content ?? []).map((p) => (p.type === "text" ? (p.text ?? "") : "")).join("")
 
 function missedOf(raw: string): string[] {
   const memory = /<memory>([\s\S]*?)<\/memory>/.exec(raw)?.[1] ?? ""
@@ -50,7 +53,8 @@ function capture(match: readonly string[], index: number): string {
   return value
 }
 
-const directCall = (text: string) => /\[(?:ws|tool) (\w+) (\{.*?\})\]/.exec(text.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&"))
+const directCall = (text: string) =>
+  /\[(?:ws|tool) (\w+) (\{.*?\})\]/.exec(text.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&"))
 
 function workerReply(messages: readonly Message[], toolNames: () => string) {
   const users = messages.filter((m) => m.role === "user").map(textOf)
@@ -59,21 +63,37 @@ function workerReply(messages: readonly Message[], toolNames: () => string) {
   const browse = browseScript(messages, users)
   if (browse) return fauxAssistantMessage(browse, { stopReason: "toolUse" })
   const last = messages.at(-1)
-  if (last?.role === "toolResult" && last.toolName?.startsWith("browse")) return fauxAssistantMessage(browsed(textOf(last)))
+  if (last?.role === "toolResult" && last.toolName?.startsWith("browse"))
+    return fauxAssistantMessage(browsed(textOf(last)))
   const direct = directCall(users[0] ?? "")
-  if (direct && !results.length) return fauxAssistantMessage(fauxToolCall(capture(direct, 1), JSON.parse(capture(direct, 2))), { stopReason: "toolUse" })
+  if (direct && !results.length)
+    return fauxAssistantMessage(fauxToolCall(capture(direct, 1), JSON.parse(capture(direct, 2))), {
+      stopReason: "toolUse",
+    })
   const steps = direct ? 1 : Number(/\[steps (\d+)\]/.exec(users[0] ?? "")?.[1] ?? 1)
-  if (results.length < steps) return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, { ms: WORK_STEP_MS }), { stopReason: "toolUse" })
+  if (results.length < steps)
+    return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, { ms: WORK_STEP_MS }), { stopReason: "toolUse" })
   const told = results.map((r) => plainReport(textOf(r))).filter(Boolean)
-  return fauxAssistantMessage(`work done: heard=${users.join(" | ")}${direct && told.length ? `; tool: ${told.join(", ")}` : ""}`)
+  return fauxAssistantMessage(
+    `work done: heard=${users.join(" | ")}${direct && told.length ? `; tool: ${told.join(", ")}` : ""}`,
+  )
 }
 
-const toolsOf = (transcript: readonly Message[]) => new Set([...JSON.stringify(transcript.filter((m) => m.role === "system")).matchAll(/"name":"([\w-]+)","description"/g)].map((m) => capture(m, 1)))
+const toolsOf = (transcript: readonly Message[]) =>
+  new Set(
+    [...JSON.stringify(transcript.filter((m) => m.role === "system")).matchAll(/"name":"([\w-]+)","description"/g)].map(
+      (m) => capture(m, 1),
+    ),
+  )
 
 const failedOnce = new Set<string>()
 
 export function fakeReply(transcript: readonly Message[]) {
-  const toolNames = () => getCurrentTools(transcript as never).map((t) => t.name).sort().join(",")
+  const toolNames = () =>
+    getCurrentTools(transcript as never)
+      .map((t) => t.name)
+      .sort()
+      .join(",")
   const messages = transcript.filter((m) => m.role !== "system")
   const offered = toolsOf(transcript)
   if (!offered.has("start_work")) return workerReply(messages, toolNames)
@@ -91,8 +111,14 @@ export function fakeReply(transcript: readonly Message[]) {
     return call && !offered.has(capture(call, 1)) ? call : null
   }
   const toWorker = handOff(last)
-  if (toWorker) return fauxAssistantMessage(fauxToolCall("start_work", { task: toWorker[0] }), { stopReason: "toolUse" })
-  if (last?.role === "toolResult" && last.toolName === "start_work" && handOff(messages.findLast((m) => m.role === "user"))) return fauxAssistantMessage("[skip]")
+  if (toWorker)
+    return fauxAssistantMessage(fauxToolCall("start_work", { task: toWorker[0] }), { stopReason: "toolUse" })
+  if (
+    last?.role === "toolResult" &&
+    last.toolName === "start_work" &&
+    handOff(messages.findLast((m) => m.role === "user"))
+  )
+    return fauxAssistantMessage("[skip]")
   return replyToMessages(messages, toolNames)
 }
 
@@ -103,13 +129,15 @@ function replyToMessages(messages: readonly Message[], toolNames: () => string) 
   const users = since.filter((m) => m.role === "user").map(textOf)
   const results = since.filter((m) => m.role === "toolResult").map(textOf)
   const ws = last?.role === "user" ? /\[ws (\w+) (\{.*?\})\]/.exec(textOf(last)) : null
-  if (ws) return fauxAssistantMessage(fauxToolCall(capture(ws, 1), JSON.parse(capture(ws, 2))), { stopReason: "toolUse" })
+  if (ws)
+    return fauxAssistantMessage(fauxToolCall(capture(ws, 1), JSON.parse(capture(ws, 2))), { stopReason: "toolUse" })
   const fetchFirst = last?.role === "user" && /^\[fetch\]/.test(textOf(last))
   const page = last?.role === "toolResult" && last.toolName === "fake_fetch"
   if (last?.role === "user" && textOf(last) === "[tools]") return fauxAssistantMessage(`tools: ${toolNames()}`)
   const browse = browseScript(messages, users)
   if (browse) return fauxAssistantMessage(browse, { stopReason: "toolUse" })
-  if (last?.role === "toolResult" && last.toolName?.startsWith("browse")) return fauxAssistantMessage(browsed(textOf(last)))
+  if (last?.role === "toolResult" && last.toolName?.startsWith("browse"))
+    return fauxAssistantMessage(browsed(textOf(last)))
   const typed = last?.role === "user" ? textCall(rawOf(last)) : null
   if (typed) return fauxAssistantMessage(typed)
   const any = last && ((last.role === "user" && !fetchFirst) || page) ? anyToolCall(rawOf(last)) : null
@@ -127,11 +155,18 @@ function replyToMessages(messages: readonly Message[], toolNames: () => string) 
 
 function replyWithDelay(users: string[], results: string[], last: Message | undefined) {
   const twoPart = users.at(-1)?.includes("[two-part]")
-  if (twoPart && last?.role === "user") return fauxAssistantMessage([fauxText("part one."), fauxToolCall(SLOW_TOOL, { ms: 1 })], { stopReason: "toolUse" })
-  if (twoPart && last?.role === "toolResult" && last.toolName === SLOW_TOOL) return fauxAssistantMessage(`${LONG} heard: ${users.join(" | ")}`)
+  if (twoPart && last?.role === "user")
+    return fauxAssistantMessage([fauxText("part one."), fauxToolCall(SLOW_TOOL, { ms: 1 })], { stopReason: "toolUse" })
+  if (twoPart && last?.role === "toolResult" && last.toolName === SLOW_TOOL)
+    return fauxAssistantMessage(`${LONG} heard: ${users.join(" | ")}`)
   const later = users.map((u) => /\[later ([a-z0-9-]+)\]\s*([^<]*)/.exec(u)).find(Boolean)
-  if (later && last?.role === "user") return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, { ms: LATER_MS }), { stopReason: "toolUse" })
-  if (later && last?.role === "toolResult" && last.toolName === SLOW_TOOL) return fauxAssistantMessage(fauxToolCall("send_message", { to: capture(later, 1), text: capture(later, 2).trim() }), { stopReason: "toolUse" })
+  if (later && last?.role === "user")
+    return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, { ms: LATER_MS }), { stopReason: "toolUse" })
+  if (later && last?.role === "toolResult" && last.toolName === SLOW_TOOL)
+    return fauxAssistantMessage(
+      fauxToolCall("send_message", { to: capture(later, 1), text: capture(later, 2).trim() }),
+      { stopReason: "toolUse" },
+    )
   if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, {}), { stopReason: "toolUse" })
   }
@@ -157,12 +192,17 @@ function replyToBurst(since: readonly Message[], users: string[], results: strin
   const scripted = /(?:^|\s)\[reply\]\s*([\s\S]*)$/.exec(newest)
   if (scripted) return fauxAssistantMessage(capture(scripted, 1))
   if (newest.includes("[brief]")) {
-    const raw = typeof last?.content === "string" ? last.content : (last?.content ?? []).map((p) => p.text ?? "").join("")
+    const raw =
+      typeof last?.content === "string" ? last.content : (last?.content ?? []).map((p) => p.text ?? "").join("")
     const lines = raw.split("\n").filter((l) => l.startsWith("- ") && l.includes(" reacted "))
     return fauxAssistantMessage(lines.length ? `brief: ${lines.map((l) => l.slice(2)).join(" | ")}` : "brief: none")
   }
   if (newest.includes("what is the status")) {
-    const notes = last ? rawOf(last).split("\n").filter((l) => /^- w\d+ \(/.test(l)) : []
+    const notes = last
+      ? rawOf(last)
+          .split("\n")
+          .filter((l) => /^- w\d+ \(/.test(l))
+      : []
     return fauxAssistantMessage(`status: ${notes.join(" | ") || "no workers"}`)
   }
   if (newest.includes("[quiet]") && !results.length) return fauxAssistantMessage("[skip]")
@@ -176,10 +216,14 @@ function browseScript(messages: readonly Message[], users: readonly string[]) {
   const last = messages.at(-1)
   const ask = users.map((u) => BROWSE_LINE.exec(u)).findLast(Boolean)
   if (!ask) return null
-  if (last?.role === "user") return BROWSE_LINE.test(textOf(last)) ? fauxToolCall("browse", { urls: [capture(ask, 1)] }) : null
+  if (last?.role === "user")
+    return BROWSE_LINE.test(textOf(last)) ? fauxToolCall("browse", { urls: [capture(ask, 1)] }) : null
   if (last?.role !== "toolResult" || last.toolName !== "browse") return null
   const label = capture(ask, 2).trim().toLowerCase()
-  const id = textOf(last).split("\n").map((l) => /^(\d+) \S+ "(.*)"$/.exec(l)).find((m) => m && capture(m, 2).trim().toLowerCase() === label)?.[1]
+  const id = textOf(last)
+    .split("\n")
+    .map((l) => /^(\d+) \S+ "(.*)"$/.exec(l))
+    .find((m) => m && capture(m, 2).trim().toLowerCase() === label)?.[1]
   return id === undefined ? null : fauxToolCall("browser_act", { steps: [{ op: "click", id: Number(id) }] })
 }
 
@@ -187,7 +231,9 @@ function browsed(result: string): string {
   const lines = result.split("\n").filter((l) => l.trim() && !/^<\/?untrusted/.test(l))
   const did = lines.findIndex((l) => l.startsWith("did:"))
   const [title, url] = lines.slice(did + 1)
-  return url?.startsWith("http") ? `browsed: ${did >= 0 ? `${lines[did]} | ` : ""}${title} | ${url}` : `browsed: ${result.slice(0, 400)}`
+  return url?.startsWith("http")
+    ? `browsed: ${did >= 0 ? `${lines[did]} | ` : ""}${title} | ${url}`
+    : `browsed: ${result.slice(0, 400)}`
 }
 
 function anyToolCall(raw: string) {
@@ -197,7 +243,9 @@ function anyToolCall(raw: string) {
 }
 
 function textCall(raw: string) {
-  const m = /\[textcall (\w+) (\{.*\})\]\s*$/m.exec(raw.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&"))
+  const m = /\[textcall (\w+) (\{.*\})\]\s*$/m.exec(
+    raw.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&"),
+  )
   if (!m) return null
   const args = Object.entries(JSON.parse(capture(m, 2)) as Record<string, unknown>)
     .map(([k, v]) => `<atem:parameter name="${k}">${typeof v === "string" ? v : JSON.stringify(v)}</atem:parameter>`)
@@ -219,7 +267,10 @@ const slowTool = (name: string, effect: Effect) =>
     }),
   )
 
-export const SLOW_TOOL_EXTENSION: Extension = defineExtension({ name: "test-slow-tool", tools: [slowTool(SLOW_TOOL, "read"), slowTool(SLOW_WRITE_TOOL, "write")] })
+export const SLOW_TOOL_EXTENSION: Extension = defineExtension({
+  name: "test-slow-tool",
+  tools: [slowTool(SLOW_TOOL, "read"), slowTool(SLOW_WRITE_TOOL, "write")],
+})
 
 const text = (t: string) => ({ output: [{ type: "text" as const, text: t }] })
 const page = Type.Object({ page: Type.String() })
@@ -227,23 +278,48 @@ const page = Type.Object({ page: Type.String() })
 const FAKE_TOOLS = {
   fake_fetch: declareEffect(
     "read",
-    defineTool({ name: "fake_fetch", description: "fetches a page.", parameters: page, execute: async ({ page }) => text(page) }),
+    defineTool({
+      name: "fake_fetch",
+      description: "fetches a page.",
+      parameters: page,
+      execute: async ({ page }) => text(page),
+    }),
   ),
   fake_lookup: declareEffect(
     "read",
-    defineTool({ name: "fake_lookup", description: "looks something up in kiko.", parameters: Type.Object({}), execute: async () => text("found") }),
+    defineTool({
+      name: "fake_lookup",
+      description: "looks something up in kiko.",
+      parameters: Type.Object({}),
+      execute: async () => text("found"),
+    }),
   ),
   fake_note: declareEffect(
     "write",
-    defineTool({ name: "fake_note", description: "writes a note.", parameters: Type.Object({}), execute: async () => text("noted") }),
+    defineTool({
+      name: "fake_note",
+      description: "writes a note.",
+      parameters: Type.Object({}),
+      execute: async () => text("noted"),
+    }),
   ),
   fake_ask: declareEffect(
     "message",
-    defineTool({ name: "fake_ask", description: "messages a teammate.", parameters: Type.Object({}), execute: async () => text("asked") }),
+    defineTool({
+      name: "fake_ask",
+      description: "messages a teammate.",
+      parameters: Type.Object({}),
+      execute: async () => text("asked"),
+    }),
   ),
   fake_send: declareEffect(
     "external",
-    defineTool({ name: "fake_send", description: "sends an email outside kiko.", parameters: Type.Object({}), execute: async () => text("sent") }),
+    defineTool({
+      name: "fake_send",
+      description: "sends an email outside kiko.",
+      parameters: Type.Object({}),
+      execute: async () => text("sent"),
+    }),
   ),
 }
 
@@ -279,21 +355,46 @@ function fakeResults(since: readonly Message[]): string | null {
 
 function teamCall(turn: string) {
   const agent = [...turn.matchAll(/<agent-message from="([^"]+)"[^>]*>([\s\S]*?)<\/agent-message>/g)].at(-1)
-  if (agent && capture(agent, 2).includes("[question]")) return fauxToolCall("send_message", { to: capture(agent, 1), text: "[answer] 42" })
+  if (agent && capture(agent, 2).includes("[question]"))
+    return fauxToolCall("send_message", { to: capture(agent, 1), text: "[answer] 42" })
   const asked = /\[ask ([a-z0-9-]+)\]\s*([\s\S]*)$/.exec(turn)
   if (asked) return fauxToolCall("send_message", { to: capture(asked, 1), text: capture(asked, 2) })
-  if (agent && capture(agent, 2).includes("[echo]")) return fauxToolCall("send_message", { to: capture(agent, 1), text: "[echo]" })
+  if (agent && capture(agent, 2).includes("[echo]"))
+    return fauxToolCall("send_message", { to: capture(agent, 1), text: "[echo]" })
   const send = /\[send ([a-z0-9-]+)\]\s*([\s\S]*)$/.exec(turn)
   if (send) return fauxToolCall("send_message", { to: capture(send, 1), text: capture(send, 2) })
   if (turn.includes("[shout]")) return fauxToolCall("send_message", { to: "all", text: "[shout]" })
   return turn.includes("[team]") ? fauxToolCall("team", {}) : null
 }
 
-export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], more: Pick<BuildAgentInput, "routines" | "groups" | "work" | "browser" | "presence" | "runId" | "testExtensions"> = {}) {
+export function fakeSetup(
+  role: RoleInput = { role: "", lead: true },
+  workspace?: WorkspacePort,
+  messaging?: BuildAgentInput["messaging"],
+  more: Pick<
+    BuildAgentInput,
+    "routines" | "groups" | "work" | "browser" | "presence" | "runId" | "testExtensions"
+  > = {},
+) {
   const faux = fauxProvider({ tokensPerSecond: TOKENS_PER_SECOND })
   const step = (context: { messages: readonly unknown[] }) => fakeReply(context.messages as Message[])
   faux.setResponses(Array.from({ length: 500 }, () => step))
   const models = createModels()
-  models.setProvider({ ...faux.provider, streamSimple: withTextToolCalls(faux.provider.streamSimple), stream: withTextToolCalls(faux.provider.stream as never) as never })
-  return { models, settings: RUN_SETTINGS, ...buildAgent({ ...role, ...more, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), testExtensions: [SLOW_TOOL_EXTENSION, FAKE_TOOLS_EXTENSION, ...(more.testExtensions ?? [])] }) } satisfies AgentSetup
+  models.setProvider({
+    ...faux.provider,
+    streamSimple: withTextToolCalls(faux.provider.streamSimple),
+    stream: withTextToolCalls(faux.provider.stream as never) as never,
+  })
+  return {
+    models,
+    settings: RUN_SETTINGS,
+    ...buildAgent({
+      ...role,
+      ...more,
+      model: FAKE_MODEL,
+      messaging,
+      ...(workspace ? { workspace } : {}),
+      testExtensions: [SLOW_TOOL_EXTENSION, FAKE_TOOLS_EXTENSION, ...(more.testExtensions ?? [])],
+    }),
+  } satisfies AgentSetup
 }

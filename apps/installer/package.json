@@ -12,8 +12,8 @@
     "@kiko/durable": "workspace:*"
   },
   "devDependencies": {
-    "@types/bun": "1.3.14",
     "@cloudflare/workers-types": "^4.20260101.0",
+    "@types/bun": "1.3.14",
     "typescript": "^5.9.0",
     "wrangler": "^4.0.0"
   }

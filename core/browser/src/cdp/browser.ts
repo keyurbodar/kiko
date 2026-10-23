@@ -19,7 +19,8 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     const subscriptions = [
       page.channel.on("Page.javascriptDialogOpening", (dialog) => {
         page.channel.send("Page.handleJavaScriptDialog", { accept: true }).catch(() => {})
-        if (dialog.type === "confirm" || dialog.type === "prompt") page.notes.push(`${dialog.type} said "${dialog.message}": accepted`)
+        if (dialog.type === "confirm" || dialog.type === "prompt")
+          page.notes.push(`${dialog.type} said "${dialog.message}": accepted`)
       }),
       page.channel.on("Page.frameStartedLoading", (event) => {
         if (event.frameId !== targetId) return
@@ -43,7 +44,11 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
       const [, , ready] = await Promise.all([
         page.channel.send("Page.enable"),
         page.channel.send("Emulation.setFocusEmulationEnabled", { enabled: true }),
-        url ? evaluate<boolean>(page, `location.href !== "about:blank" && document.readyState === "complete"`).catch(() => false) : true,
+        url
+          ? evaluate<boolean>(page, `location.href !== "about:blank" && document.readyState === "complete"`).catch(
+              () => false,
+            )
+          : true,
       ])
       if (!ready) await loaded
     } catch (error) {
@@ -89,7 +94,11 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     openTab: async (url) => {
       const invalid = url === undefined ? undefined : schemeError(url)
       if (invalid) throw new Error(invalid)
-      const { targetId } = await cdp.send("Target.createTarget", { url: url ?? "about:blank", background: true, newWindow: true })
+      const { targetId } = await cdp.send("Target.createTarget", {
+        url: url ?? "about:blank",
+        background: true,
+        newWindow: true,
+      })
       return adopt(targetId, url)
     },
     tab: (id) => tabs.get(id),
@@ -102,7 +111,9 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     },
     listTabs: async () => {
       const { targetInfos } = await cdp.send("Target.getTargets")
-      return targetInfos.filter((t) => tabs.has(t.targetId)).map((t) => ({ id: t.targetId, url: t.url, title: t.title }))
+      return targetInfos
+        .filter((t) => tabs.has(t.targetId))
+        .map((t) => ({ id: t.targetId, url: t.url, title: t.title }))
     },
     closed: cdp.closed,
     close: () => cdp.close(),

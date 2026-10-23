@@ -20,7 +20,12 @@ export function AgentThread(props: {
         onClick={() => props.onToggle()}
       >
         <span class="truncate">{threadLabel(props.names, props.count)}</span>
-        <RemixIcon icon={ChevronDownIcon} size={12} class={cn("shrink-0", props.expanded && "rotate-180")} aria-hidden="true" />
+        <RemixIcon
+          icon={ChevronDownIcon}
+          size={12}
+          class={cn("shrink-0", props.expanded && "rotate-180")}
+          aria-hidden="true"
+        />
       </button>
     </SystemRow>
   )

@@ -70,10 +70,7 @@ async function follow(
 
     const headers: Record<string, string> = { accept: "*/*" }
     if (options.userAgent) headers["user-agent"] = options.userAgent
-    const response = await untilAbort(
-      fetcher(url.href, { method: "GET", redirect: "manual", headers, signal }),
-      signal,
-    )
+    const response = await untilAbort(fetcher(url.href, { method: "GET", redirect: "manual", headers, signal }), signal)
     const location = REDIRECT_STATUSES.has(response.status) ? response.headers.get("location") : null
     if (location === null) return read(response, url, signal, options)
 
@@ -168,7 +165,10 @@ async function resolve(host: string, fetcher: Fetcher, signal: AbortSignal, cach
       signal,
     )
     if (!response.ok) return null
-    const answer: unknown = await untilAbort(response.json().catch(() => null), signal)
+    const answer: unknown = await untilAbort(
+      response.json().catch(() => null),
+      signal,
+    )
     if (!isRecord(answer)) return null
     if (answer.Status === NXDOMAIN) return []
     if (answer.Status !== NOERROR) return null

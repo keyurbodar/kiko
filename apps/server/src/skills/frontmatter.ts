@@ -8,5 +8,8 @@ export function parseFrontmatter(content: string): Frontmatter {
   const end = text.indexOf("\n---", 3)
   if (end === -1) return { frontmatter: {}, body: text }
   const parsed = parse(text.slice(4, end)) as unknown
-  return { frontmatter: parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {}, body: text.slice(end + 4).trim() }
+  return {
+    frontmatter: parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {},
+    body: text.slice(end + 4).trim(),
+  }
 }

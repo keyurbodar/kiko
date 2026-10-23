@@ -38,7 +38,8 @@ const MAX_CANDIDATES = 6
 const MIN_CHARS = 12
 const encoder = new TextEncoder()
 
-const NOT_A_FACT = /^(?:can|could|would|will|what|what's|whats|how|why|when|where|who|which|should|do|does|did|is|are|give|tell|show|remind|suggest|help|find|make|write|list|explain|let's|lets|ok|okay|thanks|thank)\b/i
+const NOT_A_FACT =
+  /^(?:can|could|would|will|what|what's|whats|how|why|when|where|who|which|should|do|does|did|is|are|give|tell|show|remind|suggest|help|find|make|write|list|explain|let's|lets|ok|okay|thanks|thank)\b/i
 
 export function candidates(text: string): string[] {
   const out: string[] = []
@@ -59,12 +60,20 @@ const RULES = {
     true: "a lasting fact about the human worth remembering for months: who they are, their people, places, work, plans, preferences, or how they want to be helped",
     false: "small talk, a passing mood, a question, or a request to the agent",
   },
-  standing: { true: "a rule for how to help the human from now on", false: "a request about the current message only, or no rule at all" },
+  standing: {
+    true: "a rule for how to help the human from now on",
+    false: "a request about the current message only, or no rule at all",
+  },
   private: {
     true: "a street address, phone number, government id, account number, password, pin or key, a medical diagnosis, condition, or medication, or something they asked to keep secret",
-    false: "none of these. A city, employer, job, who someone is to them, tastes, and food allergies or diets are not private",
+    false:
+      "none of these. A city, employer, job, who someone is to them, tastes, and food allergies or diets are not private",
   },
-  same: { true: "the same fact, maybe in other words", false: "a different fact. A different name, person, place, or detail makes it a different fact, even when the sentences look alike" },
+  same: {
+    true: "the same fact, maybe in other words",
+    false:
+      "a different fact. A different name, person, place, or detail makes it a different fact, even when the sentences look alike",
+  },
   replaces: {
     true: "an update or correction of the same detail about the same person, place, or thing, so the known fact is no longer true",
     false: "both can be true at once, or they are about different people, places, or things",
@@ -86,13 +95,33 @@ function captureQuestions(items: readonly CaptureItem[]): { state: JsonObject; q
   const questions: Record<string, Question> = {}
   items.forEach(({ known }, i) => {
     const c = `\`candidates[${i}].text\``
-    questions[`c${i}_worth`] = { type: "bool", instructions: `Is ${c} a lasting fact about the human worth remembering for months? Judge by \`rules.worth\`.`, criteria: YES_NO }
-    questions[`c${i}_standing`] = { type: "bool", instructions: `Is ${c} a standing rule for how to help the human from now on? Judge by \`rules.standing\`.`, criteria: YES_NO }
-    questions[`c${i}_private`] = { type: "bool", instructions: `Does ${c} hold a private detail about the human? Judge by \`rules.private\`.`, criteria: YES_NO }
+    questions[`c${i}_worth`] = {
+      type: "bool",
+      instructions: `Is ${c} a lasting fact about the human worth remembering for months? Judge by \`rules.worth\`.`,
+      criteria: YES_NO,
+    }
+    questions[`c${i}_standing`] = {
+      type: "bool",
+      instructions: `Is ${c} a standing rule for how to help the human from now on? Judge by \`rules.standing\`.`,
+      criteria: YES_NO,
+    }
+    questions[`c${i}_private`] = {
+      type: "bool",
+      instructions: `Does ${c} hold a private detail about the human? Judge by \`rules.private\`.`,
+      criteria: YES_NO,
+    }
     for (const k of known) {
       const fact = `this known fact: ${JSON.stringify(k.text)}`
-      questions[`c${i}_same_${k.pos}`] = { type: "bool", instructions: `Does ${c} state the very same fact as ${fact}: the same person, place, or thing, and the same detail about it? Judge by \`rules.same\`.`, criteria: YES_NO }
-      questions[`c${i}_replaces_${k.pos}`] = { type: "bool", instructions: `Does ${c} make ${fact} no longer true? Judge by \`rules.replaces\`.`, criteria: YES_NO }
+      questions[`c${i}_same_${k.pos}`] = {
+        type: "bool",
+        instructions: `Does ${c} state the very same fact as ${fact}: the same person, place, or thing, and the same detail about it? Judge by \`rules.same\`.`,
+        criteria: YES_NO,
+      }
+      questions[`c${i}_replaces_${k.pos}`] = {
+        type: "bool",
+        instructions: `Does ${c} make ${fact} no longer true? Judge by \`rules.replaces\`.`,
+        criteria: YES_NO,
+      }
     }
     questions[`c${i}_card`] = {
       type: "choice",
@@ -106,9 +135,19 @@ function captureQuestions(items: readonly CaptureItem[]): { state: JsonObject; q
 
 type CaptureRow = { heard: Heard; ref: string; keep?: () => boolean }
 
-export async function captureWithJudge(life: Life, judge: Judge, rows: readonly CaptureRow[]): Promise<CaptureCount | null> {
+export async function captureWithJudge(
+  life: Life,
+  judge: Judge,
+  rows: readonly CaptureRow[],
+): Promise<CaptureCount | null> {
   const count: CaptureCount = { added: 0, replaced: 0, same: 0, private: 0 }
-  const items = rows.flatMap((row, message) => candidates(row.heard.text).map((candidate) => ({ message, candidate, known: life.nearest(candidate, NEIGHBORS).map((l) => ({ pos: l.pos, text: l.text })) })))
+  const items = rows.flatMap((row, message) =>
+    candidates(row.heard.text).map((candidate) => ({
+      message,
+      candidate,
+      known: life.nearest(candidate, NEIGHBORS).map((l) => ({ pos: l.pos, text: l.text })),
+    })),
+  )
   if (!items.length) return count
   const { state, questions } = captureQuestions(items)
   const answers = await judge(state, questions)
@@ -134,7 +173,15 @@ export async function captureWithJudge(life: Life, judge: Judge, rows: readonly 
   return count
 }
 
-function store(life: Life, text: string, card: CardTag | null, at: number, ref: string, replaces: readonly number[], count: CaptureCount): void {
+function store(
+  life: Life,
+  text: string,
+  card: CardTag | null,
+  at: number,
+  ref: string,
+  replaces: readonly number[],
+  count: CaptureCount,
+): void {
   const out = life.append(text, SOURCE, at, { ref, card })
   if (!out.ok) return
   const superseded = replaces.filter((pos) => life.supersede(pos, out.pos)).length

@@ -6,7 +6,9 @@ import { refusalText } from "./model"
 export function useRefusalToasts() {
   createEffect(() => {
     if (!useApp.room()) return
-    const off = useApp.onMemberRefused((op, reason) => showToastV2({ title: refusalText(op, reason), variant: "error" }))
+    const off = useApp.onMemberRefused((op, reason) =>
+      showToastV2({ title: refusalText(op, reason), variant: "error" }),
+    )
     onCleanup(off)
   })
 }

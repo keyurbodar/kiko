@@ -44,7 +44,14 @@ export function MessageActions(props: {
     const measure = () => {
       if (open()) return
       const scroller = row.closest<HTMLElement>('[data-component="chat-scroll"]') ?? document.documentElement
-      setPlacement(actionsPlacement(props.side, bubble.getBoundingClientRect(), scroller.getBoundingClientRect(), props.reserve ?? 0))
+      setPlacement(
+        actionsPlacement(
+          props.side,
+          bubble.getBoundingClientRect(),
+          scroller.getBoundingClientRect(),
+          props.reserve ?? 0,
+        ),
+      )
     }
     row.addEventListener("pointerenter", measure)
     row.addEventListener("focusin", measure)
@@ -82,7 +89,10 @@ export function MessageActions(props: {
               "top-0 -translate-y-[80%] rounded-full border border-border bg-popover p-0.5 shadow-sm",
               props.side === "user" ? "right-2 flex-row-reverse" : "left-2",
             )
-          : cn("top-1/2 -translate-y-1/2", props.side === "user" ? "right-full mr-1.5 flex-row-reverse" : "left-full ml-1.5"),
+          : cn(
+              "top-1/2 -translate-y-1/2",
+              props.side === "user" ? "right-full mr-1.5 flex-row-reverse" : "left-full ml-1.5",
+            ),
       )}
       style={props.reserve && placement() === "outside" ? { "margin-left": `${6 + props.reserve}px` } : undefined}
       data-component="chat-actions"

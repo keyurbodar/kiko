@@ -48,14 +48,22 @@ async function accessToken(deps: UpdateDeps, grant: CfGrant): Promise<string> {
     res = await deps.fetch(deps.config.oauthUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: grant.refreshToken as string, client_id: grant.clientId as string }),
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: grant.refreshToken as string,
+        client_id: grant.clientId as string,
+      }),
     })
   } catch {
     throw new UpdateFailure("Cloudflare could not be reached. Try again.")
   }
   const body = (await res.json().catch(() => null)) as { access_token?: string; refresh_token?: string } | null
   if (!res.ok || !body?.access_token) throw new UpdateFailure(`Cloudflare refused the saved sign-in. ${RECONNECT}`)
-  await deps.saveGrant({ ...grant, accessToken: body.access_token, refreshToken: body.refresh_token ?? grant.refreshToken })
+  await deps.saveGrant({
+    ...grant,
+    accessToken: body.access_token,
+    refreshToken: body.refresh_token ?? grant.refreshToken,
+  })
   return body.access_token
 }
 
@@ -68,16 +76,25 @@ async function cf<T>(deps: UpdateDeps, token: string, path: string, init: Reques
   } catch {
     throw new UpdateFailure("Cloudflare could not be reached. Try again.")
   }
-  const body = (await res.json().catch(() => null)) as { success?: boolean; result?: T; errors?: { message?: string }[] } | null
-  if (res.status === 401 || res.status === 403) throw new UpdateFailure(`Cloudflare refused the saved sign-in. ${RECONNECT}`)
-  if (!res.ok || !body?.success) throw new UpdateFailure(body?.errors?.[0]?.message ?? `Cloudflare answered ${res.status}.`)
+  const body = (await res.json().catch(() => null)) as {
+    success?: boolean
+    result?: T
+    errors?: { message?: string }[]
+  } | null
+  if (res.status === 401 || res.status === 403)
+    throw new UpdateFailure(`Cloudflare refused the saved sign-in. ${RECONNECT}`)
+  if (!res.ok || !body?.success)
+    throw new UpdateFailure(body?.errors?.[0]?.message ?? `Cloudflare answered ${res.status}.`)
   return body.result as T
 }
 
 export async function runUpdate(deps: UpdateDeps, version: string): Promise<void> {
   try {
     deps.report("checking")
-    const { manifest, files } = await loadVerifiedRelease({ baseUrl: deps.config.releaseBase, publicKey: deps.config.publicKey, version }, (url) => deps.fetch(url))
+    const { manifest, files } = await loadVerifiedRelease(
+      { baseUrl: deps.config.releaseBase, publicKey: deps.config.publicKey, version },
+      (url) => deps.fetch(url),
+    )
 
     deps.report("authorizing")
     const grant = await deps.loadGrant()
@@ -85,7 +102,11 @@ export async function runUpdate(deps: UpdateDeps, version: string): Promise<void
     const token = await accessToken(deps, grant)
 
     deps.report("uploading")
-    const scripts = await cf<{ id: string; migration_tag?: string }[]>(deps, token, `/accounts/${grant.accountId}/workers/scripts`)
+    const scripts = await cf<{ id: string; migration_tag?: string }[]>(
+      deps,
+      token,
+      `/accounts/${grant.accountId}/workers/scripts`,
+    )
     const own = scripts.find((s) => s.id === grant.scriptName)
     if (!own) throw new UpdateFailure("This backend was not found in your Cloudflare account.")
     let migrations: ReturnType<typeof selectMigrations>
@@ -94,14 +115,26 @@ export async function runUpdate(deps: UpdateDeps, version: string): Promise<void
     } catch (e) {
       throw new UpdateFailure(e instanceof Error ? e.message : "The release does not fit this backend.")
     }
-    if (destructiveMigration(migrations)) throw new UpdateFailure("This release resets the backend's stored data. Export your data, then reconnect Cloudflare in the installer to review and confirm the reset.")
-    const settings = await cf<{ bindings?: { name: string; type: string }[] }>(deps, token, `/accounts/${grant.accountId}/workers/scripts/${grant.scriptName}/settings`)
-    const inheritedR2 = settings.bindings?.filter((binding) => binding.type === "r2_bucket").map((binding) => binding.name) ?? []
-    await cf(deps, token, `/accounts/${grant.accountId}/workers/scripts/${grant.scriptName}`, { method: "PUT", body: uploadBody(manifest, files, buildMetadata(manifest, migrations, null, "inherit", inheritedR2)) })
+    if (destructiveMigration(migrations))
+      throw new UpdateFailure(
+        "This release resets the backend's stored data. Export your data, then reconnect Cloudflare in the installer to review and confirm the reset.",
+      )
+    const settings = await cf<{ bindings?: { name: string; type: string }[] }>(
+      deps,
+      token,
+      `/accounts/${grant.accountId}/workers/scripts/${grant.scriptName}/settings`,
+    )
+    const inheritedR2 =
+      settings.bindings?.filter((binding) => binding.type === "r2_bucket").map((binding) => binding.name) ?? []
+    await cf(deps, token, `/accounts/${grant.accountId}/workers/scripts/${grant.scriptName}`, {
+      method: "PUT",
+      body: uploadBody(manifest, files, buildMetadata(manifest, migrations, null, "inherit", inheritedR2)),
+    })
 
     deps.report("restarting")
   } catch (e) {
-    const message = e instanceof UpdateFailure || e instanceof ReleaseRefused ? e.message : "The update failed. Try again."
+    const message =
+      e instanceof UpdateFailure || e instanceof ReleaseRefused ? e.message : "The update failed. Try again."
     deps.report("failed", message)
   }
 }
@@ -118,7 +151,9 @@ export async function sealGrant(keyring: Keyring, userId: string, grant: CfGrant
 export async function openGrant(keyring: Keyring, userId: string, stored: string): Promise<CfGrant | null> {
   try {
     const row = JSON.parse(stored) as { k: number; iv: string; ct: string }
-    return parseGrant(await open(keyring, userId, AAD, { kekVersion: row.k, iv: unb64(row.iv), ciphertext: unb64(row.ct) }))
+    return parseGrant(
+      await open(keyring, userId, AAD, { kekVersion: row.k, iv: unb64(row.iv), ciphertext: unb64(row.ct) }),
+    )
   } catch {
     return null
   }

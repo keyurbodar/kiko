@@ -1,7 +1,18 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CopyIcon, EditIcon, ExternalIcon, LinkIcon, PinIcon, ReactIcon, ReplyIcon, ShareIcon, TrashIcon, UnpinIcon } from "@kiko/ui/icons"
+import {
+  CopyIcon,
+  EditIcon,
+  ExternalIcon,
+  LinkIcon,
+  PinIcon,
+  ReactIcon,
+  ReplyIcon,
+  ShareIcon,
+  TrashIcon,
+  UnpinIcon,
+} from "@kiko/ui/icons"
 import { createSignal, For, lazy, Show, Suspense } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { MessageMenuProps } from "./MessageMenu"
@@ -19,7 +30,8 @@ const QUICK_COUNT = 5
 
 export default function MessageMenu(props: MessageMenuProps) {
   const [pickerOpen, setPickerOpen] = createSignal(false)
-  const link = () => richTextSegments(props.message.body).find((s) => s.kind === "url" && !s.suspicious && s.href)?.href ?? null
+  const link = () =>
+    richTextSegments(props.message.body).find((s) => s.kind === "url" && !s.suspicious && s.href)?.href ?? null
   const openLink = () => {
     const url = link()
     if (url) window.open(url, "_blank", "noopener,noreferrer")
@@ -30,8 +42,7 @@ export default function MessageMenu(props: MessageMenuProps) {
     if (!url) return
     try {
       await navigator.share({ url })
-    } catch {
-    }
+    } catch {}
   }
   const copy = async (text = props.message.body, done = "Copied") => {
     try {
@@ -71,123 +82,120 @@ export default function MessageMenu(props: MessageMenuProps) {
           )}
           data-component="chat-menu"
         >
-        <Show
-          when={pickerOpen()}
-          fallback={
-            <>
-              <div class="chat-menu__quick flex items-center gap-0.5 px-0.5 pt-0.5 pb-1">
-                <For each={recentEmoji().slice(0, QUICK_COUNT)}>
-                  {(emoji) => (
-                    <button
-                      type="button"
-                      class={cn(
-                        "chat-menu__emoji flex size-8 items-center justify-center rounded-lg p-0 font-emoji text-[20px] leading-none",
-                        "cursor-default border-none bg-transparent",
-                        "hover:bg-[var(--accent-strong)]",
-                        "focus-visible:bg-[var(--accent-strong)]",
-                        "active:scale-[0.92]",
-                      )}
-                      data-emoji={emoji}
-                      aria-label={`React with ${emoji}`}
-                      onClick={() => {
-                        recordRecent(emoji)
-                        props.onReact(emoji)
-                      }}
-                    >
-                      {emoji}
-                    </button>
-                  )}
-                </For>
-                <button
-                  type="button"
-                  class={cn(
-                    "chat-menu__more ml-auto flex size-8 items-center justify-center rounded-lg p-0",
-                    "cursor-default border-none bg-transparent text-muted-foreground",
-                    "hover:bg-[var(--accent-strong)]",
-                    "hover:text-foreground focus-visible:bg-[var(--accent-strong)]",
-                    "focus-visible:text-foreground",
-                  )}
-                  aria-label="More emoji"
-                  aria-expanded={pickerOpen()}
-                  onClick={() => setPickerOpen(true)}
-                >
-                  <RemixIcon icon={ReactIcon} class="size-3.5" />
-                </button>
-              </div>
-              <MenuV2.Separator />
-              <Show when={link()}>
-                {(url) => (
-                  <>
-                    <MenuV2.Item onSelect={openLink}>
-                      <RemixIcon icon={ExternalIcon} class="size-3.5 shrink-0" />
-                      Open link
-                    </MenuV2.Item>
-                    <MenuV2.Item onSelect={() => void copy(url(), "Link copied")}>
-                      <RemixIcon icon={LinkIcon} class="size-3.5 shrink-0" />
-                      Copy link
-                    </MenuV2.Item>
-
-                    <Show when={canShare}>
-                      <MenuV2.Item onSelect={() => void shareLink()}>
-                        <RemixIcon icon={ShareIcon} class="size-3.5 shrink-0" />
-                        Share link
-                      </MenuV2.Item>
-                    </Show>
-                    <MenuV2.Separator />
-                  </>
-                )}
-              </Show>
-              <MenuV2.Item onSelect={props.onReply}>
-                <RemixIcon icon={ReplyIcon} class="size-3.5 shrink-0" />
-                Reply
-              </MenuV2.Item>
-              <MenuV2.Item onSelect={() => void copy()}>
-                <RemixIcon icon={CopyIcon} class="size-3.5 shrink-0" />
-                Copy
-              </MenuV2.Item>
-              <Show when={props.onTogglePin}>
-                <MenuV2.Item onSelect={props.onTogglePin}>
-                  <RemixIcon icon={props.pinned ? UnpinIcon : PinIcon} class="size-3.5 shrink-0" />
-                  {props.pinned ? "Unpin" : "Pin"}
-                </MenuV2.Item>
-              </Show>
-
-              <Show when={props.onEdit !== undefined || props.onDelete !== undefined}>
+          <Show
+            when={pickerOpen()}
+            fallback={
+              <>
+                <div class="chat-menu__quick flex items-center gap-0.5 px-0.5 pt-0.5 pb-1">
+                  <For each={recentEmoji().slice(0, QUICK_COUNT)}>
+                    {(emoji) => (
+                      <button
+                        type="button"
+                        class={cn(
+                          "chat-menu__emoji flex size-8 items-center justify-center rounded-lg p-0 font-emoji text-[20px] leading-none",
+                          "cursor-default border-none bg-transparent",
+                          "hover:bg-[var(--accent-strong)]",
+                          "focus-visible:bg-[var(--accent-strong)]",
+                          "active:scale-[0.92]",
+                        )}
+                        data-emoji={emoji}
+                        aria-label={`React with ${emoji}`}
+                        onClick={() => {
+                          recordRecent(emoji)
+                          props.onReact(emoji)
+                        }}
+                      >
+                        {emoji}
+                      </button>
+                    )}
+                  </For>
+                  <button
+                    type="button"
+                    class={cn(
+                      "chat-menu__more ml-auto flex size-8 items-center justify-center rounded-lg p-0",
+                      "cursor-default border-none bg-transparent text-muted-foreground",
+                      "hover:bg-[var(--accent-strong)]",
+                      "hover:text-foreground focus-visible:bg-[var(--accent-strong)]",
+                      "focus-visible:text-foreground",
+                    )}
+                    aria-label="More emoji"
+                    aria-expanded={pickerOpen()}
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    <RemixIcon icon={ReactIcon} class="size-3.5" />
+                  </button>
+                </div>
                 <MenuV2.Separator />
-              </Show>
-              <Show when={props.side === "user" && props.onEdit}>
-                <MenuV2.Item onSelect={props.onEdit}>
-                  <RemixIcon icon={EditIcon} class="size-3.5 shrink-0" />
-                  Edit
-                </MenuV2.Item>
-              </Show>
-              <Show when={props.onDelete}>
-                <MenuV2.Item
-                  class={cn(
-                    "chat-menu__danger text-error [&_svg]:!text-[var(--error)]",
-                  )}
-                  onSelect={props.onDelete}
-                >
-                  <RemixIcon icon={TrashIcon} class="size-3.5 shrink-0" />
-                  Delete
-                </MenuV2.Item>
-              </Show>
-            </>
-          }
-        >
+                <Show when={link()}>
+                  {(url) => (
+                    <>
+                      <MenuV2.Item onSelect={openLink}>
+                        <RemixIcon icon={ExternalIcon} class="size-3.5 shrink-0" />
+                        Open link
+                      </MenuV2.Item>
+                      <MenuV2.Item onSelect={() => void copy(url(), "Link copied")}>
+                        <RemixIcon icon={LinkIcon} class="size-3.5 shrink-0" />
+                        Copy link
+                      </MenuV2.Item>
 
-          <div class="chat-menu__picker">
-            <Suspense>
-              <EmojiPicker
-                class="bg-transparent shadow-none"
-                onSelect={(emoji) => {
-                  props.onReact(emoji)
-                  setPickerOpen(false)
-                }}
-              />
-            </Suspense>
-          </div>
-        </Show>
+                      <Show when={canShare}>
+                        <MenuV2.Item onSelect={() => void shareLink()}>
+                          <RemixIcon icon={ShareIcon} class="size-3.5 shrink-0" />
+                          Share link
+                        </MenuV2.Item>
+                      </Show>
+                      <MenuV2.Separator />
+                    </>
+                  )}
+                </Show>
+                <MenuV2.Item onSelect={props.onReply}>
+                  <RemixIcon icon={ReplyIcon} class="size-3.5 shrink-0" />
+                  Reply
+                </MenuV2.Item>
+                <MenuV2.Item onSelect={() => void copy()}>
+                  <RemixIcon icon={CopyIcon} class="size-3.5 shrink-0" />
+                  Copy
+                </MenuV2.Item>
+                <Show when={props.onTogglePin}>
+                  <MenuV2.Item onSelect={props.onTogglePin}>
+                    <RemixIcon icon={props.pinned ? UnpinIcon : PinIcon} class="size-3.5 shrink-0" />
+                    {props.pinned ? "Unpin" : "Pin"}
+                  </MenuV2.Item>
+                </Show>
+
+                <Show when={props.onEdit !== undefined || props.onDelete !== undefined}>
+                  <MenuV2.Separator />
+                </Show>
+                <Show when={props.side === "user" && props.onEdit}>
+                  <MenuV2.Item onSelect={props.onEdit}>
+                    <RemixIcon icon={EditIcon} class="size-3.5 shrink-0" />
+                    Edit
+                  </MenuV2.Item>
+                </Show>
+                <Show when={props.onDelete}>
+                  <MenuV2.Item
+                    class={cn("chat-menu__danger text-error [&_svg]:!text-[var(--error)]")}
+                    onSelect={props.onDelete}
+                  >
+                    <RemixIcon icon={TrashIcon} class="size-3.5 shrink-0" />
+                    Delete
+                  </MenuV2.Item>
+                </Show>
+              </>
+            }
+          >
+            <div class="chat-menu__picker">
+              <Suspense>
+                <EmojiPicker
+                  class="bg-transparent shadow-none"
+                  onSelect={(emoji) => {
+                    props.onReact(emoji)
+                    setPickerOpen(false)
+                  }}
+                />
+              </Suspense>
+            </div>
+          </Show>
         </MenuV2.Context.Content>
       </MenuV2.Context.Portal>
     </MenuV2.Context>

@@ -19,12 +19,15 @@ export async function devBrowserRoute(request: Request, env: Env): Promise<Respo
       const roomId = body?.roomId
       const reason = body?.reason
       const mode = body?.mode === "control" ? "control" : "watch"
-      if (typeof roomId !== "string" || (reason !== undefined && typeof reason !== "string")) return Response.json({ error: "roomId required" }, { status: 400 })
+      if (typeof roomId !== "string" || (reason !== undefined && typeof reason !== "string"))
+        return Response.json({ error: "roomId required" }, { status: 400 })
       const out = await stub.userCall("browserLive", [agentId, roomId, mode, reason])
       return Response.json(out.ok ? { ok: true, posted: out.posted } : out)
     }
     const tabs = body?.tabs
-    return Response.json({ ok: await stub.userCall("browserTouch", [agentId, tabs as Record<string, string> | undefined]) })
+    return Response.json({
+      ok: await stub.userCall("browserTouch", [agentId, tabs as Record<string, string> | undefined]),
+    })
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 409 })
   }

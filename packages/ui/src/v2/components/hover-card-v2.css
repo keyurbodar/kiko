@@ -1,6 +1,4 @@
-
 @layer v2 {
-
   [data-popper-positioner]:has([data-component="hover-card-v2-content"]) {
     z-index: 50;
 
@@ -35,10 +33,6 @@
     text-rendering: geometricPrecision;
 
     transform-origin: var(--kb-hovercard-content-transform-origin);
-
-
-
-
 
     &:focus-visible {
       outline: none;

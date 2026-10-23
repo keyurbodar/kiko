@@ -39,7 +39,11 @@ export class Channel<In, Out> {
     const socket = new WebSocket(this.target, { headers } as never)
     this.socket = socket
     let ready: (() => void) | undefined
-    const userReady = this.roomId ? new Promise<void>((resolve) => { ready = resolve }) : null
+    const userReady = this.roomId
+      ? new Promise<void>((resolve) => {
+          ready = resolve
+        })
+      : null
     socket.onmessage = (ev) => {
       const text = typeof ev.data === "string" ? ev.data : new TextDecoder().decode(ev.data as ArrayBuffer)
       let frame: unknown = text
@@ -169,7 +173,10 @@ export class Channel<In, Out> {
       typeof match === "function" ? `a frame where ${match.toString()}` : `a frame like ${JSON.stringify(match)}`
     const last = this.log
       .slice(-20)
-      .map((e) => `  ${String(e.at).padStart(6)}ms ${e.dir === "out" ? "->" : e.dir === "in" ? "<-" : "!!"} ${JSON.stringify(e.frame)}`)
+      .map(
+        (e) =>
+          `  ${String(e.at).padStart(6)}ms ${e.dir === "out" ? "->" : e.dir === "in" ? "<-" : "!!"} ${JSON.stringify(e.frame)}`,
+      )
     return [
       `${this.label}: timed out after ${timeout}ms waiting for ${want}`,
       `last ${last.length} frames:`,
@@ -239,7 +246,11 @@ export async function connectTestModel(s: Session): Promise<void> {
   await s.connectProvider(TEST_PROVIDER, key)
   const user = await s.user()
   user.send({ t: "agent_model", slug: "kiko" as AgentSlug, ref: TEST_MODEL })
-  await user.expect((f) => (f.t === "reset" && f.snapshot.agentModels?.kiko?.model === TEST_MODEL) || (f.t === "events" && f.events.some((e) => e.t === "agent_model" && e.slug === "kiko" && e.model === TEST_MODEL)))
+  await user.expect(
+    (f) =>
+      (f.t === "reset" && f.snapshot.agentModels?.kiko?.model === TEST_MODEL) ||
+      (f.t === "events" && f.events.some((e) => e.t === "agent_model" && e.slug === "kiko" && e.model === TEST_MODEL)),
+  )
 }
 
 export interface Verifier {
@@ -281,7 +292,8 @@ export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}
   async function credentials(auth: string, method: "PUT" | "DELETE", provider: string, body?: unknown): Promise<void> {
     const res = await fetch(new URL(`api/credentials/${provider}`, url), {
       method,
-      headers: body === undefined ? { authorization: auth } : { authorization: auth, "content-type": "application/json" },
+      headers:
+        body === undefined ? { authorization: auth } : { authorization: auth, "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(20_000),
     })
@@ -311,7 +323,14 @@ export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}
           return user
         },
         async signInSocket() {
-          const socket: UserChannel = new Channel(`${name}/sign-in`, wsUrl("api/ws"), auth, UserToClient, ClientToUser, null)
+          const socket: UserChannel = new Channel(
+            `${name}/sign-in`,
+            wsUrl("api/ws"),
+            auth,
+            UserToClient,
+            ClientToUser,
+            null,
+          )
           open.push(socket)
           await socket.connect()
           return socket
@@ -349,7 +368,11 @@ export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}
         putFile(roomId, path, body, options = {}) {
           return fetch(new URL(`api/files/${roomId}?path=${encodeURIComponent(path)}`, url), {
             method: "PUT",
-            headers: { authorization: auth, "content-type": options.type ?? "text/plain", "x-kiko-if-sha256": options.expect ?? "none" },
+            headers: {
+              authorization: auth,
+              "content-type": options.type ?? "text/plain",
+              "x-kiko-if-sha256": options.expect ?? "none",
+            },
             body,
           })
         },

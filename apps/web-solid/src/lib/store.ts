@@ -1,6 +1,25 @@
 import { chatFaces } from "./identity"
 
-import type { Agent, AgentModel, AgentSlug, RowKind, UserRows, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp, RunStep } from "@kiko/protocol"
+import type {
+  Agent,
+  AgentModel,
+  AgentSlug,
+  RowKind,
+  UserRows,
+  ThinkingLevel,
+  AgentState,
+  Chat,
+  ChatLast,
+  FileRef,
+  Member,
+  MemberOp,
+  MemberRefusal,
+  MessageId,
+  Reaction as WireReaction,
+  RoomId,
+  FileOp,
+  RunStep,
+} from "@kiko/protocol"
 import { fileName, isRoomId, KIKO, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
 import { isListed } from "../sidebar/activity"
 import { clearUnreadMark } from "../sidebar/unread-mark"
@@ -13,7 +32,14 @@ import { isServer } from "solid-js/web"
 import { createPacer } from "../chat/bubble-pacing"
 import { inWindow, newestAfter, parseWindow, stepWindows, windowKey } from "../chat/run/run-log"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
-import { createRoomStore, NO_MORE, type RoomSeed, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
+import {
+  createRoomStore,
+  NO_MORE,
+  type RoomSeed,
+  type RoomStore,
+  type SearchPage,
+  type SendOptions,
+} from "../sync/room-store"
 import { socketUrl } from "./api"
 import { fileUrl } from "./file-token"
 import { browserConnect, type SocketStatus, userChannel } from "../sync/socket"
@@ -80,7 +106,14 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   }
   const chips = reactionChips(m.reactions)
   if (chips) out.reactions = chips
-  if (m.files?.length) out.files = m.files.map((f) => ({ name: fileName(f.name), path: f.name, size: f.size, type: f.type, src: urls.file(roomId, f.id) }))
+  if (m.files?.length)
+    out.files = m.files.map((f) => ({
+      name: fileName(f.name),
+      path: f.name,
+      size: f.size,
+      type: f.type,
+      src: urls.file(roomId, f.id),
+    }))
   else if (m.local?.length) out.files = m.local.map((f) => ({ name: f.name, size: f.size, type: f.type, src: f.src }))
   if (m.from.kind === "human") out.status = m.failed ? "failed" : m.pending ? "sending" : "sent"
   return out
@@ -126,14 +159,31 @@ export function chatRow(chat: Chat, presence: BotPresence = "idle", live: LiveRo
 
 export function viewLast(m: ViewMessage, name: (slug: string) => string): ChatLast {
   const files = m.files ?? m.local
-  return messageLast({ from: m.from.kind, ...(m.from.kind === "agent" ? { name: name(m.from.slug) } : {}), text: m.text, ...(m.rich ? { rich: m.rich, mentionName: name } : {}), ...(files ? { files } : {}), at: m.at })
+  return messageLast({
+    from: m.from.kind,
+    ...(m.from.kind === "agent" ? { name: name(m.from.slug) } : {}),
+    text: m.text,
+    ...(m.rich ? { rich: m.rich, mentionName: name } : {}),
+    ...(files ? { files } : {}),
+    at: m.at,
+  })
 }
 
-export function mentionIds(messages: readonly ViewMessage[], handle: string | null, slugs: readonly string[]): { id: MessageId; seq: number }[] {
+export function mentionIds(
+  messages: readonly ViewMessage[],
+  handle: string | null,
+  slugs: readonly string[],
+): { id: MessageId; seq: number }[] {
   const own = handle && !slugs.includes(handle) ? handle : null
   const human = new Set(messages.filter((m) => m.from.kind === "human").map((m) => m.id))
   return messages
-    .filter((m) => !m.pending && m.from.kind === "agent" && m.to === undefined && mentionsHuman(m.text, own, !!m.replyTo && human.has(m.replyTo)))
+    .filter(
+      (m) =>
+        !m.pending &&
+        m.from.kind === "agent" &&
+        m.to === undefined &&
+        mentionsHuman(m.text, own, !!m.replyTo && human.has(m.replyTo)),
+    )
     .map((m) => ({ id: m.id, seq: m.seq }))
 }
 
@@ -159,7 +209,15 @@ export function sameRow(a: RosterBot, b: RosterBot): boolean {
 }
 
 export function memberRow(member: Member, presence: BotPresence = "idle"): RosterBot {
-  const row: RosterBot = { id: member.slug, name: member.name, preview: "", updatedAt: 0, presence, unread: 0, pinned: false }
+  const row: RosterBot = {
+    id: member.slug,
+    name: member.name,
+    preview: "",
+    updatedAt: 0,
+    presence,
+    unread: 0,
+    pinned: false,
+  }
   if (member.lead) row.persona = "lead"
   return row
 }
@@ -282,7 +340,8 @@ export function createApp() {
     createComputed(() => {
       const r = room()
       const typing = r ? [...r.state.typing] : []
-      const count = (slug: string) => (r ? r.state.messages.filter((m) => m.from.kind === "agent" && m.from.slug === slug).length : 0)
+      const count = (slug: string) =>
+        r ? r.state.messages.filter((m) => m.from.kind === "agent" && m.from.slug === slug).length : 0
       untrack(() => {
         const nowTyping = new Map<string, number>()
         for (const slug of typing) {
@@ -299,7 +358,11 @@ export function createApp() {
           setLingering((l) => l.filter((x) => x !== slug))
         }
         setLingering((l) => [...l.filter((x) => !nowTyping.has(x)), ...quiet.filter((x) => !l.includes(x))])
-        for (const slug of quiet) lingerTimers.set(slug, setTimeout(() => drop(slug), RESTART_GRACE_MS))
+        for (const slug of quiet)
+          lingerTimers.set(
+            slug,
+            setTimeout(() => drop(slug), RESTART_GRACE_MS),
+          )
         if (!r) for (const timer of lingerTimers.values()) clearTimeout(timer)
       })
     })
@@ -364,11 +427,20 @@ export function createApp() {
     }
 
     const chat = (roomId: string | null): Chat | undefined =>
-      roomId === null ? undefined : userStore()?.chats().find((c) => c.roomId === roomId)
+      roomId === null
+        ? undefined
+        : userStore()
+            ?.chats()
+            .find((c) => c.roomId === roomId)
 
     function caughtUp(r: RoomStore): boolean {
       const lastSeq = chat(r.state.roomId)?.lastSeq
-      return r.state.booted && lastSeq !== undefined && r.state.seq >= lastSeq && (lastSeq > 0 || r.state.connection === "open")
+      return (
+        r.state.booted &&
+        lastSeq !== undefined &&
+        r.state.seq >= lastSeq &&
+        (lastSeq > 0 || r.state.connection === "open")
+      )
     }
 
     function freezeAnchor(): void {
@@ -410,7 +482,9 @@ export function createApp() {
         const fresh = newest && (newest.pending || newest.seq > c.lastSeq) ? viewLast(newest, name) : undefined
         row = chatRow(c, presenceOf(false, working ? "working" : undefined), {
           ...(fresh ? { last: fresh } : {}),
-          typing: Object.entries(r.state.status).filter(([, state]) => state === "typing").map(([slug]) => name(slug)),
+          typing: Object.entries(r.state.status)
+            .filter(([, state]) => state === "typing")
+            .map(([slug]) => name(slug)),
           ...(members.length ? { group: members.length > 1 } : {}),
         })
         if (!r.state.history && r.readSeq() >= newestSeq(roomMessages())) {
@@ -443,8 +517,7 @@ export function createApp() {
       const key = lastKey()
       try {
         if (key) localStorage.setItem(key, id)
-      } catch {
-      }
+      } catch {}
       userStore()?.open(id)
     }
     createComputed(() => {
@@ -458,7 +531,13 @@ export function createApp() {
     }
     const roomMentions = shared(() => {
       const r = room()
-      return r ? mentionIds(roomMessages(), handle(), r.members().map((m) => m.slug)) : []
+      return r
+        ? mentionIds(
+            roomMessages(),
+            handle(),
+            r.members().map((m) => m.slug),
+          )
+        : []
     })
     const [unseen, setUnseen] = createSignal<readonly MessageId[]>([])
 
@@ -474,12 +553,19 @@ export function createApp() {
     function members(): RosterBot[] {
       const r = room()
       if (!r) return []
-      return liveMembers(r).map((m) => memberRow(m, presenceOf(r.state.status[m.slug] === "typing", r.state.status[m.slug])))
+      return liveMembers(r).map((m) =>
+        memberRow(m, presenceOf(r.state.status[m.slug] === "typing", r.state.status[m.slug])),
+      )
     }
 
     function send(message: OutgoingMessage, replyTo?: string, quote?: string): string | undefined {
       const r = room()
-      const local: LocalAttachment[] = (message.files ?? []).map((f) => ({ src: f.src, name: f.name, type: f.type, size: f.size }))
+      const local: LocalAttachment[] = (message.files ?? []).map((f) => ({
+        src: f.src,
+        name: f.name,
+        type: f.type,
+        size: f.size,
+      }))
       if (!r || (message.body.trim().length === 0 && local.length === 0)) return undefined
       const stored = replyTo !== undefined && !replyTo.startsWith("local:")
       const opts: SendOptions = stored ? { replyTo: replyTo as MessageId, ...(quote ? { quote } : {}) } : {}
@@ -503,7 +589,16 @@ export function createApp() {
           batch(() => {
             setLocalLast(readLast())
             setDrafts(createDraftBook(warm))
-            setUserStore(createUserStore({ warm, url: urls.owner(), connect: browserConnect, channel, onError: (error, roomId) => seenInChat(roomId, activeId(), document.visibilityState === "visible") || showKikoError(error) }))
+            setUserStore(
+              createUserStore({
+                warm,
+                url: urls.owner(),
+                connect: browserConnect,
+                channel,
+                onError: (error, roomId) =>
+                  seenInChat(roomId, activeId(), document.visibilityState === "visible") || showKikoError(error),
+              }),
+            )
             openRoom(activeId())
           })
         })()
@@ -610,11 +705,16 @@ export function createApp() {
       resumeChat(): RoomId | null {
         const user = userStore()
         if (!user) return null
-        return resumeChat(user.chats(), user.state.loaded && (user.state.synced || user.state.chats.length > 0), [localLast(), user.state.lastChat])
+        return resumeChat(user.chats(), user.state.loaded && (user.state.synced || user.state.chats.length > 0), [
+          localLast(),
+          user.state.lastChat,
+        ])
       },
 
       kikoChatId(): RoomId | undefined {
-        return userStore()?.chats().find((c) => c.kiko)?.roomId
+        return userStore()
+          ?.chats()
+          .find((c) => c.kiko)?.roomId
       },
 
       chat,
@@ -660,7 +760,7 @@ export function createApp() {
         return found
       },
 
-       showingHistory(): boolean {
+      showingHistory(): boolean {
         return !!room()?.state.history
       },
 
@@ -693,7 +793,9 @@ export function createApp() {
       },
 
       chatFaces(roomId: string): string[] {
-        const chat = userStore()?.chats().find((c) => c.roomId === roomId)
+        const chat = userStore()
+          ?.chats()
+          .find((c) => c.roomId === roomId)
         return chatFaces(chat ?? { roomId }, userStore()?.agents() ?? [])
       },
 
@@ -711,7 +813,10 @@ export function createApp() {
         return userStore()?.agentModel(slug)
       },
 
-      setAgentModel(slug: AgentSlug, pick: { ref?: string; thinking?: ThinkingLevel; levels?: readonly ThinkingLevel[] }) {
+      setAgentModel(
+        slug: AgentSlug,
+        pick: { ref?: string; thinking?: ThinkingLevel; levels?: readonly ThinkingLevel[] },
+      ) {
         userStore()?.setAgentModel(slug, { ...pick, ...(room() ? { roomId: room()!.state.roomId } : {}) })
       },
 
@@ -730,7 +835,9 @@ export function createApp() {
 
       typingDoings(): (string | undefined)[] {
         const r = room()
-        return this.typingSlugs().map((slug) => r?.state.doing[slug] ?? (r?.state.status[slug as never] === "working" ? "using a tool" : undefined))
+        return this.typingSlugs().map(
+          (slug) => r?.state.doing[slug] ?? (r?.state.status[slug as never] === "working" ? "using a tool" : undefined),
+        )
       },
 
       runWindow(m: ChatMessage): string | undefined {
@@ -756,7 +863,8 @@ export function createApp() {
       loadRunSteps(key: string, force = false) {
         const r = room()
         const w = windows().get(key)
-        if (r && w && inWindow(r.state.steps[w.slug] ?? [], w.after).length < w.steps) r.requestSteps(w.slug, w.after, force)
+        if (r && w && inWindow(r.state.steps[w.slug] ?? [], w.after).length < w.steps)
+          r.requestSteps(w.slug, w.after, force)
       },
 
       runFetching(key: string): boolean {
@@ -851,10 +959,17 @@ export function createApp() {
       },
 
       row<K extends RowKind>(kind: K, id: string): UserRows[K] | undefined {
-        return userStore()?.rows(kind).find((r) => r.id === id)
+        return userStore()
+          ?.rows(kind)
+          .find((r) => r.id === id)
       },
 
-      editRow<K extends RowKind>(kind: K, id: string, next: UserRows[K] | null, send: () => Promise<boolean>): Promise<boolean> {
+      editRow<K extends RowKind>(
+        kind: K,
+        id: string,
+        next: UserRows[K] | null,
+        send: () => Promise<boolean>,
+      ): Promise<boolean> {
         return userStore()?.editRow(kind, id, next, send) ?? Promise.resolve(false)
       },
 

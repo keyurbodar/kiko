@@ -4,7 +4,9 @@
     background-image:
       linear-gradient(to right, transparent, var(--foreground), transparent),
       linear-gradient(var(--run-text), var(--run-text));
-    background-size: 4.5rem 100%, 100% 100%;
+    background-size:
+      4.5rem 100%,
+      100% 100%;
     background-repeat: no-repeat;
     -webkit-background-clip: text;
     background-clip: text;

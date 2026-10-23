@@ -15,7 +15,12 @@ export function pillLabel(title: string): string {
   return title.replace(/…$/, "")
 }
 
-function beside(a: { left: number; top: number; right: number; bottom: number; width: number; height: number }, side: Side, w: number, h: number): Box {
+function beside(
+  a: { left: number; top: number; right: number; bottom: number; width: number; height: number },
+  side: Side,
+  w: number,
+  h: number,
+): Box {
   const cx = a.left + a.width / 2 - w / 2
   const cy = a.top + a.height / 2 - h / 2
   if (side === "top") return { x: cx, y: a.top - GAP - h, w, h }
@@ -42,14 +47,24 @@ export function place(boxes: readonly Box[], sides: readonly Side[], vw: number,
       const hit = placed.find((p) => overlaps(box, p))
       if (!hit) break
       const next =
-        side === "right" ? { ...box, x: hit.x + hit.w + SPACE }
-        : side === "left" ? { ...box, x: hit.x - SPACE - box.w }
-        : side === "top" ? { ...box, y: hit.y - SPACE - box.h }
-        : { ...box, y: hit.y + hit.h + SPACE }
+        side === "right"
+          ? { ...box, x: hit.x + hit.w + SPACE }
+          : side === "left"
+            ? { ...box, x: hit.x - SPACE - box.w }
+            : side === "top"
+              ? { ...box, y: hit.y - SPACE - box.h }
+              : { ...box, y: hit.y + hit.h + SPACE }
       const clamped = clamp(next, vw, vh)
-      box = clamped.x === box.x && clamped.y === box.y
-        ? clamp(side === "left" || side === "right" ? { ...box, y: hit.y + hit.h + SPACE } : { ...box, x: hit.x + hit.w + SPACE }, vw, vh)
-        : clamped
+      box =
+        clamped.x === box.x && clamped.y === box.y
+          ? clamp(
+              side === "left" || side === "right"
+                ? { ...box, y: hit.y + hit.h + SPACE }
+                : { ...box, x: hit.x + hit.w + SPACE },
+              vw,
+              vh,
+            )
+          : clamped
     }
     placed.push(box)
   })
@@ -57,7 +72,8 @@ export function place(boxes: readonly Box[], sides: readonly Side[], vw: number,
 }
 
 function onScreen(el: HTMLElement, r: DOMRect): boolean {
-  if (r.width === 0 || r.height === 0 || r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return false
+  if (r.width === 0 || r.height === 0 || r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth)
+    return false
   if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return false
   if (el.closest("[inert], [aria-hidden='true']")) return false
   const x = Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1)
@@ -91,7 +107,14 @@ export default function HintLayer() {
   const [boxes, setBoxes] = createSignal<Box[] | null>(null)
   onMount(() => {
     const wanted = pills.map((p, i) => beside(p.anchor, p.side, els[i]!.offsetWidth, els[i]!.offsetHeight))
-    setBoxes(place(wanted, pills.map((p) => p.side), innerWidth, innerHeight))
+    setBoxes(
+      place(
+        wanted,
+        pills.map((p) => p.side),
+        innerWidth,
+        innerHeight,
+      ),
+    )
   })
   return (
     <Show when={paletteStack() === null}>

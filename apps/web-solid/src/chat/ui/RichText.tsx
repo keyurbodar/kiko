@@ -4,12 +4,11 @@ import { EmojiText } from "../../lib/emoji"
 import { richTextSegments } from "../lib/richtext/segments"
 import { Mention } from "./Mention"
 
-const SuspiciousLinkDialog = lazy(() => import("./SuspiciousLinkDialog").then((m) => ({ default: m.SuspiciousLinkDialog })))
+const SuspiciousLinkDialog = lazy(() =>
+  import("./SuspiciousLinkDialog").then((m) => ({ default: m.SuspiciousLinkDialog })),
+)
 
-export function RichText(props: {
-  text?: string
-  class?: string
-}): JSX.Element {
+export function RichText(props: { text?: string; class?: string }): JSX.Element {
   const [maskedHref, setMaskedHref] = createSignal<string | null>(null)
 
   return (

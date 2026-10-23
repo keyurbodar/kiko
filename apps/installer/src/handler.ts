@@ -4,7 +4,16 @@ import { OAUTH_SCOPES, TOKEN_PERMISSIONS, TOKEN_TEMPLATE_URL, type Grant } from 
 
 export type InstallOutcome =
   | { ok: true; value: { backendUrl: string; version: string } }
-  | { ok: false; error: { code: string; message: string; status: number; detail?: string; accounts?: { id: string; name: string }[] } }
+  | {
+      ok: false
+      error: {
+        code: string
+        message: string
+        status: number
+        detail?: string
+        accounts?: { id: string; name: string }[]
+      }
+    }
 
 export type Env = InstallEnv & {
   INSTALLER: {
@@ -19,7 +28,12 @@ type InstallBody = { clerkToken?: unknown; grant?: unknown; accountId?: unknown;
 
 export function allowedOrigin(origin: string | null, trusted: string): string | null {
   if (!origin) return null
-  return trusted.split(",").map((o) => o.trim()).includes(origin) ? origin : null
+  return trusted
+    .split(",")
+    .map((o) => o.trim())
+    .includes(origin)
+    ? origin
+    : null
 }
 
 function reply(body: unknown, status: number, origin: string | null): Response {
@@ -38,8 +52,14 @@ export function cleanToken(raw: string): string {
 
 function parseGrant(value: unknown): Grant | null {
   const g = value as Partial<Record<string, unknown>> | null
-  if (g?.kind === "token" && typeof g.token === "string" && cleanToken(g.token)) return { kind: "token", token: cleanToken(g.token) }
-  if (g?.kind === "oauth" && typeof g.code === "string" && typeof g.verifier === "string" && typeof g.redirectUri === "string") {
+  if (g?.kind === "token" && typeof g.token === "string" && cleanToken(g.token))
+    return { kind: "token", token: cleanToken(g.token) }
+  if (
+    g?.kind === "oauth" &&
+    typeof g.code === "string" &&
+    typeof g.verifier === "string" &&
+    typeof g.redirectUri === "string"
+  ) {
     return { kind: "oauth", code: g.code, verifier: g.verifier, redirectUri: g.redirectUri }
   }
   return null
@@ -49,10 +69,15 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
     const origin = allowedOrigin(request.headers.get("Origin"), env.TRUSTED_ORIGINS)
-    if (request.headers.get("Origin") && !origin) return reply({ error: { code: "origin", message: "This origin is not allowed." } }, 403, null)
+    if (request.headers.get("Origin") && !origin)
+      return reply({ error: { code: "origin", message: "This origin is not allowed." } }, 403, null)
 
     if (request.method === "OPTIONS") {
-      const headers = new Headers({ "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Max-Age": "600" })
+      const headers = new Headers({
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Max-Age": "600",
+      })
       if (origin) {
         headers.set("Access-Control-Allow-Origin", origin)
         headers.set("Vary", "Origin")
@@ -61,7 +86,15 @@ export default {
     }
 
     if (request.method === "GET" && url.pathname === "/oauth/config") {
-      return reply({ clientId: env.CF_OAUTH_CLIENT_ID, authorizeUrl: "https://dash.cloudflare.com/oauth2/auth", scopes: OAUTH_SCOPES }, 200, origin)
+      return reply(
+        {
+          clientId: env.CF_OAUTH_CLIENT_ID,
+          authorizeUrl: "https://dash.cloudflare.com/oauth2/auth",
+          scopes: OAUTH_SCOPES,
+        },
+        200,
+        origin,
+      )
     }
     if (request.method === "GET" && url.pathname === "/token-link") {
       return reply({ url: TOKEN_TEMPLATE_URL, permissions: TOKEN_PERMISSIONS }, 200, origin)
@@ -86,11 +119,16 @@ export default {
       }
       const accountId = typeof body.accountId === "string" ? body.accountId : undefined
       const stub = env.INSTALLER.get(env.INSTALLER.idFromName(sub))
-      const result = await stub.install({ sub, clerkToken: body.clerkToken, grant, accountId, ...(body.reset === "delete-existing-data" ? { reset: "delete-existing-data" as const } : {}) })
+      const result = await stub.install({
+        sub,
+        clerkToken: body.clerkToken,
+        grant,
+        accountId,
+        ...(body.reset === "delete-existing-data" ? { reset: "delete-existing-data" as const } : {}),
+      })
       return reply(result.ok ? result.value : { error: result.error }, result.ok ? 200 : result.error.status, origin)
     }
 
     return reply({ error: { code: "not_found", message: "Not found." } }, 404, origin)
   },
 } satisfies ExportedHandler<Env>
-

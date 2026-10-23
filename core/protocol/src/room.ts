@@ -10,76 +10,98 @@ export type ToolKind = "read" | "edit" | "search" | "run" | "web" | "other"
 type WorkerState = "pending" | "running" | "done" | "failed" | "stopped"
 
 export type WorkerRow = {
-	id: string
-	task: string
-	status: WorkerState
-	step: string | null
-	steps: number
-	startedAt: number
+  id: string
+  task: string
+  status: WorkerState
+  step: string | null
+  steps: number
+  startedAt: number
 }
 
 export type Activity =
-	| { kind: "writing" }
-	| { kind: "tool"; tool: ToolKind; caption: string }
-	| { kind: "failed"; caption: string }
-	| { kind: "background"; workers: readonly WorkerRow[] }
+  | { kind: "writing" }
+  | { kind: "tool"; tool: ToolKind; caption: string }
+  | { kind: "failed"; caption: string }
+  | { kind: "background"; workers: readonly WorkerRow[] }
 
 export type AgentStatus = { slug: AgentSlug; state: AgentState; doing?: string; activity?: Activity }
 
 export type RunStepStatus = "running" | "done" | "failed"
 
 export type RunStep = {
-	id: string
-	runId: string
-	slug: AgentSlug
-	tool: ToolKind
-	name: string
-	note?: true
-	app?: string
-	worker?: { id: string; task: string }
-	label: string
-	input?: string
-	status: RunStepStatus
-	startedAt: number
-	endedAt?: number
-	output?: string
-	after: number
+  id: string
+  runId: string
+  slug: AgentSlug
+  tool: ToolKind
+  name: string
+  note?: true
+  app?: string
+  worker?: { id: string; task: string }
+  label: string
+  input?: string
+  status: RunStepStatus
+  startedAt: number
+  endedAt?: number
+  output?: string
+  after: number
 }
 
 export type SystemEvent =
-	| { kind: "created"; roomId: RoomId; title: string }
-	| { kind: "delegated"; from: AgentSlug; to: AgentSlug; title: string }
-	| { kind: "routine"; title: string }
-	| { kind: "agent_message"; from: AgentSlug; to: AgentSlug }
-	| { kind: "activity"; count: number }
-	| { kind: "routine_created"; agent: AgentSlug; title: string; byAgent?: true; private: true }
-	| { kind: "model_changed"; agent: AgentSlug; model: string; from?: string; private: true }
-	| { kind: "compacted"; agent: AgentSlug; private: true }
-	| { kind: "run_stopped"; agent: AgentSlug; private: true }
-	| { kind: "group_formed"; private: true }
-	| { kind: "member_added"; slug: AgentSlug; name: string; private: true }
-	| { kind: "member_removed"; slug: AgentSlug; name: string; private: true }
-	| { kind: "browser_control"; agent: AgentSlug; reason: string; private: true }
-	| { kind: "run_error"; slug: AgentSlug; reason: RunErrorKind; actions: readonly RunErrorAction[];  provider?: string;  detail?: string; private: true }
+  | { kind: "created"; roomId: RoomId; title: string }
+  | { kind: "delegated"; from: AgentSlug; to: AgentSlug; title: string }
+  | { kind: "routine"; title: string }
+  | { kind: "agent_message"; from: AgentSlug; to: AgentSlug }
+  | { kind: "activity"; count: number }
+  | { kind: "routine_created"; agent: AgentSlug; title: string; byAgent?: true; private: true }
+  | { kind: "model_changed"; agent: AgentSlug; model: string; from?: string; private: true }
+  | { kind: "compacted"; agent: AgentSlug; private: true }
+  | { kind: "run_stopped"; agent: AgentSlug; private: true }
+  | { kind: "group_formed"; private: true }
+  | { kind: "member_added"; slug: AgentSlug; name: string; private: true }
+  | { kind: "member_removed"; slug: AgentSlug; name: string; private: true }
+  | { kind: "browser_control"; agent: AgentSlug; reason: string; private: true }
+  | {
+      kind: "run_error"
+      slug: AgentSlug
+      reason: RunErrorKind
+      actions: readonly RunErrorAction[]
+      provider?: string
+      detail?: string
+      private: true
+    }
 
 export type UnknownSystemEvent = { kind: string }
 
-export type HumanQuestion = { id: string; header: string; question: string; options: readonly { label: string; description?: string; value?: string }[]; multiSelect?: boolean; allowCustomAnswer?: boolean }
+export type HumanQuestion = {
+  id: string
+  header: string
+  question: string
+  options: readonly { label: string; description?: string; value?: string }[]
+  multiSelect?: boolean
+  allowCustomAnswer?: boolean
+}
 export type HumanAnswers = Record<string, string | readonly string[]>
-export type HumanAsk = { id: string; from: AgentSlug; text: string; options?: readonly string[]; questions?: readonly HumanQuestion[]; messageId: MessageId }
+export type HumanAsk = {
+  id: string
+  from: AgentSlug
+  text: string
+  options?: readonly string[]
+  questions?: readonly HumanQuestion[]
+  messageId: MessageId
+}
 
 export type FileRef = {
-	id: string
-	name: string
-	size: number
-	type: string
+  id: string
+  name: string
+  size: number
+  type: string
 }
 
 export type PendingAttachment = {
-	pendingId: string
-	name: string
-	type: string
-	size: number
+  pendingId: string
+  name: string
+  type: string
+  size: number
 }
 
 export type Reaction = { by: Actor; emoji: string }
@@ -89,42 +111,45 @@ export type RunRef = { runId: string; attempt: number; index: number }
 export type ReplyPreview = { seq: number; from: Actor; text: string; gone?: true }
 
 export type Message = {
-	id: MessageId
-	clientId?: string
-	seq: number
-	at: number
-	from: Sender
-	text: string
-	rich?: RichText
-	replyTo?: MessageId
-	reply?: ReplyPreview
-	files?: readonly FileRef[]
-	run?: RunRef
-	editedAt?: number
-	reactions?: readonly Reaction[]
-	goto?: RoomId
-	quote?: string
-	to?: AgentSlug | "all"
-	initiative?: { reason: string }
-	event?: SystemEvent | UnknownSystemEvent
-	steps?: number
-	stepAfter?: number
+  id: MessageId
+  clientId?: string
+  seq: number
+  at: number
+  from: Sender
+  text: string
+  rich?: RichText
+  replyTo?: MessageId
+  reply?: ReplyPreview
+  files?: readonly FileRef[]
+  run?: RunRef
+  editedAt?: number
+  reactions?: readonly Reaction[]
+  goto?: RoomId
+  quote?: string
+  to?: AgentSlug | "all"
+  initiative?: { reason: string }
+  event?: SystemEvent | UnknownSystemEvent
+  steps?: number
+  stepAfter?: number
 }
 
 export type Member = {
-	slug: AgentSlug
-	name: string
-	lead: boolean
-	role?: string
-	model?: string
+  slug: AgentSlug
+  name: string
+  lead: boolean
+  role?: string
+  model?: string
 }
 
 export type MemberOp =
-	| { op: "add"; slug: AgentSlug; name: string; role?: string; model?: string }
-	| { op: "remove"; slug: AgentSlug }
-	| { op: "rename"; slug: AgentSlug; name: string }
+  | { op: "add"; slug: AgentSlug; name: string; role?: string; model?: string }
+  | { op: "remove"; slug: AgentSlug }
+  | { op: "rename"; slug: AgentSlug; name: string }
 
-export type FileOp = { op: "rm"; paths: readonly string[]; recursive?: boolean } | { op: "mv"; from: string; to: string } | { op: "mkdir"; path: string }
+export type FileOp =
+  | { op: "rm"; paths: readonly string[]; recursive?: boolean }
+  | { op: "mv"; from: string; to: string }
+  | { op: "mkdir"; path: string }
 
 type FileRefusal = string
 
@@ -133,51 +158,51 @@ export type MemberRefusal = "limit" | "exists" | "unknown" | "last" | "reserved"
 export type TaskStatus = "todo" | "doing" | "blocked" | "review" | "done" | "cancelled"
 
 export type Task = {
-	id: string
-	title: string
-	status: TaskStatus
-	owner?: AgentSlug
-	dependsOn: readonly string[]
-	note?: string
+  id: string
+  title: string
+  status: TaskStatus
+  owner?: AgentSlug
+  dependsOn: readonly string[]
+  note?: string
 }
 
 export type TaskOp =
-	| { op: "create"; id: string; title: string; owner?: AgentSlug; dependsOn?: readonly string[] }
-	| { op: "update"; id: string; title?: string; status?: TaskStatus; owner?: AgentSlug | null; note?: string }
-	| { op: "delete"; id: string }
+  | { op: "create"; id: string; title: string; owner?: AgentSlug; dependsOn?: readonly string[] }
+  | { op: "update"; id: string; title?: string; status?: TaskStatus; owner?: AgentSlug | null; note?: string }
+  | { op: "delete"; id: string }
 
 type Stored = {
-	seq: number
-	at: number
+  seq: number
+  at: number
 }
 
 export type RoomEvent =
-	| ({ t: "message"; clientId?: string } & Message)
-	| (Stored & { t: "edit"; messageId: MessageId; text: string; rich?: RichText })
-	| (Stored & { t: "delete"; messageIds: readonly MessageId[] })
-	| (Stored & { t: "react"; messageId: MessageId; by: Actor; emoji: string | null })
-	| (Stored & { t: "read"; upTo: number })
-	| (Stored & { t: "member"; member: Member })
-	| (Stored & { t: "member_removed"; slug: AgentSlug })
-	| (Stored & { t: "task"; task: Task })
-	| (Stored & { t: "task_removed"; id: string })
-	| (Stored & { t: "file"; file: FileRef })
-	| (Stored & { t: "file_removed"; ids: readonly string[] })
-	| (Stored & { t: "folders"; folders: readonly string[] })
-	| (Stored & { t: "ask" } & HumanAsk)
-	| (Stored & { t: "ask_resolved"; id: string; how: "answered" | "skipped" })
+  | ({ t: "message"; clientId?: string } & Message)
+  | (Stored & { t: "edit"; messageId: MessageId; text: string; rich?: RichText })
+  | (Stored & { t: "delete"; messageIds: readonly MessageId[] })
+  | (Stored & { t: "react"; messageId: MessageId; by: Actor; emoji: string | null })
+  | (Stored & { t: "read"; upTo: number })
+  | (Stored & { t: "member"; member: Member })
+  | (Stored & { t: "member_removed"; slug: AgentSlug })
+  | (Stored & { t: "task"; task: Task })
+  | (Stored & { t: "task_removed"; id: string })
+  | (Stored & { t: "file"; file: FileRef })
+  | (Stored & { t: "file_removed"; ids: readonly string[] })
+  | (Stored & { t: "folders"; folders: readonly string[] })
+  | (Stored & { t: "ask" } & HumanAsk)
+  | (Stored & { t: "ask_resolved"; id: string; how: "answered" | "skipped" })
 
 export type RoomSnapshot = {
-	seq: number
-	readSeq: number
-	members: readonly Member[]
-	messages: readonly Message[]
-	tasks: readonly Task[]
-	files: readonly FileRef[]
-	folders: readonly string[]
-	agents?: readonly AgentStatus[]
-	asks?: readonly HumanAsk[]
-	steps?: readonly RunStep[]
+  seq: number
+  readSeq: number
+  members: readonly Member[]
+  messages: readonly Message[]
+  tasks: readonly Task[]
+  files: readonly FileRef[]
+  folders: readonly string[]
+  agents?: readonly AgentStatus[]
+  asks?: readonly HumanAsk[]
+  steps?: readonly RunStep[]
 }
 
 export type SearchHit = { id: MessageId; seq: number; at: number; from: Sender; snippet: string }
@@ -187,42 +212,63 @@ export type ChatSearchHit = SearchHit & { roomId: RoomId }
 export type ChatSearchPage = { results: readonly ChatSearchHit[]; next: number | null; partial: boolean }
 
 export type ClientToRoom =
-	| { t: "hello"; lastSeq: number }
-	| { t: "send"; clientId: string; text: string; replyTo?: MessageId; quote?: string; attachments?: readonly PendingAttachment[] }
-	| { t: "react"; messageId: MessageId; emoji: string | null }
-	| { t: "edit"; messageId: MessageId; text: string }
-	| { t: "delete"; messageId: MessageId }
-	| { t: "read"; seq: number }
-	| { t: "typing" }
-	| { t: "stop" }
-	| { t: "model"; ref: string; slug?: AgentSlug }
-	| { t: "task"; op: TaskOp }
-	| { t: "member"; op: MemberOp }
-	| { t: "files"; op: FileOp }
-	| { t: "search"; query: string; before?: number; limit?: number }
-	| { t: "history"; seq: number; before: number; after: number }
-	| { t: "answer"; id: string; value: string | HumanAnswers }
-	| { t: "skip"; id: string }
-	| { t: "retry"; messageId: MessageId }
-	| { t: "steps"; slug: AgentSlug; after: number }
+  | { t: "hello"; lastSeq: number }
+  | {
+      t: "send"
+      clientId: string
+      text: string
+      replyTo?: MessageId
+      quote?: string
+      attachments?: readonly PendingAttachment[]
+    }
+  | { t: "react"; messageId: MessageId; emoji: string | null }
+  | { t: "edit"; messageId: MessageId; text: string }
+  | { t: "delete"; messageId: MessageId }
+  | { t: "read"; seq: number }
+  | { t: "typing" }
+  | { t: "stop" }
+  | { t: "model"; ref: string; slug?: AgentSlug }
+  | { t: "task"; op: TaskOp }
+  | { t: "member"; op: MemberOp }
+  | { t: "files"; op: FileOp }
+  | { t: "search"; query: string; before?: number; limit?: number }
+  | { t: "history"; seq: number; before: number; after: number }
+  | { t: "answer"; id: string; value: string | HumanAnswers }
+  | { t: "skip"; id: string }
+  | { t: "retry"; messageId: MessageId }
+  | { t: "steps"; slug: AgentSlug; after: number }
 
-export type RunErrorKind = "no_key" | "signed_out" | "no_model" | "invalid_key" | "quota" | "rate_limit" | "model_not_found" | "network" | "overloaded" | "timeout" | "cut_off" | "refused" | "too_long" | "other"
+export type RunErrorKind =
+  | "no_key"
+  | "signed_out"
+  | "no_model"
+  | "invalid_key"
+  | "quota"
+  | "rate_limit"
+  | "model_not_found"
+  | "network"
+  | "overloaded"
+  | "timeout"
+  | "cut_off"
+  | "refused"
+  | "too_long"
+  | "other"
 
 export type RunErrorAction = "retry" | "change_model" | "open_settings"
 
 export type RoomToClient =
-	| { t: "events"; events: readonly RoomEvent[] }
-	| { t: "ack"; clientId: string; id: MessageId; seq: number }
-	| { t: "reset"; snapshot: RoomSnapshot }
-	| { t: "typing"; who: readonly AgentSlug[] }
-	| { t: "draft"; slug: AgentSlug; runId: string; index: number; text: string }
-	| ({ t: "status" } & AgentStatus)
-	| { t: "step"; step: RunStep }
-	| { t: "steps"; slug: AgentSlug; after: number; steps: readonly RunStep[] }
-	| { t: "member_refused"; op: MemberOp; reason: MemberRefusal }
-	| { t: "send_refused"; clientId: string; reason: string }
-	| { t: "task_refused"; op: TaskOp; reason: string }
-	| { t: "error"; error: KikoError }
-	| { t: "files_refused"; op: FileOp; reason: FileRefusal }
-	| { t: "search"; query: string; before?: number; results: readonly SearchHit[]; next: number | null }
-	| { t: "history"; seq: number; before: number; after: number; messages: readonly Message[] }
+  | { t: "events"; events: readonly RoomEvent[] }
+  | { t: "ack"; clientId: string; id: MessageId; seq: number }
+  | { t: "reset"; snapshot: RoomSnapshot }
+  | { t: "typing"; who: readonly AgentSlug[] }
+  | { t: "draft"; slug: AgentSlug; runId: string; index: number; text: string }
+  | ({ t: "status" } & AgentStatus)
+  | { t: "step"; step: RunStep }
+  | { t: "steps"; slug: AgentSlug; after: number; steps: readonly RunStep[] }
+  | { t: "member_refused"; op: MemberOp; reason: MemberRefusal }
+  | { t: "send_refused"; clientId: string; reason: string }
+  | { t: "task_refused"; op: TaskOp; reason: string }
+  | { t: "error"; error: KikoError }
+  | { t: "files_refused"; op: FileOp; reason: FileRefusal }
+  | { t: "search"; query: string; before?: number; results: readonly SearchHit[]; next: number | null }
+  | { t: "history"; seq: number; before: number; after: number; messages: readonly Message[] }

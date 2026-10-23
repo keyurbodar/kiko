@@ -16,7 +16,9 @@ const PROFILE_KEY = "kiko:profile"
 function readProfile(): Profile | null {
   try {
     const value = JSON.parse(read(PROFILE_KEY) ?? "null") as Partial<Profile> | null
-    return value && typeof value.name === "string" ? { name: value.name, email: value.email ?? "", imageUrl: value.imageUrl ?? "", provider: value.provider ?? null } : null
+    return value && typeof value.name === "string"
+      ? { name: value.name, email: value.email ?? "", imageUrl: value.imageUrl ?? "", provider: value.provider ?? null }
+      : null
   } catch {
     return null
   }

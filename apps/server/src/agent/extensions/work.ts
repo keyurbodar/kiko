@@ -1,5 +1,20 @@
 import { Type } from "@earendil-works/pi-ai"
-import { type Agent, type AgentChange, type ConversationId, type TaskId, type ToolExecutionApi, configure, defineDoc, defineTask, defineExtension, defineTool, type Extension, hook, ToolTask, wrapSection } from "@earendil-works/pi-durable"
+import {
+  type Agent,
+  type AgentChange,
+  type ConversationId,
+  type TaskId,
+  type ToolExecutionApi,
+  configure,
+  defineDoc,
+  defineTask,
+  defineExtension,
+  defineTool,
+  type Extension,
+  hook,
+  ToolTask,
+  wrapSection,
+} from "@earendil-works/pi-durable"
 import { declareEffect } from "@kiko/agent/effects"
 import { MAX_WORKERS, type Workers } from "@kiko/agent/workers"
 import { forRole } from "../roles"
@@ -20,7 +35,12 @@ const WORKER_PROMPT = `You are a background worker in Kiko. The agent who talks 
 const say = (text: string) => ({ output: [{ type: "text" as const, text }] })
 
 function workerAgent(agent: Agent, all: readonly Extension[]): AgentChange {
-  return { model: agent.model ?? null, thinkingLevel: agent.thinkingLevel, extensions: forRole(all, "worker"), instructions: WORKER_PROMPT }
+  return {
+    model: agent.model ?? null,
+    thinkingLevel: agent.thinkingLevel,
+    extensions: forRole(all, "worker"),
+    instructions: WORKER_PROMPT,
+  }
 }
 
 const brief = (args: unknown) => {
@@ -29,45 +49,88 @@ const brief = (args: unknown) => {
 }
 
 const WorkerTasks = defineDoc<{ children: Record<string, ConversationId>; reporters: Record<string, TaskId> }>({
-  kind: "kiko.worker-tasks", version: 1, scope: "conversation", history: "latest", fork: "initial",
+  kind: "kiko.worker-tasks",
+  version: 1,
+  scope: "conversation",
+  history: "latest",
+  fork: "initial",
   initial: () => ({ children: {}, reporters: {} }),
 })
 const WorkerAnchor = defineTask<null, { phase: "done" }, null>({
-  name: "kiko.worker-anchor", version: 1, initial: () => ({ phase: "done" }),
-  phases: { done: (_task, runtime, context) => runtime.commit(() => ({ status: "terminal", outcome: { status: "completed", result: null } }), context) },
-  abort: (_task, runtime, context) => runtime.commit(() => ({ status: "terminal", outcome: { status: "aborted" } }), context),
+  name: "kiko.worker-anchor",
+  version: 1,
+  initial: () => ({ phase: "done" }),
+  phases: {
+    done: (_task, runtime, context) =>
+      runtime.commit(() => ({ status: "terminal", outcome: { status: "completed", result: null } }), context),
+  },
+  abort: (_task, runtime, context) =>
+    runtime.commit(() => ({ status: "terminal", outcome: { status: "aborted" } }), context),
 })
 
-export function workExtensions(workers: Workers, all: () => readonly Extension[], runId: () => string | null = () => null): Extension[] {
-  const Reporter = defineTask<{ id: string; conversationId: ConversationId; content: string; requestId: string }, { phase: "report" }, null>({
-    name: "kiko.worker-reporter", version: 1, initial: () => ({ phase: "report" }),
-    phases: { report: async (task, runtime, context) => {
-      const child = await runtime.conversation(task.input.conversationId, context)
-      if (!child) throw new Error("worker conversation missing")
-      const submission = await child.submit({ type: "input", content: task.input.content, requestId: task.input.requestId, whenBusy: "steer" }, context)
-      workers.follow(task.input.id, submission.id)
-      const settled = await submission.wait(context)
-      await workers.complete(task.input.id, submission.id, settled)
-      await runtime.commit(() => ({ status: "terminal", outcome: { status: "completed", result: null } }), context)
-    } },
-    abort: (_task, runtime, context) => runtime.commit(() => ({ status: "terminal", outcome: { status: "aborted" } }), context),
+export function workExtensions(
+  workers: Workers,
+  all: () => readonly Extension[],
+  runId: () => string | null = () => null,
+): Extension[] {
+  const Reporter = defineTask<
+    { id: string; conversationId: ConversationId; content: string; requestId: string },
+    { phase: "report" },
+    null
+  >({
+    name: "kiko.worker-reporter",
+    version: 1,
+    initial: () => ({ phase: "report" }),
+    phases: {
+      report: async (task, runtime, context) => {
+        const child = await runtime.conversation(task.input.conversationId, context)
+        if (!child) throw new Error("worker conversation missing")
+        const submission = await child.submit(
+          { type: "input", content: task.input.content, requestId: task.input.requestId, whenBusy: "steer" },
+          context,
+        )
+        workers.follow(task.input.id, submission.id)
+        const settled = await submission.wait(context)
+        await workers.complete(task.input.id, submission.id, settled)
+        await runtime.commit(() => ({ status: "terminal", outcome: { status: "completed", result: null } }), context)
+      },
+    },
+    abort: (_task, runtime, context) =>
+      runtime.commit(() => ({ status: "terminal", outcome: { status: "aborted" } }), context),
   })
-  const report = async (api: ToolExecutionApi, id: string, conversationId: ConversationId, content: string, requestId: string, context: Parameters<ToolExecutionApi["agent"]>[0]) => {
+  const report = async (
+    api: ToolExecutionApi,
+    id: string,
+    conversationId: ConversationId,
+    content: string,
+    requestId: string,
+    context: Parameters<ToolExecutionApi["agent"]>[0],
+  ) => {
     await api.commit(async (tx) => {
       const tasks = await tx.doc(WorkerTasks, api.conversationId)
       if (tasks.reporters[String(api.taskId)] !== undefined) return
-      tasks.reporters[String(api.taskId)] = await tx.createTask(Reporter, { id, conversationId, content, requestId }, { ownership: { kind: "conversation" }, background: true })
+      tasks.reporters[String(api.taskId)] = await tx.createTask(
+        Reporter,
+        { id, conversationId, content, requestId },
+        { ownership: { kind: "conversation" }, background: true },
+      )
     }, context)
   }
   const start = defineTool({
     name: "start_work",
-    description: "Start one background worker for a whole job, with everything it needs. A job with many parts (say, 20 lookups) is one call: the worker runs the parts at once, so never one worker per part. The only way to fetch web pages, use the human's connected apps, or run extension tools; also for slow work. Returns its id at once; its report comes back later as <work>.",
-    parameters: Type.Object({ task: Type.String({ description: "The whole task, with everything the worker needs to know" }) }),
+    description:
+      "Start one background worker for a whole job, with everything it needs. A job with many parts (say, 20 lookups) is one call: the worker runs the parts at once, so never one worker per part. The only way to fetch web pages, use the human's connected apps, or run extension tools; also for slow work. Returns its id at once; its report comes back later as <work>.",
+    parameters: Type.Object({
+      task: Type.String({ description: "The whole task, with everything the worker needs to know" }),
+    }),
     replay: "safe",
     execute: async ({ task }, api, ctx) => {
       const work = workers.byTask(String(api.taskId)) ?? workers.reserve(String(api.taskId), task, runId())
       if (!work) {
-        const ids = workers.live().map((w) => w.id).join(", ")
+        const ids = workers
+          .live()
+          .map((w) => w.id)
+          .join(", ")
         return say(`${MAX_WORKERS} workers are running (${ids}). wait for one to report, or stop one with stop_work.`)
       }
       let conversationId = work.conversationId
@@ -77,7 +140,10 @@ export function workExtensions(workers: Workers, all: () => readonly Extension[]
           const tasks = await tx.doc(WorkerTasks, api.conversationId)
           const existing = tasks.children[String(api.taskId)]
           if (existing !== undefined) return existing
-          const anchor = await tx.createTask(WorkerAnchor, null, { ownership: { kind: "conversation" }, background: true })
+          const anchor = await tx.createTask(WorkerAnchor, null, {
+            ownership: { kind: "conversation" },
+            background: true,
+          })
           const created = await tx.createConversation({ ownership: { kind: "task", taskId: anchor } })
           await configure(tx, created.id, agent)
           tasks.children[String(api.taskId)] = created.id
@@ -91,8 +157,12 @@ export function workExtensions(workers: Workers, all: () => readonly Extension[]
   })
   const steer = defineTool({
     name: "steer_work",
-    description: "Pass a change or an answer to a worker. It reads it after its current step. A worker that already reported takes it up again.",
-    parameters: Type.Object({ id: Type.String({ description: "The worker id, such as w1" }), text: Type.String({ description: "What changed, in the human's terms" }) }),
+    description:
+      "Pass a change or an answer to a worker. It reads it after its current step. A worker that already reported takes it up again.",
+    parameters: Type.Object({
+      id: Type.String({ description: "The worker id, such as w1" }),
+      text: Type.String({ description: "What changed, in the human's terms" }),
+    }),
     replay: "safe",
     execute: async ({ id, text }, api, ctx) => {
       const work = workers.get(id)
@@ -121,7 +191,12 @@ export function workExtensions(workers: Workers, all: () => readonly Extension[]
     },
   })
   return [
-    defineExtension({ name: WORK, tasks: [WorkerAnchor, Reporter], wraps: [wrapSection("work", (slot) => ({ ...slot, render: () => WORK_LINES }))], tools: [declareEffect("write", start), declareEffect("message", steer), declareEffect("write", stop)] }),
+    defineExtension({
+      name: WORK,
+      tasks: [WorkerAnchor, Reporter],
+      wraps: [wrapSection("work", (slot) => ({ ...slot, render: () => WORK_LINES }))],
+      tools: [declareEffect("write", start), declareEffect("message", steer), declareEffect("write", stop)],
+    }),
     defineExtension({
       name: WORK_STEPS,
       hooks: [

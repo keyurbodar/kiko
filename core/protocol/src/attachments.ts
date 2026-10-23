@@ -6,7 +6,7 @@ export const MAX_FRAME = 512 * 1024
 const FRAME_ROOM = 8 * 1024
 
 export function sendFits(text: string, refs: readonly unknown[] = []): boolean {
-	return JSON.stringify(text).length + JSON.stringify(refs).length <= MAX_FRAME - FRAME_ROOM
+  return JSON.stringify(text).length + JSON.stringify(refs).length <= MAX_FRAME - FRAME_ROOM
 }
 export const MAX_IMAGE_BYTES = 10 * MiB
 export const MAX_TOTAL_IMAGE_BYTES = 80 * MiB
@@ -15,81 +15,81 @@ export const MAX_ATTACHMENT_FILE_BYTES = 50 * MiB
 export const IMAGE_TYPES: readonly string[] = ["image/gif", "image/jpeg", "image/png", "image/webp"]
 
 const IMAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
-	gif: "image/gif",
-	jpeg: "image/jpeg",
-	jpg: "image/jpeg",
-	png: "image/png",
-	webp: "image/webp",
+  gif: "image/gif",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
 }
 
 type Named = { name: string; type: string }
 
 export function attachmentType(file: Named): string {
-	const type = (file.type.split(";", 1)[0] ?? "").trim().toLowerCase()
-	if (type && type !== "application/octet-stream") return type
-	const dot = file.name.lastIndexOf(".")
-	return (dot > 0 && IMAGE_BY_EXTENSION[file.name.slice(dot + 1).toLowerCase()]) || "application/octet-stream"
+  const type = (file.type.split(";", 1)[0] ?? "").trim().toLowerCase()
+  if (type && type !== "application/octet-stream") return type
+  const dot = file.name.lastIndexOf(".")
+  return (dot > 0 && IMAGE_BY_EXTENSION[file.name.slice(dot + 1).toLowerCase()]) || "application/octet-stream"
 }
 
 export const isImageType = (type: string) => IMAGE_TYPES.includes(type.toLowerCase())
 
 export function attachmentKind(file: Named): "image" | "file" | "unsupported-image" {
-	const type = attachmentType(file)
-	if (isImageType(type)) return "image"
-	return type.startsWith("image/") ? "unsupported-image" : "file"
+  const type = attachmentType(file)
+  if (isImageType(type)) return "image"
+  return type.startsWith("image/") ? "unsupported-image" : "file"
 }
 
 export const attachmentLimit = (type: string) => (isImageType(type) ? MAX_IMAGE_BYTES : MAX_ATTACHMENT_FILE_BYTES)
 
 function limitLabel(bytes: number): string {
-	if (bytes >= MiB && bytes % MiB === 0) return `${bytes / MiB} MB`
-	if (bytes >= 1024 && bytes % 1024 === 0) return `${bytes / 1024} KB`
-	return `${bytes} ${bytes === 1 ? "byte" : "bytes"}`
+  if (bytes >= MiB && bytes % MiB === 0) return `${bytes / MiB} MB`
+  if (bytes >= 1024 && bytes % 1024 === 0) return `${bytes / 1024} KB`
+  return `${bytes} ${bytes === 1 ? "byte" : "bytes"}`
 }
 
 export const attachmentMessages = {
-	tooMany: `You can attach up to ${MAX_ATTACHMENTS} files per message.`,
-	empty: (name: string) => `'${name}' is empty or could not be read.`,
-	tooLarge: (name: string, limit: number) => `'${name}' exceeds the ${limitLabel(limit)} attachment limit.`,
-	tooLargeCompressed: (name: string) => `'${name}' is too large to attach, even after compression.`,
-	unreadable: (name: string) => `'${name}' could not be read as an image.`,
-	unsupportedImage: (name: string) => `'${name}' is not a supported image type. Attach GIF, JPEG, PNG, or WebP images.`,
-	folderCut: "Only part of that folder was read. Drop fewer files at a time.",
-	folderEmpty: "That folder has no files to attach.",
-	imagesTotal: "Images can total up to 80 MB per message. Use smaller images or send fewer at once.",
-	notSendable: (name: string, why: string) => `Attachment '${name}' cannot be sent: ${why}.`,
+  tooMany: `You can attach up to ${MAX_ATTACHMENTS} files per message.`,
+  empty: (name: string) => `'${name}' is empty or could not be read.`,
+  tooLarge: (name: string, limit: number) => `'${name}' exceeds the ${limitLabel(limit)} attachment limit.`,
+  tooLargeCompressed: (name: string) => `'${name}' is too large to attach, even after compression.`,
+  unreadable: (name: string) => `'${name}' could not be read as an image.`,
+  unsupportedImage: (name: string) => `'${name}' is not a supported image type. Attach GIF, JPEG, PNG, or WebP images.`,
+  folderCut: "Only part of that folder was read. Drop fewer files at a time.",
+  folderEmpty: "That folder has no files to attach.",
+  imagesTotal: "Images can total up to 80 MB per message. Use smaller images or send fewer at once.",
+  notSendable: (name: string, why: string) => `Attachment '${name}' cannot be sent: ${why}.`,
 }
 
 export function attachmentError(file: Named & { size: number }): string | null {
-	if (file.size <= 0) return attachmentMessages.empty(file.name)
-	const limit = attachmentLimit(attachmentType(file))
-	return file.size > limit ? attachmentMessages.tooLarge(file.name, limit) : null
+  if (file.size <= 0) return attachmentMessages.empty(file.name)
+  const limit = attachmentLimit(attachmentType(file))
+  return file.size > limit ? attachmentMessages.tooLarge(file.name, limit) : null
 }
 
 export function attachmentsError(files: readonly { type: string; size: number }[]): string | null {
-	if (files.length > MAX_ATTACHMENTS) return attachmentMessages.tooMany
-	let images = 0
-	for (const f of files) if (isImageType(f.type)) images += f.size
-	return images > MAX_TOTAL_IMAGE_BYTES ? attachmentMessages.imagesTotal : null
+  if (files.length > MAX_ATTACHMENTS) return attachmentMessages.tooMany
+  let images = 0
+  for (const f of files) if (isImageType(f.type)) images += f.size
+  return images > MAX_TOTAL_IMAGE_BYTES ? attachmentMessages.imagesTotal : null
 }
 
 const ATTACHMENT_LINK = /\[([^\]\n]*)\]\(attachment:([\w-]+)\)/g
 
 export function attachmentToken(id: string, name: string): string {
-	return `[${name.replace(/[[\]\n\\]/g, "")}](attachment:${id})`
+  return `[${name.replace(/[[\]\n\\]/g, "")}](attachment:${id})`
 }
 
 export function linkTarget(path: string): string {
-	return /[\s()<>]/.test(path) ? `<${path.replace(/</g, "%3C").replace(/>/g, "%3E")}>` : path
+  return /[\s()<>]/.test(path) ? `<${path.replace(/</g, "%3C").replace(/>/g, "%3E")}>` : path
 }
 
 export function linkAttachments(text: string, to: (id: string) => string | undefined): string {
-	return text.replace(ATTACHMENT_LINK, (_, name: string, id: string) => {
-		const target = to(id)
-		return target === undefined ? name : `[${name}](${linkTarget(target)})`
-	})
+  return text.replace(ATTACHMENT_LINK, (_, name: string, id: string) => {
+    const target = to(id)
+    return target === undefined ? name : `[${name}](${linkTarget(target)})`
+  })
 }
 
 export function attachmentIds(text: string): string[] {
-	return Array.from(text.matchAll(ATTACHMENT_LINK), (match) => match[2]!)
+  return Array.from(text.matchAll(ATTACHMENT_LINK), (match) => match[2]!)
 }

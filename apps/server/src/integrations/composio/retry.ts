@@ -12,7 +12,10 @@ export async function withRetry<T>(fn: () => Promise<T>, delays: readonly number
     } catch (e) {
       const delay = delays[attempt]
       if (delay === undefined || !(e instanceof ComposioError) || !e.status || !RETRY_STATUSES.has(e.status)) throw e
-      const wait = e.retryAfter !== undefined ? Math.min(e.retryAfter * 1000, RETRY_AFTER_MAX_MS) : delay * (0.75 + Math.random() * 0.5)
+      const wait =
+        e.retryAfter !== undefined
+          ? Math.min(e.retryAfter * 1000, RETRY_AFTER_MAX_MS)
+          : delay * (0.75 + Math.random() * 0.5)
       await boundedWait(wait)
     }
   }

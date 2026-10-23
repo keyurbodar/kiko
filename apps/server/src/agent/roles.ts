@@ -21,4 +21,5 @@ const TABLE: Readonly<Record<string, readonly Role[]>> = {
 
 const hasRole = (name: string, role: Role): boolean => (TABLE[name] ?? ["talker", "worker"]).includes(role)
 
-export const forRole = (extensions: readonly Extension[], role: Role): Extension[] => extensions.filter((e) => hasRole(e.name, role))
+export const forRole = (extensions: readonly Extension[], role: Role): Extension[] =>
+  extensions.filter((e) => hasRole(e.name, role))

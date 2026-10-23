@@ -1,7 +1,17 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { JsonValue } from "@earendil-works/chord"
 import type { Models } from "@earendil-works/pi-ai"
-import { type AgentChange, type Conversation, type ConversationId, Harness, type HarnessSettings, type Storage, type RegistryReader, type TaskId, type TaskInspection } from "@earendil-works/pi-durable"
+import {
+  type AgentChange,
+  type Conversation,
+  type ConversationId,
+  Harness,
+  type HarnessSettings,
+  type Storage,
+  type RegistryReader,
+  type TaskId,
+  type TaskInspection,
+} from "@earendil-works/pi-durable"
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 import type { Step } from "@kiko/durable/migrate"
@@ -10,7 +20,16 @@ import { continueAtBoundary } from "./continuation"
 import { submitPaused } from "./admission"
 import { type Batch, type Refusal, renderInput, requestIdFor } from "./input"
 import { decide, FRESH_RUN, type RunProgress, type RunState } from "./mid-run"
-import { cancelPaused, cancelRestart, rootGeneration, recoverRestart, rememberRestart, RESTARTS_KEY, stoppableTools, type RestartInput } from "./human-priority"
+import {
+  cancelPaused,
+  cancelRestart,
+  rootGeneration,
+  recoverRestart,
+  rememberRestart,
+  RESTARTS_KEY,
+  stoppableTools,
+  type RestartInput,
+} from "./human-priority"
 import type { Envelope } from "./envelope"
 import { ROLLOVER_STEPS, restoreRollover, rollover } from "./rollover"
 import { INITIAL_WORKERS_STEPS, Workers } from "./workers"
@@ -24,7 +43,10 @@ const TASK_IDLE_MS = 15 * 60_000
 
 export type Transcript = { inputs: number; chars: number; toolChars: number; idleMs: number }
 
-type ModelMessage = { role?: string; content?: string | { type: string; text?: string; thinking?: string; arguments?: unknown }[] }
+type ModelMessage = {
+  role?: string
+  content?: string | { type: string; text?: string; thinking?: string; arguments?: unknown }[]
+}
 
 export function measure(entries: readonly { kind: string; model?: readonly unknown[] }[], idleMs: number): Transcript {
   const t: Transcript = { inputs: 0, chars: 0, toolChars: 0, idleMs }
@@ -43,7 +65,13 @@ export function measure(entries: readonly { kind: string; model?: readonly unkno
 function messageChars(m: ModelMessage, first: boolean): number {
   let n = 0
   if (typeof m.content === "string") n = m.content.length - (first ? opening(m.content) : 0)
-  else for (const p of m.content ?? []) n += (p.text?.length ?? 0) - (first ? opening(p.text ?? "") : 0) + (p.thinking?.length ?? 0) + (p.arguments ? JSON.stringify(p.arguments).length : 0)
+  else
+    for (const p of m.content ?? [])
+      n +=
+        (p.text?.length ?? 0) -
+        (first ? opening(p.text ?? "") : 0) +
+        (p.thinking?.length ?? 0) +
+        (p.arguments ? JSON.stringify(p.arguments).length : 0)
   return n
 }
 
@@ -105,7 +133,11 @@ export type AgentSetup = {
   joinRun?: (batch: Batch, root: Conversation) => Promise<void>
   inputContext?: () => Promise<string | undefined>
   inputInvalidated?: () => Promise<"refresh" | "forget" | null>
-  inputMemory?: (batch: Batch, fresh: boolean, joined: number[]) => Promise<{ text?: string; fresh: boolean; data?: Record<string, JsonValue> }>
+  inputMemory?: (
+    batch: Batch,
+    fresh: boolean,
+    joined: number[],
+  ) => Promise<{ text?: string; fresh: boolean; data?: Record<string, JsonValue> }>
   beforeCompact?: (harness: Harness) => Promise<void>
   stale?: () => Promise<boolean>
   rollover?: {
@@ -118,7 +150,11 @@ export type HostOptions = {
   requestRun: (requestId: string) => void | Promise<void>
   agentKey: string
   clock: Alarms
-  projectTasks: (tasks: readonly TaskInspection[], watches: ReadonlyMap<TaskId, number>, current: number | undefined) => { next: number | undefined; resume: { id: TaskId; deadline: number }[] }
+  projectTasks: (
+    tasks: readonly TaskInspection[],
+    watches: ReadonlyMap<TaskId, number>,
+    current: number | undefined,
+  ) => { next: number | undefined; resume: { id: TaskId; deadline: number }[] }
   openHarness?: (storage: Storage, setup: AgentSetup) => Promise<Harness>
   setup: () => AgentSetup | Promise<AgentSetup>
   onOpen?: (opened: Opened) => void | Promise<void>
@@ -168,7 +204,12 @@ export class AgentHost {
   private readonly alarms: Alarms
   private opened?: Promise<Opened>
   private plannedSetup?: AgentSetup
-  private invocation?: { due: () => boolean; boundary?: Awaited<ReturnType<typeof continueAtBoundary>>; idle?: Promise<void>; settling?: boolean }
+  private invocation?: {
+    due: () => boolean
+    boundary?: Awaited<ReturnType<typeof continueAtBoundary>>
+    idle?: Promise<void>
+    settling?: boolean
+  }
   private failure?: Promise<void>
   private compaction?: Promise<void>
   private draining = 0
@@ -181,16 +222,33 @@ export class AgentHost {
     private readonly ctx: DurableObjectState,
     private readonly options: HostOptions,
   ) {
-    this.workers = new Workers(ctx.storage, { agentKey: options.agentKey, deliver: (envelope) => this.receive([envelope], ""), onChange: (running) => options.onWorkers?.(running, false) })
+    this.workers = new Workers(ctx.storage, {
+      agentKey: options.agentKey,
+      deliver: (envelope) => this.receive([envelope], ""),
+      onChange: (running) => options.onWorkers?.(running, false),
+    })
     this.alarms = options.clock
   }
 
   private invalidated = false
   private admission: Promise<unknown> = Promise.resolve()
 
-  async receive(envelopes: readonly Envelope[], brief: string, requestId?: string): Promise<{ admitted: string[]; refused?: Refusal }> {
-    if (envelopes.some((e) => new TextEncoder().encode(JSON.stringify(e) + brief).byteLength > 128 * 1024)) return { admitted: [], refused: "too_large" }
-    const batch: Batch = { requestId: requestId ?? (envelopes.length === 1 && envelopes[0]?.from.kind !== "human" ? envelopes[0]!.id : await requestIdFor(envelopes.map((e) => e.id))), envelopes: [...envelopes], briefs: brief ? [brief] : [] }
+  async receive(
+    envelopes: readonly Envelope[],
+    brief: string,
+    requestId?: string,
+  ): Promise<{ admitted: string[]; refused?: Refusal }> {
+    if (envelopes.some((e) => new TextEncoder().encode(JSON.stringify(e) + brief).byteLength > 128 * 1024))
+      return { admitted: [], refused: "too_large" }
+    const batch: Batch = {
+      requestId:
+        requestId ??
+        (envelopes.length === 1 && envelopes[0]?.from.kind !== "human"
+          ? envelopes[0]!.id
+          : await requestIdFor(envelopes.map((e) => e.id))),
+      envelopes: [...envelopes],
+      briefs: brief ? [brief] : [],
+    }
     const submit = this.admission.then(async () => {
       const opened = await this.current()
       await this.drain(opened, [batch])
@@ -212,7 +270,10 @@ export class AgentHost {
   private async stopNow(): Promise<{ discarded: number }> {
     await this.ctx.storage.put(STOP_KEY, true)
     let opened = await this.open()
-    if ((!this.invocation || this.invocation.settling) && (await opened.harness.inspect(context)).scheduling !== "paused") {
+    if (
+      (!this.invocation || this.invocation.settling) &&
+      (await opened.harness.inspect(context)).scheduling !== "paused"
+    ) {
       this.plannedSetup = opened.setup
       await this.drop(true)
       opened = await this.open()
@@ -223,7 +284,9 @@ export class AgentHost {
     return { discarded }
   }
 
-  loaded(): boolean { return this.opened !== undefined }
+  loaded(): boolean {
+    return this.opened !== undefined
+  }
   async busy(): Promise<boolean> {
     if (!this.opened) return false
     const live = await (await this.opened).harness.inspect(context)
@@ -250,13 +313,14 @@ export class AgentHost {
     const { root, storage } = await this.open()
     const submission = await storage.submissionByRequest(root.id, requestId, context)
     if (!submission || submission.type !== "input") return []
-    const data = submission.entry === undefined ? undefined : (await storage.entry(submission.entry, context))?.entry.data
+    const data =
+      submission.entry === undefined ? undefined : (await storage.entry(submission.entry, context))?.entry.data
     if (!data || typeof data !== "object" || Array.isArray(data) || !Array.isArray(data.envelopeIds)) return []
     return data.envelopeIds.filter((id): id is string => typeof id === "string")
   }
 
   async wake(): Promise<boolean> {
-    const pending = await this.ctx.storage.get<boolean>(STOP_KEY) || (!this.opened && await this.unfinished())
+    const pending = (await this.ctx.storage.get<boolean>(STOP_KEY)) || (!this.opened && (await this.unfinished()))
     if (!pending) {
       if (!this.opened) return false
       const live = await (await this.opened).harness.inspect(context)
@@ -311,11 +375,16 @@ export class AgentHost {
       if (!boundary) return "done"
       const outcome = await Promise.race([
         boundary.closed.then(() => "continue" as const),
-        opened ? opened.harness.waitForIdle(context).then(() => "done" as const, (error: unknown) => {
-          if (invocation.settling) return "done" as const
-          if (!boundary.continuing()) throw error
-          return "continue" as const
-        }) : Promise.resolve(boundary.continuing() ? "continue" as const : "done" as const),
+        opened
+          ? opened.harness.waitForIdle(context).then(
+              () => "done" as const,
+              (error: unknown) => {
+                if (invocation.settling) return "done" as const
+                if (!boundary.continuing()) throw error
+                return "continue" as const
+              },
+            )
+          : Promise.resolve(boundary.continuing() ? ("continue" as const) : ("done" as const)),
       ])
       if (outcome === "continue") {
         await boundary.closed
@@ -339,7 +408,12 @@ export class AgentHost {
       while (this.compaction) await this.compaction
       this.draining++
       draining = true
-      if (!batches.length && !this.opened && !(await this.ctx.storage.get<boolean>(STOP_KEY)) && !(await this.unfinished())) {
+      if (
+        !batches.length &&
+        !this.opened &&
+        !(await this.ctx.storage.get<boolean>(STOP_KEY)) &&
+        !(await this.unfinished())
+      ) {
         await this.serializeAlarm(async () => {
           for (const key of await this.alarms.dueWakeups(Date.now())) await this.alarms.clearWakeup(key)
         })
@@ -393,7 +467,11 @@ export class AgentHost {
       }
     })()
     this.failure = work
-    void work.finally(() => { if (this.failure === work) this.failure = undefined }).catch(() => {})
+    void work
+      .finally(() => {
+        if (this.failure === work) this.failure = undefined
+      })
+      .catch(() => {})
     return work
   }
 
@@ -402,10 +480,10 @@ export class AgentHost {
     const opening = (async () => {
       const planned = this.plannedSetup
       this.plannedSetup = undefined
-      const setup = planned ?? await this.options.setup()
+      const setup = planned ?? (await this.options.setup())
       let opened = await this.openHarness(setup)
       try {
-        if (!planned && await this.crashLooping(opened)) {
+        if (!planned && (await this.crashLooping(opened))) {
           await opened.harness.close(context).catch(() => {})
           this.reset()
           opened = await this.openHarness(setup)
@@ -452,7 +530,18 @@ export class AgentHost {
     setup = { ...setup, settings: { ...setup.settings, followUpMode: "all" } }
     const storage = await JournalStorage.open(this.ctx.storage, this.options.agentKey)
     const env = setup.env
-    const harness = this.options.openHarness ? await this.options.openHarness(storage, setup) : await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(env ? { env: (target) => env(target.conversationId) } : {}) }, context)
+    const harness = this.options.openHarness
+      ? await this.options.openHarness(storage, setup)
+      : await Harness.open(
+          storage,
+          {
+            models: setup.models,
+            registry: setup.registry,
+            settings: setup.settings,
+            ...(env ? { env: (target) => env(target.conversationId) } : {}),
+          },
+          context,
+        )
     void harness.closed.then((end) => {
       if (end.reason === "failed") this.ctx.abort("Harness failed")
     })
@@ -478,9 +567,11 @@ export class AgentHost {
     this.taskWatches.set(harness, new Map())
     harness.subscribeCommits((publication) => {
       if (publication.changes.some((change) => change.type === "task")) {
-        this.options.waitUntil(this.refreshRecovery(opened).catch((error) => {
-          if (!this.retiring.has(opened)) return this.fail(error, [], opened)
-        }))
+        this.options.waitUntil(
+          this.refreshRecovery(opened).catch((error) => {
+            if (!this.retiring.has(opened)) return this.fail(error, [], opened)
+          }),
+        )
       }
     })
     await this.attachBoundary(opened)
@@ -524,7 +615,6 @@ export class AgentHost {
     return update
   }
 
-
   private refreshRecovery(opened: Opened): Promise<void> {
     return this.serializeAlarm(async () => {
       if (this.retiring.has(opened)) return
@@ -541,12 +631,15 @@ export class AgentHost {
         const watching = watches.has(id)
         watches.set(id, deadline)
         if (watching) continue
-        this.options.waitUntil(harness.waitForTask(id, context)
-          .then(() => this.refreshRecovery(opened))
-          .catch((error) => {
-            if (!this.retiring.has(opened)) return this.fail(error, [], opened)
-          })
-          .finally(() => watches.delete(id)))
+        this.options.waitUntil(
+          harness
+            .waitForTask(id, context)
+            .then(() => this.refreshRecovery(opened))
+            .catch((error) => {
+              if (!this.retiring.has(opened)) return this.fail(error, [], opened)
+            })
+            .finally(() => watches.delete(id)),
+        )
       }
     })
   }
@@ -556,7 +649,9 @@ export class AgentHost {
       this.resumed = false
       await this.ctx.storage.delete(RESUMES_KEY)
     }
-    await (this.compaction ??= this.compact().finally(() => { this.compaction = undefined }))
+    await (this.compaction ??= this.compact().finally(() => {
+      this.compaction = undefined
+    }))
   }
 
   private compact(): Promise<void> {
@@ -567,9 +662,12 @@ export class AgentHost {
 
   private async compactNow(): Promise<void> {
     if (this.draining) return
-    const size = this.ctx.storage.sql.exec<{ rows: number; bytes: number }>(
-      "SELECT count(*) AS rows, coalesce(sum(length(data)), 0) AS bytes FROM journal WHERE agent = ?", this.options.agentKey,
-    ).one()
+    const size = this.ctx.storage.sql
+      .exec<{ rows: number; bytes: number }>(
+        "SELECT count(*) AS rows, coalesce(sum(length(data)), 0) AS bytes FROM journal WHERE agent = ?",
+        this.options.agentKey,
+      )
+      .one()
     if (size.rows <= 500 && size.bytes <= 4 * 1024 * 1024) return
     const opened = await this.open()
     const live = await opened.harness.inspect(context)
@@ -622,7 +720,11 @@ export class AgentHost {
       const live = await opened.harness.inspect(context)
       const paused = live.scheduling === "paused"
       await this.workers.stopAll({ deferAbort: paused })
-      if (paused) await cancelPaused(opened.harness, opened.root, { ...live, tasks: live.tasks.filter((task) => this.options.scheduledDeadline?.(task) === undefined) })
+      if (paused)
+        await cancelPaused(opened.harness, opened.root, {
+          ...live,
+          tasks: live.tasks.filter((task) => this.options.scheduledDeadline?.(task) === undefined),
+        })
       else await opened.root.abort(context)
       opened.storage.flush()
       await this.ctx.storage.delete([STOP_KEY, RESTARTS_KEY])
@@ -642,55 +744,101 @@ export class AgentHost {
       if (invalidated === "forget") await this.workers.invalidate(harness)
       run = null
     }
-    batch.envelopes = batch.envelopes.filter((envelope) => !envelope.work || this.workers.get(envelope.work.id)?.conversationId != null)
+    batch.envelopes = batch.envelopes.filter(
+      (envelope) => !envelope.work || this.workers.get(envelope.work.id)?.conversationId != null,
+    )
     if (!batch.envelopes.length) return
     if (!run && setup.beginRun && !(await setup.beginRun(batch, root))) return
     if (run) await setup.joinRun?.(batch, root)
     const { input, shown, last } = await this.prepareInput(opened, batch, run, invalidated !== null)
     await this.admitInput(opened, input, run, human)
     await this.refreshRecovery(opened)
-    if (shown.key && (last?.epoch !== this.epoch() || last.key !== shown.key)) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
-    if (run) await this.ctx.storage.put(JOINED_KEY, [...(await this.joinedSeqs()), ...batch.envelopes.map((e) => e.seq)].slice(-500))
+    if (shown.key && (last?.epoch !== this.epoch() || last.key !== shown.key))
+      await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
+    if (run)
+      await this.ctx.storage.put(
+        JOINED_KEY,
+        [...(await this.joinedSeqs()), ...batch.envelopes.map((e) => e.seq)].slice(-500),
+      )
   }
 
-  private async prepareInput({ root, storage, setup }: Opened, batch: Batch, run: RunState | null, invalidated: boolean) {
+  private async prepareInput(
+    { root, storage, setup }: Opened,
+    batch: Batch,
+    run: RunState | null,
+    invalidated: boolean,
+  ) {
     let memory: string | undefined
     let fresh = false
     let inputData: Record<string, JsonValue> = {}
     if (!run && setup.inputMemory) {
-      const out = await setup.inputMemory(batch, invalidated || await this.contextFull(root), await this.joinedSeqs())
+      const out = await setup.inputMemory(batch, invalidated || (await this.contextFull(root)), await this.joinedSeqs())
       fresh = out.fresh
       inputData = out.data ?? {}
       if (out.fresh) {
-        if (!this.invocation || this.invocation.settling) await root.commit((tx) => tx.appendEntry(root.id, { kind: "pi.reset", head: "self" }), context)
+        if (!this.invocation || this.invocation.settling)
+          await root.commit((tx) => tx.appendEntry(root.id, { kind: "pi.reset", head: "self" }), context)
         else await root.reset(undefined, context)
       }
       await this.ctx.storage.delete(JOINED_KEY)
       memory = out.text
     }
-    const [extra, last] = await Promise.all([setup.inputContext?.(), this.ctx.storage.get<{ epoch: number; key: string }>(BRIEF_KEY)])
-    const shown = briefToShow(batch.briefs, fresh, last?.epoch === this.epoch() ? last.key : undefined, this.options.shortBrief)
+    const [extra, last] = await Promise.all([
+      setup.inputContext?.(),
+      this.ctx.storage.get<{ epoch: number; key: string }>(BRIEF_KEY),
+    ])
+    const shown = briefToShow(
+      batch.briefs,
+      fresh,
+      last?.epoch === this.epoch() ? last.key : undefined,
+      this.options.shortBrief,
+    )
     const work = this.workers.note()
-    const content = renderInput({ ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : []), ...(work ? [work] : [])] }, memory)
-    const input: RestartInput = { content, requestId: batch.requestId,
-      entry: { kind: "kiko.input", data: { ...inputData, humanDeliveredSeq: deliveredSeq(batch.envelopes, storage.humanDeliveredSeq), at: Date.now(), envelopeIds: batch.envelopes.map((e) => e.id), chain: batch.envelopes.map(({ rootId, hop }) => ({ rootId, hop })) } },
+    const content = renderInput(
+      { ...batch, briefs: [...(shown.brief ? [shown.brief] : []), ...(extra ? [extra] : []), ...(work ? [work] : [])] },
+      memory,
+    )
+    const input: RestartInput = {
+      content,
+      requestId: batch.requestId,
+      entry: {
+        kind: "kiko.input",
+        data: {
+          ...inputData,
+          humanDeliveredSeq: deliveredSeq(batch.envelopes, storage.humanDeliveredSeq),
+          at: Date.now(),
+          envelopeIds: batch.envelopes.map((e) => e.id),
+          chain: batch.envelopes.map(({ rootId, hop }) => ({ rootId, hop })),
+        },
+      },
     }
     return { input, shown, last }
   }
 
-  private async admitInput({ harness, root, storage, setup }: Opened, input: RestartInput, run: RunState | null, human: boolean): Promise<void> {
+  private async admitInput(
+    { harness, root, storage, setup }: Opened,
+    input: RestartInput,
+    run: RunState | null,
+    human: boolean,
+  ): Promise<void> {
     const action = decide(run, { kind: human ? "human" : "agent" })
     const generation = run ? await rootGeneration(harness, root) : undefined
-    if (generation?.abortRequested || action === "restart" && generation?.startedAt !== undefined) {
+    if (generation?.abortRequested || (action === "restart" && generation?.startedAt !== undefined)) {
       await rememberRestart(root, storage, input, (run?.restarts ?? 0) + 1)
       if (this.invocation && !this.invocation.settling) await recoverRestart(root, storage, this.ctx.storage)
       return
     }
     if (action === "interrupt" && run && this.invocation && !this.invocation.settling) {
-      for (const id of await stoppableTools(harness, root, setup.registry, run.tools)) this.options.waitUntil(harness.abortTask(id, context).catch(() => {}))
+      for (const id of await stoppableTools(harness, root, setup.registry, run.tools))
+        this.options.waitUntil(harness.abortTask(id, context).catch(() => {}))
     }
-    if (!run && await this.ctx.storage.get<number>(RESTARTS_KEY) !== undefined) await this.ctx.storage.delete(RESTARTS_KEY)
-    const submission = { type: "input" as const, ...input, whenBusy: human ? "steer" as const : "followUp" as const }
+    if (!run && (await this.ctx.storage.get<number>(RESTARTS_KEY)) !== undefined)
+      await this.ctx.storage.delete(RESTARTS_KEY)
+    const submission = {
+      type: "input" as const,
+      ...input,
+      whenBusy: human ? ("steer" as const) : ("followUp" as const),
+    }
     if (!this.invocation || this.invocation.settling) await submitPaused(root, submission)
     else await root.submit(submission, context)
   }
@@ -698,7 +846,10 @@ export class AgentHost {
   private async contextFull(root: Conversation): Promise<boolean> {
     const view = await root.context(context)
     const data = view.entries.findLast((entry) => entry.kind === "kiko.input")?.data
-    const at = data && typeof data === "object" && !Array.isArray(data) && typeof data.at === "number" ? data.at : (await this.ctx.storage.get<number>(LAST_RUN_KEY)) ?? 0
+    const at =
+      data && typeof data === "object" && !Array.isArray(data) && typeof data.at === "number"
+        ? data.at
+        : ((await this.ctx.storage.get<number>(LAST_RUN_KEY)) ?? 0)
     return startsFresh(measure(view.entries, Date.now() - at))
   }
 
@@ -709,7 +860,11 @@ export class AgentHost {
   private async runState(harness: Harness, root: Conversation): Promise<RunState | null> {
     const live = await harness.inspect(context)
     const mine = live.submissions.filter((s) => s.conversationId === root.id)
-    if (!mine.some((s) => s.status === "placed") && !live.tasks.some((t) => t.record.conversationId === root.id && !t.record.background)) return null
+    if (
+      !mine.some((s) => s.status === "placed") &&
+      !live.tasks.some((t) => t.record.conversationId === root.id && !t.record.background)
+    )
+      return null
     return {
       ...(this.options.progress?.() ?? FRESH_RUN),
       queued: mine.some((s) => s.status === "queued"),
@@ -730,7 +885,14 @@ export class AgentHost {
     if (!this.opened) return undefined
     const { root } = await this.opened
     const view = await root.context(context)
-    const data = view.entries.findLast((entry) => entry.kind === "kiko.input" && entry.data && typeof entry.data === "object" && !Array.isArray(entry.data) && (field === undefined || field in entry.data))?.data
+    const data = view.entries.findLast(
+      (entry) =>
+        entry.kind === "kiko.input" &&
+        entry.data &&
+        typeof entry.data === "object" &&
+        !Array.isArray(entry.data) &&
+        (field === undefined || field in entry.data),
+    )?.data
     return data && typeof data === "object" && !Array.isArray(data) ? data : undefined
   }
 
@@ -739,7 +901,11 @@ export class AgentHost {
   }
 
   epoch(): number {
-    return this.ctx.storage.sql.exec<{ n: number }>("SELECT n FROM harness_epoch WHERE agent = ?", this.options.agentKey).toArray()[0]?.n ?? 0
+    return (
+      this.ctx.storage.sql
+        .exec<{ n: number }>("SELECT n FROM harness_epoch WHERE agent = ?", this.options.agentKey)
+        .toArray()[0]?.n ?? 0
+    )
   }
 
   humanWaiting(): boolean {
@@ -755,7 +921,11 @@ export class AgentHost {
     if (!invocation || invocation.idle || invocation.settling) return
     let revision = 0
     let changed = Promise.withResolvers<void>()
-    const notify = () => { revision++; changed.resolve(); changed = Promise.withResolvers<void>() }
+    const notify = () => {
+      revision++
+      changed.resolve()
+      changed = Promise.withResolvers<void>()
+    }
     const uncommit = opened.harness.subscribeCommits(notify)
     const unclose = opened.harness.subscribeClose(notify)
     const work = (async () => {
@@ -773,7 +943,7 @@ export class AgentHost {
           return true
         })
         this.admission = settle.catch(() => {})
-        if (!await settle) {
+        if (!(await settle)) {
           if (revision === observed) await changed.promise
           continue
         }
@@ -781,16 +951,25 @@ export class AgentHost {
         await this.options.onIdle?.()
         return
       }
-    })().catch((error) => {
-      if (!this.retiring.has(opened)) return this.fail(error, [], opened)
-    }).finally(() => { uncommit(); unclose(); if (invocation.idle === work) invocation.idle = undefined })
+    })()
+      .catch((error) => {
+        if (!this.retiring.has(opened)) return this.fail(error, [], opened)
+      })
+      .finally(() => {
+        uncommit()
+        unclose()
+        if (invocation.idle === work) invocation.idle = undefined
+      })
     invocation.idle = work
     this.options.waitUntil(work)
   }
 
   private reset(): void {
     JournalStorage.reset(this.ctx.storage, this.options.agentKey)
-    this.ctx.storage.sql.exec("INSERT INTO harness_epoch (agent, n) VALUES (?, 1) ON CONFLICT(agent) DO UPDATE SET n = n + 1", this.options.agentKey)
+    this.ctx.storage.sql.exec(
+      "INSERT INTO harness_epoch (agent, n) VALUES (?, 1) ON CONFLICT(agent) DO UPDATE SET n = n + 1",
+      this.options.agentKey,
+    )
     this.workers.forget()
     this.options.onReset?.()
   }
@@ -800,7 +979,8 @@ export class AgentHost {
     this.opened = undefined
     if (!opened) return
     this.retiring.add(opened)
-    if (this.invocation && !this.invocation.settling) await opened.root.abort(context, { background: true }).catch(() => {})
+    if (this.invocation && !this.invocation.settling)
+      await opened.root.abort(context, { background: true }).catch(() => {})
     await opened.harness.close(context).catch(() => {})
     await this.serializeAlarm(() => this.alarms.clearWakeup(RECOVERY_WAKEUP))
   }
@@ -809,8 +989,12 @@ export class AgentHost {
     const opened = this.opened
     this.opened = undefined
     if (!opened) return
-    await opened.then((o) => { this.retiring.add(o); return o.harness.close(context) }).catch(() => {})
+    await opened
+      .then((o) => {
+        this.retiring.add(o)
+        return o.harness.close(context)
+      })
+      .catch(() => {})
     if (!preserveDeadline) await this.serializeAlarm(() => this.alarms.clearWakeup(RECOVERY_WAKEUP))
   }
 }
-

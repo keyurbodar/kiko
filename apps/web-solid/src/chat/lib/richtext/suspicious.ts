@@ -35,9 +35,7 @@ const RECOMMENDED_SCRIPTS = [
 
 type Script = (typeof RECOMMENDED_SCRIPTS)[number]
 
-const SCRIPT_REG_EXPS = RECOMMENDED_SCRIPTS.map(
-  (script) => [script, new RegExp(`\\p{Script=${script}}`, "u")] as const,
-)
+const SCRIPT_REG_EXPS = RECOMMENDED_SCRIPTS.map((script) => [script, new RegExp(`\\p{Script=${script}}`, "u")] as const)
 const LETTER_REG_EXP = /\p{L}/u
 const SCRIPTLESS_REG_EXP = /[\p{Script=Common}\p{Script=Inherited}]/u
 
@@ -117,9 +115,7 @@ export default function isSuspiciousUrl(url: string): boolean {
 
     if (
       scripts.size > 1 &&
-      !ALLOWED_SCRIPT_SETS.some((allowed) =>
-        Array.from(scripts).every((script) => allowed.includes(script)),
-      )
+      !ALLOWED_SCRIPT_SETS.some((allowed) => Array.from(scripts).every((script) => allowed.includes(script)))
     ) {
       return true
     }

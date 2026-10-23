@@ -10,7 +10,11 @@ type Declaration = { effect: Effect; stoppable: boolean }
 
 type Declared = { [DECLARED]?: Declaration }
 
-export function declareEffect<T extends ToolRegistration>(effect: Effect, tool: T, options: { stoppable?: boolean } = {}): T {
+export function declareEffect<T extends ToolRegistration>(
+  effect: Effect,
+  tool: T,
+  options: { stoppable?: boolean } = {},
+): T {
   if (!EFFECTS.includes(effect)) throw new Error(`tool ${tool.name}: unknown effect ${String(effect)}`)
   return Object.assign({ ...tool }, { [DECLARED]: { effect, stoppable: options.stoppable ?? false } }) as T
 }

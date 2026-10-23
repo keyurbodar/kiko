@@ -12,7 +12,13 @@ export function createAgent(form: Form, pins: AvatarPins, back: () => void): Roo
   if (!user) return null
   const slug = form.handle.trim().replace(/^@/, "") as AgentSlug
   const description = form.description.trim()
-  const agent: Agent = { id: crypto.randomUUID(), name: tidyName(form.name), slug, prompt: description.slice(0, 200), model: "" }
+  const agent: Agent = {
+    id: crypto.randomUUID(),
+    name: tidyName(form.name),
+    slug,
+    prompt: description.slice(0, 200),
+    model: "",
+  }
   const roomId = newRoomId()
   const undo = user.addAgentChat(agent, roomId)
   const before = look()

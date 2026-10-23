@@ -1,17 +1,17 @@
-import { render, type RenderOptions } from "./render";
-import { resolve, type TraitOptions } from "./traits";
+import { render, type RenderOptions } from "./render"
+import { resolve, type TraitOptions } from "./traits"
 
-export type AvatarOptions = TraitOptions & RenderOptions;
+export type AvatarOptions = TraitOptions & RenderOptions
 
-export const defaults = { charm: "none", outfit: "none", pattern: "none", mood: "calm" } satisfies TraitOptions;
+export const defaults = { charm: "none", outfit: "none", pattern: "none", mood: "calm" } satisfies TraitOptions
 
 export function avatar(name: string, options: AvatarOptions = {}): string {
-  const pins = Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined));
-  return render(resolve(name, { ...defaults, ...pins }), options);
+  const pins = Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined))
+  return render(resolve(name, { ...defaults, ...pins }), options)
 }
 
-export { render, resolve };
-export type { RenderOptions } from "./render";
-export type { Facing, Pin, TraitOptions, AvatarTraits } from "./traits";
-export * from "./catalog";
-export { normalizeName } from "./hash";
+export { render, resolve }
+export type { RenderOptions } from "./render"
+export type { Facing, Pin, TraitOptions, AvatarTraits } from "./traits"
+export * from "./catalog"
+export { normalizeName } from "./hash"

@@ -111,7 +111,9 @@ export function createPromptInputV2Controller(input: {
         chip: (items, at) => rich?.insertAttachments(items, at),
         fileRef: (paths, at) => {
           if (rich) rich.insertFileRefs(paths, at)
-          else for (const path of paths) addPart({ type: "text", content: `${fileRefToken(path, path.endsWith("/"))} `, start: 0, end: 0 })
+          else
+            for (const path of paths)
+              addPart({ type: "text", content: `${fileRefToken(path, path.endsWith("/"))} `, start: 0, end: 0 })
         },
         hasText: () => draft.state.prompt.some((part) => part.type === "text" && part.content.trim() !== ""),
         setDragging: (dragging) => {
@@ -326,12 +328,15 @@ export function createPromptInputV2Controller(input: {
       const held = draft.state.prompt.filter((part): part is PromptInputV2Attachment => part.type === "image")
       const imported: PromptInputV2Attachment[] = []
       for (const { attachment, file } of files) {
-        const existing = [...held, ...imported].find((part) => part.id === attachment.id || part.blob.id === attachment.blob.id)
+        const existing = [...held, ...imported].find(
+          (part) => part.id === attachment.id || part.blob.id === attachment.blob.id,
+        )
         if (existing) {
           replacements.set(attachment.id, existing.id)
           continue
         }
-        const refusal = held.length + imported.length >= MAX_ATTACHMENTS ? attachmentMessages.tooMany : attachmentError(file)
+        const refusal =
+          held.length + imported.length >= MAX_ATTACHMENTS ? attachmentMessages.tooMany : attachmentError(file)
         if (refusal) {
           input.attachments?.refuse([refusal])
           continue

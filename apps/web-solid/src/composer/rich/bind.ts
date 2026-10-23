@@ -48,7 +48,8 @@ export function bindRich(input: {
     onKeyDown: (event) => {
       if (input.shortcodes.onKeyDown(event)) return true
       if (controller.onKeyDown(event)) return true
-      if (event.key !== "Enter" || composingKey(event) || event.shiftKey || event.altKey || enterIsNewline(event)) return false
+      if (event.key !== "Enter" || composingKey(event) || event.shiftKey || event.altKey || enterIsNewline(event))
+        return false
       const modified = event.metaKey || event.ctrlKey
       if (!modified && editor.inCode()) return false
       event.preventDefault()
@@ -61,7 +62,9 @@ export function bindRich(input: {
       const replacements = controller.importAttachments(fragment.files)
       return fragment.markdown.replace(/!?\[[^\]\n]*\]\(attachment:([\w-]+)\)/g, (token, id: string) => {
         const target = replacements.get(id) ?? id
-        return controller.attachments().some((attachment) => attachment.id === target) ? token.replace(`(attachment:${id})`, `(attachment:${target})`) : ""
+        return controller.attachments().some((attachment) => attachment.id === target)
+          ? token.replace(`(attachment:${id})`, `(attachment:${target})`)
+          : ""
       })
     },
     onPaste: (event) => {

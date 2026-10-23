@@ -1,6 +1,4 @@
-
 @layer v2 {
-
   [data-popper-positioner]:has([data-component="menu-v2-content"]) {
     z-index: 60;
   }
@@ -32,7 +30,6 @@
     text-rendering: geometricPrecision;
 
     transform-origin: var(--kb-menu-content-transform-origin);
-
 
     &:focus-visible {
       outline: none;
@@ -159,7 +156,6 @@
       pointer-events: none;
       opacity: 0.5;
     }
-
 
     &.text-error {
       color: var(--error);

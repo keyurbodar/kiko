@@ -1,6 +1,14 @@
 import * as glyphs from "@kiko/ui/icons"
 import type { Glyph } from "@kiko/ui/icons"
-import { commands, GROUP_LABEL, isEnabled, shortcutOf, type Choice, type Command, type CommandGroup } from "../commands/registry"
+import {
+  commands,
+  GROUP_LABEL,
+  isEnabled,
+  shortcutOf,
+  type Choice,
+  type Command,
+  type CommandGroup,
+} from "../commands/registry"
 
 export interface Item {
   key: string
@@ -36,7 +44,8 @@ export const enterLabel = (view: View): string => view.parent?.enter ?? "Select"
 
 const ROOT_PLACEHOLDER = "Search commands and chats…"
 
-export const listed = (list: readonly Command[]): Command[] => list.filter((c) => c.group !== "palette" && !c.unlisted && isEnabled(c))
+export const listed = (list: readonly Command[]): Command[] =>
+  list.filter((c) => c.group !== "palette" && !c.unlisted && isEnabled(c))
 
 const commandItem = (c: Command): Item => ({
   key: encodeURIComponent(c.id),
@@ -47,9 +56,23 @@ const commandItem = (c: Command): Item => ({
   run: c.run,
 })
 
-const choiceItem = (c: Choice): Item => ({ key: encodeURIComponent(c.id), title: c.title, icon: c.icon, seed: c.seed, chatId: c.chatId, detail: c.detail, file: c.file, snippet: c.snippet, swatch: c.swatch, current: c.current, preview: c.preview, run: c.run })
+const choiceItem = (c: Choice): Item => ({
+  key: encodeURIComponent(c.id),
+  title: c.title,
+  icon: c.icon,
+  seed: c.seed,
+  chatId: c.chatId,
+  detail: c.detail,
+  file: c.file,
+  snippet: c.snippet,
+  swatch: c.swatch,
+  current: c.current,
+  preview: c.preview,
+  run: c.run,
+})
 
-export const searchGroups = (parent: Command, query: string): PaletteGroup[] => groupChoices(parent.search?.(query) ?? [], parent.highlight ? query.trim() : undefined)
+export const searchGroups = (parent: Command, query: string): PaletteGroup[] =>
+  groupChoices(parent.search?.(query) ?? [], parent.highlight ? query.trim() : undefined)
 
 function groupChoices(choices: readonly Choice[], mark?: string): PaletteGroup[] {
   const groups: PaletteGroup[] = []
@@ -73,7 +96,9 @@ export function emptyText(parent: Command | undefined, query: string): string {
 const RECENT_CHATS = 5
 
 export function viewFor(stack: readonly string[], list: readonly Command[] = commands(), typed = false): View {
-  const parent = stack.length ? list.find((c) => c.id === stack[stack.length - 1] && (c.submenu || c.search) && isEnabled(c)) : undefined
+  const parent = stack.length
+    ? list.find((c) => c.id === stack[stack.length - 1] && (c.submenu || c.search) && isEnabled(c))
+    : undefined
   if (parent?.search) return { parent, placeholder: parent.placeholder ?? "Search…", groups: [] }
   if (parent?.submenu) {
     return { parent, placeholder: parent.placeholder ?? "Search…", groups: groupChoices(parent.submenu()) }
@@ -138,7 +163,9 @@ const ICONS: Record<string, Glyph> = {
 export const iconFor = (name: string): Glyph => ICONS[name] ?? glyphs.CommandIcon
 
 export const keyChips = (display: string): string[] =>
-  display.length > 1 && display.includes("+") ? display.split("+").filter(Boolean) : (display.match(/[⌘⇧⌥⌃]|[^⌘⇧⌥⌃]+/g) ?? [])
+  display.length > 1 && display.includes("+")
+    ? display.split("+").filter(Boolean)
+    : (display.match(/[⌘⇧⌥⌃]|[^⌘⇧⌥⌃]+/g) ?? [])
 
 export function matchScore(search: string, title: string, group: string): number {
   const words = search.toLowerCase().split(/\s+/).filter(Boolean)

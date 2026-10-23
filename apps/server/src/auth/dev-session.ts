@@ -7,9 +7,11 @@ export async function devSessionRoute(request: Request, env: AuthEnv): Promise<R
   const url = new URL(request.url)
   if (url.pathname !== DEV_SESSION_PATH) return null
   if (!devRequest(url)) return new Response("not found", { status: 404 })
-  if (request.method !== "GET" && request.method !== "POST") return Response.json({ message: "method not allowed" }, { status: 405 })
+  if (request.method !== "GET" && request.method !== "POST")
+    return Response.json({ message: "method not allowed" }, { status: 405 })
 
-  const input = request.method === "GET" ? { name: url.searchParams.get("name") } : await request.json().catch(() => null)
+  const input =
+    request.method === "GET" ? { name: url.searchParams.get("name") } : await request.json().catch(() => null)
   const name = (input as { name?: unknown } | null)?.name ?? "dev"
   if (typeof name !== "string" || !OWNER_NAME.test(name)) {
     return Response.json({ message: "name must match [a-z0-9-], 1 to 32 characters" }, { status: 400 })

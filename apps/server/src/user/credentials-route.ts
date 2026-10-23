@@ -43,7 +43,8 @@ export async function credentialsRoute(request: Request, env: Env): Promise<Resp
   }
   const provider = rest
   if (!isProviderId(provider)) return error(400, "bad provider id")
-  if (request.method === "DELETE") return Response.json({ removed: await stub.userCall("disconnectProvider", [provider]) })
+  if (request.method === "DELETE")
+    return Response.json({ removed: await stub.userCall("disconnectProvider", [provider]) })
   if (request.method !== "PUT") return error(405, "method not allowed")
   let apiKey: string
   try {

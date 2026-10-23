@@ -12,7 +12,12 @@ type Filter = "all" | "added" | "available"
 function Glyph(props: { entry: Entry }): JSX.Element {
   return (
     <span class="grid size-8 shrink-0 place-items-center rounded-lg bg-control text-muted-foreground">
-      <Show when={APPS[props.entry.id].icon} fallback={<span class="text-md font-semibold text-foreground">{props.entry.name.slice(0, 1).toUpperCase()}</span>}>
+      <Show
+        when={APPS[props.entry.id].icon}
+        fallback={
+          <span class="text-md font-semibold text-foreground">{props.entry.name.slice(0, 1).toUpperCase()}</span>
+        }
+      >
         {(Icon) => {
           const I = Icon()
           return <I />
@@ -31,13 +36,24 @@ export default function Tools(): JSX.Element {
   const entries = createMemo((): Entry[] =>
     (Object.keys(APPS) as AppId[]).map((id) => {
       const state = appState(apps, id)
-      return { key: `app:${id}`, id, name: APPS[id].name, about: APPS[id].description, added: state !== "empty", state: state === "connected" ? "Connected" : state === "broken" ? "Key rejected" : "" }
+      return {
+        key: `app:${id}`,
+        id,
+        name: APPS[id].name,
+        about: APPS[id].description,
+        added: state !== "empty",
+        state: state === "connected" ? "Connected" : state === "broken" ? "Key rejected" : "",
+      }
     }),
   )
 
   const shown = createMemo(() => {
     const words = query().toLowerCase().split(/\s+/).filter(Boolean)
-    return entries().filter((e) => (filter() === "all" || (filter() === "added") === e.added) && words.every((w) => `${e.name} ${e.about}`.toLowerCase().includes(w)))
+    return entries().filter(
+      (e) =>
+        (filter() === "all" || (filter() === "added") === e.added) &&
+        words.every((w) => `${e.name} ${e.about}`.toLowerCase().includes(w)),
+    )
   })
 
   return (
@@ -63,7 +79,10 @@ export default function Tools(): JSX.Element {
         />
       </div>
       <div class="kit-card" data-component="tools-list">
-        <For each={shown()} fallback={<p class="px-4 py-6 text-center text-md text-muted-foreground">Nothing matches.</p>}>
+        <For
+          each={shown()}
+          fallback={<p class="px-4 py-6 text-center text-md text-muted-foreground">Nothing matches.</p>}
+        >
           {(entry) => (
             <button
               type="button"
@@ -80,7 +99,12 @@ export default function Tools(): JSX.Element {
                 <span class="truncate text-sm text-muted-foreground">{entry.about}</span>
               </span>
               <Show when={entry.state} fallback={<span class="shrink-0 text-sm text-muted-foreground">Connect</span>}>
-                <span class={cn("flex shrink-0 items-center gap-1.5 text-sm", entry.state === "Key rejected" ? "text-error" : "text-success")}>
+                <span
+                  class={cn(
+                    "flex shrink-0 items-center gap-1.5 text-sm",
+                    entry.state === "Key rejected" ? "text-error" : "text-success",
+                  )}
+                >
                   <span class="size-1.5 rounded-full bg-current" aria-hidden="true" />
                   {entry.state}
                 </span>

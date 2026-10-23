@@ -12,7 +12,12 @@ class StallError extends Error {
 export async function orStall<T>(work: Promise<T>, ms: number): Promise<T> {
   const wait = boundedWait(ms)
   try {
-    return await Promise.race([work, wait.then((): never => { throw new StallError() })])
+    return await Promise.race([
+      work,
+      wait.then((): never => {
+        throw new StallError()
+      }),
+    ])
   } finally {
     wait.cancel()
   }

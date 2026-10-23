@@ -43,6 +43,8 @@ export function typingLine(names: readonly string[], group: boolean): string {
   return `${first} and ${names.length - 1} others are typing`
 }
 
-export const isListed = (m: { to?: unknown; event?: object }): boolean => m.to === undefined && !(m.event && "private" in m.event)
+export const isListed = (m: { to?: unknown; event?: object }): boolean =>
+  m.to === undefined && !(m.event && "private" in m.event)
 
-export const quoteOf = (m: { body: string; rich?: RichText }, name: (slug: string) => string): string => (m.rich?.length ? plainText(m.rich, name) : m.body)
+export const quoteOf = (m: { body: string; rich?: RichText }, name: (slug: string) => string): string =>
+  m.rich?.length ? plainText(m.rich, name) : m.body

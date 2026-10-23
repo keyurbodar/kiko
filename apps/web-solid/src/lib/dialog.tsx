@@ -35,13 +35,18 @@ export function Dialog(props: {
       <ModalV2.Portal>
         <ModalV2.Overlay />
         <ModalV2.Content
-          class={cn("max-h-[calc(100dvh-32px)] flex-col overflow-hidden rounded-xl border border-border bg-popover text-foreground shadow-popover", WIDTH[props.size ?? "sm"], props.class)}
+          class={cn(
+            "max-h-[calc(100dvh-32px)] flex-col overflow-hidden rounded-xl border border-border bg-popover text-foreground shadow-popover",
+            WIDTH[props.size ?? "sm"],
+            props.class,
+          )}
           aria-describedby={props.description ? describedBy : undefined}
         >
-
           <div class="relative flex min-h-0 flex-1 flex-col" data-component={props["data-component"]}>
             <header class="shrink-0 px-5 pt-4 pr-12 pb-4">
-              <ModalV2.Title class="font-display text-base font-semibold leading-snug text-foreground">{props.title}</ModalV2.Title>
+              <ModalV2.Title class="font-display text-base font-semibold leading-snug text-foreground">
+                {props.title}
+              </ModalV2.Title>
               <Show when={props.description}>
                 <p id={describedBy} class="mt-1 text-[13px] leading-relaxed text-[var(--kit-meta)]">
                   {props.description}
@@ -54,8 +59,23 @@ export function Dialog(props: {
               </form>
             </Show>
 
-            <button type="button" aria-label="Close" title="Close" class={cn(iconButtonClass, "absolute top-3 right-3")} data-action="close-dialog" onClick={() => props.onClose()}>
-              <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+            <button
+              type="button"
+              aria-label="Close"
+              title="Close"
+              class={cn(iconButtonClass, "absolute top-3 right-3")}
+              data-action="close-dialog"
+              onClick={() => props.onClose()}
+            >
+              <svg
+                class="size-3.5"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                aria-hidden="true"
+              >
                 <path d="M4 4l8 8M12 4l-8 8" />
               </svg>
             </button>

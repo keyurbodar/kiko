@@ -75,7 +75,9 @@ export async function openSession(url: string, options: SessionOptions = {}): Pr
       const resume = pending.get(message.id)
       if (!resume) return
       pending.delete(message.id)
-      resume(message.error ? Effect.fail(new CdpError("protocol", message.error.message)) : Effect.succeed(message.result))
+      resume(
+        message.error ? Effect.fail(new CdpError("protocol", message.error.message)) : Effect.succeed(message.result),
+      )
       return
     }
     if (!message.method) return
@@ -87,10 +89,15 @@ export async function openSession(url: string, options: SessionOptions = {}): Pr
   const acquire = Effect.callback<WebSocket, CdpError>((resume) => {
     const ws = new WebSocket(url)
     ws.addEventListener("open", () => resume(Effect.succeed(ws)), { once: true })
-    ws.addEventListener("error", () => resume(Effect.fail(new CdpError("closed", "The CDP socket failed to open"))), { once: true })
+    ws.addEventListener("error", () => resume(Effect.fail(new CdpError("closed", "The CDP socket failed to open"))), {
+      once: true,
+    })
     return Effect.sync(() => ws.close())
   }).pipe(
-    Effect.timeoutOrElse({ duration: commandMs, orElse: () => Effect.fail(new CdpError("timeout", "The CDP socket did not open in time")) }),
+    Effect.timeoutOrElse({
+      duration: commandMs,
+      orElse: () => Effect.fail(new CdpError("timeout", "The CDP socket did not open in time")),
+    }),
   )
 
   const socket = Effect.acquireRelease(acquire, (ws) =>
@@ -103,7 +110,9 @@ export async function openSession(url: string, options: SessionOptions = {}): Pr
   )
 
   const ws = await Effect.runPromise(Scope.provide(scope)(socket))
-  ws.addEventListener("message", (event) => dispatch(typeof event.data === "string" ? event.data : new TextDecoder().decode(event.data as ArrayBuffer)))
+  ws.addEventListener("message", (event) =>
+    dispatch(typeof event.data === "string" ? event.data : new TextDecoder().decode(event.data as ArrayBuffer)),
+  )
   ws.addEventListener("close", () => shutdown("The CDP socket closed"))
   ws.addEventListener("error", () => shutdown("The CDP socket failed"))
 
@@ -112,7 +121,11 @@ export async function openSession(url: string, options: SessionOptions = {}): Pr
       if (!open) return resume(Effect.fail(new CdpError("closed", "The CDP socket is closed")))
       const id = ++nextId
       pending.set(id, resume)
-      ws.send(JSON.stringify(sessionId ? { id, method, params: params ?? {}, sessionId } : { id, method, params: params ?? {} }))
+      ws.send(
+        JSON.stringify(
+          sessionId ? { id, method, params: params ?? {}, sessionId } : { id, method, params: params ?? {} },
+        ),
+      )
       return Effect.sync(() => pending.delete(id))
     }).pipe(
       Effect.timeoutOrElse({

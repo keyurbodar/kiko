@@ -19,7 +19,15 @@ export default function QuoteOnSelect(props: { onQuote: (messageId: string, text
     const range = selection.getRangeAt(0)
     const message = messageOf(range.startContainer)
     const id = message?.getAttribute("data-message-id")
-    if (!text || text.length > MAX_QUOTE || !message || message !== messageOf(range.endContainer) || !id || id.startsWith("local:")) return setPicked(null)
+    if (
+      !text ||
+      text.length > MAX_QUOTE ||
+      !message ||
+      message !== messageOf(range.endContainer) ||
+      !id ||
+      id.startsWith("local:")
+    )
+      return setPicked(null)
     const rect = range.getBoundingClientRect()
     setPicked({ id, text, x: rect.left + rect.width / 2, y: rect.top })
   }

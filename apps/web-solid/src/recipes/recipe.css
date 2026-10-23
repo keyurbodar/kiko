@@ -28,7 +28,11 @@
   flex-shrink: 0;
   place-items: center;
   border-radius: 30%;
-  background: linear-gradient(150deg, color-mix(in oklab, var(--recipe-tone) 30%, transparent), color-mix(in oklab, var(--recipe-tone) 12%, transparent));
+  background: linear-gradient(
+    150deg,
+    color-mix(in oklab, var(--recipe-tone) 30%, transparent),
+    color-mix(in oklab, var(--recipe-tone) 12%, transparent)
+  );
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--recipe-tone) 22%, transparent);
   color: var(--recipe-tone);
 }

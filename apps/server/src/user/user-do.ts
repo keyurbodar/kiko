@@ -4,7 +4,28 @@ import { isAgentSlug } from "@kiko/protocol"
 import { KIKO, ROW_KINDS, newRoomId, pairRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
-import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, KikoError, ProviderInfo, RecipeList, RoomId, RowKind, UserRows, RunErrorKind, UserChange, UserEvent, UserToClient } from "@kiko/protocol"
+import type {
+  Actor,
+  Agent,
+  AgentModel,
+  AgentSlug,
+  Chat,
+  ChatOp,
+  FileOp,
+  ClientToUser as UserFrame,
+  ComposioResult,
+  InstallRecipe,
+  KikoError,
+  ProviderInfo,
+  RecipeList,
+  RoomId,
+  RowKind,
+  UserRows,
+  RunErrorKind,
+  UserChange,
+  UserEvent,
+  UserToClient,
+} from "@kiko/protocol"
 import { RecipeLibrary } from "./recipe-library"
 import { matchRecipes, type RecipeHint } from "../recipes/match"
 import { capitalized, soulFromDescription } from "../room/chief"
@@ -39,7 +60,18 @@ import { userModels } from "../agent/factory"
 import { agentNamed, createAgent, listAgents } from "./agents"
 import { agentModel, allAgentModels, saveAgentModel } from "./agent-models"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
-import { type CommitResult, type FileBody, FileIndex, type IndexChange, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
+import {
+  type CommitResult,
+  type FileBody,
+  FileIndex,
+  type IndexChange,
+  type FsChange,
+  type FsEntry,
+  type FsFail,
+  HOME_TABLES,
+  type NewFile,
+  type PutResult,
+} from "../files/file-index"
 import { actorKey } from "../room/log"
 import { RoomDirectory, type ChatChange } from "../room/directory"
 import { Life } from "@kiko/memory/life"
@@ -56,7 +88,7 @@ import { routineRun, type SignalBatch } from "../room/routine-events"
 import { createAgentRoutine, roomRoutine, type RoutineResult } from "./routines"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
-import { composioUserId, } from "../lib/names"
+import { composioUserId } from "../lib/names"
 import { INITIATIVE_RUN, InitiativeEngine, type Level } from "../initiative/engine"
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
 import type { DevBrowserOp } from "./dev"
@@ -78,7 +110,6 @@ const OLD_CHECK_IN_SEEN = "check_in_seen"
 
 const LAST_CHAT = "last_chat"
 
-
 type NewAgentOutcome = { ok: true; agent: Agent; roomId: RoomId } | { ok: false; error: string }
 
 export class User {
@@ -90,61 +121,94 @@ export class User {
   private home!: FileIndex<UserEvent>
   private holding: UserEvent[] | null = null
   private lastSeen = 0
-  private readonly directory:RoomDirectory
+  private readonly directory: RoomDirectory
 
-  private readonly ctx:DurableObjectState
- private readonly env:Env
- private readonly services:OwnerServices
- private readonly ownerId:string
- private readonly publishFrame:(frame:unknown)=>void
- private readonly egress: typeof fetch = async (input, init) => {
-   const request = new Request(input, init)
-   return this.services.egress({ url: request.url, method: request.method, headers: [...request.headers], body: request.body ? await request.arrayBuffer() : null })
- }
- constructor(options:ServiceOptions) {
-  const {ctx,env,services,sql,broadcast}=options
-  this.ctx=ctx
-  this.ownerId=options.identity.ownerId
-  this.env=env
-  this.services=services
-  this.sql=sql
-  this.publishFrame=broadcast
+  private readonly ctx: DurableObjectState
+  private readonly env: Env
+  private readonly services: OwnerServices
+  private readonly ownerId: string
+  private readonly publishFrame: (frame: unknown) => void
+  private readonly egress: typeof fetch = async (input, init) => {
+    const request = new Request(input, init)
+    return this.services.egress({
+      url: request.url,
+      method: request.method,
+      headers: [...request.headers],
+      body: request.body ? await request.arrayBuffer() : null,
+    })
+  }
+  constructor(options: ServiceOptions) {
+    const { ctx, env, services, sql, broadcast } = options
+    this.ctx = ctx
+    this.ownerId = options.identity.ownerId
+    this.env = env
+    this.services = services
+    this.sql = sql
+    this.publishFrame = broadcast
 
-
-    this.directory=new RoomDirectory(this.sql,this.services)
+    this.directory = new RoomDirectory(this.sql, this.services)
     {
       this.alarms = options.clock
       restoreOverlay(this.sql)
-      this.models = new ModelCatalog({ sql: this.sql, now: Date.now, fetch: (url, init) => this.services.egress({ url, method: init.method ?? "GET", headers: [...new Headers(init.headers)], body: null }), signInMethod, changed: () => this.changed("models") })
+      this.models = new ModelCatalog({
+        sql: this.sql,
+        now: Date.now,
+        fetch: (url, init) =>
+          this.services.egress({
+            url,
+            method: init.method ?? "GET",
+            headers: [...new Headers(init.headers)],
+            body: null,
+          }),
+        signInMethod,
+        changed: () => this.changed("models"),
+      })
 
-
-      this.life = new Life(this.sql, (fn) => ctx.storage.transactionSync(fn), { get: (key) => this.setting(key), set: (key, value) => this.putSetting(key, value) })
+      this.life = new Life(this.sql, (fn) => ctx.storage.transactionSync(fn), {
+        get: (key) => this.setting(key),
+        set: (key, value) => this.putSetting(key, value),
+      })
       this.souls = new Souls(this.sql)
-      this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => {
-        const event = this.commit(body)
-        if (!event) throw new Error("file change produced no event")
-        return event
-      }, actorKey)
-      this.reminders = new Reminders(this.sql, { sync: (routines) => this.services.syncRoutines(routines) }, Date.now, {
-        deliverRun: async ({ deliveryId, routine, body }) => {
-          return this.services.room(routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body })
+      this.home = new FileIndex<UserEvent>(
+        ctx.storage,
+        HOME_TABLES,
+        (_, body) => {
+          const event = this.commit(body)
+          if (!event) throw new Error("file change produced no event")
+          return event
         },
-        notice: (roomId, id, text) => this.services.room(roomId).systemNotice(id, text, "routine"),
-        gate: {
-          away: () => {
-            const last = Math.max(this.lastSeen, Number(this.setting(LAST_SEEN) ?? 0))
-            const connected = this.ctx.getWebSockets().some((ws) => (ws.deserializeAttachment() as Attachment | null)?.ready)
-            const away = !connected && last > 0 && Date.now() - last > AWAY_MS
-            if (away) this.ctx.waitUntil(this.awayNotice(Date.now()).catch(() => {}))
-            return away
+        actorKey,
+      )
+      this.reminders = new Reminders(
+        this.sql,
+        { sync: (routines) => this.services.syncRoutines(routines) },
+        Date.now,
+        {
+          deliverRun: async ({ deliveryId, routine, body }) => {
+            return this.services.room(routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body })
+          },
+          notice: (roomId, id, text) => this.services.room(roomId).systemNotice(id, text, "routine"),
+          gate: {
+            away: () => {
+              const last = Math.max(this.lastSeen, Number(this.setting(LAST_SEEN) ?? 0))
+              const connected = this.ctx
+                .getWebSockets()
+                .some((ws) => (ws.deserializeAttachment() as Attachment | null)?.ready)
+              const away = !connected && last > 0 && Date.now() - last > AWAY_MS
+              if (away) this.ctx.waitUntil(this.awayNotice(Date.now()).catch(() => {}))
+              return away
+            },
           },
         },
-      }, () => this.project("routine"))
+        () => this.project("routine"),
+      )
     }
   }
 
   private reminders!: Reminders
-  async listRoutines() { return this.reminders.list() }
+  async listRoutines() {
+    return this.reminders.list()
+  }
   async deleteRoutine(id: string): Promise<{ ok: true }> {
     this.#recipes.routineGone(id)
     return this.#routines.deleteRoutine(id)
@@ -162,7 +226,9 @@ export class User {
       create: (routed) => this.#routines.createRoutine(owner, routed),
     })
   }
-  async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> { return this.#routines.updateRoutine(id, patch) }
+  async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> {
+    return this.#routines.updateRoutine(id, patch)
+  }
 
   async recipeList(): Promise<RecipeList> {
     const { cards, custom, installs, broken } = await this.#recipes.list()
@@ -174,17 +240,36 @@ export class User {
     return matchRecipes(description, (await this.#recipes.list()).cards)
   }
 
-  async createAgentChat(input: { id: string; roomId: RoomId; name: string; handle: string; description: string }): Promise<NewAgentOutcome> {
+  async createAgentChat(input: {
+    id: string
+    roomId: RoomId
+    name: string
+    handle: string
+    description: string
+  }): Promise<NewAgentOutcome> {
     const owner = this.ownerId
     const out = await makeAgentChat(
       {
         agents: async () => listAgents(this.sql),
-        make: (spec) => this.makeAgent({ id: spec.id, name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model: "" }),
+        make: (spec) =>
+          this.makeAgent({
+            id: spec.id,
+            name: spec.name,
+            slug: spec.handle,
+            description: spec.description,
+            soul: spec.soul,
+            model: "",
+          }),
         openChat: (title, agentIds, roomId) => this.openChat(title, agentIds, roomId),
         recipes: (description) => this.recipeHints(description),
         introduce: (roomId, agent, text) => this.services.room(roomId).introduce(owner, agent.slug, text),
       },
-      { name: input.name, handle: input.handle, description: input.description, soul: soulFromDescription(capitalized(input.name.trim()), input.description) },
+      {
+        name: input.name,
+        handle: input.handle,
+        description: input.description,
+        soul: soulFromDescription(capitalized(input.name.trim()), input.description),
+      },
       "human",
       { id: input.id, roomId: input.roomId },
     )
@@ -243,29 +328,52 @@ export class User {
       openChat: async (title, agentIds) => (await this.openChat(title, agentIds)).roomId,
       chiefModel: async () => {
         const roomId = kikoChatRoom(this.sql)
-        return roomId ? this.services.room(roomId).modelOf("kiko").catch(() => "") : ""
+        return roomId
+          ? this.services
+              .room(roomId)
+              .modelOf("kiko")
+              .catch(() => "")
+          : ""
       },
       composio: {
-        connected: async () => (this.#composio.status().connected ? await this.#composio.connectedToolkits(Date.now(), true).catch(() => null) : "off"),
+        connected: async () =>
+          this.#composio.status().connected
+            ? await this.#composio.connectedToolkits(Date.now(), true).catch(() => null)
+            : "off",
         link: async (app) => {
           const manage = (await this.#composio.tools().catch(() => null))?.find((t) => t.name === MANAGE_CONNECTIONS)
-          const out = manage && (await connectLinkFor(manage, (name, args) => this.#composio.call(name, args), app, (named) => this.#composio.resolveToolkit(named)))
+          const out =
+            manage &&
+            (await connectLinkFor(
+              manage,
+              (name, args) => this.#composio.call(name, args),
+              app,
+              (named) => this.#composio.resolveToolkit(named),
+            ))
           return out && out.kind === "link" ? out.link : null
         },
       },
-      announce: (roomId, input) => this.services.room(roomId).addRecipe(owner(), { ...input, agent: input.agent as AgentSlug }),
+      announce: (roomId, input) =>
+        this.services.room(roomId).addRecipe(owner(), { ...input, agent: input.agent as AgentSlug }),
     })
     return this.#recipeService
   }
 
   async overview(): Promise<string> {
     const tz = this.setting("timezone") ?? DEFAULT_TIMEZONE
-    return roomOverview(this.directory,this.services, { reminders: this.reminders.list(), runs: this.reminders.runs(), tz, now: Date.now() })
+    return roomOverview(this.directory, this.services, {
+      reminders: this.reminders.list(),
+      runs: this.reminders.runs(),
+      tz,
+      now: Date.now(),
+    })
   }
 
-
-  private devCache?:Promise<typeof import("./dev")>
-  private dev():Promise<typeof import("./dev")>{this.devCache??=loadUserDev();return this.devCache}
+  private devCache?: Promise<typeof import("./dev")>
+  private dev(): Promise<typeof import("./dev")> {
+    this.devCache ??= loadUserDev()
+    return this.devCache
+  }
 
   async devSeen(ago: number): Promise<void> {
     this.lastSeen = Date.now() - ago
@@ -305,7 +413,9 @@ export class User {
   }
 
   async signals(batch: SignalBatch): Promise<void> {
-    for (const s of batch.signals) if (s.kind === "routine_result" && s.routineId !== INITIATIVE_RUN) await this.reminders.finishRun(s.routineId, s.occurrence, s.outcome, s.seq)
+    for (const s of batch.signals)
+      if (s.kind === "routine_result" && s.routineId !== INITIATIVE_RUN)
+        await this.reminders.finishRun(s.routineId, s.occurrence, s.outcome, s.seq)
     if (!batch.signals.some((s) => s.kind === "burst" || s.kind === "agent_final")) return
     for (const routine of this.reminders.roomRoutines(batch.roomId)) {
       const run = routineRun(roomRoutine(routine), batch)
@@ -317,23 +427,22 @@ export class User {
     return this.#routines.routineHook(token, deliveryKey, body)
   }
 
-
   async createChat(roomId: RoomId, title: string, agents?: readonly string[]): Promise<Chat> {
     const op: ChatOp = { op: "create", roomId, title, ...(agents?.length ? { agents } : {}) }
     this.apply(op)
-    const chat = this.directory.get( this.existingFor(op) ?? roomId)
+    const chat = this.directory.get(this.existingFor(op) ?? roomId)
     if (!chat) throw new Error(`chat ${roomId} is missing right after create`)
     return chat
   }
 
   async renameChat(roomId: RoomId, title: string): Promise<Chat | null> {
     this.apply({ op: "rename", roomId, title })
-    return this.directory.get( roomId)
+    return this.directory.get(roomId)
   }
 
   async pinChat(roomId: RoomId, pinned: boolean): Promise<Chat | null> {
     this.apply({ op: "pin", roomId, pinned })
-    return this.directory.get( roomId)
+    return this.directory.get(roomId)
   }
 
   async deleteChat(roomId: RoomId): Promise<boolean> {
@@ -353,7 +462,8 @@ export class User {
 
   async deleteAgent(handle: string) {
     const slug = handle.trim().toLowerCase().replace(/^@/, "")
-    if (!isAgentSlug(slug) || slug === KIKO) return { ok: false as const, error: "kiko cannot be deleted; use a valid agent handle" }
+    if (!isAgentSlug(slug) || slug === KIKO)
+      return { ok: false as const, error: "kiko cannot be deleted; use a valid agent handle" }
     this.sql.exec("INSERT OR IGNORE INTO deleted_agent_handles (slug) VALUES (?)", slug)
     const agent = this.sql.exec<{ id: string }>("SELECT id FROM agents WHERE slug = ?", slug).toArray()[0]
     this.sql.exec("INSERT OR IGNORE INTO deletion_agents (slug) VALUES (?)", slug)
@@ -377,8 +487,11 @@ export class User {
     const agent = this.sql.exec<{ id: string }>("SELECT id FROM agents WHERE slug = ?", slug).toArray()[0]
     if (!agent) return { ok: true as const, text: "agent already deleted" }
     const owner = this.ownerId
-    for (const row of this.directory.list(true).filter(c=>c.agents?.includes(agent.id)).map(c=>({room_id:c.roomId}))) {
-      const chat = this.directory.get( row.room_id)
+    for (const row of this.directory
+      .list(true)
+      .filter((c) => c.agents?.includes(agent.id))
+      .map((c) => ({ room_id: c.roomId }))) {
+      const chat = this.directory.get(row.room_id)
       if (!chat) continue
       if (chat.pair || (chat.agents?.length ?? 0) <= 1) await this.deleteChat(chat.roomId)
       else {
@@ -386,13 +499,20 @@ export class User {
         const reason = await room.memberOp({ op: "remove", slug })
         if (reason && reason !== "unknown") return { ok: false as const, error: reason }
         await this.services.agent(chat.roomId, slug).erase()
-        await this.chatMembers(chat.roomId, (await room.memberSlugs()).filter((s) => s !== slug))
+        await this.chatMembers(
+          chat.roomId,
+          (await room.memberSlugs()).filter((s) => s !== slug),
+        )
       }
     }
-    for (const { room_id } of this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM room_directory").toArray()) await this.services.room(room_id).eraseFormerAgent(slug)
+    for (const { room_id } of this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM room_directory").toArray())
+      await this.services.room(room_id).eraseFormerAgent(slug)
     await this.#recipes.agentGone(slug)
     await this.reminders.cancelAgent(slug)
-    for (const { pos } of this.sql.exec<{ pos: number }>("SELECT pos FROM life WHERE source = ? AND redacted = 0", `@${slug}`).toArray()) this.life.redact(pos)
+    for (const { pos } of this.sql
+      .exec<{ pos: number }>("SELECT pos FROM life WHERE source = ? AND redacted = 0", `@${slug}`)
+      .toArray())
+      this.life.redact(pos)
     this.changed("memory")
     this.sql.exec("DELETE FROM souls WHERE slug = ?", slug)
     this.project("soul")
@@ -401,16 +521,21 @@ export class User {
     return { ok: true as const, text: `@${slug} deleted` }
   }
 
-  roomChanged(roomId:RoomId):void {
-    const chat=this.directory.get(roomId)
-    if(chat&&!chat.pair)this.broadcast({t:"events",events:[{t:"chat",chat:markKikoChat(this.sql,chat),seq:this.currentSeq(),at:Date.now(),projection:true}]})
+  roomChanged(roomId: RoomId): void {
+    const chat = this.directory.get(roomId)
+    if (chat && !chat.pair)
+      this.broadcast({
+        t: "events",
+        events: [
+          { t: "chat", chat: markKikoChat(this.sql, chat), seq: this.currentSeq(), at: Date.now(), projection: true },
+        ],
+      })
   }
-
 
   readonly #typing = new Map<RoomId, readonly string[]>()
 
   async chatTyping(roomId: RoomId, names: readonly string[]): Promise<void> {
-    if (!this.directory.get( roomId)) return
+    if (!this.directory.get(roomId)) return
     if (names.length) this.#typing.set(roomId, names)
     else this.#typing.delete(roomId)
     this.broadcast({ t: "typing", roomId, names })
@@ -418,7 +543,23 @@ export class User {
 
   private loadRows<K extends RowKind>(kind: K): UserRows[K][] {
     const rows: { [L in RowKind]: () => UserRows[L][] } = {
-      routine: () => this.reminders.list().flatMap((r) => r.trigger && (r.status === "active" || r.status === "paused") ? [{ id: r.id, name: r.name || "Routine", roomId: r.roomId, status: r.status, trigger: r.trigger, tz: r.tz }] : []),
+      routine: () =>
+        this.reminders
+          .list()
+          .flatMap((r) =>
+            r.trigger && (r.status === "active" || r.status === "paused")
+              ? [
+                  {
+                    id: r.id,
+                    name: r.name || "Routine",
+                    roomId: r.roomId,
+                    status: r.status,
+                    trigger: r.trigger,
+                    tz: r.tz,
+                  },
+                ]
+              : [],
+          ),
       soul: () => this.souls.all().map(({ slug, ...soul }) => ({ id: slug as AgentSlug, ...soul })),
       provider: () => this.#credentials.listProviders().map((p) => ({ id: p.provider, ...this.#mem.describe(p) })),
     }
@@ -437,7 +578,7 @@ export class User {
   }
 
   async searchChats(query: string): Promise<Chat[]> {
-    return this.directory.search( query)
+    return this.directory.search(query)
   }
 
   async listChats(): Promise<Chat[]> {
@@ -446,11 +587,16 @@ export class User {
 
   async chatMembers(roomId: RoomId, slugs: readonly string[]): Promise<void> {
     const ids = new Map(listAgents(this.sql).map((a) => [a.slug as string, a.id]))
-    this.commit(this.directory.agents( roomId, slugs.flatMap((s) => (s === KIKO ? [KIKO] : ids.has(s) ? [ids.get(s)!] : []))))
+    this.commit(
+      this.directory.agents(
+        roomId,
+        slugs.flatMap((s) => (s === KIKO ? [KIKO] : ids.has(s) ? [ids.get(s)!] : [])),
+      ),
+    )
   }
 
   async getChat(roomId: RoomId): Promise<Chat | null> {
-    const chat = this.directory.get( roomId)
+    const chat = this.directory.get(roomId)
     return chat && markKikoChat(this.sql, chat)
   }
 
@@ -506,16 +652,38 @@ export class User {
     return this.#homeWiring.op(op)
   }
 
-  async makeAgent(input: { id?: string; name: string; slug: string; description: string; soul: string; model: string }): Promise<Agent | null> {
-    if (this.sql.exec("SELECT 1 FROM deleted_agent_handles WHERE slug = ?", input.slug.trim().toLowerCase().replace(/^@/, "")).toArray().length) throw new Error("This agent handle was deleted and cannot be reused. Choose a new handle.")
-    const agent = this.saveAgent({ id: input.id ?? crypto.randomUUID(), name: input.name, slug: input.slug as AgentSlug, prompt: input.description, model: input.model })
+  async makeAgent(input: {
+    id?: string
+    name: string
+    slug: string
+    description: string
+    soul: string
+    model: string
+  }): Promise<Agent | null> {
+    if (
+      this.sql
+        .exec("SELECT 1 FROM deleted_agent_handles WHERE slug = ?", input.slug.trim().toLowerCase().replace(/^@/, ""))
+        .toArray().length
+    )
+      throw new Error("This agent handle was deleted and cannot be reused. Choose a new handle.")
+    const agent = this.saveAgent({
+      id: input.id ?? crypto.randomUUID(),
+      name: input.name,
+      slug: input.slug as AgentSlug,
+      prompt: input.description,
+      model: input.model,
+    })
     if (!agent) return null
     await this.souls.seed(agent.slug, input.soul)
     this.project("soul")
     return agent
   }
 
-  async openChat(title: string, agents: readonly string[], roomId: RoomId = newRoomId()): Promise<{ roomId: RoomId; created: boolean }> {
+  async openChat(
+    title: string,
+    agents: readonly string[],
+    roomId: RoomId = newRoomId(),
+  ): Promise<{ roomId: RoomId; created: boolean }> {
     const op: ChatOp = { op: "create", roomId, title, agents }
     const existing = this.existingFor(op)
     if (existing) return { roomId: existing, created: false }
@@ -529,10 +697,28 @@ export class User {
     const ids = [idOf(a), idOf(b)]
     if (ids[0] === undefined || ids[1] === undefined) {
       const known = [KIKO, ...mine.map((x) => x.slug)].filter((s) => s !== a)
-      return { ok: false, error: `not sent: no agent @${ids[1] === undefined ? b : a}. the human has: ${known.map((s) => `@${s}`).join(", ")}.` }
+      return {
+        ok: false,
+        error: `not sent: no agent @${ids[1] === undefined ? b : a}. the human has: ${known.map((s) => `@${s}`).join(", ")}.`,
+      }
     }
     const roomId = pairRoomId(a, b)
-    if (!this.directory.get( roomId)) this.commit(this.directory.apply( { op: "create", roomId, title: [a, b].sort().map((s) => `@${s}`).join(" and "), agents: ids as string[] }, Date.now(), true))
+    if (!this.directory.get(roomId))
+      this.commit(
+        this.directory.apply(
+          {
+            op: "create",
+            roomId,
+            title: [a, b]
+              .sort()
+              .map((s) => `@${s}`)
+              .join(" and "),
+            agents: ids as string[],
+          },
+          Date.now(),
+          true,
+        ),
+      )
     return { ok: true, roomId }
   }
 
@@ -566,13 +752,20 @@ export class User {
     if (!out.duplicate || replaced) {
       this.changed("memory")
     }
-    return { ok: true, pos: out.pos, ...(out.duplicate ? { duplicate: true as const } : {}), ...(replaces === undefined ? {} : { replaced }) }
+    return {
+      ok: true,
+      pos: out.pos,
+      ...(out.duplicate ? { duplicate: true as const } : {}),
+      ...(replaces === undefined ? {} : { replaced }),
+    }
   }
 
   async lifeRecall(query: string): Promise<string[]> {
     return this.life
       .recall(query, 10, { skipCard: true })
-      .map((l) => itemLine({ pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}` }, 400, true, "life"))
+      .map((l) =>
+        itemLine({ pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}` }, 400, true, "life"),
+      )
   }
 
   async captureNow(): Promise<void> {
@@ -592,7 +785,9 @@ export class User {
     return work
   }
 
-  private async applyRoutineInventory(routines: readonly import("../owner/schedules").ScheduledRoutine[]): Promise<void> {
+  private async applyRoutineInventory(
+    routines: readonly import("../owner/schedules").ScheduledRoutine[],
+  ): Promise<void> {
     const byAgent = new Map<string, import("../owner/schedules").ScheduledRoutine[]>()
     for (const routine of routines) {
       const key = `${routine.roomId}:${routine.target}`
@@ -601,10 +796,11 @@ export class User {
       else byAgent.set(key, [routine])
     }
     const previous = JSON.parse(this.setting("routine_agents") ?? "[]") as string[]
-    for (const key of previous) if (!byAgent.has(key)) {
-      const [roomId, target] = key.split(":")
-      if (roomId && target) await this.services.agent(roomId, target).syncRoutines([])
-    }
+    for (const key of previous)
+      if (!byAgent.has(key)) {
+        const [roomId, target] = key.split(":")
+        if (roomId && target) await this.services.agent(roomId, target).syncRoutines([])
+      }
     for (const list of byAgent.values()) {
       const { roomId, target } = list[0]!
       await this.services.agent(roomId, target).syncRoutines(list)
@@ -621,10 +817,19 @@ export class User {
     await this.#mem.captureHuman(roomId, items)
   }
 
-  async forgetMessages(roomId: RoomId, messageIds: string[], requeue: { messageId: string; text: string; at: number }[], turns: number[]): Promise<void> {
+  async forgetMessages(
+    roomId: RoomId,
+    messageIds: string[],
+    requeue: { messageId: string; text: string; at: number }[],
+    turns: number[],
+  ): Promise<void> {
     const ids = [...new Set([...messageIds, ...requeue.map((r) => r.messageId)])]
     const gone = this.life.redactRefs(ids.map((id) => `room:${roomId}:msg:${id}`))
-    this.sql.exec("DELETE FROM capture_queue WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(ids))
+    this.sql.exec(
+      "DELETE FROM capture_queue WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))",
+      roomId,
+      JSON.stringify(ids),
+    )
     const prefix = `room:${roomId}:turns:`
     const spans = this.life.refsLike(prefix).filter((ref) => {
       const m = /^(\d+)-(\d+)$/.exec(ref.slice(prefix.length))
@@ -654,7 +859,12 @@ export class User {
 
   async providerKeyRefused(provider: string, apiKey: string): Promise<string | null> {
     const key = checkApiKey(apiKey)
-    const { models, settings } = userModels(async () => ({ auth: { apiKey: key } }), `check-${this.ctx.id.toString()}`, this.egress, () => this.services.countOutgoing())
+    const { models, settings } = userModels(
+      async () => ({ auth: { apiKey: key } }),
+      `check-${this.ctx.id.toString()}`,
+      this.egress,
+      () => this.services.countOutgoing(),
+    )
     return keyRefused(models, provider, settings.stream?.headers, `check-${this.ctx.id.toString()}`)
   }
 
@@ -711,7 +921,14 @@ export class User {
     this.putSetting(AWAY_NOTICE, String(now))
     const roomId = kikoChatRoom(this.sql)
     const owner = this.ownerId
-    if (roomId) await this.services.room(roomId).systemNotice(`away:${now}`, "i paused your routines and follow-ups while you were away. they start again when you open kiko.", "limit")
+    if (roomId)
+      await this.services
+        .room(roomId)
+        .systemNotice(
+          `away:${now}`,
+          "i paused your routines and follow-ups while you were away. they start again when you open kiko.",
+          "limit",
+        )
   }
 
   async agentModel(slug: string): Promise<AgentModel | null> {
@@ -725,14 +942,23 @@ export class User {
   async agentTurn(slug: string): Promise<TurnContext & { model: string | null; thinking: ThinkingLevel }> {
     const picked = agentModel(this.sql, slug)
     if (!picked) return { ...(await this.turnContext("", slug)), model: null, thinking: "off" }
-    return { ...(await this.turnContext(picked.model.slice(0, picked.model.indexOf("/")), slug)), model: picked.model, thinking: picked.thinking }
+    return {
+      ...(await this.turnContext(picked.model.slice(0, picked.model.indexOf("/")), slug)),
+      model: picked.model,
+      thinking: picked.thinking,
+    }
   }
 
   async turnContext(provider: string, slug?: string): Promise<TurnContext> {
-    const setting = (key: string) =>
-      getSetting(this.sql, key)
+    const setting = (key: string) => getSetting(this.sql, key)
     const agent = slug ? { soul: await this.soul(slug) } : undefined
-    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), captures: this.#mem.captures() }, agent, await this.lookupProvider(provider))
+    return resolveTurnContext(
+      this.#credentials,
+      provider,
+      { timezone: setting("timezone"), captures: this.#mem.captures() },
+      agent,
+      await this.lookupProvider(provider),
+    )
   }
 
   lifeRevision(): number {
@@ -753,7 +979,12 @@ export class User {
 
   #vault?: CredentialVault
   get #credentials(): CredentialVault {
-    this.#vault ??= new CredentialVault(this.sql, () => keyringFromEnv(this.env), this.ownerId, () => this.project("provider"))
+    this.#vault ??= new CredentialVault(
+      this.sql,
+      () => keyringFromEnv(this.env),
+      this.ownerId,
+      () => this.project("provider"),
+    )
     return this.#vault
   }
 
@@ -781,20 +1012,36 @@ export class User {
 
   #homeWiringCache?: HomeWiring
   get #homeWiring(): HomeWiring {
-    this.#homeWiringCache ??= new HomeWiring({ files:this.services.files(), ctx: this.ctx, env: this.env, home: this.home, holding: { set: (held) => { this.holding = held } }, broadcast: (frame) => this.broadcast(frame) })
+    this.#homeWiringCache ??= new HomeWiring({
+      files: this.services.files(),
+      ctx: this.ctx,
+      env: this.env,
+      home: this.home,
+      holding: {
+        set: (held) => {
+          this.holding = held
+        },
+      },
+      broadcast: (frame) => this.broadcast(frame),
+    })
     return this.#homeWiringCache
   }
 
   #routinesWiring?: RoutineWiring
   get #routines(): RoutineWiring {
-    this.#routinesWiring ??= new RoutineWiring({ reminders: this.reminders, setRoutines: (roomId, routines) => this.services.room(roomId).setRoutines(routines), routineCreated: (roomId, slug, id, name, byAgent) => this.services.room(roomId).routineCreated(slug, id, name, byAgent) })
+    this.#routinesWiring ??= new RoutineWiring({
+      reminders: this.reminders,
+      setRoutines: (roomId, routines) => this.services.room(roomId).setRoutines(routines),
+      routineCreated: (roomId, slug, id, name, byAgent) =>
+        this.services.room(roomId).routineCreated(slug, id, name, byAgent),
+    })
     return this.#routinesWiring
   }
 
   #memory?: MemoryCapture
   get #mem(): MemoryCapture {
     this.#memory ??= new MemoryCapture({
-      chat:roomId=>this.directory.get(roomId),
+      chat: (roomId) => this.directory.get(roomId),
       sql: this.sql,
       life: this.life,
       label: this.ctx.id.toString(),
@@ -811,14 +1058,31 @@ export class User {
     this.#initiativeModule ??= new InitiativeEngine({
       boards: () => {
         const rows = this.sql
-          .exec<{ room_id: string; id: string; title: string; status: string; owner: string | null; updated_at: number }>(
+          .exec<{
+            room_id: string
+            id: string
+            title: string
+            status: string
+            owner: string | null
+            updated_at: number
+          }>(
             "SELECT room_id, id, title, status, owner, updated_at FROM ws_tasks WHERE NOT status IN ('done', 'cancelled') AND NOT id IS NULL ORDER BY updated_at",
           )
           .toArray()
-        const boards = new Map<string, { roomId: string; oldest: { id: string; title: string; status: string; owner?: string; updatedAt: number }[] }>()
+        const boards = new Map<
+          string,
+          { roomId: string; oldest: { id: string; title: string; status: string; owner?: string; updatedAt: number }[] }
+        >()
         for (const row of rows) {
           const board = boards.get(row.room_id) ?? { roomId: row.room_id, oldest: [] }
-          if (board.oldest.length < 3) board.oldest.push({ id: row.id, title: row.title, status: row.status, ...(row.owner ? { owner: row.owner } : {}), updatedAt: row.updated_at })
+          if (board.oldest.length < 3)
+            board.oldest.push({
+              id: row.id,
+              title: row.title,
+              status: row.status,
+              ...(row.owner ? { owner: row.owner } : {}),
+              updatedAt: row.updated_at,
+            })
           boards.set(row.room_id, board)
         }
         return [...boards.values()]
@@ -827,7 +1091,7 @@ export class User {
       tz: () => getSetting(this.sql, "timezone") ?? DEFAULT_TIMEZONE,
       level: () => this.initiativeLevel(),
       title: (roomId) => {
-        const chat = this.directory.get( roomId)
+        const chat = this.directory.get(roomId)
         return chat && !chat.private ? chat.title : null
       },
       wake: (roomId, input) => this.services.room(roomId).initiativeWake(input),
@@ -889,7 +1153,10 @@ export class User {
     return this.#composioConnection
   }
 
-  private async composioFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "connectComposio" | "disconnectComposio" | "composioStatus" }>) {
+  private async composioFrame(
+    ws: WebSocket,
+    frame: Extract<UserFrame, { t: "connectComposio" | "disconnectComposio" | "composioStatus" }>,
+  ) {
     const composio = this.#composio
     let result: ComposioResult
     try {
@@ -899,7 +1166,13 @@ export class User {
         result = { ok: true, status: composio.status() }
       } else {
         const tools = frame.tools ? await composio.tools() : null
-        result = { ok: true, status: composio.status(), ...(tools ? { tools: tools.map((t) => t.name), readOnly: tools.flatMap((t) => (t.readOnly ? [t.name] : [])) } : {}) }
+        result = {
+          ok: true,
+          status: composio.status(),
+          ...(tools
+            ? { tools: tools.map((t) => t.name), readOnly: tools.flatMap((t) => (t.readOnly ? [t.name] : [])) }
+            : {}),
+        }
       }
     } catch (e) {
       result = { ok: false, error: composioErrorText(e) }
@@ -916,7 +1189,16 @@ export class User {
 
   #kernelWiring?: KernelWiring
   get #kr(): KernelWiring {
-    this.#kernelWiring ??= new KernelWiring({ fetch: this.egress, services:this.services, ctx: this.ctx, sql: this.sql, env: this.env, alarms: this.alarms, userId: () => this.ownerId, notify: (error) => this.broadcast({ t: "error", error }) })
+    this.#kernelWiring ??= new KernelWiring({
+      fetch: this.egress,
+      services: this.services,
+      ctx: this.ctx,
+      sql: this.sql,
+      env: this.env,
+      alarms: this.alarms,
+      userId: () => this.ownerId,
+      notify: (error) => this.broadcast({ t: "error", error }),
+    })
     return this.#kernelWiring
   }
 
@@ -932,7 +1214,12 @@ export class User {
     return this.#kr.paused(agentId, roomId)
   }
 
-  async browserLive(agentId: string, roomId: string, mode: "watch" | "control", reason?: string): Promise<LiveLinkResult> {
+  async browserLive(
+    agentId: string,
+    roomId: string,
+    mode: "watch" | "control",
+    reason?: string,
+  ): Promise<LiveLinkResult> {
     return this.#kr.liveLink(agentId, roomId, mode, reason)
   }
 
@@ -952,11 +1239,11 @@ export class User {
     return (await this.dev()).devBrowser(() => this.#kr, this.ownerId, op)
   }
 
-  async openSocket(server:WebSocket,request:Request):Promise<void>{
+  async openSocket(server: WebSocket, request: Request): Promise<void> {
     this.models.syncIfStale()
-    server.serializeAttachment({ready:false,helloBy:helloBy()} satisfies Attachment)
-    const origin=request.headers.get("origin")??new URL(request.url).origin
-    if(this.setting(PUBLIC_ORIGIN)!==origin)this.putSetting(PUBLIC_ORIGIN,origin)
+    server.serializeAttachment({ ready: false, helloBy: helloBy() } satisfies Attachment)
+    const origin = request.headers.get("origin") ?? new URL(request.url).origin
+    if (this.setting(PUBLIC_ORIGIN) !== origin) this.putSetting(PUBLIC_ORIGIN, origin)
     this.ctx.waitUntil(waitForHello(server))
   }
 
@@ -1015,7 +1302,13 @@ export class User {
     try {
       frame = decodeFrame(JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)))
     } catch {
-      send(ws, { t: "error", error: { code: "protocol", message: "This client and your backend are speaking different versions. Reload to update." } })
+      send(ws, {
+        t: "error",
+        error: {
+          code: "protocol",
+          message: "This client and your backend are speaking different versions. Reload to update.",
+        },
+      })
       try {
         ws.close(1002, "bad frame")
       } catch {}
@@ -1048,10 +1341,29 @@ export class User {
     return this.handleUserFrame(ws, frame)
   }
 
-  private async handleUserFrame(ws: WebSocket, frame: Exclude<typeof ClientToUser.Type, { t: "hello" | "connectComposio" | "disconnectComposio" | "composioStatus" | "browserLink" | "handBack" | "closeBrowser" | "connectKernel" | "disconnectKernel" | "kernelStatus" }>): Promise<void> {
+  private async handleUserFrame(
+    ws: WebSocket,
+    frame: Exclude<
+      typeof ClientToUser.Type,
+      {
+        t:
+          | "hello"
+          | "connectComposio"
+          | "disconnectComposio"
+          | "composioStatus"
+          | "browserLink"
+          | "handBack"
+          | "closeBrowser"
+          | "connectKernel"
+          | "disconnectKernel"
+          | "kernelStatus"
+      }
+    >,
+  ): Promise<void> {
     if (frame.t === "memory") {
       const result = await this.#mem.call(frame.op)
-      if (result.ok && (frame.op.op === "note" || frame.op.op === "redact" || frame.op.op === "pin")) this.changed("memory")
+      if (result.ok && (frame.op.op === "note" || frame.op.op === "redact" || frame.op.op === "pin"))
+        this.changed("memory")
       send(ws, { t: "memory_result", reqId: frame.reqId, result })
       return
     }
@@ -1060,7 +1372,7 @@ export class User {
       return
     }
     if (frame.t === "search") {
-      send(ws, { t: "search", query: frame.query, chats: this.directory.search( frame.query.slice(0, 200)) })
+      send(ws, { t: "search", query: frame.query, chats: this.directory.search(frame.query.slice(0, 200)) })
       return
     }
     if (frame.t === "agent") {
@@ -1070,7 +1382,13 @@ export class User {
     }
     if (frame.t === "agent_model") {
       if (!this.setAgentModel(frame.slug, frame.ref, frame.thinking, frame.roomId)) {
-        send(ws, { t: "model_refused", slug: frame.slug, message: frame.ref ? `The model did not change. Kiko does not know ${frame.ref}. Pick another one.` : "The model did not change. Pick a model first." })
+        send(ws, {
+          t: "model_refused",
+          slug: frame.slug,
+          message: frame.ref
+            ? `The model did not change. Kiko does not know ${frame.ref}. Pick another one.`
+            : "The model did not change. Pick a model first.",
+        })
       }
       return
     }
@@ -1103,11 +1421,14 @@ export class User {
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
     this.#logins?.dropOwner(ws)
     const now = Date.now()
-    if ((ws.deserializeAttachment() as Attachment | null)?.ready && now - Number(this.setting(LAST_SEEN) ?? 0) >= 3_600_000) this.putSetting(LAST_SEEN, String(now))
+    if (
+      (ws.deserializeAttachment() as Attachment | null)?.ready &&
+      now - Number(this.setting(LAST_SEEN) ?? 0) >= 3_600_000
+    )
+      this.putSetting(LAST_SEEN, String(now))
     try {
       ws.close(code === 1005 || code === 1006 ? 1000 : code)
-    } catch {
-    }
+    } catch {}
   }
 
   async alarm(): Promise<void> {
@@ -1126,9 +1447,8 @@ export class User {
 
   private apply(op: ChatOp): UserEvent | null {
     if (movesKikoChat(this.sql, op) || this.existingFor(op)) return null
-    const event = this.commit(this.directory.apply( op, Date.now()))
+    const event = this.commit(this.directory.apply(op, Date.now()))
     if (event && op.op === "delete") {
-
       this.sql.exec("DELETE FROM capture_queue WHERE room_id = ?", op.roomId)
       this.life.redactRefs(this.life.refsLike(`room:${op.roomId}:`))
       this.changed("memory")
@@ -1137,27 +1457,41 @@ export class User {
     }
     if (event && op.op === "private") {
       const room = this.services.room(op.roomId)
-      this.ctx.waitUntil(Promise.resolve(room.setPrivate(op.private)).catch((e: unknown) => console.error(`private flag not sent: ${e instanceof Error ? e.message : String(e)}`)))
+      this.ctx.waitUntil(
+        Promise.resolve(room.setPrivate(op.private)).catch((e: unknown) =>
+          console.error(`private flag not sent: ${e instanceof Error ? e.message : String(e)}`),
+        ),
+      )
     }
     return event
   }
 
   private existingFor(op: ChatOp): RoomId | null {
     if (op.op !== "create") return null
-    return sameAgentChat(this.directory.list().map((c) => markKikoChat(this.sql, c)), op.agents ?? [], op.roomId)?.roomId ?? null
+    return (
+      sameAgentChat(
+        this.directory.list().map((c) => markKikoChat(this.sql, c)),
+        op.agents ?? [],
+        op.roomId,
+      )?.roomId ?? null
+    )
   }
 
   private lastChat(): RoomId | undefined {
     const stored = this.setting(LAST_CHAT)
-    const chat = stored ? this.directory.get( stored) : null
+    const chat = stored ? this.directory.get(stored) : null
     return chat?.roomId ?? kikoChatRoom(this.sql) ?? undefined
   }
 
   async ensureHome(): Promise<void> {
-    this.ctx.waitUntil(this.#recipes.retireSeeded().catch((e: unknown) => console.error(`recipe cleanup failed: ${e instanceof Error ? e.message : String(e)}`)))
+    this.ctx.waitUntil(
+      this.#recipes
+        .retireSeeded()
+        .catch((e: unknown) => console.error(`recipe cleanup failed: ${e instanceof Error ? e.message : String(e)}`)),
+    )
     for (const op of kikoChatOps(this.sql, this.directory.list())) this.apply(op)
     const home = kikoChatRoom(this.sql)
-    if (home) this.commit(this.directory.agents( home, [KIKO]))
+    if (home) this.commit(this.directory.agents(home, [KIKO]))
     const old = this.setting(OLD_CHECK_IN)
     if (old !== null) {
       await this.reminders.cancel(old)
@@ -1168,7 +1502,10 @@ export class User {
 
   private saveAgent(agent: Agent): Agent | null {
     if (this.sql.exec("SELECT 1 FROM deleted_agent_handles WHERE slug = ?", agent.slug).toArray().length) {
-      this.broadcast({ t: "error", error: { code: "storage", message: "This agent handle was deleted and cannot be reused. Choose a new handle." } })
+      this.broadcast({
+        t: "error",
+        error: { code: "storage", message: "This agent handle was deleted and cannot be reused. Choose a new handle." },
+      })
       return null
     }
     const stored = createAgent(this.sql, agent, Date.now())
@@ -1179,14 +1516,22 @@ export class User {
     return stored
   }
 
-  setAgentModel(slug: AgentSlug, ref?: string, thinking?: ThinkingLevel, roomId?: RoomId, announce = false): AgentModel | null {
+  setAgentModel(
+    slug: AgentSlug,
+    ref?: string,
+    thinking?: ThinkingLevel,
+    roomId?: RoomId,
+    announce = false,
+  ): AgentModel | null {
     const before = agentModel(this.sql, slug)
     const saved = saveAgentModel(this.sql, slug, ref, thinking)
     if (!saved) return null
     if (!announce && JSON.stringify(saved) === JSON.stringify(before)) return saved
     this.commit({ t: "agent_model", slug, ...saved })
     if (roomId && saved.model !== before?.model) {
-      this.ctx.waitUntil(Promise.resolve(this.services.room(roomId).modelChanged(slug, saved.model, before?.model)).catch(() => {}))
+      this.ctx.waitUntil(
+        Promise.resolve(this.services.room(roomId).modelChanged(slug, saved.model, before?.model)).catch(() => {}),
+      )
       this.ctx.waitUntil(Promise.resolve(this.services.agent(roomId, slug).invalidate()).catch(() => {}))
     }
     return saved
@@ -1202,7 +1547,17 @@ export class User {
     return this.sql.exec<{ seq: number | null }>("SELECT max(seq) AS seq FROM user_events").one().seq ?? 0
   }
 
-  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "agent_removed"; id: string; slug: AgentSlug } | ({ t: "agent_model"; slug: AgentSlug } & AgentModel) | { t: "theme"; theme: string | null } | FileBody | RowChange | null): UserEvent | null {
+  private commit(
+    change:
+      | ChatChange
+      | { t: "agent"; agent: Agent }
+      | { t: "agent_removed"; id: string; slug: AgentSlug }
+      | ({ t: "agent_model"; slug: AgentSlug } & AgentModel)
+      | { t: "theme"; theme: string | null }
+      | FileBody
+      | RowChange
+      | null,
+  ): UserEvent | null {
     if (!change || (change.t === "chat" && change.chat.pair)) return null
     if (change.t === "chat") change = { ...change, chat: markKikoChat(this.sql, change.chat) }
     const at = Date.now()
@@ -1227,7 +1582,16 @@ export class User {
       const lastChat = this.lastChat()
       return {
         t: "reset",
-        snapshot: { seq, chats: this.directory.list().map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), agentModels: allAgentModels(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, rows: rowLists(this.sql), ...(lastChat ? { lastChat } : {}) },
+        snapshot: {
+          seq,
+          chats: this.directory.list().map((c) => markKikoChat(this.sql, c)),
+          agents: listAgents(this.sql),
+          agentModels: allAgentModels(this.sql),
+          theme: getTheme(this.sql),
+          home: { files: this.home.all(), folders: this.home.folders() },
+          rows: rowLists(this.sql),
+          ...(lastChat ? { lastChat } : {}),
+        },
       }
     }
     const events = this.sql

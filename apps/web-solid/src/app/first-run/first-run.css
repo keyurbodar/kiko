@@ -22,8 +22,7 @@
     radial-gradient(ellipse 85% 24% at 24% 86%, #425e72 0%, transparent 75%),
     radial-gradient(ellipse 75% 30% at 82% 82%, #334f64 0%, transparent 80%),
     radial-gradient(ellipse 95% 35% at 50% 91%, #2e4558 0%, transparent 85%),
-    radial-gradient(ellipse at 68% 12%, #22384c 0%, transparent 65%),
-    linear-gradient(#0f1c29, #09151f);
+    radial-gradient(ellipse at 68% 12%, #22384c 0%, transparent 65%), linear-gradient(#0f1c29, #09151f);
 }
 .welcome-backdrop::before {
   content: "";
@@ -35,7 +34,11 @@
     radial-gradient(circle at 77% 22%, #d6e7f3 0 1px, transparent 1.5px),
     radial-gradient(circle at 39% 40%, #d6e7f3 0 0.7px, transparent 1.2px),
     radial-gradient(circle at 85% 68%, #d6e7f3 0 0.7px, transparent 1.2px);
-  background-size: 331px 293px, 563px 467px, 457px 379px, 619px 521px;
+  background-size:
+    331px 293px,
+    563px 467px,
+    457px 379px,
+    619px 521px;
 }
 .welcome-glacier {
   display: block;
@@ -317,7 +320,9 @@
   border-radius: 4px;
   color: #08131c;
   background: linear-gradient(#f2f8fc, #cfe0ec);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 55%), 0 12px 26px -12px rgb(150 200 235 / 50%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 55%),
+    0 12px 26px -12px rgb(150 200 235 / 50%);
 }
 .welcome-secondary,
 .welcome-card [data-action="connect"],

@@ -29,5 +29,6 @@ export async function disconnectProvider(provider: string): Promise<void> {
 }
 
 export async function checkProvider(provider: string): Promise<ProviderInfo> {
-  return (await request<{ provider: ProviderInfo }>(`/${encodeURIComponent(provider)}/check`, { method: "POST" })).provider
+  return (await request<{ provider: ProviderInfo }>(`/${encodeURIComponent(provider)}/check`, { method: "POST" }))
+    .provider
 }

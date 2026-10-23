@@ -17,36 +17,40 @@ export const AFTER_FRAGMENT_MS = 2_500
 export const MAX_BURST_MS = 8_000
 
 const DANGLING = new Set(
-	"a an the and or but so because cause if then than that which who whom whose when while where though although unless until since as nor yet plus also like with without of to for from in on at by about into onto over under after before between through during against toward towards via per".split(
-		" ",
-	),
+  "a an the and or but so because cause if then than that which who whom whose when while where though although unless until since as nor yet plus also like with without of to for from in on at by about into onto over under after before between through during against toward towards via per".split(
+    " ",
+  ),
 )
 
 export function isFragment(text: string): boolean {
-	const t = text.trim().toLowerCase()
-	if (!t) return false
-	if (/(,|\.\.\.|…)$/.test(t)) return true
-	const last = /([a-z']+)$/.exec(t)?.[1]
-	return last !== undefined && DANGLING.has(last)
+  const t = text.trim().toLowerCase()
+  if (!t) return false
+  if (/(,|\.\.\.|…)$/.test(t)) return true
+  const last = /([a-z']+)$/.exec(t)?.[1]
+  return last !== undefined && DANGLING.has(last)
 }
 
 export function debounce(event: "message" | "typing" | "fragment", now: number, startedAt: number): number {
-	const wait = event === "message" ? AFTER_MESSAGE_MS : event === "fragment" ? AFTER_FRAGMENT_MS : AFTER_TYPING_MS
-	return Math.min(now + wait, startedAt + MAX_BURST_MS)
+  const wait = event === "message" ? AFTER_MESSAGE_MS : event === "fragment" ? AFTER_FRAGMENT_MS : AFTER_TYPING_MS
+  return Math.min(now + wait, startedAt + MAX_BURST_MS)
 }
 
 const MAX_DELIVERY_ENVELOPES = MAX_OPEN / 5
 export const MAX_DELIVERY_BYTES = MAX_ENTRY_BYTES / 2
 
-export function deliverable<T>(envelopes: readonly T[], maxCount = MAX_DELIVERY_ENVELOPES, maxBytes = MAX_DELIVERY_BYTES): T[] {
-	let bytes = 0
-	const out: T[] = []
-	for (const e of envelopes) {
-		bytes += new TextEncoder().encode(JSON.stringify(e)).length
-		if (out.length && (out.length >= maxCount || bytes > maxBytes)) break
-		out.push(e)
-	}
-	return out
+export function deliverable<T>(
+  envelopes: readonly T[],
+  maxCount = MAX_DELIVERY_ENVELOPES,
+  maxBytes = MAX_DELIVERY_BYTES,
+): T[] {
+  let bytes = 0
+  const out: T[] = []
+  for (const e of envelopes) {
+    bytes += new TextEncoder().encode(JSON.stringify(e)).length
+    if (out.length && (out.length >= maxCount || bytes > maxBytes)) break
+    out.push(e)
+  }
+  return out
 }
 
 export const envelopeId = (messageId: string) => `human:${messageId}`
@@ -70,7 +74,7 @@ export class Burst {
   ) {}
 
   restore(): Promise<void> {
-    return this.restored ??= this.restoreCursors()
+    return (this.restored ??= this.restoreCursors())
   }
 
   private async restoreCursors(): Promise<void> {
@@ -86,11 +90,16 @@ export class Burst {
           if (!data || typeof data !== "object" || Array.isArray(data)) continue
           if (typeof data.humanDeliveredSeq === "number") after = Math.max(after, data.humanDeliveredSeq)
           if (!Array.isArray(data.envelopeIds)) continue
-          const ids = data.envelopeIds.flatMap((id) => typeof id === "string" && id.startsWith("human:") ? [id.slice(6).split("#")[0]] : [])
-          const seq = this.storage.sql.exec<{ seq: number | null }>(
-            "SELECT max(seq) AS seq FROM messages WHERE room_id = ? AND json_extract(sender, '$.kind') = 'human' AND seq IN (SELECT value FROM json_each(?))",
-            this.roomId, messageSeqs(this.roomId, ids),
-          ).one().seq
+          const ids = data.envelopeIds.flatMap((id) =>
+            typeof id === "string" && id.startsWith("human:") ? [id.slice(6).split("#")[0]] : [],
+          )
+          const seq = this.storage.sql
+            .exec<{ seq: number | null }>(
+              "SELECT max(seq) AS seq FROM messages WHERE room_id = ? AND json_extract(sender, '$.kind') = 'human' AND seq IN (SELECT value FROM json_each(?))",
+              this.roomId,
+              messageSeqs(this.roomId, ids),
+            )
+            .one().seq
           after = Math.max(after, seq ?? 0)
         }
         cursor = page.next
@@ -101,27 +110,31 @@ export class Burst {
   }
 
   forAgent(slug: AgentSlug, limit = MAX_DELIVERY_ENVELOPES): Pending[] {
-    return this.log.unansweredFor(slug, this.durable.get(slug) ?? 0, Number.MAX_SAFE_INTEGER)
-      .filter(({ envelope }) => envelope.seq > (this.admitted.get(slug) ?? 0)).slice(0, limit)
+    return this.log
+      .unansweredFor(slug, this.durable.get(slug) ?? 0, Number.MAX_SAFE_INTEGER)
+      .filter(({ envelope }) => envelope.seq > (this.admitted.get(slug) ?? 0))
+      .slice(0, limit)
   }
 
   accepted(slug: AgentSlug, envelopes: readonly Envelope[]): void {
     for (const envelope of envelopes) this.admitted.set(slug, Math.max(this.admitted.get(slug) ?? 0, envelope.seq))
   }
 
-  pending(): boolean { return this.members.list().some(({ slug }) => this.forAgent(slug, 1).length > 0) }
+  pending(): boolean {
+    return this.members.list().some(({ slug }) => this.forAgent(slug, 1).length > 0)
+  }
 
   private startedAt(): number | null {
     const first = this.envelopes().at(0)
-    return first ? this.log.message(first.envelope.rootId)?.at ?? null : null
+    return first ? (this.log.message(first.envelope.rootId)?.at ?? null) : null
   }
 
-	async arm(text: string): Promise<void> {
+  async arm(text: string): Promise<void> {
     await this.restore()
-		const now = this.now()
+    const now = this.now()
     this.readyAt = debounce(isFragment(text) ? "fragment" : "message", now, this.startedAt() ?? now)
-		await this.alarms.setWakeup(BURST_WAKEUP, this.readyAt)
-	}
+    await this.alarms.setWakeup(BURST_WAKEUP, this.readyAt)
+  }
 
   async settle(flush: () => Promise<void>): Promise<void> {
     await this.restore()
@@ -134,9 +147,18 @@ export class Burst {
           await scheduler.wait(at - this.now())
           continue
         }
-        const before = this.envelopes().map(({ envelope }) => envelope.id).join("\n")
+        const before = this.envelopes()
+          .map(({ envelope }) => envelope.id)
+          .join("\n")
         await flush()
-        if (this.pending() && before === this.envelopes().map(({ envelope }) => envelope.id).join("\n")) return
+        if (
+          this.pending() &&
+          before ===
+            this.envelopes()
+              .map(({ envelope }) => envelope.id)
+              .join("\n")
+        )
+          return
       }
       await this.alarms.clearWakeup(BURST_WAKEUP)
     } finally {
@@ -144,17 +166,18 @@ export class Burst {
     }
   }
 
-	async typing(): Promise<void> {
+  async typing(): Promise<void> {
     await this.restore()
-		const startedAt = this.startedAt()
-		if (startedAt === null) return
+    const startedAt = this.startedAt()
+    if (startedAt === null) return
     this.readyAt = debounce("typing", this.now(), startedAt)
-		await this.alarms.setWakeup(BURST_WAKEUP, this.readyAt)
-	}
+    await this.alarms.setWakeup(BURST_WAKEUP, this.readyAt)
+  }
 
   envelopes(_roomId?: RoomId, limit = MAX_DELIVERY_ENVELOPES): Pending[] {
     const unique = new Map<string, Pending>()
-    for (const { slug } of this.members.list()) for (const pending of this.forAgent(slug, limit)) unique.set(pending.envelope.id, pending)
+    for (const { slug } of this.members.list())
+      for (const pending of this.forAgent(slug, limit)) unique.set(pending.envelope.id, pending)
     return [...unique.values()].sort((a, b) => a.envelope.seq - b.envelope.seq).slice(0, limit)
   }
 
@@ -169,7 +192,7 @@ export class Burst {
     return this.readyAt ?? debounce(isFragment(last.envelope.body) ? "fragment" : "message", lastAt, firstAt)
   }
 
-	async retry(ms: number): Promise<void> {
-		if (this.pending()) await this.alarms.setWakeup(BURST_WAKEUP, this.now() + ms)
-	}
+  async retry(ms: number): Promise<void> {
+    if (this.pending()) await this.alarms.setWakeup(BURST_WAKEUP, this.now() + ms)
+  }
 }

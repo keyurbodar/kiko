@@ -54,13 +54,23 @@ export async function signToken(secret: string, ownerId: string, scope: Scope, n
   return `${body}.${mac}`
 }
 
-export async function verifyToken(secret: string | undefined, token: string | null, scope: Scope, nowMs = Date.now()): Promise<SessionUser | null> {
+export async function verifyToken(
+  secret: string | undefined,
+  token: string | null,
+  scope: Scope,
+  nowMs = Date.now(),
+): Promise<SessionUser | null> {
   const parts = token?.split(".") ?? []
   const [id = "", tokenScope, expiry = "", macHex = ""] = parts
   const mac = fromHex(macHex)
   if (parts.length !== 4 || tokenScope !== scope || !mac || !OWNER_NAME.test(id) || !secret) return null
   if (!/^\d+$/.test(expiry) || Number(expiry) * 1000 <= nowMs) return null
-  const ok = await crypto.subtle.verify("HMAC", await hmacKey(secret, "verify"), mac, encoder.encode(`${id}.${scope}.${expiry}`))
+  const ok = await crypto.subtle.verify(
+    "HMAC",
+    await hmacKey(secret, "verify"),
+    mac,
+    encoder.encode(`${id}.${scope}.${expiry}`),
+  )
   return ok ? { id, name: id } : null
 }
 
@@ -82,7 +92,10 @@ export function getFileUser(request: Request, env: AuthEnv): Promise<SessionUser
 }
 
 export async function signedInResponse(env: AuthEnv, ownerId: string): Promise<Response> {
-  return Response.json({ user: { id: ownerId, name: ownerId }, token: await signToken(env.SESSION_SECRET, ownerId, "session") })
+  return Response.json({
+    user: { id: ownerId, name: ownerId },
+    token: await signToken(env.SESSION_SECRET, ownerId, "session"),
+  })
 }
 
 export async function authRoute(request: Request, env: AuthEnv): Promise<Response | null> {
@@ -100,7 +113,10 @@ export async function authRoute(request: Request, env: AuthEnv): Promise<Respons
   if (pathname === `${AUTH_PATH}/clerk` && env.CLERK_JWT_KEY && env.OWNER_ID) {
     const input = (await request.json().catch(() => null)) as { token?: unknown } | null
     if (typeof input?.token !== "string") return Response.json({ message: "token is required" }, { status: 400 })
-    const verdict = await verifyClerkToken({ ...env, CLERK_JWT_KEY: env.CLERK_JWT_KEY, OWNER_ID: env.OWNER_ID }, input.token)
+    const verdict = await verifyClerkToken(
+      { ...env, CLERK_JWT_KEY: env.CLERK_JWT_KEY, OWNER_ID: env.OWNER_ID },
+      input.token,
+    )
     if (!verdict.ok) return Response.json({ message: verdict.message }, { status: verdict.status })
     return signedInResponse(env, PRODUCTION_OWNER)
   }

@@ -27,4 +27,5 @@ export function showKikoError(error: KikoError): number | undefined {
   return error.action ? showMissing(error.message, error.action) : showFailure(error.message)
 }
 
-export const seenInChat = (roomId: string | undefined, openChat: string | null, tabVisible: boolean): boolean => roomId !== undefined && roomId === openChat && tabVisible
+export const seenInChat = (roomId: string | undefined, openChat: string | null, tabVisible: boolean): boolean =>
+  roomId !== undefined && roomId === openChat && tabVisible

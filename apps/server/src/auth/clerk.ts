@@ -30,13 +30,22 @@ function json(part: string | undefined): Record<string, unknown> | null {
 }
 
 async function publicKey(pem: string): Promise<CryptoKey | null> {
-  const body = pem.replace(/\\n/g, "\n").replace(/-----[A-Z ]+-----/g, "").replace(/\s+/g, "")
+  const body = pem
+    .replace(/\\n/g, "\n")
+    .replace(/-----[A-Z ]+-----/g, "")
+    .replace(/\s+/g, "")
   const der = base64Url(body)
   if (!der) return null
-  return crypto.subtle.importKey("spki", der, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]).catch(() => null)
+  return crypto.subtle
+    .importKey("spki", der, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"])
+    .catch(() => null)
 }
 
-export async function verifyClerkToken(env: Required<Pick<ClerkEnv, "CLERK_JWT_KEY" | "OWNER_ID">> & ClerkEnv, token: string, nowMs = Date.now()): Promise<ClerkVerdict> {
+export async function verifyClerkToken(
+  env: Required<Pick<ClerkEnv, "CLERK_JWT_KEY" | "OWNER_ID">> & ClerkEnv,
+  token: string,
+  nowMs = Date.now(),
+): Promise<ClerkVerdict> {
   const parts = token.split(".")
   const [head, claimsPart, sig] = parts
   if (parts.length !== 3 || !head || !claimsPart || !sig) return bad("That token is not valid")
@@ -55,7 +64,8 @@ export async function verifyClerkToken(env: Required<Pick<ClerkEnv, "CLERK_JWT_K
   if (nbf !== undefined && (typeof nbf !== "number" || nbf - SKEW_S > now)) return bad("That token is not valid yet")
   if (azp !== undefined) {
     const trusted = env.TRUSTED_ORIGINS?.split(",").map((o) => o.trim()) ?? []
-    if (typeof azp !== "string" || !trusted.includes(azp)) return bad("That token is from an origin this backend does not trust")
+    if (typeof azp !== "string" || !trusted.includes(azp))
+      return bad("That token is from an origin this backend does not trust")
   }
   if (sub !== env.OWNER_ID) return { ok: false, status: 403, message: "This backend belongs to someone else" }
   return { ok: true }

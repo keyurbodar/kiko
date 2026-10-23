@@ -3,8 +3,6 @@ import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import { foldLimitFor, shouldFold } from "./lib/fold"
 
-
-
 const [expandedIds, setExpandedIds] = createSignal<ReadonlySet<string>>(new Set())
 
 export function isExpanded(messageId: string): boolean {
@@ -29,11 +27,7 @@ function scrollParent(element: HTMLElement): HTMLElement | undefined {
   return undefined
 }
 
-export function Collapsible(props: {
-  messageId: string
-  fixed?: boolean
-  children: JSX.Element
-}): JSX.Element {
+export function Collapsible(props: { messageId: string; fixed?: boolean; children: JSX.Element }): JSX.Element {
   const [overflowing, setOverflowing] = createSignal(false)
   const [limit, setLimit] = createSignal(foldLimitFor(globalThis.innerHeight ?? 900))
   let root: HTMLDivElement | undefined
@@ -83,12 +77,7 @@ export function Collapsible(props: {
   }
 
   return (
-    <div
-      ref={root}
-      class="relative"
-      data-component="chat-collapsible"
-      data-collapsed={clamped() ? "" : undefined}
-    >
+    <div ref={root} class="relative" data-component="chat-collapsible" data-collapsed={clamped() ? "" : undefined}>
       <div
         class={cn(clamped() && "overflow-hidden mask-b-from-[calc(100%-1.75rem)] mask-b-to-100%")}
         style={clamped() ? { "max-height": `${limit()}px` } : undefined}

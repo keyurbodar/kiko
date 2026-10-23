@@ -8,7 +8,12 @@ export const MESSAGING = "messaging"
 
 export type MessagingPort = {
   send(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
-  askHuman(input: { id: string; question?: string; options?: string[]; questions?: readonly HumanQuestion[] }): Promise<{ ok: true } | { ok: false; error: string }>
+  askHuman(input: {
+    id: string
+    question?: string
+    options?: string[]
+    questions?: readonly HumanQuestion[]
+  }): Promise<{ ok: true } | { ok: false; error: string }>
   waitAnswer(id: string, ms: number, signal?: AbortSignal): Promise<string | null>
   humanAskState(id: string): Promise<{ state: "open" | "answered" | "skipped"; answer: string | null } | null>
   humanWaiting(): boolean
@@ -25,10 +30,18 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
     if (!p) throw new Error("this agent is not in a room yet")
     return p
   }
-  const send = async (to: AgentSlug | "all", body: string, api: Pick<ToolExecutionApi, "conversationId" | "callId">) => {
+  const send = async (
+    to: AgentSlug | "all",
+    body: string,
+    api: Pick<ToolExecutionApi, "conversationId" | "callId">,
+  ) => {
     const out = await room().send({ id: `${api.conversationId}:${api.callId}`, to, text: body })
     return out.ok
-      ? { output: text(`sent to ${out.to.map((s) => `@${s}`).join(", ")}. it shows in the chat, and their answer will reach you as a new message and wake you. When it arrives, continue the work or tell the human the result without waiting for another human message. If you have nothing else to add now, reply with just [skip].`) }
+      ? {
+          output: text(
+            `sent to ${out.to.map((s) => `@${s}`).join(", ")}. it shows in the chat, and their answer will reach you as a new message and wake you. When it arrives, continue the work or tell the human the result without waiting for another human message. If you have nothing else to add now, reply with just [skip].`,
+          ),
+        }
       : { output: text(out.error), isError: true }
   }
   const slug = (description: string) => Type.String({ description })
@@ -41,30 +54,66 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
         "ask the human one question or a batch of up to eight questions and wait for the answers, which comes back as this tool's result. the human sees your question in the chat and a card over the message box where they select options, type a custom answer in the composer, move between questions, or skip the request. Use questions for a batch, descriptive options, or multiSelect. Each question needs a unique id and a short header. the card shows every question, so write the questions only in this tool, never in a message before or after it. use it only when you cannot go on without their choice. it waits up to two minutes, and stops at once if the human writes something else; a late answer reaches you as a message.",
       parameters: Type.Object({
         question: Type.Optional(Type.String({ description: "one short question; use this or questions" })),
-        questions: Type.Optional(Type.Array(Type.Object({
-          id: Type.String({ minLength: 1, maxLength: 120 }),
-          header: Type.String({ minLength: 1, maxLength: 120 }),
-          question: Type.String({ minLength: 1, maxLength: 2000 }),
-          options: Type.Array(Type.Object({ label: Type.String({ minLength: 1, maxLength: 120 }), description: Type.Optional(Type.String({ maxLength: 2000 })), value: Type.Optional(Type.String({ minLength: 1, maxLength: 120 })) }), { maxItems: 8 }),
-          multiSelect: Type.Optional(Type.Boolean()),
-          allowCustomAnswer: Type.Optional(Type.Boolean()),
-        }), { minItems: 1, maxItems: 8 })),
-        options: Type.Optional(Type.Array(Type.String(), { maxItems: 8, description: "the answers to offer, each a few words. leave out for a free answer" })),
+        questions: Type.Optional(
+          Type.Array(
+            Type.Object({
+              id: Type.String({ minLength: 1, maxLength: 120 }),
+              header: Type.String({ minLength: 1, maxLength: 120 }),
+              question: Type.String({ minLength: 1, maxLength: 2000 }),
+              options: Type.Array(
+                Type.Object({
+                  label: Type.String({ minLength: 1, maxLength: 120 }),
+                  description: Type.Optional(Type.String({ maxLength: 2000 })),
+                  value: Type.Optional(Type.String({ minLength: 1, maxLength: 120 })),
+                }),
+                { maxItems: 8 },
+              ),
+              multiSelect: Type.Optional(Type.Boolean()),
+              allowCustomAnswer: Type.Optional(Type.Boolean()),
+            }),
+            { minItems: 1, maxItems: 8 },
+          ),
+        ),
+        options: Type.Optional(
+          Type.Array(Type.String(), {
+            maxItems: 8,
+            description: "the answers to offer, each a few words. leave out for a free answer",
+          }),
+        ),
       }),
       replay: "safe",
       execute: async ({ question, options, questions }, api, context) => {
         const id = `${api.conversationId}:${api.callId}`
-        const asked = await room().askHuman({ id, ...(question ? { question } : {}), ...(options?.length ? { options } : {}), ...(questions ? { questions } : {}) })
+        const asked = await room().askHuman({
+          id,
+          ...(question ? { question } : {}),
+          ...(options?.length ? { options } : {}),
+          ...(questions ? { questions } : {}),
+        })
         if (!asked.ok) return { output: text(asked.error), isError: true }
         const settled = (s: { state: string; answer: string | null } | null) =>
-          s?.state === "answered" ? { output: text(`the human answered: ${s.answer ?? ""}`) } : s?.state === "skipped" ? { output: text("the human skipped the question. go on without an answer, or ask in your own words later.") } : null
+          s?.state === "answered"
+            ? { output: text(`the human answered: ${s.answer ?? ""}`) }
+            : s?.state === "skipped"
+              ? {
+                  output: text(
+                    "the human skipped the question. go on without an answer, or ask in your own words later.",
+                  ),
+                }
+              : null
         const stored = settled(await room().humanAskState(id))
         if (stored) return stored
         if (!room().humanWaiting()) await room().waitAnswer(id, ASK_WAIT_MS, context.abortSignal)
         const last = settled(await room().humanAskState(id))
         if (last) return last
-        const why = room().humanWaiting() ? "the human wrote something else, so answer them first" : "the human has not answered yet"
-        return { output: text(`${why}. the question stays open, and an answer will reach you as a message; go on with what you can.`) }
+        const why = room().humanWaiting()
+          ? "the human wrote something else, so answer them first"
+          : "the human has not answered yet"
+        return {
+          output: text(
+            `${why}. the question stays open, and an answer will reach you as a message; go on with what you can.`,
+          ),
+        }
       },
     }),
   )
@@ -79,7 +128,10 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
           name: "send_message",
           description:
             "Send a message to one of the human's agents, or to every other agent in this room with to: all. An agent that is not in this room is reached in private, and the exchange shows in this chat. It wakes them. Their answer comes back to you as a message, so you do not wait. A plain reply to a teammate's message is your answer and goes back to them; use send_message to start a conversation or to add something, not to answer.",
-          parameters: Type.Object({ to: slug("the agent's slug, without @, or all"), text: Type.String({ description: "the message" }) }),
+          parameters: Type.Object({
+            to: slug("the agent's slug, without @, or all"),
+            text: Type.String({ description: "the message" }),
+          }),
           replay: "safe",
           execute: async ({ to, text: body }, api) => {
             const who = to.replace(/^@/, "").toLowerCase()

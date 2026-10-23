@@ -30,7 +30,10 @@ export type FsEntry =
 export type FsFail = { ok: false; code: "not_found" | "is_directory" | "not_directory" | "invalid"; message: string }
 export type FsChange<E = unknown> = { ok: true; events: E[]; drop: string[]; changed: number; folders?: number }
 
-export type FileBody = { t: "file"; file: FileRef } | { t: "file_removed"; ids: readonly string[] } | { t: "folders"; folders: readonly string[] }
+export type FileBody =
+  | { t: "file"; file: FileRef }
+  | { t: "file_removed"; ids: readonly string[] }
+  | { t: "folders"; folders: readonly string[] }
 
 export type PutResult<E = unknown> = {
   file: FileRef | null
@@ -50,9 +53,12 @@ export type TreeChange =
 
 export type IndexChange = { op: "put"; file: NewFile } | TreeChange
 
-export type CommitResult<E = unknown> = { ok: true; events: E[]; drop: string[] } | { ok: false; path: string; message: string; conflict: boolean }
+export type CommitResult<E = unknown> =
+  | { ok: true; events: E[]; drop: string[] }
+  | { ok: false; path: string; message: string; conflict: boolean }
 
-export const changePaths = (c: IndexChange): string[] => (c.op === "put" ? [c.file.path] : c.op === "move" ? [c.from, c.to] : [c.path])
+export const changePaths = (c: IndexChange): string[] =>
+  c.op === "put" ? [c.file.path] : c.op === "move" ? [c.from, c.to] : [c.path]
 
 class Refused {
   constructor(
@@ -92,10 +98,20 @@ export function fileIndexSteps(t: Tables): Step[] {
   ]
 }
 
-export function listSpace(storage: DurableObjectStorage, t: Tables, roomId = ""): { files: FileRef[]; folders: string[] } {
+export function listSpace(
+  storage: DurableObjectStorage,
+  t: Tables,
+  roomId = "",
+): { files: FileRef[]; folders: string[] } {
   return {
-    files: storage.sql.exec<FileRow>(`SELECT * FROM ${t.files} WHERE ${t.files}.room_id = ?1 ORDER BY path`, roomId).toArray().map(toRef),
-    folders: storage.sql.exec<{ path: string }>(`SELECT path FROM ${t.dirs} WHERE ${t.dirs}.room_id = ?1 ORDER BY path`, roomId).toArray().map((r) => r.path),
+    files: storage.sql
+      .exec<FileRow>(`SELECT * FROM ${t.files} WHERE ${t.files}.room_id = ?1 ORDER BY path`, roomId)
+      .toArray()
+      .map(toRef),
+    folders: storage.sql
+      .exec<{ path: string }>(`SELECT path FROM ${t.dirs} WHERE ${t.dirs}.room_id = ?1 ORDER BY path`, roomId)
+      .toArray()
+      .map((r) => r.path),
   }
 }
 
@@ -113,23 +129,49 @@ export class FileIndex<E> {
   }
 
   private row(column: "id" | "path", value: string): FileRow | null {
-    return this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE ${column} = ?1 AND ${this.t.files}.room_id = ?2`, value, this.roomId).toArray()[0] ?? null
+    return (
+      this.sql
+        .exec<FileRow>(
+          `SELECT * FROM ${this.t.files} WHERE ${column} = ?1 AND ${this.t.files}.room_id = ?2`,
+          value,
+          this.roomId,
+        )
+        .toArray()[0] ?? null
+    )
   }
 
   all(): FileRef[] {
-    return this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE ${this.t.files}.room_id = ?1 ORDER BY path`, this.roomId).toArray().map(toRef)
+    return this.sql
+      .exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE ${this.t.files}.room_id = ?1 ORDER BY path`, this.roomId)
+      .toArray()
+      .map(toRef)
   }
 
   folders(): string[] {
-    return this.sql.exec<{ path: string }>(`SELECT path FROM ${this.t.dirs} WHERE ${this.t.dirs}.room_id = ?1 ORDER BY path`, this.roomId).toArray().map((r) => r.path)
+    return this.sql
+      .exec<{ path: string }>(
+        `SELECT path FROM ${this.t.dirs} WHERE ${this.t.dirs}.room_id = ?1 ORDER BY path`,
+        this.roomId,
+      )
+      .toArray()
+      .map((r) => r.path)
   }
 
   private dirRows(dir: string): string[] {
     const [lo, hi] = under(dir)
     return (
       hi === null
-        ? this.sql.exec<{ path: string }>(`SELECT path FROM ${this.t.dirs} WHERE path >= ?1 AND ${this.t.dirs}.room_id = ?2 ORDER BY path`, lo, this.roomId)
-        : this.sql.exec<{ path: string }>(`SELECT path FROM ${this.t.dirs} WHERE (path >= ?1 AND path < ?2) AND ${this.t.dirs}.room_id = ?3 ORDER BY path`, lo, hi, this.roomId)
+        ? this.sql.exec<{ path: string }>(
+            `SELECT path FROM ${this.t.dirs} WHERE path >= ?1 AND ${this.t.dirs}.room_id = ?2 ORDER BY path`,
+            lo,
+            this.roomId,
+          )
+        : this.sql.exec<{ path: string }>(
+            `SELECT path FROM ${this.t.dirs} WHERE (path >= ?1 AND path < ?2) AND ${this.t.dirs}.room_id = ?3 ORDER BY path`,
+            lo,
+            hi,
+            this.roomId,
+          )
     )
       .toArray()
       .map((r) => r.path)
@@ -138,19 +180,45 @@ export class FileIndex<E> {
   private files(dir: string, limit = -1): FileRow[] {
     const [lo, hi] = under(dir)
     return hi === null
-      ? this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE path >= ?1 AND ${this.t.files}.room_id = ?3 ORDER BY path LIMIT ?2`, lo, limit, this.roomId).toArray()
-      : this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE (path >= ?1 AND path < ?2) AND ${this.t.files}.room_id = ?4 ORDER BY path LIMIT ?3`, lo, hi, limit, this.roomId).toArray()
+      ? this.sql
+          .exec<FileRow>(
+            `SELECT * FROM ${this.t.files} WHERE path >= ?1 AND ${this.t.files}.room_id = ?3 ORDER BY path LIMIT ?2`,
+            lo,
+            limit,
+            this.roomId,
+          )
+          .toArray()
+      : this.sql
+          .exec<FileRow>(
+            `SELECT * FROM ${this.t.files} WHERE (path >= ?1 AND path < ?2) AND ${this.t.files}.room_id = ?4 ORDER BY path LIMIT ?3`,
+            lo,
+            hi,
+            limit,
+            this.roomId,
+          )
+          .toArray()
   }
 
   private isDir(path: string): boolean {
     if (path === "") return true
-    if (this.sql.exec(`SELECT 1 FROM ${this.t.dirs} WHERE path = ?1 AND ${this.t.dirs}.room_id = ?2`, path, this.roomId).toArray().length) return true
+    if (
+      this.sql
+        .exec(`SELECT 1 FROM ${this.t.dirs} WHERE path = ?1 AND ${this.t.dirs}.room_id = ?2`, path, this.roomId)
+        .toArray().length
+    )
+      return true
     return this.files(path, 1).length > 0
   }
 
   private insertDirs(paths: readonly string[]): number {
     let added = 0
-    for (const p of paths) if (p) added += this.sql.exec(`INSERT OR IGNORE INTO ${this.t.dirs} (path, room_id) VALUES (?1, ?2)`, p, this.roomId).rowsWritten
+    for (const p of paths)
+      if (p)
+        added += this.sql.exec(
+          `INSERT OR IGNORE INTO ${this.t.dirs} (path, room_id) VALUES (?1, ?2)`,
+          p,
+          this.roomId,
+        ).rowsWritten
     return added
   }
 
@@ -165,7 +233,8 @@ export class FileIndex<E> {
   private clash(path: string, as: "file" | "folder"): FsFail | null {
     if (as === "file" && this.isDir(path)) return fail("is_directory", `${path} is a folder`)
     if (as === "folder" && this.row("path", path)) return fail("not_directory", `${path} is a file`)
-    for (const parent of parents(path)) if (this.row("path", parent)) return fail("not_directory", `${parent} is a file, not a folder`)
+    for (const parent of parents(path))
+      if (this.row("path", parent)) return fail("not_directory", `${parent} is a file, not a folder`)
     return null
   }
 
@@ -196,7 +265,12 @@ export class FileIndex<E> {
       const file = toRef(row)
       const at = Date.now()
       events.push(this.append(author, { t: "file", file }))
-      if (current) this.sql.exec(`DELETE FROM ${this.t.files} WHERE id = ?1 AND ${this.t.files}.room_id = ?2`, current.id, this.roomId)
+      if (current)
+        this.sql.exec(
+          `DELETE FROM ${this.t.files} WHERE id = ?1 AND ${this.t.files}.room_id = ?2`,
+          current.id,
+          this.roomId,
+        )
       this.sql.exec(
         `INSERT INTO ${this.t.files} (id, path, r2_key, size, type, sha256, author, at, room_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
         row.id,
@@ -206,14 +280,24 @@ export class FileIndex<E> {
         row.type,
         row.sha256,
         author,
-        at, this.roomId,
+        at,
+        this.roomId,
       )
       return { file, drop: current?.r2_key ?? null, events }
     })
   }
 
   private entry(r: FileRow): FsEntry {
-    return { kind: "file", path: r.path, id: r.id, size: r.size, type: r.type, sha256: r.sha256, r2Key: r.r2_key, at: r.at ?? 0 }
+    return {
+      kind: "file",
+      path: r.path,
+      id: r.id,
+      size: r.size,
+      type: r.type,
+      sha256: r.sha256,
+      r2Key: r.r2_key,
+      at: r.at ?? 0,
+    }
   }
 
   stat(path: string): FsEntry | null {
@@ -226,8 +310,21 @@ export class FileIndex<E> {
     const [lo, hi] = under(dir)
     const row =
       hi === null
-        ? this.sql.exec<{ n: number; size: number | null }>(`SELECT COUNT(*) AS n, SUM(size) AS size FROM ${this.t.files} WHERE path >= ?1 AND ${this.t.files}.room_id = ?2`, lo, this.roomId).one()
-        : this.sql.exec<{ n: number; size: number | null }>(`SELECT COUNT(*) AS n, SUM(size) AS size FROM ${this.t.files} WHERE (path >= ?1 AND path < ?2) AND ${this.t.files}.room_id = ?3`, lo, hi, this.roomId).one()
+        ? this.sql
+            .exec<{ n: number; size: number | null }>(
+              `SELECT COUNT(*) AS n, SUM(size) AS size FROM ${this.t.files} WHERE path >= ?1 AND ${this.t.files}.room_id = ?2`,
+              lo,
+              this.roomId,
+            )
+            .one()
+        : this.sql
+            .exec<{ n: number; size: number | null }>(
+              `SELECT COUNT(*) AS n, SUM(size) AS size FROM ${this.t.files} WHERE (path >= ?1 AND path < ?2) AND ${this.t.files}.room_id = ?3`,
+              lo,
+              hi,
+              this.roomId,
+            )
+            .one()
     return { files: row.n, size: row.size ?? 0 }
   }
 
@@ -267,7 +364,8 @@ export class FileIndex<E> {
       const dest = this.stat(to)
       const target = dest?.kind === "directory" ? (to ? `${to}/${baseName(from)}` : baseName(from)) : to
       if (target === from) return { ok: true, events: [], drop: [], changed: 0 }
-      if (target === "" || `${target}/`.startsWith(`${from}/`)) return fail("invalid", `cannot move ${from} into itself`)
+      if (target === "" || `${target}/`.startsWith(`${from}/`))
+        return fail("invalid", `cannot move ${from} into itself`)
       const author = this.actorKey(by)
       const events: E[] = []
       const drop: string[] = []
@@ -280,7 +378,11 @@ export class FileIndex<E> {
           if (clash) return clash
         }
         if (there?.kind === "file") {
-          this.sql.exec(`DELETE FROM ${this.t.files} WHERE id = ?1 AND ${this.t.files}.room_id = ?2`, there.id, this.roomId)
+          this.sql.exec(
+            `DELETE FROM ${this.t.files} WHERE id = ?1 AND ${this.t.files}.room_id = ?2`,
+            there.id,
+            this.roomId,
+          )
           drop.push(there.r2Key)
           events.push(this.append(author, { t: "file_removed", ids: [there.id] }))
         }
@@ -297,7 +399,8 @@ export class FileIndex<E> {
       const rows = this.files(from)
       for (const r of rows) events.push(this.rename(r, target + r.path.slice(from.length), author))
       const moved = [from, ...this.dirRows(from)]
-      for (const p of moved) this.sql.exec(`DELETE FROM ${this.t.dirs} WHERE path = ?1 AND ${this.t.dirs}.room_id = ?2`, p, this.roomId)
+      for (const p of moved)
+        this.sql.exec(`DELETE FROM ${this.t.dirs} WHERE path = ?1 AND ${this.t.dirs}.room_id = ?2`, p, this.roomId)
       this.insertDirs([...parents(target), ...moved.map((p) => target + p.slice(from.length))])
       events.push(this.foldersEvent(author))
       return { ok: true, events, drop, changed: rows.length || 1 }
@@ -305,7 +408,12 @@ export class FileIndex<E> {
   }
 
   private rename(r: FileRow, path: string, author: string): E {
-    this.sql.exec(`UPDATE ${this.t.files} SET path = ?1 WHERE id = ?2 AND ${this.t.files}.room_id = ?3`, path, r.id, this.roomId)
+    this.sql.exec(
+      `UPDATE ${this.t.files} SET path = ?1 WHERE id = ?2 AND ${this.t.files}.room_id = ?3`,
+      path,
+      r.id,
+      this.roomId,
+    )
     return this.append(author, { t: "file", file: toRef({ ...r, path }) })
   }
 
@@ -324,7 +432,8 @@ export class FileIndex<E> {
         }
         const inside = this.files(path)
         const subdirs = this.dirRows(path)
-        if (!recursive && (inside.length || subdirs.length)) return fail("is_directory", `${path} is a folder with things in it. remove it with recursive`)
+        if (!recursive && (inside.length || subdirs.length))
+          return fail("is_directory", `${path} is a folder with things in it. remove it with recursive`)
         for (const r of inside) rows.set(r.id, r)
         for (const d of [path, ...subdirs]) dirs.add(d)
       }
@@ -334,9 +443,11 @@ export class FileIndex<E> {
       }
       const author = this.actorKey(by)
       const events: E[] = []
-      for (const id of rows.keys()) this.sql.exec(`DELETE FROM ${this.t.files} WHERE id = ?1 AND ${this.t.files}.room_id = ?2`, id, this.roomId)
+      for (const id of rows.keys())
+        this.sql.exec(`DELETE FROM ${this.t.files} WHERE id = ?1 AND ${this.t.files}.room_id = ?2`, id, this.roomId)
       if (rows.size) events.push(this.append(author, { t: "file_removed", ids: [...rows.keys()] }))
-      for (const d of dirs) this.sql.exec(`DELETE FROM ${this.t.dirs} WHERE path = ?1 AND ${this.t.dirs}.room_id = ?2`, d, this.roomId)
+      for (const d of dirs)
+        this.sql.exec(`DELETE FROM ${this.t.dirs} WHERE path = ?1 AND ${this.t.dirs}.room_id = ?2`, d, this.roomId)
       if (dirs.size) events.push(this.foldersEvent(author))
       return { ok: true, events, drop: [...rows.values()].map((r) => r.r2_key), changed: rows.size, folders: dirs.size }
     })
@@ -382,7 +493,8 @@ export class FileIndex<E> {
               const now = this.list(c.path, true)
               if (!Array.isArray(now)) throw changed(c.path)
               const files = now.filter((e) => e.kind === "file")
-              if (files.length !== Object.keys(c.files).length || files.some((e) => c.files[e.path] !== e.sha256)) throw changed(c.path)
+              if (files.length !== Object.keys(c.files).length || files.some((e) => c.files[e.path] !== e.sha256))
+                throw changed(c.path)
               take(this.remove([c.path], true, by), c.path)
               break
             }

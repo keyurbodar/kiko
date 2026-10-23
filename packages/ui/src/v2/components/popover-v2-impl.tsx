@@ -26,7 +26,13 @@ export interface PopoverV2ContentProps extends ComponentProps<typeof Popover.Con
 
 function PopoverV2Content(props: PopoverV2ContentProps) {
   const [s, r] = splitProps(props, ["class", "classList"])
-  return <Popover.Content {...r} data-component="popover-v2-content" classList={{ ...s.classList, [s.class ?? ""]: !!s.class }} />
+  return (
+    <Popover.Content
+      {...r}
+      data-component="popover-v2-content"
+      classList={{ ...s.classList, [s.class ?? ""]: !!s.class }}
+    />
+  )
 }
 
 export const PopoverV2 = Object.assign(PopoverV2Root, {

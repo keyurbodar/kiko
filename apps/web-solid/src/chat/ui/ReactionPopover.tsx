@@ -51,13 +51,18 @@ export function ReactionPopover(props: {
     props.onPick(emoji)
   }
 
-  createEventListener(window, "keydown", (event) => {
-    if (event.key !== "Escape") return
-    event.preventDefault()
-    event.stopPropagation()
-    props.onClose()
-    props.anchor.focus({ preventScroll: true })
-  }, { capture: true })
+  createEventListener(
+    window,
+    "keydown",
+    (event) => {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      event.stopPropagation()
+      props.onClose()
+      props.anchor.focus({ preventScroll: true })
+    },
+    { capture: true },
+  )
   createEventListener(document, "pointerdown", (event) => {
     const target = event.target as Node
     if (!panel?.contains(target) && !props.anchor.contains(target)) props.onClose()
@@ -83,7 +88,11 @@ export function ReactionPopover(props: {
         <Show
           when={full()}
           fallback={
-            <div class="grid grid-cols-7 rounded-[24px] bg-popover p-2 text-foreground shadow-popover" role="menu" aria-label="Reactions">
+            <div
+              class="grid grid-cols-7 rounded-[24px] bg-popover p-2 text-foreground shadow-popover"
+              role="menu"
+              aria-label="Reactions"
+            >
               <For each={recentEmoji().slice(0, QUICK)}>
                 {(emoji) => (
                   <button

@@ -41,8 +41,7 @@ export class CredentialVault implements CredentialStore {
     private readonly keyring: () => Keyring,
     private readonly userId: string,
     private readonly onChange: () => void = () => {},
-  ) {
-  }
+  ) {}
 
   async read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
     options?.signal?.throwIfAborted()
@@ -114,8 +113,15 @@ export class CredentialVault implements CredentialStore {
   setProblem(provider: string, problem: ProviderProblem | null): boolean {
     const row = this.info(provider)
     if (!row || row.problem === (problem ?? undefined)) return false
-    if (problem === null) this.sql.exec("UPDATE credentials SET problem = NULL, problem_at = NULL WHERE provider_id = ?", provider)
-    else this.sql.exec("UPDATE credentials SET problem = ?, problem_at = ? WHERE provider_id = ?", problem, Date.now(), provider)
+    if (problem === null)
+      this.sql.exec("UPDATE credentials SET problem = NULL, problem_at = NULL WHERE provider_id = ?", provider)
+    else
+      this.sql.exec(
+        "UPDATE credentials SET problem = ?, problem_at = ? WHERE provider_id = ?",
+        problem,
+        Date.now(),
+        provider,
+      )
     this.onChange()
     return true
   }

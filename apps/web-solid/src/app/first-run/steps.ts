@@ -43,4 +43,3 @@ export function indexOf(step: Step, hosted: boolean): number {
   const steps = stepsFor(hosted)
   return step === "done" ? steps.length : steps.findIndex((s) => s.step === step)
 }
-

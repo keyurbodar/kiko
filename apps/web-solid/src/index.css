@@ -10,7 +10,6 @@
 @import "./styles/motion.css";
 
 :root {
-
   --font-xs: 11px;
   --font-sm: 12px;
   --font-md: 13px;
@@ -38,16 +37,12 @@
   --control-h: 32px;
   --field-h: 30px;
 
-
   --radius-mult: 0.5;
-
-
 
   --chat-content-max-width: 736px;
   --sidebar-content-w: 280px;
   --sidebar-nav-w: 60px;
   --topbar-h: 50px;
-
 
   --bubble-pad-y: 8px;
   --bubble-pad-x: 14px;
@@ -56,7 +51,6 @@
   --run-gap: 11px;
   --popup-max-w: 560px;
 
-
   --rail-tab: 44px;
   --rail-icon: 22px;
   --pin-circle: 48px;
@@ -64,26 +58,18 @@
   --row-avatar: 28px;
   --row-avatar-img: 22px;
 
-
   --tab-h: 28px;
   --tab-max-w: 172px;
-
 
   --tree-row-h: 30px;
   --tree-indent: 16px;
 
-
   --board-column-gap: 12px;
   --board-card-gap: 8px;
 
-
   --clamp-fade-h: 48px;
 
-
   --palette-max-w: var(--popup-max-w);
-
-
-
 
   --spring250-easing: linear(
     0,
@@ -244,14 +230,12 @@
 }
 
 :root {
-
   --tab-bg: transparent;
   --tab-bg-hover: var(--accent);
   --tab-bg-active: var(--card);
   --tab-text: var(--muted-foreground);
   --tab-text-active: var(--foreground);
   --tab-shadow: 0 1px 2px oklch(0% 0 none / 0.1);
-
 
   --date-pill-bg: oklch(from var(--background) calc(l + 0.1) c h / 80%);
   --date-pill-text: var(--muted-foreground);
@@ -261,37 +245,27 @@
   --calendar-day-today: color-mix(in oklab, var(--ring) 22%, transparent);
   --calendar-day-outside: var(--secondary-label);
 
-
   --palette-row-hover: var(--accent);
   --palette-row-active: var(--accent-strong);
   --palette-kbd-bg: var(--secondary);
   --palette-kbd-text: var(--muted-foreground);
 
-
   --editor-line-active: oklch(0.2 0 none);
   --editor-selection: color-mix(in oklab, var(--ring) 25%, transparent);
 
-
-  --clamp-fade-assistant: linear-gradient(
-    to bottom,
-    transparent,
-    var(--message-assistant)
-  );
+  --clamp-fade-assistant: linear-gradient(to bottom, transparent, var(--message-assistant));
   --clamp-fade-user: linear-gradient(to bottom, transparent, var(--message-user));
   --clamp-fade-panel: linear-gradient(to bottom, transparent, var(--background));
-
 
   --reply-bar-bg: var(--card);
   --reply-bar-accent: var(--ring);
   --reply-bar-name: var(--ring);
   --reply-bar-text: var(--muted-foreground);
 
-
   --count-bg: var(--control);
   --count-text: var(--foreground);
   --count-muted-bg: var(--secondary);
   --count-muted-text: var(--secondary-label);
-
 
   --out-quote-bg: oklch(0% 0 none / 0.2);
   --out-quote-bar: oklch(from var(--ring) 0.9 0.062 h);
@@ -300,28 +274,20 @@
   --in-quote-bar: var(--ring);
   --in-quote-name: var(--ring);
 
-
   --rule: color-mix(in oklab, var(--foreground) 14%, transparent);
   --ring-wash-strong: color-mix(in oklab, var(--ring) 22%, transparent);
   --ring-wash-faint: color-mix(in oklab, var(--ring) 16%, transparent);
   --error-surface: color-mix(in oklab, var(--error) 12%, transparent);
   --scrim: oklch(0% 0 none / 0.6);
 
-
   --message-assistant-foreground: var(--foreground);
-  --message-user-gradient: linear-gradient(
-    135deg,
-    var(--message-user),
-    var(--message-user-deep)
-  );
-
+  --message-user-gradient: linear-gradient(135deg, var(--message-user), var(--message-user-deep));
 
   --dock-bg: var(--background);
   --popover-edge: 0 0 0 1px var(--border);
   --glass-edge: inset 0 0 0 1px var(--border);
   --popover-blur: none;
   --surface-blur: none;
-
 
   --syntax-comment: oklch(50% 0.02 340);
   --syntax-string: oklch(72% 0.12 145);
@@ -345,10 +311,8 @@
 }
 
 :root {
-  --popover-shadow:
-    0 12px 40px oklch(0% 0 none / 0.45), 0 2px 6px oklch(0% 0 none / 0.12);
-  --menu-shadow:
-    0 0 0 0.5px oklch(0% 0 none / 0.4), 0 10px 28px oklch(0% 0 none / 0.32);
+  --popover-shadow: 0 12px 40px oklch(0% 0 none / 0.45), 0 2px 6px oklch(0% 0 none / 0.12);
+  --menu-shadow: 0 0 0 0.5px oklch(0% 0 none / 0.4), 0 10px 28px oklch(0% 0 none / 0.32);
   --card-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
   --row-shadow: 0 6px 18px oklch(0% 0 none / 0.35);
   --segment-shadow: 0 2px 8px oklch(0% 0 none / 0.35);
@@ -384,7 +348,6 @@
 }
 
 @theme inline {
-
   --text-xs: var(--font-xs);
   --text-sm: var(--font-sm);
   --text-md: var(--font-md);
@@ -395,14 +358,12 @@
   --text-md--line-height: var(--line-height);
   --text-base--line-height: var(--line-height);
 
-
   --shadow-popover: var(--popover-shadow);
   --shadow-menu: var(--menu-shadow);
   --shadow-card: var(--card-shadow);
   --shadow-row: var(--row-shadow);
   --shadow-segment: var(--segment-shadow);
   --shadow-tab: var(--tab-shadow);
-
 
   --color-background: var(--background);
   --color-sidebar: var(--sidebar);
@@ -424,31 +385,25 @@
   --color-scrollbar-hover: var(--scrollbar-thumb-hover);
   --color-scrim: var(--scrim);
 
-
   --color-foreground: var(--foreground);
   --color-muted-foreground: var(--muted-foreground);
   --color-secondary-label: var(--secondary-label);
-
 
   --color-ring: var(--ring);
   --color-ring-wash: var(--ring-wash);
   --color-ring-wash-strong: var(--ring-wash-strong);
   --color-ring-wash-faint: var(--ring-wash-faint);
 
-
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
-
 
   --color-error: var(--error);
   --color-error-surface: var(--error-surface);
   --color-warning: var(--warning);
   --color-success: var(--success);
 
-
   --color-border: var(--border);
-
 
   --color-message-assistant: var(--message-assistant);
   --color-message-assistant-foreground: var(--message-assistant-foreground);
@@ -461,14 +416,12 @@
   --color-date-pill: var(--date-pill-bg);
   --color-editor-line: var(--editor-line-active);
 
-
   --color-file-pdf: oklch(0.6 0.17 25);
   --color-file-archive: oklch(0.7 0.15 60);
   --color-file-sheet: oklch(0.62 0.13 150);
   --color-file-doc: oklch(0.6 0.12 255);
   --color-file-media: oklch(0.62 0.12 320);
   --color-file-default: oklch(0.55 0.05 340);
-
 
   --color-syntax-comment: var(--syntax-comment);
   --color-syntax-regexp: var(--syntax-regexp);
@@ -644,11 +597,9 @@
     background: color-mix(in oklab, var(--ring) 25%, transparent);
   }
 
-
   :focus {
     outline: none;
   }
-
 
   .drawer-scrim {
     position: absolute;
@@ -657,7 +608,6 @@
     z-index: 25;
     background: var(--scrim);
   }
-
 
   input[type="search"]::-webkit-search-cancel-button,
   input[type="search"]::-webkit-search-decoration {

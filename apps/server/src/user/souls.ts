@@ -34,7 +34,10 @@ export class Souls {
   constructor(private readonly sql: SqlStorage) {}
 
   all(): (Soul & { slug: string })[] {
-    return this.sql.exec<Row & { slug: string }>("SELECT slug, body, sha, at FROM souls ORDER BY slug").toArray().map((r) => ({ slug: r.slug, body: r.body, sha: r.sha, at: r.at }))
+    return this.sql
+      .exec<Row & { slug: string }>("SELECT slug, body, sha, at FROM souls ORDER BY slug")
+      .toArray()
+      .map((r) => ({ slug: r.slug, body: r.body, sha: r.sha, at: r.at }))
   }
 
   private row(slug: string): Row | null {
@@ -44,7 +47,9 @@ export class Souls {
   async get(slug: string): Promise<Soul> {
     const found = this.row(slug)
     if (found) return found
-    const agent = this.sql.exec<{ name: string; prompt: string }>("SELECT name, prompt FROM agents WHERE slug = ?", slug).toArray()[0]
+    const agent = this.sql
+      .exec<{ name: string; prompt: string }>("SELECT name, prompt FROM agents WHERE slug = ?", slug)
+      .toArray()[0]
     return this.seed(slug, slug === "kiko" ? KIKO_SOUL : firstSoul(agent?.name ?? slug, agent?.prompt ?? ""))
   }
 
@@ -59,10 +64,19 @@ export class Souls {
   async set(slug: string, body: string, expectSha: string): Promise<SoulWrite> {
     if (!body.trim()) return { ok: false, code: "invalid", message: "a soul cannot be empty" }
     if (body.length > MAX_SOUL) {
-      return { ok: false, code: "invalid", message: `that is ${body.length} characters; a soul holds ${MAX_SOUL}. tighten it: merge lessons, drop what no longer matters.` }
+      return {
+        ok: false,
+        code: "invalid",
+        message: `that is ${body.length} characters; a soul holds ${MAX_SOUL}. tighten it: merge lessons, drop what no longer matters.`,
+      }
     }
     const current = await this.get(slug)
-    if (current.sha !== expectSha) return { ok: false, code: "conflict", message: "your soul changed since you read it (the human edited it). read it again." }
+    if (current.sha !== expectSha)
+      return {
+        ok: false,
+        code: "conflict",
+        message: "your soul changed since you read it (the human edited it). read it again.",
+      }
     const soul = { body, sha: await sha256Hex(body), at: Date.now() }
     this.sql.exec("UPDATE souls SET body = ?, sha = ?, at = ? WHERE slug = ?", soul.body, soul.sha, soul.at, slug)
     return { ok: true, soul }

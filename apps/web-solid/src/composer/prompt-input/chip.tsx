@@ -8,7 +8,10 @@ import type { ChipView, FileRefView } from "../rich/nodes"
 import { middleTruncate } from "../rich/nodes"
 import type { PromptInputV2Attachment } from "./types"
 
-type Source = { attachments: () => PromptInputV2Attachment[]; openAttachment: (attachment: PromptInputV2Attachment) => void }
+type Source = {
+  attachments: () => PromptInputV2Attachment[]
+  openAttachment: (attachment: PromptInputV2Attachment) => void
+}
 
 function Chip(props: { id: string; name: string; source: Source }) {
   const part = () => props.source.attachments().find((p) => p.id === props.id)
@@ -45,7 +48,11 @@ function Chip(props: { id: string; name: string; source: Source }) {
       onMouseDown={(event) => event.preventDefault()}
       onClick={open}
     >
-      {image() ? <img class="file-chip-thumb" src={part()!.blob.url} alt="" draggable={false} /> : <EntryIcon path={props.name} />}
+      {image() ? (
+        <img class="file-chip-thumb" src={part()!.blob.url} alt="" draggable={false} />
+      ) : (
+        <EntryIcon path={props.name} />
+      )}
       <span class="file-chip-label">{middleTruncate(props.name, 28)}</span>
       <span class="file-chip-meta">{meta()}</span>
     </button>
@@ -60,7 +67,12 @@ export const chipView =
 function FileRef(props: { path: string; folder: boolean }) {
   const name = () => fileName(props.path)
   return (
-    <span class="file-chip" data-component="composer-file-ref" data-kind={props.folder ? "folder" : "file"} title={`/${props.path}`}>
+    <span
+      class="file-chip"
+      data-component="composer-file-ref"
+      data-kind={props.folder ? "folder" : "file"}
+      title={`/${props.path}`}
+    >
       <EntryIcon path={`${props.path}${props.folder ? "/" : ""}`} />
       <span class="file-chip-label">{middleTruncate(name(), 28)}</span>
     </span>

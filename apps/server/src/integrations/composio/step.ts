@@ -19,15 +19,26 @@ export function composioDescribe(tools: readonly ComposioTool[]): Describe {
   return (name, args) => {
     const tool = byName.get(name)
     if (!tool) return null
-    if (tool.direct) return { label: action(tool.direct.slug, tool.direct.toolkit), app: tool.direct.toolkit.toLowerCase() }
+    if (tool.direct)
+      return { label: action(tool.direct.slug, tool.direct.toolkit), app: tool.direct.toolkit.toLowerCase() }
     switch (tool.name) {
       case MULTI_EXECUTE: {
-        const slugs = Array.isArray(args.tools) ? args.tools.flatMap((t) => (typeof (t as { tool_slug?: unknown })?.tool_slug === "string" ? [(t as { tool_slug: string }).tool_slug] : [])) : []
+        const slugs = Array.isArray(args.tools)
+          ? args.tools.flatMap((t) =>
+              typeof (t as { tool_slug?: unknown })?.tool_slug === "string"
+                ? [(t as { tool_slug: string }).tool_slug]
+                : [],
+            )
+          : []
         const first = slugs[0]
         if (!first) return null
         const toolkit = toolkitOf(first)
         const more = slugs.length - 1
-        return { label: `${action(first, toolkit)}${more > 0 ? ` and ${more} more` : ""}`, app: toolkit, input: JSON.stringify(args) }
+        return {
+          label: `${action(first, toolkit)}${more > 0 ? ` and ${more} more` : ""}`,
+          app: toolkit,
+          input: JSON.stringify(args),
+        }
       }
       case SEARCH:
         return { label: "Searched connected apps" }

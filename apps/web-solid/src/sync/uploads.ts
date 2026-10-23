@@ -55,10 +55,19 @@ export function refusal(status: number, body: string): string {
   } catch {}
   if (status === 413) return "That file is too large to upload."
   if (status === 401) return "Your session ended. Sign in again, then retry."
-  return status >= 500 ? `Your backend had a problem (${status}). Retry in a moment.` : `The upload was refused (${status}).`
+  return status >= 500
+    ? `Your backend had a problem (${status}). Retry in a moment.`
+    : `The upload was refused (${status}).`
 }
 
-function request(job: Job, method: string, url: string, body: Blob | string | null, headers: Record<string, string>, onProgress?: (loaded: number) => void): Promise<string> {
+function request(
+  job: Job,
+  method: string,
+  url: string,
+  body: Blob | string | null,
+  headers: Record<string, string>,
+  onProgress?: (loaded: number) => void,
+): Promise<string> {
   const xhr = new XMLHttpRequest()
   const done = new Promise<string>((resolve, reject) => {
     xhr.open(method, apiUrl(url), true)
@@ -67,7 +76,11 @@ function request(job: Job, method: string, url: string, body: Blob | string | nu
     xhr.timeout = TIMEOUT_MS
     for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v)
     if (onProgress) xhr.upload.addEventListener("progress", (e) => e.lengthComputable && onProgress(e.loaded))
-    xhr.addEventListener("load", () => (xhr.status >= 200 && xhr.status < 300 ? resolve(xhr.responseText) : reject(new Error(refusal(xhr.status, xhr.responseText)))))
+    xhr.addEventListener("load", () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve(xhr.responseText)
+        : reject(new Error(refusal(xhr.status, xhr.responseText))),
+    )
     xhr.addEventListener("error", () => reject(new Error("Upload failed")))
     xhr.addEventListener("timeout", () => reject(new Error("Upload timed out")))
     xhr.addEventListener("abort", () => reject(new Error("Upload cancelled")))
@@ -93,13 +106,27 @@ async function transfer(job: Job): Promise<void> {
     return
   }
   const json = { "content-type": "application/json" }
-  const { uploadId } = JSON.parse(await request(job, "POST", `${base(job)}/parts`, JSON.stringify({ name: job.name, type: job.type, size: total }), json)) as { uploadId: string }
+  const { uploadId } = JSON.parse(
+    await request(
+      job,
+      "POST",
+      `${base(job)}/parts`,
+      JSON.stringify({ name: job.name, type: job.type, size: total }),
+      json,
+    ),
+  ) as { uploadId: string }
   const parts: unknown[] = []
   const at = (rest: string) => `${base(job)}${rest}?uploadId=${encodeURIComponent(uploadId)}`
   for (let n = 1, from = 0; from < total; n++, from += PART_BYTES) {
     if (job.cancelled) throw new Error("Upload cancelled")
     const offset = from
-    parts.push(JSON.parse(await request(job, "PUT", at(`/parts/${n}`), job.file.slice(from, from + PART_BYTES), {}, (loaded) => progress(offset + loaded))))
+    parts.push(
+      JSON.parse(
+        await request(job, "PUT", at(`/parts/${n}`), job.file.slice(from, from + PART_BYTES), {}, (loaded) =>
+          progress(offset + loaded),
+        ),
+      ),
+    )
   }
   await request(job, "POST", at("/complete"), JSON.stringify({ parts }), json)
 }
@@ -194,7 +221,9 @@ export function forgetUpload(id: string): void {
   set(id, undefined)
 }
 
-export function readyAttachments(items: readonly { id: string; name: string; type: string; size: number }[]): PendingAttachment[] | null {
+export function readyAttachments(
+  items: readonly { id: string; name: string; type: string; size: number }[],
+): PendingAttachment[] | null {
   const out: PendingAttachment[] = []
   for (const item of items) {
     const state = uploads[item.id]
@@ -204,7 +233,10 @@ export function readyAttachments(items: readonly { id: string; name: string; typ
   return out
 }
 
-export function uploadBlockReason(ids: readonly string[], state: (id: string) => UploadState | undefined = uploadState): string | null {
+export function uploadBlockReason(
+  ids: readonly string[],
+  state: (id: string) => UploadState | undefined = uploadState,
+): string | null {
   let pending = 0
   let failed = 0
   for (const id of ids) {

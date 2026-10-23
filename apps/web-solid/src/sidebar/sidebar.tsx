@@ -4,7 +4,7 @@ import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ComposeIcon, SettingsIcon, SidebarLeftIcon, SparklesIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { session } from "../app/session"
-import { profile } from "../app/hosted";
+import { profile } from "../app/hosted"
 import { SECTIONS, type SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
@@ -55,7 +55,7 @@ export function Sidebar(props: SidebarProps) {
       data-component="sidebar"
       data-panel={props.section ?? undefined}
       data-collapsed={collapsed() ? "" : undefined}
-      >
+    >
       <Sky />
       <header class="panel-header">
         <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
@@ -117,43 +117,50 @@ function Foot() {
   }
   return (
     <>
-    <Suspense>
-      <UpdatePill />
-    </Suspense>
-    <footer class="panel-foot" data-component="sidebar-foot">
-      <button type="button" class="panel-me cursor-pointer" data-component="sidebar-me" aria-label="Account" aria-haspopup="dialog" onClick={() => openSettings("account")}>
-        <IdentityAvatar seed={user()?.id ?? "you"} size={26} />
-        <span class="panel-me-name">{profile()?.name ?? user()?.name ?? "You"}</span>
-      </button>
-      <TooltipV2 placement="top" openDelay={400} value="Recipes">
-        <A
-          href="/recipes"
-          class="panel-icon-button"
-          data-component="sidebar-recipes"
-          data-active={onRecipes() ? "" : undefined}
-          aria-current={onRecipes() ? "page" : undefined}
-          aria-label="Recipes"
-        >
-          <RemixIcon icon={SparklesIcon} size={17} />
-        </A>
-      </TooltipV2>
-      <TooltipV2 placement="top" openDelay={400} value="Settings">
+      <Suspense>
+        <UpdatePill />
+      </Suspense>
+      <footer class="panel-foot" data-component="sidebar-foot">
         <button
           type="button"
-          class="panel-icon-button relative"
-          data-component="sidebar-settings"
-          data-hint="settings.open"
-          data-hint-label="Settings"
-          data-active={settingsSection() ? "" : undefined}
+          class="panel-me cursor-pointer"
+          data-component="sidebar-me"
+          aria-label="Account"
           aria-haspopup="dialog"
-          aria-expanded={settingsSection() !== null}
-          aria-label="Settings"
-          onClick={() => openSettings()}
+          onClick={() => openSettings("account")}
         >
-          <RemixIcon icon={SettingsIcon} size={17} />
+          <IdentityAvatar seed={user()?.id ?? "you"} size={26} />
+          <span class="panel-me-name">{profile()?.name ?? user()?.name ?? "You"}</span>
         </button>
-      </TooltipV2>
-    </footer>
+        <TooltipV2 placement="top" openDelay={400} value="Recipes">
+          <A
+            href="/recipes"
+            class="panel-icon-button"
+            data-component="sidebar-recipes"
+            data-active={onRecipes() ? "" : undefined}
+            aria-current={onRecipes() ? "page" : undefined}
+            aria-label="Recipes"
+          >
+            <RemixIcon icon={SparklesIcon} size={17} />
+          </A>
+        </TooltipV2>
+        <TooltipV2 placement="top" openDelay={400} value="Settings">
+          <button
+            type="button"
+            class="panel-icon-button relative"
+            data-component="sidebar-settings"
+            data-hint="settings.open"
+            data-hint-label="Settings"
+            data-active={settingsSection() ? "" : undefined}
+            aria-haspopup="dialog"
+            aria-expanded={settingsSection() !== null}
+            aria-label="Settings"
+            onClick={() => openSettings()}
+          >
+            <RemixIcon icon={SettingsIcon} size={17} />
+          </button>
+        </TooltipV2>
+      </footer>
     </>
   )
 }
@@ -162,7 +169,14 @@ function HeaderAction(props: { action: PanelAction }) {
   const navigate = useNavigate()
   return (
     <TooltipV2 placement="bottom" openDelay={400} value={props.action.label}>
-      <button type="button" class="panel-icon-button" data-component="sidebar-add" aria-label={props.action.label} title={props.action.label} onClick={() => props.action.run(navigate)}>
+      <button
+        type="button"
+        class="panel-icon-button"
+        data-component="sidebar-add"
+        aria-label={props.action.label}
+        title={props.action.label}
+        onClick={() => props.action.run(navigate)}
+      >
         <RemixIcon icon={ComposeIcon} size={17} />
       </button>
     </TooltipV2>

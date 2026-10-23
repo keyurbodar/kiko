@@ -1,6 +1,14 @@
 import { Type } from "@earendil-works/pi-ai"
 import type { Models } from "@earendil-works/pi-ai"
-import { type ConversationId, defineExtension, defineTool, type Extension, type ModelRef, type ToolExecutionApi, type ToolRegistration } from "@earendil-works/pi-durable"
+import {
+  type ConversationId,
+  defineExtension,
+  defineTool,
+  type Extension,
+  type ModelRef,
+  type ToolExecutionApi,
+  type ToolRegistration,
+} from "@earendil-works/pi-durable"
 import { type ExecutionEnv, getOrThrow } from "@earendil-works/pi-durable/env"
 import { createBashTool, createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-durable/tools"
 import type { FsEntry } from "../../room/files"
@@ -48,7 +56,6 @@ type Saved = { changed: string[] }
 
 const roomPathOf = (api: Pick<ToolExecutionApi, "env">, path: string) => `/${getOrThrow(filesOf(api).roomPath(path))}`
 
-
 export function size(bytes: number): string {
   if (bytes < 1024) return `${bytes} b`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} kb`
@@ -56,7 +63,9 @@ export function size(bytes: number): string {
 }
 
 function line(e: FsEntry): string {
-  return e.kind === "directory" ? `/${e.path}/\t${e.files} files, ${size(e.size)}` : `/${e.path}\t${size(e.size)}\t${e.type}`
+  return e.kind === "directory"
+    ? `/${e.path}/\t${e.files} files, ${size(e.size)}`
+    : `/${e.path}\t${size(e.size)}\t${e.type}`
 }
 
 export type FilesOptions = {
@@ -75,43 +84,58 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     ...piRead,
     description: `${piRead.description} Pdfs come back as text, page by page; images come back as images when the model can see them. Paths start at / (the chat's files); what the human attached is under /attachments/.`,
     replay: "safe",
-    execute: (args, api, context) => filesOf(api).within(async () => {
-      const fs = filesOf(api)
-      const found = await fs.stat(args.path)
-      const readMedia = async (entry: Extract<Awaited<ReturnType<typeof fs.stat>>, { ok: true }>["value"] & { kind: "file" }) => {
-        const readImage = async () => {
-          const agent = await api.agent(context)
-          if (!acceptsImages(agent.model)) return { output: text(`${args.path} is an image (${entry.type}, ${size(entry.size)}). this model cannot read images.`) }
-          if (entry.size > MAX_IMAGE_BYTES) return refused(`${args.path} is an image of ${size(entry.size)}, over the ${size(MAX_IMAGE_BYTES)} limit`)
-          const bytes = await fs.bytesOf(entry)
-          if (!bytes) return refused(`no file at ${args.path}`)
-          return { output: [{ type: "image" as const, data: encodeBase64(bytes), mimeType: entry.type }] }
+    execute: (args, api, context) =>
+      filesOf(api).within(async () => {
+        const fs = filesOf(api)
+        const found = await fs.stat(args.path)
+        const readMedia = async (
+          entry: Extract<Awaited<ReturnType<typeof fs.stat>>, { ok: true }>["value"] & { kind: "file" },
+        ) => {
+          const readImage = async () => {
+            const agent = await api.agent(context)
+            if (!acceptsImages(agent.model))
+              return {
+                output: text(
+                  `${args.path} is an image (${entry.type}, ${size(entry.size)}). this model cannot read images.`,
+                ),
+              }
+            if (entry.size > MAX_IMAGE_BYTES)
+              return refused(`${args.path} is an image of ${size(entry.size)}, over the ${size(MAX_IMAGE_BYTES)} limit`)
+            const bytes = await fs.bytesOf(entry)
+            if (!bytes) return refused(`no file at ${args.path}`)
+            return { output: [{ type: "image" as const, data: encodeBase64(bytes), mimeType: entry.type }] }
+          }
+          if (IMAGE_TYPES.has(entry.type)) return readImage()
+          if (entry.type === "application/pdf" || entry.path.toLowerCase().endsWith(".pdf")) {
+            if (entry.size > MAX_PDF_BYTES)
+              return refused(`${args.path} is a pdf of ${size(entry.size)}, over the ${size(MAX_PDF_BYTES)} limit`)
+            const bytes = await fs.bytesOf(entry)
+            const extracted = bytes ? await pdfText(bytes) : null
+            if (!extracted)
+              return refused(`${args.path} is a pdf whose text could not be read (it may be scanned images)`)
+            return { output: text(`${args.path}: a pdf of ${extracted.pages} pages.\n\n${extracted.text}`) }
+          }
         }
-        if (IMAGE_TYPES.has(entry.type)) return readImage()
-        if (entry.type === "application/pdf" || entry.path.toLowerCase().endsWith(".pdf")) {
-          if (entry.size > MAX_PDF_BYTES) return refused(`${args.path} is a pdf of ${size(entry.size)}, over the ${size(MAX_PDF_BYTES)} limit`)
-          const bytes = await fs.bytesOf(entry)
-          const extracted = bytes ? await pdfText(bytes) : null
-          if (!extracted) return refused(`${args.path} is a pdf whose text could not be read (it may be scanned images)`)
-          return { output: text(`${args.path}: a pdf of ${extracted.pages} pages.\n\n${extracted.text}`) }
+        if (found.ok && found.value.kind === "file") {
+          const media = await readMedia(found.value)
+          if (media) return media
         }
-      }
-      if (found.ok && found.value.kind === "file") {
-        const media = await readMedia(found.value)
-        if (media) return media
-      }
-      if (found.ok && found.value.kind === "file") {
-        const bytes = await fs.bytesOf(found.value)
-        if (bytes && isBinary(bytes)) return refused(`${args.path} is a binary file (${found.value.type}, ${size(found.value.size)}) and cannot be read as text`)
-      }
-      if (found.ok && found.value.kind === "directory") return refused(`${args.path} is a folder. use ls`)
-      return piRead.execute(args, api, context)
-    }),
+        if (found.ok && found.value.kind === "file") {
+          const bytes = await fs.bytesOf(found.value)
+          if (bytes && isBinary(bytes))
+            return refused(
+              `${args.path} is a binary file (${found.value.type}, ${size(found.value.size)}) and cannot be read as text`,
+            )
+        }
+        if (found.ok && found.value.kind === "directory") return refused(`${args.path} is a folder. use ls`)
+        return piRead.execute(args, api, context)
+      }),
   })
 
   const ls = defineTool({
     name: "ls",
-    description: "list a folder of the chat's files, as ls. folders end in /. with recursive, every file below it. the root is /.",
+    description:
+      "list a folder of the chat's files, as ls. folders end in /. with recursive, every file below it. the root is /.",
     parameters: Type.Object({
       path: Type.Optional(Type.String({ description: "a folder or a file. default /" })),
       recursive: Type.Optional(Type.Boolean()),
@@ -139,8 +163,14 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     execute: async (args, api) => {
       const out = getOrThrow(await filesOf(api).removeAll(args.paths, args.recursive ?? false))
       const count = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`
-      const parts = [out.changed ? count(out.changed, "file") : "", out.folders ? count(out.folders, "folder") : ""].filter(Boolean)
-      return { output: text(parts.length ? `deleted ${parts.join(" and ")}` : "nothing to delete"), details: saved(api, parts.length ? out.paths : []) }
+      const parts = [
+        out.changed ? count(out.changed, "file") : "",
+        out.folders ? count(out.folders, "folder") : "",
+      ].filter(Boolean)
+      return {
+        output: text(parts.length ? `deleted ${parts.join(" and ")}` : "nothing to delete"),
+        details: saved(api, parts.length ? out.paths : []),
+      }
     },
   })
 
@@ -159,18 +189,23 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
 
   const mkdir = defineTool({
     name: "mkdir",
-    description: "make a folder and any missing parents, as mkdir -p. an existing folder is fine. writing a file into a path also makes its folders.",
+    description:
+      "make a folder and any missing parents, as mkdir -p. an existing folder is fine. writing a file into a path also makes its folders.",
     parameters: Type.Object({ path: Type.String() }),
     replay: "safe",
     execute: async (args, api) => {
       const out = getOrThrow(await filesOf(api).mkdir(args.path))
-      return { output: text(out.changed ? `made ${args.path}` : `${args.path} already exists`), details: saved(api, out.changed ? [roomPathOf(api, args.path)] : []) }
+      return {
+        output: text(out.changed ? `made ${args.path}` : `${args.path} already exists`),
+        details: saved(api, out.changed ? [roomPathOf(api, args.path)] : []),
+      }
     },
   })
 
   const cp = defineTool({
     name: "cp",
-    description: "copy a file or folder, as cp. into an existing folder, the name is kept. a folder needs recursive, and its copy must not exist yet.",
+    description:
+      "copy a file or folder, as cp. into an existing folder, the name is kept. a folder needs recursive, and its copy must not exist yet.",
     parameters: Type.Object({ from: Type.String(), to: Type.String(), recursive: Type.Optional(Type.Boolean()) }),
     replay: "safe",
     execute: async (args, api) => {
@@ -188,7 +223,10 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
       if (!args.recursive) return refused(`${args.from} is a folder. copy it with recursive`)
       if ((await fs.stat(target)).ok) return refused(`${target} already exists`)
       const files = getOrThrow(await fs.list(args.from, true)).filter((e) => e.kind === "file")
-      if (files.length > MAX_COPIED) return refused(`${args.from} holds ${files.length} files, over the ${MAX_COPIED} a copy takes. move it, or copy a folder inside`)
+      if (files.length > MAX_COPIED)
+        return refused(
+          `${args.from} holds ${files.length} files, over the ${MAX_COPIED} a copy takes. move it, or copy a folder inside`,
+        )
       const copies = await Promise.allSettled(
         files.map(async (f) => {
           const to = `${target}/${f.path.slice(src.path.length + 1)}`
@@ -199,8 +237,12 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
         }),
       )
       const done = copies.flatMap((c) => (c.status === "fulfilled" ? [c.value] : []))
-      const failed = copies.flatMap((c) => (c.status === "rejected" ? [c.reason instanceof Error ? c.reason.message : String(c.reason)] : []))
-      const content = failed.length ? `copied ${done.length} of ${files.length} files to ${target}. ${failed.length} not copied: ${failed[0]}` : `copied ${files.length} files to ${target}`
+      const failed = copies.flatMap((c) =>
+        c.status === "rejected" ? [c.reason instanceof Error ? c.reason.message : String(c.reason)] : [],
+      )
+      const content = failed.length
+        ? `copied ${done.length} of ${files.length} files to ${target}. ${failed.length} not copied: ${failed[0]}`
+        : `copied ${files.length} files to ${target}`
       return { output: text(content), details: saved(api, done), isError: failed.length > 0 }
     },
   })

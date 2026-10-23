@@ -4,8 +4,12 @@
   "private": true,
   "type": "module",
   "sideEffects": false,
-  "exports": { "./*": "./src/*.ts" },
-  "scripts": { "typecheck": "tsc --noEmit" },
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "rrule": "2.8.1"
   },

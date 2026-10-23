@@ -1,10 +1,17 @@
 type Part = { type: string; text?: string }
 
-export type Assistant = { role?: string; stopReason?: string; errorMessage?: string; provider?: string; content?: readonly Part[] }
+export type Assistant = {
+  role?: string
+  stopReason?: string
+  errorMessage?: string
+  provider?: string
+  content?: readonly Part[]
+}
 
 type Post = "ack" | "answer" | "none"
 
-export const hasToolCall = (message: Assistant | undefined): boolean => (message?.content ?? []).some((part) => part.type === "toolCall")
+export const hasToolCall = (message: Assistant | undefined): boolean =>
+  (message?.content ?? []).some((part) => part.type === "toolCall")
 
 export function postOf(message: Assistant, seen: { posted: boolean; quiet: boolean }): Post {
   if (message.stopReason === "aborted" || message.stopReason === "error") return "none"
@@ -16,7 +23,11 @@ export function postOf(message: Assistant, seen: { posted: boolean; quiet: boole
 const ACK_CHARS = 200
 
 export function ackOf(text: string): string {
-  const line = text.split("\n").find((part) => part.trim() !== "")?.trim() ?? ""
+  const line =
+    text
+      .split("\n")
+      .find((part) => part.trim() !== "")
+      ?.trim() ?? ""
   return line.length > ACK_CHARS ? `${line.slice(0, ACK_CHARS - 1)}…` : line
 }
 

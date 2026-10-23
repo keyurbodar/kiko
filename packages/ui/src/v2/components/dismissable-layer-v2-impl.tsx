@@ -14,8 +14,7 @@ export function DismissableLayerV2Hooks(props: DismissableLayerV2HooksProps): JS
   createInteractOutside(
     {
       isDisabled: () => !props.active,
-      shouldExcludeElement: (element) =>
-        props.excludedElements?.().some((node) => node?.contains(element)) ?? false,
+      shouldExcludeElement: (element) => props.excludedElements?.().some((node) => node?.contains(element)) ?? false,
       onPointerDownOutside: (event) => {
         if (!event.defaultPrevented) props.onDismiss()
       },

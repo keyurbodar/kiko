@@ -22,8 +22,13 @@ export function RunAvatar(props: { seed: string; runKey: string; isRunEnd: boole
     const rows = scroller.querySelectorAll<HTMLElement>(`[data-run-key="${CSS.escape(props.runKey)}"]`)
     if (rows[rows.length - 1] !== row) return setShape(null)
     const first = rows[0]!
-    const above = first.hasAttribute("data-run-first") ? Math.max(0, row.getBoundingClientRect().top - first.getBoundingClientRect().top) : FAR
-    const below = props.isRunEnd ? 0 : Math.max(0, Math.ceil(scroller.getBoundingClientRect().bottom - row.getBoundingClientRect().bottom)) + RUN_AVATAR_PX
+    const above = first.hasAttribute("data-run-first")
+      ? Math.max(0, row.getBoundingClientRect().top - first.getBoundingClientRect().top)
+      : FAR
+    const below = props.isRunEnd
+      ? 0
+      : Math.max(0, Math.ceil(scroller.getBoundingClientRect().bottom - row.getBoundingClientRect().bottom)) +
+        RUN_AVATAR_PX
     const now = shape()
     if (!now || now.above !== above || now.below !== below) setShape({ above, below })
   }

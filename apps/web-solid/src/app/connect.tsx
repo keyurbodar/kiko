@@ -71,7 +71,9 @@ export function ConnectCloudflare() {
   const location = useLocation()
   const navigate = useNavigate()
   const reconnect = () => new URLSearchParams(location.search).get("reconnect") === "1"
-  const [view, setView] = createSignal<View>({ name: location.pathname === "/connect/callback" ? "installing" : "start" })
+  const [view, setView] = createSignal<View>({
+    name: location.pathname === "/connect/callback" ? "installing" : "start",
+  })
   const [tokenOpen, setTokenOpen] = createSignal(false)
   const [tokenSteps, setTokenSteps] = createSignal<TokenSteps>({ status: "idle" })
   const tokenLink = () => {
@@ -106,7 +108,12 @@ export function ConnectCloudflare() {
   const show = (error: InstallError | null, again: () => void, grant: Grant["kind"] = "oauth") => {
     if (!error) return navigate("/", { replace: true })
     const failure = failureOf(error)
-    const retry = { "sign-in": () => void finishOnly(), "new-grant": () => void withCloudflare(), token: () => pasteAgain(failure.message), same: again }[retryKind(error, grant)]
+    const retry = {
+      "sign-in": () => void finishOnly(),
+      "new-grant": () => void withCloudflare(),
+      token: () => pasteAgain(failure.message),
+      same: again,
+    }[retryKind(error, grant)]
     setView({ name: "failed", failure, retry })
   }
 
@@ -133,7 +140,11 @@ export function ConnectCloudflare() {
       }
       show(error, again, grant.kind)
     } catch (e) {
-      setView({ name: "failed", failure: { message: e instanceof Error ? e.message : "Could not finish connecting. Try again." }, retry: again })
+      setView({
+        name: "failed",
+        failure: { message: e instanceof Error ? e.message : "Could not finish connecting. Try again." },
+        retry: again,
+      })
     }
   }
 
@@ -168,14 +179,21 @@ export function ConnectCloudflare() {
     try {
       setTokenSteps({ status: "ready", link: await loadTokenLink() })
     } catch (e) {
-      setTokenSteps({ status: "failed", message: e instanceof Error ? e.message : "Could not load the token steps. Try again." })
+      setTokenSteps({
+        status: "failed",
+        message: e instanceof Error ? e.message : "Could not load the token steps. Try again.",
+      })
     }
   }
 
   return (
     <div class="welcome-step flex w-full flex-col gap-3" data-component="connect" data-step="cloudflare">
       <h1 class="welcome-title" style={{ "--i": 0 }}>
-        {view().name === "installing" ? "Installing Kiko" : reconnect() ? "Reconnect Cloudflare" : "Put Kiko on your Cloudflare"}
+        {view().name === "installing"
+          ? "Installing Kiko"
+          : reconnect()
+            ? "Reconnect Cloudflare"
+            : "Put Kiko on your Cloudflare"}
       </h1>
       <p class="welcome-lede" style={{ "--i": 1 }}>
         {view().name === "installing"
@@ -220,10 +238,16 @@ export function ConnectCloudflare() {
               <Show when={v.name === "choose" && v}>
                 {(c) => (
                   <div class="flex flex-col gap-2" data-field="choose-account">
-                    <p class="text-sm text-foreground">This sign-in can use more than one Cloudflare account. Pick the one Kiko goes in.</p>
+                    <p class="text-sm text-foreground">
+                      This sign-in can use more than one Cloudflare account. Pick the one Kiko goes in.
+                    </p>
                     <For each={c().accounts}>
                       {(a) => (
-                        <Button class="h-11 w-full justify-start" data-action="pick-account" onClick={() => c().pick(a.id)}>
+                        <Button
+                          class="h-11 w-full justify-start"
+                          data-action="pick-account"
+                          onClick={() => c().pick(a.id)}
+                        >
                           {a.name}
                         </Button>
                       )}
@@ -232,11 +256,19 @@ export function ConnectCloudflare() {
                 )}
               </Show>
               <Show when={v.name === "start"}>
-                <Button variant="primary" class="h-11 w-full" disabled={redirecting()} data-action="connect-cloudflare" onClick={() => void withCloudflare()}>
+                <Button
+                  variant="primary"
+                  class="h-11 w-full"
+                  disabled={redirecting()}
+                  data-action="connect-cloudflare"
+                  onClick={() => void withCloudflare()}
+                >
                   {redirecting() ? "Opening Cloudflare" : "Connect Cloudflare"}
                 </Button>
                 <Show when={note()}>
-                  <p class="text-sm text-[var(--error)]" role="alert">{note()}</p>
+                  <p class="text-sm text-[var(--error)]" role="alert">
+                    {note()}
+                  </p>
                 </Show>
                 <Show
                   when={tokenOpen()}
@@ -262,11 +294,17 @@ export function ConnectCloudflare() {
                       fallback={
                         <Show
                           when={tokenFailure()}
-                          fallback={<p class="text-sm text-muted-foreground" role="status">Loading the token steps</p>}
+                          fallback={
+                            <p class="text-sm text-muted-foreground" role="status">
+                              Loading the token steps
+                            </p>
+                          }
                         >
                           {(message) => (
                             <div class="flex flex-col gap-2">
-                              <p class="text-sm text-[var(--error)]" role="alert">{message()}</p>
+                              <p class="text-sm text-[var(--error)]" role="alert">
+                                {message()}
+                              </p>
                               <Button type="button" data-action="retry-token-steps" onClick={() => void openToken()}>
                                 Try again
                               </Button>
@@ -280,8 +318,13 @@ export function ConnectCloudflare() {
                           <a class={link} href={t().url} target="_blank" rel="noreferrer" data-action="create-token">
                             Create a token with these permissions
                           </a>
-                          <p class="text-sm text-muted-foreground">The link ticks them for you. Check that they match, then create the token and paste it here.</p>
-                          <ul class="flex list-disc flex-col gap-1 pl-5 text-sm text-foreground" data-field="token-permissions">
+                          <p class="text-sm text-muted-foreground">
+                            The link ticks them for you. Check that they match, then create the token and paste it here.
+                          </p>
+                          <ul
+                            class="flex list-disc flex-col gap-1 pl-5 text-sm text-foreground"
+                            data-field="token-permissions"
+                          >
                             <For each={t().permissions}>{(p) => <li>{p}</li>}</For>
                           </ul>
                         </>

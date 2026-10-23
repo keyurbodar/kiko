@@ -184,7 +184,10 @@ function suggestionSelected(
   return changed({ ...state, popover: { type: "closed" }, focus: "editor" }, commands)
 }
 
-function suggestionKey(state: PromptInputV2InteractionState, event: Extract<PromptInputV2InteractionEvent, { type: "key.down" }>): PromptInputV2Transition | null {
+function suggestionKey(
+  state: PromptInputV2InteractionState,
+  event: Extract<PromptInputV2InteractionEvent, { type: "key.down" }>,
+): PromptInputV2Transition | null {
   if (event.key !== "Tab" && !(event.key === "Enter" && !event.composing)) return null
   const id = state.popover.type === "closed" ? undefined : state.popover.activeID
   if (id) return unchanged(state, true, [{ type: "suggestion.select", id }])
@@ -233,8 +236,7 @@ function promptText(persisted: PromptInputV2PersistedState) {
 
 function populated(persisted: PromptInputV2PersistedState) {
   return (
-    !!promptText(persisted).trim() ||
-    persisted.prompt.some((part) => part.type === "file" || part.type === "image")
+    !!promptText(persisted).trim() || persisted.prompt.some((part) => part.type === "file" || part.type === "image")
   )
 }
 

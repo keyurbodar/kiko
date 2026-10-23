@@ -4,7 +4,14 @@ import type { Trigger } from "./routines"
 
 export const ROW_KINDS = ["routine", "soul", "provider"] as const
 
-export type RoutineRow = { id: string; name: string; roomId: RoomId; status: "active" | "paused"; trigger: Trigger; tz: string }
+export type RoutineRow = {
+  id: string
+  name: string
+  roomId: RoomId
+  status: "active" | "paused"
+  trigger: Trigger
+  tz: string
+}
 
 export type SoulRow = { id: AgentSlug; body: string; sha: string; at: number }
 

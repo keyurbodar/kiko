@@ -1,5 +1,12 @@
 import assert from "node:assert/strict"
-import { KIKO_HOME_ROOM, isAgentSlug, newRoomId, type ClientToOwner, type OwnerToClient, type RoomId } from "@kiko/protocol"
+import {
+  KIKO_HOME_ROOM,
+  isAgentSlug,
+  newRoomId,
+  type ClientToOwner,
+  type OwnerToClient,
+  type RoomId,
+} from "@kiko/protocol"
 import type { Browser, Page } from "playwright"
 
 function exchange(socket: WebSocket, frame: ClientToOwner, match: (frame: OwnerToClient) => boolean): Promise<void> {
@@ -36,10 +43,24 @@ async function otherRoom(origin: string, token: string): Promise<RoomId> {
   const roomId = newRoomId()
   const slug = "runtime-scout"
   assert(isAgentSlug(slug))
-  const agent = { id: crypto.randomUUID(), slug, name: "Runtime scout", prompt: "Help with runtime verification", model: "" }
+  const agent = {
+    id: crypto.randomUUID(),
+    slug,
+    name: "Runtime scout",
+    prompt: "Help with runtime verification",
+    model: "",
+  }
   try {
-    await exchange(socket, { t: "agent", op: { op: "create", agent } }, (f) => f.t === "events" && f.events.some((e) => e.t === "agent" && e.agent.id === agent.id))
-    await exchange(socket, { t: "chat", op: { op: "create", roomId, title: "Runtime scout", agents: [agent.id] } }, (f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
+    await exchange(
+      socket,
+      { t: "agent", op: { op: "create", agent } },
+      (f) => f.t === "events" && f.events.some((e) => e.t === "agent" && e.agent.id === agent.id),
+    )
+    await exchange(
+      socket,
+      { t: "chat", op: { op: "create", roomId, title: "Runtime scout", agents: [agent.id] } },
+      (f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId),
+    )
     return roomId
   } finally {
     socket.close()
@@ -49,10 +70,18 @@ async function otherRoom(origin: string, token: string): Promise<RoomId> {
 async function seed(origin: string, token: string, texts: string[], roomId = KIKO_HOME_ROOM): Promise<void> {
   const socket = await connected(origin, token)
   try {
-    await exchange(socket, { t: "subscribe", roomId, lastSeq: 0 }, (f) => f.t === "room" && (f.frame.t === "reset" || f.frame.t === "events"))
+    await exchange(
+      socket,
+      { t: "subscribe", roomId, lastSeq: 0 },
+      (f) => f.t === "room" && (f.frame.t === "reset" || f.frame.t === "events"),
+    )
     for (const text of texts) {
       const clientId = crypto.randomUUID()
-      await exchange(socket, { t: "room", roomId, frame: { t: "send", clientId, text } }, (f) => f.t === "room" && f.frame.t === "ack" && f.frame.clientId === clientId)
+      await exchange(
+        socket,
+        { t: "room", roomId, frame: { t: "send", clientId, text } },
+        (f) => f.t === "room" && f.frame.t === "ack" && f.frame.clientId === clientId,
+      )
     }
   } finally {
     socket.close()
@@ -60,31 +89,59 @@ async function seed(origin: string, token: string, texts: string[], roomId = KIK
 }
 
 async function transcript(page: Page, texts: string[]): Promise<void> {
-  await page.locator('[data-component="chat-scroll"]').evaluate((element) => { element.scrollTop = element.scrollHeight })
+  await page.locator('[data-component="chat-scroll"]').evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
   for (const text of [...texts].reverse()) {
     await page.getByText(text, { exact: true }).first().waitFor()
-    await page.getByText(text, { exact: true }).first().evaluate((element) => element.scrollIntoView({ block: "start" }))
+    await page
+      .getByText(text, { exact: true })
+      .first()
+      .evaluate((element) => element.scrollIntoView({ block: "start" }))
   }
-  const blank = await page.locator('[data-component="chat-row"] [data-slot="bubble-content"]').evaluateAll((bubbles) => bubbles.filter((bubble) => !bubble.textContent?.trim() && !bubble.querySelector("img,video,[data-component=chat-file]")).length)
+  const blank = await page
+    .locator('[data-component="chat-row"] [data-slot="bubble-content"]')
+    .evaluateAll(
+      (bubbles) =>
+        bubbles.filter(
+          (bubble) => !bubble.textContent?.trim() && !bubble.querySelector("img,video,[data-component=chat-file]"),
+        ).length,
+    )
   assert.equal(blank, 0, "Transcript contains empty message bubbles")
 }
 
 export async function verifyTranscript(browser: Browser, origin: string, observe: (page: Page) => void): Promise<void> {
   const context = await browser.newContext({ viewport: { width: 1440, height: 600 } })
   try {
-    const response = await context.request.post(`${origin}/api/auth/dev/session`, { data: { name: `transcript-${crypto.randomUUID().slice(0, 16)}` } })
+    const response = await context.request.post(`${origin}/api/auth/dev/session`, {
+      data: { name: `transcript-${crypto.randomUUID().slice(0, 16)}` },
+    })
     assert(response.ok())
     const { user, token } = await response.json()
-    assert((await context.request.post(`${origin}/api/settings`, { headers: { authorization: `Bearer ${token}` }, data: { onboarded: true } })).ok())
-    const texts = Array.from({ length: 8 }, (_, i) => `Transcript message ${i + 1} stays visible. ${"The complete message must remain readable. ".repeat(8).trim()}`)
+    assert(
+      (
+        await context.request.post(`${origin}/api/settings`, {
+          headers: { authorization: `Bearer ${token}` },
+          data: { onboarded: true },
+        })
+      ).ok(),
+    )
+    const texts = Array.from(
+      { length: 8 },
+      (_, i) =>
+        `Transcript message ${i + 1} stays visible. ${"The complete message must remain readable. ".repeat(8).trim()}`,
+    )
     await seed(origin, token, texts)
     const alternate = await otherRoom(origin, token)
     const alternateText = "Messages follow the currently open agent"
     await seed(origin, token, [alternateText], alternate)
-    await context.addInitScript(({ user, token }) => {
-      localStorage.setItem("kiko:session", JSON.stringify(user))
-      localStorage.setItem("kiko:token", token)
-    }, { user, token })
+    await context.addInitScript(
+      ({ user, token }) => {
+        localStorage.setItem("kiko:session", JSON.stringify(user))
+        localStorage.setItem("kiko:token", token)
+      },
+      { user, token },
+    )
     const page = await context.newPage()
     observe(page)
     await page.goto(`${origin}/chat/${KIKO_HOME_ROOM}`)
@@ -92,9 +149,16 @@ export async function verifyTranscript(browser: Browser, origin: string, observe
     for (let visit = 0; visit < 3; visit++) {
       await page.getByRole("link", { name: "Recipes", exact: true }).click()
       await page.getByRole("searchbox", { name: "Search recipes" }).waitFor()
-      await page.getByRole("navigation", { name: "Recipes navigation" }).getByRole("link", { name: "Chats", exact: true }).click()
+      await page
+        .getByRole("navigation", { name: "Recipes navigation" })
+        .getByRole("link", { name: "Chats", exact: true })
+        .click()
       await page.locator('[data-component="crash"], [data-component="prompt-input"]').first().waitFor()
-      assert.equal(await page.locator('[data-component="crash"]').count(), 0, "Returning from Recipes crashed the chat timeline")
+      assert.equal(
+        await page.locator('[data-component="crash"]').count(),
+        0,
+        "Returning from Recipes crashed the chat timeline",
+      )
       await page.locator('[data-component="prompt-input"]').waitFor()
     }
     console.log("pass Recipes to populated chat navigation")
@@ -112,11 +176,17 @@ export async function verifyTranscript(browser: Browser, origin: string, observe
     for (let visit = 0; visit < 3; visit++) {
       await page.locator('[data-component="sidebar-row"]').filter({ hasText: "Runtime scout" }).click()
       await page.getByText(alternateText, { exact: true }).waitFor()
-      await page.locator('[data-component="prompt-input"]').pressSequentially("Draft :lol: stays editable", { delay: 30 })
+      await page
+        .locator('[data-component="prompt-input"]')
+        .pressSequentially("Draft :lol: stays editable", { delay: 30 })
       await page.locator('[data-component="prompt-input"]').fill("")
       await page.locator('[data-component="sidebar-row"][data-main]').click()
       await page.getByText(live, { exact: true }).waitFor()
-      assert.equal(await page.locator('[data-component="crash"]').count(), 0, "Switching populated chats crashed the transcript")
+      assert.equal(
+        await page.locator('[data-component="crash"]').count(),
+        0,
+        "Switching populated chats crashed the transcript",
+      )
     }
     console.log("pass populated agent navigation without a refresh")
     console.log("pass transcript cold load, warm cache, scrolling, reconnect and live arrival")

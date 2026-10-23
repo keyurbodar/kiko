@@ -1,7 +1,16 @@
 import { type Agent, fileName, KIKO } from "@kiko/protocol"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ChevronRightIcon, FolderOpenIcon, type Glyph, MemoryIcon, PlusIcon, RepeatIcon, SparklesIcon, TasksIcon } from "@kiko/ui/icons"
+import {
+  ChevronRightIcon,
+  FolderOpenIcon,
+  type Glyph,
+  MemoryIcon,
+  PlusIcon,
+  RepeatIcon,
+  SparklesIcon,
+  TasksIcon,
+} from "@kiko/ui/icons"
 import { useNavigate } from "@solidjs/router"
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js"
 import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
@@ -28,7 +37,11 @@ function Row(props: { icon: Glyph; label: string; meta?: string; kind: FixedKind
       <RemixIcon icon={props.icon} size={15} class="shrink-0 text-muted-foreground" />
       <span class="shrink-0 text-md text-foreground">{props.label}</span>
       <span class="min-w-0 flex-1 truncate text-right text-sm text-muted-foreground">{props.meta}</span>
-      <RemixIcon icon={ChevronRightIcon} size={13} class="shrink-0 text-secondary-label opacity-0 group-hover/row:opacity-100" />
+      <RemixIcon
+        icon={ChevronRightIcon}
+        size={13}
+        class="shrink-0 text-secondary-label opacity-0 group-hover/row:opacity-100"
+      />
     </button>
   )
 }
@@ -64,7 +77,12 @@ export default function ChatCard(props: { chatId: string }) {
     if (cardBeside()) return
     const away = (event: PointerEvent) => {
       const target = event.target
-      if (!(target instanceof Element) || card?.contains(target) || target.closest('[data-action="toggle-card"], [data-component="add-member-menu"]')) return
+      if (
+        !(target instanceof Element) ||
+        card?.contains(target) ||
+        target.closest('[data-action="toggle-card"], [data-component="add-member-menu"]')
+      )
+        return
       dismissCard()
     }
     const onEscape = (event: KeyboardEvent) => {
@@ -79,14 +97,22 @@ export default function ChatCard(props: { chatId: string }) {
   })
 
   return (
-    <aside ref={card} class="flex w-full flex-col rounded-2xl border border-border/60 bg-popover p-1.5 shadow-card" data-component="chat-card" aria-label="This chat">
+    <aside
+      ref={card}
+      class="flex w-full flex-col rounded-2xl border border-border/60 bg-popover p-1.5 shadow-card"
+      data-component="chat-card"
+      aria-label="This chat"
+    >
       <div class="flex items-center gap-3 px-2.5 pt-2 pb-2.5">
         <ChatAvatar faces={useApp.chatFaces(props.chatId)} size={32} />
         <div class="flex min-w-0 flex-1 flex-col">
           <span class="truncate text-md font-medium text-foreground" data-component="card-name">
             {chat()?.name ?? ""}
           </span>
-          <span class={`flex items-center gap-1 truncate text-xs ${busy() ? "text-ring" : "text-muted-foreground"}`} data-component="card-live">
+          <span
+            class={`flex items-center gap-1 truncate text-xs ${busy() ? "text-ring" : "text-muted-foreground"}`}
+            data-component="card-live"
+          >
             <Show when={busy()}>
               <RemixIcon icon={SparklesIcon} size={11} class="shrink-0" />
             </Show>
@@ -121,8 +147,13 @@ export default function ChatCard(props: { chatId: string }) {
             <MenuV2.Portal>
               <MenuV2.Content class="z-[80] min-w-48" data-component="add-member-menu">
                 <MenuV2.Group>
-                  <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">Add to this chat</MenuV2.GroupLabel>
-                  <Show when={addable(useApp.agents(), members()).length > 0} fallback={<MenuV2.Item disabled>No other agents</MenuV2.Item>}>
+                  <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
+                    Add to this chat
+                  </MenuV2.GroupLabel>
+                  <Show
+                    when={addable(useApp.agents(), members()).length > 0}
+                    fallback={<MenuV2.Item disabled>No other agents</MenuV2.Item>}
+                  >
                     <For each={addable(useApp.agents(), members())}>
                       {(agent) => (
                         <MenuV2.Item data-add-member={agent.slug} onSelect={() => add(agent)}>
@@ -144,12 +175,37 @@ export default function ChatCard(props: { chatId: string }) {
           label="Files"
           kind="files"
           chatId={props.chatId}
-          meta={files().length ? `${files().slice(-2).map((f) => fileName(f.name)).join(", ")}${files().length > 2 ? ` +${files().length - 2}` : ""}` : "None yet"}
+          meta={
+            files().length
+              ? `${files()
+                  .slice(-2)
+                  .map((f) => fileName(f.name))
+                  .join(", ")}${files().length > 2 ? ` +${files().length - 2}` : ""}`
+              : "None yet"
+          }
         />
-        <Row icon={MemoryIcon} label="Memory" kind="memory" chatId={props.chatId} meta={memory()?.state.lines.length ? plural(memory()!.state.lines.length, "note") : "Empty"} />
-        <Row icon={RepeatIcon} label="Routines" kind="routines" chatId={props.chatId} meta={next() ? triggerLabel(next()!.trigger, next()!.tz) : routines().length ? "Paused" : "None"} />
+        <Row
+          icon={MemoryIcon}
+          label="Memory"
+          kind="memory"
+          chatId={props.chatId}
+          meta={memory()?.state.lines.length ? plural(memory()!.state.lines.length, "note") : "Empty"}
+        />
+        <Row
+          icon={RepeatIcon}
+          label="Routines"
+          kind="routines"
+          chatId={props.chatId}
+          meta={next() ? triggerLabel(next()!.trigger, next()!.tz) : routines().length ? "Paused" : "None"}
+        />
         <Show when={isGroup(members())}>
-          <Row icon={TasksIcon} label="Tasks" kind="tasks" chatId={props.chatId} meta={tasks().length ? `${open()} open` : "None"} />
+          <Row
+            icon={TasksIcon}
+            label="Tasks"
+            kind="tasks"
+            chatId={props.chatId}
+            meta={tasks().length ? `${open()} open` : "None"}
+          />
         </Show>
       </div>
     </aside>

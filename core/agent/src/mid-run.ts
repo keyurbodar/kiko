@@ -2,12 +2,7 @@ import type { Sender } from "./envelope"
 
 const MAX_RESTARTS = 2
 
-type MidRunAction =
-  | "restart"
-  | "steer"
-  | "interrupt"
-  | "queue"
-  | "hold"
+type MidRunAction = "restart" | "steer" | "interrupt" | "queue" | "hold"
 
 export type RunState = {
   bubblePosted: boolean
@@ -21,7 +16,11 @@ export type RunProgress = Pick<RunState, "bubblePosted" | "toolStarted" | "tools
 
 type Arrival = { kind: Sender["kind"] }
 
-export const FRESH_RUN: Omit<RunState, "restarts" | "queued"> = { bubblePosted: false, toolStarted: false, tools: new Map() }
+export const FRESH_RUN: Omit<RunState, "restarts" | "queued"> = {
+  bubblePosted: false,
+  toolStarted: false,
+  tools: new Map(),
+}
 
 export function decide(run: RunState | null, arrival: Arrival): MidRunAction {
   if (!run) return "queue"

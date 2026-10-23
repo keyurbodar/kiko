@@ -42,7 +42,13 @@ function fenceSource(node: Json, followed: boolean): string {
   let fence = typeof node.attrs?.fence === "string" && node.attrs.fence ? node.attrs.fence : "```"
   const language = typeof node.attrs?.language === "string" ? node.attrs.language : ""
   let close = typeof node.attrs?.close === "string" ? node.attrs.close : `\n${fence}`
-  const longest = Math.max(0, ...body.split("\n").filter((line) => isClosingFence(line, fence)).map((line) => /^[`~]+/.exec(line)![0].length))
+  const longest = Math.max(
+    0,
+    ...body
+      .split("\n")
+      .filter((line) => isClosingFence(line, fence))
+      .map((line) => /^[`~]+/.exec(line)![0].length),
+  )
   if (longest > 0) {
     fence = fence[0]!.repeat(longest + 1)
     if (close) close = `\n${fence}`
@@ -127,7 +133,9 @@ function inline(nodes: Json[]): string {
     const same = (node: Json) => sameMark(head, node, mark)
     let end = at
     while (end < nodes.length && same(nodes[end]!)) end++
-    const run = nodes.slice(at, end).map((node) => ({ ...node, marks: node.marks?.filter((m) => m.type !== mark || !same(node)) }))
+    const run = nodes
+      .slice(at, end)
+      .map((node) => ({ ...node, marks: node.marks?.filter((m) => m.type !== mark || !same(node)) }))
     out += wrap(mark, head, run)
     at = end
   }
@@ -228,7 +236,12 @@ function parseBlocks(lines: string[], options: ParseOptions): Json[] {
   }
   function parseParagraph(): void {
     const text: string[] = []
-    while (at < lines.length && lines[at]!.trim() !== "" && !FENCE.test(lines[at]!) && !(text.length > 0 && (/^ {0,3}>/.test(lines[at]!) || startsBlock(lines[at]!)))) {
+    while (
+      at < lines.length &&
+      lines[at]!.trim() !== "" &&
+      !FENCE.test(lines[at]!) &&
+      !(text.length > 0 && (/^ {0,3}>/.test(lines[at]!) || startsBlock(lines[at]!)))
+    ) {
       if (text.length > 0 && (BULLET.test(lines[at]!) || ORDERED.test(lines[at]!))) break
       text.push(lines[at++]!)
     }
@@ -261,7 +274,11 @@ function parseBlocks(lines: string[], options: ParseOptions): Json[] {
       const task = ordered ? null : TASK.exec(body[0]!)
       if (task) body[0] = task[2]!
       const content = itemBlocks(body, options)
-      items.push(task ? { type: "taskItem", attrs: { checked: task[1] !== " " }, content } : { type: "listItem", attrs: { marker: head[2]! }, content })
+      items.push(
+        task
+          ? { type: "taskItem", attrs: { checked: task[1] !== " " }, content }
+          : { type: "listItem", attrs: { marker: head[2]! }, content },
+      )
     }
     const tasks = items.every((item) => item.type === "taskItem")
     out.push(
@@ -299,7 +316,8 @@ function untask(item: Json): Json {
   if (item.type !== "taskItem") return item
   const [first, ...rest] = item.content ?? []
   const box = item.attrs?.checked ? "[x] " : "[ ] "
-  const lead = first?.type === "paragraph" ? { ...first, content: [{ type: "text", text: box }, ...(first.content ?? [])] } : first
+  const lead =
+    first?.type === "paragraph" ? { ...first, content: [{ type: "text", text: box }, ...(first.content ?? [])] } : first
   return { type: "listItem", attrs: { marker: "-" }, content: [lead ?? { type: "paragraph" }, ...rest] }
 }
 
@@ -337,7 +355,8 @@ function inlines(text: string, options: ParseOptions, marks: Mark[]): Json[] {
     const code = /^(`+)([^`][\s\S]*?[^`]|[^`])\1(?!`)/.exec(rest)
     if (code) {
       flush()
-      const body = code[2]!.length > 2 && code[2]!.startsWith(" ") && code[2]!.endsWith(" ") ? code[2]!.slice(1, -1) : code[2]!
+      const body =
+        code[2]!.length > 2 && code[2]!.startsWith(" ") && code[2]!.endsWith(" ") ? code[2]!.slice(1, -1) : code[2]!
       out.push({ type: "text", text: body, marks: [...marks, { type: "code" }] })
       at += code[0].length
       continue
@@ -394,7 +413,11 @@ function emphasis(rest: string, marker: string, kinds: string[], options: ParseO
     const before = rest[close - 1]!
     const next = rest[close + marker.length]
     if (/\s/.test(before) || next === marker[0]) continue
-    if (rest.slice(marker.length, close).includes("`") && (rest.slice(marker.length, close).match(/`/g)?.length ?? 0) % 2 === 1) continue
+    if (
+      rest.slice(marker.length, close).includes("`") &&
+      (rest.slice(marker.length, close).match(/`/g)?.length ?? 0) % 2 === 1
+    )
+      continue
     return {
       length: close + marker.length,
       nodes: inlines(rest.slice(marker.length, close), options, [...marks, ...kinds.map((type) => ({ type }))]),

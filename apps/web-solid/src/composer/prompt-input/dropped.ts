@@ -33,7 +33,8 @@ const readAll = async (entry: EntryLike): Promise<EntryLike[]> => {
   }
 }
 
-const fileOf = (entry: EntryLike) => new Promise<File>((ok, fail) => (entry.file ? entry.file(ok, fail) : fail(new Error("not a file"))))
+const fileOf = (entry: EntryLike) =>
+  new Promise<File>((ok, fail) => (entry.file ? entry.file(ok, fail) : fail(new Error("not a file"))))
 
 export type Walked = { files: File[]; folders: number; truncated: boolean }
 
@@ -52,7 +53,11 @@ export async function walkEntries(entries: readonly EntryLike[], cap = MAX_ATTAC
       if (SKIPPED_FILES.has(entry.name)) return
       const file = await fileOf(entry).catch(() => null)
       if (!file) return
-      files.push(parent ? new File([file], `${parent}${entry.name}`, { type: file.type, lastModified: file.lastModified }) : file)
+      files.push(
+        parent
+          ? new File([file], `${parent}${entry.name}`, { type: file.type, lastModified: file.lastModified })
+          : file,
+      )
       return
     }
     if (!entry.isDirectory || SKIPPED_FOLDERS.has(entry.name)) return

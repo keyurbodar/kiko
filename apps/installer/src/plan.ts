@@ -1,6 +1,8 @@
 import type { SecretBinding } from "@kiko/durable/release-plan"
 
-export type Grant = { kind: "oauth"; code: string; verifier: string; redirectUri: string } | { kind: "token"; token: string }
+export type Grant =
+  | { kind: "oauth"; code: string; verifier: string; redirectUri: string }
+  | { kind: "token"; token: string }
 
 export type StoredGrant = {
   kind: Grant["kind"]
@@ -14,7 +16,13 @@ export type StoredGrant = {
 
 export const DEFAULT_SCRIPT = "kiko"
 
-type BoundInput = { ownerId: string; clerkJwtKey: string; trustedOrigins: string; releaseBase: string; grant: StoredGrant }
+type BoundInput = {
+  ownerId: string
+  clerkJwtKey: string
+  trustedOrigins: string
+  releaseBase: string
+  grant: StoredGrant
+}
 
 const secret = (name: string, text: string): SecretBinding => ({ type: "secret_text", name, text })
 
@@ -52,4 +60,9 @@ const TEMPLATE_KEYS = [
 
 export const TOKEN_TEMPLATE_URL = `https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=${encodeURIComponent(JSON.stringify(TEMPLATE_KEYS))}&accountId=*&zoneId=all&name=Kiko`
 
-export const OAUTH_SCOPES = ["workers-scripts.write", "account-settings.read", "workers-r2.write", "offline_access"] as const
+export const OAUTH_SCOPES = [
+  "workers-scripts.write",
+  "account-settings.read",
+  "workers-r2.write",
+  "offline_access",
+] as const

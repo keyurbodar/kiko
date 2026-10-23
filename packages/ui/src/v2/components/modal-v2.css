@@ -1,7 +1,4 @@
-
-
 @layer v2 {
-
   [data-component="modal-v2-overlay"] {
     position: fixed;
     inset: 0;
@@ -24,6 +21,4 @@
   [data-component="modal-v2-content"]:focus-visible {
     outline: none;
   }
-
-
 }

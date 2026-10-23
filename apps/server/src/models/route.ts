@@ -14,7 +14,9 @@ export async function modelsRoute(request: Request, env: Env): Promise<Response 
   const user = await signedIn(request, env)
   if (user instanceof Response) return user
   if (request.method !== "GET") return error(405, "method not allowed")
-  const { revision, json } = await ownerStub(env.OWNER, user.id).userCall("modelCatalog", [heldRevision(request.headers.get("if-none-match"))])
+  const { revision, json } = await ownerStub(env.OWNER, user.id).userCall("modelCatalog", [
+    heldRevision(request.headers.get("if-none-match")),
+  ])
   const headers = { etag: `"${revision}-${BACKEND.version}"`, "cache-control": "no-cache" }
   if (json === null) return new Response(null, { status: 304, headers })
   return new Response(json, { headers: { ...headers, "content-type": "application/json" } })

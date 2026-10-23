@@ -45,7 +45,10 @@ function parseRpcResponse(body: string, contentType: string, id: number): unknow
       continue
     }
     if (message?.id !== id) continue
-    if (message.error) throw new ComposioError(`Composio refused the request: ${String(message.error.message ?? "unknown error").slice(0, 300)}`)
+    if (message.error)
+      throw new ComposioError(
+        `Composio refused the request: ${String(message.error.message ?? "unknown error").slice(0, 300)}`,
+      )
     return message.result
   }
   throw new ComposioError("Composio sent no answer")
@@ -70,7 +73,13 @@ let nextId = 1
 
 export const sessionGone = (e: unknown): boolean => e instanceof ComposioError && (e.status === 404 || e.status === 410)
 
-async function composioRpc(target: Target, method: string, params: Record<string, unknown>, fetchImpl: typeof fetch = fetch, timeoutMs = 120_000): Promise<unknown> {
+async function composioRpc(
+  target: Target,
+  method: string,
+  params: Record<string, unknown>,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = 120_000,
+): Promise<unknown> {
   const id = nextId++
   const res = await fetchImpl(target.url, {
     method: "POST",
@@ -93,22 +102,39 @@ async function composioRpc(target: Target, method: string, params: Record<string
   return parseRpcResponse(await res.text(), res.headers.get("content-type") ?? "", id)
 }
 
-type ListedTool = { name: string; description?: string; inputSchema?: unknown; annotations?: { readOnlyHint?: boolean } }
+type ListedTool = {
+  name: string
+  description?: string
+  inputSchema?: unknown
+  annotations?: { readOnlyHint?: boolean }
+}
 
 export async function listTools(target: Target, fetchImpl?: typeof fetch): Promise<ComposioTool[]> {
-  const result = (await composioRpc(target, "tools/list", {}, fetchImpl, 20_000)) as { tools?: ListedTool[] } | undefined
+  const result = (await composioRpc(target, "tools/list", {}, fetchImpl, 20_000)) as
+    | { tools?: ListedTool[] }
+    | undefined
   return (result?.tools ?? []).map((t) => ({
     name: t.name,
     ...(t.description ? { description: t.description } : {}),
-    inputSchema: t.inputSchema && typeof t.inputSchema === "object" ? (t.inputSchema as Record<string, unknown>) : { type: "object", properties: {} },
+    inputSchema:
+      t.inputSchema && typeof t.inputSchema === "object"
+        ? (t.inputSchema as Record<string, unknown>)
+        : { type: "object", properties: {} },
     ...(t.annotations?.readOnlyHint ? { readOnly: true } : {}),
   }))
 }
 
 type McpBlock = { type: string; text?: string; data?: string; mimeType?: string; [k: string]: unknown }
 
-export async function callTool(target: Target, name: string, args: Record<string, unknown>, fetchImpl?: typeof fetch): Promise<ComposioCallResult> {
-  const result = (await composioRpc(target, "tools/call", { name, arguments: args }, fetchImpl)) as { content?: McpBlock[]; isError?: boolean } | undefined
+export async function callTool(
+  target: Target,
+  name: string,
+  args: Record<string, unknown>,
+  fetchImpl?: typeof fetch,
+): Promise<ComposioCallResult> {
+  const result = (await composioRpc(target, "tools/call", { name, arguments: args }, fetchImpl)) as
+    | { content?: McpBlock[]; isError?: boolean }
+    | undefined
   const content = (result?.content ?? []).map((b): ComposioResultBlock => {
     if (b.type === "text") return { type: "text", text: String(b.text ?? "") }
     if (b.type === "image" && b.data && b.mimeType) return { type: "image", data: b.data, mimeType: b.mimeType }
@@ -117,7 +143,12 @@ export async function callTool(target: Target, name: string, args: Record<string
   return { content, ...(result?.isError ? { isError: true } : {}) }
 }
 
-async function api(key: string, path: string, fetchImpl: typeof fetch, init: { method?: string; body?: unknown } = {}): Promise<Response> {
+async function api(
+  key: string,
+  path: string,
+  fetchImpl: typeof fetch,
+  init: { method?: string; body?: unknown } = {},
+): Promise<Response> {
   const res = await fetchImpl(`${API}${path}`, {
     method: init.method ?? "GET",
     headers: { "x-api-key": key, ...(init.body === undefined ? {} : { "content-type": "application/json" }) },
@@ -126,7 +157,11 @@ async function api(key: string, path: string, fetchImpl: typeof fetch, init: { m
   })
   if (res.ok) return res
   await res.body?.cancel()
-  throw new ComposioError(res.status === 401 || res.status === 403 ? REJECTED : `Composio answered ${res.status}`, res.status, retryAfterSeconds(res))
+  throw new ComposioError(
+    res.status === 401 || res.status === 403 ? REJECTED : `Composio answered ${res.status}`,
+    res.status,
+    retryAfterSeconds(res),
+  )
 }
 
 export async function checkKey(key: string, fetchImpl: typeof fetch = fetch): Promise<void> {
@@ -138,10 +173,16 @@ const PRELOAD = ["COMPOSIO_SEARCH_WEB", "COMPOSIO_SEARCH_NEWS", "COMPOSIO_SEARCH
 
 export async function createSession(key: string, userId: string, fetchImpl: typeof fetch = fetch): Promise<Session> {
   if (isConnectKey(key)) return { id: "connect", url: CONNECT_URL }
-  const body = (await (await api(key, "tool_router/session", fetchImpl, { method: "POST", body: { user_id: userId, preload: { tools: [...PRELOAD] } } })).json()) as { session_id?: unknown; mcp?: { url?: unknown } }
+  const body = (await (
+    await api(key, "tool_router/session", fetchImpl, {
+      method: "POST",
+      body: { user_id: userId, preload: { tools: [...PRELOAD] } },
+    })
+  ).json()) as { session_id?: unknown; mcp?: { url?: unknown } }
   const id = body.session_id
   const url = body.mcp?.url
-  if (typeof id !== "string" || typeof url !== "string" || new URL(url).origin !== SESSION_ORIGIN) throw new ComposioError("Composio sent no session")
+  if (typeof id !== "string" || typeof url !== "string" || new URL(url).origin !== SESSION_ORIGIN)
+    throw new ComposioError("Composio sent no session")
   return { id, url }
 }
 
@@ -155,18 +196,32 @@ export async function deleteSession(key: string, id: string, fetchImpl: typeof f
   )
 }
 
-export async function connectedAccounts(key: string, userId: string, fetchImpl: typeof fetch = fetch): Promise<Set<string> | null> {
+export async function connectedAccounts(
+  key: string,
+  userId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Set<string> | null> {
   if (isConnectKey(key)) return null
-  const body = (await (await api(key, `connected_accounts?user_ids=${encodeURIComponent(userId)}&statuses=ACTIVE&limit=200`, fetchImpl)).json()) as { items?: { toolkit?: { slug?: unknown } }[] }
+  const body = (await (
+    await api(key, `connected_accounts?user_ids=${encodeURIComponent(userId)}&statuses=ACTIVE&limit=200`, fetchImpl)
+  ).json()) as { items?: { toolkit?: { slug?: unknown } }[] }
   return new Set((body.items ?? []).flatMap((i) => (typeof i.toolkit?.slug === "string" ? [i.toolkit.slug] : [])))
 }
 
-export async function resolveToolkit(key: string, name: string, fetchImpl: typeof fetch = fetch): Promise<string | null> {
+export async function resolveToolkit(
+  key: string,
+  name: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string | null> {
   const cleaned = name.trim()
   if (!cleaned) return null
   if (isConnectKey(key)) return cleaned.toLowerCase().replace(/[^a-z0-9]/g, "") || null
-  const body = (await (await api(key, `toolkits?search=${encodeURIComponent(cleaned)}&limit=10`, fetchImpl)).json()) as { items?: { slug?: unknown; name?: unknown }[] }
-  const items = (body.items ?? []).flatMap((i) => (typeof i.slug === "string" ? [{ slug: i.slug, name: typeof i.name === "string" ? i.name : "" }] : []))
+  const body = (await (
+    await api(key, `toolkits?search=${encodeURIComponent(cleaned)}&limit=10`, fetchImpl)
+  ).json()) as { items?: { slug?: unknown; name?: unknown }[] }
+  const items = (body.items ?? []).flatMap((i) =>
+    typeof i.slug === "string" ? [{ slug: i.slug, name: typeof i.name === "string" ? i.name : "" }] : [],
+  )
   if (!items.length) return null
   const squeeze = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "")
   const want = squeeze(cleaned)
@@ -180,4 +235,8 @@ export async function catalogReadOnly(key: string, slug: string, fetchImpl: type
   return Array.isArray(tags) && tags.includes("readOnlyHint")
 }
 
-export const learnedSignature = (tools: readonly ComposioTool[]): string => tools.flatMap((t) => (t.direct ? [`${t.name}${t.readOnly ? ":read" : ""}`] : [])).sort().join(" ")
+export const learnedSignature = (tools: readonly ComposioTool[]): string =>
+  tools
+    .flatMap((t) => (t.direct ? [`${t.name}${t.readOnly ? ":read" : ""}`] : []))
+    .sort()
+    .join(" ")

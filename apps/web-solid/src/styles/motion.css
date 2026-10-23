@@ -21,23 +21,47 @@
 
 @media (prefers-reduced-motion: no-preference) {
   @keyframes motion-reaction-pop {
-    from { opacity: 0; transform: scale(0.8); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+      opacity: 0;
+      transform: scale(0.8);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 
   @keyframes motion-fade-scale-in {
-    from { opacity: 0; transform: scale(0.92); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 
   @keyframes motion-fade-scale-out {
-    from { opacity: 1; transform: scale(1); }
-    to { opacity: 0; transform: scale(0.92); }
+    from {
+      opacity: 1;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.92);
+    }
   }
 
   @keyframes motion-bubble-in {
-    from { opacity: 0; transform: translateY(28px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(28px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .motion-reaction-pop {
@@ -57,8 +81,14 @@
   }
 
   @keyframes motion-reply-in {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .motion-reply-in {
@@ -66,7 +96,9 @@
   }
 
   @keyframes motion-spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .motion-spin {
@@ -74,33 +106,65 @@
   }
 
   @keyframes motion-overlay-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   @keyframes motion-overlay-out {
-    from { opacity: 1; }
-    to { opacity: 0; }
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
   }
 
   @keyframes motion-dialog-in {
-    from { opacity: 0; transform: translate(-50%, -50%) scale(0.98); }
-    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    from {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
   }
 
   @keyframes motion-dialog-out {
-    from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-    to { opacity: 0; transform: translate(-50%, -50%) scale(0.98); }
+    from {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.98);
+    }
   }
 
   @keyframes motion-popover-in {
-    from { opacity: 0; transform: scale(0.98); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 
   @keyframes motion-popover-out {
-    from { opacity: 1; transform: scale(1); }
-    to { opacity: 0; transform: scale(0.98); }
+    from {
+      opacity: 1;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.98);
+    }
   }
 
   [data-component="modal-v2-overlay"][data-expanded],
@@ -140,13 +204,21 @@
   }
 
   @keyframes motion-collapse-down {
-    from { height: 0; }
-    to { height: var(--kb-collapsible-content-height); }
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--kb-collapsible-content-height);
+    }
   }
 
   @keyframes motion-collapse-up {
-    from { height: var(--kb-collapsible-content-height); }
-    to { height: 0; }
+    from {
+      height: var(--kb-collapsible-content-height);
+    }
+    to {
+      height: 0;
+    }
   }
 
   .motion-collapse {
@@ -174,9 +246,19 @@
   }
 
   @keyframes motion-skeleton {
-    0%, 42% { opacity: 1; animation-timing-function: steps(4); }
-    50%, 92% { opacity: 0.55; animation-timing-function: steps(4); }
-    100% { opacity: 1; }
+    0%,
+    42% {
+      opacity: 1;
+      animation-timing-function: steps(4);
+    }
+    50%,
+    92% {
+      opacity: 0.55;
+      animation-timing-function: steps(4);
+    }
+    100% {
+      opacity: 1;
+    }
   }
 
   .motion-skeleton {
@@ -194,8 +276,16 @@
   }
 
   @keyframes motion-shine {
-    from { background-position: -4.5rem 0, 0 0; }
-    to { background-position: calc(100% + 4.5rem) 0, 0 0; }
+    from {
+      background-position:
+        -4.5rem 0,
+        0 0;
+    }
+    to {
+      background-position:
+        calc(100% + 4.5rem) 0,
+        0 0;
+    }
   }
 
   @media (forced-colors: none) {

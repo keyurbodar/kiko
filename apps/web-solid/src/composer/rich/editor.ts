@@ -1,5 +1,13 @@
 import "./rich.css"
-import { Editor, Extension, InputRule, markInputRule, mergeAttributes, wrappingInputRule, type ExtendedRegExpMatchArray } from "@tiptap/core"
+import {
+  Editor,
+  Extension,
+  InputRule,
+  markInputRule,
+  mergeAttributes,
+  wrappingInputRule,
+  type ExtendedRegExpMatchArray,
+} from "@tiptap/core"
 import { Blockquote } from "@tiptap/extension-blockquote"
 import { Code } from "@tiptap/extension-code"
 import { CodeBlock } from "@tiptap/extension-code-block"
@@ -21,7 +29,20 @@ import { keymap } from "@tiptap/pm/keymap"
 import { Fragment, Slice, type Node as PMNode, type NodeType } from "@tiptap/pm/model"
 import { EditorState, Plugin, Selection, TextSelection, type Command, type Transaction } from "@tiptap/pm/state"
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view"
-import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, exitCodeBlockOnClosingFence, exitCodeBlockOnTrailingBlankLines, indentInCode, indentedNewlineInCodeBlock, leaveEmptyQuote, openFenceOnEnter, selectionInOneCodeBlock, splitOrLeaveListItem, unwrapCodeBlockAtStart } from "./keys"
+import {
+  backspaceAcrossList,
+  bulletItemToTask,
+  deleteAcrossList,
+  exitCodeBlockOnClosingFence,
+  exitCodeBlockOnTrailingBlankLines,
+  indentInCode,
+  indentedNewlineInCodeBlock,
+  leaveEmptyQuote,
+  openFenceOnEnter,
+  selectionInOneCodeBlock,
+  splitOrLeaveListItem,
+  unwrapCodeBlockAtStart,
+} from "./keys"
 import { hasFileDrag } from "../../lib/file-drag"
 import { copyComposerFragment } from "./clipboard"
 import { BINDINGS } from "./keymap"
@@ -132,7 +153,7 @@ function taskInputRule(type: NodeType): InputRule {
   return new InputRule({
     find: rule.find,
     handler: (props: Parameters<InputRule["handler"]>[0]) =>
-      (props.state.doc.resolve(props.range.from).depth === 1 ? rule.handler(props) : null),
+      props.state.doc.resolve(props.range.from).depth === 1 ? rule.handler(props) : null,
   })
 }
 
@@ -170,7 +191,10 @@ const markers = new Plugin({
       for (const range of styledRanges(state.doc)) {
         const on = empty ? from >= range.from && from <= range.to : from < range.to && to > range.from
         if (!on) continue
-        for (const [at, side] of [[range.from, -1], [range.to, 1]] as const) {
+        for (const [at, side] of [
+          [range.from, -1],
+          [range.to, 1],
+        ] as const) {
           const mark = document.createElement("span")
           mark.className = "composer-rich-marker"
           mark.textContent = range.text
@@ -183,7 +207,8 @@ const markers = new Plugin({
   },
 })
 
-const leaveHeading: Command = (state, dispatch) => state.selection.$from.parent.type.name === "heading" && splitBlock(state, dispatch)
+const leaveHeading: Command = (state, dispatch) =>
+  state.selection.$from.parent.type.name === "heading" && splitBlock(state, dispatch)
 
 const unsetHeadingAtStart: Command = (state, dispatch) => {
   const { $from, empty } = state.selection
@@ -243,16 +268,24 @@ export function mountRichEditor(options: RichOptions) {
         },
       }),
       Blockquote.extend({
-        addInputRules() { return [blockquoteInputRule] },
+        addInputRules() {
+          return [blockquoteInputRule]
+        },
       }),
       Heading.extend({
-        addInputRules() { return [headingInputRule] },
+        addInputRules() {
+          return [headingInputRule]
+        },
       }),
       HorizontalRule.extend({
-        addInputRules() { return [horizontalRuleInputRule] },
+        addInputRules() {
+          return [horizontalRuleInputRule]
+        },
       }),
       CodeBlock.extend({
-        addInputRules() { return [] },
+        addInputRules() {
+          return []
+        },
         addAttributes() {
           return {
             ...this.parent?.(),
@@ -339,15 +372,16 @@ export function mountRichEditor(options: RichOptions) {
       },
       handlePaste: (view, event) => {
         if (options.onPaste(event)) return true
-        const text = event.clipboardData && (options.pastedText?.(event.clipboardData) ?? event.clipboardData.getData("text/plain"))
+        const text =
+          event.clipboardData &&
+          (options.pastedText?.(event.clipboardData) ?? event.clipboardData.getData("text/plain"))
         if (!text) return true
         event.preventDefault()
         const { state } = view
         const code = state.selection.$from.parent.type.spec.code
         const plain = !code && text.length > PLAIN_PASTE_CHARS
-        const slice = code || plain
-          ? sliceOf(state, text)
-          : markdownSlice(state.schema, text, { isMention: options.isMention })
+        const slice =
+          code || plain ? sliceOf(state, text) : markdownSlice(state.schema, text, { isMention: options.isMention })
         view.dispatch(state.tr.replaceSelection(slice).scrollIntoView().setMeta("uiEvent", "paste"))
         return true
       },
@@ -355,7 +389,8 @@ export function mountRichEditor(options: RichOptions) {
         view.state.selection.$from.parent.type.spec.code
           ? slice.content.textBetween(0, slice.content.size, "\n")
           : docToMarkdown({ type: "doc", content: slice.content.toJSON() ?? [] }),
-      handleDrop: (_view, event) => !!event.dataTransfer && (event.dataTransfer.types.includes("Files") || hasFileDrag(event.dataTransfer)),
+      handleDrop: (_view, event) =>
+        !!event.dataTransfer && (event.dataTransfer.types.includes("Files") || hasFileDrag(event.dataTransfer)),
     },
     onUpdate: () => {
       options.onChange(snapshot())
@@ -377,8 +412,13 @@ export function mountRichEditor(options: RichOptions) {
 
   function snapshot(): Snapshot {
     const { doc, selection } = editor.state
-    const plain = (end: number) => doc.textBetween(0, end, "\n", (leaf) => (leaf.type.name === "mention" ? `@${leaf.attrs.slug}` : ""))
-    return { markdown: docToMarkdown(doc.toJSON() as Json), plain: plain(doc.content.size), cursor: plain(selection.from).length }
+    const plain = (end: number) =>
+      doc.textBetween(0, end, "\n", (leaf) => (leaf.type.name === "mention" ? `@${leaf.attrs.slug}` : ""))
+    return {
+      markdown: docToMarkdown(doc.toJSON() as Json),
+      plain: plain(doc.content.size),
+      cursor: plain(selection.from).length,
+    }
   }
 
   function sliceOf(state: EditorState, text: string): Slice {
@@ -399,7 +439,11 @@ export function mountRichEditor(options: RichOptions) {
     const base = hit ? view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(hit.pos))) : view.state.tr
     const { $from } = base.selection
     const before = $from.nodeBefore
-    const fragment = chipFragment(view.state.schema, chips, before ? (before.isText ? before.text?.at(-1) : "x") : undefined)
+    const fragment = chipFragment(
+      view.state.schema,
+      chips,
+      before ? (before.isText ? before.text?.at(-1) : "x") : undefined,
+    )
     view.dispatch(base.replaceSelection(new Slice(fragment, 0, 0)).scrollIntoView())
   }
 
@@ -434,20 +478,32 @@ export function mountRichEditor(options: RichOptions) {
       const at = before.lastIndexOf("@")
       const from = $from.start() + (at < 0 ? $from.parentOffset : at)
       const mention = state.schema.nodes.mention!.create({ slug })
-      view.dispatch(state.tr.replaceWith(from, state.selection.from, [mention, state.schema.text(" ")]).scrollIntoView())
+      view.dispatch(
+        state.tr.replaceWith(from, state.selection.from, [mention, state.schema.text(" ")]).scrollIntoView(),
+      )
       editor.commands.focus(undefined, { scrollIntoView: false })
     },
     insertAttachments(items: readonly { id: string; name: string }[], at?: Point) {
-      insertChips(items.map((item) => ({ type: "attachment", attrs: item })), at)
+      insertChips(
+        items.map((item) => ({ type: "attachment", attrs: item })),
+        at,
+      )
     },
     insertFileRefs(paths: readonly string[], at?: Point) {
-      insertChips(paths.map((path) => ({ type: "fileRef", attrs: { path: path.replace(/\/+$/, ""), ...(path.endsWith("/") ? { folder: true } : {}) } })), at)
+      insertChips(
+        paths.map((path) => ({
+          type: "fileRef",
+          attrs: { path: path.replace(/\/+$/, ""), ...(path.endsWith("/") ? { folder: true } : {}) },
+        })),
+        at,
+      )
     },
     removeAttachment(id: string) {
       const { view } = editor
       const tr = view.state.tr
       view.state.doc.descendants((node, pos) => {
-        if (node.type.name === "attachment" && node.attrs.id === id) tr.delete(tr.mapping.map(pos), tr.mapping.map(pos + node.nodeSize))
+        if (node.type.name === "attachment" && node.attrs.id === id)
+          tr.delete(tr.mapping.map(pos), tr.mapping.map(pos + node.nodeSize))
       })
       if (tr.docChanged) view.dispatch(tr)
     },

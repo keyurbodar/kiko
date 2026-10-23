@@ -1,22 +1,9 @@
-import {
-  type ComponentProps,
-  type JSX,
-  mergeProps,
-  splitProps,
-  type ValidComponent,
-} from "solid-js"
+import { type ComponentProps, type JSX, mergeProps, splitProps, type ValidComponent } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { cn } from "../../lib/cn"
 import "./bubble.css"
 
-export type BubbleVariant =
-  | "default"
-  | "secondary"
-  | "muted"
-  | "tinted"
-  | "outline"
-  | "ghost"
-  | "destructive"
+export type BubbleVariant = "default" | "secondary" | "muted" | "tinted" | "outline" | "ghost" | "destructive"
 
 export type BubbleAlign = "start" | "end"
 
@@ -56,8 +43,7 @@ export function Bubble(rawProps: BubbleProps) {
 }
 
 const VARIANTS: Record<BubbleVariant, string> = {
-  default:
-    "[&>[data-slot=bubble-content]]:bg-message-user [&>[data-slot=bubble-content]]:text-message-user-foreground",
+  default: "[&>[data-slot=bubble-content]]:bg-message-user [&>[data-slot=bubble-content]]:text-message-user-foreground",
   secondary:
     "[&>[data-slot=bubble-content]]:bg-message-assistant [&>[data-slot=bubble-content]]:text-message-assistant-foreground",
   muted: "[&>[data-slot=bubble-content]]:bg-card [&>[data-slot=bubble-content]]:text-foreground",
@@ -65,8 +51,7 @@ const VARIANTS: Record<BubbleVariant, string> = {
   outline:
     "[&>[data-slot=bubble-content]]:bg-card [&>[data-slot=bubble-content]]:text-foreground [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1px_var(--border)]",
   ghost: "[&>[data-slot=bubble-content]]:bg-transparent [&>[data-slot=bubble-content]]:p-0",
-  destructive:
-    "[&>[data-slot=bubble-content]]:bg-error/15 [&>[data-slot=bubble-content]]:text-error",
+  destructive: "[&>[data-slot=bubble-content]]:bg-error/15 [&>[data-slot=bubble-content]]:text-error",
 }
 
 export type BubbleContentProps<T extends ValidComponent = "div"> = {
@@ -75,9 +60,7 @@ export type BubbleContentProps<T extends ValidComponent = "div"> = {
   children?: JSX.Element
 } & Omit<ComponentProps<T>, "as" | "class" | "children">
 
-export function BubbleContent<T extends ValidComponent = "div">(
-  rawProps: BubbleContentProps<T>,
-) {
+export function BubbleContent<T extends ValidComponent = "div">(rawProps: BubbleContentProps<T>) {
   const props = mergeProps({ as: "div" as T } as const, rawProps)
   const [local, others] = splitProps(props as BubbleContentProps, ["as", "class"])
   return (
@@ -116,9 +99,7 @@ export function BubbleReactions(rawProps: BubbleReactionsProps) {
         local.side === "top" ? OVERHANG : OVERHANG_BOTTOM,
         local.align === "start" ? OVERHANG_START : OVERHANG_END,
         local.class,
-        local.align === "start"
-          ? "flex-row [&>*+*]:-ml-2"
-          : "flex-row-reverse [&>*+*]:-mr-2",
+        local.align === "start" ? "flex-row [&>*+*]:-ml-2" : "flex-row-reverse [&>*+*]:-mr-2",
       )}
       {...others}
     />

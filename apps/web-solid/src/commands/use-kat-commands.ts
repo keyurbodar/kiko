@@ -28,9 +28,13 @@ import { useCommands } from "./registry"
 import { browserCommands, startBrowser } from "../chat/browser"
 import { isMac } from "../lib/platform"
 
-const [goTo, setGoTo] = createSignal<typeof import("../files/go-to") & { HOME: string; recentFiles: typeof import("../files/recent").recentFiles }>()
+const [goTo, setGoTo] = createSignal<
+  typeof import("../files/go-to") & { HOME: string; recentFiles: typeof import("../files/recent").recentFiles }
+>()
 const loadGoTo = () =>
-  void Promise.all([import("../files/go-to"), import("../files/model"), import("../files/recent")]).then(([g, m, r]) => setGoTo(() => ({ ...g, HOME: m.HOME, recentFiles: r.recentFiles })))
+  void Promise.all([import("../files/go-to"), import("../files/model"), import("../files/recent")]).then(([g, m, r]) =>
+    setGoTo(() => ({ ...g, HOME: m.HOME, recentFiles: r.recentFiles })),
+  )
 
 const CHAT_PATH = /^\/chat\/([^/]+)$/
 
@@ -52,7 +56,9 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       openChats: () => openPalette("chats.go"),
       openView: openPalette,
       chatChoices: () =>
-        useApp.bots().map((chat) => ({ id: chat.id, title: chat.name, chatId: chat.id, run: () => navigate(`/chat/${chat.id}`) })),
+        useApp
+          .bots()
+          .map((chat) => ({ id: chat.id, title: chat.name, chatId: chat.id, run: () => navigate(`/chat/${chat.id}`) })),
       agentChoices: () =>
         agentList(useApp.agents()).map((agent) => ({
           id: agent.id,
@@ -120,7 +126,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         const id = reopenClosedChat()
         if (id) navigate(`/chat/${id}`)
       },
-      attach: () => document.querySelector<HTMLButtonElement>("[data-hint=\"chat.attach\"]")?.click(),
+      attach: () => document.querySelector<HTMLButtonElement>('[data-hint="chat.attach"]')?.click(),
       rename: () => {
         const id = activeId()
         if (id) startRename(id)
@@ -163,7 +169,12 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         const agent = chipAgent()
         const picked = agent ? useApp.agentModel(agent.slug) : undefined
         if (!agent || !picked) return []
-        return picked.thinkingLevels.map((level): Choice => ({ id: level, title: THINKING_LABELS[level], current: level === picked.thinking, run: () => useApp.setAgentModel(agent.slug, { thinking: level }) }))
+        return picked.thinkingLevels.map((level): Choice => ({
+          id: level,
+          title: THINKING_LABELS[level],
+          current: level === picked.thinking,
+          run: () => useApp.setAgentModel(agent.slug, { thinking: level }),
+        }))
       },
       canChooseModel: () => hasModelProvider(connectedProviders()),
     }),
@@ -189,7 +200,12 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         }),
       preview: ({ mode, darkTheme, active }) => {
         const saved = cachedLook()
-        return previewLook({ ...saved, mode: mode ?? saved.mode, darkTheme: darkTheme ?? saved.darkTheme, imported: active ? { ...saved.imported, active } : saved.imported })
+        return previewLook({
+          ...saved,
+          mode: mode ?? saved.mode,
+          darkTheme: darkTheme ?? saved.darkTheme,
+          imported: active ? { ...saved.imported, active } : saved.imported,
+        })
       },
       openView: openPalette,
       activeAgent: () => {

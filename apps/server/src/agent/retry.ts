@@ -43,7 +43,10 @@ export function withRetryAfter(egress: typeof fetch): typeof fetch {
 }
 
 function tooLong(): Response {
-  return new Response(JSON.stringify({ error: { message: RETRY_AFTER_TOO_LONG } }), { status: 400, headers: { "content-type": "application/json" } })
+  return new Response(JSON.stringify({ error: { message: RETRY_AFTER_TOO_LONG } }), {
+    status: 400,
+    headers: { "content-type": "application/json" },
+  })
 }
 
 async function waitUntil(at: number, signal: AbortSignal | undefined): Promise<void> {

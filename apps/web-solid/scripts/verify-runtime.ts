@@ -4,7 +4,10 @@ import { verifyTranscript } from "./verify-transcript"
 
 const arg = process.argv.indexOf("--url")
 const origin = new URL(arg < 0 ? "http://localhost:8787" : process.argv[arg + 1]).origin
-assert(["localhost", "127.0.0.1", "[::1]"].includes(new URL(origin).hostname), "Runtime verification requires a local development Worker serving the production build")
+assert(
+  ["localhost", "127.0.0.1", "[::1]"].includes(new URL(origin).hostname),
+  "Runtime verification requires a local development Worker serving the production build",
+)
 const failures = new Set<string>()
 
 function observe(page: Page): void {
@@ -16,12 +19,19 @@ function observe(page: Page): void {
     if (response.status() >= 400) failures.add(`HTTP ${response.status()} ${response.url()}`)
   })
   page.on("requestfailed", (request) => {
-    if (request.failure()?.errorText !== "net::ERR_ABORTED") failures.add(`${request.failure()?.errorText} ${request.url()}`)
+    if (request.failure()?.errorText !== "net::ERR_ABORTED")
+      failures.add(`${request.failure()?.errorText} ${request.url()}`)
   })
 }
 
 async function healthy(page: Page, label: string): Promise<void> {
-  assert.equal(await page.evaluate(() => document.activeElement ? getComputedStyle(document.activeElement).outlineStyle : "none"), "none", `${label} shows a focus outline`)
+  assert.equal(
+    await page.evaluate(() =>
+      document.activeElement ? getComputedStyle(document.activeElement).outlineStyle : "none",
+    ),
+    "none",
+    `${label} shows a focus outline`,
+  )
   assert.equal(await page.locator('[data-component="crash"]').count(), 0, `${label} crashed`)
   assert.equal(await page.locator("#boot").count(), 0, `${label} never started`)
   assert.equal(await page.locator("#boot-error:visible").count(), 0, `${label} failed to load`)
@@ -30,23 +40,34 @@ async function healthy(page: Page, label: string): Promise<void> {
 }
 
 async function signedIn(browser: Browser, mobile: boolean): Promise<BrowserContext> {
-  const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 } })
+  const context = await browser.newContext({
+    viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 },
+  })
   const response = await context.request.post(`${origin}/api/auth/dev/session`, { data: { name: "web-runtime" } })
   assert(response.ok(), "Start the local Worker with NODE_ENV=development")
   const { user, token } = await response.json()
-  const settings = await context.request.post(`${origin}/api/settings`, { headers: { authorization: `Bearer ${token}` }, data: { onboarded: true } })
+  const settings = await context.request.post(`${origin}/api/settings`, {
+    headers: { authorization: `Bearer ${token}` },
+    data: { onboarded: true },
+  })
   assert(settings.ok(), "Could not complete onboarding")
-  await context.addInitScript(({ user, token }) => {
-    localStorage.setItem("kiko:session", JSON.stringify(user))
-    localStorage.setItem("kiko:token", token)
-  }, { user, token })
+  await context.addInitScript(
+    ({ user, token }) => {
+      localStorage.setItem("kiko:session", JSON.stringify(user))
+      localStorage.setItem("kiko:token", token)
+    },
+    { user, token },
+  )
   return context
 }
 
 async function visit(page: Page, path: string): Promise<void> {
   const response = await page.goto(`${origin}${path}`)
   assert(response?.ok(), `${path} returned HTTP ${response?.status()}`)
-  assert(await page.locator('script[type="module"][src^="/assets/"]').count(), "Verify the production build, not the Vite development server")
+  assert(
+    await page.locator('script[type="module"][src^="/assets/"]').count(),
+    "Verify the production build, not the Vite development server",
+  )
   await page.locator('[data-component="app-shell"]').waitFor()
   await page.locator('[data-component="prompt-input"]').waitFor()
 }
@@ -91,7 +112,10 @@ async function interactions(page: Page): Promise<void> {
   await prompt.fill("")
   await prompt.pressSequentially("Typing :lol: keeps going", { delay: 40 })
   assert.equal(await prompt.innerText(), "Typing :lol: keeps going", "Loading emoji suggestions interrupted typing")
-  assert(await prompt.evaluate((element) => document.activeElement === element), "Emoji suggestions stole composer focus")
+  assert(
+    await prompt.evaluate((element) => document.activeElement === element),
+    "Emoji suggestions stole composer focus",
+  )
   await prompt.press("Home")
   await prompt.pressSequentially("Start ", { delay: 40 })
   assert.equal(await prompt.innerText(), "Start Typing :lol: keeps going", "Typing moved the composer cursor")
@@ -99,7 +123,9 @@ async function interactions(page: Page): Promise<void> {
   await page.waitForTimeout(1500)
   await page.reload()
   await prompt.waitFor()
-  await page.waitForFunction(() => document.querySelector('[data-component="prompt-input"]')?.textContent === "A draft that survives refresh")
+  await page.waitForFunction(
+    () => document.querySelector('[data-component="prompt-input"]')?.textContent === "A draft that survives refresh",
+  )
   await healthy(page, "draft restored after refresh")
   await prompt.fill("")
   await page.getByRole("button", { name: "Emoji", exact: true }).click()
@@ -169,8 +195,15 @@ async function verifyDesktop(browser: Browser): Promise<void> {
     await pinned.click({ button: "right" })
     await page.getByRole("menuitem", { name: "Mark as unread", exact: true }).click()
     await page.locator('[data-component="sidebar-row"][data-main][data-unread]').waitFor()
-    assert.equal(await pinned.locator('[data-component="sidebar-unread-count"]').count(), 0, "Marking unread must not invent a message count")
-    assert.equal(await page.locator('[data-component="sidebar-pin-dot"], [data-component="sidebar-unread-dot"]').count(), 0)
+    assert.equal(
+      await pinned.locator('[data-component="sidebar-unread-count"]').count(),
+      0,
+      "Marking unread must not invent a message count",
+    )
+    assert.equal(
+      await page.locator('[data-component="sidebar-pin-dot"], [data-component="sidebar-unread-dot"]').count(),
+      0,
+    )
     await healthy(page, "marked unread row")
   } finally {
     await context.close()

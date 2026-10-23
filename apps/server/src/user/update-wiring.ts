@@ -46,9 +46,13 @@ export class UpdateWiring {
           config: updateConfig(this.deps.env, dev),
           loadGrant: async () => {
             const stored = getSetting(this.deps.sql, GRANT)
-            return (stored ? await openGrant(keyring, this.deps.userId(), stored) : null) ?? parseGrant(dev?.grant ?? this.deps.env.CF_GRANT)
+            return (
+              (stored ? await openGrant(keyring, this.deps.userId(), stored) : null) ??
+              parseGrant(dev?.grant ?? this.deps.env.CF_GRANT)
+            )
           },
-          saveGrant: async (grant) => setSetting(this.deps.sql, GRANT, await sealGrant(keyring, this.deps.userId(), grant)),
+          saveGrant: async (grant) =>
+            setSetting(this.deps.sql, GRANT, await sealGrant(keyring, this.deps.userId(), grant)),
           report: (stage, error) => {
             this.#stage = { stage, ...(error ? { error } : {}) }
             this.deps.broadcast({ t: "update.state", ...this.#stage })

@@ -8,7 +8,8 @@ function read(): Record<string, string[]> {
     const raw: unknown = JSON.parse(localStorage.getItem(KEY) ?? "{}")
     if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return {}
     const out: Record<string, string[]> = {}
-    for (const [id, list] of Object.entries(raw)) if (Array.isArray(list)) out[id] = list.filter((p): p is string => typeof p === "string")
+    for (const [id, list] of Object.entries(raw))
+      if (Array.isArray(list)) out[id] = list.filter((p): p is string => typeof p === "string")
     return out
   } catch {
     return {}

@@ -81,7 +81,11 @@ export function setStep(step: Step): void {
 }
 
 const remember = () =>
-  apiFetch("/api/settings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ onboarded: true }) }).catch(() => {})
+  apiFetch("/api/settings", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ onboarded: true }),
+  }).catch(() => {})
 
 async function onboardedOnServer(): Promise<boolean> {
   const res = await apiFetch("/api/settings")
@@ -102,7 +106,9 @@ createRoot(() => {
     if (!id || savedStep() === "done" || probe()?.userId === id) return
     const attempt = authGeneration()
     void Promise.all([listProviders(), onboardedOnServer()])
-      .then(([list, onboarded]) => { if (attempt === authGeneration()) setProbe({ userId: id, connected: hasModelProvider(list), onboarded }) })
+      .then(([list, onboarded]) => {
+        if (attempt === authGeneration()) setProbe({ userId: id, connected: hasModelProvider(list), onboarded })
+      })
       .catch(() => {})
   })
   createEffect(() => {

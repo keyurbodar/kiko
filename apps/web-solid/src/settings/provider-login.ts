@@ -36,7 +36,11 @@ export type SignInHandle = {
   cancel(): void
 }
 
-export function startSignIn(provider: string, onState: (state: SignIn) => void, channel: UserChannel = userChannel): SignInHandle {
+export function startSignIn(
+  provider: string,
+  onState: (state: SignIn) => void,
+  channel: UserChannel = userChannel,
+): SignInHandle {
   const loginId = crypto.randomUUID()
   let state = started
   let ended = false
@@ -52,17 +56,20 @@ export function startSignIn(provider: string, onState: (state: SignIn) => void, 
     onState(state)
     if (state.status !== "running") finish()
   }
-  for (const t of ["login.notify", "login.prompt", "login.done", "login.error"] as const) offs.push(channel.on(t, receive))
+  for (const t of ["login.notify", "login.prompt", "login.done", "login.error"] as const)
+    offs.push(channel.on(t, receive))
   const start = () => {
     if (!ended && !sent) sent = channel.send({ t: "login.start", loginId, provider })
   }
   offs.push(channel.onOpen(start))
-  offs.push(channel.onStatus((status) => {
-    if (status !== "closed" || !sent || ended) return
-    finish()
-    state = { ...state, status: "error", prompt: null, error: "The connection closed. Try again." }
-    onState(state)
-  }))
+  offs.push(
+    channel.onStatus((status) => {
+      if (status !== "closed" || !sent || ended) return
+      finish()
+      state = { ...state, status: "error", prompt: null, error: "The connection closed. Try again." }
+      onState(state)
+    }),
+  )
   onState(state)
   start()
   return {

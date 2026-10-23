@@ -10,7 +10,10 @@ export interface BrowserKey {
 
 type Entry = readonly [key: string, action: string, kept: boolean, only?: readonly Platform[]]
 
-const TABS = Array.from({ length: 9 }, (_, i) => [i + 1, i === 8 ? "Go to the last tab" : `Go to tab ${i + 1}`] as const)
+const TABS = Array.from(
+  { length: 9 },
+  (_, i) => [i + 1, i === 8 ? "Go to the last tab" : `Go to tab ${i + 1}`] as const,
+)
 
 const TABLE: readonly Entry[] = [
   ["Mod+N", "New window", true],

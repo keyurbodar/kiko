@@ -33,10 +33,23 @@ export function themeCommands(deps: {
         const shown = appearanceOf(deps.mode())
         const imported = deps.imported()
         const themes: [ThemeAppearance, string, string, string?][] = [
-          ...imported.themes.map((t): [ThemeAppearance, string, string, string] => [t.appearance, t.id, t.name, t.source]),
+          ...imported.themes.map((t): [ThemeAppearance, string, string, string] => [
+            t.appearance,
+            t.id,
+            t.name,
+            t.source,
+          ]),
         ]
         return [
-          ...MODES.map(([mode, title]): Choice => ({ id: `mode.${mode}`, title, icon: "appearance", group: "Mode", current: deps.mode() === mode, preview: () => deps.preview({ mode }), run: () => deps.setMode(mode) })),
+          ...MODES.map(([mode, title]): Choice => ({
+            id: `mode.${mode}`,
+            title,
+            icon: "appearance",
+            group: "Mode",
+            current: deps.mode() === mode,
+            preview: () => deps.preview({ mode }),
+            run: () => deps.setMode(mode),
+          })),
           ...themes.map(([appearance, id, title, source]): Choice => ({
             id: `theme.${appearance}.${id || "kiko"}`,
             title,
@@ -44,15 +57,27 @@ export function themeCommands(deps: {
             icon: "appearance",
             group: "Theme",
             current: shown === appearance && (imported.active[appearance] ?? "") === id,
-            preview: () => deps.preview({ mode: appearance, active: { ...imported.active, [appearance]: id || undefined } }),
+            preview: () =>
+              deps.preview({ mode: appearance, active: { ...imported.active, [appearance]: id || undefined } }),
             run: () => deps.setTheme(appearance, id),
           })),
           ...THEME_IDS.map((id): Choice => {
             const mode = id === "snow" ? "light" : "dark"
-            return { id: `builtin.${id}`, title: THEMES[id].label, icon: "appearance", group: "Theme", swatch: THEMES[id].accent,
+            return {
+              id: `builtin.${id}`,
+              title: THEMES[id].label,
+              icon: "appearance",
+              group: "Theme",
+              swatch: THEMES[id].accent,
               current: shown === mode && !imported.active[mode] && (id === "snow" || deps.darkTheme() === id),
-              preview: () => deps.preview({ mode, ...(id === "snow" ? {} : { darkTheme: id }), active: { ...imported.active, [mode]: undefined } }),
-              run: () => deps.setBuiltin(id) }
+              preview: () =>
+                deps.preview({
+                  mode,
+                  ...(id === "snow" ? {} : { darkTheme: id }),
+                  active: { ...imported.active, [mode]: undefined },
+                }),
+              run: () => deps.setBuiltin(id),
+            }
           }),
         ]
       },

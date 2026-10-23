@@ -43,7 +43,12 @@ export default function RecipesPage() {
   const [open, setOpen] = createSignal<{ card: RecipeCard; mode?: "add" } | null>(null)
   const bySlug = createMemo(() => new Map(cards().map((c) => [c.slug, c])))
   const matching = createMemo(() => new Set(filterRecipes(cards(), query(), "all").map((c) => c.slug)))
-  const yours = createMemo(() => byChatOrder(installs().filter((i) => matching().has(i.slug)), useApp.bots().map((b) => b.id)))
+  const yours = createMemo(() =>
+    byChatOrder(
+      installs().filter((i) => matching().has(i.slug)),
+      useApp.bots().map((b) => b.id),
+    ),
+  )
   const tags = createMemo(() => ["all", ...recipeTags(cards())])
   const shown = createMemo(() => filterRecipes(cards(), query(), tag()))
   const [section, setSection] = createSignal<Section>(installs().length && !roomId() ? "yours" : "discover")
@@ -92,14 +97,22 @@ export default function RecipesPage() {
               toTabs()
             }}
           >
-            <TabsV2.List class="sticky top-0 z-10 -mx-1 flex h-14 items-center gap-1 bg-background px-1" aria-label="Recipes" data-component="recipes-sections">
+            <TabsV2.List
+              class="sticky top-0 z-10 -mx-1 flex h-14 items-center gap-1 bg-background px-1"
+              aria-label="Recipes"
+              data-component="recipes-sections"
+            >
               <TabsV2.Trigger value="yours" class={sectionTab} data-section="yours">
                 Yours
-                <span class="min-w-5 rounded-full bg-control px-1.5 text-center text-[11.5px] leading-5 tabular-nums">{yours().length}</span>
+                <span class="min-w-5 rounded-full bg-control px-1.5 text-center text-[11.5px] leading-5 tabular-nums">
+                  {yours().length}
+                </span>
               </TabsV2.Trigger>
               <TabsV2.Trigger value="discover" class={sectionTab} data-section="discover">
                 Discover
-                <span class="min-w-5 rounded-full bg-control px-1.5 text-center text-[11.5px] leading-5 tabular-nums">{matching().size}</span>
+                <span class="min-w-5 rounded-full bg-control px-1.5 text-center text-[11.5px] leading-5 tabular-nums">
+                  {matching().size}
+                </span>
               </TabsV2.Trigger>
             </TabsV2.List>
 
@@ -109,8 +122,14 @@ export default function RecipesPage() {
                 fallback={
                   <Show when={!query()} fallback={<Empty title="Nothing of yours matches" />}>
                     <Empty title="Nothing runs yet">
-                      <p class="max-w-[320px] text-[13.5px] text-muted-foreground">Recipes you add show up here, with when each one runs next.</p>
-                      <button type="button" class={buttonClass("primary", "mt-3 rounded-full px-4")} onClick={() => setSection("discover")}>
+                      <p class="max-w-[320px] text-[13.5px] text-muted-foreground">
+                        Recipes you add show up here, with when each one runs next.
+                      </p>
+                      <button
+                        type="button"
+                        class={buttonClass("primary", "mt-3 rounded-full px-4")}
+                        onClick={() => setSection("discover")}
+                      >
                         Browse recipes
                       </button>
                     </Empty>
@@ -118,7 +137,9 @@ export default function RecipesPage() {
                 }
               >
                 <div class={grid}>
-                  <For each={yours()}>{(install) => <InstallCard install={install} card={bySlug().get(install.slug)!} />}</For>
+                  <For each={yours()}>
+                    {(install) => <InstallCard install={install} card={bySlug().get(install.slug)!} />}
+                  </For>
                 </div>
               </Show>
             </TabsV2.Content>
@@ -148,7 +169,10 @@ export default function RecipesPage() {
                 </div>
 
                 <Show when={broken().length}>
-                  <div class="mb-3 flex flex-col gap-1 rounded-[16px] bg-card px-4 py-3 text-[13px] text-muted-foreground" data-component="recipes-broken">
+                  <div
+                    class="mb-3 flex flex-col gap-1 rounded-[16px] bg-card px-4 py-3 text-[13px] text-muted-foreground"
+                    data-component="recipes-broken"
+                  >
                     <p class="font-medium text-foreground">Some recipe files did not load</p>
                     <For each={broken()}>{(why) => <p>{why}</p>}</For>
                   </div>
@@ -159,7 +183,11 @@ export default function RecipesPage() {
                     <TabsV2.Content value={t} class="outline-none">
                       <Show when={shown().length} fallback={<Empty title="Nothing matches" />}>
                         <div class={`${grid} @min-[760px]/recipes:grid-cols-3`} data-component="recipes-grid">
-                          <For each={shown()}>{(card) => <RecipeTile recipe={card} onOpen={() => setOpen({ card })} onAdd={() => add(card)} />}</For>
+                          <For each={shown()}>
+                            {(card) => (
+                              <RecipeTile recipe={card} onOpen={() => setOpen({ card })} onAdd={() => add(card)} />
+                            )}
+                          </For>
                         </div>
                       </Show>
                     </TabsV2.Content>
@@ -169,7 +197,16 @@ export default function RecipesPage() {
             </TabsV2.Content>
           </TabsV2>
 
-          <Show when={connectAsk()} fallback={<Show when={open()}>{(o) => <RecipeSheet roomId={roomId()} recipe={o().card} mode={o().mode} onClose={() => setOpen(null)} />}</Show>}>
+          <Show
+            when={connectAsk()}
+            fallback={
+              <Show when={open()}>
+                {(o) => (
+                  <RecipeSheet roomId={roomId()} recipe={o().card} mode={o().mode} onClose={() => setOpen(null)} />
+                )}
+              </Show>
+            }
+          >
             <ConnectSheet />
           </Show>
         </div>

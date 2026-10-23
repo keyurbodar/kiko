@@ -1,7 +1,24 @@
 import { toHex } from "@kiko/durable/hash"
 import type { Context } from "@earendil-works/chord"
-import { err, ExecutionError, ok, type Result, type ShellExecOptions, type ShellExecResult } from "@earendil-works/pi-durable/env"
-import { Bash, type BufferEncoding, type CpOptions, type CreateExclusiveOptions, type FileContent, type FsStat, type IFileSystem, type MkdirOptions, type RmOptions } from "just-bash"
+import {
+  err,
+  ExecutionError,
+  ok,
+  type Result,
+  type ShellExecOptions,
+  type ShellExecResult,
+} from "@earendil-works/pi-durable/env"
+import {
+  Bash,
+  type BufferEncoding,
+  type CpOptions,
+  type CreateExclusiveOptions,
+  type FileContent,
+  type FsStat,
+  type IFileSystem,
+  type MkdirOptions,
+  type RmOptions,
+} from "just-bash"
 import type { FsEntry } from "../room/files"
 import { HOME } from "./upload"
 import { type BatchChange, batchPaths, type RoomFs, typeForPath } from "./room-fs"
@@ -70,7 +87,8 @@ function encode(content: FileContent, encoding: BufferEncoding | undefined): Uin
   }
 }
 
-const encodingOf = (options: { encoding?: BufferEncoding | null } | BufferEncoding | undefined) => (typeof options === "string" ? options : (options?.encoding ?? undefined))
+const encodingOf = (options: { encoding?: BufferEncoding | null } | BufferEncoding | undefined) =>
+  typeof options === "string" ? options : (options?.encoding ?? undefined)
 
 type Change =
   | { op: "write"; path: string; node: FileNode; expect: string }
@@ -81,9 +99,20 @@ type Change =
 
 const SPACES = ["chat", "home", "me", "kiko"] as const
 type Space = (typeof SPACES)[number]
-const SPACE_NAME: Record<Space, string> = { home: "the drive (/home)", me: "/me", chat: "the chat's files", kiko: "/kiko" }
+const SPACE_NAME: Record<Space, string> = {
+  home: "the drive (/home)",
+  me: "/me",
+  chat: "the chat's files",
+  kiko: "/kiko",
+}
 const spaceOf = (path: string): Space =>
-  path === `/${HOME}` || path.startsWith(`/${HOME}/`) ? "home" : path.startsWith("/me/") || path === "/me" ? "me" : path === "/kiko" || path.startsWith("/kiko/") ? "kiko" : "chat"
+  path === `/${HOME}` || path.startsWith(`/${HOME}/`)
+    ? "home"
+    : path.startsWith("/me/") || path === "/me"
+      ? "me"
+      : path === "/kiko" || path.startsWith("/kiko/")
+        ? "kiko"
+        : "chat"
 
 function plan(start: ReadonlyMap<string, Node>, tree: ReadonlyMap<string, Node>): Change[] {
   const moves: Change[] = []
@@ -101,15 +130,25 @@ function plan(start: ReadonlyMap<string, Node>, tree: ReadonlyMap<string, Node>)
     const origin = base && !node.bytes ? `/${base.path}` : null
     if (origin === path && before?.sha256 === base?.sha256) continue
     const stays = origin ? tree.get(origin) : undefined
-    const originGone = origin !== null && origin !== path && !(stays?.kind === "file" && stays.base === base && !stays.bytes)
-    if (base && origin !== null && originGone && !before && !movedFrom.has(origin) && spaceOf(origin) === spaceOf(path) && startFile(origin)?.sha256 === base.sha256) {
+    const originGone =
+      origin !== null && origin !== path && !(stays?.kind === "file" && stays.base === base && !stays.bytes)
+    if (
+      base &&
+      origin !== null &&
+      originGone &&
+      !before &&
+      !movedFrom.has(origin) &&
+      spaceOf(origin) === spaceOf(path) &&
+      startFile(origin)?.sha256 === base.sha256
+    ) {
       movedFrom.add(origin)
       moves.push({ op: "move", from: origin, to: path, sha256: base.sha256 })
     } else {
       writes.push({ op: "write", path, node, expect: "" })
     }
   }
-  for (const c of writes) if (c.op === "write") c.expect = movedFrom.has(c.path) ? "none" : (startFile(c.path)?.sha256 ?? "none")
+  for (const c of writes)
+    if (c.op === "write") c.expect = movedFrom.has(c.path) ? "none" : (startFile(c.path)?.sha256 ?? "none")
   const planDirectories = () => {
     for (const [path, node] of tree) {
       if (node.kind !== "directory" || scratch(path) || start.has(path)) continue
@@ -118,15 +157,26 @@ function plan(start: ReadonlyMap<string, Node>, tree: ReadonlyMap<string, Node>)
   }
   planDirectories()
   const planDeletions = () => {
-    const goneDirs = [...start].filter(([p, n]) => n.kind === "directory" && p !== "/" && !scratch(p) && !tree.has(p)).map(([p]) => p)
+    const goneDirs = [...start]
+      .filter(([p, n]) => n.kind === "directory" && p !== "/" && !scratch(p) && !tree.has(p))
+      .map(([p]) => p)
     const topDirs = goneDirs.filter((d) => !goneDirs.some((o) => o !== d && under(o, d)))
     for (const dir of topDirs) {
       const files: Record<string, string> = {}
-      for (const [p, n] of start) if (under(dir, p) && n.kind === "file" && n.base && !movedFrom.has(p)) files[p] = n.base.sha256
+      for (const [p, n] of start)
+        if (under(dir, p) && n.kind === "file" && n.base && !movedFrom.has(p)) files[p] = n.base.sha256
       deletions.push({ op: "rmdir", path: dir, files })
     }
     for (const [path, node] of start) {
-      if (node.kind !== "file" || !node.base || scratch(path) || tree.has(path) || movedFrom.has(path) || topDirs.some((d) => under(d, path))) continue
+      if (
+        node.kind !== "file" ||
+        !node.base ||
+        scratch(path) ||
+        tree.has(path) ||
+        movedFrom.has(path) ||
+        topDirs.some((d) => under(d, path))
+      )
+        continue
       deletions.push({ op: "remove", path, sha256: node.base.sha256 })
     }
   }
@@ -186,7 +236,8 @@ class CommandFs implements IFileSystem {
   private children(dir: string): string[] {
     const prefix = dir === "/" ? "/" : `${dir}/`
     const names = new Set<string>()
-    for (const p of this.tree.keys()) if (p !== dir && p.startsWith(prefix) && !p.slice(prefix.length).includes("/")) names.add(p.slice(prefix.length))
+    for (const p of this.tree.keys())
+      if (p !== dir && p.startsWith(prefix) && !p.slice(prefix.length).includes("/")) names.add(p.slice(prefix.length))
     return [...names].sort()
   }
 
@@ -208,7 +259,8 @@ class CommandFs implements IFileSystem {
     for (const name of this.children(dir)) {
       if (started >= PREFETCH_FILES) break
       const n = this.tree.get(dir === "/" ? `/${name}` : `${dir}/${name}`)
-      if (n?.kind !== "file" || !n.base || n.bytes || n.base.size > PREFETCH_MAX_FILE || this.ahead.has(n.base.r2Key)) continue
+      if (n?.kind !== "file" || !n.base || n.bytes || n.base.size > PREFETCH_MAX_FILE || this.ahead.has(n.base.r2Key))
+        continue
       if (this.aheadBytes + n.base.size > PREFETCH_BYTES || this.ahead.size >= MAX_READS / 2) break
       this.aheadBytes += n.base.size
       started++
@@ -230,7 +282,11 @@ class CommandFs implements IFileSystem {
   }
 
   private reserve(grows: number) {
-    if (this.dirty + grows > DIRTY_BYTES) throw failure("ENOSPC", `no space left: one command holds at most ${DIRTY_BYTES / 1024 / 1024} mb of changed files`)
+    if (this.dirty + grows > DIRTY_BYTES)
+      throw failure(
+        "ENOSPC",
+        `no space left: one command holds at most ${DIRTY_BYTES / 1024 / 1024} mb of changed files`,
+      )
     this.dirty += grows
   }
 
@@ -238,7 +294,8 @@ class CommandFs implements IFileSystem {
     if (path === DEV_NULL) return
     const before = this.tree.get(path)
     if (before?.kind === "directory") throw failure("EISDIR", `illegal operation on a directory, open '${path}'`)
-    if (this.tree.get(parent(path))?.kind !== "directory") throw failure("ENOENT", `no such file or directory, open '${path}'`)
+    if (this.tree.get(parent(path))?.kind !== "directory")
+      throw failure("ENOENT", `no such file or directory, open '${path}'`)
     const grows = bytes.length - (before?.kind === "file" ? (before.bytes?.length ?? 0) : 0)
     this.reserve(grows)
     this.tree.set(path, { kind: "file", bytes, at: Date.now() })
@@ -252,11 +309,19 @@ class CommandFs implements IFileSystem {
     return this.bytes(path)
   }
 
-  async writeFile(path: string, content: FileContent, options?: { encoding?: BufferEncoding } | BufferEncoding): Promise<void> {
+  async writeFile(
+    path: string,
+    content: FileContent,
+    options?: { encoding?: BufferEncoding } | BufferEncoding,
+  ): Promise<void> {
     this.set(path, encode(content, encodingOf(options) ?? undefined))
   }
 
-  async appendFile(path: string, content: FileContent, options?: { encoding?: BufferEncoding } | BufferEncoding): Promise<void> {
+  async appendFile(
+    path: string,
+    content: FileContent,
+    options?: { encoding?: BufferEncoding } | BufferEncoding,
+  ): Promise<void> {
     const add = encode(content, encodingOf(options) ?? undefined)
     const head = this.tree.get(path)?.kind === "file" ? await this.bytes(path) : new Uint8Array()
     const joined = new Uint8Array(head.length + add.length)
@@ -271,8 +336,25 @@ class CommandFs implements IFileSystem {
 
   async stat(path: string): Promise<FsStat> {
     const n = this.node(path, "stat")
-    if (n.kind === "directory") return { isFile: false, isDirectory: true, isSymbolicLink: false, mode: 0o40755, size: 0, mtime: new Date(0), identity: path }
-    return { isFile: true, isDirectory: false, isSymbolicLink: false, mode: 0o100644, size: sizeOf(n), mtime: new Date(n.at), identity: path }
+    if (n.kind === "directory")
+      return {
+        isFile: false,
+        isDirectory: true,
+        isSymbolicLink: false,
+        mode: 0o40755,
+        size: 0,
+        mtime: new Date(0),
+        identity: path,
+      }
+    return {
+      isFile: true,
+      isDirectory: false,
+      isSymbolicLink: false,
+      mode: 0o100644,
+      size: sizeOf(n),
+      mtime: new Date(n.at),
+      identity: path,
+    }
   }
 
   async lstat(path: string): Promise<FsStat> {
@@ -285,7 +367,8 @@ class CommandFs implements IFileSystem {
       if (options?.recursive && n.kind === "directory") return
       throw failure("EEXIST", `file already exists, mkdir '${path}'`)
     }
-    if (!options?.recursive && this.tree.get(parent(path))?.kind !== "directory") throw failure("ENOENT", `no such file or directory, mkdir '${path}'`)
+    if (!options?.recursive && this.tree.get(parent(path))?.kind !== "directory")
+      throw failure("ENOENT", `no such file or directory, mkdir '${path}'`)
     this.put(path, { kind: "directory" })
   }
 
@@ -315,15 +398,18 @@ class CommandFs implements IFileSystem {
       throw failure("ENOENT", `no such file or directory, rm '${path}'`)
     }
     if (path === "/") throw failure("EPERM", "the root of the chat's files stays")
-    if (n.kind === "directory" && !options?.recursive && this.children(path).length) throw failure("ENOTEMPTY", `directory not empty, rm '${path}'`)
+    if (n.kind === "directory" && !options?.recursive && this.children(path).length)
+      throw failure("ENOTEMPTY", `directory not empty, rm '${path}'`)
     for (const [p] of this.subtree(path)) this.tree.delete(p)
   }
 
   async cp(src: string, dest: string, options?: CpOptions): Promise<void> {
     const n = this.node(src, "cp")
     if (n.kind === "file") {
-      if (this.tree.get(dest)?.kind === "directory") throw failure("EISDIR", `illegal operation on a directory, cp '${dest}'`)
-      if (this.tree.get(parent(dest))?.kind !== "directory") throw failure("ENOENT", `no such file or directory, cp '${dest}'`)
+      if (this.tree.get(dest)?.kind === "directory")
+        throw failure("EISDIR", `illegal operation on a directory, cp '${dest}'`)
+      if (this.tree.get(parent(dest))?.kind !== "directory")
+        throw failure("ENOENT", `no such file or directory, cp '${dest}'`)
       this.reserve(sizeOf(n))
       this.tree.set(dest, n.bytes ? { ...n, bytes: n.bytes.slice() } : { ...n, at: Date.now() })
       return
@@ -339,7 +425,8 @@ class CommandFs implements IFileSystem {
     this.node(src, "rename")
     if (src === "/") throw failure("EPERM", "the root of the chat's files stays")
     if (under(src, dest)) throw failure("EINVAL", `cannot move '${src}' into itself`)
-    if (this.tree.get(parent(dest))?.kind !== "directory") throw failure("ENOENT", `no such file or directory, rename '${dest}'`)
+    if (this.tree.get(parent(dest))?.kind !== "directory")
+      throw failure("ENOENT", `no such file or directory, rename '${dest}'`)
     const moving = this.subtree(src)
     for (const [p] of this.subtree(dest)) this.tree.delete(p)
     for (const [p] of moving) this.tree.delete(p)
@@ -401,7 +488,9 @@ class CommandFs implements IFileSystem {
           changed.push(...part.flatMap(batchPaths))
           continue
         }
-        const why = out.conflict ? `${out.path} changed after this command started (a teammate or the human wrote it)` : out.message
+        const why = out.conflict
+          ? `${out.path} changed after this command started (a teammate or the human wrote it)`
+          : out.message
         refused.push({ path: out.path, message: `${why}. ${refuse(SPACE_NAME[space])}` })
       }
     }
@@ -411,7 +500,11 @@ class CommandFs implements IFileSystem {
       (space) => `nothing this command changed in ${space} was saved. look again, then run it again`,
     )
     if (refused.length) {
-      for (const c of deletions) refused.push({ path: batchPaths(c)[0], message: "a write in this command was refused, so this file was kept. look again, then run it again" })
+      for (const c of deletions)
+        refused.push({
+          path: batchPaths(c)[0],
+          message: "a write in this command was refused, so this file was kept. look again, then run it again",
+        })
       return { saved, changed, refused }
     }
     await commitSpaces(deletions, () => "the file was kept. look again, then run it again")
@@ -424,11 +517,18 @@ const LIMIT_EXIT = 126
 export type BashResult = ShellExecResult & { changed: string[] }
 
 const stopped = (timer: AbortSignal, seconds: number) =>
-  timer.aborted ? new ExecutionError("timeout", `the command ran past ${seconds} seconds, and none of its changes were saved`) : new ExecutionError("aborted", "the command was stopped, and none of its changes were saved")
+  timer.aborted
+    ? new ExecutionError("timeout", `the command ran past ${seconds} seconds, and none of its changes were saved`)
+    : new ExecutionError("aborted", "the command was stopped, and none of its changes were saved")
 
 const OVER_READ = `bash: the command read more than ${MAX_READS} files and was stopped, and none of its changes were saved. narrow it to a folder or a pattern, or split it\n`
 
-export async function runCommand(files: RoomFs, command: string, options: ShellExecOptions | undefined, context: Context): Promise<Result<BashResult, ExecutionError>> {
+export async function runCommand(
+  files: RoomFs,
+  command: string,
+  options: ShellExecOptions | undefined,
+  context: Context,
+): Promise<Result<BashResult, ExecutionError>> {
   const seconds = Math.min(options?.timeout ?? DEFAULT_TIMEOUT_S, MAX_TIMEOUT_S)
   const timer = AbortSignal.timeout(seconds * 1000)
   const outside = context.abortSignal ? AbortSignal.any([context.abortSignal, timer]) : timer
@@ -447,14 +547,17 @@ export async function runCommand(files: RoomFs, command: string, options: ShellE
     if (outside.aborted) return err(stopped(timer, seconds))
     if (fs.overRead.signal.aborted) return overRead()
     if (out.exitCode === LIMIT_EXIT) {
-      say(`${out.stdout}${out.stderr}bash: the command hit a limit and was stopped, and none of its changes were saved\n`)
+      say(
+        `${out.stdout}${out.stderr}bash: the command hit a limit and was stopped, and none of its changes were saved\n`,
+      )
       return ok({ exitCode: LIMIT_EXIT, changed: [] })
     }
     committing = true
     const { saved, changed, refused } = await fs.commit()
     const report = refused.map((r) => `bash: ${r.path}: not saved: ${r.message}\n`)
     if (saved.length && refused.length) report.push(`bash: saved in ${saved.join(" and ")}\n`)
-    if (outside.aborted && changed.length) report.push(`bash: stopped while it saved, and these were saved: ${changed.join(", ")}\n`)
+    if (outside.aborted && changed.length)
+      report.push(`bash: stopped while it saved, and these were saved: ${changed.join(", ")}\n`)
     say(out.stdout + out.stderr + report.join(""))
     return ok({ exitCode: refused.length && !out.exitCode ? 1 : out.exitCode, changed })
   } catch (e) {

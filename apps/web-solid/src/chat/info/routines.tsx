@@ -15,13 +15,20 @@ export type Routine = RoutineData
 const [started, setStarted] = createSignal<ReadonlySet<string>>(new Set())
 export const ranNow = (id: string): boolean => started().has(id)
 
-export const routinesOf = (chatId: string): readonly Routine[] => useApp.rows("routine").filter((r) => r.roomId === chatId)
+export const routinesOf = (chatId: string): readonly Routine[] =>
+  useApp.rows("routine").filter((r) => r.roomId === chatId)
 
 const post = (path: string, body: unknown) =>
-  apiFetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.ok).catch(() => false)
+  apiFetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+    .then((r) => r.ok)
+    .catch(() => false)
 
 export async function setStatus(routine: Routine, status: Routine["status"]): Promise<void> {
-  if (!(await useApp.editRow("routine", routine.id, { ...routine, status }, () => post(`/api/routines/${routine.id}`, { status }))))
+  if (
+    !(await useApp.editRow("routine", routine.id, { ...routine, status }, () =>
+      post(`/api/routines/${routine.id}`, { status }),
+    ))
+  )
     showToastV2({ title: `Could not ${status === "paused" ? "pause" : "resume"} ${routine.name}`, variant: "error" })
 }
 
@@ -50,10 +57,23 @@ export async function runNow(routine: Routine): Promise<boolean> {
 const faint = "text-[color-mix(in_oklab,var(--foreground)_40%,transparent)]"
 const tool =
   "grid size-7 shrink-0 place-items-center rounded-md text-[color-mix(in_oklab,var(--foreground)_45%,transparent)] hover:bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] hover:text-foreground disabled:opacity-40"
-function Tool(props: { label: string; action: string; disabled?: boolean; onClick: () => void; children: JSX.Element }) {
+function Tool(props: {
+  label: string
+  action: string
+  disabled?: boolean
+  onClick: () => void
+  children: JSX.Element
+}) {
   return (
     <TooltipV2 placement="top" openDelay={400} value={props.label}>
-      <button type="button" class={tool} aria-label={props.label} disabled={props.disabled} data-action={props.action} onClick={props.onClick}>
+      <button
+        type="button"
+        class={tool}
+        aria-label={props.label}
+        disabled={props.disabled}
+        data-action={props.action}
+        onClick={props.onClick}
+      >
         {props.children}
       </button>
     </TooltipV2>
@@ -76,12 +96,19 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
     timer = setTimeout(() => forget(props.routine.id), STARTED_MS)
   }
   return (
-    <li class="flex items-center gap-1 rounded-md pr-1 hover:bg-[color-mix(in_oklab,var(--foreground)_5%,transparent)]" data-routine={props.routine.id} data-status={props.routine.status}>
+    <li
+      class="flex items-center gap-1 rounded-md pr-1 hover:bg-[color-mix(in_oklab,var(--foreground)_5%,transparent)]"
+      data-routine={props.routine.id}
+      data-status={props.routine.status}
+    >
       <div class="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2">
         <Show
           when={props.recipe}
           fallback={
-            <span class={`grid size-7 shrink-0 place-items-center rounded-md bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)] ${on() ? "text-[color-mix(in_oklab,var(--foreground)_60%,transparent)]" : "text-[color-mix(in_oklab,var(--foreground)_30%,transparent)]"}`} aria-hidden="true">
+            <span
+              class={`grid size-7 shrink-0 place-items-center rounded-md bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)] ${on() ? "text-[color-mix(in_oklab,var(--foreground)_60%,transparent)]" : "text-[color-mix(in_oklab,var(--foreground)_30%,transparent)]"}`}
+              aria-hidden="true"
+            >
               <RemixIcon icon={ClockIcon} size={14} />
             </span>
           }
@@ -89,10 +116,16 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
           {(recipe) => <RecipeIcon recipe={recipe()} size={34} />}
         </Show>
         <span class="flex min-w-0 flex-1 flex-col">
-          <span class={`truncate text-[12px] leading-5 ${on() ? "text-[color-mix(in_oklab,var(--foreground)_85%,transparent)]" : "text-[color-mix(in_oklab,var(--foreground)_45%,transparent)]"}`}>{props.routine.name}</span>
+          <span
+            class={`truncate text-[12px] leading-5 ${on() ? "text-[color-mix(in_oklab,var(--foreground)_85%,transparent)]" : "text-[color-mix(in_oklab,var(--foreground)_45%,transparent)]"}`}
+          >
+            {props.routine.name}
+          </span>
           <span class={`truncate text-[11px] leading-4 ${faint}`} data-component="routine-trigger">
             <Show when={!ran() && !on()}>
-              <span class="mr-1.5 rounded bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] px-1 text-[10px]">Paused</span>
+              <span class="mr-1.5 rounded bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] px-1 text-[10px]">
+                Paused
+              </span>
             </Show>
             {ran() ? "Started just now" : triggerLabel(props.routine.trigger, props.routine.tz)}
           </span>
@@ -101,7 +134,11 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
       <Tool label={ran() ? "Started" : "Run now"} action="routine-run" disabled={ran()} onClick={() => void run()}>
         <RemixIcon icon={ran() ? CheckIcon : PlayIcon} size={14} />
       </Tool>
-      <Tool label={on() ? "Pause" : "Resume"} action="routine-toggle" onClick={() => void setStatus(props.routine, on() ? "paused" : "active")}>
+      <Tool
+        label={on() ? "Pause" : "Resume"}
+        action="routine-toggle"
+        onClick={() => void setStatus(props.routine, on() ? "paused" : "active")}
+      >
         <RemixIcon icon={on() ? PauseIcon : PlayIcon} size={14} />
       </Tool>
       <Tool label="Delete routine" action="routine-delete" onClick={() => void cancelRoutine(props.routine)}>
@@ -121,12 +158,19 @@ export function RoutinesPage(props: { chatId: string }) {
         {(list) => (
           <>
             <Show when={!list().length}>
-              <p class={`px-2 py-6 text-center text-[12px] leading-5 ${faint}`}>Nothing scheduled yet. Ask an agent to remind you, or to do something on a schedule or whenever you send a message.</p>
+              <p class={`px-2 py-6 text-center text-[12px] leading-5 ${faint}`}>
+                Nothing scheduled yet. Ask an agent to remind you, or to do something on a schedule or whenever you send
+                a message.
+              </p>
             </Show>
             <Show when={list().length}>
               <h3 class={heading}>Routines</h3>
               <ul class="flex flex-col gap-px">
-                <For each={list()}>{(routine) => <RoutineRow routine={routine} recipe={recipeForRoutine(recipes() ?? [], routine.name)} />}</For>
+                <For each={list()}>
+                  {(routine) => (
+                    <RoutineRow routine={routine} recipe={recipeForRoutine(recipes() ?? [], routine.name)} />
+                  )}
+                </For>
               </ul>
             </Show>
           </>

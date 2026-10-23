@@ -30,18 +30,33 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
         title={`Choose model for ${props.name}`}
         class="flex h-7 max-w-[240px] min-w-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground"
       >
-        <Show when={current()?.model.split("/")[0]}>{(provider) => <ProviderIcon id={provider()} width="13" height="13" />}</Show>
-        <span class="truncate" data-field="model">{current()?.name ?? current()?.model.split("/").slice(1).join("/") ?? "Choose model"}</span>
+        <Show when={current()?.model.split("/")[0]}>
+          {(provider) => <ProviderIcon id={provider()} width="13" height="13" />}
+        </Show>
+        <span class="truncate" data-field="model">
+          {current()?.name ?? current()?.model.split("/").slice(1).join("/") ?? "Choose model"}
+        </span>
       </ModelPicker>
-      <ReasoningMenu levels={current()?.thinkingLevels} value={current()?.thinking} placement="bottom-end" onChange={(thinking) => useApp.setAgentModel(props.slug, { thinking })} />
+      <ReasoningMenu
+        levels={current()?.thinkingLevels}
+        value={current()?.thinking}
+        placement="bottom-end"
+        onChange={(thinking) => useApp.setAgentModel(props.slug, { thinking })}
+      />
     </Row>
   )
 }
 
 export function AgentModels() {
   return (
-    <Show when={hasModelProvider(connectedProviders())} fallback={<Hint>Connect a provider in the Providers tab to choose models for your agents.</Hint>}>
-      <Group description="Each agent keeps its own model and reasoning level in every chat." data-component="agent-models">
+    <Show
+      when={hasModelProvider(connectedProviders())}
+      fallback={<Hint>Connect a provider in the Providers tab to choose models for your agents.</Hint>}
+    >
+      <Group
+        description="Each agent keeps its own model and reasoning level in every chat."
+        data-component="agent-models"
+      >
         <For each={useApp.modelAgents()}>{(agent) => <AgentRow slug={agent.slug} name={agent.name} />}</For>
       </Group>
     </Show>

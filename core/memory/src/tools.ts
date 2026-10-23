@@ -20,8 +20,10 @@ export const MEMORY_RULE = [
   "the conversation above is memory too: look there first. for a detail in neither it nor the block, zoom a line (chat:12, chat:0-63, life:64-127) or recall a few keywords (recall leaves out lines you already have). never say something did not come up until recall finds nothing. you remember like a friend: use what you know, and never mention memory, saving, or looking things up.",
 ].join("\n")
 
-const NOTE_CAPTURED = "what the human tells you is saved on its own. note only a lasting fact about the human that you found out yourself (in a file, a tool result, or a teammate's message), in one line. not small talk."
-const NOTE_ALL = "note a new fact about the human that matters beyond this chat, in one line, the moment you learn it (who someone is, what they like, a plan). not small talk."
+const NOTE_CAPTURED =
+  "what the human tells you is saved on its own. note only a lasting fact about the human that you found out yourself (in a file, a tool result, or a teammate's message), in one line. not small talk."
+const NOTE_ALL =
+  "note a new fact about the human that matters beyond this chat, in one line, the moment you learn it (who someone is, what they like, a plan). not small talk."
 const NOTE_REPLACES = "when a note corrects a #n line under life in <memory>, pass replaces: life:n."
 
 export const noteRule = (captures: boolean) => `${captures ? NOTE_CAPTURED : NOTE_ALL} ${NOTE_REPLACES}`
@@ -31,7 +33,8 @@ const text = (value: string) => [{ type: "text" as const, text: value }]
 export function memoryExtensions(port: MemoryPort): Extension[] {
   const recall = defineTool({
     name: "recall",
-    description: "keyword search over this chat's messages (newest first) and your life lines: notes and other chats' summaries. hits are cut at 300 chars; zoom an id for more.",
+    description:
+      "keyword search over this chat's messages (newest first) and your life lines: notes and other chats' summaries. hits are cut at 300 chars; zoom an id for more.",
     parameters: Type.Object({ query: Type.String({ description: "a few keywords, like a name or a topic" }) }),
     replay: "safe",
     execute: async (args, api) => {
@@ -42,12 +45,15 @@ export function memoryExtensions(port: MemoryPort): Extension[] {
 
   const zoom = defineTool({
     name: "zoom",
-    description: "open a line of the <memory> block: a summary into its two halves, or one turn or memory in full. ids look like chat:12, chat:0-63, or life:64-127.",
+    description:
+      "open a line of the <memory> block: a summary into its two halves, or one turn or memory in full. ids look like chat:12, chat:0-63, or life:64-127.",
     parameters: Type.Object({ id: Type.String() }),
     replay: "safe",
     execute: async (args) => {
       const found = await port.zoom(args.id.trim())
-      return found ? { output: text(found) } : { output: text(`no memory ${args.id}. use an id from the <memory> block, like chat:12.`), isError: true }
+      return found
+        ? { output: text(found) }
+        : { output: text(`no memory ${args.id}. use an id from the <memory> block, like chat:12.`), isError: true }
     },
   })
 
@@ -63,13 +69,27 @@ export function memoryExtensions(port: MemoryPort): Extension[] {
       if (!out.ok) return { output: text(out.error), isError: true }
       const said = `${out.duplicate ? "already known" : "noted"} as life:${out.pos}`
       if (args.replaces === undefined) return { output: text(said) }
-      return { output: text(out.replaced ? `${said}, replaced ${args.replaces}` : `${said}. ${args.replaces} is not a live life line, so nothing was replaced.`) }
+      return {
+        output: text(
+          out.replaced
+            ? `${said}, replaced ${args.replaces}`
+            : `${said}. ${args.replaces} is not a live life line, so nothing was replaced.`,
+        ),
+      }
     },
   })
 
   return [
-    defineExtension({ name: MEMORY, tools: [declareEffect("read", recall), declareEffect("read", zoom)], sections: [section(MEMORY, () => MEMORY_RULE)] }),
-    defineExtension({ name: MEMORY_NOTE, tools: [declareEffect("write", note)], sections: [section(MEMORY_NOTE, () => noteRule(port.captures()))] }),
+    defineExtension({
+      name: MEMORY,
+      tools: [declareEffect("read", recall), declareEffect("read", zoom)],
+      sections: [section(MEMORY, () => MEMORY_RULE)],
+    }),
+    defineExtension({
+      name: MEMORY_NOTE,
+      tools: [declareEffect("write", note)],
+      sections: [section(MEMORY_NOTE, () => noteRule(port.captures()))],
+    }),
   ]
 }
 
@@ -82,7 +102,10 @@ export function parseZoomId(raw: string): { log: "life" | "chat"; id: string } |
 }
 
 export function memoryDelta(chat: string, life?: string): string {
-  const current = life === undefined ? "" : `life (current, replaces earlier life blocks):\n${escapeXml(life.trim()) || "(nothing yet)"}\n\n`
+  const current =
+    life === undefined
+      ? ""
+      : `life (current, replaces earlier life blocks):\n${escapeXml(life.trim()) || "(nothing yet)"}\n\n`
   return `<memory>\n${current}chat since your last turn:\n${escapeXml(chat.trim())}\n</memory>`
 }
 

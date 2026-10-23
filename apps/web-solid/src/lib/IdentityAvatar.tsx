@@ -50,17 +50,28 @@ function cutout(spots: readonly Spot[], index: number): Record<string, string> {
     })
   if (!holes.length) return {}
   const mask = holes.join(", ")
-  return { "mask-image": mask, "-webkit-mask-image": mask, "mask-composite": "intersect", "-webkit-mask-composite": "source-in" }
+  return {
+    "mask-image": mask,
+    "-webkit-mask-image": mask,
+    "mask-composite": "intersect",
+    "-webkit-mask-composite": "source-in",
+  }
 }
 
 export function ChatAvatar(props: { faces: readonly string[]; size?: number; class?: string }) {
   const layout = () => LAYOUT[Math.min(props.faces.length, 3)]
   return (
-    <Show when={layout()} fallback={<IdentityAvatar seed={props.faces[0] ?? ""} size={props.size} class={props.class} />}>
+    <Show
+      when={layout()}
+      fallback={<IdentityAvatar seed={props.faces[0] ?? ""} size={props.size} class={props.class} />}
+    >
       {(spots) => (
         <span
           class={`relative inline-block shrink-0 align-middle leading-none ${props.class ?? ""}`}
-          style={{ width: props.size ? `${props.size}px` : undefined, height: props.size ? `${props.size}px` : undefined }}
+          style={{
+            width: props.size ? `${props.size}px` : undefined,
+            height: props.size ? `${props.size}px` : undefined,
+          }}
           data-component="chat-avatar-stack"
           data-faces={props.faces.length}
           aria-hidden="true"

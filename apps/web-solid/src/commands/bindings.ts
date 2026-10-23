@@ -8,7 +8,11 @@ export function parseBindings(text: string | null): Bindings {
   try {
     const value: unknown = JSON.parse(text ?? "{}")
     if (!value || typeof value !== "object" || Array.isArray(value)) return {}
-    return Object.fromEntries(Object.entries(value).filter((e): e is [string, string | null] => e[1] === null || (typeof e[1] === "string" && e[1] !== "")))
+    return Object.fromEntries(
+      Object.entries(value).filter(
+        (e): e is [string, string | null] => e[1] === null || (typeof e[1] === "string" && e[1] !== ""),
+      ),
+    )
   } catch {
     return {}
   }

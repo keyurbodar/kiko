@@ -38,7 +38,10 @@ export class JournalStorage extends MemoryStorage {
   private pendingBytes = 0
   private readonly settlements = new Map<SubmissionId, Seq>()
 
-  private constructor(private readonly durable: DurableObjectStorage, private readonly key: string) {
+  private constructor(
+    private readonly durable: DurableObjectStorage,
+    private readonly key: string,
+  ) {
     super()
     let leases = idLeases.get(durable)
     if (!leases) {
@@ -47,7 +50,9 @@ export class JournalStorage extends MemoryStorage {
     }
     let lease = leases.get(key)
     if (!lease) {
-      const end = durable.sql.exec<{ next_id: number }>("SELECT next_id FROM journal_ids WHERE agent = ?", key).toArray()[0]?.next_id ?? 2
+      const end =
+        durable.sql.exec<{ next_id: number }>("SELECT next_id FROM journal_ids WHERE agent = ?", key).toArray()[0]
+          ?.next_id ?? 2
       lease = { next: end, end }
       leases.set(key, lease)
     }
@@ -64,7 +69,8 @@ export class JournalStorage extends MemoryStorage {
       const bytes = new Uint8Array(first.bytes)
       let offset = 0
       for (const [part, row] of group.entries()) {
-        if (row.part !== part || row.parts !== first.parts || row.bytes !== first.bytes) throw new Error("Invalid journal parts")
+        if (row.part !== part || row.parts !== first.parts || row.bytes !== first.bytes)
+          throw new Error("Invalid journal parts")
         const chunk = new Uint8Array(row.data)
         bytes.set(chunk, offset)
         offset += chunk.length
@@ -81,7 +87,10 @@ export class JournalStorage extends MemoryStorage {
       }
       group = []
     }
-    for (const row of storage.sql.exec<Row>("SELECT seq, part, parts, bytes, data FROM journal WHERE agent = ? ORDER BY seq, part", key)) {
+    for (const row of storage.sql.exec<Row>(
+      "SELECT seq, part, parts, bytes, data FROM journal WHERE agent = ? ORDER BY seq, part",
+      key,
+    )) {
       if (group[0] && group[0].seq !== row.seq) replay()
       group.push(row)
     }
@@ -100,8 +109,31 @@ export class JournalStorage extends MemoryStorage {
       if (!checkpoint) return
       const { entry, submission, seq } = checkpoint
       const writes: StorageWrite[] = [
-        { type: "entry", value: { id: entry.id, conversationId: entry.conversationId, kind: "kiko.input", data: { humanDeliveredSeq: entry.data && typeof entry.data === "object" && !Array.isArray(entry.data) ? entry.data.humanDeliveredSeq ?? 0 : 0 } } },
-        { type: "submission", value: { id: submission.id, conversationId: submission.conversationId, type: "input", status: "unanswered", entry: entry.id, reason: "journal reset checkpoint" } },
+        {
+          type: "entry",
+          value: {
+            id: entry.id,
+            conversationId: entry.conversationId,
+            kind: "kiko.input",
+            data: {
+              humanDeliveredSeq:
+                entry.data && typeof entry.data === "object" && !Array.isArray(entry.data)
+                  ? (entry.data.humanDeliveredSeq ?? 0)
+                  : 0,
+            },
+          },
+        },
+        {
+          type: "submission",
+          value: {
+            id: submission.id,
+            conversationId: submission.conversationId,
+            type: "input",
+            status: "unanswered",
+            entry: entry.id,
+            reason: "journal reset checkpoint",
+          },
+        },
       ]
       const journal = new JournalStorage(storage, key)
       journal.append({ seq, commits: [{ seq, writes }] })
@@ -115,9 +147,11 @@ export class JournalStorage extends MemoryStorage {
       const envelope = { seq, writes: prepared.writes }
       this.pending.push(envelope)
       this.pendingBytes += encoder.encode(JSON.stringify(envelope)).length
-      const boundary = prepared.writes.some((write) =>
-        write.type === "entry" && write.value.model?.some((message) => message.role === "assistant") ||
-        write.type === "submission" && (write.value.status === "done" || write.value.status === "unanswered"))
+      const boundary = prepared.writes.some(
+        (write) =>
+          (write.type === "entry" && write.value.model?.some((message) => message.role === "assistant")) ||
+          (write.type === "submission" && (write.value.status === "done" || write.value.status === "unanswered")),
+      )
       if (boundary || this.pendingBytes > BATCH_BYTES) this.flush()
       this.observeIds(prepared.writes, prepared.seq)
       return seq
@@ -129,11 +163,18 @@ export class JournalStorage extends MemoryStorage {
       if (this.finished) throw new Error("Storage is closed")
       if (this.ids.next >= this.ids.end) {
         this.durable.transactionSync(() => {
-          const persisted = this.durable.sql.exec<{ next_id: number }>("SELECT next_id FROM journal_ids WHERE agent = ?", this.key).toArray()[0]?.next_id ?? 2
+          const persisted =
+            this.durable.sql
+              .exec<{ next_id: number }>("SELECT next_id FROM journal_ids WHERE agent = ?", this.key)
+              .toArray()[0]?.next_id ?? 2
           const start = Math.max(this.ids.next, persisted)
           if (!Number.isSafeInteger(start)) throw new Error("ID space is exhausted")
           const end = Math.min(start + ID_RANGE, Number.MAX_SAFE_INTEGER + 1)
-          this.durable.sql.exec("INSERT INTO journal_ids (agent, next_id) VALUES (?, ?) ON CONFLICT(agent) DO UPDATE SET next_id = excluded.next_id", this.key, end)
+          this.durable.sql.exec(
+            "INSERT INTO journal_ids (agent, next_id) VALUES (?, ?) ON CONFLICT(agent) DO UPDATE SET next_id = excluded.next_id",
+            this.key,
+            end,
+          )
           this.ids.next = start
           this.ids.end = end
         })
@@ -159,23 +200,42 @@ export class JournalStorage extends MemoryStorage {
     this.pendingBytes = 0
   }
 
-  settlement(id: SubmissionId): Seq | undefined { return this.settlements.get(id) }
+  settlement(id: SubmissionId): Seq | undefined {
+    return this.settlements.get(id)
+  }
 
   private observeIds(writes: readonly StorageWrite[], seq: Seq): void {
     for (const write of writes) {
       if (write.type === "entry" && write.value.kind === "kiko.input") {
         const data = write.value.data
-        if (data && typeof data === "object" && !Array.isArray(data) && typeof data.humanDeliveredSeq === "number" && Number.isSafeInteger(data.humanDeliveredSeq) && data.humanDeliveredSeq >= this.humanDeliveredSeq) {
+        if (
+          data &&
+          typeof data === "object" &&
+          !Array.isArray(data) &&
+          typeof data.humanDeliveredSeq === "number" &&
+          Number.isSafeInteger(data.humanDeliveredSeq) &&
+          data.humanDeliveredSeq >= this.humanDeliveredSeq
+        ) {
           this.humanDeliveredSeq = data.humanDeliveredSeq
           this.input = write.value
         }
       }
-      if (write.type === "submission" && write.value.type === "input" && this.input && write.value.entry === this.input.id) {
+      if (
+        write.type === "submission" &&
+        write.value.type === "input" &&
+        this.input &&
+        write.value.entry === this.input.id
+      ) {
         this.checkpoint = { entry: this.input, submission: write.value, seq }
       }
-      if (write.type === "submission" && (write.value.status === "done" || write.value.status === "unanswered")) this.settlements.set(write.value.id, seq)
-      const id = write.type === "document.create" || write.type === "document.copy" ? write.record.id
-        : write.type === "document.change" || write.type === "document.retire" ? write.id : write.value.id
+      if (write.type === "submission" && (write.value.status === "done" || write.value.status === "unanswered"))
+        this.settlements.set(write.value.id, seq)
+      const id =
+        write.type === "document.create" || write.type === "document.copy"
+          ? write.record.id
+          : write.type === "document.change" || write.type === "document.retire"
+            ? write.id
+            : write.value.id
       this.ids.next = Math.max(this.ids.next, id + 1)
     }
   }
@@ -191,12 +251,18 @@ export class JournalStorage extends MemoryStorage {
     const parts = Math.ceil(bytes.length / PART_BYTES)
     this.durable.transactionSync(() => {
       for (let part = 0; part < parts; part++) {
-        this.durable.sql.exec(
-          "INSERT INTO journal (agent, seq, part, parts, bytes, data) VALUES (?, ?, ?, ?, ?, ?)",
-          this.key, envelope.seq, part, parts, bytes.length, bytes.slice(part * PART_BYTES, (part + 1) * PART_BYTES),
-        ).toArray()
+        this.durable.sql
+          .exec(
+            "INSERT INTO journal (agent, seq, part, parts, bytes, data) VALUES (?, ?, ?, ?, ?, ?)",
+            this.key,
+            envelope.seq,
+            part,
+            parts,
+            bytes.length,
+            bytes.slice(part * PART_BYTES, (part + 1) * PART_BYTES),
+          )
+          .toArray()
       }
     })
   }
-
 }

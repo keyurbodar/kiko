@@ -3,18 +3,26 @@
   --bubble-joint: 4px;
 }
 
-[data-slot="bubble"][data-align="start"]:is([data-position="first"], [data-position="middle"]):not([data-variant="ghost"]) > [data-slot="bubble-content"] {
+[data-slot="bubble"][data-align="start"]:is([data-position="first"], [data-position="middle"]):not(
+    [data-variant="ghost"]
+  )
+  > [data-slot="bubble-content"] {
   border-end-start-radius: var(--bubble-joint);
 }
 
-[data-slot="bubble"][data-align="start"]:is([data-position="middle"], [data-position="last"]):not([data-variant="ghost"]) > [data-slot="bubble-content"] {
+[data-slot="bubble"][data-align="start"]:is([data-position="middle"], [data-position="last"]):not(
+    [data-variant="ghost"]
+  )
+  > [data-slot="bubble-content"] {
   border-start-start-radius: var(--bubble-joint);
 }
 
-[data-slot="bubble"][data-align="end"]:is([data-position="first"], [data-position="middle"]):not([data-variant="ghost"]) > [data-slot="bubble-content"] {
+[data-slot="bubble"][data-align="end"]:is([data-position="first"], [data-position="middle"]):not([data-variant="ghost"])
+  > [data-slot="bubble-content"] {
   border-end-end-radius: var(--bubble-joint);
 }
 
-[data-slot="bubble"][data-align="end"]:is([data-position="middle"], [data-position="last"]):not([data-variant="ghost"]) > [data-slot="bubble-content"] {
+[data-slot="bubble"][data-align="end"]:is([data-position="middle"], [data-position="last"]):not([data-variant="ghost"])
+  > [data-slot="bubble-content"] {
   border-start-end-radius: var(--bubble-joint);
 }

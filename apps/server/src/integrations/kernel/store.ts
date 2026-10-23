@@ -42,8 +42,7 @@ export class KernelStore {
   constructor(
     private readonly sql: SqlStorage,
     private readonly secrets: () => { keyring: Keyring; userId: string },
-  ) {
-  }
+  ) {}
 
   connected(): boolean {
     return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM kernel WHERE name = 'key'").one().n > 0
@@ -52,7 +51,11 @@ export class KernelStore {
   async key(): Promise<string | undefined> {
     const row = this.sql.exec<Sealed>("SELECT kek_version, iv, ciphertext FROM kernel WHERE name = 'key'").toArray()[0]
     if (!row) return undefined
-    return open(this.secrets().keyring, this.secrets().userId, KEY_AAD, { kekVersion: row.kek_version, iv: new Uint8Array(row.iv), ciphertext: new Uint8Array(row.ciphertext) })
+    return open(this.secrets().keyring, this.secrets().userId, KEY_AAD, {
+      kekVersion: row.kek_version,
+      iv: new Uint8Array(row.iv),
+      ciphertext: new Uint8Array(row.ciphertext),
+    })
   }
 
   async putKey(key: string, generation = this.generation): Promise<void> {
@@ -93,7 +96,11 @@ export class KernelStore {
   setControl(control: Control | undefined): void {
     if (!control) return void this.sql.exec("DELETE FROM kernel WHERE name = 'control'")
     if (!this.connected()) return
-    this.sql.exec("INSERT OR REPLACE INTO kernel (name, value, updated_at) VALUES ('control', ?, ?)", JSON.stringify(control), Date.now())
+    this.sql.exec(
+      "INSERT OR REPLACE INTO kernel (name, value, updated_at) VALUES ('control', ?, ?)",
+      JSON.stringify(control),
+      Date.now(),
+    )
   }
 
   private flag(name: string): boolean {
@@ -124,7 +131,11 @@ export class KernelStore {
   async urls(): Promise<LeaseUrls | undefined> {
     const r = this.sql.exec<Sealed>("SELECT kek_version, iv, ciphertext FROM kernel_lease WHERE id = 1").toArray()[0]
     if (!r) return undefined
-    const text = await open(this.secrets().keyring, this.secrets().userId, LEASE_AAD, { kekVersion: r.kek_version, iv: new Uint8Array(r.iv), ciphertext: new Uint8Array(r.ciphertext) })
+    const text = await open(this.secrets().keyring, this.secrets().userId, LEASE_AAD, {
+      kekVersion: r.kek_version,
+      iv: new Uint8Array(r.iv),
+      ciphertext: new Uint8Array(r.ciphertext),
+    })
     return JSON.parse(text) as LeaseUrls
   }
 
@@ -157,7 +168,11 @@ export class KernelStore {
       ["dead", flag(patch.dead)],
     ]
     const set = columns.filter((c): c is [string, SqlStorageValue] => c[1] !== undefined)
-    if (set.length) this.sql.exec(`UPDATE kernel_lease SET ${set.map(([c]) => `${c} = ?`).join(", ")} WHERE id = 1`, ...set.map(([, v]) => v))
+    if (set.length)
+      this.sql.exec(
+        `UPDATE kernel_lease SET ${set.map(([c]) => `${c} = ?`).join(", ")} WHERE id = 1`,
+        ...set.map(([, v]) => v),
+      )
   }
 
   deleteLease(): void {

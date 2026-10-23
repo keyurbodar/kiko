@@ -37,12 +37,17 @@ async function save(patch: Partial<Settings>): Promise<void> {
   const id = ++counter
   for (const k of Object.keys(patch)) latest[k as keyof Settings] = id
   setSettings({ ...before, ...patch })
-  const ok = await apiFetch("/api/settings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) })
+  const ok = await apiFetch("/api/settings", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(patch),
+  })
     .then((r) => r.ok)
     .catch(() => false)
   if (!ok) {
     const mine = Object.keys(patch).filter((k) => latest[k as keyof Settings] === id)
-    if (mine.length) setSettings((now) => ({ ...now, ...Object.fromEntries(mine.map((k) => [k, before[k as keyof Settings]])) }))
+    if (mine.length)
+      setSettings((now) => ({ ...now, ...Object.fromEntries(mine.map((k) => [k, before[k as keyof Settings]])) }))
     showToastV2({ title: "Could not save that setting", variant: "error" })
   }
 }
@@ -57,9 +62,9 @@ export default function InitiativePage() {
   })
   return (
     <div class="flex flex-col gap-8" data-component="initiative-settings">
-        <Group title="Agents">
-          <Row label="Initiative" id="initiative" description={HELP[settings().initiative]}>
-            <Show when={loaded()} fallback={<Skeleton class="h-7 w-72" />}>
+      <Group title="Agents">
+        <Row label="Initiative" id="initiative" description={HELP[settings().initiative]}>
+          <Show when={loaded()} fallback={<Skeleton class="h-7 w-72" />}>
             <Segmented<Level>
               label="Initiative"
               value={settings().initiative}
@@ -71,10 +76,14 @@ export default function InitiativePage() {
               ]}
               onChange={(initiative) => void save({ initiative })}
             />
-            </Show>
-          </Row>
-          <Row label="Memory capture" id="capture" description="Auto captures facts when you have saved a judge key. Off never captures.">
-            <Show when={loaded()} fallback={<Skeleton class="h-7 w-24" />}>
+          </Show>
+        </Row>
+        <Row
+          label="Memory capture"
+          id="capture"
+          description="Auto captures facts when you have saved a judge key. Off never captures."
+        >
+          <Show when={loaded()} fallback={<Skeleton class="h-7 w-24" />}>
             <Segmented<Capture>
               label="Memory capture"
               value={settings().capture}
@@ -84,9 +93,9 @@ export default function InitiativePage() {
               ]}
               onChange={(capture) => void save({ capture })}
             />
-            </Show>
-          </Row>
-        </Group>
+          </Show>
+        </Row>
+      </Group>
     </div>
   )
 }

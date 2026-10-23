@@ -1,5 +1,11 @@
 import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
-import { type FilesBinding, buildMetadata, destructiveMigration, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
+import {
+  type FilesBinding,
+  buildMetadata,
+  destructiveMigration,
+  selectMigrations,
+  uploadBody,
+} from "@kiko/durable/release-plan"
 import { type FetchLike, InstallError, cf, isBlocking, json } from "./cf"
 import { DEFAULT_SCRIPT, type Grant, type StoredGrant, boundSecrets, firstInstallSecrets, ownScriptName } from "./plan"
 
@@ -16,12 +22,21 @@ export type InstallDeps = {
   randomSecret: () => string
   sleep: (ms: number) => Promise<void>
   setMetadata: (sub: string, metadata: { backendUrl: string; accountId: string; version: string }) => Promise<void>
-  codes?: { take(code: string): Promise<OAuthTokens | undefined>; put(code: string, tokens: OAuthTokens): Promise<void> }
+  codes?: {
+    take(code: string): Promise<OAuthTokens | undefined>
+    put(code: string, tokens: OAuthTokens): Promise<void>
+  }
 }
 
 export type OAuthTokens = { accessToken: string; refreshToken?: string }
 
-export type InstallRequest = { clerkToken: string; sub: string; grant: Grant; accountId?: string; reset?: "delete-existing-data" }
+export type InstallRequest = {
+  clerkToken: string
+  sub: string
+  grant: Grant
+  accountId?: string
+  reset?: "delete-existing-data"
+}
 export type InstallResult = { backendUrl: string; version: string }
 
 type Script = { id: string; migration_tag?: string }
@@ -42,13 +57,17 @@ async function exchange(env: InstallEnv, grant: Extract<Grant, { kind: "oauth" }
     }),
   })
   const body = (await res.json().catch(() => null)) as { access_token?: string; refresh_token?: string } | null
-  if (!res.ok || !body?.access_token) throw new InstallError("oauth_failed", "Cloudflare did not accept the sign-in. Try connecting again.", 400)
+  if (!res.ok || !body?.access_token)
+    throw new InstallError("oauth_failed", "Cloudflare did not accept the sign-in. Try connecting again.", 400)
   return { accessToken: body.access_token, ...(body.refresh_token ? { refreshToken: body.refresh_token } : {}) }
 }
 
 export async function loadRelease(env: InstallEnv, f: FetchLike) {
   try {
-    return await loadVerifiedRelease({ baseUrl: env.RELEASE_BASE_URL, publicKey: env.RELEASE_PUBLIC_KEY, index: "latest-owner.json" }, (url) => f(url))
+    return await loadVerifiedRelease(
+      { baseUrl: env.RELEASE_BASE_URL, publicKey: env.RELEASE_PUBLIC_KEY, index: "latest-owner.json" },
+      (url) => f(url),
+    )
   } catch (e) {
     if (e instanceof ReleaseRefused) throw new InstallError(e.code, e.message, 502)
     throw e
@@ -75,10 +94,25 @@ async function ownedByCaller(f: FetchLike, backend: string, clerkToken: string):
     })
     if (res.status === 403 || res.status === 404) return false
     const body: unknown = await res.json()
-    if (res.ok && typeof body === "object" && body !== null && "token" in body && typeof body.token === "string" && "user" in body && typeof body.user === "object" && body.user !== null && "id" in body.user && body.user.id === "owner") return true
-  } catch {
-  }
-  throw new InstallError("owner_unverified", "Could not verify this backend's owner. Sign in again and retry when the backend is reachable.", 409)
+    if (
+      res.ok &&
+      typeof body === "object" &&
+      body !== null &&
+      "token" in body &&
+      typeof body.token === "string" &&
+      "user" in body &&
+      typeof body.user === "object" &&
+      body.user !== null &&
+      "id" in body.user &&
+      body.user.id === "owner"
+    )
+      return true
+  } catch {}
+  throw new InstallError(
+    "owner_unverified",
+    "Could not verify this backend's owner. Sign in again and retry when the backend is reachable.",
+    409,
+  )
 }
 
 function blockingOrNull(e: unknown): null {
@@ -86,22 +120,41 @@ function blockingOrNull(e: unknown): null {
   return null
 }
 
-const randomLabel = () => `kiko-${[...crypto.getRandomValues(new Uint8Array(4))].map((b) => b.toString(16).padStart(2, "0")).join("")}`
+const randomLabel = () =>
+  `kiko-${[...crypto.getRandomValues(new Uint8Array(4))].map((b) => b.toString(16).padStart(2, "0")).join("")}`
 
-async function ensureSubdomain(token: string, accountId: string, f: FetchLike, label = randomLabel): Promise<{ subdomain: string; made: boolean }> {
+async function ensureSubdomain(
+  token: string,
+  accountId: string,
+  f: FetchLike,
+  label = randomLabel,
+): Promise<{ subdomain: string; made: boolean }> {
   const path = `/accounts/${accountId}/workers/subdomain`
   const sub = await cf<{ subdomain?: string } | null>(token, path, {}, f).catch(blockingOrNull)
   if (sub?.subdomain) return { subdomain: sub.subdomain, made: false }
   for (let i = 0; i < 3; i++) {
-    const made = await cf<{ subdomain?: string } | null>(token, path, json({ subdomain: label() }, "PUT"), f).catch(blockingOrNull)
+    const made = await cf<{ subdomain?: string } | null>(token, path, json({ subdomain: label() }, "PUT"), f).catch(
+      blockingOrNull,
+    )
     if (made?.subdomain) return { subdomain: made.subdomain, made: true }
   }
-  throw new InstallError("no_subdomain", "Open Workers once in your Cloudflare dashboard to create your workers.dev address, then try again.", 409)
+  throw new InstallError(
+    "no_subdomain",
+    "Open Workers once in your Cloudflare dashboard to create your workers.dev address, then try again.",
+    409,
+  )
 }
 
 type Account = { id: string; name?: string }
 
-async function pickAccount(token: string, accounts: Account[], chosen: string | undefined, ours: string[], clerkToken: string, f: FetchLike): Promise<{ accountId: string; scripts: Script[] }> {
+async function pickAccount(
+  token: string,
+  accounts: Account[],
+  chosen: string | undefined,
+  ours: string[],
+  clerkToken: string,
+  f: FetchLike,
+): Promise<{ accountId: string; scripts: Script[] }> {
   let first: unknown = null
   const usable: { account: Account; scripts: Script[] }[] = []
   for (const account of chosen ? accounts.filter((a) => a.id === chosen) : accounts) {
@@ -117,12 +170,28 @@ async function pickAccount(token: string, accounts: Account[], chosen: string | 
   for (const name of [...ours, DEFAULT_SCRIPT]) {
     for (const u of usable) {
       if (!u.scripts.some((s) => s.id === name)) continue
-      const address = await cf<{ subdomain?: string } | null>(token, `/accounts/${u.account.id}/workers/subdomain`, {}, f)
-      if (address?.subdomain && await ownedByCaller(f, `https://${name}.${address.subdomain}.workers.dev`, clerkToken)) return pick(u)
+      const address = await cf<{ subdomain?: string } | null>(
+        token,
+        `/accounts/${u.account.id}/workers/subdomain`,
+        {},
+        f,
+      )
+      if (
+        address?.subdomain &&
+        (await ownedByCaller(f, `https://${name}.${address.subdomain}.workers.dev`, clerkToken))
+      )
+        return pick(u)
     }
   }
   if (usable.length > 1) {
-    throw new InstallError("choose_account", "This sign-in can use more than one Cloudflare account. Pick the one Kiko goes in.", 409, [], undefined, usable.map((u) => ({ id: u.account.id, name: u.account.name ?? u.account.id })))
+    throw new InstallError(
+      "choose_account",
+      "This sign-in can use more than one Cloudflare account. Pick the one Kiko goes in.",
+      409,
+      [],
+      undefined,
+      usable.map((u) => ({ id: u.account.id, name: u.account.name ?? u.account.id })),
+    )
   }
   throw first ?? new InstallError("no_account", "No Cloudflare account was found for this sign-in.", 400)
 }
@@ -152,10 +221,18 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   let token: string
   let oauth: { code: string; tokens: OAuthTokens } | null = null
   if (req.grant.kind === "oauth") {
-    oauth = { code: req.grant.code, tokens: (await deps.codes?.take(req.grant.code)) ?? (await exchange(env, req.grant, f)) }
+    oauth = {
+      code: req.grant.code,
+      tokens: (await deps.codes?.take(req.grant.code)) ?? (await exchange(env, req.grant, f)),
+    }
     const { tokens } = oauth
     token = tokens.accessToken
-    stored = { kind: "oauth", clientId: env.CF_OAUTH_CLIENT_ID, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }
+    stored = {
+      kind: "oauth",
+      clientId: env.CF_OAUTH_CLIENT_ID,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    }
   } else {
     token = req.grant.token
     stored = { kind: "token", token }
@@ -163,7 +240,13 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
 
   const accounts = await cf<Account[]>(token, "/accounts", {}, f).catch((e: unknown) => {
     if (req.grant.kind === "oauth" && e instanceof InstallError && e.code === "bad_token") {
-      throw new InstallError("oauth_failed", "Cloudflare did not accept the sign-in. Try connecting again.", 400, e.cfCodes, e.detail)
+      throw new InstallError(
+        "oauth_failed",
+        "Cloudflare did not accept the sign-in. Try connecting again.",
+        400,
+        e.cfCodes,
+        e.detail,
+      )
     }
     throw e
   })
@@ -172,8 +255,16 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   }
   const ours = await ownScriptName(req.sub, 32)
   const legacy = await ownScriptName(req.sub)
-  const { accountId, scripts } = await pickAccount(token, accounts, req.accountId, [ours, legacy], req.clerkToken, f).catch(async (e: unknown) => {
-    if (oauth && e instanceof InstallError && e.code === "choose_account") await deps.codes?.put(oauth.code, oauth.tokens)
+  const { accountId, scripts } = await pickAccount(
+    token,
+    accounts,
+    req.accountId,
+    [ours, legacy],
+    req.clerkToken,
+    f,
+  ).catch(async (e: unknown) => {
+    if (oauth && e instanceof InstallError && e.code === "choose_account")
+      await deps.codes?.put(oauth.code, oauth.tokens)
     throw e
   })
 
@@ -184,13 +275,18 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   const findScriptName = async () => {
     let name: string | undefined
     for (const candidate of [ours, legacy, DEFAULT_SCRIPT]) {
-      if (byName.has(candidate) && await ownedByCaller(f, host(candidate), req.clerkToken)) {
+      if (byName.has(candidate) && (await ownedByCaller(f, host(candidate), req.clerkToken))) {
         name = candidate
         break
       }
     }
     if (!name) {
-      if (byName.has(ours)) throw new InstallError("owner_conflict", "The owner-specific Worker name is already in use. No backend was changed.", 409)
+      if (byName.has(ours))
+        throw new InstallError(
+          "owner_conflict",
+          "The owner-specific Worker name is already in use. No backend was changed.",
+          409,
+        )
       name = ours
     }
     return name
@@ -201,23 +297,69 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
 
   const { manifest, files } = await loadRelease(env, f)
   const grant: StoredGrant = { ...stored, accountId, scriptName: name }
-  if (existing && !existing.migration_tag) throw new InstallError("migration_unknown", "This backend has no migration tag. Nothing was changed. Export its data and inspect it before replacing it.", 409)
+  if (existing && !existing.migration_tag)
+    throw new InstallError(
+      "migration_unknown",
+      "This backend has no migration tag. Nothing was changed. Export its data and inspect it before replacing it.",
+      409,
+    )
   let migrations: ReturnType<typeof selectMigrations>
   try {
     migrations = selectMigrations(manifest.migrations, existing ? (existing.migration_tag ?? null) : null)
   } catch (error) {
-    throw new InstallError("migration_unknown", error instanceof Error ? error.message : "This release does not know the backend's migration tag. Nothing was changed.", 409)
+    throw new InstallError(
+      "migration_unknown",
+      error instanceof Error
+        ? error.message
+        : "This release does not know the backend's migration tag. Nothing was changed.",
+      409,
+    )
   }
   if (existing && destructiveMigration(migrations) && req.reset !== "delete-existing-data") {
     if (oauth) await deps.codes?.put(oauth.code, oauth.tokens)
-    throw new InstallError("reset_required", "This upgrade permanently deletes all existing chats, messages, agents, memory, routines, provider keys and built-in file bytes. R2 file bytes remain, but their old indexes are deleted. Cloudflare Worker secrets remain. Returning to an older release will not restore this data. Export anything you need before confirming a fresh start.", 409)
+    throw new InstallError(
+      "reset_required",
+      "This upgrade permanently deletes all existing chats, messages, agents, memory, routines, provider keys and built-in file bytes. R2 file bytes remain, but their old indexes are deleted. Cloudflare Worker secrets remain. Returning to an older release will not restore this data. Export anything you need before confirming a fresh start.",
+      409,
+    )
   }
-  const inheritedR2 = existing ? (await cf<{ bindings?: { name: string; type: string }[] }>(token, `/accounts/${accountId}/workers/scripts/${name}/settings`, {}, f)).bindings?.filter((binding) => binding.type === "r2_bucket").map((binding) => binding.name) ?? [] : []
-  const bound = { ownerId: req.sub, clerkJwtKey: env.CLERK_JWT_KEY, trustedOrigins: env.FRONT_DOOR_ORIGIN, releaseBase: env.RELEASE_BASE_URL, grant }
+  const inheritedR2 = existing
+    ? ((
+        await cf<{ bindings?: { name: string; type: string }[] }>(
+          token,
+          `/accounts/${accountId}/workers/scripts/${name}/settings`,
+          {},
+          f,
+        )
+      ).bindings
+        ?.filter((binding) => binding.type === "r2_bucket")
+        .map((binding) => binding.name) ?? [])
+    : []
+  const bound = {
+    ownerId: req.sub,
+    clerkJwtKey: env.CLERK_JWT_KEY,
+    trustedOrigins: env.FRONT_DOOR_ORIGIN,
+    releaseBase: env.RELEASE_BASE_URL,
+    grant,
+  }
   const secrets = existing ? null : firstInstallSecrets({ ...bound, random: deps.randomSecret })
-  await cf(token, `/accounts/${accountId}/workers/scripts/${name}`, { method: "PUT", body: uploadBody(manifest, files, buildMetadata(manifest, migrations, secrets, fileStore, inheritedR2)) }, f).catch((e: unknown) => {
+  await cf(
+    token,
+    `/accounts/${accountId}/workers/scripts/${name}`,
+    {
+      method: "PUT",
+      body: uploadBody(manifest, files, buildMetadata(manifest, migrations, secrets, fileStore, inheritedR2)),
+    },
+    f,
+  ).catch((e: unknown) => {
     if (!existing && e instanceof InstallError && e.code === "no_permission") {
-      throw new InstallError("cannot_create", "This sign-in may change Workers but not create one. Give the token Workers Admin, not Workers Editor, then try again.", 403, e.cfCodes, e.detail)
+      throw new InstallError(
+        "cannot_create",
+        "This sign-in may change Workers but not create one. Give the token Workers Admin, not Workers Editor, then try again.",
+        403,
+        e.cfCodes,
+        e.detail,
+      )
     }
     throw e
   })
@@ -228,12 +370,22 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
     }
   }
 
-  await cf(token, `/accounts/${accountId}/workers/scripts/${name}/subdomain`, json({ enabled: true, previews_enabled: false }), f)
+  await cf(
+    token,
+    `/accounts/${accountId}/workers/scripts/${name}/subdomain`,
+    json({ enabled: true, previews_enabled: false }),
+    f,
+  )
 
   const backendUrl = host(name)
   let waited = 0
   while (!(await isKiko(f, `${backendUrl}/api/version`))) {
-    if (waited >= POLL_LIMIT_MS) throw new InstallError("not_ready", "The backend was installed but did not answer in time. Try again in a minute.", 504)
+    if (waited >= POLL_LIMIT_MS)
+      throw new InstallError(
+        "not_ready",
+        "The backend was installed but did not answer in time. Try again in a minute.",
+        504,
+      )
     await deps.sleep(POLL_MS)
     waited += POLL_MS
   }

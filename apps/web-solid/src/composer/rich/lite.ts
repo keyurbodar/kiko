@@ -43,7 +43,11 @@ export function mountLite(input: {
   }
   const sync = () => {
     const value = text()
-    controller.onInput(value, [{ type: "text", content: value, start: 0, end: value.length }, ...controller.attachments()], cursor())
+    controller.onInput(
+      value,
+      [{ type: "text", content: value, start: 0, end: value.length }, ...controller.attachments()],
+      cursor(),
+    )
     input.onEdit()
   }
 
@@ -64,18 +68,18 @@ export function mountLite(input: {
   })
 
   const disposeEffects = createRoot((dispose) => {
-  createEffect(() => {
-    const editable = !input.disabled()
-    dom.contentEditable = editable ? "plaintext-only" : "false"
-    if (editable && dom.contentEditable !== "plaintext-only") dom.contentEditable = "true"
-  })
-  createEffect(() => {
-    const value = markdown()
-    if (value === text()) return
-    dom.textContent = value
-    input.onEdit()
-  })
-  return dispose
+    createEffect(() => {
+      const editable = !input.disabled()
+      dom.contentEditable = editable ? "plaintext-only" : "false"
+      if (editable && dom.contentEditable !== "plaintext-only") dom.contentEditable = "true"
+    })
+    createEffect(() => {
+      const value = markdown()
+      if (value === text()) return
+      dom.textContent = value
+      input.onEdit()
+    })
+    return dispose
   })
 
   controller.setEditor(dom)

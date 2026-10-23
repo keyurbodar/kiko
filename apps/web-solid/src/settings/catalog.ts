@@ -10,14 +10,17 @@ let watching: (() => void) | undefined
 export async function prefetchCatalog(): Promise<void> {
   try {
     await loadCatalog()
-  } catch {
-  }
+  } catch {}
 }
 
 export function loadCatalog(): Promise<Catalog> {
-  watching ??= onChanged("models", () => {
-    cached = undefined
-  }, 0)
+  watching ??= onChanged(
+    "models",
+    () => {
+      cached = undefined
+    },
+    0,
+  )
   cached ??= (async () => {
     const response = await apiFetch("/api/models")
     if (!response.ok) throw new Error("catalog request failed")

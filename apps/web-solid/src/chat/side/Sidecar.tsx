@@ -1,7 +1,17 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CloseIcon, FileTextIcon, FolderOpenIcon, type Glyph, MemoryIcon, PlusIcon, RepeatIcon, TasksIcon, WorkerIcon } from "@kiko/ui/icons"
+import {
+  CloseIcon,
+  FileTextIcon,
+  FolderOpenIcon,
+  type Glyph,
+  MemoryIcon,
+  PlusIcon,
+  RepeatIcon,
+  TasksIcon,
+  WorkerIcon,
+} from "@kiko/ui/icons"
 import { createEffect, createSignal, For, Match, on, onCleanup, onMount, Show, Switch } from "solid-js"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { FileSurface, FilesTree } from "../../files/pane"
@@ -56,12 +66,24 @@ function labelOf(surface: Surface): string {
   return LAUNCHER.find((item) => item.kind === surface.kind)?.label ?? ""
 }
 
-function Tab(props: { chatId: string; surface: Surface; index: number; count: number; active: boolean; tabbable: boolean }) {
+function Tab(props: {
+  chatId: string
+  surface: Surface
+  index: number
+  count: number
+  active: boolean
+  tabbable: boolean
+}) {
   let el: HTMLDivElement | undefined
   const label = () => labelOf(props.surface)
   const glyph = ICON[props.surface.kind]
   const activate = () => activateSurface(props.chatId, props.surface.id)
-  createEffect(on(() => props.active, (active) => active && el?.scrollIntoView({ block: "nearest", inline: "nearest" })))
+  createEffect(
+    on(
+      () => props.active,
+      (active) => active && el?.scrollIntoView({ block: "nearest", inline: "nearest" }),
+    ),
+  )
   return (
     <MenuV2.Context gutter={8}>
       <MenuV2.Context.Trigger
@@ -73,7 +95,9 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
         aria-controls={panelId(props.surface)}
         tabIndex={props.tabbable ? 0 : -1}
         class={`group/tab flex h-6 min-w-0 max-w-36 shrink-0 snap-start cursor-pointer items-center gap-0.5 rounded-sm pr-2 pl-1.5 text-sm ${
-          props.active ? "bg-[var(--accent-strong)] text-foreground" : "text-muted-foreground hover:bg-[var(--accent)] hover:text-foreground"
+          props.active
+            ? "bg-[var(--accent-strong)] text-foreground"
+            : "text-muted-foreground hover:bg-[var(--accent)] hover:text-foreground"
         }`}
         title={props.surface.kind === "file" ? props.surface.path : undefined}
         data-component="sidecar-tab"
@@ -94,7 +118,6 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
           activate()
         }}
       >
-
         <button
           type="button"
           tabIndex={-1}
@@ -107,7 +130,10 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
           }}
         >
           <span class="relative flex size-3 items-center justify-center text-[10px] group-hover/tab:hidden group-focus-visible/close:hidden">
-            <Show when={props.surface.kind === "file" ? (props.surface as FileTab).path : null} fallback={<RemixIcon icon={glyph} size={12} class="shrink-0" />}>
+            <Show
+              when={props.surface.kind === "file" ? (props.surface as FileTab).path : null}
+              fallback={<RemixIcon icon={glyph} size={12} class="shrink-0" />}
+            >
               {(path) => <EntryIcon path={path()} />}
             </Show>
           </span>
@@ -116,12 +142,19 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
         <span class="min-w-0 truncate">{label()}</span>
       </MenuV2.Context.Trigger>
       <MenuV2.Context.Portal>
-        <MenuV2.Context.Content class="outline-none" data-component="sidecar-tab-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
+        <MenuV2.Context.Content
+          class="outline-none"
+          data-component="sidecar-tab-menu"
+          onCloseAutoFocus={(e: Event) => e.preventDefault()}
+        >
           <MenuV2.Item onSelect={() => closeSurface(props.chatId, props.surface.id)}>Close</MenuV2.Item>
           <MenuV2.Item disabled={props.count < 2} onSelect={() => closeOthers(props.chatId, props.surface.id)}>
             Close others
           </MenuV2.Item>
-          <MenuV2.Item disabled={props.index >= props.count - 1} onSelect={() => closeToRight(props.chatId, props.surface.id)}>
+          <MenuV2.Item
+            disabled={props.index >= props.count - 1}
+            onSelect={() => closeToRight(props.chatId, props.surface.id)}
+          >
             Close to the right
           </MenuV2.Item>
           <MenuV2.Separator />
@@ -149,7 +182,9 @@ function Launcher(props: { chatId: string }) {
               >
                 <RemixIcon icon={glyph} size={16} class="shrink-0 text-muted-foreground" />
                 <span class="min-w-0 flex-1 truncate">{entry.label}</span>
-                <kbd class="grid h-5 min-w-5 place-items-center rounded bg-control px-1 font-sans text-xs text-muted-foreground">{entry.key}</kbd>
+                <kbd class="grid h-5 min-w-5 place-items-center rounded bg-control px-1 font-sans text-xs text-muted-foreground">
+                  {entry.key}
+                </kbd>
               </button>
             )
           }}
@@ -201,7 +236,8 @@ function SurfaceBody(props: { chatId: string; surface: Surface; hidden: boolean 
     ),
   )
   onCleanup(() => observer?.disconnect())
-  const selfScrolling = props.surface.kind === "file" || props.surface.kind === "files" || props.surface.kind === "memory"
+  const selfScrolling =
+    props.surface.kind === "file" || props.surface.kind === "files" || props.surface.kind === "memory"
   return (
     <div
       ref={scroller}
@@ -237,7 +273,11 @@ function SurfaceBody(props: { chatId: string; surface: Surface; hidden: boolean 
           </div>
         </Match>
         <Match when={props.surface.kind === "agent"}>
-          <AgentPage slug={(props.surface as AgentTab).slug} chatId={props.chatId} onRemoved={() => closeSurface(props.chatId, props.surface.id)} />
+          <AgentPage
+            slug={(props.surface as AgentTab).slug}
+            chatId={props.chatId}
+            onRemoved={() => closeSurface(props.chatId, props.surface.id)}
+          />
         </Match>
       </Switch>
     </div>
@@ -253,7 +293,8 @@ export default function Sidecar(props: { chatId: string }) {
     const members = useApp.roomMembers()
     if (members.length === 0) return
     const here = new Set(members.map((m) => m.slug as string))
-    for (const surface of sidecarSurfaces(props.chatId)) if (surface.kind === "agent" && !here.has(surface.slug)) closeSurface(props.chatId, surface.id)
+    for (const surface of sidecarSurfaces(props.chatId))
+      if (surface.kind === "agent" && !here.has(surface.slug)) closeSurface(props.chatId, surface.id)
   })
 
   const onKey = (e: KeyboardEvent) => {
@@ -275,8 +316,19 @@ export default function Sidecar(props: { chatId: string }) {
     if (list.length === 0) return
     const focused = (e.target as Element).closest('[role="tab"]')?.id
     const from = list.findIndex((s) => tabId(s) === focused)
-    const at = from >= 0 ? from : Math.max(0, list.findIndex((s) => s.id === active()?.id))
-    const to = { ArrowRight: (at + 1) % list.length, ArrowLeft: (at - 1 + list.length) % list.length, Home: 0, End: list.length - 1 }[e.key]
+    const at =
+      from >= 0
+        ? from
+        : Math.max(
+            0,
+            list.findIndex((s) => s.id === active()?.id),
+          )
+    const to = {
+      ArrowRight: (at + 1) % list.length,
+      ArrowLeft: (at - 1 + list.length) % list.length,
+      Home: 0,
+      End: list.length - 1,
+    }[e.key]
     if (to === undefined) return
     e.preventDefault()
     activateSurface(props.chatId, list[to]!.id)
@@ -293,7 +345,9 @@ export default function Sidecar(props: { chatId: string }) {
   }
   onMount(() => {
     const observer = new ResizeObserver(() => {
-      strip?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" })
+      strip
+        ?.querySelector<HTMLElement>('[aria-selected="true"]')
+        ?.scrollIntoView({ block: "nearest", inline: "nearest" })
       measure()
     })
     if (strip) {
@@ -308,18 +362,26 @@ export default function Sidecar(props: { chatId: string }) {
     return `linear-gradient(to right, ${start ? "transparent, #000 20px" : "#000"}, ${end ? "#000 calc(100% - 20px), transparent" : "#000"})`
   }
 
-
   return (
-    <aside class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden" data-component="sidecar" aria-label="Chat sidecar">
+    <aside
+      class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden"
+      data-component="sidecar"
+      aria-label="Chat sidecar"
+    >
       <header class="flex h-[50px] shrink-0 items-center gap-1 pr-3 pl-2">
-
         <div
           ref={strip}
           class="flex min-w-0 snap-x snap-proximity items-center gap-1 overflow-x-auto scroll-px-2 [scrollbar-width:none]"
           style={{ "mask-image": mask() }}
           onScroll={measure}
         >
-          <div class="contents" role="tablist" aria-label="Open surfaces" aria-orientation="horizontal" onKeyDown={onTablistKey}>
+          <div
+            class="contents"
+            role="tablist"
+            aria-label="Open surfaces"
+            aria-orientation="horizontal"
+            onKeyDown={onTablistKey}
+          >
             <For each={surfaces()}>
               {(surface, i) => (
                 <Tab
@@ -335,26 +397,34 @@ export default function Sidecar(props: { chatId: string }) {
           </div>
         </div>
         <MenuV2 gutter={6} placement="bottom-end">
-            <TooltipV2 placement="bottom" openDelay={400} value="Open a surface">
-              <MenuV2.Trigger class={ICON_BUTTON} aria-label="Open a surface" data-action="open-launcher">
-                <RemixIcon icon={PlusIcon} size={14} />
-              </MenuV2.Trigger>
-            </TooltipV2>
-            <MenuV2.Portal>
-              <MenuV2.Content class="min-w-[220px] outline-none" data-component="sidecar-add-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
-                <For each={launcherEntries(group())}>
-                  {(entry) => {
-                    const glyph = ICON[entry.kind]
-                    return (
-                      <MenuV2.Item data-action={`open-${entry.kind}`} shortcut={entry.key} onSelect={() => openSurface(props.chatId, fixedSurface(entry.kind))}>
-                        <RemixIcon icon={glyph} size={16} class="shrink-0 text-muted-foreground" />
-                        <span class="min-w-0 flex-1 truncate">{entry.label}</span>
-                      </MenuV2.Item>
-                    )
-                  }}
-                </For>
-              </MenuV2.Content>
-            </MenuV2.Portal>
+          <TooltipV2 placement="bottom" openDelay={400} value="Open a surface">
+            <MenuV2.Trigger class={ICON_BUTTON} aria-label="Open a surface" data-action="open-launcher">
+              <RemixIcon icon={PlusIcon} size={14} />
+            </MenuV2.Trigger>
+          </TooltipV2>
+          <MenuV2.Portal>
+            <MenuV2.Content
+              class="min-w-[220px] outline-none"
+              data-component="sidecar-add-menu"
+              onCloseAutoFocus={(e: Event) => e.preventDefault()}
+            >
+              <For each={launcherEntries(group())}>
+                {(entry) => {
+                  const glyph = ICON[entry.kind]
+                  return (
+                    <MenuV2.Item
+                      data-action={`open-${entry.kind}`}
+                      shortcut={entry.key}
+                      onSelect={() => openSurface(props.chatId, fixedSurface(entry.kind))}
+                    >
+                      <RemixIcon icon={glyph} size={16} class="shrink-0 text-muted-foreground" />
+                      <span class="min-w-0 flex-1 truncate">{entry.label}</span>
+                    </MenuV2.Item>
+                  )
+                }}
+              </For>
+            </MenuV2.Content>
+          </MenuV2.Portal>
         </MenuV2>
       </header>
       <Show when={!active()}>

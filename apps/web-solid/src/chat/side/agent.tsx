@@ -31,10 +31,20 @@ export function AgentPage(props: { slug: string; chatId: string; onRemoved: () =
         <h2 class="font-display text-[15px] font-semibold text-foreground">{member()?.name ?? props.slug}</h2>
       </Profile>
       <Properties>
-        <Property label="Role" field="role">{member()?.lead ? "Lead" : "Agent"}</Property>
-        <Property label="Model" field="model">{picked()?.model.split("/").slice(1).join("/") ?? "None"}</Property>
-        {canReason(picked()?.thinkingLevels) && <Property label="Reasoning" field="thinking">{THINKING_LABELS[picked()!.thinking]}</Property>}
-        <Property label="Status" field="status">{sentence(status())}</Property>
+        <Property label="Role" field="role">
+          {member()?.lead ? "Lead" : "Agent"}
+        </Property>
+        <Property label="Model" field="model">
+          {picked()?.model.split("/").slice(1).join("/") ?? "None"}
+        </Property>
+        {canReason(picked()?.thinkingLevels) && (
+          <Property label="Reasoning" field="thinking">
+            {THINKING_LABELS[picked()!.thinking]}
+          </Property>
+        )}
+        <Property label="Status" field="status">
+          {sentence(status())}
+        </Property>
       </Properties>
       <div class="px-2 pb-4">
         <SoulCard slug={props.slug} />

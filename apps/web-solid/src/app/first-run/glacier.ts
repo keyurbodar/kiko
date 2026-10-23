@@ -26,7 +26,11 @@ export function mountGlacier(canvas: HTMLCanvasElement): () => void {
   gl.attachShader(program, vertex)
   gl.attachShader(program, pixel)
   gl.linkProgram(program)
-  if (!gl.getShaderParameter(vertex, gl.COMPILE_STATUS) || !gl.getShaderParameter(pixel, gl.COMPILE_STATUS) || !gl.getProgramParameter(program, gl.LINK_STATUS)) {
+  if (
+    !gl.getShaderParameter(vertex, gl.COMPILE_STATUS) ||
+    !gl.getShaderParameter(pixel, gl.COMPILE_STATUS) ||
+    !gl.getProgramParameter(program, gl.LINK_STATUS)
+  ) {
     release()
     return () => {}
   }

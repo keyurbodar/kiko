@@ -63,12 +63,7 @@ export function DateChip(props: {
         excludedElements={() => [trigger]}
         onDismiss={close}
       >
-        <div
-          class={cn(
-            "relative flex items-center justify-center",
-            open() ? "min-h-11 px-3 pt-2" : "min-h-6",
-          )}
-        >
+        <div class={cn("relative flex items-center justify-center", open() ? "min-h-11 px-3 pt-2" : "min-h-6")}>
           <button
             ref={(element) => {
               trigger = element
@@ -101,7 +96,18 @@ export function DateChip(props: {
         </div>
         <Show when={open()}>
           <Suspense fallback={<div class="h-[300px] w-full" />}>
-            <DateCalendar dayStart={props.dayStart} picked={picked()} setPicked={setPicked} month={month()} setMonth={setMonth} picking={picking()} setPicking={setPicking} close={close} onJumpToDay={props.onJumpToDay} hasDay={props.hasDay} />
+            <DateCalendar
+              dayStart={props.dayStart}
+              picked={picked()}
+              setPicked={setPicked}
+              month={month()}
+              setMonth={setMonth}
+              picking={picking()}
+              setPicking={setPicking}
+              close={close}
+              onJumpToDay={props.onJumpToDay}
+              hasDay={props.hasDay}
+            />
           </Suspense>
         </Show>
       </DismissableLayerV2>

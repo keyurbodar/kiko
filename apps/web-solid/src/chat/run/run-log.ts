@@ -1,9 +1,42 @@
 import type { RunStep, RunStepStatus, ToolKind } from "@kiko/protocol"
 
 export type StepIcon =
-  | "file-view" | "folder" | "file-add" | "edit" | "copy" | "trash" | "folder-add" | "move" | "terminal" | "link" | "globe" | "search"
-  | "cursor" | "eye" | "code" | "file-text" | "browser" | "monitor" | "chat" | "help" | "memory" | "notes" | "book" | "clock" | "tasks"
-  | "group" | "integrations" | "sparkles" | "scan" | "worker" | "stop" | "send" | "skills" | "wrench" | "alert-circle" | "app"
+  | "file-view"
+  | "folder"
+  | "file-add"
+  | "edit"
+  | "copy"
+  | "trash"
+  | "folder-add"
+  | "move"
+  | "terminal"
+  | "link"
+  | "globe"
+  | "search"
+  | "cursor"
+  | "eye"
+  | "code"
+  | "file-text"
+  | "browser"
+  | "monitor"
+  | "chat"
+  | "help"
+  | "memory"
+  | "notes"
+  | "book"
+  | "clock"
+  | "tasks"
+  | "group"
+  | "integrations"
+  | "sparkles"
+  | "scan"
+  | "worker"
+  | "stop"
+  | "send"
+  | "skills"
+  | "wrench"
+  | "alert-circle"
+  | "app"
 
 export const NAME_ICON: Record<string, StepIcon> = {
   read: "file-view",
@@ -68,7 +101,8 @@ const FOLDER_CALLS = new Set(["ls", "mkdir"])
 export function pathOf(step: Pick<RunStep, "name" | "label" | "note">): { path: string; folder: boolean } | null {
   const folder = FOLDER_CALLS.has(step.name)
   if (step.note || (!folder && !FILE_CALLS.has(step.name))) return null
-  const at = step.name === "cp" || step.name === "mv" ? step.label.lastIndexOf(" to /") + 4 : step.label.indexOf(" /") + 1
+  const at =
+    step.name === "cp" || step.name === "mv" ? step.label.lastIndexOf(" to /") + 4 : step.label.indexOf(" /") + 1
   if (at <= 0) return folder ? { path: "", folder } : null
   return { path: step.label.slice(at + 1), folder }
 }
@@ -84,11 +118,20 @@ const GROUPS: Record<ToolKind, { label: (count: number) => string; priority: num
   other: { label: (n) => `Used ${plural(n, "tool", "tools")}`, priority: 2 },
 }
 
-export function summarizeSteps(steps: readonly Pick<RunStep, "tool" | "status" | "note">[]): { summary: string; hasFailure: boolean; failed: number } {
+export function summarizeSteps(steps: readonly Pick<RunStep, "tool" | "status" | "note">[]): {
+  summary: string
+  hasFailure: boolean
+  failed: number
+} {
   const calls = steps.filter((step) => !step.note)
   const groups = new Map<ToolKind, number>()
   for (const step of calls) groups.set(step.tool, (groups.get(step.tool) ?? 0) + 1)
-  const all = [...groups].map(([tool, count], index) => ({ index, count, priority: GROUPS[tool].priority, label: GROUPS[tool].label(count) }))
+  const all = [...groups].map(([tool, count], index) => ({
+    index,
+    count,
+    priority: GROUPS[tool].priority,
+    label: GROUPS[tool].label(count),
+  }))
   const picked = [...all]
     .sort((a, b) => a.priority - b.priority || a.index - b.index)
     .slice(0, 2)
@@ -97,7 +140,8 @@ export function summarizeSteps(steps: readonly Pick<RunStep, "tool" | "status" |
   const rest = calls.length - picked.reduce((n, g) => n + g.count, 0)
   if (rest > 0) labels.push(`Performed ${plural(rest, "other action", "other actions")}`)
   const sentence = labels.map((label, i) => (i === 0 ? label : label.charAt(0).toLowerCase() + label.slice(1)))
-  const summary = sentence.length < 3 ? sentence.join(" and ") : `${sentence.slice(0, -1).join(", ")}, and ${sentence.at(-1)}`
+  const summary =
+    sentence.length < 3 ? sentence.join(" and ") : `${sentence.slice(0, -1).join(", ")}, and ${sentence.at(-1)}`
   const failed = steps.filter((s) => s.status === "failed").length
   return { summary, hasFailure: failed > 0, failed }
 }
@@ -183,7 +227,8 @@ export function formatClock(ms: number): string {
   return seconds < 60 ? `${seconds}s` : formatDuration(seconds * 1000)
 }
 
-export const startOf = (steps: readonly Pick<RunStep, "startedAt">[]): number | undefined => (steps.length ? Math.min(...steps.map((s) => s.startedAt)) : undefined)
+export const startOf = (steps: readonly Pick<RunStep, "startedAt">[]): number | undefined =>
+  steps.length ? Math.min(...steps.map((s) => s.startedAt)) : undefined
 
 export function totalDuration(steps: readonly Pick<RunStep, "startedAt" | "endedAt" | "status">[]): number | undefined {
   if (!steps.length || steps.some((s) => s.status === "running")) return undefined
@@ -206,7 +251,10 @@ function pruneSteps(steps: RunStep[]): RunStep[] {
   const newest = new Map<string, number>()
   for (const step of steps) newest.set(step.runId, Math.max(newest.get(step.runId) ?? 0, step.startedAt))
   const keep = new Set(
-    [...newest].sort((a, b) => b[1] - a[1]).slice(0, STEP_RUNS).map(([runId]) => runId),
+    [...newest]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, STEP_RUNS)
+      .map(([runId]) => runId),
   )
   const kept = steps.filter((step) => keep.has(step.runId))
   return kept.length === steps.length ? steps : kept
@@ -231,7 +279,9 @@ export function parseWindow(key: string): { slug: string; after: number } {
   return { slug: key.slice(0, at), after: Number(key.slice(at + 1)) }
 }
 
-export function stepWindows(messages: readonly { botId?: string; steps?: number; stepAfter?: number }[]): Map<string, StepWindow> {
+export function stepWindows(
+  messages: readonly { botId?: string; steps?: number; stepAfter?: number }[],
+): Map<string, StepWindow> {
   const out = new Map<string, StepWindow>()
   for (const m of messages) {
     if (!m.botId || !m.steps) continue
@@ -281,7 +331,8 @@ export function buildEntries(steps: readonly RunStep[], open: ReadonlySet<string
   return out
 }
 
-export const anyRunning = (steps: readonly Pick<RunStep, "status">[]): boolean => steps.some((s) => s.status === "running")
+export const anyRunning = (steps: readonly Pick<RunStep, "status">[]): boolean =>
+  steps.some((s) => s.status === "running")
 
 export type Placement = "right-start" | "left-start" | "bottom-start" | "top-start"
 

@@ -20,7 +20,7 @@ export function perRun<T>(read: () => Promise<T>, stamp?: () => number): () => P
 }
 
 export function selfExtension(fs: RoomFs, soul: SoulPort, stamp?: () => number): Extension {
-  const soulText = perRun(async () => ((await (soul.forPrompt ?? soul.get)()).body.trim() || undefined), stamp)
+  const soulText = perRun(async () => (await (soul.forPrompt ?? soul.get)()).body.trim() || undefined, stamp)
   const chatText = perRun(async () => {
     const found = await fs.stat(CHAT_PATH)
     if (!found.ok || found.value.kind !== "file") return undefined
@@ -30,6 +30,9 @@ export function selfExtension(fs: RoomFs, soul: SoulPort, stamp?: () => number):
   }, stamp)
   return defineExtension({
     name: SELF,
-    wraps: [wrapSection("soul", (slot) => ({ ...slot, render: soulText })), wrapSection("chat", (slot) => ({ ...slot, render: chatText }))],
+    wraps: [
+      wrapSection("soul", (slot) => ({ ...slot, render: soulText })),
+      wrapSection("chat", (slot) => ({ ...slot, render: chatText })),
+    ],
   })
 }
