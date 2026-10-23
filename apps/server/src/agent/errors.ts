@@ -21,11 +21,6 @@ export class BrowserError extends Schema.TaggedError<BrowserError>()("BrowserErr
   message: Schema.String,
 }) {}
 
-export class JournalRunMissing extends Schema.TaggedError<JournalRunMissing>()("JournalRunMissing", {
-  runId: Schema.String,
-  message: Schema.String,
-}) {}
-
 export class WorkerMissing extends Schema.TaggedError<WorkerMissing>()("WorkerMissing", {
   message: Schema.String,
 }) {}

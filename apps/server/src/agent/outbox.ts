@@ -17,7 +17,6 @@ import { retrying } from "./retry"
 import { type Assistant, ackOf, hasToolCall, noteOf, postOf } from "./pacing"
 import { scrubToolMarkup } from "./tool-markup"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
-import { JournalRunMissing } from "./errors"
 
 const context = BACKGROUND_CONTEXT
 const DRAFT_INTERVAL_MS = 300
@@ -326,7 +325,7 @@ export class Outbox {
       const input = last?.id ?? 0
       await this.start(liveId, input)
       const run = this.run
-      if (!run) throw new JournalRunMissing({ message: `no run after starting ${liveId}`, runId: liveId })
+      if (!run) throw new Error(`no run after starting ${liveId}`)
       run.quiet = last ? quietInput(last) : false
       for (const entry of entries) {
         if (entry.id > input) this.finishGeneration(run, entry)

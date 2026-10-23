@@ -22,18 +22,10 @@ export class IdSpaceExhausted extends Schema.TaggedError<IdSpaceExhausted>()("Id
   message: Schema.String,
 }) {}
 
-export class HarnessNotPaused extends Schema.TaggedError<HarnessNotPaused>()("HarnessNotPaused", {
-  message: Schema.String,
-}) {}
-
 export class InvocationBusy extends Schema.TaggedError<InvocationBusy>()("InvocationBusy", {
   message: Schema.String,
 }) {}
 
 export class WorkerMissing extends Schema.TaggedError<WorkerMissing>()("WorkerMissing", {
-  message: Schema.String,
-}) {}
-
-export class AdmissionRefused extends Schema.TaggedError<AdmissionRefused>()("AdmissionRefused", {
   message: Schema.String,
 }) {}

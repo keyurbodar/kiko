@@ -18,15 +18,6 @@ export class InboxFull extends Schema.TaggedError<InboxFull>()("InboxFull", {
   message: Schema.String,
 }) {}
 
-export class ReceiveError extends Schema.TaggedError<ReceiveError>()("ReceiveError", {
-  message: Schema.String,
-}) {}
-
-export class WorkspaceTaskError extends Schema.TaggedError<WorkspaceTaskError>()("WorkspaceTaskError", {
-  taskId: Schema.String,
-  message: Schema.String,
-}) {}
-
 export class MemoryNapError extends Schema.TaggedError<MemoryNapError>()("MemoryNapError", {
   message: Schema.String,
 }) {}

@@ -1,6 +1,5 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { GenerationTask, InboxDoc, LiveDoc, type Conversation, type SubmissionDraft } from "@earendil-works/pi-durable"
-import { AdmissionRefused } from "./errors"
 
 type Input = Extract<SubmissionDraft, { type: "input" }>
 
@@ -32,8 +31,7 @@ export async function submitPaused(root: Conversation, draft: Input): Promise<vo
       ...inbox.items,
       { id: submission.id, mode: "followUp" as const, content: draft.content, entry: draft.entry },
     ]) {
-      if (item.mode === "write")
-        throw new AdmissionRefused({ message: "A paused idle input cannot bypass a queued write" })
+      if (item.mode === "write") throw new Error("A paused idle input cannot bypass a queued write")
       const entry = await tx.appendEntry(root.id, {
         kind: item.entry?.kind ?? "pi.user",
         ...(item.entry?.data === undefined ? {} : { data: item.entry.data }),

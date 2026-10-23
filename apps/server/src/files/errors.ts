@@ -13,8 +13,3 @@ export class FileKeyError extends Schema.TaggedError<FileKeyError>()("FileKeyErr
 export class AgentFilesMissing extends Schema.TaggedError<AgentFilesMissing>()("AgentFilesMissing", {
   message: Schema.String,
 }) {}
-
-export class FileRowError extends Schema.TaggedError<FileRowError>()("FileRowError", {
-  path: Schema.String,
-  message: Schema.String,
-}) {}

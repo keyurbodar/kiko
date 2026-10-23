@@ -3,7 +3,6 @@ import type { RoomLog } from "./log"
 import { actorKey } from "./actor-key"
 import type { Chain } from "./messaging"
 import { TASK_TITLE_WORD_LIMIT } from "./task-title"
-import { WorkspaceTaskError } from "./errors"
 
 export const TASK_STATUSES: readonly TaskStatus[] = ["todo", "doing", "blocked", "review", "done", "cancelled"]
 const CLOSED: ReadonlySet<TaskStatus> = new Set(["done", "cancelled"])
@@ -252,7 +251,7 @@ export class RoomWorkspace implements Workspace {
           this.log.roomId,
         )
       const task = this.task(input.id)
-      if (!task) throw new WorkspaceTaskError({ taskId: input.id, message: `task ${input.id} missing after insert` })
+      if (!task) throw new Error(`task ${input.id} missing after insert`)
       const event = this.emit(by, task)
       if (owner && by.kind === "agent" && owner !== by.slug && !this.openDeps(input.id).length) {
         this.sql.exec(
