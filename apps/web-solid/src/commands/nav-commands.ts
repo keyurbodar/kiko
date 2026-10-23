@@ -1,12 +1,12 @@
 import { openSettings, toggleSettings } from "../settings/open"
 import { SETTINGS_SECTIONS } from "../settings/sections"
-import type { Choice, Command } from "./registry"
+import type { Choice, Command, CommandId } from "./registry"
 
 export function navCommands(deps: {
   openChats: () => void
   signOut: () => void
   chooseModel: () => void
-  openView: (id: string) => void
+  openView: (id: CommandId) => void
   canReason: () => boolean
   reasoningChoices: () => Choice[]
   canChooseModel: () => boolean

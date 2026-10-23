@@ -1,5 +1,8 @@
 import { createRoot, createSignal, getOwner, onCleanup } from "solid-js"
 import { bindings } from "./bindings"
+import type { CommandId } from "./ids"
+
+export type { CommandId }
 
 export type CommandGroup = "view" | "chat" | "chats" | "palette" | "go" | "settings" | "account" | "theme" | "browser"
 
@@ -32,7 +35,7 @@ export interface Choice {
 }
 
 export interface Command {
-  id: string
+  id: CommandId
   title: string
   group: CommandGroup
   icon: string
@@ -71,11 +74,11 @@ export function useCommands(added: readonly Command[]): void {
   if (getOwner()) onCleanup(remove)
 }
 
-export function findCommand(id: string): Command | undefined {
+export function findCommand(id: CommandId): Command | undefined {
   return list().find((c) => c.id === id)
 }
 
-export function runCommand(id: string): boolean {
+export function runCommand(id: CommandId): boolean {
   const command = findCommand(id)
   if (!command || !isEnabled(command)) return false
   command.run()

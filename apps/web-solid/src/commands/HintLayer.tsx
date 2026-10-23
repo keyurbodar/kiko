@@ -1,5 +1,6 @@
 import { For, Show, createSignal, onMount } from "solid-js"
 import { displayShortcut } from "./hotkeys"
+import { isCommandId } from "./ids"
 import { findCommand, isEnabled, shortcutOf } from "./registry"
 import { paletteStack } from "../palette/state"
 
@@ -85,7 +86,8 @@ function onScreen(el: HTMLElement, r: DOMRect): boolean {
 function collect(): Pill[] {
   const pills: Pill[] = []
   for (const el of document.querySelectorAll<HTMLElement>("[data-hint]")) {
-    const command = findCommand(el.dataset.hint!)
+    const id = el.dataset.hint
+    const command = isCommandId(id) ? findCommand(id) : undefined
     const shortcut = command && shortcutOf(command)
     if (!shortcut || !isEnabled(command)) continue
     const r = el.getBoundingClientRect()

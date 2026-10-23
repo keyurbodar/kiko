@@ -1,10 +1,10 @@
-import { findCommand, isEnabled, runCommand } from "../commands/registry"
+import { type CommandId, findCommand, isEnabled, runCommand } from "../commands/registry"
 import type { PromptInputV2Suggestion } from "./prompt-input/types"
 
 interface Slash {
   trigger: string
   title: string
-  commandId?: string
+  commandId?: CommandId
 }
 
 const SLASH: readonly Slash[] = [
