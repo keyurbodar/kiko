@@ -5,6 +5,11 @@ export class UploadError extends Schema.TaggedError<UploadError>()("UploadError"
   message: Schema.String,
 }) {}
 
+export class FileKeyError extends Schema.TaggedError<FileKeyError>()("FileKeyError", {
+  key: Schema.String,
+  message: Schema.String,
+}) {}
+
 export class FileRowError extends Schema.TaggedError<FileRowError>()("FileRowError", {
   path: Schema.String,
   message: Schema.String,

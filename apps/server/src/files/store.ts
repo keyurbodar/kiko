@@ -2,6 +2,7 @@ import type { Env } from "../index"
 import { ownerStub } from "../lib/names"
 import type { BlobStore } from "./blob-store"
 import { MAX_STORE_FILE_BYTES, type StoredInfo } from "./file-limits"
+import { FileKeyError } from "./errors"
 
 export interface StoredObject {
   key: string
@@ -65,7 +66,7 @@ class OwnerBucket implements FileBucket {
 
   #stub(key: string) {
     const m = KEY.exec(key)
-    if (!m) throw new Error("not a file key")
+    if (!m) throw new FileKeyError({ key, message: "not a file key" })
     return ownerStub(this.ns, m[1] as string)
   }
 
