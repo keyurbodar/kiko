@@ -146,8 +146,12 @@ const StepSchema = Type.Object({
   count: Type.Optional(Type.Number({ description: "for click: how many clicks, such as 2" })),
   dx: Type.Optional(Type.Number({ description: "for scroll: horizontal pixels" })),
   dy: Type.Optional(Type.Number({ description: "for scroll: vertical pixels, positive is down" })),
-  from: Type.Optional(Type.Tuple([Type.Number(), Type.Number()], { description: "for drag: the start point" })),
-  to: Type.Optional(Type.Tuple([Type.Number(), Type.Number()], { description: "for drag: the end point" })),
+  from: Type.Optional(
+    Type.Array(Type.Number(), { minItems: 2, maxItems: 2, description: "for drag: the start point, as [x, y]" }),
+  ),
+  to: Type.Optional(
+    Type.Array(Type.Number(), { minItems: 2, maxItems: 2, description: "for drag: the end point, as [x, y]" }),
+  ),
   app: Type.Optional(Type.String({ description: "for open: the app to open" })),
   ms: Type.Optional(Type.Number({ description: `for wait: a pause, up to ${MAX_WAIT_MS}` })),
 })
@@ -178,11 +182,12 @@ function spotOf(s: StepArgs): Spot | null | string {
   return `${s.op} takes a control id, or both x and y`
 }
 
-function square(pair: [number, number] | undefined, what: string): [number, number] | string {
-  if (!pair) return `drag needs ${what}`
-  const x = whole(pair[0], `${what} x`)
+function square(pair: readonly number[] | undefined, what: string): [number, number] | string {
+  const [px, py] = pair ?? []
+  if (px === undefined || py === undefined) return `drag needs ${what} as [x, y]`
+  const x = whole(px, `${what} x`)
   if (typeof x === "string") return x
-  const y = whole(pair[1], `${what} y`)
+  const y = whole(py, `${what} y`)
   return typeof y === "string" ? y : [x, y]
 }
 
