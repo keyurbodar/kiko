@@ -97,7 +97,10 @@ async function transcript(page: Page, texts: string[]): Promise<void> {
     await page
       .getByText(text, { exact: true })
       .first()
-      .evaluate((element) => element.scrollIntoView({ block: "start" }))
+      .evaluate((element) => {
+        element.closest("[data-virtual-scroll]")?.dispatchEvent(new WheelEvent("wheel", { deltaY: -1 }))
+        element.scrollIntoView({ block: "start" })
+      })
   }
   const blank = await page
     .locator('[data-component="chat-row"] [data-slot="bubble-content"]')
