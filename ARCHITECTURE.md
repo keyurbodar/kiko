@@ -66,4 +66,4 @@ There are no unit or integration tests. Correctness rests on static gates that a
 
 ## Releases
 
-`scripts/release.ts` builds and signs a release, and the release workflow publishes it to `latest-owner.json`. Moving an install from v0.4 to `OwnerDO` deletes the old databases after the owner types `delete-existing-data` in the installer.
+`scripts/release.ts` builds and signs a release, and the release workflow publishes it to `latest-owner.json`. The workflow commits the version bump off `main` and pushes only its tag, because `main` accepts changes only through a pull request with green CI and has no bypass. The newest `v*` tag is the current version; `package.json` on `main` can lag behind it. Moving an install from v0.4 to `OwnerDO` deletes the old databases after the owner types `delete-existing-data` in the installer.
