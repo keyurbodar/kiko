@@ -1,23 +1,24 @@
+import { CommandId } from "@kiko/protocol"
+import * as Schema from "effect/Schema"
 import { CliError, type Context } from "../context"
-import { askUser } from "./user-socket"
+import { withOwner } from "../owner"
 
-type Result =
-  | { ok: true; status: { connected: boolean; rows: number }; tools?: string[] }
-  | { ok: false; error: string }
+const commandId = () => Schema.decodeSync(CommandId)(crypto.randomUUID())
 
 export async function composio(ctx: Context): Promise<void> {
   const [sub] = ctx.args
-  let frame: Record<string, unknown>
-  if (sub === "connect") {
-    const apiKey = process.env.COMPOSIO_API_KEY
-    if (!apiKey) throw new CliError("set COMPOSIO_API_KEY to the Composio project key (ak_...)")
-    frame = { t: "connectComposio", apiKey }
-  } else if (sub === "disconnect") frame = { t: "disconnectComposio" }
-  else if (sub === "status") frame = { t: "composioStatus", tools: true }
-  else throw new CliError("usage: kiko composio <connect | disconnect | status>")
-  const result = await askUser<Result>(ctx, frame, "composio")
+  const result = await withOwner(ctx, (client) => {
+    if (sub === "connect") {
+      const apiKey = process.env.COMPOSIO_API_KEY
+      if (!apiKey) throw new CliError({ message: "set COMPOSIO_API_KEY to the Composio project key (ak_...)" })
+      return client["composio.connect"]({ commandId: commandId(), apiKey })
+    }
+    if (sub === "disconnect") return client["composio.disconnect"]({ commandId: commandId() })
+    if (sub === "status") return client["composio.status"]({ tools: true })
+    throw new CliError({ message: "usage: kiko composio <connect | disconnect | status>" })
+  })
   if (ctx.json) console.log(JSON.stringify(result))
-  else if (!result.ok) throw new CliError(result.error)
+  else if (!result.ok) throw new CliError({ message: result.error })
   else {
     console.log(`connected: ${result.status.connected}, rows: ${result.status.rows}`)
     for (const t of result.tools ?? []) console.log(t)
