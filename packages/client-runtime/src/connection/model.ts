@@ -18,6 +18,7 @@ export class ConnectionTransientError extends Schema.TaggedError<ConnectionTrans
 export class ConnectionBlockedError extends Schema.TaggedError<ConnectionBlockedError>()("ConnectionBlockedError", {
   reason: ConnectionBlockedReason,
   detail: Schema.String,
+  serverUpdateRequired: Schema.optionalKey(Schema.Boolean),
 }) {
   override get message(): string {
     return this.detail

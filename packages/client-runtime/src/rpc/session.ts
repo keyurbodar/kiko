@@ -51,13 +51,13 @@ export class RpcSessionFactory extends Context.Service<
 export const isRpcClientError = Schema.is(RpcClientError.RpcClientError)
 
 const unsupported = (label: string, protocol: number) =>
-  new ConnectionBlockedError({
-    reason: "unsupported",
-    detail:
-      protocol > PROTOCOL
-        ? `${label} was updated. Reload Kiko to keep going.`
-        : `${label} runs an older version. Update it, then reconnect.`,
-  })
+  protocol > PROTOCOL
+    ? new ConnectionBlockedError({ reason: "unsupported", detail: `${label} was updated. Reload Kiko to keep going.` })
+    : new ConnectionBlockedError({
+        reason: "unsupported",
+        detail: `${label} runs an older version. Update it, then reconnect.`,
+        serverUpdateRequired: true,
+      })
 
 const protocolOf = (item: UserStreamItem): number | undefined =>
   item.kind === "snapshot" || item.kind === "session" ? item.protocol : undefined

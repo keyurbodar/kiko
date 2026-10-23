@@ -7,14 +7,23 @@ const DISCONNECTED_DELAY_MS = 20_000
 const STATUS_MIN_DELAY_MS = 400
 const STATUS_MIN_VISIBLE_MS = 400
 
-export type ConnectionView = "connected" | "connecting" | "reconnecting" | "disconnected" | "signed-out" | "outdated"
+export type ConnectionView =
+  | "connected"
+  | "connecting"
+  | "reconnecting"
+  | "disconnected"
+  | "signed-out"
+  | "outdated"
+  | "backend-outdated"
+
+function blockedView(failure: SupervisorConnectionState["lastFailure"]): ConnectionView {
+  if (failure?._tag !== "ConnectionBlockedError" || failure.reason !== "unsupported") return "signed-out"
+  return failure.serverUpdateRequired ? "backend-outdated" : "outdated"
+}
 
 function viewOf(state: SupervisorConnectionState, downFor: number): ConnectionView {
   if (state.phase === "connected") return "connected"
-  if (state.phase === "blocked")
-    return state.lastFailure?._tag === "ConnectionBlockedError" && state.lastFailure.reason === "unsupported"
-      ? "outdated"
-      : "signed-out"
+  if (state.phase === "blocked") return blockedView(state.lastFailure)
   if (state.generation === 0 && state.attempt <= 1 && state.lastFailure === null) return "connecting"
   if (downFor >= DISCONNECTED_DELAY_MS) return "disconnected"
   return downFor >= RECONNECTING_DELAY_MS ? "reconnecting" : "connecting"
