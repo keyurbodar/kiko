@@ -29,6 +29,8 @@ export type Handlers = { readonly [Tag in OwnerRpcs["_tag"]]?: Handler<Of<Tag>> 
 
 const MAX_ROOM_STREAMS = 32
 
+const ASK_FOR_SNAPSHOT = Number.MAX_SAFE_INTEGER
+
 const noticeOf = (captured: Captured) => {
   const frame = replyOf(captured, "error")
   const error = frame?.error as { _tag?: unknown; message?: unknown } | undefined
@@ -88,7 +90,9 @@ const roomStream: Handler<Of<"room.subscribe">> = ({ roomId, afterSequence }, { 
     const stream: StreamKey = `room:${roomId}`
     subscribe(ws, { requestId, stream, cursor: afterSequence ?? 0 })
     yield* Effect.promise(() =>
-      host.room(roomId).subscribe(socketView(ws, roomId), afterSequence ?? 0, ownerAttachment(ws).handle),
+      host
+        .room(roomId)
+        .subscribe(socketView(ws, roomId), afterSequence ?? ASK_FOR_SNAPSHOT, ownerAttachment(ws).handle),
     )
     if (!ownerAttachment(ws).rooms[roomId]?.ready) {
       unsubscribe(ws, requestId)
