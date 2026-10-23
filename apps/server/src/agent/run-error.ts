@@ -16,7 +16,7 @@ const KINDS: readonly (readonly [RunErrorKind, RegExp])[] = [
   ],
   [
     "invalid_key",
-    /\b(401|403)\b|invalid[ _-]?(x-)?api[ _-]?key|incorrect api key|authentication|unauthori[sz]ed|permission[ _]denied|invalid[ _]token|no api key/i,
+    /\b(401|403)\b|invalid[ _-]?(x-)?api[ _-]?key|incorrect api key|authentication|unauthori[sz]ed|permission[ _]denied|invalid[ _]token|no api key|only authorized for use with/i,
   ],
   ["rate_limit", /\b429\b|rate[ _-]?limit|too many requests|resource[ _]exhausted/i],
   ["refused", /content[ _-]?(filter|policy)|safety|refus|violat|blocked|moderation/i],

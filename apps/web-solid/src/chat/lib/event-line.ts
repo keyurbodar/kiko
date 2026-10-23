@@ -44,8 +44,8 @@ export function eventRow(message: ChatMessage, name: (slug: string) => string): 
     case "run_stopped":
       return { label: "Stopped", detail: name(e.agent) }
     case "run_error": {
-      const detail = message.body || undefined
-      const title = [detail, e.detail].filter(Boolean).join("\n")
+      const detail = [message.body, e.detail].filter(Boolean).join(". ") || undefined
+      const title = [message.body, e.detail].filter(Boolean).join("\n")
       return {
         label: `${name(e.slug)} could not answer`,
         tone: "danger",

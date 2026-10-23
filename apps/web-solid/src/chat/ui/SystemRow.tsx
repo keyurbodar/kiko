@@ -69,7 +69,10 @@ export function SystemRow(props: {
         <Show when={props.detail}>
           {(detail) => (
             <span
-              class="max-w-80 min-w-0 truncate opacity-70 select-text"
+              class={cn(
+                "min-w-0 opacity-70 select-text",
+                props.tone === "danger" ? "max-w-xl break-words" : "max-w-80 truncate",
+              )}
               title={props.title ?? detail()}
               data-part="detail"
             >
