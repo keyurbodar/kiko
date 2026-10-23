@@ -11,7 +11,7 @@ import type {
   TaskOp,
   FileOp,
 } from "@kiko/protocol"
-import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol/schema"
+import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol"
 import { Schema } from "effect"
 import type { RoomLog } from "./log"
 import { parseRichText } from "@kiko/protocol/markdown"

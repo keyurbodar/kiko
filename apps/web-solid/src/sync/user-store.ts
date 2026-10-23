@@ -8,7 +8,6 @@ import type {
   ClientToUser,
   FileOp,
   FileRef,
-  KikoError,
   RoomId,
   RowKind,
   ThinkingLevel,
@@ -17,6 +16,7 @@ import type {
   UserSnapshot,
   UserToClient,
 } from "@kiko/protocol"
+import type { Notice } from "../lib/errors"
 import { batch } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
 import {
@@ -166,7 +166,7 @@ export type UserStoreOptions = {
   newId?: () => string
   ttlMs?: number
   channel?: UserChannelHost
-  onError?: (error: KikoError, roomId?: RoomId) => void
+  onError?: (error: Notice, roomId?: RoomId) => void
 }
 
 export type UserStore = {
@@ -437,7 +437,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
     } else if (frame.t === "model_refused") {
       unsentModels.delete(frame.slug)
       dropModel(frame.slug)
-      options.onError?.({ code: "model", message: frame.message, action: "open_models" })
+      options.onError?.({ message: frame.message, action: "open_models" })
     } else if (frame.t === "error") options.onError?.(frame.error, frame.roomId)
     else if (frame.t === "typing") {
       if (frame.names.length) setState("typing", frame.roomId, [...frame.names])

@@ -20,7 +20,7 @@
     "@kiko/protocol": "workspace:*",
     "@kiko/sandbox": "workspace:*",
     "@onkernel/sdk": "^0.123.0",
-    "effect": "4.0.0",
+    "effect": "4.0.6",
     "just-bash": "3.6.0",
     "rrule": "2.8.1",
     "unpdf": "^1.8.1",

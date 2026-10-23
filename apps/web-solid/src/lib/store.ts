@@ -24,7 +24,7 @@ import { fileName, isRoomId, KIKO, humanHandle, mentionsHuman, messageLast } fro
 import { isListed } from "../sidebar/activity"
 import { clearUnreadMark } from "../sidebar/unread-mark"
 import { agentDisplayName } from "./names"
-import { seenInChat, showFailure, showKikoError } from "./errors"
+import { seenInChat, showFailure, showNotice } from "./errors"
 import { session as signedIn } from "../app/session"
 import { describeLast, typingLine } from "../sidebar/activity"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
@@ -419,7 +419,7 @@ function createApp() {
         roomId,
         warm: session.warm,
         channel,
-        onError: showKikoError,
+        onError: showNotice,
         ...(roomCache.has(roomId) ? { seed: roomCache.get(roomId) } : {}),
       })
       next.onTaskRefused(showFailure)
@@ -596,7 +596,7 @@ function createApp() {
                 connect: browserConnect,
                 channel,
                 onError: (error, roomId) =>
-                  seenInChat(roomId, activeId(), document.visibilityState === "visible") || showKikoError(error),
+                  seenInChat(roomId, activeId(), document.visibilityState === "visible") || showNotice(error),
               }),
             )
             openRoom(activeId())

@@ -1,31 +1,36 @@
-import type { AgentSlug } from "./ids"
+import type { AgentSlug } from "./brands"
 
 export type Inline =
-  | { t: "text"; text: string }
-  | { t: "bold"; children: readonly Inline[] }
-  | { t: "italic"; children: readonly Inline[] }
-  | { t: "strike"; children: readonly Inline[] }
-  | { t: "code"; text: string }
-  | { t: "link"; href: string; children: readonly Inline[] }
-  | { t: "mention"; slug: AgentSlug }
+  | { readonly t: "text"; readonly text: string }
+  | { readonly t: "bold"; readonly children: readonly Inline[] }
+  | { readonly t: "italic"; readonly children: readonly Inline[] }
+  | { readonly t: "strike"; readonly children: readonly Inline[] }
+  | { readonly t: "code"; readonly text: string }
+  | { readonly t: "link"; readonly href: string; readonly children: readonly Inline[] }
+  | { readonly t: "mention"; readonly slug: AgentSlug }
 
 export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6
 
 export type ColumnAlign = "left" | "center" | "right" | null
 
 export type Block =
-  | { t: "paragraph"; children: readonly Inline[] }
-  | { t: "heading"; level: HeadingLevel; children: readonly Inline[] }
-  | { t: "list"; start?: number; loose?: boolean; items: readonly (readonly Block[])[] }
-  | { t: "quote"; children: readonly Block[] }
-  | { t: "rule" }
-  | { t: "code_block"; lang?: string; text: string }
-  | { t: "image"; alt: string; url?: string; fileId?: string }
+  | { readonly t: "paragraph"; readonly children: readonly Inline[] }
+  | { readonly t: "heading"; readonly level: HeadingLevel; readonly children: readonly Inline[] }
   | {
-      t: "table"
-      align: readonly ColumnAlign[]
-      head: readonly (readonly Inline[])[]
-      rows: readonly (readonly (readonly Inline[])[])[]
+      readonly t: "list"
+      readonly start?: number
+      readonly loose?: boolean
+      readonly items: readonly (readonly Block[])[]
+    }
+  | { readonly t: "quote"; readonly children: readonly Block[] }
+  | { readonly t: "rule" }
+  | { readonly t: "code_block"; readonly lang?: string; readonly text: string }
+  | { readonly t: "image"; readonly alt: string; readonly url?: string; readonly fileId?: string }
+  | {
+      readonly t: "table"
+      readonly align: readonly ColumnAlign[]
+      readonly head: readonly (readonly Inline[])[]
+      readonly rows: readonly (readonly (readonly Inline[])[])[]
     }
 
 export type RichText = readonly Block[]

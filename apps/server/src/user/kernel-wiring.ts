@@ -9,7 +9,7 @@ import {
   type ClientToUser as UserFrame,
   type KernelResult,
   type KernelStatus,
-  type KikoError,
+  type NoticeError,
   type UserToClient,
 } from "@kiko/protocol"
 import type { Env } from "../index"
@@ -46,7 +46,7 @@ type KernelDeps = {
   services: OwnerServices
   alarms: Alarms
   userId: () => string
-  notify?: (error: KikoError) => void
+  notify?: (error: NoticeError) => void
   store?: KernelStore
   clientFor?: (key: string) => KernelClient
 }

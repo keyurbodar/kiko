@@ -1,4 +1,4 @@
-export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
+import type { ThinkingLevel } from "./catalog"
 
 export const THINKING_LABELS: Readonly<Record<ThinkingLevel, string>> = {
   off: "Off",

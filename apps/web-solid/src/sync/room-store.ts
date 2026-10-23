@@ -1,4 +1,5 @@
-import { humanAnswerText, messageSeq, type HumanAnswers, type KikoError } from "@kiko/protocol"
+import { humanAnswerText, messageSeq, type HumanAnswers } from "@kiko/protocol"
+import type { Notice } from "../lib/errors"
 
 import type { LocalAttachment } from "./patches"
 import type {
@@ -143,12 +144,10 @@ function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
     case "edit": {
       const i = findMessage(data.messages, e.messageId)
       if (i === -1) return {}
-      const m = data.messages[i]
-      m.text = e.text
-      m.editedAt = e.at
-      if (e.rich) m.rich = e.rich
-      else delete m.rich
-      return { put: raw(m) }
+      const { rich: _, ...rest } = raw(data.messages[i])
+      const m: Message = { ...rest, text: e.text, editedAt: e.at, ...(e.rich ? { rich: e.rich } : {}) }
+      data.messages[i] = m
+      return { put: m }
     }
     case "delete": {
       const deleted: Message[] = []
@@ -157,20 +156,21 @@ function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
         if (i !== -1) deleted.push(raw(data.messages[i]))
         if (i !== -1) data.messages.splice(i, 1)
       }
-      for (const m of data.messages)
+      data.messages.forEach((m, i) => {
         if (m.replyTo && m.reply && e.messageIds.includes(m.replyTo))
-          m.reply = { seq: m.reply.seq, from: m.reply.from, text: "", gone: true }
+          data.messages[i] = { ...m, reply: { seq: m.reply.seq, from: m.reply.from, text: "", gone: true } }
+      })
       return { deleted }
     }
     case "react": {
       const i = findMessage(data.messages, e.messageId)
       if (i === -1) return {}
-      const m = data.messages[i]
-      const reactions = (m.reactions ?? []).filter((r) => !sameActor(r.by, e.by))
+      const { reactions: before, ...rest } = raw(data.messages[i])
+      const reactions = (before ?? []).filter((r) => !sameActor(r.by, e.by))
       if (e.emoji !== null) reactions.push({ by: e.by, emoji: e.emoji })
-      if (reactions.length) m.reactions = reactions
-      else delete m.reactions
-      return { put: raw(m) }
+      const m: Message = { ...rest, ...(reactions.length ? { reactions } : {}) }
+      data.messages[i] = m
+      return { put: m }
     }
     case "read":
       data.readSeq = Math.max(data.readSeq, e.upTo)
@@ -261,7 +261,7 @@ export type RoomStoreOptions = {
   warm: Warm
   channel?: UserChannel
   seed?: RoomSeed
-  onError?: (error: KikoError) => void
+  onError?: (error: Notice) => void
   onBootFailed?: (error: unknown) => void
   schedule?: (run: () => void) => void
   budgetMs?: number
@@ -876,10 +876,14 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
       lastTypingAt = Number.NEGATIVE_INFINITY
       if (state.history) setState("history", null)
       const clientId = newId()
-      const frame: RoomPatchFrame = { t: "send", clientId, text }
-      if (opts.replyTo) frame.replyTo = opts.replyTo
-      if (opts.replyTo && opts.quote) frame.quote = opts.quote
-      if (opts.attachments?.length) frame.attachments = opts.attachments
+      const frame: RoomPatchFrame = {
+        t: "send",
+        clientId,
+        text,
+        ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+        ...(opts.replyTo && opts.quote ? { quote: opts.quote } : {}),
+        ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
+      }
       const p: RoomPatch = { clientId, frame, at: now(), ...(opts.local?.length ? { local: opts.local } : {}) }
       void addToOutbox(warm, { roomId, frame, createdAt: p.at })
       setPatches((list) => [...list, p])

@@ -1,12 +1,5 @@
 import { v7 } from "uuid"
-
-declare const brand: unique symbol
-type Brand<Name extends string> = string & { readonly [brand]: Name }
-
-export type UserId = Brand<"UserId">
-export type RoomId = Brand<"RoomId">
-export type MessageId = Brand<"MessageId">
-export type AgentSlug = Brand<"AgentSlug">
+import type { AgentSlug, MessageId, RoomId } from "./brands"
 
 export const AGENT_SLUG_PATTERN = /^[a-z0-9-]{1,32}$/
 

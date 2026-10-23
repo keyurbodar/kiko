@@ -1,33 +1,7 @@
 import type { RichText } from "./rich-text"
 import { plainText } from "./rich-text"
 import type { FileRef } from "./room"
-
-export type LastKind =
-  | "text"
-  | "photo"
-  | "video"
-  | "album"
-  | "file"
-  | "voice"
-  | "audio"
-  | "link"
-  | "react"
-  | "joined"
-  | "left"
-  | "renamed"
-  | "created"
-  | "notice"
-
-export type ChatLast = {
-  from: "human" | "agent" | "system"
-  name?: string
-  kind: LastKind
-  text?: string
-  file?: string
-  count?: number
-  emoji?: string
-  at: number
-}
+import type { ChatLast } from "./user"
 
 const MAX_TEXT = 120
 const URL_ONLY = /^https?:\/\/\S+$/i

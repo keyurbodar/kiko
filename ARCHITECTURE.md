@@ -20,6 +20,15 @@ Everything an owner has lives in one `OwnerDO` with one SQLite database. Rooms, 
 4. Admission persists a ready ticket and returns. An alarm runs one queued run to completion with a budget of 40 outbound calls. Runs execute one at a time because overlapping events share Cloudflare's subrequest limit.
 5. Each agent writes its reply as short bubbles. Each finished model turn writes one journal row.
 
+## Socket RPC
+
+`core/protocol` is the contract: every wire type is an Effect Schema, and `OwnerRpcs` (`core/protocol/src/rpc.ts`) lists every call a client makes over `/api/rpc`. `apps/server/src/rpc/` speaks the Effect RPC JSON wire format, so the stock `RpcClient` with a socket protocol works against it. The old frame protocol on `/api/ws` stays until the client moves.
+
+- **Nothing lives in memory between messages.** Each unary request is decoded, run as an Effect and answered with an `Exit` inside one `webSocketMessage`. A stream subscription is a `{requestId, stream, cursor}` entry in the socket attachment, and broadcasts are turned into `Chunk` frames for it, so a stream survives hibernation. Updating the cursor rewrites the attachment, which is not a billed row.
+- **Streams follow t3code.** `user.subscribe` and `room.subscribe` send a snapshot or the events after `afterSequence`, then `synchronized`, then live events and signals. Events at or below the cursor are dropped.
+- **Retries are free.** Every command carries a client `commandId`. A send stores it in the message's existing `client_id` column and a repeat returns the first ack. Creates use client-made ids (room, agent, task, install) as their primary key, and most other commands set a value, so a repeat changes nothing and writes nothing.
+- **One auto-response pair.** A Durable Object can only auto-answer one exact frame. It stays `ping`/`pong`, which the computer daemon and the old client send, so an RPC `Ping` wakes the object to get its `Pong`. When the old client is gone, move the pair to the RPC frames and the daemon with it.
+
 ## Writes are the budget
 
 A warm prompt writes 6 billed rows: the human's message, the reply, one journal row, a ready ticket and its deletion, and one alarm. Opening the app and an idle minute write nothing. The e2e fails if the median warm prompt writes more than 7.

@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
 import { Runs } from "./runs"
-import { isRoomId, MAX_FRAME } from "@kiko/protocol"
+import { isRoomId, MAX_FRAME, OWNER_RPC_PATH } from "@kiko/protocol"
 import { Agent } from "../agent/agent-do"
 import { Room } from "../room/room-do"
 import { User } from "../user/user-do"
@@ -18,6 +18,8 @@ import { ownerAttachment, socketView } from "./socket"
 import { CONNECT_HEADERS } from "@kiko/computer/sign"
 import { ComputerHub, pcSocketId } from "../computer/hub"
 import { ComputerStore } from "../computer/store"
+import { dispatch } from "../rpc/dispatcher"
+import type { RpcHost } from "../rpc/handlers"
 
 type Method<T> = { [K in keyof T]: T[K] extends (...args: never[]) => unknown ? K : never }[keyof T]
 type Args<T> = T extends (...args: infer A) => unknown ? A : never
@@ -45,6 +47,7 @@ export class OwnerDO extends DurableObject<Env> {
   private readonly afterRunHook = new AfterRun({ services: () => this.services })
   private alarmRunning = false
   private readonly greeting = new WeakMap<WebSocket, Promise<void>>()
+  private readonly rpcHost: RpcHost = { user: () => this.user(), room: (roomId) => this.room(roomId) }
   private nextRunAt = 0
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -276,6 +279,7 @@ export class OwnerDO extends DurableObject<Env> {
       user: { ready: false },
       rooms: {},
       handle: request.headers.get(HANDLE_HEADER) ?? undefined,
+      ...(new URL(request.url).pathname === OWNER_RPC_PATH ? { rpc: [] } : {}),
     })
     await this.user().openSocket(socketView(server), request)
     this.ctx.waitUntil(this.resumeSocket())
@@ -286,6 +290,11 @@ export class OwnerDO extends DurableObject<Env> {
     const pcId = pcSocketId(ws)
     if (pcId !== null) {
       await this.computers.message(ws, raw)
+      return
+    }
+    if (ownerAttachment(ws).rpc) {
+      if (typeof raw === "string" && raw.length > MAX_FRAME) ws.close(1009, "rpc frame too large")
+      else await dispatch(this.rpcHost, ws, raw)
       return
     }
     const greeting = this.greeting.get(ws)

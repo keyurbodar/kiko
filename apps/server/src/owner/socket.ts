@@ -1,5 +1,6 @@
 import { HELLO_TIMEOUT_REASON } from "@kiko/durable/hello-deadline"
 import type { Attachment as RoomAttachment } from "../room/socket"
+import { streamFrame, type StreamKey, type Subscription } from "../rpc/streams"
 
 type UserAttachment = { ready: boolean; helloBy?: number; workerOrigin?: string }
 type OwnerAttachment = {
@@ -7,10 +8,26 @@ type OwnerAttachment = {
   rooms: Record<string, RoomAttachment>
   handle?: string
   pcSession?: string
+  rpc?: Subscription[]
 }
 
 export function ownerAttachment(ws: WebSocket): OwnerAttachment {
   return ws.deserializeAttachment() as OwnerAttachment
+}
+
+function forward(target: WebSocket, stream: StreamKey, raw: string): void {
+  const saved = ownerAttachment(target)
+  const sub = saved.rpc?.find((s) => s.stream === stream)
+  if (!sub) return
+  const { text, cursor } = streamFrame(sub, raw)
+  if (cursor !== sub.cursor) {
+    sub.cursor = cursor
+    target.serializeAttachment(saved)
+  }
+  if (text === null) return
+  try {
+    target.send(text)
+  } catch {}
 }
 
 const views = new WeakMap<WebSocket, Map<string, WebSocket>>()
@@ -38,6 +55,8 @@ export function socketView(ws: WebSocket, roomId?: string): WebSocket {
           const saved = ownerAttachment(target)
           return roomId === undefined ? saved.user : (saved.rooms[roomId] ?? { ready: false })
         }
+      if (property === "send" && ownerAttachment(target).rpc)
+        return (raw: string) => forward(target, roomId === undefined ? "user" : `room:${roomId}`, raw)
       if (property === "send" && roomId !== undefined)
         return (raw: string) => target.send(JSON.stringify({ t: "room", roomId, frame: JSON.parse(raw) }))
       if (property === "close" && roomId !== undefined)

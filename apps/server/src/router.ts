@@ -1,6 +1,6 @@
 import { type AuthEnv, getSessionUser, SOCKET_PROTOCOL } from "./auth/auth"
 import type { Env } from "./index"
-import { humanHandle } from "@kiko/protocol"
+import { humanHandle, OWNER_RPC_PATH } from "@kiko/protocol"
 import { boundedWait } from "@kiko/durable/bounded-wait"
 import { DEV } from "./lib/dev-guard"
 import { HANDLE_HEADER, NameError, ROOM_ID_HEADER, USER_ID_HEADER, ownerStub } from "./lib/names"
@@ -28,7 +28,7 @@ export async function route(
 ): Promise<Response | null> {
   const url = new URL(request.url)
   if (!url.pathname.startsWith("/api/") || url.pathname.startsWith("/api/auth/")) return null
-  if (url.pathname !== "/api/ws") return null
+  if (url.pathname !== "/api/ws" && url.pathname !== OWNER_RPC_PATH) return null
   return within(UPGRADE_TIMEOUT_MS, upgrade(request, env, url, lookup))
 }
 
