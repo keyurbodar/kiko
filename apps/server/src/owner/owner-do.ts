@@ -52,6 +52,7 @@ export class OwnerDO extends DurableObject<Env> {
     streams: makeStreams({ user: () => this.user(), room: (roomId) => this.room(roomId) }),
     user: () => this.user(),
     room: (roomId) => this.room(roomId).commands,
+    streamEnded: (stream) => this.user().pc.ended(stream),
   }
   private nextRunAt = 0
 
@@ -302,6 +303,7 @@ export class OwnerDO extends DurableObject<Env> {
       return
     }
     await this.user().webSocketClose(socketView(ws), code)
+    this.computers.leave(ws)
     await this.recoverDisconnected()
   }
 
@@ -312,6 +314,7 @@ export class OwnerDO extends DurableObject<Env> {
       return
     }
     await this.user().webSocketError(socketView(ws))
+    this.computers.leave(ws)
     await this.recoverDisconnected()
   }
 

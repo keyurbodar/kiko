@@ -28,6 +28,7 @@ export default function LiveScreen(props: {
     return display?.height ? display.width / display.height : DEFAULT_RATIO
   }
   let video!: HTMLVideoElement
+  let canvas!: HTMLCanvasElement
   let stage!: HTMLDivElement
   let sink!: HTMLTextAreaElement
   let you: HTMLDivElement | undefined
@@ -48,6 +49,7 @@ export default function LiveScreen(props: {
     if (!online()) return
     const next = startSession(props.pcId, {
       video,
+      canvas,
       onMode: setMode,
       onSize: (w, h) => setSize((prev) => (prev?.w === w && prev.h === h ? prev : { w, h })),
       onCursor: setAgent,
@@ -116,6 +118,7 @@ export default function LiveScreen(props: {
             disablepictureinpicture
             disableremoteplayback
           />
+          <canvas ref={canvas} class={cn("absolute inset-0 size-full", showing("relay"))} />
           <Show when={!props.interactive ? agent() : null}>
             {(point) => (
               <Cursor

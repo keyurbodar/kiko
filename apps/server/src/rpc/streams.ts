@@ -9,7 +9,7 @@ import {
 import * as Schema from "effect/Schema"
 import { codecs, chunkFrame, type RequestId } from "./wire"
 
-export type StreamKey = "user" | `room:${string}`
+export type StreamKey = "user" | `room:${string}` | `pc:${string}`
 
 export type Subscription = { readonly requestId: RequestId; readonly stream: StreamKey; cursor: number }
 

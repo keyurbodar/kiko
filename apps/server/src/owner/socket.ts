@@ -33,9 +33,18 @@ export function unsubscribe(ws: WebSocket, requestId: RequestId): Subscription |
   if (!sub) return null
   saved.rpc = saved.rpc.filter((s) => s !== sub)
   if (sub.stream === "user") saved.user = { ...saved.user, ready: false }
-  else delete saved.rooms[sub.stream.slice("room:".length)]
+  else if (sub.stream.startsWith("room:")) delete saved.rooms[sub.stream.slice("room:".length)]
   ws.serializeAttachment(saved)
   return sub
+}
+
+export function dropStreams(ws: WebSocket, prefix: string): readonly Subscription[] {
+  const saved = ownerAttachment(ws)
+  const dropped = saved.rpc.filter((s) => s.stream.startsWith(prefix))
+  if (!dropped.length) return dropped
+  saved.rpc = saved.rpc.filter((s) => !s.stream.startsWith(prefix))
+  ws.serializeAttachment(saved)
+  return dropped
 }
 
 function forward(target: WebSocket, stream: StreamKey, raw: string | ArrayBuffer | ArrayBufferView): void {

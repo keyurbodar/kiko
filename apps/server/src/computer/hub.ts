@@ -15,8 +15,11 @@ import {
 } from "@kiko/computer/wire"
 import { CONNECT_HEADERS, CONNECT_SKEW_MS, connectMessage, verify } from "@kiko/computer/sign"
 import { decodeFrame } from "@kiko/computer/frame"
-import type { AgentSlug, ComputerSummary, RoomId } from "@kiko/protocol"
+import type { AgentSlug, ComputerFrame, ComputerSummary, RoomId } from "@kiko/protocol"
 import type { Env } from "../index"
+import { encodeBase64 } from "../lib/base64"
+import { dropStreams } from "../owner/socket"
+import { frameChunk, frameSubs, frameText } from "./frames"
 import type { ComputerRow, ComputerStore, NewComputer } from "./store"
 
 const HOLD_MS = 30 * 60_000
@@ -97,7 +100,7 @@ export function pcSocketId(ws: WebSocket): string | null {
 export class ComputerHub {
   private readonly pending = new Map<string, Pending>()
   private readonly desk = new Map<string, { user: string; name: string; until: number }>()
-  private readonly watching = new Map<string, Set<WebSocket>>()
+  private readonly relaying = new Set<string>()
   private readonly memory = new Map<string, PcHold>()
   private readonly running = new Map<string, number>()
   private readonly busyPushAt = new Map<string, number>()
@@ -432,32 +435,45 @@ export class ComputerHub {
     return outcome
   }
 
-  private relayFrame(pcId: string, frame: Uint8Array): void {
-    const watchers = this.watching.get(pcId)
-    if (!watchers?.size || !decodeFrame(frame)) return
-    const id = new TextEncoder().encode(pcId)
-    const out = new Uint8Array(1 + id.byteLength + frame.byteLength)
-    out[0] = id.byteLength
-    out.set(id, 1)
-    out.set(frame, 1 + id.byteLength)
-    for (const tab of watchers)
-      try {
-        tab.send(out)
-      } catch {}
+  private relayFrame(pcId: string, bytes: Uint8Array): void {
+    const decoded = decodeFrame(bytes)
+    if (!decoded) return
+    const { header, image } = decoded
+    const frame: ComputerFrame = {
+      seq: header.seq,
+      mime: header.kind === "webp" ? "image/webp" : "image/jpeg",
+      width: header.width,
+      height: header.height,
+      cursor: header.cursor,
+      data: encodeBase64(image),
+    }
+    const values = frameChunk(frame)
+    for (const tab of this.d.ctx.getWebSockets("tab"))
+      for (const sub of frameSubs(tab.deserializeAttachment(), pcId))
+        try {
+          tab.send(frameText(sub.requestId, values))
+        } catch {}
   }
 
-  watch(pcId: string, tab: WebSocket, on: boolean, mode: "rtc" | "relay"): void {
-    if (mode !== "relay") return
-    const watchers = this.watching.get(pcId) ?? new Set<WebSocket>()
-    const had = watchers.has(tab)
-    if (on) watchers.add(tab)
-    else watchers.delete(tab)
-    if (watchers.size) this.watching.set(pcId, watchers)
-    else this.watching.delete(pcId)
-    if (had === on) return
+  private relayWatchers(pcId: string): number {
+    let count = 0
+    for (const tab of this.d.ctx.getWebSockets("tab")) count += frameSubs(tab.deserializeAttachment(), pcId).length
+    return count
+  }
+
+  private watchingTab(tab: WebSocket): readonly string[] {
+    const saved = tab.deserializeAttachment() as { rpc?: readonly { stream: string }[] } | null
+    return [...new Set((saved?.rpc ?? []).map((sub) => sub.stream).filter((stream) => stream.startsWith("pc:")))]
+  }
+
+  syncRelay(pcId: string): void {
     const ws = this.socket(pcId)
     if (!ws) return
-    this.send(ws, watchers.size > 0 ? { t: "live", on: true, ...RELAY } : { t: "live", on: false })
+    const on = this.relayWatchers(pcId) > 0
+    if (on === this.relaying.has(pcId)) return
+    if (on) this.relaying.add(pcId)
+    else this.relaying.delete(pcId)
+    this.send(ws, on ? { t: "live", on: true, ...RELAY } : { t: "live", on: false })
   }
 
   async watchRtc(pcId: string, tab: WebSocket): Promise<void> {
@@ -471,11 +487,13 @@ export class ComputerHub {
   }
 
   unwatch(tab: WebSocket): void {
-    for (const [pcId, watchers] of this.watching) {
-      if (!watchers.delete(tab) || watchers.size) continue
-      this.watching.delete(pcId)
-      const ws = this.socket(pcId)
-      if (ws) this.send(ws, { t: "live", on: false })
+    for (const pcId of this.watchingTab(tab)) this.syncRelay(pcId)
+  }
+
+  leave(tab: WebSocket): void {
+    for (const pcId of this.watchingTab(tab)) {
+      dropStreams(tab, `pc:${pcId}`)
+      this.syncRelay(pcId)
     }
   }
 
@@ -652,7 +670,7 @@ export class ComputerHub {
       } catch {}
     this.d.store.remove(id)
     this.dropCalls(id)
-    this.watching.delete(id)
+    this.relaying.delete(id)
     this.desk.delete(id)
     this.memory.delete(id)
     this.push()
