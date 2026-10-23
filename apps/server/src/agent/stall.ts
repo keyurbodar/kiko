@@ -1,13 +1,12 @@
+import * as Schema from "effect/Schema"
 import { boundedWait } from "@kiko/durable/bounded-wait"
 
 export const FIRST_BYTE_MS = 120_000
 export const STALL_MS = 90_000
 
-class StallError extends Error {
-  constructor() {
-    super("the model stopped responding and the request timed out")
-  }
-}
+class StallError extends Schema.TaggedError<StallError>()("StallError", {
+  message: Schema.String,
+}) {}
 
 export async function orStall<T>(work: Promise<T>, ms: number): Promise<T> {
   const wait = boundedWait(ms)
@@ -15,7 +14,7 @@ export async function orStall<T>(work: Promise<T>, ms: number): Promise<T> {
     return await Promise.race([
       work,
       wait.then((): never => {
-        throw new StallError()
+        throw new StallError({ message: "the model stopped responding and the request timed out" })
       }),
     ])
   } finally {

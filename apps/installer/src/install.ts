@@ -58,7 +58,11 @@ async function exchange(env: InstallEnv, grant: Extract<Grant, { kind: "oauth" }
   })
   const body = (await res.json().catch(() => null)) as { access_token?: string; refresh_token?: string } | null
   if (!res.ok || !body?.access_token)
-    throw new InstallError("oauth_failed", "Cloudflare did not accept the sign-in. Try connecting again.", 400)
+    throw new InstallError({
+      code: "oauth_failed",
+      message: "Cloudflare did not accept the sign-in. Try connecting again.",
+      status: 400,
+    })
   return { accessToken: body.access_token, ...(body.refresh_token ? { refreshToken: body.refresh_token } : {}) }
 }
 
@@ -69,7 +73,7 @@ async function loadRelease(env: InstallEnv, f: FetchLike) {
       (url) => f(url),
     )
   } catch (e) {
-    if (e instanceof ReleaseRefused) throw new InstallError(e.code, e.message, 502)
+    if (e instanceof ReleaseRefused) throw new InstallError({ code: e.code, message: e.message, status: 502 })
     throw e
   }
 }
@@ -108,11 +112,11 @@ async function ownedByCaller(f: FetchLike, backend: string, clerkToken: string):
     )
       return true
   } catch {}
-  throw new InstallError(
-    "owner_unverified",
-    "Could not verify this backend's owner. Sign in again and retry when the backend is reachable.",
-    409,
-  )
+  throw new InstallError({
+    code: "owner_unverified",
+    message: "Could not verify this backend's owner. Sign in again and retry when the backend is reachable.",
+    status: 409,
+  })
 }
 
 function blockingOrNull(e: unknown): null {
@@ -138,11 +142,11 @@ async function ensureSubdomain(
     )
     if (made?.subdomain) return { subdomain: made.subdomain, made: true }
   }
-  throw new InstallError(
-    "no_subdomain",
-    "Open Workers once in your Cloudflare dashboard to create your workers.dev address, then try again.",
-    409,
-  )
+  throw new InstallError({
+    code: "no_subdomain",
+    message: "Open Workers once in your Cloudflare dashboard to create your workers.dev address, then try again.",
+    status: 409,
+  })
 }
 
 type Account = { id: string; name?: string }
@@ -184,16 +188,19 @@ async function pickAccount(
     }
   }
   if (usable.length > 1) {
-    throw new InstallError(
-      "choose_account",
-      "This sign-in can use more than one Cloudflare account. Pick the one Kiko goes in.",
-      409,
-      [],
-      undefined,
-      usable.map((u) => ({ id: u.account.id, name: u.account.name ?? u.account.id })),
-    )
+    throw new InstallError({
+      code: "choose_account",
+      message: "This sign-in can use more than one Cloudflare account. Pick the one Kiko goes in.",
+      status: 409,
+      cfCodes: [],
+      detail: undefined,
+      accounts: usable.map((u) => ({ id: u.account.id, name: u.account.name ?? u.account.id })),
+    })
   }
-  throw first ?? new InstallError("no_account", "No Cloudflare account was found for this sign-in.", 400)
+  throw (
+    first ??
+    new InstallError({ code: "no_account", message: "No Cloudflare account was found for this sign-in.", status: 400 })
+  )
 }
 
 const RESOLVERS = ["https://cloudflare-dns.com/dns-query", "https://dns.google/resolve"]
@@ -240,18 +247,22 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
 
   const accounts = await cf<Account[]>(token, "/accounts", {}, f).catch((e: unknown) => {
     if (req.grant.kind === "oauth" && e instanceof InstallError && e.code === "bad_token") {
-      throw new InstallError(
-        "oauth_failed",
-        "Cloudflare did not accept the sign-in. Try connecting again.",
-        400,
-        e.cfCodes,
-        e.detail,
-      )
+      throw new InstallError({
+        code: "oauth_failed",
+        message: "Cloudflare did not accept the sign-in. Try connecting again.",
+        status: 400,
+        cfCodes: e.cfCodes,
+        detail: e.detail,
+      })
     }
     throw e
   })
   if (req.accountId && !accounts.some((a) => a.id === req.accountId)) {
-    throw new InstallError("no_account", "No Cloudflare account was found for this sign-in.", 400)
+    throw new InstallError({
+      code: "no_account",
+      message: "No Cloudflare account was found for this sign-in.",
+      status: 400,
+    })
   }
   const ours = await ownScriptName(req.sub, 32)
   const legacy = await ownScriptName(req.sub)
@@ -282,11 +293,11 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
     }
     if (!name) {
       if (byName.has(ours))
-        throw new InstallError(
-          "owner_conflict",
-          "The owner-specific Worker name is already in use. No backend was changed.",
-          409,
-        )
+        throw new InstallError({
+          code: "owner_conflict",
+          message: "The owner-specific Worker name is already in use. No backend was changed.",
+          status: 409,
+        })
       name = ours
     }
     return name
@@ -298,30 +309,33 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   const { manifest, files } = await loadRelease(env, f)
   const grant: StoredGrant = { ...stored, accountId, scriptName: name }
   if (existing && !existing.migration_tag)
-    throw new InstallError(
-      "migration_unknown",
-      "This backend has no migration tag. Nothing was changed. Export its data and inspect it before replacing it.",
-      409,
-    )
+    throw new InstallError({
+      code: "migration_unknown",
+      message:
+        "This backend has no migration tag. Nothing was changed. Export its data and inspect it before replacing it.",
+      status: 409,
+    })
   let migrations: ReturnType<typeof selectMigrations>
   try {
     migrations = selectMigrations(manifest.migrations, existing ? (existing.migration_tag ?? null) : null)
   } catch (error) {
-    throw new InstallError(
-      "migration_unknown",
-      error instanceof Error
-        ? error.message
-        : "This release does not know the backend's migration tag. Nothing was changed.",
-      409,
-    )
+    throw new InstallError({
+      code: "migration_unknown",
+      message:
+        error instanceof Error
+          ? error.message
+          : "This release does not know the backend's migration tag. Nothing was changed.",
+      status: 409,
+    })
   }
   if (existing && destructiveMigration(migrations) && req.reset !== "delete-existing-data") {
     if (oauth) await deps.codes?.put(oauth.code, oauth.tokens)
-    throw new InstallError(
-      "reset_required",
-      "This upgrade permanently deletes all existing chats, messages, agents, memory, routines, provider keys and built-in file bytes. R2 file bytes remain, but their old indexes are deleted. Cloudflare Worker secrets remain. Returning to an older release will not restore this data. Export anything you need before confirming a fresh start.",
-      409,
-    )
+    throw new InstallError({
+      code: "reset_required",
+      message:
+        "This upgrade permanently deletes all existing chats, messages, agents, memory, routines, provider keys and built-in file bytes. R2 file bytes remain, but their old indexes are deleted. Cloudflare Worker secrets remain. Returning to an older release will not restore this data. Export anything you need before confirming a fresh start.",
+      status: 409,
+    })
   }
   const inheritedR2 = existing
     ? ((
@@ -353,13 +367,14 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
     f,
   ).catch((e: unknown) => {
     if (!existing && e instanceof InstallError && e.code === "no_permission") {
-      throw new InstallError(
-        "cannot_create",
-        "This sign-in may change Workers but not create one. Give the token Workers Admin, not Workers Editor, then try again.",
-        403,
-        e.cfCodes,
-        e.detail,
-      )
+      throw new InstallError({
+        code: "cannot_create",
+        message:
+          "This sign-in may change Workers but not create one. Give the token Workers Admin, not Workers Editor, then try again.",
+        status: 403,
+        cfCodes: e.cfCodes,
+        detail: e.detail,
+      })
     }
     throw e
   })
@@ -381,11 +396,11 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   let waited = 0
   while (!(await isKiko(f, `${backendUrl}/api/version`))) {
     if (waited >= POLL_LIMIT_MS)
-      throw new InstallError(
-        "not_ready",
-        "The backend was installed but did not answer in time. Try again in a minute.",
-        504,
-      )
+      throw new InstallError({
+        code: "not_ready",
+        message: "The backend was installed but did not answer in time. Try again in a minute.",
+        status: 504,
+      })
     await deps.sleep(POLL_MS)
     waited += POLL_MS
   }

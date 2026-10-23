@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 import type { LeaseInfo } from "../../integrations/kernel/lease"
 import type { BrowserCheck } from "../../user/kernel-wiring"
 import type { User } from "../../user/user-do"
@@ -8,12 +9,9 @@ export type BrowserState = BrowserCheck
 
 type LiveLink = { ok: true; url: string; posted: boolean } | { ok: false; error: string }
 
-class BrowserNotConnected extends Error {
-  constructor() {
-    super("no browser: the human has not connected a Kernel key in settings")
-    this.name = "BrowserNotConnected"
-  }
-}
+class BrowserNotConnected extends Schema.TaggedError<BrowserNotConnected>()("BrowserNotConnected", {
+  message: Schema.String,
+}) {}
 
 export interface LeasePort {
   lease(): Promise<Lease>
@@ -42,7 +40,9 @@ const PAUSE_MEMO_MS = 1_000
 export function userLease(user: () => UserBrowserRpc, agentId: string, roomId: string): LeasePort {
   const connected = <T>(call: () => Promise<T>): Promise<T> =>
     call().catch((e: unknown) => {
-      throw e instanceof Error && NOT_CONNECTED.test(e.message) ? new BrowserNotConnected() : e
+      throw e instanceof Error && NOT_CONNECTED.test(e.message)
+        ? new BrowserNotConnected({ message: "no browser: the human has not connected a Kernel key in settings" })
+        : e
     })
   let seen: { at: number; on: boolean } | undefined
   const paused = async (): Promise<boolean> => {

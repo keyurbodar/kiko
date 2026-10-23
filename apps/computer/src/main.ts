@@ -38,7 +38,8 @@ export async function main(argv: string[]): Promise<number> {
   const dir = values.dir ?? configDir()
   const [command, ...rest] = positionals
   try {
-    if (!command || !commands.has(command)) throw new CliError(`unknown command: ${command ?? ""}\n\n${USAGE}`)
+    if (!command || !commands.has(command))
+      throw new CliError({ message: `unknown command: ${command ?? ""}\n\n${USAGE}` })
     if (command === "pair") return await runPair(dir, rest, values.name ?? null)
     if (command === "service") return await runService(rest)
     if (command === "doctor") return await runDoctor(dir)
@@ -59,7 +60,7 @@ function detachConsole(): void {
 
 async function runPair(dir: string, rest: string[], name: string | null): Promise<number> {
   const target = rest[0]
-  if (!target) throw new CliError(`pair needs the URL the web app copied\n\n${USAGE}`)
+  if (!target) throw new CliError({ message: `pair needs the URL the web app copied\n\n${USAGE}` })
   const log = createLogger("kiko-computer")
   const detection = await detect(dir, log)
   const config = await pair(dir, detection, target, name)
@@ -72,7 +73,7 @@ async function runPair(dir: string, rest: string[], name: string | null): Promis
 async function runService(rest: string[]): Promise<number> {
   const action = rest[0]
   if (!action || !serviceActions.has(action as ServiceAction)) {
-    throw new CliError(`service needs one of install, uninstall, status\n\n${USAGE}`)
+    throw new CliError({ message: `service needs one of install, uninstall, status\n\n${USAGE}` })
   }
   return service(action as ServiceAction)
 }

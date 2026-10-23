@@ -347,7 +347,7 @@ export class Room implements CommandRoom {
         })
       : null
     if (filed && (!filed.file || filed.refused || filed.drop))
-      throw new ClaimRefused("The message's text could not be stored as a file.")
+      throw new ClaimRefused({ message: "The message's text could not be stored as a file." })
     return filed
   }
 
@@ -1096,7 +1096,7 @@ export class Room implements CommandRoom {
     try {
       if (text.length < frame.text.length && !this.log.sentBefore(frame.clientId)) {
         const home = this.home()
-        if (!home) throw new ClaimRefused("This chat is not ready. Send again in a moment.")
+        if (!home) throw new ClaimRefused({ message: "This chat is not ready. Send again in a moment." })
         whole = await putWhole(this.services.files(), home, frame.clientId, frame.text)
       }
       const store = (): SendOutcome =>

@@ -1,19 +1,15 @@
+import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 
-export type AccountChoice = { id: string; name: string }
-
-export class InstallError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-    readonly status = 400,
-    readonly cfCodes: number[] = [],
-    readonly detail?: string,
-    readonly accounts?: AccountChoice[],
-  ) {
-    super(message)
-  }
-}
+export class InstallError extends Schema.TaggedError<InstallError>()("InstallError", {
+  code: Schema.String,
+  message: Schema.String,
+  status: Schema.Number.pipe(Schema.withConstructorDefault(Effect.succeed(400))),
+  cfCodes: Schema.Array(Schema.Number).pipe(Schema.withConstructorDefault(Effect.succeed([]))),
+  detail: Schema.optional(Schema.String),
+  accounts: Schema.optional(Schema.Array(Schema.Struct({ id: Schema.String, name: Schema.String }))),
+}) {}
 
 type CfBody<T> = { success: boolean; result: T; errors?: { code: number; message: string }[] }
 
@@ -54,7 +50,15 @@ const SENTENCE: Record<string, string> = {
 export const installFailure = (e: unknown): InstallError | null => {
   if (e instanceof InstallError) return e
   const said = e instanceof Error ? e.message : String(e)
-  return ROWS_FULL.test(said) ? new InstallError("storage_full", SENTENCE.storage_full as string, 503, [], said) : null
+  return ROWS_FULL.test(said)
+    ? new InstallError({
+        code: "storage_full",
+        message: SENTENCE.storage_full as string,
+        status: 503,
+        cfCodes: [],
+        detail: said,
+      })
+    : null
 }
 
 export async function cf<T>(
@@ -69,7 +73,7 @@ export async function cf<T>(
   try {
     res = await fetcher(`${API}${path}`, { ...init, headers })
   } catch {
-    throw new InstallError("cloudflare_down", SENTENCE.cloudflare_down as string, 502)
+    throw new InstallError({ code: "cloudflare_down", message: SENTENCE.cloudflare_down as string, status: 502 })
   }
   const body = (await res.json().catch(() => null)) as CfBody<T> | null
   if (!res.ok || !body?.success) {
@@ -77,13 +81,13 @@ export async function cf<T>(
     const codes = errors.flatMap((e) => (typeof e.code === "number" ? [e.code] : []))
     const code = codeOf(res.status, errors)
     const said = errors[0]?.message ?? `Cloudflare answered ${res.status}.`
-    throw new InstallError(
-      code,
-      SENTENCE[code] as string,
-      502,
-      codes,
-      `${said} (${init.method ?? "GET"} ${path.replace(/\/accounts\/\w+/, "/accounts/…")})`,
-    )
+    throw new InstallError({
+      code: code,
+      message: SENTENCE[code] as string,
+      status: 502,
+      cfCodes: codes,
+      detail: `${said} (${init.method ?? "GET"} ${path.replace(/\/accounts\/\w+/, "/accounts/…")})`,
+    })
   }
   return body.result
 }

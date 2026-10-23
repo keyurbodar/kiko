@@ -91,7 +91,8 @@ export class KernelWiring {
     try {
       await this.clientFor(key).listActive()
     } catch (e) {
-      if (e instanceof KernelError && e.kind === "unauthorized") throw new KernelError("unauthorized", REJECTED)
+      if (e instanceof KernelError && e.kind === "unauthorized")
+        throw new KernelError({ kind: "unauthorized", message: REJECTED })
       throw e
     }
     await this.closeBrowser()
@@ -239,7 +240,7 @@ export class KernelWiring {
   }
 
   private async openLink(mode: "watch" | "control", onSwitching: (on: boolean) => void): Promise<string> {
-    if (!this.store.connected()) throw new KernelError("failed", "Kernel is not connected")
+    if (!this.store.connected()) throw new KernelError({ kind: "failed", message: "Kernel is not connected" })
     const hold = () =>
       mode === "control" ? this.browser.setTakeover(true) : this.browser.watchUntil(Date.now() + WATCH_MS)
     const row = this.store.lease()
@@ -254,7 +255,7 @@ export class KernelWiring {
       hold()
     }
     const live = (await this.store.urls())?.liveUrl
-    if (!live) throw new KernelError("failed", "Kernel gave no live view for this browser")
+    if (!live) throw new KernelError({ kind: "failed", message: "Kernel gave no live view for this browser" })
     if (mode === "control") return live
     const url = new URL(live)
     url.searchParams.set("readOnly", "true")
@@ -288,7 +289,7 @@ export class KernelWiring {
 
   private async client(): Promise<KernelClient> {
     const key = await this.store.key()
-    if (!key) throw new KernelError("failed", "Kernel is not connected")
+    if (!key) throw new KernelError({ kind: "failed", message: "Kernel is not connected" })
     return this.clientFor(key)
   }
 

@@ -10,20 +10,21 @@ export type ParsedTarget = { origin: string; code: string }
 
 function parsePairTarget(target: string): ParsedTarget {
   const hash = target.indexOf("#")
-  if (hash < 0) throw new CliError("pair needs the whole URL the web app copied, including the part after #")
+  if (hash < 0)
+    throw new CliError({ message: "pair needs the whole URL the web app copied, including the part after #" })
   const code = target.slice(hash + 1).trim()
-  if (!code) throw new CliError("that pairing URL has no code after the #")
+  if (!code) throw new CliError({ message: "that pairing URL has no code after the #" })
   return { origin: originOf(target.slice(0, hash).trim()), code }
 }
 
 function originOf(raw: string): string {
-  if (!raw) throw new CliError("that pairing URL has no worker address")
+  if (!raw) throw new CliError({ message: "that pairing URL has no worker address" })
   const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`
   let url: URL
   try {
     url = new URL(withProtocol)
   } catch {
-    throw new CliError(`cannot read a worker address from ${raw}`)
+    throw new CliError({ message: `cannot read a worker address from ${raw}` })
   }
   url.hash = ""
   url.search = ""
@@ -44,14 +45,16 @@ async function postPair(origin: string, body: unknown): Promise<Answer> {
       signal: AbortSignal.timeout(20_000),
     })
   } catch (error) {
-    throw new CliError(`cannot reach ${url.origin}: ${error instanceof Error ? error.message : String(error)}`)
+    throw new CliError({
+      message: `cannot reach ${url.origin}: ${error instanceof Error ? error.message : String(error)}`,
+    })
   }
   const parsed = (await response.json().catch(() => null)) as (Answer & { error?: string }) | null
   if (!response.ok) {
-    throw new CliError(parsed?.error ?? `pairing failed: ${url.origin} answered ${response.status}`)
+    throw new CliError({ message: parsed?.error ?? `pairing failed: ${url.origin} answered ${response.status}` })
   }
   if (!parsed || typeof parsed.id !== "string" || typeof parsed.userId !== "string") {
-    throw new CliError("pairing failed: the worker's answer had no machine id")
+    throw new CliError({ message: "pairing failed: the worker's answer had no machine id" })
   }
   return parsed
 }

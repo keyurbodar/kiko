@@ -11,7 +11,7 @@ export type InstallOutcome =
         message: string
         status: number
         detail?: string
-        accounts?: { id: string; name: string }[]
+        accounts?: readonly { id: string; name: string }[]
       }
     }
 

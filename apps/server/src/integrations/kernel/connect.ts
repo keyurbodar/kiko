@@ -13,18 +13,20 @@ export function kernelErrorText(e: unknown): string {
 const AGENT_ID = /^[A-Za-z0-9_.:/-]{1,128}$/
 
 export function checkAgentId(value: unknown): string {
-  if (typeof value !== "string" || !AGENT_ID.test(value)) throw new KernelError("failed", "bad agent id")
+  if (typeof value !== "string" || !AGENT_ID.test(value))
+    throw new KernelError({ kind: "failed", message: "bad agent id" })
   return value
 }
 
 export function checkTabs(value: unknown): Record<string, string> | undefined {
   if (value === undefined) return undefined
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new KernelError("failed", "bad tabs")
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    throw new KernelError({ kind: "failed", message: "bad tabs" })
   const entries = Object.entries(value)
-  if (entries.length > MAX_TABS) throw new KernelError("failed", "too many tabs")
+  if (entries.length > MAX_TABS) throw new KernelError({ kind: "failed", message: "too many tabs" })
   for (const [id, url] of entries) {
     if (id.length === 0 || id.length > 64 || typeof url !== "string" || url.length > 2048)
-      throw new KernelError("failed", "bad tabs")
+      throw new KernelError({ kind: "failed", message: "bad tabs" })
   }
   return Object.fromEntries(entries) as Record<string, string>
 }

@@ -33,5 +33,5 @@ export class Deadline {
 
 export function abortReason(signal: AbortSignal): Fail {
   const reason: unknown = signal.reason
-  return reason instanceof Fail ? reason : new Fail("cancelled", "the call was cancelled")
+  return reason instanceof Fail ? reason : new Fail({ code: "cancelled", message: "the call was cancelled" })
 }

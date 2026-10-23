@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 import { type Keyring, open, seal } from "@kiko/durable/crypto"
 import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
 import { buildMetadata, destructiveMigration, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
@@ -23,7 +24,9 @@ type UpdateDeps = {
   report: (stage: UpdateStage, error?: string) => void
 }
 
-class UpdateFailure extends Error {}
+class UpdateFailure extends Schema.TaggedError<UpdateFailure>()("UpdateFailure", {
+  message: Schema.String,
+}) {}
 
 const RECONNECT = "Reconnect Cloudflare, then try again."
 
@@ -55,10 +58,11 @@ async function accessToken(deps: UpdateDeps, grant: CfGrant): Promise<string> {
       }),
     })
   } catch {
-    throw new UpdateFailure("Cloudflare could not be reached. Try again.")
+    throw new UpdateFailure({ message: "Cloudflare could not be reached. Try again." })
   }
   const body = (await res.json().catch(() => null)) as { access_token?: string; refresh_token?: string } | null
-  if (!res.ok || !body?.access_token) throw new UpdateFailure(`Cloudflare refused the saved sign-in. ${RECONNECT}`)
+  if (!res.ok || !body?.access_token)
+    throw new UpdateFailure({ message: `Cloudflare refused the saved sign-in. ${RECONNECT}` })
   await deps.saveGrant({
     ...grant,
     accessToken: body.access_token,
@@ -74,7 +78,7 @@ async function cf<T>(deps: UpdateDeps, token: string, path: string, init: Reques
   try {
     res = await deps.fetch(`${deps.config.cfApi}${path}`, { ...init, headers })
   } catch {
-    throw new UpdateFailure("Cloudflare could not be reached. Try again.")
+    throw new UpdateFailure({ message: "Cloudflare could not be reached. Try again." })
   }
   const body = (await res.json().catch(() => null)) as {
     success?: boolean
@@ -82,9 +86,9 @@ async function cf<T>(deps: UpdateDeps, token: string, path: string, init: Reques
     errors?: { message?: string }[]
   } | null
   if (res.status === 401 || res.status === 403)
-    throw new UpdateFailure(`Cloudflare refused the saved sign-in. ${RECONNECT}`)
+    throw new UpdateFailure({ message: `Cloudflare refused the saved sign-in. ${RECONNECT}` })
   if (!res.ok || !body?.success)
-    throw new UpdateFailure(body?.errors?.[0]?.message ?? `Cloudflare answered ${res.status}.`)
+    throw new UpdateFailure({ message: body?.errors?.[0]?.message ?? `Cloudflare answered ${res.status}.` })
   return body.result as T
 }
 
@@ -98,7 +102,7 @@ export async function runUpdate(deps: UpdateDeps, version: string): Promise<void
 
     deps.report("authorizing")
     const grant = await deps.loadGrant()
-    if (!grant) throw new UpdateFailure(`Kiko has no Cloudflare sign-in saved. ${RECONNECT}`)
+    if (!grant) throw new UpdateFailure({ message: `Kiko has no Cloudflare sign-in saved. ${RECONNECT}` })
     const token = await accessToken(deps, grant)
 
     deps.report("uploading")
@@ -108,17 +112,18 @@ export async function runUpdate(deps: UpdateDeps, version: string): Promise<void
       `/accounts/${grant.accountId}/workers/scripts`,
     )
     const own = scripts.find((s) => s.id === grant.scriptName)
-    if (!own) throw new UpdateFailure("This backend was not found in your Cloudflare account.")
+    if (!own) throw new UpdateFailure({ message: "This backend was not found in your Cloudflare account." })
     let migrations: ReturnType<typeof selectMigrations>
     try {
       migrations = selectMigrations(manifest.migrations, own.migration_tag ?? null)
     } catch (e) {
-      throw new UpdateFailure(e instanceof Error ? e.message : "The release does not fit this backend.")
+      throw new UpdateFailure({ message: e instanceof Error ? e.message : "The release does not fit this backend." })
     }
     if (destructiveMigration(migrations))
-      throw new UpdateFailure(
-        "This release resets the backend's stored data. Export your data, then reconnect Cloudflare in the installer to review and confirm the reset.",
-      )
+      throw new UpdateFailure({
+        message:
+          "This release resets the backend's stored data. Export your data, then reconnect Cloudflare in the installer to review and confirm the reset.",
+      })
     const settings = await cf<{ bindings?: { name: string; type: string }[] }>(
       deps,
       token,
