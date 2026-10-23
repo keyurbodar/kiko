@@ -82,11 +82,11 @@ jobs:
         env:
           MANUAL: ${{ needs.preflight.outputs.manual }}
         run: |
-          last="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+          last="$(git tag -l 'v*' --sort=-v:refname | head -1)"
           if [ -z "$last" ]; then
             count="$(git rev-list --count HEAD)"
           else
-            count="$(git rev-list --count "$last..HEAD")"
+            count="$(git rev-list --count HEAD "^$last")"
           fi
           echo "commits since ${last:-the start}: $count"
           if [ "$count" -eq 0 ] && [ "$MANUAL" != "true" ]; then
@@ -105,10 +105,12 @@ jobs:
         env:
           PART: ${{ needs.preflight.outputs.part }}
         run: |
+          export LAST_TAG="$(git tag -l 'v*' --sort=-v:refname | head -1)"
           new="$(bun -e '
             const pkg = await Bun.file("package.json").json()
-            const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(pkg.version)
-            if (!m) throw new Error(`package.json version ${pkg.version} is not major.minor.patch`)
+            const current = [process.env.LAST_TAG.replace(/^v/, ""), pkg.version].filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(Bun.semver.order).at(-1) ?? ""
+            const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(current)
+            if (!m) throw new Error(`no major.minor.patch version in the last tag or package.json`)
             const [a, b, c] = m.slice(1).map(Number)
             const part = process.env.PART
             if (!["patch", "minor", "major"].includes(part)) throw new Error(`bad bump part ${part}`)
@@ -123,7 +125,7 @@ jobs:
           fi
           echo "version=$new" >> "$GITHUB_OUTPUT"
       - id: push
-        name: commit and tag
+        name: tag the release commit without touching main
         if: steps.changed.outputs.release == 'true'
         env:
           VERSION: ${{ steps.bump.outputs.version }}
@@ -133,7 +135,7 @@ jobs:
           git add package.json
           git commit -m "Bump the version to $VERSION"
           git tag -a "v$VERSION" -m "Release $VERSION"
-          git push --atomic origin HEAD:main --follow-tags
+          git push origin "refs/tags/v$VERSION"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   deploy:
