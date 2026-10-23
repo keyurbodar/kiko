@@ -1,4 +1,4 @@
-import type { RoomId, RoomSignal, RoomSnapshot } from "@kiko/protocol"
+import type { Message, RoomId, RoomSignal, RoomSnapshot } from "@kiko/protocol"
 import type { RoomStreamItem } from "@kiko/protocol/rpc"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
@@ -49,10 +49,38 @@ const failureMessage = (cause: Cause.Cause<unknown>) => {
   return error instanceof Error && error.message.trim() ? error.message : "Kiko could not open this chat."
 }
 
+export function mergeBySeq(a: ReadonlyArray<Message>, b: ReadonlyArray<Message>): Message[] {
+  const out: Message[] = []
+  let i = 0
+  let j = 0
+  while (i < a.length || j < b.length) {
+    const x = a[i]
+    const y = b[j]
+    if (y === undefined || (x !== undefined && x.seq < y.seq)) {
+      out.push(x!)
+      i++
+    } else {
+      if (x !== undefined && x.seq === y.seq) i++
+      out.push(y)
+      j++
+    }
+  }
+  return out
+}
+
+const withPage = (state: RoomState, page: ReadonlyArray<Message>): RoomState =>
+  Option.isNone(state.data) || page.length === 0
+    ? state
+    : {
+        ...state,
+        data: Option.some({ ...state.data.value, messages: mergeBySeq(page, state.data.value.messages) }),
+      }
+
 export const makeRoomState = Effect.fnUntraced(function* (
   roomId: RoomId,
   signals: PubSub.PubSub<RoomSignal>,
   resume?: RoomResumeCache,
+  pages?: PubSub.PubSub<ReadonlyArray<Message>>,
 ): Effect.fn.Return<
   SubscriptionRef.SubscriptionRef<RoomState>,
   never,
@@ -118,6 +146,12 @@ export const makeRoomState = Effect.fnUntraced(function* (
     Stream.runForEach(() => update(markDisconnected).pipe(Effect.andThen(persister.flush))),
     Effect.forkScoped,
   )
+
+  if (pages !== undefined)
+    yield* Stream.fromPubSub(pages).pipe(
+      Stream.runForEach((page) => update((current) => withPage(current, page))),
+      Effect.forkScoped,
+    )
 
   const missing = update(markMissing).pipe(Effect.andThen(cache.removeRoom(roomId).pipe(Effect.ignore)))
 
