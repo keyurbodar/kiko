@@ -10,6 +10,7 @@ const CORE: Record<string, readonly string[]> = {
   agent: ["@kiko/durable"],
   memory: ["@kiko/agent"],
   sandbox: [],
+  computer: [],
   protocol: ["@kiko/agent"],
 }
 

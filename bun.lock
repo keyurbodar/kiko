@@ -160,6 +160,17 @@
         "typescript": "^5.9.0",
       },
     },
+    "core/computer": {
+      "name": "@kiko/computer",
+      "version": "0.0.1",
+      "dependencies": {
+        "effect": "4.0.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.20260101.0",
+        "typescript": "^5.9.0",
+      },
+    },
     "core/durable": {
       "name": "@kiko/durable",
       "version": "0.0.1",
@@ -627,6 +638,8 @@
     "@kiko/browser": ["@kiko/browser@workspace:core/browser"],
 
     "@kiko/cli": ["@kiko/cli@workspace:apps/cli"],
+
+    "@kiko/computer": ["@kiko/computer@workspace:core/computer"],
 
     "@kiko/durable": ["@kiko/durable@workspace:core/durable"],
 
