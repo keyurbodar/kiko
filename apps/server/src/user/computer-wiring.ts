@@ -14,6 +14,9 @@ import { mintPairCode } from "../computer/pairing"
 import type { ComputerLinkResult, PcCallOutcome, PcReleased } from "../computer/types"
 import type { Env } from "../index"
 import type { Attachment } from "./socket-frames"
+import { subscribe } from "../owner/socket"
+import { frameStream } from "../computer/frames"
+import type { RequestId } from "../rpc/wire"
 
 const missing = () => new NotFoundError({ resource: "computer", message: "there is no such computer" })
 
@@ -158,9 +161,21 @@ export class ComputerWiring {
     function* (socket: WebSocket, pcId: string, on: boolean, mode: "rtc" | "relay" = "rtc") {
       const row = yield* this.row(pcId)
       if (on && mode === "rtc") yield* Effect.promise(() => this.hub.watchRtc(row.id, socket))
-      else this.hub.watch(row.id, socket, on, mode)
     },
   )
+
+  readonly frames = Effect.fn("Computers.frames")(
+    { self: this },
+    function* (socket: WebSocket, requestId: RequestId, pcId: string) {
+      const row = yield* this.row(pcId)
+      subscribe(socket, { requestId, stream: frameStream(row.id), cursor: 0 })
+      this.hub.syncRelay(row.id)
+    },
+  )
+
+  ended(stream: string): void {
+    if (stream.startsWith("pc:")) this.hub.syncRelay(stream.slice("pc:".length))
+  }
 
   readonly take = Effect.fn("Computers.take")({ self: this }, function* (socket: WebSocket, pcId: string) {
     const row = yield* this.row(pcId)

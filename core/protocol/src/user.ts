@@ -270,6 +270,16 @@ export const ComputerSummary = Schema.Struct({
 })
 export type ComputerSummary = typeof ComputerSummary.Type
 
+export const ComputerFrame = Schema.Struct({
+  seq: Count,
+  mime: Schema.Literals(["image/jpeg", "image/webp"]),
+  width: Count,
+  height: Count,
+  cursor: Schema.NullOr(Schema.Struct({ x: Unit, y: Unit })),
+  data: Schema.String,
+})
+export type ComputerFrame = typeof ComputerFrame.Type
+
 export const ReleaseVersion = Schema.String.check(Schema.isPattern(/^[A-Za-z0-9._-]{1,64}$/))
 
 export const ClientToUser = Schema.Union([

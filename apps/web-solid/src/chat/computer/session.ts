@@ -1,12 +1,14 @@
-import type { ComputerInput, ComputerSignal } from "@kiko/protocol"
-import { owner, run } from "../../state/runtime"
+import type { ComputerFrame, ComputerInput, ComputerSignal } from "@kiko/protocol"
+import * as Option from "effect/Option"
+import { owner, registry, run, valueOf } from "../../state/runtime"
 import { onUserSignal } from "../../state/user"
 
-export type Mode = "connecting" | "rtc"
+export type Mode = "connecting" | "rtc" | "relay"
 export type Cursor = { x: number; y: number } | null
 
 export type Hooks = {
   video: HTMLVideoElement
+  canvas: HTMLCanvasElement
   onMode(mode: Mode): void
   onSize(width: number, height: number): void
   onCursor(cursor: Cursor): void
@@ -15,7 +17,7 @@ export type Hooks = {
 export type Session = { send(events: readonly ComputerInput[]): void; close(): void }
 
 const STUN = "stun:stun.cloudflare.com:3478"
-const RETRY_MS = 5_000
+const FALLBACK_MS = 5_000
 const ICE_WAIT_MS = 350
 
 type Rtc = { send(events: readonly ComputerInput[]): boolean; close(): void }
@@ -164,37 +166,120 @@ function startRtc(pcId: string, hooks: Hooks, on: RtcEvents): Rtc {
   }
 }
 
+function startRelay(pcId: string, hooks: Hooks): { frame(frame: ComputerFrame): void; close(): void } {
+  const context = hooks.canvas.getContext("2d")
+  let latest: ComputerFrame | null = null
+  let busy = false
+  let closed = false
+  let painted = -1
+
+  function paint(bitmap: ImageBitmap, frame: ComputerFrame) {
+    const { canvas } = hooks
+    if (canvas.width !== frame.width || canvas.height !== frame.height) {
+      canvas.width = frame.width
+      canvas.height = frame.height
+    }
+    context?.drawImage(bitmap, 0, 0, frame.width, frame.height)
+    hooks.onSize(frame.width, frame.height)
+    hooks.onCursor(frame.cursor)
+  }
+
+  async function drain() {
+    if (busy) return
+    busy = true
+    while (latest) {
+      const frame = latest
+      latest = null
+      if (closed) break
+      try {
+        const blob = new Blob([Uint8Array.from(atob(frame.data), (c) => c.charCodeAt(0))], { type: frame.mime })
+        const bitmap = await createImageBitmap(blob)
+        if (!closed) paint(bitmap, frame)
+        bitmap.close()
+      } catch {}
+    }
+    busy = false
+  }
+
+  return {
+    frame(frame) {
+      if (closed || frame.seq <= painted) return
+      painted = frame.seq
+      latest = frame
+      void drain()
+    },
+    close() {
+      closed = true
+      latest = null
+    },
+  }
+}
+
 export function startSession(pcId: string, hooks: Hooks): Session {
+  let mode: Mode = "connecting"
   let closed = false
   let rtc: Rtc | null = null
-  let retry: ReturnType<typeof setTimeout> | undefined
+  let relay: ReturnType<typeof startRelay> | null = null
+  let stopFrames: () => void = () => {}
+  let fallback: ReturnType<typeof setTimeout> | undefined
+
+  const setMode = (next: Mode) => {
+    if (closed || mode === next) return
+    mode = next
+    hooks.onMode(next)
+  }
+
+  const toRelay = (stop: () => void) => {
+    if (closed || relay) return
+    clearTimeout(fallback)
+    stop()
+    rtc = null
+    setMode("connecting")
+    relay = startRelay(pcId, hooks)
+    stopFrames = registry.subscribe(
+      owner.computerFramesAtom(pcId),
+      (result) => {
+        const frame = Option.flatten(Option.fromNullishOr(valueOf(result)))
+        if (Option.isNone(frame)) return
+        relay?.frame(frame.value)
+        setMode("relay")
+      },
+      { immediate: true },
+    )
+  }
 
   const connect = () => {
-    if (closed) return
+    if (closed || relay) return
     rtc?.close()
-    hooks.onMode("connecting")
-    rtc = startRtc(pcId, hooks, {
+    setMode("connecting")
+    let live = false
+    const started = startRtc(pcId, hooks, {
       live: () => {
-        clearTimeout(retry)
-        if (!closed) hooks.onMode("rtc")
+        live = true
+        clearTimeout(fallback)
+        if (!closed && !relay) setMode("rtc")
       },
-      fail: () => {
-        clearTimeout(retry)
-        retry = setTimeout(connect, RETRY_MS)
-      },
+      fail: () => toRelay(() => started.close()),
     })
+    rtc = started
+    fallback = setTimeout(() => {
+      if (!live) toRelay(() => started.close())
+    }, FALLBACK_MS)
   }
 
   connect()
 
   return {
     send(events) {
-      rtc?.send(events)
+      if (rtc?.send(events)) return
+      if (relay) void run(owner.commands.pcInput, { pcId, events })
     },
     close() {
       closed = true
-      clearTimeout(retry)
+      clearTimeout(fallback)
       rtc?.close()
+      stopFrames()
+      relay?.close()
       void run(owner.commands.pcWatch, { pcId, on: false })
     },
   }

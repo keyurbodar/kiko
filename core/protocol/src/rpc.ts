@@ -32,6 +32,7 @@ import {
   Chat,
   ChatOp,
   ComposioResult,
+  ComputerFrame,
   ComputerId,
   ComputerInput,
   ComputerSignal,
@@ -287,6 +288,12 @@ export const OwnerRpcs = RpcGroup.make(
   Rpc.make("pc.watch", {
     payload: { pcId: ComputerId, on: Schema.Boolean, mode: Schema.optionalKey(Schema.Literals(["rtc", "relay"])) },
     error: Lookup,
+  }),
+  Rpc.make("pc.frames", {
+    payload: { pcId: ComputerId },
+    success: ComputerFrame,
+    error: Lookup,
+    stream: true,
   }),
   Rpc.make("pc.take", { payload: { pcId: ComputerId }, error: Refusable }),
   Rpc.make("pc.release", { payload: { pcId: ComputerId }, error: Lookup }),

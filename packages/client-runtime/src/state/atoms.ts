@@ -28,6 +28,7 @@ import type { SupervisorConnectionState } from "../connection/model"
 import { OwnerSupervisor } from "../connection/supervisor"
 import { SnapshotCache } from "../platform/cache"
 import { chatCommand, createChat, newCommandId, sendMessage, type SendMessageInput } from "./commands"
+import { createComputerAtoms } from "./computer"
 import { withPending, type PendingCommand } from "./overlay"
 import { PendingCommands, roomKey } from "./pending"
 import { makeRoomState, ROOM_SNAPSHOT_IDLE_TTL_MS, type RoomResumeCache, type RoomState } from "./roomState"
@@ -179,6 +180,8 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
   )
 
   const { sessionAtom, query } = createQueryAtoms(runtime)
+
+  const { framesAtom } = createComputerAtoms(runtime)
 
   const cachedRoomAtom = Atom.family((roomId: RoomId) =>
     runtime
@@ -358,6 +361,7 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     createChatAtom,
     retryConnectionAtom,
     roomTypingAtom,
+    computerFramesAtom: framesAtom,
     cachedRoomAtom,
     sessionAtom,
     queries,

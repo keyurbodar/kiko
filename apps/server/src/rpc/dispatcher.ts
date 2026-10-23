@@ -33,6 +33,10 @@ const storageOnDefect = (tag: string) =>
     return Effect.fail(STORAGE_ERROR)
   })
 
+const ended = (host: Context["host"], sub: { readonly stream: string } | null) => {
+  if (sub) host.streamEnded?.(sub.stream)
+}
+
 async function request(handlers: HandlerTable, cx: Context, req: IncomingRequest): Promise<void> {
   const { ws } = cx
   const codec = codecs(req.tag)
@@ -49,7 +53,7 @@ async function request(handlers: HandlerTable, cx: Context, req: IncomingRequest
     Effect.suspend(() => handler(payload, { ...cx, requestId: req.id })).pipe(storageOnDefect(req.tag)),
   )
   if (codec.stream && Exit.isSuccess(exit)) return
-  if (codec.stream) unsubscribe(ws, req.id)
+  if (codec.stream) ended(cx.host, unsubscribe(ws, req.id))
   sendExit(ws, req, exit)
 }
 
@@ -61,7 +65,7 @@ export async function dispatch(handlers: HandlerTable, cx: Context, raw: string 
   }
   for (const message of messages) {
     if (message._tag === "Ping") send(cx.ws, RPC_PONG)
-    else if (message._tag === "Interrupt") unsubscribe(cx.ws, message.requestId)
+    else if (message._tag === "Interrupt") ended(cx.host, unsubscribe(cx.ws, message.requestId))
     else if (message._tag === "Request") await request(handlers, cx, message)
   }
 }
