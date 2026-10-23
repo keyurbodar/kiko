@@ -191,6 +191,13 @@ export const SystemEvent = Schema.Union([
     private: Schema.Literal(true),
   }),
   Schema.Struct({
+    kind: Schema.Literal("computer_control"),
+    agent: AgentSlug,
+    pc: Schema.String,
+    reason: Schema.String,
+    private: Schema.Literal(true),
+  }),
+  Schema.Struct({
     kind: Schema.Literal("run_error"),
     slug: AgentSlug,
     reason: RunErrorKind,
@@ -727,6 +734,62 @@ export const BrowserLinkResult = Schema.Union([
   Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
 ])
 
+const PcId = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(64))
+const Unit = Schema.Number.check(Schema.isGreaterThanOrEqualTo(0), Schema.isLessThanOrEqualTo(1))
+
+export const PcHolder = Schema.Literals(["agent", "human"])
+
+export const PcCaps = Schema.Struct({
+  shell: Schema.Boolean,
+  files: Schema.Boolean,
+  desktop: Schema.Boolean,
+  live: Schema.Boolean,
+  input: Schema.Boolean,
+})
+
+export const PcDisplay = Schema.Struct({ id: PcId, width: Count, height: Count, scale: Schema.Number })
+
+export const PcInput = Schema.Union([
+  Schema.Struct({ k: Schema.Literal("move"), x: Unit, y: Unit }),
+  Schema.Struct({ k: Schema.Literal("down"), x: Unit, y: Unit, b: Count }),
+  Schema.Struct({ k: Schema.Literal("up"), x: Unit, y: Unit, b: Count }),
+  Schema.Struct({ k: Schema.Literal("wheel"), x: Unit, y: Unit, dx: Schema.Number, dy: Schema.Number }),
+  Schema.Struct({
+    k: Schema.Literal("key"),
+    code: Schema.String,
+    key: Schema.String,
+    down: Schema.Boolean,
+    mods: Count,
+  }),
+  Schema.Struct({ k: Schema.Literal("text"), s: Schema.String }),
+])
+
+export const PcSignal = Schema.Struct({
+  type: Schema.Literals(["offer", "answer", "ice", "bye"]),
+  sdp: Schema.optionalKey(Schema.String),
+  candidate: Schema.optionalKey(Schema.String),
+  mid: Schema.optionalKey(Schema.String),
+})
+
+export const PcIceServer = Schema.Struct({
+  urls: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
+  username: Schema.optionalKey(Schema.String),
+  credential: Schema.optionalKey(Schema.String),
+})
+
+export const ComputerSummary = Schema.Struct({
+  id: PcId,
+  name: Schema.String,
+  os: Schema.Literals(["macos", "linux", "windows"]),
+  online: Schema.Boolean,
+  caps: PcCaps,
+  holder: PcHolder,
+  agent: Schema.optionalKey(
+    Schema.Struct({ slug: Schema.String, roomId: Schema.String, reason: Schema.optionalKey(Schema.String) }),
+  ),
+  displays: Schema.Array(PcDisplay),
+})
+
 export const ClientToUser = Schema.Union([
   Hello,
   Schema.Struct({ t: Schema.Literal("home"), op: FileOp }),
@@ -752,6 +815,20 @@ export const ClientToUser = Schema.Union([
   Schema.Struct({ t: Schema.Literal("browserLink"), reqId: Id, mode: Schema.Literals(["watch", "control"]) }),
   Schema.Struct({ t: Schema.Literal("handBack") }),
   Schema.Struct({ t: Schema.Literal("closeBrowser") }),
+  Schema.Struct({ t: Schema.Literal("pc.pairCode"), reqId: Id }),
+  Schema.Struct({ t: Schema.Literal("pc.remove"), reqId: Id, pcId: PcId }),
+  Schema.Struct({ t: Schema.Literal("pc.rename"), reqId: Id, pcId: PcId, name: Schema.String }),
+  Schema.Struct({
+    t: Schema.Literal("pc.watch"),
+    pcId: PcId,
+    on: Schema.Boolean,
+    mode: Schema.optionalKey(Schema.Literals(["rtc", "relay"])),
+  }),
+  Schema.Struct({ t: Schema.Literal("pc.take"), pcId: PcId }),
+  Schema.Struct({ t: Schema.Literal("pc.release"), pcId: PcId }),
+  Schema.Struct({ t: Schema.Literal("pc.rtc"), pcId: PcId, signal: PcSignal }),
+  Schema.Struct({ t: Schema.Literal("pc.input"), pcId: PcId, events: Schema.Array(PcInput) }),
+  Schema.Struct({ t: Schema.Literal("pc.ack"), pcId: PcId, seq: Count }),
   Schema.Struct({ t: Schema.Literal("login.start"), loginId: Id, provider: Id }),
   Schema.Struct({ t: Schema.Literal("login.answer"), loginId: Id, promptId: Id, value: Schema.String }),
   Schema.Struct({ t: Schema.Literal("login.cancel"), loginId: Id }),
@@ -835,6 +912,26 @@ export const UserToClient = Schema.Union([
   Schema.Struct({ t: Schema.Literal("kernel"), reqId: Schema.optionalKey(Id), result: KernelResult }),
   Schema.Struct({ t: Schema.Literal("browserState"), state: BrowserState }),
   Schema.Struct({ t: Schema.Literal("browserLink"), reqId: Id, result: BrowserLinkResult }),
+  Schema.Struct({ t: Schema.Literal("pcState"), computers: Schema.Array(ComputerSummary) }),
+  Schema.Struct({
+    t: Schema.Literal("pc.pairCode"),
+    reqId: Id,
+    code: Schema.String,
+    url: Schema.String,
+    expiresAt: Count,
+  }),
+  Schema.Struct({
+    t: Schema.Literal("pc.result"),
+    reqId: Id,
+    ok: Schema.Boolean,
+    error: Schema.optionalKey(Schema.String),
+  }),
+  Schema.Struct({
+    t: Schema.Literal("pc.rtc"),
+    pcId: PcId,
+    signal: PcSignal,
+    iceServers: Schema.optionalKey(Schema.Array(PcIceServer)),
+  }),
   Schema.Struct({ t: Schema.Literal("login.notify"), loginId: Id, event: LoginEvent }),
   Schema.Struct({ t: Schema.Literal("login.prompt"), loginId: Id, promptId: Id, prompt: LoginPrompt }),
   Schema.Struct({
@@ -900,6 +997,12 @@ export type InSync = Assert<
   | Same<typeof KernelResult.Type, P.KernelResult>
   | Same<typeof BrowserState.Type, P.BrowserState>
   | Same<typeof BrowserLinkResult.Type, P.BrowserLinkResult>
+  | Same<typeof PcCaps.Type, P.PcCaps>
+  | Same<typeof PcDisplay.Type, P.PcDisplay>
+  | Same<typeof PcInput.Type, P.PcInput>
+  | Same<typeof PcSignal.Type, P.PcSignal>
+  | Same<typeof PcIceServer.Type, P.PcIceServer>
+  | Same<typeof ComputerSummary.Type, P.ComputerSummary>
   | Same<typeof ClientToOwner.Type, P.ClientToOwner>
   | Same<typeof OwnerToClient.Type, P.OwnerToClient>
   | Same<typeof ClientToUser.Type, P.ClientToUser>

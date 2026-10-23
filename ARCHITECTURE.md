@@ -46,6 +46,8 @@ The client paints from IndexedDB first and applies every action locally before t
 
 Solid components run top to bottom once, and memos and effects evaluate as soon as they are created. Declaration order inside a component is runtime order, which is why lint rejects any use before definition.
 
+The live computer view is its own lazy chunk and is never in a first-paint tier. It tries a WebRTC peer to the daemon first, with input on a DataChannel, and falls back to JPEG frames over the user socket after 5 seconds. Neither path writes to SQLite, and a viewer that is closed holds no socket subscription.
+
 ## Verification
 
 There are no unit or integration tests. Correctness rests on static gates that are cheap enough to run on every commit, and on one end-to-end pass against the real Worker in CI.

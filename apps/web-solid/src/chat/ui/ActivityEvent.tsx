@@ -11,7 +11,7 @@ import {
   PlusIcon,
   StopIcon,
 } from "@kiko/ui/icons"
-import { createMemo, createSignal, onCleanup, Show } from "solid-js"
+import { createMemo, createSignal, lazy, onCleanup, Show, Suspense } from "solid-js"
 import { openSettings } from "../../lib/errors"
 import { useApp } from "../../lib/store"
 import type { ChatMessage } from "../../lib/types"
@@ -19,6 +19,8 @@ import { openModelPicker } from "../../settings/model-picker"
 import { reconnect } from "../../settings/provider-problem"
 import { eventRow } from "../lib/event-line"
 import { SystemRow, type RowAction } from "./SystemRow"
+
+const ComputerCard = lazy(() => import("../computer/ComputerCard"))
 
 const ICONS: Record<string, Glyph> = {
   created: GroupIcon,
@@ -82,19 +84,28 @@ export function ActivityEvent(props: { message: ChatMessage; name: (slug: string
   }
 
   return (
-    <Show when={row()}>
-      {(r) => (
-        <SystemRow
-          label={r().label}
-          detail={r().detail}
-          title={r().title}
-          tone={r().tone}
-          icon={ICONS[props.message.event?.kind ?? "created"]}
-          actions={actions()}
-          data-component={failed() ? "run-error" : "chat-event"}
-          data-message-id={props.message.id}
-        />
-      )}
+    <Show
+      when={props.message.event?.kind !== "computer_control"}
+      fallback={
+        <Suspense>
+          <ComputerCard message={props.message} />
+        </Suspense>
+      }
+    >
+      <Show when={row()}>
+        {(r) => (
+          <SystemRow
+            label={r().label}
+            detail={r().detail}
+            title={r().title}
+            tone={r().tone}
+            icon={ICONS[props.message.event?.kind ?? "created"]}
+            actions={actions()}
+            data-component={failed() ? "run-error" : "chat-event"}
+            data-message-id={props.message.id}
+          />
+        )}
+      </Show>
     </Show>
   )
 }

@@ -1406,6 +1406,11 @@ export class User {
     }
     if (frame.t === "login.answer") return this.#loginState.answer(ws, frame.loginId, frame.promptId, frame.value)
     if (frame.t === "login.cancel") return this.#loginState.cancel(ws, frame.loginId)
+    if (frame.t !== "chat") return
+    this.chatFrame(ws, frame)
+  }
+
+  private chatFrame(ws: WebSocket, frame: Extract<typeof ClientToUser.Type, { t: "chat" }>): void {
     const existing = this.existingFor(frame.op)
     if (existing) return send(ws, { t: "chat_refused", roomId: frame.op.roomId, existing })
     this.apply(frame.op)

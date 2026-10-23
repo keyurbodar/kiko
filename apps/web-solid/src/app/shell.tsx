@@ -22,6 +22,7 @@ import {
   Suspense,
   type ParentProps,
 } from "solid-js"
+import { viewerFor } from "../chat/computers"
 import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces"
 import { preloadRoute } from "./routes"
 import { preloadMessageMenu } from "../chat/ui/MessageMenu"
@@ -82,6 +83,7 @@ const AvatarPicker = lazy(() => import("../avatar/picker"))
 const BotPicker = lazy(() => import("../chat/bot-picker"))
 const NewAgent = lazy(() => import("../newagent/dialog"))
 const SettingsDialog = lazy(() => import("../settings/settings-dialog"))
+const ComputerViewer = lazy(() => import("../chat/computer/Viewer"))
 const DeleteChatDialog = lazy(() => import("../sidebar/delete-chat-dialog"))
 const CHAT_PATH = /^\/chat\/([^/]+)\/?$/
 
@@ -548,6 +550,11 @@ export function Shell(props: ParentProps) {
         <Show when={hintsShown()}>
           <Suspense>
             <HintLayer />
+          </Suspense>
+        </Show>
+        <Show when={viewerFor()}>
+          <Suspense>
+            <ComputerViewer />
           </Suspense>
         </Show>
         <ToastV2.Region />

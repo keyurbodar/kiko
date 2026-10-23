@@ -6,6 +6,7 @@ import {
   ExtensionsIcon,
   type Glyph,
   ModelIcon,
+  MonitorIcon,
   SearchIcon,
   SettingsIcon,
   UserIcon,
@@ -27,12 +28,14 @@ import "./settings-dialog.css"
 
 const KeyboardPage = lazy(() => import("./keyboard"))
 void KeyboardPage.preload()
+const ComputersPage = lazy(() => import("./computers"))
 
 void loadOverlaysV2()
 
 const PAGES: Record<SettingsSection["id"], () => JSX.Element> = {
   models: ModelsPage,
   tools: Tools,
+  computers: ComputersPage,
   appearance: Appearance,
   general: Initiative,
   keyboard: KeyboardPage,
@@ -42,6 +45,7 @@ const PAGES: Record<SettingsSection["id"], () => JSX.Element> = {
 const ICON: Record<SettingsSection["id"], Glyph> = {
   models: ModelIcon,
   tools: ExtensionsIcon,
+  computers: MonitorIcon,
   appearance: AppearanceIcon,
   general: SettingsIcon,
   keyboard: CommandIcon,
