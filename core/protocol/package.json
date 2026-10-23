@@ -10,7 +10,8 @@
     "./rpc": "./src/rpc.ts"
   },
   "scripts": {
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsgo --noEmit",
+    "test": "vitest run --config ../../vitest.config.ts --dir ."
   },
   "dependencies": {
     "effect": "4.0.6",

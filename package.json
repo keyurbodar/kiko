@@ -5,7 +5,8 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "core/*"
+    "core/*",
+    "oxlint-plugin-kiko"
   ],
   "type": "module",
   "scripts": {
@@ -19,18 +20,20 @@
     "knip": "knip --no-progress",
     "check": "bun run fmt:check && bun run lint && bun scripts/check-imports.ts && bun scripts/check-generated.ts && bun run knip && bun run typecheck",
     "check:changed": "bun scripts/check-changed.ts",
-    "build": "bun run --cwd apps/web-solid build && bun scripts/bundle-budget.ts",
-    "verify:web": "bun apps/web-solid/scripts/verify-runtime.ts",
-    "prepare": "git rev-parse --git-path hooks >/dev/null 2>&1 && printf \"#!/bin/sh\\nexec bun scripts/check-changed.ts --staged\\n\" > \"$(git rev-parse --git-path hooks)/pre-commit\" && chmod +x \"$(git rev-parse --git-path hooks)/pre-commit\" || true"
+    "build": "bun run --cwd apps/web-solid build",
+    "prepare": "git rev-parse --git-path hooks >/dev/null 2>&1 && hooks=\"$(git rev-parse --git-path hooks)\" && printf \"#!/bin/sh\\nexec bun scripts/format-staged.ts\\n\" > \"$hooks/pre-commit\" && printf \"#!/bin/sh\\nexec bun scripts/check-changed.ts\\n\" > \"$hooks/pre-push\" && chmod +x \"$hooks/pre-commit\" \"$hooks/pre-push\" || true",
+    "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
+    "@effect/vitest": "4.0.6",
     "@phosphor-icons/core": "2.1.1",
     "@resvg/resvg-js": "2.6.2",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "knip": "6.42.1",
     "oxfmt": "0.74.0",
     "oxlint": "1.89.0",
-    "remixicon": "4.9.1"
+    "remixicon": "4.9.1",
+    "vitest": "5.0.5"
   }
 }

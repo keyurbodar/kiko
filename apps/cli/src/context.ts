@@ -9,9 +9,6 @@ export interface Context {
   name?: string
   port?: string
   identity?: string
-  list: boolean
-  noModel: boolean
-  fake: boolean
   runs: string
   tail?: string
 }

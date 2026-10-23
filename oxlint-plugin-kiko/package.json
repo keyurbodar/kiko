@@ -1,0 +1,23 @@
+{
+  "name": "@kiko/oxlint-plugin",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsgo --noEmit",
+    "test": "vitest run --config ../vitest.config.ts --dir ."
+  },
+  "dependencies": {
+    "@oxlint/plugins": "1.89.0",
+    "effect": "4.0.6"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.0.6",
+    "@types/node": "24.19.2",
+    "typescript": "^5.9.0",
+    "vitest": "5.0.5"
+  }
+}

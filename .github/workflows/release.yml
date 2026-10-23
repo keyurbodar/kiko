@@ -20,6 +20,7 @@ on:
 
 permissions:
   contents: write
+  checks: read
 
 concurrency:
   group: release
@@ -94,6 +95,11 @@ jobs:
           else
             echo "release=true" >> "$GITHUB_OUTPUT"
           fi
+      - name: require a passing Check on the commit this release ships
+        if: steps.changed.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/require-green-ci.sh "$(git rev-parse HEAD)"
       - id: bump
         if: steps.changed.outputs.release == 'true'
         env:

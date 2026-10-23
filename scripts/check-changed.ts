@@ -1,115 +1,187 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs"
-import { join } from "node:path"
+import { execFileSync, spawn, spawnSync } from "node:child_process"
+import { createHash } from "node:crypto"
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs"
+import { basename, dirname, join } from "node:path"
+import { decide, readWorkspace } from "./ci-changes"
 
-const ROOT = join(import.meta.dir, "..")
+const ROOT = join(import.meta.dirname, "..")
 const CODE = /\.[cm]?[jt]sx?$/
 const FORMATTED = /\.([cm]?[jt]sx?|json|jsonc|css|ya?ml|html)$/
+const TEST = /\.test\.[cm]?[jt]sx?$/
 const GENERATOR_INPUT = /^apps\/server\/(recipes|skills|src\/agent\/kiko-docs)\/|^apps\/server\/scripts\/gen-/
+const CACHE = join(ROOT, "node_modules/.cache/check-changed.json")
 
-type Workspace = { name: string; dir: string; deps: string[]; typecheck: boolean }
 type Step = { name: string; cmd: string[] }
+type Result = { name: string; ok: boolean; seconds: string }
 
-function git(...args: string[]): string[] {
-  const out = Bun.spawnSync(["git", ...args], { cwd: ROOT, stdout: "pipe", stderr: "pipe" })
-  if (out.exitCode !== 0) throw new Error(`git ${args.join(" ")} failed: ${out.stderr.toString().trim()}`)
-  return out.stdout.toString().split("\n").filter(Boolean)
+const git = (...args: string[]): string[] =>
+  execFileSync("git", ["-c", "core.quotePath=false", ...args], { cwd: ROOT, encoding: "utf8", maxBuffer: 64 << 20 })
+    .split("\n")
+    .filter(Boolean)
+
+const ref = process.argv.slice(2).find((arg) => !arg.startsWith("--")) ?? "origin/main"
+const mergeBase = spawnSync("git", ["merge-base", "HEAD", ref], { cwd: ROOT, encoding: "utf8" })
+if (mergeBase.status !== 0) {
+  console.error(`check:changed: no merge base with ${ref}. Run \`git fetch origin\` or pass a ref.`)
+  process.exit(1)
 }
+const base = mergeBase.stdout.trim()
+const changed = () => [
+  ...new Set([
+    ...git("diff", "--name-only", "--no-renames", base, "--"),
+    ...git("ls-files", "--others", "--exclude-standard"),
+  ]),
+]
+const files = changed().sort()
 
-function changedFiles(staged: boolean, ref: string): string[] {
-  if (staged) return git("diff", "--cached", "--name-only", "--diff-filter=ACMR")
-  const [base] = git("merge-base", "HEAD", ref)
-  if (!base) throw new Error(`no merge base with ${ref}. Run git fetch origin, or pass a ref.`)
-  return [...new Set([...git("diff", "--name-only", base, "--"), ...git("ls-files", "--others", "--exclude-standard")])]
-}
-
-function workspaces(): Workspace[] {
-  return ["apps", "packages", "core"].flatMap((group) =>
-    readdirSync(join(ROOT, group))
-      .map((name) => `${group}/${name}`)
-      .filter((dir) => existsSync(join(ROOT, dir, "package.json")))
-      .map((dir) => {
-        const pkg = JSON.parse(readFileSync(join(ROOT, dir, "package.json"), "utf8"))
-        const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter((dep) =>
-          dep.startsWith("@kiko/"),
-        )
-        return { name: pkg.name, dir, deps, typecheck: Boolean(pkg.scripts?.typecheck) }
-      }),
-  )
-}
-
-function affected(files: string[], all: Workspace[]): Workspace[] {
-  const rootChange = files.some(
-    (file) =>
-      !all.some((ws) => file.startsWith(`${ws.dir}/`)) && /(^|\/)(package\.json|tsconfig[^/]*\.json)$/.test(file),
-  )
-  const hit = new Set(
-    rootChange
-      ? all.map((ws) => ws.name)
-      : all.filter((ws) => files.some((file) => file.startsWith(`${ws.dir}/`))).map((ws) => ws.name),
-  )
-  let grew = true
-  while (grew) {
-    grew = false
-    for (const ws of all) {
-      if (!hit.has(ws.name) && ws.deps.some((dep) => hit.has(dep))) {
-        hit.add(ws.name)
-        grew = true
-      }
-    }
-  }
-  return all.filter((ws) => hit.has(ws.name) && ws.typecheck)
-}
-
-function plan(files: string[]): Step[] {
-  const present = files.filter((file) => existsSync(join(ROOT, file)))
-  const code = present.filter((file) => CODE.test(file))
-  const formatted = present.filter((file) => FORMATTED.test(file))
-  const manifests = files.some((file) => file.endsWith("package.json") || file === "knip.json")
-  const packages = affected(files, workspaces())
-  const steps: Step[] = []
-  if (formatted.length)
-    steps.push({ name: "format", cmd: ["bunx", "oxfmt", "--check", "--no-error-on-unmatched-pattern", ...formatted] })
-  if (code.length) steps.push({ name: "lint", cmd: ["bunx", "oxlint", "--deny-warnings", ...code] })
-  if (code.length)
-    steps.push({
-      name: "complexity",
-      cmd: ["bunx", "biome", "check", "--no-errors-on-unmatched", "--diagnostic-level=error", ...code],
-    })
-  if (code.length) steps.push({ name: "imports", cmd: ["bun", "scripts/check-imports.ts"] })
-  if (code.length || manifests) steps.push({ name: "knip", cmd: ["bun", "run", "knip"] })
-  if (files.some((file) => GENERATOR_INPUT.test(file)))
-    steps.push({ name: "generated", cmd: ["bun", "scripts/check-generated.ts"] })
-  if (packages.length) {
-    steps.push({
-      name: `typecheck (${packages.length} packages)`,
-      cmd: ["bun", "run", ...packages.flatMap((ws) => ["--filter", ws.name]), "typecheck"],
-    })
-  }
-  return steps
-}
-
-function run(steps: Step[]): boolean {
-  const results = steps.map((step) => {
-    console.log(`\n> ${step.name}`)
-    const started = performance.now()
-    const { exitCode } = Bun.spawnSync(step.cmd, { cwd: ROOT, stdout: "inherit", stderr: "inherit" })
-    return { name: step.name, ok: exitCode === 0, seconds: ((performance.now() - started) / 1000).toFixed(1) }
-  })
-  console.log("\ncheck:changed summary")
-  for (const result of results) console.log(`  ${result.ok ? "pass" : "FAIL"}  ${result.name}  ${result.seconds}s`)
-  return results.every((result) => result.ok)
-}
-
-const args = process.argv.slice(2)
-const staged = args.includes("--staged")
-const ref = args.find((arg) => !arg.startsWith("--")) ?? "origin/main"
-const files = changedFiles(staged, ref)
-if (!files.length) {
-  console.log("check:changed: nothing changed")
+if (files.length === 0) {
+  console.log(`check:changed: no changes since ${base.slice(0, 12)}.`)
   process.exit(0)
 }
-console.log(`check:changed: ${files.length} files${staged ? " staged" : ` since ${ref}`}`)
-if (!run(plan(files))) {
-  console.log("\nFix the failures above. `bun fmt` fixes formatting.")
-  process.exit(1)
+console.log(`check:changed: ${files.length} files since ${base.slice(0, 12)}`)
+
+function inputKey(): string {
+  const hash = createHash("sha256")
+  hash.update(`${process.versions.bun ?? process.version}\0${process.version}\0${base}\0${process.env.CI ?? ""}\0`)
+  hash.update(
+    execFileSync("git", ["diff", "--binary", "--no-renames", "--no-ext-diff", "--no-textconv", base, "--"], {
+      cwd: ROOT,
+      maxBuffer: 1 << 30,
+    }),
+  )
+  const ignored = git(
+    "ls-files",
+    "--others",
+    "--ignored",
+    "--exclude-standard",
+    "--",
+    ":(glob)**/*.d.ts",
+    ":(glob)**/.env*",
+    ":(glob)**/.dev.vars",
+    ":(exclude,glob)**/node_modules/**",
+  )
+  for (const file of [...changed(), ...ignored]) {
+    hash.update(`\0${file}\0`)
+    const path = join(ROOT, file)
+    if (statSync(path, { throwIfNoEntry: false })?.isFile()) hash.update(readFileSync(path))
+  }
+  const installed = join(ROOT, "node_modules/.bun")
+  if (existsSync(installed)) hash.update(readdirSync(installed).sort().join("\0"))
+  return hash.digest("hex")
+}
+
+const key = inputKey()
+const readCache = (): { key: string; summary: string[] } | undefined => {
+  try {
+    return JSON.parse(readFileSync(CACHE, "utf8"))
+  } catch {
+    return undefined
+  }
+}
+const cached = readCache()
+if (cached?.key === key) {
+  console.log("Nothing changed since the last passing run.\n")
+  for (const line of cached.summary) console.log(line)
+  process.exit(0)
+}
+
+const present = files.filter((file) => existsSync(join(ROOT, file)))
+const code = present.filter((file) => CODE.test(file))
+const formatted = present.filter((file) => FORMATTED.test(file))
+const { affected, outputs } = decide(files, readWorkspace(), false)
+const packages = readWorkspace().filter((pkg) => pkg.hasTypecheck && affected.includes(pkg.name))
+
+const tests = new Set(code.filter((file) => TEST.test(file)))
+for (const file of code) {
+  const dir = dirname(file)
+  const prefix = `${basename(file).replace(CODE, "")}.`
+  for (const entry of readdirSync(join(ROOT, dir))) {
+    if (entry.startsWith(prefix) && TEST.test(entry)) tests.add(join(dir, entry))
+  }
+}
+
+const runKnip = files.some((file) => CODE.test(file) || basename(file) === "package.json" || file === "knip.json")
+
+const steps: Step[] = [
+  formatted.length > 0 && {
+    name: "format",
+    cmd: ["bunx", "oxfmt", "--check", "--no-error-on-unmatched-pattern", ...formatted],
+  },
+  code.length > 0 && { name: "lint", cmd: ["bunx", "oxlint", "--deny-warnings", ...code] },
+  code.length > 0 && {
+    name: "complexity",
+    cmd: ["bunx", "biome", "check", "--no-errors-on-unmatched", "--diagnostic-level=error", ...code],
+  },
+  code.length > 0 && { name: "imports", cmd: ["bun", "scripts/check-imports.ts"] },
+  runKnip && { name: "knip", cmd: ["bun", "run", "knip"] },
+  files.some((file) => GENERATOR_INPUT.test(file)) && {
+    name: "generated",
+    cmd: ["bun", "scripts/check-generated.ts"],
+  },
+  packages.length > 0 && {
+    name: `typecheck (${packages.length} packages)`,
+    cmd: [
+      "bun",
+      "run",
+      "--parallel",
+      "--no-exit-on-error",
+      ...packages.flatMap((pkg) => ["--filter", pkg.name]),
+      "typecheck",
+    ],
+  },
+  tests.size > 0 && {
+    name: `test (${tests.size} files)`,
+    cmd: ["bunx", "vitest", "run", "--passWithNoTests", ...tests],
+  },
+].filter((step): step is Step => step !== false)
+
+const env = process.stdout.isTTY ? { ...process.env, FORCE_COLOR: "1" } : process.env
+
+function run(step: Step): Promise<Result> {
+  return new Promise((resolve) => {
+    const started = performance.now()
+    const output: Buffer[] = []
+    const child = spawn(step.cmd[0] ?? "", step.cmd.slice(1), { cwd: ROOT, env })
+    child.stdout.on("data", (chunk: Buffer) => output.push(chunk))
+    child.stderr.on("data", (chunk: Buffer) => output.push(chunk))
+    child.on("error", (error) => output.push(Buffer.from(`${error.message}\n`)))
+    child.on("close", (status) => {
+      const ok = status === 0
+      const seconds = ((performance.now() - started) / 1000).toFixed(1)
+      console.log(`\n> ${step.name}  ${ok ? "pass" : "FAIL"}  ${seconds}s`)
+      process.stdout.write(Buffer.concat(output))
+      resolve({ name: step.name, ok, seconds })
+    })
+  })
+}
+
+const results = await Promise.all(steps.map(run))
+
+const summary = ["check:changed summary"]
+for (const result of results) summary.push(`  ${result.ok ? "pass" : "FAIL"}  ${result.name}  ${result.seconds}s`)
+const ciOnly = Object.entries({
+  "full test suites": outputs.test || outputs.test_web,
+  "worker integration": outputs.worker,
+  "build and worker bundles": outputs.build,
+}).flatMap(([job, runs]) => (runs ? [job] : []))
+if (ciOnly.length > 0) summary.push(`  CI also runs: ${ciOnly.join(", ")}`)
+if (!runKnip) summary.push("  knip skipped: no code or manifest changed")
+console.log(`\n${summary.join("\n")}`)
+
+if (results.some((result) => !result.ok)) {
+  console.log(
+    "\nFix the failures above. `bun fmt` fixes formatting. A missing module after a pull needs `bun install`.",
+  )
+  process.exitCode = 1
+} else if (inputKey() !== key) {
+  console.log("  pass not cached: files changed during the run")
+} else {
+  try {
+    const temp = `${CACHE}.${process.pid}`
+    mkdirSync(dirname(CACHE), { recursive: true })
+    writeFileSync(temp, JSON.stringify({ key, summary }))
+    renameSync(temp, CACHE)
+  } catch (error) {
+    console.warn(`  pass not cached: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }

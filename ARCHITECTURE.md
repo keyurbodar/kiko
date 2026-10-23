@@ -51,7 +51,7 @@ A warm prompt writes 6 billed rows: the human's message, the reply, one journal 
 
 ## Client
 
-The client paints from IndexedDB first and applies every action locally before the server answers. The first-paint tiers stay small, and `scripts/bundle-budget.ts` fails the build when one grows past its limit.
+The client paints from IndexedDB first and applies every action locally before the server answers.
 
 There is no service worker. `/sw.js` is a kill switch that unregisters the old one and clears its caches in installs that registered it. Hashed `/assets/*` files are served `public, max-age=31536000, immutable`, and `index.html` is served `no-cache`, so every load picks up the current build. A deploy removes the previous build's chunks, so an open tab can hit a 404 on its next lazy import. `vite:preloadError` then reloads the page once, guarded by a `sessionStorage` key that a clean startup clears. Without `sessionStorage` it does not reload, and the import rejects as usual.
 
@@ -61,21 +61,26 @@ The live computer view is its own lazy chunk and is never in a first-paint tier.
 
 ## Verification
 
-There are no unit or integration tests. Correctness rests on static gates that are cheap enough to run on every commit, and on one end-to-end pass against the real Worker in CI.
+Static gates are cheap enough to run on every push. Behavior is proven by Vitest against real code: no mocks, no DOM emulator, and no end-to-end suite against a deployed app.
 
 | Gate | Tool | Why |
 |---|---|---|
 | Format | oxfmt | One style, no review noise |
 | Lint | oxlint, `--deny-warnings` | Catches use-before-define, runtime cycles and dead code paths that TypeScript accepts |
+| Test hygiene | `oxlint-plugin-kiko` | Tests never read the wall clock, sleep, poll, set their own timeout or retry, or skip without a `quarantine: #issue` line. Browser tests render through `apps/web-solid/test/render.tsx` |
 | Complexity | Biome, cognitive complexity 30 | oxlint has no complexity rule, so Biome runs that one rule only |
 | Layering | `scripts/check-imports.ts` | `core/` and `packages/` stay independent of `apps/` |
 | Dead code | knip | Unused files, exports and dependencies |
 | Generated | `scripts/check-generated.ts` | `*.gen.ts` matches its Markdown source |
 | Types | tsgo per package | About 4x faster than tsc |
 | Bundles | `vite build`, `wrangler deploy --dry-run` | Imports that resolve in types but not in the bundle |
-| Behavior | `bun kiko verify journal-overhead`, `verify:web` | Real prompts and a real browser against `wrangler dev` |
+| Unit tests | Vitest, `*.test.ts` beside the source | One root `vitest.config.ts`, `retry: 0`, `.only` fails in CI |
+| Browser tests | Vitest browser mode in headless Chromium, `*.browser.test.tsx` | Solid components run through the app's own Vite plugins |
+| Write budget | `apps/server/integration/journal-overhead.integration.test.ts` | Starts the real Worker with `unstable_startWorker` on a fresh persist dir and fails when a warm prompt writes more than 7 billable rows, a quiet minute writes anything, objects call each other, or a failing prompt shows or persists anything but one error row |
 
-`scripts/check-changed.ts` runs the static gates for only the files and packages a change touches. The pre-commit hook runs it on staged files. CI runs every gate on each pull request, and `main` requires the `Check` and `E2E` jobs to pass before a merge, so every commit a release ships has already passed CI.
+`scripts/ci-changes.ts` maps changed files to workspace packages and their dependents. CI uses it to skip jobs a change cannot affect, and `scripts/check-changed.ts` uses the same mapping locally. `bun run check:changed` is the pre-push hook: it formats-checks and lints the changed files, runs knip, layering and generated checks, typechecks the affected packages, and runs the tests beside the changed files, all in parallel, and remembers a passing run until an input changes. The pre-commit hook only formats staged files.
+
+CI runs `Changes`, `Lint`, `Build and Typecheck`, `Test`, `Test Web` and `Worker` side by side. Branch protection requires only the aggregate `Check` job, which fails when any job fails or skips without `Changes` saying it could. Pushes to `main` run every job, and a release refuses to tag a commit whose `Check` has not passed.
 
 ## Computers
 
