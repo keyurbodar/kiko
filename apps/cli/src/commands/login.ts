@@ -49,7 +49,7 @@ export async function login(ctx: Context): Promise<void> {
   const res = await request(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(ctx.dev ? { name: ctx.name } : { code }),
+    body: JSON.stringify(ctx.dev ? { name: ctx.name ?? "dev" } : { code }),
   })
   if (res.status === 404) throw new CliError(`login failed: ${url.origin} has no such sign-in route`)
   if (!res.ok) throw new CliError(`login failed: ${url} returned ${res.status} ${await res.text()}`)
