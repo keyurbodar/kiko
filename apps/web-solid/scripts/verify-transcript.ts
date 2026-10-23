@@ -97,7 +97,10 @@ async function transcript(page: Page, texts: string[]): Promise<void> {
     await page
       .getByText(text, { exact: true })
       .first()
-      .evaluate((element) => element.scrollIntoView({ block: "start" }))
+      .evaluate((element) => {
+        element.closest("[data-virtual-scroll]")?.dispatchEvent(new WheelEvent("wheel", { deltaY: -1 }))
+        element.scrollIntoView({ block: "start" })
+      })
   }
   const blank = await page
     .locator('[data-component="chat-row"] [data-slot="bubble-content"]')
@@ -170,6 +173,10 @@ export async function verifyTranscript(browser: Browser, origin: string, observe
     await context.setOffline(true)
     await context.setOffline(false)
     await reconnected
+    await page.locator("[data-virtual-scroll]").evaluate((element) => {
+      element.dispatchEvent(new WheelEvent("wheel", { deltaY: 1 }))
+      element.scrollTop = element.scrollHeight
+    })
     const live = "Live message appears without a refresh"
     await seed(origin, token, [live])
     await page.getByText(live, { exact: true }).waitFor()
