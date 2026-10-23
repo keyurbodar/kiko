@@ -1,4 +1,7 @@
-export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
+import * as Schema from "effect/Schema"
+
+export const ThinkingLevel = Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"])
+export type ThinkingLevel = typeof ThinkingLevel.Type
 
 export const THINKING_LABELS: Readonly<Record<ThinkingLevel, string>> = {
   off: "Off",

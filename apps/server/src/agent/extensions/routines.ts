@@ -1,7 +1,7 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import type { Trigger } from "@kiko/protocol"
-import { Trigger as TriggerSchema } from "@kiko/protocol/schema"
+import { Trigger as TriggerSchema } from "@kiko/protocol"
 import { Schema } from "effect"
 import { describeTrigger, type Reminder, type RoutineRun, type RunDelivery } from "../../user/reminders"
 import type { RoutineResult } from "../../user/routines"

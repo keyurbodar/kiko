@@ -1,4 +1,4 @@
-import { UserSettingsPatch } from "@kiko/protocol/schema"
+import { UserSettingsPatch } from "@kiko/protocol"
 import { Schema } from "effect"
 import type { Env } from "../index"
 import { error, signedIn } from "../lib/route"

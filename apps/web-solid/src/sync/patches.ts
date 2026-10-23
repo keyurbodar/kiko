@@ -152,9 +152,9 @@ function pendingMessage(p: RoomPatch & { frame: SendFrame }): ViewMessage {
     text: p.frame.text,
     clientId: p.clientId,
     pending: true,
+    ...(p.frame.replyTo ? { replyTo: p.frame.replyTo } : {}),
+    ...(p.frame.replyTo && p.frame.quote ? { quote: p.frame.quote } : {}),
   }
-  if (p.frame.replyTo) m.replyTo = p.frame.replyTo
-  if (p.frame.replyTo && p.frame.quote) m.quote = p.frame.quote
   if (p.local?.length) m.local = p.local
   if (p.failed) m.failed = true
   if (p.reason) m.reason = p.reason
@@ -221,8 +221,13 @@ export function overlayTasks(tasks: readonly Task[], patches: readonly RoomPatch
     if (p.frame.t !== "task") continue
     const op = p.frame.op
     if (op.op === "create") {
-      const t: Task = { id: op.id, title: op.title, status: "todo", dependsOn: op.dependsOn ?? [] }
-      if (op.owner) t.owner = op.owner
+      const t: Task = {
+        id: op.id,
+        title: op.title,
+        status: "todo",
+        dependsOn: op.dependsOn ?? [],
+        ...(op.owner ? { owner: op.owner } : {}),
+      }
       out = [...out.filter((x) => x.id !== op.id), t]
     } else if (op.op === "delete") {
       out = out.filter((x) => x.id !== op.id)
@@ -230,13 +235,14 @@ export function overlayTasks(tasks: readonly Task[], patches: readonly RoomPatch
       out = out.map((x) => {
         if (x.id !== op.id) return x
         const { owner, ...rest } = x
-        const next: Task = { ...rest }
         const newOwner = op.owner === undefined ? owner : (op.owner ?? undefined)
-        if (newOwner) next.owner = newOwner
-        if (op.title !== undefined) next.title = op.title
-        if (op.status !== undefined) next.status = op.status
-        if (op.note !== undefined) next.note = op.note
-        return next
+        return {
+          ...rest,
+          ...(newOwner ? { owner: newOwner } : {}),
+          ...(op.title !== undefined ? { title: op.title } : {}),
+          ...(op.status !== undefined ? { status: op.status } : {}),
+          ...(op.note !== undefined ? { note: op.note } : {}),
+        }
       })
     }
   }
@@ -251,9 +257,13 @@ export function overlayMembers(members: readonly Member[], patches: readonly Roo
     const op = f.op
     if (op.op === "add") {
       if (out.some((m) => m.slug === op.slug)) continue
-      const m: Member = { slug: op.slug, name: op.name, lead: out.length === 0 }
-      if (op.role) m.role = op.role
-      if (op.model) m.model = op.model
+      const m: Member = {
+        slug: op.slug,
+        name: op.name,
+        lead: out.length === 0,
+        ...(op.role ? { role: op.role } : {}),
+        ...(op.model ? { model: op.model } : {}),
+      }
       out.push(m)
     } else if (op.op === "remove") {
       out = out.filter((m) => m.slug !== op.slug)

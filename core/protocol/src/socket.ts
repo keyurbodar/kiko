@@ -1,11 +1,19 @@
-import type { RoomId } from "./ids"
-import type { ClientToRoom, RoomToClient } from "./room"
-import type { ClientToUser, UserToClient } from "./user"
+import * as Schema from "effect/Schema"
+import { Count } from "./base"
+import { RoomId } from "./ids"
+import { ClientToRoom, RoomToClient } from "./room"
+import { ClientToUser, UserToClient } from "./user"
 
-export type ClientToOwner =
-  | ClientToUser
-  | { t: "room"; roomId: RoomId; frame: ClientToRoom }
-  | { t: "subscribe"; roomId: RoomId; lastSeq: number }
-  | { t: "unsubscribe"; roomId: RoomId }
+export const ClientToOwner = Schema.Union([
+  ClientToUser,
+  Schema.Struct({ t: Schema.Literal("room"), roomId: RoomId, frame: ClientToRoom }),
+  Schema.Struct({ t: Schema.Literal("subscribe"), roomId: RoomId, lastSeq: Count }),
+  Schema.Struct({ t: Schema.Literal("unsubscribe"), roomId: RoomId }),
+])
+export type ClientToOwner = typeof ClientToOwner.Type
 
-export type OwnerToClient = UserToClient | { t: "room"; roomId: RoomId; frame: RoomToClient }
+export const OwnerToClient = Schema.Union([
+  UserToClient,
+  Schema.Struct({ t: Schema.Literal("room"), roomId: RoomId, frame: RoomToClient }),
+])
+export type OwnerToClient = typeof OwnerToClient.Type

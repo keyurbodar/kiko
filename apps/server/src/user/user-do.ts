@@ -15,7 +15,7 @@ import type {
   ClientToUser as UserFrame,
   ComposioResult,
   InstallRecipe,
-  KikoError,
+  NoticeError,
   ProviderInfo,
   RecipeList,
   RoomId,
@@ -32,7 +32,14 @@ import { capitalized, soulFromDescription } from "../room/chief"
 import { makeAgentChat } from "../room/new-agent"
 import { RecipeService } from "./recipe-service"
 import { recipeCard } from "../recipes/card"
-import { ClientToUser, INITIATIVE_LEVELS, type UserSettings, type UserSettingsPatch } from "@kiko/protocol/schema"
+import {
+  ClientToUser,
+  INITIATIVE_LEVELS,
+  ProtocolError,
+  StorageError,
+  type UserSettings,
+  type UserSettingsPatch,
+} from "@kiko/protocol"
 import type { OwnerServices, ServiceOptions } from "../owner/services"
 import { loadUserDev } from "../lib/dev-guard"
 import { signToken } from "../auth/auth"
@@ -1137,11 +1144,11 @@ export class User {
     }
   }
 
-  async notifyError(error: KikoError, roomId: RoomId): Promise<void> {
+  async notifyError(error: NoticeError, roomId: RoomId): Promise<void> {
     this.broadcast({ t: "error", error, roomId })
   }
 
-  private fail(error: KikoError | null, cause: unknown): never {
+  private fail(error: NoticeError | null, cause: unknown): never {
     if (error) this.broadcast({ t: "error", error })
     throw cause
   }
@@ -1379,10 +1386,9 @@ export class User {
     } catch {
       send(ws, {
         t: "error",
-        error: {
-          code: "protocol",
+        error: new ProtocolError({
           message: "This client and your backend are speaking different versions. Reload to update.",
-        },
+        }),
       })
       try {
         ws.close(1002, "bad frame")
@@ -1612,7 +1618,9 @@ export class User {
     if (this.sql.exec("SELECT 1 FROM deleted_agent_handles WHERE slug = ?", agent.slug).toArray().length) {
       this.broadcast({
         t: "error",
-        error: { code: "storage", message: "This agent handle was deleted and cannot be reused. Choose a new handle." },
+        error: new StorageError({
+          message: "This agent handle was deleted and cannot be reused. Choose a new handle.",
+        }),
       })
       return null
     }

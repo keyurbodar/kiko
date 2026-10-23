@@ -53,7 +53,7 @@ import type { StepItem } from "../agent/extensions/presence"
 import { roomActivity, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./activity"
 import { Deliveries, withContext } from "./deliver"
 import { type AgentSend, MessageChains } from "./messaging"
-import { isRoomId } from "@kiko/protocol"
+import { isRoomId, ModelError } from "@kiko/protocol"
 import { cleanPath, deleteFiles, fileKey } from "../files/paths"
 import { changePaths, type CommitResult, type FileIndex, type IndexChange } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
@@ -1642,11 +1642,10 @@ export class Room implements SocketRoom {
     this.ctx.waitUntil(
       Promise.all([
         user.notifyError(
-          {
-            code: "model",
+          new ModelError({
             message: `${member.name} could not answer. ${failure.message}`,
             ...(failure.toast ? { action: failure.toast } : {}),
-          },
+          }),
           home.roomId,
         ),
         problemOfRun(kind) && provider ? user.recordProviderProblem(provider, kind) : undefined,

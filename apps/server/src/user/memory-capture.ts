@@ -11,7 +11,7 @@ import {
   type ProviderInfo,
   type RoomId,
 } from "@kiko/protocol"
-import type { UserSettingsPatch } from "@kiko/protocol/schema"
+import type { UserSettingsPatch } from "@kiko/protocol"
 import { userModels } from "../agent/factory"
 import { parseModelRef } from "../agent/thinking"
 import { agentModel } from "./agent-models"

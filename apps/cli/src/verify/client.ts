@@ -4,7 +4,7 @@ import type {
   RoomToClient as RoomIn,
   UserToClient as UserIn,
 } from "@kiko/protocol"
-import { ClientToRoom, ClientToUser, OwnerToClient, RoomToClient, UserToClient } from "@kiko/protocol/schema"
+import { ClientToRoom, ClientToUser, OwnerToClient, RoomToClient, UserToClient } from "@kiko/protocol"
 import { Schema } from "effect"
 
 export class VerifyError extends Error {}
