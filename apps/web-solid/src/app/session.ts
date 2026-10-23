@@ -3,6 +3,7 @@ import { apiFetch, getToken, setToken, setUnauthorizedHandler } from "../lib/api
 import { base, read, write } from "../lib/api-base"
 import { clearFileToken } from "../lib/file-token"
 import { hosted, setProfile } from "./hosted"
+import * as Schema from "effect/Schema"
 
 export interface SessionUser {
   id: string
@@ -233,16 +234,12 @@ export async function signInAsDev(name = "dev"): Promise<void> {
   await adopt(res, "dev sign-in failed", attempt)
 }
 
-class Unreachable extends Error {}
+class Unreachable extends Schema.TaggedError<Unreachable>()("Unreachable", { message: Schema.String }) {}
 
-class ClerkRejected extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message)
-  }
-}
+class ClerkRejected extends Schema.TaggedError<ClerkRejected>()("ClerkRejected", {
+  status: Schema.Number,
+  message: Schema.String,
+}) {}
 
 export async function signInWithClerk(): Promise<"in" | "connect" | "none"> {
   let attempt = ++generation
@@ -315,10 +312,13 @@ async function exchangeClerkToken(clerkToken: string, attempt: number): Promise<
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ token: clerkToken }),
   }).catch(() => null)
-  if (!res) throw new Unreachable(unreachableText())
+  if (!res) throw new Unreachable({ message: unreachableText() })
   if (!res.ok) {
     const { message } = (await res.json().catch(() => ({}))) as { message?: string }
-    throw new ClerkRejected(res.status, message ? `${message}.` : `Your backend answered ${res.status}. Try again.`)
+    throw new ClerkRejected({
+      status: res.status,
+      message: message ? `${message}.` : `Your backend answered ${res.status}. Try again.`,
+    })
   }
   await adopt(res, "Could not sign in. Try again", attempt)
 }
