@@ -99,7 +99,6 @@ const refuse = (reason: string, message: string | null) =>
   message === null ? Effect.void : Effect.fail(new RefusedError({ reason, message }))
 
 export function makeRoomCommands(room: CommandRoom) {
-  const { log } = room
   const human = { kind: "human" } as const
 
   const open = Effect.suspend(() =>
@@ -129,26 +128,26 @@ export function makeRoomCommands(room: CommandRoom) {
       yield* open
       yield* refuse("edit", editRefusal(input.text))
       yield* mutate(input.messageId, () =>
-        log.message(input.messageId)?.from.kind === "human"
-          ? log.editMessage(input.messageId, input.text, parseRichText(input.text))
+        room.log.message(input.messageId)?.from.kind === "human"
+          ? room.log.editMessage(input.messageId, input.text, parseRichText(input.text))
           : null,
       )
       yield* settle
     }),
     delete: Effect.fn("Room.delete")(function* (input: { readonly messageId: MessageId }) {
       yield* open
-      yield* mutate(input.messageId, () => log.deleteMessages([input.messageId], human))
+      yield* mutate(input.messageId, () => room.log.deleteMessages([input.messageId], human))
       yield* settle
     }),
     react: Effect.fn("Room.react")(function* (input: { readonly messageId: MessageId; readonly emoji: string | null }) {
       yield* open
       yield* refuse("react", reactionRefusal(input.emoji))
-      yield* mutate(input.messageId, () => log.react(input.messageId, human, input.emoji))
+      yield* mutate(input.messageId, () => room.log.react(input.messageId, human, input.emoji))
       yield* settle
     }),
     read: Effect.fn("Room.read")(function* (input: { readonly seq: number }) {
       yield* open
-      yield* publish(log.markRead(input.seq))
+      yield* publish(room.log.markRead(input.seq))
       yield* settle
     }),
     typing: Effect.fn("Room.typing")(function* () {
