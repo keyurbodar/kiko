@@ -10,7 +10,12 @@ export interface FileHit {
 export const MAX_HITS = 50
 
 export function fileHits(chat: readonly string[], home: readonly string[]): FileHit[] {
-  const hit = (path: string): FileHit => ({ path, name: basename(path), shown: inHome(path) ? strip(path) : path, home: inHome(path) })
+  const hit = (path: string): FileHit => ({
+    path,
+    name: basename(path),
+    shown: inHome(path) ? strip(path) : path,
+    home: inHome(path),
+  })
   return [...chat.map(hit), ...home.map((p) => hit(`${HOME}/${p}`))]
 }
 
@@ -44,11 +49,20 @@ export function scoreFile(hit: FileHit, query: string): number {
   return 0
 }
 
-export function rankFiles(hits: readonly FileHit[], query: string, recent: readonly string[], limit = MAX_HITS): FileHit[] {
+export function rankFiles(
+  hits: readonly FileHit[],
+  query: string,
+  recent: readonly string[],
+  limit = MAX_HITS,
+): FileHit[] {
   const seen = new Map(recent.map((p, i) => [p, i]))
   const rank = (h: FileHit) => seen.get(h.path) ?? Infinity
-  const byPath = (a: FileHit, b: FileHit) => a.name.length - b.name.length || a.shown.length - b.shown.length || (a.shown < b.shown ? -1 : 1)
-  if (!query.trim()) return [...hits].sort((a, b) => rank(a) - rank(b) || (a.shown < b.shown ? -1 : a.shown > b.shown ? 1 : 0)).slice(0, limit)
+  const byPath = (a: FileHit, b: FileHit) =>
+    a.name.length - b.name.length || a.shown.length - b.shown.length || (a.shown < b.shown ? -1 : 1)
+  if (!query.trim())
+    return [...hits]
+      .sort((a, b) => rank(a) - rank(b) || (a.shown < b.shown ? -1 : a.shown > b.shown ? 1 : 0))
+      .slice(0, limit)
   return hits
     .map((h) => ({ h, score: scoreFile(h, query) }))
     .filter((x) => x.score > 0)
@@ -61,10 +75,17 @@ export const RECENT = "Recent"
 export const THIS_CHAT = "This chat"
 export const HOME_LABEL = "Home"
 
-export function listFiles(hits: readonly FileHit[], query: string, recent: readonly string[]): { hit: FileHit; group: string }[] {
+export function listFiles(
+  hits: readonly FileHit[],
+  query: string,
+  recent: readonly string[],
+): { hit: FileHit; group: string }[] {
   const empty = !query.trim()
   const open = new Set(recent)
-  const ranked = rankFiles(hits, query, recent).map((hit) => ({ hit, group: empty && open.has(hit.path) ? RECENT : hit.home ? HOME_LABEL : THIS_CHAT }))
+  const ranked = rankFiles(hits, query, recent).map((hit) => ({
+    hit,
+    group: empty && open.has(hit.path) ? RECENT : hit.home ? HOME_LABEL : THIS_CHAT,
+  }))
   const order = empty ? [RECENT, THIS_CHAT, HOME_LABEL] : [...new Set(ranked.map((r) => r.group))]
   return ranked.sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group))
 }

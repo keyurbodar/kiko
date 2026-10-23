@@ -44,7 +44,12 @@ export function createPromptInputV2Attachments(
     return { ...prompt, cursor: () => prompt.cursor() ?? (editor ? cursorPosition(editor) : undefined) }
   }
   const [dragKind, setDragKind] = createSignal<"files" | "reference">("files")
-  const addAttachments = async (files: File[], target = capture(), at?: { x: number; y: number }, notes: string[] = []) => {
+  const addAttachments = async (
+    files: File[],
+    target = capture(),
+    at?: { x: number; y: number },
+    notes: string[] = [],
+  ) => {
     const blocked = input.blocked?.()
     if (blocked) return void input.refuse([blocked])
     const openedFor = input.key?.()
@@ -89,7 +94,11 @@ export function createPromptInputV2Attachments(
     const prose = input.hasText()
     target.set([...target.current(), ...added], target.cursor())
     const named = added.filter((part) => prose || !isImage({ name: part.filename, type: part.mime }))
-    if (named.length) input.chip(named.map((part) => ({ id: part.id, name: part.filename })), at)
+    if (named.length)
+      input.chip(
+        named.map((part) => ({ id: part.id, name: part.filename })),
+        at,
+      )
   }
   const insertPastedText = (text: string) => {
     const put = () => {
@@ -165,14 +174,24 @@ export function createPromptInputV2Attachments(
   return { addAttachments, handlePaste, handleDrop, dragKind }
 }
 
-async function prepareImages(images: File[], take: (file: File) => Promise<void>, refusals: string[], abandoned: () => boolean) {
+async function prepareImages(
+  images: File[],
+  take: (file: File) => Promise<void>,
+  refusals: string[],
+  abandoned: () => boolean,
+) {
   for (const file of images) {
     if (abandoned()) return
     const type = attachmentType(file)
     const typed = file.type === type ? file : new File([file], file.name, { type, lastModified: file.lastModified })
     const prepared = await prepareImageForAttachment(typed, MAX_IMAGE_BYTES)
     if (prepared.ok) await take(prepared.file)
-    else refusals.push(prepared.reason === "unreadable" ? attachmentMessages.unreadable(file.name) : attachmentMessages.tooLargeCompressed(file.name))
+    else
+      refusals.push(
+        prepared.reason === "unreadable"
+          ? attachmentMessages.unreadable(file.name)
+          : attachmentMessages.tooLargeCompressed(file.name),
+      )
   }
 }
 

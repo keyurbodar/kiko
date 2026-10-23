@@ -20,14 +20,19 @@ export class ComposioStore {
     private readonly sql: SqlStorage,
     private readonly keyring: Keyring,
     private readonly userId: string,
-  ) {
-  }
+  ) {}
 
   target(): Promise<StoredTarget | undefined> {
-    const row = this.sql.exec<KeyRow>("SELECT kek_version, iv, ciphertext, value FROM composio WHERE name = 'key'").toArray()[0]
+    const row = this.sql
+      .exec<KeyRow>("SELECT kek_version, iv, ciphertext, value FROM composio WHERE name = 'key'")
+      .toArray()[0]
     if (!row) return Promise.resolve(undefined)
     const session = JSON.parse(row.value) as Session
-    return open(this.keyring, this.userId, AAD, { kekVersion: row.kek_version, iv: new Uint8Array(row.iv), ciphertext: new Uint8Array(row.ciphertext) }).then((key) => ({ key, url: session.url, session: session.id }))
+    return open(this.keyring, this.userId, AAD, {
+      kekVersion: row.kek_version,
+      iv: new Uint8Array(row.iv),
+      ciphertext: new Uint8Array(row.ciphertext),
+    }).then((key) => ({ key, url: session.url, session: session.id }))
   }
 
   async putKey(key: string, session: Session, generation = this.generation): Promise<void> {
@@ -47,7 +52,11 @@ export class ComposioStore {
 
   putSession(session: Session, generation = this.generation): void {
     if (generation !== this.generation) return
-    this.sql.exec("UPDATE composio SET value = ?, updated_at = ? WHERE name = 'key'", JSON.stringify(session), Date.now())
+    this.sql.exec(
+      "UPDATE composio SET value = ?, updated_at = ? WHERE name = 'key'",
+      JSON.stringify(session),
+      Date.now(),
+    )
   }
 
   listing(): SavedListing | undefined {

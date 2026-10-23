@@ -41,9 +41,10 @@ export const [authReset, setAuthReset] = createSignal(0)
 export const [autoResume, setAutoResume] = createSignal(true)
 export const authIdentity = () => read("kiko:identity") ?? base()
 export const authGeneration = () => generation
-export const cancelAuthAttempt = () => { generation++ }
+export const cancelAuthAttempt = () => {
+  generation++
+}
 export const allowClerkResume = () => setAutoResume(true)
-
 
 export const warmDbPrefix = (userId: string) => `kiko:warm:${userId}`
 
@@ -61,8 +62,7 @@ function writeFlag(user: SessionUser | null): void {
   try {
     if (user) localStorage.setItem(FLAG_KEY, JSON.stringify(user))
     else localStorage.removeItem(FLAG_KEY)
-  } catch {
-  }
+  } catch {}
 }
 
 export async function clearWarmTier(userId: string): Promise<void> {
@@ -98,13 +98,15 @@ function signedIn(user: SessionUser): void {
 }
 
 async function finishCleanup(): Promise<void> {
-  clearing = clearing.catch(() => {}).then(async () => {
-    for (const id of pendingCleanup) {
-      await clearWarmTier(id)
-      pendingCleanup.delete(id)
-      savePendingCleanup()
-    }
-  })
+  clearing = clearing
+    .catch(() => {})
+    .then(async () => {
+      for (const id of pendingCleanup) {
+        await clearWarmTier(id)
+        pendingCleanup.delete(id)
+        savePendingCleanup()
+      }
+    })
   await clearing
 }
 
@@ -244,7 +246,9 @@ export async function signInWithClerk(): Promise<"in" | "connect" | "none"> {
       if (e.status === 403 && e.message === "This backend belongs to someone else.") {
         await signedOut()
         write("kiko:backend", null)
-        setBackendConnectionNotice("This backend belongs to another Kiko account. Connect your own Cloudflare backend to continue, or sign out and use the account that owns it.")
+        setBackendConnectionNotice(
+          "This backend belongs to another Kiko account. Connect your own Cloudflare backend to continue, or sign out and use the account that owns it.",
+        )
         return "connect"
       }
       if (e.status === 401 || e.status === 403) throw e
@@ -266,7 +270,10 @@ async function backendGone(): Promise<boolean> {
 class Unreachable extends Error {}
 
 class ClerkRejected extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
     super(message)
   }
 }

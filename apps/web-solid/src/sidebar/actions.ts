@@ -39,7 +39,10 @@ export function togglePin(id: string): void {
 }
 
 export function toggleMute(id: string): void {
-  const chat = useApp.user()?.chats().find((c) => c.roomId === id)
+  const chat = useApp
+    .user()
+    ?.chats()
+    .find((c) => c.roomId === id)
   if (chat) useApp.user()?.mute(chat.roomId, !chat.muted)
 }
 
@@ -57,13 +60,19 @@ export function reopenClosedChat(): string | null {
 }
 
 export function closeChat(id: string, active: string | null, go: (path: string) => void): void {
-  const next = chatAfter(sidebarOrder().map((r) => r.id), id)
+  const next = chatAfter(
+    sidebarOrder().map((r) => r.id),
+    id,
+  )
   lastClosed = id
   if (active === id) go(next ? `/chat/${next}` : "/chat")
 }
 
 export function deleteChat(id: string, active: string | null, go: (path: string) => void): void {
-  const next = chatAfter(sidebarOrder().map((r) => r.id), id)
+  const next = chatAfter(
+    sidebarOrder().map((r) => r.id),
+    id,
+  )
   useApp.user()?.remove(id as RoomId)
   clearUnreadMark(id)
   if (active === id) go(next ? `/chat/${next}` : "/chat")

@@ -12,20 +12,27 @@ export function LinkIcon(props: { host: string }): JSX.Element {
   const [gone, setGone] = createSignal(failed.has(props.host))
   return (
     <span class="rich-link-icon" aria-hidden="true" data-component="chat-link-icon">
-      <Show when={!GITHUB.test(props.host)} fallback={<svg class="rich-link-icon-glyph" viewBox="0 0 16 16" fill="currentColor"><path d={MARK} /></svg>}>
-      <Show when={!gone()} fallback={<RemixIcon icon={GlobeIcon} class="rich-link-icon-glyph" />}>
-        <img
-          class="rich-link-icon-glyph"
-          src={fileUrl(`/api/favicon/${props.host}`)}
-          alt=""
-          loading="lazy"
-          draggable={false}
-          onError={() => {
-            failed.add(props.host)
-            setGone(true)
-          }}
-        />
-      </Show>
+      <Show
+        when={!GITHUB.test(props.host)}
+        fallback={
+          <svg class="rich-link-icon-glyph" viewBox="0 0 16 16" fill="currentColor">
+            <path d={MARK} />
+          </svg>
+        }
+      >
+        <Show when={!gone()} fallback={<RemixIcon icon={GlobeIcon} class="rich-link-icon-glyph" />}>
+          <img
+            class="rich-link-icon-glyph"
+            src={fileUrl(`/api/favicon/${props.host}`)}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            onError={() => {
+              failed.add(props.host)
+              setGone(true)
+            }}
+          />
+        </Show>
       </Show>
     </span>
   )

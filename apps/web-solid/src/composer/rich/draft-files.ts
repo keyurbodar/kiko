@@ -31,7 +31,10 @@ export function forgetDraftFileDb() {
   void pending?.then((db) => db.close())
 }
 
-async function run<T>(mode: IDBTransactionMode, body: (store: IDBObjectStore) => IDBRequest<T> | void): Promise<T | undefined> {
+async function run<T>(
+  mode: IDBTransactionMode,
+  body: (store: IDBObjectStore) => IDBRequest<T> | void,
+): Promise<T | undefined> {
   const db = await open()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, mode)

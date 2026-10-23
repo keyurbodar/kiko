@@ -1,113 +1,113 @@
-
 .kt-root {
-	display: flex;
-	min-height: 0;
-	min-width: 0;
-	flex: 1;
-	flex-direction: column;
-	gap: 0;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0;
 }
 
 .kt-bar {
-	display: flex;
-	height: 40px;
-	flex: none;
-	align-items: center;
-	gap: 4px;
-	padding: 0 8px;
+  display: flex;
+  height: 40px;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
 }
 .kt-field {
-	display: flex;
-	height: 28px;
-	min-width: 0;
-	flex: 1;
-	align-items: center;
-	gap: 6px;
-	padding: 0 4px;
-	color: var(--muted-foreground);
+  display: flex;
+  height: 28px;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  color: var(--muted-foreground);
 }
 .kt-field input {
-	min-width: 0;
-	flex: 1;
-	border: 0;
-	background: transparent;
-	color: var(--foreground);
-	font: inherit;
-	font-size: var(--font-sm);
-	outline: none;
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-sm);
+  outline: none;
 }
 .kt-field input::placeholder {
-	color: var(--secondary-label);
+  color: var(--secondary-label);
 }
 .kt-btn {
-	display: grid;
-	width: 28px;
-	height: 28px;
-	flex: none;
-	place-items: center;
-	border: 0;
-	border-radius: var(--radius-md);
-	background: transparent;
-	color: var(--muted-foreground);
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted-foreground);
 }
 .kt-btn:hover,
 .kt-btn:focus-visible {
-	background: var(--accent);
-	color: var(--foreground);
-	outline: none;
+  background: var(--accent);
+  color: var(--foreground);
+  outline: none;
 }
 
 .kt-host {
-	display: flex;
-	min-height: 0;
-	flex: 1;
-	flex-direction: column;
-	overflow: hidden;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
 }
 .kt-host > * {
-	min-height: 0;
-	flex: 1;
+  min-height: 0;
+  flex: 1;
 }
 
 .kt-empty {
-	padding: 8px 12px;
-	font-size: var(--font-sm);
-	color: var(--muted-foreground);
+  padding: 8px 12px;
+  font-size: var(--font-sm);
+  color: var(--muted-foreground);
 }
-
 
 .kt-menu {
-	min-width: 160px;
-	padding: 4px;
-	border-radius: var(--radius-xl);
-	background: var(--popover);
-	box-shadow: 0 8px 28px rgb(0 0 0 / 0.4), 0 0 0 1px var(--border);
-	color: var(--foreground);
+  min-width: 160px;
+  padding: 4px;
+  border-radius: var(--radius-xl);
+  background: var(--popover);
+  box-shadow:
+    0 8px 28px rgb(0 0 0 / 0.4),
+    0 0 0 1px var(--border);
+  color: var(--foreground);
 }
 .kt-menu-item {
-	display: block;
-	width: 100%;
-	padding: 6px 10px;
-	border: 0;
-	border-radius: var(--radius-md);
-	background: transparent;
-	color: inherit;
-	font: inherit;
-	font-size: var(--font-md);
-	text-align: left;
-	cursor: default;
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--font-md);
+  text-align: left;
+  cursor: default;
 }
 .kt-menu-item:hover,
 .kt-menu-item:focus-visible {
-	background: var(--accent-strong);
-	outline: none;
+  background: var(--accent-strong);
+  outline: none;
 }
 .kt-menu-sep {
-	height: 1px;
-	margin: 4px 6px;
-	background: var(--border);
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
 }
 
 .kt-host[data-pointer] {
-	--trees-focus-ring-color-override: transparent;
+  --trees-focus-ring-color-override: transparent;
 }

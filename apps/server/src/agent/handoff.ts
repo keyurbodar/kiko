@@ -6,10 +6,15 @@ export type Applied = { model: ModelRef; thinkingLevel: ThinkingLevel }
 
 export const sameApplied = (a: Applied | undefined, b: Applied): boolean => JSON.stringify(a) === JSON.stringify(b)
 
-export const switchedModel = (a: Applied, b: Applied): boolean => a.model.provider !== b.model.provider || a.model.modelId !== b.model.modelId
+export const switchedModel = (a: Applied, b: Applied): boolean =>
+  a.model.provider !== b.model.provider || a.model.modelId !== b.model.modelId
 
 export function modelName(ref: ModelRef): string {
-  return findProvider(ref.provider)?.getModels().find((m) => m.id === ref.modelId)?.name ?? `${ref.provider}/${ref.modelId}`
+  return (
+    findProvider(ref.provider)
+      ?.getModels()
+      .find((m) => m.id === ref.modelId)?.name ?? `${ref.provider}/${ref.modelId}`
+  )
 }
 
 const HANDOFF_CHARS = 48_000
@@ -21,7 +26,9 @@ type Item = { role: "user" | "assistant" | "tool"; text: string }
 type Handoff = { from: string; to: string; budgetChars?: number }
 
 const textOf = (content: string | readonly { type: string; text?: string }[]): string =>
-  typeof content === "string" ? content : content.flatMap((part) => (part.type === "text" && part.text ? [part.text] : [])).join("\n\n")
+  typeof content === "string"
+    ? content
+    : content.flatMap((part) => (part.type === "text" && part.text ? [part.text] : [])).join("\n\n")
 
 const imagesOf = (content: string | readonly { type: string }[]): number =>
   typeof content === "string" ? 0 : content.filter((part) => part.type === "image").length
@@ -44,7 +51,10 @@ function itemOf(entry: EntryRecord): Item | null {
       return body ? { role: "user", text: body } : null
     }
     case "assistant": {
-      const text = message.content.flatMap((part) => (part.type === "text" && part.text ? [part.text] : [])).join("\n\n").trim()
+      const text = message.content
+        .flatMap((part) => (part.type === "text" && part.text ? [part.text] : []))
+        .join("\n\n")
+        .trim()
       return text ? { role: "assistant", text } : null
     }
     case "toolResult":
@@ -56,8 +66,10 @@ function itemOf(entry: EntryRecord): Item | null {
 
 const render = (item: Item): string => (item.role === "tool" ? item.text : `[Historical ${item.role}]\n${item.text}`)
 
-const indexOfRole = (items: readonly Item[], role: Item["role"]): number => items.findIndex((item) => item.role === role)
-const lastIndexOfRole = (items: readonly Item[], role: Item["role"]): number => items.findLastIndex((item) => item.role === role)
+const indexOfRole = (items: readonly Item[], role: Item["role"]): number =>
+  items.findIndex((item) => item.role === role)
+const lastIndexOfRole = (items: readonly Item[], role: Item["role"]): number =>
+  items.findLastIndex((item) => item.role === role)
 
 export function renderHandoff(entries: readonly EntryRecord[], handoff: Handoff): string {
   const items = entries.flatMap((entry) => itemOf(entry) ?? [])

@@ -14,13 +14,7 @@ function MarkPaths() {
       <g transform="translate(68 48.5) rotate(22)">
         <g data-leaf="front">
           <path d="M0 0C14-7 14-27 0-37C-14-27-14-7 0 0Z" fill="#86A38D" />
-          <path
-            d="M0-3Q1.6-18 0-32"
-            stroke="#C3D5C6"
-            stroke-width="1.5"
-            fill="none"
-            stroke-linecap="round"
-          />
+          <path d="M0-3Q1.6-18 0-32" stroke="#C3D5C6" stroke-width="1.5" fill="none" stroke-linecap="round" />
         </g>
       </g>
       <ellipse cx="38.5" cy="76.5" rx="5" ry="2.7" fill="#F2A08E" opacity=".6" />
@@ -52,12 +46,7 @@ export function KikoMark(props: { class?: string; size?: number; mood?: string }
 
 export function KikoWordmark(props: { class?: string }) {
   return (
-    <svg
-      class={props.class}
-      viewBox="41 -769 1942 793"
-      aria-hidden="true"
-      data-component="kiko-wordmark"
-    >
+    <svg class={props.class} viewBox="41 -769 1942 793" aria-hidden="true" data-component="kiko-wordmark">
       <path
         fill="currentColor"
         d="M51 0V-712H209V-326Q241 -345 266 -368Q291 -392 310 -418Q330 -445 344 -472Q359 -500 369 -528H554Q542 -489 520 -450Q498 -412 466 -380Q435 -347 392 -323Q349 -299 295 -287V-273Q363 -286 406 -275Q450 -264 476 -238Q502 -211 516 -175Q530 -139 539 -100L561 0H386L375 -66Q368 -107 357 -140Q346 -172 324 -190Q301 -209 255 -209H209V0ZM630 0V-528H792V0ZM894 0V-712H1052V-326Q1084 -345 1109 -368Q1134 -392 1154 -418Q1173 -445 1188 -472Q1202 -500 1212 -528H1397Q1385 -489 1363 -450Q1341 -412 1310 -380Q1278 -347 1235 -323Q1192 -299 1138 -287V-273Q1206 -286 1250 -275Q1293 -264 1319 -238Q1345 -211 1359 -175Q1373 -139 1382 -100L1404 0H1229L1218 -66Q1211 -107 1200 -140Q1189 -172 1166 -190Q1144 -209 1098 -209H1052V0ZM1703 14Q1624 14 1564 -17Q1503 -48 1469 -110Q1435 -171 1435 -264Q1435 -359 1470 -420Q1504 -482 1565 -512Q1626 -542 1704 -542Q1784 -542 1844 -511Q1905 -480 1939 -418Q1973 -357 1973 -264Q1973 -168 1938 -106Q1902 -45 1840 -16Q1779 14 1703 14ZM1707 -104Q1741 -104 1764 -121Q1787 -138 1798 -172Q1810 -206 1810 -254Q1810 -307 1798 -343Q1785 -379 1760 -398Q1736 -418 1700 -418Q1667 -418 1644 -401Q1621 -384 1610 -350Q1598 -316 1598 -266Q1598 -187 1626 -146Q1655 -104 1707 -104Z"

@@ -56,15 +56,16 @@ export const URL_REG_EXP =
   ALPHA_CHARS_REG_EXP +
   DOMAIN_ADD_CHARS +
   "0-9\\-]{0,64}){0,10}" +
-  "(?:\\.(?<tld>xn--[0-9a-z]{2,16}|[" + ALPHA_CHARS_REG_EXP + "]{2,24}))" +
+  "(?:\\.(?<tld>xn--[0-9a-z]{2,16}|[" +
+  ALPHA_CHARS_REG_EXP +
+  "]{2,24}))" +
   ")" +
   "(?::\\d{1,5})?" +
   "(?:/(?:\\S{0,255}[^\\s.;,!?:(\\[\\]{}<>\"'])?)?"
 
 export const USERNAME_REG_EXP = "[a-zA-Z\\d_]{5,32}"
 
-export const TAG_REG_EXP =
-  "(?:#[" + ALPHA_NUMERIC_REG_EXP + "]{2,64})" + "(?:@" + USERNAME_REG_EXP + ")?"
+export const TAG_REG_EXP = "(?:#[" + ALPHA_NUMERIC_REG_EXP + "]{2,64})" + "(?:@" + USERNAME_REG_EXP + ")?"
 
 export const FULL_REG_EXP = new RegExp(
   "(?<mentionPrefix>^|[\\s(])(?<mentionAt>@)(?<mentionBody>" +

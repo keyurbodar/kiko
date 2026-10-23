@@ -59,7 +59,11 @@ function repairArguments(schema: unknown, args: Record<string, unknown>): Record
   return out
 }
 
-export const toolName = (name: string) => `composio_${name.replace(/^COMPOSIO_/, "").toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`.slice(0, 64)
+export const toolName = (name: string) =>
+  `composio_${name
+    .replace(/^COMPOSIO_/, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "_")}`.slice(0, 64)
 
 function shown(tools: readonly ComposioTool[]): ComposioTool[] {
   const byName = (a: ComposioTool, b: ComposioTool) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
@@ -70,7 +74,13 @@ function shown(tools: readonly ComposioTool[]): ComposioTool[] {
     taken.add(name)
     return true
   }
-  return [...tools.filter((t) => !t.direct).filter(fresh), ...tools.filter((t) => t.direct).sort(byName).filter(fresh)]
+  return [
+    ...tools.filter((t) => !t.direct).filter(fresh),
+    ...tools
+      .filter((t) => t.direct)
+      .sort(byName)
+      .filter(fresh),
+  ]
 }
 
 const learned = (tools: readonly ComposioTool[]) => shown(tools).flatMap((t) => (t.direct ? [toolName(t.name)] : []))
@@ -85,29 +95,42 @@ export function composioExtension(tools: readonly ComposioTool[], rawCall: Compo
   const names = learned(tools)
   return defineExtension({
     name: COMPOSIO,
-    sections: names.length ? [section("composio", () => `connected-app tools you can call directly, no search needed: ${names.join(", ")}.`)] : [],
+    sections: names.length
+      ? [section("composio", () => `connected-app tools you can call directly, no search needed: ${names.join(", ")}.`)]
+      : [],
     tools: shown(tools).map((t) => {
-        const name = toolName(t.name)
-        const call: ComposioCall = t.readOnly ? (n, a) => withRetry(() => send(n, a)) : send
-        const base = t.direct ? `${t.description || t.name} (${t.direct.toolkit} through composio, call it directly)` : `${t.description?.trim() || t.name} (through composio, the human's connected apps)`
-        return declareEffect(
-          t.readOnly ? "read" : "external",
-          defineTool({
-            name,
-            description: t.name === MULTI_EXECUTE ? `${base} Slow for many tools at once; for more than 3 independent calls, issue separate parallel tool calls instead.` : base,
-            parameters: (t.direct ? t.inputSchema : relaxSchema(t.inputSchema)) as never,
-            prepareArguments: (args) => repairArguments(t.inputSchema, (args ?? {}) as Record<string, unknown>) as never,
-            replay: t.readOnly ? "safe" : "unsafe",
-            execute: (args) =>
-              timed(name, fs, async () => {
-                const given = repairArguments(t.inputSchema, (args ?? {}) as Record<string, unknown>)
-                if (!t.direct) return call(t.name, fillFlags(t.inputSchema, given))
-                const { text, isError } = directResult(await call(MULTI_EXECUTE, { tools: [{ tool_slug: t.direct.slug, arguments: given }], sync_response_to_workbench: false, thought: "direct call" }))
-                return { content: [{ type: "text" as const, text }], isError }
-              }),
-          }),
-        )
-      }),
+      const name = toolName(t.name)
+      const call: ComposioCall = t.readOnly ? (n, a) => withRetry(() => send(n, a)) : send
+      const base = t.direct
+        ? `${t.description || t.name} (${t.direct.toolkit} through composio, call it directly)`
+        : `${t.description?.trim() || t.name} (through composio, the human's connected apps)`
+      return declareEffect(
+        t.readOnly ? "read" : "external",
+        defineTool({
+          name,
+          description:
+            t.name === MULTI_EXECUTE
+              ? `${base} Slow for many tools at once; for more than 3 independent calls, issue separate parallel tool calls instead.`
+              : base,
+          parameters: (t.direct ? t.inputSchema : relaxSchema(t.inputSchema)) as never,
+          prepareArguments: (args) => repairArguments(t.inputSchema, (args ?? {}) as Record<string, unknown>) as never,
+          replay: t.readOnly ? "safe" : "unsafe",
+          execute: (args) =>
+            timed(name, fs, async () => {
+              const given = repairArguments(t.inputSchema, (args ?? {}) as Record<string, unknown>)
+              if (!t.direct) return call(t.name, fillFlags(t.inputSchema, given))
+              const { text, isError } = directResult(
+                await call(MULTI_EXECUTE, {
+                  tools: [{ tool_slug: t.direct.slug, arguments: given }],
+                  sync_response_to_workbench: false,
+                  thought: "direct call",
+                }),
+              )
+              return { content: [{ type: "text" as const, text }], isError }
+            }),
+        }),
+      )
+    }),
   })
 }
 
@@ -118,7 +141,11 @@ async function timed(name: string, fs: RoomFs | undefined, run: () => Promise<Co
     const out = await run()
     count(`composio.${name}.ms`, Math.round(performance.now() - sent))
     if (!out.content.length) return { output: [{ type: "text" as const, text: "(no output)" }], isError: out.isError }
-    const content = await Promise.all(out.content.map(async (b) => (b.type === "text" ? { ...b, text: await spill(fs, `composio-${name}`, b.text) } : b)))
+    const content = await Promise.all(
+      out.content.map(async (b) =>
+        b.type === "text" ? { ...b, text: await spill(fs, `composio-${name}`, b.text) } : b,
+      ),
+    )
     return { output: content, isError: out.isError }
   } catch (e) {
     return { output: [{ type: "text" as const, text: composioErrorText(e) }], isError: true }

@@ -14,17 +14,31 @@ const formatter = (key: string, options: Intl.DateTimeFormatOptions): Intl.DateT
 const clock = (at: number, timeZone?: string) =>
   formatter("clock", { hour: "numeric", minute: "2-digit", hour12: true, timeZone }).format(at).replace(/\s/g, " ")
 
-const date = (at: number, timeZone?: string) => formatter("date", { month: "short", day: "numeric", timeZone }).format(at)
+const date = (at: number, timeZone?: string) =>
+  formatter("date", { month: "short", day: "numeric", timeZone }).format(at)
 
 function readRule(rrule: string) {
-  const parts = new Map(rrule.replace(/^RRULE:/i, "").split(";").map((p) => p.split("=") as [string, string]))
+  const parts = new Map(
+    rrule
+      .replace(/^RRULE:/i, "")
+      .split(";")
+      .map((p) => p.split("=") as [string, string]),
+  )
   const interval = Number(parts.get("INTERVAL") ?? 1)
   const minute = Number(parts.get("BYMINUTE")?.split(",")[0] ?? 0)
   return {
     freq: parts.get("FREQ")?.toUpperCase(),
     interval: Number.isFinite(interval) && interval > 0 ? interval : 1,
-    days: (parts.get("BYDAY") ?? "").split(",").map((d) => d.trim().slice(-2).toUpperCase()).filter((d) => d in DAYS),
-    hours: (parts.get("BYHOUR") ?? "").split(",").filter(Boolean).map(Number).filter((h) => Number.isInteger(h) && h >= 0 && h <= 23).sort((a, b) => a - b),
+    days: (parts.get("BYDAY") ?? "")
+      .split(",")
+      .map((d) => d.trim().slice(-2).toUpperCase())
+      .filter((d) => d in DAYS),
+    hours: (parts.get("BYHOUR") ?? "")
+      .split(",")
+      .filter(Boolean)
+      .map(Number)
+      .filter((h) => Number.isInteger(h) && h >= 0 && h <= 23)
+      .sort((a, b) => a - b),
     minute: Number.isInteger(minute) && minute >= 0 && minute <= 59 ? minute : 0,
   }
 }
@@ -43,7 +57,8 @@ function timeLabel(trigger: Extract<Trigger, { on: "time" }>, timeZone?: string)
   if (!unit) return "Repeats"
   if (unit === "hour") return rule.interval === 1 ? "Every hour" : `Every ${rule.interval} hours`
   const step = rule.hours[1] - rule.hours[0]
-  const evenlySpaced = rule.hours.length >= 3 && step > 0 && rule.hours.every((h, i) => i === 0 || h - rule.hours[i - 1] === step)
+  const evenlySpaced =
+    rule.hours.length >= 3 && step > 0 && rule.hours.every((h, i) => i === 0 || h - rule.hours[i - 1] === step)
   if (unit === "day" && rule.interval === 1 && evenlySpaced) {
     const every = step === 1 ? "Every hour" : `Every ${step} hours`
     return `${every}, ${hourLabel(rule.hours[0], rule.minute, false)} to ${hourLabel(rule.hours[rule.hours.length - 1], rule.minute, false)}`

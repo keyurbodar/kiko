@@ -37,7 +37,10 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
       <RecipeWatermark recipe={props.recipe} />
       <button
         type="button"
-        class={cn("flex min-w-0 flex-1 cursor-pointer flex-col gap-3 text-left outline-none after:absolute after:inset-0 after:rounded-[inherit]", "@max-[519px]/recipes:flex-row @max-[519px]/recipes:items-center")}
+        class={cn(
+          "flex min-w-0 flex-1 cursor-pointer flex-col gap-3 text-left outline-none after:absolute after:inset-0 after:rounded-[inherit]",
+          "@max-[519px]/recipes:flex-row @max-[519px]/recipes:items-center",
+        )}
         data-action="open-recipe"
         onClick={() => props.onOpen()}
       >
@@ -45,24 +48,45 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
           <RecipeIcon recipe={props.recipe} size={48} stickers />
         </span>
         <span class="flex min-w-0 flex-col gap-1">
-          <span class="truncate text-[15px] font-semibold tracking-[-0.01em] text-foreground">{props.recipe.title}</span>
-          <span class={cn("line-clamp-2 min-h-[2.9em] text-[13px] leading-[1.45] text-muted-foreground", "@max-[519px]/recipes:hidden")}>{props.recipe.description}</span>
-          <span class={cn("hidden min-w-0 items-center text-xs text-muted-foreground", "@max-[519px]/recipes:flex")}>{status()}</span>
+          <span class="truncate text-[15px] font-semibold tracking-[-0.01em] text-foreground">
+            {props.recipe.title}
+          </span>
+          <span
+            class={cn(
+              "line-clamp-2 min-h-[2.9em] text-[13px] leading-[1.45] text-muted-foreground",
+              "@max-[519px]/recipes:hidden",
+            )}
+          >
+            {props.recipe.description}
+          </span>
+          <span class={cn("hidden min-w-0 items-center text-xs text-muted-foreground", "@max-[519px]/recipes:flex")}>
+            {status()}
+          </span>
         </span>
       </button>
       <div class={cn("relative mt-auto flex items-center justify-between gap-2", "@max-[519px]/recipes:mt-0")}>
-        <span class={cn("flex min-w-0 items-center text-xs text-muted-foreground", "@max-[519px]/recipes:hidden")}>{status()}</span>
+        <span class={cn("flex min-w-0 items-center text-xs text-muted-foreground", "@max-[519px]/recipes:hidden")}>
+          {status()}
+        </span>
         <span class="flex shrink-0 items-center gap-1.5">
           <Show when={on()}>
-            <span class="flex" role="img" aria-label={`On for ${agents().length} ${agents().length === 1 ? "agent" : "agents"}`}>
-              <For each={agents().slice(0, 3)}>{(agent, i) => <IdentityAvatar seed={agent} size={22} class={i() ? "-ml-1.5" : ""} />}</For>
+            <span
+              class="flex"
+              role="img"
+              aria-label={`On for ${agents().length} ${agents().length === 1 ? "agent" : "agents"}`}
+            >
+              <For each={agents().slice(0, 3)}>
+                {(agent, i) => <IdentityAvatar seed={agent} size={22} class={i() ? "-ml-1.5" : ""} />}
+              </For>
             </span>
           </Show>
           <button
             type="button"
             class={cn(
               "grid shrink-0 cursor-pointer place-items-center rounded-full text-foreground",
-              on() ? "size-7 text-muted-foreground hover:bg-control hover:text-foreground" : "size-[30px] bg-control hover:bg-control-strong",
+              on()
+                ? "size-7 text-muted-foreground hover:bg-control hover:text-foreground"
+                : "size-[30px] bg-control hover:bg-control-strong",
             )}
             aria-label={`Add ${props.recipe.title}`}
             data-action="add-recipe"

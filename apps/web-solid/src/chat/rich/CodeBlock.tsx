@@ -13,9 +13,9 @@ async function highlight(text: string, lang: string | undefined): Promise<Line[]
   const name = langs.lang(lang)
   if (!name) return null
   const config = langs.languages.find((l) => l.id === name)?.config
-  return core.generate(core.parse(text, config)).map((line) =>
-    line.children.map((token) => ({ type: token.tokenType, text: token.children[0]?.value ?? "" })),
-  )
+  return core
+    .generate(core.parse(text, config))
+    .map((line) => line.children.map((token) => ({ type: token.tokenType, text: token.children[0]?.value ?? "" })))
 }
 
 export function CodeBlock(props: { lang?: string; text: string }): JSX.Element {
@@ -77,7 +77,12 @@ export function CodeBlock(props: { lang?: string; text: string }): JSX.Element {
             </button>
           </TooltipV2>
           <TooltipV2 placement="top" value={copied() ? "Copied" : "Copy code"}>
-            <button type="button" class="rich-code-action" aria-label={copied() ? "Copied" : "Copy code"} onClick={copy}>
+            <button
+              type="button"
+              class="rich-code-action"
+              aria-label={copied() ? "Copied" : "Copy code"}
+              onClick={copy}
+            >
               <RemixIcon icon={copied() ? CheckIcon : CopyIcon} class="size-3" />
             </button>
           </TooltipV2>

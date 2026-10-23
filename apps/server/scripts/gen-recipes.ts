@@ -10,9 +10,21 @@ const dir = join(root, "recipes")
 const phosphor = join(import.meta.dir, "../../../node_modules/@phosphor-icons/core/assets/duotone")
 
 const TONES: Record<string, RecipeTone> = {
-  finances: "green", commerce: "green", nature: "green", communications: "blue", "maps & travel": "teal", weather: "amber",
-  objects: "orange", media: "pink", design: "pink", games: "violet", "health & wellness": "red", people: "violet",
-  office: "amber", "technology & development": "slate", brands: "slate",
+  finances: "green",
+  commerce: "green",
+  nature: "green",
+  communications: "blue",
+  "maps & travel": "teal",
+  weather: "amber",
+  objects: "orange",
+  media: "pink",
+  design: "pink",
+  games: "violet",
+  "health & wellness": "red",
+  people: "violet",
+  office: "amber",
+  "technology & development": "slate",
+  brands: "slate",
 }
 
 const stem = (w: string) => w.replace(/ies$/, "y").replace(/(ing|ers|es|s|ed)$/, "")
@@ -28,7 +40,14 @@ const table = Object.fromEntries(
     const found = icons.find((i) => i.name === name)
     if (!found) throw new Error(`no Phosphor icon named ${name}`)
     const tone = found.categories.map((c) => TONES[c]).find(Boolean) ?? "slate"
-    const words = [...new Set(found.tags.flatMap((t) => t.toLowerCase().split(/[^a-z]+/)).filter((w) => w.length > 2).map(stem))].sort()
+    const words = [
+      ...new Set(
+        found.tags
+          .flatMap((t) => t.toLowerCase().split(/[^a-z]+/))
+          .filter((w) => w.length > 2)
+          .map(stem),
+      ),
+    ].sort()
     return [name, { glyph: glyph(name), tone, words }]
   }),
 )

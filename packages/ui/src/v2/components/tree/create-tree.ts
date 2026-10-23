@@ -6,34 +6,34 @@ import {
   type ItemInstance,
   type TreeInstance,
   type TreeState,
-} from "@headless-tree/core";
-import { batch, createComputed, createMemo, createSignal, onCleanup, type Accessor } from "solid-js";
+} from "@headless-tree/core"
+import { batch, createComputed, createMemo, createSignal, onCleanup, type Accessor } from "solid-js"
 
 export interface CreateTreeOptions<T> {
-  rootItemId: string;
-  getItemName: (item: ItemInstance<T>) => string;
-  isItemFolder: (item: ItemInstance<T>) => boolean;
-  getItem: (id: string) => T;
-  getChildren: (id: string) => string[];
-  selectionFollowsFocus?: boolean;
-  initialExpanded?: string[];
+  rootItemId: string
+  getItemName: (item: ItemInstance<T>) => string
+  isItemFolder: (item: ItemInstance<T>) => boolean
+  getItem: (id: string) => T
+  getChildren: (id: string) => string[]
+  selectionFollowsFocus?: boolean
+  initialExpanded?: string[]
 }
 
 export interface SolidTree<T> {
-  items: Accessor<ItemInstance<T>[]>;
-  expanded: Accessor<string[]>;
-  focused: Accessor<string | null>;
-  selected: Accessor<string[]>;
-  itemProps: (item: ItemInstance<T>) => Record<string, unknown>;
-  containerProps: () => Record<string, unknown>;
-  core: TreeInstance<T>;
+  items: Accessor<ItemInstance<T>[]>
+  expanded: Accessor<string[]>
+  focused: Accessor<string | null>
+  selected: Accessor<string[]>
+  itemProps: (item: ItemInstance<T>) => Record<string, unknown>
+  containerProps: () => Record<string, unknown>
+  core: TreeInstance<T>
 }
 
 export function createTree<T>(options: CreateTreeOptions<T>): SolidTree<T> {
   const [state, setState] = createSignal<TreeState<T>>(
     { expandedItems: options.initialExpanded ?? [], focusedItem: null, selectedItems: [] } as unknown as TreeState<T>,
     { equals: false },
-  );
+  )
 
   const core = createCoreTree<T>({
     rootItemId: options.rootItemId,
@@ -46,42 +46,42 @@ export function createTree<T>(options: CreateTreeOptions<T>): SolidTree<T> {
     features: [syncDataLoaderFeature, selectionFeature, hotkeysCoreFeature],
     state: state(),
     setState: (updater) => {
-      const prev = state();
-      const next = (typeof updater === "function" ? updater(prev) : updater) as TreeState<T>;
+      const prev = state()
+      const next = (typeof updater === "function" ? updater(prev) : updater) as TreeState<T>
       batch(() => {
-        setState({ ...prev, ...next });
+        setState({ ...prev, ...next })
         if (options.selectionFollowsFocus && next.focusedItem && next.focusedItem !== prev.focusedItem) {
-          setState((s) => ({ ...s, selectedItems: [next.focusedItem as string] }));
+          setState((s) => ({ ...s, selectedItems: [next.focusedItem as string] }))
         }
-      });
+      })
     },
-  });
+  })
 
   createComputed(() => {
-    const s = state();
-    core.setConfig((prev) => ({ ...prev, state: s }));
-  });
+    const s = state()
+    core.setConfig((prev) => ({ ...prev, state: s }))
+  })
 
   const items = createMemo(() => {
-    state();
-    return [...core.getItems()];
-  });
+    state()
+    return [...core.getItems()]
+  })
 
-  onCleanup(() => core.registerElement(null));
+  onCleanup(() => core.registerElement(null))
 
   const containerProps = () => {
-    const props = core.getContainerProps();
-    const { ref } = props as { ref: (el: HTMLElement | null) => void };
+    const props = core.getContainerProps()
+    const { ref } = props as { ref: (el: HTMLElement | null) => void }
     return {
       ...props,
       ref: (el: HTMLElement | null) => {
-        ref(el);
-        if (!el) return;
-        core.setMounted(true);
-        core.rebuildTree();
+        ref(el)
+        if (!el) return
+        core.setMounted(true)
+        core.rebuildTree()
       },
-    };
-  };
+    }
+  }
 
   return {
     items,
@@ -89,10 +89,10 @@ export function createTree<T>(options: CreateTreeOptions<T>): SolidTree<T> {
     focused: () => state().focusedItem,
     selected: () => state().selectedItems,
     itemProps: (item) => {
-      state();
-      return item.getProps();
+      state()
+      return item.getProps()
     },
     containerProps,
     core,
-  };
+  }
 }

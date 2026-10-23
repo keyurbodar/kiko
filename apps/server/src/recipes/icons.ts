@@ -4,9 +4,16 @@ import { SYNONYMS } from "./icon-words"
 
 export type IconInfo = { glyph: string; tone: RecipeTone; words: readonly string[] }
 
-const STOP = new Set("the and for you your with from into that this each every when about are its get using use based".split(" "))
+const STOP = new Set(
+  "the and for you your with from into that this each every when about are its get using use based".split(" "),
+)
 export const stem = (w: string) => w.replace(/ies$/, "y").replace(/(ing|ers|es|s|ed)$/, "")
-export const words = (s: string) => s.toLowerCase().replace(/follow-up/g, "followup").split(/[^a-z]+/).filter((w) => w.length > 2 && !STOP.has(w))
+export const words = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/follow-up/g, "followup")
+    .split(/[^a-z]+/)
+    .filter((w) => w.length > 2 && !STOP.has(w))
 
 function pickIcon(title: string, description: string): string {
   for (const w of [...words(title), ...words(description)]) {

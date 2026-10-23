@@ -6,7 +6,8 @@ type ClerkUI = Awaited<NonNullable<NonNullable<Options["ui"]>["ClerkUI"]>>
 
 const UI_VERSION = "1"
 
-const BLOCKED = "Could not load the sign-in form. Check your connection. If you use an ad blocker or Private DNS, allow clerk.kiko.works, then try again."
+const BLOCKED =
+  "Could not load the sign-in form. Check your connection. If you use an ad blocker or Private DNS, allow clerk.kiko.works, then try again."
 
 function frontendHost(key: string): string {
   return atob(key.split("_").slice(2).join("_")).replace(/\$$/, "")

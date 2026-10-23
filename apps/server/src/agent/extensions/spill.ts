@@ -17,7 +17,15 @@ function parsed(value: string): unknown {
 }
 
 const opened = (value: unknown): unknown =>
-  typeof value === "string" ? (parsed(value) === value ? value : opened(parsed(value))) : Array.isArray(value) ? value.map(opened) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, opened(v)])) : value
+  typeof value === "string"
+    ? parsed(value) === value
+      ? value
+      : opened(parsed(value))
+    : Array.isArray(value)
+      ? value.map(opened)
+      : value && typeof value === "object"
+        ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, opened(v)]))
+        : value
 
 export function readable(text: string): string {
   const value = parsed(text)

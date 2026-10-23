@@ -4,7 +4,8 @@ import { redact } from "../run-error"
 
 export const PRESENCE = "presence"
 
-const path = (args: Record<string, unknown>) => (typeof args.path === "string" ? ` ${args.path.startsWith("/") ? "" : "/"}${args.path}` : "")
+const path = (args: Record<string, unknown>) =>
+  typeof args.path === "string" ? ` ${args.path.startsWith("/") ? "" : "/"}${args.path}` : ""
 
 const COMMAND_CHARS = 80
 
@@ -16,9 +17,18 @@ function command(args: Record<string, unknown>): string {
 
 type Described = { doing: string; activity: Activity }
 
-const KINDS: Readonly<Record<string, ToolKind>> = { read: "read", ls: "search", write: "edit", edit: "edit", bash: "run" }
+const KINDS: Readonly<Record<string, ToolKind>> = {
+  read: "read",
+  ls: "search",
+  write: "edit",
+  edit: "edit",
+  bash: "run",
+}
 
-const tool = (name: string, doing: string): Described => ({ doing, activity: { kind: "tool", tool: KINDS[name] ?? "other", caption: doing } })
+const tool = (name: string, doing: string): Described => ({
+  doing,
+  activity: { kind: "tool", tool: KINDS[name] ?? "other", caption: doing },
+})
 
 export function describeCall(name: string, args: Record<string, unknown>): Described | null {
   if (name.startsWith("memory_") || name === "read_skill") return null
@@ -83,7 +93,8 @@ const LABELS: Readonly<Record<string, (args: Record<string, unknown>) => string>
   mkdir: (a) => `Made folder${path(a)}`,
   mv: (a) => `Moved${path({ path: a.from })} to${path({ path: a.to })}`,
   cp: (a) => `Copied${path({ path: a.from })} to${path({ path: a.to })}`,
-  rm: (a) => (Array.isArray(a.paths) && a.paths.length === 1 ? `Deleted${path({ path: a.paths[0] })}` : "Deleted files"),
+  rm: (a) =>
+    Array.isArray(a.paths) && a.paths.length === 1 ? `Deleted${path({ path: a.paths[0] })}` : "Deleted files",
   create_task: (a) => (str(a.title) ? `Added task ${cut(str(a.title), 60)}` : "Added a task"),
   update_task: () => "Updated a task",
   note: () => "Saved a note",
@@ -94,11 +105,15 @@ const LABELS: Readonly<Record<string, (args: Record<string, unknown>) => string>
 const PATH_TOOLS = new Set(["read", "ls", "write", "edit", "mkdir"])
 
 function inputOf(name: string, args: Record<string, unknown>): string | undefined {
-  const full = name === "bash" ? str(args.command) : PATH_TOOLS.has(name) || !Object.keys(args).length ? "" : JSON.stringify(args)
+  const full =
+    name === "bash" ? str(args.command) : PATH_TOOLS.has(name) || !Object.keys(args).length ? "" : JSON.stringify(args)
   return full ? cut(redact(full), INPUT_CHARS) : undefined
 }
 
-export type Describe = (name: string, args: Record<string, unknown>) => { label: string; app?: string; input?: string } | null
+export type Describe = (
+  name: string,
+  args: Record<string, unknown>,
+) => { label: string; app?: string; input?: string } | null
 
 type StepShown = Pick<RunStep, "tool" | "name" | "label" | "input" | "app">
 
@@ -109,7 +124,13 @@ function stepOf(name: string, args: Record<string, unknown>, describe?: Describe
   const own = describe?.(name, args)
   const label = own?.label ?? LABELS[name]?.(args) ?? `Used ${name}`
   const input = own?.input ?? inputOf(name, args)
-  return { tool, name, label: PATH_TOOLS.has(name) ? label : redact(label), ...(input ? { input: cut(redact(input), INPUT_CHARS) } : {}), ...(own?.app ? { app: own.app } : {}) }
+  return {
+    tool,
+    name,
+    label: PATH_TOOLS.has(name) ? label : redact(label),
+    ...(input ? { input: cut(redact(input), INPUT_CHARS) } : {}),
+    ...(own?.app ? { app: own.app } : {}),
+  }
 }
 
 function outputOf(content: readonly { type: string; text?: string }[] | undefined): string | undefined {
@@ -120,7 +141,11 @@ function outputOf(content: readonly { type: string; text?: string }[] | undefine
 const ERROR_CHARS = 60
 
 export function failed(doing: string, content: readonly { type: string; text?: string }[] | undefined): string {
-  const error = (content ?? []).flatMap((c) => (c.type === "text" && c.text ? [c.text] : [])).join(" ").replace(/\s+/g, " ").trim()
+  const error = (content ?? [])
+    .flatMap((c) => (c.type === "text" && c.text ? [c.text] : []))
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim()
   return `failed: ${doing}${error ? ` (${error.length > ERROR_CHARS ? `${error.slice(0, ERROR_CHARS - 1)}…` : error})` : ""}`
 }
 
@@ -159,7 +184,18 @@ export function presenceExtension(port: StepsPort): Extension {
           const startedAt = Date.now()
           started.set(key(api.conversationId, call.id), startedAt)
           const { scope, shown, described } = built
-          port.push({ step: { id: call.id, runId: scope.runId, ...(scope.worker ? { worker: scope.worker } : {}), ...shown, status: "running", startedAt }, doing: described.doing, activity: described.activity })
+          port.push({
+            step: {
+              id: call.id,
+              runId: scope.runId,
+              ...(scope.worker ? { worker: scope.worker } : {}),
+              ...shown,
+              status: "running",
+              startedAt,
+            },
+            doing: described.doing,
+            activity: described.activity,
+          })
           return undefined
         },
         afterTool: async (call, result, api) => {
@@ -173,7 +209,16 @@ export function presenceExtension(port: StepsPort): Extension {
           const output = outputOf(result.output)
           const out = result.isError ? failedCall(described, result.output) : null
           port.push({
-            step: { id: call.id, runId: scope.runId, ...(scope.worker ? { worker: scope.worker } : {}), ...shown, status: result.isError ? "failed" : "done", startedAt, endedAt, ...(output ? { output } : {}) },
+            step: {
+              id: call.id,
+              runId: scope.runId,
+              ...(scope.worker ? { worker: scope.worker } : {}),
+              ...shown,
+              status: result.isError ? "failed" : "done",
+              startedAt,
+              endedAt,
+              ...(output ? { output } : {}),
+            },
             ...(out ? { doing: out.doing, activity: out.activity } : {}),
           })
           return undefined

@@ -22,7 +22,8 @@ export function prepareClipboardFiles(attachments: readonly PromptInputV2Attachm
       const file = new File([blob], attachment.filename, { type: attachment.mime })
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
-        reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Invalid attachment"))
+        reader.onload = () =>
+          typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Invalid attachment"))
         reader.onerror = () => reject(reader.error)
         reader.readAsDataURL(file)
       })
@@ -40,11 +41,21 @@ export function prepareClipboardFiles(attachments: readonly PromptInputV2Attachm
 const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;")
 
 function portablePayload(markdown: string, copied: CopiedFile[]): string {
-  return JSON.stringify({ version: 1, markdown, files: copied.map(({ attachment, dataUrl }) => ({ id: attachment.id, blobId: attachment.blob.id, filename: attachment.filename, mime: attachment.mime, dataUrl })) })
+  return JSON.stringify({
+    version: 1,
+    markdown,
+    files: copied.map(({ attachment, dataUrl }) => ({
+      id: attachment.id,
+      blobId: attachment.blob.id,
+      filename: attachment.filename,
+      mime: attachment.mime,
+      dataUrl,
+    })),
+  })
 }
 
 function clipboardHtml(markdown: string, key: string, copied: CopiedFile[], payload?: string): string {
-  return `<div data-kiko-clipboard="${key}"${payload ? ` data-kiko-payload="${encodeURIComponent(payload)}"` : ""}>${escapeHtml(markdown)}${copied.map(({ attachment, dataUrl }) => attachment.mime.startsWith("image/") && dataUrl ? `<img src="${dataUrl}" alt="${escapeHtml(attachment.filename)}">` : `<a href="${dataUrl ?? ""}" download="${escapeHtml(attachment.filename)}">${escapeHtml(attachment.filename)}</a>`).join("")}</div>`
+  return `<div data-kiko-clipboard="${key}"${payload ? ` data-kiko-payload="${encodeURIComponent(payload)}"` : ""}>${escapeHtml(markdown)}${copied.map(({ attachment, dataUrl }) => (attachment.mime.startsWith("image/") && dataUrl ? `<img src="${dataUrl}" alt="${escapeHtml(attachment.filename)}">` : `<a href="${dataUrl ?? ""}" download="${escapeHtml(attachment.filename)}">${escapeHtml(attachment.filename)}</a>`)).join("")}</div>`
 }
 
 async function portableFile(copied: CopiedFile): Promise<CopiedFile> {
@@ -65,7 +76,10 @@ export function copyComposerFragment(markdown: string, transfer: Pick<DataTransf
   const key = crypto.randomUUID()
   fragments.clear()
   fragments.set(key, { markdown, files: copied })
-  const payload = copied.length === ids.length && copied.every((entry) => entry.dataUrl) ? portablePayload(markdown, copied) : undefined
+  const payload =
+    copied.length === ids.length && copied.every((entry) => entry.dataUrl)
+      ? portablePayload(markdown, copied)
+      : undefined
   if (payload) fragments.set(payload, { markdown, files: copied })
   transfer.setData(COMPOSER_CLIPBOARD, payload ?? key)
   transfer.setData("text/html", clipboardHtml(markdown, key, copied, payload))
@@ -73,36 +87,55 @@ export function copyComposerFragment(markdown: string, transfer: Pick<DataTransf
   if (typeof navigator === "undefined" || !navigator.clipboard?.write || typeof ClipboardItem === "undefined") return
   const html = Promise.all(pending).then((entries) => {
     const complete = entries.filter((entry): entry is CopiedFile => !!entry)
-    return new Blob([clipboardHtml(markdown, key, complete, portablePayload(markdown, complete))], { type: "text/html" })
+    return new Blob([clipboardHtml(markdown, key, complete, portablePayload(markdown, complete))], {
+      type: "text/html",
+    })
   })
   void html.catch(() => {})
   try {
-    void navigator.clipboard.write([new ClipboardItem({
-      "text/html": html,
-      "text/plain": new Blob([markdown], { type: "text/plain" }),
-    })]).catch(() => {})
-  } catch {
-  }
+    void navigator.clipboard
+      .write([
+        new ClipboardItem({
+          "text/html": html,
+          "text/plain": new Blob([markdown], { type: "text/plain" }),
+        }),
+      ])
+      .catch(() => {})
+  } catch {}
 }
 
 type PortableFile = Pick<PromptInputV2Attachment, "id" | "filename" | "mime"> & { dataUrl: string; blobId?: string }
 
 function isPortableFile(value: unknown): value is PortableFile {
-  return typeof value === "object" && value !== null
-    && "id" in value && typeof value.id === "string"
-    && "filename" in value && typeof value.filename === "string"
-    && "mime" in value && typeof value.mime === "string"
-    && "dataUrl" in value && typeof value.dataUrl === "string"
-    && (!("blobId" in value) || typeof value.blobId === "string")
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string" &&
+    "filename" in value &&
+    typeof value.filename === "string" &&
+    "mime" in value &&
+    typeof value.mime === "string" &&
+    "dataUrl" in value &&
+    typeof value.dataUrl === "string" &&
+    (!("blobId" in value) || typeof value.blobId === "string")
+  )
 }
 
 function readPortableFragment(payload: string) {
   try {
     const value: unknown = JSON.parse(payload)
-    if (typeof value !== "object" || value === null
-      || !("version" in value) || value.version !== 1
-      || !("markdown" in value) || typeof value.markdown !== "string"
-      || !("files" in value) || !Array.isArray(value.files)) return undefined
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      !("version" in value) ||
+      value.version !== 1 ||
+      !("markdown" in value) ||
+      typeof value.markdown !== "string" ||
+      !("files" in value) ||
+      !Array.isArray(value.files)
+    )
+      return undefined
     const copied: CopiedFile[] = []
     for (const entry of value.files) {
       if (!isPortableFile(entry)) return undefined
@@ -110,7 +143,14 @@ function readPortableFragment(payload: string) {
       if (!match) return undefined
       const bytes = Uint8Array.from(atob(match[1]!), (character) => character.charCodeAt(0))
       const file = new File([bytes], entry.filename, { type: entry.mime })
-      const attachment: PromptInputV2Attachment = { type: "image", id: entry.id, filename: entry.filename, mime: entry.mime, size: file.size, blob: { id: entry.blobId ?? entry.id, url: entry.dataUrl } }
+      const attachment: PromptInputV2Attachment = {
+        type: "image",
+        id: entry.id,
+        filename: entry.filename,
+        mime: entry.mime,
+        size: file.size,
+        blob: { id: entry.blobId ?? entry.id, url: entry.dataUrl },
+      }
       copied.push({ attachment, file, dataUrl: entry.dataUrl })
     }
     return { markdown: value.markdown, files: copied }

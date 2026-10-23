@@ -47,13 +47,20 @@ export function groupsExtension(port: GroupsPort): Extension {
     replay: "safe",
     execute: async () => {
       const agents = await port.agents()
-      return { output: text(agents.length ? agents.map((a) => `@${a.slug} (${a.name}): ${a.prompt.split("\n")[0]}`).join("\n") : "no agents yet, only kiko") }
+      return {
+        output: text(
+          agents.length
+            ? agents.map((a) => `@${a.slug} (${a.name}): ${a.prompt.split("\n")[0]}`).join("\n")
+            : "no agents yet, only kiko",
+        ),
+      }
     },
   })
 
   const createAgent = defineTool({
     name: "create_agent",
-    description: "make a new agent for the human: its name, handle, one line on what it does, and its soul. it gets its own chat and says hi. only kiko can.",
+    description:
+      "make a new agent for the human: its name, handle, one line on what it does, and its soul. it gets its own chat and says hi. only kiko can.",
     parameters: NewAgent,
     replay: "safe",
     execute: async (a) => {
@@ -70,35 +77,63 @@ export function groupsExtension(port: GroupsPort): Extension {
       title: Type.String(),
       members: Type.Array(Type.String(), { description: "handles of the human's existing agents to include" }),
       goal: Type.String({ description: "what the group is for, in a few lines" }),
-      kickoff: Type.String({ description: "your first message to everyone in the group: the task and what you need from each" }),
-      new_agents: Type.Optional(Type.Array(NewAgent, { description: "kiko only: agents to make for this group, with souls" })),
+      kickoff: Type.String({
+        description: "your first message to everyone in the group: the task and what you need from each",
+      }),
+      new_agents: Type.Optional(
+        Type.Array(NewAgent, { description: "kiko only: agents to make for this group, with souls" }),
+      ),
     }),
     replay: "safe",
     execute: async (g) => {
-      const out = await port.createGroup({ title: g.title, members: g.members, goal: g.goal, kickoff: g.kickoff, newAgents: (g.new_agents ?? []) as NewAgentSpec[] })
+      const out = await port.createGroup({
+        title: g.title,
+        members: g.members,
+        goal: g.goal,
+        kickoff: g.kickoff,
+        newAgents: (g.new_agents ?? []) as NewAgentSpec[],
+      })
       return out.ok ? { output: text(out.text) } : fail(out.error)
     },
   })
 
   const deleteGroup = defineTool({
-    name: "delete_group", description: "delete a group chat and its files, routines, and memory. only kiko can, on the human's request.",
-    parameters: Type.Object({ room_id: Type.String() }), replay: "safe",
-    execute: async (a) => { const out = await port.deleteGroup(a.room_id); return out.ok ? { output: text(out.text) } : fail(out.error) },
+    name: "delete_group",
+    description: "delete a group chat and its files, routines, and memory. only kiko can, on the human's request.",
+    parameters: Type.Object({ room_id: Type.String() }),
+    replay: "safe",
+    execute: async (a) => {
+      const out = await port.deleteGroup(a.room_id)
+      return out.ok ? { output: text(out.text) } : fail(out.error)
+    },
   })
   const deleteAgent = defineTool({
-    name: "delete_agent", description: "delete an agent and its private chats, files, routines, and memory, and remove it from groups. only kiko can, on the human's request. kiko cannot be deleted.",
-    parameters: Type.Object({ handle: Type.String() }), replay: "safe",
-    execute: async (a) => { const out = await port.deleteAgent(a.handle); return out.ok ? { output: text(out.text) } : fail(out.error) },
+    name: "delete_agent",
+    description:
+      "delete an agent and its private chats, files, routines, and memory, and remove it from groups. only kiko can, on the human's request. kiko cannot be deleted.",
+    parameters: Type.Object({ handle: Type.String() }),
+    replay: "safe",
+    execute: async (a) => {
+      const out = await port.deleteAgent(a.handle)
+      return out.ok ? { output: text(out.text) } : fail(out.error)
+    },
   })
   const removeMember = defineTool({
-    name: "remove_member", description: "remove an agent from this group using the human's membership rules. Kiko can pass room_id from overview to manage another group. Kiko cannot be removed.",
-    parameters: Type.Object({ handle: Type.String(), room_id: Type.Optional(Type.String()) }), replay: "safe",
-    execute: async (a) => { const out = await port.removeMember(a.handle, a.room_id); return out.ok ? { output: text(out.text) } : fail(out.error) },
+    name: "remove_member",
+    description:
+      "remove an agent from this group using the human's membership rules. Kiko can pass room_id from overview to manage another group. Kiko cannot be removed.",
+    parameters: Type.Object({ handle: Type.String(), room_id: Type.Optional(Type.String()) }),
+    replay: "safe",
+    execute: async (a) => {
+      const out = await port.removeMember(a.handle, a.room_id)
+      return out.ok ? { output: text(out.text) } : fail(out.error)
+    },
   })
 
   const overview = defineTool({
     name: "overview",
-    description: "what is open across all of the human's chats: recent chats and unread, open tasks and how stale, routines (reminders are one-time routines) and their last runs.",
+    description:
+      "what is open across all of the human's chats: recent chats and unread, open tasks and how stale, routines (reminders are one-time routines) and their last runs.",
     parameters: Type.Object({}),
     replay: "safe",
     execute: async () => ({ output: text(await port.overview()) }),
@@ -108,7 +143,15 @@ export function groupsExtension(port: GroupsPort): Extension {
     name: GROUPS_EXT,
     sections: [section("groups", () => (port.chief ? CHIEF_RULES : MEMBER_RULES))],
     tools: port.chief
-      ? [declareEffect("read", list), declareEffect("write", createAgent), declareEffect("message", createGroup), declareEffect("read", overview), declareEffect("write", deleteGroup), declareEffect("write", deleteAgent), declareEffect("write", removeMember)]
+      ? [
+          declareEffect("read", list),
+          declareEffect("write", createAgent),
+          declareEffect("message", createGroup),
+          declareEffect("read", overview),
+          declareEffect("write", deleteGroup),
+          declareEffect("write", deleteAgent),
+          declareEffect("write", removeMember),
+        ]
       : [declareEffect("read", list), declareEffect("message", createGroup), declareEffect("write", removeMember)],
   })
 }

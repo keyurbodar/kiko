@@ -3,7 +3,14 @@ import type { Life } from "@kiko/memory/life"
 import { cleanLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@kiko/memory/optmem"
 import { candidates, type CaptureCount, type CapturePolicy, captureWithJudge, mergePolicy } from "@kiko/memory/capture"
 import type { Answer, Judge, Question } from "@kiko/memory/judge"
-import { KIKO, type MemoryModel, type MemoryOp, type MemoryResult, type ProviderInfo, type RoomId } from "@kiko/protocol"
+import {
+  KIKO,
+  type MemoryModel,
+  type MemoryOp,
+  type MemoryResult,
+  type ProviderInfo,
+  type RoomId,
+} from "@kiko/protocol"
 import type { UserSettingsPatch } from "@kiko/protocol/schema"
 import { userModels } from "../agent/factory"
 import { parseModelRef } from "../agent/thinking"
@@ -28,7 +35,7 @@ const CAPTURE_TEXT_MAX = 8_000
 const CAPTURE_TIMEOUT_MS = 8_000
 
 export type MemoryDeps = {
-  chat: (roomId:RoomId)=>import("@kiko/protocol").Chat|null
+  chat: (roomId: RoomId) => import("@kiko/protocol").Chat | null
   sql: SqlStorage
   fetch: typeof fetch
   countOutgoing: () => void
@@ -72,7 +79,10 @@ export class MemoryCapture {
   }
 
   judge(timeoutMs: number): Judge {
-    return async <K extends string>(state: JsonObject, questions: Record<K, Question>): Promise<Record<K, Answer> | null> => {
+    return async <K extends string>(
+      state: JsonObject,
+      questions: Record<K, Question>,
+    ): Promise<Record<K, Answer> | null> => {
       const key = this.judgeKey()
       if (!key) return null
       try {
@@ -89,7 +99,9 @@ export class MemoryCapture {
           this.count({ jev_refused: 1 })
         } else {
           this.count({ jev_errors: 1 })
-          console.error(`judge ${key.provider} ${result.stopReason} ${/\((\d{3})\)/.exec(result.errorMessage ?? "")?.[1] ?? ""}`)
+          console.error(
+            `judge ${key.provider} ${result.stopReason} ${/\((\d{3})\)/.exec(result.errorMessage ?? "")?.[1] ?? ""}`,
+          )
         }
         return null
       } catch (error) {
@@ -116,16 +128,28 @@ export class MemoryCapture {
   }
 
   private queued(roomId: string, messageId: string, text: string): boolean {
-    return this.sql.exec("SELECT 1 FROM capture_queue WHERE room_id = ? AND message_id = ? AND text = ?", roomId, messageId, text).toArray().length > 0
+    return (
+      this.sql
+        .exec("SELECT 1 FROM capture_queue WHERE room_id = ? AND message_id = ? AND text = ?", roomId, messageId, text)
+        .toArray().length > 0
+    )
   }
 
   private dequeue(roomId: string, messageIds: readonly string[]): void {
-    this.sql.exec("DELETE FROM capture_queue WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(messageIds))
+    this.sql.exec(
+      "DELETE FROM capture_queue WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))",
+      roomId,
+      JSON.stringify(messageIds),
+    )
   }
 
   async captureHuman(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
     if (!this.captures() || !this.capturable(roomId)) return
-    const rows = items.flatMap((i) => (i.messageId && candidates(i.text).length ? [{ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }] : []))
+    const rows = items.flatMap((i) =>
+      i.messageId && candidates(i.text).length
+        ? [{ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }]
+        : [],
+    )
     if (!rows.length) return
     const inserted = this.sql.exec(
       "INSERT OR IGNORE INTO capture_queue (room_id, message_id, text, at, queued_at) SELECT ?, json_extract(value, '$.id'), json_extract(value, '$.text'), json_extract(value, '$.at'), ? FROM json_each(?)",
@@ -133,17 +157,27 @@ export class MemoryCapture {
       Date.now(),
       JSON.stringify(rows),
     )
-    if (inserted.rowsWritten) this.sql.exec("DELETE FROM capture_queue WHERE (room_id, message_id) NOT IN (SELECT room_id, message_id FROM capture_queue ORDER BY queued_at DESC, room_id, message_id LIMIT ?)", CAPTURE_QUEUE_MAX)
+    if (inserted.rowsWritten)
+      this.sql.exec(
+        "DELETE FROM capture_queue WHERE (room_id, message_id) NOT IN (SELECT room_id, message_id FROM capture_queue ORDER BY queued_at DESC, room_id, message_id LIMIT ?)",
+        CAPTURE_QUEUE_MAX,
+      )
     await this.captureNow()
   }
 
   async captureNow(): Promise<void> {
     if (!this.captures()) {
-      if (this.sql.exec("SELECT 1 FROM capture_queue LIMIT 1").toArray().length) this.sql.exec("DELETE FROM capture_queue")
+      if (this.sql.exec("SELECT 1 FROM capture_queue LIMIT 1").toArray().length)
+        this.sql.exec("DELETE FROM capture_queue")
       return
     }
     type QueueRow = { room_id: RoomId; message_id: string; text: string; at: number }
-    const queue = this.sql.exec<QueueRow>("SELECT room_id, message_id, text, at FROM capture_queue ORDER BY queued_at, at LIMIT ?", CAPTURE_PER_RUN).toArray()
+    const queue = this.sql
+      .exec<QueueRow>(
+        "SELECT room_id, message_id, text, at FROM capture_queue ORDER BY queued_at, at LIMIT ?",
+        CAPTURE_PER_RUN,
+      )
+      .toArray()
     for (const r of queue.filter((r) => !this.capturable(r.room_id))) this.dequeue(r.room_id, [r.message_id])
     const rows = queue.filter((r) => this.capturable(r.room_id))
     const judge = this.judge(CAPTURE_TIMEOUT_MS)
@@ -153,7 +187,11 @@ export class MemoryCapture {
       const out = await captureWithJudge(
         this.life,
         judge,
-        chunk.map((r) => ({ heard: { messageId: r.message_id, text: r.text, at: r.at }, ref: `room:${r.room_id}:msg:${r.message_id}`, keep: () => this.queued(r.room_id, r.message_id, r.text) })),
+        chunk.map((r) => ({
+          heard: { messageId: r.message_id, text: r.text, at: r.at },
+          ref: `room:${r.room_id}:msg:${r.message_id}`,
+          keep: () => this.queued(r.room_id, r.message_id, r.text),
+        })),
       )
       if (!out) continue
       this.tally(out)
@@ -171,7 +209,8 @@ export class MemoryCapture {
       const out = await this.compress(prompt)
       if (this.life.prompt(span) !== prompt) continue
       if ("retryAt" in out) return
-      if ("error" in out && this.life.tree.failed(span) < MAX_NAP_FAILS) return void console.error(`memory nap failed: ${out.error}`)
+      if ("error" in out && this.life.tree.failed(span) < MAX_NAP_FAILS)
+        return void console.error(`memory nap failed: ${out.error}`)
       this.life.settle(span, "text" in out ? out.text : null)
     }
   }
@@ -194,22 +233,42 @@ export class MemoryCapture {
     }
   }
 
-  private async complete(ref: { provider: string; modelId: string }, system: string, prompt: string): Promise<string | null> {
+  private async complete(
+    ref: { provider: string; modelId: string },
+    system: string,
+    prompt: string,
+  ): Promise<string | null> {
     const { provider, modelId } = ref
     const auth = (await this.d.turn(provider)).auth
     if (!auth) return null
-    const { models, settings } = userModels(async () => auth, `memory-${this.d.label}`, this.d.fetch, this.d.countOutgoing)
+    const { models, settings } = userModels(
+      async () => auth,
+      `memory-${this.d.label}`,
+      this.d.fetch,
+      this.d.countOutgoing,
+    )
     const model = models.getModel(provider, modelId)
     if (!model) return null
     const headers = settings.stream?.headers
     const reply = await models.completeSimple(
       model,
       { systemPrompt: system, messages: [{ role: "user", content: prompt, timestamp: Date.now() }] },
-      { headers, signal: AbortSignal.timeout(COMPRESS_TIMEOUT_MS), ...(model.reasoning && model.thinkingLevelMap?.off === null ? { reasoning: "minimal" as const } : {}) },
+      {
+        headers,
+        signal: AbortSignal.timeout(COMPRESS_TIMEOUT_MS),
+        ...(model.reasoning && model.thinkingLevelMap?.off === null ? { reasoning: "minimal" as const } : {}),
+      },
     )
     const failed = reply.stopReason === "error" || reply.stopReason === "aborted"
-    this.count({ input: reply.usage?.input ?? 0, output: reply.usage?.output ?? 0, cacheRead: reply.usage?.cacheRead ?? 0, calls: 1, failed: failed ? 1 : 0 })
-    if (failed) throw new Error(`the model call failed: ${reply.stopReason} ${(reply.errorMessage ?? "").slice(0, 160)}`)
+    this.count({
+      input: reply.usage?.input ?? 0,
+      output: reply.usage?.output ?? 0,
+      cacheRead: reply.usage?.cacheRead ?? 0,
+      calls: 1,
+      failed: failed ? 1 : 0,
+    })
+    if (failed)
+      throw new Error(`the model call failed: ${reply.stopReason} ${(reply.errorMessage ?? "").slice(0, 160)}`)
     return reply.content.flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
   }
 
@@ -246,7 +305,13 @@ export class MemoryCapture {
         return { ok: true, model: this.memoryModel() }
       case "set_model": {
         const model = op.model
-        if (model && !findProvider(model.provider)?.getModels().some((m) => m.id === model.modelId)) return { ok: false, error: "no such model" }
+        if (
+          model &&
+          !findProvider(model.provider)
+            ?.getModels()
+            .some((m) => m.id === model.modelId)
+        )
+          return { ok: false, error: "no such model" }
         if (model) setSetting(this.sql, MEMORY_MODEL, JSON.stringify(model))
         else deleteSetting(this.sql, MEMORY_MODEL)
         return { ok: true }

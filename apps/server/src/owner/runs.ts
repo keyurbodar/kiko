@@ -5,7 +5,9 @@ type RunOutcome = "done" | "continue"
 
 class RunCallLimitError extends Error {
   constructor() {
-    super("This run reached its network call budget during a tool. Completed actions were kept. Check those actions before retrying.")
+    super(
+      "This run reached its network call budget during a tool. Completed actions were kept. Check those actions before retrying.",
+    )
     this.name = "RunCallLimitError"
   }
 }
@@ -19,7 +21,9 @@ class RunBudget {
     this.deadline = now() + RUN_DURATION_MS
   }
 
-  get calls(): number { return this.outgoing }
+  get calls(): number {
+    return this.outgoing
+  }
   count(): void {
     if (this.outgoing >= RUN_CALL_LIMIT) {
       this.rejected = true
@@ -46,20 +50,35 @@ export class Runs {
     return this.options.schedule(agent, requestId)
   }
 
-  count(agent: string): void { this.active.get(agent)?.budget.count() }
+  count(agent: string): void {
+    this.active.get(agent)?.budget.count()
+  }
   countActive(): void {
     const errors: unknown[] = []
     for (const budget of new Set([...this.active.values()].map((a) => a.budget))) {
-      try { budget.count() } catch (error) { errors.push(error) }
+      try {
+        budget.count()
+      } catch (error) {
+        errors.push(error)
+      }
     }
     if (errors.length) throw errors[0]
   }
 
-  has(agent: string): boolean { return this.active.has(agent) }
+  has(agent: string): boolean {
+    return this.active.has(agent)
+  }
 
-  budget(): RunBudget { return new RunBudget(this.options.now) }
+  budget(): RunBudget {
+    return new RunBudget(this.options.now)
+  }
 
-  run(agent: string, requestId: string, invoke: (budget: RunBudget) => Promise<RunOutcome>, budget = this.budget()): Promise<void> {
+  run(
+    agent: string,
+    requestId: string,
+    invoke: (budget: RunBudget) => Promise<RunOutcome>,
+    budget = this.budget(),
+  ): Promise<void> {
     const existing = this.active.get(agent)
     if (existing) return existing.work
     const work = Promise.resolve().then(async () => {

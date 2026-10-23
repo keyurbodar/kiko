@@ -17,7 +17,8 @@ let cached: { height: number; coarse: boolean; limit: number } | undefined
 export function foldLimitFor(height: number): number {
   const coarse = globalThis.matchMedia?.("(pointer: coarse)").matches ?? false
   const usable = Math.max(240, height - FOLD_BUTTON_PX)
-  if (!cached || cached.height !== usable || cached.coarse !== coarse) cached = { height: usable, coarse, limit: collapseLimit(usable, coarse) }
+  if (!cached || cached.height !== usable || cached.coarse !== coarse)
+    cached = { height: usable, coarse, limit: collapseLimit(usable, coarse) }
   return cached.limit
 }
 

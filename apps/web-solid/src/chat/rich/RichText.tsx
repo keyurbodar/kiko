@@ -14,7 +14,9 @@ import { linkHost, linkLead, richNodes, type RichNode, type TableCopy } from "./
 import { RichImage } from "./RichImage"
 import "./rich.css"
 
-const SuspiciousLinkDialog = lazy(() => import("../ui/SuspiciousLinkDialog").then((m) => ({ default: m.SuspiciousLinkDialog })))
+const SuspiciousLinkDialog = lazy(() =>
+  import("../ui/SuspiciousLinkDialog").then((m) => ({ default: m.SuspiciousLinkDialog })),
+)
 
 function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.Element {
   return (
@@ -22,7 +24,9 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
       <Match when={props.node.kind === "text" && props.node}>
         {(n) => <EmojiText text={(n() as { text: string }).text} />}
       </Match>
-      <Match when={props.node.kind === "mention" && props.node}>{(n) => <Mention slug={(n() as { slug: string }).slug} />}</Match>
+      <Match when={props.node.kind === "mention" && props.node}>
+        {(n) => <Mention slug={(n() as { slug: string }).slug} />}
+      </Match>
       <Match when={props.node.kind === "file" && props.node}>
         {(n) => {
           const f = () => n() as Extract<RichNode, { kind: "file" }>
@@ -56,7 +60,9 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
       <Match when={props.node.kind === "el" && props.node}>
         {(n) => {
           const e = () => n() as Extract<RichNode, { kind: "el" }>
-          const children = () => <For each={e().children}>{(child) => <Node node={child} onMasked={props.onMasked} />}</For>
+          const children = () => (
+            <For each={e().children}>{(child) => <Node node={child} onMasked={props.onMasked} />}</For>
+          )
           if (e().attrs.class === "rich-table-scroll") return <RichTable copy={e().copy}>{children()}</RichTable>
           if (e().tag === "a") {
             return (
@@ -118,7 +124,10 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
   const fade = () => {
     if (!scroller) return
     scroller.style.setProperty("--overflow-start", `${scroller.scrollLeft}px`)
-    scroller.style.setProperty("--overflow-end", `${Math.max(0, scroller.scrollWidth - scroller.clientWidth - scroller.scrollLeft)}px`)
+    scroller.style.setProperty(
+      "--overflow-end",
+      `${Math.max(0, scroller.scrollWidth - scroller.clientWidth - scroller.scrollLeft)}px`,
+    )
   }
   onMount(() => {
     fade()

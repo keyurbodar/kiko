@@ -1,8 +1,35 @@
 import type { ComposioStatus } from "@kiko/protocol"
 import { CredentialError, checkApiKey } from "../../user/credentials"
 import { count } from "../../lib/dev-guard"
-import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, catalogReadOnly, checkKey, connectedAccounts, createSession, deleteSession, learnedSignature, listTools, resolveToolkit as catalogToolkit, sessionGone, type Target } from "./client"
-import { type Candidate, candidates, failed, forget, MULTI_EXECUTE, remember, resultJson, SCHEMAS, schemaRefs, SEARCH, succeeded } from "./learn"
+import {
+  type ComposioCallResult,
+  ComposioError,
+  type ComposioTool,
+  callTool,
+  catalogReadOnly,
+  checkKey,
+  connectedAccounts,
+  createSession,
+  deleteSession,
+  learnedSignature,
+  listTools,
+  resolveToolkit as catalogToolkit,
+  sessionGone,
+  type Target,
+} from "./client"
+import {
+  type Candidate,
+  candidates,
+  failed,
+  forget,
+  MULTI_EXECUTE,
+  remember,
+  resultJson,
+  SCHEMAS,
+  schemaRefs,
+  SEARCH,
+  succeeded,
+} from "./learn"
 import type { ComposioStore, StoredTarget } from "./store"
 
 const LISTING_FRESH_MS = 10 * 60_000
@@ -108,7 +135,15 @@ export class ComposioConnection {
   }
 
   private learnedTools(): ComposioTool[] {
-    return this.store.learned().map((t) => ({ name: t.slug, description: t.description, inputSchema: t.inputSchema, ...(t.readOnly ? { readOnly: true } : {}), direct: { slug: t.slug, toolkit: t.toolkit } }))
+    return this.store
+      .learned()
+      .map((t) => ({
+        name: t.slug,
+        description: t.description,
+        inputSchema: t.inputSchema,
+        ...(t.readOnly ? { readOnly: true } : {}),
+        direct: { slug: t.slug, toolkit: t.toolkit },
+      }))
   }
 
   private async listed(now: number): Promise<ComposioTool[] | null> {
@@ -133,7 +168,11 @@ export class ComposioConnection {
     return tools
   }
 
-  async call(name: string, args: Record<string, unknown>, egress: typeof fetch = this.fetcher): Promise<ComposioCallResult> {
+  async call(
+    name: string,
+    args: Record<string, unknown>,
+    egress: typeof fetch = this.fetcher,
+  ): Promise<ComposioCallResult> {
     const generation = this.store.generation
     const out = await this.session((target) => callTool(target, name, args, egress), egress)
     if (out.isError && name === MULTI_EXECUTE) this.forgetFailed(failed(args, undefined), generation)
@@ -144,7 +183,9 @@ export class ComposioConnection {
       this.forgetFailed(failed(args, body), generation)
       const learned = this.store.learned()
       const listed = this.listedNames()
-      const used = succeeded(args, body).flatMap((slug) => (listed.has(slug) ? [] : (this.candidates.get(slug) ?? learned.find((t) => t.slug === slug) ?? [])))
+      const used = succeeded(args, body).flatMap((slug) =>
+        listed.has(slug) ? [] : (this.candidates.get(slug) ?? learned.find((t) => t.slug === slug) ?? []),
+      )
       if (used.length) this.store.putLearned(remember(learned, used, Date.now()), generation)
       for (const c of used) if (!learned.some((t) => t.slug === c.slug)) this.classify(c.slug, generation, egress)
       return out
@@ -167,19 +208,21 @@ export class ComposioConnection {
   }
 
   private loadSchemas(slugs: string[], generation: number, egress: typeof fetch): void {
-    const work = this.session((target) => callTool(target, SCHEMAS, { tool_slugs: slugs }, egress), egress).then((out) => {
-      const body = resultJson(out)
-      if (!body) return
-      for (const c of candidates(body)) {
-        this.candidates.delete(c.slug)
-        this.candidates.set(c.slug, c)
-      }
-      if (generation !== this.store.generation) return
-      for (const slug of this.candidates.keys()) {
-        if (this.candidates.size <= CANDIDATES_MAX) break
-        this.candidates.delete(slug)
-      }
-    })
+    const work = this.session((target) => callTool(target, SCHEMAS, { tool_slugs: slugs }, egress), egress).then(
+      (out) => {
+        const body = resultJson(out)
+        if (!body) return
+        for (const c of candidates(body)) {
+          this.candidates.delete(c.slug)
+          this.candidates.set(c.slug, c)
+        }
+        if (generation !== this.store.generation) return
+        for (const slug of this.candidates.keys()) {
+          if (this.candidates.size <= CANDIDATES_MAX) break
+          this.candidates.delete(slug)
+        }
+      },
+    )
     this.waitUntil(work.catch(() => undefined))
   }
 
@@ -187,7 +230,10 @@ export class ComposioConnection {
     const work = this.store.target().then(async (target) => {
       if (!target) return
       const readOnly = await catalogReadOnly(target.key, slug, egress)
-      this.store.putLearned(this.store.learned().map((t) => (t.slug === slug ? { ...t, readOnly } : t)), generation)
+      this.store.putLearned(
+        this.store.learned().map((t) => (t.slug === slug ? { ...t, readOnly } : t)),
+        generation,
+      )
     })
     this.waitUntil(work.catch(() => undefined))
   }

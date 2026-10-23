@@ -11,13 +11,24 @@ type NewAgentPorts = {
 }
 
 type NewAgentResult =
-  | { ok: true; agent: Agent; roomId: RoomId;  introduced: Promise<void> }
+  | { ok: true; agent: Agent; roomId: RoomId; introduced: Promise<void> }
   | { ok: false; error: string }
 
-export async function makeAgentChat(p: NewAgentPorts, spec: NewAgentSpec, by: Maker, ids: { id?: string; roomId?: RoomId } = {}): Promise<NewAgentResult> {
+export async function makeAgentChat(
+  p: NewAgentPorts,
+  spec: NewAgentSpec,
+  by: Maker,
+  ids: { id?: string; roomId?: RoomId } = {},
+): Promise<NewAgentResult> {
   const mine = await p.agents()
   const again = ids.id ? mine.find((a) => a.id === ids.id) : undefined
-  if (again) return { ok: true, agent: again, roomId: (await p.openChat(again.name, [again.id], ids.roomId)).roomId, introduced: Promise.resolve() }
+  if (again)
+    return {
+      ok: true,
+      agent: again,
+      roomId: (await p.openChat(again.name, [again.id], ids.roomId)).roomId,
+      introduced: Promise.resolve(),
+    }
   const checked = checkNewAgent(spec, mine)
   if ("error" in checked) return { ok: false, error: checked.error }
   const agent = await p.make({ ...checked, ...(ids.id ? { id: ids.id } : {}) })

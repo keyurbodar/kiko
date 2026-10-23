@@ -54,7 +54,8 @@ const sum = (c: Counters, test: (key: string) => boolean): number =>
   Object.entries(c).reduce((n, [k, v]) => (test(k) ? n + v : n), 0)
 
 export const rowsWritten = (c: Counters): number => c["owner.rowsWritten"] ?? sum(c, (k) => k.endsWith(".rowsWritten"))
-export const interObjectCalls = (c: Counters): number => sum(c, (k) => k.startsWith("rpc.") && k !== "rpc.owner" && !k.startsWith("rpc.owner."))
+export const interObjectCalls = (c: Counters): number =>
+  sum(c, (k) => k.startsWith("rpc.") && k !== "rpc.owner" && !k.startsWith("rpc.owner."))
 const setAlarm = (c: Counters): number => c["owner.kv.setAlarm"] ?? sum(c, (k) => k.endsWith(".kv.setAlarm"))
 
 function byObject(c: Counters, suffix: string): Record<string, number> {
@@ -98,10 +99,16 @@ async function armedAlarm(v: Verifier, s: Session, roomId: string): Promise<Alar
 }
 
 const describeAlarm = (at: AlarmAt): string =>
-  at === undefined ? "unknown (the dev status has no alarmAt)" : at === null ? "none armed" : `armed for ${new Date(at).toISOString()}`
+  at === undefined
+    ? "unknown (the dev status has no alarmAt)"
+    : at === null
+      ? "none armed"
+      : `armed for ${new Date(at).toISOString()}`
 
 function report(label: string, p: Phase): void {
-  console.log(`  ${label}: billable writes ${p.billableWrites.total} = SQL ${p.billableWrites.sqlPhysical} + KV put keys ${p.billableWrites.kvKeysPut} + deleted keys ${p.billableWrites.kvKeysDeleted} + setAlarm ${p.billableWrites.setAlarm}${p.billingVersion ? "" : " (incomplete legacy meter)"}`)
+  console.log(
+    `  ${label}: billable writes ${p.billableWrites.total} = SQL ${p.billableWrites.sqlPhysical} + KV put keys ${p.billableWrites.kvKeysPut} + deleted keys ${p.billableWrites.kvKeysDeleted} + setAlarm ${p.billableWrites.setAlarm}${p.billingVersion ? "" : " (incomplete legacy meter)"}`,
+  )
   const rows = p.rowsWritten.byObject
   const alarms = p.alarms.setAlarm.byObject
   const kv = Object.fromEntries(
@@ -127,7 +134,7 @@ async function measure(v: Verifier, s: Session, name: string, roomId: string): P
 async function turn(v: Verifier, s: Session, name: string, roomId: string): Promise<Phase> {
   const response = await fetch(new URL("api/dev/stats", v.url), { headers: { authorization: s.auth } })
   if (!response.ok) throw new VerifyError(`stats answered ${response.status}`)
-  const meter = await response.json() as { counters: Counters; billingVersion?: number }
+  const meter = (await response.json()) as { counters: Counters; billingVersion?: number }
   const counters = meter.counters
   const sqlPhysical = rowsWritten(counters)
   const kvKeysPut = sum(counters, (key) => key.endsWith(".kvKeysPut"))
@@ -137,7 +144,13 @@ async function turn(v: Verifier, s: Session, name: string, roomId: string): Prom
     name,
     counters,
     billingVersion: meter.billingVersion ?? 0,
-    billableWrites: { sqlPhysical, kvKeysPut, kvKeysDeleted, setAlarm: alarmWrites, total: sqlPhysical + kvKeysPut + kvKeysDeleted + alarmWrites },
+    billableWrites: {
+      sqlPhysical,
+      kvKeysPut,
+      kvKeysDeleted,
+      setAlarm: alarmWrites,
+      total: sqlPhysical + kvKeysPut + kvKeysDeleted + alarmWrites,
+    },
     interObjectCalls: interObjectCalls(counters),
     rowsWritten: { total: rowsWritten(counters), byObject: byObject(counters, "rowsWritten") },
     alarms: {
@@ -185,7 +198,9 @@ const suite: Suite = {
     const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]!
     const warmMedian = {
       total: median(warmPrompts.map((p) => p.rowsWritten.total)),
-      byObject: Object.fromEntries(KIND_PARTS.map((kind) => [kind, median(warmPrompts.map((p) => p.rowsWritten.byObject[kind] ?? 0))])),
+      byObject: Object.fromEntries(
+        KIND_PARTS.map((kind) => [kind, median(warmPrompts.map((p) => p.rowsWritten.byObject[kind] ?? 0))]),
+      ),
     }
     const warmBillableMedian = median(warmPrompts.map((p) => p.billableWrites.total))
     phases.push(warmPrompts[WARM_RUNS - 1]!)
@@ -225,11 +240,22 @@ const suite: Suite = {
     }
 
     const quietPhases = [phases[1], phases[3]]
-    console.log(`  ${BASELINE ? "baseline" : "gate"}: billable writes median ${warmBillableMedian}/${ROW_GATE} (SQL ${warmMedian.total}), inter-object RPC ${warmPrompts.map((p) => p.interObjectCalls).join(", ")}, error rows live ${liveErrors} persisted ${persistedErrors}`)
+    console.log(
+      `  ${BASELINE ? "baseline" : "gate"}: billable writes median ${warmBillableMedian}/${ROW_GATE} (SQL ${warmMedian.total}), inter-object RPC ${warmPrompts.map((p) => p.interObjectCalls).join(", ")}, error rows live ${liveErrors} persisted ${persistedErrors}`,
+    )
     gate(QUIET_MS >= 60_000, "the quiet gate requires at least 60 seconds; shorter intervals are smoke runs only")
-    gate(warmPrompts.every((p) => "owner.rowsWritten" in p.counters), "physical owner.rowsWritten counters are missing")
-    gate(warmPrompts.every((p) => p.billingVersion === 1), "the billable-write gate requires successful KV-key and setAlarm meters; legacy SQL-only counters are incomplete")
-    gate(warmBillableMedian <= ROW_GATE, `OWNER wrote a median of ${warmBillableMedian} billable rows across ${WARM_RUNS} warm prompts (${warmMedian.total} SQL rows), the gate is ${ROW_GATE}`)
+    gate(
+      warmPrompts.every((p) => "owner.rowsWritten" in p.counters),
+      "physical owner.rowsWritten counters are missing",
+    )
+    gate(
+      warmPrompts.every((p) => p.billingVersion === 1),
+      "the billable-write gate requires successful KV-key and setAlarm meters; legacy SQL-only counters are incomplete",
+    )
+    gate(
+      warmBillableMedian <= ROW_GATE,
+      `OWNER wrote a median of ${warmBillableMedian} billable rows across ${WARM_RUNS} warm prompts (${warmMedian.total} SQL rows), the gate is ${ROW_GATE}`,
+    )
     for (const phase of [...warmPrompts, ...phases]) {
       gate(phase.interObjectCalls === 0, `${phase.name}: ${phase.interObjectCalls} calls between objects`)
     }

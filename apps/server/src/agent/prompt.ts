@@ -1,7 +1,22 @@
 import { TASK_TITLE_WORD_LIMIT } from "../room/task-title"
 import { type PromptSection, section } from "@earendil-works/pi-durable"
 
-const SECTION_ORDER = ["role", "runtime", "kiko", "tools", "pacing", "voice", "team", "work", "autonomy", "files", "reactions", "soul", "chat", "skills"] as const
+const SECTION_ORDER = [
+  "role",
+  "runtime",
+  "kiko",
+  "tools",
+  "pacing",
+  "voice",
+  "team",
+  "work",
+  "autonomy",
+  "files",
+  "reactions",
+  "soul",
+  "chat",
+  "skills",
+] as const
 export type SectionKey = (typeof SECTION_ORDER)[number]
 
 export type RoleInput = {
@@ -108,7 +123,14 @@ export function baseSections(input: RoleInput): PromptSection[] {
 }
 
 export function integrationNote(composio: readonly unknown[] | null | "unreachable", browserOn: boolean): string {
-  const apps = composio === "unreachable" ? undefined : composio === null ? "composio is not set up (the human adds a key in Settings, Integrations); there is no connect_app." : "composio is set up: connect_app gives a link for an app."
-  const browser = browserOn ? "the Kernel browser is connected." : "the Kernel browser is not connected (the human adds a key in Settings, Integrations)."
+  const apps =
+    composio === "unreachable"
+      ? undefined
+      : composio === null
+        ? "composio is not set up (the human adds a key in Settings, Integrations); there is no connect_app."
+        : "composio is set up: connect_app gives a link for an app."
+  const browser = browserOn
+    ? "the Kernel browser is connected."
+    : "the Kernel browser is not connected (the human adds a key in Settings, Integrations)."
   return [apps, browser].filter(Boolean).join(" ")
 }

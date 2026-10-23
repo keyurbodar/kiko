@@ -67,10 +67,18 @@ export default function BotPicker() {
             {(agent) => {
               const on = () => picked().includes(agent.id)
               return (
-                <Cmdk.Item class="palette-row" value={agent.id} data-picked={on() ? "true" : undefined} keywords={[agent.name, agent.slug]} onSelect={() => choose(agent)}>
+                <Cmdk.Item
+                  class="palette-row"
+                  value={agent.id}
+                  data-picked={on() ? "true" : undefined}
+                  keywords={[agent.name, agent.slug]}
+                  onSelect={() => choose(agent)}
+                >
                   <IdentityAvatar seed={agent.slug} size={22} />
                   <span class="palette-label">{agent.name}</span>
-                  <span class="text-sm text-muted-foreground">{agent.id === KIKO ? "Leads every group" : `@${agent.slug}`}</span>
+                  <span class="text-sm text-muted-foreground">
+                    {agent.id === KIKO ? "Leads every group" : `@${agent.slug}`}
+                  </span>
                   <button
                     type="button"
                     role="checkbox"
@@ -102,7 +110,14 @@ export default function BotPicker() {
         </Cmdk.List>
       </Cmdk>
       <div class="flex h-11 items-center gap-3 border-t border-border pt-3">
-        <Show when={grouping()} fallback={<span class="min-w-0 truncate text-sm text-muted-foreground">Use the checkboxes to start a group with Kiko</span>}>
+        <Show
+          when={grouping()}
+          fallback={
+            <span class="min-w-0 truncate text-sm text-muted-foreground">
+              Use the checkboxes to start a group with Kiko
+            </span>
+          }
+        >
           <input
             class={`${fieldClass} min-w-0 flex-1`}
             aria-label="Group name"

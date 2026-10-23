@@ -10,7 +10,6 @@ function randomSecret(): string {
   return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")
 }
 
-
 const CODE_KEEP_MS = 10 * 60_000
 
 async function sha(text: string): Promise<string> {
@@ -40,7 +39,9 @@ export class Installer extends DurableObject<Env> {
             },
             put: async (code, tokens) => {
               const now = Date.now()
-              const stale = [...(await this.ctx.storage.list<{ at: number }>({ prefix: "code:" }))].filter(([, kept]) => now - kept.at >= CODE_KEEP_MS).map(([key]) => key)
+              const stale = [...(await this.ctx.storage.list<{ at: number }>({ prefix: "code:" }))]
+                .filter(([, kept]) => now - kept.at >= CODE_KEEP_MS)
+                .map(([key]) => key)
               if (stale.length > 0) await this.ctx.storage.delete(stale)
               await this.ctx.storage.put(`code:${await sha(code)}`, { tokens, at: now })
             },
@@ -54,10 +55,22 @@ export class Installer extends DurableObject<Env> {
       if (!failed) {
         const said = e instanceof Error ? e.message : String(e)
         console.error(`install failed: ${said}`)
-        return { ok: false, error: { code: "internal", message: "The install failed. Try again.", status: 500, detail: said } }
+        return {
+          ok: false,
+          error: { code: "internal", message: "The install failed. Try again.", status: 500, detail: said },
+        }
       }
       console.error(`install failed: ${failed.code} ${failed.detail ?? failed.message}`)
-      return { ok: false, error: { code: failed.code, message: failed.message, status: failed.status, ...(failed.detail ? { detail: failed.detail } : {}), ...(failed.accounts ? { accounts: failed.accounts } : {}) } }
+      return {
+        ok: false,
+        error: {
+          code: failed.code,
+          message: failed.message,
+          status: failed.status,
+          ...(failed.detail ? { detail: failed.detail } : {}),
+          ...(failed.accounts ? { accounts: failed.accounts } : {}),
+        },
+      }
     }
   }
 }

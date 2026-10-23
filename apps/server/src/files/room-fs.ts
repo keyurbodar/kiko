@@ -36,7 +36,14 @@ export interface FilesBackend {
   stat(path: string): Promise<FsEntry | null>
   list(dir: string, recursive: boolean): Promise<FsEntry[] | FsFail>
   bytes(r2Key: string, maxBytes?: number): Promise<Uint8Array | null>
-  write(path: string, bytes: Uint8Array, type: string, expectSha256: string): Promise<{ ok: true; entry: FsEntry & { kind: "file" } } | FsFail | { ok: false; code: "conflict"; message: string }>
+  write(
+    path: string,
+    bytes: Uint8Array,
+    type: string,
+    expectSha256: string,
+  ): Promise<
+    { ok: true; entry: FsEntry & { kind: "file" } } | FsFail | { ok: false; code: "conflict"; message: string }
+  >
   move(from: string, to: string): Promise<FsChange | FsFail>
   remove(paths: readonly string[], recursive: boolean): Promise<FsChange | FsFail>
   mkdir(path: string): Promise<FsChange | FsFail>
@@ -49,7 +56,12 @@ export type BatchResult = { ok: true } | { ok: false; path: string; message: str
 
 export const batchPaths = (c: BatchChange): [string, ...string[]] => (c.op === "move" ? [c.from, c.to] : [c.path])
 
-const CODE: Record<string, FileErrorCode> = { not_found: "not_found", is_directory: "is_directory", not_directory: "not_directory", invalid: "invalid" }
+const CODE: Record<string, FileErrorCode> = {
+  not_found: "not_found",
+  is_directory: "is_directory",
+  not_directory: "not_directory",
+  invalid: "invalid",
+}
 
 export function normalize(path: string, cwd = "/"): string | null {
   const parts: string[] = []
@@ -211,11 +223,18 @@ export class RoomFs implements ExecutionEnv {
     })
   }
 
-  async watch(_targets: readonly WatchTarget[], _onChange: (change: WatchChange) => void): Promise<Result<FileWatcher, FileError>> {
+  async watch(
+    _targets: readonly WatchTarget[],
+    _onChange: (change: WatchChange) => void,
+  ): Promise<Result<FileWatcher, FileError>> {
     return err(new FileError("not_supported", "the chat's files cannot be watched"))
   }
 
-  async write(path: string, bytes: Uint8Array, type = typeForPath(path)): Promise<Result<FsEntry & { kind: "file" }, FileError>> {
+  async write(
+    path: string,
+    bytes: Uint8Array,
+    type = typeForPath(path),
+  ): Promise<Result<FsEntry & { kind: "file" }, FileError>> {
     const rel = this.roomPath(path)
     if (!rel.ok) return rel
     const refused = this.unwritable(rel.value, bytes.length, path)
@@ -239,9 +258,14 @@ export class RoomFs implements ExecutionEnv {
   private unwritable(rel: string, bytes: number, path: string): FileError | null {
     if (rel === "") return new FileError("is_directory", "/ is a folder", path)
     if (rel === CHAT_PATH && bytes > MAX_CHAT) {
-      return new FileError("invalid", `/chat.md would be ${bytes} bytes; it holds ${MAX_CHAT}, since every agent reads it each turn. tighten it: keep the goal, live decisions, and who does what.`, path)
+      return new FileError(
+        "invalid",
+        `/chat.md would be ${bytes} bytes; it holds ${MAX_CHAT}, since every agent reads it each turn. tighten it: keep the goal, live decisions, and who does what.`,
+        path,
+      )
     }
-    if (bytes > MAX_WRITE_BYTES) return new FileError("invalid", `${path} would be ${bytes} bytes, over the ${MAX_WRITE_BYTES} byte limit`, path)
+    if (bytes > MAX_WRITE_BYTES)
+      return new FileError("invalid", `${path} would be ${bytes} bytes, over the ${MAX_WRITE_BYTES} byte limit`, path)
     return null
   }
 
@@ -263,14 +287,20 @@ export class RoomFs implements ExecutionEnv {
           case "move":
             return { ...c, from: rel(c.from), to: rel(c.to) }
           case "rmdir":
-            return { ...c, path: rel(c.path), files: Object.fromEntries(Object.entries(c.files).map(([p, sha]) => [rel(p), sha])) }
+            return {
+              ...c,
+              path: rel(c.path),
+              files: Object.fromEntries(Object.entries(c.files).map(([p, sha]) => [rel(p), sha])),
+            }
           default:
             return { ...c, path: rel(c.path) }
         }
       })
       const out = await this.backend.commit(mapped)
       this.stats.clear()
-      if (out.ok) for (const c of mapped) for (const p of c.op === "rmdir" ? [c.path, ...Object.keys(c.files)] : batchPaths(c)) this.seen.delete(p)
+      if (out.ok)
+        for (const c of mapped)
+          for (const p of c.op === "rmdir" ? [c.path, ...Object.keys(c.files)] : batchPaths(c)) this.seen.delete(p)
       return out.ok ? out : { ...out, path: `/${out.path}` }
     } catch (e) {
       if (e instanceof FileError) return { ok: false, path: e.path ?? "", message: e.message, conflict: false }
@@ -326,13 +356,19 @@ export class RoomFs implements ExecutionEnv {
     return out.ok ? ok(undefined) : out
   }
 
-  async remove(path: string, options: { recursive?: boolean; force?: boolean } | undefined): Promise<Result<void, FileError>> {
+  async remove(
+    path: string,
+    options: { recursive?: boolean; force?: boolean } | undefined,
+  ): Promise<Result<void, FileError>> {
     const out = await this.removeAll([path], options?.recursive ?? false)
     if (!out.ok && options?.force && out.error.code === "not_found") return ok(undefined)
     return out.ok ? ok(undefined) : out
   }
 
-  async removeAll(paths: readonly string[], recursive: boolean): Promise<Result<FsChange & { paths: string[] }, FileError>> {
+  async removeAll(
+    paths: readonly string[],
+    recursive: boolean,
+  ): Promise<Result<FsChange & { paths: string[] }, FileError>> {
     const rels: string[] = []
     for (const p of paths) {
       const rel = this.roomPath(p)
@@ -408,8 +444,13 @@ export class RoomFs implements ExecutionEnv {
     return err(new FileError("not_supported", "the chat's files have no temporary files"))
   }
 
-  async exec(command: string | readonly string[], options: ShellExecOptions | undefined, context: Context): Promise<Result<BashResult, ExecutionError>> {
-    const line = typeof command === "string" ? command : command.map((word) => `'${word.replaceAll("'", "'\\''")}'`).join(" ")
+  async exec(
+    command: string | readonly string[],
+    options: ShellExecOptions | undefined,
+    context: Context,
+  ): Promise<Result<BashResult, ExecutionError>> {
+    const line =
+      typeof command === "string" ? command : command.map((word) => `'${word.replaceAll("'", "'\\''")}'`).join(" ")
     return runCommand(this, line, options, context)
   }
 
@@ -469,14 +510,21 @@ type SpaceIndex = {
   commit(changes: readonly IndexChange[]): Promise<CommitResult>
 }
 
-function spaceBackend(services: OwnerServices, home: () => AgentHome, index: () => SpaceIndex, cache: ObjectCache): FilesBackend {
+function spaceBackend(
+  services: OwnerServices,
+  home: () => AgentHome,
+  index: () => SpaceIndex,
+  cache: ObjectCache,
+): FilesBackend {
   return {
     stat: (path) => index().stat(path),
     list: (dir, recursive) => index().list(dir, recursive),
     async bytes(r2Key, maxBytes) {
       const hit = cache.get(r2Key)
       if (hit) return maxBytes === undefined ? hit : hit.subarray(0, maxBytes)
-      const object = await services.files().get(r2Key, maxBytes === undefined ? undefined : { range: { offset: 0, length: maxBytes } })
+      const object = await services
+        .files()
+        .get(r2Key, maxBytes === undefined ? undefined : { range: { offset: 0, length: maxBytes } })
       if (!object) return null
       const bytes = new Uint8Array(await object.arrayBuffer())
       if (maxBytes === undefined) cache.set(r2Key, bytes)
@@ -489,7 +537,16 @@ function spaceBackend(services: OwnerServices, home: () => AgentHome, index: () 
       const r2Key = fileKey(h.userId, at.space, id)
       const sha256 = await sha256Hex(bytes)
       await services.files().put(r2Key, bytes, { httpMetadata: { contentType: type } })
-      const out = await at.put({ id, path, r2Key, size: bytes.length, type, sha256, author: { kind: "agent", slug: h.slug as AgentSlug }, expectSha256 })
+      const out = await at.put({
+        id,
+        path,
+        r2Key,
+        size: bytes.length,
+        type,
+        sha256,
+        author: { kind: "agent", slug: h.slug as AgentSlug },
+        expectSha256,
+      })
       if (out.drop) await deleteFiles(services.files(), out.drop)
       if (out.refused || out.conflict) {
         await deleteFiles(services.files(), [r2Key])
@@ -515,12 +572,27 @@ function spaceBackend(services: OwnerServices, home: () => AgentHome, index: () 
           const sha256 = await sha256Hex(c.bytes)
           await services.files().put(r2Key, c.bytes, { httpMetadata: { contentType: c.type } })
           stored.push({ key: r2Key, bytes: c.bytes })
-          return { op: "put", file: { id, path: c.path, r2Key, size: c.bytes.length, type: c.type, sha256, author: { kind: "agent", slug: h.slug as AgentSlug }, expectSha256: c.expect } }
+          return {
+            op: "put",
+            file: {
+              id,
+              path: c.path,
+              r2Key,
+              size: c.bytes.length,
+              type: c.type,
+              sha256,
+              author: { kind: "agent", slug: h.slug as AgentSlug },
+              expectSha256: c.expect,
+            },
+          }
         }),
       )
       const out = await at.commit(indexed)
       if (!out.ok) {
-        await deleteFiles(services.files(), stored.map((s) => s.key))
+        await deleteFiles(
+          services.files(),
+          stored.map((s) => s.key),
+        )
         return out
       }
       for (const s of stored) cache.set(s.key, s.bytes)
@@ -535,23 +607,32 @@ const homeOf = (home: () => AgentHome | null) => () => {
   return h
 }
 
-export function roomBackend(services: OwnerServices, home: () => AgentHome | null, cache = new ObjectCache()): FilesBackend {
+export function roomBackend(
+  services: OwnerServices,
+  home: () => AgentHome | null,
+  cache = new ObjectCache(),
+): FilesBackend {
   const h = homeOf(home)
-  return spaceBackend(services, h, () => {
-    const { roomId, slug } = h()
-    const room = services.room(roomId)
-    const me = slug as AgentSlug
-    return {
-      space: roomId,
-      stat: (p) => room.fsStat(p),
-      list: (d, r) => room.fsList(d, r),
-      put: (input) => room.putFile(input),
-      move: (a, b) => room.fsMove(me, a, b),
-      remove: (p, r) => room.fsRemove(me, p, r),
-      mkdir: (p) => room.fsMkdir(me, p),
-      commit: (c) => room.fsCommit(me, c),
-    }
-  }, cache)
+  return spaceBackend(
+    services,
+    h,
+    () => {
+      const { roomId, slug } = h()
+      const room = services.room(roomId)
+      const me = slug as AgentSlug
+      return {
+        space: roomId,
+        stat: (p) => room.fsStat(p),
+        list: (d, r) => room.fsList(d, r),
+        put: (input) => room.putFile(input),
+        move: (a, b) => room.fsMove(me, a, b),
+        remove: (p, r) => room.fsRemove(me, p, r),
+        mkdir: (p) => room.fsMkdir(me, p),
+        commit: (c) => room.fsCommit(me, c),
+      }
+    },
+    cache,
+  )
 }
 
 export function homeBackend(
@@ -566,21 +647,26 @@ export function homeBackend(
     if (out.ok) await notice(text).catch(() => undefined)
     return out
   }
-  const base = spaceBackend(services, h, () => {
-    const { slug } = h()
-    const user = services.user()
-    const me = { kind: "agent", slug: slug as AgentSlug } as const
-    return {
-      space: HOME,
-      stat: (p) => user.homeStat(p),
-      list: (d, r) => user.homeList(d, r),
-      put: (input) => user.homePut(input),
-      move: (a, b) => user.homeMove(me, a, b),
-      remove: (p, r) => user.homeRemove(me, p, r),
-      mkdir: (p) => user.homeMkdir(me, p),
-      commit: (c) => user.homeCommit(me, c),
-    }
-  }, cache)
+  const base = spaceBackend(
+    services,
+    h,
+    () => {
+      const { slug } = h()
+      const user = services.user()
+      const me = { kind: "agent", slug: slug as AgentSlug } as const
+      return {
+        space: HOME,
+        stat: (p) => user.homeStat(p),
+        list: (d, r) => user.homeList(d, r),
+        put: (input) => user.homePut(input),
+        move: (a, b) => user.homeMove(me, a, b),
+        remove: (p, r) => user.homeRemove(me, p, r),
+        mkdir: (p) => user.homeMkdir(me, p),
+        commit: (c) => user.homeCommit(me, c),
+      }
+    },
+    cache,
+  )
   const refuse = (message: string): FsFail => ({ ok: false, code: "invalid", message })
   return {
     ...base,
@@ -594,7 +680,9 @@ export function homeBackend(
     },
     remove: async (paths, recursive) => {
       const why = locked()
-      return why ? refuse(why) : told(await base.remove(paths, recursive), `deleted ${paths.map((p) => `/home/${p}`).join(", ")}`)
+      return why
+        ? refuse(why)
+        : told(await base.remove(paths, recursive), `deleted ${paths.map((p) => `/home/${p}`).join(", ")}`)
     },
     mkdir: async (path) => {
       const why = locked()
@@ -605,7 +693,13 @@ export function homeBackend(
       if (why) return { ok: false, path: changes.flatMap(batchPaths)[0] ?? "", message: why, conflict: false }
       const out = await base.commit(changes)
       const said = changes.flatMap((c) =>
-        c.op === "write" ? [`saved /home/${c.path}`] : c.op === "move" ? [`moved /home/${c.from} to /home/${c.to}`] : c.op === "mkdir" ? [] : [`deleted /home/${c.path}`],
+        c.op === "write"
+          ? [`saved /home/${c.path}`]
+          : c.op === "move"
+            ? [`moved /home/${c.from} to /home/${c.to}`]
+            : c.op === "mkdir"
+              ? []
+              : [`deleted /home/${c.path}`],
       )
       return said.length ? told(out, said.join(", ")) : out
     },
@@ -616,7 +710,11 @@ export function withMount(base: FilesBackend, at: string, mounted: FilesBackend)
   const inside = (p: string) => p === at || p.startsWith(`${at}/`)
   const strip = (p: string) => (p === at ? "" : p.slice(at.length + 1))
   const add = (e: FsEntry): FsEntry => ({ ...e, path: e.path ? `${at}/${e.path}` : at })
-  const across: FsFail = { ok: false, code: "invalid", message: `moving between /${at} and the chat's files is not a move. cp it, then rm the original if you mean to` }
+  const across: FsFail = {
+    ok: false,
+    code: "invalid",
+    message: `moving between /${at} and the chat's files is not a move. cp it, then rm the original if you mean to`,
+  }
   return {
     async stat(path) {
       if (!inside(path)) return base.stat(path)
@@ -631,12 +729,18 @@ export function withMount(base: FilesBackend, at: string, mounted: FilesBackend)
       const out = await base.list(dir, recursive)
       if (dir !== "" || !Array.isArray(out)) return out
       const root = await mounted.stat("")
-      const self: FsEntry = { kind: "directory", path: at, files: root?.kind === "directory" ? root.files : 0, size: root?.size ?? 0 }
+      const self: FsEntry = {
+        kind: "directory",
+        path: at,
+        files: root?.kind === "directory" ? root.files : 0,
+        size: root?.size ?? 0,
+      }
       if (!recursive) return [self, ...out]
       const all = await mounted.list("", true)
       return [self, ...(Array.isArray(all) ? all.map(add) : []), ...out]
     },
-    bytes: (key, max) => (key.startsWith(`${at}:`) || key.includes(`/r/${at}/`) ? mounted.bytes(key, max) : base.bytes(key, max)),
+    bytes: (key, max) =>
+      key.startsWith(`${at}:`) || key.includes(`/r/${at}/`) ? mounted.bytes(key, max) : base.bytes(key, max),
     async write(path, bytes, type, expect) {
       if (!inside(path)) return base.write(path, bytes, type, expect)
       if (path === at) return { ok: false, code: "is_directory", message: `/${at} is a folder` }
@@ -649,25 +753,43 @@ export function withMount(base: FilesBackend, at: string, mounted: FilesBackend)
       return inside(from) ? mounted.move(strip(from), strip(to)) : base.move(from, to)
     },
     async remove(paths, recursive) {
-      if (paths.some((p) => p === at)) return { ok: false, code: "invalid", message: `/${at} cannot be deleted. delete what is in it instead` }
+      if (paths.some((p) => p === at))
+        return { ok: false, code: "invalid", message: `/${at} cannot be deleted. delete what is in it instead` }
       const mine = paths.filter(inside)
-      if (mine.length && mine.length !== paths.length) return { ok: false, code: "invalid", message: `delete /${at} paths and the chat's paths in separate calls` }
+      if (mine.length && mine.length !== paths.length)
+        return { ok: false, code: "invalid", message: `delete /${at} paths and the chat's paths in separate calls` }
       return mine.length ? mounted.remove(mine.map(strip), recursive) : base.remove(paths, recursive)
     },
     async mkdir(path) {
-      return inside(path) ? (path === at ? { ok: true, events: [], drop: [], changed: 0 } : mounted.mkdir(strip(path))) : base.mkdir(path)
+      return inside(path)
+        ? path === at
+          ? { ok: true, events: [], drop: [], changed: 0 }
+          : mounted.mkdir(strip(path))
+        : base.mkdir(path)
     },
     async commit(changes) {
       const mine = (c: BatchChange) => batchPaths(c).every(inside)
       const crossing = changes.find((c) => !mine(c) && batchPaths(c).some(inside))
       if (crossing) return { ok: false, path: batchPaths(crossing)[0], message: across.message, conflict: false }
       const ours = changes.filter(mine)
-      if (ours.length && ours.length < changes.length) return { ok: false, path: batchPaths(changes[0])[0], message: `commit /${at} paths and the chat's paths in separate calls`, conflict: false }
-      if (changes.some((c) => c.op !== "mkdir" && mine(c) && batchPaths(c).includes(at))) return { ok: false, path: at, message: `/${at} stays where it is`, conflict: false }
+      if (ours.length && ours.length < changes.length)
+        return {
+          ok: false,
+          path: batchPaths(changes[0])[0],
+          message: `commit /${at} paths and the chat's paths in separate calls`,
+          conflict: false,
+        }
+      if (changes.some((c) => c.op !== "mkdir" && mine(c) && batchPaths(c).includes(at)))
+        return { ok: false, path: at, message: `/${at} stays where it is`, conflict: false }
       if (!ours.length) return base.commit(changes)
       const there = ours.map((c): BatchChange => {
         if (c.op === "move") return { ...c, from: strip(c.from), to: strip(c.to) }
-        if (c.op === "rmdir") return { ...c, path: strip(c.path), files: Object.fromEntries(Object.entries(c.files).map(([p, sha]) => [strip(p), sha])) }
+        if (c.op === "rmdir")
+          return {
+            ...c,
+            path: strip(c.path),
+            files: Object.fromEntries(Object.entries(c.files).map(([p, sha]) => [strip(p), sha])),
+          }
         return { ...c, path: strip(c.path) }
       })
       const out = await mounted.commit(there)
@@ -679,7 +801,13 @@ export function withMount(base: FilesBackend, at: string, mounted: FilesBackend)
 export interface SoulPort {
   get(): Promise<{ body: string; sha: string; at: number }>
   forPrompt?(): Promise<{ body: string }>
-  set(body: string, expectSha: string): Promise<{ ok: true; soul: { body: string; sha: string; at: number } } | { ok: false; code: "conflict" | "invalid"; message: string }>
+  set(
+    body: string,
+    expectSha: string,
+  ): Promise<
+    | { ok: true; soul: { body: string; sha: string; at: number } }
+    | { ok: false; code: "conflict" | "invalid"; message: string }
+  >
 }
 
 const ME = "me"
@@ -689,7 +817,16 @@ export function withSoul(base: FilesBackend, soul: SoulPort): FilesBackend {
   const enc = new TextEncoder()
   const entry = async (): Promise<FsEntry & { kind: "file" }> => {
     const s = await soul.get()
-    return { kind: "file", path: SOUL_PATH, id: "soul", size: enc.encode(s.body).length, type: "text/markdown", sha256: s.sha, r2Key: `soul:${s.sha}`, at: s.at }
+    return {
+      kind: "file",
+      path: SOUL_PATH,
+      id: "soul",
+      size: enc.encode(s.body).length,
+      type: "text/markdown",
+      sha256: s.sha,
+      r2Key: `soul:${s.sha}`,
+      at: s.at,
+    }
   }
   const mine = (path: string) => path === ME || path.startsWith(`${ME}/`)
   const refuse = (message: string): FsFail => ({ ok: false, code: "invalid", message })
@@ -717,10 +854,12 @@ export function withSoul(base: FilesBackend, soul: SoulPort): FilesBackend {
       return maxBytes === undefined ? bytes : bytes.subarray(0, maxBytes)
     },
     async write(path, bytes, type, expectSha256) {
-      if (path !== SOUL_PATH) return mine(path) ? refuse("only /me/soul.md lives in /me") : base.write(path, bytes, type, expectSha256)
+      if (path !== SOUL_PATH)
+        return mine(path) ? refuse("only /me/soul.md lives in /me") : base.write(path, bytes, type, expectSha256)
       if (expectSha256 === "none") return { ok: false, code: "conflict", message: `${SOUL_PATH} holds other bytes` }
       const out = await soul.set(new TextDecoder().decode(bytes), expectSha256)
-      if (!out.ok) return out.code === "conflict" ? { ok: false, code: "conflict", message: out.message } : refuse(out.message)
+      if (!out.ok)
+        return out.code === "conflict" ? { ok: false, code: "conflict", message: out.message } : refuse(out.message)
       return { ok: true, entry: await entry() }
     },
     async move(from, to) {
@@ -736,13 +875,27 @@ export function withSoul(base: FilesBackend, soul: SoulPort): FilesBackend {
       for (const c of changes) {
         if (c.op === "write" && c.path === SOUL_PATH) continue
         const hit = batchPaths(c).find(mine)
-        if (hit !== undefined) return { ok: false, path: hit, message: "/me/soul.md stays where it is, and only it lives in /me. edit it instead", conflict: false }
+        if (hit !== undefined)
+          return {
+            ok: false,
+            path: hit,
+            message: "/me/soul.md stays where it is, and only it lives in /me. edit it instead",
+            conflict: false,
+          }
       }
       const write = changes.find((c) => c.op === "write" && c.path === SOUL_PATH)
       if (write?.op !== "write") return base.commit(changes)
-      if (changes.length > 1) return { ok: false, path: SOUL_PATH, message: `${SOUL_PATH} is saved on its own. save it in a call of its own`, conflict: false }
+      if (changes.length > 1)
+        return {
+          ok: false,
+          path: SOUL_PATH,
+          message: `${SOUL_PATH} is saved on its own. save it in a call of its own`,
+          conflict: false,
+        }
       const out = await soul.set(new TextDecoder().decode(write.bytes), write.expect)
-      return out.ok ? { ok: true } : { ok: false, path: SOUL_PATH, message: out.message, conflict: out.code === "conflict" }
+      return out.ok
+        ? { ok: true }
+        : { ok: false, path: SOUL_PATH, message: out.message, conflict: out.code === "conflict" }
     },
   }
 }

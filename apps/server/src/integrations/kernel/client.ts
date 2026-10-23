@@ -61,7 +61,11 @@ export function sdkClient(apiKey: string, fetchImpl?: typeof fetch): KernelClien
           timeout_seconds: timeoutSeconds,
           profile: { name: profile, save_changes: true },
         })
-        return { sessionId: b.session_id, cdpUrl: b.cdp_ws_url, ...(b.browser_live_view_url ? { liveUrl: b.browser_live_view_url } : {}) }
+        return {
+          sessionId: b.session_id,
+          cdpUrl: b.cdp_ws_url,
+          ...(b.browser_live_view_url ? { liveUrl: b.browser_live_view_url } : {}),
+        }
       }),
     deleteBrowser: (sessionId) => call(() => kernel.browsers.deleteByID(sessionId, { timeout: 60_000 })),
     listActive: () =>

@@ -20,7 +20,10 @@ export const SEARCH_DEBOUNCE_MS = 120
 export const PAGE_AHEAD = 5
 
 export type Timer = { set(run: () => void, ms: number): unknown; clear(handle: unknown): void }
-const realTimer: Timer = { set: (run, ms) => setTimeout(run, ms), clear: (h) => clearTimeout(h as ReturnType<typeof setTimeout>) }
+const realTimer: Timer = {
+  set: (run, ms) => setTimeout(run, ms),
+  clear: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+}
 
 export function createSearch(options: {
   scope: SearchScope

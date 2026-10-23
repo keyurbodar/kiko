@@ -77,13 +77,20 @@ export class RoutineWiring {
       json = null
     }
     if (!matchWebhook(routine.trigger.match ?? [], json)) return "skipped"
-    const shown = body.length > HOOK_EXCERPT ? `${body.slice(0, HOOK_EXCERPT)}\n[cut at ${HOOK_EXCERPT} characters]` : body
-    const out = await this.d.reminders.fireEvent(routine.id, `hook:${deliveryKey}`, "a post to its webhook", `the post:\n${shown}`)
+    const shown =
+      body.length > HOOK_EXCERPT ? `${body.slice(0, HOOK_EXCERPT)}\n[cut at ${HOOK_EXCERPT} characters]` : body
+    const out = await this.d.reminders.fireEvent(
+      routine.id,
+      `hook:${deliveryKey}`,
+      "a post to its webhook",
+      `the post:\n${shown}`,
+    )
     return out === "delivered" || out === "duplicate" ? "ran" : out === "held" ? "held" : "skipped"
   }
 
   async routineChanged(routine: Reminder, before?: Reminder | null): Promise<void> {
     const event = (r?: Reminder | null) => r?.trigger?.on === "message"
-    if (event(routine) || event(before)) await this.d.setRoutines(routine.roomId, this.d.reminders.roomRoutines(routine.roomId).map(roomRoutine))
+    if (event(routine) || event(before))
+      await this.d.setRoutines(routine.roomId, this.d.reminders.roomRoutines(routine.roomId).map(roomRoutine))
   }
 }

@@ -45,7 +45,13 @@ export function MessageAttachments(props: {
                 {...dragProps(file)}
                 onClick={(event) => props.onOpenImages?.(images(), i(), event.currentTarget)}
               >
-                <img src={file.src} alt={file.name} class="block size-full object-cover" loading="lazy" draggable={false} />
+                <img
+                  src={file.src}
+                  alt={file.name}
+                  class="block size-full object-cover"
+                  loading="lazy"
+                  draggable={false}
+                />
               </button>
             )}
           </For>

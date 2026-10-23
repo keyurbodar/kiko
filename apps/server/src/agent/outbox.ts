@@ -1,5 +1,14 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
-import { type AgentEvent, type Conversation, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, type Storage, watchEvents } from "@earendil-works/pi-durable"
+import {
+  type AgentEvent,
+  type Conversation,
+  type EntryRecord,
+  type Harness,
+  type SnapshotEvent,
+  type SubmissionId,
+  type Storage,
+  watchEvents,
+} from "@earendil-works/pi-durable"
 import type { AgentState, RunErrorKind, WorkerRow } from "@kiko/protocol"
 import type { JournalStorage } from "@kiko/agent/journal"
 import type { RunProgress } from "@kiko/agent/mid-run"
@@ -30,7 +39,9 @@ type Failure = { errorMessage?: string; provider?: string }
 type AssistantLike = Assistant
 
 export function textOf(message: AssistantLike | undefined, final = true): string {
-  return (message?.content ?? []).flatMap((part) => (part.type === "text" && part.text ? [scrubToolMarkup(part.text, final)] : [])).join("\n\n")
+  return (message?.content ?? [])
+    .flatMap((part) => (part.type === "text" && part.text ? [scrubToolMarkup(part.text, final)] : []))
+    .join("\n\n")
 }
 
 function partsOf(text: string): { blocks: string[]; reactions: Reaction[] } {
@@ -45,9 +56,21 @@ const assistant = (entry: EntryRecord): AssistantLike | undefined => {
   return message?.role === "assistant" ? message : undefined
 }
 
-type Generation = { reactionIndex: number; texts: Map<number, string>; fed: string; splitter: Splitter; blocks: string[] }
+type Generation = {
+  reactionIndex: number
+  texts: Map<number, string>
+  fed: string
+  splitter: Splitter
+  blocks: string[]
+}
 
-const newGeneration = (): Generation => ({ reactionIndex: 0, texts: new Map(), fed: "", splitter: createSplitter(), blocks: [] })
+const newGeneration = (): Generation => ({
+  reactionIndex: 0,
+  texts: new Map(),
+  fed: "",
+  splitter: createSplitter(),
+  blocks: [],
+})
 
 type Run = {
   id: string
@@ -96,7 +119,13 @@ export class Outbox {
     this.sql = storage.sql
   }
 
-  private replayEntries(run: Run, row: Row, entries: SnapshotEvent["entries"], liveId: string | null, livePartial: boolean): void {
+  private replayEntries(
+    run: Run,
+    row: Row,
+    entries: SnapshotEvent["entries"],
+    liveId: string | null,
+    livePartial: boolean,
+  ): void {
     if (livePartial && this.run?.id === row.run_id) {
       run.bubbled = this.run.bubbled
       run.toolStarted = this.run.toolStarted
@@ -104,10 +133,12 @@ export class Outbox {
       run.quiet = this.run.quiet
     }
     for (const entry of entries) {
-      if ((entry.kind === "pi.user" || entry.kind === "kiko.input")) run.quiet = entry.id <= run.cursor ? quietInput(entry) : run.quiet && quietInput(entry)
+      if (entry.kind === "pi.user" || entry.kind === "kiko.input")
+        run.quiet = entry.id <= run.cursor ? quietInput(entry) : run.quiet && quietInput(entry)
       if (entry.id <= run.cursor) continue
       if (row.until !== undefined && entry.id > row.until) break
-      if (row.until === undefined && row.run_id !== liveId && (entry.kind === "pi.user" || entry.kind === "kiko.input")) break
+      if (row.until === undefined && row.run_id !== liveId && (entry.kind === "pi.user" || entry.kind === "kiko.input"))
+        break
       this.finishGeneration(run, entry)
     }
     if (livePartial && this.run?.id === row.run_id) run.generation = this.run.generation
@@ -116,11 +147,16 @@ export class Outbox {
   private nextQuiet = false
 
   private see(entry: EntryRecord | undefined): void {
-    if ((entry?.kind === "pi.user" || entry?.kind === "kiko.input") && this.run) this.run.quiet = this.run.quiet && quietInput(entry)
-    else if ((entry?.kind === "pi.user" || entry?.kind === "kiko.input")) this.nextQuiet = quietInput(entry)
+    if ((entry?.kind === "pi.user" || entry?.kind === "kiko.input") && this.run)
+      this.run.quiet = this.run.quiet && quietInput(entry)
+    else if (entry?.kind === "pi.user" || entry?.kind === "kiko.input") this.nextQuiet = quietInput(entry)
   }
 
-  async attach(harness: Harness, conversationId: Parameters<typeof watchEvents>[1], journal: JournalStorage): Promise<void> {
+  async attach(
+    harness: Harness,
+    conversationId: Parameters<typeof watchEvents>[1],
+    journal: JournalStorage,
+  ): Promise<void> {
     this.journal = journal
     this.conversationId = conversationId
     const stream = await watchEvents(harness, conversationId, context)
@@ -135,7 +171,8 @@ export class Outbox {
       }
     })
     void stream.closed.then(() => {
-      for (const waiter of this.idleWaiters) waiter.reject(new Error("Outbox closed before its final reply was delivered"))
+      for (const waiter of this.idleWaiters)
+        waiter.reject(new Error("Outbox closed before its final reply was delivered"))
       this.idleWaiters.clear()
     })
   }
@@ -187,7 +224,11 @@ export class Outbox {
   progress(): RunProgress | null {
     const run = this.run
     if (!run) return null
-    return { bubblePosted: run.bubbled || run.posted > 0 || run.attempt > 0, toolStarted: run.toolStarted, tools: new Map(run.tools) }
+    return {
+      bubblePosted: run.bubbled || run.posted > 0 || run.attempt > 0,
+      toolStarted: run.toolStarted,
+      tools: new Map(run.tools),
+    }
   }
 
   private async guard(step: () => Promise<void>): Promise<void> {
@@ -215,9 +256,12 @@ export class Outbox {
         const generation = this.run?.generation
         if (!generation) return
         for (const change of event.changes) {
-          if (change.type === "text_start") generation.texts.set(change.contentIndex, (change.block as { text?: string }).text ?? "")
-          else if (change.type === "text_delta") generation.texts.set(change.contentIndex, (generation.texts.get(change.contentIndex) ?? "") + change.delta)
-          else if (change.type === "block" && change.block.type === "text") generation.texts.set(change.contentIndex, change.block.text)
+          if (change.type === "text_start")
+            generation.texts.set(change.contentIndex, (change.block as { text?: string }).text ?? "")
+          else if (change.type === "text_delta")
+            generation.texts.set(change.contentIndex, (generation.texts.get(change.contentIndex) ?? "") + change.delta)
+          else if (change.type === "block" && change.block.type === "text")
+            generation.texts.set(change.contentIndex, change.block.text)
           else if (change.type === "message") {
             generation.texts.clear()
             change.message.content.forEach((part, i) => {
@@ -225,7 +269,11 @@ export class Outbox {
             })
           }
         }
-        const text = [...generation.texts.entries()].sort(([a], [b]) => a - b).map(([, t]) => scrubToolMarkup(t, false)).filter(Boolean).join("\n\n")
+        const text = [...generation.texts.entries()]
+          .sort(([a], [b]) => a - b)
+          .map(([, t]) => scrubToolMarkup(t, false))
+          .filter(Boolean)
+          .join("\n\n")
         return this.stream(text)
       }
       case "message_end":
@@ -273,7 +321,7 @@ export class Outbox {
       if (row.run_id !== liveId) await this.end(row.run_id)
     }
     if (liveId && this.run?.id !== liveId) {
-      const last = entries.findLast((e) => (e.kind === "pi.user" || e.kind === "kiko.input"))
+      const last = entries.findLast((e) => e.kind === "pi.user" || e.kind === "kiko.input")
       const input = last?.id ?? 0
       await this.start(liveId, input)
       const run = this.run
@@ -342,7 +390,11 @@ export class Outbox {
   private async reportError(runId: string, message: Failure): Promise<void> {
     const detail = runErrorDetail(message.errorMessage)
     await this.room()
-      ?.runError(runId, { kind: classifyRunError(message.errorMessage), provider: message.provider ?? "", ...(detail ? { detail } : {}) })
+      ?.runError(runId, {
+        kind: classifyRunError(message.errorMessage),
+        provider: message.provider ?? "",
+        ...(detail ? { detail } : {}),
+      })
       .catch((e: unknown) => console.error(`run error not reported: ${e instanceof Error ? e.message : String(e)}`))
   }
 
@@ -351,7 +403,13 @@ export class Outbox {
     const message = assistant(entry)
     if (!message) return false
     const generationIndex = run.generationIndex++
-    run.failure = message.stopReason === "error" ? { ...(message.errorMessage ? { errorMessage: message.errorMessage } : {}), ...(message.provider ? { provider: message.provider } : {}) } : null
+    run.failure =
+      message.stopReason === "error"
+        ? {
+            ...(message.errorMessage ? { errorMessage: message.errorMessage } : {}),
+            ...(message.provider ? { provider: message.provider } : {}),
+          }
+        : null
     if (hasToolCall(message)) run.toolStarted = true
     const streamed = run.generation?.blocks ?? []
     run.generation = null
@@ -359,7 +417,8 @@ export class Outbox {
     if (message.stopReason === "error") return false
     const post = postOf(message, { posted: run.blocks.length > 0, quiet: run.quiet })
     const text = textOf(message)
-    if (post === "none" && !run.quiet && hasToolCall(message) && text.trim()) run.notes.push({ id: noteId(entry.id), text: noteOf(text) })
+    if (post === "none" && !run.quiet && hasToolCall(message) && text.trim())
+      run.notes.push({ id: noteId(entry.id), text: noteOf(text) })
     const { blocks: final, reactions } = partsOf(post === "ack" ? ackOf(text) : post === "answer" ? text : "")
     run.blocks.push(...final)
     this.queueReactions(run, reactions, generationIndex)
@@ -367,7 +426,8 @@ export class Outbox {
   }
 
   private queueReactions(run: Run, reactions: Reaction[], generation: number, start = 0): void {
-    for (const [index, reaction] of reactions.entries()) run.reactions.push({ ...reaction, deliveryId: `${run.id}:reaction:${generation}:${start + index}` })
+    for (const [index, reaction] of reactions.entries())
+      run.reactions.push({ ...reaction, deliveryId: `${run.id}:reaction:${generation}:${start + index}` })
   }
 
   private rebase(run: Run): void {
@@ -421,9 +481,13 @@ export class Outbox {
 
   private row(id: string, cursor: number): Row {
     const roomId = this.agent.split(":")[0]!
-    const posted = this.sql.exec<{ attempt: number; posted: number }>(
-      "SELECT run_attempt AS attempt, max(run_index) + 1 AS posted FROM messages WHERE room_id = ? AND run_id = ? GROUP BY run_attempt ORDER BY run_attempt DESC LIMIT 1", roomId, id,
-    ).toArray()[0]
+    const posted = this.sql
+      .exec<{ attempt: number; posted: number }>(
+        "SELECT run_attempt AS attempt, max(run_index) + 1 AS posted FROM messages WHERE room_id = ? AND run_id = ? GROUP BY run_attempt ORDER BY run_attempt DESC LIMIT 1",
+        roomId,
+        id,
+      )
+      .toArray()[0]
     return { run_id: id, cursor, posted: posted?.posted ?? 0, attempt: posted?.attempt ?? 0 }
   }
 
@@ -444,7 +508,12 @@ export class Outbox {
           group.last = Math.max(group.last, submission.entry)
           continue
         }
-        groups.set(groupId, { first: submission.entry, last: submission.entry, id: submission.id, ...(submission.status === "done" ? { answer: submission.answer } : {}) })
+        groups.set(groupId, {
+          first: submission.entry,
+          last: submission.entry,
+          id: submission.id,
+          ...(submission.status === "done" ? { answer: submission.answer } : {}),
+        })
       }
       cursor = page.next
     } while (cursor)
@@ -452,7 +521,8 @@ export class Outbox {
     for (const [index, group] of ordered.entries()) {
       const id = `${this.prefix()}:${group.id}`
       const next = ordered[index + 1]?.first
-      const until = group.answer ?? (snapshot.run?.inputs[0] === group.id ? undefined : next === undefined ? Infinity : next - 1)
+      const until =
+        group.answer ?? (snapshot.run?.inputs[0] === group.id ? undefined : next === undefined ? Infinity : next - 1)
       rows.push({ ...this.row(id, group.first), ...(until === undefined ? {} : { until }) })
     }
     return rows
@@ -476,5 +546,4 @@ export class Outbox {
       failure: null,
     }
   }
-
 }

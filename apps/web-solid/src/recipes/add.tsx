@@ -19,7 +19,11 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
   const [picked, setPicked] = createSignal<string | null>(null)
 
   const added = (o: Option) =>
-    o.kind === "member" ? isAdded(props.card.slug, o.target) : o.kind === "chat" ? o.targets.length > 0 && o.targets.every((t) => isAdded(props.card.slug, t)) : false
+    o.kind === "member"
+      ? isAdded(props.card.slug, o.target)
+      : o.kind === "chat"
+        ? o.targets.length > 0 && o.targets.every((t) => isAdded(props.card.slug, t))
+        : false
 
   const options = createMemo<Option[]>(() => {
     const q = query().trim().toLowerCase()
@@ -32,7 +36,8 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
     for (const chat of chats) {
       const targets = targetsForChat(chat.id)
       out.push({ kind: "chat", key: chat.id, roomId: chat.id, name: chat.name, targets })
-      if (targets.length > 1 && expanded() === chat.id) for (const target of targets) out.push({ kind: "member", key: `${chat.id}:${target.agent}`, target })
+      if (targets.length > 1 && expanded() === chat.id)
+        for (const target of targets) out.push({ kind: "member", key: `${chat.id}:${target.agent}`, target })
     }
     out.push({ kind: "own", key: "own" })
     return out
@@ -40,7 +45,12 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
 
   const cursor = () => {
     const i = options().findIndex((o) => o.key === picked())
-    return i === -1 ? Math.max(0, options().findIndex((o) => !added(o))) : i
+    return i === -1
+      ? Math.max(
+          0,
+          options().findIndex((o) => !added(o)),
+        )
+      : i
   }
   const setCursor = (i: number) => setPicked(options()[i]?.key ?? null)
 
@@ -120,7 +130,9 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
                         <span class="min-w-0 flex-1">
                           <span class="block truncate text-sm font-medium text-foreground">{c().name}</span>
                           <Show when={c().targets.length > 1}>
-                            <span class="block truncate text-xs text-muted-foreground">{expanded() === c().roomId ? "Choose who" : `${c().targets.length} agents`}</span>
+                            <span class="block truncate text-xs text-muted-foreground">
+                              {expanded() === c().roomId ? "Choose who" : `${c().targets.length} agents`}
+                            </span>
                           </Show>
                         </span>
                       </>
@@ -137,15 +149,23 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
                   <Match when={o.kind === "own"}>
                     <RecipeIcon recipe={props.card} size={30} />
                     <span class="min-w-0 flex-1">
-                      <span class="block truncate text-sm font-medium text-foreground">New chat with {props.card.agent.name}</span>
-                      <span class="block truncate text-xs text-muted-foreground">{isOwning(props.card.slug) ? "Making the chat…" : "An agent just for this"}</span>
+                      <span class="block truncate text-sm font-medium text-foreground">
+                        New chat with {props.card.agent.name}
+                      </span>
+                      <span class="block truncate text-xs text-muted-foreground">
+                        {isOwning(props.card.slug) ? "Making the chat…" : "An agent just for this"}
+                      </span>
                     </span>
                   </Match>
                 </Switch>
                 <span class="shrink-0 text-xs text-muted-foreground">
                   <Show when={!added(o)} fallback="Added">
                     <Show when={o.kind === "chat" && o.targets.length > 1}>
-                      <RemixIcon icon={ChevronRightIcon} size={14} class={expanded() === (o as { roomId?: string }).roomId ? "rotate-90" : ""} />
+                      <RemixIcon
+                        icon={ChevronRightIcon}
+                        size={14}
+                        class={expanded() === (o as { roomId?: string }).roomId ? "rotate-90" : ""}
+                      />
                     </Show>
                     <Show when={cursor() === i() && !(o.kind === "chat" && o.targets.length > 1)}>
                       <kbd class="rounded-md border border-border px-1.5 py-px font-sans text-[11px]">↵</kbd>

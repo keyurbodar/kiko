@@ -11,14 +11,19 @@ export type Codec<D extends Decoded = Decoded> = {
   encode(source: D, size: Size, type: "image/webp" | "image/jpeg", quality: number): Promise<Blob | null>
 }
 
-export type PreparedImage = { ok: true; file: File; recompressed: boolean } | { ok: false; reason: "too-large" | "unreadable" }
+export type PreparedImage =
+  | { ok: true; file: File; recompressed: boolean }
+  | { ok: false; reason: "too-large" | "unreadable" }
 
 export function encodeSizes(source: Size): Size[] {
   const long = Math.max(source.width, source.height)
   const base = Math.min(MAX_DIMENSION, long)
   return [1, ...FALLBACK_SCALE_STEPS].map((step) => {
     const scale = Math.max(1, Math.round(base * step)) / long
-    return { width: Math.max(1, Math.round(source.width * scale)), height: Math.max(1, Math.round(source.height * scale)) }
+    return {
+      width: Math.max(1, Math.round(source.width * scale)),
+      height: Math.max(1, Math.round(source.height * scale)),
+    }
   })
 }
 
@@ -27,7 +32,11 @@ export function renamed(name: string, type: string): string {
   return `${dot > 0 ? name.slice(0, dot) : name}${type === "image/webp" ? ".webp" : ".jpg"}`
 }
 
-export async function prepareImageForAttachment<D extends Decoded>(file: File, maxBytes: number, codec: Codec<D> = browserCodec as unknown as Codec<D>): Promise<PreparedImage> {
+export async function prepareImageForAttachment<D extends Decoded>(
+  file: File,
+  maxBytes: number,
+  codec: Codec<D> = browserCodec as unknown as Codec<D>,
+): Promise<PreparedImage> {
   if (file.size <= maxBytes) return { ok: true, file, recompressed: false }
   if (file.size > MAX_COMPRESSIBLE_SOURCE_BYTES) return { ok: false, reason: "too-large" }
   let source: D
@@ -50,7 +59,12 @@ export async function prepareImageForAttachment<D extends Decoded>(file: File, m
           }
           blob ??= await codec.encode(source, size, type, quality)
           if (!blob) break
-          if (blob.size <= maxBytes) return { ok: true, file: new File([blob], renamed(file.name || "image", type), { type }), recompressed: true }
+          if (blob.size <= maxBytes)
+            return {
+              ok: true,
+              file: new File([blob], renamed(file.name || "image", type), { type }),
+              recompressed: true,
+            }
         }
       } catch {
         failed = true

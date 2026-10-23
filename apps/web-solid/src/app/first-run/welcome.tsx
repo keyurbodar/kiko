@@ -47,7 +47,12 @@ export function AccessCode() {
   return (
     <div class="welcome-step flex w-full flex-col gap-3" data-step="sign-in">
       <Cover />
-      <form class="mt-2 flex w-full flex-col gap-2" data-component="access-code-form" onSubmit={submit} style={{ "--i": 2 }}>
+      <form
+        class="mt-2 flex w-full flex-col gap-2"
+        data-component="access-code-form"
+        onSubmit={submit}
+        style={{ "--i": 2 }}
+      >
         <p class="text-center text-sm text-muted-foreground">Enter the access code you set when you deployed Kiko.</p>
         <input
           name="code"
@@ -65,7 +70,13 @@ export function AccessCode() {
         </button>
       </form>
       <Show when={import.meta.env.DEV}>
-        <button type="button" class={secondary} disabled={busy()} onClick={() => void run(() => signInAsDev())} style={{ "--i": 3 }}>
+        <button
+          type="button"
+          class={secondary}
+          disabled={busy()}
+          onClick={() => void run(() => signInAsDev())}
+          style={{ "--i": 3 }}
+        >
           Continue as dev
         </button>
       </Show>

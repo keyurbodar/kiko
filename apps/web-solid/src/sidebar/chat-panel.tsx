@@ -44,16 +44,28 @@ export function rowStamp(updatedAt: number, now: number): string {
   return `${Math.floor(delta / DAY)}d`
 }
 
-const PRESENCE: Record<BotPresence, string> = { idle: "Idle", typing: "Typing", working: "Working", sleeping: "Sleeping" }
+const PRESENCE: Record<BotPresence, string> = {
+  idle: "Idle",
+  typing: "Typing",
+  working: "Working",
+  sleeping: "Sleeping",
+}
 
 function ChatMenuItems(props: { id: string }) {
   const navigate = useNavigate()
-  const chat = createMemo(() => useApp.user()?.chats().find((c) => c.roomId === props.id))
+  const chat = createMemo(() =>
+    useApp
+      .user()
+      ?.chats()
+      .find((c) => c.roomId === props.id),
+  )
   const active = () => useApp.activeThreadId()
   const [sure, setSure] = createSignal(false)
   return (
     <>
-      <MenuV2.Item onSelect={() => startRename(props.id)} shortcut="F2">Rename</MenuV2.Item>
+      <MenuV2.Item onSelect={() => startRename(props.id)} shortcut="F2">
+        Rename
+      </MenuV2.Item>
 
       <Show when={!chat()?.kiko} fallback={<MenuV2.Item disabled>Always pinned</MenuV2.Item>}>
         <MenuV2.Item onSelect={() => togglePin(props.id)}>{chat()?.pinned ? "Unpin" : "Pin"}</MenuV2.Item>
@@ -84,9 +96,13 @@ const [openPreview, setOpenPreview] = createSignal<string | null>(null)
 if (typeof document !== "undefined") {
   const close = () => setOpenPreview(null)
   document.addEventListener("pointerdown", close, true)
-  document.addEventListener("keydown", (event) => {
-    if (!["Tab", "Shift", "Control", "Alt", "Meta"].includes(event.key)) close()
-  }, true)
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (!["Tab", "Shift", "Control", "Alt", "Meta"].includes(event.key)) close()
+    },
+    true,
+  )
 }
 
 function previewState(id: string) {
@@ -102,7 +118,11 @@ function ChatPreview(props: { bot: RosterBot }) {
   const tail = createMemo(() => useApp.messagesFor(props.bot.id).filter(isListed).slice(-3))
   const name = (slug: string) => agentDisplayName(slug, useApp.agents())
   const speaker = (message: ChatMessage) =>
-    message.sender === "user" ? "You" : message.botId === undefined ? props.bot.name : agentDisplayName(message.botId, useApp.agents())
+    message.sender === "user"
+      ? "You"
+      : message.botId === undefined
+        ? props.bot.name
+        : agentDisplayName(message.botId, useApp.agents())
 
   return (
     <div class="w-[280px] p-3" data-component="sidebar-preview">
@@ -119,8 +139,7 @@ function ChatPreview(props: { bot: RosterBot }) {
           <For each={tail()}>
             {(message) => (
               <p class="line-clamp-2 text-[12px] leading-snug text-muted-foreground">
-                <span class="font-semibold text-foreground">{speaker(message)}:</span>{" "}
-                {quoteOf(message, name)}
+                <span class="font-semibold text-foreground">{speaker(message)}:</span> {quoteOf(message, name)}
               </p>
             )}
           </For>
@@ -177,7 +196,14 @@ function RowTitle(props: { id: string; title: string }) {
   )
 }
 
-function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: number; hint?: string; main?: boolean }) {
+function ChatRow(props: {
+  bot: RosterBot
+  muted: boolean
+  active: boolean
+  now: number
+  hint?: string
+  main?: boolean
+}) {
   const [menuOpen, setMenuOpen] = createSignal(false)
   const [previewOpen, setPreviewOpen] = previewState(props.bot.id)
   const navigate = useNavigate()
@@ -263,13 +289,18 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
                     fallback={
                       <>
                         <Show when={props.bot.previewFrom}>
-                          <span class="chat-preview-from" data-component="sidebar-preview-from">{props.bot.previewFrom}:</span>{" "}
+                          <span class="chat-preview-from" data-component="sidebar-preview-from">
+                            {props.bot.previewFrom}:
+                          </span>{" "}
                         </Show>
                         {props.bot.preview}
                       </>
                     }
                   >
-                    <span class="chat-draft" data-component="sidebar-draft">Draft:</span> {draft()}
+                    <span class="chat-draft" data-component="sidebar-draft">
+                      Draft:
+                    </span>{" "}
+                    {draft()}
                   </Show>
                 }
               >
@@ -281,10 +312,22 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
             </span>
 
             <Show when={props.bot.mentions}>
-              <i class="chat-mention-badge" data-component="sidebar-mention-badge" role="img" aria-label="You were mentioned">@</i>
+              <i
+                class="chat-mention-badge"
+                data-component="sidebar-mention-badge"
+                role="img"
+                aria-label="You were mentioned"
+              >
+                @
+              </i>
             </Show>
             <Show when={props.bot.unread > 0}>
-              <span class="chat-count" data-component="sidebar-unread-count" role="img" aria-label={`${props.bot.unread} unread`}>
+              <span
+                class="chat-count"
+                data-component="sidebar-unread-count"
+                role="img"
+                aria-label={`${props.bot.unread} unread`}
+              >
                 {props.bot.unread > 99 ? "99+" : props.bot.unread}
               </span>
             </Show>
@@ -329,7 +372,13 @@ function SearchRow(props: {
           }}
         />
         <Show when={props.query !== ""}>
-          <button type="button" class="chat-search-clear" data-component="sidebar-search-clear" aria-label="Clear search" onClick={() => props.onQuery("")}>
+          <button
+            type="button"
+            class="chat-search-clear"
+            data-component="sidebar-search-clear"
+            aria-label="Clear search"
+            onClick={() => props.onQuery("")}
+          >
             <RemixIcon icon={CloseIcon} size={13} />
           </button>
         </Show>
@@ -367,9 +416,15 @@ export function ChatPanel() {
     const order = [...all().filter((b) => b.pinned), ...all().filter((b) => !b.pinned)].slice(0, 9)
     return new Map(order.map((b, i) => [b.id, `chats.go-${i + 1}`]))
   })
-  const rowIds = createMemo(() => shown().filter((bot) => !bot.pinned).map((bot) => bot.id))
+  const rowIds = createMemo(() =>
+    shown()
+      .filter((bot) => !bot.pinned)
+      .map((bot) => bot.id),
+  )
   const byId = createMemo(() => new Map(shown().map((bot) => [bot.id, bot])))
-  const muted = createMemo(() => new Set((useApp.user()?.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)))
+  const muted = createMemo(
+    () => new Set((useApp.user()?.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)),
+  )
   const active = () => useApp.activeThreadId()
   const loading = () => all().length === 0 && !!useApp.user()?.state.loaded && !useApp.user()?.state.synced
 
@@ -393,7 +448,9 @@ export function ChatPanel() {
         </div>
       </Show>
       <Show when={pinned().length > 0 && rowIds().length > 0}>
-        <div class="chat-section" data-component="sidebar-chats-label">Chats</div>
+        <div class="chat-section" data-component="sidebar-chats-label">
+          Chats
+        </div>
       </Show>
       <Show when={shown().length === 0 && (query() !== "" || unreadOnly())}>
         <div class="flex flex-col items-center gap-2 py-6" data-component="sidebar-empty">
@@ -418,7 +475,15 @@ export function ChatPanel() {
       <VList class="chat-list" data={rowIds()} itemSize={ROW_H} bufferSize={ROW_H * 4} data-component="sidebar-list">
         {(id) => (
           <Show when={byId().get(id)} keyed>
-            {(bot) => <ChatRow bot={bot} muted={muted().has(id)} active={active() === id} now={now()} hint={jumpHint().get(id)} />}
+            {(bot) => (
+              <ChatRow
+                bot={bot}
+                muted={muted().has(id)}
+                active={active() === id}
+                now={now()}
+                hint={jumpHint().get(id)}
+              />
+            )}
           </Show>
         )}
       </VList>

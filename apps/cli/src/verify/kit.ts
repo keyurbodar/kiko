@@ -15,7 +15,11 @@ export async function poll<T>(what: string, test: () => T | Promise<T>, ms = 30_
   }
 }
 
-export async function newRoom(s: Session, title: string, agents?: string[]): Promise<{ roomId: string; room: RoomHandle & { id: string } }> {
+export async function newRoom(
+  s: Session,
+  title: string,
+  agents?: string[],
+): Promise<{ roomId: string; room: RoomHandle & { id: string } }> {
   const roomId = newRoomId()
   const user = await s.user()
   user.send({ t: "chat", op: { op: "create", roomId, title, ...(agents ? { agents } : {}) } as never })
@@ -25,7 +29,8 @@ export async function newRoom(s: Session, title: string, agents?: string[]): Pro
   return { roomId, room }
 }
 
-export const frames = (room: RoomHandle) => room.raw.log.flatMap((e) => (e.dir === "in" ? [e.frame as RoomToClient] : []))
+export const frames = (room: RoomHandle) =>
+  room.raw.log.flatMap((e) => (e.dir === "in" ? [e.frame as RoomToClient] : []))
 
 export const idles = (room: RoomHandle) => frames(room).filter((f) => f.t === "status" && f.state === "idle").length
 
@@ -37,7 +42,10 @@ export function messages(room: RoomHandle): Message[] {
   return [...byId.values()].sort((a, b) => a.seq - b.seq)
 }
 
-export const agentTexts = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "agent").map((m) => m.text)
+export const agentTexts = (room: RoomHandle) =>
+  messages(room)
+    .filter((m) => m.from.kind === "agent")
+    .map((m) => m.text)
 
 export function agentText(room: RoomHandle, from = 0): string {
   return room.raw.log

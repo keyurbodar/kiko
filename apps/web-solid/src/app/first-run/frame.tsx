@@ -39,7 +39,10 @@ export default function FirstRun() {
           <ol class="welcome-steps" aria-label="Setup progress">
             <For each={STEPS}>
               {(s, i) => (
-                <li data-state={i() < at() ? "done" : i() === at() ? "current" : "next"} aria-current={i() === at() ? "step" : undefined}>
+                <li
+                  data-state={i() < at() ? "done" : i() === at() ? "current" : "next"}
+                  aria-current={i() === at() ? "step" : undefined}
+                >
                   <span class="welcome-step-star" aria-hidden="true" />
                   <span class="welcome-step-label">{s.label}</span>
                 </li>
@@ -55,7 +58,9 @@ export default function FirstRun() {
                 <Match when={step === "cloudflare"}>
                   <Show when={backendConnectionNotice()}>
                     <div class="mb-3 flex flex-col gap-2">
-                      <p class="text-sm text-muted-foreground" role="status">{backendConnectionNotice()}</p>
+                      <p class="text-sm text-muted-foreground" role="status">
+                        {backendConnectionNotice()}
+                      </p>
                     </div>
                   </Show>
                   <ConnectCloudflare />

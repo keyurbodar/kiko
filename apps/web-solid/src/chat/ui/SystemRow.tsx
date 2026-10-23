@@ -5,7 +5,13 @@ import { cn } from "../../lib/cn"
 
 export type RowTone = "muted" | "danger" | "warning" | "accent"
 
-export type RowAction = { label: string; busy?: string | undefined; href?: string; onClick?: () => void; "data-action"?: string }
+export type RowAction = {
+  label: string
+  busy?: string | undefined
+  href?: string
+  onClick?: () => void
+  "data-action"?: string
+}
 
 const TONE: Record<RowTone, string> = {
   muted: "text-muted-foreground",
@@ -40,20 +46,33 @@ export function SystemRow(props: {
   return (
     <div
       role={tone() === "danger" ? "alert" : "separator"}
-      class={cn("mx-auto flex w-full max-w-(--chat-content-max-width) items-center gap-3 px-4 py-2 text-xs", TONE[tone()], props.class)}
+      class={cn(
+        "mx-auto flex w-full max-w-(--chat-content-max-width) items-center gap-3 px-4 py-2 text-xs",
+        TONE[tone()],
+        props.class,
+      )}
       data-component={props["data-component"] ?? "system-row"}
       data-tone={tone()}
       data-message-id={props["data-message-id"]}
     >
       <span class={cn("h-px min-w-3 flex-1", RULE[tone()])} aria-hidden="true" />
-      <span class={cn("flex min-w-0 max-w-full items-center justify-center gap-x-1.5 gap-y-1", props.actions?.length && "flex-wrap")}>
+      <span
+        class={cn(
+          "flex min-w-0 max-w-full items-center justify-center gap-x-1.5 gap-y-1",
+          props.actions?.length && "flex-wrap",
+        )}
+      >
         <Show when={props.icon}>{(icon) => <RemixIcon icon={icon()} size={12} class="shrink-0" />}</Show>
         <Show when={props.label}>
           <span class="shrink-0 font-medium">{props.label}</span>
         </Show>
         <Show when={props.detail}>
           {(detail) => (
-            <span class="max-w-80 min-w-0 truncate opacity-70 select-text" title={props.title ?? detail()} data-part="detail">
+            <span
+              class="max-w-80 min-w-0 truncate opacity-70 select-text"
+              title={props.title ?? detail()}
+              data-part="detail"
+            >
               {detail()}
             </span>
           )}
@@ -65,7 +84,12 @@ export function SystemRow(props: {
               <Show
                 when={action.href}
                 fallback={
-                  <button type="button" class={PILL} data-action={action["data-action"]} onClick={() => action.onClick?.()}>
+                  <button
+                    type="button"
+                    class={PILL}
+                    data-action={action["data-action"]}
+                    onClick={() => action.onClick?.()}
+                  >
                     {action.label}
                   </button>
                 }

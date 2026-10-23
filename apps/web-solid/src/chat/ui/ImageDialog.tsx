@@ -6,11 +6,28 @@ import { wrapIndex } from "../../lib/attachments"
 import "./image-dialog.css"
 import { FLIP_MS, flip, reducedMotion } from "./flip"
 import type { DialogImage } from "./image-dialog"
-import { anchorAt, clampZoom, clickZoom, fitScale, keyZoom, maxHeight, panStep, scrollFor, wheelZoom, type Point } from "./zoom"
+import {
+  anchorAt,
+  clampZoom,
+  clickZoom,
+  fitScale,
+  keyZoom,
+  maxHeight,
+  panStep,
+  scrollFor,
+  wheelZoom,
+  type Point,
+} from "./zoom"
 
-const NAV = "absolute top-1/2 z-20 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-white/90 hover:bg-white/10 hover:text-white"
+const NAV =
+  "absolute top-1/2 z-20 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-white/90 hover:bg-white/10 hover:text-white"
 
-export default function ImageDialog(props: { images: readonly DialogImage[]; index: number; from?: Element | null; onClose: () => void }) {
+export default function ImageDialog(props: {
+  images: readonly DialogImage[]
+  index: number
+  from?: Element | null
+  onClose: () => void
+}) {
   const [offset, setOffset] = createSignal(0)
   const [failed, setFailed] = createSignal<string | null>(null)
   const count = () => props.images.length
@@ -20,7 +37,8 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
   let pan: ((key: string) => boolean) | undefined
   const [closing, setClosing] = createSignal(false)
   let shrink: ((to: DOMRect) => void) | undefined
-  const thumbnail = () => (offset() === 0 && props.from?.isConnected ? (props.from.querySelector("img") ?? props.from) : null)
+  const thumbnail = () =>
+    offset() === 0 && props.from?.isConnected ? (props.from.querySelector("img") ?? props.from) : null
   const close = () => {
     if (closing()) return
     const to = thumbnail()?.getBoundingClientRect()
@@ -39,7 +57,9 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
           data-lightbox=""
           data-closing={closing() ? "" : undefined}
           onOpenAutoFocus={(event: Event) => {
-            const picture = (event.currentTarget as HTMLElement | null)?.querySelector<HTMLElement>('[data-component="image-dialog-viewport"]')
+            const picture = (event.currentTarget as HTMLElement | null)?.querySelector<HTMLElement>(
+              '[data-component="image-dialog-viewport"]',
+            )
             if (!picture) return
             event.preventDefault()
             picture.focus()
@@ -66,17 +86,30 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
             <RemixIcon icon={CloseIcon} class="size-4" />
           </button>
           <Show when={count() > 1}>
-            <button type="button" data-chrome="" class={`${NAV} left-0`} aria-label="Previous image" onClick={() => step(-1)}>
+            <button
+              type="button"
+              data-chrome=""
+              class={`${NAV} left-0`}
+              aria-label="Previous image"
+              onClick={() => step(-1)}
+            >
               <RemixIcon icon={ChevronLeftIcon} class="size-5" />
             </button>
           </Show>
           <Show when={item()} keyed>
             {(image) => (
-              <div class="relative z-10 flex max-w-[calc(92vw-96px)] flex-col items-center" data-component="image-dialog" data-swap={offset() === 0 ? undefined : ""}>
+              <div
+                class="relative z-10 flex max-w-[calc(92vw-96px)] flex-col items-center"
+                data-component="image-dialog"
+                data-swap={offset() === 0 ? undefined : ""}
+              >
                 <Show
                   when={failed() !== image.src}
                   fallback={
-                    <div role="alert" class="flex h-48 w-[min(92vw,32rem)] items-center justify-center rounded-lg border border-white/15 bg-black p-6 text-center text-sm text-white">
+                    <div
+                      role="alert"
+                      class="flex h-48 w-[min(92vw,32rem)] items-center justify-center rounded-lg border border-white/15 bg-black p-6 text-center text-sm text-white"
+                    >
                       Image unavailable. The file may have been moved or deleted.
                     </div>
                   }
@@ -90,7 +123,12 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
                     shrinkRef={(fn) => (shrink = fn)}
                   />
                 </Show>
-                <p class="mt-2 max-w-full truncate text-xs text-white/80" aria-live="polite" data-chrome="" data-component="image-dialog-caption">
+                <p
+                  class="mt-2 max-w-full truncate text-xs text-white/80"
+                  aria-live="polite"
+                  data-chrome=""
+                  data-component="image-dialog-caption"
+                >
                   {image.name}
                   {count() > 1 ? ` (${index() + 1}/${count()})` : ""}
                 </p>
@@ -98,7 +136,13 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
             )}
           </Show>
           <Show when={count() > 1}>
-            <button type="button" data-chrome="" class={`${NAV} right-0`} aria-label="Next image" onClick={() => step(1)}>
+            <button
+              type="button"
+              data-chrome=""
+              class={`${NAV} right-0`}
+              aria-label="Next image"
+              onClick={() => step(1)}
+            >
               <RemixIcon icon={ChevronRightIcon} class="size-5" />
             </button>
           </Show>
@@ -108,7 +152,14 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
   )
 }
 
-function ZoomableImage(props: { src: string; name: string; from: Element | null; onError: () => void; panRef: (pan: (key: string) => boolean) => void; shrinkRef: (shrink: (to: DOMRect) => void) => void }) {
+function ZoomableImage(props: {
+  src: string
+  name: string
+  from: Element | null
+  onError: () => void
+  panRef: (pan: (key: string) => boolean) => void
+  shrinkRef: (shrink: (to: DOMRect) => void) => void
+}) {
   let viewport!: HTMLDivElement
   const hint = createUniqueId()
   const [natural, setNatural] = createSignal({ width: 0, height: 0 })
@@ -130,7 +181,9 @@ function ZoomableImage(props: { src: string; name: string; from: Element | null;
     const target = clampZoom(next)
     if (target === previous) return
     const bounds = viewport.getBoundingClientRect()
-    const at = point ? { x: point.x - bounds.left, y: point.y - bounds.top } : { x: viewport.clientWidth / 2, y: viewport.clientHeight / 2 }
+    const at = point
+      ? { x: point.x - bounds.left, y: point.y - bounds.top }
+      : { x: viewport.clientWidth / 2, y: viewport.clientHeight / 2 }
     const anchor = anchorAt({ x: viewport.scrollLeft, y: viewport.scrollTop }, at, previous)
     const screen = { x: bounds.left + at.x, y: bounds.top + at.y }
     setZoom(target)
@@ -209,8 +262,18 @@ function ZoomableImage(props: { src: string; name: string; from: Element | null;
           dragged = false
           if (event.pointerType !== "mouse" || event.button !== 0 || zoom() <= 1) return
           const bounds = viewport.getBoundingClientRect()
-          if (event.clientX - bounds.left >= viewport.clientWidth || event.clientY - bounds.top >= viewport.clientHeight) return
-          drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop }
+          if (
+            event.clientX - bounds.left >= viewport.clientWidth ||
+            event.clientY - bounds.top >= viewport.clientHeight
+          )
+            return
+          drag = {
+            pointerId: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+            left: viewport.scrollLeft,
+            top: viewport.scrollTop,
+          }
           viewport.setPointerCapture(event.pointerId)
           setDragging(true)
         }}
@@ -228,7 +291,11 @@ function ZoomableImage(props: { src: string; name: string; from: Element | null;
           alt={props.name}
           draggable={false}
           class="block max-w-none select-none"
-          style={natural().width ? { width: `${width()}px`, height: `${height()}px` } : { "max-width": "calc(92vw - 96px)", "max-height": `${maxHeight(window_())}px` }}
+          style={
+            natural().width
+              ? { width: `${width()}px`, height: `${height()}px` }
+              : { "max-width": "calc(92vw - 96px)", "max-height": `${maxHeight(window_())}px` }
+          }
           onLoad={(event) => {
             setNatural({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })
             if (!waiting()) return
@@ -242,7 +309,8 @@ function ZoomableImage(props: { src: string; name: string; from: Element | null;
         />
       </div>
       <span id={hint} class="sr-only">
-        Click to zoom in or return to fit. Scroll to zoom, drag to pan. Use Enter to toggle zoom, plus or minus to zoom, and 0 to fit.
+        Click to zoom in or return to fit. Scroll to zoom, drag to pan. Use Enter to toggle zoom, plus or minus to zoom,
+        and 0 to fit.
       </span>
       <span class="sr-only" aria-live="polite">
         {Math.round(zoom() * 100)}% zoom

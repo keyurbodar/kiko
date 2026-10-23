@@ -58,7 +58,11 @@ export function ModelsPage() {
     POPULAR.flatMap(({ id, note }) => {
       const provider = available().find((p) => p.id === id)
       return provider ? [{ provider, note }] : []
-    }).concat(available().filter(isJudgeOnly).map((provider) => ({ provider, note: JUDGE_NOTE }))),
+    }).concat(
+      available()
+        .filter(isJudgeOnly)
+        .map((provider) => ({ provider, note: JUDGE_NOTE })),
+    ),
   )
   const [dialog, setDialog] = createSignal<CatalogProvider | null>(null)
   createEffect(() => {
@@ -108,12 +112,19 @@ export function ModelsPage() {
   })
 
   const railRow = (active: boolean) =>
-    cn("flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-md outline-none", active ? "bg-accent-strong text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground")
+    cn(
+      "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-md outline-none",
+      active ? "bg-accent-strong text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+    )
 
   return (
     <div class="flex flex-col gap-6" data-component="models-page">
       <Show when={cheer()}>
-        <p class="rounded-md bg-ring-wash px-3 py-2 text-md text-foreground" data-component="first-provider-cheer" role="status">
+        <p
+          class="rounded-md bg-ring-wash px-3 py-2 text-md text-foreground"
+          data-component="first-provider-cheer"
+          role="status"
+        >
           Connected. Your agents can reply now.
         </p>
       </Show>
@@ -121,167 +132,265 @@ export function ModelsPage() {
         <Notice data-component="catalog-error">The model catalog did not load. Reload to try again.</Notice>
       </Show>
 
-      <Tabs value={modelsTab()} onChange={(tab) => setModelsTab(tab as ModelsTab)} class="flex flex-col gap-5" data-component="models-tabs">
+      <Tabs
+        value={modelsTab()}
+        onChange={(tab) => setModelsTab(tab as ModelsTab)}
+        class="flex flex-col gap-5"
+        data-component="models-tabs"
+      >
         <Tabs.List class="kit-tabs" aria-label="Models">
-          <Tabs.Trigger value="agents" class="kit-tab" data-tab="agents">Agents</Tabs.Trigger>
-          <Tabs.Trigger value="providers" class="kit-tab" data-tab="providers">Providers</Tabs.Trigger>
+          <Tabs.Trigger value="agents" class="kit-tab" data-tab="agents">
+            Agents
+          </Tabs.Trigger>
+          <Tabs.Trigger value="providers" class="kit-tab" data-tab="providers">
+            Providers
+          </Tabs.Trigger>
         </Tabs.List>
         <Show when={modelsTab() === "agents"}>
           <AgentModels />
         </Show>
         <Show when={modelsTab() === "providers"}>
-      <Show
-        when={connected().length}
-        fallback={
-          <Group title="Connect a provider" data-component="provider-add" bare action={<Button variant="ghost" data-action="view-all-providers" onClick={() => setBrowsing(true)}>All providers</Button>}>
-            <div class="grid grid-cols-1 gap-2 @min-[560px]/settings:grid-cols-2">
-              <Show when={connectedReady() && !!catalog()} fallback={<ProviderSkeletons />}>
-              <For each={popular()} fallback={<Hint>No providers found.</Hint>}>
-                {({ provider, note }) => (
-                  <button
-                    type="button"
-                    class="flex items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-left hover:bg-accent"
-                    data-provider={provider.id}
-                    data-action="connect"
-                    onClick={() => setDialog(provider)}
-                  >
-                    <ProviderIcon id={provider.id} width="16" height="16" />
-                    <span class="flex min-w-0 flex-col">
-                      <span class="truncate text-md font-medium text-foreground">{provider.name}</span>
-                      <span class="truncate text-sm text-muted-foreground">{note}</span>
-                    </span>
-                  </button>
-                )}
-              </For>
-              </Show>
-            </div>
-          </Group>
-        }
-      >
-        <div class="grid grid-cols-1 gap-4 @min-[560px]/settings:grid-cols-[180px_minmax(0,1fr)]">
-          <nav class="flex flex-col gap-0.5" aria-label="Providers" data-component="provider-rail">
-            <button type="button" class={railRow(pick().kind === "all")} aria-current={pick().kind === "all" ? "true" : undefined} onClick={() => setPick({ kind: "all" })}>
-              <span class="min-w-0 flex-1 truncate">All models</span>
-            </button>
-            <For each={connected()}>
-              {(provider) => {
-                const info = () => saved(provider.id)
-                const on = () => current()?.id === provider.id
-                return (
-                  <button
-                    type="button"
-                    class={railRow(on())}
-                    aria-current={on() ? "true" : undefined}
-                    data-provider={provider.id}
-                    data-connected="true"
-                    data-problem={info()?.problem}
-                    onClick={() => setPick({ kind: "provider", id: provider.id })}
-                  >
-                    <ProviderIcon id={provider.id} width="14" height="14" />
-                    <span class="min-w-0 flex-1 truncate">{provider.name}</span>
-                    <Show when={info()?.problem} fallback={<span class="shrink-0 text-xs tabular-nums text-secondary-label">{provider.models.length || ""}</span>}>
-                      {(problem) => <span class="size-1.5 shrink-0 rounded-full bg-error" role="img" aria-label={PROBLEM_SHORT[problem()]} />}
-                    </Show>
-                  </button>
-                )
-              }}
-            </For>
-            <button type="button" class={cn(railRow(false), "mt-1")} data-action="view-all-providers" onClick={() => setBrowsing(true)}>
-              <svg class="size-3.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-                <path d="M8 3.5v9M3.5 8h9" />
-              </svg>
-              <span class="min-w-0 flex-1 truncate">Add provider</span>
-            </button>
-          </nav>
-
-          <section class="flex min-w-0 flex-col gap-2" data-component="model-list">
-            <Show when={current()}>
-              {(provider) => (
-                <div class="flex items-center gap-3 px-1" data-component="provider-detail" data-provider={provider().id}>
-                  <div class="flex min-w-0 flex-1 flex-col">
-                    <span class="truncate text-md font-medium text-foreground">{provider().name}</span>
-                    <span class={cn("text-sm", saved(provider().id)?.problem ? "text-error" : cn("truncate", muted))} data-part="provider-status">
-                      {status(provider().id)}
-                    </span>
-                  </div>
-                  <Show when={saved(provider().id)?.problem}>
-                    {(problem) => (
-                      <>
-                        <Show when={FIX_LABEL[problem()]}>
-                          {(label) => <Button data-action="reconnect" onClick={() => setDialog(provider())}>{label()}</Button>}
-                        </Show>
-                        <CheckAgain id={provider().id} />
-                      </>
-                    )}
+          <Show
+            when={connected().length}
+            fallback={
+              <Group
+                title="Connect a provider"
+                data-component="provider-add"
+                bare
+                action={
+                  <Button variant="ghost" data-action="view-all-providers" onClick={() => setBrowsing(true)}>
+                    All providers
+                  </Button>
+                }
+              >
+                <div class="grid grid-cols-1 gap-2 @min-[560px]/settings:grid-cols-2">
+                  <Show when={connectedReady() && !!catalog()} fallback={<ProviderSkeletons />}>
+                    <For each={popular()} fallback={<Hint>No providers found.</Hint>}>
+                      {({ provider, note }) => (
+                        <button
+                          type="button"
+                          class="flex items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-left hover:bg-accent"
+                          data-provider={provider.id}
+                          data-action="connect"
+                          onClick={() => setDialog(provider)}
+                        >
+                          <ProviderIcon id={provider.id} width="16" height="16" />
+                          <span class="flex min-w-0 flex-col">
+                            <span class="truncate text-md font-medium text-foreground">{provider.name}</span>
+                            <span class="truncate text-sm text-muted-foreground">{note}</span>
+                          </span>
+                        </button>
+                      )}
+                    </For>
                   </Show>
-                  <DisconnectButton id={provider().id} />
                 </div>
-              )}
-            </Show>
-            <div class="flex items-center gap-2">
-              <input
-                type="search"
-                class={cn(fieldClass, "min-w-0 flex-1")}
-                placeholder="Search models"
-                aria-label="Search models"
-                spellcheck={false}
-                autocomplete="off"
-                value={query()}
-                onInput={(e) => setQuery(e.currentTarget.value)}
-                data-component="model-search"
-              />
-            </div>
-            <div class="flex items-center justify-between gap-2 px-1 text-sm text-muted-foreground">
-              <span class="tabular-nums">
-                {shownCount()} of {rows().length} in the picker
-              </span>
-              <span class="flex gap-1">
-                <Button variant="ghost" disabled={shownCount() === rows().length} onClick={() => setHidden(rows().map((r) => r.ref), false)}>
-                  Show all
-                </Button>
-                <Button variant="ghost" disabled={shownCount() === 0} onClick={() => setHidden(rows().map((r) => r.ref), true)}>
-                  Hide all
-                </Button>
-              </span>
-            </div>
-            <Show when={rows().length} fallback={<div class="kit-card"><Empty>{query().trim() ? `No models match "${query().trim()}"` : "This provider has no chat models."}</Empty></div>}>
-              <VList class="kit-card" style={{ height: `${Math.min(rows().length * 36, 540)}px` }} data={rows()} itemSize={36}>
-                {(r) => (
-                  <div
-                    class="flex h-9 cursor-pointer items-center gap-2.5 border-b border-border px-3 outline-none hover:bg-accent focus-visible:bg-accent"
-                    role="switch"
-                    tabIndex={0}
-                    aria-checked={!hidden().has(r.ref)}
-                    aria-label={`Show ${r.model.name} in the model picker`}
-                    data-model={r.ref}
-                    onClick={() => setHidden([r.ref], !hidden().has(r.ref))}
-                    onKeyDown={(e) => {
-                      if (e.target !== e.currentTarget) return
-                      if (e.key !== "Enter" && e.key !== " ") return
-                      e.preventDefault()
-                      setHidden([r.ref], !hidden().has(r.ref))
-                    }}
+              </Group>
+            }
+          >
+            <div class="grid grid-cols-1 gap-4 @min-[560px]/settings:grid-cols-[180px_minmax(0,1fr)]">
+              <nav class="flex flex-col gap-0.5" aria-label="Providers" data-component="provider-rail">
+                <button
+                  type="button"
+                  class={railRow(pick().kind === "all")}
+                  aria-current={pick().kind === "all" ? "true" : undefined}
+                  onClick={() => setPick({ kind: "all" })}
+                >
+                  <span class="min-w-0 flex-1 truncate">All models</span>
+                </button>
+                <For each={connected()}>
+                  {(provider) => {
+                    const info = () => saved(provider.id)
+                    const on = () => current()?.id === provider.id
+                    return (
+                      <button
+                        type="button"
+                        class={railRow(on())}
+                        aria-current={on() ? "true" : undefined}
+                        data-provider={provider.id}
+                        data-connected="true"
+                        data-problem={info()?.problem}
+                        onClick={() => setPick({ kind: "provider", id: provider.id })}
+                      >
+                        <ProviderIcon id={provider.id} width="14" height="14" />
+                        <span class="min-w-0 flex-1 truncate">{provider.name}</span>
+                        <Show
+                          when={info()?.problem}
+                          fallback={
+                            <span class="shrink-0 text-xs tabular-nums text-secondary-label">
+                              {provider.models.length || ""}
+                            </span>
+                          }
+                        >
+                          {(problem) => (
+                            <span
+                              class="size-1.5 shrink-0 rounded-full bg-error"
+                              role="img"
+                              aria-label={PROBLEM_SHORT[problem()]}
+                            />
+                          )}
+                        </Show>
+                      </button>
+                    )
+                  }}
+                </For>
+                <button
+                  type="button"
+                  class={cn(railRow(false), "mt-1")}
+                  data-action="view-all-providers"
+                  onClick={() => setBrowsing(true)}
+                >
+                  <svg
+                    class="size-3.5 shrink-0"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    aria-hidden="true"
                   >
-                    <Show when={!current()}>
-                      <ProviderIcon id={r.provider.id} width="14" height="14" />
-                    </Show>
-                    <span class="min-w-0 flex-1 truncate text-md text-foreground" title={r.model.id}>
-                      {r.model.name}
-                    </span>
-                    <Show when={r.model.reasoning}>
-                      <span class="shrink-0 text-xs text-secondary-label">Reasoning</span>
-                    </Show>
-                    <span class="w-12 shrink-0 text-right text-xs tabular-nums text-secondary-label">{formatContext(r.model.contextWindow)}</span>
-                    <span onClick={(event) => event.stopPropagation()}>
-                      <Toggle label={`Show ${r.model.name} in the model picker`} on={!hidden().has(r.ref)} onChange={(on) => setHidden([r.ref], !on)} />
-                    </span>
-                  </div>
-                )}
-              </VList>
-            </Show>
-          </section>
-        </div>
-      </Show>
+                    <path d="M8 3.5v9M3.5 8h9" />
+                  </svg>
+                  <span class="min-w-0 flex-1 truncate">Add provider</span>
+                </button>
+              </nav>
+
+              <section class="flex min-w-0 flex-col gap-2" data-component="model-list">
+                <Show when={current()}>
+                  {(provider) => (
+                    <div
+                      class="flex items-center gap-3 px-1"
+                      data-component="provider-detail"
+                      data-provider={provider().id}
+                    >
+                      <div class="flex min-w-0 flex-1 flex-col">
+                        <span class="truncate text-md font-medium text-foreground">{provider().name}</span>
+                        <span
+                          class={cn("text-sm", saved(provider().id)?.problem ? "text-error" : cn("truncate", muted))}
+                          data-part="provider-status"
+                        >
+                          {status(provider().id)}
+                        </span>
+                      </div>
+                      <Show when={saved(provider().id)?.problem}>
+                        {(problem) => (
+                          <>
+                            <Show when={FIX_LABEL[problem()]}>
+                              {(label) => (
+                                <Button data-action="reconnect" onClick={() => setDialog(provider())}>
+                                  {label()}
+                                </Button>
+                              )}
+                            </Show>
+                            <CheckAgain id={provider().id} />
+                          </>
+                        )}
+                      </Show>
+                      <DisconnectButton id={provider().id} />
+                    </div>
+                  )}
+                </Show>
+                <div class="flex items-center gap-2">
+                  <input
+                    type="search"
+                    class={cn(fieldClass, "min-w-0 flex-1")}
+                    placeholder="Search models"
+                    aria-label="Search models"
+                    spellcheck={false}
+                    autocomplete="off"
+                    value={query()}
+                    onInput={(e) => setQuery(e.currentTarget.value)}
+                    data-component="model-search"
+                  />
+                </div>
+                <div class="flex items-center justify-between gap-2 px-1 text-sm text-muted-foreground">
+                  <span class="tabular-nums">
+                    {shownCount()} of {rows().length} in the picker
+                  </span>
+                  <span class="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      disabled={shownCount() === rows().length}
+                      onClick={() =>
+                        setHidden(
+                          rows().map((r) => r.ref),
+                          false,
+                        )
+                      }
+                    >
+                      Show all
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={shownCount() === 0}
+                      onClick={() =>
+                        setHidden(
+                          rows().map((r) => r.ref),
+                          true,
+                        )
+                      }
+                    >
+                      Hide all
+                    </Button>
+                  </span>
+                </div>
+                <Show
+                  when={rows().length}
+                  fallback={
+                    <div class="kit-card">
+                      <Empty>
+                        {query().trim() ? `No models match "${query().trim()}"` : "This provider has no chat models."}
+                      </Empty>
+                    </div>
+                  }
+                >
+                  <VList
+                    class="kit-card"
+                    style={{ height: `${Math.min(rows().length * 36, 540)}px` }}
+                    data={rows()}
+                    itemSize={36}
+                  >
+                    {(r) => (
+                      <div
+                        class="flex h-9 cursor-pointer items-center gap-2.5 border-b border-border px-3 outline-none hover:bg-accent focus-visible:bg-accent"
+                        role="switch"
+                        tabIndex={0}
+                        aria-checked={!hidden().has(r.ref)}
+                        aria-label={`Show ${r.model.name} in the model picker`}
+                        data-model={r.ref}
+                        onClick={() => setHidden([r.ref], !hidden().has(r.ref))}
+                        onKeyDown={(e) => {
+                          if (e.target !== e.currentTarget) return
+                          if (e.key !== "Enter" && e.key !== " ") return
+                          e.preventDefault()
+                          setHidden([r.ref], !hidden().has(r.ref))
+                        }}
+                      >
+                        <Show when={!current()}>
+                          <ProviderIcon id={r.provider.id} width="14" height="14" />
+                        </Show>
+                        <span class="min-w-0 flex-1 truncate text-md text-foreground" title={r.model.id}>
+                          {r.model.name}
+                        </span>
+                        <Show when={r.model.reasoning}>
+                          <span class="shrink-0 text-xs text-secondary-label">Reasoning</span>
+                        </Show>
+                        <span class="w-12 shrink-0 text-right text-xs tabular-nums text-secondary-label">
+                          {formatContext(r.model.contextWindow)}
+                        </span>
+                        <span onClick={(event) => event.stopPropagation()}>
+                          <Toggle
+                            label={`Show ${r.model.name} in the model picker`}
+                            on={!hidden().has(r.ref)}
+                            onChange={(on) => setHidden([r.ref], !on)}
+                          />
+                        </span>
+                      </div>
+                    )}
+                  </VList>
+                </Show>
+              </section>
+            </div>
+          </Show>
         </Show>
       </Tabs>
 
@@ -301,11 +410,7 @@ export function ModelsPage() {
 }
 
 function ProviderSkeletons() {
-  return (
-    <For each={[0, 1, 2, 3]}>
-      {() => <Skeleton class="h-[58px] rounded-lg" />}
-    </For>
-  )
+  return <For each={[0, 1, 2, 3]}>{() => <Skeleton class="h-[58px] rounded-lg" />}</For>
 }
 
 function CheckAgain(props: { id: string }) {
@@ -315,7 +420,11 @@ function CheckAgain(props: { id: string }) {
     try {
       await checkProvider(props.id)
     } catch (e) {
-      showToastV2({ title: "Could not check the provider", description: e instanceof Error ? e.message : undefined, variant: "error" })
+      showToastV2({
+        title: "Could not check the provider",
+        description: e instanceof Error ? e.message : undefined,
+        variant: "error",
+      })
     } finally {
       setChecking(false)
     }
@@ -335,24 +444,42 @@ function DisconnectButton(props: { id: string }) {
     try {
       await disconnectProvider(props.id)
     } catch (e) {
-      showToastV2({ title: "Could not disconnect", description: e instanceof Error ? e.message : undefined, variant: "error" })
+      showToastV2({
+        title: "Could not disconnect",
+        description: e instanceof Error ? e.message : undefined,
+        variant: "error",
+      })
     } finally {
       setRemoving(false)
       setSure(false)
     }
   }
   return (
-    <Button variant={sure() ? "danger" : "ghost"} data-action="disconnect" busy={removing()} onBlur={() => setSure(false)} onClick={() => (sure() ? void remove() : setSure(true))}>
+    <Button
+      variant={sure() ? "danger" : "ghost"}
+      data-action="disconnect"
+      busy={removing()}
+      onBlur={() => setSure(false)}
+      onClick={() => (sure() ? void remove() : setSure(true))}
+    >
       {sure() ? "Disconnect for good" : "Disconnect"}
     </Button>
   )
 }
 
-export function AddProviderDialog(props: { open: boolean; loading: boolean; providers: readonly CatalogProvider[]; onClose: () => void; onPick: (provider: CatalogProvider) => void }) {
+export function AddProviderDialog(props: {
+  open: boolean
+  loading: boolean
+  providers: readonly CatalogProvider[]
+  onClose: () => void
+  onPick: (provider: CatalogProvider) => void
+}) {
   const [query, setQuery] = createSignal("")
   const shown = createMemo(() => {
     const q = query().trim().toLowerCase()
-    return q ? props.providers.filter((p) => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)) : props.providers
+    return q
+      ? props.providers.filter((p) => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q))
+      : props.providers
   })
   return (
     <Dialog
@@ -389,7 +516,14 @@ export function AddProviderDialog(props: { open: boolean; loading: boolean; prov
         />
       </form>
       <ul class="flex min-h-0 flex-1 flex-col overflow-y-auto" data-component="provider-list">
-        <For each={shown()} fallback={<li class={cn("px-2 text-[13px]", muted)}>{props.loading ? <Skeleton class="h-8" /> : "No provider matches"}</li>}>
+        <For
+          each={shown()}
+          fallback={
+            <li class={cn("px-2 text-[13px]", muted)}>
+              {props.loading ? <Skeleton class="h-8" /> : "No provider matches"}
+            </li>
+          }
+        >
           {(provider) => (
             <li data-provider={provider.id}>
               <button
@@ -400,7 +534,9 @@ export function AddProviderDialog(props: { open: boolean; loading: boolean; prov
               >
                 <ProviderIcon id={provider.id} width="16" height="16" />
                 <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">{provider.name}</span>
-                <span class={cn("shrink-0 text-[12px] tabular-nums", muted)}>{provider.models.length} {provider.models.length === 1 ? "model" : "models"}</span>
+                <span class={cn("shrink-0 text-[12px] tabular-nums", muted)}>
+                  {provider.models.length} {provider.models.length === 1 ? "model" : "models"}
+                </span>
               </button>
             </li>
           )}
@@ -410,7 +546,11 @@ export function AddProviderDialog(props: { open: boolean; loading: boolean; prov
   )
 }
 
-export function ConnectDialog(props: { provider: CatalogProvider | null; only?: "sign_in" | "api_key"; onClose: () => void }) {
+export function ConnectDialog(props: {
+  provider: CatalogProvider | null
+  only?: "sign_in" | "api_key"
+  onClose: () => void
+}) {
   const [error, setError] = createSignal<string | null>(null)
   const [busy, setBusy] = createSignal(false)
   let input: HTMLInputElement | undefined
@@ -443,7 +583,9 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; only?: 
   const methods = () => {
     const provider = props.provider
     const saved = provider ? connectedProviders().find((p) => p.provider === provider.id) : undefined
-    const offered = (provider?.connect ?? []).filter((m) => !props.only || (props.only === "api_key") === (m === "api_key"))
+    const offered = (provider?.connect ?? []).filter(
+      (m) => !props.only || (props.only === "api_key") === (m === "api_key"),
+    )
     if (!provider || !saved?.problem) return offered
     return offered.filter((m) => (saved.kind === "oauth" ? m !== "api_key" : m === "api_key"))
   }
@@ -472,26 +614,26 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; only?: 
           {(method) =>
             method === "api_key" ? (
               <Show when={!signingIn()}>
-              <form id="provider-key-form" class="flex flex-col gap-2" onSubmit={submit} data-method="api_key">
-                <label class="text-[13px] font-medium text-foreground" for="provider-key">
-                  API key
-                </label>
-                <input
-                  id="provider-key"
-                  ref={input}
-                  {...SECRET_FIELD}
-                  name="kiko-provider-secret"
-                  autofocus
-                  class={cn(fieldClass, "w-full")}
-                  data-component="provider-key"
-                />
-                <Show when={props.provider && isJudgeOnly(props.provider)}>
-                  <Hint>{JUDGE_NOTE}</Hint>
-                </Show>
-                <Show when={error()}>
-                  <Notice data-component="connect-error">{error()!}</Notice>
-                </Show>
-              </form>
+                <form id="provider-key-form" class="flex flex-col gap-2" onSubmit={submit} data-method="api_key">
+                  <label class="text-[13px] font-medium text-foreground" for="provider-key">
+                    API key
+                  </label>
+                  <input
+                    id="provider-key"
+                    ref={input}
+                    {...SECRET_FIELD}
+                    name="kiko-provider-secret"
+                    autofocus
+                    class={cn(fieldClass, "w-full")}
+                    data-component="provider-key"
+                  />
+                  <Show when={props.provider && isJudgeOnly(props.provider)}>
+                    <Hint>{JUDGE_NOTE}</Hint>
+                  </Show>
+                  <Show when={error()}>
+                    <Notice data-component="connect-error">{error()!}</Notice>
+                  </Show>
+                </form>
               </Show>
             ) : (
               <SignInMethod
@@ -509,7 +651,13 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; only?: 
   )
 }
 
-function SignInMethod(props: { provider: string; method: ConnectMethod; label?: string | undefined; onRunning: (running: boolean) => void; onDone: () => void }) {
+function SignInMethod(props: {
+  provider: string
+  method: ConnectMethod
+  label?: string | undefined
+  onRunning: (running: boolean) => void
+  onDone: () => void
+}) {
   const [state, setState] = createSignal<SignIn | null>(null)
   let handle: SignInHandle | undefined
   let input: HTMLInputElement | undefined
@@ -564,7 +712,11 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; label?: 
         {(s) => (
           <>
             <Show when={!s().code && !s().link && !s().prompt}>
-              <div class={cn("flex items-center gap-2 text-[12px]", muted)} data-component="sign-in-waiting" role="status">
+              <div
+                class={cn("flex items-center gap-2 text-[12px]", muted)}
+                data-component="sign-in-waiting"
+                role="status"
+              >
                 <Spinner size={12} />
                 Waiting for the provider
               </div>
@@ -598,7 +750,9 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; label?: 
               )}
             </Show>
             <Show when={s().note}>
-              <p class={cn("text-[12px]", muted)} data-component="sign-in-note">{s().note}</p>
+              <p class={cn("text-[12px]", muted)} data-component="sign-in-note">
+                {s().note}
+              </p>
             </Show>
             <Show when={s().prompt}>
               {(p) => {
@@ -616,7 +770,9 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; label?: 
                   </div>
                 ) : (
                   <form class="flex flex-col gap-2.5" onSubmit={answer} data-component="sign-in-prompt">
-                    <label class={cn("text-[12px]", muted)} for="sign-in-answer">{prompt.message}</label>
+                    <label class={cn("text-[12px]", muted)} for="sign-in-answer">
+                      {prompt.message}
+                    </label>
                     <input
                       id="sign-in-answer"
                       ref={input}
@@ -641,9 +797,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; label?: 
         )}
       </Show>
       <Show when={state()?.status === "error" ? state()?.error : null}>
-        {(error) => (
-          <Notice data-component="sign-in-error">{error()}</Notice>
-        )}
+        {(error) => <Notice data-component="sign-in-error">{error()}</Notice>}
       </Show>
     </div>
   )

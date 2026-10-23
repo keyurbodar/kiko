@@ -82,7 +82,11 @@ export type ClockMetadata = {
   delete(key: string): void
 }
 
-export function createServiceClock({ metadata, publish, derived = () => ({}) }: {
+export function createServiceClock({
+  metadata,
+  publish,
+  derived = () => ({}),
+}: {
   metadata: ClockMetadata
   derived?: () => Record<string, number | undefined>
   publish(at: number | undefined, persist: () => void): Promise<void>
@@ -111,9 +115,20 @@ export function createServiceClock({ metadata, publish, derived = () => ({}) }: 
   }
   return {
     deadline: (key) => read()[key],
-    setWakeup: (key, at) => change((deadlines) => { if (key in derived()) delete deadlines[key]; else deadlines[key] = at }),
-    clearWakeup: (key) => change((deadlines) => { delete deadlines[key] }),
-    dueWakeups: async (now) => Object.entries(read()).flatMap(([key, at]) => at !== undefined && at <= now ? [{ key, at }] : []).sort((a, b) => a.at - b.at || a.key.localeCompare(b.key)).map(({ key }) => key),
+    setWakeup: (key, at) =>
+      change((deadlines) => {
+        if (key in derived()) delete deadlines[key]
+        else deadlines[key] = at
+      }),
+    clearWakeup: (key) =>
+      change((deadlines) => {
+        delete deadlines[key]
+      }),
+    dueWakeups: async (now) =>
+      Object.entries(read())
+        .flatMap(([key, at]) => (at !== undefined && at <= now ? [{ key, at }] : []))
+        .sort((a, b) => a.at - b.at || a.key.localeCompare(b.key))
+        .map(({ key }) => key),
   }
 }
 
@@ -129,8 +144,7 @@ export async function runDue(
     try {
       await handler?.()
       if (clock.deadline(key) === at) await clock.clearWakeup(key)
-    }
-    catch (error) {
+    } catch (error) {
       errors.push(error)
       console.error(`clock ${key} failed: ${error instanceof Error ? error.message : String(error)}`)
     }

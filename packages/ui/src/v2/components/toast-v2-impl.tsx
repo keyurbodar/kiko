@@ -86,8 +86,7 @@ const anchorOf = (element: Element | undefined) => {
   return { x: rect.left + rect.width / 2, top: rect.top, bottom: rect.bottom }
 }
 
-const reducedMotion = () =>
-  typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches
+const reducedMotion = () => typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches
 
 export function showToastV2(input: ToastV2Options | string): number {
   const options = typeof input === "string" ? { title: input } : input
@@ -120,10 +119,15 @@ export function updateToastV2(id: number, options: ToastV2Options) {
 }
 
 export function dismissToastV2(id?: number, ending: Ending = "close") {
-  const closing = toasts.filter((toast) => !toast.ending && (id === undefined || toast.id === id)).map((toast) => toast.id)
+  const closing = toasts
+    .filter((toast) => !toast.ending && (id === undefined || toast.id === id))
+    .map((toast) => toast.id)
   if (!closing.length) return
   setToasts((toast) => closing.includes(toast.id), "ending", ending)
-  setTimeout(() => setToasts((list) => list.filter((toast) => !closing.includes(toast.id))), reducedMotion() ? 0 : EXIT_MS)
+  setTimeout(
+    () => setToasts((list) => list.filter((toast) => !closing.includes(toast.id))),
+    reducedMotion() ? 0 : EXIT_MS,
+  )
 }
 
 type ToastV2Step<T> = string | ToastV2Options | ((value: T) => string | ToastV2Options)
@@ -193,7 +197,9 @@ function ToastV2Region(props: ToastV2RegionProps) {
   const stack = createMemo(() => toasts.filter((toast) => !toast.anchor))
   const anchored = createMemo(() => toasts.filter((toast) => toast.anchor))
   const layout = createMemo(() =>
-    stackLayout(stack().map((toast) => ({ id: toast.id, height: heights[toast.id] ?? 0, ending: Boolean(toast.ending) }))),
+    stackLayout(
+      stack().map((toast) => ({ id: toast.id, height: heights[toast.id] ?? 0, ending: Boolean(toast.ending) })),
+    ),
   )
   const live = () => stack().some((toast) => !toast.ending)
   const expanded = () => hovered() || focused()
@@ -341,7 +347,11 @@ function ToastCard(props: {
   let dx = 0
   let dy = 0
 
-  autoDismiss(props.toast, () => props.paused() || limited(), () => props.close())
+  autoDismiss(
+    props.toast,
+    () => props.paused() || limited(),
+    () => props.close(),
+  )
 
   onMount(() => {
     const observer = new ResizeObserver(() => props.onHeight(content.offsetHeight))
@@ -415,7 +425,11 @@ function ToastCard(props: {
       >
         <RemixIcon icon={CloseIcon} />
       </button>
-      <div ref={content} class="toast-v2-content" data-actions={actions().length > 0 || copyText() !== undefined || undefined}>
+      <div
+        ref={content}
+        class="toast-v2-content"
+        data-actions={actions().length > 0 || copyText() !== undefined || undefined}
+      >
         <div class="toast-v2-body">
           <Show when={options().title || icon()}>
             <div class="toast-v2-head">
@@ -470,7 +484,11 @@ function ToastCard(props: {
 }
 
 function AnchoredToast(props: { toast: ToastItem }) {
-  autoDismiss(props.toast, () => false, () => dismissToastV2(props.toast.id))
+  autoDismiss(
+    props.toast,
+    () => false,
+    () => dismissToastV2(props.toast.id),
+  )
   const anchor = () => props.toast.anchor!
   const below = () => anchor().top < 40
   return (

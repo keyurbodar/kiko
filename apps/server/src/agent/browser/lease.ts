@@ -25,7 +25,16 @@ export interface LeasePort {
   handBack(): Promise<boolean>
 }
 
-export type UserBrowserRpc = Pick<User, "browserLease" | "browserTouch" | "browserDead" | "browserCheck" | "browserTakeover" | "browserLive" | "browserHandBack">
+export type UserBrowserRpc = Pick<
+  User,
+  | "browserLease"
+  | "browserTouch"
+  | "browserDead"
+  | "browserCheck"
+  | "browserTakeover"
+  | "browserLive"
+  | "browserHandBack"
+>
 
 const NOT_CONNECTED = /not connected/i
 const PAUSE_MEMO_MS = 1_000

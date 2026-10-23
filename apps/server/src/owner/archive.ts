@@ -27,13 +27,20 @@ function dayKey(roomId: string, day: string): string {
   return `${roomPrefix(roomId)}${day}${SUFFIX}`
 }
 
-export async function writeDay(bucket: ArchiveBucket, roomId: string, day: string, rows: readonly unknown[]): Promise<void> {
+export async function writeDay(
+  bucket: ArchiveBucket,
+  roomId: string,
+  day: string,
+  rows: readonly unknown[],
+): Promise<void> {
   const key = dayKey(roomId, day)
-  const jsonl = rows.map((row) => {
-    const json = JSON.stringify(row)
-    if (json === undefined) throw new Error("Archive row is not JSON serializable")
-    return `${json}\n`
-  }).join("")
+  const jsonl = rows
+    .map((row) => {
+      const json = JSON.stringify(row)
+      if (json === undefined) throw new Error("Archive row is not JSON serializable")
+      return `${json}\n`
+    })
+    .join("")
   const stream = new Blob([jsonl]).stream().pipeThrough(new CompressionStream("gzip"))
   await bucket.put(key, new Uint8Array(await new Response(stream).arrayBuffer()))
 }
@@ -65,7 +72,10 @@ export async function listDays(bucket: ArchiveBucket, roomId: string): Promise<s
   }
 }
 
-export async function eraseRoom(bucket: Pick<ArchiveBucket, "list"> & { delete(keys: string[]): Promise<unknown> }, roomId: string): Promise<void> {
+export async function eraseRoom(
+  bucket: Pick<ArchiveBucket, "list"> & { delete(keys: string[]): Promise<unknown> },
+  roomId: string,
+): Promise<void> {
   const prefix = roomPrefix(roomId)
   for (;;) {
     const page = await bucket.list({ prefix })

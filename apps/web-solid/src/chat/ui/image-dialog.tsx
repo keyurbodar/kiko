@@ -11,7 +11,11 @@ export interface ImageDialogController {
 }
 
 export function createImageDialog(): ImageDialogController {
-  const [shown, setShown] = createSignal<{ images: readonly DialogImage[]; index: number; from: Element | null } | null>(null)
+  const [shown, setShown] = createSignal<{
+    images: readonly DialogImage[]
+    index: number
+    from: Element | null
+  } | null>(null)
   let opener: HTMLElement | null = null
   const close = () => {
     setShown(null)

@@ -1,7 +1,16 @@
 import type { FileBucket } from "../files/store"
 import type { Actor, FileOp, UserEvent } from "@kiko/protocol"
 import type { Env } from "../index"
-import type { CommitResult, FileIndex, FsChange, FsEntry, FsFail, IndexChange, NewFile, PutResult } from "../files/file-index"
+import type {
+  CommitResult,
+  FileIndex,
+  FsChange,
+  FsEntry,
+  FsFail,
+  IndexChange,
+  NewFile,
+  PutResult,
+} from "../files/file-index"
 import { cleanPath, deleteFiles } from "../files/upload"
 
 type HomeDeps = {
@@ -18,7 +27,11 @@ export class HomeWiring {
 
   put(input: NewFile): Omit<PutResult, "events"> & { fresh: boolean; entry: FsEntry | null } {
     const { events, ...result } = this.d.home.put(input)
-    return { ...result, fresh: events.some((e) => e.t === "file"), entry: result.file && !result.conflict ? this.d.home.stat(input.path) : null }
+    return {
+      ...result,
+      fresh: events.some((e) => e.t === "file"),
+      entry: result.file && !result.conflict ? this.d.home.stat(input.path) : null,
+    }
   }
 
   stat(path: string): FsEntry | null {
@@ -60,12 +73,22 @@ export class HomeWiring {
     const human = { kind: "human" } as const
     const paths = op.op === "rm" ? op.paths : op.op === "mv" ? [op.from, op.to] : [op.path]
     if (paths.some((p) => cleanPath(p) === null)) return "that is not a path in your drive"
-    const out = op.op === "rm" ? this.dropAfter(this.d.home.remove(op.paths, op.recursive ?? false, human)) : op.op === "mv" ? this.dropAfter(this.d.home.move(op.from, op.to, human)) : this.d.home.mkdir(op.path, human)
+    const out =
+      op.op === "rm"
+        ? this.dropAfter(this.d.home.remove(op.paths, op.recursive ?? false, human))
+        : op.op === "mv"
+          ? this.dropAfter(this.d.home.move(op.from, op.to, human))
+          : this.d.home.mkdir(op.path, human)
     return out.ok ? null : out.message
   }
 
   private dropAfter<T extends FsChange | FsFail>(out: T): T {
-    if (out.ok && out.drop.length) this.d.ctx.waitUntil(deleteFiles(this.d.files, out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
+    if (out.ok && out.drop.length)
+      this.d.ctx.waitUntil(
+        deleteFiles(this.d.files, out.drop).catch((e: unknown) =>
+          console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`),
+        ),
+      )
     return out
   }
 }

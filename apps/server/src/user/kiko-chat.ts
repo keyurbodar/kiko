@@ -32,4 +32,5 @@ export function kikoChatOps(sql: SqlStorage, chats: readonly Chat[]): ChatOp[] {
 export const movesKikoChat = (sql: SqlStorage, op: ChatOp) =>
   (op.op === "delete" || (op.op === "pin" && !op.pinned)) && op.roomId === kikoChatRoom(sql)
 
-export const markKikoChat = (sql: SqlStorage, chat: Chat): Chat => (chat.roomId === kikoChatRoom(sql) ? { ...chat, kiko: true } : chat)
+export const markKikoChat = (sql: SqlStorage, chat: Chat): Chat =>
+  chat.roomId === kikoChatRoom(sql) ? { ...chat, kiko: true } : chat

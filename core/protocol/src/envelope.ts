@@ -1,6 +1,18 @@
 import type { AgentSlug, MessageId, RoomId } from "./ids"
 
-export type SystemReason = "task_updated" | "task_unblocked" | "reminder" | "run_budget" | "limit" | "files" | "created" | "routine" | "stalled" | "initiative" | "divider" | "system"
+export type SystemReason =
+  | "task_updated"
+  | "task_unblocked"
+  | "reminder"
+  | "run_budget"
+  | "limit"
+  | "files"
+  | "created"
+  | "routine"
+  | "stalled"
+  | "initiative"
+  | "divider"
+  | "system"
 
 export type Human = { kind: "human" }
 export type AgentRef = { kind: "agent"; slug: AgentSlug }
@@ -11,12 +23,12 @@ export type Sender = Human | AgentRef | System
 export type Actor = Human | AgentRef
 
 export type Envelope = {
-	id: string
-	roomId: RoomId
-	from: Sender
-	body: string
-	replyTo?: MessageId
-	hop: number
-	rootId: string
-	seq: number
+  id: string
+  roomId: RoomId
+  from: Sender
+  body: string
+  replyTo?: MessageId
+  hop: number
+  rootId: string
+  seq: number
 }

@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": false,
+  "printWidth": 120,
+  "ignorePatterns": [
+    "**/*.gen.ts",
+    "**/dist/**",
+    "**/.astro/**",
+    "**/.wrangler/**",
+    "refs/**",
+    "dist-release/**",
+    "bun.lock",
+    "**/*.md"
+  ]
+}

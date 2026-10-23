@@ -49,14 +49,23 @@ export function resumeClerk(search: string): () => void {
     const ticket = new URLSearchParams(search).get("ticket")
     if (ticket) {
       void enter(() => import("../dev-ticket").then((m) => m.signInWithTicket(ticket)))
-      return () => { disposed = true }
+      return () => {
+        disposed = true
+      }
     }
   }
-  void import("../clerk").then((m) => m.onClerkSession(run)).then((stop) => {
-    if (disposed) stop()
-    else unsubscribe = stop
-  }).catch(() => {})
-  return () => { disposed = true; unsubscribe?.(); cancelAuthAttempt() }
+  void import("../clerk")
+    .then((m) => m.onClerkSession(run))
+    .then((stop) => {
+      if (disposed) stop()
+      else unsubscribe = stop
+    })
+    .catch(() => {})
+  return () => {
+    disposed = true
+    unsubscribe?.()
+    cancelAuthAttempt()
+  }
 }
 
 export function ClerkStep() {

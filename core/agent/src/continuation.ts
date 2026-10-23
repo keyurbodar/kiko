@@ -1,14 +1,22 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Harness, TaskId, TaskInspection } from "@earendil-works/pi-durable"
 
-export async function continueAtBoundary(harness: Harness, due: () => boolean, sleeping: (task: TaskInspection["record"]) => boolean = () => false): Promise<{
+export async function continueAtBoundary(
+  harness: Harness,
+  due: () => boolean,
+  sleeping: (task: TaskInspection["record"]) => boolean = () => false,
+): Promise<{
   readonly closed: Promise<void>
   readonly continuing: () => boolean
   dispose(): void
 }> {
   const live = await harness.inspect(BACKGROUND_CONTEXT)
   if (live.scheduling !== "paused") throw new Error("Attach continuation before enabling the Harness")
-  const running = new Set<TaskId>(live.tasks.filter((task) => task.record.state.status === "running" && !sleeping(task.record)).map((task) => task.record.id))
+  const running = new Set<TaskId>(
+    live.tasks
+      .filter((task) => task.record.state.status === "running" && !sleeping(task.record))
+      .map((task) => task.record.id),
+  )
   const finished = Promise.withResolvers<void>()
   let continuing = false
   const dispose = harness.subscribeCommits((publication) => {
@@ -19,7 +27,9 @@ export async function continueAtBoundary(harness: Harness, due: () => boolean, s
     }
     if (continuing || running.size || !due()) return
     continuing = true
-    queueMicrotask(() => { void harness.close(BACKGROUND_CONTEXT).then(finished.resolve, finished.reject) })
+    queueMicrotask(() => {
+      void harness.close(BACKGROUND_CONTEXT).then(finished.resolve, finished.reject)
+    })
   })
   return { closed: finished.promise, continuing: () => continuing, dispose }
 }

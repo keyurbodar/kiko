@@ -2,16 +2,31 @@ import type { ErrorAction, RunErrorAction, RunErrorKind } from "@kiko/protocol"
 import { RETRY_AFTER_TOO_LONG } from "./retry"
 
 const KINDS: readonly (readonly [RunErrorKind, RegExp])[] = [
-  ["too_long", /context[ _-]?(length|window)|maximum context|prompt is too long|too many tokens|input is too long|token limit|exceeds the (model|context)/i],
-  ["model_not_found", /model[^.]{0,40}(not found|does not exist|not available|unknown|unsupported|is not supported)|unknown model|no such model|invalid model|\bnot[_ ]found\b.{0,40}model|\b404\b/i],
-  ["quota", /quota|credit balance|insufficient[ _](funds|credit|balance)|billing|payment required|\b402\b|usage limit|exceeded your current/i],
-  ["invalid_key", /\b(401|403)\b|invalid[ _-]?(x-)?api[ _-]?key|incorrect api key|authentication|unauthori[sz]ed|permission[ _]denied|invalid[ _]token|no api key/i],
+  [
+    "too_long",
+    /context[ _-]?(length|window)|maximum context|prompt is too long|too many tokens|input is too long|token limit|exceeds the (model|context)/i,
+  ],
+  [
+    "model_not_found",
+    /model[^.]{0,40}(not found|does not exist|not available|unknown|unsupported|is not supported)|unknown model|no such model|invalid model|\bnot[_ ]found\b.{0,40}model|\b404\b/i,
+  ],
+  [
+    "quota",
+    /quota|credit balance|insufficient[ _](funds|credit|balance)|billing|payment required|\b402\b|usage limit|exceeded your current/i,
+  ],
+  [
+    "invalid_key",
+    /\b(401|403)\b|invalid[ _-]?(x-)?api[ _-]?key|incorrect api key|authentication|unauthori[sz]ed|permission[ _]denied|invalid[ _]token|no api key/i,
+  ],
   ["rate_limit", /\b429\b|rate[ _-]?limit|too many requests|resource[ _]exhausted/i],
   ["refused", /content[ _-]?(filter|policy)|safety|refus|violat|blocked|moderation/i],
   ["timeout", /timed? ?out|timeout|deadline exceeded|\b504\b|stalled|stopped responding/i],
   ["cut_off", /stream ended without finish_reason|terminated|premature close|unexpected end of (stream|json input)/i],
   ["overloaded", /overloaded|\b(502|503|529)\b|unavailable|bad gateway|capacity|\b5\d\d\b/i],
-  ["network", /connection (error|reset|refused|closed)|fetch failed|network|econn|enotfound|socket hang up|dns|offline/i],
+  [
+    "network",
+    /connection (error|reset|refused|closed)|fetch failed|network|econn|enotfound|socket hang up|dns|offline/i,
+  ],
 ]
 
 const DETAIL_MAX = 300
@@ -51,9 +66,19 @@ function providerWords(message: string | undefined): string {
   const start = text.search(HTML)
   if (start < 0) return text
   const page = text.slice(start)
-  const pick = (tag: string) => page.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"))?.[1]?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
+  const pick = (tag: string) =>
+    page
+      .match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"))?.[1]
+      ?.replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
   const said = [...new Set([pick("title"), pick("h1")].filter((t): t is string => !!t))].join(". ")
-  return [text.slice(0, start).trim(), `The provider answered with a web page instead of an answer${said ? `: ${said}` : "."}`].filter(Boolean).join(" ")
+  return [
+    text.slice(0, start).trim(),
+    `The provider answered with a web page instead of an answer${said ? `: ${said}` : "."}`,
+  ]
+    .filter(Boolean)
+    .join(" ")
 }
 
 export function runErrorDetail(message: string | undefined): string | undefined {
@@ -88,9 +113,19 @@ const REPLIES: Record<RunErrorKind, Reply> = {
   other: { reason: "returned an error", actions: ["retry", "change_model"] },
 }
 
-type RunFailure = { kind: RunErrorKind; message: string; actions: readonly RunErrorAction[]; toast: ErrorAction | undefined }
+type RunFailure = {
+  kind: RunErrorKind
+  message: string
+  actions: readonly RunErrorAction[]
+  toast: ErrorAction | undefined
+}
 
 export function describeRunError(kind: RunErrorKind, provider: string): RunFailure {
   const reply = REPLIES[kind]
-  return { kind, message: provider ? `${provider}: ${reply.reason}` : reply.reason, actions: reply.actions, toast: reply.actions.includes("open_settings") ? "open_models" : undefined }
+  return {
+    kind,
+    message: provider ? `${provider}: ${reply.reason}` : reply.reason,
+    actions: reply.actions,
+    toast: reply.actions.includes("open_settings") ? "open_models" : undefined,
+  }
 }

@@ -1,9 +1,27 @@
-import { linkTarget, attachmentError, attachmentKind, attachmentMessages, attachmentType, isImageType, MAX_ATTACHMENTS, MAX_MESSAGE_TEXT, type PendingAttachment, sendFits } from "@kiko/protocol"
+import {
+  linkTarget,
+  attachmentError,
+  attachmentKind,
+  attachmentMessages,
+  attachmentType,
+  isImageType,
+  MAX_ATTACHMENTS,
+  MAX_MESSAGE_TEXT,
+  type PendingAttachment,
+  sendFits,
+} from "@kiko/protocol"
 
 export { attachmentType, MAX_ATTACHMENTS }
 
-export function sendRefusal(text: string, editing: boolean, attachments: readonly PendingAttachment[] = []): string | null {
-  if (editing) return text.length > MAX_MESSAGE_TEXT ? `Edits can be up to ${MAX_MESSAGE_TEXT.toLocaleString("en-US")} characters.` : null
+export function sendRefusal(
+  text: string,
+  editing: boolean,
+  attachments: readonly PendingAttachment[] = [],
+): string | null {
+  if (editing)
+    return text.length > MAX_MESSAGE_TEXT
+      ? `Edits can be up to ${MAX_MESSAGE_TEXT.toLocaleString("en-US")} characters.`
+      : null
   return sendFits(text, attachments) ? null : "This message is too long to send."
 }
 
@@ -28,7 +46,10 @@ export function wrapIndex(index: number, count: number): number {
   return count > 0 ? ((index % count) + count) % count : 0
 }
 
-export function admit<T extends Named & { size: number }>(held: number, files: readonly T[]): { images: T[]; files: T[]; error: string | null } {
+export function admit<T extends Named & { size: number }>(
+  held: number,
+  files: readonly T[],
+): { images: T[]; files: T[]; error: string | null } {
   const images: T[] = []
   const others: T[] = []
   let error: string | null = null

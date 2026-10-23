@@ -17,13 +17,16 @@ const CHOICES: readonly { id: string; via: ConnectVia; note: string }[] = [
   { id: "openrouter", via: "api_key", note: "Many providers' models behind one key." },
 ]
 
-const offers = (provider: CatalogProvider, via: ConnectVia) => (via === "sign_in" ? provider.signIn !== undefined : provider.connect.includes("api_key"))
+const offers = (provider: CatalogProvider, via: ConnectVia) =>
+  via === "sign_in" ? provider.signIn !== undefined : provider.connect.includes("api_key")
 
 export function firstRunChoices(providers: readonly CatalogProvider[]): FirstRunChoice[] {
   return CHOICES.flatMap(({ id, via, note }) => {
     const provider = providers.find((p) => p.id === id)
     if (!provider || !offers(provider, via)) return []
-    return [{ provider, via, note, title: via === "sign_in" ? (provider.signIn?.label ?? provider.name) : provider.name }]
+    return [
+      { provider, via, note, title: via === "sign_in" ? (provider.signIn?.label ?? provider.name) : provider.name },
+    ]
   })
 }
 
@@ -38,7 +41,12 @@ export interface ModelChoice {
 const isFree = (c: ModelChoice) => c.model.pricing.input === 0 && c.model.pricing.output === 0
 
 export const rankModels = (list: readonly ModelChoice[]): ModelChoice[] =>
-  [...list].sort((a, b) => Number(b.model.reasoning) - Number(a.model.reasoning) || Number(isFree(a)) - Number(isFree(b)) || b.model.contextWindow - a.model.contextWindow)
+  [...list].sort(
+    (a, b) =>
+      Number(b.model.reasoning) - Number(a.model.reasoning) ||
+      Number(isFree(a)) - Number(isFree(b)) ||
+      b.model.contextWindow - a.model.contextWindow,
+  )
 
 export const startingModel = (ranked: readonly ModelChoice[], running: string | undefined): string | undefined =>
   ranked.find((c) => c.ref === running)?.ref ?? ranked[0]?.ref

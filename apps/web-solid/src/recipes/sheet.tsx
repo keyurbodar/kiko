@@ -11,7 +11,12 @@ import { addToTarget, editRecipe, installsFor, isAdded, isEditing, refreshListin
 const label = "px-1 text-[11.5px] font-semibold text-muted-foreground"
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-export function RecipeSheet(props: { recipe: RecipeCard; onClose: () => void; roomId?: string | null; mode?: "add" | "details" }) {
+export function RecipeSheet(props: {
+  recipe: RecipeCard
+  onClose: () => void
+  roomId?: string | null
+  mode?: "add" | "details"
+}) {
   const navigate = useNavigate()
   const go = (to: string) => {
     props.onClose()
@@ -35,13 +40,21 @@ export function RecipeSheet(props: { recipe: RecipeCard; onClose: () => void; ro
           <RecipeIcon recipe={props.recipe} size={52} stickers />
           <span class="flex min-w-0 flex-col gap-0.5 pl-1">
             <span class="truncate text-[17px] font-semibold tracking-[-0.01em]">{props.recipe.title}</span>
-            <span class="truncate text-[12.5px] font-normal text-muted-foreground">{adding() ? "Choose where it runs" : props.recipe.when}</span>
+            <span class="truncate text-[12.5px] font-normal text-muted-foreground">
+              {adding() ? "Choose where it runs" : props.recipe.when}
+            </span>
           </span>
         </span>
       }
       footer={
         <Show when={!adding()}>
-          <Button variant="ghost" class="mr-auto rounded-full" data-action="recipe-file" busy={isEditing(props.recipe.slug)} onClick={() => void editRecipe(props.recipe.slug, go)}>
+          <Button
+            variant="ghost"
+            class="mr-auto rounded-full"
+            data-action="recipe-file"
+            busy={isEditing(props.recipe.slug)}
+            onClick={() => void editRecipe(props.recipe.slug, go)}
+          >
             Edit recipe
           </Button>
           <button
@@ -84,7 +97,13 @@ export function RecipeSheet(props: { recipe: RecipeCard; onClose: () => void; ro
             <section class="flex flex-col gap-1.5" data-component="recipe-setup">
               <h3 class={label}>Your agent will ask</h3>
               <div class="flex flex-col items-start gap-1">
-                <For each={props.recipe.setup}>{(q) => <p class="max-w-[85%] rounded-[14px] rounded-bl-[4px] bg-card px-3 py-2 text-[13.5px] leading-snug text-foreground">{capital(q)}</p>}</For>
+                <For each={props.recipe.setup}>
+                  {(q) => (
+                    <p class="max-w-[85%] rounded-[14px] rounded-bl-[4px] bg-card px-3 py-2 text-[13.5px] leading-snug text-foreground">
+                      {capital(q)}
+                    </p>
+                  )}
+                </For>
               </div>
             </section>
           </Show>
@@ -92,7 +111,9 @@ export function RecipeSheet(props: { recipe: RecipeCard; onClose: () => void; ro
           <Show when={installs().length}>
             <section class="-mx-2.5 flex flex-col gap-0.5" data-component="recipe-installs">
               <h3 class={`${label} px-3.5 pb-1`}>Running in</h3>
-              <For each={installs()}>{(install) => <InstallRow install={install} card={props.recipe} navigate={go} />}</For>
+              <For each={installs()}>
+                {(install) => <InstallRow install={install} card={props.recipe} navigate={go} />}
+              </For>
             </section>
           </Show>
         </div>

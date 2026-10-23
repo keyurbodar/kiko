@@ -132,7 +132,12 @@ export class Tree {
   node(span: Span): Node | null {
     const size = span.hi - span.lo
     const row = this.sql
-      .exec<{ text: string; at_from: number; at_to: number }>(`SELECT text, at_from, at_to FROM ${this.name} WHERE (size = ?1 AND k = ?2) AND ${this.name}.room_id = ?3`, size, span.lo / size, this.roomId)
+      .exec<{ text: string; at_from: number; at_to: number }>(
+        `SELECT text, at_from, at_to FROM ${this.name} WHERE (size = ?1 AND k = ?2) AND ${this.name}.room_id = ?3`,
+        size,
+        span.lo / size,
+        this.roomId,
+      )
       .toArray()[0]
     return row ? { text: row.text, from: row.at_from, to: row.at_to } : null
   }
@@ -141,13 +146,25 @@ export class Tree {
     const size = span.hi - span.lo
     const k = span.lo / size
     return (
-      this.sql.exec(`INSERT OR IGNORE INTO ${this.name} (size, k, text, at_from, at_to, room_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`, size, k, node.text, node.from, node.to, this.roomId)
-        .rowsWritten > 0
+      this.sql.exec(
+        `INSERT OR IGNORE INTO ${this.name} (size, k, text, at_from, at_to, room_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+        size,
+        k,
+        node.text,
+        node.from,
+        node.to,
+        this.roomId,
+      ).rowsWritten > 0
     )
   }
 
   forget(pos: number): number {
-    return this.sql.exec(`DELETE FROM ${this.name} WHERE (k * size <= ?1 AND (k + 1) * size > ?2) AND ${this.name}.room_id = ?3`, pos, pos, this.roomId).rowsWritten
+    return this.sql.exec(
+      `DELETE FROM ${this.name} WHERE (k * size <= ?1 AND (k + 1) * size > ?2) AND ${this.name}.room_id = ?3`,
+      pos,
+      pos,
+      this.roomId,
+    ).rowsWritten
   }
 
   pending(settled: number, limit: number): Span[] {
@@ -159,9 +176,24 @@ export class Tree {
       return this.node({ lo: span.lo, hi: mid }) !== null && this.node({ lo: mid, hi: span.hi }) !== null
     }
     for (let size = this.shape.page; size <= settled && out.length < limit; size *= 2) {
-      const { n, k: frontier } = this.sql.exec<{ n: number; k: number | null }>(`SELECT COUNT(*) AS n, MAX(k) AS k FROM ${this.name} WHERE size = ?1 AND ${this.name}.room_id = ?2`, size, this.roomId).one()
+      const { n, k: frontier } = this.sql
+        .exec<{ n: number; k: number | null }>(
+          `SELECT COUNT(*) AS n, MAX(k) AS k FROM ${this.name} WHERE size = ?1 AND ${this.name}.room_id = ?2`,
+          size,
+          this.roomId,
+        )
+        .one()
       if (frontier !== null && n < frontier + 1) {
-        const built = new Set(this.sql.exec<{ k: number }>(`SELECT k FROM ${this.name} WHERE size = ?1 AND ${this.name}.room_id = ?2`, size, this.roomId).toArray().map((r) => r.k))
+        const built = new Set(
+          this.sql
+            .exec<{ k: number }>(
+              `SELECT k FROM ${this.name} WHERE size = ?1 AND ${this.name}.room_id = ?2`,
+              size,
+              this.roomId,
+            )
+            .toArray()
+            .map((r) => r.k),
+        )
         for (let k = 0; k < frontier && out.length < limit; k++) {
           const span = { lo: k * size, hi: (k + 1) * size }
           if (!built.has(k) && ready(span)) out.push(span)
@@ -190,15 +222,28 @@ export class Tree {
   }
 
   free(input: NapInput): string | null {
-    const parts = "items" in input ? input.items.map((i) => i.text.replace(/\s+/g, " ").trim()) : input.halves.map((h) => h.text)
+    const parts =
+      "items" in input ? input.items.map((i) => i.text.replace(/\s+/g, " ").trim()) : input.halves.map((h) => h.text)
     const text = parts.join("; ")
     return encoder.encode(text).byteLength <= LINE_BYTES ? text : null
   }
 
   failed(span: Span): number {
     const size = span.hi - span.lo
-    this.sql.exec(`INSERT INTO ${this.name}_fails (size, k, n, room_id) VALUES (?1, ?2, 1, ?3) ON CONFLICT(size, k, room_id) DO UPDATE SET n = n + 1`, size, span.lo / size, this.roomId)
-    return this.sql.exec<{ n: number }>(`SELECT n FROM ${this.name}_fails WHERE (size = ?1 AND k = ?2) AND ${this.name}_fails.room_id = ?3`, size, span.lo / size, this.roomId).one().n
+    this.sql.exec(
+      `INSERT INTO ${this.name}_fails (size, k, n, room_id) VALUES (?1, ?2, 1, ?3) ON CONFLICT(size, k, room_id) DO UPDATE SET n = n + 1`,
+      size,
+      span.lo / size,
+      this.roomId,
+    )
+    return this.sql
+      .exec<{ n: number }>(
+        `SELECT n FROM ${this.name}_fails WHERE (size = ?1 AND k = ?2) AND ${this.name}_fails.room_id = ?3`,
+        size,
+        span.lo / size,
+        this.roomId,
+      )
+      .one().n
   }
 
   nodeFor(input: NapInput, text: string): Node {
@@ -209,7 +254,12 @@ export class Tree {
     return { text, from: a.from, to: b.to }
   }
 
-  view(count: number, prev: readonly Span[] | null, now: number, tail: (lo: number, hi: number) => Item[] = this.items): { lines: string[]; tiling: Span[] } {
+  view(
+    count: number,
+    prev: readonly Span[] | null,
+    now: number,
+    tail: (lo: number, hi: number) => Item[] = this.items,
+  ): { lines: string[]; tiling: Span[] } {
     const end = region(count, this.shape)
     const tiling = tile(prev, end, this.shape)
     const lines: string[] = []
@@ -226,7 +276,8 @@ export class Tree {
   render(span: Span, now: number, out: string[] = []): string[] {
     const node = this.node(span)
     if (node) out.push(nodeLine(span, node, now))
-    else if (span.hi - span.lo <= this.shape.page) for (const item of this.items(span.lo, span.hi)) out.push(itemLine(item, PAGE_CUT, true, this.shape.log))
+    else if (span.hi - span.lo <= this.shape.page)
+      for (const item of this.items(span.lo, span.hi)) out.push(itemLine(item, PAGE_CUT, true, this.shape.log))
     else {
       const mid = (span.lo + span.hi) / 2
       this.render({ lo: span.lo, hi: mid }, now, out)
@@ -237,10 +288,14 @@ export class Tree {
 
   zoom(span: Span, count: number, now: number): string[] {
     if (span.lo >= count) return []
-    if (span.hi - span.lo <= this.shape.page) return this.items(span.lo, Math.min(span.hi, count)).map((i) => itemLine(i, ZOOM_CUT, true, this.shape.log))
+    if (span.hi - span.lo <= this.shape.page)
+      return this.items(span.lo, Math.min(span.hi, count)).map((i) => itemLine(i, ZOOM_CUT, true, this.shape.log))
     const mid = (span.lo + span.hi) / 2
     const out: string[] = []
-    for (const half of [{ lo: span.lo, hi: mid }, { lo: mid, hi: span.hi }]) {
+    for (const half of [
+      { lo: span.lo, hi: mid },
+      { lo: mid, hi: span.hi },
+    ]) {
       if (half.lo >= count) continue
       const node = this.node(half)
       if (node) out.push(nodeLine(half, node, now))
@@ -289,16 +344,20 @@ export function range(from: number, to: number, now: number): string {
   return `${day(a)}–${day(b)}${year(a)}`
 }
 
-
 export const NAP_SYSTEM =
   "you keep a long-term memory by compressing logs into single lines. you answer with exactly one line of plain lowercase text and nothing else."
 
 const NAP_ITEM_CUT = 8_000
 
 export function napPrompt(input: NapInput, what: "turns" | "memories"): string {
-  const body = "items" in input ? input.items.map((i) => (i.text.length > NAP_ITEM_CUT ? `${i.text.slice(0, NAP_ITEM_CUT)}…` : i.text)) : input.halves.map((h) => h.text)
+  const body =
+    "items" in input
+      ? input.items.map((i) => (i.text.length > NAP_ITEM_CUT ? `${i.text.slice(0, NAP_ITEM_CUT)}…` : i.text))
+      : input.halves.map((h) => h.text)
   return [
-    "items" in input ? `compress these ${what} into one line of at most ${LINE_WORDS} words.` : `merge these two lines into one line of at most ${LINE_WORDS} words.`,
+    "items" in input
+      ? `compress these ${what} into one line of at most ${LINE_WORDS} words.`
+      : `merge these two lines into one line of at most ${LINE_WORDS} words.`,
     "keep what has lasting effect: facts about people, decisions, plans, results, open questions, who did what. copy exactly every name, number, amount, date, time, place, and code (like a flight or booking number): a later reader needs them word for word. drop small talk, greetings, and repeats. invent nothing. name people and agents as they are named below.",
     "",
     ...body,
@@ -311,7 +370,10 @@ export function cleanLine(answer: string): string | null {
     .map((l) => l.trim())
     .find((l) => l.length > 0)
   if (!first) return null
-  const line = first.replace(/^["'`]+|["'`]+$/g, "").replace(/^#\d+(-\d+)?\s*/, "").trim()
+  const line = first
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/^#\d+(-\d+)?\s*/, "")
+    .trim()
   return line ? capBytes(line, LINE_BYTES) : null
 }
 

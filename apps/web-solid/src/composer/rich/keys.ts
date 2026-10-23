@@ -38,7 +38,8 @@ function numberSplitItems(tr: Transaction): Transaction {
   list.forEach((child, offset, childIndex) => {
     if (childIndex < index) return
     previous = nextOrderedMarker(previous)
-    if (child.attrs.marker !== previous) tr.setNodeMarkup(listPos + 1 + offset, undefined, { ...child.attrs, marker: previous })
+    if (child.attrs.marker !== previous)
+      tr.setNodeMarkup(listPos + 1 + offset, undefined, { ...child.attrs, marker: previous })
   })
   return tr
 }
@@ -198,7 +199,11 @@ export function exitCodeBlockOnClosingFence(state: EditorState, dispatch?: Dispa
     const rest = newlineAfter === -1 ? [] : block.text.slice(newlineAfter + 1).split("\n")
     const closed = node.type.create({ ...node.attrs, close: `\n${line}` }, code ? schema.text(code) : null)
     const start = state.selection.$from.before()
-    const transaction = state.tr.replaceWith(start, start + node.nodeSize, [closed, paragraph(""), ...rest.map(paragraph)])
+    const transaction = state.tr.replaceWith(start, start + node.nodeSize, [
+      closed,
+      paragraph(""),
+      ...rest.map(paragraph),
+    ])
     transaction.setSelection(TextSelection.create(transaction.doc, start + closed.nodeSize + 1))
     dispatch(transaction.scrollIntoView())
   }

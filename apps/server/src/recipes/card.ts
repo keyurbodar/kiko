@@ -10,5 +10,18 @@ export function recipeCard(r: Recipe, custom: boolean, connected: ReadonlySet<st
     const slug = toolkitSlug(name)
     return { name, slug, connected: connected ? connected.has(slug) : null }
   })
-  return { slug: r.slug, title: r.title, description: r.description, when: r.when, apps, setup: r.setup, agent: r.agent, custom, tags: r.tags, icon, glyph, tone }
+  return {
+    slug: r.slug,
+    title: r.title,
+    description: r.description,
+    when: r.when,
+    apps,
+    setup: r.setup,
+    agent: r.agent,
+    custom,
+    tags: r.tags,
+    icon,
+    glyph,
+    tone,
+  }
 }

@@ -2,7 +2,12 @@ import { formatHex, interpolate, parse, rgb, wcagContrast, wcagLuminance } from 
 import { themeId, type ImportedTheme } from "./imported"
 import { THEMES, PALETTES, type ThemeAppearance } from "./palette"
 
-export type VsCodeTheme = { type?: unknown; include?: unknown; colors?: Record<string, unknown>; [key: string]: unknown }
+export type VsCodeTheme = {
+  type?: unknown
+  include?: unknown
+  colors?: Record<string, unknown>
+  [key: string]: unknown
+}
 
 const MAX_COLOR_LENGTH = 128
 const MAX_INCLUDE_DEPTH = 8
@@ -35,10 +40,18 @@ function flatten(value: unknown, base: string): string | null {
 
 const mix = (from: string, to: string, share: number) => formatHex(interpolate([from, to], "rgb")(share))
 const readableOn = (surface: string, preferred: string) =>
-  wcagContrast(preferred, surface) >= TEXT_CONTRAST ? preferred : wcagContrast("#000000", surface) >= wcagContrast("#ffffff", surface) ? "#000000" : "#ffffff"
+  wcagContrast(preferred, surface) >= TEXT_CONTRAST
+    ? preferred
+    : wcagContrast("#000000", surface) >= wcagContrast("#ffffff", surface)
+      ? "#000000"
+      : "#ffffff"
 
 function ink(surface: string, min: number, candidates: ReadonlyArray<string | null>, fallback: string): string {
-  return candidates.find((candidate): candidate is string => candidate !== null && wcagContrast(candidate, surface) >= min) ?? fallback
+  return (
+    candidates.find(
+      (candidate): candidate is string => candidate !== null && wcagContrast(candidate, surface) >= min,
+    ) ?? fallback
+  )
 }
 
 function appearanceOf(type: unknown, canvas: string): ThemeAppearance {
@@ -50,7 +63,8 @@ function appearanceOf(type: unknown, canvas: string): ThemeAppearance {
 
 export function themeFromVsCode(json: VsCodeTheme, meta: { id: string; name: string; source: string }): ImportedTheme {
   const colors = isObject(json.colors) ? json.colors : {}
-  const firstOf = (candidates: ReadonlyArray<string | null>) => candidates.find((candidate) => candidate !== null) ?? null
+  const firstOf = (candidates: ReadonlyArray<string | null>) =>
+    candidates.find((candidate) => candidate !== null) ?? null
 
   const canvas = firstOf([opaque(colors["editor.background"]), opaque(colors["editorPane.background"])])
   if (!canvas) throw new Error("That theme has no editor background, so there is nothing to build a palette from.")
@@ -68,7 +82,12 @@ export function themeFromVsCode(json: VsCodeTheme, meta: { id: string; name: str
     name: meta.name.slice(0, 48),
     source: meta.source,
     appearance,
-    accent: ink(canvas, SHAPE_CONTRAST, pick("focusBorder", "textLink.foreground", "button.background", "activityBarBadge.background"), THEMES[appearance === "dark" ? "glacier" : "snow"].accent),
+    accent: ink(
+      canvas,
+      SHAPE_CONTRAST,
+      pick("focusBorder", "textLink.foreground", "button.background", "activityBarBadge.background"),
+      THEMES[appearance === "dark" ? "glacier" : "snow"].accent,
+    ),
     palette: {
       canvas,
       sidebar: firstOf(pick("sideBar.background", "activityBar.background")) ?? mix(canvas, text, 0.04),
@@ -78,7 +97,12 @@ export function themeFromVsCode(json: VsCodeTheme, meta: { id: string; name: str
       action,
       actionHover: mix(action, onAction, 0.12),
       onAction,
-      danger: ink(canvas, TEXT_CONTRAST, pick("errorForeground", "editorError.foreground"), readableOn(canvas, fallback.danger)),
+      danger: ink(
+        canvas,
+        TEXT_CONTRAST,
+        pick("errorForeground", "editorError.foreground"),
+        readableOn(canvas, fallback.danger),
+      ),
       gold: ink(canvas, TEXT_CONTRAST, pick("editorWarning.foreground"), readableOn(canvas, fallback.gold)),
     },
   }
@@ -128,7 +152,11 @@ export function packagePath(from: string, relative: string): string {
   return parts.join("/")
 }
 
-export async function readVsCodeTheme(path: string, read: (path: string) => Promise<VsCodeTheme>, depth = 0): Promise<VsCodeTheme> {
+export async function readVsCodeTheme(
+  path: string,
+  read: (path: string) => Promise<VsCodeTheme>,
+  depth = 0,
+): Promise<VsCodeTheme> {
   if (depth >= MAX_INCLUDE_DEPTH) throw new Error("Theme includes are nested too deeply.")
   const value = await read(path)
   if (typeof value.include !== "string") return value

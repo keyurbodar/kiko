@@ -8,7 +8,13 @@ export const WARN_BYTES = 800_000_000
 
 export function readStorage(value: unknown): Storage | null {
   const v = (value ?? {}) as Record<string, unknown>
-  if (typeof v.objectBytes !== "number" || !Number.isFinite(v.objectBytes) || v.objectBytes < 0 || typeof v.archiveEnabled !== "boolean") return null
+  if (
+    typeof v.objectBytes !== "number" ||
+    !Number.isFinite(v.objectBytes) ||
+    v.objectBytes < 0 ||
+    typeof v.archiveEnabled !== "boolean"
+  )
+    return null
   return { objectBytes: v.objectBytes, archiveEnabled: v.archiveEnabled }
 }
 

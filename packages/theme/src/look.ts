@@ -1,4 +1,15 @@
-import { CHARM_NAMES, EYE_NAMES, FLAVOUR_NAMES, LEAF_NAMES, OUTFIT_NAMES, type CharmName, type EyeName, type FlavourName, type LeafName, type OutfitName } from "@kiko/avatar"
+import {
+  CHARM_NAMES,
+  EYE_NAMES,
+  FLAVOUR_NAMES,
+  LEAF_NAMES,
+  OUTFIT_NAMES,
+  type CharmName,
+  type EyeName,
+  type FlavourName,
+  type LeafName,
+  type OutfitName,
+} from "@kiko/avatar"
 import { DEFAULT_DISPLAY, readDisplay, type Display } from "./display"
 import { EMPTY_IMPORTED, readImported, type Imported } from "./imported"
 import { DEFAULT_DARK_THEME, isDarkThemeId, type DarkThemeId, type ThemeMode } from "./palette"
@@ -22,22 +33,45 @@ export type Look = {
   imported: Imported
 }
 
-export const DEFAULT_LOOK: Look = { mode: "dark", darkTheme: DEFAULT_DARK_THEME, avatars: {}, display: DEFAULT_DISPLAY, imported: EMPTY_IMPORTED }
+export const DEFAULT_LOOK: Look = {
+  mode: "dark",
+  darkTheme: DEFAULT_DARK_THEME,
+  avatars: {},
+  display: DEFAULT_DISPLAY,
+  imported: EMPTY_IMPORTED,
+}
 
 const MAX_AVATARS = 200
 const SLUG = /^[a-z0-9_-]{1,40}$/
 
 const BIRD_FLAVOURS: Record<string, FlavourName> = {
-  kiko: "fubuki", matcha: "matcha", sakura: "sakura", hojicha: "hojicha", ichigo: "ichigo", kinako: "kinako",
-  ramune: "ramune", yuzu: "yuzu", mintchoco: "chocomint", peach: "momo", lavender: "ajisai", earlgrey: "usuzumi", sesame: "goma",
+  kiko: "fubuki",
+  matcha: "matcha",
+  sakura: "sakura",
+  hojicha: "hojicha",
+  ichigo: "ichigo",
+  kinako: "kinako",
+  ramune: "ramune",
+  yuzu: "yuzu",
+  mintchoco: "chocomint",
+  peach: "momo",
+  lavender: "ajisai",
+  earlgrey: "usuzumi",
+  sesame: "goma",
 }
 const BIRD_OUTFITS: Record<string, Pick<AvatarPins, "charm" | "leaf">> = {
-  beret: { charm: "beret" }, phones: { charm: "headphones" }, bow: { charm: "ribbon" }, snowcap: { charm: "snowflake" },
-  crown: { charm: "camellia" }, blossom: { charm: "cherries" }, momiji: { leaf: "momiji" },
+  beret: { charm: "beret" },
+  phones: { charm: "headphones" },
+  bow: { charm: "ribbon" },
+  snowcap: { charm: "snowflake" },
+  crown: { charm: "camellia" },
+  blossom: { charm: "cherries" },
+  momiji: { leaf: "momiji" },
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
-const one = <T extends string>(value: unknown, names: readonly T[]): T | undefined => names.find((name) => name === value)
+const one = <T extends string>(value: unknown, names: readonly T[]): T | undefined =>
+  names.find((name) => name === value)
 
 function readPins(raw: unknown): AvatarPins | null {
   if (!isObject(raw)) return null
@@ -77,7 +111,11 @@ export function parseLook(text: string | null): Look {
     return DEFAULT_LOOK
   }
   if (!isObject(raw) || raw.kind !== "look") return DEFAULT_LOOK
-  const avatars = isObject(raw.avatars) ? readAvatars(raw.avatars, false) : isObject(raw.birds) ? readAvatars(raw.birds, true) : {}
+  const avatars = isObject(raw.avatars)
+    ? readAvatars(raw.avatars, false)
+    : isObject(raw.birds)
+      ? readAvatars(raw.birds, true)
+      : {}
   return {
     mode: one(raw.mode, MODES) ?? DEFAULT_LOOK.mode,
     darkTheme: raw.version === 4 && isDarkThemeId(raw.darkTheme) ? raw.darkTheme : DEFAULT_DARK_THEME,
@@ -96,5 +134,13 @@ export function isCurrentLook(text: string | null): boolean {
 }
 
 export function formatLook(look: Look): string {
-  return JSON.stringify({ version: 4, kind: "look", mode: look.mode, darkTheme: look.darkTheme, avatars: look.avatars, display: look.display, imported: { v: 1, ...look.imported } })
+  return JSON.stringify({
+    version: 4,
+    kind: "look",
+    mode: look.mode,
+    darkTheme: look.darkTheme,
+    avatars: look.avatars,
+    display: look.display,
+    imported: { v: 1, ...look.imported },
+  })
 }

@@ -126,7 +126,11 @@ const ROOT = resolve(import.meta.dirname, "../node_modules/remixicon/icons")
 const files = new Map(
   readdirSync(ROOT, { withFileTypes: true })
     .filter((dir) => dir.isDirectory())
-    .flatMap((dir) => readdirSync(join(ROOT, dir.name)).map((file) => [file.replace(/\.svg$/, ""), join(ROOT, dir.name, file)] as const)),
+    .flatMap((dir) =>
+      readdirSync(join(ROOT, dir.name)).map(
+        (file) => [file.replace(/\.svg$/, ""), join(ROOT, dir.name, file)] as const,
+      ),
+    ),
 )
 
 const rows = Object.entries(ICONS).map(([name, icon]) => {

@@ -6,7 +6,15 @@ export const logoUrl = (app: Pick<RecipeApp, "slug">) => `https://logos.composio
 
 export function AppLogo(props: { app: RecipeApp; size: number; overlap?: number }) {
   return (
-    <span class="recipe-logo" style={{ width: `${props.size}px`, height: `${props.size}px`, "margin-left": props.overlap ? `-${props.overlap}px` : undefined }} title={props.app.name}>
+    <span
+      class="recipe-logo"
+      style={{
+        width: `${props.size}px`,
+        height: `${props.size}px`,
+        "margin-left": props.overlap ? `-${props.overlap}px` : undefined,
+      }}
+      title={props.app.name}
+    >
       <img src={logoUrl(props.app)} alt="" loading="lazy" draggable={false} />
     </span>
   )
@@ -15,10 +23,22 @@ export function AppLogo(props: { app: RecipeApp; size: number; overlap?: number 
 export const toneStyle = (recipe: Pick<RecipeCard, "tone">) => ({ "--recipe-tone": `var(--recipe-${recipe.tone})` })
 
 export function RecipeWatermark(props: { recipe: Pick<RecipeCard, "glyph"> }) {
-  return <svg class="recipe-watermark" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" innerHTML={props.recipe.glyph} />
+  return (
+    <svg
+      class="recipe-watermark"
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      aria-hidden="true"
+      innerHTML={props.recipe.glyph}
+    />
+  )
 }
 
-export function RecipeIcon(props: { recipe: Pick<RecipeCard, "glyph" | "tone" | "apps">; size: number; stickers?: boolean }) {
+export function RecipeIcon(props: {
+  recipe: Pick<RecipeCard, "glyph" | "tone" | "apps">
+  size: number
+  stickers?: boolean
+}) {
   const sticker = () => Math.max(16, Math.round(props.size * 0.42))
   return (
     <span
@@ -30,7 +50,9 @@ export function RecipeIcon(props: { recipe: Pick<RecipeCard, "glyph" | "tone" | 
       <svg viewBox="0 0 256 256" fill="currentColor" innerHTML={props.recipe.glyph} />
       <Show when={props.stickers && props.recipe.apps.length}>
         <span class="recipe-stickers">
-          <For each={props.recipe.apps.slice(0, 3)}>{(app, i) => <AppLogo app={app} size={sticker()} overlap={i() ? Math.round(sticker() * 0.3) : 0} />}</For>
+          <For each={props.recipe.apps.slice(0, 3)}>
+            {(app, i) => <AppLogo app={app} size={sticker()} overlap={i() ? Math.round(sticker() * 0.3) : 0} />}
+          </For>
         </span>
       </Show>
     </span>

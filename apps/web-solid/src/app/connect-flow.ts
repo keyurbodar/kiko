@@ -13,7 +13,9 @@ export interface TokenLink {
   permissions: string[]
 }
 
-export type Grant = { kind: "oauth"; code: string; verifier: string; redirectUri: string } | { kind: "token"; token: string }
+export type Grant =
+  | { kind: "oauth"; code: string; verifier: string; redirectUri: string }
+  | { kind: "token"; token: string }
 
 export interface InstallError {
   code: string
@@ -30,7 +32,11 @@ export const INSTALLER_URL: string = (import.meta.env.VITE_INSTALLER_URL ?? "").
 
 export const redirectUri = (origin: string) => `${origin}/connect/callback`
 
-const b64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+const b64url = (bytes: Uint8Array) =>
+  btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
 
 const randomString = () => b64url(crypto.getRandomValues(new Uint8Array(32)))
 
@@ -74,10 +80,20 @@ export function takePending(): { verifier: string; state: string; reconnect: boo
   }
 }
 
-export function oauthGrant(search: string, pending: { verifier: string; state: string } | null, uri: string): { grant: Grant } | { error: InstallError } {
+export function oauthGrant(
+  search: string,
+  pending: { verifier: string; state: string } | null,
+  uri: string,
+): { grant: Grant } | { error: InstallError } {
   const params = new URLSearchParams(search)
   const denied = params.get("error")
-  if (denied) return { error: { code: "oauth_denied", message: params.get("error_description") ?? "Cloudflare did not approve the connection." } }
+  if (denied)
+    return {
+      error: {
+        code: "oauth_denied",
+        message: params.get("error_description") ?? "Cloudflare did not approve the connection.",
+      },
+    }
   const code = params.get("code")
   if (!pending || !code || params.get("state") !== pending.state) {
     return { error: { code: "state_mismatch", message: "This sign-in link is not valid anymore." } }
@@ -97,15 +113,20 @@ const WORKERS_DASHBOARD = "https://dash.cloudflare.com/?to=/:account/workers-and
 const WORKERS_LINK = { href: WORKERS_DASHBOARD, label: "Open Workers in Cloudflare" }
 const TOKENS_LINK = { href: "https://dash.cloudflare.com/profile/api-tokens", label: "Open API tokens in Cloudflare" }
 
-export function retryKind(error: InstallError, grant: Grant["kind"] = "oauth"): "sign-in" | "new-grant" | "token" | "same" {
+export function retryKind(
+  error: InstallError,
+  grant: Grant["kind"] = "oauth",
+): "sign-in" | "new-grant" | "token" | "same" {
   if (error.installed) return "sign-in"
   if (grant === "token") return error.code === "bad_token" ? "token" : "same"
   return "new-grant"
 }
 
 export function tokenProblem(token: string): string | null {
-  if (/^[0-9a-f]{37}$/i.test(token)) return "That looks like your Global API Key. Kiko needs an API token: create one with the link above and paste the value Cloudflare shows."
-  if (/^[0-9a-f]{32}$/i.test(token)) return "That looks like a token's ID. Paste the token value Cloudflare showed once when you created it. If you no longer have it, roll the token or create a new one."
+  if (/^[0-9a-f]{37}$/i.test(token))
+    return "That looks like your Global API Key. Kiko needs an API token: create one with the link above and paste the value Cloudflare shows."
+  if (/^[0-9a-f]{32}$/i.test(token))
+    return "That looks like a token's ID. Paste the token value Cloudflare showed once when you created it. If you no longer have it, roll the token or create a new one."
   return null
 }
 
@@ -117,9 +138,17 @@ export function failureOf(error: InstallError): Failure {
 function sentence(error: InstallError): Failure {
   switch (error.code) {
     case "bad_token":
-      return { message: "Cloudflare does not recognise this token. It may have been deleted, rolled, or copied in part. Paste the token value Cloudflare showed once when you created it.", link: TOKENS_LINK }
+      return {
+        message:
+          "Cloudflare does not recognise this token. It may have been deleted, rolled, or copied in part. Paste the token value Cloudflare showed once when you created it.",
+        link: TOKENS_LINK,
+      }
     case "cannot_create":
-      return { message: "This token may change Workers but not create one. Edit the token, give it Workers Admin (not Workers Editor), then try again.", link: TOKENS_LINK }
+      return {
+        message:
+          "This token may change Workers but not create one. Edit the token, give it Workers Admin (not Workers Editor), then try again.",
+        link: TOKENS_LINK,
+      }
     case "oauth_failed":
       return { message: "Cloudflare did not finish the sign-in. Connect again." }
     case "oauth_denied":
@@ -133,17 +162,34 @@ function sentence(error: InstallError): Failure {
     case "no_subdomain":
       return { message: "This account has no workers.dev address yet. Create one, then try again.", link: WORKERS_LINK }
     case "no_account":
-      return { message: "No Cloudflare account was found for this sign-in. Create one, then try again.", link: { href: "https://dash.cloudflare.com/sign-up", label: "Create a Cloudflare account" } }
+      return {
+        message: "No Cloudflare account was found for this sign-in. Create one, then try again.",
+        link: { href: "https://dash.cloudflare.com/sign-up", label: "Create a Cloudflare account" },
+      }
     case "no_permission":
-      return { message: "Cloudflare did not let this sign-in do a step of the install. Check that you are an admin of the account, or use an API token with the permissions Kiko lists under Use an API token instead.", link: TOKENS_LINK }
+      return {
+        message:
+          "Cloudflare did not let this sign-in do a step of the install. Check that you are an admin of the account, or use an API token with the permissions Kiko lists under Use an API token instead.",
+        link: TOKENS_LINK,
+      }
     case "busy":
       return { message: "Cloudflare is busy. Wait a minute, then try again." }
     case "cloudflare_down":
-      return { message: "Cloudflare is having trouble right now. Try again in a few minutes.", link: { href: "https://www.cloudflarestatus.com/", label: "Open Cloudflare status" } }
+      return {
+        message: "Cloudflare is having trouble right now. Try again in a few minutes.",
+        link: { href: "https://www.cloudflarestatus.com/", label: "Open Cloudflare status" },
+      }
     case "not_ready":
-      return { message: "Kiko is installed but has not started answering yet. Wait a minute, then try again.", link: WORKERS_LINK }
+      return {
+        message: "Kiko is installed but has not started answering yet. Wait a minute, then try again.",
+        link: WORKERS_LINK,
+      }
     case "cloudflare_error":
-      return { message: "Cloudflare did not accept a step of the install. Try again. If it keeps failing, open Workers in your dashboard once.", link: WORKERS_LINK }
+      return {
+        message:
+          "Cloudflare did not accept a step of the install. Try again. If it keeps failing, open Workers in your dashboard once.",
+        link: WORKERS_LINK,
+      }
     case "unauthorized":
       return { message: "Your Kiko sign-in expired. Reload the page and sign in again." }
     default:
@@ -170,13 +216,24 @@ async function installerGet<T>(path: string, valid: (body: Record<string, unknow
 }
 
 export const loadOAuthConfig = (f: Fetch = fetch) =>
-  installerGet<OAuthConfig>("/oauth/config", (b) => typeof b.clientId === "string" && typeof b.authorizeUrl === "string" && Array.isArray(b.scopes), f)
+  installerGet<OAuthConfig>(
+    "/oauth/config",
+    (b) => typeof b.clientId === "string" && typeof b.authorizeUrl === "string" && Array.isArray(b.scopes),
+    f,
+  )
 
-export const loadTokenLink = (f: Fetch = fetch) => installerGet<TokenLink>("/token-link", (b) => typeof b.url === "string" && Array.isArray(b.permissions), f)
+export const loadTokenLink = (f: Fetch = fetch) =>
+  installerGet<TokenLink>("/token-link", (b) => typeof b.url === "string" && Array.isArray(b.permissions), f)
 
 export type InstallResult = { ok: true; backendUrl: string } | { ok: false; error: InstallError }
 
-export async function install(clerkToken: string, grant: Grant, f: Fetch = fetch, accountId?: string, reset?: "delete-existing-data"): Promise<InstallResult> {
+export async function install(
+  clerkToken: string,
+  grant: Grant,
+  f: Fetch = fetch,
+  accountId?: string,
+  reset?: "delete-existing-data",
+): Promise<InstallResult> {
   let res: Response
   try {
     res = await f(`${INSTALLER_URL}/install`, {
@@ -189,7 +246,8 @@ export async function install(clerkToken: string, grant: Grant, f: Fetch = fetch
   }
   if (!res.ok) return { ok: false, error: await errorOf(res) }
   const body = (await res.json().catch(() => null)) as { backendUrl?: unknown } | null
-  if (typeof body?.backendUrl !== "string") return { ok: false, error: { code: "failed", message: "The install did not return an address." } }
+  if (typeof body?.backendUrl !== "string")
+    return { ok: false, error: { code: "failed", message: "The install did not return an address." } }
   return { ok: true, backendUrl: body.backendUrl }
 }
 
@@ -212,7 +270,10 @@ export async function finish(exchange: () => Promise<void>): Promise<InstallErro
     await exchange()
     return null
   } catch (e) {
-    return { code: "unreachable", message: e instanceof Error ? e.message : "Could not sign in to your new backend. Try again.", installed: true }
+    return {
+      code: "unreachable",
+      message: e instanceof Error ? e.message : "Could not sign in to your new backend. Try again.",
+      installed: true,
+    }
   }
 }
-

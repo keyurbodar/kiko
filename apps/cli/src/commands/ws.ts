@@ -14,7 +14,9 @@ export async function ws(ctx: Context): Promise<void> {
   const opened = Promise.withResolvers<void>()
   socket.onopen = () => opened.resolve()
   socket.onerror = () => {
-    void refusal(target, headers).then((why) => opened.reject(new CliError(`ws failed: cannot connect to ${target}${why}`)))
+    void refusal(target, headers).then((why) =>
+      opened.reject(new CliError(`ws failed: cannot connect to ${target}${why}`)),
+    )
   }
   await opened.promise
 

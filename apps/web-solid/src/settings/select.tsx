@@ -14,14 +14,26 @@ export type SelectOption<T> = {
 
 const PANEL_H = 320
 
-export function Select<T>(props: { label: string; value: T; options: readonly SelectOption<T>[]; onChange: (value: T) => void; width?: number; class?: string; "data-component"?: string }): JSX.Element {
+export function Select<T>(props: {
+  label: string
+  value: T
+  options: readonly SelectOption<T>[]
+  onChange: (value: T) => void
+  width?: number
+  class?: string
+  "data-component"?: string
+}): JSX.Element {
   const id = createUniqueId()
   const [open, setOpen] = createSignal(false)
   const [active, setActive] = createSignal(0)
   const [place, setPlace] = createSignal<JSX.CSSProperties>({})
   let trigger: HTMLButtonElement | undefined
   let list: HTMLDivElement | undefined
-  const chosenIndex = () => Math.max(0, props.options.findIndex((o) => o.value === props.value))
+  const chosenIndex = () =>
+    Math.max(
+      0,
+      props.options.findIndex((o) => o.value === props.value),
+    )
   const chosen = () => props.options[chosenIndex()]
   const hasActions = () => props.options.some((o) => o.actions)
 
@@ -124,7 +136,13 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
           <span class="truncate">{chosen()?.label}</span>
         </span>
         <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          <path
+            d="M4 6l4 4 4-4"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
       </button>
       <Show when={open()}>
@@ -170,7 +188,15 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
                     >
                       <span class="grid size-4 shrink-0 place-items-center" aria-hidden="true">
                         <Show when={selected()}>
-                          <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                          <svg
+                            class="size-3.5"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
                             <path d="M3.5 8.5l3 3 6-7" />
                           </svg>
                         </Show>
@@ -189,7 +215,9 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
             </div>
             <Show when={hasActions()}>
               <div class="flex shrink-0 flex-col">
-                <For each={props.options}>{(option) => <div class="flex h-8 items-center justify-end gap-0.5 pr-0.5">{option.actions}</div>}</For>
+                <For each={props.options}>
+                  {(option) => <div class="flex h-8 items-center justify-end gap-0.5 pr-0.5">{option.actions}</div>}
+                </For>
               </div>
             </Show>
           </DismissableLayerV2>

@@ -37,7 +37,8 @@ export function fileUrl(path: string): string {
 if (typeof document !== "undefined") {
   document.addEventListener("visibilitychange", () => {
     const t = fileToken()
-    if (document.visibilityState === "visible" && t && expiresAt(t) - Date.now() < REFRESH_BEFORE_MS) void refreshFileToken()
+    if (document.visibilityState === "visible" && t && expiresAt(t) - Date.now() < REFRESH_BEFORE_MS)
+      void refreshFileToken()
   })
 }
 

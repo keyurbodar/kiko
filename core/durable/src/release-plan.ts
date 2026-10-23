@@ -7,11 +7,23 @@ const BUCKET = "kiko-files"
 type ReleaseBindings = { name: string; class_name: string }[]
 
 function releaseBindings(manifest: ReleaseManifest): ReleaseBindings {
-  if (!("durable_objects" in manifest) || !Array.isArray(manifest.durable_objects) || !manifest.durable_objects.length) {
+  if (
+    !("durable_objects" in manifest) ||
+    !Array.isArray(manifest.durable_objects) ||
+    !manifest.durable_objects.length
+  ) {
     throw new Error("This release has no signed Durable Object bindings. Use the installer for the OwnerDO upgrade.")
   }
   return manifest.durable_objects.map((binding: unknown) => {
-    if (!binding || typeof binding !== "object" || !("name" in binding) || typeof binding.name !== "string" || !("class_name" in binding) || typeof binding.class_name !== "string") throw new Error("The release has invalid Durable Object bindings.")
+    if (
+      !binding ||
+      typeof binding !== "object" ||
+      !("name" in binding) ||
+      typeof binding.name !== "string" ||
+      !("class_name" in binding) ||
+      typeof binding.class_name !== "string"
+    )
+      throw new Error("The release has invalid Durable Object bindings.")
     return { name: binding.name, class_name: binding.class_name }
   })
 }
@@ -38,7 +50,13 @@ export function selectMigrations(all: ReleaseMigration[], currentTag: string | n
 
 export type SecretBinding = { type: "secret_text"; name: string; text: string }
 
-export function buildMetadata(manifest: ReleaseManifest, migrations: MigrationPlan, secrets: SecretBinding[] | null, files: FilesBinding, inheritedR2: readonly string[] = []) {
+export function buildMetadata(
+  manifest: ReleaseManifest,
+  migrations: MigrationPlan,
+  secrets: SecretBinding[] | null,
+  files: FilesBinding,
+  inheritedR2: readonly string[] = [],
+) {
   return {
     main_module: manifest.main_module,
     compatibility_date: manifest.compatibility_date,
@@ -57,7 +75,11 @@ export function uploadBody(manifest: ReleaseManifest, files: Map<string, Uint8Ar
   const form = new FormData()
   form.set("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }))
   for (const module of manifest.modules) {
-    form.set(module.name, new Blob([files.get(module.name) as Uint8Array<ArrayBuffer>], { type: module.type }), module.name)
+    form.set(
+      module.name,
+      new Blob([files.get(module.name) as Uint8Array<ArrayBuffer>], { type: module.type }),
+      module.name,
+    )
   }
   return form
 }

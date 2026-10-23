@@ -26,6 +26,9 @@ export function mergeRecall(life: RecallHit[], chat: RecallHit[], shown: Set<str
   const l = lf.slice(0, max - room)
   const c = cf.slice(0, room)
   for (const h of [...l, ...c]) if (h.id) shown.add(h.id)
-  const part = (name: string, hits: RecallHit[]) => (hits.length ? `${name}:\n${hits.map((h) => h.line).join("\n")}` : "")
-  return [part("life", l), part("chat", c), again.length ? `already seen: ${again.join(", ")}` : ""].filter(Boolean).join("\n\n")
+  const part = (name: string, hits: RecallHit[]) =>
+    hits.length ? `${name}:\n${hits.map((h) => h.line).join("\n")}` : ""
+  return [part("life", l), part("chat", c), again.length ? `already seen: ${again.join(", ")}` : ""]
+    .filter(Boolean)
+    .join("\n\n")
 }

@@ -9,5 +9,13 @@ import { devRequest } from "./dev-guard"
 import { devStatsRoute } from "./dev-stats"
 
 export async function devRoutes(request: Request, env: Env): Promise<Response | null> {
-  return (await devSessionRoute(request, env)) ?? (await devAgentRoute(request, env)) ?? (await devBrowserRoute(request, env)) ?? (await devUpdateRoute(request, env)) ?? (await devModelsRoute(request, env)) ?? (await devHealthRoute(request, env)) ?? devStatsRoute(request, devRequest(new URL(request.url)))
+  return (
+    (await devSessionRoute(request, env)) ??
+    (await devAgentRoute(request, env)) ??
+    (await devBrowserRoute(request, env)) ??
+    (await devUpdateRoute(request, env)) ??
+    (await devModelsRoute(request, env)) ??
+    (await devHealthRoute(request, env)) ??
+    devStatsRoute(request, devRequest(new URL(request.url)))
+  )
 }

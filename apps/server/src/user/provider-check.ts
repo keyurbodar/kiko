@@ -28,16 +28,29 @@ export class ProviderCheck {
   }
 
   async check(provider: string): Promise<ProviderInfo | null> {
-    const info = this.d.vault().listProviders().find((p) => p.provider === provider)
+    const info = this.d
+      .vault()
+      .listProviders()
+      .find((p) => p.provider === provider)
     const found = info ? await this.d.lookup(provider) : undefined
     if (!info || !found) return info ?? null
     const outcome = await resolveAuth(this.d.vault(), found, info.kind === "oauth" ? PROBE_VALIDITY_MS : undefined)
     const auth = outcome.auth
     if (auth) {
-      const { models, settings } = userModels(async () => auth, `check-${this.d.label}`, this.d.fetch, this.d.countOutgoing)
+      const { models, settings } = userModels(
+        async () => auth,
+        `check-${this.d.label}`,
+        this.d.fetch,
+        this.d.countOutgoing,
+      )
       const verdict = probeVerdict(await providerSaid(models, provider, settings.stream?.headers), info.kind)
       if (verdict !== "keep") this.d.vault().setProblem(provider, verdict)
     }
-    return this.d.vault().listProviders().find((p) => p.provider === provider) ?? null
+    return (
+      this.d
+        .vault()
+        .listProviders()
+        .find((p) => p.provider === provider) ?? null
+    )
   }
 }

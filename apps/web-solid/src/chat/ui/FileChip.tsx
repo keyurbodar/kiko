@@ -14,7 +14,11 @@ import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { basename, resolveFile, type FileTarget } from "../rich/file-links"
 
 function find(path: string) {
-  const own = resolveFile(path, useApp.activeFiles().map((f) => f.name), useApp.activeFolders())
+  const own = resolveFile(
+    path,
+    useApp.activeFiles().map((f) => f.name),
+    useApp.activeFolders(),
+  )
   if (own.kind !== "none") return own
   return resolveFile(
     path,
@@ -56,55 +60,65 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
       await navigator.clipboard.writeText(full())
       showToastV2({ title: "Path copied", variant: "success" })
     } catch {
-      showToastV2({ title: "Could not copy", description: "The clipboard is not available in this context", variant: "error" })
+      showToastV2({
+        title: "Could not copy",
+        description: "The clipboard is not available in this context",
+        variant: "error",
+      })
     }
   }
   return (
     <Show when={isChip()} fallback={<code class="rich-inline-code">{full()}</code>}>
-    <TooltipV2 class={size() ? "file-chip-anchor file-chip-attached" : "file-chip-anchor"} placement="top" value={<span class="font-mono">{full()}</span>}>
-      <MenuV2.Context gutter={4}>
-        <MenuV2.Context.Trigger
-          as="button"
-          type="button"
-          class="file-chip"
-          data-component="chat-file-chip"
-          data-kind={picture() ? "image" : folder() ? "folder" : "file"}
-          data-path={props.file.path}
-          data-missing={find(props.file.path).kind === "none" ? "" : undefined}
-          aria-label={`${folder() ? "Show" : "Open"} ${full()}`}
-          draggable={ref() !== undefined || folder()}
-          onDragStart={(event: DragEvent) => {
-            const file = ref()
-            if (!event.dataTransfer) return event.preventDefault()
-            if (folder()) return setFileDrag(event.dataTransfer, `${props.file.path.replace(/\/+$/, "")}/`)
-            if (!file) return event.preventDefault()
-            setFileDrag(event.dataTransfer, file.name)
-          }}
-          onClick={(event: MouseEvent) => open(event.currentTarget as Element)}
-        >
-          <Show when={picture()} fallback={<EntryIcon path={folder() ? `${props.file.path}/` : props.file.path} />}>
-            {(src) => <img class="file-chip-thumb" src={src()} alt="" loading="lazy" draggable={false} />}
-          </Show>
-          <span class="file-chip-label">{props.label}</span>
-          <Show when={folder()}>
-            <span class="file-chip-meta" aria-hidden="true">folder</span>
-          </Show>
-          <Show when={size()}>{(text) => <span class="file-chip-meta">{text()}</span>}</Show>
-        </MenuV2.Context.Trigger>
-        <MenuV2.Context.Portal>
-          <MenuV2.Context.Content class="min-w-[160px]">
-            <MenuV2.Item onSelect={() => open()}>
-              <RemixIcon icon={FileIcon} class="size-3.5 shrink-0" />
-              {folder() ? "Show in files" : "Open"}
-            </MenuV2.Item>
-            <MenuV2.Item onSelect={() => void copy()}>
-              <RemixIcon icon={CopyIcon} class="size-3.5 shrink-0" />
-              Copy path
-            </MenuV2.Item>
-          </MenuV2.Context.Content>
-        </MenuV2.Context.Portal>
-      </MenuV2.Context>
-    </TooltipV2>
+      <TooltipV2
+        class={size() ? "file-chip-anchor file-chip-attached" : "file-chip-anchor"}
+        placement="top"
+        value={<span class="font-mono">{full()}</span>}
+      >
+        <MenuV2.Context gutter={4}>
+          <MenuV2.Context.Trigger
+            as="button"
+            type="button"
+            class="file-chip"
+            data-component="chat-file-chip"
+            data-kind={picture() ? "image" : folder() ? "folder" : "file"}
+            data-path={props.file.path}
+            data-missing={find(props.file.path).kind === "none" ? "" : undefined}
+            aria-label={`${folder() ? "Show" : "Open"} ${full()}`}
+            draggable={ref() !== undefined || folder()}
+            onDragStart={(event: DragEvent) => {
+              const file = ref()
+              if (!event.dataTransfer) return event.preventDefault()
+              if (folder()) return setFileDrag(event.dataTransfer, `${props.file.path.replace(/\/+$/, "")}/`)
+              if (!file) return event.preventDefault()
+              setFileDrag(event.dataTransfer, file.name)
+            }}
+            onClick={(event: MouseEvent) => open(event.currentTarget as Element)}
+          >
+            <Show when={picture()} fallback={<EntryIcon path={folder() ? `${props.file.path}/` : props.file.path} />}>
+              {(src) => <img class="file-chip-thumb" src={src()} alt="" loading="lazy" draggable={false} />}
+            </Show>
+            <span class="file-chip-label">{props.label}</span>
+            <Show when={folder()}>
+              <span class="file-chip-meta" aria-hidden="true">
+                folder
+              </span>
+            </Show>
+            <Show when={size()}>{(text) => <span class="file-chip-meta">{text()}</span>}</Show>
+          </MenuV2.Context.Trigger>
+          <MenuV2.Context.Portal>
+            <MenuV2.Context.Content class="min-w-[160px]">
+              <MenuV2.Item onSelect={() => open()}>
+                <RemixIcon icon={FileIcon} class="size-3.5 shrink-0" />
+                {folder() ? "Show in files" : "Open"}
+              </MenuV2.Item>
+              <MenuV2.Item onSelect={() => void copy()}>
+                <RemixIcon icon={CopyIcon} class="size-3.5 shrink-0" />
+                Copy path
+              </MenuV2.Item>
+            </MenuV2.Context.Content>
+          </MenuV2.Context.Portal>
+        </MenuV2.Context>
+      </TooltipV2>
     </Show>
   )
 }

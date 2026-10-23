@@ -12,7 +12,8 @@ import { RecipeIcon, RecipeWatermark, toneStyle } from "./icon"
 import { type InstallStatus, installStatus, nextRunLabel } from "./model"
 import { agentName, editRecipe, isEditing, removeInstall, setInstallPaused, targetsForChat } from "./state"
 
-const pillClass = "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs text-muted-foreground hover:bg-control-strong hover:text-foreground"
+const pillClass =
+  "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs text-muted-foreground hover:bg-control-strong hover:text-foreground"
 
 export function StatusChip(props: { status: InstallStatus }) {
   const chip = "flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs"
@@ -20,7 +21,12 @@ export function StatusChip(props: { status: InstallStatus }) {
     <span class="flex min-w-0 items-center gap-2" data-component="recipe-status">
       {(() => {
         const s = props.status
-        if (s.kind === "next") return <span class={cn(chip, "min-w-0 bg-control text-foreground/85")}><span class="truncate">{nextRunLabel(s.at, Date.now())}</span></span>
+        if (s.kind === "next")
+          return (
+            <span class={cn(chip, "min-w-0 bg-control text-foreground/85")}>
+              <span class="truncate">{nextRunLabel(s.at, Date.now())}</span>
+            </span>
+          )
         if (s.kind === "paused")
           return (
             <>
@@ -42,7 +48,12 @@ function InstallActions(props: { install: RecipeInstall; card: RecipeCard; go: (
   return (
     <span class="relative flex shrink-0 items-center gap-0.5">
       <Show when={status().kind !== "ask"}>
-        <button type="button" class={pillClass} data-action="recipe-pause" onClick={() => setInstallPaused(props.install, status().kind === "next")}>
+        <button
+          type="button"
+          class={pillClass}
+          data-action="recipe-pause"
+          onClick={() => setInstallPaused(props.install, status().kind === "next")}
+        >
           {status().kind === "next" ? "Pause" : "Resume"}
         </button>
       </Show>
@@ -56,7 +67,9 @@ function InstallActions(props: { install: RecipeInstall; card: RecipeCard; go: (
           <MenuV2.Content class="z-[80]">
             <MenuV2.Item onSelect={() => props.go(`/chat/${props.install.roomId}`)}>Open chat</MenuV2.Item>
             <MenuV2.Item onSelect={() => void editRecipe(props.card.slug, props.go)}>Edit recipe</MenuV2.Item>
-            <MenuV2.Item onSelect={() => removeInstall(props.install)}>Remove from {agentName(props.install.agent)}</MenuV2.Item>
+            <MenuV2.Item onSelect={() => removeInstall(props.install)}>
+              Remove from {agentName(props.install.agent)}
+            </MenuV2.Item>
           </MenuV2.Content>
         </MenuV2.Portal>
       </MenuV2>
@@ -116,8 +129,17 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
 export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; navigate: (to: string) => void }) {
   const title = () => useApp.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
   return (
-    <div class="flex items-center gap-2 rounded-[14px] px-2.5 py-2 hover:bg-control" data-install={props.install.installId} data-status={installStatus(props.install, props.card).kind}>
-      <button type="button" class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none" data-action="open-recipe-chat" onClick={() => props.navigate(`/chat/${props.install.roomId}`)}>
+    <div
+      class="flex items-center gap-2 rounded-[14px] px-2.5 py-2 hover:bg-control"
+      data-install={props.install.installId}
+      data-status={installStatus(props.install, props.card).kind}
+    >
+      <button
+        type="button"
+        class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none"
+        data-action="open-recipe-chat"
+        onClick={() => props.navigate(`/chat/${props.install.roomId}`)}
+      >
         <ChatAvatar faces={useApp.chatFaces(props.install.roomId)} size={36} />
         <span class="flex min-w-0 flex-1 flex-col gap-1">
           <span class="truncate text-[13.5px] font-medium text-foreground">{title()}</span>

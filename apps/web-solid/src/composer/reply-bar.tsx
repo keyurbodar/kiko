@@ -14,14 +14,15 @@ export interface ReplyBarProps {
 export function ReplyBar(props: ReplyBarProps): JSX.Element {
   return (
     <div class="reply-bar" data-component="composer-reply-bar" role="group" aria-label={props.label}>
-      <button class="reply-bar-jump" type="button" aria-label={`${props.label}. Go to the message`} onClick={() => props.onJump()}>
+      <button
+        class="reply-bar-jump"
+        type="button"
+        aria-label={`${props.label}. Go to the message`}
+        onClick={() => props.onJump()}
+      >
         <Show
           when={props.summary.thumb}
-          fallback={
-            <Show when={props.summary.glyph}>
-              {(name) => <EntryIcon path={name()} />}
-            </Show>
-          }
+          fallback={<Show when={props.summary.glyph}>{(name) => <EntryIcon path={name()} />}</Show>}
         >
           {(thumb) => <img class="reply-bar-thumb" src={thumb()} alt="" />}
         </Show>
@@ -30,7 +31,13 @@ export function ReplyBar(props: ReplyBarProps): JSX.Element {
           <span class="reply-bar-preview">{props.summary.text}</span>
         </span>
       </button>
-      <button class="reply-bar-dismiss" type="button" aria-label="Cancel reply" title="Cancel reply (Esc)" onClick={() => props.onDismiss()}>
+      <button
+        class="reply-bar-dismiss"
+        type="button"
+        aria-label="Cancel reply"
+        title="Cancel reply (Esc)"
+        onClick={() => props.onDismiss()}
+      >
         <RemixIcon icon={CloseIcon} class="size-4" />
       </button>
     </div>

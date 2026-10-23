@@ -8,7 +8,10 @@ import { fillFlags } from "./tools"
 const CONNECT_APP = "composio_connect"
 export const MANAGE_CONNECTIONS = "COMPOSIO_MANAGE_CONNECTIONS"
 
-const text = (t: string, isError = false) => ({ output: [{ type: "text" as const, text: t }], ...(isError ? { isError } : {}) })
+const text = (t: string, isError = false) => ({
+  output: [{ type: "text" as const, text: t }],
+  ...(isError ? { isError } : {}),
+})
 
 function toolkitArgs(tool: ComposioTool, toolkit: string): Record<string, unknown> {
   const props = (tool.inputSchema as { properties?: Record<string, { items?: { type?: unknown } }> }).properties
@@ -42,11 +45,15 @@ function connectLink(out: ComposioCallResult): string | undefined {
 function refusal(out: ComposioCallResult): string | undefined {
   const body = out.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n")
   try {
-    const parsed = JSON.parse(body) as { data?: { results?: Record<string, { status?: unknown; error_message?: unknown; instruction?: unknown }> }; error?: unknown }
+    const parsed = JSON.parse(body) as {
+      data?: { results?: Record<string, { status?: unknown; error_message?: unknown; instruction?: unknown }> }
+      error?: unknown
+    }
     for (const [toolkit, result] of Object.entries(parsed.data?.results ?? {})) {
       if (result?.status === "failed") return String(result.error_message ?? `composio could not connect ${toolkit}.`)
       if (result?.status === "active") return undefined
-      if (typeof result?.instruction === "string" && /does not require authentication/i.test(result.instruction)) return undefined
+      if (typeof result?.instruction === "string" && /does not require authentication/i.test(result.instruction))
+        return undefined
     }
     if (typeof parsed.error === "string" && parsed.error) return parsed.error
   } catch {}
@@ -57,13 +64,23 @@ type ConnectLink = { kind: "link"; link: string } | { kind: "none"; reply: strin
 
 type ResolveToolkit = (app: string) => Promise<string | null>
 
-export async function connectLinkFor(manage: ComposioTool, call: ComposioCall, app: string, resolve?: ResolveToolkit): Promise<ConnectLink> {
+export async function connectLinkFor(
+  manage: ComposioTool,
+  call: ComposioCall,
+  app: string,
+  resolve?: ResolveToolkit,
+): Promise<ConnectLink> {
   const named = app.trim()
   if (!named) return { kind: "error", error: "name the app to connect." }
   try {
     const resolved = resolve ? await resolve(named) : null
     if (resolve && !resolved) return { kind: "error", error: `composio has no app called ${named}.` }
-    const slug = resolved ?? named.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
+    const slug =
+      resolved ??
+      named
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, "")
     const out = await call(MANAGE_CONNECTIONS, toolkitArgs(manage, slug))
     if (out.isError) {
       const body = out.content.map((b) => (b.type === "text" ? b.text : "")).join(" ")
@@ -72,13 +89,25 @@ export async function connectLinkFor(manage: ComposioTool, call: ComposioCall, a
     const refused = refusal(out)
     if (refused) return { kind: "error", error: refused.slice(0, 400) }
     const link = connectLink(out)
-    return link ? { kind: "link", link } : { kind: "none", reply: out.content.map((b) => (b.type === "text" ? b.text : "")).join(" ").slice(0, 300) }
+    return link
+      ? { kind: "link", link }
+      : {
+          kind: "none",
+          reply: out.content
+            .map((b) => (b.type === "text" ? b.text : ""))
+            .join(" ")
+            .slice(0, 300),
+        }
   } catch (e) {
     return { kind: "error", error: composioErrorText(e) }
   }
 }
 
-export function connectAppExtension(tools: readonly ComposioTool[], call: ComposioCall, resolve?: ResolveToolkit): Extension[] {
+export function connectAppExtension(
+  tools: readonly ComposioTool[],
+  call: ComposioCall,
+  resolve?: ResolveToolkit,
+): Extension[] {
   const manage = tools.find((t) => t.name === MANAGE_CONNECTIONS)
   if (!manage) return []
   return [
@@ -91,13 +120,20 @@ export function connectAppExtension(tools: readonly ComposioTool[], call: Compos
             name: "connect_app",
             description:
               "get the one link that connects an app through Composio, such as Gmail, Google Calendar, GitHub, Slack, or web search. use it the moment you need a capability the human has not connected, and say in one line why you need it. send the link as one markdown link and add no steps.",
-            parameters: Type.Object({ app: Type.String({ description: "the app or capability as people say it, like gmail, google calendar, or web search" }) }),
+            parameters: Type.Object({
+              app: Type.String({
+                description: "the app or capability as people say it, like gmail, google calendar, or web search",
+              }),
+            }),
             replay: "safe",
             execute: async ({ app }) => {
               const out = await connectLinkFor(manage, call, String(app), resolve)
               if (out.kind === "error") return text(out.error, true)
-              if (out.kind === "none") return text(`no link came back for ${app}. it may already be connected. reply: ${out.reply}`)
-              return text(`connect link for ${app}: ${out.link}\nsend it as a markdown link in one line, like [Connect ${app}](${out.link}). say in one line what you need it for. add no steps and no guide.`)
+              if (out.kind === "none")
+                return text(`no link came back for ${app}. it may already be connected. reply: ${out.reply}`)
+              return text(
+                `connect link for ${app}: ${out.link}\nsend it as a markdown link in one line, like [Connect ${app}](${out.link}). say in one line what you need it for. add no steps and no guide.`,
+              )
             },
           }),
         ),

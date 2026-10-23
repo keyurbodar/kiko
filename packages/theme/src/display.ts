@@ -43,18 +43,25 @@ export function fontFamily(name: string, stack: string): string {
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
-const oneOf = <T extends string>(table: Record<T, unknown>, v: unknown, fallback: T): T => (typeof v === "string" && v in table ? (v as T) : fallback)
+const oneOf = <T extends string>(table: Record<T, unknown>, v: unknown, fallback: T): T =>
+  typeof v === "string" && v in table ? (v as T) : fallback
 
 const PRESET_KEYS = new Set(["kiko", "system", "rounded", "serif", "mono", "fantasque", "interface"])
 const familyName = (v: unknown): string => {
   if (typeof v !== "string" || PRESET_KEYS.has(v)) return ""
-  return v.replace(/["';\\{}<>]/g, "").trim().slice(0, NAME_MAX)
+  return v
+    .replace(/["';\\{}<>]/g, "")
+    .trim()
+    .slice(0, NAME_MAX)
 }
 
 export function readDisplay(value: unknown): Display {
   if (!isObject(value)) return DEFAULT_DISPLAY
   const c = typeof value.contrast === "number" && Number.isFinite(value.contrast) ? value.contrast : CONTRAST.default
-  const size = typeof value.baseSize === "number" && Number.isFinite(value.baseSize) ? Math.round(value.baseSize) : BASE_SIZE.default
+  const size =
+    typeof value.baseSize === "number" && Number.isFinite(value.baseSize)
+      ? Math.round(value.baseSize)
+      : BASE_SIZE.default
   return {
     contrast: Math.round(Math.min(CONTRAST.max, Math.max(CONTRAST.min, c)) / CONTRAST.step) * CONTRAST.step,
     chatWidth: oneOf(CHAT_WIDTHS, value.chatWidth, DEFAULT_DISPLAY.chatWidth),

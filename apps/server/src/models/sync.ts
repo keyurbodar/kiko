@@ -39,14 +39,19 @@ export function writeState(sql: SqlStorage, state: CatalogState): void {
 
 function readOverlay(sql: SqlStorage): CatalogOverlay {
   const out: CatalogOverlay = {}
-  for (const row of sql.exec<{ provider_id: string; models: string }>("SELECT provider_id, models FROM model_catalog").toArray()) {
+  for (const row of sql
+    .exec<{ provider_id: string; models: string }>("SELECT provider_id, models FROM model_catalog")
+    .toArray()) {
     out[row.provider_id] = JSON.parse(row.models) as AnyModel[]
   }
   return out
 }
 
 export function writeOverlay(sql: SqlStorage, overlay: CatalogOverlay): void {
-  sql.exec("DELETE FROM model_catalog WHERE provider_id NOT IN (SELECT value FROM json_each(?))", JSON.stringify(Object.keys(overlay)))
+  sql.exec(
+    "DELETE FROM model_catalog WHERE provider_id NOT IN (SELECT value FROM json_each(?))",
+    JSON.stringify(Object.keys(overlay)),
+  )
   sql.exec(
     "INSERT INTO model_catalog (provider_id, models) SELECT key, value FROM json_each(?) WHERE true ON CONFLICT(provider_id) DO UPDATE SET models = excluded.models",
     JSON.stringify(overlay),
@@ -79,7 +84,11 @@ async function request(deps: SyncDeps, etag: string | undefined): Promise<Respon
 export async function syncCatalog(deps: SyncDeps): Promise<boolean> {
   const { sql } = deps
   const stored = readState(sql)
-  const kept = (error?: string): CatalogState => ({ ...(stored ?? { lastModified: 0, revision: "" }), checkedAt: deps.now(), ...(error ? { error } : {}) })
+  const kept = (error?: string): CatalogState => ({
+    ...(stored ?? { lastModified: 0, revision: "" }),
+    checkedAt: deps.now(),
+    ...(error ? { error } : {}),
+  })
   const response = await request(deps, stored?.etag)
   if (typeof response === "string") {
     writeState(sql, kept(response))

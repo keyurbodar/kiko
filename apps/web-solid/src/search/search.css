@@ -25,7 +25,10 @@
   height: 48px;
   padding: 0 8px 0 16px;
 }
-.search-glass { flex: none; color: var(--secondary-label); }
+.search-glass {
+  flex: none;
+  color: var(--secondary-label);
+}
 .search-input {
   flex: 1;
   min-width: 0;
@@ -37,7 +40,9 @@
   font: inherit;
   font-size: var(--font-base);
 }
-.search-input::placeholder { color: var(--secondary-label); }
+.search-input::placeholder {
+  color: var(--secondary-label);
+}
 .search-scope {
   flex: none;
   display: flex;
@@ -56,8 +61,13 @@
   font-size: var(--font-md);
   cursor: default;
 }
-.search-scope-option[aria-checked="true"] { background: var(--background); color: var(--foreground); }
-.search-scope-option:disabled { opacity: 0.4; }
+.search-scope-option[aria-checked="true"] {
+  background: var(--background);
+  color: var(--foreground);
+}
+.search-scope-option:disabled {
+  opacity: 0.4;
+}
 .search-results {
   max-height: min(460px, 60dvh);
   overflow-y: auto;
@@ -69,14 +79,18 @@
   border-radius: var(--radius-sm);
   cursor: default;
 }
-.search-hit[aria-selected="true"] { background: var(--accent-strong); }
+.search-hit[aria-selected="true"] {
+  background: var(--accent-strong);
+}
 .search-hit-head {
   display: flex;
   align-items: baseline;
   gap: 8px;
   font-size: var(--font-md);
 }
-.search-hit-from { font-weight: 600; }
+.search-hit-from {
+  font-weight: 600;
+}
 .search-hit-chat {
   min-width: 0;
   overflow: hidden;
@@ -84,7 +98,9 @@
   white-space: nowrap;
   color: var(--muted-foreground);
 }
-.search-hit-chat::before { content: "in "; }
+.search-hit-chat::before {
+  content: "in ";
+}
 .search-hit-time {
   margin-left: auto;
   flex: none;
@@ -106,9 +122,22 @@
   color: var(--foreground);
   border-radius: var(--radius-xs);
 }
-.search-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 10px; font-size: 13px; color: var(--muted-foreground); }
+.search-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 10px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
 
 @media (width < 768px) {
-  .search-panel { top: calc(8px + env(safe-area-inset-top, 0px)); width: calc(100vw - 16px); }
-  .search-hit { padding: 10px; }
+  .search-panel {
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    width: calc(100vw - 16px);
+  }
+  .search-hit {
+    padding: 10px;
+  }
 }

@@ -23,7 +23,8 @@ export function checkTabs(value: unknown): Record<string, string> | undefined {
   const entries = Object.entries(value)
   if (entries.length > MAX_TABS) throw new KernelError("failed", "too many tabs")
   for (const [id, url] of entries) {
-    if (id.length === 0 || id.length > 64 || typeof url !== "string" || url.length > 2048) throw new KernelError("failed", "bad tabs")
+    if (id.length === 0 || id.length > 64 || typeof url !== "string" || url.length > 2048)
+      throw new KernelError("failed", "bad tabs")
   }
   return Object.fromEntries(entries) as Record<string, string>
 }
@@ -38,7 +39,11 @@ export function hostOf(url: string): string {
   }
 }
 
-export function browserState(row: LeaseRow | undefined, switching: boolean, resolve: (agentId: string) => { slug: string; name: string }): BrowserState {
+export function browserState(
+  row: LeaseRow | undefined,
+  switching: boolean,
+  resolve: (agentId: string) => { slug: string; name: string },
+): BrowserState {
   if (!row || row.dead) return null
   const tabs = Object.entries(row.tabs).flatMap(([agentId, t]) => {
     const who = resolve(agentId)

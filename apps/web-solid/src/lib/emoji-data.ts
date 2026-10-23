@@ -75,7 +75,19 @@ export function warmEmoji(): void {
 }
 
 export const DEFAULT_RECENTS: readonly string[] = [
-  "🙂", "❤️", "😂", "🔥", "😢", "😭", "👍", "🤔", "❤️‍🔥", "🫡", "☹️", "🤥", "💙",
+  "🙂",
+  "❤️",
+  "😂",
+  "🔥",
+  "😢",
+  "😭",
+  "👍",
+  "🤔",
+  "❤️‍🔥",
+  "🫡",
+  "☹️",
+  "🤥",
+  "💙",
 ]
 
 const RECENTS_KEY = "kiko.emoji.recent"
@@ -108,8 +120,7 @@ export function recordRecent(emoji: string): void {
   setStored(next)
   try {
     localStorage.setItem(RECENTS_KEY, JSON.stringify(next))
-  } catch {
-  }
+  } catch {}
 }
 
 export interface EmojiMatch {

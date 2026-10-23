@@ -23,8 +23,7 @@ for (const version of versions) {
   let parsed: { version?: string; modules?: { name: string }[] } = {}
   try {
     parsed = JSON.parse(new TextDecoder().decode(manifest))
-  } catch {
-  }
+  } catch {}
   if (parsed.version !== version) {
     console.log(`Skipped ${version}: not served`)
     continue

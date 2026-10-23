@@ -3,7 +3,8 @@ import { fileName } from "@kiko/protocol"
 export type FileTarget = { path: string; line?: number; column?: number }
 
 const RELATIVE_PREFIX = /^(~\/|\.{1,2}\/)/
-const RELATIVE_FILE_PATH = /^(?:[A-Za-z0-9._-]+(?: +[A-Za-z0-9._-]+)*\/)+[A-Za-z0-9._-]+(?: +[A-Za-z0-9._-]+)*(?::\d+){0,2}$/
+const RELATIVE_FILE_PATH =
+  /^(?:[A-Za-z0-9._-]+(?: +[A-Za-z0-9._-]+)*\/)+[A-Za-z0-9._-]+(?: +[A-Za-z0-9._-]+)*(?::\d+){0,2}$/
 const RELATIVE_FILE_NAME = /^[A-Za-z0-9._-]+(?: +[A-Za-z0-9._-]+)*(?::\d+){0,2}$/
 const SCHEME = /^([A-Za-z][A-Za-z0-9+.-]*):(.*)$/
 const URL_PREFIX = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//
@@ -14,9 +15,69 @@ const POSITION_ONLY = /^\d+(?::\d+)?$/
 const EXTENSION = /\.[A-Za-z0-9_-]+$/
 const VERSION_SUFFIX = /\d\.\d[^.]*$/
 const NUMERIC_DOTTED = /^\d+(?:\.\d+)+$/
-const EXTENSIONLESS = new Set(["Makefile", "Dockerfile", "Justfile", "Procfile", "LICENSE", "CHANGELOG", "README", "CODEOWNERS"])
-const HOST_TLDS = new Set(["com", "net", "org", "io", "dev", "app", "ai", "co", "edu", "gov", "info", "xyz", "me", "chat", "cloud", "site", "tech", "link"])
-const COUNTRY_TLDS = new Set(["uk", "de", "fr", "nl", "se", "no", "fi", "dk", "pl", "ch", "at", "be", "es", "it", "pt", "eu", "us", "ca", "au", "nz", "jp", "kr", "cn", "br", "ru", "mx", "ie", "cz", "tr", "sg", "hk"])
+const EXTENSIONLESS = new Set([
+  "Makefile",
+  "Dockerfile",
+  "Justfile",
+  "Procfile",
+  "LICENSE",
+  "CHANGELOG",
+  "README",
+  "CODEOWNERS",
+])
+const HOST_TLDS = new Set([
+  "com",
+  "net",
+  "org",
+  "io",
+  "dev",
+  "app",
+  "ai",
+  "co",
+  "edu",
+  "gov",
+  "info",
+  "xyz",
+  "me",
+  "chat",
+  "cloud",
+  "site",
+  "tech",
+  "link",
+])
+const COUNTRY_TLDS = new Set([
+  "uk",
+  "de",
+  "fr",
+  "nl",
+  "se",
+  "no",
+  "fi",
+  "dk",
+  "pl",
+  "ch",
+  "at",
+  "be",
+  "es",
+  "it",
+  "pt",
+  "eu",
+  "us",
+  "ca",
+  "au",
+  "nz",
+  "jp",
+  "kr",
+  "cn",
+  "br",
+  "ru",
+  "mx",
+  "ie",
+  "cz",
+  "tr",
+  "sg",
+  "hk",
+])
 
 function looksLikeHostname(segment: string, hasPosition: boolean): boolean {
   if (segment.startsWith(".")) return false
@@ -133,7 +194,8 @@ export const basename = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 
 export function isFileLabel(label: string, file: FileTarget): boolean {
   const own = splitPosition(label.trim())
-  if ((own.line !== undefined && own.line !== file.line) || (own.column !== undefined && own.column !== file.column)) return false
+  if ((own.line !== undefined && own.line !== file.line) || (own.column !== undefined && own.column !== file.column))
+    return false
   const path = workspacePath(own.path)
   return path === "" || path === file.path || file.path.endsWith(`/${path}`) || path === fileName(file.path)
 }
@@ -171,7 +233,11 @@ export function chipLabel(file: FileTarget, suffix?: string): string {
   return parts.join(" · ")
 }
 
-export type Resolved = { kind: "file"; path: string } | { kind: "folder"; path: string } | { kind: "none" } | { kind: "many" }
+export type Resolved =
+  | { kind: "file"; path: string }
+  | { kind: "folder"; path: string }
+  | { kind: "none" }
+  | { kind: "many" }
 
 export function resolveFile(path: string, index: readonly string[], folders: readonly string[] = []): Resolved {
   if (index.includes(path)) return { kind: "file", path }

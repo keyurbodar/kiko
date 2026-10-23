@@ -25,7 +25,12 @@ const MAX_DESCRIPTION = 140
 const MAX_RUN = 2000
 
 const text = (v: unknown): string => (typeof v === "string" ? v.trim() : "")
-const texts = (v: unknown): string[] | null => (Array.isArray(v) && v.every((x) => typeof x === "string" && x.trim()) ? v.map((x: string) => x.trim()) : v === undefined ? [] : null)
+const texts = (v: unknown): string[] | null =>
+  Array.isArray(v) && v.every((x) => typeof x === "string" && x.trim())
+    ? v.map((x: string) => x.trim())
+    : v === undefined
+      ? []
+      : null
 
 export function parseRecipe(content: string, dir: string): Recipe {
   const fail = (why: string): never => {
@@ -58,7 +63,20 @@ export function parseRecipe(content: string, dir: string): Recipe {
   })
   const a = (f.agent && typeof f.agent === "object" ? f.agent : {}) as Record<string, unknown>
   const agent = { name: text(a.name) || title, handle: text(a.handle) || slug.split("-")[0] || slug }
-  if (!HANDLE.test(agent.handle)) fail(`agent handle ${agent.handle} must be 2 to 32 lowercase letters, digits, or dashes`)
+  if (!HANDLE.test(agent.handle))
+    fail(`agent handle ${agent.handle} must be 2 to 32 lowercase letters, digits, or dashes`)
   if (!body.trim()) fail("the body holds the instructions and is required")
-  return { slug, title, description, when, tags, apps, icon: text(f.icon) || null, triggers, setup, agent, body: body.trim() }
+  return {
+    slug,
+    title,
+    description,
+    when,
+    tags,
+    apps,
+    icon: text(f.icon) || null,
+    triggers,
+    setup,
+    agent,
+    body: body.trim(),
+  }
 }

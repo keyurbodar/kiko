@@ -1,10 +1,6 @@
 import { cn } from "../../lib/cn"
 
-export function ScrollFades(props: {
-  showTop: boolean
-  showBottom: boolean
-  class?: string
-}) {
+export function ScrollFades(props: { showTop: boolean; showBottom: boolean; class?: string }) {
   return (
     <div
       class={cn("chat-fades pointer-events-none absolute inset-0 z-[5]", props.class)}

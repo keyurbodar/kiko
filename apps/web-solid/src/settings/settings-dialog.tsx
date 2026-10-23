@@ -1,5 +1,15 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { AppearanceIcon, CloseIcon, CommandIcon, ExtensionsIcon, type Glyph, ModelIcon, SearchIcon, SettingsIcon, UserIcon } from "@kiko/ui/icons"
+import {
+  AppearanceIcon,
+  CloseIcon,
+  CommandIcon,
+  ExtensionsIcon,
+  type Glyph,
+  ModelIcon,
+  SearchIcon,
+  SettingsIcon,
+  UserIcon,
+} from "@kiko/ui/icons"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { loadOverlaysV2 } from "@kiko/ui/v2/overlays"
 import { createEffect, createSignal, For, lazy, on, onCleanup, onMount, Show, type JSX } from "solid-js"
@@ -20,7 +30,14 @@ void KeyboardPage.preload()
 
 void loadOverlaysV2()
 
-const PAGES: Record<SettingsSection["id"], () => JSX.Element> = { models: ModelsPage, tools: Tools, appearance: Appearance, general: Initiative, keyboard: KeyboardPage, account: Account }
+const PAGES: Record<SettingsSection["id"], () => JSX.Element> = {
+  models: ModelsPage,
+  tools: Tools,
+  appearance: Appearance,
+  general: Initiative,
+  keyboard: KeyboardPage,
+  account: Account,
+}
 
 const ICON: Record<SettingsSection["id"], Glyph> = {
   models: ModelIcon,
@@ -37,7 +54,10 @@ export default function SettingsDialog() {
   const meta = () => SETTINGS_SECTIONS.find((s) => s.id === section())
   const [query, setQuery] = createSignal("")
   const rows = () => searchSections(query())
-  const groups = () => (query().trim() ? [{ name: null, rows: rows() }] : SETTINGS_GROUPS.map((name) => ({ name, rows: rows().filter((s) => s.group === name) })))
+  const groups = () =>
+    query().trim()
+      ? [{ name: null, rows: rows() }]
+      : SETTINGS_GROUPS.map((name) => ({ name, rows: rows().filter((s) => s.group === name) }))
   let body: HTMLDivElement | undefined
   const reveal = () =>
     requestAnimationFrame(() =>
@@ -59,7 +79,13 @@ export default function SettingsDialog() {
   onCleanup(closeSettings)
 
   const row = (s: SettingsSection) => (
-    <button type="button" class="settings-nav-row" aria-current={s.id === section() ? "page" : undefined} data-section={s.id} onClick={() => openSettings(s.id)}>
+    <button
+      type="button"
+      class="settings-nav-row"
+      aria-current={s.id === section() ? "page" : undefined}
+      data-section={s.id}
+      onClick={() => openSettings(s.id)}
+    >
       <RemixIcon icon={ICON[s.id]} size={16} />
       <span class="settings-nav-label">{s.label}</span>
     </button>
@@ -80,12 +106,15 @@ export default function SettingsDialog() {
             reveal()
           }}
           onCloseAutoFocus={(e: Event) => {
-            if (!e.defaultPrevented && returnTo instanceof HTMLElement && returnTo.isConnected) returnTo.focus({ preventScroll: true })
+            if (!e.defaultPrevented && returnTo instanceof HTMLElement && returnTo.isConnected)
+              returnTo.focus({ preventScroll: true })
           }}
         >
           <div data-component="settings">
             <nav class="settings-nav" data-component="settings-panel" aria-label="Settings sections">
-              <ModalV2.Title class="px-2 pb-3 text-[20px] font-bold leading-snug tracking-[-0.015em] text-foreground">Settings</ModalV2.Title>
+              <ModalV2.Title class="px-2 pb-3 text-[20px] font-bold leading-snug tracking-[-0.015em] text-foreground">
+                Settings
+              </ModalV2.Title>
               <label class="settings-search">
                 <RemixIcon icon={SearchIcon} size={15} />
                 <input
@@ -112,14 +141,25 @@ export default function SettingsDialog() {
                 </For>
               </Show>
             </nav>
-            <div ref={body} class="@container/settings flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto" data-component="settings-body">
+            <div
+              ref={body}
+              class="@container/settings flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
+              data-component="settings-body"
+            >
               <div class="mx-auto w-full max-w-3xl px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:py-8">
                 <Page title={meta()?.label ?? "Settings"} description={meta()?.hint}>
                   <Dynamic component={PAGES[section()]} />
                 </Page>
               </div>
             </div>
-            <button type="button" aria-label="Close" title="Close" class={cn(iconButtonClass, "absolute top-4 right-4")} data-action="close-dialog" onClick={closeSettings}>
+            <button
+              type="button"
+              aria-label="Close"
+              title="Close"
+              class={cn(iconButtonClass, "absolute top-4 right-4")}
+              data-action="close-dialog"
+              onClick={closeSettings}
+            >
               <RemixIcon icon={CloseIcon} class="size-3.5" />
             </button>
           </div>

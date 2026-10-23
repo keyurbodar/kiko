@@ -13,8 +13,7 @@ export function write(key: string, value: string | null): void {
   try {
     if (value) localStorage.setItem(key, value)
     else localStorage.removeItem(key)
-  } catch {
-  }
+  } catch {}
 }
 
 export const base = () => (read(BACKEND_KEY) ?? import.meta.env.VITE_API_BASE ?? "").replace(/\/+$/, "")

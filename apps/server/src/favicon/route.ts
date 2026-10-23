@@ -11,48 +11,56 @@ const IMAGE = /^image\/(png|x-icon|vnd\.microsoft\.icon|jpeg|gif|webp|svg\+xml)$
 const LABEL = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
 
 function faviconHost(raw: string): string | null {
-	const host = raw.toLowerCase().replace(/\.$/, "")
-	if (host.length > 253) return null
-	const labels = host.split(".")
-	if (labels.length < 2 || !labels.every((l) => LABEL.test(l))) return null
-	if (/^\d+$/.test(labels.at(-1) ?? "")) return null
-	return host
+  const host = raw.toLowerCase().replace(/\.$/, "")
+  if (host.length > 253) return null
+  const labels = host.split(".")
+  if (labels.length < 2 || !labels.every((l) => LABEL.test(l))) return null
+  if (/^\d+$/.test(labels.at(-1) ?? "")) return null
+  return host
 }
 
 const reply = (body: BodyInit | null, status: number, type: string | null, seconds: number) =>
-	new Response(body, {
-		status,
-		headers: {
-			...(type ? { "content-type": type } : {}),
-			"cache-control": `public, max-age=${seconds}`,
-			"x-content-type-options": "nosniff",
-			"content-security-policy": "sandbox",
-		},
-	})
+  new Response(body, {
+    status,
+    headers: {
+      ...(type ? { "content-type": type } : {}),
+      "cache-control": `public, max-age=${seconds}`,
+      "x-content-type-options": "nosniff",
+      "content-security-policy": "sandbox",
+    },
+  })
 
-const sources = (host: string) => [`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32`, `https://${host}/favicon.ico`]
+const sources = (host: string) => [
+  `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32`,
+  `https://${host}/favicon.ico`,
+]
 
 async function fetchFavicon(host: string, fetcher?: Fetcher): Promise<Response> {
-	for (const url of sources(host)) {
-		const result = await safeFetch(url, fetcher, { maxBytes: MAX_BYTES, timeoutMs: TIMEOUT_MS, userAgent: "kiko-favicon" })
-		const type = result.ok ? (result.headers.get("content-type")?.split(";")[0]?.trim() ?? "") : ""
-		if (result.ok && !result.truncated && result.status === 200 && result.body.length && IMAGE.test(type)) return reply(result.body, 200, type.toLowerCase(), HIT_SECONDS)
-	}
-	return reply(null, 404, null, MISS_SECONDS)
+  for (const url of sources(host)) {
+    const result = await safeFetch(url, fetcher, {
+      maxBytes: MAX_BYTES,
+      timeoutMs: TIMEOUT_MS,
+      userAgent: "kiko-favicon",
+    })
+    const type = result.ok ? (result.headers.get("content-type")?.split(";")[0]?.trim() ?? "") : ""
+    if (result.ok && !result.truncated && result.status === 200 && result.body.length && IMAGE.test(type))
+      return reply(result.body, 200, type.toLowerCase(), HIT_SECONDS)
+  }
+  return reply(null, 404, null, MISS_SECONDS)
 }
 
 export async function faviconRoute(request: Request, env: Env): Promise<Response | null> {
-	const url = new URL(request.url)
-	if (!url.pathname.startsWith(PREFIX)) return null
-	if (request.method !== "GET") return Response.json({ error: "method not allowed" }, { status: 405 })
-	const user = (await getFileUser(request, env)) ?? (await getSessionUser(request, env))
-	if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
-	const host = faviconHost(url.pathname.slice(PREFIX.length))
-	if (!host) return reply(null, 404, null, MISS_SECONDS)
-	const key = new Request(`https://favicon.cache.invalid/${host}`)
-	const cached = await caches.default.match(key)
-	if (cached) return cached
-	const fresh = await fetchFavicon(host)
-	await caches.default.put(key, fresh.clone())
-	return fresh
+  const url = new URL(request.url)
+  if (!url.pathname.startsWith(PREFIX)) return null
+  if (request.method !== "GET") return Response.json({ error: "method not allowed" }, { status: 405 })
+  const user = (await getFileUser(request, env)) ?? (await getSessionUser(request, env))
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
+  const host = faviconHost(url.pathname.slice(PREFIX.length))
+  if (!host) return reply(null, 404, null, MISS_SECONDS)
+  const key = new Request(`https://favicon.cache.invalid/${host}`)
+  const cached = await caches.default.match(key)
+  if (cached) return cached
+  const fresh = await fetchFavicon(host)
+  await caches.default.put(key, fresh.clone())
+  return fresh
 }

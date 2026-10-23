@@ -1,6 +1,16 @@
 import type { RunErrorAction, RunErrorKind, SystemEvent } from "@kiko/protocol"
 import type { Glyph } from "@kiko/ui/remix-icon"
-import { AlertCircleIcon, ChatIcon, ClockIcon, GroupIcon, MemoryIcon, MinusIcon, ModelIcon, PlusIcon, StopIcon } from "@kiko/ui/icons"
+import {
+  AlertCircleIcon,
+  ChatIcon,
+  ClockIcon,
+  GroupIcon,
+  MemoryIcon,
+  MinusIcon,
+  ModelIcon,
+  PlusIcon,
+  StopIcon,
+} from "@kiko/ui/icons"
 import { createMemo, createSignal, onCleanup, Show } from "solid-js"
 import { openSettings } from "../../lib/errors"
 import { useApp } from "../../lib/store"
@@ -27,17 +37,27 @@ const ICONS: Record<string, Glyph> = {
 
 const RETRY_WAIT_MS = 8_000
 
-const LABELS: Record<RunErrorAction, string> = { retry: "Retry", change_model: "Change model", open_settings: "Settings" }
+const LABELS: Record<RunErrorAction, string> = {
+  retry: "Retry",
+  change_model: "Change model",
+  open_settings: "Settings",
+}
 
 export function ActivityEvent(props: { message: ChatMessage; name: (slug: string) => string; latest?: boolean }) {
   const row = createMemo(() => eventRow(props.message, props.name))
-  const failed = () => (props.message.event?.kind === "run_error" ? (props.message.event as Extract<SystemEvent, { kind: "run_error" }>) : undefined)
+  const failed = () =>
+    props.message.event?.kind === "run_error"
+      ? (props.message.event as Extract<SystemEvent, { kind: "run_error" }>)
+      : undefined
   const [retrying, setRetrying] = createSignal(false)
   let timer: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(timer))
   const busy = (slug: string) => retrying() || useApp.typingSlugs().includes(slug)
 
-  const failureAction = (event: { slug: string; reason: RunErrorKind; provider?: string | undefined }, action: RunErrorAction): RowAction => {
+  const failureAction = (
+    event: { slug: string; reason: RunErrorKind; provider?: string | undefined },
+    action: RunErrorAction,
+  ): RowAction => {
     const signIn = action === "open_settings" && event.reason === "signed_out" && !!event.provider
     return {
       label: signIn ? "Sign in again" : LABELS[action],

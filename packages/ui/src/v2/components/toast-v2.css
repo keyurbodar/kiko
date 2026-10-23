@@ -1,4 +1,3 @@
-
 .toast-v2-region,
 .toast-v2-anchors {
   --toast-solid: color-mix(in oklab, var(--foreground) 3%, var(--background));
@@ -9,7 +8,6 @@
     0 0 0 1px var(--toast-edge), 0 20px 25px -5px oklch(0% 0 none / 0.25), 0 8px 10px -6px oklch(0% 0 none / 0.25);
   --toast-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 
 :root:not(.dark) :is(.toast-v2-region, .toast-v2-anchors) {
   --toast-solid: var(--popover);
@@ -51,7 +49,6 @@
   list-style: none;
 }
 
-
 .toast-v2 {
   --toast-scale: max(0, 1 - var(--toast-index) * 0.1);
   --toast-y: calc(var(--toast-index) * var(--toast-peek) + (1 - var(--toast-scale)) * var(--toast-front-height));
@@ -84,7 +81,6 @@
   @starting-style {
     transform: translateX(calc(var(--toast-outward) * (100% + var(--toast-inset))));
   }
-
 
   &::after {
     content: "";
@@ -138,7 +134,6 @@
     pointer-events: auto;
   }
 }
-
 
 .toast-v2-content {
   display: flex;
@@ -237,7 +232,6 @@
   }
 }
 
-
 .toast-v2-close {
   position: absolute;
   z-index: 1;
@@ -281,7 +275,6 @@
   align-items: center;
   gap: 6px;
 }
-
 
 .toast-v2-copy {
   display: inline-flex;
@@ -331,7 +324,6 @@
     transform: scale(0.97);
   }
 
-
   &[data-variant="primary"] {
     color: var(--primary-foreground);
     background: var(--primary);
@@ -344,7 +336,6 @@
     background: color-mix(in oklab, var(--primary) 90%, transparent);
   }
 
-
   &[data-variant="secondary"] {
     color: var(--foreground);
     background: color-mix(in oklab, var(--foreground) 4%, transparent);
@@ -355,7 +346,6 @@
     background: color-mix(in oklab, var(--foreground) 7%, transparent);
   }
 }
-
 
 .toast-v2-anchored {
   position: fixed;

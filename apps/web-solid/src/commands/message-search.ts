@@ -5,7 +5,8 @@ import type { Command } from "./registry"
 type Engine = (typeof import("./message-search-engine"))["searchEngine"]
 const [engine, setEngine] = createSignal<Engine>()
 let loading: Promise<Engine> | undefined
-const load = () => (loading ??= import("./message-search-engine").then((m) => (setEngine(() => m.searchEngine), m.searchEngine)))
+const load = () =>
+  (loading ??= import("./message-search-engine").then((m) => (setEngine(() => m.searchEngine), m.searchEngine)))
 
 export const preloadMessageSearch = () => void load()
 

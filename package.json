@@ -2,12 +2,12 @@
   "name": "kiko",
   "version": "0.6.6",
   "private": true,
-  "type": "module",
   "workspaces": [
     "apps/*",
     "packages/*",
     "core/*"
   ],
+  "type": "module",
   "scripts": {
     "dev:server": "bun run --cwd apps/server dev --port 8787",
     "dev:web": "bun run --cwd apps/web-solid dev --port 5173",
@@ -22,6 +22,10 @@
     "@biomejs/biome": "2.5.15",
     "@phosphor-icons/core": "2.1.1",
     "@resvg/resvg-js": "2.6.2",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "knip": "6.42.1",
+    "oxfmt": "0.74.0",
+    "oxlint": "1.89.0",
     "remixicon": "4.9.1"
   }
 }

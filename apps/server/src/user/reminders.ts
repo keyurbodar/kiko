@@ -33,7 +33,14 @@ export type Reminder = {
   fails: number
 }
 
-export type RoutineRun = { routineId: string; occurrence: string; startedAt: number; endedAt: number | null; status: RoutineRunStatus; seq: number | null }
+export type RoutineRun = {
+  routineId: string
+  occurrence: string
+  startedAt: number
+  endedAt: number | null
+  status: RoutineRunStatus
+  seq: number | null
+}
 
 export type NewRoutine = {
   name: string
@@ -47,7 +54,12 @@ export type NewRoutine = {
 
 export type RunDelivery = "delivered" | "held" | "refused" | "gone" | "duplicate" | "skipped"
 
-type DeliverRun = (input: { requestId: string; deliveryId: string; routine: Reminder; body: string }) => Promise<RunDelivery>
+type DeliverRun = (input: {
+  requestId: string
+  deliveryId: string
+  routine: Reminder
+  body: string
+}) => Promise<RunDelivery>
 
 export type Notice = (roomId: RoomId, id: string, text: string) => Promise<void>
 
@@ -119,8 +131,7 @@ export class Reminders {
     private readonly now: () => number = Date.now,
     private readonly ports?: RoutinePorts,
     private readonly changed: () => void = () => {},
-  ) {
-  }
+  ) {}
 
   get(id: string): Reminder | null {
     const row = this.sql.exec<Row>("SELECT * FROM reminders WHERE id = ?", id).toArray()[0]
@@ -143,7 +154,10 @@ export class Reminders {
   }
 
   triggered(): Reminder[] {
-    return this.sql.exec<Row>("SELECT * FROM reminders WHERE trigger IS NOT NULL AND status IN ('active', 'paused')").toArray().map(toReminder)
+    return this.sql
+      .exec<Row>("SELECT * FROM reminders WHERE trigger IS NOT NULL AND status IN ('active', 'paused')")
+      .toArray()
+      .map(toReminder)
   }
 
   owner(): string | null {
@@ -168,9 +182,14 @@ export class Reminders {
     const token = input.trigger.on === "webhook" ? toHex(crypto.getRandomValues(new Uint8Array(24))) : undefined
     const tokenHash = token ? await sha256Hex(token) : null
     const open = this.sql
-      .exec<{ n: number }>("SELECT count(*) AS n FROM reminders WHERE room_id = ? AND target = ? AND trigger IS NOT NULL AND status IN ('active', 'paused')", input.roomId, input.target)
+      .exec<{ n: number }>(
+        "SELECT count(*) AS n FROM reminders WHERE room_id = ? AND target = ? AND trigger IS NOT NULL AND status IN ('active', 'paused')",
+        input.roomId,
+        input.target,
+      )
       .one().n
-    if (open >= MAX_ROUTINES) throw new ReminderError(`@${input.target} already has ${MAX_ROUTINES} routines in this chat. cancel one first.`)
+    if (open >= MAX_ROUTINES)
+      throw new ReminderError(`@${input.target} already has ${MAX_ROUTINES} routines in this chat. cancel one first.`)
     const id = crypto.randomUUID()
     this.sql.exec(
       `INSERT INTO reminders (id, text, due_utc, tz, rrule, room_id, target, created_by, status, last_fired, created_at, name, trigger, fails, hook_hash)
@@ -192,7 +211,10 @@ export class Reminders {
     return { routine: this.required(id), ...(token ? { token } : {}) }
   }
 
-  private routineFields(input: Pick<NewRoutine, "name" | "instructions" | "trigger" | "tz" | "target">, validateFreshness = true): { name: string; text: string; due: number; rrule: string | null } {
+  private routineFields(
+    input: Pick<NewRoutine, "name" | "instructions" | "trigger" | "tz" | "target">,
+    validateFreshness = true,
+  ): { name: string; text: string; due: number; rrule: string | null } {
     const name = input.name.trim().toLowerCase().replace(/\s+/g, " ")
     if (!name || name.length > 60) throw new ReminderError("name must be 1 to 60 characters")
     const text = input.instructions.trim()
@@ -208,31 +230,63 @@ export class Reminders {
         const rrule = t.rrule?.trim().replace(/^RRULE:/i, "") || null
         if (rrule) {
           checkRepeat(rrule, input.tz, due)
-          if (validateFreshness && due <= now) due = nextAfter(rrule, input.tz, due, now) ?? fail("the rule has no time after now")
-        } else if (validateFreshness && due < now - 1000) throw new ReminderError("that time is in the past. pick a future time.")
+          if (validateFreshness && due <= now)
+            due = nextAfter(rrule, input.tz, due, now) ?? fail("the rule has no time after now")
+        } else if (validateFreshness && due < now - 1000)
+          throw new ReminderError("that time is in the past. pick a future time.")
         return { name, text, due, rrule }
       }
       case "message":
       case "webhook":
         return { name, text, due: 0, rrule: null }
       default:
-        throw new ReminderError(`its ${(t as { on: string }).on} trigger is no longer supported. give it a time, message, or webhook trigger.`)
+        throw new ReminderError(
+          `its ${(t as { on: string }).on} trigger is no longer supported. give it a time, message, or webhook trigger.`,
+        )
     }
   }
 
-  async updateRoutine(id: string, patch: { name?: string; instructions?: string; trigger?: Trigger; status?: "active" | "paused" }): Promise<{ routine: Reminder; token?: string } | null> {
+  async updateRoutine(
+    id: string,
+    patch: { name?: string; instructions?: string; trigger?: Trigger; status?: "active" | "paused" },
+  ): Promise<{ routine: Reminder; token?: string } | null> {
     const current = this.get(id)
-    if (!current?.trigger || current.status === "cancelled" || (current.status === "done" && patch.trigger === undefined)) return null
-    const fresh = patch.trigger?.on === "webhook" && current.trigger.on !== "webhook" ? toHex(crypto.getRandomValues(new Uint8Array(24))) : undefined
+    if (
+      !current?.trigger ||
+      current.status === "cancelled" ||
+      (current.status === "done" && patch.trigger === undefined)
+    )
+      return null
+    const fresh =
+      patch.trigger?.on === "webhook" && current.trigger.on !== "webhook"
+        ? toHex(crypto.getRandomValues(new Uint8Array(24)))
+        : undefined
     const freshHash = fresh ? await sha256Hex(fresh) : null
     const trigger = patch.trigger ?? current.trigger
     const retimed = patch.trigger !== undefined || (patch.status === "active" && current.status !== "active")
-    const fields = this.routineFields({ name: patch.name ?? current.name ?? "", instructions: patch.instructions ?? current.text, trigger, tz: current.tz, target: current.target }, retimed)
+    const fields = this.routineFields(
+      {
+        name: patch.name ?? current.name ?? "",
+        instructions: patch.instructions ?? current.text,
+        trigger,
+        tz: current.tz,
+        target: current.target,
+      },
+      retimed,
+    )
     const due = retimed ? fields.due : current.dueUtc
     const status = patch.status ?? (current.status === "done" ? "active" : current.status)
     const resetFails = patch.status === "active" || current.status === "done"
-    if (!freshHash && fields.name === current.name && fields.text === current.text && JSON.stringify(trigger) === JSON.stringify(current.trigger)
-      && fields.rrule === current.rrule && due === current.dueUtc && status === current.status && (!resetFails || current.fails === 0)) {
+    if (
+      !freshHash &&
+      fields.name === current.name &&
+      fields.text === current.text &&
+      JSON.stringify(trigger) === JSON.stringify(current.trigger) &&
+      fields.rrule === current.rrule &&
+      due === current.dueUtc &&
+      status === current.status &&
+      (!resetFails || current.fails === 0)
+    ) {
       return { routine: current }
     }
     this.sql.exec(
@@ -253,21 +307,29 @@ export class Reminders {
   }
 
   byHook(hash: string): Reminder | null {
-    const row = this.sql.exec<Row>("SELECT * FROM reminders WHERE hook_hash = ? AND status = 'active'", hash).toArray()[0]
+    const row = this.sql
+      .exec<Row>("SELECT * FROM reminders WHERE hook_hash = ? AND status = 'active'", hash)
+      .toArray()[0]
     return row ? toReminder(row) : null
   }
 
   runs(routineId?: string): RoutineRun[] {
     this.expireLostRuns()
     const rows = routineId
-      ? this.sql.exec<RunRow>("SELECT * FROM routine_runs WHERE routine_id = ? ORDER BY started_at DESC", routineId).toArray()
+      ? this.sql
+          .exec<RunRow>("SELECT * FROM routine_runs WHERE routine_id = ? ORDER BY started_at DESC", routineId)
+          .toArray()
       : this.sql.exec<RunRow>("SELECT * FROM routine_runs ORDER BY started_at DESC LIMIT 200").toArray()
     return rows.map(toRun)
   }
 
   private expireLostRuns(): void {
     const now = this.now()
-    this.sql.exec("UPDATE routine_runs SET status = 'failed', ended_at = ? WHERE status = 'running' AND started_at < ?", now, now - LOST_RUN_MS)
+    this.sql.exec(
+      "UPDATE routine_runs SET status = 'failed', ended_at = ? WHERE status = 'running' AND started_at < ?",
+      now,
+      now - LOST_RUN_MS,
+    )
   }
 
   private beginRun(routineId: string, occurrence: string): boolean {
@@ -284,7 +346,13 @@ export class Reminders {
   private settleRun(routineId: string, occurrence: string, delivery: RunDelivery, fresh: boolean): void {
     if (fresh && delivery !== "delivered" && delivery !== "duplicate") {
       const status: RoutineRunStatus = delivery === "held" ? "held" : delivery === "skipped" ? "quiet" : "failed"
-      this.sql.exec("UPDATE routine_runs SET status = ?, ended_at = ? WHERE routine_id = ? AND occurrence = ? AND status = 'running'", status, this.now(), routineId, occurrence)
+      this.sql.exec(
+        "UPDATE routine_runs SET status = ?, ended_at = ? WHERE routine_id = ? AND occurrence = ? AND status = 'running'",
+        status,
+        this.now(),
+        routineId,
+        occurrence,
+      )
     }
     this.sql.exec(
       "DELETE FROM routine_runs WHERE routine_id = ? AND occurrence NOT IN (SELECT occurrence FROM routine_runs WHERE routine_id = ? ORDER BY started_at DESC LIMIT ?)",
@@ -294,7 +362,12 @@ export class Reminders {
     )
   }
 
-  async finishRun(routineId: string, occurrence: string, status: Exclude<RoutineRunStatus, "running" | "held">, seq: number | null): Promise<void> {
+  async finishRun(
+    routineId: string,
+    occurrence: string,
+    status: Exclude<RoutineRunStatus, "running" | "held">,
+    seq: number | null,
+  ): Promise<void> {
     const changed = this.sql.exec(
       "UPDATE routine_runs SET status = ?, ended_at = ?, seq = ? WHERE routine_id = ? AND occurrence = ? AND status = 'running'",
       status,
@@ -313,16 +386,25 @@ export class Reminders {
     this.sql.exec("UPDATE reminders SET fails = fails + 1 WHERE id = ?", id)
     const routine = this.get(id)
     if (!routine || routine.fails < MAX_FAILS) return
-    if (!this.sql.exec("UPDATE reminders SET status = 'paused' WHERE id = ? AND status = 'active'", id).rowsWritten) return
+    if (!this.sql.exec("UPDATE reminders SET status = 'paused' WHERE id = ? AND status = 'active'", id).rowsWritten)
+      return
     await this.rearm()
     const text = `routine "${routine.name}" paused itself: its last ${MAX_FAILS} runs failed. ask @${routine.target} to look at it, or resume it.`
-    await this.ports?.notice(routine.roomId, `paused:${id}:${occurrence}`, text).catch((e: unknown) => console.error(`paused notice not sent: ${e instanceof Error ? e.message : String(e)}`))
+    await this.ports
+      ?.notice(routine.roomId, `paused:${id}:${occurrence}`, text)
+      .catch((e: unknown) => console.error(`paused notice not sent: ${e instanceof Error ? e.message : String(e)}`))
   }
 
   async runNow(id: string): Promise<RunDelivery | null> {
     const routine = this.get(id)
     if (!routine?.trigger || routine.status !== "active" || !this.ports) return null
-    const n = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM routine_runs WHERE routine_id = ? AND occurrence LIKE 'test:%'", id).one().n + 1
+    const n =
+      this.sql
+        .exec<{ n: number }>(
+          "SELECT count(*) AS n FROM routine_runs WHERE routine_id = ? AND occurrence LIKE 'test:%'",
+          id,
+        )
+        .one().n + 1
     const occurrence = `test:${this.now()}:${n}`
     return this.run(routine, occurrence, "a test run the human or an agent asked for", "")
   }
@@ -353,7 +435,14 @@ export class Reminders {
     if (!this.ports) return "refused"
     const pending = this.deliveries.get(routine.id) ?? new Set<Promise<RunDelivery>>()
     this.deliveries.set(routine.id, pending)
-    const delivery = this.ports.deliverRun({ requestId: `${routine.id}:${occurrence}`, deliveryId: `${routine.id}:${occurrence}`, routine, body }).catch(thrownAsRefused)
+    const delivery = this.ports
+      .deliverRun({
+        requestId: `${routine.id}:${occurrence}`,
+        deliveryId: `${routine.id}:${occurrence}`,
+        routine,
+        body,
+      })
+      .catch(thrownAsRefused)
     pending.add(delivery)
     try {
       return await delivery
@@ -364,20 +453,33 @@ export class Reminders {
   }
 
   private lastRun(routineId: string): RoutineRun | null {
-    const row = this.sql.exec<RunRow>("SELECT * FROM routine_runs WHERE routine_id = ? AND status != 'running' ORDER BY started_at DESC LIMIT 1", routineId).toArray()[0]
+    const row = this.sql
+      .exec<RunRow>(
+        "SELECT * FROM routine_runs WHERE routine_id = ? AND status != 'running' ORDER BY started_at DESC LIMIT 1",
+        routineId,
+      )
+      .toArray()[0]
     return row ? toRun(row) : null
   }
 
   roomRoutines(roomId: string): Reminder[] {
     return this.sql
-      .exec<Row>("SELECT * FROM reminders WHERE room_id = ? AND status = 'active' AND json_extract(trigger, '$.on') = 'message'", roomId)
+      .exec<Row>(
+        "SELECT * FROM reminders WHERE room_id = ? AND status = 'active' AND json_extract(trigger, '$.on') = 'message'",
+        roomId,
+      )
       .toArray()
       .map(toReminder)
   }
 
   async makeDue(id: string): Promise<void> {
     const now = this.now()
-    const changed = this.sql.exec("UPDATE reminders SET due_utc = ? WHERE id = ? AND status = 'active' AND due_utc > 0 AND due_utc != ?", now, id, now)
+    const changed = this.sql.exec(
+      "UPDATE reminders SET due_utc = ? WHERE id = ? AND status = 'active' AND due_utc > 0 AND due_utc != ?",
+      now,
+      id,
+      now,
+    )
     if (changed.rowsWritten) await this.rearm()
   }
 
@@ -396,12 +498,22 @@ export class Reminders {
   }
 
   async cancelRoom(roomId: string): Promise<void> {
-    this.purge(this.sql.exec<{ id: string }>("SELECT id FROM reminders WHERE room_id = ?", roomId).toArray().map((row) => row.id))
+    this.purge(
+      this.sql
+        .exec<{ id: string }>("SELECT id FROM reminders WHERE room_id = ?", roomId)
+        .toArray()
+        .map((row) => row.id),
+    )
     await this.rearm()
   }
 
   async cancelAgent(slug: string): Promise<void> {
-    this.purge(this.sql.exec<{ id: string }>("SELECT id FROM reminders WHERE target = ? OR created_by = ?", slug, slug).toArray().map((row) => row.id))
+    this.purge(
+      this.sql
+        .exec<{ id: string }>("SELECT id FROM reminders WHERE target = ? OR created_by = ?", slug, slug)
+        .toArray()
+        .map((row) => row.id),
+    )
     await this.rearm()
   }
 
@@ -414,15 +526,21 @@ export class Reminders {
   }
 
   async cancelCreatedBy(createdBy: string): Promise<number> {
-    const changed = this.sql.exec("UPDATE reminders SET status = 'cancelled', hook_hash = NULL WHERE created_by = ? AND status = 'active'", createdBy)
+    const changed = this.sql.exec(
+      "UPDATE reminders SET status = 'cancelled', hook_hash = NULL WHERE created_by = ? AND status = 'active'",
+      createdBy,
+    )
     if (changed.rowsWritten) await this.rearm()
     return changed.rowsWritten
   }
 
   scheduled(): ScheduledRoutine[] {
-    return this.sql.exec<{ id: string; due_utc: number; room_id: string; target: string }>(
-      "SELECT id, due_utc, room_id, target FROM reminders WHERE status = 'active' AND due_utc > 0 AND json_extract(trigger, '$.on') = 'time' ORDER BY due_utc, id",
-    ).toArray().map((row) => ({ routineId: row.id, runAt: row.due_utc, roomId: row.room_id, target: row.target }))
+    return this.sql
+      .exec<{ id: string; due_utc: number; room_id: string; target: string }>(
+        "SELECT id, due_utc, room_id, target FROM reminders WHERE status = 'active' AND due_utc > 0 AND json_extract(trigger, '$.on') = 'time' ORDER BY due_utc, id",
+      )
+      .toArray()
+      .map((row) => ({ routineId: row.id, runAt: row.due_utc, roomId: row.room_id, target: row.target }))
   }
 
   async fireScheduled({ routineId, runAt, requestId }: RoutineDelivery): Promise<void> {
@@ -434,12 +552,16 @@ export class Reminders {
     if (this.now() < runAt) return
     if (requestId !== `${routineId}:${runAt}`) throw new ReminderError("invalid routine requestId")
     this.expireLostRuns()
-    if (routine.rrule === null || this.now() - runAt <= LATE_MS) await this.run(routine, String(runAt), "its scheduled time", "")
+    if (routine.rrule === null || this.now() - runAt <= LATE_MS)
+      await this.run(routine, String(runAt), "its scheduled time", "")
     const next = nextTime(routine, this.now())
     this.sql.exec(
       `UPDATE reminders SET last_fired = due_utc, due_utc = ?, status = ?
        WHERE id = ? AND due_utc = ? AND status = 'active'`,
-      next ?? runAt, next === null ? "done" : "active", routineId, runAt,
+      next ?? runAt,
+      next === null ? "done" : "active",
+      routineId,
+      runAt,
     )
     await this.rearm()
   }
@@ -450,9 +572,23 @@ export class Reminders {
   }
 }
 
-type RunRow = { routine_id: string; occurrence: string; started_at: number; ended_at: number | null; status: string; seq: number | null }
+type RunRow = {
+  routine_id: string
+  occurrence: string
+  started_at: number
+  ended_at: number | null
+  status: string
+  seq: number | null
+}
 
-const toRun = (r: RunRow): RoutineRun => ({ routineId: r.routine_id, occurrence: r.occurrence, startedAt: r.started_at, endedAt: r.ended_at, status: r.status as RoutineRunStatus, seq: r.seq })
+const toRun = (r: RunRow): RoutineRun => ({
+  routineId: r.routine_id,
+  occurrence: r.occurrence,
+  startedAt: r.started_at,
+  endedAt: r.ended_at,
+  status: r.status as RoutineRunStatus,
+  seq: r.seq,
+})
 
 const fail = (message: string): never => {
   throw new ReminderError(message)
@@ -462,7 +598,6 @@ const thrownAsRefused = (e: unknown): "refused" => {
   console.error(`delivery refused: ${e instanceof Error ? e.message : String(e)}`)
   return "refused"
 }
-
 
 function checkRepeat(rrule: string, tz: string, from: number): void {
   const problem = repeatProblem(rrule, tz, from)
@@ -475,7 +610,15 @@ export function nextTime(r: Pick<Reminder, "rrule" | "tz" | "dueUtc">, now: numb
 
 export function localTime(at: number, tz: string): string {
   const p = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
       .formatToParts(new Date(at))
       .map((x) => [x.type, x.value]),
   )
@@ -484,7 +627,9 @@ export function localTime(at: number, tz: string): string {
 
 function ruleText(rrule: string): string {
   try {
-    return RRule.fromString(rrule.replace(/^RRULE:/i, "")).toText().toLowerCase()
+    return RRule.fromString(rrule.replace(/^RRULE:/i, ""))
+      .toText()
+      .toLowerCase()
   } catch {
     return rrule.toLowerCase()
   }
@@ -493,7 +638,9 @@ function ruleText(rrule: string): string {
 export function describeTrigger(trigger: Trigger, tz: string, due: number): string {
   switch (trigger.on) {
     case "time":
-      return trigger.rrule ? `${ruleText(trigger.rrule)}, next ${localTime(due, tz)} (${tz})` : `once, ${localTime(due, tz)} (${tz})`
+      return trigger.rrule
+        ? `${ruleText(trigger.rrule)}, next ${localTime(due, tz)} (${tz})`
+        : `once, ${localTime(due, tz)} (${tz})`
     case "message":
       return `when the human posts here${trigger.contains ? ` a message containing "${trigger.contains}"` : ""}`
     case "webhook":

@@ -15,7 +15,13 @@ const show = (key: string) => formatForDisplay(key, { platform })
 function Keys(props: { keys: string }) {
   return (
     <span class="inline-flex items-center gap-1">
-      <For each={formatForDisplay(props.keys, { platform, parts: true })}>{(part) => <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] bg-control px-1 font-sans text-xs font-medium text-muted-foreground">{part}</kbd>}</For>
+      <For each={formatForDisplay(props.keys, { platform, parts: true })}>
+        {(part) => (
+          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] bg-control px-1 font-sans text-xs font-medium text-muted-foreground">
+            {part}
+          </kbd>
+        )}
+      </For>
     </span>
   )
 }
@@ -65,21 +71,33 @@ function KeyRow(props: { command: Command }) {
   }
   const custom = () => props.command.id in bindings()
   return (
-    <Row label={props.command.title} id={props.command.id} description={note()} onReset={custom() ? () => resetKey(props.command.id) : undefined} data-custom={custom() ? "" : undefined}>
+    <Row
+      label={props.command.title}
+      id={props.command.id}
+      description={note()}
+      onReset={custom() ? () => resetKey(props.command.id) : undefined}
+      data-custom={custom() ? "" : undefined}
+    >
       <button
         type="button"
         class={cn(
           "inline-flex h-7 min-w-24 cursor-pointer items-center justify-end rounded-md px-2 text-sm outline-none hover:bg-[var(--accent)]",
           recorder.isRecording() && "bg-[var(--accent)] ring-2 ring-[var(--ring)]",
         )}
-        aria-label={recorder.isRecording() ? `Press the new shortcut for ${props.command.title}` : `Change the shortcut for ${props.command.title}`}
+        aria-label={
+          recorder.isRecording()
+            ? `Press the new shortcut for ${props.command.title}`
+            : `Change the shortcut for ${props.command.title}`
+        }
         data-action="record-shortcut"
         data-recording={recorder.isRecording() ? "" : undefined}
         onClick={toggle}
         onBlur={() => recorder.isRecording() && recorder.cancelRecording()}
       >
         <Show when={!recorder.isRecording()} fallback={<span class="text-foreground">Press keys…</span>}>
-          <Show when={key()} fallback={<span class={muted}>None</span>}>{(k) => <Keys keys={k()} />}</Show>
+          <Show when={key()} fallback={<span class={muted}>None</span>}>
+            {(k) => <Keys keys={k()} />}
+          </Show>
         </Show>
       </button>
     </Row>
@@ -96,7 +114,9 @@ export default function KeyboardPage() {
       return words.every((w) => text.includes(w))
     }
     const listed = commands().filter(matches)
-    return ORDER.map((group) => ({ group, list: listed.filter((c) => c.group === group) })).filter((g) => g.list.length > 0)
+    return ORDER.map((group) => ({ group, list: listed.filter((c) => c.group === group) })).filter(
+      (g) => g.list.length > 0,
+    )
   })
   const changed = () => Object.keys(bindings()).length > 0
   return (
@@ -123,14 +143,15 @@ export default function KeyboardPage() {
             </Button>
           </Show>
         </div>
-        <Hint>Click a shortcut, then press the new keys. Escape cancels and Backspace removes the key. Shortcuts are saved in this browser.</Hint>
+        <Hint>
+          Click a shortcut, then press the new keys. Escape cancels and Backspace removes the key. Shortcuts are saved
+          in this browser.
+        </Hint>
       </div>
       <For each={groups()} fallback={<Empty>No matching shortcuts</Empty>}>
         {(g) => (
           <Group title={GROUP_LABEL[g.group]} data-shortcut-group={g.group}>
-            <For each={g.list}>
-              {(command) => <KeyRow command={command} />}
-            </For>
+            <For each={g.list}>{(command) => <KeyRow command={command} />}</For>
           </Group>
         )}
       </For>

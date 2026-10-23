@@ -13,8 +13,16 @@ export type RoutinesPort = {
   list(): Promise<Reminder[]>
   delete(id: string): Promise<{ ok: true } | { ok: false; error: string }>
   cancel(id: string): Promise<RoutineResult>
-  createRoutine(input: { name: string; instructions: string; trigger: Trigger; target?: string }): Promise<RoutineResult>
-  updateRoutine(id: string, patch: { name?: string; instructions?: string; trigger?: Trigger; status?: "active" | "paused" }): Promise<RoutineResult>
+  createRoutine(input: {
+    name: string
+    instructions: string
+    trigger: Trigger
+    target?: string
+  }): Promise<RoutineResult>
+  updateRoutine(
+    id: string,
+    patch: { name?: string; instructions?: string; trigger?: Trigger; status?: "active" | "paused" },
+  ): Promise<RoutineResult>
   runRoutine(id: string): Promise<RunDelivery | null>
   runs(id: string): Promise<RoutineRun[]>
   origin(): Promise<string | null>
@@ -38,7 +46,14 @@ function tidyTrigger(value: unknown, now = Date.now()): unknown {
   for (const [k, x] of Object.entries(v)) if (x !== null && x !== undefined && x !== "") out[k] = x
   const seconds = out.in_seconds
   delete out.in_seconds
-  if (out.on === "time" && out.at === undefined && typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0) out.at = new Date(now + seconds * 1000).toISOString()
+  if (
+    out.on === "time" &&
+    out.at === undefined &&
+    typeof seconds === "number" &&
+    Number.isFinite(seconds) &&
+    seconds > 0
+  )
+    out.at = new Date(now + seconds * 1000).toISOString()
   return out
 }
 
@@ -60,7 +75,9 @@ export const routineLine = (r: Reminder, runs?: RoutineRun[]) => {
   const trigger = r.trigger ? describeTrigger(r.trigger, r.tz, r.dueUtc) : "no supported trigger"
   const details = [`${r.id}: routine "${r.name}" (${r.status}) for @${r.target}, chat ${r.roomId}, runs ${trigger}`]
   if (last) {
-    details.push(`last run ${last.status}, started ${new Date(last.startedAt).toISOString()}${last.endedAt === null ? "" : `, ended ${new Date(last.endedAt).toISOString()}`}`)
+    details.push(
+      `last run ${last.status}, started ${new Date(last.startedAt).toISOString()}${last.endedAt === null ? "" : `, ended ${new Date(last.endedAt).toISOString()}`}`,
+    )
   } else if (runs) {
     details.push("no runs yet")
   }
@@ -89,16 +106,25 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
             name: Type.String({ description: "short, lowercase" }),
             instructions: Type.String({ description: "what to do each run, and what to do when a source is missing" }),
             trigger: Type.Unknown({ description: "when it runs" }),
-            agent: Type.Optional(Type.String({ description: "who runs it: omit for yourself, or any agent's handle from list_agents" })),
+            agent: Type.Optional(
+              Type.String({ description: "who runs it: omit for yourself, or any agent's handle from list_agents" }),
+            ),
           }),
           replay: "unsafe",
           execute: async (args) => {
             const trigger = parseTrigger(args.trigger)
             if (typeof trigger === "string") return { output: text(trigger), isError: true }
             const target = otherAgent(args.agent)
-            const out = await user().createRoutine({ name: args.name, instructions: args.instructions, trigger, ...(target ? { target } : {}) })
+            const out = await user().createRoutine({
+              name: args.name,
+              instructions: args.instructions,
+              trigger,
+              ...(target ? { target } : {}),
+            })
             if (!out.ok) return { output: text(`not set: ${out.error}`), isError: true }
-            const hook = out.token ? `\nits webhook url is ${(await user().origin()) ?? ""}/api/hooks/${out.token} . tell the human this url once; it is not shown again.` : ""
+            const hook = out.token
+              ? `\nits webhook url is ${(await user().origin()) ?? ""}/api/hooks/${out.token} . tell the human this url once; it is not shown again.`
+              : ""
             return { output: text(`routine set: ${routineLine(out.routine, [])}${hook}`) }
           },
         }),
@@ -107,7 +133,8 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
         "write",
         defineTool({
           name: "update_routine",
-          description: "Change, pause, resume, reschedule, or run now a routine by its id from list_routines. Give a completed routine a new trigger to schedule it again.",
+          description:
+            "Change, pause, resume, reschedule, or run now a routine by its id from list_routines. Give a completed routine a new trigger to schedule it again.",
           parameters: Type.Object({
             id: Type.String(),
             name: Type.Optional(Type.String()),
@@ -122,7 +149,11 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
             if (typeof trigger === "string") return { output: text(trigger), isError: true }
             const current = (await user().list()).find((r) => r.id === args.id && r.trigger)
             if (!current) return { output: text("no such routine available to you"), isError: true }
-            const changes = args.name !== undefined || args.instructions !== undefined || trigger !== undefined || args.status === "active"
+            const changes =
+              args.name !== undefined ||
+              args.instructions !== undefined ||
+              trigger !== undefined ||
+              args.status === "active"
             let routine = current
             let hook = ""
             if (changes || args.status) {
@@ -135,10 +166,15 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
               const out = await user().updateRoutine(args.id, routineChanges())
               if (!out.ok) return { output: text(`not changed: ${out.error}`), isError: true }
               routine = out.routine
-              if (out.token) hook = `\nits webhook url is ${(await user().origin()) ?? ""}/api/hooks/${out.token} . tell the human this url once; it is not shown again.`
+              if (out.token)
+                hook = `\nits webhook url is ${(await user().origin()) ?? ""}/api/hooks/${out.token} . tell the human this url once; it is not shown again.`
             }
             const ran = args.run_now ? await user().runRoutine(args.id) : null
-            return { output: text(`${routineLine(routine, await user().runs(routine.id))}${hook}${args.run_now ? `\nrun now: ${ran ?? "not run: it is not active"}` : ""}`) }
+            return {
+              output: text(
+                `${routineLine(routine, await user().runs(routine.id))}${hook}${args.run_now ? `\nrun now: ${ran ?? "not run: it is not active"}` : ""}`,
+              ),
+            }
           },
         }),
       ),
@@ -146,7 +182,8 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
         "read",
         defineTool({
           name: "list_routines",
-          description: "List all noncancelled routines in this chat, including completed and failed ones, with instructions, state, and the last run's status and time.",
+          description:
+            "List all noncancelled routines in this chat, including completed and failed ones, with instructions, state, and the last run's status and time.",
           parameters: Type.Object({}),
           replay: "safe",
           execute: async () => {
@@ -160,12 +197,17 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
         "write",
         defineTool({
           name: "add_recipe",
-          description: "Add one of the human's recipes (from /home/recipes, listed with the skills) to this chat, run by you. It makes the recipe's routines at once. Use it when the human wants a recipe set up here.",
-          parameters: Type.Object({ slug: Type.String({ description: "the recipe's folder name, like morning-briefing" }) }),
+          description:
+            "Add one of the human's recipes (from /home/recipes, listed with the skills) to this chat, run by you. It makes the recipe's routines at once. Use it when the human wants a recipe set up here.",
+          parameters: Type.Object({
+            slug: Type.String({ description: "the recipe's folder name, like morning-briefing" }),
+          }),
           replay: "unsafe",
           execute: async ({ slug }) => {
             const out = await user().addRecipe(slug.trim())
-            return out.ok ? { output: text(out.existed ? out.setup : `added.\n${out.setup}`) } : { output: text(`not added: ${out.error}`), isError: true }
+            return out.ok
+              ? { output: text(out.existed ? out.setup : `added.\n${out.setup}`) }
+              : { output: text(`not added: ${out.error}`), isError: true }
           },
         }),
       ),
@@ -173,7 +215,8 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
         "write",
         defineTool({
           name: "delete_routine",
-          description: "Permanently delete a routine, its instructions, and run history by id. Use cancel_routine to stop it while keeping its history.",
+          description:
+            "Permanently delete a routine, its instructions, and run history by id. Use cancel_routine to stop it while keeping its history.",
           parameters: Type.Object({ id: Type.String() }),
           replay: "safe",
           execute: async ({ id }) => {

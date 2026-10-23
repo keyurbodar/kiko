@@ -8,7 +8,14 @@ import type {
 } from "@earendil-works/pi-ai"
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth"
 import { createModels } from "@earendil-works/pi-ai/models"
-import type { ConnectMethod, LoginErrorReason, LoginEvent, LoginPrompt, ProviderInfo, UserToClient } from "@kiko/protocol"
+import type {
+  ConnectMethod,
+  LoginErrorReason,
+  LoginEvent,
+  LoginPrompt,
+  ProviderInfo,
+  UserToClient,
+} from "@kiko/protocol"
 import { runErrorDetail } from "../agent/run-error"
 import { findProvider } from "../models/catalog"
 import { withPasteLogin } from "./chatgpt-signin"
@@ -78,7 +85,8 @@ export class ProviderLogins<Owner> {
     const oauth = provider?.auth.oauth
     if (!provider || !oauth) return refuse("unsupported", "this provider has no sign-in kiko can run. use an api key")
     for (const other of [...this.logins.values()]) {
-      if (other.provider === providerId) this.end(other, { reason: "cancelled", message: "a newer sign-in replaced this one" })
+      if (other.provider === providerId)
+        this.end(other, { reason: "cancelled", message: "a newer sign-in replaced this one" })
     }
     if (this.logins.size >= MAX_LOGINS) return refuse("failed", "too many sign-ins are running")
 
@@ -103,7 +111,10 @@ export class ProviderLogins<Owner> {
       prompt: (prompt) => this.ask(login, prompt, select),
     }
     try {
-      await models.login(providerId, "oauth", interaction, { getDeviceId: () => this.deps.deviceId(), agentName: "Kiko" })
+      await models.login(providerId, "oauth", interaction, {
+        getDeviceId: () => this.deps.deviceId(),
+        agentName: "Kiko",
+      })
     } catch (error) {
       if (this.live(login)) this.end(login, { reason: "failed", message: signInFailure(error) })
       return
@@ -157,12 +168,18 @@ export class ProviderLogins<Owner> {
   }
 
   private unknown(owner: Owner, loginId: string): void {
-    this.deps.send(owner, { t: "login.error", loginId, reason: "unknown", message: "this sign-in is no longer running" })
+    this.deps.send(owner, {
+      t: "login.error",
+      loginId,
+      reason: "unknown",
+      message: "this sign-in is no longer running",
+    })
   }
 
   private ask(login: Login<Owner>, prompt: AuthPrompt, select: string | undefined): Promise<string> {
     if (!this.live(login)) return Promise.reject(new Error("sign-in ended"))
-    if (prompt.type === "select" && select && prompt.options.some((o) => o.id === select)) return Promise.resolve(select)
+    if (prompt.type === "select" && select && prompt.options.some((o) => o.id === select))
+      return Promise.resolve(select)
     const promptId = String(++login.promptCount)
     return new Promise<string>((resolve, reject) => {
       const withdraw = () => {
@@ -204,10 +221,19 @@ function wirePrompt(prompt: AuthPrompt): LoginPrompt {
 }
 
 const FAILURES: readonly (readonly [RegExp, string])[] = [
-  [/state|pasted|callback|redirect|authorization code|client id|not a web address/i, "That address does not match this sign-in. Start again and paste the address from the same tab."],
+  [
+    /state|pasted|callback|redirect|authorization code|client id|not a web address/i,
+    "That address does not match this sign-in. Start again and paste the address from the same tab.",
+  ],
   [/expired|expired_token|code .*invalid|timed? ?out/i, "The sign-in code expired. Start again and finish it sooner."],
-  [/access_denied|denied|refused|cancel/i, "The provider did not approve the sign-in. Start again if that was a mistake."],
-  [/fetch failed|network|econn|enotfound|unable to connect|could not reach/i, "Kiko could not reach the provider. Check the connection, then start again."],
+  [
+    /access_denied|denied|refused|cancel/i,
+    "The provider did not approve the sign-in. Start again if that was a mistake.",
+  ],
+  [
+    /fetch failed|network|econn|enotfound|unable to connect|could not reach/i,
+    "Kiko could not reach the provider. Check the connection, then start again.",
+  ],
 ]
 
 function signInFailure(error: unknown): string {

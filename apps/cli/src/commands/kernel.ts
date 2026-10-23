@@ -1,7 +1,12 @@
 import { CliError, type Context } from "../main"
 import { askUser } from "./user-socket"
 
-type Result = { ok: true; status: { connected: boolean; broken: boolean; browser: { mode: string; tabs: Record<string, number> } | null } } | { ok: false; error: string }
+type Result =
+  | {
+      ok: true
+      status: { connected: boolean; broken: boolean; browser: { mode: string; tabs: Record<string, number> } | null }
+    }
+  | { ok: false; error: string }
 
 export async function kernel(ctx: Context): Promise<void> {
   const [sub] = ctx.args
@@ -18,6 +23,8 @@ export async function kernel(ctx: Context): Promise<void> {
   else if (!result.ok) throw new CliError(result.error)
   else {
     const { connected, broken, browser } = result.status
-    console.log(`connected: ${connected}, key rejected: ${broken}, browser: ${browser ? `${browser.mode}, tabs ${JSON.stringify(browser.tabs)}` : "none"}`)
+    console.log(
+      `connected: ${connected}, key rejected: ${broken}, browser: ${browser ? `${browser.mode}, tabs ${JSON.stringify(browser.tabs)}` : "none"}`,
+    )
   }
 }

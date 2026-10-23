@@ -21,19 +21,36 @@ export async function devUsage(host: AgentDevHost): Promise<Usage> {
   const { harness } = await host.opened()
   const now = await host.usageOf(harness)
   const carried = await host.carried()
-  return { input: carried.input + now.input, output: carried.output + now.output, cacheRead: carried.cacheRead + now.cacheRead, cacheWrite: carried.cacheWrite + now.cacheWrite }
+  return {
+    input: carried.input + now.input,
+    output: carried.output + now.output,
+    cacheRead: carried.cacheRead + now.cacheRead,
+    cacheWrite: carried.cacheWrite + now.cacheWrite,
+  }
 }
 
-export async function devTrace(host: AgentDevHost): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
+export async function devTrace(
+  host: AgentDevHost,
+): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
   if (!host.home()) return []
   const { root } = await host.opened()
   const view = await root.context(BACKGROUND_CONTEXT)
   return view.entries.map((e) => {
-    const m = e.model?.[0] as { content?: string | { type: string; text?: string; name?: string; thinking?: string }[] } | undefined
+    const m = e.model?.[0] as
+      | { content?: string | { type: string; text?: string; name?: string; thinking?: string }[] }
+      | undefined
     const parts = typeof m?.content === "string" ? [{ type: "text", text: m.content }] : (m?.content ?? [])
     const tool = parts.find((p) => p.type === "toolCall")?.name
-    const text = parts.map((p) => p.text ?? "").join("").slice(0, 300)
-    return { kind: e.kind, ...(tool ? { tool } : {}), chars: parts.reduce((n, p) => n + (p.text?.length ?? 0) + (p.thinking?.length ?? 0), 0), ...(text ? { text } : {}) }
+    const text = parts
+      .map((p) => p.text ?? "")
+      .join("")
+      .slice(0, 300)
+    return {
+      kind: e.kind,
+      ...(tool ? { tool } : {}),
+      chars: parts.reduce((n, p) => n + (p.text?.length ?? 0) + (p.thinking?.length ?? 0), 0),
+      ...(text ? { text } : {}),
+    }
   })
 }
 

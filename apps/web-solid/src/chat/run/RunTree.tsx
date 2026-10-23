@@ -42,7 +42,13 @@ function keysUnder(keys: ReadonlySet<string>, prefix: string): Set<string> {
 
 type Fold = "gone" | "open" | "grow" | "shut"
 
-const foldMs = (element: HTMLElement) => Math.max(0, ...getComputedStyle(element).transitionDuration.split(",").map((s) => Number.parseFloat(s) * 1000 || 0))
+const foldMs = (element: HTMLElement) =>
+  Math.max(
+    0,
+    ...getComputedStyle(element)
+      .transitionDuration.split(",")
+      .map((s) => Number.parseFloat(s) * 1000 || 0),
+  )
 
 function foldOf(isOpen: boolean, moves: boolean, list: HTMLDivElement | undefined): { fold: Fold; ms: number } {
   if (isOpen) return { fold: moves ? "grow" : "open", ms: 0 }
@@ -81,7 +87,8 @@ function Retry(props: { onRetry: () => void }) {
 }
 
 function DetailEmpty(props: { detail: RowDetail; onRetry: () => void }) {
-  const text = () => (props.detail.running ? "Running…" : props.detail.status === "ready" ? "No output." : "Loading output…")
+  const text = () =>
+    props.detail.running ? "Running…" : props.detail.status === "ready" ? "No output." : "Loading output…"
   return (
     <Show when={props.detail.status === "error"} fallback={<p class="run-tree-note">{text()}</p>}>
       <p class="run-tree-note">
@@ -95,9 +102,14 @@ function Detail(props: { detail: RowDetail; child: boolean; onRetry: () => void 
   const detail = () => props.detail
   return (
     <div class={cn("run-tree-detail", props.child && "ml-3")}>
-      <Show when={detail().lines}>{(lines) => <For each={lines()}>{(line) => <p class="run-tree-note">{line}</p>}</For>}</Show>
+      <Show when={detail().lines}>
+        {(lines) => <For each={lines()}>{(line) => <p class="run-tree-note">{line}</p>}</For>}
+      </Show>
       <Show when={!detail().lines}>
-        <Show when={detail().input || detail().output} fallback={<DetailEmpty detail={detail()} onRetry={props.onRetry} />}>
+        <Show
+          when={detail().input || detail().output}
+          fallback={<DetailEmpty detail={detail()} onRetry={props.onRetry} />}
+        >
           <div class="run-tree-block">
             <Show when={detail().input}>{(input) => <pre class="run-tree-mono run-tree-input">{input()}</pre>}</Show>
             <Show when={detail().output}>
@@ -129,7 +141,10 @@ function Row(props: { row: TreeRow; open: boolean; onOpen: (row: TreeRow) => voi
   const detail = () => props.row.detail
   const expandable = () => props.row.expand !== undefined || detail() !== undefined
   return (
-    <Show when={props.row.kind !== "loading" && props.row.kind !== "error"} fallback={<StatusRow row={props.row} onRetry={props.onRetry} />}>
+    <Show
+      when={props.row.kind !== "loading" && props.row.kind !== "error"}
+      fallback={<StatusRow row={props.row} onRetry={props.onRetry} />}
+    >
       <button
         type="button"
         class={cn("run-tree-row", props.row.child && "ml-3")}
@@ -141,10 +156,19 @@ function Row(props: { row: TreeRow; open: boolean; onOpen: (row: TreeRow) => voi
       >
         <Label text={props.row.label} running={props.row.running} />
         <Show when={props.row.icon}>
-          {(glyph) => <RemixIcon icon={GLYPH[glyph()]} size={12} class="run-tree-icon" data-failed={glyph() === "alert-circle" ? "" : undefined} />}
+          {(glyph) => (
+            <RemixIcon
+              icon={GLYPH[glyph()]}
+              size={12}
+              class="run-tree-icon"
+              data-failed={glyph() === "alert-circle" ? "" : undefined}
+            />
+          )}
         </Show>
       </button>
-      <Show when={props.open && detail()}>{(shown) => <Detail detail={shown()} child={props.row.child} onRetry={props.onRetry} />}</Show>
+      <Show when={props.open && detail()}>
+        {(shown) => <Detail detail={shown()} child={props.row.child} onRetry={props.onRetry} />}
+      </Show>
     </Show>
   )
 }
@@ -170,7 +194,15 @@ export function RunTree(props: { windowKey: string; count?: number }): JSX.Eleme
     useApp.loadRunSteps(props.windowKey, force)
   }
 
-  const tree = createMemo(() => treeOf(steps(), { working: working(), open: open(), count: props.count, detail: detailStatus(), workers: workers() }))
+  const tree = createMemo(() =>
+    treeOf(steps(), {
+      working: working(),
+      open: open(),
+      count: props.count,
+      detail: detailStatus(),
+      workers: workers(),
+    }),
+  )
 
   createEffect(() => {
     if (open() && !live()) untrack(request)
@@ -221,31 +253,51 @@ export function RunTree(props: { windowKey: string; count?: number }): JSX.Eleme
     if (row.expand !== undefined) return setOpen(workerKey(row.expand), !opened().has(workerKey(row.expand)))
     toggleDetail(row)
   }
-  const isRowOpen = (row: TreeRow) => (row.expand === undefined ? shownRows().has(row.id) : opened().has(workerKey(row.expand)))
+  const isRowOpen = (row: TreeRow) =>
+    row.expand === undefined ? shownRows().has(row.id) : opened().has(workerKey(row.expand))
 
   return (
     <div class="run-tree" data-component="run-tree">
       <Show when={tree().head}>
         {(head) => (
-          <button type="button" class="run-tree-row" data-kind={head().kind} aria-expanded={head().open} onClick={toggle}>
+          <button
+            type="button"
+            class="run-tree-row"
+            data-kind={head().kind}
+            aria-expanded={head().open}
+            onClick={toggle}
+          >
             <span class="run-tree-label">{head().label}</span>
             <Show when={head().failed}>
               <RemixIcon icon={GLYPH["alert-circle"]} size={12} class="run-tree-icon" data-failed="" />
             </Show>
-            <span class="run-tree-chevron motion-run-chevron" data-open={head().open ? "" : undefined} aria-hidden="true">
+            <span
+              class="run-tree-chevron motion-run-chevron"
+              data-open={head().open ? "" : undefined}
+              aria-hidden="true"
+            >
               <RemixIcon icon={ChevronRightIcon} size={12} />
             </span>
           </button>
         )}
       </Show>
       <Show when={fold() !== "gone"}>
-        <div ref={list} class="run-tree-fold motion-run-fold" data-grow={fold() === "grow" ? "" : undefined} data-shut={fold() === "shut" ? "" : undefined}>
+        <div
+          ref={list}
+          class="run-tree-fold motion-run-fold"
+          data-grow={fold() === "grow" ? "" : undefined}
+          data-shut={fold() === "shut" ? "" : undefined}
+        >
           <div>
-            <Index each={tree().folded}>{(row) => <Row row={row()} open={isRowOpen(row())} onOpen={openRow} onRetry={() => request(true)} />}</Index>
+            <Index each={tree().folded}>
+              {(row) => <Row row={row()} open={isRowOpen(row())} onOpen={openRow} onRetry={() => request(true)} />}
+            </Index>
           </div>
         </div>
       </Show>
-      <Index each={tree().shown}>{(row) => <Row row={row()} open={isRowOpen(row())} onOpen={openRow} onRetry={() => request(true)} />}</Index>
+      <Index each={tree().shown}>
+        {(row) => <Row row={row()} open={isRowOpen(row())} onOpen={openRow} onRetry={() => request(true)} />}
+      </Index>
     </div>
   )
 }

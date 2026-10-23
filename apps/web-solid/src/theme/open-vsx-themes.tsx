@@ -71,7 +71,15 @@ export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
   }
 
   return (
-    <Dialog open={props.open} onClose={close} title="Themes" size="md" class="h-[min(560px,86dvh)]" bodyClass="flex flex-col gap-2 overflow-hidden px-3" data-component="theme-browser">
+    <Dialog
+      open={props.open}
+      onClose={close}
+      title="Themes"
+      size="md"
+      class="h-[min(560px,86dvh)]"
+      bodyClass="flex flex-col gap-2 overflow-hidden px-3"
+      data-component="theme-browser"
+    >
       <input
         type="search"
         class="kit-field mx-2"
@@ -82,20 +90,39 @@ export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
         ref={(el) => requestAnimationFrame(() => el.focus())}
         onInput={(e) => setQuery(e.currentTarget.value)}
       />
-      <Show when={error()}>{(message) => <div class="px-2"><Notice>{message()}</Notice></div>}</Show>
+      <Show when={error()}>
+        {(message) => (
+          <div class="px-2">
+            <Notice>{message()}</Notice>
+          </div>
+        )}
+      </Show>
       <ul class="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <Show
           when={results()}
           fallback={
             <>
               <li class="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground">Installed</li>
-              <For each={themes().themes} fallback={<li class="px-2 py-1 text-sm text-muted-foreground">None yet. Search for one above.</li>}>
+              <For
+                each={themes().themes}
+                fallback={<li class="px-2 py-1 text-sm text-muted-foreground">None yet. Search for one above.</li>}
+              >
                 {(theme) => (
                   <li class="flex h-9 items-center gap-2 rounded-md px-2 hover:bg-accent" data-theme={theme.id}>
                     <span class="min-w-0 flex-1 truncate text-md text-foreground">{theme.name}</span>
-                    <span class="shrink-0 text-xs text-muted-foreground">{theme.appearance === "dark" ? "Dark" : "Light"}</span>
+                    <span class="shrink-0 text-xs text-muted-foreground">
+                      {theme.appearance === "dark" ? "Dark" : "Light"}
+                    </span>
                     <IconButton label={`Remove ${theme.name}`} danger onClick={() => remove(theme)}>
-                      <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                      <svg
+                        class="size-3.5"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.6"
+                        stroke-linecap="round"
+                        aria-hidden="true"
+                      >
                         <path d="M4 4l8 8M12 4l-8 8" />
                       </svg>
                     </IconButton>
@@ -106,7 +133,14 @@ export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
           }
         >
           {(found) => (
-            <For each={found()} fallback={<li class="px-2 py-1 text-sm text-muted-foreground">{searching() ? "Searching" : "No color themes match."}</li>}>
+            <For
+              each={found()}
+              fallback={
+                <li class="px-2 py-1 text-sm text-muted-foreground">
+                  {searching() ? "Searching" : "No color themes match."}
+                </li>
+              }
+            >
               {(item) => (
                 <li class="flex min-h-11 items-center gap-3 rounded-md px-2 hover:bg-accent" data-item={keyOf(item)}>
                   <div class="flex min-w-0 flex-1 flex-col">
@@ -115,7 +149,10 @@ export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
                       {item.namespace} · {item.downloadCount.toLocaleString()} installs
                     </span>
                   </div>
-                  <Show when={!installed(item)} fallback={<span class="shrink-0 text-xs text-muted-foreground">Installed</span>}>
+                  <Show
+                    when={!installed(item)}
+                    fallback={<span class="shrink-0 text-xs text-muted-foreground">Installed</span>}
+                  >
                     <Button disabled={installing() !== null} onClick={() => void install(item)}>
                       {installing() === keyOf(item) ? "Installing" : "Install"}
                     </Button>

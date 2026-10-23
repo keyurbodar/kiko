@@ -36,13 +36,17 @@ function codeOf(status: number, errors: { code: number; message: string }[]): st
   return "cloudflare_error"
 }
 
-export const isBlocking = (e: unknown): e is InstallError => e instanceof InstallError && ["bad_token", "no_permission", "busy", "storage_full", "cloudflare_down"].includes(e.code)
+export const isBlocking = (e: unknown): e is InstallError =>
+  e instanceof InstallError &&
+  ["bad_token", "no_permission", "busy", "storage_full", "cloudflare_down"].includes(e.code)
 
 const SENTENCE: Record<string, string> = {
-  bad_token: "Cloudflare does not recognise this token. Paste the token value Cloudflare showed once when you created it.",
+  bad_token:
+    "Cloudflare does not recognise this token. Paste the token value Cloudflare showed once when you created it.",
   no_permission: "Cloudflare did not let this sign-in do a step of the install.",
   busy: "Cloudflare is busy. Wait a minute, then try again.",
-  storage_full: "This Cloudflare account has used its free daily allowance of Durable Object storage, so the install could not save its step. The allowance resets at 00:00 UTC, and trying again after that works. A paid Workers plan removes the daily limit.",
+  storage_full:
+    "This Cloudflare account has used its free daily allowance of Durable Object storage, so the install could not save its step. The allowance resets at 00:00 UTC, and trying again after that works. A paid Workers plan removes the daily limit.",
   cloudflare_down: "Cloudflare is having trouble right now. Try again in a few minutes.",
   cloudflare_error: "Cloudflare did not accept a step of the install.",
 }
@@ -53,7 +57,12 @@ export const installFailure = (e: unknown): InstallError | null => {
   return ROWS_FULL.test(said) ? new InstallError("storage_full", SENTENCE.storage_full as string, 503, [], said) : null
 }
 
-export async function cf<T>(token: string, path: string, init: RequestInit = {}, fetcher: FetchLike = fetch): Promise<T> {
+export async function cf<T>(
+  token: string,
+  path: string,
+  init: RequestInit = {},
+  fetcher: FetchLike = fetch,
+): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set("Authorization", `Bearer ${token}`)
   let res: Response
@@ -68,7 +77,13 @@ export async function cf<T>(token: string, path: string, init: RequestInit = {},
     const codes = errors.flatMap((e) => (typeof e.code === "number" ? [e.code] : []))
     const code = codeOf(res.status, errors)
     const said = errors[0]?.message ?? `Cloudflare answered ${res.status}.`
-    throw new InstallError(code, SENTENCE[code] as string, 502, codes, `${said} (${init.method ?? "GET"} ${path.replace(/\/accounts\/\w+/, "/accounts/…")})`)
+    throw new InstallError(
+      code,
+      SENTENCE[code] as string,
+      502,
+      codes,
+      `${said} (${init.method ?? "GET"} ${path.replace(/\/accounts\/\w+/, "/accounts/…")})`,
+    )
   }
   return body.result
 }

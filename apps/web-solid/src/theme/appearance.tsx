@@ -30,7 +30,14 @@ function Preview(props: { palette: Palette; accent: string }) {
   )
 }
 
-function ThemeCard(props: { name: string; palette: Palette; accent: string; selected: boolean; onPick: () => void; onRemove?: () => void }) {
+function ThemeCard(props: {
+  name: string
+  palette: Palette
+  accent: string
+  selected: boolean
+  onPick: () => void
+  onRemove?: () => void
+}) {
   return (
     <div class="group/theme relative">
       <button
@@ -46,7 +53,8 @@ function ThemeCard(props: { name: string; palette: Palette; accent: string; sele
           class="truncate px-2.5 py-1.5 text-sm"
           style={{ background: props.palette.canvas, color: props.palette.text }}
         >
-          {props.name}{props.selected ? " ✓" : ""}
+          {props.name}
+          {props.selected ? " ✓" : ""}
         </span>
       </button>
       <Show when={props.onRemove}>
@@ -57,7 +65,15 @@ function ThemeCard(props: { name: string; palette: Palette; accent: string; sele
           title="Remove"
           onClick={props.onRemove}
         >
-          <svg class="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <svg
+            class="size-3"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
             <path d="M4 4l8 8M12 4l-8 8" />
           </svg>
         </button>
@@ -78,9 +94,28 @@ function Gallery(props: { appearance: ThemeAppearance; onMore: () => void }) {
           <span class="text-xs font-normal text-secondary-label">Showing now</span>
         </Show>
       </h2>
-      <div role="radiogroup" aria-label={props.appearance === "dark" ? "Dark theme" : "Light theme"} class="grid grid-cols-2 gap-2 @min-[560px]/settings:grid-cols-4">
+      <div
+        role="radiogroup"
+        aria-label={props.appearance === "dark" ? "Dark theme" : "Light theme"}
+        class="grid grid-cols-2 gap-2 @min-[560px]/settings:grid-cols-4"
+      >
         <For each={installed()}>
-          {(theme) => <ThemeCard name={theme.name} palette={theme.palette} accent={theme.accent} selected={active() === theme.id} onPick={() => { choose(props.appearance, theme.id); updateLook({ mode: props.appearance }) }} onRemove={() => { remove(theme); more?.focus() }} />}
+          {(theme) => (
+            <ThemeCard
+              name={theme.name}
+              palette={theme.palette}
+              accent={theme.accent}
+              selected={active() === theme.id}
+              onPick={() => {
+                choose(props.appearance, theme.id)
+                updateLook({ mode: props.appearance })
+              }}
+              onRemove={() => {
+                remove(theme)
+                more?.focus()
+              }}
+            />
+          )}
         </For>
         <button
           ref={more}
@@ -89,7 +124,15 @@ function Gallery(props: { appearance: ThemeAppearance; onMore: () => void }) {
           data-action="browse-themes"
           onClick={props.onMore}
         >
-          <svg class="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+          <svg
+            class="size-4"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
             <path d="M8 3.5v9M3.5 8h9" />
           </svg>
           Get more
@@ -105,19 +148,21 @@ function FontField(props: { label: string; placeholder: string; value: string; o
   createEffect(() => {
     if (!editing()) setDraft(props.value)
   })
-  return <input
-    class="kit-field w-44"
-    aria-label={props.label}
-    placeholder={props.placeholder}
-    value={draft()}
-    onFocus={() => setEditing(true)}
-    onBlur={() => setEditing(false)}
-    onInput={(event) => {
-      const value = event.currentTarget.value
-      setDraft(value)
-      props.onInput(value.trim())
-    }}
-  />
+  return (
+    <input
+      class="kit-field w-44"
+      aria-label={props.label}
+      placeholder={props.placeholder}
+      value={draft()}
+      onFocus={() => setEditing(true)}
+      onBlur={() => setEditing(false)}
+      onInput={(event) => {
+        const value = event.currentTarget.value
+        setDraft(value)
+        props.onInput(value.trim())
+      }}
+    />
+  )
 }
 
 export default function Appearance(): JSX.Element {
@@ -134,7 +179,8 @@ export default function Appearance(): JSX.Element {
     stopPreview = previewLook({ ...look(), display: { ...d(), contrast } })
   }
   onCleanup(release)
-  const reset = <K extends keyof Display>(key: K) => (d()[key] !== DEFAULT_DISPLAY[key] ? () => set({ [key]: DEFAULT_DISPLAY[key] } as Partial<Display>) : undefined)
+  const reset = <K extends keyof Display>(key: K) =>
+    d()[key] !== DEFAULT_DISPLAY[key] ? () => set({ [key]: DEFAULT_DISPLAY[key] } as Partial<Display>) : undefined
   const sizes = Array.from({ length: BASE_SIZE.max - BASE_SIZE.min + 1 }, (_, i) => BASE_SIZE.min + i)
   return (
     <div class="flex flex-col gap-8" data-component="appearance" data-appearance-now={shown()}>
@@ -151,8 +197,26 @@ export default function Appearance(): JSX.Element {
             onChange={(mode) => updateLook({ mode })}
           />
         </div>
-        <div role="radiogroup" aria-label="Built-in themes" class="grid grid-cols-2 gap-2 @min-[560px]/settings:grid-cols-4">
-          <For each={THEME_IDS}>{(id) => <ThemeCard name={THEMES[id].label} palette={THEMES[id].palette} accent={THEMES[id].accent} selected={!themeFor(themes(), id === "snow" ? "light" : "dark") && shown() === (id === "snow" ? "light" : "dark") && (id === "snow" || look().darkTheme === id)} onPick={() => chooseBuiltin(id)} />}</For>
+        <div
+          role="radiogroup"
+          aria-label="Built-in themes"
+          class="grid grid-cols-2 gap-2 @min-[560px]/settings:grid-cols-4"
+        >
+          <For each={THEME_IDS}>
+            {(id) => (
+              <ThemeCard
+                name={THEMES[id].label}
+                palette={THEMES[id].palette}
+                accent={THEMES[id].accent}
+                selected={
+                  !themeFor(themes(), id === "snow" ? "light" : "dark") &&
+                  shown() === (id === "snow" ? "light" : "dark") &&
+                  (id === "snow" || look().darkTheme === id)
+                }
+                onPick={() => chooseBuiltin(id)}
+              />
+            )}
+          </For>
         </div>
         <Gallery appearance="dark" onMore={() => setBrowsing(true)} />
         <Gallery appearance="light" onMore={() => setBrowsing(true)} />
@@ -160,10 +224,23 @@ export default function Appearance(): JSX.Element {
 
       <Group title="Text and layout">
         <Row label="Text size" onReset={reset("baseSize")}>
-          <Select label="Text size" value={d().baseSize} options={sizes.map((px) => ({ value: px, label: `${px} px` }))} onChange={(baseSize) => set({ baseSize })} />
+          <Select
+            label="Text size"
+            value={d().baseSize}
+            options={sizes.map((px) => ({ value: px, label: `${px} px` }))}
+            onChange={(baseSize) => set({ baseSize })}
+          />
         </Row>
         <Row label="Chat width" onReset={reset("chatWidth")}>
-          <Select label="Chat width" value={d().chatWidth} options={(Object.keys(CHAT_WIDTHS) as ChatWidth[]).map((value) => ({ value, label: CHAT_WIDTHS[value].label }))} onChange={(chatWidth) => set({ chatWidth })} />
+          <Select
+            label="Chat width"
+            value={d().chatWidth}
+            options={(Object.keys(CHAT_WIDTHS) as ChatWidth[]).map((value) => ({
+              value,
+              label: CHAT_WIDTHS[value].label,
+            }))}
+            onChange={(chatWidth) => set({ chatWidth })}
+          />
         </Row>
         <Row label="Contrast" description="Borders, lines, and fills." onReset={reset("contrast")}>
           <div class="contents" onPointerCancel={release}>
@@ -182,11 +259,25 @@ export default function Appearance(): JSX.Element {
             />
           </div>
         </Row>
-        <Row label="Interface font" description="Any font on this device. Empty uses the system font." onReset={reset("interfaceFont")}>
-          <FontField label="Interface font" placeholder="System" value={d().interfaceFont} onInput={(interfaceFont) => set({ interfaceFont })} />
+        <Row
+          label="Interface font"
+          description="Any font on this device. Empty uses the system font."
+          onReset={reset("interfaceFont")}
+        >
+          <FontField
+            label="Interface font"
+            placeholder="System"
+            value={d().interfaceFont}
+            onInput={(interfaceFont) => set({ interfaceFont })}
+          />
         </Row>
         <Row label="Code font" onReset={reset("codeFont")}>
-          <FontField label="Code font" placeholder="System mono" value={d().codeFont} onInput={(codeFont) => set({ codeFont })} />
+          <FontField
+            label="Code font"
+            placeholder="System mono"
+            value={d().codeFont}
+            onInput={(codeFont) => set({ codeFont })}
+          />
         </Row>
         <Row label="Thin text smoothing" onReset={reset("smoothing")}>
           <Toggle label="Thin text smoothing" on={d().smoothing} onChange={(smoothing) => set({ smoothing })} />
@@ -194,7 +285,15 @@ export default function Appearance(): JSX.Element {
       </Group>
 
       <div class="flex justify-end">
-        <button type="button" class={buttonClass("ghost")} data-action="restore-appearance" onClick={() => { chooseBuiltin(DEFAULT_LOOK.darkTheme); updateLook({ display: DEFAULT_DISPLAY }) }}>
+        <button
+          type="button"
+          class={buttonClass("ghost")}
+          data-action="restore-appearance"
+          onClick={() => {
+            chooseBuiltin(DEFAULT_LOOK.darkTheme)
+            updateLook({ display: DEFAULT_DISPLAY })
+          }}
+        >
           Restore defaults
         </button>
       </div>

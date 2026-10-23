@@ -63,9 +63,10 @@ export function createMessageMenu(
     targetId,
     onContextMenu: (event) => {
       event.preventDefault()
-      const id = (event.currentTarget as HTMLElement | null)?.dataset.messageId
-        ?? (event.target as HTMLElement | null)?.closest?.("[data-message-id]")?.getAttribute("data-message-id")
-        ?? null
+      const id =
+        (event.currentTarget as HTMLElement | null)?.dataset.messageId ??
+        (event.target as HTMLElement | null)?.closest?.("[data-message-id]")?.getAttribute("data-message-id") ??
+        null
       openAt(id, event.clientX, event.clientY)
     },
     openAt,

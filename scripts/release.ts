@@ -41,7 +41,9 @@ async function initKey(): Promise<void> {
   const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])) as CryptoKeyPair
   const jwk = (await crypto.subtle.exportKey("jwk", pair.privateKey)) as Jwk
   await mkdir(KEY_DIR, { recursive: true })
-  await writeFile(KEY_PATH, `${JSON.stringify({ kty: jwk.kty, crv: jwk.crv, x: jwk.x, d: jwk.d }, null, 2)}\n`, { mode: 0o600 })
+  await writeFile(KEY_PATH, `${JSON.stringify({ kty: jwk.kty, crv: jwk.crv, x: jwk.x, d: jwk.d }, null, 2)}\n`, {
+    mode: 0o600,
+  })
   await chmod(KEY_PATH, 0o600)
   console.log(`Wrote ${KEY_PATH} (mode 600).`)
   console.log(`Public key x: ${jwk.x}`)
@@ -100,7 +102,10 @@ async function main(): Promise<void> {
     migrations: ReleaseManifest["migrations"]
     durable_objects: { bindings: { name: string; class_name: string }[] }
   }
-  const mainModule = `${config.main.split("/").pop()?.replace(/\.tsx?$/, "")}.js`
+  const mainModule = `${config.main
+    .split("/")
+    .pop()
+    ?.replace(/\.tsx?$/, "")}.js`
   const files = await moduleFiles(staging)
   if (!files.includes(mainModule)) throw new Error(`wrangler wrote no ${mainModule}`)
 
@@ -125,10 +130,14 @@ async function main(): Promise<void> {
     modules,
   }
   const manifestBytes = new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`)
-  const signature = Buffer.from(await crypto.subtle.sign({ name: "Ed25519" }, privateKey, manifestBytes)).toString("base64")
-  if (!(await verifyRelease(manifestBytes, signature, x))) throw new Error("self-check failed: signature does not verify")
+  const signature = Buffer.from(await crypto.subtle.sign({ name: "Ed25519" }, privateKey, manifestBytes)).toString(
+    "base64",
+  )
+  if (!(await verifyRelease(manifestBytes, signature, x)))
+    throw new Error("self-check failed: signature does not verify")
   for (const module of modules) {
-    if (!(await verifyModuleHash(module, contents.get(module.name) as Uint8Array))) throw new Error(`self-check failed: ${module.name}`)
+    if (!(await verifyModuleHash(module, contents.get(module.name) as Uint8Array)))
+      throw new Error(`self-check failed: ${module.name}`)
   }
 
   const dir = join(OUT, version)

@@ -20,16 +20,16 @@ export function Quote(props: {
           "--quote-name": props.tint,
         }
       : props.side === "user"
-      ? {
-          "--quote-bg": "var(--out-quote-bg)",
-          "--quote-bar": "var(--out-quote-bar)",
-          "--quote-name": "var(--out-quote-name)",
-        }
-      : {
-          "--quote-bg": "var(--in-quote-bg)",
-          "--quote-bar": "var(--in-quote-bar)",
-          "--quote-name": "var(--in-quote-name)",
-        }
+        ? {
+            "--quote-bg": "var(--out-quote-bg)",
+            "--quote-bar": "var(--out-quote-bar)",
+            "--quote-name": "var(--out-quote-name)",
+          }
+        : {
+            "--quote-bg": "var(--in-quote-bg)",
+            "--quote-bar": "var(--in-quote-bar)",
+            "--quote-name": "var(--in-quote-name)",
+          }
 
   const Box = (): "div" | "button" => (props.quote.gone ? "div" : "button")
   return (
@@ -75,9 +75,7 @@ export function Quote(props: {
         <span class="chat-quote__label min-w-0 truncate font-semibold text-[var(--quote-name)]">
           {props.quote.label}
         </span>
-        <span class="chat-quote__text min-w-0 truncate opacity-75">
-          {summary().text}
-        </span>
+        <span class="chat-quote__text min-w-0 truncate opacity-75">{summary().text}</span>
       </span>
     </Dynamic>
   )

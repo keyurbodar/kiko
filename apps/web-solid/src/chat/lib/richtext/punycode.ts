@@ -82,8 +82,7 @@ function decode(input: string, preserveCase?: boolean): string {
 
   decodeBasic(input, basic, output, case_flags, preserveCase)
 
-  for (ic = basic > 0 ? basic + 1 : 0; ic < input_length; ) {
-
+  for (ic = basic > 0 ? basic + 1 : 0; ic < input_length;) {
     for (oldi = i, w = 1, k = base; ; k += base) {
       if (ic >= input_length) {
         throw new RangeError("punycode_bad_input(1)")
@@ -145,7 +144,13 @@ function restoreCase(output: number[], case_flags: boolean[]): void {
   }
 }
 
-function decodeBasic(input: string, basic: number, output: number[], case_flags: boolean[], preserveCase?: boolean): void {
+function decodeBasic(
+  input: string,
+  basic: number,
+  output: number[],
+  case_flags: boolean[],
+  preserveCase?: boolean,
+): void {
   for (let j = 0; j < basic; ++j) {
     if (preserveCase) case_flags[output.length] = input.charCodeAt(j) - 65 < 26
     if (input.charCodeAt(j) >= 0x80) {

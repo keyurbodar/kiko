@@ -20,7 +20,11 @@ export function since(ms: number): string {
   return `${Math.floor(hours / 24)}d ago`
 }
 
-export function liveLine(working: string | null, row: { lastFrom?: string; updatedAt: number } | undefined, now: number): string {
+export function liveLine(
+  working: string | null,
+  row: { lastFrom?: string; updatedAt: number } | undefined,
+  now: number,
+): string {
   if (working) return working
   if (!row?.lastFrom) return "No messages yet"
   return `${row.lastFrom === "agent" ? "Replied" : "Active"} ${since(now - row.updatedAt)}`
@@ -30,7 +34,10 @@ export function workingLine(agents: readonly { name: string; doing?: string }[],
   const [first] = agents
   if (!first) return null
   if (agents.length === 1 && first.doing) return `${first.name} is ${first.doing}`
-  return typingLine(agents.map((a) => a.name), group)
+  return typingLine(
+    agents.map((a) => a.name),
+    group,
+  )
 }
 
 export const isGroup = (members: readonly Member[]): boolean => members.length > 1

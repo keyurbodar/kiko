@@ -8,22 +8,20 @@
     "directory": "../web-solid/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/assets/*"]
+    "run_worker_first": ["/api/*", "/assets/*"],
   },
   "durable_objects": {
-    "bindings": [
-      { "name": "OWNER", "class_name": "OwnerDO" }
-    ]
+    "bindings": [{ "name": "OWNER", "class_name": "OwnerDO" }],
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["UserDO", "RoomDO", "AgentDO"] },
     { "tag": "v2", "new_sqlite_classes": ["WorkDO"] },
     { "tag": "v3", "deleted_classes": ["WorkDO"] },
     { "tag": "v4", "new_sqlite_classes": ["FileDO"] },
-    { "tag": "v5", "deleted_classes": ["UserDO", "RoomDO", "AgentDO", "FileDO"], "new_sqlite_classes": ["OwnerDO"] }
+    { "tag": "v5", "deleted_classes": ["UserDO", "RoomDO", "AgentDO", "FileDO"], "new_sqlite_classes": ["OwnerDO"] },
   ],
   "r2_buckets": [
     { "binding": "FILES", "bucket_name": "kiko-files" },
-    { "binding": "ARCHIVE", "bucket_name": "kiko-history" }
-  ]
+    { "binding": "ARCHIVE", "bucket_name": "kiko-history" },
+  ],
 }

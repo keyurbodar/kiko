@@ -16,7 +16,12 @@ const resolve = (sql: SqlStorage, slug: string, pick: Pick): AgentModel | null =
   const ref = [pick.model, made].map((r) => (r ? parseModelRef(r) : null)).find((r) => r !== null)
   if (!ref) return null
   const name = modelName(ref)
-  return { model: `${ref.provider}/${ref.modelId}`, ...(name ? { name } : {}), thinking: thinkingFor(ref, pick.thinking), thinkingLevels: supportedThinking(ref) }
+  return {
+    model: `${ref.provider}/${ref.modelId}`,
+    ...(name ? { name } : {}),
+    thinking: thinkingFor(ref, pick.thinking),
+    thinkingLevels: supportedThinking(ref),
+  }
 }
 
 export function agentModel(sql: SqlStorage, slug: string): AgentModel | null {
@@ -26,14 +31,22 @@ export function agentModel(sql: SqlStorage, slug: string): AgentModel | null {
 export function allAgentModels(sql: SqlStorage): Record<string, AgentModel> {
   const slugs = new Set<string>([KIKO])
   for (const row of sql.exec<{ slug: string }>("SELECT slug FROM agents").toArray()) slugs.add(row.slug)
-  for (const row of sql.exec<{ key: string }>("SELECT key FROM settings WHERE key LIKE ?", `${PREFIX}%`).toArray()) slugs.add(row.key.slice(PREFIX.length))
-  return Object.fromEntries([...slugs].flatMap((slug) => {
-    const model = agentModel(sql, slug)
-    return model ? [[slug, model]] : []
-  }))
+  for (const row of sql.exec<{ key: string }>("SELECT key FROM settings WHERE key LIKE ?", `${PREFIX}%`).toArray())
+    slugs.add(row.key.slice(PREFIX.length))
+  return Object.fromEntries(
+    [...slugs].flatMap((slug) => {
+      const model = agentModel(sql, slug)
+      return model ? [[slug, model]] : []
+    }),
+  )
 }
 
-export function saveAgentModel(sql: SqlStorage, slug: AgentSlug, ref?: string, thinking?: ThinkingLevel): AgentModel | null {
+export function saveAgentModel(
+  sql: SqlStorage,
+  slug: AgentSlug,
+  ref?: string,
+  thinking?: ThinkingLevel,
+): AgentModel | null {
   const before = readPick(sql, slug)
   const model = ref ?? agentModel(sql, slug)?.model
   const parsed = model ? parseModelRef(model) : null

@@ -12,14 +12,19 @@ export type PageState = {
   notes: string[]
 }
 
-export const navigates = (message: string) => /context was destroyed|navigated or closed|Cannot find context/i.test(message)
+export const navigates = (message: string) =>
+  /context was destroyed|navigated or closed|Cannot find context/i.test(message)
 
 export async function evaluate<T>(page: PageState, expression: string, awaitPromise = false): Promise<T> {
   if (page.loading) await page.loading
   const settle = page.settle
   page.settle = undefined
   const wrapped = settle === undefined ? expression : `(${settleScript(settle)}).then(() => ${expression})`
-  const out = await page.channel.send("Runtime.evaluate", { expression: wrapped, returnByValue: true, awaitPromise: awaitPromise || settle !== undefined })
+  const out = await page.channel.send("Runtime.evaluate", {
+    expression: wrapped,
+    returnByValue: true,
+    awaitPromise: awaitPromise || settle !== undefined,
+  })
   if (out.exceptionDetails) {
     const description = out.exceptionDetails.exception?.description ?? out.exceptionDetails.text
     throw new Error(`Page script failed: ${description}`)

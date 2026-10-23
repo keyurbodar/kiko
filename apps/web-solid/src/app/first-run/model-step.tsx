@@ -32,14 +32,33 @@ export function ModelStep() {
     const ids = new Set(modelProviders(connectedProviders()).map((p) => p.provider))
     return (catalog.error ? [] : (catalog()?.providers ?? [])).filter((p) => ids.has(p.id))
   })
-  const ranked = createMemo(() => rankModels(live().flatMap((provider) => provider.models.map((model) => ({ provider, model, ref: modelRef(provider.id, model.id) })))))
+  const ranked = createMemo(() =>
+    rankModels(
+      live().flatMap((provider) =>
+        provider.models.map((model) => ({ provider, model, ref: modelRef(provider.id, model.id) })),
+      ),
+    ),
+  )
   const current = () => chosen() ?? startingModel(ranked(), useApp.agentModel(KIKO)?.model)
   const searching = () => query().trim() !== ""
   const sections = createMemo(() => {
-    if (searching()) return [{ label: null, rows: searchModels(live(), query()).map(({ provider, model }) => ({ provider, model, ref: modelRef(provider.id, model.id) })) }]
+    if (searching())
+      return [
+        {
+          label: null,
+          rows: searchModels(live(), query()).map(({ provider, model }) => ({
+            provider,
+            model,
+            ref: modelRef(provider.id, model.id),
+          })),
+        },
+      ]
     if (ranked().length <= RECOMMENDED) return [{ label: null, rows: ranked() }]
     const rest = ranked().slice(RECOMMENDED)
-    const byProvider = live().map((provider) => ({ label: live().length > 1 ? provider.name : "More models", rows: rest.filter((c) => c.provider.id === provider.id) }))
+    const byProvider = live().map((provider) => ({
+      label: live().length > 1 ? provider.name : "More models",
+      rows: rest.filter((c) => c.provider.id === provider.id),
+    }))
     return [{ label: "Recommended", rows: ranked().slice(0, RECOMMENDED) }, ...byProvider]
   })
 
@@ -47,7 +66,8 @@ export function ModelStep() {
 
   const start = () => {
     const pick = ranked().find((c) => c.ref === current())
-    if (pick && pick.ref !== useApp.agentModel(KIKO)?.model) useApp.setAgentModel(KIKO as AgentSlug, { ref: pick.ref, levels: pick.model.thinking })
+    if (pick && pick.ref !== useApp.agentModel(KIKO)?.model)
+      useApp.setAgentModel(KIKO as AgentSlug, { ref: pick.ref, levels: pick.model.thinking })
     move("next")
     navigate(`/chat/${useApp.kikoChatId() ?? KIKO_HOME_ROOM}`, { replace: true })
     focusComposer()
@@ -64,11 +84,30 @@ export function ModelStep() {
       <Show when={ranked().length > SEARCH_FROM}>
         <label class="welcome-search" style={{ "--i": 2 }}>
           <RemixIcon icon={SearchIcon} size={15} />
-          <input type="search" placeholder="Search models" aria-label="Search models" value={query()} onInput={(e) => setQuery(e.currentTarget.value)} />
+          <input
+            type="search"
+            placeholder="Search models"
+            aria-label="Search models"
+            value={query()}
+            onInput={(e) => setQuery(e.currentTarget.value)}
+          />
         </label>
       </Show>
-      <div class="welcome-models" role="radiogroup" aria-label="Model" data-component="first-run-models" style={{ "--i": 3 }}>
-        <Show when={!catalog.loading} fallback={<For each={Array.from({ length: RECOMMENDED })}>{() => <div class="first-run-skeleton h-[52px] shrink-0 rounded-lg bg-control" />}</For>}>
+      <div
+        class="welcome-models"
+        role="radiogroup"
+        aria-label="Model"
+        data-component="first-run-models"
+        style={{ "--i": 3 }}
+      >
+        <Show
+          when={!catalog.loading}
+          fallback={
+            <For each={Array.from({ length: RECOMMENDED })}>
+              {() => <div class="first-run-skeleton h-[52px] shrink-0 rounded-lg bg-control" />}
+            </For>
+          }
+        >
           <Show when={catalog.error}>
             <p class="text-center text-sm text-[var(--error)]" role="alert">
               The model list did not load.{" "}
@@ -77,11 +116,16 @@ export function ModelStep() {
               </button>
             </p>
           </Show>
-          <For each={groups()} fallback={<p class="py-6 text-center text-sm text-muted-foreground">No models match.</p>}>
+          <For
+            each={groups()}
+            fallback={<p class="py-6 text-center text-sm text-muted-foreground">No models match.</p>}
+          >
             {(group) => (
               <div class="flex flex-col gap-1.5" data-component="first-run-model-group">
                 <Show when={group.label}>{(label) => <span class="welcome-group-label">{label()}</span>}</Show>
-                <For each={group.rows}>{(row) => <ModelRow row={row} selected={current() === row.ref} onPick={() => setChosen(row.ref)} />}</For>
+                <For each={group.rows}>
+                  {(row) => <ModelRow row={row} selected={current() === row.ref} onPick={() => setChosen(row.ref)} />}
+                </For>
               </div>
             )}
           </For>
@@ -101,7 +145,14 @@ export function ModelStep() {
 
 function ModelRow(props: { row: ModelChoice; selected: boolean; onPick: () => void }) {
   return (
-    <button type="button" role="radio" aria-checked={props.selected} class="welcome-option" data-model={props.row.ref} onClick={props.onPick}>
+    <button
+      type="button"
+      role="radio"
+      aria-checked={props.selected}
+      class="welcome-option"
+      data-model={props.row.ref}
+      onClick={props.onPick}
+    >
       <ProviderIcon id={props.row.provider.id} width="16" height="16" />
       <span class="flex min-w-0 flex-1 flex-col">
         <span class="truncate text-sm font-medium text-foreground">{props.row.model.name}</span>

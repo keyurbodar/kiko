@@ -12,7 +12,9 @@ export function isKnownModel(ref: { provider: string; modelId: string }): boolea
 }
 
 function lookup(ref: { provider: string; modelId: string }) {
-  return findProvider(ref.provider)?.getModels().find((m) => m.id === ref.modelId)
+  return findProvider(ref.provider)
+    ?.getModels()
+    .find((m) => m.id === ref.modelId)
 }
 
 export function modelName(ref: { provider: string; modelId: string }): string | undefined {

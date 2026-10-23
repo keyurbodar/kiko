@@ -18,7 +18,8 @@ async function fetchBytes(f: ReleaseFetch, url: string): Promise<Uint8Array> {
   } catch {
     throw new ReleaseRefused("release_unavailable", `The release file ${url.split("/").pop()} could not be fetched.`)
   }
-  if (!res.ok) throw new ReleaseRefused("release_unavailable", `The release file ${url.split("/").pop()} could not be fetched.`)
+  if (!res.ok)
+    throw new ReleaseRefused("release_unavailable", `The release file ${url.split("/").pop()} could not be fetched.`)
   return new Uint8Array(await res.arrayBuffer())
 }
 
@@ -30,8 +31,14 @@ export async function loadVerifiedRelease(
 ): Promise<LoadedRelease> {
   const base = input.baseUrl.replace(/\/$/, "")
   const version =
-    input.version ?? (JSON.parse(new TextDecoder().decode(await fetchBytes(f, `${base}/${input.index ?? "latest.json"}`))) as { version: string }).version
-  if (!/^[A-Za-z0-9._-]+$/.test(version)) throw new ReleaseRefused("release_untrusted", "The release version is not valid. Nothing was uploaded.")
+    input.version ??
+    (
+      JSON.parse(new TextDecoder().decode(await fetchBytes(f, `${base}/${input.index ?? "latest.json"}`))) as {
+        version: string
+      }
+    ).version
+  if (!/^[A-Za-z0-9._-]+$/.test(version))
+    throw new ReleaseRefused("release_untrusted", "The release version is not valid. Nothing was uploaded.")
   const dir = `${base}/${version}`
   const manifestBytes = await fetchBytes(f, `${dir}/manifest.json`)
   const signature = new TextDecoder().decode(await fetchBytes(f, `${dir}/manifest.sig`))
@@ -39,15 +46,22 @@ export async function loadVerifiedRelease(
     throw new ReleaseRefused("release_untrusted", "The release signature is not valid. Nothing was uploaded.")
   }
   const manifest = parseManifest(manifestBytes)
-  if (!manifest) throw new ReleaseRefused("release_untrusted", "The release manifest is malformed. Nothing was uploaded.")
+  if (!manifest)
+    throw new ReleaseRefused("release_untrusted", "The release manifest is malformed. Nothing was uploaded.")
   if (input.version && manifest.version !== input.version) {
-    throw new ReleaseRefused("release_untrusted", "The release is not the version that was asked for. Nothing was uploaded.")
+    throw new ReleaseRefused(
+      "release_untrusted",
+      "The release is not the version that was asked for. Nothing was uploaded.",
+    )
   }
   const files = new Map<string, Uint8Array>()
   for (const module of manifest.modules) {
     const bytes = await fetchBytes(f, `${dir}/${module.name}`)
     if (!(await verifyModuleHash(module, bytes))) {
-      throw new ReleaseRefused("release_untrusted", `Module ${module.name} does not match the signed manifest. Nothing was uploaded.`)
+      throw new ReleaseRefused(
+        "release_untrusted",
+        `Module ${module.name} does not match the signed manifest. Nothing was uploaded.`,
+      )
     }
     files.set(module.name, bytes)
   }

@@ -9,9 +9,19 @@ const SELECTOR = [
   "summary",
   "[contenteditable='']",
   "[contenteditable='true']",
-  ...["button", "link", "checkbox", "radio", "tab", "menuitem", "option", "combobox", "switch", "textbox", "searchbox"].map(
-    (role) => `[role='${role}']`,
-  ),
+  ...[
+    "button",
+    "link",
+    "checkbox",
+    "radio",
+    "tab",
+    "menuitem",
+    "option",
+    "combobox",
+    "switch",
+    "textbox",
+    "searchbox",
+  ].map((role) => `[role='${role}']`),
 ].join(",")
 
 const RUNTIME = `

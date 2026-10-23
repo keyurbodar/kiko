@@ -11,7 +11,8 @@ type StatementRow = {
 const counters = new Map<string, number>()
 const instrumentation = new Map<string, boolean>()
 const statements = new Map<string, StatementRow>()
-const open: { kind: string; write: boolean; sql: string; cursor: SqlStorageCursor<Record<string, SqlStorageValue>> }[] = []
+const open: { kind: string; write: boolean; sql: string; cursor: SqlStorageCursor<Record<string, SqlStorageValue>> }[] =
+  []
 const MAX_OPEN = 10_000
 const MAX_STATEMENTS = 500
 
@@ -86,16 +87,25 @@ export async function trackInFlight<T>(key: string, run: () => Promise<T>): Prom
 
 function statementReport(limit = MAX_STATEMENTS): { statements: StatementRow[]; statementsOmitted: number } {
   const rows = [...statements.values()].sort(
-    (a, b) => b.rowsWritten - a.rowsWritten || b.rowsRead - a.rowsRead || b.statements - a.statements || a.kind.localeCompare(b.kind) || a.sql.localeCompare(b.sql),
+    (a, b) =>
+      b.rowsWritten - a.rowsWritten ||
+      b.rowsRead - a.rowsRead ||
+      b.statements - a.statements ||
+      a.kind.localeCompare(b.kind) ||
+      a.sql.localeCompare(b.sql),
   )
   return { statements: rows.slice(0, limit), statementsOmitted: Math.max(0, rows.length - limit) }
 }
 
-
 function billedWrites(values: Readonly<Record<string, number>>): {
-  sqlPhysical: number; kvKeysPut: number; kvKeysDeleted: number; setAlarm: number; total: number
+  sqlPhysical: number
+  kvKeysPut: number
+  kvKeysDeleted: number
+  setAlarm: number
+  total: number
 } {
-  const sum = (suffix: string) => Object.entries(values).reduce((total, [key, value]) => key.endsWith(`.${suffix}`) ? total + value : total, 0)
+  const sum = (suffix: string) =>
+    Object.entries(values).reduce((total, [key, value]) => (key.endsWith(`.${suffix}`) ? total + value : total), 0)
   const sqlPhysical = sum("sqlRowsWritten")
   const kvKeysPut = sum("kvKeysPut")
   const kvKeysDeleted = sum("kvKeysDeleted")

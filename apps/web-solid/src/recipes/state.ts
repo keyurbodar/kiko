@@ -1,11 +1,29 @@
-import { type InstallRecipe, KIKO, type RecipeCard, type RecipeInstall, type RecipeNeedsConnect, type RecipeRoutine, type RoomId } from "@kiko/protocol"
+import {
+  type InstallRecipe,
+  KIKO,
+  type RecipeCard,
+  type RecipeInstall,
+  type RecipeNeedsConnect,
+  type RecipeRoutine,
+  type RoomId,
+} from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal } from "solid-js"
 import { openFile } from "../chat/side/surfaces"
 import { agentDisplayName } from "../lib/names"
 import { useApp } from "../lib/store"
 import { installedSlugs } from "./model"
-import { cardsOf, fetchListing, loadListing, type Listing, postEdit, postInstall, deleteInstall, cacheListing, updateRecipeRoutine } from "./api"
+import {
+  cardsOf,
+  fetchListing,
+  loadListing,
+  type Listing,
+  postEdit,
+  postInstall,
+  deleteInstall,
+  cacheListing,
+  updateRecipeRoutine,
+} from "./api"
 
 const [listing, setListing] = createSignal<Listing>(loadListing())
 const [owning, setOwning] = createSignal<ReadonlySet<string>>(new Set())
@@ -45,8 +63,12 @@ export async function editRecipe(slug: string, navigate: (to: string) => void): 
 export type RecipeTarget = { roomId: RoomId; agent: string; name: string }
 
 export function targetsForChat(roomId: string): RecipeTarget[] {
-  if (useApp.room()?.state.roomId === roomId && useApp.roomMembers().length) return useApp.roomMembers().map((m) => ({ roomId: roomId as RoomId, agent: m.slug, name: m.name }))
-  const chat = useApp.user()?.chats().find((c) => c.roomId === roomId)
+  if (useApp.room()?.state.roomId === roomId && useApp.roomMembers().length)
+    return useApp.roomMembers().map((m) => ({ roomId: roomId as RoomId, agent: m.slug, name: m.name }))
+  const chat = useApp
+    .user()
+    ?.chats()
+    .find((c) => c.roomId === roomId)
   if (!chat) return []
   const agents = useApp.agents()
   const slugs = (chat.agents?.length ? chat.agents : [KIKO]).map((id) => agents.find((a) => a.id === id)?.slug ?? id)
@@ -57,13 +79,18 @@ export function targetsForChat(roomId: string): RecipeTarget[] {
 export const installs = (): readonly RecipeInstall[] => listing().installs
 export const installsFor = (slug: string): readonly RecipeInstall[] => listing().installs.filter((i) => i.slug === slug)
 export const agentName = (slug: string): string => agentDisplayName(slug, useApp.agents())
-export const isAdded = (slug: string, target?: RecipeTarget): boolean => !!target && installedSlugs(listing().installs, target).has(slug)
+export const isAdded = (slug: string, target?: RecipeTarget): boolean =>
+  !!target && installedSlugs(listing().installs, target).has(slug)
 
 export function setInstallPaused(install: RecipeInstall, paused: boolean): void {
   const status = paused ? "paused" : "active"
   const before = new Map(install.routines.map((r) => [r.id, r.status]))
   const put = (pick: (r: RecipeRoutine) => RecipeRoutine["status"]) =>
-    changeInstalls((all) => all.map((i) => (i.installId === install.installId ? { ...i, routines: i.routines.map((r) => ({ ...r, status: pick(r) })) } : i)))
+    changeInstalls((all) =>
+      all.map((i) =>
+        i.installId === install.installId ? { ...i, routines: i.routines.map((r) => ({ ...r, status: pick(r) })) } : i,
+      ),
+    )
   mutations++
   put(() => status)
   void Promise.all(install.routines.map((r) => updateRecipeRoutine(r.id, status))).then((done) => {
@@ -104,11 +131,18 @@ const mark = (set: (update: (s: ReadonlySet<string>) => ReadonlySet<string>) => 
     return next
   })
 
-const recorded = (install: RecipeInstall) => changeInstalls((list) => [...list.filter((i) => i.installId !== install.installId), install])
+const recorded = (install: RecipeInstall) =>
+  changeInstalls((list) => [...list.filter((i) => i.installId !== install.installId), install])
 
-const failed = (card: RecipeCard, error: string) => showToastV2({ title: `Could not add ${card.title}`, description: error, variant: "error" })
+const failed = (card: RecipeCard, error: string) =>
+  showToastV2({ title: `Could not add ${card.title}`, description: error, variant: "error" })
 
-export type ConnectAsk = { card: RecipeCard; body: InstallRecipe; navigate: (to: string) => void; connect: RecipeNeedsConnect }
+export type ConnectAsk = {
+  card: RecipeCard
+  body: InstallRecipe
+  navigate: (to: string) => void
+  connect: RecipeNeedsConnect
+}
 
 const [ask, setAsk] = createSignal<ConnectAsk | null>(null)
 const [waiting, setWaiting] = createSignal<ReadonlySet<string>>(new Set())
@@ -116,7 +150,11 @@ export const connectAsk = ask
 export const dismissConnect = () => setAsk(null)
 export const isWaiting = (slug: string): boolean => waiting().has(slug)
 
-async function submit(card: RecipeCard, body: InstallRecipe, navigate: (to: string) => void): Promise<RecipeInstall | null> {
+async function submit(
+  card: RecipeCard,
+  body: InstallRecipe,
+  navigate: (to: string) => void,
+): Promise<RecipeInstall | null> {
   const result = await postInstall(body)
   if (result.ok) {
     setAsk(null)
@@ -131,8 +169,20 @@ const ready = (card: RecipeCard) => card.apps.every((a) => a.connected === true)
 
 export function addToTarget(card: RecipeCard, target: RecipeTarget | undefined, navigate: (to: string) => void): void {
   if (!target || isAdded(card.slug, target) || isWaiting(card.slug)) return
-  const install: RecipeInstall = { installId: crypto.randomUUID(), slug: card.slug, roomId: target.roomId, agent: target.agent, at: Date.now(), routines: [] }
-  const body: InstallRecipe = { installId: install.installId, slug: card.slug, roomId: target.roomId, agent: target.agent }
+  const install: RecipeInstall = {
+    installId: crypto.randomUUID(),
+    slug: card.slug,
+    roomId: target.roomId,
+    agent: target.agent,
+    at: Date.now(),
+    routines: [],
+  }
+  const body: InstallRecipe = {
+    installId: install.installId,
+    slug: card.slug,
+    roomId: target.roomId,
+    agent: target.agent,
+  }
   mutations++
   const optimistic = ready(card)
   if (optimistic) {

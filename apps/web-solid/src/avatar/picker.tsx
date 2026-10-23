@@ -35,8 +35,22 @@ function Section(props: { title: string; children: JSX.Element }) {
 
 function Choice(props: { slug: string; name: string; selected: boolean; pins: AvatarPins; onPick: () => void }) {
   return (
-    <button type="button" role="radio" aria-checked={props.selected} aria-label={props.name} title={props.name} class={cell} onClick={props.onPick}>
-      <img src={cachedUri(props.slug, pinsFor(props.slug, props.pins))} alt="" width={32} height={32} draggable={false} />
+    <button
+      type="button"
+      role="radio"
+      aria-checked={props.selected}
+      aria-label={props.name}
+      title={props.name}
+      class={cell}
+      onClick={props.onPick}
+    >
+      <img
+        src={cachedUri(props.slug, pinsFor(props.slug, props.pins))}
+        alt=""
+        width={32}
+        height={32}
+        draggable={false}
+      />
     </button>
   )
 }
@@ -76,23 +90,53 @@ function Picker(props: { slug: string }) {
     >
       <div class="flex flex-col gap-5" data-slug={props.slug}>
         <div class="flex justify-center">
-          <img src={cachedUri(props.slug, pinsFor(props.slug, draft()))} alt="" width={96} height={96} draggable={false} />
+          <img
+            src={cachedUri(props.slug, pinsFor(props.slug, draft()))}
+            alt=""
+            width={96}
+            height={96}
+            draggable={false}
+          />
         </div>
         <Show when={!isKiko()}>
           <Section title="Flavor">
             <For each={FLAVOUR_NAMES}>
-              {(f) => <Choice slug={props.slug} name={label(f)} selected={draft().flavour === f} pins={{ flavour: f }} onPick={() => set({ flavour: f })} />}
+              {(f) => (
+                <Choice
+                  slug={props.slug}
+                  name={label(f)}
+                  selected={draft().flavour === f}
+                  pins={{ flavour: f }}
+                  onPick={() => set({ flavour: f })}
+                />
+              )}
             </For>
           </Section>
         </Show>
         <Section title="Charm">
           <For each={CHARMS}>
-            {(c) => <Choice slug={props.slug} name={label(c)} selected={(draft().charm ?? "none") === c} pins={{ ...draft(), charm: c }} onPick={() => set({ charm: c })} />}
+            {(c) => (
+              <Choice
+                slug={props.slug}
+                name={label(c)}
+                selected={(draft().charm ?? "none") === c}
+                pins={{ ...draft(), charm: c }}
+                onPick={() => set({ charm: c })}
+              />
+            )}
           </For>
         </Section>
         <Section title="Outfit">
           <For each={OUTFITS}>
-            {(o) => <Choice slug={props.slug} name={label(o)} selected={(draft().outfit ?? "none") === o} pins={{ ...draft(), outfit: o }} onPick={() => set({ outfit: o })} />}
+            {(o) => (
+              <Choice
+                slug={props.slug}
+                name={label(o)}
+                selected={(draft().outfit ?? "none") === o}
+                pins={{ ...draft(), outfit: o }}
+                onPick={() => set({ outfit: o })}
+              />
+            )}
           </For>
         </Section>
       </div>

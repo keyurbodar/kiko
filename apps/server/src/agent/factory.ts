@@ -5,7 +5,16 @@ import type { AgentSetup } from "@kiko/agent/host"
 import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { providers } from "../models/catalog"
-import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry, type RegistryReader } from "@earendil-works/pi-durable"
+import {
+  type AgentChange,
+  createRegistry,
+  defineExtension,
+  type Extension,
+  type HarnessSettings,
+  type ModelRef,
+  type Registry,
+  type RegistryReader,
+} from "@earendil-works/pi-durable"
 import { workExtensions } from "./extensions/work"
 import { withTextToolCalls } from "./tool-markup"
 import type { Workers } from "@kiko/agent/workers"
@@ -65,15 +74,33 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
     defineExtension({ name: BASE, sections: baseSections(input) }),
     ...(input.files && input.soul ? [selfExtension(input.files.fs, input.soul, input.runStamp)] : []),
     ...(input.memory ? memoryExtensions(input.memory) : []),
-    ...(input.files ? [filesExtension({ acceptsImages: input.files.acceptsImages, touched: (conversationId, paths) => input.work?.touched(conversationId, paths) })] : []),
+    ...(input.files
+      ? [
+          filesExtension({
+            acceptsImages: input.files.acceptsImages,
+            touched: (conversationId, paths) => input.work?.touched(conversationId, paths),
+          }),
+        ]
+      : []),
     skillsExtension(input.files?.fs, input.runStamp, input.recipes),
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),
     ...(input.messaging ? [messagingExtension(input.messaging)] : []),
     ...(input.groups ? [groupsExtension(input.groups)] : []),
-    ...(input.presence ? [presenceExtension({ ...input.presence, ...(input.composio?.tools.length ? { describe: composioDescribe(input.composio.tools) } : {}) })] : []),
+    ...(input.presence
+      ? [
+          presenceExtension({
+            ...input.presence,
+            ...(input.composio?.tools.length ? { describe: composioDescribe(input.composio.tools) } : {}),
+          }),
+        ]
+      : []),
     ...(input.routines ? [routinesExtension(input.routines.port)] : []),
-    ...(input.composio?.tools.length ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)] : []),
-    ...(input.composio?.tools.length ? connectAppExtension(input.composio.tools, input.composio.call, input.composio.resolve) : []),
+    ...(input.composio?.tools.length
+      ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)]
+      : []),
+    ...(input.composio?.tools.length
+      ? connectAppExtension(input.composio.tools, input.composio.call, input.composio.resolve)
+      : []),
     ...(input.browser ? [browserExtension(input.browser), browserInfoExtension(input.browser)] : []),
     ...(input.work ? workExtensions(input.work, all, input.runId) : []),
     ...(input.testExtensions ?? []),
@@ -89,14 +116,24 @@ export function buildAgent(input: BuildAgentInput): BuiltAgent {
     tools: extension.tools?.map((tool) => {
       const effect = effects.get(tool.name)
       if (effect !== "external" && effect !== "write") return tool
-      return { ...tool, execute: async (args, api, context) => {
-        journals.get(registry)?.flush()
-        return tool.execute(args, api, context)
-      } } satisfies typeof tool
+      return {
+        ...tool,
+        execute: async (args, api, context) => {
+          journals.get(registry)?.flush()
+          return tool.execute(args, api, context)
+        },
+      } satisfies typeof tool
     }),
   }))
   for (const extension of builtins) registry.install(extension)
-  return { registry, agent: { ...(input.model ? { model: input.model } : {}), thinkingLevel: input.thinkingLevel ?? (input.model ? thinkingFor(input.model) : "off"), extensions: forRole(builtins, "talker") } }
+  return {
+    registry,
+    agent: {
+      ...(input.model ? { model: input.model } : {}),
+      thinkingLevel: input.thinkingLevel ?? (input.model ? thinkingFor(input.model) : "off"),
+      extensions: forRole(builtins, "talker"),
+    },
+  }
 }
 
 const NO_CUSTOM_FETCH = new Set(["google-generative-ai", "google-vertex"])
@@ -106,7 +143,10 @@ function timed<S extends { result(): Promise<unknown> }>(modelId: string, stream
   count("model.turns")
   count(`model.id.${modelId}`)
   count(`model.reasoning.${reasoning ?? "off"}`)
-  void stream.result().then(() => count("model.ms", Math.round(performance.now() - t)), () => {})
+  void stream.result().then(
+    () => count("model.ms", Math.round(performance.now() - t)),
+    () => {},
+  )
   return stream
 }
 
@@ -118,7 +158,12 @@ export type RunAuth = (provider: string) => Promise<AuthResult | undefined>
 
 export const RUN_SETTINGS: HarnessSettings = { toolExecution: "parallel", retry: { ...RETRY } }
 
-export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fetch, directCall?: () => void): { models: Models; settings: HarnessSettings } {
+export function userModels(
+  auth: RunAuth,
+  sessionId: string,
+  egress?: typeof fetch,
+  directCall?: () => void,
+): { models: Models; settings: HarnessSettings } {
   const models = createModels({ authContext: { env: async () => undefined, fileExists: async () => false } })
   for (const provider of providers()) {
     const through = egress ? withRetryAfter(egress) : undefined
@@ -132,14 +177,44 @@ export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fet
     const cancelDeferred = provider.cancelDeferred
     const generateImages = provider.generateImages
     const routed = {
-      ...(classify ? { classify: ((model, context, options) => classify(model, context, via(model, options))) as typeof classify } : {}),
-      ...(fetchDeferred ? { fetchDeferred: ((model, handle, options) => fetchDeferred(model, handle, via(model, options))) as typeof fetchDeferred } : {}),
-      ...(cancelDeferred ? { cancelDeferred: ((model, handle, options) => cancelDeferred(model, handle, via(model, options))) as typeof cancelDeferred } : {}),
-      ...(generateImages ? { generateImages: ((model, context, options) => generateImages(model, context, via(model, options))) as typeof generateImages } : {}),
-      stream: ((model, context, options) => timed(model.id, withTextToolCalls(provider.stream as never)(unanchored(model), context, via(model, options) as never))) as typeof provider.stream,
-      streamSimple: ((model, context, options) => timed(model.id, withTextToolCalls(provider.streamSimple)(unanchored(model), context, via(model, options) as never), options?.reasoning)) as typeof provider.streamSimple,
+      ...(classify
+        ? { classify: ((model, context, options) => classify(model, context, via(model, options))) as typeof classify }
+        : {}),
+      ...(fetchDeferred
+        ? {
+            fetchDeferred: ((model, handle, options) =>
+              fetchDeferred(model, handle, via(model, options))) as typeof fetchDeferred,
+          }
+        : {}),
+      ...(cancelDeferred
+        ? {
+            cancelDeferred: ((model, handle, options) =>
+              cancelDeferred(model, handle, via(model, options))) as typeof cancelDeferred,
+          }
+        : {}),
+      ...(generateImages
+        ? {
+            generateImages: ((model, context, options) =>
+              generateImages(model, context, via(model, options))) as typeof generateImages,
+          }
+        : {}),
+      stream: ((model, context, options) =>
+        timed(
+          model.id,
+          withTextToolCalls(provider.stream as never)(unanchored(model), context, via(model, options) as never),
+        )) as typeof provider.stream,
+      streamSimple: ((model, context, options) =>
+        timed(
+          model.id,
+          withTextToolCalls(provider.streamSimple)(unanchored(model), context, via(model, options) as never),
+          options?.reasoning,
+        )) as typeof provider.streamSimple,
     }
-    models.setProvider({ ...provider, ...routed, auth: { apiKey: { name: provider.name, resolve: () => auth(provider.id) } } })
+    models.setProvider({
+      ...provider,
+      ...routed,
+      auth: { apiKey: { name: provider.name, resolve: () => auth(provider.id) } },
+    })
   }
   return { models, settings: { ...RUN_SETTINGS, stream: { headers: { "x-opencode-session": sessionId } } } }
 }
@@ -147,5 +222,14 @@ export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fet
 export function openAgentHarness(storage: Storage, setup: AgentSetup): Promise<Harness> {
   if (storage instanceof JournalStorage) journals.set(setup.registry, storage)
   const env = setup.env
-  return Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(env ? { env: (target) => env(target.conversationId) } : {}) }, BACKGROUND_CONTEXT)
+  return Harness.open(
+    storage,
+    {
+      models: setup.models,
+      registry: setup.registry,
+      settings: setup.settings,
+      ...(env ? { env: (target) => env(target.conversationId) } : {}),
+    },
+    BACKGROUND_CONTEXT,
+  )
 }

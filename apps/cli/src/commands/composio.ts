@@ -1,7 +1,9 @@
 import { CliError, type Context } from "../main"
 import { askUser } from "./user-socket"
 
-type Result = { ok: true; status: { connected: boolean; rows: number }; tools?: string[] } | { ok: false; error: string }
+type Result =
+  | { ok: true; status: { connected: boolean; rows: number }; tools?: string[] }
+  | { ok: false; error: string }
 
 export async function composio(ctx: Context): Promise<void> {
   const [sub] = ctx.args

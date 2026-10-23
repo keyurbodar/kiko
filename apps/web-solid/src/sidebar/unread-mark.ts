@@ -17,8 +17,7 @@ const setForced = (update: (marks: ReadonlySet<string>) => ReadonlySet<string>) 
   setForcedSignal(next)
   try {
     localStorage.setItem(MARKS, JSON.stringify([...next]))
-  } catch {
-  }
+  } catch {}
 }
 
 export const markedUnread = (id: string): boolean => forced().has(id)

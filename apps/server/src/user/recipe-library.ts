@@ -67,7 +67,16 @@ export class RecipeLibrary {
     const id = crypto.randomUUID()
     const r2Key = fileKey(this.d.userId(), HOME, id)
     await this.d.files.put(r2Key, body, { httpMetadata: { contentType: "text/markdown" } })
-    const out = this.d.put({ id, path, r2Key, size: body.length, type: "text/markdown", sha256: await sha256Hex(body), author: { kind: "human" }, expectSha256: "none" })
+    const out = this.d.put({
+      id,
+      path,
+      r2Key,
+      size: body.length,
+      type: "text/markdown",
+      sha256: await sha256Hex(body),
+      author: { kind: "human" },
+      expectSha256: "none",
+    })
     if (out.conflict) await deleteFiles(this.d.files, r2Key)
     if (out.drop) await deleteFiles(this.d.files, out.drop)
     if (out.entry || this.exists(path)) return path

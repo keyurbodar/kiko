@@ -35,7 +35,13 @@ export type RecipesPort = {
 async function recipeSkills(recipes: RecipesPort | undefined): Promise<Skill[]> {
   if (!recipes) return []
   const listed = await recipes.list().catch(() => [])
-  return listed.map((r) => ({ name: r.name, description: r.description, body: "", source: "recipe" as const, disableModelInvocation: false }))
+  return listed.map((r) => ({
+    name: r.name,
+    description: r.description,
+    body: "",
+    source: "recipe" as const,
+    disableModelInvocation: false,
+  }))
 }
 
 export function skillsExtension(files?: RoomFs, stamp?: () => number, recipes?: RecipesPort): Extension {
@@ -58,10 +64,18 @@ export function skillsExtension(files?: RoomFs, stamp?: () => number, recipes?: 
             if (!skill) return { output: [{ type: "text" as const, text: `no skill named ${name}` }], isError: true }
             if (!path) {
               const body = skill.source === "recipe" ? await recipes?.body(skill.name) : skill.body
-              return body ? { output: [{ type: "text" as const, text: body }] } : { output: [{ type: "text" as const, text: `no skill named ${name}` }], isError: true }
+              return body
+                ? { output: [{ type: "text" as const, text: body }] }
+                : { output: [{ type: "text" as const, text: `no skill named ${name}` }], isError: true }
             }
-            if (skill.source === "builtin" || !files || path.split("/").includes("..")) return { output: [{ type: "text" as const, text: `${skill.name} has no readable file ${path}` }], isError: true }
-            const file = await files.readTextFile(`${skill.source === "recipe" ? "home/recipes" : ROOM_PREFIX}/${skill.name}/${path.replace(/^\/+/, "")}`)
+            if (skill.source === "builtin" || !files || path.split("/").includes(".."))
+              return {
+                output: [{ type: "text" as const, text: `${skill.name} has no readable file ${path}` }],
+                isError: true,
+              }
+            const file = await files.readTextFile(
+              `${skill.source === "recipe" ? "home/recipes" : ROOM_PREFIX}/${skill.name}/${path.replace(/^\/+/, "")}`,
+            )
             if (!file.ok) return { output: [{ type: "text" as const, text: file.error.message }], isError: true }
             return { output: [{ type: "text" as const, text: file.value }] }
           },

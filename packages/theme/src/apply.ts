@@ -33,8 +33,10 @@ const half = (look: Look, h: ThemeAppearance) => ({
   ...displayVars(look.display),
 })
 
-export const resolveLook = (look: Look): Record<ThemeAppearance, Record<string, string>> => ({ light: half(look, "light"), dark: half(look, "dark") })
-
+export const resolveLook = (look: Look): Record<ThemeAppearance, Record<string, string>> => ({
+  light: half(look, "light"),
+  dark: half(look, "dark"),
+})
 
 let applied = new Set<string>()
 let committed: Look = DEFAULT_LOOK
@@ -99,7 +101,15 @@ export function readCache(): Cache | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY)
     const value: unknown = raw ? JSON.parse(raw) : null
-    if (!value || typeof value !== "object" || !("v" in value) || (value.v !== 6 && value.v !== 5) || !("text" in value) || typeof value.text !== "string") return null
+    if (
+      !value ||
+      typeof value !== "object" ||
+      !("v" in value) ||
+      (value.v !== 6 && value.v !== 5) ||
+      !("text" in value) ||
+      typeof value.text !== "string"
+    )
+      return null
     const look = parseLook(value.text)
     return { v: 6, text: value.text, mode: look.mode, vars: resolveLook(look) }
   } catch {
@@ -110,9 +120,12 @@ export function readCache(): Cache | null {
 export function writeCache(text: string | null, look: Look): void {
   try {
     if (text === null) localStorage.removeItem(CACHE_KEY)
-    else localStorage.setItem(CACHE_KEY, JSON.stringify({ v: 6, text, mode: look.mode, vars: resolveLook(look) } satisfies Cache))
-  } catch {
-  }
+    else
+      localStorage.setItem(
+        CACHE_KEY,
+        JSON.stringify({ v: 6, text, mode: look.mode, vars: resolveLook(look) } satisfies Cache),
+      )
+  } catch {}
   notifyCache()
 }
 

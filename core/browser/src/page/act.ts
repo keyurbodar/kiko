@@ -4,7 +4,10 @@ import { evaluate, flush, navigates, type PageState } from "./read"
 import { guardScript, selectScript } from "./script"
 import type { ControlId, Step, StepResult } from "./types"
 
-type Guard = { status: "ok"; x: number; y: number; menu: boolean } | { status: "gone" | "hidden" } | { status: "stale"; label: string }
+type Guard =
+  | { status: "ok"; x: number; y: number; menu: boolean }
+  | { status: "gone" | "hidden" }
+  | { status: "stale"; label: string }
 
 type Key = { key: string; code: string; keyCode: number; text?: string }
 
@@ -40,7 +43,11 @@ function keyOf(name: string): Key {
 async function press(page: PageState, name: string): Promise<void> {
   const key = keyOf(name)
   const base = { key: key.key, code: key.code, windowsVirtualKeyCode: key.keyCode, nativeVirtualKeyCode: key.keyCode }
-  const down = page.channel.send("Input.dispatchKeyEvent", { type: key.text ? "keyDown" : "rawKeyDown", text: key.text, ...base })
+  const down = page.channel.send("Input.dispatchKeyEvent", {
+    type: key.text ? "keyDown" : "rawKeyDown",
+    text: key.text,
+    ...base,
+  })
   await Promise.all([down, page.channel.send("Input.dispatchKeyEvent", { type: "keyUp", ...base })])
 }
 
@@ -51,7 +58,8 @@ async function guard(page: PageState, id: number, focus: boolean): Promise<Guard
 }
 
 function refused(g: Exclude<Guard, { status: "ok" }>): StepResult {
-  if (g.status === "stale") return { ok: false, reason: "stale", detail: `The control now reads "${g.label}". Read the page again.` }
+  if (g.status === "stale")
+    return { ok: false, reason: "stale", detail: `The control now reads "${g.label}". Read the page again.` }
   return { ok: false, reason: g.status }
 }
 
@@ -89,7 +97,12 @@ const NAVIGATES = new Set<Step["op"]>(["goto", "back", "forward", "reload"])
 async function walk(page: PageState, by: -1 | 1): Promise<StepResult> {
   const history = await page.channel.send("Page.getNavigationHistory")
   const entry = history.entries[history.currentIndex + by]
-  if (!entry) return { ok: false, reason: "gone", detail: by < 0 ? "There is no page to go back to." : "There is no page to go forward to." }
+  if (!entry)
+    return {
+      ok: false,
+      reason: "gone",
+      detail: by < 0 ? "There is no page to go back to." : "There is no page to go forward to.",
+    }
   const loaded = page.channel.waitFor("Page.loadEventFired", BROWSER.loadMs)
   await page.channel.send("Page.navigateToHistoryEntry", { entryId: entry.id })
   await loaded
@@ -122,19 +135,30 @@ async function awaitPage(page: PageState, step: Extract<Step, { op: "wait" }>): 
   const timeoutMs = step.timeoutMs ?? WAIT_TIMEOUT_MS
   if (step.navigation) {
     const loaded = await page.channel.waitFor("Page.loadEventFired", timeoutMs)
-    return loaded === undefined ? { ok: false, reason: "timeout", detail: `no page load within ${timeoutMs} ms` } : { ok: true }
+    return loaded === undefined
+      ? { ok: false, reason: "timeout", detail: `no page load within ${timeoutMs} ms` }
+      : { ok: true }
   }
-  if (step.text === undefined && step.gone === undefined) return { ok: false, reason: "gone", detail: "wait needs text, gone, ms, or navigation" }
-  const want = [step.text === undefined ? "" : `"${step.text}" to appear`, step.gone === undefined ? "" : `"${step.gone}" to go`]
+  if (step.text === undefined && step.gone === undefined)
+    return { ok: false, reason: "gone", detail: "wait needs text, gone, ms, or navigation" }
+  const want = [
+    step.text === undefined ? "" : `"${step.text}" to appear`,
+    step.gone === undefined ? "" : `"${step.gone}" to go`,
+  ]
     .filter(Boolean)
     .join(" and ")
   const deadline = Date.now() + timeoutMs
   for (;;) {
     const body = await bodyText(page)
-    if (body !== undefined && (step.text === undefined || body.includes(step.text)) && (step.gone === undefined || !body.includes(step.gone))) {
+    if (
+      body !== undefined &&
+      (step.text === undefined || body.includes(step.text)) &&
+      (step.gone === undefined || !body.includes(step.gone))
+    ) {
       return { ok: true }
     }
-    if (Date.now() >= deadline) return { ok: false, reason: "timeout", detail: `timed out after ${timeoutMs} ms waiting for ${want}` }
+    if (Date.now() >= deadline)
+      return { ok: false, reason: "timeout", detail: `timed out after ${timeoutMs} ms waiting for ${want}` }
     await sleep(WAIT_POLL_MS)
   }
 }
@@ -212,7 +236,13 @@ export async function act(page: PageState, step: Step): Promise<StepResult> {
 async function fullPageClip(page: PageState) {
   const metrics = await page.channel.send("Page.getLayoutMetrics")
   const size = metrics.cssContentSize ?? metrics.contentSize
-  return { x: 0, y: 0, width: Math.ceil(size.width), height: Math.min(Math.ceil(size.height), FULL_PAGE_MAX_PX), scale: 1 }
+  return {
+    x: 0,
+    y: 0,
+    width: Math.ceil(size.width),
+    height: Math.min(Math.ceil(size.height), FULL_PAGE_MAX_PX),
+    scale: 1,
+  }
 }
 
 export async function screenshot(page: PageState, opts: { fullPage?: boolean } = {}): Promise<Uint8Array> {

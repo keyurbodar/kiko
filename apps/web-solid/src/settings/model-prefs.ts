@@ -9,7 +9,9 @@ const providerOf = (ref: string): string => ref.split("/")[0] ?? ""
 export function parseHidden(text: string | null): readonly string[] {
   try {
     const value = JSON.parse(text ?? "{}") as { hidden?: unknown }
-    return Array.isArray(value.hidden) ? [...new Set(value.hidden.filter((x): x is string => typeof x === "string"))] : []
+    return Array.isArray(value.hidden)
+      ? [...new Set(value.hidden.filter((x): x is string => typeof x === "string"))]
+      : []
   } catch {
     return []
   }

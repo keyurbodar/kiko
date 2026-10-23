@@ -9,7 +9,6 @@ import { createAgent } from "./create"
 import { faceOptions, MAX_DESCRIPTION, MAX_NAME, problems, ready, suggestHandle } from "./model"
 import { closeNewAgent } from "./state"
 
-
 export default function NewAgentDialog() {
   let nameInput: HTMLInputElement | undefined
   const navigate = useNavigate()
@@ -25,7 +24,9 @@ export default function NewAgentDialog() {
   const issues = createMemo(() => problems(form(), taken()))
   const pins = () => options()[chosen()]!
   const seed = () => handle().trim().replace(/^@/, "") || "new-agent"
-  const face = (index: number, size: number) => <img src={cachedUri(seed(), options()[index]!)} alt="" width={size} height={size} draggable={false} />
+  const face = (index: number, size: number) => (
+    <img src={cachedUri(seed(), options()[index]!)} alt="" width={size} height={size} draggable={false} />
+  )
 
   onMount(() => requestAnimationFrame(() => nameInput?.focus()))
 
@@ -89,7 +90,13 @@ export default function NewAgentDialog() {
                 value={name()}
                 onInput={(event) => onName(event.currentTarget.value)}
               />
-              <Show when={issues().name}>{(text) => <span class="text-destructive" data-part="name-problem">{text()}</span>}</Show>
+              <Show when={issues().name}>
+                {(text) => (
+                  <span class="text-destructive" data-part="name-problem">
+                    {text()}
+                  </span>
+                )}
+              </Show>
             </label>
             <label class="flex flex-col gap-1.5 text-xs text-muted-foreground">
               Handle
@@ -108,7 +115,13 @@ export default function NewAgentDialog() {
                   }}
                 />
               </span>
-              <Show when={issues().handle}>{(text) => <span class="text-destructive" data-part="handle-problem">{text()}</span>}</Show>
+              <Show when={issues().handle}>
+                {(text) => (
+                  <span class="text-destructive" data-part="handle-problem">
+                    {text()}
+                  </span>
+                )}
+              </Show>
             </label>
           </div>
         </div>

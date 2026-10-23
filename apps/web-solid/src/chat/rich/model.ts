@@ -1,6 +1,14 @@
 import type { Block, Inline, RichText } from "@kiko/protocol"
 import isSuspiciousUrl from "../lib/richtext/suspicious"
-import { bareFileName, chipLabel, hrefFile, inlineCodeFile, isFileLabel, parentSuffixes, type FileTarget } from "./file-links"
+import {
+  bareFileName,
+  chipLabel,
+  hrefFile,
+  inlineCodeFile,
+  isFileLabel,
+  parentSuffixes,
+  type FileTarget,
+} from "./file-links"
 
 export type RichNode =
   | { kind: "text"; text: string }
@@ -24,12 +32,15 @@ const text = (value: string): RichNode => ({ kind: "text", text: value })
 
 export const safeHref = (href: string): boolean => /^(https?:|mailto:)/i.test(href) && URL.canParse(href)
 
-export const linkHost = (href: string): string | null => (/^https?:/i.test(href) && URL.canParse(href) ? new URL(href).hostname : null)
+export const linkHost = (href: string): string | null =>
+  /^https?:/i.test(href) && URL.canParse(href) ? new URL(href).hostname : null
 
 const fileChip = (file: FileTarget): RichNode => ({ kind: "file", file, label: chipLabel(file) })
 
 const plain = (nodes: readonly Inline[]): string =>
-  nodes.map((n) => (n.t === "text" || n.t === "code" ? n.text : n.t === "mention" ? `@${n.slug}` : plain(n.children))).join("")
+  nodes
+    .map((n) => (n.t === "text" || n.t === "code" ? n.text : n.t === "mention" ? `@${n.slug}` : plain(n.children)))
+    .join("")
 
 const SHOWN_HOST = /^(?:https?:\/\/)?((?:[a-z0-9-]+\.)+[a-z]{2,})(?=[/?#]|$)/i
 const EMBEDDED_HOST = /(?:https?:\/\/|\bwww\.)((?:[a-z0-9-]+\.)+[a-z]{2,})(?=[/?#\s,;:!?)]|$)/gi
@@ -78,7 +89,8 @@ export function inline(node: Inline): RichNode {
         if (isFileLabel(plain(node.children), file)) return fileChip(file)
         return el("span", [...node.children.map(inline), text(" "), fileChip(file)])
       }
-      if (maskedLink(node.href, plain(node.children))) return { kind: "masked", href: node.href, children: node.children.map(inline) }
+      if (maskedLink(node.href, plain(node.children)))
+        return { kind: "masked", href: node.href, children: node.children.map(inline) }
       return el("a", node.children.map(inline), {
         href: node.href,
         target: "_blank",
@@ -93,7 +105,6 @@ const isTaskItem = (item: readonly Block[]): boolean => {
   const first = item[0]
   return first?.t === "paragraph" && first.children[0]?.t === "text" && /^[☐☑] /.test(first.children[0].text)
 }
-
 
 function codeSpan(code: string): string {
   const runs = code.match(/`+/g) ?? []
@@ -142,7 +153,8 @@ function inlinePlain(nodes: readonly Inline[]): string {
     .join("")
 }
 
-const markdownCell = (cell: readonly Inline[]): string => inlineMarkdown(cell).replace(/\n+/g, " ").trim().replaceAll("|", "\\|")
+const markdownCell = (cell: readonly Inline[]): string =>
+  inlineMarkdown(cell).replace(/\n+/g, " ").trim().replaceAll("|", "\\|")
 
 const csvCell = (cell: readonly Inline[]): string => {
   const value = inlinePlain(cell).replace(/\s+/g, " ").trim()
@@ -151,8 +163,14 @@ const csvCell = (cell: readonly Inline[]): string => {
 
 function tableCopy(node: Extract<Block, { t: "table" }>): TableCopy {
   const line = (cells: string[]) => `| ${cells.join(" | ")} |`
-  const separator = node.head.map((_, i) => (node.align[i] === "center" ? ":---:" : node.align[i] === "right" ? "---:" : "---"))
-  const markdown = [line(node.head.map(markdownCell)), line(separator), ...node.rows.map((row) => line(row.map(markdownCell)))]
+  const separator = node.head.map((_, i) =>
+    node.align[i] === "center" ? ":---:" : node.align[i] === "right" ? "---:" : "---",
+  )
+  const markdown = [
+    line(node.head.map(markdownCell)),
+    line(separator),
+    ...node.rows.map((row) => line(row.map(markdownCell))),
+  ]
   const csv = [node.head, ...node.rows].map((row) => row.map(csvCell).join(",")).join("\n")
   return { markdown: markdown.join("\n"), csv }
 }
@@ -164,7 +182,9 @@ export function block(node: Block): RichNode {
     case "heading":
       return el(`h${node.level}`, node.children.map(inline))
     case "list": {
-      const items = node.items.map((item) => el("li", item.map(block), isTaskItem(item) ? { class: "task-list-item" } : {}))
+      const items = node.items.map((item) =>
+        el("li", item.map(block), isTaskItem(item) ? { class: "task-list-item" } : {}),
+      )
       const loose: Record<string, string> = node.loose ? { class: "rich-loose" } : {}
       return node.start === undefined
         ? el("ul", items, loose)
@@ -177,15 +197,31 @@ export function block(node: Block): RichNode {
     case "code_block":
       return { kind: "code", lang: node.lang, text: node.text }
     case "image":
-      return { kind: "image", alt: node.alt, ...(node.url ? { url: node.url } : {}), ...(node.fileId ? { fileId: node.fileId } : {}) }
+      return {
+        kind: "image",
+        alt: node.alt,
+        ...(node.url ? { url: node.url } : {}),
+        ...(node.fileId ? { fileId: node.fileId } : {}),
+      }
     case "table": {
       const row = (cells: readonly (readonly Inline[])[], tag: "th" | "td") =>
-        el("tr", cells.map((cell, i) => el(tag, cell.map(inline))))
+        el(
+          "tr",
+          cells.map((cell, i) => el(tag, cell.map(inline))),
+        )
       return {
         kind: "el",
         tag: "div",
         attrs: { class: "rich-table-scroll" },
-        children: [el("table", [el("thead", [row(node.head, "th")]), el("tbody", node.rows.map((cells) => row(cells, "td")))])],
+        children: [
+          el("table", [
+            el("thead", [row(node.head, "th")]),
+            el(
+              "tbody",
+              node.rows.map((cells) => row(cells, "td")),
+            ),
+          ]),
+        ],
         copy: tableCopy(node),
       }
     }

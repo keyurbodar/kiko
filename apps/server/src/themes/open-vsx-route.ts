@@ -38,7 +38,11 @@ export async function openVsxRoute(request: Request, env: Env): Promise<Response
   const target = openVsxTarget(url.searchParams.get("url"))
   if (!target) return Response.json({ error: "not an Open VSX address" }, { status: 400 })
 
-  const result = await safeFetch(target, undefined, { maxBytes: MAX_BYTES, timeoutMs: TIMEOUT_MS, userAgent: "kiko-theme-import" })
+  const result = await safeFetch(target, undefined, {
+    maxBytes: MAX_BYTES,
+    timeoutMs: TIMEOUT_MS,
+    userAgent: "kiko-theme-import",
+  })
   if (!result.ok || result.truncated || result.status !== 200 || !landedOnOpenVsx(result.url)) {
     return Response.json({ error: "Open VSX is unavailable right now." }, { status: 502 })
   }

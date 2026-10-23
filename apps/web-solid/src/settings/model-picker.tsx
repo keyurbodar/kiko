@@ -26,7 +26,15 @@ const changePicker = (open: boolean) => {
   setPickerOpen(open)
 }
 
-export function ModelPicker(props: { current?: string; onPick: (ref: string, thinking: readonly ThinkingLevel[]) => void; open: boolean; onOpenChange: (open: boolean) => void; children: JSX.Element; class?: string; title?: string }) {
+export function ModelPicker(props: {
+  current?: string
+  onPick: (ref: string, thinking: readonly ThinkingLevel[]) => void
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  children: JSX.Element
+  class?: string
+  title?: string
+}) {
   let trigger: HTMLButtonElement | undefined
   return (
     <>
@@ -46,7 +54,12 @@ export function ModelPicker(props: { current?: string; onPick: (ref: string, thi
       </button>
       <Show when={props.open}>
         <Suspense>
-          <ModelPickerPanel current={props.current} onPick={props.onPick} onOpenChange={props.onOpenChange} trigger={() => trigger} />
+          <ModelPickerPanel
+            current={props.current}
+            onPick={props.onPick}
+            onOpenChange={props.onOpenChange}
+            trigger={() => trigger}
+          />
         </Suspense>
       </Show>
     </>
@@ -73,17 +86,33 @@ export function ModelPickerButton(props: { draft: string }) {
               <Show when={members().length > 1}>
                 <IdentityAvatar seed={member().slug} size={14} />
               </Show>
-              <Show when={current()?.model.split("/")[0]}>{(provider) => <ProviderIcon id={provider()} width="13" height="13" />}</Show>
-              <span class="truncate" data-component="composer-model">{current()?.name ?? current()?.model.split("/").slice(1).join("/") ?? "Choose model"}</span>
-              <svg class="size-2.5 shrink-0 opacity-70" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <Show when={current()?.model.split("/")[0]}>
+                {(provider) => <ProviderIcon id={provider()} width="13" height="13" />}
+              </Show>
+              <span class="truncate" data-component="composer-model">
+                {current()?.name ?? current()?.model.split("/").slice(1).join("/") ?? "Choose model"}
+              </span>
+              <svg
+                class="size-2.5 shrink-0 opacity-70"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
                 <path d="M3 4.5L6 7.5l3-3" />
               </svg>
             </ModelPicker>
-            <ReasoningMenu levels={current()?.thinkingLevels} value={current()?.thinking} onChange={(thinking) => useApp.setAgentModel(member().slug, { thinking })} />
+            <ReasoningMenu
+              levels={current()?.thinkingLevels}
+              value={current()?.thinking}
+              onChange={(thinking) => useApp.setAgentModel(member().slug, { thinking })}
+            />
           </>
         )
       }}
     </Show>
   )
 }
-
