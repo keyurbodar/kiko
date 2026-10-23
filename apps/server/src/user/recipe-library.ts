@@ -4,7 +4,7 @@ import type { FsEntry, FsFail, NewFile } from "../files/file-index"
 import { deleteFiles, fileKey, HOME } from "../files/paths"
 import { deleteSetting, getSetting } from "../lib/settings"
 import { BUILTIN_RECIPES } from "../recipes/catalog.gen"
-import { parseRecipe, type Recipe } from "../recipes/recipe"
+import { parseRecipe, type Recipe, RecipeError } from "../recipes/recipe"
 
 const RECIPES_DIR = "recipes"
 const SEEDED = "recipes_seeded"
@@ -80,7 +80,7 @@ export class RecipeLibrary {
     if (out.conflict) await deleteFiles(this.d.files, r2Key)
     if (out.drop) await deleteFiles(this.d.files, out.drop)
     if (out.entry || this.exists(path)) return path
-    throw new Error(`recipe ${slug}: the file could not be written`)
+    throw new RecipeError({ slug, reason: "unwritten", message: `recipe ${slug}: the file could not be written` })
   }
 
   async retireSeeded(): Promise<void> {

@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 import type { JsonObject } from "@earendil-works/pi-ai"
 import type { Life } from "@kiko/memory/life"
 import { cleanLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@kiko/memory/optmem"
@@ -20,6 +21,11 @@ import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import type { CredentialVault } from "./credentials"
 import { findProvider } from "../models/catalog"
 import { pickJudge, providerUses, type TurnContext } from "./turn-context"
+
+class ModelCallFailed extends Schema.TaggedError<ModelCallFailed>()("ModelCallFailed", {
+  stopReason: Schema.String,
+  message: Schema.String,
+}) {}
 
 const NAPS_PER_RUN = 4
 const MAX_NAPS = 4
@@ -268,7 +274,10 @@ export class MemoryCapture {
       failed: failed ? 1 : 0,
     })
     if (failed)
-      throw new Error(`the model call failed: ${reply.stopReason} ${(reply.errorMessage ?? "").slice(0, 160)}`)
+      throw new ModelCallFailed({
+        stopReason: reply.stopReason,
+        message: `the model call failed: ${reply.stopReason} ${(reply.errorMessage ?? "").slice(0, 160)}`,
+      })
     return reply.content.flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
   }
 

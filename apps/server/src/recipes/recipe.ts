@@ -4,7 +4,7 @@ import { parseFrontmatter } from "../skills/frontmatter"
 
 type RecipeTrigger = { name: string; every: string; run: string }
 
-class RecipeError extends Schema.TaggedError<RecipeError>()("RecipeError", {
+export class RecipeError extends Schema.TaggedError<RecipeError>()("RecipeError", {
   slug: Schema.String,
   reason: Schema.String,
   message: Schema.String,
