@@ -66,6 +66,20 @@ There are no unit or integration tests. Correctness rests on static gates that a
 
 `scripts/check-changed.ts` runs the static gates for only the files and packages a change touches. The pre-commit hook runs it on staged files. CI runs every gate. A release refuses to start until the `All checks` job is green on the commit it ships, and a manual deploy refuses a commit CI has not passed.
 
+## Computers
+
+`apps/computer` is a daemon the owner runs on their own machine. It dials out to the Worker, so no inbound port and no tunnel is needed. The wire protocol lives in `core/computer/src/` and both sides share it.
+
+- **It signs every connect.** `key.jwk` holds an Ed25519 private key in the config dir at 0600, and `api/pc/connect` carries the signed timestamp. The Worker verifies it and the ±60s skew before it will accept the socket.
+- **The daemon never trusts the Worker's arguments.** Every `call` is decoded against the `Calls` schema in `wire.ts` first, and a frame that fails is answered with `failed` rather than reaching an op.
+- **`policy.json` is the local ceiling**, checked before every op. A denied op answers `denied` and the Worker cannot override it. The human holder is a second ceiling: while the owner holds the screen, `act` is refused here even if the Worker asked.
+- **One input queue.** Every step that changes input runs through `InputQueue`, so two calls can never interleave keystrokes, and a timeout releases a held drag rather than leaving the button down.
+- **A deadline kills the process tree, never a name.** Shell commands run detached in their own process group and the deadline signals that group, so a child that outlives its parent still dies and nothing else does.
+- **Desktop tools go through cua-driver over MCP stdio.** Tools are discovered with `tools/list` at connect time and every argument is filtered against the advertised schema, because the driver's input shape differs by platform and version. Element ids are the driver's `element_token`s mapped to our small integers per capture; an unknown id answers `stale` so the agent looks again. Images shrink to a 1280 long edge and coordinates map back through the capture's own scale.
+- **No desktop is not a broken machine.** When cua-driver is missing, or Linux has no `$DISPLAY`/`$WAYLAND_DISPLAY`, `caps.desktop` is false and shell and files keep working.
+- **`src/live/` is the seam for the live view.** `connection.ts` hands `rtc`, `live`, `input` and `control` frames to the `Live` object it is given. The default in `src/live/index.ts` reports no live capability and still forwards holder changes.
+- **Writes cost nothing here.** The daemon keeps captures, pending calls and the holder in memory. Nothing is written per call or per ping.
+
 ## Releases
 
 `scripts/release.ts` builds and signs a release, and the release workflow publishes it to `latest-owner.json`. The workflow commits the version bump off `main` and pushes only its tag, because `main` accepts changes only through a pull request with green CI and has no bypass. The newest `v*` tag is the current version; `package.json` on `main` can lag behind it. Moving an install from v0.4 to `OwnerDO` deletes the old databases after the owner types `delete-existing-data` in the installer.

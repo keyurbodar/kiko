@@ -20,7 +20,9 @@ const PACKAGES: Record<string, readonly string[]> = {
   ui: ["@kiko/protocol", "@kiko/theme", "@kiko/avatar"],
 }
 
-const APPS = ["web-solid", "landing", "cli", "installer"]
+const APPS = ["web-solid", "landing", "cli", "installer", "computer"]
+
+const APP_PACKAGES: Record<string, readonly string[]> = { computer: ["@kiko/computer"] }
 
 function files(dir: string): string[] {
   if (!existsSync(dir)) return []
@@ -70,7 +72,10 @@ function judgeRelative(at: string, file: string, label: string, strict: boolean,
 
 for (const [pkg, allowed] of Object.entries(CORE)) check(join(ROOT, "core", pkg), allowed, true)
 for (const [pkg, allowed] of Object.entries(PACKAGES)) check(join(ROOT, "packages", pkg), allowed, true)
-for (const app of APPS) check(join(ROOT, "apps", app), [], false)
+for (const app of APPS) {
+  const allowed = APP_PACKAGES[app]
+  check(join(ROOT, "apps", app), allowed ?? [], allowed !== undefined)
+}
 
 if (problems.length) {
   console.error(problems.join("\n"))

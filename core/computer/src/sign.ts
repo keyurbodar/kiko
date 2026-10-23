@@ -35,15 +35,21 @@ export async function generateKeys(): Promise<{ publicKey: string; privateKey: J
   }
 }
 
+function bytes(value: Uint8Array): Uint8Array<ArrayBuffer> {
+  const copy = new Uint8Array(new ArrayBuffer(value.byteLength))
+  copy.set(value)
+  return copy
+}
+
 export async function sign(privateKey: JsonWebKey, message: Uint8Array): Promise<string> {
   const key = await crypto.subtle.importKey("jwk", privateKey, ED25519, false, ["sign"])
-  return toBase64Url(new Uint8Array(await crypto.subtle.sign(ED25519, key, message)))
+  return toBase64Url(new Uint8Array(await crypto.subtle.sign(ED25519, key, bytes(message))))
 }
 
 export async function verify(publicKey: string, signature: string, message: Uint8Array): Promise<boolean> {
   const raw = fromBase64Url(publicKey)
   const sig = fromBase64Url(signature)
   if (!raw || raw.byteLength !== 32 || !sig || sig.byteLength !== 64) return false
-  const key = await crypto.subtle.importKey("raw", raw, ED25519, false, ["verify"])
-  return crypto.subtle.verify(ED25519, key, sig, message)
+  const key = await crypto.subtle.importKey("raw", bytes(raw), ED25519, false, ["verify"])
+  return crypto.subtle.verify(ED25519, key, bytes(sig), bytes(message))
 }

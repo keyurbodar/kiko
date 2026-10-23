@@ -13,7 +13,7 @@ export type FrameHeader = {
 
 const KINDS: readonly FrameKind[] = ["jpeg", "webp"]
 
-export function encodeFrame(header: FrameHeader, image: Uint8Array): Uint8Array {
+export function encodeFrame(header: FrameHeader, image: Uint8Array): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(FRAME_HEADER + image.byteLength)
   const view = new DataView(out.buffer)
   view.setUint8(0, 1)
