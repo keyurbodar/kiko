@@ -14,6 +14,13 @@ export const SETTINGS_SECTIONS = [
     keywords: "integrations composio mcp apps browser kernel tool",
   },
   {
+    id: "computers",
+    group: "all",
+    label: "Computers",
+    hint: "Machines your agents can use, and that you can watch and take over.",
+    keywords: "computer pc mac linux windows desktop remote screen pair install daemon vps server takeover",
+  },
+  {
     id: "appearance",
     group: "all",
     label: "Appearance",

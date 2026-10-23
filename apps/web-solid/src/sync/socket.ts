@@ -12,6 +12,7 @@ import { socketProtocols } from "../lib/api"
 const PING = "ping"
 
 export type SocketLike = {
+  binaryType?: string
   send(data: string): void
   close(code?: number, reason?: string): void
   addEventListener(type: "open", listener: (event: unknown) => void): void
@@ -22,7 +23,11 @@ export type SocketLike = {
 
 export type Connect = (url: string) => SocketLike
 
-export const browserConnect: Connect = (url) => new WebSocket(url, socketProtocols()) as unknown as SocketLike
+export const browserConnect: Connect = (url) => {
+  const socket = new WebSocket(url, socketProtocols())
+  socket.binaryType = "arraybuffer"
+  return socket as unknown as SocketLike
+}
 
 export type SocketStatus = "connecting" | "open" | "closed" | "blocked"
 
@@ -46,6 +51,7 @@ export type SyncSocketOptions<In> = {
   hello: () => { t: "hello"; lastSeq: number }
   onOpen?: () => void
   onFrame: (frame: In) => void
+  onBinary?: (data: ArrayBuffer) => void
   onStatus?: (status: SocketStatus) => void
   backoff?: Backoff
   random?: () => number
@@ -124,6 +130,7 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
       pongAt = heardAt
       pingedAt = undefined
       attempt = 0
+      if (event.data instanceof ArrayBuffer) return options.onBinary?.(event.data)
       const frame = parseFrame<In>(event.data)
       if (frame) options.onFrame(frame)
     })
@@ -266,12 +273,14 @@ export type UserChannel = {
   on<T extends UserToClient["t"]>(t: T, fn: (frame: FrameOf<T>) => void): () => void
   onOpen(fn: () => void): () => void
   onStatus(fn: (status: SocketStatus) => void): () => void
+  onBinary(fn: (data: ArrayBuffer) => void): () => void
   room(options: RoomChannelOptions): RoomChannel
 }
 
 export type UserChannelHost = UserChannel & {
   attach(send: (frame: ClientToOwner) => boolean): () => void
   deliver(frame: OwnerToClient): void
+  deliverBinary(data: ArrayBuffer): void
   opened(): void
   status(status: SocketStatus): void
 }
@@ -280,6 +289,7 @@ function createUserChannel(): UserChannelHost {
   const listeners = new Map<string, Set<(frame: never) => void>>()
   const openers = new Set<() => void>()
   const statuses = new Set<(status: SocketStatus) => void>()
+  const binaries = new Set<(data: ArrayBuffer) => void>()
   let sender: ((frame: ClientToOwner) => boolean) | null = null
   let status: SocketStatus = "closed"
   const rooms = new Map<RoomId, Set<RoomChannelOptions>>()
@@ -306,6 +316,13 @@ function createUserChannel(): UserChannelHost {
     onStatus(fn) {
       statuses.add(fn)
       return () => void statuses.delete(fn)
+    },
+    onBinary(fn) {
+      binaries.add(fn)
+      return () => void binaries.delete(fn)
+    },
+    deliverBinary(data) {
+      for (const fn of Array.from(binaries)) fn(data)
     },
     attach(send) {
       sender = send
