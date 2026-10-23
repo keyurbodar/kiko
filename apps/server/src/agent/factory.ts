@@ -17,6 +17,7 @@ import {
 } from "@earendil-works/pi-durable"
 import { workExtensions } from "./extensions/work"
 import { withTextToolCalls } from "./tool-markup"
+import { withDraft2020Tools } from "./tool-schema"
 import type { Workers } from "@kiko/agent/workers"
 import { effectTable } from "@kiko/agent/effects"
 import { type FilesOptions, filesExtension } from "./extensions/files"
@@ -205,12 +206,20 @@ export function userModels(
       stream: ((model, context, options) =>
         timed(
           model.id,
-          withTextToolCalls(provider.stream as never)(unanchored(model), context, via(model, options) as never),
+          withTextToolCalls(provider.stream as never)(
+            unanchored(model),
+            withDraft2020Tools(context) as never,
+            via(model, options) as never,
+          ),
         )) as typeof provider.stream,
       streamSimple: ((model, context, options) =>
         timed(
           model.id,
-          withTextToolCalls(provider.streamSimple)(unanchored(model), context, via(model, options) as never),
+          withTextToolCalls(provider.streamSimple)(
+            unanchored(model),
+            withDraft2020Tools(context),
+            via(model, options) as never,
+          ),
           options?.reasoning,
         )) as typeof provider.streamSimple,
     }
