@@ -4,7 +4,7 @@ export const APP_VERSION: string = typeof __KIKO_VERSION__ === "string" ? __KIKO
 export type Skew = "ok" | "update" | "blocked"
 export type Build = { version: string; protocol: number }
 
-export type BackendBuild = { version?: string; protocol?: number; storage?: "r2" | "built-in" }
+export type BackendBuild = { version?: string; protocol?: number; storage?: "r2" | "built-in"; rpc?: boolean }
 
 const core = (version: string) => (version.split(/[-+]/)[0] ?? "").split(".").map(Number)
 
