@@ -348,6 +348,7 @@ function defaultSchedule(run: () => void) {
     channel.port1.close()
     run()
   })
+  channel.port1.start()
   channel.port2.postMessage(null)
 }
 
