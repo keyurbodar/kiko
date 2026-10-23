@@ -1,6 +1,9 @@
-import type { FileRef } from "@kiko/protocol"
+import type { FileRef, RoomId } from "@kiko/protocol"
+import { FileConflictError } from "@kiko/protocol/rpc"
+import * as Cause from "effect/Cause"
 import { createSignal } from "solid-js"
-import { urls } from "../lib/store"
+import { fileSrc } from "../state/room"
+import { failureMessage, owner, run } from "../state/runtime"
 import { apiFetch } from "../lib/api"
 
 export const sha256Hex = async (data: BufferSource): Promise<string> =>
@@ -20,18 +23,17 @@ export async function putFile(
   type: string,
   expect: string,
 ): Promise<SaveResult> {
-  try {
-    const res = await apiFetch(`/api/files/${roomId}?path=${encodeURIComponent(path)}`, {
-      method: "PUT",
-      headers: { "content-type": type, "x-kiko-if-sha256": expect },
-      body,
-    })
-    if (res.status === 409) return { kind: "conflict", theirs: ((await res.json()) as { file: FileRef | null }).file }
-    if (!res.ok) return { kind: "error", message: `The server said ${res.status}` }
-    return { kind: "saved", file: ((await res.json()) as { file: FileRef }).file }
-  } catch {
-    return { kind: "error", message: "Could not reach the server" }
-  }
+  const result = await run(owner.commands.writeText, {
+    roomId: roomId as RoomId,
+    path,
+    type,
+    text: body,
+    expectSha: expect,
+  })
+  if (result._tag === "Success") return { kind: "saved", file: result.value }
+  const error = Cause.squash(result.cause)
+  if (error instanceof FileConflictError) return { kind: "conflict", theirs: error.theirs }
+  return { kind: "error", message: failureMessage(result.cause, "Could not reach the server") }
 }
 
 export const PREVIEW_BYTES = 1024 * 1024
@@ -60,7 +62,7 @@ function decodeText(
 }
 
 export async function readText(roomId: string, id: string, limit?: number): Promise<TextRead> {
-  const res = await apiFetch(urls.file(roomId, id), limit ? { headers: { range: `bytes=0-${limit - 1}` } } : undefined)
+  const res = await apiFetch(fileSrc(roomId, id), limit ? { headers: { range: `bytes=0-${limit - 1}` } } : undefined)
   if (!res.ok) throw new Error(`The server said ${res.status}`)
   const bytes = new Uint8Array(await res.arrayBuffer())
   const size = Number(res.headers.get("content-range")?.split("/")[1]) || bytes.length

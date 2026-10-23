@@ -8,9 +8,10 @@ import { openChat } from "../app/history"
 import { createEffect, createMemo, createSignal, For, type JSX, onCleanup, Show } from "solid-js"
 import { VList } from "virtua/solid"
 import { ChatAvatar } from "../lib/IdentityAvatar"
-import { intentRef } from "../lib/intent"
 import { agentDisplayName } from "../lib/names"
-import { useApp } from "../lib/store"
+import { cachedTail, room } from "../state/room"
+import { user } from "../state/user"
+import { draftBook } from "../composer/draft-book"
 import type { BotPresence, ChatMessage, RosterBot } from "../lib/types"
 import {
   cancelRename,
@@ -51,13 +52,8 @@ const PRESENCE: Record<BotPresence, string> = {
 }
 
 function ChatMenuItems(props: { id: string }) {
-  const chat = createMemo(() =>
-    useApp
-      .user()
-      ?.chats()
-      .find((c) => c.roomId === props.id),
-  )
-  const active = () => useApp.activeThreadId()
+  const chat = createMemo(() => user.chats().find((c) => c.roomId === props.id))
+  const active = () => room.activeId()
   const [sure, setSure] = createSignal(false)
   return (
     <>
@@ -69,8 +65,8 @@ function ChatMenuItems(props: { id: string }) {
         <MenuV2.Item onSelect={() => togglePin(props.id)}>{chat()?.pinned ? "Unpin" : "Pin"}</MenuV2.Item>
       </Show>
       <MenuV2.Item onSelect={() => toggleMute(props.id)}>{chat()?.muted ? "Unmute" : "Mute"}</MenuV2.Item>
-      <Show when={useApp.chatFaces(props.id).length === 1}>
-        <MenuV2.Item onSelect={() => openAvatarPicker(useApp.chatFaces(props.id)[0]!)}>Change avatar</MenuV2.Item>
+      <Show when={room.chatFaces(props.id).length === 1}>
+        <MenuV2.Item onSelect={() => openAvatarPicker(room.chatFaces(props.id)[0]!)}>Change avatar</MenuV2.Item>
       </Show>
       <MenuV2.Separator />
       <MenuV2.Item onSelect={() => markUnread(props.id)}>Mark as unread</MenuV2.Item>
@@ -113,19 +109,26 @@ function previewState(id: string) {
 }
 
 function ChatPreview(props: { bot: RosterBot }) {
-  const tail = createMemo(() => useApp.messagesFor(props.bot.id).filter(isListed).slice(-3))
-  const name = (slug: string) => agentDisplayName(slug, useApp.agents())
+  const cached = cachedTail(
+    () => props.bot.id,
+    () => true,
+  )
+  const tail = createMemo(() => {
+    const live = room.activeId() === props.bot.id ? room.messages() : cached()
+    return live.filter(isListed).slice(-3)
+  })
+  const name = (slug: string) => agentDisplayName(slug, user.agents())
   const speaker = (message: ChatMessage) =>
     message.sender === "user"
       ? "You"
       : message.botId === undefined
         ? props.bot.name
-        : agentDisplayName(message.botId, useApp.agents())
+        : agentDisplayName(message.botId, user.agents())
 
   return (
     <div class="w-[280px] p-3" data-component="sidebar-preview">
       <div class="flex items-center gap-2.5">
-        <ChatAvatar faces={useApp.chatFaces(props.bot.id)} size={32} />
+        <ChatAvatar faces={room.chatFaces(props.bot.id)} size={32} />
         <div class="min-w-0">
           <div class="truncate text-[13px] font-semibold text-foreground">{props.bot.name}</div>
           <div class="truncate text-[11px] text-muted-foreground">{PRESENCE[props.bot.presence]}</div>
@@ -206,7 +209,7 @@ function ChatRow(props: {
   const [previewOpen, setPreviewOpen] = previewState(props.bot.id)
   const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id)
   const draft = () => {
-    const book = useApp.drafts()
+    const book = draftBook()
     return props.active || !book?.has(props.bot.id) ? "" : (book.get(props.bot.id)?.text.trim() ?? "")
   }
 
@@ -227,7 +230,6 @@ function ChatRow(props: {
       <MenuV2.Context.Trigger
         as="div"
         class="chat-row"
-        ref={intentRef(() => void useApp.preloadChat(props.bot.id))}
         data-component="sidebar-row"
         data-main={props.main ? "" : undefined}
         data-pinned={props.bot.pinned ? "" : undefined}
@@ -261,7 +263,7 @@ function ChatRow(props: {
           </HoverCardV2.Portal>
         </HoverCardV2>
 
-        <ChatAvatar faces={useApp.chatFaces(props.bot.id)} class="chat-avatar" />
+        <ChatAvatar faces={room.chatFaces(props.bot.id)} class="chat-avatar" />
 
         <span class="chat-text">
           <span class="chat-line">
@@ -403,11 +405,11 @@ export function ChatPanel() {
   const [query, setQuery] = createSignal("")
   const [unreadOnly, setUnreadOnly] = createSignal(false)
 
-  const all = createMemo(() => useApp.bots())
+  const all = createMemo(() => room.bots())
   const shown = createMemo(() =>
     filterRows(all(), { query: query(), unreadOnly: unreadOnly() }, (row) => row.unread > 0 || markedUnread(row.id)),
   )
-  const pinned = createMemo(() => pinnedRows(shown(), useApp.kikoChatId()))
+  const pinned = createMemo(() => pinnedRows(shown(), user.kikoChatId()))
   const jumpHint = createMemo(() => {
     if (query() !== "" || unreadOnly()) return new Map<string, string>()
     const order = [...all().filter((b) => b.pinned), ...all().filter((b) => !b.pinned)].slice(0, 9)
@@ -419,11 +421,9 @@ export function ChatPanel() {
       .map((bot) => bot.id),
   )
   const byId = createMemo(() => new Map(shown().map((bot) => [bot.id, bot])))
-  const muted = createMemo(
-    () => new Set((useApp.user()?.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)),
-  )
-  const active = () => useApp.activeThreadId()
-  const loading = () => all().length === 0 && !!useApp.user()?.state.loaded && !useApp.user()?.state.synced
+  const muted = createMemo(() => new Set((user.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)))
+  const active = () => room.activeId()
+  const loading = () => all().length === 0 && !!user.loaded() && !user.synced()
 
   return (
     <div class="chat-panel" data-component="sidebar-chats">
@@ -436,7 +436,7 @@ export function ChatPanel() {
                 bot={bot}
                 hint={jumpHint().get(bot.id)}
                 active={active() === bot.id}
-                main={bot.id === useApp.kikoChatId()}
+                main={bot.id === user.kikoChatId()}
                 muted={muted().has(bot.id)}
                 now={now()}
               />

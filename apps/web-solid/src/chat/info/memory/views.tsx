@@ -17,7 +17,7 @@ import { ModelPicker } from "../../../settings/model-picker"
 import { session } from "../../../app/session"
 import { IdentityAvatar } from "../../../lib/IdentityAvatar"
 import { agentDisplayName } from "../../../lib/names"
-import { useApp } from "../../../lib/store"
+import { room } from "../../../state/room"
 import { memoryFor } from "./instance"
 import { ago, matching, mergeResults, ordered, originOf, replacedMark } from "./lines"
 import type { MemoryStore } from "./store"
@@ -44,7 +44,7 @@ function Origin(props: { line: LifeLine }) {
           {(slug) => (
             <>
               <IdentityAvatar seed={slug()} size={14} />
-              <span class="truncate">{useApp.memberById(slug())?.name ?? agentDisplayName(slug(), [])}</span>
+              <span class="truncate">{room.memberById(slug())?.name ?? agentDisplayName(slug(), [])}</span>
             </>
           )}
         </Match>

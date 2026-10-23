@@ -3,7 +3,8 @@ import { LoaderIcon } from "@kiko/ui/icons"
 import { createMemo, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { agentDisplayName } from "../../lib/names"
-import { useApp } from "../../lib/store"
+import { room } from "../../state/room"
+import { user } from "../../state/user"
 import type { ChatMessage } from "../../lib/types"
 import { computerById, openViewer, release, takeOver, viewerFor } from "../computers"
 import { Bubble, BubbleContent } from "../ui/bubble"
@@ -37,7 +38,7 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
   const computer = () => computerById(event().pc)
   const latest = createMemo(
     () =>
-      useApp.activeMessages().findLast((m) => {
+      room.messages().findLast((m) => {
         const e = m.event as { kind?: string; pc?: string } | undefined
         return e?.kind === "computer_control" && e.pc === event().pc
       })?.id === props.message.id,
@@ -54,7 +55,7 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
     const display = computer()?.displays[0]
     return display?.height ? display.width / display.height : 16 / 10
   }
-  const agentName = () => agentDisplayName(event().agent, useApp.agents())
+  const agentName = () => agentDisplayName(event().agent, user.agents())
   const watching = () => open() && computer()?.online === true && viewerFor() !== event().pc
 
   return (

@@ -8,7 +8,7 @@ import "../palette/palette.css"
 import { agentList } from "../lib/chats"
 import { Dialog } from "../lib/dialog"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
-import { useApp } from "../lib/store"
+import { user } from "../state/user"
 import { Button, fieldClass } from "../settings/kit"
 import { openNewAgent } from "../newagent/state"
 import { closeBotPicker } from "./bot-picker-state"
@@ -21,14 +21,14 @@ export default function BotPicker() {
   const [highlight, setHighlight] = createSignal("")
   const [query, setQuery] = createSignal("")
   const [title, setTitle] = createSignal("")
-  const agents = createMemo(() => agentList(useApp.agents()))
+  const agents = createMemo(() => agentList(user.agents()))
   const room = createMemo(() => roomFor(picked()))
   const name = (id: string) => agents().find((a) => a.id === id)?.name ?? id
   const grouping = () => picked().length > 0
   const defaultTitle = () => groupTitle(room().map(name))
 
   const open = (agentIds: readonly string[], chatTitle: string) => {
-    const roomId = useApp.user()?.createChat(chatTitle, agentIds)
+    const roomId = user.createChat(chatTitle, agentIds)
     if (!roomId) return
     closeBotPicker()
     openChat(roomId)

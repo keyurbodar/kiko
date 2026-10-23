@@ -1,10 +1,10 @@
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { For, Show, createMemo, createSignal } from "solid-js"
-import { createLive } from "../../sync/changed"
+import { createQuery } from "../../state/runtime"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon } from "@kiko/ui/icons"
-import { loadCatalog, type CatalogProvider } from "../../settings/catalog"
+import { catalogQuery, type CatalogProvider } from "../../settings/catalog"
 import { connectedProviders } from "../../settings/connected"
 import { AddProviderDialog, ConnectDialog } from "../../settings/models"
 import { modelProviders } from "../../settings/provider-kinds"
@@ -13,7 +13,8 @@ import { move } from "./progress"
 import { primary } from "./welcome"
 
 export function ConnectStep() {
-  const [catalog, { refetch }] = createLive("models", () => true, loadCatalog)
+  const catalog = createQuery(catalogQuery)
+  const refetch = catalog.refetch
   const providers = () => (catalog.error ? [] : (catalog()?.providers ?? []))
   const [dialog, setDialog] = createSignal<{ provider: CatalogProvider; only?: ConnectVia } | null>(null)
   const [browsing, setBrowsing] = createSignal(false)

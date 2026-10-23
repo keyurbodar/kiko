@@ -5,7 +5,7 @@ import { CloseIcon, PlusIcon } from "@kiko/ui/icons"
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show, Suspense } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { EntryIcon } from "../../lib/EntryIcon"
-import { useApp } from "../../lib/store"
+import { room } from "../../state/room"
 import { roomMembers } from "../info/sections"
 import { launcherEntries, PANELS, panelLabel, panelOf } from "./panels"
 import {
@@ -225,7 +225,7 @@ export default function Sidecar(props: { chatId: string }) {
   const group = () => roomMembers().length > 1
 
   createEffect(() => {
-    const members = useApp.roomMembers()
+    const members = room.roomMembers()
     if (members.length === 0) return
     const here = new Set(members.map((m) => m.slug as string))
     for (const surface of sidecarSurfaces(props.chatId))

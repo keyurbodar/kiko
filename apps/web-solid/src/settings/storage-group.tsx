@@ -1,6 +1,7 @@
-import { createResource, Match, Show, Switch } from "solid-js"
+import { Match, Show, Switch } from "solid-js"
 import { Button, Group, Notice, Row, Skeleton } from "./kit"
-import { fetchStorage, formatSize, nearlyFull, OBJECT_LIMIT_BYTES, type Storage } from "./storage-client"
+import { createQuery, owner } from "../state/runtime"
+import { formatSize, nearlyFull, OBJECT_LIMIT_BYTES, type Storage } from "./storage-client"
 
 const R2_URL = "https://developers.cloudflare.com/r2/pricing/"
 
@@ -35,13 +36,13 @@ function Meter(props: { storage: Storage }) {
 }
 
 export function StorageGroup() {
-  const [storage, { refetch }] = createResource(fetchStorage)
+  const storage = createQuery(() => owner.queries.storageUsage(undefined))
   return (
     <Group title="Storage" data-component="storage">
       <Switch>
-        <Match when={storage.state === "errored"}>
+        <Match when={storage.error}>
           <Row label="Object storage" description="Kiko could not read how much is used.">
-            <Button data-action="retry-storage" onClick={() => void refetch()}>
+            <Button data-action="retry-storage" onClick={() => storage.refetch()}>
               Try again
             </Button>
           </Row>

@@ -9,7 +9,7 @@ import {
   TableIcon,
   WrapTextIcon,
 } from "@kiko/ui/icons"
-import { urls } from "../lib/store"
+import { fileSrc } from "../state/room"
 import { SurfaceAction } from "./chrome"
 import { TEXT_KINDS, type ViewerKind } from "./kind"
 import { where } from "./model"
@@ -65,7 +65,7 @@ export function FileActions(props: {
         label="Save file"
         icon={DownloadIcon}
         action="download-file"
-        href={urls.file(where(props.chatId, props.path).space, props.file.id)}
+        href={fileSrc(where(props.chatId, props.path).space, props.file.id)}
         download={baseName(props.path)}
       />
       {props.onExpand && (

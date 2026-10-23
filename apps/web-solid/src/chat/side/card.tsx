@@ -14,7 +14,8 @@ import {
 import { openChat } from "../../app/history"
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js"
 import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
-import { useApp } from "../../lib/store"
+import { room } from "../../state/room"
+import { user } from "../../state/user"
 import { useMemoryStore } from "../info/memory/views"
 import { routinesOf } from "../info/routines"
 import { triggerLabel } from "../info/routines-model"
@@ -48,27 +49,27 @@ function Row(props: { icon: Glyph; label: string; meta?: string; kind: FixedKind
 
 export default function ChatCard(props: { chatId: string }) {
   const memory = useMemoryStore()
-  const members = () => useApp.roomMembers()
-  const chat = () => useApp.chatById(props.chatId)
+  const members = () => room.roomMembers()
+  const chat = () => room.chatById(props.chatId)
   const [clock, setClock] = createSignal(Date.now())
   const ticker = setInterval(() => setClock(Date.now()), 30_000)
   onCleanup(() => clearInterval(ticker))
   const add = (agent: Agent) => {
-    if (props.chatId !== useApp.kikoChatId()) return useApp.memberOp(addOp(agent))
-    const roomId = useApp.user()?.createChat(groupTitle(["Kiko", agent.name]), roomFor([KIKO, agent.id]))
+    if (props.chatId !== user.kikoChatId()) return room.memberOp(addOp(agent))
+    const roomId = user.createChat(groupTitle(["Kiko", agent.name]), roomFor([KIKO, agent.id]))
     if (roomId) openChat(roomId)
   }
   const working = () => {
-    const doings = useApp.typingDoings()
+    const doings = room.typingDoings()
     return workingLine(
-      useApp.typingNames().map((name, i) => ({ name, doing: doings[i] })),
+      room.typingNames().map((name, i) => ({ name, doing: doings[i] })),
       isGroup(members()),
     )
   }
   const busy = () => statusChip(chat()?.presence).tone === "working" || working() !== null
-  const files = () => useApp.activeFiles()
+  const files = () => room.files()
   const routines = () => routinesOf(props.chatId)
-  const tasks = () => useApp.room()?.tasks() ?? []
+  const tasks = () => room.tasks() ?? []
   const open = () => tasks().filter((t) => t.status !== "done" && t.status !== "cancelled").length
   const next = () => routines().find((r) => r.status === "active")
   let card: HTMLElement | undefined
@@ -103,7 +104,7 @@ export default function ChatCard(props: { chatId: string }) {
       aria-label="This chat"
     >
       <div class="flex items-center gap-3 px-2.5 pt-2 pb-2.5">
-        <ChatAvatar faces={useApp.chatFaces(props.chatId)} size={32} />
+        <ChatAvatar faces={room.chatFaces(props.chatId)} size={32} />
         <div class="flex min-w-0 flex-1 flex-col">
           <span class="truncate text-md font-medium text-foreground" data-component="card-name">
             {chat()?.name ?? ""}
@@ -150,10 +151,10 @@ export default function ChatCard(props: { chatId: string }) {
                     Add to this chat
                   </MenuV2.GroupLabel>
                   <Show
-                    when={addable(useApp.agents(), members()).length > 0}
+                    when={addable(user.agents(), members()).length > 0}
                     fallback={<MenuV2.Item disabled>No other agents</MenuV2.Item>}
                   >
-                    <For each={addable(useApp.agents(), members())}>
+                    <For each={addable(user.agents(), members())}>
                       {(agent) => (
                         <MenuV2.Item data-add-member={agent.slug} onSelect={() => add(agent)}>
                           <IdentityAvatar seed={agent.slug} size={18} />

@@ -5,7 +5,8 @@ import { loadOverlaysV2 } from "@kiko/ui/v2/overlays"
 import { snippetParts } from "@kiko/protocol"
 import { For, Show, createEffect, createSignal, on, onCleanup, onMount } from "solid-js"
 import { dividerLabel } from "../chat/lib/time-label"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
+import { user } from "../state/user"
 import { fetchHits } from "./fetch"
 import { createSearch, type Hit, type SearchView, senderName } from "./model"
 import { closeSearch, requestJump, type SearchScope, searchScope, setSearchScope } from "./state"
@@ -15,7 +16,7 @@ void loadOverlaysV2()
 
 export default function SearchOverlay() {
   const [view, setView] = createSignal<SearchView>()
-  const hasChat = () => !!useApp.activeThreadId()
+  const hasChat = () => !!room.activeId()
   const search = createSearch({
     scope: searchScope() === "chat" && hasChat() ? "chat" : "all",
     fetch: fetchHits,
@@ -38,7 +39,7 @@ export default function SearchOverlay() {
   )
   createEffect(
     on(
-      () => useApp.activeThreadId(),
+      () => room.activeId(),
       () => {
         if (searchScope() === "chat") search.rerun()
       },
@@ -60,7 +61,7 @@ export default function SearchOverlay() {
     if (!hit) return
     closeSearch()
     requestJump({ roomId: hit.roomId, id: hit.id, seq: hit.seq })
-    if (hit.roomId !== useApp.activeThreadId()) openChat(hit.roomId)
+    if (hit.roomId !== room.activeId()) openChat(hit.roomId)
   }
   const pickScope = (scope: SearchScope) => {
     setSearchScope(scope)
@@ -87,7 +88,7 @@ export default function SearchOverlay() {
       close()
     }
   }
-  const chatName = (roomId: string) => useApp.chat(roomId)?.title ?? "Chat"
+  const chatName = (roomId: string) => user.chat(roomId)?.title ?? "Chat"
   const now = Date.now()
 
   return (
@@ -169,7 +170,7 @@ export default function SearchOverlay() {
                     onClick={() => choose(hit)}
                   >
                     <div class="search-hit-head">
-                      <span class="search-hit-from">{senderName(hit.from, useApp.agents())}</span>
+                      <span class="search-hit-from">{senderName(hit.from, user.agents())}</span>
                       <Show when={view()?.scope === "all"}>
                         <span class="search-hit-chat" data-component="search-hit-chat">
                           {chatName(hit.roomId)}

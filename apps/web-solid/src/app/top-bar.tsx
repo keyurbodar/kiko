@@ -7,24 +7,27 @@ import { cardShown, loadCard, toggleCard } from "../chat/side/card-state"
 import { loadSidecar, sidecarOpen, toggleSidecar } from "../chat/side/surfaces"
 import { runCommand } from "../commands/registry"
 import { ChatAvatar } from "../lib/IdentityAvatar"
-import { useApp } from "../lib/store"
+import { connection, createDelayedStatus, type ConnectionView } from "../state/connection"
+import { room } from "../state/room"
+import { user } from "../state/user"
 import { preloadSearch } from "../search/state"
 import { SidebarToggle } from "../sidebar"
 
+const CONNECTION_LABEL: Partial<Record<ConnectionView, string>> = {
+  reconnecting: "Reconnecting",
+  disconnected: "Not connected",
+  outdated: "Reload to reconnect",
+}
+
 export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onToggleSidebar: () => void }) {
   const chatId = () => props.chatId
-  const offline = () => {
-    const status = useApp.user()?.state.connection
-    if (status === "blocked") return "Reload to reconnect"
-    if (status === "closed") return "Reconnecting"
-    return null
-  }
+  const offline = createDelayedStatus(() => CONNECTION_LABEL[connection.view()] ?? null)
   const title = () => {
     const id = chatId()
     if (!id) return "Chats"
-    const name = useApp.chatById(id)?.name
+    const name = room.chatById(id)?.name
     if (name) return name
-    return useApp.user()?.state.loaded ? "" : "Loading…"
+    return user.loaded() ? "" : "Loading…"
   }
   onMount(startComputers)
   const toggle = (on: boolean) => `top-bar-button ${on ? "bg-accent text-foreground" : ""}`
@@ -35,7 +38,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
       </Show>
       <div class="flex min-w-0 flex-1 items-center gap-2.5 px-1">
         <Show when={chatId()} keyed>
-          {(id) => <ChatAvatar faces={useApp.chatFaces(id)} size={32} />}
+          {(id) => <ChatAvatar faces={room.chatFaces(id)} size={32} />}
         </Show>
         <h1 class="min-w-0 truncate text-md font-medium text-foreground" data-component="top-bar-title">
           {title()}

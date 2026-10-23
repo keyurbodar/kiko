@@ -2,7 +2,7 @@ import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { captionOf, ELAPSED_AFTER_MS, motionOf } from "./action"
 import { describe } from "./create-typing-presence"
-import { useApp } from "../../lib/store"
+import { room } from "../../state/room"
 import { RunTree } from "../run/RunTree"
 import "./typing.css"
 
@@ -39,7 +39,7 @@ function Row(props: { seed: string; doing?: string; group?: boolean }) {
   )
   const elapsed = () => now() - since()
   const caption = () =>
-    useApp.typingRun(props.seed) || elapsed() < CAPTION_AFTER_MS ? "" : captionOf(props.doing, elapsed())
+    room.typingRun(props.seed) || elapsed() < CAPTION_AFTER_MS ? "" : captionOf(props.doing, elapsed())
   return (
     <div class="typing" data-component="typing-row" data-motion={motion()}>
       <Show when={props.group}>
@@ -63,7 +63,7 @@ function Row(props: { seed: string; doing?: string; group?: boolean }) {
             {caption()}
           </span>
         </div>
-        <Show when={useApp.typingRun(props.seed)}>{(windowKey) => <RunTree windowKey={windowKey()} />}</Show>
+        <Show when={room.typingRun(props.seed)}>{(windowKey) => <RunTree windowKey={windowKey()} />}</Show>
       </div>
     </div>
   )

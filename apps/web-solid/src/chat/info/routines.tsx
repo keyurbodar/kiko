@@ -8,14 +8,15 @@ import { RecipeIcon } from "../../recipes/icon"
 import { recipeForRoutine } from "../../recipes/model"
 import { triggerLabel } from "./routines-model"
 import { apiFetch } from "../../lib/api"
-import { useApp } from "../../lib/store"
+import { owner, run } from "../../state/runtime"
+import { user } from "../../state/user"
 
 export type Routine = RoutineData
 
 const [started, setStarted] = createSignal<ReadonlySet<string>>(new Set())
 
 export const routinesOf = (chatId: string): readonly Routine[] =>
-  useApp.rows("routine").filter((r) => r.roomId === chatId)
+  user.rows("routine").filter((r) => r.roomId === chatId)
 
 const post = (path: string, body: unknown) =>
   apiFetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
@@ -24,15 +25,22 @@ const post = (path: string, body: unknown) =>
 
 async function setStatus(routine: Routine, status: Routine["status"]): Promise<void> {
   if (
-    !(await useApp.editRow("routine", routine.id, { ...routine, status }, () =>
-      post(`/api/routines/${routine.id}`, { status }),
+    !(await user.editRow(
+      "routine",
+      routine.id,
+      { ...routine, status },
+      async () => (await run(owner.commands.routinesUpdate, { id: routine.id, status }))._tag === "Success",
     ))
   )
     showToastV2({ title: `Could not ${status === "paused" ? "pause" : "resume"} ${routine.name}`, variant: "error" })
 }
 
 async function cancelRoutine(routine: Routine): Promise<void> {
-  if (!(await useApp.editRow("routine", routine.id, null, () => post(`/api/routines/${routine.id}/cancel`, {}))))
+  if (
+    !(await user.editRow("routine", routine.id, null, () =>
+      run(owner.commands.routinesCancel, { id: routine.id }).then((r) => r._tag === "Success"),
+    ))
+  )
     showToastV2({ title: `Could not delete ${routine.name}`, variant: "error" })
 }
 
@@ -150,7 +158,12 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
 const heading = `px-2 pt-2 pb-1 text-[11px] font-medium leading-4 ${faint}`
 
 export function RoutinesPage(props: { chatId: string }) {
-  const [recipes] = createResource(() => import("../../recipes/api").then((m) => m.loadCards()))
+  const [recipes] = createResource(() =>
+    import("../../recipes/api").then(
+      (m) => m.loadCards(),
+      () => [],
+    ),
+  )
   return (
     <div class="px-2 py-2" data-component="info-routines">
       <Show when={routinesOf(props.chatId)}>

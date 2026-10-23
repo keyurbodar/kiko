@@ -1,15 +1,16 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ImageIcon } from "@kiko/ui/icons"
 import { createSignal, Show, type JSX } from "solid-js"
-import { urls, useApp } from "../../lib/store"
+import { fileSrc, room } from "../../state/room"
 import { openThreadImages } from "../ui/image-dialog"
+import { PlainFallback } from "./plain-fallback"
 
-export function RichImage(props: { alt: string; url?: string; fileId?: string }): JSX.Element {
+function LoadedImage(props: { alt: string; url?: string; fileId?: string }): JSX.Element {
   const [loaded, setLoaded] = createSignal(false)
   const [broken, setBroken] = createSignal(false)
   const src = () => {
-    const chat = useApp.activeThreadId()
-    return props.url ?? (props.fileId && chat ? urls.file(chat, props.fileId) : null)
+    const chat = room.activeId()
+    return props.url ?? (props.fileId && chat ? fileSrc(chat, props.fileId) : null)
   }
   const name = () => props.alt.trim() || "image"
   return (
@@ -51,5 +52,13 @@ export function RichImage(props: { alt: string; url?: string; fileId?: string })
         </Show>
       )}
     </Show>
+  )
+}
+
+export function RichImage(props: { alt: string; url?: string; fileId?: string }): JSX.Element {
+  return (
+    <PlainFallback text={props.alt}>
+      <LoadedImage alt={props.alt} url={props.url} fileId={props.fileId} />
+    </PlainFallback>
   )
 }

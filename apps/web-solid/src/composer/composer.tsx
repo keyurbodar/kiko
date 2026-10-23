@@ -21,7 +21,7 @@ import { openModelPicker } from "../settings/model-picker"
 import { quoteSummary, replySummary } from "../chat/lib/reply"
 import { createImageDialog } from "../chat/ui/image-dialog"
 import { runSlash, slashSuggestions } from "./slash"
-import { forgetUpload, readyAttachments, releaseUpload, startUpload, uploadBlockReason } from "../sync/uploads"
+import { forgetUpload, readyAttachments, releaseUpload, startUpload, uploadBlockReason } from "./uploads"
 import { createDraftRestore } from "./draft-restore"
 import { composerFill, takeComposerFill } from "./fill"
 

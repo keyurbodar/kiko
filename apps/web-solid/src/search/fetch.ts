@@ -1,24 +1,18 @@
-import type { ChatSearchPage, RoomId } from "@kiko/protocol"
-import { apiFetch } from "../lib/api"
-import { useApp } from "../lib/store"
+import type { RoomId } from "@kiko/protocol"
+import { owner, run } from "../state/runtime"
+import { room } from "../state/room"
 import type { HitPage } from "./model"
 import type { SearchScope } from "./state"
 
 async function searchAll(query: string, before?: number): Promise<HitPage | null> {
-  const params = new URLSearchParams({ q: query })
-  if (before !== undefined) params.set("before", String(before))
-  try {
-    const res = await apiFetch(`/api/search?${params}`, { credentials: "same-origin" })
-    return res.ok ? ((await res.json()) as ChatSearchPage) : null
-  } catch {
-    return null
-  }
+  const result = await run(owner.commands.searchMessages, { query, ...(before !== undefined ? { before } : {}) })
+  return result._tag === "Success" ? result.value : null
 }
 
 async function searchChat(query: string, before?: number): Promise<HitPage | null> {
-  const roomId = useApp.activeThreadId() as RoomId | null
+  const roomId = room.activeId() as RoomId | null
   if (!roomId) return { results: [], next: null }
-  const page = await useApp.searchRoom(query, before)
+  const page = await room.searchRoom(query, before)
   return page && { results: page.results.map((hit) => ({ ...hit, roomId })), next: page.next }
 }
 

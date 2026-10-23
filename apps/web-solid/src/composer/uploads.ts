@@ -1,7 +1,9 @@
 import type { PendingAttachment } from "@kiko/protocol"
+import { createComputed, createRoot, on } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { apiFetch, apiUrl, getToken } from "../lib/api"
+import { connection } from "../state/connection"
 
 export type UploadState =
   | { status: "uploading"; progress: number }
@@ -203,9 +205,13 @@ export function retryUpload(id: string): void {
   pump()
 }
 
-export function retryFailedUploads(): void {
+function retryFailedUploads(): void {
   for (const id of jobs.keys()) if (uploads[id]?.status === "failed") retryUpload(id)
 }
+
+createRoot(() =>
+  createComputed(on(connection.connected, (connected) => connected && retryFailedUploads(), { defer: true })),
+)
 
 export function releaseUpload(id: string): void {
   const job = jobs.get(id)

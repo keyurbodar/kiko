@@ -5,7 +5,7 @@ import { TabsV2 } from "@kiko/ui/v2/tabs-v2"
 import { getRouteApi } from "@tanstack/solid-router"
 import { openChat } from "../app/history"
 import { createMemo, createSignal, For, type JSX, onMount, Show } from "solid-js"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
 import { buttonClass } from "../settings/kit"
 import { byChatOrder, filterRecipes, recipeTags, type TagFilter, tagLabel } from "./model"
 import { InstallCard } from "./row"
@@ -43,7 +43,7 @@ export default function RecipesPage() {
   const yours = createMemo(() =>
     byChatOrder(
       installs().filter((i) => matching().has(i.slug)),
-      useApp.bots().map((b) => b.id),
+      room.bots().map((b) => b.id),
     ),
   )
   const tags = createMemo(() => ["all", ...recipeTags(cards())])

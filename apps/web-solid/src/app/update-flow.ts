@@ -1,9 +1,8 @@
-import { createSignal } from "solid-js"
+import { createComputed, createRoot, createSignal, on } from "solid-js"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { PROTOCOL } from "@kiko/protocol"
 import { apiFetch } from "../lib/api"
 import { showFailure } from "../lib/errors"
-import { useApp } from "../lib/store"
 import {
   checkStall,
   LATEST_POLL_MS,
@@ -19,7 +18,9 @@ import {
   updateTarget,
 } from "../lib/update"
 import { APP_VERSION, type BackendBuild, backendSkew, clientBehind, type Skew } from "../lib/version-skew"
-import { userChannel } from "../sync/socket"
+import { connection } from "../state/connection"
+import { attempt, owner } from "../state/runtime"
+import { onUserSignal, user } from "../state/user"
 import { hosted } from "./hosted"
 
 const [progress, setProgress] = createSignal<UpdateProgress>(null)
@@ -30,10 +31,12 @@ export const clientIsBehind = () => hosted && clientBehind(APP_VERSION, latest()
 
 export const backendStorage = () => fetched()?.storage
 
-export const backendVersion = () => fetched()?.version ?? useApp.user()?.state.backendVersion
+export const backendVersion = () => fetched()?.version ?? user.build().version
+const clientBuild = { version: APP_VERSION, protocol: PROTOCOL }
 export const currentSkew = (): Skew | undefined => {
-  const build = fetched()
-  return build ? backendSkew({ version: APP_VERSION, protocol: PROTOCOL }, build) : useApp.user()?.state.skew
+  if (connection.view() === "outdated") return "blocked"
+  const build = fetched() ?? user.build()
+  return build.protocol === undefined && build.version === undefined ? undefined : backendSkew(clientBuild, build)
 }
 function set(next: UpdateProgress) {
   setProgress(next)
@@ -69,14 +72,22 @@ let wired = false
 function wire() {
   if (wired) return
   wired = true
-  userChannel.on("update.state", (frame) => {
+  onUserSignal("update.state", (frame) => {
     set(reduceUpdate(frame))
     if (frame.stage === "restarting") void awaitRestart()
   })
-  userChannel.onOpen(() => {
-    const stage = progress()?.stage
-    if (stage === "uploading" || stage === "restarting") void awaitRestart()
-  })
+  createRoot(() =>
+    createComputed(
+      on(
+        connection.connected,
+        (connected) => {
+          const stage = progress()?.stage
+          if (connected && (stage === "uploading" || stage === "restarting")) void awaitRestart()
+        },
+        { defer: true },
+      ),
+    ),
+  )
 }
 
 export async function startUpdate() {
@@ -97,8 +108,8 @@ export async function startUpdate() {
     if (clientIsBehind()) return location.reload()
     return set(null)
   }
-  if (!userChannel.send({ t: "update.start", version: target }))
-    return set({ stage: "failed", error: "Kiko is offline. Try again when it reconnects." })
+  if (!connection.connected()) return set({ stage: "failed", error: "Kiko is offline. Try again when it reconnects." })
+  void attempt(owner.commands.updateStart, { version: target as never }, (error) => set({ stage: "failed", error }))
   setTimeout(() => {
     const p = progress()
     const stalled = checkStall(p, Date.now())

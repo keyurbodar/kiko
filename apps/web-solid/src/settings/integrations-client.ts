@@ -1,13 +1,11 @@
-import type { ClientToUser, ComposioResult, KernelResult, UserToClient } from "@kiko/protocol"
-import { type UserChannel, userChannel } from "../sync/socket"
+import type { ComposioResult, KernelResult } from "@kiko/protocol"
+import { call, load, owner } from "../state/runtime"
+import { onUserSignal } from "../state/user"
 
-type AskOf<T extends string> = ClientToUser extends infer F ? (F extends { t: T } ? Omit<F, "reqId"> : never) : never
-type ComposioAsk = AskOf<"connectComposio" | "disconnectComposio" | "composioStatus">
-type KernelAsk = AskOf<"connectKernel" | "disconnectKernel" | "kernelStatus">
+type ComposioAsk = { t: "connectComposio"; apiKey: string } | { t: "disconnectComposio" } | { t: "composioStatus" }
+type KernelAsk = { t: "connectKernel"; apiKey: string } | { t: "disconnectKernel" } | { t: "kernelStatus" }
 
-type Result = { ok: boolean }
-
-export type RequestClient<Ask, R extends Result> = {
+export type RequestClient<Ask, R> = {
   request(frame: Ask): Promise<R>
   onPush(fn: (result: R) => void): () => void
   close(): void
@@ -16,64 +14,42 @@ export type RequestClient<Ask, R extends Result> = {
 export type ComposioClient = RequestClient<ComposioAsk, ComposioResult>
 export type KernelClient = RequestClient<KernelAsk, KernelResult>
 
-export type ComposioClientOptions = { channel?: UserChannel; timeoutMs?: number }
+async function settle<R>(pending: Promise<R>): Promise<R> {
+  try {
+    return await pending
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Kiko did not answer." } as R
+  }
+}
 
-type Pending<R> = { frame: ClientToUser; resolve: (r: R) => void; timer: ReturnType<typeof setTimeout> }
+function composioRequest(ask: ComposioAsk): Promise<ComposioResult> {
+  if (ask.t === "connectComposio") return settle(call(owner.commands.composioConnect, { apiKey: ask.apiKey }))
+  if (ask.t === "disconnectComposio") return settle(call(owner.commands.composioDisconnect, {}))
+  return settle(load(owner.queries.composio({}), { refresh: true }))
+}
 
-function createRequestClient<Ask, R extends Result>(
-  type: "composio" | "kernel",
-  options: ComposioClientOptions,
-): RequestClient<Ask, R> {
-  const timeoutMs = options.timeoutMs ?? 30_000
-  const socket = options.channel ?? userChannel
-  const pending = new Map<string, Pending<R>>()
-  const listeners = new Set<(r: R) => void>()
-  let n = 0
+function kernelRequest(ask: KernelAsk): Promise<KernelResult> {
+  if (ask.t === "connectKernel") return settle(call(owner.commands.kernelConnect, { apiKey: ask.apiKey }))
+  if (ask.t === "disconnectKernel") return settle(call(owner.commands.kernelDisconnect, {}))
+  return settle(load(owner.queries.kernel(undefined), { refresh: true }))
+}
 
-  const stopOpen = socket.onOpen(() => {
-    for (const p of pending.values()) socket.send(p.frame)
-  })
-  const stopFrames = socket.on(type, (frame: Extract<UserToClient, { t: typeof type }>) => {
-    const result = frame.result as unknown as R
-    if (frame.reqId === undefined) return void listeners.forEach((fn) => fn(result))
-    const p = pending.get(frame.reqId)
-    if (!p) return
-    pending.delete(frame.reqId)
-    clearTimeout(p.timer)
-    p.resolve(result)
-  })
-
+function createClient<Ask, R>(type: "composio" | "kernel", request: (ask: Ask) => Promise<R>): RequestClient<Ask, R> {
+  const offs: (() => void)[] = []
   return {
-    request(ask) {
-      return new Promise((resolve) => {
-        const reqId = `c${++n}`
-        const frame = { ...ask, reqId } as unknown as ClientToUser
-        const timer = setTimeout(() => {
-          pending.delete(reqId)
-          resolve({ ok: false, error: "Kiko did not answer." } as unknown as R)
-        }, timeoutMs)
-        pending.set(reqId, { frame, resolve, timer })
-        socket.send(frame)
-      })
-    },
+    request,
     onPush(fn) {
-      listeners.add(fn)
-      return () => void listeners.delete(fn)
+      const off = onUserSignal(type, (signal) => {
+        if (signal.reqId === undefined) fn(signal.result as R)
+      })
+      offs.push(off)
+      return off
     },
     close() {
-      stopOpen()
-      stopFrames()
-      for (const p of pending.values()) {
-        clearTimeout(p.timer)
-        p.resolve({ ok: false, error: "The connection closed." } as unknown as R)
-      }
-      pending.clear()
-      listeners.clear()
+      for (const off of offs.splice(0)) off()
     },
   }
 }
 
-export const createComposioClient = (options: ComposioClientOptions = {}): ComposioClient =>
-  createRequestClient("composio", options)
-export const createKernelClient = (options: ComposioClientOptions = {}): KernelClient =>
-  createRequestClient("kernel", options)
+export const createComposioClient = (): ComposioClient => createClient("composio", composioRequest)
+export const createKernelClient = (): KernelClient => createClient("kernel", kernelRequest)

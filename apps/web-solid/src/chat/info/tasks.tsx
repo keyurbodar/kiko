@@ -1,12 +1,12 @@
 import { For, Show } from "solid-js"
-import { useApp } from "../../lib/store"
+import { room } from "../../state/room"
+import { user } from "../../state/user"
 import { TaskList } from "./task-list"
 import { groupTasks, TASK_LABEL } from "./tasks-model"
 import "../../composer/cards/cards.css"
 
 export function TasksView() {
-  const room = () => useApp.room()
-  const tasks = () => room()?.tasks() ?? []
+  const tasks = () => room.tasks()
   return (
     <div data-component="info-tasks" class="flex flex-col gap-3">
       <For
@@ -25,8 +25,8 @@ export function TasksView() {
             <TaskList
               tasks={group.tasks}
               allTasks={tasks()}
-              members={room()?.members() ?? []}
-              agents={useApp.agents()}
+              members={room.roomMembers()}
+              agents={user.agents()}
               showDetails
             />
             <Show when={group.status === "blocked"}>

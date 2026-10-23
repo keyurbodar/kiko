@@ -1,6 +1,6 @@
-import { createEffect, createSignal, onCleanup, Show, type JSX } from "solid-js"
+import { createEffect, createSignal, on, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
-import { userChannel } from "../../sync/socket"
+import { connection } from "../../state/connection"
 import { computerById } from "../computers"
 import { Cursor } from "./Cursor"
 import { bindInput, escapeEvents, type Point } from "./input"
@@ -28,20 +28,26 @@ export default function LiveScreen(props: {
     return display?.height ? display.width / display.height : DEFAULT_RATIO
   }
   let video!: HTMLVideoElement
-  let canvas!: HTMLCanvasElement
   let stage!: HTMLDivElement
   let sink!: HTMLTextAreaElement
   let you: HTMLDivElement | undefined
   let session: Session | undefined
 
-  onCleanup(userChannel.onOpen(() => setEpoch((n) => n + 1)))
+  createEffect(
+    on(
+      connection.connected,
+      (up) => {
+        if (up) setEpoch((n) => n + 1)
+      },
+      { defer: true },
+    ),
+  )
 
   createEffect(() => {
     epoch()
     if (!online()) return
     const next = startSession(props.pcId, {
       video,
-      canvas,
       onMode: setMode,
       onSize: (w, h) => setSize((prev) => (prev?.w === w && prev.h === h ? prev : { w, h })),
       onCursor: setAgent,
@@ -110,7 +116,6 @@ export default function LiveScreen(props: {
             disablepictureinpicture
             disableremoteplayback
           />
-          <canvas ref={canvas} class={cn("absolute inset-0 size-full", showing("relay"))} />
           <Show when={!props.interactive ? agent() : null}>
             {(point) => (
               <Cursor

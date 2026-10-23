@@ -2,6 +2,7 @@ import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, CopyIcon, WrapTextIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { PlainFallback } from "./plain-fallback"
 
 type Line = { type: string; text: string }[]
 
@@ -18,7 +19,7 @@ async function highlight(text: string, lang: string | undefined): Promise<Line[]
     .map((line) => line.children.map((token) => ({ type: token.tokenType, text: token.children[0]?.value ?? "" })))
 }
 
-export function CodeBlock(props: { lang?: string; text: string }): JSX.Element {
+function HighlightedCode(props: { lang?: string; text: string }): JSX.Element {
   let root!: HTMLDivElement
   const [lines, setLines] = createSignal<Line[] | null>(null)
   const [copied, setCopied] = createSignal(false)
@@ -107,5 +108,13 @@ export function CodeBlock(props: { lang?: string; text: string }): JSX.Element {
         </code>
       </pre>
     </div>
+  )
+}
+
+export function CodeBlock(props: { lang?: string; text: string }): JSX.Element {
+  return (
+    <PlainFallback text={props.text}>
+      <HighlightedCode lang={props.lang} text={props.text} />
+    </PlainFallback>
   )
 }

@@ -2,7 +2,8 @@ import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { createSignal, lazy, Show, Suspense, type JSX } from "solid-js"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
+import { user } from "../state/user"
 import type { ThinkingLevel } from "@kiko/protocol"
 import { answeringMember } from "./agent-model"
 import { ReasoningMenu } from "./reasoning-menu"
@@ -67,19 +68,19 @@ export function ModelPicker(props: {
 }
 
 export function ModelPickerButton(props: { draft: string }) {
-  const members = () => useApp.roomMembers()
+  const members = () => room.roomMembers()
   const target = () => members().find((m) => m.slug === pickerFor()) ?? answeringMember(members(), props.draft)
   return (
     <Show when={hasModelProvider(connectedProviders()) ? target() : undefined}>
       {(member) => {
-        const current = () => useApp.agentModel(member().slug)
+        const current = () => user.agentModel(member().slug)
         return (
           <>
             <ModelPicker
               current={current()?.model}
               open={pickerOpen()}
               onOpenChange={changePicker}
-              onPick={(ref, levels) => ref !== current()?.model && useApp.setAgentModel(member().slug, { ref, levels })}
+              onPick={(ref, levels) => ref !== current()?.model && room.setAgentModel(member().slug, { ref, levels })}
               title={members().length > 1 ? `Choose model for ${member().name}` : "Choose model"}
               class="flex h-7 max-w-[240px] min-w-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground"
             >
@@ -108,7 +109,7 @@ export function ModelPickerButton(props: { draft: string }) {
             <ReasoningMenu
               levels={current()?.thinkingLevels}
               value={current()?.thinking}
-              onChange={(thinking) => useApp.setAgentModel(member().slug, { thinking })}
+              onChange={(thinking) => room.setAgentModel(member().slug, { thinking })}
             />
           </>
         )

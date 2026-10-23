@@ -1,0 +1,805 @@
+import {
+  fileName,
+  humanHandle,
+  isRoomId,
+  mentionsHuman,
+  messageLast,
+  type AgentSlug,
+  type AgentState,
+  type Chat,
+  type ChatLast,
+  type FileOp,
+  type FileRef,
+  type HumanAnswers,
+  type HumanAsk,
+  type Member,
+  type MemberOp,
+  type MemberRefusal,
+  type Message,
+  type MessageId,
+  type Reaction as WireReaction,
+  type RoomId,
+  type RoomSignal,
+  type RoomSnapshot,
+  type RunStep,
+  type SearchHit,
+  type Task,
+  type TaskOp,
+  type ThinkingLevel,
+} from "@kiko/protocol"
+import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import type { RoomState } from "@kiko/client-runtime/state"
+import * as Option from "effect/Option"
+import * as AsyncResult from "effect/reactivity/AsyncResult"
+import * as Atom from "effect/reactivity/Atom"
+import { batch, createComputed, createMemo, createRoot, createSignal, on, onCleanup, untrack } from "solid-js"
+import { createStore, produce, reconcile } from "solid-js/store"
+import { session as signedIn } from "../app/session"
+import { inWindow, newestAfter, parseWindow, stepWindows, upsertStep, windowKey } from "../chat/run/run-log"
+import { fillComposer } from "../composer/fill"
+import { distinctTitles, resumeChat, rosterChats } from "../lib/chats"
+import { seenInChat, showFailure, showNotice } from "../lib/errors"
+import { fileUrl } from "../lib/file-token"
+import { chatFaces } from "../lib/identity"
+import { agentDisplayName } from "../lib/names"
+import type { BotPresence, ChatMessage, OutgoingMessage, Reaction, RosterBot } from "../lib/types"
+import { describeLast, isListed, typingLine } from "../sidebar/activity"
+import { clearUnreadMark } from "../sidebar/unread-mark"
+import { connection } from "./connection"
+import { attempt, owner, registry, valueOf, watch } from "./runtime"
+import { onUserSignal, user } from "./user"
+
+const PENDING_SEQ = Number.MAX_SAFE_INTEGER
+const HISTORY_PAGE = 30
+const TYPING_EVERY_MS = 2_000
+
+export const fileSrc = (roomId: string, fileId: string) => fileUrl(`/api/files/${roomId}/${encodeURIComponent(fileId)}`)
+
+const isPending = (m: Pick<Message, "seq">) => m.seq === PENDING_SEQ
+
+function reactionChips(reactions: readonly WireReaction[] | undefined): Reaction[] | undefined {
+  if (!reactions?.length) return undefined
+  const chips: Reaction[] = []
+  for (const r of reactions) {
+    let chip = chips.find((c) => c.emoji === r.emoji)
+    if (!chip) chips.push((chip = { emoji: r.emoji, count: 0, viewerReacted: false }))
+    chip.count += 1
+    if (r.by.kind === "human") chip.viewerReacted = true
+  }
+  return chips
+}
+
+function nextReaction(reactions: readonly WireReaction[] | undefined, emoji: string): string | null {
+  const own = reactions?.find((r) => r.by.kind === "human")
+  return own?.emoji === emoji ? null : emoji
+}
+
+function copyOptional(out: ChatMessage, m: Message): void {
+  if (m.rich) out.rich = m.rich
+  if (m.replyTo) out.replyToId = m.replyTo
+  if (m.reply) out.reply = m.reply
+  if (m.editedAt !== undefined) out.edited = true
+  if (m.event) out.event = m.event
+  if (m.goto) out.goto = m.goto
+  if (m.quote) out.quote = m.quote
+  if (m.to) out.to = m.to
+  if (m.initiative) out.initiative = m.initiative.reason
+  if (m.steps) {
+    out.steps = m.steps
+    out.stepAfter = m.stepAfter ?? 0
+  }
+}
+
+function toChatMessage(m: Message, roomId: string): ChatMessage {
+  const pending = isPending(m)
+  const out: ChatMessage = {
+    id: m.id,
+    threadId: roomId,
+    sender: m.from.kind === "human" ? "user" : "bot",
+    body: m.text,
+    sentAt: Number.isFinite(m.at) ? m.at : Date.now(),
+  }
+  if (m.from.kind === "agent") out.botId = m.from.slug
+  if (m.clientId) out.clientId = m.clientId
+  if (!pending) out.seq = m.seq
+  copyOptional(out, m)
+  const chips = reactionChips(m.reactions)
+  if (chips) out.reactions = chips
+  if (m.files?.length)
+    out.files = m.files.map((f) => ({
+      name: fileName(f.name),
+      path: f.name,
+      size: f.size,
+      type: f.type,
+      src: fileSrc(roomId, f.id),
+    }))
+  if (m.from.kind === "human") out.status = pending ? "sending" : "sent"
+  return out
+}
+
+function firstUnread(messages: readonly Message[], readSeq: number): MessageId | null {
+  for (const m of messages) if (!isPending(m) && !m.event && m.from.kind !== "human" && m.seq > readSeq) return m.id
+  return null
+}
+
+function newestSeq(messages: readonly Message[]): number {
+  for (let i = messages.length - 1; i >= 0; i--) if (!isPending(messages[i]!)) return messages[i]!.seq
+  return 0
+}
+
+function presenceOf(typing: boolean, state: AgentState | undefined): BotPresence {
+  if (typing) return "typing"
+  return state === "working" ? "working" : "idle"
+}
+
+type LiveRow = { last?: ChatLast; typing?: readonly string[]; group?: boolean }
+
+function chatRow(chat: Chat, presence: BotPresence = "idle", live: LiveRow = {}): RosterBot {
+  const group = live.group ?? !!chat.group
+  const last = live.last ?? chat.last
+  const line = last ? describeLast(last, group) : { text: chat.lastPreview }
+  const typing = live.typing ?? []
+  const row: RosterBot = {
+    id: chat.roomId,
+    name: chat.title,
+    preview: line.text,
+    updatedAt: Math.max(chat.updatedAt, live.last?.at ?? 0),
+    presence: typing.length ? "typing" : presence,
+    unread: chat.unread,
+    pinned: chat.pinned,
+  }
+  if (last) row.lastFrom = last.from
+  if (line.from) row.previewFrom = line.from
+  if (row.presence === "typing") row.typing = typingLine(typing, group)
+  if (chat.mentions) row.mentions = chat.mentions
+  return row
+}
+
+function viewLast(m: Message, name: (slug: string) => string): ChatLast {
+  return messageLast({
+    from: m.from.kind,
+    ...(m.from.kind === "agent" ? { name: name(m.from.slug) } : {}),
+    text: m.text,
+    ...(m.rich ? { rich: m.rich, mentionName: name } : {}),
+    ...(m.files ? { files: m.files } : {}),
+    at: m.at,
+  })
+}
+
+function mentionIds(messages: readonly Message[], handle: string | null, slugs: readonly string[]) {
+  const own = handle && !slugs.includes(handle) ? handle : null
+  const human = new Set(messages.filter((m) => m.from.kind === "human").map((m) => m.id))
+  return messages
+    .filter(
+      (m) =>
+        !isPending(m) &&
+        m.from.kind === "agent" &&
+        m.to === undefined &&
+        mentionsHuman(m.text, own, !!m.replyTo && human.has(m.replyTo)),
+    )
+    .map((m) => ({ id: m.id, seq: m.seq }))
+}
+
+function sameRow(a: RosterBot, b: RosterBot): boolean {
+  const x = a as unknown as Record<string, unknown>
+  const y = b as unknown as Record<string, unknown>
+  for (const k in x) if (x[k] !== y[k]) return false
+  for (const k in y) if (!(k in x)) return false
+  return true
+}
+
+function memberRow(member: Member, presence: BotPresence = "idle"): RosterBot {
+  const row: RosterBot = {
+    id: member.slug,
+    name: member.name,
+    preview: "",
+    updatedAt: 0,
+    presence,
+    unread: 0,
+    pinned: false,
+  }
+  if (member.lead) row.persona = "lead"
+  return row
+}
+
+export type SearchPage = { results: readonly SearchHit[]; next: number | null }
+
+type Runs = {
+  steps: Record<string, RunStep[]>
+  live: Record<string, boolean | undefined>
+  fetching: Record<string, boolean | undefined>
+}
+
+const emptyRuns = (): Runs => ({ steps: {}, live: {}, fetching: {} })
+
+export interface ActiveRoom {
+  readonly roomId: RoomId
+  asks(): readonly HumanAsk[]
+  answer(id: string, value: string | HumanAnswers): void
+  skip(id: string): void
+  members(): readonly Member[]
+  tasks(): readonly Task[]
+}
+
+const NO_ROOM_STATE = Atom.make<RoomState | undefined>(undefined)
+const NO_TYPING = Atom.make<AsyncResult.AsyncResult<ReadonlyArray<AgentSlug>>>(AsyncResult.success([]))
+const NO_CACHE = Atom.make<AsyncResult.AsyncResult<Option.Option<RoomSnapshot>> | undefined>(undefined)
+
+const notConnected = () =>
+  showToastV2({
+    title: "Not connected: message not sent",
+    description: "Reconnecting to Kiko. Try again once it is connected.",
+    variant: "error",
+  })
+
+function createRuns(roomId: () => RoomId | null) {
+  const [runs, setRuns] = createStore<Runs>(emptyRuns())
+  const fetched = new Set<string>()
+  const take = (incoming: readonly RunStep[], live: boolean) => {
+    if (incoming.length === 0) return
+    setRuns(
+      produce((s) => {
+        for (const step of incoming) {
+          s.steps[step.slug] = upsertStep(s.steps[step.slug] ?? [], step)
+          if (live || step.status === "running") s.live[step.slug] = true
+        }
+      }),
+    )
+  }
+  const onSignal = (signal: RoomSignal) => {
+    if (signal.t === "step") take([signal.step], false)
+    else if (signal.t === "status" && signal.state === "idle") setRuns("live", signal.slug, undefined)
+    else if (signal.t === "error") showNotice(signal.error)
+  }
+  createComputed(
+    on(roomId, (id) => {
+      fetched.clear()
+      setRuns(reconcile(emptyRuns()))
+      if (id === null) return
+      onCleanup(
+        registry.subscribe(owner.roomSignalAtom(id), (next) => {
+          const signal = valueOf(next)
+          if (signal !== undefined && Option.isSome(signal)) untrack(() => onSignal(signal.value))
+        }),
+      )
+    }),
+  )
+  const clear = () => {
+    fetched.clear()
+    setRuns({ live: {}, fetching: {} })
+  }
+  async function request(slug: string, after: number, force: boolean) {
+    const id = roomId()
+    const key = windowKey(slug, after)
+    if (!id || runs.fetching[key] || (!force && fetched.has(key))) return
+    setRuns("fetching", key, true)
+    const steps = await attempt(owner.commands.steps, { roomId: id, slug: slug as AgentSlug, after }, () => {})
+    if (roomId() !== id) return
+    setRuns("fetching", key, undefined)
+    if (steps === undefined) return
+    fetched.add(key)
+    take(steps, false)
+  }
+  return { runs, take, clear, request }
+}
+
+function createTyping(roomId: () => RoomId | null) {
+  let lastAt = Number.NEGATIVE_INFINITY
+  createComputed(on(roomId, () => (lastAt = Number.NEGATIVE_INFINITY)))
+  return {
+    sent: () => (lastAt = Number.NEGATIVE_INFINITY),
+    ping() {
+      const id = roomId()
+      const now = Date.now()
+      if (!id || !connection.connected() || now - lastAt < TYPING_EVERY_MS) return
+      lastAt = now
+      void attempt(owner.commands.typing, { roomId: id }, () => {})
+    },
+  }
+}
+
+function createHistory(roomId: () => RoomId | null, live: () => readonly Message[]) {
+  const [shown, setShown] = createSignal<readonly Message[] | null>(null)
+  let olderBusy = false
+  let olderDone: RoomId | null = null
+  let newerBusy = false
+  createComputed(
+    on(roomId, () =>
+      batch(() => {
+        setShown(null)
+        olderDone = null
+      }),
+    ),
+  )
+  const page = (seq: number, before: number, after: number, merge: boolean) => {
+    const id = roomId()
+    if (!id) return Promise.resolve(undefined)
+    return attempt(owner.commands.history, { roomId: id, seq, before, after, merge }, () => {})
+  }
+  async function loadOlder() {
+    const id = roomId()
+    if (!id || olderBusy || olderDone === id) return
+    const list = shown() ?? live()
+    const oldest = list.find((m) => !isPending(m))?.seq
+    if (oldest === undefined || oldest <= 1) return
+    olderBusy = true
+    try {
+      const older = await page(oldest, HISTORY_PAGE * 2, 0, shown() === null)
+      if (roomId() !== id || older === undefined) return
+      if (older.length === 0) olderDone = id
+      const held = shown()
+      if (held !== null) setShown([...older.filter((m) => m.seq < (held[0]?.seq ?? Infinity)), ...held])
+    } finally {
+      olderBusy = false
+    }
+  }
+  async function loadNewer() {
+    const held = shown()
+    const id = roomId()
+    if (!held || !id || newerBusy) return
+    newerBusy = true
+    try {
+      const from = (held.at(-1)?.seq ?? 0) + 1
+      const next = await page(from, 0, HISTORY_PAGE * 2, false)
+      if (!next || roomId() !== id || shown() !== held) return
+      const tail = live()
+      const reaches = next.length < HISTORY_PAGE * 2 || tail.length === 0 || next.some((m) => m.seq >= tail[0]!.seq)
+      if (reaches) {
+        await page(held[0]?.seq ?? from, 0, HISTORY_PAGE * 4, true)
+        setShown(null)
+      } else setShown([...held, ...next.filter((m) => m.seq > (held.at(-1)?.seq ?? 0))])
+    } finally {
+      newerBusy = false
+    }
+  }
+  async function jumpTo(seq: number): Promise<boolean> {
+    const has = (list: readonly Message[] | null) => !!list?.some((m) => m.seq === seq)
+    if (has(shown())) return true
+    if (has(live())) {
+      setShown(null)
+      return true
+    }
+    const found = await page(seq, HISTORY_PAGE, HISTORY_PAGE, false)
+    if (!found?.some((m) => m.seq === seq)) return false
+    const tail = live()
+    if (tail.length === 0 || found.at(-1)!.seq >= tail[0]!.seq) {
+      await page(seq, HISTORY_PAGE, HISTORY_PAGE, true)
+      setShown(null)
+    } else setShown(found)
+    return true
+  }
+  return {
+    shown,
+    loadOlder,
+    jumpTo,
+    follow: () => void loadNewer(),
+    live: () => setShown(null),
+    resetDone: () => (olderDone = null),
+  }
+}
+
+const sendInput = (input: {
+  roomId: RoomId
+  text: string
+  commandId: string
+  replyTo?: MessageId
+  quote?: string
+  attachments?: OutgoingMessage["attachments"]
+}) => ({
+  roomId: input.roomId,
+  text: input.text,
+  commandId: input.commandId as never,
+  ...(input.replyTo ? { replyTo: input.replyTo } : {}),
+  ...(input.quote ? { quote: input.quote } : {}),
+  ...(input.attachments?.length ? { attachments: input.attachments } : {}),
+})
+
+function createRoom() {
+  const [routeRoom, setRouteRoom] = createSignal<() => string | null>(() => null)
+  const activeId = createMemo(() => {
+    const id = routeRoom()()
+    return id !== null && isRoomId(id) ? (id as RoomId) : null
+  })
+  onUserSignal("error", (signal) => {
+    if (!seenInChat(signal.roomId, untrack(activeId), document.visibilityState === "visible")) showNotice(signal.error)
+  })
+  const roomState = watch(() => {
+    const id = activeId()
+    return id === null ? NO_ROOM_STATE : owner.roomAtom(id)
+  })
+  const state = createMemo(() => roomState())
+  const snapshot = createMemo(() => {
+    const s = state()
+    return s === undefined ? undefined : Option.getOrUndefined(s.data)
+  })
+  const streaming = () => {
+    const status = state()?.status
+    return status === "live" || status === "synchronizing"
+  }
+  const typingAtom = watch(() => {
+    const id = activeId()
+    return id === null ? NO_TYPING : owner.roomTypingAtom(id)
+  })
+  const typingNow = (): readonly AgentSlug[] => (streaming() ? (valueOf(typingAtom()) ?? []) : [])
+  const liveMessages = createMemo(() => snapshot()?.messages ?? [])
+  const history = createHistory(activeId, liveMessages)
+  const messages = createMemo(() => history.shown() ?? liveMessages())
+  const runs = createRuns(activeId)
+  const typing = createTyping(activeId)
+
+  createComputed(
+    on(
+      () => snapshot()?.steps,
+      (steps) => steps && untrack(() => runs.take(steps, true)),
+    ),
+  )
+  createComputed(on(streaming, (on) => !on && untrack(runs.clear), { defer: true }))
+
+  const statusOf = createMemo(() => {
+    const out: Record<string, AgentState> = {}
+    if (streaming()) for (const a of snapshot()?.agents ?? []) out[a.slug] = a.state
+    return out
+  })
+  const doingOf = createMemo(() => {
+    const out: Record<string, string | undefined> = {}
+    if (streaming()) for (const a of snapshot()?.agents ?? []) out[a.slug] = a.doing
+    return out
+  })
+
+  const views = new WeakMap<Message, ChatMessage>()
+  const rows = createMemo(() => {
+    const id = activeId()
+    if (!id) return [] as ChatMessage[]
+    return messages().map((m) => {
+      const cached = views.get(m)
+      if (cached && cached.threadId === id) return cached
+      const view = toChatMessage(m, id)
+      views.set(m, view)
+      return view
+    })
+  })
+  const windows = createMemo(() => stepWindows(rows()))
+
+  const members = createMemo(() => (snapshot()?.members ?? []).filter((m) => !user.isGone(m.slug)))
+  const memberRows = createMemo(() =>
+    members().map((m) => memberRow(m, presenceOf(typingNow().includes(m.slug), statusOf()[m.slug]))),
+  )
+  const typingSlugs = createMemo(() => {
+    const known = new Set(members().map((m) => m.slug as string))
+    return typingNow().filter((slug) => known.has(slug))
+  })
+
+  const openRead = new Map<RoomId, number>()
+  const localRead = new Map<RoomId, number>()
+  const anchors = new Map<RoomId, MessageId | null>()
+  const [anchorEpoch, bumpAnchor] = createSignal(0)
+  const [unseen, setUnseen] = createSignal<readonly MessageId[]>([])
+  createComputed(on(activeId, () => setUnseen([])))
+  createComputed(() => {
+    const id = activeId()
+    const s = snapshot()
+    if (id && s && !openRead.has(id)) openRead.set(id, s.readSeq)
+  })
+  const readSeq = () => snapshot()?.readSeq ?? 0
+  const readMark = (id: RoomId) => Math.max(openRead.get(id) ?? readSeq(), localRead.get(id) ?? 0)
+
+  function firstUnreadMessageId(): string | null {
+    const id = activeId()
+    if (!id) return null
+    anchorEpoch()
+    if (!anchors.has(id) && state()?.status === "live") anchors.set(id, firstUnread(messages(), readMark(id)))
+    const anchor = anchors.get(id)
+    if (!anchor) return null
+    if (messages().some((m) => m.id === anchor)) return anchor
+    return firstUnread(messages(), readMark(id))
+  }
+
+  const handle = () => {
+    const s = signedIn()
+    return s.status === "signed-in" ? humanHandle(s.user.name) : null
+  }
+  const roomMentions = createMemo(() =>
+    activeId()
+      ? mentionIds(
+          messages(),
+          handle(),
+          members().map((m) => m.slug),
+        )
+      : [],
+  )
+
+  let lastRows = new Map<string, RosterBot>()
+  const botRows = createMemo<RosterBot[]>(() => {
+    const id = activeId()
+    const next = new Map<string, RosterBot>()
+    const typingIn = user.typingByRoom()
+    const out = distinctTitles(user.chats()).map((c) => {
+      let row = c.roomId === id ? activeRow(c) : chatRow(c, "idle", { typing: typingIn[c.roomId] })
+      const old = lastRows.get(row.id)
+      if (old && sameRow(old, row)) row = old
+      next.set(row.id, row)
+      return row
+    })
+    lastRows = next
+    return out
+  })
+  function activeRow(c: Chat): RosterBot {
+    const list = liveMessages()
+    const name = (slug: string) => agentDisplayName(slug, members())
+    const newest = list.findLast(isListed)
+    const fresh = newest && (isPending(newest) || newest.seq > c.lastSeq) ? viewLast(newest, name) : undefined
+    const working = Object.values(statusOf()).includes("working")
+    const row = chatRow(c, presenceOf(false, working ? "working" : undefined), {
+      ...(fresh ? { last: fresh } : {}),
+      typing: Object.entries(statusOf())
+        .filter(([, s]) => s === "typing")
+        .map(([slug]) => name(slug)),
+      ...(members().length ? { group: members().length > 1 } : {}),
+    })
+    if (history.shown() === null && readSeq() >= newestSeq(list)) {
+      row.unread = 0
+      delete row.mentions
+    }
+    return row
+  }
+  const botIndex = createMemo(() => new Map(botRows().map((row) => [row.id, row])))
+  const roster = createMemo(() => rosterChats(user.chats()).flatMap((c) => botIndex().get(c.roomId) ?? []))
+
+  const lastKey = () => {
+    const s = signedIn()
+    return s.status === "signed-in" ? `kiko.last-chat:${s.user.id}` : null
+  }
+  const [localLast, setLocalLast] = createSignal<string | null>(null)
+  createComputed(() => {
+    const key = lastKey()
+    untrack(() => {
+      try {
+        setLocalLast(key ? localStorage.getItem(key) : null)
+      } catch {
+        setLocalLast(null)
+      }
+    })
+  })
+  function remember(id: RoomId) {
+    setLocalLast(id)
+    const key = lastKey()
+    try {
+      if (key) localStorage.setItem(key, id)
+    } catch {}
+    user.open(id)
+  }
+
+  createComputed(() => {
+    const id = activeId()
+    if (id && user.loaded()) untrack(() => remember(id))
+  })
+
+  const findMessage = (id: string) => messages().find((m) => m.id === id)
+
+  const sendRefusals = new Set<(reason: string) => void>()
+  async function deliver(
+    roomId: RoomId,
+    text: string,
+    extra: Omit<Parameters<typeof sendInput>[0], "roomId" | "text">,
+  ) {
+    const result = await attempt(owner.commands.sendMessage, sendInput({ roomId, text, ...extra }), (reason) => {
+      fillComposer(roomId, text)
+      showFailure(reason)
+      for (const listener of sendRefusals) listener(reason)
+    })
+    return result !== undefined
+  }
+
+  function send(message: OutgoingMessage, replyTo?: string, quote?: string): string | undefined {
+    const id = activeId()
+    if (!id || (message.body.trim().length === 0 && !(message.attachments?.length ?? 0))) return undefined
+    if (!connection.connected()) {
+      notConnected()
+      return undefined
+    }
+    const stored = replyTo !== undefined && !replyTo.startsWith("local:")
+    const commandId = crypto.randomUUID()
+    typing.sent()
+    history.live()
+    void deliver(id, message.body, {
+      commandId,
+      ...(stored ? { replyTo: replyTo as MessageId, ...(quote ? { quote } : {}) } : {}),
+      ...(message.attachments?.length ? { attachments: message.attachments } : {}),
+    })
+    anchors.set(id, null)
+    bumpAnchor((n) => n + 1)
+    return `local:${commandId}`
+  }
+
+  const refusal =
+    <T>(set: Set<(op: T, reason: string) => void>, op: T) =>
+    (reason: string) => {
+      if (set.size === 0) showFailure(reason)
+      for (const listener of set) listener(op, reason)
+    }
+  const fileRefusals = new Set<(op: FileOp, reason: string) => void>()
+  const memberRefusals = new Set<(op: MemberOp, reason: MemberRefusal) => void>()
+  const listen = <F>(set: Set<F>, listener: F) => {
+    set.add(listener)
+    return () => void set.delete(listener)
+  }
+
+  const active = createMemo<ActiveRoom | undefined>(() => {
+    const id = activeId()
+    if (!id) return undefined
+    return {
+      roomId: id,
+      asks: () => snapshot()?.asks ?? [],
+      answer: (askId, value) => void attempt(owner.commands.answer, { roomId: id, askId, value }, showFailure),
+      skip: (askId) => void attempt(owner.commands.skip, { roomId: id, askId }, showFailure),
+      members,
+      tasks: () => snapshot()?.tasks ?? [],
+    }
+  })
+
+  return {
+    activeId,
+    active,
+    state,
+    snapshot,
+    status: statusOf,
+    followRoute: (room: () => string | null) => setRouteRoom(() => room),
+    messages: rows,
+    messageById: (id: string) => rows().find((m) => m.id === id),
+    bots: roster,
+    chatById: (id: string) => botIndex().get(id),
+    members: memberRows,
+    memberById: (slug: string | undefined) =>
+      slug === undefined ? undefined : memberRows().find((m) => m.id === slug),
+    roomMembers: members,
+    tasks: () => snapshot()?.tasks ?? [],
+    task: (op: TaskOp) => {
+      const id = activeId()
+      if (id) void attempt(owner.commands.task, { roomId: id, op }, showFailure)
+    },
+    files: (): FileRef[] => [...(snapshot()?.files ?? [])],
+    folders: (): string[] => [...(snapshot()?.folders ?? [])],
+    fileOp(op: FileOp) {
+      const id = activeId()
+      if (id) void attempt(owner.commands.roomFiles, { roomId: id, op }, refusal(fileRefusals, op))
+    },
+    onFilesRefused: (listener: (op: FileOp, reason: string) => void) => listen(fileRefusals, listener),
+    memberOp(op: MemberOp) {
+      const id = activeId()
+      if (id)
+        void attempt(owner.commands.member, { roomId: id, op }, (reason) => {
+          for (const listener of memberRefusals) listener(op, reason as MemberRefusal)
+          if (memberRefusals.size === 0) showFailure(reason)
+        })
+    },
+    onMemberRefused: (listener: (op: MemberOp, reason: MemberRefusal) => void) => listen(memberRefusals, listener),
+    onSendRefused: (listener: (reason: string) => void) => listen(sendRefusals, listener),
+    send,
+    loadOlder: () => void history.loadOlder(),
+    followLatest: () => {
+      history.resetDone()
+      if (history.shown() !== null) history.follow()
+    },
+    jumpTo: history.jumpTo,
+    showingHistory: () => history.shown() !== null,
+    goLive: history.live,
+    async searchRoom(query: string, before?: number): Promise<SearchPage | null> {
+      const id = activeId()
+      if (!id) return null
+      const page = await attempt(
+        owner.commands.roomSearch,
+        { roomId: id, query, ...(before === undefined ? {} : { before }) },
+        () => {},
+      )
+      return page ? { results: page.results, next: page.next } : null
+    },
+    firstUnreadMessageId,
+    resumeChat: () =>
+      resumeChat(user.chats(), user.synced() || (user.loaded() && user.chats().length > 0), [
+        localLast(),
+        user.lastChat(),
+      ]),
+    chatFaces: (roomId: string) => chatFaces(user.chat(roomId) ?? { roomId }, user.agents()),
+    typing: typing.ping,
+    typingSlugs,
+    typingNames: () => typingSlugs().map((slug) => agentDisplayName(slug, members())),
+    typingDoings: () =>
+      typingSlugs().map((slug) => doingOf()[slug] ?? (statusOf()[slug] === "working" ? "using a tool" : undefined)),
+    runWindow: (m: ChatMessage) => (m.botId && m.steps ? windowKey(m.botId, m.stepAfter ?? 0) : undefined),
+    typingRun(slug: string): string | undefined {
+      if (!runs.runs.live[slug]) return undefined
+      const after = newestAfter(runs.runs.steps[slug] ?? [])
+      return after >= 0 && !windows().has(windowKey(slug, after)) ? windowKey(slug, after) : undefined
+    },
+    runSteps(key: string): readonly RunStep[] {
+      const { slug, after } = parseWindow(key)
+      return inWindow(runs.runs.steps[slug] ?? [], after)
+    },
+    runLive: (key: string) => !windows().has(key) && !!runs.runs.live[parseWindow(key).slug],
+    loadRunSteps(key: string, force = false) {
+      const w = windows().get(key)
+      if (w && inWindow(runs.runs.steps[w.slug] ?? [], w.after).length < w.steps)
+        void runs.request(w.slug, w.after, force)
+    },
+    runFetching: (key: string) => !!runs.runs.fetching[key],
+    hasUnread(): boolean {
+      const id = activeId()
+      if (!id) return false
+      return streaming() && newestSeq(messages()) > Math.max(readSeq(), localRead.get(id) ?? 0)
+    },
+    markRead(threadId: string) {
+      const id = activeId()
+      if (!id || id !== threadId) return
+      clearUnreadMark(threadId)
+      const read = Math.max(readSeq(), localRead.get(id) ?? 0)
+      const fresh = roomMentions().filter((m) => m.seq > read && !unseen().includes(m.id))
+      if (fresh.length) setUnseen((list) => [...list, ...fresh.map((m) => m.id)])
+      const newest = newestSeq(messages())
+      if (newest <= (localRead.get(id) ?? 0)) return
+      localRead.set(id, newest)
+      void attempt(owner.commands.markRead, { roomId: id, seq: newest }, () => {})
+    },
+    unseenMentions(): readonly MessageId[] {
+      const live = new Set(roomMentions().map((m) => m.id))
+      return unseen().filter((id) => live.has(id))
+    },
+    seeMentions(ids: readonly string[]) {
+      if (ids.length) setUnseen((list) => list.filter((id) => !ids.includes(id)))
+    },
+    toggleReaction(messageId: string, emoji: string) {
+      const id = activeId()
+      const m = findMessage(messageId)
+      if (!id || !m || isPending(m)) return
+      void attempt(
+        owner.commands.react,
+        { roomId: id, messageId: m.id, emoji: nextReaction(m.reactions, emoji) },
+        showFailure,
+      )
+    },
+    editMessage(messageId: string, text: string) {
+      const id = activeId()
+      const m = findMessage(messageId)
+      if (!id || !m || isPending(m) || m.from.kind !== "human" || text.trim() === "" || text === m.text) return
+      void attempt(owner.commands.editMessage, { roomId: id, messageId: m.id, text }, showFailure)
+    },
+    retryRun(messageId: string) {
+      const id = activeId()
+      const m = findMessage(messageId)
+      if (!id || (m && isPending(m))) return
+      void attempt(owner.commands.retry, { roomId: id, messageId: messageId as MessageId }, showFailure)
+    },
+    deleteMessage(messageId: string) {
+      const id = activeId()
+      const m = findMessage(messageId)
+      if (!id || !m || isPending(m) || m.from.kind !== "human") return
+      void attempt(owner.commands.deleteMessage, { roomId: id, messageId: m.id }, showFailure)
+    },
+    setAgentModel(
+      slug: AgentSlug,
+      pick: { ref?: string; thinking?: ThinkingLevel; levels?: readonly ThinkingLevel[] },
+    ) {
+      const id = activeId()
+      user.setAgentModel(slug, { ...pick, ...(id ? { roomId: id } : {}) })
+    },
+    setModel(ref: string, slug?: AgentSlug) {
+      const id = activeId()
+      if (id) void attempt(owner.commands.setRoomModel, { roomId: id, ref, ...(slug ? { slug } : {}) }, showFailure)
+    },
+    stop() {
+      const id = activeId()
+      if (id) void attempt(owner.commands.stop, { roomId: id }, showFailure)
+    },
+  }
+}
+
+export const room = createRoot(createRoom)
+
+export function cachedTail(roomId: () => string, wanted: () => boolean): () => ChatMessage[] {
+  const cached = watch(() => (wanted() && isRoomId(roomId()) ? owner.cachedRoomAtom(roomId() as RoomId) : NO_CACHE))
+  return () => {
+    const result = cached()
+    const snapshot = result === undefined ? undefined : valueOf(result)
+    if (snapshot === undefined || Option.isNone(snapshot)) return []
+    return snapshot.value.messages.slice(-6).map((m) => toChatMessage(m, roomId()))
+  }
+}

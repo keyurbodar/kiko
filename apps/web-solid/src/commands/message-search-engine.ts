@@ -1,7 +1,7 @@
 import { createRoot, createSignal } from "solid-js"
 import { createSearch, senderName, type Hit, type SearchView } from "../search/model"
 import { fetchHits } from "../search/fetch"
-import { useApp } from "../lib/store"
+import { user } from "../state/user"
 import type { Choice } from "./registry"
 
 const search = createRoot(() => {
@@ -13,7 +13,7 @@ const search = createRoot(() => {
 
 const choice = (hit: Hit, open: (hit: Hit) => void): Choice => ({
   id: `${hit.roomId}:${hit.id}`,
-  title: `${senderName(hit.from, useApp.agents())} in ${useApp.chat(hit.roomId)?.title ?? "Chat"}`,
+  title: `${senderName(hit.from, user.agents())} in ${user.chat(hit.roomId)?.title ?? "Chat"}`,
   snippet: hit.snippet,
   icon: "chat",
   run: () => open(hit),

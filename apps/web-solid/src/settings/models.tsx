@@ -1,8 +1,8 @@
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
-import { createLive } from "../sync/changed"
+import { createQuery } from "../state/runtime"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
-import { formatContext, loadCatalog, modelRef, type CatalogProvider, type ConnectMethod } from "./catalog"
+import { formatContext, catalogQuery, modelRef, type CatalogProvider, type ConnectMethod } from "./catalog"
 import { isJudgeOnly, JUDGE_NOTE, modelProviders } from "./provider-kinds"
 import { connectedProviders, connectedReady } from "./connected"
 import { checkProvider, connectProvider, disconnectProvider } from "./credentials"
@@ -42,7 +42,7 @@ export function ModelsPage() {
   createEffect(() => {
     if (modelsTab() === "providers") setWantsCatalog(true)
   })
-  const [catalog] = createLive("models", wantsCatalog, () => loadCatalog())
+  const catalog = createQuery(() => (wantsCatalog() ? catalogQuery() : null))
   createEffect(() => {
     if (reconnectTarget()) setWantsCatalog(true)
   })

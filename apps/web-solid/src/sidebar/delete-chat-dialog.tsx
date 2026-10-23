@@ -1,13 +1,13 @@
 import type { JSX } from "solid-js"
 import { Button } from "../settings/kit"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
 import { Dialog } from "../lib/dialog"
 import { cancelDeleteChat, deleteChat, deletingChatId } from "./actions"
 
 export default function DeleteChatDialog(): JSX.Element {
   const id = deletingChatId
   const description = () => {
-    const row = id() === null ? undefined : useApp.chatById(id()!)
+    const row = id() === null ? undefined : room.chatById(id()!)
     return row
       ? `“${row.name}” and its messages are removed from this device and the server. This cannot be undone.`
       : "Its messages are removed from this device and the server. This cannot be undone."
@@ -15,7 +15,7 @@ export default function DeleteChatDialog(): JSX.Element {
   const confirm = () => {
     const target = id()
     cancelDeleteChat()
-    if (target) deleteChat(target, useApp.activeThreadId())
+    if (target) deleteChat(target, room.activeId())
   }
   return (
     <Dialog

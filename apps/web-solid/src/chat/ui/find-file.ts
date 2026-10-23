@@ -1,15 +1,16 @@
-import { useApp } from "../../lib/store"
+import { room } from "../../state/room"
+import { user } from "../../state/user"
 import { resolveFile, type Resolved } from "../rich/file-links"
 
 export function findFile(path: string): Resolved {
   const own = resolveFile(
     path,
-    useApp.activeFiles().map((f) => f.name),
+    room.files().map((f) => f.name),
   )
   return own.kind !== "none"
     ? own
     : resolveFile(
         path,
-        useApp.homeFiles().map((f) => `home/${f.name}`),
+        user.homeFiles().map((f) => `home/${f.name}`),
       )
 }

@@ -1,35 +1,13 @@
 import type { Catalog, CatalogModel, CatalogProvider, ConnectMethod } from "@kiko/protocol"
-import { apiFetch } from "../lib/api"
-import { onChanged } from "../sync/changed"
+import { executeAtomQuery } from "@kiko/client-runtime/state"
+import { owner, registry } from "../state/runtime"
 
 export type { Catalog, CatalogModel, CatalogProvider, ConnectMethod }
 
-let cached: Promise<Catalog> | undefined
-let watching: (() => void) | undefined
+export const catalogQuery = () => owner.queries.modelsCatalog(undefined)
 
-export async function prefetchCatalog(): Promise<void> {
-  try {
-    await loadCatalog()
-  } catch {}
-}
-
-export function loadCatalog(): Promise<Catalog> {
-  watching ??= onChanged(
-    "models",
-    () => {
-      cached = undefined
-    },
-    0,
-  )
-  cached ??= (async () => {
-    const response = await apiFetch("/api/models")
-    if (!response.ok) throw new Error("catalog request failed")
-    return (await response.json()) as Catalog
-  })().catch((error) => {
-    cached = undefined
-    throw error
-  })
-  return cached
+export function prefetchCatalog(): void {
+  void executeAtomQuery(registry, catalogQuery())
 }
 
 export function formatContext(tokens: number): string {

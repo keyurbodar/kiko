@@ -4,7 +4,7 @@ import { CloseIcon, FolderIcon, UndoIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
-import { progressLabel, retryUpload, uploadState } from "../../sync/uploads"
+import { progressLabel, retryUpload, uploadState } from "../uploads"
 import type { PromptInputV2Attachment, PromptInputV2Suggestion } from "./types"
 
 function RetryButton(props: { name: string; reason: string; onRetry: () => void }) {
