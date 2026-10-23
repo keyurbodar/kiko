@@ -11,7 +11,7 @@ import type { DialogImage } from "./image-dialog"
 import { Quote } from "./Quote"
 import { ReactionStack } from "./ReactionBadge"
 import { MessageActions } from "./MessageActions"
-import { useApp } from "../../lib/store"
+import { room } from "../../state/room"
 import { RunTree } from "../run/RunTree"
 import { RichText } from "./RichText"
 const RichTree = lazy(() => import("../rich/RichText").then((m) => ({ default: m.RichText })))
@@ -66,15 +66,9 @@ export function MessageRow(props: {
   const files = () => unnamedFiles(props.message.files ?? [], props.message.body)
   const hasFiles = () => files().length > 0
   const photo = () => !!props.message.rich && isPhotoTree(props.message.rich)
-  const windowKey = () => (own() ? undefined : useApp.runWindow(props.message))
+  const windowKey = () => (own() ? undefined : room.runWindow(props.message))
   const failed = () => props.message.status === "failed"
-  const failure = () =>
-    failed()
-      ? useApp
-          .room()
-          ?.messages()
-          .find((m) => m.id === props.message.id)?.reason
-      : undefined
+  const failure = (): string | undefined => undefined
   return (
     <div
       class={cn(
@@ -188,7 +182,7 @@ export function MessageRow(props: {
                 type="button"
                 class={FAILED_ACTION}
                 data-action="retry-send"
-                onClick={() => useApp.retryRun(props.message.id)}
+                onClick={() => room.retryRun(props.message.id)}
               >
                 Retry
               </button>
@@ -196,7 +190,7 @@ export function MessageRow(props: {
                 type="button"
                 class={FAILED_ACTION}
                 data-action="delete-send"
-                onClick={() => useApp.deleteMessage(props.message.id)}
+                onClick={() => room.deleteMessage(props.message.id)}
               >
                 Delete
               </button>

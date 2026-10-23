@@ -2,7 +2,8 @@ import { openChat } from "../app/history"
 import type { RoomId } from "@kiko/protocol"
 import { createSignal } from "solid-js"
 import { chatAfter } from "../lib/chats"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
+import { user } from "../state/user"
 
 const [renaming, setRenaming] = createSignal<string | null>(null)
 export const renamingId = renaming
@@ -30,25 +31,22 @@ export function cancelRename(): void {
 export function commitRename(id: string, title: string): void {
   setRenaming(null)
   const next = title.trim()
-  const current = useApp.chatById(id)
+  const current = room.chatById(id)
   if (next === "" || !current || next === current.name) return
-  useApp.user()?.rename(id as RoomId, next)
+  user.rename(id as RoomId, next)
 }
 
 export function togglePin(id: string): void {
-  useApp.togglePinned(id)
+  user.togglePinned(id)
 }
 
 export function toggleMute(id: string): void {
-  const chat = useApp
-    .user()
-    ?.chats()
-    .find((c) => c.roomId === id)
-  if (chat) useApp.user()?.mute(chat.roomId, !chat.muted)
+  const chat = user.chats().find((c) => c.roomId === id)
+  if (chat) user.mute(chat.roomId, !chat.muted)
 }
 
 export function sidebarOrder() {
-  const rows = useApp.bots()
+  const rows = room.bots()
   return [...rows.filter((r) => r.pinned), ...rows.filter((r) => !r.pinned)]
 }
 
@@ -57,7 +55,7 @@ let lastClosed: string | null = null
 export function reopenClosedChat(): string | null {
   const id = lastClosed
   lastClosed = null
-  return id && useApp.chat(id) ? id : null
+  return id && user.chat(id) ? id : null
 }
 
 export function closeChat(id: string, active: string | null): void {
@@ -74,7 +72,7 @@ export function deleteChat(id: string, active: string | null): void {
     sidebarOrder().map((r) => r.id),
     id,
   )
-  useApp.user()?.remove(id as RoomId)
+  user.remove(id as RoomId)
   clearUnreadMark(id)
   if (active === id) openChat(next)
 }

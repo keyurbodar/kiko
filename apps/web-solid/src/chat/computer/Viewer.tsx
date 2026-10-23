@@ -3,7 +3,7 @@ import { CloseIcon } from "@kiko/ui/icons"
 import { createEffect, For, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { agentDisplayName } from "../../lib/names"
-import { useApp } from "../../lib/store"
+import { user } from "../../state/user"
 import { closeViewer, computerById, computers, openViewer, release, takeOver, viewerFor } from "../computers"
 import LiveScreen from "./LiveScreen"
 
@@ -16,7 +16,7 @@ export default function Viewer(): JSX.Element {
   const reason = () => pc()?.agent?.reason
   const agentName = () => {
     const slug = pc()?.agent?.slug
-    return slug ? agentDisplayName(slug, useApp.agents()) : undefined
+    return slug ? agentDisplayName(slug, user.agents()) : undefined
   }
   let panel: HTMLDivElement | undefined
 

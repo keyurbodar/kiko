@@ -2,15 +2,13 @@ import { eventRow } from "../chat/lib/event-line"
 import type { ChatMessage } from "../lib/types"
 
 export type RoomWindow = {
-  loaded: boolean
-  connection: string
+  live: boolean
   seq: number
 }
 
 function roomSettled(room: RoomWindow | undefined, lastSeq: number | undefined): boolean {
-  if (!room?.loaded) return false
-  if (lastSeq === undefined) return false
-  return room.seq >= lastSeq && (lastSeq > 0 || room.connection === "open")
+  if (!room || lastSeq === undefined) return false
+  return room.seq >= lastSeq && (lastSeq > 0 || room.live)
 }
 
 export function roomEmpty(

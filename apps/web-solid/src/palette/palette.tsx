@@ -8,7 +8,7 @@ import { displayShortcut } from "../commands/hotkeys"
 import { commands } from "../commands/registry"
 import { EntryIcon } from "../lib/EntryIcon"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
 import {
   backspaceLeaves,
   createPreview,
@@ -67,7 +67,7 @@ function Plain(props: { item: Item }) {
       fallback={<RemixIcon icon={iconFor(props.item.icon ?? "command")} size={16} />}
     >
       <Show when={props.item.chatId} fallback={<IdentityAvatar seed={props.item.seed!} size={18} />}>
-        {(id) => <ChatAvatar faces={useApp.chatFaces(id())} size={18} />}
+        {(id) => <ChatAvatar faces={room.chatFaces(id())} size={18} />}
       </Show>
     </Show>
   )

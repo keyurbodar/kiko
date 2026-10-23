@@ -5,9 +5,10 @@ import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, SearchIcon } from "@kiko/ui/icons"
 import { For, Show, createMemo, createSignal } from "solid-js"
 import { KIKO, KIKO_HOME_ROOM, type AgentSlug } from "@kiko/protocol"
-import { createLive } from "../../sync/changed"
-import { useApp } from "../../lib/store"
-import { formatContext, formatPrice, loadCatalog, modelRef, searchModels } from "../../settings/catalog"
+import { createQuery } from "../../state/runtime"
+import { room } from "../../state/room"
+import { user } from "../../state/user"
+import { formatContext, formatPrice, catalogQuery, modelRef, searchModels } from "../../settings/catalog"
 import { connectedProviders } from "../../settings/connected"
 import { modelProviders } from "../../settings/provider-kinds"
 import { type ModelChoice, rankModels, startingModel } from "./choices"
@@ -24,7 +25,8 @@ function focusComposer(tries = 40): void {
 }
 
 export function ModelStep() {
-  const [catalog, { refetch }] = createLive("models", () => true, loadCatalog)
+  const catalog = createQuery(catalogQuery)
+  const refetch = catalog.refetch
   const [query, setQuery] = createSignal("")
   const [chosen, setChosen] = createSignal<string | null>(null)
   const live = createMemo(() => {
@@ -38,7 +40,7 @@ export function ModelStep() {
       ),
     ),
   )
-  const current = () => chosen() ?? startingModel(ranked(), useApp.agentModel(KIKO)?.model)
+  const current = () => chosen() ?? startingModel(ranked(), user.agentModel(KIKO)?.model)
   const searching = () => query().trim() !== ""
   const sections = createMemo(() => {
     if (searching())
@@ -65,10 +67,10 @@ export function ModelStep() {
 
   const start = () => {
     const pick = ranked().find((c) => c.ref === current())
-    if (pick && pick.ref !== useApp.agentModel(KIKO)?.model)
-      useApp.setAgentModel(KIKO as AgentSlug, { ref: pick.ref, levels: pick.model.thinking })
+    if (pick && pick.ref !== user.agentModel(KIKO)?.model)
+      room.setAgentModel(KIKO as AgentSlug, { ref: pick.ref, levels: pick.model.thinking })
     move("next")
-    openChat(useApp.kikoChatId() ?? KIKO_HOME_ROOM, { replace: true })
+    openChat(user.kikoChatId() ?? KIKO_HOME_ROOM, { replace: true })
     focusComposer()
   }
 

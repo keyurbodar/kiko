@@ -4,7 +4,7 @@ import { RemixIcon } from "@kiko/ui/remix-icon"
 import { createEffect, createMemo, createSignal, For, Index, on, onCleanup, Show, untrack, type JSX } from "solid-js"
 import { unwrap } from "solid-js/store"
 import { cn } from "../../lib/cn"
-import { useApp } from "../../lib/store"
+import { room } from "../../state/room"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { findFile } from "../ui/find-file"
 import { GLYPH } from "./glyphs"
@@ -174,24 +174,24 @@ function Row(props: { row: TreeRow; open: boolean; onOpen: (row: TreeRow) => voi
 }
 
 export function RunTree(props: { windowKey: string; count?: number }): JSX.Element {
-  const steps = createMemo(() => unwrap(useApp.runSteps(props.windowKey)) as readonly RunStep[])
-  const working = () => useApp.runLive(props.windowKey)
+  const steps = createMemo(() => unwrap(room.runSteps(props.windowKey)) as readonly RunStep[])
+  const working = () => room.runLive(props.windowKey)
   const live = createMemo(() => isLive(steps(), working()))
-  const openKey = () => `${useApp.activeThreadId() ?? ""}|${props.windowKey}`
+  const openKey = () => `${room.activeId() ?? ""}|${props.windowKey}`
   const workerKey = (id: string) => `${openKey()}|${id}`
   const open = createMemo(() => opened().has(openKey()))
   const workers = createMemo(() => keysUnder(opened(), `${openKey()}|`))
 
   const detailStatus = createMemo<DetailStatus>(() => {
     if (steps().length >= (props.count ?? 0)) return "ready"
-    if (useApp.runFetching(props.windowKey)) return "loading"
+    if (room.runFetching(props.windowKey)) return "loading"
     return asked().has(openKey()) ? "error" : "idle"
   })
 
   const request = (force = false) => {
     const key = openKey()
     setAsked((current) => (current.has(key) ? current : withKey(current, key)))
-    useApp.loadRunSteps(props.windowKey, force)
+    room.loadRunSteps(props.windowKey, force)
   }
 
   const tree = createMemo(() =>
@@ -243,7 +243,7 @@ export function RunTree(props: { windowKey: string; count?: number }): JSX.Eleme
     request()
   }
   const openRow = (row: TreeRow) => {
-    const chat = useApp.activeThreadId()
+    const chat = room.activeId()
     const target = row.target
     if (chat && target) {
       const found = target.folder ? null : findFile(target.path)

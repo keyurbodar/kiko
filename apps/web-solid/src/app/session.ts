@@ -66,24 +66,41 @@ function writeFlag(user: SessionUser | null): void {
   } catch {}
 }
 
+const RUNTIME_DB = "kiko:client-runtime"
+
+const settle = (request: IDBRequest | IDBTransaction, done: "success" | "complete") =>
+  new Promise<void>((resolve, reject) => {
+    const fail = () => reject(new Error("Close other Kiko tabs and try again"))
+    request.addEventListener(done, () => resolve())
+    request.addEventListener("error", fail)
+    request.addEventListener("blocked", fail)
+    request.addEventListener("abort", fail)
+  })
+
+async function clearRuntimeCache(prefix: string): Promise<void> {
+  const open = indexedDB.open(RUNTIME_DB)
+  await settle(open, "success")
+  const database = open.result
+  try {
+    if (!database.objectStoreNames.contains("snapshots")) return
+    const transaction = database.transaction("snapshots", "readwrite")
+    transaction.objectStore("snapshots").delete(IDBKeyRange.bound(`${prefix}:`, `${prefix}:\uffff`))
+    await settle(transaction, "complete")
+  } finally {
+    database.close()
+  }
+}
+
 async function clearWarmTier(userId: string): Promise<void> {
+  for (const key of [`kiko:drafts:${userId}`, `kiko:scroll:${userId}`]) write(key, null)
   if (typeof indexedDB === "undefined" || typeof indexedDB.databases !== "function") return
   const prefix = warmDbPrefix(userId)
-  const names = (await indexedDB.databases())
-    .map((db) => db.name ?? "")
-    .filter((name) => name === prefix || name.startsWith(`${prefix}:`))
-  await Promise.all(
-    names.map(
-      (name) =>
-        new Promise<void>((resolve, reject) => {
-          const request = indexedDB.deleteDatabase(name)
-          const fail = () => reject(new Error("Close other Kiko tabs and try again"))
-          request.onsuccess = () => resolve()
-          request.addEventListener("error", fail)
-          request.addEventListener("blocked", fail)
-        }),
-    ),
-  )
+  const names = (await indexedDB.databases()).map((db) => db.name ?? "")
+  const legacy = names.filter((name) => name === prefix || name.startsWith(`${prefix}:`))
+  await Promise.all([
+    ...legacy.map((name) => settle(indexedDB.deleteDatabase(name), "success")),
+    ...(names.includes(RUNTIME_DB) ? [clearRuntimeCache(prefix)] : []),
+  ])
 }
 
 const cached = readFlag()

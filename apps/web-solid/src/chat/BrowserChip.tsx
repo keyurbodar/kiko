@@ -1,5 +1,5 @@
 import { Show, createMemo, onMount, type JSX } from "solid-js"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
 import { browser, handBack, openLive, startBrowser } from "./browser"
 
 const button =
@@ -8,7 +8,7 @@ const primary =
   "h-7 shrink-0 rounded-md bg-[var(--primary)] px-3 text-[12px] font-medium text-[var(--primary-foreground)] disabled:opacity-60"
 
 function openAsk(): string | null {
-  const messages = useApp.activeMessages()
+  const messages = room.messages()
   const last = messages.findLast((m) => m.event?.kind === "browser_control")
   if (!last) return null
   return messages.at(-1) === last || !messages.some((m) => m.sender === "user" && m.sentAt > last.sentAt)

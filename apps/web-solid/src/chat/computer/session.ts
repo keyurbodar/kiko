@@ -1,13 +1,12 @@
-import { decodeFrame, type FrameHeader } from "@kiko/computer/frame"
 import type { ComputerInput, ComputerSignal } from "@kiko/protocol"
-import { userChannel } from "../../sync/socket"
+import { owner, run } from "../../state/runtime"
+import { onUserSignal } from "../../state/user"
 
-export type Mode = "connecting" | "rtc" | "relay"
+export type Mode = "connecting" | "rtc"
 export type Cursor = { x: number; y: number } | null
 
 export type Hooks = {
   video: HTMLVideoElement
-  canvas: HTMLCanvasElement
   onMode(mode: Mode): void
   onSize(width: number, height: number): void
   onCursor(cursor: Cursor): void
@@ -16,7 +15,7 @@ export type Hooks = {
 export type Session = { send(events: readonly ComputerInput[]): void; close(): void }
 
 const STUN = "stun:stun.cloudflare.com:3478"
-const FALLBACK_MS = 5_000
+const RETRY_MS = 5_000
 const ICE_WAIT_MS = 350
 
 type Rtc = { send(events: readonly ComputerInput[]): boolean; close(): void }
@@ -69,7 +68,7 @@ function startRtc(pcId: string, hooks: Hooks, on: RtcEvents): Rtc {
   let wait: ReturnType<typeof setTimeout> | undefined
   const queued: RTCIceCandidateInit[] = []
 
-  const signal = (next: ComputerSignal) => userChannel.send({ t: "pc.rtc", pcId, signal: next })
+  const signal = (next: ComputerSignal) => void run(owner.commands.pcRtc, { pcId, signal: next })
 
   const resize = () => {
     if (video.videoWidth) hooks.onSize(video.videoWidth, video.videoHeight)
@@ -126,7 +125,7 @@ function startRtc(pcId: string, hooks: Hooks, on: RtcEvents): Rtc {
 
   const begins = () => void begin().catch(on.fail)
 
-  const stop = userChannel.on("pc.rtc", (frame) => {
+  const stop = onUserSignal("pc.rtc", (frame) => {
     if (frame.pcId !== pcId || closed) return
     if (frame.iceServers?.length) {
       ice = frame.iceServers.map((server) => ({ ...server, urls: server.urls as string | string[] }))
@@ -143,7 +142,7 @@ function startRtc(pcId: string, hooks: Hooks, on: RtcEvents): Rtc {
     void remote(frame.signal).catch(on.fail)
   })
 
-  userChannel.send({ t: "pc.watch", pcId, on: true, mode: "rtc" })
+  void run(owner.commands.pcWatch, { pcId, on: true, mode: "rtc" })
   wait = setTimeout(begins, ICE_WAIT_MS)
 
   return {
@@ -165,106 +164,38 @@ function startRtc(pcId: string, hooks: Hooks, on: RtcEvents): Rtc {
   }
 }
 
-function frameOf(data: ArrayBuffer, pcId: string): ReturnType<typeof decodeFrame> {
-  const bytes = new Uint8Array(data)
-  const length = bytes[0] ?? 0
-  if (new TextDecoder().decode(bytes.subarray(1, 1 + length)) !== pcId) return null
-  return decodeFrame(bytes.subarray(1 + length))
-}
-
-function startRelay(pcId: string, hooks: Hooks, live: () => void): () => void {
-  const context = hooks.canvas.getContext("2d")
-  let latest: { header: FrameHeader; image: Uint8Array } | null = null
-  let busy = false
-  let closed = false
-
-  function paint(bitmap: ImageBitmap, header: FrameHeader) {
-    const { canvas } = hooks
-    if (canvas.width !== header.width || canvas.height !== header.height) {
-      canvas.width = header.width
-      canvas.height = header.height
-    }
-    context?.drawImage(bitmap, 0, 0, header.width, header.height)
-    hooks.onSize(header.width, header.height)
-    hooks.onCursor(header.cursor)
-    live()
-  }
-
-  async function drain() {
-    if (busy) return
-    busy = true
-    while (latest) {
-      const { header, image } = latest
-      latest = null
-      if (closed) break
-      const type = header.kind === "webp" ? "image/webp" : "image/jpeg"
-      try {
-        const bitmap = await createImageBitmap(new Blob([image as Uint8Array<ArrayBuffer>], { type }))
-        if (!closed) paint(bitmap, header)
-        bitmap.close()
-      } catch {}
-      userChannel.send({ t: "pc.ack", pcId, seq: header.seq })
-    }
-    busy = false
-  }
-
-  const stop = userChannel.onBinary((data) => {
-    const frame = frameOf(data, pcId)
-    if (!frame) return
-    latest = frame
-    void drain()
-  })
-  userChannel.send({ t: "pc.watch", pcId, on: true, mode: "relay" })
-
-  return () => {
-    closed = true
-    stop()
-  }
-}
-
 export function startSession(pcId: string, hooks: Hooks): Session {
-  let mode: Mode = "connecting"
   let closed = false
   let rtc: Rtc | null = null
-  let stopRelay: (() => void) | null = null
-  let fallback: ReturnType<typeof setTimeout> | undefined
+  let retry: ReturnType<typeof setTimeout> | undefined
 
-  const setMode = (next: Mode) => {
-    if (closed || mode === next) return
-    mode = next
-    hooks.onMode(next)
-  }
-
-  const toRelay = () => {
-    if (closed || stopRelay) return
-    clearTimeout(fallback)
+  const connect = () => {
+    if (closed) return
     rtc?.close()
-    rtc = null
-    setMode("connecting")
-    stopRelay = startRelay(pcId, hooks, () => setMode("relay"))
+    hooks.onMode("connecting")
+    rtc = startRtc(pcId, hooks, {
+      live: () => {
+        clearTimeout(retry)
+        if (!closed) hooks.onMode("rtc")
+      },
+      fail: () => {
+        clearTimeout(retry)
+        retry = setTimeout(connect, RETRY_MS)
+      },
+    })
   }
 
-  rtc = startRtc(pcId, hooks, {
-    live: () => {
-      if (stopRelay) return
-      clearTimeout(fallback)
-      setMode("rtc")
-    },
-    fail: toRelay,
-  })
-  fallback = setTimeout(toRelay, FALLBACK_MS)
+  connect()
 
   return {
     send(events) {
-      if (rtc?.send(events)) return
-      if (stopRelay) userChannel.send({ t: "pc.input", pcId, events })
+      rtc?.send(events)
     },
     close() {
       closed = true
-      clearTimeout(fallback)
+      clearTimeout(retry)
       rtc?.close()
-      stopRelay?.()
-      userChannel.send({ t: "pc.watch", pcId, on: false })
+      void run(owner.commands.pcWatch, { pcId, on: false })
     },
   }
 }

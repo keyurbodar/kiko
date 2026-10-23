@@ -1,6 +1,6 @@
 import type { FileRef } from "@kiko/protocol"
 import { createEffect, createMemo, createSignal, lazy, Match, on, Show, Suspense, Switch, type JSX } from "solid-js"
-import { urls } from "../lib/store"
+import { fileSrc } from "../state/room"
 import { NoPreview, SurfaceFailure, SurfaceLoading } from "./chrome"
 import type { EditorState } from "./editor"
 import { TEXT_KINDS, type ViewerKind } from "./kind"
@@ -25,7 +25,7 @@ export function FileViewer(props: {
   onEditorState?: (state: EditorState) => void
 }) {
   const opened = createMemo<FileRef | undefined>((prev) => (props.file ? (prev ?? props.file) : undefined), undefined)
-  const src = (f: FileRef) => urls.file(props.roomId, f.id)
+  const src = (f: FileRef) => fileSrc(props.roomId, f.id)
   return (
     <div
       class="file-view flex min-h-0 min-w-0 flex-1 flex-col"

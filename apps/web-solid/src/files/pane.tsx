@@ -2,7 +2,8 @@ import type { FileOp } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createEffect, createMemo, lazy, onCleanup, Show, Suspense } from "solid-js"
 import { dropFileSurfaces, moveFileSurfaces, openFile } from "../chat/side/surfaces"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
+import { user } from "../state/user"
 import { createFile, forgetMade, withMade } from "./api"
 import { FileBreadcrumbs } from "./breadcrumbs"
 import { SUBHEADER } from "./chrome"
@@ -16,13 +17,9 @@ import { createFileView, setSourceFor } from "./view"
 const FileDialog = lazy(() => import("./FileDialog"))
 
 function useChatFiles(chatId: () => string) {
-  const home = createMemo(() => withMade(HOME, useApp.homeFiles()).map((f) => ({ ...f, name: `${HOME}/${f.name}` })))
-  const files = createMemo(() => [...withMade(chatId(), useApp.activeFiles()), ...home()])
-  const folders = createMemo(() => [
-    ...useApp.activeFolders(),
-    HOME,
-    ...useApp.homeFolders().map((f) => `${HOME}/${f}`),
-  ])
+  const home = createMemo(() => withMade(HOME, user.homeFiles()).map((f) => ({ ...f, name: `${HOME}/${f.name}` })))
+  const files = createMemo(() => [...withMade(chatId(), room.files()), ...home()])
+  const folders = createMemo(() => [...room.folders(), HOME, ...user.homeFolders().map((f) => `${HOME}/${f}`)])
   const index = createMemo(() =>
     buildIndex(
       files().map((f) => f.name),
@@ -33,8 +30,8 @@ function useChatFiles(chatId: () => string) {
 }
 
 export function FilesTree(props: { chatId: string }) {
-  createEffect(() => onCleanup(useApp.onFilesRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
-  createEffect(() => onCleanup(useApp.onHomeRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
+  createEffect(() => onCleanup(room.onFilesRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
+  createEffect(() => onCleanup(user.onHomeRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
   const op = (o: FileOp) => {
     const paths = o.op === "rm" ? o.paths : o.op === "mv" ? [o.from, o.to] : [o.path]
     const home = paths.map(inHome)
@@ -44,8 +41,8 @@ export function FilesTree(props: { chatId: string }) {
         variant: "error",
       })
     if (paths.includes(HOME)) return showToastV2({ title: "Home stays where it is", variant: "error" })
-    if (!home[0]) return useApp.fileOp(o)
-    useApp.homeOp(
+    if (!home[0]) return room.fileOp(o)
+    user.homeOp(
       o.op === "rm"
         ? { ...o, paths: o.paths.map(strip) }
         : o.op === "mv"

@@ -30,7 +30,7 @@ import { createMessageMenu } from "./ui/MessageMenu"
 import { ScrollFades } from "./ui/ScrollFades"
 import { chatImages } from "./ui/chat-images"
 import { createImageDialog, provideThreadImages } from "./ui/image-dialog"
-import type { DraftBook } from "../warm/drafts"
+import type { DraftBook } from "../composer/draft-book"
 
 export interface VirtualThreadState {
   readonly scrollOffset: number
@@ -79,7 +79,6 @@ export function VirtualThread(props: {
   replyTarget?: string | null
   onNearTop?: () => void
   onAtLatest?: () => void
-  onLeftLatest?: () => void
   scrollKey?: string
   scrollBook?: Pick<DraftBook, "scroll" | "saveScroll"> & Partial<Pick<DraftBook, "ready">>
   onJumpHandle?: (handle: { jumpToMessage: (messageId: string) => void; scrollToLatest: () => void }) => void
@@ -378,11 +377,8 @@ export function VirtualThread(props: {
       props.onStateChange(state)
       return
     }
-    if (isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)) {
+    if (isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX))
       props.onAtLatest?.()
-    } else if (state.scrollSize > state.viewportSize) {
-      props.onLeftLatest?.()
-    }
     props.onStateChange(state)
   }
 

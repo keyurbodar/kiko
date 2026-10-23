@@ -4,13 +4,14 @@ import { CheckIcon, CollapseIcon, CopyIcon, ExpandIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Dynamic } from "solid-js/web"
-import type { RichText as RichTextTree } from "@kiko/protocol"
+import { plainText, type RichText as RichTextTree } from "@kiko/protocol"
 import { EmojiText } from "../../lib/emoji"
 import { FileChip } from "../ui/FileChip"
 import { Mention } from "../ui/Mention"
 import { CodeBlock } from "./CodeBlock"
 import { LinkIcon } from "./LinkIcon"
 import { linkHost, linkLead, richNodes, type RichNode, type TableCopy } from "./model"
+import { PlainFallback } from "./plain-fallback"
 import { RichImage } from "./RichImage"
 import "./rich.css"
 
@@ -194,7 +195,7 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
   )
 }
 
-export function RichText(props: { tree: RichTextTree; class?: string }): JSX.Element {
+function RichTree(props: { tree: RichTextTree; class?: string }): JSX.Element {
   const [maskedHref, setMaskedHref] = createSignal<string | null>(null)
   return (
     <>
@@ -209,5 +210,13 @@ export function RichText(props: { tree: RichTextTree; class?: string }): JSX.Ele
         )}
       </Show>
     </>
+  )
+}
+
+export function RichText(props: { tree: RichTextTree; class?: string }): JSX.Element {
+  return (
+    <PlainFallback text={plainText(props.tree)}>
+      <RichTree tree={props.tree} class={props.class} />
+    </PlainFallback>
   )
 }

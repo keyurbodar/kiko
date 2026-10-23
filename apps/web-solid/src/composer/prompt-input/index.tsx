@@ -27,7 +27,7 @@ import { mountLite, type LiteField } from "../rich/lite"
 import { isImage } from "../../lib/attachments"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
-import { progressLabel, uploadState } from "../../sync/uploads"
+import { progressLabel, uploadState } from "../uploads"
 
 export type {
   PromptInputV2Attachment,

@@ -1,4 +1,16 @@
-import type { ChatOp, CommandId, RoomId, RoomSignal, RoomSnapshot, UserSignal, UserSnapshot } from "@kiko/protocol"
+import type {
+  AgentSlug,
+  ChatOp,
+  CommandId,
+  MemoryOp,
+  Message,
+  RoomId,
+  RoomSignal,
+  RoomSnapshot,
+  UserSignal,
+  UserSnapshot,
+} from "@kiko/protocol"
+import { OwnerRpcs } from "@kiko/protocol/rpc"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as PubSub from "effect/PubSub"
@@ -6,9 +18,16 @@ import * as Stream from "effect/Stream"
 import * as SubscriptionRef from "effect/SubscriptionRef"
 import * as AsyncResult from "effect/reactivity/AsyncResult"
 import * as Atom from "effect/reactivity/Atom"
+import * as AtomRegistry from "effect/reactivity/AtomRegistry"
+import { request, type RequestError } from "../rpc/client"
+import type { OwnerRpcInput, OwnerRpcSuccess, OwnerUnaryTag } from "../rpc/protocol"
+import { createRuntimeCommand, type AtomCommandConcurrency } from "./atomCommand"
+import * as Owner from "./ownerCommands"
+import { createQueryAtoms } from "./query"
 import type { SupervisorConnectionState } from "../connection/model"
 import { OwnerSupervisor } from "../connection/supervisor"
-import { chatCommand, createChat, sendMessage, type SendMessageInput } from "./commands"
+import { SnapshotCache } from "../platform/cache"
+import { chatCommand, createChat, newCommandId, sendMessage, type SendMessageInput } from "./commands"
 import { withPending, type PendingCommand } from "./overlay"
 import { PendingCommands, roomKey } from "./pending"
 import { makeRoomState, ROOM_SNAPSHOT_IDLE_TTL_MS, type RoomResumeCache, type RoomState } from "./roomState"
@@ -32,6 +51,27 @@ const EMPTY_ROOM: RoomState = emptyStreamState<RoomSnapshot>()
 
 const valueOr = <A, E>(result: AsyncResult.AsyncResult<A, E>, fallback: A): A =>
   Option.getOrElse(AsyncResult.value(result), () => fallback)
+
+export type RpcCommandInput<Tag extends OwnerUnaryTag> = Omit<OwnerRpcInput<Tag>, "commandId"> & {
+  readonly commandId?: CommandId
+}
+
+const payloadFields = (tag: OwnerUnaryTag): Record<string, unknown> =>
+  (OwnerRpcs.requests.get(tag)?.payloadSchema as { readonly fields?: Record<string, unknown> } | undefined)?.fields ??
+  {}
+
+const requestAny = request as unknown as (
+  tag: OwnerUnaryTag,
+  input: unknown,
+) => Effect.Effect<unknown, unknown, OwnerSupervisor>
+
+function sendRpc(tag: OwnerUnaryTag, input: object | undefined) {
+  const fields = payloadFields(tag)
+  if (Object.keys(fields).length === 0) return requestAny(tag, undefined)
+  return requestAny(tag, fields.commandId === undefined ? input : { commandId: newCommandId(), ...input })
+}
+
+const EMPTY_TYPING: ReadonlyArray<AgentSlug> = []
 
 function overlaid<S, T extends StreamState<S>>(state: T, pending: ReadonlyArray<PendingCommand<S>>): T {
   if (pending.length === 0 || Option.isNone(state.data)) return state
@@ -73,6 +113,12 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     Atom.make(() => Effect.runSync(PubSub.unbounded<RoomSignal>())).pipe(Atom.setIdleTTL(ROOM_SNAPSHOT_IDLE_TTL_MS)),
   )
 
+  const roomPagesFamily = Atom.family((_roomId: RoomId) =>
+    Atom.make(() => Effect.runSync(PubSub.unbounded<ReadonlyArray<Message>>())).pipe(
+      Atom.setIdleTTL(ROOM_SNAPSHOT_IDLE_TTL_MS),
+    ),
+  )
+
   const roomStateAtom = Atom.family((roomId: RoomId) =>
     runtime
       .atom(
@@ -81,7 +127,10 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
           get.mount(resumeAtom)
           const resume = get.once(resumeAtom)
           const signals = get.once(roomSignalsFamily(roomId))
-          const live = Stream.unwrap(makeRoomState(roomId, signals, resume).pipe(Effect.map(SubscriptionRef.changes)))
+          const pages = get.once(roomPagesFamily(roomId))
+          const live = Stream.unwrap(
+            makeRoomState(roomId, signals, resume, pages).pipe(Effect.map(SubscriptionRef.changes)),
+          )
           return resume.snapshot === undefined
             ? live
             : Stream.concat(Stream.succeed(markDisconnected(resume.snapshot)), live)
@@ -116,6 +165,177 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
       .pipe(Atom.setIdleTTL(0)),
   )
 
+  const roomTypingAtom = Atom.family((roomId: RoomId) =>
+    runtime
+      .atom(
+        (get) =>
+          Stream.fromPubSub(get(roomSignalsFamily(roomId))).pipe(
+            Stream.filter((signal) => signal.t === "typing"),
+            Stream.map((signal): ReadonlyArray<AgentSlug> => signal.who),
+          ),
+        { initialValue: EMPTY_TYPING },
+      )
+      .pipe(Atom.setIdleTTL(0)),
+  )
+
+  const { sessionAtom, query } = createQueryAtoms(runtime)
+
+  const cachedRoomAtom = Atom.family((roomId: RoomId) =>
+    runtime
+      .atom(
+        SnapshotCache.use((cache) => cache.loadRoom(roomId)).pipe(
+          Effect.map(Option.map((cached) => cached.snapshot)),
+          Effect.orElseSucceed(() => Option.none<RoomSnapshot>()),
+        ),
+      )
+      .pipe(Atom.setIdleTTL(ROOM_SNAPSHOT_IDLE_TTL_MS), Atom.withLabel(`kiko-room-cache:${roomId}`)),
+  )
+
+  const rpc = <const Tag extends OwnerUnaryTag>(tag: Tag, concurrency?: AtomCommandConcurrency<RpcCommandInput<Tag>>) =>
+    createRuntimeCommand(runtime, {
+      label: tag,
+      execute: (input: RpcCommandInput<Tag>) =>
+        sendRpc(tag, input as object | undefined) as Effect.Effect<
+          OwnerRpcSuccess<Tag>,
+          RequestError<Tag>,
+          OwnerSupervisor
+        >,
+      ...(concurrency === undefined ? {} : { concurrency }),
+    })
+
+  const effect = <W, A, E>(
+    label: string,
+    execute: (input: W) => Effect.Effect<A, E, OwnerRuntimeServices | AtomRegistry.AtomRegistry>,
+    concurrency?: AtomCommandConcurrency<W>,
+  ) => createRuntimeCommand(runtime, { label, execute, ...(concurrency === undefined ? {} : { concurrency }) })
+
+  const queries = {
+    settings: query({ label: "settings.get", execute: () => request("settings.get", undefined) }),
+    storageUsage: query({ label: "storage.usage", execute: () => request("storage.usage", undefined) }),
+    modelsCatalog: query({
+      label: "models.catalog",
+      execute: () => request("models.catalog", undefined),
+      refreshOn: "models",
+    }),
+    version: query({ label: "version.get", execute: () => request("version.get", undefined) }),
+    credentials: query({
+      label: "credentials.list",
+      execute: () => request("credentials.list", undefined),
+      refreshOn: "models",
+    }),
+    composio: query({
+      label: "composio.status",
+      execute: (input: { readonly tools?: boolean }) => request("composio.status", input),
+    }),
+    kernel: query({ label: "kernel.status", execute: () => request("kernel.status", undefined) }),
+    recipes: query({ label: "recipes.list", execute: () => request("recipes.list", undefined) }),
+    soul: query({
+      label: "soul.get",
+      execute: (input: { readonly slug: AgentSlug }) => request("soul.get", input),
+      idleTtlMs: 60_000,
+    }),
+    memory: query({
+      label: "memory.run",
+      execute: (op: MemoryOp) => request("memory.run", { op }),
+      refreshOn: "memory",
+      idleTtlMs: 60_000,
+    }),
+  }
+
+  const pageOf = (
+    input: { readonly roomId: RoomId; readonly seq: number; readonly before: number; readonly after: number },
+    publish: boolean,
+  ) =>
+    Effect.gen(function* () {
+      const page = yield* request("room.history", input)
+      if (publish && page.length > 0) {
+        const registry = yield* AtomRegistry.AtomRegistry
+        yield* PubSub.publish(registry.get(roomPagesFamily(input.roomId)), page)
+      }
+      return page
+    })
+
+  const commands = {
+    sendMessage: effect("room.send", (input: SendMessageInput) => sendMessage(input)),
+    chat: effect("chat.command", (input: { readonly op: ChatOp; readonly commandId?: CommandId }) =>
+      chatCommand(input.op, input.commandId),
+    ),
+    createChat: effect("chat.create", (input: { readonly title: string; readonly agents?: ReadonlyArray<string> }) =>
+      createChat(input),
+    ),
+    editMessage: effect("room.edit", Owner.editRoomMessage),
+    deleteMessage: effect("room.delete", Owner.deleteRoomMessage),
+    react: effect("room.react", Owner.reactToRoomMessage, {
+      mode: "serial",
+      key: (input) => `${input.roomId}:${input.messageId}`,
+    }),
+    markRead: effect("room.read", Owner.markRoomRead, { mode: "serial", key: (input) => input.roomId }),
+    task: effect("room.task", Owner.roomTask),
+    member: effect("room.member", Owner.roomMember),
+    roomFiles: effect("room.files", Owner.roomFiles),
+    answer: effect("room.answer", Owner.answerAsk, { mode: "singleFlight", key: (input) => input.askId }),
+    skip: effect("room.skip", Owner.skipAsk, { mode: "singleFlight", key: (input) => input.askId }),
+    homeFiles: effect("home.files", Owner.homeFiles),
+    setTheme: effect("theme.set", Owner.setTheme, { mode: "serial", key: () => "theme" }),
+    createAgent: effect("agent.create", Owner.createAgent),
+    deleteAgent: effect("agent.command", Owner.deleteAgent),
+    setAgentModel: effect("agent.setModel", Owner.setAgentModel, { mode: "serial", key: (input) => input.slug }),
+    history: effect(
+      "room.history",
+      (input: {
+        readonly roomId: RoomId
+        readonly seq: number
+        readonly before: number
+        readonly after: number
+        readonly merge: boolean
+      }) => pageOf(input, input.merge),
+    ),
+    typing: rpc("room.typing"),
+    stop: rpc("room.stop"),
+    retry: rpc("room.retry"),
+    setRoomModel: rpc("room.setModel"),
+    roomSearch: rpc("room.search", { mode: "serial", key: (input) => input.roomId }),
+    steps: rpc("room.steps", { mode: "singleFlight", key: (input) => `${input.roomId}:${input.slug}:${input.after}` }),
+    openChat: rpc("chat.open", { mode: "serial", key: () => "open" }),
+    chatSearch: rpc("chat.search"),
+    searchMessages: rpc("search.messages"),
+    soulUpdate: rpc("soul.update", { mode: "serial", key: (input) => input.slug }),
+    memory: rpc("memory.run"),
+    settingsGet: rpc("settings.get"),
+    settingsUpdate: rpc("settings.update", { mode: "serial", key: () => "settings" }),
+    fileToken: rpc("files.token", { mode: "singleFlight", key: () => "token" }),
+    writeText: rpc("files.writeText", { mode: "serial", key: (input) => `${input.roomId}:${input.path}` }),
+    credentialsList: rpc("credentials.list"),
+    credentialsConnect: rpc("credentials.connect"),
+    credentialsDisconnect: rpc("credentials.disconnect"),
+    credentialsCheck: rpc("credentials.check"),
+    loginStart: rpc("login.start"),
+    loginAnswer: rpc("login.answer"),
+    loginCancel: rpc("login.cancel"),
+    composioConnect: rpc("composio.connect"),
+    composioDisconnect: rpc("composio.disconnect"),
+    kernelConnect: rpc("kernel.connect"),
+    kernelDisconnect: rpc("kernel.disconnect"),
+    browserLink: rpc("browser.link"),
+    browserHandBack: rpc("browser.handBack"),
+    browserClose: rpc("browser.close"),
+    pcPairCode: rpc("pc.pairCode", { mode: "singleFlight", key: () => "pair" }),
+    pcRemove: rpc("pc.remove"),
+    pcRename: rpc("pc.rename"),
+    pcWatch: rpc("pc.watch"),
+    pcTake: rpc("pc.take"),
+    pcRelease: rpc("pc.release"),
+    pcRtc: rpc("pc.rtc"),
+    pcInput: rpc("pc.input"),
+    pcAck: rpc("pc.ack"),
+    recipesInstall: rpc("recipes.install"),
+    recipesUninstall: rpc("recipes.uninstall"),
+    recipesEdit: rpc("recipes.edit"),
+    routinesUpdate: rpc("routines.update"),
+    routinesCancel: rpc("routines.cancel"),
+    updateStart: rpc("update.start", { mode: "singleFlight", key: () => "update" }),
+  }
+
   const sendMessageAtom = runtime.fn((input: SendMessageInput) => sendMessage(input), { concurrent: true })
   const chatCommandAtom = runtime.fn(
     (input: { readonly op: ChatOp; readonly commandId?: CommandId }) => chatCommand(input.op, input.commandId),
@@ -137,5 +357,10 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     chatCommandAtom,
     createChatAtom,
     retryConnectionAtom,
+    roomTypingAtom,
+    cachedRoomAtom,
+    sessionAtom,
+    queries,
+    commands,
   }
 }

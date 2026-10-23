@@ -1,5 +1,5 @@
 import { useLocation } from "@tanstack/solid-router"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
 
 export type SectionId = "chat" | "recipes"
 
@@ -18,11 +18,11 @@ export function sectionOf(pathname: string): SectionId | null {
 export function roomInUrl(pathname: string, search: { room?: unknown }): string | null {
   const id = CHAT_ROOM.exec(pathname)?.[1]
   if (id) return decodeURIComponent(id)
-  if (sectionOf(pathname) === "chat") return useApp.resumeChat()
+  if (sectionOf(pathname) === "chat") return room.resumeChat()
   return typeof search.room === "string" ? search.room : null
 }
 
 export function useChatInView(): () => string | null {
   const pathname = useLocation({ select: (location) => location.pathname })
-  return () => (sectionOf(pathname()) === "chat" ? useApp.activeThreadId() : null)
+  return () => (sectionOf(pathname()) === "chat" ? room.activeId() : null)
 }

@@ -1,6 +1,6 @@
 import type { Member } from "@kiko/protocol"
 import type { JSX } from "solid-js"
-import { useApp } from "../../lib/store"
+import { room } from "../../state/room"
 
 const EDGE = "border-[var(--border)]"
 
@@ -63,6 +63,6 @@ export function DangerRow(props: {
 const DEFAULT_MEMBER = { slug: "kiko" as Member["slug"], name: "Kiko", lead: true }
 
 export function roomMembers(): readonly Member[] {
-  const members = useApp.roomMembers()
+  const members = room.roomMembers()
   return members.length ? members : [DEFAULT_MEMBER]
 }

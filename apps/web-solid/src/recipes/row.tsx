@@ -6,7 +6,7 @@ import { openChat } from "../app/history"
 import { Show } from "solid-js"
 import { cn } from "../lib/cn"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
 import { iconButtonClass, Spinner } from "../settings/kit"
 import { RecipeIcon, RecipeWatermark, toneStyle } from "./icon"
 import { type InstallStatus, installStatus, nextRunLabel } from "./model"
@@ -89,7 +89,7 @@ function Runner(props: { install: RecipeInstall }) {
 }
 
 export function InstallCard(props: { install: RecipeInstall; card: RecipeCard }) {
-  const chatName = () => useApp.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
+  const chatName = () => room.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
   return (
     <article
       class="recipe-card flex min-w-0 flex-col gap-4 rounded-[20px] p-4 [--recipe-surface:var(--card)]"
@@ -109,7 +109,7 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
         <span class="flex min-w-0 flex-1 flex-col gap-1">
           <span class="truncate text-[15px] font-semibold tracking-[-0.01em] text-foreground">{props.card.title}</span>
           <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-            <ChatAvatar faces={useApp.chatFaces(props.install.roomId)} size={16} />
+            <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={16} />
             <span class="truncate">{chatName()}</span>
           </span>
         </span>
@@ -126,7 +126,7 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
 }
 
 export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; navigate: (roomId: string) => void }) {
-  const title = () => useApp.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
+  const title = () => room.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
   return (
     <div
       class="flex items-center gap-2 rounded-[14px] px-2.5 py-2 hover:bg-control"
@@ -139,7 +139,7 @@ export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; na
         data-action="open-recipe-chat"
         onClick={() => props.navigate(props.install.roomId)}
       >
-        <ChatAvatar faces={useApp.chatFaces(props.install.roomId)} size={36} />
+        <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={36} />
         <span class="flex min-w-0 flex-1 flex-col gap-1">
           <span class="truncate text-[13.5px] font-medium text-foreground">{title()}</span>
           <span class="flex min-w-0 items-center gap-2">

@@ -21,7 +21,8 @@ import { messageSearchCommand } from "./message-search"
 import { katCommands } from "./kat-commands"
 import { themeCommands } from "./theme-commands"
 import { openAvatarPicker } from "../avatar/picker-state"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
+import { user } from "../state/user"
 import { openBotPicker } from "../chat/bot-picker-state"
 import { openNewAgent } from "../newagent/state"
 import { navCommands } from "./nav-commands"
@@ -50,14 +51,14 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       openChats: () => openPalette("chats.go"),
       openView: openPalette,
       chatChoices: () =>
-        useApp.bots().map((chat) => ({ id: chat.id, title: chat.name, chatId: chat.id, run: () => openChat(chat.id) })),
+        room.bots().map((chat) => ({ id: chat.id, title: chat.name, chatId: chat.id, run: () => openChat(chat.id) })),
       agentChoices: () =>
-        agentList(useApp.agents()).map((agent) => ({
+        agentList(user.agents()).map((agent) => ({
           id: agent.id,
           title: agent.name,
           seed: agent.slug,
           run: () => {
-            const roomId = useApp.user()?.createChat(agent.name, [agent.id])
+            const roomId = user.createChat(agent.name, [agent.id])
             if (roomId) openChat(roomId)
           },
         })),
@@ -70,8 +71,8 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
           return []
         }
         const hits = mod.fileHits(
-          withMade(id, useApp.activeFiles()).map((f) => f.name),
-          withMade(mod.HOME, useApp.homeFiles()).map((f) => f.name),
+          withMade(id, room.files()).map((f) => f.name),
+          withMade(mod.HOME, user.homeFiles()).map((f) => f.name),
         )
         return mod.listFiles(hits, query, mod.recentFiles(id)).map(({ hit, group }) => ({
           id: hit.path,
@@ -112,7 +113,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         const row = order[at === -1 ? 0 : Math.max(0, Math.min(order.length - 1, at + step))]
         if (row && row.id !== activeId()) openChat(row.id)
       },
-      chatCount: () => useApp.bots().length,
+      chatCount: () => room.bots().length,
       searchChat: () => openSearch("chat"),
       reopenClosed: () => {
         const id = reopenClosedChat()
@@ -125,15 +126,15 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       },
       canMove: () => {
         const id = activeId()
-        return id !== null && !useApp.chat(id)?.kiko
+        return id !== null && !user.chat(id)?.kiko
       },
       togglePin: () => {
         const id = activeId()
-        if (id && !useApp.chat(id)?.kiko) togglePin(id)
+        if (id && !user.chat(id)?.kiko) togglePin(id)
       },
       deleteChat: () => {
         const id = activeId()
-        if (id && !useApp.chat(id)?.kiko) askDeleteChat(id)
+        if (id && !user.chat(id)?.kiko) askDeleteChat(id)
       },
     }),
   )
@@ -146,26 +147,26 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       openView: openPalette,
     }),
   ])
-  const chipAgent = () => answeringMember(useApp.roomMembers(), "")
+  const chipAgent = () => answeringMember(room.roomMembers(), "")
   useCommands(
     navCommands({
       openChats: () => openChat(null),
       signOut: () => void signOut(),
       chooseModel: () => {
-        if (!history.location.pathname.startsWith("/chat")) openChat(useApp.activeThreadId())
+        if (!history.location.pathname.startsWith("/chat")) openChat(room.activeId())
         openModelPicker()
       },
       openView: openPalette,
-      canReason: () => canReason(useApp.agentModel(chipAgent()?.slug ?? "")?.thinkingLevels),
+      canReason: () => canReason(user.agentModel(chipAgent()?.slug ?? "")?.thinkingLevels),
       reasoningChoices: () => {
         const agent = chipAgent()
-        const picked = agent ? useApp.agentModel(agent.slug) : undefined
+        const picked = agent ? user.agentModel(agent.slug) : undefined
         if (!agent || !picked) return []
         return picked.thinkingLevels.map((level): Choice => ({
           id: level,
           title: THINKING_LABELS[level],
           current: level === picked.thinking,
-          run: () => useApp.setAgentModel(agent.slug, { thinking: level }),
+          run: () => room.setAgentModel(agent.slug, { thinking: level }),
         }))
       },
       canChooseModel: () => hasModelProvider(connectedProviders()),
@@ -202,7 +203,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       openView: openPalette,
       activeAgent: () => {
         const id = activeId()
-        const faces = id ? useApp.chatFaces(id) : []
+        const faces = id ? room.chatFaces(id) : []
         return faces.length === 1 ? faces[0]! : null
       },
       changeAvatar: openAvatarPicker,

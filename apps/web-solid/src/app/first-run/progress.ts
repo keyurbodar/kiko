@@ -1,7 +1,6 @@
 import { createEffect, createRoot, createSignal } from "solid-js"
-import { apiFetch } from "../../lib/api"
 import { connectedProviders } from "../../settings/connected"
-import { listProviders } from "../../settings/credentials"
+import { load, owner, run } from "../../state/runtime"
 import { hasModelProvider } from "../../settings/provider-kinds"
 import { hosted } from "../hosted"
 import { authGeneration, authIdentity, authReset, session, signOut, setBackendConnectionNotice } from "../session"
@@ -81,16 +80,11 @@ export function setStep(step: Step): void {
 }
 
 function remember() {
-  return apiFetch("/api/settings", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ onboarded: true }),
-  }).catch(() => {})
+  return run(owner.commands.settingsUpdate, { patch: { onboarded: true } })
 }
 
 async function onboardedOnServer(): Promise<boolean> {
-  const res = await apiFetch("/api/settings")
-  return res.ok && ((await res.json()) as { onboarded?: unknown }).onboarded === true
+  return (await load(owner.queries.settings(undefined))).onboarded === true
 }
 
 createRoot(() => {
@@ -106,7 +100,7 @@ createRoot(() => {
     const id = userId()
     if (!id || savedStep() === "done" || probe()?.userId === id) return
     const attempt = authGeneration()
-    void Promise.all([listProviders(), onboardedOnServer()])
+    void Promise.all([load(owner.queries.credentials(undefined)), onboardedOnServer()])
       .then(([list, onboarded]) => {
         if (attempt === authGeneration()) setProbe({ userId: id, connected: hasModelProvider(list), onboarded })
       })

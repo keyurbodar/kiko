@@ -14,6 +14,7 @@ export interface PendingLane<S, K extends string> {
   readonly add: (key: K, item: PendingCommand<S>) => Effect.Effect<void>
   readonly remove: (key: K, commandId: CommandId) => Effect.Effect<void>
   readonly confirm: (key: K, commandId: CommandId, sequence?: number) => Effect.Effect<void>
+  readonly confirmNext: (key: K, commandId: CommandId) => Effect.Effect<void>
   readonly reconcile: (key: K, snapshot: S, sequence: number) => Effect.Effect<void>
 }
 
@@ -35,6 +36,13 @@ const makeLane = Effect.fnUntraced(function* <S, K extends string>() {
     const server = latest.get(key)
     return server === undefined ? items : prunePending(items, server.snapshot, server.sequence)
   }
+  const confirm = (key: K, commandId: CommandId, sequence?: number) =>
+    edit(key, (items) =>
+      prune(
+        key,
+        items.map((x) => (x.commandId === commandId && sequence !== undefined ? { ...x, sequence } : x)),
+      ),
+    )
   const lane: PendingLane<S, K> = {
     changes: (key) =>
       SubscriptionRef.changes(ref).pipe(
@@ -47,13 +55,9 @@ const makeLane = Effect.fnUntraced(function* <S, K extends string>() {
       edit(key, (items) =>
         items.some((x) => x.commandId === commandId) ? items.filter((x) => x.commandId !== commandId) : items,
       ),
-    confirm: (key, commandId, sequence) =>
-      edit(key, (items) =>
-        prune(
-          key,
-          items.map((x) => (x.commandId === commandId && sequence !== undefined ? { ...x, sequence } : x)),
-        ),
-      ),
+    confirm,
+    confirmNext: (key, commandId) =>
+      Effect.suspend(() => confirm(key, commandId, (latest.get(key)?.sequence ?? 0) + 1)),
     reconcile: (key, snapshot, sequence) =>
       Effect.suspend(() => {
         latest.set(key, { snapshot, sequence })

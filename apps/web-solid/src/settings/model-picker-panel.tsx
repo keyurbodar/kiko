@@ -14,10 +14,10 @@ import {
 } from "solid-js"
 import { openSettings } from "./open"
 import { setModelsTab } from "./models-tab"
-import { createLive } from "../sync/changed"
+import { createQuery } from "../state/runtime"
 import { Portal } from "solid-js/web"
 import { VList, type VListHandle } from "virtua/solid"
-import { formatContext, formatPrice, loadCatalog, modelRef, searchModels, type ModelRow } from "./catalog"
+import { formatContext, formatPrice, catalogQuery, modelRef, searchModels, type ModelRow } from "./catalog"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon } from "@kiko/ui/icons"
 import type { ThinkingLevel } from "@kiko/protocol"
@@ -54,7 +54,7 @@ export default function ModelPickerPanel(props: {
   onOpenChange: (open: boolean) => void
   trigger: () => HTMLButtonElement | undefined
 }) {
-  const [catalog] = createLive("models", () => true, loadCatalog)
+  const catalog = createQuery(catalogQuery)
   const providers = createMemo(() => {
     const ids = new Set(modelProviders(connectedProviders()).map((p) => p.provider))
     return catalog()?.providers.filter((p) => ids.has(p.id)) ?? []

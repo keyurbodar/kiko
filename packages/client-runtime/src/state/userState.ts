@@ -43,6 +43,8 @@ export class UserStore extends Context.Service<
 
 type Item = StreamItem<UserSnapshot, Extract<UserStreamItem, { kind: "event" }>["event"], UserSignal>
 
+const isStreamItem = (item: UserStreamItem): item is Item => item.kind !== "session"
+
 const buildOf = (item: UserStreamItem): ServerBuild | null => {
   if (item.kind !== "snapshot" && item.kind !== "session") return null
   return {
@@ -86,7 +88,7 @@ export const layer = Layer.effectContext(
             before.build,
             ...items.map(buildOf).filter((next) => next !== null),
           )
-          const merged = applyStreamItems(before, items as ReadonlyArray<Item>, userReducer)
+          const merged = applyStreamItems(before, items.filter(isStreamItem), userReducer)
           const after: UserState = { ...merged, build }
           yield* SubscriptionRef.set(state, after)
           for (const item of items) if (item.kind === "signal") yield* PubSub.publish(signals, item.signal)

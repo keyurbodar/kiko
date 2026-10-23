@@ -4,3 +4,14 @@ export type { RoomState } from "./roomState"
 export { layer, layerBrowser, type OwnerRuntimeOptions, type OwnerRuntimeServices } from "./runtime"
 export type { StreamState, StreamStatus } from "./stream"
 export { UserStore, type ServerBuild, type UserState } from "./userState"
+export {
+  commandFailure,
+  createRuntimeCommand,
+  executeAtomQuery,
+  isInterrupted,
+  runAtomCommand,
+  type AtomCommand,
+  type SettledAsyncResult,
+} from "./atomCommand"
+export { mergeBySeq } from "./roomState"
+export type { RpcCommandInput } from "./atoms"

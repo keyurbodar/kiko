@@ -1,15 +1,12 @@
 import type { Agent, AgentSlug, RoomId } from "@kiko/protocol"
 import { newRoomId } from "@kiko/protocol"
 import type { AvatarPins } from "@kiko/theme/look"
-import { apiFetch } from "../lib/api"
 import { showFailure } from "../lib/errors"
-import { useApp } from "../lib/store"
+import { attempt, owner } from "../state/runtime"
 import { look, saveLook } from "../theme/live"
 import { type Form, tidyName } from "./model"
 
 export function createAgent(form: Form, pins: AvatarPins, back: () => void): RoomId | null {
-  const user = useApp.user()
-  if (!user) return null
   const slug = form.handle.trim().replace(/^@/, "") as AgentSlug
   const description = form.description.trim()
   const agent: Agent = {
@@ -20,26 +17,17 @@ export function createAgent(form: Form, pins: AvatarPins, back: () => void): Roo
     model: "",
   }
   const roomId = newRoomId()
-  const undo = user.addAgentChat(agent, roomId)
   const before = look()
   if (Object.keys(pins).length) saveLook({ ...before, avatars: { ...before.avatars, [slug]: pins } })
-  void send(agent, roomId, description).then((error) => {
-    if (error === null) return
-    undo()
-    saveLook({ ...look(), avatars: before.avatars })
-    back()
-    showFailure(error)
-  })
+  void attempt(
+    owner.commands.createAgent,
+    { agent, roomId, description },
+    (error) => {
+      saveLook({ ...look(), avatars: before.avatars })
+      back()
+      showFailure(error)
+    },
+    "Kiko could not make the agent. Try again.",
+  )
   return roomId
-}
-
-async function send(agent: Agent, roomId: RoomId, description: string): Promise<string | null> {
-  const res = await apiFetch("/api/agents", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ id: agent.id, roomId, name: agent.name, handle: agent.slug, description }),
-  }).catch(() => null)
-  if (res?.ok) return null
-  const body = (await res?.json().catch(() => null)) as { error?: string } | null
-  return body?.error ?? "Kiko could not make the agent. Try again."
 }

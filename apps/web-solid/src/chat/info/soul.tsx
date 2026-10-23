@@ -1,18 +1,21 @@
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { createEffect, createSignal, Show } from "solid-js"
+import { ConflictError, type AgentSlug } from "@kiko/protocol"
+import * as Cause from "effect/Cause"
+import { createSignal, Show } from "solid-js"
 import { buttonClass } from "../../settings/kit"
-import { apiFetch } from "../../lib/api"
-import { useApp } from "../../lib/store"
+import { createQuery, failureMessage, owner, run } from "../../state/runtime"
+import { user } from "../../state/user"
 
 const MAX_SOUL = 3_000
 
 export function SoulCard(props: { slug: string }) {
-  const soul = () => useApp.row("soul", props.slug)
+  const row = () => user.rows("soul").find((r) => r.id === props.slug)
+  const fetched = createQuery(() =>
+    user.synced() && !row() ? owner.queries.soul({ slug: props.slug as AgentSlug }) : null,
+  )
+  const soul = () => row() ?? fetched()
   const [draft, setDraft] = createSignal<string | null>(null)
   const [saving, setSaving] = createSignal(false)
-  createEffect(() => {
-    if (useApp.user()?.state.synced && !soul()) void apiFetch(`/api/souls/${props.slug}`).catch(() => {})
-  })
 
   const save = async () => {
     const body = draft()
@@ -20,18 +23,18 @@ export function SoulCard(props: { slug: string }) {
     if (body === null || !current) return
     setSaving(true)
     let refused: { conflict: boolean; error?: string } = { conflict: false }
-    const ok = await useApp.editRow("soul", props.slug, { ...current, body }, async () => {
-      const res = await apiFetch(`/api/souls/${props.slug}`, {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ body, expectSha: current.sha }),
-      }).catch(() => null)
-      if (!res?.ok)
-        refused = {
-          conflict: res?.status === 409,
-          error: res ? ((await res.json().catch(() => ({}))) as { error?: string }).error : "Could not reach Kiko",
-        }
-      return Boolean(res?.ok)
+    const ok = await user.editRow("soul", props.slug, { ...current, body }, async () => {
+      const result = await run(owner.commands.soulUpdate, {
+        slug: props.slug as AgentSlug,
+        body,
+        expectSha: current.sha,
+      })
+      if (result._tag === "Success") return true
+      refused = {
+        conflict: Cause.squash(result.cause) instanceof ConflictError,
+        error: failureMessage(result.cause, "Could not reach Kiko"),
+      }
+      return false
     })
     setSaving(false)
     if (ok) return void setDraft(null)

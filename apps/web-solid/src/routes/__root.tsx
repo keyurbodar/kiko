@@ -1,44 +1,64 @@
-import { createRootRoute, Outlet, useLocation } from "@tanstack/solid-router"
+import { createRootRoute, Outlet, useLocation, useRouter } from "@tanstack/solid-router"
 import { applyCommitted } from "@kiko/theme/apply"
 import { DEFAULT_LOOK } from "@kiko/theme/look"
-import { createEffect, ErrorBoundary, Match, Switch } from "solid-js"
+import { createEffect, ErrorBoundary, Match, on, Switch } from "solid-js"
 import { Broken } from "../app/broken"
 import { FirstRun } from "../app/first-run/lazy"
 import { currentStep } from "../app/first-run/progress"
 import { roomInUrl } from "../app/sections"
-import { session } from "../app/session"
+import { bootstrapSession, session } from "../app/session"
 import { Shell } from "../app/shell"
-import { useApp } from "../lib/store"
+import { connection } from "../state/connection"
+import { room } from "../state/room"
+import { followOwner, RuntimeProvider } from "../state/runtime"
 
 function RootLayout() {
   const location = useLocation()
-  useApp.followRoute(() => roomInUrl(location().pathname, location().search))
+  const router = useRouter()
+  room.followRoute(() => roomInUrl(location().pathname, location().search))
   createEffect(() => {
     const s = session()
     if (s.status === "signed-in") {
-      void useApp.start(s.user.id)
+      followOwner(s.user.id)
       const id = s.user.id
       setTimeout(() => void import("../theme/live").then((m) => m.startTheme(id)), 0)
       setTimeout(() => void import("../settings/timezone").then((m) => m.syncTimeZone()), 2000)
     } else if (s.status === "signed-out") {
       applyCommitted(DEFAULT_LOOK, false)
-      useApp.stop()
+      followOwner(null)
       void import("../theme/live").then((m) => m.forgetTheme())
     }
   })
+  createEffect(
+    on(connection.view, (view) => {
+      if (view === "signed-out" && session().status === "signed-in") void bootstrapSession()
+    }),
+  )
   return (
-    <ErrorBoundary fallback={(error, reset) => <Broken error={error} reset={reset} />}>
-      <Switch>
-        <Match when={currentStep() !== "done"}>
-          <FirstRun />
-        </Match>
-        <Match when={session().status === "signed-in"}>
-          <Shell>
-            <Outlet />
-          </Shell>
-        </Match>
-      </Switch>
-    </ErrorBoundary>
+    <RuntimeProvider>
+      <ErrorBoundary
+        fallback={(error, reset) => (
+          <Broken
+            error={error}
+            reset={() => {
+              void router.invalidate()
+              reset()
+            }}
+          />
+        )}
+      >
+        <Switch>
+          <Match when={currentStep() !== "done"}>
+            <FirstRun />
+          </Match>
+          <Match when={session().status === "signed-in"}>
+            <Shell>
+              <Outlet />
+            </Shell>
+          </Match>
+        </Switch>
+      </ErrorBoundary>
+    </RuntimeProvider>
   )
 }
 

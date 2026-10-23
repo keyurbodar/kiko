@@ -1,6 +1,7 @@
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { openAvatarPicker } from "../../avatar/picker-state"
-import { useApp } from "../../lib/store"
+import { room } from "../../state/room"
+import { user } from "../../state/user"
 import { THINKING_LABELS } from "@kiko/protocol"
 import { canReason } from "../../settings/agent-model"
 import { DangerRow, Profile, Properties, Property, roomMembers } from "../info/sections"
@@ -10,8 +11,8 @@ const sentence = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
 
 export function AgentPage(props: { slug: string; chatId: string; onRemoved: () => void }) {
   const member = () => roomMembers().find((m) => m.slug === props.slug)
-  const picked = () => useApp.agentModel(props.slug)
-  const status = () => useApp.room()?.state.status[props.slug as never] ?? "idle"
+  const picked = () => user.agentModel(props.slug)
+  const status = () => room.status()[props.slug as never] ?? "idle"
   return (
     <div class="flex min-h-full flex-col" data-component="info-agent" data-slug={props.slug}>
       <Profile
@@ -55,7 +56,7 @@ export function AgentPage(props: { slug: string; chatId: string; onRemoved: () =
           label="Remove from chat"
           description="It leaves this chat. Its soul and memory stay."
           onClick={() => {
-            useApp.memberOp({ op: "remove", slug: props.slug as never })
+            room.memberOp({ op: "remove", slug: props.slug as never })
             props.onRemoved()
           }}
         />

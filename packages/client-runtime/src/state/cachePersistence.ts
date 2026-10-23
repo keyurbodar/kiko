@@ -44,6 +44,11 @@ export const makeCachePersister = Effect.fnUntraced(function* <A, E>(
     }
   }).pipe(Effect.forkScoped)
   const flush = Effect.suspend(() => (Option.isSome(latest) ? write(latest.value) : Effect.void))
+  const flushOnHide = () => void Effect.runFork(flush)
+  yield* Effect.acquireRelease(
+    Effect.sync(() => globalThis.addEventListener?.("pagehide", flushOnHide)),
+    () => Effect.sync(() => globalThis.removeEventListener?.("pagehide", flushOnHide)),
+  )
   yield* Effect.addFinalizer(() => flush)
   return {
     offer: (value) =>

@@ -7,7 +7,8 @@ import { Show, type JSX } from "solid-js"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { isImage } from "../../lib/attachments"
 import { setFileDrag } from "../../lib/file-drag"
-import { urls, useApp } from "../../lib/store"
+import { fileSrc, room } from "../../state/room"
+import { user } from "../../state/user"
 import { formatBytes } from "../info/format"
 import { openThreadImages } from "./image-dialog"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
@@ -16,29 +17,29 @@ import { basename, resolveFile, type FileTarget } from "../rich/file-links"
 function find(path: string) {
   const own = resolveFile(
     path,
-    useApp.activeFiles().map((f) => f.name),
-    useApp.activeFolders(),
+    room.files().map((f) => f.name),
+    room.folders(),
   )
   if (own.kind !== "none") return own
   return resolveFile(
     path,
-    useApp.homeFiles().map((f) => `home/${f.name}`),
-    useApp.homeFolders().map((f) => `home/${f}`),
+    user.homeFiles().map((f) => `home/${f.name}`),
+    user.homeFolders().map((f) => `home/${f}`),
   )
 }
 
 export function FileChip(props: { file: FileTarget; label: string; bare?: boolean }): JSX.Element {
   const full = () => `${props.file.path}${props.file.line ? `:${props.file.line}` : ""}`
   const isChip = () => !props.bare || find(props.file.path).kind !== "none"
-  const chat = () => useApp.activeThreadId()
+  const chat = () => room.activeId()
   const ref = () => {
     const found = find(props.file.path)
-    return found.kind === "file" ? useApp.activeFiles().find((f) => f.name === found.path) : undefined
+    return found.kind === "file" ? room.files().find((f) => f.name === found.path) : undefined
   }
   const picture = () => {
     const f = ref()
     const id = chat()
-    return f && id && isImage({ name: f.name, type: f.type }) ? urls.file(id, f.id) : null
+    return f && id && isImage({ name: f.name, type: f.type }) ? fileSrc(id, f.id) : null
   }
   const size = () => {
     const f = ref()

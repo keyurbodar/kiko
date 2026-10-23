@@ -2,7 +2,7 @@ import type { UserSettings } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal, onMount, Show } from "solid-js"
 import { Group, Row, Segmented, Skeleton } from "./kit"
-import { apiFetch } from "../lib/api"
+import { load, owner, run } from "../state/runtime"
 
 type Settings = UserSettings
 export type Level = Settings["initiative"]
@@ -32,18 +32,12 @@ function readSettings(value: unknown): Settings {
 const latest: Partial<Record<keyof Settings, number>> = {}
 let counter = 0
 
-async function save(patch: Partial<Settings>): Promise<void> {
+async function save(patch: Partial<Pick<Settings, "initiative" | "capture">>): Promise<void> {
   const before = settings()
   const id = ++counter
   for (const k of Object.keys(patch)) latest[k as keyof Settings] = id
   setSettings({ ...before, ...patch })
-  const ok = await apiFetch("/api/settings", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(patch),
-  })
-    .then((r) => r.ok)
-    .catch(() => false)
+  const ok = (await run(owner.commands.settingsUpdate, { patch }))._tag === "Success"
   if (!ok) {
     const mine = Object.keys(patch).filter((k) => latest[k as keyof Settings] === id)
     if (mine.length)
@@ -54,9 +48,8 @@ async function save(patch: Partial<Settings>): Promise<void> {
 
 export default function InitiativePage() {
   onMount(() => {
-    void apiFetch("/api/settings")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((v) => v && setSettings(readSettings(v)))
+    void load(owner.queries.settings(undefined))
+      .then((v) => setSettings(readSettings(v)))
       .catch(() => {})
       .finally(() => setLoaded(true))
   })

@@ -11,7 +11,8 @@ import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal } from "solid-js"
 import { openFile } from "../chat/side/surfaces"
 import { agentDisplayName } from "../lib/names"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
+import { user } from "../state/user"
 import { installedSlugs } from "./model"
 import {
   cardsOf,
@@ -52,7 +53,7 @@ export const isEditing = (slug: string): boolean => editing().has(slug)
 
 export async function editRecipe(slug: string, navigate: (roomId: string) => void): Promise<void> {
   if (editing().has(slug)) return
-  const roomId = useApp.kikoChatId()
+  const roomId = user.kikoChatId()
   setEditing((set) => new Set(set).add(slug))
   const path = await postEdit(slug).finally(() => setEditing((set) => new Set([...set].filter((s) => s !== slug))))
   if (!roomId || !path) return void showToastV2({ title: "Could not open the recipe", variant: "error" })
@@ -63,14 +64,11 @@ export async function editRecipe(slug: string, navigate: (roomId: string) => voi
 export type RecipeTarget = { roomId: RoomId; agent: string; name: string }
 
 export function targetsForChat(roomId: string): RecipeTarget[] {
-  if (useApp.room()?.state.roomId === roomId && useApp.roomMembers().length)
-    return useApp.roomMembers().map((m) => ({ roomId: roomId as RoomId, agent: m.slug, name: m.name }))
-  const chat = useApp
-    .user()
-    ?.chats()
-    .find((c) => c.roomId === roomId)
+  if (room.activeId() === roomId && room.roomMembers().length)
+    return room.roomMembers().map((m) => ({ roomId: roomId as RoomId, agent: m.slug, name: m.name }))
+  const chat = user.chats().find((c) => c.roomId === roomId)
   if (!chat) return []
-  const agents = useApp.agents()
+  const agents = user.agents()
   const slugs = (chat.agents?.length ? chat.agents : [KIKO]).map((id) => agents.find((a) => a.id === id)?.slug ?? id)
   if (slugs.length > 1 && !slugs.includes(KIKO)) slugs.unshift(KIKO)
   return [...new Set(slugs)].map((agent) => ({ roomId: roomId as RoomId, agent, name: agentName(agent) }))
@@ -79,7 +77,7 @@ export function targetsForChat(roomId: string): RecipeTarget[] {
 export const installs = (): readonly RecipeInstall[] => listing().installs
 export const installsFor = (slug: string): readonly RecipeInstall[] => listing().installs.filter((i) => i.slug === slug)
 export function agentName(slug: string): string {
-  return agentDisplayName(slug, useApp.agents())
+  return agentDisplayName(slug, user.agents())
 }
 export const isAdded = (slug: string, target?: RecipeTarget): boolean =>
   !!target && installedSlugs(listing().installs, target).has(slug)

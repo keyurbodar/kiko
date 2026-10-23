@@ -13,7 +13,7 @@ import {
 } from "@kiko/ui/icons"
 import { createMemo, createSignal, lazy, onCleanup, Show, Suspense } from "solid-js"
 import { openSettings } from "../../lib/errors"
-import { useApp } from "../../lib/store"
+import { room } from "../../state/room"
 import type { ChatMessage } from "../../lib/types"
 import { openModelPicker } from "../../settings/model-picker"
 import { reconnect } from "../../settings/provider-problem"
@@ -54,7 +54,7 @@ export function ActivityEvent(props: { message: ChatMessage; name: (slug: string
   const [retrying, setRetrying] = createSignal(false)
   let timer: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(timer))
-  const busy = (slug: string) => retrying() || useApp.typingSlugs().includes(slug)
+  const busy = (slug: string) => retrying() || room.typingSlugs().includes(slug as never)
 
   const failureAction = (
     event: { slug: string; reason: RunErrorKind; provider?: string | undefined },
@@ -69,7 +69,7 @@ export function ActivityEvent(props: { message: ChatMessage; name: (slug: string
         if (action === "retry") {
           setRetrying(true)
           timer = setTimeout(() => setRetrying(false), RETRY_WAIT_MS)
-          useApp.retryRun(props.message.id)
+          room.retryRun(props.message.id)
         } else if (action === "change_model") openModelPicker(event.slug)
         else if (signIn && event.provider) reconnect(event.provider)
         else openSettings()

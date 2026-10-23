@@ -3,10 +3,10 @@ import { InteractiveHoverCard as HoverCard } from "@kiko/ui/v2/interactive-hover
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ChevronDownIcon, HelpIcon, TodoIcon } from "@kiko/ui/icons"
 import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
-import { useApp } from "../../lib/store"
+import { user } from "../../state/user"
 import { TaskList } from "../../chat/info/task-list"
 import { taskProgress, taskText } from "../../chat/info/tasks-model"
-import type { RoomStore } from "../../sync/room-store"
+import type { ActiveRoom } from "../../state/room"
 import { composerCards, type ComposerCard } from "./model"
 import { QuestionPanel } from "./question-panel"
 import type { QuestionInput } from "./question-input"
@@ -23,7 +23,7 @@ function CardIcon(props: { card: ComposerCard }) {
   )
 }
 
-function CardSummary(props: { card: ComposerCard; room: RoomStore }) {
+function CardSummary(props: { card: ComposerCard; room: ActiveRoom }) {
   const name = (slug: string) => agentDisplayName(slug, props.room.members())
   const progress = createMemo(() => taskProgress(props.room.tasks()))
   const kind = () =>
@@ -59,7 +59,7 @@ function CardSummary(props: { card: ComposerCard; room: RoomStore }) {
   )
 }
 
-function CardBody(props: { card: ComposerCard; room: RoomStore }) {
+function CardBody(props: { card: ComposerCard; room: ActiveRoom }) {
   return (
     <Show
       when={props.card.kind === "tasks"}
@@ -73,7 +73,7 @@ function CardBody(props: { card: ComposerCard; room: RoomStore }) {
         <TaskList
           tasks={taskProgress(props.room.tasks()).steps}
           members={props.room.members()}
-          agents={useApp.agents()}
+          agents={user.agents()}
         />
       </div>
     </Show>
@@ -81,7 +81,7 @@ function CardBody(props: { card: ComposerCard; room: RoomStore }) {
 }
 
 export function ComposerCards(props: {
-  room: RoomStore
+  room: ActiveRoom
   question: QuestionInput
   onSelectAnswer: (value: string) => void
 }) {

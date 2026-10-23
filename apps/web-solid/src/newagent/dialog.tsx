@@ -3,7 +3,7 @@ import { history, openChat } from "../app/history"
 import { createMemo, createSignal, For, onMount, Show } from "solid-js"
 import { Dialog } from "../lib/dialog"
 import { cn } from "../lib/cn"
-import { useApp } from "../lib/store"
+import { user } from "../state/user"
 import { Button, fieldClass } from "../settings/kit"
 import { createAgent } from "./create"
 import { faceOptions, MAX_DESCRIPTION, MAX_NAME, problems, ready, suggestHandle } from "./model"
@@ -17,7 +17,7 @@ export default function NewAgentDialog() {
   const [description, setDescription] = createSignal("")
   const [options, setOptions] = createSignal(faceOptions())
   const [chosen, setChosen] = createSignal(0)
-  const taken = () => useApp.agents().map((a) => ({ name: a.name, slug: a.slug }))
+  const taken = () => user.agents().map((a) => ({ name: a.name, slug: a.slug }))
   const form = () => ({ name: name(), handle: handle(), description: description() })
   const issues = createMemo(() => problems(form(), taken()))
   const pins = () => options()[chosen()]!

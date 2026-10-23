@@ -7,7 +7,9 @@ import { ModelPickerButton } from "../settings/model-picker"
 import { answeringMember } from "../settings/agent-model"
 import { connectedProviders, connectedReady } from "../settings/connected"
 import { sendBlock } from "../settings/send-block"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
+import { user } from "../state/user"
+import { draftBook } from "../composer/draft-book"
 import type { MessageId } from "@kiko/protocol"
 import type { ChatMessage, RosterBot } from "../lib/types"
 import { jumpRequest, requestJump } from "../search/state"
@@ -26,7 +28,7 @@ const JUMP_CLASS =
 export function ChatView() {
   useRefusalToasts()
   const navigate = useNavigate()
-  const roomId = () => useApp.activeThreadId()
+  const roomId = () => room.activeId()
   createEffect(
     on(roomId, (id) => {
       if (id) clearUnreadMark(id)
@@ -34,9 +36,8 @@ export function ChatView() {
   )
   createEffect(() => {
     const id = roomId()
-    const user = useApp.user()
-    if (!id || !user?.state.synced || useApp.chat(id)) return
-    const next = user.state.refused[id] ?? useApp.resumeChat()
+    if (!id || !user.synced() || user.chat(id)) return
+    const next = user.refused(id) ?? room.resumeChat()
     if (next && next !== id) void navigate({ to: "/chat/$roomId", params: { roomId: next }, replace: true })
   })
   createEffect(
@@ -65,7 +66,7 @@ export function ChatView() {
     return q && q.target === replyTarget() ? q.text : undefined
   }
   const [threadState, setThreadState] = createSignal<VirtualThreadState | null>(null)
-  const book = () => useApp.drafts()
+  const book = () => draftBook()
   const draftKey = () => (book()?.ready() ? (roomId() ?? "") : "")
   const [draft, setDraft] = createSignal("")
   let replyKey = ""
@@ -89,22 +90,22 @@ export function ChatView() {
       { defer: true },
     ),
   )
-  const members = createMemo(() => new Map(useApp.members().map((member) => [member.id, member])))
-  const answering = createMemo(() => answeringMember(useApp.roomMembers(), draft()))
+  const members = createMemo(() => new Map(room.members().map((member) => [member.id, member])))
+  const answering = createMemo(() => answeringMember(room.roomMembers(), draft()))
   const block = createMemo(() =>
     sendBlock({
-      known: connectedReady() && useApp.modelsSynced(),
+      known: connectedReady() && user.modelsSynced(),
       providers: connectedProviders(),
-      model: answering() && useApp.agentModel(answering()!.slug)?.model,
+      model: answering() && user.agentModel(answering()!.slug)?.model,
       agent: answering()?.name,
     }),
   )
-  const messages = createMemo(() => useApp.activeMessages())
+  const messages = createMemo(() => room.messages())
   const scrollKey = () => roomId() ?? undefined
   const speaker = (id: string): RosterBot | undefined => {
     const member = members().get(id)
     if (member) return member
-    const name = id === "kiko" ? "Kiko" : useApp.agents().find((a) => a.slug === id)?.name
+    const name = id === "kiko" ? "Kiko" : user.agents().find((a) => a.slug === id)?.name
     return name ? { id, name, preview: "", updatedAt: 0, presence: "idle", unread: 0, pinned: false } : undefined
   }
   const outsiders = createMemo(() => messages().some((m) => m.botId !== undefined && !members().has(m.botId)))
@@ -122,7 +123,7 @@ export function ChatView() {
   })
   createEffect(() => {
     const id = replyTarget()
-    if (id !== null && useApp.activeMessages().length > 0 && !useApp.showingHistory() && replyTo() === null) {
+    if (id !== null && room.messages().length > 0 && !room.showingHistory() && replyTo() === null) {
       setReplyTarget(null)
       setQuote(null)
     }
@@ -137,7 +138,7 @@ export function ChatView() {
     if (!request || request.roomId !== roomId()) return
     requestJump(null)
     landing = true
-    void useApp.jumpTo(request.seq).then((found) => {
+    void room.jumpTo(request.seq).then((found) => {
       if (!found) {
         landing = false
         return
@@ -150,19 +151,19 @@ export function ChatView() {
     })
   })
   const toLatest = () => {
-    if (!useApp.showingHistory()) return scrollToLatest?.()
-    useApp.goLive()
+    if (!room.showingHistory()) return scrollToLatest?.()
+    room.goLive()
     requestAnimationFrame(() => scrollToLatest?.())
   }
 
   const scrolled = () => {
     const state = threadState()
     if (!state) return false
-    return state.scrollOffset + state.viewportSize < state.scrollSize - 1 || useApp.showingHistory()
+    return state.scrollOffset + state.viewportSize < state.scrollSize - 1 || room.showingHistory()
   }
 
   let transcript: HTMLDivElement | undefined
-  const mentions = () => useApp.unseenMentions()
+  const mentions = () => room.unseenMentions()
   createEffect(() => {
     threadState()
     messages()
@@ -175,21 +176,25 @@ export function ChatView() {
         const row = transcript!.querySelector(`[data-message-id="${CSS.escape(id)}"]`)?.getBoundingClientRect()
         return !!row && row.bottom > box.top && row.top < box.bottom
       })
-      useApp.seeMentions(onScreen)
+      room.seeMentions(onScreen)
     })
   })
   const jumpToMention = () => {
     const id = mentions()[0]
     if (!id) return
     jumpToMessage?.(id)
-    useApp.seeMentions([id])
+    room.seeMentions([id])
   }
 
-  const empty = () => roomEmpty(useApp.room()?.state, messages(), useApp.chat(roomId())?.lastSeq)
+  const empty = () => {
+    const snapshot = room.snapshot()
+    const window = snapshot && { live: room.state()?.status === "live", seq: snapshot.seq }
+    return roomEmpty(window, messages(), user.chat(roomId())?.lastSeq)
+  }
   const readingLatest = () => !scrolled()
   createEffect(() => {
     const id = roomId()
-    if (id && readingLatest() && useApp.hasUnread()) useApp.markRead(id)
+    if (id && readingLatest() && room.hasUnread()) room.markRead(id)
   })
   let dock: HTMLDivElement | undefined
   let launch: Launch | null = null
@@ -213,7 +218,7 @@ export function ChatView() {
           messages={messages()}
           botById={(id) => (id === undefined ? undefined : speaker(id))}
           replyParent={(id) => (id === undefined ? undefined : byId().get(id))}
-          firstUnreadMessageId={useApp.firstUnreadMessageId()}
+          firstUnreadMessageId={room.firstUnreadMessageId()}
           onJumpToMessage={() => {}}
           onReplyTarget={aim}
           onJumpToSeq={(id, seq) => {
@@ -222,19 +227,18 @@ export function ChatView() {
           }}
           scrollRef={() => {}}
           onStateChange={setThreadState}
-          onNearTop={useApp.loadOlder}
-          onAtLatest={() => landing || useApp.followLatest()}
-          onLeftLatest={() => useApp.holdWindow()}
-          waitingNames={useApp.typingNames()}
-          waitingSlugs={useApp.typingSlugs()}
-          waitingDoings={useApp.typingDoings()}
+          onNearTop={room.loadOlder}
+          onAtLatest={() => landing || room.followLatest()}
+          waitingNames={room.typingNames()}
+          waitingSlugs={room.typingSlugs()}
+          waitingDoings={room.typingDoings()}
           groupChat={members().size > 1 || outsiders()}
           memberSlugs={[...members().keys()]}
-          onReact={useApp.toggleReaction}
+          onReact={room.toggleReaction}
           onEdit={startEdit}
           onDelete={(id) => {
             if (editTarget() === id) setEditTarget(null)
-            useApp.deleteMessage(id)
+            room.deleteMessage(id)
           }}
           replyTarget={replyTarget()}
           scrollKey={scrollKey()}
@@ -310,25 +314,24 @@ export function ChatView() {
           <UpdateNotice />
         </Suspense>
         <Composer
-          room={useApp.room() ?? undefined}
+          room={room.active()}
           tray={<ModelPickerButton draft={draft()} />}
           sendBlock={block()}
           sendBlockAgent={answering()?.slug}
           threadId={roomId() ?? ""}
-          title={useApp.chatById(roomId() ?? "")?.name}
+          title={room.chatById(roomId() ?? "")?.name}
           draftKey={draftKey()}
           draftFor={(key) => book()?.get(key)?.text ?? ""}
           onDraftChange={(key, text) => {
             book()?.save(key, { text })
             setDraft(text)
-            if (text !== "") useApp.typing()
+            if (text !== "") room.typing()
           }}
-          bots={useApp.members()}
+          bots={room.members()}
           onSend={(message) => {
             const target = replyTarget()
-            const fromHistory = useApp.showingHistory()
-            const sent =
-              target === null ? useApp.appendMessage(message) : useApp.appendReply(message, target, replyQuote())
+            const fromHistory = room.showingHistory()
+            const sent = target === null ? room.send(message) : room.send(message, target, replyQuote())
             if (sent === undefined) return false
             setDraft("")
             if (empty()) launch = captureLaunch(dock)
@@ -341,11 +344,11 @@ export function ChatView() {
           replyQuote={replyQuote()}
           onClearReply={() => (setReplyTarget(null), setQuote(null))}
           editing={editTarget() === null ? null : (byId().get(editTarget()!) ?? null)}
-          onEdit={(id, text) => useApp.editMessage(id, text)}
+          onEdit={(id, text) => room.editMessage(id, text)}
           onCancelEdit={() => setEditTarget(null)}
           onEditLast={() => {
-            const last = useApp
-              .activeMessages()
+            const last = room
+              .messages()
               .toReversed()
               .find((m) => m.sender === "user" && m.seq !== undefined && m.body.trim() !== "")
             if (last) startEdit(last.id)

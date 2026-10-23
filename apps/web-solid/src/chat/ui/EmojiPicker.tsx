@@ -44,7 +44,7 @@ interface Section {
 const key = (at: GridAt) => `${at.section}:${at.index}`
 
 export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
-  const [data] = createResource(loadEmoji)
+  const [data] = createResource(() => loadEmoji().catch(() => []))
   const [query, setQuery] = createSignal("")
   const [active, setActive] = createSignal<GridAt | null>(null)
   const isActive = createSelector(() => {

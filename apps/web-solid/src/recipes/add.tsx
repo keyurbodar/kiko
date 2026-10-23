@@ -4,7 +4,7 @@ import { ChevronRightIcon, SearchIcon } from "@kiko/ui/icons"
 import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
 import { cn } from "../lib/cn"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
 import { RecipeIcon } from "./icon"
 import { addOwnChat, addToTarget, isAdded, isOwning, isWaiting, type RecipeTarget, targetsForChat } from "./state"
 
@@ -28,7 +28,7 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
   const options = createMemo<Option[]>(() => {
     const q = query().trim().toLowerCase()
     const here = props.roomId ?? undefined
-    const chats = useApp
+    const chats = room
       .bots()
       .filter((b) => !q || b.name.toLowerCase().includes(q))
       .sort((a, b) => (a.id === here ? -1 : b.id === here ? 1 : 0))
@@ -126,7 +126,7 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
                   <Match when={o.kind === "chat" && o}>
                     {(c) => (
                       <>
-                        <ChatAvatar faces={useApp.chatFaces(c().roomId)} size={30} />
+                        <ChatAvatar faces={room.chatFaces(c().roomId)} size={30} />
                         <span class="min-w-0 flex-1">
                           <span class="block truncate text-sm font-medium text-foreground">{c().name}</span>
                           <Show when={c().targets.length > 1}>
