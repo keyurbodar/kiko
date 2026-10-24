@@ -1,6 +1,6 @@
 import { Segmented } from "@kiko/ui/v2/segmented"
 import type { ComputerSummary } from "@kiko/protocol"
-import { CopyIcon, EditIcon, MonitorIcon } from "@kiko/ui/icons"
+import { CheckIcon, CopyIcon, EditIcon, MonitorIcon, PlusIcon } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
@@ -12,7 +12,7 @@ import {
   startComputers,
   type PairCode,
 } from "../chat/computers"
-import { Button, Empty, fieldClass, Group, IconButton, Item, Notice } from "./kit"
+import { Button, fieldClass, Group, IconButton, Item, Notice } from "./kit"
 import { clearPairing, readPairing, savePairing } from "./pairing"
 
 const OS: Record<ComputerSummary["os"], string> = { macos: "macOS", linux: "Linux", windows: "Windows" }
@@ -20,6 +20,10 @@ const OS: Record<ComputerSummary["os"], string> = { macos: "macOS", linux: "Linu
 type Shell = "unix" | "windows"
 
 const REMOVE_CONFIRM_MS = 4_000
+
+const COPIED_MS = 1_200
+
+const SHINE = { "--run-text": "var(--fg3)", "--visible-animation-state": "running" }
 
 function command(shell: Shell, url: string): string {
   const origin = new URL(url).origin
@@ -37,7 +41,7 @@ function meta(computer: ComputerSummary): string {
   const parts = [OS[computer.os], computer.online ? "Online" : "Offline"]
   if (computer.holder === "human") parts.push("You have control")
   else if (computer.agent) parts.push("Waiting for you")
-  return parts.join(" · ")
+  return parts.join(", ")
 }
 
 function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void }): JSX.Element {
@@ -51,12 +55,12 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
   const copy = async () => {
     await navigator.clipboard.writeText(text())
     setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    setTimeout(() => setCopied(false), COPIED_MS)
   }
   return (
     <div class="flex flex-col gap-3 px-4 py-3.5" data-component="computer-pairing">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <span class="text-ui font-medium text-fg">Run this on the computer you want to add</span>
+        <span class="type-ui font-medium text-fg">Run this on the computer you want to add</span>
         <Segmented<Shell>
           label="Operating system"
           value={shell()}
@@ -80,24 +84,33 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
       >
         <div class="relative">
           <pre
-            class="overflow-x-auto rounded-row bg-[color-mix(in_oklab,var(--fg)_6%,transparent)] py-3 pr-12 pl-3 font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-all text-fg"
+            class="overflow-x-auto rounded-tile bg-[color-mix(in_oklab,var(--fg)_6%,transparent)] py-3 pr-24 pl-3 font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-all text-fg"
             data-field="computer-command"
           >
             {text()}
           </pre>
-          <IconButton
-            label={copied() ? "Copied" : "Copy the command"}
-            class="absolute top-2 right-2"
+          <button
+            type="button"
+            aria-label={copied() ? "Copied" : "Copy the command"}
+            class="absolute top-2 right-2 flex h-7 cursor-pointer items-center gap-1.5 rounded-control px-2 type-label text-fg2 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.96]"
             data-action="computer-copy"
+            data-copied={copied() ? "" : undefined}
             onClick={() => void copy()}
           >
-            <RemixIcon icon={CopyIcon} size={14} />
-          </IconButton>
+            <RemixIcon icon={copied() ? CheckIcon : CopyIcon} size={14} class={cn(copied() && "text-ok")} />
+            <Show when={copied()}>
+              <span>Copied</span>
+            </Show>
+          </button>
         </div>
-        <div class="flex items-center justify-between gap-3 text-label text-fg2">
-          <span>
-            This page updates when the computer connects. The code expires in{" "}
-            <span class="tabular-nums">{clock(left())}</span> and works once.
+        <div class="flex items-center justify-between gap-3">
+          <span class="flex min-w-0 flex-col gap-0.5" role="status" data-field="computer-waiting">
+            <span class="motion-shine w-fit type-ui text-fg3" style={SHINE}>
+              Waiting for your computer
+            </span>
+            <span class="type-hint text-fg4">
+              The code works once and expires in <span class="tabular-nums">{clock(left())}</span>
+            </span>
           </span>
           <Button variant="ghost" onClick={props.onClose}>
             Cancel
@@ -223,29 +236,39 @@ export default function Computers(): JSX.Element {
     }),
   )
 
+  const adding = () => (
+    <Button busy={busy()} disabled={pair() !== null} data-action="computer-add" onClick={() => void add()}>
+      <RemixIcon icon={PlusIcon} size={14} />
+      Add a computer
+    </Button>
+  )
+
   return (
     <div class="flex flex-col gap-4" data-component="computers">
-      <Group
-        title="Your computers"
-        description="Agents can run commands, read files and use the screen on these machines. You can watch and take over at any time."
-        action={
-          <Button
-            variant="primary"
-            busy={busy()}
-            disabled={pair() !== null}
-            data-action="computer-add"
-            onClick={() => void add()}
-          >
-            Add a computer
-          </Button>
-        }
-      >
+      <Group title="Your computers" action={computers().length > 0 ? adding() : undefined}>
         <Show when={pair()}>{(code) => <Pairing pair={code()} onNew={() => void add()} onClose={close} />}</Show>
         <For
           each={computers()}
           fallback={
             <Show when={!pair()}>
-              <Empty>No computers yet.</Empty>
+              <div class="flex flex-col items-center gap-1 px-6 py-10 text-center" data-component="computers-empty">
+                <span class="mb-3 grid size-12 place-items-center rounded-tile bg-active text-fg2">
+                  <RemixIcon icon={MonitorIcon} size={24} />
+                </span>
+                <span class="type-row text-fg">No computers yet</span>
+                <span class="max-w-sm type-label text-fg3">
+                  Add your Mac, PC or a server. Your agents can run commands there, and you can watch and take over.
+                </span>
+                <Button
+                  variant="primary"
+                  class="mt-4"
+                  busy={busy()}
+                  data-action="computer-add"
+                  onClick={() => void add()}
+                >
+                  Add a computer
+                </Button>
+              </div>
             </Show>
           }
         >
