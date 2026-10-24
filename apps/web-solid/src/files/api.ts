@@ -16,6 +16,19 @@ export type SaveResult =
   | { kind: "conflict"; theirs: FileRef | null }
   | { kind: "error"; message: string }
 
+async function putHome(path: string, body: string, type: string, expect: string): Promise<SaveResult> {
+  const res = await apiFetch(`/api/files/home?path=${encodeURIComponent(path)}`, {
+    method: "PUT",
+    headers: { "content-type": type, "x-kiko-if-sha256": expect },
+    body,
+  }).catch(() => null)
+  if (!res) return { kind: "error", message: "Could not reach the server" }
+  const reply = (await res.json().catch(() => ({}))) as { file?: FileRef | null; error?: string }
+  if (res.ok && reply.file) return { kind: "saved", file: reply.file }
+  if (reply.error === "conflict") return { kind: "conflict", theirs: reply.file ?? null }
+  return { kind: "error", message: reply.error ?? `The server said ${res.status}` }
+}
+
 export async function putFile(
   roomId: string,
   path: string,
@@ -23,6 +36,7 @@ export async function putFile(
   type: string,
   expect: string,
 ): Promise<SaveResult> {
+  if (roomId === "home") return putHome(path, body, type, expect)
   const result = await run(owner.commands.writeText, {
     roomId: roomId as RoomId,
     path,

@@ -67,6 +67,7 @@ export const HANDLERS: Handlers = {
   "models.catalog": (_, { host }) => host.user().catalog(),
   "version.get": (_, { host }) => host.user().version(),
   "files.token": (_, { host }) => host.user().fileToken(),
+  "files.all": (_, { host }) => host.user().ownerFiles(),
   "files.writeText": (input, { host }) => host.user().writeText(input),
   "home.files": ({ op }, { host }) => host.user().homeFiles(op),
 

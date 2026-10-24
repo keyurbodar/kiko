@@ -16,6 +16,7 @@ import {
   Member,
   MemberOp,
   Message,
+  OwnerFile,
   PendingAttachment,
   RoomEvent,
   RoomSignal,
@@ -238,6 +239,7 @@ export const OwnerRpcs = RpcGroup.make(
     success: FileRef,
     error: Schema.Union([ProtocolError, StorageError, NotFoundError, FileConflictError]),
   }),
+  Rpc.make("files.all", { success: Schema.Array(OwnerFile), error: Base }),
   Rpc.make("home.files", { payload: { ...command, op: FileOp }, error: Refusable }),
 
   Rpc.make("credentials.list", { success: Schema.Array(ProviderInfo), error: Base }),

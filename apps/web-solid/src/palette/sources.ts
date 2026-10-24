@@ -2,8 +2,7 @@ import { KIKO } from "@kiko/protocol"
 import { history, openChat } from "../app/history"
 import { openFile } from "../chat/side/surfaces"
 import { type Choice, type Command, type RowAction } from "../commands/registry"
-import { withMade } from "../files/api"
-import { HOME, where } from "../files/model"
+import { library } from "../files/library"
 import { recentFiles } from "../files/recent"
 import { agentList } from "../lib/chats"
 import { agentDisplayName } from "../lib/names"
@@ -23,6 +22,7 @@ export interface FileEntry {
   fileId: string
   space: string
   home: boolean
+  chat?: { roomId: string; path: string }
 }
 
 const chatActions = (id: string): readonly RowAction[] => {
@@ -155,35 +155,35 @@ export const settingsChoices = (): Choice[] =>
     run: () => openSettings(s.id),
   }))
 
-export function fileEntries(): FileEntry[] {
-  const chatId = room.activeId() ?? user.kikoChatId()
-  if (!chatId) return []
-  const chat = withMade(chatId, room.files()).map((f): FileEntry => ({
-    path: f.name,
-    name: f.name,
-    size: f.size,
-    fileId: f.id,
-    space: chatId,
-    home: false,
-  }))
-  const home = withMade(HOME, user.homeFiles()).map((f): FileEntry => ({
-    path: `${HOME}/${f.name}`,
-    name: f.name,
-    size: f.size,
-    fileId: f.id,
-    space: where(chatId, `${HOME}/${f.name}`).space,
-    home: true,
-  }))
-  return [...chat, ...home]
-}
+const IN_CHATS = "In your chats"
 
 const filesChatId = (): string | null => room.activeId() ?? user.kikoChatId() ?? null
 
-export function openEntry(entry: FileEntry): void {
+const folderName = (name: string) => name.replaceAll("/", "-").trim() || "Untitled chat"
+
+export function fileEntries(): FileEntry[] {
+  library.want()
   const chatId = filesChatId()
+  if (!chatId) return []
+  return library.files().map((f): FileEntry => {
+    const base = { name: f.file.name, size: f.file.size, fileId: f.file.id, space: f.space }
+    if (f.roomId === null) return { ...base, path: f.path, home: true }
+    if (f.roomId === chatId) return { ...base, path: f.path, home: false }
+    const chat = room.chatById(f.roomId)?.name ?? user.chat(f.roomId)?.title ?? ""
+    return {
+      ...base,
+      path: `${IN_CHATS}/${folderName(chat)}/${f.path}`,
+      home: false,
+      chat: { roomId: f.roomId, path: f.path },
+    }
+  })
+}
+
+export function openEntry(entry: FileEntry): void {
+  const chatId = entry.chat?.roomId ?? filesChatId()
   if (!chatId) return
   if (room.activeId() !== chatId) openChat(chatId)
-  openFile(chatId, entry.path)
+  openFile(chatId, entry.chat?.path ?? entry.path)
 }
 
 export const recentPaths = (): readonly string[] => {

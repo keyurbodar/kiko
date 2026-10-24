@@ -1,10 +1,7 @@
-import type { FileRef } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { openChat } from "../app/history"
-import { openFile } from "../chat/side/surfaces"
+import { history, openChat } from "../app/history"
 import { fillComposer } from "../composer/fill"
-import { apiFetch } from "../lib/api"
-import { rememberMade } from "../files/api"
+import { putFile, rememberMade } from "../files/api"
 import { HOME } from "../files/model"
 import { user } from "../state/user"
 import { freeSlug, recipeTemplate } from "./model"
@@ -17,30 +14,17 @@ export function createWithKiko(): void {
   openChat(roomId)
 }
 
-async function writeHome(path: string, text: string): Promise<FileRef | string> {
-  const res = await apiFetch(`/api/files/${HOME}?path=${encodeURIComponent(path)}`, {
-    method: "PUT",
-    headers: { "content-type": "text/markdown", "x-kiko-if-sha256": "none" },
-    body: text,
-  }).catch(() => null)
-  if (!res) return "Could not reach the server"
-  const body = (await res.json().catch(() => ({}))) as { file?: FileRef; error?: string }
-  return res.ok && body.file ? body.file : (body.error ?? `The server said ${res.status}`)
-}
-
 export async function startBlankRecipe(): Promise<void> {
-  const roomId = user.kikoChatId()
   const taken = new Set([...cards().map((c) => c.slug), ...user.homeFiles().map((f) => f.name.split("/")[1] ?? "")])
   const slug = freeSlug(taken)
   const path = `recipes/${slug}/RECIPE.md`
-  const saved = await writeHome(path, recipeTemplate(slug))
-  if (typeof saved === "string" || !roomId)
+  const saved = await putFile(HOME, path, recipeTemplate(slug), "text/markdown", "none")
+  if (saved.kind !== "saved")
     return void showToastV2({
       title: "Could not create the recipe",
-      description: typeof saved === "string" ? saved : undefined,
+      description: saved.kind === "error" ? saved.message : undefined,
       variant: "error",
     })
-  rememberMade(HOME, saved)
-  openFile(roomId, `${HOME}/${path}`)
-  openChat(roomId)
+  rememberMade(HOME, saved.file)
+  history.push(`/files?open=${encodeURIComponent(`${HOME}/${path}`)}`)
 }

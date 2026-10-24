@@ -289,6 +289,11 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
       execute: () => request("kernel.status", undefined),
       cached: successSchema("kernel.status"),
     }),
+    ownerFiles: query({
+      label: "files.all",
+      execute: () => request("files.all", undefined),
+      cached: successSchema("files.all"),
+    }),
     recipes: query({
       label: "recipes.list",
       execute: () => request("recipes.list", undefined),

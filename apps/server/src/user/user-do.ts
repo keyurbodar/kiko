@@ -83,6 +83,7 @@ import {
   type FsEntry,
   type FsFail,
   HOME_TABLES,
+  listOwnerFiles,
   type NewFile,
   type PutResult,
 } from "../files/file-index"
@@ -1531,6 +1532,10 @@ export class User {
 
   readonly version = Effect.fn("User.version")({ self: this }, function () {
     return Effect.succeed({ ...BACKEND, storage: this.env.FILES ? ("r2" as const) : ("built-in" as const) })
+  })
+
+  readonly ownerFiles = Effect.fn("User.ownerFiles")({ self: this }, function () {
+    return Effect.sync(() => listOwnerFiles(this.ctx.storage))
   })
 
   readonly fileToken = Effect.fn("User.fileToken")({ self: this }, function* () {
