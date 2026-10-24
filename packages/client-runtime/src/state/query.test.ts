@@ -2,6 +2,7 @@ import type { UserSignal } from "@kiko/protocol"
 import { describe, expect, it } from "@effect/vitest"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
@@ -134,6 +135,83 @@ describe("query atoms", () => {
       yield* Deferred.await(reread)
       expect(yield* AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true })).toBe(2)
       expect(reads).toBe(2)
+      unmount()
+    }),
+  )
+})
+
+describe("query edits", () => {
+  const settingsQuery = Effect.fnUntraced(function* () {
+    const { sessions, runtime } = yield* setup()
+    yield* SubscriptionRef.set(sessions, Option.some(session))
+    const { query } = createQueryAtoms(runtime)
+    const server = { value: "digest" }
+    const settings = query({ label: "settings", execute: () => Effect.sync(() => server.value) })
+    const registry = AtomRegistry.make()
+    const atom = settings(undefined)
+    const seen: string[] = []
+    const unmount = registry.subscribe(
+      atom,
+      (result) => {
+        const value = Option.getOrUndefined(AsyncResult.value(result))
+        if (value !== undefined && seen.at(-1) !== value) seen.push(value)
+      },
+      { immediate: true },
+    )
+    expect(yield* AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true })).toBe("digest")
+    const saving = (value: string, ack: Deferred.Deferred<void>) =>
+      settings
+        .edit(
+          undefined,
+          () => value,
+          Deferred.await(ack).pipe(Effect.tap(() => Effect.sync(() => (server.value = value)))),
+        )
+        .pipe(Effect.provideService(AtomRegistry.AtomRegistry, registry))
+    return { server, registry, atom, seen, unmount, saving, settings }
+  })
+
+  it.effect("show each pick at once and never fall back to an older value while saves and rereads overlap", () =>
+    Effect.gen(function* () {
+      const { server, registry, atom, seen, unmount, saving } = yield* settingsQuery()
+      const firstAck = yield* Deferred.make<void>()
+      const secondAck = yield* Deferred.make<void>()
+      const first = yield* Effect.forkChild(saving("chat", firstAck))
+      yield* yieldTimes(5)
+      const second = yield* Effect.forkChild(saving("off", secondAck))
+      yield* yieldTimes(5)
+      expect(seen).toEqual(["digest", "chat", "off"])
+
+      yield* Deferred.succeed(firstAck, undefined)
+      yield* Fiber.join(first)
+      yield* yieldTimes(20)
+      expect(seen).toEqual(["digest", "chat", "off"])
+
+      yield* Deferred.succeed(secondAck, undefined)
+      yield* Fiber.join(second)
+      yield* yieldTimes(20)
+      expect(seen).toEqual(["digest", "chat", "off"])
+
+      server.value = "active"
+      registry.refresh(atom)
+      expect(yield* AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true })).toBe("active")
+      unmount()
+    }),
+  )
+
+  it.effect("put a refused pick back at once", () =>
+    Effect.gen(function* () {
+      const { registry, atom, seen, unmount, settings } = yield* settingsQuery()
+      const ack = yield* Deferred.make<void>()
+      const refused = yield* Effect.forkChild(
+        settings
+          .edit(undefined, () => "off", Deferred.await(ack).pipe(Effect.andThen(Effect.fail("refused"))))
+          .pipe(Effect.provideService(AtomRegistry.AtomRegistry, registry), Effect.flip),
+      )
+      yield* yieldTimes(5)
+      expect(Option.getOrUndefined(AsyncResult.value(registry.get(atom)))).toBe("off")
+      yield* Deferred.succeed(ack, undefined)
+      expect(yield* Fiber.join(refused)).toBe("refused")
+      expect(seen).toEqual(["digest", "off", "digest"])
       unmount()
     }),
   )
