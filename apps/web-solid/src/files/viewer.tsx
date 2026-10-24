@@ -1,4 +1,4 @@
-import type { FileRef } from "@kiko/protocol"
+import { fileName, type FileRef } from "@kiko/protocol"
 import { createEffect, createMemo, createSignal, lazy, Match, on, Show, Suspense, Switch, type JSX } from "solid-js"
 import { fileSrc } from "../state/room"
 import { NoPreview, SurfaceFailure, SurfaceLoading } from "./chrome"
@@ -11,8 +11,6 @@ const MarkdownView = lazy(() => import("./viewers/markdown"))
 const TableView = lazy(() => import("./viewers/table"))
 const HtmlView = lazy(() => import("./viewers/html"))
 const PdfView = lazy(() => import("./viewers/pdf"))
-
-const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 
 export function FileViewer(props: {
   roomId: string
@@ -36,7 +34,7 @@ export function FileViewer(props: {
       <Show when={props.file} fallback={<SurfaceFailure message="This file is no longer here." />}>
         {(ref) => (
           <Suspense fallback={<SurfaceLoading />}>
-            <Switch fallback={<NoPreview name={baseName(ref().name)} href={src(ref())} />}>
+            <Switch fallback={<NoPreview name={fileName(ref().name)} href={src(ref())} />}>
               <Match when={TEXT_KINDS.has(props.kind) && !props.rendered}>
                 <Show when={opened()} keyed>
                   {(initial) => (
@@ -70,7 +68,7 @@ export function FileViewer(props: {
                     >
                       <img
                         src={url}
-                        alt={baseName(ref().name)}
+                        alt={fileName(ref().name)}
                         class="max-h-full max-w-full object-contain"
                         onError={fail}
                       />
@@ -79,7 +77,7 @@ export function FileViewer(props: {
                 </Media>
               </Match>
               <Match when={props.kind === "pdf"}>
-                <PdfView src={src(ref())} title={baseName(ref().name)} />
+                <PdfView src={src(ref())} title={fileName(ref().name)} />
               </Match>
               <Match when={props.kind === "video"}>
                 <Media src={src(ref())} error="Unable to load video.">

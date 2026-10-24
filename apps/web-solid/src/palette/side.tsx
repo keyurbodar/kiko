@@ -1,9 +1,9 @@
+import { fileName } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { For, Show } from "solid-js"
 import { formatBytes } from "../chat/info/format"
 import { EntryIcon } from "../lib/EntryIcon"
 import { fileSrc } from "../state/room"
-import { basename } from "../files/model"
 import type { RowAction } from "../commands/registry"
 import { iconFor } from "./model"
 import type { FileEntry } from "./sources"
@@ -54,7 +54,7 @@ export function Peek(props: { entry: FileEntry }) {
           <img src={fileSrc(props.entry.space, props.entry.fileId)} alt="" />
         </Show>
       </div>
-      <div class="palette-peek-name">{basename(props.entry.path)}</div>
+      <div class="palette-peek-name">{fileName(props.entry.path)}</div>
       <div class="palette-peek-meta">{formatBytes(props.entry.size)}</div>
     </div>
   )
