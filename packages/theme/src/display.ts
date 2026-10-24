@@ -1,3 +1,4 @@
+import { typeVars } from "./system"
 export type ChatWidth = "comfortable" | "wide" | "full"
 
 export type Display = Readonly<{
@@ -24,7 +25,7 @@ export const DEFAULT_DISPLAY: Display = {
 }
 
 export const CHAT_WIDTHS: Record<ChatWidth, { label: string; width: string }> = {
-  comfortable: { label: "Comfortable", width: "736px" },
+  comfortable: { label: "Comfortable", width: "820px" },
   wide: { label: "Wide", width: "1152px" },
   full: { label: "Full", width: "100%" },
 }
@@ -91,6 +92,7 @@ export function displayVars(display: Display): Record<string, string> {
   const b = display.baseSize
   return {
     ...fontVars(display),
+    ...typeVars(b),
     "--font-xs": `${b - 2}px`,
     "--font-sm": `${b - 1}px`,
     "--font-md": `${b}px`,
