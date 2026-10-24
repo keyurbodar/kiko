@@ -8,6 +8,7 @@ import { cards, followRecipes, installs } from "../recipes/state"
 import { agentDisplayName } from "../lib/names"
 import { room } from "../state/room"
 import { user } from "../state/user"
+import { shownName } from "./rich/file-ref"
 import { skillNames, titleOf, type Token, type TokenPool } from "./tokens"
 
 export type TokenData = Omit<TokenPool, "agents" | "commands"> & { app: (slug: string) => RecipeApp | undefined }
@@ -67,7 +68,7 @@ export function createTokenData(input: { roomId: () => string; chatTitle: () => 
       kind: "file",
       id: `file:${hit.path}`,
       path: hit.path,
-      title: hit.name,
+      title: shownName(hit.path),
       hint: hit.home ? "Files" : (input.chatTitle() ?? "This chat"),
     }))
   }

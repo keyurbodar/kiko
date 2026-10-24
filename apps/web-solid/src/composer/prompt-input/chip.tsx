@@ -1,6 +1,6 @@
 import { createResource, createSignal, For, onCleanup, Show } from "solid-js"
 import { Portal, render } from "solid-js/web"
-import { fileName } from "@kiko/protocol"
+import { shownName } from "../rich/file-ref"
 import { type Glyph, RemixIcon } from "@kiko/ui/remix-icon"
 import { BoltIcon, ClockIcon, CommandIcon, ComposeIcon, FileIcon, SearchIcon, SkillsIcon } from "@kiko/ui/icons"
 import { isImage, saveFile } from "../../lib/attachments"
@@ -119,7 +119,7 @@ function FilePreview(props: { path: string; anchor: HTMLElement; source: ChipSou
       >
         <div class="token-preview-head">
           <TypeIcon type={fileType({ name: props.path, type: record().file?.type ?? "" })} size={18} />
-          <span class="token-preview-name">{fileName(props.path)}</span>
+          <span class="token-preview-name">{shownName(props.path)}</span>
           <Show when={record().file}>
             {(file) => <span class="token-preview-meta">{formatBytes(file().size)}</span>}
           </Show>
@@ -158,7 +158,7 @@ function FileRef(props: { path: string; folder: boolean; source: ChipSource }) {
       onPointerLeave={leave}
     >
       <TokenGlyph token={{ kind: "file", id: props.path, path: props.path, title: "", hint: "" }} size={17} />
-      <span class="token-chip-label">{middleTruncate(fileName(props.path), 28)}</span>
+      <span class="token-chip-label">{middleTruncate(shownName(props.path), 28)}</span>
       <Show when={open()}>
         <FilePreview path={props.path} anchor={anchor} source={props.source} />
       </Show>

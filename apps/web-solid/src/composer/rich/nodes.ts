@@ -1,4 +1,4 @@
-import { fileName } from "@kiko/protocol"
+import { shownName } from "./file-ref"
 import { Mark, mergeAttributes, Node } from "@tiptap/core"
 import "../../lib/chip.css"
 
@@ -131,8 +131,12 @@ export function fileRefExtension(view: FileRefView) {
     draggable: false,
     addAttributes: () => ({ path: { default: "" }, folder: { default: false } }),
     parseHTML: () => [{ tag: "span[data-file-ref]" }],
-    renderHTML: ({ node }) => ["span", { "data-file-ref": String(node.attrs.path) }, fileName(String(node.attrs.path))],
-    renderText: ({ node }) => fileName(String(node.attrs.path)),
+    renderHTML: ({ node }) => [
+      "span",
+      { "data-file-ref": String(node.attrs.path) },
+      shownName(String(node.attrs.path)),
+    ],
+    renderText: ({ node }) => shownName(String(node.attrs.path)),
     addNodeView:
       () =>
       ({ node }) => {

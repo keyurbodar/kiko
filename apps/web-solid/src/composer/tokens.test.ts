@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { findTrigger } from "./prompt-input/machine"
+import { fileRefToken, shownName } from "./rich/file-ref"
 import { markdownToDoc, docToMarkdown } from "./rich/markdown"
 import { skillNames, tokenGroups, type Token, type TokenPool } from "./tokens"
 
@@ -58,5 +59,13 @@ describe("slash tokens in the draft", () => {
     const inline = doc.content?.[0]?.content ?? []
     expect(inline.map((node) => node.type)).toEqual(["text", "slash", "text"])
     expect(docToMarkdown(doc)).toBe("then run /summarize and /unknown")
+  })
+})
+
+describe("file names", () => {
+  it("drops the upload stamp from attachment names and keeps the real path in the draft", () => {
+    expect(shownName("attachments/mvmm766u-budget.csv")).toBe("budget.csv")
+    expect(shownName("notes/mvmm766u-budget.csv")).toBe("mvmm766u-budget.csv")
+    expect(fileRefToken("attachments/mvmm766u-budget.csv")).toBe("[budget.csv](/attachments/mvmm766u-budget.csv)")
   })
 })
