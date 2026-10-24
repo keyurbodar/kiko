@@ -256,6 +256,30 @@
   gap: 0.25rem;
   margin-top: 0.125rem;
 }
+.rich-table[data-rows-folded] tbody tr:nth-child(n + 5) {
+  display: none;
+}
+.rich-table-more {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  border-radius: 9px;
+  color: var(--fg2);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko);
+}
+.rich-table-more:hover {
+  background: var(--active);
+  color: var(--fg);
+}
+.rich-table[data-rows-folded] .rich-table-scroll tbody tr:nth-child(4) td {
+  border-bottom: 0;
+}
 .rich-table-action {
   display: inline-flex;
   width: 1.5rem;
@@ -279,10 +303,13 @@
 }
 
 .rich-code {
-  line-height: 21px;
-  border-radius: 12px;
-  background: var(--side);
+  position: relative;
   overflow: hidden;
+  border-radius: 14px;
+  background: var(--side);
+  box-shadow: inset 0 0 0 1px transparent;
+  line-height: 21px;
+  transition: box-shadow 600ms var(--ease-kiko);
 
   content-visibility: auto;
   contain-intrinsic-size: auto 8em;
@@ -299,33 +326,60 @@
   --sh-space: inherit;
   --sh-break: inherit;
 }
+.rich-code[data-copied] {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fg) 55%, transparent);
+  transition-duration: 80ms;
+}
 .rich-code-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  padding: 6px 6px 0 14px;
+  gap: 8px;
+  padding: 6px 6px 0;
   user-select: none;
 }
-.rich-code-lang {
+.rich-code-tabs {
+  display: flex;
   min-width: 0;
-  overflow: hidden;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.rich-code-tab {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 9px;
   color: var(--fg3);
   font-size: 12.5px;
-  line-height: 1;
-  text-overflow: ellipsis;
+  line-height: 28px;
   white-space: nowrap;
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko);
+}
+button.rich-code-tab {
+  cursor: pointer;
+}
+button.rich-code-tab:hover {
+  color: var(--fg);
+}
+.rich-code-tab[data-active] {
+  background: var(--active);
+  color: var(--fg);
 }
 .rich-code-actions {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: 0.125rem;
+  gap: 2px;
   opacity: 0;
   transition: opacity var(--dur-hover) var(--ease-kiko);
 }
 .rich-code:hover .rich-code-actions,
 .rich-code:focus-within .rich-code-actions,
-.rich-code-actions:has([aria-label="Copied"]) {
+.rich-code[data-copied] .rich-code-actions {
   opacity: 1;
 }
 @media (pointer: coarse) {
@@ -335,50 +389,120 @@
 }
 .rich-code-action {
   display: inline-flex;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 28px;
+  height: 28px;
   align-items: center;
   justify-content: center;
   padding: 0;
-  background: none;
   border: 0;
-  border-radius: 0.5rem;
-  color: var(--rich-muted);
+  border-radius: 9px;
+  background: none;
+  color: var(--fg3);
   cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko);
 }
 .rich-code-action:hover {
+  background: var(--hover);
   color: var(--fg);
-  background: var(--rich-accent);
+}
+.rich-code-action:active {
+  transform: scale(0.94);
 }
 .rich-code-action[data-active] {
+  background: var(--active);
   color: var(--fg);
-  background: var(--rich-surface);
 }
 .rich-code-pre {
   margin: 0;
-  padding: 8px 14px 12px;
+  padding: 8px 14px 8px 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
   font-family: var(--font-family-mono);
   font-size: 13px;
   line-height: 21px;
-  white-space: pre;
   tab-size: 2;
-}
-.rich-code-pre[data-wrap] {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.rich-code-pre {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--rich-border) 78%, transparent) transparent;
+  transition: max-height var(--dur-pop) var(--ease-kiko);
+}
+.rich-code-pre[data-more] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+}
+.rich-code[data-folded] .rich-code-pre {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 3.5rem), transparent);
+}
+.rich-code-pre[data-scrolls] {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  mask-image: linear-gradient(to bottom, transparent, #000 1.25rem, #000 calc(100% - 1.25rem), transparent);
 }
 .rich-code-pre::-webkit-scrollbar {
+  width: 7px;
   height: 7px;
 }
 .rich-code-pre::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: color-mix(in srgb, var(--rich-border) 78%, transparent);
+}
+.rich-code-lines {
+  display: grid;
+  min-width: max-content;
+  grid-template-columns: auto 1fr;
+}
+.rich-code-pre[data-wrap] .rich-code-lines {
+  min-width: 0;
+}
+.rich-code-line {
+  display: contents;
+}
+.rich-code-ln {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 2.75rem;
+  padding: 0 16px 0 14px;
+  background: var(--side);
+  color: var(--fg4);
+  text-align: right;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+.rich-code-text {
+  white-space: pre;
+}
+.rich-code-pre[data-wrap] .rich-code-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rich-code-fold {
+  display: flex;
+  width: 100%;
+  height: 36px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  color: var(--fg2);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: color var(--dur-hover) var(--ease-kiko);
+}
+.rich-code-fold:hover {
+  color: var(--fg);
+}
+.rich-code-count {
+  margin-left: auto;
+  color: var(--fg4);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rich-code,
+  .rich-code-pre {
+    transition: none;
+  }
 }
 
 :root:not(.dark) .rich-code {

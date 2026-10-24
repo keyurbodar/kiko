@@ -26,7 +26,7 @@ export function eventRow(message: ChatMessage, name: (slug: string) => string): 
     case "model_changed":
       return e.from
         ? { label: "Context handoff", detail: `${e.from} to ${e.model}` }
-        : { label: `${name(e.agent)} now uses ${e.model}` }
+        : { label: `${name(e.agent)} switched to`, detail: e.model }
     case "compacted": {
       const detail = tokens(loose)
       return { label: "Context compacted", ...(detail ? { detail } : {}) }

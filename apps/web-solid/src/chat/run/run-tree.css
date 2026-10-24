@@ -1,11 +1,11 @@
 .run-tree {
   --run-text: var(--fg3);
   --run-tree-line: color-mix(in oklab, var(--fg4) 70%, transparent);
+  --run-tree-live: var(--fg);
   display: flex;
   flex-direction: column;
-  width: fit-content;
+  width: min(100%, 34rem);
   min-width: 0;
-  max-width: min(100%, 36rem);
   margin-bottom: 4px;
   font-size: 13.5px;
   line-height: 20px;
@@ -71,6 +71,34 @@ button.run-tree-row[data-file]:hover .run-tree-label {
   content: none;
 }
 
+.run-tree-row[data-path]::after {
+  border-color: var(--run-tree-live);
+}
+.run-tree-row[data-path]:not([data-running])::before {
+  border-color: var(--run-tree-live);
+}
+.run-tree-row[data-running] {
+  color: var(--fg2);
+}
+
+.run-tree-meta {
+  flex: none;
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--fg4);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.run-tree-row > .run-tree-meta + .run-tree-chevron {
+  margin-left: 0;
+}
+
+.run-tree-mochi {
+  display: inline-flex;
+  width: 14px;
+  justify-content: center;
+}
+
 .run-tree > .run-tree-row:last-child::before,
 .run-tree > .run-tree-fold:last-child > div > .run-tree-row:last-child::before {
   content: none;
@@ -110,6 +138,9 @@ button.run-tree-row[data-file]:hover .run-tree-label {
 }
 .run-tree-head > .run-tree-chevron:last-child {
   margin-left: 0;
+}
+.run-tree-head > .run-tree-meta {
+  order: 3;
 }
 button.run-tree-row:not(.run-tree-head) > .run-tree-chevron {
   opacity: 0;

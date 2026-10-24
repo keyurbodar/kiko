@@ -20,8 +20,10 @@ const TONE: Record<RowTone, string> = {
   accent: "text-bad",
 }
 
-const RULE_LEFT = "bg-[linear-gradient(90deg,transparent,var(--line2))]"
-const RULE_RIGHT = "bg-[linear-gradient(90deg,var(--line2),transparent)]"
+const RULE_LEFT = "h-px bg-[linear-gradient(90deg,transparent,var(--line2))]"
+const RULE_RIGHT = "h-px bg-[linear-gradient(90deg,var(--line2),transparent)]"
+const STITCH =
+  "h-[3px] bg-[radial-gradient(circle,var(--line2)_0_1px,transparent_1.3px)] bg-size-[6px_3px] mask-x-from-70% mask-x-to-100%"
 
 const PILL =
   "shrink-0 cursor-pointer rounded-full bg-active px-2.5 py-0.5 text-fg transition-colors duration-[120ms] hover:bg-hover"
@@ -35,6 +37,7 @@ export function SystemRow(props: {
   actions?: readonly RowAction[] | undefined
   children?: JSX.Element
   class?: string
+  stitch?: boolean
   "data-component"?: string
   "data-message-id"?: string
 }): JSX.Element {
@@ -51,22 +54,27 @@ export function SystemRow(props: {
       data-tone={tone()}
       data-message-id={props["data-message-id"]}
     >
-      <span class={cn("h-px min-w-3 flex-1", RULE_LEFT)} aria-hidden="true" />
+      <span class={cn("min-w-3 flex-1", props.stitch ? STITCH : RULE_LEFT)} aria-hidden="true" />
       <span
         class={cn(
           "flex min-w-0 max-w-full items-center justify-center gap-x-1.5 gap-y-1",
-          tone() === "accent" ? "" : "min-h-6 rounded-full bg-[var(--kiko-bubble)] px-2.5",
+          tone() === "accent" || props.stitch
+            ? ""
+            : "min-h-6 rounded-full bg-[var(--kiko-bubble)] px-2.5 shadow-[inset_0_0_0_1px_var(--line)]",
           props.actions?.length && "flex-wrap",
         )}
       >
         <Show when={props.icon}>{(icon) => <RemixIcon icon={icon()} size={12} class="shrink-0" />}</Show>
         <Show when={props.label}>
-          <span class="shrink-0 font-medium text-fg2">{props.label}</span>
+          <span class={cn("shrink-0", tone() === "accent" ? "font-medium text-bad" : "text-fg2")}>{props.label}</span>
         </Show>
         <Show when={props.detail}>
           {(detail) => (
             <span
-              class={cn("min-w-0 select-text", props.tone === "danger" ? "max-w-xl break-words" : "max-w-80 truncate")}
+              class={cn(
+                "min-w-0 select-text",
+                props.tone === "danger" ? "max-w-xl break-words" : "max-w-80 truncate font-medium text-fg",
+              )}
               title={props.title ?? detail()}
               data-part="detail"
             >
@@ -101,7 +109,7 @@ export function SystemRow(props: {
           )}
         </For>
       </span>
-      <span class={cn("h-px min-w-3 flex-1", RULE_RIGHT)} aria-hidden="true" />
+      <span class={cn("min-w-3 flex-1", props.stitch ? STITCH : RULE_RIGHT)} aria-hidden="true" />
     </div>
   )
 }
