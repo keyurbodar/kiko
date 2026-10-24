@@ -25,7 +25,7 @@ export type CodeFile = { lang?: string; name?: string; text: string }
 
 const FILE_NAME = /^[\w@+-][\w.@+-]*\.([A-Za-z0-9]+)$/
 
-export function codeFile(lang: string | undefined, text: string): CodeFile {
+function codeFile(lang: string | undefined, text: string): CodeFile {
   const named = lang ? FILE_NAME.exec(lang) : null
   if (named) return { name: lang, lang: named[1]!.toLowerCase(), text }
   return lang ? { lang, text } : { text }

@@ -90,7 +90,7 @@ const UNAVAILABLE: TreeRow = {
   path: false,
 }
 
-export function stillFailing(steps: readonly Pick<RunStep, "name" | "status" | "startedAt">[]): boolean {
+function stillFailing(steps: readonly Pick<RunStep, "name" | "status" | "startedAt">[]): boolean {
   return steps.some(
     (failed) =>
       failed.status === "failed" &&
