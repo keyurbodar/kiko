@@ -21,7 +21,7 @@ import { DuplicateChatError } from "@kiko/protocol/rpc"
 import * as Cause from "effect/Cause"
 import * as Option from "effect/Option"
 import { createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
-import { kikoPlaceholder } from "../lib/chats"
+import { kikoPlaceholder, newChatMembers } from "../lib/chats"
 import { showFailure, showNotice } from "../lib/errors"
 import { setFileToken, setFileTokenSource } from "../lib/file-token"
 import { attempt, failureMessage, owner, registry, run, valueOf, watch } from "./runtime"
@@ -193,6 +193,7 @@ export const user = createRoot(() => {
     const existing = withAgents?.length ? sameAgentChat(chats(), withAgents) : null
     if (existing) return existing.roomId
     const roomId = newRoomId()
+    owner.seedNewRoom(registry, roomId, newChatMembers(withAgents, agents()))
     void chatOp({ op: "create", roomId, title, ...(withAgents?.length ? { agents: [...withAgents] } : {}) })
     return roomId
   }

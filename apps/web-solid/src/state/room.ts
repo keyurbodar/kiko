@@ -20,7 +20,6 @@ import {
   type Reaction as WireReaction,
   type RoomId,
   type RoomSignal,
-  type RoomSnapshot,
   type RunStep,
   type SearchHit,
   type Task,
@@ -32,8 +31,8 @@ import type { RoomState } from "@kiko/client-runtime/state"
 import * as Option from "effect/Option"
 import * as AsyncResult from "effect/reactivity/AsyncResult"
 import * as Atom from "effect/reactivity/Atom"
-import { batch, createComputed, createMemo, createRoot, createSignal, on, onCleanup, untrack } from "solid-js"
-import { createStore, produce, reconcile } from "solid-js/store"
+import { batch, createComputed, createMemo, createRoot, createSignal, on, untrack } from "solid-js"
+import { createStore, produce } from "solid-js/store"
 import { session as signedIn } from "../app/session"
 import { inWindow, newestAfter, parseWindow, stepWindows, upsertStep, windowKey } from "../chat/run/run-log"
 import { fillComposer } from "../composer/fill"
@@ -52,6 +51,7 @@ import { onUserSignal, user } from "./user"
 const PENDING_SEQ = Number.MAX_SAFE_INTEGER
 const HISTORY_PAGE = 30
 const TYPING_EVERY_MS = 2_000
+const WARM_ROOMS = 4
 
 export const fileSrc = (roomId: string, fileId: string) => fileUrl(`/api/files/${roomId}/${encodeURIComponent(fileId)}`)
 
@@ -211,6 +211,7 @@ type Runs = {
 }
 
 const emptyRuns = (): Runs => ({ steps: {}, live: {}, fetching: {} })
+const NO_RUNS: Runs = emptyRuns()
 
 export interface ActiveRoom {
   readonly roomId: RoomId
@@ -223,7 +224,7 @@ export interface ActiveRoom {
 
 const NO_ROOM_STATE = Atom.make<RoomState | undefined>(undefined)
 const NO_TYPING = Atom.make<AsyncResult.AsyncResult<ReadonlyArray<AgentSlug>>>(AsyncResult.success([]))
-const NO_CACHE = Atom.make<AsyncResult.AsyncResult<Option.Option<RoomSnapshot>> | undefined>(undefined)
+const NO_CACHE = Atom.make<Atom.Type<ReturnType<typeof owner.cachedRoomAtom>> | undefined>(undefined)
 
 const notConnected = () =>
   showToastV2({
@@ -232,55 +233,94 @@ const notConnected = () =>
     variant: "error",
   })
 
-function createRuns(roomId: () => RoomId | null) {
-  const [runs, setRuns] = createStore<Runs>(emptyRuns())
-  const fetched = new Set<string>()
-  const take = (incoming: readonly RunStep[], live: boolean) => {
+function eachWarm(ids: () => readonly RoomId[], open: (id: RoomId) => () => void) {
+  const held = new Map<RoomId, () => void>()
+  createComputed(() => {
+    const next = new Set(ids())
+    untrack(() => {
+      for (const [id, close] of held)
+        if (!next.has(id)) {
+          held.delete(id)
+          close()
+        }
+      for (const id of next) if (!held.has(id)) held.set(id, open(id))
+    })
+  })
+}
+
+function createWarmRooms(roomId: () => RoomId | null, exists: (id: RoomId) => boolean) {
+  const [recent, setRecent] = createSignal<readonly RoomId[]>([])
+  createComputed(
+    on(roomId, (id) => {
+      if (id !== null) setRecent((list) => [id, ...list.filter((other) => other !== id)].slice(0, WARM_ROOMS))
+    }),
+  )
+  const warm = createMemo(() => recent().filter(exists), [], {
+    equals: (a, b) => a.length === b.length && a.every((id, i) => id === b[i]),
+  })
+  eachWarm(warm, (id) => registry.mount(owner.roomAtom(id)))
+  return warm
+}
+
+function createRuns(roomId: () => RoomId | null, warm: () => readonly RoomId[]) {
+  const [all, setAll] = createStore<Record<string, Runs>>({})
+  const fetched = new Map<RoomId, Set<string>>()
+  const fetchedIn = (id: RoomId) => {
+    let keys = fetched.get(id)
+    if (!keys) fetched.set(id, (keys = new Set()))
+    return keys
+  }
+  const take = (id: RoomId, incoming: readonly RunStep[], live: boolean) => {
     if (incoming.length === 0) return
-    setRuns(
+    setAll(
       produce((s) => {
+        const runs = (s[id] ??= emptyRuns())
         for (const step of incoming) {
-          s.steps[step.slug] = upsertStep(s.steps[step.slug] ?? [], step)
-          if (live || step.status === "running") s.live[step.slug] = true
+          runs.steps[step.slug] = upsertStep(runs.steps[step.slug] ?? [], step)
+          if (live || step.status === "running") runs.live[step.slug] = true
         }
       }),
     )
   }
-  const onSignal = (signal: RoomSignal) => {
-    if (signal.t === "step") take([signal.step], false)
-    else if (signal.t === "status" && signal.state === "idle") setRuns("live", signal.slug, undefined)
-    else if (signal.t === "error") showNotice(signal.error)
+  const onSignal = (id: RoomId, signal: RoomSignal) => {
+    if (signal.t === "step") take(id, [signal.step], false)
+    else if (signal.t === "status" && signal.state === "idle" && all[id]) setAll(id, "live", signal.slug, undefined)
+    else if (signal.t === "error" && id === roomId()) showNotice(signal.error)
   }
-  createComputed(
-    on(roomId, (id) => {
-      fetched.clear()
-      setRuns(reconcile(emptyRuns()))
-      if (id === null) return
-      onCleanup(
-        registry.subscribe(owner.roomSignalAtom(id), (next) => {
-          const signal = valueOf(next)
-          if (signal !== undefined && Option.isSome(signal)) untrack(() => onSignal(signal.value))
-        }),
-      )
-    }),
-  )
-  const clear = () => {
-    fetched.clear()
-    setRuns({ live: {}, fetching: {} })
+  eachWarm(warm, (id) => {
+    const stop = registry.subscribe(owner.roomSignalAtom(id), (next) => {
+      const signal = valueOf(next)
+      if (signal !== undefined && Option.isSome(signal)) untrack(() => onSignal(id, signal.value))
+    })
+    return () => {
+      stop()
+      fetched.delete(id)
+      setAll(produce((s) => void delete s[id]))
+    }
+  })
+  const clear = (id: RoomId) => {
+    fetched.delete(id)
+    if (all[id]) setAll(id, { live: {}, fetching: {} })
+  }
+  const clearAll = () => {
+    for (const id of Object.keys(all)) clear(id as RoomId)
   }
   async function request(slug: string, after: number, force: boolean) {
     const id = roomId()
     const key = windowKey(slug, after)
-    if (!id || runs.fetching[key] || (!force && fetched.has(key))) return
-    setRuns("fetching", key, true)
+    if (!id || all[id]?.fetching[key] || (!force && fetched.get(id)?.has(key))) return
+    setAll(produce((s) => void ((s[id] ??= emptyRuns()).fetching[key] = true)))
     const steps = await attempt(owner.commands.steps, { roomId: id, slug: slug as AgentSlug, after }, () => {})
-    if (roomId() !== id) return
-    setRuns("fetching", key, undefined)
-    if (steps === undefined) return
-    fetched.add(key)
-    take(steps, false)
+    if (all[id]) setAll(id, "fetching", key, undefined)
+    if (steps === undefined || !all[id]) return
+    fetchedIn(id).add(key)
+    take(id, steps, false)
   }
-  return { runs, take, clear, request }
+  const current = () => {
+    const id = roomId()
+    return (id !== null && all[id]) || NO_RUNS
+  }
+  return { current, take, clear, clearAll, request }
 }
 
 function createTyping(roomId: () => RoomId | null) {
@@ -424,16 +464,28 @@ function createRoom() {
   const liveMessages = createMemo(() => snapshot()?.messages ?? [])
   const history = createHistory(activeId, liveMessages)
   const messages = createMemo(() => history.shown() ?? liveMessages())
-  const runs = createRuns(activeId)
+  const warm = createWarmRooms(activeId, (id) => !user.synced() || user.chat(id) !== undefined)
+  const runs = createRuns(activeId, warm)
   const typing = createTyping(activeId)
 
   createComputed(
     on(
       () => snapshot()?.steps,
-      (steps) => steps && untrack(() => runs.take(steps, true)),
+      (steps) => {
+        const id = untrack(activeId)
+        if (steps && id) untrack(() => runs.take(id, steps, true))
+      },
     ),
   )
-  createComputed(on(streaming, (on) => !on && untrack(runs.clear), { defer: true }))
+  createComputed(
+    on(
+      () => [activeId(), streaming()] as const,
+      ([id, live], previous) => {
+        if (id && !live && previous?.[0] === id && previous[1]) untrack(() => runs.clear(id))
+      },
+    ),
+  )
+  createComputed(on(connection.connected, (connected) => !connected && untrack(runs.clearAll), { defer: true }))
 
   const statusOf = createMemo(() => {
     const out: Record<string, AgentState> = {}
@@ -508,19 +560,33 @@ function createRoom() {
       : [],
   )
 
-  let lastRows = new Map<string, RosterBot>()
-  const botRows = createMemo<RosterBot[]>(() => {
+  const shownRows = new Map<string, RosterBot>()
+  const stableRow = (row: RosterBot) => {
+    const old = shownRows.get(row.id)
+    if (old && sameRow(old, row)) return old
+    shownRows.set(row.id, row)
+    return row
+  }
+  const titledChats = createMemo(() => distinctTitles(user.chats()))
+  const idleRows = createMemo(() => {
     const id = activeId()
-    const next = new Map<string, RosterBot>()
     const typingIn = user.typingByRoom()
-    const out = distinctTitles(user.chats()).map((c) => {
-      let row = c.roomId === id ? activeRow(c) : chatRow(c, "idle", { typing: typingIn[c.roomId] })
-      const old = lastRows.get(row.id)
-      if (old && sameRow(old, row)) row = old
-      next.set(row.id, row)
-      return row
-    })
-    lastRows = next
+    const out = new Map<string, RosterBot>()
+    for (const c of titledChats())
+      if (c.roomId !== id) out.set(c.roomId, stableRow(chatRow(c, "idle", { typing: typingIn[c.roomId] })))
+    return out
+  })
+  const activeChat = createMemo(() => titledChats().find((c) => c.roomId === activeId()))
+  const activeBotRow = createMemo(() => {
+    const c = activeChat()
+    return c && stableRow(activeRow(c))
+  })
+  const botRows = createMemo<RosterBot[]>(() => {
+    const idle = idleRows()
+    const current = activeBotRow()
+    const out = titledChats().flatMap((c) => (c.roomId === current?.id ? current : (idle.get(c.roomId) ?? [])))
+    const listed = new Set(out.map((row) => row.id))
+    for (const id of shownRows.keys()) if (!listed.has(id)) shownRows.delete(id)
     return out
   })
   function activeRow(c: Chat): RosterBot {
@@ -707,21 +773,21 @@ function createRoom() {
       typingSlugs().map((slug) => doingOf()[slug] ?? (statusOf()[slug] === "working" ? "using a tool" : undefined)),
     runWindow: (m: ChatMessage) => (m.botId && m.steps ? windowKey(m.botId, m.stepAfter ?? 0) : undefined),
     typingRun(slug: string): string | undefined {
-      if (!runs.runs.live[slug]) return undefined
-      const after = newestAfter(runs.runs.steps[slug] ?? [])
+      if (!runs.current().live[slug]) return undefined
+      const after = newestAfter(runs.current().steps[slug] ?? [])
       return after >= 0 && !windows().has(windowKey(slug, after)) ? windowKey(slug, after) : undefined
     },
     runSteps(key: string): readonly RunStep[] {
       const { slug, after } = parseWindow(key)
-      return inWindow(runs.runs.steps[slug] ?? [], after)
+      return inWindow(runs.current().steps[slug] ?? [], after)
     },
-    runLive: (key: string) => !windows().has(key) && !!runs.runs.live[parseWindow(key).slug],
+    runLive: (key: string) => !windows().has(key) && !!runs.current().live[parseWindow(key).slug],
     loadRunSteps(key: string, force = false) {
       const w = windows().get(key)
-      if (w && inWindow(runs.runs.steps[w.slug] ?? [], w.after).length < w.steps)
+      if (w && inWindow(runs.current().steps[w.slug] ?? [], w.after).length < w.steps)
         void runs.request(w.slug, w.after, force)
     },
-    runFetching: (key: string) => !!runs.runs.fetching[key],
+    runFetching: (key: string) => !!runs.current().fetching[key],
     hasUnread(): boolean {
       const id = activeId()
       if (!id) return false
@@ -800,6 +866,6 @@ export function cachedTail(roomId: () => string, wanted: () => boolean): () => C
     const result = cached()
     const snapshot = result === undefined ? undefined : valueOf(result)
     if (snapshot === undefined || Option.isNone(snapshot)) return []
-    return snapshot.value.messages.slice(-6).map((m) => toChatMessage(m, roomId()))
+    return snapshot.value.snapshot.messages.slice(-6).map((m) => toChatMessage(m, roomId()))
   }
 }

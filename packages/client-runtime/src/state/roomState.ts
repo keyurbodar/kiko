@@ -1,4 +1,4 @@
-import type { Message, RoomId, RoomSignal, RoomSnapshot } from "@kiko/protocol"
+import type { Member, Message, RoomId, RoomSignal, RoomSnapshot } from "@kiko/protocol"
 import type { RoomStreamItem } from "@kiko/protocol/rpc"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
@@ -76,11 +76,26 @@ const withPage = (state: RoomState, page: ReadonlyArray<Message>): RoomState =>
         data: Option.some({ ...state.data.value, messages: mergeBySeq(page, state.data.value.messages) }),
       }
 
+export interface RoomStateOptions {
+  readonly resume?: RoomResumeCache
+  readonly pages?: PubSub.PubSub<ReadonlyArray<Message>>
+  readonly loaded?: RoomState
+}
+
+export const newRoomState = (members: ReadonlyArray<Member>): RoomState => ({
+  data: Option.some({ seq: 0, readSeq: 0, members, messages: [], tasks: [], files: [], folders: [] }),
+  sequence: 0,
+  status: "live",
+  error: Option.none(),
+})
+
+export const resumedState = (state: RoomState): RoomState =>
+  state.status === "live" && Option.isSome(state.data) ? state : markDisconnected(state)
+
 export const makeRoomState = Effect.fnUntraced(function* (
   roomId: RoomId,
   signals: PubSub.PubSub<RoomSignal>,
-  resume?: RoomResumeCache,
-  pages?: PubSub.PubSub<ReadonlyArray<Message>>,
+  { resume, pages, loaded }: RoomStateOptions = {},
 ): Effect.fn.Return<
   SubscriptionRef.SubscriptionRef<RoomState>,
   never,
@@ -94,7 +109,8 @@ export const makeRoomState = Effect.fnUntraced(function* (
   if (resume) resume.owner = owner
   const retained = resume?.snapshot
   const initial: RoomState =
-    retained ??
+    (retained === undefined ? undefined : resumedState(retained)) ??
+    loaded ??
     Option.match(
       yield* cache
         .loadRoom(roomId)
@@ -108,9 +124,8 @@ export const makeRoomState = Effect.fnUntraced(function* (
         onSome: ({ sequence, snapshot }) => cachedStreamState(snapshot, sequence),
       },
     )
-  const state = yield* SubscriptionRef.make<RoomState>(
-    initial.status === "live" || initial.status === "synchronizing" ? markDisconnected(initial) : initial,
-  )
+  const state = yield* SubscriptionRef.make<RoomState>(initial)
+  let resumingLive = initial.status === "live"
   const lock = yield* Semaphore.make(1)
   const remember = (value: RoomState) =>
     Effect.sync(() => {
@@ -161,7 +176,9 @@ export const makeRoomState = Effect.fnUntraced(function* (
       Effect.gen(function* () {
         const current = yield* SubscriptionRef.get(state)
         if (current.status === "missing") return yield* Effect.never
-        yield* update(markSynchronizing)
+        const keepLive = resumingLive && current.status === "live"
+        resumingLive = false
+        if (!keepLive) yield* update(markSynchronizing)
         return Option.isSome(current.data) ? { roomId, afterSequence: current.sequence } : { roomId }
       }),
     {

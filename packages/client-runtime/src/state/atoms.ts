@@ -2,6 +2,7 @@ import type {
   AgentSlug,
   ChatOp,
   CommandId,
+  Member,
   MemoryOp,
   Message,
   RoomId,
@@ -27,14 +28,21 @@ import * as Owner from "./ownerCommands"
 import { createQueryAtoms } from "./query"
 import type { SupervisorConnectionState } from "../connection/model"
 import { OwnerSupervisor } from "../connection/supervisor"
-import { SnapshotCache } from "../platform/cache"
+import { SnapshotCache, type CachedSnapshot } from "../platform/cache"
 import { chatCommand, createChat, newCommandId, sendMessage, type SendMessageInput } from "./commands"
 import { createComputerAtoms } from "./computer"
 import { withPending, type PendingCommand } from "./overlay"
 import { PendingCommands, roomKey } from "./pending"
-import { makeRoomState, ROOM_SNAPSHOT_IDLE_TTL_MS, type RoomResumeCache, type RoomState } from "./roomState"
+import {
+  makeRoomState,
+  newRoomState,
+  resumedState,
+  ROOM_SNAPSHOT_IDLE_TTL_MS,
+  type RoomResumeCache,
+  type RoomState,
+} from "./roomState"
 import type { OwnerRuntimeServices } from "./runtime"
-import { emptyStreamState, markDisconnected, type StreamState } from "./stream"
+import { cachedStreamState, emptyStreamState, type StreamState } from "./stream"
 import { UserStore, type UserState } from "./userState"
 
 const AVAILABLE: SupervisorConnectionState = {
@@ -124,6 +132,25 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     ),
   )
 
+  const cachedRoomAtom = Atom.family((roomId: RoomId) =>
+    runtime
+      .atom(
+        SnapshotCache.use((cache) => cache.loadRoom(roomId)).pipe(
+          Effect.orElseSucceed(() => Option.none<CachedSnapshot<RoomSnapshot>>()),
+        ),
+      )
+      .pipe(Atom.setIdleTTL(ROOM_SNAPSHOT_IDLE_TTL_MS), Atom.withLabel(`kiko-room-cache:${roomId}`)),
+  )
+
+  const loadedCachedRoom = (registry: AtomRegistry.AtomRegistry, roomId: RoomId): RoomState | undefined => {
+    const node = registry.getNodes().get(cachedRoomAtom(roomId)) as
+      | AtomRegistry.Node<AsyncResult.AsyncResult<Option.Option<CachedSnapshot<RoomSnapshot>>>>
+      | undefined
+    const cached = node === undefined ? Option.none() : Option.flatMap(node.valueOption(), AsyncResult.value)
+    if (Option.isNone(cached) || Option.isNone(cached.value)) return undefined
+    return cachedStreamState(cached.value.value.snapshot, cached.value.value.sequence)
+  }
+
   const roomStateAtom = Atom.family((roomId: RoomId) =>
     runtime
       .atom(
@@ -133,17 +160,24 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
           const resume = get.once(resumeAtom)
           const signals = get.once(roomSignalsFamily(roomId))
           const pages = get.once(roomPagesFamily(roomId))
+          const loaded = resume.snapshot === undefined ? loadedCachedRoom(get.registry, roomId) : undefined
           const live = Stream.unwrap(
-            makeRoomState(roomId, signals, resume, pages).pipe(Effect.map(SubscriptionRef.changes)),
+            makeRoomState(roomId, signals, { resume, pages, ...(loaded === undefined ? {} : { loaded }) }).pipe(
+              Effect.map(SubscriptionRef.changes),
+            ),
           )
-          return resume.snapshot === undefined
-            ? live
-            : Stream.concat(Stream.succeed(markDisconnected(resume.snapshot)), live)
+          const first = resume.snapshot === undefined ? loaded : resumedState(resume.snapshot)
+          return first === undefined ? live : Stream.concat(Stream.succeed(first), live)
         },
         { initialValue: EMPTY_ROOM },
       )
       .pipe(Atom.setIdleTTL(0), Atom.withLabel(`kiko-room-state:${roomId}`)),
   )
+
+  const seedNewRoom = (registry: AtomRegistry.AtomRegistry, roomId: RoomId, members: ReadonlyArray<Member>) => {
+    const resume = registry.get(roomResumeFamily(roomId))
+    if (resume.snapshot === undefined) resume.snapshot = newRoomState(members)
+  }
 
   const roomPendingAtom = Atom.family((roomId: RoomId) =>
     runtime
@@ -186,17 +220,6 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
   const { sessionAtom, query } = createQueryAtoms(runtime)
 
   const { framesAtom } = createComputerAtoms(runtime)
-
-  const cachedRoomAtom = Atom.family((roomId: RoomId) =>
-    runtime
-      .atom(
-        SnapshotCache.use((cache) => cache.loadRoom(roomId)).pipe(
-          Effect.map(Option.map((cached) => cached.snapshot)),
-          Effect.orElseSucceed(() => Option.none<RoomSnapshot>()),
-        ),
-      )
-      .pipe(Atom.setIdleTTL(ROOM_SNAPSHOT_IDLE_TTL_MS), Atom.withLabel(`kiko-room-cache:${roomId}`)),
-  )
 
   const rpc = <const Tag extends OwnerUnaryTag>(tag: Tag, concurrency?: AtomCommandConcurrency<RpcCommandInput<Tag>>) =>
     createRuntimeCommand(runtime, {
@@ -404,6 +427,7 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     roomTypingAtom,
     computerFramesAtom: framesAtom,
     cachedRoomAtom,
+    seedNewRoom,
     sessionAtom,
     queries,
     commands,
