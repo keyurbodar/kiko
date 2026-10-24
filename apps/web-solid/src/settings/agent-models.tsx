@@ -41,6 +41,7 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
       <ReasoningMenu
         levels={current()?.thinkingLevels}
         value={current()?.thinking}
+        model={current()?.name}
         placement="bottom-end"
         class="h-8 rounded-[9px] bg-active px-3 text-[13px] text-fg"
         onChange={(thinking) => room.setAgentModel(props.slug, { thinking })}
