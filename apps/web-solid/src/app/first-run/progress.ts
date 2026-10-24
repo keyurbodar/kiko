@@ -5,7 +5,7 @@ import { load, owner, run } from "../../state/runtime"
 import { hosted } from "../hosted"
 import type { Phase } from "../phase"
 import { phase } from "../session"
-import { advance, onboardingStep, type Move, type Step } from "./steps"
+import { advance, onboardingStep, resumedStep, type Move, type Step } from "./steps"
 
 const ON_CLOUDFLARE: ReadonlySet<Phase["_tag"]> = new Set(["NeedsBackend", "Installing", "Unreachable"])
 
@@ -18,6 +18,7 @@ interface Probe {
 const [chosen, setChosen] = createSignal<{ readonly key: string; readonly step: Step } | null>(null)
 const [probe, setProbe] = createSignal<Probe | null>(null)
 const [fresh, setFresh] = createSignal(phase()._tag !== "Ready")
+const [acted, setActed] = createSignal(false)
 
 export const [working, setWorking] = createSignal(false)
 export const [finished, setFinished] = createSignal(false)
@@ -57,9 +58,14 @@ function remember() {
   return run(owner.commands.settingsUpdate, { patch: { onboarded: true } })
 }
 
+export const resumed = (): Step | null => resumedStep({ fresh: fresh(), acted: acted(), step: currentStep() })
+
+export const dismissResume = () => setActed(true)
+
 export function setStep(step: Step): void {
   const key = readyKey()
   if (!key) return
+  setActed(true)
   setChosen({ key, step })
   if (step === "done") void remember()
 }
