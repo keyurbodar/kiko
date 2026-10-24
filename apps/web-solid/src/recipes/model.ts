@@ -29,6 +29,13 @@ export function filterRecipes(cards: readonly RecipeCard[], query: string, tag: 
   )
 }
 
+export type Section = "yours" | "discover"
+
+export function openingSection(installs: readonly RecipeInstall[] | undefined, inRoom: boolean): Section | undefined {
+  if (!installs) return undefined
+  return installs.length && !inRoom ? "yours" : "discover"
+}
+
 export function installedSlugs(
   installs: readonly RecipeInstall[],
   target: { roomId: string; agent: string },

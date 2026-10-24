@@ -7,14 +7,22 @@ import { openChat } from "../app/history"
 import { createMemo, createSignal, For, type JSX, Show } from "solid-js"
 import { room } from "../state/room"
 import { buttonClass } from "../settings/kit"
-import { byChatOrder, filterRecipes, recipeTags, type TagFilter, tagLabel } from "./model"
+import { byChatOrder, filterRecipes, openingSection, recipeTags, type Section, type TagFilter, tagLabel } from "./model"
 import { InstallCard } from "./row"
 import { ConnectSheet } from "./connect"
 import { RecipeSheet } from "./sheet"
-import { addToTarget, broken, cards, connectAsk, followRecipes, installs, isAdded, targetsForChat } from "./state"
+import {
+  addToTarget,
+  broken,
+  cards,
+  connectAsk,
+  followRecipes,
+  installs,
+  isAdded,
+  knownInstalls,
+  targetsForChat,
+} from "./state"
 import { RecipeTile } from "./tile"
-
-type Section = "yours" | "discover"
 
 const sectionTab =
   "flex h-8 cursor-pointer items-center gap-2 rounded-full pr-2 pl-3.5 text-[14px] font-medium text-muted-foreground hover:text-foreground data-[selected]:bg-control-strong data-[selected]:text-foreground"
@@ -49,7 +57,8 @@ export default function RecipesPage() {
   const tags = createMemo(() => ["all", ...recipeTags(cards())])
   const shown = createMemo(() => filterRecipes(cards(), query(), tag()))
   const [picked, setSection] = createSignal<Section | null>(null)
-  const section = (): Section => picked() ?? (installs().length && !roomId() ? "yours" : "discover")
+  const opening = createMemo<Section | undefined>((settled) => settled ?? openingSection(knownInstalls(), !!roomId()))
+  const section = () => picked() ?? opening()
   const add = (card: RecipeCard) => {
     const id = roomId()
     const targets = id ? targetsForChat(id) : []
@@ -88,112 +97,116 @@ export default function RecipesPage() {
           </header>
 
           <div ref={tabsTop} />
-          <TabsV2
-            value={section()}
-            onChange={(next) => {
-              setSection(next as Section)
-              toTabs()
-            }}
-          >
-            <TabsV2.List
-              class="sticky top-0 z-10 -mx-1 flex h-14 items-center gap-1 bg-background px-1"
-              aria-label="Recipes"
-              data-component="recipes-sections"
-            >
-              <TabsV2.Trigger value="yours" class={sectionTab} data-section="yours">
-                Yours
-                <span class="min-w-5 rounded-full bg-control px-1.5 text-center text-[11.5px] leading-5 tabular-nums">
-                  {yours().length}
-                </span>
-              </TabsV2.Trigger>
-              <TabsV2.Trigger value="discover" class={sectionTab} data-section="discover">
-                Discover
-                <span class="min-w-5 rounded-full bg-control px-1.5 text-center text-[11.5px] leading-5 tabular-nums">
-                  {matching().size}
-                </span>
-              </TabsV2.Trigger>
-            </TabsV2.List>
-
-            <TabsV2.Content value="yours" class="pt-2 outline-none" data-component="recipes-yours">
-              <Show
-                when={yours().length}
-                fallback={
-                  <Show when={!query()} fallback={<Empty title="Nothing of yours matches" />}>
-                    <Empty title="Nothing runs yet">
-                      <p class="max-w-[320px] text-[13.5px] text-muted-foreground">
-                        Recipes you add show up here, with when each one runs next.
-                      </p>
-                      <button
-                        type="button"
-                        class={buttonClass("primary", "mt-3 rounded-full px-4")}
-                        onClick={() => setSection("discover")}
-                      >
-                        Browse recipes
-                      </button>
-                    </Empty>
-                  </Show>
-                }
-              >
-                <div class={grid}>
-                  <For each={yours()}>
-                    {(install) => <InstallCard install={install} card={bySlug().get(install.slug)!} />}
-                  </For>
-                </div>
-              </Show>
-            </TabsV2.Content>
-
-            <TabsV2.Content value="discover" class="outline-none" data-component="recipes">
+          <Show when={section()}>
+            {(current) => (
               <TabsV2
-                value={tag()}
+                value={current()}
                 onChange={(next) => {
-                  setTag(next)
+                  setSection(next as Section)
                   toTabs()
                 }}
               >
-                <div class="sticky top-14 z-10 -mx-1 bg-background px-1 pb-3">
-                  <TabsV2.List
-                    class="flex items-center gap-1 overflow-x-auto [mask-image:linear-gradient(to_right,black_calc(100%-32px),transparent)] [scrollbar-width:none]"
-                    aria-label="Categories"
-                    data-component="recipes-tags"
+                <TabsV2.List
+                  class="sticky top-0 z-10 -mx-1 flex h-14 items-center gap-1 bg-background px-1"
+                  aria-label="Recipes"
+                  data-component="recipes-sections"
+                >
+                  <TabsV2.Trigger value="yours" class={sectionTab} data-section="yours">
+                    Yours
+                    <span class="min-w-5 rounded-full bg-control px-1.5 text-center text-[11.5px] leading-5 tabular-nums">
+                      {yours().length}
+                    </span>
+                  </TabsV2.Trigger>
+                  <TabsV2.Trigger value="discover" class={sectionTab} data-section="discover">
+                    Discover
+                    <span class="min-w-5 rounded-full bg-control px-1.5 text-center text-[11.5px] leading-5 tabular-nums">
+                      {matching().size}
+                    </span>
+                  </TabsV2.Trigger>
+                </TabsV2.List>
+
+                <TabsV2.Content value="yours" class="pt-2 outline-none" data-component="recipes-yours">
+                  <Show
+                    when={yours().length}
+                    fallback={
+                      <Show when={!query()} fallback={<Empty title="Nothing of yours matches" />}>
+                        <Empty title="Nothing runs yet">
+                          <p class="max-w-[320px] text-[13.5px] text-muted-foreground">
+                            Recipes you add show up here, with when each one runs next.
+                          </p>
+                          <button
+                            type="button"
+                            class={buttonClass("primary", "mt-3 rounded-full px-4")}
+                            onClick={() => setSection("discover")}
+                          >
+                            Browse recipes
+                          </button>
+                        </Empty>
+                      </Show>
+                    }
                   >
+                    <div class={grid}>
+                      <For each={yours()}>
+                        {(install) => <InstallCard install={install} card={bySlug().get(install.slug)!} />}
+                      </For>
+                    </div>
+                  </Show>
+                </TabsV2.Content>
+
+                <TabsV2.Content value="discover" class="outline-none" data-component="recipes">
+                  <TabsV2
+                    value={tag()}
+                    onChange={(next) => {
+                      setTag(next)
+                      toTabs()
+                    }}
+                  >
+                    <div class="sticky top-14 z-10 -mx-1 bg-background px-1 pb-3">
+                      <TabsV2.List
+                        class="flex items-center gap-1 overflow-x-auto [mask-image:linear-gradient(to_right,black_calc(100%-32px),transparent)] [scrollbar-width:none]"
+                        aria-label="Categories"
+                        data-component="recipes-tags"
+                      >
+                        <For each={tags()}>
+                          {(t) => (
+                            <TabsV2.Trigger value={t} class={tagTab} data-tag={t}>
+                              {t === "all" ? "All" : tagLabel(t)}
+                            </TabsV2.Trigger>
+                          )}
+                        </For>
+                      </TabsV2.List>
+                    </div>
+
+                    <Show when={broken().length}>
+                      <div
+                        class="mb-3 flex flex-col gap-1 rounded-[16px] bg-card px-4 py-3 text-[13px] text-muted-foreground"
+                        data-component="recipes-broken"
+                      >
+                        <p class="font-medium text-foreground">Some recipe files did not load</p>
+                        <For each={broken()}>{(why) => <p>{why}</p>}</For>
+                      </div>
+                    </Show>
+
                     <For each={tags()}>
                       {(t) => (
-                        <TabsV2.Trigger value={t} class={tagTab} data-tag={t}>
-                          {t === "all" ? "All" : tagLabel(t)}
-                        </TabsV2.Trigger>
+                        <TabsV2.Content value={t} class="outline-none">
+                          <Show when={shown().length} fallback={<Empty title="Nothing matches" />}>
+                            <div class={`${grid} @min-[760px]/recipes:grid-cols-3`} data-component="recipes-grid">
+                              <For each={shown()}>
+                                {(card) => (
+                                  <RecipeTile recipe={card} onOpen={() => setOpen({ card })} onAdd={() => add(card)} />
+                                )}
+                              </For>
+                            </div>
+                          </Show>
+                        </TabsV2.Content>
                       )}
                     </For>
-                  </TabsV2.List>
-                </div>
-
-                <Show when={broken().length}>
-                  <div
-                    class="mb-3 flex flex-col gap-1 rounded-[16px] bg-card px-4 py-3 text-[13px] text-muted-foreground"
-                    data-component="recipes-broken"
-                  >
-                    <p class="font-medium text-foreground">Some recipe files did not load</p>
-                    <For each={broken()}>{(why) => <p>{why}</p>}</For>
-                  </div>
-                </Show>
-
-                <For each={tags()}>
-                  {(t) => (
-                    <TabsV2.Content value={t} class="outline-none">
-                      <Show when={shown().length} fallback={<Empty title="Nothing matches" />}>
-                        <div class={`${grid} @min-[760px]/recipes:grid-cols-3`} data-component="recipes-grid">
-                          <For each={shown()}>
-                            {(card) => (
-                              <RecipeTile recipe={card} onOpen={() => setOpen({ card })} onAdd={() => add(card)} />
-                            )}
-                          </For>
-                        </div>
-                      </Show>
-                    </TabsV2.Content>
-                  )}
-                </For>
+                  </TabsV2>
+                </TabsV2.Content>
               </TabsV2>
-            </TabsV2.Content>
-          </TabsV2>
+            )}
+          </Show>
 
           <Show
             when={connectAsk()}
