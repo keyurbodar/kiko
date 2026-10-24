@@ -19,6 +19,10 @@
   .desk-tab-close {
     opacity: 1;
   }
+  .desk-head-chev {
+    width: 13px;
+    opacity: 1;
+  }
 }
 @media (width < 768px) {
   .sidebar-shell .sidecar-overlay[data-component="sidecar-overlay"] {

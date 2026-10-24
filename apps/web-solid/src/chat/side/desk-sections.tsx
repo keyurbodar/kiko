@@ -47,7 +47,7 @@ export function Section(props: {
           <RemixIcon
             icon={ChevronRightIcon}
             size={13}
-            class="ml-0.5 w-0 shrink-0 text-fg3 opacity-0 transition-[opacity,width,transform] duration-(--dur-hover) ease-kiko group-hover/head:w-[13px] group-hover/head:translate-x-0.5 group-hover/head:opacity-100"
+            class="desk-head-chev ml-0.5 w-0 shrink-0 text-fg3 opacity-0 transition-[opacity,width,transform] duration-(--dur-hover) ease-kiko group-hover/head:w-[13px] group-hover/head:translate-x-0.5 group-hover/head:opacity-100"
           />
         </button>
       </Show>
