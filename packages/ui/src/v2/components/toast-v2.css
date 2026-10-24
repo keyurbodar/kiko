@@ -71,12 +71,12 @@
   transform: translateX(var(--toast-swipe-x, 0px)) translateY(calc(var(--toast-swipe-y, 0px) + var(--toast-y)))
     scale(var(--toast-scale));
   transition:
-    transform 320ms var(--ease-kiko),
-    opacity 200ms var(--toast-ease),
+    transform var(--dur-pop) var(--ease-kiko),
+    opacity var(--dur-pop) var(--ease-kiko),
     height 150ms;
 
   @starting-style {
-    transform: translateY(24px) scale(0.96);
+    transform: translateY(16px) scale(0.96);
     opacity: 0;
   }
 
@@ -147,7 +147,7 @@
   transition: opacity 200ms;
 
   &[data-actions] {
-    padding-inline-end: 24px;
+    padding-inline-end: 34px;
   }
 }
 
@@ -248,6 +248,11 @@
   background: transparent;
   cursor: pointer;
   outline: none;
+  opacity: 0;
+  transition:
+    opacity var(--dur-hover),
+    background var(--dur-hover),
+    color var(--dur-hover);
 
   &:hover {
     color: var(--fg);
@@ -300,10 +305,13 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  height: 24px;
-  padding: 0 9px;
+  height: 26px;
+  padding: 0 10px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 8px;
+  transition:
+    background var(--dur-hover),
+    transform var(--dur-hover) var(--ease-kiko);
   font-size: 13px;
   font-weight: 500;
   line-height: 16px;
@@ -367,6 +375,12 @@
     opacity: 0;
     scale: 0.98;
   }
+}
+
+.toast-v2:hover .toast-v2-close,
+.toast-v2:focus-within .toast-v2-close,
+.toast-v2:focus-visible .toast-v2-close {
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
