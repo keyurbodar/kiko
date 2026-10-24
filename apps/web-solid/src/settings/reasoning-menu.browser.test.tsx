@@ -59,6 +59,25 @@ describe("ReasoningMenu", () => {
     await expect.element(page.getByRole("slider")).not.toBeInTheDocument()
   })
 
+  it("opens above the trigger inside the composer", async () => {
+    await using screen = await render(() => (
+      <form
+        class="composer-form"
+        style={{ position: "fixed", left: "16px", top: "220px", width: "320px", padding: "40px 24px" }}
+      >
+        <Harness levels={LEVELS} initial="low" />
+      </form>
+    ))
+    const trigger = screen.getByRole("button", { name: "Reasoning" })
+    await trigger.click()
+    await expect.element(page.getByRole("dialog", { name: "Reasoning" })).toBeVisible()
+    const panel = page.getByRole("dialog", { name: "Reasoning" }).element().getBoundingClientRect()
+    const anchor = trigger.element().getBoundingClientRect()
+    const form = document.querySelector(".composer-form")!.getBoundingClientRect()
+    expect(panel.left).toBe(anchor.left)
+    expect(panel.bottom).toBeLessThanOrEqual(form.top)
+  })
+
   it("is absent until a model is chosen", async () => {
     await using screen = await render(() => <Harness />)
     await expect.element(screen.getByRole("button", { name: "Reasoning" })).not.toBeInTheDocument()

@@ -111,7 +111,7 @@ function Panel(props: {
   let panel: HTMLDivElement | undefined
   const box = props.trigger()?.getBoundingClientRect() ?? { top: 0, bottom: 0, left: 0, right: 0 }
   const form = props.trigger()?.closest(".composer-form")?.getBoundingClientRect()
-  const anchor = form ? { ...box, top: form.top, bottom: form.bottom } : box
+  const anchor = { left: box.left, right: box.right, top: form?.top ?? box.top, bottom: form?.bottom ?? box.bottom }
   const place = placePanel(
     anchor,
     PANEL_W,
