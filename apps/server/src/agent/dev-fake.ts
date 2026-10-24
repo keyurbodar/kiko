@@ -1,4 +1,4 @@
-import { awaitWithContext } from "@earendil-works/chord/context"
+import { awaitWithContext, BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { getCurrentTools, Type } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
@@ -387,16 +387,23 @@ export function fakeSetup(
     streamSimple: withTextToolCalls(faux.provider.streamSimple),
     stream: withTextToolCalls(faux.provider.stream as never) as never,
   })
+  const built = buildAgent({
+    ...role,
+    ...more,
+    model: FAKE_MODEL,
+    messaging,
+    ...(workspace ? { workspace } : {}),
+    testExtensions: [SLOW_TOOL_EXTENSION, FAKE_TOOLS_EXTENSION, ...(more.testExtensions ?? [])],
+  })
   return {
     models,
     settings: RUN_SETTINGS,
-    ...buildAgent({
-      ...role,
-      ...more,
-      model: FAKE_MODEL,
-      messaging,
-      ...(workspace ? { workspace } : {}),
-      testExtensions: [SLOW_TOOL_EXTENSION, FAKE_TOOLS_EXTENSION, ...(more.testExtensions ?? [])],
-    }),
+    beginRun: async (_batch, root) => {
+      const { model } = await root.agent(BACKGROUND_CONTEXT)
+      if (model?.provider !== FAKE_MODEL.provider || model.modelId !== FAKE_MODEL.modelId)
+        await root.configure({ model: FAKE_MODEL, thinkingLevel: built.agent.thinkingLevel }, BACKGROUND_CONTEXT)
+      return true
+    },
+    ...built,
   } satisfies AgentSetup
 }
