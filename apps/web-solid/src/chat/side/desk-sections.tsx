@@ -1,7 +1,7 @@
 import { fileName, type FileRef, type HumanAsk, type LifeLine, type Task, type WorkerRow } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, ChevronRightIcon, ClockIcon, WorkerIcon } from "@kiko/ui/icons"
-import { createMemo, For, type JSX, Show } from "solid-js"
+import { createContext, createMemo, For, type JSX, Show, useContext } from "solid-js"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { agentDisplayName } from "../../lib/names"
 import { room } from "../../state/room"
@@ -11,6 +11,8 @@ import { taskText } from "../info/tasks-model"
 import { deskTasks, fileLook, fileTiles, helperLabel, helpers, knowns, nowProgress, waiting } from "./desk-model"
 import { type FixedKind, fixedSurface, openFile, openSurface } from "./surfaces"
 import "./card.css"
+
+export const DeskSettled = createContext<() => boolean>(() => true)
 
 const press = "transition-[background-color,transform] duration-(--dur-hover) ease-kiko active:scale-[0.98]"
 
@@ -22,8 +24,13 @@ export function Section(props: {
   children: JSX.Element
 }) {
   const open = () => props.kind && openSurface(props.chatId, fixedSurface(props.kind))
+  const late = useContext(DeskSettled)()
   return (
-    <section class="desk-section flex flex-col gap-1.5" data-section={props.kind ?? props.label.toLowerCase()}>
+    <section
+      class="desk-section flex flex-col gap-1.5"
+      data-section={props.kind ?? props.label.toLowerCase()}
+      data-enter={late ? "" : undefined}
+    >
       <Show
         when={props.kind}
         fallback={<h3 class="flex h-7 items-center px-1 font-sans text-label font-normal text-fg3">{props.label}</h3>}

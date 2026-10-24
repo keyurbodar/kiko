@@ -13,6 +13,11 @@
       transform: translateX(12px) scale(0.98);
     }
   }
+  @keyframes card-fade {
+    from {
+      opacity: 0.4;
+    }
+  }
   @keyframes desk-in {
     from {
       opacity: 0;
@@ -48,10 +53,13 @@
     }
   }
   [data-component="chat-card"] {
-    animation: card-in var(--dur-step, 400ms) var(--ease-kiko, ease) both;
+    animation: card-in 240ms var(--ease-kiko) both;
   }
-  .desk-section {
-    animation: desk-in var(--dur-step, 400ms) var(--ease-kiko, ease) both;
+  [data-component="chat-card"][data-switch] {
+    animation: card-fade 160ms var(--ease-kiko) both;
+  }
+  .desk-section[data-enter] {
+    animation: desk-in var(--dur-pop) var(--ease-kiko) both;
   }
   .desk-bar {
     transition: width var(--dur-step, 400ms) var(--ease-kiko, ease);
