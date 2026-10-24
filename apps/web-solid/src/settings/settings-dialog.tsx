@@ -103,7 +103,8 @@ export function SettingsDialog(props: ParentProps) {
     ),
   )
   createEffect(() => {
-    if (!narrow() && !section()) void navigate({ to: "/settings/models", replace: true })
+    if (!narrow() && pathname().replace(/\/$/, "") === "/settings")
+      void navigate({ to: "/settings/models", replace: true })
   })
   const holdFocus = (event: FocusEvent) => {
     const target = event.target

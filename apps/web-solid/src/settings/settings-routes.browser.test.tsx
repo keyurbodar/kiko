@@ -30,8 +30,9 @@ function routerAt(path: string) {
       component: () => <p data-testid="section-body">{section.id}</p>,
     }),
   )
+  const chat = createRoute({ getParentRoute: () => root, path: "/chat", component: () => <p>Chat</p> })
   return createRouter({
-    routeTree: root.addChildren([settings.addChildren(sections)]),
+    routeTree: root.addChildren([settings.addChildren(sections), chat]),
     history: createMemoryHistory({ initialEntries: [path] }),
   })
 }
@@ -91,6 +92,16 @@ describe("settings routes", () => {
     await using _screen = await render(() => <RouterProvider router={router} />)
     await expect.element(page.getByRole("dialog").getByRole("heading", { name: "Models", level: 1 })).toBeVisible()
     expect(router.history.location.pathname).toBe("/settings/models")
+  })
+
+  it("stays closed when settings closes to a chat", async () => {
+    await page.viewport(1280, 720)
+    const router = routerAt("/settings/tools")
+    await using screen = await render(() => <RouterProvider router={router} />)
+    await expect.element(page.getByRole("dialog")).toBeVisible()
+    await router.navigate({ to: "/chat" })
+    await expect.element(screen.getByText("Chat")).toBeVisible()
+    expect(router.history.location.pathname).toBe("/chat")
   })
 
   it("lands old section names and unknown ones on a real section", () => {
