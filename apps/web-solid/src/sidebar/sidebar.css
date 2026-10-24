@@ -455,6 +455,17 @@
   background: var(--active);
 }
 
+.sidebar-shell .chat-row[data-active][data-gliding] {
+  background: transparent;
+}
+
+.sidebar-shell .chat-glide {
+  position: absolute;
+  border-radius: 10px;
+  background: var(--active);
+  pointer-events: none;
+}
+
 .sidebar-shell .chat-avatar {
   position: relative;
   display: flex;
@@ -467,9 +478,9 @@
   background: color-mix(in oklab, var(--fg) 5.5%, transparent);
 }
 
-.sidebar-shell .chat-row[data-live] .chat-avatar > * {
-  animation: sidebar-hop 1.4s ease-in-out infinite;
-  transform-origin: 50% 100%;
+.sidebar-shell .chat-mochi {
+  margin-right: 5px;
+  vertical-align: -1px;
 }
 
 .sidebar-shell .chat-text {
@@ -686,22 +697,6 @@
   }
 }
 
-@keyframes sidebar-hop {
-  0%,
-  100% {
-    transform: translateY(0) scale(1, 1);
-  }
-  35% {
-    transform: translateY(-2px) scale(0.95, 1.05);
-  }
-  55% {
-    transform: translateY(0) scale(1.06, 0.94);
-  }
-  70% {
-    transform: none;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .sidebar-shell .chat-shimmer {
     color: var(--fg3);
@@ -709,7 +704,6 @@
     animation: none;
   }
 
-  .sidebar-shell .chat-row[data-live] .chat-avatar > *,
   .sidebar-shell .chat-row[data-enter],
   .sidebar-shell .chat-row[data-need][data-enter],
   .sidebar-shell .chat-pin-icon[data-bounce],

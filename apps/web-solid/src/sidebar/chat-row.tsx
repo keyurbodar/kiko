@@ -5,6 +5,7 @@ import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { openAvatarPicker } from "../avatar/picker-state"
 import { openChat } from "../app/history"
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
+import { Mochi } from "../chat/ui/Mochi"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { agentDisplayName } from "../lib/names"
 import { cachedTail, room } from "../state/room"
@@ -222,6 +223,7 @@ function RowPreview(props: { bot: RosterBot; need: Need | undefined; live: boole
             </Show>
           }
         >
+          <Mochi size={12} class="chat-mochi" />
           <span class="chat-shimmer">
             {props.bot.typing ?? (props.bot.presence === "typing" ? "Typing" : "Working")}
           </span>

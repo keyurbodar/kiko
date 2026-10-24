@@ -9,7 +9,7 @@ import { user } from "../state/user"
 import { markedUnread } from "./actions"
 import { ChatRow, isLive } from "./chat-row"
 import { filterRows, pinnedRows } from "./filter"
-import { flipRows } from "./flip"
+import { flipRows, glideActive } from "./flip"
 import { createFailuresElsewhere } from "./failures"
 import { type Need, needsOf } from "./needs"
 
@@ -102,6 +102,10 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
   flipRows(
     () => scroller,
     () => [...needIds(), "|", ...workingIds(), "|", ...pinnedIds(), "|", ...chatIds()],
+  )
+  glideActive(
+    () => scroller,
+    () => props.activeId,
   )
 
   const rows = (ids: () => readonly string[], pinMark = false) => (
