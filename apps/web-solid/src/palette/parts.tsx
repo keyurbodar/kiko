@@ -12,8 +12,8 @@ import { iconFor, keyChips, type Item } from "./model"
 
 export type KeyName = "enter" | "tab" | "esc" | "up-down" | "left" | "right" | "space" | "alt-enter" | "mod-enter"
 
-export const MOD = isMac ? "⌘" : "Ctrl"
-export const ALT = isMac ? "⌥" : "Alt"
+const MOD = isMac ? "⌘" : "Ctrl"
+const ALT = isMac ? "⌥" : "Alt"
 
 export function Key(props: { name: KeyName }) {
   return (
@@ -63,7 +63,7 @@ export function Hint(props: { name: KeyName; children: JSX.Element }) {
   )
 }
 
-export function Chips(props: { keys: string[] }) {
+function Chips(props: { keys: string[] }) {
   return (
     <span class="palette-keys">
       <kbd class="palette-kbd">{props.keys.join(isMac ? "" : "+")}</kbd>
@@ -73,7 +73,7 @@ export function Chips(props: { keys: string[] }) {
 
 const escape = (word: string) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
-export function Marked(props: { text: string; query?: string }) {
+function Marked(props: { text: string; query?: string }) {
   const parts = createMemo(() => {
     const words = props.query?.toLowerCase().split(/\s+/).filter(Boolean) ?? []
     if (!words.length) return [{ text: props.text, match: false }]

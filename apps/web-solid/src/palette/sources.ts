@@ -25,7 +25,7 @@ export interface FileEntry {
   home: boolean
 }
 
-export const chatActions = (id: string): readonly RowAction[] => {
+const chatActions = (id: string): readonly RowAction[] => {
   const pinnable = !user.chat(id)?.kiko
   const pinned = user.chat(id)?.pinned
   return [
@@ -62,7 +62,7 @@ export const chatActions = (id: string): readonly RowAction[] => {
   ]
 }
 
-export const needsYou = (bot: { id: string; unread: number }): boolean => bot.unread > 0 || markedUnread(bot.id)
+const needsYou = (bot: { id: string; unread: number }): boolean => bot.unread > 0 || markedUnread(bot.id)
 
 export function chatChoices(): Choice[] {
   return room.bots().map((bot) => ({
@@ -177,7 +177,7 @@ export function fileEntries(): FileEntry[] {
   return [...chat, ...home]
 }
 
-export const filesChatId = (): string | null => room.activeId() ?? user.kikoChatId() ?? null
+const filesChatId = (): string | null => room.activeId() ?? user.kikoChatId() ?? null
 
 export function openEntry(entry: FileEntry): void {
   const chatId = filesChatId()

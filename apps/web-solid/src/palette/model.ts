@@ -23,7 +23,7 @@ export interface View {
 
 export const enterLabel = (view: View): string => view.parent?.enter ?? "Select"
 
-export const ROOT_PLACEHOLDER = "Search chats, files, agents, or type a command"
+const ROOT_PLACEHOLDER = "Search chats, files, agents, or type a command"
 
 export const listed = (list: readonly Command[]): Command[] =>
   list.filter((c) => c.group !== "palette" && !c.unlisted && isEnabled(c))
