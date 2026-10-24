@@ -1,5 +1,6 @@
-import type { UpdateStage, UserToClient } from "@kiko/protocol"
-import { clientBehind, type Skew } from "./version-skew"
+import type { SupervisorConnectionPhase } from "@kiko/client-runtime/connection"
+import { speaksRpc, type UpdateStage, type UserToClient } from "@kiko/protocol"
+import { type BackendBuild, backendSkew, type Build, clientBehind, type Skew } from "./version-skew"
 
 export type UpdateProgress = { stage: UpdateStage; error?: string; sentAt?: number } | null
 
@@ -56,5 +57,24 @@ export const RESTART_ERROR = "Kiko was updated but has not restarted yet. Wait a
 
 export const landed = (target: string, backend: string | undefined): boolean =>
   backend !== undefined && !clientBehind(backend, target)
+
+export type RestartStep = "wait" | "reconnect" | "done"
+
+const RECONNECTABLE: ReadonlySet<SupervisorConnectionPhase | undefined> = new Set(["backoff", "blocked", "available"])
+
+export function restartStep(
+  target: string,
+  build: BackendBuild | null,
+  phase: SupervisorConnectionPhase | undefined,
+): RestartStep {
+  if (!build || !speaksRpc(build) || !landed(target, build.version)) return "wait"
+  if (phase === "connected") return "done"
+  return RECONNECTABLE.has(phase) ? "reconnect" : "wait"
+}
+
+export const autoUpdateKey = (client: Build, backend: BackendBuild | null): string | null =>
+  backend?.version !== undefined && backendSkew(client, backend) === "update"
+    ? `${backend.version}->${client.version}`
+    : null
 
 export const LATEST_POLL_MS = 5 * 60_000

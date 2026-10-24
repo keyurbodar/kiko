@@ -5,6 +5,7 @@ import { apiFetch } from "../lib/api"
 import { base, getToken } from "../lib/api-base"
 import { showFailure } from "../lib/errors"
 import {
+  autoUpdateKey,
   checkStall,
   LATEST_POLL_MS,
   landed,
@@ -13,6 +14,7 @@ import {
   RESTART_ERROR,
   RESTART_LIMIT_MS,
   RESTART_POLL_MS,
+  restartStep,
   sent,
   STALL_MS,
   type UpdateProgress,
@@ -58,11 +60,12 @@ async function awaitRestart() {
       Date.now() < until;
       await new Promise((r) => setTimeout(r, RESTART_POLL_MS))
     ) {
-      const build = await refreshBackend()
-      if (!build || !speaksRpc(build) || !landed(target, build.version)) continue
+      const step = restartStep(target, await refreshBackend(), connection.state()?.phase)
+      if (step === "reconnect") connection.retry()
+      if (step !== "done") continue
       if (clientIsBehind()) return location.reload()
       set(null)
-      showToastV2({ title: "Kiko is updated", description: `Now on ${build?.version}.`, variant: "success" })
+      showToastV2({ title: "Kiko is updated", description: `Now on ${backendVersion()}.`, variant: "success" })
       return
     }
     set({ stage: "failed", error: RESTART_ERROR })
@@ -141,6 +144,22 @@ export async function refreshBackend(): Promise<BackendBuild | null> {
 }
 
 createRoot(() => createComputed(on(connection.view, (view) => view === "backend-outdated" && void refreshBackend())))
+
+const AUTO_UPDATED_KEY = "kiko:auto-updated"
+
+createRoot(() =>
+  createComputed(
+    on(
+      () => fetched() ?? user.build(),
+      (build) => {
+        const key = progress() ? null : autoUpdateKey(clientBuild, build)
+        if (!key || sessionStorage.getItem(AUTO_UPDATED_KEY) === key) return
+        sessionStorage.setItem(AUTO_UPDATED_KEY, key)
+        void startUpdate()
+      },
+    ),
+  ),
+)
 
 export async function refreshLatest(): Promise<void> {
   if (!hosted) return
