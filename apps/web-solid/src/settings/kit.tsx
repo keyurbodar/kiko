@@ -101,9 +101,11 @@ export function Group(props: {
   return (
     <section class={local.class} data-setting-group={local.id} {...rest}>
       <Show when={local.title || local.action}>
-        <div class="flex items-end gap-4 px-1 pb-2.5">
+        <div class="flex items-end gap-4 px-1 pb-1.5">
           <div class="min-w-0 flex-1">
-            <Show when={local.title}>{(title) => <h2 class="type-label text-fg3">{title()}</h2>}</Show>
+            <Show when={local.title}>
+              {(title) => <h2 class="flex h-section-label items-center type-label text-fg3">{title()}</h2>}
+            </Show>
             <Show when={local.description}>
               {(description) => <div class={cn("mt-0.5 text-label leading-relaxed", muted)}>{description()}</div>}
             </Show>
