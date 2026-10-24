@@ -20,14 +20,14 @@ const LABEL: Record<Status, string> = {
 }
 
 const PILL: Record<Status, string> = {
-  action: "bg-[color-mix(in_oklab,var(--warning)_18%,transparent)] text-warning",
-  working: "bg-[color-mix(in_oklab,var(--warning)_18%,transparent)] text-warning",
-  done: "bg-[color-mix(in_oklab,var(--success)_16%,transparent)] text-success",
-  offline: "bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] text-muted-foreground",
+  action: "bg-[color-mix(in_oklab,var(--warn)_18%,transparent)] text-warn",
+  working: "bg-[color-mix(in_oklab,var(--warn)_18%,transparent)] text-warn",
+  done: "bg-[color-mix(in_oklab,var(--ok)_16%,transparent)] text-ok",
+  offline: "bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] text-fg2",
 }
 
 const button =
-  "h-9 shrink-0 cursor-pointer rounded-full px-4 text-md font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+  "h-9 shrink-0 cursor-pointer rounded-full px-4 text-ui font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
 
 function Dot(): JSX.Element {
   return <span class="size-1.5 rounded-full bg-current" aria-hidden="true" />
@@ -68,9 +68,9 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
       <Bubble variant="secondary" class="w-full max-w-[min(100%,30rem)]">
         <BubbleContent class="flex flex-col gap-2.5 p-3.5">
           <div class="flex items-center justify-between gap-3">
-            <span class="text-md font-semibold">Computer</span>
+            <span class="text-ui font-semibold">Computer</span>
             <span
-              class={cn("inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-md", PILL[status()])}
+              class={cn("inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-ui", PILL[status()])}
               data-field="status"
             >
               <Show when={open()} fallback={<Dot />}>
@@ -79,7 +79,7 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
               {LABEL[status()]}
             </span>
           </div>
-          <p class="text-base leading-snug" data-field="reason">
+          <p class="text-msg leading-snug" data-field="reason">
             {event().reason}
           </p>
           <Show when={watching()}>
@@ -99,18 +99,14 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
               <Show
                 when={status() === "action"}
                 fallback={
-                  <button
-                    type="button"
-                    class={cn(button, "bg-background text-foreground")}
-                    onClick={() => openViewer(event().pc)}
-                  >
+                  <button type="button" class={cn(button, "bg-bg text-fg")} onClick={() => openViewer(event().pc)}>
                     Open
                   </button>
                 }
               >
                 <button
                   type="button"
-                  class={cn(button, "bg-foreground text-background")}
+                  class={cn(button, "bg-fg text-bg")}
                   data-action="computer-takeover"
                   disabled={!computer()?.online || computer()?.caps.input === false}
                   onClick={() => takeOver(event().pc)}
@@ -120,14 +116,14 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
               </Show>
               <button
                 type="button"
-                class={cn(button, "bg-[color-mix(in_oklab,var(--foreground)_10%,transparent)] text-foreground")}
+                class={cn(button, "bg-[color-mix(in_oklab,var(--fg)_10%,transparent)] text-fg")}
                 data-action="computer-done"
                 onClick={() => release(event().pc)}
               >
                 I’m done
               </button>
               <Show when={status() === "working"}>
-                <span class="text-sm text-muted-foreground">{agentName()} is paused while you work.</span>
+                <span class="text-label text-fg2">{agentName()} is paused while you work.</span>
               </Show>
             </div>
           </Show>

@@ -118,11 +118,7 @@ const GROUPS: Record<ToolKind, { label: (count: number) => string; priority: num
   other: { label: (n) => `Used ${plural(n, "tool", "tools")}`, priority: 2 },
 }
 
-export function summarizeSteps(steps: readonly Pick<RunStep, "tool" | "status" | "note">[]): {
-  summary: string
-  hasFailure: boolean
-  failed: number
-} {
+export function summarizeSteps(steps: readonly Pick<RunStep, "tool" | "note">[]): string {
   const calls = steps.filter((step) => !step.note)
   const groups = new Map<ToolKind, number>()
   for (const step of calls) groups.set(step.tool, (groups.get(step.tool) ?? 0) + 1)
@@ -140,10 +136,7 @@ export function summarizeSteps(steps: readonly Pick<RunStep, "tool" | "status" |
   const rest = calls.length - picked.reduce((n, g) => n + g.count, 0)
   if (rest > 0) labels.push(`Performed ${plural(rest, "other action", "other actions")}`)
   const sentence = labels.map((label, i) => (i === 0 ? label : label.charAt(0).toLowerCase() + label.slice(1)))
-  const summary =
-    sentence.length < 3 ? sentence.join(" and ") : `${sentence.slice(0, -1).join(", ")}, and ${sentence.at(-1)}`
-  const failed = steps.filter((s) => s.status === "failed").length
-  return { summary, hasFailure: failed > 0, failed }
+  return sentence.length < 3 ? sentence.join(" and ") : `${sentence.slice(0, -1).join(", ")}, and ${sentence.at(-1)}`
 }
 
 const PRESENT: Record<string, string> = {

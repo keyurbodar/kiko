@@ -37,7 +37,6 @@ const COMMAND_IDS = [
   "settings.open",
   "settings.pages",
   "theme.change",
-  "view.toggle-panel",
   "view.toggle-sidebar",
 ] as const
 

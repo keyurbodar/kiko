@@ -4,7 +4,7 @@
     "types": "off",
     "nsTypes": "off"
   },
-  "ignoreDependencies": ["cloudflare", "remixicon"],
+  "ignoreDependencies": ["cloudflare"],
   "workspaces": {
     ".": {
       "entry": ["scripts/*.ts"]

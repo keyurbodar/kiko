@@ -8,7 +8,7 @@
 }
 
 .typing {
-  --typing-period: 1.25s;
+  --typing-period: 1.1s;
   display: flex;
   max-width: 100%;
   align-items: flex-end;
@@ -35,12 +35,12 @@
   align-items: center;
   padding: var(--bubble-pad-y) var(--bubble-pad-x);
 
-  border-radius: var(--radius-bubble);
-  border-end-start-radius: 4px;
-  background: var(--message-assistant);
-  color: var(--message-assistant-foreground);
-  font-size: var(--font-base);
-  line-height: calc(var(--font-base) + 6px);
+  border-radius: 18px;
+  border-end-start-radius: 6px;
+  background: var(--kiko-bubble);
+  color: var(--fg);
+  font-size: 15px;
+  line-height: 24px;
   transform-origin: 0 100%;
 }
 
@@ -54,8 +54,8 @@
 
 .typing-dot {
   display: block;
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   flex: none;
   border-radius: 9999px;
   background: currentColor;
@@ -70,8 +70,8 @@
   min-width: 0;
   overflow: hidden;
   padding-bottom: calc(var(--bubble-pad-y) + 1px);
-  color: var(--muted-foreground);
-  font-size: var(--font-md);
+  color: var(--fg3);
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -81,8 +81,8 @@
 }
 
 .typing-more {
-  color: var(--muted-foreground);
-  font-size: var(--font-md);
+  color: var(--fg3);
+  font-size: 13px;
 }
 .typing-more[data-group] {
   padding-left: 40px;
@@ -108,6 +108,10 @@
     animation: typing-fade 200ms ease-out backwards;
   }
 
+  .typing-bird {
+    animation: typing-bird-hop 1.2s var(--ease-kiko) infinite;
+    transform-origin: 50% 100%;
+  }
   .typing-dot {
     animation: var(--dot-anim, typing-wave) var(--typing-period) var(--dot-ease, linear) infinite;
   }
@@ -158,14 +162,30 @@
 
 @keyframes typing-wave {
   0%,
+  60%,
   100% {
-    transform: scale(1.35);
+    transform: none;
+    opacity: 0.25;
+  }
+  30% {
+    transform: translateY(-3px);
     opacity: 1;
   }
-  33.333%,
-  66.667% {
-    transform: scale(1);
-    opacity: 0.5;
+}
+
+@keyframes typing-bird-hop {
+  0%,
+  100% {
+    transform: none;
+  }
+  35% {
+    transform: translateY(-5px) scale(0.94, 1.06);
+  }
+  55% {
+    transform: scale(1.07, 0.93);
+  }
+  70% {
+    transform: none;
   }
 }
 

@@ -73,12 +73,12 @@ export default function MessageMenu(props: MessageMenuProps) {
       <MenuV2.Context.Portal>
         <MenuV2.Context.Content
           class={cn(
-            "chat-menu min-w-[184px] rounded-xl p-1 text-foreground",
+            "chat-menu min-w-[184px] rounded-pop p-1 text-fg",
             pickerOpen() && "rounded-[20px] p-0",
             "[&_[data-component=menu-v2-item]]:h-[30px]",
             "[&_[data-slot=menu-v2-item-content]]:text-[13px]",
             "[&_[data-slot=menu-v2-item-content]]:gap-2.5",
-            "[&_[data-component=menu-v2-item]_svg]:text-muted-foreground",
+            "[&_[data-component=menu-v2-item]_svg]:text-fg2",
           )}
           data-component="chat-menu"
         >
@@ -92,10 +92,10 @@ export default function MessageMenu(props: MessageMenuProps) {
                       <button
                         type="button"
                         class={cn(
-                          "chat-menu__emoji flex size-8 items-center justify-center rounded-lg p-0 font-emoji text-[20px] leading-none",
+                          "chat-menu__emoji flex size-8 items-center justify-center rounded-row p-0 font-emoji text-[20px] leading-none",
                           "cursor-default border-none bg-transparent",
-                          "hover:bg-[var(--accent-strong)]",
-                          "focus-visible:bg-[var(--accent-strong)]",
+                          "hover:bg-[var(--active)]",
+                          "focus-visible:bg-[var(--active)]",
                           "active:scale-[0.92]",
                         )}
                         data-emoji={emoji}
@@ -112,11 +112,11 @@ export default function MessageMenu(props: MessageMenuProps) {
                   <button
                     type="button"
                     class={cn(
-                      "chat-menu__more ml-auto flex size-8 items-center justify-center rounded-lg p-0",
-                      "cursor-default border-none bg-transparent text-muted-foreground",
-                      "hover:bg-[var(--accent-strong)]",
-                      "hover:text-foreground focus-visible:bg-[var(--accent-strong)]",
-                      "focus-visible:text-foreground",
+                      "chat-menu__more ml-auto flex size-8 items-center justify-center rounded-row p-0",
+                      "cursor-default border-none bg-transparent text-fg2",
+                      "hover:bg-[var(--active)]",
+                      "hover:text-fg focus-visible:bg-[var(--active)]",
+                      "focus-visible:text-fg",
                     )}
                     aria-label="More emoji"
                     aria-expanded={pickerOpen()}
@@ -174,7 +174,7 @@ export default function MessageMenu(props: MessageMenuProps) {
                 </Show>
                 <Show when={props.onDelete}>
                   <MenuV2.Item
-                    class={cn("chat-menu__danger text-error [&_svg]:!text-[var(--error)]")}
+                    class={cn("chat-menu__danger text-bad [&_svg]:!text-[var(--bad)]")}
                     onSelect={props.onDelete}
                   >
                     <RemixIcon icon={TrashIcon} class="size-3.5 shrink-0" />

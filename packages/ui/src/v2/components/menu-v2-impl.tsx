@@ -1,9 +1,29 @@
 import { DropdownMenu } from "@kobalte/core/dropdown-menu"
 import { ContextMenu } from "@kobalte/core/context-menu"
-import { Show, splitProps, type Component, type ComponentProps, type JSX, type ParentProps } from "solid-js"
+import { onMount, Show, splitProps, type Component, type ComponentProps, type JSX, type ParentProps } from "solid-js"
 import { RemixIcon } from "../../components/remix-icon"
 import { CheckIcon, ChevronRightIcon } from "../../icons.gen"
+import { glide } from "./glide"
 import "./menu-v2.css"
+
+const ITEM = '[data-component="menu-v2-item"][data-highlighted]'
+
+const Glide: Component = () => {
+  let mark!: HTMLSpanElement
+  onMount(() => {
+    const host = mark.parentElement
+    if (!host) return
+    glide(host, mark, {
+      attributes: ["data-highlighted"],
+      find: (menu) =>
+        [...menu.querySelectorAll<HTMLElement>(ITEM)].find(
+          (item) => item.closest('[data-component="menu-v2-content"]') === menu,
+        ),
+      tone: (item) => (item.matches(".text-bad, .text-error") ? "bad" : undefined),
+    })
+  })
+  return <span ref={mark} data-slot="glide" data-hidden="" aria-hidden="true" />
+}
 
 const ChevronRight: Component = () => <RemixIcon icon={ChevronRightIcon} data-slot="menu-v2-item-chevron" size={16} />
 
@@ -119,13 +139,16 @@ function MenuV2SubTrigger(props: ParentProps<MenuV2SubTriggerProps>) {
 }
 
 function MenuV2SubContent(props: ComponentProps<typeof DropdownMenu.SubContent>) {
-  const [s, r] = splitProps(props, ["class", "classList"])
+  const [s, r] = splitProps(props, ["class", "classList", "children"])
   return (
     <DropdownMenu.SubContent
       {...r}
       data-component="menu-v2-content"
       classList={{ ...s.classList, [s.class ?? ""]: !!s.class }}
-    />
+    >
+      <Glide />
+      {s.children}
+    </DropdownMenu.SubContent>
   )
 }
 
@@ -152,13 +175,16 @@ function MenuV2Separator(props: ComponentProps<typeof DropdownMenu.Separator>) {
 }
 
 function MenuV2Content(props: ComponentProps<typeof DropdownMenu.Content>) {
-  const [s, r] = splitProps(props, ["class", "classList"])
+  const [s, r] = splitProps(props, ["class", "classList", "children"])
   return (
     <DropdownMenu.Content
       {...r}
       data-component="menu-v2-content"
       classList={{ ...s.classList, [s.class ?? ""]: !!s.class }}
-    />
+    >
+      <Glide />
+      {s.children}
+    </DropdownMenu.Content>
   )
 }
 
@@ -171,13 +197,16 @@ function MenuV2ContextRoot(props: ComponentProps<typeof ContextMenu>) {
 }
 
 function MenuV2ContextContent(props: ComponentProps<typeof ContextMenu.Content>) {
-  const [s, r] = splitProps(props, ["class", "classList"])
+  const [s, r] = splitProps(props, ["class", "classList", "children"])
   return (
     <ContextMenu.Content
       {...r}
       data-component="menu-v2-content"
       classList={{ ...s.classList, [s.class ?? ""]: !!s.class }}
-    />
+    >
+      <Glide />
+      {s.children}
+    </ContextMenu.Content>
   )
 }
 

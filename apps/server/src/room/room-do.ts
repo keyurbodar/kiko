@@ -1688,10 +1688,7 @@ export class Room implements CommandRoom {
       this.reports.run(this.routines.ended(slug), "ended")
     } else if (this.members.get(slug)?.status === "idle") this.routines.started(slug, this.log.lastSeq())
     if (!this.members.setStatus(slug, state)) return false
-    if (state === "typing" && detail !== undefined)
-      this.team.doing(slug, detail ?? "writing a reply", Date.now(), { kind: "writing" })
-    else if (state === "typing" && !this.team.now(slug))
-      this.team.doing(slug, "writing a reply", Date.now(), { kind: "writing" })
+    if (state === "typing") this.team.writing(slug, detail, Date.now())
     this.broadcastStatus(slug)
     this.broadcast(this.activeFrame())
     await this.pushTyping()

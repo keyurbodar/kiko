@@ -44,9 +44,10 @@ function groupChat(rounds: number): ChatMessage[] {
   return messages
 }
 
-async function mountThread() {
+async function mountThread(options: { firstUnread?: (messages: ChatMessage[]) => string } = {}) {
   await page.viewport(1200, 800)
   const [messages, setMessages] = createSignal(groupChat(30))
+  const [working, setWorking] = createSignal<string[]>([])
   const reply = (body: string) =>
     setMessages((list) => {
       const last = list[list.length - 1]
@@ -64,12 +65,13 @@ async function mountThread() {
         messages={messages()}
         botById={(id) => (id === undefined ? undefined : bots[id])}
         replyParent={() => undefined}
-        firstUnreadMessageId={null}
+        firstUnreadMessageId={options.firstUnread?.(messages()) ?? null}
         onJumpToMessage={() => {}}
         onReplyTarget={() => {}}
         scrollRef={() => {}}
         onStateChange={() => {}}
-        waitingNames={[]}
+        waitingNames={working()}
+        waitingSlugs={working()}
         groupChat
         memberSlugs={Object.keys(bots)}
         onReact={() => {}}
@@ -85,8 +87,10 @@ async function mountThread() {
     expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight * 2)
     expect(atEnd()).toBeLessThan(1)
   })
-  return { screen, host, scroller, atEnd, reply }
+  return { screen, host, scroller, atEnd, reply, setWorking, setMessages }
 }
+
+const scrollDown = (host: HTMLElement) => host.querySelector<HTMLButtonElement>('[data-component="chat-scroll-down"]')!
 
 const threadToggleBefore = (host: HTMLElement, text: string): HTMLElement | undefined => {
   const row = [...host.querySelectorAll('[data-component="chat-row"]')].find((r) => r.textContent?.includes(text))
@@ -142,6 +146,30 @@ describe("VirtualThread scrolling", () => {
     expect(chip.hasAttribute("data-visible")).toBe(false)
   })
 
+  it("keeps a sent bubble rising when the server's copy replaces the local one", async () => {
+    const { screen, host, setMessages } = await mountThread()
+    await using _ = screen
+    const neverStale = Date.UTC(2999, 0, 1)
+    const sent = {
+      threadId: ROOM,
+      sender: "user" as const,
+      body: "On my way now.",
+      sentAt: neverStale,
+      clientId: "c-1",
+    }
+
+    setMessages((list) => [...list, { ...sent, id: "local:c-1" }])
+    const bubble = await vi.waitFor(() => {
+      const rising = host.querySelector<HTMLElement>(".motion-bubble-in")
+      expect(rising?.textContent).toContain("On my way now.")
+      return rising!
+    })
+    setMessages((list) => list.map((m) => (m.id === "local:c-1" ? { ...sent, id: "181.room", seq: 181 } : m)))
+
+    expect(bubble.isConnected).toBe(true)
+    expect(bubble.classList.contains("motion-bubble-in")).toBe(true)
+  })
+
   it("follows a reply that arrives while the chat is at its end", async () => {
     const { screen, host, atEnd, reply } = await mountThread()
     await using _ = screen
@@ -174,5 +202,59 @@ describe("VirtualThread scrolling", () => {
     await vi.waitFor(() => expect(scroller.scrollHeight).toBeGreaterThan(before.height))
     expect(reading.getBoundingClientRect().top).toBe(before.top)
     expect(scroller.scrollTop).toBe(before.scrollTop)
+  })
+
+  it("shows the faces of the agents working below once the reader is a screen away, then a plain arrow", async () => {
+    const { screen, host, scroller, atEnd, setWorking } = await mountThread()
+    await using _ = screen
+    expect(scrollDown(host).hasAttribute("data-hidden")).toBe(true)
+
+    setWorking(["alpha", "beta"])
+    await userEvent.wheel(scroller, { delta: { y: -2400 } })
+
+    await vi.waitFor(() => expect(atEnd()).toBeGreaterThan(scroller.clientHeight))
+    await vi.waitFor(() => expect(scrollDown(host).hasAttribute("data-hidden")).toBe(false))
+    const faces = [...scrollDown(host).querySelectorAll('[data-component="identity-avatar"]')]
+    expect(faces.map((face) => face.getAttribute("data-seed"))).toEqual(["alpha", "beta"])
+
+    setWorking([])
+
+    await vi.waitFor(() => expect(scrollDown(host).hasAttribute("data-working")).toBe(false))
+    expect(scrollDown(host).querySelector('[data-component="identity-avatar"]')).toBeNull()
+  })
+
+  it("dots the scroll button when a reply lands below, and clears it at the end", async () => {
+    const { screen, host, scroller, atEnd, reply } = await mountThread()
+    await using _ = screen
+    await userEvent.wheel(scroller, { delta: { y: -2400 } })
+    await vi.waitFor(() => expect(scrollDown(host).hasAttribute("data-hidden")).toBe(false))
+
+    reply("Landed while you were reading above.")
+
+    await vi.waitFor(() => expect(host.querySelector('[data-component="chat-scroll-down-new"]')).not.toBeNull())
+
+    scrollDown(host).click()
+
+    await vi.waitFor(() => expect(atEnd()).toBeLessThan(1))
+    expect(host.querySelector('[data-component="chat-scroll-down-new"]')).toBeNull()
+  })
+
+  it("shows who wrote above the view and jumps to the first unread message", async () => {
+    const { screen, host, scroller } = await mountThread({ firstUnread: (messages) => messages[100]!.id })
+    const first = () => host.querySelector('[data-message-id="101.room"]')?.getBoundingClientRect()
+    await using _ = screen
+    const pill = () => host.querySelector<HTMLButtonElement>('[data-component="chat-new-above"]')
+
+    await vi.waitFor(() => expect(pill()?.textContent).toContain("new above"))
+    expect(pill()!.querySelectorAll('[data-component="identity-avatar"]').length).toBeGreaterThan(0)
+
+    pill()!.click()
+
+    await vi.waitFor(() => {
+      const row = first()
+      const view = scroller.getBoundingClientRect()
+      expect(row && row.bottom > view.top && row.top < view.bottom).toBe(true)
+    })
+    await vi.waitFor(() => expect(pill()).toBeNull())
   })
 })

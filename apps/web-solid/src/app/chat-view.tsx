@@ -1,6 +1,5 @@
 import { Suspense, Show, createEffect, createMemo, createSignal, on } from "solid-js"
 import { useNavigate } from "@tanstack/solid-router"
-import { Icon as IconV2 } from "@kiko/ui/v2/icon"
 import { MessageList, type VirtualThreadState } from "../chat/MessageList"
 import { Composer } from "../composer/composer"
 import { ModelPickerButton } from "../settings/model-picker"
@@ -16,6 +15,7 @@ import { keepArray, keepSpeakers } from "../chat/lib/members"
 import { jumpRequest, requestJump } from "../search/state"
 import { EmptyState } from "../chat/ui/EmptyState"
 import { captureLaunch, glideToDock, type Launch } from "../chat/send-motion"
+import { pageIn, replay } from "../lib/motion"
 import { clearUnreadMark } from "../sidebar/unread-mark"
 import { roomEmpty } from "./chat-empty"
 import { useRefusalToasts } from "../chat/members/members"
@@ -25,7 +25,7 @@ import { readOnly } from "./update-flow"
 import BrowserChip from "../chat/BrowserChip"
 
 const JUMP_CLASS =
-  "pointer-events-auto relative grid size-[26px] place-items-center rounded-md border border-[color-mix(in_oklab,var(--foreground)_15%,transparent)] bg-[color-mix(in_oklab,var(--foreground)_10%,transparent)] text-foreground shadow-md backdrop-blur-md"
+  "pointer-events-auto relative grid size-[26px] place-items-center rounded-control border border-[color-mix(in_oklab,var(--fg)_15%,transparent)] bg-[color-mix(in_oklab,var(--fg)_10%,transparent)] text-fg shadow-md backdrop-blur-md"
 
 export function ChatView() {
   useRefusalToasts()
@@ -201,6 +201,7 @@ export function ChatView() {
   })
   let dock: HTMLDivElement | undefined
   let launch: Launch | null = null
+  createEffect(on(roomId, () => replay(transcript), { defer: true }))
   createEffect(
     on(empty, (now, before) => {
       if (before && !now && dock) glideToDock(dock, launch)
@@ -216,7 +217,14 @@ export function ChatView() {
       data-reply-target={replyTarget() ?? undefined}
       data-range={threadState() ? `${threadState()!.rangeStart}-${threadState()!.rangeEnd}` : undefined}
     >
-      <div class="flex min-h-0 flex-1 flex-col" ref={transcript} data-component="chat-transcript">
+      <div
+        class="flex min-h-0 flex-1 flex-col"
+        ref={(el) => {
+          transcript = el
+          pageIn(el)
+        }}
+        data-component="chat-transcript"
+      >
         <MessageList
           messages={messages()}
           botById={(id) => (id === undefined ? undefined : speaker(id))}
@@ -250,11 +258,13 @@ export function ChatView() {
             jumpToMessage = handle.jumpToMessage
             scrollToLatest = handle.scrollToLatest
           }}
+          onToLatest={toLatest}
+          detached={room.showingHistory()}
         />
       </div>
 
       <Show when={empty()}>
-        <EmptyState />
+        <EmptyState working={room.typingNames().length > 0} />
       </Show>
       <div
         ref={dock}
@@ -263,13 +273,10 @@ export function ChatView() {
         data-scrolled={scrolled() ? "true" : undefined}
       >
         <Show when={mentions().length > 0}>
-          <div
-            class="pointer-events-none absolute right-3 z-6 transition-[bottom] duration-150 ease-out motion-reduce:transition-none"
-            classList={{ "bottom-[calc(100%+8px)]": !scrolled(), "bottom-[calc(100%+42px)]": scrolled() }}
-          >
+          <div class="pointer-events-none absolute right-3 bottom-[calc(100%+8px)] z-6">
             <button
               type="button"
-              class={`${JUMP_CLASS} text-sm font-medium text-ring`}
+              class={`${JUMP_CLASS} text-label font-medium text-info`}
               data-component="composer-jump-mention"
               title="Next mention"
               aria-label="Next mention"
@@ -277,7 +284,7 @@ export function ChatView() {
             >
               <span aria-hidden="true">@</span>
               <span
-                class="absolute -top-1.5 -right-1.5 h-4 min-w-4 rounded-full bg-ring px-1 text-center text-xs leading-4 text-[var(--primary-foreground)]"
+                class="absolute -top-1.5 -right-1.5 h-4 min-w-4 rounded-full bg-info px-1 text-center text-hint leading-4 text-[var(--on-fg)]"
                 data-component="composer-jump-count"
               >
                 {mentions().length}
@@ -286,22 +293,6 @@ export function ChatView() {
           </div>
         </Show>
 
-        <div class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+6px)] z-6 flex justify-end px-3">
-          <button
-            type="button"
-            class="pointer-events-auto inline-flex h-7 items-center gap-1 rounded-full border border-[color-mix(in_oklab,var(--foreground)_10%,transparent)] bg-[color-mix(in_oklab,var(--background)_80%,transparent)] px-2.5 text-xs font-medium text-foreground shadow-md backdrop-blur-md transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none data-[hidden]:pointer-events-none data-[hidden]:scale-95 data-[hidden]:opacity-0"
-            data-component="composer-scroll-down"
-            data-hidden={scrolled() ? undefined : ""}
-            aria-label="Scroll to end"
-            aria-hidden={scrolled() ? undefined : "true"}
-            tabIndex={scrolled() ? 0 : -1}
-            onPointerDown={(event) => event.preventDefault()}
-            onClick={toLatest}
-          >
-            <IconV2 name="chevron-down" class="size-3.5" />
-            Scroll to end
-          </button>
-        </div>
         <Suspense>
           <BrowserChip slugs={memberSlugs()} />
           <QuoteOnSelect

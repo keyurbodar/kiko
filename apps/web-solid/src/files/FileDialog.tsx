@@ -1,4 +1,4 @@
-import type { FileRef } from "@kiko/protocol"
+import { fileName, type FileRef } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CloseIcon } from "@kiko/ui/icons"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
@@ -15,6 +15,7 @@ export default function FileDialog(props: {
   path: string
   file: FileRef | undefined
   kind: ViewerKind
+  onClose?: () => void
 }) {
   const view = createFileView(
     props.chatId,
@@ -23,17 +24,24 @@ export default function FileDialog(props: {
     () => props.kind,
   )
   return (
-    <ModalV2 open onOpenChange={(open: boolean) => !open && setFullSize(false)}>
+    <ModalV2
+      open
+      onOpenChange={(open: boolean) => {
+        if (open) return
+        setFullSize(false)
+        props.onClose?.()
+      }}
+    >
       <ModalV2.Portal>
         <ModalV2.Overlay />
         <ModalV2.Content
-          class="h-[88vh] w-[min(64rem,92vw)] flex-col overflow-hidden rounded-xl bg-background shadow-2xl"
+          class="h-[88vh] w-[min(64rem,92vw)] flex-col overflow-hidden rounded-sheet bg-bg shadow-2xl"
           data-component="file-dialog"
         >
           <div class={`${SUBHEADER} h-11 min-h-11`}>
             <RemixIcon icon={KIND_ICON[props.kind]} size={14} />
-            <ModalV2.Title class="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-              {props.path}
+            <ModalV2.Title class="min-w-0 flex-1 truncate text-label font-medium text-fg">
+              {fileName(props.path)}
             </ModalV2.Title>
             <Show when={props.file} keyed>
               {(file) => (
@@ -43,7 +51,7 @@ export default function FileDialog(props: {
             <ModalV2.Close
               aria-label="Close full size file"
               data-action="close-file-dialog"
-              class="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              class="grid size-7 shrink-0 place-items-center rounded-control text-fg2 transition-colors duration-(--dur-hover) hover:bg-hover hover:text-fg"
             >
               <RemixIcon icon={CloseIcon} size={14} />
             </ModalV2.Close>

@@ -1,28 +1,22 @@
-import { openChat } from "../history"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, SearchIcon } from "@kiko/ui/icons"
 import { For, Show, createMemo, createSignal } from "solid-js"
-import { KIKO, KIKO_HOME_ROOM, type AgentSlug } from "@kiko/protocol"
+import { KIKO, type AgentSlug } from "@kiko/protocol"
 import { createQuery } from "../../state/runtime"
 import { room } from "../../state/room"
 import { user } from "../../state/user"
-import { formatContext, formatPrice, catalogQuery, modelRef, searchModels } from "../../settings/catalog"
+import { catalogQuery } from "../../settings/catalog"
+import { formatContext, formatPrice, modelRef, searchModels } from "../../settings/model-list"
 import { connectedProviders } from "../../settings/connected"
 import { modelProviders } from "../../settings/provider-kinds"
 import { type ModelChoice, rankModels, startingModel } from "./choices"
-import { move, setStep } from "./progress"
-import { primary } from "./welcome"
+import { errorText, primary } from "./controls"
+import { setFinished } from "./progress"
 
 const RECOMMENDED = 4
 const SEARCH_FROM = 8
-
-function focusComposer(tries = 40): void {
-  const editor = document.querySelector<HTMLElement>(".composer-dock .ProseMirror")
-  if (editor) editor.focus()
-  else if (tries > 0) setTimeout(() => focusComposer(tries - 1), 50)
-}
 
 export function ModelStep() {
   const catalog = createQuery(catalogQuery)
@@ -69,15 +63,13 @@ export function ModelStep() {
     const pick = ranked().find((c) => c.ref === current())
     if (pick && pick.ref !== user.agentModel(KIKO)?.model)
       room.setAgentModel(KIKO as AgentSlug, { ref: pick.ref, levels: pick.model.thinking })
-    move("next")
-    openChat(user.kikoChatId() ?? KIKO_HOME_ROOM, { replace: true })
-    focusComposer()
+    setFinished(true)
   }
 
   return (
-    <div class="welcome-step welcome-step-fill flex w-full flex-col gap-3" data-step="model">
+    <div class="welcome-step" data-step="model">
       <h1 class="welcome-title" style={{ "--i": 0 }}>
-        Choose Kiko's model
+        Choose how Kiko thinks.
       </h1>
       <p class="welcome-lede" style={{ "--i": 1 }}>
         Kiko is your main agent. You can switch models any time from the composer.
@@ -94,36 +86,25 @@ export function ModelStep() {
           />
         </label>
       </Show>
-      <div
-        class="welcome-models"
-        role="radiogroup"
-        aria-label="Model"
-        data-component="first-run-models"
-        style={{ "--i": 3 }}
-      >
+      <div class="ob-body" role="radiogroup" aria-label="Model" data-component="first-run-models" style={{ "--i": 3 }}>
         <Show
           when={!catalog.loading}
           fallback={
-            <For each={Array.from({ length: RECOMMENDED })}>
-              {() => <div class="first-run-skeleton h-[52px] shrink-0 rounded-lg bg-control" />}
-            </For>
+            <For each={Array.from({ length: RECOMMENDED })}>{() => <div class="first-run-skeleton ob-skeleton" />}</For>
           }
         >
           <Show when={catalog.error}>
-            <p class="text-center text-sm text-[var(--error)]" role="alert">
+            <p class={errorText} role="alert">
               The model list did not load.{" "}
-              <button type="button" class="cursor-pointer underline underline-offset-2" onClick={() => void refetch()}>
+              <button type="button" class="ob-linkish" onClick={() => void refetch()}>
                 Try again
               </button>
             </p>
           </Show>
-          <For
-            each={groups()}
-            fallback={<p class="py-6 text-center text-sm text-muted-foreground">No models match.</p>}
-          >
+          <For each={groups()} fallback={<p class="ob-empty">No models match.</p>}>
             {(group) => (
-              <div class="flex flex-col gap-1.5" data-component="first-run-model-group">
-                <Show when={group.label}>{(label) => <span class="welcome-group-label">{label()}</span>}</Show>
+              <div class="ob-group" data-component="first-run-model-group">
+                <Show when={group.label}>{(label) => <span class="ob-label">{label()}</span>}</Show>
                 <For each={group.rows}>
                   {(row) => <ModelRow row={row} selected={current() === row.ref} onPick={() => setChosen(row.ref)} />}
                 </For>
@@ -132,11 +113,15 @@ export function ModelStep() {
           </For>
         </Show>
       </div>
-      <div class="welcome-actions" style={{ "--i": 4 }}>
-        <button type="button" class="welcome-back" data-action="first-run-back" onClick={() => setStep("connect")}>
-          Back
-        </button>
-        <button type="button" class={primary} data-action="finish-first-run" disabled={!current()} onClick={start}>
+      <div class="ob-cta" style={{ "--i": 4 }}>
+        <button
+          type="button"
+          class={primary}
+          data-cta
+          data-action="finish-first-run"
+          disabled={!current()}
+          onClick={start}
+        >
           Start chatting
         </button>
       </div>
@@ -150,21 +135,23 @@ function ModelRow(props: { row: ModelChoice; selected: boolean; onPick: () => vo
       type="button"
       role="radio"
       aria-checked={props.selected}
-      class="welcome-option"
+      class="ob-card"
       data-model={props.row.ref}
       onClick={props.onPick}
     >
-      <ProviderIcon id={props.row.provider.id} width="16" height="16" />
-      <span class="flex min-w-0 flex-1 flex-col">
-        <span class="truncate text-sm font-medium text-foreground">{props.row.model.name}</span>
-        <span class="truncate text-xs text-muted-foreground">
-          {formatContext(props.row.model.contextWindow)} context · {formatPrice(props.row.model.pricing)}
-          {props.row.model.reasoning ? " · Reasoning" : ""}
+      <span class="ob-logo">
+        <ProviderIcon id={props.row.provider.id} width="18" height="18" />
+      </span>
+      <span class="ob-card-text">
+        <span class="ob-card-title">{props.row.model.name}</span>
+        <span class="ob-card-note">
+          {formatContext(props.row.model.contextWindow)} context, {formatPrice(props.row.model.pricing)}
+          {props.row.model.reasoning ? ", reasoning" : ""}
         </span>
       </span>
-      <Show when={props.selected}>
-        <RemixIcon icon={CheckIcon} size={16} class="shrink-0 text-foreground" />
-      </Show>
+      <span class="ob-tick" aria-hidden="true">
+        <RemixIcon icon={CheckIcon} size={13} />
+      </span>
     </button>
   )
 }

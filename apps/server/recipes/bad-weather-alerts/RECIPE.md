@@ -7,7 +7,7 @@ tags: [mornings]
 icon: cloud-warning
 apps: []
 setup:
-  - which city should i watch?
+  - which city should I watch?
 triggers:
   - name: bad weather alerts
     every: FREQ=DAILY;BYHOUR=7;BYMINUTE=0

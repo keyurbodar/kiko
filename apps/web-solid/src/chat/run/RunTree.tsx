@@ -7,8 +7,18 @@ import { cn } from "../../lib/cn"
 import { room } from "../../state/room"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { findFile } from "../ui/find-file"
+import { Mochi } from "../ui/Mochi"
 import { GLYPH } from "./glyphs"
-import { type DetailStatus, isLive, type RowDetail, type TreeRow, treeOf } from "./run-tree-rows"
+import {
+  type DetailStatus,
+  isLive,
+  type RowDetail,
+  summaryOf,
+  type TreeHead,
+  type TreeRow,
+  treeOf,
+} from "./run-tree-rows"
+import { recallSummary, rememberSummary } from "./run-summary"
 import "./run-tree.css"
 
 const [opened, setOpened] = createSignal<ReadonlySet<string>>(new Set())
@@ -17,7 +27,7 @@ const [asked, setAsked] = createSignal<ReadonlySet<string>>(new Set())
 const MAX_OPENED = 100
 
 const PILL =
-  "cursor-pointer rounded-full border border-border/70 bg-background px-2.5 py-1 text-foreground hover:bg-accent"
+  "cursor-pointer rounded-row bg-active px-2.5 py-0.5 text-fg transition-transform hover:bg-hover active:scale-[0.97]"
 
 function withKey(current: ReadonlySet<string>, key: string): ReadonlySet<string> {
   const next = new Set(current)
@@ -92,7 +102,7 @@ function DetailEmpty(props: { detail: RowDetail; onRetry: () => void }) {
   return (
     <Show when={props.detail.status === "error"} fallback={<p class="run-tree-note">{text()}</p>}>
       <p class="run-tree-note">
-        Output unavailable · <Retry onRetry={props.onRetry} />
+        Output unavailable <Retry onRetry={props.onRetry} />
       </p>
     </Show>
   )
@@ -137,7 +147,57 @@ function StatusRow(props: { row: TreeRow; onRetry: () => void }) {
   )
 }
 
-function Row(props: { row: TreeRow; open: boolean; onOpen: (row: TreeRow) => void; onRetry: () => void }) {
+function elapsedLabel(ms: number): string {
+  const s = Math.floor(ms / 1000)
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`
+}
+
+function Took(props: { startedAt?: number; endedAt?: number; now: number }) {
+  const ms = () => (props.startedAt === undefined ? 0 : (props.endedAt ?? props.now) - props.startedAt)
+  return (
+    <Show when={ms() >= 1000}>
+      <span class="run-tree-meta" data-component="run-tree-took">
+        {elapsedLabel(ms())}
+      </span>
+    </Show>
+  )
+}
+
+function RowIcon(props: { row: TreeRow }) {
+  return (
+    <Show
+      when={!props.row.running}
+      fallback={
+        <span class="run-tree-icon run-tree-mochi">
+          <Mochi size={16} />
+        </span>
+      }
+    >
+      <Show when={props.row.icon}>
+        {(glyph) => (
+          <RemixIcon
+            icon={GLYPH[glyph()]}
+            size={14}
+            class="run-tree-icon"
+            data-failed={glyph() === "alert-circle" ? "" : undefined}
+          />
+        )}
+      </Show>
+    </Show>
+  )
+}
+
+const sameTime = (row: TreeRow, head: TreeHead | undefined) =>
+  head?.kind === "summary" && head.startedAt === row.startedAt && head.endedAt === row.endedAt
+
+function Row(props: {
+  row: TreeRow
+  open: boolean
+  now: number
+  head?: TreeHead | undefined
+  onOpen: (row: TreeRow) => void
+  onRetry: () => void
+}) {
   const detail = () => props.row.detail
   const expandable = () => props.row.expand !== undefined || detail() !== undefined
   return (
@@ -149,22 +209,27 @@ function Row(props: { row: TreeRow; open: boolean; onOpen: (row: TreeRow) => voi
         type="button"
         class={cn("run-tree-row", props.row.child && "ml-3")}
         data-kind={props.row.kind}
+        data-running={props.row.running ? "" : undefined}
+        data-path={props.row.path ? "" : undefined}
+        data-failed={props.row.failed ? "" : undefined}
         data-file={props.row.target ? "" : undefined}
         aria-expanded={expandable() ? props.open : undefined}
         data-disclosure={expandable() ? "" : undefined}
         title={props.row.target && !props.row.target.folder ? `Open ${props.row.target.path}` : undefined}
         onClick={() => props.onOpen(props.row)}
       >
+        <RowIcon row={props.row} />
         <Label text={props.row.label} running={props.row.running} />
-        <Show when={props.row.icon}>
-          {(glyph) => (
-            <RemixIcon
-              icon={GLYPH[glyph()]}
-              size={12}
-              class="run-tree-icon"
-              data-failed={glyph() === "alert-circle" ? "" : undefined}
-            />
-          )}
+        <Show when={props.row.failed && props.row.kind === "worker"}>
+          <RemixIcon icon={GLYPH["alert-circle"]} size={12} class="run-tree-icon" data-failed="" />
+        </Show>
+        <Show when={!sameTime(props.row, props.head)}>
+          <Took startedAt={props.row.startedAt} endedAt={props.row.endedAt} now={props.now} />
+        </Show>
+        <Show when={expandable()}>
+          <span class="run-tree-chevron motion-run-chevron" data-open={props.open ? "" : undefined} aria-hidden="true">
+            <RemixIcon icon={ChevronRightIcon} size={12} />
+          </span>
         </Show>
       </button>
       <Show when={props.open && detail()}>
@@ -195,6 +260,14 @@ export function RunTree(props: { windowKey: string; count?: number }): JSX.Eleme
     room.loadRunSteps(props.windowKey, force)
   }
 
+  const [now, setNow] = createSignal(Date.now())
+  createEffect(() => {
+    if (!live()) return
+    setNow(Date.now())
+    const clock = setInterval(() => setNow(Date.now()), 1000)
+    onCleanup(() => clearInterval(clock))
+  })
+
   const tree = createMemo(() =>
     treeOf(steps(), {
       working: working(),
@@ -202,8 +275,15 @@ export function RunTree(props: { windowKey: string; count?: number }): JSX.Eleme
       count: props.count,
       detail: detailStatus(),
       workers: workers(),
+      known: recallSummary(openKey()),
     }),
   )
+
+  createEffect(() => {
+    if (live() || steps().length < (props.count ?? 0)) return
+    const summary = summaryOf(steps())
+    if (summary) rememberSummary(openKey(), summary)
+  })
 
   createEffect(() => {
     if (open() && !live()) untrack(request)
@@ -263,13 +343,14 @@ export function RunTree(props: { windowKey: string; count?: number }): JSX.Eleme
         {(head) => (
           <button
             type="button"
-            class="run-tree-row"
+            class="run-tree-row run-tree-head"
             data-kind={head().kind}
             aria-expanded={head().open}
             data-disclosure=""
             onClick={toggle}
           >
             <span class="run-tree-label">{head().label}</span>
+            <Took startedAt={head().startedAt} endedAt={head().endedAt} now={now()} />
             <Show when={head().failed}>
               <RemixIcon icon={GLYPH["alert-circle"]} size={12} class="run-tree-icon" data-failed="" />
             </Show>
@@ -292,13 +373,24 @@ export function RunTree(props: { windowKey: string; count?: number }): JSX.Eleme
         >
           <div>
             <Index each={tree().folded}>
-              {(row) => <Row row={row()} open={isRowOpen(row())} onOpen={openRow} onRetry={() => request(true)} />}
+              {(row) => (
+                <Row
+                  row={row()}
+                  open={isRowOpen(row())}
+                  now={now()}
+                  head={tree().head}
+                  onOpen={openRow}
+                  onRetry={() => request(true)}
+                />
+              )}
             </Index>
           </div>
         </div>
       </Show>
       <Index each={tree().shown}>
-        {(row) => <Row row={row()} open={isRowOpen(row())} onOpen={openRow} onRetry={() => request(true)} />}
+        {(row) => (
+          <Row row={row()} open={isRowOpen(row())} now={now()} onOpen={openRow} onRetry={() => request(true)} />
+        )}
       </Index>
     </div>
   )

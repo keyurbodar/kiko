@@ -1,40 +1,52 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { render } from "../../../test/render"
-import { launcherEntries, PANELS, panelLabel } from "./panels"
-import Sidecar from "./Sidecar"
-import { agentSurface, closeAll, fixedSurface, openFile, sidecarSurfaces } from "./surfaces"
+import Desk from "./Desk"
+import { PANELS, panelLabel } from "./panels"
+import { agentSurface, closeAll, deskView, fixedSurface, openFile, openFiles } from "./surfaces"
 
 const CHAT = "01900000-0000-7000-8000-0000000000aa"
 
-describe("panel table", () => {
-  it("drives the launcher, the tab label and the body from one entry per kind", async () => {
+describe("chat details panel", () => {
+  it("drills from the overview into a section and back, with Close always there", async () => {
     closeAll(CHAT)
-    await using screen = await render(() => <Sidecar chatId={CHAT} />)
-    const launcher = screen.getByRole("heading", { name: "Open a surface" })
-    await expect.element(launcher).toBeVisible()
-    for (const entry of launcherEntries(false))
-      await expect.element(screen.getByRole("button", { name: new RegExp(`^${entry.label}`) }).first()).toBeVisible()
-    expect(launcherEntries(false).map((entry) => entry.kind)).toEqual(["files", "memory", "routines"])
-    expect(launcherEntries(true).map((entry) => entry.kind)).toEqual(["files", "memory", "routines", "tasks"])
-
-    await screen
-      .getByRole("button", { name: /^Routines/ })
-      .first()
-      .click()
-    const tab = screen.getByRole("tab")
-    await expect.element(tab).toHaveTextContent("Routines")
-    await expect.element(tab).toHaveAttribute("aria-selected", "true")
-    await expect.element(screen.getByRole("tabpanel")).toHaveAttribute("data-kind", "routines")
-    expect(sidecarSurfaces(CHAT).map((surface) => surface.id)).toEqual(["routines"])
+    const onClose = vi.fn()
+    await using screen = await render(() => <Desk chatId={CHAT} onClose={onClose} />)
+    await expect.element(screen.getByRole("button", { name: "Close chat details" })).toBeVisible()
+    await screen.getByRole("button", { name: "Routines" }).click()
+    await expect.element(screen.getByRole("heading", { name: "Routines" })).toBeVisible()
+    await expect.element(screen.getByRole("button", { name: "Back" })).toBeVisible()
+    expect(screen.container.querySelector('[data-component="sidecar-body"]')?.getAttribute("data-kind")).toBe(
+      "routines",
+    )
+    await screen.getByRole("button", { name: "Back" }).click()
+    expect(deskView(CHAT)).toBeNull()
+    await expect.element(screen.getByRole("button", { name: "Back" })).not.toBeInTheDocument()
+    await screen.getByRole("button", { name: "Close chat details" }).click()
+    expect(onClose).toHaveBeenCalledOnce()
     closeAll(CHAT)
   })
 
-  it("labels instance panels from their own fields", () => {
+  it("shows file tabs only once two files are open, and Back returns to the Files list", async () => {
+    closeAll(CHAT)
+    await using screen = await render(() => <Desk chatId={CHAT} onClose={() => {}} />)
+    openFile(CHAT, "attachments/mvmm766u-notes.md")
+    await expect.element(screen.getByRole("heading", { name: "notes.md" })).toBeVisible()
+    await expect.element(screen.getByRole("tablist")).not.toBeInTheDocument()
+    openFile(CHAT, "plan.md")
+    await expect.element(screen.getByRole("tab", { name: /notes\.md/ })).toBeVisible()
+    await expect.element(screen.getByRole("tab", { name: /plan\.md/ })).toHaveAttribute("aria-selected", "true")
+    await expect.element(screen.getByRole("button", { name: "Close notes.md" })).toBeVisible()
+    await screen.getByRole("button", { name: "Back" }).click()
+    expect(deskView(CHAT)?.id).toBe("files")
+    expect(openFiles(CHAT)).toHaveLength(2)
+    closeAll(CHAT)
+  })
+
+  it("labels panels from their own fields, with file names free of storage prefixes", () => {
     expect(panelLabel(fixedSurface("memory"))).toBe(PANELS.memory.label)
-    openFile(CHAT, "notes/plan.md")
-    const file = sidecarSurfaces(CHAT).find((surface) => surface.kind === "file")
-    expect(file?.id).toBe("file:notes/plan.md")
-    expect(file && panelLabel(file)).toBe("plan.md")
+    openFile(CHAT, "attachments/mvmm766u-budget.csv")
+    expect(openFiles(CHAT)[0]?.id).toBe("file:attachments/mvmm766u-budget.csv")
+    expect(panelLabel(openFiles(CHAT)[0]!)).toBe("budget.csv")
     expect(panelLabel(agentSurface("scout"))).toBe("scout")
     closeAll(CHAT)
   })

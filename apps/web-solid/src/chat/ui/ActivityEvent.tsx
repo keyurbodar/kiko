@@ -100,6 +100,7 @@ export function ActivityEvent(props: { message: ChatMessage; name: (slug: string
             tone={r().tone}
             icon={ICONS[props.message.event?.kind ?? "created"]}
             actions={actions()}
+            stitch={props.message.event?.kind === "model_changed"}
             data-component={failed() ? "run-error" : "chat-event"}
             data-message-id={props.message.id}
           />

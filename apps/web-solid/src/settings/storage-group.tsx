@@ -20,14 +20,14 @@ function Meter(props: { storage: Storage }) {
       aria-valuemax={OBJECT_LIMIT_BYTES}
       aria-valuenow={used()}
       aria-valuetext={`${formatSize(props.storage.objectBytes)} of ${formatSize(OBJECT_LIMIT_BYTES)}`}
-      class="h-1.5 overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)]"
+      class="h-1 overflow-hidden rounded-full bg-active"
       data-part="storage-meter"
     >
       <div
         class="h-full rounded-full"
         classList={{
-          "bg-[var(--error)]": nearlyFull(props.storage),
-          "bg-[color-mix(in_oklab,var(--foreground)_45%,transparent)]": !nearlyFull(props.storage),
+          "bg-bad": nearlyFull(props.storage),
+          "bg-fg2": !nearlyFull(props.storage),
         }}
         style={{ width: `${(used() / OBJECT_LIMIT_BYTES) * 100}%` }}
       />
@@ -41,7 +41,7 @@ export function StorageGroup() {
     <Group title="Storage" data-component="storage">
       <Switch>
         <Match when={storage.error}>
-          <Row label="Object storage" description="Kiko could not read how much is used.">
+          <Row label="Storage" description="Kiko could not read how much is used.">
             <Button data-action="retry-storage" onClick={() => storage.refetch()}>
               Try again
             </Button>
@@ -49,38 +49,35 @@ export function StorageGroup() {
         </Match>
         <Match when={storage()}>
           {(s) => (
-            <>
-              <Row
-                label="Object storage"
-                description={about(s())}
-                details={
-                  <div class="pt-1">
-                    <Meter storage={s()} />
-                  </div>
-                }
-              >
-                <span class="text-md" data-field="object-bytes">
-                  {formatSize(s().objectBytes)} of {formatSize(OBJECT_LIMIT_BYTES)}
+            <div class="flex flex-col gap-2.5 px-4 py-3.5" data-setting="object-storage">
+              <div class="flex items-baseline gap-1.5">
+                <span class="type-row text-fg" data-field="object-bytes">
+                  {formatSize(s().objectBytes)}
                 </span>
-              </Row>
+                <span class="type-label text-fg3">of {formatSize(OBJECT_LIMIT_BYTES)}</span>
+                <span class="ml-auto truncate type-label text-fg3">Stored in your Worker</span>
+              </div>
+              <Meter storage={s()} />
+              <span class="type-label text-fg3">{about(s())}</span>
               <Show when={nearlyFull(s())}>
-                <div class="px-4 py-2.5" data-part="storage-warning">
+                <div data-part="storage-warning">
                   <Notice>
                     The object is nearly full. Turn on R2 in your Cloudflare account so Kiko can move history older than
                     30 days out of it.{" "}
-                    <a class="underline underline-offset-2" href={R2_URL} target="_blank" rel="noreferrer">
+                    <a class="link-grow" href={R2_URL} target="_blank" rel="noreferrer">
                       About R2
                     </a>
                   </Notice>
                 </div>
               </Show>
-            </>
+            </div>
           )}
         </Match>
         <Match when={true}>
-          <Row label="Object storage" description="Reading how much is used." data-part="storage-loading">
-            <Skeleton class="h-5 w-24" />
-          </Row>
+          <div class="flex flex-col gap-2.5 px-4 py-3.5" data-part="storage-loading">
+            <Skeleton class="h-5 w-28" />
+            <Skeleton class="h-1 w-full" />
+          </div>
         </Match>
       </Switch>
     </Group>

@@ -6,6 +6,8 @@ export type TreeIndex = {
 }
 
 export const basename = (path: string) => path.slice(path.lastIndexOf("/") + 1)
+export const folderLabel = (path: string) =>
+  path === ROOT ? "Files" : path === "attachments" ? "From this chat" : basename(path)
 export const dirname = (path: string) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ROOT)
 export const join = (dir: string, name: string) => (dir === ROOT ? name : `${dir}/${name}`)
 

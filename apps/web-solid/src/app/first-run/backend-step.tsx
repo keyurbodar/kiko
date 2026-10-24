@@ -1,7 +1,8 @@
 import { Match, Show, Switch, createSignal, lazy } from "solid-js"
 import type { Backend, NeedsBackendReason } from "../phase"
 import { connectCloudflare, forgetBackend, phase, retryBackend } from "../session"
-import { primary, secondary } from "./welcome"
+import { errorText, primary, secondary } from "./controls"
+import { Dots } from "./dots"
 
 const ConnectCloudflare = lazy(() => import("../connect").then((m) => ({ default: m.ConnectCloudflare })))
 
@@ -51,7 +52,7 @@ function Forget() {
         {busy() ? "Forgetting this backend" : "Forget this backend"}
       </button>
       <Show when={error()}>
-        <p class="text-center text-sm text-[var(--error)]" role="alert">
+        <p class={errorText} role="alert">
           {error()}
         </p>
       </Show>
@@ -61,7 +62,7 @@ function Forget() {
 
 function Unreachable(props: { readonly backend: Backend }) {
   return (
-    <div class="welcome-step flex w-full flex-col gap-3" data-step="cloudflare" data-phase="Unreachable">
+    <div class="welcome-step" data-step="cloudflare" data-phase="Unreachable">
       <h1 class="welcome-title" style={{ "--i": 0 }}>
         Waiting for your backend
       </h1>
@@ -70,8 +71,12 @@ function Unreachable(props: { readonly backend: Backend }) {
         minutes to reach every network, and Kiko keeps trying. If you use a VPN, Private DNS, or an ad blocker, allow
         workers.dev.
       </p>
-      <div class="mt-2 flex w-full flex-col gap-2" style={{ "--i": 2 }}>
-        <button type="button" class={primary} data-action="retry-backend" onClick={() => void retryBackend()}>
+      <div class="ob-wait" role="status" style={{ "--i": 2 }}>
+        <Dots />
+        <span>Still trying</span>
+      </div>
+      <div class="ob-cta" style={{ "--i": 3 }}>
+        <button type="button" class={primary} data-cta data-action="retry-backend" onClick={() => void retryBackend()}>
           Try again
         </button>
         <button
@@ -93,13 +98,13 @@ function Connect(props: { readonly reason: NeedsBackendReason; readonly previous
   return (
     <>
       <Show when={notice()}>
-        <p class="mb-3 text-sm text-muted-foreground" role="status" data-field="backend-notice">
+        <p class="ob-note" role="status" data-field="backend-notice">
           {notice()}
         </p>
       </Show>
       <ConnectCloudflare />
       <Show when={props.previous && props.reason !== "detached"}>
-        <div class="mt-2 flex w-full flex-col gap-2">
+        <div class="ob-cta ob-cta-loose">
           <Forget />
         </div>
       </Show>

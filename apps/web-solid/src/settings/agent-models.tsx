@@ -4,10 +4,8 @@ import { createSignal, For, Show } from "solid-js"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { room } from "../state/room"
 import { user } from "../state/user"
-import { connectedProviders } from "./connected"
-import { Group, Hint, Row } from "./kit"
+import { Group, Row } from "./kit"
 import { ModelPicker } from "./model-picker"
-import { hasModelProvider } from "./provider-kinds"
 import { ReasoningMenu } from "./reasoning-menu"
 
 function AgentRow(props: { slug: AgentSlug; name: string }) {
@@ -17,8 +15,8 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
     <Row
       data-agent={props.slug}
       label={
-        <span class="flex items-center gap-2">
-          <IdentityAvatar seed={props.slug} size={20} />
+        <span class="flex items-center gap-3 py-1 text-[13.5px] font-semibold">
+          <IdentityAvatar seed={props.slug} size={36} />
           {props.name}
         </span>
       }
@@ -29,7 +27,7 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
         onOpenChange={setOpen}
         onPick={(ref, levels) => ref !== current()?.model && room.setAgentModel(props.slug, { ref, levels })}
         title={`Choose model for ${props.name}`}
-        class="flex h-7 max-w-[240px] min-w-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground"
+        class="flex h-8 max-w-[240px] min-w-0 items-center gap-1.5 rounded-[9px] bg-active px-3 text-[13px] text-fg transition-colors duration-[var(--dur-hover)] hover:bg-hover aria-expanded:bg-hover active:scale-[0.98]"
       >
         <Show when={current()?.model.split("/")[0]}>
           {(provider) => <ProviderIcon id={provider()} width="13" height="13" />}
@@ -41,7 +39,9 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
       <ReasoningMenu
         levels={current()?.thinkingLevels}
         value={current()?.thinking}
+        model={current()?.name}
         placement="bottom-end"
+        class="h-8 rounded-[9px] bg-active px-3 text-[13px] text-fg"
         onChange={(thinking) => room.setAgentModel(props.slug, { thinking })}
       />
     </Row>
@@ -50,16 +50,12 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
 
 export function AgentModels() {
   return (
-    <Show
-      when={hasModelProvider(connectedProviders())}
-      fallback={<Hint>Connect a provider in the Providers tab to choose models for your agents.</Hint>}
+    <Group
+      title="Your agents"
+      description="Each agent keeps its own model and reasoning level in every chat."
+      data-component="agent-models"
     >
-      <Group
-        description="Each agent keeps its own model and reasoning level in every chat."
-        data-component="agent-models"
-      >
-        <For each={user.modelAgents()}>{(agent) => <AgentRow slug={agent.slug} name={agent.name} />}</For>
-      </Group>
-    </Show>
+      <For each={user.modelAgents()}>{(agent) => <AgentRow slug={agent.slug} name={agent.name} />}</For>
+    </Group>
   )
 }

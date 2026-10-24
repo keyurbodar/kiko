@@ -10,6 +10,7 @@ import {
   type StepIcon,
   summarizeSteps,
 } from "./run-log"
+import type { RunSummary } from "./run-summary"
 
 const LIVE_ROWS = 3
 
@@ -30,13 +31,24 @@ export type TreeRow = {
   label: string
   icon?: StepIcon
   running: boolean
+  failed: boolean
   child: boolean
+  path: boolean
+  startedAt?: number
+  endedAt?: number
   expand?: string
   target?: { path: string; folder: boolean }
   detail?: RowDetail
 }
 
-export type TreeHead = { kind: "fold" | "summary"; label: string; open: boolean; failed: boolean }
+export type TreeHead = {
+  kind: "fold" | "summary"
+  label: string
+  open: boolean
+  failed: boolean
+  startedAt?: number
+  endedAt?: number
+}
 
 export type Tree = {
   head?: TreeHead
@@ -50,6 +62,7 @@ export type TreeState = {
   count?: number
   detail: DetailStatus
   workers?: ReadonlySet<string>
+  known?: RunSummary
 }
 
 export const isLive = (steps: readonly Pick<RunStep, "status">[], working: boolean): boolean =>
@@ -59,14 +72,48 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 
 const NO_WORKERS: ReadonlySet<string> = new Set()
 
-const LOADING: TreeRow = { kind: "loading", id: "loading", label: "Loading steps…", running: true, child: false }
+const LOADING: TreeRow = {
+  kind: "loading",
+  id: "loading",
+  label: "Loading steps…",
+  running: true,
+  failed: false,
+  child: false,
+  path: false,
+}
 
 const UNAVAILABLE: TreeRow = {
   kind: "error",
   id: "unavailable",
   label: "Output unavailable",
   running: false,
+  failed: false,
   child: false,
+  path: false,
+}
+
+function stillFailing(steps: readonly Pick<RunStep, "name" | "status" | "startedAt">[]): boolean {
+  return steps.some(
+    (failed) =>
+      failed.status === "failed" &&
+      !steps.some(
+        (retry) => retry.name === failed.name && retry.status === "done" && retry.startedAt > failed.startedAt,
+      ),
+  )
+}
+
+function span(steps: readonly Pick<RunStep, "startedAt" | "endedAt">[]): { startedAt?: number; endedAt?: number } {
+  if (steps.length === 0) return {}
+  const startedAt = Math.min(...steps.map((s) => s.startedAt))
+  const ends = steps.map((s) => s.endedAt)
+  if (ends.some((end) => end === undefined)) return { startedAt }
+  return { startedAt, endedAt: Math.max(...(ends as number[])) }
+}
+
+function markLivePath(rows: TreeRow[]): TreeRow[] {
+  const last = rows.findLastIndex((row) => row.running)
+  if (last < 0) return rows
+  return rows.map((row, i) => (i <= last ? { ...row, path: true } : row))
 }
 
 const pending = (status: DetailStatus) => status === "loading" || status === "idle"
@@ -76,7 +123,7 @@ type StepEntry = Extract<Entry, { kind: "step" }>
 
 function workerRow(entry: WorkerEntry, status: DetailStatus): TreeRow {
   const running = anyRunning(entry.steps)
-  const failed = entry.steps.some((s) => s.status === "failed")
+  const failed = !running && stillFailing(entry.steps)
   const detail: RowDetail = { failed, running, status, lines: entry.steps.map(liveLabel) }
   return {
     kind: "worker",
@@ -84,7 +131,10 @@ function workerRow(entry: WorkerEntry, status: DetailStatus): TreeRow {
     label: entry.task,
     icon: "worker",
     running,
+    failed,
     child: false,
+    path: false,
+    ...span(entry.steps),
     expand: entry.id,
     ...(entry.open ? {} : { detail }),
   }
@@ -107,7 +157,11 @@ function stepRow(entry: StepEntry, status: DetailStatus): TreeRow {
     id: step.id,
     label: liveLabel(step),
     running,
+    failed: step.status === "failed",
     child: entry.child,
+    path: false,
+    startedAt: step.startedAt,
+    ...(step.endedAt === undefined ? {} : { endedAt: step.endedAt }),
     ...(icon ? { icon } : {}),
     ...(target ? { target } : {}),
     ...(step.note ? {} : { detail }),
@@ -118,7 +172,7 @@ const rowOf = (entry: Entry, status: DetailStatus): TreeRow =>
   entry.kind === "worker" ? workerRow(entry, status) : stepRow(entry, status)
 
 const failedIn = (entries: readonly Entry[]) =>
-  entries.some((e) => (e.kind === "worker" ? e.steps : [e.step]).some((s) => s.status === "failed"))
+  stillFailing(entries.flatMap((e) => (e.kind === "worker" ? e.steps : [e.step])))
 
 function missingRows(missing: boolean, status: DetailStatus): TreeRow[] {
   if (!missing) return []
@@ -126,9 +180,14 @@ function missingRows(missing: boolean, status: DetailStatus): TreeRow[] {
   return pending(status) ? [LOADING] : []
 }
 
+export function summaryOf(steps: readonly RunStep[]): RunSummary | undefined {
+  const label = summarizeSteps(steps)
+  return label ? { label, ...span(steps) } : undefined
+}
+
 export function treeOf(steps: readonly RunStep[], state: TreeState): Tree {
   const entries = buildEntries(steps, state.workers ?? NO_WORKERS)
-  const rows = entries.map((entry) => rowOf(entry, state.detail))
+  const rows = markLivePath(entries.map((entry) => rowOf(entry, state.detail)))
   if (isLive(steps, state.working)) {
     const hidden = Math.max(0, rows.length - LIVE_ROWS)
     if (hidden === 0) return { folded: [], shown: rows }
@@ -143,12 +202,8 @@ export function treeOf(steps: readonly RunStep[], state: TreeState): Tree {
   const count = Math.max(state.count ?? 0, steps.length)
   if (count === 0) return { folded: [], shown: [] }
   const missing = steps.length < count
-  const { summary, hasFailure } = summarizeSteps(steps)
-  const head: TreeHead = {
-    kind: "summary",
-    label: !missing && summary ? summary : plural(count, "step", "steps"),
-    open: state.open,
-    failed: hasFailure,
-  }
+  const summary = missing ? undefined : summaryOf(steps)
+  const { label, ...times } = summary ?? state.known ?? { label: plural(count, "step", "steps") }
+  const head: TreeHead = { kind: "summary", label, open: state.open, failed: stillFailing(steps), ...times }
   return { head, folded: [...rows, ...missingRows(missing, state.detail)], shown: [] }
 }

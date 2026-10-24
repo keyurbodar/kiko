@@ -1,9 +1,10 @@
 import { createSignal, For, Show, createEffect, on, onCleanup } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, CloseIcon, HelpIcon } from "@kiko/ui/icons"
+import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, HelpIcon } from "@kiko/ui/icons"
 import { CollapsibleV2 as Collapsible } from "@kiko/ui/v2/collapsible-v2"
 import { ToggleGroupV2 as ToggleGroup } from "@kiko/ui/v2/toggle-group-v2"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
+import { replay } from "../../lib/motion"
 import type { QuestionInput } from "./question-input"
 import "./question-panel.css"
 
@@ -15,10 +16,18 @@ export function QuestionPanel(props: {
 }) {
   const p = props.input.progress
   const [open, setOpen] = createSignal(true)
+  let body: HTMLDivElement | undefined
   createEffect(
     on(
       () => `${props.input.ask()?.id}:${p().activeQuestion?.id}`,
       () => setOpen(true),
+    ),
+  )
+  createEffect(
+    on(
+      () => p().questionIndex,
+      () => replay(body),
+      { defer: true },
     ),
   )
   const select = (value: string) => props.onSelect(value)
@@ -60,9 +69,10 @@ export function QuestionPanel(props: {
                 </Show>
               </span>
               <span class="composer-card-title">
-                <span class="composer-card-kind font-medium">
-                  {q().header}
-                  <Show when={props.owner}> · {props.owner}</Show>
+                <span class="composer-card-kind question-kind">
+                  <Show when={props.owner} fallback={q().header}>
+                    <b>{props.owner}</b> asks
+                  </Show>
                 </span>
                 <Show when={!open()}>
                   <span class="truncate">{q().question}</span>
@@ -77,18 +87,9 @@ export function QuestionPanel(props: {
                 <RemixIcon icon={ChevronDownIcon} class="composer-card-toggle" />
               </span>
             </Collapsible.Trigger>
-            <button
-              type="button"
-              class="question-dismiss"
-              onClick={props.input.skip}
-              aria-label="Skip questions without answering"
-              title="Skip questions without answering"
-            >
-              <RemixIcon icon={CloseIcon} />
-            </button>
           </div>
           <Collapsible.Content class="motion-collapse">
-            <div class="composer-card-body question-body" data-component="question-body">
+            <div ref={body} class="composer-card-body question-body" data-component="question-body">
               <p>{q().question}</p>
               <Show when={q().multiSelect}>
                 <p class="question-hint">Select one or more options.</p>
@@ -149,6 +150,16 @@ export function QuestionPanel(props: {
               </Show>
             </div>
             <div class="question-primary-actions" data-component="question-actions">
+              <button
+                type="button"
+                class="question-previous"
+                onClick={props.input.skip}
+                aria-label="Skip questions without answering"
+                data-action="skip-question"
+              >
+                <span class="question-action-full">Don't answer</span>
+                <span class="question-action-compact">Skip</span>
+              </button>
               <Show when={p().questionIndex > 0}>
                 <button
                   type="button"

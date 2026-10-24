@@ -1,22 +1,74 @@
 :root {
-  --motion-fast: 120ms;
-  --motion-base: 180ms;
-  --motion-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --default-transition-duration: var(--dur-hover);
+  --default-transition-timing-function: var(--ease-kiko);
+
+  --dur-exit: 140ms;
+  --dur-page: 140ms;
+  --press-scale: 0.97;
+  --press-scale-icon: 0.94;
+
+  --motion-fast: var(--dur-hover);
+  --motion-base: var(--dur-pop);
+  --motion-ease-out: var(--ease-kiko);
   --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
-  --motion-ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
-  --motion-rise: 520ms;
+  --motion-ease-settle: var(--ease-kiko);
+  --motion-rise: 260ms;
   --motion-reveal: 320ms;
   --motion-spin: 800ms;
   --motion-ease-linear: linear;
-  --motion-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
-  --motion-dialog: 200ms;
-  --motion-popover: 150ms;
-  --motion-collapse: 200ms;
+  --motion-ease-in-out: var(--ease-kiko);
+  --motion-dialog: var(--dur-pop);
+  --motion-collapse: var(--dur-pop);
   --motion-slide: 260ms;
-  --motion-switch: 150ms;
-  --motion-skeleton: 2400ms;
-  --motion-shine: 2200ms;
-  --motion-run-chevron: 200ms;
+  --motion-run-chevron: var(--dur-pop);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-pop: 0ms;
+    --dur-step: 0ms;
+    --dur-exit: 0ms;
+    --dur-page: 0ms;
+    --press-scale: 1;
+    --press-scale-icon: 1;
+    --spring150-duration: 0s;
+    --spring250-duration: 0s;
+    --spring325-bounce-duration: 0s;
+  }
+}
+
+@keyframes motion-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.motion-spin {
+  animation: motion-spin var(--motion-spin) linear infinite;
+}
+
+@keyframes motion-shimmer {
+  from {
+    background-position: 300% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.motion-skeleton,
+.skeleton-shimmer {
+  background:
+    linear-gradient(90deg, transparent 0%, color-mix(in oklab, var(--fg) 6%, transparent) 50%, transparent 100%) 0 0 /
+      50% 100% no-repeat,
+    color-mix(in oklab, var(--fg3) 15%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .motion-skeleton,
+  .skeleton-shimmer {
+    animation: motion-shimmer var(--dur-shimmer) linear infinite;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -56,7 +108,7 @@
   @keyframes motion-bubble-in {
     from {
       opacity: 0;
-      transform: translateY(28px);
+      transform: translateY(14px);
     }
     to {
       opacity: 1;
@@ -65,19 +117,19 @@
   }
 
   .motion-reaction-pop {
-    animation: motion-reaction-pop var(--motion-base) var(--motion-ease-settle) both;
+    animation: motion-reaction-pop var(--dur-pop) var(--ease-kiko) both;
   }
 
   .motion-attachment-in {
-    animation: motion-fade-scale-in var(--motion-base) var(--motion-ease-out) both;
+    animation: motion-fade-scale-in var(--dur-pop) var(--ease-kiko) both;
   }
 
   .motion-attachment-in[data-leaving] {
-    animation: motion-fade-scale-out var(--motion-fast) var(--motion-ease-in) both;
+    animation: motion-fade-scale-out var(--dur-hover) var(--motion-ease-in) both;
   }
 
   .motion-bubble-in {
-    animation: motion-bubble-in var(--motion-rise) var(--motion-ease-settle) both;
+    animation: motion-bubble-in var(--motion-rise) var(--ease-kiko) both;
   }
 
   @keyframes motion-reply-in {
@@ -92,17 +144,7 @@
   }
 
   .motion-reply-in {
-    animation: motion-reply-in var(--motion-reveal) var(--motion-ease-settle) both;
-  }
-
-  @keyframes motion-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .motion-spin {
-    animation: motion-spin var(--motion-spin) var(--motion-ease-linear) infinite;
+    animation: motion-reply-in var(--motion-reveal) var(--ease-kiko) both;
   }
 
   @keyframes motion-overlay-in {
@@ -126,7 +168,7 @@
   @keyframes motion-dialog-in {
     from {
       opacity: 0;
-      transform: translate(-50%, -50%) scale(0.98);
+      transform: translate(-50%, -50%) scale(0.96);
     }
     to {
       opacity: 1;
@@ -156,51 +198,105 @@
     }
   }
 
-  @keyframes motion-popover-out {
+  [data-component="modal-v2-overlay"][data-expanded],
+  .motion-scrim-in {
+    animation: motion-overlay-in var(--dur-pop) var(--ease-kiko) both;
+  }
+
+  [data-component="modal-v2-overlay"][data-closed] {
+    animation: motion-overlay-out var(--dur-exit) var(--motion-ease-in) both;
+  }
+
+  [data-component="modal-v2-content"][data-expanded] {
+    animation: motion-dialog-in var(--dur-pop) var(--ease-kiko) both;
+  }
+
+  [data-component="modal-v2-content"][data-closed] {
+    animation: motion-dialog-out var(--dur-exit) var(--motion-ease-in) both;
+  }
+
+  @keyframes motion-origin-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes motion-origin-out {
     from {
       opacity: 1;
       transform: scale(1);
     }
     to {
       opacity: 0;
-      transform: scale(0.98);
+      transform: scale(0.96);
     }
   }
 
-  [data-component="modal-v2-overlay"][data-expanded],
-  .motion-scrim-in {
-    animation: motion-overlay-in var(--motion-dialog) var(--motion-ease-in-out) both;
-  }
-
-  [data-component="modal-v2-overlay"][data-closed] {
-    animation: motion-overlay-out var(--motion-dialog) var(--motion-ease-in-out) both;
-  }
-
-  [data-component="modal-v2-content"][data-expanded] {
-    animation: motion-dialog-in var(--motion-dialog) var(--motion-ease-in-out) both;
-  }
-
-  [data-component="modal-v2-content"][data-closed] {
-    animation: motion-dialog-out var(--motion-dialog) var(--motion-ease-in-out) both;
+  @keyframes motion-tooltip-in {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   [data-component="menu-v2-content"][data-expanded],
   [data-component="hover-card-v2-content"][data-expanded],
   [data-component="popover-v2-content"][data-expanded],
-  [data-component="tooltip-v2"][data-expanded],
   .motion-popover-in {
-    animation: motion-popover-in var(--motion-popover) var(--motion-ease-out) both;
+    animation: motion-origin-in var(--dur-pop) var(--ease-kiko) both;
   }
 
   [data-component="menu-v2-content"][data-closed],
   [data-component="hover-card-v2-content"][data-closed],
-  [data-component="popover-v2-content"][data-closed],
+  [data-component="popover-v2-content"][data-closed] {
+    animation: motion-origin-out var(--dur-hover) var(--motion-ease-in) both;
+  }
+
+  [data-component="tooltip-v2"][data-expanded] {
+    animation: motion-tooltip-in var(--dur-hover) var(--ease-kiko) both;
+  }
+
   [data-component="tooltip-v2"][data-closed] {
-    animation: motion-popover-out var(--motion-popover) var(--motion-ease-in) both;
+    animation: motion-overlay-out 80ms linear both;
+  }
+
+  [data-component="tooltip-v2"][data-instant] {
+    animation: none;
+  }
+
+  .motion-fade-in {
+    animation: motion-overlay-in var(--dur-pop) var(--ease-kiko) both;
+  }
+
+  .motion-fade-out {
+    animation: motion-overlay-out var(--dur-hover) var(--motion-ease-in) both;
+  }
+
+  .motion-rise {
+    animation: motion-tooltip-in var(--dur-pop) var(--ease-kiko) both;
+  }
+
+  .motion-press {
+    transition: transform var(--spring150-duration) var(--spring150-easing);
+  }
+
+  .motion-press:active {
+    transform: scale(var(--press-scale));
+    transition-duration: 80ms;
+    transition-timing-function: var(--ease-kiko);
   }
 
   .motion-dialog-in {
-    animation: motion-popover-in var(--motion-dialog) var(--motion-ease-in-out) both;
+    animation: motion-popover-in var(--dur-pop) var(--ease-kiko) both;
   }
 
   @keyframes motion-collapse-down {
@@ -226,44 +322,25 @@
   }
 
   .motion-collapse[data-expanded] {
-    animation: motion-collapse-down var(--motion-collapse) var(--motion-ease-out);
+    animation: motion-collapse-down var(--motion-collapse) var(--ease-kiko);
   }
 
   .motion-collapse[data-closed] {
-    animation: motion-collapse-up var(--motion-collapse) var(--motion-ease-out);
+    animation: motion-collapse-up var(--dur-exit) var(--ease-kiko);
   }
 
   .motion-switch {
-    transition: background-color var(--motion-switch) var(--motion-ease-out);
+    transition: background-color var(--dur-pop) var(--ease-kiko);
   }
 
   .motion-switch > span {
-    transition: transform var(--motion-switch) var(--motion-ease-out);
+    transition:
+      transform var(--dur-pop) var(--ease-kiko),
+      background-color var(--dur-pop) var(--ease-kiko);
   }
 
   .motion-slide {
-    transition: flex-basis var(--motion-slide) var(--motion-ease-settle);
-  }
-
-  @keyframes motion-skeleton {
-    0%,
-    42% {
-      opacity: 1;
-      animation-timing-function: steps(4);
-    }
-    50%,
-    92% {
-      opacity: 0.55;
-      animation-timing-function: steps(4);
-    }
-    100% {
-      opacity: 1;
-    }
-  }
-
-  .motion-skeleton {
-    background: color-mix(in oklab, var(--muted-foreground) 15%, transparent);
-    animation: motion-skeleton var(--motion-skeleton) var(--motion-ease-linear) infinite;
+    transition: flex-basis var(--motion-slide) var(--ease-kiko);
   }
 
   [data-component="popover-v2-content"][data-expanded][data-instant],
@@ -272,7 +349,7 @@
   }
 
   .motion-busy {
-    animation: motion-overlay-in var(--motion-base) var(--motion-ease-out) both;
+    animation: motion-overlay-in var(--dur-pop) var(--ease-kiko) both;
   }
 
   @keyframes motion-shine {
@@ -290,13 +367,13 @@
 
   @media (forced-colors: none) {
     .motion-shine {
-      animation: motion-shine var(--motion-shine) steps(30) infinite;
+      animation: motion-shine var(--dur-shimmer) steps(30) infinite;
       animation-play-state: var(--visible-animation-state, paused);
     }
   }
 
   .motion-run-fold {
-    transition: grid-template-rows var(--motion-collapse) var(--motion-ease-out);
+    transition: grid-template-rows var(--motion-collapse) var(--ease-kiko);
   }
 
   @starting-style {
@@ -306,6 +383,142 @@
   }
 
   .motion-run-chevron {
-    transition: transform var(--motion-run-chevron) var(--motion-ease-in-out);
+    transition: transform var(--motion-run-chevron) var(--ease-kiko);
+  }
+
+  @keyframes motion-page-in {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+  }
+
+  .motion-page-in {
+    animation: motion-page-in var(--dur-page) var(--ease-kiko) backwards;
+  }
+
+  @keyframes motion-shake {
+    0%,
+    100% {
+      transform: none;
+    }
+    20% {
+      transform: translateX(-4px);
+    }
+    40% {
+      transform: translateX(4px);
+    }
+    60% {
+      transform: translateX(-3px);
+    }
+    80% {
+      transform: translateX(2px);
+    }
+  }
+
+  .motion-shake {
+    animation: motion-shake 260ms var(--ease-kiko);
+  }
+
+  @keyframes motion-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    60% {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+  }
+
+  .motion-pop {
+    animation: motion-pop 240ms var(--ease-kiko) both;
+  }
+}
+
+.pill-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 0;
+  background: var(--active);
+  border-radius: 9px;
+  pointer-events: none;
+}
+
+.pill-indicator[data-orientation="vertical"] {
+  right: 0;
+  bottom: auto;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pill-indicator[data-settled]:not([data-resizing="true"]) {
+    transition:
+      transform var(--dur-pop) var(--ease-kiko),
+      width var(--dur-pop) var(--ease-kiko),
+      height var(--dur-pop) var(--ease-kiko);
+  }
+}
+
+[data-slot="glide"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: var(--hover);
+  pointer-events: none;
+  opacity: 1;
+}
+
+[data-slot="glide"][data-hidden] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot="glide"]:not([data-jump]) {
+    transition:
+      transform var(--dur-hover) var(--ease-kiko),
+      width var(--dur-hover) var(--ease-kiko),
+      height var(--dur-hover) var(--ease-kiko),
+      opacity 80ms linear,
+      background-color var(--dur-hover) var(--ease-kiko);
+  }
+}
+
+.link-grow {
+  text-decoration: none;
+  background: linear-gradient(currentColor, currentColor) 0 100% / 100% 1px no-repeat;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .link-grow {
+    background-size: 0% 1px;
+  }
+
+  .link-grow:hover,
+  .link-grow:focus-visible {
+    background-size: 100% 1px;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .link-grow {
+    transition: background-size var(--dur-pop) var(--ease-kiko);
+  }
+}
+
+[data-look] [data-component="identity-avatar"] > img {
+  transform-origin: 50% 80%;
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  [data-look] [data-component="identity-avatar"] > img {
+    transition: transform 240ms var(--ease-kiko);
+  }
+
+  [data-look]:hover [data-component="identity-avatar"] > img {
+    transform: rotate(calc(var(--look, 0) * 9deg)) translateY(-1px);
   }
 }

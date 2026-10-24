@@ -15,29 +15,6 @@
   gap: 4px;
   padding: 0 8px;
 }
-.kt-field {
-  display: flex;
-  height: 28px;
-  min-width: 0;
-  flex: 1;
-  align-items: center;
-  gap: 6px;
-  padding: 0 4px;
-  color: var(--muted-foreground);
-}
-.kt-field input {
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  background: transparent;
-  color: var(--foreground);
-  font: inherit;
-  font-size: var(--font-sm);
-  outline: none;
-}
-.kt-field input::placeholder {
-  color: var(--secondary-label);
-}
 .kt-btn {
   display: grid;
   width: 28px;
@@ -45,15 +22,22 @@
   flex: none;
   place-items: center;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   background: transparent;
-  color: var(--muted-foreground);
+  color: var(--fg3);
 }
-.kt-btn:hover,
 .kt-btn:focus-visible {
-  background: var(--accent);
-  color: var(--foreground);
+  background: var(--hover);
+  color: var(--fg);
   outline: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kt-btn:hover {
+    background: var(--hover);
+    color: var(--fg);
+    outline: none;
+  }
 }
 
 .kt-host {
@@ -70,42 +54,48 @@
 
 .kt-empty {
   padding: 8px 12px;
-  font-size: var(--font-sm);
-  color: var(--muted-foreground);
+  font-size: var(--type-label);
+  color: var(--fg3);
 }
 
 .kt-menu {
   min-width: 160px;
   padding: 4px;
-  border-radius: var(--radius-xl);
-  background: var(--popover);
+  border-radius: var(--radius-pop);
+  background: var(--raise);
   box-shadow:
     0 8px 28px rgb(0 0 0 / 0.4),
-    0 0 0 1px var(--border);
-  color: var(--foreground);
+    0 0 0 1px var(--line);
+  color: var(--fg);
 }
 .kt-menu-item {
   display: block;
   width: 100%;
   padding: 6px 10px;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: var(--font-md);
+  font-size: var(--type-ui);
   text-align: left;
   cursor: default;
 }
-.kt-menu-item:hover,
 .kt-menu-item:focus-visible {
-  background: var(--accent-strong);
+  background: var(--active);
   outline: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kt-menu-item:hover {
+    background: var(--active);
+    outline: none;
+  }
 }
 .kt-menu-sep {
   height: 1px;
   margin: 4px 6px;
-  background: var(--border);
+  background: var(--line);
 }
 
 .kt-host[data-pointer] {

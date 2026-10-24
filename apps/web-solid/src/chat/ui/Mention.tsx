@@ -15,7 +15,7 @@ export function Mention(props: { slug: string; text?: string }): JSX.Element {
   const plain = () => (
     <Show when={self()} fallback={<span class="font-medium">{props.text ?? `@${props.slug}`}</span>}>
       <span
-        class="inline-flex items-baseline rounded-full px-[0.4em] align-baseline font-medium leading-[1.3] whitespace-nowrap text-[var(--ring)] bg-[oklch(from_var(--ring)_l_c_h_/_14%)]"
+        class="inline-flex items-baseline rounded-full px-[0.4em] align-baseline font-medium leading-[1.3] whitespace-nowrap text-[var(--info)] bg-[oklch(from_var(--info)_l_c_h_/_14%)]"
         data-component="chat-mention"
         data-self=""
         data-slug={props.slug}

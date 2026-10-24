@@ -54,7 +54,7 @@ export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
       commit({ ...themes(), themes: [...kept, ...added].slice(-MAX_IMPORTED) })
       const theme = added.find((t) => t.appearance === appearanceOf(look().mode)) ?? added[0]!
       choose(theme.appearance, theme.id)
-      updateLook({ mode: theme.appearance })
+      if (look().mode !== "system") updateLook({ mode: theme.appearance })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The install failed.")
     } finally {
@@ -100,17 +100,15 @@ export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
           when={results()}
           fallback={
             <>
-              <li class="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground">Installed</li>
+              <li class="px-2 pt-2 pb-1 text-hint font-medium text-fg2">Installed</li>
               <For
                 each={themes().themes}
-                fallback={<li class="px-2 py-1 text-sm text-muted-foreground">None yet. Search for one above.</li>}
+                fallback={<li class="px-2 py-1 text-label text-fg2">None yet. Search for one above.</li>}
               >
                 {(theme) => (
-                  <li class="flex h-9 items-center gap-2 rounded-md px-2 hover:bg-accent" data-theme={theme.id}>
-                    <span class="min-w-0 flex-1 truncate text-md text-foreground">{theme.name}</span>
-                    <span class="shrink-0 text-xs text-muted-foreground">
-                      {theme.appearance === "dark" ? "Dark" : "Light"}
-                    </span>
+                  <li class="flex h-9 items-center gap-2 rounded-control px-2 hover:bg-hover" data-theme={theme.id}>
+                    <span class="min-w-0 flex-1 truncate text-ui text-fg">{theme.name}</span>
+                    <span class="shrink-0 text-hint text-fg2">{theme.appearance === "dark" ? "Dark" : "Light"}</span>
                     <IconButton label={`Remove ${theme.name}`} danger onClick={() => remove(theme)}>
                       <svg
                         class="size-3.5"
@@ -134,23 +132,21 @@ export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
             <For
               each={found()}
               fallback={
-                <li class="px-2 py-1 text-sm text-muted-foreground">
-                  {searching() ? "Searching" : "No color themes match."}
-                </li>
+                <li class="px-2 py-1 text-label text-fg2">{searching() ? "Searching" : "No color themes match."}</li>
               }
             >
               {(item) => (
-                <li class="flex min-h-11 items-center gap-3 rounded-md px-2 hover:bg-accent" data-item={keyOf(item)}>
+                <li
+                  class="flex min-h-11 items-center gap-3 rounded-control px-2 hover:bg-hover"
+                  data-item={keyOf(item)}
+                >
                   <div class="flex min-w-0 flex-1 flex-col">
-                    <span class="truncate text-md text-foreground">{item.displayName}</span>
-                    <span class="truncate text-xs text-muted-foreground">
+                    <span class="truncate text-ui text-fg">{item.displayName}</span>
+                    <span class="truncate text-hint text-fg2">
                       {item.namespace} · {item.downloadCount.toLocaleString()} installs
                     </span>
                   </div>
-                  <Show
-                    when={!installed(item)}
-                    fallback={<span class="shrink-0 text-xs text-muted-foreground">Installed</span>}
-                  >
+                  <Show when={!installed(item)} fallback={<span class="shrink-0 text-hint text-fg2">Installed</span>}>
                     <Button disabled={installing() !== null} onClick={() => void install(item)}>
                       {installing() === keyOf(item) ? "Installing" : "Install"}
                     </Button>

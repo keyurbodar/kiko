@@ -38,10 +38,6 @@ export function splitFiles<T extends Named>(files: readonly T[]): { images: T[];
   return { images, others }
 }
 
-export function tileSpan(count: number): 1 | 2 {
-  return count === 1 ? 2 : 1
-}
-
 export function wrapIndex(index: number, count: number): number {
   return count > 0 ? ((index % count) + count) % count : 0
 }

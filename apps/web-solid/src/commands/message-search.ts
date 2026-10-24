@@ -10,6 +10,20 @@ const load = () =>
 
 export const preloadMessageSearch = () => void load()
 
+export const messageRows = (open: (hit: Hit) => void) => {
+  const e = engine()
+  if (e) return e.rows(open)
+  void load()
+  return []
+}
+
+export const typeMessageQuery = (query: string) => void load().then((e) => e.type(query))
+
+export const messageStatus = () => {
+  const status = engine()?.status()
+  return status === "loading" || status === "error" ? status : undefined
+}
+
 export function messageSearchCommand(deps: { open: (hit: Hit) => void; openView: (id: CommandId) => void }): Command {
   return {
     id: "chats.search-all",

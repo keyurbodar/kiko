@@ -8,10 +8,10 @@ export const UNREADABLE = {
   "not-utf8": "This file is not UTF-8 text. Open it in another app to view its contents.",
 } as const
 
-export const SUBHEADER = "flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--border)] px-3"
+export const SUBHEADER = "flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--line)] px-3"
 
-const ACTION =
-  "grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground aria-pressed:bg-accent-strong aria-pressed:text-foreground disabled:opacity-50"
+export const ACTION =
+  "grid size-7 shrink-0 place-items-center rounded-control text-fg3 hover:bg-hover hover:text-fg aria-pressed:bg-active-strong aria-pressed:text-fg disabled:opacity-50"
 
 export function SurfaceAction(props: {
   label: string
@@ -53,11 +53,7 @@ export function SurfaceAction(props: {
 
 export function SurfaceNotice(props: { children: JSX.Element }) {
   return (
-    <div
-      role="status"
-      class="shrink-0 border-b border-[color-mix(in_oklab,var(--warning)_35%,transparent)] bg-[color-mix(in_oklab,var(--warning)_12%,transparent)] px-3 py-1.5 text-xs text-warning"
-      data-component="file-notice"
-    >
+    <div role="status" class="shrink-0 bg-panel px-3 py-1.5 text-hint text-fg2" data-component="file-notice">
       {props.children}
     </div>
   )
@@ -67,7 +63,7 @@ export function SurfaceLoading() {
   return (
     <div
       role="status"
-      class="flex min-h-0 flex-1 items-center justify-center text-xs text-muted-foreground"
+      class="flex min-h-0 flex-1 items-center justify-center text-hint text-fg3"
       data-component="file-loading"
     >
       Loading file
@@ -79,15 +75,15 @@ export function SurfaceFailure(props: { message: string; onRetry?: () => void })
   return (
     <div
       role="alert"
-      class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-xs leading-relaxed"
+      class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-hint leading-relaxed"
       data-component="file-failure"
     >
-      <p class="text-error">{props.message}</p>
+      <p class="text-bad">{props.message}</p>
       <Show when={props.onRetry}>
         {(retry) => (
           <button
             type="button"
-            class="rounded-md border border-[var(--border)] px-2.5 py-1 text-xs text-foreground hover:bg-accent"
+            class="rounded-control border border-[var(--line)] px-2.5 py-1 text-hint text-fg hover:bg-hover"
             data-action="retry-file"
             onClick={() => retry()()}
           >
@@ -106,12 +102,10 @@ export function NoPreview(props: { name: string; href: string }) {
       class="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 px-6 text-center"
       data-component="file-no-preview"
     >
-      <p class="text-base font-medium text-foreground">No preview for this file</p>
-      <p class="max-w-sm text-sm leading-relaxed text-muted-foreground">
-        Save it to open in an app that supports {ext()} files.
-      </p>
+      <p class="text-msg font-medium text-fg">No preview for this file</p>
+      <p class="max-w-sm text-label leading-relaxed text-fg3">Save it to open in an app that supports {ext()} files.</p>
       <a
-        class="mt-3 inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--border)] px-2.5 text-xs text-foreground hover:bg-accent"
+        class="mt-3 inline-flex h-7 items-center gap-1.5 rounded-control border border-[var(--line)] px-2.5 text-hint text-fg hover:bg-hover"
         href={props.href}
         download={props.name}
         data-action="download"

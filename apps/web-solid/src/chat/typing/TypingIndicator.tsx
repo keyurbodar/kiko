@@ -73,7 +73,8 @@ export function TypingIndicator(props: TypingIndicatorProps) {
   const max = () => props.max ?? 2
   const label = createMemo(() => {
     const doing = props.doings?.[0]
-    if (props.typists.length === 1 && motionOf(doing) !== "wave") return `${props.typists[0]} is ${doing}`
+    if (props.typists.length === 1 && doing && motionOf(doing) !== "wave")
+      return `${props.typists[0]} is ${doing.charAt(0).toLowerCase()}${doing.slice(1)}`
     return describe(props.typists, max())
   })
   const rows = createMemo(() => props.typists.slice(0, ROWS).map((name, i) => props.seeds?.[i] ?? name))

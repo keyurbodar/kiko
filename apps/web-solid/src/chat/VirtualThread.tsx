@@ -9,6 +9,7 @@ import {
   onCleanup,
   onMount,
   Show,
+  untrack,
   type JSX,
 } from "solid-js"
 import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
@@ -28,6 +29,7 @@ import { TypingIndicator } from "./typing/TypingIndicator"
 import { cn } from "../lib/cn"
 import { createMessageMenu } from "./ui/MessageMenu"
 import { ScrollFades } from "./ui/ScrollFades"
+import { NewAbovePill, ScrollDown, type NewAbove } from "./ui/ScrollFaces"
 import { chatImages } from "./ui/chat-images"
 import { createImageDialog, provideThreadImages } from "./ui/image-dialog"
 import type { DraftBook } from "../composer/draft-book"
@@ -44,7 +46,7 @@ const BUFFER_SIZE = 600
 
 const LANDING_MS = 1200
 
-const DATE_CHIP_IDLE_MS = 1200
+const DATE_CHIP_IDLE_MS = 800
 
 const READER_SCROLL_MS = 250
 
@@ -81,6 +83,8 @@ export function VirtualThread(props: {
   scrollKey?: string
   scrollBook?: Pick<DraftBook, "scroll" | "saveScroll"> & Partial<Pick<DraftBook, "ready">>
   onJumpHandle?: (handle: { jumpToMessage: (messageId: string) => void; scrollToLatest: () => void }) => void
+  onToLatest?: () => void
+  detached?: boolean
 }): JSX.Element {
   let scrollElement: HTMLDivElement | undefined
   let columnElement: HTMLDivElement | undefined
@@ -144,7 +148,7 @@ export function VirtualThread(props: {
       if (heard.has(m.id)) continue
       const own = m.sender === "user" && !m.id.startsWith("local:")
       if (own || Date.now() - m.sentAt >= 10_000) continue
-      const id = m.id
+      const id = m.clientId ?? m.id
       markFresh(id, true)
       setTimeout(() => markFresh(id, false), 700)
     }
@@ -251,6 +255,59 @@ export function VirtualThread(props: {
   let restoreGeneration = 0
   onCleanup(() => {
     restoreGeneration += 1
+  })
+
+  const farFromLatest = () => {
+    const state = scrollState()
+    return !!state && state.scrollSize - state.scrollOffset - state.viewportSize > state.viewportSize
+  }
+
+  const [replyBelow, setReplyBelow] = createSignal(false)
+  let newestBot: string | undefined
+  let newestKey: string | undefined
+  createComputed(() => {
+    const newest = props.messages.findLast((m) => m.sender === "bot" && !m.event)?.id
+    const key = props.scrollKey
+    const moved = key === newestKey && newestBot !== undefined && newest !== undefined && newest !== newestBot
+    newestKey = key
+    newestBot = newest
+    if (moved && !untrack(isAtLatest)) setReplyBelow(true)
+  })
+  createEffect(
+    on(
+      () => props.scrollKey,
+      () => setReplyBelow(false),
+    ),
+  )
+  createEffect(() => {
+    if (isAtLatest()) setReplyBelow(false)
+  })
+
+  const unreadAt = createMemo(() => items().findIndex((item) => item.kind === "unread-divider"))
+  const unreadSenders = createMemo(() => {
+    const first = props.firstUnreadMessageId
+    const at = first ? props.messages.findIndex((m) => m.id === first) : -1
+    if (at < 0) return { count: 0, slugs: [] as string[] }
+    const unread = props.messages.slice(at).filter((m) => m.sender === "bot" && !m.event)
+    return { count: unread.length, slugs: [...new Set(unread.flatMap((m) => (m.botId ? [m.botId] : [])))] }
+  })
+  const [unreadReached, setUnreadReached] = createSignal(false)
+  createEffect(
+    on(
+      () => [props.scrollKey, props.firstUnreadMessageId],
+      () => setUnreadReached(false),
+    ),
+  )
+  createEffect(() => {
+    const state = scrollState()
+    const at = unreadAt()
+    if (!state || at < 0 || untrack(unreadReached) || !restoredOk) return
+    if (at >= state.rangeStart && at <= state.rangeEnd) setUnreadReached(true)
+  })
+
+  const seenUntil = createMemo(() => {
+    if (props.waitingNames.length > 0) return Number.POSITIVE_INFINITY
+    return props.messages.findLast((m) => m.sender === "bot" && !m.event)?.sentAt ?? Number.NEGATIVE_INFINITY
   })
 
   const showsKey = () => {
@@ -545,33 +602,38 @@ export function VirtualThread(props: {
   provideThreadImages(viewer.open)
 
   const renderMessage = (item: TimelineItem & { kind: "message" }): JSX.Element => {
-    const message = item.message
+    const message = () => item.message
     const menu = createMessageMenu({
       messageFor: (id) => {
         for (const entry of items()) {
           if (entry.kind === "message" && entry.message.id === id) return entry.message
         }
-        return message
+        return message()
       },
-      side: message.sender,
-      onReply: () => aimReplyAt(menu.targetId() ?? message.id),
-      onEdit:
-        message.sender === "user" && !message.id.startsWith("local:") && message.body.trim() && props.onEdit
-          ? () => props.onEdit!(menu.targetId() ?? message.id)
-          : undefined,
-      onDelete:
-        message.sender === "user" && !message.id.startsWith("local:") && props.onDelete
-          ? () => props.onDelete!(menu.targetId() ?? message.id)
-          : undefined,
-      onReact: (emoji) => props.onReact?.(menu.targetId() ?? message.id, emoji),
+      side: message().sender,
+      onReply: () => aimReplyAt(menu.targetId() ?? message().id),
+      get onEdit() {
+        return message().sender === "user" &&
+          !message().id.startsWith("local:") &&
+          message().body.trim() &&
+          props.onEdit
+          ? () => props.onEdit!(menu.targetId() ?? message().id)
+          : undefined
+      },
+      get onDelete() {
+        return message().sender === "user" && !message().id.startsWith("local:") && props.onDelete
+          ? () => props.onDelete!(menu.targetId() ?? message().id)
+          : undefined
+      },
+      onReact: (emoji) => props.onReact?.(menu.targetId() ?? message().id, emoji),
     })
-    const bot = createMemo(() => props.botById(message.botId))
-    const parent = createMemo(() => props.replyParent(message.replyToId))
-    const quote = createMemo(() => quoteOf(message, parent(), (slug) => props.botById(slug)?.name))
+    const bot = createMemo(() => props.botById(message().botId))
+    const parent = createMemo(() => props.replyParent(message().replyToId))
+    const quote = createMemo(() => quoteOf(message(), parent(), (slug) => props.botById(slug)?.name))
     return (
       <>
         <MessageRow
-          message={message}
+          message={message()}
           bot={bot()}
           quote={quote()}
           isRunStart={item.isRunStart}
@@ -580,17 +642,22 @@ export function VirtualThread(props: {
           hasRunGapBefore={item.hasRunGapBefore}
           group={props.groupChat}
           class={
-            fresh().has(message.id) ? (message.sender === "bot" ? "motion-reply-in" : "motion-bubble-in") : undefined
+            fresh().has(message().clientId ?? message().id)
+              ? message().sender === "bot"
+                ? "motion-reply-in"
+                : "motion-bubble-in"
+              : undefined
           }
-          highlighted={landed() === message.id}
-          replying={activeReply() === message.id}
-          jumboClass={jumboEmojiClass(message.body)}
+          highlighted={landed() === message().id}
+          replying={activeReply() === message().id}
+          seen={message().sentAt <= seenUntil()}
+          jumboClass={jumboEmojiClass(message().body)}
           onOpenReplyTarget={openReplyTarget}
-          onReact={(emoji) => props.onReact?.(message.id, emoji)}
-          onReply={() => aimReplyAt(message.id)}
+          onReact={(emoji) => props.onReact?.(message().id, emoji)}
+          onReply={() => aimReplyAt(message().id)}
           onMore={(anchor) => {
             const box = anchor.getBoundingClientRect()
-            menu.openAt(message.id, box.left, box.bottom)
+            menu.openAt(message().id, box.left, box.bottom)
           }}
           onContextMenu={menu.onContextMenu}
           onOpenImages={(images, index, from) => {
@@ -642,12 +709,34 @@ export function VirtualThread(props: {
       )
     }
     if (item.kind === "unread-divider") {
-      return <SystemRow label="New messages" tone="accent" data-component="chat-unread-rule" />
+      const count = unreadSenders().count
+      return (
+        <SystemRow
+          label={count > 0 ? `${count} new` : "New messages"}
+          tone="accent"
+          stitch
+          data-component="chat-unread-rule"
+        />
+      )
     }
-    return renderMessage(item)
+    return untrack(() => renderMessage(item))
   }
 
   const hasMessages = () => items().length > 0
+
+  const newAbove = createMemo<NewAbove | null>(() => {
+    const at = unreadAt()
+    const state = scrollState()
+    if (at < 0 || unreadReached() || dateChipVisible() || !state || at >= state.rangeStart) return null
+    const senders = unreadSenders()
+    return senders.count > 0 ? senders : null
+  })
+  const jumpToUnread = () => {
+    const first = props.firstUnreadMessageId
+    if (!first) return
+    setUnreadReached(true)
+    jumpToMessage(first)
+  }
 
   return (
     <div class={STAGE_CLASS} data-component="chat-stage">
@@ -713,6 +802,13 @@ export function VirtualThread(props: {
         hasDay={(day) => days().has(day) || day === dayStartOf(now())}
       />
       <ScrollFades showTop={(scrollState()?.scrollOffset ?? 0) > 0} showBottom={!isAtLatest()} />
+      <NewAbovePill above={newAbove()} onClick={jumpToUnread} />
+      <ScrollDown
+        shown={farFromLatest() || !!props.detached}
+        working={props.waitingSlugs ?? []}
+        landed={replyBelow()}
+        onClick={() => (props.onToLatest ? props.onToLatest() : scrollToLatest())}
+      />
 
       {viewer.view}
     </div>

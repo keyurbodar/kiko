@@ -1,3 +1,4 @@
+import { typeVars } from "./system"
 export type ChatWidth = "comfortable" | "wide" | "full"
 
 export type Display = Readonly<{
@@ -24,13 +25,13 @@ export const DEFAULT_DISPLAY: Display = {
 }
 
 export const CHAT_WIDTHS: Record<ChatWidth, { label: string; width: string }> = {
-  comfortable: { label: "Comfortable", width: "736px" },
+  comfortable: { label: "Comfortable", width: "820px" },
   wide: { label: "Wide", width: "1152px" },
   full: { label: "Full", width: "100%" },
 }
 
-const SANS_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
-const MONO_STACK = '"SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace'
+const SANS_STACK = 'Satoshi, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
+const MONO_STACK = '"JetBrains Mono", "SF Mono", Menlo, Consolas, ui-monospace, monospace'
 
 function quoteFamily(name: string): string {
   const bare = name.trim()
@@ -91,10 +92,7 @@ export function displayVars(display: Display): Record<string, string> {
   const b = display.baseSize
   return {
     ...fontVars(display),
-    "--font-xs": `${b - 2}px`,
-    "--font-sm": `${b - 1}px`,
-    "--font-md": `${b}px`,
-    "--font-base": `${b + 1}px`,
+    ...typeVars(b),
     "--chat-content-max-width": CHAT_WIDTHS[display.chatWidth].width,
     "--font-smoothing": display.smoothing ? "antialiased" : "auto",
   }

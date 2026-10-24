@@ -1,0 +1,70 @@
+.mochi {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 1em;
+  height: 1em;
+  font-size: var(--mochi-size, 16px);
+}
+
+.mochi-shadow {
+  position: absolute;
+  left: 0.2em;
+  bottom: 0.05em;
+  width: 0.6em;
+  height: 0.1em;
+  border-radius: 50%;
+  background: var(--fg);
+  opacity: 0.4;
+}
+
+.mochi-body {
+  position: absolute;
+  left: 0.15em;
+  bottom: 0.15em;
+  width: 0.7em;
+  height: 0.55em;
+  border-radius: 50% 50% 44% 44% / 62% 62% 38% 38%;
+  background: var(--fg);
+  transform-origin: 50% 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mochi-body {
+    animation: mochi-hop 1.1s cubic-bezier(0.4, 0, 0.3, 1) infinite;
+  }
+  .mochi-shadow {
+    animation: mochi-shadow 1.1s cubic-bezier(0.4, 0, 0.3, 1) infinite;
+  }
+}
+
+@keyframes mochi-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1.18, 0.78);
+  }
+  18% {
+    transform: translateY(-0.05em) scale(0.9, 1.12);
+  }
+  45% {
+    transform: translateY(-0.4em) scale(1, 1);
+  }
+  72% {
+    transform: translateY(-0.05em) scale(0.95, 1.06);
+  }
+  86% {
+    transform: translateY(0) scale(1.1, 0.86);
+  }
+}
+
+@keyframes mochi-shadow {
+  0%,
+  100% {
+    transform: scaleX(1.1);
+    opacity: 0.5;
+  }
+  45% {
+    transform: scaleX(0.55);
+    opacity: 0.18;
+  }
+}

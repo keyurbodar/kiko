@@ -6,6 +6,8 @@ function collapseLimit(viewportHeight: number, coarse: boolean): number {
 
 const FOLD_SLACK = 0.25
 
+const FOLD_LINES_PX = 14 * 24
+
 export function shouldFold(contentHeight: number, limit: number, fixed = false): boolean {
   return !fixed && contentHeight > limit * (1 + FOLD_SLACK)
 }
@@ -19,5 +21,5 @@ export function foldLimitFor(height: number): number {
   const usable = Math.max(240, height - FOLD_BUTTON_PX)
   if (!cached || cached.height !== usable || cached.coarse !== coarse)
     cached = { height: usable, coarse, limit: collapseLimit(usable, coarse) }
-  return cached.limit
+  return Math.min(FOLD_LINES_PX, cached.limit)
 }

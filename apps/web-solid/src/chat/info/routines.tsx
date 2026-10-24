@@ -1,11 +1,13 @@
 import type { RecipeCard, RoutineRow as RoutineData } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CheckIcon, ClockIcon, PauseIcon, PlayIcon, TrashIcon } from "@kiko/ui/icons"
+import { CheckIcon, ClockIcon, PauseIcon, PlayIcon, RepeatIcon, TrashIcon } from "@kiko/ui/icons"
+import { Link } from "@tanstack/solid-router"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createResource, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
 import { RecipeIcon } from "../../recipes/icon"
 import { recipeForRoutine } from "../../recipes/model"
+import { leadName, PanelEmpty } from "./empty"
 import { triggerLabel } from "./routines-model"
 import { apiFetch } from "../../lib/api"
 import { createQuery, owner, run } from "../../state/runtime"
@@ -50,9 +52,9 @@ async function runNow(routine: Routine): Promise<boolean> {
   return false
 }
 
-const faint = "text-[color-mix(in_oklab,var(--foreground)_40%,transparent)]"
+const faint = "text-fg4"
 const tool =
-  "grid size-7 shrink-0 place-items-center rounded-md text-[color-mix(in_oklab,var(--foreground)_45%,transparent)] hover:bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] hover:text-foreground disabled:opacity-40"
+  "grid size-7 shrink-0 place-items-center rounded-row text-fg3 transition-[background-color,transform] duration-[120ms] active:scale-[0.97] hover:bg-active hover:text-fg disabled:opacity-40"
 function Tool(props: {
   label: string
   action: string
@@ -93,7 +95,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
   }
   return (
     <li
-      class="flex items-center gap-1 rounded-md pr-1 hover:bg-[color-mix(in_oklab,var(--foreground)_5%,transparent)]"
+      class="flex items-center gap-1 rounded-[10px] pr-1 transition-colors duration-[120ms] hover:bg-hover"
       data-routine={props.routine.id}
       data-status={props.routine.status}
     >
@@ -102,7 +104,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
           when={props.recipe}
           fallback={
             <span
-              class={`grid size-7 shrink-0 place-items-center rounded-md bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)] ${on() ? "text-[color-mix(in_oklab,var(--foreground)_60%,transparent)]" : "text-[color-mix(in_oklab,var(--foreground)_30%,transparent)]"}`}
+              class={`grid size-7 shrink-0 place-items-center rounded-control bg-active ${on() ? "text-fg2" : "text-fg4"}`}
               aria-hidden="true"
             >
               <RemixIcon icon={ClockIcon} size={14} />
@@ -112,16 +114,10 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
           {(recipe) => <RecipeIcon recipe={recipe()} size={34} />}
         </Show>
         <span class="flex min-w-0 flex-1 flex-col">
-          <span
-            class={`truncate text-[12px] leading-5 ${on() ? "text-[color-mix(in_oklab,var(--foreground)_85%,transparent)]" : "text-[color-mix(in_oklab,var(--foreground)_45%,transparent)]"}`}
-          >
-            {props.routine.name}
-          </span>
+          <span class={`truncate text-[12px] leading-5 ${on() ? "text-fg" : "text-fg3"}`}>{props.routine.name}</span>
           <span class={`truncate text-[11px] leading-4 ${faint}`} data-component="routine-trigger">
             <Show when={!ran() && !on()}>
-              <span class="mr-1.5 rounded bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] px-1 text-[10px]">
-                Paused
-              </span>
+              <span class="mr-1.5 rounded bg-active px-1 text-[10px]">Paused</span>
             </Show>
             {ran() ? "Started just now" : triggerLabel(props.routine.trigger, props.routine.tz)}
           </span>
@@ -144,7 +140,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
   )
 }
 
-const heading = `px-2 pt-2 pb-1 text-[11px] font-medium leading-4 ${faint}`
+const heading = "px-2 pt-2 pb-1 type-label text-fg3"
 
 export function RoutinesPage(props: { chatId: string }) {
   const listed = createQuery(() => (routinesOf(props.chatId).length ? owner.queries.recipes(undefined) : null))
@@ -161,10 +157,21 @@ export function RoutinesPage(props: { chatId: string }) {
         {(list) => (
           <>
             <Show when={!list().length}>
-              <p class={`px-2 py-6 text-center text-[12px] leading-5 ${faint}`}>
-                Nothing scheduled yet. Ask an agent to remind you, or to do something on a schedule or whenever you send
-                a message.
-              </p>
+              <PanelEmpty
+                component="routines-empty"
+                icon={RepeatIcon}
+                title="No routines yet"
+                line={`Ask ${leadName()} to remind you, or to do something every morning.`}
+                action={
+                  <Link
+                    to="/recipes"
+                    class="flex h-control items-center rounded-control bg-active px-3 type-ui text-fg transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover active:scale-[0.98]"
+                    data-action="browse-recipes"
+                  >
+                    Browse recipes
+                  </Link>
+                }
+              />
             </Show>
             <Show when={list().length}>
               <h3 class={heading}>Routines</h3>

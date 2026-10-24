@@ -2,9 +2,35 @@ import { createEffect, on, onCleanup } from "solid-js"
 import type { PromptInputV2Interaction } from "../prompt-input/interaction"
 import type { PromptInputV2Attachment } from "../prompt-input/types"
 import { composingKey, enterIsNewline } from "../ime"
-import { chipView, fileRefView } from "../prompt-input/chip"
+import { chipView, type ChipSource, fileRefView, tokenView } from "../prompt-input/chip"
+import { PASTED_TEXT } from "../prompt-input/tray"
 import { pastedComposerFragment, prepareClipboardFiles } from "./clipboard"
 import { mountRichEditor, type RichEditor } from "./editor"
+import type { ParseOptions } from "./markdown"
+import type { Token } from "../tokens"
+
+function tokenNode(token: Exclude<Token, { kind: "action" }>): { type: string; attrs: Record<string, unknown> } {
+  if (token.kind === "agent" || token.kind === "app") return { type: "mention", attrs: { slug: token.slug } }
+  if (token.kind === "file") return { type: "fileRef", attrs: { path: token.path } }
+  if (token.kind === "command") return { type: "slash", attrs: { name: token.trigger } }
+  return { type: "slash", attrs: { name: token.name } }
+}
+
+const LONG_PASTE = 1500
+const LONE_URL = /^https?:\/\/[^\s<>()[\]]+$/
+
+function linkChip(text: string): string {
+  const url = text.trim()
+  if (!LONE_URL.test(url)) return text
+  try {
+    const parsed = new URL(url)
+    const path = parsed.pathname.split("/").find(Boolean)
+    const label = `${parsed.hostname.replace(/^www\./, "")}${path ? `/${path}` : ""}`
+    return `[${label.length > 40 ? `${label.slice(0, 39)}…` : label}](${url})`
+  } catch {
+    return text
+  }
+}
 
 export type RichBinding = {
   editor: RichEditor
@@ -15,7 +41,8 @@ export function bindRich(input: {
   host: HTMLElement
   controller: PromptInputV2Interaction
   label: string
-  isMention: (slug: string) => boolean
+  parse: ParseOptions
+  chips: Omit<ChipSource, "attachments" | "openAttachment">
   disabled: () => boolean
   shortcodes: { sync: () => void; onKeyDown: (event: KeyboardEvent) => boolean; close: () => void }
   onEdit: () => void
@@ -28,21 +55,27 @@ export function bindRich(input: {
       .map((part) => ("content" in part ? part.content : ""))
       .join("")
 
+  const source: ChipSource = {
+    ...input.chips,
+    attachments: controller.attachments,
+    openAttachment: controller.openAttachment,
+  }
   const editor = mountRichEditor({
     element: input.host,
     markdown: markdown(),
     label: input.label,
-    isMention: input.isMention,
-    chip: chipView({ attachments: controller.attachments, openAttachment: controller.openAttachment }),
-    fileRef: fileRefView,
+    parse: input.parse,
+    token: tokenView(source),
+    chip: chipView(source),
+    fileRef: fileRefView(source),
     onChange: ({ markdown: text, plain, cursor }) => {
       const images: PromptInputV2Attachment[] = controller.attachments()
       controller.onInput(plain, [{ type: "text", content: text, start: 0, end: text.length }, ...images], cursor)
       input.onEdit()
       input.shortcodes.sync()
     },
-    onCursor: (cursor) => {
-      controller.onCursor(cursor)
+    onCursor: (cursor, plain) => {
+      controller.onCursor(plain, cursor)
       input.shortcodes.sync()
     },
     onKeyDown: (event) => {
@@ -58,7 +91,8 @@ export function bindRich(input: {
     },
     pastedText: (clipboard) => {
       const fragment = pastedComposerFragment(clipboard)
-      if (!fragment) return clipboard.getData("text/plain")
+      if (!fragment)
+        return editor.inCode() ? clipboard.getData("text/plain") : linkChip(clipboard.getData("text/plain"))
       const replacements = controller.importAttachments(fragment.files)
       return fragment.markdown.replace(/!?\[[^\]\n]*\]\(attachment:([\w-]+)\)/g, (token, id: string) => {
         const target = replacements.get(id) ?? id
@@ -70,22 +104,26 @@ export function bindRich(input: {
     onPaste: (event) => {
       const clipboard = event.clipboardData
       const files = Array.from(clipboard?.items ?? []).some((item) => item.kind === "file")
-      if (!files && clipboard?.getData("text/plain")) return false
+      const text = clipboard?.getData("text/plain") ?? ""
+      if (!files && text.length > LONG_PASTE && !editor.inCode() && !pastedComposerFragment(clipboard!)) {
+        event.preventDefault()
+        controller.addAttachments([new File([text], PASTED_TEXT, { type: "text/plain" })])
+        return true
+      }
+      if (!files && text) return false
       controller.onPaste(event)
       return true
     },
-    onFocus: () => {
-      controller.dispatch({ type: "focus.editor" })
-      input.onFocus()
-    },
+    onFocus: input.onFocus,
     onBlur: input.shortcodes.close,
   })
 
   controller.setEditor(editor.dom)
   controller.setRich({
     insertText: (text) => editor.insertText(text),
-    insertMention: (slug) => editor.insertMention(slug),
-    insertAttachments: (items, at) => editor.insertAttachments(items, at),
+    insertToken: (trigger, token) => {
+      if (token.kind !== "action") editor.insertToken(trigger, tokenNode(token))
+    },
     insertFileRefs: (paths, at) => editor.insertFileRefs(paths, at),
     removeAttachment: (id) => editor.removeAttachment(id),
   })

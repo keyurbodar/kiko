@@ -190,7 +190,7 @@ export function hrefFile(href: string): FileTarget | null {
   return looksLikeFilePath(bare, path) ? target(path, hash) : null
 }
 
-export const basename = (path: string) => path.slice(path.lastIndexOf("/") + 1)
+const basename = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 
 export function isFileLabel(label: string, file: FileTarget): boolean {
   const own = splitPosition(label.trim())

@@ -1,35 +1,74 @@
-import { For, Show, Suspense, batch, createEffect, createMemo, on, onCleanup } from "solid-js"
+import {
+  For,
+  Show,
+  Suspense,
+  batch,
+  createEffect,
+  createMemo,
+  createSignal,
+  getOwner,
+  on,
+  onCleanup,
+  onMount,
+  runWithOwner,
+  untrack,
+} from "solid-js"
 import { createStore } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { MAX_MESSAGE_TEXT, humanAnswerText, sendFits, attachmentIds, linkAttachments } from "@kiko/protocol"
+import { MAX_MESSAGE_TEXT, humanAnswerText, sendFits, linkAttachments } from "@kiko/protocol"
 import type { ComposerProps, MessageFile } from "../lib/types"
 import { isImage, sendRefusal } from "../lib/attachments"
 import "./composer.css"
 import { PromptInputV2 } from "./prompt-input"
 import { createPromptInputV2Controller } from "./prompt-input/interaction"
+import type { Refusal } from "./prompt-input/attachments"
+import { type Rejected } from "./prompt-input/tray"
 import { createPromptInputV2Store } from "./prompt-input/store"
 import { blobId, preparingAttachments, releaseBlobUrl } from "./prompt-input/attachments"
 import { composingKey } from "./ime"
-import type {
-  PromptInputV2Attachment,
-  PromptInputV2PersistedState,
-  PromptInputV2Suggestion,
-} from "./prompt-input/types"
+import type { PromptInputV2Attachment, PromptInputV2PersistedState } from "./prompt-input/types"
 import { ReplyBar } from "./reply-bar"
 import { openSettings } from "../lib/errors"
 import { openModelPicker } from "../settings/model-picker"
 import { quoteSummary, replySummary } from "../chat/lib/reply"
 import { createImageDialog } from "../chat/ui/image-dialog"
-import { runSlash, slashSuggestions } from "./slash"
-import { forgetUpload, readyAttachments, releaseUpload, startUpload, uploadBlockReason } from "./uploads"
+import { runSlash, slashTokens } from "./slash"
+import { forgetUpload, readyAttachments, releaseUpload, retryUpload, startUpload, uploadState } from "./uploads"
+import { tokenGroups, type Token } from "./tokens"
+import type { TokenData } from "./token-data"
+import { room } from "../state/room"
 import { createDraftRestore } from "./draft-restore"
+import { receiveFileRefs } from "./file-refs"
 import { composerFill, takeComposerFill } from "./fill"
 
 import { createQuestionInput } from "./cards/question-input"
 import { carryDisplacedCustomAnswerIntoPrompt } from "./cards/question-model"
 import { ComposerCards } from "./cards/composer-cards"
+import { AddSomeoneItems } from "./add-someone"
 
 const draftFiles = () => import("./rich/draft-files")
+
+const ASKING = "Answer or skip the question before attaching files."
+
+const NO_DATA: TokenData = {
+  files: () => [],
+  apps: () => [],
+  skills: () => [],
+  recipes: () => [],
+  app: () => undefined,
+}
+
+const ADD_SOMEONE: Token = { kind: "action", id: "action:add-someone", title: "Add someone to this chat…", hint: "" }
+
+function agentHint(bot: ComposerProps["bots"][number]): string {
+  if (bot.presence === "working") return "Using a tool"
+  if (bot.presence === "typing") return "Writing a reply"
+  return bot.persona === "lead" ? "Lead" : "Agent"
+}
+
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`
+}
 
 export function Composer(props: ComposerProps) {
   const question = createQuestionInput(
@@ -148,20 +187,15 @@ export function Composer(props: ComposerProps) {
     },
   })
   const modelBlock = () => (props.editing || question.ask() ? null : (props.sendBlock ?? null))
-  const blocked = () =>
-    modelBlock()?.reason ??
-    (preparingAttachments() ? "Still preparing the attachment" : null) ??
-    uploadBlockReason(boxed().map((part) => part.id))
+  const failed = () => boxed().filter((part) => uploadState(part.id)?.status === "failed")
+  const uploading = () => boxed().filter((part) => uploadState(part.id)?.status !== "ready").length - failed().length
+  const blocked = () => modelBlock()?.reason ?? (preparingAttachments() ? "Still preparing the attachment" : null)
+  const [waiting, setWaiting] = createSignal(false)
+  const [nudged, setNudged] = createSignal(false)
+  const [rejected, setRejected] = createSignal<Rejected[]>([])
   function draftText() {
     return store.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")
   }
-  createEffect(
-    on(createMemo(draftText), (text) => {
-      const named = new Set(attachmentIds(text))
-      for (const part of boxed())
-        if (!named.has(part.id) && !isImage({ name: part.filename, type: part.mime })) store.removeAttachment(part.id)
-    }),
-  )
   let filledFor = ""
   createEffect(
     on(
@@ -170,6 +204,8 @@ export function Composer(props: ComposerProps) {
         if (before && before !== key && before.includes(":ask:")) props.onDraftChange?.(before, "")
         filledFor = ""
         leaveChat()
+        setWaiting(false)
+        setRejected([])
         if (!key) return
         const filled = takeComposerFill(key)
         if (filled !== undefined) typeHere(filled)
@@ -245,17 +281,82 @@ export function Composer(props: ComposerProps) {
   const botById = (botId: string | undefined) =>
     botId === undefined ? undefined : props.bots.find((bot) => bot.id === botId)
 
-  const context = (): PromptInputV2Suggestion[] =>
+  const agents = createMemo((): Token[] =>
     props.bots.map((bot) => ({
-      id: `agent-${bot.id}`,
       kind: "agent",
-      label: `@${bot.id}`,
+      id: `agent:${bot.id}`,
+      slug: bot.id,
       title: bot.name,
-      description: [bot.name.toLowerCase() === bot.id ? "" : bot.name, bot.persona ?? "Agent"]
-        .filter(Boolean)
-        .join(" · "),
-      mention: { type: "agent", name: bot.id, content: `@${bot.id}`, start: 0, end: 0 },
-    }))
+      hint: agentHint(bot),
+    })),
+  )
+  const [data, setData] = createSignal<TokenData>(NO_DATA)
+  onMount(() => {
+    const owner = getOwner()
+    void import("./token-data").then(({ createTokenData }) =>
+      runWithOwner(owner, () =>
+        setData(createTokenData({ roomId: () => props.threadId, chatTitle: () => props.title })),
+      ),
+    )
+  })
+  const pool = {
+    agents,
+    files: (query: string) => data().files(query),
+    apps: () => data().apps(),
+    skills: () => data().skills(),
+    recipes: () => data().recipes(),
+    commands: slashTokens,
+    actions: () => (props.room ? [ADD_SOMEONE] : []),
+  }
+  const [adding, setAdding] = createSignal(false)
+  const resolve = (sign: "@" | "/", name: string): Token | undefined => {
+    if (sign === "@")
+      return (
+        agents().find((token) => token.kind === "agent" && token.slug === name) ??
+        data()
+          .apps()
+          .find((token) => token.kind === "app" && token.slug === name)
+      )
+    return [...data().skills(), ...data().recipes()].find(
+      (token) => (token.kind === "skill" || token.kind === "recipe") && token.name === name,
+    )
+  }
+  const parse = {
+    isMention: (slug: string) => resolve("@", slug) !== undefined,
+    isSlash: (name: string) => resolve("/", name) !== undefined,
+  }
+  const lead = () => agents().find((token, i) => props.bots[i]?.persona === "lead") ?? agents()[0]
+  const recipient = createMemo((): Token | undefined => {
+    const text = draftText()
+    const named = agents().find(
+      (token) => token.kind === "agent" && new RegExp(`(^|[^\\w@/.:-])@${token.slug}(?![\\w/-])`).test(text),
+    )
+    return named ?? lead()
+  })
+  const working = createMemo(() => {
+    if (!props.room || room.activeId() !== props.threadId) return null
+    const status = room.status()
+    const slug = Object.keys(status).find((key) => status[key] === "working") ?? room.typingSlugs()[0]
+    return slug ? (agents().find((token) => token.kind === "agent" && token.slug === slug)?.title ?? "Kiko") : null
+  })
+  const stop = () => {
+    room.stop()
+  }
+  const refuse = (refusals: Refusal[]) => {
+    const named = refusals.flatMap((r) => (r.name ? [{ id: crypto.randomUUID(), name: r.name, reason: r.reason }] : []))
+    if (named.length) setRejected((list) => [...list, ...named])
+    for (const r of refusals) if (!r.name) showToastV2({ title: r.reason, variant: "error" })
+  }
+  const escapeStops = (event: KeyboardEvent) => {
+    if (event.key !== "Escape" || event.defaultPrevented || !working() || props.editing || props.replyTo) return
+    const target = event.target
+    if (!(target instanceof HTMLElement) || !target.closest('[data-component="composer-dock"]')) return
+    if (document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')) return
+    event.preventDefault()
+    stop()
+  }
+  document.addEventListener("keydown", escapeStops)
+  onCleanup(() => document.removeEventListener("keydown", escapeStops))
 
   const selectAnswer = (value: string) =>
     batch(() => {
@@ -266,20 +367,30 @@ export function Composer(props: ComposerProps) {
       store.reset()
       question.select(value)
     })
-  const placeholder = () => {
+  const hints = createMemo((): string[] => {
     if (question.ask())
-      return question.progress().activeQuestion?.allowCustomAnswer === false
-        ? "Select an option above"
-        : "Type your own answer…"
-    const name = props.title || botById(props.threadId)?.name
-    return name ? `Message ${name}` : "Message"
-  }
+      return [
+        question.progress().activeQuestion?.allowCustomAnswer === false
+          ? "Select an option above"
+          : "Type your own answer…",
+      ]
+    if (props.editing) return ["Edit your message"]
+    const name = recipient()?.title || props.title || botById(props.threadId)?.name
+    const base = name ? `Message ${name}. @ to mention, / for skills` : "Message"
+    if (!name) return [base]
+    return [
+      base,
+      ...data()
+        .apps()
+        .map((app) => `Ask ${name} about your ${app.title}`),
+    ]
+  })
 
   const controller = createPromptInputV2Controller({
     store: [persisted, setPersisted],
-    commands: slashSuggestions,
-    context,
-    searchContextFiles: () => [],
+    tokens: (trigger, query, atStart) => tokenGroups(pool, trigger, query, atStart),
+    onAction: () => requestAnimationFrame(() => setAdding(true)),
+    agents,
     openAttachment: (attachment) => {
       const all = pictures()
       viewer.open(
@@ -292,11 +403,9 @@ export function Composer(props: ComposerProps) {
       )
     },
     attachments: {
-      blocked: () => (question.ask() ? "Answer or skip the question before attaching files." : null),
+      blocked: () => (question.ask() ? ASKING : null),
       key: () => draftKey() ?? "",
-      refuse: (reasons) => {
-        for (const title of reasons) showToastV2({ title, variant: "error" })
-      },
+      refuse,
       onAdded: (attachment, file) => {
         if (props.threadId) startUpload(attachment.id, props.threadId, file, attachment.filename, attachment.mime)
         const key = draftKey()
@@ -320,7 +429,6 @@ export function Composer(props: ComposerProps) {
       },
     },
     view: {
-      placeholder,
       submit: {
         canSubmit: () =>
           question.ask()
@@ -334,6 +442,7 @@ export function Composer(props: ComposerProps) {
           if (props.disabled || blocked()) return
           if (question.ask()) return question.advance()
           if (!props.threadId) return
+          if (holdBack()) return
           const text = draftText()
           const editing = props.editing
           const parts = boxed()
@@ -365,11 +474,18 @@ export function Composer(props: ComposerProps) {
           keptFor.clear()
           if (sentDraftKey) void draftFiles().then((m) => m.clearDraftFiles(sentDraftKey))
           store.reset()
+          setRejected([])
           props.onClearReply?.()
         },
       },
     },
   })
+  onCleanup(
+    receiveFileRefs((paths) => {
+      if (question.ask()) return refuse([{ reason: ASKING }])
+      controller.insertFileRefs(paths)
+    }),
+  )
 
   function typeHere(text: string) {
     requestAnimationFrame(() =>
@@ -386,8 +502,92 @@ export function Composer(props: ComposerProps) {
     props.onCancelEdit?.()
   }
 
+  createEffect(() => {
+    if (!waiting()) return
+    if (failed().length) return setWaiting(false)
+    if (uploading() === 0) untrack(() => controller.submit())
+  })
+  createEffect(
+    on(
+      () => boxed().length,
+      (count) => count === 0 && setWaiting(false),
+      { defer: true },
+    ),
+  )
+
+  function holdBack(): boolean {
+    if (failed().length) {
+      setNudged(true)
+      return true
+    }
+    if (uploading() > 0 && !props.editing) {
+      setWaiting(true)
+      return true
+    }
+    setWaiting(false)
+    return false
+  }
+
+  const expandPasted = (part: PromptInputV2Attachment) => {
+    void fetch(part.blob.url)
+      .then((res) => res.text())
+      .then((text) => {
+        controller.removeAttachment(part.id)
+        controller.addPart({ type: "text", content: text, start: 0, end: 0 })
+      })
+  }
+
+  const below = (
+    <>
+      <Show when={failed().length > 0}>
+        <div
+          class="composer-note"
+          data-tone="bad"
+          data-nudged={nudged() ? "" : undefined}
+          data-component="composer-upload-failed"
+          role="status"
+          onAnimationEnd={() => setNudged(false)}
+        >
+          <span class="composer-note-dot" aria-hidden="true" />
+          <span>{plural(failed().length, "file didn't upload.", "files didn't upload.")}</span>
+          <button
+            type="button"
+            data-action="retry-all"
+            onClick={() => failed().forEach((part) => retryUpload(part.id))}
+          >
+            Retry all
+          </button>
+          <button
+            type="button"
+            data-action="send-without"
+            onClick={() => {
+              for (const part of failed()) controller.removeAttachment(part.id)
+              controller.submit()
+            }}
+          >
+            Send without them
+          </button>
+        </div>
+      </Show>
+      <Show when={waiting() && failed().length === 0}>
+        <div class="composer-note" data-component="composer-waiting" role="status">
+          Sending when {plural(uploading(), "file finishes", "files finish")}
+        </div>
+      </Show>
+    </>
+  )
+
   const above = (
     <>
+      <Show when={working() && !props.editing && draftText().trim() !== ""}>
+        <div class="composer-working" data-component="composer-working" role="status">
+          <span class="composer-working-dot" aria-hidden="true" />
+          <span class="composer-working-text">{working()} is working. It reads this as soon as you send.</span>
+          <button type="button" data-action="stop-run" onClick={stop}>
+            Stop
+          </button>
+        </div>
+      </Show>
       <Show when={props.editing}>
         {(message) => (
           <ReplyBar
@@ -452,8 +652,28 @@ export function Composer(props: ComposerProps) {
         controller={controller}
         disabled={!!props.disabled}
         reply={question.ask() ? undefined : above}
+        below={question.ask() ? undefined : below}
         tray={props.tray}
-        isMention={(slug) => props.bots.some((bot) => bot.id === slug)}
+        editing={!!props.editing}
+        parse={parse}
+        chips={{ resolve, roomId: () => props.threadId, chatTitle: () => props.title }}
+        recipient={recipient()}
+        people={
+          props.room
+            ? {
+                group: props.bots.length > 1,
+                adding: adding(),
+                onAddingChange: setAdding,
+                addItems: () => <AddSomeoneItems chatId={props.threadId} />,
+              }
+            : undefined
+        }
+        hints={hints}
+        stop={working() && !props.editing && !question.ask() ? stop : undefined}
+        waiting={waiting()}
+        rejected={rejected()}
+        onDismissRejected={(id) => setRejected((list) => list.filter((item) => item.id !== id))}
+        onExpandPasted={expandPasted}
       />
       {viewer.view}
     </>

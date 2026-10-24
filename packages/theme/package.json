@@ -8,6 +8,7 @@
     "./palette": "./src/palette.ts",
     "./look": "./src/look.ts",
     "./display": "./src/display.ts",
+    "./system": "./src/system.ts",
     "./apply": "./src/apply.ts",
     "./imported": "./src/imported.ts",
     "./open-vsx": "./src/open-vsx.ts",

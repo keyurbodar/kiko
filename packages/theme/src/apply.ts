@@ -52,10 +52,10 @@ function paint(look: Look): void {
   applied = new Set(Object.keys(next))
   root.classList.toggle("dark", appearance === "dark")
   root.style.colorScheme = appearance
-  const canvas = next["--background"] ?? PALETTES[appearance].canvas
+  const canvas = next["--bg"] ?? PALETTES[appearance].canvas
   root.style.backgroundColor = canvas
   root.style.setProperty("--boot-bg", canvas)
-  root.style.setProperty("--boot-fg", next["--foreground"] ?? PALETTES[appearance].text)
+  root.style.setProperty("--boot-fg", next["--fg"] ?? PALETTES[appearance].text)
   for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.setAttribute("content", canvas)
 }
 

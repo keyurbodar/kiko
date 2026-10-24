@@ -34,14 +34,16 @@
   cursor: pointer;
 }
 
-button.file-chip:hover {
-  border-color: color-mix(in oklab, var(--file-chip-accent) 48%, color-mix(in oklab, currentColor 22%, transparent));
-  background: color-mix(in oklab, var(--file-chip-accent) 17%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  button.file-chip:hover {
+    border-color: color-mix(in oklab, var(--file-chip-accent) 48%, color-mix(in oklab, currentColor 22%, transparent));
+    background: color-mix(in oklab, var(--file-chip-accent) 17%, transparent);
+  }
 }
 
 .file-chip[data-missing] {
   border-style: dashed;
-  color: var(--foreground);
+  color: var(--fg);
 }
 .file-chip svg {
   display: block;
@@ -78,7 +80,7 @@ button.file-chip:hover {
   --file-chip-accent: oklch(0.62 0.16 16);
 }
 .file-chip[data-state="failed"] {
-  --file-chip-accent: var(--error);
+  --file-chip-accent: var(--bad);
 }
 .file-chip[data-missing],
 .file-chip[data-state="failed"] {

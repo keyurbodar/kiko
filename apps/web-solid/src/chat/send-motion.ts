@@ -1,6 +1,6 @@
 const LAUNCH_WINDOW_MS = 1500
-const DURATION_MS = 480
-const EASING = "cubic-bezier(0.22, 1, 0.36, 1)"
+const DURATION_MS = 320
+const EASING = "cubic-bezier(.2,.8,.2,1)"
 
 const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
 

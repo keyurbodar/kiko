@@ -1,4 +1,6 @@
 import { makeResizeObserver } from "@solid-primitives/resize-observer"
+import { ChevronDownIcon, ChevronUpIcon } from "@kiko/ui/icons"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import { foldLimitFor, shouldFold } from "./lib/fold"
@@ -27,12 +29,29 @@ function scrollParent(element: HTMLElement): HTMLElement | undefined {
   return undefined
 }
 
+const REVEAL_MS = 200
+
+function reveal(clip: HTMLDivElement | undefined, from: number): void {
+  if (!clip || matchMedia("(prefers-reduced-motion: reduce)").matches) return
+  const to = clip.offsetHeight
+  if (to <= from) return
+  clip.style.overflow = "hidden"
+  const done = () => (clip.style.overflow = "")
+  clip
+    .animate([{ height: `${from}px` }, { height: `${to}px` }], {
+      duration: REVEAL_MS,
+      easing: "cubic-bezier(.2,.8,.2,1)",
+    })
+    .finished.then(done, done)
+}
+
 export function Collapsible(props: { messageId: string; fixed?: boolean; children: JSX.Element }): JSX.Element {
   const [overflowing, setOverflowing] = createSignal(false)
   const [limit, setLimit] = createSignal(foldLimitFor(globalThis.innerHeight ?? 900))
   let root: HTMLDivElement | undefined
   let inner: HTMLDivElement | undefined
   let button: HTMLButtonElement | undefined
+  let clip: HTMLDivElement | undefined
   let frame = 0
 
   const measure = () => {
@@ -70,7 +89,9 @@ export function Collapsible(props: { messageId: string; fixed?: boolean; childre
     const scroller = scrollParent(root)
     const target = expanding ? root : button
     const before = target.getBoundingClientRect().top
+    const from = clip?.offsetHeight ?? 0
     setExpanded(props.messageId, expanding)
+    if (expanding) reveal(clip, from)
     if (!scroller) return
     const drift = target.getBoundingClientRect().top - before
     if (drift !== 0) scroller.scrollTop += drift
@@ -79,6 +100,7 @@ export function Collapsible(props: { messageId: string; fixed?: boolean; childre
   return (
     <div ref={root} class="relative" data-component="chat-collapsible" data-collapsed={clamped() ? "" : undefined}>
       <div
+        ref={clip}
         class={cn(clamped() && "overflow-hidden mask-b-from-[calc(100%-1.75rem)] mask-b-to-100%")}
         style={clamped() ? { "max-height": `${limit()}px` } : undefined}
       >
@@ -88,13 +110,14 @@ export function Collapsible(props: { messageId: string; fixed?: boolean; childre
         <button
           ref={button}
           type="button"
-          class="mt-1 cursor-pointer text-xs font-medium opacity-70 hover:opacity-100"
+          class="mt-1 inline-flex cursor-pointer items-center gap-1 text-label text-fg3 transition-colors duration-(--dur-hover) hover:text-fg"
           aria-expanded={!clamped()}
           data-component="chat-collapsible-toggle"
           data-disclosure=""
           onClick={toggle}
         >
-          {clamped() ? "Show full message" : "Show less"}
+          {clamped() ? "Show more" : "Show less"}
+          <RemixIcon icon={clamped() ? ChevronDownIcon : ChevronUpIcon} size={13} />
         </button>
       </Show>
     </div>

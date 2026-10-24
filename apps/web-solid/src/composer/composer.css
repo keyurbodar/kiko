@@ -7,30 +7,32 @@
   margin-left: auto;
   padding: 0 12px calc(14px + env(safe-area-inset-bottom, 0px) + var(--composer-keyboard-inset, 0px));
   background: var(--dock-bg);
-  --composer-edge: var(--border);
-  --composer-fill: color-mix(in oklab, var(--foreground) 3%, var(--background));
 }
 
 .composer-dock .composer-box {
   position: relative;
   z-index: 1;
   display: flex;
+  min-height: 96px;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 10px 10px 16px;
-  background: var(--composer-fill);
-  border: 1px solid var(--composer-edge);
-  border-radius: 14px;
-  box-shadow: 0 12px 28px -18px rgb(0 0 0 / 40%);
+  gap: 0;
+  padding: 0;
+  background: var(--raise);
+  border-radius: 22px;
+  box-shadow: inset 0 0 0 1px var(--line2);
+  transition: box-shadow var(--dur-pop, 200ms) var(--ease-kiko, ease);
 }
 
-:root.dark .composer-dock .composer-box {
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
+.composer-dock .composer-box:focus-within {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--fg) 22%, var(--line2)),
+    0 0 0 4px color-mix(in oklab, var(--fg) 4%, transparent);
 }
 
 .composer-dock .composer-main {
   display: flex;
   min-width: 0;
+  padding: 14px 18px 0;
   cursor: text;
 }
 
@@ -40,7 +42,6 @@
   min-width: 0;
   flex: 1;
   flex-direction: column;
-  padding: 4px 0;
 }
 
 .composer-dock .composer-rich {
@@ -51,24 +52,33 @@
 
 .composer-dock .composer-input {
   min-width: 0;
-  min-height: 1.625em;
-  max-height: min(13rem, calc(var(--composer-viewport-height, 100dvh) * 0.45));
+  min-height: 1.5em;
+  max-height: min(11.5rem, calc(var(--composer-viewport-height, 100dvh) * 0.45));
   overflow-x: hidden;
   overflow-y: auto;
-  color: var(--foreground);
+  color: var(--fg);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   caret-color: auto;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color var(--dur-pop, 200ms);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .composer-dock .composer-input:hover {
+    scrollbar-color: var(--active) transparent;
+  }
 }
 
 [data-session-empty="true"] .composer-dock .composer-input {
-  min-height: 3.25em;
+  min-height: 1.5em;
 }
 
 .composer-dock .composer-placeholder {
   position: absolute;
-  inset: 4px 0 auto;
-  color: color-mix(in oklab, var(--muted-foreground) 80%, transparent);
+  inset: 0 0 auto;
+  color: var(--fg4);
   pointer-events: none;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -78,8 +88,8 @@
 .composer-dock .composer-input,
 .composer-dock .composer-placeholder {
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-prompt);
-  line-height: 1.625;
+  font-size: 15px;
+  line-height: 24px;
 }
 
 @media (pointer: coarse) {
@@ -95,6 +105,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  padding: 6px 8px 8px;
 }
 
 .composer-dock .composer-actions {
@@ -107,26 +118,42 @@
 .composer-dock .composer-icon,
 .composer-dock .composer-emoji {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   padding: 0;
-  color: var(--muted-foreground);
+  color: var(--fg2);
   background: transparent;
   border: 0;
   border-radius: 999px;
   cursor: pointer;
+  transition:
+    background var(--dur-hover, 120ms),
+    color var(--dur-hover, 120ms),
+    transform var(--dur-hover, 120ms) var(--ease-kiko, ease);
+}
+
+.composer-dock .composer-icon:active:not(:disabled),
+.composer-dock .composer-emoji:active:not(:disabled) {
+  transform: scale(0.94);
 }
 
 .composer-dock .composer-emoji svg {
-  width: 16px;
-  height: 16px;
+  width: 17px;
+  height: 17px;
 }
 
-.composer-dock .composer-icon:hover:not(:disabled),
-.composer-dock .composer-emoji:hover:not(:disabled) {
-  color: var(--foreground);
-  background: var(--accent);
+.composer-dock .composer-emoji[aria-expanded="true"] {
+  color: var(--fg);
+  background: var(--active);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .composer-dock .composer-icon:hover:not(:disabled),
+  .composer-dock .composer-emoji:hover:not(:disabled) {
+    color: var(--fg);
+    background: var(--active);
+  }
 }
 
 .composer-dock .composer-emoji:disabled {
@@ -140,16 +167,24 @@
   margin-left: 4px;
   place-items: center;
   padding: 0;
-  color: var(--primary-foreground);
-  background: var(--primary);
+  color: var(--bg);
+  background: var(--fg);
   border: 0;
   border-radius: 999px;
   cursor: pointer;
+  transition:
+    background var(--dur-hover, 120ms),
+    color var(--dur-hover, 120ms),
+    transform var(--dur-hover, 120ms) var(--ease-kiko, ease);
+}
+
+.composer-dock .composer-send:active:not(:disabled) {
+  transform: scale(0.92);
 }
 
 .composer-dock .composer-send:disabled {
-  color: color-mix(in oklab, var(--foreground) 35%, transparent);
-  background: color-mix(in oklab, var(--foreground) 9%, transparent);
+  color: var(--fg4);
+  background: var(--active);
   cursor: default;
 }
 
@@ -157,88 +192,66 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 4px;
-  margin-left: -6px;
+  gap: 2px;
 }
 
-.composer-dock .composer-attachments {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-bottom: 4px;
-}
-
-.composer-dock .composer-attachment {
-  position: relative;
-  width: 64px;
-  height: 64px;
-  overflow: hidden;
-  background: var(--accent);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-.composer-dock .composer-attachment[data-state="failed"] {
-  border-color: color-mix(in oklab, var(--error) 60%, transparent);
-}
-
-.composer-dock .composer-attachment-open {
-  display: block;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  background: none;
+.composer-dock .composer-agent {
+  display: inline-flex;
+  height: 30px;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 5px;
+  color: var(--fg2);
+  background: transparent;
   border: 0;
-  cursor: zoom-in;
+  border-radius: 15px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background var(--dur-hover, 120ms),
+    color var(--dur-hover, 120ms);
 }
 
-.composer-dock .composer-attachment-open img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.composer-dock .composer-agent[aria-expanded="true"] {
+  color: var(--fg);
+  background: var(--active);
 }
 
-.composer-dock .composer-attachment-progress {
+@media (hover: hover) and (pointer: fine) {
+  .composer-dock .composer-agent:not([data-static]):hover {
+    color: var(--fg);
+    background: var(--active);
+  }
+}
+
+.composer-dock .composer-agent-wrap {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.composer-dock .composer-agent[data-static] {
+  cursor: default;
+}
+
+.composer-dock .composer-agent-anchor {
   position: absolute;
-  inset: auto 0 0;
-  padding: 1px 0;
-  color: var(--foreground);
-  background: color-mix(in oklab, var(--background) 85%, transparent);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
+  inset: 0;
+  opacity: 0;
   pointer-events: none;
 }
 
-.composer-dock .composer-attachment-remove,
-.composer-dock .composer-attachment-retry {
-  position: absolute;
-  display: grid;
-  width: 18px;
-  height: 18px;
-  place-items: center;
-  padding: 0;
-  color: #fff;
-  background: oklch(0% 0 none / 0.65);
-  border: 0;
-  border-radius: 6px;
-  box-shadow: 0 0 0 1px oklch(100% 0 none / 0.2);
-  cursor: pointer;
+.composer-dock .composer-agent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.composer-dock .composer-attachment-remove {
-  top: 4px;
-  right: 4px;
-}
-
-.composer-dock .composer-attachment-retry {
-  bottom: 4px;
-  left: 4px;
-}
-
-.composer-dock :is(.composer-attachment-remove, .composer-attachment-retry):hover {
-  background: oklch(0% 0 none / 0.8);
+.composer-dock .composer-agent-chevron {
+  flex-shrink: 0;
+  color: var(--fg4);
 }
 
 .composer-dock .composer-box > .reply-bar {
@@ -248,14 +261,14 @@
   gap: 4px;
   order: -2;
   min-width: 0;
-  margin-bottom: 4px;
+  margin: 8px 8px 0;
   padding: 0 2px 0 0;
   overflow: hidden;
-  font-size: var(--font-size-prompt);
+  font-size: 13px;
   line-height: 18px;
   cursor: default;
-  background: color-mix(in oklab, var(--reply-bar-accent) 10%, transparent);
-  border-radius: 8px;
+  background: var(--active);
+  border-radius: 14px;
 }
 
 .composer-dock .reply-bar-jump {
@@ -265,7 +278,7 @@
   flex: 1;
   align-items: center;
   gap: 8px;
-  padding: 4px 0 4px 14px;
+  padding: 6px 0 6px 16px;
   color: inherit;
   background: none;
   border: 0;
@@ -281,7 +294,7 @@
   bottom: 4px;
   left: 4px;
   width: 2px;
-  background: var(--reply-bar-accent);
+  background: var(--fg4);
   border-radius: 1px;
   content: "";
 }
@@ -295,7 +308,7 @@
 
 .composer-dock .reply-bar-role {
   overflow: hidden;
-  color: var(--reply-bar-name);
+  color: var(--fg2);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -304,7 +317,7 @@
 .composer-dock .reply-bar-preview {
   min-width: 0;
   overflow: hidden;
-  color: var(--reply-bar-text);
+  color: var(--fg3);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -319,7 +332,7 @@
 
 .composer-dock .reply-bar-glyph {
   flex-shrink: 0;
-  color: var(--muted-foreground);
+  color: var(--fg3);
 }
 
 .composer-dock .reply-bar-dismiss {
@@ -330,28 +343,18 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  color: var(--muted-foreground);
+  color: var(--fg3);
   background: none;
   border: none;
   border-radius: 6px;
   cursor: pointer;
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .composer-dock .reply-bar-dismiss:hover {
-    background: color-mix(in oklab, var(--foreground) 8%, transparent);
-    color: var(--foreground);
+    background: color-mix(in oklab, var(--fg) 8%, transparent);
+    color: var(--fg);
   }
-}
-
-.composer-dock .composer-input [data-mention] {
-  display: inline-flex;
-  align-items: baseline;
-  padding: 0 0.4em;
-  border-radius: 999px;
-  font-weight: 500;
-  line-height: 1.3;
-  white-space: nowrap;
 }
 
 .composer-dock .composer-box > .no-key-hint {
@@ -362,10 +365,10 @@
   gap: 8px;
   order: -2;
   min-width: 0;
-  padding: 2px 2px 4px 0;
-  font-size: var(--font-size-prompt);
+  padding: 10px 14px 0 18px;
+  font-size: 13px;
   line-height: 20px;
-  color: var(--muted-foreground);
+  color: var(--fg3);
 }
 
 .composer-dock .no-key-actions {
@@ -376,24 +379,62 @@
 
 .composer-dock .no-key-hint button {
   flex-shrink: 0;
-  padding: 0 6px;
-  color: var(--foreground);
+  height: 24px;
+  padding: 0 8px;
+  color: var(--fg);
   background: none;
   border: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   font: inherit;
+  font-weight: 500;
   cursor: pointer;
+  transition: background var(--dur-hover, 120ms);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .composer-dock .no-key-hint button:hover {
-    background: color-mix(in oklab, var(--foreground) 8%, transparent);
+    background: var(--active);
   }
+}
+
+.composer-drop {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklab, var(--bg) 72%, transparent);
+  border-radius: 22px;
+  box-shadow: inset 0 0 0 1.5px var(--line2);
+  pointer-events: none;
+  backdrop-filter: blur(2px);
+}
+
+.composer-drop-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  color: var(--fg);
+  background: var(--raise);
+  border-radius: 999px;
+  box-shadow:
+    inset 0 0 0 1px var(--line2),
+    0 14px 34px rgb(0 0 0 / 28%);
+  font-size: 14px;
+  font-weight: 500;
 }
 
 @media (prefers-reduced-motion: no-preference) {
   [data-component="composer-drop-overlay"] {
-    animation: composer-drop-in var(--motion-fast) var(--motion-ease-out) both;
+    animation: composer-drop-in var(--dur-pop, 200ms) var(--ease-kiko, ease) both;
+  }
+  [data-component="composer-drop-overlay"] .composer-drop-label {
+    animation: composer-drop-label var(--dur-pop, 200ms) var(--ease-kiko, ease) both;
+  }
+  .composer-dock .composer-box > .reply-bar,
+  .composer-dock .composer-box > .no-key-hint {
+    animation: composer-row-in var(--dur-pop, 200ms) var(--ease-kiko, ease) both;
   }
   @keyframes composer-drop-in {
     from {
@@ -402,5 +443,34 @@
     to {
       opacity: 1;
     }
+  }
+  @keyframes composer-drop-label {
+    from {
+      transform: translateY(6px) scale(0.96);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @keyframes composer-row-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .composer-dock .composer-agent-wrap {
+    flex-shrink: 0;
+  }
+
+  .composer-dock .composer-tray [data-component="model-picker-button"] {
+    min-width: 0;
+    flex-shrink: 1;
   }
 }

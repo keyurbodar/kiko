@@ -578,7 +578,6 @@ export class Agent {
       return {
         ...fake,
         rollover,
-        beginRun: async () => true,
         inputMemory: (batch, fresh, joined) => this.inputMemory(batch, fresh, joined, false),
         beforeCompact: (harness) => this.beforeCompact(harness),
       }
@@ -1097,7 +1096,8 @@ export class Agent {
   }
 
   async devFake(): Promise<void> {
-    return (await this.dev()).devFake(this.agentDevHost())
+    await (await this.dev()).devFake(this.agentDevHost())
+    await this.invalidate()
   }
 
   async devWorkers(): Promise<Work[]> {

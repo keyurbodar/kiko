@@ -50,12 +50,6 @@ export type PromptInputV2Prompt = (
   | PromptInputV2Attachment
 )[]
 
-export type PromptInputV2Model = {
-  providerID: string
-  modelID: string
-  variant?: string | null
-}
-
 export type PromptInputV2Selection = {
   startLine: number
   startChar: number
@@ -66,36 +60,4 @@ export type PromptInputV2Selection = {
 export type PromptInputV2PersistedState = {
   prompt: PromptInputV2Prompt
   cursor?: number
-  model?: PromptInputV2Model
-}
-
-export type PromptInputV2HistoryEntry = {
-  prompt: PromptInputV2Prompt
-  metadata?: unknown
-}
-
-export type PromptInputV2History = {
-  entries: (mode: "normal" | "shell") => PromptInputV2HistoryEntry[]
-  add: (prompt: PromptInputV2Prompt, mode: "normal" | "shell") => void
-  capture?: () => unknown
-  restore?: (metadata: unknown) => void
-}
-
-export type PromptInputV2Option = {
-  id: string
-  label: string
-  providerID?: string
-}
-
-export type PromptInputV2Suggestion = {
-  id: string
-  kind: "agent" | "command" | "file" | "reference" | "resource"
-  label: string
-  title?: string
-  trigger?: string
-  description?: string
-  path?: string
-  keybind?: string[]
-  recent?: boolean
-  mention?: PromptInputV2FilePart | PromptInputV2AgentPart
 }

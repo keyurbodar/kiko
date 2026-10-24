@@ -9,7 +9,6 @@ export function katCommands(deps: {
   hasActiveChat: () => boolean
   toggleCard: () => void
   openPanel: (kind: "files" | "memory" | "routines") => void
-  toggleSidecar: () => void
   copyLink: () => void
   agentChoices: () => Choice[]
   openView: (id: CommandId) => void
@@ -39,14 +38,6 @@ export function katCommands(deps: {
       shortcut: "Mod+\\",
       global: true,
       run: deps.toggleSidebar,
-    },
-    {
-      id: "view.toggle-panel",
-      title: "Toggle right panel",
-      group: "view",
-      icon: "board",
-      when: deps.hasActiveChat,
-      run: deps.toggleSidecar,
     },
     {
       id: "chat.new",
@@ -91,7 +82,7 @@ export function katCommands(deps: {
     { id: "chat.pin", title: "Pin chat", group: "chat", icon: "pin", when: deps.canMove, run: deps.togglePin },
     {
       id: "chat.info",
-      title: "Chat details",
+      title: "Show chat details",
       group: "chat",
       icon: "info",
       shortcut: "Mod+I",

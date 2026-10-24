@@ -1,15 +1,14 @@
 import type { RecipeCard } from "@kiko/protocol"
-import { RemixIcon } from "@kiko/ui/remix-icon"
-import { SearchIcon } from "@kiko/ui/icons"
-import { TabsV2 } from "@kiko/ui/v2/tabs-v2"
 import { getRouteApi } from "@tanstack/solid-router"
 import { openChat } from "../app/history"
 import { createMemo, createSignal, For, type JSX, Show } from "solid-js"
+import { pageIn } from "../lib/motion"
 import { room } from "../state/room"
-import { buttonClass } from "../settings/kit"
+import { PageFrame, PageSearch, PageTabs, SectionHead, SkeletonRows } from "../customize/page-ui"
 import { byChatOrder, filterRecipes, openingSection, recipeTags, type Section, type TagFilter, tagLabel } from "./model"
 import { InstallCard } from "./row"
 import { ConnectSheet } from "./connect"
+import { NewRecipe } from "./new-recipe"
 import { RecipeSheet } from "./sheet"
 import {
   addToTarget,
@@ -24,16 +23,14 @@ import {
 } from "./state"
 import { RecipeTile } from "./tile"
 
-const sectionTab =
-  "flex h-8 cursor-pointer items-center gap-2 rounded-full pr-2 pl-3.5 text-[14px] font-medium text-muted-foreground hover:text-foreground data-[selected]:bg-control-strong data-[selected]:text-foreground"
 const tagTab =
-  "h-7 shrink-0 cursor-pointer rounded-full px-3 text-[13px] text-muted-foreground hover:bg-control hover:text-foreground data-[selected]:bg-control-strong data-[selected]:text-foreground"
-const grid = "grid grid-cols-1 gap-3 @max-[519px]/recipes:gap-2 @min-[520px]/recipes:grid-cols-2"
+  "type-label h-chip shrink-0 cursor-pointer rounded-full px-3 text-fg3 transition-colors duration-(--dur-hover) hover:bg-hover hover:text-fg aria-selected:bg-active aria-selected:text-fg"
+const grid = "grid grid-cols-1 gap-x-4 gap-y-1 @min-[640px]/page:grid-cols-2"
 
 function Empty(props: { title: string; children?: JSX.Element }) {
   return (
-    <div class="flex flex-col items-center gap-2 px-6 py-16 text-center">
-      <p class="text-[15px] font-medium text-foreground">{props.title}</p>
+    <div class="flex flex-col items-center gap-2 px-6 py-14 text-center">
+      <p class="type-ui text-fg2">{props.title}</p>
       {props.children}
     </div>
   )
@@ -66,162 +63,140 @@ export default function RecipesPage() {
     else setOpen({ card, mode: "add" })
   }
   followRecipes()
-
-  let scroller!: HTMLDivElement
-  let tabsTop!: HTMLDivElement
-  const toTabs = () => {
-    const y = tabsTop.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
-    if (scroller.scrollTop > y) scroller.scrollTop = y
-  }
+  const fresh = createMemo(() => {
+    const have = new Set(yours().map((i) => i.slug))
+    return filterRecipes(cards(), query(), "all").filter((c) => !have.has(c.slug))
+  })
 
   return (
-    <div class="flex min-h-0 flex-1 flex-col overflow-hidden" data-component="recipes-page">
-      <div ref={scroller} class="@container/recipes flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-        <div class="mx-auto flex w-full max-w-[880px] flex-col px-5 pb-20 @min-[560px]/recipes:px-8">
-          <header class="flex flex-col gap-4 pt-8 pb-4 max-[767px]:pt-14 @min-[560px]/recipes:pt-10">
-            <div class="flex flex-col gap-1">
-              <h1 class="font-display text-[26px] font-semibold tracking-[-0.02em] text-foreground">Recipes</h1>
-              <p class="text-[14px] text-muted-foreground">Little routines your agents can pick up.</p>
-            </div>
-            <label class="flex h-9 w-full max-w-[480px] items-center gap-2 rounded-full bg-control px-3.5 text-muted-foreground">
-              <RemixIcon icon={SearchIcon} size={15} />
-              <input
-                type="search"
-                class="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                placeholder="Search recipes"
-                aria-label="Search recipes"
-                value={query()}
-                onInput={(e) => setQuery(e.currentTarget.value)}
-              />
-            </label>
-          </header>
-
-          <div ref={tabsTop} />
-          <Show when={section()}>
-            {(current) => (
-              <TabsV2
-                value={current()}
-                onChange={(next) => {
-                  setSection(next as Section)
-                  toTabs()
-                }}
-              >
-                <TabsV2.List
-                  class="sticky top-0 z-10 -mx-1 flex h-14 items-center gap-1 bg-background px-1"
-                  aria-label="Recipes"
+    <PageFrame title="Recipes">
+      <div class="flex flex-col gap-6 pt-4" data-component="recipes-page">
+        <Show when={section()} fallback={<SkeletonRows count={3} />}>
+          {(current) => (
+            <>
+              <div class="flex items-center justify-between gap-3">
+                <PageTabs
+                  label="Recipes"
+                  value={current()}
+                  onChange={(next) => setSection(next as Section)}
+                  options={[
+                    { value: "yours", label: "Yours", "data-section": "yours" },
+                    { value: "discover", label: "Templates", "data-section": "discover" },
+                  ]}
                   data-component="recipes-sections"
-                >
-                  <TabsV2.Trigger value="yours" class={sectionTab} data-section="yours">
-                    Yours
-                    <span class="min-w-5 rounded-full bg-control px-1.5 text-center text-[11.5px] leading-5 tabular-nums">
-                      {yours().length}
-                    </span>
-                  </TabsV2.Trigger>
-                  <TabsV2.Trigger value="discover" class={sectionTab} data-section="discover">
-                    Discover
-                    <span class="min-w-5 rounded-full bg-control px-1.5 text-center text-[11.5px] leading-5 tabular-nums">
-                      {matching().size}
-                    </span>
-                  </TabsV2.Trigger>
-                </TabsV2.List>
+                />
+                <div class="flex items-center gap-1">
+                  <PageSearch label="Search recipes" query={query()} onQuery={setQuery} />
+                  <NewRecipe />
+                </div>
+              </div>
 
-                <TabsV2.Content value="yours" class="pt-2 outline-none" data-component="recipes-yours">
+              <Show when={current() === "yours"}>
+                <div ref={pageIn} class="flex flex-col gap-8" data-component="recipes-yours">
                   <Show
                     when={yours().length}
                     fallback={
                       <Show when={!query()} fallback={<Empty title="Nothing of yours matches" />}>
-                        <Empty title="Nothing runs yet">
-                          <p class="max-w-[320px] text-[13.5px] text-muted-foreground">
-                            Recipes you add show up here, with when each one runs next.
-                          </p>
-                          <button
-                            type="button"
-                            class={buttonClass("primary", "mt-3 rounded-full px-4")}
-                            onClick={() => setSection("discover")}
-                          >
-                            Browse recipes
-                          </button>
-                        </Empty>
+                        <div
+                          class="flex flex-col items-start gap-4 rounded-card bg-panel p-6"
+                          data-component="recipes-empty"
+                        >
+                          <div class="flex flex-col gap-1">
+                            <p class="type-row text-fg">No recipes yet</p>
+                            <p class="type-label text-fg3">
+                              Recipes are jobs your team runs on a schedule or when something happens.
+                            </p>
+                          </div>
+                          <NewRecipe />
+                        </div>
                       </Show>
                     }
                   >
-                    <div class={grid}>
+                    <div class="flex flex-col gap-1">
                       <For each={yours()}>
                         {(install) => <InstallCard install={install} card={bySlug().get(install.slug)!} />}
                       </For>
                     </div>
                   </Show>
-                </TabsV2.Content>
-
-                <TabsV2.Content value="discover" class="outline-none" data-component="recipes">
-                  <TabsV2
-                    value={tag()}
-                    onChange={(next) => {
-                      setTag(next)
-                      toTabs()
-                    }}
-                  >
-                    <div class="sticky top-14 z-10 -mx-1 bg-background px-1 pb-3">
-                      <TabsV2.List
-                        class="flex items-center gap-1 overflow-x-auto [mask-image:linear-gradient(to_right,black_calc(100%-32px),transparent)] [scrollbar-width:none]"
-                        aria-label="Categories"
-                        data-component="recipes-tags"
-                      >
-                        <For each={tags()}>
-                          {(t) => (
-                            <TabsV2.Trigger value={t} class={tagTab} data-tag={t}>
-                              {t === "all" ? "All" : tagLabel(t)}
-                            </TabsV2.Trigger>
+                  <Show when={fresh().length}>
+                    <section class="flex flex-col gap-2">
+                      <SectionHead
+                        title={yours().length ? "More from templates" : "Start from a template"}
+                        onAll={() => setSection("discover")}
+                        allLabel={yours().length ? "See all" : "Show all"}
+                      />
+                      <div class={grid}>
+                        <For each={fresh().slice(0, 6)}>
+                          {(card) => (
+                            <RecipeTile recipe={card} onOpen={() => setOpen({ card })} onAdd={() => add(card)} />
                           )}
                         </For>
-                      </TabsV2.List>
-                    </div>
-
-                    <Show when={broken().length}>
-                      <div
-                        class="mb-3 flex flex-col gap-1 rounded-[16px] bg-card px-4 py-3 text-[13px] text-muted-foreground"
-                        data-component="recipes-broken"
-                      >
-                        <p class="font-medium text-foreground">Some recipe files did not load</p>
-                        <For each={broken()}>{(why) => <p>{why}</p>}</For>
                       </div>
-                    </Show>
+                    </section>
+                  </Show>
+                </div>
+              </Show>
 
+              <Show when={current() === "discover"}>
+                <div ref={pageIn} class="flex flex-col gap-4" data-component="recipes">
+                  <div
+                    class="-mx-1 flex items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none]"
+                    role="tablist"
+                    aria-label="Categories"
+                    data-component="recipes-tags"
+                  >
                     <For each={tags()}>
                       {(t) => (
-                        <TabsV2.Content value={t} class="outline-none">
-                          <Show when={shown().length} fallback={<Empty title="Nothing matches" />}>
-                            <div class={`${grid} @min-[760px]/recipes:grid-cols-3`} data-component="recipes-grid">
-                              <For each={shown()}>
-                                {(card) => (
-                                  <RecipeTile recipe={card} onOpen={() => setOpen({ card })} onAdd={() => add(card)} />
-                                )}
-                              </For>
-                            </div>
-                          </Show>
-                        </TabsV2.Content>
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={tag() === t}
+                          class={tagTab}
+                          data-tag={t}
+                          onClick={() => setTag(t)}
+                        >
+                          {t === "all" ? "All" : tagLabel(t)}
+                        </button>
                       )}
                     </For>
-                  </TabsV2>
-                </TabsV2.Content>
-              </TabsV2>
-            )}
-          </Show>
+                  </div>
 
-          <Show
-            when={connectAsk()}
-            fallback={
-              <Show when={open()}>
-                {(o) => (
-                  <RecipeSheet roomId={roomId()} recipe={o().card} mode={o().mode} onClose={() => setOpen(null)} />
-                )}
+                  <Show when={broken().length}>
+                    <div
+                      class="flex flex-col gap-1 type-label rounded-card bg-panel px-4 py-3 text-fg3"
+                      data-component="recipes-broken"
+                    >
+                      <p class="font-medium text-fg">Some recipe files did not load</p>
+                      <For each={broken()}>{(why) => <p>{why}</p>}</For>
+                    </div>
+                  </Show>
+
+                  <Show when={shown().length} fallback={<Empty title="Nothing matches" />}>
+                    <div class={grid} data-component="recipes-grid">
+                      <For each={shown()}>
+                        {(card) => (
+                          <RecipeTile recipe={card} onOpen={() => setOpen({ card })} onAdd={() => add(card)} />
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+                </div>
               </Show>
-            }
-          >
-            <ConnectSheet />
-          </Show>
-        </div>
+            </>
+          )}
+        </Show>
+
+        <Show
+          when={connectAsk()}
+          fallback={
+            <Show when={open()}>
+              {(o) => <RecipeSheet roomId={roomId()} recipe={o().card} mode={o().mode} onClose={() => setOpen(null)} />}
+            </Show>
+          }
+        >
+          <ConnectSheet />
+        </Show>
       </div>
-    </div>
+    </PageFrame>
   )
 }

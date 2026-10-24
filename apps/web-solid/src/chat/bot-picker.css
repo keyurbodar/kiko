@@ -1,0 +1,24 @@
+@keyframes bot-picker-pop {
+  from {
+    transform: scale(0.9);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@keyframes bot-picker-slide {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+[data-component="bot-picker"] [data-check="on"] {
+  animation: bot-picker-pop 120ms var(--ease-kiko);
+}
+[data-component="bot-picker"] [data-slide] {
+  animation: bot-picker-slide 140ms var(--ease-kiko);
+}

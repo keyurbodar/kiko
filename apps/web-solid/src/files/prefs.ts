@@ -17,7 +17,7 @@ function stored(key: string, fallback: boolean) {
 }
 
 export const PREFS = {
-  markdown: stored("kiko:device:file-render-markdown", false),
+  markdown: stored("kiko:device:file-render-markdown", true),
   table: stored("kiko:device:file-render-table", true),
   html: stored("kiko:device:file-render-html", false),
 }

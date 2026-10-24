@@ -1,213 +1,162 @@
-import { type Agent, fileName, KIKO } from "@kiko/protocol"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import {
-  ChevronRightIcon,
-  FolderOpenIcon,
-  type Glyph,
-  MemoryIcon,
-  PlusIcon,
-  RepeatIcon,
-  SparklesIcon,
-  TasksIcon,
-} from "@kiko/ui/icons"
-import { openChat } from "../../app/history"
-import { createEffect, createSignal, For, onCleanup, Show } from "solid-js"
-import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
+import { ChevronRightIcon, PlusIcon } from "@kiko/ui/icons"
+import { createMemo, For, onMount, Show } from "solid-js"
+import { AddSomeoneItems } from "../../composer/add-someone"
+import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { room } from "../../state/room"
-import { user } from "../../state/user"
 import { useMemoryStore } from "../info/memory/views"
 import { routinesOf } from "../info/routines"
-import { triggerLabel } from "../info/routines-model"
-import { groupTitle, roomFor } from "../bot-picker-model"
-import { addable, addOp } from "../members/model"
-import { cardBeside, dismissCard } from "./card-state"
-import { isGroup, liveLine, statusChip, workingLine } from "./overview-model"
-import { agentSurface, type FixedKind, fixedSurface, openSurface } from "./surfaces"
+import { leadName } from "../info/empty"
+import { DeskSettled, Files, Helpers, Memory, Now, Routines, Section, Tasks, Waiting } from "./desk-sections"
+import { type FixedKind, PANELS } from "./panels"
+import { isGroup } from "./overview-model"
+import "./card.css"
+import { agentSurface, fixedSurface, openSurface } from "./surfaces"
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+const press = "transition-[background-color,transform] duration-(--dur-hover) ease-kiko active:scale-[0.98]"
 
-function Row(props: { icon: Glyph; label: string; meta?: string; kind: FixedKind; chatId: string }) {
+function AddMember(props: { chatId: string }) {
+  return (
+    <MenuV2 gutter={6} placement="bottom-start">
+      <MenuV2.Trigger
+        class="flex h-7 items-center gap-1 rounded-full py-0.5 pr-2.5 pl-2 text-[13px] text-fg3 transition-colors duration-(--dur-hover) hover:bg-hover hover:text-fg aria-expanded:bg-hover"
+        aria-label="Add agent"
+        data-action="add-member"
+      >
+        <RemixIcon icon={PlusIcon} size={13} />
+        Add
+      </MenuV2.Trigger>
+      <MenuV2.Portal>
+        <MenuV2.Content class="z-[80] min-w-48" data-component="add-member-menu">
+          <AddSomeoneItems chatId={props.chatId} />
+        </MenuV2.Content>
+      </MenuV2.Portal>
+    </MenuV2>
+  )
+}
+
+function Drill(props: { chatId: string; kind: FixedKind; label: string }) {
   return (
     <button
       type="button"
-      class="group/row flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left hover:bg-accent"
+      class={`group/drill flex h-9 items-center gap-2.5 rounded-row px-2 text-left text-ui text-fg hover:bg-hover ${press}`}
       data-action={`open-${props.kind}`}
       onClick={() => openSurface(props.chatId, fixedSurface(props.kind))}
     >
-      <RemixIcon icon={props.icon} size={15} class="shrink-0 text-muted-foreground" />
-      <span class="shrink-0 text-md text-foreground">{props.label}</span>
-      <span class="min-w-0 flex-1 truncate text-right text-sm text-muted-foreground">{props.meta}</span>
+      <RemixIcon icon={PANELS[props.kind].icon} size={16} class="shrink-0 text-fg2" />
+      <span class="min-w-0 flex-1 truncate">{props.label}</span>
       <RemixIcon
         icon={ChevronRightIcon}
-        size={13}
-        class="shrink-0 text-secondary-label opacity-0 group-hover/row:opacity-100"
+        size={14}
+        class="shrink-0 text-fg4 transition-transform duration-(--dur-hover) ease-kiko group-hover/drill:translate-x-0.5"
       />
     </button>
   )
 }
 
-export default function ChatCard(props: { chatId: string }) {
+export default function DeskOverview(props: { chatId: string }) {
+  let settled = false
+  onMount(() => requestAnimationFrame(() => (settled = true)))
   const memory = useMemoryStore()
   const members = () => room.roomMembers()
   const chat = () => room.chatById(props.chatId)
-  const [clock, setClock] = createSignal(Date.now())
-  const ticker = setInterval(() => setClock(Date.now()), 30_000)
-  onCleanup(() => clearInterval(ticker))
-  const add = (agent: Agent) => {
-    if (props.chatId !== user.kikoChatId()) return room.memberOp(addOp(agent))
-    const roomId = user.createChat(groupTitle(["Kiko", agent.name]), roomFor([KIKO, agent.id]))
-    if (roomId) openChat(roomId)
-  }
   const working = () => {
-    const doings = room.typingDoings()
-    return workingLine(
-      room.typingNames().map((name, i) => ({ name, doing: doings[i] })),
-      isGroup(members()),
-    )
+    const row = chat()
+    return row && row.presence !== "idle" ? (row.typing ?? null) : null
   }
-  const busy = () => statusChip(chat()?.presence).tone === "working" || working() !== null
   const files = () => room.files()
-  const memoryMeta = () => {
-    const state = memory()?.state
-    const kept = state?.lines.filter((line) => !line.redacted).length ?? 0
-    if (!state || state.next === null) return kept ? plural(kept, "note") : "Empty"
-    return `${kept}+ notes`
-  }
   const routines = () => routinesOf(props.chatId)
   const tasks = () => room.tasks() ?? []
-  const open = () => tasks().filter((t) => t.status !== "done" && t.status !== "cancelled").length
-  const next = () => routines().find((r) => r.status === "active")
-  let card: HTMLElement | undefined
-  createEffect(() => {
-    if (cardBeside()) return
-    const away = (event: PointerEvent) => {
-      const target = event.target
-      if (
-        !(target instanceof Element) ||
-        card?.contains(target) ||
-        target.closest('[data-action="toggle-card"], [data-component="add-member-menu"]')
-      )
-        return
-      dismissCard()
-    }
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) dismissCard()
-    }
-    document.addEventListener("pointerdown", away, true)
-    document.addEventListener("keydown", onEscape)
-    onCleanup(() => {
-      document.removeEventListener("pointerdown", away, true)
-      document.removeEventListener("keydown", onEscape)
-    })
+  const asks = () => room.active()?.asks() ?? []
+  const lines = () => memory()?.state.lines.filter((l) => !l.redacted) ?? []
+  const hasMemory = () => lines().length > 0
+  const workers = createMemo(() =>
+    Object.keys(room.status()).length
+      ? (room.snapshot()?.agents ?? []).flatMap((a) => (a.activity?.kind === "background" ? a.activity.workers : []))
+      : [],
+  )
+  const hasTasks = () => tasks().some((t) => t.status !== "cancelled")
+  const missing = createMemo(() => {
+    const out: { kind: FixedKind; label: string }[] = []
+    if (files().length === 0) out.push({ kind: "files", label: "Files" })
+    if (!hasMemory() && memory()?.state.loaded === true) out.push({ kind: "memory", label: `${leadName()} knows here` })
+    if (routines().length === 0) out.push({ kind: "routines", label: "Routines" })
+    if (!hasTasks() && isGroup(members())) out.push({ kind: "tasks", label: "Tasks" })
+    return out
   })
+  const empty = () =>
+    working() === null &&
+    asks().length === 0 &&
+    !hasTasks() &&
+    workers().length === 0 &&
+    files().length === 0 &&
+    routines().length === 0 &&
+    !hasMemory() &&
+    memory()?.state.loaded === true
 
   return (
-    <aside
-      ref={card}
-      class="flex w-full flex-col rounded-2xl border border-border/60 bg-popover p-1.5 shadow-card"
+    <div
+      class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 pt-1 pb-4"
       data-component="chat-card"
-      aria-label="This chat"
     >
-      <div class="flex items-center gap-3 px-2.5 pt-2 pb-2.5">
-        <ChatAvatar faces={room.chatFaces(props.chatId)} size={32} />
-        <div class="flex min-w-0 flex-1 flex-col">
-          <span class="truncate text-md font-medium text-foreground" data-component="card-name">
-            {chat()?.name ?? ""}
-          </span>
-          <span
-            class={`flex items-center gap-1 truncate text-xs ${busy() ? "text-ring" : "text-muted-foreground"}`}
-            data-component="card-live"
-          >
-            <Show when={busy()}>
-              <RemixIcon icon={SparklesIcon} size={11} class="shrink-0" />
-            </Show>
-            {liveLine(working(), chat(), clock())}
-          </span>
-        </div>
-      </div>
-      <Show when={isGroup(members())}>
-        <div class="flex flex-wrap gap-1 px-2.5 pb-2.5" data-component="card-agents">
-          <For each={members()}>
-            {(m) => (
-              <button
-                type="button"
-                class="flex h-7 items-center gap-1.5 rounded-full bg-accent py-0.5 pr-2.5 pl-0.5 text-sm text-foreground hover:bg-accent-strong"
-                data-member={m.slug}
-                onClick={() => openSurface(props.chatId, agentSurface(m.slug))}
-              >
-                <IdentityAvatar seed={m.slug} size={22} />
-                {m.name}
-              </button>
-            )}
-          </For>
-          <MenuV2 gutter={6} placement="bottom-start">
-            <MenuV2.Trigger
-              class="flex h-7 items-center gap-1 rounded-full border border-dashed border-border py-0.5 pr-2.5 pl-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent"
-              aria-label="Add agent"
-              data-action="add-member"
-            >
-              <RemixIcon icon={PlusIcon} size={13} />
-              Add
-            </MenuV2.Trigger>
-            <MenuV2.Portal>
-              <MenuV2.Content class="z-[80] min-w-48" data-component="add-member-menu">
-                <MenuV2.Group>
-                  <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
-                    Add to this chat
-                  </MenuV2.GroupLabel>
-                  <Show
-                    when={addable(user.agents(), members()).length > 0}
-                    fallback={<MenuV2.Item disabled>No other agents</MenuV2.Item>}
-                  >
-                    <For each={addable(user.agents(), members())}>
-                      {(agent) => (
-                        <MenuV2.Item data-add-member={agent.slug} onSelect={() => add(agent)}>
-                          <IdentityAvatar seed={agent.slug} size={18} />
-                          {agent.name}
-                        </MenuV2.Item>
-                      )}
-                    </For>
-                  </Show>
-                </MenuV2.Group>
-              </MenuV2.Content>
-            </MenuV2.Portal>
-          </MenuV2>
-        </div>
-      </Show>
-      <div class="flex flex-col border-t border-border pt-1.5">
-        <Row
-          icon={FolderOpenIcon}
-          label="Files"
-          kind="files"
-          chatId={props.chatId}
-          meta={
-            files().length
-              ? `${files()
-                  .slice(-2)
-                  .map((f) => fileName(f.name))
-                  .join(", ")}${files().length > 2 ? ` +${files().length - 2}` : ""}`
-              : "None yet"
-          }
-        />
-        <Row icon={MemoryIcon} label="Memory" kind="memory" chatId={props.chatId} meta={memoryMeta()} />
-        <Row
-          icon={RepeatIcon}
-          label="Routines"
-          kind="routines"
-          chatId={props.chatId}
-          meta={next() ? triggerLabel(next()!.trigger, next()!.tz) : routines().length ? "Paused" : "None"}
-        />
+      <DeskSettled.Provider value={() => settled}>
         <Show when={isGroup(members())}>
-          <Row
-            icon={TasksIcon}
-            label="Tasks"
-            kind="tasks"
-            chatId={props.chatId}
-            meta={tasks().length ? `${open()} open` : "None"}
-          />
+          <div class="flex flex-wrap gap-1" data-component="card-agents">
+            <For each={members()}>
+              {(m) => (
+                <button
+                  type="button"
+                  class={`flex h-7 items-center gap-1.5 rounded-full bg-active py-0.5 pr-2.5 pl-0.5 text-[13px] text-fg hover:bg-hover ${press}`}
+                  data-member={m.slug}
+                  onClick={() => openSurface(props.chatId, agentSurface(m.slug))}
+                >
+                  <IdentityAvatar seed={m.slug} size={22} />
+                  {m.name}
+                </button>
+              )}
+            </For>
+            <AddMember chatId={props.chatId} />
+          </div>
         </Show>
-      </div>
-    </aside>
+        <Show when={working()}>
+          {(line) => (
+            <Section label="Now" chatId={props.chatId}>
+              <Now line={line()} slug={room.typingSlugs()[0]} tasks={tasks()} />
+            </Section>
+          )}
+        </Show>
+        <Show when={asks().length}>
+          <Waiting asks={asks()} chatId={props.chatId} />
+        </Show>
+        <Show when={hasTasks()}>
+          <Tasks tasks={tasks()} chatId={props.chatId} />
+        </Show>
+        <Show when={workers().length}>
+          <Helpers workers={workers()} chatId={props.chatId} />
+        </Show>
+        <Show when={files().length}>
+          <Files files={files()} chatId={props.chatId} />
+        </Show>
+        <Show when={hasMemory()}>
+          <Memory lines={lines()} more={memory()?.state.next != null} whose={leadName()} chatId={props.chatId} />
+        </Show>
+        <Show when={routines().length}>
+          <Routines routines={routines()} chatId={props.chatId} />
+        </Show>
+        <Show when={empty()}>
+          <p class="px-1 text-ui text-fg3" data-component="card-empty">
+            {`Nothing here yet. Files, tasks and what ${leadName()} learns will show up here.`}
+          </p>
+        </Show>
+        <Show when={missing().length}>
+          <div class="-mx-1 flex flex-col" data-component="card-more">
+            <For each={missing()}>
+              {(entry) => <Drill chatId={props.chatId} kind={entry.kind} label={entry.label} />}
+            </For>
+          </div>
+        </Show>
+      </DeskSettled.Provider>
+    </div>
   )
 }

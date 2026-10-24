@@ -1,7 +1,7 @@
 :root {
-  --kit-muted: color-mix(in oklab, var(--foreground) 55%, transparent);
+  --kit-muted: var(--fg2);
 
-  --kit-meta: color-mix(in oklab, var(--foreground) 50%, transparent);
+  --kit-meta: var(--fg3);
   --kit-bevel: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.08);
   --kit-raised: 0 1px 2px rgb(0 0 0 / 0.12);
 }
@@ -11,30 +11,49 @@
   --kit-raised: 0 1px 2px rgb(0 0 0 / 0.1);
 }
 
+.settings-page-title {
+  color: var(--fg);
+  font-family: var(--font-family-display);
+  font-size: 32px;
+  font-weight: 400;
+  font-variation-settings: var(--display-variation);
+  line-height: 38px;
+}
+
 .kit-btn {
   display: inline-flex;
-  height: 26px;
+  height: 32px;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 0 9px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  font-size: var(--font-sm);
+  gap: 6px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
   outline: none;
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko),
+    box-shadow var(--dur-hover) var(--ease-kiko),
+    transform var(--spring150-duration) var(--spring150-easing);
 }
 
 .kit-btn:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
+  transition-duration: var(--dur-hover), var(--dur-hover), var(--dur-hover), 80ms;
+  transition-timing-function: var(--ease-kiko);
+}
+
+.kit-btn:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
 .kit-btn:disabled,
 .kit-select:disabled,
-.kit-seg-item:disabled,
 .kit-field:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -45,52 +64,60 @@
   outline: none;
 }
 
-.kit-btn--primary {
-  color: var(--primary-foreground);
-  background: var(--primary);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.16),
-    0 1px 2px rgb(0 0 0 / 0.12);
+.kit-btn--big {
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 14px;
+  font-size: 15px;
 }
 
-.kit-btn--primary:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--primary) 90%, transparent);
+.kit-btn--primary {
+  color: var(--bg);
+  background: var(--fg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kit-btn--primary:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--fg) 88%, var(--bg));
+  }
 }
 
 .kit-btn--secondary,
 .kit-btn--danger {
-  color: var(--foreground);
-  background: var(--muted);
-  border-color: var(--input);
-  box-shadow: var(--kit-bevel);
+  color: var(--fg);
+  background: var(--active);
 }
 
-.kit-btn--secondary:hover:not(:disabled) {
-  background: var(--accent);
-}
-
-.kit-btn--danger {
-  color: var(--error);
-}
-
-.kit-btn--danger:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--error) 6%, transparent);
-  border-color: color-mix(in oklab, var(--error) 32%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  .kit-btn--secondary:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--fg) 14%, var(--panel));
+  }
 }
 
 .kit-btn--secondary[aria-pressed="true"] {
-  color: var(--foreground);
-  background: color-mix(in oklab, var(--ring) 12%, transparent);
-  border-color: color-mix(in oklab, var(--ring) 40%, transparent);
+  color: var(--fg);
+  background: color-mix(in oklab, var(--fg) 16%, var(--active));
+}
+
+.kit-btn--danger {
+  color: var(--bad);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kit-btn--danger:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--bad) 12%, var(--active));
+  }
 }
 
 .kit-btn--ghost {
-  color: var(--kit-muted);
+  color: var(--fg2);
 }
 
-.kit-btn--ghost:hover:not(:disabled) {
-  color: var(--foreground);
-  background: var(--accent);
+@media (hover: hover) and (pointer: fine) {
+  .kit-btn--ghost:hover:not(:disabled) {
+    color: var(--fg);
+    background: var(--hover);
+  }
 }
 
 .kit-select.kit-select--size {
@@ -102,24 +129,26 @@
   display: inline-flex;
   min-width: 9rem;
   max-width: 14rem;
-  min-height: 26px;
+  min-height: 32px;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 10px 0 11px;
-  color: var(--foreground);
-  font-size: var(--font-sm);
+  padding: 0 10px 0 12px;
+  color: var(--fg);
+  font-size: 13.5px;
   text-align: left;
-  background: var(--muted);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-md);
-  box-shadow: var(--kit-bevel);
+  background: var(--active);
+  border: none;
+  border-radius: 9px;
   cursor: pointer;
   outline: none;
+  transition: background var(--dur-hover) var(--ease-kiko);
 }
 
-.kit-select:hover:not(:disabled) {
-  background: var(--accent);
+@media (hover: hover) and (pointer: fine) {
+  .kit-select:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--fg) 14%, var(--panel));
+  }
 }
 
 .kit-select > svg:last-child {
@@ -129,61 +158,24 @@
   opacity: 0.5;
 }
 
-.kit-seg {
-  display: inline-grid;
-  max-width: 100%;
-  flex-shrink: 0;
-  gap: 2px;
-  padding: 2px;
-  background: color-mix(in oklab, var(--foreground) 5%, transparent);
-  border-radius: var(--radius-md);
-}
-
-.kit-seg-item {
-  height: var(--control-h-xs);
-  min-width: 0;
-  padding: 0 10px;
-  overflow: hidden;
-  color: var(--kit-muted);
-  font-size: var(--font-sm);
-  font-weight: 500;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  outline: none;
-}
-
-.kit-seg-item:hover:not(:disabled) {
-  color: var(--foreground);
-  background: color-mix(in oklab, var(--foreground) 4%, transparent);
-}
-
-.kit-seg-item[aria-checked="true"] {
-  color: var(--foreground);
-  background: color-mix(in oklab, var(--foreground) 11%, transparent);
-  box-shadow: var(--kit-raised);
-}
-
-:root:not(.dark) .kit-seg-item[aria-checked="true"] {
-  background: var(--background);
-}
-
 .kit-switch {
   position: relative;
   display: inline-flex;
-  width: 30px;
-  height: 18px;
+  width: 34px;
+  height: 20px;
   flex-shrink: 0;
-  padding: 2px;
-  background: var(--input);
-  border-radius: var(--radius-pill);
+  padding: 3px;
+  background: color-mix(in oklab, var(--fg) 16%, var(--panel));
+  border-radius: 10px;
+  transition:
+    background var(--dur-pop) var(--ease-kiko),
+    box-shadow var(--dur-hover) var(--ease-kiko);
   cursor: pointer;
   outline: none;
 }
 
 .kit-switch[aria-checked="true"] {
-  background: var(--ring);
+  background: var(--fg);
 }
 
 .kit-switch:disabled {
@@ -195,17 +187,34 @@
   display: block;
   width: 14px;
   height: 14px;
-  background: var(--background);
-  border-radius: var(--radius-pill);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+  background: var(--fg3);
+  border-radius: 7px;
+  transform-origin: left center;
+  transition:
+    transform var(--dur-pop) var(--ease-kiko),
+    background var(--dur-pop) var(--ease-kiko);
 }
 
 .kit-switch[aria-checked="true"] > span {
-  transform: translateX(12px);
+  background: var(--bg);
+  transform: translateX(14px);
+  transform-origin: right center;
+}
+
+.kit-switch:active:not(:disabled) > span {
+  transform: scaleX(1.15);
+}
+
+.kit-switch[aria-checked="true"]:active:not(:disabled) > span {
+  transform: translateX(14px) scaleX(1.15);
+}
+
+.kit-switch:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
 .kit-range {
-  height: var(--control-h-xs);
+  height: 28px;
   min-width: 0;
   flex: 1;
   background: transparent;
@@ -219,24 +228,24 @@
 
 .kit-range::-webkit-slider-runnable-track {
   height: 4px;
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   background: linear-gradient(
     to right,
-    var(--ring) 0 var(--fill),
-    color-mix(in oklab, var(--foreground) 14%, transparent) var(--fill) 100%
+    var(--fg2) 0 var(--fill),
+    color-mix(in oklab, var(--fg) 14%, transparent) var(--fill) 100%
   );
 }
 
 .kit-range::-moz-range-track {
   height: 4px;
-  border-radius: var(--radius-pill);
-  background: color-mix(in oklab, var(--foreground) 14%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--fg) 14%, transparent);
 }
 
 .kit-range::-moz-range-progress {
   height: 4px;
-  border-radius: var(--radius-pill);
-  background: var(--ring);
+  border-radius: 999px;
+  background: var(--fg2);
 }
 
 .kit-range::-webkit-slider-thumb {
@@ -244,8 +253,8 @@
   height: 16px;
   margin-top: -6px;
   background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
+  border: 1px solid var(--line2);
+  border-radius: 999px;
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
   appearance: none;
 }
@@ -254,45 +263,49 @@
   width: 16px;
   height: 16px;
   background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
+  border: 1px solid var(--line2);
+  border-radius: 999px;
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
 }
 
 .kit-value {
   min-width: 2.5rem;
-  color: var(--muted-foreground);
-  font-size: var(--font-sm);
+  color: var(--fg2);
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
 
 .kit-field {
-  height: 28px;
+  height: 32px;
   min-width: 0;
-  padding: 0 10px;
-  color: var(--foreground);
-  font-size: var(--font-md);
-  background: var(--muted);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-md);
-  box-shadow: var(--kit-bevel);
+  padding: 0 12px;
+  color: var(--fg);
+  font-size: 13.5px;
+  background: var(--active);
+  border: none;
+  border-radius: 9px;
   outline: none;
+  transition: box-shadow var(--dur-hover) var(--ease-kiko);
+}
+
+.kit-field:focus-visible {
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--fg) 35%, transparent);
 }
 
 .kit-field[aria-invalid="true"] {
-  border-color: var(--error);
+  box-shadow: inset 0 0 0 1.5px var(--bad);
+  animation: motion-shake 260ms var(--ease-kiko);
 }
 
 .kit-field::placeholder {
-  color: color-mix(in oklab, var(--foreground) 40%, transparent);
+  color: var(--fg4);
 }
 
 .kit-card {
   overflow: hidden;
-  background: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: var(--panel);
+  border-radius: 16px;
 }
 
 @container settings (width < 560px) {
@@ -307,6 +320,11 @@
     justify-content: flex-start;
   }
 
+  .settings-row-control > [data-component="segmented"] {
+    width: 100%;
+    grid-auto-columns: minmax(max-content, 1fr);
+  }
+
   .settings-row:has(> .settings-row-control > [role="switch"]:only-child) {
     flex-direction: row;
     gap: 1.5rem;
@@ -314,36 +332,59 @@
 }
 
 .kit-tabs {
+  position: relative;
   display: flex;
   gap: 4px;
 }
 
-.kit-tab {
-  position: relative;
-  height: 32px;
-  padding: 0 10px;
-  color: var(--kit-muted);
-  font-size: var(--font-md);
-  font-weight: 500;
-  cursor: pointer;
-  outline: none;
+.kit-tabs > .pill-indicator {
+  border-radius: 10px;
 }
 
-.kit-tab:hover {
-  color: var(--foreground);
+.kit-tab {
+  position: relative;
+  z-index: 1;
+  height: 34px;
+  padding: 0 14px;
+  color: var(--fg2);
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 10px;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kit-tab:hover {
+    color: var(--fg);
+    background: var(--hover);
+  }
 }
 
 .kit-tab[aria-selected="true"] {
-  color: var(--foreground);
+  color: var(--fg);
+  background: var(--active);
 }
 
-.kit-tab[aria-selected="true"]::after {
-  content: "";
-  position: absolute;
-  right: 8px;
-  bottom: 2px;
-  left: 8px;
-  height: 2px;
-  border-radius: var(--radius-pill);
-  background: var(--foreground);
+.kit-tabs:has(> .pill-indicator) > .kit-tab[aria-selected="true"] {
+  background: transparent;
+}
+
+@keyframes kit-flash {
+  from {
+    background-color: var(--hover);
+  }
+}
+
+.kit-flash {
+  animation: kit-flash 400ms var(--ease-kiko);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kit-flash {
+    animation: none;
+  }
 }
