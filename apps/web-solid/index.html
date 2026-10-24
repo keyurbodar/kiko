@@ -237,13 +237,19 @@
               wide: { label: "Wide", width: "1152px" },
               full: { label: "Full", width: "100%" },
             }
-          function fontFamily(name, stack) {
-            let names = name
+          function quoteFamily(name) {
+            let bare = name.trim()
+            if (bare.length === 0) return ""
+            if (/^(['"]).*\1$/.test(bare)) return bare
+            if (/^[a-zA-Z][a-zA-Z0-9-]*$/.test(bare)) return bare
+            return `"${bare.replaceAll('"', "")}"`
+          }
+          function cssFontFamilies(input) {
+            let families = input
               .split(",")
-              .map((n) => n.trim())
-              .filter(Boolean)
-              .map((n) => (/^[\p{L}\p{N}-]+$/u.test(n) ? n : `"${n}"`))
-            return names.length ? `${names.join(", ")}, ${stack}` : stack
+              .map(quoteFamily)
+              .filter((name) => name.length > 0)
+            return families.length > 0 ? families.join(", ") : null
           }
           var isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v),
             oneOf = (table, v, fallback) => (typeof v === "string" && v in table ? v : fallback),
@@ -274,28 +280,27 @@
               smoothing: typeof value.smoothing === "boolean" ? value.smoothing : DEFAULT_DISPLAY.smoothing,
             }
           }
+          function fontVars(display) {
+            let vars = {},
+              sans = cssFontFamilies(display.interfaceFont),
+              mono = cssFontFamilies(display.codeFont)
+            if (sans !== null)
+              vars["--font-family-sans"] =
+                `${sans}, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`
+            if (mono !== null)
+              vars["--font-family-mono"] =
+                `${mono}, "SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace`
+            return vars
+          }
           function displayVars(display) {
             let b = display.baseSize
             return {
+              ...fontVars(display),
               "--font-xs": `${b - 2}px`,
               "--font-sm": `${b - 1}px`,
               "--font-md": `${b}px`,
               "--font-base": `${b + 1}px`,
               "--chat-content-max-width": CHAT_WIDTHS[display.chatWidth].width,
-              "--font-family-sans": fontFamily(
-                display.interfaceFont,
-                '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
-              ),
-              "--font-family-display": display.interfaceFont
-                ? fontFamily(
-                    display.interfaceFont,
-                    '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
-                  )
-                : '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
-              "--font-family-mono": fontFamily(
-                display.codeFont,
-                '"SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace',
-              ),
               "--font-smoothing": display.smoothing ? "antialiased" : "auto",
             }
           }

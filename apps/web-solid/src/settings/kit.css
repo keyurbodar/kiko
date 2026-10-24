@@ -280,6 +280,10 @@
   outline: none;
 }
 
+.kit-field[aria-invalid="true"] {
+  border-color: var(--error);
+}
+
 .kit-field::placeholder {
   color: color-mix(in oklab, var(--foreground) 40%, transparent);
 }
