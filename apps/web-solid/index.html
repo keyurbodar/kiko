@@ -461,11 +461,26 @@
         height: 100%;
       }
       #boot img {
-        width: 64px;
-        height: 64px;
-        max-width: 64px;
-        max-height: 64px;
+        width: 56px;
+        height: 56px;
         object-fit: contain;
+        transform-origin: 50% 100%;
+        animation: boot-hop 1.2s ease-in-out 400ms infinite;
+      }
+      @keyframes boot-hop {
+        0%,
+        60%,
+        100% {
+          transform: translateY(0);
+        }
+        30% {
+          transform: translateY(-10px);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot img {
+          animation: none;
+        }
       }
       #boot-error {
         display: none;
@@ -474,20 +489,27 @@
         left: 0;
         right: 0;
         text-align: center;
+        font: var(--type-ui, 14px) / var(--type-ui-line, 1.43) var(--font-family-sans, system-ui, sans-serif);
+        color: var(--fg2, #a6a6a6);
       }
       #boot-error button {
-        color: inherit;
-        background: var(--control);
+        height: 32px;
+        margin-left: 8px;
+        padding: 0 12px;
         border: 0;
-        padding: 8px 16px;
-        border-radius: 8px;
+        border-radius: 9px;
+        background: var(--raise, #262626);
+        color: var(--fg, #ededed);
+        font: inherit;
         cursor: pointer;
       }
     </style>
   </head>
   <body>
     <div id="root">
-      <div id="boot" role="status" aria-label="Loading Kiko"><img src="/kiko.svg" width="64" height="64" alt="" /></div>
+      <div id="boot" role="status" aria-label="Loading Kiko">
+        <img src="/kiko-mascot.svg" width="56" height="56" alt="" />
+      </div>
     </div>
     <div id="boot-error" role="alert">
       Could not load Kiko. <button type="button" onclick="location.reload()">Reload</button>

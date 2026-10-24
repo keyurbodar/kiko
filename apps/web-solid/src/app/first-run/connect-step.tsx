@@ -3,13 +3,14 @@ import "@kiko/ui/provider-icon.css"
 import { For, Show, createMemo, createSignal } from "solid-js"
 import { createQuery } from "../../state/runtime"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CheckIcon } from "@kiko/ui/icons"
+import { CheckIcon, ChevronRightIcon } from "@kiko/ui/icons"
 import { catalogQuery, type CatalogProvider } from "../../settings/catalog"
 import { connectedProviders } from "../../settings/connected"
 import { AddProviderDialog, ConnectDialog } from "../../settings/models"
 import { modelProviders } from "../../settings/provider-kinds"
 import { CHOICE_ROWS, type ConnectVia, type FirstRunChoice, firstRunChoices } from "./choices"
-import { move } from "./progress"
+import { move, working } from "./progress"
+import { signOut } from "../session"
 import { errorText, primary, secondary } from "./controls"
 
 export function ConnectStep() {
@@ -72,12 +73,13 @@ export function ConnectStep() {
             linked={linked()}
             onPick={(c) => setDialog({ provider: c.provider })}
           />
+          <button type="button" class="ob-more" data-action="view-all-providers" onClick={() => setBrowsing(true)}>
+            More providers
+            <RemixIcon icon={ChevronRightIcon} size={14} />
+          </button>
         </Show>
       </div>
       <div class="ob-cta" style={{ "--i": 3 }}>
-        <button type="button" class="ob-textbtn" data-action="view-all-providers" onClick={() => setBrowsing(true)}>
-          More providers
-        </button>
         <Show
           when={ready()}
           fallback={
@@ -90,6 +92,15 @@ export function ConnectStep() {
             Continue
           </button>
         </Show>
+        <button
+          type="button"
+          class="ob-textbtn ob-signout"
+          data-action="sign-out"
+          disabled={working()}
+          onClick={() => void signOut()}
+        >
+          Sign out
+        </button>
       </div>
       <AddProviderDialog
         open={browsing()}
@@ -136,9 +147,7 @@ function ChoiceGroup(props: {
               </span>
               <span class="ob-card-text">
                 <span class="ob-card-title">{choice.title}</span>
-                <span class="ob-card-note">
-                  {props.linked.has(choice.provider.id) ? "Connected. Select to change it." : choice.note}
-                </span>
+                <span class="ob-card-note">{choice.note}</span>
               </span>
               <Show when={props.linked.has(choice.provider.id)}>
                 <span class="welcome-connected">
