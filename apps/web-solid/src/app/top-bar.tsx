@@ -29,26 +29,41 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
     return user.loaded() ? "" : "Loading…"
   }
   onMount(startComputers)
-  const toggle = (on: boolean) => `top-bar-button ${on ? "bg-accent text-foreground" : ""}`
+  const toggle = () => "top-bar-button"
+  const live = () => {
+    const bot = chatId() ? room.chatById(chatId()!) : undefined
+    if (!bot || (bot.presence !== "working" && bot.presence !== "typing")) return null
+    return bot.typing ?? (bot.presence === "typing" ? "Typing" : "Working")
+  }
+  const roster = () => {
+    const names = room.members().map((member) => member.name)
+    if (names.length < 2) return ""
+    return `You, ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+  }
   return (
-    <header class="flex h-[50px] shrink-0 items-center gap-2 px-3" data-component="top-bar">
+    <header class="top-bar flex h-[58px] shrink-0 items-center gap-2.5 px-5" data-component="top-bar">
       <Show when={!props.sidebarOpen}>
         <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
       </Show>
-      <div class="flex min-w-0 flex-1 items-center gap-2.5 px-1">
+      <div class="flex min-w-0 flex-1 items-center gap-2.5">
         <Show when={chatId()} keyed>
-          {(id) => <ChatAvatar faces={room.chatFaces(id)} size={32} />}
+          {(id) => <ChatAvatar faces={room.chatFaces(id)} size={28} />}
         </Show>
-        <h1 class="min-w-0 truncate text-md font-medium text-foreground" data-component="top-bar-title">
+        <h1 class="min-w-0 shrink truncate text-[15px] font-semibold text-fg" data-component="top-bar-title">
           {title()}
         </h1>
+        <Show when={chatId()}>
+          <Show when={live()} fallback={<span class="top-bar-sub truncate text-[13px] text-fg3">{roster()}</span>}>
+            {(text) => (
+              <span class="top-bar-sub chat-shimmer truncate text-[13px]" data-component="top-bar-status">
+                {text()}
+              </span>
+            )}
+          </Show>
+        </Show>
         <Show when={offline()}>
           {(message) => (
-            <span
-              class="shrink-0 rounded-full bg-warning-surface px-2 py-0.5 text-[11px] text-warning"
-              role="status"
-              data-component="connection-status"
-            >
+            <span class="shrink-0 text-[12.5px] text-fg3" role="status" data-component="connection-status">
               {message()}
             </span>
           )}
@@ -65,7 +80,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
           onPointerEnter={preloadSearch}
           onClick={() => runCommand(chatId() ? "chats.search-current" : "chats.search-all")}
         >
-          <RemixIcon icon={SearchIcon} size={16} />
+          <RemixIcon icon={SearchIcon} size={17} />
         </button>
       </TooltipV2>
       <Show when={computers().length > 0}>
@@ -77,7 +92,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
             data-action="computer-watch"
             onClick={() => openViewer(watchTarget(chatId()))}
           >
-            <RemixIcon icon={MonitorIcon} size={16} />
+            <RemixIcon icon={MonitorIcon} size={17} />
           </button>
         </TooltipV2>
       </Show>
@@ -87,7 +102,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
             <TooltipV2 placement="bottom" openDelay={400} value={cardShown() ? "Hide chat card" : "Show chat card"}>
               <button
                 type="button"
-                class={toggle(cardShown())}
+                class={toggle()}
                 aria-label="Chat card"
                 aria-pressed={cardShown()}
                 data-action="toggle-card"
@@ -95,7 +110,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
                 data-hint-label="Card"
                 onClick={toggleCard}
               >
-                <RemixIcon icon={NotesIcon} size={15} />
+                <RemixIcon icon={NotesIcon} size={17} />
               </button>
             </TooltipV2>
             <TooltipV2
@@ -105,14 +120,14 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
             >
               <button
                 type="button"
-                class={toggle(sidecarOpen(id))}
+                class={toggle()}
                 aria-label="Side panel"
                 aria-pressed={sidecarOpen(id)}
                 data-action="toggle-sidecar"
                 onPointerEnter={() => void loadSidecar()}
                 onClick={() => toggleSidecar(id)}
               >
-                <RemixIcon icon={SidebarRightIcon} size={15} />
+                <RemixIcon icon={SidebarRightIcon} size={17} />
               </button>
             </TooltipV2>
           </>

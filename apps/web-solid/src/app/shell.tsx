@@ -318,7 +318,7 @@ export function Shell(props: ParentProps) {
   return (
     <I18nProvider value={i18n}>
       <div
-        class="sidebar-shell relative flex h-dvh overflow-hidden bg-[var(--sidebar)]"
+        class="sidebar-shell relative flex h-dvh overflow-hidden bg-side"
         data-component="app-shell"
         data-section={sectionOf(pathname()) ?? undefined}
       >
