@@ -1,14 +1,7 @@
 import { releaseBlobUrl } from "./attachments"
 import { batch, type Accessor } from "solid-js"
 import type { SetStoreFunction, Store } from "solid-js/store"
-import type {
-  PromptInputV2AgentPart,
-  PromptInputV2Attachment,
-  PromptInputV2FilePart,
-  PromptInputV2Model,
-  PromptInputV2PersistedState,
-  PromptInputV2Prompt,
-} from "./types"
+import type { PromptInputV2PersistedState, PromptInputV2Prompt } from "./types"
 
 export type PromptInputV2StoreTuple = [
   Store<PromptInputV2PersistedState> | Accessor<Store<PromptInputV2PersistedState>>,
@@ -60,24 +53,6 @@ export function createPromptInputV2Store(input: PromptInputV2StoreInput) {
         setStore()("cursor", 0)
       })
     },
-    setModel(model: PromptInputV2Model | undefined) {
-      setStore()("model", model)
-    },
-    setVariant(variant: string | null) {
-      if (store().model) setStore()("model", "variant", variant)
-    },
-    addMention(mention: PromptInputV2FilePart | PromptInputV2AgentPart) {
-      const text = store()
-        .prompt.map((part) => ("content" in part ? part.content : ""))
-        .join("")
-      const end = store().cursor ?? text.length
-      const start = text.slice(0, end).lastIndexOf("@")
-      setStore()("prompt", insertMention(store().prompt, start < 0 ? end : start, end, mention))
-      setStore()("cursor", (start < 0 ? end : start) + mention.content.length + 1)
-    },
-    addAttachment(attachment: PromptInputV2Attachment) {
-      setStore()("prompt", (prompt) => [...prompt, attachment])
-    },
     removeAttachment(id: string) {
       const gone = store().prompt.find((part) => part.type === "image" && part.id === id)
       if (gone?.type === "image") releaseBlobUrl(gone.blob.url)
@@ -104,29 +79,6 @@ function insertText(prompt: PromptInputV2Prompt, cursor: number, content: string
     return [{ type: "text", content, start: 0, end: 0 }, part]
   })
   if (!inserted) parts.push({ type: "text", content, start: 0, end: 0 })
-  return withOffsets(parts)
-}
-
-function insertMention(
-  prompt: PromptInputV2Prompt,
-  start: number,
-  end: number,
-  mention: PromptInputV2FilePart | PromptInputV2AgentPart,
-): PromptInputV2Prompt {
-  let position = 0
-  const parts = prompt.flatMap<PromptInputV2Prompt[number]>((part) => {
-    if (part.type === "image") return [part]
-    const partStart = position
-    position += part.content.length
-    if (part.type !== "text" || start < partStart || end > position) return [part]
-    const before = part.content.slice(0, start - partStart)
-    const after = part.content.slice(end - partStart)
-    return [
-      ...(before ? [{ type: "text" as const, content: before, start: 0, end: 0 }] : []),
-      mention,
-      { type: "text" as const, content: ` ${after}`, start: 0, end: 0 },
-    ]
-  })
   return withOffsets(parts)
 }
 

@@ -1,7 +1,6 @@
 import { fileName } from "@kiko/protocol"
 import { Mark, mergeAttributes, Node } from "@tiptap/core"
 import "../../lib/chip.css"
-import { identityLook, identityTint } from "../../lib/identity"
 
 export const Link = Mark.create({
   name: "link",
@@ -15,24 +14,67 @@ export const Link = Mark.create({
   ],
 })
 
-export const Mention = Node.create({
-  name: "mention",
-  group: "inline",
-  inline: true,
-  atom: true,
-  selectable: false,
-  addAttributes: () => ({ slug: { default: "" } }),
-  parseHTML: () => [{ tag: "span[data-mention]" }],
-  renderHTML: ({ node }) => [
-    "span",
-    {
-      "data-mention": String(node.attrs.slug),
-      style: `color:${identityLook(String(node.attrs.slug)).color};background:${identityTint(String(node.attrs.slug), 16)}`,
-    },
-    `@${node.attrs.slug}`,
-  ],
-  renderText: ({ node }) => `@${node.attrs.slug}`,
-})
+let fresh = false
+
+export function popNextToken() {
+  fresh = true
+}
+
+export type TokenView = (dom: HTMLElement, token: { sign: "@" | "/"; name: string }) => () => void
+
+function tokenNodeView(view: TokenView, sign: "@" | "/", name: string) {
+  const dom = document.createElement("span")
+  dom.className = "composer-chip-node"
+  dom.contentEditable = "false"
+  if (sign === "@") dom.dataset.mention = name
+  else dom.dataset.slash = name
+  if (fresh) {
+    dom.dataset.fresh = ""
+    fresh = false
+  }
+  const dispose = view(dom, { sign, name })
+  return { dom, ignoreMutation: () => true, destroy: dispose }
+}
+
+export function mentionExtension(view: TokenView) {
+  return Node.create({
+    name: "mention",
+    group: "inline",
+    inline: true,
+    atom: true,
+    selectable: true,
+    draggable: false,
+    addAttributes: () => ({ slug: { default: "" } }),
+    parseHTML: () => [{ tag: "span[data-mention]", getAttrs: (dom) => ({ slug: dom.getAttribute("data-mention") }) }],
+    renderHTML: ({ node }) => ["span", { "data-mention": String(node.attrs.slug) }, `@${node.attrs.slug}`],
+    renderText: ({ node }) => `@${node.attrs.slug}`,
+    addNodeView:
+      () =>
+      ({ node }) =>
+        tokenNodeView(view, "@", String(node.attrs.slug)),
+  })
+}
+
+export function slashExtension(view: TokenView) {
+  return Node.create({
+    name: "slash",
+    group: "inline",
+    inline: true,
+    atom: true,
+    selectable: true,
+    draggable: false,
+    addAttributes: () => ({ name: { default: "" } }),
+    parseHTML: () => [{ tag: "span[data-slash]", getAttrs: (dom) => ({ name: dom.getAttribute("data-slash") }) }],
+    renderHTML: ({ node }) => ["span", { "data-slash": String(node.attrs.name) }, `/${node.attrs.name}`],
+    renderText: ({ node }) => `/${node.attrs.name}`,
+    addNodeView:
+      () =>
+      ({ node }) =>
+        tokenNodeView(view, "/", String(node.attrs.name)),
+  })
+}
+
+export const CHIP_NODES = new Set(["mention", "slash", "fileRef", "attachment"])
 
 export function middleTruncate(name: string, max = 36): string {
   if (name.length <= max) return name
@@ -98,6 +140,10 @@ export function fileRefExtension(view: FileRefView) {
         dom.className = "composer-chip-node"
         dom.contentEditable = "false"
         dom.dataset.fileRef = String(node.attrs.path)
+        if (fresh) {
+          dom.dataset.fresh = ""
+          fresh = false
+        }
         const dispose = view(dom, { path: String(node.attrs.path), folder: Boolean(node.attrs.folder) })
         return { dom, ignoreMutation: () => true, destroy: dispose }
       },
