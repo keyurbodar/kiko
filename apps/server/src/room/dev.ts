@@ -1,3 +1,4 @@
+import { parseRichText } from "@kiko/protocol/markdown"
 import { seedArchiveHistory } from "../owner/history-dev"
 import { ArchiveError } from "../owner/errors"
 import type { HistoryArchive } from "../owner/history-archive"
@@ -42,7 +43,9 @@ export class RoomDev {
       this.d.log.addMessage({
         from,
         text: t.text,
-        ...(from.kind === "agent" ? { run: { runId: `seed:${call}:${i}`, attempt: 0, index: 0 } } : {}),
+        ...(from.kind === "agent"
+          ? { rich: parseRichText(t.text), run: { runId: `seed:${call}:${i}`, attempt: 0, index: 0 } }
+          : {}),
       })
     }
     const count = this.d.memory.sync()
