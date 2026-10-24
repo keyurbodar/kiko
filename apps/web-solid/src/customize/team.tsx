@@ -1,9 +1,10 @@
 import { type Agent, KIKO, type RecipeApp } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ModelIcon, PlayIcon } from "@kiko/ui/icons"
-import { createMemo, For, Show } from "solid-js"
+import { createMemo, For, onCleanup, Show } from "solid-js"
 import { openChat } from "../app/history"
 import { agentList } from "../lib/chats"
+import { look } from "../lib/motion"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { AppLogo } from "../recipes/icon"
 import { cards, followRecipes, installs } from "../recipes/state"
@@ -36,6 +37,7 @@ export function TeamTab() {
         <For each={agents()}>
           {(agent) => (
             <article
+              ref={(el) => onCleanup(look(el))}
               class="group relative flex min-w-0 flex-col gap-4 rounded-[20px] bg-panel p-4 transition-colors duration-[var(--dur-hover)] hover:bg-raise"
               data-agent={agent.slug}
             >

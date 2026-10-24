@@ -118,7 +118,7 @@ export default function RecipesPage() {
               </div>
 
               <Show when={current() === "yours"}>
-                <div class="flex flex-col gap-8" data-component="recipes-yours">
+                <div class="motion-page-in flex flex-col gap-8" data-component="recipes-yours">
                   <Show
                     when={yours().length}
                     fallback={
@@ -153,7 +153,7 @@ export default function RecipesPage() {
               </Show>
 
               <Show when={current() === "discover"}>
-                <div class="flex flex-col gap-4" data-component="recipes">
+                <div class="motion-page-in flex flex-col gap-4" data-component="recipes">
                   <div
                     class="-mx-1 flex items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none]"
                     role="tablist"
