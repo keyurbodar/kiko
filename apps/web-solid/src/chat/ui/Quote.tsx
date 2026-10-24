@@ -1,4 +1,4 @@
-import { Show, type JSX } from "solid-js"
+import { Show } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { cn } from "../../lib/cn"
 import { EntryIcon } from "../../lib/EntryIcon"
@@ -6,31 +6,10 @@ import type { QuoteModel } from "../lib/reply"
 
 export function Quote(props: {
   quote: QuoteModel
-  side?: "user" | "bot"
-  tint?: string
   onOpenReplyTarget: (messageId: string, seq?: number) => void
   class?: string
 }) {
   const summary = () => props.quote.summary
-  const tone = (): JSX.CSSProperties =>
-    props.tint
-      ? {
-          "--quote-bg": `color-mix(in oklch, ${props.tint} 14%, transparent)`,
-          "--quote-bar": props.tint,
-          "--quote-name": props.tint,
-        }
-      : props.side === "user"
-        ? {
-            "--quote-bg": "var(--out-quote-bg)",
-            "--quote-bar": "var(--out-quote-bar)",
-            "--quote-name": "var(--out-quote-name)",
-          }
-        : {
-            "--quote-bg": "var(--in-quote-bg)",
-            "--quote-bar": "var(--in-quote-bar)",
-            "--quote-name": "var(--in-quote-name)",
-          }
-
   const Box = (): "div" | "button" => (props.quote.gone ? "div" : "button")
   return (
     <Dynamic
@@ -38,13 +17,12 @@ export function Quote(props: {
       {...(props.quote.gone ? {} : { type: "button", "aria-label": `Go to the message from ${props.quote.label}` })}
       data-component="chat-quote"
       data-gone={props.quote.gone ? "" : undefined}
-      style={tone()}
       class={cn(
         "relative flex w-full flex-row items-center gap-2 overflow-hidden",
-        props.quote.gone ? "cursor-default italic" : "cursor-pointer",
-        "mb-1 py-[3px] ps-2.5 pe-2 text-start text-inherit text-sm leading-[1.35]",
-        "rounded-[4px] bg-[var(--quote-bg)]",
-        "before:absolute before:inset-y-0 before:start-0 before:w-[2px] before:bg-[var(--quote-bar)] before:content-['']",
+        props.quote.gone ? "cursor-default opacity-70" : "cursor-pointer",
+        "mb-1 mt-0.5 py-1.5 ps-3.5 pe-3 text-start text-inherit text-[13.5px] leading-[1.35]",
+        "rounded-[10px] bg-[color-mix(in_oklab,var(--fg)_7%,transparent)] transition-colors duration-[120ms] hover:bg-[color-mix(in_oklab,var(--fg)_11%,transparent)]",
+        "before:absolute before:inset-y-2 before:start-2.5 before:w-[2px] before:rounded-full before:bg-[var(--fg4)] before:content-['']",
         props.class,
       )}
       onClick={() => !props.quote.gone && props.onOpenReplyTarget(props.quote.id, props.quote.seq)}
@@ -72,9 +50,7 @@ export function Quote(props: {
         )}
       </Show>
       <span class="chat-quote__body flex min-w-0 flex-1 flex-col">
-        <span class="chat-quote__label min-w-0 truncate font-semibold text-[var(--quote-name)]">
-          {props.quote.label}
-        </span>
+        <span class="chat-quote__label min-w-0 truncate font-semibold text-fg">{props.quote.label}</span>
         <span class="chat-quote__text min-w-0 truncate opacity-75">{summary().text}</span>
       </span>
     </Dynamic>

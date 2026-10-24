@@ -1,13 +1,20 @@
-[data-slot="bubble"] {
-  --bubble-r: var(--radius-bubble);
-  --bubble-joint: 4px;
+[data-component="chat-shell"] {
+  --chat-content-max-width: 820px;
 }
 
-[data-slot="bubble"][data-align="start"]:is([data-position="first"], [data-position="middle"]):not(
-    [data-variant="ghost"]
-  )
-  > [data-slot="bubble-content"] {
+[data-slot="bubble"] {
+  --bubble-r: 18px;
+  --bubble-joint: 6px;
+  --bubble-pad-x: 13px;
+  --bubble-pad-y: 8px;
+}
+
+[data-slot="bubble"][data-align="start"]:not([data-variant="ghost"]) > [data-slot="bubble-content"] {
   border-end-start-radius: var(--bubble-joint);
+}
+
+[data-slot="bubble"][data-align="end"]:not([data-variant="ghost"]) > [data-slot="bubble-content"] {
+  border-end-end-radius: var(--bubble-joint);
 }
 
 [data-slot="bubble"][data-align="start"]:is([data-position="middle"], [data-position="last"]):not(
@@ -17,12 +24,36 @@
   border-start-start-radius: var(--bubble-joint);
 }
 
-[data-slot="bubble"][data-align="end"]:is([data-position="first"], [data-position="middle"]):not([data-variant="ghost"])
-  > [data-slot="bubble-content"] {
-  border-end-end-radius: var(--bubble-joint);
-}
-
 [data-slot="bubble"][data-align="end"]:is([data-position="middle"], [data-position="last"]):not([data-variant="ghost"])
   > [data-slot="bubble-content"] {
   border-start-end-radius: var(--bubble-joint);
+}
+
+[data-slot="bubble-content"] {
+  font-size: 15px;
+  line-height: 24px;
+  transition: border-radius 260ms var(--ease-kiko);
+}
+
+.message-actions {
+  transform: translateY(4px);
+  transition:
+    opacity 150ms var(--ease-kiko),
+    transform 150ms var(--ease-kiko);
+}
+
+[data-component="chat-row"]:hover .message-actions,
+.message-actions:focus-within,
+.message-actions[data-open] {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="bubble-content"],
+  .message-actions {
+    transition: none;
+  }
+  .message-actions {
+    transform: none;
+  }
 }

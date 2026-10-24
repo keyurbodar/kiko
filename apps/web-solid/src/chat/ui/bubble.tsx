@@ -6,15 +6,14 @@ import "./bubble.css"
 export type BubbleVariant = "default" | "secondary" | "muted" | "tinted" | "outline" | "ghost" | "destructive"
 
 const VARIANTS: Record<BubbleVariant, string> = {
-  default: "[&>[data-slot=bubble-content]]:bg-message-user [&>[data-slot=bubble-content]]:text-message-user-foreground",
-  secondary:
-    "[&>[data-slot=bubble-content]]:bg-message-assistant [&>[data-slot=bubble-content]]:text-message-assistant-foreground",
-  muted: "[&>[data-slot=bubble-content]]:bg-card [&>[data-slot=bubble-content]]:text-foreground",
-  tinted: "[&>[data-slot=bubble-content]]:bg-control [&>[data-slot=bubble-content]]:text-foreground",
+  default: "[&>[data-slot=bubble-content]]:bg-me [&>[data-slot=bubble-content]]:text-fg",
+  secondary: "[&>[data-slot=bubble-content]]:bg-[var(--kiko-bubble)] [&>[data-slot=bubble-content]]:text-fg",
+  muted: "[&>[data-slot=bubble-content]]:bg-panel [&>[data-slot=bubble-content]]:text-fg",
+  tinted: "[&>[data-slot=bubble-content]]:bg-active [&>[data-slot=bubble-content]]:text-fg",
   outline:
-    "[&>[data-slot=bubble-content]]:bg-card [&>[data-slot=bubble-content]]:text-foreground [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1px_var(--border)]",
+    "[&>[data-slot=bubble-content]]:bg-panel [&>[data-slot=bubble-content]]:text-fg [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1px_var(--line2)]",
   ghost: "[&>[data-slot=bubble-content]]:bg-transparent [&>[data-slot=bubble-content]]:p-0",
-  destructive: "[&>[data-slot=bubble-content]]:bg-error/15 [&>[data-slot=bubble-content]]:text-error",
+  destructive: "[&>[data-slot=bubble-content]]:bg-bad/15 [&>[data-slot=bubble-content]]:text-bad",
 }
 
 export type BubbleAlign = "start" | "end"
@@ -44,7 +43,7 @@ export function Bubble(rawProps: BubbleProps) {
       data-align={local.align}
       data-position={local.position}
       class={cn(
-        "relative flex w-fit min-w-0 max-w-[min(calc(100%-3.5rem),36rem)] flex-col gap-1",
+        "relative flex w-fit min-w-0 max-w-[min(calc(100%-3.5rem),520px)] flex-col gap-1",
         "data-[align=end]:self-end data-[variant=ghost]:max-w-full",
         VARIANTS[local.variant],
         local.class,
@@ -68,7 +67,7 @@ export function BubbleContent<T extends ValidComponent = "div">(rawProps: Bubble
       component={local.as}
       data-slot="bubble-content"
       class={cn(
-        "w-fit min-w-0 max-w-full overflow-hidden rounded-(--bubble-r) px-(--bubble-pad-x) py-(--bubble-pad-y) text-base leading-[calc(var(--font-base)+6px)] wrap-break-word",
+        "w-fit min-w-0 max-w-full overflow-hidden rounded-(--bubble-r) px-(--bubble-pad-x) py-(--bubble-pad-y) wrap-break-word",
         local.class,
       )}
       {...others}
