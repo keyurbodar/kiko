@@ -320,8 +320,3 @@ export function Memory(props: { lines: readonly LifeLine[]; more: boolean; whose
     </Section>
   )
 }
-
-export const leadName = (): string => {
-  const members = room.roomMembers()
-  return (members.find((m) => m.lead) ?? members[0])?.name ?? "Kiko"
-}

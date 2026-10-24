@@ -1,11 +1,13 @@
 import type { RecipeCard, RoutineRow as RoutineData } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CheckIcon, ClockIcon, PauseIcon, PlayIcon, TrashIcon } from "@kiko/ui/icons"
+import { CheckIcon, ClockIcon, PauseIcon, PlayIcon, RepeatIcon, TrashIcon } from "@kiko/ui/icons"
+import { Link } from "@tanstack/solid-router"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createResource, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
 import { RecipeIcon } from "../../recipes/icon"
 import { recipeForRoutine } from "../../recipes/model"
+import { leadName, PanelEmpty } from "./empty"
 import { triggerLabel } from "./routines-model"
 import { apiFetch } from "../../lib/api"
 import { createQuery, owner, run } from "../../state/runtime"
@@ -138,7 +140,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
   )
 }
 
-const heading = `px-2 pt-2 pb-1 text-[11px] font-medium leading-4 ${faint}`
+const heading = "px-2 pt-2 pb-1 type-label text-fg3"
 
 export function RoutinesPage(props: { chatId: string }) {
   const listed = createQuery(() => (routinesOf(props.chatId).length ? owner.queries.recipes(undefined) : null))
@@ -155,10 +157,21 @@ export function RoutinesPage(props: { chatId: string }) {
         {(list) => (
           <>
             <Show when={!list().length}>
-              <p class={`px-2 py-6 text-center text-[12px] leading-5 ${faint}`}>
-                Nothing scheduled yet. Ask an agent to remind you, or to do something on a schedule or whenever you send
-                a message.
-              </p>
+              <PanelEmpty
+                component="routines-empty"
+                icon={RepeatIcon}
+                title="No routines yet"
+                line={`Ask ${leadName()} to remind you, or to do something every morning.`}
+                action={
+                  <Link
+                    to="/recipes"
+                    class="flex h-control items-center rounded-control bg-active px-3 type-ui text-fg transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover active:scale-[0.98]"
+                    data-action="browse-recipes"
+                  >
+                    Browse recipes
+                  </Link>
+                }
+              />
             </Show>
             <Show when={list().length}>
               <h3 class={heading}>Routines</h3>
