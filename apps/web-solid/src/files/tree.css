@@ -15,29 +15,6 @@
   gap: 4px;
   padding: 0 8px;
 }
-.kt-field {
-  display: flex;
-  height: 28px;
-  min-width: 0;
-  flex: 1;
-  align-items: center;
-  gap: 6px;
-  padding: 0 4px;
-  color: var(--fg3);
-}
-.kt-field input {
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  background: transparent;
-  color: var(--fg);
-  font: inherit;
-  font-size: var(--type-label);
-  outline: none;
-}
-.kt-field input::placeholder {
-  color: var(--fg3);
-}
 .kt-btn {
   display: grid;
   width: 28px;

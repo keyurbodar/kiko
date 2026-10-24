@@ -1,3 +1,4 @@
+import { SearchField } from "@kiko/ui/v2/search-field"
 import type { FileRef } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import {
@@ -353,22 +354,15 @@ export function FileTree(props: FileTreeProps): JSX.Element {
   return (
     <div class="kt-root" data-component="file-tree">
       <div class="kt-bar">
-        <label class="kt-field">
-          <input
-            type="search"
-            aria-label="Search files"
-            placeholder="Search files"
-            spellcheck={false}
-            autocomplete="off"
-            value={query()}
-            onInput={(e) => setQuery(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key !== "Escape" || !query()) return
-              e.stopPropagation()
-              setQuery("")
-            }}
-          />
-        </label>
+        <SearchField
+          wrapClass="min-w-0 flex-1"
+          aria-label="Search files"
+          placeholder="Search files"
+          spellcheck={false}
+          autocomplete="off"
+          value={query()}
+          onValue={setQuery}
+        />
         <TooltipV2 placement="bottom" openDelay={400} value="New file">
           <button
             type="button"

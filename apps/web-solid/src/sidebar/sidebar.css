@@ -1044,29 +1044,3 @@
     border-radius: 0;
   }
 }
-
-.update-pill {
-  display: inline-flex;
-  height: 30px;
-  max-width: 100%;
-  align-items: center;
-  gap: 6px;
-  padding: 0 12px;
-  font-size: 12.5px;
-  color: var(--fg);
-  background: var(--active);
-  border: none;
-  border-radius: 9px;
-  cursor: pointer;
-  transition: background var(--dur-hover) var(--ease-kiko);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .update-pill:hover {
-    background: var(--hover);
-  }
-}
-
-span.update-pill {
-  cursor: default;
-}
