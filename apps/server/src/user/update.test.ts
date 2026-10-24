@@ -108,7 +108,6 @@ const update = (options: {
     {
       ...cloudflare,
       grants: grantStore({ keyring: KEYRING, userId: "owner", env: options.env, cell: options.cell }),
-      step: () => {},
     },
     VERSION,
   ).pipe(Effect.result, Effect.map(Result.match({ onSuccess: () => "uploaded", onFailure: (error) => error.code })))

@@ -27,8 +27,6 @@ export type CfGrant = {
 
 export type UpdateConfig = { releaseBase: string; publicKey: string; cfApi: string; oauthUrl: string }
 
-export type UpdateStep = "checking" | "authorizing" | "uploading"
-
 export class UpdateFailed extends Schema.TaggedError<UpdateFailed>()("UpdateFailed", {
   code: UpdateErrorCode,
   message: Schema.String,
@@ -43,7 +41,6 @@ export interface UpdateDeps {
   readonly fetch: FetchLike
   readonly config: UpdateConfig
   readonly grants: GrantStore
-  readonly step: (step: UpdateStep) => void
 }
 
 const RECONNECT = "Reconnect Cloudflare, then try again."
@@ -146,9 +143,7 @@ const upload = Effect.fn("SelfUpdate.upload")(function* (
 })
 
 export const runUpdate = Effect.fn("SelfUpdate.run")(function* (deps: UpdateDeps, version: string) {
-  deps.step("checking")
   const release = yield* loadRelease(deps, version)
-  deps.step("authorizing")
   const grant = yield* deps.grants.load
   if (!grant)
     return yield* new UpdateFailed({
@@ -156,7 +151,6 @@ export const runUpdate = Effect.fn("SelfUpdate.run")(function* (deps: UpdateDeps
       message: `Kiko has no Cloudflare sign-in saved. ${RECONNECT}`,
     })
   const token = yield* accessToken(deps, grant)
-  deps.step("uploading")
   yield* upload(cloudflare({ token, fetch: deps.fetch, api: deps.config.cfApi }), grant, release).pipe(
     Effect.catchTags({ CloudflareError: (error) => Effect.fail(fromCloudflare(error)) }),
   )

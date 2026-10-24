@@ -415,7 +415,6 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     recipesEdit: rpc("recipes.edit"),
     routinesUpdate: effect("routines.update", Owner.updateRoutine),
     routinesCancel: effect("routines.cancel", Owner.cancelRoutine),
-    updateStart: rpc("update.start", { mode: "singleFlight", key: () => "update" }),
   }
 
   const sendMessageAtom = runtime.fn((input: SendMessageInput) => sendMessage(input), { concurrent: true })

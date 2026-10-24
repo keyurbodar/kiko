@@ -37,7 +37,6 @@ import {
   ComputerInput,
   ComputerSignal,
   KernelResult,
-  ReleaseVersion,
   UserEvent,
   UserSettings,
   UserSettingsPatch,
@@ -314,7 +313,5 @@ export const OwnerRpcs = RpcGroup.make(
     error: Lookup,
   }),
   Rpc.make("routines.cancel", { payload: { ...command, id: Id }, error: Lookup }),
-
-  Rpc.make("update.start", { payload: { version: ReleaseVersion }, error: Refusable }),
 )
 export type OwnerRpcs = RpcGroup.Rpcs<typeof OwnerRpcs>

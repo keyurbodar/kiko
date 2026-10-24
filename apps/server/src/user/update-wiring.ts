@@ -1,5 +1,5 @@
 import { keyringFromEnv } from "@kiko/durable/crypto"
-import type { UpdateStage, UpdateState, UserToClient } from "@kiko/protocol"
+import type { UpdateState } from "@kiko/protocol"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -24,7 +24,6 @@ export class SelfUpdate {
       env: Env
       sql: SqlStorage
       userId: () => string
-      broadcast: (frame: UserToClient) => void
       waitUntil: (work: Promise<unknown>) => void
     },
   ) {}
@@ -34,11 +33,8 @@ export class SelfUpdate {
   }
 
   start(version: string): UpdateState {
-    if (this.#running()) {
-      this.#announce()
-      return this.#state
-    }
-    this.#set({ stage: "uploading", to: version }, "checking")
+    if (this.#running()) return this.#state
+    this.#state = { stage: "uploading", to: version }
     this.deps.waitUntil(this.#run(version))
     return this.#state
   }
@@ -68,7 +64,6 @@ export class SelfUpdate {
                 write: (text) => setSetting(this.deps.sql, GRANT, text),
               },
             }),
-            step: (step) => this.deps.broadcast({ t: "update.state", stage: step }),
           },
           version,
         ),
@@ -76,7 +71,8 @@ export class SelfUpdate {
     )
     if (Exit.isSuccess(exit)) {
       this.#restartedAt = Date.now()
-      return this.#set({ stage: "restarting", to: version }, "restarting")
+      this.#state = { stage: "restarting", to: version }
+      return
     }
     const failure = Cause.squash(exit.cause)
     const failed =
@@ -84,21 +80,6 @@ export class SelfUpdate {
         ? failure
         : new UpdateFailed({ code: "cloudflare_error", message: "The update failed. Try again." })
     if (!(failure instanceof UpdateFailed)) console.error(`update failed: ${String(failure)}`)
-    this.#set({ stage: "failed", to: version, error: failed.code, message: failed.message }, "failed")
-  }
-
-  #set(next: UpdateState, stage: UpdateStage): void {
-    this.#state = next
-    this.#announce(stage)
-  }
-
-  #announce(stage?: UpdateStage): void {
-    const state = this.#state
-    if (state.stage === "idle") return
-    this.deps.broadcast({
-      t: "update.state",
-      stage: stage ?? state.stage,
-      ...(state.stage === "failed" ? { error: state.message } : {}),
-    })
+    this.#state = { stage: "failed", to: version, error: failed.code, message: failed.message }
   }
 }
