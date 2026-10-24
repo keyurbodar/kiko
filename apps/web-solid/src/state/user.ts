@@ -28,9 +28,6 @@ import { attempt, failureMessage, owner, registry, run, valueOf, watch } from ".
 
 const chatOrder = (a: Chat, b: Chat) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt
 
-type PendingRow = { kind: RowKind; id: string; row: UserRows[RowKind] | null; at: number }
-const rowKey = (kind: RowKind, id: string) => `${kind}:${id}`
-const ROW_SETTLE_MS = 50_000
 const OPEN_DEBOUNCE_MS = 2_000
 
 type SignalOf<T extends UserSignal["t"]> = Extract<UserSignal, { t: T }>
@@ -54,7 +51,6 @@ setFileTokenSource(async () => (await attempt(owner.commands.fileToken, {}, () =
 export const user = createRoot(() => {
   const state = watch(() => owner.userAtom)
   const [typing, setTyping] = createSignal<Record<string, readonly string[]>>({})
-  const [pendingRows, setPendingRows] = createSignal<Record<string, PendingRow>>({})
   const [everLive, setEverLive] = createSignal(false)
 
   const onSignal = (value: UserSignal) =>
@@ -92,56 +88,7 @@ export const user = createRoot(() => {
   const agents = createMemo(() => [...(snapshot()?.agents ?? [])])
   const providers = () => (snapshot()?.rows?.provider ?? []) as readonly { id: string }[]
 
-  function rows<K extends RowKind>(kind: K): UserRows[K][] {
-    const list = (snapshot()?.rows?.[kind] ?? []) as UserRows[K][]
-    const pending = Object.values(pendingRows()).filter((p) => p.kind === kind)
-    if (!pending.length) return list
-    const out = list.flatMap((r) => {
-      const p = pendingRows()[rowKey(kind, r.id)]
-      return !p ? [r] : p.row ? [p.row as UserRows[K]] : []
-    })
-    for (const p of pending) if (p.row && !list.some((r) => r.id === p.id)) out.push(p.row as UserRows[K])
-    return out
-  }
-
-  function dropRow(key: string, at: number) {
-    setPendingRows((all) => {
-      if (all[key]?.at !== at) return all
-      const { [key]: _, ...rest } = all
-      return rest
-    })
-  }
-
-  async function editRow<K extends RowKind>(
-    kind: K,
-    id: string,
-    next: UserRows[K] | null,
-    send: () => Promise<boolean>,
-  ): Promise<boolean> {
-    const key = rowKey(kind, id)
-    const at = Date.now()
-    setPendingRows((all) => ({ ...all, [key]: { kind, id, row: next, at } }))
-    const ok = await send().catch(() => false)
-    if (!ok) dropRow(key, at)
-    else setTimeout(() => dropRow(key, at), ROW_SETTLE_MS)
-    return ok
-  }
-
-  createComputed(() => {
-    const current = snapshot()?.rows
-    untrack(() => {
-      const all = pendingRows()
-      const keys = Object.keys(all)
-      if (keys.length === 0) return
-      const settled = keys.filter((key) => {
-        const p = all[key]!
-        const row = (current?.[p.kind] ?? []).find((r) => r.id === p.id)
-        return p.row === null ? row === undefined : row !== undefined && JSON.stringify(row) === JSON.stringify(p.row)
-      })
-      if (settled.length)
-        setPendingRows((current) => Object.fromEntries(Object.entries(current).filter(([k]) => !settled.includes(k))))
-    })
-  })
+  const rows = <K extends RowKind>(kind: K): UserRows[K][] => (snapshot()?.rows?.[kind] ?? []) as UserRows[K][]
 
   function agentModel(slug: string): AgentModel | undefined {
     const pick = snapshot()?.agentModels?.[slug]
@@ -220,7 +167,6 @@ export const user = createRoot(() => {
     chats,
     agents,
     rows,
-    editRow,
     agentModel,
     setAgentModel,
     createChat,

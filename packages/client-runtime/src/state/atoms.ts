@@ -352,7 +352,7 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     openChat: rpc("chat.open", { mode: "serial", key: () => "open" }),
     chatSearch: rpc("chat.search"),
     searchMessages: rpc("search.messages"),
-    soulUpdate: rpc("soul.update", { mode: "serial", key: (input) => input.slug }),
+    soulUpdate: effect("soul.update", Owner.updateSoul, { mode: "serial", key: (input) => input.slug }),
     memory: rpc("memory.run"),
     settingsGet: rpc("settings.get"),
     settingsUpdate: effect(
@@ -398,8 +398,8 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     recipesInstall: rpc("recipes.install"),
     recipesUninstall: rpc("recipes.uninstall"),
     recipesEdit: rpc("recipes.edit"),
-    routinesUpdate: rpc("routines.update"),
-    routinesCancel: rpc("routines.cancel"),
+    routinesUpdate: effect("routines.update", Owner.updateRoutine),
+    routinesCancel: effect("routines.cancel", Owner.cancelRoutine),
     updateStart: rpc("update.start", { mode: "singleFlight", key: () => "update" }),
   }
 

@@ -24,23 +24,12 @@ const post = (path: string, body: unknown) =>
     .catch(() => false)
 
 async function setStatus(routine: Routine, status: Routine["status"]): Promise<void> {
-  if (
-    !(await user.editRow(
-      "routine",
-      routine.id,
-      { ...routine, status },
-      async () => (await run(owner.commands.routinesUpdate, { id: routine.id, status }))._tag === "Success",
-    ))
-  )
+  if ((await run(owner.commands.routinesUpdate, { id: routine.id, status }))._tag === "Failure")
     showToastV2({ title: `Could not ${status === "paused" ? "pause" : "resume"} ${routine.name}`, variant: "error" })
 }
 
 async function cancelRoutine(routine: Routine): Promise<void> {
-  if (
-    !(await user.editRow("routine", routine.id, null, () =>
-      run(owner.commands.routinesCancel, { id: routine.id }).then((r) => r._tag === "Success"),
-    ))
-  )
+  if ((await run(owner.commands.routinesCancel, { id: routine.id }))._tag === "Failure")
     showToastV2({ title: `Could not delete ${routine.name}`, variant: "error" })
 }
 

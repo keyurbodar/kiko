@@ -11,8 +11,10 @@ import {
   type MessageId,
   type RoomId,
   type RoomSnapshot,
+  type RowKind,
   type TaskOp,
   type ThinkingLevel,
+  type UserRows,
   type UserSnapshot,
 } from "@kiko/protocol"
 import * as Clock from "effect/Clock"
@@ -300,3 +302,59 @@ export const setAgentModel = (input: SetAgentModelInput): UserEffect<"agent.setM
     (commandId) => request("agent.setModel", { ...payload, commandId }),
   )
 }
+
+const rowsOf = <K extends RowKind>(user: UserSnapshot, kind: K): ReadonlyArray<UserRows[K]> =>
+  (user.rows?.[kind] ?? []) as ReadonlyArray<UserRows[K]>
+
+const withRows = <K extends RowKind>(
+  user: UserSnapshot,
+  kind: K,
+  update: (rows: ReadonlyArray<UserRows[K]>) => ReadonlyArray<UserRows[K]>,
+): UserSnapshot => ({ ...user, rows: { ...user.rows, [kind]: update(rowsOf(user, kind)) } })
+
+const rowOf = <K extends RowKind>(user: UserSnapshot, kind: K, id: string) =>
+  rowsOf(user, kind).find((row) => row.id === id)
+
+export interface UpdateSoulInput {
+  readonly slug: AgentSlug
+  readonly body: string
+  readonly expectSha: string
+}
+
+export const updateSoul = (input: UpdateSoulInput): UserEffect<"soul.update", UserRows["soul"]> =>
+  inUser(
+    {
+      apply: (user) =>
+        withRows(user, "soul", (rows) =>
+          rows.map((row) => (row.id === input.slug ? { ...row, body: input.body } : row)),
+        ),
+      settled: (user) => rowOf(user, "soul", input.slug)?.body === input.body,
+    },
+    (commandId) => request("soul.update", { ...input, commandId }),
+  )
+
+export interface UpdateRoutineInput {
+  readonly id: string
+  readonly status: UserRows["routine"]["status"]
+}
+
+export const updateRoutine = (input: UpdateRoutineInput): UserEffect<"routines.update"> =>
+  inUser(
+    {
+      apply: (user) =>
+        withRows(user, "routine", (rows) =>
+          rows.map((row) => (row.id === input.id ? { ...row, status: input.status } : row)),
+        ),
+      settled: (user) => (rowOf(user, "routine", input.id)?.status ?? input.status) === input.status,
+    },
+    (commandId) => request("routines.update", { ...input, commandId }),
+  )
+
+export const cancelRoutine = (input: { readonly id: string }): UserEffect<"routines.cancel"> =>
+  inUser(
+    {
+      apply: (user) => withRows(user, "routine", (rows) => rows.filter((row) => row.id !== input.id)),
+      settled: (user) => rowOf(user, "routine", input.id) === undefined,
+    },
+    (commandId) => request("routines.cancel", { ...input, commandId }),
+  )

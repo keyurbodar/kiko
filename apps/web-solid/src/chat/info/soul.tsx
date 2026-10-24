@@ -22,28 +22,19 @@ export function SoulCard(props: { slug: string }) {
     const current = soul()
     if (body === null || !current) return
     setSaving(true)
-    let refused: { conflict: boolean; error?: string } = { conflict: false }
-    const ok = await user.editRow("soul", props.slug, { ...current, body }, async () => {
-      const result = await run(owner.commands.soulUpdate, {
-        slug: props.slug as AgentSlug,
-        body,
-        expectSha: current.sha,
-      })
-      if (result._tag === "Success") return true
-      refused = {
-        conflict: Cause.squash(result.cause) instanceof ConflictError,
-        error: failureMessage(result.cause, "Could not reach Kiko"),
-      }
-      return false
+    const result = await run(owner.commands.soulUpdate, {
+      slug: props.slug as AgentSlug,
+      body,
+      expectSha: current.sha,
     })
     setSaving(false)
-    if (ok) return void setDraft(null)
-    if (refused.conflict) {
+    if (result._tag === "Success") return void setDraft(null)
+    if (Cause.squash(result.cause) instanceof ConflictError) {
       setDraft(soul()?.body ?? body)
       showToastV2({ title: "It changed while you were editing. This is the newest version", variant: "error" })
       return
     }
-    showToastV2({ title: refused.error ?? "Could not save", variant: "error" })
+    showToastV2({ title: failureMessage(result.cause, "Could not reach Kiko"), variant: "error" })
   }
 
   return (

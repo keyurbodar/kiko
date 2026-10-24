@@ -1,4 +1,13 @@
-import type { Message, MessageId, RoomId, RoomSnapshot } from "@kiko/protocol"
+import type {
+  AgentSlug,
+  Message,
+  MessageId,
+  RoomId,
+  RoomSnapshot,
+  RoutineRow,
+  SoulRow,
+  UserSnapshot,
+} from "@kiko/protocol"
 import { RefusedError } from "@kiko/protocol"
 import { describe, expect, it } from "@effect/vitest"
 import * as Deferred from "effect/Deferred"
@@ -12,7 +21,14 @@ import type { PreparedConnection, SupervisorConnectionState } from "../connectio
 import type { OwnerRpcClient } from "../rpc/protocol"
 import type { RpcSession } from "../rpc/session"
 import { withPending } from "./overlay"
-import { deleteRoomMessage, editRoomMessage, reactToRoomMessage } from "./ownerCommands"
+import {
+  cancelRoutine,
+  deleteRoomMessage,
+  editRoomMessage,
+  reactToRoomMessage,
+  updateRoutine,
+  updateSoul,
+} from "./ownerCommands"
 import { layer as pendingLayer, PendingCommands, roomKey } from "./pending"
 
 const ROOM = "01890000-0000-7000-8000-000000000003" as RoomId
@@ -107,6 +123,85 @@ describe("room command overlays", () => {
         const reacted = room(3, [message({ reactions: [{ emoji: "👍", by: { kind: "human" } }] })])
         yield* pending.rooms.reconcile(KEY, reacted, 3)
         expect(yield* pending.rooms.get(KEY)).toEqual([])
+      }).pipe(Effect.provide(layer))
+    }),
+  )
+})
+
+const SLUG = "scout" as AgentSlug
+
+const soul = (patch: Partial<SoulRow> = {}): SoulRow => ({ id: SLUG, body: "old", sha: "sha-old", at: 1, ...patch })
+
+const routine = (patch: Partial<RoutineRow> = {}): RoutineRow => ({
+  id: "r1",
+  name: "Daily",
+  roomId: ROOM,
+  status: "active",
+  trigger: { on: "time", at: "2026-01-01T00:00:00.000Z" },
+  tz: "UTC",
+  ...patch,
+})
+
+const user = (seq: number, rows: UserSnapshot["rows"]): UserSnapshot => ({
+  seq,
+  chats: [],
+  home: { files: [], folders: [] },
+  rows,
+})
+
+const shownRows = (server: UserSnapshot) =>
+  PendingCommands.use((pending) =>
+    pending.user.get("user").pipe(Effect.map((items) => withPending(server, server.seq, items).rows)),
+  )
+
+describe("user row overlays", () => {
+  it.effect("show a saved soul at once and hand over to the server row with its new sha", () =>
+    Effect.gen(function* () {
+      const ack = yield* Deferred.make<void>()
+      const layer = yield* harness(() => Deferred.await(ack))
+      yield* Effect.gen(function* () {
+        const pending = yield* PendingCommands
+        const before = user(5, { soul: [soul()] })
+        yield* pending.user.reconcile("user", before, 5)
+        const saving = yield* Effect.forkChild(updateSoul({ slug: SLUG, body: "new", expectSha: "sha-old" }))
+        yield* Effect.yieldNow
+        expect((yield* shownRows(before))?.soul?.map((r) => r.body)).toEqual(["new"])
+
+        const landed = user(6, { soul: [soul({ body: "new", sha: "sha-new", at: 2 })] })
+        yield* pending.user.reconcile("user", landed, 6)
+        yield* Deferred.succeed(ack, undefined)
+        yield* Fiber.join(saving)
+        expect(yield* pending.user.get("user")).toEqual([])
+        expect((yield* shownRows(landed))?.soul?.map((r) => r.sha)).toEqual(["sha-new"])
+      }).pipe(Effect.provide(layer))
+    }),
+  )
+
+  it.effect("put a refused routine change back at once", () =>
+    Effect.gen(function* () {
+      const layer = yield* harness(() => Effect.fail(new RefusedError({ reason: "routine", message: "No." })))
+      yield* Effect.gen(function* () {
+        const pending = yield* PendingCommands
+        const server = user(5, { routine: [routine()] })
+        yield* pending.user.reconcile("user", server, 5)
+        const error = yield* updateRoutine({ id: "r1", status: "paused" }).pipe(Effect.flip)
+        expect(error._tag).toBe("RefusedError")
+        expect((yield* shownRows(server))?.routine?.map((r) => r.status)).toEqual(["active"])
+      }).pipe(Effect.provide(layer))
+    }),
+  )
+
+  it.effect("hide a cancelled routine until the server drops it", () =>
+    Effect.gen(function* () {
+      const layer = yield* harness(() => Effect.void)
+      yield* Effect.gen(function* () {
+        const pending = yield* PendingCommands
+        const server = user(5, { routine: [routine()] })
+        yield* pending.user.reconcile("user", server, 5)
+        yield* cancelRoutine({ id: "r1" })
+        expect((yield* shownRows(server))?.routine).toEqual([])
+        yield* pending.user.reconcile("user", user(6, { routine: [] }), 6)
+        expect(yield* pending.user.get("user")).toEqual([])
       }).pipe(Effect.provide(layer))
     }),
   )
