@@ -82,6 +82,7 @@ export interface Boot {
   readonly record: AuthRecord | null
   readonly signingOut: boolean
   readonly hosted: boolean
+  readonly clerkSession: boolean
   readonly callback: boolean
 }
 
@@ -116,7 +117,9 @@ export function start(boot: Boot): Step {
     const { identity } = boot.record
     return to(readyOf(boot.record), boot.hosted && identity.clerkUserId ? { _tag: "Verify", identity } : null)
   }
-  return boot.hosted ? to(BOOTING, { _tag: "CheckClerk", callback: boot.callback }) : to(SIGNED_OUT)
+  if (!boot.hosted) return to(SIGNED_OUT)
+  const check: Command = { _tag: "CheckClerk", callback: boot.callback }
+  return to(boot.clerkSession || boot.callback ? BOOTING : SIGNED_OUT, check)
 }
 
 const signedOutAs = (user: ClerkUser | null): Step =>

@@ -88,10 +88,16 @@ const InstallerLive = Layer.succeed(Installer, {
     }),
 })
 
+const clerkSession = (): boolean => {
+  const active = /(?:^|;\s*)__client_uat=([^;]*)/.exec(document.cookie)?.[1]
+  return active !== undefined && active !== "0"
+}
+
 const initial = start({
   record: parseRecord(readAuth()),
   signingOut: signingOut(),
   hosted,
+  clerkSession: clerkSession(),
   callback: location.pathname === "/connect/callback",
 })
 

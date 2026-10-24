@@ -1,55 +1,33 @@
 import { useLocation } from "@tanstack/solid-router"
-import { Match, Show, Switch, createSignal, onCleanup, onMount } from "solid-js"
-import { mountSignIn } from "../clerk"
+import { Match, Show, Switch, createSignal, onMount } from "solid-js"
+import { openSignIn } from "../clerk"
 import { continueAs, phase, useAnotherAccount } from "../session"
 import { Cover, primary, secondary } from "./welcome"
 
 const errorText = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
 
-function SignInForm() {
-  let node!: HTMLDivElement
-  let unmount: (() => void) | undefined
-  let disposed = false
-  const [state, setState] = createSignal<"loading" | "shown" | "failed">("loading")
+function SignIn() {
+  const [opening, setOpening] = createSignal(false)
   const [error, setError] = createSignal("")
 
-  const show = () => {
-    setState("loading")
-    mountSignIn(node).then(
-      (stop) => {
-        if (disposed) return stop()
-        unmount = stop
-        setState("shown")
-      },
-      (e: unknown) => {
-        setError(errorText(e, "Could not load the sign-in form. Try again."))
-        setState("failed")
-      },
-    )
+  const open = () => {
+    setError("")
+    setOpening(true)
+    openSignIn()
+      .catch((e: unknown) => setError(errorText(e, "Could not open sign-in. Try again.")))
+      .finally(() => setOpening(false))
   }
-
-  onMount(show)
-  onCleanup(() => {
-    disposed = true
-    unmount?.()
-  })
 
   return (
     <>
-      <div ref={node} class="welcome-clerk" data-component="clerk-sign-in" hidden={state() === "failed"} />
-      <Show when={state() === "loading"}>
-        <p class="text-center text-sm text-muted-foreground" role="status">
-          Loading sign-in
-        </p>
-      </Show>
-      <Show when={state() === "failed"}>
+      <Show when={error()}>
         <p class="text-center text-sm text-[var(--error)]" role="alert">
           {error()}
         </p>
-        <button type="button" class={primary} data-action="sign-in" onClick={show}>
-          Try again
-        </button>
       </Show>
+      <button type="button" class={primary} disabled={opening()} data-action="sign-in" onClick={open}>
+        {opening() ? "Opening sign-in" : "Sign in"}
+      </button>
     </>
   )
 }
@@ -66,7 +44,7 @@ function TicketSignIn(props: { readonly ticket: string }) {
       <p class="text-center text-sm text-[var(--error)]" role="alert">
         {failed()}
       </p>
-      <SignInForm />
+      <SignIn />
     </Show>
   )
 }
@@ -113,7 +91,7 @@ export function ClerkStep() {
           </Match>
           <Match when={live()}>{(email) => <Live email={email()} />}</Match>
           <Match when={phase()._tag === "SignedOut"}>
-            <Show when={ticket} fallback={<SignInForm />}>
+            <Show when={ticket} fallback={<SignIn />}>
               {(value) => <TicketSignIn ticket={value()} />}
             </Show>
           </Match>

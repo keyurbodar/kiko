@@ -49,14 +49,16 @@ const fresh = { user, token: "owner.session.200.mac" as SessionToken }
 
 describe("booting", () => {
   it("opens a stored sign-in at once and checks Clerk in the background", () => {
-    expect(start({ record, signingOut: false, hosted: true, callback: false })).toEqual({
+    expect(start({ record, signingOut: false, hosted: true, clerkSession: true, callback: false })).toEqual({
       phase: ready,
       command: { _tag: "Verify", identity },
     })
   })
 
   it("opens an access-code sign-in without Clerk", () => {
-    expect(start({ record: codeRecord, signingOut: false, hosted: false, callback: false })).toEqual({
+    expect(
+      start({ record: codeRecord, signingOut: false, hosted: false, clerkSession: false, callback: false }),
+    ).toEqual({
       phase: readyOf(codeRecord),
       command: null,
     })
@@ -74,11 +76,20 @@ describe("booting", () => {
   })
 
   it("loads Clerk when nothing is stored, then resolves its session", () => {
-    expect(start({ record: null, signingOut: false, hosted: true, callback: false })).toEqual({
+    expect(start({ record: null, signingOut: false, hosted: true, clerkSession: true, callback: false })).toEqual({
       phase: booting,
       command: { _tag: "CheckClerk", callback: false },
     })
     expect(step(booting, clerk(alice))).toEqual({ phase: resolving, command: { _tag: "Point", identity } })
+  })
+
+  it("shows the sign-in button at once when Clerk's cookie says no one is signed in, then confirms in the background", () => {
+    expect(start({ record: null, signingOut: false, hosted: true, clerkSession: false, callback: false })).toEqual({
+      phase: signedOut,
+      command: { _tag: "CheckClerk", callback: false },
+    })
+    expect(step(signedOut, clerk(null))).toEqual({ phase: signedOut, command: null })
+    expect(step(signedOut, clerk(alice))).toEqual({ phase: resolving, command: { _tag: "Point", identity } })
   })
 
   it("shows the sign-in form when there is no record and no Clerk session", () => {
@@ -87,14 +98,14 @@ describe("booting", () => {
   })
 
   it("shows the access-code form on an install without Clerk", () => {
-    expect(start({ record: null, signingOut: false, hosted: false, callback: false })).toEqual({
+    expect(start({ record: null, signingOut: false, hosted: false, clerkSession: false, callback: false })).toEqual({
       phase: signedOut,
       command: null,
     })
   })
 
   it("finishes an interrupted sign-out before anything else, even with a record left behind", () => {
-    expect(start({ record, signingOut: true, hosted: true, callback: false })).toEqual({
+    expect(start({ record, signingOut: true, hosted: true, clerkSession: true, callback: false })).toEqual({
       phase: booting,
       command: { _tag: "FinishSignOut" },
     })
@@ -106,7 +117,9 @@ describe("booting", () => {
   })
 
   it("goes straight to the install when Cloudflare sends the owner back", () => {
-    expect(start({ record: null, signingOut: false, hosted: true, callback: true }).command).toEqual({
+    expect(
+      start({ record: null, signingOut: false, hosted: true, clerkSession: true, callback: true }).command,
+    ).toEqual({
       _tag: "CheckClerk",
       callback: true,
     })

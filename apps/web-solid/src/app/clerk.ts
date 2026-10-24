@@ -79,12 +79,6 @@ function pointerOf(user: User): string | null {
 
 const stay = () => {}
 
-function within(to: string): void {
-  const next = new URL(to, location.href)
-  if (next.pathname !== location.pathname || next.search !== location.search) return
-  if (next.hash !== location.hash) location.hash = next.hash
-}
-
 interface Loaded {
   readonly clerk: Clerk
   readonly ui: Promise<ClerkUI>
@@ -115,12 +109,10 @@ function load(): Promise<Loaded> {
     const clerk = new Clerk(key)
     const ui = loadUi(key)
     ui.catch(() => {})
-    await clerk
-      .load({ ui: { ClerkUI: ui }, appearance, routerPush: within, routerReplace: within })
-      .catch((e: unknown) => {
-        console.error("clerk load failed", e)
-        throw new Error(BLOCKED)
-      })
+    await clerk.load({ ui: { ClerkUI: ui }, appearance }).catch((e: unknown) => {
+      console.error("clerk load failed", e)
+      throw new Error(BLOCKED)
+    })
     follow(clerk)
     return { clerk, ui }
   })()
@@ -165,10 +157,9 @@ export async function clerkSignOut(): Promise<void> {
   if (clerk.client?.signedInSessions.length) throw new Error("Clerk kept the session")
 }
 
-export async function mountSignIn(node: HTMLDivElement): Promise<() => void> {
+export async function openSignIn(): Promise<void> {
   const { clerk, ui } = await load()
   await ui
-  const href = location.origin + location.pathname + location.search
-  clerk.mountSignIn(node, { routing: "hash", withSignUp: true, forceRedirectUrl: href, signUpForceRedirectUrl: href })
-  return () => clerk.unmountSignIn(node)
+  const href = location.href
+  clerk.openSignIn({ withSignUp: true, forceRedirectUrl: href, signUpForceRedirectUrl: href })
 }

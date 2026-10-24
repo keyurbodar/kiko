@@ -96,7 +96,7 @@ const until = (session: Session["Service"], predicate: (phase: Phase) => boolean
 
 const reach = (session: Session["Service"], tag: Phase["_tag"]) => until(session, (phase) => phase._tag === tag)
 
-const fresh = { record: null, signingOut: false, hosted: true, callback: false }
+const fresh = { record: null, signingOut: false, hosted: true, clerkSession: true, callback: false }
 
 describe("signing out", () => {
   it.effect("closes the runtime, drops kiko:auth, signs out of Clerk, purges, then leaves", () =>
