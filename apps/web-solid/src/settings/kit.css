@@ -372,3 +372,19 @@
 .kit-tabs:has(> .pill-indicator) > .kit-tab[aria-selected="true"] {
   background: transparent;
 }
+
+@keyframes kit-flash {
+  from {
+    background-color: var(--hover);
+  }
+}
+
+.kit-flash {
+  animation: kit-flash 400ms var(--ease-kiko);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kit-flash {
+    animation: none;
+  }
+}
