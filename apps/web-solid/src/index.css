@@ -709,14 +709,6 @@
 
   h1,
   h2,
-  h3 {
-    font-family: var(--font-family-display);
-    font-variation-settings: var(--display-variation);
-    font-weight: 400;
-  }
-
-  h1,
-  h2,
   h3,
   h4,
   h5,

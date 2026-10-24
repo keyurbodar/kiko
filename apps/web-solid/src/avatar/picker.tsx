@@ -25,7 +25,7 @@ function withPins(avatars: Look["avatars"], slug: string, pins: AvatarPins): Loo
 function Section(props: { title: string; children: JSX.Element }) {
   return (
     <section class="flex flex-col gap-2">
-      <h3 class="text-hint text-fg2">{props.title}</h3>
+      <h3 class="type-label text-fg3">{props.title}</h3>
       <div class="grid grid-cols-8 gap-1" role="radiogroup" aria-label={props.title}>
         {props.children}
       </div>

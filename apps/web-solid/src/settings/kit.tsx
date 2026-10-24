@@ -103,7 +103,7 @@ export function Group(props: {
       <Show when={local.title || local.action}>
         <div class="flex items-end gap-4 px-1 pb-2.5">
           <div class="min-w-0 flex-1">
-            <Show when={local.title}>{(title) => <h2 class="text-[13px] font-medium text-fg3">{title()}</h2>}</Show>
+            <Show when={local.title}>{(title) => <h2 class="type-label text-fg3">{title()}</h2>}</Show>
             <Show when={local.description}>
               {(description) => <div class={cn("mt-0.5 text-label leading-relaxed", muted)}>{description()}</div>}
             </Show>

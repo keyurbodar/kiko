@@ -97,7 +97,7 @@ function Gallery(props: { appearance: ThemeAppearance }) {
   return (
     <Show when={installed().length}>
       <section class="flex flex-col gap-2" data-component="theme-gallery" data-appearance={props.appearance}>
-        <h2 class="flex items-center gap-2 px-1 text-[13px] font-medium text-fg3">
+        <h2 class="flex items-center gap-2 px-1 type-label text-fg3">
           {props.appearance === "dark" ? "Imported dark" : "Imported light"}
           <Show when={shown() === props.appearance}>
             <span class="text-hint font-normal text-fg4">Showing now</span>

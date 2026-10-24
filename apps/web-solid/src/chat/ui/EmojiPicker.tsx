@@ -185,7 +185,9 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
                   }}
                   data-component="emoji-section"
                 >
-                  <h3 class="flex h-8 items-center px-1.5 text-[15px] font-semibold text-fg">{section.title}</h3>
+                  <h3 class="sticky top-0 z-[1] flex h-8 items-center bg-raise px-1.5 type-label text-fg3">
+                    {section.title}
+                  </h3>
                   <div class="grid grid-cols-8" role="listbox" aria-label={section.title}>
                     <For each={section.cells}>
                       {(cell, at) => (
