@@ -10,7 +10,7 @@ const PICKER = { width: 340, height: 400 }
 const GAP = 8
 const EDGE = 8
 
-export function placeAbove(
+function placeAbove(
   anchor: { top: number; bottom: number; left: number; width: number },
   size: { width: number; height: number },
   viewport: { width: number; height: number },

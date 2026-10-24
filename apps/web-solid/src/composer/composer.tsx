@@ -1,4 +1,4 @@
-import { For, Show, Suspense, lazy, batch, createEffect, createMemo, on, onCleanup } from "solid-js"
+import { For, Show, Suspense, batch, createEffect, createMemo, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { MAX_MESSAGE_TEXT, humanAnswerText, sendFits, attachmentIds, linkAttachments } from "@kiko/protocol"
@@ -27,7 +27,7 @@ import { composerFill, takeComposerFill } from "./fill"
 
 import { createQuestionInput } from "./cards/question-input"
 import { carryDisplacedCustomAnswerIntoPrompt } from "./cards/question-model"
-const ComposerCards = lazy(() => import("./cards/composer-cards").then((m) => ({ default: m.ComposerCards })))
+import { ComposerCards } from "./cards/composer-cards"
 
 const draftFiles = () => import("./rich/draft-files")
 

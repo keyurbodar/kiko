@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/solid-router"
-import { type Component, createEffect, createSignal, For, lazy, Show, Suspense } from "solid-js"
+import { type Component, createEffect, createSignal, For, Show, Suspense } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ComposeIcon, SettingsIcon, SidebarLeftIcon, SparklesIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -12,12 +12,13 @@ import { KikoMark, KikoWordmark } from "../lib/brand"
 import { inSettings, openSettings } from "../settings/open"
 import { Sky } from "../sky/Sky"
 import { ChatPanel } from "./chat-panel"
-const UpdatePill = lazy(() => import("../app/update-pill"))
 import "./sidebar.css"
+import UpdatePill from "../app/update-pill"
+import RecipesSidebar from "./recipes/sidebar"
 
 const PANELS: Record<SectionId, Component> = {
   chat: ChatPanel,
-  recipes: lazy(() => import("./recipes/sidebar")),
+  recipes: RecipesSidebar,
 }
 const SECTION_IDS = SECTIONS.map((section) => section.id)
 

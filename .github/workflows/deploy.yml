@@ -92,6 +92,8 @@ jobs:
           cp -r "$store" apps/web-solid/dist/releases
           cp dist-release/latest-owner.json apps/web-solid/dist/releases/
           curl -fsS https://app.kiko.works/releases/latest.json -o apps/web-solid/dist/releases/latest.json
+      - name: keep the live build's assets so open tabs can still load them
+        run: bun scripts/keep-live-assets.ts apps/web-solid/dist/assets https://app.kiko.works
       - name: deploy the front door and the installer
         working-directory: infra
         env:

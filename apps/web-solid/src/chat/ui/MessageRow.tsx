@@ -1,8 +1,7 @@
-import { preloadMessageMenu } from "./MessageMenu"
 import { unnamedFiles } from "../../lib/attachments"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { AlertCircleIcon } from "@kiko/ui/icons"
-import { lazy, Show, Suspense, type JSX } from "solid-js"
+import { Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage, RosterBot } from "../../lib/types"
 import type { QuoteModel } from "../lib/reply"
@@ -14,12 +13,12 @@ import { MessageActions } from "./MessageActions"
 import { room } from "../../state/room"
 import { RunTree } from "../run/RunTree"
 import { RichText } from "./RichText"
-const RichTree = lazy(() => import("../rich/RichText").then((m) => ({ default: m.RichText })))
 import { Collapsible } from "../Collapsible"
 import { isPhotoTree } from "../rich/model"
 import { identityLook } from "../../lib/identity"
 import { RunAvatar } from "./RunAvatar"
 import { Bubble, BubbleContent, type BubblePosition } from "./bubble"
+import { RichText as RichTree } from "../rich/RichText"
 
 function bubblePosition(isRunStart: boolean, isRunEnd: boolean): BubblePosition {
   if (isRunStart && isRunEnd) return "only"
@@ -87,7 +86,6 @@ export function MessageRow(props: {
       data-run-first={props.isRunStart ? "" : undefined}
       data-gap={props.hasRunGapBefore ? "" : undefined}
       data-replying={props.replying ? "" : undefined}
-      onPointerEnter={preloadMessageMenu}
       onContextMenu={props.onContextMenu}
     >
       <Show when={grouped()}>

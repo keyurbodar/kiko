@@ -1,4 +1,4 @@
-import { Suspense, Show, createEffect, createMemo, createSignal, lazy, on } from "solid-js"
+import { Suspense, Show, createEffect, createMemo, createSignal, on } from "solid-js"
 import { useNavigate } from "@tanstack/solid-router"
 import { Icon as IconV2 } from "@kiko/ui/v2/icon"
 import { MessageList, type VirtualThreadState } from "../chat/MessageList"
@@ -18,9 +18,9 @@ import { captureLaunch, glideToDock, type Launch } from "../chat/send-motion"
 import { clearUnreadMark } from "../sidebar/unread-mark"
 import { roomEmpty } from "./chat-empty"
 import { useRefusalToasts } from "../chat/members/members"
-const QuoteOnSelect = lazy(() => import("../chat/QuoteOnSelect"))
-const UpdateNotice = lazy(() => import("./update-notice"))
-const BrowserChip = lazy(() => import("../chat/BrowserChip"))
+import QuoteOnSelect from "../chat/QuoteOnSelect"
+import UpdateNotice from "./update-notice"
+import BrowserChip from "../chat/BrowserChip"
 
 const JUMP_CLASS =
   "pointer-events-auto relative grid size-[26px] place-items-center rounded-md border border-[color-mix(in_oklab,var(--foreground)_15%,transparent)] bg-[color-mix(in_oklab,var(--foreground)_10%,transparent)] text-foreground shadow-md backdrop-blur-md"

@@ -1,12 +1,9 @@
-import { For, Match, Show, Suspense, Switch, createSignal, lazy, type JSX } from "solid-js"
+import { For, Match, Show, Suspense, Switch, createSignal, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { EmojiText } from "../../lib/emoji"
 import { richTextSegments } from "../lib/richtext/segments"
 import { Mention } from "./Mention"
-
-const SuspiciousLinkDialog = lazy(() =>
-  import("./SuspiciousLinkDialog").then((m) => ({ default: m.SuspiciousLinkDialog })),
-)
+import { SuspiciousLinkDialog } from "./SuspiciousLinkDialog"
 
 export function RichText(props: { text?: string; class?: string }): JSX.Element {
   const [maskedHref, setMaskedHref] = createSignal<string | null>(null)

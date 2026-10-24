@@ -1,4 +1,4 @@
-import { For, Match, Suspense, Switch, createSignal, lazy, onCleanup, onMount, Show, type JSX } from "solid-js"
+import { For, Match, Suspense, Switch, createSignal, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, CollapseIcon, CopyIcon, ExpandIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
@@ -14,10 +14,7 @@ import { linkHost, linkLead, richNodes, type RichNode, type TableCopy } from "./
 import { PlainFallback } from "./plain-fallback"
 import { RichImage } from "./RichImage"
 import "./rich.css"
-
-const SuspiciousLinkDialog = lazy(() =>
-  import("../ui/SuspiciousLinkDialog").then((m) => ({ default: m.SuspiciousLinkDialog })),
-)
+import { SuspiciousLinkDialog } from "../ui/SuspiciousLinkDialog"
 
 function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.Element {
   return (

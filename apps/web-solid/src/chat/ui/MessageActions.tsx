@@ -1,12 +1,10 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { MoreIcon, ReactIcon, ReplyIcon } from "@kiko/ui/icons"
-import { createSignal, lazy, onCleanup, onMount, Show, Suspense, type JSX } from "solid-js"
+import { createSignal, onCleanup, onMount, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { warmEmoji } from "../../lib/emoji-data"
 import { actionsPlacement, type ActionsPlacement } from "./actions-placement"
-
-const popoverModule = () => import("./ReactionPopover")
-const ReactionPopover = lazy(() => popoverModule().then((m) => ({ default: m.ReactionPopover })))
+import { ReactionPopover } from "./ReactionPopover"
 
 const OPEN_DELAY = 120
 const CLOSE_DELAY = 200
@@ -62,7 +60,6 @@ export function MessageActions(props: {
   })
 
   const warm = () => {
-    void popoverModule()
     warmEmoji()
   }
   const show = (fromKeyboard = false) => {

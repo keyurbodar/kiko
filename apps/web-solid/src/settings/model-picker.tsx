@@ -1,6 +1,6 @@
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
-import { createSignal, lazy, Show, Suspense, type JSX } from "solid-js"
+import { createSignal, Show, Suspense, type JSX } from "solid-js"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { room } from "../state/room"
 import { user } from "../state/user"
@@ -9,12 +9,7 @@ import { answeringMember } from "./agent-model"
 import { ReasoningMenu } from "./reasoning-menu"
 import { connectedProviders } from "./connected"
 import { hasModelProvider } from "./provider-kinds"
-
-export { favoriteModels, hiddenModels, toggleFavorite } from "./model-prefs"
-
-const loadPanel = () => import("./model-picker-panel")
-const ModelPickerPanel = lazy(loadPanel)
-export const preloadModelPicker = () => void loadPanel()
+import ModelPickerPanel from "./model-picker-panel"
 
 const [pickerOpen, setPickerOpen] = createSignal(false)
 const [pickerFor, setPickerFor] = createSignal<string | null>(null)
@@ -47,8 +42,6 @@ export function ModelPicker(props: {
         aria-expanded={props.open}
         title={props.title}
         data-component="model-picker-button"
-        onPointerEnter={loadPanel}
-        onFocus={loadPanel}
         onClick={() => props.onOpenChange(!props.open)}
       >
         {props.children}

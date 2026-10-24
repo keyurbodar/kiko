@@ -3,7 +3,7 @@ import { MonitorIcon, NotesIcon, SearchIcon, SidebarRightIcon } from "@kiko/ui/i
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Show, onMount } from "solid-js"
 import { computers, openViewer, startComputers, watchTarget } from "../chat/computers"
-import { cardShown, loadCard, toggleCard } from "../chat/side/card-state"
+import { cardShown, toggleCard } from "../chat/side/card-state"
 import { loadSidecar, sidecarOpen, toggleSidecar } from "../chat/side/surfaces"
 import { runCommand } from "../commands/registry"
 import { ChatAvatar } from "../lib/IdentityAvatar"
@@ -95,7 +95,6 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
                 data-action="toggle-card"
                 data-hint="chat.info"
                 data-hint-label="Card"
-                onPointerEnter={() => void loadCard()}
                 onClick={toggleCard}
               >
                 <RemixIcon icon={NotesIcon} size={15} />

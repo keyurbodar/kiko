@@ -5,7 +5,6 @@ import {
   createUniqueId,
   For,
   getOwner,
-  lazy,
   onCleanup,
   onMount,
   runWithOwner,
@@ -35,12 +34,9 @@ export type {
   PromptInputV2PersistedState,
   PromptInputV2Suggestion,
 } from "./types"
+import { PromptInputV2Attachments, PromptInputV2Popover } from "./extras"
 
 export type PromptInputV2Mode = "normal" | "shell"
-
-const extras = () => import("./extras")
-const PromptInputV2Attachments = lazy(() => extras().then((m) => ({ default: m.PromptInputV2Attachments })))
-const PromptInputV2Popover = lazy(() => extras().then((m) => ({ default: m.PromptInputV2Popover })))
 
 export type PromptInputV2Props = {
   controller: PromptInputV2Interaction

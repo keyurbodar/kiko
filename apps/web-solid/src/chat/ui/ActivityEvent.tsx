@@ -11,7 +11,7 @@ import {
   PlusIcon,
   StopIcon,
 } from "@kiko/ui/icons"
-import { createMemo, createSignal, lazy, onCleanup, Show, Suspense } from "solid-js"
+import { createMemo, createSignal, onCleanup, Show, Suspense } from "solid-js"
 import { openSettings } from "../../lib/errors"
 import { room } from "../../state/room"
 import type { ChatMessage } from "../../lib/types"
@@ -19,8 +19,7 @@ import { openModelPicker } from "../../settings/model-picker"
 import { reconnect } from "../../settings/provider-problem"
 import { eventRow } from "../lib/event-line"
 import { SystemRow, type RowAction } from "./SystemRow"
-
-const ComputerCard = lazy(() => import("../computer/ComputerCard"))
+import ComputerCard from "../computer/ComputerCard"
 
 const ICONS: Record<string, Glyph> = {
   created: GroupIcon,

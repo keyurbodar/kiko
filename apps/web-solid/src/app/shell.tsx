@@ -24,19 +24,16 @@ import {
 } from "solid-js"
 import { viewerFor } from "../chat/computers"
 import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces"
-import { preloadMessageMenu } from "../chat/ui/MessageMenu"
-import { preloadModelPicker } from "../settings/model-picker"
 import { preloadMessageSearch } from "../commands/message-search"
 
 import { richLoaded } from "../composer/rich/loaded"
-import { CARD_WIDTH, cardBeside, cardShown, loadCard, setCardRoom } from "../chat/side/card-state"
+import { CARD_WIDTH, cardBeside, cardShown, setCardRoom } from "../chat/side/card-state"
 import { useKatCommands } from "../commands/use-kat-commands"
 import { Palette, preloadPalette } from "../palette"
 import { botPickerOpen } from "../chat/bot-picker-state"
 import { newAgentOpen } from "../newagent/state"
 import { preloadSearch, SearchOverlay, searchScope } from "../search/state"
 import { hintsShown, watchHold } from "../commands/hints"
-const HintLayer = lazy(() => import("../commands/HintLayer"))
 import { Sidebar, SidebarToggle } from "../sidebar"
 import { deletingChatId } from "../sidebar/actions"
 import { drawerOpen, setDrawerOpen } from "./drawer"
@@ -55,8 +52,14 @@ import {
   saveWidth,
   SIDEBAR,
 } from "./widths"
+import HintLayer from "../commands/HintLayer"
+import AvatarPicker from "../avatar/picker"
+import BotPicker from "../chat/bot-picker"
+import NewAgent from "../newagent/dialog"
+import DeleteChatDialog from "../sidebar/delete-chat-dialog"
+import ChatCard from "../chat/side/card"
 
-const idlePreloads = [preloadMessageMenu, preloadModelPicker, preloadMessageSearch]
+const idlePreloads = [loadSidecar, preloadMessageSearch]
 
 const fill = (text: string, params?: Record<string, string | number | boolean>) =>
   text.replace(/{{\s*([^}]+?)\s*}}/g, (_, key: string) => String(params?.[key] ?? ""))
@@ -71,18 +74,13 @@ const i18n: UiI18n = {
     }),
 }
 
+const ComputerViewer = lazy(() => import("../chat/computer/Viewer"))
 const Sidecar = lazy(loadSidecar)
-const ChatCard = lazy(loadCard)
 const watchPanel = (el: HTMLElement) => {
   const observer = new ResizeObserver(([entry]) => setCardRoom(entry?.contentRect.width ?? 0))
   observer.observe(el)
   onCleanup(() => observer.disconnect())
 }
-const AvatarPicker = lazy(() => import("../avatar/picker"))
-const BotPicker = lazy(() => import("../chat/bot-picker"))
-const NewAgent = lazy(() => import("../newagent/dialog"))
-const ComputerViewer = lazy(() => import("../chat/computer/Viewer"))
-const DeleteChatDialog = lazy(() => import("../sidebar/delete-chat-dialog"))
 
 const KEY = "kiko:sidebar-collapsed"
 
@@ -275,7 +273,7 @@ export function Shell(props: ParentProps) {
   })
   createEffect(() => {
     if (!richLoaded()) return
-    for (const load of idlePreloads) load()
+    for (const load of idlePreloads) void load()
   })
   onMount(() => onCleanup(watchHold()))
   onMount(() => {
@@ -283,7 +281,6 @@ export function Shell(props: ParentProps) {
       if (!e.metaKey && !e.ctrlKey) return
       preloadPalette()
       preloadSearch()
-      void HintLayer.preload()
       window.removeEventListener("keydown", on, true)
     }
     window.addEventListener("keydown", on, true)

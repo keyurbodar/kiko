@@ -33,5 +33,3 @@ export function toggleCard() {
     localStorage.setItem(KEY, next ? "1" : "0")
   } catch {}
 }
-
-export const loadCard = () => import("./card")
