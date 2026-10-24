@@ -1,7 +1,16 @@
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "@kiko/ui/icons"
-import { Show, createSignal, createUniqueId, onCleanup, onMount } from "solid-js"
+import {
+  CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CloseIcon,
+  CopyIcon,
+  DownloadIcon,
+  type Glyph,
+} from "@kiko/ui/icons"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { Show, createSignal, createUniqueId, onCleanup, onMount, type JSX } from "solid-js"
 import { wrapIndex } from "../../lib/attachments"
 import "./image-dialog.css"
 import { FLIP_MS, flip, reducedMotion } from "./flip"
@@ -22,6 +31,77 @@ import {
 const NAV =
   "absolute top-1/2 z-20 grid size-9 -translate-y-1/2 place-items-center rounded-row text-white/90 hover:bg-white/10 hover:text-white"
 
+const TOOL =
+  "grid size-8 cursor-pointer place-items-center rounded-control text-fg2 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.94] focus-visible:shadow-[var(--focus-ring)] outline-none"
+
+const DONE_MS = 1200
+const READOUT_MS = 1000
+
+async function pngOf(src: string): Promise<Blob> {
+  const blob = await (await fetch(src)).blob()
+  if (blob.type === "image/png") return blob
+  const bitmap = await createImageBitmap(blob)
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+  canvas.getContext("2d")?.drawImage(bitmap, 0, 0)
+  return canvas.convertToBlob({ type: "image/png" })
+}
+
+function Tool(props: { label: string; icon: Glyph; onClick?: () => void; children?: JSX.Element }) {
+  return (
+    <TooltipV2 placement="bottom" openDelay={400} value={props.label}>
+      {props.children ?? (
+        <button type="button" class={TOOL} aria-label={props.label} onClick={() => props.onClick?.()}>
+          <RemixIcon icon={props.icon} size={16} />
+        </button>
+      )}
+    </TooltipV2>
+  )
+}
+
+function Toolbar(props: { image: DialogImage | undefined; failed: boolean; onClose: () => void }) {
+  const [copied, setCopied] = createSignal(false)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  onCleanup(() => clearTimeout(timer))
+  const copy = async () => {
+    const image = props.image
+    if (!image) return
+    const blob = await pngOf(image.src)
+    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
+    setCopied(true)
+    clearTimeout(timer)
+    timer = setTimeout(() => setCopied(false), DONE_MS)
+  }
+  return (
+    <div
+      data-chrome=""
+      data-component="image-dialog-toolbar"
+      class="absolute top-0 right-0 z-30 flex items-center gap-0.5 rounded-pop bg-raise/80 p-1 shadow-[var(--float-shadow)] backdrop-blur-md"
+    >
+      <Show when={props.image && !props.failed}>
+        <Tool label="Download" icon={DownloadIcon}>
+          <a
+            class={TOOL}
+            href={props.image!.src}
+            download={props.image!.name}
+            aria-label="Download"
+            data-action="download-image"
+          >
+            <RemixIcon icon={DownloadIcon} size={16} />
+          </a>
+        </Tool>
+        <Show when={typeof ClipboardItem !== "undefined"}>
+          <Tool
+            label={copied() ? "Copied" : "Copy image"}
+            icon={copied() ? CheckIcon : CopyIcon}
+            onClick={() => void copy()}
+          />
+        </Show>
+      </Show>
+      <Tool label="Close image preview" icon={CloseIcon} onClick={props.onClose} />
+    </div>
+  )
+}
+
 export default function ImageDialog(props: {
   images: readonly DialogImage[]
   index: number
@@ -30,6 +110,16 @@ export default function ImageDialog(props: {
 }) {
   const [offset, setOffset] = createSignal(0)
   const [failed, setFailed] = createSignal<string | null>(null)
+  const [scale, setScale] = createSignal<number | null>(null)
+  const [readout, setReadout] = createSignal(false)
+  let readoutTimer: ReturnType<typeof setTimeout> | undefined
+  onCleanup(() => clearTimeout(readoutTimer))
+  const zoomed = (next: number) => {
+    setScale(next)
+    setReadout(true)
+    clearTimeout(readoutTimer)
+    readoutTimer = setTimeout(() => setReadout(false), READOUT_MS)
+  }
   const count = () => props.images.length
   const index = () => wrapIndex(props.index + offset(), count())
   const item = () => props.images[index()]
@@ -76,15 +166,7 @@ export default function ImageDialog(props: {
           }}
         >
           <ModalV2.Title class="sr-only">Image preview</ModalV2.Title>
-          <button
-            type="button"
-            data-chrome=""
-            class="absolute top-0 right-0 z-30 grid size-8 place-items-center rounded-row bg-black/65 text-white shadow-sm ring-1 ring-white/20 hover:bg-black/80"
-            aria-label="Close image preview"
-            onClick={close}
-          >
-            <RemixIcon icon={CloseIcon} class="size-4" />
-          </button>
+          <Toolbar image={item()} failed={failed() === item()?.src} onClose={close} />
           <Show when={count() > 1}>
             <button
               type="button"
@@ -108,9 +190,10 @@ export default function ImageDialog(props: {
                   fallback={
                     <div
                       role="alert"
-                      class="flex h-48 w-[min(92vw,32rem)] items-center justify-center rounded-row border border-white/15 bg-black p-6 text-center text-label text-white"
+                      class="flex h-48 w-[min(92vw,32rem)] flex-col items-center justify-center gap-1 rounded-card bg-panel p-6 text-center"
                     >
-                      Image unavailable. The file may have been moved or deleted.
+                      <p class="type-row text-fg">Image unavailable</p>
+                      <p class="type-label text-fg3">The file may have been moved or deleted.</p>
                     </div>
                   }
                 >
@@ -121,6 +204,7 @@ export default function ImageDialog(props: {
                     onError={() => setFailed(image.src)}
                     panRef={(fn) => (pan = fn)}
                     shrinkRef={(fn) => (shrink = fn)}
+                    onZoom={zoomed}
                   />
                 </Show>
                 <p
@@ -131,6 +215,14 @@ export default function ImageDialog(props: {
                 >
                   {image.name}
                   {count() > 1 ? ` (${index() + 1}/${count()})` : ""}
+                </p>
+                <p
+                  class="h-4 type-hint text-white/70 tabular-nums transition-opacity duration-(--dur-pop) ease-kiko"
+                  classList={{ "opacity-0": !readout() }}
+                  aria-hidden="true"
+                  data-component="image-dialog-zoom"
+                >
+                  {scale() === null ? "" : `${Math.round(scale()! * 100)}%`}
                 </p>
               </div>
             )}
@@ -159,6 +251,7 @@ function ZoomableImage(props: {
   onError: () => void
   panRef: (pan: (key: string) => boolean) => void
   shrinkRef: (shrink: (to: DOMRect) => void) => void
+  onZoom: (scale: number) => void
 }) {
   let viewport!: HTMLDivElement
   const hint = createUniqueId()
@@ -187,6 +280,7 @@ function ZoomableImage(props: {
     const anchor = anchorAt({ x: viewport.scrollLeft, y: viewport.scrollTop }, at, previous)
     const screen = { x: bounds.left + at.x, y: bounds.top + at.y }
     setZoom(target)
+    props.onZoom(fit() * target)
     const moved = viewport.getBoundingClientRect()
     const scroll = scrollFor(anchor, { x: screen.x - moved.left, y: screen.y - moved.top }, target)
     viewport.scrollLeft = scroll.x
@@ -236,7 +330,7 @@ function ZoomableImage(props: {
         aria-describedby={hint}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region takes focus so the keyboard can scroll it
         tabIndex={0}
-        class="max-w-[calc(92vw-96px)] overflow-auto overscroll-contain rounded-row border border-white/15 shadow-2xl outline-none max-sm:max-w-[92vw]"
+        class="max-w-[calc(92vw-96px)] overflow-auto overscroll-contain rounded-tile shadow-[var(--float-shadow)] outline-none max-sm:max-w-[92vw]"
         style={{
           width: width() ? `${width()}px` : undefined,
           height: height() ? `${height()}px` : undefined,
