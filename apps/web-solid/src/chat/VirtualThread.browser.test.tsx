@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
 import { render } from "../../test/render"
 import type { ChatMessage, RosterBot } from "../lib/types"
+import { DateChip } from "./ui/DateChip"
 import { VirtualThread } from "./VirtualThread"
 
 const ROOM = "01900000-0000-7000-8000-0000000000cc"
@@ -108,6 +109,37 @@ describe("VirtualThread scrolling", () => {
     await vi.waitFor(() => expect(threadToggleBefore(host, anchor)!.getAttribute("aria-expanded")).toBe("true"))
     expect(top()).toBe(before.top)
     expect(scroller.scrollTop).toBe(before.scrollTop)
+  })
+
+  it("keeps the date chip on screen while the pointer rests on it after scrolling stops", async () => {
+    const [scrolling, setScrolling] = createSignal(true)
+    await using screen = await render(() => (
+      <div class="relative h-40 w-96">
+        <DateChip
+          dayStart={Date.UTC(2026, 9, 22)}
+          now={Date.UTC(2026, 9, 24)}
+          visible={scrolling()}
+          onJumpToDay={() => {}}
+        />
+      </div>
+    ))
+    const chip = screen.container.querySelector<HTMLElement>('[data-component="chat-date-chip"]')!
+
+    await userEvent.hover(screen.getByRole("button", { name: "Oct 22" }))
+    setScrolling(false)
+
+    expect(chip.hasAttribute("data-visible")).toBe(true)
+  })
+
+  it("does not cover the top rows with the date chip when the pointer only rests near the top", async () => {
+    const { screen, host, scroller } = await mountThread()
+    await using _ = screen
+    const chip = host.querySelector<HTMLElement>('[data-component="chat-date-chip"]')!
+    const view = scroller.getBoundingClientRect()
+
+    await userEvent.hover(scroller, { position: { x: view.width / 2, y: 20 }, force: true })
+
+    expect(chip.hasAttribute("data-visible")).toBe(false)
   })
 
   it("follows a reply that arrives while the chat is at its end", async () => {

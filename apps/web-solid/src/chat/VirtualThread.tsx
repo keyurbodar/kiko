@@ -48,8 +48,6 @@ const DATE_CHIP_IDLE_MS = 1200
 
 const READER_SCROLL_MS = 250
 
-const DATE_CHIP_EDGE_PX = 56
-
 const STAGE_CLASS = "relative flex min-h-0 flex-1 flex-col"
 
 const SCROLLER_CLASS =
@@ -185,7 +183,6 @@ export function VirtualThread(props: {
   })
 
   const [scrolling, setScrolling] = createSignal(false)
-  const [nearTopEdge, setNearTopEdge] = createSignal(false)
   let scrollIdle: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(scrollIdle))
   const noteScrolling = () => {
@@ -193,7 +190,7 @@ export function VirtualThread(props: {
     clearTimeout(scrollIdle)
     scrollIdle = setTimeout(() => setScrolling(false), DATE_CHIP_IDLE_MS)
   }
-  const dateChipVisible = createMemo(() => topVisibleDay() !== undefined && (scrolling() || nearTopEdge()))
+  const dateChipVisible = createMemo(() => topVisibleDay() !== undefined && scrolling())
 
   const [landed, setLanded] = createSignal<string | undefined>()
   let landingGeneration = 0
@@ -504,18 +501,6 @@ export function VirtualThread(props: {
     }
     createEventListener(document, "pointerup", endDrag, { passive: true })
     createEventListener(document, "pointercancel", endDrag, { passive: true })
-    createEventListener(
-      () => scroller,
-      "pointermove",
-      (event: PointerEvent) => setNearTopEdge(event.clientY - scroller.getBoundingClientRect().top < DATE_CHIP_EDGE_PX),
-      { passive: true },
-    )
-    createEventListener(
-      () => scroller,
-      "pointerleave",
-      () => setNearTopEdge(false),
-      { passive: true },
-    )
     createEventListener(
       () => column,
       "click",
