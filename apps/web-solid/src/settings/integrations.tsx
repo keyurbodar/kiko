@@ -1,13 +1,14 @@
 import type { ComposioResult, ComposioStatus, KernelResult, KernelStatus } from "@kiko/protocol"
-import { Show, createSignal, lazy, onCleanup, onMount } from "solid-js"
+import { Show, createSignal, onCleanup, onMount } from "solid-js"
 import { cn } from "../lib/cn"
 import { Button, Notice, fieldClass } from "./kit"
 import { createComposioClient, createKernelClient, type ComposioClient, type KernelClient } from "./integrations-client"
+import LiveBrowser from "./live-browser"
 import { SECRET_FIELD } from "../lib/secret-field"
+import { createQuery, owner } from "../state/runtime"
 import { onUserSignal } from "../state/user"
 
 const COMPOSIO_PLATFORM = "https://platform.composio.dev"
-const LiveBrowser = lazy(() => import("./live-browser"))
 
 const KERNEL_HOME = "https://dashboard.onkernel.com"
 
@@ -88,25 +89,34 @@ function KeyField(props: {
 }
 
 export function useIntegrations(props: { client?: ComposioClient; kernel?: KernelClient } = {}) {
-  const [status, setStatus] = createSignal<ComposioStatus | null>(null)
+  const composioQuery = createQuery(() => owner.queries.composio({}))
+  const kernelQuery = createQuery(() => owner.queries.kernel(undefined))
+  const [pushedStatus, setPushedStatus] = createSignal<ComposioStatus | null>(null)
+  const [pushedKernel, setPushedKernel] = createSignal<KernelStatus | null>(null)
   const [error, setError] = createSignal<{ where: Where; text: string } | null>(null)
   const [busy, setBusy] = createSignal(false)
   const errorAt = (where: Where) => (error()?.where === where ? error()?.text : undefined)
-  const [kernel, setKernel] = createSignal<KernelStatus | null>(null)
+  const status = (): ComposioStatus | null => {
+    const result = composioQuery()
+    return pushedStatus() ?? (result?.ok ? result.status : null)
+  }
+  const kernel = (): KernelStatus | null => {
+    const result = kernelQuery()
+    return pushedKernel() ?? (result?.ok ? result.status : null)
+  }
   let client: ComposioClient | undefined
   let kernelClient: KernelClient | undefined
-  let closed = false
 
   function applyKernel(result: KernelResult) {
     if (!result.ok) return setError({ where: "kernel", text: result.error })
     setError(null)
-    setKernel(result.status)
+    setPushedKernel(result.status)
   }
 
   function apply(result: ComposioResult) {
     if (!result.ok) return setError({ where: "app", text: result.error })
     setError(null)
-    setStatus(result.status)
+    setPushedStatus(result.status)
   }
 
   onMount(() => {
@@ -114,19 +124,17 @@ export function useIntegrations(props: { client?: ComposioClient; kernel?: Kerne
     client.onPush(apply)
     kernelClient = props.kernel ?? createKernelClient()
     kernelClient.onPush(applyKernel)
-    const refresh = () => {
-      void client?.request({ t: "composioStatus" }).then((r) => !closed && apply(r))
-      void kernelClient?.request({ t: "kernelStatus" }).then((r) => !closed && applyKernel(r))
-    }
-    refresh()
     onCleanup(
       onUserSignal("changed", (signal) => {
-        if (signal.what === "memory") refresh()
+        if (signal.what !== "memory") return
+        setPushedStatus(null)
+        setPushedKernel(null)
+        composioQuery.refetch()
+        kernelQuery.refetch()
       }),
     )
   })
   onCleanup(() => {
-    closed = true
     if (!props.client) client?.close()
     if (!props.kernel) kernelClient?.close()
   })

@@ -9,19 +9,7 @@ import { I18nProvider, pluralCategory, pluralKey, type UiI18n } from "@kiko/ui/c
 import { dict } from "@kiko/ui/i18n/en"
 import { ToastV2 } from "@kiko/ui/v2/toast-v2"
 import { avatarPickerSlug } from "../avatar/picker-state"
-import {
-  createEffect,
-  createSignal,
-  getOwner,
-  lazy,
-  on,
-  onCleanup,
-  onMount,
-  runWithOwner,
-  Show,
-  Suspense,
-  type ParentProps,
-} from "solid-js"
+import { createEffect, createSignal, lazy, on, onCleanup, onMount, Show, Suspense, type ParentProps } from "solid-js"
 import { viewerFor } from "../chat/computers"
 import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces"
 import { preloadMessageSearch } from "../commands/message-search"
@@ -33,6 +21,7 @@ import { Palette, preloadPalette } from "../palette"
 import { botPickerOpen } from "../chat/bot-picker-state"
 import { newAgentOpen } from "../newagent/state"
 import { preloadSearch, SearchOverlay, searchScope } from "../search/state"
+import { bindCommandHotkeys } from "../commands/hotkeys"
 import { hintsShown, watchHold } from "../commands/hints"
 import { Sidebar, SidebarToggle } from "../sidebar"
 import { deletingChatId } from "../sidebar/actions"
@@ -260,14 +249,15 @@ export function Shell(props: ParentProps) {
     return path
   })
   useKatCommands({ toggleSidebar: toggle })
-  const owner = getOwner()
   onMount(() => {
-    void import("../commands/hotkeys").then((m) => runWithOwner(owner, () => m.bindCommandHotkeys()))
+    bindCommandHotkeys()
   })
   onMount(() => {
     if (sideOpen()) void loadSidecar()
     whenIdle(() => {
       void router.preloadRoute({ to: "/settings/models" }).catch(() => {})
+      preloadSearch()
+      preloadPalette()
       setTimeout(() => void import("../settings/catalog").then((m) => m.prefetchCatalog()), 3000)
     })
   })

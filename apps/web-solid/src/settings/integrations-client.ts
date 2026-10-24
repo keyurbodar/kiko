@@ -1,9 +1,9 @@
 import type { ComposioResult, KernelResult } from "@kiko/protocol"
-import { call, load, owner } from "../state/runtime"
+import { call, owner } from "../state/runtime"
 import { onUserSignal } from "../state/user"
 
-type ComposioAsk = { t: "connectComposio"; apiKey: string } | { t: "disconnectComposio" } | { t: "composioStatus" }
-type KernelAsk = { t: "connectKernel"; apiKey: string } | { t: "disconnectKernel" } | { t: "kernelStatus" }
+type ComposioAsk = { t: "connectComposio"; apiKey: string } | { t: "disconnectComposio" }
+type KernelAsk = { t: "connectKernel"; apiKey: string } | { t: "disconnectKernel" }
 
 export type RequestClient<Ask, R> = {
   request(frame: Ask): Promise<R>
@@ -24,14 +24,12 @@ async function settle<R>(pending: Promise<R>): Promise<R> {
 
 function composioRequest(ask: ComposioAsk): Promise<ComposioResult> {
   if (ask.t === "connectComposio") return settle(call(owner.commands.composioConnect, { apiKey: ask.apiKey }))
-  if (ask.t === "disconnectComposio") return settle(call(owner.commands.composioDisconnect, {}))
-  return settle(load(owner.queries.composio({}), { refresh: true }))
+  return settle(call(owner.commands.composioDisconnect, {}))
 }
 
 function kernelRequest(ask: KernelAsk): Promise<KernelResult> {
   if (ask.t === "connectKernel") return settle(call(owner.commands.kernelConnect, { apiKey: ask.apiKey }))
-  if (ask.t === "disconnectKernel") return settle(call(owner.commands.kernelDisconnect, {}))
-  return settle(load(owner.queries.kernel(undefined), { refresh: true }))
+  return settle(call(owner.commands.kernelDisconnect, {}))
 }
 
 function createClient<Ask, R>(type: "composio" | "kernel", request: (ask: Ask) => Promise<R>): RequestClient<Ask, R> {

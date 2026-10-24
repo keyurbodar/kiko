@@ -184,9 +184,8 @@ export function watchLatest() {
   watching = true
   void refreshLatest()
   const visible = () => document.visibilityState === "visible" && void refreshLatest()
-  window.addEventListener("focus", () => void refreshLatest())
   document.addEventListener("visibilitychange", visible)
-  setInterval(() => void refreshLatest(), LATEST_POLL_MS)
+  setInterval(() => document.hidden || void refreshLatest(), LATEST_POLL_MS)
 }
 
 export async function checkForUpdates(): Promise<void> {

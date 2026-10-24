@@ -43,14 +43,18 @@ const outcome = (result: SettledAsyncResult<unknown, unknown>): Outcome =>
   result._tag === "Success" ? { ok: true } : { ok: false, error: failureMessage(result.cause, "Kiko did not answer.") }
 
 export async function renameComputer(pcId: string, name: string): Promise<Outcome> {
+  const previous = computerById(pcId)?.name
+  patch(pcId, (c) => ({ ...c, name }))
   const result = outcome(await run(owner.commands.pcRename, { pcId, name }))
-  if (result.ok) patch(pcId, (c) => ({ ...c, name }))
+  if (!result.ok && previous !== undefined) patch(pcId, (c) => ({ ...c, name: previous }))
   return result
 }
 
 export async function removeComputer(pcId: string): Promise<Outcome> {
+  const previous = list()
+  setList((all) => all.filter((c) => c.id !== pcId))
   const result = outcome(await run(owner.commands.pcRemove, { pcId }))
-  if (result.ok) setList((all) => all.filter((c) => c.id !== pcId))
+  if (!result.ok) setList((all) => (all.some((c) => c.id === pcId) ? all : previous))
   return result
 }
 
