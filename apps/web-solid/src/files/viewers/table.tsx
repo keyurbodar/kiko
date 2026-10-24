@@ -28,7 +28,7 @@ export default function TableView(props: { roomId: string; file: FileRef }) {
                   <tr>
                     <For each={rows[0] ?? []}>
                       {(cell) => (
-                        <th class="max-w-80 border-b border-[var(--border)] bg-card px-3 py-1.5 text-left align-bottom font-medium break-words whitespace-pre-wrap">
+                        <th class="max-w-80 border-b border-[var(--line)] bg-panel px-3 py-1.5 text-left align-bottom font-medium break-words whitespace-pre-wrap">
                           {cell}
                         </th>
                       )}
@@ -38,10 +38,10 @@ export default function TableView(props: { roomId: string; file: FileRef }) {
                 <tbody>
                   <For each={rows.slice(1)}>
                     {(row) => (
-                      <tr class="even:bg-accent">
+                      <tr class="even:bg-active">
                         <For each={row}>
                           {(cell) => (
-                            <td class="max-w-80 border-b border-[var(--border)] px-3 py-1.5 align-top break-words whitespace-pre-wrap tabular-nums">
+                            <td class="max-w-80 border-b border-[var(--line)] px-3 py-1.5 align-top break-words whitespace-pre-wrap tabular-nums">
                               {cell}
                             </td>
                           )}

@@ -1,6 +1,6 @@
 import type { RecipeCard, RecipeInstall } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { MoreIcon, PauseIcon } from "@kiko/ui/icons"
+import { ClockIcon, MoreIcon, PauseIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { openChat } from "../app/history"
 import { Show } from "solid-js"
@@ -8,12 +8,11 @@ import { cn } from "../lib/cn"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
 import { room } from "../state/room"
 import { iconButtonClass, Spinner } from "../settings/kit"
-import { RecipeIcon, RecipeWatermark, toneStyle } from "./icon"
 import { type InstallStatus, installStatus, nextRunLabel } from "./model"
 import { agentName, editRecipe, isEditing, removeInstall, setInstallPaused, targetsForChat } from "./state"
 
 const pillClass =
-  "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs text-muted-foreground hover:bg-control-strong hover:text-foreground"
+  "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs text-fg3 hover:bg-active hover:text-fg"
 
 function StatusChip(props: { status: InstallStatus }) {
   const chip = "flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs"
@@ -23,23 +22,44 @@ function StatusChip(props: { status: InstallStatus }) {
         const s = props.status
         if (s.kind === "next")
           return (
-            <span class={cn(chip, "min-w-0 bg-control text-foreground/85")}>
+            <span class={cn(chip, "min-w-0 bg-panel text-fg")}>
               <span class="truncate">{nextRunLabel(s.at, Date.now())}</span>
             </span>
           )
         if (s.kind === "paused")
           return (
             <>
-              <span class={cn(chip, "bg-control text-muted-foreground")}>
+              <span class={cn(chip, "bg-panel text-fg3")}>
                 <RemixIcon icon={PauseIcon} size={11} />
                 Paused
               </span>
-              <span class="truncate text-xs text-muted-foreground">{s.schedule}</span>
+              <span class="truncate text-xs text-fg3">{s.schedule}</span>
             </>
           )
-        return <span class="truncate text-xs text-muted-foreground">{s.label}</span>
+        return <span class="truncate text-xs text-fg3">{s.label}</span>
       })()}
     </span>
+  )
+}
+
+function InstallMenu(props: { install: RecipeInstall; card: RecipeCard; go: (roomId: string) => void }) {
+  return (
+    <MenuV2 gutter={4} placement="bottom-end">
+      <MenuV2.Trigger class={cn(iconButtonClass, "rounded-full")} aria-label={`More for ${props.card.title}`}>
+        <Show when={isEditing(props.card.slug)} fallback={<RemixIcon icon={MoreIcon} size={16} />}>
+          <Spinner size={16} />
+        </Show>
+      </MenuV2.Trigger>
+      <MenuV2.Portal>
+        <MenuV2.Content class="z-[80]">
+          <MenuV2.Item onSelect={() => props.go(props.install.roomId)}>Open chat</MenuV2.Item>
+          <MenuV2.Item onSelect={() => void editRecipe(props.card.slug, props.go)}>Edit recipe</MenuV2.Item>
+          <MenuV2.Item onSelect={() => removeInstall(props.install)}>
+            Remove from {agentName(props.install.agent)}
+          </MenuV2.Item>
+        </MenuV2.Content>
+      </MenuV2.Portal>
+    </MenuV2>
   )
 }
 
@@ -57,22 +77,7 @@ function InstallActions(props: { install: RecipeInstall; card: RecipeCard; go: (
           {status().kind === "next" ? "Pause" : "Resume"}
         </button>
       </Show>
-      <MenuV2 gutter={4} placement="bottom-end">
-        <MenuV2.Trigger class={cn(iconButtonClass, "rounded-full")} aria-label={`More for ${props.card.title}`}>
-          <Show when={isEditing(props.card.slug)} fallback={<RemixIcon icon={MoreIcon} size={16} />}>
-            <Spinner size={16} />
-          </Show>
-        </MenuV2.Trigger>
-        <MenuV2.Portal>
-          <MenuV2.Content class="z-[80]">
-            <MenuV2.Item onSelect={() => props.go(props.install.roomId)}>Open chat</MenuV2.Item>
-            <MenuV2.Item onSelect={() => void editRecipe(props.card.slug, props.go)}>Edit recipe</MenuV2.Item>
-            <MenuV2.Item onSelect={() => removeInstall(props.install)}>
-              Remove from {agentName(props.install.agent)}
-            </MenuV2.Item>
-          </MenuV2.Content>
-        </MenuV2.Portal>
-      </MenuV2>
+      <InstallMenu install={props.install} card={props.card} go={props.go} />
     </span>
   )
 }
@@ -80,7 +85,7 @@ function InstallActions(props: { install: RecipeInstall; card: RecipeCard; go: (
 function Runner(props: { install: RecipeInstall }) {
   return (
     <Show when={targetsForChat(props.install.roomId).length > 1}>
-      <span class="flex shrink-0 items-center gap-1 text-xs text-foreground/80">
+      <span class="flex shrink-0 items-center gap-1 text-xs text-fg">
         <IdentityAvatar seed={props.install.agent} size={16} />
         {agentName(props.install.agent)}
       </span>
@@ -90,37 +95,62 @@ function Runner(props: { install: RecipeInstall }) {
 
 export function InstallCard(props: { install: RecipeInstall; card: RecipeCard }) {
   const chatName = () => room.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
+  const status = () => installStatus(props.install, props.card)
+  const on = () => status().kind === "next"
+  const note = () => {
+    const s = status()
+    return s.kind === "next" ? nextRunLabel(s.at, Date.now()) : s.kind === "paused" ? "Paused" : s.label
+  }
   return (
     <article
-      class="recipe-card flex min-w-0 flex-col gap-4 rounded-[20px] p-4 [--recipe-surface:var(--card)]"
-      style={toneStyle(props.card)}
+      class="tpl group flex min-w-0 items-center gap-4 p-3.5"
       data-install={props.install.installId}
-      data-status={installStatus(props.install, props.card).kind}
+      data-status={status().kind}
     >
-      <RecipeWatermark recipe={props.card} />
+      <span class="tpl-tile">
+        <svg
+          class="tpl-glyph"
+          viewBox="0 0 256 256"
+          fill="currentColor"
+          aria-hidden="true"
+          innerHTML={props.card.glyph}
+        />
+      </span>
       <button
         type="button"
-        class="flex min-w-0 cursor-pointer items-center gap-3.5 text-left outline-none after:absolute after:inset-0 after:rounded-[inherit]"
+        class="flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5 text-left outline-none after:absolute after:inset-0 after:rounded-[inherit]"
         data-action="open-recipe-chat"
         aria-label={`Open ${chatName()}`}
         onClick={() => openChat(props.install.roomId)}
       >
-        <RecipeIcon recipe={props.card} size={48} stickers />
-        <span class="flex min-w-0 flex-1 flex-col gap-1">
-          <span class="truncate text-[15px] font-semibold tracking-[-0.01em] text-foreground">{props.card.title}</span>
-          <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-            <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={16} />
-            <span class="truncate">{chatName()}</span>
-          </span>
+        <span class="truncate text-[14px] leading-5 font-semibold text-fg">{props.card.title}</span>
+        <span class="truncate text-[13.5px] leading-5 text-fg3">{props.card.description}</span>
+        <span class="mt-0.5 flex min-w-0 items-center gap-2 text-[13px] text-fg4">
+          <RemixIcon icon={ClockIcon} size={14} class="shrink-0" />
+          <span class="truncate">{props.card.when}</span>
+          <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={18} />
+          <span class="truncate">{chatName()}</span>
         </span>
       </button>
-      <div class="flex min-w-0 items-center gap-2">
-        <Runner install={props.install} />
-        <span class="min-w-0 flex-1">
-          <StatusChip status={installStatus(props.install, props.card)} />
+      <span class="relative z-[1] flex shrink-0 items-center gap-3">
+        <span class="hidden text-[13px] text-fg3 @min-[560px]/page:block" data-component="recipe-status">
+          {note()}
         </span>
-        <InstallActions install={props.install} card={props.card} go={openChat} />
-      </div>
+        <Show when={status().kind !== "ask"}>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={on()}
+            aria-label={`${on() ? "Pause" : "Resume"} ${props.card.title}`}
+            class="tpl-switch cursor-pointer outline-none active:scale-[0.97]"
+            data-action="recipe-pause"
+            onClick={() => setInstallPaused(props.install, on())}
+          />
+        </Show>
+        <span class="opacity-0 transition-opacity duration-[var(--dur-hover)] group-hover:opacity-100 group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100">
+          <InstallMenu install={props.install} card={props.card} go={openChat} />
+        </span>
+      </span>
     </article>
   )
 }
@@ -129,7 +159,7 @@ export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; na
   const title = () => room.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
   return (
     <div
-      class="flex items-center gap-2 rounded-[14px] px-2.5 py-2 hover:bg-control"
+      class="flex items-center gap-2 rounded-[14px] px-2.5 py-2 hover:bg-hover"
       data-install={props.install.installId}
       data-status={installStatus(props.install, props.card).kind}
     >
@@ -141,7 +171,7 @@ export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; na
       >
         <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={36} />
         <span class="flex min-w-0 flex-1 flex-col gap-1">
-          <span class="truncate text-[13.5px] font-medium text-foreground">{title()}</span>
+          <span class="truncate text-[13.5px] font-medium text-fg">{title()}</span>
           <span class="flex min-w-0 items-center gap-2">
             <Runner install={props.install} />
             <StatusChip status={installStatus(props.install, props.card)} />

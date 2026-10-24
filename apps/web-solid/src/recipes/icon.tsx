@@ -20,19 +20,7 @@ export function AppLogo(props: { app: RecipeApp; size: number; overlap?: number 
   )
 }
 
-export const toneStyle = (recipe: Pick<RecipeCard, "tone">) => ({ "--recipe-tone": `var(--recipe-${recipe.tone})` })
-
-export function RecipeWatermark(props: { recipe: Pick<RecipeCard, "glyph"> }) {
-  return (
-    <svg
-      class="recipe-watermark"
-      viewBox="0 0 256 256"
-      fill="currentColor"
-      aria-hidden="true"
-      innerHTML={props.recipe.glyph}
-    />
-  )
-}
+const toneStyle = (recipe: Pick<RecipeCard, "tone">) => ({ "--recipe-tone": `var(--recipe-${recipe.tone})` })
 
 export function RecipeIcon(props: {
   recipe: Pick<RecipeCard, "glyph" | "tone" | "apps">

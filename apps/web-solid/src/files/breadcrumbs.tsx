@@ -31,7 +31,7 @@ export function FileBreadcrumbs(props: {
         {(dir) => (
           <>
             <FolderCrumb dir={dir} current={props.path} index={props.index} onOpen={props.onOpen} />
-            <RemixIcon icon={ChevronRightIcon} size={14} class="mx-1 shrink-0 text-muted-foreground opacity-60" />
+            <RemixIcon icon={ChevronRightIcon} size={14} class="mx-1 shrink-0 text-fg3 opacity-60" />
           </>
         )}
       </For>
@@ -41,12 +41,10 @@ export function FileBreadcrumbs(props: {
         title={props.path}
         data-component="file-path"
       >
-        <span class="block max-w-40 truncate rounded-sm px-0.5 font-medium text-foreground">
-          {basename(props.path)}
-        </span>
+        <span class="block max-w-40 truncate rounded-sm px-0.5 font-medium text-fg">{basename(props.path)}</span>
         <Show when={props.unsaved}>
           <span
-            class="ml-1.5 size-1.5 shrink-0 rounded-full bg-[var(--muted-foreground)]"
+            class="ml-1.5 size-1.5 shrink-0 rounded-full bg-[var(--fg3)]"
             data-component="file-unsaved"
             title="Saving"
             role="img"
@@ -64,7 +62,7 @@ function FolderCrumb(props: { dir: string; current: string; index: TreeIndex; on
   return (
     <MenuV2 gutter={4} placement="bottom-start" onOpenChange={(open) => open && setAt(props.dir)}>
       <MenuV2.Trigger
-        class="block max-w-40 shrink-0 cursor-pointer truncate rounded-sm px-0.5 text-left text-muted-foreground hover:bg-accent hover:text-foreground data-[expanded]:bg-accent data-[expanded]:text-foreground"
+        class="block max-w-40 shrink-0 cursor-pointer truncate rounded-sm px-0.5 text-left text-fg3 hover:bg-hover hover:text-fg data-[expanded]:bg-active data-[expanded]:text-fg"
         aria-label={`Browse ${label(props.dir)}`}
         title={props.dir || "Files"}
         data-component="file-crumb"
@@ -87,7 +85,7 @@ function FolderCrumb(props: { dir: string; current: string; index: TreeIndex; on
                   <MenuV2.Item closeOnSelect={false} onSelect={() => setAt(path)}>
                     <FileIcon node={{ path, type: "directory" }} />
                     <span class="min-w-0 flex-1 truncate">{basename(path)}</span>
-                    <RemixIcon icon={ChevronRightIcon} class="size-3.5 shrink-0 text-muted-foreground" />
+                    <RemixIcon icon={ChevronRightIcon} class="size-3.5 shrink-0 text-fg3" />
                   </MenuV2.Item>
                 ) : (
                   <MenuV2.Item

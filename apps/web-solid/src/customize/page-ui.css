@@ -1,0 +1,33 @@
+.page-tabs-pill {
+  will-change: transform, width;
+}
+
+.page-tabs[data-settled] .page-tabs-pill {
+  transition:
+    transform var(--dur-pop) var(--ease-kiko),
+    width var(--dur-pop) var(--ease-kiko);
+}
+
+.page-skeleton {
+  background: linear-gradient(90deg, var(--active) 0%, var(--hover) 50%, var(--active) 100%);
+  background-size: 200% 100%;
+  animation: page-skeleton 1.4s ease-in-out infinite;
+}
+
+@keyframes page-skeleton {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-skeleton {
+    animation: none;
+  }
+  .page-tabs[data-settled] .page-tabs-pill {
+    transition: none;
+  }
+}
