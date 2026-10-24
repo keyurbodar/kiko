@@ -702,6 +702,9 @@
     gap: 10px 14px;
     padding-block: 10px;
   }
+  .palette-tab {
+    padding: 0 9px;
+  }
   .palette-tabs {
     overflow-x: auto;
     scrollbar-width: none;

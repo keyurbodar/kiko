@@ -1,0 +1,113 @@
+.picker-trigger {
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko),
+    transform var(--dur-hover) var(--ease-kiko);
+}
+.picker-trigger:active {
+  transform: scale(0.97);
+}
+.picker-swap {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.picker-chevron {
+  opacity: 0.7;
+  transition: transform var(--dur-hover) var(--ease-kiko);
+}
+.picker-trigger[aria-expanded="true"] .picker-chevron {
+  transform: rotate(180deg);
+}
+
+.picker-panel {
+  transform-origin: bottom left;
+}
+.picker-rail-button {
+  max-height: 36px;
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko),
+    transform var(--dur-hover) var(--ease-kiko),
+    max-height var(--dur-pop) var(--ease-kiko),
+    opacity var(--dur-pop) var(--ease-kiko);
+}
+.picker-rail-button[data-dim] {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.picker-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  min-width: 22px;
+  padding: 1px 6px 0;
+  border-radius: 7px;
+  background: var(--active);
+  color: var(--fg3);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+}
+.picker-kbd svg {
+  width: 12px;
+  height: 12px;
+}
+.picker-flip svg {
+  transform: rotate(180deg);
+}
+.picker-kbd-pair {
+  display: inline-flex;
+  gap: 4px;
+}
+.picker-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+  height: 44px;
+  padding: 0 16px;
+  background: var(--panel);
+  color: var(--fg3);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.picker-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .picker-panel {
+    animation: picker-in var(--dur-pop) var(--ease-kiko);
+  }
+  .picker-swap {
+    animation: picker-swap var(--dur-pop) var(--ease-kiko);
+  }
+  .picker-swap[data-slide] {
+    animation-name: picker-slide;
+  }
+}
+@keyframes picker-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+@keyframes picker-swap {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes picker-slide {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}

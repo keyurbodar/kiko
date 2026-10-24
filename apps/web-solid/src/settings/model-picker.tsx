@@ -1,6 +1,9 @@
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { ChevronDownIcon } from "@kiko/ui/icons"
 import { createSignal, Show, Suspense, type JSX } from "solid-js"
+import { cn } from "../lib/cn"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { room } from "../state/room"
 import { user } from "../state/user"
@@ -10,6 +13,7 @@ import { ReasoningMenu } from "./reasoning-menu"
 import { connectedProviders } from "./connected"
 import { hasModelProvider } from "./provider-kinds"
 import ModelPickerPanel from "./model-picker-panel"
+import "./model-picker.css"
 
 const [pickerOpen, setPickerOpen] = createSignal(false)
 const [pickerFor, setPickerFor] = createSignal<string | null>(null)
@@ -37,7 +41,7 @@ export function ModelPicker(props: {
       <button
         ref={trigger}
         type="button"
-        class={props.class}
+        class={cn("picker-trigger", props.class)}
         aria-haspopup="dialog"
         aria-expanded={props.open}
         title={props.title}
@@ -67,6 +71,7 @@ export function ModelPickerButton(props: { draft: string }) {
     <Show when={hasModelProvider(connectedProviders()) ? target() : undefined}>
       {(member) => {
         const current = () => user.agentModel(member().slug)
+        const label = () => current()?.name ?? current()?.model.split("/").slice(1).join("/") ?? "Choose model"
         return (
           <>
             <ModelPicker
@@ -80,28 +85,28 @@ export function ModelPickerButton(props: { draft: string }) {
               <Show when={members().length > 1}>
                 <IdentityAvatar seed={member().slug} size={14} />
               </Show>
-              <Show when={current()?.model.split("/")[0]}>
-                {(provider) => <ProviderIcon id={provider()} width="13" height="13" />}
+              <Show when={current()?.model.split("/")[0]} keyed>
+                {(provider) => (
+                  <span class="picker-swap">
+                    <ProviderIcon id={provider} width="13" height="13" />
+                  </span>
+                )}
               </Show>
-              <span class="truncate" data-component="composer-model">
-                {current()?.name ?? current()?.model.split("/").slice(1).join("/") ?? "Choose model"}
-              </span>
-              <svg
-                class="size-2.5 shrink-0 opacity-70"
-                viewBox="0 0 12 12"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M3 4.5L6 7.5l3-3" />
-              </svg>
+              <Show when={label()} keyed>
+                {(text) => (
+                  <span class="picker-swap min-w-0" data-slide="">
+                    <span class="truncate" data-component="composer-model">
+                      {text}
+                    </span>
+                  </span>
+                )}
+              </Show>
+              <RemixIcon icon={ChevronDownIcon} size={10} class="picker-chevron shrink-0" />
             </ModelPicker>
             <ReasoningMenu
               levels={current()?.thinkingLevels}
               value={current()?.thinking}
+              model={current()?.name}
               onChange={(thinking) => room.setAgentModel(member().slug, { thinking })}
             />
           </>
