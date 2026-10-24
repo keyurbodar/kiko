@@ -1,6 +1,6 @@
 import { generateKeys } from "@kiko/computer/sign"
 import type { Config } from "./config"
-import { ensurePolicy, saveConfig, saveKey } from "./config"
+import { ensurePolicy, loadConfig, saveConfig, saveKey } from "./config"
 import { CliError } from "./errors"
 import { helloPayload } from "./hello"
 import type { Detection } from "./caps"
@@ -63,11 +63,13 @@ export async function pair(dir: string, detection: Detection, target: string, na
   const { origin, code } = parsePairTarget(target)
   const keys = await generateKeys()
   const label = name ?? hostName()
+  const previous = await loadConfig(dir)
   const answer = await postPair(origin, {
     code,
     publicKey: keys.publicKey,
     name: label,
     hello: helloPayload(detection),
+    ...(previous ? { replaces: previous.pcId } : {}),
   })
   await ensurePolicy(dir)
   await saveKey(dir, keys.privateKey)

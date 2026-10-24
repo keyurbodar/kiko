@@ -228,6 +228,7 @@ export class OwnerDO extends DurableObject<Env> {
     name: string
     hello: import("@kiko/computer/wire").Hello
     pairNonce: string
+    replaces?: string
   }) {
     return this.user().computerPair(input)
   }

@@ -258,18 +258,18 @@ export class ComputerHub {
     )
   }
 
-  pair(input: Omit<NewComputer, "os" | "arch" | "host" | "caps" | "at"> & { hello: Hello }): boolean {
-    const { hello, ...rest } = input
-    const inserted = this.d.store.insert({
-      ...rest,
-      os: hello.os,
-      arch: hello.arch,
-      host: hello.host,
-      caps: hello.caps,
-      at: Date.now(),
-    })
-    if (inserted) this.push()
-    return inserted
+  pair(
+    input: Omit<NewComputer, "os" | "arch" | "host" | "caps" | "at"> & { hello: Hello; replaces?: string },
+  ): boolean {
+    const { hello, replaces, ...rest } = input
+    const inserted = this.d.store.insert(
+      { ...rest, os: hello.os, arch: hello.arch, host: hello.host, caps: hello.caps, at: Date.now() },
+      replaces,
+    )
+    if (!inserted) return false
+    if (replaces) this.forget(replaces)
+    this.push()
+    return true
   }
 
   async connect(request: Request): Promise<Response> {
@@ -663,17 +663,21 @@ export class ComputerHub {
   }
 
   remove(id: string): void {
+    this.d.store.remove(id)
+    this.forget(id)
+    this.push()
+  }
+
+  private forget(id: string): void {
     const ws = this.socket(id)
     if (ws)
       try {
         ws.close(CLOSE.replaced, "removed")
       } catch {}
-    this.d.store.remove(id)
     this.dropCalls(id)
     this.relaying.delete(id)
     this.desk.delete(id)
     this.memory.delete(id)
-    this.push()
   }
 
   ageHold(id: string, ms: number): boolean {

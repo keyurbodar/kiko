@@ -83,6 +83,7 @@ export class ComputerWiring {
     name: string
     hello: Parameters<ComputerHub["pair"]>[0]["hello"]
     pairNonce: string
+    replaces?: string
   }) {
     const id = crypto.randomUUID()
     const created = this.hub.pair({ ...input, id })

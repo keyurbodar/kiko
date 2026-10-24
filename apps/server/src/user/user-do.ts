@@ -1243,6 +1243,7 @@ export class User {
     name: string
     hello: import("@kiko/computer/wire").Hello
     pairNonce: string
+    replaces?: string
   }): Promise<{ ok: true; id: string; name: string } | { ok: false; error: string }> {
     return this.#pc.pair(input)
   }

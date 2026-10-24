@@ -39,7 +39,7 @@ export class ComputerStore {
     return this.sql.exec<ComputerRow>(`SELECT ${COLUMNS} FROM computers WHERE id = ?`, id).toArray()[0] ?? null
   }
 
-  insert(input: NewComputer): boolean {
+  insert(input: NewComputer, replaces?: string): boolean {
     const inserted = this.sql.exec(
       `INSERT INTO computers (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(pair_nonce) DO NOTHING`,
       input.id,
@@ -52,7 +52,9 @@ export class ComputerStore {
       input.pairNonce,
       input.at,
     )
-    return inserted.rowsWritten > 0
+    if (inserted.rowsWritten === 0) return false
+    if (replaces) this.remove(replaces)
+    return true
   }
 
   rename(id: string, name: string): boolean {

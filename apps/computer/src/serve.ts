@@ -100,9 +100,9 @@ export async function serve(dir = configDir()): Promise<number> {
 
 async function repaired(dir: string, pcId: string): Promise<void> {
   for (;;) {
-    await Bun.sleep(REPAIR_POLL_MS)
     const next = await loadConfig(dir).catch(() => null)
     if (next && next.pcId !== pcId) return
+    await Bun.sleep(REPAIR_POLL_MS)
   }
 }
 

@@ -98,6 +98,7 @@ CI runs `Changes`, `Lint`, `Build and Typecheck`, `Test`, `Test Web` and `Worker
 - **Desktop tools go through cua-driver over MCP stdio.** Tools are discovered with `tools/list` at connect time and every argument is filtered against the advertised schema, because the driver's input shape differs by platform and version. Element ids are the driver's `element_token`s mapped to our small integers per capture; an unknown id answers `stale` so the agent looks again. Images shrink to a 1280 long edge and coordinates map back through the capture's own scale.
 - **No desktop is not a broken machine.** When cua-driver is missing, or Linux has no `$DISPLAY`/`$WAYLAND_DISPLAY`, `caps.desktop` is false and shell and files keep working.
 - **`src/live/` is the seam for the live view.** `connection.ts` hands `rtc`, `live`, `input` and `control` frames to the `Live` object it is given. The default in `src/live/index.ts` reports no live capability and still forwards holder changes.
+- **Pairing again replaces, never dedupes.** `pair` sends the `pcId` already in the config dir as `replaces`, and the Worker deletes that row in the same turn that inserts the new one, so a re-run install leaves one row. Nothing matches on host or name, because two machines can share both.
 - **Writes cost nothing here.** The daemon keeps captures, pending calls and the holder in memory. Nothing is written per call or per ping.
 
 ## Releases
