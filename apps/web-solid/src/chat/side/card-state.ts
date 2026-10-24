@@ -18,7 +18,7 @@ const CARD_ROOM = 1040
 
 export const setCardRoom = (width: number) => setWide(width >= CARD_ROOM)
 
-export const CARD_WIDTH = 288
+export const CARD_WIDTH = 320
 
 export const cardShown = () => (wide() ? docked() : popped())
 export const cardBeside = () => wide() && docked()
