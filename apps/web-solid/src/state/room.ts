@@ -29,7 +29,6 @@ import {
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import type { RoomState } from "@kiko/client-runtime/state"
 import * as Option from "effect/Option"
-import * as AsyncResult from "effect/reactivity/AsyncResult"
 import * as Atom from "effect/reactivity/Atom"
 import { batch, createComputed, createMemo, createRoot, createSignal, on, untrack } from "solid-js"
 import { createStore, produce } from "solid-js/store"
@@ -42,9 +41,10 @@ import { fileUrl } from "../lib/file-token"
 import { chatFaces } from "../lib/identity"
 import { agentDisplayName } from "../lib/names"
 import type { BotPresence, ChatMessage, OutgoingMessage, Reaction, RosterBot } from "../lib/types"
-import { describeLast, isListed, typingLine } from "../sidebar/activity"
+import { describeLast, isListed } from "../sidebar/activity"
 import { clearUnreadMark } from "../sidebar/unread-mark"
 import { connection } from "./connection"
+import { liveLine, liveStatusOf, thinkingLine, type LiveStatus } from "./live-status"
 import { attempt, owner, registry, valueOf, watch } from "./runtime"
 import { onUserSignal, user } from "./user"
 
@@ -127,12 +127,12 @@ function newestSeq(messages: readonly Message[]): number {
   return 0
 }
 
-function presenceOf(typing: boolean, state: AgentState | undefined): BotPresence {
-  if (typing) return "typing"
-  return state === "working" ? "working" : "idle"
+function presenceOf(live: LiveStatus | undefined): BotPresence {
+  if (!live) return "idle"
+  return live.kind === "tool" ? "working" : "typing"
 }
 
-type LiveRow = { last?: ChatLast; typing?: readonly string[]; group?: boolean }
+type LiveRow = { last?: ChatLast; typing?: readonly string[]; line?: string; group?: boolean }
 
 function chatRow(chat: Chat, presence: BotPresence = "idle", live: LiveRow = {}): RosterBot {
   const group = live.group ?? !!chat.group
@@ -144,13 +144,14 @@ function chatRow(chat: Chat, presence: BotPresence = "idle", live: LiveRow = {})
     name: chat.title,
     preview: line.text,
     updatedAt: Math.max(chat.updatedAt, live.last?.at ?? 0),
-    presence: typing.length ? "typing" : presence,
+    presence: typing.length && presence === "idle" ? "typing" : presence,
     unread: chat.unread,
     pinned: chat.pinned,
   }
   if (last) row.lastFrom = last.from
   if (line.from) row.previewFrom = line.from
-  if (row.presence === "typing") row.typing = typingLine(typing, group)
+  if (live.line) row.typing = live.line
+  else if (typing.length) row.typing = thinkingLine(typing, group)
   if (chat.mentions) row.mentions = chat.mentions
   return row
 }
@@ -223,7 +224,6 @@ export interface ActiveRoom {
 }
 
 const NO_ROOM_STATE = Atom.make<RoomState | undefined>(undefined)
-const NO_TYPING = Atom.make<AsyncResult.AsyncResult<ReadonlyArray<AgentSlug>>>(AsyncResult.success([]))
 const NO_CACHE = Atom.make<Atom.Type<ReturnType<typeof owner.cachedRoomAtom>> | undefined>(undefined)
 
 const notConnected = () =>
@@ -262,7 +262,11 @@ function createWarmRooms(roomId: () => RoomId | null, exists: (id: RoomId) => bo
   return warm
 }
 
-function createRuns(roomId: () => RoomId | null, warm: () => readonly RoomId[]) {
+function createRuns(
+  roomId: () => RoomId | null,
+  warm: () => readonly RoomId[],
+  onStatus: (id: RoomId, slug: string) => void,
+) {
   const [all, setAll] = createStore<Record<string, Runs>>({})
   const fetched = new Map<RoomId, Set<string>>()
   const fetchedIn = (id: RoomId) => {
@@ -284,8 +288,10 @@ function createRuns(roomId: () => RoomId | null, warm: () => readonly RoomId[]) 
   }
   const onSignal = (id: RoomId, signal: RoomSignal) => {
     if (signal.t === "step") take(id, [signal.step], false)
-    else if (signal.t === "status" && signal.state === "idle" && all[id]) setAll(id, "live", signal.slug, undefined)
-    else if (signal.t === "error" && id === roomId()) showNotice(signal.error)
+    else if (signal.t === "status") {
+      onStatus(id, signal.slug)
+      if (signal.state === "idle" && all[id]) setAll(id, "live", signal.slug, undefined)
+    } else if (signal.t === "error" && id === roomId()) showNotice(signal.error)
   }
   eachWarm(warm, (id) => {
     const stop = registry.subscribe(
@@ -461,16 +467,15 @@ function createRoom() {
     const status = state()?.status
     return status === "live" || status === "synchronizing"
   }
-  const typingAtom = watch(() => {
-    const id = activeId()
-    return id === null ? NO_TYPING : owner.roomTypingAtom(id)
-  })
-  const typingNow = (): readonly AgentSlug[] => (streaming() ? (valueOf(typingAtom()) ?? []) : [])
   const liveMessages = createMemo(() => snapshot()?.messages ?? [])
   const history = createHistory(activeId, liveMessages)
   const messages = createMemo(() => history.shown() ?? liveMessages())
   const warm = createWarmRooms(activeId, (id) => !user.synced() || user.chat(id) !== undefined)
-  const runs = createRuns(activeId, warm)
+  const [marks, setMarks] = createSignal<Readonly<Record<string, number>>>({})
+  createComputed(on(activeId, () => setMarks({})))
+  const runs = createRuns(activeId, warm, (id, slug) => {
+    if (id === untrack(activeId)) setMarks((all) => ({ ...all, [slug]: newestSeq(untrack(liveMessages)) }))
+  })
   const typing = createTyping(activeId)
 
   createComputed(
@@ -497,9 +502,26 @@ function createRoom() {
     if (streaming()) for (const a of snapshot()?.agents ?? []) out[a.slug] = a.state
     return out
   })
-  const doingOf = createMemo(() => {
-    const out: Record<string, string | undefined> = {}
-    if (streaming()) for (const a of snapshot()?.agents ?? []) out[a.slug] = a.doing
+  const liveOf = createMemo(() => {
+    const out: Record<string, LiveStatus> = {}
+    if (!streaming()) return out
+    const list = liveMessages()
+    for (const a of snapshot()?.agents ?? []) {
+      const live = liveStatusOf({
+        slug: a.slug,
+        status: a,
+        messages: list.filter((m) => !isPending(m) && !m.event),
+        mark: marks()[a.slug],
+        running: (runs.current().steps[a.slug] ?? []).some((step) => step.status === "running"),
+      })
+      if (live.kind !== "idle") out[a.slug] = live
+    }
+    return out
+  })
+  const liveStates = createMemo(() => {
+    const out: Record<string, AgentState> = {}
+    const raw = statusOf()
+    for (const slug of Object.keys(liveOf())) if (raw[slug]) out[slug] = raw[slug]
     return out
   })
 
@@ -518,12 +540,10 @@ function createRoom() {
   const windows = createMemo(() => stepWindows(rows()))
 
   const members = createMemo(() => (snapshot()?.members ?? []).filter((m) => !user.isGone(m.slug)))
-  const memberRows = createMemo(() =>
-    members().map((m) => memberRow(m, presenceOf(typingNow().includes(m.slug), statusOf()[m.slug]))),
-  )
+  const memberRows = createMemo(() => members().map((m) => memberRow(m, presenceOf(liveOf()[m.slug]))))
   const typingSlugs = createMemo(() => {
     const known = new Set(members().map((m) => m.slug as string))
-    return typingNow().filter((slug) => known.has(slug))
+    return Object.keys(liveOf()).filter((slug) => known.has(slug)) as AgentSlug[]
   })
 
   const openRead = new Map<RoomId, number>()
@@ -599,12 +619,10 @@ function createRoom() {
     const name = (slug: string) => agentDisplayName(slug, members())
     const newest = list.findLast(isListed)
     const fresh = newest && (isPending(newest) || newest.seq > c.lastSeq) ? viewLast(newest, name) : undefined
-    const working = Object.values(statusOf()).includes("working")
-    const row = chatRow(c, presenceOf(false, working ? "working" : undefined), {
+    const live = Object.entries(liveOf()).map(([slug, status]) => ({ name: name(slug), status }))
+    const row = chatRow(c, live.length ? presenceOf(live[0]!.status) : "idle", {
       ...(fresh ? { last: fresh } : {}),
-      typing: Object.entries(statusOf())
-        .filter(([, s]) => s === "typing")
-        .map(([slug]) => name(slug)),
+      ...(live.length ? { line: liveLine(live, members().length > 1) ?? undefined } : {}),
       ...(members().length ? { group: members().length > 1 } : {}),
     })
     if (history.shown() === null && readSeq() >= newestSeq(list)) {
@@ -713,7 +731,7 @@ function createRoom() {
     active,
     state,
     snapshot,
-    status: statusOf,
+    status: liveStates,
     followRoute: (room: () => string | null) => setRouteRoom(() => room),
     messages: rows,
     messageById: (id: string) => rows().find((m) => m.id === id),
@@ -774,8 +792,7 @@ function createRoom() {
     typing: typing.ping,
     typingSlugs,
     typingNames: () => typingSlugs().map((slug) => agentDisplayName(slug, members())),
-    typingDoings: () =>
-      typingSlugs().map((slug) => doingOf()[slug] ?? (statusOf()[slug] === "working" ? "using a tool" : undefined)),
+    typingDoings: () => typingSlugs().map((slug) => liveOf()[slug]?.text),
     runWindow: (m: ChatMessage) => (m.botId && m.steps ? windowKey(m.botId, m.stepAfter ?? 0) : undefined),
     typingRun(slug: string): string | undefined {
       if (!runs.current().live[slug]) return undefined

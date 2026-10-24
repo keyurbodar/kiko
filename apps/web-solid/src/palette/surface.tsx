@@ -16,7 +16,7 @@ import {
   searchGroups,
   viewFor,
 } from "./model"
-import { attachFiles, canAttach, downloadFiles } from "./file-actions"
+import { attachable, attachFiles, canAttach, downloadFiles } from "./file-actions"
 import { askKiko } from "./ask"
 import { intentOf, type Intent } from "./keys"
 import { Actions, Peek } from "./side"
@@ -50,6 +50,14 @@ const EMPTY_TEXT: Record<string, string> = {
   all: "Nothing here yet",
 }
 
+function revealTab(strip: HTMLElement, el: HTMLElement) {
+  const fade = 24
+  const left = el.offsetLeft - fade
+  const right = el.offsetLeft + el.offsetWidth + fade - strip.clientWidth
+  if (strip.scrollLeft > left) strip.scrollLeft = Math.max(0, left)
+  else if (strip.scrollLeft < right) strip.scrollLeft = right
+}
+
 export function PaletteSurface(props: { source: TabData }) {
   const [query, setQuery] = createSignal("")
   const [kept, setKept] = createSignal<readonly string[] | null>(null)
@@ -65,6 +73,12 @@ export function PaletteSurface(props: { source: TabData }) {
     else timer = setTimeout(() => setKept(null), EXIT_MS)
   })
   onCleanup(() => clearTimeout(timer))
+
+  const narrowQuery = matchMedia("(width < 480px)")
+  const [narrow, setNarrow] = createSignal(narrowQuery.matches)
+  const onNarrow = () => setNarrow(narrowQuery.matches)
+  narrowQuery.addEventListener("change", onNarrow)
+  onCleanup(() => narrowQuery.removeEventListener("change", onNarrow))
 
   const root = () => stack().length === 0
   const tab = paletteTab
@@ -180,6 +194,7 @@ export function PaletteSurface(props: { source: TabData }) {
     const shown = root() && open()
     const frame = requestAnimationFrame(() => {
       const el = tabsEl?.querySelector<HTMLElement>('[aria-selected="true"]')
+      if (el && tabsEl && tabsEl.scrollWidth > tabsEl.clientWidth) revealTab(tabsEl, el)
       setPill(shown && el ? { x: el.offsetLeft, w: el.offsetWidth } : null)
       requestAnimationFrame(() => setReady(true))
     })
@@ -217,7 +232,7 @@ export function PaletteSurface(props: { source: TabData }) {
   const fileItems = () => items().filter((i) => i.file)
   const attach = () => {
     const picked = entries()
-    if (!picked.length || !canAttach()) return
+    if (!attachable(picked).length || !canAttach()) return
     close()
     attachFiles(picked)
   }
@@ -329,6 +344,15 @@ export function PaletteSurface(props: { source: TabData }) {
     e.stopPropagation()
   }
 
+  let pointer = { x: Number.NaN, y: Number.NaN }
+  const onListPointer = (e: PointerEvent) => {
+    if (e.clientX === pointer.x && e.clientY === pointer.y) return
+    pointer = { x: e.clientX, y: e.clientY }
+    const row = (e.target as HTMLElement).closest<HTMLElement>("[cmdk-item]")
+    const key = row?.dataset.value
+    if (key && row.getAttribute("aria-disabled") !== "true" && key !== highlight()) setHighlight(key)
+  }
+
   const onListClick = (e: MouseEvent) => {
     if (!filesTab() || !(e.metaKey || e.ctrlKey || e.shiftKey)) return
     const row = (e.target as HTMLElement).closest<HTMLElement>('[data-kind="file"]')
@@ -378,6 +402,7 @@ export function PaletteSurface(props: { source: TabData }) {
             class="palette-panel"
             label="Command palette"
             loop
+            disablePointerSelection
             value={highlight()}
             onValueChange={setHighlight}
             shouldFilter={false}
@@ -390,7 +415,7 @@ export function PaletteSurface(props: { source: TabData }) {
               <Cmdk.Input
                 ref={input}
                 class="palette-input"
-                placeholder={view().placeholder}
+                placeholder={root() && narrow() ? "Search or ask" : view().placeholder}
                 value={query()}
                 onValueChange={setQuery}
                 autofocus
@@ -457,6 +482,7 @@ export function PaletteSurface(props: { source: TabData }) {
                 ref={(el) => {
                   list = el
                   el.addEventListener("click", onListClick, true)
+                  el.addEventListener("pointermove", onListPointer)
                 }}
               >
                 <Show when={glide()}>
@@ -514,10 +540,21 @@ export function PaletteSurface(props: { source: TabData }) {
                     Download
                   </button>
                   <Show when={canAttach()}>
-                    <button type="button" class="palette-btn" data-primary="" onClick={attach}>
-                      Attach to message
-                      <Key name="mod-enter" />
-                    </button>
+                    <Show
+                      when={attachable(entries()).length > 0}
+                      fallback={
+                        <span class="type-hint text-fg4" data-component="palette-attach-other">
+                          Files from other chats stay in their chat
+                        </span>
+                      }
+                    >
+                      <button type="button" class="palette-btn" data-primary="" onClick={attach}>
+                        {attachable(entries()).length < entries().length
+                          ? "Attach the ones from this chat"
+                          : "Attach to message"}
+                        <Key name="mod-enter" />
+                      </button>
+                    </Show>
                   </Show>
                 </div>
               }

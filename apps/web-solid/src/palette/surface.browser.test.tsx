@@ -76,8 +76,12 @@ const tab = (name: string) => page.getByRole("tab", { name })
 async function open(over?: Partial<TabData>) {
   openPalette()
   const screen = await render(() => <PaletteSurface source={source(over)} />)
-  await expect.element(page.getByRole("combobox")).toBeVisible()
-  panelEl = document.querySelector<HTMLElement>(".palette-panel")!
+  const field = page.getByRole("combobox")
+  await expect.element(field).toBeVisible()
+  panelEl = field
+    .element()
+    .closest<HTMLElement>('[data-component="palette"]')!
+    .querySelector<HTMLElement>(".palette-panel")!
   return {
     async [Symbol.asyncDispose]() {
       closePalette()
@@ -123,6 +127,37 @@ describe("command palette", () => {
     await userEvent.keyboard("tokyo")
     await expect.element(page.getByRole("button", { name: /^Ask Kiko:/ })).toBeVisible()
     await expect.element(page.getByRole("option", { name: /Tokyo trip/ })).toHaveAttribute("data-selected", "true")
+  })
+
+  it("keeps one active row: a pointer that has not moved never takes over from the keyboard", async () => {
+    await using _screen = await open()
+    const tokyo = page.getByRole("option", { name: /Tokyo trip/ })
+    let last = { clientX: 0, clientY: 0 }
+    const track = (e: PointerEvent) => (last = { clientX: e.clientX, clientY: e.clientY })
+    document.addEventListener("pointermove", track, true)
+    await tokyo.hover()
+    document.removeEventListener("pointermove", track, true)
+    await expect.element(tokyo).toHaveAttribute("data-selected", "true")
+    await userEvent.keyboard("{ArrowDown}")
+    await expect.element(tokyo).not.toHaveAttribute("data-selected", "true")
+    const still = { bubbles: true, ...last }
+    tokyo.element().dispatchEvent(new PointerEvent("pointermove", still))
+    await expect.element(tokyo).not.toHaveAttribute("data-selected", "true")
+    expect(document.querySelectorAll('[cmdk-item][data-selected="true"]')).toHaveLength(1)
+    tokyo.element().dispatchEvent(new PointerEvent("pointermove", { ...still, clientX: still.clientX + 4 }))
+    await expect.element(tokyo).toHaveAttribute("data-selected", "true")
+    await userEvent.keyboard("{Enter}")
+    expect(ran).toEqual(["go tokyo"])
+  })
+
+  it("shows the Enter hint only on the active row", async () => {
+    await using _screen = await open()
+    await page.getByRole("option", { name: /Tokyo trip/ }).hover()
+    const shown = [...document.querySelectorAll<HTMLElement>(".palette-enter")].filter(
+      (el) => getComputedStyle(el).display !== "none",
+    )
+    expect(shown).toHaveLength(1)
+    expect(shown[0]!.closest("[cmdk-item]")).toHaveAttribute("data-selected", "true")
   })
 
   it("never ends in a dead end: no match offers to ask Kiko with the same words", async () => {

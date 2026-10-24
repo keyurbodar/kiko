@@ -1,6 +1,7 @@
 import { createRoot, createSignal } from "solid-js"
 import { createSearch, senderName, type Hit, type SearchView } from "../search/model"
 import { fetchHits } from "../search/fetch"
+import { chatFaces } from "../lib/identity"
 import { user } from "../state/user"
 import type { Choice } from "./registry"
 
@@ -32,11 +33,17 @@ function ago(at: number): string {
   return plural(Math.floor(age / DAY), "day")
 }
 
+const soloSpeaker = (hit: Hit): boolean => {
+  if (hit.from.kind !== "agent") return false
+  const faces = chatFaces(user.chat(hit.roomId) ?? { roomId: hit.roomId }, user.agents())
+  return faces.length === 1 && faces[0] === hit.from.slug
+}
+
 const row = (hit: Hit, open: (hit: Hit) => void): Choice => ({
   id: `${hit.roomId}:${hit.id}`,
   title: user.chat(hit.roomId)?.title ?? "Chat",
   chatId: hit.roomId,
-  from: senderName(hit.from, user.agents()),
+  ...(soloSpeaker(hit) ? {} : { from: senderName(hit.from, user.agents()) }),
   snippet: hit.snippet,
   meta: ago(hit.at),
   run: () => open(hit),

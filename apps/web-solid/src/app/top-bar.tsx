@@ -1,10 +1,9 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { MonitorIcon, NotesIcon, SearchIcon, SidebarRightIcon } from "@kiko/ui/icons"
+import { MonitorIcon, NotesIcon, SearchIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { Show, onMount } from "solid-js"
+import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { computers, openViewer, startComputers, watchTarget } from "../chat/computers"
-import { cardShown, toggleCard } from "../chat/side/card-state"
-import { loadSidecar, sidecarOpen, toggleSidecar } from "../chat/side/surfaces"
+import { deskShown, loadDesk, toggleDesk } from "../chat/side/surfaces"
 import { runCommand } from "../commands/registry"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { connection, createDelayedStatus, type ConnectionView } from "../state/connection"
@@ -18,9 +17,17 @@ const CONNECTION_LABEL: Partial<Record<ConnectionView, string>> = {
   disconnected: "Not connected",
 }
 
+const LONG_OFFLINE_MS = 10_000
+
 export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onToggleSidebar: () => void }) {
   const chatId = () => props.chatId
   const offline = createDelayedStatus(() => CONNECTION_LABEL[connection.view()] ?? null)
+  const [long, setLong] = createSignal(false)
+  createEffect(() => {
+    if (!offline()) return setLong(false)
+    const timer = setTimeout(() => setLong(true), LONG_OFFLINE_MS)
+    onCleanup(() => clearTimeout(timer))
+  })
   const title = () => {
     const id = chatId()
     if (!id) return "Chats"
@@ -33,7 +40,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
   const live = () => {
     const bot = chatId() ? room.chatById(chatId()!) : undefined
     if (!bot || (bot.presence !== "working" && bot.presence !== "typing")) return null
-    return bot.typing ?? (bot.presence === "typing" ? "Typing" : "Working")
+    return bot.typing ?? "Thinking"
   }
   const roster = () => {
     const names = room.members().map((member) => member.name)
@@ -49,7 +56,10 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
         <Show when={chatId()} keyed>
           {(id) => <ChatAvatar faces={room.chatFaces(id)} size={28} />}
         </Show>
-        <h1 class="min-w-0 shrink truncate text-[15px] font-semibold text-fg" data-component="top-bar-title">
+        <h1
+          class="min-w-0 shrink truncate font-sans text-[15px] leading-5 font-semibold text-fg"
+          data-component="top-bar-title"
+        >
           {title()}
         </h1>
         <Show when={chatId()}>
@@ -63,8 +73,12 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
         </Show>
         <Show when={offline()}>
           {(message) => (
-            <span class="shrink-0 text-[12.5px] text-fg3" role="status" data-component="connection-status">
-              {message()}
+            <span
+              class={`min-w-0 truncate text-label ${long() ? "text-fg3" : "chat-shimmer"}`}
+              role="status"
+              data-component="connection-status"
+            >
+              {long() ? "Offline, messages will send when you're back" : message()}
             </span>
           )}
         </Show>
@@ -96,42 +110,22 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
           </button>
         </TooltipV2>
       </Show>
-      <Show when={chatId()} keyed>
-        {(id) => (
-          <>
-            <TooltipV2 placement="bottom" openDelay={400} value={cardShown() ? "Hide chat card" : "Show chat card"}>
-              <button
-                type="button"
-                class={toggle()}
-                aria-label="Chat card"
-                aria-pressed={cardShown()}
-                data-action="toggle-card"
-                data-hint="chat.info"
-                data-hint-label="Card"
-                onClick={toggleCard}
-              >
-                <RemixIcon icon={NotesIcon} size={17} />
-              </button>
-            </TooltipV2>
-            <TooltipV2
-              placement="bottom"
-              openDelay={400}
-              value={sidecarOpen(id) ? "Hide side panel" : "Show side panel"}
-            >
-              <button
-                type="button"
-                class={toggle()}
-                aria-label="Side panel"
-                aria-pressed={sidecarOpen(id)}
-                data-action="toggle-sidecar"
-                onPointerEnter={() => void loadSidecar()}
-                onClick={() => toggleSidecar(id)}
-              >
-                <RemixIcon icon={SidebarRightIcon} size={17} />
-              </button>
-            </TooltipV2>
-          </>
-        )}
+      <Show when={chatId()}>
+        <TooltipV2 placement="bottom" openDelay={400} value={deskShown() ? "Hide chat details" : "Show chat details"}>
+          <button
+            type="button"
+            class={toggle()}
+            aria-label="This chat"
+            aria-pressed={deskShown()}
+            data-action="toggle-card"
+            data-hint="chat.info"
+            data-hint-label="Details"
+            onPointerEnter={() => void loadDesk()}
+            onClick={toggleDesk}
+          >
+            <RemixIcon icon={NotesIcon} size={17} />
+          </button>
+        </TooltipV2>
       </Show>
     </header>
   )

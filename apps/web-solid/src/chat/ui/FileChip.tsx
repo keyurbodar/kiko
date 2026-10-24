@@ -1,3 +1,4 @@
+import { fileName } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CopyIcon, FileIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
@@ -30,6 +31,7 @@ function find(path: string) {
 
 export function FileChip(props: { file: FileTarget; label: string; bare?: boolean }): JSX.Element {
   const full = () => `${props.file.path}${props.file.line ? `:${props.file.line}` : ""}`
+  const spoken = () => `${fileName(props.file.path)}${props.file.line ? `, line ${props.file.line}` : ""}`
   const isChip = () => !props.bare || find(props.file.path).kind !== "none"
   const chat = () => room.activeId()
   const ref = () => {
@@ -50,7 +52,13 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
     const id = chat()
     if (!id) return
     const src = picture()
-    if (src) return openThreadImages([{ src, name: props.label }], 0, from?.querySelector("img") ?? from)
+    const at = ref()?.name
+    if (src)
+      return openThreadImages(
+        [{ src, name: props.label, ...(at ? { path: at } : {}) }],
+        0,
+        from?.querySelector("img") ?? from,
+      )
     const found = find(props.file.path)
     if (found.kind === "file") return openFile(id, found.path, props.file.line)
     if (found.kind === "folder" || found.kind === "many") return openSurface(id, fixedSurface("files"))
@@ -84,7 +92,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
             data-kind={picture() ? "image" : folder() ? "folder" : "file"}
             data-path={props.file.path}
             data-missing={find(props.file.path).kind === "none" ? "" : undefined}
-            aria-label={`${folder() ? "Show" : "Open"} ${full()}`}
+            aria-label={`${folder() ? "Show" : "Open"} ${spoken()}`}
             draggable={ref() !== undefined || folder()}
             onDragStart={(event: DragEvent) => {
               const file = ref()

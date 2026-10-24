@@ -16,7 +16,9 @@ import { RichImage } from "./RichImage"
 import "./rich.css"
 import { SuspiciousLinkDialog } from "../ui/SuspiciousLinkDialog"
 
-function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.Element {
+type Masked = { href: string; text: string }
+
+function Node(props: { node: RichNode; onMasked: (link: Masked) => void }): JSX.Element {
   return (
     <Switch>
       <Match when={props.node.kind === "text" && props.node}>
@@ -48,7 +50,7 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
               type="button"
               class="cursor-pointer text-inherit underline underline-offset-2"
               data-component="chat-masked-link"
-              onClick={() => props.onMasked(m().href)}
+              onClick={(e) => props.onMasked({ href: m().href, text: e.currentTarget.textContent?.trim() ?? "" })}
             >
               <For each={m().children}>{(child) => <Node node={child} onMasked={props.onMasked} />}</For>
             </button>
@@ -85,7 +87,7 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
   )
 }
 
-function IconLead(props: { host: string; nodes: RichNode[]; onMasked: (href: string) => void }): JSX.Element {
+function IconLead(props: { host: string; nodes: RichNode[]; onMasked: (link: Masked) => void }): JSX.Element {
   const first = () => props.nodes[0]
   const lead = () => {
     const n = first()
@@ -214,16 +216,20 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
 }
 
 function RichTree(props: { tree: RichTextTree; class?: string }): JSX.Element {
-  const [maskedHref, setMaskedHref] = createSignal<string | null>(null)
+  const [masked, setMasked] = createSignal<Masked | null>(null)
   return (
     <>
       <div class={`rich${props.class ? ` ${props.class}` : ""}`}>
-        <For each={richNodes(props.tree)}>{(node) => <Node node={node} onMasked={setMaskedHref} />}</For>
+        <For each={richNodes(props.tree)}>{(node) => <Node node={node} onMasked={setMasked} />}</For>
       </div>
-      <Show when={maskedHref()}>
-        {(href) => (
+      <Show when={masked()}>
+        {(link) => (
           <Suspense>
-            <SuspiciousLinkDialog href={href()} onClose={() => setMaskedHref(null)} />
+            <SuspiciousLinkDialog
+              href={link().href}
+              {...(link().text ? { text: link().text } : {})}
+              onClose={() => setMasked(null)}
+            />
           </Suspense>
         )}
       </Show>

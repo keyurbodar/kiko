@@ -4,8 +4,7 @@ import { useChatInView } from "../app/sections"
 import { withMade } from "../files/api"
 import { askDeleteChat, closeChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
 import { signOut } from "../app/session"
-import { toggleCard } from "../chat/side/card-state"
-import { fixedSurface, openFile, openSurface, toggleSidecar } from "../chat/side/surfaces"
+import { fixedSurface, openFile, openSurface, toggleDesk } from "../chat/side/surfaces"
 import { answeringMember, canReason } from "../settings/agent-model"
 import { connectedProviders } from "../settings/connected"
 import { hasModelProvider } from "../settings/provider-kinds"
@@ -85,16 +84,12 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       },
       newGroup: openBotPicker,
       newAgent: openNewAgent,
-      toggleSidecar: () => {
-        const id = activeId()
-        if (id) toggleSidecar(id)
-      },
       copyLink: () => {
         const id = activeId()
         if (id) void navigator.clipboard?.writeText(`${window.location.origin}/chat/${id}`)
       },
       hasActiveChat: () => activeId() !== null,
-      toggleCard,
+      toggleCard: toggleDesk,
       openPanel: (kind) => {
         const id = activeId()
         if (id) openSurface(id, fixedSurface(kind))

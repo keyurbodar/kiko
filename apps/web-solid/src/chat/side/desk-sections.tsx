@@ -47,7 +47,7 @@ export function Section(props: {
           <RemixIcon
             icon={ChevronRightIcon}
             size={13}
-            class="ml-0.5 w-0 shrink-0 text-fg3 opacity-0 transition-[opacity,width,transform] duration-(--dur-hover) ease-kiko group-hover/head:w-[13px] group-hover/head:translate-x-0.5 group-hover/head:opacity-100"
+            class="desk-head-chev ml-0.5 w-0 shrink-0 text-fg3 opacity-0 transition-[opacity,width,transform] duration-(--dur-hover) ease-kiko group-hover/head:w-[13px] group-hover/head:translate-x-0.5 group-hover/head:opacity-100"
           />
         </button>
       </Show>
@@ -64,13 +64,19 @@ export function Now(props: { line: string; slug: string | undefined; tasks: read
         <Show when={props.slug}>{(slug) => <IdentityAvatar seed={slug()} size={22} class="desk-hop" />}</Show>
         <span class="desk-shimmer min-w-0 flex-1 truncate text-ui text-fg">{props.line}</span>
       </div>
-      <div class="mt-2.5 h-1 overflow-hidden rounded-full bg-hover" role="progressbar" aria-label="Progress">
+      <Show when={fraction() !== null}>
         <div
-          class="desk-bar h-full rounded-full bg-fg2"
-          data-indeterminate={fraction() === null ? "" : undefined}
-          style={fraction() === null ? undefined : { width: `${Math.max(6, (fraction() ?? 0) * 100)}%` }}
-        />
-      </div>
+          class="mt-2.5 h-1 overflow-hidden rounded-full bg-hover"
+          role="progressbar"
+          aria-label="Progress"
+          aria-valuenow={Math.round((fraction() ?? 0) * 100)}
+        >
+          <div
+            class="desk-bar h-full rounded-full bg-fg2"
+            style={{ width: `${Math.max(6, (fraction() ?? 0) * 100)}%` }}
+          />
+        </div>
+      </Show>
     </div>
   )
 }
@@ -313,9 +319,4 @@ export function Memory(props: { lines: readonly LifeLine[]; more: boolean; whose
       </div>
     </Section>
   )
-}
-
-export const leadName = (): string => {
-  const members = room.roomMembers()
-  return (members.find((m) => m.lead) ?? members[0])?.name ?? "Kiko"
 }

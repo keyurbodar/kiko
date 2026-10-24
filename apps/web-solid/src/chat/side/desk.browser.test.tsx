@@ -2,7 +2,7 @@ import type { FileRef, HumanAsk, LifeLine, Task, WorkerRow } from "@kiko/protoco
 import { describe, expect, it } from "vitest"
 import { render } from "../../../test/render"
 import { Files, Helpers, Memory, Now, Tasks, Waiting } from "./desk-sections"
-import { closeAll, sidecarSurfaces } from "./surfaces"
+import { closeAll, deskView, openFiles } from "./surfaces"
 
 const CHAT = "01900000-0000-7000-8000-0000000000bb"
 
@@ -20,15 +20,17 @@ describe("desk card", () => {
     await expect.element(screen.getByRole("button", { name: "d.png" })).toBeVisible()
     await expect.element(screen.getByRole("button", { name: "trip.pdf" })).not.toBeInTheDocument()
     await screen.getByRole("button", { name: "2 more files" }).click()
-    expect(sidecarSurfaces(CHAT).map((surface) => surface.id)).toEqual(["files"])
+    expect(deskView(CHAT)?.id).toBe("files")
+    expect(openFiles(CHAT)).toEqual([])
     closeAll(CHAT)
   })
 
-  it("opens a file tile as its own surface", async () => {
+  it("opens a file tile in the panel", async () => {
     closeAll(CHAT)
     await using screen = await render(() => <Files files={files} chatId={CHAT} />)
     await screen.getByRole("button", { name: "d.png" }).click()
-    expect(sidecarSurfaces(CHAT).map((surface) => surface.id)).toEqual(["file:d.png"])
+    expect(openFiles(CHAT).map((surface) => surface.id)).toEqual(["file:d.png"])
+    expect(deskView(CHAT)?.id).toBe("file:d.png")
     closeAll(CHAT)
   })
 
@@ -56,10 +58,21 @@ describe("desk card", () => {
     await expect.element(screen.getByRole("button", { name: "Answer" })).toBeVisible()
   })
 
-  it("shows a progress bar for what the agent is doing now", async () => {
-    await using screen = await render(() => <Now line="Kiko is reading a file" slug="kiko" tasks={[]} />)
-    await expect.element(screen.getByText("Kiko is reading a file")).toBeVisible()
-    await expect.element(screen.getByRole("progressbar")).toBeInTheDocument()
+  it("shows what the agent is doing now, with a bar only when tasks give real progress", async () => {
+    const tasks = [
+      { id: "1", title: "Calendars", status: "done", dependsOn: [] },
+      { id: "2", title: "Trains", status: "doing", dependsOn: [] },
+    ] as unknown as Task[]
+    await using screen = await render(() => (
+      <>
+        <Now line="Reading notes.md" slug="kiko" tasks={[]} />
+        <Now line="Thinking" slug="kiko" tasks={tasks} />
+      </>
+    ))
+    await expect.element(screen.getByText("Reading notes.md")).toBeVisible()
+    const bars = screen.container.querySelectorAll('[role="progressbar"]')
+    expect(bars).toHaveLength(1)
+    expect(bars[0]?.getAttribute("aria-valuenow")).toBe("50")
   })
 
   it("lists helpers and memory facts, naming whose memory it is", async () => {

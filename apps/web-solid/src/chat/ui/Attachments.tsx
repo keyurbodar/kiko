@@ -60,7 +60,8 @@ export function MessageAttachments(props: {
   onOpenImages?: (images: readonly DialogImage[], index: number, from?: Element | null) => void
 }) {
   const split = () => splitFiles(props.files)
-  const images = () => split().images.map((f): DialogImage => ({ src: f.src, name: f.name }))
+  const images = () =>
+    split().images.map((f): DialogImage => ({ src: f.src, name: f.name, ...(f.path ? { path: f.path } : {}) }))
   const shown = () => split().images.slice(0, MOSAIC_MAX)
   const hidden = () => split().images.length - MOSAIC_MAX
   const [allFiles, setAllFiles] = createSignal(false)

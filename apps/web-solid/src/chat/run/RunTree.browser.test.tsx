@@ -101,4 +101,29 @@ describe("RunTree", () => {
     expect(head.textContent).toContain("Ran 2 commands")
     expect(head.querySelector('[data-component="run-tree-took"]')!.textContent).toBe("12s")
   })
+
+  it("keeps the summary and time it showed once the steps are no longer loaded", async () => {
+    fake.live = false
+    fake.steps = [step("a", { startedAt: START, endedAt: START + 5_000 })]
+    {
+      await using first = await render(() => <RunTree windowKey="kiko#7" count={1} />)
+      expect(first.container.querySelector(".run-tree-head")!.textContent).toContain("Ran 1 command")
+    }
+    fake.steps = []
+    await using screen = await render(() => <RunTree windowKey="kiko#7" count={1} />)
+
+    const head = screen.container.querySelector<HTMLElement>(".run-tree-head")!
+    expect(head.textContent).toContain("Ran 1 command")
+    expect(head.querySelector('[data-component="run-tree-took"]')!.textContent).toBe("5s")
+  })
+
+  it("shows a step's own time only when it differs from the summary's", async () => {
+    fake.live = false
+    fake.steps = [step("solo", { startedAt: START, endedAt: START + 5_000 })]
+    await using screen = await render(() => <RunTree windowKey="kiko#8" count={1} />)
+    screen.container.querySelector<HTMLElement>(".run-tree-head")!.click()
+
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(1))
+    expect(rows(screen.container)[0]!.querySelector('[data-component="run-tree-took"]')).toBeNull()
+  })
 })

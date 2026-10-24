@@ -7,6 +7,7 @@ import { recentFiles } from "../files/recent"
 import { agentList } from "../lib/chats"
 import { agentDisplayName } from "../lib/names"
 import { askDeleteChat, startRename, togglePin } from "../sidebar/actions"
+import { needsOf, type Need } from "../sidebar/needs"
 import { markedUnread } from "../sidebar/unread-mark"
 import { openSettings } from "../settings/open"
 import { SETTINGS_SECTIONS } from "../settings/sections"
@@ -62,8 +63,6 @@ const chatActions = (id: string): readonly RowAction[] => {
   ]
 }
 
-const needsYou = (bot: { id: string; unread: number }): boolean => bot.unread > 0 || markedUnread(bot.id)
-
 export function chatChoices(): Choice[] {
   return room.bots().map((bot) => ({
     id: bot.id,
@@ -78,20 +77,36 @@ export function chatChoices(): Choice[] {
   }))
 }
 
+const needsHere = (): ReadonlyMap<string, Need> =>
+  needsOf({
+    activeId: room.activeId(),
+    asks: room.active()?.asks() ?? [],
+    messages: room.messages(),
+    retry: room.retryRun,
+    elsewhere: new Map(),
+  })
+
 export function unreadChats(): Choice[] {
+  const needs = needsHere()
+  const waiting = (bot: { id: string; unread: number }) => bot.unread > 0 || markedUnread(bot.id) || needs.has(bot.id)
   return room
     .bots()
-    .filter(needsYou)
-    .map((bot) => ({
-      id: `needs.${bot.id}`,
-      title: bot.name,
-      chatId: bot.id,
-      from: bot.previewFrom,
-      detail: bot.preview,
-      meta: bot.unread > 0 ? `${bot.unread} new` : undefined,
-      actions: () => chatActions(bot.id),
-      run: () => openChat(bot.id),
-    }))
+    .filter(waiting)
+    .sort((a, b) => Number(needs.has(b.id)) - Number(needs.has(a.id)))
+    .map((bot) => {
+      const need = needs.get(bot.id)
+      return {
+        id: `needs.${bot.id}`,
+        title: bot.name,
+        chatId: bot.id,
+        ...(need ? {} : { from: bot.previewFrom }),
+        detail: need?.text ?? bot.preview,
+        meta: need?.kind === "failed" ? "Failed" : bot.unread > 0 ? `${bot.unread} new` : undefined,
+        ...(need?.kind === "failed" ? { tone: "bad" as const } : {}),
+        actions: () => chatActions(bot.id),
+        run: () => openChat(bot.id),
+      }
+    })
 }
 
 export function agentChoices(): Choice[] {
@@ -191,7 +206,8 @@ export const recentPaths = (): readonly string[] => {
   return chatId ? recentFiles(chatId) : []
 }
 
-const PRIORITY = ["chat.new", "chat.model", "chats.go", "chats.search-all", "settings.open"]
+const PRIORITY = ["chat.new", "chat.model", "settings.open"]
+const COVERED_BY_TABS = new Set(["chats.go", "chats.search-all"])
 
 export function doItems(list: readonly Command[]): {
   all: Item[]
@@ -201,7 +217,7 @@ export function doItems(list: readonly Command[]): {
 } {
   const all = listed(list).map((c) => ({ id: c.id as string, item: commandItem(c) }))
   const pick = (ids: readonly string[]) => ids.flatMap((id) => all.find((x) => x.id === id)?.item ?? [])
-  const rest = all.filter((x) => !PRIORITY.includes(x.id)).map((x) => x.item)
+  const rest = all.filter((x) => !PRIORITY.includes(x.id) && !COVERED_BY_TABS.has(x.id)).map((x) => x.item)
   return {
     all: all.map((x) => x.item),
     priority: [...pick(PRIORITY), ...rest],
