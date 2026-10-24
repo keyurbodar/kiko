@@ -1,6 +1,6 @@
 {
   "name": "kiko",
-  "version": "0.6.6",
+  "version": "0.8.5",
   "private": true,
   "workspaces": [
     "apps/*",
