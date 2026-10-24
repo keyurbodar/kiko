@@ -52,7 +52,8 @@ const DATE_CHIP_EDGE_PX = 56
 
 const STAGE_CLASS = "relative flex min-h-0 flex-1 flex-col"
 
-const SCROLLER_CLASS = "relative flex min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
+const SCROLLER_CLASS =
+  "relative flex min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [overflow-anchor:none]"
 
 const COLUMN_CLASS = "mx-auto flex min-h-full w-full max-w-(--chat-content-max-width) self-start flex-col pt-12 pb-12"
 
@@ -514,6 +515,14 @@ export function VirtualThread(props: {
       "pointerleave",
       () => setNearTopEdge(false),
       { passive: true },
+    )
+    createEventListener(
+      () => column,
+      "click",
+      (event: MouseEvent) => {
+        if (event.target instanceof Element && event.target.closest("[data-disclosure]")) stuck = false
+      },
+      { capture: true },
     )
     onCleanup(() => {
       sizes.unobserve(scroller)
