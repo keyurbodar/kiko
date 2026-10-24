@@ -13,6 +13,8 @@ import { closeSettings } from "./open"
 import { SETTINGS_GROUPS, searchSections, sectionAt, type SettingsSection } from "./sections"
 import "./settings-dialog.css"
 
+const LAYERS = '[role="dialog"], [role="menu"], [role="listbox"], [data-popper-positioner], .toast-v2'
+
 export function SettingsDialog(props: ParentProps) {
   const returnTo = document.activeElement
   const navigate = useNavigate()
@@ -46,7 +48,14 @@ export function SettingsDialog(props: ParentProps) {
       { defer: true },
     ),
   )
+  const holdFocus = (event: FocusEvent) => {
+    const target = event.target
+    if (!(target instanceof Element) || target.closest(LAYERS)) return
+    nav.querySelector<HTMLElement>('[aria-current="page"]')?.focus({ preventScroll: true })
+  }
   onMount(() => {
+    document.addEventListener("focusin", holdFocus)
+    onCleanup(() => document.removeEventListener("focusin", holdFocus))
     glide(nav, mark, {
       attributes: ["aria-current"],
       find: (host) => host.querySelector<HTMLElement>('.settings-nav-row[aria-current="page"]'),
