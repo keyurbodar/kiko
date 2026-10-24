@@ -36,6 +36,24 @@ function seed(): void {
 }
 
 describe("purging local data", () => {
+  it("finishes while a tab from an older build still holds the database open, and deletes it once that tab lets go", async () => {
+    const held = await open("kiko:client-runtime")
+
+    await purge()
+
+    held.close()
+    const reopened = await new Promise<boolean>((resolve) => {
+      const request = indexedDB.open("kiko:client-runtime")
+      request.addEventListener("upgradeneeded", () => resolve(true))
+      request.addEventListener("success", () => {
+        request.result.close()
+        resolve(false)
+      })
+    })
+    expect(reopened).toBe(true)
+    await purge()
+  })
+
   it("leaves only device preferences and other sites' keys", async () => {
     seed()
     setSigningOut(true)
@@ -56,22 +74,6 @@ describe("purging local data", () => {
     expect(await names()).toEqual(["other-app"])
     setSigningOut(false)
     expect(localStorage.getItem("kiko:signing-out")).toBeNull()
-  })
-
-  it("waits for another tab to let go of a database instead of failing", async () => {
-    seed()
-    const held = await open("kiko-composer")
-    const asked = new Promise<void>((resolve) => held.addEventListener("versionchange", () => resolve()))
-    let finished = false
-    const purged = purge().then(() => {
-      finished = true
-    })
-
-    await asked
-    expect(finished).toBe(false)
-    held.close()
-    await purged
-    expect(await names()).not.toContain("kiko-composer")
   })
 })
 

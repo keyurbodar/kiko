@@ -42,6 +42,7 @@ function deleteDatabase(name: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.deleteDatabase(name)
     request.addEventListener("success", () => resolve())
+    request.addEventListener("blocked", () => resolve())
     request.addEventListener("error", () => reject(request.error))
   })
 }
