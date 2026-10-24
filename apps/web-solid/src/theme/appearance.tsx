@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
+import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { appearanceOf } from "@kiko/theme/apply"
 import { BASE_SIZE, CHAT_WIDTHS, CONTRAST, DEFAULT_DISPLAY, type ChatWidth, type Display } from "@kiko/theme/display"
 import { themeFor } from "@kiko/theme/imported"
@@ -8,6 +8,7 @@ import { buttonClass, Group, Row, Segmented, Slider, Toggle } from "../settings/
 import { Select } from "../settings/select"
 import { look, previewLook, updateLook } from "./live"
 import { choose, chooseBuiltin, DEFAULT, remove, themes } from "./live"
+import { isFontFamilyAvailable } from "./fonts"
 import { ThemeBrowser } from "./open-vsx-themes"
 
 const shown = () => appearanceOf(look().mode)
@@ -142,24 +143,68 @@ function Gallery(props: { appearance: ThemeAppearance; onMore: () => void }) {
   )
 }
 
-function FontField(props: { label: string; placeholder: string; value: string; onInput: (value: string) => void }) {
+const COMMIT_PAUSE_MS = 400
+
+function FontField(props: { label: string; placeholder: string; value: string; onCommit: (value: string) => void }) {
   const [draft, setDraft] = createSignal(props.value)
-  const [editing, setEditing] = createSignal(false)
-  createEffect(() => {
-    if (!editing()) setDraft(props.value)
-  })
+  const [settled, setSettled] = createSignal(true)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const cancel = () => {
+    clearTimeout(timer)
+    timer = undefined
+  }
+  createEffect(
+    on(
+      () => props.value,
+      (value) => {
+        if (value === draft().trim()) return
+        cancel()
+        setDraft(value)
+        setSettled(true)
+      },
+    ),
+  )
+  onCleanup(cancel)
+  const commit = (next: string) => {
+    setSettled(true)
+    const name = next.trim()
+    if (name === "" || isFontFamilyAvailable(name)) props.onCommit(name)
+  }
+  const flush = () => {
+    if (timer === undefined) return
+    cancel()
+    commit(draft())
+  }
+  const invalid = () => settled() && draft().trim() !== "" && draft().trim() !== props.value
   return (
     <input
       class="kit-field w-44"
       aria-label={props.label}
+      aria-invalid={invalid() || undefined}
+      autocapitalize="off"
+      autocomplete="off"
+      spellcheck={false}
       placeholder={props.placeholder}
       value={draft()}
-      onFocus={() => setEditing(true)}
-      onBlur={() => setEditing(false)}
+      onBlur={flush}
       onInput={(event) => {
         const value = event.currentTarget.value
         setDraft(value)
-        props.onInput(value.trim())
+        setSettled(false)
+        cancel()
+        timer = setTimeout(() => {
+          timer = undefined
+          commit(value)
+        }, COMMIT_PAUSE_MS)
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") flush()
+        if (event.key !== "Escape") return
+        event.preventDefault()
+        event.stopPropagation()
+        cancel()
+        setDraft(props.value)
+        setSettled(true)
       }}
     />
   )
@@ -268,7 +313,7 @@ export default function Appearance(): JSX.Element {
             label="Interface font"
             placeholder="System"
             value={d().interfaceFont}
-            onInput={(interfaceFont) => set({ interfaceFont })}
+            onCommit={(interfaceFont) => set({ interfaceFont })}
           />
         </Row>
         <Row label="Code font" onReset={reset("codeFont")}>
@@ -276,7 +321,7 @@ export default function Appearance(): JSX.Element {
             label="Code font"
             placeholder="System mono"
             value={d().codeFont}
-            onInput={(codeFont) => set({ codeFont })}
+            onCommit={(codeFont) => set({ codeFont })}
           />
         </Row>
         <Row label="Thin text smoothing" onReset={reset("smoothing")}>
