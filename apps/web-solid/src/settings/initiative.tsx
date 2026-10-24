@@ -1,7 +1,8 @@
+import { Segmented } from "@kiko/ui/v2/segmented"
 import type { UserSettings } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { Show } from "solid-js"
-import { Group, Row, Segmented, Skeleton } from "./kit"
+import { Group, Row, Skeleton } from "./kit"
 import { createQuery, owner, run } from "../state/runtime"
 
 type Settings = UserSettings
@@ -43,11 +44,7 @@ export default function InitiativePage() {
             />
           </Show>
         </Row>
-        <Row
-          label="Memory capture"
-          id="capture"
-          description="Auto captures facts when you have saved a judge key. Off never captures."
-        >
+        <Row label="Memory capture" id="capture" description="Saves facts from your chats when a judge key is set.">
           <Show when={loaded()} fallback={<Skeleton class="h-7 w-24" />}>
             <Segmented<Capture>
               label="Memory capture"

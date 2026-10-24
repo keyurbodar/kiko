@@ -18,7 +18,7 @@ describe("a backend from before the descriptor", () => {
     expect(backend.started).toEqual([])
     expect(screen.container.querySelectorAll('[data-component="update-notice"] button')).toHaveLength(1)
 
-    await screen.getByRole("button", { name: "Reconnect Cloudflare (keeps chats)" }).click()
+    await screen.getByRole("button", { name: "Sign in to Cloudflare" }).click()
     await expect.poll(() => router.state.location.pathname).toBe("/connect")
     expect(router.state.location.search).toEqual({ reconnect: 1 })
   })

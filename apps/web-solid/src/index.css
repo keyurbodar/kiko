@@ -221,6 +221,7 @@
   --bad-wash: color-mix(in oklab, #ef6a6a 12%, transparent);
   --scrollbar-thumb: color-mix(in oklab, #ededed 18%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #ededed 30%, transparent);
+  --card-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
 }
 
 :root:not(.dark) {
@@ -248,6 +249,8 @@
   --bad-wash: color-mix(in oklab, #d6453f 12%, transparent);
   --scrollbar-thumb: color-mix(in oklab, #1b1b1b 18%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #1b1b1b 30%, transparent);
+  --card-shadow:
+    0 0 0 1px color-mix(in oklab, #1b1b1b 6%, transparent), 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px -16px rgb(0 0 0 / 18%);
 }
 /* palette:end */
 
@@ -335,7 +338,6 @@
 :root {
   --popover-shadow: 0 12px 40px oklch(0% 0 none / 0.45), 0 2px 6px oklch(0% 0 none / 0.12);
   --menu-shadow: 0 0 0 0.5px oklch(0% 0 none / 0.4), 0 10px 28px oklch(0% 0 none / 0.32);
-  --card-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
   --row-shadow: 0 6px 18px oklch(0% 0 none / 0.35);
   --segment-shadow: 0 2px 8px oklch(0% 0 none / 0.35);
 }
@@ -344,7 +346,6 @@
   color-scheme: light;
   --popover-shadow: 0 12px 40px oklch(0% 0 none / 0.16), 0 2px 6px oklch(0% 0 none / 0.08);
   --menu-shadow: 0 0 0 0.5px oklch(0% 0 none / 0.1), 0 10px 28px oklch(0% 0 none / 0.12);
-  --card-shadow: 0 12px 28px -18px rgb(0 0 0 / 40%);
   --float-shadow:
     0 16px 40px -8px oklch(0% 0 none / 0.18), 0 2px 8px oklch(0% 0 none / 0.08),
     0 0 0 1px color-mix(in oklab, var(--fg) 7%, transparent);
@@ -705,14 +706,6 @@
 
   p {
     text-wrap: pretty;
-  }
-
-  h1,
-  h2,
-  h3 {
-    font-family: var(--font-family-display);
-    font-variation-settings: var(--display-variation);
-    font-weight: 400;
   }
 
   h1,

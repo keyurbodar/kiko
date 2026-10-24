@@ -13,7 +13,7 @@ import type { FileRouteTypes } from "../routeTree.gen"
 type SettingsPath = Exclude<Extract<FileRouteTypes["to"], `/settings/${string}`>, "/settings/$">
 export type SettingsId = SettingsPath extends `/settings/${infer Id}` ? Id : never
 
-type SectionMeta = { group: SettingsGroup; label: string; hint?: string; icon: Glyph; keywords: string }
+type SectionMeta = { group: SettingsGroup; label: string; hint: string; icon: Glyph; keywords: string }
 
 export const SETTINGS_GROUPS = ["You", "Your team", "Connections", "Kiko"] as const
 type SettingsGroup = (typeof SETTINGS_GROUPS)[number]
@@ -43,12 +43,14 @@ const SECTIONS: { [Id in SettingsId]: SectionMeta } = {
   appearance: {
     group: "Kiko",
     label: "Appearance",
+    hint: "How Kiko looks on this device.",
     icon: AppearanceIcon,
     keywords: "theme json dark light font radius spacing colors open vsx accent contrast",
   },
   general: {
     group: "Kiko",
     label: "General",
+    hint: "How your agents behave between messages.",
     icon: SettingsIcon,
     keywords: "initiative proactive nudge digest speak up memory capture auto off",
   },
@@ -62,6 +64,7 @@ const SECTIONS: { [Id in SettingsId]: SectionMeta } = {
   account: {
     group: "You",
     label: "Account",
+    hint: "You, and where your Kiko lives.",
     icon: UserIcon,
     keywords:
       "profile sign out backend address version update google github email storage object r2 archive history space full",
@@ -97,6 +100,6 @@ export function searchSections(query: string): readonly SettingsSection[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
   if (!words.length) return SETTINGS_SECTIONS
   return SETTINGS_SECTIONS.filter((s) =>
-    words.every((w) => `${s.label} ${s.hint ?? ""} ${s.keywords}`.toLowerCase().includes(w)),
+    words.every((w) => `${s.label} ${s.hint} ${s.keywords}`.toLowerCase().includes(w)),
   )
 }

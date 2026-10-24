@@ -1,5 +1,4 @@
-import { RemixIcon } from "@kiko/ui/remix-icon"
-import { SearchIcon } from "@kiko/ui/icons"
+import { SearchField } from "@kiko/ui/v2/search-field"
 import {
   createMemo,
   createResource,
@@ -137,25 +136,20 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
       data-component="emoji-picker"
     >
       <div class="px-2.5 pt-2.5 pb-1">
-        <label class="flex h-10 items-center gap-2 rounded-full bg-[var(--hover)] px-3">
-          <RemixIcon icon={SearchIcon} size={16} class="shrink-0 text-fg2" />
-          <input
-            ref={(element) => queueMicrotask(() => element.focus({ preventScroll: true }))}
-            class="min-w-0 flex-1 bg-transparent text-[15px] text-fg outline-none placeholder:text-fg2"
-            placeholder="Search"
-            aria-label="Search emoji"
-            autocomplete="off"
-            spellcheck={false}
-            value={query()}
-            onInput={(event) => {
-              setQuery(event.currentTarget.value)
-              setActive(event.currentTarget.value.trim() ? { section: 0, index: 0 } : null)
-              scroller?.scrollTo({ top: 0 })
-            }}
-            onKeyDown={onKeyDown}
-            data-component="emoji-search"
-          />
-        </label>
+        <SearchField
+          ref={(element) => queueMicrotask(() => element.focus({ preventScroll: true }))}
+          size="large"
+          placeholder="Search emoji"
+          aria-label="Search emoji"
+          value={query()}
+          onValue={(value) => {
+            setQuery(value)
+            setActive(value.trim() ? { section: 0, index: 0 } : null)
+            scroller?.scrollTo({ top: 0 })
+          }}
+          onKeyDown={onKeyDown}
+          data-component="emoji-search"
+        />
       </div>
       <div
         ref={scroller}
@@ -185,7 +179,9 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
                   }}
                   data-component="emoji-section"
                 >
-                  <h3 class="flex h-8 items-center px-1.5 text-[15px] font-semibold text-fg">{section.title}</h3>
+                  <h3 class="sticky top-0 z-[1] flex h-8 items-center bg-raise px-1.5 type-label text-fg3">
+                    {section.title}
+                  </h3>
                   <div class="grid grid-cols-8" role="listbox" aria-label={section.title}>
                     <For each={section.cells}>
                       {(cell, at) => (

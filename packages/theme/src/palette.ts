@@ -221,6 +221,13 @@ const ROLES: ReadonlyArray<readonly [token: string, value: (ink: Ink) => string]
   ["--bad-wash", ({ p }) => `color-mix(in oklab, ${p.danger} 12%, transparent)`],
   ["--scrollbar-thumb", ({ clear }) => clear(18)],
   ["--scrollbar-thumb-hover", ({ clear }) => clear(30)],
+  [
+    "--card-shadow",
+    ({ clear, dark }) =>
+      dark
+        ? "inset 0 1px 0 rgb(255 255 255 / 3%)"
+        : `0 0 0 1px ${clear(6)}, 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px -16px rgb(0 0 0 / 18%)`,
+  ],
 ]
 
 export function tokensFor(

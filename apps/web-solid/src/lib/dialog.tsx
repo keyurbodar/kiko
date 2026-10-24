@@ -1,7 +1,15 @@
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
-import { Show, createUniqueId, type JSX } from "solid-js"
+import { Show, createRenderEffect, createUniqueId, on, type JSX } from "solid-js"
 import { iconButtonClass } from "../settings/kit"
 import { cn } from "./cn"
+
+function returnFocus(opener: Element | null, closing: EventTarget | null): void {
+  if (opener instanceof HTMLElement && opener.isConnected) return opener.focus({ preventScroll: true })
+  const below = [...document.querySelectorAll<HTMLElement>('[data-component="modal-v2-content"]')].filter(
+    (el) => el !== closing,
+  )
+  below.at(-1)?.focus({ preventScroll: true })
+}
 
 const WIDTH = {
   sm: "w-[min(420px,calc(100vw-32px))]",
@@ -22,6 +30,15 @@ export function Dialog(props: {
   children?: JSX.Element
 }): JSX.Element {
   const describedBy = createUniqueId()
+  let opener: Element | null = null
+  createRenderEffect(
+    on(
+      () => props.open,
+      (open) => {
+        if (open) opener = document.activeElement
+      },
+    ),
+  )
   const inner = () => (
     <>
       <div class={cn("min-h-0 flex-1 overflow-y-auto px-5 pb-5 empty:hidden", props.bodyClass)}>{props.children}</div>
@@ -41,6 +58,10 @@ export function Dialog(props: {
             props.class,
           )}
           aria-describedby={props.description ? describedBy : undefined}
+          onCloseAutoFocus={(event: Event) => {
+            event.preventDefault()
+            returnFocus(opener, event.currentTarget)
+          }}
         >
           <div class="relative flex min-h-0 flex-1 flex-col" data-component={props["data-component"]}>
             <header class="shrink-0 px-5 pt-4 pr-12 pb-4">

@@ -4,10 +4,8 @@ import { createSignal, For, Show } from "solid-js"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { room } from "../state/room"
 import { user } from "../state/user"
-import { connectedProviders } from "./connected"
-import { Group, Hint, Row } from "./kit"
+import { Group, Row } from "./kit"
 import { ModelPicker } from "./model-picker"
-import { hasModelProvider } from "./provider-kinds"
 import { ReasoningMenu } from "./reasoning-menu"
 
 function AgentRow(props: { slug: AgentSlug; name: string }) {
@@ -52,16 +50,12 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
 
 export function AgentModels() {
   return (
-    <Show
-      when={hasModelProvider(connectedProviders())}
-      fallback={<Hint>Connect a provider in the Providers tab to choose models for your agents.</Hint>}
+    <Group
+      title="Your agents"
+      description="Each agent keeps its own model and reasoning level in every chat."
+      data-component="agent-models"
     >
-      <Group
-        description="Each agent keeps its own model and reasoning level in every chat."
-        data-component="agent-models"
-      >
-        <For each={user.modelAgents()}>{(agent) => <AgentRow slug={agent.slug} name={agent.name} />}</For>
-      </Group>
-    </Show>
+      <For each={user.modelAgents()}>{(agent) => <AgentRow slug={agent.slug} name={agent.name} />}</For>
+    </Group>
   )
 }

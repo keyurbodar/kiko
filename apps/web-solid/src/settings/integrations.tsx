@@ -1,10 +1,9 @@
 import type { ComposioResult, ComposioStatus, KernelResult, KernelStatus } from "@kiko/protocol"
 import { Show, createSignal, onCleanup, onMount } from "solid-js"
-import { cn } from "../lib/cn"
-import { Button, Notice, fieldClass } from "./kit"
+import { Button, Notice } from "./kit"
+import { KeyLink, SecretInput } from "./connect-parts"
 import { createComposioClient, createKernelClient, type ComposioClient, type KernelClient } from "./integrations-client"
 import LiveBrowser from "./live-browser"
-import { SECRET_FIELD } from "../lib/secret-field"
 import { createQuery, owner } from "../state/runtime"
 
 const COMPOSIO_PLATFORM = "https://platform.composio.dev"
@@ -55,6 +54,8 @@ function KeyField(props: {
   placeholder: string
   submit: string
   busy: boolean
+  home: string
+  error: string | undefined
   onKey: (key: string) => void
   [data: `data-${string}`]: string | undefined
 }) {
@@ -63,26 +64,24 @@ function KeyField(props: {
     event.preventDefault()
     if (!input) return
     const key = input.value.trim()
-    input.value = ""
     if (key) props.onKey(key)
   }
   return (
-    <form class="flex gap-2" onSubmit={submit}>
-      <label class="sr-only" for={props.id}>
-        {props.label}
-      </label>
-      <input
+    <form class="flex flex-col gap-3" onSubmit={submit}>
+      <SecretInput
         id={props.id}
-        ref={input}
-        {...SECRET_FIELD}
-        name={`kiko-${props.id}-secret`}
+        label={props.label}
         placeholder={props.placeholder}
-        class={cn(fieldClass, "flex-1")}
+        ref={(el) => (input = el)}
+        error={props.error}
         data-component={props.id}
       />
-      <Button type="submit" variant="primary" busy={props.busy} data-action={props["data-action"]}>
-        {props.submit}
-      </Button>
+      <div class="flex items-center justify-between gap-3">
+        <KeyLink href={props.home}>Get a key at {props.home.replace(/^https:\/\//, "")}</KeyLink>
+        <Button type="submit" variant="primary" busy={props.busy} data-action={props["data-action"]}>
+          {props.submit}
+        </Button>
+      </div>
     </form>
   )
 }
@@ -202,24 +201,21 @@ export function AppDetail(props: { id: AppId; api: Integrations }) {
       <Show
         when={state() === "connected"}
         fallback={
-          <>
-            <KeyField
-              id={`${props.id}-key`}
-              label={`${app().name} API key`}
-              placeholder={app().placeholder}
-              submit="Connect"
-              busy={props.api.busy()}
-              data-action={`${props.id}-connect`}
-              onKey={props.id === "composio" ? props.api.connectComposio : props.api.connectKernel}
-            />
-            <a class="link-grow text-label text-fg2 hover:text-fg" href={app().home} target="_blank" rel="noreferrer">
-              Get a key at {app().home.replace(/^https:\/\//, "")}
-            </a>
-          </>
+          <KeyField
+            id={`${props.id}-key`}
+            label={`${app().name} API key`}
+            placeholder={app().placeholder}
+            submit="Connect"
+            busy={props.api.busy()}
+            home={app().home}
+            error={props.api.errorAt(where())}
+            data-action={`${props.id}-connect`}
+            onKey={props.id === "composio" ? props.api.connectComposio : props.api.connectKernel}
+          />
         }
       >
         <div class="flex items-center justify-between gap-3">
-          <span class="text-ui text-ok">Connected</span>
+          <span class="type-ui text-ok">Connected</span>
           <Button
             variant="danger"
             data-action={`${props.id}-disconnect`}
@@ -233,7 +229,7 @@ export function AppDetail(props: { id: AppId; api: Integrations }) {
           <LiveBrowser icon={<GlobeIcon />} />
         </Show>
       </Show>
-      <Show when={props.api.errorAt(where())}>{(text) => <Notice>{text()}</Notice>}</Show>
+      <Show when={state() === "connected" && props.api.errorAt(where())}>{(text) => <Notice>{text()}</Notice>}</Show>
     </div>
   )
 }

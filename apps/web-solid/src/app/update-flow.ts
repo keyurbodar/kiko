@@ -33,7 +33,7 @@ const [phase, setPhase] = createSignal<UpdatePhase>(CURRENT)
 const [descriptor, setDescriptor] = createSignal<Descriptor | undefined>()
 const [latest, setLatest] = createSignal<string | undefined>()
 
-export const clientIsBehind = () => hosted && clientBehind(APP_VERSION, latest())
+const clientIsBehind = () => hosted && clientBehind(APP_VERSION, latest())
 
 export const backendStorage = () => {
   const known = descriptor()
