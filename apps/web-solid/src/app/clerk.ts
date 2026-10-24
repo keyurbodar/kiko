@@ -35,7 +35,7 @@ function loadUi(key: string): Promise<ClerkUI> {
   })
 }
 
-export const appearance = {
+const appearance = {
   elements: {
     formButtonPrimary: { boxShadow: "none" },
     formFieldInput: { boxShadow: "none", outline: "none" },
@@ -171,20 +171,4 @@ export async function mountSignIn(node: HTMLDivElement): Promise<() => void> {
   const href = location.origin + location.pathname + location.search
   clerk.mountSignIn(node, { routing: "hash", withSignUp: true, forceRedirectUrl: href, signUpForceRedirectUrl: href })
   return () => clerk.unmountSignIn(node)
-}
-
-export interface ClerkSignIn {
-  token: string
-  userId: string
-  backendUrl: string | null
-  profile: Profile
-}
-
-export async function clerkSignIn(): Promise<ClerkSignIn | null> {
-  const clerk = await loadClerk()
-  const { session, user } = clerk
-  if (!session || !user) return null
-  const token = await session.getToken({ skipCache: true })
-  if (!token || clerk.session !== session || clerk.user !== user) return null
-  return { token, userId: user.id, backendUrl: pointerOf(user), profile: profileOf(user) }
 }
