@@ -143,7 +143,11 @@ export function MessageActions(props: {
         data-copied={copied() ? "" : undefined}
         onClick={() => void copy()}
       >
-        <RemixIcon icon={copied() ? CheckIcon : CopyIcon} size={16} class={copied() ? "text-ok" : undefined} />
+        <RemixIcon
+          icon={copied() ? CheckIcon : CopyIcon}
+          size={16}
+          class={copied() ? "text-ok motion-pop" : undefined}
+        />
       </button>
       <button type="button" class={BUTTON} aria-label="Reply" data-action="reply" onClick={() => props.onReply()}>
         <RemixIcon icon={ReplyIcon} size={16} />

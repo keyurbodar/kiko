@@ -12,7 +12,7 @@
   --motion-ease-out: var(--ease-kiko);
   --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
   --motion-ease-settle: var(--ease-kiko);
-  --motion-rise: 520ms;
+  --motion-rise: 260ms;
   --motion-reveal: 320ms;
   --motion-spin: 800ms;
   --motion-ease-linear: linear;
@@ -108,7 +108,7 @@
   @keyframes motion-bubble-in {
     from {
       opacity: 0;
-      transform: translateY(28px);
+      transform: translateY(14px);
     }
     to {
       opacity: 1;
@@ -418,6 +418,21 @@
 
   .motion-shake {
     animation: motion-shake 260ms var(--ease-kiko);
+  }
+
+  @keyframes motion-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    60% {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+  }
+
+  .motion-pop {
+    animation: motion-pop 240ms var(--ease-kiko) both;
   }
 }
 

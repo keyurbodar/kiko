@@ -528,6 +528,16 @@ button.rich-code-tab {
   }
 }
 
+.rich-code[data-copied] .rich-code-action:last-child {
+  color: var(--ok);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rich-code[data-copied] .rich-code-action:last-child svg {
+    animation: motion-pop 240ms var(--ease-kiko) both;
+  }
+}
+
 :root:not(.dark) .rich-code {
   --sh-class: #9a6a12;
   --sh-identifier: #1f2328;
