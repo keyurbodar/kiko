@@ -37,7 +37,7 @@ export function releaseConfig(env: ReleaseEnv): ReleaseConfig {
 export function updateConfig(env: ReleaseEnv, dev: Partial<UpdateConfig> | null): UpdateConfig {
   return {
     releaseBase: dev?.releaseBase ?? releaseConfig(env).releaseBase,
-    publicKey: PUBLIC_KEY,
+    publicKey: dev?.publicKey ?? PUBLIC_KEY,
     cfApi: dev?.cfApi ?? "https://api.cloudflare.com/client/v4",
     oauthUrl: dev?.oauthUrl ?? "https://dash.cloudflare.com/oauth2/token",
   }

@@ -116,7 +116,7 @@ import type { ComputerLinkResult, PcCallOutcome, PcReleased } from "../computer/
 import { MemoryCapture } from "./memory-capture"
 import { type Attachment, send } from "./socket-frames"
 import { AWAY_MS, LAST_SEEN } from "./keys"
-import { UpdateWiring } from "./update-wiring"
+import { SelfUpdate } from "./update-wiring"
 
 const REPLAY_LIMIT = 500
 
@@ -1335,15 +1335,16 @@ export class User {
   }
 
   #homeReady = false
-  #updateWiring?: UpdateWiring
-  get #update(): UpdateWiring {
-    this.#updateWiring ??= new UpdateWiring({
+  #selfUpdate?: SelfUpdate
+  get selfUpdate(): SelfUpdate {
+    this.#selfUpdate ??= new SelfUpdate({
       env: this.env,
       sql: this.sql,
       userId: () => this.ownerId,
       broadcast: (frame) => this.broadcast(frame),
+      waitUntil: (work) => this.ctx.waitUntil(work),
     })
-    return this.#updateWiring
+    return this.#selfUpdate
   }
 
   async devUpdateConfig(config: Record<string, unknown>): Promise<void> {
@@ -1706,7 +1707,7 @@ export class User {
 
   readonly updateStart = Effect.fn("User.updateStart")({ self: this }, function (version: string) {
     return Effect.sync(() => {
-      this.ctx.waitUntil(this.#update.start(version))
+      this.selfUpdate.start(version)
     })
   })
 

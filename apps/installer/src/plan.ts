@@ -1,4 +1,4 @@
-import type { SecretBinding } from "@kiko/durable/release-plan"
+import type { UploadBinding } from "@kiko/durable/release-plan"
 
 export type Grant =
   | { kind: "oauth"; code: string; verifier: string; redirectUri: string }
@@ -24,9 +24,9 @@ type BoundInput = {
   grant: StoredGrant
 }
 
-const secret = (name: string, text: string): SecretBinding => ({ type: "secret_text", name, text })
+const secret = (name: string, text: string): UploadBinding => ({ type: "secret_text", name, text })
 
-export function boundSecrets(input: BoundInput): SecretBinding[] {
+export function boundSecrets(input: BoundInput): UploadBinding[] {
   return [
     secret("OWNER_ID", input.ownerId),
     secret("CLERK_JWT_KEY", input.clerkJwtKey),
@@ -36,7 +36,7 @@ export function boundSecrets(input: BoundInput): SecretBinding[] {
   ]
 }
 
-export function firstInstallSecrets(input: BoundInput & { random: () => string }): SecretBinding[] {
+export function firstInstallSecrets(input: BoundInput & { random: () => string }): UploadBinding[] {
   return [secret("SESSION_SECRET", input.random()), secret("CREDENTIALS_KEK", input.random()), ...boundSecrets(input)]
 }
 

@@ -1,11 +1,6 @@
 import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
-import {
-  type FilesBinding,
-  buildMetadata,
-  destructiveMigration,
-  selectMigrations,
-  uploadBody,
-} from "@kiko/durable/release-plan"
+import { buildMetadata, keptBindings, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
+import type { ScriptBinding } from "@kiko/durable/cloudflare"
 import { type FetchLike, InstallError, cf, isBlocking, json } from "./cf"
 import { DEFAULT_SCRIPT, type Grant, type StoredGrant, boundSecrets, firstInstallSecrets, ownScriptName } from "./plan"
 
@@ -35,7 +30,6 @@ export type InstallRequest = {
   sub: string
   grant: Grant
   accountId?: string
-  reset?: "delete-existing-data"
 }
 export type InstallResult = { backendUrl: string; version: string }
 
@@ -68,9 +62,8 @@ async function exchange(env: InstallEnv, grant: Extract<Grant, { kind: "oauth" }
 
 async function loadRelease(env: InstallEnv, f: FetchLike) {
   try {
-    return await loadVerifiedRelease(
-      { baseUrl: env.RELEASE_BASE_URL, publicKey: env.RELEASE_PUBLIC_KEY, index: "latest-owner.json" },
-      (url) => f(url),
+    return await loadVerifiedRelease({ baseUrl: env.RELEASE_BASE_URL, publicKey: env.RELEASE_PUBLIC_KEY }, (url) =>
+      f(url),
     )
   } catch (e) {
     if (e instanceof ReleaseRefused) throw new InstallError({ code: e.code, message: e.message, status: 502 })
@@ -304,7 +297,6 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   }
   const name = await findScriptName()
   const existing = byName.get(name)
-  const fileStore: FilesBinding = existing ? "inherit" : "none"
 
   const { manifest, files } = await loadRelease(env, f)
   const grant: StoredGrant = { ...stored, accountId, scriptName: name }
@@ -328,26 +320,15 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
       status: 409,
     })
   }
-  if (existing && destructiveMigration(migrations) && req.reset !== "delete-existing-data") {
-    if (oauth) await deps.codes?.put(oauth.code, oauth.tokens)
-    throw new InstallError({
-      code: "reset_required",
-      message:
-        "This upgrade permanently deletes all existing chats, messages, agents, memory, routines, provider keys and built-in file bytes. R2 file bytes remain, but their old indexes are deleted. Cloudflare Worker secrets remain. Returning to an older release will not restore this data. Export anything you need before confirming a fresh start.",
-      status: 409,
-    })
-  }
-  const inheritedR2 = existing
+  const existingBindings = existing
     ? ((
-        await cf<{ bindings?: { name: string; type: string }[] }>(
+        await cf<{ bindings?: ScriptBinding[] }>(
           token,
           `/accounts/${accountId}/workers/scripts/${name}/settings`,
           {},
           f,
         )
-      ).bindings
-        ?.filter((binding) => binding.type === "r2_bucket")
-        .map((binding) => binding.name) ?? [])
+      ).bindings ?? [])
     : []
   const bound = {
     ownerId: req.sub,
@@ -356,13 +337,15 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
     releaseBase: env.RELEASE_BASE_URL,
     grant,
   }
-  const secrets = existing ? null : firstInstallSecrets({ ...bound, random: deps.randomSecret })
+  const bindings = existing
+    ? keptBindings(existingBindings, [])
+    : firstInstallSecrets({ ...bound, random: deps.randomSecret })
   await cf(
     token,
     `/accounts/${accountId}/workers/scripts/${name}`,
     {
       method: "PUT",
-      body: uploadBody(manifest, files, buildMetadata(manifest, migrations, secrets, fileStore, inheritedR2)),
+      body: uploadBody(manifest, files, buildMetadata(manifest, migrations, bindings)),
     },
     f,
   ).catch((e: unknown) => {

@@ -29,17 +29,14 @@ async function fetchBytes(f: ReleaseFetch, url: string): Promise<Uint8Array> {
 type LoadedRelease = { manifest: ReleaseManifest; files: Map<string, Uint8Array> }
 
 export async function loadVerifiedRelease(
-  input: { baseUrl: string; publicKey: string; version?: string; index?: "latest.json" | "latest-owner.json" },
+  input: { baseUrl: string; publicKey: string; version?: string },
   f: ReleaseFetch,
 ): Promise<LoadedRelease> {
   const base = input.baseUrl.replace(/\/$/, "")
   const version =
     input.version ??
-    (
-      JSON.parse(new TextDecoder().decode(await fetchBytes(f, `${base}/${input.index ?? "latest.json"}`))) as {
-        version: string
-      }
-    ).version
+    (JSON.parse(new TextDecoder().decode(await fetchBytes(f, `${base}/latest-owner.json`))) as { version: string })
+      .version
   if (!/^[A-Za-z0-9._-]+$/.test(version))
     throw new ReleaseRefused({
       code: "release_untrusted",
@@ -58,7 +55,7 @@ export async function loadVerifiedRelease(
   if (!manifest)
     throw new ReleaseRefused({
       code: "release_untrusted",
-      message: "The release manifest is malformed. Nothing was uploaded.",
+      message: "The release manifest is malformed or deletes stored data. Nothing was uploaded.",
     })
   if (input.version && manifest.version !== input.version) {
     throw new ReleaseRefused({

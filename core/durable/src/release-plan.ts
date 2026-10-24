@@ -1,4 +1,5 @@
 import * as Schema from "effect/Schema"
+import type { ScriptBinding } from "./cloudflare"
 import type { ReleaseManifest, ReleaseMigration } from "./release"
 
 export class ReleasePlanRefused extends Schema.TaggedError<ReleasePlanRefused>()("ReleasePlanRefused", {
@@ -8,9 +9,13 @@ export class ReleasePlanRefused extends Schema.TaggedError<ReleasePlanRefused>()
 
 type MigrationPlan = { old_tag?: string; new_tag: string; steps: ReleaseMigration[] }
 
-const BUCKET = "kiko-files"
-
 type ReleaseBindings = { name: string; class_name: string }[]
+
+export type UploadBinding =
+  | { readonly type: "plain_text" | "secret_text"; readonly name: string; readonly text: string }
+  | { readonly type: "inherit"; readonly name: string }
+
+const SHIPPED_IN_RELEASE: ReadonlySet<string> = new Set(["CLERK_JWT_KEY", "TRUSTED_ORIGINS", "RELEASE_BASE_URL"])
 
 function releaseBindings(manifest: ReleaseManifest): ReleaseBindings {
   if (
@@ -40,17 +45,6 @@ function releaseBindings(manifest: ReleaseManifest): ReleaseBindings {
   })
 }
 
-export function destructiveMigration(plan: MigrationPlan): boolean {
-  return plan.steps.some((step) => (step.deleted_classes?.length ?? 0) > 0)
-}
-
-export type FilesBinding = "r2" | "inherit" | "none"
-
-function filesBinding(files: FilesBinding) {
-  if (files === "r2") return [{ type: "r2_bucket", name: "FILES", bucket_name: BUCKET }] as const
-  return []
-}
-
 export function selectMigrations(all: ReleaseMigration[], currentTag: string | null): MigrationPlan {
   const last = all.at(-1)
   if (!last) throw new ReleasePlanRefused({ reason: "no_migrations", message: "The release has no migrations." })
@@ -64,14 +58,22 @@ export function selectMigrations(all: ReleaseMigration[], currentTag: string | n
   return { old_tag: currentTag, new_tag: last.tag, steps: all.slice(at + 1) }
 }
 
-export type SecretBinding = { type: "secret_text"; name: string; text: string }
+export function keptBindings(
+  existing: ReadonlyArray<ScriptBinding>,
+  written: ReadonlyArray<UploadBinding>,
+): UploadBinding[] {
+  const names = new Set(written.map((binding) => binding.name))
+  const kept = existing.filter(
+    (binding) =>
+      binding.type !== "durable_object_namespace" && !names.has(binding.name) && !SHIPPED_IN_RELEASE.has(binding.name),
+  )
+  return [...written, ...kept.map((binding) => ({ type: "inherit" as const, name: binding.name }))]
+}
 
 export function buildMetadata(
   manifest: ReleaseManifest,
   migrations: MigrationPlan,
-  secrets: SecretBinding[] | null,
-  files: FilesBinding,
-  inheritedR2: readonly string[] = [],
+  bindings: ReadonlyArray<UploadBinding>,
 ) {
   return {
     main_module: manifest.main_module,
@@ -79,11 +81,9 @@ export function buildMetadata(
     compatibility_flags: manifest.compatibility_flags,
     bindings: [
       ...releaseBindings(manifest).map((binding) => ({ type: "durable_object_namespace" as const, ...binding })),
-      ...(files === "inherit" ? inheritedR2.map((name) => ({ type: "inherit" as const, name })) : filesBinding(files)),
-      ...(secrets ?? []),
+      ...bindings,
     ],
     migrations,
-    ...(secrets ? {} : { keep_bindings: ["secret_text"] }),
   }
 }
 

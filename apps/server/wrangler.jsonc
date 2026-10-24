@@ -13,13 +13,7 @@
   "durable_objects": {
     "bindings": [{ "name": "OWNER", "class_name": "OwnerDO" }],
   },
-  "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["UserDO", "RoomDO", "AgentDO"] },
-    { "tag": "v2", "new_sqlite_classes": ["WorkDO"] },
-    { "tag": "v3", "deleted_classes": ["WorkDO"] },
-    { "tag": "v4", "new_sqlite_classes": ["FileDO"] },
-    { "tag": "v5", "deleted_classes": ["UserDO", "RoomDO", "AgentDO", "FileDO"], "new_sqlite_classes": ["OwnerDO"] },
-  ],
+  "migrations": [{ "tag": "v5", "new_sqlite_classes": ["OwnerDO"] }],
   "r2_buckets": [
     { "binding": "FILES", "bucket_name": "kiko-files" },
     { "binding": "ARCHIVE", "bucket_name": "kiko-history" },

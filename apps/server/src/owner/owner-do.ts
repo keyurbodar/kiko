@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
 import { Runs } from "./runs"
-import { isRoomId, MAX_FRAME } from "@kiko/protocol"
+import { isRoomId, MAX_FRAME, type UpdateState } from "@kiko/protocol"
 import { Agent } from "../agent/agent-do"
 import { Room } from "../room/room-do"
 import { User } from "../user/user-do"
@@ -231,6 +231,14 @@ export class OwnerDO extends DurableObject<Env> {
     replaces?: string
   }) {
     return this.user().computerPair(input)
+  }
+
+  async updateStart(version: string): Promise<UpdateState> {
+    return this.user().selfUpdate.start(version)
+  }
+
+  async updateState(): Promise<UpdateState> {
+    return this.user().selfUpdate.state()
   }
 
   protected room(roomId: string): Room {

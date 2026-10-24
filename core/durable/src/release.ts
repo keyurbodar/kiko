@@ -91,6 +91,7 @@ export function parseManifest(manifestBytes: Uint8Array): ReleaseManifest | null
       typeof m.compatibility_date === "string" &&
       Array.isArray(m.compatibility_flags) &&
       Array.isArray(m.migrations) &&
+      m.migrations.every((step) => step && typeof step.tag === "string" && !step.deleted_classes?.length) &&
       (m.computer === undefined || isComputer(m.computer)) &&
       Array.isArray(m.modules) &&
       m.modules.every(

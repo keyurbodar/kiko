@@ -104,13 +104,15 @@ CI runs `Changes`, `Lint`, `Build and Typecheck`, `Test`, `Test Web` and `Worker
 
 ## Releases
 
-`scripts/release.ts` builds and signs a release, and the release workflow publishes it to `latest-owner.json`. The workflow commits the version bump off `main` and pushes only its tag, because `main` accepts changes only through a pull request with green CI and has no bypass. The newest `v*` tag is the current version; `package.json` on `main` can lag behind it. Moving an install from v0.4 to `OwnerDO` deletes the old databases after the owner types `delete-existing-data` in the installer.
+`scripts/release.ts` builds and signs a release, and the release workflow publishes it to `latest-owner.json`. The workflow commits the version bump off `main` and pushes only its tag, because `main` accepts changes only through a pull request with green CI and has no bypass. The newest `v*` tag is the current version; `package.json` on `main` can lag behind it. Owner Workers migrate from one baseline tag, `v5`, which creates `OwnerDO`. `core/durable/src/release.ts` refuses any signed manifest with `deleted_classes`, so neither an update nor an install can delete stored data.
 
 The same signed manifest names the five `kiko-computer` daemon binaries and their sha256, and the release uploads them to the GitHub release for its tag. A Worker serves `GET /pc/install.sh` and `/pc/install.ps1` from `BACKEND.version`, pinning the hashes it reads back from that manifest and verifying its signature first, so an install never runs a binary the release did not sign. A Worker whose version is not published yet hands the script the release base and lets it verify against `SHA256SUMS-computer` instead.
 
 Config that is the same for every owner ships in the release, not in the owner's Worker: the Clerk public key, the trusted front-door origin, and the release base and signing key are constants in `apps/server/src/lib/release-config.ts`. Production ignores env copies of them, so a self-update repairs any drift and a Clerk key rotation needs a release. DEV may override them from `.dev.vars`. `core/durable/src/clerk-token.ts` is the one Clerk verifier, shared with the installer.
 
 `GET /api/version` is the frozen descriptor `{kiko: 1, version, protocol, selfUpdate}`. The Worker answers it without waking `OwnerDO`, and fields may be added but never removed. `ensureHome` seeds the Kiko chat on the first user subscribe of each object instance, not on sign-in or `/api/me`.
+
+`POST /api/update {version}` starts a self-update and `GET /api/update` reads it: `idle`, `uploading`, `restarting`, or `failed` with one of `no_grant`, `grant_refused`, `release_unavailable`, `release_untrusted` and `cloudflare_error`. A start while one runs returns that run's state. The update is one upload that lists every binding: the release's Durable Object bindings, then `inherit` for each binding the Worker keeps, minus the config the release now ships. A token refresh can rotate the Cloudflare refresh token, so the object stores the newest grant sealed next to the sha256 of the `CF_GRANT` it came from, and uses it only while that hash matches. A reconnect writes a new `CF_GRANT`, so it always wins, and an update writes at most that one row.
 
 ## Hosted Workers
 

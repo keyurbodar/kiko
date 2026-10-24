@@ -9,6 +9,7 @@ import { uploadRoute } from "./files/upload"
 import { route } from "./router"
 import { hooksRoute } from "./user/hooks-route"
 import { routinesRoute } from "./user/routines-route"
+import { updateRoute } from "./user/update-route"
 import { faviconRoute } from "./favicon/route"
 import { openVsxRoute } from "./themes/open-vsx-route"
 import { computerRoute } from "./computer/route"
@@ -49,6 +50,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
   if (hooked) return hooked
   const routines = await routinesRoute(request, env)
   if (routines) return routines
+  const updating = await updateRoute(request, env)
+  if (updating) return updating
   const themed = await openVsxRoute(request, env)
   if (themed) return themed
   const icon = await faviconRoute(request, env)
