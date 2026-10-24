@@ -3,6 +3,7 @@ import type { Env } from "./index"
 import { humanHandle, OWNER_RPC_PATH } from "@kiko/protocol"
 import { boundedWait } from "@kiko/durable/bounded-wait"
 import { DEV } from "./lib/dev-guard"
+import { releaseConfig } from "./lib/release-config"
 import { HANDLE_HEADER, NameError, ROOM_ID_HEADER, USER_ID_HEADER, ownerStub } from "./lib/names"
 
 export type SessionLookup = (request: Request, env: AuthEnv) => Promise<{ id: string; name?: string } | null>
@@ -16,8 +17,7 @@ function error(status: number, message: string): Response {
 export function originAllowed(request: Request, url: URL, env: AuthEnv): boolean {
   const origin = request.headers.get("origin")
   if (!origin || origin === url.origin) return true
-  const trusted = env.TRUSTED_ORIGINS?.split(",").map((o) => o.trim()) ?? []
-  if (trusted.includes(origin)) return true
+  if (releaseConfig(env).clerk.trustedOrigins.includes(origin)) return true
   return DEV && /^http:\/\/localhost(:\d+)?$/.test(origin)
 }
 

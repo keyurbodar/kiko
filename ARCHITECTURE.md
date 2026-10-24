@@ -108,6 +108,10 @@ CI runs `Changes`, `Lint`, `Build and Typecheck`, `Test`, `Test Web` and `Worker
 
 The same signed manifest names the five `kiko-computer` daemon binaries and their sha256, and the release uploads them to the GitHub release for its tag. A Worker serves `GET /pc/install.sh` and `/pc/install.ps1` from `BACKEND.version`, pinning the hashes it reads back from that manifest and verifying its signature first, so an install never runs a binary the release did not sign. A Worker whose version is not published yet hands the script the release base and lets it verify against `SHA256SUMS-computer` instead.
 
+Config that is the same for every owner ships in the release, not in the owner's Worker: the Clerk public key, the trusted front-door origin, and the release base and signing key are constants in `apps/server/src/lib/release-config.ts`. Production ignores env copies of them, so a self-update repairs any drift and a Clerk key rotation needs a release. DEV may override them from `.dev.vars`. `core/durable/src/clerk-token.ts` is the one Clerk verifier, shared with the installer.
+
+`GET /api/version` is the frozen descriptor `{kiko: 1, version, protocol, selfUpdate}`. The Worker answers it without waking `OwnerDO`, and fields may be added but never removed. `ensureHome` seeds the Kiko chat on the first user subscribe of each object instance, not on sign-in or `/api/me`.
+
 ## Hosted Workers
 
 `infra/` owns the two Workers Kiko itself serves: the front door (`kiko-app`, `app.kiko.works`) and the installer (`kiko-installer`, `api.kiko.works`). `infra/alchemy.run.ts` declares both with Alchemy and deploys them from `.github/workflows/deploy.yml`. The owner Worker (`apps/server/wrangler.jsonc`) is not here: the installer uploads it into an owner's account, so it keeps its wrangler config, `wrangler dev` and the `release.ts` dry-run.

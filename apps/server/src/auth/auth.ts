@@ -1,8 +1,11 @@
-import { type ClerkEnv, verifyClerkToken } from "./clerk"
+import { verifyClerkToken } from "@kiko/durable/clerk-token"
+import * as Effect from "effect/Effect"
+import * as Result from "effect/Result"
+import { type ReleaseEnv, releaseConfig } from "../lib/release-config"
 
-export interface AuthEnv extends ClerkEnv {
+export interface AuthEnv extends ReleaseEnv {
   SESSION_SECRET: string
-  TRUSTED_ORIGINS?: string
+  OWNER_ID?: string
   ACCESS_CODE?: string
 }
 
@@ -110,15 +113,20 @@ export async function authRoute(request: Request, env: AuthEnv): Promise<Respons
     }
     return signedInResponse(env, PRODUCTION_OWNER)
   }
-  if (pathname === `${AUTH_PATH}/clerk` && env.CLERK_JWT_KEY && env.OWNER_ID) {
-    const input = (await request.json().catch(() => null)) as { token?: unknown } | null
-    if (typeof input?.token !== "string") return Response.json({ message: "token is required" }, { status: 400 })
-    const verdict = await verifyClerkToken(
-      { ...env, CLERK_JWT_KEY: env.CLERK_JWT_KEY, OWNER_ID: env.OWNER_ID },
-      input.token,
-    )
-    if (!verdict.ok) return Response.json({ message: verdict.message }, { status: verdict.status })
-    return signedInResponse(env, PRODUCTION_OWNER)
-  }
+  if (pathname === `${AUTH_PATH}/clerk` && env.OWNER_ID) return clerkSignIn(request, env, env.OWNER_ID)
   return null
+}
+
+async function clerkSignIn(request: Request, env: AuthEnv, ownerId: string): Promise<Response> {
+  const input = (await request.json().catch(() => null)) as { token?: unknown } | null
+  if (typeof input?.token !== "string")
+    return Response.json({ code: "token_invalid", message: "token is required" }, { status: 400 })
+  const verdict = await Effect.runPromise(
+    Effect.result(verifyClerkToken(releaseConfig(env).clerk, input.token, Date.now())),
+  )
+  if (Result.isFailure(verdict))
+    return Response.json({ code: verdict.failure.code, message: verdict.failure.message }, { status: 401 })
+  if (verdict.success.sub !== ownerId)
+    return Response.json({ code: "not_owner", message: "This backend belongs to someone else" }, { status: 403 })
+  return signedInResponse(env, PRODUCTION_OWNER)
 }

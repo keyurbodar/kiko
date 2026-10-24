@@ -1334,6 +1334,7 @@ export class User {
     return this.#logins
   }
 
+  #homeReady = false
   #updateWiring?: UpdateWiring
   get #update(): UpdateWiring {
     this.#updateWiring ??= new UpdateWiring({
@@ -1358,6 +1359,10 @@ export class User {
   }
 
   readonly subscribe = Effect.fn("User.subscribe")({ self: this }, function* (ws: WebSocket, afterSequence: number) {
+    if (!this.#homeReady) {
+      yield* Effect.promise(() => this.ensureHome())
+      this.#homeReady = true
+    }
     this.seen()
     const fileToken = yield* Effect.promise(() => signToken(this.env.SESSION_SECRET, this.ownerId, "files"))
     for (const kind of ROW_KINDS) this.project(kind)
@@ -1776,7 +1781,7 @@ export class User {
     return chat?.roomId ?? kikoChatRoom(this.sql) ?? undefined
   }
 
-  async ensureHome(): Promise<void> {
+  private async ensureHome(): Promise<void> {
     this.ctx.waitUntil(
       this.#recipes
         .retireSeeded()
