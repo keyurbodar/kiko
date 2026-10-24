@@ -10,11 +10,11 @@ describe("a backend from before the descriptor", () => {
     using backend = fakeBackend({ version: "0.7.8", protocol: PROTOCOL, storage: "built-in" })
     const router = chatRouter()
     await using screen = await render(() => <RouterProvider router={router} />)
-    await expect.poll(() => editable(screen.container)).toBe("true")
+    await expect.poll(() => editable(screen.container)).toBe(true)
 
     await startUpdate()
     await expect.element(screen.getByText("Your backend runs an older version of Kiko.")).toBeVisible()
-    expect(editable(screen.container)).toBe("false")
+    expect(editable(screen.container)).toBe(false)
     expect(backend.started).toEqual([])
     expect(screen.container.querySelectorAll('[data-component="update-notice"] button')).toHaveLength(1)
 

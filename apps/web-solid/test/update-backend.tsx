@@ -60,4 +60,4 @@ export function chatRouter() {
 }
 
 export const editable = (container: HTMLElement) =>
-  container.querySelector('[data-component="prompt-input"]')?.getAttribute("contenteditable") ?? null
+  container.querySelector<HTMLElement>('[data-component="prompt-input"]')?.isContentEditable ?? null
