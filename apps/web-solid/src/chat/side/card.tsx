@@ -14,7 +14,7 @@ import { addable, addOp } from "../members/model"
 import { cardBeside, dismissCard } from "./card-state"
 import { DeskSettled, Files, Helpers, leadName, Memory, Now, Routines, Section, Tasks, Waiting } from "./desk-sections"
 import { launcherEntries, PANELS } from "./panels"
-import { isGroup, liveLine, workingLine } from "./overview-model"
+import { isGroup, liveLine } from "./overview-model"
 import "./card.css"
 import { agentSurface, fixedSurface, openSurface } from "./surfaces"
 
@@ -37,11 +37,8 @@ export default function ChatCard(props: { chatId: string }) {
     if (roomId) openChat(roomId)
   }
   const working = () => {
-    const doings = room.typingDoings()
-    return workingLine(
-      room.typingNames().map((name, i) => ({ name, doing: doings[i] })),
-      isGroup(members()),
-    )
+    const row = chat()
+    return row && row.presence !== "idle" ? (row.typing ?? null) : null
   }
   const files = () => room.files()
   const routines = () => routinesOf(props.chatId)

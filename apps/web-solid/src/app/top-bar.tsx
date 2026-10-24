@@ -33,7 +33,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
   const live = () => {
     const bot = chatId() ? room.chatById(chatId()!) : undefined
     if (!bot || (bot.presence !== "working" && bot.presence !== "typing")) return null
-    return bot.typing ?? (bot.presence === "typing" ? "Typing" : "Working")
+    return bot.typing ?? "Thinking"
   }
   const roster = () => {
     const names = room.members().map((member) => member.name)
