@@ -55,7 +55,7 @@ export function browserCommands(): Command[] {
       title: "Watch the browser",
       group: "browser",
       icon: "globe",
-      when: () => !state()?.takeover,
+      when: () => state() !== null && !state()?.takeover,
       run: () => openLive("watch"),
     },
     {
