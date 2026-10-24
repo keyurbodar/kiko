@@ -23,20 +23,81 @@
 .picker-panel {
   transform-origin: bottom left;
 }
-.picker-rail-button {
-  max-height: 36px;
+.picker-row {
+  transition: background-color 80ms var(--ease-kiko);
+}
+
+.picker-star {
+  color: var(--fg4);
+  opacity: 0;
+  transition:
+    opacity var(--dur-hover) var(--ease-kiko),
+    background-color var(--dur-hover) var(--ease-kiko),
+    transform var(--dur-hover) var(--ease-kiko);
+}
+.picker-star[aria-pressed="true"] {
+  color: var(--warn);
+}
+.picker-star[data-shown],
+.picker-star:focus-visible {
+  opacity: 1;
+}
+.picker-star:active {
+  transform: scale(0.9);
+}
+@media (hover: hover) and (pointer: fine) {
+  .picker-row:hover .picker-star {
+    opacity: 1;
+  }
+  .picker-star:hover {
+    background: var(--active);
+  }
+}
+@media (hover: none) {
+  .picker-star {
+    opacity: 1;
+  }
+}
+
+.picker-filter {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  padding: 0 12px 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.picker-filter-chip {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 9px;
+  color: var(--fg3);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
   transition:
     background-color var(--dur-hover) var(--ease-kiko),
     color var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko),
-    max-height var(--dur-pop) var(--ease-kiko),
-    opacity var(--dur-pop) var(--ease-kiko);
+    transform var(--dur-hover) var(--ease-kiko);
 }
-.picker-rail-button[data-dim] {
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-  pointer-events: none;
+.picker-filter-chip:active {
+  transform: scale(0.97);
+}
+.picker-filter-chip[aria-pressed="true"] {
+  background: var(--active);
+  color: var(--fg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .picker-filter-chip:hover {
+    color: var(--fg);
+  }
+  .picker-filter-chip[aria-pressed="false"]:hover {
+    background: var(--hover);
+  }
 }
 
 .picker-kbd {
@@ -109,5 +170,108 @@
   from {
     opacity: 0;
     transform: translateY(6px);
+  }
+}
+
+.model-sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.model-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.45);
+}
+.model-sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: min(640px, 86dvh);
+  padding-bottom: env(safe-area-inset-bottom);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  background: var(--raise);
+  box-shadow: var(--float-shadow);
+}
+.model-sheet:not([data-dragging]) {
+  transition: transform var(--dur-pop) var(--ease-kiko);
+}
+.model-sheet-grip {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  height: 20px;
+  touch-action: none;
+  cursor: grab;
+}
+.model-sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line2);
+}
+.model-sheet-head {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding: 0 12px 0 16px;
+}
+.model-sheet-done {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9px;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 500;
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    transform var(--dur-hover) var(--ease-kiko);
+}
+.model-sheet-done:active {
+  transform: scale(0.97);
+  background: var(--hover);
+}
+.model-sheet-list {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.model-sheet-thinking {
+  flex-shrink: 0;
+  margin: 0 8px 8px;
+  padding: 14px 16px 12px;
+  border-radius: var(--radius-card);
+  background: var(--panel);
+}
+
+.model-chip {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .model-sheet-backdrop {
+    animation: model-sheet-fade 120ms var(--ease-kiko);
+  }
+  .model-sheet {
+    animation: model-sheet-up var(--dur-step) var(--ease-kiko);
+  }
+}
+@keyframes model-sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes model-sheet-up {
+  from {
+    transform: translateY(100%);
   }
 }

@@ -16,7 +16,16 @@ import { openSettings } from "./open"
 import { createQuery } from "../state/runtime"
 import { Portal } from "solid-js/web"
 import { VList, type VListHandle } from "virtua/solid"
-import { formatContext, formatPrice, catalogQuery, modelRef, searchModels, type ModelRow } from "./catalog"
+import { catalogQuery } from "./catalog"
+import {
+  ALL_PROVIDERS,
+  modelDetail,
+  modelRef,
+  modelTrait,
+  pickerEntries,
+  type ModelRow,
+  type PickerEntry,
+} from "./model-list"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ArrowUpIcon, CheckIcon, EnterIcon, SearchIcon } from "@kiko/ui/icons"
 import type { ThinkingLevel } from "@kiko/protocol"
@@ -26,10 +35,9 @@ import { modelProviders } from "./provider-kinds"
 import { PROBLEM_SHORT } from "./provider-problem"
 import { placePanel } from "../lib/place-panel"
 
-const ROW_H = 44
+const HEAD_H = 28
 const PANEL_W = 420
-const PANEL_H = 380
-const FAVORITES = "favorites"
+const PANEL_H = 420
 
 function Star(props: { on: boolean }) {
   return (
@@ -47,48 +55,310 @@ function Star(props: { on: boolean }) {
   )
 }
 
-export default function ModelPickerPanel(props: {
+const problemOf = (id: string) => connectedProviders().find((p) => p.provider === id)?.problem
+
+function Head(props: { entry: Extract<PickerEntry, { kind: "head" }> }) {
+  return (
+    <div
+      class="flex items-center gap-1.5 px-2.5 pt-2 text-label text-fg3"
+      style={{ height: `${HEAD_H}px` }}
+      role="presentation"
+      data-component="model-group"
+    >
+      <Show when={props.entry.provider}>
+        {(provider) => <ProviderIcon id={provider().id} width="13" height="13" />}
+      </Show>
+      <span class="truncate">{props.entry.label}</span>
+      <Show when={props.entry.provider && problemOf(props.entry.provider.id)}>
+        {(problem) => (
+          <span class="text-bad" data-part="provider-problem">
+            {PROBLEM_SHORT[problem()]}
+          </span>
+        )}
+      </Show>
+    </div>
+  )
+}
+
+function Row(props: {
+  id: string
+  entry: Extract<PickerEntry, { kind: "row" }>
+  current: string | undefined
+  active: boolean
+  onHover: () => void
+  onPick: () => void
+}) {
+  const row = () => props.entry.row
+  const ref = () => props.entry.key
+  const selected = () => props.current === ref()
+  const starred = () => favoriteModels().includes(ref())
+  return (
+    <div
+      id={props.id}
+      role="option"
+      aria-selected={selected()}
+      class="picker-row group/model flex h-11 cursor-pointer items-center gap-2 rounded-row px-2.5"
+      classList={{ "bg-hover": props.active && !selected(), "bg-active": selected() }}
+      title={selected() ? undefined : modelDetail(row().model)}
+      data-model={ref()}
+      onPointerMove={() => props.onHover()}
+      onClick={() => props.onPick()}
+    >
+      <Show when={props.entry.mixed}>
+        <ProviderIcon id={row().provider.id} width="13" height="13" />
+      </Show>
+      <span class="flex min-w-0 flex-1 flex-col">
+        <span class="type-ui truncate text-fg">{row().model.name}</span>
+        <Show when={selected()}>
+          <span class="truncate text-hint text-fg3" data-part="model-detail">
+            {modelDetail(row().model)}
+          </span>
+        </Show>
+      </span>
+      <Show
+        when={problemOf(row().provider.id)}
+        fallback={
+          <Show when={!selected()}>
+            <span class="type-hint shrink-0 text-fg4" data-part="model-trait">
+              {modelTrait(row().model)}
+            </span>
+          </Show>
+        }
+      >
+        {(problem) => (
+          <span class="type-hint shrink-0 text-bad" data-part="provider-problem">
+            {PROBLEM_SHORT[problem()]}
+          </span>
+        )}
+      </Show>
+      <Show when={selected()}>
+        <RemixIcon icon={CheckIcon} size={15} class="shrink-0 text-fg" />
+      </Show>
+      <button
+        type="button"
+        class="picker-star grid size-7 shrink-0 place-items-center rounded-row"
+        data-shown={starred() || selected() ? "" : undefined}
+        aria-label={starred() ? `Unstar ${row().model.name}` : `Star ${row().model.name}`}
+        aria-pressed={starred()}
+        onClick={(e) => {
+          e.stopPropagation()
+          toggleFavorite(ref())
+        }}
+      >
+        <Star on={starred()} />
+      </button>
+    </div>
+  )
+}
+
+function ProviderFilter(props: {
+  providers: readonly { id: string; name: string }[]
+  value: string
+  onChange: (id: string) => void
+}) {
+  const options = () => [{ id: ALL_PROVIDERS, name: "All" }, ...props.providers]
+  return (
+    <div class="picker-filter" role="group" aria-label="Providers" data-component="model-provider-filter">
+      <For each={options()}>
+        {(option) => (
+          <button
+            type="button"
+            class="picker-filter-chip"
+            aria-pressed={props.value === option.id}
+            data-provider={option.id === ALL_PROVIDERS ? undefined : option.id}
+            onClick={() => props.onChange(option.id)}
+          >
+            <Show when={option.id !== ALL_PROVIDERS}>
+              <ProviderIcon id={option.id} width="13" height="13" />
+            </Show>
+            {option.name}
+          </button>
+        )}
+      </For>
+    </div>
+  )
+}
+
+export function ModelList(props: {
   current?: string
-  onPick: (ref: string, thinking: readonly ThinkingLevel[]) => void
-  onOpenChange: (open: boolean) => void
-  trigger: () => HTMLButtonElement | undefined
+  onPick: (row: ModelRow) => void
+  onClose: () => void
+  autofocus: boolean
+  footer: boolean
 }) {
   const catalog = createQuery(catalogQuery)
   const providers = createMemo(() => {
     const ids = new Set(modelProviders(connectedProviders()).map((p) => p.provider))
     return catalog()?.providers.filter((p) => ids.has(p.id)) ?? []
   })
-  const problemOf = (id: string) => connectedProviders().find((p) => p.provider === id)?.problem
-  const [picked, setRail] = createSignal<string | null>(null)
-  const rail = () => {
-    if (picked()) return picked()!
-    if (favoriteModels().length) return FAVORITES
-    const current = props.current?.split("/")[0]
-    return providers().find((p) => p.id === current)?.id ?? providers()[0]?.id ?? FAVORITES
-  }
+  const [filter, setFilter] = createSignal(ALL_PROVIDERS)
   const [query, setQuery] = createSignal("")
   const [at, setAt] = createSignal(0)
-  const [place, setPlace] = createSignal<JSX.CSSProperties>({})
   const [handle, setHandle] = createSignal<VListHandle>()
   const id = createUniqueId()
-  let panel: HTMLDivElement | undefined
 
-  const rows = createMemo((): ModelRow[] => {
-    const hidden = new Set(hiddenModels())
-    const visible = (r: ModelRow) => {
-      const ref = modelRef(r.provider.id, r.model.id)
-      return !hidden.has(ref) || ref === props.current
-    }
-    if (query().trim()) return searchModels(providers(), query()).filter(visible)
-    if (rail() === FAVORITES) {
-      const starred = new Set(favoriteModels())
-      return searchModels(providers(), "").filter((r) => starred.has(modelRef(r.provider.id, r.model.id)))
-    }
-    return searchModels(
-      providers().filter((p) => p.id === rail()),
-      "",
-    ).filter(visible)
-  })
+  const entries = createMemo(() =>
+    pickerEntries({
+      providers: providers(),
+      starred: favoriteModels(),
+      hidden: hiddenModels(),
+      current: props.current,
+      filter: providers().some((p) => p.id === filter()) ? filter() : ALL_PROVIDERS,
+      query: query(),
+    }),
+  )
+  const rows = createMemo(() => entries().flatMap((e) => (e.kind === "row" ? [e] : [])))
+  const entryIndex = (rowAt: number) => {
+    const at = entries().findIndex((e) => e.kind === "row" && e.at === rowAt)
+    return entries()[at - 1]?.kind === "head" ? at - 1 : at
+  }
+
+  let centered: string | undefined
+  createEffect(
+    on([rows, handle, query], ([list, vlist]) => {
+      const typed = query().trim() !== ""
+      const key = `${filter()}|${typed ? "q" : ""}`
+      const fresh = key !== centered
+      centered = key
+      if (typed) {
+        if (!fresh) return
+        setAt(0)
+        if (vlist) requestAnimationFrame(() => vlist.scrollToIndex(0, { align: "start" }))
+        return
+      }
+      const here = list.findIndex((r) => r.key === props.current)
+      const target = Math.max(0, here)
+      if (!fresh && target === at()) return
+      setAt(target)
+      if (here >= 0) requestAnimationFrame(() => vlist?.scrollToIndex(entryIndex(here), { align: "center" }))
+    }),
+  )
+
+  const move = (index: number) => {
+    setAt(index)
+    const entry = entryIndex(index)
+    if (entry === 0) handle()?.scrollTo(0)
+    else handle()?.scrollToIndex(entry, { align: "nearest" })
+  }
+  const pick = (entry: Extract<PickerEntry, { kind: "row" }> | undefined) => entry && props.onPick(entry.row)
+  const onKeyDown = (event: KeyboardEvent) => {
+    const last = rows().length - 1
+    if (event.key === "ArrowDown") move(Math.min(last, at() + 1))
+    else if (event.key === "ArrowUp") move(Math.max(0, at() - 1))
+    else if (event.key === "Enter") pick(rows()[at()])
+    else if (event.key === "Escape") props.onClose()
+    else return
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  const empty = () => (catalog.loading ? "Loading models" : query().trim() ? "No models match" : "No models")
+
+  return (
+    <Show
+      when={providers().length || catalog.loading}
+      fallback={
+        <p class="m-auto px-6 py-8 text-center text-ui text-fg3" data-component="model-empty">
+          No provider is connected.{" "}
+          <button
+            type="button"
+            class="text-fg underline"
+            data-action="connect-provider"
+            onClick={() => {
+              openSettings("models")
+              props.onClose()
+            }}
+          >
+            Connect one
+          </button>{" "}
+          to pick a model.
+        </p>
+      }
+    >
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+        <label class="flex h-12 shrink-0 items-center gap-3 px-4 text-fg2">
+          <RemixIcon icon={SearchIcon} size={16} class="shrink-0" />
+          <input
+            ref={(el) => props.autofocus && requestAnimationFrame(() => el.focus())}
+            type="search"
+            class="h-full min-w-0 flex-1 bg-transparent text-msg text-fg outline-none placeholder:text-fg4"
+            placeholder="Search models"
+            aria-label="Search models"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls={id}
+            aria-activedescendant={rows().length ? `${id}-${at()}` : undefined}
+            value={query()}
+            onInput={(e) => setQuery(e.currentTarget.value)}
+            onKeyDown={onKeyDown}
+            data-component="model-search"
+          />
+          <Show when={props.footer}>
+            <kbd class="picker-kbd">Esc</kbd>
+          </Show>
+        </label>
+        <Show when={providers().length > 1 && !query().trim()}>
+          <ProviderFilter providers={providers()} value={filter()} onChange={setFilter} />
+        </Show>
+        <Show when={rows().length} fallback={<p class="p-4 text-ui text-fg3">{empty()}</p>}>
+          <VList
+            ref={setHandle}
+            id={id}
+            role="listbox"
+            aria-label="Models"
+            class="min-h-0 flex-1 px-2 pb-2"
+            data={entries()}
+          >
+            {(entry) =>
+              entry.kind === "head" ? (
+                <Head entry={entry} />
+              ) : (
+                <Row
+                  id={`${id}-${entry.at}`}
+                  entry={entry}
+                  current={props.current}
+                  active={at() === entry.at}
+                  onHover={() => setAt(entry.at)}
+                  onPick={() => pick(entry)}
+                />
+              )
+            }
+          </VList>
+        </Show>
+        <Show when={props.footer}>
+          <div class="picker-footer">
+            <span class="picker-hint">
+              <span class="picker-kbd-pair">
+                <kbd class="picker-kbd">
+                  <RemixIcon icon={ArrowUpIcon} size={12} />
+                </kbd>
+                <kbd class="picker-kbd picker-flip">
+                  <RemixIcon icon={ArrowUpIcon} size={12} />
+                </kbd>
+              </span>
+              Move
+            </span>
+            <span class="picker-hint">
+              <kbd class="picker-kbd">
+                <RemixIcon icon={EnterIcon} size={12} />
+              </kbd>
+              Choose
+            </span>
+          </div>
+        </Show>
+      </div>
+    </Show>
+  )
+}
+
+export default function ModelPickerPanel(props: {
+  current?: string
+  onPick: (ref: string, thinking: readonly ThinkingLevel[]) => void
+  onOpenChange: (open: boolean) => void
+  trigger: () => HTMLButtonElement | undefined
+}) {
+  const [place, setPlace] = createSignal<JSX.CSSProperties>({})
+  let panel: HTMLDivElement | undefined
 
   onMount(() => {
     const trigger = props.trigger()
@@ -107,28 +377,6 @@ export default function ModelPickerPanel(props: {
       ),
     )
   })
-  let centered: string | undefined
-  createEffect(
-    on([rows, handle, query], ([list, vlist]) => {
-      const typed = query().trim() !== ""
-      const key = `${rail()}|${typed ? "q" : ""}`
-      const fresh = key !== centered
-      centered = key
-      if (typed) {
-        if (!fresh) return
-        setAt(0)
-        if (vlist) requestAnimationFrame(() => vlist.scrollToIndex(0, { align: "start" }))
-        return
-      }
-      const here = list.findIndex((r) => modelRef(r.provider.id, r.model.id) === props.current)
-      const target = Math.max(0, here)
-      if (!fresh && target === at()) return
-      setAt(target)
-      if (here >= 0) requestAnimationFrame(() => vlist?.scrollToIndex(here, { align: "center" }))
-    }),
-  )
-  const matching = createMemo(() => new Set(searchModels(providers(), query()).map((row) => row.provider.id)))
-  const mixed = () => query().trim() !== "" || rail() === FAVORITES
   createEffect(() => {
     const outside = (e: PointerEvent) => {
       const t = e.target as Node
@@ -137,215 +385,30 @@ export default function ModelPickerPanel(props: {
     document.addEventListener("pointerdown", outside, true)
     onCleanup(() => document.removeEventListener("pointerdown", outside, true))
   })
-
-  const move = (index: number) => {
-    setAt(index)
-    handle()?.scrollToIndex(index, { align: "nearest" })
-  }
   const close = () => {
     props.onOpenChange(false)
     props.trigger()?.focus()
   }
-  const pick = (row: ModelRow | undefined) => {
-    if (!row) return
-    props.onPick(modelRef(row.provider.id, row.model.id), row.model.thinking)
-    close()
-  }
-  const onKeyDown = (event: KeyboardEvent) => {
-    const last = rows().length - 1
-    if (event.key === "ArrowDown") move(Math.min(last, at() + 1))
-    else if (event.key === "ArrowUp") move(Math.max(0, at() - 1))
-    else if (event.key === "Enter") pick(rows()[at()])
-    else if (event.key === "Escape") close()
-    else return
-    event.preventDefault()
-    event.stopPropagation()
-  }
-
-  const railButton = (active: boolean) =>
-    `picker-rail-button relative grid size-9 shrink-0 place-items-center rounded-row transition-[background-color,color,transform] duration-[var(--dur-hover)] ease-[var(--ease-kiko)] active:scale-95 ${active ? "bg-active text-fg" : "text-fg3 hover:bg-hover hover:text-fg"}`
 
   return (
     <Portal>
       <div
         ref={panel}
-        class="picker-panel pointer-events-auto fixed z-[80] flex h-[380px] w-[420px] max-w-[calc(100vw-16px)] overflow-hidden rounded-sheet bg-raise shadow-[var(--float-shadow)]"
+        class="picker-panel pointer-events-auto fixed z-[80] flex h-[420px] w-[420px] max-w-[calc(100vw-16px)] overflow-hidden rounded-sheet bg-raise shadow-[var(--float-shadow)]"
         style={place()}
         data-component="model-picker"
         data-kb-top-layer=""
       >
-        <Show
-          when={providers().length || catalog.loading}
-          fallback={
-            <p class="m-auto px-6 text-center text-[14px] text-fg3" data-component="model-empty">
-              No provider is connected.{" "}
-              <button
-                type="button"
-                class="text-fg underline"
-                data-action="connect-provider"
-                onClick={() => {
-                  openSettings("models")
-                  props.onOpenChange(false)
-                }}
-              >
-                Connect one
-              </button>{" "}
-              to pick a model.
-            </p>
-          }
-        >
-          <nav
-            class="flex w-14 shrink-0 flex-col items-center gap-1 overflow-y-auto bg-panel py-2 [scrollbar-width:none]"
-            aria-label="Providers"
-          >
-            <button
-              type="button"
-              class={railButton(rail() === FAVORITES && !query())}
-              title="Favorites"
-              aria-label="Favorites"
-              onClick={() => setRail(FAVORITES)}
-            >
-              <Star on={rail() === FAVORITES} />
-            </button>
-            <span class="my-0.5 h-px w-6 shrink-0 bg-line2" aria-hidden="true" />
-            <For each={providers()}>
-              {(provider) => (
-                <button
-                  type="button"
-                  class={railButton(rail() === provider.id && !query())}
-                  title={provider.name}
-                  aria-label={provider.name}
-                  data-provider={provider.id}
-                  data-dim={query().trim() && !matching().has(provider.id) ? "" : undefined}
-                  onClick={() => setRail(provider.id)}
-                >
-                  <ProviderIcon id={provider.id} width="16" height="16" />
-                  <Show when={problemOf(provider.id)}>
-                    <span
-                      class="absolute right-1 top-1 size-1.5 rounded-full bg-bad"
-                      role="img"
-                      aria-label={PROBLEM_SHORT[problemOf(provider.id)!]}
-                    />
-                  </Show>
-                </button>
-              )}
-            </For>
-          </nav>
-          <div class="flex min-w-0 flex-1 flex-col">
-            <label class="flex h-13 shrink-0 items-center gap-3 px-4 text-fg2">
-              <RemixIcon icon={SearchIcon} size={16} class="shrink-0" />
-              <input
-                ref={(el) => requestAnimationFrame(() => el.focus())}
-                type="search"
-                class="h-full min-w-0 flex-1 bg-transparent text-[15px] text-fg outline-none placeholder:text-fg4"
-                placeholder="Search models"
-                aria-label="Search models"
-                role="combobox"
-                aria-expanded="true"
-                aria-controls={id}
-                aria-activedescendant={rows().length ? `${id}-${at()}` : undefined}
-                value={query()}
-                onInput={(e) => setQuery(e.currentTarget.value)}
-                onKeyDown={onKeyDown}
-                data-component="model-search"
-              />
-              <kbd class="picker-kbd">Esc</kbd>
-            </label>
-            <Show
-              when={rows().length}
-              fallback={
-                <p class="p-4 text-[14px] text-fg3">
-                  {catalog.loading
-                    ? "Loading models"
-                    : query().trim()
-                      ? "No models match"
-                      : rail() === FAVORITES
-                        ? "Star a model to keep it here."
-                        : "No models"}
-                </p>
-              }
-            >
-              <VList
-                ref={setHandle}
-                id={id}
-                role="listbox"
-                aria-label="Models"
-                class="min-h-0 flex-1 px-2 pb-2"
-                data={rows()}
-                itemSize={ROW_H}
-              >
-                {(row, i) => {
-                  const ref = modelRef(row.provider.id, row.model.id)
-                  const starred = () => favoriteModels().includes(ref)
-                  return (
-                    <div
-                      id={`${id}-${i()}`}
-                      role="option"
-                      aria-selected={props.current === ref}
-                      class="group/model flex h-11 cursor-pointer items-center gap-2 rounded-row px-2.5 transition-colors duration-[80ms] ease-[var(--ease-kiko)]"
-                      classList={{ "bg-hover": at() === i(), "bg-active": props.current === ref }}
-                      data-model={ref}
-                      onPointerMove={() => setAt(i())}
-                      onClick={() => pick(row)}
-                    >
-                      <span class="flex min-w-0 flex-1 flex-col">
-                        <span class="truncate text-[14px] font-medium text-fg">{row.model.name}</span>
-                        <span class="flex items-center gap-1 truncate text-[12.5px] text-fg3">
-                          <Show when={mixed()}>
-                            <ProviderIcon id={row.provider.id} width="11" height="11" />
-                            {row.provider.name},
-                          </Show>
-                          {formatContext(row.model.contextWindow)} context, {formatPrice(row.model.pricing)}
-                          <Show when={problemOf(row.provider.id)}>
-                            {(problem) => (
-                              <span class="text-bad" data-part="provider-problem">
-                                {PROBLEM_SHORT[problem()]}
-                              </span>
-                            )}
-                          </Show>
-                        </span>
-                      </span>
-                      <Show when={props.current === ref}>
-                        <RemixIcon icon={CheckIcon} size={15} class="shrink-0 text-fg" />
-                      </Show>
-                      <button
-                        type="button"
-                        class={`grid size-7 shrink-0 place-items-center rounded-row transition-[opacity,background-color,transform] duration-[var(--dur-hover)] hover:bg-active active:scale-90 ${starred() ? "text-warn" : "text-fg4 opacity-0 group-hover/model:opacity-100"}`}
-                        aria-label={starred() ? `Unstar ${row.model.name}` : `Star ${row.model.name}`}
-                        aria-pressed={starred()}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleFavorite(ref)
-                        }}
-                      >
-                        <Star on={starred()} />
-                      </button>
-                    </div>
-                  )
-                }}
-              </VList>
-            </Show>
-            <div class="picker-footer">
-              <span class="picker-hint">
-                <span class="picker-kbd-pair">
-                  <kbd class="picker-kbd">
-                    <RemixIcon icon={ArrowUpIcon} size={12} />
-                  </kbd>
-                  <kbd class="picker-kbd picker-flip">
-                    <RemixIcon icon={ArrowUpIcon} size={12} />
-                  </kbd>
-                </span>
-                Move
-              </span>
-              <span class="picker-hint">
-                <kbd class="picker-kbd">
-                  <RemixIcon icon={EnterIcon} size={12} />
-                </kbd>
-                Choose
-              </span>
-            </div>
-          </div>
-        </Show>
+        <ModelList
+          current={props.current}
+          autofocus
+          footer
+          onClose={close}
+          onPick={(row) => {
+            props.onPick(modelRef(row.provider.id, row.model.id), row.model.thinking)
+            close()
+          }}
+        />
       </div>
     </Portal>
   )

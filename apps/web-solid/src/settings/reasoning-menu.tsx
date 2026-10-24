@@ -31,11 +31,12 @@ function Bars(props: { filled: number }) {
   )
 }
 
-function Slider(props: {
+export function Slider(props: {
   levels: readonly ThinkingLevel[]
   value: ThinkingLevel
   onChange: (level: ThinkingLevel) => void
   onDone: () => void
+  autofocus?: boolean
 }) {
   let rail: HTMLDivElement | undefined
   let slider: HTMLDivElement | undefined
@@ -52,7 +53,7 @@ function Slider(props: {
     if (!box?.width) return
     pick(Math.round(Math.min(1, Math.max(0, (event.clientX - box.left) / box.width)) * last()))
   }
-  onMount(() => queueMicrotask(() => slider?.focus()))
+  onMount(() => props.autofocus !== false && queueMicrotask(() => slider?.focus()))
   return (
     <div
       ref={slider}
@@ -101,6 +102,17 @@ function Slider(props: {
   )
 }
 
+export function ThinkingEnds(props: { levels: readonly ThinkingLevel[] }) {
+  const first = () => props.levels[0]
+  const end = () => props.levels[props.levels.length - 1]
+  return (
+    <div class="reasoning-ends">
+      <span>{first() ? THINKING_LABELS[first()!] : ""}</span>
+      <span>{end() ? THINKING_LABELS[end()!] : ""}</span>
+    </div>
+  )
+}
+
 function Panel(props: {
   levels: readonly ThinkingLevel[]
   value: ThinkingLevel
@@ -130,8 +142,6 @@ function Panel(props: {
     document.addEventListener("pointerdown", outside, true)
     onCleanup(() => document.removeEventListener("pointerdown", outside, true))
   })
-  const first = () => props.levels[0]
-  const end = () => props.levels[props.levels.length - 1]
   return (
     <Portal>
       <div
@@ -164,10 +174,7 @@ function Panel(props: {
           onChange={props.onChange}
           onDone={() => props.onClose(true)}
         />
-        <div class="reasoning-ends">
-          <span>{first() ? THINKING_LABELS[first()!] : ""}</span>
-          <span>{end() ? THINKING_LABELS[end()!] : ""}</span>
-        </div>
+        <ThinkingEnds levels={props.levels} />
       </div>
     </Portal>
   )

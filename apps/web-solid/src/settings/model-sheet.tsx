@@ -1,0 +1,119 @@
+import { defaultThinking, THINKING_LABELS, type ThinkingLevel } from "@kiko/protocol"
+import { createSignal, onCleanup, onMount, Show } from "solid-js"
+import { Portal } from "solid-js/web"
+import { canReason } from "./agent-model"
+import { modelRef } from "./model-list"
+import { ModelList } from "./model-picker-panel"
+import { Slider, ThinkingEnds } from "./reasoning-menu"
+
+const DISMISS_PX = 80
+
+export function ModelSheet(props: {
+  current?: string
+  model?: string
+  levels: readonly ThinkingLevel[] | undefined
+  value: ThinkingLevel | undefined
+  onPick: (ref: string, thinking: readonly ThinkingLevel[]) => void
+  onThinking: (level: ThinkingLevel) => void
+  onClose: () => void
+}) {
+  const [drag, setDrag] = createSignal(0)
+  const [dragging, setDragging] = createSignal(false)
+  let startY = 0
+  const levels = () => props.levels ?? []
+  const value = () => props.value ?? defaultThinking(levels())
+  onMount(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      props.onClose()
+    }
+    document.addEventListener("keydown", onKey)
+    onCleanup(() => document.removeEventListener("keydown", onKey))
+  })
+  const end = () => {
+    if (!dragging()) return
+    setDragging(false)
+    if (drag() > DISMISS_PX) props.onClose()
+    else setDrag(0)
+  }
+  return (
+    <Portal>
+      <div class="model-sheet-layer" data-kb-top-layer="" data-component="model-sheet">
+        <div class="model-sheet-backdrop" aria-hidden="true" onClick={() => props.onClose()} />
+        <div
+          class="model-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Model and thinking"
+          data-dragging={dragging() ? "" : undefined}
+          style={drag() ? { transform: `translateY(${drag()}px)` } : undefined}
+        >
+          <div
+            class="model-sheet-grip"
+            data-action="drag-model-sheet"
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId)
+              startY = event.clientY
+              setDragging(true)
+            }}
+            onPointerMove={(event) => dragging() && setDrag(Math.max(0, event.clientY - startY))}
+            onPointerUp={end}
+            onPointerCancel={end}
+          >
+            <span class="model-sheet-handle" />
+          </div>
+          <div class="model-sheet-head">
+            <h2 class="type-row text-fg">Model</h2>
+            <button
+              type="button"
+              class="model-sheet-done"
+              data-action="close-model-sheet"
+              onClick={() => props.onClose()}
+            >
+              Done
+            </button>
+          </div>
+          <div class="model-sheet-list">
+            <ModelList
+              current={props.current}
+              autofocus={false}
+              footer={false}
+              onClose={() => props.onClose()}
+              onPick={(row) => {
+                const ref = modelRef(row.provider.id, row.model.id)
+                if (ref !== props.current) props.onPick(ref, row.model.thinking)
+              }}
+            />
+          </div>
+          <section class="model-sheet-thinking" aria-label="Thinking" data-component="model-sheet-thinking">
+            <div class="reasoning-head">
+              <span class="reasoning-title">Thinking</span>
+              <Show
+                when={canReason(props.levels)}
+                fallback={<span class="text-label text-fg3">{props.model ?? "This model"} doesn't think</span>}
+              >
+                <span class="reasoning-value" data-level={value()}>
+                  {THINKING_LABELS[value()]}
+                  <Show when={value() === defaultThinking(levels())}>
+                    <span class="reasoning-default">Default</span>
+                  </Show>
+                </span>
+              </Show>
+            </div>
+            <Show when={canReason(props.levels)}>
+              <Slider
+                levels={levels()}
+                value={value()}
+                autofocus={false}
+                onChange={props.onThinking}
+                onDone={() => props.onClose()}
+              />
+              <ThinkingEnds levels={levels()} />
+            </Show>
+          </section>
+        </div>
+      </div>
+    </Portal>
+  )
+}
