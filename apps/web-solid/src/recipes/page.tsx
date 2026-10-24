@@ -4,6 +4,7 @@ import { CloseIcon, SearchIcon } from "@kiko/ui/icons"
 import { getRouteApi } from "@tanstack/solid-router"
 import { openChat } from "../app/history"
 import { createMemo, createSignal, For, type JSX, Show } from "solid-js"
+import { pageIn } from "../lib/motion"
 import { room } from "../state/room"
 import { PageFrame, PageTabs, SectionHead, SkeletonRows, ToolButton } from "../customize/page-ui"
 import { byChatOrder, filterRecipes, openingSection, recipeTags, type Section, type TagFilter, tagLabel } from "./model"
@@ -118,7 +119,7 @@ export default function RecipesPage() {
               </div>
 
               <Show when={current() === "yours"}>
-                <div class="motion-page-in flex flex-col gap-8" data-component="recipes-yours">
+                <div ref={pageIn} class="flex flex-col gap-8" data-component="recipes-yours">
                   <Show
                     when={yours().length}
                     fallback={
@@ -153,7 +154,7 @@ export default function RecipesPage() {
               </Show>
 
               <Show when={current() === "discover"}>
-                <div class="motion-page-in flex flex-col gap-4" data-component="recipes">
+                <div ref={pageIn} class="flex flex-col gap-4" data-component="recipes">
                   <div
                     class="-mx-1 flex items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none]"
                     role="tablist"
