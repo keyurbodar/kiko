@@ -197,6 +197,8 @@ function RowTitle(props: { id: string; title: string }) {
   )
 }
 
+const sameIds = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((id, i) => id === b[i])
+
 function ChatRow(props: {
   bot: RosterBot
   muted: boolean
@@ -410,15 +412,19 @@ export function ChatPanel() {
     filterRows(all(), { query: query(), unreadOnly: unreadOnly() }, (row) => row.unread > 0 || markedUnread(row.id)),
   )
   const pinned = createMemo(() => pinnedRows(shown(), user.kikoChatId()))
+  const pinnedIds = createMemo(() => pinned().map((bot) => bot.id), undefined, { equals: sameIds })
   const jumpHint = createMemo(() => {
     if (query() !== "" || unreadOnly()) return new Map<string, string>()
     const order = [...all().filter((b) => b.pinned), ...all().filter((b) => !b.pinned)].slice(0, 9)
     return new Map(order.map((b, i) => [b.id, `chats.go-${i + 1}`]))
   })
-  const rowIds = createMemo(() =>
-    shown()
-      .filter((bot) => !bot.pinned)
-      .map((bot) => bot.id),
+  const rowIds = createMemo(
+    () =>
+      shown()
+        .filter((bot) => !bot.pinned)
+        .map((bot) => bot.id),
+    undefined,
+    { equals: sameIds },
   )
   const byId = createMemo(() => new Map(shown().map((bot) => [bot.id, bot])))
   const muted = createMemo(() => new Set((user.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)))
@@ -430,16 +436,20 @@ export function ChatPanel() {
       <SearchRow query={query()} onQuery={setQuery} unreadOnly={unreadOnly()} onUnreadOnly={setUnreadOnly} />
       <Show when={pinned().length > 0}>
         <div class="pinned-chats">
-          <For each={pinned()}>
-            {(bot) => (
-              <ChatRow
-                bot={bot}
-                hint={jumpHint().get(bot.id)}
-                active={active() === bot.id}
-                main={bot.id === user.kikoChatId()}
-                muted={muted().has(bot.id)}
-                now={now()}
-              />
+          <For each={pinnedIds()}>
+            {(id) => (
+              <Show when={byId().get(id)}>
+                {(bot) => (
+                  <ChatRow
+                    bot={bot()}
+                    hint={jumpHint().get(id)}
+                    active={active() === id}
+                    main={id === user.kikoChatId()}
+                    muted={muted().has(id)}
+                    now={now()}
+                  />
+                )}
+              </Show>
             )}
           </For>
         </div>
@@ -471,10 +481,10 @@ export function ChatPanel() {
       </Show>
       <VList class="chat-list" data={rowIds()} itemSize={ROW_H} bufferSize={ROW_H * 4} data-component="sidebar-list">
         {(id) => (
-          <Show when={byId().get(id)} keyed>
+          <Show when={byId().get(id)}>
             {(bot) => (
               <ChatRow
-                bot={bot}
+                bot={bot()}
                 muted={muted().has(id)}
                 active={active() === id}
                 now={now()}

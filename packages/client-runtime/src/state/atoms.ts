@@ -332,7 +332,21 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     soulUpdate: rpc("soul.update", { mode: "serial", key: (input) => input.slug }),
     memory: rpc("memory.run"),
     settingsGet: rpc("settings.get"),
-    settingsUpdate: rpc("settings.update", { mode: "serial", key: () => "settings" }),
+    settingsUpdate: effect(
+      "settings.update",
+      (input: RpcCommandInput<"settings.update">) =>
+        Effect.gen(function* () {
+          const saved = (yield* sendRpc("settings.update", input)) as OwnerRpcSuccess<"settings.update">
+          const registry = yield* AtomRegistry.AtomRegistry
+          registry.refresh(queries.settings(undefined))
+          return saved
+        }) as Effect.Effect<
+          OwnerRpcSuccess<"settings.update">,
+          RequestError<"settings.update">,
+          OwnerSupervisor | AtomRegistry.AtomRegistry
+        >,
+      { mode: "serial", key: () => "settings" },
+    ),
     fileToken: rpc("files.token", { mode: "singleFlight", key: () => "token" }),
     writeText: rpc("files.writeText", { mode: "serial", key: (input) => `${input.roomId}:${input.path}` }),
     credentialsList: rpc("credentials.list"),

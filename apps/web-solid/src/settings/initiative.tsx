@@ -1,8 +1,8 @@
 import type { UserSettings } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { createSignal, onMount, Show } from "solid-js"
+import { createComputed, createSignal, on, Show } from "solid-js"
 import { Group, Row, Segmented, Skeleton } from "./kit"
-import { load, owner, run } from "../state/runtime"
+import { createQuery, owner, run } from "../state/runtime"
 
 type Settings = UserSettings
 export type Level = Settings["initiative"]
@@ -19,7 +19,6 @@ const HELP: Record<Level, string> = {
 const DEFAULTS: Settings = { initiative: "digest", capture: "auto" }
 
 const [settings, setSettings] = createSignal<Settings>(DEFAULTS)
-const [loaded, setLoaded] = createSignal(false)
 
 function readSettings(value: unknown): Settings {
   const v = (value ?? {}) as Record<string, unknown>
@@ -47,12 +46,9 @@ async function save(patch: Partial<Pick<Settings, "initiative" | "capture">>): P
 }
 
 export default function InitiativePage() {
-  onMount(() => {
-    void load(owner.queries.settings(undefined))
-      .then((v) => setSettings(readSettings(v)))
-      .catch(() => {})
-      .finally(() => setLoaded(true))
-  })
+  const remote = createQuery(() => owner.queries.settings(undefined))
+  const loaded = () => remote() !== undefined || remote.error !== undefined
+  createComputed(on(remote, (value) => value !== undefined && setSettings(readSettings(value))))
   return (
     <div class="flex flex-col gap-8" data-component="initiative-settings">
       <Group title="Agents">
