@@ -23,6 +23,7 @@ export type OwnerRuntimeServices =
 
 export interface OwnerRuntimeOptions {
   readonly endpoint: Endpoint.OwnerEndpointOptions
+  readonly connect: boolean
   readonly store: Layer.Layer<Cache.SnapshotStore>
   readonly connectivity: Layer.Layer<Connectivity.Connectivity>
   readonly wakeups: Layer.Layer<Wakeups.ConnectionWakeups>
@@ -54,7 +55,7 @@ export const layer = (options: OwnerRuntimeOptions): Layer.Layer<OwnerRuntimeSer
   const sessions = RpcSession.layer.pipe(
     Layer.provide(Layer.mergeAll(user, options.webSocket ?? Socket.layerWebSocketConstructorGlobal)),
   )
-  const supervisor = Supervisor.layer({ initiallyDesired: true }).pipe(
+  const supervisor = Supervisor.layer({ initiallyDesired: options.connect }).pipe(
     Layer.provideMerge(Layer.mergeAll(user, sessions)),
   )
   return userDisconnects.pipe(Layer.provideMerge(supervisor))
@@ -62,10 +63,12 @@ export const layer = (options: OwnerRuntimeOptions): Layer.Layer<OwnerRuntimeSer
 
 export const layerBrowser = (options: {
   readonly endpoint: Endpoint.OwnerEndpointOptions
+  readonly connect: boolean
   readonly cache: { readonly database: string; readonly namespace: string } | null
 }) =>
   layer({
     endpoint: options.endpoint,
+    connect: options.connect,
     store: options.cache ? IndexedDb.layer(options.cache) : Cache.layerMemoryStore,
     connectivity: Connectivity.layerBrowser,
     wakeups: Wakeups.layerBrowser,

@@ -211,6 +211,7 @@ describe("owner runtime while the backend is incompatible", () => {
       const context = yield* Layer.build(
         runtimeLayer({
           endpoint: { baseUrl: () => "http://kiko.test", token: () => "token", fetch: answerFetch(answer, requested) },
+          connect: true,
           store: Layer.succeed(SnapshotStore, yield* seededStore),
           connectivity: Connectivity.layerAlwaysOnline,
           wakeups: ConnectionWakeups.layerNone,

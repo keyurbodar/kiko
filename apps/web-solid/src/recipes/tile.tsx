@@ -4,7 +4,7 @@ import { ClockIcon, PlusIcon } from "@kiko/ui/icons"
 import { For, Show } from "solid-js"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { AppLogo } from "./icon"
-import { installStatus, nextRunLabel } from "./model"
+import { installStatus, localizeWhen, nextRunLabel } from "./model"
 import { installsFor } from "./state"
 
 export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAdd: () => void }) {
@@ -40,13 +40,13 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
           data-action="open-recipe"
           onClick={() => props.onOpen()}
         >
-          <span class="block truncate text-[14px] leading-5 font-semibold text-fg">{props.recipe.title}</span>
+          <span class="type-ui block truncate font-semibold text-fg">{props.recipe.title}</span>
         </button>
-        <span class="line-clamp-2 text-[13.5px] leading-[21px] text-fg3">{props.recipe.description}</span>
-        <span class="mt-1 flex min-w-0 items-center gap-2 text-[13px] text-fg4">
+        <span class="type-row line-clamp-2 text-fg3">{props.recipe.description}</span>
+        <span class="type-label mt-1 flex min-w-0 items-center gap-2 text-fg4">
           <RemixIcon icon={ClockIcon} size={14} class="shrink-0" />
           <span class="truncate">
-            <Show when={on()} fallback={props.recipe.when}>
+            <Show when={on()} fallback={localizeWhen(props.recipe.when)}>
               {soonest()}
             </Show>
           </span>
@@ -57,13 +57,13 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
       </span>
       <button
         type="button"
-        class="absolute top-3.5 left-3.5 z-[1] size-10 cursor-pointer rounded-[11px] outline-none [@media(pointer:coarse)]:pointer-events-none"
+        class="absolute top-3.5 left-3.5 z-[1] size-10 cursor-pointer rounded-tile outline-none [@media(pointer:coarse)]:pointer-events-none"
         aria-label={`Add ${props.recipe.title}`}
         data-action="add-recipe"
         onClick={() => props.onAdd()}
       />
       <span class="tpl-peek" aria-hidden="true">
-        <span class="flex items-center gap-2 text-[12.5px] font-medium text-fg">
+        <span class="type-label flex items-center gap-2 font-medium text-fg">
           <IdentityAvatar seed={props.recipe.agent.handle} size={16} />
           <span class="truncate">{props.recipe.agent.name}</span>
         </span>

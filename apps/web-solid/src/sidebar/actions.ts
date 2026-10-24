@@ -1,10 +1,11 @@
-import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { dismissToastV2, showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { openChat } from "../app/history"
 import type { RoomId } from "@kiko/protocol"
 import { createSignal } from "solid-js"
 import { chatAfter } from "../lib/chats"
 import { room } from "../state/room"
 import { user } from "../state/user"
+import { createPendingDeletes } from "./pending-delete"
 
 const [renaming, setRenaming] = createSignal<string | null>(null)
 export const renamingId = renaming
@@ -79,12 +80,45 @@ export function closeChat(id: string, active: string | null): void {
   })
 }
 
+const toastFor = new Map<string, number>()
+
+const deletes = createPendingDeletes({
+  undoMs: 6000,
+  foldMs: 200,
+  commit: (id) => {
+    user.remove(id as RoomId)
+    clearUnreadMark(id)
+    const toast = toastFor.get(id)
+    toastFor.delete(id)
+    if (toast !== undefined) dismissToastV2(toast)
+  },
+})
+export const isLeaving = deletes.isLeaving
+export const isDeleted = deletes.isHidden
+
 export function deleteChat(id: string, active: string | null): void {
+  if (deletes.has(id)) return
+  const name = room.chatById(id)?.name
   const next = chatAfter(
-    sidebarOrder().map((r) => r.id),
+    sidebarOrder()
+      .map((r) => r.id)
+      .filter((x) => !isDeleted(x)),
     id,
   )
-  user.remove(id as RoomId)
-  clearUnreadMark(id)
+  deletes.start(id)
   if (active === id) openChat(next)
+  const undo = () => {
+    toastFor.delete(id)
+    if (deletes.undo(id) && active === id) openChat(id)
+  }
+  toastFor.set(
+    id,
+    showToastV2({
+      title: name ? `Deleted “${name}”` : "Deleted chat",
+      persistent: true,
+      action: { label: "Undo", variant: "secondary", onClick: undo },
+    }),
+  )
 }
+
+if (typeof window !== "undefined") window.addEventListener("pagehide", () => deletes.flushAll())

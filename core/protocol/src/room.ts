@@ -162,6 +162,14 @@ export type HumanAsk = typeof HumanAsk.Type
 export const FileRef = Schema.Struct({ id: Id, name: Schema.String, size: Count, type: Schema.String })
 export type FileRef = typeof FileRef.Type
 
+export const OwnerFile = Schema.Struct({
+  roomId: Schema.NullOr(RoomId),
+  file: FileRef,
+  madeBy: Schema.NullOr(AgentSlug),
+  at: Count,
+})
+export type OwnerFile = typeof OwnerFile.Type
+
 export const PendingAttachment = Schema.Struct({
   pendingId: Id,
   name: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(255)),

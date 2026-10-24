@@ -137,6 +137,8 @@ const ICONS = {
   sliders: "SlidersHorizontalIcon",
   dashboard: "DashboardSquare01Icon",
   bolt: "FlashIcon",
+  "filter-horizontal": "FilterHorizontalIcon",
+  upload: "Upload04Icon",
 } as const
 
 type Node = readonly [tag: string, attrs: Readonly<Record<string, string>>]
