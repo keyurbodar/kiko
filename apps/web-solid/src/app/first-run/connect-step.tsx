@@ -10,7 +10,7 @@ import { AddProviderDialog, ConnectDialog } from "../../settings/models"
 import { modelProviders } from "../../settings/provider-kinds"
 import { CHOICE_ROWS, type ConnectVia, type FirstRunChoice, firstRunChoices } from "./choices"
 import { move } from "./progress"
-import { primary } from "./welcome"
+import { errorText, primary, secondary } from "./controls"
 
 export function ConnectStep() {
   const catalog = createQuery(catalogQuery)
@@ -27,27 +27,24 @@ export function ConnectStep() {
   const ready = () => linked().size > 0
 
   return (
-    <div class="welcome-step flex w-full flex-col gap-3" data-step="connect">
+    <div class="welcome-step" data-step="connect">
       <h1 class="welcome-title" style={{ "--i": 0 }}>
-        Connect a model provider
+        Where should they think?
       </h1>
       <p class="welcome-lede" style={{ "--i": 1 }}>
-        Sign in with a plan you already pay for, or use an API key. Either stays on your server and never reaches this
-        browser.
+        Use a plan you already pay for, or an API key. Either stays on your server.
       </p>
-      <div class="flex flex-col gap-2" data-component="first-run-providers" style={{ "--i": 2 }}>
+      <div class="ob-body" data-component="first-run-providers" style={{ "--i": 2 }}>
         <Show
           when={!catalog.loading}
           fallback={
-            <For each={Array.from({ length: CHOICE_ROWS })}>
-              {() => <div class="first-run-skeleton h-[58px] rounded-lg bg-control" />}
-            </For>
+            <For each={Array.from({ length: CHOICE_ROWS })}>{() => <div class="first-run-skeleton ob-skeleton" />}</For>
           }
         >
           <Show when={catalog.error}>
-            <p class="text-center text-sm text-[var(--error)]" role="alert">
+            <p class={errorText} role="alert">
               The provider list did not load.{" "}
-              <button type="button" class="cursor-pointer underline underline-offset-2" onClick={() => void refetch()}>
+              <button type="button" class="ob-linkish" onClick={() => void refetch()}>
                 Try again
               </button>
             </p>
@@ -77,27 +74,23 @@ export function ConnectStep() {
           />
         </Show>
       </div>
-      <div class="welcome-foot" style={{ "--i": 3 }}>
-        <button type="button" data-action="view-all-providers" onClick={() => setBrowsing(true)}>
+      <div class="ob-cta" style={{ "--i": 3 }}>
+        <button type="button" class="ob-textbtn" data-action="view-all-providers" onClick={() => setBrowsing(true)}>
           More providers
         </button>
-        <Show when={!ready()}>
-          <button type="button" data-action="skip-first-run" onClick={() => move("skip")}>
-            Skip for now
+        <Show
+          when={ready()}
+          fallback={
+            <button type="button" class={secondary} data-action="skip-first-run" onClick={() => move("skip")}>
+              Skip for now
+            </button>
+          }
+        >
+          <button type="button" class={primary} data-cta data-action="first-run-continue" onClick={() => move("next")}>
+            Continue
           </button>
         </Show>
       </div>
-      <Show when={ready()}>
-        <button
-          type="button"
-          class={primary}
-          data-action="first-run-continue"
-          style={{ "--i": 4 }}
-          onClick={() => move("next")}
-        >
-          Continue
-        </button>
-      </Show>
       <AddProviderDialog
         open={browsing()}
         loading={catalog.loading}
@@ -125,29 +118,31 @@ function ChoiceGroup(props: {
 }) {
   return (
     <Show when={props.choices.length > 0}>
-      <div class="flex flex-col gap-2" data-component="first-run-group">
-        <span class="px-1 pt-1 text-xs font-medium text-muted-foreground">{props.label}</span>
+      <div class="ob-group" data-component="first-run-group">
+        <span class="ob-label">{props.label}</span>
         <For each={props.choices}>
           {(choice) => (
             <button
               type="button"
-              class="flex cursor-pointer items-center gap-3 rounded-lg bg-control px-3 py-2.5 text-left hover:bg-control-strong"
+              class="ob-card"
               data-provider={choice.provider.id}
               data-via={choice.via}
               data-action="connect"
               data-connected={props.linked.has(choice.provider.id) ? "" : undefined}
               onClick={() => props.onPick(choice)}
             >
-              <ProviderIcon id={choice.provider.id} width="16" height="16" />
-              <span class="flex min-w-0 flex-1 flex-col">
-                <span class="truncate text-sm font-medium text-foreground">{choice.title}</span>
-                <span class="truncate text-xs text-muted-foreground">
+              <span class="ob-logo">
+                <ProviderIcon id={choice.provider.id} width="18" height="18" />
+              </span>
+              <span class="ob-card-text">
+                <span class="ob-card-title">{choice.title}</span>
+                <span class="ob-card-note">
                   {props.linked.has(choice.provider.id) ? "Connected. Select to change it." : choice.note}
                 </span>
               </span>
               <Show when={props.linked.has(choice.provider.id)}>
                 <span class="welcome-connected">
-                  <RemixIcon icon={CheckIcon} size={13} />
+                  <RemixIcon icon={CheckIcon} size={14} />
                   Connected
                 </span>
               </Show>
