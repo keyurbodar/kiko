@@ -52,7 +52,7 @@ async function runNow(routine: Routine): Promise<boolean> {
 
 const faint = "text-fg4"
 const tool =
-  "grid size-7 shrink-0 place-items-center rounded-lg text-fg3 transition-[background-color,transform] duration-[120ms] active:scale-[0.97] hover:bg-active hover:text-fg disabled:opacity-40"
+  "grid size-7 shrink-0 place-items-center rounded-row text-fg3 transition-[background-color,transform] duration-[120ms] active:scale-[0.97] hover:bg-active hover:text-fg disabled:opacity-40"
 function Tool(props: {
   label: string
   action: string
@@ -102,7 +102,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
           when={props.recipe}
           fallback={
             <span
-              class={`grid size-7 shrink-0 place-items-center rounded-md bg-active ${on() ? "text-fg2" : "text-fg4"}`}
+              class={`grid size-7 shrink-0 place-items-center rounded-control bg-active ${on() ? "text-fg2" : "text-fg4"}`}
               aria-hidden="true"
             >
               <RemixIcon icon={ClockIcon} size={14} />

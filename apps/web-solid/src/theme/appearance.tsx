@@ -79,7 +79,7 @@ function ThemeCard(props: {
       <Show when={props.onRemove}>
         <button
           type="button"
-          class="absolute top-1.5 right-1.5 grid size-5 place-items-center rounded-md bg-raise text-fg2 opacity-0 shadow-menu group-hover/theme:opacity-100 hover:text-bad focus-visible:opacity-100"
+          class="absolute top-1.5 right-1.5 grid size-5 place-items-center rounded-control bg-raise text-fg2 opacity-0 shadow-menu group-hover/theme:opacity-100 hover:text-bad focus-visible:opacity-100"
           aria-label={`Remove ${props.name}`}
           title="Remove"
           onClick={props.onRemove}
@@ -100,7 +100,7 @@ function Gallery(props: { appearance: ThemeAppearance }) {
         <h2 class="flex items-center gap-2 px-1 text-[13px] font-medium text-fg3">
           {props.appearance === "dark" ? "Imported dark" : "Imported light"}
           <Show when={shown() === props.appearance}>
-            <span class="text-xs font-normal text-fg4">Showing now</span>
+            <span class="text-hint font-normal text-fg4">Showing now</span>
           </Show>
         </h2>
         <div

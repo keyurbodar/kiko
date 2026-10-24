@@ -88,17 +88,17 @@ function Backend() {
   return (
     <Group title="Backend" data-component="account-backend">
       <Row label="Address">
-        <span class="truncate text-md" data-field="backend-address">
+        <span class="truncate text-ui" data-field="backend-address">
           {base() || location.origin}
         </span>
       </Row>
       <Row label="App version">
-        <span class="text-md" data-field="app-version">
+        <span class="text-ui" data-field="app-version">
           {APP_VERSION}
         </span>
       </Row>
       <Row label="Backend version">
-        <span class="text-md" data-field="backend-version">
+        <span class="text-ui" data-field="backend-version">
           {backendVersion() ?? "Unknown"}
         </span>
       </Row>
@@ -142,13 +142,13 @@ function Backend() {
             <Show
               when={storage() === "built-in"}
               fallback={
-                <span class="text-md" data-field="file-storage">
+                <span class="text-ui" data-field="file-storage">
                   R2
                 </span>
               }
             >
               <a
-                class="text-sm text-fg underline underline-offset-2"
+                class="text-label text-fg underline underline-offset-2"
                 href="https://developers.cloudflare.com/r2/pricing/"
                 target="_blank"
                 rel="noreferrer"

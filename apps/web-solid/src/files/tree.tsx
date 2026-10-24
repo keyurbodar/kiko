@@ -43,7 +43,7 @@ const TREE_CSS = `
 		--trees-fg-muted-override: var(--fg3);
 		--trees-selected-focused-border-color-override: transparent;
 	}
-	button[data-type='item'], button[data-type='item']::before { border-radius: var(--radius-md); }
+	button[data-type='item'], button[data-type='item']::before { border-radius: var(--radius-control); }
 	svg[data-icon-name='t3-tree-icon-loading'] { opacity: 0.6; }
 	@media (prefers-reduced-motion: no-preference) {
 		svg[data-icon-name='t3-tree-icon-loading'] { animation: t3-tree-spin 1s linear infinite; }

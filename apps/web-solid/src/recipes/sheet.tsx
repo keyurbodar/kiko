@@ -82,9 +82,9 @@ export function RecipeSheet(props: {
                 {(app) => (
                   <div class="flex items-center gap-3 px-1 py-1" data-app={app.slug}>
                     <AppLogo app={app} size={26} />
-                    <span class="min-w-0 flex-1 truncate text-sm text-fg">{app.name}</span>
+                    <span class="min-w-0 flex-1 truncate text-label text-fg">{app.name}</span>
                     <Show when={app.connected}>
-                      <span class="shrink-0 text-xs text-ok">Connected</span>
+                      <span class="shrink-0 text-hint text-ok">Connected</span>
                     </Show>
                   </div>
                 )}

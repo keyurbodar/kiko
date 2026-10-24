@@ -8,7 +8,7 @@ import { backendVersion, startUpdate, view, watchLatest } from "./update-flow"
 
 function Versions() {
   return (
-    <dl class="grid grid-cols-[auto_auto] gap-x-3 text-sm" data-part="update-versions">
+    <dl class="grid grid-cols-[auto_auto] gap-x-3 text-label" data-part="update-versions">
       <dt class="opacity-70">App</dt>
       <dd data-part="app-version">{APP_VERSION}</dd>
       <dt class="opacity-70">Backend</dt>

@@ -23,7 +23,7 @@ export function FileBreadcrumbs(props: {
 }) {
   return (
     <nav
-      class="flex min-w-0 flex-1 items-center overflow-x-auto text-xs [scrollbar-width:none]"
+      class="flex min-w-0 flex-1 items-center overflow-x-auto text-hint [scrollbar-width:none]"
       aria-label="File path"
       data-component="file-breadcrumbs"
     >
@@ -41,7 +41,7 @@ export function FileBreadcrumbs(props: {
         title={props.path}
         data-component="file-path"
       >
-        <span class="block max-w-40 truncate rounded-sm px-0.5 font-medium text-fg">{basename(props.path)}</span>
+        <span class="block max-w-40 truncate rounded-tail px-0.5 font-medium text-fg">{basename(props.path)}</span>
         <Show when={props.unsaved}>
           <span
             class="ml-1.5 size-1.5 shrink-0 rounded-full bg-[var(--fg3)]"
@@ -62,7 +62,7 @@ function FolderCrumb(props: { dir: string; current: string; index: TreeIndex; on
   return (
     <MenuV2 gutter={4} placement="bottom-start" onOpenChange={(open) => open && setAt(props.dir)}>
       <MenuV2.Trigger
-        class="block max-w-40 shrink-0 cursor-pointer truncate rounded-sm px-0.5 text-left text-fg3 hover:bg-hover hover:text-fg data-[expanded]:bg-active data-[expanded]:text-fg"
+        class="block max-w-40 shrink-0 cursor-pointer truncate rounded-tail px-0.5 text-left text-fg3 hover:bg-hover hover:text-fg data-[expanded]:bg-active data-[expanded]:text-fg"
         aria-label={`Browse ${label(props.dir)}`}
         title={props.dir || "Files"}
         data-component="file-crumb"

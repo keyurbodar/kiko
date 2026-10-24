@@ -131,7 +131,7 @@ export function FileSurface(props: { chatId: string; path: string }) {
           when={!fullSize()}
           fallback={
             <div
-              class="flex min-w-0 flex-1 items-center justify-center p-6 text-center text-sm text-fg3"
+              class="flex min-w-0 flex-1 items-center justify-center p-6 text-center text-label text-fg3"
               data-component="file-full-size-note"
             >
               Open full size. Close it to return here.

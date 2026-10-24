@@ -12,10 +12,10 @@ import { type InstallStatus, installStatus, nextRunLabel } from "./model"
 import { agentName, editRecipe, isEditing, removeInstall, setInstallPaused, targetsForChat } from "./state"
 
 const pillClass =
-  "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs text-fg3 hover:bg-active hover:text-fg"
+  "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-hint text-fg3 hover:bg-active hover:text-fg"
 
 function StatusChip(props: { status: InstallStatus }) {
-  const chip = "flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs"
+  const chip = "flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-hint"
   return (
     <span class="flex min-w-0 items-center gap-2" data-component="recipe-status">
       {(() => {
@@ -33,10 +33,10 @@ function StatusChip(props: { status: InstallStatus }) {
                 <RemixIcon icon={PauseIcon} size={11} />
                 Paused
               </span>
-              <span class="truncate text-xs text-fg3">{s.schedule}</span>
+              <span class="truncate text-hint text-fg3">{s.schedule}</span>
             </>
           )
-        return <span class="truncate text-xs text-fg3">{s.label}</span>
+        return <span class="truncate text-hint text-fg3">{s.label}</span>
       })()}
     </span>
   )
@@ -85,7 +85,7 @@ function InstallActions(props: { install: RecipeInstall; card: RecipeCard; go: (
 function Runner(props: { install: RecipeInstall }) {
   return (
     <Show when={targetsForChat(props.install.roomId).length > 1}>
-      <span class="flex shrink-0 items-center gap-1 text-xs text-fg">
+      <span class="flex shrink-0 items-center gap-1 text-hint text-fg">
         <IdentityAvatar seed={props.install.agent} size={16} />
         {agentName(props.install.agent)}
       </span>

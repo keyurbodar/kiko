@@ -15,7 +15,7 @@ const OUTFITS = ["none", ...OUTFIT_NAMES] as const
 const label = (name: string) => name.charAt(0).toUpperCase() + name.slice(1)
 
 const cell =
-  "grid aspect-square place-items-center rounded-xl outline-none hover:bg-[var(--hover)] aria-checked:bg-[var(--active)] aria-checked:shadow-[inset_0_0_0_1px_var(--fg3)]"
+  "grid aspect-square place-items-center rounded-pop outline-none hover:bg-[var(--hover)] aria-checked:bg-[var(--active)] aria-checked:shadow-[inset_0_0_0_1px_var(--fg3)]"
 
 function withPins(avatars: Look["avatars"], slug: string, pins: AvatarPins): Look["avatars"] {
   const { [slug]: _, ...rest } = avatars
@@ -25,7 +25,7 @@ function withPins(avatars: Look["avatars"], slug: string, pins: AvatarPins): Loo
 function Section(props: { title: string; children: JSX.Element }) {
   return (
     <section class="flex flex-col gap-2">
-      <h3 class="text-xs text-fg2">{props.title}</h3>
+      <h3 class="text-hint text-fg2">{props.title}</h3>
       <div class="grid grid-cols-8 gap-1" role="radiogroup" aria-label={props.title}>
         {props.children}
       </div>

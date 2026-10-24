@@ -113,7 +113,7 @@ export default function ChatCard(props: { chatId: string }) {
       <div class="flex items-center gap-3 px-2.5 pt-2 pb-2.5">
         <ChatAvatar faces={room.chatFaces(props.chatId)} size={32} />
         <div class="flex min-w-0 flex-1 flex-col">
-          <span class="truncate text-md font-medium text-foreground" data-component="card-name">
+          <span class="truncate text-ui font-medium text-fg" data-component="card-name">
             {chat()?.name ?? ""}
           </span>
           <span
@@ -154,7 +154,7 @@ export default function ChatCard(props: { chatId: string }) {
             <MenuV2.Portal>
               <MenuV2.Content class="z-[80] min-w-48" data-component="add-member-menu">
                 <MenuV2.Group>
-                  <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
+                  <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 text-hint font-medium text-fg2">
                     Add to this chat
                   </MenuV2.GroupLabel>
                   <Show

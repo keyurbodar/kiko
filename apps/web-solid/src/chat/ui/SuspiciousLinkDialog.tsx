@@ -37,7 +37,7 @@ export function SuspiciousLinkDialog(props: { href: string; onClose: () => void 
     >
       <p class="text-[13px] leading-relaxed text-[var(--kit-meta)]">
         The text of this link does not match its address. It opens{" "}
-        <span class="font-mono break-words text-ring">{realHost()}</span>.
+        <span class="font-mono break-words text-info">{realHost()}</span>.
       </p>
     </Dialog>
   )

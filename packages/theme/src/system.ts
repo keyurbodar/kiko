@@ -83,10 +83,9 @@ export function systemCss(): string {
     ...Object.entries(CONTAINER).map(([k, v]) => `  --container-${k}: ${px(v)};`),
     `  --ease-kiko: ${MOTION.ease};`,
   ]
-  const live = (Object.entries(TYPE) as [TypeName, Type][]).flatMap(([name, t]) => [
+  const live = Object.keys(TYPE).flatMap((name) => [
     `  --text-${name}: var(--type-${name});`,
     `  --text-${name}--line-height: var(--type-${name}-line);`,
-    `  --text-${name}--font-weight: ${t.weight};`,
   ])
   const utilities = (Object.entries(TYPE) as [TypeName, Type][]).map(
     ([name, t]) =>

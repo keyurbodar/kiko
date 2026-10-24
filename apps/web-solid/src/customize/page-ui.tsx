@@ -17,7 +17,7 @@ export function PageFrame(props: {
             {(back) => (
               <button
                 type="button"
-                class="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded-lg px-1 py-0.5 text-[13px] text-fg3 transition-colors duration-[var(--dur-hover)] hover:text-fg"
+                class="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded-row px-1 py-0.5 text-[13px] text-fg3 transition-colors duration-[var(--dur-hover)] hover:text-fg"
                 onClick={back().onClick}
               >
                 <RemixIcon icon={ChevronLeftIcon} size={14} />
@@ -175,8 +175,8 @@ export function SkeletonRows(props: { count: number; grid?: boolean }) {
           <div class="flex items-center gap-3 rounded-2xl bg-panel p-4">
             <span class="page-skeleton size-10 shrink-0 rounded-[12px]" />
             <span class="flex flex-1 flex-col gap-2">
-              <span class="page-skeleton h-3.5 w-1/3 rounded-md" />
-              <span class="page-skeleton h-3 w-2/3 rounded-md" />
+              <span class="page-skeleton h-3.5 w-1/3 rounded-control" />
+              <span class="page-skeleton h-3 w-2/3 rounded-control" />
             </span>
           </div>
         )}

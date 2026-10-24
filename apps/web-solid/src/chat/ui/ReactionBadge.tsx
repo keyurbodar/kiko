@@ -25,12 +25,10 @@ export function ReactionStack(props: ReactionStackProps) {
             <button
               class={cn(
                 "pointer-events-auto relative inline-flex h-7 min-w-7 items-center justify-center rounded-full p-0 text-[15px] leading-none",
-                "bg-card text-foreground shadow-[0_0_0_2px_var(--background)]",
+                "bg-panel text-fg shadow-[0_0_0_2px_var(--bg)]",
                 "active:scale-[0.92]",
                 reaction.count > 1 && "px-2",
-                reaction.viewerReacted
-                  ? "z-[1] bg-message-user text-message-user-foreground hover:bg-message-user"
-                  : "hover:bg-background focus-visible:bg-background",
+                reaction.viewerReacted ? "z-[1] bg-me text-fg hover:bg-me" : "hover:bg-bg focus-visible:bg-bg",
               )}
               data-component="chat-reaction-badge"
               data-emoji={reaction.emoji}
@@ -41,7 +39,7 @@ export function ReactionStack(props: ReactionStackProps) {
             >
               <span class="font-emoji text-[17px] leading-none">{reaction.emoji}</span>
               <Show when={reaction.count > 1}>
-                <span class="ml-[3px] text-xs font-medium tabular-nums">{reaction.count}</span>
+                <span class="ml-[3px] text-hint font-medium tabular-nums">{reaction.count}</span>
               </Show>
             </button>
           )}

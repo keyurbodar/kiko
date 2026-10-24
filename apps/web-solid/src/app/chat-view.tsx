@@ -25,7 +25,7 @@ import { readOnly } from "./update-flow"
 import BrowserChip from "../chat/BrowserChip"
 
 const JUMP_CLASS =
-  "pointer-events-auto relative grid size-[26px] place-items-center rounded-md border border-[color-mix(in_oklab,var(--foreground)_15%,transparent)] bg-[color-mix(in_oklab,var(--foreground)_10%,transparent)] text-foreground shadow-md backdrop-blur-md"
+  "pointer-events-auto relative grid size-[26px] place-items-center rounded-control border border-[color-mix(in_oklab,var(--fg)_15%,transparent)] bg-[color-mix(in_oklab,var(--fg)_10%,transparent)] text-fg shadow-md backdrop-blur-md"
 
 export function ChatView() {
   useRefusalToasts()
@@ -269,7 +269,7 @@ export function ChatView() {
           >
             <button
               type="button"
-              class={`${JUMP_CLASS} text-sm font-medium text-ring`}
+              class={`${JUMP_CLASS} text-label font-medium text-info`}
               data-component="composer-jump-mention"
               title="Next mention"
               aria-label="Next mention"
@@ -277,7 +277,7 @@ export function ChatView() {
             >
               <span aria-hidden="true">@</span>
               <span
-                class="absolute -top-1.5 -right-1.5 h-4 min-w-4 rounded-full bg-ring px-1 text-center text-xs leading-4 text-[var(--primary-foreground)]"
+                class="absolute -top-1.5 -right-1.5 h-4 min-w-4 rounded-full bg-info px-1 text-center text-hint leading-4 text-[var(--on-fg)]"
                 data-component="composer-jump-count"
               >
                 {mentions().length}
@@ -289,7 +289,7 @@ export function ChatView() {
         <div class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+6px)] z-6 flex justify-end px-3">
           <button
             type="button"
-            class="pointer-events-auto inline-flex h-7 items-center gap-1 rounded-full border border-[color-mix(in_oklab,var(--foreground)_10%,transparent)] bg-[color-mix(in_oklab,var(--background)_80%,transparent)] px-2.5 text-xs font-medium text-foreground shadow-md backdrop-blur-md transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none data-[hidden]:pointer-events-none data-[hidden]:scale-95 data-[hidden]:opacity-0"
+            class="pointer-events-auto inline-flex h-7 items-center gap-1 rounded-full border border-[color-mix(in_oklab,var(--fg)_10%,transparent)] bg-[color-mix(in_oklab,var(--bg)_80%,transparent)] px-2.5 text-hint font-medium text-fg shadow-md backdrop-blur-md transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none data-[hidden]:pointer-events-none data-[hidden]:scale-95 data-[hidden]:opacity-0"
             data-component="composer-scroll-down"
             data-hidden={scrolled() ? undefined : ""}
             aria-label="Scroll to end"

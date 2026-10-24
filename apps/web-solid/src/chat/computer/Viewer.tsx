@@ -56,18 +56,18 @@ export default function Viewer(): JSX.Element {
             aria-modal="true"
             aria-label={`${computer().name} screen`}
             tabindex="-1"
-            class="flex h-full max-h-[min(860px,100%)] w-full max-w-[1280px] flex-col gap-2 rounded-[22px] bg-[color-mix(in_oklab,var(--background)_92%,var(--foreground))] p-2 shadow-2xl outline-none"
+            class="flex h-full max-h-[min(860px,100%)] w-full max-w-[1280px] flex-col gap-2 rounded-[22px] bg-[color-mix(in_oklab,var(--bg)_92%,var(--fg))] p-2 shadow-2xl outline-none"
           >
             <div
               class={cn(
                 "flex min-h-11 shrink-0 items-center gap-3 rounded-[14px] py-1.5 pr-2 pl-4",
                 interactive()
-                  ? "bg-[color-mix(in_oklab,var(--warning)_16%,transparent)] text-warning"
-                  : "bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)] text-foreground",
+                  ? "bg-[color-mix(in_oklab,var(--warn)_16%,transparent)] text-warn"
+                  : "bg-[color-mix(in_oklab,var(--fg)_6%,transparent)] text-fg",
               )}
               data-part="bar"
             >
-              <span class="min-w-0 flex-1 truncate text-md font-medium" data-field="viewer-reason">
+              <span class="min-w-0 flex-1 truncate text-ui font-medium" data-field="viewer-reason">
                 {reason() ?? (interactive() ? `You are controlling ${computer().name}` : `Watching ${computer().name}`)}
               </span>
               <Show when={interactive()}>
@@ -80,7 +80,7 @@ export default function Viewer(): JSX.Element {
               </Show>
               <Show when={computers().length > 1}>
                 <select
-                  class="h-8 max-w-40 rounded-full bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] px-3 text-[13px] text-foreground outline-none"
+                  class="h-8 max-w-40 rounded-full bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] px-3 text-[13px] text-fg outline-none"
                   aria-label="Computer"
                   value={computer().id}
                   onChange={(event) => openViewer(event.currentTarget.value)}
@@ -93,7 +93,7 @@ export default function Viewer(): JSX.Element {
                 fallback={
                   <button
                     type="button"
-                    class={cn(pill, "bg-foreground text-background")}
+                    class={cn(pill, "bg-fg text-bg")}
                     data-action="computer-takeover"
                     disabled={!computer().online || !computer().caps.input}
                     onClick={() => takeOver(computer().id)}
@@ -104,7 +104,7 @@ export default function Viewer(): JSX.Element {
               >
                 <button
                   type="button"
-                  class={cn(pill, "bg-foreground text-background")}
+                  class={cn(pill, "bg-fg text-bg")}
                   data-action="computer-release"
                   onClick={() => release(computer().id)}
                 >
@@ -113,7 +113,7 @@ export default function Viewer(): JSX.Element {
               </Show>
               <button
                 type="button"
-                class="grid size-8 shrink-0 cursor-pointer place-items-center rounded-full text-current opacity-70 hover:bg-[color-mix(in_oklab,var(--foreground)_10%,transparent)] hover:opacity-100"
+                class="grid size-8 shrink-0 cursor-pointer place-items-center rounded-full text-current opacity-70 hover:bg-[color-mix(in_oklab,var(--fg)_10%,transparent)] hover:opacity-100"
                 aria-label="Hide the screen"
                 title="Hide the screen"
                 data-action="computer-hide"

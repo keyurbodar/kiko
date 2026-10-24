@@ -41,12 +41,12 @@ export function DangerRow(props: {
     <div class="mt-auto p-2" data-card="danger">
       <button
         type="button"
-        class="flex w-full flex-col rounded-lg px-3 py-2 text-left hover:bg-hover"
+        class="flex w-full flex-col rounded-row px-3 py-2 text-left hover:bg-hover"
         data-action={props.action}
         onClick={() => props.onClick()}
         onBlur={() => props.onBlur?.()}
       >
-        <span class="text-[13px] leading-5 text-error">{props.label}</span>
+        <span class="text-[13px] leading-5 text-bad">{props.label}</span>
         <span class="text-[12px] leading-5 text-fg4">{props.description}</span>
       </button>
     </div>

@@ -32,7 +32,7 @@
   background: transparent;
   color: var(--fg);
   font: inherit;
-  font-size: var(--font-sm);
+  font-size: var(--type-label);
   outline: none;
 }
 .kt-field input::placeholder {
@@ -45,7 +45,7 @@
   flex: none;
   place-items: center;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--fg3);
 }
@@ -70,14 +70,14 @@
 
 .kt-empty {
   padding: 8px 12px;
-  font-size: var(--font-sm);
+  font-size: var(--type-label);
   color: var(--fg3);
 }
 
 .kt-menu {
   min-width: 160px;
   padding: 4px;
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-pop);
   background: var(--raise);
   box-shadow:
     0 8px 28px rgb(0 0 0 / 0.4),
@@ -89,11 +89,11 @@
   width: 100%;
   padding: 6px 10px;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: var(--font-md);
+  font-size: var(--type-ui);
   text-align: left;
   cursor: default;
 }

@@ -200,7 +200,7 @@ export default function FilesPage() {
                     {(e) => (
                       <button
                         type="button"
-                        class="group flex h-12 cursor-pointer items-center gap-3 rounded-xl px-3 text-left outline-none transition-colors duration-[var(--dur-hover)] hover:bg-hover focus-visible:bg-hover"
+                        class="group flex h-12 cursor-pointer items-center gap-3 rounded-pop px-3 text-left outline-none transition-colors duration-[var(--dur-hover)] hover:bg-hover focus-visible:bg-hover"
                         data-file={e.path}
                         onClick={() => open(e.path)}
                       >

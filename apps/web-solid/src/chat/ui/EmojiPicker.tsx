@@ -131,17 +131,17 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
   return (
     <div
       class={cn(
-        "flex h-[400px] w-[340px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[20px] bg-popover text-foreground shadow-popover",
+        "flex h-[400px] w-[340px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[20px] bg-raise text-fg shadow-popover",
         props.class,
       )}
       data-component="emoji-picker"
     >
       <div class="px-2.5 pt-2.5 pb-1">
-        <label class="flex h-10 items-center gap-2 rounded-full bg-[var(--secondary)] px-3">
-          <RemixIcon icon={SearchIcon} size={16} class="shrink-0 text-muted-foreground" />
+        <label class="flex h-10 items-center gap-2 rounded-full bg-[var(--hover)] px-3">
+          <RemixIcon icon={SearchIcon} size={16} class="shrink-0 text-fg2" />
           <input
             ref={(element) => queueMicrotask(() => element.focus({ preventScroll: true }))}
-            class="min-w-0 flex-1 bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
+            class="min-w-0 flex-1 bg-transparent text-[15px] text-fg outline-none placeholder:text-fg2"
             placeholder="Search"
             aria-label="Search emoji"
             autocomplete="off"
@@ -170,7 +170,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
         <Show
           when={sections().some((section) => section.cells.length > 0) || (query().trim() === "" && data.loading)}
           fallback={
-            <p class="py-10 text-center text-sm text-muted-foreground" data-component="emoji-empty">
+            <p class="py-10 text-center text-label text-fg2" data-component="emoji-empty">
               No emoji found
             </p>
           }
@@ -185,9 +185,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
                   }}
                   data-component="emoji-section"
                 >
-                  <h3 class="flex h-8 items-center px-1.5 text-[15px] font-semibold text-foreground">
-                    {section.title}
-                  </h3>
+                  <h3 class="flex h-8 items-center px-1.5 text-[15px] font-semibold text-fg">{section.title}</h3>
                   <div class="grid grid-cols-8" role="listbox" aria-label={section.title}>
                     <For each={section.cells}>
                       {(cell, at) => (
@@ -195,7 +193,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
                           type="button"
                           tabIndex={-1}
                           role="option"
-                          class="grid size-10 cursor-default place-items-center rounded-[10px] p-0 font-emoji text-[28px] leading-none data-[active]:bg-[var(--accent-strong)]"
+                          class="grid size-10 cursor-default place-items-center rounded-[10px] p-0 font-emoji text-[28px] leading-none data-[active]:bg-[var(--active)]"
                           data-at={`${index()}:${at()}`}
                           data-emoji={cell.emoji}
                           data-active={isActive(`${index()}:${at()}`) ? "" : undefined}

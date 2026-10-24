@@ -23,7 +23,7 @@ export default function TableView(props: { roomId: string; file: FileRef }) {
               </SurfaceNotice>
             </Show>
             <div class="min-h-0 flex-1 overflow-auto">
-              <table class="min-w-full border-separate border-spacing-0 text-xs">
+              <table class="min-w-full border-separate border-spacing-0 text-hint">
                 <thead class="sticky top-0 z-10">
                   <tr>
                     <For each={rows[0] ?? []}>

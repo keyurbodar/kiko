@@ -181,7 +181,7 @@ export default function ModelPickerPanel(props: {
               No provider is connected.{" "}
               <button
                 type="button"
-                class="text-foreground underline"
+                class="text-fg underline"
                 data-action="connect-provider"
                 onClick={() => {
                   setModelsTab("providers")
@@ -222,7 +222,7 @@ export default function ModelPickerPanel(props: {
                   <ProviderIcon id={provider.id} width="16" height="16" />
                   <Show when={problemOf(provider.id)}>
                     <span
-                      class="absolute right-1 top-1 size-1.5 rounded-full bg-error"
+                      class="absolute right-1 top-1 size-1.5 rounded-full bg-bad"
                       role="img"
                       aria-label={PROBLEM_SHORT[problemOf(provider.id)!]}
                     />
@@ -308,7 +308,7 @@ export default function ModelPickerPanel(props: {
                           {formatContext(row.model.contextWindow)} context, {formatPrice(row.model.pricing)}
                           <Show when={problemOf(row.provider.id)}>
                             {(problem) => (
-                              <span class="text-error" data-part="provider-problem">
+                              <span class="text-bad" data-part="provider-problem">
                                 {PROBLEM_SHORT[problem()]}
                               </span>
                             )}
@@ -316,11 +316,11 @@ export default function ModelPickerPanel(props: {
                         </span>
                       </span>
                       <Show when={props.current === ref}>
-                        <RemixIcon icon={CheckIcon} size={15} class="shrink-0 text-foreground" />
+                        <RemixIcon icon={CheckIcon} size={15} class="shrink-0 text-fg" />
                       </Show>
                       <button
                         type="button"
-                        class={`grid size-7 shrink-0 place-items-center rounded-lg transition-[opacity,background-color,transform] duration-[var(--dur-hover)] hover:bg-active active:scale-90 ${starred() ? "text-warning" : "text-fg4 opacity-0 group-hover/model:opacity-100"}`}
+                        class={`grid size-7 shrink-0 place-items-center rounded-row transition-[opacity,background-color,transform] duration-[var(--dur-hover)] hover:bg-active active:scale-90 ${starred() ? "text-warn" : "text-fg4 opacity-0 group-hover/model:opacity-100"}`}
                         aria-label={starred() ? `Unstar ${row.model.name}` : `Star ${row.model.name}`}
                         aria-pressed={starred()}
                         onClick={(e) => {

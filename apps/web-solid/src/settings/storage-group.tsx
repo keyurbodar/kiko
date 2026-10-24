@@ -59,7 +59,7 @@ export function StorageGroup() {
                   </div>
                 }
               >
-                <span class="text-md" data-field="object-bytes">
+                <span class="text-ui" data-field="object-bytes">
                   {formatSize(s().objectBytes)} of {formatSize(OBJECT_LIMIT_BYTES)}
                 </span>
               </Row>

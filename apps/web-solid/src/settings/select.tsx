@@ -151,7 +151,7 @@ export function Select<T>(props: {
             active={open()}
             onDismiss={close}
             excludedElements={() => [trigger]}
-            class="bg-raise pointer-events-auto fixed z-[80] flex max-w-[min(320px,calc(100vw-16px))] items-start overflow-y-auto rounded-xl p-1 shadow-popover"
+            class="bg-raise pointer-events-auto fixed z-[80] flex max-w-[min(320px,calc(100vw-16px))] items-start overflow-y-auto rounded-pop p-1 shadow-popover"
             style={place()}
             onKeyDown={onPanelKey}
             data-kb-top-layer=""
@@ -180,7 +180,7 @@ export function Select<T>(props: {
                       id={`${id}-${i()}`}
                       role="option"
                       aria-selected={selected()}
-                      class="flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-lg pr-2 pl-1.5 text-[13.5px] text-fg"
+                      class="flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-row pr-2 pl-1.5 text-[13.5px] text-fg"
                       classList={{ "bg-[color-mix(in_oklab,var(--fg)_8%,transparent)]": active() === i() }}
                       data-option={String(option.value)}
                       onPointerMove={() => setActive(i())}

@@ -40,7 +40,7 @@ export default function FileDialog(props: {
         >
           <div class={`${SUBHEADER} h-11 min-h-11`}>
             <RemixIcon icon={KIND_ICON[props.kind]} size={14} />
-            <ModalV2.Title class="min-w-0 flex-1 truncate text-sm font-medium text-fg">{props.path}</ModalV2.Title>
+            <ModalV2.Title class="min-w-0 flex-1 truncate text-label font-medium text-fg">{props.path}</ModalV2.Title>
             <Show when={props.file} keyed>
               {(file) => (
                 <FileActions view={view} chatId={props.chatId} path={props.path} file={file} kind={props.kind} />

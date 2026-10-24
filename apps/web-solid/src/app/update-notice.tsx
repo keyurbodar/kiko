@@ -41,7 +41,7 @@ export default function UpdateNotice() {
     <Show when={notice()}>
       {(current) => (
         <div
-          class="mx-3 mb-2 flex min-h-9 items-center gap-2 rounded-lg bg-[color-mix(in_oklab,var(--fg)_6%,transparent)] px-3 py-1.5 text-sm text-fg3"
+          class="mx-3 mb-2 flex min-h-9 items-center gap-2 rounded-row bg-[color-mix(in_oklab,var(--fg)_6%,transparent)] px-3 py-1.5 text-label text-fg3"
           role="status"
           data-component="update-notice"
           data-kind={current().kind}

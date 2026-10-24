@@ -20,7 +20,7 @@ export function ReasoningMenu(props: {
       <MenuV2 gutter={6} placement={props.placement ?? "top-start"}>
         <MenuV2.Trigger
           class={cn(
-            "flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm text-fg2 hover:bg-hover hover:text-fg aria-expanded:bg-hover aria-expanded:text-fg",
+            "flex h-7 shrink-0 items-center gap-1.5 rounded-control px-2 text-label text-fg2 hover:bg-hover hover:text-fg aria-expanded:bg-hover aria-expanded:text-fg",
             props.class,
           )}
           aria-label="Reasoning"
@@ -34,7 +34,7 @@ export function ReasoningMenu(props: {
         <MenuV2.Portal>
           <MenuV2.Content class="z-[80] min-w-44" data-component="reasoning-menu">
             <MenuV2.Group>
-              <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 text-xs font-medium text-fg2">Reasoning</MenuV2.GroupLabel>
+              <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 text-hint font-medium text-fg2">Reasoning</MenuV2.GroupLabel>
               <MenuV2.RadioGroup value={value()} onChange={(level) => props.onChange(level as ThinkingLevel)}>
                 <For each={levels()}>
                   {(level) => (

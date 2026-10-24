@@ -88,7 +88,7 @@ function Tab(props: {
           type="button"
           tabIndex={-1}
           aria-label={`Close ${label()}`}
-          class="group/close relative grid size-4 shrink-0 place-items-center rounded-md text-fg3 outline-none hover:bg-hover hover:text-fg"
+          class="group/close relative grid size-4 shrink-0 place-items-center rounded-control text-fg3 outline-none hover:bg-hover hover:text-fg"
           data-action="close-surface"
           onClick={(e) => {
             e.stopPropagation()
@@ -150,7 +150,7 @@ function Launcher(props: { chatId: string }) {
               >
                 <RemixIcon icon={glyph} size={16} class="shrink-0 text-fg2" />
                 <span class="min-w-0 flex-1 truncate">{entry.label}</span>
-                <kbd class="grid h-5 min-w-5 place-items-center rounded-md bg-active px-1 font-sans text-xs text-fg4">
+                <kbd class="grid h-5 min-w-5 place-items-center rounded-control bg-active px-1 font-sans text-hint text-fg4">
                   {entry.key}
                 </kbd>
               </button>

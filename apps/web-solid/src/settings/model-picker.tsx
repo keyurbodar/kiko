@@ -75,7 +75,7 @@ export function ModelPickerButton(props: { draft: string }) {
               onOpenChange={changePicker}
               onPick={(ref, levels) => ref !== current()?.model && room.setAgentModel(member().slug, { ref, levels })}
               title={members().length > 1 ? `Choose model for ${member().name}` : "Choose model"}
-              class="flex h-7 max-w-[240px] min-w-0 items-center gap-1.5 rounded-md px-2 text-sm text-fg2 hover:bg-hover hover:text-fg aria-expanded:bg-hover aria-expanded:text-fg"
+              class="flex h-7 max-w-[240px] min-w-0 items-center gap-1.5 rounded-control px-2 text-label text-fg2 hover:bg-hover hover:text-fg aria-expanded:bg-hover aria-expanded:text-fg"
             >
               <Show when={members().length > 1}>
                 <IdentityAvatar seed={member().slug} size={14} />

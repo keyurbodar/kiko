@@ -17,7 +17,7 @@ function Keys(props: { keys: string }) {
     <span class="inline-flex items-center gap-1">
       <For each={formatForDisplay(props.keys, { platform, parts: true })}>
         {(part) => (
-          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] bg-active px-1 font-sans text-xs font-medium text-fg2">
+          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] bg-active px-1 font-sans text-hint font-medium text-fg2">
             {part}
           </kbd>
         )}
@@ -81,7 +81,7 @@ function KeyRow(props: { command: Command }) {
       <button
         type="button"
         class={cn(
-          "inline-flex h-7 min-w-24 cursor-pointer items-center justify-end rounded-md px-2 text-sm outline-none hover:bg-[var(--hover)]",
+          "inline-flex h-7 min-w-24 cursor-pointer items-center justify-end rounded-control px-2 text-label outline-none hover:bg-[var(--hover)]",
           recorder.isRecording() && "bg-[var(--hover)] ring-2 ring-[var(--fg3)]",
         )}
         aria-label={

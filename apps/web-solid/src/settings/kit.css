@@ -62,22 +62,22 @@
   outline: none;
 }
 
-.kit-btn--primary {
+.kit-btn--fg {
   color: var(--bg);
   background: var(--fg);
 }
 
-.kit-btn--primary:hover:not(:disabled) {
+.kit-btn--fg:hover:not(:disabled) {
   background: color-mix(in oklab, var(--fg) 88%, var(--bg));
 }
 
-.kit-btn--secondary,
+.kit-btn--hover,
 .kit-btn--danger {
   color: var(--fg);
   background: var(--active);
 }
 
-.kit-btn--secondary:hover:not(:disabled) {
+.kit-btn--hover:hover:not(:disabled) {
   background: color-mix(in oklab, var(--fg) 14%, var(--panel));
 }
 
@@ -89,7 +89,7 @@
   background: color-mix(in oklab, var(--bad) 12%, var(--active));
 }
 
-.kit-btn--secondary[aria-pressed="true"] {
+.kit-btn--hover[aria-pressed="true"] {
   color: var(--fg);
   background: color-mix(in oklab, var(--fg) 16%, var(--active));
 }

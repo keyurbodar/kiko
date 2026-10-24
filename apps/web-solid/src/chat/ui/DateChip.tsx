@@ -56,11 +56,11 @@ export function DateChip(props: {
       <DismissableLayerV2
         active={open()}
         class={cn(
-          "flex w-max max-w-full flex-col items-stretch overflow-clip text-foreground",
-          "bg-popover",
+          "flex w-max max-w-full flex-col items-stretch overflow-clip text-fg",
+          "bg-raise",
           open()
             ? "rounded-[calc(20px*var(--radius-mult))] w-[320px] max-w-full shadow-popover"
-            : "rounded-full shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--foreground)_10%,transparent)]",
+            : "rounded-full shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--fg)_10%,transparent)]",
         )}
         excludedElements={() => [trigger]}
         onDismiss={close}
@@ -72,8 +72,8 @@ export function DateChip(props: {
             }}
             type="button"
             class={cn(
-              "chat-chip pointer-events-auto min-h-6 cursor-pointer rounded-full px-3 py-1 text-sm leading-4 font-semibold text-[color-mix(in_oklab,var(--foreground)_75%,transparent)] hover:bg-control-strong aria-expanded:bg-control-strong",
-              open() && "bg-control",
+              "chat-chip pointer-events-auto min-h-6 cursor-pointer rounded-full px-3 py-1 text-label leading-4 font-semibold text-[color-mix(in_oklab,var(--fg)_75%,transparent)] hover:bg-line2 aria-expanded:bg-line2",
+              open() && "bg-active",
             )}
             data-component="chat-day-chip"
             aria-expanded={open()}
@@ -92,7 +92,7 @@ export function DateChip(props: {
           <Show when={open()}>
             <button
               type="button"
-              class="pointer-events-auto absolute top-[calc(50%+4px)] right-3 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-muted-foreground hover:bg-control hover:text-foreground"
+              class="pointer-events-auto absolute top-[calc(50%+4px)] right-3 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-fg2 hover:bg-active hover:text-fg"
               aria-label="Close calendar"
               onClick={close}
             >

@@ -21,7 +21,7 @@ export function Spinner(props: { size?: number }): JSX.Element {
 }
 
 export function Skeleton(props: { class?: string }): JSX.Element {
-  return <div class={cn("motion-skeleton rounded-sm", props.class)} aria-hidden="true" data-component="skeleton" />
+  return <div class={cn("motion-skeleton rounded-tail", props.class)} aria-hidden="true" data-component="skeleton" />
 }
 
 export function Button(
@@ -47,7 +47,7 @@ export function Button(
 }
 
 export const iconButtonClass = cn(
-  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-fg2 transition-[background-color,color,transform] duration-[var(--dur-hover)] ease-[var(--ease-kiko)] enabled:hover:bg-hover enabled:hover:text-fg enabled:active:scale-[0.94] focus-visible:shadow-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-60",
+  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-row text-fg2 transition-[background-color,color,transform] duration-[var(--dur-hover)] ease-[var(--ease-kiko)] enabled:hover:bg-hover enabled:hover:text-fg enabled:active:scale-[0.94] focus-visible:shadow-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-60",
   focus,
 )
 
@@ -105,7 +105,7 @@ export function Group(props: {
           <div class="min-w-0 flex-1">
             <Show when={local.title}>{(title) => <h2 class="text-[13px] font-medium text-fg3">{title()}</h2>}</Show>
             <Show when={local.description}>
-              {(description) => <div class={cn("mt-0.5 text-sm leading-relaxed", muted)}>{description()}</div>}
+              {(description) => <div class={cn("mt-0.5 text-label leading-relaxed", muted)}>{description()}</div>}
             </Show>
           </div>
           <Show when={local.action}>
@@ -144,7 +144,7 @@ export function Row(props: {
               <button
                 type="button"
                 class={cn(
-                  "relative grid size-5 cursor-pointer place-items-center rounded-md outline-none before:absolute before:-inset-1.5 hover:bg-[var(--hover)] hover:text-fg",
+                  "relative grid size-5 cursor-pointer place-items-center rounded-control outline-none before:absolute before:-inset-1.5 hover:bg-[var(--hover)] hover:text-fg",
                   muted,
                 )}
                 title="Reset to default"
@@ -169,7 +169,7 @@ export function Row(props: {
             </Show>
           </div>
           <Show when={local.description}>
-            {(description) => <div class={cn("mt-0.5 max-w-xl text-sm leading-normal", muted)}>{description()}</div>}
+            {(description) => <div class={cn("mt-0.5 max-w-xl text-label leading-normal", muted)}>{description()}</div>}
           </Show>
         </div>
         <Show when={local.children}>
@@ -208,19 +208,19 @@ export function Item(props: {
     >
       <Show when={local.icon}>
         {(icon) => (
-          <span class="grid size-6 shrink-0 place-items-center overflow-hidden rounded-md bg-active text-fg2">
+          <span class="grid size-6 shrink-0 place-items-center overflow-hidden rounded-control bg-active text-fg2">
             {icon()}
           </span>
         )}
       </Show>
       <div class="flex min-h-7 min-w-0 flex-col justify-center">
-        <div class="flex items-center gap-1.5 truncate text-md font-medium text-fg">
+        <div class="flex items-center gap-1.5 truncate text-ui font-medium text-fg">
           {local.title}
           <Show when={local.trouble}>
             <span class="size-1.5 shrink-0 rounded-full bg-[var(--bad)]" aria-hidden="true" />
           </Show>
         </div>
-        <Show when={local.meta}>{(meta) => <div class={cn("text-sm leading-snug", muted)}>{meta()}</div>}</Show>
+        <Show when={local.meta}>{(meta) => <div class={cn("text-label leading-snug", muted)}>{meta()}</div>}</Show>
       </div>
       <div class="flex shrink-0 items-center gap-1.5">{local.actions}</div>
       <Show when={local.children}>
@@ -233,7 +233,7 @@ export function Item(props: {
 export function Hint(props: { children: JSX.Element; [data: `data-${string}`]: string | undefined }): JSX.Element {
   const [local, rest] = splitProps(props, ["children"])
   return (
-    <p class={cn("text-md leading-relaxed", muted)} {...rest}>
+    <p class={cn("text-ui leading-relaxed", muted)} {...rest}>
       {local.children}
     </p>
   )
@@ -242,7 +242,7 @@ export function Hint(props: { children: JSX.Element; [data: `data-${string}`]: s
 export function Empty(props: { children: JSX.Element; [data: `data-${string}`]: string | undefined }): JSX.Element {
   const [local, rest] = splitProps(props, ["children"])
   return (
-    <div class={cn("px-4 py-3 text-md", muted, rowLine)} {...rest}>
+    <div class={cn("px-4 py-3 text-ui", muted, rowLine)} {...rest}>
       {local.children}
     </div>
   )
@@ -258,7 +258,7 @@ export function Notice(props: {
     <p
       role="alert"
       class={cn(
-        "text-sm leading-relaxed",
+        "text-label leading-relaxed",
         local.tone === "muted" ? muted : "text-[color-mix(in_oklab,var(--bad)_90%,transparent)]",
       )}
       {...rest}
@@ -283,7 +283,7 @@ export function Pill(props: {
   return (
     <span
       class={cn(
-        "inline-flex h-[18px] shrink-0 items-center rounded-sm px-1.5 text-[11px] font-medium leading-none whitespace-nowrap",
+        "inline-flex h-[18px] shrink-0 items-center rounded-tail px-1.5 text-[11px] font-medium leading-none whitespace-nowrap",
         tone,
       )}
       {...rest}

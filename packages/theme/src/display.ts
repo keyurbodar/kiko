@@ -93,10 +93,6 @@ export function displayVars(display: Display): Record<string, string> {
   return {
     ...fontVars(display),
     ...typeVars(b),
-    "--font-xs": `${b - 2}px`,
-    "--font-sm": `${b - 1}px`,
-    "--font-md": `${b}px`,
-    "--font-base": `${b + 1}px`,
     "--chat-content-max-width": CHAT_WIDTHS[display.chatWidth].width,
     "--font-smoothing": display.smoothing ? "antialiased" : "auto",
   }

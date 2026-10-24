@@ -35,7 +35,7 @@ function tailRun(isRunStart: boolean, isRunEnd: boolean): "start" | "mid" | "bot
 const GROUP_GUTTER = "pl-[calc(1rem+40px)]"
 
 const FAILED_ACTION =
-  "shrink-0 cursor-pointer rounded-full border border-bad/40 bg-bg px-2 py-0.5 text-xs font-medium text-fg hover:bg-hover"
+  "shrink-0 cursor-pointer rounded-full border border-bad/40 bg-bg px-2 py-0.5 text-hint font-medium text-fg hover:bg-hover"
 
 export function MessageRow(props: {
   message: ChatMessage
@@ -129,7 +129,7 @@ export function MessageRow(props: {
           <Show when={props.message.initiative}>
             {(reason) => (
               <div
-                class="px-(--bubble-pad-x) pt-1 text-sm leading-5 text-[color-mix(in_oklab,currentColor_55%,transparent)]"
+                class="px-(--bubble-pad-x) pt-1 text-label leading-5 text-[color-mix(in_oklab,currentColor_55%,transparent)]"
                 data-component="noticed"
               >
                 Noticed: {reason()}
@@ -165,7 +165,7 @@ export function MessageRow(props: {
             >
               <RemixIcon icon={AlertCircleIcon} class="size-3.5 shrink-0" />
               <span
-                class="min-w-0 flex-1 truncate text-xs font-medium"
+                class="min-w-0 flex-1 truncate text-hint font-medium"
                 title={failure() ?? undefined}
                 data-part="reason"
               >

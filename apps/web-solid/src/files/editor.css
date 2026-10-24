@@ -43,7 +43,7 @@
   align-items: center;
   gap: 8px;
   padding: 0 8px 0 16px;
-  font-size: var(--font-sm);
+  font-size: var(--type-label);
   color: var(--fg3);
 }
 
@@ -56,7 +56,7 @@
   height: 24px;
   padding: 0 8px;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-tail);
   background: var(--hover);
   color: var(--fg);
   font: inherit;
@@ -69,7 +69,7 @@
 }
 
 .file-view .fv-markdown {
-  font-size: var(--font-base);
+  font-size: var(--type-msg);
   line-height: 1.6;
   color: var(--fg);
 }

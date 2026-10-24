@@ -33,14 +33,14 @@ export function Broken(props: { error: unknown; reset: () => void }) {
         <div class="flex gap-2">
           <button
             type="button"
-            class="h-11 cursor-pointer rounded-xl bg-fg px-5 text-sm font-semibold text-bg transition-transform duration-[var(--dur-hover)] active:scale-[0.98]"
+            class="h-11 cursor-pointer rounded-pop bg-fg px-5 text-label font-semibold text-bg transition-transform duration-[var(--dur-hover)] active:scale-[0.98]"
             onClick={props.reset}
           >
             Try again
           </button>
           <button
             type="button"
-            class="h-11 cursor-pointer rounded-xl px-5 text-sm font-medium text-fg2 transition-colors duration-[var(--dur-hover)] hover:bg-hover hover:text-fg"
+            class="h-11 cursor-pointer rounded-pop px-5 text-label font-medium text-fg2 transition-colors duration-[var(--dur-hover)] hover:bg-hover hover:text-fg"
             onClick={() => location.reload()}
           >
             Reload

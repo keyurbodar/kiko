@@ -80,7 +80,7 @@ export function SoulCard(props: { slug: string }) {
                 <button type="button" class={buttonClass("ghost")} onClick={() => setDraft(null)}>
                   Cancel
                 </button>
-                <span class="ml-auto text-xs text-secondary-label">
+                <span class="ml-auto text-hint text-fg3">
                   {draft()?.length ?? 0}/{MAX_SOUL}
                 </span>
               </div>

@@ -120,7 +120,7 @@ export function createShortcodes(editor: () => HTMLElement | undefined) {
             <div
               role="option"
               aria-selected={active() === index()}
-              class="flex h-10 cursor-default items-center gap-3 rounded-[10px] px-2.5 data-[active]:bg-[var(--accent-strong)]"
+              class="flex h-10 cursor-default items-center gap-3 rounded-[10px] px-2.5 data-[active]:bg-[var(--active)]"
               data-active={active() === index() ? "" : undefined}
               data-component="emoji-shortcode"
               data-emoji={match.entry.emoji}
@@ -160,7 +160,7 @@ function Shortcode(props: { match: EmojiMatch; query: string }): JSX.Element {
     <>
       :{parts()[0]}
       <Show when={parts()[1]}>
-        <mark class="rounded-[3px] bg-ring-wash-strong text-inherit">{parts()[1]}</mark>
+        <mark class="rounded-[3px] bg-info-wash text-inherit">{parts()[1]}</mark>
       </Show>
       {parts()[2]}:
     </>

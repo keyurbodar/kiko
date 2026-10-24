@@ -20,7 +20,7 @@ import {
 } from "./zoom"
 
 const NAV =
-  "absolute top-1/2 z-20 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-white/90 hover:bg-white/10 hover:text-white"
+  "absolute top-1/2 z-20 grid size-9 -translate-y-1/2 place-items-center rounded-row text-white/90 hover:bg-white/10 hover:text-white"
 
 export default function ImageDialog(props: {
   images: readonly DialogImage[]
@@ -79,7 +79,7 @@ export default function ImageDialog(props: {
           <button
             type="button"
             data-chrome=""
-            class="absolute top-0 right-0 z-30 grid size-8 place-items-center rounded-lg bg-black/65 text-white shadow-sm ring-1 ring-white/20 hover:bg-black/80"
+            class="absolute top-0 right-0 z-30 grid size-8 place-items-center rounded-row bg-black/65 text-white shadow-sm ring-1 ring-white/20 hover:bg-black/80"
             aria-label="Close image preview"
             onClick={close}
           >
@@ -108,7 +108,7 @@ export default function ImageDialog(props: {
                   fallback={
                     <div
                       role="alert"
-                      class="flex h-48 w-[min(92vw,32rem)] items-center justify-center rounded-lg border border-white/15 bg-black p-6 text-center text-sm text-white"
+                      class="flex h-48 w-[min(92vw,32rem)] items-center justify-center rounded-row border border-white/15 bg-black p-6 text-center text-label text-white"
                     >
                       Image unavailable. The file may have been moved or deleted.
                     </div>
@@ -124,7 +124,7 @@ export default function ImageDialog(props: {
                   />
                 </Show>
                 <p
-                  class="mt-2 max-w-full truncate text-xs text-white/80"
+                  class="mt-2 max-w-full truncate text-hint text-white/80"
                   aria-live="polite"
                   data-chrome=""
                   data-component="image-dialog-caption"
@@ -236,7 +236,7 @@ function ZoomableImage(props: {
         aria-describedby={hint}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region takes focus so the keyboard can scroll it
         tabIndex={0}
-        class="max-w-[calc(92vw-96px)] overflow-auto overscroll-contain rounded-lg border border-white/15 shadow-2xl outline-none max-sm:max-w-[92vw]"
+        class="max-w-[calc(92vw-96px)] overflow-auto overscroll-contain rounded-row border border-white/15 shadow-2xl outline-none max-sm:max-w-[92vw]"
         style={{
           width: width() ? `${width()}px` : undefined,
           height: height() ? `${height()}px` : undefined,
