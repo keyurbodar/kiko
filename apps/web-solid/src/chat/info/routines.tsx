@@ -50,9 +50,9 @@ async function runNow(routine: Routine): Promise<boolean> {
   return false
 }
 
-const faint = "text-[color-mix(in_oklab,var(--foreground)_40%,transparent)]"
+const faint = "text-fg4"
 const tool =
-  "grid size-7 shrink-0 place-items-center rounded-md text-[color-mix(in_oklab,var(--foreground)_45%,transparent)] hover:bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] hover:text-foreground disabled:opacity-40"
+  "grid size-7 shrink-0 place-items-center rounded-lg text-fg3 transition-[background-color,transform] duration-[120ms] active:scale-[0.97] hover:bg-active hover:text-fg disabled:opacity-40"
 function Tool(props: {
   label: string
   action: string
@@ -93,7 +93,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
   }
   return (
     <li
-      class="flex items-center gap-1 rounded-md pr-1 hover:bg-[color-mix(in_oklab,var(--foreground)_5%,transparent)]"
+      class="flex items-center gap-1 rounded-[10px] pr-1 transition-colors duration-[120ms] hover:bg-hover"
       data-routine={props.routine.id}
       data-status={props.routine.status}
     >
@@ -102,7 +102,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
           when={props.recipe}
           fallback={
             <span
-              class={`grid size-7 shrink-0 place-items-center rounded-md bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)] ${on() ? "text-[color-mix(in_oklab,var(--foreground)_60%,transparent)]" : "text-[color-mix(in_oklab,var(--foreground)_30%,transparent)]"}`}
+              class={`grid size-7 shrink-0 place-items-center rounded-md bg-active ${on() ? "text-fg2" : "text-fg4"}`}
               aria-hidden="true"
             >
               <RemixIcon icon={ClockIcon} size={14} />
@@ -112,16 +112,10 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
           {(recipe) => <RecipeIcon recipe={recipe()} size={34} />}
         </Show>
         <span class="flex min-w-0 flex-1 flex-col">
-          <span
-            class={`truncate text-[12px] leading-5 ${on() ? "text-[color-mix(in_oklab,var(--foreground)_85%,transparent)]" : "text-[color-mix(in_oklab,var(--foreground)_45%,transparent)]"}`}
-          >
-            {props.routine.name}
-          </span>
+          <span class={`truncate text-[12px] leading-5 ${on() ? "text-fg" : "text-fg3"}`}>{props.routine.name}</span>
           <span class={`truncate text-[11px] leading-4 ${faint}`} data-component="routine-trigger">
             <Show when={!ran() && !on()}>
-              <span class="mr-1.5 rounded bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] px-1 text-[10px]">
-                Paused
-              </span>
+              <span class="mr-1.5 rounded bg-active px-1 text-[10px]">Paused</span>
             </Show>
             {ran() ? "Started just now" : triggerLabel(props.routine.trigger, props.routine.tz)}
           </span>

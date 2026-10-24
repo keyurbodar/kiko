@@ -39,16 +39,13 @@ export function SoulCard(props: { slug: string }) {
 
   return (
     <div class="flex flex-col gap-2 px-2 py-3" data-card="agent-soul">
-      <Show when={soul()} fallback={<p class="px-2 py-1 text-[13px] text-muted-foreground">Loading</p>}>
+      <Show when={soul()} fallback={<p class="px-2 py-1 text-[13px] text-fg3">Loading</p>}>
         {(s) => (
           <Show
             when={draft() !== null}
             fallback={
               <div class="flex flex-col gap-2 px-2 py-1">
-                <pre
-                  class="whitespace-pre-wrap font-sans text-[13px] leading-5 text-foreground"
-                  data-component="soul-text"
-                >
+                <pre class="whitespace-pre-wrap font-sans text-[13px] leading-5 text-fg" data-component="soul-text">
                   {s().body}
                 </pre>
                 <button
@@ -64,7 +61,7 @@ export function SoulCard(props: { slug: string }) {
           >
             <div class="flex flex-col gap-2 px-2 py-1">
               <textarea
-                class="min-h-72 w-full resize-y rounded-lg bg-card p-2 font-mono text-[13px] text-foreground outline-none"
+                class="min-h-72 w-full resize-y rounded-[12px] bg-panel p-3 font-mono text-[13px] text-fg outline-none"
                 value={draft() ?? ""}
                 maxLength={MAX_SOUL}
                 data-component="soul-editor"

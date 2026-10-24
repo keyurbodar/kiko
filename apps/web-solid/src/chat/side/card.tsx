@@ -23,6 +23,7 @@ import { groupTitle, roomFor } from "../bot-picker-model"
 import { addable, addOp } from "../members/model"
 import { cardBeside, dismissCard } from "./card-state"
 import { isGroup, liveLine, statusChip, workingLine } from "./overview-model"
+import "./card.css"
 import { agentSurface, type FixedKind, fixedSurface, openSurface } from "./surfaces"
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
@@ -31,17 +32,17 @@ function Row(props: { icon: Glyph; label: string; meta?: string; kind: FixedKind
   return (
     <button
       type="button"
-      class="group/row flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left hover:bg-accent"
+      class="group/row flex h-10 w-full items-center gap-3 rounded-[10px] px-2.5 text-left transition-[background-color,transform] duration-[120ms] ease-kiko hover:bg-hover active:scale-[0.98] active:bg-active"
       data-action={`open-${props.kind}`}
       onClick={() => openSurface(props.chatId, fixedSurface(props.kind))}
     >
-      <RemixIcon icon={props.icon} size={15} class="shrink-0 text-muted-foreground" />
-      <span class="shrink-0 text-md text-foreground">{props.label}</span>
-      <span class="min-w-0 flex-1 truncate text-right text-sm text-muted-foreground">{props.meta}</span>
+      <RemixIcon icon={props.icon} size={16} class="shrink-0 text-fg2" />
+      <span class="shrink-0 text-[14px] text-fg">{props.label}</span>
+      <span class="min-w-0 flex-1 truncate text-right text-[12.5px] text-fg4">{props.meta}</span>
       <RemixIcon
         icon={ChevronRightIcon}
         size={13}
-        class="shrink-0 text-secondary-label opacity-0 group-hover/row:opacity-100"
+        class="-ml-1 w-0 shrink-0 text-fg4 opacity-0 transition-[opacity,width,transform] duration-[120ms] ease-kiko group-hover/row:w-[13px] group-hover/row:translate-x-0.5 group-hover/row:opacity-100"
       />
     </button>
   )
@@ -105,7 +106,7 @@ export default function ChatCard(props: { chatId: string }) {
   return (
     <aside
       ref={card}
-      class="flex w-full flex-col rounded-2xl border border-border/60 bg-popover p-1.5 shadow-card"
+      class="flex w-full flex-col rounded-2xl bg-panel p-1.5 shadow-[0_8px_28px_-12px_rgb(0_0_0/0.45)]"
       data-component="chat-card"
       aria-label="This chat"
     >
@@ -116,7 +117,7 @@ export default function ChatCard(props: { chatId: string }) {
             {chat()?.name ?? ""}
           </span>
           <span
-            class={`flex items-center gap-1 truncate text-xs ${busy() ? "text-ring" : "text-muted-foreground"}`}
+            class={`flex items-center gap-1 truncate text-[12.5px] ${busy() ? "text-fg2" : "text-fg3"}`}
             data-component="card-live"
           >
             <Show when={busy()}>
@@ -132,7 +133,7 @@ export default function ChatCard(props: { chatId: string }) {
             {(m) => (
               <button
                 type="button"
-                class="flex h-7 items-center gap-1.5 rounded-full bg-accent py-0.5 pr-2.5 pl-0.5 text-sm text-foreground hover:bg-accent-strong"
+                class="flex h-7 items-center gap-1.5 rounded-full bg-active py-0.5 pr-2.5 pl-0.5 text-[13px] text-fg transition-[background-color,transform] duration-[120ms] hover:bg-hover active:scale-[0.97]"
                 data-member={m.slug}
                 onClick={() => openSurface(props.chatId, agentSurface(m.slug))}
               >
@@ -143,7 +144,7 @@ export default function ChatCard(props: { chatId: string }) {
           </For>
           <MenuV2 gutter={6} placement="bottom-start">
             <MenuV2.Trigger
-              class="flex h-7 items-center gap-1 rounded-full border border-dashed border-border py-0.5 pr-2.5 pl-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent"
+              class="flex h-7 items-center gap-1 rounded-full py-0.5 pr-2.5 pl-2 text-[13px] text-fg3 transition-colors duration-[120ms] hover:bg-hover hover:text-fg aria-expanded:bg-hover"
               aria-label="Add agent"
               data-action="add-member"
             >
@@ -175,7 +176,7 @@ export default function ChatCard(props: { chatId: string }) {
           </MenuV2>
         </div>
       </Show>
-      <div class="flex flex-col border-t border-border pt-1.5">
+      <div class="flex flex-col pt-1">
         <Row
           icon={FolderOpenIcon}
           label="Files"

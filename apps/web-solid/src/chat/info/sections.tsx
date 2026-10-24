@@ -2,11 +2,9 @@ import type { Member } from "@kiko/protocol"
 import type { JSX } from "solid-js"
 import { room } from "../../state/room"
 
-const EDGE = "border-[var(--border)]"
-
 export function Properties(props: { children: JSX.Element }) {
   return (
-    <dl class={`flex flex-col gap-0.5 border-t ${EDGE} px-4 py-3`} data-component="info-properties">
+    <dl class="flex flex-col gap-0.5 px-4 py-3" data-component="info-properties">
       {props.children}
     </dl>
   )
@@ -15,11 +13,8 @@ export function Properties(props: { children: JSX.Element }) {
 export function Property(props: { label: string; field?: string; children: JSX.Element }) {
   return (
     <div class="grid grid-cols-[5.5rem_minmax(0,1fr)] items-start text-[12px]">
-      <dt class="flex h-7 items-center text-[color-mix(in_oklab,var(--foreground)_45%,transparent)]">{props.label}</dt>
-      <dd
-        class="flex min-h-7 min-w-0 items-center truncate text-[color-mix(in_oklab,var(--foreground)_85%,transparent)]"
-        data-field={props.field}
-      >
+      <dt class="flex h-7 items-center text-fg3">{props.label}</dt>
+      <dd class="flex min-h-7 min-w-0 items-center truncate text-fg" data-field={props.field}>
         {props.children}
       </dd>
     </div>
@@ -46,15 +41,13 @@ export function DangerRow(props: {
     <div class="mt-auto p-2" data-card="danger">
       <button
         type="button"
-        class="flex w-full flex-col rounded-lg px-3 py-2 text-left hover:bg-[color-mix(in_oklab,var(--foreground)_5%,transparent)]"
+        class="flex w-full flex-col rounded-lg px-3 py-2 text-left hover:bg-hover"
         data-action={props.action}
         onClick={() => props.onClick()}
         onBlur={() => props.onBlur?.()}
       >
         <span class="text-[13px] leading-5 text-error">{props.label}</span>
-        <span class="text-[12px] leading-5 text-[color-mix(in_oklab,var(--foreground)_40%,transparent)]">
-          {props.description}
-        </span>
+        <span class="text-[12px] leading-5 text-fg4">{props.description}</span>
       </button>
     </div>
   )
