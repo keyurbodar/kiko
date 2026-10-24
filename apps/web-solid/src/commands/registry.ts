@@ -1,4 +1,5 @@
 import { createRoot, createSignal, getOwner, onCleanup } from "solid-js"
+import type { Glyph } from "@kiko/ui/icons"
 import { bindings } from "./bindings"
 import type { CommandId } from "./ids"
 
@@ -18,13 +19,32 @@ export const GROUP_LABEL: Record<CommandGroup, string> = {
   browser: "Browser",
 }
 
+export interface RowAction {
+  id: string
+  title: string
+  icon: string
+  danger?: boolean
+  run: () => void
+}
+
 export interface Choice {
   id: string
   title: string
   icon?: string
+  glyph?: Glyph
+  at?: number
   seed?: string
   chatId?: string
   detail?: string
+  from?: string
+  meta?: string
+  tone?: "bad"
+  folder?: boolean
+  size?: number
+  path?: string
+  space?: string
+  fileId?: string
+  actions?: () => readonly RowAction[]
   snippet?: string
   swatch?: string
   file?: string
