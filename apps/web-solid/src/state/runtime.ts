@@ -9,29 +9,49 @@ import {
 } from "@kiko/client-runtime/state"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as AsyncResult from "effect/reactivity/AsyncResult"
 import * as Atom from "effect/reactivity/Atom"
 import * as AtomRegistry from "effect/reactivity/AtomRegistry"
 import { createComponent, createComputed, createMemo, createSignal, onCleanup, type Accessor, type JSX } from "solid-js"
-import { session } from "../app/session"
-import { base, getToken } from "../lib/api-base"
+import { RUNTIME_DATABASE } from "../lib/storage"
 
-const signedInAs = () => {
-  const current = session()
-  return current.status === "signed-in" ? current.user.id : null
+export interface Attachment {
+  readonly url: string
+  readonly key: string
+  readonly token: string
 }
 
-const ownerIdAtom = Atom.make<string | null>(signedInAs()).pipe(Atom.keepAlive, Atom.withLabel("kiko-owner-id"))
+let attached: Attachment | null = null
+let closed: Promise<void> = Promise.resolve()
+let replaced: Promise<void> = Promise.resolve()
 
-const runtimeNamespace = (ownerId: string) => `kiko:warm:${ownerId}`
+const cacheKeyAtom = Atom.make<string | null>(null).pipe(Atom.keepAlive, Atom.withLabel("kiko-cache-key"))
 
-const ownerRuntime = Atom.runtime((get) =>
-  layerBrowser({
-    endpoint: { baseUrl: () => base() || location.origin, token: getToken },
-    namespace: runtimeNamespace(get(ownerIdAtom) ?? "signed-out"),
-  }),
-)
+const lifetime = () =>
+  Layer.effectDiscard(
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        let done = () => {}
+        closed = new Promise<void>((resolve) => {
+          done = resolve
+        })
+        return done
+      }),
+      (done) => Effect.sync(done),
+    ),
+  )
+
+const ownerRuntime = Atom.runtime((get) => {
+  const key = get(cacheKeyAtom)
+  return Layer.fresh(
+    layerBrowser({
+      endpoint: { baseUrl: () => attached?.url ?? location.origin, token: () => attached?.token ?? null },
+      cache: key === null ? null : { database: RUNTIME_DATABASE, namespace: key },
+    }).pipe(Layer.provideMerge(lifetime())),
+  )
+})
 
 export const owner = createOwnerAtoms(ownerRuntime)
 
@@ -82,8 +102,19 @@ export async function attempt<W, A, E>(
   return undefined
 }
 
-export function followOwner(ownerId: string | null): void {
-  if (registry.get(ownerIdAtom) !== ownerId) registry.set(ownerIdAtom, ownerId)
+export function attachBackend(next: Attachment | null): void {
+  const before = attached
+  attached = next
+  const key = next?.key ?? null
+  if (registry.get(cacheKeyAtom) !== key) {
+    replaced = closed
+    registry.set(cacheKeyAtom, key)
+  } else if (next && before && next.token !== before.token) registry.set(owner.retryConnectionAtom, undefined)
+}
+
+export function releaseRuntime(): Promise<void> {
+  attachBackend(null)
+  return replaced
 }
 
 export interface Query<A> {

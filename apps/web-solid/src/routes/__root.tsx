@@ -6,11 +6,11 @@ import { Broken } from "../app/broken"
 import { FirstRun } from "../app/first-run/lazy"
 import { currentStep } from "../app/first-run/progress"
 import { roomInUrl } from "../app/sections"
-import { bootstrapSession, session } from "../app/session"
+import { rejected, session } from "../app/session"
 import { Shell } from "../app/shell"
 import { connection } from "../state/connection"
 import { room } from "../state/room"
-import { followOwner, RuntimeProvider } from "../state/runtime"
+import { RuntimeProvider } from "../state/runtime"
 
 function RootLayout() {
   const location = useLocation()
@@ -19,19 +19,17 @@ function RootLayout() {
   createEffect(() => {
     const s = session()
     if (s.status === "signed-in") {
-      followOwner(s.user.id)
       const id = s.user.id
       setTimeout(() => void import("../theme/live").then((m) => m.startTheme(id)), 0)
       setTimeout(() => void import("../settings/timezone").then((m) => m.syncTimeZone()), 2000)
     } else if (s.status === "signed-out") {
       applyCommitted(DEFAULT_LOOK, false)
-      followOwner(null)
       void import("../theme/live").then((m) => m.forgetTheme())
     }
   })
   createEffect(
     on(connection.view, (view) => {
-      if (view === "signed-out" && session().status === "signed-in") void bootstrapSession()
+      if (view === "signed-out" && session().status === "signed-in") void rejected()
     }),
   )
   return (

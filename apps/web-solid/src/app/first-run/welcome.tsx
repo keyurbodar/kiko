@@ -1,10 +1,9 @@
 import { Show, createSignal } from "solid-js"
 import { signInAsDev, signInWithAccessCode } from "../session"
-import { codeFailed, enteringFresh, setWorking } from "./progress"
 
 export const primary =
   "welcome-primary flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-foreground px-4 text-sm font-medium text-background hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
-const secondary =
+export const secondary =
   "welcome-secondary flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-control px-4 text-sm font-medium text-foreground hover:bg-control-strong disabled:cursor-wait disabled:opacity-60"
 const field = "h-11 w-full rounded-lg bg-control px-4 text-sm text-foreground placeholder:text-muted-foreground"
 
@@ -27,17 +26,13 @@ export function AccessCode() {
   const run = async (start: () => Promise<void>) => {
     if (busy()) return
     setBusy(true)
-    setWorking(true)
     setError("")
-    enteringFresh()
     try {
       await start()
     } catch (e) {
-      codeFailed()
       setError(e instanceof Error ? e.message : "Could not sign in. Try again")
     }
     setBusy(false)
-    setWorking(false)
   }
   const submit = (event: SubmitEvent) => {
     event.preventDefault()

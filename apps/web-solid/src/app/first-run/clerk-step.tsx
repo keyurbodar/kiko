@@ -1,91 +1,124 @@
 import { useLocation } from "@tanstack/solid-router"
-import { Show, createSignal, onCleanup } from "solid-js"
-import { allowClerkResume, autoResume, cancelAuthAttempt, signInWithClerk } from "../session"
-import { currentStep, installBackend, setWorking } from "./progress"
-import { Cover, primary } from "./welcome"
+import { Match, Show, Switch, createSignal, onCleanup, onMount } from "solid-js"
+import { mountSignIn } from "../clerk"
+import { continueAs, phase, useAnotherAccount } from "../session"
+import { Cover, primary, secondary } from "./welcome"
 
-const [busy, setBusyRaw] = createSignal(false)
-const [error, setError] = createSignal("")
-const setBusy = (on: boolean) => {
-  setBusyRaw(on)
-  setWorking(on)
-}
+const errorText = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
 
-async function open(): Promise<void> {
-  allowClerkResume()
-  setError("")
-  setBusy(true)
-  try {
-    await import("../clerk").then((m) => m.openSignIn())
-  } catch (e) {
-    setError(e instanceof Error ? e.message : "Could not open sign in. Try again")
-  }
-  setBusy(false)
-}
-
-async function enter(before?: () => Promise<void>): Promise<void> {
-  setBusy(true)
-  setError("")
-  try {
-    await before?.()
-    const next = await signInWithClerk()
-    if (next === "connect") installBackend()
-  } catch (e) {
-    setError(e instanceof Error ? e.message : "Could not sign in. Try again")
-  }
-  setBusy(false)
-}
-
-function resumeClerk(search: string): () => void {
+function SignInForm() {
+  let node!: HTMLDivElement
+  let unmount: (() => void) | undefined
   let disposed = false
-  let unsubscribe: (() => void) | undefined
-  const run = (active: boolean) => {
-    if (disposed || !autoResume() || (active && currentStep() === "cloudflare")) return
-    void enter()
-  }
-  setError("")
-  setBusy(false)
-  if (import.meta.env.DEV) {
-    const ticket = new URLSearchParams(search).get("ticket")
-    if (ticket) {
-      void enter(() => import("../dev-ticket").then((m) => m.signInWithTicket(ticket)))
-      return () => {
-        disposed = true
-      }
-    }
-  }
-  void import("../clerk")
-    .then((m) => m.onClerkSession(run))
-    .then((stop) => {
-      if (disposed) stop()
-      else unsubscribe = stop
-    })
-    .catch(() => {})
-  return () => {
-    disposed = true
-    unsubscribe?.()
-    cancelAuthAttempt()
-  }
-}
+  const [state, setState] = createSignal<"loading" | "shown" | "failed">("loading")
+  const [error, setError] = createSignal("")
 
-export function ClerkStep() {
-  onCleanup(resumeClerk(useLocation()().searchStr))
+  const show = () => {
+    setState("loading")
+    mountSignIn(node).then(
+      (stop) => {
+        if (disposed) return stop()
+        unmount = stop
+        setState("shown")
+      },
+      (e: unknown) => {
+        setError(errorText(e, "Could not load the sign-in form. Try again."))
+        setState("failed")
+      },
+    )
+  }
+
+  onMount(show)
+  onCleanup(() => {
+    disposed = true
+    unmount?.()
+  })
+
   return (
-    <div class="welcome-step flex w-full flex-col gap-3" data-step="sign-in">
-      <Cover />
-      <div class="mt-2 flex w-full flex-col gap-2" style={{ "--i": 2 }}>
-        <button type="button" class={primary} disabled={busy()} data-action="sign-in" onClick={() => void open()}>
-          {busy() ? "Signing in" : "Sign in"}
-        </button>
-      </div>
-      <p class="text-center text-xs text-muted-foreground" style={{ "--i": 3 }}>
-        Secured by Clerk
-      </p>
-      <Show when={error()}>
+    <>
+      <div ref={node} class="welcome-clerk" data-component="clerk-sign-in" hidden={state() === "failed"} />
+      <Show when={state() === "loading"}>
+        <p class="text-center text-sm text-muted-foreground" role="status">
+          Loading sign-in
+        </p>
+      </Show>
+      <Show when={state() === "failed"}>
         <p class="text-center text-sm text-[var(--error)]" role="alert">
           {error()}
         </p>
+        <button type="button" class={primary} data-action="sign-in" onClick={show}>
+          Try again
+        </button>
       </Show>
+    </>
+  )
+}
+
+function TicketSignIn(props: { readonly ticket: string }) {
+  const [failed, setFailed] = createSignal("")
+  onMount(() => {
+    void import("../dev-ticket")
+      .then((m) => m.signInWithTicket(props.ticket))
+      .catch((e: unknown) => setFailed(errorText(e, "Ticket sign-in failed")))
+  })
+  return (
+    <Show when={failed()} fallback={<Waiting label="Signing in" />}>
+      <p class="text-center text-sm text-[var(--error)]" role="alert">
+        {failed()}
+      </p>
+      <SignInForm />
+    </Show>
+  )
+}
+
+function Waiting(props: { readonly label: string }) {
+  return (
+    <button type="button" class={primary} disabled data-action="sign-in">
+      {props.label}
+    </button>
+  )
+}
+
+function Live(props: { readonly email: string }) {
+  return (
+    <>
+      <button type="button" class={primary} data-action="continue-as" onClick={() => void continueAs()}>
+        {props.email ? `Continue as ${props.email}` : "Continue to Kiko"}
+      </button>
+      <button
+        type="button"
+        class={secondary}
+        data-action="use-another-account"
+        onClick={() => void useAnotherAccount()}
+      >
+        Use another account
+      </button>
+    </>
+  )
+}
+
+export function ClerkStep() {
+  const ticket = import.meta.env.DEV ? new URLSearchParams(useLocation()().searchStr).get("ticket") : null
+  const live = () => {
+    const current = phase()
+    return current._tag === "SignedOut" && current.clerk._tag === "Live" ? current.clerk.email : null
+  }
+  return (
+    <div class="welcome-step flex w-full flex-col gap-3" data-step="sign-in" data-phase={phase()._tag}>
+      <Cover />
+      <div class="mt-2 flex w-full flex-col gap-2" style={{ "--i": 2 }}>
+        <Switch fallback={<Waiting label="Signing in" />}>
+          <Match when={phase()._tag === "SigningOut"}>
+            <Waiting label="Signing out" />
+          </Match>
+          <Match when={live()}>{(email) => <Live email={email()} />}</Match>
+          <Match when={phase()._tag === "SignedOut"}>
+            <Show when={ticket} fallback={<SignInForm />}>
+              {(value) => <TicketSignIn ticket={value()} />}
+            </Show>
+          </Match>
+        </Switch>
+      </div>
     </div>
   )
 }

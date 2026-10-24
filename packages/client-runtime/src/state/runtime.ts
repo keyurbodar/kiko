@@ -62,11 +62,11 @@ export const layer = (options: OwnerRuntimeOptions): Layer.Layer<OwnerRuntimeSer
 
 export const layerBrowser = (options: {
   readonly endpoint: Endpoint.OwnerEndpointOptions
-  readonly namespace: string
+  readonly cache: { readonly database: string; readonly namespace: string } | null
 }) =>
   layer({
     endpoint: options.endpoint,
-    store: IndexedDb.layer({ namespace: options.namespace }),
+    store: options.cache ? IndexedDb.layer(options.cache) : Cache.layerMemoryStore,
     connectivity: Connectivity.layerBrowser,
     wakeups: Wakeups.layerBrowser,
   })

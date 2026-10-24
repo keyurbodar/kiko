@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js"
 
-const KEY = "kiko:card"
+const KEY = "kiko:device:card"
 
 function read(): boolean {
   try {

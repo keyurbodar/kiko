@@ -28,12 +28,6 @@ async function refreshFileToken(): Promise<void> {
   else timer = setTimeout(() => void refreshFileToken(), 60_000)
 }
 
-export function clearFileToken(): void {
-  clearTimeout(timer)
-  write(KEY, null)
-  setSignal(null)
-}
-
 export function fileUrl(path: string): string {
   const t = fileToken()
   return apiUrl(path) + (t ? `?t=${t}` : "")

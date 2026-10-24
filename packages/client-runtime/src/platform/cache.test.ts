@@ -11,8 +11,10 @@ import { layer as indexedDbLayer } from "./indexedDb"
 const USER: UserSnapshot = { seq: 3, chats: [], home: { files: [], folders: [] } }
 const ROOM = "01890000-0000-7000-8000-000000000003" as RoomId
 
+const DATABASE = "kiko:client-runtime"
+
 const stores = () => {
-  const store = indexedDbLayer({ namespace: "owner", factory: new IDBFactory() })
+  const store = indexedDbLayer({ database: DATABASE, namespace: "owner", factory: new IDBFactory() })
   return Layer.mergeAll(store, cacheLayer.pipe(Layer.provide(store)))
 }
 
@@ -54,14 +56,29 @@ describe("snapshot cache", () => {
     }).pipe(Effect.provide(stores())),
   )
 
+  it.effect("keeps each namespace's entries apart in one database", () =>
+    Effect.gen(function* () {
+      const factory = new IDBFactory()
+      const alice = indexedDbLayer({ database: DATABASE, namespace: "alice", factory })
+      const bob = indexedDbLayer({ database: DATABASE, namespace: "bob", factory })
+      yield* SnapshotStore.use((store) => store.write("user", "alice's chats")).pipe(Effect.provide(alice))
+      expect(Option.isNone(yield* SnapshotStore.use((store) => store.read("user")).pipe(Effect.provide(bob)))).toBe(
+        true,
+      )
+      expect(yield* SnapshotStore.use((store) => store.read("user")).pipe(Effect.provide(alice))).toEqual(
+        Option.some("alice's chats"),
+      )
+    }),
+  )
+
   it.effect("lets another tab upgrade the database by closing on versionchange", () =>
     Effect.gen(function* () {
       const factory = new IDBFactory()
-      const store = indexedDbLayer({ namespace: "owner", factory })
+      const store = indexedDbLayer({ database: DATABASE, namespace: "owner", factory })
       yield* Effect.gen(function* () {
         const snapshots = yield* SnapshotStore
         yield* snapshots.write("user", "a")
-        const upgrade = factory.open("kiko:client-runtime", 2)
+        const upgrade = factory.open(DATABASE, 2)
         yield* Effect.callback<void>((resume) => {
           upgrade.addEventListener("success", () => {
             upgrade.result.close()

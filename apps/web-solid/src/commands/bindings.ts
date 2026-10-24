@@ -3,7 +3,7 @@ import { type CommandId, isCommandId } from "./ids"
 
 export type Bindings = Readonly<Partial<Record<CommandId, string | null>>>
 
-const KEY = "kiko.keybindings"
+const KEY = "kiko:device:keybindings"
 
 function parseBindings(text: string | null): Bindings {
   try {

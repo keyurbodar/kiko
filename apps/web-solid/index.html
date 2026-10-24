@@ -376,10 +376,7 @@
             return null
           }
         }
-        try {
-          localStorage.removeItem("kiko:snap")
-        } catch (e) {}
-        if (stored("kiko:session")) {
+        if (stored("kiko:auth")) {
           var c = json(stored("kiko:look"))
           var look = c && (c.v === 5 || c.v === 6) && typeof c.text === "string" && json(c.text)
           if (look && !Array.isArray(look) && look.kind === "look") {

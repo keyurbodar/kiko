@@ -1,6 +1,6 @@
-import { apiUrl, getToken, setToken } from "./api-base"
+import { apiUrl, getToken } from "./api-base"
 
-export { apiUrl, getToken, setToken }
+export { apiUrl, getToken }
 
 let onUnauthorized = () => {}
 export function setUnauthorizedHandler(handler: () => void): void {
@@ -13,9 +13,6 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   if (token) headers.set("authorization", `Bearer ${token}`)
   const url = apiUrl(path)
   const res = await fetch(url, { ...init, headers })
-  if (res.status === 401 && token && token === getToken() && url === apiUrl(path)) {
-    setToken(null)
-    onUnauthorized()
-  }
+  if (res.status === 401 && token && token === getToken() && url === apiUrl(path)) onUnauthorized()
   return res
 }
