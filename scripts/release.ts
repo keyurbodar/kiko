@@ -111,6 +111,10 @@ async function buildComputer(): Promise<{ assets: ReleaseComputer["assets"]; fil
     const bytes = new Uint8Array(await readFile(join(COMPUTER, "dist", name)))
     files.set(name, bytes)
     assets.push({ name, sha256: await sha256Hex(bytes) })
+    if (name.endsWith(".exe")) continue
+    const packed = Bun.gzipSync(bytes, { level: 9 })
+    files.set(`${name}.gz`, packed)
+    assets.push({ name: `${name}.gz`, sha256: await sha256Hex(packed) })
   }
   return { assets, files }
 }

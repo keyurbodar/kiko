@@ -10,6 +10,7 @@ import { createLogger, type Logger } from "./log"
 
 const REDETECT_MS = 10 * 60 * 1000
 const REPAIR_POLL_MS = 30_000
+export const WELCOMED = "the worker calls this machine"
 
 export async function serve(dir = configDir()): Promise<number> {
   const log = createLogger("kiko-computer", paths(dir).log)
@@ -47,7 +48,7 @@ export async function serve(dir = configDir()): Promise<number> {
     },
     holder: () => holder,
     log,
-    onWelcome: (name) => log.info(`the worker calls this machine ${name}`),
+    onWelcome: (name) => log.info(`${WELCOMED} ${name}`),
   }
   const link = runLink(host)
   if (detection.caps.live) {

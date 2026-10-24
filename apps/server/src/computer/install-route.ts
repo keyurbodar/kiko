@@ -40,11 +40,16 @@ base='${release.base}'
 sums='${release.sums}'
 
 say() { printf '%s\\n' "$*"; }
+step() { step=$((step + 1)); printf 'kiko: [%s/%s] %s\\n' "$step" "$steps" "$*"; }
 die() { printf 'kiko: %s\\n' "$*" >&2; exit 1; }
 
 download() {
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$1" -o "$2"
+    if [ -t 2 ]; then
+      curl -fL --progress-bar "$1" -o "$2"
+    else
+      curl -fsSL "$1" -o "$2"
+    fi
   elif command -v wget >/dev/null 2>&1; then
     wget -qO "$2" "$1"
   else
@@ -127,39 +132,71 @@ home="\${KIKO_COMPUTER_HOME:-$HOME/.kiko-computer}"
 bin="$home/bin"
 mkdir -p "$bin"
 
-say "kiko: installing $asset $version from $base"
+step=0
+steps=2
+if [ -n "$pair" ]; then steps=4; fi
 if [ -z "$sums" ]; then
   sums_file="$home/${COMPUTER_SUMS_FILE}"
   download "$base/${COMPUTER_SUMS_FILE}" "$sums_file" || die "could not download the checksums for $version"
   sums="$(cat "$sums_file")"
 fi
-want="$(checksum_of "$asset")"
+file="$asset"
+want="$(checksum_of "$asset.gz")"
+if [ -n "$want" ] && command -v gzip >/dev/null 2>&1; then
+  file="$asset.gz"
+else
+  want="$(checksum_of "$asset")"
+fi
 [ -n "$want" ] || die "the release has no checksum for $asset"
 tmp="$bin/.$asset.part"
-rm -f "$tmp"
-download "$base/$asset" "$tmp" || die "could not download $asset from $base"
-got="$(hash_of "$tmp")"
+rm -f "$tmp" "$tmp.download"
+step "downloading $asset $version"
+download "$base/$file" "$tmp.download" || die "could not download $file from $base"
+step "checking the download"
+got="$(hash_of "$tmp.download")"
 if [ "$got" != "$want" ]; then
-  rm -f "$tmp"
-  die "checksum mismatch for $asset: expected $want, got $got. Nothing was installed"
+  rm -f "$tmp.download"
+  die "checksum mismatch for $file: expected $want, got $got. Nothing was installed"
+fi
+if [ "$file" = "$asset" ]; then
+  mv "$tmp.download" "$tmp"
+else
+  gzip -dc "$tmp.download" > "$tmp" || die "could not unpack $file"
+  rm -f "$tmp.download"
 fi
 exe="$bin/kiko-computer"
 chmod 0755 "$tmp"
 mv "$tmp" "$exe"
 say "kiko: installed $exe"
+
+if [ -n "$pair" ]; then
+  step "pairing with $origin"
+  if [ -n "$pair_name" ]; then
+    "$exe" pair "$pair" --name "$pair_name"
+  else
+    "$exe" pair "$pair"
+  fi
+  step "starting the background service"
+  "$exe" service install
+else
+  say "kiko: no pair link yet. Open $origin in a browser, add this computer, then run:"
+  say "  $exe pair '<pair-url>'"
+  say "  $exe service install"
+fi
+
 case ":$PATH:" in
   *":$bin:"*) ;;
   *) say "kiko: add $bin to PATH, for example: export PATH=$bin:\\$PATH" ;;
 esac
 
 if command -v ffmpeg >/dev/null 2>&1; then
-  say "kiko: ffmpeg found"
+  :
 elif [ "$with_ffmpeg" = 1 ]; then
   if ! install_ffmpeg; then
     say "kiko: ffmpeg could not be installed automatically. Get it from https://ffmpeg.org/download.html"
   fi
 else
-  say "kiko: ffmpeg is missing. Live view needs it. Install it with:"
+  say "kiko: live view needs ffmpeg. Install it with:"
   say "  macOS: brew install ffmpeg"
   say "  Debian or Ubuntu: sudo apt-get install -y ffmpeg"
   say "  Fedora: sudo dnf install -y ffmpeg"
@@ -168,22 +205,9 @@ else
   say "  or run this script again with --with-ffmpeg"
 fi
 
-say "kiko: desktop control needs cua-driver. Install it with:"
-say '  /bin/bash -c "$(curl -fsSL https://cua.ai/driver/install.sh)"'
-say "kiko: shell and files work without it."
-
-if [ -n "$pair" ]; then
-  if [ -n "$pair_name" ]; then
-    "$exe" pair "$pair" --name "$pair_name"
-  else
-    "$exe" pair "$pair"
-  fi
-  "$exe" service install
-  say "kiko: paired this machine and installed the background service"
-else
-  say "kiko: no pair link yet. Open $origin in a browser, add this computer, then run:"
-  say "  $exe pair '<pair-url>'"
-  say "  $exe service install"
+if ! command -v cua-driver >/dev/null 2>&1; then
+  say "kiko: desktop control needs cua-driver. Shell and files work without it. Install it with:"
+  say '  /bin/bash -c "$(curl -fsSL https://cua.ai/driver/install.sh)"'
 fi
 
 say "kiko: done. $exe doctor checks this machine."
