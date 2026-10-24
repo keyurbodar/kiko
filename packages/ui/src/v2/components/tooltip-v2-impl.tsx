@@ -88,7 +88,7 @@ export function TooltipV2(props: TooltipV2Props) {
         <KobalteTooltip
           gutter={4}
           openDelay={400}
-          skipDelayDuration={300}
+          skipDelayDuration={600}
           {...others}
           closeDelay={0}
           ignoreSafeArea={local.ignoreSafeArea ?? true}

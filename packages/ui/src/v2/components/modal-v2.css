@@ -3,7 +3,7 @@
     position: fixed;
     inset: 0;
     z-index: 70;
-    background: oklch(0% 0 none / 0.4);
+    background: oklch(0% 0 none / 0.5);
   }
 
   [data-component="modal-v2-content"] {

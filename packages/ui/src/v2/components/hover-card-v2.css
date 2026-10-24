@@ -19,14 +19,12 @@
 
     pointer-events: none !important;
 
-    background: var(--popover);
-    -webkit-backdrop-filter: var(--popover-blur);
-    backdrop-filter: var(--popover-blur);
-    border-radius: 12px;
-    box-shadow: var(--popover-edge), var(--menu-shadow);
+    background: var(--raise);
+    border-radius: 14px;
+    box-shadow: var(--float-shadow);
 
     outline: none;
-    color: var(--foreground);
+    color: var(--fg);
 
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

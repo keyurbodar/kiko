@@ -14,12 +14,10 @@
     z-index: 55;
     pointer-events: auto;
 
-    background: var(--popover);
-    -webkit-backdrop-filter: var(--popover-blur);
-    backdrop-filter: var(--popover-blur);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--popover-edge), var(--menu-shadow);
-    color: var(--foreground);
+    background: var(--raise);
+    border-radius: 14px;
+    box-shadow: var(--float-shadow);
+    color: var(--fg);
 
     outline: none;
 

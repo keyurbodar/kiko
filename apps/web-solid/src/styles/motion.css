@@ -126,7 +126,7 @@
   @keyframes motion-dialog-in {
     from {
       opacity: 0;
-      transform: translate(-50%, -50%) scale(0.98);
+      transform: translate(-50%, -50%) scale(0.96);
     }
     to {
       opacity: 1;
@@ -177,26 +177,102 @@
   }
 
   [data-component="modal-v2-content"][data-expanded] {
-    animation: motion-dialog-in var(--motion-dialog) var(--motion-ease-in-out) both;
+    animation: motion-dialog-in var(--dur-pop) var(--ease-kiko) both;
   }
 
   [data-component="modal-v2-content"][data-closed] {
     animation: motion-dialog-out var(--motion-dialog) var(--motion-ease-in-out) both;
   }
 
+  @keyframes motion-origin-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes motion-origin-out {
+    from {
+      opacity: 1;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+
+  @keyframes motion-tooltip-in {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   [data-component="menu-v2-content"][data-expanded],
   [data-component="hover-card-v2-content"][data-expanded],
   [data-component="popover-v2-content"][data-expanded],
-  [data-component="tooltip-v2"][data-expanded],
   .motion-popover-in {
-    animation: motion-popover-in var(--motion-popover) var(--motion-ease-out) both;
+    animation: motion-origin-in var(--dur-pop) var(--ease-kiko) both;
   }
 
   [data-component="menu-v2-content"][data-closed],
   [data-component="hover-card-v2-content"][data-closed],
-  [data-component="popover-v2-content"][data-closed],
+  [data-component="popover-v2-content"][data-closed] {
+    animation: motion-origin-out var(--dur-hover) var(--motion-ease-in) both;
+  }
+
+  [data-component="tooltip-v2"][data-expanded] {
+    animation: motion-tooltip-in var(--dur-hover) var(--ease-kiko) both;
+  }
+
   [data-component="tooltip-v2"][data-closed] {
-    animation: motion-popover-out var(--motion-popover) var(--motion-ease-in) both;
+    animation: motion-overlay-out 80ms linear both;
+  }
+
+  .motion-fade-in {
+    animation: motion-overlay-in var(--dur-pop) var(--ease-kiko) both;
+  }
+
+  .motion-fade-out {
+    animation: motion-overlay-out var(--dur-hover) var(--motion-ease-in) both;
+  }
+
+  .motion-rise {
+    animation: motion-tooltip-in var(--dur-pop) var(--ease-kiko) both;
+  }
+
+  .motion-press {
+    transition: transform var(--dur-hover) var(--ease-kiko);
+  }
+
+  .motion-press:active {
+    transform: scale(0.97);
+  }
+
+  @keyframes motion-shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+
+  .skeleton-shimmer {
+    background:
+      linear-gradient(90deg, transparent 0%, color-mix(in oklab, var(--fg) 7%, transparent) 50%, transparent 100%) 0 0 /
+        200% 100% no-repeat,
+      var(--hover);
+    animation: motion-shimmer 1.8s linear infinite;
   }
 
   .motion-dialog-in {
@@ -262,7 +338,7 @@
   }
 
   .motion-skeleton {
-    background: color-mix(in oklab, var(--muted-foreground) 15%, transparent);
+    background: color-mix(in oklab, var(--fg3) 15%, transparent);
     animation: motion-skeleton var(--motion-skeleton) var(--motion-ease-linear) infinite;
   }
 
@@ -307,5 +383,22 @@
 
   .motion-run-chevron {
     transition: transform var(--motion-run-chevron) var(--motion-ease-in-out);
+  }
+}
+
+.pill-indicator {
+  position: absolute;
+  z-index: 0;
+  background: var(--active);
+  border-radius: 9px;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pill-indicator {
+    transition:
+      transform var(--dur-pop) var(--ease-kiko),
+      width var(--dur-pop) var(--ease-kiko),
+      height var(--dur-pop) var(--ease-kiko);
   }
 }

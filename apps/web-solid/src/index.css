@@ -65,6 +65,10 @@
   --dur-step: 400ms;
   --ease-kiko: cubic-bezier(0.2, 0.8, 0.2, 1);
   --shimmer-duration: 2.2s;
+  --focus-ring: 0 0 0 2px color-mix(in oklab, var(--fg) 28%, transparent);
+  --float-shadow:
+    0 16px 40px -8px oklch(0% 0 none / 0.55), 0 2px 8px oklch(0% 0 none / 0.25),
+    0 0 0 1px color-mix(in oklab, var(--fg) 6%, transparent);
   --font-family-text: var(--font-family-sans);
   --icon-xs: 12px;
   --icon-sm: 14px;
@@ -398,6 +402,9 @@
   --popover-shadow: 0 12px 40px oklch(0% 0 none / 0.16), 0 2px 6px oklch(0% 0 none / 0.08);
   --menu-shadow: 0 0 0 0.5px oklch(0% 0 none / 0.1), 0 10px 28px oklch(0% 0 none / 0.12);
   --card-shadow: 0 12px 28px -18px rgb(0 0 0 / 40%);
+  --float-shadow:
+    0 16px 40px -8px oklch(0% 0 none / 0.18), 0 2px 8px oklch(0% 0 none / 0.08),
+    0 0 0 1px color-mix(in oklab, var(--fg) 7%, transparent);
   --segment-shadow: 0 1px 4px oklch(0% 0 none / 0.12);
   --out-quote-bg: oklch(0% 0 none / 0.14);
   --count-bg: var(--foreground);
@@ -600,7 +607,9 @@
     line-height: var(--line-height);
     font-optical-sizing: auto;
 
-    -webkit-font-smoothing: var(--font-smoothing, auto);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     color: var(--foreground);
     background: var(--background);
   }
@@ -666,6 +675,14 @@
 
   h1,
   h2,
+  h3 {
+    font-family: var(--font-family-display);
+    font-variation-settings: var(--display-variation);
+    font-weight: 400;
+  }
+
+  h1,
+  h2,
   h3,
   h4,
   h5,
@@ -687,7 +704,8 @@
   }
 
   ::selection {
-    background: color-mix(in oklab, var(--ring) 25%, transparent);
+    background: color-mix(in oklab, var(--info) 30%, transparent);
+    color: inherit;
   }
 
   :focus {
@@ -707,6 +725,15 @@
     -webkit-appearance: none;
     appearance: none;
   }
+}
+
+*:focus-visible {
+  outline: none;
+}
+
+:is(a, [role="tab"], [role="menuitem"], summary):focus-visible {
+  box-shadow: var(--focus-ring);
+  border-radius: inherit;
 }
 
 @media (hover: none) {
@@ -731,8 +758,8 @@ html {
 }
 
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -741,11 +768,14 @@ html {
 
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
-  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 8px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
+  background-clip: content-box;
 }
 
 :focus {
