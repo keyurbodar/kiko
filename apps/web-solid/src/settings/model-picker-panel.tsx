@@ -19,7 +19,7 @@ import { Portal } from "solid-js/web"
 import { VList, type VListHandle } from "virtua/solid"
 import { formatContext, formatPrice, catalogQuery, modelRef, searchModels, type ModelRow } from "./catalog"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CheckIcon } from "@kiko/ui/icons"
+import { ArrowUpIcon, CheckIcon, EnterIcon, SearchIcon } from "@kiko/ui/icons"
 import type { ThinkingLevel } from "@kiko/protocol"
 import { connectedProviders } from "./connected"
 import { favoriteModels, hiddenModels, toggleFavorite } from "./model-prefs"
@@ -128,6 +128,7 @@ export default function ModelPickerPanel(props: {
       if (here >= 0) requestAnimationFrame(() => vlist?.scrollToIndex(here, { align: "center" }))
     }),
   )
+  const matching = createMemo(() => new Set(searchModels(providers(), query()).map((row) => row.provider.id)))
   const mixed = () => query().trim() !== "" || rail() === FAVORITES
   createEffect(() => {
     const outside = (e: PointerEvent) => {
@@ -163,13 +164,13 @@ export default function ModelPickerPanel(props: {
   }
 
   const railButton = (active: boolean) =>
-    `relative grid size-9 shrink-0 place-items-center rounded-[10px] transition-[background-color,color,transform] duration-[var(--dur-hover)] ease-[var(--ease-kiko)] active:scale-95 ${active ? "bg-active text-fg" : "text-fg3 hover:bg-hover hover:text-fg"}`
+    `picker-rail-button relative grid size-9 shrink-0 place-items-center rounded-row transition-[background-color,color,transform] duration-[var(--dur-hover)] ease-[var(--ease-kiko)] active:scale-95 ${active ? "bg-active text-fg" : "text-fg3 hover:bg-hover hover:text-fg"}`
 
   return (
     <Portal>
       <div
         ref={panel}
-        class="pointer-events-auto fixed z-[80] flex h-[380px] w-[420px] max-w-[calc(100vw-16px)] overflow-hidden rounded-[18px] bg-raise shadow-[0_24px_64px_-16px_rgb(0_0_0/50%),0_2px_10px_rgb(0_0_0/16%)]"
+        class="picker-panel pointer-events-auto fixed z-[80] flex h-[380px] w-[420px] max-w-[calc(100vw-16px)] overflow-hidden rounded-sheet bg-raise shadow-[var(--float-shadow)]"
         style={place()}
         data-component="model-picker"
         data-kb-top-layer=""
@@ -217,6 +218,7 @@ export default function ModelPickerPanel(props: {
                   title={provider.name}
                   aria-label={provider.name}
                   data-provider={provider.id}
+                  data-dim={query().trim() && !matching().has(provider.id) ? "" : undefined}
                   onClick={() => setRail(provider.id)}
                 >
                   <ProviderIcon id={provider.id} width="16" height="16" />
@@ -232,23 +234,12 @@ export default function ModelPickerPanel(props: {
             </For>
           </nav>
           <div class="flex min-w-0 flex-1 flex-col">
-            <label class="flex h-12 shrink-0 items-center gap-2 px-4 text-fg3">
-              <svg
-                class="size-3.5 shrink-0"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linecap="round"
-                aria-hidden="true"
-              >
-                <circle cx="7" cy="7" r="4.75" />
-                <path d="M10.5 10.5L14 14" />
-              </svg>
+            <label class="flex h-13 shrink-0 items-center gap-3 px-4 text-fg2">
+              <RemixIcon icon={SearchIcon} size={16} class="shrink-0" />
               <input
                 ref={(el) => requestAnimationFrame(() => el.focus())}
                 type="search"
-                class="h-full min-w-0 flex-1 bg-transparent text-[14px] text-fg outline-none placeholder:text-fg4"
+                class="h-full min-w-0 flex-1 bg-transparent text-[15px] text-fg outline-none placeholder:text-fg4"
                 placeholder="Search models"
                 aria-label="Search models"
                 role="combobox"
@@ -260,6 +251,7 @@ export default function ModelPickerPanel(props: {
                 onKeyDown={onKeyDown}
                 data-component="model-search"
               />
+              <kbd class="picker-kbd">Esc</kbd>
             </label>
             <Show
               when={rows().length}
@@ -280,7 +272,7 @@ export default function ModelPickerPanel(props: {
                 id={id}
                 role="listbox"
                 aria-label="Models"
-                class="min-h-0 flex-1 p-1.5"
+                class="min-h-0 flex-1 px-2 pb-2"
                 data={rows()}
                 itemSize={ROW_H}
               >
@@ -292,7 +284,7 @@ export default function ModelPickerPanel(props: {
                       id={`${id}-${i()}`}
                       role="option"
                       aria-selected={props.current === ref}
-                      class="group/model flex h-11 cursor-pointer items-center gap-2 rounded-[10px] px-2.5 transition-colors duration-[80ms] ease-[var(--ease-kiko)]"
+                      class="group/model flex h-11 cursor-pointer items-center gap-2 rounded-row px-2.5 transition-colors duration-[80ms] ease-[var(--ease-kiko)]"
                       classList={{ "bg-hover": at() === i(), "bg-active": props.current === ref }}
                       data-model={ref}
                       onPointerMove={() => setAt(i())}
@@ -335,6 +327,25 @@ export default function ModelPickerPanel(props: {
                 }}
               </VList>
             </Show>
+            <div class="picker-footer">
+              <span class="picker-hint">
+                <span class="picker-kbd-pair">
+                  <kbd class="picker-kbd">
+                    <RemixIcon icon={ArrowUpIcon} size={12} />
+                  </kbd>
+                  <kbd class="picker-kbd picker-flip">
+                    <RemixIcon icon={ArrowUpIcon} size={12} />
+                  </kbd>
+                </span>
+                Move
+              </span>
+              <span class="picker-hint">
+                <kbd class="picker-kbd">
+                  <RemixIcon icon={EnterIcon} size={12} />
+                </kbd>
+                Choose
+              </span>
+            </div>
           </div>
         </Show>
       </div>
