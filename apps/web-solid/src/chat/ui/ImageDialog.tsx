@@ -7,11 +7,14 @@ import {
   CloseIcon,
   CopyIcon,
   DownloadIcon,
+  FolderOpenIcon,
   type Glyph,
 } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Show, createSignal, createUniqueId, onCleanup, onMount, type JSX } from "solid-js"
 import { wrapIndex } from "../../lib/attachments"
+import { room } from "../../state/room"
+import { openFile } from "../side/surfaces"
 import "./image-dialog.css"
 import { FLIP_MS, flip, reducedMotion } from "./flip"
 import type { DialogImage } from "./image-dialog"
@@ -58,6 +61,16 @@ function Tool(props: { label: string; icon: Glyph; onClick?: () => void; childre
   )
 }
 
+function OpenInFiles(props: { path: string; onClose: () => void }) {
+  const open = () => {
+    const chatId = room.activeId()
+    if (!chatId) return
+    openFile(chatId, props.path)
+    props.onClose()
+  }
+  return <Tool label="Open in Files" icon={FolderOpenIcon} onClick={open} />
+}
+
 function Toolbar(props: { image: DialogImage | undefined; failed: boolean; onClose: () => void }) {
   const [copied, setCopied] = createSignal(false)
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -77,6 +90,9 @@ function Toolbar(props: { image: DialogImage | undefined; failed: boolean; onClo
       data-component="image-dialog-toolbar"
       class="absolute top-0 right-0 z-30 flex items-center gap-0.5 rounded-pop bg-raise/80 p-1 shadow-[var(--float-shadow)] backdrop-blur-md"
     >
+      <Show when={room.activeId() && props.image?.path} keyed>
+        {(path) => <OpenInFiles path={path} onClose={props.onClose} />}
+      </Show>
       <Show when={props.image && !props.failed}>
         <Tool label="Download" icon={DownloadIcon}>
           <a
