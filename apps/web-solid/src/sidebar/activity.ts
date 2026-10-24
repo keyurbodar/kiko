@@ -35,14 +35,6 @@ export function describeLast(last: ChatLast, group: boolean): ActivityLine {
   return from ? { from, text: body } : { text: body }
 }
 
-export function typingLine(names: readonly string[], group: boolean): string {
-  if (!group || names.length === 0) return "Typing"
-  const [first, second] = names
-  if (names.length === 1) return `${first} is typing`
-  if (names.length === 2) return `${first} and ${second} are typing`
-  return `${first} and ${names.length - 1} others are typing`
-}
-
 export const isListed = (m: { to?: unknown; event?: object }): boolean =>
   m.to === undefined && !(m.event && "private" in m.event)
 

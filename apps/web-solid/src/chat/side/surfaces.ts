@@ -149,7 +149,6 @@ export function openSurface(chatId: string, surface: Surface) {
 }
 
 export const deskBack = (chatId: string) => edit(chatId, back)
-export const deskHome = (chatId: string) => edit(chatId, (nav) => (nav.view ? { ...nav, view: null } : nav))
 export const closeSurface = (chatId: string, id: string) => edit(chatId, (nav) => closeFile(nav, id))
 export const closeOthers = (chatId: string, id: string) => edit(chatId, (nav) => keepOnly(nav, id))
 export const closeToRight = (chatId: string, id: string) => edit(chatId, (nav) => closeRightOf(nav, id))

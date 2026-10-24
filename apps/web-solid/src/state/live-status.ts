@@ -2,7 +2,7 @@ import { type Activity, type AgentState, fileName } from "@kiko/protocol"
 
 export type LiveStatus = { kind: "idle" | "thinking" | "tool"; text: string }
 
-export const IDLE: LiveStatus = { kind: "idle", text: "" }
+const IDLE: LiveStatus = { kind: "idle", text: "" }
 
 const THINKING: LiveStatus = { kind: "thinking", text: "Thinking" }
 
@@ -18,7 +18,7 @@ export type LiveInput = {
 
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
-export function plainDoing(doing: string): string {
+function plainDoing(doing: string): string {
   const words = doing
     .replace(/_/g, " ")
     .split(" ")
