@@ -90,6 +90,8 @@ export function targetsForChat(roomId: string): RecipeTarget[] {
 
 export const installs = (): readonly RecipeInstall[] =>
   [...edits().values()].reduce<readonly RecipeInstall[]>((list, edit) => edit(list), listing()?.installs ?? [])
+export const knownInstalls = (): readonly RecipeInstall[] | undefined =>
+  listing() === undefined && listing.error === undefined ? undefined : installs()
 export const installsFor = (slug: string): readonly RecipeInstall[] => installs().filter((i) => i.slug === slug)
 export function agentName(slug: string): string {
   return agentDisplayName(slug, user.agents())
