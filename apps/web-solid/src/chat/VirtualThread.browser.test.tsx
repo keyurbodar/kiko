@@ -87,7 +87,7 @@ async function mountThread(options: { firstUnread?: (messages: ChatMessage[]) =>
     expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight * 2)
     expect(atEnd()).toBeLessThan(1)
   })
-  return { screen, host, scroller, atEnd, reply, setWorking }
+  return { screen, host, scroller, atEnd, reply, setWorking, setMessages }
 }
 
 const scrollDown = (host: HTMLElement) => host.querySelector<HTMLButtonElement>('[data-component="chat-scroll-down"]')!
@@ -144,6 +144,30 @@ describe("VirtualThread scrolling", () => {
     await userEvent.hover(scroller, { position: { x: view.width / 2, y: 20 }, force: true })
 
     expect(chip.hasAttribute("data-visible")).toBe(false)
+  })
+
+  it("keeps a sent bubble rising when the server's copy replaces the local one", async () => {
+    const { screen, host, setMessages } = await mountThread()
+    await using _ = screen
+    const neverStale = Date.UTC(2999, 0, 1)
+    const sent = {
+      threadId: ROOM,
+      sender: "user" as const,
+      body: "On my way now.",
+      sentAt: neverStale,
+      clientId: "c-1",
+    }
+
+    setMessages((list) => [...list, { ...sent, id: "local:c-1" }])
+    const bubble = await vi.waitFor(() => {
+      const rising = host.querySelector<HTMLElement>(".motion-bubble-in")
+      expect(rising?.textContent).toContain("On my way now.")
+      return rising!
+    })
+    setMessages((list) => list.map((m) => (m.id === "local:c-1" ? { ...sent, id: "181.room", seq: 181 } : m)))
+
+    expect(bubble.isConnected).toBe(true)
+    expect(bubble.classList.contains("motion-bubble-in")).toBe(true)
   })
 
   it("follows a reply that arrives while the chat is at its end", async () => {

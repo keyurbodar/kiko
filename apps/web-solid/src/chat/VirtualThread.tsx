@@ -148,7 +148,7 @@ export function VirtualThread(props: {
       if (heard.has(m.id)) continue
       const own = m.sender === "user" && !m.id.startsWith("local:")
       if (own || Date.now() - m.sentAt >= 10_000) continue
-      const id = m.id
+      const id = m.clientId ?? m.id
       markFresh(id, true)
       setTimeout(() => markFresh(id, false), 700)
     }
@@ -602,33 +602,38 @@ export function VirtualThread(props: {
   provideThreadImages(viewer.open)
 
   const renderMessage = (item: TimelineItem & { kind: "message" }): JSX.Element => {
-    const message = item.message
+    const message = () => item.message
     const menu = createMessageMenu({
       messageFor: (id) => {
         for (const entry of items()) {
           if (entry.kind === "message" && entry.message.id === id) return entry.message
         }
-        return message
+        return message()
       },
-      side: message.sender,
-      onReply: () => aimReplyAt(menu.targetId() ?? message.id),
-      onEdit:
-        message.sender === "user" && !message.id.startsWith("local:") && message.body.trim() && props.onEdit
-          ? () => props.onEdit!(menu.targetId() ?? message.id)
-          : undefined,
-      onDelete:
-        message.sender === "user" && !message.id.startsWith("local:") && props.onDelete
-          ? () => props.onDelete!(menu.targetId() ?? message.id)
-          : undefined,
-      onReact: (emoji) => props.onReact?.(menu.targetId() ?? message.id, emoji),
+      side: message().sender,
+      onReply: () => aimReplyAt(menu.targetId() ?? message().id),
+      get onEdit() {
+        return message().sender === "user" &&
+          !message().id.startsWith("local:") &&
+          message().body.trim() &&
+          props.onEdit
+          ? () => props.onEdit!(menu.targetId() ?? message().id)
+          : undefined
+      },
+      get onDelete() {
+        return message().sender === "user" && !message().id.startsWith("local:") && props.onDelete
+          ? () => props.onDelete!(menu.targetId() ?? message().id)
+          : undefined
+      },
+      onReact: (emoji) => props.onReact?.(menu.targetId() ?? message().id, emoji),
     })
-    const bot = createMemo(() => props.botById(message.botId))
-    const parent = createMemo(() => props.replyParent(message.replyToId))
-    const quote = createMemo(() => quoteOf(message, parent(), (slug) => props.botById(slug)?.name))
+    const bot = createMemo(() => props.botById(message().botId))
+    const parent = createMemo(() => props.replyParent(message().replyToId))
+    const quote = createMemo(() => quoteOf(message(), parent(), (slug) => props.botById(slug)?.name))
     return (
       <>
         <MessageRow
-          message={message}
+          message={message()}
           bot={bot()}
           quote={quote()}
           isRunStart={item.isRunStart}
@@ -637,18 +642,22 @@ export function VirtualThread(props: {
           hasRunGapBefore={item.hasRunGapBefore}
           group={props.groupChat}
           class={
-            fresh().has(message.id) ? (message.sender === "bot" ? "motion-reply-in" : "motion-bubble-in") : undefined
+            fresh().has(message().clientId ?? message().id)
+              ? message().sender === "bot"
+                ? "motion-reply-in"
+                : "motion-bubble-in"
+              : undefined
           }
-          highlighted={landed() === message.id}
-          replying={activeReply() === message.id}
-          seen={message.sentAt <= seenUntil()}
-          jumboClass={jumboEmojiClass(message.body)}
+          highlighted={landed() === message().id}
+          replying={activeReply() === message().id}
+          seen={message().sentAt <= seenUntil()}
+          jumboClass={jumboEmojiClass(message().body)}
           onOpenReplyTarget={openReplyTarget}
-          onReact={(emoji) => props.onReact?.(message.id, emoji)}
-          onReply={() => aimReplyAt(message.id)}
+          onReact={(emoji) => props.onReact?.(message().id, emoji)}
+          onReply={() => aimReplyAt(message().id)}
           onMore={(anchor) => {
             const box = anchor.getBoundingClientRect()
-            menu.openAt(message.id, box.left, box.bottom)
+            menu.openAt(message().id, box.left, box.bottom)
           }}
           onContextMenu={menu.onContextMenu}
           onOpenImages={(images, index, from) => {
@@ -710,7 +719,7 @@ export function VirtualThread(props: {
         />
       )
     }
-    return renderMessage(item)
+    return untrack(() => renderMessage(item))
   }
 
   const hasMessages = () => items().length > 0
