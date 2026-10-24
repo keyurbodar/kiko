@@ -278,14 +278,18 @@ export function Shell(props: ParentProps) {
   })
   const sidebar = () => <Sidebar section={sectionOf(pathname())} collapsed={closed()} onToggle={toggle} />
   const dockedSide = () => (compact() || !sideOpen() ? null : sideChat())
+  const endSideResize = () => {
+    if (sidePanel()?.collapsed()) closeSide()
+    else saveWidth(INFO, "kiko-sidecar-panel")
+  }
   createEffect(
-    on(dockedSide, (docked) => {
+    on(dockedSide, () => {
       requestAnimationFrame(() => {
         if (!layout()) return
         const sizes = layout()!.sizes()
         const index = sizes.length - 1
         if (index < 1) return
-        const want = docked ? readWidth(INFO) : 0
+        const want = dockedSide() ? readWidth(INFO) : 0
         setColumnWidth(index, want)
       })
     }),
@@ -420,8 +424,8 @@ export function Shell(props: ParentProps) {
                     aria-label="Resize side panel"
                     altKey={false}
                     disabled={!dockedSide()}
-                    onHandleDragEnd={() => saveWidth(INFO, "kiko-sidecar-panel")}
-                    onKeyUp={() => saveWidth(INFO, "kiko-sidecar-panel")}
+                    onHandleDragEnd={endSideResize}
+                    onKeyUp={endSideResize}
                     onDblClick={() => {
                       const want = defaultWidth(INFO, window.innerWidth)
                       try {
@@ -434,18 +438,11 @@ export function Shell(props: ParentProps) {
                     panelId="kiko-sidecar-panel"
                     class="shell-panel"
                     data-component="sidecar-column"
-                    initialSize={
-                      fitWidths(
-                        window.innerWidth,
-                        collapsed() ? 0 : readWidth(SIDEBAR),
-                        dockedSide() ? readWidth(INFO) : 0,
-                      ).info / window.innerWidth
-                    }
+                    initialSize={sizes.info}
                     minSize={`${INFO.min}px`}
                     maxSize={`${INFO.max}px`}
                     collapsible
                     collapsedSize={0}
-                    onCollapse={() => dockedSide() && closeSide()}
                   >
                     <GrabPanel onGrab={setSidePanel} />
                     <Show when={dockedSide()} keyed>
