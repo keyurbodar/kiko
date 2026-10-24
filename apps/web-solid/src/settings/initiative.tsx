@@ -44,11 +44,7 @@ export default function InitiativePage() {
             />
           </Show>
         </Row>
-        <Row
-          label="Memory capture"
-          id="capture"
-          description="Auto captures facts when you have saved a judge key. Off never captures."
-        >
+        <Row label="Memory capture" id="capture" description="Saves facts from your chats when a judge key is set.">
           <Show when={loaded()} fallback={<Skeleton class="h-7 w-24" />}>
             <Segmented<Capture>
               label="Memory capture"
