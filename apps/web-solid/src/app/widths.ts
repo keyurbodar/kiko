@@ -1,4 +1,4 @@
-export const SIDEBAR = { key: "kiko:device:sidebar-width", min: 220, max: 420, fallback: 280 }
+export const SIDEBAR = { key: "kiko:device:sidebar-width", min: 220, max: 420, fallback: 296 }
 export const INFO = { key: "kiko:device:info-width", min: 280, max: 720, fallback: 340 }
 export const CHAT_MIN = 360
 
