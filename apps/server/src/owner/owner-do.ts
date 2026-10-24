@@ -85,10 +85,12 @@ export class OwnerDO extends DurableObject<Env> {
       schedule: (agent, requestId) => this.enqueueRun(agent, requestId),
     })
     this.blobs = new BlobStore(this.ctx)
+    const computers = new ComputerStore(ctx.storage.sql)
+    if (env.OWNER_ID) computers.followOwner(env.OWNER_ID)
     this.computers = new ComputerHub({
       ctx,
       env,
-      store: new ComputerStore(ctx.storage.sql),
+      store: computers,
       ownerId: this.ownerId,
       released: (out) => this.user().computerReleased(out),
       wakeup: {

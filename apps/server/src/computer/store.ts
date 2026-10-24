@@ -1,4 +1,5 @@
 import type { ComputerCaps } from "@kiko/protocol"
+import { getSetting, setSetting } from "../lib/settings"
 
 export type ComputerOs = "macos" | "linux" | "windows"
 
@@ -27,6 +28,8 @@ export type NewComputer = {
 }
 
 const COLUMNS = "id, name, public_key, os, arch, host, caps_json, pair_nonce, created_at"
+
+const PAIRED_BY = "computers_owner"
 
 export class ComputerStore {
   constructor(private readonly sql: SqlStorage) {}
@@ -63,6 +66,13 @@ export class ComputerStore {
 
   remove(id: string): boolean {
     return this.sql.exec("DELETE FROM computers WHERE id = ?", id).rowsWritten > 0
+  }
+
+  followOwner(ownerId: string): void {
+    const known = getSetting(this.sql, PAIRED_BY)
+    if (known === ownerId) return
+    if (known !== null) this.sql.exec("DELETE FROM computers")
+    setSetting(this.sql, PAIRED_BY, ownerId)
   }
 
   caps(row: ComputerRow): ComputerCaps {

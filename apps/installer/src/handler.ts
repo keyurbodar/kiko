@@ -1,30 +1,73 @@
-import { verifyToken } from "@clerk/backend"
-import type { InstallEnv, InstallRequest } from "./install"
-import { OAUTH_SCOPES, TOKEN_PERMISSIONS, TOKEN_TEMPLATE_URL, type Grant } from "./plan"
+import { verifyClerkToken } from "@kiko/durable/clerk-token"
+import * as Cause from "effect/Cause"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Option from "effect/Option"
+import * as Result from "effect/Result"
+import * as Schema from "effect/Schema"
+import { failed, type InstallErrorCode, InstallFailed, retryOf, statusOf } from "./failure"
+import type { InstallAnswer, InstallRequest } from "./install"
+import { type Grant, OAUTH_SCOPES, TOKEN_PERMISSIONS, TOKEN_TEMPLATE_URL } from "./plan"
 
-export type InstallOutcome =
-  | { ok: true; value: { backendUrl: string; version: string } }
-  | {
-      ok: false
-      error: {
-        code: string
-        message: string
-        status: number
-        detail?: string
-        accounts?: readonly { id: string; name: string }[]
-      }
-    }
+export type InstallReply = { readonly status: number; readonly body: unknown }
 
-export type Env = InstallEnv & {
+export type Env = {
   INSTALLER: {
     idFromName(name: string): DurableObjectId
-    get(id: DurableObjectId): { install(req: InstallRequest): Promise<InstallOutcome> }
+    get(id: DurableObjectId): {
+      install(request: InstallRequest): Promise<InstallReply>
+      detach(sub: string): Promise<InstallReply>
+    }
   }
+  CF_OAUTH_CLIENT_ID: string
+  CLERK_JWT_KEY: string
   CLERK_SECRET_KEY: string
+  RELEASE_BASE_URL: string
+  RELEASE_PUBLIC_KEY: string
   TRUSTED_ORIGINS: string
 }
 
-type InstallBody = { clerkToken?: unknown; grant?: unknown; accountId?: unknown }
+const CHOOSE_ACCOUNT = "This sign-in can use more than one Cloudflare account. Pick the one Kiko goes in."
+const DECIDE =
+  "This Cloudflare account already has a Kiko backend that this sign-in does not own. Choose whether to keep its chats or start fresh."
+
+const InstallBody = Schema.Struct({
+  clerkToken: Schema.String,
+  grant: Schema.Unknown,
+  accountId: Schema.optional(Schema.String),
+  decision: Schema.optional(Schema.Literals(["take_over", "start_fresh"])),
+})
+const DetachBody = Schema.Struct({ clerkToken: Schema.String })
+const decodeInstall = Schema.decodeUnknownOption(InstallBody)
+const decodeDetach = Schema.decodeUnknownOption(DetachBody)
+
+const problem = (status: number, code: InstallErrorCode | "choose_account" | "decide", fields: object) => ({
+  status,
+  body: { error: { code, retry: code === "choose_account" || code === "decide" ? "same" : retryOf(code), ...fields } },
+})
+
+const failureReply = (failure: InstallFailed): InstallReply =>
+  problem(statusOf(failure.code), failure.code, {
+    message: failure.message,
+    ...(failure.detail ? { detail: failure.detail } : {}),
+  })
+
+export function answerReply(answer: InstallAnswer): InstallReply {
+  switch (answer._tag) {
+    case "Installed":
+      return { status: 200, body: { backendUrl: answer.backendUrl, version: answer.version } }
+    case "ChooseAccount":
+      return problem(409, "choose_account", { message: CHOOSE_ACCOUNT, accounts: answer.accounts })
+    case "Decide":
+      return problem(409, "decide", { message: DECIDE, found: answer.found })
+  }
+}
+
+export function exitReply<A>(exit: Exit.Exit<A, InstallFailed>, success: (value: A) => InstallReply): InstallReply {
+  if (Exit.isSuccess(exit)) return success(exit.value)
+  const failure = Cause.squash(exit.cause)
+  return failureReply(failure instanceof InstallFailed ? failure : failed("internal", String(failure)))
+}
 
 function allowedOrigin(origin: string | null, trusted: string): string | null {
   if (!origin) return null
@@ -42,7 +85,7 @@ function reply(body: unknown, status: number, origin: string | null): Response {
     headers.set("Access-Control-Allow-Origin", origin)
     headers.set("Vary", "Origin")
   }
-  return new Response(JSON.stringify(body), { status, headers })
+  return new Response(status === 204 ? null : JSON.stringify(body), { status, headers })
 }
 
 function cleanToken(raw: string): string {
@@ -63,6 +106,41 @@ function parseGrant(value: unknown): Grant | null {
     return { kind: "oauth", code: g.code, verifier: g.verifier, redirectUri: g.redirectUri }
   }
   return null
+}
+
+async function callerOf(env: Env, token: string): Promise<string | InstallReply> {
+  const trust = {
+    key: env.CLERK_JWT_KEY,
+    trustedOrigins: env.TRUSTED_ORIGINS.split(",").map((origin) => origin.trim()),
+  }
+  const verdict = await Effect.runPromise(Effect.result(verifyClerkToken(trust, token, Date.now())))
+  if (Result.isSuccess(verdict)) return verdict.success.sub
+  return failureReply(failed(verdict.failure.code === "token_expired" ? "clerk_expired" : "unauthorized"))
+}
+
+const BAD_REQUEST = failureReply(failed("bad_request"))
+
+async function installRoute(request: Request, env: Env): Promise<InstallReply> {
+  const body = decodeInstall(await request.json().catch(() => null))
+  const grant = Option.isSome(body) ? parseGrant(body.value.grant) : null
+  if (Option.isNone(body) || !grant) return BAD_REQUEST
+  const sub = await callerOf(env, body.value.clerkToken)
+  if (typeof sub !== "string") return sub
+  const { accountId, decision } = body.value
+  return env.INSTALLER.get(env.INSTALLER.idFromName(sub)).install({
+    sub,
+    grant,
+    ...(accountId ? { accountId } : {}),
+    ...(decision ? { decision } : {}),
+  })
+}
+
+async function detachRoute(request: Request, env: Env): Promise<InstallReply> {
+  const body = decodeDetach(await request.json().catch(() => null))
+  if (Option.isNone(body)) return BAD_REQUEST
+  const sub = await callerOf(env, body.value.clerkToken)
+  if (typeof sub !== "string") return sub
+  return env.INSTALLER.get(env.INSTALLER.idFromName(sub)).detach(sub)
 }
 
 export default {
@@ -100,27 +178,9 @@ export default {
       return reply({ url: TOKEN_TEMPLATE_URL, permissions: TOKEN_PERMISSIONS }, 200, origin)
     }
 
-    if (request.method === "POST" && url.pathname === "/install") {
-      const body = (await request.json().catch(() => null)) as InstallBody | null
-      const grant = parseGrant(body?.grant)
-      if (!body || typeof body.clerkToken !== "string" || !grant) {
-        return reply({ error: { code: "bad_request", message: "Send clerkToken and a grant." } }, 400, origin)
-      }
-      let sub: string
-      try {
-        const claims = await verifyToken(body.clerkToken, {
-          secretKey: env.CLERK_SECRET_KEY,
-          jwtKey: env.CLERK_JWT_KEY || undefined,
-          authorizedParties: env.TRUSTED_ORIGINS.split(",").map((o) => o.trim()),
-        })
-        sub = claims.sub
-      } catch {
-        return reply({ error: { code: "unauthorized", message: "Sign in again." } }, 401, origin)
-      }
-      const accountId = typeof body.accountId === "string" ? body.accountId : undefined
-      const stub = env.INSTALLER.get(env.INSTALLER.idFromName(sub))
-      const result = await stub.install({ sub, clerkToken: body.clerkToken, grant, accountId })
-      return reply(result.ok ? result.value : { error: result.error }, result.ok ? 200 : result.error.status, origin)
+    if (request.method === "POST" && (url.pathname === "/install" || url.pathname === "/detach")) {
+      const answer = await (url.pathname === "/install" ? installRoute(request, env) : detachRoute(request, env))
+      return reply(answer.body, answer.status, origin)
     }
 
     return reply({ error: { code: "not_found", message: "Not found." } }, 404, origin)

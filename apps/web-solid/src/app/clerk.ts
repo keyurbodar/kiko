@@ -108,11 +108,11 @@ export async function clerkSignIn(): Promise<ClerkSignIn | null> {
   if (!token || clerk.session !== session || clerk.user !== user) return null
   const account = user.externalAccounts[0]
   const provider = String(account?.provider ?? "").replace(/^oauth_/, "")
-  const url = user.publicMetadata.backendUrl
+  const pointer = user.publicMetadata.kiko as { v?: unknown; url?: unknown } | undefined
   return {
     token,
     userId: user.id,
-    backendUrl: typeof url === "string" && url ? url : null,
+    backendUrl: pointer?.v === 1 && typeof pointer.url === "string" && pointer.url ? pointer.url : null,
     profile: {
       name: user.fullName ?? user.username ?? user.primaryEmailAddress?.emailAddress ?? "You",
       email: user.primaryEmailAddress?.emailAddress ?? "",
