@@ -6,6 +6,10 @@ const IDLE: LiveStatus = { kind: "idle", text: "" }
 
 const THINKING: LiveStatus = { kind: "thinking", text: "Thinking" }
 
+const TOOL_TEXT = "Using a tool"
+
+export const presenceWords = (presence: "typing" | "working") => (presence === "working" ? TOOL_TEXT : THINKING.text)
+
 type Sent = { seq: number; from: { kind: string; slug?: string } }
 
 export type LiveInput = {
@@ -44,7 +48,7 @@ function workingStatus(status: NonNullable<LiveInput["status"]>): LiveStatus {
   const activity = status.activity
   if (activity?.kind === "background") return { kind: "tool", text: backgroundText(activity) }
   const doing = activity?.kind === "tool" ? activity.caption : status.doing
-  return doing ? { kind: "tool", text: plainDoing(doing) } : { kind: "tool", text: "Using a tool" }
+  return doing ? { kind: "tool", text: plainDoing(doing) } : { kind: "tool", text: TOOL_TEXT }
 }
 
 export function liveStatusOf(input: LiveInput): LiveStatus {
@@ -71,3 +75,22 @@ export const thinkingLine = (names: readonly string[], group: boolean): string =
     names.map((name) => ({ name, status: THINKING })),
     group,
   ) ?? THINKING.text
+
+export type ChatTyping = { names: readonly string[]; since: number }
+
+type ChatTail = { roomId: string; last?: { from: string; at: number } }
+
+export function otherChatTyping(
+  typing: Readonly<Record<string, ChatTyping>>,
+  chats: readonly ChatTail[],
+): Record<string, readonly string[]> {
+  const out: Record<string, readonly string[]> = {}
+  for (const chat of chats) {
+    const entry = typing[chat.roomId]
+    if (!entry) continue
+    const last = chat.last
+    if (last && last.from === "agent" && last.at > entry.since) continue
+    out[chat.roomId] = entry.names
+  }
+  return out
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { liveLine, liveStatusOf, type LiveInput } from "./live-status"
+import { liveLine, liveStatusOf, otherChatTyping, type LiveInput } from "./live-status"
 
 const human = (seq: number) => ({ seq, from: { kind: "human" as const } })
 const agent = (seq: number, slug = "kiko") => ({ seq, from: { kind: "agent" as const, slug } })
@@ -90,5 +90,22 @@ describe("liveLine", () => {
 
   it("is null when nobody is live", () => {
     expect(liveLine([], true)).toBeNull()
+  })
+})
+
+describe("otherChatTyping", () => {
+  const typing = { r1: { names: ["Kiko"], since: 10 } }
+
+  it("keeps names until that chat's last message changes", () => {
+    expect(otherChatTyping(typing, [{ roomId: "r1", last: { from: "human", at: 10 } }])).toEqual({ r1: ["Kiko"] })
+    expect(otherChatTyping(typing, [{ roomId: "r1", last: { from: "human", at: 12 } }])).toEqual({ r1: ["Kiko"] })
+  })
+
+  it("drops names once an agent's message lands in that chat, even if the clearing signal never came", () => {
+    expect(otherChatTyping(typing, [{ roomId: "r1", last: { from: "agent", at: 11 } }])).toEqual({})
+  })
+
+  it("drops names for a chat that is gone", () => {
+    expect(otherChatTyping(typing, [])).toEqual({})
   })
 })

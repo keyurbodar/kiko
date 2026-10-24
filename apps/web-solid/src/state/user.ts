@@ -25,6 +25,7 @@ import { kikoPlaceholder, newChatMembers } from "../lib/chats"
 import { showFailure, showNotice } from "../lib/errors"
 import { setFileToken, setFileTokenSource } from "../lib/file-token"
 import { attempt, failureMessage, owner, registry, run, valueOf, watch } from "./runtime"
+import { type ChatTyping, otherChatTyping } from "./live-status"
 import { createUserSignals } from "./user-signals"
 
 const chatOrder = (a: Chat, b: Chat) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt
@@ -39,26 +40,8 @@ setFileTokenSource(async () => (await attempt(owner.commands.fileToken, {}, () =
 
 export const user = createRoot(() => {
   const state = watch(() => owner.userAtom)
-  const [typing, setTyping] = createSignal<Record<string, readonly string[]>>({})
+  const [typing, setTyping] = createSignal<Record<string, ChatTyping>>({})
   const [everLive, setEverLive] = createSignal(false)
-
-  const onSignal = (value: UserSignal) =>
-    untrack(() => {
-      if (value.t === "typing")
-        setTyping((all) => {
-          const { [value.roomId]: _, ...rest } = all
-          return value.names.length ? { ...rest, [value.roomId]: [...value.names] } : rest
-        })
-      deliver(value)
-    })
-  registry.subscribe(
-    owner.userSignalAtom,
-    (next) => {
-      const burst = valueOf(next)
-      if (burst !== undefined && Option.isSome(burst)) for (const signal of burst.value) onSignal(signal)
-    },
-    { immediate: true },
-  )
 
   const snapshot = createMemo(() => Option.getOrUndefined(state().data))
   const status = () => state().status
@@ -78,6 +61,28 @@ export const user = createRoot(() => {
     const list = snapshot()?.chats ?? []
     return (list.length || synced() ? [...list] : [placeholder]).sort(chatOrder)
   })
+  const liveTyping = createMemo(() => otherChatTyping(typing(), chats()))
+
+  const onSignal = (value: UserSignal) =>
+    untrack(() => {
+      if (value.t === "typing")
+        setTyping((all) => {
+          const { [value.roomId]: _, ...rest } = all
+          if (!value.names.length) return rest
+          const since = chats().find((c) => c.roomId === value.roomId)?.last?.at ?? 0
+          return { ...rest, [value.roomId]: { names: [...value.names], since } }
+        })
+      deliver(value)
+    })
+  registry.subscribe(
+    owner.userSignalAtom,
+    (next) => {
+      const burst = valueOf(next)
+      if (burst !== undefined && Option.isSome(burst)) for (const signal of burst.value) onSignal(signal)
+    },
+    { immediate: true },
+  )
+
   const agents = createMemo(() => [...(snapshot()?.agents ?? [])])
   const providers = () => (snapshot()?.rows?.provider ?? []) as readonly { id: string }[]
 
@@ -186,8 +191,7 @@ export const user = createRoot(() => {
       homeRefusals.add(listener)
       return () => homeRefusals.delete(listener)
     },
-    typing: (roomId: string) => typing()[roomId],
-    typingByRoom: typing,
+    typingByRoom: liveTyping,
     isGone: (slug: string) => synced() && slug !== KIKO && !agents().some((a: Agent) => a.slug === slug),
     modelsSynced: () => synced() || Object.keys(snapshot()?.agentModels ?? {}).length > 0,
     modelAgents: (): { slug: AgentSlug; name: string }[] => {
