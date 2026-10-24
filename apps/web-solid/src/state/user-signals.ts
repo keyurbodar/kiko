@@ -3,7 +3,7 @@ import type { UserSignal } from "@kiko/protocol"
 type SignalOf<T extends UserSignal["t"]> = Extract<UserSignal, { t: T }>
 type Listener = (signal: UserSignal) => void
 
-const STATE_SIGNALS: ReadonlySet<UserSignal["t"]> = new Set(["pcState", "browserState", "update.state"])
+const STATE_SIGNALS: ReadonlySet<UserSignal["t"]> = new Set(["pcState", "browserState"])
 
 export function createUserSignals() {
   const listeners = new Map<UserSignal["t"], Set<Listener>>()

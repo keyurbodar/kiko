@@ -16,8 +16,6 @@ import { SidebarToggle } from "../sidebar"
 const CONNECTION_LABEL: Partial<Record<ConnectionView, string>> = {
   reconnecting: "Reconnecting",
   disconnected: "Not connected",
-  outdated: "Reload to reconnect",
-  "backend-outdated": "Update required",
 }
 
 export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onToggleSidebar: () => void }) {

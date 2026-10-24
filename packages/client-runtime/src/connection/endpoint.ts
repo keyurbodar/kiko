@@ -1,9 +1,8 @@
-import { PROTOCOL } from "@kiko/protocol"
 import { OWNER_RPC_PATH } from "@kiko/protocol/rpc"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import { type Descriptor, readDescriptor } from "./descriptor"
+import { compatibility, readDescriptor } from "./descriptor"
 import { ConnectionBlockedError, type PreparedConnection } from "./model"
 
 const SOCKET_PROTOCOL = "kiko"
@@ -36,12 +35,6 @@ const backendBehind = (label: string) =>
 const clientBehind = (label: string) =>
   new ConnectionBlockedError({ reason: "unsupported", detail: `${label} was updated. Reload Kiko to keep going.` })
 
-function incompatibility(label: string, descriptor: Descriptor): ConnectionBlockedError | null {
-  if (descriptor._tag === "Unreachable") return null
-  if (descriptor._tag === "Legacy" || descriptor.protocol < PROTOCOL) return backendBehind(label)
-  return descriptor.protocol > PROTOCOL ? clientBehind(label) : null
-}
-
 const socketUrlOf = (httpBaseUrl: string) => {
   const url = new URL(OWNER_RPC_PATH, httpBaseUrl)
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
@@ -57,8 +50,9 @@ const make = (options: OwnerEndpointOptions): OwnerEndpoint["Service"] => {
     const httpBaseUrl = options.baseUrl()
     return readDescriptor(http, httpBaseUrl).pipe(
       Effect.flatMap((descriptor) => {
-        const blocked = incompatibility(label, descriptor)
-        if (blocked) return Effect.fail(blocked)
+        const fit = compatibility(descriptor)
+        if (fit === "backend-behind") return Effect.fail(backendBehind(label))
+        if (fit === "app-behind") return Effect.fail(clientBehind(label))
         return Effect.succeed<PreparedConnection>({
           label,
           httpBaseUrl,

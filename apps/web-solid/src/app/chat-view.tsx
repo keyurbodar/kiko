@@ -21,6 +21,7 @@ import { roomEmpty } from "./chat-empty"
 import { useRefusalToasts } from "../chat/members/members"
 import QuoteOnSelect from "../chat/QuoteOnSelect"
 import UpdateNotice from "./update-notice"
+import { readOnly } from "./update-flow"
 import BrowserChip from "../chat/BrowserChip"
 
 const JUMP_CLASS =
@@ -318,7 +319,8 @@ export function ChatView() {
         <Composer
           room={room.active()}
           tray={<ModelPickerButton draft={draft()} />}
-          sendBlock={block()}
+          disabled={readOnly()}
+          sendBlock={readOnly() ? null : block()}
           sendBlockAgent={answering()?.slug}
           threadId={roomId() ?? ""}
           title={room.chatById(roomId() ?? "")?.name}

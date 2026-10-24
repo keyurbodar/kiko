@@ -13,12 +13,12 @@ export type ConnectionView =
   | "reconnecting"
   | "disconnected"
   | "signed-out"
-  | "outdated"
-  | "backend-outdated"
+  | "app-behind"
+  | "backend-behind"
 
 function blockedView(failure: SupervisorConnectionState["lastFailure"]): ConnectionView {
   if (failure?._tag !== "ConnectionBlockedError" || failure.reason !== "unsupported") return "signed-out"
-  return failure.serverUpdateRequired ? "backend-outdated" : "outdated"
+  return failure.serverUpdateRequired ? "backend-behind" : "app-behind"
 }
 
 function viewOf(state: SupervisorConnectionState, downFor: number): ConnectionView {

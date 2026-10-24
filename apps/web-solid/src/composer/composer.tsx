@@ -331,7 +331,7 @@ export function Composer(props: ComposerProps) {
         preparing: () => preparingAttachments(),
         blocked,
         onSubmit: () => {
-          if (props.busy || blocked()) return
+          if (props.disabled || blocked()) return
           if (question.ask()) return question.advance()
           if (!props.threadId) return
           const text = draftText()
@@ -450,7 +450,7 @@ export function Composer(props: ComposerProps) {
         answering={!!question.ask()}
         readOnly={!!question.ask() && question.progress().activeQuestion?.allowCustomAnswer === false}
         controller={controller}
-        disabled={!!props.busy}
+        disabled={!!props.disabled}
         reply={question.ask() ? undefined : above}
         tray={props.tray}
         isMention={(slug) => props.bots.some((bot) => bot.id === slug)}

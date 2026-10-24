@@ -73,7 +73,7 @@ export interface ComposerProps {
   title?: string
   onSend: (message: OutgoingMessage) => boolean | void
   bots: readonly RosterBot[]
-  busy?: boolean
+  disabled?: boolean
   replyTo?: ChatMessage | null
   onClearReply?: () => void
   editing?: ChatMessage | null
