@@ -8,7 +8,7 @@ import { RecipeIcon } from "../../recipes/icon"
 import { recipeForRoutine } from "../../recipes/model"
 import { triggerLabel } from "./routines-model"
 import { apiFetch } from "../../lib/api"
-import { owner, run } from "../../state/runtime"
+import { createQuery, owner, run } from "../../state/runtime"
 import { user } from "../../state/user"
 
 export type Routine = RoutineData
@@ -147,12 +147,14 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
 const heading = `px-2 pt-2 pb-1 text-[11px] font-medium leading-4 ${faint}`
 
 export function RoutinesPage(props: { chatId: string }) {
-  const [recipes] = createResource(() =>
-    import("../../recipes/api").then(
-      (m) => m.loadCards(),
+  const listed = createQuery(() => (routinesOf(props.chatId).length ? owner.queries.recipes(undefined) : null))
+  const [builtIn] = createResource(() =>
+    import("../../recipes/catalog.gen").then(
+      (m) => m.RECIPES,
       () => [],
     ),
   )
+  const recipes = () => listed()?.cards ?? builtIn()
   return (
     <div class="px-2 py-2" data-component="info-routines">
       <Show when={routinesOf(props.chatId)}>

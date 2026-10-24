@@ -4,14 +4,14 @@ import { SearchIcon } from "@kiko/ui/icons"
 import { TabsV2 } from "@kiko/ui/v2/tabs-v2"
 import { getRouteApi } from "@tanstack/solid-router"
 import { openChat } from "../app/history"
-import { createMemo, createSignal, For, type JSX, onMount, Show } from "solid-js"
+import { createMemo, createSignal, For, type JSX, Show } from "solid-js"
 import { room } from "../state/room"
 import { buttonClass } from "../settings/kit"
 import { byChatOrder, filterRecipes, recipeTags, type TagFilter, tagLabel } from "./model"
 import { InstallCard } from "./row"
 import { ConnectSheet } from "./connect"
 import { RecipeSheet } from "./sheet"
-import { addToTarget, broken, connectAsk, cards, installs, isAdded, refreshListing, targetsForChat } from "./state"
+import { addToTarget, broken, cards, connectAsk, followRecipes, installs, isAdded, targetsForChat } from "./state"
 import { RecipeTile } from "./tile"
 
 type Section = "yours" | "discover"
@@ -48,14 +48,15 @@ export default function RecipesPage() {
   )
   const tags = createMemo(() => ["all", ...recipeTags(cards())])
   const shown = createMemo(() => filterRecipes(cards(), query(), tag()))
-  const [section, setSection] = createSignal<Section>(installs().length && !roomId() ? "yours" : "discover")
+  const [picked, setSection] = createSignal<Section | null>(null)
+  const section = (): Section => picked() ?? (installs().length && !roomId() ? "yours" : "discover")
   const add = (card: RecipeCard) => {
     const id = roomId()
     const targets = id ? targetsForChat(id) : []
     if (targets.length === 1 && !isAdded(card.slug, targets[0])) addToTarget(card, targets[0], openChat)
     else setOpen({ card, mode: "add" })
   }
-  onMount(() => void refreshListing())
+  followRecipes()
 
   let scroller!: HTMLDivElement
   let tabsTop!: HTMLDivElement
