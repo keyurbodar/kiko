@@ -92,8 +92,10 @@
   cursor: default;
   transition: background-color 80ms var(--ease-kiko);
 }
-.search-hit:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .search-hit:hover {
+    background: var(--hover);
+  }
 }
 .search-hit[aria-selected="true"] {
   background: var(--active);

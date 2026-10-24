@@ -4,6 +4,7 @@ import { defaultThinking, THINKING_LABELS, type ThinkingLevel } from "@kiko/prot
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js"
 import { Portal } from "solid-js/web"
 import { cn } from "../lib/cn"
+import { afterFirstPaint } from "../lib/motion"
 import { placePanel } from "../lib/place-panel"
 import { canReason } from "./agent-model"
 import "./reasoning-menu.css"
@@ -111,7 +112,7 @@ function Panel(props: {
   let panel: HTMLDivElement | undefined
   const box = props.trigger()?.getBoundingClientRect() ?? { top: 0, bottom: 0, left: 0, right: 0 }
   const form = props.trigger()?.closest(".composer-form")?.getBoundingClientRect()
-  const anchor = form ? { ...box, top: form.top, bottom: form.bottom } : box
+  const anchor = { left: box.left, right: box.right, top: form?.top ?? box.top, bottom: form?.bottom ?? box.bottom }
   const place = placePanel(
     anchor,
     PANEL_W,
@@ -182,6 +183,7 @@ export function ReasoningMenu(props: {
 }) {
   let trigger: HTMLButtonElement | undefined
   const [open, setOpen] = createSignal(false)
+  const painted = afterFirstPaint()
   const [note, setNote] = createSignal(false)
   const [shaking, setShaking] = createSignal(false)
   let noteTimer: ReturnType<typeof setTimeout> | undefined
@@ -241,7 +243,11 @@ export function ReasoningMenu(props: {
         >
           <Bars filled={filled()} />
           <Show when={THINKING_LABELS[value()]} keyed>
-            {(label) => <span class="reasoning-label">{label}</span>}
+            {(label) => (
+              <span class="reasoning-label" data-enter={painted() ? "" : undefined}>
+                {label}
+              </span>
+            )}
           </Show>
           <RemixIcon icon={ChevronDownIcon} size={10} class="opacity-70" />
         </button>

@@ -49,11 +49,18 @@
   background: transparent;
   color: var(--fg3);
 }
-.kt-btn:hover,
 .kt-btn:focus-visible {
   background: var(--hover);
   color: var(--fg);
   outline: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kt-btn:hover {
+    background: var(--hover);
+    color: var(--fg);
+    outline: none;
+  }
 }
 
 .kt-host {
@@ -97,10 +104,16 @@
   text-align: left;
   cursor: default;
 }
-.kt-menu-item:hover,
 .kt-menu-item:focus-visible {
   background: var(--active);
   outline: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kt-menu-item:hover {
+    background: var(--active);
+    outline: none;
+  }
 }
 .kt-menu-sep {
   height: 1px;

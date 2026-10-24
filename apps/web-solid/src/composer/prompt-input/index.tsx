@@ -27,6 +27,7 @@ import type { ParseOptions } from "../rich/markdown"
 import { setRichLoaded } from "../rich/loaded"
 import { mountLite, type LiteField } from "../rich/lite"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
+import { afterFirstPaint } from "../../lib/motion"
 import { progressLabel, uploadState } from "../uploads"
 import type { Token } from "../tokens"
 import type { ChipSource } from "./chip"
@@ -107,6 +108,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
   const state = props.controller.state
   const view = props.controller.view
   const [blank, setBlank] = createSignal(true)
+  const painted = afterFirstPaint()
   const [focused, setFocused] = createSignal(false)
   let binding: RichBinding | undefined
   let lite: LiteField | undefined
@@ -318,7 +320,11 @@ export function PromptInputV2(props: PromptInputV2Props) {
               <div ref={richHost} class="composer-rich" classList={{ "opacity-50": props.disabled }} />
               <Show when={blank()}>
                 <Show when={hint()} keyed>
-                  {(text) => <div class="composer-placeholder">{text}</div>}
+                  {(text) => (
+                    <div class="composer-placeholder" data-enter={painted() ? "" : undefined}>
+                      {text}
+                    </div>
+                  )}
                 </Show>
               </Show>
             </div>
@@ -370,6 +376,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
 
 function Recipient(props: { recipient: Token; controller: PromptInputV2Interaction }) {
   const seed = () => (props.recipient.kind === "agent" ? props.recipient.slug : props.recipient.id)
+  const painted = afterFirstPaint()
   return (
     <MenuV2 gutter={6} placement="top-start">
       <MenuV2.Trigger
@@ -380,7 +387,7 @@ function Recipient(props: { recipient: Token; controller: PromptInputV2Interacti
       >
         <span class="composer-agent-face">
           <Show when={seed()} keyed>
-            {(face) => <IdentityAvatar seed={face} size={20} class="composer-agent-avatar" />}
+            {(face) => <IdentityAvatar seed={face} size={20} class={painted() ? "composer-agent-avatar" : ""} />}
           </Show>
         </span>
         <span class="composer-agent-name">{props.recipient.title}</span>

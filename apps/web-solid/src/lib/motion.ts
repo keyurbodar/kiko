@@ -1,3 +1,27 @@
+import { onMount } from "solid-js"
+
+let interacted = false
+let entering = false
+
+if (typeof window !== "undefined") {
+  const mark = () => (interacted = true)
+  window.addEventListener("pointerdown", mark, { capture: true, once: true })
+  window.addEventListener("keydown", mark, { capture: true, once: true })
+}
+
+export function pageIn(el: HTMLElement) {
+  if (!interacted || entering) return
+  entering = true
+  queueMicrotask(() => (entering = false))
+  el.classList.add("motion-page-in")
+}
+
+export function afterFirstPaint(): () => boolean {
+  let painted = false
+  onMount(() => requestAnimationFrame(() => (painted = true)))
+  return () => painted
+}
+
 export function replay(el: HTMLElement | undefined) {
   if (!el) return
   el.classList.remove("motion-page-in")

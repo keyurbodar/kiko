@@ -129,7 +129,7 @@ export function SettingsDialog(props: ParentProps) {
             >
               <div
                 ref={page}
-                class="motion-page-in mx-auto w-full max-w-[764px] px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:pt-12"
+                class="mx-auto w-full max-w-[764px] px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:pt-12"
               >
                 <Page title={meta()?.label ?? "Settings"} description={meta()?.hint}>
                   {props.children}

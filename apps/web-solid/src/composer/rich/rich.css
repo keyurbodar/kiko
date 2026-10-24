@@ -53,12 +53,20 @@
   color: oklch(0.488 0.243 264.376);
 }
 
-.composer-dock .composer-input a:hover,
 .composer-dock .composer-input a:focus-visible {
   background-image: radial-gradient(circle, currentcolor 0.75px, transparent 1px);
   background-position: left bottom;
   background-repeat: repeat-x;
   background-size: 4px 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .composer-dock .composer-input a:hover {
+    background-image: radial-gradient(circle, currentcolor 0.75px, transparent 1px);
+    background-position: left bottom;
+    background-repeat: repeat-x;
+    background-size: 4px 2px;
+  }
 }
 
 .composer-dock .composer-input code {

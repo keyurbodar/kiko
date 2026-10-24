@@ -1,6 +1,7 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CloseIcon, PlusIcon, SearchIcon } from "@kiko/ui/icons"
 import { createSignal, Show } from "solid-js"
+import { pageIn } from "../lib/motion"
 import { openNewAgent } from "../newagent/state"
 import { AppsTab } from "./apps"
 import { PageFrame, PageTabs, ToolButton } from "./page-ui"
@@ -69,12 +70,12 @@ export default function CustomizePage() {
         <Show
           when={tab() === "team"}
           fallback={
-            <div class="motion-page-in">
+            <div ref={pageIn}>
               <AppsTab query={query()} />
             </div>
           }
         >
-          <div class="motion-page-in -mt-2 flex flex-col gap-6">
+          <div ref={pageIn} class="-mt-2 flex flex-col gap-6">
             <p class="text-[14px] text-fg3">Customize the team, not a settings list.</p>
             <TeamTab />
           </div>

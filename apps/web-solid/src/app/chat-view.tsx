@@ -15,6 +15,7 @@ import { keepArray, keepSpeakers } from "../chat/lib/members"
 import { jumpRequest, requestJump } from "../search/state"
 import { EmptyState } from "../chat/ui/EmptyState"
 import { captureLaunch, glideToDock, type Launch } from "../chat/send-motion"
+import { pageIn, replay } from "../lib/motion"
 import { clearUnreadMark } from "../sidebar/unread-mark"
 import { roomEmpty } from "./chat-empty"
 import { useRefusalToasts } from "../chat/members/members"
@@ -200,6 +201,7 @@ export function ChatView() {
   })
   let dock: HTMLDivElement | undefined
   let launch: Launch | null = null
+  createEffect(on(roomId, () => replay(transcript), { defer: true }))
   createEffect(
     on(empty, (now, before) => {
       if (before && !now && dock) glideToDock(dock, launch)
@@ -215,7 +217,14 @@ export function ChatView() {
       data-reply-target={replyTarget() ?? undefined}
       data-range={threadState() ? `${threadState()!.rangeStart}-${threadState()!.rangeEnd}` : undefined}
     >
-      <div class="flex min-h-0 flex-1 flex-col" ref={transcript} data-component="chat-transcript">
+      <div
+        class="flex min-h-0 flex-1 flex-col"
+        ref={(el) => {
+          transcript = el
+          pageIn(el)
+        }}
+        data-component="chat-transcript"
+      >
         <MessageList
           messages={messages()}
           botById={(id) => (id === undefined ? undefined : speaker(id))}
@@ -255,7 +264,7 @@ export function ChatView() {
       </div>
 
       <Show when={empty()}>
-        <EmptyState />
+        <EmptyState working={room.typingNames().length > 0} />
       </Show>
       <div
         ref={dock}

@@ -1,9 +1,27 @@
 .chat-empty {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
   justify-content: center;
   padding: 0 16px 16px;
   text-align: center;
   user-select: none;
+}
+
+.chat-empty-mochi {
+  display: grid;
+  width: 120px;
+  height: 120px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--panel);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chat-empty-mochi {
+    animation: motion-fade-scale-in var(--dur-pop) var(--ease-kiko) both;
+  }
 }
 
 [data-component="chat-shell"] {

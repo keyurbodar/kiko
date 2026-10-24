@@ -65,8 +65,10 @@
   transition: scrollbar-color var(--dur-pop, 200ms);
 }
 
-.composer-dock .composer-input:hover {
-  scrollbar-color: var(--active) transparent;
+@media (hover: hover) and (pointer: fine) {
+  .composer-dock .composer-input:hover {
+    scrollbar-color: var(--active) transparent;
+  }
 }
 
 [data-session-empty="true"] .composer-dock .composer-input {
@@ -141,11 +143,17 @@
   height: 17px;
 }
 
-.composer-dock .composer-icon:hover:not(:disabled),
-.composer-dock .composer-emoji:hover:not(:disabled),
 .composer-dock .composer-emoji[aria-expanded="true"] {
   color: var(--fg);
   background: var(--active);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .composer-dock .composer-icon:hover:not(:disabled),
+  .composer-dock .composer-emoji:hover:not(:disabled) {
+    color: var(--fg);
+    background: var(--active);
+  }
 }
 
 .composer-dock .composer-emoji:disabled {
@@ -206,10 +214,16 @@
     color var(--dur-hover, 120ms);
 }
 
-.composer-dock .composer-agent:hover,
 .composer-dock .composer-agent[aria-expanded="true"] {
   color: var(--fg);
   background: var(--active);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .composer-dock .composer-agent:hover {
+    color: var(--fg);
+    background: var(--active);
+  }
 }
 
 .composer-dock .composer-agent-name {
@@ -319,7 +333,7 @@
   cursor: pointer;
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .composer-dock .reply-bar-dismiss:hover {
     background: color-mix(in oklab, var(--fg) 8%, transparent);
     color: var(--fg);
@@ -360,7 +374,7 @@
   transition: background var(--dur-hover, 120ms);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .composer-dock .no-key-hint button:hover {
     background: var(--active);
   }

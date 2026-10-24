@@ -5,7 +5,6 @@
   --toast-edge: color-mix(in oklab, var(--fg) 8%, transparent);
   --toast-muted: var(--fg3);
   --toast-shadow: 0 14px 34px oklch(0% 0 none / 0.5), inset 0 0 0 1px var(--toast-edge);
-  --toast-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :root:not(.dark) :is(.toast-v2-region, .toast-v2-anchors) {
@@ -73,7 +72,7 @@
   transition:
     transform var(--dur-pop) var(--ease-kiko),
     opacity var(--dur-pop) var(--ease-kiko),
-    height 150ms;
+    height var(--dur-pop) var(--ease-kiko);
 
   @starting-style {
     transform: translateY(16px) scale(0.96);
@@ -111,6 +110,7 @@
     opacity: 0;
     pointer-events: none;
     transform: translateY(calc(var(--toast-y) + 12px)) scale(0.96);
+    transition-duration: var(--dur-exit, 140ms);
   }
 
   &[data-ending="out-x"] {
@@ -144,7 +144,7 @@
   overflow-x: clip;
   font-size: 14px;
   line-height: 20px;
-  transition: opacity 200ms;
+  transition: opacity var(--dur-pop) var(--ease-kiko);
 
   &[data-actions] {
     padding-inline-end: 34px;
@@ -359,8 +359,8 @@
   pointer-events: none;
   transform: translate(-50%, calc(-100% - 4px));
   transition:
-    scale 150ms,
-    opacity 150ms;
+    scale var(--dur-hover) var(--ease-kiko),
+    opacity var(--dur-hover) var(--ease-kiko);
 
   @starting-style {
     opacity: 0;
@@ -377,10 +377,21 @@
   }
 }
 
-.toast-v2:hover .toast-v2-close,
 .toast-v2:focus-within .toast-v2-close,
 .toast-v2:focus-visible .toast-v2-close {
   opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .toast-v2:hover .toast-v2-close {
+    opacity: 1;
+  }
+}
+
+@media (pointer: coarse) {
+  .toast-v2-close {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -129,17 +129,21 @@ button.composer-card-row {
 .composer-card-button:active:not(:disabled) {
   transform: scale(0.97);
 }
-.composer-card-button:hover {
-  background: var(--active);
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .composer-card-button:hover {
+    background: var(--active);
+    color: var(--fg);
+  }
 }
 .composer-card-button[data-primary] {
   background: var(--fg);
   color: var(--bg);
 }
-.composer-card-button[data-primary]:hover {
-  background: var(--fg);
-  opacity: 0.88;
+@media (hover: hover) and (pointer: fine) {
+  .composer-card-button[data-primary]:hover {
+    background: var(--fg);
+    opacity: 0.88;
+  }
 }
 .composer-card-button:disabled {
   opacity: 0.45;
@@ -193,8 +197,10 @@ button.composer-card-row {
   padding: 7px 4px;
   border-radius: 10px;
 }
-.composer-card-choice > .composer-card-row:hover {
-  background: var(--active);
+@media (hover: hover) and (pointer: fine) {
+  .composer-card-choice > .composer-card-row:hover {
+    background: var(--active);
+  }
 }
 .task-segments {
   display: flex;
@@ -286,8 +292,10 @@ button.composer-card-row {
   line-height: 20px;
   transition: background var(--dur-hover) var(--ease-kiko);
 }
-.task-step:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .task-step:hover {
+    background: var(--hover);
+  }
 }
 .task-check {
   position: relative;
@@ -306,8 +314,10 @@ button.composer-card-row {
     box-shadow var(--dur-hover) var(--ease-kiko),
     transform var(--dur-hover) var(--ease-kiko);
 }
-.task-check:hover:not(:disabled) {
-  box-shadow: inset 0 0 0 1.5px var(--fg2);
+@media (hover: hover) and (pointer: fine) {
+  .task-check:hover:not(:disabled) {
+    box-shadow: inset 0 0 0 1.5px var(--fg2);
+  }
 }
 .task-check:active:not(:disabled) {
   transform: scale(0.9);

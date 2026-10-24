@@ -157,6 +157,9 @@
   .reasoning-label,
   .reasoning-note {
     display: inline-block;
+  }
+  .reasoning-label[data-enter],
+  .reasoning-note {
     animation: reasoning-swap var(--dur-pop) var(--ease-kiko);
   }
   .reasoning-trigger[data-shake] {

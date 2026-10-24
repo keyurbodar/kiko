@@ -87,7 +87,7 @@
   .picker-panel {
     animation: picker-in var(--dur-pop) var(--ease-kiko);
   }
-  .picker-swap {
+  .picker-swap[data-enter] {
     animation: picker-swap var(--dur-pop) var(--ease-kiko);
   }
   .picker-swap[data-slide] {

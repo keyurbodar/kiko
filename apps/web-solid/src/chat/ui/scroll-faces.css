@@ -26,9 +26,11 @@
   margin-left: -26px;
   overflow: hidden;
 }
-.scroll-faces-down:hover {
-  background: var(--hover);
-  transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+  .scroll-faces-down:hover {
+    background: var(--hover);
+    transform: translateY(-1px);
+  }
 }
 .scroll-faces-down:active {
   transform: scale(0.96);
@@ -60,15 +62,27 @@
   opacity: 0;
   transform: translateY(-4px) scale(0.7);
 }
-.scroll-faces-down[data-working]:hover .scroll-faces-arrow,
 .scroll-faces-down[data-working]:focus-visible .scroll-faces-arrow {
   opacity: 1;
   transform: none;
 }
-.scroll-faces-down[data-working]:hover .scroll-faces-ind,
+
+@media (hover: hover) and (pointer: fine) {
+  .scroll-faces-down[data-working]:hover .scroll-faces-arrow {
+    opacity: 1;
+    transform: none;
+  }
+}
 .scroll-faces-down[data-working]:focus-visible .scroll-faces-ind {
   opacity: 0;
   transform: scale(0.6);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .scroll-faces-down[data-working]:hover .scroll-faces-ind {
+    opacity: 0;
+    transform: scale(0.6);
+  }
 }
 
 .scroll-faces-stack {
@@ -138,8 +152,10 @@
     background-color var(--dur-hover) var(--ease-kiko),
     transform var(--dur-hover) var(--ease-kiko);
 }
-.scroll-faces-pill:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .scroll-faces-pill:hover {
+    background: var(--hover);
+  }
 }
 .scroll-faces-pill:active {
   transform: scale(0.97);

@@ -2,6 +2,7 @@ import { RemixIcon, type Glyph } from "@kiko/ui/remix-icon"
 import { ChevronLeftIcon, ChevronRightIcon } from "@kiko/ui/icons"
 import { createEffect, createSignal, For, type JSX, on, onCleanup, onMount, Show } from "solid-js"
 import { cn } from "../lib/cn"
+import { pageIn } from "../lib/motion"
 import "./page-ui.css"
 
 export function PageFrame(props: {
@@ -11,7 +12,7 @@ export function PageFrame(props: {
 }) {
   return (
     <div class="@container/page flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-bg" data-component="page-frame">
-      <div class="motion-page-in mx-auto flex w-full max-w-[1000px] flex-col px-5 pb-20 @min-[640px]/page:px-8">
+      <div ref={pageIn} class="mx-auto flex w-full max-w-[1000px] flex-col px-5 pb-20 @min-[640px]/page:px-8">
         <header class="flex flex-col gap-1 pt-8 max-[767px]:pt-14 @min-[640px]/page:pt-10">
           <Show when={props.back}>
             {(back) => (

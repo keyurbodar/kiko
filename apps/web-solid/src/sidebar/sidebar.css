@@ -80,7 +80,7 @@
     transform var(--dur-hover) var(--ease-kiko);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .panel-icon-button:hover,
   .sidebar-shell .top-bar-button:hover,
   .sidebar-shell .main-sidebar-toggle:hover {
@@ -97,8 +97,10 @@
   color: var(--fg3);
 }
 
-.sidebar-shell .panel-header .panel-icon-button:hover {
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-shell .panel-header .panel-icon-button:hover {
+    color: var(--fg);
+  }
 }
 
 .sidebar-shell .panel-icon-button[data-active],
@@ -166,7 +168,7 @@
   background: var(--active);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .nav-row:hover {
     background: var(--hover);
   }
@@ -231,7 +233,7 @@
   transition: background var(--dur-hover) var(--ease-kiko);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .panel-me:hover {
     background: var(--hover);
   }
@@ -299,7 +301,7 @@
   transition: color var(--dur-hover) var(--ease-kiko);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-section-toggle:hover {
     color: var(--fg2);
   }
@@ -337,7 +339,7 @@
     transform var(--dur-hover) var(--ease-kiko);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-section-button:hover {
     color: var(--fg);
     background: var(--hover);
@@ -439,7 +441,7 @@
   animation: sidebar-row-in var(--dur-pop) var(--ease-kiko) both;
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-row:hover {
     background: var(--hover);
   }
@@ -451,6 +453,17 @@
 
 .sidebar-shell .chat-row[data-active] {
   background: var(--active);
+}
+
+.sidebar-shell .chat-row[data-active][data-gliding] {
+  background: transparent;
+}
+
+.sidebar-shell .chat-glide {
+  position: absolute;
+  border-radius: 10px;
+  background: var(--active);
+  pointer-events: none;
 }
 
 .sidebar-shell .chat-avatar {
@@ -465,9 +478,9 @@
   background: color-mix(in oklab, var(--fg) 5.5%, transparent);
 }
 
-.sidebar-shell .chat-row[data-live] .chat-avatar > * {
-  animation: sidebar-hop 1.4s ease-in-out infinite;
-  transform-origin: 50% 100%;
+.sidebar-shell .chat-mochi {
+  margin-right: 5px;
+  vertical-align: -1px;
 }
 
 .sidebar-shell .chat-text {
@@ -684,22 +697,6 @@
   }
 }
 
-@keyframes sidebar-hop {
-  0%,
-  100% {
-    transform: translateY(0) scale(1, 1);
-  }
-  35% {
-    transform: translateY(-2px) scale(0.95, 1.05);
-  }
-  55% {
-    transform: translateY(0) scale(1.06, 0.94);
-  }
-  70% {
-    transform: none;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .sidebar-shell .chat-shimmer {
     color: var(--fg3);
@@ -707,7 +704,6 @@
     animation: none;
   }
 
-  .sidebar-shell .chat-row[data-live] .chat-avatar > *,
   .sidebar-shell .chat-row[data-enter],
   .sidebar-shell .chat-row[data-need][data-enter],
   .sidebar-shell .chat-pin-icon[data-bounce],
@@ -774,7 +770,7 @@
   color: var(--fg2);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .settings-panel-row:hover {
     background: var(--hover);
   }
@@ -842,7 +838,7 @@
   content: "";
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .resize-handle:hover::after {
     opacity: 1;
   }
@@ -945,8 +941,10 @@
   transition: background var(--dur-hover) var(--ease-kiko);
 }
 
-.update-pill:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .update-pill:hover {
+    background: var(--hover);
+  }
 }
 
 span.update-pill {
