@@ -2,9 +2,17 @@ import * as Alchemy from "alchemy"
 import { adopt } from "alchemy/AdoptPolicy"
 import * as Cloudflare from "alchemy/Cloudflare"
 import * as Effect from "effect/Effect"
+import * as Redacted from "effect/Redacted"
 
 const ZONE = "kiko.works"
 const COMPATIBILITY = "2026-09-01"
+
+const clerkJwtKey = process.env.CLERK_JWT_KEY?.trim() ?? ""
+if (!clerkJwtKey.startsWith("-----BEGIN PUBLIC KEY-----")) {
+  throw new Error(
+    "CLERK_JWT_KEY must hold the Clerk instance's PEM public key. Set the CLERK_JWT_KEY repository variable.",
+  )
+}
 
 export const FrontDoor = Cloudflare.Worker("FrontDoor", {
   name: "kiko-app",
@@ -31,7 +39,7 @@ export const Installer = Cloudflare.Worker("Installer", {
     traces: { enabled: false, persist: true, headSamplingRate: 1 },
   },
   domain: { name: "api.kiko.works", zoneName: ZONE },
-  env: { INSTALLER: Cloudflare.DurableObject("Installer") },
+  env: { INSTALLER: Cloudflare.DurableObject("Installer"), CLERK_JWT_KEY: Redacted.make(clerkJwtKey) },
 })
 
 export default Alchemy.Stack(
