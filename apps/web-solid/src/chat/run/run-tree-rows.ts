@@ -10,6 +10,7 @@ import {
   type StepIcon,
   summarizeSteps,
 } from "./run-log"
+import type { RunSummary } from "./run-summary"
 
 const LIVE_ROWS = 3
 
@@ -61,6 +62,7 @@ export type TreeState = {
   count?: number
   detail: DetailStatus
   workers?: ReadonlySet<string>
+  known?: RunSummary
 }
 
 export const isLive = (steps: readonly Pick<RunStep, "status">[], working: boolean): boolean =>
@@ -178,6 +180,11 @@ function missingRows(missing: boolean, status: DetailStatus): TreeRow[] {
   return pending(status) ? [LOADING] : []
 }
 
+export function summaryOf(steps: readonly RunStep[]): RunSummary | undefined {
+  const label = summarizeSteps(steps)
+  return label ? { label, ...span(steps) } : undefined
+}
+
 export function treeOf(steps: readonly RunStep[], state: TreeState): Tree {
   const entries = buildEntries(steps, state.workers ?? NO_WORKERS)
   const rows = markLivePath(entries.map((entry) => rowOf(entry, state.detail)))
@@ -195,13 +202,8 @@ export function treeOf(steps: readonly RunStep[], state: TreeState): Tree {
   const count = Math.max(state.count ?? 0, steps.length)
   if (count === 0) return { folded: [], shown: [] }
   const missing = steps.length < count
-  const summary = summarizeSteps(steps)
-  const head: TreeHead = {
-    kind: "summary",
-    label: !missing && summary ? summary : plural(count, "step", "steps"),
-    open: state.open,
-    failed: stillFailing(steps),
-    ...(missing ? {} : span(steps)),
-  }
+  const summary = missing ? undefined : summaryOf(steps)
+  const { label, ...times } = summary ?? state.known ?? { label: plural(count, "step", "steps") }
+  const head: TreeHead = { kind: "summary", label, open: state.open, failed: stillFailing(steps), ...times }
   return { head, folded: [...rows, ...missingRows(missing, state.detail)], shown: [] }
 }

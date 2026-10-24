@@ -46,7 +46,7 @@ const BUFFER_SIZE = 600
 
 const LANDING_MS = 1200
 
-const DATE_CHIP_IDLE_MS = 1200
+const DATE_CHIP_IDLE_MS = 800
 
 const READER_SCROLL_MS = 250
 

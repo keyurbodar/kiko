@@ -44,7 +44,7 @@ export function DateChip(props: {
     <div
       class={cn(
         "chat-chip-anchor pointer-events-none absolute top-2.5 right-5 left-3 z-20 flex-col items-center",
-        "invisible flex opacity-0 transition-[opacity,visibility] duration-150 motion-reduce:transition-none",
+        "invisible flex opacity-0 transition-[opacity,visibility] duration-(--dur-hover) ease-kiko motion-reduce:transition-none",
         "data-[visible]:visible data-[visible]:opacity-100",
         props.class,
       )}
@@ -57,10 +57,9 @@ export function DateChip(props: {
         active={open()}
         class={cn(
           "flex w-max max-w-full flex-col items-stretch overflow-clip text-fg",
-          "bg-raise",
           open()
-            ? "rounded-[calc(20px*var(--radius-mult))] w-[320px] max-w-full shadow-popover"
-            : "rounded-full shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--fg)_10%,transparent)]",
+            ? "w-[320px] max-w-full rounded-sheet bg-raise shadow-popover"
+            : "rounded-full bg-bg/80 shadow-[0_6px_16px_-6px_oklch(0%_0_none/0.22),0_0_0_1px_color-mix(in_oklab,var(--fg)_6%,transparent)] backdrop-blur-sm",
         )}
         excludedElements={() => [trigger]}
         onDismiss={close}
@@ -72,7 +71,7 @@ export function DateChip(props: {
             }}
             type="button"
             class={cn(
-              "chat-chip pointer-events-auto min-h-6 cursor-pointer rounded-full px-3 py-1 text-label leading-4 font-semibold text-[color-mix(in_oklab,var(--fg)_75%,transparent)] hover:bg-line2 aria-expanded:bg-line2",
+              "chat-chip pointer-events-auto min-h-6 cursor-pointer rounded-full px-3 py-1 type-label font-semibold text-fg2 transition-colors duration-(--dur-hover) hover:bg-hover aria-expanded:bg-hover",
               open() && "bg-active",
             )}
             data-component="chat-day-chip"
