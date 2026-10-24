@@ -1,24 +1,29 @@
 import { SearchField } from "@kiko/ui/v2/search-field"
 import { createHotkeyRecorder, detectPlatform, formatForDisplay, type Hotkey } from "@tanstack/solid-hotkeys"
-import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { ResetIcon } from "@kiko/ui/icons"
 import { createMemo, createSignal, For, Show } from "solid-js"
 import { bindKey, bindings, resetAllKeys, resetKey } from "../commands/bindings"
 import { commands, GROUP_LABEL, keysOf, shortcutOf, type Command, type CommandGroup } from "../commands/registry"
 import { cn } from "../lib/cn"
 import { browserKey, refusal, sameKey } from "./browser-keys"
-import { Button, Empty, Group, Hint, muted, Row } from "./kit"
+import { Button, Empty, Group, IconButton } from "./kit"
 
 const platform = detectPlatform()
 const ORDER = Object.keys(GROUP_LABEL) as CommandGroup[]
 
 const show = (key: string) => formatForDisplay(key, { platform })
 
-function Keys(props: { keys: string }) {
+const SHINE = { "--run-text": "var(--fg3)", "--visible-animation-state": "running" }
+
+const calm = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
+
+function Keys(props: { keys: string; ref?: (el: HTMLSpanElement) => void }) {
   return (
-    <span class="inline-flex items-center gap-1">
+    <span ref={props.ref} class="inline-flex items-center gap-1" data-field="keys">
       <For each={formatForDisplay(props.keys, { platform, parts: true })}>
         {(part) => (
-          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] bg-active px-1 font-sans text-hint font-medium text-fg2">
+          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-tail bg-active px-1 font-sans text-hint font-medium text-fg2">
             {part}
           </kbd>
         )}
@@ -27,19 +32,46 @@ function Keys(props: { keys: string }) {
   )
 }
 
+type Conflict = { hotkey: Hotkey; owner: Command }
+
 function KeyRow(props: { command: Command }) {
   const [problem, setProblem] = createSignal<string>()
+  const [conflict, setConflict] = createSignal<Conflict>()
+  let row!: HTMLDivElement
+  let keys: HTMLSpanElement | undefined
   const key = () => shortcutOf(props.command)
-  const record = (hotkey: Hotkey) => {
-    setProblem(undefined)
+  const saved = () =>
+    requestAnimationFrame(() => {
+      if (calm()) return
+      row.animate([{ backgroundColor: "var(--hover)" }, { backgroundColor: "transparent" }], {
+        duration: 400,
+        easing: "cubic-bezier(.2,.8,.2,1)",
+      })
+      keys?.animate([{ transform: "scale(0.9)" }, { transform: "scale(1)" }], {
+        duration: 250,
+        easing: "cubic-bezier(.34,1.56,.64,1)",
+      })
+    })
+  const bind = (hotkey: Hotkey) => {
     const id = props.command.id
-    const owner = commands().find((c) => c.id !== id && keysOf(c).some((k) => sameKey(k, hotkey, platform)))
-    if (owner) {
-      bindKey(owner.id, null)
-      showToastV2({ title: `${show(hotkey)} moved from ${owner.title}` })
-    }
     if (props.command.shortcut && sameKey(props.command.shortcut, hotkey, platform)) resetKey(id)
     else bindKey(id, hotkey)
+    saved()
+  }
+  const record = (hotkey: Hotkey) => {
+    setProblem(undefined)
+    setConflict(undefined)
+    const id = props.command.id
+    const owner = commands().find((c) => c.id !== id && keysOf(c).some((k) => sameKey(k, hotkey, platform)))
+    if (owner) return void setConflict({ hotkey, owner })
+    bind(hotkey)
+  }
+  const useAnyway = () => {
+    const taken = conflict()
+    if (!taken) return
+    setConflict(undefined)
+    bindKey(taken.owner.id, null)
+    bind(taken.hotkey)
   }
   const recorder = createHotkeyRecorder(() => ({
     recordBy: "key",
@@ -51,6 +83,7 @@ function KeyRow(props: { command: Command }) {
     onCancel: () => setProblem(undefined),
     onClear: () => {
       setProblem(undefined)
+      setConflict(undefined)
       if (props.command.shortcut) bindKey(props.command.id, null)
       else resetKey(props.command.id)
     },
@@ -61,47 +94,113 @@ function KeyRow(props: { command: Command }) {
       return
     }
     setProblem(undefined)
+    setConflict(undefined)
     recorder.startRecording()
   }
-  const note = () => {
-    if (problem()) return <span class="text-[var(--bad)]">{problem()}</span>
+  const claimed = () => {
     const k = key()
-    const claimed = k && browserKey(k, platform)
-    if (claimed) return `Kiko takes this from the browser, where it means ${claimed.action}.`
-    return undefined
+    const taken = k && browserKey(k, platform)
+    return taken ? `Kiko takes this from the browser, where it means ${taken.action}.` : undefined
   }
   const custom = () => props.command.id in bindings()
   return (
-    <Row
-      label={props.command.title}
-      id={props.command.id}
-      description={note()}
-      onReset={custom() ? () => resetKey(props.command.id) : undefined}
+    <div
+      ref={row}
+      class="group/key flex flex-col rounded-row"
+      data-setting={props.command.id}
       data-custom={custom() ? "" : undefined}
     >
-      <button
-        type="button"
-        class={cn(
-          "inline-flex h-7 min-w-24 cursor-pointer items-center justify-end rounded-control px-2 text-label outline-none hover:bg-[var(--hover)]",
-          recorder.isRecording() && "bg-[var(--hover)] ring-2 ring-[var(--fg3)]",
-        )}
-        aria-label={
-          recorder.isRecording()
-            ? `Press the new shortcut for ${props.command.title}`
-            : `Change the shortcut for ${props.command.title}`
-        }
-        data-action="record-shortcut"
-        data-recording={recorder.isRecording() ? "" : undefined}
-        onClick={toggle}
-        onBlur={() => recorder.isRecording() && recorder.cancelRecording()}
-      >
-        <Show when={!recorder.isRecording()} fallback={<span class="text-fg">Press keys…</span>}>
-          <Show when={key()} fallback={<span class={muted}>None</span>}>
-            {(k) => <Keys keys={k()} />}
-          </Show>
+      <div class="flex items-center gap-1">
+        <button
+          type="button"
+          class="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-6 rounded-row px-3 py-2 text-left outline-none transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover focus-visible:shadow-[var(--focus-ring)] active:scale-[0.99]"
+          aria-label={
+            recorder.isRecording()
+              ? `Press the new shortcut for ${props.command.title}`
+              : `Change the shortcut for ${props.command.title}`
+          }
+          data-action="record-shortcut"
+          data-recording={recorder.isRecording() ? "" : undefined}
+          onClick={toggle}
+          onBlur={() => recorder.isRecording() && recorder.cancelRecording()}
+        >
+          <span class="flex min-w-0 flex-1 flex-col">
+            <span class="truncate type-ui font-medium text-fg">{props.command.title}</span>
+            <Show
+              when={recorder.isRecording()}
+              fallback={
+                <Show when={problem() ?? claimed()}>
+                  {(text) => (
+                    <span class={cn("type-label", problem() ? "text-bad" : "text-fg3")} data-field="shortcut-note">
+                      {text()}
+                    </span>
+                  )}
+                </Show>
+              }
+            >
+              <span class="type-hint text-fg4">Esc to cancel, Backspace to remove</span>
+            </Show>
+          </span>
+          <span
+            class={cn(
+              "inline-flex h-7 min-w-24 shrink-0 items-center justify-end rounded-control px-2 transition-colors duration-(--dur-hover)",
+              recorder.isRecording() && "bg-active",
+            )}
+          >
+            <Show
+              when={!recorder.isRecording()}
+              fallback={
+                <span class="motion-shine type-label text-fg3" style={SHINE}>
+                  Press keys
+                </span>
+              }
+            >
+              <Show
+                when={key()}
+                fallback={
+                  <span class="type-label text-fg3 opacity-0 transition-opacity duration-(--dur-hover) group-hover/key:opacity-100 group-focus-within/key:opacity-100">
+                    Add shortcut
+                  </span>
+                }
+              >
+                {(k) => <Keys keys={k()} ref={(el) => (keys = el)} />}
+              </Show>
+            </Show>
+          </span>
+        </button>
+        <Show when={custom()}>
+          <IconButton
+            label={`Reset ${props.command.title.toLowerCase()} to default`}
+            data-action="reset-setting"
+            onClick={() => {
+              resetKey(props.command.id)
+              saved()
+            }}
+          >
+            <RemixIcon icon={ResetIcon} size={14} />
+          </IconButton>
         </Show>
-      </button>
-    </Row>
+      </div>
+      <Show when={conflict()}>
+        {(taken) => (
+          <p
+            class="flex flex-wrap items-center gap-x-2 px-3 pb-2 type-label text-bad"
+            role="alert"
+            data-field="shortcut-conflict"
+          >
+            {show(taken().hotkey)} already opens {taken().owner.title}.
+            <button
+              type="button"
+              class="link-grow cursor-pointer text-fg"
+              data-action="use-shortcut-anyway"
+              onClick={useAnyway}
+            >
+              Use anyway
+            </button>
+          </p>
+        )}
+      </Show>
+    </div>
   )
 }
 
@@ -122,30 +221,26 @@ export default function KeyboardPage() {
   const changed = () => Object.keys(bindings()).length > 0
   return (
     <div class="flex flex-col gap-8" data-component="keyboard-settings">
-      <div class="flex flex-col gap-2">
-        <div class="flex items-center gap-2">
-          <SearchField
-            wrapClass="min-w-0 flex-1"
-            placeholder="Search shortcuts"
-            aria-label="Search shortcuts"
-            value={query()}
-            onValue={setQuery}
-          />
-          <Show when={changed()}>
-            <Button variant="secondary" data-action="reset-all-shortcuts" onClick={resetAllKeys}>
-              Reset all
-            </Button>
-          </Show>
-        </div>
-        <Hint>
-          Click a shortcut, then press the new keys. Escape cancels and Backspace removes the key. Shortcuts are saved
-          in this browser.
-        </Hint>
+      <div class="flex items-center gap-2">
+        <SearchField
+          wrapClass="min-w-0 flex-1"
+          placeholder="Search shortcuts"
+          aria-label="Search shortcuts"
+          value={query()}
+          onValue={setQuery}
+        />
+        <Show when={changed()}>
+          <Button variant="secondary" data-action="reset-all-shortcuts" onClick={resetAllKeys}>
+            Reset all
+          </Button>
+        </Show>
       </div>
       <For each={groups()} fallback={<Empty>No matching shortcuts</Empty>}>
         {(g) => (
           <Group title={GROUP_LABEL[g.group]} data-shortcut-group={g.group}>
-            <For each={g.list}>{(command) => <KeyRow command={command} />}</For>
+            <div class="flex flex-col gap-0.5 p-1.5">
+              <For each={g.list}>{(command) => <KeyRow command={command} />}</For>
+            </div>
           </Group>
         )}
       </For>
