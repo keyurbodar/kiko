@@ -89,9 +89,13 @@ export function forgetMade(roomId: string, path: string) {
   setMade((list) => list.filter((f) => f.roomId !== roomId || (f.name !== path && !f.name.startsWith(`${path}/`))))
 }
 
+export function rememberMade(roomId: string, file: FileRef) {
+  setMade((m) => [...m, { ...file, roomId }])
+}
+
 export async function createFile(roomId: string, path: string): Promise<boolean> {
   const res = await putFile(roomId, path, "", "text/plain", "none")
   if (res.kind !== "saved") return false
-  setMade((m) => [...m, { ...res.file, roomId }])
+  rememberMade(roomId, res.file)
   return true
 }
