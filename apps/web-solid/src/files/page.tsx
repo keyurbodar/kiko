@@ -1,10 +1,10 @@
 import type { FileRef } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CheckIcon, CloseIcon, GridIcon, MenuIcon, SearchIcon, SettingsIcon } from "@kiko/ui/icons"
+import { CheckIcon, GridIcon, MenuIcon, SettingsIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createMemo, createSignal, For, lazy, Show, Suspense } from "solid-js"
-import { PageFrame, PageTabs, SkeletonRows, ToolButton } from "../customize/page-ui"
+import { PageFrame, PageSearch, PageTabs, SkeletonRows, ToolButton } from "../customize/page-ui"
 import { formatBytes } from "../chat/info/format"
 import { cn } from "../lib/cn"
 import { fileSrc, room } from "../state/room"
@@ -89,9 +89,7 @@ export default function FilesPage() {
   const [sort, setSort] = createSignal<Sort>("name")
   const [view, setView] = createSignal<View>("grid")
   const [query, setQuery] = createSignal("")
-  const [searching, setSearching] = createSignal(false)
   const [opened, setOpened] = createSignal<string | null>(null)
-  let search: HTMLInputElement | undefined
 
   const chatId = () => room.activeId() ?? user.kikoChatId() ?? ""
   const entries = createMemo<Entry[]>(() => {
@@ -133,12 +131,6 @@ export default function FilesPage() {
     setFullSize(false)
     setOpened(path)
   }
-  const toggleSearch = () => {
-    const next = !searching()
-    setSearching(next)
-    if (next) queueMicrotask(() => search?.focus())
-    else setQuery("")
-  }
 
   return (
     <DropZone folder={HOME} onFiles={(files) => void dropFiles(files)}>
@@ -153,26 +145,7 @@ export default function FilesPage() {
               data-component="files-filter"
             />
             <div class="flex items-center gap-1">
-              <Show when={searching()}>
-                <label class="flex h-8 w-[min(220px,40vw)] items-center gap-2 rounded-[9px] bg-panel px-3 text-fg3">
-                  <RemixIcon icon={SearchIcon} size={15} />
-                  <input
-                    ref={search}
-                    type="search"
-                    class="min-w-0 flex-1 bg-transparent text-[13.5px] text-fg outline-none placeholder:text-fg4"
-                    placeholder="Search files"
-                    aria-label="Search files"
-                    value={query()}
-                    onInput={(e) => setQuery(e.currentTarget.value)}
-                    onKeyDown={(e) => e.key === "Escape" && toggleSearch()}
-                  />
-                </label>
-              </Show>
-              <ToolButton
-                label={searching() ? "Close search" : "Search files"}
-                icon={searching() ? CloseIcon : SearchIcon}
-                onClick={toggleSearch}
-              />
+              <PageSearch label="Search files" query={query()} onQuery={setQuery} />
               <MenuV2 gutter={4} placement="bottom-end">
                 <MenuV2.Trigger
                   class="grid size-8 cursor-pointer place-items-center rounded-[9px] text-fg2 transition-[background-color,color,transform] duration-[var(--dur-hover)] hover:bg-hover hover:text-fg active:scale-[0.97]"

@@ -1,12 +1,10 @@
 import type { RecipeCard } from "@kiko/protocol"
-import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CloseIcon, SearchIcon } from "@kiko/ui/icons"
 import { getRouteApi } from "@tanstack/solid-router"
 import { openChat } from "../app/history"
 import { createMemo, createSignal, For, type JSX, Show } from "solid-js"
 import { pageIn } from "../lib/motion"
 import { room } from "../state/room"
-import { PageFrame, PageTabs, SectionHead, SkeletonRows, ToolButton } from "../customize/page-ui"
+import { PageFrame, PageSearch, PageTabs, SectionHead, SkeletonRows } from "../customize/page-ui"
 import { byChatOrder, filterRecipes, openingSection, recipeTags, type Section, type TagFilter, tagLabel } from "./model"
 import { InstallCard } from "./row"
 import { ConnectSheet } from "./connect"
@@ -54,7 +52,6 @@ export default function RecipesPage() {
   )
   const tags = createMemo(() => ["all", ...recipeTags(cards())])
   const shown = createMemo(() => filterRecipes(cards(), query(), tag()))
-  const [searching, setSearching] = createSignal(false)
   const [picked, setSection] = createSignal<Section | null>(null)
   const opening = createMemo<Section | undefined>((settled) => settled ?? openingSection(knownInstalls(), !!roomId()))
   const section = () => picked() ?? opening()
@@ -69,13 +66,6 @@ export default function RecipesPage() {
     const have = new Set(yours().map((i) => i.slug))
     return filterRecipes(cards(), query(), "all").filter((c) => !have.has(c.slug))
   })
-  let search: HTMLInputElement | undefined
-  const toggleSearch = () => {
-    const next = !searching()
-    setSearching(next)
-    if (next) queueMicrotask(() => search?.focus())
-    else setQuery("")
-  }
 
   return (
     <PageFrame title="Recipes">
@@ -95,26 +85,7 @@ export default function RecipesPage() {
                   data-component="recipes-sections"
                 />
                 <div class="flex items-center gap-1">
-                  <Show when={searching()}>
-                    <label class="flex h-8 w-[min(240px,50vw)] items-center gap-2 rounded-[9px] bg-panel px-3 text-fg3">
-                      <RemixIcon icon={SearchIcon} size={15} />
-                      <input
-                        ref={search}
-                        type="search"
-                        class="min-w-0 flex-1 bg-transparent text-[13.5px] text-fg outline-none placeholder:text-fg4"
-                        placeholder="Search recipes"
-                        aria-label="Search recipes"
-                        value={query()}
-                        onInput={(e) => setQuery(e.currentTarget.value)}
-                        onKeyDown={(e) => e.key === "Escape" && toggleSearch()}
-                      />
-                    </label>
-                  </Show>
-                  <ToolButton
-                    label={searching() ? "Close search" : "Search recipes"}
-                    icon={searching() ? CloseIcon : SearchIcon}
-                    onClick={toggleSearch}
-                  />
+                  <PageSearch label="Search recipes" query={query()} onQuery={setQuery} />
                 </div>
               </div>
 
