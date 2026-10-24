@@ -1,5 +1,8 @@
 import { useNavigate } from "@tanstack/solid-router"
+import * as Effect from "effect/Effect"
+import * as Result from "effect/Result"
 import { Match, Show, Switch, createSignal, onMount } from "solid-js"
+import { detachBackend, detachSentence, livePorts } from "../app/connect-flow"
 import { hosted, profile } from "../app/hosted"
 import { session, signOut } from "../app/session"
 import {
@@ -13,7 +16,7 @@ import {
   startUpdate,
   view,
 } from "../app/update-flow"
-import { base } from "../lib/api-base"
+import { base, write } from "../lib/api-base"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { APP_VERSION } from "../lib/version-skew"
 import { Button, Group, Item, Pill, Row, Spinner } from "./kit"
@@ -28,6 +31,45 @@ const PROVIDER_LABEL: Record<string, string> = {
 const providerLabel = (id: string) => PROVIDER_LABEL[id] ?? id.charAt(0).toUpperCase() + id.slice(1)
 
 const SKEW_TEXT = { ok: "Up to date", update: "Update available", blocked: "Update required" } as const
+
+function DisconnectBackend() {
+  const [leaving, setLeaving] = createSignal(false)
+  const [problem, setProblem] = createSignal("")
+  const disconnect = async () => {
+    setLeaving(true)
+    setProblem("")
+    const detached = await Effect.runPromise(Effect.result(detachBackend(livePorts)))
+    if (Result.isFailure(detached)) {
+      setProblem(detachSentence(detached.failure))
+      setLeaving(false)
+      return
+    }
+    write("kiko:backend", null)
+    await signOut().finally(() => setLeaving(false))
+  }
+  return (
+    <Row
+      label="Disconnect backend"
+      description={
+        <>
+          Unlinks this backend from your sign-in and signs you out. Its chats stay in your Cloudflare account, and
+          connecting that account again brings them back.
+          <Show when={problem()}>
+            {(text) => (
+              <span class="mt-1 block text-[var(--error)]" role="alert" data-field="disconnect-problem">
+                {text()}
+              </span>
+            )}
+          </Show>
+        </>
+      }
+    >
+      <Button data-action="disconnect-backend" busy={leaving()} onClick={() => void disconnect()}>
+        Disconnect
+      </Button>
+    </Row>
+  )
+}
 
 function Backend() {
   const navigate = useNavigate()
@@ -130,6 +172,7 @@ function Backend() {
           Reconnect Cloudflare
         </Button>
       </Row>
+      <DisconnectBackend />
     </Group>
   )
 }

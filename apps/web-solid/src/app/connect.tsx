@@ -1,43 +1,58 @@
 import { useLocation, useNavigate } from "@tanstack/solid-router"
+import * as Effect from "effect/Effect"
+import * as Result from "effect/Result"
 import { For, Match, Show, Switch, createEffect, createSignal, onCleanup, onMount } from "solid-js"
+import { write } from "../lib/api-base"
+import { SECRET_FIELD } from "../lib/secret-field"
 import { Button } from "../settings/kit"
 import {
-  STEPS,
-  type Failure,
-  type Grant,
-  type InstallError,
+  type Attempt,
+  anotherAccount,
   authorizeUrl,
-  connect,
-  failureOf,
-  finish,
-  retryKind,
-  tokenProblem,
-  loadOAuthConfig,
-  loadTokenLink,
+  FIX_LABEL,
+  type Failure,
+  type Fix,
+  headingOf,
+  livePorts,
   makePkce,
   oauthGrant,
+  pickAccount,
   redirectUri,
+  STEPS,
   savePending,
+  sendAttempt,
+  sentenceOf,
+  signInFailed,
+  startFresh,
+  takeOver,
   takePending,
-  type TokenLink,
+  tokenProblem,
+  type View,
+  viewOfAnswer,
+  viewOfTrouble,
 } from "./connect-flow"
 import "./first-run/first-run.css"
 import { enteringFresh, setWorking } from "./first-run/progress"
-import { signInToInstalledBackend } from "./session"
-import { SECRET_FIELD } from "../lib/secret-field"
-
-type View =
-  | { name: "start" }
-  | { name: "installing" }
-  | { name: "failed"; failure: Failure; retry: () => void }
-  | { name: "choose"; accounts: { id: string; name: string }[]; pick: (id: string) => void }
+import { type Account, installerClient, type TokenLink } from "./installer-client"
+import { signInToInstalledBackend, signOut } from "./session"
 
 type TokenSteps =
   | { status: "idle" | "loading" }
   | { status: "ready"; link: TokenLink }
   | { status: "failed"; message: string }
 
+type ViewOf<T extends View["_tag"]> = Extract<View, { _tag: T }>
+
+const isView = <T extends View["_tag"]>(view: View, tag: T): view is ViewOf<T> => view._tag === tag
+
 const link = "text-sm text-foreground underline underline-offset-2"
+
+const FIX_ACTION: Record<Fix["_tag"], string> = {
+  Resend: "try-again",
+  Reconnect: "connect-again",
+  SignInAgain: "sign-in-again",
+  FinishSignIn: "try-again",
+}
 
 export default function ConnectPage() {
   return (
@@ -67,13 +82,110 @@ function InstallProgress() {
   )
 }
 
+function FailedPanel(props: { failure: Failure; onFix: (fix: Fix) => void }) {
+  return (
+    <div class="flex flex-col gap-2" role="alert" data-field="install-error">
+      <p class="text-sm text-[var(--error)]">{props.failure.sentence}</p>
+      <Show when={props.failure.detail}>
+        {(detail) => (
+          <p class="text-xs break-words text-muted-foreground" data-field="install-error-detail">
+            Cloudflare said: {detail()}
+          </p>
+        )}
+      </Show>
+      <div class="flex items-center gap-3">
+        <Show when={props.failure.link}>
+          {(l) => (
+            <a class={link} href={l().href} target="_blank" rel="noreferrer">
+              {l().label}
+            </a>
+          )}
+        </Show>
+        <Button
+          variant="primary"
+          data-action={FIX_ACTION[props.failure.fix._tag]}
+          onClick={() => props.onFix(props.failure.fix)}
+        >
+          {FIX_LABEL[props.failure.fix._tag]}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function AccountPicker(props: { accounts: ReadonlyArray<Account>; onPick: (accountId: string) => void }) {
+  return (
+    <div class="flex flex-col gap-2" data-field="choose-account">
+      <p class="text-sm text-foreground">
+        This sign-in can use more than one Cloudflare account. Pick the one Kiko goes in.
+      </p>
+      <For each={props.accounts}>
+        {(account) => (
+          <Button class="h-11 w-full justify-start" data-action="pick-account" onClick={() => props.onPick(account.id)}>
+            {account.name}
+          </Button>
+        )}
+      </For>
+    </div>
+  )
+}
+
+function DecidePanel(props: {
+  view: ViewOf<"Decide">
+  onTakeOver: () => void
+  onStartFresh: () => void
+  onAnotherAccount: () => void
+}) {
+  return (
+    <div class="flex flex-col gap-2" data-field="decide">
+      <Show when={props.view.note}>
+        {(note) => (
+          <p class="text-sm text-[var(--error)]" role="alert">
+            {note()}
+          </p>
+        )}
+      </Show>
+      <Show when={props.view.found.keepable}>
+        <Button variant="primary" class="h-11 w-full" data-action="take-over" onClick={() => props.onTakeOver()}>
+          Keep chats (take over)
+        </Button>
+      </Show>
+      <Button class="h-11 w-full" data-action="start-fresh" onClick={() => props.onStartFresh()}>
+        Start fresh (deletes its chats)
+      </Button>
+      <Button
+        variant="ghost"
+        class="h-11 w-full"
+        data-action="another-account"
+        onClick={() => props.onAnotherAccount()}
+      >
+        Use another Cloudflare account
+      </Button>
+    </div>
+  )
+}
+
+function ConfirmFreshPanel(props: { onConfirm: () => void; onBack: () => void }) {
+  return (
+    <div class="flex flex-col gap-2" data-field="confirm-start-fresh">
+      <Button variant="danger" class="h-11 w-full" data-action="confirm-start-fresh" onClick={() => props.onConfirm()}>
+        Delete and start fresh
+      </Button>
+      <Button class="h-11 w-full" data-action="cancel-start-fresh" onClick={() => props.onBack()}>
+        Back
+      </Button>
+    </div>
+  )
+}
+
 export function ConnectCloudflare() {
   const location = useLocation()
   const navigate = useNavigate()
-  const reconnect = () => new URLSearchParams(location().searchStr).get("reconnect") === "1"
-  const [view, setView] = createSignal<View>({
-    name: location().pathname === "/connect/callback" ? "installing" : "start",
-  })
+  const callback = location().pathname === "/connect/callback"
+  const pending = callback ? takePending() : null
+  const reconnect = () =>
+    pending?.reconnect === true || new URLSearchParams(location().searchStr).get("reconnect") === "1"
+  const [view, setView] = createSignal<View>(callback ? { _tag: "Working" } : { _tag: "Start", paste: null })
   const [tokenOpen, setTokenOpen] = createSignal(false)
   const [tokenSteps, setTokenSteps] = createSignal<TokenSteps>({ status: "idle" })
   const tokenLink = () => {
@@ -87,269 +199,225 @@ export function ConnectCloudflare() {
   const [token, setToken] = createSignal("")
   const [note, setNote] = createSignal("")
   const [redirecting, setRedirecting] = createSignal(false)
+  const viewAs = <T extends View["_tag"]>(tag: T) => {
+    const current = view()
+    return isView(current, tag) ? current : undefined
+  }
+  const heading = () => headingOf(view(), reconnect())
 
-  const startAgain = () => {
-    setView({ name: "start" })
-    void navigate({ to: "/connect", search: reconnect() ? { reconnect: 1 } : {}, replace: true })
+  function show(next: View) {
+    if (next._tag === "Start" && next.paste) {
+      setNote(next.paste.note)
+      if (!next.paste.keep) setToken("")
+      void openToken()
+    }
+    setView(next)
   }
 
-  const signIn = () => {
-    if (!reconnect()) enteringFresh()
-    return signInToInstalledBackend()
-  }
-
-  const pasteAgain = (message: string) => {
-    setView({ name: "start" })
-    setToken("")
-    setNote(message)
-    void openToken()
-  }
-
-  const show = (error: InstallError | null, again: () => void, grant: Grant["kind"] = "oauth") => {
-    if (!error) return void navigate({ to: "/", replace: true })
-    const failure = failureOf(error)
-    const retry = {
-      "sign-in": () => void finishOnly(),
-      "new-grant": () => void withCloudflare(),
-      token: () => pasteAgain(failure.message),
-      same: again,
-    }[retryKind(error, grant)]
-    setView({ name: "failed", failure, retry })
-  }
-
-  async function finishOnly() {
-    setView({ name: "installing" })
-    show(await finish(signIn), () => void finishOnly())
-  }
-
-  const run = async (grant: Grant, accountId?: string, reset?: "delete-existing-data"): Promise<void> => {
-    setView({ name: "installing" })
-    const again = () => void run(grant, accountId, reset)
+  async function finishSignIn() {
+    setView({ _tag: "Working" })
     try {
-      const clerkToken = await import("./clerk").then((m) => m.clerkSignIn()).then((c) => c?.token)
-      if (!clerkToken) throw new Error("Your Kiko sign-in ended. Reload the page and sign in again.")
-      const error = await connect(clerkToken, grant, signIn, fetch, accountId, reset)
-      if (error?.code === "choose_account" && error.accounts?.length) {
-        setView({ name: "choose", accounts: error.accounts, pick: (id) => void run(grant, id) })
-        return
-      }
-      if (error?.code === "reset_required") {
-        if (window.confirm(error.message)) return run(grant, accountId, "delete-existing-data")
-        setView({ name: "failed", failure: { message: error.message }, retry: () => void run(grant, accountId) })
-        return
-      }
-      show(error, again, grant.kind)
-    } catch (e) {
-      setView({
-        name: "failed",
-        failure: { message: e instanceof Error ? e.message : "Could not finish connecting. Try again." },
-        retry: again,
-      })
+      await signInToInstalledBackend()
+      void navigate({ to: "/", replace: true })
+    } catch (error) {
+      show(signInFailed(error))
     }
   }
 
-  createEffect(() => setWorking(view().name === "installing" || redirecting()))
-  onCleanup(() => setWorking(false))
-
-  onMount(() => {
-    if (location().pathname !== "/connect/callback") return
-    const result = oauthGrant(location().searchStr, takePending(), redirectUri(globalThis.location.origin))
-    if ("error" in result) setView({ name: "failed", failure: failureOf(result.error), retry: startAgain })
-    else void run(result.grant)
-  })
+  async function send(attempt: Attempt) {
+    setView({ _tag: "Working" })
+    const result = await Effect.runPromise(Effect.result(sendAttempt(attempt, livePorts)))
+    if (Result.isFailure(result)) return show(viewOfTrouble(result.failure, attempt))
+    const answer = result.success
+    if (answer._tag !== "Installed") return show(viewOfAnswer(answer, attempt))
+    write("kiko:backend", answer.backendUrl)
+    if (!reconnect()) enteringFresh()
+    await finishSignIn()
+  }
 
   async function withCloudflare() {
+    show({ _tag: "Start", paste: null })
     setNote("")
     setRedirecting(true)
-    try {
-      const config = await loadOAuthConfig()
-      const pkce = await makePkce()
-      savePending(pkce, reconnect())
-      globalThis.location.assign(authorizeUrl(config, pkce, redirectUri(globalThis.location.origin)))
-    } catch (e) {
-      setNote(e instanceof Error ? e.message : "Could not start. Try again.")
+    const config = await Effect.runPromise(Effect.result(installerClient.oauthConfig))
+    if (Result.isFailure(config)) {
+      setNote(sentenceOf(config.failure))
       setRedirecting(false)
+      return
     }
+    const pkce = await makePkce()
+    savePending(pkce, reconnect())
+    globalThis.location.assign(authorizeUrl(config.success, pkce, redirectUri(globalThis.location.origin)))
   }
 
   async function openToken() {
     setTokenOpen(true)
     if (tokenSteps().status === "ready" || tokenSteps().status === "loading") return
     setTokenSteps({ status: "loading" })
-    try {
-      setTokenSteps({ status: "ready", link: await loadTokenLink() })
-    } catch (e) {
-      setTokenSteps({
-        status: "failed",
-        message: e instanceof Error ? e.message : "Could not load the token steps. Try again.",
-      })
-    }
+    const steps = await Effect.runPromise(Effect.result(installerClient.tokenLink))
+    setTokenSteps(
+      Result.isSuccess(steps)
+        ? { status: "ready", link: steps.success }
+        : { status: "failed", message: sentenceOf(steps.failure) },
+    )
   }
 
+  function fix(next: Fix) {
+    if (next._tag === "Resend") return void send(next.attempt)
+    if (next._tag === "Reconnect") return void withCloudflare()
+    if (next._tag === "SignInAgain") return void signOut()
+    return void finishSignIn()
+  }
+
+  function chooseAnotherAccount(decide: ViewOf<"Decide">) {
+    const next = anotherAccount(decide)
+    if (next) show(next)
+    else void withCloudflare()
+  }
+
+  createEffect(() => setWorking(view()._tag === "Working" || redirecting()))
+  onCleanup(() => setWorking(false))
+
+  onMount(() => {
+    if (!callback) return
+    const result = oauthGrant(location().searchStr, pending, redirectUri(globalThis.location.origin))
+    if ("trouble" in result) show(viewOfTrouble(result.trouble, null))
+    else void send({ grant: result.grant })
+  })
+
   return (
-    <div class="welcome-step flex w-full flex-col gap-3" data-component="connect" data-step="cloudflare">
+    <div
+      class="welcome-step flex w-full flex-col gap-3"
+      data-component="connect"
+      data-step="cloudflare"
+      data-view={view()._tag}
+    >
       <h1 class="welcome-title" style={{ "--i": 0 }}>
-        {view().name === "installing"
-          ? "Installing Kiko"
-          : reconnect()
-            ? "Reconnect Cloudflare"
-            : "Put Kiko on your Cloudflare"}
+        {heading().title}
       </h1>
-      <p class="welcome-lede" style={{ "--i": 1 }}>
-        {view().name === "installing"
-          ? "This takes up to a minute."
-          : reconnect()
-            ? "Your Cloudflare connection has ended. Connect it again so Kiko keeps running in your account."
-            : "Kiko runs in your own Cloudflare account. Your chats and keys stay there."}
+      <p class="welcome-lede break-words" style={{ "--i": 1 }}>
+        {heading().lede}
       </p>
       <Switch>
-        <Match when={view().name === "installing"}>
+        <Match when={view()._tag === "Working"}>
           <InstallProgress />
         </Match>
-        <Match when={view()} keyed>
-          {(v) => (
-            <>
-              <Show when={v.name === "failed" && v}>
-                {(f) => (
-                  <div class="flex flex-col gap-2" role="alert" data-field="install-error">
-                    <p class="text-sm text-[var(--error)]">{f().failure.message}</p>
-                    <Show when={f().failure.detail}>
-                      {(d) => (
-                        <p class="text-xs break-words text-muted-foreground" data-field="install-error-detail">
-                          Cloudflare said: {d()}
-                        </p>
-                      )}
-                    </Show>
-                    <div class="flex items-center gap-3">
-                      <Show when={f().failure.link}>
-                        {(l) => (
-                          <a class={link} href={l().href} target="_blank" rel="noreferrer">
-                            {l().label}
-                          </a>
-                        )}
-                      </Show>
-                      <Button variant="primary" data-action="try-again" onClick={() => f().retry()}>
-                        Try again
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </Show>
-              <Show when={v.name === "choose" && v}>
-                {(c) => (
-                  <div class="flex flex-col gap-2" data-field="choose-account">
-                    <p class="text-sm text-foreground">
-                      This sign-in can use more than one Cloudflare account. Pick the one Kiko goes in.
-                    </p>
-                    <For each={c().accounts}>
-                      {(a) => (
-                        <Button
-                          class="h-11 w-full justify-start"
-                          data-action="pick-account"
-                          onClick={() => c().pick(a.id)}
-                        >
-                          {a.name}
-                        </Button>
-                      )}
-                    </For>
-                  </div>
-                )}
-              </Show>
-              <Show when={v.name === "start"}>
-                <Button
-                  variant="primary"
-                  class="h-11 w-full"
-                  disabled={redirecting()}
-                  data-action="connect-cloudflare"
-                  onClick={() => void withCloudflare()}
-                >
-                  {redirecting() ? "Opening Cloudflare" : "Connect Cloudflare"}
-                </Button>
-                <Show when={note()}>
-                  <p class="text-sm text-[var(--error)]" role="alert">
-                    {note()}
-                  </p>
-                </Show>
-                <Show
-                  when={tokenOpen()}
-                  fallback={
-                    <Button class="h-11 w-full" data-action="use-token" onClick={() => void openToken()}>
-                      Use an API token instead
-                    </Button>
-                  }
-                >
-                  <form
-                    class="flex flex-col gap-3 rounded-lg bg-control px-4 py-3"
-                    data-field="token-form"
-                    onSubmit={(e) => {
-                      e.preventDefault()
-                      const value = token().trim()
-                      const problem = tokenProblem(value)
-                      if (problem) setNote(problem)
-                      else if (value) void run({ kind: "token", token: value })
-                    }}
-                  >
-                    <Show
-                      when={tokenLink()}
-                      fallback={
-                        <Show
-                          when={tokenFailure()}
-                          fallback={
-                            <p class="text-sm text-muted-foreground" role="status">
-                              Loading the token steps
-                            </p>
-                          }
-                        >
-                          {(message) => (
-                            <div class="flex flex-col gap-2">
-                              <p class="text-sm text-[var(--error)]" role="alert">
-                                {message()}
-                              </p>
-                              <Button type="button" data-action="retry-token-steps" onClick={() => void openToken()}>
-                                Try again
-                              </Button>
-                            </div>
-                          )}
-                        </Show>
-                      }
-                    >
-                      {(t) => (
-                        <>
-                          <a class={link} href={t().url} target="_blank" rel="noreferrer" data-action="create-token">
-                            Create a token with these permissions
-                          </a>
-                          <p class="text-sm text-muted-foreground">
-                            The link ticks them for you. Check that they match, then create the token and paste it here.
-                          </p>
-                          <ul
-                            class="flex list-disc flex-col gap-1 pl-5 text-sm text-foreground"
-                            data-field="token-permissions"
-                          >
-                            <For each={t().permissions}>{(p) => <li>{p}</li>}</For>
-                          </ul>
-                        </>
-                      )}
-                    </Show>
-                    <input
-                      {...SECRET_FIELD}
-                      class="kit-field"
-                      placeholder="Paste your API token"
-                      aria-label="API token"
-                      value={token()}
-                      onInput={(e) => {
-                        setToken(e.currentTarget.value)
-                        setNote("")
-                      }}
-                      data-field="token"
-                    />
-                    <Button variant="primary" type="submit" disabled={!token().trim()} data-action="install">
-                      Install
-                    </Button>
-                  </form>
-                </Show>
-              </Show>
-            </>
+        <Match when={viewAs("Failed")}>{(failed) => <FailedPanel failure={failed().failure} onFix={fix} />}</Match>
+        <Match when={viewAs("ChooseAccount")}>
+          {(choose) => (
+            <AccountPicker accounts={choose().accounts} onPick={(id) => void send(pickAccount(choose(), id))} />
           )}
+        </Match>
+        <Match when={viewAs("Decide")}>
+          {(decide) => (
+            <DecidePanel
+              view={decide()}
+              onTakeOver={() => void send(takeOver(decide()))}
+              onStartFresh={() => setView({ _tag: "ConfirmFresh", attempt: decide().attempt, found: decide().found })}
+              onAnotherAccount={() => chooseAnotherAccount(decide())}
+            />
+          )}
+        </Match>
+        <Match when={viewAs("ConfirmFresh")}>
+          {(confirm) => (
+            <ConfirmFreshPanel
+              onConfirm={() => void send(startFresh(confirm()))}
+              onBack={() => setView({ _tag: "Decide", attempt: confirm().attempt, found: confirm().found, note: null })}
+            />
+          )}
+        </Match>
+        <Match when={view()._tag === "Start"}>
+          <Button
+            variant="primary"
+            class="h-11 w-full"
+            disabled={redirecting()}
+            data-action="connect-cloudflare"
+            onClick={() => void withCloudflare()}
+          >
+            {redirecting() ? "Opening Cloudflare" : "Connect Cloudflare"}
+          </Button>
+          <Show when={note()}>
+            <p class="text-sm text-[var(--error)]" role="alert" data-field="connect-note">
+              {note()}
+            </p>
+          </Show>
+          <Show
+            when={tokenOpen()}
+            fallback={
+              <Button class="h-11 w-full" data-action="use-token" onClick={() => void openToken()}>
+                Use an API token instead
+              </Button>
+            }
+          >
+            <form
+              class="flex flex-col gap-3 rounded-lg bg-control px-4 py-3"
+              data-field="token-form"
+              onSubmit={(e) => {
+                e.preventDefault()
+                const value = token().trim()
+                const problem = tokenProblem(value)
+                if (problem) setNote(problem)
+                else if (value) void send({ grant: { kind: "token", token: value } })
+              }}
+            >
+              <Show
+                when={tokenLink()}
+                fallback={
+                  <Show
+                    when={tokenFailure()}
+                    fallback={
+                      <p class="text-sm text-muted-foreground" role="status">
+                        Loading the token steps
+                      </p>
+                    }
+                  >
+                    {(message) => (
+                      <div class="flex flex-col gap-2">
+                        <p class="text-sm text-[var(--error)]" role="alert">
+                          {message()}
+                        </p>
+                        <Button type="button" data-action="retry-token-steps" onClick={() => void openToken()}>
+                          Try again
+                        </Button>
+                      </div>
+                    )}
+                  </Show>
+                }
+              >
+                {(t) => (
+                  <>
+                    <a class={link} href={t().url} target="_blank" rel="noreferrer" data-action="create-token">
+                      Create a token with these permissions
+                    </a>
+                    <p class="text-sm text-muted-foreground">
+                      The link ticks them for you. Check that they match, then create the token and paste it here.
+                    </p>
+                    <ul
+                      class="flex list-disc flex-col gap-1 pl-5 text-sm text-foreground"
+                      data-field="token-permissions"
+                    >
+                      <For each={t().permissions}>{(p) => <li>{p}</li>}</For>
+                    </ul>
+                  </>
+                )}
+              </Show>
+              <input
+                {...SECRET_FIELD}
+                class="kit-field"
+                placeholder="Paste your API token"
+                aria-label="API token"
+                value={token()}
+                onInput={(e) => {
+                  setToken(e.currentTarget.value)
+                  setNote("")
+                }}
+                data-field="token"
+              />
+              <Button variant="primary" type="submit" disabled={!token().trim()} data-action="install">
+                Install
+              </Button>
+            </form>
+          </Show>
         </Match>
       </Switch>
     </div>
