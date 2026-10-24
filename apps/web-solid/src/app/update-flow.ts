@@ -3,7 +3,9 @@ import { UpdateState } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
+import * as PubSub from "effect/PubSub"
 import * as Schema from "effect/Schema"
+import * as Stream from "effect/Stream"
 import { createComputed, createRoot, createSignal, on } from "solid-js"
 import { apiFetch } from "../lib/api"
 import { base } from "../lib/api-base"
@@ -11,6 +13,7 @@ import {
   CURRENT,
   type Hold,
   holdOf,
+  landed,
   LATEST_POLL_MS,
   noticeOf,
   pillView,
@@ -21,7 +24,7 @@ import {
   type UpdatePhase,
   updateTarget,
 } from "../lib/update"
-import { APP_VERSION, clientBehind, olderThan, type Skew } from "../lib/version-skew"
+import { APP_VERSION, clientBehind, type Skew } from "../lib/version-skew"
 import { connection, type ConnectionView } from "../state/connection"
 import { user } from "../state/user"
 import { hosted } from "./hosted"
@@ -56,8 +59,18 @@ export const notice = () => noticeOf(hold(), phase())
 
 export const view = () => pillView(phase(), readOnly(), clientIsBehind() || currentSkew() === "update")
 
+const learned = Effect.runSync(PubSub.unbounded<Descriptor>())
+
+const reached = (to: string): Effect.Effect<UpdatePhase> =>
+  Stream.fromPubSub(learned).pipe(
+    Stream.filter((next) => landed(next, to)),
+    Stream.runHead,
+    Effect.as(CURRENT),
+  )
+
 function learn(next: Descriptor): void {
   setDescriptor(next)
+  PubSub.publishUnsafe(learned, next)
   if (compatibility(next) === "compatible" && blockedBy(connection.view())) connection.retry()
 }
 
@@ -93,7 +106,7 @@ function begin(to: string, compatible: boolean): void {
   const restarted = Effect.sync(() =>
     setPhase((now) => (now._tag === "Updating" && now.stage === "restarting" ? now : updating("restarting"))),
   )
-  void Effect.runPromise(runUpdate(backend, to, restarted)).then((next) => {
+  void Effect.runPromise(runUpdate(backend, to, restarted).pipe(Effect.raceFirst(reached(to)))).then((next) => {
     setPhase(next)
     if (next._tag !== "Current") return
     if (clientBehind(APP_VERSION, to)) return location.reload()
@@ -125,7 +138,7 @@ createRoot(() =>
 export async function startUpdate(): Promise<void> {
   const to = updateTarget(APP_VERSION, latest())
   const next = await refreshBackend()
-  if (next._tag === "Current" && !olderThan(next.version, to) && clientBehind(APP_VERSION, to)) return location.reload()
+  if (landed(next, to) && clientBehind(APP_VERSION, to)) return location.reload()
   consider(next, to, false)
 }
 

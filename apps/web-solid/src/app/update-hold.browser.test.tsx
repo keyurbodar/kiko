@@ -11,6 +11,7 @@ describe("a backend updating to a new protocol", () => {
     using backend = fakeBackend({ kiko: 1, version: APP_VERSION, protocol: PROTOCOL - 1, selfUpdate: true })
     await using screen = await render(() => <RouterProvider router={chatRouter()} />)
     const sendBlock = () => screen.container.querySelector('[data-component="composer-send-block"]')
+    const pill = () => screen.container.querySelector('[data-component="update-pill"]')?.textContent ?? null
     await expect.poll(() => editable(screen.container)).toBe("true")
     expect(sendBlock()).not.toBeNull()
 
@@ -23,11 +24,13 @@ describe("a backend updating to a new protocol", () => {
     expect(screen.container.querySelectorAll('[data-component="update-notice"]')).toHaveLength(1)
     expect(sendBlock()).toBeNull()
     expect(screen.container.querySelector('[data-component="update-notice"] button')).toBeNull()
+    expect(pill()).toBe("Updating")
 
     backend.descriptor = { kiko: 1, version: APP_VERSION, protocol: PROTOCOL, selfUpdate: true }
     await refreshBackend()
     await expect.poll(() => editable(screen.container)).toBe("true")
     expect(screen.container.querySelector('[data-component="update-notice"]')).toBeNull()
     expect(sendBlock()).not.toBeNull()
+    await expect.poll(pill).toBeNull()
   })
 })

@@ -44,6 +44,9 @@ export interface UpdateBackend {
   readonly descriptor: Effect.Effect<Descriptor>
 }
 
+export const landed = (descriptor: Descriptor, to: string): boolean =>
+  descriptor._tag === "Current" && !olderThan(descriptor.version, to)
+
 const POLL_EVERY = "2 seconds"
 const GIVE_UP_AFTER = "3 minutes"
 
@@ -59,8 +62,7 @@ const watch = Effect.fn("Update.watch")(function* (backend: UpdateBackend, to: s
     const state = yield* backend.state
     if (state?.stage === "failed") return failed(to, state.error)
     if (state?.stage === "restarting") yield* onRestart
-    const descriptor = yield* backend.descriptor
-    if (descriptor._tag === "Current" && !olderThan(descriptor.version, to)) return CURRENT
+    if (landed(yield* backend.descriptor, to)) return CURRENT
   }
 })
 

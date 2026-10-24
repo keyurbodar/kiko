@@ -2,6 +2,7 @@ import { createMemoryHistory, createRootRoute, createRoute, createRouter, Outlet
 import { vi } from "vitest"
 import { readOnly } from "../src/app/update-flow"
 import UpdateNotice from "../src/app/update-notice"
+import UpdatePill from "../src/app/update-pill"
 import { Composer } from "../src/composer/composer"
 import type { SendBlock } from "../src/settings/send-block"
 
@@ -35,6 +36,7 @@ const MODEL_BLOCK: SendBlock = { reason: "Connect a model provider to chat.", ac
 function ChatComposer() {
   return (
     <>
+      <UpdatePill />
       <UpdateNotice />
       <Composer
         threadId={ROOM}
