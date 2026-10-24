@@ -35,3 +35,11 @@ export function indexOf(step: Step, hosted: boolean): number {
   const steps = stepsFor(hosted)
   return step === "done" ? steps.length : steps.findIndex((s) => s.step === step)
 }
+
+export const resumedStep = (f: { fresh: boolean; acted: boolean; step: Step }): Step | null =>
+  !f.fresh && !f.acted && (f.step === "connect" || f.step === "model") ? f.step : null
+
+export const resumeLine = (step: Step, hosted: boolean): string => {
+  const label = stepsFor(hosted).find((s) => s.step === step)?.label ?? "setup"
+  return `You stopped at ${label}.${hosted ? " Cloudflare is ready." : ""}`
+}

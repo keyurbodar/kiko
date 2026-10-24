@@ -13,8 +13,8 @@ import { DoneStep } from "./done-step"
 import { Illustration, type IllustrationName } from "./illustrations"
 import { Perch } from "./mascots"
 import { ModelStep } from "./model-step"
-import { currentStep, finished, setStep, working } from "./progress"
-import { indexOf, stepsFor, type Step } from "./steps"
+import { currentStep, dismissResume, finished, resumed, setStep, working } from "./progress"
+import { indexOf, resumeLine, stepsFor, type Step } from "./steps"
 import { AccessCode } from "./welcome"
 
 const STEPS = stepsFor(hosted)
@@ -102,6 +102,18 @@ export default function FirstRun() {
                   </button>
                 </Show>
               </div>
+            </Show>
+            <Show when={resumed()}>
+              {(step) => (
+                <div class="ob-resume" role="status" data-component="first-run-resume">
+                  <p>
+                    <b>Welcome back.</b> {resumeLine(step(), hosted)}
+                  </p>
+                  <button type="button" data-action="resume-dismiss" onClick={dismissResume}>
+                    Pick up where I left
+                  </button>
+                </div>
+              )}
             </Show>
             <Show when={currentStep()} keyed>
               {(step) => (

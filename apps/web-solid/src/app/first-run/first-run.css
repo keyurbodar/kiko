@@ -467,6 +467,41 @@
   font-size: 13.5px;
   line-height: 20px;
 }
+.ob-resume {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+  border-radius: 16px;
+  background: var(--hover);
+  padding: 14px 16px;
+  color: var(--fg2);
+  font-size: 14px;
+  line-height: 20px;
+  animation: ob-fade var(--dur-step) var(--ease-kiko) both;
+}
+.ob-resume p {
+  margin: 0;
+}
+.ob-resume b {
+  color: var(--fg);
+  font-weight: 600;
+}
+.ob-resume button {
+  height: 32px;
+  cursor: pointer;
+  border-radius: 9px;
+  background: var(--fg);
+  padding: 0 12px;
+  color: var(--bg);
+  font-size: 13.5px;
+  font-weight: 600;
+  transition: transform var(--dur-hover) var(--ease-kiko);
+}
+.ob-resume button:active {
+  transform: scale(0.97);
+}
 .ob-wait {
   display: flex;
   align-items: center;

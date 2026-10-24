@@ -26,8 +26,16 @@ export function flipRows(root: () => HTMLElement | undefined, order: () => reado
           if (from === undefined || to === undefined) continue
           const delta = from - to
           if (delta === 0 || Math.abs(delta) > MAX_TRAVEL) continue
-          row.animate([{ transform: `translateY(${delta}px)` }, { transform: "none" }], {
-            duration: 260,
+          const rising = delta > 0
+          const frames: Keyframe[] = rising
+            ? [
+                { transform: `translateY(${delta}px)` },
+                { transform: "translateY(-3px)", offset: 0.7 },
+                { transform: "none" },
+              ]
+            : [{ transform: `translateY(${delta}px)` }, { transform: "none" }]
+          row.animate(frames, {
+            duration: rising ? 320 : 260,
             easing: "cubic-bezier(.2,.8,.2,1)",
           })
         }
