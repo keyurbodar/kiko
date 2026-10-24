@@ -49,7 +49,7 @@ Object.assign(boot, { THEMES, DEFAULT_DARK_THEME, tokensFor, readDisplay, displa
   const code = await result.outputs[0]!.text()
   return html.replace(
     /\/\* boot-palettes:start \*\/[\s\S]*?\/\* boot-palettes:end \*\//,
-    () => `/* boot-palettes:start */\n        (function () { ${code.trim()} })();\n        /* boot-palettes:end */`,
+    () => `/* boot-palettes:start */\n        ;(function () { ${code.trim()} })();\n        /* boot-palettes:end */`,
   )
 }
 if (import.meta.main) {
