@@ -55,7 +55,7 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
   return (
     <div class="flex flex-col gap-3 px-4 py-3.5" data-component="computer-pairing">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <span class="text-md font-medium text-foreground">Run this on the computer you want to add</span>
+        <span class="text-md font-medium text-fg">Run this on the computer you want to add</span>
         <Segmented<Shell>
           label="Operating system"
           value={shell()}
@@ -79,7 +79,7 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
       >
         <div class="relative">
           <pre
-            class="overflow-x-auto rounded-lg bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)] py-3 pr-12 pl-3 font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-all text-foreground"
+            class="overflow-x-auto rounded-lg bg-[color-mix(in_oklab,var(--fg)_6%,transparent)] py-3 pr-12 pl-3 font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-all text-fg"
             data-field="computer-command"
           >
             {text()}
@@ -93,7 +93,7 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
             <RemixIcon icon={CopyIcon} size={14} />
           </IconButton>
         </div>
-        <div class="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+        <div class="flex items-center justify-between gap-3 text-sm text-fg2">
           <span>
             This page updates when the computer connects. The code expires in{" "}
             <span class="tabular-nums">{clock(left())}</span> and works once.
@@ -151,7 +151,7 @@ function Row(props: { computer: ComputerSummary; onError: (message: string | nul
               <span
                 class={cn(
                   "size-1.5 shrink-0 rounded-full",
-                  props.computer.online ? "bg-success" : "bg-[color-mix(in_oklab,var(--foreground)_30%,transparent)]",
+                  props.computer.online ? "bg-ok" : "bg-[color-mix(in_oklab,var(--fg)_30%,transparent)]",
                 )}
                 role="img"
                 aria-label={props.computer.online ? "Online" : "Offline"}

@@ -1,3 +1,5 @@
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CheckIcon, CloseIcon, PlusIcon } from "@kiko/ui/icons"
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { appearanceOf } from "@kiko/theme/apply"
 import { BASE_SIZE, CHAT_WIDTHS, CONTRAST, DEFAULT_DISPLAY, type ChatWidth, type Display } from "@kiko/theme/display"
@@ -13,19 +15,26 @@ import { ThemeBrowser } from "./open-vsx-themes"
 
 const shown = () => appearanceOf(look().mode)
 
-function Preview(props: { palette: Palette; accent: string }) {
+function Preview(props: { palette: Palette; light: boolean }) {
   const p = () => props.palette
+  const solid = (pct: number) => `color-mix(in oklab, ${p().text} ${pct}%, ${p().canvas})`
+  const raise = () => solid(props.light ? 2.4 : 4.6)
+  const me = () => solid(props.light ? 5.5 : 9.6)
   const tint = (color: string, pct: number) => `color-mix(in oklab, ${color} ${pct}%, transparent)`
   return (
-    <div class="flex h-20 w-full overflow-hidden" style={{ background: p().canvas }} aria-hidden="true">
-      <div class="flex w-[28%] flex-col gap-1.5 p-2" style={{ background: p().sidebar }}>
-        <span class="h-1.5 w-3/4 rounded-full" style={{ background: tint(p().text, 30) }} />
-        <span class="h-1.5 w-1/2 rounded-full" style={{ background: tint(p().text, 16) }} />
-        <span class="h-1.5 w-2/3 rounded-full" style={{ background: tint(p().text, 16) }} />
+    <div
+      class="flex h-[104px] w-full overflow-hidden rounded-[14px]"
+      style={{ background: p().canvas }}
+      aria-hidden="true"
+    >
+      <div class="flex w-[34%] flex-col gap-[5px] p-2.5" style={{ background: p().sidebar }}>
+        <span class="h-[5px] w-3/5 rounded-[3px]" style={{ background: tint(p().text, 60) }} />
+        <span class="h-[7px] w-[85%] rounded-[3px]" style={{ background: tint(p().text, 35) }} />
+        <span class="h-[5px] w-[70%] rounded-[3px]" style={{ background: tint(p().muted, 40) }} />
       </div>
-      <div class="flex flex-1 flex-col justify-end gap-1.5 p-2">
-        <span class="h-3.5 w-3/5 rounded-md" style={{ background: tint(p().text, 9) }} />
-        <span class="h-3.5 w-2/5 self-end rounded-md" style={{ background: tint(props.accent, 40) }} />
+      <div class="flex flex-1 flex-col items-end gap-1.5 p-3.5">
+        <span class="h-[18px] w-1/2 rounded-[9px]" style={{ background: me() }} />
+        <span class="h-[18px] w-[70%] self-start rounded-[9px]" style={{ background: raise() }} />
       </div>
     </div>
   )
@@ -34,7 +43,7 @@ function Preview(props: { palette: Palette; accent: string }) {
 function ThemeCard(props: {
   name: string
   palette: Palette
-  accent: string
+  light: boolean
   selected: boolean
   onPick: () => void
   onRemove?: () => void
@@ -45,101 +54,78 @@ function ThemeCard(props: {
         type="button"
         role="radio"
         aria-checked={props.selected}
-        class="flex w-full flex-col overflow-hidden rounded-lg text-left hover:brightness-110 focus-visible:brightness-125"
+        class="flex w-full flex-col gap-2 text-left outline-none transition-transform duration-[var(--dur-hover)] ease-[var(--ease-kiko)] active:scale-[0.98]"
         data-theme-card={props.name}
         onClick={props.onPick}
       >
-        <Preview palette={props.palette} accent={props.accent} />
         <span
-          class="truncate px-2.5 py-1.5 text-sm"
-          style={{ background: props.palette.canvas, color: props.palette.text }}
+          class="relative block rounded-[14px] transition-shadow duration-[var(--dur-hover)] hover:shadow-[0_0_0_1px_var(--line2)]"
+          classList={{ "shadow-[0_0_0_2px_var(--fg3)]": props.selected }}
+        >
+          <Preview palette={props.palette} light={props.light} />
+          <Show when={props.selected}>
+            <span class="absolute top-2 right-2 grid size-[18px] place-items-center rounded-full bg-fg text-bg">
+              <RemixIcon icon={CheckIcon} size={11} />
+            </span>
+          </Show>
+        </span>
+        <span
+          class="truncate text-[13.5px]"
+          classList={{ "font-semibold text-fg": props.selected, "text-fg2": !props.selected }}
         >
           {props.name}
-          {props.selected ? " ✓" : ""}
         </span>
       </button>
       <Show when={props.onRemove}>
         <button
           type="button"
-          class="absolute top-1.5 right-1.5 grid size-5 place-items-center rounded-md bg-popover text-muted-foreground opacity-0 shadow-menu group-hover/theme:opacity-100 hover:text-error focus-visible:opacity-100"
+          class="absolute top-1.5 right-1.5 grid size-5 place-items-center rounded-md bg-raise text-fg2 opacity-0 shadow-menu group-hover/theme:opacity-100 hover:text-bad focus-visible:opacity-100"
           aria-label={`Remove ${props.name}`}
           title="Remove"
           onClick={props.onRemove}
         >
-          <svg
-            class="size-3"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            aria-hidden="true"
-          >
-            <path d="M4 4l8 8M12 4l-8 8" />
-          </svg>
+          <RemixIcon icon={CloseIcon} size={12} />
         </button>
       </Show>
     </div>
   )
 }
 
-function Gallery(props: { appearance: ThemeAppearance; onMore: () => void }) {
+function Gallery(props: { appearance: ThemeAppearance }) {
   const active = () => themeFor(themes(), props.appearance)?.id ?? DEFAULT
   const installed = () => themes().themes.filter((t) => t.appearance === props.appearance)
-  let more: HTMLButtonElement | undefined
   return (
-    <section class="flex flex-col gap-2" data-component="theme-gallery" data-appearance={props.appearance}>
-      <h2 class="flex items-center gap-2 px-1 text-sm font-medium text-muted-foreground">
-        {props.appearance === "dark" ? "Dark" : "Light"}
-        <Show when={shown() === props.appearance}>
-          <span class="text-xs font-normal text-secondary-label">Showing now</span>
-        </Show>
-      </h2>
-      <div
-        role="radiogroup"
-        aria-label={props.appearance === "dark" ? "Dark theme" : "Light theme"}
-        class="grid grid-cols-2 gap-2 @min-[560px]/settings:grid-cols-4"
-      >
-        <For each={installed()}>
-          {(theme) => (
-            <ThemeCard
-              name={theme.name}
-              palette={theme.palette}
-              accent={theme.accent}
-              selected={active() === theme.id}
-              onPick={() => {
-                choose(props.appearance, theme.id)
-                updateLook({ mode: props.appearance })
-              }}
-              onRemove={() => {
-                remove(theme)
-                more?.focus()
-              }}
-            />
-          )}
-        </For>
-        <button
-          ref={more}
-          type="button"
-          class="flex min-h-[110px] flex-col items-center justify-center gap-1 rounded-lg bg-control text-sm text-muted-foreground hover:bg-control-strong hover:text-foreground"
-          data-action="browse-themes"
-          onClick={props.onMore}
+    <Show when={installed().length}>
+      <section class="flex flex-col gap-2" data-component="theme-gallery" data-appearance={props.appearance}>
+        <h2 class="flex items-center gap-2 px-1 text-[13px] font-medium text-fg3">
+          {props.appearance === "dark" ? "Imported dark" : "Imported light"}
+          <Show when={shown() === props.appearance}>
+            <span class="text-xs font-normal text-fg4">Showing now</span>
+          </Show>
+        </h2>
+        <div
+          role="radiogroup"
+          aria-label={props.appearance === "dark" ? "Dark theme" : "Light theme"}
+          class="grid grid-cols-2 gap-x-3 gap-y-5 @min-[560px]/settings:grid-cols-3"
         >
-          <svg
-            class="size-4"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.6"
-            stroke-linecap="round"
-            aria-hidden="true"
-          >
-            <path d="M8 3.5v9M3.5 8h9" />
-          </svg>
-          Get more
-        </button>
-      </div>
-    </section>
+          <For each={installed()}>
+            {(theme) => (
+              <ThemeCard
+                name={theme.name}
+                palette={theme.palette}
+                light={props.appearance === "light"}
+                selected={active() === theme.id}
+                onPick={() => {
+                  choose(props.appearance, theme.id)
+                  updateLook({ mode: props.appearance })
+                }}
+                onRemove={() => remove(theme)}
+              />
+            )}
+          </For>
+        </div>
+      </section>
+    </Show>
   )
 }
 
@@ -245,14 +231,14 @@ export default function Appearance(): JSX.Element {
         <div
           role="radiogroup"
           aria-label="Built-in themes"
-          class="grid grid-cols-2 gap-2 @min-[560px]/settings:grid-cols-4"
+          class="grid grid-cols-2 gap-x-3 gap-y-5 @min-[560px]/settings:grid-cols-3"
         >
           <For each={THEME_IDS}>
             {(id) => (
               <ThemeCard
                 name={THEMES[id].label}
                 palette={THEMES[id].palette}
-                accent={THEMES[id].accent}
+                light={id === "snow"}
                 selected={
                   !themeFor(themes(), id === "snow" ? "light" : "dark") &&
                   shown() === (id === "snow" ? "light" : "dark") &&
@@ -262,9 +248,18 @@ export default function Appearance(): JSX.Element {
               />
             )}
           </For>
+          <button
+            type="button"
+            class="flex h-[104px] flex-col items-center justify-center gap-1 rounded-[14px] bg-panel text-[13.5px] text-fg2 transition-colors duration-[var(--dur-hover)] hover:bg-hover hover:text-fg active:scale-[0.98]"
+            data-action="browse-themes"
+            onClick={() => setBrowsing(true)}
+          >
+            <RemixIcon icon={PlusIcon} size={16} />
+            Get more
+          </button>
         </div>
-        <Gallery appearance="dark" onMore={() => setBrowsing(true)} />
-        <Gallery appearance="light" onMore={() => setBrowsing(true)} />
+        <Gallery appearance="dark" />
+        <Gallery appearance="light" />
       </div>
 
       <Group title="Text and layout">

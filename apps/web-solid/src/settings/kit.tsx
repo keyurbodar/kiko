@@ -47,7 +47,7 @@ export function Button(
 }
 
 export const iconButtonClass = cn(
-  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-[color-mix(in_oklab,var(--foreground)_60%,transparent)] enabled:hover:bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)] enabled:hover:text-foreground enabled:active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60",
+  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-[color-mix(in_oklab,var(--fg)_60%,transparent)] enabled:hover:bg-[color-mix(in_oklab,var(--fg)_6%,transparent)] enabled:hover:text-fg enabled:active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60",
   focus,
 )
 
@@ -63,7 +63,7 @@ export function IconButton(
       class={cn(
         iconButtonClass,
         local.danger &&
-          "enabled:hover:bg-[color-mix(in_oklab,var(--error)_8%,transparent)] enabled:hover:text-[var(--error)]",
+          "enabled:hover:bg-[color-mix(in_oklab,var(--bad)_8%,transparent)] enabled:hover:text-[var(--bad)]",
         local.class,
       )}
       {...rest}
@@ -76,10 +76,10 @@ export const fieldClass = "kit-field"
 export function Page(props: { title: string; description?: string; children: JSX.Element }): JSX.Element {
   return (
     <div class="flex flex-col" data-component="settings-page">
-      <header class="pb-5">
-        <h1 class="text-lg font-semibold leading-tight text-foreground">{props.title}</h1>
+      <header class="pb-7">
+        <h1 class="settings-page-title">{props.title}</h1>
         <Show when={props.description}>
-          {(description) => <p class={cn("mt-1 max-w-xl text-md leading-relaxed", muted)}>{description()}</p>}
+          {(description) => <p class="mt-1 max-w-xl text-[14px] leading-5 text-fg3">{description()}</p>}
         </Show>
       </header>
       {props.children}
@@ -101,11 +101,9 @@ export function Group(props: {
   return (
     <section class={local.class} data-setting-group={local.id} {...rest}>
       <Show when={local.title || local.action}>
-        <div class="flex items-end gap-4 px-1 pb-2">
+        <div class="flex items-end gap-4 px-1 pb-2.5">
           <div class="min-w-0 flex-1">
-            <Show when={local.title}>
-              {(title) => <h2 class="text-sm font-medium text-muted-foreground">{title()}</h2>}
-            </Show>
+            <Show when={local.title}>{(title) => <h2 class="text-[13px] font-medium text-fg3">{title()}</h2>}</Show>
             <Show when={local.description}>
               {(description) => <div class={cn("mt-0.5 text-sm leading-relaxed", muted)}>{description()}</div>}
             </Show>
@@ -122,7 +120,7 @@ export function Group(props: {
   )
 }
 
-const rowLine = "border-b border-[color-mix(in_oklab,var(--foreground)_6%,transparent)] last:border-b-0"
+const rowLine = "shadow-[inset_0_-1px_0_color-mix(in_oklab,var(--fg)_5%,transparent)] last:shadow-none"
 
 export function Row(props: {
   label: JSX.Element
@@ -137,16 +135,16 @@ export function Row(props: {
   const [local, rest] = splitProps(props, ["label", "description", "id", "onReset", "details", "class", "children"])
   return (
     <div class={cn("px-4", rowLine, local.class)} data-setting={local.id} {...rest}>
-      <div class="settings-row flex items-center gap-6 py-2.5">
+      <div class="settings-row flex items-center gap-6 py-3">
         <div class="min-w-0 flex-1">
-          <div class="flex min-h-5 items-center gap-1.5 text-md font-medium leading-5 text-foreground">
+          <div class="flex min-h-5 items-center gap-1.5 text-[14px] font-medium leading-5 text-fg">
             {local.label}
 
             <Show when={local.onReset}>
               <button
                 type="button"
                 class={cn(
-                  "relative grid size-5 cursor-pointer place-items-center rounded-md outline-none before:absolute before:-inset-1.5 hover:bg-[var(--accent)] hover:text-foreground",
+                  "relative grid size-5 cursor-pointer place-items-center rounded-md outline-none before:absolute before:-inset-1.5 hover:bg-[var(--hover)] hover:text-fg",
                   muted,
                 )}
                 title="Reset to default"
@@ -210,16 +208,16 @@ export function Item(props: {
     >
       <Show when={local.icon}>
         {(icon) => (
-          <span class="grid size-6 shrink-0 place-items-center overflow-hidden rounded-md bg-control text-muted-foreground">
+          <span class="grid size-6 shrink-0 place-items-center overflow-hidden rounded-md bg-active text-fg2">
             {icon()}
           </span>
         )}
       </Show>
       <div class="flex min-h-7 min-w-0 flex-col justify-center">
-        <div class="flex items-center gap-1.5 truncate text-md font-medium text-foreground">
+        <div class="flex items-center gap-1.5 truncate text-md font-medium text-fg">
           {local.title}
           <Show when={local.trouble}>
-            <span class="size-1.5 shrink-0 rounded-full bg-[var(--error)]" aria-hidden="true" />
+            <span class="size-1.5 shrink-0 rounded-full bg-[var(--bad)]" aria-hidden="true" />
           </Show>
         </div>
         <Show when={local.meta}>{(meta) => <div class={cn("text-sm leading-snug", muted)}>{meta()}</div>}</Show>
@@ -261,7 +259,7 @@ export function Notice(props: {
       role="alert"
       class={cn(
         "text-sm leading-relaxed",
-        local.tone === "muted" ? muted : "text-[color-mix(in_oklab,var(--error)_90%,transparent)]",
+        local.tone === "muted" ? muted : "text-[color-mix(in_oklab,var(--bad)_90%,transparent)]",
       )}
       {...rest}
     >
@@ -277,11 +275,10 @@ export function Pill(props: {
 }): JSX.Element {
   const [local, rest] = splitProps(props, ["tone", "children"])
   const tone = {
-    muted:
-      "bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] text-[color-mix(in_oklab,var(--foreground)_65%,transparent)]",
-    accent: "bg-[color-mix(in_oklab,var(--ring)_16%,transparent)] text-[var(--ring)]",
-    success: "bg-[color-mix(in_oklab,var(--success)_16%,transparent)] text-[var(--success)]",
-    danger: "bg-[color-mix(in_oklab,var(--error)_14%,transparent)] text-[var(--error)]",
+    muted: "bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] text-[color-mix(in_oklab,var(--fg)_65%,transparent)]",
+    accent: "bg-[color-mix(in_oklab,var(--info)_16%,transparent)] text-[var(--info)]",
+    success: "bg-[color-mix(in_oklab,var(--ok)_16%,transparent)] text-[var(--ok)]",
+    danger: "bg-[color-mix(in_oklab,var(--bad)_14%,transparent)] text-[var(--bad)]",
   }[local.tone ?? "muted"]
   return (
     <span

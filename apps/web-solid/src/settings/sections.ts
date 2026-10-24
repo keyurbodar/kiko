@@ -1,8 +1,8 @@
 import {
   AppearanceIcon,
   CommandIcon,
-  ExtensionsIcon,
   type Glyph,
+  LinkIcon,
   ModelIcon,
   MonitorIcon,
   SettingsIcon,
@@ -13,51 +13,54 @@ import type { FileRouteTypes } from "../routeTree.gen"
 type SettingsPath = Exclude<Extract<FileRouteTypes["to"], `/settings/${string}`>, "/settings/$">
 export type SettingsId = SettingsPath extends `/settings/${infer Id}` ? Id : never
 
-type SectionMeta = { group: "all"; label: string; hint?: string; icon: Glyph; keywords: string }
+type SectionMeta = { group: SettingsGroup; label: string; hint?: string; icon: Glyph; keywords: string }
+
+export const SETTINGS_GROUPS = ["You", "Your team", "Connections", "Kiko"] as const
+type SettingsGroup = (typeof SETTINGS_GROUPS)[number]
 
 const SECTIONS: { [Id in SettingsId]: SectionMeta } = {
   models: {
-    group: "all",
+    group: "Your team",
     label: "Models",
     hint: "Connect providers and pick the models the chat offers.",
     icon: ModelIcon,
     keywords: "provider key api openai anthropic google opencode connect sign in disconnect model picker hide show",
   },
   tools: {
-    group: "all",
+    group: "Connections",
     label: "Tools",
     hint: "Apps your agents can use.",
-    icon: ExtensionsIcon,
+    icon: LinkIcon,
     keywords: "integrations composio mcp apps browser kernel tool",
   },
   computers: {
-    group: "all",
+    group: "Connections",
     label: "Computers",
     hint: "Machines your agents can use, and that you can watch and take over.",
     icon: MonitorIcon,
     keywords: "computer pc mac linux windows desktop remote screen pair install daemon vps server takeover",
   },
   appearance: {
-    group: "all",
+    group: "Kiko",
     label: "Appearance",
     icon: AppearanceIcon,
     keywords: "theme json dark light font radius spacing colors open vsx accent contrast",
   },
   general: {
-    group: "all",
+    group: "Kiko",
     label: "General",
     icon: SettingsIcon,
     keywords: "initiative proactive nudge digest speak up memory capture auto off",
   },
   keyboard: {
-    group: "all",
+    group: "Kiko",
     label: "Keyboard shortcuts",
     hint: "Change the key for any command.",
     icon: CommandIcon,
     keywords: "keybindings hotkeys keys shortcut bind record reset browser conflict",
   },
   account: {
-    group: "all",
+    group: "You",
     label: "Account",
     icon: UserIcon,
     keywords:
@@ -72,8 +75,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = (Object.keys(SECTIO
   id,
   to: `/settings/${id}`,
 }))
-
-export const SETTINGS_GROUPS = ["all"] as const
 
 const SECTION_ALIAS: Record<string, SettingsId> = {
   providers: "models",
