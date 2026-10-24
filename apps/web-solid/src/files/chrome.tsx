@@ -10,7 +10,7 @@ export const UNREADABLE = {
 
 export const SUBHEADER = "flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--line)] px-3"
 
-const ACTION =
+export const ACTION =
   "grid size-7 shrink-0 place-items-center rounded-control text-fg3 hover:bg-hover hover:text-fg aria-pressed:bg-active-strong aria-pressed:text-fg disabled:opacity-50"
 
 export function SurfaceAction(props: {

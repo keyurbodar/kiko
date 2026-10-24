@@ -1,4 +1,4 @@
-import type { FileRef } from "@kiko/protocol"
+import { fileName, type FileRef } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CloseIcon } from "@kiko/ui/icons"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
@@ -40,7 +40,9 @@ export default function FileDialog(props: {
         >
           <div class={`${SUBHEADER} h-11 min-h-11`}>
             <RemixIcon icon={KIND_ICON[props.kind]} size={14} />
-            <ModalV2.Title class="min-w-0 flex-1 truncate text-label font-medium text-fg">{props.path}</ModalV2.Title>
+            <ModalV2.Title class="min-w-0 flex-1 truncate text-label font-medium text-fg">
+              {fileName(props.path)}
+            </ModalV2.Title>
             <Show when={props.file} keyed>
               {(file) => (
                 <FileActions view={view} chatId={props.chatId} path={props.path} file={file} kind={props.kind} />

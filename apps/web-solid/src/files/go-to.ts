@@ -1,4 +1,5 @@
-import { basename, HOME, inHome, strip } from "./model"
+import { fileName } from "@kiko/protocol"
+import { HOME, inHome, strip } from "./model"
 
 export interface FileHit {
   path: string
@@ -12,7 +13,7 @@ export const MAX_HITS = 50
 export function fileHits(chat: readonly string[], home: readonly string[]): FileHit[] {
   const hit = (path: string): FileHit => ({
     path,
-    name: basename(path),
+    name: fileName(path),
     shown: inHome(path) ? strip(path) : path,
     home: inHome(path),
   })

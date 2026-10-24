@@ -143,7 +143,7 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
       </Show>
       <Show when={working().length > 0}>
         <div data-section="working">
-          <SectionLabel label="Working" open={open().working} onToggle={() => toggle("working")} />
+          <SectionLabel label="Busy" open={open().working} onToggle={() => toggle("working")} />
           <Fold open={open().working}>{rows(workingIds)}</Fold>
         </div>
       </Show>

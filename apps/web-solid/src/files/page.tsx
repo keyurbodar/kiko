@@ -1,3 +1,4 @@
+import { fileName } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { FilterHorizontalIcon, GridIcon, MenuIcon, PlusIcon, UploadIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
@@ -65,12 +66,11 @@ const BLANKS = [
   { label: "List", name: "List.md", type: "text/markdown", body: "- [ ] \n" },
 ] as const
 
-const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 const dirName = (path: string) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "")
 
 function entryOf(f: LibraryFile): Entry {
   const type = fileType(f.file)
-  return { ...f, name: baseName(f.path), folder: dirName(f.path), type, group: groupOf(type) }
+  return { ...f, name: fileName(f.path), folder: dirName(f.path), type, group: groupOf(type) }
 }
 
 const compare: Record<Sort, (a: Entry, b: Entry) => number> = {

@@ -17,6 +17,10 @@ export class Team {
   doing(slug: AgentSlug, text: string, now: number, activity: Activity): void {
     this.activities.set(slug, { text, activity })
   }
+  writing(slug: AgentSlug, detail: string | null | undefined, now: number): void {
+    if (detail === undefined && this.activities.get(slug)?.activity.kind === "writing") return
+    this.doing(slug, detail ?? "writing a reply", now, { kind: "writing" })
+  }
   activity(slug: AgentSlug): Activity | null {
     return this.activities.get(slug)?.activity ?? null
   }

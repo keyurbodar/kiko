@@ -1,6 +1,7 @@
+import { fileName } from "@kiko/protocol"
 import { formatBytes } from "../chat/info/format"
 import type { Choice } from "../commands/registry"
-import { basename, buildIndex, pathsUnder, ROOT } from "../files/model"
+import { buildIndex, dirname, folderLabel, pathsUnder, ROOT } from "../files/model"
 import { choiceItem, matchScore, type Item, type PaletteGroup } from "./model"
 import type { FileEntry } from "./sources"
 import type { PaletteTab } from "./state"
@@ -107,7 +108,7 @@ function allTab(query: string, d: TabData): PaletteGroup[] {
 
 const fileItem = (e: FileEntry, mark: string, open: TabData["open"], detail?: string): Item => ({
   key: encodeURIComponent(`file:${e.path}`),
-  title: basename(e.path),
+  title: fileName(e.path),
   file: e.path,
   size: e.size,
   space: e.space,
@@ -119,15 +120,15 @@ const fileItem = (e: FileEntry, mark: string, open: TabData["open"], detail?: st
 
 function fileRows(query: string, d: TabData, limit: number): Item[] {
   return d.files
-    .map((e) => ({ e, s: Math.max(matchScore(query, basename(e.path), ""), matchScore(query, e.path, "") * 0.6) }))
+    .map((e) => ({ e, s: Math.max(matchScore(query, fileName(e.path), ""), matchScore(query, e.path, "") * 0.6) }))
     .filter((x) => x.s > 0)
     .sort((a, b) => b.s - a.s)
     .slice(0, limit)
-    .map((x) => fileItem(x.e, query, d.open, x.e.path.includes("/") ? x.e.path : undefined))
+    .map((x) => fileItem(x.e, query, d.open, x.e.path.includes("/") ? folderLabel(dirname(x.e.path)) : undefined))
 }
 
 export function filesCrumbs(folder: readonly string[]): string[] {
-  return folder.length ? ["Files", ...folder.map((_, i) => basename(folder.slice(0, i + 1).join("/")))] : []
+  return folder.length ? ["Files", ...folder.map((_, i) => folderLabel(folder.slice(0, i + 1).join("/")))] : []
 }
 
 function filesTab(query: string, d: TabData): PaletteGroup[] {
@@ -139,7 +140,7 @@ function filesTab(query: string, d: TabData): PaletteGroup[] {
   const kids = index.children.get(dir || ROOT) ?? []
   const folderItem = (path: string): Item => ({
     key: encodeURIComponent(`folder:${path}`),
-    title: basename(path),
+    title: folderLabel(path),
     icon: "folder",
     folder: true,
     path,

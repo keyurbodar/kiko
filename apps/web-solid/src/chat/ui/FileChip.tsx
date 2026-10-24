@@ -13,7 +13,7 @@ import { user } from "../../state/user"
 import { formatBytes } from "../info/format"
 import { openThreadImages } from "./image-dialog"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
-import { basename, resolveFile, type FileTarget } from "../rich/file-links"
+import { resolveFile, type FileTarget } from "../rich/file-links"
 
 function find(path: string) {
   const own = resolveFile(
@@ -62,7 +62,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
     const found = find(props.file.path)
     if (found.kind === "file") return openFile(id, found.path, props.file.line)
     if (found.kind === "folder" || found.kind === "many") return openSurface(id, fixedSurface("files"))
-    showToastV2({ title: `No file named ${basename(props.file.path)} in this chat`, variant: "error" })
+    showToastV2({ title: `No file named ${fileName(props.file.path)} in this chat`, variant: "error" })
   }
   const copy = async () => {
     try {

@@ -8,6 +8,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "so
 import { Mochi } from "../chat/ui/Mochi"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { agentDisplayName } from "../lib/names"
+import { presenceWords } from "../state/live-status"
 import { cachedTail, room } from "../state/room"
 import { user } from "../state/user"
 import { draftBook } from "../composer/draft-book"
@@ -201,7 +202,7 @@ function RowPreview(props: { bot: RosterBot; need: Need | undefined; live: boole
         >
           <Mochi size={12} class="chat-mochi" />
           <span class="chat-shimmer">
-            {props.bot.typing ?? (props.bot.presence === "typing" ? "Typing" : "Working")}
+            {props.bot.typing ?? presenceWords(props.bot.presence === "working" ? "working" : "typing")}
           </span>
         </Show>
       }

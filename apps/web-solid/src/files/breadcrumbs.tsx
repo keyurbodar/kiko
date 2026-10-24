@@ -2,16 +2,15 @@ import { FileIcon } from "@kiko/ui/file-icon"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { BackIcon, ChevronRightIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
+import { fileName } from "@kiko/protocol"
 import { createSignal, For, Show } from "solid-js"
-import { basename, dirname, ROOT, type TreeIndex } from "./model"
-
-const label = (path: string) => (path === ROOT ? "Files" : basename(path))
+import { dirname, folderLabel as label, ROOT, type TreeIndex } from "./model"
 
 function crumbFolders(path: string): string[] {
   const out: string[] = []
   for (let dir = dirname(path); ; dir = dirname(dir)) {
+    if (dir === ROOT) return out.length ? out : [ROOT]
     out.unshift(dir)
-    if (dir === ROOT) return out
   }
 }
 
@@ -23,7 +22,7 @@ export function FileBreadcrumbs(props: {
 }) {
   return (
     <nav
-      class="flex min-w-0 flex-1 items-center overflow-x-auto text-hint [scrollbar-width:none]"
+      class="flex min-w-0 flex-1 items-center overflow-hidden text-hint"
       aria-label="File path"
       data-component="file-breadcrumbs"
     >
@@ -38,10 +37,10 @@ export function FileBreadcrumbs(props: {
       <span
         class="flex min-w-0 shrink-0 items-center"
         aria-current="page"
-        title={props.path}
+        title={fileName(props.path)}
         data-component="file-path"
       >
-        <span class="block max-w-40 truncate rounded-tail px-0.5 font-medium text-fg">{basename(props.path)}</span>
+        <span class="block max-w-48 truncate rounded-tail px-0.5 font-medium text-fg">{fileName(props.path)}</span>
         <Show when={props.unsaved}>
           <span
             class="ml-1.5 size-1.5 shrink-0 rounded-full bg-[var(--fg3)]"
@@ -62,9 +61,9 @@ function FolderCrumb(props: { dir: string; current: string; index: TreeIndex; on
   return (
     <MenuV2 gutter={4} placement="bottom-start" onOpenChange={(open) => open && setAt(props.dir)}>
       <MenuV2.Trigger
-        class="block max-w-40 shrink-0 cursor-pointer truncate rounded-tail px-0.5 text-left text-fg3 hover:bg-hover hover:text-fg data-[expanded]:bg-active data-[expanded]:text-fg"
+        class="block min-w-6 max-w-40 shrink cursor-pointer truncate rounded-tail px-0.5 text-left text-fg3 hover:bg-hover hover:text-fg data-[expanded]:bg-active data-[expanded]:text-fg"
         aria-label={`Browse ${label(props.dir)}`}
-        title={props.dir || "Files"}
+        title={label(props.dir)}
         data-component="file-crumb"
       >
         {label(props.dir)}
@@ -84,7 +83,7 @@ function FolderCrumb(props: { dir: string; current: string; index: TreeIndex; on
                 props.index.folders.has(path) ? (
                   <MenuV2.Item closeOnSelect={false} onSelect={() => setAt(path)}>
                     <FileIcon node={{ path, type: "directory" }} />
-                    <span class="min-w-0 flex-1 truncate">{basename(path)}</span>
+                    <span class="min-w-0 flex-1 truncate">{label(path)}</span>
                     <RemixIcon icon={ChevronRightIcon} class="size-3.5 shrink-0 text-fg3" />
                   </MenuV2.Item>
                 ) : (
@@ -94,7 +93,7 @@ function FolderCrumb(props: { dir: string; current: string; index: TreeIndex; on
                   >
                     <FileIcon node={{ path, type: "file" }} />
                     <span class={`min-w-0 flex-1 truncate ${path === props.current ? "font-medium" : ""}`}>
-                      {basename(path)}
+                      {fileName(path)}
                     </span>
                   </MenuV2.Item>
                 )

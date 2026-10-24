@@ -469,12 +469,6 @@
     flex-shrink: 0;
   }
 
-  .composer-dock .composer-tray .picker-chevron,
-  .composer-dock .composer-tray [data-component="reasoning-trigger"] > svg:last-child,
-  .composer-dock .composer-tray .reasoning-label {
-    display: none;
-  }
-
   .composer-dock .composer-tray [data-component="model-picker-button"] {
     min-width: 0;
     flex-shrink: 1;
