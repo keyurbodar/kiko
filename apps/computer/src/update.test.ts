@@ -28,9 +28,10 @@ describe("daemon update decision", () => {
     expect(step(done, "0.9.0")).toEqual({ kind: "restart", version: "0.9.0" })
   })
 
-  it("backs off after a failed install and never retries the same version", () => {
+  it("backs off after a failed install, then tries the same version again", () => {
     const after = failed(started(NO_ATTEMPTS, "0.9.0"), NOW)
-    expect(step(after, "0.9.0", { now: NOW + 365 * 86_400_000 })).toEqual({ kind: "stay" })
+    expect(step(after, "0.9.0").kind).toBe("wait")
+    expect(step(after, "0.9.0", { now: NOW + 365 * 86_400_000 })).toEqual({ kind: "install", version: "0.9.0" })
     const wait = step(after, "0.9.1")
     expect(wait.kind).toBe("wait")
     const until = wait.kind === "wait" ? wait.until : 0

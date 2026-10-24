@@ -44,7 +44,12 @@ export function installed(attempts: Attempts, version: string): Attempts {
 
 export function failed(attempts: Attempts, now: number): Attempts {
   const failures = attempts.failures + 1
-  return { ...attempts, failures, retryAt: now + Math.min(MAX_BACKOFF_MS, FIRST_BACKOFF_MS * 2 ** (failures - 1)) }
+  return {
+    ...attempts,
+    tried: new Set(),
+    failures,
+    retryAt: now + Math.min(MAX_BACKOFF_MS, FIRST_BACKOFF_MS * 2 ** (failures - 1)),
+  }
 }
 
 type Target = { home: string } | { skip: string }
