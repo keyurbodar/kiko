@@ -13,7 +13,8 @@ const VARIANTS: Record<BubbleVariant, string> = {
   outline:
     "[&>[data-slot=bubble-content]]:bg-panel [&>[data-slot=bubble-content]]:text-fg [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1px_var(--line2)]",
   ghost: "[&>[data-slot=bubble-content]]:bg-transparent [&>[data-slot=bubble-content]]:p-0",
-  destructive: "[&>[data-slot=bubble-content]]:bg-bad/15 [&>[data-slot=bubble-content]]:text-bad",
+  destructive:
+    "[&>[data-slot=bubble-content]]:bg-me [&>[data-slot=bubble-content]]:text-fg [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1.5px_var(--bad)]",
 }
 
 export type BubbleAlign = "start" | "end"

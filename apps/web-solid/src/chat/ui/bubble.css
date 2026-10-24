@@ -35,6 +35,65 @@
   transition: border-radius 260ms var(--ease-kiko);
 }
 
+.bubble-body-status {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  gap: 8px;
+}
+.bubble-body-status > :first-child {
+  min-width: 0;
+}
+
+.bubble-status {
+  display: inline-flex;
+  flex: none;
+  width: 14px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg4);
+}
+.bubble-status-spin {
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 9999px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bubble-status-spin {
+    animation: bubble-status-spin 0.9s linear infinite;
+  }
+  .bubble-status > svg {
+    animation: bubble-status-in 200ms var(--ease-kiko) both;
+  }
+  .bubble-status[data-state="seen"] > svg {
+    animation-name: bubble-status-slide;
+  }
+}
+
+@keyframes bubble-status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bubble-status-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes bubble-status-slide {
+  from {
+    opacity: 0.4;
+    transform: translateX(-3px);
+  }
+}
+
 .message-actions {
   transform: translateY(4px);
   transition:

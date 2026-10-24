@@ -1,6 +1,5 @@
 import { Suspense, Show, createEffect, createMemo, createSignal, on } from "solid-js"
 import { useNavigate } from "@tanstack/solid-router"
-import { Icon as IconV2 } from "@kiko/ui/v2/icon"
 import { MessageList, type VirtualThreadState } from "../chat/MessageList"
 import { Composer } from "../composer/composer"
 import { ModelPickerButton } from "../settings/model-picker"
@@ -250,6 +249,8 @@ export function ChatView() {
             jumpToMessage = handle.jumpToMessage
             scrollToLatest = handle.scrollToLatest
           }}
+          onToLatest={toLatest}
+          detached={room.showingHistory()}
         />
       </div>
 
@@ -286,22 +287,6 @@ export function ChatView() {
           </div>
         </Show>
 
-        <div class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+6px)] z-6 flex justify-end px-3">
-          <button
-            type="button"
-            class="pointer-events-auto inline-flex h-7 items-center gap-1 rounded-full border border-[color-mix(in_oklab,var(--fg)_10%,transparent)] bg-[color-mix(in_oklab,var(--bg)_80%,transparent)] px-2.5 text-hint font-medium text-fg shadow-md backdrop-blur-md transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none data-[hidden]:pointer-events-none data-[hidden]:scale-95 data-[hidden]:opacity-0"
-            data-component="composer-scroll-down"
-            data-hidden={scrolled() ? undefined : ""}
-            aria-label="Scroll to end"
-            aria-hidden={scrolled() ? undefined : "true"}
-            tabIndex={scrolled() ? 0 : -1}
-            onPointerDown={(event) => event.preventDefault()}
-            onClick={toLatest}
-          >
-            <IconV2 name="chevron-down" class="size-3.5" />
-            Scroll to end
-          </button>
-        </div>
         <Suspense>
           <BrowserChip slugs={memberSlugs()} />
           <QuoteOnSelect
