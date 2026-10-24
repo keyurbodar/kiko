@@ -26,6 +26,7 @@ import {
   deleteRoomMessage,
   editRoomMessage,
   reactToRoomMessage,
+  setTheme,
   updateRoutine,
   updateSoul,
 } from "./ownerCommands"
@@ -202,6 +203,27 @@ describe("user row overlays", () => {
         expect((yield* shownRows(server))?.routine).toEqual([])
         yield* pending.user.reconcile("user", user(6, { routine: [] }), 6)
         expect(yield* pending.user.get("user")).toEqual([])
+      }).pipe(Effect.provide(layer))
+    }),
+  )
+})
+
+describe("user setting overlays", () => {
+  it.effect("show the last of two quick theme picks even while the server still holds that theme", () =>
+    Effect.gen(function* () {
+      const layer = yield* harness(() => Effect.never)
+      yield* Effect.gen(function* () {
+        const pending = yield* PendingCommands
+        const server: UserSnapshot = { ...user(5, {}), theme: "light" }
+        yield* pending.user.reconcile("user", server, 5)
+        yield* Effect.forkChild(setTheme("dark"))
+        yield* Effect.yieldNow
+        yield* Effect.forkChild(setTheme("light"))
+        yield* Effect.yieldNow
+        const items = yield* pending.user.get("user")
+        expect(withPending(server, 5, items).theme).toBe("light")
+        yield* pending.user.reconcile("user", server, 5)
+        expect(withPending(server, 5, yield* pending.user.get("user")).theme).toBe("light")
       }).pipe(Effect.provide(layer))
     }),
   )
