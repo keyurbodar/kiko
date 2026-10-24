@@ -10,6 +10,6 @@ export const memoryClient: MemoryClient = {
     const result = await run(owner.commands.memory, { op })
     return result._tag === "Success"
       ? result.value
-      : { ok: false, error: failureMessage(result.cause, "Kiko did not answer") }
+      : { ok: false, error: failureMessage(result.cause, "Kiko could not reach your memory. Try again.") }
   },
 }

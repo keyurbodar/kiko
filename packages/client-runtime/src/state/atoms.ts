@@ -84,6 +84,12 @@ function sendRpc(tag: OwnerUnaryTag, input: object | undefined) {
   return requestAny(tag, fields.commandId === undefined ? input : { commandId: newCommandId(), ...input })
 }
 
+const MEMORY_WRITES: ReadonlySet<MemoryOp["op"]> = new Set(["note", "pin", "redact", "set_model"])
+
+const onceConnected = OwnerSupervisor.use((supervisor) =>
+  SubscriptionRef.changes(supervisor.session).pipe(Stream.filter(Option.isSome), Stream.runHead),
+)
+
 const EMPTY_TYPING: ReadonlyArray<AgentSlug> = []
 
 function overlaid<S, T extends StreamState<S>>(state: T, pending: ReadonlyArray<PendingCommand<S>>): T {
@@ -287,12 +293,6 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
       execute: (input: { readonly slug: AgentSlug }) => request("soul.get", input),
       idleTtlMs: 60_000,
     }),
-    memory: query({
-      label: "memory.run",
-      execute: (op: MemoryOp) => request("memory.run", { op }),
-      refreshOn: "memory",
-      idleTtlMs: 60_000,
-    }),
   }
 
   const pageOf = (
@@ -353,7 +353,11 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     chatSearch: rpc("chat.search"),
     searchMessages: rpc("search.messages"),
     soulUpdate: effect("soul.update", Owner.updateSoul, { mode: "serial", key: (input) => input.slug }),
-    memory: rpc("memory.run"),
+    memory: effect("memory.run", (input: { readonly op: MemoryOp }) =>
+      MEMORY_WRITES.has(input.op.op)
+        ? request("memory.run", input)
+        : onceConnected.pipe(Effect.andThen(request("memory.run", input))),
+    ),
     settingsGet: rpc("settings.get"),
     settingsUpdate: effect(
       "settings.update",
