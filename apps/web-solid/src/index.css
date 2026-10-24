@@ -9,6 +9,38 @@
 
 @import "./styles/motion.css";
 
+@font-face {
+  font-family: "Satoshi";
+  src: url("/fonts/satoshi-variable.woff2") format("woff2");
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("/fonts/fraunces-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrains-mono-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrains-mono-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --font-xs: 11px;
   --font-sm: 12px;
@@ -23,9 +55,16 @@
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-bold: 600;
-  --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --font-family-display: var(--font-family-sans);
-  --font-family-mono: "SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace;
+  --font-family-sans: Satoshi, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-family-display: Fraunces, Georgia, "Times New Roman", serif;
+  --font-family-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, ui-monospace, monospace;
+  --display-variation: "SOFT" 50, "WONK" 0;
+
+  --dur-hover: 120ms;
+  --dur-pop: 200ms;
+  --dur-step: 400ms;
+  --ease-kiko: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --shimmer-duration: 2.2s;
   --font-family-text: var(--font-family-sans);
   --icon-xs: 12px;
   --icon-sm: 14px;
@@ -156,77 +195,113 @@
 }
 
 :root {
-  --background: #08131c;
-  --sidebar: #101a24;
-  --foreground: #e7f0f6;
-  --muted-foreground: #a5b7c4;
-  --secondary-label: #a5b7c4;
-  --ring: #96c8eb;
-  --primary: #e7f0f6;
-  --primary-hover: #96c8eb;
-  --primary-foreground: #08131c;
-  --error: #ffb4ac;
+  --background: #121212;
+  --sidebar: #171717;
+  --foreground: #ededed;
+  --muted-foreground: #a6a6a6;
+  --secondary-label: #878787;
+  --ring: #5b9cf6;
+  --primary: #ededed;
+  --primary-hover: #ffffff;
+  --primary-foreground: #141414;
+  --error: #ef6a6a;
   --warning: #e8c47b;
   --success: oklch(0.7937 0.12 150);
-  --card: color-mix(in oklab, #e7f0f6 6%, transparent);
-  --muted: color-mix(in oklab, #e7f0f6 3%, transparent);
-  --secondary: color-mix(in oklab, #e7f0f6 4%, transparent);
-  --accent: color-mix(in oklab, #e7f0f6 4%, transparent);
-  --sidebar-row-hover: color-mix(in oklab, #e7f0f6 4%, transparent);
-  --accent-strong: color-mix(in oklab, #e7f0f6 8%, transparent);
-  --sidebar-row-active: color-mix(in oklab, #e7f0f6 8%, transparent);
-  --control: color-mix(in oklab, #e7f0f6 7%, transparent);
-  --control-strong: color-mix(in oklab, #e7f0f6 11%, transparent);
-  --border: color-mix(in oklab, #e7f0f6 6%, transparent);
-  --input: color-mix(in oklab, #e7f0f6 8%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #e7f0f6 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #e7f0f6 30%, transparent);
-  --surface: #101a24;
-  --popover: #101a24;
-  --message-assistant: #101a24;
-  --tooltip: color-mix(in oklab, #e7f0f6 14%, #08131c);
-  --tooltip-foreground: #e7f0f6;
-  --message-user: oklch(from #96c8eb 0.32 calc(c * 0.42) h);
-  --message-user-deep: oklch(from #96c8eb 0.32 calc(c * 0.42) h);
-  --message-user-foreground: #e7f0f6;
-  --ring-wash: color-mix(in oklab, #96c8eb 14%, transparent);
+  --card: color-mix(in oklab, #ededed 6%, transparent);
+  --muted: color-mix(in oklab, #ededed 3%, transparent);
+  --secondary: color-mix(in oklab, #ededed 4%, transparent);
+  --accent: color-mix(in oklab, #ededed 4%, transparent);
+  --sidebar-row-hover: color-mix(in oklab, #ededed 4%, transparent);
+  --accent-strong: color-mix(in oklab, #ededed 8%, transparent);
+  --sidebar-row-active: color-mix(in oklab, #ededed 8%, transparent);
+  --control: color-mix(in oklab, #ededed 7%, transparent);
+  --control-strong: color-mix(in oklab, #ededed 11%, transparent);
+  --border: color-mix(in oklab, #ededed 6%, transparent);
+  --input: color-mix(in oklab, #ededed 8%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #ededed 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #ededed 30%, transparent);
+  --panel: color-mix(in oklab, #ededed 2.3%, #121212);
+  --raise: color-mix(in oklab, #ededed 4.6%, #121212);
+  --hover: color-mix(in oklab, #ededed 6.4%, #121212);
+  --active: color-mix(in oklab, #ededed 9.1%, #121212);
+  --me: color-mix(in oklab, #ededed 9.6%, #121212);
+  --line: color-mix(in oklab, #ededed 8.2%, #121212);
+  --line2: color-mix(in oklab, #ededed 12.8%, #121212);
+  --kiko-bubble: color-mix(in oklab, #ededed 3.2%, #121212);
+  --bg: #121212;
+  --side: #171717;
+  --fg: #ededed;
+  --fg2: #a6a6a6;
+  --fg3: #878787;
+  --fg4: color-mix(in oklab, #ededed 35%, #121212);
+  --ok: #5cc489;
+  --bad: #ef6a6a;
+  --info: #5b9cf6;
+  --leaf: #7fd19c;
+  --surface: color-mix(in oklab, #ededed 4.6%, #121212);
+  --popover: color-mix(in oklab, #ededed 4.6%, #121212);
+  --message-assistant: color-mix(in oklab, #ededed 3.2%, #121212);
+  --tooltip: color-mix(in oklab, #ededed 14%, #121212);
+  --tooltip-foreground: #ededed;
+  --message-user: color-mix(in oklab, #ededed 9.6%, #121212);
+  --message-user-deep: color-mix(in oklab, #ededed 9.6%, #121212);
+  --message-user-foreground: #ededed;
+  --ring-wash: color-mix(in oklab, #5b9cf6 14%, transparent);
 }
 
 :root:not(.dark) {
-  --background: #eef0f3;
-  --sidebar: #fafbfc;
-  --foreground: #16191e;
-  --muted-foreground: #5b616b;
-  --secondary-label: #5b616b;
-  --ring: #505f78;
-  --primary: #16191e;
-  --primary-hover: #505f78;
-  --primary-foreground: #eef0f3;
-  --error: #b32632;
-  --warning: #805500;
+  --background: #ffffff;
+  --sidebar: #f7f7f6;
+  --foreground: #1b1b1b;
+  --muted-foreground: #5c5c5c;
+  --secondary-label: #808080;
+  --ring: #2f6fe4;
+  --primary: #1b1b1b;
+  --primary-hover: #000000;
+  --primary-foreground: #ffffff;
+  --error: #d6453f;
+  --warning: #a86b00;
   --success: oklch(0.52 0.12 150);
-  --card: color-mix(in oklab, #16191e 7%, transparent);
-  --muted: color-mix(in oklab, #16191e 3.5%, transparent);
-  --secondary: color-mix(in oklab, #16191e 4%, transparent);
-  --accent: color-mix(in oklab, #16191e 4.5%, transparent);
-  --sidebar-row-hover: color-mix(in oklab, #16191e 4.5%, transparent);
-  --accent-strong: color-mix(in oklab, #16191e 7%, transparent);
-  --sidebar-row-active: color-mix(in oklab, #16191e 7%, transparent);
-  --control: color-mix(in oklab, #16191e 6%, transparent);
-  --control-strong: color-mix(in oklab, #16191e 9%, transparent);
-  --border: color-mix(in oklab, #16191e 9%, transparent);
-  --input: color-mix(in oklab, #16191e 13%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #16191e 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #16191e 30%, transparent);
-  --surface: #fafbfc;
-  --popover: #fafbfc;
-  --message-assistant: #fafbfc;
-  --tooltip: #16191e;
-  --tooltip-foreground: #eef0f3;
-  --message-user: oklch(from #505f78 0.93 calc(c * 0.6) h);
-  --message-user-deep: oklch(from #505f78 0.93 calc(c * 0.6) h);
-  --message-user-foreground: #16191e;
-  --ring-wash: color-mix(in oklab, #505f78 11%, transparent);
+  --card: color-mix(in oklab, #1b1b1b 7%, transparent);
+  --muted: color-mix(in oklab, #1b1b1b 3.5%, transparent);
+  --secondary: color-mix(in oklab, #1b1b1b 4%, transparent);
+  --accent: color-mix(in oklab, #1b1b1b 4.5%, transparent);
+  --sidebar-row-hover: color-mix(in oklab, #1b1b1b 4.5%, transparent);
+  --accent-strong: color-mix(in oklab, #1b1b1b 7%, transparent);
+  --sidebar-row-active: color-mix(in oklab, #1b1b1b 7%, transparent);
+  --control: color-mix(in oklab, #1b1b1b 6%, transparent);
+  --control-strong: color-mix(in oklab, #1b1b1b 9%, transparent);
+  --border: color-mix(in oklab, #1b1b1b 9%, transparent);
+  --input: color-mix(in oklab, #1b1b1b 13%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #1b1b1b 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #1b1b1b 30%, transparent);
+  --panel: color-mix(in oklab, #1b1b1b 1.6%, #ffffff);
+  --raise: color-mix(in oklab, #1b1b1b 2.4%, #ffffff);
+  --hover: color-mix(in oklab, #1b1b1b 4%, #ffffff);
+  --active: color-mix(in oklab, #1b1b1b 6.5%, #ffffff);
+  --me: color-mix(in oklab, #1b1b1b 5.5%, #ffffff);
+  --line: color-mix(in oklab, #1b1b1b 8%, #ffffff);
+  --line2: color-mix(in oklab, #1b1b1b 12%, #ffffff);
+  --kiko-bubble: color-mix(in oklab, #1b1b1b 3%, #ffffff);
+  --bg: #ffffff;
+  --side: #f7f7f6;
+  --fg: #1b1b1b;
+  --fg2: #5c5c5c;
+  --fg3: #808080;
+  --fg4: color-mix(in oklab, #1b1b1b 40%, #ffffff);
+  --ok: #1f9d55;
+  --bad: #d6453f;
+  --info: #2f6fe4;
+  --leaf: #2f9e5b;
+  --surface: color-mix(in oklab, #1b1b1b 2.4%, #ffffff);
+  --popover: color-mix(in oklab, #1b1b1b 2.4%, #ffffff);
+  --message-assistant: color-mix(in oklab, #1b1b1b 3%, #ffffff);
+  --tooltip: #1b1b1b;
+  --tooltip-foreground: #ffffff;
+  --message-user: color-mix(in oklab, #1b1b1b 5.5%, #ffffff);
+  --message-user-deep: color-mix(in oklab, #1b1b1b 5.5%, #ffffff);
+  --message-user-foreground: #1b1b1b;
+  --ring-wash: color-mix(in oklab, #2f6fe4 11%, transparent);
 }
 
 :root {
@@ -404,6 +479,24 @@
   --color-success: var(--success);
 
   --color-border: var(--border);
+
+  --color-bg: var(--bg);
+  --color-side: var(--side);
+  --color-panel: var(--panel);
+  --color-raise: var(--raise);
+  --color-hover: var(--hover);
+  --color-active: var(--active);
+  --color-me: var(--me);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-fg: var(--fg);
+  --color-fg2: var(--fg2);
+  --color-fg3: var(--fg3);
+  --color-fg4: var(--fg4);
+  --color-ok: var(--ok);
+  --color-bad: var(--bad);
+  --color-info: var(--info);
+  --color-leaf: var(--leaf);
 
   --color-message-assistant: var(--message-assistant);
   --color-message-assistant-foreground: var(--message-assistant-foreground);

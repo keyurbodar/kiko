@@ -118,7 +118,7 @@ export function parseLook(text: string | null): Look {
       : {}
   return {
     mode: one(raw.mode, MODES) ?? DEFAULT_LOOK.mode,
-    darkTheme: raw.version === 4 && isDarkThemeId(raw.darkTheme) ? raw.darkTheme : DEFAULT_DARK_THEME,
+    darkTheme: raw.version === 5 && isDarkThemeId(raw.darkTheme) ? raw.darkTheme : DEFAULT_DARK_THEME,
     avatars,
     display: readDisplay(raw.display),
     imported: readImported(raw.imported),
@@ -127,7 +127,7 @@ export function parseLook(text: string | null): Look {
 
 export function isCurrentLook(text: string | null): boolean {
   try {
-    return text !== null && (JSON.parse(text) as { version?: unknown }).version === 4
+    return text !== null && (JSON.parse(text) as { version?: unknown }).version === 5
   } catch {
     return false
   }
@@ -135,7 +135,7 @@ export function isCurrentLook(text: string | null): boolean {
 
 export function formatLook(look: Look): string {
   return JSON.stringify({
-    version: 4,
+    version: 5,
     kind: "look",
     mode: look.mode,
     darkTheme: look.darkTheme,

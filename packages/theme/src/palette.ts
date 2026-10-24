@@ -27,14 +27,30 @@ export const PALETTE_KEYS = [
   "gold",
 ] as const satisfies readonly (keyof Palette)[]
 
-export const DARK_THEME_IDS = ["glacier", "slate", "graphite", "moss", "tide", "dusk", "plum"] as const
+export const DARK_THEME_IDS = ["kiko", "glacier", "slate", "graphite", "moss", "tide", "dusk", "plum"] as const
 export type DarkThemeId = (typeof DARK_THEME_IDS)[number]
 export type ThemeId = DarkThemeId | "snow"
 export const THEME_IDS = [...DARK_THEME_IDS, "snow"] as const
-export const DEFAULT_DARK_THEME: DarkThemeId = "glacier"
+export const DEFAULT_DARK_THEME: DarkThemeId = "kiko"
 export const isDarkThemeId = (value: unknown): value is DarkThemeId => DARK_THEME_IDS.some((id) => id === value)
 
 export const THEMES = {
+  kiko: {
+    label: "Kiko",
+    accent: "#5b9cf6",
+    palette: {
+      canvas: "#121212",
+      sidebar: "#171717",
+      text: "#ededed",
+      muted: "#a6a6a6",
+      faint: "#878787",
+      action: "#ededed",
+      actionHover: "#ffffff",
+      onAction: "#141414",
+      danger: "#ef6a6a",
+      gold: "#e8c47b",
+    },
+  },
   glacier: {
     label: "Glacier",
     accent: "#96c8eb",
@@ -148,19 +164,19 @@ export const THEMES = {
     },
   },
   snow: {
-    label: "Snow",
-    accent: "#505f78",
+    label: "Paper",
+    accent: "#2f6fe4",
     palette: {
-      canvas: "#eef0f3",
-      sidebar: "#fafbfc",
-      text: "#16191e",
-      muted: "#5b616b",
-      faint: "#5b616b",
-      action: "#16191e",
-      actionHover: "#505f78",
-      onAction: "#eef0f3",
-      danger: "#b32632",
-      gold: "#805500",
+      canvas: "#ffffff",
+      sidebar: "#f7f7f6",
+      text: "#1b1b1b",
+      muted: "#5c5c5c",
+      faint: "#808080",
+      action: "#1b1b1b",
+      actionHover: "#000000",
+      onAction: "#ffffff",
+      danger: "#d6453f",
+      gold: "#a86b00",
     },
   },
 } as const satisfies Record<ThemeId, { label: string; accent: string; palette: Palette }>
@@ -184,6 +200,17 @@ export const NEUTRALS: ReadonlyArray<readonly [token: string, dark: number, ligh
   ["--input", 8, 13],
   ["--scrollbar-thumb", 18, 18],
   ["--scrollbar-thumb-hover", 30, 30],
+]
+
+const SURFACES: ReadonlyArray<readonly [token: string, dark: number, light: number]> = [
+  ["--panel", 2.3, 1.6],
+  ["--raise", 4.6, 2.4],
+  ["--hover", 6.4, 4],
+  ["--active", 9.1, 6.5],
+  ["--me", 9.6, 5.5],
+  ["--line", 8.2, 8],
+  ["--line2", 12.8, 12],
+  ["--kiko-bubble", 3.2, 3],
 ]
 
 const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places
@@ -213,13 +240,25 @@ export function tokensFor(
     "--success": mode === "dark" ? "oklch(0.7937 0.12 150)" : "oklch(0.52 0.12 150)",
   }
   for (const [token, dark, light] of NEUTRALS) vars[token] = ink(mode === "dark" ? dark : light)
-  vars["--surface"] = p.sidebar
-  vars["--popover"] = vars["--surface"]!
-  vars["--message-assistant"] = vars["--surface"]!
+  const solid = (share: number) =>
+    `color-mix(in oklab, ${p.text} ${Math.min(100, round((share * contrast) / 100, 2))}%, ${p.canvas})`
+  for (const [token, dark, light] of SURFACES) vars[token] = solid(mode === "dark" ? dark : light)
+  vars["--bg"] = p.canvas
+  vars["--side"] = p.sidebar
+  vars["--fg"] = p.text
+  vars["--fg2"] = p.muted
+  vars["--fg3"] = p.faint
+  vars["--fg4"] = solid(mode === "dark" ? 35 : 40)
+  vars["--ok"] = mode === "dark" ? "#5cc489" : "#1f9d55"
+  vars["--bad"] = p.danger
+  vars["--info"] = accent
+  vars["--leaf"] = mode === "dark" ? "#7fd19c" : "#2f9e5b"
+  vars["--surface"] = vars["--raise"]!
+  vars["--popover"] = vars["--raise"]!
+  vars["--message-assistant"] = vars["--kiko-bubble"]!
   vars["--tooltip"] = mode === "dark" ? `color-mix(in oklab, ${p.text} 14%, ${p.canvas})` : p.text
   vars["--tooltip-foreground"] = mode === "dark" ? p.text : p.canvas
-  vars["--message-user"] =
-    mode === "dark" ? `oklch(from ${accent} 0.32 calc(c * 0.42) h)` : `oklch(from ${accent} 0.93 calc(c * 0.6) h)`
+  vars["--message-user"] = vars["--me"]!
   vars["--message-user-deep"] = vars["--message-user"]!
   vars["--message-user-foreground"] = p.text
   vars["--ring-wash"] = `color-mix(in oklab, ${accent} ${mode === "dark" ? 14 : 11}%, transparent)`
