@@ -1,7 +1,6 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CloseIcon, SearchIcon } from "@kiko/ui/icons"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
-import { loadOverlaysV2 } from "@kiko/ui/v2/overlays"
 import { useLocation, useNavigate } from "@tanstack/solid-router"
 import { createEffect, createSignal, For, on, onCleanup, onMount, type ParentProps, Show } from "solid-js"
 import { cn } from "../lib/cn"
@@ -9,8 +8,6 @@ import { iconButtonClass, Page } from "./kit"
 import { closeSettings } from "./open"
 import { SETTINGS_GROUPS, searchSections, sectionAt, type SettingsSection } from "./sections"
 import "./settings-dialog.css"
-
-void loadOverlaysV2()
 
 export function SettingsDialog(props: ParentProps) {
   const returnTo = document.activeElement

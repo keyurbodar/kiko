@@ -5,8 +5,6 @@ import { FirstRun } from "./app/first-run/lazy"
 import { bootstrapSession, session } from "./app/session"
 import "./index.css"
 import { router } from "./router"
-import { whenIdle } from "./lib/idle"
-import { loadOverlaysV2 } from "@kiko/ui/v2/overlays"
 import { applyCommitted } from "@kiko/theme/apply"
 import { DEFAULT_LOOK } from "@kiko/theme/look"
 
@@ -18,10 +16,4 @@ export async function start(): Promise<void> {
   void bootstrapSession()
   root.replaceChildren()
   render(() => <RouterProvider router={router} />, root)
-  void loadOverlaysV2().catch(() => {})
-  whenIdle(preload)
-}
-
-function preload(): void {
-  void loadOverlaysV2()
 }

@@ -1,5 +1,4 @@
 import { Show, createSignal, lazy, onCleanup, type JSX } from "solid-js"
-import { loadOverlaysV2 } from "@kiko/ui/v2/overlays"
 
 const ImageDialog = lazy(() => import("./ImageDialog"))
 
@@ -25,7 +24,6 @@ export function createImageDialog(): ImageDialogController {
   }
   return {
     open: (images, index, from) => {
-      void loadOverlaysV2()
       opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
       setShown({ images, index, from: from ?? null })
     },

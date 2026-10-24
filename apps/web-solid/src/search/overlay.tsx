@@ -1,7 +1,6 @@
 import { openChat } from "../app/history"
 import { Icon } from "@kiko/ui/v2/icon"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
-import { loadOverlaysV2 } from "@kiko/ui/v2/overlays"
 import { snippetParts } from "@kiko/protocol"
 import { For, Show, createEffect, createSignal, on, onCleanup, onMount } from "solid-js"
 import { dividerLabel } from "../chat/lib/time-label"
@@ -11,8 +10,6 @@ import { fetchHits } from "./fetch"
 import { createSearch, type Hit, type SearchView, senderName } from "./model"
 import { closeSearch, requestJump, type SearchScope, searchScope, setSearchScope } from "./state"
 import "./search.css"
-
-void loadOverlaysV2()
 
 export default function SearchOverlay() {
   const [view, setView] = createSignal<SearchView>()
