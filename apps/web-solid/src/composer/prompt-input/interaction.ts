@@ -54,6 +54,11 @@ export function createPromptInputV2Controller(input: {
     draft.addText(part.content)
     return true
   }
+  function insertFileRefs(paths: readonly string[], at?: { x: number; y: number }) {
+    if (rich) return rich.insertFileRefs(paths, at)
+    for (const path of paths)
+      addPart({ type: "text", content: `${fileRefToken(path, path.endsWith("/"))} `, start: 0, end: 0 })
+  }
   const attachments = input.attachments
     ? createPromptInputV2Attachments({
         ...input.attachments,
@@ -65,12 +70,7 @@ export function createPromptInputV2Controller(input: {
         editor: () => editor,
         focusEditor: () => editor?.focus(),
         addPart,
-        fileRef: (paths, at) => {
-          if (rich) rich.insertFileRefs(paths, at)
-          else
-            for (const path of paths)
-              addPart({ type: "text", content: `${fileRefToken(path, path.endsWith("/"))} `, start: 0, end: 0 })
-        },
+        fileRef: insertFileRefs,
         setDragging: (dragging) => {
           if ((state.drag === "active") !== dragging) dispatch({ type: dragging ? "drag.enter" : "drag.leave" })
         },
@@ -158,6 +158,7 @@ export function createPromptInputV2Controller(input: {
       return draft.state.prompt
     },
     addPart,
+    insertFileRefs,
     attachments(): PromptInputV2Attachment[] {
       return draft.state.prompt.filter((part): part is PromptInputV2Attachment => part.type === "image")
     },

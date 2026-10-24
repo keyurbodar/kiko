@@ -3,6 +3,7 @@ import { userEvent } from "vitest/browser"
 import { render } from "../../test/render"
 import type { RosterBot } from "../lib/types"
 import { Composer } from "./composer"
+import { attachFileRefs } from "./file-refs"
 
 const ROOM = "01900000-0000-7000-8000-000000000041"
 
@@ -70,5 +71,18 @@ describe("composer tokens", () => {
     expect(editor.querySelector("[data-mention]")).toBeNull()
     expect(editor.textContent).toBe("Ping @alp")
     await screen[Symbol.asyncDispose]()
+  })
+
+  it("adds workspace files to the draft as file chips from outside the composer", async () => {
+    let sent = ""
+    const { screen, editor } = await mountComposer((body) => (sent = body))
+    await userEvent.keyboard("Read ")
+    expect(attachFileRefs(["notes/plan.md"])).toBe(true)
+
+    expect(editor.querySelector('[data-file-ref="notes/plan.md"]')?.textContent).toContain("plan.md")
+    await userEvent.keyboard("first{Enter}")
+    expect(sent).toBe("Read [plan.md](/notes/plan.md) first")
+    await screen[Symbol.asyncDispose]()
+    expect(attachFileRefs(["notes/plan.md"])).toBe(false)
   })
 })

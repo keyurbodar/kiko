@@ -33,7 +33,7 @@ const LABELS: Record<TokenKind, string> = {
 
 const LIMIT: Record<TokenKind, number> = { agent: 6, file: 5, app: 5, skill: 6, recipe: 5, command: 8 }
 
-export function tokenKey(token: Token): string {
+function tokenKey(token: Token): string {
   if (token.kind === "agent" || token.kind === "app") return token.slug
   if (token.kind === "file") return token.path
   if (token.kind === "command") return token.trigger
@@ -84,7 +84,7 @@ export function tokenGroups(pool: TokenPool, trigger: Trigger, query: string, at
   return groups.filter((group) => group.items.length > 0)
 }
 
-export const SKILL_FILE = /^skills\/([a-z0-9]+(?:-[a-z0-9]+)*)\/SKILL\.md$/
+const SKILL_FILE = /^skills\/([a-z0-9]+(?:-[a-z0-9]+)*)\/SKILL\.md$/
 
 export function skillNames(paths: readonly string[]): string[] {
   return [...new Set(paths.flatMap((path) => SKILL_FILE.exec(path)?.[1] ?? []))].sort()

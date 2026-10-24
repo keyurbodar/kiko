@@ -38,6 +38,7 @@ import { tokenGroups, type Token } from "./tokens"
 import type { TokenData } from "./token-data"
 import { room } from "../state/room"
 import { createDraftRestore } from "./draft-restore"
+import { receiveFileRefs } from "./file-refs"
 import { composerFill, takeComposerFill } from "./fill"
 
 import { createQuestionInput } from "./cards/question-input"
@@ -45,6 +46,8 @@ import { carryDisplacedCustomAnswerIntoPrompt } from "./cards/question-model"
 import { ComposerCards } from "./cards/composer-cards"
 
 const draftFiles = () => import("./rich/draft-files")
+
+const ASKING = "Answer or skip the question before attaching files."
 
 const NO_DATA: TokenData = {
   files: () => [],
@@ -394,7 +397,7 @@ export function Composer(props: ComposerProps) {
       )
     },
     attachments: {
-      blocked: () => (question.ask() ? "Answer or skip the question before attaching files." : null),
+      blocked: () => (question.ask() ? ASKING : null),
       key: () => draftKey() ?? "",
       refuse,
       onAdded: (attachment, file) => {
@@ -471,6 +474,12 @@ export function Composer(props: ComposerProps) {
       },
     },
   })
+  onCleanup(
+    receiveFileRefs((paths) => {
+      if (question.ask()) return refuse([{ reason: ASKING }])
+      controller.insertFileRefs(paths)
+    }),
+  )
 
   function typeHere(text: string) {
     requestAnimationFrame(() =>
