@@ -1,4 +1,4 @@
-import { unnamedFiles } from "../../lib/attachments"
+import { isImage, unnamedFiles } from "../../lib/attachments"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { AlertCircleIcon } from "@kiko/ui/icons"
 import { Show, Suspense, type JSX } from "solid-js"
@@ -15,7 +15,6 @@ import { RunTree } from "../run/RunTree"
 import { RichText } from "./RichText"
 import { Collapsible } from "../Collapsible"
 import { isPhotoTree } from "../rich/model"
-import { identityLook } from "../../lib/identity"
 import { RunAvatar } from "./RunAvatar"
 import { Bubble, BubbleContent, type BubblePosition } from "./bubble"
 import { RichText as RichTree } from "../rich/RichText"
@@ -36,7 +35,7 @@ function tailRun(isRunStart: boolean, isRunEnd: boolean): "start" | "mid" | "bot
 const GROUP_GUTTER = "pl-[calc(1rem+40px)]"
 
 const FAILED_ACTION =
-  "shrink-0 cursor-pointer rounded-full border border-error/40 bg-background px-2 py-0.5 text-xs font-medium text-foreground hover:bg-accent"
+  "shrink-0 cursor-pointer rounded-full border border-bad/40 bg-bg px-2 py-0.5 text-xs font-medium text-fg hover:bg-hover"
 
 export function MessageRow(props: {
   message: ChatMessage
@@ -64,6 +63,11 @@ export function MessageRow(props: {
   const senderName = () => props.bot?.name ?? props.message.botId ?? ""
   const files = () => unnamedFiles(props.message.files ?? [], props.message.body)
   const hasFiles = () => files().length > 0
+  const imagesOnly = () =>
+    hasFiles() &&
+    props.message.body.length === 0 &&
+    !props.quote &&
+    files().every((file) => isImage({ name: file.name, type: file.type }))
   const photo = () => !!props.message.rich && isPhotoTree(props.message.rich)
   const windowKey = () => (own() ? undefined : room.runWindow(props.message))
   const failed = () => props.message.status === "failed"
@@ -91,8 +95,15 @@ export function MessageRow(props: {
       <Show when={grouped()}>
         <RunAvatar seed={props.message.botId!} runKey={props.runKey ?? props.message.id} isRunEnd={props.isRunEnd} />
       </Show>
+      <Show when={grouped() && props.isRunStart && !props.jumboClass}>
+        <div class="truncate pb-0.5 text-[13px] leading-[18px] font-semibold text-fg2" data-component="chat-sender">
+          {senderName()}
+        </div>
+      </Show>
       <Bubble
-        variant={failed() ? "destructive" : props.jumboClass ? "ghost" : own() ? "default" : "secondary"}
+        variant={
+          failed() ? "destructive" : props.jumboClass || imagesOnly() ? "ghost" : own() ? "default" : "secondary"
+        }
         align={own() ? "end" : "start"}
         position={bubblePosition(props.isRunStart, props.isRunEnd)}
         class={
@@ -108,28 +119,12 @@ export function MessageRow(props: {
             "relative",
             "after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:content-['']",
             "after:rounded-[inherit] after:opacity-0",
-            own() ? "after:bg-message-user-foreground" : "after:bg-ring",
+            "after:bg-fg",
             props.highlighted ? "after:opacity-[0.22]" : props.replying && "after:opacity-[0.1]",
           )}
         >
-          <Show when={grouped() && props.isRunStart && !props.jumboClass}>
-            <div
-              class="truncate pb-0.5 text-md leading-5 font-semibold"
-              style={{ color: identityLook(props.message.botId!).color }}
-              data-component="chat-sender"
-            >
-              {senderName()}
-            </div>
-          </Show>
           <Show when={props.quote}>
-            {(quote) => (
-              <Quote
-                quote={quote()}
-                tint={props.group && quote().botId !== undefined ? identityLook(quote().botId!).color : undefined}
-                side={props.message.sender}
-                onOpenReplyTarget={props.onOpenReplyTarget}
-              />
-            )}
+            {(quote) => <Quote quote={quote()} onOpenReplyTarget={props.onOpenReplyTarget} />}
           </Show>
           <Show when={props.message.initiative}>
             {(reason) => (
@@ -199,6 +194,7 @@ export function MessageRow(props: {
         <Show when={props.onReact && props.onReply && props.onMore}>
           <MessageActions
             side={props.message.sender}
+            copyText={props.message.body}
             onReact={(emoji) => props.onReact!(emoji)}
             onReply={() => props.onReply!()}
             onMore={(anchor) => props.onMore!(anchor)}
