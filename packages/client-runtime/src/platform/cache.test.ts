@@ -3,6 +3,7 @@ import { describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
 import { IDBFactory } from "fake-indexeddb"
 import { layer as cacheLayer, SnapshotCache, SnapshotStore } from "./cache"
 import { layer as indexedDbLayer } from "./indexedDb"
@@ -22,6 +23,20 @@ describe("snapshot cache", () => {
       expect(Option.isNone(yield* cache.loadUser)).toBe(true)
       yield* cache.saveUser({ sequence: 3, snapshot: USER })
       expect(yield* cache.loadUser).toEqual(Option.some({ sequence: 3, snapshot: USER }))
+    }).pipe(Effect.provide(stores())),
+  )
+
+  it.effect("keeps the last result of a query, so a page can paint it before the server answers", () =>
+    Effect.gen(function* () {
+      const cache = yield* SnapshotCache
+      const Catalog = Schema.Struct({ models: Schema.Array(Schema.Struct({ id: Schema.String, at: Schema.Date })) })
+      const catalog = { models: [{ id: "claude-haiku-5-5", at: new Date(1_800_000_000_000) }] }
+      expect(Option.isNone(yield* cache.loadQuery("models.catalog:null", Catalog))).toBe(true)
+      yield* cache.saveQuery("models.catalog:null", Catalog, catalog)
+      expect(yield* cache.loadQuery("models.catalog:null", Catalog)).toEqual(Option.some(catalog))
+      expect(
+        Option.isNone(yield* cache.loadQuery("models.catalog:null", Schema.Struct({ other: Schema.String }))),
+      ).toBe(true)
     }).pipe(Effect.provide(stores())),
   )
 

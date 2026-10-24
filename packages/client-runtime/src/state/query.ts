@@ -9,6 +9,7 @@ import * as Atom from "effect/reactivity/Atom"
 import { OwnerSupervisor } from "../connection/supervisor"
 import { OwnerRpcUnavailableError } from "../rpc/client"
 import type { RpcSession } from "../rpc/session"
+import { SnapshotCache } from "../platform/cache"
 import type { OwnerRuntimeServices } from "./runtime"
 import { UserStore } from "./userState"
 
@@ -34,6 +35,7 @@ export interface QueryOptions<Input, A, E> {
   readonly execute: (input: Input) => Effect.Effect<A, E, OwnerRuntimeServices>
   readonly refreshOn?: UserChange
   readonly idleTtlMs?: number
+  readonly cached?: Schema.Codec<A, unknown>
 }
 
 export function createQueryAtoms<ER>(runtime: Atom.AtomRuntime<OwnerRuntimeServices, ER>) {
@@ -67,8 +69,25 @@ export function createQueryAtoms<ER>(runtime: Atom.AtomRuntime<OwnerRuntimeServi
             Option.getOrElse(AsyncResult.value(get(sessionAtom)), () => Option.none<RpcSession>()),
           )
           if (options.refreshOn !== undefined) get(changedAtom(options.refreshOn))
-          if (session === undefined) return Effect.never
-          return options.execute(input).pipe(pendingOnceSessionReplaced(session))
+          const live =
+            session === undefined ? Effect.never : options.execute(input).pipe(pendingOnceSessionReplaced(session))
+          const schema = options.cached
+          if (schema === undefined) return live
+          const cacheKey = `${options.label}:${key}`
+          const shown = Option.isSome(Option.flatMap(get.self<AsyncResult.AsyncResult<A, E>>(), AsyncResult.value))
+          const warm = shown
+            ? Effect.void
+            : SnapshotCache.use((cache) => cache.loadQuery(cacheKey, schema)).pipe(
+                Effect.tap((cached) =>
+                  Option.isSome(cached)
+                    ? Effect.sync(() => get.setSelf(AsyncResult.success(cached.value, { waiting: true })))
+                    : Effect.void,
+                ),
+              )
+          return warm.pipe(
+            Effect.andThen(live),
+            Effect.tap((value) => SnapshotCache.use((cache) => cache.saveQuery(cacheKey, schema, value))),
+          )
         })
         .pipe(Atom.setIdleTTL(options.idleTtlMs ?? QUERY_IDLE_TTL_MS), Atom.withLabel(`${options.label}:${key}`))
     })

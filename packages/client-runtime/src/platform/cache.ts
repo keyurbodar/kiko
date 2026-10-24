@@ -53,6 +53,8 @@ export class SnapshotCache extends Context.Service<
     ) => Effect.Effect<Option.Option<CachedSnapshot<RoomSnapshot>>, SnapshotCacheError>
     readonly saveRoom: (roomId: RoomId, value: CachedSnapshot<RoomSnapshot>) => Effect.Effect<void, SnapshotCacheError>
     readonly removeRoom: (roomId: RoomId) => Effect.Effect<void, SnapshotCacheError>
+    readonly loadQuery: <A>(key: string, schema: Schema.Codec<A, unknown>) => Effect.Effect<Option.Option<A>>
+    readonly saveQuery: <A>(key: string, schema: Schema.Codec<A, unknown>, value: A) => Effect.Effect<void>
   }
 >()("@kiko/client-runtime/platform/SnapshotCache") {}
 
@@ -69,6 +71,8 @@ const make = Effect.gen(function* () {
   const store = yield* SnapshotStore
   const userKey = "user"
   const roomKey = (roomId: RoomId) => `room:${roomId}`
+  const queryKey = (key: string) => `query:${SNAPSHOT_CACHE_SCHEMA_VERSION}:${key}`
+  const queryCodec = <A>(schema: Schema.Codec<A, unknown>) => Schema.fromJsonString(Schema.toCodecJson(schema))
 
   const load = <A>(key: string, decode: (raw: string) => Effect.Effect<A, unknown>) =>
     store.read(key).pipe(
@@ -108,6 +112,15 @@ const make = Effect.gen(function* () {
         Effect.flatMap((text) => store.write(roomKey(roomId), text)),
       ),
     removeRoom: (roomId) => store.remove(roomKey(roomId)),
+    loadQuery: (key, schema) =>
+      load(queryKey(key), Schema.decodeUnknownEffect(queryCodec(schema))).pipe(
+        Effect.orElseSucceed(() => Option.none()),
+      ),
+    saveQuery: (key, schema, value) =>
+      Schema.encodeEffect(queryCodec(schema))(value).pipe(
+        Effect.flatMap((text) => store.write(queryKey(key), text)),
+        Effect.ignore,
+      ),
   })
 })
 

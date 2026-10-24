@@ -4,11 +4,14 @@ import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
+import * as AsyncResult from "effect/reactivity/AsyncResult"
 import * as PubSub from "effect/PubSub"
 import * as SubscriptionRef from "effect/SubscriptionRef"
 import * as Atom from "effect/reactivity/Atom"
 import * as AtomRegistry from "effect/reactivity/AtomRegistry"
 import { OwnerSupervisor } from "../connection/supervisor"
+import { layer as cacheLayer, layerMemoryStore, SnapshotCache } from "../platform/cache"
 import type { PreparedConnection, SupervisorConnectionState } from "../connection/model"
 import type { OwnerRpcClient } from "../rpc/protocol"
 import type { RpcSession } from "../rpc/session"
@@ -40,10 +43,15 @@ const setup = Effect.fnUntraced(function* () {
     signals,
     disconnected: Effect.void,
   })
+  const cache = yield* SnapshotCache.pipe(Effect.provide(cacheLayer.pipe(Layer.provide(layerMemoryStore))))
   const runtime = Atom.runtime(
-    Layer.mergeAll(Layer.succeed(OwnerSupervisor, supervisor), Layer.succeed(UserStore, user)),
+    Layer.mergeAll(
+      Layer.succeed(OwnerSupervisor, supervisor),
+      Layer.succeed(UserStore, user),
+      Layer.succeed(SnapshotCache, cache),
+    ),
   ) as unknown as Atom.AtomRuntime<OwnerRuntimeServices, never>
-  return { sessions, signals, runtime }
+  return { sessions, signals, runtime, cache }
 })
 
 const yieldTimes = (n: number) => Effect.repeat(Effect.yieldNow, { times: n })
@@ -70,6 +78,31 @@ describe("query atoms", () => {
       expect(result).toBe("soul of scout")
       expect(soul({ slug: "scout" })).toBe(atom)
       expect(runs).toEqual(["scout"])
+      unmount()
+    }),
+  )
+
+  it.effect("paint the last stored result before the socket connects, then replace and store the fresh one", () =>
+    Effect.gen(function* () {
+      const { sessions, runtime, cache } = yield* setup()
+      const { query } = createQueryAtoms(runtime)
+      yield* cache.saveQuery("catalog:null", Schema.String, "yesterday's catalog")
+      const catalog = query({
+        label: "catalog",
+        execute: () => Effect.succeed("today's catalog"),
+        cached: Schema.String,
+      })
+      const registry = AtomRegistry.make()
+      const atom = catalog(undefined)
+      const unmount = registry.mount(atom)
+      yield* yieldTimes(20)
+      const early = registry.get(atom)
+      expect(Option.getOrUndefined(AsyncResult.value(early))).toBe("yesterday's catalog")
+      expect(early.waiting).toBe(true)
+
+      yield* SubscriptionRef.set(sessions, Option.some(session))
+      expect(yield* AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true })).toBe("today's catalog")
+      expect(yield* cache.loadQuery("catalog:null", Schema.String)).toEqual(Option.some("today's catalog"))
       unmount()
     }),
   )

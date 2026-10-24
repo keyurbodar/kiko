@@ -14,6 +14,7 @@ import { OwnerRpcs } from "@kiko/protocol/rpc"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as PubSub from "effect/PubSub"
+import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 import * as SubscriptionRef from "effect/SubscriptionRef"
 import * as AsyncResult from "effect/reactivity/AsyncResult"
@@ -60,6 +61,9 @@ export type RpcCommandInput<Tag extends OwnerUnaryTag> = Omit<OwnerRpcInput<Tag>
 const payloadFields = (tag: OwnerUnaryTag): Record<string, unknown> =>
   (OwnerRpcs.requests.get(tag)?.payloadSchema as { readonly fields?: Record<string, unknown> } | undefined)?.fields ??
   {}
+
+const successSchema = <const Tag extends OwnerUnaryTag>(tag: Tag) =>
+  OwnerRpcs.requests.get(tag)?.successSchema as unknown as Schema.Codec<OwnerRpcSuccess<Tag>, unknown>
 
 const requestAny = request as unknown as (
   tag: OwnerUnaryTag,
@@ -213,25 +217,48 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
   ) => createRuntimeCommand(runtime, { label, execute, ...(concurrency === undefined ? {} : { concurrency }) })
 
   const queries = {
-    settings: query({ label: "settings.get", execute: () => request("settings.get", undefined) }),
-    storageUsage: query({ label: "storage.usage", execute: () => request("storage.usage", undefined) }),
+    settings: query({
+      label: "settings.get",
+      execute: () => request("settings.get", undefined),
+      cached: successSchema("settings.get"),
+    }),
+    storageUsage: query({
+      label: "storage.usage",
+      execute: () => request("storage.usage", undefined),
+      cached: successSchema("storage.usage"),
+    }),
     modelsCatalog: query({
       label: "models.catalog",
       execute: () => request("models.catalog", undefined),
       refreshOn: "models",
+      cached: successSchema("models.catalog"),
     }),
-    version: query({ label: "version.get", execute: () => request("version.get", undefined) }),
+    version: query({
+      label: "version.get",
+      execute: () => request("version.get", undefined),
+      cached: successSchema("version.get"),
+    }),
     credentials: query({
       label: "credentials.list",
       execute: () => request("credentials.list", undefined),
       refreshOn: "models",
+      cached: successSchema("credentials.list"),
     }),
     composio: query({
       label: "composio.status",
       execute: (input: { readonly tools?: boolean }) => request("composio.status", input),
+      cached: successSchema("composio.status"),
     }),
-    kernel: query({ label: "kernel.status", execute: () => request("kernel.status", undefined) }),
-    recipes: query({ label: "recipes.list", execute: () => request("recipes.list", undefined) }),
+    kernel: query({
+      label: "kernel.status",
+      execute: () => request("kernel.status", undefined),
+      cached: successSchema("kernel.status"),
+    }),
+    recipes: query({
+      label: "recipes.list",
+      execute: () => request("recipes.list", undefined),
+      cached: successSchema("recipes.list"),
+    }),
     soul: query({
       label: "soul.get",
       execute: (input: { readonly slug: AgentSlug }) => request("soul.get", input),
