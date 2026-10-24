@@ -48,6 +48,7 @@ const ownerRuntime = Atom.runtime((get) => {
   return Layer.fresh(
     layerBrowser({
       endpoint: { baseUrl: () => attached?.url ?? location.origin, token: () => attached?.token ?? null },
+      connect: key !== null,
       cache: key === null ? null : { database: RUNTIME_DATABASE, namespace: key },
     }).pipe(Layer.provideMerge(lifetime())),
   )
