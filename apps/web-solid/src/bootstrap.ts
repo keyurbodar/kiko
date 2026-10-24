@@ -1,4 +1,6 @@
-import { apiUrl, getToken } from "./lib/api-base"
+import { hasAuth, prepareStorage } from "./lib/storage"
+
+prepareStorage()
 
 const RELOAD_KEY = "kiko:chunk-reload"
 let chunkFailed = false
@@ -20,17 +22,7 @@ window.addEventListener("vite:preloadError", () => {
   reloading ||= reloadOnce()
 })
 
-declare global {
-  var __kikoBoot: { me?: Promise<Response>; token?: string | null; url?: string } | undefined
-}
-const token = getToken()
-globalThis.__kikoBoot = {
-  token,
-  url: apiUrl("/api/me"),
-  me: token ? fetch(apiUrl("/api/me"), { headers: { authorization: `Bearer ${token}` } }) : undefined,
-}
-
-void Promise.all([import("./main"), import("./app/chat-view"), token ? undefined : import("./app/first-run/frame")])
+void Promise.all([import("./main"), import("./app/chat-view"), hasAuth() ? undefined : import("./app/first-run/frame")])
   .then(async ([main]) => {
     if (reloading) return
     await main.start()

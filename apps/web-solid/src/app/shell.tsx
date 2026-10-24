@@ -71,7 +71,7 @@ const watchPanel = (el: HTMLElement) => {
   onCleanup(() => observer.disconnect())
 }
 
-const KEY = "kiko:sidebar-collapsed"
+const KEY = "kiko:device:sidebar-collapsed"
 
 function readCollapsed() {
   try {

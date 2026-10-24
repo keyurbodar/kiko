@@ -14,11 +14,11 @@ import {
 import { type Imported, type ImportedTheme, MAX_IMPORTED } from "@kiko/theme/imported"
 import { setAvatarPicks } from "../avatar/picks"
 import type { ThemeId } from "@kiko/theme/palette"
-import { read } from "../lib/api-base"
+import { hasAuth } from "../lib/storage"
 import { DEFAULT_LOOK, formatLook, isCurrentLook, parseLook, type Look } from "@kiko/theme/look"
 
 const cached = readCache()
-const signedInBefore = read("kiko:session") !== null
+const signedInBefore = hasAuth()
 let legacy: Imported | null = signedInBefore ? legacyImported() : null
 if (!legacy?.themes.length) legacy = null
 const first = signedInBefore ? withThemes(parseLook(cached?.text ?? null), legacy) : DEFAULT_LOOK

@@ -4,7 +4,6 @@ import * as Option from "effect/Option"
 import * as Semaphore from "effect/Semaphore"
 import { SnapshotCacheError, SnapshotStore } from "./cache"
 
-const DATABASE_NAME = "kiko:client-runtime"
 const DATABASE_VERSION = 1
 const STORE_NAME = "snapshots"
 
@@ -15,10 +14,10 @@ const failure = (operation: Operation, cause: unknown) =>
 
 const isClosedConnection = (error: SnapshotCacheError) => error.message.includes("InvalidStateError")
 
-const openDatabase = (factory: IDBFactory) =>
+const openDatabase = (factory: IDBFactory, name: string) =>
   Effect.callback<IDBDatabase, SnapshotCacheError>((resume) => {
     try {
-      const request = factory.open(DATABASE_NAME, DATABASE_VERSION)
+      const request = factory.open(name, DATABASE_VERSION)
       request.addEventListener("upgradeneeded", () => {
         if (!request.result.objectStoreNames.contains(STORE_NAME)) request.result.createObjectStore(STORE_NAME)
       })
@@ -48,10 +47,13 @@ function run<A>(
   })
 }
 
-const make = Effect.fn("IndexedDbSnapshotStore.make")(function* (options: {
+interface IndexedDbOptions {
+  readonly database: string
   readonly namespace: string
   readonly factory?: IDBFactory
-}) {
+}
+
+const make = Effect.fn("IndexedDbSnapshotStore.make")(function* (options: IndexedDbOptions) {
   const factory = options.factory ?? globalThis.indexedDB
   const lock = yield* Semaphore.make(1)
   let current: IDBDatabase | null = null
@@ -66,7 +68,7 @@ const make = Effect.fn("IndexedDbSnapshotStore.make")(function* (options: {
         : lock.withPermits(1)(
             Effect.gen(function* () {
               if (current !== null) return current
-              const opened = yield* openDatabase(factory)
+              const opened = yield* openDatabase(factory, options.database)
               current = opened
               opened.addEventListener("close", () => forget(opened))
               opened.addEventListener("versionchange", () => {
@@ -138,5 +140,4 @@ const make = Effect.fn("IndexedDbSnapshotStore.make")(function* (options: {
   })
 })
 
-export const layer = (options: { readonly namespace: string; readonly factory?: IDBFactory }) =>
-  Layer.effect(SnapshotStore, make(options))
+export const layer = (options: IndexedDbOptions) => Layer.effect(SnapshotStore, make(options))

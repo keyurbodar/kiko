@@ -1,4 +1,5 @@
-const DB = "kiko-composer"
+import { COMPOSER_DATABASE } from "../../lib/storage"
+
 const STORE = "files"
 
 export type DraftFile = {
@@ -15,11 +16,18 @@ let opened: Promise<IDBDatabase> | undefined
 
 function open(): Promise<IDBDatabase> {
   opened ??= new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB, 1)
+    const request = indexedDB.open(COMPOSER_DATABASE, 1)
     request.onupgradeneeded = () => {
       request.result.createObjectStore(STORE, { keyPath: "key" }).createIndex("draftKey", "draftKey")
     }
-    request.onsuccess = () => resolve(request.result)
+    request.onsuccess = () => {
+      const db = request.result
+      db.addEventListener("versionchange", () => {
+        db.close()
+        opened = undefined
+      })
+      resolve(db)
+    }
     request.addEventListener("error", () => reject(request.error))
   })
   return opened
