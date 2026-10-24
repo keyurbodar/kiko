@@ -8,6 +8,7 @@ import { PageFrame, PageSearch, PageTabs, SectionHead, SkeletonRows } from "../c
 import { byChatOrder, filterRecipes, openingSection, recipeTags, type Section, type TagFilter, tagLabel } from "./model"
 import { InstallCard } from "./row"
 import { ConnectSheet } from "./connect"
+import { NewRecipe } from "./new-recipe"
 import { RecipeSheet } from "./sheet"
 import {
   addToTarget,
@@ -23,13 +24,13 @@ import {
 import { RecipeTile } from "./tile"
 
 const tagTab =
-  "h-7 shrink-0 cursor-pointer rounded-full px-3 text-[13px] text-fg3 transition-colors duration-[var(--dur-hover)] hover:bg-hover hover:text-fg aria-selected:bg-active aria-selected:text-fg"
+  "type-label h-chip shrink-0 cursor-pointer rounded-full px-3 text-fg3 transition-colors duration-(--dur-hover) hover:bg-hover hover:text-fg aria-selected:bg-active aria-selected:text-fg"
 const grid = "grid grid-cols-1 gap-x-4 gap-y-1 @min-[640px]/page:grid-cols-2"
 
 function Empty(props: { title: string; children?: JSX.Element }) {
   return (
     <div class="flex flex-col items-center gap-2 px-6 py-14 text-center">
-      <p class="text-[15px] text-fg2">{props.title}</p>
+      <p class="type-ui text-fg2">{props.title}</p>
       {props.children}
     </div>
   )
@@ -86,6 +87,7 @@ export default function RecipesPage() {
                 />
                 <div class="flex items-center gap-1">
                   <PageSearch label="Search recipes" query={query()} onQuery={setQuery} />
+                  <NewRecipe />
                 </div>
               </div>
 
@@ -95,7 +97,18 @@ export default function RecipesPage() {
                     when={yours().length}
                     fallback={
                       <Show when={!query()} fallback={<Empty title="Nothing of yours matches" />}>
-                        <Empty title="No recipes yet. Your team is free." />
+                        <div
+                          class="flex flex-col items-start gap-4 rounded-card bg-panel p-6"
+                          data-component="recipes-empty"
+                        >
+                          <div class="flex flex-col gap-1">
+                            <p class="type-row text-fg">No recipes yet</p>
+                            <p class="type-label text-fg3">
+                              Recipes are jobs your team runs on a schedule or when something happens.
+                            </p>
+                          </div>
+                          <NewRecipe />
+                        </div>
                       </Show>
                     }
                   >
@@ -150,7 +163,7 @@ export default function RecipesPage() {
 
                   <Show when={broken().length}>
                     <div
-                      class="flex flex-col gap-1 rounded-[16px] bg-panel px-4 py-3 text-[13px] text-fg3"
+                      class="flex flex-col gap-1 type-label rounded-card bg-panel px-4 py-3 text-fg3"
                       data-component="recipes-broken"
                     >
                       <p class="font-medium text-fg">Some recipe files did not load</p>
