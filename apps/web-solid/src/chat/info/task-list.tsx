@@ -6,7 +6,7 @@ import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { room } from "../../state/room"
 import { TASK_LABEL, taskDependencies, taskText, taskOwner } from "./tasks-model"
 
-const CLOSED: readonly TaskStatus[] = ["done", "cancelled"]
+const CLOSED = new Set<TaskStatus>(["done", "cancelled"])
 
 function TaskCheck(props: { task: Task }) {
   const done = () => props.task.status === "done"
@@ -48,7 +48,7 @@ export function TaskList(props: {
             <li class="task-step" data-component="task-step" data-id={task.id} data-status={task.status}>
               <TaskCheck task={task} />
               <div class="task-step-content">
-                <span class="task-step-title" data-closed={CLOSED.includes(task.status) || undefined}>
+                <span class="task-step-title" data-closed={CLOSED.has(task.status) || undefined}>
                   {display(task.title)}
                 </span>
                 <Show when={props.showDetails}>

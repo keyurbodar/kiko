@@ -10,7 +10,7 @@ const task = (id: string, title: string, status: Task["status"], owner?: string)
   title,
   status,
   dependsOn: [],
-  ...(owner ? { owner } : {}),
+  ...(owner ? { owner: owner as Task["owner"] } : {}),
 })
 
 describe("task rows", () => {
