@@ -28,6 +28,7 @@ import { drawerOpen, setDrawerOpen } from "./drawer"
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe"
 import { sectionOf, useChatInView } from "./sections"
 import { whenIdle } from "../lib/idle"
+import { Rail } from "./rail"
 import { TopBar } from "./top-bar"
 import {
   CHAT_MIN,
@@ -330,6 +331,9 @@ export function Shell(props: ParentProps) {
             onPointerDown={() => setDrawer(false)}
           />
         </Show>
+        <Show when={!narrow() && collapsed()}>
+          <Rail onExpand={toggle} />
+        </Show>
         <Show when={narrow() ? "narrow" : compact() ? "compact" : "wide"} keyed>
           {(_mode) => {
             const fitted = fitWidths(
@@ -384,9 +388,9 @@ export function Shell(props: ParentProps) {
                 >
                   <main class="relative flex min-w-0 flex-1 flex-col overflow-hidden" data-component="main-column">
                     <Show when={sectionOf(pathname()) === "chat"}>
-                      <TopBar chatId={sideChat()} sidebarOpen={!closed()} onToggleSidebar={toggle} />
+                      <TopBar chatId={sideChat()} sidebarOpen={!narrow() || !closed()} onToggleSidebar={toggle} />
                     </Show>
-                    <Show when={closed() && sectionOf(pathname()) !== "chat"}>
+                    <Show when={narrow() && closed() && sectionOf(pathname()) !== "chat"}>
                       <SidebarToggle open={false} onToggle={toggle} class="main-sidebar-toggle" />
                     </Show>
                     <div

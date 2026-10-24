@@ -5,8 +5,11 @@ import type { FileEntry } from "./sources"
 
 export const canAttach = (): boolean => document.querySelector('[data-component="composer-dock"]') !== null
 
+export const attachable = (entries: readonly FileEntry[]): readonly FileEntry[] =>
+  entries.filter((entry) => entry.chat === undefined)
+
 export function attachFiles(entries: readonly FileEntry[]): void {
-  attachFileRefs(entries.map((entry) => entry.path.replace(/^\/+/, "")))
+  attachFileRefs(attachable(entries).map((entry) => entry.path.replace(/^\/+/, "")))
 }
 
 export function downloadFiles(entries: readonly FileEntry[]): void {

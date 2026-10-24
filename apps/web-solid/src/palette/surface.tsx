@@ -16,7 +16,7 @@ import {
   searchGroups,
   viewFor,
 } from "./model"
-import { attachFiles, canAttach, downloadFiles } from "./file-actions"
+import { attachable, attachFiles, canAttach, downloadFiles } from "./file-actions"
 import { askKiko } from "./ask"
 import { intentOf, type Intent } from "./keys"
 import { Actions, Peek } from "./side"
@@ -232,7 +232,7 @@ export function PaletteSurface(props: { source: TabData }) {
   const fileItems = () => items().filter((i) => i.file)
   const attach = () => {
     const picked = entries()
-    if (!picked.length || !canAttach()) return
+    if (!attachable(picked).length || !canAttach()) return
     close()
     attachFiles(picked)
   }
@@ -540,10 +540,21 @@ export function PaletteSurface(props: { source: TabData }) {
                     Download
                   </button>
                   <Show when={canAttach()}>
-                    <button type="button" class="palette-btn" data-primary="" onClick={attach}>
-                      Attach to message
-                      <Key name="mod-enter" />
-                    </button>
+                    <Show
+                      when={attachable(entries()).length > 0}
+                      fallback={
+                        <span class="type-hint text-fg4" data-component="palette-attach-other">
+                          Files from other chats stay in their chat
+                        </span>
+                      }
+                    >
+                      <button type="button" class="palette-btn" data-primary="" onClick={attach}>
+                        {attachable(entries()).length < entries().length
+                          ? "Attach the ones from this chat"
+                          : "Attach to message"}
+                        <Key name="mod-enter" />
+                      </button>
+                    </Show>
                   </Show>
                 </div>
               }
