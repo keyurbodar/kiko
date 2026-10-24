@@ -1,4 +1,4 @@
-import { appendFile } from "node:fs/promises"
+import { appendFileSync } from "node:fs"
 import { FailCode } from "@kiko/computer/wire"
 import * as Schema from "effect/Schema"
 
@@ -27,7 +27,10 @@ export function createLogger(name: string, file?: string): Logger {
   const write = (level: string, message: string) => {
     const line = `${stamp()} ${level} ${name}: ${message}`
     console.error(line)
-    if (file) appendFile(file, `${line}\n`).catch(() => undefined)
+    if (!file) return
+    try {
+      appendFileSync(file, `${line}\n`)
+    } catch {}
   }
   return {
     info: (message) => write("info", message),
