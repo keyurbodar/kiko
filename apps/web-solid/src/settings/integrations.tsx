@@ -6,7 +6,6 @@ import { createComposioClient, createKernelClient, type ComposioClient, type Ker
 import LiveBrowser from "./live-browser"
 import { SECRET_FIELD } from "../lib/secret-field"
 import { createQuery, owner } from "../state/runtime"
-import { onUserSignal } from "../state/user"
 
 const COMPOSIO_PLATFORM = "https://platform.composio.dev"
 
@@ -126,15 +125,6 @@ export function useIntegrations(props: { client?: ComposioClient; kernel?: Kerne
     client.onPush(apply)
     kernelClient = props.kernel ?? createKernelClient()
     kernelClient.onPush(applyKernel)
-    onCleanup(
-      onUserSignal("changed", (signal) => {
-        if (signal.what !== "memory") return
-        setPushedStatus(null)
-        setPushedKernel(null)
-        composioQuery.refetch()
-        kernelQuery.refetch()
-      }),
-    )
   })
   onCleanup(() => {
     if (!props.client) client?.close()

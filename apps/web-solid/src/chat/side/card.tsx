@@ -68,6 +68,12 @@ export default function ChatCard(props: { chatId: string }) {
   }
   const busy = () => statusChip(chat()?.presence).tone === "working" || working() !== null
   const files = () => room.files()
+  const memoryMeta = () => {
+    const state = memory()?.state
+    const kept = state?.lines.filter((line) => !line.redacted).length ?? 0
+    if (!state || state.next === null) return kept ? plural(kept, "note") : "Empty"
+    return `${kept}+ notes`
+  }
   const routines = () => routinesOf(props.chatId)
   const tasks = () => room.tasks() ?? []
   const open = () => tasks().filter((t) => t.status !== "done" && t.status !== "cancelled").length
@@ -184,13 +190,7 @@ export default function ChatCard(props: { chatId: string }) {
               : "None yet"
           }
         />
-        <Row
-          icon={MemoryIcon}
-          label="Memory"
-          kind="memory"
-          chatId={props.chatId}
-          meta={memory()?.state.lines.length ? plural(memory()!.state.lines.length, "note") : "Empty"}
-        />
+        <Row icon={MemoryIcon} label="Memory" kind="memory" chatId={props.chatId} meta={memoryMeta()} />
         <Row
           icon={RepeatIcon}
           label="Routines"

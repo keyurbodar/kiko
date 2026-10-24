@@ -107,6 +107,9 @@ export function createMemoryStore(client: MemoryClient, now: () => number = Date
     state,
     load,
     more,
+    async refresh() {
+      await Promise.all([refreshHead(), refreshView()])
+    },
     pin(pos: number, pinned: boolean) {
       void change(
         { op: "pin", pos, pinned },

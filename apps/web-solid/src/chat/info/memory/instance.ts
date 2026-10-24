@@ -9,7 +9,7 @@ export async function memoryFor(userId: string): Promise<MemoryStore> {
   current?.stop()
   const store = createMemoryStore(memoryClient)
   const stop = onUserSignal("changed", (signal) => {
-    if (signal.what === "memory" && store.state.loaded) void store.load()
+    if (signal.what === "memory" && store.state.loaded) void store.refresh()
   })
   current = { userId, store, stop }
   return store
