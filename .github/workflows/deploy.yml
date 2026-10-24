@@ -74,7 +74,6 @@ jobs:
           version="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' dist-release/latest-owner.json)"
           case "$version" in *[!0-9.]*|"") echo "unreadable built version: $version" >&2; exit 1 ;; esac
           live_version="$(curl -sf https://app.kiko.works/releases/latest-owner.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
-          [ -n "$live_version" ] || live_version="$(curl -sf https://app.kiko.works/releases/latest.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
           live="$(curl -sf "https://app.kiko.works/releases/$version/manifest.json" || true)"
           case "$live" in *"\"version\": \"$version\""*) ;; *) live="" ;; esac
           if [ -n "$live" ] && [ "$live" != "$(cat "dist-release/$version/manifest.json")" ]; then
@@ -91,14 +90,12 @@ jobs:
           store="$RUNNER_TEMP/releases"
           mkdir -p "$store"
           live="$(curl -sf https://app.kiko.works/releases/latest-owner.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
-          [ -n "$live" ] || live="$(curl -sf https://app.kiko.works/releases/latest.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
           bun scripts/sync-releases.ts "$store" https://app.kiko.works/releases $(git tag -l 'v*' | sed 's/^v//') $live
           version="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' dist-release/latest-owner.json)"
           rm -rf "$store/$version" && cp -r "dist-release/$version" "$store/$version"
           rm -rf apps/web-solid/dist/releases
           cp -r "$store" apps/web-solid/dist/releases
           cp dist-release/latest-owner.json apps/web-solid/dist/releases/
-          curl -fsS https://app.kiko.works/releases/latest.json -o apps/web-solid/dist/releases/latest.json
       - name: keep the live build's assets so open tabs can still load them
         run: bun scripts/keep-live-assets.ts apps/web-solid/dist/assets https://app.kiko.works
       - name: deploy the front door and the installer
