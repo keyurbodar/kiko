@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/solid-router"
 import { Show } from "solid-js"
 import type { Notice } from "../lib/update"
+import { Button } from "../settings/kit"
 import { notice, startUpdate } from "./update-flow"
 
 type Action = { readonly id: string; readonly label: string; readonly run: () => void }
@@ -10,13 +11,15 @@ const LINE: Record<Notice["kind"], string> = {
   updating: "Updating your backend…",
   reconnect: "Your backend runs an older version of Kiko.",
   retry: "Your backend did not finish updating.",
-  reload: "Kiko has a newer version.",
+  reload: "A new version of Kiko is ready.",
 }
 
 const lineOf = (current: Notice): string =>
   current.kind === "reconnect" && current.reason !== "legacy"
-    ? "Kiko needs your Cloudflare sign-in again to update your backend."
+    ? "Kiko needs your Cloudflare sign-in again to update your backend. Your chats stay."
     : LINE[current.kind]
+
+const busy = (current: Notice) => current.kind === "checking" || current.kind === "updating"
 
 export default function UpdateNotice() {
   const navigate = useNavigate()
@@ -25,7 +28,7 @@ export default function UpdateNotice() {
       case "reconnect":
         return {
           id: "reconnect-cloudflare",
-          label: "Reconnect Cloudflare (keeps chats)",
+          label: "Sign in to Cloudflare",
           run: () => void navigate({ to: "/connect", search: { reconnect: 1 } }),
         }
       case "retry":
@@ -41,23 +44,23 @@ export default function UpdateNotice() {
     <Show when={notice()}>
       {(current) => (
         <div
-          class="mx-3 mb-2 flex min-h-9 items-center gap-2 rounded-row bg-[color-mix(in_oklab,var(--fg)_6%,transparent)] px-3 py-1.5 text-label text-fg3"
+          class="motion-page-in mx-3 mb-2 flex min-h-11 items-center gap-3 rounded-tile bg-panel py-1.5 pr-1.5 pl-3.5 type-label text-fg2"
           role="status"
           data-component="update-notice"
           data-kind={current().kind}
         >
-          <Show when={current().kind === "checking" || current().kind === "updating"}>
-            <span
-              class="motion-spin inline-block size-3 shrink-0 rounded-full border-2 border-current border-t-transparent"
-              aria-hidden="true"
-            />
-          </Show>
-          <span class="min-w-0 flex-1 truncate">{lineOf(current())}</span>
+          <span
+            class="min-w-0 flex-1"
+            classList={{ "motion-shine": busy(current()) }}
+            style={busy(current()) ? { "--run-text": "var(--fg3)", "--visible-animation-state": "running" } : undefined}
+          >
+            {lineOf(current())}
+          </span>
           <Show when={actionOf(current())}>
             {(action) => (
-              <button type="button" class="update-pill shrink-0" data-action={action().id} onClick={action().run}>
+              <Button variant="secondary" class="shrink-0" data-action={action().id} onClick={action().run}>
                 {action().label}
-              </button>
+              </Button>
             )}
           </Show>
         </div>
