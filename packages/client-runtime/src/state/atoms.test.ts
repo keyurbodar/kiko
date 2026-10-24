@@ -16,6 +16,7 @@ import * as Wakeups from "../connection/wakeups"
 import { layer as cacheLayer, SnapshotCache, SnapshotStore } from "../platform/cache"
 import type { OwnerRpcClient } from "../rpc/protocol"
 import type { RpcSession } from "../rpc/session"
+import { runAtomCommand } from "./atomCommand"
 import { createOwnerAtoms } from "./atoms"
 import * as Pending from "./pending"
 import type { RoomState } from "./roomState"
@@ -59,6 +60,7 @@ const setup = Effect.fnUntraced(function* () {
   const feeds: Array<Queue.Queue<RoomStreamItem>> = []
   const reads: string[] = []
   const values = new Map<string, string>()
+  const requests: Array<{ readonly tag: string; readonly input: unknown }> = []
   const store = SnapshotStore.of({
     read: (key) => Effect.sync(() => (reads.push(key), Option.fromNullishOr(values.get(key)))),
     write: (key, value) => Effect.sync(() => void values.set(key, value)),
@@ -66,6 +68,10 @@ const setup = Effect.fnUntraced(function* () {
   })
   const client = ((tag: string, input: { roomId: RoomId; afterSequence?: number }) => {
     if (tag === "room.send") return Effect.never
+    if (tag === "recipes.install") {
+      requests.push({ tag, input })
+      return Effect.succeed({ state: "needs_connect", links: [] })
+    }
     if (tag !== "room.subscribe") return Effect.die(`unexpected ${tag}`)
     subscribes.push(input)
     return Stream.unwrap(
@@ -103,7 +109,7 @@ const setup = Effect.fnUntraced(function* () {
   const runtime = Atom.runtime(services) as unknown as Atom.AtomRuntime<OwnerRuntimeServices, never>
   const owner = createOwnerAtoms(runtime)
   const registry = AtomRegistry.make()
-  return { owner, registry, subscribes, feeds, reads, cache }
+  return { owner, registry, subscribes, feeds, reads, cache, requests }
 })
 
 const settle = Effect.repeat(Effect.yieldNow, { times: 50 })
@@ -195,6 +201,18 @@ describe("room atoms", () => {
       expect(subscribes).toEqual([{ roomId: ROOM, afterSequence: 0 }])
       sending()
       leave()
+    }),
+  )
+})
+
+describe("owner commands", () => {
+  it.effect("a command whose payload is a union of shapes sends the caller's input", () =>
+    Effect.gen(function* () {
+      const { owner, registry, requests } = yield* setup()
+      const body = { installId: "install-1", slug: "daily-weather", roomId: ROOM, agent: "kiko" }
+      const result = yield* Effect.promise(() => runAtomCommand(registry, owner.commands.recipesInstall, body))
+      expect(result._tag).toBe("Success")
+      expect(requests).toEqual([{ tag: "recipes.install", input: body }])
     }),
   )
 })
