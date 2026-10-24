@@ -2,7 +2,9 @@
   position: fixed;
   inset: 0;
   z-index: 86;
-  background: color-mix(in oklab, var(--background) 60%, transparent);
+  background: color-mix(in oklab, var(--bg) 62%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 }
 .search-panel {
   position: fixed;
@@ -12,22 +14,24 @@
   display: block;
   width: min(720px, calc(100vw - 32px));
   transform: translateX(-50%);
-  background: var(--popover);
-  color: var(--foreground);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--menu-shadow);
+  background: var(--raise);
+  color: var(--fg);
+  border-radius: 20px;
+  box-shadow:
+    0 28px 80px -20px rgb(0 0 0 / 55%),
+    0 2px 12px rgb(0 0 0 / 18%);
   overflow: hidden;
 }
 .search-bar {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 48px;
-  padding: 0 8px 0 16px;
+  height: 56px;
+  padding: 0 14px 0 20px;
 }
 .search-glass {
   flex: none;
-  color: var(--secondary-label);
+  color: var(--fg2);
 }
 .search-input {
   flex: 1;
@@ -38,32 +42,40 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: var(--font-base);
+  font-size: 16px;
 }
 .search-input::placeholder {
-  color: var(--secondary-label);
+  color: var(--fg4);
 }
 .search-scope {
   flex: none;
   display: flex;
+  position: relative;
   padding: 2px;
-  border-radius: var(--radius-md);
-  background: var(--control);
+  border-radius: 10px;
+  background: var(--active);
 }
 .search-scope-option {
   height: 28px;
   padding: 0 12px;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   background: transparent;
-  color: var(--muted-foreground);
+  color: var(--fg3);
   font: inherit;
-  font-size: var(--font-md);
+  font-size: 13px;
+  font-weight: 500;
   cursor: default;
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko);
+}
+.search-scope-option:active:not(:disabled) {
+  transform: scale(0.97);
 }
 .search-scope-option[aria-checked="true"] {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--raise);
+  color: var(--fg);
 }
 .search-scope-option:disabled {
   opacity: 0.4;
@@ -72,21 +84,25 @@
   max-height: min(460px, 60dvh);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 4px 6px 8px;
+  padding: 4px 8px 8px;
 }
 .search-hit {
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  border-radius: 10px;
   cursor: default;
+  transition: background-color 80ms var(--ease-kiko);
+}
+.search-hit:hover {
+  background: var(--hover);
 }
 .search-hit[aria-selected="true"] {
-  background: var(--accent-strong);
+  background: var(--active);
 }
 .search-hit-head {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: var(--font-md);
+  font-size: 13.5px;
 }
 .search-hit-from {
   font-weight: 600;
@@ -96,7 +112,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--muted-foreground);
+  color: var(--fg3);
 }
 .search-hit-chat::before {
   content: "in ";
@@ -104,32 +120,32 @@
 .search-hit-time {
   margin-left: auto;
   flex: none;
-  font-size: var(--font-sm);
-  color: var(--muted-foreground);
+  font-size: 11.5px;
+  color: var(--fg4);
 }
 .search-hit-snippet {
   margin-top: 2px;
-  font-size: var(--font-md);
-  line-height: 1.35;
+  font-size: 14px;
+  line-height: 20px;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  color: var(--foreground);
+  color: var(--fg3);
 }
 .search-hit-snippet mark {
-  background: var(--ring-wash-strong);
-  color: var(--foreground);
-  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--fg);
+  font-weight: 700;
 }
 .search-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 20px 10px;
-  font-size: 13px;
-  color: var(--muted-foreground);
+  padding: 28px 12px;
+  font-size: 14px;
+  color: var(--fg3);
 }
 
 @media (width < 768px) {
@@ -140,4 +156,19 @@
   .search-hit {
     padding: 10px;
   }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .search-overlay {
+    animation: search-fade 120ms ease-out;
+  }
+}
+@keyframes search-fade {
+  from {
+    opacity: 0;
+  }
+}
+.search-panel[data-component][data-expanded],
+.search-panel[data-component][data-closed] {
+  animation: none;
 }
