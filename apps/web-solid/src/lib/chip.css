@@ -34,9 +34,11 @@
   cursor: pointer;
 }
 
-button.file-chip:hover {
-  border-color: color-mix(in oklab, var(--file-chip-accent) 48%, color-mix(in oklab, currentColor 22%, transparent));
-  background: color-mix(in oklab, var(--file-chip-accent) 17%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  button.file-chip:hover {
+    border-color: color-mix(in oklab, var(--file-chip-accent) 48%, color-mix(in oklab, currentColor 22%, transparent));
+    background: color-mix(in oklab, var(--file-chip-accent) 17%, transparent);
+  }
 }
 
 .file-chip[data-missing] {

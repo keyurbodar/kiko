@@ -52,8 +52,10 @@
   color: color-mix(in srgb, var(--fg) 85%, transparent);
   cursor: pointer;
 }
-.question-option:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .question-option:hover {
+    background: var(--hover);
+  }
 }
 .question-option:active {
   transform: scale(0.99);
@@ -172,9 +174,11 @@
   width: 12px;
   height: 12px;
 }
-.question-previous:hover {
-  color: var(--fg);
-  background: var(--active);
+@media (hover: hover) and (pointer: fine) {
+  .question-previous:hover {
+    color: var(--fg);
+    background: var(--active);
+  }
 }
 .question-submit:active:not(:disabled),
 .question-previous:active {

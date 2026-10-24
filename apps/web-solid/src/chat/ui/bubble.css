@@ -101,10 +101,15 @@
     transform 150ms var(--ease-kiko);
 }
 
-[data-component="chat-row"]:hover .message-actions,
 .message-actions:focus-within,
 .message-actions[data-open] {
   transform: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  [data-component="chat-row"]:hover .message-actions {
+    transform: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

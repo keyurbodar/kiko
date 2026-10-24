@@ -80,7 +80,7 @@
     transform var(--dur-hover) var(--ease-kiko);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .panel-icon-button:hover,
   .sidebar-shell .top-bar-button:hover,
   .sidebar-shell .main-sidebar-toggle:hover {
@@ -97,8 +97,10 @@
   color: var(--fg3);
 }
 
-.sidebar-shell .panel-header .panel-icon-button:hover {
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-shell .panel-header .panel-icon-button:hover {
+    color: var(--fg);
+  }
 }
 
 .sidebar-shell .panel-icon-button[data-active],
@@ -166,7 +168,7 @@
   background: var(--active);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .nav-row:hover {
     background: var(--hover);
   }
@@ -231,7 +233,7 @@
   transition: background var(--dur-hover) var(--ease-kiko);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .panel-me:hover {
     background: var(--hover);
   }
@@ -299,7 +301,7 @@
   transition: color var(--dur-hover) var(--ease-kiko);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-section-toggle:hover {
     color: var(--fg2);
   }
@@ -337,7 +339,7 @@
     transform var(--dur-hover) var(--ease-kiko);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-section-button:hover {
     color: var(--fg);
     background: var(--hover);
@@ -439,7 +441,7 @@
   animation: sidebar-row-in var(--dur-pop) var(--ease-kiko) both;
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-row:hover {
     background: var(--hover);
   }
@@ -774,7 +776,7 @@
   color: var(--fg2);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .settings-panel-row:hover {
     background: var(--hover);
   }
@@ -842,7 +844,7 @@
   content: "";
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sidebar-shell .resize-handle:hover::after {
     opacity: 1;
   }
@@ -945,8 +947,10 @@
   transition: background var(--dur-hover) var(--ease-kiko);
 }
 
-.update-pill:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .update-pill:hover {
+    background: var(--hover);
+  }
 }
 
 span.update-pill {

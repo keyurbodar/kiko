@@ -32,18 +32,26 @@
 button.run-tree-row {
   cursor: pointer;
 }
-button.run-tree-row:hover,
 button.run-tree-row:focus-visible {
   color: var(--fg);
   background: var(--hover);
 }
+
+@media (hover: hover) and (pointer: fine) {
+  button.run-tree-row:hover {
+    color: var(--fg);
+    background: var(--hover);
+  }
+}
 button.run-tree-row:active {
   background: var(--active);
 }
-button.run-tree-row[data-file]:hover .run-tree-label {
-  text-decoration: underline;
-  text-decoration-color: color-mix(in oklab, var(--fg) 30%, transparent);
-  text-underline-offset: 3px;
+@media (hover: hover) and (pointer: fine) {
+  button.run-tree-row[data-file]:hover .run-tree-label {
+    text-decoration: underline;
+    text-decoration-color: color-mix(in oklab, var(--fg) 30%, transparent);
+    text-underline-offset: 3px;
+  }
 }
 
 .run-tree-row::before,
@@ -146,10 +154,15 @@ button.run-tree-row:not(.run-tree-head) > .run-tree-chevron {
   opacity: 0;
   transition: opacity var(--dur-hover, 120ms) var(--ease-kiko, ease);
 }
-button.run-tree-row:hover > .run-tree-chevron,
 button.run-tree-row:focus-visible > .run-tree-chevron,
 button.run-tree-row[aria-expanded="true"] > .run-tree-chevron {
   opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button.run-tree-row:hover > .run-tree-chevron {
+    opacity: 1;
+  }
 }
 
 .run-tree-fold {

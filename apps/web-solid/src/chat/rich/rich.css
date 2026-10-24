@@ -182,12 +182,20 @@
 :root:not(.dark) .rich-link {
   color: oklch(0.488 0.243 264.376);
 }
-.rich-link:hover,
 .rich-link:focus-visible {
   background-image: radial-gradient(circle, currentcolor 0.75px, transparent 1px);
   background-position: left bottom;
   background-repeat: repeat-x;
   background-size: 4px 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .rich-link:hover {
+    background-image: radial-gradient(circle, currentcolor 0.75px, transparent 1px);
+    background-position: left bottom;
+    background-repeat: repeat-x;
+    background-size: 4px 2px;
+  }
 }
 .rich-mention {
   font-weight: 600;
@@ -273,9 +281,11 @@
     background-color var(--dur-hover) var(--ease-kiko),
     color var(--dur-hover) var(--ease-kiko);
 }
-.rich-table-more:hover {
-  background: var(--active);
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .rich-table-more:hover {
+    background: var(--active);
+    color: var(--fg);
+  }
 }
 .rich-table[data-rows-folded] .rich-table-scroll tbody tr:nth-child(4) td {
   border-bottom: 0;
@@ -293,9 +303,11 @@
   color: var(--rich-muted);
   cursor: pointer;
 }
-.rich-table-action:hover {
-  color: var(--fg);
-  background: var(--rich-accent);
+@media (hover: hover) and (pointer: fine) {
+  .rich-table-action:hover {
+    color: var(--fg);
+    background: var(--rich-accent);
+  }
 }
 .rich-table-action[data-active] {
   color: var(--fg);
@@ -362,8 +374,10 @@
 button.rich-code-tab {
   cursor: pointer;
 }
-button.rich-code-tab:hover {
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  button.rich-code-tab:hover {
+    color: var(--fg);
+  }
 }
 .rich-code-tab[data-active] {
   background: var(--active);
@@ -377,10 +391,15 @@ button.rich-code-tab:hover {
   opacity: 0;
   transition: opacity var(--dur-hover) var(--ease-kiko);
 }
-.rich-code:hover .rich-code-actions,
 .rich-code:focus-within .rich-code-actions,
 .rich-code[data-copied] .rich-code-actions {
   opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .rich-code:hover .rich-code-actions {
+    opacity: 1;
+  }
 }
 @media (pointer: coarse) {
   .rich-code-actions {
@@ -403,9 +422,11 @@ button.rich-code-tab:hover {
     background-color var(--dur-hover) var(--ease-kiko),
     color var(--dur-hover) var(--ease-kiko);
 }
-.rich-code-action:hover {
-  background: var(--hover);
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .rich-code-action:hover {
+    background: var(--hover);
+    color: var(--fg);
+  }
 }
 .rich-code-action:active {
   transform: scale(0.94);
@@ -489,8 +510,10 @@ button.rich-code-tab:hover {
   cursor: pointer;
   transition: color var(--dur-hover) var(--ease-kiko);
 }
-.rich-code-fold:hover {
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .rich-code-fold:hover {
+    color: var(--fg);
+  }
 }
 .rich-code-count {
   margin-left: auto;

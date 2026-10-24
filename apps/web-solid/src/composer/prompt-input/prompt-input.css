@@ -88,8 +88,10 @@ button.token-chip {
   cursor: pointer;
 }
 
-button.token-chip:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  button.token-chip:hover {
+    background: var(--hover);
+  }
 }
 
 .composer-dock .ProseMirror-selectednode > .token-chip {
@@ -215,9 +217,14 @@ button.token-chip:hover {
     center / contain no-repeat;
 }
 
-.composer-dock .composer-input a:hover,
 .composer-dock .composer-input a:focus-visible {
   background-image: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .composer-dock .composer-input a:hover {
+    background-image: none;
+  }
 }
 
 .composer-dock .composer-popover {
@@ -404,9 +411,11 @@ button.token-chip:hover {
   transition: background var(--dur-hover);
 }
 
-.composer-working button:hover,
-.composer-note button:hover {
-  background: var(--active);
+@media (hover: hover) and (pointer: fine) {
+  .composer-working button:hover,
+  .composer-note button:hover {
+    background: var(--active);
+  }
 }
 
 .composer-note {
@@ -583,8 +592,10 @@ button.token-chip:hover {
   cursor: pointer;
 }
 
-.tray-inline-action:hover {
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .tray-inline-action:hover {
+    color: var(--fg);
+  }
 }
 
 .tray-bar {
@@ -642,9 +653,14 @@ button.token-chip:hover {
   background: var(--line2);
 }
 
-.tray-tile:hover .tray-remove,
 .tray-remove:focus-visible {
   opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tray-tile:hover .tray-remove {
+    opacity: 1;
+  }
 }
 
 @media (hover: none) {
@@ -674,10 +690,12 @@ button.token-chip:hover {
     transform var(--dur-hover) var(--ease-kiko);
 }
 
-.tray-tile:hover .tray-tip {
-  opacity: 1;
-  transform: none;
-  transition-delay: 300ms;
+@media (hover: hover) and (pointer: fine) {
+  .tray-tile:hover .tray-tip {
+    opacity: 1;
+    transform: none;
+    transition-delay: 300ms;
+  }
 }
 
 .tray-tile[data-dragging] .tray-tip {
@@ -709,8 +727,10 @@ button.token-chip:hover {
   transition: background var(--dur-hover);
 }
 
-.tray-more:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .tray-more:hover {
+    background: var(--hover);
+  }
 }
 
 .tray-tile[data-dragging] {

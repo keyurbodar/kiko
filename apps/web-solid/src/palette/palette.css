@@ -95,8 +95,10 @@
   font-weight: 500;
   transition: color var(--dur-hover) var(--ease-kiko);
 }
-.palette-tab:hover {
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .palette-tab:hover {
+    color: var(--fg);
+  }
 }
 .palette-tab[aria-selected="true"] {
   color: var(--fg);
@@ -128,8 +130,10 @@
   color: var(--fg3);
   transition: color var(--dur-hover) var(--ease-kiko);
 }
-.palette-crumb:hover {
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .palette-crumb:hover {
+    color: var(--fg);
+  }
 }
 .palette-crumb[data-last] {
   color: var(--fg);
@@ -196,8 +200,10 @@
   min-height: 56px;
   padding-block: 8px;
 }
-.palette-row:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .palette-row:hover {
+    background: var(--hover);
+  }
 }
 .palette-row[data-selected="true"] {
   background: transparent;
@@ -331,8 +337,10 @@
   text-align: left;
   transition: background-color var(--dur-hover) var(--ease-kiko);
 }
-.palette-ask:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .palette-ask:hover {
+    background: var(--hover);
+  }
 }
 .palette-ask-face {
   display: inline-flex;
@@ -579,8 +587,10 @@
     background-color var(--dur-hover) var(--ease-kiko),
     transform var(--dur-hover) var(--ease-kiko);
 }
-.palette-btn:hover {
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .palette-btn:hover {
+    background: var(--hover);
+  }
 }
 .palette-btn:active {
   transform: scale(0.97);

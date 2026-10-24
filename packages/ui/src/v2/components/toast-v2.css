@@ -377,10 +377,21 @@
   }
 }
 
-.toast-v2:hover .toast-v2-close,
 .toast-v2:focus-within .toast-v2-close,
 .toast-v2:focus-visible .toast-v2-close {
   opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .toast-v2:hover .toast-v2-close {
+    opacity: 1;
+  }
+}
+
+@media (pointer: coarse) {
+  .toast-v2-close {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

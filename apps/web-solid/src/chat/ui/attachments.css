@@ -18,8 +18,10 @@
   transition: filter var(--dur-hover) var(--ease-kiko);
 }
 
-.att-mosaic > button:hover {
-  filter: brightness(1.08);
+@media (hover: hover) and (pointer: fine) {
+  .att-mosaic > button:hover {
+    filter: brightness(1.08);
+  }
 }
 
 .att-mosaic > button img {
@@ -139,9 +141,11 @@
     color var(--dur-hover) var(--ease-kiko);
 }
 
-.att-file:hover .att-download {
-  background: var(--active);
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .att-file:hover .att-download {
+    background: var(--active);
+    color: var(--fg);
+  }
 }
 
 .att-download:active {
@@ -172,9 +176,11 @@
     color var(--dur-hover) var(--ease-kiko);
 }
 
-.att-foot-action:hover {
-  background: var(--active);
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .att-foot-action:hover {
+    background: var(--active);
+    color: var(--fg);
+  }
 }
 
 @keyframes att-fade {

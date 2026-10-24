@@ -234,9 +234,11 @@
     background-color var(--dur-hover),
     transform var(--dur-hover);
 }
-.ob-back:hover:not(:disabled) {
-  background: var(--hover);
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .ob-back:hover:not(:disabled) {
+    background: var(--hover);
+    color: var(--fg);
+  }
 }
 .ob-back:active:not(:disabled) {
   transform: scale(0.97);
@@ -351,9 +353,11 @@
   color: var(--bg);
   box-shadow: 0 10px 30px color-mix(in oklab, var(--fg) 8%, transparent);
 }
-.ob-primary:hover:not(:disabled) {
-  box-shadow: 0 12px 34px color-mix(in oklab, var(--fg) 16%, transparent);
-  filter: brightness(0.96);
+@media (hover: hover) and (pointer: fine) {
+  .ob-primary:hover:not(:disabled) {
+    box-shadow: 0 12px 34px color-mix(in oklab, var(--fg) 16%, transparent);
+    filter: brightness(0.96);
+  }
 }
 .ob-secondary,
 .ob-ghost,
@@ -366,15 +370,19 @@
   background: var(--active);
   color: var(--fg);
 }
-.ob-secondary:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--active) 80%, var(--fg));
+@media (hover: hover) and (pointer: fine) {
+  .ob-secondary:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--active) 80%, var(--fg));
+  }
 }
 .ob-ghost {
   color: var(--fg2);
 }
-.ob-ghost:hover:not(:disabled) {
-  background: var(--hover);
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .ob-ghost:hover:not(:disabled) {
+    background: var(--hover);
+    color: var(--fg);
+  }
 }
 .ob-danger {
   background: color-mix(in oklab, var(--bad) 14%, transparent);
@@ -410,8 +418,10 @@
   font-size: 13px;
   transition: color var(--dur-hover);
 }
-.ob-textbtn:hover {
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .ob-textbtn:hover {
+    color: var(--fg);
+  }
 }
 .ob-linkish {
   cursor: pointer;
@@ -527,8 +537,10 @@
     box-shadow var(--dur-hover),
     transform var(--dur-hover) var(--ease-kiko);
 }
-.ob-card:hover {
-  background: var(--active);
+@media (hover: hover) and (pointer: fine) {
+  .ob-card:hover {
+    background: var(--active);
+  }
 }
 .ob-card:active {
   transform: scale(0.985);
@@ -721,8 +733,10 @@
   font-size: 13px;
   transition: color var(--dur-hover);
 }
-.ob-hi > button:hover {
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .ob-hi > button:hover {
+    color: var(--fg);
+  }
 }
 
 .ob-dots {
