@@ -107,7 +107,7 @@ export function PromptInputV2Popover(props: {
   const activeIndex = () => props.items.findIndex((item) => item.id === props.activeID)
   return (
     <div
-      class="absolute inset-x-0 -top-2 z-40 flex max-h-80 -translate-y-full flex-col overflow-auto rounded-xl border border-border/60 bg-popover p-2 shadow-card no-scrollbar"
+      class="composer-popover no-scrollbar"
       data-component="prompt-input-v2-popover"
       onMouseDown={(event) => event.preventDefault()}
     >
@@ -121,7 +121,7 @@ export function PromptInputV2Popover(props: {
               aria-controls={props.id}
               aria-activedescendant={activeIndex() >= 0 ? `${props.id}-opt-${activeIndex()}` : undefined}
               placeholder={search().placeholder}
-              class="w-full bg-transparent text-[13px] leading-5 text-foreground outline-none placeholder:text-secondary-label"
+              class="composer-popover-search"
               onInput={(event) => search().onValueChange(event.currentTarget.value)}
               onKeyDown={(event) => search().onKeyDown(event)}
               onMouseDown={(event) => event.stopPropagation()}
@@ -130,10 +130,7 @@ export function PromptInputV2Popover(props: {
         )}
       </Show>
       <div id={props.id} role="listbox" aria-label={props.label}>
-        <Show
-          when={props.items.length > 0}
-          fallback={<div class="px-2 py-1 text-muted-foreground">{props.emptyLabel}</div>}
-        >
+        <Show when={props.items.length > 0} fallback={<div class="composer-popover-empty">{props.emptyLabel}</div>}>
           <For each={props.items}>
             {(item, index) => (
               <div
@@ -142,20 +139,20 @@ export function PromptInputV2Popover(props: {
                 tabIndex={-1}
                 aria-selected={activeIndex() === index()}
                 data-suggestion-id={item.id}
-                class="flex w-full items-center gap-2 rounded-md px-2 py-1 text-start hover:bg-control"
-                classList={{ "bg-control": props.activeID === item.id }}
+                class="composer-popover-row"
+                data-active={props.activeID === item.id ? "" : undefined}
                 onPointerMove={() => props.onActiveChange(item)}
                 onClick={() => props.onSelect(item)}
               >
                 <div class="flex min-w-0 flex-1 items-center gap-2">
                   <PromptInputV2SuggestionIcon item={item} />
-                  <span class="shrink-0 text-foreground">{item.label}</span>
+                  <span class="composer-popover-label">{item.label}</span>
                   <Show when={item.description}>
-                    <span class="min-w-0 truncate text-muted-foreground">{item.description}</span>
+                    <span class="composer-popover-hint">{item.description}</span>
                   </Show>
                 </div>
                 <Show when={item.keybind?.length}>
-                  <span class="shrink-0 text-muted-foreground">{item.keybind?.join("+")}</span>
+                  <span class="composer-popover-hint">{item.keybind?.join("+")}</span>
                 </Show>
               </div>
             )}

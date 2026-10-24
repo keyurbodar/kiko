@@ -109,7 +109,7 @@ export function createShortcodes(editor: () => HTMLElement | undefined) {
   const view = (
     <Show when={open()}>
       <div
-        class="absolute right-0 bottom-full left-0 z-30 mx-1.5 mb-1.5 max-h-[322px] overflow-y-auto rounded-[16px] bg-popover p-1 text-foreground shadow-popover"
+        class="absolute right-0 bottom-full left-0 z-30 mx-1.5 mb-1.5 max-h-[322px] overflow-y-auto rounded-[16px] bg-raise p-1 text-fg shadow-popover"
         role="listbox"
         aria-label="Emoji"
         data-component="emoji-shortcodes"

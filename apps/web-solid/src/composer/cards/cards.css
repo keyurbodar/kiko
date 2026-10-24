@@ -1,13 +1,13 @@
 .composer-cards,
 .composer-card-choices {
-  --card-active: var(--ring);
-  --card-complete: var(--success);
-  --card-outline: var(--border);
-  --card-surface: var(--composer-fill, var(--popover));
+  --card-active: var(--fg);
+  --card-complete: var(--ok);
+  --card-outline: var(--line2);
+  --card-surface: var(--raise);
 }
 .composer-cards {
   position: relative;
-  margin: 0 6px 6px;
+  margin: 0 0 8px;
   z-index: 2;
   padding-top: 0;
 }
@@ -26,9 +26,9 @@
 .composer-card-surface {
   container-type: inline-size;
   background: var(--card-surface);
-  border: 1px solid var(--card-outline);
-  border-radius: 12px;
-  padding: 4px;
+  border-radius: 18px;
+  box-shadow: inset 0 0 0 1px var(--line2);
+  padding: 8px;
   min-width: 0;
 }
 .composer-card-row {
@@ -39,8 +39,8 @@
   min-height: var(--composer-banner-icon-column, 24px);
   width: 100%;
   text-align: start;
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 13px;
+  line-height: 18px;
 }
 button.composer-card-row {
   cursor: pointer;
@@ -51,7 +51,7 @@ button.composer-card-row {
   justify-content: center;
   align-items: center;
   width: var(--composer-banner-icon-column, 24px);
-  color: var(--muted-foreground);
+  color: var(--fg3);
 }
 .composer-card-icon svg {
   width: 12px;
@@ -67,10 +67,10 @@ button.composer-card-row {
   min-width: 0;
   flex: 1;
   font-weight: 500;
-  color: color-mix(in srgb, var(--foreground) 80%, transparent);
+  color: color-mix(in srgb, var(--fg) 80%, transparent);
 }
 .composer-card-kind {
-  color: var(--muted-foreground);
+  color: var(--fg3);
   flex-shrink: 0;
 }
 .composer-card-actions {
@@ -78,7 +78,7 @@ button.composer-card-row {
   align-items: center;
   justify-content: end;
   gap: 4px;
-  color: var(--muted-foreground);
+  color: var(--fg3);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -100,7 +100,7 @@ button.composer-card-row {
 .composer-card-body p {
   font-size: 14px;
   line-height: 20px;
-  color: color-mix(in srgb, var(--foreground) 85%, transparent);
+  color: color-mix(in srgb, var(--fg) 85%, transparent);
   margin: 0 0 8px;
   overflow-wrap: anywhere;
 }
@@ -116,19 +116,31 @@ button.composer-card-row {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  min-height: 24px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--muted-foreground);
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg2);
+  transition:
+    background var(--dur-hover, 120ms),
+    color var(--dur-hover, 120ms),
+    transform var(--dur-hover, 120ms) var(--ease-kiko, ease);
+}
+.composer-card-button:active:not(:disabled) {
+  transform: scale(0.97);
 }
 .composer-card-button:hover {
-  background: var(--accent);
-  color: var(--foreground);
+  background: var(--active);
+  color: var(--fg);
 }
 .composer-card-button[data-primary] {
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: var(--fg);
+  color: var(--bg);
+}
+.composer-card-button[data-primary]:hover {
+  background: var(--fg);
+  opacity: 0.88;
 }
 .composer-card-button:disabled {
   opacity: 0.45;
@@ -163,17 +175,18 @@ button.composer-card-row {
   bottom: 100%;
   padding-bottom: 5px;
   font-size: 11px;
-  color: var(--muted-foreground);
+  color: var(--fg3);
   white-space: nowrap;
 }
 .composer-card-choices {
   width: var(--kb-popper-anchor-width);
   max-width: calc(100vw - 32px);
   padding: 4px;
-  background: var(--popover);
-  border: 1px solid var(--card-outline);
+  background: var(--raise);
   border-radius: 16px;
-  box-shadow: var(--menu-shadow);
+  box-shadow:
+    inset 0 0 0 1px var(--line2),
+    0 14px 34px rgb(0 0 0 / 28%);
   z-index: 50;
 }
 .composer-card-choice {
@@ -182,7 +195,7 @@ button.composer-card-row {
   border-radius: 10px;
 }
 .composer-card-choice > .composer-card-row:hover {
-  background: var(--accent);
+  background: var(--active);
 }
 .task-segments {
   display: none;
@@ -200,14 +213,14 @@ button.composer-card-row {
   flex: 1;
   height: 3px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--muted-foreground) 25%, transparent);
+  background: color-mix(in srgb, var(--fg3) 25%, transparent);
 }
 .task-segments i[data-status="done"] {
-  background: var(--card-complete, var(--success));
+  background: var(--card-complete, var(--ok));
 }
 .task-segments i[data-status="doing"],
 .task-segments i[data-status="review"] {
-  background: var(--card-active, var(--ring));
+  background: var(--card-active, var(--fg));
 }
 .task-steps {
   container-type: inline-size;
@@ -236,30 +249,30 @@ button.composer-card-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: color-mix(in srgb, var(--muted-foreground) 40%, transparent);
+  color: color-mix(in srgb, var(--fg3) 40%, transparent);
 }
 .task-step-icon[data-status="doing"],
 .task-step-icon[data-status="review"] {
-  color: var(--card-active, var(--ring));
+  color: var(--card-active, var(--fg));
 }
 .task-step-icon[data-status="done"] {
-  color: var(--card-complete, var(--success));
+  color: var(--card-complete, var(--ok));
 }
 .task-step-icon[data-status="blocked"] {
-  color: var(--warning);
+  color: var(--fg2);
 }
 .task-step-content {
-  color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+  color: color-mix(in srgb, var(--fg3) 70%, transparent);
   min-width: 0;
   overflow-wrap: anywhere;
 }
 .task-step[data-status="done"] .task-step-content,
 .task-step[data-status="cancelled"] .task-step-content {
-  color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+  color: color-mix(in srgb, var(--fg3) 55%, transparent);
 }
 .task-step[data-status="doing"] .task-step-content,
 .task-step[data-status="review"] .task-step-content {
-  color: color-mix(in srgb, var(--foreground) 90%, transparent);
+  color: color-mix(in srgb, var(--fg) 90%, transparent);
 }
 .task-step-state {
   width: 48px;
@@ -267,7 +280,7 @@ button.composer-card-row {
   font-size: 10px;
   line-height: 16px;
   font-variant-numeric: tabular-nums;
-  color: color-mix(in srgb, var(--muted-foreground) 45%, transparent);
+  color: color-mix(in srgb, var(--fg3) 45%, transparent);
 }
 .composer-card-progress {
   display: inline-flex;
@@ -309,7 +322,7 @@ button.composer-card-row {
   padding-top: 2px;
   font-size: 11px;
   line-height: 16px;
-  color: var(--secondary-label);
+  color: var(--fg3);
 }
 
 .composer-task-body {
@@ -363,8 +376,8 @@ button.composer-card-row {
   border-radius: 999px;
   font-weight: 500;
   line-height: 16px;
-  color: var(--muted-foreground);
-  background: color-mix(in srgb, var(--muted-foreground) 12%, transparent);
+  color: var(--fg3);
+  background: color-mix(in srgb, var(--fg3) 12%, transparent);
 }
 @container (max-width:420px) {
   .task-step {
@@ -388,4 +401,10 @@ button.composer-card-row {
 
 .composer-card-row:has(.composer-card-title[data-kind="tasks"]) > .composer-card-icon {
   height: 16px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .composer-card-surface {
+    animation: composer-row-in var(--dur-pop, 200ms) var(--ease-kiko, ease) both;
+  }
 }
