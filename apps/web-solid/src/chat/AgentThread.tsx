@@ -17,6 +17,7 @@ export function AgentThread(props: {
         type="button"
         class="flex min-w-0 cursor-pointer items-center gap-1 font-medium hover:text-foreground"
         aria-expanded={props.expanded}
+        data-disclosure=""
         onClick={() => props.onToggle()}
       >
         <span class="truncate">{threadLabel(props.names, props.count)}</span>

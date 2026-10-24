@@ -91,6 +91,7 @@ export function Collapsible(props: { messageId: string; fixed?: boolean; childre
           class="mt-1 cursor-pointer text-xs font-medium opacity-70 hover:opacity-100"
           aria-expanded={!clamped()}
           data-component="chat-collapsible-toggle"
+          data-disclosure=""
           onClick={toggle}
         >
           {clamped() ? "Show full message" : "Show less"}

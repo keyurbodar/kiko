@@ -94,7 +94,10 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
           </IconButton>
         </div>
         <div class="flex items-center justify-between gap-3 text-sm text-muted-foreground">
-          <span>This page updates when the computer connects. The code expires in {clock(left())} and works once.</span>
+          <span>
+            This page updates when the computer connects. The code expires in{" "}
+            <span class="tabular-nums">{clock(left())}</span> and works once.
+          </span>
           <Button variant="ghost" onClick={props.onClose}>
             Cancel
           </Button>

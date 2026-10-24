@@ -151,6 +151,7 @@ function Row(props: { row: TreeRow; open: boolean; onOpen: (row: TreeRow) => voi
         data-kind={props.row.kind}
         data-file={props.row.target ? "" : undefined}
         aria-expanded={expandable() ? props.open : undefined}
+        data-disclosure={expandable() ? "" : undefined}
         title={props.row.target && !props.row.target.folder ? `Open ${props.row.target.path}` : undefined}
         onClick={() => props.onOpen(props.row)}
       >
@@ -265,6 +266,7 @@ export function RunTree(props: { windowKey: string; count?: number }): JSX.Eleme
             class="run-tree-row"
             data-kind={head().kind}
             aria-expanded={head().open}
+            data-disclosure=""
             onClick={toggle}
           >
             <span class="run-tree-label">{head().label}</span>

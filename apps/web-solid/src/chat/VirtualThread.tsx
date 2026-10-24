@@ -48,11 +48,10 @@ const DATE_CHIP_IDLE_MS = 1200
 
 const READER_SCROLL_MS = 250
 
-const DATE_CHIP_EDGE_PX = 56
-
 const STAGE_CLASS = "relative flex min-h-0 flex-1 flex-col"
 
-const SCROLLER_CLASS = "relative flex min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
+const SCROLLER_CLASS =
+  "relative flex min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [overflow-anchor:none]"
 
 const COLUMN_CLASS = "mx-auto flex min-h-full w-full max-w-(--chat-content-max-width) self-start flex-col pt-12 pb-12"
 
@@ -184,7 +183,6 @@ export function VirtualThread(props: {
   })
 
   const [scrolling, setScrolling] = createSignal(false)
-  const [nearTopEdge, setNearTopEdge] = createSignal(false)
   let scrollIdle: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(scrollIdle))
   const noteScrolling = () => {
@@ -192,7 +190,7 @@ export function VirtualThread(props: {
     clearTimeout(scrollIdle)
     scrollIdle = setTimeout(() => setScrolling(false), DATE_CHIP_IDLE_MS)
   }
-  const dateChipVisible = createMemo(() => topVisibleDay() !== undefined && (scrolling() || nearTopEdge()))
+  const dateChipVisible = createMemo(() => topVisibleDay() !== undefined && scrolling())
 
   const [landed, setLanded] = createSignal<string | undefined>()
   let landingGeneration = 0
@@ -504,16 +502,12 @@ export function VirtualThread(props: {
     createEventListener(document, "pointerup", endDrag, { passive: true })
     createEventListener(document, "pointercancel", endDrag, { passive: true })
     createEventListener(
-      () => scroller,
-      "pointermove",
-      (event: PointerEvent) => setNearTopEdge(event.clientY - scroller.getBoundingClientRect().top < DATE_CHIP_EDGE_PX),
-      { passive: true },
-    )
-    createEventListener(
-      () => scroller,
-      "pointerleave",
-      () => setNearTopEdge(false),
-      { passive: true },
+      () => column,
+      "click",
+      (event: MouseEvent) => {
+        if (event.target instanceof Element && event.target.closest("[data-disclosure]")) stuck = false
+      },
+      { capture: true },
     )
     onCleanup(() => {
       sizes.unobserve(scroller)

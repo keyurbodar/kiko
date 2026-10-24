@@ -20,6 +20,7 @@ export function DateChip(props: {
   const [month, setMonth] = createSignal(new Date(props.dayStart))
   const [picked, setPicked] = createSignal<Date | null>(new Date(props.dayStart))
   const [picking, setPicking] = createSignal(false)
+  const [hovered, setHovered] = createSignal(false)
   let trigger: HTMLButtonElement | undefined
 
   const close = () => {
@@ -43,11 +44,12 @@ export function DateChip(props: {
     <div
       class={cn(
         "chat-chip-anchor pointer-events-none absolute top-2.5 right-5 left-3 z-20 flex-col items-center",
-        "hidden data-[visible]:flex",
+        "invisible flex opacity-0 transition-[opacity,visibility] duration-150 motion-reduce:transition-none",
+        "data-[visible]:visible data-[visible]:opacity-100",
         props.class,
       )}
       data-component="chat-date-chip"
-      data-visible={props.visible || open() ? "" : undefined}
+      data-visible={props.visible || open() || hovered() ? "" : undefined}
       data-open={open() ? "" : undefined}
       onWheel={onWheel}
     >
@@ -78,7 +80,11 @@ export function DateChip(props: {
             aria-haspopup="dialog"
             title={formatFullTimestamp(props.dayStart)}
             onClick={toggle}
-            onPointerEnter={() => void loadCalendar()}
+            onPointerEnter={() => {
+              setHovered(true)
+              void loadCalendar()
+            }}
+            onPointerLeave={() => setHovered(false)}
             onFocus={() => void loadCalendar()}
           >
             {dayChipLabel(props.dayStart, props.now)}
