@@ -220,10 +220,27 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .composer-dock .composer-agent:hover {
+  .composer-dock .composer-agent:not([data-static]):hover {
     color: var(--fg);
     background: var(--active);
   }
+}
+
+.composer-dock .composer-agent-wrap {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.composer-dock .composer-agent[data-static] {
+  cursor: default;
+}
+
+.composer-dock .composer-agent-anchor {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .composer-dock .composer-agent-name {
@@ -444,5 +461,22 @@
       opacity: 1;
       transform: none;
     }
+  }
+}
+
+@media (max-width: 480px) {
+  .composer-dock .composer-agent-wrap {
+    flex-shrink: 0;
+  }
+
+  .composer-dock .composer-tray .picker-chevron,
+  .composer-dock .composer-tray [data-component="reasoning-trigger"] > svg:last-child,
+  .composer-dock .composer-tray .reasoning-label {
+    display: none;
+  }
+
+  .composer-dock .composer-tray [data-component="model-picker-button"] {
+    min-width: 0;
+    flex-shrink: 1;
   }
 }

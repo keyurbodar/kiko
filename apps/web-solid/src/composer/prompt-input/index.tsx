@@ -42,6 +42,13 @@ const TokenPopover = lazy(() => import("./popover"))
 const HINT_EVERY_MS = 6000
 const POPOVER_WIDTH = 320
 
+type RecipientPeople = {
+  group: boolean
+  adding: boolean
+  onAddingChange: (open: boolean) => void
+  addItems: () => JSX.Element
+}
+
 export type PromptInputV2Props = {
   controller: PromptInputV2Interaction
   disabled?: boolean
@@ -54,6 +61,7 @@ export type PromptInputV2Props = {
   parse: ParseOptions
   chips: Omit<ChipSource, "attachments" | "openAttachment">
   recipient?: Token
+  people?: RecipientPeople
   hints: () => readonly string[]
   stop?: () => void
   waiting?: boolean
@@ -345,7 +353,9 @@ export function PromptInputV2(props: PromptInputV2Props) {
                 </TooltipV2>
               </Show>
               <Show when={!props.answering && !props.readOnly && props.recipient}>
-                {(recipient) => <Recipient recipient={recipient()} controller={props.controller} />}
+                {(recipient) => (
+                  <Recipient recipient={recipient()} controller={props.controller} people={props.people} />
+                )}
               </Show>
               {props.tray}
             </div>
@@ -374,41 +384,90 @@ export function PromptInputV2(props: PromptInputV2Props) {
   )
 }
 
-function Recipient(props: { recipient: Token; controller: PromptInputV2Interaction }) {
+function RecipientFace(props: { recipient: Token }) {
   const seed = () => (props.recipient.kind === "agent" ? props.recipient.slug : props.recipient.id)
   const painted = afterFirstPaint()
   return (
-    <MenuV2 gutter={6} placement="top-start">
-      <MenuV2.Trigger
-        class="composer-agent"
-        aria-label="Mention an agent"
-        title="Mention an agent"
-        data-action="composer-mention"
-      >
-        <span class="composer-agent-face">
-          <Show when={seed()} keyed>
-            {(face) => <IdentityAvatar seed={face} size={20} class={painted() ? "composer-agent-avatar" : ""} />}
-          </Show>
-        </span>
-        <span class="composer-agent-name">{props.recipient.title}</span>
-        <RemixIcon icon={ChevronDownIcon} size={11} class="composer-agent-chevron" />
+    <>
+      <span class="composer-agent-face">
+        <Show when={seed()} keyed>
+          {(face) => <IdentityAvatar seed={face} size={20} class={painted() ? "composer-agent-avatar" : ""} />}
+        </Show>
+      </span>
+      <span class="composer-agent-name">{props.recipient.title}</span>
+    </>
+  )
+}
+
+function AddSomeoneMenu(props: { people: RecipientPeople }) {
+  return (
+    <MenuV2 gutter={6} placement="top-start" open={props.people.adding} onOpenChange={props.people.onAddingChange}>
+      <MenuV2.Trigger class="composer-agent-anchor" tabIndex={-1} aria-label="Add someone to this chat">
+        <span />
       </MenuV2.Trigger>
       <MenuV2.Portal>
-        <MenuV2.Content class="z-[80] min-w-44" data-component="mention-menu">
-          <For each={props.controller.agents()}>
-            {(item) => (
-              <MenuV2.Item
-                onSelect={() => props.controller.mention(item)}
-                data-agent={item.kind === "agent" ? item.slug : undefined}
-              >
-                <IdentityAvatar seed={item.kind === "agent" ? item.slug : item.id} size={18} />
-                <span class="truncate">{item.title}</span>
-              </MenuV2.Item>
-            )}
-          </For>
+        <MenuV2.Content class="z-[80] min-w-48" data-component="add-member-menu">
+          {props.people.addItems()}
         </MenuV2.Content>
       </MenuV2.Portal>
     </MenuV2>
+  )
+}
+
+function Recipient(props: { recipient: Token; controller: PromptInputV2Interaction; people?: RecipientPeople }) {
+  return (
+    <span class="composer-agent-wrap">
+      <Show
+        when={props.people?.group !== false}
+        fallback={
+          <span class="composer-agent" data-static="" data-component="composer-recipient">
+            <RecipientFace recipient={props.recipient} />
+          </span>
+        }
+      >
+        <MenuV2 gutter={6} placement="top-start">
+          <MenuV2.Trigger
+            class="composer-agent"
+            aria-label="Mention an agent"
+            title="Mention an agent"
+            data-action="composer-mention"
+          >
+            <RecipientFace recipient={props.recipient} />
+            <RemixIcon icon={ChevronDownIcon} size={11} class="composer-agent-chevron" />
+          </MenuV2.Trigger>
+          <MenuV2.Portal>
+            <MenuV2.Content class="z-[80] min-w-44" data-component="mention-menu">
+              <For each={props.controller.agents()}>
+                {(item) => (
+                  <MenuV2.Item
+                    onSelect={() => props.controller.mention(item)}
+                    data-agent={item.kind === "agent" ? item.slug : undefined}
+                  >
+                    <IdentityAvatar seed={item.kind === "agent" ? item.slug : item.id} size={18} />
+                    <span class="truncate">{item.title}</span>
+                  </MenuV2.Item>
+                )}
+              </For>
+              <Show when={props.people}>
+                {(people) => (
+                  <>
+                    <MenuV2.Separator />
+                    <MenuV2.Item
+                      data-action="add-someone"
+                      onSelect={() => requestAnimationFrame(() => people().onAddingChange(true))}
+                    >
+                      <RemixIcon icon={PlusIcon} size={16} class="text-fg2" />
+                      <span class="truncate">Add someone…</span>
+                    </MenuV2.Item>
+                  </>
+                )}
+              </Show>
+            </MenuV2.Content>
+          </MenuV2.Portal>
+        </MenuV2>
+      </Show>
+      <Show when={props.people}>{(people) => <AddSomeoneMenu people={people()} />}</Show>
+    </span>
   )
 }
 

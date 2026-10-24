@@ -8,6 +8,7 @@ export type Token =
   | { kind: "app"; id: string; slug: string; title: string; hint: string }
   | { kind: "skill" | "recipe"; id: string; name: string; title: string; hint: string }
   | { kind: "command"; id: string; trigger: string; title: string; hint: string }
+  | { kind: "action"; id: string; title: string; hint: string }
 
 export type TokenKind = Token["kind"]
 
@@ -20,6 +21,7 @@ export type TokenPool = {
   skills: () => readonly Token[]
   recipes: () => readonly Token[]
   commands: () => readonly Token[]
+  actions?: () => readonly Token[]
 }
 
 const LABELS: Record<TokenKind, string> = {
@@ -29,14 +31,16 @@ const LABELS: Record<TokenKind, string> = {
   skill: "Skills",
   recipe: "Recipes",
   command: "Commands",
+  action: "",
 }
 
-const LIMIT: Record<TokenKind, number> = { agent: 6, file: 5, app: 5, skill: 6, recipe: 5, command: 8 }
+const LIMIT: Record<TokenKind, number> = { agent: 6, file: 5, app: 5, skill: 6, recipe: 5, command: 8, action: 1 }
 
 function tokenKey(token: Token): string {
   if (token.kind === "agent" || token.kind === "app") return token.slug
   if (token.kind === "file") return token.path
   if (token.kind === "command") return token.trigger
+  if (token.kind === "action") return token.id
   return token.name
 }
 
@@ -44,6 +48,7 @@ export function tokenText(token: Token): string {
   if (token.kind === "agent" || token.kind === "app") return `@${token.slug}`
   if (token.kind === "file") return fileRefToken(token.path)
   if (token.kind === "command") return `/${token.trigger}`
+  if (token.kind === "action") return ""
   return `/${token.name}`
 }
 
@@ -75,6 +80,7 @@ export function tokenGroups(pool: TokenPool, trigger: Trigger, query: string, at
           pick("agent", pool.agents(), query),
           pick("file", pool.files(query), query, true),
           pick("app", pool.apps(), query),
+          pick("action", pool.actions?.() ?? [], query, true),
         ]
       : [
           pick("skill", pool.skills(), query),

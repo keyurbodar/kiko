@@ -44,6 +44,7 @@ import { composerFill, takeComposerFill } from "./fill"
 import { createQuestionInput } from "./cards/question-input"
 import { carryDisplacedCustomAnswerIntoPrompt } from "./cards/question-model"
 import { ComposerCards } from "./cards/composer-cards"
+import { AddSomeoneItems } from "./add-someone"
 
 const draftFiles = () => import("./rich/draft-files")
 
@@ -57,9 +58,11 @@ const NO_DATA: TokenData = {
   app: () => undefined,
 }
 
+const ADD_SOMEONE: Token = { kind: "action", id: "action:add-someone", title: "Add someone to this chat…", hint: "" }
+
 function agentHint(bot: ComposerProps["bots"][number]): string {
-  if (bot.presence === "working") return "Working"
-  if (bot.presence === "typing") return "Typing"
+  if (bot.presence === "working") return "Using a tool"
+  if (bot.presence === "typing") return "Writing a reply"
   return bot.persona === "lead" ? "Lead" : "Agent"
 }
 
@@ -303,7 +306,9 @@ export function Composer(props: ComposerProps) {
     skills: () => data().skills(),
     recipes: () => data().recipes(),
     commands: slashTokens,
+    actions: () => (props.room ? [ADD_SOMEONE] : []),
   }
+  const [adding, setAdding] = createSignal(false)
   const resolve = (sign: "@" | "/", name: string): Token | undefined => {
     if (sign === "@")
       return (
@@ -384,6 +389,7 @@ export function Composer(props: ComposerProps) {
   const controller = createPromptInputV2Controller({
     store: [persisted, setPersisted],
     tokens: (trigger, query, atStart) => tokenGroups(pool, trigger, query, atStart),
+    onAction: () => requestAnimationFrame(() => setAdding(true)),
     agents,
     openAttachment: (attachment) => {
       const all = pictures()
@@ -652,6 +658,16 @@ export function Composer(props: ComposerProps) {
         parse={parse}
         chips={{ resolve, roomId: () => props.threadId, chatTitle: () => props.title }}
         recipient={recipient()}
+        people={
+          props.room
+            ? {
+                group: props.bots.length > 1,
+                adding: adding(),
+                onAddingChange: setAdding,
+                addItems: () => <AddSomeoneItems chatId={props.threadId} />,
+              }
+            : undefined
+        }
         hints={hints}
         stop={working() && !props.editing && !question.ask() ? stop : undefined}
         waiting={waiting()}

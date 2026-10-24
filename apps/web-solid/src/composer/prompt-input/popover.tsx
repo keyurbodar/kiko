@@ -1,4 +1,4 @@
-import { For } from "solid-js"
+import { For, Show } from "solid-js"
 import type { Token, TokenGroup } from "../tokens"
 import { TokenGlyph } from "./chip"
 
@@ -22,10 +22,12 @@ export default function TokenPopover(props: {
       <div id={props.id} role="listbox" aria-label={props.label}>
         <For each={props.groups}>
           {(group) => (
-            <div role="group" aria-label={group.label} data-group={group.kind}>
-              <div class="composer-popover-group" aria-hidden="true">
-                {group.label}
-              </div>
+            <div role="group" aria-label={group.label || undefined} data-group={group.kind}>
+              <Show when={group.label} fallback={<div class="composer-popover-rule" aria-hidden="true" />}>
+                <div class="composer-popover-group" aria-hidden="true">
+                  {group.label}
+                </div>
+              </Show>
               <For each={group.items}>
                 {(item) => (
                   <div

@@ -259,6 +259,12 @@ button.token-chip {
   line-height: 16px;
 }
 
+.composer-popover-rule {
+  height: 1px;
+  margin: 4px 10px;
+  background: var(--line);
+}
+
 .composer-popover-row {
   display: flex;
   height: 38px;

@@ -38,6 +38,7 @@ export function createPromptInputV2Controller(input: {
   openAttachment?: (attachment: PromptInputV2Attachment) => void
   view: PromptInputV2ViewConfig
   attachments?: PromptInputV2AttachmentConfig
+  onAction?: (item: Token) => void
 }) {
   let editor: HTMLElement | undefined
   let rich: PromptInputV2Rich | undefined
@@ -83,6 +84,14 @@ export function createPromptInputV2Controller(input: {
   const suggestions = createMemo(() => groups().flatMap((group) => group.items))
 
   const insert = (trigger: Trigger, item: Token) => {
+    if (item.kind === "action") {
+      const text = plainText()
+      const cursor = draft.state.cursor ?? text.length
+      const at = text.lastIndexOf(trigger, cursor)
+      draft.setText(at < 0 ? text : `${text.slice(0, at)}${text.slice(cursor)}`)
+      input.onAction?.(item)
+      return
+    }
     if (item.kind === "command") {
       const text = plainText()
       const at = trigger === "/" ? text.lastIndexOf("/", draft.state.cursor ?? text.length) : -1

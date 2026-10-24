@@ -9,7 +9,7 @@ import { mountRichEditor, type RichEditor } from "./editor"
 import type { ParseOptions } from "./markdown"
 import type { Token } from "../tokens"
 
-function tokenNode(token: Token): { type: string; attrs: Record<string, unknown> } {
+function tokenNode(token: Exclude<Token, { kind: "action" }>): { type: string; attrs: Record<string, unknown> } {
   if (token.kind === "agent" || token.kind === "app") return { type: "mention", attrs: { slug: token.slug } }
   if (token.kind === "file") return { type: "fileRef", attrs: { path: token.path } }
   if (token.kind === "command") return { type: "slash", attrs: { name: token.trigger } }
@@ -121,7 +121,9 @@ export function bindRich(input: {
   controller.setEditor(editor.dom)
   controller.setRich({
     insertText: (text) => editor.insertText(text),
-    insertToken: (trigger, token) => editor.insertToken(trigger, tokenNode(token)),
+    insertToken: (trigger, token) => {
+      if (token.kind !== "action") editor.insertToken(trigger, tokenNode(token))
+    },
     insertFileRefs: (paths, at) => editor.insertFileRefs(paths, at),
     removeAttachment: (id) => editor.removeAttachment(id),
   })
