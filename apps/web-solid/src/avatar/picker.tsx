@@ -1,8 +1,8 @@
-import { CHARM_NAMES, FLAVOUR_NAMES, OUTFIT_NAMES } from "@kiko/avatar"
+import { CHARM_NAMES, defaults, FLAVOUR_NAMES, OUTFIT_NAMES, resolve } from "@kiko/avatar"
 import { cachedUri } from "@kiko/avatar/uri"
 import { KIKO } from "@kiko/protocol"
 import type { AvatarPins, Look } from "@kiko/theme/look"
-import { createSignal, For, type JSX, Show } from "solid-js"
+import { createEffect, createSignal, For, type JSX, on, Show } from "solid-js"
 import { Dialog } from "../lib/dialog"
 import { Button } from "../settings/kit"
 import { look, saveLook } from "../theme/live"
@@ -15,7 +15,20 @@ const OUTFITS = ["none", ...OUTFIT_NAMES] as const
 const label = (name: string) => name.charAt(0).toUpperCase() + name.slice(1)
 
 const cell =
-  "grid aspect-square place-items-center rounded-pop outline-none hover:bg-[var(--hover)] aria-checked:bg-[var(--active)] aria-checked:shadow-[inset_0_0_0_1px_var(--fg3)]"
+  "grid size-12 cursor-pointer place-items-center rounded-tile outline-none transition-[background-color,box-shadow,transform] duration-(--dur-hover) ease-kiko hover:bg-hover active:scale-[0.96] focus-visible:shadow-[var(--focus-ring)] aria-checked:bg-active aria-checked:shadow-[inset_0_0_0_2px_var(--fg3)]"
+
+const HOP: Keyframe[] = [
+  { transform: "translateY(0) scale(1, 1)" },
+  { transform: "translateY(-6px) scale(0.95, 1.05)", offset: 0.35 },
+  { transform: "translateY(0) scale(1.06, 0.94)", offset: 0.55 },
+  { transform: "translateY(0) scale(1, 1)", offset: 0.7 },
+  { transform: "translateY(0) scale(1, 1)" },
+]
+
+function hop(el: HTMLElement) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return
+  el.animate(HOP, { duration: 1100, easing: "cubic-bezier(.2,.8,.2,1)" })
+}
 
 function withPins(avatars: Look["avatars"], slug: string, pins: AvatarPins): Look["avatars"] {
   const { [slug]: _, ...rest } = avatars
@@ -26,7 +39,11 @@ function Section(props: { title: string; children: JSX.Element }) {
   return (
     <section class="flex flex-col gap-2">
       <h3 class="type-label text-fg3">{props.title}</h3>
-      <div class="grid grid-cols-8 gap-1" role="radiogroup" aria-label={props.title}>
+      <div
+        class="grid grid-cols-[repeat(auto-fill,48px)] justify-between gap-1"
+        role="radiogroup"
+        aria-label={props.title}
+      >
         {props.children}
       </div>
     </section>
@@ -47,8 +64,8 @@ function Choice(props: { slug: string; name: string; selected: boolean; pins: Av
       <img
         src={cachedUri(props.slug, pinsFor(props.slug, props.pins))}
         alt=""
-        width={32}
-        height={32}
+        width={36}
+        height={36}
         draggable={false}
       />
     </button>
@@ -59,6 +76,9 @@ function Picker(props: { slug: string }) {
   const isKiko = () => props.slug === KIKO
   const [draft, setDraft] = createSignal<AvatarPins>({ ...look().avatars[props.slug] })
   const set = (patch: AvatarPins) => setDraft({ ...draft(), ...patch })
+  const flavour = () => resolve(props.slug, { ...defaults, ...pinsFor(props.slug, draft()) }).flavour
+  let preview!: HTMLImageElement
+  createEffect(on(draft, () => hop(preview), { defer: true }))
   const save = () => {
     saveLook({ ...look(), avatars: withPins(look().avatars, props.slug, draft()) })
     closeAvatarPicker()
@@ -72,7 +92,8 @@ function Picker(props: { slug: string }) {
     <Dialog
       open
       onClose={closeAvatarPicker}
-      title={isKiko() ? "Kiko, the chief" : `@${props.slug}`}
+      title={isKiko() ? "Kiko's look" : `${label(props.slug)}'s look`}
+      description={isKiko() ? "Kiko, the chief" : `@${props.slug}`}
       data-component="avatar-picker"
       footer={
         <>
@@ -91,10 +112,12 @@ function Picker(props: { slug: string }) {
       <div class="flex flex-col gap-5" data-slug={props.slug}>
         <div class="flex justify-center">
           <img
+            ref={preview}
             src={cachedUri(props.slug, pinsFor(props.slug, draft()))}
             alt=""
-            width={96}
-            height={96}
+            width={88}
+            height={88}
+            data-component="avatar-preview"
             draggable={false}
           />
         </div>
@@ -105,7 +128,7 @@ function Picker(props: { slug: string }) {
                 <Choice
                   slug={props.slug}
                   name={label(f)}
-                  selected={draft().flavour === f}
+                  selected={flavour() === f}
                   pins={{ flavour: f }}
                   onPick={() => set({ flavour: f })}
                 />
