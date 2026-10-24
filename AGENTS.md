@@ -6,7 +6,7 @@ Kiko is a self-deployed chat app where one person texts one agent or a team of a
 
 1. **One owner, one Worker.** Every install serves exactly one person. Keep every feature, but cut any machinery that only exists for multi-tenant scale.
 2. **Writes are the budget.** Cloudflare bills rows written, and the Free plan allows 100,000 a day. A warm prompt writes at most 7 rows. A change that adds a write per prompt, per minute, or per open tab is a regression even when it works.
-3. **The client never waits.** It paints from IndexedDB and applies every action locally before the server answers. Navigation and the composer do not animate or block on the network.
+3. **The client never waits.** It paints from IndexedDB and applies every action locally before the server answers. Navigation and the composer never block on the network. A new screen paints at once; it may ease in for at most 160ms, and nothing waits for the old screen to animate out.
 4. **Production stays up.** Owners update from our releases. A crash we ship lands in every install at once.
 
 ## Glossary
