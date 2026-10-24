@@ -264,10 +264,7 @@ export function ChatView() {
         data-scrolled={scrolled() ? "true" : undefined}
       >
         <Show when={mentions().length > 0}>
-          <div
-            class="pointer-events-none absolute right-3 z-6 transition-[bottom] duration-150 ease-out motion-reduce:transition-none"
-            classList={{ "bottom-[calc(100%+8px)]": !scrolled(), "bottom-[calc(100%+42px)]": scrolled() }}
-          >
+          <div class="pointer-events-none absolute right-3 bottom-[calc(100%+8px)] z-6">
             <button
               type="button"
               class={`${JUMP_CLASS} text-label font-medium text-info`}
