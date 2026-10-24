@@ -163,13 +163,13 @@ export default function ModelPickerPanel(props: {
   }
 
   const railButton = (active: boolean) =>
-    `relative grid size-9 shrink-0 place-items-center rounded-lg ${active ? "bg-accent-strong text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`
+    `relative grid size-9 shrink-0 place-items-center rounded-[10px] transition-[background-color,color,transform] duration-[var(--dur-hover)] ease-[var(--ease-kiko)] active:scale-95 ${active ? "bg-active text-fg" : "text-fg3 hover:bg-hover hover:text-fg"}`
 
   return (
     <Portal>
       <div
         ref={panel}
-        class="pointer-events-auto fixed z-[80] flex h-[380px] w-[420px] max-w-[calc(100vw-16px)] overflow-hidden rounded-xl border border-border bg-popover shadow-popover"
+        class="pointer-events-auto fixed z-[80] flex h-[380px] w-[420px] max-w-[calc(100vw-16px)] overflow-hidden rounded-[18px] bg-raise shadow-[0_24px_64px_-16px_rgb(0_0_0/50%),0_2px_10px_rgb(0_0_0/16%)]"
         style={place()}
         data-component="model-picker"
         data-kb-top-layer=""
@@ -177,7 +177,7 @@ export default function ModelPickerPanel(props: {
         <Show
           when={providers().length || catalog.loading}
           fallback={
-            <p class="m-auto px-6 text-center text-md text-muted-foreground" data-component="model-empty">
+            <p class="m-auto px-6 text-center text-[14px] text-fg3" data-component="model-empty">
               No provider is connected.{" "}
               <button
                 type="button"
@@ -196,7 +196,7 @@ export default function ModelPickerPanel(props: {
           }
         >
           <nav
-            class="flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border py-2 [scrollbar-width:none]"
+            class="flex w-14 shrink-0 flex-col items-center gap-1 overflow-y-auto bg-panel py-2 [scrollbar-width:none]"
             aria-label="Providers"
           >
             <button
@@ -208,7 +208,7 @@ export default function ModelPickerPanel(props: {
             >
               <Star on={rail() === FAVORITES} />
             </button>
-            <span class="my-0.5 h-px w-6 shrink-0 bg-border" aria-hidden="true" />
+            <span class="my-0.5 h-px w-6 shrink-0 bg-line2" aria-hidden="true" />
             <For each={providers()}>
               {(provider) => (
                 <button
@@ -232,7 +232,7 @@ export default function ModelPickerPanel(props: {
             </For>
           </nav>
           <div class="flex min-w-0 flex-1 flex-col">
-            <label class="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3 text-muted-foreground">
+            <label class="flex h-12 shrink-0 items-center gap-2 px-4 text-fg3">
               <svg
                 class="size-3.5 shrink-0"
                 viewBox="0 0 16 16"
@@ -248,7 +248,7 @@ export default function ModelPickerPanel(props: {
               <input
                 ref={(el) => requestAnimationFrame(() => el.focus())}
                 type="search"
-                class="h-full min-w-0 flex-1 bg-transparent text-md text-foreground outline-none placeholder:text-muted-foreground"
+                class="h-full min-w-0 flex-1 bg-transparent text-[14px] text-fg outline-none placeholder:text-fg4"
                 placeholder="Search models"
                 aria-label="Search models"
                 role="combobox"
@@ -264,7 +264,7 @@ export default function ModelPickerPanel(props: {
             <Show
               when={rows().length}
               fallback={
-                <p class="p-4 text-md text-muted-foreground">
+                <p class="p-4 text-[14px] text-fg3">
                   {catalog.loading
                     ? "Loading models"
                     : query().trim()
@@ -280,7 +280,7 @@ export default function ModelPickerPanel(props: {
                 id={id}
                 role="listbox"
                 aria-label="Models"
-                class="min-h-0 flex-1 p-1"
+                class="min-h-0 flex-1 p-1.5"
                 data={rows()}
                 itemSize={ROW_H}
               >
@@ -292,24 +292,24 @@ export default function ModelPickerPanel(props: {
                       id={`${id}-${i()}`}
                       role="option"
                       aria-selected={props.current === ref}
-                      class="group/model flex h-11 cursor-pointer items-center gap-2 rounded-lg px-2.5"
-                      classList={{ "bg-accent": at() === i(), "bg-accent-strong": props.current === ref }}
+                      class="group/model flex h-11 cursor-pointer items-center gap-2 rounded-[10px] px-2.5 transition-colors duration-[80ms] ease-[var(--ease-kiko)]"
+                      classList={{ "bg-hover": at() === i(), "bg-active": props.current === ref }}
                       data-model={ref}
                       onPointerMove={() => setAt(i())}
                       onClick={() => pick(row)}
                     >
                       <span class="flex min-w-0 flex-1 flex-col">
-                        <span class="truncate text-md text-foreground">{row.model.name}</span>
-                        <span class="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                        <span class="truncate text-[14px] font-medium text-fg">{row.model.name}</span>
+                        <span class="flex items-center gap-1 truncate text-[12.5px] text-fg3">
                           <Show when={mixed()}>
                             <ProviderIcon id={row.provider.id} width="11" height="11" />
-                            {row.provider.name} ·
+                            {row.provider.name},
                           </Show>
-                          {formatContext(row.model.contextWindow)} context · {formatPrice(row.model.pricing)}
+                          {formatContext(row.model.contextWindow)} context, {formatPrice(row.model.pricing)}
                           <Show when={problemOf(row.provider.id)}>
                             {(problem) => (
                               <span class="text-error" data-part="provider-problem">
-                                · {PROBLEM_SHORT[problem()]}
+                                {PROBLEM_SHORT[problem()]}
                               </span>
                             )}
                           </Show>
@@ -320,7 +320,7 @@ export default function ModelPickerPanel(props: {
                       </Show>
                       <button
                         type="button"
-                        class={`grid size-7 shrink-0 place-items-center rounded-md hover:bg-accent-strong ${starred() ? "text-warning" : "text-secondary-label opacity-0 group-hover/model:opacity-100"}`}
+                        class={`grid size-7 shrink-0 place-items-center rounded-lg transition-[opacity,background-color,transform] duration-[var(--dur-hover)] hover:bg-active active:scale-90 ${starred() ? "text-warning" : "text-fg4 opacity-0 group-hover/model:opacity-100"}`}
                         aria-label={starred() ? `Unstar ${row.model.name}` : `Star ${row.model.name}`}
                         aria-pressed={starred()}
                         onClick={(e) => {

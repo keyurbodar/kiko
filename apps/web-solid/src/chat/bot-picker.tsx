@@ -75,7 +75,7 @@ export default function BotPicker() {
                 >
                   <IdentityAvatar seed={agent.slug} size={22} />
                   <span class="palette-label">{agent.name}</span>
-                  <span class="text-sm text-muted-foreground">
+                  <span class="text-[12.5px] text-fg3">
                     {agent.id === KIKO ? "Leads every group" : `@${agent.slug}`}
                   </span>
                   <button
@@ -93,7 +93,7 @@ export default function BotPicker() {
                     }}
                   >
                     <span
-                      class={`grid size-4 place-items-center rounded-full border ${on() ? "border-transparent bg-primary text-primary-foreground" : "border-[color-mix(in_oklab,var(--foreground)_30%,transparent)] text-transparent"}`}
+                      class={`grid size-4 place-items-center rounded-full border ${on() ? "border-transparent bg-fg text-bg" : "border-fg4 text-transparent"}`}
                     >
                       <RemixIcon icon={CheckIcon} class="size-3" />
                     </span>
@@ -108,13 +108,11 @@ export default function BotPicker() {
           </Cmdk.Item>
         </Cmdk.List>
       </Cmdk>
-      <div class="flex h-11 items-center gap-3 border-t border-border pt-3">
+      <div class="flex h-12 items-center gap-3 pt-3">
         <Show
           when={grouping()}
           fallback={
-            <span class="min-w-0 truncate text-sm text-muted-foreground">
-              Use the checkboxes to start a group with Kiko
-            </span>
+            <span class="min-w-0 truncate text-[12.5px] text-fg3">Use the checkboxes to start a group with Kiko</span>
           }
         >
           <input

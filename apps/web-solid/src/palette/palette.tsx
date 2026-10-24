@@ -1,6 +1,6 @@
 import { Command as Cmdk } from "cmdk-solid"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ArrowUpIcon, ChevronRightIcon, CheckIcon } from "@kiko/ui/icons"
+import { ArrowUpIcon, ChevronRightIcon, CheckIcon, SearchIcon } from "@kiko/ui/icons"
 import { snippetParts } from "@kiko/protocol"
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
 import { Portal } from "solid-js/web"
@@ -24,7 +24,7 @@ import {
 import { backView, closePalette, enterView, paletteStack } from "./state"
 import "./palette.css"
 
-const EXIT_MS = 150
+const EXIT_MS = 80
 
 function Chips(props: { keys: string[] }) {
   return (
@@ -198,13 +198,9 @@ export default function Palette() {
             }}
           >
             <div class="palette-bar">
-              <Show when={view().parent}>
-                {(parent) => (
-                  <span class="palette-addon" aria-hidden="true">
-                    <RemixIcon icon={iconFor(parent().icon)} size={16} />
-                  </span>
-                )}
-              </Show>
+              <span class="palette-addon" aria-hidden="true">
+                <RemixIcon icon={view().parent ? iconFor(view().parent!.icon) : SearchIcon} size={18} />
+              </span>
               <Cmdk.Input
                 ref={input}
                 class="palette-input"
