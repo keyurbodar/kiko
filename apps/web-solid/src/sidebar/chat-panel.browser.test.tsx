@@ -88,6 +88,35 @@ describe("chat sections", () => {
     expect(row("c").hasAttribute("data-unread")).toBe(true)
   })
 
+  it("hides read chats when the owner turns on the unread filter, and stays responsive", async () => {
+    const [bots, setBots] = createSignal([bot("a", "Alpha"), bot("b", "Beta")])
+    await using screen = await render(() => <ChatSections {...quiet} bots={bots()} />)
+    await expect.element(screen.getByText("Beta")).toBeVisible()
+    const filter = screen.container.querySelector('[data-component="sidebar-filter"]') as HTMLElement
+    await screen.getByRole("button", { name: "Show unread only" }).click()
+    await expect.element(screen.getByText("You're all caught up")).toBeVisible()
+    expect(filter.getAttribute("aria-pressed")).toBe("true")
+    expect(names(screen.container)).toEqual([])
+    await screen.getByRole("button", { name: "Show all" }).click()
+    expect(filter.getAttribute("aria-pressed")).toBe("false")
+    expect(names(screen.container)).toEqual(["Alpha", "Beta"])
+    setBots([bot("a", "Alpha"), bot("b", "Beta", { unread: 2 })])
+    await screen.getByRole("button", { name: "Show unread only" }).click()
+    expect(names(screen.container)).toEqual(["Beta"])
+    await expect.element(screen.getByText("Unread", { exact: true }).first()).toBeVisible()
+  })
+
+  it("keeps working after a chat leaves its section", async () => {
+    const [bots, setBots] = createSignal([bot("a", "Alpha"), bot("b", "Beta"), bot("c", "Gamma")])
+    await using screen = await render(() => <ChatSections {...quiet} bots={bots()} />)
+    await expect.element(screen.getByText("Gamma")).toBeVisible()
+    setBots([bot("a", "Alpha"), bot("c", "Gamma")])
+    expect(names(screen.container)).toEqual(["Alpha", "Gamma"])
+    setBots([bot("a", "Alpha", { presence: "working" }), bot("c", "Gamma")])
+    expect(sectionOf(screen.container, "a")).toBe("working")
+    expect(names(screen.container)).toEqual(["Alpha", "Gamma"])
+  })
+
   it("offers Undo in a toast when a chat is closed", async () => {
     await using screen = await render(() => <ToastV2.Region />)
     closeChat("not-a-chat", null)
