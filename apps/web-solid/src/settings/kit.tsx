@@ -10,8 +10,8 @@ export const muted = "text-[var(--kit-meta)]"
 
 type Variant = "primary" | "secondary" | "ghost" | "danger"
 
-export function buttonClass(variant: Variant = "secondary", extra?: string) {
-  return cn("kit-btn", `kit-btn--${variant}`, extra)
+export function buttonClass(variant: Variant = "secondary", extra?: string, big?: boolean) {
+  return cn("kit-btn", `kit-btn--${variant}`, big && "kit-btn--big", extra)
 }
 
 export const selectClass = "kit-select"
@@ -25,13 +25,13 @@ export function Skeleton(props: { class?: string }): JSX.Element {
 }
 
 export function Button(
-  props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; busy?: boolean },
+  props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; busy?: boolean; big?: boolean },
 ): JSX.Element {
-  const [local, rest] = splitProps(props, ["variant", "class", "type", "busy", "disabled", "children"])
+  const [local, rest] = splitProps(props, ["variant", "class", "type", "busy", "disabled", "big", "children"])
   return (
     <button
       type={local.type ?? "button"}
-      class={buttonClass(local.variant, cn(local.busy && "relative", local.class))}
+      class={buttonClass(local.variant, cn(local.busy && "relative", local.class), local.big)}
       disabled={local.disabled || local.busy}
       aria-busy={local.busy || undefined}
       {...rest}

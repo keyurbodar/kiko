@@ -181,9 +181,14 @@ function AccountPicker(props: { accounts: ReadonlyArray<Account>; onPick: (accou
       <p class="ob-note">This sign-in can use more than one Cloudflare account. Pick the one Kiko goes in.</p>
       <For each={props.accounts}>
         {(account) => (
-          <Button class="ob-card ob-card-plain" data-action="pick-account" onClick={() => props.onPick(account.id)}>
+          <button
+            type="button"
+            class="ob-card ob-card-plain"
+            data-action="pick-account"
+            onClick={() => props.onPick(account.id)}
+          >
             {account.name}
-          </Button>
+          </button>
         )}
       </For>
     </div>

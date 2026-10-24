@@ -65,27 +65,39 @@
   outline: none;
 }
 
-.kit-btn--fg {
+.kit-btn--big {
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 14px;
+  font-size: 15px;
+}
+
+.kit-btn--primary {
   color: var(--bg);
   background: var(--fg);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .kit-btn--fg:hover:not(:disabled) {
+  .kit-btn--primary:hover:not(:disabled) {
     background: color-mix(in oklab, var(--fg) 88%, var(--bg));
   }
 }
 
-.kit-btn--hover,
+.kit-btn--secondary,
 .kit-btn--danger {
   color: var(--fg);
   background: var(--active);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .kit-btn--hover:hover:not(:disabled) {
+  .kit-btn--secondary:hover:not(:disabled) {
     background: color-mix(in oklab, var(--fg) 14%, var(--panel));
   }
+}
+
+.kit-btn--secondary[aria-pressed="true"] {
+  color: var(--fg);
+  background: color-mix(in oklab, var(--fg) 16%, var(--active));
 }
 
 .kit-btn--danger {
@@ -96,11 +108,6 @@
   .kit-btn--danger:hover:not(:disabled) {
     background: color-mix(in oklab, var(--bad) 12%, var(--active));
   }
-}
-
-.kit-btn--hover[aria-pressed="true"] {
-  color: var(--fg);
-  background: color-mix(in oklab, var(--fg) 16%, var(--active));
 }
 
 .kit-btn--ghost {
