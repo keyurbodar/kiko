@@ -76,8 +76,12 @@ const tab = (name: string) => page.getByRole("tab", { name })
 async function open(over?: Partial<TabData>) {
   openPalette()
   const screen = await render(() => <PaletteSurface source={source(over)} />)
-  await expect.element(page.getByRole("combobox")).toBeVisible()
-  panelEl = document.querySelector<HTMLElement>(".palette-panel")!
+  const field = page.getByRole("combobox")
+  await expect.element(field).toBeVisible()
+  panelEl = field
+    .element()
+    .closest<HTMLElement>('[data-component="palette"]')!
+    .querySelector<HTMLElement>(".palette-panel")!
   return {
     async [Symbol.asyncDispose]() {
       closePalette()
