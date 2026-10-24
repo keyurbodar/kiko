@@ -3,6 +3,10 @@ import { createEffect, Match, onCleanup, splitProps, Switch, type JSX } from "so
 import type { ComponentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 
+const HANDOFF_MS = 600
+let lastClosedAt = Number.NEGATIVE_INFINITY
+const warm = () => performance.now() - lastClosedAt < HANDOFF_MS
+
 export interface TooltipV2Props extends ComponentProps<typeof KobalteTooltip> {
   value: JSX.Element
   class?: string
@@ -18,6 +22,7 @@ export function TooltipV2(props: TooltipV2Props) {
     open: false,
     block: false,
     expand: false,
+    instant: false,
   })
   const [local, others] = splitProps(props, [
     "children",
@@ -30,7 +35,14 @@ export function TooltipV2(props: TooltipV2Props) {
     "value",
   ])
 
-  const close = () => setState("open", false)
+  const show = (open: boolean) => {
+    if (open === state.open) return
+    if (open) setState("instant", warm())
+    else lastClosedAt = performance.now()
+    setState("open", open)
+  }
+
+  const close = () => show(false)
 
   const inside = () => {
     const active = document.activeElement
@@ -87,9 +99,9 @@ export function TooltipV2(props: TooltipV2Props) {
       <Match when={true}>
         <KobalteTooltip
           gutter={4}
-          openDelay={400}
-          skipDelayDuration={600}
+          skipDelayDuration={HANDOFF_MS}
           {...others}
+          openDelay={warm() ? 0 : (others.openDelay ?? 300)}
           closeDelay={0}
           ignoreSafeArea={local.ignoreSafeArea ?? true}
           open={local.forceOpen || state.open}
@@ -100,7 +112,7 @@ export function TooltipV2(props: TooltipV2Props) {
               justClickedTrigger = false
               return
             }
-            setState("open", open)
+            show(open)
           }}
         >
           <KobalteTooltip.Trigger
@@ -123,6 +135,7 @@ export function TooltipV2(props: TooltipV2Props) {
               data-component="tooltip-v2"
               data-placement={props.placement}
               data-force-open={local.forceOpen}
+              data-instant={state.instant ? "" : undefined}
               class={local.contentClass}
               style={local.contentStyle}
               onPointerDownOutside={(e) => {
