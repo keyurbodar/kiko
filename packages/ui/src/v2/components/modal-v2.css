@@ -1,3 +1,5 @@
+@layer theme, base, v2, components, utilities;
+
 @layer v2 {
   [data-component="modal-v2-overlay"] {
     position: fixed;
