@@ -52,7 +52,13 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
     const id = chat()
     if (!id) return
     const src = picture()
-    if (src) return openThreadImages([{ src, name: props.label }], 0, from?.querySelector("img") ?? from)
+    const at = ref()?.name
+    if (src)
+      return openThreadImages(
+        [{ src, name: props.label, ...(at ? { path: at } : {}) }],
+        0,
+        from?.querySelector("img") ?? from,
+      )
     const found = find(props.file.path)
     if (found.kind === "file") return openFile(id, found.path, props.file.line)
     if (found.kind === "folder" || found.kind === "many") return openSurface(id, fixedSurface("files"))

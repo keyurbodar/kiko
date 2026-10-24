@@ -1,7 +1,7 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { MonitorIcon, NotesIcon, SearchIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { Show, onMount } from "solid-js"
+import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { computers, openViewer, startComputers, watchTarget } from "../chat/computers"
 import { deskShown, loadDesk, toggleDesk } from "../chat/side/surfaces"
 import { runCommand } from "../commands/registry"
@@ -17,9 +17,17 @@ const CONNECTION_LABEL: Partial<Record<ConnectionView, string>> = {
   disconnected: "Not connected",
 }
 
+const LONG_OFFLINE_MS = 10_000
+
 export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onToggleSidebar: () => void }) {
   const chatId = () => props.chatId
   const offline = createDelayedStatus(() => CONNECTION_LABEL[connection.view()] ?? null)
+  const [long, setLong] = createSignal(false)
+  createEffect(() => {
+    if (!offline()) return setLong(false)
+    const timer = setTimeout(() => setLong(true), LONG_OFFLINE_MS)
+    onCleanup(() => clearTimeout(timer))
+  })
   const title = () => {
     const id = chatId()
     if (!id) return "Chats"
@@ -65,8 +73,12 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
         </Show>
         <Show when={offline()}>
           {(message) => (
-            <span class="shrink-0 text-[12.5px] text-fg3" role="status" data-component="connection-status">
-              {message()}
+            <span
+              class={`min-w-0 truncate text-label ${long() ? "text-fg3" : "chat-shimmer"}`}
+              role="status"
+              data-component="connection-status"
+            >
+              {long() ? "Offline, messages will send when you're back" : message()}
             </span>
           )}
         </Show>
