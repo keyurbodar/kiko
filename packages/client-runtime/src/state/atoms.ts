@@ -118,9 +118,10 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
 
   const userSignalAtom = runtime.atom(
     Stream.unwrap(UserStore.useSync((user) => Stream.fromPubSub(user.signals))).pipe(
-      Stream.map(Option.some<UserSignal>),
+      Stream.chunks,
+      Stream.map(Option.some<ReadonlyArray<UserSignal>>),
     ),
-    { initialValue: Option.none<UserSignal>() },
+    { initialValue: Option.none<ReadonlyArray<UserSignal>>() },
   )
 
   const roomResumeFamily = Atom.family((_roomId: RoomId) =>
@@ -204,9 +205,14 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
 
   const roomSignalAtom = Atom.family((roomId: RoomId) =>
     runtime
-      .atom((get) => Stream.fromPubSub(get(roomSignalsFamily(roomId))).pipe(Stream.map(Option.some<RoomSignal>)), {
-        initialValue: Option.none<RoomSignal>(),
-      })
+      .atom(
+        (get) =>
+          Stream.fromPubSub(get(roomSignalsFamily(roomId))).pipe(
+            Stream.chunks,
+            Stream.map(Option.some<ReadonlyArray<RoomSignal>>),
+          ),
+        { initialValue: Option.none<ReadonlyArray<RoomSignal>>() },
+      )
       .pipe(Atom.setIdleTTL(0)),
   )
 
@@ -386,7 +392,16 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     browserLink: rpc("browser.link"),
     browserHandBack: rpc("browser.handBack"),
     browserClose: rpc("browser.close"),
-    pcPairCode: rpc("pc.pairCode", { mode: "singleFlight", key: () => "pair" }),
+    pcPairCode: effect(
+      "pc.pairCode",
+      () =>
+        onceConnected.pipe(Effect.andThen(sendRpc("pc.pairCode", undefined))) as Effect.Effect<
+          OwnerRpcSuccess<"pc.pairCode">,
+          RequestError<"pc.pairCode">,
+          OwnerSupervisor
+        >,
+      { mode: "singleFlight", key: () => "pair" },
+    ),
     pcRemove: rpc("pc.remove"),
     pcRename: rpc("pc.rename"),
     pcWatch: rpc("pc.watch"),

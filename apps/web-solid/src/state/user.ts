@@ -25,26 +25,15 @@ import { kikoPlaceholder, newChatMembers } from "../lib/chats"
 import { showFailure, showNotice } from "../lib/errors"
 import { setFileToken, setFileTokenSource } from "../lib/file-token"
 import { attempt, failureMessage, owner, registry, run, valueOf, watch } from "./runtime"
+import { createUserSignals } from "./user-signals"
 
 const chatOrder = (a: Chat, b: Chat) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt
 
 const OPEN_DEBOUNCE_MS = 2_000
 
-type SignalOf<T extends UserSignal["t"]> = Extract<UserSignal, { t: T }>
-type SignalListener = (signal: UserSignal) => void
-
-const listeners = new Map<UserSignal["t"], Set<SignalListener>>()
-
-export function onUserSignal<T extends UserSignal["t"]>(t: T, listener: (signal: SignalOf<T>) => void): () => void {
-  const set = listeners.get(t) ?? new Set()
-  listeners.set(t, set)
-  set.add(listener as SignalListener)
-  return () => set.delete(listener as SignalListener)
-}
-
-function deliver(signal: UserSignal) {
-  for (const listener of listeners.get(signal.t) ?? []) listener(signal)
-}
+const signals = createUserSignals()
+export const onUserSignal = signals.on
+const deliver = signals.deliver
 
 setFileTokenSource(async () => (await attempt(owner.commands.fileToken, {}, () => {}))?.fileToken)
 
@@ -62,10 +51,14 @@ export const user = createRoot(() => {
         })
       deliver(value)
     })
-  registry.subscribe(owner.userSignalAtom, (next) => {
-    const signal = valueOf(next)
-    if (signal !== undefined && Option.isSome(signal)) onSignal(signal.value)
-  })
+  registry.subscribe(
+    owner.userSignalAtom,
+    (next) => {
+      const burst = valueOf(next)
+      if (burst !== undefined && Option.isSome(burst)) for (const signal of burst.value) onSignal(signal)
+    },
+    { immediate: true },
+  )
 
   const snapshot = createMemo(() => Option.getOrUndefined(state().data))
   const status = () => state().status

@@ -18,7 +18,7 @@ import { decodeFrame } from "@kiko/computer/frame"
 import type { AgentSlug, ComputerFrame, ComputerSummary, RoomId } from "@kiko/protocol"
 import type { Env } from "../index"
 import { encodeBase64 } from "../lib/base64"
-import { dropStreams } from "../owner/socket"
+import { dropStreams, socketView } from "../owner/socket"
 import { frameChunk, frameSubs, frameText } from "./frames"
 import type { ComputerRow, ComputerStore, NewComputer } from "./store"
 
@@ -223,7 +223,7 @@ export class ComputerHub {
   push(): void {
     for (const ws of this.d.ctx.getWebSockets("tab")) {
       if (!(ws.deserializeAttachment() as { user?: { ready?: boolean } } | null)?.user?.ready) continue
-      this.sendState(ws)
+      this.sendState(socketView(ws))
     }
   }
 
@@ -520,7 +520,7 @@ export class ComputerHub {
     for (const tab of this.d.ctx.getWebSockets("tab")) {
       if (this.sessionOf(tab) !== session) continue
       try {
-        tab.send(JSON.stringify({ t: "pc.rtc", pcId, signal }))
+        socketView(tab).send(JSON.stringify({ t: "pc.rtc", pcId, signal }))
       } catch {}
       return
     }

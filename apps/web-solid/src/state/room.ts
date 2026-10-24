@@ -288,10 +288,15 @@ function createRuns(roomId: () => RoomId | null, warm: () => readonly RoomId[]) 
     else if (signal.t === "error" && id === roomId()) showNotice(signal.error)
   }
   eachWarm(warm, (id) => {
-    const stop = registry.subscribe(owner.roomSignalAtom(id), (next) => {
-      const signal = valueOf(next)
-      if (signal !== undefined && Option.isSome(signal)) untrack(() => onSignal(id, signal.value))
-    })
+    const stop = registry.subscribe(
+      owner.roomSignalAtom(id),
+      (next) => {
+        const burst = valueOf(next)
+        if (burst !== undefined && Option.isSome(burst))
+          untrack(() => burst.value.forEach((signal) => onSignal(id, signal)))
+      },
+      { immediate: true },
+    )
     return () => {
       stop()
       fetched.delete(id)

@@ -9,6 +9,7 @@ import * as PubSub from "effect/PubSub"
 import * as Queue from "effect/Queue"
 import * as Stream from "effect/Stream"
 import * as SubscriptionRef from "effect/SubscriptionRef"
+import * as AsyncResult from "effect/reactivity/AsyncResult"
 import * as Atom from "effect/reactivity/Atom"
 import * as AtomRegistry from "effect/reactivity/AtomRegistry"
 import type { PreparedConnection, SupervisorConnectionState } from "../connection/model"
@@ -70,6 +71,7 @@ const setup = Effect.fnUntraced(function* (connected = true) {
   const client = ((tag: string, input: { roomId: RoomId; afterSequence?: number }) => {
     if (tag === "room.send") return Effect.never
     if (tag === "memory.run") return Effect.succeed({ ok: true, text: ["remembered"] })
+    if (tag === "pc.pairCode") return Effect.succeed({ code: "c", url: "https://kiko.example/pc#c", expiresAt: 1 })
     if (tag === "recipes.install") {
       requests.push({ tag, input })
       return Effect.succeed({ state: "needs_connect", links: [] })
@@ -112,7 +114,7 @@ const setup = Effect.fnUntraced(function* (connected = true) {
   const runtime = Atom.runtime(services) as unknown as Atom.AtomRuntime<OwnerRuntimeServices, never>
   const owner = createOwnerAtoms(runtime)
   const registry = AtomRegistry.make()
-  return { owner, registry, subscribes, feeds, reads, cache, session, sessions, requests }
+  return { owner, registry, subscribes, feeds, reads, cache, session, sessions, requests, user }
 })
 
 const settle = Effect.repeat(Effect.yieldNow, { times: 50 })
@@ -237,6 +239,48 @@ describe("memory commands", () => {
         ),
       )
       expect(result._tag).toBe("Failure")
+    }),
+  )
+})
+
+describe("user signals", () => {
+  it.effect("a burst of signals reaches the listener in full, not only the last one", () =>
+    Effect.gen(function* () {
+      const { owner, registry, user } = yield* setup()
+      const seen: string[] = []
+      const stop = registry.subscribe(
+        owner.userSignalAtom,
+        (next) => {
+          if (!AsyncResult.isSuccess(next) || Option.isNone(next.value)) return
+          const value: unknown = next.value.value
+          for (const signal of (Array.isArray(value) ? value : [value]) as UserSignal[]) seen.push(signal.t)
+        },
+        { immediate: true },
+      )
+      yield* settle
+      yield* PubSub.publishAll(user.signals, [
+        { t: "browserState", state: null },
+        { t: "pcState", computers: [] },
+        { t: "typing", roomId: ROOM, names: [] },
+      ] as UserSignal[])
+      yield* settle
+      expect(seen).toEqual(["browserState", "pcState", "typing"])
+      stop()
+    }),
+  )
+})
+
+describe("computer pairing", () => {
+  it.effect("a pairing code asked for while Kiko is still connecting arrives once it connects", () =>
+    Effect.gen(function* () {
+      const { owner, registry, session, sessions } = yield* setup(false)
+      const asked = yield* Effect.forkChild(
+        Effect.promise(() => runAtomCommand(registry, owner.commands.pcPairCode, undefined)),
+      )
+      yield* settle
+      yield* SubscriptionRef.set(sessions, Option.some(session))
+      const result = yield* Fiber.join(asked)
+      expect(result).toMatchObject({ _tag: "Success", value: { code: "c" } })
     }),
   )
 })
