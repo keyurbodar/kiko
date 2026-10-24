@@ -54,7 +54,7 @@ export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
       commit({ ...themes(), themes: [...kept, ...added].slice(-MAX_IMPORTED) })
       const theme = added.find((t) => t.appearance === appearanceOf(look().mode)) ?? added[0]!
       choose(theme.appearance, theme.id)
-      updateLook({ mode: theme.appearance })
+      if (look().mode !== "system") updateLook({ mode: theme.appearance })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The install failed.")
     } finally {

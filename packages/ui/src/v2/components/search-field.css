@@ -1,0 +1,88 @@
+@layer theme, base, v2, components, utilities;
+
+@layer v2 {
+  [data-component="search-field"] {
+    display: flex;
+    height: 32px;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px 0 10px;
+    color: var(--fg);
+    background: var(--active);
+    border-radius: 9px;
+    cursor: text;
+    transition:
+      background-color var(--dur-hover) var(--ease-kiko),
+      box-shadow var(--dur-hover) var(--ease-kiko);
+  }
+
+  [data-component="search-field"][data-size="large"] {
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  [data-component="search-field"]:focus-within {
+    background: var(--hover);
+    box-shadow: var(--focus-ring);
+  }
+
+  [data-slot="search-field-icon"] {
+    flex-shrink: 0;
+    color: var(--fg3);
+  }
+
+  [data-component="search-field"] > input {
+    height: 100%;
+    min-width: 0;
+    flex: 1;
+    padding: 0;
+    color: var(--fg);
+    font-family: var(--font-family-sans);
+    font-size: 14px;
+    line-height: 20px;
+    background: transparent;
+    border: 0;
+    outline: none;
+    appearance: none;
+  }
+
+  [data-component="search-field"] > input::placeholder {
+    color: var(--fg4);
+  }
+
+  [data-component="search-field"] > input::-webkit-search-cancel-button,
+  [data-component="search-field"] > input::-webkit-search-decoration {
+    appearance: none;
+  }
+
+  [data-slot="search-field-clear"] {
+    display: grid;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    place-items: center;
+    padding: 0;
+    color: var(--fg3);
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition:
+      background-color var(--dur-hover) var(--ease-kiko),
+      color var(--dur-hover) var(--ease-kiko);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    [data-slot="search-field-clear"]:hover {
+      color: var(--fg);
+      background: var(--active);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-component="search-field"] {
+      transition: none;
+    }
+  }
+}

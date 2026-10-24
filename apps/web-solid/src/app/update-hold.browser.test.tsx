@@ -24,7 +24,7 @@ describe("a backend updating to a new protocol", () => {
     expect(screen.container.querySelectorAll('[data-component="update-notice"]')).toHaveLength(1)
     expect(sendBlock()).toBeNull()
     expect(screen.container.querySelector('[data-component="update-notice"] button')).toBeNull()
-    expect(pill()).toBe("Updating")
+    expect(pill()).toBe("Updating your backend")
 
     backend.descriptor = { kiko: 1, version: APP_VERSION, protocol: PROTOCOL, selfUpdate: true }
     await refreshBackend()

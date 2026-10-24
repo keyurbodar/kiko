@@ -13,7 +13,7 @@ import {
 } from "@kiko/theme/apply"
 import { type Imported, type ImportedTheme, MAX_IMPORTED } from "@kiko/theme/imported"
 import { setAvatarPicks } from "../avatar/picks"
-import type { ThemeId } from "@kiko/theme/palette"
+import { isDarkThemeId, type ThemeId } from "@kiko/theme/palette"
 import { hasAuth } from "../lib/storage"
 import { DEFAULT_LOOK, formatLook, isCurrentLook, parseLook, type Look } from "@kiko/theme/look"
 
@@ -124,7 +124,7 @@ export function forgetTheme(): void {
   adopt(null, false)
 }
 
-export const DEFAULT = ""
+const DEFAULT = ""
 
 export const themes = () => look().imported
 
@@ -147,4 +147,12 @@ export function remove(theme: ImportedTheme) {
 
 export function chooseBuiltin(id: ThemeId): void {
   saveLook(selectBuiltin(look(), id))
+}
+
+export function pickTheme(appearance: "light" | "dark", id: string): void {
+  const active = { ...themes().active }
+  if (isDarkThemeId(id) || id === "snow") delete active[appearance]
+  else active[appearance] = id
+  const darkTheme = isDarkThemeId(id) ? id : look().darkTheme
+  saveLook({ ...look(), darkTheme, imported: { ...themes(), active } })
 }

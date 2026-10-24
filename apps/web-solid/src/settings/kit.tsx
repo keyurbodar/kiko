@@ -1,6 +1,6 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { LoaderIcon } from "@kiko/ui/icons"
-import { For, Show, splitProps, type JSX } from "solid-js"
+import { Show, splitProps, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import "./kit.css"
 
@@ -10,8 +10,8 @@ export const muted = "text-[var(--kit-meta)]"
 
 type Variant = "primary" | "secondary" | "ghost" | "danger"
 
-export function buttonClass(variant: Variant = "secondary", extra?: string) {
-  return cn("kit-btn", `kit-btn--${variant}`, extra)
+export function buttonClass(variant: Variant = "secondary", extra?: string, big?: boolean) {
+  return cn("kit-btn", `kit-btn--${variant}`, big && "kit-btn--big", extra)
 }
 
 export const selectClass = "kit-select"
@@ -25,13 +25,13 @@ export function Skeleton(props: { class?: string }): JSX.Element {
 }
 
 export function Button(
-  props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; busy?: boolean },
+  props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; busy?: boolean; big?: boolean },
 ): JSX.Element {
-  const [local, rest] = splitProps(props, ["variant", "class", "type", "busy", "disabled", "children"])
+  const [local, rest] = splitProps(props, ["variant", "class", "type", "busy", "disabled", "big", "children"])
   return (
     <button
       type={local.type ?? "button"}
-      class={buttonClass(local.variant, cn(local.busy && "relative", local.class))}
+      class={buttonClass(local.variant, cn(local.busy && "relative", local.class), local.big)}
       disabled={local.disabled || local.busy}
       aria-busy={local.busy || undefined}
       {...rest}
@@ -101,9 +101,11 @@ export function Group(props: {
   return (
     <section class={local.class} data-setting-group={local.id} {...rest}>
       <Show when={local.title || local.action}>
-        <div class="flex items-end gap-4 px-1 pb-2.5">
+        <div class="flex items-end gap-4 px-1 pb-1.5">
           <div class="min-w-0 flex-1">
-            <Show when={local.title}>{(title) => <h2 class="text-[13px] font-medium text-fg3">{title()}</h2>}</Show>
+            <Show when={local.title}>
+              {(title) => <h2 class="flex h-section-label items-center type-label text-fg3">{title()}</h2>}
+            </Show>
             <Show when={local.description}>
               {(description) => <div class={cn("mt-0.5 text-label leading-relaxed", muted)}>{description()}</div>}
             </Show>
@@ -265,93 +267,6 @@ export function Notice(props: {
     >
       {local.children}
     </p>
-  )
-}
-
-export function Pill(props: {
-  tone?: "muted" | "accent" | "success" | "danger"
-  children: JSX.Element
-  [data: `data-${string}`]: string | undefined
-}): JSX.Element {
-  const [local, rest] = splitProps(props, ["tone", "children"])
-  const tone = {
-    muted: "bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] text-[color-mix(in_oklab,var(--fg)_65%,transparent)]",
-    accent: "bg-[color-mix(in_oklab,var(--info)_16%,transparent)] text-[var(--info)]",
-    success: "bg-[color-mix(in_oklab,var(--ok)_16%,transparent)] text-[var(--ok)]",
-    danger: "bg-[color-mix(in_oklab,var(--bad)_14%,transparent)] text-[var(--bad)]",
-  }[local.tone ?? "muted"]
-  return (
-    <span
-      class={cn(
-        "inline-flex h-[18px] shrink-0 items-center rounded-tail px-1.5 text-[11px] font-medium leading-none whitespace-nowrap",
-        tone,
-      )}
-      {...rest}
-    >
-      {local.children}
-    </span>
-  )
-}
-
-export function Segmented<T extends string>(props: {
-  label: string
-  value: T
-  options: readonly { value: T; label: string }[]
-  onChange: (value: T) => void
-}): JSX.Element {
-  const step = (event: KeyboardEvent) => {
-    const delta = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key]
-    const n = props.options.length
-    const at = props.options.findIndex((o) => o.value === props.value)
-    const next =
-      event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? n - 1
-          : delta === undefined
-            ? -1
-            : (Math.max(at, 0) + delta + n) % n
-    if (next < 0) return
-    event.preventDefault()
-    props.onChange(props.options[next]!.value)
-    ;(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>("[role=radio]")[next]?.focus()
-  }
-  return (
-    <div
-      role="radiogroup"
-      aria-label={props.label}
-      class="kit-seg"
-      style={{
-        "grid-template-columns": `repeat(${props.options.length}, minmax(0, 1fr))`,
-        "--seg-n": props.options.length,
-        "--seg-at": Math.max(
-          props.options.findIndex((o) => o.value === props.value),
-          0,
-        ),
-      }}
-      data-empty={props.options.some((o) => o.value === props.value) ? undefined : ""}
-      onKeyDown={step}
-    >
-      <For each={props.options}>
-        {(option, i) => {
-          const on = () => props.value === option.value
-          const stop = () => on() || (i() === 0 && !props.options.some((o) => o.value === props.value))
-          return (
-            <button
-              type="button"
-              role="radio"
-              aria-checked={on()}
-              tabindex={stop() ? 0 : -1}
-              data-value={option.value}
-              class="kit-seg-item"
-              onClick={() => props.onChange(option.value)}
-            >
-              {option.label}
-            </button>
-          )
-        }}
-      </For>
-    </div>
   )
 }
 

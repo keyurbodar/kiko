@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import { page, userEvent } from "vitest/browser"
 import { render } from "../../test/render"
 import Appearance from "./appearance"
+import { look, updateLook } from "./live"
 import display from "../../../landing/public/fonts/bricolage-grotesque-latin.woff2?url"
 import sans from "../../../landing/public/fonts/figtree-latin.woff2?url"
 
@@ -51,5 +52,39 @@ describe("appearance fonts", () => {
     await expect.element(uiText).toHaveStyle({ fontFamily: uiBefore })
     await screen.getByRole("button", { name: "Reset code font to default" }).click()
     await expect.element(codeText).toHaveStyle({ fontFamily: codeBefore })
+  })
+})
+
+describe("appearance themes", () => {
+  it("shows only the themes for the mode in view and lets System keep one light and one dark pick", async () => {
+    updateLook({ mode: "dark", darkTheme: "kiko" })
+    await using screen = await render(() => <Appearance />)
+    const dark = screen.getByRole("radiogroup", { name: "Dark theme" })
+    await expect.element(dark.getByRole("radio", { name: "Glacier" })).toBeVisible()
+    await expect.element(screen.getByRole("radio", { name: "Paper" })).not.toBeInTheDocument()
+
+    await screen.getByRole("radio", { name: "Light", exact: true }).click()
+    const light = screen.getByRole("radiogroup", { name: "Light theme" })
+    await expect.element(light.getByRole("radio", { name: "Paper" })).toHaveAttribute("aria-checked", "true")
+    await expect.element(screen.getByRole("radio", { name: "Glacier" })).not.toBeInTheDocument()
+
+    await screen.getByRole("radio", { name: "System", exact: true }).click()
+    await expect.element(screen.getByRole("radiogroup", { name: "Light theme" })).toBeVisible()
+    await screen.getByRole("radiogroup", { name: "Dark theme" }).getByRole("radio", { name: "Glacier" }).click()
+    expect(look().mode).toBe("system")
+    expect(look().darkTheme).toBe("glacier")
+    await expect
+      .element(screen.getByRole("radiogroup", { name: "Dark theme" }).getByRole("radio", { name: "Glacier" }))
+      .toHaveAttribute("aria-checked", "true")
+    await expect
+      .element(screen.getByRole("radiogroup", { name: "Light theme" }).getByRole("radio", { name: "Paper" }))
+      .toHaveAttribute("aria-checked", "true")
+  })
+
+  it("keeps More themes as the last tile", async () => {
+    updateLook({ mode: "dark", darkTheme: "kiko" })
+    await using screen = await render(() => <Appearance />)
+    const grid = screen.getByRole("radiogroup", { name: "Dark theme" }).element().parentElement!
+    expect(grid.lastElementChild).toBe(screen.getByRole("button", { name: "More themes" }).element())
   })
 })

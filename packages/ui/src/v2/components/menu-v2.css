@@ -89,7 +89,7 @@
       font-size: 14px;
       font-weight: 400;
       line-height: 20px;
-      color: var(--menu-v2-fg);
+      color: inherit;
     }
 
     [data-slot="menu-v2-item-shortcut"] {
@@ -161,6 +161,8 @@
     }
 
     &.text-bad {
+      --menu-v2-fg: var(--bad);
+      --menu-v2-icon: var(--bad);
       color: var(--bad);
     }
   }

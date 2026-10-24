@@ -1,4 +1,9 @@
-import { createEffect, Show } from "solid-js"
+import { cachedUri } from "@kiko/avatar/uri"
+import { KIKO } from "@kiko/protocol"
+import { createEffect, createSignal, onCleanup, Show } from "solid-js"
+import { Button } from "../settings/kit"
+
+const COPIED_MS = 1200
 
 export function Broken(props: { error: unknown; reset: () => void }) {
   const message = () => (props.error instanceof Error ? props.error.message : String(props.error))
@@ -7,45 +12,61 @@ export function Broken(props: { error: unknown; reset: () => void }) {
     const frames = raw.split("\n").filter((line) => /https?:\/\/|\/assets\//.test(line))
     return frames.slice(0, 4).join("\n")
   }
+  const details = () => [message(), stack()].filter(Boolean).join("\n")
+  const [copied, setCopied] = createSignal(false)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  onCleanup(() => clearTimeout(timer))
+  const copy = () => {
+    void navigator.clipboard?.writeText(details()).then(() => {
+      setCopied(true)
+      clearTimeout(timer)
+      timer = setTimeout(() => setCopied(false), COPIED_MS)
+    })
+  }
   createEffect(() => {
     console.error("view crashed", props.error)
   })
   return (
     <div class="grid min-h-dvh place-items-center bg-bg p-6" role="alert" data-component="crash">
-      <div class="flex w-full max-w-xl flex-col items-center gap-4 rounded-3xl bg-raise p-10 text-center shadow-[0_30px_80px_rgb(0_0_0/0.25)]">
-        <h1
-          class="font-display text-[32px] leading-10 font-normal tracking-[-0.015em] text-fg"
-          style={{ "font-variation-settings": "var(--display-variation)" }}
-        >
-          Something in this view broke.
-        </h1>
-        <p class="text-[15px] leading-6 break-words text-fg2">{message()}</p>
-        <Show when={stack()}>
-          {(frames) => (
+      <div class="flex w-full min-w-0 max-w-[480px] flex-col items-center gap-5 rounded-sheet bg-raise px-6 pt-8 pb-6 text-center shadow-[var(--float-shadow)] sm:px-8">
+        <img
+          src={cachedUri(KIKO, { flavour: "fubuki", mood: "dizzy" })}
+          alt=""
+          width={48}
+          height={48}
+          draggable={false}
+        />
+        <div class="flex flex-col gap-2">
+          <h1 class="type-section text-fg">Something broke in this view</h1>
+          <p class="type-ui text-fg2">Your chats are safe. Try again, or reload Kiko.</p>
+        </div>
+        <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row-reverse sm:justify-center">
+          <Button variant="primary" big data-action="crash-retry" onClick={props.reset}>
+            Try again
+          </Button>
+          <Button variant="ghost" big data-action="crash-reload" onClick={() => location.reload()}>
+            Reload
+          </Button>
+        </div>
+        <details class="group w-full text-left" data-component="crash-details">
+          <summary class="mx-auto flex w-fit cursor-pointer list-none items-center gap-1 rounded-control px-2 py-1 type-label text-fg3 transition-colors duration-(--dur-hover) hover:text-fg [&::-webkit-details-marker]:hidden">
+            <span class="group-open:hidden">Show details</span>
+            <span class="hidden group-open:inline">Hide details</span>
+          </summary>
+          <div class="mt-2 flex flex-col gap-2">
             <pre
-              class="max-h-40 w-full overflow-auto rounded-2xl bg-hover p-3 text-left font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap text-fg2"
+              class="max-h-48 overflow-auto rounded-tile bg-panel p-3 type-code text-[12px] leading-[18px] [overflow-wrap:anywhere] whitespace-pre-wrap text-fg2"
               data-component="crash-stack"
             >
-              {frames()}
+              {details()}
             </pre>
-          )}
-        </Show>
-        <div class="flex gap-2">
-          <button
-            type="button"
-            class="h-11 cursor-pointer rounded-pop bg-fg px-5 text-label font-semibold text-bg transition-transform duration-[var(--dur-hover)] active:scale-[0.98]"
-            onClick={props.reset}
-          >
-            Try again
-          </button>
-          <button
-            type="button"
-            class="h-11 cursor-pointer rounded-pop px-5 text-label font-medium text-fg2 transition-colors duration-[var(--dur-hover)] hover:bg-hover hover:text-fg"
-            onClick={() => location.reload()}
-          >
-            Reload
-          </button>
-        </div>
+            <Show when={navigator.clipboard}>
+              <Button variant="secondary" class="self-end" data-action="copy-crash" onClick={copy}>
+                {copied() ? "Copied" : "Copy details"}
+              </Button>
+            </Show>
+          </div>
+        </details>
       </div>
     </div>
   )

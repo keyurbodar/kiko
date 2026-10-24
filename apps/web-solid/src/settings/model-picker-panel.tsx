@@ -13,7 +13,6 @@ import {
   type JSX,
 } from "solid-js"
 import { openSettings } from "./open"
-import { setModelsTab } from "./models-tab"
 import { createQuery } from "../state/runtime"
 import { Portal } from "solid-js/web"
 import { VList, type VListHandle } from "virtua/solid"
@@ -185,7 +184,6 @@ export default function ModelPickerPanel(props: {
                 class="text-fg underline"
                 data-action="connect-provider"
                 onClick={() => {
-                  setModelsTab("providers")
                   openSettings("models")
                   props.onOpenChange(false)
                 }}

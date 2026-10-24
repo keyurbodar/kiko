@@ -1,17 +1,22 @@
+import { SearchField } from "@kiko/ui/v2/search-field"
+import { Segmented } from "@kiko/ui/v2/segmented"
 import type { JSX } from "solid-js"
 import { createMemo, createSignal, For, Show } from "solid-js"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { ChevronRightIcon } from "@kiko/ui/icons"
 import { Dialog } from "../lib/dialog"
 import { cn } from "../lib/cn"
 import { AppDetail, type AppId, APPS, appState, useIntegrations } from "./integrations"
-import { fieldClass, Segmented } from "./kit"
 
 type Entry = { key: string; id: AppId; name: string; about: string; added: boolean; state: string }
 
 type Filter = "all" | "added" | "available"
 
+const SEARCH_AFTER = 6
+
 function Glyph(props: { entry: Entry }): JSX.Element {
   return (
-    <span class="grid size-8 shrink-0 place-items-center rounded-row bg-active text-fg2">
+    <span class="grid size-8 shrink-0 place-items-center rounded-control bg-active text-fg2">
       <Show
         when={APPS[props.entry.id].icon}
         fallback={<span class="text-ui font-semibold text-fg">{props.entry.name.slice(0, 1).toUpperCase()}</span>}
@@ -56,51 +61,58 @@ export default function Tools(): JSX.Element {
 
   return (
     <div class="flex flex-col gap-4" data-component="tools">
-      <div class="flex flex-wrap items-center gap-2">
-        <input
-          type="search"
-          class={cn(fieldClass, "min-w-48 flex-1")}
-          placeholder="Search apps"
-          aria-label="Search tools"
-          value={query()}
-          onInput={(e) => setQuery(e.currentTarget.value)}
-        />
-        <Segmented<Filter>
-          label="Show"
-          value={filter()}
-          options={[
-            { value: "all", label: "All" },
-            { value: "added", label: "Added" },
-            { value: "available", label: "Available" },
-          ]}
-          onChange={setFilter}
-        />
-      </div>
-      <div class="kit-card" data-component="tools-list">
-        <For each={shown()} fallback={<p class="px-4 py-6 text-center text-ui text-fg2">Nothing matches.</p>}>
+      <Show when={entries().length > SEARCH_AFTER}>
+        <div class="flex flex-wrap items-center gap-2">
+          <SearchField
+            wrapClass="min-w-48 flex-1"
+            placeholder="Search apps"
+            aria-label="Search tools"
+            value={query()}
+            onValue={setQuery}
+          />
+          <Segmented<Filter>
+            label="Show"
+            value={filter()}
+            options={[
+              { value: "all", label: "All" },
+              { value: "added", label: "Added" },
+              { value: "available", label: "Available" },
+            ]}
+            onChange={setFilter}
+          />
+        </div>
+      </Show>
+      <div class="kit-card flex flex-col gap-0.5 p-1.5" data-component="tools-list">
+        <For each={shown()} fallback={<p class="px-4 py-6 text-center type-ui text-fg3">Nothing matches.</p>}>
           {(entry) => (
             <button
               type="button"
-              class="flex w-full items-center gap-3 border-b border-line px-3 py-2.5 text-left last:border-b-0 hover:bg-hover"
+              class="group flex min-h-control-big w-full cursor-pointer items-center gap-3 rounded-row px-2.5 py-2 text-left transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover active:scale-[0.99]"
               data-tool={entry.key}
               onClick={() => setOpenId(entry.id)}
             >
               <Glyph entry={entry} />
               <span class="flex min-w-0 flex-1 flex-col">
-                <span class="flex items-center gap-2 text-ui font-medium text-fg">
-                  <span class="truncate">{entry.name}</span>
-                  <span class="shrink-0 text-hint font-normal text-fg4">App</span>
-                </span>
-                <span class="truncate text-label text-fg2">{entry.about}</span>
+                <span class="truncate type-row text-fg">{entry.name}</span>
+                <span class="truncate type-label text-fg3">{entry.about}</span>
               </span>
-              <Show when={entry.state} fallback={<span class="shrink-0 text-label text-fg2">Connect</span>}>
+              <Show
+                when={entry.state}
+                fallback={
+                  <span class="flex shrink-0 items-center gap-0.5 type-label text-fg2 transition-colors duration-(--dur-hover) group-hover:text-fg">
+                    Connect
+                    <RemixIcon
+                      icon={ChevronRightIcon}
+                      size={14}
+                      class="transition-transform duration-(--dur-hover) ease-kiko group-hover:translate-x-0.5"
+                    />
+                  </span>
+                }
+              >
                 <span
-                  class={cn(
-                    "flex shrink-0 items-center gap-1.5 text-label",
-                    entry.state === "Key rejected" ? "text-bad" : "text-ok",
-                  )}
+                  class={cn("shrink-0 type-label", entry.state === "Key rejected" ? "text-bad" : "text-ok")}
+                  data-field="tool-state"
                 >
-                  <span class="size-1.5 rounded-full bg-current" aria-hidden="true" />
                   {entry.state}
                 </span>
               </Show>
