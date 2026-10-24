@@ -1,4 +1,6 @@
 import { makeResizeObserver } from "@solid-primitives/resize-observer"
+import { ChevronDownIcon, ChevronUpIcon } from "@kiko/ui/icons"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import { foldLimitFor, shouldFold } from "./lib/fold"
@@ -88,13 +90,14 @@ export function Collapsible(props: { messageId: string; fixed?: boolean; childre
         <button
           ref={button}
           type="button"
-          class="mt-1 cursor-pointer text-hint font-medium opacity-70 hover:opacity-100"
+          class="mt-1 inline-flex cursor-pointer items-center gap-1 text-label text-fg3 transition-colors duration-(--dur-hover) hover:text-fg"
           aria-expanded={!clamped()}
           data-component="chat-collapsible-toggle"
           data-disclosure=""
           onClick={toggle}
         >
-          {clamped() ? "Show full message" : "Show less"}
+          {clamped() ? "Show more" : "Show less"}
+          <RemixIcon icon={clamped() ? ChevronDownIcon : ChevronUpIcon} size={13} />
         </button>
       </Show>
     </div>
