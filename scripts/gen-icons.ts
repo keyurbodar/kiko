@@ -135,6 +135,7 @@ const ICONS = {
   leaf: "Leaf01Icon",
   sliders: "SlidersHorizontalIcon",
   dashboard: "DashboardSquare01Icon",
+  bolt: "FlashIcon",
 } as const
 
 type Node = readonly [tag: string, attrs: Readonly<Record<string, string>>]

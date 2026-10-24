@@ -239,22 +239,6 @@ export function readyAttachments(
   return out
 }
 
-export function uploadBlockReason(
-  ids: readonly string[],
-  state: (id: string) => UploadState | undefined = uploadState,
-): string | null {
-  let pending = 0
-  let failed = 0
-  for (const id of ids) {
-    const s = state(id)
-    if (s?.status === "failed") failed++
-    else if (s?.status !== "ready") pending++
-  }
-  if (failed) return failed === 1 ? "Retry or remove the failed attachment" : "Retry or remove the failed attachments"
-  if (pending) return pending === 1 ? "Attachment still uploading" : "Attachments still uploading"
-  return null
-}
-
 export function progressLabel(progress: number): string {
   const bounded = Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0))
   return `${Math.floor(bounded * 100)}%`

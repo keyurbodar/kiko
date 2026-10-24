@@ -27,7 +27,7 @@ import { UndoRedo } from "@tiptap/extensions"
 import { chainCommands, newlineInCode, setBlockType, splitBlock, splitBlockKeepMarks } from "@tiptap/pm/commands"
 import { keymap } from "@tiptap/pm/keymap"
 import { Fragment, Slice, type Node as PMNode, type NodeType } from "@tiptap/pm/model"
-import { EditorState, Plugin, Selection, TextSelection, type Command } from "@tiptap/pm/state"
+import { EditorState, NodeSelection, Plugin, Selection, TextSelection, type Command } from "@tiptap/pm/state"
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view"
 import {
   backspaceAcrossList,
@@ -46,8 +46,19 @@ import {
 import { hasFileDrag } from "../../lib/file-drag"
 import { copyComposerFragment } from "./clipboard"
 import { BINDINGS } from "./keymap"
-import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
-import { attachmentExtension, type ChipView, fileRefExtension, type FileRefView, Link, Mention } from "./nodes"
+import { docToMarkdown, markdownToDoc, type Json, type ParseOptions } from "./markdown"
+import {
+  attachmentExtension,
+  CHIP_NODES,
+  type ChipView,
+  fileRefExtension,
+  type FileRefView,
+  Link,
+  mentionExtension,
+  popNextToken,
+  slashExtension,
+  type TokenView,
+} from "./nodes"
 import { chipFragment, type Point } from "./insert"
 import { markdownSlice } from "./paste"
 import { groupUndoByChangeKind, UNDO_GROUP_DELAY, type ChangeKind } from "./undo-grouping"
@@ -58,11 +69,12 @@ export type RichOptions = {
   element: HTMLElement
   markdown: string
   label: string
-  isMention: (slug: string) => boolean
+  parse: ParseOptions
+  token: TokenView
   chip: ChipView
   fileRef: FileRefView
   onChange: (snapshot: Snapshot) => void
-  onCursor: (cursor: number) => void
+  onCursor: (cursor: number, plain: string) => void
   onKeyDown: (event: KeyboardEvent) => boolean
   pastedText?: (clipboard: DataTransfer) => string
   onPaste: (event: ClipboardEvent) => boolean
@@ -157,6 +169,17 @@ function taskInputRule(type: NodeType): InputRule {
   })
 }
 
+const ATOM = "\uFFFC"
+
+const selectChipBefore: Command = (state, dispatch) => {
+  const { selection } = state
+  if (!selection.empty) return false
+  const before = selection.$from.nodeBefore
+  if (!before || !CHIP_NODES.has(before.type.name)) return false
+  dispatch?.(state.tr.setSelection(NodeSelection.create(state.doc, selection.from - before.nodeSize)))
+  return true
+}
+
 const MARKER: Record<string, string> = { bold: "**", italic: "_", strike: "~~", code: "`" }
 
 const PLAIN_PASTE_CHARS = 20_000
@@ -235,7 +258,7 @@ export function mountRichEditor(options: RichOptions) {
         keymap({
           ...bindings,
           "Shift-Enter": newline,
-          Backspace: chainCommands(backspaceAcrossList, unwrapCodeBlockAtStart, unsetHeadingAtStart),
+          Backspace: chainCommands(selectChipBefore, backspaceAcrossList, unwrapCodeBlockAtStart, unsetHeadingAtStart),
           Delete: deleteAcrossList,
         }),
         markers,
@@ -251,7 +274,7 @@ export function mountRichEditor(options: RichOptions) {
 
   const editor = new Editor({
     element: options.element,
-    content: markdownToDoc(options.markdown, { isMention: options.isMention }),
+    content: markdownToDoc(options.markdown, options.parse),
     extensions: [
       Document,
       Paragraph,
@@ -327,7 +350,8 @@ export function mountRichEditor(options: RichOptions) {
         },
       }),
       Link,
-      Mention,
+      mentionExtension(options.token),
+      slashExtension(options.token),
       attachmentExtension(options.chip),
       fileRefExtension(options.fileRef),
       Keys,
@@ -382,8 +406,7 @@ export function mountRichEditor(options: RichOptions) {
         const { state } = view
         const code = state.selection.$from.parent.type.spec.code
         const plain = !code && text.length > PLAIN_PASTE_CHARS
-        const slice =
-          code || plain ? sliceOf(state, text) : markdownSlice(state.schema, text, { isMention: options.isMention })
+        const slice = code || plain ? sliceOf(state, text) : markdownSlice(state.schema, text, options.parse)
         view.dispatch(state.tr.replaceSelection(slice).scrollIntoView().setMeta("uiEvent", "paste"))
         return true
       },
@@ -397,7 +420,10 @@ export function mountRichEditor(options: RichOptions) {
     onUpdate: () => {
       options.onChange(snapshot())
     },
-    onSelectionUpdate: () => options.onCursor(snapshot().cursor),
+    onSelectionUpdate: () => {
+      const now = snapshot()
+      options.onCursor(now.cursor, now.plain)
+    },
     onFocus: options.onFocus,
     onBlur: options.onBlur,
   })
@@ -415,7 +441,7 @@ export function mountRichEditor(options: RichOptions) {
   function snapshot(): Snapshot {
     const { doc, selection } = editor.state
     const plain = (end: number) =>
-      doc.textBetween(0, end, "\n", (leaf) => (leaf.type.name === "mention" ? `@${leaf.attrs.slug}` : ""))
+      doc.textBetween(0, end, "\n", (leaf) => (leaf.type.name === "hardBreak" ? "\n" : ATOM))
     return {
       markdown: docToMarkdown(doc.toJSON() as Json),
       plain: plain(doc.content.size),
@@ -462,7 +488,7 @@ export function mountRichEditor(options: RichOptions) {
     },
     setMarkdown(markdown: string) {
       const view = editor.view
-      const doc = editor.schema.nodeFromJSON(markdownToDoc(markdown, { isMention: options.isMention }))
+      const doc = editor.schema.nodeFromJSON(markdownToDoc(markdown, options.parse))
       const state = EditorState.create({ doc, plugins: view.state.plugins, selection: Selection.atEnd(doc) })
       view.updateState(state)
       previousKind = null
@@ -472,24 +498,26 @@ export function mountRichEditor(options: RichOptions) {
       view.dispatch(view.state.tr.replaceSelection(sliceOf(view.state, text)).scrollIntoView())
       editor.commands.focus(undefined, { scrollIntoView: false })
     },
-    insertMention(slug: string) {
+    insertToken(trigger: "@" | "/", node: { type: string; attrs: Record<string, unknown> }) {
       const { view } = editor
       const { state } = view
       const { $from } = state.selection
-      const before = $from.parent.textBetween(0, $from.parentOffset, undefined, "￼")
-      const at = before.lastIndexOf("@")
-      const from = $from.start() + (at < 0 ? $from.parentOffset : at)
-      const mention = state.schema.nodes.mention!.create({ slug })
+      const before = $from.parent.textBetween(0, $from.parentOffset, undefined, ATOM)
+      const typed = new RegExp(`(?:^|\\s)\\${trigger}[^\\s@/${ATOM}]*$`).exec(before)
+      const at = typed ? before.length - typed[0].trimStart().length : $from.parentOffset
+      const from = $from.start() + at
+      const lead = typed || at === 0 || /\s$/.test(before) ? [] : [state.schema.text(" ")]
+      popNextToken()
       view.dispatch(
-        state.tr.replaceWith(from, state.selection.from, [mention, state.schema.text(" ")]).scrollIntoView(),
+        state.tr
+          .replaceWith(from, state.selection.to, [
+            ...lead,
+            state.schema.nodes[node.type]!.create(node.attrs),
+            state.schema.text(" "),
+          ])
+          .scrollIntoView(),
       )
       editor.commands.focus(undefined, { scrollIntoView: false })
-    },
-    insertAttachments(items: readonly { id: string; name: string }[], at?: Point) {
-      insertChips(
-        items.map((item) => ({ type: "attachment", attrs: item })),
-        at,
-      )
     },
     insertFileRefs(paths: readonly string[], at?: Point) {
       insertChips(

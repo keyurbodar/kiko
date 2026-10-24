@@ -52,7 +52,6 @@ export function mountLite(input: {
   }
 
   dom.addEventListener("input", sync)
-  dom.addEventListener("focus", () => controller.dispatch({ type: "focus.editor" }))
   dom.addEventListener("paste", (event) => {
     const items = Array.from(event.clipboardData?.items ?? [])
     if (items.some((item) => item.kind === "file") || !event.clipboardData?.getData("text/plain")) {
