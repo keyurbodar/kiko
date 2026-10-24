@@ -110,28 +110,30 @@ function FilePreview(props: { path: string; anchor: HTMLElement; source: ChipSou
   const box = props.anchor.getBoundingClientRect()
   const place = () => (inHome(props.path) ? "In Files" : `In ${props.source.chatTitle() ?? "this chat"}`)
   return (
-    <Portal>
-      <div
-        class="token-preview"
-        data-component="file-chip-preview"
-        role="tooltip"
-        style={{ left: `${Math.max(8, box.left)}px`, bottom: `${window.innerHeight - box.top + 8}px` }}
-      >
-        <div class="token-preview-head">
-          <TypeIcon type={fileType({ name: props.path, type: record().file?.type ?? "" })} size={18} />
-          <span class="token-preview-name">{shownName(props.path)}</span>
-          <Show when={record().file}>
-            {(file) => <span class="token-preview-meta">{formatBytes(file().size)}</span>}
-          </Show>
-        </div>
-        <Show when={lines()?.length}>
-          <div class="token-preview-lines">
-            <For each={lines()}>{(line) => <span>{line}</span>}</For>
+    <Show when={!lines.loading}>
+      <Portal>
+        <div
+          class="token-preview"
+          data-component="file-chip-preview"
+          role="tooltip"
+          style={{ left: `${Math.max(8, box.left)}px`, bottom: `${window.innerHeight - box.top + 8}px` }}
+        >
+          <div class="token-preview-head">
+            <TypeIcon type={fileType({ name: props.path, type: record().file?.type ?? "" })} size={18} />
+            <span class="token-preview-name">{shownName(props.path)}</span>
+            <Show when={record().file}>
+              {(file) => <span class="token-preview-meta">{formatBytes(file().size)}</span>}
+            </Show>
           </div>
-        </Show>
-        <div class="token-preview-foot">{record().file ? place() : "Not found in Files"}</div>
-      </div>
-    </Portal>
+          <Show when={lines()?.length}>
+            <div class="token-preview-lines">
+              <For each={lines()}>{(line) => <span>{line}</span>}</For>
+            </div>
+          </Show>
+          <div class="token-preview-foot">{record().file ? place() : "Not found in Files"}</div>
+        </div>
+      </Portal>
+    </Show>
   )
 }
 

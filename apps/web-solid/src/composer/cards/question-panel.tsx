@@ -4,6 +4,7 @@ import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, HelpIcon } from "@kiko/ui/
 import { CollapsibleV2 as Collapsible } from "@kiko/ui/v2/collapsible-v2"
 import { ToggleGroupV2 as ToggleGroup } from "@kiko/ui/v2/toggle-group-v2"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
+import { replay } from "../../lib/motion"
 import type { QuestionInput } from "./question-input"
 import "./question-panel.css"
 
@@ -15,10 +16,18 @@ export function QuestionPanel(props: {
 }) {
   const p = props.input.progress
   const [open, setOpen] = createSignal(true)
+  let body: HTMLDivElement | undefined
   createEffect(
     on(
       () => `${props.input.ask()?.id}:${p().activeQuestion?.id}`,
       () => setOpen(true),
+    ),
+  )
+  createEffect(
+    on(
+      () => p().questionIndex,
+      () => replay(body),
+      { defer: true },
     ),
   )
   const select = (value: string) => props.onSelect(value)
@@ -80,7 +89,7 @@ export function QuestionPanel(props: {
             </Collapsible.Trigger>
           </div>
           <Collapsible.Content class="motion-collapse">
-            <div class="composer-card-body question-body" data-component="question-body">
+            <div ref={body} class="composer-card-body question-body" data-component="question-body">
               <p>{q().question}</p>
               <Show when={q().multiSelect}>
                 <p class="question-hint">Select one or more options.</p>

@@ -107,6 +107,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
   const state = props.controller.state
   const view = props.controller.view
   const [blank, setBlank] = createSignal(true)
+  let settled = false
+  onMount(() => requestAnimationFrame(() => (settled = true)))
   const [focused, setFocused] = createSignal(false)
   let binding: RichBinding | undefined
   let lite: LiteField | undefined
@@ -318,7 +320,11 @@ export function PromptInputV2(props: PromptInputV2Props) {
               <div ref={richHost} class="composer-rich" classList={{ "opacity-50": props.disabled }} />
               <Show when={blank()}>
                 <Show when={hint()} keyed>
-                  {(text) => <div class="composer-placeholder">{text}</div>}
+                  {(text) => (
+                    <div class="composer-placeholder" data-enter={settled ? "" : undefined}>
+                      {text}
+                    </div>
+                  )}
                 </Show>
               </Show>
             </div>

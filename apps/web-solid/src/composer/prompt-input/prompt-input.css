@@ -328,8 +328,18 @@ button.token-chip {
   opacity: 0;
   transform: scale(0);
   transition:
-    transform var(--spring250-duration) var(--spring250-easing),
-    opacity var(--dur-hover);
+    transform var(--dur-pop) var(--ease-kiko),
+    opacity var(--dur-hover) var(--ease-kiko);
+}
+
+.composer-send::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--fg) 40%, transparent);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
 }
 
 .composer-send[data-mode="stop"] .composer-send-arrow {
@@ -742,13 +752,13 @@ button.token-chip {
     animation: composer-popover-in var(--dur-pop) var(--ease-kiko) both;
   }
   .composer-dock .composer-chip-node[data-fresh] > .token-chip {
-    animation: token-pop var(--spring325-bounce-duration, 320ms) var(--spring325-bounce-easing, var(--ease-kiko)) both;
+    animation: token-pop 240ms var(--ease-kiko) both;
   }
   .token-preview {
     animation: composer-popover-in var(--dur-pop) var(--ease-kiko) both;
   }
-  .composer-dock .composer-placeholder {
-    animation: composer-hint-in 420ms var(--ease-kiko) both;
+  .composer-dock .composer-placeholder[data-enter] {
+    animation: composer-hint-in 160ms var(--ease-kiko) both;
   }
   .composer-dock .composer-send {
     transition:
@@ -756,8 +766,8 @@ button.token-chip {
       color var(--dur-pop) var(--ease-kiko),
       transform var(--dur-pop) var(--ease-kiko);
   }
-  .composer-send[data-sent] {
-    animation: composer-send-ripple 420ms var(--ease-kiko);
+  .composer-send[data-sent]::after {
+    animation: composer-send-ripple 320ms var(--ease-kiko);
   }
   .composer-send[data-sent] .composer-send-arrow {
     animation: composer-send-fly 320ms var(--ease-kiko);
@@ -776,13 +786,13 @@ button.token-chip {
     animation: composer-breathe 1.4s ease-in-out infinite;
   }
   .composer-note[data-nudged] {
-    animation: composer-shake 420ms var(--ease-kiko);
+    animation: composer-shake 260ms var(--ease-kiko);
   }
   .tray-tile {
-    animation: tray-tile-in 360ms var(--ease-kiko) both;
+    animation: tray-tile-in 280ms var(--ease-kiko) both;
   }
   .tray-tile[data-state="failed"] {
-    animation: tray-shake 420ms var(--ease-kiko);
+    animation: tray-shake 260ms var(--ease-kiko);
   }
   .tray-tile[data-leaving] {
     animation: tray-tile-out 220ms var(--ease-kiko) forwards;
@@ -804,6 +814,10 @@ button.token-chip {
     opacity: 0.4;
     transform: scale(0.82);
   }
+  60% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
 }
 
 @keyframes composer-hint-in {
@@ -815,10 +829,12 @@ button.token-chip {
 
 @keyframes composer-send-ripple {
   from {
-    box-shadow: 0 0 0 0 color-mix(in oklab, var(--fg) 40%, transparent);
+    opacity: 1;
+    transform: scale(1);
   }
   to {
-    box-shadow: 0 0 0 10px color-mix(in oklab, var(--fg) 0%, transparent);
+    opacity: 0;
+    transform: scale(1.55);
   }
 }
 
