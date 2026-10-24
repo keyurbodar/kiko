@@ -9,8 +9,8 @@ export default function DeleteChatDialog(): JSX.Element {
   const description = () => {
     const row = id() === null ? undefined : room.chatById(id()!)
     return row
-      ? `“${row.name}” and its messages are removed from this device and the server. This cannot be undone.`
-      : "Its messages are removed from this device and the server. This cannot be undone."
+      ? `“${row.name}” and its messages will be removed from this device and the server. You can undo it for a few seconds.`
+      : "Its messages will be removed from this device and the server. You can undo it for a few seconds."
   }
   const confirm = () => {
     const target = id()

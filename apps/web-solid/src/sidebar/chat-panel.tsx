@@ -6,7 +6,7 @@ import { runCommand } from "../commands/registry"
 import type { RosterBot } from "../lib/types"
 import { room } from "../state/room"
 import { user } from "../state/user"
-import { markedUnread } from "./actions"
+import { isDeleted, markedUnread } from "./actions"
 import { ChatRow, isLive } from "./chat-row"
 import { filterRows, pinnedRows } from "./filter"
 import { flipRows, glideActive } from "./flip"
@@ -71,7 +71,7 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
 
   const shown = createMemo(() =>
     filterRows(
-      props.bots,
+      props.bots.filter((bot) => !isDeleted(bot.id)),
       { query: "", unreadOnly: unreadOnly() },
       (row) => row.unread > 0 || markedUnread(row.id) || props.needs.has(row.id),
     ),

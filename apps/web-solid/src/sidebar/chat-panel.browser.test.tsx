@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from "vitest"
 import { render } from "../../test/render"
 import type { RosterBot } from "../lib/types"
 import "./sidebar.css"
-import { closeChat } from "./actions"
+import { user } from "../state/user"
+import { closeChat, deleteChat } from "./actions"
 import { ChatSections, type ChatSectionsProps } from "./chat-panel"
 import type { Need } from "./needs"
 
@@ -115,6 +116,29 @@ describe("chat sections", () => {
     setBots([bot("a", "Alpha", { presence: "working" }), bot("c", "Gamma")])
     expect(sectionOf(screen.container, "a")).toBe("working")
     expect(names(screen.container)).toEqual(["Alpha", "Gamma"])
+  })
+
+  it("folds a deleted chat out at once and brings it back in place on Undo, deleting nothing", async () => {
+    const remove = vi.spyOn(user, "remove").mockImplementation(() => {})
+    try {
+      await using screen = await render(() => (
+        <>
+          <ToastV2.Region />
+          <ChatSections {...quiet} bots={[bot("a", "Alpha"), bot("b", "Beta"), bot("c", "Gamma")]} />
+        </>
+      ))
+      await expect.element(screen.getByText("Beta")).toBeVisible()
+      deleteChat("b", null)
+      expect(screen.container.querySelector('[data-chat-id="b"]')?.hasAttribute("data-leaving")).toBe(true)
+      await expect.poll(() => names(screen.container)).toEqual(["Alpha", "Gamma"])
+      await expect.element(screen.getByText("Deleted chat")).toBeVisible()
+      await screen.getByRole("button", { name: "Undo" }).click()
+      expect(names(screen.container)).toEqual(["Alpha", "Beta", "Gamma"])
+      expect(remove).not.toHaveBeenCalled()
+    } finally {
+      remove.mockRestore()
+      dismissToastV2()
+    }
   })
 
   it("offers Undo in a toast when a chat is closed", async () => {
