@@ -244,7 +244,7 @@ function GridView(props: { shown: readonly Entry[]; open: (key: string) => void 
           <button
             type="button"
             class={cn(
-              "files-card group flex min-w-0 cursor-pointer flex-col overflow-hidden rounded-card bg-panel text-left outline-none",
+              "files-card page-card group flex min-w-0 cursor-pointer flex-col overflow-hidden rounded-card bg-panel text-left outline-none",
               "transition-[background-color,transform] duration-(--dur-hover) hover:bg-hover active:scale-[0.98] focus-visible:bg-hover",
             )}
             data-file={e.path}

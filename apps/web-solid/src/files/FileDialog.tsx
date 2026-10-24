@@ -35,7 +35,7 @@ export default function FileDialog(props: {
       <ModalV2.Portal>
         <ModalV2.Overlay />
         <ModalV2.Content
-          class="h-[88vh] w-[min(64rem,92vw)] flex-col overflow-hidden rounded-[20px] bg-bg shadow-2xl"
+          class="h-[88vh] w-[min(64rem,92vw)] flex-col overflow-hidden rounded-sheet bg-bg shadow-2xl"
           data-component="file-dialog"
         >
           <div class={`${SUBHEADER} h-11 min-h-11`}>
@@ -49,7 +49,7 @@ export default function FileDialog(props: {
             <ModalV2.Close
               aria-label="Close full size file"
               data-action="close-file-dialog"
-              class="grid size-7 shrink-0 place-items-center rounded-[9px] text-fg2 transition-colors duration-[var(--dur-hover)] hover:bg-hover hover:text-fg"
+              class="grid size-7 shrink-0 place-items-center rounded-control text-fg2 transition-colors duration-(--dur-hover) hover:bg-hover hover:text-fg"
             >
               <RemixIcon icon={CloseIcon} size={14} />
             </ModalV2.Close>
