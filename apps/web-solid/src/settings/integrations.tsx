@@ -111,12 +111,14 @@ export function useIntegrations(props: { client?: ComposioClient; kernel?: Kerne
     if (!result.ok) return setError({ where: "kernel", text: result.error })
     setError(null)
     setPushedKernel(result.status)
+    kernelQuery.refetch()
   }
 
   function apply(result: ComposioResult) {
     if (!result.ok) return setError({ where: "app", text: result.error })
     setError(null)
     setPushedStatus(result.status)
+    composioQuery.refetch()
   }
 
   onMount(() => {
