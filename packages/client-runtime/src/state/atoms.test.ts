@@ -2,6 +2,7 @@ import type { Member, Message, MessageId, RoomId, RoomSnapshot, UserSignal } fro
 import type { RoomStreamItem } from "@kiko/protocol/rpc"
 import { describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as PubSub from "effect/PubSub"
@@ -16,6 +17,7 @@ import * as Wakeups from "../connection/wakeups"
 import { layer as cacheLayer, SnapshotCache, SnapshotStore } from "../platform/cache"
 import type { OwnerRpcClient } from "../rpc/protocol"
 import type { RpcSession } from "../rpc/session"
+import { runAtomCommand } from "./atomCommand"
 import { createOwnerAtoms } from "./atoms"
 import * as Pending from "./pending"
 import type { RoomState } from "./roomState"
@@ -54,7 +56,7 @@ const roomSnapshot = (seq: number, messages: Message[]): RoomSnapshot => ({
   folders: [],
 })
 
-const setup = Effect.fnUntraced(function* () {
+const setup = Effect.fnUntraced(function* (connected = true) {
   const subscribes: Array<{ readonly roomId: RoomId; readonly afterSequence?: number }> = []
   const feeds: Array<Queue.Queue<RoomStreamItem>> = []
   const reads: string[] = []
@@ -66,6 +68,7 @@ const setup = Effect.fnUntraced(function* () {
   })
   const client = ((tag: string, input: { roomId: RoomId; afterSequence?: number }) => {
     if (tag === "room.send") return Effect.never
+    if (tag === "memory.run") return Effect.succeed({ ok: true, text: ["remembered"] })
     if (tag !== "room.subscribe") return Effect.die(`unexpected ${tag}`)
     subscribes.push(input)
     return Stream.unwrap(
@@ -77,9 +80,10 @@ const setup = Effect.fnUntraced(function* () {
     )
   }) as unknown as OwnerRpcClient
   const session: RpcSession = { client, ready: Effect.void, probe: Effect.void, closed: Effect.never }
+  const sessions = yield* SubscriptionRef.make(connected ? Option.some(session) : Option.none<RpcSession>())
   const supervisor = OwnerSupervisor.of({
     state: yield* SubscriptionRef.make(CONNECTED),
-    session: yield* SubscriptionRef.make(Option.some(session)),
+    session: sessions,
     prepared: yield* SubscriptionRef.make(Option.none<PreparedConnection>()),
     connect: Effect.void,
     disconnect: Effect.void,
@@ -103,7 +107,7 @@ const setup = Effect.fnUntraced(function* () {
   const runtime = Atom.runtime(services) as unknown as Atom.AtomRuntime<OwnerRuntimeServices, never>
   const owner = createOwnerAtoms(runtime)
   const registry = AtomRegistry.make()
-  return { owner, registry, subscribes, feeds, reads, cache }
+  return { owner, registry, subscribes, feeds, reads, cache, session, sessions }
 })
 
 const settle = Effect.repeat(Effect.yieldNow, { times: 50 })
@@ -195,6 +199,39 @@ describe("room atoms", () => {
       expect(subscribes).toEqual([{ roomId: ROOM, afterSequence: 0 }])
       sending()
       leave()
+    }),
+  )
+})
+
+describe("memory commands", () => {
+  it.effect("a memory read made while Kiko is still connecting answers once it connects", () =>
+    Effect.gen(function* () {
+      const { owner, registry, session, sessions } = yield* setup(false)
+      const read = yield* Effect.forkChild(
+        Effect.promise(() => runAtomCommand(registry, owner.commands.memory, { op: { op: "view" } })),
+      )
+      yield* settle
+      yield* SubscriptionRef.set(sessions, Option.some(session))
+      const result = yield* Fiber.join(read)
+      expect(result).toMatchObject({ _tag: "Success", value: { ok: true, text: ["remembered"] } })
+    }),
+  )
+
+  it.effect("a memory change made while Kiko is not connected fails at once", () =>
+    Effect.gen(function* () {
+      const { owner, registry } = yield* setup(false)
+      const result = yield* Effect.promise(() =>
+        runAtomCommand(
+          registry,
+          owner.commands.memory,
+          { op: { op: "pin", pos: 1, pinned: true } },
+          {
+            warn: () => {},
+            error: () => {},
+          },
+        ),
+      )
+      expect(result._tag).toBe("Failure")
     }),
   )
 })
