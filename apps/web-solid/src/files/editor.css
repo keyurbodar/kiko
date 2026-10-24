@@ -3,7 +3,7 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  color: var(--foreground);
+  color: var(--fg);
 }
 
 .file-editor {
@@ -44,11 +44,11 @@
   gap: 8px;
   padding: 0 8px 0 16px;
   font-size: var(--font-sm);
-  color: var(--muted-foreground);
+  color: var(--fg3);
 }
 
 .file-editor .fe-warn {
-  color: var(--foreground);
+  color: var(--fg);
   font-weight: 600;
 }
 
@@ -57,21 +57,21 @@
   padding: 0 8px;
   border: none;
   border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--foreground);
+  background: var(--hover);
+  color: var(--fg);
   font: inherit;
   cursor: pointer;
 }
 
 .file-editor .fe-btn:disabled {
-  color: var(--muted-foreground);
+  color: var(--fg3);
   cursor: default;
 }
 
 .file-view .fv-markdown {
   font-size: var(--font-base);
   line-height: 1.6;
-  color: var(--foreground);
+  color: var(--fg);
 }
 
 .file-view .fv-markdown > * + * {
