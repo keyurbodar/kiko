@@ -1,3 +1,4 @@
+import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { openChat } from "../app/history"
 import type { RoomId } from "@kiko/protocol"
 import { createSignal } from "solid-js"
@@ -65,6 +66,17 @@ export function closeChat(id: string, active: string | null): void {
   )
   lastClosed = id
   if (active === id) openChat(next)
+  showToastV2({
+    title: "Closed chat",
+    action: {
+      label: "Undo",
+      variant: "secondary",
+      onClick: () => {
+        const back = reopenClosedChat()
+        if (back) openChat(back)
+      },
+    },
+  })
 }
 
 export function deleteChat(id: string, active: string | null): void {
