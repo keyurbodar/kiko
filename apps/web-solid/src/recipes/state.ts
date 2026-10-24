@@ -12,7 +12,7 @@ import { createRoot, createSignal, onCleanup } from "solid-js"
 import { openFile } from "../chat/side/surfaces"
 import { agentDisplayName } from "../lib/names"
 import { room } from "../state/room"
-import { createQuery, load, owner, registry } from "../state/runtime"
+import { createQuery, edit, load, owner } from "../state/runtime"
 import { user } from "../state/user"
 import { RECIPES } from "./catalog.gen"
 import { installedSlugs } from "./model"
@@ -23,7 +23,6 @@ type Edit = (installs: readonly RecipeInstall[]) => readonly RecipeInstall[]
 const listingAtom = () => owner.queries.recipes(undefined)
 const [followers, setFollowers] = createSignal(0)
 const listing = createRoot(() => createQuery(() => (followers() > 0 ? listingAtom() : null)))
-const [edits, setEdits] = createSignal<ReadonlyMap<symbol, Edit>>(new Map())
 const [owning, setOwning] = createSignal<ReadonlySet<string>>(new Set())
 const [editing, setEditing] = createSignal<ReadonlySet<string>>(new Set())
 
@@ -41,25 +40,8 @@ export function followRecipes(): void {
   void refreshListing()
 }
 
-function overlay(edit: Edit) {
-  const key = Symbol("recipe-edit")
-  const put = (next: Edit) => setEdits((all) => new Map(all).set(key, next))
-  const drop = () =>
-    setEdits((all) => {
-      const next = new Map(all)
-      next.delete(key)
-      return next
-    })
-  const settle = () => {
-    const atom = listingAtom()
-    registry.refresh(atom)
-    void load(atom)
-      .catch(() => undefined)
-      .finally(drop)
-  }
-  put(edit)
-  return { put, drop, settle }
-}
+const editInstalls = <B>(change: Edit, send: () => Promise<B>): Promise<B> =>
+  edit(owner.queries.recipes, undefined, (list) => ({ ...list, installs: change(list.installs) }), send)
 
 export const broken = (): readonly string[] => listing()?.broken ?? []
 
@@ -88,8 +70,7 @@ export function targetsForChat(roomId: string): RecipeTarget[] {
   return [...new Set(slugs)].map((agent) => ({ roomId: roomId as RoomId, agent, name: agentName(agent) }))
 }
 
-export const installs = (): readonly RecipeInstall[] =>
-  [...edits().values()].reduce<readonly RecipeInstall[]>((list, edit) => edit(list), listing()?.installs ?? [])
+export const installs = (): readonly RecipeInstall[] => listing()?.installs ?? []
 export const installsFor = (slug: string): readonly RecipeInstall[] => installs().filter((i) => i.slug === slug)
 export function agentName(slug: string): string {
   return agentDisplayName(slug, user.agents())
@@ -99,27 +80,29 @@ export const isAdded = (slug: string, target?: RecipeTarget): boolean =>
 
 export function setInstallPaused(install: RecipeInstall, paused: boolean): void {
   const status = paused ? "paused" : "active"
-  const edit = overlay((all) =>
+  const pause: Edit = (all) =>
     all.map((i) =>
       i.installId === install.installId
         ? { ...i, routines: i.routines.map((r): RecipeRoutine => ({ ...r, status })) }
         : i,
-    ),
+    )
+  void editInstalls(pause, () => Promise.all(install.routines.map((r) => updateRecipeRoutine(r.id, status)))).then(
+    (done) => {
+      if (done.every(Boolean)) return
+      showToastV2({ title: paused ? "Could not pause it" : "Could not resume it", variant: "error" })
+    },
   )
-  void Promise.all(install.routines.map((r) => updateRecipeRoutine(r.id, status))).then((done) => {
-    edit.settle()
-    if (done.every(Boolean)) return
-    showToastV2({ title: paused ? "Could not pause it" : "Could not resume it", variant: "error" })
-  })
 }
 
 export function removeInstall(install: RecipeInstall): void {
-  const edit = overlay((list) => list.filter((i) => i.installId !== install.installId))
-  void deleteInstall(install.installId).then((result) => {
-    if (result.ok) return edit.settle()
-    edit.drop()
-    showToastV2({ title: "Could not remove recipe", description: result.error, variant: "error" })
-  })
+  let refused = ""
+  void editInstalls(
+    (list) => list.filter((i) => i.installId !== install.installId),
+    async () => {
+      const result = await deleteInstall(install.installId)
+      if (!result.ok) throw new Error((refused = result.error))
+    },
+  ).catch(() => showToastV2({ title: "Could not remove recipe", description: refused, variant: "error" }))
 }
 
 export const isOwning = (slug: string): boolean => owning().has(slug)
@@ -136,7 +119,7 @@ const including =
   (install: RecipeInstall): Edit =>
   (list) => [...list.filter((i) => i.installId !== install.installId), install]
 
-const recorded = (install: RecipeInstall) => overlay(including(install)).settle()
+const recorded = (install: RecipeInstall) => void editInstalls(including(install), () => Promise.resolve())
 
 const failed = (card: RecipeCard, error: string) =>
   showToastV2({ title: `Could not add ${card.title}`, description: error, variant: "error" })
@@ -192,16 +175,20 @@ export function addToTarget(
     agent: target.agent,
   }
   const optimistic = ready(card)
-  const edit = overlay(optimistic ? including(install) : (list) => list)
   if (optimistic) navigate(target.roomId)
   else mark(setWaiting, card.slug, true)
-  void submit(card, body, navigate).then((made) => {
-    mark(setWaiting, card.slug, false)
-    if (!made) return edit.drop()
-    edit.put(including(made))
-    edit.settle()
-    if (!optimistic) navigate(target.roomId)
-  })
+  void editInstalls(optimistic ? including(install) : (list) => list, async () => {
+    const made = await submit(card, body, navigate)
+    if (!made) throw new Error("not added")
+    return made
+  }).then(
+    (made) => {
+      mark(setWaiting, card.slug, false)
+      recorded(made)
+      if (!optimistic) navigate(target.roomId)
+    },
+    () => mark(setWaiting, card.slug, false),
+  )
 }
 
 export function addOwnChat(card: RecipeCard, navigate: (roomId: string) => void): void {

@@ -8,6 +8,7 @@ import {
   type SettledAsyncResult,
 } from "@kiko/client-runtime/state"
 import * as Cause from "effect/Cause"
+import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as AsyncResult from "effect/reactivity/AsyncResult"
 import * as Atom from "effect/reactivity/Atom"
@@ -117,6 +118,25 @@ export async function call<W, A, E>(command: AtomCommand<W, A, E>, input: W, fal
   const result = await run(command, input)
   if (result._tag === "Success") return result.value
   throw new Error(failureMessage(result.cause, fallback ?? "Kiko could not do that. Try again."))
+}
+
+interface EditableQuery<I, A> {
+  readonly edit: <B, E, R>(
+    input: I,
+    apply: (value: A) => A,
+    send: Effect.Effect<B, E, R>,
+  ) => Effect.Effect<B, E, R | AtomRegistry.AtomRegistry>
+}
+
+export function edit<I, A, B>(
+  query: EditableQuery<I, A>,
+  input: I,
+  apply: (value: A) => A,
+  send: () => Promise<B>,
+): Promise<B> {
+  return Effect.runPromise(
+    query.edit(input, apply, Effect.promise(send)).pipe(Effect.provideService(AtomRegistry.AtomRegistry, registry)),
+  )
 }
 
 export async function load<A, E>(
