@@ -11,16 +11,20 @@ export function PageFrame(props: {
 }) {
   return (
     <div class="@container/page flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-bg" data-component="page-frame">
-      <div class="mx-auto flex w-full max-w-[1000px] flex-col px-5 pb-20 @min-[640px]/page:px-8">
+      <div class="motion-page-in mx-auto flex w-full max-w-[1000px] flex-col px-5 pb-20 @min-[640px]/page:px-8">
         <header class="flex flex-col gap-1 pt-8 max-[767px]:pt-14 @min-[640px]/page:pt-10">
           <Show when={props.back}>
             {(back) => (
               <button
                 type="button"
-                class="-ml-1 flex w-fit cursor-pointer items-center gap-1 rounded-row px-1 py-0.5 text-[13px] text-fg3 transition-colors duration-[var(--dur-hover)] hover:text-fg"
+                class="group -ml-1 flex w-fit cursor-pointer items-center gap-1 rounded-row px-1 py-0.5 text-[13px] text-fg3 transition-colors duration-[var(--dur-hover)] hover:text-fg"
                 onClick={back().onClick}
               >
-                <RemixIcon icon={ChevronLeftIcon} size={14} />
+                <RemixIcon
+                  icon={ChevronLeftIcon}
+                  size={14}
+                  class="transition-transform duration-[var(--dur-hover)] group-hover:-translate-x-0.5"
+                />
                 {back().label}
               </button>
             )}
@@ -173,10 +177,10 @@ export function SkeletonRows(props: { count: number; grid?: boolean }) {
       <For each={Array.from({ length: props.count })}>
         {() => (
           <div class="flex items-center gap-3 rounded-2xl bg-panel p-4">
-            <span class="page-skeleton size-10 shrink-0 rounded-[12px]" />
+            <span class="motion-skeleton size-10 shrink-0 rounded-[12px]" />
             <span class="flex flex-1 flex-col gap-2">
-              <span class="page-skeleton h-3.5 w-1/3 rounded-control" />
-              <span class="page-skeleton h-3 w-2/3 rounded-control" />
+              <span class="motion-skeleton h-3.5 w-1/3 rounded-control" />
+              <span class="motion-skeleton h-3 w-2/3 rounded-control" />
             </span>
           </div>
         )}

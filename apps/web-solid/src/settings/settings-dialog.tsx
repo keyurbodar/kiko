@@ -1,9 +1,11 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CloseIcon, SearchIcon } from "@kiko/ui/icons"
+import { glide } from "@kiko/ui/v2/glide"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { useLocation, useNavigate } from "@tanstack/solid-router"
 import { createEffect, createSignal, For, on, onCleanup, onMount, type ParentProps, Show } from "solid-js"
 import { cn } from "../lib/cn"
+import { replay } from "../lib/motion"
 import { APP_VERSION } from "../lib/version-skew"
 import { iconButtonClass, Page } from "./kit"
 import { closeSettings } from "./open"
@@ -23,6 +25,9 @@ export function SettingsDialog(props: ParentProps) {
       ? [{ name: null, rows: rows() }]
       : SETTINGS_GROUPS.map((name) => ({ name, rows: rows().filter((s) => s.group === name) }))
   let body: HTMLDivElement | undefined
+  let page: HTMLDivElement | undefined
+  let nav!: HTMLElement
+  let mark!: HTMLSpanElement
   const reveal = () =>
     requestAnimationFrame(() =>
       document
@@ -30,12 +35,21 @@ export function SettingsDialog(props: ParentProps) {
         ?.scrollIntoView({ block: "nearest", inline: "nearest" }),
     )
   createEffect(
-    on(section, () => {
-      body?.scrollTo(0, 0)
-      reveal()
-    }),
+    on(
+      section,
+      () => {
+        body?.scrollTo(0, 0)
+        replay(page)
+        reveal()
+      },
+      { defer: true },
+    ),
   )
   onMount(() => {
+    glide(nav, mark, {
+      attributes: ["aria-current"],
+      find: (host) => host.querySelector<HTMLElement>('.settings-nav-row[aria-current="page"]'),
+    })
     const narrow = typeof matchMedia === "function" ? matchMedia("(width < 768px)") : undefined
     narrow?.addEventListener("change", reveal)
     onCleanup(() => narrow?.removeEventListener("change", reveal))
@@ -73,7 +87,8 @@ export function SettingsDialog(props: ParentProps) {
           }}
         >
           <div data-component="settings">
-            <nav class="settings-nav" data-component="settings-panel" aria-label="Settings sections">
+            <nav ref={nav} class="settings-nav" data-component="settings-panel" aria-label="Settings sections">
+              <span ref={mark} class="settings-nav-glide" data-slot="glide" data-hidden="" aria-hidden="true" />
               <ModalV2.Title class="settings-title">Settings</ModalV2.Title>
               <label class="settings-search">
                 <RemixIcon icon={SearchIcon} size={15} />
@@ -112,7 +127,10 @@ export function SettingsDialog(props: ParentProps) {
               class="@container/settings flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
               data-component="settings-body"
             >
-              <div class="mx-auto w-full max-w-[764px] px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:pt-12">
+              <div
+                ref={page}
+                class="motion-page-in mx-auto w-full max-w-[764px] px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:pt-12"
+              >
                 <Page title={meta()?.label ?? "Settings"} description={meta()?.hint}>
                   {props.children}
                 </Page>

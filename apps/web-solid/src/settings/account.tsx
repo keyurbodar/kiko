@@ -148,7 +148,7 @@ function Backend() {
               }
             >
               <a
-                class="text-label text-fg underline underline-offset-2"
+                class="link-grow text-label text-fg"
                 href="https://developers.cloudflare.com/r2/pricing/"
                 target="_blank"
                 rel="noreferrer"

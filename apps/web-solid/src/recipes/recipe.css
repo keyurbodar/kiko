@@ -74,9 +74,11 @@
   transition: background-color var(--dur-hover) var(--ease-kiko);
 }
 
-.tpl:hover,
-.tpl:focus-within {
-  background: var(--panel);
+@media (hover: hover) and (pointer: fine) {
+  .tpl:hover,
+  .tpl:focus-within {
+    background: var(--panel);
+  }
 }
 
 .tpl-tile {
@@ -92,9 +94,11 @@
   transition: background-color var(--dur-hover) var(--ease-kiko);
 }
 
-.tpl:hover .tpl-tile,
-.tpl:focus-within .tpl-tile {
-  background: var(--active);
+@media (hover: hover) and (pointer: fine) {
+  .tpl:hover .tpl-tile,
+  .tpl:focus-within .tpl-tile {
+    background: var(--active);
+  }
 }
 
 .tpl-tile > svg {
@@ -114,16 +118,20 @@
   transform: scale(0.8) rotate(-45deg);
 }
 
-.tpl:hover .tpl-glyph,
-.tpl:focus-within .tpl-glyph {
-  opacity: 0;
-  transform: scale(0.8);
+@media (hover: hover) and (pointer: fine) {
+  .tpl:hover .tpl-glyph,
+  .tpl:focus-within .tpl-glyph {
+    opacity: 0;
+    transform: scale(0.8);
+  }
 }
 
-.tpl:hover .tpl-plus,
-.tpl:focus-within .tpl-plus {
-  opacity: 1;
-  transform: none;
+@media (hover: hover) and (pointer: fine) {
+  .tpl:hover .tpl-plus,
+  .tpl:focus-within .tpl-plus {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @media (pointer: coarse) {
@@ -158,10 +166,12 @@
   pointer-events: none;
 }
 
-.tpl:hover .tpl-peek,
-.tpl:focus-within .tpl-peek {
-  opacity: 1;
-  transform: translateY(calc(100% - 56px)) rotate(-2.5deg);
+@media (hover: hover) and (pointer: fine) {
+  .tpl:hover .tpl-peek,
+  .tpl:focus-within .tpl-peek {
+    opacity: 1;
+    transform: translateY(calc(100% - 56px)) rotate(-2.5deg);
+  }
 }
 
 @media (pointer: coarse) {
@@ -205,6 +215,21 @@
 
 .tpl-switch:active::after {
   width: 19px;
+}
+
+.tpl[data-install] > .tpl-tile {
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    opacity var(--dur-step) var(--ease-kiko);
+}
+
+.tpl[data-install] > [data-action="open-recipe-chat"] {
+  transition: opacity var(--dur-step) var(--ease-kiko);
+}
+
+.tpl[data-status="paused"] > .tpl-tile,
+.tpl[data-status="paused"] > [data-action="open-recipe-chat"] {
+  opacity: 0.55;
 }
 
 @media (prefers-reduced-motion: reduce) {

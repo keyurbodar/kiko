@@ -151,7 +151,7 @@ export function Select<T>(props: {
             active={open()}
             onDismiss={close}
             excludedElements={() => [trigger]}
-            class="bg-raise pointer-events-auto fixed z-[80] flex max-w-[min(320px,calc(100vw-16px))] items-start overflow-y-auto rounded-pop p-1 shadow-popover"
+            class="motion-popover-in bg-raise pointer-events-auto fixed z-[80] flex max-w-[min(320px,calc(100vw-16px))] origin-top items-start overflow-y-auto rounded-pop p-1 shadow-popover"
             style={place()}
             onKeyDown={onPanelKey}
             data-kb-top-layer=""

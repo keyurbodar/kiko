@@ -1,3 +1,5 @@
+@layer theme, base, v2, components, utilities;
+
 @layer v2 {
   [data-popper-positioner]:has([data-component="menu-v2-content"]) {
     z-index: 60;
@@ -29,6 +31,16 @@
     text-rendering: geometricPrecision;
 
     transform-origin: var(--kb-menu-content-transform-origin);
+    position: relative;
+
+    & > [data-slot="glide"] {
+      border-radius: 8px;
+      background: var(--active);
+    }
+
+    & > [data-slot="glide"][data-tone="bad"] {
+      background: color-mix(in oklab, var(--bad) 12%, transparent);
+    }
 
     &:focus-visible {
       outline: none;
@@ -55,9 +67,10 @@
     height: 34px;
     padding: 0 10px;
     background: transparent;
+    position: relative;
+    z-index: 1;
     border-radius: 8px;
     outline: none;
-    transition: background-color var(--dur-hover) var(--ease-kiko);
     cursor: default;
     user-select: none;
 
@@ -133,10 +146,6 @@
       color: var(--menu-v2-fg-muted);
     }
 
-    &[data-highlighted] {
-      background: var(--hover);
-    }
-
     &[data-checked] [data-slot="menu-v2-item-content"] {
       font-weight: 500;
       color: var(--menu-v2-accent);
@@ -153,10 +162,6 @@
 
     &.text-bad {
       color: var(--bad);
-    }
-
-    &.text-error[data-highlighted] {
-      background: color-mix(in oklab, var(--bad) 12%, transparent);
     }
   }
 

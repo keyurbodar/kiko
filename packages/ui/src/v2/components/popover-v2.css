@@ -1,3 +1,5 @@
+@layer theme, base, v2, components, utilities;
+
 @layer v2 {
   [data-popper-positioner]:has([data-component="popover-v2-content"]) {
     z-index: 55;

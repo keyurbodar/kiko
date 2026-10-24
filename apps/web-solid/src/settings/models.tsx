@@ -15,7 +15,7 @@ import { hiddenModels, setHidden } from "./model-prefs"
 import { cn } from "../lib/cn"
 import { AgentModels } from "./agent-models"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { TabsV2 as Tabs } from "@kiko/ui/v2/tabs-v2"
+import { TabsPill, TabsV2 as Tabs } from "@kiko/ui/v2/tabs-v2"
 import { modelsTab, setModelsTab, type ModelsTab } from "./models-tab"
 import { SECRET_FIELD } from "../lib/secret-field"
 
@@ -139,6 +139,7 @@ export function ModelsPage() {
         data-component="models-tabs"
       >
         <Tabs.List class="kit-tabs" aria-label="Models">
+          <TabsPill />
           <Tabs.Trigger value="agents" class="kit-tab" data-tab="agents">
             Agents
           </Tabs.Trigger>
@@ -741,7 +742,12 @@ function SignInMethod(props: {
                   <Show when={link().instructions}>
                     <span class={cn("text-[12px]", muted)}>{link().instructions}</span>
                   </Show>
-                  <a href={link().url} target="_blank" rel="noopener noreferrer" class="text-[13px] text-[var(--info)]">
+                  <a
+                    href={link().url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="link-grow text-[13px] text-[var(--info)]"
+                  >
                     Open the sign-in page
                   </a>
                 </div>
