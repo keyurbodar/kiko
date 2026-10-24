@@ -1,15 +1,5 @@
 import type { Member } from "@kiko/protocol"
-import type { BotPresence } from "../../lib/types"
 import { typingLine } from "../../sidebar/activity"
-
-export type Chip = { tone: "working" | "idle"; label: "Working" | "Idle" }
-
-const WORKING: Chip = { tone: "working", label: "Working" }
-const IDLE: Chip = { tone: "idle", label: "Idle" }
-
-export function statusChip(presence: BotPresence | undefined): Chip {
-  return presence === "typing" || presence === "working" ? WORKING : IDLE
-}
 
 function since(ms: number): string {
   const minutes = Math.floor(Math.max(0, ms) / 60_000)

@@ -1,52 +1,22 @@
-import { type Agent, fileName, KIKO } from "@kiko/protocol"
+import { type Agent, KIKO } from "@kiko/protocol"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import {
-  ChevronRightIcon,
-  FolderOpenIcon,
-  type Glyph,
-  MemoryIcon,
-  PlusIcon,
-  RepeatIcon,
-  SparklesIcon,
-  TasksIcon,
-} from "@kiko/ui/icons"
+import { PlusIcon } from "@kiko/ui/icons"
 import { openChat } from "../../app/history"
-import { createEffect, createSignal, For, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
 import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
 import { room } from "../../state/room"
 import { user } from "../../state/user"
 import { useMemoryStore } from "../info/memory/views"
 import { routinesOf } from "../info/routines"
-import { triggerLabel } from "../info/routines-model"
 import { groupTitle, roomFor } from "../bot-picker-model"
 import { addable, addOp } from "../members/model"
 import { cardBeside, dismissCard } from "./card-state"
-import { isGroup, liveLine, statusChip, workingLine } from "./overview-model"
+import { Files, Helpers, leadName, Memory, Now, Routines, Section, Tasks, Waiting } from "./desk-sections"
+import { launcherEntries, PANELS } from "./panels"
+import { isGroup, liveLine, workingLine } from "./overview-model"
 import "./card.css"
-import { agentSurface, type FixedKind, fixedSurface, openSurface } from "./surfaces"
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
-
-function Row(props: { icon: Glyph; label: string; meta?: string; kind: FixedKind; chatId: string }) {
-  return (
-    <button
-      type="button"
-      class="group/row flex h-10 w-full items-center gap-3 rounded-[10px] px-2.5 text-left transition-[background-color,transform] duration-[120ms] ease-kiko hover:bg-hover active:scale-[0.98] active:bg-active"
-      data-action={`open-${props.kind}`}
-      onClick={() => openSurface(props.chatId, fixedSurface(props.kind))}
-    >
-      <RemixIcon icon={props.icon} size={16} class="shrink-0 text-fg2" />
-      <span class="shrink-0 text-[14px] text-fg">{props.label}</span>
-      <span class="min-w-0 flex-1 truncate text-right text-[12.5px] text-fg4">{props.meta}</span>
-      <RemixIcon
-        icon={ChevronRightIcon}
-        size={13}
-        class="-ml-1 w-0 shrink-0 text-fg4 opacity-0 transition-[opacity,width,transform] duration-[120ms] ease-kiko group-hover/row:w-[13px] group-hover/row:translate-x-0.5 group-hover/row:opacity-100"
-      />
-    </button>
-  )
-}
+import { agentSurface, fixedSurface, openSurface } from "./surfaces"
 
 export default function ChatCard(props: { chatId: string }) {
   const memory = useMemoryStore()
@@ -67,18 +37,26 @@ export default function ChatCard(props: { chatId: string }) {
       isGroup(members()),
     )
   }
-  const busy = () => statusChip(chat()?.presence).tone === "working" || working() !== null
   const files = () => room.files()
-  const memoryMeta = () => {
-    const state = memory()?.state
-    const kept = state?.lines.filter((line) => !line.redacted).length ?? 0
-    if (!state || state.next === null) return kept ? plural(kept, "note") : "Empty"
-    return `${kept}+ notes`
-  }
   const routines = () => routinesOf(props.chatId)
   const tasks = () => room.tasks() ?? []
-  const open = () => tasks().filter((t) => t.status !== "done" && t.status !== "cancelled").length
-  const next = () => routines().find((r) => r.status === "active")
+  const asks = () => room.active()?.asks() ?? []
+  const lines = () => memory()?.state.lines.filter((l) => !l.redacted) ?? []
+  const hasMemory = () => lines().length > 0
+  const workers = createMemo(() =>
+    Object.keys(room.status()).length
+      ? (room.snapshot()?.agents ?? []).flatMap((a) => (a.activity?.kind === "background" ? a.activity.workers : []))
+      : [],
+  )
+  const empty = () =>
+    working() === null &&
+    asks().length === 0 &&
+    tasks().length === 0 &&
+    workers().length === 0 &&
+    files().length === 0 &&
+    routines().length === 0 &&
+    !hasMemory() &&
+    memory()?.state.loaded === true
   let card: HTMLElement | undefined
   createEffect(() => {
     if (cardBeside()) return
@@ -106,34 +84,32 @@ export default function ChatCard(props: { chatId: string }) {
   return (
     <aside
       ref={card}
-      class="flex w-full flex-col rounded-2xl bg-panel p-1.5 shadow-[0_8px_28px_-12px_rgb(0_0_0/0.45)]"
+      class="desk-card flex max-h-full w-full flex-col gap-4 overflow-y-auto overscroll-contain rounded-card bg-panel p-4 shadow-(--float-shadow)"
       data-component="chat-card"
       aria-label="This chat"
     >
-      <div class="flex items-center gap-3 px-2.5 pt-2 pb-2.5">
-        <ChatAvatar faces={room.chatFaces(props.chatId)} size={32} />
+      <div class="flex items-center gap-3">
+        <ChatAvatar faces={room.chatFaces(props.chatId)} size={40} />
         <div class="flex min-w-0 flex-1 flex-col">
-          <span class="truncate text-ui font-medium text-fg" data-component="card-name">
+          <span class="truncate type-row text-fg" data-component="card-name">
             {chat()?.name ?? ""}
           </span>
-          <span
-            class={`flex items-center gap-1 truncate text-[12.5px] ${busy() ? "text-fg2" : "text-fg3"}`}
-            data-component="card-live"
-          >
-            <Show when={busy()}>
-              <RemixIcon icon={SparklesIcon} size={11} class="shrink-0" />
-            </Show>
-            {liveLine(working(), chat(), clock())}
+          <span class="truncate text-label text-fg3" data-component="card-live">
+            {isGroup(members())
+              ? members()
+                  .map((m) => m.name)
+                  .join(", ")
+              : liveLine(null, chat(), clock())}
           </span>
         </div>
       </div>
       <Show when={isGroup(members())}>
-        <div class="flex flex-wrap gap-1 px-2.5 pb-2.5" data-component="card-agents">
+        <div class="-mt-1 flex flex-wrap gap-1" data-component="card-agents">
           <For each={members()}>
             {(m) => (
               <button
                 type="button"
-                class="flex h-7 items-center gap-1.5 rounded-full bg-active py-0.5 pr-2.5 pl-0.5 text-[13px] text-fg transition-[background-color,transform] duration-[120ms] hover:bg-hover active:scale-[0.97]"
+                class="flex h-7 items-center gap-1.5 rounded-full bg-active py-0.5 pr-2.5 pl-0.5 text-[13px] text-fg transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover active:scale-[0.97]"
                 data-member={m.slug}
                 onClick={() => openSurface(props.chatId, agentSurface(m.slug))}
               >
@@ -144,7 +120,7 @@ export default function ChatCard(props: { chatId: string }) {
           </For>
           <MenuV2 gutter={6} placement="bottom-start">
             <MenuV2.Trigger
-              class="flex h-7 items-center gap-1 rounded-full py-0.5 pr-2.5 pl-2 text-[13px] text-fg3 transition-colors duration-[120ms] hover:bg-hover hover:text-fg aria-expanded:bg-hover"
+              class="flex h-7 items-center gap-1 rounded-full py-0.5 pr-2.5 pl-2 text-[13px] text-fg3 transition-colors duration-(--dur-hover) hover:bg-hover hover:text-fg aria-expanded:bg-hover"
               aria-label="Add agent"
               data-action="add-member"
             >
@@ -176,39 +152,49 @@ export default function ChatCard(props: { chatId: string }) {
           </MenuV2>
         </div>
       </Show>
-      <div class="flex flex-col pt-1">
-        <Row
-          icon={FolderOpenIcon}
-          label="Files"
-          kind="files"
-          chatId={props.chatId}
-          meta={
-            files().length
-              ? `${files()
-                  .slice(-2)
-                  .map((f) => fileName(f.name))
-                  .join(", ")}${files().length > 2 ? ` +${files().length - 2}` : ""}`
-              : "None yet"
-          }
-        />
-        <Row icon={MemoryIcon} label="Memory" kind="memory" chatId={props.chatId} meta={memoryMeta()} />
-        <Row
-          icon={RepeatIcon}
-          label="Routines"
-          kind="routines"
-          chatId={props.chatId}
-          meta={next() ? triggerLabel(next()!.trigger, next()!.tz) : routines().length ? "Paused" : "None"}
-        />
-        <Show when={isGroup(members())}>
-          <Row
-            icon={TasksIcon}
-            label="Tasks"
-            kind="tasks"
-            chatId={props.chatId}
-            meta={tasks().length ? `${open()} open` : "None"}
-          />
-        </Show>
-      </div>
+      <Show when={working()}>
+        <Section label="Now" chatId={props.chatId}>
+          <Now line={working() ?? ""} slug={room.typingSlugs()[0]} tasks={tasks()} />
+        </Section>
+      </Show>
+      <Show when={asks().length}>
+        <Waiting asks={asks()} chatId={props.chatId} />
+      </Show>
+      <Show when={tasks().some((t) => t.status !== "cancelled")}>
+        <Tasks tasks={tasks()} chatId={props.chatId} />
+      </Show>
+      <Show when={workers().length}>
+        <Helpers workers={workers()} chatId={props.chatId} />
+      </Show>
+      <Show when={files().length}>
+        <Files files={files()} chatId={props.chatId} />
+      </Show>
+      <Show when={routines().length}>
+        <Routines routines={routines()} chatId={props.chatId} />
+      </Show>
+      <Show when={hasMemory()}>
+        <Memory lines={lines()} more={memory()?.state.next != null} whose={leadName()} chatId={props.chatId} />
+      </Show>
+      <Show when={empty()}>
+        <div class="desk-section flex flex-col gap-1" data-component="card-empty">
+          <p class="px-1 pb-1 text-ui text-fg3">
+            Nothing here yet. Files, tasks and what Kiko learns will gather here.
+          </p>
+          <For each={launcherEntries(isGroup(members()))}>
+            {(entry) => (
+              <button
+                type="button"
+                class="flex h-9 items-center gap-2.5 rounded-row px-2 text-left text-ui text-fg transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover active:scale-[0.98]"
+                data-action={`open-${entry.kind}`}
+                onClick={() => openSurface(props.chatId, fixedSurface(entry.kind))}
+              >
+                <RemixIcon icon={PANELS[entry.kind].icon} size={16} class="shrink-0 text-fg2" />
+                {entry.label}
+              </button>
+            )}
+          </For>
+        </div>
+      </Show>
     </aside>
   )
 }
