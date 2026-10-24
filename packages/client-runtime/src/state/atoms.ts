@@ -16,6 +16,7 @@ import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as PubSub from "effect/PubSub"
 import * as Schema from "effect/Schema"
+import * as SchemaAST from "effect/SchemaAST"
 import * as Stream from "effect/Stream"
 import * as SubscriptionRef from "effect/SubscriptionRef"
 import * as AsyncResult from "effect/reactivity/AsyncResult"
@@ -66,9 +67,8 @@ export type RpcCommandInput<Tag extends OwnerUnaryTag> = Omit<OwnerRpcInput<Tag>
   readonly commandId?: CommandId
 }
 
-const payloadFields = (tag: OwnerUnaryTag): Record<string, unknown> =>
-  (OwnerRpcs.requests.get(tag)?.payloadSchema as { readonly fields?: Record<string, unknown> } | undefined)?.fields ??
-  {}
+const payloadSchema = (tag: OwnerUnaryTag) =>
+  OwnerRpcs.requests.get(tag)?.payloadSchema as (Schema.Top & { readonly fields?: Record<string, unknown> }) | undefined
 
 const successSchema = <const Tag extends OwnerUnaryTag>(tag: Tag) =>
   OwnerRpcs.requests.get(tag)?.successSchema as unknown as Schema.Codec<OwnerRpcSuccess<Tag>, unknown>
@@ -79,9 +79,9 @@ const requestAny = request as unknown as (
 ) => Effect.Effect<unknown, unknown, OwnerSupervisor>
 
 function sendRpc(tag: OwnerUnaryTag, input: object | undefined) {
-  const fields = payloadFields(tag)
-  if (Object.keys(fields).length === 0) return requestAny(tag, undefined)
-  return requestAny(tag, fields.commandId === undefined ? input : { commandId: newCommandId(), ...input })
+  const schema = payloadSchema(tag)
+  if (schema === undefined || SchemaAST.isVoid(schema.ast)) return requestAny(tag, undefined)
+  return requestAny(tag, schema.fields?.commandId === undefined ? input : { commandId: newCommandId(), ...input })
 }
 
 const EMPTY_TYPING: ReadonlyArray<AgentSlug> = []
