@@ -2,9 +2,11 @@ import { useLocation } from "@tanstack/solid-router"
 import { Match, Show, Switch, createSignal, onMount } from "solid-js"
 import { openSignIn } from "../clerk"
 import { continueAs, phase, useAnotherAccount } from "../session"
-import { Cover, primary, secondary } from "./welcome"
+import { errorText, primary } from "./controls"
+import { Dots } from "./dots"
+import { Cover } from "./welcome"
 
-const errorText = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
+const message = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
 
 function SignIn() {
   const [opening, setOpening] = createSignal(false)
@@ -14,19 +16,22 @@ function SignIn() {
     setError("")
     setOpening(true)
     openSignIn()
-      .catch((e: unknown) => setError(errorText(e, "Could not open sign-in. Try again.")))
+      .catch((e: unknown) => setError(message(e, "Could not open sign-in. Try again.")))
       .finally(() => setOpening(false))
   }
 
   return (
     <>
       <Show when={error()}>
-        <p class="text-center text-sm text-[var(--error)]" role="alert">
+        <p class={errorText} role="alert">
           {error()}
         </p>
       </Show>
-      <button type="button" class={primary} disabled={opening()} data-action="sign-in" onClick={open}>
+      <button type="button" class={primary} data-cta disabled={opening()} data-action="sign-in" onClick={open}>
         {opening() ? "Opening sign-in" : "Sign in"}
+        <Show when={opening()}>
+          <Dots />
+        </Show>
       </button>
     </>
   )
@@ -37,11 +42,11 @@ function TicketSignIn(props: { readonly ticket: string }) {
   onMount(() => {
     void import("../dev-ticket")
       .then((m) => m.signInWithTicket(props.ticket))
-      .catch((e: unknown) => setFailed(errorText(e, "Ticket sign-in failed")))
+      .catch((e: unknown) => setFailed(message(e, "Ticket sign-in failed")))
   })
   return (
     <Show when={failed()} fallback={<Waiting label="Signing in" />}>
-      <p class="text-center text-sm text-[var(--error)]" role="alert">
+      <p class={errorText} role="alert">
         {failed()}
       </p>
       <SignIn />
@@ -53,6 +58,7 @@ function Waiting(props: { readonly label: string }) {
   return (
     <button type="button" class={primary} disabled data-action="sign-in">
       {props.label}
+      <Dots />
     </button>
   )
 }
@@ -60,16 +66,20 @@ function Waiting(props: { readonly label: string }) {
 function Live(props: { readonly email: string }) {
   return (
     <>
-      <button type="button" class={primary} data-action="continue-as" onClick={() => void continueAs()}>
+      <div class="ob-hi">
+        <span class="ob-hi-initial" aria-hidden="true">
+          {props.email.slice(0, 1).toUpperCase() || "K"}
+        </span>
+        <span class="ob-hi-text">
+          <b>Welcome back</b>
+          <span>{props.email}</span>
+        </span>
+        <button type="button" data-action="use-another-account" onClick={() => void useAnotherAccount()}>
+          Not you?
+        </button>
+      </div>
+      <button type="button" class={primary} data-cta data-action="continue-as" onClick={() => void continueAs()}>
         {props.email ? `Continue as ${props.email}` : "Continue to Kiko"}
-      </button>
-      <button
-        type="button"
-        class={secondary}
-        data-action="use-another-account"
-        onClick={() => void useAnotherAccount()}
-      >
-        Use another account
       </button>
     </>
   )
@@ -82,9 +92,9 @@ export function ClerkStep() {
     return current._tag === "SignedOut" && current.clerk._tag === "Live" ? current.clerk.email : null
   }
   return (
-    <div class="welcome-step flex w-full flex-col gap-3" data-step="sign-in" data-phase={phase()._tag}>
-      <Cover />
-      <div class="mt-2 flex w-full flex-col gap-2" style={{ "--i": 2 }}>
+    <div class="welcome-step" data-step="sign-in" data-phase={phase()._tag}>
+      <Cover title="Meet your team." lede="They're asleep for now. Sign in and they'll start waking up." />
+      <div class="ob-cta" style={{ "--i": 2 }}>
         <Switch fallback={<Waiting label="Signing in" />}>
           <Match when={phase()._tag === "SigningOut"}>
             <Waiting label="Signing out" />

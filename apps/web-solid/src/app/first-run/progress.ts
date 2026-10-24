@@ -20,6 +20,7 @@ const [probe, setProbe] = createSignal<Probe | null>(null)
 const [fresh, setFresh] = createSignal(phase()._tag !== "Ready")
 
 export const [working, setWorking] = createSignal(false)
+export const [finished, setFinished] = createSignal(false)
 
 export const enteringFresh = () => setFresh(true)
 

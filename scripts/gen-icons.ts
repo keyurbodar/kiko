@@ -4,6 +4,8 @@ import * as huge from "@hugeicons/core-free-icons"
 
 const ICONS = {
   search: "Search01Icon",
+  shield: "Shield01Icon",
+  wallet: "Wallet01Icon",
   plus: "PlusSignIcon",
   minus: "MinusSignIcon",
   close: "Cancel01Icon",
