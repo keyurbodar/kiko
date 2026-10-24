@@ -1,3 +1,4 @@
+import { SearchField } from "@kiko/ui/v2/search-field"
 import { createHotkeyRecorder, detectPlatform, formatForDisplay, type Hotkey } from "@tanstack/solid-hotkeys"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createMemo, createSignal, For, Show } from "solid-js"
@@ -5,7 +6,7 @@ import { bindKey, bindings, resetAllKeys, resetKey } from "../commands/bindings"
 import { commands, GROUP_LABEL, keysOf, shortcutOf, type Command, type CommandGroup } from "../commands/registry"
 import { cn } from "../lib/cn"
 import { browserKey, refusal, sameKey } from "./browser-keys"
-import { Button, Empty, fieldClass, Group, Hint, muted, Row } from "./kit"
+import { Button, Empty, Group, Hint, muted, Row } from "./kit"
 
 const platform = detectPlatform()
 const ORDER = Object.keys(GROUP_LABEL) as CommandGroup[]
@@ -123,19 +124,12 @@ export default function KeyboardPage() {
     <div class="flex flex-col gap-8" data-component="keyboard-settings">
       <div class="flex flex-col gap-2">
         <div class="flex items-center gap-2">
-          <input
-            type="search"
-            class={cn(fieldClass, "min-w-0 flex-1")}
+          <SearchField
+            wrapClass="min-w-0 flex-1"
             placeholder="Search shortcuts"
             aria-label="Search shortcuts"
             value={query()}
-            onInput={(e) => setQuery(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key !== "Escape" || !query()) return
-              e.preventDefault()
-              e.stopPropagation()
-              setQuery("")
-            }}
+            onValue={setQuery}
           />
           <Show when={changed()}>
             <Button variant="secondary" data-action="reset-all-shortcuts" onClick={resetAllKeys}>

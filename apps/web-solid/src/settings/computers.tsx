@@ -1,3 +1,4 @@
+import { Segmented } from "@kiko/ui/v2/segmented"
 import type { ComputerSummary } from "@kiko/protocol"
 import { CopyIcon, EditIcon, MonitorIcon } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
@@ -11,7 +12,7 @@ import {
   startComputers,
   type PairCode,
 } from "../chat/computers"
-import { Button, Empty, fieldClass, Group, IconButton, Item, Notice, Segmented } from "./kit"
+import { Button, Empty, fieldClass, Group, IconButton, Item, Notice } from "./kit"
 import { clearPairing, readPairing, savePairing } from "./pairing"
 
 const OS: Record<ComputerSummary["os"], string> = { macos: "macOS", linux: "Linux", windows: "Windows" }

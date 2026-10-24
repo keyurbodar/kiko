@@ -1,9 +1,10 @@
+import { SearchField } from "@kiko/ui/v2/search-field"
+import { Segmented } from "@kiko/ui/v2/segmented"
 import type { JSX } from "solid-js"
 import { createMemo, createSignal, For, Show } from "solid-js"
 import { Dialog } from "../lib/dialog"
 import { cn } from "../lib/cn"
 import { AppDetail, type AppId, APPS, appState, useIntegrations } from "./integrations"
-import { fieldClass, Segmented } from "./kit"
 
 type Entry = { key: string; id: AppId; name: string; about: string; added: boolean; state: string }
 
@@ -57,13 +58,12 @@ export default function Tools(): JSX.Element {
   return (
     <div class="flex flex-col gap-4" data-component="tools">
       <div class="flex flex-wrap items-center gap-2">
-        <input
-          type="search"
-          class={cn(fieldClass, "min-w-48 flex-1")}
+        <SearchField
+          wrapClass="min-w-48 flex-1"
           placeholder="Search apps"
           aria-label="Search tools"
           value={query()}
-          onInput={(e) => setQuery(e.currentTarget.value)}
+          onValue={setQuery}
         />
         <Segmented<Filter>
           label="Show"

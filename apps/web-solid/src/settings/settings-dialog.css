@@ -50,36 +50,8 @@
 }
 
 .settings-search {
-  display: flex;
-  height: 34px;
   flex-shrink: 0;
-  align-items: center;
-  gap: 8px;
   margin-bottom: 4px;
-  padding: 0 10px;
-  color: var(--fg4);
-  background: var(--panel);
-  border-radius: 10px;
-}
-
-.settings-search:focus-within {
-  color: var(--fg2);
-}
-
-.settings-search input {
-  min-width: 0;
-  flex: 1;
-  padding: 0;
-  color: var(--fg);
-  font: inherit;
-  font-size: 13.5px;
-  background: none;
-  border: none;
-  outline: none;
-}
-
-.settings-search input::placeholder {
-  color: var(--fg4);
 }
 
 .settings-nav-group {

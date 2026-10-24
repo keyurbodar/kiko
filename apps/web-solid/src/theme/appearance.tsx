@@ -1,3 +1,4 @@
+import { Segmented } from "@kiko/ui/v2/segmented"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, CloseIcon, PlusIcon } from "@kiko/ui/icons"
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
@@ -6,7 +7,7 @@ import { BASE_SIZE, CHAT_WIDTHS, CONTRAST, DEFAULT_DISPLAY, type ChatWidth, type
 import { themeFor } from "@kiko/theme/imported"
 import { DEFAULT_LOOK, type Mode } from "@kiko/theme/look"
 import { THEME_IDS, THEMES, type Palette, type ThemeAppearance } from "@kiko/theme/palette"
-import { buttonClass, Group, Row, Segmented, Slider, Toggle } from "../settings/kit"
+import { buttonClass, Group, Row, Slider, Toggle } from "../settings/kit"
 import { Select } from "../settings/select"
 import { look, previewLook, updateLook } from "./live"
 import { choose, chooseBuiltin, DEFAULT, remove, themes } from "./live"

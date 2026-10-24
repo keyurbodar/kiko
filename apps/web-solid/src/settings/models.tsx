@@ -1,3 +1,4 @@
+import { SearchField } from "@kiko/ui/v2/search-field"
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
 import { createQuery } from "../state/runtime"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
@@ -289,15 +290,12 @@ export function ModelsPage() {
                   )}
                 </Show>
                 <div class="flex items-center gap-2">
-                  <input
-                    type="search"
-                    class={cn(fieldClass, "min-w-0 flex-1")}
+                  <SearchField
+                    wrapClass="min-w-0 flex-1"
                     placeholder="Search models"
                     aria-label="Search models"
-                    spellcheck={false}
-                    autocomplete="off"
                     value={query()}
-                    onInput={(e) => setQuery(e.currentTarget.value)}
+                    onValue={setQuery}
                     data-component="model-search"
                   />
                 </div>
@@ -502,15 +500,12 @@ export function AddProviderDialog(props: {
           if (first) props.onPick(first)
         }}
       >
-        <input
-          type="search"
-          class={cn(fieldClass, "w-full")}
+        <SearchField
           placeholder="Search providers"
           aria-label="Search providers"
-          autocomplete="off"
           value={query()}
           ref={(el) => requestAnimationFrame(() => el.focus())}
-          onInput={(e) => setQuery(e.currentTarget.value)}
+          onValue={setQuery}
           data-component="provider-search"
         />
       </form>

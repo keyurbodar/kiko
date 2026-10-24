@@ -1,7 +1,8 @@
+import { Segmented } from "@kiko/ui/v2/segmented"
 import type { UserSettings } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { Show } from "solid-js"
-import { Group, Row, Segmented, Skeleton } from "./kit"
+import { Group, Row, Skeleton } from "./kit"
 import { createQuery, owner, run } from "../state/runtime"
 
 type Settings = UserSettings

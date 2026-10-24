@@ -1,6 +1,6 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { LoaderIcon } from "@kiko/ui/icons"
-import { For, Show, splitProps, type JSX } from "solid-js"
+import { Show, splitProps, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import "./kit.css"
 
@@ -290,68 +290,6 @@ export function Pill(props: {
     >
       {local.children}
     </span>
-  )
-}
-
-export function Segmented<T extends string>(props: {
-  label: string
-  value: T
-  options: readonly { value: T; label: string }[]
-  onChange: (value: T) => void
-}): JSX.Element {
-  const step = (event: KeyboardEvent) => {
-    const delta = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key]
-    const n = props.options.length
-    const at = props.options.findIndex((o) => o.value === props.value)
-    const next =
-      event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? n - 1
-          : delta === undefined
-            ? -1
-            : (Math.max(at, 0) + delta + n) % n
-    if (next < 0) return
-    event.preventDefault()
-    props.onChange(props.options[next]!.value)
-    ;(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>("[role=radio]")[next]?.focus()
-  }
-  return (
-    <div
-      role="radiogroup"
-      aria-label={props.label}
-      class="kit-seg"
-      style={{
-        "grid-template-columns": `repeat(${props.options.length}, minmax(0, 1fr))`,
-        "--seg-n": props.options.length,
-        "--seg-at": Math.max(
-          props.options.findIndex((o) => o.value === props.value),
-          0,
-        ),
-      }}
-      data-empty={props.options.some((o) => o.value === props.value) ? undefined : ""}
-      onKeyDown={step}
-    >
-      <For each={props.options}>
-        {(option, i) => {
-          const on = () => props.value === option.value
-          const stop = () => on() || (i() === 0 && !props.options.some((o) => o.value === props.value))
-          return (
-            <button
-              type="button"
-              role="radio"
-              aria-checked={on()}
-              tabindex={stop() ? 0 : -1}
-              data-value={option.value}
-              class="kit-seg-item"
-              onClick={() => props.onChange(option.value)}
-            >
-              {option.label}
-            </button>
-          )
-        }}
-      </For>
-    </div>
   )
 }
 

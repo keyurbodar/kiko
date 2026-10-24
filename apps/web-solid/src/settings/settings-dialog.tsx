@@ -1,5 +1,6 @@
+import { SearchField } from "@kiko/ui/v2/search-field"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CloseIcon, SearchIcon } from "@kiko/ui/icons"
+import { CloseIcon } from "@kiko/ui/icons"
 import { glide } from "@kiko/ui/v2/glide"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { useLocation, useNavigate } from "@tanstack/solid-router"
@@ -90,22 +91,13 @@ export function SettingsDialog(props: ParentProps) {
             <nav ref={nav} class="settings-nav" data-component="settings-panel" aria-label="Settings sections">
               <span ref={mark} class="settings-nav-glide" data-slot="glide" data-hidden="" aria-hidden="true" />
               <ModalV2.Title class="settings-title">Settings</ModalV2.Title>
-              <label class="settings-search">
-                <RemixIcon icon={SearchIcon} size={15} />
-                <input
-                  type="search"
-                  placeholder="Search settings"
-                  aria-label="Search settings"
-                  value={query()}
-                  onInput={(e) => setQuery(e.currentTarget.value)}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Escape" || !query()) return
-                    e.preventDefault()
-                    e.stopPropagation()
-                    setQuery("")
-                  }}
-                />
-              </label>
+              <SearchField
+                wrapClass="settings-search"
+                placeholder="Search settings"
+                aria-label="Search settings"
+                value={query()}
+                onValue={setQuery}
+              />
               <Show when={rows().length} fallback={<p class="settings-nav-empty">Nothing matches</p>}>
                 <For each={groups()}>
                   {(group) => (
