@@ -12,6 +12,7 @@ import {
   type PairCode,
 } from "../chat/computers"
 import { Button, Empty, fieldClass, Group, IconButton, Item, Notice, Segmented } from "./kit"
+import { clearPairing, readPairing, savePairing } from "./pairing"
 
 const OS: Record<ComputerSummary["os"], string> = { macos: "macOS", linux: "Linux", windows: "Windows" }
 
@@ -192,7 +193,8 @@ function Row(props: { computer: ComputerSummary; onError: (message: string | nul
 
 export default function Computers(): JSX.Element {
   startComputers()
-  const [pair, setPair] = createSignal<PairCode | null>(null)
+  const ids = () => computers().map((computer) => computer.id)
+  const [pair, setPair] = createSignal<PairCode | null>(readPairing(ids()))
   const [busy, setBusy] = createSignal(false)
   const [error, setError] = createSignal<string | null>(null)
 
@@ -201,17 +203,20 @@ export default function Computers(): JSX.Element {
     setError(null)
     const code = await requestPairCode()
     setBusy(false)
-    if (code) setPair(code)
-    else setError("Kiko did not answer. Try again.")
+    if (!code) return setError("Kiko did not answer. Try again.")
+    savePairing(code, ids())
+    setPair(code)
+  }
+
+  const close = () => {
+    clearPairing()
+    setPair(null)
   }
 
   createEffect(
-    on(
-      () => computers().length,
-      (count, before) => {
-        if (before !== undefined && count > before) setPair(null)
-      },
-    ),
+    on(ids, (now) => {
+      if (pair() && !readPairing(now)) setPair(null)
+    }),
   )
 
   return (
@@ -231,9 +236,7 @@ export default function Computers(): JSX.Element {
           </Button>
         }
       >
-        <Show when={pair()}>
-          {(code) => <Pairing pair={code()} onNew={() => void add()} onClose={() => setPair(null)} />}
-        </Show>
+        <Show when={pair()}>{(code) => <Pairing pair={code()} onNew={() => void add()} onClose={close} />}</Show>
         <For
           each={computers()}
           fallback={
