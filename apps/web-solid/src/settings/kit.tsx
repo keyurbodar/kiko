@@ -270,31 +270,6 @@ export function Notice(props: {
   )
 }
 
-export function Pill(props: {
-  tone?: "muted" | "accent" | "success" | "danger"
-  children: JSX.Element
-  [data: `data-${string}`]: string | undefined
-}): JSX.Element {
-  const [local, rest] = splitProps(props, ["tone", "children"])
-  const tone = {
-    muted: "bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] text-[color-mix(in_oklab,var(--fg)_65%,transparent)]",
-    accent: "bg-[color-mix(in_oklab,var(--info)_16%,transparent)] text-[var(--info)]",
-    success: "bg-[color-mix(in_oklab,var(--ok)_16%,transparent)] text-[var(--ok)]",
-    danger: "bg-[color-mix(in_oklab,var(--bad)_14%,transparent)] text-[var(--bad)]",
-  }[local.tone ?? "muted"]
-  return (
-    <span
-      class={cn(
-        "inline-flex h-[18px] shrink-0 items-center rounded-tail px-1.5 text-[11px] font-medium leading-none whitespace-nowrap",
-        tone,
-      )}
-      {...rest}
-    >
-      {local.children}
-    </span>
-  )
-}
-
 export function Slider(props: {
   label: string
   value: number
