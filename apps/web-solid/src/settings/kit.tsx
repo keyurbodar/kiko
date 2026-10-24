@@ -47,7 +47,7 @@ export function Button(
 }
 
 export const iconButtonClass = cn(
-  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-[color-mix(in_oklab,var(--foreground)_60%,transparent)] enabled:hover:bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)] enabled:hover:text-foreground enabled:active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60",
+  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-fg2 transition-[background-color,color,transform] duration-[var(--dur-hover)] ease-[var(--ease-kiko)] enabled:hover:bg-hover enabled:hover:text-fg enabled:active:scale-[0.94] focus-visible:shadow-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-60",
   focus,
 )
 
