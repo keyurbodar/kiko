@@ -1,3 +1,5 @@
+import { onMount } from "solid-js"
+
 let interacted = false
 let entering = false
 
@@ -12,6 +14,12 @@ export function pageIn(el: HTMLElement) {
   entering = true
   queueMicrotask(() => (entering = false))
   el.classList.add("motion-page-in")
+}
+
+export function afterFirstPaint(): () => boolean {
+  let painted = false
+  onMount(() => requestAnimationFrame(() => (painted = true)))
+  return () => painted
 }
 
 export function replay(el: HTMLElement | undefined) {

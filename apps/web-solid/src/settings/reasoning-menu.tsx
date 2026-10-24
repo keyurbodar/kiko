@@ -4,6 +4,7 @@ import { defaultThinking, THINKING_LABELS, type ThinkingLevel } from "@kiko/prot
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js"
 import { Portal } from "solid-js/web"
 import { cn } from "../lib/cn"
+import { afterFirstPaint } from "../lib/motion"
 import { placePanel } from "../lib/place-panel"
 import { canReason } from "./agent-model"
 import "./reasoning-menu.css"
@@ -182,6 +183,7 @@ export function ReasoningMenu(props: {
 }) {
   let trigger: HTMLButtonElement | undefined
   const [open, setOpen] = createSignal(false)
+  const painted = afterFirstPaint()
   const [note, setNote] = createSignal(false)
   const [shaking, setShaking] = createSignal(false)
   let noteTimer: ReturnType<typeof setTimeout> | undefined
@@ -241,7 +243,11 @@ export function ReasoningMenu(props: {
         >
           <Bars filled={filled()} />
           <Show when={THINKING_LABELS[value()]} keyed>
-            {(label) => <span class="reasoning-label">{label}</span>}
+            {(label) => (
+              <span class="reasoning-label" data-enter={painted() ? "" : undefined}>
+                {label}
+              </span>
+            )}
           </Show>
           <RemixIcon icon={ChevronDownIcon} size={10} class="opacity-70" />
         </button>

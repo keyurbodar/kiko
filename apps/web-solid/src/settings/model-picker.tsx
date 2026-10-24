@@ -14,6 +14,7 @@ import { connectedProviders } from "./connected"
 import { hasModelProvider } from "./provider-kinds"
 import ModelPickerPanel from "./model-picker-panel"
 import "./model-picker.css"
+import { afterFirstPaint } from "../lib/motion"
 
 const [pickerOpen, setPickerOpen] = createSignal(false)
 const [pickerFor, setPickerFor] = createSignal<string | null>(null)
@@ -66,6 +67,7 @@ export function ModelPicker(props: {
 
 export function ModelPickerButton(props: { draft: string }) {
   const members = () => room.roomMembers()
+  const painted = afterFirstPaint()
   const target = () => members().find((m) => m.slug === pickerFor()) ?? answeringMember(members(), props.draft)
   return (
     <Show when={hasModelProvider(connectedProviders()) ? target() : undefined}>
@@ -87,14 +89,14 @@ export function ModelPickerButton(props: { draft: string }) {
               </Show>
               <Show when={current()?.model.split("/")[0]} keyed>
                 {(provider) => (
-                  <span class="picker-swap">
+                  <span class="picker-swap" data-enter={painted() ? "" : undefined}>
                     <ProviderIcon id={provider} width="13" height="13" />
                   </span>
                 )}
               </Show>
               <Show when={label()} keyed>
                 {(text) => (
-                  <span class="picker-swap min-w-0" data-slide="">
+                  <span class="picker-swap min-w-0" data-slide="" data-enter={painted() ? "" : undefined}>
                     <span class="truncate" data-component="composer-model">
                       {text}
                     </span>
