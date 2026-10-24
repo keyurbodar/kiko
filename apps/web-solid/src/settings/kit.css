@@ -38,11 +38,14 @@
   transition:
     background-color var(--dur-hover) var(--ease-kiko),
     color var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    box-shadow var(--dur-hover) var(--ease-kiko),
+    transform var(--spring150-duration) var(--spring150-easing);
 }
 
 .kit-btn:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
+  transition-duration: var(--dur-hover), var(--dur-hover), var(--dur-hover), 80ms;
+  transition-timing-function: var(--ease-kiko);
 }
 
 .kit-btn:focus-visible {
@@ -67,8 +70,10 @@
   background: var(--fg);
 }
 
-.kit-btn--fg:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--fg) 88%, var(--bg));
+@media (hover: hover) and (pointer: fine) {
+  .kit-btn--fg:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--fg) 88%, var(--bg));
+  }
 }
 
 .kit-btn--hover,
@@ -77,16 +82,20 @@
   background: var(--active);
 }
 
-.kit-btn--hover:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--fg) 14%, var(--panel));
+@media (hover: hover) and (pointer: fine) {
+  .kit-btn--hover:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--fg) 14%, var(--panel));
+  }
 }
 
 .kit-btn--danger {
   color: var(--bad);
 }
 
-.kit-btn--danger:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--bad) 12%, var(--active));
+@media (hover: hover) and (pointer: fine) {
+  .kit-btn--danger:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--bad) 12%, var(--active));
+  }
 }
 
 .kit-btn--hover[aria-pressed="true"] {
@@ -98,9 +107,11 @@
   color: var(--fg2);
 }
 
-.kit-btn--ghost:hover:not(:disabled) {
-  color: var(--fg);
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .kit-btn--ghost:hover:not(:disabled) {
+    color: var(--fg);
+    background: var(--hover);
+  }
 }
 
 .kit-select.kit-select--size {
@@ -128,8 +139,10 @@
   transition: background var(--dur-hover) var(--ease-kiko);
 }
 
-.kit-select:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--fg) 14%, var(--panel));
+@media (hover: hover) and (pointer: fine) {
+  .kit-select:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--fg) 14%, var(--panel));
+  }
 }
 
 .kit-select > svg:last-child {
@@ -140,6 +153,7 @@
 }
 
 .kit-seg {
+  position: relative;
   display: inline-grid;
   max-width: 100%;
   flex-shrink: 0;
@@ -150,6 +164,8 @@
 }
 
 .kit-seg-item {
+  position: relative;
+  z-index: 1;
   height: 28px;
   min-width: 0;
   padding: 0 12px;
@@ -166,13 +182,39 @@
     color var(--dur-hover) var(--ease-kiko);
 }
 
-.kit-seg-item:hover:not(:disabled) {
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .kit-seg-item:hover:not(:disabled) {
+    color: var(--fg);
+  }
 }
 
 .kit-seg-item[aria-checked="true"] {
   color: var(--fg);
+}
+
+.kit-seg::before {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px - (var(--seg-n) - 1) * 2px) / var(--seg-n));
   background: var(--active);
+  border-radius: 8px;
+  content: "";
+  pointer-events: none;
+  transform: translateX(calc(var(--seg-at) * (100% + 2px)));
+}
+
+.kit-seg[data-empty]::before {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .kit-seg::before {
+    transition:
+      transform var(--dur-pop) var(--ease-kiko),
+      opacity var(--dur-hover) var(--ease-kiko);
+  }
 }
 
 .kit-switch {
@@ -184,7 +226,9 @@
   padding: 3px;
   background: color-mix(in oklab, var(--fg) 16%, var(--panel));
   border-radius: 10px;
-  transition: background var(--dur-hover) var(--ease-kiko);
+  transition:
+    background var(--dur-pop) var(--ease-kiko),
+    box-shadow var(--dur-hover) var(--ease-kiko);
   cursor: pointer;
   outline: none;
 }
@@ -204,14 +248,28 @@
   height: 14px;
   background: var(--fg3);
   border-radius: 7px;
+  transform-origin: left center;
   transition:
-    transform var(--dur-hover) var(--ease-kiko),
-    background var(--dur-hover) var(--ease-kiko);
+    transform var(--dur-pop) var(--ease-kiko),
+    background var(--dur-pop) var(--ease-kiko);
 }
 
 .kit-switch[aria-checked="true"] > span {
   background: var(--bg);
   transform: translateX(14px);
+  transform-origin: right center;
+}
+
+.kit-switch:active:not(:disabled) > span {
+  transform: scaleX(1.15);
+}
+
+.kit-switch[aria-checked="true"]:active:not(:disabled) > span {
+  transform: translateX(14px) scaleX(1.15);
+}
+
+.kit-switch:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
 .kit-range {
@@ -296,6 +354,7 @@
 
 .kit-field[aria-invalid="true"] {
   box-shadow: inset 0 0 0 1.5px var(--bad);
+  animation: motion-shake 260ms var(--ease-kiko);
 }
 
 .kit-field::placeholder {
@@ -327,12 +386,18 @@
 }
 
 .kit-tabs {
+  position: relative;
   display: flex;
   gap: 4px;
 }
 
+.kit-tabs > .pill-indicator {
+  border-radius: 10px;
+}
+
 .kit-tab {
   position: relative;
+  z-index: 1;
   height: 34px;
   padding: 0 14px;
   color: var(--fg2);
@@ -346,12 +411,18 @@
     color var(--dur-hover) var(--ease-kiko);
 }
 
-.kit-tab:hover {
-  color: var(--fg);
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .kit-tab:hover {
+    color: var(--fg);
+    background: var(--hover);
+  }
 }
 
 .kit-tab[aria-selected="true"] {
   color: var(--fg);
   background: var(--active);
+}
+
+.kit-tabs:has(> .pill-indicator) > .kit-tab[aria-selected="true"] {
+  background: transparent;
 }

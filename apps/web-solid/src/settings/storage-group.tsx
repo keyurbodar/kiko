@@ -68,7 +68,7 @@ export function StorageGroup() {
                   <Notice>
                     The object is nearly full. Turn on R2 in your Cloudflare account so Kiko can move history older than
                     30 days out of it.{" "}
-                    <a class="underline underline-offset-2" href={R2_URL} target="_blank" rel="noreferrer">
+                    <a class="link-grow" href={R2_URL} target="_blank" rel="noreferrer">
                       About R2
                     </a>
                   </Notice>

@@ -16,6 +16,7 @@
 }
 
 .settings-nav {
+  position: relative;
   display: flex;
   width: 240px;
   flex-shrink: 0;
@@ -97,17 +98,21 @@
   color: var(--fg2);
   font-size: 14px;
   border-radius: 9px;
+  position: relative;
+  z-index: 1;
   cursor: pointer;
   transition:
     background var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
+    color var(--dur-hover) var(--ease-kiko),
+    transform var(--spring150-duration) var(--spring150-easing);
 }
 
 .settings-nav-row:active {
   transform: scale(0.98);
+  transition-duration: var(--dur-hover), var(--dur-hover), 80ms;
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .settings-nav-row:hover {
     color: var(--fg);
     background: var(--hover);
@@ -117,6 +122,33 @@
 .settings-nav-row[aria-current="page"] {
   color: var(--fg);
   background: var(--active);
+}
+
+.settings-nav-glide {
+  background: var(--active);
+  border-radius: 9px;
+}
+
+@media (width >= 768px) {
+  .settings-nav-row[aria-current="page"] {
+    background: transparent;
+  }
+}
+
+@media (width < 768px) {
+  .settings-nav-glide {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .settings-nav-glide:not([data-jump]) {
+    transition:
+      transform var(--dur-pop) var(--ease-kiko),
+      width var(--dur-pop) var(--ease-kiko),
+      height var(--dur-pop) var(--ease-kiko),
+      opacity 80ms linear;
+  }
 }
 
 .settings-nav-label {

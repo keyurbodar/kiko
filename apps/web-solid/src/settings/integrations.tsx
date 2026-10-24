@@ -212,7 +212,7 @@ export function AppDetail(props: { id: AppId; api: Integrations }) {
               data-action={`${props.id}-connect`}
               onKey={props.id === "composio" ? props.api.connectComposio : props.api.connectKernel}
             />
-            <a class="text-label text-fg2 underline hover:text-fg" href={app().home} target="_blank" rel="noreferrer">
+            <a class="link-grow text-label text-fg2 hover:text-fg" href={app().home} target="_blank" rel="noreferrer">
               Get a key at {app().home.replace(/^https:\/\//, "")}
             </a>
           </>

@@ -321,7 +321,15 @@ export function Segmented<T extends string>(props: {
       role="radiogroup"
       aria-label={props.label}
       class="kit-seg"
-      style={{ "grid-template-columns": `repeat(${props.options.length}, minmax(0, 1fr))` }}
+      style={{
+        "grid-template-columns": `repeat(${props.options.length}, minmax(0, 1fr))`,
+        "--seg-n": props.options.length,
+        "--seg-at": Math.max(
+          props.options.findIndex((o) => o.value === props.value),
+          0,
+        ),
+      }}
+      data-empty={props.options.some((o) => o.value === props.value) ? undefined : ""}
       onKeyDown={step}
     >
       <For each={props.options}>
