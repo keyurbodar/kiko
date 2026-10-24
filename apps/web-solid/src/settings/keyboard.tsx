@@ -17,7 +17,7 @@ function Keys(props: { keys: string }) {
     <span class="inline-flex items-center gap-1">
       <For each={formatForDisplay(props.keys, { platform, parts: true })}>
         {(part) => (
-          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] bg-control px-1 font-sans text-xs font-medium text-muted-foreground">
+          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] bg-active px-1 font-sans text-xs font-medium text-fg2">
             {part}
           </kbd>
         )}
@@ -63,7 +63,7 @@ function KeyRow(props: { command: Command }) {
     recorder.startRecording()
   }
   const note = () => {
-    if (problem()) return <span class="text-[var(--error)]">{problem()}</span>
+    if (problem()) return <span class="text-[var(--bad)]">{problem()}</span>
     const k = key()
     const claimed = k && browserKey(k, platform)
     if (claimed) return `Kiko takes this from the browser, where it means ${claimed.action}.`
@@ -81,8 +81,8 @@ function KeyRow(props: { command: Command }) {
       <button
         type="button"
         class={cn(
-          "inline-flex h-7 min-w-24 cursor-pointer items-center justify-end rounded-md px-2 text-sm outline-none hover:bg-[var(--accent)]",
-          recorder.isRecording() && "bg-[var(--accent)] ring-2 ring-[var(--ring)]",
+          "inline-flex h-7 min-w-24 cursor-pointer items-center justify-end rounded-md px-2 text-sm outline-none hover:bg-[var(--hover)]",
+          recorder.isRecording() && "bg-[var(--hover)] ring-2 ring-[var(--fg3)]",
         )}
         aria-label={
           recorder.isRecording()
@@ -94,7 +94,7 @@ function KeyRow(props: { command: Command }) {
         onClick={toggle}
         onBlur={() => recorder.isRecording() && recorder.cancelRecording()}
       >
-        <Show when={!recorder.isRecording()} fallback={<span class="text-foreground">Press keys…</span>}>
+        <Show when={!recorder.isRecording()} fallback={<span class="text-fg">Press keys…</span>}>
           <Show when={key()} fallback={<span class={muted}>None</span>}>
             {(k) => <Keys keys={k()} />}
           </Show>

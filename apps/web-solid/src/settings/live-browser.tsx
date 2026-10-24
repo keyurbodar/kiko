@@ -39,13 +39,13 @@ export default function LiveBrowser(props: { icon: JSX.Element }) {
             </>
           }
         >
-          <Show when={b().tabs.length} fallback={<p class="text-[13px] text-muted-foreground">No tabs open.</p>}>
+          <Show when={b().tabs.length} fallback={<p class="text-[13px] text-fg2">No tabs open.</p>}>
             <ul class="flex flex-col gap-1 text-[13px]" data-field="browser-tabs">
               <For each={b().tabs}>
                 {(tab) => (
                   <li class="flex gap-2">
                     <span class="font-medium">{tab.agent}</span>
-                    <span class="text-muted-foreground">{tab.host}</span>
+                    <span class="text-fg2">{tab.host}</span>
                   </li>
                 )}
               </For>

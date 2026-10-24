@@ -4,6 +4,7 @@ import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { useLocation, useNavigate } from "@tanstack/solid-router"
 import { createEffect, createSignal, For, on, onCleanup, onMount, type ParentProps, Show } from "solid-js"
 import { cn } from "../lib/cn"
+import { APP_VERSION } from "../lib/version-skew"
 import { iconButtonClass, Page } from "./kit"
 import { closeSettings } from "./open"
 import { SETTINGS_GROUPS, searchSections, sectionAt, type SettingsSection } from "./sections"
@@ -47,7 +48,7 @@ export function SettingsDialog(props: ParentProps) {
       data-section={s.id}
       onClick={() => void navigate({ to: s.to })}
     >
-      <RemixIcon icon={s.icon} size={16} />
+      <RemixIcon icon={s.icon} size={17} />
       <span class="settings-nav-label">{s.label}</span>
     </button>
   )
@@ -73,9 +74,7 @@ export function SettingsDialog(props: ParentProps) {
         >
           <div data-component="settings">
             <nav class="settings-nav" data-component="settings-panel" aria-label="Settings sections">
-              <ModalV2.Title class="px-2 pb-3 text-[20px] font-bold leading-snug tracking-[-0.015em] text-foreground">
-                Settings
-              </ModalV2.Title>
+              <ModalV2.Title class="settings-title">Settings</ModalV2.Title>
               <label class="settings-search">
                 <RemixIcon icon={SearchIcon} size={15} />
                 <input
@@ -96,18 +95,24 @@ export function SettingsDialog(props: ParentProps) {
                 <For each={groups()}>
                   {(group) => (
                     <div class="settings-nav-group" data-group={group.name ?? "results"}>
+                      <Show when={group.name && group.rows.length}>
+                        <span class="settings-nav-heading">{group.name}</span>
+                      </Show>
                       <For each={group.rows}>{row}</For>
                     </div>
                   )}
                 </For>
               </Show>
+              <span class="settings-nav-foot" data-field="app-version">
+                Kiko {APP_VERSION}
+              </span>
             </nav>
             <div
               ref={body}
               class="@container/settings flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
               data-component="settings-body"
             >
-              <div class="mx-auto w-full max-w-3xl px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:py-8">
+              <div class="mx-auto w-full max-w-[764px] px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:pt-12">
                 <Page title={meta()?.label ?? "Settings"} description={meta()?.hint}>
                   {props.children}
                 </Page>
@@ -117,7 +122,7 @@ export function SettingsDialog(props: ParentProps) {
               type="button"
               aria-label="Close"
               title="Close"
-              class={cn(iconButtonClass, "absolute top-4 right-4")}
+              class={cn(iconButtonClass, "absolute top-5 right-5")}
               data-action="close-dialog"
               onClick={closeSettings}
             >

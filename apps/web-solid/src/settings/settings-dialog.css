@@ -1,11 +1,11 @@
 .settings-dialog {
-  width: min(960px, calc(100vw - 48px));
-  height: min(700px, calc(100dvh - 48px));
+  width: min(1240px, calc(100vw - 48px));
+  height: min(820px, calc(100dvh - 48px));
   overflow: hidden;
-  color: var(--foreground);
-  background: var(--popover);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--popover-shadow);
+  color: var(--fg);
+  background: var(--bg);
+  border-radius: 24px;
+  box-shadow: 0 50px 140px rgb(0 0 0 / 0.45);
 }
 
 [data-component="settings"] {
@@ -17,46 +17,68 @@
 
 .settings-nav {
   display: flex;
-  width: 220px;
+  width: 240px;
   flex-shrink: 0;
   flex-direction: column;
-  padding: 16px 8px 12px;
+  padding: 22px 12px 14px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: var(--sidebar);
+  background: var(--side);
+}
+
+.settings-title {
+  padding: 0 10px 14px;
+  font-family: var(--font-family-display);
+  font-size: 24px;
+  font-weight: 400;
+  font-variation-settings: var(--display-variation);
+  line-height: 30px;
+}
+
+.settings-nav-heading {
+  padding: 16px 10px 6px;
+  color: var(--fg4);
+  font-size: 12.5px;
+}
+
+.settings-nav-foot {
+  margin-top: auto;
+  padding: 12px 10px 0;
+  color: var(--fg4);
+  font-size: 12px;
 }
 
 .settings-search {
   display: flex;
-  height: var(--control-h);
+  height: 34px;
   flex-shrink: 0;
   align-items: center;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 4px;
   padding: 0 10px;
-  color: var(--secondary-label);
-  background: var(--secondary);
-  border-radius: var(--radius-md);
+  color: var(--fg4);
+  background: var(--panel);
+  border-radius: 10px;
 }
 
 .settings-search:focus-within {
-  color: var(--muted-foreground);
+  color: var(--fg2);
 }
 
 .settings-search input {
   min-width: 0;
   flex: 1;
   padding: 0;
-  color: var(--foreground);
+  color: var(--fg);
   font: inherit;
-  font-size: var(--font-md);
+  font-size: 13.5px;
   background: none;
   border: none;
   outline: none;
 }
 
 .settings-search input::placeholder {
-  color: var(--secondary-label);
+  color: var(--fg4);
 }
 
 .settings-nav-group {
@@ -65,34 +87,36 @@
   gap: 1px;
 }
 
-.settings-nav-group + .settings-nav-group {
-  margin-top: 20px;
-}
-
 .settings-nav-row {
   display: flex;
-  height: var(--control-h);
+  height: 34px;
   flex-shrink: 0;
   align-items: center;
-  gap: 8px;
-  padding: 0 8px;
-  color: var(--muted-foreground);
-  font-size: var(--font-md);
-  font-weight: var(--font-weight-medium);
-  border-radius: var(--radius-md);
+  gap: 11px;
+  padding: 0 10px;
+  color: var(--fg2);
+  font-size: 14px;
+  border-radius: 9px;
   cursor: pointer;
+  transition:
+    background var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko);
+}
+
+.settings-nav-row:active {
+  transform: scale(0.98);
 }
 
 @media (hover: hover) {
   .settings-nav-row:hover {
-    color: var(--foreground);
-    background: var(--accent);
+    color: var(--fg);
+    background: var(--hover);
   }
 }
 
 .settings-nav-row[aria-current="page"] {
-  color: var(--foreground);
-  background: var(--accent-strong);
+  color: var(--fg);
+  background: var(--active);
 }
 
 .settings-nav-label {
@@ -106,7 +130,7 @@
 
 .settings-nav-empty {
   padding: 24px 8px;
-  color: var(--secondary-label);
+  color: var(--fg4);
   text-align: center;
 }
 
@@ -131,6 +155,11 @@
   }
 
   .settings-search {
+    display: none;
+  }
+
+  .settings-nav-heading,
+  .settings-nav-foot {
     display: none;
   }
 

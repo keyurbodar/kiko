@@ -20,14 +20,14 @@ function Meter(props: { storage: Storage }) {
       aria-valuemax={OBJECT_LIMIT_BYTES}
       aria-valuenow={used()}
       aria-valuetext={`${formatSize(props.storage.objectBytes)} of ${formatSize(OBJECT_LIMIT_BYTES)}`}
-      class="h-1.5 overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)]"
+      class="h-1.5 overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--fg)_8%,transparent)]"
       data-part="storage-meter"
     >
       <div
         class="h-full rounded-full"
         classList={{
-          "bg-[var(--error)]": nearlyFull(props.storage),
-          "bg-[color-mix(in_oklab,var(--foreground)_45%,transparent)]": !nearlyFull(props.storage),
+          "bg-[var(--bad)]": nearlyFull(props.storage),
+          "bg-[color-mix(in_oklab,var(--fg)_45%,transparent)]": !nearlyFull(props.storage),
         }}
         style={{ width: `${(used() / OBJECT_LIMIT_BYTES) * 100}%` }}
       />

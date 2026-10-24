@@ -56,7 +56,7 @@ function DisconnectBackend() {
           connecting that account again brings them back.
           <Show when={problem()}>
             {(text) => (
-              <span class="mt-1 block text-[var(--error)]" role="alert" data-field="disconnect-problem">
+              <span class="mt-1 block text-[var(--bad)]" role="alert" data-field="disconnect-problem">
                 {text()}
               </span>
             )}
@@ -112,11 +112,7 @@ function Backend() {
         </Show>
         <Switch>
           <Match when={view().kind === "busy"}>
-            <span
-              class="inline-flex items-center gap-2 text-muted-foreground"
-              role="status"
-              data-part="update-progress"
-            >
+            <span class="inline-flex items-center gap-2 text-fg2" role="status" data-part="update-progress">
               <Spinner size={12} />
               {(view() as { text: string }).text}
             </span>
@@ -152,7 +148,7 @@ function Backend() {
               }
             >
               <a
-                class="text-sm text-foreground underline underline-offset-2"
+                class="text-sm text-fg underline underline-offset-2"
                 href="https://developers.cloudflare.com/r2/pricing/"
                 target="_blank"
                 rel="noreferrer"

@@ -114,17 +114,13 @@ export function ModelsPage() {
   const railRow = (active: boolean) =>
     cn(
       "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-md outline-none",
-      active ? "bg-accent-strong text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+      active ? "bg-active text-fg" : "text-fg2 hover:bg-hover hover:text-fg",
     )
 
   return (
     <div class="flex flex-col gap-6" data-component="models-page">
       <Show when={cheer()}>
-        <p
-          class="rounded-md bg-ring-wash px-3 py-2 text-md text-foreground"
-          data-component="first-provider-cheer"
-          role="status"
-        >
+        <p class="rounded-md bg-active px-3 py-2 text-md text-fg" data-component="first-provider-cheer" role="status">
           Connected. Your agents can reply now.
         </p>
       </Show>
@@ -169,15 +165,15 @@ export function ModelsPage() {
                       {({ provider, note }) => (
                         <button
                           type="button"
-                          class="flex items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-left hover:bg-accent"
+                          class="flex items-center gap-3 rounded-lg border border-line bg-panel px-3 py-2.5 text-left hover:bg-hover"
                           data-provider={provider.id}
                           data-action="connect"
                           onClick={() => setDialog(provider)}
                         >
                           <ProviderIcon id={provider.id} width="16" height="16" />
                           <span class="flex min-w-0 flex-col">
-                            <span class="truncate text-md font-medium text-foreground">{provider.name}</span>
-                            <span class="truncate text-sm text-muted-foreground">{note}</span>
+                            <span class="truncate text-md font-medium text-fg">{provider.name}</span>
+                            <span class="truncate text-sm text-fg2">{note}</span>
                           </span>
                         </button>
                       )}
@@ -216,14 +212,12 @@ export function ModelsPage() {
                         <Show
                           when={info()?.problem}
                           fallback={
-                            <span class="shrink-0 text-xs tabular-nums text-secondary-label">
-                              {provider.models.length || ""}
-                            </span>
+                            <span class="shrink-0 text-xs tabular-nums text-fg4">{provider.models.length || ""}</span>
                           }
                         >
                           {(problem) => (
                             <span
-                              class="size-1.5 shrink-0 rounded-full bg-error"
+                              class="size-1.5 shrink-0 rounded-full bg-bad"
                               role="img"
                               aria-label={PROBLEM_SHORT[problem()]}
                             />
@@ -263,9 +257,9 @@ export function ModelsPage() {
                       data-provider={provider().id}
                     >
                       <div class="flex min-w-0 flex-1 flex-col">
-                        <span class="truncate text-md font-medium text-foreground">{provider().name}</span>
+                        <span class="truncate text-md font-medium text-fg">{provider().name}</span>
                         <span
-                          class={cn("text-sm", saved(provider().id)?.problem ? "text-error" : cn("truncate", muted))}
+                          class={cn("text-sm", saved(provider().id)?.problem ? "text-bad" : cn("truncate", muted))}
                           data-part="provider-status"
                         >
                           {status(provider().id)}
@@ -302,7 +296,7 @@ export function ModelsPage() {
                     data-component="model-search"
                   />
                 </div>
-                <div class="flex items-center justify-between gap-2 px-1 text-sm text-muted-foreground">
+                <div class="flex items-center justify-between gap-2 px-1 text-sm text-fg2">
                   <span class="tabular-nums">
                     {shownCount()} of {rows().length} in the picker
                   </span>
@@ -351,7 +345,7 @@ export function ModelsPage() {
                   >
                     {(r) => (
                       <div
-                        class="flex h-9 cursor-pointer items-center gap-2.5 border-b border-border px-3 outline-none hover:bg-accent focus-visible:bg-accent"
+                        class="flex h-9 cursor-pointer items-center gap-2.5 border-b border-line px-3 outline-none hover:bg-hover focus-visible:bg-hover"
                         role="switch"
                         tabIndex={0}
                         aria-checked={!hidden().has(r.ref)}
@@ -368,13 +362,13 @@ export function ModelsPage() {
                         <Show when={!current()}>
                           <ProviderIcon id={r.provider.id} width="14" height="14" />
                         </Show>
-                        <span class="min-w-0 flex-1 truncate text-md text-foreground" title={r.model.id}>
+                        <span class="min-w-0 flex-1 truncate text-md text-fg" title={r.model.id}>
                           {r.model.name}
                         </span>
                         <Show when={r.model.reasoning}>
-                          <span class="shrink-0 text-xs text-secondary-label">Reasoning</span>
+                          <span class="shrink-0 text-xs text-fg4">Reasoning</span>
                         </Show>
-                        <span class="w-12 shrink-0 text-right text-xs tabular-nums text-secondary-label">
+                        <span class="w-12 shrink-0 text-right text-xs tabular-nums text-fg4">
                           {formatContext(r.model.contextWindow)}
                         </span>
                         <span onClick={(event) => event.stopPropagation()}>
@@ -528,12 +522,12 @@ export function AddProviderDialog(props: {
             <li data-provider={provider.id}>
               <button
                 type="button"
-                class="flex h-10 w-full cursor-pointer items-center gap-3 rounded-lg px-2 text-left outline-none hover:bg-[var(--accent)] focus-visible:bg-[var(--accent)]"
+                class="flex h-10 w-full cursor-pointer items-center gap-3 rounded-lg px-2 text-left outline-none hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)]"
                 data-action="connect"
                 onClick={() => props.onPick(provider)}
               >
                 <ProviderIcon id={provider.id} width="16" height="16" />
-                <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">{provider.name}</span>
+                <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-fg">{provider.name}</span>
                 <span class={cn("shrink-0 text-[12px] tabular-nums", muted)}>
                   {provider.models.length} {provider.models.length === 1 ? "model" : "models"}
                 </span>
@@ -615,7 +609,7 @@ export function ConnectDialog(props: {
             method === "api_key" ? (
               <Show when={!signingIn()}>
                 <form id="provider-key-form" class="flex flex-col gap-2" onSubmit={submit} data-method="api_key">
-                  <label class="text-[13px] font-medium text-foreground" for="provider-key">
+                  <label class="text-[13px] font-medium text-fg" for="provider-key">
                     API key
                   </label>
                   <input
@@ -687,7 +681,7 @@ function SignInMethod(props: {
   return (
     <div class="flex flex-col gap-2" data-method={props.method} data-sign-in={state()?.status ?? "idle"}>
       <div class="flex items-center justify-between gap-2">
-        <span class="text-[13px] text-foreground">{props.label ?? METHOD_LABEL[props.method]}</span>
+        <span class="text-[13px] text-fg">{props.label ?? METHOD_LABEL[props.method]}</span>
         <Show
           when={running()}
           fallback={
@@ -725,12 +719,12 @@ function SignInMethod(props: {
               {(code) => (
                 <div class="flex flex-col gap-1" data-component="device-code">
                   <span class={cn("text-[12px]", muted)}>Enter this code at the provider</span>
-                  <span class="select-all font-mono text-lg tracking-widest text-foreground">{code().userCode}</span>
+                  <span class="select-all font-mono text-lg tracking-widest text-fg">{code().userCode}</span>
                   <a
                     href={code().verificationUri}
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="truncate text-xs text-[var(--ring)]"
+                    class="truncate text-xs text-[var(--info)]"
                   >
                     Open {code().verificationUri.replace(/^https?:\/\//, "")}
                   </a>
@@ -743,7 +737,7 @@ function SignInMethod(props: {
                   <Show when={link().instructions}>
                     <span class={cn("text-[12px]", muted)}>{link().instructions}</span>
                   </Show>
-                  <a href={link().url} target="_blank" rel="noopener noreferrer" class="text-[13px] text-[var(--ring)]">
+                  <a href={link().url} target="_blank" rel="noopener noreferrer" class="text-[13px] text-[var(--info)]">
                     Open the sign-in page
                   </a>
                 </div>

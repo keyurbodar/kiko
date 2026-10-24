@@ -11,12 +11,10 @@ type Filter = "all" | "added" | "available"
 
 function Glyph(props: { entry: Entry }): JSX.Element {
   return (
-    <span class="grid size-8 shrink-0 place-items-center rounded-lg bg-control text-muted-foreground">
+    <span class="grid size-8 shrink-0 place-items-center rounded-lg bg-active text-fg2">
       <Show
         when={APPS[props.entry.id].icon}
-        fallback={
-          <span class="text-md font-semibold text-foreground">{props.entry.name.slice(0, 1).toUpperCase()}</span>
-        }
+        fallback={<span class="text-md font-semibold text-fg">{props.entry.name.slice(0, 1).toUpperCase()}</span>}
       >
         {(Icon) => {
           const I = Icon()
@@ -79,30 +77,27 @@ export default function Tools(): JSX.Element {
         />
       </div>
       <div class="kit-card" data-component="tools-list">
-        <For
-          each={shown()}
-          fallback={<p class="px-4 py-6 text-center text-md text-muted-foreground">Nothing matches.</p>}
-        >
+        <For each={shown()} fallback={<p class="px-4 py-6 text-center text-md text-fg2">Nothing matches.</p>}>
           {(entry) => (
             <button
               type="button"
-              class="flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left last:border-b-0 hover:bg-accent"
+              class="flex w-full items-center gap-3 border-b border-line px-3 py-2.5 text-left last:border-b-0 hover:bg-hover"
               data-tool={entry.key}
               onClick={() => setOpenId(entry.id)}
             >
               <Glyph entry={entry} />
               <span class="flex min-w-0 flex-1 flex-col">
-                <span class="flex items-center gap-2 text-md font-medium text-foreground">
+                <span class="flex items-center gap-2 text-md font-medium text-fg">
                   <span class="truncate">{entry.name}</span>
-                  <span class="shrink-0 text-xs font-normal text-secondary-label">App</span>
+                  <span class="shrink-0 text-xs font-normal text-fg4">App</span>
                 </span>
-                <span class="truncate text-sm text-muted-foreground">{entry.about}</span>
+                <span class="truncate text-sm text-fg2">{entry.about}</span>
               </span>
-              <Show when={entry.state} fallback={<span class="shrink-0 text-sm text-muted-foreground">Connect</span>}>
+              <Show when={entry.state} fallback={<span class="shrink-0 text-sm text-fg2">Connect</span>}>
                 <span
                   class={cn(
                     "flex shrink-0 items-center gap-1.5 text-sm",
-                    entry.state === "Key rejected" ? "text-error" : "text-success",
+                    entry.state === "Key rejected" ? "text-bad" : "text-ok",
                   )}
                 >
                   <span class="size-1.5 rounded-full bg-current" aria-hidden="true" />
