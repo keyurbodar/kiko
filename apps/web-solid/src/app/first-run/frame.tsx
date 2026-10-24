@@ -90,7 +90,19 @@ export default function FirstRun() {
                     Back
                   </button>
                 </Show>
-                <Show when={currentStep() === "cloudflare" || currentStep() === "connect"}>
+                <Show when={currentStep() === "connect"}>
+                  <button
+                    type="button"
+                    class="ob-back"
+                    data-action="first-run-back"
+                    disabled={working()}
+                    onClick={() => void signOut()}
+                  >
+                    <RemixIcon icon={ChevronLeftIcon} size={13} />
+                    Back
+                  </button>
+                </Show>
+                <Show when={currentStep() === "cloudflare"}>
                   <button
                     type="button"
                     class="ob-back"

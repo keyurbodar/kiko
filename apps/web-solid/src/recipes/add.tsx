@@ -168,7 +168,7 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
                       />
                     </Show>
                     <Show when={cursor() === i() && !(o.kind === "chat" && o.targets.length > 1)}>
-                      <kbd class="rounded-control border border-line px-1.5 py-px font-sans text-[11px]">↵</kbd>
+                      <kbd class="rounded-control border border-line px-1.5 py-px font-sans text-hint">↵</kbd>
                     </Show>
                   </Show>
                 </span>

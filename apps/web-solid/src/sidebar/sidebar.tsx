@@ -1,11 +1,11 @@
 import { Link, useLocation } from "@tanstack/solid-router"
-import { type Component, createEffect, createSignal, For, Show, Suspense } from "solid-js"
+import { Suspense } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { HelpIcon, SearchIcon, SettingsIcon, SidebarLeftIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { session } from "../app/session"
 import { profile } from "../app/hosted"
-import { SECTIONS, type SectionId } from "../app/sections"
+import type { SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { inSettings, openSettings } from "../settings/open"
@@ -13,13 +13,6 @@ import { ChatPanel } from "./chat-panel"
 import { SidebarNav } from "./nav"
 import "./sidebar.css"
 import UpdatePill from "../app/update-pill"
-import RecipesSidebar from "./recipes/sidebar"
-
-const PANELS: Record<SectionId, Component> = {
-  chat: ChatPanel,
-  recipes: RecipesSidebar,
-}
-const SECTION_IDS = SECTIONS.map((section) => section.id)
 
 export interface SidebarProps {
   section: SectionId | null
@@ -29,12 +22,6 @@ export interface SidebarProps {
 
 export function Sidebar(props: SidebarProps) {
   const collapsed = () => props.collapsed
-  const shown = (): SectionId => props.section ?? "chat"
-  const [visited, setVisited] = createSignal<ReadonlySet<SectionId>>(new Set())
-  createEffect(() => {
-    const id = props.section
-    if (id && !visited().has(id)) setVisited((seen) => new Set(seen).add(id))
-  })
 
   return (
     <aside
@@ -55,20 +42,9 @@ export function Sidebar(props: SidebarProps) {
       <SidebarNav />
 
       <div class="panel-scroll">
-        <For each={SECTION_IDS}>
-          {(id) => {
-            const Panel = PANELS[id]
-            return (
-              <Show when={id === "chat" || visited().has(id)}>
-                <div class="panel-slot" data-slot={id} data-hidden={shown() === id ? undefined : ""}>
-                  <Suspense>
-                    <Panel />
-                  </Suspense>
-                </div>
-              </Show>
-            )
-          }}
-        </For>
+        <div class="panel-slot" data-slot="chat">
+          <ChatPanel />
+        </div>
       </div>
 
       <Foot />

@@ -1,4 +1,4 @@
-import type { Actor, FileRef } from "@kiko/protocol"
+import type { Actor, AgentSlug, FileRef, OwnerFile, RoomId } from "@kiko/protocol"
 import type { Step } from "@kiko/durable/migrate"
 
 export type FileRow = {
@@ -113,6 +113,18 @@ export function listSpace(
       .toArray()
       .map((r) => r.path),
   }
+}
+
+export function listOwnerFiles(storage: DurableObjectStorage, t: Tables = ROOM_TABLES): OwnerFile[] {
+  return storage.sql
+    .exec<FileRow & { room_id: string; at: number }>(`SELECT * FROM ${t.files} ORDER BY at DESC, path`)
+    .toArray()
+    .map((r) => ({
+      roomId: r.room_id === "" ? null : (r.room_id as RoomId),
+      file: toRef(r),
+      madeBy: r.author.startsWith("agent:") ? (r.author.slice("agent:".length) as AgentSlug) : null,
+      at: r.at,
+    }))
 }
 
 export class FileIndex<E> {

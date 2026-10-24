@@ -1,5 +1,5 @@
 import { RemixIcon, type Glyph } from "@kiko/ui/remix-icon"
-import { ChevronLeftIcon, ChevronRightIcon } from "@kiko/ui/icons"
+import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, SearchIcon } from "@kiko/ui/icons"
 import { createEffect, createSignal, For, type JSX, on, onCleanup, onMount, Show } from "solid-js"
 import { cn } from "../lib/cn"
 import { pageIn } from "../lib/motion"
@@ -18,21 +18,19 @@ export function PageFrame(props: {
             {(back) => (
               <button
                 type="button"
-                class="group -ml-1 flex w-fit cursor-pointer items-center gap-1 rounded-row px-1 py-0.5 text-[13px] text-fg3 transition-colors duration-[var(--dur-hover)] hover:text-fg"
+                class="group type-label -ml-1 flex w-fit cursor-pointer items-center gap-1 rounded-row px-1 py-0.5 text-fg3 transition-colors duration-(--dur-hover) hover:text-fg"
                 onClick={back().onClick}
               >
                 <RemixIcon
                   icon={ChevronLeftIcon}
                   size={14}
-                  class="transition-transform duration-[var(--dur-hover)] group-hover:-translate-x-0.5"
+                  class="transition-transform duration-(--dur-hover) group-hover:-translate-x-0.5"
                 />
                 {back().label}
               </button>
             )}
           </Show>
-          <h1 class="font-display text-[40px] leading-[44px] font-normal tracking-[-0.01em] text-fg [font-variation-settings:var(--display-variation)]">
-            {props.title}
-          </h1>
+          <h1 class="type-page text-fg">{props.title}</h1>
         </header>
         {props.children}
       </div>
@@ -82,7 +80,7 @@ export function PageTabs<T extends string>(props: {
       aria-label={props.label}
       class={cn(
         "page-tabs relative flex w-fit items-center",
-        props.quiet ? "gap-0.5 rounded-[11px] bg-panel p-0.5" : "gap-1",
+        props.quiet ? "gap-0.5 rounded-row bg-panel p-0.5" : "gap-1",
       )}
       data-settled={settled() ? "" : undefined}
       data-component={props["data-component"]}
@@ -94,7 +92,7 @@ export function PageTabs<T extends string>(props: {
             aria-hidden="true"
             class={cn(
               "page-tabs-pill absolute top-0 left-0 bg-active",
-              props.quiet ? "top-0.5 h-[calc(100%-4px)] rounded-[9px]" : "h-full rounded-[10px]",
+              props.quiet ? "top-0.5 h-[calc(100%-4px)] rounded-control" : "h-full rounded-row",
             )}
             style={{ width: `${p().w}px`, transform: `translateX(${p().x}px)` }}
           />
@@ -107,7 +105,7 @@ export function PageTabs<T extends string>(props: {
             role="tab"
             aria-selected={props.value === option.value}
             tabindex={props.value === option.value ? 0 : -1}
-            class="relative z-[1] flex h-8 cursor-pointer items-center gap-2 rounded-[10px] px-3.5 text-[14px] font-medium text-fg2 transition-colors duration-[var(--dur-hover)] hover:text-fg aria-selected:text-fg"
+            class="type-ui relative z-[1] flex h-control cursor-pointer items-center gap-2 rounded-row px-3.5 font-medium text-fg2 transition-colors duration-(--dur-hover) hover:text-fg aria-selected:text-fg"
             data-section={option["data-section"]}
             data-tag={option["data-tag"]}
             onClick={() => props.onChange(option.value)}
@@ -117,6 +115,50 @@ export function PageTabs<T extends string>(props: {
         )}
       </For>
     </div>
+  )
+}
+
+export const toolButton =
+  "grid size-8 cursor-pointer place-items-center rounded-control text-fg2 transition-[background-color,color,transform] duration-(--dur-hover) hover:bg-hover hover:text-fg active:scale-[0.97] aria-pressed:bg-active aria-pressed:text-fg"
+
+export const primaryButton =
+  "type-ui flex h-control cursor-pointer items-center gap-2 rounded-control bg-fg px-3 font-medium text-on-fg transition-transform duration-(--dur-hover) active:scale-[0.97]"
+
+export const secondaryButton =
+  "type-ui flex h-control cursor-pointer items-center gap-2 rounded-control bg-raise px-3 font-medium text-fg transition-[background-color,transform] duration-(--dur-hover) hover:bg-hover active:scale-[0.97]"
+
+export function PageSearch(props: { label: string; query: string; onQuery: (query: string) => void }) {
+  const [open, setOpen] = createSignal(false)
+  let input: HTMLInputElement | undefined
+  const toggle = () => {
+    const next = !open()
+    setOpen(next)
+    if (next) queueMicrotask(() => input?.focus())
+    else props.onQuery("")
+  }
+  return (
+    <>
+      <Show when={open()}>
+        <label class="motion-page-in flex h-control w-[min(240px,40vw)] items-center gap-2 rounded-control bg-panel px-3 text-fg3">
+          <RemixIcon icon={SearchIcon} size={15} />
+          <input
+            ref={input}
+            type="search"
+            class="type-row min-w-0 flex-1 bg-transparent font-normal text-fg outline-none placeholder:text-fg4"
+            placeholder={props.label}
+            aria-label={props.label}
+            value={props.query}
+            onInput={(e) => props.onQuery(e.currentTarget.value)}
+            onKeyDown={(e) => e.key === "Escape" && toggle()}
+          />
+        </label>
+      </Show>
+      <ToolButton
+        label={open() ? "Close search" : props.label}
+        icon={open() ? CloseIcon : SearchIcon}
+        onClick={toggle}
+      />
+    </>
   )
 }
 
@@ -133,7 +175,7 @@ export function ToolButton(props: {
       type="button"
       aria-label={props.label}
       aria-pressed={props.pressed}
-      class="grid size-8 cursor-pointer place-items-center rounded-[9px] text-fg2 transition-[background-color,color,transform] duration-[var(--dur-hover)] hover:bg-hover hover:text-fg active:scale-[0.97] aria-pressed:bg-active aria-pressed:text-fg"
+      class={toolButton}
       onClick={() => props.onClick?.()}
     >
       <RemixIcon icon={props.icon} size={17} />
@@ -144,23 +186,23 @@ export function ToolButton(props: {
 export function SectionHead(props: { title: string; count?: number; onAll?: () => void; allLabel?: string }) {
   return (
     <div class="flex h-8 items-end justify-between">
-      <h2 class="flex items-baseline gap-2 text-[15px] font-semibold text-fg">
+      <h2 class="type-row flex items-baseline gap-2 text-fg2">
         {props.title}
         <Show when={props.count !== undefined}>
-          <span class="text-[13px] font-normal text-fg4">{props.count}</span>
+          <span class="type-label text-fg4">{props.count}</span>
         </Show>
       </h2>
       <Show when={props.onAll}>
         <button
           type="button"
-          class="group flex cursor-pointer items-center gap-1 text-[13px] text-fg3 transition-colors duration-[var(--dur-hover)] hover:text-fg"
+          class="group type-label flex cursor-pointer items-center gap-1 text-fg3 transition-colors duration-(--dur-hover) hover:text-fg"
           onClick={props.onAll}
         >
           {props.allLabel ?? "Show all"}
           <RemixIcon
             icon={ChevronRightIcon}
             size={13}
-            class="transition-transform duration-[var(--dur-hover)] group-hover:translate-x-0.5"
+            class="transition-transform duration-(--dur-hover) group-hover:translate-x-0.5"
           />
         </button>
       </Show>
@@ -177,8 +219,8 @@ export function SkeletonRows(props: { count: number; grid?: boolean }) {
     >
       <For each={Array.from({ length: props.count })}>
         {() => (
-          <div class="flex items-center gap-3 rounded-2xl bg-panel p-4">
-            <span class="motion-skeleton size-10 shrink-0 rounded-[12px]" />
+          <div class="flex items-center gap-3 rounded-card bg-panel p-4">
+            <span class="motion-skeleton size-10 shrink-0 rounded-tile" />
             <span class="flex flex-1 flex-col gap-2">
               <span class="motion-skeleton h-3.5 w-1/3 rounded-control" />
               <span class="motion-skeleton h-3 w-2/3 rounded-control" />

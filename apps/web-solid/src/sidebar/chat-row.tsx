@@ -1,5 +1,5 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { MuteIcon, PinFillIcon } from "@kiko/ui/icons"
+import { MoreIcon, MuteIcon, PinFillIcon } from "@kiko/ui/icons"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { openAvatarPicker } from "../avatar/picker-state"
@@ -11,13 +11,14 @@ import { agentDisplayName } from "../lib/names"
 import { cachedTail, room } from "../state/room"
 import { user } from "../state/user"
 import { draftBook } from "../composer/draft-book"
-import type { BotPresence, ChatMessage, RosterBot } from "../lib/types"
+import type { ChatMessage, RosterBot } from "../lib/types"
 import {
   cancelRename,
   clearUnreadMark,
   closeChat,
   commitRename,
   deleteChat,
+  isLeaving,
   markedUnread,
   markUnread,
   renamingId,
@@ -42,17 +43,9 @@ function rowStamp(updatedAt: number, now: number): string {
   return `${Math.floor(delta / DAY)}d`
 }
 
-const PRESENCE: Record<BotPresence, string> = {
-  idle: "Idle",
-  typing: "Typing",
-  working: "Working",
-  sleeping: "Sleeping",
-}
-
 function ChatMenuItems(props: { id: string }) {
   const chat = createMemo(() => user.chats().find((c) => c.roomId === props.id))
   const active = () => room.activeId()
-  const [sure, setSure] = createSignal(false)
   return (
     <>
       <MenuV2.Item onSelect={() => startRename(props.id)} shortcut="F2">
@@ -71,12 +64,8 @@ function ChatMenuItems(props: { id: string }) {
       <MenuV2.Item onSelect={() => closeChat(props.id, active())}>Close</MenuV2.Item>
       <MenuV2.Separator />
       <Show when={!chat()?.kiko} fallback={<MenuV2.Item disabled>Kiko can't be deleted</MenuV2.Item>}>
-        <MenuV2.Item
-          class="text-bad"
-          closeOnSelect={false}
-          onSelect={() => (sure() ? deleteChat(props.id, active()) : setSure(true))}
-        >
-          {sure() ? "Delete chat?" : "Delete"}
+        <MenuV2.Item class="text-bad" data-action="delete-chat" onSelect={() => deleteChat(props.id, active())}>
+          <span class="text-bad">Delete</span>
         </MenuV2.Item>
       </Show>
     </>
@@ -84,6 +73,9 @@ function ChatMenuItems(props: { id: string }) {
 }
 
 const [openPreview, setOpenPreview] = createSignal<string | null>(null)
+let previewClosedAt = 0
+const HANDOFF_MS = 400
+const fine = () => typeof matchMedia !== "undefined" && matchMedia("(hover: hover) and (pointer: fine)").matches
 
 if (typeof document !== "undefined") {
   const close = () => setOpenPreview(null)
@@ -101,20 +93,16 @@ function previewState(id: string) {
   const open = () => openPreview() === id
   const set = (on: boolean) => {
     if (on) setOpenPreview(id)
-    else if (open()) setOpenPreview(null)
+    else if (open()) {
+      previewClosedAt = performance.now()
+      setOpenPreview(null)
+    }
   }
-  return [open, set] as const
+  const delay = () => (openPreview() !== null || performance.now() - previewClosedAt < HANDOFF_MS ? 0 : 500)
+  return [open, set, delay] as const
 }
 
-function ChatPreview(props: { bot: RosterBot }) {
-  const cached = cachedTail(
-    () => props.bot.id,
-    () => true,
-  )
-  const tail = createMemo(() => {
-    const live = room.activeId() === props.bot.id ? room.messages() : cached()
-    return live.filter(isListed).slice(-3)
-  })
+function ChatPreview(props: { bot: RosterBot; tail: readonly ChatMessage[] }) {
   const name = (slug: string) => agentDisplayName(slug, user.agents())
   const speaker = (message: ChatMessage) =>
     message.sender === "user"
@@ -124,26 +112,14 @@ function ChatPreview(props: { bot: RosterBot }) {
         : agentDisplayName(message.botId, user.agents())
 
   return (
-    <div class="w-[280px] p-3" data-component="sidebar-preview">
-      <div class="flex items-center gap-2.5">
-        <ChatAvatar faces={room.chatFaces(props.bot.id)} size={32} />
-        <div class="min-w-0">
-          <div class="truncate text-[13px] font-semibold text-fg">{props.bot.name}</div>
-          <div class="truncate text-[11px] text-fg3">{PRESENCE[props.bot.presence]}</div>
-        </div>
-      </div>
-
-      <Show when={tail().length > 0}>
-        <div class="mt-2.5 flex flex-col gap-1.5">
-          <For each={tail()}>
-            {(message) => (
-              <p class="line-clamp-2 text-[12px] leading-snug text-fg3">
-                <span class="font-semibold text-fg">{speaker(message)}:</span> {quoteOf(message, name)}
-              </p>
-            )}
-          </For>
-        </div>
-      </Show>
+    <div class="flex w-[280px] flex-col gap-1.5 p-3" data-component="sidebar-preview">
+      <For each={props.tail}>
+        {(message) => (
+          <p class="type-label line-clamp-2 text-fg3">
+            <span class="font-semibold text-fg">{speaker(message)}:</span> {quoteOf(message, name)}
+          </p>
+        )}
+      </For>
     </div>
   )
 }
@@ -258,6 +234,74 @@ function RowPreview(props: { bot: RosterBot; need: Need | undefined; live: boole
   )
 }
 
+function RowBody(props: {
+  bot: RosterBot
+  now: number
+  muted: boolean
+  pinMark?: boolean
+  enter?: boolean
+  need?: Need
+  draft: string
+}) {
+  const [pinBounce, setPinBounce] = createSignal(props.enter === true)
+  const live = () => isLive(props.bot)
+  const faces = () => room.chatFaces(props.bot.id)
+  return (
+    <>
+      <span class="chat-avatar" data-faces={faces().length}>
+        <ChatAvatar faces={faces()} size={faces().length > 1 ? 26 : 25} />
+      </span>
+
+      <span class="chat-text">
+        <span class="chat-line">
+          <RowTitle id={props.bot.id} title={props.bot.name} />
+          <Show when={props.pinMark && props.bot.pinned}>
+            <RemixIcon
+              icon={PinFillIcon}
+              size={11}
+              class="chat-pin-icon"
+              data-bounce={pinBounce() ? "" : undefined}
+              onAnimationEnd={() => setPinBounce(false)}
+            />
+          </Show>
+          <Show when={props.muted}>
+            <RemixIcon icon={MuteIcon} size={12} class="chat-muted-icon" />
+          </Show>
+          <span class="chat-time">{rowStamp(props.bot.updatedAt, props.now)}</span>
+        </span>
+
+        <span class="chat-line">
+          <span
+            class="chat-preview"
+            data-live={live() ? "" : undefined}
+            data-empty={!props.bot.preview && !props.draft && !live() && !props.need ? "" : undefined}
+          >
+            <RowPreview bot={props.bot} need={props.need} live={live()} draft={props.draft} />
+          </span>
+        </span>
+      </span>
+    </>
+  )
+}
+
+function RowMore(props: { id: string; name: string; onOpenChange: (open: boolean) => void }) {
+  return (
+    <MenuV2 gutter={4} placement="bottom-start" onOpenChange={props.onOpenChange}>
+      <MenuV2.Trigger class="chat-more" data-action="chat-row-menu" aria-label={`More for ${props.name}`}>
+        <RemixIcon icon={MoreIcon} size={16} />
+      </MenuV2.Trigger>
+      <MenuV2.Portal>
+        <MenuV2.Content data-component="sidebar-chat-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
+          <ChatMenuItems id={props.id} />
+        </MenuV2.Content>
+      </MenuV2.Portal>
+    </MenuV2>
+  )
+}
+
+const plainClick = (event: MouseEvent) =>
+  event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
+
 export function ChatRow(props: {
   bot: RosterBot
   muted: boolean
@@ -269,30 +313,30 @@ export function ChatRow(props: {
   need?: Need
   pinMark?: boolean
 }) {
-  const [menuOpen, setMenuOpen] = createSignal(false)
-  const [previewOpen, setPreviewOpen] = previewState(props.bot.id)
+  const [contextOpen, setContextOpen] = createSignal(false)
+  const [moreOpen, setMoreOpen] = createSignal(false)
+  const menuOpen = () => contextOpen() || moreOpen()
+  const [previewOpen, setPreviewOpen, previewDelay] = previewState(props.bot.id)
+  const [hovered, setHovered] = createSignal(false)
+  const tail = cachedTail(() => props.bot.id, hovered)
+  const recent = createMemo(() => {
+    const live = room.activeId() === props.bot.id ? room.messages() : tail()
+    return live.filter(isListed).slice(-3)
+  })
   const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id) || props.need !== undefined
-  const [pinBounce, setPinBounce] = createSignal(props.enter === true)
-  const live = () => isLive(props.bot)
   const draft = () => {
     const book = draftBook()
     return props.active || !book?.has(props.bot.id) ? "" : (book.get(props.bot.id)?.text.trim() ?? "")
   }
-
-  const select = () => {
+  const onClick = (event: MouseEvent) => {
+    if (!plainClick(event)) return
+    event.preventDefault()
     clearUnreadMark(props.bot.id)
     openChat(props.bot.id)
   }
 
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== "Enter" && event.key !== " ") return
-    if (event.target !== event.currentTarget) return
-    event.preventDefault()
-    select()
-  }
-
   return (
-    <MenuV2.Context gutter={8} onOpenChange={setMenuOpen}>
+    <MenuV2.Context gutter={8} onOpenChange={setContextOpen}>
       <MenuV2.Context.Trigger
         as="div"
         class="chat-row"
@@ -307,63 +351,46 @@ export function ChatRow(props: {
         data-unread={unread() ? "" : undefined}
         data-draft={draft() ? "" : undefined}
         data-muted={props.muted ? "" : undefined}
-        data-live={live() ? "" : undefined}
+        data-live={isLive(props.bot) ? "" : undefined}
         data-need={props.need?.kind}
         data-enter={props.enter ? "" : undefined}
-        aria-current={props.active ? "true" : undefined}
-        role="button"
-        tabindex={0}
-        onClick={select}
-        onKeyDown={onKeyDown}
+        data-menu-open={menuOpen() ? "" : undefined}
+        data-leaving={isLeaving(props.bot.id) ? "" : undefined}
+        onPointerEnter={(event: PointerEvent) => event.pointerType === "mouse" && setHovered(true)}
       >
         <HoverCardV2
-          open={previewOpen() && !menuOpen() && renamingId() !== props.bot.id}
+          open={fine() && previewOpen() && recent().length > 0 && !menuOpen() && renamingId() !== props.bot.id}
           onOpenChange={setPreviewOpen}
-          openDelay={400}
-          closeDelay={150}
+          openDelay={previewDelay()}
+          closeDelay={120}
           placement="right-start"
-          gutter={12}
+          gutter={8}
+          getAnchorRect={(anchor) => anchor?.parentElement?.getBoundingClientRect()}
         >
-          <HoverCardV2.Trigger as="span" class="absolute inset-0 z-[1]" aria-hidden="true" />
+          <HoverCardV2.Trigger
+            class="chat-link"
+            href={`/chat/${encodeURIComponent(props.bot.id)}`}
+            aria-current={props.active ? "page" : undefined}
+            aria-label={props.bot.name}
+            onClick={onClick}
+          />
           <HoverCardV2.Portal>
             <HoverCardV2.Content>
-              <ChatPreview bot={props.bot} />
+              <ChatPreview bot={props.bot} tail={recent()} />
             </HoverCardV2.Content>
           </HoverCardV2.Portal>
         </HoverCardV2>
 
-        <span class="chat-avatar" data-faces={room.chatFaces(props.bot.id).length}>
-          <ChatAvatar faces={room.chatFaces(props.bot.id)} size={room.chatFaces(props.bot.id).length > 1 ? 26 : 25} />
-        </span>
-
-        <span class="chat-text">
-          <span class="chat-line">
-            <RowTitle id={props.bot.id} title={props.bot.name} />
-            <Show when={props.pinMark && props.bot.pinned}>
-              <RemixIcon
-                icon={PinFillIcon}
-                size={11}
-                class="chat-pin-icon"
-                data-bounce={pinBounce() ? "" : undefined}
-                onAnimationEnd={() => setPinBounce(false)}
-              />
-            </Show>
-            <Show when={props.muted}>
-              <RemixIcon icon={MuteIcon} size={12} class="chat-muted-icon" />
-            </Show>
-            <span class="chat-time">{rowStamp(props.bot.updatedAt, props.now)}</span>
-          </span>
-
-          <span class="chat-line">
-            <span
-              class="chat-preview"
-              data-live={live() ? "" : undefined}
-              data-empty={!props.bot.preview && !draft() && !live() && !props.need ? "" : undefined}
-            >
-              <RowPreview bot={props.bot} need={props.need} live={live()} draft={draft()} />
-            </span>
-          </span>
-        </span>
+        <RowBody
+          bot={props.bot}
+          now={props.now}
+          muted={props.muted}
+          pinMark={props.pinMark}
+          enter={props.enter}
+          need={props.need}
+          draft={draft()}
+        />
+        <RowMore id={props.bot.id} name={props.bot.name} onOpenChange={setMoreOpen} />
       </MenuV2.Context.Trigger>
 
       <MenuV2.Context.Portal>

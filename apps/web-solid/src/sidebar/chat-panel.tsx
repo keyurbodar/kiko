@@ -1,12 +1,12 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ChevronDownIcon, PlusIcon, SlidersIcon } from "@kiko/ui/icons"
+import { ChevronDownIcon, PlusIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createMemo, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js"
 import { runCommand } from "../commands/registry"
 import type { RosterBot } from "../lib/types"
 import { room } from "../state/room"
 import { user } from "../state/user"
-import { markedUnread } from "./actions"
+import { isDeleted, markedUnread } from "./actions"
 import { ChatRow, isLive } from "./chat-row"
 import { filterRows, pinnedRows } from "./filter"
 import { flipRows, glideActive } from "./flip"
@@ -32,7 +32,9 @@ function SectionLabel(props: {
         data-open={props.open ? "" : undefined}
         onClick={props.onToggle}
       >
-        {props.label}
+        <Show when={props.label} keyed>
+          {(label) => <span class="chat-section-name">{label}</span>}
+        </Show>
         <RemixIcon icon={ChevronDownIcon} size={11} class="chat-section-chevron" />
       </button>
       <span class="chat-section-actions">{props.children}</span>
@@ -69,7 +71,7 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
 
   const shown = createMemo(() =>
     filterRows(
-      props.bots,
+      props.bots.filter((bot) => !isDeleted(bot.id)),
       { query: "", unreadOnly: unreadOnly() },
       (row) => row.unread > 0 || markedUnread(row.id) || props.needs.has(row.id),
     ),
@@ -108,25 +110,26 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
     () => props.activeId,
   )
 
+  const latest = (id: string) => createMemo<RosterBot>((prev) => byId().get(id) ?? prev, byId().get(id) as RosterBot)
+
   const rows = (ids: () => readonly string[], pinMark = false) => (
     <For each={ids()}>
-      {(id) => (
-        <Show when={byId().get(id)}>
-          {(bot) => (
-            <ChatRow
-              bot={bot()}
-              hint={jumpHint().get(id)}
-              active={props.activeId === id}
-              main={id === props.mainId}
-              muted={props.muted.has(id)}
-              now={props.now}
-              enter={settled()}
-              pinMark={pinMark}
-              need={props.needs.get(id)}
-            />
-          )}
-        </Show>
-      )}
+      {(id) => {
+        const bot = latest(id)
+        return (
+          <ChatRow
+            bot={bot()}
+            hint={jumpHint().get(id)}
+            active={props.activeId === id}
+            main={id === props.mainId}
+            muted={props.muted.has(id)}
+            now={props.now}
+            enter={settled()}
+            pinMark={pinMark}
+            need={props.needs.get(id)}
+          />
+        )
+      }}
     </For>
   )
 
@@ -150,7 +153,17 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
           <Fold open={open().pinned}>{rows(pinnedIds, true)}</Fold>
         </div>
       </Show>
-      <SectionLabel label="Chats" open={open().chats} onToggle={() => toggle("chats")}>
+      <SectionLabel label={unreadOnly() ? "Unread" : "Chats"} open={open().chats} onToggle={() => toggle("chats")}>
+        <button
+          type="button"
+          class="chat-section-filter"
+          data-component="sidebar-filter"
+          aria-label="Show unread only"
+          aria-pressed={unreadOnly()}
+          onClick={() => setUnreadOnly(!unreadOnly())}
+        >
+          Unread
+        </button>
         <TooltipV2 placement="bottom" openDelay={400} value="New chat">
           <button
             type="button"
@@ -162,22 +175,13 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
             <RemixIcon icon={PlusIcon} size={15} />
           </button>
         </TooltipV2>
-        <TooltipV2 placement="bottom" openDelay={400} value="Unread only">
-          <button
-            type="button"
-            class="chat-section-button"
-            data-component="sidebar-filter"
-            aria-label="Show unread only"
-            aria-pressed={unreadOnly()}
-            onClick={() => setUnreadOnly(!unreadOnly())}
-          >
-            <RemixIcon icon={SlidersIcon} size={15} />
-          </button>
-        </TooltipV2>
       </SectionLabel>
       <Show when={shown().length === 0 && unreadOnly()}>
-        <div class="chat-empty" data-component="sidebar-empty">
-          No unread chats
+        <div class="chat-empty type-label" data-component="sidebar-empty">
+          <span>You're all caught up</span>
+          <button type="button" class="chat-empty-link link-grow" onClick={() => setUnreadOnly(false)}>
+            Show all
+          </button>
         </div>
       </Show>
       <Show when={props.loading}>

@@ -1,15 +1,14 @@
 import type { RecipeCard } from "@kiko/protocol"
-import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CloseIcon, SearchIcon } from "@kiko/ui/icons"
 import { getRouteApi } from "@tanstack/solid-router"
 import { openChat } from "../app/history"
 import { createMemo, createSignal, For, type JSX, Show } from "solid-js"
 import { pageIn } from "../lib/motion"
 import { room } from "../state/room"
-import { PageFrame, PageTabs, SectionHead, SkeletonRows, ToolButton } from "../customize/page-ui"
+import { PageFrame, PageSearch, PageTabs, SectionHead, SkeletonRows } from "../customize/page-ui"
 import { byChatOrder, filterRecipes, openingSection, recipeTags, type Section, type TagFilter, tagLabel } from "./model"
 import { InstallCard } from "./row"
 import { ConnectSheet } from "./connect"
+import { NewRecipe } from "./new-recipe"
 import { RecipeSheet } from "./sheet"
 import {
   addToTarget,
@@ -25,13 +24,13 @@ import {
 import { RecipeTile } from "./tile"
 
 const tagTab =
-  "h-7 shrink-0 cursor-pointer rounded-full px-3 text-[13px] text-fg3 transition-colors duration-[var(--dur-hover)] hover:bg-hover hover:text-fg aria-selected:bg-active aria-selected:text-fg"
+  "type-label h-chip shrink-0 cursor-pointer rounded-full px-3 text-fg3 transition-colors duration-(--dur-hover) hover:bg-hover hover:text-fg aria-selected:bg-active aria-selected:text-fg"
 const grid = "grid grid-cols-1 gap-x-4 gap-y-1 @min-[640px]/page:grid-cols-2"
 
 function Empty(props: { title: string; children?: JSX.Element }) {
   return (
     <div class="flex flex-col items-center gap-2 px-6 py-14 text-center">
-      <p class="text-[15px] text-fg2">{props.title}</p>
+      <p class="type-ui text-fg2">{props.title}</p>
       {props.children}
     </div>
   )
@@ -54,7 +53,6 @@ export default function RecipesPage() {
   )
   const tags = createMemo(() => ["all", ...recipeTags(cards())])
   const shown = createMemo(() => filterRecipes(cards(), query(), tag()))
-  const [searching, setSearching] = createSignal(false)
   const [picked, setSection] = createSignal<Section | null>(null)
   const opening = createMemo<Section | undefined>((settled) => settled ?? openingSection(knownInstalls(), !!roomId()))
   const section = () => picked() ?? opening()
@@ -69,13 +67,6 @@ export default function RecipesPage() {
     const have = new Set(yours().map((i) => i.slug))
     return filterRecipes(cards(), query(), "all").filter((c) => !have.has(c.slug))
   })
-  let search: HTMLInputElement | undefined
-  const toggleSearch = () => {
-    const next = !searching()
-    setSearching(next)
-    if (next) queueMicrotask(() => search?.focus())
-    else setQuery("")
-  }
 
   return (
     <PageFrame title="Recipes">
@@ -95,26 +86,8 @@ export default function RecipesPage() {
                   data-component="recipes-sections"
                 />
                 <div class="flex items-center gap-1">
-                  <Show when={searching()}>
-                    <label class="flex h-8 w-[min(240px,50vw)] items-center gap-2 rounded-[9px] bg-panel px-3 text-fg3">
-                      <RemixIcon icon={SearchIcon} size={15} />
-                      <input
-                        ref={search}
-                        type="search"
-                        class="min-w-0 flex-1 bg-transparent text-[13.5px] text-fg outline-none placeholder:text-fg4"
-                        placeholder="Search recipes"
-                        aria-label="Search recipes"
-                        value={query()}
-                        onInput={(e) => setQuery(e.currentTarget.value)}
-                        onKeyDown={(e) => e.key === "Escape" && toggleSearch()}
-                      />
-                    </label>
-                  </Show>
-                  <ToolButton
-                    label={searching() ? "Close search" : "Search recipes"}
-                    icon={searching() ? CloseIcon : SearchIcon}
-                    onClick={toggleSearch}
-                  />
+                  <PageSearch label="Search recipes" query={query()} onQuery={setQuery} />
+                  <NewRecipe />
                 </div>
               </div>
 
@@ -124,7 +97,18 @@ export default function RecipesPage() {
                     when={yours().length}
                     fallback={
                       <Show when={!query()} fallback={<Empty title="Nothing of yours matches" />}>
-                        <Empty title="No recipes yet. Your team is free." />
+                        <div
+                          class="flex flex-col items-start gap-4 rounded-card bg-panel p-6"
+                          data-component="recipes-empty"
+                        >
+                          <div class="flex flex-col gap-1">
+                            <p class="type-row text-fg">No recipes yet</p>
+                            <p class="type-label text-fg3">
+                              Recipes are jobs your team runs on a schedule or when something happens.
+                            </p>
+                          </div>
+                          <NewRecipe />
+                        </div>
                       </Show>
                     }
                   >
@@ -179,7 +163,7 @@ export default function RecipesPage() {
 
                   <Show when={broken().length}>
                     <div
-                      class="flex flex-col gap-1 rounded-[16px] bg-panel px-4 py-3 text-[13px] text-fg3"
+                      class="flex flex-col gap-1 type-label rounded-card bg-panel px-4 py-3 text-fg3"
                       data-component="recipes-broken"
                     >
                       <p class="font-medium text-fg">Some recipe files did not load</p>

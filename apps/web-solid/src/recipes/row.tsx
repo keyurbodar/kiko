@@ -8,8 +8,16 @@ import { cn } from "../lib/cn"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
 import { room } from "../state/room"
 import { iconButtonClass, Spinner } from "../settings/kit"
-import { type InstallStatus, installStatus, nextRunLabel } from "./model"
-import { agentName, editRecipe, isEditing, removeInstall, setInstallPaused, targetsForChat } from "./state"
+import { type InstallStatus, installStatus, localizeWhen, nextRunLabel } from "./model"
+import {
+  agentName,
+  editRecipe,
+  freshElapsed,
+  isEditing,
+  removeInstall,
+  setInstallPaused,
+  targetsForChat,
+} from "./state"
 
 const pillClass =
   "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-hint text-fg3 hover:bg-active hover:text-fg"
@@ -97,6 +105,7 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
   const chatName = () => room.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
   const status = () => installStatus(props.install, props.card)
   const on = () => status().kind === "next"
+  const sinceFresh = freshElapsed(props.install.slug)
   const note = () => {
     const s = status()
     return s.kind === "next" ? nextRunLabel(s.at, Date.now()) : s.kind === "paused" ? "Paused" : s.label
@@ -106,6 +115,8 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
       class="tpl group flex min-w-0 items-center gap-4 p-3.5"
       data-install={props.install.installId}
       data-status={status().kind}
+      data-fresh={sinceFresh === undefined ? undefined : ""}
+      style={sinceFresh === undefined ? undefined : { "--fresh-skip": `-${sinceFresh}ms` }}
     >
       <span class="tpl-tile">
         <svg
@@ -123,17 +134,17 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
         aria-label={`Open ${chatName()}`}
         onClick={() => openChat(props.install.roomId)}
       >
-        <span class="truncate text-[14px] leading-5 font-semibold text-fg">{props.card.title}</span>
-        <span class="truncate text-[13.5px] leading-5 text-fg3">{props.card.description}</span>
-        <span class="mt-0.5 flex min-w-0 items-center gap-2 text-[13px] text-fg4">
+        <span class="truncate type-ui font-semibold text-fg">{props.card.title}</span>
+        <span class="type-row truncate text-fg3">{props.card.description}</span>
+        <span class="type-label mt-0.5 flex min-w-0 items-center gap-2 text-fg4">
           <RemixIcon icon={ClockIcon} size={14} class="shrink-0" />
-          <span class="truncate">{props.card.when}</span>
+          <span class="truncate">{localizeWhen(props.card.when)}</span>
           <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={18} />
           <span class="truncate">{chatName()}</span>
         </span>
       </button>
       <span class="relative z-[1] flex shrink-0 items-center gap-3">
-        <span class="hidden text-[13px] text-fg3 @min-[560px]/page:block" data-component="recipe-status">
+        <span class="type-label hidden text-fg3 @min-[560px]/page:block" data-component="recipe-status">
           {note()}
         </span>
         <Show when={status().kind !== "ask"}>
@@ -147,7 +158,7 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
             onClick={() => setInstallPaused(props.install, on())}
           />
         </Show>
-        <span class="opacity-0 transition-opacity duration-[var(--dur-hover)] group-hover:opacity-100 group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100">
+        <span class="opacity-0 transition-opacity duration-(--dur-hover) group-hover:opacity-100 group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100">
           <InstallMenu install={props.install} card={props.card} go={openChat} />
         </span>
       </span>
@@ -159,7 +170,7 @@ export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; na
   const title = () => room.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
   return (
     <div
-      class="flex items-center gap-2 rounded-[14px] px-2.5 py-2 hover:bg-hover"
+      class="flex items-center gap-2 rounded-pop px-2.5 py-2 hover:bg-hover"
       data-install={props.install.installId}
       data-status={installStatus(props.install, props.card).kind}
     >
@@ -171,7 +182,7 @@ export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; na
       >
         <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={36} />
         <span class="flex min-w-0 flex-1 flex-col gap-1">
-          <span class="truncate text-[13.5px] font-medium text-fg">{title()}</span>
+          <span class="type-row truncate font-medium text-fg">{title()}</span>
           <span class="flex min-w-0 items-center gap-2">
             <Runner install={props.install} />
             <StatusChip status={installStatus(props.install, props.card)} />

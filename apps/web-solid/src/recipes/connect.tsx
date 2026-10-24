@@ -16,8 +16,8 @@ export function ConnectSheet() {
             <span class="flex items-center gap-3.5 pt-1">
               <RecipeIcon recipe={ask().card} size={44} />
               <span class="flex min-w-0 flex-col gap-0.5">
-                <span class="truncate text-[17px] font-semibold tracking-[-0.01em]">Connect apps first</span>
-                <span class="truncate text-[12.5px] font-normal text-fg3">{ask().card.title} needs them</span>
+                <span class="type-ui truncate font-medium">Connect apps first</span>
+                <span class="type-label truncate text-fg3">{ask().card.title} needs them</span>
               </span>
             </span>
           }
@@ -42,12 +42,12 @@ export function ConnectSheet() {
             <Show
               when={ask().connect.links.length}
               fallback={
-                <p class="text-[14px] leading-relaxed text-fg" data-component="recipe-connect-reason">
+                <p class="type-ui text-fg" data-component="recipe-connect-reason">
                   {ask().connect.reason}
                 </p>
               }
             >
-              <p class="text-[14px] leading-relaxed text-fg">
+              <p class="type-ui text-fg">
                 Open each link, allow access, then come back here. The recipe is added once they are connected.
               </p>
               <For each={ask().connect.links}>

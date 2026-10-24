@@ -121,7 +121,26 @@ const including =
   (install: RecipeInstall): Edit =>
   (list) => [...list.filter((i) => i.installId !== install.installId), install]
 
-const recorded = (install: RecipeInstall) => void editInstalls(including(install), () => Promise.resolve())
+const FRESH_MS = 1200
+const FRESH_VALID_MS = 60_000
+const fresh = new Map<string, { at: number; shown?: number }>()
+
+const markFresh = (slug: string) => fresh.set(slug, { at: Date.now() })
+
+export function freshElapsed(slug: string): number | undefined {
+  const found = fresh.get(slug)
+  if (!found) return undefined
+  const now = Date.now()
+  if (found.shown === undefined && now - found.at > FRESH_VALID_MS) return void fresh.delete(slug)
+  found.shown ??= now
+  if (now - found.shown >= FRESH_MS) return void fresh.delete(slug)
+  return now - found.shown
+}
+
+const recorded = (install: RecipeInstall) => {
+  if (!fresh.has(install.slug)) markFresh(install.slug)
+  void editInstalls(including(install), () => Promise.resolve())
+}
 
 const failed = (card: RecipeCard, error: string) =>
   showToastV2({ title: `Could not add ${card.title}`, description: error, variant: "error" })
@@ -177,8 +196,10 @@ export function addToTarget(
     agent: target.agent,
   }
   const optimistic = ready(card)
-  if (optimistic) navigate(target.roomId)
-  else mark(setWaiting, card.slug, true)
+  if (optimistic) {
+    markFresh(card.slug)
+    navigate(target.roomId)
+  } else mark(setWaiting, card.slug, true)
   void editInstalls(optimistic ? including(install) : (list) => list, async () => {
     const made = await submit(card, body, navigate)
     if (!made) throw new Error("not added")

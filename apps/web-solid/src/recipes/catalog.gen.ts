@@ -32,7 +32,7 @@ export const RECIPES: readonly RecipeCard[] = [
     "when": "Daily at 7:00",
     "apps": [],
     "setup": [
-      "which city should i watch?"
+      "which city should I watch?"
     ],
     "agent": {
       "name": "Storm",
