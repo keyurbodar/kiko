@@ -156,7 +156,7 @@ export const IceServer = Schema.Struct({
 export type IceServer = typeof IceServer.Type
 
 export const ToDaemon = Schema.Union([
-  Schema.Struct({ t: Schema.Literal("welcome"), id: Id, name: Text }),
+  Schema.Struct({ t: Schema.Literal("welcome"), id: Id, name: Text, version: Schema.optionalKey(Text) }),
   Schema.Struct({
     t: Schema.Literal("call"),
     id: Id,

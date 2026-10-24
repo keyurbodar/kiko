@@ -43,8 +43,10 @@
         "node-datachannel": "0.33.4",
       },
       "devDependencies": {
+        "@effect/vitest": "4.0.6",
         "@types/bun": "1.3.14",
         "typescript": "^5.9.0",
+        "vitest": "5.0.5",
       },
     },
     "apps/installer": {

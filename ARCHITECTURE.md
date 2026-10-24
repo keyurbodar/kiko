@@ -99,6 +99,7 @@ CI runs `Changes`, `Lint`, `Build and Typecheck`, `Test`, `Test Web` and `Worker
 - **No desktop is not a broken machine.** When cua-driver is missing, or Linux has no `$DISPLAY`/`$WAYLAND_DISPLAY`, `caps.desktop` is false and shell and files keep working.
 - **`src/live/` is the seam for the live view.** `connection.ts` hands `rtc`, `live`, `input` and `control` frames to the `Live` object it is given. The default in `src/live/index.ts` reports no live capability and still forwards holder changes.
 - **Pairing again replaces, never dedupes.** `pair` sends the `pcId` already in the config dir as `replaces`, and the Worker deletes that row in the same turn that inserts the new one, so a re-run install leaves one row. Nothing matches on host or name, because two machines can share both.
+- **The daemon updates itself through `install.sh`.** `welcome` carries the Worker's `BACKEND.version`, and `scripts/build.ts` stamps the same root `package.json` version into the daemon's `VERSION`. On a mismatch it runs `${worker}/pc/install.sh` with no pair link, so the checksums stay in one place, then exits for systemd or launchd to restart it. It tries once per served version per process, backs off after a failure, and waits for running calls. It skips Windows and any daemon that is not a supervised `bin/kiko-computer`, because nothing would restart those.
 - **Writes cost nothing here.** The daemon keeps captures, pending calls and the holder in memory. Nothing is written per call or per ping.
 
 ## Releases

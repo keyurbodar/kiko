@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "@effect/vitest"
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { gzipSync } from "node:zlib"
@@ -36,21 +36,35 @@ function release(assets: Record<string, Uint8Array>): string {
   return dir
 }
 
-function install(body: string, base: string) {
+function install(body: string, base: string, options: { args?: string[]; computerHome?: string } = {}) {
   const home = mkdtempSync(join(tmpdir(), "kiko-home-"))
   const calls = join(home, "calls")
-  const run = spawnSync("sh", ["-s", "--", PAIR], {
+  const computerHome = options.computerHome ?? join(home, ".kiko-computer")
+  const run = spawnSync("sh", ["-s", "--", ...(options.args ?? [PAIR])], {
     input: body,
     encoding: "utf8",
-    env: { PATH: process.env.PATH, HOME: home, KIKO_PC_BASE: `file://${base}`, KIKO_CALLS: calls },
+    env: {
+      PATH: process.env.PATH,
+      HOME: home,
+      KIKO_PC_BASE: `file://${base}`,
+      KIKO_CALLS: calls,
+      KIKO_COMPUTER_HOME: computerHome,
+    },
   })
   return {
     status: run.status,
     stdout: run.stdout,
     stderr: run.stderr,
-    calls: () => readFileSync(calls, "utf8").trim().split("\n"),
-    daemon: () => readFileSync(join(home, ".kiko-computer", "bin", "kiko-computer"), "utf8"),
+    calls: () => (existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n") : []),
+    daemon: () => readFileSync(join(computerHome, "bin", "kiko-computer"), "utf8"),
   }
+}
+
+function installed(daemon: string): string {
+  const computerHome = mkdtempSync(join(tmpdir(), "kiko-computer-"))
+  mkdirSync(join(computerHome, "bin"))
+  writeFileSync(join(computerHome, "bin", "kiko-computer"), daemon)
+  return computerHome
 }
 
 describe.skipIf(process.platform === "win32")("install.sh", () => {
@@ -81,5 +95,26 @@ describe.skipIf(process.platform === "win32")("install.sh", () => {
     const run = install(await script(), base)
     expect(run.status).not.toBe(0)
     expect(run.stderr).toContain("checksum mismatch")
+  })
+
+  it("updates an installed daemon in place without pairing or touching the service", async () => {
+    const daemon = new TextEncoder().encode(FAKE_DAEMON)
+    const computerHome = installed("old daemon")
+    const run = install(await script(), release({ [`${ASSET}.gz`]: gzipSync(daemon) }), { args: [], computerHome })
+    expect(run.stderr).toBe("")
+    expect(run.status).toBe(0)
+    expect(run.daemon()).toBe(FAKE_DAEMON)
+    expect(run.calls()).toEqual([])
+    expect(run.stdout).toContain("kiko: [2/2] checking the download")
+  })
+
+  it("leaves the installed daemon in place when an update fails its checksum", async () => {
+    const base = release({ [`${ASSET}.gz`]: gzipSync(new TextEncoder().encode(FAKE_DAEMON)) })
+    writeFileSync(join(base, `${ASSET}.gz`), "tampered")
+    const computerHome = installed("old daemon")
+    const run = install(await script(), base, { args: [], computerHome })
+    expect(run.status).not.toBe(0)
+    expect(run.stderr).toContain("checksum mismatch")
+    expect(run.daemon()).toBe("old daemon")
   })
 })

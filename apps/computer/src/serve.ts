@@ -7,6 +7,8 @@ import { helloPayload } from "./hello"
 import { emptyLive, startLive, type Live } from "./live"
 import type { LiveCaps } from "./live"
 import { createLogger, type Logger } from "./log"
+import { VERSION } from "./platform"
+import { createUpdater, updateTarget, type Updater } from "./update"
 
 const REDETECT_MS = 10 * 60 * 1000
 const REPAIR_POLL_MS = 30_000
@@ -33,6 +35,7 @@ export async function serve(dir = configDir()): Promise<number> {
   const policy = await loadPolicy(dir)
   let live: Live = emptyLive({ logger: log, setHolder })
   let detection = await detect(dir, log, policy)
+  let update: Updater | null = null
   const host: Host = {
     endpoint: { url: config.url, userId: config.userId, pcId: config.pcId, protocol: PROTOCOL },
     key,
@@ -48,7 +51,11 @@ export async function serve(dir = configDir()): Promise<number> {
     },
     holder: () => holder,
     log,
-    onWelcome: (name) => log.info(`${WELCOMED} ${name}`),
+    onWelcome: (name, version) => {
+      log.info(`${WELCOMED} ${name}`)
+      update?.offer(version)
+    },
+    onIdle: () => update?.idle(),
   }
   const link = runLink(host)
   if (detection.caps.live) {
@@ -73,6 +80,14 @@ export async function serve(dir = configDir()): Promise<number> {
     void detection.driver?.close()
     process.exit(0)
   }
+  update = createUpdater({
+    log,
+    origin: config.url,
+    running: VERSION,
+    target: updateTarget(process.execPath, process.platform, process.env),
+    busy: () => link.busy(),
+    restart: shutdown,
+  })
   process.once("SIGINT", shutdown)
   process.once("SIGTERM", shutdown)
   log.info(

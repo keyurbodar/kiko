@@ -18,6 +18,7 @@ const app = join(import.meta.dir, "..")
 const entry = join(app, "src", "index.ts")
 const outdir = join(app, "dist")
 const addons = join(app, "dist", "addons")
+const { version } = (await Bun.file(join(app, "..", "..", "package.json")).json()) as { version: string }
 
 async function addonFor(target: Target): Promise<string> {
   const dir = join(addons, target.addon)
@@ -52,6 +53,7 @@ async function compile(target: Target): Promise<string> {
   const result = await Bun.build({
     entrypoints: [entry],
     compile: { target: target.bun, outfile },
+    define: { "process.env.KIKO_COMPUTER_VERSION": JSON.stringify(version) },
     plugins: [embedAddon(await addonFor(target))],
   })
   if (!result.success) {
@@ -67,6 +69,6 @@ await Promise.all(
   TARGETS.filter((t) => only.length === 0 || only.includes(t.name)).map(async (target) => {
     const outfile = await compile(target)
     const size = await stat(outfile).then((info) => info.size)
-    console.log(`${target.name}: ${outfile} (${(size / 1024 / 1024).toFixed(1)} MiB)`)
+    console.log(`${target.name} ${version}: ${outfile} (${(size / 1024 / 1024).toFixed(1)} MiB)`)
   }),
 )

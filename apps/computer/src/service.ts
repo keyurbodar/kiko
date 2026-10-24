@@ -3,7 +3,7 @@ import { dirname, join } from "node:path"
 import { CliError } from "./errors"
 import { homeDir } from "./platform"
 
-const LABEL = "com.kiko.computer"
+export const LABEL = "com.kiko.computer"
 const UNIT = "kiko-computer.service"
 const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
 const MAC_PATHS = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]

@@ -18,6 +18,7 @@ import { decodeFrame } from "@kiko/computer/frame"
 import type { AgentSlug, ComputerFrame, ComputerSummary, RoomId } from "@kiko/protocol"
 import type { Env } from "../index"
 import { encodeBase64 } from "../lib/base64"
+import { BACKEND } from "../lib/version"
 import { dropStreams, socketView } from "../owner/socket"
 import { frameChunk, frameSubs, frameText } from "./frames"
 import type { ComputerRow, ComputerStore, NewComputer } from "./store"
@@ -356,7 +357,7 @@ export class ComputerHub {
     }
     ws.serializeAttachment({ ...saved, hello } satisfies PcAttachment)
     this.memory.set(saved.id, { ...saved, hello })
-    this.send(ws, { t: "welcome", id: saved.id, name: this.name(saved.id) })
+    this.send(ws, { t: "welcome", id: saved.id, name: this.name(saved.id), version: BACKEND.version })
     void this.iceServers().catch(() => {})
     this.push()
   }

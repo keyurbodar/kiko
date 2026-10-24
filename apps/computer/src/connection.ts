@@ -38,7 +38,8 @@ export type Host = {
   live: LiveFrames
   holder(): Holder
   log: Logger
-  onWelcome?(name: string): void
+  onWelcome?(name: string, version: string | undefined): void
+  onIdle?(): void
 }
 
 type Call = Extract<Frame, { t: "call" }>
@@ -102,6 +103,10 @@ class Link {
       this.host.log.info(`reconnecting in ${Math.round(wait / 1000)}s`)
       await Bun.sleep(wait)
     }
+  }
+
+  busy(): boolean {
+    return this.pending.size > 0
   }
 
   stop(): void {
@@ -237,7 +242,7 @@ class Link {
       case "ack":
         return this.host.live.ack(frame)
       case "welcome":
-        this.host.onWelcome?.(frame.name)
+        this.host.onWelcome?.(frame.name, frame.version)
     }
   }
 
@@ -256,6 +261,7 @@ class Link {
     } finally {
       clearTimeout(timer)
       this.pending.delete(frame.id)
+      if (this.pending.size === 0) this.host.onIdle?.()
     }
   }
 
