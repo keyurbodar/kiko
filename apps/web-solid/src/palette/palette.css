@@ -614,9 +614,6 @@
   .palette-scrim[data-closing] .palette-panel {
     visibility: hidden;
   }
-  .palette-list > div > [cmdk-group] {
-    animation: palette-settle 160ms var(--ease-kiko);
-  }
   .palette-ask {
     animation: palette-drop 200ms var(--ease-kiko);
   }
@@ -646,11 +643,6 @@
   }
 }
 @keyframes palette-fade {
-  from {
-    opacity: 0;
-  }
-}
-@keyframes palette-settle {
   from {
     opacity: 0;
   }
