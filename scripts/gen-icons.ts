@@ -17,6 +17,7 @@ const ICONS = {
   "chevron-right": "ArrowRight01Icon",
   "arrow-up": "ArrowUp02Icon",
   "arrow-down": "ArrowDown02Icon",
+  "arrow-left": "ArrowLeft02Icon",
   back: "ArrowLeft01Icon",
   reply: "ArrowTurnBackwardIcon",
   undo: "Undo02Icon",

@@ -3,17 +3,48 @@
     box-shadow: 0 4px 10px -6px rgb(0 0 0 / 0.5);
   }
 }
+.desk-tab-close {
+  opacity: 0;
+}
+.desk-tab[aria-selected="true"] .desk-tab-close,
+.desk-tab:focus-visible .desk-tab-close {
+  opacity: 1;
+}
+@media (hover: hover) and (pointer: fine) {
+  .desk-tab:hover .desk-tab-close {
+    opacity: 1;
+  }
+}
+@media not ((hover: hover) and (pointer: fine)) {
+  .desk-tab-close {
+    opacity: 1;
+  }
+}
+@media (width < 768px) {
+  .sidebar-shell .sidecar-overlay[data-component="sidecar-overlay"] {
+    left: 0;
+    width: 100%;
+    box-shadow: none;
+  }
+}
 @media (prefers-reduced-motion: no-preference) {
-  @keyframes card-in {
+  @keyframes desk-push-in {
     from {
       opacity: 0;
-      transform: translateX(12px) scale(0.98);
+      transform: translateX(12px);
     }
   }
-  @keyframes card-fade {
+  @keyframes desk-push-back {
     from {
-      opacity: 0.4;
+      opacity: 0;
+      transform: translateX(-12px);
     }
+  }
+  .desk-push[data-dir="in"] {
+    animation: desk-push-in var(--dur-step) var(--ease-kiko) both;
+  }
+  .desk-push[data-dir="back"] {
+    animation: desk-push-back var(--dur-step) var(--ease-kiko) both;
   }
   @keyframes desk-in {
     from {
@@ -40,12 +71,6 @@
     30% {
       transform: translateY(-2px);
     }
-  }
-  [data-component="chat-card"] {
-    animation: card-in 240ms var(--ease-kiko) both;
-  }
-  [data-component="chat-card"][data-switch] {
-    animation: card-fade 160ms var(--ease-kiko) both;
   }
   .desk-section[data-enter] {
     animation: desk-in var(--dur-pop) var(--ease-kiko) both;

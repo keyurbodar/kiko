@@ -1,4 +1,5 @@
 import { FileTextIcon, FolderOpenIcon, type Glyph, MemoryIcon, RepeatIcon, TasksIcon, WorkerIcon } from "@kiko/ui/icons"
+import { fileName } from "@kiko/protocol"
 import { type Component, lazy } from "solid-js"
 import { roomMembers } from "../info/sections"
 
@@ -45,7 +46,7 @@ export const PANELS = {
     component: view("TasksPanelView"),
   }),
   file: panel<{ path: string }>({
-    label: (surface) => surface.path.slice(surface.path.lastIndexOf("/") + 1),
+    label: (surface) => fileName(surface.path),
     icon: FileTextIcon,
     selfScrolling: true,
     instance: {

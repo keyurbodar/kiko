@@ -11,11 +11,10 @@ import { ToastV2 } from "@kiko/ui/v2/toast-v2"
 import { avatarPickerSlug } from "../avatar/picker-state"
 import { createEffect, createSignal, lazy, on, onCleanup, onMount, Show, Suspense, type ParentProps } from "solid-js"
 import { viewerFor } from "../chat/computers"
-import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces"
+import { closeDesk, deskBack, deskShown, deskView, loadDesk, setDeskCompact } from "../chat/side/surfaces"
 import { preloadMessageSearch } from "../commands/message-search"
 
 import { richLoaded } from "../composer/rich/loaded"
-import { CARD_WIDTH, cardBeside, cardShown, setCardRoom } from "../chat/side/card-state"
 import { useKatCommands } from "../commands/use-kat-commands"
 import { Palette, preloadPalette } from "../palette"
 import { botPickerOpen } from "../chat/bot-picker-state"
@@ -46,9 +45,8 @@ import AvatarPicker from "../avatar/picker"
 import BotPicker from "../chat/bot-picker"
 import NewAgent from "../newagent/dialog"
 import DeleteChatDialog from "../sidebar/delete-chat-dialog"
-import ChatCard from "../chat/side/card"
 
-const idlePreloads = [loadSidecar, preloadMessageSearch]
+const idlePreloads = [loadDesk, preloadMessageSearch]
 
 const fill = (text: string, params?: Record<string, string | number | boolean>) =>
   text.replace(/{{\s*([^}]+?)\s*}}/g, (_, key: string) => String(params?.[key] ?? ""))
@@ -64,12 +62,7 @@ const i18n: UiI18n = {
 }
 
 const ComputerViewer = lazy(() => import("../chat/computer/Viewer"))
-const Sidecar = lazy(loadSidecar)
-const watchPanel = (el: HTMLElement) => {
-  const observer = new ResizeObserver(([entry]) => setCardRoom(entry?.contentRect.width ?? 0))
-  observer.observe(el)
-  onCleanup(() => observer.disconnect())
-}
+const Desk = lazy(loadDesk)
 
 const KEY = "kiko:device:sidebar-collapsed"
 
@@ -106,8 +99,12 @@ export function Shell(props: ParentProps) {
   const [narrow, setNarrow] = createSignal(narrowQuery?.matches ?? false)
   const compactQuery = typeof matchMedia === "function" ? matchMedia("(width < 960px)") : undefined
   const [compact, setCompact] = createSignal(compactQuery?.matches ?? false)
+  setDeskCompact(compact())
   onMount(() => {
-    const on = () => setCompact(compactQuery!.matches)
+    const on = () => {
+      setCompact(compactQuery!.matches)
+      setDeskCompact(compactQuery!.matches)
+    }
     compactQuery?.addEventListener("change", on)
     onCleanup(() => compactQuery?.removeEventListener("change", on))
   })
@@ -145,11 +142,13 @@ export function Shell(props: ParentProps) {
   const sideChat = useChatInView()
   const sideOpen = () => {
     const id = sideChat()
-    return id !== null && sidecarOpen(id)
+    return id !== null && deskShown()
   }
-  const closeSide = () => {
+  const closeSide = closeDesk
+  const swipeBack = () => {
     const id = sideChat()
-    if (id) closeSidecar(id)
+    if (id && deskView(id)) deskBack(id)
+    else closeDesk()
   }
   const overlaidSide = () => (compact() && sideOpen() ? sideChat() : null)
   onMount(() => {
@@ -203,7 +202,7 @@ export function Shell(props: ParentProps) {
       start = null
       if (action === "open-drawer") setDrawer(true)
       else if (action === "close-drawer") setDrawer(false)
-      else if (action === "close-sidecar") closeSide()
+      else if (action === "close-sidecar") swipeBack()
     }
     window.addEventListener("touchstart", down, { passive: true })
     window.addEventListener("touchend", up, { passive: true })
@@ -253,7 +252,7 @@ export function Shell(props: ParentProps) {
     bindCommandHotkeys()
   })
   onMount(() => {
-    if (sideOpen()) void loadSidecar()
+    if (sideOpen()) void loadDesk()
     whenIdle(() => {
       void router.preloadRoute({ to: "/settings/models" }).catch(() => {})
       preloadSearch()
@@ -398,28 +397,8 @@ export function Shell(props: ParentProps) {
                       <div
                         class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
                         data-component="main-panel"
-                        ref={watchPanel}
                       >
-                        <div
-                          class="flex min-w-0 flex-1 flex-col"
-                          style={{
-                            "padding-right": sideChat() !== null && cardBeside() ? `${CARD_WIDTH + 24}px` : undefined,
-                          }}
-                        >
-                          {props.children}
-                        </div>
-                        <Show when={cardShown() ? sideChat() : null} keyed>
-                          {(id) => (
-                            <div
-                              class="absolute top-2 right-3 z-30 flex max-h-[calc(100%-16px)] flex-col"
-                              style={{ width: `${CARD_WIDTH}px` }}
-                            >
-                              <Suspense>
-                                <ChatCard chatId={id} />
-                              </Suspense>
-                            </div>
-                          )}
-                        </Show>
+                        <div class="flex min-w-0 flex-1 flex-col">{props.children}</div>
                       </div>
                       <Show when={searchScope()}>
                         <Suspense>
@@ -468,7 +447,7 @@ export function Shell(props: ParentProps) {
                     <Show when={dockedSide()} keyed>
                       {(chatId) => (
                         <Suspense>
-                          <Sidecar chatId={chatId} />
+                          <Desk chatId={chatId} onClose={closeSide} />
                         </Suspense>
                       )}
                     </Show>
@@ -489,7 +468,7 @@ export function Shell(props: ParentProps) {
               />
               <div class="sidecar-overlay" data-component="sidecar-overlay">
                 <Suspense>
-                  <Sidecar chatId={chatId} />
+                  <Desk chatId={chatId} onClose={closeSide} />
                 </Suspense>
               </div>
             </>
