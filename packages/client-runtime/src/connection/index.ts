@@ -1,4 +1,5 @@
 export { Connectivity, layerAlwaysOnline, layerBrowser as layerBrowserConnectivity } from "./connectivity"
+export { compatibility, readDescriptor, type Descriptor } from "./descriptor"
 export { OwnerEndpoint, type OwnerEndpointOptions } from "./endpoint"
 export {
   ConnectionBlockedError,

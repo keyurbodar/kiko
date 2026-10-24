@@ -791,12 +791,6 @@
   cursor: pointer;
 }
 
-.update-pill[data-kind="blocked"],
-.update-pill[data-kind="failed"] {
-  color: var(--error);
-  background: color-mix(in oklab, var(--error) 14%, transparent);
-}
-
 span.update-pill {
   cursor: default;
 }

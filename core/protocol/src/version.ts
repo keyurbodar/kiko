@@ -3,7 +3,14 @@ import { ReleaseVersion } from "./user"
 
 export const PROTOCOL = 3
 
-export const speaksRpc = (build: { readonly rpc?: unknown }): boolean => build.rpc === true
+export const BackendDescriptor = Schema.Struct({
+  kiko: Schema.Literal(1),
+  version: Schema.String,
+  protocol: Schema.Number,
+  selfUpdate: Schema.Boolean,
+  storage: Schema.optionalKey(Schema.Literals(["r2", "built-in"])),
+})
+export type BackendDescriptor = typeof BackendDescriptor.Type
 
 export const UpdateErrorCode = Schema.Literals([
   "no_grant",

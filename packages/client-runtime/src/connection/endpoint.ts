@@ -1,8 +1,8 @@
-import { speaksRpc } from "@kiko/protocol"
 import { OWNER_RPC_PATH } from "@kiko/protocol/rpc"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import { compatibility, readDescriptor } from "./descriptor"
 import { ConnectionBlockedError, type PreparedConnection } from "./model"
 
 const SOCKET_PROTOCOL = "kiko"
@@ -28,11 +28,12 @@ const signInRequired = (label: string) =>
 const backendBehind = (label: string) =>
   new ConnectionBlockedError({
     reason: "unsupported",
-    detail: `${label} runs an older version that this app cannot connect to. Update it to keep going.`,
+    detail: `${label} runs an older version than this app. It connects once it is updated.`,
     serverUpdateRequired: true,
   })
 
-const predatesRpc = (build: unknown): boolean => typeof build === "object" && build !== null && !speaksRpc(build)
+const clientBehind = (label: string) =>
+  new ConnectionBlockedError({ reason: "unsupported", detail: `${label} was updated. Reload Kiko to keep going.` })
 
 const socketUrlOf = (httpBaseUrl: string) => {
   const url = new URL(OWNER_RPC_PATH, httpBaseUrl)
@@ -43,25 +44,21 @@ const socketUrlOf = (httpBaseUrl: string) => {
 const make = (options: OwnerEndpointOptions): OwnerEndpoint["Service"] => {
   const label = options.label ?? "Kiko"
   const http = options.fetch ?? globalThis.fetch
-  const checkBuild = (httpBaseUrl: string) =>
-    Effect.tryPromise(async (signal) => {
-      const response = await http(new URL("/api/version", httpBaseUrl), { cache: "no-store", signal })
-      return response.ok ? ((await response.json()) as unknown) : null
-    }).pipe(
-      Effect.timeout("5 seconds"),
-      Effect.orElseSucceed(() => null),
-      Effect.flatMap((build) => (predatesRpc(build) ? Effect.fail(backendBehind(label)) : Effect.void)),
-    )
   const prepare = Effect.suspend(() => {
     const token = options.token()
     if (!token) return Effect.fail(signInRequired(label))
     const httpBaseUrl = options.baseUrl()
-    return checkBuild(httpBaseUrl).pipe(
-      Effect.as<PreparedConnection>({
-        label,
-        httpBaseUrl,
-        socketUrl: socketUrlOf(httpBaseUrl),
-        protocols: [SOCKET_PROTOCOL, token],
+    return readDescriptor(http, httpBaseUrl).pipe(
+      Effect.flatMap((descriptor) => {
+        const fit = compatibility(descriptor)
+        if (fit === "backend-behind") return Effect.fail(backendBehind(label))
+        if (fit === "app-behind") return Effect.fail(clientBehind(label))
+        return Effect.succeed<PreparedConnection>({
+          label,
+          httpBaseUrl,
+          socketUrl: socketUrlOf(httpBaseUrl),
+          protocols: [SOCKET_PROTOCOL, token],
+        })
       }),
     )
   })

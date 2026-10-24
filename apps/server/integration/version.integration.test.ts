@@ -14,7 +14,10 @@ describe("/api/version", () => {
         Array.from({ length: 3 }, () => getJson(new URL("api/version", worker.url))),
         { concurrency: "unbounded" },
       )
-      for (const answer of answers) assert.deepInclude(answer as object, { kiko: 1, protocol: 3, selfUpdate: false })
+      for (const answer of answers) {
+        assert.deepInclude(answer as object, { kiko: 1, protocol: 3, selfUpdate: false })
+        assert.notProperty(answer, "rpc")
+      }
       const stats = (yield* getJson(new URL("api/dev/stats", worker.url))) as Stats
       assert.deepStrictEqual(
         Object.keys(stats.counters).filter((key) => key.startsWith("rpc.") || key.startsWith("owner.")),

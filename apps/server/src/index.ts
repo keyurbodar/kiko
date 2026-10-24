@@ -1,3 +1,4 @@
+import type { BackendDescriptor } from "@kiko/protocol"
 import { serveAsset } from "./lib/assets"
 import { devResponse } from "./lib/dev-guard"
 import { BACKEND } from "./lib/version"
@@ -29,13 +30,13 @@ export interface Env extends AuthEnv {
 }
 
 function version(env: Env): Response {
-  return Response.json({
+  const descriptor: BackendDescriptor = {
     kiko: 1,
     ...BACKEND,
     selfUpdate: Boolean(env.CF_GRANT),
-    rpc: true,
     storage: env.FILES ? "r2" : "built-in",
-  })
+  }
+  return Response.json(descriptor)
 }
 
 async function handle(request: Request, env: Env): Promise<Response> {

@@ -1,165 +1,146 @@
-import { createComputed, createRoot, createSignal, on } from "solid-js"
+import { compatibility, readDescriptor, type Descriptor } from "@kiko/client-runtime/connection"
+import { UpdateState } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { PROTOCOL, speaksRpc, type UserToClient } from "@kiko/protocol"
+import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
+import * as PubSub from "effect/PubSub"
+import * as Schema from "effect/Schema"
+import * as Stream from "effect/Stream"
+import { createComputed, createRoot, createSignal, on } from "solid-js"
 import { apiFetch } from "../lib/api"
-import { base, getToken } from "../lib/api-base"
-import { showFailure } from "../lib/errors"
+import { base } from "../lib/api-base"
 import {
-  autoUpdateKey,
-  checkStall,
-  LATEST_POLL_MS,
+  CURRENT,
+  type Hold,
+  holdOf,
   landed,
+  LATEST_POLL_MS,
+  noticeOf,
   pillView,
-  reduceUpdate,
-  RESTART_ERROR,
-  RESTART_LIMIT_MS,
-  RESTART_POLL_MS,
-  restartStep,
-  sent,
-  STALL_MS,
-  type UpdateProgress,
+  plan,
+  runUpdate,
+  skewOf,
+  type UpdateBackend,
+  type UpdatePhase,
   updateTarget,
 } from "../lib/update"
-import { APP_VERSION, type BackendBuild, backendSkew, clientBehind, type Skew } from "../lib/version-skew"
-import { connection } from "../state/connection"
-import { attempt, owner } from "../state/runtime"
-import { onUserSignal, user } from "../state/user"
+import { APP_VERSION, clientBehind, type Skew } from "../lib/version-skew"
+import { connection, type ConnectionView } from "../state/connection"
+import { user } from "../state/user"
 import { hosted } from "./hosted"
-import { startLegacyUpdate } from "./legacy-update"
 
-const [progress, setProgress] = createSignal<UpdateProgress>(null)
+const [phase, setPhase] = createSignal<UpdatePhase>(CURRENT)
+const [descriptor, setDescriptor] = createSignal<Descriptor | undefined>()
 const [latest, setLatest] = createSignal<string | undefined>()
-const [fetched, setFetched] = createSignal<BackendBuild | null | undefined>()
 
 export const clientIsBehind = () => hosted && clientBehind(APP_VERSION, latest())
 
-export const backendStorage = () => fetched()?.storage
-
-export const backendVersion = () => fetched()?.version ?? user.build().version
-const clientBuild = { version: APP_VERSION, protocol: PROTOCOL }
-export const currentSkew = (): Skew | undefined => {
-  const view = connection.view()
-  if (view === "outdated" || view === "backend-outdated") return "blocked"
-  const build = fetched() ?? user.build()
-  return build.protocol === undefined && build.version === undefined ? undefined : backendSkew(clientBuild, build)
-}
-function set(next: UpdateProgress) {
-  setProgress(next)
-  if (next?.stage === "failed") showFailure(next.error ?? "The update failed. Try again.")
+export const backendStorage = () => {
+  const known = descriptor()
+  return known?._tag === "Current" ? known.storage : undefined
 }
 
-let target = APP_VERSION
-let polling = false
-
-async function awaitRestart() {
-  if (polling) return
-  polling = true
-  try {
-    for (
-      const until = Date.now() + RESTART_LIMIT_MS;
-      Date.now() < until;
-      await new Promise((r) => setTimeout(r, RESTART_POLL_MS))
-    ) {
-      const step = restartStep(target, await refreshBackend(), connection.state()?.phase)
-      if (step === "reconnect") connection.retry()
-      if (step !== "done") continue
-      if (clientIsBehind()) return location.reload()
-      set(null)
-      showToastV2({ title: "Kiko is updated", description: `Now on ${backendVersion()}.`, variant: "success" })
-      return
-    }
-    set({ stage: "failed", error: RESTART_ERROR })
-  } finally {
-    polling = false
-  }
+export const backendVersion = () => {
+  const known = descriptor()
+  return (known?._tag === "Current" || known?._tag === "Legacy" ? known.version : null) ?? user.build().version
 }
 
-function applyState(frame: Extract<UserToClient, { t: "update.state" }>) {
-  set(reduceUpdate(frame))
-  if (frame.stage === "restarting") void awaitRestart()
-}
+export const currentSkew = (): Skew | undefined => skewOf(descriptor(), APP_VERSION)
 
-function sendLegacyStart() {
-  const token = getToken()
-  if (!token) return set({ stage: "failed", error: "Sign in again, then update." })
-  startLegacyUpdate({ httpBase: base() || location.origin, token, version: target, onState: applyState })
-}
+const blockedBy = (view: ConnectionView): Hold | null =>
+  view === "backend-behind" || view === "app-behind" ? view : null
 
-let wired = false
-function wire() {
-  if (wired) return
-  wired = true
-  onUserSignal("update.state", applyState)
-  createRoot(() =>
-    createComputed(
-      on(
-        connection.connected,
-        (connected) => {
-          const stage = progress()?.stage
-          if (connected && (stage === "uploading" || stage === "restarting")) void awaitRestart()
-        },
-        { defer: true },
-      ),
-    ),
+const hold = () =>
+  holdOf({ connected: connection.connected(), blocked: blockedBy(connection.view()), descriptor: descriptor() })
+
+export const readOnly = () => hold() !== null
+
+export const notice = () => noticeOf(hold(), phase())
+
+export const view = () => pillView(phase(), readOnly(), clientIsBehind() || currentSkew() === "update")
+
+const learned = Effect.runSync(PubSub.unbounded<Descriptor>())
+
+const reached = (to: string): Effect.Effect<UpdatePhase> =>
+  Stream.fromPubSub(learned).pipe(
+    Stream.filter((next) => landed(next, to)),
+    Stream.runHead,
+    Effect.as(CURRENT),
   )
+
+function learn(next: Descriptor): void {
+  setDescriptor(next)
+  PubSub.publishUnsafe(learned, next)
+  if (compatibility(next) === "compatible" && blockedBy(connection.view())) connection.retry()
 }
 
-export async function startUpdate() {
-  wire()
-  target = updateTarget(APP_VERSION, latest())
-  set(sent(Date.now()))
-  const build = await refreshBackend()
-  if (build && build.protocol !== PROTOCOL) {
-    set(null)
-    showToastV2({
-      title: "Reconnect Cloudflare to install this version",
-      description: "This upgrade starts fresh. Your existing chats will be removed after you confirm in the installer.",
-      action: { label: "Reconnect Cloudflare", onClick: () => location.assign("/connect?reconnect=1") },
-    })
+const decodeState = Schema.decodeUnknownOption(UpdateState)
+
+const updateCall = (init: RequestInit = {}) =>
+  Effect.tryPromise(async (signal) => {
+    const response = await apiFetch("/api/update", { ...init, signal })
+    return response.ok ? Option.getOrNull(decodeState(await response.json())) : null
+  }).pipe(
+    Effect.timeout("5 seconds"),
+    Effect.orElseSucceed(() => null),
+  )
+
+const backend: UpdateBackend = {
+  start: (to) =>
+    updateCall({
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ version: to }),
+    }),
+  state: updateCall(),
+  descriptor: Effect.suspend(() => readDescriptor((input, init) => fetch(input, init), base() || location.origin)).pipe(
+    Effect.tap((next) => Effect.sync(() => learn(next))),
+  ),
+}
+
+export const refreshBackend = (): Promise<Descriptor> => Effect.runPromise(backend.descriptor)
+
+function begin(to: string, compatible: boolean): void {
+  const updating = (stage: "uploading" | "restarting"): UpdatePhase => ({ _tag: "Updating", to, stage, compatible })
+  setPhase(updating("uploading"))
+  const restarted = Effect.sync(() =>
+    setPhase((now) => (now._tag === "Updating" && now.stage === "restarting" ? now : updating("restarting"))),
+  )
+  void Effect.runPromise(runUpdate(backend, to, restarted).pipe(Effect.raceFirst(reached(to)))).then((next) => {
+    setPhase(next)
+    if (next._tag !== "Current") return
+    if (clientBehind(APP_VERSION, to)) return location.reload()
+    showToastV2({ title: "Kiko is updated", description: `Now on ${to}.`, variant: "success" })
+  })
+}
+
+function consider(next: Descriptor, to: string, automatic: boolean): void {
+  const now = phase()
+  if (now._tag === "Updating") return
+  const step = plan(next, to)
+  if (step._tag === "Reconnect") return void setPhase({ _tag: "NeedsReconnect", reason: step.reason })
+  if (step._tag === "Start") {
+    if (!automatic || now._tag === "Current") begin(step.to, step.compatible)
     return
   }
-  const legacy = build !== null && !speaksRpc(build)
-  if (!legacy && landed(target, build?.version)) {
-    if (clientIsBehind()) return location.reload()
-    return set(null)
-  }
-  if (legacy) sendLegacyStart()
-  else if (!connection.connected())
-    return set({ stage: "failed", error: "Kiko is offline. Try again when it reconnects." })
-  else
-    void attempt(owner.commands.updateStart, { version: target as never }, (error) => set({ stage: "failed", error }))
-  setTimeout(() => {
-    const p = progress()
-    const stalled = checkStall(p, Date.now())
-    if (stalled !== p) set(stalled)
-  }, STALL_MS)
+  if (next._tag === "Current") setPhase(CURRENT)
 }
-
-export async function refreshBackend(): Promise<BackendBuild | null> {
-  const res = await apiFetch("/api/version").catch(() => null)
-  const build = res?.ok ? ((await res.json().catch(() => null)) as BackendBuild | null) : null
-  if (build) setFetched(build)
-  if (build && speaksRpc(build) && connection.view() === "backend-outdated") connection.retry()
-  return build
-}
-
-createRoot(() => createComputed(on(connection.view, (view) => view === "backend-outdated" && void refreshBackend())))
-
-const AUTO_UPDATED_KEY = "kiko:auto-updated"
 
 createRoot(() =>
   createComputed(
-    on(
-      () => fetched() ?? user.build(),
-      (build) => {
-        const key = progress() ? null : autoUpdateKey(clientBuild, build)
-        if (!key || sessionStorage.getItem(AUTO_UPDATED_KEY) === key) return
-        sessionStorage.setItem(AUTO_UPDATED_KEY, key)
-        void startUpdate()
-      },
-    ),
+    on(connection.view, (view) => {
+      if (view === "connected" || blockedBy(view))
+        void refreshBackend().then((next) => consider(next, APP_VERSION, true))
+    }),
   ),
 )
+
+export async function startUpdate(): Promise<void> {
+  const to = updateTarget(APP_VERSION, latest())
+  const next = await refreshBackend()
+  if (landed(next, to) && clientBehind(APP_VERSION, to)) return location.reload()
+  consider(next, to, false)
+}
 
 export async function refreshLatest(): Promise<void> {
   if (!hosted) return
@@ -168,7 +149,7 @@ export async function refreshLatest(): Promise<void> {
   if (typeof body?.version !== "string") return
   const was = clientIsBehind()
   setLatest(body.version)
-  if (!was && clientIsBehind() && !progress()) {
+  if (!was && clientIsBehind() && phase()._tag !== "Updating") {
     showToastV2({
       title: `Kiko ${body.version} is ready`,
       description: "Update in one click.",
@@ -189,11 +170,13 @@ export function watchLatest() {
 }
 
 export async function checkForUpdates(): Promise<void> {
-  const [build] = await Promise.all([refreshBackend(), refreshLatest()])
-  if (!build) return void showFailure("Could not reach your backend. Try again.")
+  const [next] = await Promise.all([refreshBackend(), refreshLatest()])
+  if (next._tag === "Unreachable")
+    return void showToastV2({
+      title: "Kiko could not reach your backend",
+      description: "Check your connection, then try again.",
+    })
   if (clientIsBehind() || currentSkew() !== "ok")
     return void showToastV2({ title: "An update is available", variant: "info" })
   showToastV2({ title: "Kiko is up to date", variant: "success" })
 }
-
-export const view = () => pillView(currentSkew(), clientIsBehind(), progress())

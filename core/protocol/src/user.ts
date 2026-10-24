@@ -324,12 +324,8 @@ export const ClientToUser = Schema.Union([
   Schema.Struct({ t: Schema.Literal("login.start"), loginId: Id, provider: Id }),
   Schema.Struct({ t: Schema.Literal("login.answer"), loginId: Id, promptId: Id, value: Schema.String }),
   Schema.Struct({ t: Schema.Literal("login.cancel"), loginId: Id }),
-  Schema.Struct({ t: Schema.Literal("update.start"), version: ReleaseVersion }),
 ])
 export type ClientToUser = typeof ClientToUser.Type
-
-export const UpdateStage = Schema.Literals(["checking", "authorizing", "uploading", "restarting", "failed"])
-export type UpdateStage = typeof UpdateStage.Type
 
 export const UserChange = Schema.Literals(["memory", "models"])
 export type UserChange = typeof UserChange.Type
@@ -415,7 +411,6 @@ export const UserSignal = Schema.Union([
   Schema.Struct({ t: Schema.Literal("error"), error: NoticeError, roomId: Schema.optionalKey(RoomId) }),
   Schema.Struct({ t: Schema.Literal("typing"), roomId: RoomId, names: Schema.Array(Schema.String) }),
   Schema.Struct({ t: Schema.Literal("changed"), what: UserChange }),
-  Schema.Struct({ t: Schema.Literal("update.state"), stage: UpdateStage, error: Schema.optionalKey(Schema.String) }),
 ])
 export type UserSignal = typeof UserSignal.Type
 

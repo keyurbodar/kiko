@@ -1341,7 +1341,6 @@ export class User {
       env: this.env,
       sql: this.sql,
       userId: () => this.ownerId,
-      broadcast: (frame) => this.broadcast(frame),
       waitUntil: (work) => this.ctx.waitUntil(work),
     })
     return this.#selfUpdate
@@ -1703,12 +1702,6 @@ export class User {
 
   readonly routineCancel = Effect.fn("User.routineCancel")({ self: this }, function* (id: string) {
     yield* routineOutcome(yield* Effect.promise(() => this.cancelRoutine(id)))
-  })
-
-  readonly updateStart = Effect.fn("User.updateStart")({ self: this }, function (version: string) {
-    return Effect.sync(() => {
-      this.selfUpdate.start(version)
-    })
   })
 
   async webSocketError(ws: WebSocket): Promise<void> {

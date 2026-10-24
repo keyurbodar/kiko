@@ -106,6 +106,4 @@ export const HANDLERS: Handlers = {
   "recipes.edit": ({ slug }, { host }) => host.user().recipesEdit(slug),
   "routines.update": ({ id, status }, { host }) => host.user().routineStatus(id, status),
   "routines.cancel": ({ id }, { host }) => host.user().routineCancel(id),
-
-  "update.start": ({ version }, { host }) => host.user().updateStart(version),
 }
