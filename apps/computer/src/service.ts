@@ -151,8 +151,11 @@ async function systemd(action: ServiceAction): Promise<number> {
   if (action === "install") {
     await writeUnit(file, systemdUnit())
     await run(["systemctl", "--user", "daemon-reload"])
-    const code = await run(["systemctl", "--user", "enable", "--now", UNIT])
-    if (code !== 0) throw new CliError({ message: `systemctl could not enable ${UNIT}. Run it yourself to see why.` })
+    const enabled = await run(["systemctl", "--user", "enable", UNIT])
+    if (enabled !== 0)
+      throw new CliError({ message: `systemctl could not enable ${UNIT}. Run it yourself to see why.` })
+    const started = await run(["systemctl", "--user", "restart", UNIT])
+    if (started !== 0) throw new CliError({ message: `systemctl could not start ${UNIT}. Run it yourself to see why.` })
     console.log(`installed ${file}`)
     return 0
   }
