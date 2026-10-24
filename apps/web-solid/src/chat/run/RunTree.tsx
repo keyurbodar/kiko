@@ -17,7 +17,7 @@ const [asked, setAsked] = createSignal<ReadonlySet<string>>(new Set())
 const MAX_OPENED = 100
 
 const PILL =
-  "cursor-pointer rounded-full border border-border/70 bg-background px-2.5 py-1 text-foreground hover:bg-accent"
+  "cursor-pointer rounded-lg bg-active px-2.5 py-0.5 text-fg transition-transform hover:bg-hover active:scale-[0.97]"
 
 function withKey(current: ReadonlySet<string>, key: string): ReadonlySet<string> {
   const next = new Set(current)
@@ -92,7 +92,7 @@ function DetailEmpty(props: { detail: RowDetail; onRetry: () => void }) {
   return (
     <Show when={props.detail.status === "error"} fallback={<p class="run-tree-note">{text()}</p>}>
       <p class="run-tree-note">
-        Output unavailable · <Retry onRetry={props.onRetry} />
+        Output unavailable <Retry onRetry={props.onRetry} />
       </p>
     </Show>
   )
@@ -155,16 +155,21 @@ function Row(props: { row: TreeRow; open: boolean; onOpen: (row: TreeRow) => voi
         title={props.row.target && !props.row.target.folder ? `Open ${props.row.target.path}` : undefined}
         onClick={() => props.onOpen(props.row)}
       >
-        <Label text={props.row.label} running={props.row.running} />
         <Show when={props.row.icon}>
           {(glyph) => (
             <RemixIcon
               icon={GLYPH[glyph()]}
-              size={12}
+              size={14}
               class="run-tree-icon"
               data-failed={glyph() === "alert-circle" ? "" : undefined}
             />
           )}
+        </Show>
+        <Label text={props.row.label} running={props.row.running} />
+        <Show when={expandable()}>
+          <span class="run-tree-chevron motion-run-chevron" data-open={props.open ? "" : undefined} aria-hidden="true">
+            <RemixIcon icon={ChevronRightIcon} size={12} />
+          </span>
         </Show>
       </button>
       <Show when={props.open && detail()}>
@@ -263,7 +268,7 @@ export function RunTree(props: { windowKey: string; count?: number }): JSX.Eleme
         {(head) => (
           <button
             type="button"
-            class="run-tree-row"
+            class="run-tree-row run-tree-head"
             data-kind={head().kind}
             aria-expanded={head().open}
             data-disclosure=""

@@ -27,7 +27,7 @@ type FileTab = Extract<Surface, { kind: "file" }>
 const TYPING = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])'
 const OVERLAYS = '[role="dialog"], [role="alertdialog"], [aria-modal="true"], [role="menu"], [role="listbox"]'
 const ICON_BUTTON =
-  "grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-[var(--accent)] hover:text-foreground"
+  "grid size-8 shrink-0 place-items-center rounded-[9px] text-fg2 transition-[background-color,transform] duration-[120ms] hover:bg-hover hover:text-fg active:scale-[0.97]"
 
 const scrolls = new Map<string, number>()
 
@@ -62,10 +62,8 @@ function Tab(props: {
         aria-selected={props.active}
         aria-controls={panelId(props.surface)}
         tabIndex={props.tabbable ? 0 : -1}
-        class={`group/tab flex h-6 min-w-0 max-w-36 shrink-0 snap-start cursor-pointer items-center gap-0.5 rounded-sm pr-2 pl-1.5 text-sm ${
-          props.active
-            ? "bg-[var(--accent-strong)] text-foreground"
-            : "text-muted-foreground hover:bg-[var(--accent)] hover:text-foreground"
+        class={`group/tab flex h-8 min-w-0 max-w-40 shrink-0 snap-start cursor-pointer items-center gap-1 rounded-[9px] pr-3 pl-2 text-[13.5px] transition-colors duration-[120ms] ${
+          props.active ? "bg-active text-fg" : "text-fg3 hover:bg-hover hover:text-fg"
         }`}
         title={props.surface.kind === "file" ? props.surface.path : undefined}
         data-component="sidecar-tab"
@@ -90,7 +88,7 @@ function Tab(props: {
           type="button"
           tabIndex={-1}
           aria-label={`Close ${label()}`}
-          class="group/close relative grid size-4 shrink-0 place-items-center rounded-xs text-muted-foreground outline-none hover:bg-[var(--accent)] hover:text-foreground"
+          class="group/close relative grid size-4 shrink-0 place-items-center rounded-md text-fg3 outline-none hover:bg-hover hover:text-fg"
           data-action="close-surface"
           onClick={(e) => {
             e.stopPropagation()
@@ -137,20 +135,22 @@ function Launcher(props: { chatId: string }) {
   return (
     <div class="flex min-h-0 flex-1 items-center justify-center p-6" data-component="sidecar-launcher">
       <div class="flex w-full max-w-60 flex-col gap-0.5">
-        <h3 class="mb-3 text-center text-base font-medium text-foreground">Open a surface</h3>
+        <h3 class="mb-3 text-center font-display text-[26px] leading-8 font-normal text-fg [font-variation-settings:var(--display-variation)]">
+          Open a surface
+        </h3>
         <For each={launcherEntries(roomMembers().length > 1)}>
           {(entry) => {
             const glyph = PANELS[entry.kind].icon
             return (
               <button
                 type="button"
-                class="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-md text-foreground hover:bg-accent"
+                class="flex h-10 w-full items-center gap-3 rounded-[10px] px-2.5 text-left text-[14px] text-fg transition-colors duration-[120ms] hover:bg-hover"
                 data-action={`open-${entry.kind}`}
                 onClick={() => openSurface(props.chatId, fixedSurface(entry.kind))}
               >
-                <RemixIcon icon={glyph} size={16} class="shrink-0 text-muted-foreground" />
+                <RemixIcon icon={glyph} size={16} class="shrink-0 text-fg2" />
                 <span class="min-w-0 flex-1 truncate">{entry.label}</span>
-                <kbd class="grid h-5 min-w-5 place-items-center rounded bg-control px-1 font-sans text-xs text-muted-foreground">
+                <kbd class="grid h-5 min-w-5 place-items-center rounded-md bg-active px-1 font-sans text-xs text-fg4">
                   {entry.key}
                 </kbd>
               </button>
@@ -352,7 +352,7 @@ export default function Sidecar(props: { chatId: string }) {
                       shortcut={entry.key}
                       onSelect={() => openSurface(props.chatId, fixedSurface(entry.kind))}
                     >
-                      <RemixIcon icon={glyph} size={16} class="shrink-0 text-muted-foreground" />
+                      <RemixIcon icon={glyph} size={16} class="shrink-0 text-fg2" />
                       <span class="min-w-0 flex-1 truncate">{entry.label}</span>
                     </MenuV2.Item>
                   )

@@ -8,19 +8,19 @@ import "../../composer/cards/cards.css"
 export function TasksView() {
   const tasks = () => room.tasks()
   return (
-    <div data-component="info-tasks" class="flex flex-col gap-3">
+    <div data-component="info-tasks" class="flex flex-col gap-3 p-2">
       <For
         each={groupTasks(tasks())}
         fallback={
-          <p class="px-2 py-6 text-center text-sm text-muted-foreground">
+          <p class="px-2 py-6 text-center text-[13px] text-fg3">
             No tasks yet. Your agent adds a plan when there is work to track.
           </p>
         }
       >
         {(group) => (
           <section>
-            <h3 class="px-2 pb-1 text-xs font-medium text-muted-foreground">
-              {TASK_LABEL[group.status]} <span class="text-secondary-label">{group.tasks.length}</span>
+            <h3 class="px-2 pb-1 text-[12.5px] text-fg3">
+              {TASK_LABEL[group.status]} <span class="text-fg4">{group.tasks.length}</span>
             </h3>
             <TaskList
               tasks={group.tasks}
