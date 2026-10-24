@@ -12,6 +12,7 @@ import { user } from "../state/user"
 import { draftBook } from "../composer/draft-book"
 import type { MessageId } from "@kiko/protocol"
 import type { ChatMessage, RosterBot } from "../lib/types"
+import { keepArray, keepSpeakers } from "../chat/lib/members"
 import { jumpRequest, requestJump } from "../search/state"
 import { EmptyState } from "../chat/ui/EmptyState"
 import { captureLaunch, glideToDock, type Launch } from "../chat/send-motion"
@@ -90,7 +91,8 @@ export function ChatView() {
       { defer: true },
     ),
   )
-  const members = createMemo(() => new Map(room.members().map((member) => [member.id, member])))
+  const members = createMemo<ReadonlyMap<string, RosterBot>>((previous) => keepSpeakers(previous, room.roomMembers()))
+  const memberSlugs = createMemo<readonly string[]>((previous) => keepArray(previous, [...members().keys()]))
   const answering = createMemo(() => answeringMember(room.roomMembers(), draft()))
   const block = createMemo(() =>
     sendBlock({
@@ -233,7 +235,7 @@ export function ChatView() {
           waitingSlugs={room.typingSlugs()}
           waitingDoings={room.typingDoings()}
           groupChat={members().size > 1 || outsiders()}
-          memberSlugs={[...members().keys()]}
+          memberSlugs={memberSlugs()}
           onReact={room.toggleReaction}
           onEdit={startEdit}
           onDelete={(id) => {
@@ -300,7 +302,7 @@ export function ChatView() {
           </button>
         </div>
         <Suspense>
-          <BrowserChip slugs={[...members().keys()]} />
+          <BrowserChip slugs={memberSlugs()} />
           <QuoteOnSelect
             onQuote={(id, text) => {
               aim(id)

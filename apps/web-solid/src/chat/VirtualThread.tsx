@@ -571,12 +571,15 @@ export function VirtualThread(props: {
           : undefined,
       onReact: (emoji) => props.onReact?.(menu.targetId() ?? message.id, emoji),
     })
+    const bot = createMemo(() => props.botById(message.botId))
+    const parent = createMemo(() => props.replyParent(message.replyToId))
+    const quote = createMemo(() => quoteOf(message, parent(), (slug) => props.botById(slug)?.name))
     return (
       <>
         <MessageRow
           message={message}
-          bot={props.botById(message.botId)}
-          quote={quoteOf(message, props.replyParent(message.replyToId), (slug) => props.botById(slug)?.name)}
+          bot={bot()}
+          quote={quote()}
           isRunStart={item.isRunStart}
           isRunEnd={item.isRunEnd}
           runKey={item.runKey}
