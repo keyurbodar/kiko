@@ -7,7 +7,7 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/solid-router"
-import { createSignal, onMount } from "solid-js"
+import { createSignal } from "solid-js"
 import { describe, expect, it, vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
 import { render } from "../../test/render"
@@ -23,9 +23,7 @@ vi.mock("./open", () => ({
 }))
 
 function Composer() {
-  let field!: HTMLTextAreaElement
-  onMount(() => requestAnimationFrame(() => requestAnimationFrame(() => field.focus())))
-  return <textarea ref={field} aria-label="Message" />
+  return <textarea aria-label="Message" />
 }
 
 function ToolDialog() {
@@ -69,11 +67,14 @@ function routerAt(path: string, body: () => ReturnType<typeof ToolDialog>) {
 
 describe("settings focus", () => {
   it("keeps focus inside settings when a deep link opens it over the composer", async () => {
+    await page.viewport(1280, 720)
     closed.count = 0
     const router = routerAt("/settings/tools", () => <p>Tools body</p>)
     await using _screen = await render(() => <RouterProvider router={router} />)
-    const dialog = page.getByRole("dialog")
-    await expect.element(dialog.getByRole("button", { name: "Tools", exact: true })).toHaveFocus()
+    const tools = page.getByRole("dialog").getByRole("button", { name: "Tools", exact: true })
+    await expect.element(tools).toHaveFocus()
+    document.querySelector("textarea")!.focus()
+    await expect.element(tools).toHaveFocus()
     await userEvent.keyboard("zz")
     expect(document.querySelector("textarea")?.value).toBe("")
     await userEvent.keyboard("{Escape}")
@@ -81,6 +82,7 @@ describe("settings focus", () => {
   })
 
   it("closes settings with Escape after a nested dialog closes", async () => {
+    await page.viewport(1280, 720)
     closed.count = 0
     const router = routerAt("/settings/tools", () => <ToolDialog />)
     await using _screen = await render(() => <RouterProvider router={router} />)
