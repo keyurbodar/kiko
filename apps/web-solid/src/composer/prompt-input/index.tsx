@@ -14,7 +14,7 @@ import {
 } from "solid-js"
 import { Portal } from "solid-js/web"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ArrowUpIcon, AtIcon, AttachIcon, CloseIcon, EnterIcon } from "@kiko/ui/icons"
+import { ArrowUpIcon, AttachIcon, ChevronDownIcon, CloseIcon, EnterIcon, PlusIcon } from "@kiko/ui/icons"
 import { useI18n } from "@kiko/ui/context/i18n"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -165,6 +165,12 @@ export function PromptInputV2(props: PromptInputV2Props) {
       .join(". "),
   )
 
+  const lead = () => props.controller.agents()[0]
+  const leadSeed = () => {
+    const mention = lead()?.mention
+    return mention?.type === "agent" ? mention.name : (lead()?.id ?? "kiko")
+  }
+  const leadName = () => lead()?.title ?? lead()?.label ?? ""
   const pictures = () =>
     props.controller.attachments().filter((part) => isImage({ name: part.filename, type: part.mime }))
   const documents = () =>
@@ -212,16 +218,9 @@ export function PromptInputV2(props: PromptInputV2Props) {
       <Show when={dropArea()}>
         {(area) => (
           <Portal>
-            <div
-              class="pointer-events-none fixed z-40 flex items-center justify-center rounded-2xl border border-dashed border-ring/60 bg-ring/[0.035]"
-              style={area()}
-              data-component="composer-drop-overlay"
-            >
-              <div
-                role="status"
-                class="flex items-center gap-2 rounded-full border border-ring/25 bg-background/95 px-4 py-2.5 text-sm font-medium text-foreground shadow-lg"
-              >
-                <RemixIcon icon={AttachIcon} class="size-4 text-ring" />
+            <div class="composer-drop" style={area()} data-component="composer-drop-overlay">
+              <div role="status" class="composer-drop-label">
+                <RemixIcon icon={AttachIcon} size={16} />
                 {i18n.t(
                   props.controller.dragKind() === "reference"
                     ? "ui.promptInput.dropReference"
@@ -252,21 +251,17 @@ export function PromptInputV2(props: PromptInputV2Props) {
             </Suspense>
           </Show>
           <Show when={documents().length > 0}>
-            <ul class="flex flex-wrap items-center gap-1.5" data-component="prompt-input-v2-files">
+            <ul class="composer-files" data-component="prompt-input-v2-files">
               <For each={documents()}>
                 {(attachment) => (
-                  <li
-                    class="flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-border/70 bg-accent py-0.5 pr-0.5 pl-2 text-xs"
-                    data-component="composer-file"
-                    data-id={attachment.id}
-                  >
+                  <li class="composer-file" data-component="composer-file" data-id={attachment.id}>
                     <EntryIcon path={attachment.filename} />
-                    <span class="min-w-0 truncate" title={attachment.filename}>
+                    <span class="composer-file-name" title={attachment.filename}>
                       {attachment.filename}
                     </span>
                     <button
                       type="button"
-                      class="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-control hover:text-foreground"
+                      class="composer-file-remove"
                       aria-label={`Remove ${attachment.filename}`}
                       onClick={() => props.controller.removeAttachment(attachment.id)}
                     >
@@ -291,15 +286,30 @@ export function PromptInputV2(props: PromptInputV2Props) {
           </div>
           <div class="composer-footer">
             <div class="composer-tray">
+              <Show when={!props.answering}>
+                <TooltipV2 placement="top" openDelay={400} value={i18n.t("ui.promptInput.add")}>
+                  <button
+                    type="button"
+                    class="composer-icon"
+                    data-hint="chat.attach"
+                    aria-label={i18n.t("ui.promptInput.add")}
+                    onClick={() => props.controller.attach()}
+                  >
+                    <RemixIcon icon={PlusIcon} size={18} />
+                  </button>
+                </TooltipV2>
+              </Show>
               <Show when={!props.answering && !props.readOnly && props.controller.agents().length > 0}>
                 <MenuV2 gutter={6} placement="top-start">
                   <MenuV2.Trigger
-                    class="composer-icon"
+                    class="composer-agent"
                     aria-label="Mention an agent"
                     title="Mention an agent"
                     data-action="composer-mention"
                   >
-                    <RemixIcon icon={AtIcon} class="size-4" />
+                    <IdentityAvatar seed={leadSeed()} size={20} />
+                    <span class="composer-agent-name">{leadName()}</span>
+                    <RemixIcon icon={ChevronDownIcon} size={11} class="composer-agent-chevron" />
                   </MenuV2.Trigger>
                   <MenuV2.Portal>
                     <MenuV2.Content class="z-[80] min-w-44" data-component="mention-menu">
@@ -326,17 +336,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
             <div class="composer-actions">
               <Show when={!props.readOnly}>{emoji.trigger}</Show>
               <Show when={!props.answering}>
-                <TooltipV2 placement="top" openDelay={400} value={i18n.t("ui.promptInput.add")}>
-                  <button
-                    type="button"
-                    class="composer-icon"
-                    data-hint="chat.attach"
-                    aria-label={i18n.t("ui.promptInput.add")}
-                    onClick={() => props.controller.attach()}
-                  >
-                    <RemixIcon icon={AttachIcon} class="size-4" />
-                  </button>
-                </TooltipV2>
                 <PromptInputV2SubmitButton
                   mode={state.mode}
                   disabled={!props.controller.canSubmit()}
