@@ -4,13 +4,12 @@ import { CheckIcon, CloseIcon, PlusIcon } from "@kiko/ui/icons"
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { appearanceOf } from "@kiko/theme/apply"
 import { BASE_SIZE, CHAT_WIDTHS, CONTRAST, DEFAULT_DISPLAY, type ChatWidth, type Display } from "@kiko/theme/display"
-import { themeFor } from "@kiko/theme/imported"
 import { DEFAULT_LOOK, type Mode } from "@kiko/theme/look"
-import { THEME_IDS, THEMES, type Palette, type ThemeAppearance } from "@kiko/theme/palette"
+import { DARK_THEME_IDS, THEMES, type Palette, type ThemeAppearance } from "@kiko/theme/palette"
 import { buttonClass, Group, Row, Slider, Toggle } from "../settings/kit"
 import { Select } from "../settings/select"
 import { look, previewLook, updateLook } from "./live"
-import { choose, chooseBuiltin, DEFAULT, remove, themes } from "./live"
+import { chooseBuiltin, pickTheme, remove, themes } from "./live"
 import { isFontFamilyAvailable } from "./fonts"
 import { ThemeBrowser } from "./open-vsx-themes"
 
@@ -24,7 +23,7 @@ function Preview(props: { palette: Palette; light: boolean }) {
   const tint = (color: string, pct: number) => `color-mix(in oklab, ${color} ${pct}%, transparent)`
   return (
     <div
-      class="flex h-[104px] w-full overflow-hidden rounded-[14px]"
+      class="flex h-[104px] w-full overflow-hidden rounded-pop"
       style={{ background: p().canvas }}
       aria-hidden="true"
     >
@@ -60,18 +59,24 @@ function ThemeCard(props: {
         onClick={props.onPick}
       >
         <span
-          class="relative block rounded-[14px] transition-shadow duration-[var(--dur-hover)] hover:shadow-[0_0_0_1px_var(--line2)]"
-          classList={{ "shadow-[0_0_0_2px_var(--fg3)]": props.selected }}
+          class="relative block rounded-pop transition-shadow duration-(--dur-pop) ease-kiko"
+          classList={{
+            "shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--fg3)]": props.selected,
+            "hover:shadow-[0_0_0_1px_var(--line2)]": !props.selected,
+          }}
         >
           <Preview palette={props.palette} light={props.light} />
           <Show when={props.selected}>
-            <span class="absolute top-2 right-2 grid size-[18px] place-items-center rounded-full bg-fg text-bg">
+            <span
+              class="absolute top-2 right-2 grid size-[18px] place-items-center rounded-full"
+              style={{ background: props.palette.text, color: props.palette.canvas }}
+            >
               <RemixIcon icon={CheckIcon} size={11} />
             </span>
           </Show>
         </span>
         <span
-          class="truncate text-[13.5px]"
+          class="truncate type-ui"
           classList={{ "font-semibold text-fg": props.selected, "text-fg2": !props.selected }}
         >
           {props.name}
@@ -80,7 +85,7 @@ function ThemeCard(props: {
       <Show when={props.onRemove}>
         <button
           type="button"
-          class="absolute top-1.5 right-1.5 grid size-5 place-items-center rounded-control bg-raise text-fg2 opacity-0 shadow-menu group-hover/theme:opacity-100 hover:text-bad focus-visible:opacity-100"
+          class="absolute top-1.5 left-1.5 grid size-5 place-items-center rounded-control bg-raise text-fg2 opacity-0 shadow-menu group-hover/theme:opacity-100 hover:text-bad focus-visible:opacity-100"
           aria-label={`Remove ${props.name}`}
           title="Remove"
           onClick={props.onRemove}
@@ -92,41 +97,104 @@ function ThemeCard(props: {
   )
 }
 
-function Gallery(props: { appearance: ThemeAppearance }) {
-  const active = () => themeFor(themes(), props.appearance)?.id ?? DEFAULT
-  const installed = () => themes().themes.filter((t) => t.appearance === props.appearance)
+type Card = { id: string; name: string; palette: Palette; removable?: () => void }
+
+const BUILTIN: Record<ThemeAppearance, readonly string[]> = { dark: DARK_THEME_IDS, light: ["snow"] }
+
+function cardsFor(appearance: ThemeAppearance): Card[] {
+  const builtin = BUILTIN[appearance].map((id) => {
+    const theme = THEMES[id as keyof typeof THEMES]
+    return { id, name: theme.label, palette: theme.palette }
+  })
+  const imported = themes()
+    .themes.filter((t) => t.appearance === appearance)
+    .map((t) => ({ id: t.id, name: t.name, palette: t.palette, removable: () => remove(t) }))
+  return [...builtin, ...imported]
+}
+
+function pickedFor(appearance: ThemeAppearance): string {
+  const imported = themes().active[appearance]
+  if (imported && themes().themes.some((t) => t.id === imported)) return imported
+  return appearance === "dark" ? look().darkTheme : "snow"
+}
+
+const gridClass = "grid grid-cols-2 gap-x-3 gap-y-5 @min-[560px]/settings:grid-cols-3"
+
+function ThemeGrid(props: { appearance: ThemeAppearance; more?: () => void }) {
   return (
-    <Show when={installed().length}>
-      <section class="flex flex-col gap-2" data-component="theme-gallery" data-appearance={props.appearance}>
-        <h2 class="flex items-center gap-2 px-1 type-label text-fg3">
-          {props.appearance === "dark" ? "Imported dark" : "Imported light"}
-          <Show when={shown() === props.appearance}>
-            <span class="text-hint font-normal text-fg4">Showing now</span>
-          </Show>
-        </h2>
-        <div
-          role="radiogroup"
-          aria-label={props.appearance === "dark" ? "Dark theme" : "Light theme"}
-          class="grid grid-cols-2 gap-x-3 gap-y-5 @min-[560px]/settings:grid-cols-3"
-        >
-          <For each={installed()}>
-            {(theme) => (
-              <ThemeCard
-                name={theme.name}
-                palette={theme.palette}
-                light={props.appearance === "light"}
-                selected={active() === theme.id}
-                onPick={() => {
-                  choose(props.appearance, theme.id)
-                  updateLook({ mode: props.appearance })
-                }}
-                onRemove={() => remove(theme)}
-              />
-            )}
-          </For>
+    <div class={gridClass} data-component="theme-gallery" data-appearance={props.appearance}>
+      <div role="radiogroup" aria-label={props.appearance === "dark" ? "Dark theme" : "Light theme"} class="contents">
+        <For each={cardsFor(props.appearance)}>
+          {(card) => (
+            <ThemeCard
+              name={card.name}
+              palette={card.palette}
+              light={props.appearance === "light"}
+              selected={pickedFor(props.appearance) === card.id}
+              onPick={() => pickTheme(props.appearance, card.id)}
+              onRemove={card.removable}
+            />
+          )}
+        </For>
+      </div>
+      <Show when={props.more}>
+        {(more) => (
+          <button
+            type="button"
+            class="flex h-[104px] cursor-pointer flex-col items-center justify-center gap-1 rounded-pop bg-panel type-ui text-fg2 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.98]"
+            data-action="browse-themes"
+            onClick={() => more()()}
+          >
+            <RemixIcon icon={PlusIcon} size={16} />
+            More themes
+          </button>
+        )}
+      </Show>
+    </div>
+  )
+}
+
+function ThemeSection(props: { onMore: () => void }) {
+  const mode = () => look().mode
+  return (
+    <section class="flex flex-col gap-3" data-component="theme-picker">
+      <div class="flex flex-wrap items-center justify-between gap-3 px-1">
+        <h2 class="flex h-section-label items-center type-label text-fg3">Theme</h2>
+        <Segmented<Mode>
+          label="Mode"
+          value={mode()}
+          options={[
+            { value: "system", label: "System" },
+            { value: "light", label: "Light" },
+            { value: "dark", label: "Dark" },
+          ]}
+          onChange={(next) => updateLook({ mode: next })}
+        />
+      </div>
+      <Show
+        when={mode() === "system"}
+        fallback={<ThemeGrid appearance={mode() === "light" ? "light" : "dark"} more={props.onMore} />}
+      >
+        <div class="flex flex-col gap-2">
+          <h3 class="flex items-center gap-2 px-1 type-label text-fg3">
+            Light
+            <Show when={shown() === "light"}>
+              <span class="type-hint text-fg4">Showing now</span>
+            </Show>
+          </h3>
+          <ThemeGrid appearance="light" />
         </div>
-      </section>
-    </Show>
+        <div class="flex flex-col gap-2">
+          <h3 class="flex items-center gap-2 px-1 type-label text-fg3">
+            Dark
+            <Show when={shown() === "dark"}>
+              <span class="type-hint text-fg4">Showing now</span>
+            </Show>
+          </h3>
+          <ThemeGrid appearance="dark" more={props.onMore} />
+        </div>
+      </Show>
+    </section>
   )
 }
 
@@ -216,52 +284,7 @@ export default function Appearance(): JSX.Element {
   const sizes = Array.from({ length: BASE_SIZE.max - BASE_SIZE.min + 1 }, (_, i) => BASE_SIZE.min + i)
   return (
     <div class="flex flex-col gap-8" data-component="appearance" data-appearance-now={shown()}>
-      <div class="flex flex-col gap-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <Segmented<Mode>
-            label="Mode"
-            value={look().mode}
-            options={[
-              { value: "system", label: "System" },
-              { value: "light", label: "Light" },
-              { value: "dark", label: "Dark" },
-            ]}
-            onChange={(mode) => updateLook({ mode })}
-          />
-        </div>
-        <div
-          role="radiogroup"
-          aria-label="Built-in themes"
-          class="grid grid-cols-2 gap-x-3 gap-y-5 @min-[560px]/settings:grid-cols-3"
-        >
-          <For each={THEME_IDS}>
-            {(id) => (
-              <ThemeCard
-                name={THEMES[id].label}
-                palette={THEMES[id].palette}
-                light={id === "snow"}
-                selected={
-                  !themeFor(themes(), id === "snow" ? "light" : "dark") &&
-                  shown() === (id === "snow" ? "light" : "dark") &&
-                  (id === "snow" || look().darkTheme === id)
-                }
-                onPick={() => chooseBuiltin(id)}
-              />
-            )}
-          </For>
-          <button
-            type="button"
-            class="flex h-[104px] flex-col items-center justify-center gap-1 rounded-[14px] bg-panel text-[13.5px] text-fg2 transition-colors duration-[var(--dur-hover)] hover:bg-hover hover:text-fg active:scale-[0.98]"
-            data-action="browse-themes"
-            onClick={() => setBrowsing(true)}
-          >
-            <RemixIcon icon={PlusIcon} size={16} />
-            Get more
-          </button>
-        </div>
-        <Gallery appearance="dark" />
-        <Gallery appearance="light" />
-      </div>
+      <ThemeSection onMore={() => setBrowsing(true)} />
 
       <Group title="Text and layout">
         <Row label="Text size" onReset={reset("baseSize")}>
