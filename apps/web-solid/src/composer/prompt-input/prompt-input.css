@@ -639,7 +639,6 @@ button.token-chip:active {
 .tray-table {
   display: grid;
   margin: -2px -2px 0;
-  grid-template-columns: minmax(0, 1fr) auto auto;
   color: var(--fg2);
   font-size: 9.5px;
   font-variant-numeric: tabular-nums;

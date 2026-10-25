@@ -72,8 +72,13 @@ function Code(props: { text: string }) {
 function Table(props: { text: string; name: string }) {
   const rows = () =>
     parseDelimited(props.text, /\.tsv$/i.test(props.name) ? "\t" : ",", ROWS).rows.map((row) => row.slice(0, COLUMNS))
+  const columns = () => Math.max(1, ...rows().map((row) => row.length))
   return (
-    <span class="tray-table" aria-hidden="true">
+    <span
+      class="tray-table"
+      style={{ "grid-template-columns": `minmax(0, 1fr) repeat(${columns() - 1}, auto)` }}
+      aria-hidden="true"
+    >
       <For each={rows()}>
         {(row, index) => (
           <span class="tray-table-row" data-head={index() === 0 ? "" : undefined}>
