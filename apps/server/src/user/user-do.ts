@@ -1405,8 +1405,16 @@ export class User {
         existing,
         message: "A chat with these agents already exists.",
       })
-    this.apply(op)
+    const owner = op.op === "delete" ? this.soleAgentOf(op.roomId) : undefined
+    if (!owner) return void this.apply(op)
+    yield* Effect.promise(() => this.deleteAgent(owner))
   })
+
+  private soleAgentOf(roomId: RoomId): AgentSlug | undefined {
+    const chat = this.directory.get(roomId)
+    const only = chat && !chat.kiko && !chat.pair && chat.agents?.length === 1 ? chat.agents[0] : undefined
+    return listAgents(this.sql).find((agent) => agent.id === only)?.slug
+  }
 
   readonly chatOpened = Effect.fn("User.chatOpened")({ self: this }, function* (roomId: RoomId) {
     if (!this.directory.get(roomId))
