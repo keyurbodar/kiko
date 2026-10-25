@@ -14,7 +14,7 @@ const task = (id: string, title: string, status: Task["status"], owner?: string)
 })
 
 describe("task rows", () => {
-  it("shows done tasks ticked and struck through, open tasks as empty boxes, and the agent as an avatar", async () => {
+  it("shows status glyphs the owner cannot click, done tasks struck through, and the agent as an avatar", async () => {
     await using screen = await render(() => (
       <TaskList
         tasks={[
@@ -25,8 +25,9 @@ describe("task rows", () => {
         members={[{ slug: "kiko", name: "Kiko" } as never]}
       />
     ))
-    const boxes = [...screen.container.querySelectorAll<HTMLElement>('[role="checkbox"]')]
-    expect(boxes.map((box) => box.getAttribute("aria-checked"))).toEqual(["true", "false", "false"])
+    expect(screen.container.querySelectorAll('[role="checkbox"], button')).toHaveLength(0)
+    const glyphs = [...screen.container.querySelectorAll<HTMLElement>(".task-glyph")]
+    expect(glyphs.map((glyph) => glyph.dataset.status)).toEqual(["done", "doing", "todo"])
     const rows = [...screen.container.querySelectorAll('[data-component="task-step"]')]
     expect(rows[0]?.querySelector("[data-closed]")?.textContent).toBe("Landing copy")
     expect(rows[1]?.querySelector("[data-closed]")).toBeNull()

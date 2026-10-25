@@ -19,6 +19,7 @@ import { VList, type VListHandle } from "virtua/solid"
 import { catalogQuery } from "./catalog"
 import {
   ALL_PROVIDERS,
+  STARRED,
   modelDetail,
   modelRef,
   modelTrait,
@@ -27,7 +28,7 @@ import {
   type PickerEntry,
 } from "./model-list"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ArrowUpIcon, CheckIcon, EnterIcon, SearchIcon } from "@kiko/ui/icons"
+import { ArrowUpIcon, CheckIcon, EnterIcon, GridIcon, SearchIcon } from "@kiko/ui/icons"
 import type { ThinkingLevel } from "@kiko/protocol"
 import { connectedProviders } from "./connected"
 import { favoriteModels, hiddenModels, toggleFavorite } from "./model-prefs"
@@ -151,31 +152,55 @@ function Row(props: {
   )
 }
 
-function ProviderFilter(props: {
+function ProviderRail(props: {
   providers: readonly { id: string; name: string }[]
   value: string
   onChange: (id: string) => void
 }) {
-  const options = () => [{ id: ALL_PROVIDERS, name: "All" }, ...props.providers]
   return (
-    <div class="picker-filter" role="group" aria-label="Providers" data-component="model-provider-filter">
-      <For each={options()}>
-        {(option) => (
+    <nav class="picker-rail" aria-label="Providers" data-component="model-provider-filter">
+      <button
+        type="button"
+        class="picker-rail-item"
+        aria-pressed={props.value === ALL_PROVIDERS}
+        aria-label="All models"
+        title="All models"
+        data-provider="all"
+        onClick={() => props.onChange(ALL_PROVIDERS)}
+      >
+        <RemixIcon icon={GridIcon} size={16} />
+      </button>
+      <button
+        type="button"
+        class="picker-rail-item"
+        aria-pressed={props.value === STARRED}
+        aria-label="Starred"
+        title="Starred"
+        data-provider="starred"
+        onClick={() => props.onChange(STARRED)}
+      >
+        <Star on={props.value === STARRED} />
+      </button>
+      <span class="picker-rail-rule" aria-hidden="true" />
+      <For each={props.providers}>
+        {(provider) => (
           <button
             type="button"
-            class="picker-filter-chip"
-            aria-pressed={props.value === option.id}
-            data-provider={option.id === ALL_PROVIDERS ? undefined : option.id}
-            onClick={() => props.onChange(option.id)}
+            class="picker-rail-item"
+            aria-pressed={props.value === provider.id}
+            aria-label={provider.name}
+            title={provider.name}
+            data-provider={provider.id}
+            onClick={() => props.onChange(provider.id)}
           >
-            <Show when={option.id !== ALL_PROVIDERS}>
-              <ProviderIcon id={option.id} width="13" height="13" />
+            <ProviderIcon id={provider.id} width="16" height="16" />
+            <Show when={problemOf(provider.id)}>
+              {(problem) => <span class="picker-rail-dot" role="img" aria-label={PROBLEM_SHORT[problem()]} />}
             </Show>
-            {option.name}
           </button>
         )}
       </For>
-    </div>
+    </nav>
   )
 }
 
@@ -203,7 +228,10 @@ export function ModelList(props: {
       starred: favoriteModels(),
       hidden: hiddenModels(),
       current: props.current,
-      filter: providers().some((p) => p.id === filter()) ? filter() : ALL_PROVIDERS,
+      filter:
+        [ALL_PROVIDERS, STARRED].includes(filter()) || providers().some((p) => p.id === filter())
+          ? filter()
+          : ALL_PROVIDERS,
       query: query(),
     }),
   )
@@ -252,7 +280,18 @@ export function ModelList(props: {
     event.stopPropagation()
   }
 
-  const empty = () => (catalog.loading ? "Loading models" : query().trim() ? "No models match" : "No models")
+  const empty = () =>
+    catalog.loading
+      ? "Loading models"
+      : query().trim()
+        ? "No models match"
+        : filter() === STARRED
+          ? "Star a model to keep it here."
+          : "No models"
+  const chooseFilter = (id: string) => {
+    setQuery("")
+    setFilter(id)
+  }
 
   return (
     <Show
@@ -275,6 +314,7 @@ export function ModelList(props: {
         </p>
       }
     >
+      <ProviderRail providers={providers()} value={query().trim() ? "" : filter()} onChange={chooseFilter} />
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
         <label class="flex h-12 shrink-0 items-center gap-3 px-4 text-fg2">
           <RemixIcon icon={SearchIcon} size={16} class="shrink-0" />
@@ -297,9 +337,6 @@ export function ModelList(props: {
             <kbd class="picker-kbd">Esc</kbd>
           </Show>
         </label>
-        <Show when={providers().length > 1 && !query().trim()}>
-          <ProviderFilter providers={providers()} value={filter()} onChange={setFilter} />
-        </Show>
         <Show when={rows().length} fallback={<p class="p-4 text-ui text-fg3">{empty()}</p>}>
           <VList
             ref={setHandle}

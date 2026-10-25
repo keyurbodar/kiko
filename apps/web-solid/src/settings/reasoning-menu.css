@@ -10,39 +10,6 @@
 .reasoning-trigger[data-unavailable] {
   color: var(--fg4);
 }
-.reasoning-bars {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 12px;
-}
-.reasoning-bars i {
-  width: 3px;
-  border-radius: 1.5px;
-  background: var(--fg4);
-  opacity: 0.45;
-  transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    opacity var(--dur-hover) var(--ease-kiko);
-  transition-delay: calc(var(--i) * 30ms);
-}
-.reasoning-bars i:nth-child(1) {
-  height: 4px;
-}
-.reasoning-bars i:nth-child(2) {
-  height: 6px;
-}
-.reasoning-bars i:nth-child(3) {
-  height: 9px;
-}
-.reasoning-bars i:nth-child(4) {
-  height: 12px;
-}
-.reasoning-bars i[data-on] {
-  background: currentColor;
-  opacity: 1;
-}
-
 .reasoning-panel {
   position: fixed;
   z-index: 80;

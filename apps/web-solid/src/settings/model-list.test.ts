@@ -1,6 +1,6 @@
 import type { CatalogModel, CatalogProvider } from "@kiko/protocol"
 import { describe, expect, it } from "vitest"
-import { ALL_PROVIDERS, modelTrait, pickerEntries, shortModelName } from "./model-list"
+import { ALL_PROVIDERS, modelTrait, pickerEntries, shortModelName, STARRED } from "./model-list"
 
 const model = (id: string, over: Partial<CatalogModel> = {}): CatalogModel => ({
   id,
@@ -41,6 +41,13 @@ describe("pickerEntries", () => {
 
   it("shows one provider without labels when filtered", () => {
     expect(shape(pickerEntries({ ...base, filter: "a", starred: ["a/one"] }))).toEqual(["a/one@0", "a/two@1"])
+  })
+
+  it("lists only starred models from every provider under the starred filter", () => {
+    expect(shape(pickerEntries({ ...base, filter: STARRED, starred: ["b/three", "a/two"] }))).toEqual([
+      "a/two@0",
+      "b/three@1",
+    ])
   })
 
   it("searches without labels and keeps the current model even when hidden", () => {

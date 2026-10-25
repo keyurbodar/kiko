@@ -21,7 +21,7 @@ import { useI18n } from "@kiko/ui/context/i18n"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import type { PromptInputV2Interaction } from "./interaction"
-import { createComposerEmoji, createShortcodes } from "../emoji"
+import { createShortcodes } from "../emoji"
 import type { RichBinding } from "../rich/bind"
 import type { ParseOptions } from "../rich/markdown"
 import { setRichLoaded } from "../rich/loaded"
@@ -122,10 +122,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
   let lite: LiteField | undefined
   const field = () => binding?.editor ?? lite
   const shortcodes = createShortcodes(() => field()?.dom as HTMLDivElement | undefined)
-  const emoji = createComposerEmoji(
-    () => field()?.dom as HTMLDivElement | undefined,
-    () => !!props.disabled || !!props.readOnly,
-  )
   const popoverID = createUniqueId()
   const statusID = createUniqueId()
   const [editable, setEditable] = createSignal<HTMLElement>()
@@ -260,7 +256,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
         }}
       />
       {shortcodes.view}
-      {emoji.view}
       <Show when={open()}>
         <Suspense>
           <TokenPopover
@@ -360,7 +355,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
               {props.tray}
             </div>
             <div class="composer-actions">
-              <Show when={!props.readOnly}>{emoji.trigger}</Show>
               <Show when={!props.answering}>
                 <SubmitButton
                   stop={stopping()}

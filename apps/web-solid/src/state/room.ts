@@ -23,7 +23,6 @@ import {
   type RunStep,
   type SearchHit,
   type Task,
-  type TaskOp,
   type ThinkingLevel,
 } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
@@ -742,10 +741,6 @@ function createRoom() {
       slug === undefined ? undefined : memberRows().find((m) => m.id === slug),
     roomMembers: members,
     tasks: () => snapshot()?.tasks ?? [],
-    task: (op: TaskOp) => {
-      const id = activeId()
-      if (id) void attempt(owner.commands.task, { roomId: id, op }, showFailure)
-    },
     files: (): FileRef[] => [...(snapshot()?.files ?? [])],
     folders: (): string[] => [...(snapshot()?.folders ?? [])],
     fileOp(op: FileOp) {

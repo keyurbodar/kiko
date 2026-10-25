@@ -23,8 +23,7 @@
 
     outline: none;
 
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    -webkit-font-smoothing: auto;
     text-rendering: geometricPrecision;
 
     transform-origin: var(--kb-popover-content-transform-origin);

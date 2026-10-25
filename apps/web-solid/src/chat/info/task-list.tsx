@@ -1,33 +1,39 @@
 import type { Agent, Member, Task, TaskStatus } from "@kiko/protocol"
-import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CheckIcon, CloseIcon } from "@kiko/ui/icons"
-import { For, Show } from "solid-js"
+import { For, Match, Show, Switch } from "solid-js"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
-import { room } from "../../state/room"
 import { TASK_LABEL, taskDependencies, taskText, taskOwner } from "./tasks-model"
 
 const CLOSED = new Set<TaskStatus>(["done", "cancelled"])
 
-function TaskCheck(props: { task: Task }) {
-  const done = () => props.task.status === "done"
+function TaskGlyph(props: { task: Task }) {
   return (
-    <button
-      type="button"
-      class="task-check"
+    <span
+      class="task-glyph"
       data-status={props.task.status}
-      role="checkbox"
-      aria-checked={done()}
+      role="img"
       aria-label={`${TASK_LABEL[props.task.status]}: ${props.task.title}`}
-      disabled={props.task.status === "cancelled"}
-      onClick={() => room.task({ op: "update", id: props.task.id, status: done() ? "todo" : "done" })}
     >
-      <Show when={done()}>
-        <RemixIcon icon={CheckIcon} class="task-check-mark" />
-      </Show>
-      <Show when={props.task.status === "cancelled"}>
-        <RemixIcon icon={CloseIcon} class="task-check-mark" />
-      </Show>
-    </button>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <circle cx="8" cy="8" r="6.25" class="task-glyph-ring" />
+        <Switch>
+          <Match when={props.task.status === "doing"}>
+            <path d="M8 1.75A6.25 6.25 0 0 1 14.25 8" class="task-glyph-arc" />
+          </Match>
+          <Match when={props.task.status === "done"}>
+            <path d="M5.2 8.2l2 2 3.6-4" stroke-linejoin="round" class="task-glyph-mark" />
+          </Match>
+          <Match when={props.task.status === "cancelled"}>
+            <path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4" class="task-glyph-mark" />
+          </Match>
+          <Match when={props.task.status === "blocked"}>
+            <path d="M5.5 8h5" class="task-glyph-mark" />
+          </Match>
+          <Match when={props.task.status === "review"}>
+            <path d="M8 4.5a3.5 3.5 0 0 1 0 7z" fill="currentColor" stroke="none" class="task-glyph-mark" />
+          </Match>
+        </Switch>
+      </svg>
+    </span>
   )
 }
 
@@ -46,7 +52,7 @@ export function TaskList(props: {
           const owner = () => taskOwner(task, props.members, props.agents)
           return (
             <li class="task-step" data-component="task-step" data-id={task.id} data-status={task.status}>
-              <TaskCheck task={task} />
+              <TaskGlyph task={task} />
               <div class="task-step-content">
                 <span class="task-step-title" data-closed={CLOSED.has(task.status) || undefined}>
                   {display(task.title)}

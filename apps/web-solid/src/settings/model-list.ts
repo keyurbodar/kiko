@@ -58,6 +58,7 @@ export function shortModelName(name: string): string {
 }
 
 export const ALL_PROVIDERS = "all"
+export const STARRED = "starred"
 
 export type PickerEntry =
   | { kind: "head"; key: string; label: string; provider?: CatalogProvider }
@@ -75,7 +76,10 @@ export function pickerEntries(input: {
   const starred = new Set(input.starred)
   const refOf = (r: ModelRow) => modelRef(r.provider.id, r.model.id)
   const visible = (r: ModelRow) => !hidden.has(refOf(r)) || refOf(r) === input.current
-  const scope = input.filter === ALL_PROVIDERS ? input.providers : input.providers.filter((p) => p.id === input.filter)
+  const scope =
+    input.filter === ALL_PROVIDERS || input.filter === STARRED
+      ? input.providers
+      : input.providers.filter((p) => p.id === input.filter)
   const out: PickerEntry[] = []
   let at = 0
   const push = (rows: readonly ModelRow[], mixed: boolean) => {
@@ -83,6 +87,13 @@ export function pickerEntries(input: {
   }
   if (input.query.trim()) {
     push(searchModels(scope, input.query).filter(visible), scope.length > 1)
+    return out
+  }
+  if (input.filter === STARRED) {
+    push(
+      searchModels(scope, "").filter((r) => starred.has(refOf(r))),
+      scope.length > 1,
+    )
     return out
   }
   if (input.filter !== ALL_PROVIDERS) {
