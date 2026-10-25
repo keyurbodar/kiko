@@ -390,7 +390,7 @@ export function ModelList(props: {
 
 export default function ModelPickerPanel(props: {
   current?: string
-  onPick: (ref: string, thinking: readonly ThinkingLevel[]) => void
+  onPick: (ref: string, thinking: readonly ThinkingLevel[], name: string) => void
   onOpenChange: (open: boolean) => void
   trigger: () => HTMLButtonElement | undefined
 }) {
@@ -442,7 +442,7 @@ export default function ModelPickerPanel(props: {
           footer
           onClose={close}
           onPick={(row) => {
-            props.onPick(modelRef(row.provider.id, row.model.id), row.model.thinking)
+            props.onPick(modelRef(row.provider.id, row.model.id), row.model.thinking, row.model.name)
             close()
           }}
         />

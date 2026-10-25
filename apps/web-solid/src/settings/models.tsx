@@ -346,7 +346,7 @@ function PickerModels(props: { providers: readonly CatalogProvider[] }) {
             <RemixIcon icon={MoreIcon} size={16} />
           </MenuV2.Trigger>
           <MenuV2.Portal>
-            <MenuV2.Content class="z-[80]">
+            <MenuV2.Content>
               <MenuV2.Item
                 disabled={shownCount() === rows().length}
                 onSelect={() =>

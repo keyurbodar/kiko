@@ -170,7 +170,7 @@ function AgentChip(props: { value: RecipeDoc["agent"]; onPick: (agent: Person) =
         <span class="truncate">{label()}</span>
       </MenuV2.Trigger>
       <MenuV2.Portal>
-        <MenuV2.Content class="z-[80] min-w-48">
+        <MenuV2.Content class="min-w-48">
           <MenuV2.Group>
             <MenuV2.GroupLabel>Who runs it</MenuV2.GroupLabel>
             <MenuV2.RadioGroup
@@ -237,7 +237,7 @@ function AppsChip(props: { value: readonly string[]; onChange: (apps: string[]) 
         </Show>
       </MenuV2.Trigger>
       <MenuV2.Portal>
-        <MenuV2.Content class="z-[80] max-h-80 min-w-52 overflow-y-auto">
+        <MenuV2.Content class="max-h-80 min-w-52 overflow-y-auto">
           <MenuV2.Group>
             <MenuV2.GroupLabel>Apps it uses</MenuV2.GroupLabel>
             <For each={options()}>

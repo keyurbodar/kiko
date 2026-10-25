@@ -2,7 +2,7 @@
 
 @layer v2 {
   [data-popper-positioner]:has([data-component="popover-v2-content"]) {
-    z-index: 55;
+    z-index: 80;
   }
 
   [data-component="popover-v2-content"] {
@@ -13,7 +13,7 @@
     max-width: var(--kb-popper-content-available-width);
     max-height: var(--kb-popper-content-available-height);
     overflow: hidden;
-    z-index: 55;
+    z-index: 80;
     pointer-events: auto;
 
     background: var(--raise);

@@ -12,12 +12,9 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: rgb(10 10 10 / 40%);
-  -webkit-backdrop-filter: blur(6px) saturate(0.7);
-  backdrop-filter: blur(6px) saturate(0.7);
-}
-:root:not(.dark) .palette-scrim::before {
-  background: rgb(20 20 20 / 18%);
+  background: var(--scrim);
+  -webkit-backdrop-filter: var(--scrim-blur);
+  backdrop-filter: var(--scrim-blur);
 }
 .palette-scrim[data-closing] {
   pointer-events: none;
@@ -630,13 +627,6 @@
     transition: none;
   }
 }
-@media (prefers-reduced-transparency: reduce) {
-  .palette-scrim::before {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    background: rgb(10 10 10 / 55%);
-  }
-}
 @keyframes palette-fade {
   from {
     opacity: 0;
@@ -672,11 +662,6 @@
   }
 }
 @media (width < 640px) {
-  .palette-scrim::before {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    background: rgb(10 10 10 / 55%);
-  }
   .palette-row {
     min-height: 44px;
   }

@@ -120,7 +120,11 @@ function FileBody(props: {
 }) {
   const at = () => where(props.chatId, props.path)
   return (
-    <section class="flex min-w-0 flex-1 flex-col" aria-label={fileName(props.path)} data-component="file-surface">
+    <section
+      class="flex min-h-0 min-w-0 flex-1 flex-col"
+      aria-label={fileName(props.path)}
+      data-component="file-surface"
+    >
       <FileViewer
         roomId={at().space}
         path={at().path}

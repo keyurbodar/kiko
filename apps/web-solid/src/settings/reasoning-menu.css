@@ -7,9 +7,6 @@
 .reasoning-trigger:active {
   transform: scale(0.97);
 }
-.reasoning-trigger[data-unavailable] {
-  color: var(--fg4);
-}
 .reasoning-panel {
   position: fixed;
   z-index: 80;
@@ -46,6 +43,11 @@
   color: var(--fg4);
   font-size: 11.5px;
   font-weight: 500;
+  opacity: 0;
+  transition: opacity var(--dur-hover) var(--ease-kiko);
+}
+.reasoning-default[data-shown] {
+  opacity: 1;
 }
 .reasoning-slider {
   position: relative;
@@ -113,46 +115,15 @@
   color: var(--fg4);
   font-size: 11.5px;
 }
-.reasoning-note {
-  color: var(--fg3);
-}
 
 @media (prefers-reduced-motion: no-preference) {
   .reasoning-panel {
     animation: reasoning-in var(--dur-pop) var(--ease-kiko);
-  }
-  .reasoning-label,
-  .reasoning-note {
-    display: inline-block;
-  }
-  .reasoning-label[data-enter],
-  .reasoning-note {
-    animation: reasoning-swap var(--dur-pop) var(--ease-kiko);
-  }
-  .reasoning-trigger[data-shake] {
-    animation: reasoning-shake 320ms var(--ease-kiko);
   }
 }
 @keyframes reasoning-in {
   from {
     opacity: 0;
     transform: translateY(6px) scale(0.98);
-  }
-}
-@keyframes reasoning-swap {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-@keyframes reasoning-shake {
-  20% {
-    transform: translateX(-3px);
-  }
-  45% {
-    transform: translateX(3px);
-  }
-  70% {
-    transform: translateX(-2px);
   }
 }

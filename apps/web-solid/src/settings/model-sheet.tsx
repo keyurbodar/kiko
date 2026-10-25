@@ -1,19 +1,18 @@
-import { defaultThinking, THINKING_LABELS, type ThinkingLevel } from "@kiko/protocol"
+import { defaultThinking, type ThinkingLevel } from "@kiko/protocol"
 import { createSignal, onCleanup, onMount, Show } from "solid-js"
 import { Portal } from "solid-js/web"
 import { canReason } from "./agent-model"
 import { modelRef } from "./model-list"
 import { ModelList } from "./model-picker-panel"
-import { Slider, ThinkingEnds } from "./reasoning-menu"
+import { Slider, ThinkingEnds, ThinkingValue } from "./reasoning-menu"
 
 const DISMISS_PX = 80
 
 export function ModelSheet(props: {
   current?: string
-  model?: string
   levels: readonly ThinkingLevel[] | undefined
   value: ThinkingLevel | undefined
-  onPick: (ref: string, thinking: readonly ThinkingLevel[]) => void
+  onPick: (ref: string, thinking: readonly ThinkingLevel[], name: string) => void
   onThinking: (level: ThinkingLevel) => void
   onClose: () => void
 }) {
@@ -82,26 +81,16 @@ export function ModelSheet(props: {
               onClose={() => props.onClose()}
               onPick={(row) => {
                 const ref = modelRef(row.provider.id, row.model.id)
-                if (ref !== props.current) props.onPick(ref, row.model.thinking)
+                if (ref !== props.current) props.onPick(ref, row.model.thinking, row.model.name)
               }}
             />
           </div>
-          <section class="model-sheet-thinking" aria-label="Thinking" data-component="model-sheet-thinking">
-            <div class="reasoning-head">
-              <span class="reasoning-title">Thinking</span>
-              <Show
-                when={canReason(props.levels)}
-                fallback={<span class="text-label text-fg3">{props.model ?? "This model"} doesn't think</span>}
-              >
-                <span class="reasoning-value" data-level={value()}>
-                  {THINKING_LABELS[value()]}
-                  <Show when={value() === defaultThinking(levels())}>
-                    <span class="reasoning-default">Default</span>
-                  </Show>
-                </span>
-              </Show>
-            </div>
-            <Show when={canReason(props.levels)}>
+          <Show when={canReason(props.levels)}>
+            <section class="model-sheet-thinking" aria-label="Thinking" data-component="model-sheet-thinking">
+              <div class="reasoning-head">
+                <span class="reasoning-title">Thinking</span>
+                <ThinkingValue levels={levels()} value={value()} />
+              </div>
               <Slider
                 levels={levels()}
                 value={value()}
@@ -110,8 +99,8 @@ export function ModelSheet(props: {
                 onDone={() => props.onClose()}
               />
               <ThinkingEnds levels={levels()} />
-            </Show>
-          </section>
+            </section>
+          </Show>
         </div>
       </div>
     </Portal>

@@ -5,7 +5,9 @@
     position: fixed;
     inset: 0;
     z-index: 70;
-    background: oklch(0% 0 none / 0.5);
+    background: var(--scrim, oklch(0% 0 none / 0.5));
+    -webkit-backdrop-filter: var(--scrim-blur, none);
+    backdrop-filter: var(--scrim-blur, none);
   }
 
   [data-component="modal-v2-content"] {

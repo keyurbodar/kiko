@@ -2,7 +2,7 @@
 
 @layer v2 {
   [data-popper-positioner]:has([data-component="menu-v2-content"]) {
-    z-index: 60;
+    z-index: 80;
   }
 
   [data-component="menu-v2-content"] {
@@ -16,7 +16,7 @@
     max-height: var(--kb-popper-content-available-height);
     overflow-y: auto;
     overscroll-behavior: contain;
-    z-index: 60;
+    z-index: 80;
     pointer-events: auto;
 
     background: var(--raise);

@@ -1,6 +1,7 @@
 .file-card {
-  --plate: color-mix(in oklab, var(--tone) 20%, var(--panel));
-  --plate-deep: color-mix(in oklab, var(--tone) 30%, var(--panel));
+  --plate: color-mix(in oklab, var(--tone) 5%, var(--raise));
+  --plate-deep: color-mix(in oklab, var(--tone) 9%, var(--raise));
+  --plate-glow: color-mix(in oklab, var(--tone) 9%, transparent);
   --rest: scale(0.84);
   --lift-ease: cubic-bezier(0.15, 0.65, 0.7, 1);
   position: relative;
@@ -15,8 +16,9 @@
 }
 
 :root:not(.dark) .file-card {
-  --plate: color-mix(in oklab, var(--tone) 13%, var(--panel));
-  --plate-deep: color-mix(in oklab, var(--tone) 20%, var(--panel));
+  --plate: color-mix(in oklab, var(--tone) 5%, var(--active));
+  --plate-deep: color-mix(in oklab, var(--tone) 9%, var(--active));
+  --plate-glow: color-mix(in oklab, var(--tone) 8%, transparent);
 }
 
 .file-card[data-compact] {
@@ -40,7 +42,8 @@
   aspect-ratio: 16 / 10;
   overflow: hidden;
   border-radius: var(--radius-row);
-  background: var(--plate);
+  background-color: var(--plate);
+  background-image: radial-gradient(120% 80% at 50% 0%, var(--plate-glow), transparent 70%);
   transition: background-color 180ms var(--ease-kiko);
 }
 
@@ -242,7 +245,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .file-card:hover .file-card-plate {
-    background: var(--plate-deep);
+    background-color: var(--plate-deep);
   }
 
   .file-card:hover .file-card-sheet {

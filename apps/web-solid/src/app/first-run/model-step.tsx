@@ -62,7 +62,7 @@ export function ModelStep() {
   const start = () => {
     const pick = ranked().find((c) => c.ref === current())
     if (pick && pick.ref !== user.agentModel(KIKO)?.model)
-      room.setAgentModel(KIKO as AgentSlug, { ref: pick.ref, levels: pick.model.thinking })
+      room.setAgentModel(KIKO as AgentSlug, { ref: pick.ref, levels: pick.model.thinking, name: pick.model.name })
     setFinished(true)
   }
 

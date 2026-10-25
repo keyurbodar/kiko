@@ -56,7 +56,8 @@ const STAGE_CLASS = "relative flex min-h-0 flex-1 flex-col"
 const SCROLLER_CLASS =
   "relative flex min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [overflow-anchor:none]"
 
-const COLUMN_CLASS = "mx-auto flex min-h-full w-full max-w-(--chat-content-max-width) self-start flex-col pt-12 pb-12"
+const COLUMN_CLASS =
+  "mx-auto flex min-h-full w-full max-w-(--chat-content-max-width) self-start flex-col pt-[calc(3rem+var(--top-bar-h,0px))] pb-12"
 
 const clampIndex = (index: number, count: number): number => Math.min(Math.max(index, 0), Math.max(count - 1, 0))
 
@@ -210,6 +211,8 @@ export function VirtualThread(props: {
   let dragging = false
   let dragFrom: { id: number; x: number; y: number } | undefined
 
+  const topInset = () => (scrollElement ? parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0 : 0)
+
   const jumpToMessage = (messageId: string) => {
     const fold = items().find(
       (item) => item.kind === "thread" && !item.expanded && item.messages.some((m) => m.id === messageId),
@@ -218,7 +221,7 @@ export function VirtualThread(props: {
     const index = items().findIndex((item) => item.kind === "message" && item.message.id === messageId)
     if (index < 0) return
     stuck = false
-    handle()?.scrollToIndex(index, { align: "start" })
+    handle()?.scrollToIndex(index, { align: "start", offset: -topInset() })
     const generation = (landingGeneration += 1)
     setLanded(messageId)
     setTimeout(() => {
@@ -244,7 +247,7 @@ export function VirtualThread(props: {
     const index = items().findIndex((item) => item.kind === "message" && dayStartOf(item.message.sentAt) === dayStart)
     if (index < 0) return
     stuck = false
-    handle()?.scrollToIndex(index, { align: "start" })
+    handle()?.scrollToIndex(index, { align: "start", offset: -topInset() })
     commitState(readState())
   }
 

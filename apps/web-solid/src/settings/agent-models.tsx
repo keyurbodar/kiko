@@ -25,7 +25,9 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
         current={current()?.model}
         open={open()}
         onOpenChange={setOpen}
-        onPick={(ref, levels) => ref !== current()?.model && room.setAgentModel(props.slug, { ref, levels })}
+        onPick={(ref, levels, name) =>
+          ref !== current()?.model && room.setAgentModel(props.slug, { ref, levels, name })
+        }
         title={`Choose model for ${props.name}`}
         class="flex h-8 max-w-[240px] min-w-0 items-center gap-1.5 rounded-[9px] bg-active px-3 text-[13px] text-fg transition-colors duration-[var(--dur-hover)] hover:bg-hover aria-expanded:bg-hover active:scale-[0.98]"
       >
@@ -39,7 +41,6 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
       <ReasoningMenu
         levels={current()?.thinkingLevels}
         value={current()?.thinking}
-        model={current()?.name}
         placement="bottom-end"
         class="h-8 rounded-[9px] bg-active px-3 text-[13px] text-fg"
         onChange={(thinking) => room.setAgentModel(props.slug, { thinking })}

@@ -192,7 +192,7 @@ function MemoryMore(props: { store: MemoryStore }) {
           <RemixIcon icon={MoreIcon} size={16} />
         </MenuV2.Trigger>
         <MenuV2.Portal>
-          <MenuV2.Content class="z-[80] min-w-56" data-component="memory-more-menu">
+          <MenuV2.Content class="min-w-56" data-component="memory-more-menu">
             <MenuV2.Item data-action="memory-model" onSelect={() => setPicking(true)}>
               <span class="flex min-w-0 flex-1 flex-col">
                 <span>Memory model…</span>

@@ -201,7 +201,9 @@
 .model-sheet-backdrop {
   position: absolute;
   inset: 0;
-  background: rgb(0 0 0 / 0.45);
+  background: var(--scrim);
+  -webkit-backdrop-filter: var(--scrim-blur);
+  backdrop-filter: var(--scrim-blur);
 }
 .model-sheet {
   position: relative;

@@ -106,7 +106,6 @@ export function ActivityEvent(props: {
                 label={r().label}
                 reason={r().detail}
                 note={r().note}
-                title={r().title}
                 actions={actions()}
                 group={props.group}
                 latest={props.latest}
