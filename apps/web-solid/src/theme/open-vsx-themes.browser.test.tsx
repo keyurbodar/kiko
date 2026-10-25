@@ -1,5 +1,5 @@
 import "../index.css"
-import { afterEach, describe, expect, it } from "vitest"
+import { describe, expect, it } from "vitest"
 import { page } from "vitest/browser"
 import type { ImportedTheme } from "@kiko/theme/imported"
 import type { Send } from "@kiko/theme/open-vsx"
@@ -8,9 +8,11 @@ import { look, updateLook } from "./live"
 import { ThemeBrowser } from "./open-vsx-themes"
 
 const API = "https://open-vsx.org/api"
-const before = look()
 
-afterEach(() => updateLook(before))
+function keepLook() {
+  const before = look()
+  return { [Symbol.dispose]: () => updateLook(before) }
+}
 
 function registry(routes: Record<string, unknown>): Send {
   return async (path) => {
@@ -85,6 +87,7 @@ const latte: ImportedTheme = {
 
 describe("theme browser", () => {
   it("shows a failed install on its own row and never calls that row installed", async () => {
+    using _look = keepLook()
     updateLook({ mode: "dark", imported: { themes: [], active: {} } })
     await using _screen = await render(() => <ThemeBrowser open onClose={() => {}} send={registry(monokaiRoutes)} />)
     await page.getByRole("searchbox", { name: "Search Open VSX" }).fill("Monokai Pro")
@@ -101,6 +104,7 @@ describe("theme browser", () => {
   })
 
   it("offers a retry when Open VSX could not be reached during an install", async () => {
+    using _look = keepLook()
     updateLook({ mode: "dark", imported: { themes: [], active: {} } })
     const { [monokai]: _detail, ...offline } = monokaiRoutes
     await using _screen = await render(() => <ThemeBrowser open onClose={() => {}} send={registry(offline)} />)
@@ -112,6 +116,7 @@ describe("theme browser", () => {
   })
 
   it("switches to the light variant picked from its preview", async () => {
+    using _look = keepLook()
     updateLook({ mode: "dark", imported: { themes: [mocha, latte], active: { dark: mocha.id } } })
     await using _screen = await render(() => <ThemeBrowser open onClose={() => {}} send={registry({})} />)
     await expect
