@@ -396,9 +396,9 @@ export class Outbox {
   }
 
   private async thinkLast(generation: Generation, entry: EntryRecord): Promise<void> {
-    assistant(entry)?.content.forEach((part, i) => {
-      if (part.type === "thinking") generation.thoughts.set(i, part.thinking)
-    })
+    for (const [i, part] of (assistant(entry)?.content ?? []).entries())
+      if (part.type === "thinking" && "thinking" in part && typeof part.thinking === "string")
+        generation.thoughts.set(i, part.thinking)
     await this.think(generation, true)
   }
 

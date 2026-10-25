@@ -17,9 +17,6 @@ function inkColor(seed: string): string {
   return `light-dark(color-mix(in oklch, ${grain}, #000 45%), color-mix(in oklch, ${grain}, #fff 30%))`
 }
 
-export const identityTint = (seed: string, percent: number) =>
-  `color-mix(in oklch, ${identityLook(seed).color} ${percent}%, transparent)`
-
 const DEFAULT_AGENT_SLUG = KIKO
 
 type ChatAgents = { roomId: string; agents?: readonly string[] }
