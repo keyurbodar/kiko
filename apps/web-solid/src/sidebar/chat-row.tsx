@@ -12,6 +12,7 @@ import { presenceWords } from "../state/live-status"
 import { cachedTail, room } from "../state/room"
 import { user } from "../state/user"
 import { draftBook } from "../composer/draft-book"
+import { draftPreview } from "../composer/rich/file-ref"
 import type { ChatMessage, RosterBot } from "../lib/types"
 import {
   cancelRename,
@@ -341,7 +342,7 @@ export function ChatRow(props: {
   const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id) || props.need !== undefined
   const draft = () => {
     const book = draftBook()
-    return props.active || !book?.has(props.bot.id) ? "" : (book.get(props.bot.id)?.text.trim() ?? "")
+    return props.active || !book?.has(props.bot.id) ? "" : draftPreview(book.get(props.bot.id)?.text ?? "")
   }
   const onClick = (event: MouseEvent) => {
     if (!plainClick(event)) return

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { findTrigger } from "./prompt-input/machine"
-import { fileRefToken, shownName } from "./rich/file-ref"
+import { draftPreview, fileRefToken, shownName } from "./rich/file-ref"
 import { markdownToDoc, docToMarkdown } from "./rich/markdown"
 import { skillNames, tokenGroups, type Token, type TokenPool } from "./tokens"
 
@@ -67,5 +67,13 @@ describe("file names", () => {
     expect(shownName("attachments/mvmm766u-budget.csv")).toBe("budget.csv")
     expect(shownName("notes/mvmm766u-budget.csv")).toBe("mvmm766u-budget.csv")
     expect(fileRefToken("attachments/mvmm766u-budget.csv")).toBe("[budget.csv](/attachments/mvmm766u-budget.csv)")
+  })
+})
+
+describe("draftPreview", () => {
+  it("shows chips in a draft by their names", () => {
+    expect(draftPreview("Compare [budget.csv](attachment:abc-1) with [plan.md](</notes/my plan.md>) ")).toBe(
+      "Compare budget.csv with plan.md",
+    )
   })
 })

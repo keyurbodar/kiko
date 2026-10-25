@@ -11,3 +11,9 @@ export function fileRefToken(path: string, folder = false): string {
   const clean = path.replace(/\/+$/, "")
   return `[${shownName(clean).replace(/[[\]\n\\]/g, "")}](${linkTarget(`/${clean}${folder ? "/" : ""}`)})`
 }
+
+const LINK = /!?\[([^\]\n]*)\]\((?:<[^>\n]*>|[^)\n]*)\)/g
+
+export function draftPreview(text: string): string {
+  return text.replace(LINK, "$1").trim()
+}

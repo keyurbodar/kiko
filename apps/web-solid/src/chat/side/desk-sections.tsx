@@ -1,14 +1,18 @@
 import { fileName, type FileRef, type HumanAsk, type LifeLine, type Task, type WorkerRow } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, ChevronRightIcon, ClockIcon, WorkerIcon } from "@kiko/ui/icons"
-import { createContext, createMemo, For, type JSX, Show, useContext } from "solid-js"
+import { createContext, createMemo, For, type JSX, onMount, Show, useContext } from "solid-js"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { agentDisplayName } from "../../lib/names"
 import { room } from "../../state/room"
+import { user } from "../../state/user"
+import { type CardFile, FileCard } from "../../files/card"
+import { library } from "../../files/library"
+import { fileType } from "../../files/type"
 import type { Routine } from "../info/routines"
 import { triggerLabel } from "../info/routines-model"
 import { taskText } from "../info/tasks-model"
-import { deskTasks, fileLook, fileTiles, helperLabel, helpers, knowns, nowProgress, waiting } from "./desk-model"
+import { deskTasks, fileTiles, helperLabel, helpers, knowns, nowProgress, waiting } from "./desk-model"
 import { type FixedKind, fixedSurface, openFile, openSurface } from "./surfaces"
 import "./card.css"
 
@@ -215,44 +219,51 @@ export function Helpers(props: { workers: readonly WorkerRow[]; chatId: string }
 }
 
 export function Files(props: { files: readonly FileRef[]; chatId: string }) {
+  onMount(library.want)
+  const facts = createMemo(() => new Map(library.files().map((f) => [f.file.id, f])))
   const tiles = createMemo(() => fileTiles(props.files))
+  const where = () => room.chatById(props.chatId)?.name ?? "this chat"
+  const card = (file: FileRef): CardFile => {
+    const fact = facts().get(file.id)
+    const madeBy = fact?.madeBy ?? null
+    const name = fileName(file.name)
+    const type = fileType({ name, type: file.type })
+    return {
+      space: props.chatId,
+      file,
+      name,
+      type,
+      madeBy,
+      maker: madeBy ? agentDisplayName(madeBy, user.agents()) : null,
+      at: fact?.at ?? null,
+      where: where(),
+    }
+  }
   return (
     <Section label="Files" kind="files" chatId={props.chatId} meta={`${props.files.length}`}>
-      <div class="flex flex-wrap gap-2 px-px" data-component="card-files">
+      <div class="grid grid-cols-2 gap-2" data-component="card-files">
         <For each={tiles().shown}>
-          {(file) => {
-            const look = () => fileLook(file.name)
-            return (
-              <button
-                type="button"
-                class={`desk-tile grid h-10 w-9 place-items-center rounded-row bg-active text-fg2 hover:-translate-y-px ${press}`}
-                style={
-                  look().hue
-                    ? { background: `color-mix(in srgb, ${look().hue} 12%, transparent)`, color: look().hue! }
-                    : undefined
-                }
-                title={fileName(file.name)}
-                aria-label={fileName(file.name)}
-                data-action="open-file"
-                onClick={() => openFile(props.chatId, file.name)}
-              >
-                <RemixIcon icon={look().glyph} size={18} />
-              </button>
-            )
-          }}
+          {(file) => (
+            <FileCard
+              compact
+              entry={card(file)}
+              onOpen={() => openFile(props.chatId, file.name)}
+              attrs={{ "data-action": "open-file" }}
+            />
+          )}
         </For>
-        <Show when={tiles().more}>
-          <button
-            type="button"
-            class={`grid h-10 min-w-9 place-items-center rounded-row bg-active px-2 text-[13px] text-fg3 hover:text-fg ${press}`}
-            aria-label={`${tiles().more} more files`}
-            data-action="open-files"
-            onClick={() => openSurface(props.chatId, fixedSurface("files"))}
-          >
-            {`+${tiles().more}`}
-          </button>
-        </Show>
       </div>
+      <Show when={tiles().more}>
+        <button
+          type="button"
+          class={`-mx-1 flex h-7 items-center rounded-control px-1 text-left text-label text-fg3 hover:bg-hover hover:text-fg ${press}`}
+          aria-label={`${tiles().more} more files`}
+          data-action="open-files"
+          onClick={() => openSurface(props.chatId, fixedSurface("files"))}
+        >
+          {`${tiles().more} more`}
+        </button>
+      </Show>
     </Section>
   )
 }

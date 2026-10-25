@@ -108,6 +108,10 @@ export function attachmentExtension(view: ChipView) {
         dom.className = "composer-chip-node"
         dom.contentEditable = "false"
         dom.dataset.attachment = String(node.attrs.id)
+        if (fresh) {
+          dom.dataset.fresh = ""
+          fresh = false
+        }
         const dispose = view(dom, { id: String(node.attrs.id), name: String(node.attrs.name) })
         return {
           dom,

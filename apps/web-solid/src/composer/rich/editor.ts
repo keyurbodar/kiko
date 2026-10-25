@@ -519,6 +519,13 @@ export function mountRichEditor(options: RichOptions) {
       )
       editor.commands.focus(undefined, { scrollIntoView: false })
     },
+    insertAttachments(items: readonly { id: string; name: string }[], at?: Point) {
+      popNextToken()
+      insertChips(
+        items.map((item) => ({ type: "attachment", attrs: { id: item.id, name: item.name } })),
+        at,
+      )
+    },
     insertFileRefs(paths: readonly string[], at?: Point) {
       insertChips(
         paths.map((path) => ({

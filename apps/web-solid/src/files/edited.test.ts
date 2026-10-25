@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { editedText } from "./edited"
+import { agoText, editedText } from "./edited"
 
 const NOW = Date.UTC(2026, 9, 25, 12)
 const DAY = 86_400_000
@@ -20,5 +20,22 @@ describe("editedText", () => {
   it("moves up to months and years", () => {
     expect(editedText(NOW - 65 * DAY, NOW)).toBe("2 months ago")
     expect(editedText(NOW - 800 * DAY, NOW)).toBe("2 years ago")
+  })
+})
+
+describe("agoText", () => {
+  it("says just now, then minutes and hours back", () => {
+    expect(agoText(Number.MAX_SAFE_INTEGER, NOW)).toBe("Just now")
+    expect(agoText(NOW - 30_000, NOW)).toBe("Just now")
+    expect(agoText(NOW - 12 * 60_000, NOW)).toBe("12m ago")
+    expect(agoText(NOW - 3_600_000, NOW)).toBe("1h ago")
+    expect(agoText(NOW - 23 * 3_600_000, NOW)).toBe("23h ago")
+  })
+
+  it("names the day after a day, and adds the year when it differs", () => {
+    const day = new Date(2026, 9, 23, 12).getTime()
+    const lastYear = new Date(2025, 9, 23, 12).getTime()
+    expect(agoText(day, NOW)).toBe(new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(day))
+    expect(agoText(lastYear, NOW)).toContain("2025")
   })
 })

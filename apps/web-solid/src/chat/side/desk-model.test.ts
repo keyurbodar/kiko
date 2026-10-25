@@ -1,6 +1,6 @@
 import type { HumanAsk, LifeLine, Task, WorkerRow } from "@kiko/protocol"
 import { describe, expect, it } from "vitest"
-import { deskTasks, fileLook, fileTiles, helperLabel, helpers, knowns, nowProgress, waiting } from "./desk-model"
+import { deskTasks, fileTiles, helperLabel, helpers, knowns, nowProgress, waiting } from "./desk-model"
 
 const task = (id: string, status: Task["status"]) => ({ id, title: id, status, dependsOn: [] }) as unknown as Task
 const line = (pos: number, extra: Partial<LifeLine> = {}): LifeLine => ({
@@ -22,13 +22,6 @@ const worker = (id: string, status: WorkerRow["status"], startedAt: number): Wor
 })
 
 describe("desk model", () => {
-  it("tints known file types and leaves the rest neutral", () => {
-    expect(fileLook("trip.PDF").hue).not.toBeNull()
-    expect(fileLook("budget.xlsx").hue).not.toBe(fileLook("trip.pdf").hue)
-    expect(fileLook("photo.png").hue).toBeNull()
-    expect(fileLook("Makefile").hue).toBeNull()
-  })
-
   it("shows the newest files first and counts the rest", () => {
     const tiles = fileTiles([1, 2, 3, 4, 5, 6])
     expect(tiles.shown).toEqual([6, 5, 4, 3])

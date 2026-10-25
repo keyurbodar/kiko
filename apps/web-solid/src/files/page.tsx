@@ -18,9 +18,8 @@ import {
 } from "../customize/page-ui"
 import { formatBytes } from "../chat/info/format"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
-import { cn } from "../lib/cn"
 import { agentDisplayName } from "../lib/names"
-import { fileSrc, room } from "../state/room"
+import { room } from "../state/room"
 import { user } from "../state/user"
 import { putFile, rememberMade } from "./api"
 import { viewerKind, type ViewerKind } from "./kind"
@@ -32,6 +31,8 @@ import { HOME } from "./model"
 import { setFullSize } from "./prefs"
 import { type FileGroup, fileType, type FileType, GROUP_LABELS, groupOf, TYPE_NAMES } from "./type"
 import { TypeIcon } from "./type-icon"
+import { type CardFile, FileCard, toneOf } from "./card"
+import { agoText } from "./edited"
 
 function reportDrop(result: DropResult) {
   const count = result.saved.length
@@ -84,43 +85,27 @@ const compare: Record<Sort, (a: Entry, b: Entry) => number> = {
 const chatName = (roomId: string | null) =>
   roomId === null ? null : (room.chatById(roomId)?.name ?? user.chat(roomId)?.title ?? null)
 
-function origin(e: Entry): string {
+function place(e: Entry): string {
   const where = chatName(e.roomId)
-  if (e.madeBy) {
-    const who = agentDisplayName(e.madeBy, user.agents())
-    return where ? `${who} made it in ${where}` : `${who} made it`
-  }
-  if (where) return `In ${where}`
-  return e.folder === HOME ? "In your files" : `In ${e.folder.slice(HOME.length + 1)}`
+  if (where) return where
+  return e.folder === HOME ? "your files" : e.folder.slice(HOME.length + 1)
 }
 
-function Thumb(props: { entry: Entry }) {
-  const [failed, setFailed] = createSignal(false)
-  return (
-    <Show
-      when={props.entry.type === "image" && !failed()}
-      fallback={
-        <TypeIcon
-          type={props.entry.type}
-          size={44}
-          class="transition-transform duration-(--dur-pop) ease-kiko group-hover:scale-105"
-        />
-      }
-    >
-      <img
-        src={fileSrc(props.entry.space, props.entry.file.id)}
-        alt=""
-        loading="lazy"
-        draggable={false}
-        class="size-full object-cover"
-        onError={() => setFailed(true)}
-      />
-    </Show>
-  )
+function cardOf(e: Entry): CardFile {
+  return {
+    space: e.space,
+    file: e.file,
+    name: e.name,
+    type: e.type,
+    madeBy: e.madeBy,
+    maker: e.madeBy ? agentDisplayName(e.madeBy, user.agents()) : null,
+    at: e.at,
+    where: place(e),
+  }
 }
 
 function Maker(props: { entry: Entry }) {
-  return <Show when={props.entry.madeBy}>{(slug) => <IdentityAvatar seed={slug()} size={20} class="shrink-0" />}</Show>
+  return <Show when={props.entry.madeBy}>{(slug) => <IdentityAvatar seed={slug()} size={18} class="shrink-0" />}</Show>
 }
 
 function Upload(props: { onFiles: (files: File[]) => void; primary?: boolean }) {
@@ -226,27 +211,11 @@ function GridView(props: { shown: readonly Entry[]; open: (key: string) => void 
     >
       <For each={props.shown}>
         {(e) => (
-          <button
-            type="button"
-            class={cn(
-              "files-card page-card group flex min-w-0 cursor-pointer flex-col overflow-hidden rounded-card bg-panel text-left outline-none",
-              "transition-[background-color,transform] duration-(--dur-hover) hover:bg-hover active:scale-[0.98] focus-visible:bg-hover",
-            )}
-            data-file={e.path}
-            data-fresh={isFresh(e.path) ? "" : undefined}
-            onClick={() => props.open(e.key)}
-          >
-            <span class="relative grid aspect-[16/10] w-full place-items-center overflow-hidden bg-raise">
-              <Thumb entry={e} />
-            </span>
-            <span class="flex min-w-0 flex-col gap-1 px-3.5 py-3">
-              <span class="type-row truncate text-fg">{e.name}</span>
-              <span class="flex min-w-0 items-center gap-1.5">
-                <Maker entry={e} />
-                <span class="type-label truncate text-fg3">{origin(e)}</span>
-              </span>
-            </span>
-          </button>
+          <FileCard
+            entry={cardOf(e)}
+            onOpen={() => props.open(e.key)}
+            attrs={{ "data-file": e.path, "data-fresh": isFresh(e.path) ? "" : undefined }}
+          />
         )}
       </For>
     </div>
@@ -265,11 +234,21 @@ function ListView(props: { shown: readonly Entry[]; open: (key: string) => void 
             data-fresh={isFresh(e.path) ? "" : undefined}
             onClick={() => props.open(e.key)}
           >
-            <TypeIcon type={e.type} size={24} />
+            <span
+              class="grid size-8 shrink-0 place-items-center rounded-control transition-colors duration-(--dur-hover)"
+              style={{ background: `color-mix(in oklab, ${toneOf(e.name)} 14%, var(--panel))` }}
+            >
+              <TypeIcon type={e.type} size={20} />
+            </span>
             <span class="type-row min-w-0 flex-1 truncate text-fg">{e.name}</span>
-            <span class="type-label hidden w-56 min-w-0 items-center gap-1.5 text-fg3 @min-[640px]/page:flex">
+            <span
+              class="type-label hidden w-56 min-w-0 items-center gap-1.5 text-fg3 @min-[640px]/page:flex"
+              title={
+                e.madeBy ? `${agentDisplayName(e.madeBy, user.agents())} made it in ${place(e)}` : `In ${place(e)}`
+              }
+            >
               <Maker entry={e} />
-              <span class="truncate">{origin(e)}</span>
+              <span class="truncate">{agoText(e.at)}</span>
             </span>
             <span class="type-label hidden w-24 text-fg3 @min-[640px]/page:block">{TYPE_NAMES[e.type]}</span>
             <span class="type-hint w-16 text-right text-fg4">{formatBytes(e.file.size)}</span>
