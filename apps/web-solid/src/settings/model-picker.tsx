@@ -10,6 +10,7 @@ import { user } from "../state/user"
 import { defaultThinking, THINKING_LABELS, type ThinkingLevel } from "@kiko/protocol"
 import { answeringMember, canReason } from "./agent-model"
 import { ReasoningMenu } from "./reasoning-menu"
+import { useLiveModel } from "./catalog"
 import { connectedProviders } from "./connected"
 import { hasModelProvider } from "./provider-kinds"
 import { shortModelName } from "./model-list"
@@ -87,7 +88,7 @@ export function ModelPickerButton(props: { draft: string }) {
   return (
     <Show when={hasModelProvider(connectedProviders()) ? target() : undefined}>
       {(member) => {
-        const current = () => user.agentModel(member().slug)
+        const current = useLiveModel(() => user.agentModel(member().slug))
         const label = () => current()?.name ?? current()?.model.split("/").slice(1).join("/") ?? "Choose model"
         const thinking = () => {
           const levels = current()?.thinkingLevels

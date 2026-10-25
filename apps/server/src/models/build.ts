@@ -1,6 +1,19 @@
-import type { Provider } from "@earendil-works/pi-ai"
+import type { Api, Model, Provider } from "@earendil-works/pi-ai"
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai/models"
 import type { Catalog, CatalogModel, CatalogProvider, ConnectMethod } from "@kiko/protocol"
+
+const ALIAS = /\s*\(latest\)$/i
+
+function listed<M extends Model<Api>>(models: readonly M[]): { model: M; name: string }[] {
+  const aliased = new Set(models.filter((m) => ALIAS.test(m.name)).map((m) => m.name.replace(ALIAS, "")))
+  return models.flatMap((model) =>
+    ALIAS.test(model.name)
+      ? [{ model, name: model.name.replace(ALIAS, "") }]
+      : aliased.has(model.name)
+        ? []
+        : [{ model, name: model.name }],
+  )
+}
 
 export function buildCatalog(
   all: readonly Provider[],
@@ -13,10 +26,10 @@ export function buildCatalog(
     if (signIn) connect.push(signIn)
     const oauth = provider.auth?.oauth
     const offer = signIn && oauth ? { method: signIn, label: oauth.loginLabel ?? oauth.name } : undefined
-    const models: CatalogModel[] = [...provider.getModels()]
-      .map((model) => ({
+    const models: CatalogModel[] = listed(provider.getModels())
+      .map(({ model, name }) => ({
         id: model.id,
-        name: model.name,
+        name,
         contextWindow: model.contextWindow,
         maxTokens: model.maxTokens,
         reasoning: Boolean(model.reasoning),

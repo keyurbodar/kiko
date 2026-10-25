@@ -7,10 +7,11 @@ import { user } from "../state/user"
 import { Group, Row } from "./kit"
 import { ModelPicker } from "./model-picker"
 import { ReasoningMenu } from "./reasoning-menu"
+import { useLiveModel } from "./catalog"
 
 function AgentRow(props: { slug: AgentSlug; name: string }) {
   const [open, setOpen] = createSignal(false)
-  const current = () => user.agentModel(props.slug)
+  const current = useLiveModel(() => user.agentModel(props.slug))
   return (
     <Row
       data-agent={props.slug}

@@ -18,7 +18,7 @@ function lookup(ref: { provider: string; modelId: string }) {
 }
 
 export function modelName(ref: { provider: string; modelId: string }): string | undefined {
-  return lookup(ref)?.name
+  return lookup(ref)?.name.replace(/\s*\(latest\)$/i, "")
 }
 
 export function supportedThinking(ref: { provider: string; modelId: string }): ThinkingLevel[] {

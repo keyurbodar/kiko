@@ -10,10 +10,6 @@ export const THINKING_LABELS: Readonly<Record<ThinkingLevel, string>> = {
   max: "Max",
 }
 
-export function defaultThinking(supported: readonly ThinkingLevel[]): ThinkingLevel {
-  return supported.find((level) => level !== "off") ?? "off"
-}
-
 const ORDER: readonly ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
 
 export function clampThinking(supported: readonly ThinkingLevel[], wanted: ThinkingLevel): ThinkingLevel {
@@ -27,4 +23,9 @@ export function clampThinking(supported: readonly ThinkingLevel[], wanted: Think
     supported[0] ??
     "off"
   )
+}
+
+export function defaultThinking(supported: readonly ThinkingLevel[]): ThinkingLevel {
+  const thinking = supported.filter((level) => level !== "off")
+  return thinking.length ? clampThinking(thinking, "medium") : "off"
 }

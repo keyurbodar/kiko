@@ -11,11 +11,11 @@ import { catalogQuery } from "../../settings/catalog"
 import { formatContext, formatPrice, modelRef, searchModels } from "../../settings/model-list"
 import { connectedProviders } from "../../settings/connected"
 import { modelProviders } from "../../settings/provider-kinds"
-import { type ModelChoice, rankModels, startingModel } from "./choices"
+import type { ModelChoice } from "./choices"
 import { errorText, primary } from "./controls"
 import { setFinished } from "./progress"
 
-const RECOMMENDED = 4
+const SKELETONS = 4
 const SEARCH_FROM = 8
 
 export function ModelStep() {
@@ -27,14 +27,13 @@ export function ModelStep() {
     const ids = new Set(modelProviders(connectedProviders()).map((p) => p.provider))
     return (catalog.error ? [] : (catalog()?.providers ?? [])).filter((p) => ids.has(p.id))
   })
-  const ranked = createMemo(() =>
-    rankModels(
-      live().flatMap((provider) =>
-        provider.models.map((model) => ({ provider, model, ref: modelRef(provider.id, model.id) })),
-      ),
+  const all = createMemo(() =>
+    live().flatMap((provider) =>
+      provider.models.map((model): ModelChoice => ({ provider, model, ref: modelRef(provider.id, model.id) })),
     ),
   )
-  const current = () => chosen() ?? startingModel(ranked(), user.agentModel(KIKO)?.model)
+  const running = () => all().find((c) => c.ref === user.agentModel(KIKO)?.model)?.ref
+  const current = () => chosen() ?? running()
   const searching = () => query().trim() !== ""
   const sections = createMemo(() => {
     if (searching())
@@ -48,19 +47,16 @@ export function ModelStep() {
           })),
         },
       ]
-    if (ranked().length <= RECOMMENDED) return [{ label: null, rows: ranked() }]
-    const rest = ranked().slice(RECOMMENDED)
-    const byProvider = live().map((provider) => ({
-      label: live().length > 1 ? provider.name : "More models",
-      rows: rest.filter((c) => c.provider.id === provider.id),
+    return live().map((provider) => ({
+      label: live().length > 1 ? provider.name : null,
+      rows: all().filter((c) => c.provider.id === provider.id),
     }))
-    return [{ label: "Recommended", rows: ranked().slice(0, RECOMMENDED) }, ...byProvider]
   })
 
   const groups = createMemo(() => sections().filter((g) => g.rows.length > 0))
 
   const start = () => {
-    const pick = ranked().find((c) => c.ref === current())
+    const pick = all().find((c) => c.ref === current())
     if (pick && pick.ref !== user.agentModel(KIKO)?.model)
       room.setAgentModel(KIKO as AgentSlug, { ref: pick.ref, levels: pick.model.thinking, name: pick.model.name })
     setFinished(true)
@@ -74,7 +70,7 @@ export function ModelStep() {
       <p class="welcome-lede" style={{ "--i": 1 }}>
         Kiko is your main agent. You can switch models any time from the composer.
       </p>
-      <Show when={ranked().length > SEARCH_FROM}>
+      <Show when={all().length > SEARCH_FROM}>
         <label class="welcome-search" style={{ "--i": 2 }}>
           <RemixIcon icon={SearchIcon} size={15} />
           <input
@@ -90,7 +86,7 @@ export function ModelStep() {
         <Show
           when={!catalog.loading}
           fallback={
-            <For each={Array.from({ length: RECOMMENDED })}>{() => <div class="first-run-skeleton ob-skeleton" />}</For>
+            <For each={Array.from({ length: SKELETONS })}>{() => <div class="first-run-skeleton ob-skeleton" />}</For>
           }
         >
           <Show when={catalog.error}>
