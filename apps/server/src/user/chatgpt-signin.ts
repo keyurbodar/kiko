@@ -11,7 +11,7 @@ const SCOPE = `openid profile email offline_access resource.invoke ${DIRECT_TOKE
 const EXPIRY_MARGIN_MS = 3 * 60 * 1000
 
 const PASTE_MESSAGE =
-  "After you approve, the browser shows a page that cannot load. Copy its full address and paste it here."
+  "After you approve, the tab shows a page that cannot load, or an error from the Codex app. Copy that tab's full address and paste it here."
 
 class SignInError extends Schema.TaggedError<SignInError>()("SignInError", {
   code: Schema.Literals(["wrong_address", "denied", "exchange", "no_installation"]),

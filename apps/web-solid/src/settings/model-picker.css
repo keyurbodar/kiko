@@ -294,3 +294,9 @@
     transform: translateY(100%);
   }
 }
+.model-sheet-thinking-title {
+  margin: 0 0 10px;
+  color: var(--fg3);
+  font-size: 12px;
+  font-weight: 500;
+}

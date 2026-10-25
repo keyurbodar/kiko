@@ -733,6 +733,8 @@ export function ConnectDialog(props: {
   )
 }
 
+const signInLabel = (label: string) => (/^sign in\b/i.test(label) ? label : `Sign in with ${label}`)
+
 function SignInMethod(props: {
   provider: string
   name: string
@@ -773,7 +775,7 @@ function SignInMethod(props: {
         when={running()}
         fallback={
           <Button big class="w-full" data-action="sign-in" onClick={start}>
-            {state()?.status === "error" ? "Try signing in again" : `Sign in with ${props.label ?? props.name}`}
+            {state()?.status === "error" ? "Try signing in again" : signInLabel(props.label ?? props.name)}
           </Button>
         }
       >

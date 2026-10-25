@@ -4,6 +4,7 @@ import { room } from "../../state/room"
 import { user } from "../../state/user"
 import { THINKING_LABELS } from "@kiko/protocol"
 import { canReason } from "../../settings/agent-model"
+import { useLiveModel } from "../../settings/catalog"
 import { DangerRow, Profile, Properties, Property, roomMembers } from "../info/sections"
 import { SoulCard } from "../info/soul"
 
@@ -11,7 +12,7 @@ const sentence = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
 
 export function AgentPage(props: { slug: string; chatId: string; onRemoved: () => void }) {
   const member = () => roomMembers().find((m) => m.slug === props.slug)
-  const picked = () => user.agentModel(props.slug)
+  const picked = useLiveModel(() => user.agentModel(props.slug))
   const status = () => room.status()[props.slug as never] ?? "idle"
   return (
     <div class="flex min-h-full flex-col" data-component="info-agent" data-slug={props.slug}>
