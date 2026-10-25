@@ -300,7 +300,7 @@ export class Outbox {
         return this.stream(text)
       }
       case "message_end":
-        if (this.run?.generation) await this.think(this.run.generation, true)
+        if (this.run?.generation) await this.thinkLast(this.run.generation, event.entry)
         this.lastEntry = Math.max(this.lastEntry, event.entry.id)
         this.see(event.entry)
         return this.entry(event.entry)
@@ -393,6 +393,13 @@ export class Outbox {
       this.lastDraft = this.now()
       await this.room()?.draft(run.id, run.blocks.length + generation.blocks.length, out.draft)
     }
+  }
+
+  private async thinkLast(generation: Generation, entry: EntryRecord): Promise<void> {
+    assistant(entry)?.content.forEach((part, i) => {
+      if (part.type === "thinking") generation.thoughts.set(i, part.thinking)
+    })
+    await this.think(generation, true)
   }
 
   private async think(generation: Generation, answered: boolean): Promise<void> {
