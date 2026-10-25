@@ -1,7 +1,7 @@
-import { ChevronDownIcon, ChevronRightIcon, ChevronUpIcon } from "@kiko/ui/icons"
+import { ChevronRightIcon } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { createEffect, createSignal, on, onCleanup, Show, type JSX } from "solid-js"
-import { latestLine, type Thought, thoughtMs, thoughtText } from "../../state/thoughts"
+import { type Thought, thoughtMs, thoughtText } from "../../state/thoughts"
 import { Shine } from "../run/Shine"
 import { Mochi } from "../ui/Mochi"
 import "./thinking.css"
@@ -60,26 +60,38 @@ function usePacedLine(text: () => string) {
   return shown
 }
 
-function Stream(props: { text: string }) {
+function Stream(props: { text: string; follow: boolean }): JSX.Element {
   let box!: HTMLDivElement
-  let pinned = true
+  let pinned = props.follow
+  const mark = () => box.toggleAttribute("data-scrolled", box.scrollTop > 0)
   createEffect(
     on(
       () => props.text,
       () => {
         if (pinned) box.scrollTop = box.scrollHeight
-        box.toggleAttribute("data-overflow", box.scrollHeight > box.clientHeight && box.scrollTop > 0)
+        mark()
       },
     ),
   )
   const onScroll = () => {
-    pinned = box.scrollHeight - box.scrollTop - box.clientHeight < 8
-    box.toggleAttribute("data-overflow", box.scrollTop > 0)
+    pinned = props.follow && box.scrollHeight - box.scrollTop - box.clientHeight < 8
+    mark()
   }
   return (
     <div ref={box} class="thinking-stream" data-component="thinking-stream" onScroll={onScroll}>
       {props.text}
     </div>
+  )
+}
+
+function Chevron(props: { open: boolean }): JSX.Element {
+  return (
+    <RemixIcon
+      icon={ChevronRightIcon}
+      size={12}
+      class="thinking-chevron motion-run-chevron"
+      data-open={props.open ? "" : undefined}
+    />
   )
 }
 
@@ -93,7 +105,7 @@ export function ThinkingLine(props: { thought: Thought | undefined; fallback: st
     const thought = live()
     return thought !== undefined && thought.openSince !== null && text() !== ""
   }
-  const line = usePacedLine(() => (thinking() ? latestLine(text()) : props.fallback))
+  const caption = usePacedLine(() => props.fallback)
   const [open, setOpen] = createSignal(remembered())
   const now = useNow(() => !!live())
   const toggle = () => {
@@ -104,37 +116,29 @@ export function ThinkingLine(props: { thought: Thought | undefined; fallback: st
   return (
     <div class="thinking" data-component="thinking-line" data-open={open() && text() ? "" : undefined}>
       <Show
-        when={open() && text()}
+        when={text()}
         fallback={
           <div class="thinking-row">
             <Mochi size={20} />
-            <span class="thinking-cycle" aria-hidden="true">
-              <Show when={line()} keyed>
-                {(shown) => (
-                  <Shine running class="thinking-live">
-                    {shown}
-                  </Shine>
-                )}
-              </Show>
-            </span>
+            <Shine running class="thinking-live">
+              {caption()}
+            </Shine>
           </div>
         }
       >
-        <button type="button" class="thinking-row thinking-toggle" aria-expanded="true" onClick={toggle}>
+        <button type="button" class="thinking-row thinking-toggle" aria-expanded={open()} onClick={toggle}>
           <Mochi size={20} />
           <Shine running={thinking()} class="thinking-live">
-            Thinking
+            {thinking() ? "Thinking" : caption()}
           </Shine>
-          <span class="thinking-time">{took(thoughtMs(live()!, now()))}</span>
-          <RemixIcon icon={ChevronUpIcon} size={12} class="thinking-chevron" />
+          <Show when={thinking()}>
+            <span class="thinking-time">{took(thoughtMs(live()!, now()))}</span>
+          </Show>
+          <Chevron open={open()} />
         </button>
-        <Stream text={text()} />
-      </Show>
-      <Show when={!open() && text()}>
-        <button type="button" class="thinking-show" aria-expanded="false" onClick={toggle}>
-          Show thinking
-          <RemixIcon icon={ChevronDownIcon} size={12} />
-        </button>
+        <Show when={open()}>
+          <Stream text={text()} follow />
+        </Show>
       </Show>
     </div>
   )
@@ -154,15 +158,10 @@ export function ThoughtRow(props: { thought: Thought }): JSX.Element {
           onClick={() => setOpen(!open())}
         >
           Thought for {took(thoughtMs(props.thought, Date.now()))}
-          <RemixIcon
-            icon={ChevronRightIcon}
-            size={12}
-            class="thought-chevron motion-run-chevron"
-            data-open={open() ? "" : undefined}
-          />
+          <Chevron open={open()} />
         </button>
         <Show when={open()}>
-          <div class="thought-text">{text()}</div>
+          <Stream text={text()} follow={false} />
         </Show>
       </div>
     </Show>

@@ -49,18 +49,6 @@ export const thoughtText = (thought: Thought): string =>
     .filter(Boolean)
     .join("\n\n")
 
-const LINE_CHARS = 60
-
-export function latestLine(text: string): string {
-  const sentences =
-    text
-      .replace(/\s+/g, " ")
-      .trim()
-      .match(/[^.!?]+[.!?]+/g) ?? []
-  const line = (sentences.at(-1) ?? text.replace(/\s+/g, " ")).trim()
-  return line.length > LINE_CHARS ? `${line.slice(0, LINE_CHARS - 1).trimEnd()}…` : line
-}
-
 export function createThoughts() {
   const [all, setAll] = createSignal<Readonly<Record<string, readonly Thought[]>>>({})
   const latest = (slug: string) => all()[slug]?.at(-1)
