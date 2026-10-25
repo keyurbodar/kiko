@@ -13,3 +13,15 @@ export function editedText(at: number, now = Date.now()): string {
   const unit = UNITS.find((u) => now - at >= u.ms) ?? UNITS[UNITS.length - 1]!
   return format.format(-Math.floor((now - at) / unit.ms), unit.unit)
 }
+
+const shortDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" })
+const longDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" })
+
+export function agoText(at: number, now = Date.now()): string {
+  const gone = now - at
+  if (at >= FRESH || gone < 60_000) return "Just now"
+  if (gone < 3_600_000) return `${Math.floor(gone / 60_000)}m ago`
+  if (gone < 86_400_000) return `${Math.floor(gone / 3_600_000)}h ago`
+  const sameYear = new Date(at).getFullYear() === new Date(now).getFullYear()
+  return (sameYear ? shortDate : longDate).format(at)
+}
