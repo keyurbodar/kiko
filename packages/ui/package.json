@@ -6,7 +6,6 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.css",
-    "src/components/file-icons/sprite.svg",
     "src/components/provider-icons/sprite.svg"
   ],
   "type": "module",

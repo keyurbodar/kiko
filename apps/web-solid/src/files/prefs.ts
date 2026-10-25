@@ -21,5 +21,24 @@ export const PREFS = {
   table: stored("kiko:device:file-render-table", true),
   html: stored("kiko:device:file-render-html", false),
 }
+const ABOUT_KEY = "kiko:device:file-about"
+function readAbout(): boolean | null {
+  try {
+    const raw = localStorage.getItem(ABOUT_KEY)
+    return raw === null ? null : raw === "1"
+  } catch {
+    return null
+  }
+}
+const [aboutPref, setAboutPref] = createSignal<boolean | null>(readAbout())
+const [roomy, setRoomyValue] = createSignal(true)
+export const setRoomy = setRoomyValue
+export const aboutOpen = () => aboutPref() ?? roomy()
+export function setAboutOpen(open: boolean) {
+  setAboutPref(open)
+  try {
+    localStorage.setItem(ABOUT_KEY, open ? "1" : "0")
+  } catch {}
+}
 export const [wrap, setWrap] = stored("kiko:device:file-word-wrap", true)
 export const [fullSize, setFullSize] = createSignal(false)

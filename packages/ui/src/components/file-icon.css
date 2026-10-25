@@ -3,20 +3,5 @@
   flex-shrink: 0;
   width: 16px;
   height: 16px;
-}
-
-[data-component="filetree"] .filetree-icon--mono {
-  color: var(--icon-base);
-}
-
-[data-component="filetree"] .filetree-iconpair {
-  position: relative;
-  display: inline-flex;
-  width: 16px;
-  height: 16px;
-}
-
-[data-component="filetree"] .filetree-iconpair [data-component="file-icon"] {
-  position: absolute;
-  inset: 0;
+  color: var(--fg3);
 }
