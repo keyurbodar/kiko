@@ -128,9 +128,11 @@ function ChatPreview(props: { bot: RosterBot; tail: readonly ChatMessage[] }) {
 function RowTitle(props: { id: string; title: string }) {
   let input: HTMLInputElement | undefined
   let done = false
+  let editingId: string | null = null
   const editing = () => renamingId() === props.id
   createEffect(() => {
-    if (!editing()) return
+    editingId = editing() ? props.id : null
+    if (!editingId) return
     done = false
     setTimeout(() => {
       input?.focus()
@@ -138,10 +140,9 @@ function RowTitle(props: { id: string; title: string }) {
     }, 0)
   })
   onCleanup(() => {
-    if (done || !editing()) return
+    if (done || editingId === null || renamingId() !== editingId || !input) return
     done = true
-    const value = input?.value ?? props.title
-    commitRename(props.id, value)
+    commitRename(editingId, input.value)
   })
   return (
     <Show when={editing()} fallback={<span class="chat-name">{props.title}</span>}>
