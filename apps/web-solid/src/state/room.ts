@@ -46,7 +46,7 @@ import { clearUnreadMark } from "../sidebar/unread-mark"
 import { connection } from "./connection"
 import { liveLine, liveStatusOf, thinkingLine, type LiveStatus } from "./live-status"
 import { createThoughts, type ThinkingSignal, type Thought } from "./thoughts"
-import { attempt, owner, registry, valueOf, watch } from "./runtime"
+import { attempt, observe, owner, registry, valueOf, watch } from "./runtime"
 import { onUserSignal, user } from "./user"
 
 const PENDING_SEQ = Number.MAX_SAFE_INTEGER
@@ -292,7 +292,7 @@ function createRuns(
     } else if (signal.t === "error" && id === roomId()) showNotice(signal.error)
   }
   eachWarm(warm, (id) => {
-    const stop = registry.subscribe(
+    const stop = observe(
       owner.roomSignalAtom(id),
       (next) => {
         const burst = valueOf(next)
