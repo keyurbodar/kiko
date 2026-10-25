@@ -17,7 +17,7 @@ Everything an owner has lives in one `OwnerDO` with one SQLite database. Rooms, 
 1. The client applies the message locally, then sends it over the socket.
 2. `OwnerDO` stores the message row and acknowledges it.
 3. Human messages that arrive before a short pause form a burst. The burst goes to the agents it addresses.
-4. Admission persists a ready ticket and returns. An alarm runs one queued run to completion with a budget of 40 outbound calls. Runs execute one at a time because overlapping events share Cloudflare's subrequest limit.
+4. Admission persists a ready ticket and returns. An alarm runs one queued run to completion with a budget of 40 outbound calls. Runs execute one at a time because overlapping events share Cloudflare's subrequest limit. So no run may hold the slot while another agent waits: after 3 calls a run yields at its next task boundary and goes behind the queue, an `ask_human` wait ends as soon as another agent is queued, and the queued agents show who they are waiting for.
 5. Each agent writes its reply as short bubbles. Each finished model turn writes one journal row.
 
 ## Socket RPC

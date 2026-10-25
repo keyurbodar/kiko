@@ -27,4 +27,24 @@ describe("run budget", () => {
     await runs(scheduled).run("room:forge", "r1", async () => "continue")
     expect(scheduled).toEqual([["room:forge", true]])
   })
+
+  it("tells a running agent to share as soon as another agent queues, and not before", async () => {
+    const all = runs()
+    let signal: AbortSignal | undefined
+    let finish = () => {}
+    const work = all.run("room:forge", "r1", async () => {
+      signal = all.shared("room:forge")
+      all.waiting("room:forge")
+      expect(signal?.aborted).toBe(false)
+      all.waiting("room:atelier")
+      await new Promise<void>((resolve) => (finish = resolve))
+      return "done"
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(signal?.aborted).toBe(true)
+    finish()
+    await work
+    expect(all.shared("room:forge")).toBeUndefined()
+  })
 })

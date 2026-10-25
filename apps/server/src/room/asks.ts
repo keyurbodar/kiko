@@ -1,8 +1,8 @@
 import type { AgentSlug, RoomId } from "@kiko/protocol"
 
-export type Unanswered = { id: string; asker: AgentSlug; state: "open" | "closed"; remote: RoomId | null }
+export type Unanswered = { id: string; asker: AgentSlug; remote: RoomId | null }
 
-type RemoteAsk = { asker: AgentSlug; state: "open" | "closed"; answer: string | null }
+type RemoteAsk = { asker: AgentSlug; answer: string | null }
 
 const KEEP_ASKS_MS = 7 * 86_400_000
 
@@ -69,19 +69,7 @@ export class Asks {
     return (
       this.sql
         .exec<RemoteAsk>(
-          "SELECT asker, state, answer FROM agent_asks WHERE (id = ?1 AND NOT remote IS NULL) AND agent_asks.room_id = ?2",
-          id,
-          this.roomId,
-        )
-        .toArray()[0] ?? null
-    )
-  }
-
-  get(id: string): RemoteAsk | null {
-    return (
-      this.sql
-        .exec<RemoteAsk>(
-          "SELECT asker, state, answer FROM agent_asks WHERE id = ?1 AND agent_asks.room_id = ?2",
+          "SELECT asker, answer FROM agent_asks WHERE (id = ?1 AND NOT remote IS NULL) AND agent_asks.room_id = ?2",
           id,
           this.roomId,
         )
@@ -93,7 +81,7 @@ export class Asks {
     if (!messageIds.length) return []
     return this.sql
       .exec<Unanswered>(
-        "SELECT id, asker, state, remote FROM agent_asks WHERE (askee = ?1 AND answer IS NULL AND message_id IN (SELECT value FROM JSON_EACH(?2))) AND agent_asks.room_id = ?3 ORDER BY at",
+        "SELECT id, asker, remote FROM agent_asks WHERE (askee = ?1 AND answer IS NULL AND message_id IN (SELECT value FROM JSON_EACH(?2))) AND agent_asks.room_id = ?3 ORDER BY at",
         askee,
         JSON.stringify(messageIds),
         this.roomId,

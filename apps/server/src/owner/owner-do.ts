@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
 import { Runs } from "./runs"
-import { isRoomId, MAX_FRAME, type UpdateState } from "@kiko/protocol"
+import { isAgentSlug, isRoomId, MAX_FRAME, type UpdateState } from "@kiko/protocol"
 import { Agent } from "../agent/agent-do"
 import { Room } from "../room/room-do"
 import { User } from "../user/user-do"
@@ -116,6 +116,7 @@ export class OwnerDO extends DurableObject<Env> {
         })
       },
       countOutgoing: () => this.runs.countActive(),
+      runShared: (roomId, slug) => this.runs.shared(`${roomId}:${slug}`),
       trimAgents: () => this.trimAgents(),
       dispatchRun: (roomId, slug) => this.dispatchRun(roomId, slug),
       cancelRun: (roomId, slug) => this.cancelRun(roomId, slug),
@@ -183,19 +184,37 @@ export class OwnerDO extends DurableObject<Env> {
       requestId,
       Date.now() + (this.runs.has(agent) ? RECOVERY_DELAY_MS : 0),
     )
+    this.runs.waiting(agent)
+    const running = this.runs.running()
+    if (running && running !== agent && isAgentSlug(slug)) this.room(roomId).waitingTurn(slug, this.nameOf(running))
     await this.refreshClock()
   }
 
   private async executeRun(queued: QueuedRun): Promise<void> {
-    if (this.runs.has(queued.agent)) return
     try {
       await this.runs.run(queued.agent, queued.request_id, async (budget) => {
+        if (this.othersWaiting(queued.agent)) budget.share()
+        if (isAgentSlug(queued.slug)) this.room(queued.room_id).turnStarted(queued.slug)
+        this.showWaiting(queued)
         const agent = this.agent(queued.room_id, queued.slug)
         return agent.runInvocation(() => budget.due(() => this.othersWaiting(queued.agent)))
       })
     } finally {
       this.ctx.storage.sql.exec("DELETE FROM owner_runs WHERE agent = ? AND version = ?", queued.agent, queued.version)
     }
+  }
+
+  private nameOf(agent: string): string {
+    const [roomId = "", slug = ""] = agent.split(":")
+    return (isAgentSlug(slug) && this.room(roomId).memberName(slug)) || slug
+  }
+
+  private showWaiting(running: QueuedRun): void {
+    const name = this.nameOf(running.agent)
+    const waiting = this.ctx.storage.sql
+      .exec<{ room_id: string; slug: string }>("SELECT room_id, slug FROM owner_runs WHERE agent != ?", running.agent)
+      .toArray()
+    for (const row of waiting) if (isAgentSlug(row.slug)) this.room(row.room_id).waitingTurn(row.slug, name)
   }
 
   private othersWaiting(agent: string): boolean {
@@ -380,13 +399,7 @@ export class OwnerDO extends DurableObject<Env> {
           .toArray()[0]
         if (queued) {
           try {
-            if (this.runs.has(queued.agent)) {
-              this.ctx.storage.sql.exec(
-                "UPDATE owner_runs SET ready_at = ? WHERE agent = ?",
-                Date.now() + RECOVERY_DELAY_MS,
-                queued.agent,
-              )
-            } else await this.executeRun(queued)
+            await this.executeRun(queued)
           } finally {
             this.nextRunAt = Date.now() + RUN_GAP_MS
           }

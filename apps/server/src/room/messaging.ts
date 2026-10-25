@@ -297,13 +297,14 @@ export class MessageChains {
         rich: parseRichText(shown),
         to: ask.asker,
       })
-      const queued = checkSend(chain.hop, this.deliveries(chain.rootId), 1).ok
+      const hop = chain.hop + 1
+      const queued = checkSend(hop, this.deliveries(chain.rootId), 1).ok
       if (queued) {
         const send: StoredSend = {
           messageId: stored.id,
           seq: stored.seq,
           text,
-          hop: chain.hop,
+          hop,
           rootId: chain.rootId,
           recipients: [ask.asker],
         }
@@ -447,7 +448,6 @@ export class RoomMessaging {
     text: string,
     message: { id: string; seq: number } | null,
   ): Promise<void> {
-    let relayed = false
     for (const ask of this.d.asks.unanswered(
       slug,
       heard.flatMap((id) => messageIdOf(id) ?? []),
@@ -456,7 +456,6 @@ export class RoomMessaging {
         this.d.mail.giveBack(ask.id, slug, ask.asker, text, ask.remote)
         await this.d.mail.settle()
         this.d.asks.settle(ask.id, text)
-        relayed = true
         continue
       }
       if (!message) {
@@ -466,9 +465,7 @@ export class RoomMessaging {
       if (!this.d.mail.relay(`answer:${ask.id}`, slug, ask.asker, { ...message, text })) continue
       await this.d.mail.settle()
       this.d.asks.settle(ask.id, text)
-      relayed = true
     }
-    void relayed
   }
 
   burstAddressed(home: Home): Set<AgentSlug> {
