@@ -71,6 +71,8 @@ export function MessageRow(props: {
     files().every((file) => isImage({ name: file.name, type: file.type }))
   const photo = () => !!props.message.rich && isPhotoTree(props.message.rich)
   const windowKey = () => (own() ? undefined : room.runWindow(props.message))
+  const named = () => grouped() && props.isRunStart
+  const nameInBubble = () => named() && !props.jumboClass && !imagesOnly()
   const failed = () => props.message.status === "failed"
   const failure = (): string | undefined => undefined
   return (
@@ -96,7 +98,7 @@ export function MessageRow(props: {
       <Show when={grouped()}>
         <RunAvatar seed={props.message.botId!} runKey={props.runKey ?? props.message.id} isRunEnd={props.isRunEnd} />
       </Show>
-      <Show when={grouped() && props.isRunStart && !props.jumboClass}>
+      <Show when={named() && !nameInBubble() && !props.jumboClass}>
         <div class="truncate pb-0.5 text-[13px] leading-[18px] font-semibold text-fg2" data-component="chat-sender">
           {senderName()}
         </div>
@@ -127,6 +129,11 @@ export function MessageRow(props: {
             props.highlighted ? "after:opacity-[0.22]" : props.replying && "after:opacity-[0.1]",
           )}
         >
+          <Show when={nameInBubble()}>
+            <div class="truncate text-[13px] leading-[18px] font-semibold text-fg2" data-component="chat-sender">
+              {senderName()}
+            </div>
+          </Show>
           <Show when={props.quote}>
             {(quote) => <Quote quote={quote()} onOpenReplyTarget={props.onOpenReplyTarget} />}
           </Show>

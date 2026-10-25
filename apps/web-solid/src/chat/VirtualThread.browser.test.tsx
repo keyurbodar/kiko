@@ -254,6 +254,29 @@ describe("VirtualThread scrolling", () => {
     expect(atEnd()).toBeLessThan(1)
   })
 
+  it("draws the rows again where the reader was after the thread is moved in the page", async () => {
+    const { screen, host, scroller } = await mountThread()
+    await using _ = screen
+    const shown = () => {
+      const view = scroller.getBoundingClientRect()
+      return [...host.querySelectorAll('[data-component="chat-vrow"]')].filter((row) => {
+        const box = row.getBoundingClientRect()
+        return box.bottom > view.top && box.top < view.bottom
+      }).length
+    }
+    await userEvent.wheel(scroller, { delta: { y: -2400 } })
+    await vi.waitFor(() => expect(scrollDown(host).hasAttribute("data-hidden")).toBe(false))
+    await vi.waitFor(() => expect(shown()).toBeGreaterThan(0))
+    const reading = scroller.scrollTop
+
+    scroller.parentElement!.insertBefore(scroller, scroller.nextSibling)
+    expect(scroller.scrollTop).toBe(0)
+    scroller.dispatchEvent(new PointerEvent("pointerenter"))
+
+    await vi.waitFor(() => expect(Math.abs(scroller.scrollTop - reading)).toBeLessThan(scroller.clientHeight))
+    expect(shown()).toBeGreaterThan(0)
+  })
+
   it("shows who wrote above the view and jumps to the first unread message", async () => {
     const { screen, host, scroller } = await mountThread({ firstUnread: (messages) => messages[100]!.id })
     const first = () => host.querySelector('[data-message-id="101.room"]')?.getBoundingClientRect()
