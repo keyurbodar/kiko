@@ -305,11 +305,6 @@ export function VirtualThread(props: {
     if (at >= state.rangeStart && at <= state.rangeEnd) setUnreadReached(true)
   })
 
-  const seenUntil = createMemo(() => {
-    if (props.waitingNames.length > 0) return Number.POSITIVE_INFINITY
-    return props.messages.findLast((m) => m.sender === "bot" && !m.event)?.sentAt ?? Number.NEGATIVE_INFINITY
-  })
-
   const showsKey = () => {
     const first = props.messages[0]
     return props.scrollKey !== undefined && first !== undefined && first.threadId === props.scrollKey
@@ -650,7 +645,6 @@ export function VirtualThread(props: {
           }
           highlighted={landed() === message().id}
           replying={activeReply() === message().id}
-          seen={message().sentAt <= seenUntil()}
           jumboClass={jumboEmojiClass(message().body)}
           onOpenReplyTarget={openReplyTarget}
           onReact={(emoji) => props.onReact?.(message().id, emoji)}
