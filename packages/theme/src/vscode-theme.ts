@@ -1,11 +1,12 @@
 import { formatHex, interpolate, parse, rgb, wcagContrast, wcagLuminance } from "culori"
-import { themeId, type ImportedTheme } from "./imported"
+import { themeId, type ImportedTheme, type Syntax } from "./imported"
 import { THEMES, PALETTES, type ThemeAppearance } from "./palette"
 
 export type VsCodeTheme = {
   type?: unknown
   include?: unknown
   colors?: Record<string, unknown>
+  tokenColors?: unknown
   [key: string]: unknown
 }
 
@@ -54,21 +55,69 @@ function ink(surface: string, min: number, candidates: ReadonlyArray<string | nu
   )
 }
 
-function appearanceOf(type: unknown, canvas: string): ThemeAppearance {
-  const kind = typeof type === "string" ? type.toLowerCase() : ""
-  if (kind === "light" || kind === "hc-light") return "light"
-  if (kind === "dark" || kind === "hc-black") return "dark"
-  return wcagLuminance(canvas) < 0.179 ? "dark" : "light"
+const KINDS: Record<string, ThemeAppearance> = {
+  vs: "light",
+  "hc-light": "light",
+  light: "light",
+  "vs-dark": "dark",
+  "hc-black": "dark",
+  dark: "dark",
 }
 
-export function themeFromVsCode(json: VsCodeTheme, meta: { id: string; name: string; source: string }): ImportedTheme {
+function appearanceOf(uiTheme: unknown, type: unknown, canvas: string): ThemeAppearance {
+  const kindOf = (value: unknown) => (typeof value === "string" ? KINDS[value.toLowerCase()] : undefined)
+  return kindOf(uiTheme) ?? kindOf(type) ?? (wcagLuminance(canvas) < 0.179 ? "dark" : "light")
+}
+
+const SYNTAX_SCOPES: Record<keyof Syntax, string> = {
+  keyword: "keyword.control",
+  string: "string.quoted.double",
+  func: "entity.name.function",
+  comment: "comment.line.double-slash",
+}
+
+function selectorsOf(scope: unknown): string[] {
+  const list = Array.isArray(scope) ? scope : typeof scope === "string" ? scope.split(",") : []
+  return list.flatMap((item) =>
+    typeof item === "string" && item.trim() && !/\s/.test(item.trim()) ? [item.trim()] : [],
+  )
+}
+
+function tokenColor(rules: unknown[], scope: string): unknown {
+  let best: unknown = null
+  let score = 0
+  for (const rule of rules) {
+    if (!isObject(rule) || !isObject(rule.settings) || rule.settings.foreground === undefined) continue
+    for (const selector of selectorsOf(rule.scope)) {
+      if ((scope === selector || scope.startsWith(`${selector}.`)) && selector.length >= score) {
+        best = rule.settings.foreground
+        score = selector.length
+      }
+    }
+  }
+  return best
+}
+
+function syntaxOf(tokenColors: unknown, canvas: string, text: string): Syntax {
+  const rules = Array.isArray(tokenColors) ? tokenColors : []
+  const color = (key: keyof Syntax) => {
+    const found = flatten(tokenColor(rules, SYNTAX_SCOPES[key]), canvas)
+    return found && wcagContrast(found, canvas) >= 1.5 ? found : text
+  }
+  return { keyword: color("keyword"), string: color("string"), func: color("func"), comment: color("comment") }
+}
+
+export function themeFromVsCode(
+  json: VsCodeTheme,
+  meta: { id: string; name: string; source: string; uiTheme?: string },
+): ImportedTheme {
   const colors = isObject(json.colors) ? json.colors : {}
   const firstOf = (candidates: ReadonlyArray<string | null>) =>
     candidates.find((candidate) => candidate !== null) ?? null
 
   const canvas = firstOf([opaque(colors["editor.background"]), opaque(colors["editorPane.background"])])
   if (!canvas) throw new Error("That theme has no editor background, so there is nothing to build a palette from.")
-  const appearance = appearanceOf(json.type, canvas)
+  const appearance = appearanceOf(meta.uiTheme, json.type, canvas)
   const fallback = PALETTES[appearance]
   const pick = (...keys: string[]) => keys.map((key) => flatten(colors[key], canvas))
 
@@ -105,6 +154,7 @@ export function themeFromVsCode(json: VsCodeTheme, meta: { id: string; name: str
       ),
       gold: ink(canvas, TEXT_CONTRAST, pick("editorWarning.foreground"), readableOn(canvas, fallback.gold)),
     },
+    syntax: syntaxOf(json.tokenColors, canvas, text),
   }
 }
 
@@ -161,7 +211,13 @@ export async function readVsCodeTheme(
   const value = await read(path)
   if (typeof value.include !== "string") return value
   const base = await readVsCodeTheme(packagePath(path, value.include), read, depth + 1)
-  return { ...base, ...value, colors: { ...base.colors, ...value.colors } }
+  const tokens = (theme: VsCodeTheme) => (Array.isArray(theme.tokenColors) ? theme.tokenColors : [])
+  return {
+    ...base,
+    ...value,
+    colors: { ...base.colors, ...value.colors },
+    tokenColors: [...tokens(base), ...tokens(value)],
+  }
 }
 
 function stringEnd(text: string, start: number): number {
