@@ -1,6 +1,7 @@
 export type ToastV2Variant = "default" | "success" | "error" | "warning" | "info" | "loading"
 
-const TOAST_DURATION_MS = 5000
+const TOAST_DURATION_MS = 4000
+const ACTIONABLE_ERROR_MS = 12000
 const ANCHORED_TOAST_DURATION_MS = 1000
 const TOAST_LIMIT = 3
 const SWIPE_THRESHOLD_PX = 40
@@ -11,10 +12,12 @@ export function toastDuration(options: {
   duration?: number
   persistent?: boolean
   anchored?: boolean
+  actionable?: boolean
 }): number {
   if (options.persistent) return Number.POSITIVE_INFINITY
   if (options.duration !== undefined) return options.duration > 0 ? options.duration : Number.POSITIVE_INFINITY
   if (options.variant === "loading") return Number.POSITIVE_INFINITY
+  if (options.actionable && options.variant === "error") return ACTIONABLE_ERROR_MS
   return options.anchored ? ANCHORED_TOAST_DURATION_MS : TOAST_DURATION_MS
 }
 

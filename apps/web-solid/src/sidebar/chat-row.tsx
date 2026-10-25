@@ -172,6 +172,15 @@ function RowTitle(props: { id: string; title: string }) {
   )
 }
 
+function MentionText(props: { text: string; mentioned: boolean }) {
+  const parts = () => (props.mentioned ? props.text.split(/(@[\w-]+)/) : [props.text])
+  return (
+    <For each={parts()}>
+      {(part) => (part.startsWith("@") && props.mentioned ? <span class="chat-mention">{part}</span> : part)}
+    </For>
+  )
+}
+
 function RowPreview(props: { bot: RosterBot; need: Need | undefined; live: boolean; draft: string }) {
   return (
     <Show
@@ -189,7 +198,7 @@ function RowPreview(props: { bot: RosterBot; need: Need | undefined; live: boole
                       {props.bot.previewFrom}:
                     </span>{" "}
                   </Show>
-                  {props.bot.preview}
+                  <MentionText text={props.bot.preview} mentioned={(props.bot.mentions ?? 0) > 0} />
                 </>
               }
             >
@@ -243,6 +252,7 @@ function RowBody(props: {
   enter?: boolean
   need?: Need
   draft: string
+  unread: boolean
 }) {
   const [pinBounce, setPinBounce] = createSignal(props.enter === true)
   const live = () => isLive(props.bot)
@@ -250,7 +260,7 @@ function RowBody(props: {
   return (
     <>
       <span class="chat-avatar" data-faces={faces().length}>
-        <ChatAvatar faces={faces()} size={faces().length > 1 ? 26 : 25} />
+        <ChatAvatar faces={faces()} size={32} />
       </span>
 
       <span class="chat-text">
@@ -279,6 +289,9 @@ function RowBody(props: {
           >
             <RowPreview bot={props.bot} need={props.need} live={live()} draft={props.draft} />
           </span>
+          <Show when={props.unread}>
+            <span class="chat-dot" data-component="sidebar-unread-dot" aria-hidden="true" />
+          </Show>
         </span>
       </span>
     </>
@@ -390,6 +403,7 @@ export function ChatRow(props: {
           enter={props.enter}
           need={props.need}
           draft={draft()}
+          unread={unread()}
         />
         <RowMore id={props.bot.id} name={props.bot.name} onOpenChange={setMoreOpen} />
       </MenuV2.Context.Trigger>

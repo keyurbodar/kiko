@@ -1,5 +1,6 @@
 .sidebar-shell {
   --frame-gap: 0px;
+  --draft: color-mix(in oklab, #8b7cf0 70%, var(--fg));
   display: flex;
   height: 100%;
   min-height: 0;
@@ -188,7 +189,6 @@
   }
 }
 
-.sidebar-shell .nav-row[data-filled],
 .sidebar-shell .nav-row[data-active] {
   background: var(--active);
 }
@@ -198,7 +198,6 @@
     background: var(--hover);
   }
 
-  .sidebar-shell .nav-row[data-filled]:hover,
   .sidebar-shell .nav-row[data-active]:hover {
     background: color-mix(in oklab, var(--active) 88%, var(--fg));
   }
@@ -562,7 +561,7 @@
   pointer-events: auto;
 }
 
-.sidebar-shell .chat-more {
+.sidebar-shell .chat-row > button.chat-more {
   position: absolute;
   top: 5px;
   right: 6px;
@@ -659,8 +658,6 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
-  background: color-mix(in oklab, var(--fg) 5.5%, transparent);
 }
 
 .sidebar-shell .chat-mochi {
@@ -756,7 +753,7 @@
 }
 
 .sidebar-shell .chat-draft {
-  color: var(--fg2);
+  color: var(--draft);
   font-weight: 500;
   animation: sidebar-fade-in var(--dur-pop) var(--ease-kiko) both;
 }
@@ -788,6 +785,20 @@
   background: none;
   border: none;
   cursor: pointer;
+}
+
+.sidebar-shell .chat-mention {
+  color: var(--info);
+}
+
+.sidebar-shell .chat-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  align-self: center;
+  background: var(--fg);
+  border-radius: 50%;
+  animation: sidebar-fade-in var(--dur-pop) var(--ease-kiko) both;
 }
 
 .sidebar-shell .chat-pin-icon {
