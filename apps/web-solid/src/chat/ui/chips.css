@@ -27,7 +27,8 @@
     transform var(--dur-hover) var(--ease-kiko);
 }
 
-.lchip-anchor {
+.lchip-anchor,
+.lchip-anchor[data-component] {
   display: inline-flex;
   max-width: 100%;
   vertical-align: middle;

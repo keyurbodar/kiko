@@ -25,10 +25,16 @@ export type RowDetail = {
   lines?: readonly string[]
 }
 
+export type LabelPart = { text: string; strong?: true; mono?: true }
+
 export type TreeRow = {
   kind: "step" | "worker" | "note" | "loading" | "error"
   id: string
   label: string
+  parts: readonly LabelPart[]
+  meta?: string
+  last?: true
+  through?: true
   icon?: StepIcon
   running: boolean
   failed: boolean
@@ -44,6 +50,7 @@ export type TreeRow = {
 export type TreeHead = {
   kind: "fold" | "summary"
   label: string
+  parts: readonly LabelPart[]
   open: boolean
   failed: boolean
   startedAt?: number
@@ -72,10 +79,30 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 
 const NO_WORKERS: ReadonlySet<string> = new Set()
 
+const QUIET_OBJECT = /^(?:a|an|the|at|on|in|through|it|memory|files|routines|background)\b/i
+const TWO_WORD_VERB = /^(?:Added task|Added recipe|Made folder) /
+
+function stepParts(label: string, command: boolean): LabelPart[] {
+  const lead = TWO_WORD_VERB.exec(label)?.[0] ?? /^\S+ /.exec(label)?.[0]
+  const object = lead ? label.slice(lead.length) : ""
+  if (!lead || !object || QUIET_OBJECT.test(object)) return [{ text: label }]
+  return [
+    { text: lead },
+    { text: object, strong: true, ...(command && lead === "Ran " ? { mono: true as const } : {}) },
+  ]
+}
+
+const countParts = (label: string): LabelPart[] =>
+  label
+    .split(/(\d+ (?:other |earlier )?[a-z]+)/)
+    .filter(Boolean)
+    .map((text) => (/^\d/.test(text) ? { text, strong: true as const } : { text }))
+
 const LOADING: TreeRow = {
   kind: "loading",
   id: "loading",
   label: "Loading steps…",
+  parts: [{ text: "Loading steps…" }],
   running: true,
   failed: false,
   child: false,
@@ -86,6 +113,7 @@ const UNAVAILABLE: TreeRow = {
   kind: "error",
   id: "unavailable",
   label: "Output unavailable",
+  parts: [{ text: "Output unavailable" }],
   running: false,
   failed: false,
   child: false,
@@ -129,6 +157,8 @@ function workerRow(entry: WorkerEntry, status: DetailStatus): TreeRow {
     kind: "worker",
     id: entry.id,
     label: entry.task,
+    parts: [{ text: entry.task }],
+    ...(running ? {} : { meta: `${failed ? "failed" : "done"}, ${plural(entry.steps.length, "step", "steps")}` }),
     icon: "worker",
     running,
     failed,
@@ -145,6 +175,7 @@ function stepRow(entry: StepEntry, status: DetailStatus): TreeRow {
   const icon = iconOf(step)
   const target = pathOf(step)
   const running = step.status === "running"
+  const label = liveLabel(step)
   const detail: RowDetail = {
     input: extraInput(step),
     output: step.output,
@@ -155,7 +186,8 @@ function stepRow(entry: StepEntry, status: DetailStatus): TreeRow {
   return {
     kind: step.note ? "note" : "step",
     id: step.id,
-    label: liveLabel(step),
+    label,
+    parts: step.note || running ? [{ text: label }] : stepParts(label, step.tool === "run"),
     running,
     failed: step.status === "failed",
     child: entry.child,
@@ -180,6 +212,16 @@ function missingRows(missing: boolean, status: DetailStatus): TreeRow[] {
   return pending(status) ? [LOADING] : []
 }
 
+function shaped(rows: readonly TreeRow[]): TreeRow[] {
+  const lastTop = rows.findLastIndex((row) => !row.child)
+  return rows.map((row, i) => {
+    const next = rows[i + 1]
+    const last = row.child ? !next?.child : i === lastTop
+    const through = row.child && i < lastTop
+    return { ...row, ...(last ? { last: true as const } : {}), ...(through ? { through: true as const } : {}) }
+  })
+}
+
 export function summaryOf(steps: readonly RunStep[]): RunSummary | undefined {
   const label = summarizeSteps(steps)
   return label ? { label, ...span(steps) } : undefined
@@ -187,13 +229,16 @@ export function summaryOf(steps: readonly RunStep[]): RunSummary | undefined {
 
 export function treeOf(steps: readonly RunStep[], state: TreeState): Tree {
   const entries = buildEntries(steps, state.workers ?? NO_WORKERS)
-  const rows = markLivePath(entries.map((entry) => rowOf(entry, state.detail)))
+  const marked = markLivePath(entries.map((entry) => rowOf(entry, state.detail)))
   if (isLive(steps, state.working)) {
+    const rows = shaped(marked)
     const hidden = Math.max(0, rows.length - LIVE_ROWS)
     if (hidden === 0) return { folded: [], shown: rows }
+    const label = plural(hidden, "earlier step", "earlier steps")
     const head: TreeHead = {
       kind: "fold",
-      label: plural(hidden, "earlier step", "earlier steps"),
+      label,
+      parts: countParts(label),
       open: state.open,
       failed: failedIn(entries.slice(0, hidden)),
     }
@@ -204,6 +249,13 @@ export function treeOf(steps: readonly RunStep[], state: TreeState): Tree {
   const missing = steps.length < count
   const summary = missing ? undefined : summaryOf(steps)
   const { label, ...times } = summary ?? state.known ?? { label: plural(count, "step", "steps") }
-  const head: TreeHead = { kind: "summary", label, open: state.open, failed: stillFailing(steps), ...times }
-  return { head, folded: [...rows, ...missingRows(missing, state.detail)], shown: [] }
+  const head: TreeHead = {
+    kind: "summary",
+    label,
+    parts: countParts(label),
+    open: state.open,
+    failed: stillFailing(steps),
+    ...times,
+  }
+  return { head, folded: shaped([...marked, ...missingRows(missing, state.detail)]), shown: [] }
 }
