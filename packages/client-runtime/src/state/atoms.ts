@@ -298,6 +298,7 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
       label: "recipes.list",
       execute: () => request("recipes.list", undefined),
       cached: successSchema("recipes.list"),
+      refreshOn: "recipes",
     }),
     soul: query({
       label: "soul.get",

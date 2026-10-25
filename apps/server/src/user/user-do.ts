@@ -370,6 +370,7 @@ export class User {
       routine: (id) => this.reminders.get(id),
       timezone: () => this.timezone(),
       agentNamed: (name) => agentNamed(this.sql, name),
+      changed: () => this.changed("recipes"),
       makeAgent: async (name, handle, description, model) => {
         for (const slug of [handle, ...[2, 3, 4, 5].map((n) => `${handle}-${n}`)]) {
           const agent = await this.makeAgent({ name, slug, description, soul: firstSoul(name, description), model })
@@ -636,12 +637,29 @@ export class User {
 
   async chatMembers(roomId: RoomId, slugs: readonly string[]): Promise<void> {
     const ids = new Map(listAgents(this.sql).map((a) => [a.slug as string, a.id]))
+    const before = new Set(this.directory.get(roomId)?.agents ?? [])
+    for (const [slug, id] of ids)
+      if (before.has(id) && !slugs.includes(slug)) {
+        await this.#recipes.agentGone(slug, roomId)
+        await this.reminders.cancelAgent(slug, roomId)
+      }
     this.commit(
       this.directory.agents(
         roomId,
         slugs.flatMap((s) => (s === KIKO ? [KIKO] : ids.has(s) ? [ids.get(s)!] : [])),
+        (agents) => this.groupTitle(agents),
       ),
     )
+  }
+
+  private groupTitle(ids: readonly string[]): string {
+    const names = new Map(
+      this.sql
+        .exec<{ id: string; name: string }>("SELECT id, name FROM agents")
+        .toArray()
+        .map((a) => [a.id, a.name]),
+    )
+    return ids.map((id) => (id === KIKO ? "Kiko" : (names.get(id) ?? id))).join(", ")
   }
 
   async getChat(roomId: RoomId): Promise<Chat | null> {
@@ -1833,7 +1851,7 @@ export class User {
     )
     for (const op of kikoChatOps(this.sql, this.directory.list())) this.apply(op)
     const home = kikoChatRoom(this.sql)
-    if (home) this.commit(this.directory.agents(home, [KIKO]))
+    if (home) this.commit(this.directory.agents(home, [KIKO], (agents) => this.groupTitle(agents)))
     const old = this.setting(OLD_CHECK_IN)
     if (old !== null) {
       await this.reminders.cancel(old)

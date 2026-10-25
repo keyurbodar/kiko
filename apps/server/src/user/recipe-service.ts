@@ -28,6 +28,7 @@ type Ports = {
   makeAgent(name: string, handle: string, description: string, model: string): Promise<Agent | null>
   openChat(title: string, agentIds: readonly string[]): Promise<RoomId>
   chiefModel(): Promise<string>
+  changed(): void
   composio: {
     connected(): Promise<ReadonlySet<string> | "off" | null>
     link(app: string): Promise<string | null>
@@ -184,6 +185,7 @@ export class RecipeService {
       }
       const install: Install = { installId, slug: recipe.slug, roomId, agent, at: Date.now() }
       saveInstall(this.p.sql, install)
+      this.p.changed()
       for (const r of made)
         this.p.sql.exec("INSERT OR IGNORE INTO recipe_links (routine_id, install_id) VALUES (?, ?)", r.id, installId)
       return { ok: true, install: this.withRoutines(install), setup, existed: false }
@@ -204,6 +206,7 @@ export class RecipeService {
       .toArray()
     for (const r of rows) await this.p.cancelRoutine(r.routine_id)
     deleteInstall(this.p.sql, installId)
+    this.p.changed()
     return true
   }
 
@@ -216,7 +219,9 @@ export class RecipeService {
     const left = this.p.sql
       .exec<{ n: number }>("SELECT count(*) AS n FROM recipe_links WHERE install_id = ?", row.install_id)
       .one().n
-    if (!left) deleteInstall(this.p.sql, row.install_id)
+    if (left) return
+    deleteInstall(this.p.sql, row.install_id)
+    this.p.changed()
   }
 
   chatGone(roomId: string): Promise<void> {
@@ -226,9 +231,11 @@ export class RecipeService {
     })
   }
 
-  agentGone(slug: string): Promise<void> {
+  agentGone(slug: string, roomId?: string): Promise<void> {
     return this.serial(async () => {
-      for (const install of listInstalls(this.p.sql).filter((i) => i.agent === slug))
+      for (const install of listInstalls(this.p.sql).filter(
+        (i) => i.agent === slug && (roomId === undefined || i.roomId === roomId),
+      ))
         await this.removeInstall(install.installId)
     })
   }
