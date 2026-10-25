@@ -24,7 +24,7 @@ import { createComputed, createMemo, createRoot, createSignal, untrack } from "s
 import { kikoPlaceholder, newChatMembers } from "../lib/chats"
 import { showFailure, showNotice } from "../lib/errors"
 import { setFileToken, setFileTokenSource } from "../lib/file-token"
-import { attempt, failureMessage, owner, registry, run, valueOf, watch } from "./runtime"
+import { attempt, failureMessage, observe, owner, registry, run, valueOf, watch } from "./runtime"
 import { type ChatTyping, otherChatTyping } from "./live-status"
 import { createUserSignals } from "./user-signals"
 
@@ -74,7 +74,7 @@ export const user = createRoot(() => {
         })
       deliver(value)
     })
-  registry.subscribe(
+  observe(
     owner.userSignalAtom,
     (next) => {
       const burst = valueOf(next)
