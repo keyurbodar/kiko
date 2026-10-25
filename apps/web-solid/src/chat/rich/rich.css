@@ -462,7 +462,6 @@ button.rich-code-tab {
 }
 .rich-code-pre[data-scrolls] {
   overflow-y: auto;
-  overscroll-behavior-y: contain;
   mask-image: linear-gradient(to bottom, transparent, #000 1.25rem, #000 calc(100% - 1.25rem), transparent);
 }
 .rich-code-pre::-webkit-scrollbar {

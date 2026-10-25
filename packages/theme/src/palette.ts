@@ -203,6 +203,7 @@ const ROLES: ReadonlyArray<readonly [token: string, value: (ink: Ink) => string]
   ["--raise", ({ solid, dark }) => solid(dark ? 4.6 : 2.4)],
   ["--hover", ({ solid, dark }) => solid(dark ? 6.4 : 4)],
   ["--active", ({ solid, dark }) => solid(dark ? 9.1 : 6.5)],
+  ["--tip", ({ solid, dark }) => solid(dark ? 16 : 7)],
   ["--me", ({ solid, dark }) => solid(dark ? 9.6 : 5.5)],
   ["--kiko-bubble", ({ solid, dark }) => solid(dark ? 3.2 : 3)],
   ["--line", ({ solid, dark }) => solid(dark ? 8.2 : 8)],

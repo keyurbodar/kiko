@@ -203,6 +203,7 @@
   --raise: color-mix(in oklab, #ededed 4.6%, #121212);
   --hover: color-mix(in oklab, #ededed 6.4%, #121212);
   --active: color-mix(in oklab, #ededed 9.1%, #121212);
+  --tip: color-mix(in oklab, #ededed 16%, #121212);
   --me: color-mix(in oklab, #ededed 9.6%, #121212);
   --kiko-bubble: color-mix(in oklab, #ededed 3.2%, #121212);
   --line: color-mix(in oklab, #ededed 8.2%, #121212);
@@ -231,6 +232,7 @@
   --raise: color-mix(in oklab, #1b1b1b 2.4%, #ffffff);
   --hover: color-mix(in oklab, #1b1b1b 4%, #ffffff);
   --active: color-mix(in oklab, #1b1b1b 6.5%, #ffffff);
+  --tip: color-mix(in oklab, #1b1b1b 7%, #ffffff);
   --me: color-mix(in oklab, #1b1b1b 5.5%, #ffffff);
   --kiko-bubble: color-mix(in oklab, #1b1b1b 3%, #ffffff);
   --line: color-mix(in oklab, #1b1b1b 8%, #ffffff);

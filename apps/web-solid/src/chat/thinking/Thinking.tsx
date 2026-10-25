@@ -62,17 +62,22 @@ function usePacedLine(text: () => string) {
 
 function Stream(props: { text: string }) {
   let box!: HTMLDivElement
+  let pinned = true
   createEffect(
     on(
       () => props.text,
       () => {
-        box.scrollTop = box.scrollHeight
-        box.toggleAttribute("data-overflow", box.scrollHeight > box.clientHeight)
+        if (pinned) box.scrollTop = box.scrollHeight
+        box.toggleAttribute("data-overflow", box.scrollHeight > box.clientHeight && box.scrollTop > 0)
       },
     ),
   )
+  const onScroll = () => {
+    pinned = box.scrollHeight - box.scrollTop - box.clientHeight < 8
+    box.toggleAttribute("data-overflow", box.scrollTop > 0)
+  }
   return (
-    <div ref={box} class="thinking-stream" data-component="thinking-stream">
+    <div ref={box} class="thinking-stream" data-component="thinking-stream" onScroll={onScroll}>
       {props.text}
     </div>
   )

@@ -42,8 +42,8 @@ function Row(props: { seed: string; doing?: string; group?: boolean }) {
         <IdentityAvatar seed={props.seed} size={32} class="typing-bird" />
       </Show>
       <div class="typing-body">
-        <ThinkingLine thought={room.thinking(props.seed)} fallback={caption()} />
         <Show when={room.typingRun(props.seed)}>{(windowKey) => <RunTree windowKey={windowKey()} />}</Show>
+        <ThinkingLine thought={room.thinking(props.seed)} fallback={caption()} />
       </div>
     </div>
   )
