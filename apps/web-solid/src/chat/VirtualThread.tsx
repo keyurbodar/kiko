@@ -476,6 +476,7 @@ export function VirtualThread(props: {
     }
     if (blankTries >= 3) return
     blankTries += 1
+    if (blankTries === 3) stuck = true
     if (stuck) virtualizer.scrollToIndex(count - 1, { align: "end" })
     else scroller.scrollTop += 1
   }

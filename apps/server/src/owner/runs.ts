@@ -1,6 +1,7 @@
 import * as Schema from "effect/Schema"
 const RUN_CALL_LIMIT = 40
 const RUN_DURATION_MS = 12 * 60_000
+const SHARE_AFTER_CALLS = 3
 
 type RunOutcome = "done" | "continue"
 
@@ -30,13 +31,15 @@ class RunBudget {
     }
     this.outgoing++
   }
-  due(): boolean {
-    return !this.rejected && (this.outgoing >= RUN_CALL_LIMIT || this.now() >= this.deadline)
+  due(othersWaiting: () => boolean = () => false): boolean {
+    if (this.rejected) return false
+    if (this.outgoing >= RUN_CALL_LIMIT || this.now() >= this.deadline) return true
+    return this.outgoing >= SHARE_AFTER_CALLS && othersWaiting()
   }
 }
 
 type RunsOptions = {
-  schedule: (agent: string, requestId: string) => Promise<void>
+  schedule: (agent: string, requestId: string, behind?: boolean) => Promise<void>
   now?: () => number
 }
 
@@ -87,7 +90,7 @@ export class Runs {
       } finally {
         this.active.delete(agent)
       }
-      if (outcome === "continue") await this.options.schedule(agent, requestId)
+      if (outcome === "continue") await this.options.schedule(agent, requestId, true)
     })
     this.active.set(agent, { budget, work })
     return work

@@ -82,7 +82,7 @@ export class OwnerDO extends DurableObject<Env> {
       }
     })
     this.runs = new Runs({
-      schedule: (agent, requestId) => this.enqueueRun(agent, requestId),
+      schedule: (agent, requestId, behind) => this.enqueueRun(agent, requestId, behind),
     })
     this.blobs = new BlobStore(this.ctx)
     const computers = new ComputerStore(ctx.storage.sql)
@@ -170,13 +170,13 @@ export class OwnerDO extends DurableObject<Env> {
     }
   }
 
-  private async enqueueRun(agent: string, requestId: string): Promise<void> {
+  private async enqueueRun(agent: string, requestId: string, behind = false): Promise<void> {
     const [roomId, slug, ...extra] = agent.split(":")
     if (!isRoomId(roomId) || !slug || extra.length)
       throw new AgentKeyError({ kind: "agent_key", key: agent, message: "bad agent key" })
     this.ctx.storage.sql.exec(
       `INSERT INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(agent) DO UPDATE SET ready_at = min(owner_runs.ready_at, excluded.ready_at), version = owner_runs.version + 1`,
+       ON CONFLICT(agent) DO UPDATE SET ready_at = ${behind ? "excluded.ready_at" : "min(owner_runs.ready_at, excluded.ready_at)"}, version = owner_runs.version + 1`,
       agent,
       roomId,
       slug,
@@ -191,11 +191,19 @@ export class OwnerDO extends DurableObject<Env> {
     try {
       await this.runs.run(queued.agent, queued.request_id, async (budget) => {
         const agent = this.agent(queued.room_id, queued.slug)
-        return agent.runInvocation(() => budget.due())
+        return agent.runInvocation(() => budget.due(() => this.othersWaiting(queued.agent)))
       })
     } finally {
       this.ctx.storage.sql.exec("DELETE FROM owner_runs WHERE agent = ? AND version = ?", queued.agent, queued.version)
     }
+  }
+
+  private othersWaiting(agent: string): boolean {
+    return (
+      this.ctx.storage.sql
+        .exec("SELECT 1 FROM owner_runs WHERE agent != ? AND ready_at <= ? LIMIT 1", agent, Date.now())
+        .toArray().length > 0
+    )
   }
 
   private async cancelRun(roomId: string, slug: string): Promise<void> {

@@ -60,9 +60,10 @@
 
 .thinking-stream {
   width: min(36rem, 100%);
-  max-height: 84px;
+  max-height: min(320px, 40vh);
   padding-left: 28px;
-  overflow: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
   color: var(--fg3);
   font-size: 14px;
   line-height: 21px;
@@ -70,8 +71,8 @@
   overflow-wrap: anywhere;
 }
 .thinking-stream[data-overflow] {
-  -webkit-mask: linear-gradient(transparent, #000 45%);
-  mask: linear-gradient(transparent, #000 45%);
+  -webkit-mask: linear-gradient(transparent, #000 48px);
+  mask: linear-gradient(transparent, #000 48px);
 }
 
 .thought {
