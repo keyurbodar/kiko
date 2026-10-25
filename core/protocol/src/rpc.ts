@@ -2,7 +2,7 @@ import * as Rpc from "effect/rpc/Rpc"
 import * as RpcGroup from "effect/rpc/RpcGroup"
 import * as Schema from "effect/Schema"
 import { Count, Id } from "./base"
-import { Catalog } from "./catalog"
+import { Catalog, CustomApi } from "./catalog"
 import { ConflictError, IntegrationError, NotFoundError, ProtocolError, RefusedError, StorageError } from "./errors"
 import { AgentSlug, CommandId, MessageId, RoomId } from "./brands"
 import { MemoryOp, MemoryResult } from "./memory"
@@ -245,6 +245,17 @@ export const OwnerRpcs = RpcGroup.make(
   Rpc.make("credentials.list", { success: Schema.Array(ProviderInfo), error: Base }),
   Rpc.make("credentials.connect", {
     payload: { ...command, provider: Id, apiKey: Schema.String },
+    success: ProviderInfo,
+    error: Refusable,
+  }),
+  Rpc.make("credentials.addCustom", {
+    payload: {
+      ...command,
+      name: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(60)),
+      api: CustomApi,
+      baseUrl: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(512)),
+      apiKey: Schema.String,
+    },
     success: ProviderInfo,
     error: Refusable,
   }),

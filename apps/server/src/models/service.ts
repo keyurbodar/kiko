@@ -1,7 +1,7 @@
 import type { Catalog, ConnectMethod } from "@kiko/protocol"
 import { BACKEND } from "../lib/version"
 import { buildCatalog } from "./build"
-import { overlayRevision, providers } from "./catalog"
+import { catalogRevision, customSpec, providers } from "./catalog"
 import { isStale, restoreOverlay, type SyncDeps, syncCatalog } from "./sync"
 
 type Deps = SyncDeps & {
@@ -37,9 +37,15 @@ export class ModelCatalog {
 
   current(): Catalog {
     if (isStale(this.d.sql, this.d.now())) void this.sync()
-    const revision = `${BACKEND.version}:${overlayRevision()}`
+    const revision = `${BACKEND.version}:${catalogRevision()}`
     if (this.#built?.revision !== revision)
-      this.#built = { revision, catalog: buildCatalog(providers(), this.d.signInMethod) }
+      this.#built = {
+        revision,
+        catalog: buildCatalog(providers(), this.d.signInMethod, (id) => {
+          const spec = customSpec(id)
+          return spec ? { api: spec.api, baseUrl: spec.baseUrl } : undefined
+        }),
+      }
     return this.#built.catalog
   }
 }

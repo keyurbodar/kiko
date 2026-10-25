@@ -1,7 +1,15 @@
 import { diffRows, type RowChange, rowLists } from "./rows"
 import type { Provider } from "@earendil-works/pi-ai"
 import { isAgentSlug } from "@kiko/protocol"
-import { KIKO, ROW_KINDS, newRoomId, pairRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
+import {
+  type CustomApi,
+  KIKO,
+  ROW_KINDS,
+  newRoomId,
+  pairRoomId,
+  sameAgentChat,
+  type ThinkingLevel,
+} from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
 import type {
@@ -95,6 +103,8 @@ import type { NoteAnswer } from "@kiko/memory/tools"
 import { ProviderLogins, signInMethod } from "./provider-login"
 import { ModelCatalog } from "../models/service"
 import { restoreOverlay } from "../models/sync"
+import { isCustomId } from "../models/custom"
+import { addCustom, refreshCustom, removeCustom, restoreCustom } from "./custom-providers"
 import { type CatalogOverlay, findProvider } from "../models/catalog"
 import { type NewRoutine, Reminders, type RoutineRun, type RunDelivery } from "./reminders"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
@@ -191,6 +201,7 @@ export class User {
     {
       this.alarms = options.clock
       restoreOverlay(this.sql)
+      restoreCustom(this.sql)
       this.models = new ModelCatalog({
         sql: this.sql,
         now: Date.now,
@@ -909,7 +920,16 @@ export class User {
 
   async disconnectProvider(provider: string): Promise<boolean> {
     const removed = await this.#credentials.disconnect(provider)
+    if (isCustomId(provider) && removeCustom(this.sql, provider)) this.changed("models")
     return removed
+  }
+
+  private refreshCustomModels(): void {
+    const key = async (id: string) => {
+      const credential = await this.#credentials.read(id)
+      return credential?.type === "api_key" ? credential.key : undefined
+    }
+    void refreshCustom(this.sql, key, this.egress, Date.now()).then((changed) => changed && this.changed("models"))
   }
 
   async devModelOverlay(overlay: CatalogOverlay): Promise<void> {
@@ -1304,6 +1324,7 @@ export class User {
 
   async openSocket(server: WebSocket, request: Request): Promise<void> {
     this.models.syncIfStale()
+    this.refreshCustomModels()
     server.serializeAttachment({ ready: false, workerOrigin: new URL(request.url).origin } satisfies Attachment)
     const origin = request.headers.get("origin") ?? new URL(request.url).origin
     if (this.setting(PUBLIC_ORIGIN) !== origin) this.putSetting(PUBLIC_ORIGIN, origin)
@@ -1607,6 +1628,22 @@ export class User {
       const why = yield* Effect.promise(() => this.providerKeyRefused(provider, key))
       if (why !== null) return yield* new RefusedError({ reason: "credentials", message: keyRefusedText(why) })
       return yield* Effect.promise(() => this.connectProvider(provider, key))
+    },
+  )
+
+  readonly credentialsAddCustom = Effect.fn("User.credentialsAddCustom")(
+    { self: this },
+    function* (name: string, api: CustomApi, baseUrl: string, apiKey: string) {
+      const key = yield* Effect.try({
+        try: () => checkApiKey(apiKey),
+        catch: (e) =>
+          new RefusedError({ reason: "credentials", message: e instanceof Error ? e.message : "bad request" }),
+      })
+      const added = yield* Effect.promise(() => addCustom(this.sql, { name, api, baseUrl, apiKey: key }, this.egress))
+      if (!added.ok) return yield* new RefusedError({ reason: "credentials", message: added.message })
+      const info = yield* Effect.promise(() => this.connectProvider(added.spec.id, key))
+      this.changed("models")
+      return info
     },
   )
 

@@ -8,6 +8,7 @@ import { plainText, type RichText as RichTextTree } from "@kiko/protocol"
 import { EmojiText } from "../../lib/emoji"
 import { FileChip } from "../ui/FileChip"
 import { Mention } from "../ui/Mention"
+import { TokenText } from "./token-chips"
 import { CodeBlock } from "./CodeBlock"
 import { LinkIcon } from "./LinkIcon"
 import { linkHost, linkLead, richNodes, type RichNode, type TableCopy } from "./model"
@@ -22,7 +23,7 @@ function Node(props: { node: RichNode; onMasked: (link: Masked) => void }): JSX.
   return (
     <Switch>
       <Match when={props.node.kind === "text" && props.node}>
-        {(n) => <EmojiText text={(n() as { text: string }).text} />}
+        {(n) => <TokenText text={(n() as { text: string }).text} />}
       </Match>
       <Match when={props.node.kind === "mention" && props.node}>
         {(n) => <Mention slug={(n() as { slug: string }).slug} />}

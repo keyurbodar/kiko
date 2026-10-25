@@ -50,7 +50,7 @@ import { integrationNote } from "./prompt"
 
 import { buildAgent, openAgentHarness, userModels } from "./factory"
 import { isKnownModel, parseModelRef } from "./thinking"
-import { setOverlay } from "../models/catalog"
+import { setCustomProvider, setOverlay } from "../models/catalog"
 import { projectRecovery } from "../owner/clock"
 import {
   RoutineSchedules,
@@ -936,6 +936,7 @@ export class Agent {
     if (!home) return false
     this.#runStamp++
     const turn = await this.services.user().agentTurn(home.slug)
+    if (turn.custom) setCustomProvider(turn.custom)
     if (turn.provider) setOverlay(turn.provider, turn.catalog.models)
     const model = turn.model ? parseModelRef(turn.model) : null
     const listed = model ? isKnownModel(model) : false
@@ -982,6 +983,7 @@ export class Agent {
   private async loadAuth(provider: string): Promise<AuthResult | null> {
     const home = this.home()
     const context = home ? await this.services.user().turnContext(provider, home.slug) : null
+    if (context?.custom) setCustomProvider(context.custom)
     if (context) setOverlay(provider, context.catalog.models)
     this.#run = {
       provider,

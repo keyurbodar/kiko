@@ -1,5 +1,6 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CloseIcon } from "@kiko/ui/icons"
+import { ChevronDownIcon, CloseIcon } from "@kiko/ui/icons"
+import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { createEffect, For, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { agentDisplayName } from "../../lib/names"
@@ -7,8 +8,7 @@ import { user } from "../../state/user"
 import { closeViewer, computerById, computers, openViewer, release, takeOver, viewerFor } from "../computers"
 import LiveScreen from "./LiveScreen"
 
-const pill =
-  "h-8 shrink-0 cursor-pointer rounded-full px-3.5 text-[13px] font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+const pill = "h-8 shrink-0 cursor-pointer rounded-full px-3.5 text-[13px] font-medium whitespace-nowrap"
 
 export default function Viewer(): JSX.Element {
   const pc = () => computerById(viewerFor() ?? "")
@@ -79,27 +79,56 @@ export default function Viewer(): JSX.Element {
                 </span>
               </Show>
               <Show when={computers().length > 1}>
-                <select
-                  class="h-8 max-w-40 rounded-full bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] px-3 text-[13px] text-fg outline-none"
-                  aria-label="Computer"
-                  value={computer().id}
-                  onChange={(event) => openViewer(event.currentTarget.value)}
-                >
-                  <For each={computers()}>{(c) => <option value={c.id}>{c.name}</option>}</For>
-                </select>
+                <MenuV2 gutter={6} placement="bottom-end">
+                  <MenuV2.Trigger
+                    class="flex h-8 max-w-44 min-w-0 cursor-pointer items-center gap-1.5 rounded-full bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] pr-2.5 pl-3.5 text-[13px] font-medium text-fg hover:bg-[color-mix(in_oklab,var(--fg)_12%,transparent)] aria-expanded:bg-[color-mix(in_oklab,var(--fg)_12%,transparent)]"
+                    aria-label="Computer"
+                    data-action="computer-switch"
+                  >
+                    <span class="truncate">{computer().name}</span>
+                    <RemixIcon icon={ChevronDownIcon} size={12} class="shrink-0 opacity-70" />
+                  </MenuV2.Trigger>
+                  <MenuV2.Portal>
+                    <MenuV2.Content class="min-w-44">
+                      <MenuV2.RadioGroup value={computer().id} onChange={(id) => openViewer(id)}>
+                        <For each={computers()}>
+                          {(c) => (
+                            <MenuV2.RadioItem value={c.id} closeOnSelect>
+                              <span class="flex-1 truncate">{c.name}</span>
+                              <Show when={!c.online}>
+                                <span class="type-hint ml-3 text-fg4">Offline</span>
+                              </Show>
+                            </MenuV2.RadioItem>
+                          )}
+                        </For>
+                      </MenuV2.RadioGroup>
+                    </MenuV2.Content>
+                  </MenuV2.Portal>
+                </MenuV2>
               </Show>
               <Show
                 when={interactive()}
                 fallback={
-                  <button
-                    type="button"
-                    class={cn(pill, "bg-fg text-bg")}
-                    data-action="computer-takeover"
-                    disabled={!computer().online || !computer().caps.input}
-                    onClick={() => takeOver(computer().id)}
+                  <Show
+                    when={computer().online && computer().caps.input}
+                    fallback={
+                      <span
+                        class="shrink-0 px-2 text-[13px] whitespace-nowrap text-fg3"
+                        data-field="takeover-unavailable"
+                      >
+                        {computer().online ? "View only" : "Offline"}
+                      </span>
+                    }
                   >
-                    Take over
-                  </button>
+                    <button
+                      type="button"
+                      class={cn(pill, "bg-fg text-bg")}
+                      data-action="computer-takeover"
+                      onClick={() => takeOver(computer().id)}
+                    >
+                      Take over
+                    </button>
+                  </Show>
                 }
               >
                 <button

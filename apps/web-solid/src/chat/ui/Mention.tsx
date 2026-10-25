@@ -2,6 +2,7 @@ import { humanHandle } from "@kiko/protocol"
 import { createContext, Show, useContext, type JSX } from "solid-js"
 import { session } from "../../app/session"
 import { AgentChip } from "./agent-chip"
+import { appToken, TokenChip } from "../rich/token-chips"
 
 export const MentionLookup = createContext<(slug: string) => { name: string } | undefined>(() => undefined)
 
@@ -20,7 +21,14 @@ export function Mention(props: { slug: string; text?: string }): JSX.Element {
     </Show>
   )
   return (
-    <Show when={member()} fallback={plain()}>
+    <Show
+      when={member()}
+      fallback={
+        <Show when={appToken(props.slug)} fallback={plain()}>
+          {(app) => <TokenChip token={app()} />}
+        </Show>
+      }
+    >
       {(m) => <AgentChip slug={props.slug} name={m().name} />}
     </Show>
   )

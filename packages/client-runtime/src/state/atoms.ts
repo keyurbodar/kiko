@@ -385,6 +385,7 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     writeText: rpc("files.writeText", { mode: "serial", key: (input) => `${input.roomId}:${input.path}` }),
     credentialsList: rpc("credentials.list"),
     credentialsConnect: rpc("credentials.connect"),
+    credentialsAddCustom: rpc("credentials.addCustom"),
     credentialsDisconnect: rpc("credentials.disconnect"),
     credentialsCheck: rpc("credentials.check"),
     loginStart: rpc("login.start"),
