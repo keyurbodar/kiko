@@ -12,7 +12,7 @@ const ACTIONS: Record<ErrorAction, { label: string; run: () => void }> = {
 }
 
 function errorToast(message: string, action?: ToastV2Action | undefined): ToastV2Options & { title: string } {
-  return { title: message, variant: "error", ...(action ? { action, persistent: true } : { duration: PLAIN_ERROR_MS }) }
+  return { title: message, variant: "error", ...(action ? { action } : { duration: PLAIN_ERROR_MS }) }
 }
 
 export function showFailure(message: string, action?: ToastV2Action): number | undefined {

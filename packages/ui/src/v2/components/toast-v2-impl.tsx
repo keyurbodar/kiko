@@ -49,6 +49,7 @@ export interface ToastV2Options {
 
 export interface ToastV2RegionProps {
   class?: string
+  within?: readonly string[]
 }
 
 type Ending = "close" | "out-x" | "out-y"
@@ -164,7 +165,11 @@ function autoDismiss(toast: ToastItem, paused: () => boolean, close: () => void)
     on(
       () => toast.version,
       () => {
-        let remaining = toastDuration({ ...toast.options, anchored: Boolean(toast.anchor) })
+        let remaining = toastDuration({
+          ...toast.options,
+          anchored: Boolean(toast.anchor),
+          actionable: actionsOf(toast.options).length > 0,
+        })
         if (!Number.isFinite(remaining)) return
         let started: number | undefined
         let timer: ReturnType<typeof setTimeout> | undefined
@@ -204,6 +209,7 @@ function ToastV2Region(props: ToastV2RegionProps) {
   const live = () => stack().some((toast) => !toast.ending)
   const expanded = () => hovered() || focused()
   const paused = () => expanded() || pressed() || !windowActive()
+  const [center, setCenter] = createSignal<number | undefined>()
   let list: HTMLOListElement | undefined
   let returnFocus: HTMLElement | null = null
 
@@ -221,6 +227,32 @@ function ToastV2Region(props: ToastV2RegionProps) {
     returnFocus?.focus({ preventScroll: true })
     returnFocus = null
   }
+
+  const findColumn = () => {
+    for (const selector of props.within ?? []) {
+      const found = document.querySelector(selector)
+      if (found) return found
+    }
+    return undefined
+  }
+
+  createEffect(() => {
+    if (!live()) return
+    const column = findColumn()
+    const measure = () => {
+      const rect = column?.getBoundingClientRect()
+      setCenter(rect && rect.width > 0 ? rect.left + rect.width / 2 : undefined)
+    }
+    measure()
+    if (!column) return
+    const observer = new ResizeObserver(measure)
+    observer.observe(column)
+    window.addEventListener("resize", measure)
+    onCleanup(() => {
+      observer.disconnect()
+      window.removeEventListener("resize", measure)
+    })
+  })
 
   createEffect(() => {
     if (live()) return
@@ -263,7 +295,10 @@ function ToastV2Region(props: ToastV2RegionProps) {
         tabIndex={-1}
         data-side={side()}
         data-expanded={expanded() || undefined}
-        style={{ "--toast-front-height": `${layout().frontHeight}px` }}
+        style={{
+          "--toast-front-height": `${layout().frontHeight}px`,
+          ...(center() === undefined ? {} : { "--toast-center": `${center()}px` }),
+        }}
       >
         <ol
           ref={list}

@@ -11,6 +11,7 @@ import { ChatRow, isLive } from "./chat-row"
 import { filterRows, pinnedRows } from "./filter"
 import { flipRows, glideActive } from "./flip"
 import { createFailuresElsewhere } from "./failures"
+import { type Folded, loadFolded, saveFolded, type Section } from "./folded"
 import { type Need, needsOf } from "./needs"
 
 const SKELETON_ROWS = [62, 48, 70, 54, 66, 44]
@@ -35,7 +36,7 @@ function SectionLabel(props: {
         <Show when={props.label} keyed>
           {(label) => <span class="chat-section-name">{label}</span>}
         </Show>
-        <RemixIcon icon={ChevronDownIcon} size={11} class="chat-section-chevron" />
+        <RemixIcon icon={ChevronDownIcon} size={12} class="chat-section-chevron" />
       </button>
       <span class="chat-section-actions">{props.children}</span>
     </div>
@@ -60,12 +61,15 @@ export type ChatSectionsProps = {
   loading: boolean
 }
 
-type OpenState = { needs: boolean; working: boolean; pinned: boolean; chats: boolean }
-
 export function ChatSections(props: ChatSectionsProps): JSX.Element {
   const [unreadOnly, setUnreadOnly] = createSignal(false)
-  const [open, setOpen] = createSignal<OpenState>({ needs: true, working: true, pinned: true, chats: true })
-  const toggle = (key: keyof OpenState) => setOpen((all) => ({ ...all, [key]: !all[key] }))
+  const [folded, setFolded] = createSignal<Folded>(loadFolded())
+  const open = (key: Section) => !folded()[key]
+  const toggle = (key: Section) => {
+    const next = { ...folded(), [key]: open(key) }
+    setFolded(next)
+    saveFolded(next)
+  }
   const [settled, setSettled] = createSignal(false)
   onMount(() => requestAnimationFrame(() => setSettled(true)))
 
@@ -137,23 +141,23 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
     <div class="chat-scroll" data-component="sidebar-list" ref={(el) => (scroller = el)}>
       <Show when={asking().length > 0}>
         <div data-component="sidebar-needs" data-section="needs">
-          <SectionLabel label="Needs you" open={open().needs} onToggle={() => toggle("needs")} />
-          <Fold open={open().needs}>{rows(needIds)}</Fold>
+          <SectionLabel label="Needs you" open={open("needs")} onToggle={() => toggle("needs")} />
+          <Fold open={open("needs")}>{rows(needIds)}</Fold>
         </div>
       </Show>
       <Show when={working().length > 0}>
         <div data-section="working">
-          <SectionLabel label="Busy" open={open().working} onToggle={() => toggle("working")} />
-          <Fold open={open().working}>{rows(workingIds)}</Fold>
+          <SectionLabel label="Busy" open={open("working")} onToggle={() => toggle("working")} />
+          <Fold open={open("working")}>{rows(workingIds)}</Fold>
         </div>
       </Show>
       <Show when={pinnedList().length > 0}>
         <div data-section="pinned">
-          <SectionLabel label="Pinned" open={open().pinned} onToggle={() => toggle("pinned")} />
-          <Fold open={open().pinned}>{rows(pinnedIds, true)}</Fold>
+          <SectionLabel label="Pinned" open={open("pinned")} onToggle={() => toggle("pinned")} />
+          <Fold open={open("pinned")}>{rows(pinnedIds, true)}</Fold>
         </div>
       </Show>
-      <SectionLabel label={unreadOnly() ? "Unread" : "Chats"} open={open().chats} onToggle={() => toggle("chats")}>
+      <SectionLabel label={unreadOnly() ? "Unread" : "Chats"} open={open("chats")} onToggle={() => toggle("chats")}>
         <button
           type="button"
           class="chat-section-filter"
@@ -199,7 +203,7 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
           </For>
         </div>
       </Show>
-      <Fold open={open().chats}>{rows(chatIds)}</Fold>
+      <Fold open={open("chats")}>{rows(chatIds)}</Fold>
     </div>
   )
 }

@@ -65,6 +65,8 @@ const i18n: UiI18n = {
 const ComputerViewer = lazy(() => import("../chat/computer/Viewer"))
 const Desk = lazy(loadDesk)
 
+const TOAST_COLUMNS = ['[data-component="chat-shell"]', '[data-component="main-column"]'] as const
+
 const KEY = "kiko:device:sidebar-collapsed"
 
 function readCollapsed() {
@@ -503,7 +505,7 @@ export function Shell(props: ParentProps) {
             <ComputerViewer />
           </Suspense>
         </Show>
-        <ToastV2.Region />
+        <ToastV2.Region within={TOAST_COLUMNS} />
         <Show when={avatarPickerSlug()}>
           <Suspense>
             <AvatarPicker />
