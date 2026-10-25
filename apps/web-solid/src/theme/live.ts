@@ -3,6 +3,7 @@ import { user } from "../state/user"
 import { connection } from "../state/connection"
 import { owner as runtime, run } from "../state/runtime"
 import {
+  appearanceOf,
   applyCommitted,
   dropLegacyImported,
   legacyImported,
@@ -128,7 +129,7 @@ const DEFAULT = ""
 
 export const themes = () => look().imported
 
-export function commit(next: Imported) {
+function commit(next: Imported) {
   saveLook({ ...look(), imported: next })
 }
 
@@ -137,6 +138,13 @@ export function choose(appearance: "light" | "dark", id: string) {
   if (id === DEFAULT) delete active[appearance]
   else active[appearance] = id
   commit({ ...themes(), active })
+}
+
+export function wear(theme: ImportedTheme, list: ImportedTheme[] = themes().themes): void {
+  const current = look()
+  const mode = current.mode === "system" && appearanceOf("system") === theme.appearance ? "system" : theme.appearance
+  const active = { ...themes().active, [theme.appearance]: theme.id }
+  saveLook({ ...current, mode, imported: { themes: list, active } })
 }
 
 export function remove(theme: ImportedTheme) {
