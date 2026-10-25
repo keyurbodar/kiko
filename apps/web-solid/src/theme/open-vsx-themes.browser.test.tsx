@@ -1,5 +1,5 @@
 import "../index.css"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 import { page } from "vitest/browser"
 import type { ImportedTheme } from "@kiko/theme/imported"
 import type { Send } from "@kiko/theme/open-vsx"
@@ -8,6 +8,9 @@ import { look, updateLook } from "./live"
 import { ThemeBrowser } from "./open-vsx-themes"
 
 const API = "https://open-vsx.org/api"
+const before = look()
+
+afterEach(() => updateLook(before))
 
 function registry(routes: Record<string, unknown>): Send {
   return async (path) => {
