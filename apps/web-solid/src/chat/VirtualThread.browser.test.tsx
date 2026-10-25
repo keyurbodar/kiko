@@ -3,6 +3,7 @@ import { createSignal } from "solid-js"
 import { describe, expect, it, vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
 import { render } from "../../test/render"
+import { fakeTimers } from "../../test/timers"
 import type { ChatMessage, RosterBot } from "../lib/types"
 import { DateChip } from "./ui/DateChip"
 import { VirtualThread } from "./VirtualThread"
@@ -237,6 +238,20 @@ describe("VirtualThread scrolling", () => {
 
     await vi.waitFor(() => expect(atEnd()).toBeLessThan(1))
     expect(host.querySelector('[data-component="chat-scroll-down-new"]')).toBeNull()
+  })
+
+  it("lands at the end from the top of a long chat within a quarter second", async () => {
+    const { screen, host, scroller, atEnd } = await mountThread()
+    await using _ = screen
+    await userEvent.wheel(scroller, { delta: { y: -100_000 } })
+    await vi.waitFor(() => expect(scroller.scrollTop).toBe(0))
+    expect(atEnd()).toBeGreaterThan(scroller.clientHeight * 10)
+
+    using _timers = fakeTimers()
+    scrollDown(host).click()
+    vi.advanceTimersByTime(250)
+
+    expect(atEnd()).toBeLessThan(1)
   })
 
   it("shows who wrote above the view and jumps to the first unread message", async () => {

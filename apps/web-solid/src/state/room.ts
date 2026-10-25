@@ -32,6 +32,7 @@ import * as Atom from "effect/reactivity/Atom"
 import { batch, createComputed, createMemo, createRoot, createSignal, on, untrack } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { session as signedIn } from "../app/session"
+import { arriveLine, hideLine, NO_LINE, openLine, sendLine, showLine, type UnreadLine } from "../chat/lib/unread-line"
 import { inWindow, newestAfter, parseWindow, stepWindows, upsertStep, windowKey } from "../chat/run/run-log"
 import { fillComposer } from "../composer/fill"
 import { distinctTitles, resumeChat, rosterChats } from "../lib/chats"
@@ -114,11 +115,6 @@ function toChatMessage(m: Message, roomId: string): ChatMessage {
     }))
   if (m.from.kind === "human") out.status = pending ? "sending" : "sent"
   return out
-}
-
-function firstUnread(messages: readonly Message[], readSeq: number): MessageId | null {
-  for (const m of messages) if (!isPending(m) && !m.event && m.from.kind !== "human" && m.seq > readSeq) return m.id
-  return null
 }
 
 function newestSeq(messages: readonly Message[]): number {
@@ -545,29 +541,50 @@ function createRoom() {
     return Object.keys(liveOf()).filter((slug) => known.has(slug)) as AgentSlug[]
   })
 
-  const openRead = new Map<RoomId, number>()
   const localRead = new Map<RoomId, number>()
-  const anchors = new Map<RoomId, MessageId | null>()
-  const [anchorEpoch, bumpAnchor] = createSignal(0)
   const [unseen, setUnseen] = createSignal<readonly MessageId[]>([])
   createComputed(on(activeId, () => setUnseen([])))
+  const readSeq = () => snapshot()?.readSeq ?? 0
+
+  const [line, setLine] = createSignal<UnreadLine>(NO_LINE)
+  const [tabHidden, setTabHidden] = createSignal(document.visibilityState === "hidden")
+  document.addEventListener("visibilitychange", () => setTabHidden(document.visibilityState === "hidden"))
+  const said = createMemo(() =>
+    liveMessages().flatMap((m) =>
+      isPending(m) ? [] : [{ id: m.id, seq: m.seq, at: m.at, agent: !m.event && m.from.kind !== "human" }],
+    ),
+  )
+  let lineRoom: RoomId | null = null
+  let openMark: number | undefined
+  let lineOpen = false
   createComputed(() => {
     const id = activeId()
+    if (id !== lineRoom) {
+      lineRoom = id
+      openMark = undefined
+      lineOpen = false
+      setLine(NO_LINE)
+    }
     const s = snapshot()
-    if (id && s && !openRead.has(id)) openRead.set(id, s.readSeq)
+    if (!id || !s || lineOpen) return
+    openMark ??= Math.max(s.readSeq, localRead.get(id) ?? 0)
+    if (state()?.status !== "live") return
+    lineOpen = true
+    setLine(openLine(untrack(said), openMark, untrack(tabHidden)))
   })
-  const readSeq = () => snapshot()?.readSeq ?? 0
-  const readMark = (id: RoomId) => Math.max(openRead.get(id) ?? readSeq(), localRead.get(id) ?? 0)
+  createComputed(() => {
+    const list = said()
+    setLine((now) => arriveLine(now, list))
+  })
+  createComputed(
+    on(tabHidden, (hidden) => setLine((now) => (hidden ? hideLine(now, untrack(said)) : showLine(now, Date.now()))), {
+      defer: true,
+    }),
+  )
 
   function firstUnreadMessageId(): string | null {
-    const id = activeId()
-    if (!id) return null
-    anchorEpoch()
-    if (!anchors.has(id) && state()?.status === "live") anchors.set(id, firstUnread(messages(), readMark(id)))
-    const anchor = anchors.get(id)
-    if (!anchor) return null
-    if (messages().some((m) => m.id === anchor)) return anchor
-    return firstUnread(messages(), readMark(id))
+    const anchor = line().anchor
+    return anchor !== null && messages().some((m) => m.id === anchor) ? anchor : null
   }
 
   const handle = () => {
@@ -694,8 +711,7 @@ function createRoom() {
       ...(stored ? { replyTo: replyTo as MessageId, ...(quote ? { quote } : {}) } : {}),
       ...(message.attachments?.length ? { attachments: message.attachments } : {}),
     })
-    anchors.set(id, null)
-    bumpAnchor((n) => n + 1)
+    setLine(sendLine)
     return `local:${commandId}`
   }
 
@@ -778,6 +794,7 @@ function createRoom() {
       return page ? { results: page.results, next: page.next } : null
     },
     firstUnreadMessageId,
+    tabHidden,
     resumeChat: () =>
       resumeChat(user.chats(), user.synced() || (user.loaded() && user.chats().length > 0), [
         localLast(),

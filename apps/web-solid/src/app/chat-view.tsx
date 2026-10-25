@@ -194,7 +194,7 @@ export function ChatView() {
     const window = snapshot && { live: room.state()?.status === "live", seq: snapshot.seq }
     return roomEmpty(window, messages(), user.chat(roomId())?.lastSeq)
   }
-  const readingLatest = () => !scrolled()
+  const readingLatest = () => !room.tabHidden() && !scrolled()
   createEffect(() => {
     const id = roomId()
     if (id && readingLatest() && room.hasUnread()) room.markRead(id)

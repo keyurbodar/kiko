@@ -1,12 +1,12 @@
 .scroll-faces-down {
   position: absolute;
-  bottom: 12px;
+  bottom: 14px;
   left: 50%;
   z-index: 6;
   display: grid;
-  width: 44px;
-  height: 44px;
-  margin-left: -22px;
+  width: 52px;
+  height: 52px;
+  margin-left: -26px;
   place-items: center;
   border-radius: 9999px;
   background: var(--raise);
@@ -21,9 +21,6 @@
     background-color var(--dur-pop) var(--ease-kiko);
 }
 .scroll-faces-down[data-working] {
-  width: 52px;
-  height: 52px;
-  margin-left: -26px;
   overflow: hidden;
 }
 @media (hover: hover) and (pointer: fine) {
@@ -66,19 +63,15 @@
   opacity: 1;
   transform: none;
 }
-
+.scroll-faces-down[data-working]:focus-visible .scroll-faces-ind {
+  opacity: 0;
+  transform: scale(0.6);
+}
 @media (hover: hover) and (pointer: fine) {
   .scroll-faces-down[data-working]:hover .scroll-faces-arrow {
     opacity: 1;
     transform: none;
   }
-}
-.scroll-faces-down[data-working]:focus-visible .scroll-faces-ind {
-  opacity: 0;
-  transform: scale(0.6);
-}
-
-@media (hover: hover) and (pointer: fine) {
   .scroll-faces-down[data-working]:hover .scroll-faces-ind {
     opacity: 0;
     transform: scale(0.6);
@@ -90,15 +83,19 @@
   width: 24px;
   height: 24px;
 }
+.scroll-faces-stack[data-solo] {
+  width: 26px;
+  height: 26px;
+}
 .scroll-faces-face {
   position: absolute;
   inset: 0;
   display: flex;
   opacity: 0;
-  transform: translateY(6px);
+  transform: translateY(-6px);
   transition:
-    opacity 240ms var(--ease-kiko),
-    transform 240ms var(--ease-kiko);
+    opacity 180ms var(--ease-kiko),
+    transform 180ms var(--ease-kiko);
 }
 .scroll-faces-face[data-shown] {
   opacity: 1;
@@ -107,18 +104,18 @@
 
 .scroll-faces-dot {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: 7px;
+  right: 7px;
   width: 9px;
   height: 9px;
   border-radius: 9999px;
   background: var(--fg);
-  box-shadow: 0 0 0 2.5px var(--bg);
+  box-shadow: 0 0 0 2.5px var(--raise);
 }
 
 .scroll-faces-top {
   position: absolute;
-  top: 12px;
+  top: 14px;
   left: 50%;
   z-index: 6;
   transform: translateX(-50%);
@@ -133,11 +130,11 @@
 }
 
 .scroll-faces-pill {
+  position: relative;
   display: inline-flex;
   height: 36px;
   align-items: center;
-  gap: 8px;
-  padding: 0 14px 0 8px;
+  overflow: hidden;
   border-radius: 9999px;
   background: var(--raise);
   box-shadow:
@@ -152,9 +149,50 @@
     background-color var(--dur-hover) var(--ease-kiko),
     transform var(--dur-hover) var(--ease-kiko);
 }
+.scroll-faces-pill-says,
+.scroll-faces-pill-arrow {
+  display: flex;
+  align-items: center;
+  transition:
+    opacity 180ms var(--ease-kiko),
+    transform 250ms var(--ease-kiko);
+}
+.scroll-faces-pill-says {
+  gap: 8px;
+  padding: 0 14px 0 8px;
+}
+.scroll-faces-pill-arrow {
+  position: absolute;
+  inset: 0;
+  justify-content: center;
+  opacity: 0;
+  transform: translateY(6px);
+}
+.scroll-faces-pill:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px var(--line2),
+    var(--focus-ring);
+}
+.scroll-faces-pill:focus-visible .scroll-faces-pill-says {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+.scroll-faces-pill:focus-visible .scroll-faces-pill-arrow {
+  opacity: 1;
+  transform: none;
+}
 @media (hover: hover) and (pointer: fine) {
   .scroll-faces-pill:hover {
     background: var(--hover);
+  }
+  .scroll-faces-pill:hover .scroll-faces-pill-says {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  .scroll-faces-pill:hover .scroll-faces-pill-arrow {
+    opacity: 1;
+    transform: none;
   }
 }
 .scroll-faces-pill:active {
@@ -174,8 +212,11 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .scroll-faces-stack[data-solo] .scroll-faces-face {
-    animation: scroll-faces-hop 1.2s var(--ease-kiko) infinite;
+    animation: scroll-faces-hop 1.2s ease infinite;
     transform-origin: 50% 100%;
+  }
+  .scroll-faces-dot {
+    animation: scroll-faces-dot-pop 320ms var(--ease-kiko) both;
   }
 }
 
@@ -184,7 +225,10 @@
   .scroll-faces-top,
   .scroll-faces-face,
   .scroll-faces-ind,
-  .scroll-faces-arrow {
+  .scroll-faces-arrow,
+  .scroll-faces-pill,
+  .scroll-faces-pill-says,
+  .scroll-faces-pill-arrow {
     transition: none;
   }
 }
@@ -195,12 +239,24 @@
     transform: none;
   }
   35% {
-    transform: translateY(-4px) scale(0.94, 1.06);
+    transform: translateY(-5px) scale(0.94, 1.06);
   }
   55% {
     transform: scale(1.07, 0.93);
   }
   70% {
     transform: none;
+  }
+}
+
+@keyframes scroll-faces-dot-pop {
+  0% {
+    transform: scale(0);
+  }
+  60% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
   }
 }

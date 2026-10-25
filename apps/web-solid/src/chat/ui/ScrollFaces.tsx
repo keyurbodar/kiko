@@ -23,7 +23,7 @@ function Faces(props: { slugs: readonly string[] }): JSX.Element {
       <Index each={props.slugs}>
         {(slug, i) => (
           <span class="scroll-faces-face" data-shown={shown() === i ? "" : undefined}>
-            <IdentityAvatar seed={slug()} size={24} />
+            <IdentityAvatar seed={slug()} size={props.slugs.length === 1 ? 26 : 24} />
           </span>
         )}
       </Index>
@@ -78,15 +78,20 @@ export function NewAbovePill(props: { above: NewAbove | null; onClick: () => voi
             onPointerDown={(event) => event.preventDefault()}
             onClick={() => props.onClick()}
           >
-            <Show when={above().slugs.length > 0}>
-              <span class="scroll-faces-pill-faces" aria-hidden="true">
-                <For each={above().slugs.slice(0, PILL_FACES)}>
-                  {(slug) => <IdentityAvatar seed={slug} size={22} class="scroll-faces-pill-face" />}
-                </For>
-              </span>
-            </Show>
-            <span>{above().count} new above</span>
-            <RemixIcon icon={ArrowUpIcon} size={14} class="text-fg3" />
+            <span class="scroll-faces-pill-says">
+              <Show when={above().slugs.length > 0}>
+                <span class="scroll-faces-pill-faces" aria-hidden="true">
+                  <For each={above().slugs.slice(0, PILL_FACES)}>
+                    {(slug) => <IdentityAvatar seed={slug} size={22} class="scroll-faces-pill-face" />}
+                  </For>
+                </span>
+              </Show>
+              <span>{above().count} new above</span>
+              <RemixIcon icon={ArrowUpIcon} size={14} class="text-fg3" />
+            </span>
+            <span class="scroll-faces-pill-arrow" aria-hidden="true">
+              <RemixIcon icon={ArrowUpIcon} size={18} />
+            </span>
           </button>
         )}
       </Show>
