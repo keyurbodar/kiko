@@ -1,3 +1,5 @@
+import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/solid-router"
+import type { JSX } from "solid-js"
 import { describe, expect, it, vi } from "vitest"
 import { render } from "../../../test/render"
 import Desk from "./Desk"
@@ -6,11 +8,19 @@ import { agentSurface, closeAll, deskView, fixedSurface, openFile, openFiles } f
 
 const CHAT = "01900000-0000-7000-8000-0000000000aa"
 
+function routed(ui: () => JSX.Element) {
+  const router = createRouter({
+    routeTree: createRootRoute({ component: ui }),
+    history: createMemoryHistory({ initialEntries: [`/chat/${CHAT}`] }),
+  })
+  return () => <RouterProvider router={router} />
+}
+
 describe("chat details panel", () => {
   it("drills from the overview into a section and back, with Close always there", async () => {
     closeAll(CHAT)
     const onClose = vi.fn()
-    await using screen = await render(() => <Desk chatId={CHAT} onClose={onClose} />)
+    await using screen = await render(routed(() => <Desk chatId={CHAT} onClose={onClose} />))
     await expect.element(screen.getByRole("button", { name: "Close chat details" })).toBeVisible()
     await screen.getByRole("button", { name: "Routines" }).click()
     await expect.element(screen.getByRole("heading", { name: "Routines" })).toBeVisible()
@@ -28,7 +38,7 @@ describe("chat details panel", () => {
 
   it("shows file tabs only once two files are open, and Back returns to the Files list", async () => {
     closeAll(CHAT)
-    await using screen = await render(() => <Desk chatId={CHAT} onClose={() => {}} />)
+    await using screen = await render(routed(() => <Desk chatId={CHAT} onClose={() => {}} />))
     openFile(CHAT, "attachments/mvmm766u-notes.md")
     await expect.element(screen.getByRole("heading", { name: "notes.md" })).toBeVisible()
     await expect.element(screen.getByRole("tablist")).not.toBeInTheDocument()
