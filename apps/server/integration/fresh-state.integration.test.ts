@@ -44,6 +44,36 @@ describe("deleting an agent", () => {
   )
 })
 
+describe("deleting an agent's own chat", () => {
+  it.live("deletes the agent too", () =>
+    Effect.gen(function* () {
+      const worker = yield* localWorker
+      const owner = yield* signIn(worker.url, "delete-own-chat")
+      const session = yield* connect(worker.url, owner.token)
+      const slug = "atelier" as AgentSlug
+      const roomId = newRoomId()
+      yield* session.client["agent.create"]({
+        commandId: commandId(),
+        id: crypto.randomUUID(),
+        roomId,
+        name: "Atelier",
+        handle: slug,
+        description: "designs things",
+      })
+      yield* session.client["chat.command"]({ commandId: commandId(), op: { op: "delete", roomId } })
+
+      const snapshot = snapshotOf(yield* SubscriptionRef.get((yield* connect(worker.url, owner.token)).user))
+      const team: string[] = (snapshot?.agents ?? []).map((agent) => agent.slug)
+      assert.notInclude(team, slug, "team list")
+      assert.notInclude(
+        (snapshot?.chats ?? []).map((chat) => chat.roomId),
+        roomId,
+        "chat list",
+      )
+    }).pipe(Effect.scoped),
+  )
+})
+
 describe("reopening a chat while an agent works", () => {
   it.live("sends the running steps to a client that resumes from its cached sequence", () =>
     Effect.gen(function* () {
