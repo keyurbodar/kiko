@@ -1,0 +1,101 @@
+.run-error-card {
+  display: grid;
+  width: fit-content;
+  max-width: min(100%, 560px);
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px 16px 14px 14px;
+  border-radius: var(--radius-bubble);
+  background: var(--kiko-bubble);
+}
+
+.run-error-card > .run-error-icon {
+  margin-top: 2px;
+}
+
+.run-error-icon {
+  flex: none;
+  color: var(--bad);
+}
+
+.run-error-note {
+  display: -webkit-box;
+  margin-top: 4px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--fg3);
+  font-size: 12.5px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.run-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.run-error-action {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: var(--radius-control);
+  color: var(--fg2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko),
+    transform var(--dur-hover) var(--ease-kiko);
+}
+
+.run-error-action[data-primary] {
+  background: var(--active);
+  color: var(--fg);
+}
+
+.run-error-action:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.run-error-action:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.run-error-action:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .run-error-action:hover:not(:disabled) {
+    background: var(--hover);
+    color: var(--fg);
+  }
+}
+
+.run-error-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg3);
+  font-size: 12.5px;
+  line-height: 20px;
+}
+
+.run-error-line > .run-error-icon {
+  opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-component="run-error"][data-latest] .run-error-card {
+    animation: motion-fade-scale-in var(--dur-pop) var(--ease-kiko) both;
+  }
+}

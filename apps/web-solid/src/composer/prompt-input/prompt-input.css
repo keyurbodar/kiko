@@ -5,6 +5,7 @@
 }
 
 .composer-dock .composer-input {
+  flex: none;
   max-height: min(184px, calc(var(--composer-viewport-height, 100dvh) * 0.45));
   tab-size: 2;
 }

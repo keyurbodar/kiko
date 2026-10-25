@@ -684,6 +684,7 @@ export function VirtualThread(props: {
           message={item.message}
           name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])}
           latest={props.messages.at(-1)?.id === item.message.id}
+          group={props.groupChat}
         />
       )
     }

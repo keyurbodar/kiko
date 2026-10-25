@@ -33,7 +33,7 @@ function tailRun(isRunStart: boolean, isRunEnd: boolean): "start" | "mid" | "bot
   return "mid"
 }
 
-const GROUP_GUTTER = "pl-[calc(1rem+40px)]"
+export const GROUP_GUTTER = "pl-[calc(1rem+40px)]"
 
 const FAILED_ACTION =
   "shrink-0 cursor-pointer rounded-full border border-bad/40 bg-bg px-2 py-0.5 text-hint font-medium text-fg hover:bg-hover"
