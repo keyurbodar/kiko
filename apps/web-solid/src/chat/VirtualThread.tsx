@@ -354,7 +354,11 @@ export function VirtualThread(props: {
       restoredOk = true
       return false
     }
-    const index = items().findIndex((item) => item.kind === "message" && item.message.id === saved.messageId)
+    const index = items().findIndex(
+      (item) =>
+        (item.kind === "message" && item.message.id === saved.messageId) ||
+        (item.kind === "thread" && item.messages.some((m) => m.id === saved.messageId)),
+    )
     if (index < 0) {
       restoreMisses += 1
       if (restoreMisses < 3) return false
@@ -502,7 +506,22 @@ export function VirtualThread(props: {
       checkBlank()
       if (!firstLoad && state.rangeStart < NEAR_TOP_ROWS && state.scrollSize > state.viewportSize) props.onNearTop?.()
     }
+    let resyncFrame = 0
+    onCleanup(() => cancelAnimationFrame(resyncFrame))
+    const resync = () => {
+      cancelAnimationFrame(resyncFrame)
+      resyncFrame = requestAnimationFrame(() => {
+        const virtualizer = handle()
+        if (!virtualizer || scroller.scrollTop !== 0 || glide.active()) return
+        if (virtualizer.scrollOffset > scroller.clientHeight) scroller.scrollTop = virtualizer.scrollOffset
+      })
+    }
+    createEventListener(() => scroller, "pointerenter", resync, { passive: true })
+    createEventListener(() => scroller, "focusin", resync)
+    createEventListener(document, "visibilitychange", resync)
+    createEventListener(window, "focus", resync)
     const sizes = makeResizeObserver(() => {
+      resync()
       followEnd()
       commitState(readState())
       checkBlank()
@@ -513,6 +532,7 @@ export function VirtualThread(props: {
     let readerScrollEnd: ReturnType<typeof setTimeout> | undefined
     onCleanup(() => clearTimeout(readerScrollEnd))
     const readerMoved = () => {
+      resync()
       restoreGeneration += 1
       glide.stop()
       readerScrolling = true
