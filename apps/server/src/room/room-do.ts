@@ -1663,6 +1663,10 @@ export class Room implements CommandRoom {
     this.broadcast({ t: "draft", slug, runId, index, text: replyTag(text).text })
   }
 
+  async thinking(slug: AgentSlug, runId: string, part: number, text: string, done: boolean): Promise<void> {
+    this.broadcast({ t: "thinking", slug, runId, part, text, done })
+  }
+
   async note(slug: AgentSlug, runId: string, id: string, text: string): Promise<void> {
     if (!this.members.list().some((m) => m.slug === slug)) return
     const at = Date.now()

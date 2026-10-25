@@ -390,6 +390,14 @@ export type ClientToRoom = typeof ClientToRoom.Type
 export const RoomSignal = Schema.Union([
   Schema.Struct({ t: Schema.Literal("typing"), who: Schema.Array(AgentSlug) }),
   Schema.Struct({ t: Schema.Literal("draft"), slug: AgentSlug, runId: Id, index: Count, text: Schema.String }),
+  Schema.Struct({
+    t: Schema.Literal("thinking"),
+    slug: AgentSlug,
+    runId: Id,
+    part: Count,
+    text: Schema.String,
+    done: Schema.Boolean,
+  }),
   Schema.Struct({ t: Schema.Literal("status"), ...AgentStatus.fields }),
   Schema.Struct({ t: Schema.Literal("step"), step: RunStep }),
   Schema.Struct({ t: Schema.Literal("error"), error: NoticeError }),

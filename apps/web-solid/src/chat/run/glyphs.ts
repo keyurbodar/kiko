@@ -39,4 +39,5 @@ export const GLYPH: Record<StepIcon, Glyph> = {
   wrench: glyphs.WrenchIcon,
   "alert-circle": glyphs.AlertCircleIcon,
   app: glyphs.IntegrationsIcon,
+  bulb: glyphs.ReasoningIcon,
 }

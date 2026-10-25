@@ -10,7 +10,7 @@ export function motionOf(doing: string | undefined): Motion {
   return RULES.find(([pattern]) => pattern.test(doing))?.[1] ?? "orbit"
 }
 
-export const ELAPSED_AFTER_MS = 30_000
+const ELAPSED_AFTER_MS = 30_000
 
 export function captionOf(doing: string | undefined, elapsedMs: number): string {
   const act = doing || "Thinking"

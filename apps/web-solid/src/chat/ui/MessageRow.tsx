@@ -1,6 +1,6 @@
 import { isImage, unnamedFiles } from "../../lib/attachments"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { AlertCircleIcon, CheckDoubleIcon, CheckIcon } from "@kiko/ui/icons"
+import { AlertCircleIcon } from "@kiko/ui/icons"
 import { Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage, RosterBot } from "../../lib/types"
@@ -12,6 +12,7 @@ import { ReactionStack } from "./ReactionBadge"
 import { MessageActions } from "./MessageActions"
 import { room } from "../../state/room"
 import { RunTree } from "../run/RunTree"
+import { ThoughtRow } from "../thinking/Thinking"
 import { RichText } from "./RichText"
 import { Collapsible } from "../Collapsible"
 import { isPhotoTree } from "../rich/model"
@@ -34,23 +35,6 @@ function tailRun(isRunStart: boolean, isRunEnd: boolean): "start" | "mid" | "bot
 
 const GROUP_GUTTER = "pl-[calc(1rem+40px)]"
 
-function SendStatus(props: { status: ChatMessage["status"]; seen: boolean }): JSX.Element {
-  const state = () => (props.status === "sending" ? "sending" : props.seen ? "seen" : "sent")
-  return (
-    <span
-      class="bubble-status"
-      data-component="chat-send-status"
-      data-state={state()}
-      role="img"
-      aria-label={state() === "sending" ? "Sending" : state() === "seen" ? "Seen" : "Sent"}
-    >
-      <Show when={state() !== "sending"} fallback={<span class="bubble-status-spin" />}>
-        <RemixIcon icon={state() === "seen" ? CheckDoubleIcon : CheckIcon} size={14} />
-      </Show>
-    </span>
-  )
-}
-
 const FAILED_ACTION =
   "shrink-0 cursor-pointer rounded-full border border-bad/40 bg-bg px-2 py-0.5 text-hint font-medium text-fg hover:bg-hover"
 
@@ -65,7 +49,6 @@ export function MessageRow(props: {
   hasRunGapBefore: boolean
   group?: boolean
   replying?: boolean
-  seen?: boolean
   highlighted?: boolean
   jumboClass?: "jumbo-single" | "jumbo-group"
   class?: string
@@ -90,7 +73,6 @@ export function MessageRow(props: {
   const windowKey = () => (own() ? undefined : room.runWindow(props.message))
   const failed = () => props.message.status === "failed"
   const failure = (): string | undefined => undefined
-  const showsStatus = () => own() && !failed() && !props.jumboClass && props.message.body.length > 0
   return (
     <div
       class={cn(
@@ -118,6 +100,9 @@ export function MessageRow(props: {
         <div class="truncate pb-0.5 text-[13px] leading-[18px] font-semibold text-fg2" data-component="chat-sender">
           {senderName()}
         </div>
+      </Show>
+      <Show when={own() ? undefined : room.thoughtFor(props.message)}>
+        {(thought) => <ThoughtRow thought={thought()} />}
       </Show>
       <Bubble
         variant={
@@ -163,23 +148,18 @@ export function MessageRow(props: {
             )}
           </Show>
           <Show when={props.message.body.length > 0}>
-            <div class={showsStatus() ? "bubble-body-status" : undefined}>
-              <Collapsible messageId={props.message.id} fixed={photo()}>
-                <Show
-                  when={props.message.rich?.length ? props.message.rich : undefined}
-                  fallback={<RichText text={props.message.body} />}
-                >
-                  {(tree) => (
-                    <Suspense fallback={<RichText text={props.message.body} />}>
-                      <RichTree tree={tree()} class="bubble-rich" />
-                    </Suspense>
-                  )}
-                </Show>
-              </Collapsible>
-              <Show when={showsStatus()}>
-                <SendStatus status={props.message.status} seen={!!props.seen} />
+            <Collapsible messageId={props.message.id} fixed={photo()}>
+              <Show
+                when={props.message.rich?.length ? props.message.rich : undefined}
+                fallback={<RichText text={props.message.body} />}
+              >
+                {(tree) => (
+                  <Suspense fallback={<RichText text={props.message.body} />}>
+                    <RichTree tree={tree()} class="bubble-rich" />
+                  </Suspense>
+                )}
               </Show>
-            </div>
+            </Collapsible>
           </Show>
           <Show when={failed()}>
             <div
