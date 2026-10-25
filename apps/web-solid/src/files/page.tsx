@@ -9,7 +9,6 @@ import { createEffect, createMemo, createSignal, For, lazy, onMount, Show, Suspe
 import {
   PageFrame,
   PageSearch,
-  PageTabs,
   primaryButton,
   secondaryButton,
   SkeletonRows,
@@ -33,6 +32,8 @@ import { type FileGroup, fileType, type FileType, GROUP_LABELS, groupOf, TYPE_NA
 import { TypeIcon } from "./type-icon"
 import { type CardFile, FileCard, toneOf } from "./card"
 import { agoText } from "./edited"
+import { authorFacets, byAuthor, knownAuthor, type Author } from "./author"
+import { AuthorMenu } from "./author-menu"
 
 function reportDrop(result: DropResult) {
   const count = result.saved.length
@@ -52,7 +53,6 @@ const FileDialog = lazy(() => import("./FileDialog"))
 type Entry = LibraryFile & { name: string; folder: string; type: FileType; group: FileGroup | null }
 type Sort = "recent" | "name" | "size" | "type"
 type View = "grid" | "list"
-type Who = "all" | "yours" | "agents"
 type Kind = "all" | FileGroup
 
 const SORTS: readonly { value: Sort; label: string }[] = [
@@ -163,7 +163,7 @@ function SortMenu(props: {
         <RemixIcon icon={FilterHorizontalIcon} size={17} />
       </MenuV2.Trigger>
       <MenuV2.Portal>
-        <MenuV2.Content class="z-[80] min-w-48">
+        <MenuV2.Content class="min-w-48">
           <MenuV2.Group>
             <MenuV2.GroupLabel>Sort by</MenuV2.GroupLabel>
             <MenuV2.RadioGroup value={props.sort} onChange={(v) => props.onSort(v as Sort)}>
@@ -195,7 +195,7 @@ function NewMenu(props: { onNew: (blank: (typeof BLANKS)[number]) => void }) {
         New
       </MenuV2.Trigger>
       <MenuV2.Portal>
-        <MenuV2.Content class="z-[80] min-w-40">
+        <MenuV2.Content class="min-w-40">
           <For each={BLANKS}>{(b) => <MenuV2.Item onSelect={() => props.onNew(b)}>{b.label}</MenuV2.Item>}</For>
         </MenuV2.Content>
       </MenuV2.Portal>
@@ -263,7 +263,7 @@ const route = getRouteApi("/files")
 
 export default function FilesPage() {
   const asked = route.useSearch({ select: (search) => search.open })
-  const [who, setWho] = createSignal<Who>("all")
+  const [author, setAuthor] = createSignal<Author>("all")
   const [kind, setKind] = createSignal<Kind>("all")
   const [sort, setSort] = createSignal<Sort>("recent")
   const [view, setView] = createSignal<View>("grid")
@@ -272,23 +272,19 @@ export default function FilesPage() {
   onMount(library.use)
 
   const entries = createMemo(() => library.files().map(entryOf))
-  const counts = createMemo(() => {
-    const agents = entries().filter((e) => e.madeBy !== null).length
-    return { agents, yours: entries().length - agents }
-  })
-  const whoTabs = createMemo(() => counts().agents > 0 && counts().yours > 0)
+  const facets = createMemo(() => authorFacets(entries()))
   const kinds = createMemo(() => {
     const present = new Set(entries().flatMap((e) => (e.group ? [e.group] : [])))
     return (Object.keys(GROUP_LABELS) as FileGroup[]).filter((g) => present.has(g))
   })
   const shown = createMemo(() => {
     const words = query().toLowerCase().split(/\s+/).filter(Boolean)
-    const author = whoTabs() ? who() : "all"
+    const from = knownAuthor(author(), facets())
     const type = kind() === "all" || kinds().includes(kind() as FileGroup) ? kind() : "all"
     return entries()
       .filter(
         (e) =>
-          (author === "all" || (author === "agents") === (e.madeBy !== null)) &&
+          byAuthor(from, e) &&
           (type === "all" || e.group === type) &&
           words.every((w) => `${e.path} ${chatName(e.roomId) ?? ""} ${TYPE_NAMES[e.type]}`.toLowerCase().includes(w)),
       )
@@ -332,17 +328,12 @@ export default function FilesPage() {
       <PageFrame title="Files">
         <div class="flex flex-col gap-6 pt-4" data-component="files-page">
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <Show when={whoTabs()} fallback={<span />}>
-              <PageTabs<Who>
-                label="Show"
-                value={who()}
-                onChange={setWho}
-                options={[
-                  { value: "all", label: "All" },
-                  { value: "yours", label: "Yours" },
-                  { value: "agents", label: "Made by agents" },
-                ]}
-                data-component="files-filter"
+            <Show when={facets().agents.length || facets().chats.length} fallback={<span />}>
+              <AuthorMenu
+                value={knownAuthor(author(), facets())}
+                facets={facets()}
+                total={entries().length}
+                onChange={setAuthor}
               />
             </Show>
             <div class="flex items-center gap-1">

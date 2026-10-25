@@ -59,7 +59,7 @@ function InstallMenu(props: { install: RecipeInstall; card: RecipeCard; go: (roo
         </Show>
       </MenuV2.Trigger>
       <MenuV2.Portal>
-        <MenuV2.Content class="z-[80]">
+        <MenuV2.Content>
           <MenuV2.Item onSelect={() => props.go(props.install.roomId)}>Open chat</MenuV2.Item>
           <MenuV2.Item onSelect={() => void editRecipe(props.card.slug, props.go)}>Edit recipe</MenuV2.Item>
           <MenuV2.Item onSelect={() => removeInstall(props.install)}>

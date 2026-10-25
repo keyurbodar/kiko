@@ -2,9 +2,9 @@
   position: fixed;
   inset: 0;
   z-index: 86;
-  background: color-mix(in oklab, var(--bg) 62%, transparent);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  background: var(--scrim);
+  -webkit-backdrop-filter: var(--scrim-blur);
+  backdrop-filter: var(--scrim-blur);
 }
 .search-panel {
   position: fixed;

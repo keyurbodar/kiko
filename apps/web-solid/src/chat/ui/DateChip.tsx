@@ -43,7 +43,7 @@ export function DateChip(props: {
   return (
     <div
       class={cn(
-        "chat-chip-anchor pointer-events-none absolute top-2.5 right-5 left-3 z-20 flex-col items-center",
+        "chat-chip-anchor pointer-events-none absolute top-[calc(0.625rem+var(--top-bar-h,0px))] right-5 left-3 z-20 flex-col items-center",
         "invisible flex opacity-0 transition-[opacity,visibility] duration-(--dur-hover) ease-kiko motion-reduce:transition-none",
         "data-[visible]:visible data-[visible]:opacity-100",
         props.class,

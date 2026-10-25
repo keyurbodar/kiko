@@ -903,7 +903,7 @@ function createRoom() {
     },
     setAgentModel(
       slug: AgentSlug,
-      pick: { ref?: string; thinking?: ThinkingLevel; levels?: readonly ThinkingLevel[] },
+      pick: { ref?: string; name?: string; thinking?: ThinkingLevel; levels?: readonly ThinkingLevel[] },
     ) {
       const id = activeId()
       user.setAgentModel(slug, { ...pick, ...(id ? { roomId: id } : {}) })

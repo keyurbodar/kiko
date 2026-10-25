@@ -1,6 +1,4 @@
 import {
-  clampThinking,
-  defaultThinking,
   KIKO,
   newRoomId,
   sameAgentChat,
@@ -13,7 +11,6 @@ import {
   type FileRef,
   type RoomId,
   type RowKind,
-  type ThinkingLevel,
   type UserRows,
   type UserSignal,
 } from "@kiko/protocol"
@@ -27,6 +24,7 @@ import { setFileToken, setFileTokenSource } from "../lib/file-token"
 import { attempt, failureMessage, observe, owner, registry, run, valueOf, watch } from "./runtime"
 import { type ChatTyping, otherChatTyping } from "./live-status"
 import { createUserSignals } from "./user-signals"
+import { type ModelPick, pickedModel } from "./model-pick"
 
 const chatOrder = (a: Chat, b: Chat) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt
 
@@ -95,21 +93,8 @@ export const user = createRoot(() => {
     return !provider || providers().some((p) => p.id === provider) ? pick : undefined
   }
 
-  function setAgentModel(
-    slug: AgentSlug,
-    pick: { ref?: string; thinking?: ThinkingLevel; levels?: readonly ThinkingLevel[]; roomId?: RoomId },
-  ) {
-    const current = snapshot()?.agentModels?.[slug]
-    const levels = pick.levels ?? current?.thinkingLevels
-    const model = pick.ref ?? current?.model
-    const optimistic: AgentModel | undefined =
-      model && levels
-        ? {
-            model,
-            thinking: clampThinking(levels, pick.thinking ?? current?.thinking ?? defaultThinking(levels)),
-            thinkingLevels: [...levels],
-          }
-        : undefined
+  function setAgentModel(slug: AgentSlug, pick: ModelPick & { roomId?: RoomId }) {
+    const optimistic = pickedModel(snapshot()?.agentModels?.[slug], pick)
     void attempt(
       owner.commands.setAgentModel,
       {

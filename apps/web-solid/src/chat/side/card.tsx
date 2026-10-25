@@ -28,7 +28,7 @@ function AddMember(props: { chatId: string }) {
         Add
       </MenuV2.Trigger>
       <MenuV2.Portal>
-        <MenuV2.Content class="z-[80] min-w-48" data-component="add-member-menu">
+        <MenuV2.Content class="min-w-48" data-component="add-member-menu">
           <AddSomeoneItems chatId={props.chatId} />
         </MenuV2.Content>
       </MenuV2.Portal>

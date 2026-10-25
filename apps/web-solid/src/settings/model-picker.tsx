@@ -31,7 +31,7 @@ const changePicker = (open: boolean) => {
 
 export function ModelPicker(props: {
   current?: string
-  onPick: (ref: string, thinking: readonly ThinkingLevel[]) => void
+  onPick: (ref: string, thinking: readonly ThinkingLevel[], name: string) => void
   open: boolean
   onOpenChange: (open: boolean) => void
   children: JSX.Element
@@ -93,8 +93,8 @@ export function ModelPickerButton(props: { draft: string }) {
           const levels = current()?.thinkingLevels
           return canReason(levels) ? THINKING_LABELS[current()?.thinking ?? defaultThinking(levels ?? [])] : null
         }
-        const pick = (ref: string, levels: readonly ThinkingLevel[]) =>
-          ref !== current()?.model && room.setAgentModel(member().slug, { ref, levels })
+        const pick = (ref: string, levels: readonly ThinkingLevel[], name: string) =>
+          ref !== current()?.model && room.setAgentModel(member().slug, { ref, levels, name })
         const setThinking = (level: ThinkingLevel) => room.setAgentModel(member().slug, { thinking: level })
         return (
           <Show
@@ -124,7 +124,6 @@ export function ModelPickerButton(props: { draft: string }) {
                 <Show when={pickerOpen()}>
                   <ModelSheet
                     current={current()?.model}
-                    model={current()?.name}
                     levels={current()?.thinkingLevels}
                     value={current()?.thinking}
                     onPick={pick}
@@ -164,12 +163,7 @@ export function ModelPickerButton(props: { draft: string }) {
               </Show>
               <RemixIcon icon={ChevronDownIcon} size={10} class="picker-chevron shrink-0" />
             </ModelPicker>
-            <ReasoningMenu
-              levels={current()?.thinkingLevels}
-              value={current()?.thinking}
-              model={current()?.name}
-              onChange={setThinking}
-            />
+            <ReasoningMenu levels={current()?.thinkingLevels} value={current()?.thinking} onChange={setThinking} />
           </Show>
         )
       }}

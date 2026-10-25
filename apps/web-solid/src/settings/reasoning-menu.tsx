@@ -4,14 +4,12 @@ import { defaultThinking, THINKING_LABELS, type ThinkingLevel } from "@kiko/prot
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js"
 import { Portal } from "solid-js/web"
 import { cn } from "../lib/cn"
-import { afterFirstPaint } from "../lib/motion"
 import { placePanel } from "../lib/place-panel"
 import { canReason } from "./agent-model"
 import "./reasoning-menu.css"
 
 const PANEL_W = 288
 const PANEL_H = 148
-const NOTE_MS = 2200
 
 export function Slider(props: {
   levels: readonly ThinkingLevel[]
@@ -84,6 +82,18 @@ export function Slider(props: {
   )
 }
 
+export function ThinkingValue(props: { levels: readonly ThinkingLevel[]; value: ThinkingLevel }) {
+  const isDefault = () => props.value === defaultThinking(props.levels)
+  return (
+    <span class="reasoning-value" data-level={props.value}>
+      <span class="reasoning-default" data-shown={isDefault() ? "" : undefined} aria-hidden={!isDefault()}>
+        Default
+      </span>
+      {THINKING_LABELS[props.value]}
+    </span>
+  )
+}
+
 export function ThinkingEnds(props: { levels: readonly ThinkingLevel[] }) {
   const first = () => props.levels[0]
   const end = () => props.levels[props.levels.length - 1]
@@ -143,12 +153,7 @@ function Panel(props: {
       >
         <div class="reasoning-head">
           <span class="reasoning-title">Reasoning</span>
-          <span class="reasoning-value" data-level={props.value}>
-            {THINKING_LABELS[props.value]}
-            <Show when={props.value === defaultThinking(props.levels)}>
-              <span class="reasoning-default">Default</span>
-            </Show>
-          </span>
+          <ThinkingValue levels={props.levels} value={props.value} />
         </div>
         <Slider
           levels={props.levels}
@@ -166,89 +171,46 @@ export function ReasoningMenu(props: {
   levels: readonly ThinkingLevel[] | undefined
   value: ThinkingLevel | undefined
   onChange: (level: ThinkingLevel) => void
-  model?: string
   class?: string
   placement?: "top-start" | "bottom-end"
 }) {
   let trigger: HTMLButtonElement | undefined
   const [open, setOpen] = createSignal(false)
-  const painted = afterFirstPaint()
-  const [note, setNote] = createSignal(false)
-  const [shaking, setShaking] = createSignal(false)
-  let noteTimer: ReturnType<typeof setTimeout> | undefined
-  onCleanup(() => clearTimeout(noteTimer))
   const levels = () => props.levels ?? []
   const value = () => props.value ?? defaultThinking(levels())
   const close = (focusTrigger: boolean) => {
     setOpen(false)
     if (focusTrigger) trigger?.focus()
   }
-  const refuse = () => {
-    setShaking(true)
-    setNote(true)
-    clearTimeout(noteTimer)
-    noteTimer = setTimeout(() => setNote(false), NOTE_MS)
-  }
-  const classes = () =>
-    cn(
-      "reasoning-trigger flex h-7 shrink-0 items-center gap-1.5 rounded-control px-2 text-label text-fg2 hover:bg-hover hover:text-fg aria-expanded:bg-hover aria-expanded:text-fg",
-      props.class,
-    )
   return (
-    <Show when={props.levels !== undefined}>
-      <Show
-        when={canReason(props.levels)}
-        fallback={
-          <button
-            type="button"
-            class={classes()}
-            aria-label="Reasoning"
-            aria-disabled="true"
-            title="Reasoning"
-            data-component="reasoning-trigger"
-            data-unavailable=""
-            data-shake={shaking() ? "" : undefined}
-            onAnimationEnd={() => setShaking(false)}
-            onClick={refuse}
-          >
-            <RemixIcon icon={ReasoningIcon} size={14} />
-            <Show when={note()} fallback={<span>Off</span>}>
-              <span class="reasoning-note">{props.model ?? "This model"} doesn't think</span>
-            </Show>
-          </button>
-        }
+    <Show when={canReason(props.levels)}>
+      <button
+        ref={trigger}
+        type="button"
+        class={cn(
+          "reasoning-trigger flex h-7 shrink-0 items-center gap-1.5 rounded-control px-2 text-label text-fg2 hover:bg-hover hover:text-fg aria-expanded:bg-hover aria-expanded:text-fg",
+          props.class,
+        )}
+        aria-label="Reasoning"
+        aria-haspopup="dialog"
+        aria-expanded={open()}
+        title="Reasoning"
+        data-component="reasoning-trigger"
+        onClick={() => setOpen((now) => !now)}
       >
-        <button
-          ref={trigger}
-          type="button"
-          class={classes()}
-          aria-label="Reasoning"
-          aria-haspopup="dialog"
-          aria-expanded={open()}
-          title="Reasoning"
-          data-component="reasoning-trigger"
-          onClick={() => setOpen((now) => !now)}
-        >
-          <RemixIcon icon={ReasoningIcon} size={14} />
-          <Show when={THINKING_LABELS[value()]} keyed>
-            {(label) => (
-              <span class="reasoning-label" data-enter={painted() ? "" : undefined}>
-                {label}
-              </span>
-            )}
-          </Show>
-          <RemixIcon icon={ChevronDownIcon} size={10} class="opacity-70" />
-        </button>
-        <Show when={open()}>
-          <Panel
-            levels={levels()}
-            value={value()}
-            onChange={props.onChange}
-            trigger={() => trigger}
-            placement={props.placement ?? "top-start"}
-            onClose={close}
-          />
-        </Show>
+        <RemixIcon icon={ReasoningIcon} size={14} />
+        <span class="reasoning-label">{THINKING_LABELS[value()]}</span>
+        <RemixIcon icon={ChevronDownIcon} size={10} class="opacity-70" />
+      </button>
+      <Show when={open()}>
+        <Panel
+          levels={levels()}
+          value={value()}
+          onChange={props.onChange}
+          trigger={() => trigger}
+          placement={props.placement ?? "top-start"}
+          onClose={close}
+        />
       </Show>
     </Show>
   )

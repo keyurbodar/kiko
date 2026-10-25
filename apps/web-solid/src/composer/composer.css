@@ -196,7 +196,7 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .composer-dock .composer-agent:not([data-static]):hover {
+  .composer-dock .composer-agent:hover {
     color: var(--fg);
     background: var(--active);
   }
@@ -206,10 +206,6 @@
   position: relative;
   display: inline-flex;
   min-width: 0;
-}
-
-.composer-dock .composer-agent[data-static] {
-  cursor: default;
 }
 
 .composer-dock .composer-agent-anchor {

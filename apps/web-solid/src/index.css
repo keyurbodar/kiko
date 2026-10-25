@@ -303,7 +303,8 @@
   --info-wash: color-mix(in oklab, var(--info) 22%, transparent);
   --info-wash: color-mix(in oklab, var(--info) 16%, transparent);
   --bad-wash: color-mix(in oklab, var(--bad) 12%, transparent);
-  --scrim: oklch(0% 0 none / 0.6);
+  --scrim: rgb(10 10 10 / 40%);
+  --scrim-blur: blur(6px) saturate(0.7);
 
   --message-assistant-foreground: var(--fg);
   --message-user-gradient: linear-gradient(135deg, var(--me), var(--me));
@@ -351,6 +352,7 @@
     0 0 0 1px color-mix(in oklab, var(--fg) 7%, transparent);
   --segment-shadow: 0 1px 4px oklch(0% 0 none / 0.12);
   --out-quote-bg: oklch(0% 0 none / 0.14);
+  --scrim: rgb(20 20 20 / 18%);
   --count-bg: var(--fg);
   --count-text: var(--bg);
 }
@@ -744,6 +746,14 @@
     inset-inline-start: var(--sidebar-nav-w);
     z-index: 25;
     background: var(--scrim);
+    -webkit-backdrop-filter: var(--scrim-blur);
+    backdrop-filter: var(--scrim-blur);
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    :root {
+      --scrim-blur: none;
+    }
   }
 
   input[type="search"]::-webkit-search-cancel-button,
@@ -819,6 +829,38 @@ html {
 [data-component="top-bar"] {
   height: calc(50px + env(safe-area-inset-top, 0px));
   padding-top: env(safe-area-inset-top, 0px);
+}
+
+[data-component="main-column"]:has(> [data-component="top-bar"]) {
+  --top-bar-h: calc(50px + env(safe-area-inset-top, 0px));
+}
+
+[data-component="main-column"] > [data-component="top-bar"] {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 30;
+}
+
+[data-component="main-column"] > [data-component="top-bar"]::before {
+  position: absolute;
+  inset: 0 0 -18px;
+  z-index: -1;
+  background: linear-gradient(
+    to bottom,
+    var(--bg) 0%,
+    color-mix(in oklab, var(--bg) 82%, transparent) 55%,
+    transparent 100%
+  );
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  content: "";
+  pointer-events: none;
+}
+
+[data-component="chat-scroll"] {
+  scroll-padding-top: var(--top-bar-h, 0px);
 }
 
 [data-component="app-shell"]:not([data-section="chat"]) {

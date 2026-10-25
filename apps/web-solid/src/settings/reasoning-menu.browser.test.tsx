@@ -8,11 +8,11 @@ import { ReasoningMenu } from "./reasoning-menu"
 
 const LEVELS: readonly ThinkingLevel[] = ["off", "low", "medium", "high"]
 
-function Harness(props: { levels?: readonly ThinkingLevel[]; initial?: ThinkingLevel; model?: string }) {
+function Harness(props: { levels?: readonly ThinkingLevel[]; initial?: ThinkingLevel }) {
   const [value, setValue] = createSignal<ThinkingLevel | undefined>(props.initial)
   return (
     <>
-      <ReasoningMenu levels={props.levels} value={value()} onChange={setValue} model={props.model} />
+      <ReasoningMenu levels={props.levels} value={value()} onChange={setValue} />
       <output data-testid="level">{value() ?? "none"}</output>
     </>
   )
@@ -50,13 +50,9 @@ describe("ReasoningMenu", () => {
     await expect.element(trigger).toHaveFocus()
   })
 
-  it("greys out for a model that cannot think and says why when pressed", async () => {
-    await using screen = await render(() => <Harness levels={["off"]} initial="off" model="Llama 4" />)
-    const trigger = screen.getByRole("button", { name: "Reasoning" })
-    await expect.element(trigger).toHaveAttribute("aria-disabled", "true")
-    await trigger.click({ force: true })
-    await expect.element(trigger).toHaveTextContent("Llama 4 doesn't think")
-    await expect.element(page.getByRole("slider")).not.toBeInTheDocument()
+  it("is absent for a model that cannot reason", async () => {
+    await using screen = await render(() => <Harness levels={["off"]} initial="off" />)
+    await expect.element(screen.getByRole("button", { name: "Reasoning" })).not.toBeInTheDocument()
   })
 
   it("opens above the trigger inside the composer", async () => {

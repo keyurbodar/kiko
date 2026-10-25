@@ -400,7 +400,7 @@ function AddSomeoneMenu(props: { people: RecipientPeople }) {
         <span />
       </MenuV2.Trigger>
       <MenuV2.Portal>
-        <MenuV2.Content class="z-[80] min-w-48" data-component="add-member-menu">
+        <MenuV2.Content class="min-w-48" data-component="add-member-menu">
           {props.people.addItems()}
         </MenuV2.Content>
       </MenuV2.Portal>
@@ -411,14 +411,7 @@ function AddSomeoneMenu(props: { people: RecipientPeople }) {
 function Recipient(props: { recipient: Token; controller: PromptInputV2Interaction; people?: RecipientPeople }) {
   return (
     <span class="composer-agent-wrap">
-      <Show
-        when={props.people?.group !== false}
-        fallback={
-          <span class="composer-agent" data-static="" data-component="composer-recipient">
-            <RecipientFace recipient={props.recipient} />
-          </span>
-        }
-      >
+      <Show when={props.people?.group !== false}>
         <MenuV2 gutter={6} placement="top-start">
           <MenuV2.Trigger
             class="composer-agent"
@@ -430,7 +423,7 @@ function Recipient(props: { recipient: Token; controller: PromptInputV2Interacti
             <RemixIcon icon={ChevronDownIcon} size={11} class="composer-agent-chevron" />
           </MenuV2.Trigger>
           <MenuV2.Portal>
-            <MenuV2.Content class="z-[80] min-w-44" data-component="mention-menu">
+            <MenuV2.Content class="min-w-44" data-component="mention-menu">
               <For each={props.controller.agents()}>
                 {(item) => (
                   <MenuV2.Item
