@@ -7,6 +7,7 @@ import type { ComputerHub } from "../computer/hub"
 export interface OwnerServices {
   trimAgents(): Promise<void>
   countOutgoing(): void
+  runShared(roomId: string, slug: string): AbortSignal | undefined
   user(): User
   room(roomId: string): Room
   agent(roomId: string, slug: string): Agent

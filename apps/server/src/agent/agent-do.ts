@@ -466,7 +466,10 @@ export class Agent {
     const room = () => this.services.room(home.roomId)
     return {
       send: (input) => room().agentMessage(home.slug, input),
-      waitAnswer: (id, ms, signal) => this.answers.wait(id, ms, signal),
+      waitAnswer: (id, ms, signal) => {
+        const shared = this.services.runShared(this.identity.roomId, this.identity.slug)
+        return this.answers.wait(id, ms, shared && signal ? AbortSignal.any([signal, shared]) : (shared ?? signal))
+      },
       askHuman: (input) => room().askHuman(home.slug, input),
       humanAskState: (id) => room().humanAskState(id),
       humanWaiting: () => this.host.humanWaiting(),

@@ -12,6 +12,7 @@ class RunCallLimitError extends Schema.TaggedError<RunCallLimitError>()("RunCall
 class RunBudget {
   private outgoing = 0
   private rejected = false
+  private readonly sharing = new AbortController()
   readonly deadline: number
 
   constructor(private readonly now: () => number = Date.now) {
@@ -30,6 +31,12 @@ class RunBudget {
       })
     }
     this.outgoing++
+  }
+  get shared(): AbortSignal {
+    return this.sharing.signal
+  }
+  share(): void {
+    this.sharing.abort()
   }
   due(othersWaiting: () => boolean = () => false): boolean {
     if (this.rejected) return false
@@ -69,6 +76,18 @@ export class Runs {
 
   has(agent: string): boolean {
     return this.active.has(agent)
+  }
+
+  running(): string | undefined {
+    return this.active.keys().next().value
+  }
+
+  waiting(agent: string): void {
+    for (const [key, { budget }] of this.active) if (key !== agent) budget.share()
+  }
+
+  shared(agent: string): AbortSignal | undefined {
+    return this.active.get(agent)?.budget.shared
   }
 
   budget(): RunBudget {

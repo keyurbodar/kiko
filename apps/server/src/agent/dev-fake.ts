@@ -380,6 +380,7 @@ function teamCall(turn: string) {
   const send = /\[send ([a-z0-9-]+)\]\s*([\s\S]*)$/.exec(turn)
   if (send) return fauxToolCall("send_message", { to: capture(send, 1), text: capture(send, 2) })
   if (turn.includes("[shout]")) return fauxToolCall("send_message", { to: "all", text: "[shout]" })
+  if (turn.includes("[ask-human]")) return fauxToolCall("ask_human", { question: "Which one?" })
   return turn.includes("[team]") ? fauxToolCall("team", {}) : null
 }
 

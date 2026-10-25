@@ -1700,6 +1700,27 @@ export class Room implements CommandRoom {
     return true
   }
 
+  memberName(slug: AgentSlug): string | null {
+    return this.members.get(slug)?.name ?? null
+  }
+
+  turnStarted(slug: AgentSlug): void {
+    if (this.members.get(slug)?.status !== "idle") this.broadcastStatus(slug)
+  }
+
+  waitingTurn(slug: AgentSlug, behind: string): void {
+    const kind = this.team.activity(slug)?.kind
+    if (!this.members.get(slug) || (kind && kind !== "writing")) return
+    const doing = `waiting for ${behind} to finish`
+    this.broadcast({
+      t: "status",
+      slug,
+      state: "working",
+      doing,
+      activity: { kind: "tool", tool: "other", caption: doing },
+    })
+  }
+
   private agentStatus(slug: AgentSlug): import("@kiko/protocol").AgentStatus | null {
     const member = this.members.get(slug)
     if (!member) return null
