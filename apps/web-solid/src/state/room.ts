@@ -203,11 +203,10 @@ export type SearchPage = { results: readonly SearchHit[]; next: number | null }
 
 type Runs = {
   steps: Record<string, RunStep[]>
-  live: Record<string, boolean | undefined>
   fetching: Record<string, boolean | undefined>
 }
 
-const emptyRuns = (): Runs => ({ steps: {}, live: {}, fetching: {} })
+const emptyRuns = (): Runs => ({ steps: {}, fetching: {} })
 const NO_RUNS: Runs = emptyRuns()
 
 export interface ActiveRoom {
@@ -271,25 +270,20 @@ function createRuns(
     if (!keys) fetched.set(id, (keys = new Set()))
     return keys
   }
-  const take = (id: RoomId, incoming: readonly RunStep[], live: boolean) => {
+  const take = (id: RoomId, incoming: readonly RunStep[]) => {
     if (incoming.length === 0) return
     setAll(
       produce((s) => {
         const runs = (s[id] ??= emptyRuns())
-        for (const step of incoming) {
-          runs.steps[step.slug] = upsertStep(runs.steps[step.slug] ?? [], step)
-          if (live || step.status === "running") runs.live[step.slug] = true
-        }
+        for (const step of incoming) runs.steps[step.slug] = upsertStep(runs.steps[step.slug] ?? [], step)
       }),
     )
   }
   const onSignal = (id: RoomId, signal: RoomSignal) => {
-    if (signal.t === "step") take(id, [signal.step], false)
+    if (signal.t === "step") take(id, [signal.step])
     else if (signal.t === "thinking") onThinking(id, signal)
-    else if (signal.t === "status") {
-      onStatus(id, signal.slug, signal.state)
-      if (signal.state === "idle" && all[id]) setAll(id, "live", signal.slug, undefined)
-    } else if (signal.t === "error" && id === roomId()) showNotice(signal.error)
+    else if (signal.t === "status") onStatus(id, signal.slug, signal.state)
+    else if (signal.t === "error" && id === roomId()) showNotice(signal.error)
   }
   eachWarm(warm, (id) => {
     const stop = observe(
@@ -309,7 +303,7 @@ function createRuns(
   })
   const clear = (id: RoomId) => {
     fetched.delete(id)
-    if (all[id]) setAll(id, { live: {}, fetching: {} })
+    if (all[id]) setAll(id, "fetching", {})
   }
   const clearAll = () => {
     for (const id of Object.keys(all)) clear(id as RoomId)
@@ -323,7 +317,7 @@ function createRuns(
     if (all[id]) setAll(id, "fetching", key, undefined)
     if (steps === undefined || !all[id]) return
     fetchedIn(id).add(key)
-    take(id, steps, false)
+    take(id, steps)
   }
   const current = () => {
     const id = roomId()
@@ -489,15 +483,6 @@ function createRoom() {
 
   createComputed(
     on(
-      () => snapshot()?.steps,
-      (steps) => {
-        const id = untrack(activeId)
-        if (steps && id) untrack(() => runs.take(id, steps, true))
-      },
-    ),
-  )
-  createComputed(
-    on(
       () => [activeId(), streaming()] as const,
       ([id, live], previous) => {
         if (id && !live && previous?.[0] === id && previous[1]) untrack(() => runs.clear(id))
@@ -511,6 +496,7 @@ function createRoom() {
     if (streaming()) for (const a of snapshot()?.agents ?? []) out[a.slug] = a.state
     return out
   })
+  const busy = (slug: string) => (statusOf()[slug] ?? "idle") !== "idle"
   const liveOf = createMemo(() => {
     const out: Record<string, LiveStatus> = {}
     if (!streaming()) return out
@@ -834,7 +820,7 @@ function createRoom() {
     thoughtFor: (m: ChatMessage) => thoughtAnchors().get(m.id),
     runWindow: (m: ChatMessage) => (m.botId && m.steps ? windowKey(m.botId, m.stepAfter ?? 0) : undefined),
     typingRun(slug: string): string | undefined {
-      if (!runs.current().live[slug]) return undefined
+      if (!busy(slug)) return undefined
       const after = newestAfter(runs.current().steps[slug] ?? [])
       return after >= 0 && !windows().has(windowKey(slug, after)) ? windowKey(slug, after) : undefined
     },
@@ -842,7 +828,7 @@ function createRoom() {
       const { slug, after } = parseWindow(key)
       return inWindow(runs.current().steps[slug] ?? [], after)
     },
-    runLive: (key: string) => !windows().has(key) && !!runs.current().live[parseWindow(key).slug],
+    runLive: (key: string) => !windows().has(key) && busy(parseWindow(key).slug),
     loadRunSteps(key: string, force = false) {
       const w = windows().get(key)
       if (w && inWindow(runs.current().steps[w.slug] ?? [], w.after).length < w.steps)

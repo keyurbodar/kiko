@@ -1781,7 +1781,13 @@ export class Room implements CommandRoom {
         const status = this.agentStatus(m.slug)
         return status ? [status] : []
       })
-    return statuses.length ? [this.activeFrame(), ...statuses.map((s): RoomToClient => ({ t: "status", ...s }))] : []
+    if (!statuses.length) return []
+    const steps = this.log.openSteps(statuses.map((s) => s.slug))
+    return [
+      this.activeFrame(),
+      ...statuses.map((s): RoomToClient => ({ t: "status", ...s })),
+      ...steps.map((step): RoomToClient => ({ t: "step", step })),
+    ]
   }
 
   private pushTyping(): Promise<void> {

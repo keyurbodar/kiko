@@ -5,6 +5,7 @@ import {
   OWNER_RPC_PATH,
   OwnerRpcs,
   type RoomId,
+  type RoomSignal,
   type RoomStreamItem,
 } from "@kiko/protocol"
 import { Effect, Fiber, Layer, Schema, Stream, SubscriptionRef } from "effect"
@@ -84,6 +85,16 @@ export class Room {
     )
   }
 
+  signals(): Effect.Effect<RoomSignal[]> {
+    return SubscriptionRef.get(this.stream.items).pipe(
+      Effect.map((items) => items.flatMap((item) => (item.kind === "signal" ? [item.signal] : []))),
+    )
+  }
+
+  untilSignal(ready: (signal: RoomSignal) => boolean): Effect.Effect<void> {
+    return this.stream.until((items) => items.some((item) => item.kind === "signal" && ready(item.signal)))
+  }
+
   mark(): Effect.Effect<number> {
     return SubscriptionRef.get(this.stream.items).pipe(Effect.map((items) => items.length))
   }
@@ -110,9 +121,9 @@ export const connect = (url: URL, token: string) =>
     const client = yield* makeClient(url, token)
     const user = yield* follow(client["user.subscribe"]({}))
     yield* user.until((items) => items.some(isSynchronized))
-    const openRoom = (roomId: RoomId) =>
+    const openRoom = (roomId: RoomId, afterSequence?: number) =>
       Effect.gen(function* () {
-        const stream = yield* follow(client["room.subscribe"]({ roomId }))
+        const stream = yield* follow(client["room.subscribe"]({ roomId, ...(afterSequence ? { afterSequence } : {}) }))
         yield* stream.until((items) => items.some(isSynchronized))
         return new Room(roomId, client, stream)
       })
@@ -122,7 +133,7 @@ export const connect = (url: URL, token: string) =>
         yield* client["chat.command"]({ commandId: newCommandId(), op: { op: "create", roomId, title } })
         return yield* openRoom(roomId)
       })
-    return { openRoom, newRoom }
+    return { client, user: user.items, openRoom, newRoom }
   })
 
 export type Owner = {
