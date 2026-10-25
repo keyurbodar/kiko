@@ -272,9 +272,6 @@ export class RoomLog {
       )
       .toArray()
     const members = listMembers(this.scopedStorage, this.roomId)
-    const open = new Map(members.map((m) => [m.slug as string, this.window(m.slug)] as const))
-    const pending = new Map([...open].flatMap(([slug, w]) => (w.count ? [[slug, w.after] as const] : [])))
-    const steps = this.steps.tails(pending)
     return {
       seq: this.lastSeq(),
       readSeq: this.readSeq(),
@@ -284,8 +281,15 @@ export class RoomLog {
       ...listSpace(this.scopedStorage, ROOM_TABLES, this.roomId),
       agents: [],
       asks: listAsks(this.scopedStorage.sql, this.roomId),
-      ...(steps.length ? { steps } : {}),
     }
+  }
+
+  openSteps(slugs: readonly string[]): RunStep[] {
+    const open = slugs.flatMap((slug) => {
+      const window = this.window(slug)
+      return window.count ? [[slug, window.after] as const] : []
+    })
+    return this.steps.tails(new Map(open))
   }
 
   around(seq: number, before: number, after: number): Message[] {

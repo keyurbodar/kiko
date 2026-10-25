@@ -3,14 +3,18 @@ import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { PlayIcon } from "@kiko/ui/icons"
-import { createMemo, For, onCleanup, Show } from "solid-js"
+import { createMemo, createSignal, For, onCleanup, Show } from "solid-js"
 import { openChat } from "../app/history"
 import { agentList } from "../lib/chats"
+import { Dialog } from "../lib/dialog"
+import { showFailure } from "../lib/errors"
 import { look } from "../lib/motion"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { AppLogo } from "../recipes/icon"
 import { cards, followRecipes, installs } from "../recipes/state"
+import { Button } from "../settings/kit"
 import { openSettings } from "../settings/open"
+import { attempt, owner } from "../state/runtime"
 import { user } from "../state/user"
 import "./page-ui.css"
 import { SkeletonRows } from "./page-ui"
@@ -30,8 +34,37 @@ function openAgent(agent: Agent) {
   if (id) openChat(id)
 }
 
+function DeleteAgentDialog(props: { agent: Agent | null; onClose: () => void }) {
+  const confirm = () => {
+    const agent = props.agent
+    props.onClose()
+    if (agent)
+      void attempt(owner.commands.deleteAgent, agent.slug, showFailure, "Kiko could not delete the agent. Try again.")
+  }
+  return (
+    <Dialog
+      open={props.agent !== null}
+      onClose={props.onClose}
+      title={`Delete ${props.agent?.name ?? "this agent"}?`}
+      description="It leaves every group, and its own chats, files, routines and memory are removed from this device and the server. Its handle cannot be used again."
+      data-component="delete-agent-dialog"
+      footer={
+        <>
+          <Button variant="ghost" data-action="cancel-delete" onClick={props.onClose}>
+            Cancel
+          </Button>
+          <Button variant="danger" data-action="confirm-delete" onClick={confirm}>
+            Delete
+          </Button>
+        </>
+      }
+    />
+  )
+}
+
 export function TeamTab() {
   followRecipes()
+  const [deleting, setDeleting] = createSignal<Agent | null>(null)
   const agents = createMemo(() => agentList(user.agents()))
   const recipesFor = (slug: string) => installs().filter((i) => i.agent === slug)
   const appsFor = (slug: string) => {
@@ -75,6 +108,17 @@ export function TeamTab() {
                 >
                   Edit
                 </button>
+                <Show when={agent.id !== KIKO}>
+                  <button
+                    type="button"
+                    class="type-label relative z-[1] flex h-8 shrink-0 cursor-pointer items-center rounded-control px-3 font-medium text-fg2 transition-colors duration-(--dur-hover) hover:bg-active hover:text-bad"
+                    aria-label={`Delete ${agent.name}`}
+                    data-action="delete-agent"
+                    onClick={() => setDeleting(agent)}
+                  >
+                    Delete
+                  </button>
+                </Show>
               </div>
               <Show when={appsFor(agent.slug).length}>
                 <div class="flex flex-col gap-2">
@@ -108,6 +152,7 @@ export function TeamTab() {
           )}
         </For>
       </div>
+      <DeleteAgentDialog agent={deleting()} onClose={() => setDeleting(null)} />
     </Show>
   )
 }

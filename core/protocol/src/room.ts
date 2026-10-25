@@ -331,7 +331,6 @@ export const RoomSnapshot = Schema.Struct({
   folders: Schema.Array(Schema.String),
   agents: Schema.optionalKey(Schema.Array(AgentStatus)),
   asks: Schema.optionalKey(Schema.Array(HumanAsk)),
-  steps: Schema.optionalKey(Schema.Array(RunStep)),
 })
 export type RoomSnapshot = typeof RoomSnapshot.Type
 
