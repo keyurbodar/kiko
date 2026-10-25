@@ -13,9 +13,7 @@ import { formatBytes } from "../info/format"
 import { openThreadImages } from "./image-dialog"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { resolveFile, type FileTarget } from "../rich/file-links"
-import { fileType } from "../../files/type"
-import { TypeIcon } from "../../files/type-icon"
-import { TYPE_GLYPHS } from "../../files/type-glyphs"
+import { FileIcon as FileTypeIcon } from "@kiko/ui/file-icon"
 import "./chips.css"
 
 function ChipGlyph(props: { path: string; folder: boolean; picture: string | null }) {
@@ -23,22 +21,11 @@ function ChipGlyph(props: { path: string; folder: boolean; picture: string | nul
     <Show
       when={props.picture}
       fallback={
-        <Show
-          when={!props.folder}
-          fallback={
-            <svg
-              class="lchip-folder"
-              width="16"
-              height="16"
-              viewBox="0 0 256 256"
-              fill="currentColor"
-              aria-hidden="true"
-              innerHTML={TYPE_GLYPHS.folder}
-            />
-          }
-        >
-          <TypeIcon type={fileType({ name: props.path, type: "" })} size={16} />
-        </Show>
+        <FileTypeIcon
+          class={props.folder ? "lchip-folder" : undefined}
+          style={{ width: "16px", height: "16px" }}
+          node={{ path: props.path, type: props.folder ? "directory" : "file" }}
+        />
       }
     >
       {(src) => <img class="lchip-thumb" src={src()} alt="" loading="lazy" draggable={false} />}
