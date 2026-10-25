@@ -97,6 +97,10 @@ export function FilesTree(props: { chatId: string }) {
 export function FileSurface(props: { chatId: string; path: string }) {
   const { files, index } = useChatFiles(() => props.chatId)
   const file = createMemo(() => files().find((f) => f.name === props.path))
+  createEffect(() => {
+    if (!file() && room.activeId() === props.chatId && room.filesLive() && user.synced())
+      dropFileSurfaces(props.chatId, props.path)
+  })
   const kind = createMemo<ViewerKind>(() => {
     const f = file()
     return f ? viewerKind(f) : "other"

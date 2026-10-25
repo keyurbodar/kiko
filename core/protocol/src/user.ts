@@ -327,7 +327,7 @@ export const ClientToUser = Schema.Union([
 ])
 export type ClientToUser = typeof ClientToUser.Type
 
-export const UserChange = Schema.Literals(["memory", "models"])
+export const UserChange = Schema.Literals(["memory", "models", "recipes"])
 export type UserChange = typeof UserChange.Type
 
 export const LoginEvent = Schema.Union([

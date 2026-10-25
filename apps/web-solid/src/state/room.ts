@@ -769,6 +769,7 @@ function createRoom() {
     roomMembers: members,
     tasks: () => snapshot()?.tasks ?? [],
     files: (): FileRef[] => [...(snapshot()?.files ?? [])],
+    filesLive: () => state()?.status === "live",
     folders: (): string[] => [...(snapshot()?.folders ?? [])],
     fileOp(op: FileOp) {
       const id = activeId()

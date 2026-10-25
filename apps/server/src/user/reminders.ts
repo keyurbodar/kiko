@@ -515,10 +515,14 @@ export class Reminders {
     await this.rearm()
   }
 
-  async cancelAgent(slug: string): Promise<void> {
+  async cancelAgent(slug: string, roomId?: string): Promise<void> {
     this.purge(
       this.sql
-        .exec<{ id: string }>("SELECT id FROM reminders WHERE target = ? OR created_by = ?", slug, slug)
+        .exec<{ id: string }>(
+          "SELECT id FROM reminders WHERE (target = ?1 OR created_by = ?1) AND (?2 IS NULL OR room_id = ?2)",
+          slug,
+          roomId ?? null,
+        )
         .toArray()
         .map((row) => row.id),
     )
