@@ -67,10 +67,28 @@ export function RuntimeProvider(props: { readonly children?: JSX.Element }): JSX
   })
 }
 
+export function observe<A>(
+  atom: Atom.Atom<A>,
+  deliver: (value: A) => void,
+  options?: { readonly immediate?: boolean },
+): () => void {
+  return registry.subscribe(
+    atom,
+    (value) => {
+      try {
+        deliver(value)
+      } catch (error) {
+        reportError(error)
+      }
+    },
+    options,
+  )
+}
+
 export function watch<A>(atom: () => Atom.Atom<A>): Accessor<A> {
   const [value, setValue] = createSignal<A>(registry.get(atom()), { equals: false })
   createComputed(() => {
-    onCleanup(registry.subscribe(atom(), (next) => setValue(() => next), { immediate: true }))
+    onCleanup(observe(atom(), (next) => setValue(() => next), { immediate: true }))
   })
   return value
 }
