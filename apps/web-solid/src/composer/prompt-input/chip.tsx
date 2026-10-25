@@ -22,7 +22,7 @@ import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { AppLogo } from "../../recipes/icon"
 import { room } from "../../state/room"
 import { user } from "../../state/user"
-import { progressLabel, retryUpload, uploadState } from "../uploads"
+import { progressLabel, progressShare, retryUpload, uploadState } from "../uploads"
 import type { ChipView, FileRefView, TokenView } from "../rich/nodes"
 import { middleTruncate } from "../rich/nodes"
 import type { Token } from "../tokens"
@@ -194,9 +194,13 @@ function Chip(props: { id: string; name: string; source: ChipSource }) {
     const u = upload()
     const p = part()
     if (!p) return "Gone"
-    if (u?.status === "uploading") return progressLabel(u.progress)
+    if (u?.status === "uploading") return progressLabel(u.loaded, u.total)
     if (u?.status === "failed") return "Retry"
     return formatBytes(p.size)
+  }
+  const share = () => {
+    const u = upload()
+    return u?.status === "uploading" ? progressShare(u.loaded, u.total) : 1
   }
   const open = () => {
     const p = part()
@@ -215,6 +219,7 @@ function Chip(props: { id: string; name: string; source: ChipSource }) {
       data-missing={part() ? undefined : ""}
       title={upload()?.status === "failed" ? (upload() as { reason: string }).reason : props.name}
       aria-label={`${props.name}, ${meta()}`}
+      style={{ "--upload-share": share() }}
       onMouseDown={(event) => event.preventDefault()}
       onClick={open}
     >
@@ -226,6 +231,9 @@ function Chip(props: { id: string; name: string; source: ChipSource }) {
       <span class="token-chip-label">{middleTruncate(props.name, 28)}</span>
       <Show when={upload()?.status === "uploading" || upload()?.status === "failed"}>
         <span class="token-chip-meta">{meta()}</span>
+      </Show>
+      <Show when={upload()?.status === "uploading"}>
+        <span class="token-chip-fill" aria-hidden="true" />
       </Show>
     </button>
   )

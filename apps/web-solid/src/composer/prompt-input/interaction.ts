@@ -4,7 +4,9 @@ import { attachmentError, attachmentMessages, MAX_ATTACHMENTS } from "@kiko/prot
 import { createPromptInputV2Attachments, type PromptInputV2AttachmentConfig } from "./attachments"
 import { createPromptInputV2Store, type PromptInputV2StoreInput } from "./store"
 import { composingKey } from "../ime"
+import { attachmentToken } from "@kiko/protocol"
 import { fileRefToken } from "../rich/file-ref"
+import { trayAttachments } from "./placement"
 import { tokenText, type Token, type TokenGroup, type Trigger } from "../tokens"
 import type { PromptInputV2Attachment, PromptInputV2PersistedState } from "./types"
 import {
@@ -28,6 +30,7 @@ export type PromptInputV2Rich = {
   insertText: (text: string) => void
   insertToken: (trigger: Trigger, token: Token) => void
   insertFileRefs: (paths: readonly string[], at?: { x: number; y: number }) => void
+  insertAttachments: (items: readonly { id: string; name: string }[], at?: { x: number; y: number }) => void
   removeAttachment: (id: string) => void
 }
 
@@ -60,6 +63,11 @@ export function createPromptInputV2Controller(input: {
     for (const path of paths)
       addPart({ type: "text", content: `${fileRefToken(path, path.endsWith("/"))} `, start: 0, end: 0 })
   }
+  function insertAttachments(items: readonly { id: string; name: string }[], at?: { x: number; y: number }) {
+    if (rich) return rich.insertAttachments(items, at)
+    for (const item of items)
+      addPart({ type: "text", content: `${attachmentToken(item.id, item.name)} `, start: 0, end: 0 })
+  }
   const attachments = input.attachments
     ? createPromptInputV2Attachments({
         ...input.attachments,
@@ -72,6 +80,8 @@ export function createPromptInputV2Controller(input: {
         focusEditor: () => editor?.focus(),
         addPart,
         fileRef: insertFileRefs,
+        chip: insertAttachments,
+        draft: plainText,
         setDragging: (dragging) => {
           if ((state.drag === "active") !== dragging) dispatch({ type: dragging ? "drag.enter" : "drag.leave" })
         },
@@ -171,6 +181,9 @@ export function createPromptInputV2Controller(input: {
     attachments(): PromptInputV2Attachment[] {
       return draft.state.prompt.filter((part): part is PromptInputV2Attachment => part.type === "image")
     },
+    trayAttachments(): PromptInputV2Attachment[] {
+      return trayAttachments(draft.state.prompt)
+    },
     importAttachments(files: readonly { attachment: PromptInputV2Attachment; file: File }[]) {
       const replacements = new Map<string, string>()
       if (input.attachments?.blocked?.()) return replacements
@@ -207,12 +220,14 @@ export function createPromptInputV2Controller(input: {
       rich?.removeAttachment(id)
     },
     moveAttachment(id: string, to: number) {
-      const images = draft.state.prompt.filter((part): part is PromptInputV2Attachment => part.type === "image")
+      const images = trayAttachments(draft.state.prompt)
       const from = images.findIndex((part) => part.id === id)
       if (from < 0 || from === to) return
       const moved = images.splice(from, 1)[0]!
       images.splice(Math.max(0, Math.min(to, images.length)), 0, moved)
-      draft.setPrompt([...draft.state.prompt.filter((part) => part.type !== "image"), ...images], draft.state.cursor)
+      const placed = new Set(images.map((part) => part.id))
+      const rest = draft.state.prompt.filter((part) => part.type !== "image" || !placed.has(part.id))
+      draft.setPrompt([...rest, ...images], draft.state.cursor)
     },
     canSubmit() {
       if (input.view.submit.blocked?.()) return false
@@ -281,7 +296,7 @@ export function createPromptInputV2Controller(input: {
     },
     dragKind: () => attachments?.dragKind() ?? "files",
     addAttachments(files: File[]) {
-      if (attachments) void attachments.addAttachments(files)
+      if (attachments) void attachments.addAttachments(files, "picker")
     },
   }
 }

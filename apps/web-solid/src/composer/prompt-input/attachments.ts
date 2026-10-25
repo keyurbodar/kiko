@@ -7,6 +7,7 @@ import { droppedFilePath, hasFileDrag } from "../../lib/file-drag"
 import { prepareImageForAttachment } from "../../lib/image-compression"
 import { rememberClipboardFile } from "../rich/clipboard"
 import { entriesOf, hasFolder, walkEntries } from "./dropped"
+import { type AttachSource, attachPlacement } from "./placement"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 
 type PromptTarget = {
@@ -36,6 +37,8 @@ export function createPromptInputV2Attachments(
     focusEditor: () => void
     addPart: (part: PromptInputV2Prompt[number]) => boolean
     fileRef: (paths: readonly string[], at?: { x: number; y: number }) => void
+    chip: (items: readonly { id: string; name: string }[], at?: { x: number; y: number }) => void
+    draft: () => string
     setDragging: (dragging: boolean) => void
   },
 ) {
@@ -45,7 +48,13 @@ export function createPromptInputV2Attachments(
     return { ...prompt, cursor: () => prompt.cursor() ?? (editor ? cursorPosition(editor) : undefined) }
   }
   const [dragKind, setDragKind] = createSignal<"files" | "reference">("files")
-  const addAttachments = async (files: File[], target = capture(), notes: string[] = []) => {
+  const addAttachments = async (
+    files: File[],
+    source: AttachSource,
+    target = capture(),
+    notes: string[] = [],
+    at?: { x: number; y: number },
+  ) => {
     const blocked = input.blocked?.()
     if (blocked) return void input.refuse([{ reason: blocked }])
     const openedFor = input.key?.()
@@ -91,7 +100,13 @@ export function createPromptInputV2Attachments(
     if (abandoned()) return release()
     if (refusals.length) input.refuse(refusals)
     if (!added.length) return
+    const inline = attachPlacement(source, input.draft()) === "inline"
     target.set([...target.current(), ...added], target.cursor())
+    if (inline)
+      input.chip(
+        added.map((part) => ({ id: part.id, name: part.filename })),
+        at,
+      )
   }
   const insertPastedText = (text: string) => {
     const put = () => {
@@ -117,7 +132,7 @@ export function createPromptInputV2Attachments(
     const plainText = clipboardData.getData("text/plain") ?? ""
     const text = plainText.includes("\r") ? plainText.replace(/\r\n?/g, "\n") : plainText
     if (files.length > 0) {
-      await addAttachments(files, target)
+      await addAttachments(files, "paste", target)
       if (text) insertPastedText(text)
       return
     }
@@ -141,11 +156,11 @@ export function createPromptInputV2Attachments(
     const entries = entriesOf(transfer.items)
     const files = Array.from(transfer.files)
     const target = capture()
-    if (!hasFolder(entries)) return void addAttachments(files, target)
+    if (!hasFolder(entries)) return void addAttachments(files, "drop", target, [], at)
     const walked = await walkEntries(entries)
     const notes = walked.truncated ? [attachmentMessages.folderCut] : []
     if (!walked.files.length) return input.refuse([{ reason: attachmentMessages.folderEmpty }])
-    await addAttachments(walked.files, target, notes)
+    await addAttachments(walked.files, "drop", target, notes, at)
   }
 
   onMount(() => {

@@ -229,7 +229,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
     const uploading = props.controller
       .attachments()
       .map((part) => uploadState(part.id))
-      .flatMap((upload) => (upload?.status === "uploading" ? [progressLabel(upload.progress)] : []))
+      .flatMap((upload) => (upload?.status === "uploading" ? [progressLabel(upload.loaded, upload.total)] : []))
     return uploading.length ? `Uploading ${uploading.join(", ")}` : ""
   })
 
@@ -240,7 +240,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
   )
 
   const stopping = () => !!props.stop && blank() && props.controller.attachments().length === 0 && !props.answering
-  const showTray = () => props.controller.attachments().length > 0 || props.rejected.length > 0
+  const showTray = () => props.controller.trayAttachments().length > 0 || props.rejected.length > 0
   return (
     <div class="relative flex flex-col">
       <input
@@ -305,7 +305,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
           {props.reply}
           <Show when={showTray()}>
             <Tray
-              attachments={props.controller.attachments()}
+              attachments={props.controller.trayAttachments()}
               rejected={props.rejected}
               onOpen={props.controller.openAttachment}
               onRemove={(part) => props.controller.removeAttachment(part.id)}

@@ -2,11 +2,12 @@ import type { PendingAttachment } from "@kiko/protocol"
 import { createComputed, createRoot, on } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { formatBytes } from "../chat/info/format"
 import { apiFetch, apiUrl, getToken } from "../lib/api"
 import { connection } from "../state/connection"
 
 export type UploadState =
-  | { status: "uploading"; progress: number }
+  | { status: "uploading"; loaded: number; total: number }
   | { status: "ready"; pendingId: string }
   | { status: "failed"; reason: string }
 
@@ -16,6 +17,7 @@ const TIMEOUT_MS = 5 * 60_000
 const MAX_SINGLE_PUT = 32 * 1024 * 1024
 const PART_BYTES = 16 * 1024 * 1024
 const TOAST_WINDOW_MS = 5000
+const PROGRESS_STEPS = 100
 
 type Job = {
   id: string
@@ -97,10 +99,11 @@ async function transfer(job: Job): Promise<void> {
   const total = job.file.size
   let lastStep = -1
   const progress = (loaded: number) => {
-    const step = Math.floor((Math.min(loaded, total) / Math.max(1, total)) * 20)
+    const sent = Math.min(loaded, total)
+    const step = Math.floor((sent / Math.max(1, total)) * PROGRESS_STEPS)
     if (step === lastStep || job.cancelled) return
     lastStep = step
-    set(job.id, { status: "uploading", progress: step / 20 })
+    set(job.id, { status: "uploading", loaded: sent, total })
   }
   if (total <= MAX_SINGLE_PUT) {
     const query = new URLSearchParams({ name: job.name, size: String(total) })
@@ -191,7 +194,7 @@ export function startUpload(id: string, roomId: string, file: Blob, name: string
   const job: Job = { id, roomId, file, name, type, pendingId: newId(), cancelled: false, abort: null, sent: false }
   jobs.set(id, job)
   queue.push(job)
-  set(id, { status: "uploading", progress: 0 })
+  set(id, { status: "uploading", loaded: 0, total: file.size })
   pump()
 }
 
@@ -201,7 +204,7 @@ export function retryUpload(id: string): void {
   const job: Job = { ...old, cancelled: false, abort: null }
   jobs.set(id, job)
   queue.push(job)
-  set(id, { status: "uploading", progress: 0 })
+  set(id, { status: "uploading", loaded: 0, total: job.file.size })
   pump()
 }
 
@@ -239,7 +242,10 @@ export function readyAttachments(
   return out
 }
 
-export function progressLabel(progress: number): string {
-  const bounded = Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0))
-  return `${Math.floor(bounded * 100)}%`
+export function progressLabel(loaded: number, total: number): string {
+  return `${formatBytes(Math.max(0, Math.min(loaded, total)))} of ${formatBytes(total)}`
+}
+
+export function progressShare(loaded: number, total: number): number {
+  return total > 0 ? Math.max(0, Math.min(1, loaded / total)) : 0
 }

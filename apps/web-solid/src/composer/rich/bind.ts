@@ -3,7 +3,8 @@ import type { PromptInputV2Interaction } from "../prompt-input/interaction"
 import type { PromptInputV2Attachment } from "../prompt-input/types"
 import { composingKey, enterIsNewline } from "../ime"
 import { chipView, type ChipSource, fileRefView, tokenView } from "../prompt-input/chip"
-import { PASTED_TEXT } from "../prompt-input/tray"
+import { droppedChips } from "../prompt-input/placement"
+import { PASTED_TEXT } from "../prompt-input/preview"
 import { pastedComposerFragment, prepareClipboardFiles } from "./clipboard"
 import { mountRichEditor, type RichEditor } from "./editor"
 import type { ParseOptions } from "./markdown"
@@ -69,7 +70,8 @@ export function bindRich(input: {
     chip: chipView(source),
     fileRef: fileRefView(source),
     onChange: ({ markdown: text, plain, cursor }) => {
-      const images: PromptInputV2Attachment[] = controller.attachments()
+      const gone = new Set(droppedChips(markdown(), text))
+      const images: PromptInputV2Attachment[] = controller.attachments().filter((part) => !gone.has(part.id))
       controller.onInput(plain, [{ type: "text", content: text, start: 0, end: text.length }, ...images], cursor)
       input.onEdit()
       input.shortcodes.sync()
@@ -125,6 +127,7 @@ export function bindRich(input: {
       if (token.kind !== "action") editor.insertToken(trigger, tokenNode(token))
     },
     insertFileRefs: (paths, at) => editor.insertFileRefs(paths, at),
+    insertAttachments: (items, at) => editor.insertAttachments(items, at),
     removeAttachment: (id) => editor.removeAttachment(id),
   })
 
