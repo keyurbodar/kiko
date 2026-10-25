@@ -4,7 +4,7 @@ import { Portal } from "solid-js/web"
 import { canReason } from "./agent-model"
 import { modelRef } from "./model-list"
 import { ModelList } from "./model-picker-panel"
-import { Slider, ThinkingEnds, ThinkingValue } from "./reasoning-menu"
+import { ReasoningControl } from "./reasoning-menu"
 
 const DISMISS_PX = 80
 
@@ -87,18 +87,14 @@ export function ModelSheet(props: {
           </div>
           <Show when={canReason(props.levels)}>
             <section class="model-sheet-thinking" aria-label="Thinking" data-component="model-sheet-thinking">
-              <div class="reasoning-head">
-                <span class="reasoning-title">Thinking</span>
-                <ThinkingValue levels={levels()} value={value()} />
-              </div>
-              <Slider
+              <ReasoningControl
+                title="Thinking"
                 levels={levels()}
                 value={value()}
                 autofocus={false}
                 onChange={props.onThinking}
                 onDone={() => props.onClose()}
               />
-              <ThinkingEnds levels={levels()} />
             </section>
           </Show>
         </div>

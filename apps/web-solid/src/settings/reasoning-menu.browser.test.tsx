@@ -10,10 +10,19 @@ const LEVELS: readonly ThinkingLevel[] = ["off", "low", "medium", "high"]
 
 function Harness(props: { levels?: readonly ThinkingLevel[]; initial?: ThinkingLevel }) {
   const [value, setValue] = createSignal<ThinkingLevel | undefined>(props.initial)
+  const [saves, setSaves] = createSignal(0)
   return (
     <>
-      <ReasoningMenu levels={props.levels} value={value()} onChange={setValue} />
+      <ReasoningMenu
+        levels={props.levels}
+        value={value()}
+        onChange={(level) => {
+          setSaves((n) => n + 1)
+          setValue(level)
+        }}
+      />
       <output data-testid="level">{value() ?? "none"}</output>
+      <output data-testid="saves">{saves()}</output>
     </>
   )
 }
@@ -29,16 +38,45 @@ describe("ReasoningMenu", () => {
     await expect.element(slider).toHaveAttribute("aria-valuemax", "3")
   })
 
-  it("snaps to each level with the arrow keys and Home and End", async () => {
+  it("moves with the arrow keys and Home and End, then saves the level once on Enter", async () => {
     await using screen = await render(() => <Harness levels={LEVELS} initial="low" />)
     await screen.getByRole("button", { name: "Reasoning" }).click()
+    const slider = page.getByRole("slider")
     await userEvent.keyboard("{ArrowRight}")
-    await expect.element(screen.getByTestId("level")).toHaveTextContent("medium")
+    await expect.element(slider).toHaveAttribute("aria-valuetext", "Medium")
     await userEvent.keyboard("{End}")
-    await expect.element(screen.getByTestId("level")).toHaveTextContent("high")
+    await expect.element(slider).toHaveAttribute("aria-valuetext", "High")
     await userEvent.keyboard("{Home}")
+    await expect.element(slider).toHaveAttribute("aria-valuetext", "Off")
+    await expect.element(screen.getByTestId("saves")).toHaveTextContent("0")
+    await userEvent.keyboard("{Enter}")
     await expect.element(screen.getByTestId("level")).toHaveTextContent("off")
-    await expect.element(page.getByRole("slider")).toHaveAttribute("aria-valuetext", "Off")
+    await expect.element(screen.getByTestId("saves")).toHaveTextContent("1")
+  })
+
+  it("saves one level when a drag across every notch is released", async () => {
+    await using screen = await render(() => <Harness levels={LEVELS} initial="low" />)
+    await screen.getByRole("button", { name: "Reasoning" }).click()
+    const slider = page.getByRole("slider").element() as HTMLElement
+    const rail = slider.querySelector(".reasoning-rail")!.getBoundingClientRect()
+    const at = (fraction: number) => ({
+      pointerId: 1,
+      bubbles: true,
+      clientX: rail.left + rail.width * fraction,
+      clientY: rail.top + rail.height / 2,
+    })
+    slider.dispatchEvent(new PointerEvent("pointerdown", at(0)))
+    for (const fraction of [0.34, 0.67, 1, 0.67, 0.34])
+      slider.dispatchEvent(new PointerEvent("pointermove", at(fraction)))
+    await expect.element(page.getByRole("slider")).toHaveAttribute("aria-valuetext", "Low")
+    await expect.element(screen.getByTestId("saves")).toHaveTextContent("0")
+    slider.dispatchEvent(new PointerEvent("pointerup", at(0.34)))
+
+    await expect.element(screen.getByTestId("saves")).toHaveTextContent("0")
+    slider.dispatchEvent(new PointerEvent("pointerdown", at(1)))
+    slider.dispatchEvent(new PointerEvent("pointerup", at(1)))
+    await expect.element(screen.getByTestId("level")).toHaveTextContent("high")
+    await expect.element(screen.getByTestId("saves")).toHaveTextContent("1")
   })
 
   it("closes with Escape and returns focus to the trigger", async () => {

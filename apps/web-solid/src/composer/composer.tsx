@@ -443,7 +443,7 @@ export function Composer(props: ComposerProps) {
           if (question.ask()) return question.advance()
           if (!props.threadId) return
           if (holdBack()) return
-          const text = draftText()
+          const text = draftText().trimEnd()
           const editing = props.editing
           const parts = boxed()
           const attachments = readyAttachments(

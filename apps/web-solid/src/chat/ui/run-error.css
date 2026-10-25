@@ -65,74 +65,45 @@
   white-space: nowrap;
 }
 
-.run-error-chevron {
+.run-error-more {
   flex: none;
   color: var(--fg4);
-  transition: transform var(--dur-pop) var(--ease-kiko);
+  transition: color var(--dur-hover) var(--ease-kiko);
 }
 
-.run-error-more {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  transition:
-    grid-template-rows var(--dur-pop) var(--ease-kiko),
-    opacity var(--dur-pop) var(--ease-kiko);
-}
-
-.run-error-clip {
-  min-height: 0;
-  overflow: hidden;
-}
-
-.run-error-note {
-  padding: 4px 0 0 24px;
-  color: var(--fg3);
-  font-size: 12.5px;
-  line-height: 18px;
-  overflow-wrap: anywhere;
-  user-select: text;
-  transform: translateY(-4px);
-  transition: transform var(--dur-pop) var(--ease-kiko);
-}
-
-[data-component="run-error"]:not([data-latest]) .run-error-note {
-  padding-left: 22px;
-}
-
-.run-error[data-open] .run-error-more,
-.run-error[data-has-note]:focus-within .run-error-more {
-  grid-template-rows: 1fr;
-  opacity: 1;
-}
-
-.run-error[data-open] .run-error-note,
-.run-error[data-has-note]:focus-within .run-error-note {
-  transform: none;
-}
-
-.run-error[data-open] .run-error-chevron,
-.run-error[data-has-note]:focus-within .run-error-chevron {
-  transform: rotate(180deg);
+.run-error-head[aria-expanded="true"] .run-error-more {
+  color: var(--fg2);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .run-error[data-has-note]:hover .run-error-more {
-    grid-template-rows: 1fr;
-    opacity: 1;
-  }
-
-  .run-error[data-has-note]:hover .run-error-note {
-    transform: none;
-  }
-
-  .run-error[data-has-note]:hover .run-error-chevron {
-    transform: rotate(180deg);
-  }
-
   .run-error-head:not(:disabled):hover .run-error-label {
     color: var(--fg);
   }
+
+  .run-error-head:not(:disabled):hover .run-error-more {
+    color: var(--fg2);
+  }
+}
+
+.run-error-pop {
+  width: max-content;
+  max-width: min(340px, calc(100vw - 24px));
+  gap: 4px;
+  padding: 10px 12px 11px;
+}
+
+.run-error-pop-title {
+  color: var(--fg);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.run-error-note {
+  color: var(--fg2);
+  font-size: 12.5px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
 }
 
 .run-error-actions {
@@ -182,14 +153,6 @@
   .run-error-action:hover:not(:disabled) {
     background: var(--hover);
     color: var(--fg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .run-error-more,
-  .run-error-note,
-  .run-error-chevron {
-    transition: none;
   }
 }
 

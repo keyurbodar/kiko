@@ -1,5 +1,6 @@
-import { AlertCircleIcon, ChevronDownIcon } from "@kiko/ui/icons"
+import { AlertCircleIcon, InfoIcon } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
+import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { createSignal, For, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { GROUP_GUTTER } from "./MessageRow"
@@ -27,32 +28,44 @@ export function RunErrorCard(props: {
       data-latest={props.latest ? "" : undefined}
       data-message-id={props["data-message-id"]}
     >
-      <div class="run-error" data-open={open() ? "" : undefined} data-has-note={props.note ? "" : undefined}>
-        <button
-          type="button"
-          class="run-error-head"
-          aria-expanded={props.note ? open() : undefined}
-          disabled={!props.note}
-          onClick={() => setOpen((now) => !now)}
+      <div class="run-error">
+        <HoverCardV2
+          open={open()}
+          onOpenChange={setOpen}
+          openDelay={250}
+          closeDelay={120}
+          placement="top-start"
+          gutter={8}
         >
-          <RemixIcon icon={AlertCircleIcon} size={props.latest ? 16 : 14} class="run-error-icon" />
-          <span class="run-error-label">{props.label}</span>
-          <Show when={props.reason}>
-            <span class="run-error-reason">{props.reason}</span>
-          </Show>
+          <HoverCardV2.Trigger
+            as="button"
+            type="button"
+            role="button"
+            class="run-error-head"
+            aria-expanded={props.note ? open() : undefined}
+            disabled={!props.note}
+            onClick={() => setOpen((now) => !now)}
+          >
+            <RemixIcon icon={AlertCircleIcon} size={props.latest ? 16 : 14} class="run-error-icon" />
+            <span class="run-error-label">{props.label}</span>
+            <Show when={props.reason}>
+              <span class="run-error-reason">{props.reason}</span>
+            </Show>
+            <Show when={props.note}>
+              <RemixIcon icon={InfoIcon} size={13} class="run-error-more" />
+            </Show>
+          </HoverCardV2.Trigger>
           <Show when={props.note}>
-            <RemixIcon icon={ChevronDownIcon} size={12} class="run-error-chevron" />
+            <HoverCardV2.Portal>
+              <HoverCardV2.Content class="run-error-pop" data-component="run-error-detail">
+                <span class="run-error-pop-title">{props.reason ?? props.label}</span>
+                <p class="run-error-note" data-part="detail">
+                  {props.note}
+                </p>
+              </HoverCardV2.Content>
+            </HoverCardV2.Portal>
           </Show>
-        </button>
-        <Show when={props.note}>
-          <div class="run-error-more">
-            <div class="run-error-clip">
-              <p class="run-error-note" data-part="detail">
-                {props.note}
-              </p>
-            </div>
-          </div>
-        </Show>
+        </HoverCardV2>
         <Show when={props.latest && props.actions?.length}>
           <div class="run-error-actions">
             <For each={props.actions?.slice(0, 2)}>

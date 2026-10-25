@@ -13,3 +13,7 @@ export function markdownSlice(schema: Schema, text: string, options: ParseOption
     last?.type.name === "paragraph" ? 1 : 0,
   )
 }
+
+const LONE_LINK = /^(?:https?:\/\/|www\.)\S+$/i
+
+export const isLoneLink = (text: string): boolean => LONE_LINK.test(text.trim())
