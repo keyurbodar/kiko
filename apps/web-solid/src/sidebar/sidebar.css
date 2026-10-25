@@ -445,7 +445,7 @@
   background: var(--active);
 }
 
-.sidebar-shell .chat-empty {
+.sidebar-shell .sidebar-empty {
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -453,7 +453,7 @@
   color: var(--fg3);
 }
 
-.sidebar-shell .chat-empty-link {
+.sidebar-shell .sidebar-empty-link {
   padding: 0;
   color: var(--fg2);
   font: inherit;
@@ -610,14 +610,14 @@
 }
 
 @media (pointer: coarse) {
-  .sidebar-shell .chat-more {
+  .sidebar-shell .chat-row > button.chat-more {
     top: auto;
     bottom: 5px;
     color: var(--fg4);
     opacity: 1;
   }
 
-  .sidebar-shell .chat-row .chat-preview {
+  .sidebar-shell .chat-row .chat-line:last-child {
     padding-right: 26px;
   }
 

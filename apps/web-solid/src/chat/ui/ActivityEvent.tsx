@@ -18,6 +18,7 @@ import type { ChatMessage } from "../../lib/types"
 import { openModelPicker } from "../../settings/model-picker"
 import { reconnect } from "../../settings/provider-problem"
 import { eventRow } from "../lib/event-line"
+import { RunErrorCard } from "./RunErrorCard"
 import { SystemRow, type RowAction } from "./SystemRow"
 import ComputerCard from "../computer/ComputerCard"
 
@@ -44,7 +45,12 @@ const LABELS: Record<RunErrorAction, string> = {
   open_settings: "Settings",
 }
 
-export function ActivityEvent(props: { message: ChatMessage; name: (slug: string) => string; latest?: boolean }) {
+export function ActivityEvent(props: {
+  message: ChatMessage
+  name: (slug: string) => string
+  latest?: boolean
+  group?: boolean
+}) {
   const row = createMemo(() => eventRow(props.message, props.name))
   const failed = () =>
     props.message.event?.kind === "run_error"
@@ -93,17 +99,33 @@ export function ActivityEvent(props: { message: ChatMessage; name: (slug: string
     >
       <Show when={row()}>
         {(r) => (
-          <SystemRow
-            label={r().label}
-            detail={r().detail}
-            title={r().title}
-            tone={r().tone}
-            icon={ICONS[props.message.event?.kind ?? "created"]}
-            actions={actions()}
-            stitch={props.message.event?.kind === "model_changed"}
-            data-component={failed() ? "run-error" : "chat-event"}
-            data-message-id={props.message.id}
-          />
+          <Show
+            when={!failed()}
+            fallback={
+              <RunErrorCard
+                label={r().label}
+                reason={r().detail}
+                note={r().note}
+                title={r().title}
+                actions={actions()}
+                group={props.group}
+                latest={props.latest}
+                data-message-id={props.message.id}
+              />
+            }
+          >
+            <SystemRow
+              label={r().label}
+              detail={r().detail}
+              title={r().title}
+              tone={r().tone}
+              icon={ICONS[props.message.event?.kind ?? "created"]}
+              actions={actions()}
+              stitch={props.message.event?.kind === "model_changed"}
+              data-component="chat-event"
+              data-message-id={props.message.id}
+            />
+          </Show>
         )}
       </Show>
     </Show>

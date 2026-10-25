@@ -546,7 +546,7 @@ export function AddProviderDialog(props: {
     >
       <form
         role="search"
-        class="px-2"
+        class="px-2 pt-1"
         onSubmit={(e) => {
           e.preventDefault()
           const first = shown()[0]
