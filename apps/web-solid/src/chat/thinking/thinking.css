@@ -19,12 +19,6 @@
   line-height: 22px;
 }
 
-.thinking-cycle {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-}
-
 .thinking-live {
   display: block;
   overflow: hidden;
@@ -34,7 +28,6 @@
 }
 
 .thinking-toggle,
-.thinking-show,
 .thought-head {
   cursor: pointer;
   user-select: none;
@@ -47,32 +40,28 @@
   color: var(--fg4);
   font-variant-numeric: tabular-nums;
 }
-
-.thinking-show {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding-left: 28px;
-  color: var(--fg4);
-  font-size: 13px;
-  line-height: 18px;
+.thinking-chevron[data-open] {
+  transform: rotate(90deg);
 }
 
 .thinking-stream {
   width: min(36rem, 100%);
-  max-height: min(320px, 40vh);
-  padding-left: 28px;
+  max-height: min(280px, 36vh);
+  margin-left: 9px;
+  padding: 2px 0 2px 18px;
   overflow-y: auto;
+  border-left: 1.5px solid var(--line);
   scrollbar-width: thin;
   color: var(--fg3);
-  font-size: 14px;
-  line-height: 21px;
+  font-size: 13.5px;
+  line-height: 20px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  user-select: text;
 }
-.thinking-stream[data-overflow] {
-  -webkit-mask: linear-gradient(transparent, #000 48px);
-  mask: linear-gradient(transparent, #000 48px);
+.thinking-stream[data-scrolled] {
+  -webkit-mask: linear-gradient(transparent, #000 32px);
+  mask: linear-gradient(transparent, #000 32px);
 }
 
 .thought {
@@ -81,8 +70,12 @@
   max-width: min(36rem, 100%);
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 6px;
   padding: 0 0 6px 8px;
+}
+.thought .thinking-stream {
+  margin-left: 0;
+  padding-left: 12px;
 }
 
 .thought-head {
@@ -94,24 +87,7 @@
   line-height: 20px;
 }
 
-.thought-chevron {
-  color: var(--fg4);
-}
-.thought-chevron[data-open] {
-  transform: rotate(90deg);
-}
-
-.thought-text {
-  color: var(--fg3);
-  font-size: 13.5px;
-  line-height: 20px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  user-select: text;
-}
-
 .thinking-toggle:focus-visible,
-.thinking-show:focus-visible,
 .thought-head:focus-visible {
   border-radius: 6px;
   outline: none;
@@ -120,41 +96,32 @@
 
 @media (hover: hover) and (pointer: fine) {
   .thinking-toggle:hover,
-  .thinking-show:hover,
   .thought-head:hover {
     color: var(--fg);
   }
   .thinking-toggle:hover .thinking-chevron,
-  .thought-head:hover .thought-chevron {
+  .thought-head:hover .thinking-chevron {
     color: var(--fg2);
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .thinking-live {
-    animation: thinking-line-in 300ms var(--ease-kiko) backwards;
+    animation: thinking-fade var(--dur-hover) var(--ease-kiko) backwards;
   }
   .thinking-live.motion-shine {
     animation:
-      thinking-line-in 300ms var(--ease-kiko) backwards,
+      thinking-fade var(--dur-hover) var(--ease-kiko) backwards,
       motion-shine var(--dur-shimmer) steps(30) infinite;
     animation-play-state: running, var(--visible-animation-state, paused);
   }
-  .thought-text {
-    animation: thinking-open var(--dur-pop) var(--ease-kiko) backwards;
+  .thinking-stream {
+    animation: thinking-fade var(--dur-pop) var(--ease-kiko) backwards;
   }
 }
 
-@keyframes thinking-line-in {
+@keyframes thinking-fade {
   from {
     opacity: 0;
-    transform: translateY(8px);
-  }
-}
-
-@keyframes thinking-open {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { endedThought, heardThought, latestLine, thoughtMs, thoughtText } from "./thoughts"
+import { endedThought, heardThought, thoughtMs, thoughtText } from "./thoughts"
 
 const signal = (more: Partial<Parameters<typeof heardThought>[1]> = {}) => ({
   slug: "kiko",
@@ -35,13 +35,5 @@ describe("thoughts", () => {
     const ended = endedThought(open, 6_000)
     expect(ended.over).toBe(true)
     expect(thoughtMs(ended, 60_000)).toBe(5_000)
-  })
-
-  it("shows the newest whole sentence, cut to one short line", () => {
-    expect(latestLine("Quiet matters. Which ones are under budget? Comparing walk")).toBe(
-      "Which ones are under budget?",
-    )
-    expect(latestLine("Comparing walk times")).toBe("Comparing walk times")
-    expect(latestLine(`${"word ".repeat(30)}end.`)).toHaveLength(60)
   })
 })
