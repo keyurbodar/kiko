@@ -75,7 +75,7 @@ function TokenChip(props: { sign: "@" | "/"; name: string; source: ChipSource })
     >
       {(found) => (
         <span class="token-chip" data-kind={found().kind} title={found().hint}>
-          <TokenGlyph token={found()} size={17} />
+          <TokenGlyph token={found()} size={16} />
           <span class="token-chip-label">{found().title}</span>
         </span>
       )}
@@ -169,7 +169,7 @@ function FileRef(props: { path: string; folder: boolean; source: ChipSource }) {
       }}
       onPointerLeave={leave}
     >
-      <TokenGlyph token={{ kind: "file", id: props.path, path: props.path, title: "", hint: "" }} size={17} />
+      <TokenGlyph token={{ kind: "file", id: props.path, path: props.path, title: "", hint: "" }} size={16} />
       <span class="token-chip-label">{middleTruncate(shownName(props.path), 28)}</span>
       <Show when={open()}>
         <FilePreview path={props.path} anchor={anchor} source={props.source} />
@@ -217,7 +217,7 @@ function Chip(props: { id: string; name: string; source: ChipSource }) {
       data-kind={image() ? "image" : "file"}
       data-state={upload()?.status}
       data-missing={part() ? undefined : ""}
-      title={upload()?.status === "failed" ? (upload() as { reason: string }).reason : props.name}
+      title={upload()?.status === "failed" ? (upload() as { reason: string }).reason : `${props.name}, ${meta()}`}
       aria-label={`${props.name}, ${meta()}`}
       style={{ "--upload-share": share() }}
       onMouseDown={(event) => event.preventDefault()}

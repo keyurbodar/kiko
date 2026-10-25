@@ -6,7 +6,7 @@ import { fileType } from "../../files/type"
 import { TypeIcon } from "../../files/type-icon"
 import { middleTruncate } from "../rich/nodes"
 import { progressLabel, progressShare, retryUpload, uploadState, type UploadState } from "../uploads"
-import { PASTED_TEXT, TilePreview, tileBadge, tileLook } from "./preview"
+import { PASTED_TEXT, TilePreview, tileBadge, tileLook, type TileLook } from "./preview"
 import type { PromptInputV2Attachment } from "./types"
 
 export type Rejected = { id: string; name: string; reason: string }
@@ -65,7 +65,8 @@ function Tile(props: {
   const upload = () => uploadState(props.part.id)
   const [leaving, setLeaving] = createSignal(false)
   const [dragging, setDragging] = createSignal(false)
-  const look = () => tileLook(props.part)
+  const [broken, setBroken] = createSignal(false)
+  const look = (): TileLook => (broken() ? "type" : tileLook(props.part))
   const pictured = () => look() === "image" || look() === "video"
   const pasted = () => props.part.filename === PASTED_TEXT
   const share = () => {
@@ -124,14 +125,14 @@ function Tile(props: {
         onClick={open}
       >
         <span class="tray-body">
-          <TilePreview part={props.part} />
+          <TilePreview part={props.part} look={look()} onBroken={() => setBroken(true)} />
         </span>
         <Show when={upload()?.status === "failed" && pictured()}>
           <span class="tray-veil" data-tone="bad">
             <RemixIcon icon={ResetIcon} size={18} />
           </span>
         </Show>
-        <Foot part={props.part} upload={upload()} named={look() !== "type"} />
+        <Foot part={props.part} upload={upload()} named={look() !== "type" && !pasted()} />
         <Show when={upload()?.status === "uploading"}>
           <span class="tray-fill" aria-hidden="true" />
         </Show>

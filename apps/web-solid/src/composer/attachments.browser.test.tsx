@@ -116,6 +116,24 @@ describe("composer attachments", () => {
     expect(editor.querySelector("[data-attachment]")).toBeNull()
   })
 
+  it("drops a file inline when the draft has words, and into the tray when it is empty", async () => {
+    using _xhr = fakeXhr()
+    await using screen = await mountComposer()
+    const editor = screen.editor
+    const drop = (file: File) =>
+      editor.dispatchEvent(new DragEvent("drop", { dataTransfer: transfer(file), bubbles: true, cancelable: true }))
+
+    drop(new File(["x"], "first.md", { type: "text/markdown" }))
+    await expect.poll(() => tray(screen.container).length).toBe(1)
+    expect(editor.querySelector("[data-attachment]")).toBeNull()
+
+    await userEvent.click(editor)
+    await userEvent.keyboard("Then ")
+    drop(new File(["y"], "second.md", { type: "text/markdown" }))
+    await expect.poll(() => editor.querySelector("[data-attachment]")?.textContent ?? "").toContain("second.md")
+    expect(tray(screen.container).length).toBe(1)
+  })
+
   it("puts files picked with the + button in the tray even mid-sentence", async () => {
     using _xhr = fakeXhr()
     await using screen = await mountComposer()

@@ -12,7 +12,7 @@ const LINES = 9
 const ROWS = 6
 const COLUMNS = 3
 
-type TileLook = "image" | "video" | "lines" | "code" | "table" | "type"
+export type TileLook = "image" | "video" | "lines" | "code" | "table" | "type"
 
 const LOOKS: Partial<Record<FileType, TileLook>> = {
   image: "image",
@@ -94,8 +94,8 @@ function TypeFace(props: { part: PromptInputV2Attachment }) {
   )
 }
 
-export function TilePreview(props: { part: PromptInputV2Attachment }) {
-  const look = () => tileLook(props.part)
+export function TilePreview(props: { part: PromptInputV2Attachment; look: TileLook; onBroken: () => void }) {
+  const look = () => props.look
   const readable = () => look() === "lines" || look() === "code" || look() === "table"
   const [text] = createResource(
     () => (readable() ? props.part.blob.url : null),
@@ -109,7 +109,13 @@ export function TilePreview(props: { part: PromptInputV2Attachment }) {
   return (
     <Switch fallback={<TypeFace part={props.part} />}>
       <Match when={look() === "image"}>
-        <img class="tray-thumb" src={props.part.blob.url} alt={props.part.filename} draggable={false} />
+        <img
+          class="tray-thumb"
+          src={props.part.blob.url}
+          alt={props.part.filename}
+          draggable={false}
+          onError={props.onBroken}
+        />
       </Match>
       <Match when={look() === "video"}>
         <video
@@ -119,6 +125,7 @@ export function TilePreview(props: { part: PromptInputV2Attachment }) {
           playsinline
           preload="metadata"
           aria-hidden="true"
+          onError={props.onBroken}
         />
       </Match>
       <Match when={readable() && text.loading}>
