@@ -1,6 +1,6 @@
 import type { ComputerFrame, ComputerInput, ComputerSignal } from "@kiko/protocol"
 import * as Option from "effect/Option"
-import { owner, registry, run, valueOf } from "../../state/runtime"
+import { observe, owner, run, valueOf } from "../../state/runtime"
 import { onUserSignal } from "../../state/user"
 
 export type Mode = "connecting" | "rtc" | "relay"
@@ -236,7 +236,7 @@ export function startSession(pcId: string, hooks: Hooks): Session {
     rtc = null
     setMode("connecting")
     relay = startRelay(pcId, hooks)
-    stopFrames = registry.subscribe(
+    stopFrames = observe(
       owner.computerFramesAtom(pcId),
       (result) => {
         const frame = Option.flatten(Option.fromNullishOr(valueOf(result)))

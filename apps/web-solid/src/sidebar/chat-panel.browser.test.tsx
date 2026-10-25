@@ -118,6 +118,16 @@ describe("chat sections", () => {
     expect(names(screen.container)).toEqual(["Alpha", "Gamma"])
   })
 
+  it("moves the last busy chat back to Chats when its agent finishes", async () => {
+    const [bots, setBots] = createSignal([bot("a", "Alpha", { presence: "typing" }), bot("b", "Beta")])
+    await using screen = await render(() => <ChatSections {...quiet} activeId="a" bots={bots()} />)
+    expect(sectionOf(screen.container, "a")).toBe("working")
+    setBots([bot("a", "Alpha"), bot("b", "Beta")])
+    expect(sectionOf(screen.container, "a")).toBeUndefined()
+    expect(screen.container.querySelector('[data-section="working"]')).toBeNull()
+    expect(names(screen.container)).toEqual(["Alpha", "Beta"])
+  })
+
   it("folds a deleted chat out at once and brings it back in place on Undo, deleting nothing", async () => {
     const remove = vi.spyOn(user, "remove").mockImplementation(() => {})
     try {
