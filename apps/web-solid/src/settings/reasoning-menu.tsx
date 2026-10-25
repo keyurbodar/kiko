@@ -10,11 +10,13 @@ import "./reasoning-menu.css"
 
 const PANEL_W = 288
 const PANEL_H = 148
+const KEY_SAVE_MS = 400
 
-export function Slider(props: {
+function Slider(props: {
   levels: readonly ThinkingLevel[]
   value: ThinkingLevel
   onChange: (level: ThinkingLevel) => void
+  onCommit: (soon?: boolean) => void
   onDone: () => void
   autofocus?: boolean
 }) {
@@ -52,16 +54,25 @@ export function Slider(props: {
         fromPointer(event)
       }}
       onPointerMove={(event) => dragging() && fromPointer(event)}
-      onPointerUp={() => setDragging(false)}
-      onPointerCancel={() => setDragging(false)}
+      onPointerUp={() => {
+        setDragging(false)
+        props.onCommit()
+      }}
+      onPointerCancel={() => {
+        setDragging(false)
+        props.onCommit()
+      }}
       onKeyDown={(event) => {
         const step = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[event.key]
         if (step) pick(index() + step)
         else if (event.key === "Home") pick(0)
         else if (event.key === "End") pick(props.levels.length - 1)
-        else if (event.key === "Enter") props.onDone()
-        else return
+        else if (event.key === "Enter") {
+          props.onCommit()
+          props.onDone()
+        } else return
         event.preventDefault()
+        if (event.key !== "Enter") props.onCommit(true)
       }}
     >
       <div class="reasoning-rail" ref={rail}>
@@ -82,7 +93,7 @@ export function Slider(props: {
   )
 }
 
-export function ThinkingValue(props: { levels: readonly ThinkingLevel[]; value: ThinkingLevel }) {
+function ThinkingValue(props: { levels: readonly ThinkingLevel[]; value: ThinkingLevel }) {
   const isDefault = () => props.value === defaultThinking(props.levels)
   return (
     <span class="reasoning-value" data-level={props.value}>
@@ -94,7 +105,60 @@ export function ThinkingValue(props: { levels: readonly ThinkingLevel[]; value: 
   )
 }
 
-export function ThinkingEnds(props: { levels: readonly ThinkingLevel[] }) {
+export function ReasoningControl(props: {
+  title: string
+  levels: readonly ThinkingLevel[]
+  value: ThinkingLevel
+  onChange: (level: ThinkingLevel) => void
+  onDone: () => void
+  autofocus?: boolean
+}) {
+  const [held, setHeld] = createSignal<ThinkingLevel>()
+  const [savedFrom, setSavedFrom] = createSignal<ThinkingLevel>()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const shown = () => held() ?? props.value
+  const commit = () => {
+    clearTimeout(timer)
+    const level = held()
+    if (level === undefined || savedFrom() !== undefined) return
+    if (level === props.value) return void setHeld(undefined)
+    setSavedFrom(props.value)
+    props.onChange(level)
+  }
+  createEffect(() => {
+    const from = savedFrom()
+    if (from === undefined || props.value === from) return
+    setHeld(undefined)
+    setSavedFrom(undefined)
+  })
+  onCleanup(commit)
+  return (
+    <>
+      <div class="reasoning-head">
+        <span class="reasoning-title">{props.title}</span>
+        <ThinkingValue levels={props.levels} value={shown()} />
+      </div>
+      <Slider
+        levels={props.levels}
+        value={shown()}
+        autofocus={props.autofocus}
+        onChange={(level) => {
+          setSavedFrom(undefined)
+          setHeld(level)
+        }}
+        onCommit={(soon) => {
+          clearTimeout(timer)
+          if (soon) timer = setTimeout(commit, KEY_SAVE_MS)
+          else commit()
+        }}
+        onDone={props.onDone}
+      />
+      <ThinkingEnds levels={props.levels} />
+    </>
+  )
+}
+
+function ThinkingEnds(props: { levels: readonly ThinkingLevel[] }) {
   const first = () => props.levels[0]
   const end = () => props.levels[props.levels.length - 1]
   return (
@@ -151,17 +215,13 @@ function Panel(props: {
           props.onClose(true)
         }}
       >
-        <div class="reasoning-head">
-          <span class="reasoning-title">Reasoning</span>
-          <ThinkingValue levels={props.levels} value={props.value} />
-        </div>
-        <Slider
+        <ReasoningControl
+          title="Reasoning"
           levels={props.levels}
           value={props.value}
           onChange={props.onChange}
           onDone={() => props.onClose(true)}
         />
-        <ThinkingEnds levels={props.levels} />
       </div>
     </Portal>
   )

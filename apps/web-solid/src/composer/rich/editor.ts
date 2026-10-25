@@ -60,7 +60,7 @@ import {
   type TokenView,
 } from "./nodes"
 import { chipFragment, type Point } from "./insert"
-import { markdownSlice } from "./paste"
+import { isLoneLink, markdownSlice } from "./paste"
 import { groupUndoByChangeKind, UNDO_GROUP_DELAY, type ChangeKind } from "./undo-grouping"
 
 export type Snapshot = { markdown: string; plain: string; cursor: number }
@@ -407,7 +407,10 @@ export function mountRichEditor(options: RichOptions) {
         const code = state.selection.$from.parent.type.spec.code
         const plain = !code && text.length > PLAIN_PASTE_CHARS
         const slice = code || plain ? sliceOf(state, text) : markdownSlice(state.schema, text, options.parse)
-        view.dispatch(state.tr.replaceSelection(slice).scrollIntoView().setMeta("uiEvent", "paste"))
+        const tr = state.tr.replaceSelection(slice)
+        if (!code && state.doc.textContent === "" && isLoneLink(event.clipboardData?.getData("text/plain") ?? ""))
+          tr.split(tr.selection.from).setStoredMarks([])
+        view.dispatch(tr.scrollIntoView().setMeta("uiEvent", "paste"))
         return true
       },
       clipboardTextSerializer: (slice, view) =>
