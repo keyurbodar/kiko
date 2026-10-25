@@ -30,7 +30,7 @@ describe("files drop", () => {
     expect(overlay.hasAttribute("data-open")).toBe(true)
     expect(overlay.textContent).toContain("Drop to save in home")
     expect(overlay.textContent).toContain("2 files")
-    expect(overlay.querySelectorAll('[data-component="file-type-icon"]')).toHaveLength(2)
+    expect(overlay.querySelectorAll('[data-component="file-icon"]')).toHaveLength(2)
 
     fire(zone, "dragleave", data)
     expect(overlay.hasAttribute("data-open")).toBe(false)

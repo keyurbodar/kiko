@@ -42,7 +42,6 @@ export const SidebarNav: Component = () => {
       <button
         type="button"
         class="nav-row"
-        data-filled=""
         data-component="sidebar-add"
         data-hint="chat.new"
         onClick={() => runCommand("chat.new")}

@@ -10,7 +10,7 @@ import { SUBHEADER } from "./chrome"
 import { viewerKind, type ViewerKind } from "./kind"
 import { buildIndex, HOME, inHome, strip, where } from "./model"
 import { fullSize, setFullSize } from "./prefs"
-import { FileActions, FileBody } from "./surface"
+import { FileActions, FileWorkspace } from "./surface"
 import { FileTree } from "./tree"
 import { createFileView, setSourceFor } from "./view"
 
@@ -138,7 +138,7 @@ export function FileSurface(props: { chatId: string; path: string }) {
             </div>
           }
         >
-          <FileBody chatId={props.chatId} path={props.path} file={file()} kind={kind()} view={view} />
+          <FileWorkspace chatId={props.chatId} path={props.path} file={file()} kind={kind()} view={view} />
         </Show>
         <Show when={fullSize()}>
           <Suspense>

@@ -19,14 +19,7 @@
   padding: 0;
   background: var(--raise);
   border-radius: 22px;
-  box-shadow: inset 0 0 0 1px var(--line2);
-  transition: box-shadow var(--dur-pop, 200ms) var(--ease-kiko, ease);
-}
-
-.composer-dock .composer-box:focus-within {
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--fg) 22%, var(--line2)),
-    0 0 0 4px color-mix(in oklab, var(--fg) 4%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--line2) 55%, transparent);
 }
 
 .composer-dock .composer-main {
@@ -115,8 +108,7 @@
   gap: 2px;
 }
 
-.composer-dock .composer-icon,
-.composer-dock .composer-emoji {
+.composer-dock .composer-icon {
   display: grid;
   width: 34px;
   height: 34px;
@@ -133,31 +125,15 @@
     transform var(--dur-hover, 120ms) var(--ease-kiko, ease);
 }
 
-.composer-dock .composer-icon:active:not(:disabled),
-.composer-dock .composer-emoji:active:not(:disabled) {
+.composer-dock .composer-icon:active:not(:disabled) {
   transform: scale(0.94);
 }
 
-.composer-dock .composer-emoji svg {
-  width: 17px;
-  height: 17px;
-}
-
-.composer-dock .composer-emoji[aria-expanded="true"] {
-  color: var(--fg);
-  background: var(--active);
-}
-
 @media (hover: hover) and (pointer: fine) {
-  .composer-dock .composer-icon:hover:not(:disabled),
-  .composer-dock .composer-emoji:hover:not(:disabled) {
+  .composer-dock .composer-icon:hover:not(:disabled) {
     color: var(--fg);
     background: var(--active);
   }
-}
-
-.composer-dock .composer-emoji:disabled {
-  opacity: 0.35;
 }
 
 .composer-dock .composer-send {

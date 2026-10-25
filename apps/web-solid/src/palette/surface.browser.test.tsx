@@ -227,7 +227,7 @@ describe("command palette", () => {
     const scrim = document.querySelector<HTMLElement>(".palette-scrim")
     if (scrim) {
       expect(scrim).toHaveAttribute("data-closing")
-      expect(getComputedStyle(panel().element()).visibility).toBe("hidden")
+      expect(getComputedStyle(panelEl).visibility).toBe("hidden")
       expect(getComputedStyle(scrim, "::before").animationDuration).toBe("0.08s")
     }
     await expect.element(panel()).not.toBeInTheDocument()

@@ -1,31 +1,13 @@
-import { createEventListener } from "@solid-primitives/event-listener"
-import { RemixIcon } from "@kiko/ui/remix-icon"
-import { SmileIcon } from "@kiko/ui/icons"
-import {
-  createEffect,
-  createMemo,
-  createResource,
-  createSignal,
-  For,
-  lazy,
-  on,
-  Show,
-  Suspense,
-  type JSX,
-} from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, For, on, Show, type JSX } from "solid-js"
 import { composingKey } from "./ime"
 import {
   loadEmoji,
   recordRecent,
   searchEmoji,
   shortcodeQuery,
-  warmEmoji,
   type EmojiEntry,
   type EmojiMatch,
 } from "../lib/emoji-data"
-
-const pickerModule = () => import("../chat/ui/EmojiPicker")
-const EmojiPicker = lazy(() => pickerModule().then((m) => ({ default: m.EmojiPicker })))
 
 function insertAt(editor: HTMLElement, range: Range, text: string) {
   editor.focus({ preventScroll: true })
@@ -165,81 +147,4 @@ function Shortcode(props: { match: EmojiMatch; query: string }): JSX.Element {
       {parts()[2]}:
     </>
   )
-}
-
-export function createComposerEmoji(editor: () => HTMLElement | undefined, disabled: () => boolean) {
-  const [open, setOpen] = createSignal(false)
-  let saved: Range | undefined
-  let button: HTMLButtonElement | undefined
-  let panel: HTMLDivElement | undefined
-  const warm = () => {
-    void pickerModule()
-    warmEmoji()
-  }
-  const remember = () => {
-    const root = editor()
-    saved = root ? caretIn(root) : undefined
-  }
-  const pick = (emoji: string) => {
-    setOpen(false)
-    const root = editor()
-    if (!root) return
-    let range = saved
-    if (!range || !root.contains(range.startContainer)) {
-      range = document.createRange()
-      range.selectNodeContents(root)
-      range.collapse(false)
-    }
-    insertAt(root, range, emoji)
-  }
-
-  createEventListener(document, "pointerdown", (event) => {
-    const target = event.target as Node
-    if (open() && !panel?.contains(target) && !button?.contains(target)) setOpen(false)
-  })
-  createEventListener(
-    window,
-    "keydown",
-    (event) => {
-      if (!open() || event.key !== "Escape") return
-      event.preventDefault()
-      event.stopPropagation()
-      setOpen(false)
-      editor()?.focus({ preventScroll: true })
-    },
-    { capture: true },
-  )
-
-  const trigger = (
-    <button
-      ref={button}
-      type="button"
-      class="composer-emoji"
-      aria-label="Emoji"
-      aria-expanded={open()}
-      data-action="composer-emoji"
-      disabled={disabled()}
-      onPointerEnter={warm}
-      onPointerDown={remember}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") remember()
-      }}
-      onClick={() => {
-        warm()
-        setOpen((value) => !value)
-      }}
-    >
-      <RemixIcon icon={SmileIcon} size={16} />
-    </button>
-  )
-  const view = (
-    <Show when={open()}>
-      <div ref={panel} class="absolute right-1.5 bottom-full z-30 mb-1.5">
-        <Suspense>
-          <EmojiPicker onSelect={pick} />
-        </Suspense>
-      </div>
-    </Show>
-  )
-  return { trigger, view }
 }

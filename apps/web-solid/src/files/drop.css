@@ -42,7 +42,7 @@
   animation: files-drop-fan var(--dur-step) var(--ease-kiko) both;
 }
 
-.files-drop-glyph [data-component="file-type-icon"] {
+.files-drop-glyph [data-component="file-icon"] {
   color: var(--fg) !important;
 }
 

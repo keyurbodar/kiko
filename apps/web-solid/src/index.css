@@ -470,14 +470,14 @@
   font-family: var(--font-family-sans);
   font-size: var(--type-msg);
   line-height: var(--type-msg-line);
-  font-weight: 400;
+  font-weight: 450;
 }
 
 @utility type-ui {
   font-family: var(--font-family-sans);
   font-size: var(--type-ui);
   line-height: var(--type-ui-line);
-  font-weight: 400;
+  font-weight: 450;
 }
 
 @utility type-row {
@@ -491,14 +491,14 @@
   font-family: var(--font-family-sans);
   font-size: var(--type-label);
   line-height: var(--type-label-line);
-  font-weight: 400;
+  font-weight: 450;
 }
 
 @utility type-hint {
   font-family: var(--font-family-sans);
   font-size: var(--type-hint);
   line-height: var(--type-hint-line);
-  font-weight: 400;
+  font-weight: 450;
 }
 
 @utility type-code {
@@ -642,8 +642,7 @@
     line-height: var(--line-height);
     font-optical-sizing: auto;
 
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    -webkit-font-smoothing: auto;
     text-rendering: optimizeLegibility;
     color: var(--fg);
     background: var(--bg);

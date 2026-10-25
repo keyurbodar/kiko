@@ -297,51 +297,41 @@ button.composer-card-row {
     background: var(--hover);
   }
 }
-.task-check {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.task-glyph {
+  display: inline-grid;
+  place-items: center;
   width: 16px;
   height: 16px;
-  padding: 0;
-  border-radius: 5px;
-  color: var(--bg);
-  box-shadow: inset 0 0 0 1.5px var(--fg4);
-  cursor: pointer;
-  transition:
-    background var(--dur-hover) var(--ease-kiko),
-    box-shadow var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
-}
-@media (hover: hover) and (pointer: fine) {
-  .task-check:hover:not(:disabled) {
-    box-shadow: inset 0 0 0 1.5px var(--fg2);
-  }
-}
-.task-check:active:not(:disabled) {
-  transform: scale(0.9);
-}
-.task-check:disabled {
-  cursor: default;
-}
-.task-check[data-status="done"] {
-  background: var(--fg);
-  box-shadow: none;
-}
-.task-check[data-status="doing"] {
-  box-shadow: inset 0 0 0 1.5px var(--fg2);
-  animation: task-breathe 2s ease-in-out infinite;
-}
-.task-check[data-status="cancelled"] {
   color: var(--fg4);
 }
-.task-check-mark {
-  width: 12px;
-  height: 12px;
+.task-glyph svg {
+  width: 16px;
+  height: 16px;
+  overflow: visible;
 }
-.task-check[data-status="done"] .task-check-mark {
-  animation: task-tick var(--dur-pop) var(--ease-kiko) both;
+.task-glyph[data-status="doing"] {
+  color: var(--fg);
+}
+.task-glyph[data-status="doing"] .task-glyph-ring {
+  stroke: var(--fg4);
+}
+.task-glyph[data-status="doing"] .task-glyph-arc {
+  transform-origin: 8px 8px;
+  animation: task-spin 1s linear infinite;
+}
+.task-glyph[data-status="done"] {
+  color: var(--ok);
+}
+.task-glyph[data-status="done"] .task-glyph-mark {
+  stroke-dasharray: 12;
+  animation: task-draw var(--dur-pop) var(--ease-kiko) both;
+}
+.task-glyph[data-status="cancelled"] {
+  color: var(--bad);
+}
+.task-glyph[data-status="blocked"],
+.task-glyph[data-status="review"] {
+  color: var(--fg2);
 }
 .task-step-content {
   min-width: 0;
@@ -397,14 +387,19 @@ button.composer-card-row {
     opacity: 1;
   }
 }
-@keyframes task-breathe {
-  50% {
-    box-shadow: inset 0 0 0 2px var(--fg);
+@keyframes task-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes task-draw {
+  from {
+    stroke-dashoffset: 12;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .task-check,
-  .task-check-mark {
+  .task-glyph .task-glyph-arc,
+  .task-glyph .task-glyph-mark {
     animation: none !important;
   }
 }

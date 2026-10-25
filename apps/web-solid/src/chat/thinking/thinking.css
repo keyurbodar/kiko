@@ -1,0 +1,159 @@
+.thinking {
+  --run-text: var(--fg3);
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.thinking-row {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg2);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.thinking-cycle {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.thinking-live {
+  display: block;
+  overflow: hidden;
+  color: var(--fg3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thinking-toggle,
+.thinking-show,
+.thought-head {
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--dur-hover) var(--ease-kiko);
+}
+
+.thinking-time,
+.thinking-chevron {
+  flex: none;
+  color: var(--fg4);
+  font-variant-numeric: tabular-nums;
+}
+
+.thinking-show {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 28px;
+  color: var(--fg4);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.thinking-stream {
+  width: min(36rem, 100%);
+  max-height: 84px;
+  padding-left: 28px;
+  overflow: hidden;
+  color: var(--fg3);
+  font-size: 14px;
+  line-height: 21px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.thinking-stream[data-overflow] {
+  -webkit-mask: linear-gradient(transparent, #000 45%);
+  mask: linear-gradient(transparent, #000 45%);
+}
+
+.thought {
+  display: flex;
+  min-width: 0;
+  max-width: min(36rem, 100%);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 0 0 6px 8px;
+}
+
+.thought-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg3);
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+.thought-chevron {
+  color: var(--fg4);
+}
+.thought-chevron[data-open] {
+  transform: rotate(90deg);
+}
+
+.thought-text {
+  color: var(--fg3);
+  font-size: 13.5px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.thinking-toggle:focus-visible,
+.thinking-show:focus-visible,
+.thought-head:focus-visible {
+  border-radius: 6px;
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .thinking-toggle:hover,
+  .thinking-show:hover,
+  .thought-head:hover {
+    color: var(--fg);
+  }
+  .thinking-toggle:hover .thinking-chevron,
+  .thought-head:hover .thought-chevron {
+    color: var(--fg2);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .thinking-live {
+    animation: thinking-line-in 300ms var(--ease-kiko) backwards;
+  }
+  .thinking-live.motion-shine {
+    animation:
+      thinking-line-in 300ms var(--ease-kiko) backwards,
+      motion-shine var(--dur-shimmer) steps(30) infinite;
+    animation-play-state: running, var(--visible-animation-state, paused);
+  }
+  .thought-text {
+    animation: thinking-open var(--dur-pop) var(--ease-kiko) backwards;
+  }
+}
+
+@keyframes thinking-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes thinking-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}

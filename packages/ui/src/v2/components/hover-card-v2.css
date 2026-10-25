@@ -28,8 +28,7 @@
     outline: none;
     color: var(--fg);
 
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    -webkit-font-smoothing: auto;
     text-rendering: geometricPrecision;
 
     transform-origin: var(--kb-hovercard-content-transform-origin);

@@ -8,7 +8,8 @@ import { createQuery } from "../state/runtime"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { catalogQuery, type CatalogProvider, type ConnectMethod } from "./catalog"
-import { formatContext, modelRef } from "./model-list"
+import { ALL_PROVIDERS, formatContext, modelRef } from "./model-list"
+import { Segmented } from "@kiko/ui/v2/segmented"
 import { hasModelProvider, isJudgeOnly, JUDGE_NOTE, modelProviders } from "./provider-kinds"
 import { connectedProviders, connectedReady } from "./connected"
 import { checkProvider, connectProvider, disconnectProvider } from "./credentials"
@@ -88,6 +89,8 @@ export function ModelsPage() {
   const available = createMemo(() => (catalog()?.providers ?? []).filter((p) => !savedOf(p.id)))
   const [dialog, setDialog] = createSignal<CatalogProvider | null>(null)
   const [browsing, setBrowsing] = createSignal(false)
+  const [tab, setTab] = createSignal<"agents" | "providers">("agents")
+  const tabbed = () => hasModelProvider(connectedProviders()) && connected().length > 0
   createEffect(() => {
     const wanted = reconnectTarget()
     const provider = wanted ? catalog()?.providers.find((p) => p.id === wanted) : undefined
@@ -119,18 +122,33 @@ export function ModelsPage() {
       <Show when={catalog.error}>
         <Notice data-component="catalog-error">The model catalog did not load. Reload to try again.</Notice>
       </Show>
-      <Show when={hasModelProvider(connectedProviders())}>
+      <Show when={tabbed()}>
+        <div data-component="models-tabs">
+          <Segmented<"agents" | "providers">
+            label="Models"
+            value={tab()}
+            onChange={setTab}
+            options={[
+              { value: "agents", label: "Agents" },
+              { value: "providers", label: "Providers" },
+            ]}
+          />
+        </div>
+      </Show>
+      <Show when={hasModelProvider(connectedProviders()) && (tab() === "agents" || !tabbed())}>
         <AgentModels />
       </Show>
       <Show
-        when={connected().length}
+        when={connected().length && (tab() === "providers" || !tabbed())}
         fallback={
-          <PopularProviders
-            ready={connectedReady() && !!catalog()}
-            available={available()}
-            onPick={setDialog}
-            onBrowse={() => setBrowsing(true)}
-          />
+          <Show when={!connected().length}>
+            <PopularProviders
+              ready={connectedReady() && !!catalog()}
+              available={available()}
+              onPick={setDialog}
+              onBrowse={() => setBrowsing(true)}
+            />
+          </Show>
         }
       >
         <ProviderList
@@ -288,9 +306,17 @@ type PickerRow = { provider: CatalogProvider; model: CatalogProvider["models"][n
 
 function PickerModels(props: { providers: readonly CatalogProvider[] }) {
   const [query, setQuery] = createSignal("")
+  const [tab, setTab] = createSignal(ALL_PROVIDERS)
   const hidden = createMemo(() => new Set(hiddenModels()))
+  const scoped = createMemo(() =>
+    tab() === ALL_PROVIDERS ? props.providers : props.providers.filter((p) => p.id === tab()),
+  )
+  const tabs = createMemo(() => [
+    { value: ALL_PROVIDERS, label: "All" },
+    ...props.providers.map((p) => ({ value: p.id, label: p.name })),
+  ])
   const all = createMemo<PickerRow[]>(() =>
-    props.providers.flatMap((provider) =>
+    scoped().flatMap((provider) =>
       [...provider.models]
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((model) => ({ provider, model, ref: modelRef(provider.id, model.id) })),
@@ -303,7 +329,7 @@ function PickerModels(props: { providers: readonly CatalogProvider[] }) {
     )
   })
   const shownCount = () => rows().filter((r) => !hidden().has(r.ref)).length
-  const many = () => props.providers.length > 1
+  const many = () => scoped().length > 1
   return (
     <Group
       title="In your picker"
@@ -349,6 +375,11 @@ function PickerModels(props: { providers: readonly CatalogProvider[] }) {
       }
     >
       <div class="flex flex-col gap-2">
+        <Show when={props.providers.length > 1}>
+          <div class="max-w-full overflow-x-auto [scrollbar-width:none]" data-component="model-provider-tabs">
+            <Segmented<string> label="Providers" value={tab()} options={tabs()} onChange={setTab} />
+          </div>
+        </Show>
         <Show when={all().length > SEARCH_FROM}>
           <SearchField
             placeholder="Search models"

@@ -5,7 +5,6 @@ import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Show, type JSX } from "solid-js"
-import { EntryIcon } from "../../lib/EntryIcon"
 import { isImage } from "../../lib/attachments"
 import { setFileDrag } from "../../lib/file-drag"
 import { fileSrc, room } from "../../state/room"
@@ -14,6 +13,25 @@ import { formatBytes } from "../info/format"
 import { openThreadImages } from "./image-dialog"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { resolveFile, type FileTarget } from "../rich/file-links"
+import { FileIcon as FileTypeIcon } from "@kiko/ui/file-icon"
+import "./chips.css"
+
+function ChipGlyph(props: { path: string; folder: boolean; picture: string | null }) {
+  return (
+    <Show
+      when={props.picture}
+      fallback={
+        <FileTypeIcon
+          class={props.folder ? "lchip-folder" : undefined}
+          style={{ width: "16px", height: "16px" }}
+          node={{ path: props.path, type: props.folder ? "directory" : "file" }}
+        />
+      }
+    >
+      {(src) => <img class="lchip-thumb" src={src()} alt="" loading="lazy" draggable={false} />}
+    </Show>
+  )
+}
 
 function find(path: string) {
   const own = resolveFile(
@@ -78,16 +96,12 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
   }
   return (
     <Show when={isChip()} fallback={<code class="rich-inline-code">{full()}</code>}>
-      <TooltipV2
-        class={size() ? "file-chip-anchor file-chip-attached" : "file-chip-anchor"}
-        placement="top"
-        value={<span class="font-mono">{full()}</span>}
-      >
+      <TooltipV2 class="lchip-anchor" placement="top" value={<span class="font-mono">{full()}</span>}>
         <MenuV2.Context gutter={4}>
           <MenuV2.Context.Trigger
             as="button"
             type="button"
-            class="file-chip"
+            class="lchip"
             data-component="chat-file-chip"
             data-kind={picture() ? "image" : folder() ? "folder" : "file"}
             data-path={props.file.path}
@@ -103,16 +117,9 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
             }}
             onClick={(event: MouseEvent) => open(event.currentTarget as Element)}
           >
-            <Show when={picture()} fallback={<EntryIcon path={folder() ? `${props.file.path}/` : props.file.path} />}>
-              {(src) => <img class="file-chip-thumb" src={src()} alt="" loading="lazy" draggable={false} />}
-            </Show>
-            <span class="file-chip-label">{props.label}</span>
-            <Show when={folder()}>
-              <span class="file-chip-meta" aria-hidden="true">
-                folder
-              </span>
-            </Show>
-            <Show when={size()}>{(text) => <span class="file-chip-meta">{text()}</span>}</Show>
+            <ChipGlyph path={props.file.path} folder={folder()} picture={picture()} />
+            <span class="lchip-label">{props.label}</span>
+            <Show when={size()}>{(text) => <span class="lchip-meta">{text()}</span>}</Show>
           </MenuV2.Context.Trigger>
           <MenuV2.Context.Portal>
             <MenuV2.Context.Content class="min-w-[160px]">

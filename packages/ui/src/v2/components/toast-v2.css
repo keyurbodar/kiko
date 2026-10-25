@@ -22,10 +22,10 @@
   position: fixed;
   z-index: 1000;
   bottom: calc(var(--toast-inset) + var(--toast-composer-offset, 96px));
-  left: 50%;
+  left: var(--toast-center, 50%);
   translate: -50% 0;
   width: calc(100% - var(--toast-inset) * 2);
-  max-width: 400px;
+  max-width: 340px;
   pointer-events: none;
   outline: none;
 }
@@ -75,7 +75,7 @@
     height var(--dur-pop) var(--ease-kiko);
 
   @starting-style {
-    transform: translateY(16px) scale(0.96);
+    transform: translateY(24px) scale(0.96);
     opacity: 0;
   }
 

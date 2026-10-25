@@ -329,6 +329,7 @@ export class Agent {
     return {
       post: (runId, attempt, index, block) => room().post(home.slug, runId, attempt, index, block),
       draft: (runId, index, text) => room().draft(home.slug, runId, index, text),
+      thinking: (runId, part, text, done) => room().thinking(home.slug, runId, part, text, done),
       note: (runId, id, text) => room().note(home.slug, runId, id, text),
       status: async (state, detail) => {
         await room().setStatus(home.slug, state, detail)

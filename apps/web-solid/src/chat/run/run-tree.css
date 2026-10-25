@@ -1,13 +1,15 @@
 .run-tree {
-  --run-text: var(--fg3);
-  --run-tree-line: color-mix(in oklab, var(--fg4) 70%, transparent);
+  --run-text: var(--fg2);
+  --run-tree-line: color-mix(in oklab, var(--fg4) 62%, transparent);
   --run-tree-live: var(--fg);
+  --run-tree-x: 15px;
+  --run-tree-child-x: 42px;
   display: flex;
   flex-direction: column;
-  width: min(100%, 34rem);
+  width: min(100%, 36rem);
   min-width: 0;
   margin-bottom: 4px;
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 20px;
   outline: none;
 }
@@ -18,47 +20,54 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  min-height: 28px;
-  padding: 4px 8px 4px 22px;
+  min-height: 30px;
+  padding: 5px 0 5px 35px;
   border-radius: 9px;
   color: var(--run-text);
   text-align: start;
   cursor: default;
   user-select: none;
-  transition:
-    background-color var(--dur-hover, 120ms) var(--ease-kiko, ease),
-    color var(--dur-hover, 120ms) var(--ease-kiko, ease);
+  transition: color var(--dur-hover) var(--ease-kiko);
+}
+.run-tree-row[data-depth="1"] {
+  padding-left: 62px;
 }
 button.run-tree-row {
   cursor: pointer;
 }
 button.run-tree-row:focus-visible {
+  outline: none;
   color: var(--fg);
-  background: var(--hover);
+  box-shadow: var(--focus-ring);
+}
+
+.run-tree-row .run-tree-icon {
+  transition: color var(--dur-hover) var(--ease-kiko);
 }
 
 @media (hover: hover) and (pointer: fine) {
   button.run-tree-row:hover {
     color: var(--fg);
-    background: var(--hover);
   }
-}
-button.run-tree-row:active {
-  background: var(--active);
-}
-@media (hover: hover) and (pointer: fine) {
+  button.run-tree-row:hover .run-tree-icon:not([data-failed]),
+  button.run-tree-row:hover .run-tree-chevron {
+    color: var(--fg2);
+  }
   button.run-tree-row[data-file]:hover .run-tree-label {
     text-decoration: underline;
     text-decoration-color: color-mix(in oklab, var(--fg) 30%, transparent);
     text-underline-offset: 3px;
   }
 }
+button.run-tree-row:active {
+  color: var(--fg2);
+}
 
 .run-tree-row::before,
 .run-tree-row::after {
   content: "";
   position: absolute;
-  left: 7px;
+  left: var(--run-tree-x);
   pointer-events: none;
 }
 .run-tree-row::before {
@@ -68,12 +77,31 @@ button.run-tree-row:active {
 }
 .run-tree-row::after {
   top: 0;
-  width: 10px;
+  width: 13px;
   height: 50%;
   border-left: 1.5px solid var(--run-tree-line);
   border-bottom: 1.5px solid var(--run-tree-line);
   border-bottom-left-radius: 9px;
 }
+.run-tree-row[data-last]::before {
+  content: none;
+}
+
+.run-tree-row[data-depth="1"]::after {
+  left: var(--run-tree-child-x);
+}
+.run-tree-row[data-depth="1"]::before {
+  top: 0;
+  content: none;
+}
+.run-tree-row[data-depth="1"][data-through]::before {
+  content: "";
+}
+.run-tree-row[data-depth="1"]:not([data-last]) {
+  background: linear-gradient(var(--run-tree-line), var(--run-tree-line)) var(--run-tree-child-x) 50% / 1.5px 50%
+    no-repeat;
+}
+
 .run-tree-head::before,
 .run-tree-head::after {
   content: none;
@@ -92,64 +120,23 @@ button.run-tree-row:active {
 .run-tree-meta {
   flex: none;
   margin-left: auto;
-  padding-left: 12px;
+  padding-left: 14px;
   color: var(--fg4);
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
 }
-.run-tree-row > .run-tree-meta + .run-tree-chevron {
-  margin-left: 0;
-}
 
 .run-tree-mochi {
   display: inline-flex;
-  width: 14px;
+  width: 16px;
   justify-content: center;
 }
 
-.run-tree > .run-tree-row:last-child::before,
-.run-tree > .run-tree-fold:last-child > div > .run-tree-row:last-child::before {
-  content: none;
-}
-
 .run-tree-head {
-  align-self: flex-start;
-  max-width: 100%;
   padding-left: 8px;
-  color: var(--fg3);
-}
-
-.run-tree-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.run-tree-icon {
-  flex: none;
-  color: var(--fg4);
-}
-.run-tree-icon[data-failed] {
-  color: var(--bad);
-}
-
-.run-tree-chevron {
-  display: grid;
-  flex: none;
-  place-items: center;
-  color: var(--fg4);
-}
-.run-tree-chevron[data-open] {
-  transform: rotate(90deg);
-}
-.run-tree-row > .run-tree-chevron:last-child {
-  margin-left: auto;
-}
-.run-tree-head > .run-tree-chevron:last-child {
-  margin-left: 0;
 }
 .run-tree-head > .run-tree-meta {
+  order: 1;
   margin-left: -8px;
   padding-left: 0;
   font-size: 11.5px;
@@ -159,9 +146,54 @@ button.run-tree-row:active {
   content: ", ";
   white-space: pre;
 }
+.run-tree-head > .run-tree-chevron {
+  order: 2;
+}
+
+.run-tree-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-tree-object {
+  color: var(--fg);
+  font-weight: 500;
+}
+.run-tree-object[data-mono] {
+  font-family: var(--font-family-mono);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+.motion-shine .run-tree-object {
+  color: inherit;
+}
+
+.run-tree-icon {
+  flex: none;
+  color: var(--fg3);
+}
+.run-tree-icon[data-failed] {
+  color: var(--bad);
+}
+
+.run-tree-chevron {
+  display: grid;
+  flex: none;
+  place-items: center;
+  margin-left: -2px;
+  color: var(--fg4);
+  transition: color var(--dur-hover) var(--ease-kiko);
+}
+.run-tree-chevron[data-open] {
+  transform: rotate(90deg);
+}
 button.run-tree-row:not(.run-tree-head) > .run-tree-chevron {
   opacity: 0;
-  transition: opacity var(--dur-hover, 120ms) var(--ease-kiko, ease);
+  transition:
+    opacity var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko);
 }
 button.run-tree-row:focus-visible > .run-tree-chevron,
 button.run-tree-row[aria-expanded="true"] > .run-tree-chevron {
@@ -171,6 +203,68 @@ button.run-tree-row[aria-expanded="true"] > .run-tree-chevron {
 @media (hover: hover) and (pointer: fine) {
   button.run-tree-row:hover > .run-tree-chevron {
     opacity: 1;
+  }
+}
+
+.run-tree-leaves {
+  position: relative;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+}
+.run-tree-leaves > i {
+  position: absolute;
+  inset: 0;
+}
+.run-tree-leaves > i:nth-child(2) {
+  transform: rotate(90deg);
+}
+.run-tree-leaves > i:nth-child(3) {
+  transform: rotate(180deg);
+}
+.run-tree-leaves > i:nth-child(4) {
+  transform: rotate(270deg);
+}
+.run-tree-leaves > i::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 28%;
+  height: 44%;
+  margin-left: -14%;
+  border-radius: 70% 8% 70% 8%;
+  background: currentColor;
+  transform-origin: 50% 100%;
+}
+.run-tree-leaves[data-running] {
+  color: var(--fg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .run-tree-leaves[data-running] > i::before {
+    animation: run-tree-leaf 1.2s infinite;
+  }
+  .run-tree-leaves[data-running] > i:nth-child(2)::before {
+    animation-delay: 0.3s;
+  }
+  .run-tree-leaves[data-running] > i:nth-child(3)::before {
+    animation-delay: 0.6s;
+  }
+  .run-tree-leaves[data-running] > i:nth-child(4)::before {
+    animation-delay: 0.9s;
+  }
+}
+
+@keyframes run-tree-leaf {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
@@ -193,7 +287,22 @@ button.run-tree-row[aria-expanded="true"] > .run-tree-chevron {
   min-width: 0;
   flex-direction: column;
   gap: 4px;
-  padding: 2px 0 6px 22px;
+  padding: 2px 0 6px 35px;
+}
+.run-tree-detail[data-depth="1"] {
+  padding-left: 62px;
+}
+.run-tree-detail:not([data-last]),
+.run-tree-detail[data-through] {
+  background: linear-gradient(var(--run-tree-line), var(--run-tree-line)) var(--run-tree-x) 0 / 1.5px 100% no-repeat;
+}
+.run-tree-detail[data-depth="1"]:not([data-last]) {
+  background-position-x: var(--run-tree-child-x);
+}
+.run-tree-detail[data-depth="1"][data-through]:not([data-last]) {
+  background:
+    linear-gradient(var(--run-tree-line), var(--run-tree-line)) var(--run-tree-x) 0 / 1.5px 100% no-repeat,
+    linear-gradient(var(--run-tree-line), var(--run-tree-line)) var(--run-tree-child-x) 0 / 1.5px 100% no-repeat;
 }
 .run-tree-block {
   display: flex;

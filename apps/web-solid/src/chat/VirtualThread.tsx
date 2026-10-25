@@ -16,6 +16,7 @@ import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
 import type { ChatMessage, RosterBot } from "../lib/types"
 import { buildTimelineItems, dayStartOf, keepUnchanged, type TimelineItem } from "./lib/grouping"
 import { AT_BOTTOM_THRESHOLD_PX, isAtBottom } from "./lib/drift"
+import { createGlide } from "./lib/glide"
 import { dividerParts } from "./lib/time-label"
 import { jumboEmojiClass, quoteOf } from "./lib/reply"
 import { MessageRow } from "./ui/MessageRow"
@@ -88,6 +89,8 @@ export function VirtualThread(props: {
 }): JSX.Element {
   let scrollElement: HTMLDivElement | undefined
   let columnElement: HTMLDivElement | undefined
+  const glide = createGlide(() => scrollElement)
+  onCleanup(glide.stop)
 
   const [handle, setHandle] = createSignal<VirtualizerHandle>()
   const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(new Set())
@@ -301,13 +304,9 @@ export function VirtualThread(props: {
   createEffect(() => {
     const state = scrollState()
     const at = unreadAt()
-    if (!state || at < 0 || untrack(unreadReached) || !restoredOk) return
+    if (!state || at < 0 || untrack(unreadReached) || !restoredOk || glide.active()) return
+    if (document.visibilityState === "hidden") return
     if (at >= state.rangeStart && at <= state.rangeEnd) setUnreadReached(true)
-  })
-
-  const seenUntil = createMemo(() => {
-    if (props.waitingNames.length > 0) return Number.POSITIVE_INFINITY
-    return props.messages.findLast((m) => m.sender === "bot" && !m.event)?.sentAt ?? Number.NEGATIVE_INFINITY
   })
 
   const showsKey = () => {
@@ -438,26 +437,20 @@ export function VirtualThread(props: {
   }
 
   function scrollToLatest() {
-    const scroller = scrollElement
-    if (!scroller) return
     stuck = true
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    scroller.scrollTo({ top: scroller.scrollHeight, behavior: reduced ? "auto" : "smooth" })
-    if (reduced) return
-    scroller.addEventListener("scrollend", () => scroller.scrollTo({ top: scroller.scrollHeight, behavior: "auto" }), {
-      once: true,
-    })
+    glide.toEnd()
   }
 
   const followEnd = () => {
     const scroller = scrollElement
-    if (!scroller || !stuck || dragging) return
+    if (!scroller || !stuck || dragging || glide.active()) return
     if (scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1)
       scroller.scrollTop = scroller.scrollHeight
   }
 
   let firstLoad = true
   let lastOwner: unknown
+  let lastKey: string | undefined
   let blankTries = 0
   let blankKey: string | undefined
   const repairBlank = () => {
@@ -517,6 +510,7 @@ export function VirtualThread(props: {
     onCleanup(() => clearTimeout(readerScrollEnd))
     const readerMoved = () => {
       restoreGeneration += 1
+      glide.stop()
       readerScrolling = true
       noteScrolling()
       clearTimeout(readerScrollEnd)
@@ -588,10 +582,14 @@ export function VirtualThread(props: {
           readerScrolling = false
         }
         const rows = items().length > 0
+        const newest = items().at(-1)?.key
+        const arrived = !firstLoad && newest !== lastKey
+        lastKey = newest
         if (restorePosition()) firstLoad = false
         else if (rows) {
           firstLoad = false
-          followEnd()
+          if (arrived && stuck && !dragging) glide.toEnd()
+          else followEnd()
         }
         commitState(readState())
       },
@@ -650,7 +648,6 @@ export function VirtualThread(props: {
           }
           highlighted={landed() === message().id}
           replying={activeReply() === message().id}
-          seen={message().sentAt <= seenUntil()}
           jumboClass={jumboEmojiClass(message().body)}
           onOpenReplyTarget={openReplyTarget}
           onReact={(emoji) => props.onReact?.(message().id, emoji)}

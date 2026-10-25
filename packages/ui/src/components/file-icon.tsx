@@ -1,551 +1,206 @@
 import type { Component, JSX } from "solid-js"
-import { createMemo, createUniqueId, splitProps, Show } from "solid-js"
-import sprite from "./file-icons/sprite.svg"
-import { spriteSubset } from "./sprite-subset"
-import type { IconName } from "./file-icons/types"
+import { createMemo, splitProps } from "solid-js"
 
-const fileIcon = spriteSubset(sprite, "file-icon-")
+type Tone = readonly [light: string, dark: string]
+
+const BLUE: Tone = ["#3b7ff0", "#78aaff"]
+const ORANGE: Tone = ["#e0701a", "#ff9d52"]
+const GREEN: Tone = ["#1c9a52", "#52d08a"]
+const RED: Tone = ["#e0474c", "#ff7676"]
+const PURPLE: Tone = ["#8656f0", "#b997ff"]
+const YELLOW: Tone = ["#b98f00", "#ffd24f"]
+const TEAL: Tone = ["#0e9aa4", "#52d0da"]
+const GREY: Tone = ["#6f7480", "#9ea3ae"]
+
+type Badge = { label: string; tone: Tone }
+
+const badge = (label: string, tone: Tone): Badge => ({ label, tone })
+
+const EXTENSIONS: Record<string, Badge> = {
+  md: badge("MD", BLUE),
+  mdx: badge("MDX", BLUE),
+  html: badge("HTML", ORANGE),
+  htm: badge("HTML", ORANGE),
+  xls: badge("XLS", GREEN),
+  xlsx: badge("XLS", GREEN),
+  ods: badge("XLS", GREEN),
+  numbers: badge("XLS", GREEN),
+  csv: badge("CSV", GREEN),
+  tsv: badge("TSV", GREEN),
+  pdf: badge("PDF", RED),
+  jpg: badge("JPG", PURPLE),
+  jpeg: badge("JPG", PURPLE),
+  png: badge("PNG", PURPLE),
+  gif: badge("GIF", PURPLE),
+  webp: badge("IMG", PURPLE),
+  heic: badge("IMG", PURPLE),
+  avif: badge("IMG", PURPLE),
+  bmp: badge("IMG", PURPLE),
+  svg: badge("SVG", PURPLE),
+  doc: badge("DOC", BLUE),
+  docx: badge("DOC", BLUE),
+  odt: badge("DOC", BLUE),
+  rtf: badge("RTF", BLUE),
+  pages: badge("DOC", BLUE),
+  ppt: badge("PPT", ORANGE),
+  pptx: badge("PPT", ORANGE),
+  key: badge("KEY", ORANGE),
+  odp: badge("PPT", ORANGE),
+  txt: badge("TXT", GREY),
+  log: badge("LOG", GREY),
+  json: badge("JSON", YELLOW),
+  jsonc: badge("JSON", YELLOW),
+  yml: badge("YML", RED),
+  yaml: badge("YML", RED),
+  toml: badge("TOML", GREY),
+  xml: badge("XML", ORANGE),
+  ts: badge("TS", BLUE),
+  tsx: badge("TSX", BLUE),
+  js: badge("JS", YELLOW),
+  jsx: badge("JSX", YELLOW),
+  mjs: badge("JS", YELLOW),
+  cjs: badge("JS", YELLOW),
+  py: badge("PY", BLUE),
+  rs: badge("RS", ORANGE),
+  go: badge("GO", TEAL),
+  rb: badge("RB", RED),
+  java: badge("JAVA", ORANGE),
+  kt: badge("KT", PURPLE),
+  swift: badge("SWFT", ORANGE),
+  c: badge("C", BLUE),
+  h: badge("H", BLUE),
+  cpp: badge("C++", BLUE),
+  hpp: badge("H++", BLUE),
+  css: badge("CSS", PURPLE),
+  scss: badge("SCSS", PURPLE),
+  sass: badge("SASS", PURPLE),
+  sql: badge("SQL", TEAL),
+  sh: badge("SH", GREEN),
+  bash: badge("SH", GREEN),
+  zsh: badge("SH", GREEN),
+  diff: badge("DIFF", GREEN),
+  patch: badge("DIFF", GREEN),
+  zip: badge("ZIP", YELLOW),
+  tar: badge("TAR", YELLOW),
+  gz: badge("GZ", YELLOW),
+  tgz: badge("TGZ", YELLOW),
+  "7z": badge("7Z", YELLOW),
+  rar: badge("RAR", YELLOW),
+  mp3: badge("MP3", PURPLE),
+  wav: badge("WAV", PURPLE),
+  flac: badge("FLAC", PURPLE),
+  m4a: badge("M4A", PURPLE),
+  mp4: badge("MP4", RED),
+  mov: badge("MOV", RED),
+  webm: badge("WEBM", RED),
+  mkv: badge("MKV", RED),
+}
+
+const NAMES: Record<string, Badge> = {
+  "package.json": badge("NPM", RED),
+  "bun.lock": badge("LOCK", GREY),
+  dockerfile: badge("DOCK", BLUE),
+}
+
+const basename = (path: string) => path.split("\\").join("/").split("/").findLast(Boolean) ?? ""
+
+const extensionOf = (name: string) => {
+  const dot = name.lastIndexOf(".")
+  return dot > 0 && dot < name.length - 1 ? name.slice(dot + 1) : ""
+}
+
+function badgeFor(path: string): Badge | undefined {
+  const name = basename(path).toLowerCase()
+  const byName = NAMES[name]
+  if (byName) return byName
+  const ext = extensionOf(name)
+  if (!ext) return undefined
+  const known = EXTENSIONS[ext]
+  if (known) return known
+  return /^[a-z0-9]{1,4}$/.test(ext) ? badge(ext.toUpperCase(), GREY) : undefined
+}
+
+const LABEL_FONT = "Satoshi, system-ui, sans-serif"
+const OUTLINE = 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"'
+
+function labelWidth(label: string) {
+  return Math.min(17, Math.max(6, label.length * 4.1 + 0.6))
+}
+
+function pageMarkup(found: Badge | undefined): string {
+  if (!found)
+    return `<path d="M6 3h8l6 6v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" ${OUTLINE}/><path d="M14 3v4a2 2 0 0 0 2 2h4" ${OUTLINE}/>`
+  const width = labelWidth(found.label)
+  const from = Math.min(17.2, 2.4 + width + 1.4)
+  const stub = `<path d="M${from.toFixed(1)} 21H18a2 2 0 0 0 2-2" ${OUTLINE}/>`
+  return (
+    `<path d="M4 12.8V5a2 2 0 0 1 2-2h8l6 6v10" ${OUTLINE}/>` +
+    `<path d="M14 3v4a2 2 0 0 0 2 2h4" ${OUTLINE}/>` +
+    stub +
+    `<text x="2.4" y="21.1" font-family="${LABEL_FONT}" font-size="6.6" font-weight="800" textLength="${width.toFixed(1)}" lengthAdjust="spacingAndGlyphs" style="fill:light-dark(${found.tone[0]},${found.tone[1]})">${found.label}</text>`
+  )
+}
+
+function folderMarkup(open: boolean): string {
+  if (open)
+    return `<path d="M3.5 17.5V6.5A1.5 1.5 0 0 1 5 5h3.8l2 2.4H18a1.5 1.5 0 0 1 1.5 1.5v1.6" ${OUTLINE}/><path d="M3.6 18.5l2-7a1.5 1.5 0 0 1 1.4-1.1h13.6a1 1 0 0 1 1 1.3l-1.8 6.2a1.5 1.5 0 0 1-1.4 1H4.6" ${OUTLINE}/>`
+  return `<path d="M3.5 7A2 2 0 0 1 5.5 5h3.6l2 2.4h7.4a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" ${OUTLINE}/>`
+}
+
+function glyphMarkup(path: string, type: "file" | "directory", expanded: boolean): string {
+  return type === "directory" ? folderMarkup(expanded) : pageMarkup(badgeFor(path))
+}
+
+const SVG_ATTRS = 'viewBox="0 0 24 24" aria-hidden="true" data-component="file-icon"'
+
+export function fileIconMarkup(path: string): string {
+  const directory = path.endsWith("/")
+  const inner = glyphMarkup(path, directory ? "directory" : "file", false)
+  return `<svg ${SVG_ATTRS} data-kind="${directory ? "directory" : "file"}">${inner}</svg>`
+}
+
+export function fileIconSprite() {
+  const symbols: string[] = []
+  const byFileExtension: Record<string, string> = {}
+  const seen = new Set<string>()
+  const add = (id: string, markup: string) => {
+    if (seen.has(id)) return
+    seen.add(id)
+    symbols.push(`<symbol id="${id}" viewBox="0 0 24 24">${markup}</symbol>`)
+  }
+  for (const [ext, found] of Object.entries(EXTENSIONS)) {
+    const id = `kiko-file-${found.label.toLowerCase().replace(/\W/g, "x")}-${found.tone[0].slice(1)}`
+    add(id, pageMarkup(found))
+    byFileExtension[ext] = id
+  }
+  add("kiko-file-plain", pageMarkup(undefined))
+  return {
+    spriteSheet: `<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true">${symbols.join("")}</svg>`,
+    byFileExtension,
+    plain: "kiko-file-plain",
+  }
+}
 
 export type FileIconProps = JSX.GSVGAttributes<SVGSVGElement> & {
   node: { path: string; type: "file" | "directory" }
   expanded?: boolean
-  mono?: boolean
 }
 
 export const FileIcon: Component<FileIconProps> = (props) => {
-  const [local, rest] = splitProps(props, ["node", "class", "classList", "expanded", "mono"])
-  const name = createMemo(() => chooseIconName(local.node.path, local.node.type, local.expanded || false))
-  const id = `file-icon-mono-${createUniqueId()}`
+  const [local, rest] = splitProps(props, ["node", "class", "classList", "expanded"])
+  const inner = createMemo(() => glyphMarkup(local.node.path, local.node.type, local.expanded ?? false))
   return (
     <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
       data-component="file-icon"
+      data-kind={local.node.type}
       {...rest}
       classList={{
         ...local.classList,
         [local.class ?? ""]: !!local.class,
       }}
-    >
-      <Show when={local.mono} fallback={<use href={fileIcon(name())} />}>
-        <defs>
-          <mask id={id} mask-type="alpha">
-            <use href={fileIcon(name())} />
-          </mask>
-        </defs>
-        <rect width="100%" height="100%" fill="currentColor" mask={`url(#${id})`} />
-      </Show>
-    </svg>
+      innerHTML={inner()}
+    />
   )
-}
-
-type IconMaps = {
-  fileNames: Record<string, IconName>
-  fileExtensions: Record<string, IconName>
-  folderNames: Record<string, IconName>
-  defaults: {
-    file: IconName
-    folder: IconName
-    folderOpen: IconName
-  }
-}
-
-const ICON_MAPS: IconMaps = {
-  fileNames: {
-    "readme.md": "Readme",
-    "changelog.md": "Changelog",
-    "contributing.md": "Contributing",
-    "conduct.md": "Conduct",
-    license: "Certificate",
-    authors: "Authors",
-    credits: "Credits",
-    install: "Installation",
-
-    "package.json": "Nodejs",
-    "package-lock.json": "Nodejs",
-    "yarn.lock": "Yarn",
-    "pnpm-lock.yaml": "Pnpm",
-    "bun.lock": "Bun",
-    "bun.lockb": "Bun",
-    "bunfig.toml": "Bun",
-    ".nvmrc": "Nodejs",
-    ".node-version": "Nodejs",
-
-    dockerfile: "Docker",
-    "docker-compose.yml": "Docker",
-    "docker-compose.yaml": "Docker",
-    ".dockerignore": "Docker",
-
-    "jest.config.js": "Jest",
-    "jest.config.ts": "Jest",
-    "jest.config.mjs": "Jest",
-    "vitest.config.js": "Vitest",
-    "vitest.config.ts": "Vitest",
-    "tailwind.config.js": "Tailwindcss",
-    "tailwind.config.ts": "Tailwindcss",
-    "turbo.json": "Turborepo",
-    "tsconfig.json": "Tsconfig",
-    "jsconfig.json": "Jsconfig",
-    ".eslintrc": "Eslint",
-    ".eslintrc.js": "Eslint",
-    ".eslintrc.json": "Eslint",
-    ".prettierrc": "Prettier",
-    ".prettierrc.js": "Prettier",
-    ".prettierrc.json": "Prettier",
-    "vite.config.js": "Vite",
-    "vite.config.ts": "Vite",
-    "webpack.config.js": "Webpack",
-    "rollup.config.js": "Rollup",
-    "astro.config.mjs": "AstroConfig",
-    "astro.config.js": "AstroConfig",
-    "next.config.js": "Next",
-    "next.config.mjs": "Next",
-    "nuxt.config.js": "Nuxt",
-    "nuxt.config.ts": "Nuxt",
-    "svelte.config.js": "Svelte",
-    "gatsby-config.js": "Gatsby",
-    "remix.config.js": "Remix",
-    "prisma.schema": "Prisma",
-    ".gitignore": "Git",
-    ".gitattributes": "Git",
-    makefile: "Makefile",
-    cmake: "Cmake",
-    "cargo.toml": "Rust",
-    "go.mod": "GoMod",
-    "go.sum": "GoMod",
-    "requirements.txt": "Python",
-    "pyproject.toml": "Python",
-    pipfile: "Python",
-    "poetry.lock": "Poetry",
-    gemfile: "Gemfile",
-    rakefile: "Ruby",
-    "composer.json": "Php",
-    "build.gradle": "Gradle",
-    "pom.xml": "Maven",
-    "deno.json": "Deno",
-    "deno.jsonc": "Deno",
-    "vercel.json": "Vercel",
-    "netlify.toml": "Netlify",
-    ".env": "Tune",
-    ".env.local": "Tune",
-    ".env.development": "Tune",
-    ".env.production": "Tune",
-    ".env.example": "Tune",
-    ".editorconfig": "Editorconfig",
-    "robots.txt": "Robots",
-    "favicon.ico": "Favicon",
-    browserlist: "Browserlist",
-    ".babelrc": "Babel",
-    "babel.config.js": "Babel",
-    "gulpfile.js": "Gulp",
-    "gruntfile.js": "Grunt",
-    "capacitor.config.json": "Capacitor",
-    "ionic.config.json": "Ionic",
-    "angular.json": "Angular",
-    ".storybook": "Storybook",
-    "storybook.config.js": "Storybook",
-    "cypress.config.js": "Cypress",
-    "playwright.config.js": "Playwright",
-    "puppeteer.config.js": "Puppeteer",
-    "wrangler.toml": "Wrangler",
-    "firebase.json": "Firebase",
-    supabase: "Supabase",
-    terraform: "Terraform",
-    kubernetes: "Kubernetes",
-    ".gitpod.yml": "Gitpod",
-    ".devcontainer": "Vscode",
-    "travis.yml": "Travis",
-    "appveyor.yml": "Appveyor",
-    ".circleci": "Circleci",
-    "renovate.json": "Renovate",
-    "dependabot.yml": "Dependabot",
-    "lerna.json": "Lerna",
-    "nx.json": "Nx",
-  },
-  fileExtensions: {
-    "spec.ts": "TestTs",
-    "test.ts": "TestTs",
-    "spec.tsx": "TestJsx",
-    "test.tsx": "TestJsx",
-    "spec.js": "TestJs",
-    "test.js": "TestJs",
-    "spec.jsx": "TestJsx",
-    "test.jsx": "TestJsx",
-
-    "js.map": "JavascriptMap",
-    "d.ts": "TypescriptDef",
-    ts: "Typescript",
-    tsx: "React_ts",
-    js: "Javascript",
-    jsx: "React",
-    mjs: "Javascript",
-    cjs: "Javascript",
-
-    html: "Html",
-    htm: "Html",
-    css: "Css",
-    scss: "Sass",
-    sass: "Sass",
-    less: "Less",
-    styl: "Stylus",
-
-    json: "Json",
-    xml: "Xml",
-    yml: "Yaml",
-    yaml: "Yaml",
-    toml: "Toml",
-    hjson: "Hjson",
-
-    md: "Markdown",
-    mdx: "Mdx",
-    tex: "Tex",
-
-    py: "Python",
-    pyx: "Python",
-    pyw: "Python",
-    rs: "Rust",
-    go: "Go",
-    java: "Java",
-    kt: "Kotlin",
-    scala: "Scala",
-    php: "Php",
-    rb: "Ruby",
-    cs: "Csharp",
-    vb: "Visualstudio",
-    cpp: "Cpp",
-    cc: "Cpp",
-    cxx: "Cpp",
-    c: "C",
-    h: "H",
-    hpp: "Hpp",
-    swift: "Swift",
-    m: "ObjectiveC",
-    mm: "ObjectiveCpp",
-    dart: "Dart",
-    lua: "Lua",
-    pl: "Perl",
-    r: "R",
-    jl: "Julia",
-    hs: "Haskell",
-    elm: "Elm",
-    ml: "Ocaml",
-    clj: "Clojure",
-    cljs: "Clojure",
-    erl: "Erlang",
-    ex: "Elixir",
-    exs: "Elixir",
-    nim: "Nim",
-    zig: "Zig",
-    v: "Vlang",
-    odin: "Odin",
-    gleam: "Gleam",
-    grain: "Grain",
-    roc: "Rocket",
-    fs: "Fsharp",
-
-    sh: "Console",
-    bash: "Console",
-    zsh: "Console",
-    fish: "Console",
-    ps1: "Powershell",
-
-    cfg: "Settings",
-    ini: "Settings",
-    conf: "Settings",
-    properties: "Settings",
-
-    svg: "Svg",
-    png: "Image",
-    jpg: "Image",
-    jpeg: "Image",
-    gif: "Image",
-    webp: "Image",
-    bmp: "Image",
-    ico: "Favicon",
-    mp4: "Video",
-    mov: "Video",
-    avi: "Video",
-    webm: "Video",
-    mp3: "Audio",
-    wav: "Audio",
-    flac: "Audio",
-
-    zip: "Zip",
-    tar: "Zip",
-    gz: "Zip",
-    rar: "Zip",
-    "7z": "Zip",
-
-    pdf: "Pdf",
-    doc: "Word",
-    docx: "Word",
-    ppt: "Powerpoint",
-    pptx: "Powerpoint",
-    xls: "Document",
-    xlsx: "Document",
-
-    sql: "Database",
-    db: "Database",
-    sqlite: "Database",
-
-    env: "Tune",
-    log: "Log",
-    lock: "Lock",
-    key: "Key",
-    pem: "Certificate",
-    crt: "Certificate",
-    proto: "Proto",
-    graphql: "Graphql",
-    gql: "Graphql",
-    wasm: "Webassembly",
-    dockerfile: "Docker",
-  },
-  folderNames: {
-    src: "FolderSrc",
-    source: "FolderSrc",
-    lib: "FolderLib",
-    libs: "FolderLib",
-
-    test: "FolderTest",
-    tests: "FolderTest",
-    testing: "FolderTest",
-    spec: "FolderTest",
-    specs: "FolderTest",
-    __tests__: "FolderTest",
-    e2e: "FolderTest",
-    integration: "FolderTest",
-    unit: "FolderTest",
-    cypress: "FolderCypress",
-
-    node_modules: "FolderNode",
-    vendor: "FolderPackages",
-    packages: "FolderPackages",
-    deps: "FolderPackages",
-
-    build: "FolderBuildkite",
-    dist: "FolderDist",
-    out: "FolderDist",
-    output: "FolderDist",
-    target: "FolderTarget",
-
-    config: "FolderConfig",
-    configs: "FolderConfig",
-    configuration: "FolderConfig",
-    settings: "FolderConfig",
-    env: "FolderEnvironment",
-    environments: "FolderEnvironment",
-
-    docker: "FolderDocker",
-    dockerfiles: "FolderDocker",
-    containers: "FolderDocker",
-
-    docs: "FolderDocs",
-    doc: "FolderDocs",
-    documentation: "FolderDocs",
-    readme: "FolderDocs",
-
-    public: "FolderPublic",
-    static: "FolderPublic",
-    assets: "FolderImages",
-    images: "FolderImages",
-    img: "FolderImages",
-    icons: "FolderImages",
-    media: "FolderImages",
-    fonts: "FolderFont",
-    styles: "FolderCss",
-    stylesheets: "FolderCss",
-    css: "FolderCss",
-    sass: "FolderSass",
-    scss: "FolderSass",
-    less: "FolderLess",
-
-    scripts: "FolderScripts",
-    script: "FolderScripts",
-    tools: "FolderTools",
-    utils: "FolderUtils",
-    utilities: "FolderUtils",
-    helpers: "FolderHelper",
-
-    components: "FolderComponents",
-    component: "FolderComponents",
-    views: "FolderViews",
-    view: "FolderViews",
-    layouts: "FolderLayout",
-    layout: "FolderLayout",
-    templates: "FolderTemplate",
-    template: "FolderTemplate",
-    hooks: "FolderHook",
-    hook: "FolderHook",
-    store: "FolderStore",
-    stores: "FolderStore",
-    state: "FolderNgrxStore",
-    reducers: "FolderReduxReducer",
-    reducer: "FolderReduxReducer",
-    services: "FolderApi",
-    service: "FolderApi",
-    api: "FolderApi",
-    apis: "FolderApi",
-    routes: "FolderRoutes",
-    route: "FolderRoutes",
-    routing: "FolderRoutes",
-    middleware: "FolderMiddleware",
-    middlewares: "FolderMiddleware",
-    controllers: "FolderController",
-    controller: "FolderController",
-    models: "FolderDatabase",
-    model: "FolderDatabase",
-    schemas: "FolderDatabase",
-    schema: "FolderDatabase",
-    migrations: "FolderDatabase",
-    migration: "FolderDatabase",
-    seeders: "FolderSeeders",
-    seeder: "FolderSeeders",
-
-    types: "FolderTypescript",
-    typing: "FolderTypescript",
-    typings: "FolderTypescript",
-    "@types": "FolderTypescript",
-    interfaces: "FolderInterface",
-    interface: "FolderInterface",
-
-    android: "FolderAndroid",
-    ios: "FolderIos",
-    mobile: "FolderMobile",
-    flutter: "FolderFlutter",
-
-    kubernetes: "FolderKubernetes",
-    k8s: "FolderKubernetes",
-    terraform: "FolderTerraform",
-    aws: "FolderAws",
-    azure: "FolderAzurePipelines",
-    firebase: "FolderFirebase",
-    supabase: "FolderSupabase",
-    vercel: "FolderVercel",
-    netlify: "FolderNetlify",
-
-    ".github": "FolderGithub",
-    ".gitlab": "FolderGitlab",
-    ".circleci": "FolderCircleci",
-    ci: "FolderCi",
-    ".ci": "FolderCi",
-    workflows: "FolderGhWorkflows",
-
-    ".git": "FolderGit",
-
-    ".vscode": "FolderVscode",
-    ".idea": "FolderIntellij",
-    ".cursor": "FolderCursor",
-    ".devcontainer": "FolderContainer",
-    ".storybook": "FolderStorybook",
-
-    i18n: "FolderI18n",
-    locales: "FolderI18n",
-    locale: "FolderI18n",
-    lang: "FolderI18n",
-    languages: "FolderI18n",
-
-    temp: "FolderTemp",
-    tmp: "FolderTemp",
-    logs: "FolderLog",
-    log: "FolderLog",
-    backup: "FolderBackup",
-    backups: "FolderBackup",
-    examples: "FolderExamples",
-    example: "FolderExamples",
-    demo: "FolderExamples",
-    demos: "FolderExamples",
-    samples: "FolderExamples",
-    sample: "FolderExamples",
-    fixtures: "FolderTest",
-    mocks: "FolderMock",
-    mock: "FolderMock",
-    data: "FolderDatabase",
-    database: "FolderDatabase",
-    db: "FolderDatabase",
-    sql: "FolderDatabase",
-    prisma: "FolderPrisma",
-    drizzle: "FolderDrizzle",
-
-    security: "FolderSecure",
-    auth: "FolderSecure",
-    authentication: "FolderSecure",
-    authorization: "FolderSecure",
-    keys: "FolderKeys",
-    certs: "FolderKeys",
-    certificates: "FolderKeys",
-
-    content: "FolderContent",
-    posts: "FolderContent",
-    articles: "FolderContent",
-    blog: "FolderContent",
-
-    functions: "FolderFunctions",
-    function: "FolderFunctions",
-    lambda: "FolderFunctions",
-    lambdas: "FolderFunctions",
-    serverless: "FolderServerless",
-
-    jobs: "FolderJob",
-    job: "FolderJob",
-    tasks: "FolderTasks",
-    task: "FolderTasks",
-    cron: "FolderTasks",
-    queue: "FolderQueue",
-    queues: "FolderQueue",
-
-    desktop: "FolderDesktop",
-    windows: "FolderWindows",
-    macos: "FolderMacos",
-    linux: "FolderLinux",
-  },
-  defaults: {
-    file: "Document",
-    folder: "Folder",
-    folderOpen: "FolderOpen",
-  },
-}
-
-const toOpenVariant = (icon: IconName): IconName => {
-  if (!icon.startsWith("Folder")) return icon
-  if (icon.endsWith("_light")) return icon.replace("_light", "Open_light") as IconName
-  if (!icon.endsWith("Open")) return (icon + "Open") as IconName
-  return icon
-}
-
-const basenameOf = (p: string) => p.split("\\").join("/").split("/").findLast(Boolean) ?? ""
-
-const folderNameVariants = (name: string) => {
-  const n = name.toLowerCase()
-  return [n, `.${n}`, `_${n}`, `__${n}__`]
-}
-
-const dottedSuffixesDesc = (name: string) => {
-  const n = name.toLowerCase()
-  const idxs: number[] = []
-  for (let i = 0; i < n.length; i++) if (n[i] === ".") idxs.push(i)
-  const out = new Set<string>()
-  out.add(n)
-  for (const i of idxs) if (i + 1 < n.length) out.add(n.slice(i + 1))
-  return Array.from(out).sort((a, b) => b.length - a.length)
-}
-
-export function chooseIconName(path: string, type: "directory" | "file", expanded: boolean): IconName {
-  const base = basenameOf(path)
-  const baseLower = base.toLowerCase()
-
-  if (type === "directory") {
-    for (const cand of folderNameVariants(baseLower)) {
-      const icon = ICON_MAPS.folderNames[cand]
-      if (icon) return expanded ? toOpenVariant(icon) : icon
-    }
-    return expanded ? ICON_MAPS.defaults.folderOpen : ICON_MAPS.defaults.folder
-  }
-
-  const byName = ICON_MAPS.fileNames[baseLower]
-  if (byName) return byName
-
-  for (const ext of dottedSuffixesDesc(baseLower)) {
-    const icon = ICON_MAPS.fileExtensions[ext]
-    if (icon) return icon
-  }
-
-  return ICON_MAPS.defaults.file
 }

@@ -38,11 +38,11 @@ const TYPE = {
   page: { size: 40, line: 44, weight: 400, face: "display", scales: false },
   section: { size: 26, line: 32, weight: 400, face: "display", scales: false },
   wordmark: { size: 24, line: 28, weight: 400, face: "display", scales: false },
-  msg: { size: 15, line: 24, weight: 400, face: "sans", scales: true },
-  ui: { size: 14, line: 20, weight: 400, face: "sans", scales: true },
+  msg: { size: 15, line: 24, weight: 450, face: "sans", scales: true },
+  ui: { size: 14, line: 20, weight: 450, face: "sans", scales: true },
   row: { size: 13.5, line: 18, weight: 600, face: "sans", scales: true },
-  label: { size: 12.5, line: 16, weight: 400, face: "sans", scales: true },
-  hint: { size: 11.5, line: 14, weight: 400, face: "sans", scales: true },
+  label: { size: 12.5, line: 16, weight: 450, face: "sans", scales: true },
+  hint: { size: 11.5, line: 14, weight: 450, face: "sans", scales: true },
   code: { size: 13, line: 21, weight: 400, face: "mono", scales: true },
 } as const satisfies Record<string, Type>
 

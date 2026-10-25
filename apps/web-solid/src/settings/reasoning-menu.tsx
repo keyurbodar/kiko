@@ -1,7 +1,7 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ChevronDownIcon } from "@kiko/ui/icons"
+import { ChevronDownIcon, ReasoningIcon } from "@kiko/ui/icons"
 import { defaultThinking, THINKING_LABELS, type ThinkingLevel } from "@kiko/protocol"
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js"
+import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js"
 import { Portal } from "solid-js/web"
 import { cn } from "../lib/cn"
 import { afterFirstPaint } from "../lib/motion"
@@ -9,27 +9,9 @@ import { placePanel } from "../lib/place-panel"
 import { canReason } from "./agent-model"
 import "./reasoning-menu.css"
 
-const BARS = 4
 const PANEL_W = 288
 const PANEL_H = 148
 const NOTE_MS = 2200
-
-const barsFor = (levels: readonly ThinkingLevel[], level: ThinkingLevel): number => {
-  if (level === "off") return 0
-  const active = levels.filter((l) => l !== "off")
-  const at = active.indexOf(level) + 1
-  return Math.max(1, Math.round((at / Math.max(1, active.length)) * BARS))
-}
-
-function Bars(props: { filled: number }) {
-  return (
-    <span class="reasoning-bars" aria-hidden="true">
-      <For each={Array.from({ length: BARS }, (_, i) => i)}>
-        {(i) => <i data-on={i < props.filled ? "" : undefined} style={{ "--i": i }} />}
-      </For>
-    </span>
-  )
-}
 
 export function Slider(props: {
   levels: readonly ThinkingLevel[]
@@ -197,7 +179,6 @@ export function ReasoningMenu(props: {
   onCleanup(() => clearTimeout(noteTimer))
   const levels = () => props.levels ?? []
   const value = () => props.value ?? defaultThinking(levels())
-  const filled = createMemo(() => barsFor(levels(), value()))
   const close = (focusTrigger: boolean) => {
     setOpen(false)
     if (focusTrigger) trigger?.focus()
@@ -230,7 +211,7 @@ export function ReasoningMenu(props: {
             onAnimationEnd={() => setShaking(false)}
             onClick={refuse}
           >
-            <Bars filled={0} />
+            <RemixIcon icon={ReasoningIcon} size={14} />
             <Show when={note()} fallback={<span>Off</span>}>
               <span class="reasoning-note">{props.model ?? "This model"} doesn't think</span>
             </Show>
@@ -248,7 +229,7 @@ export function ReasoningMenu(props: {
           data-component="reasoning-trigger"
           onClick={() => setOpen((now) => !now)}
         >
-          <Bars filled={filled()} />
+          <RemixIcon icon={ReasoningIcon} size={14} />
           <Show when={THINKING_LABELS[value()]} keyed>
             {(label) => (
               <span class="reasoning-label" data-enter={painted() ? "" : undefined}>

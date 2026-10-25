@@ -1,15 +1,16 @@
 import { fileName, type FileRef } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CheckIcon, CopyIcon, DownloadIcon, MaximizeIcon, MoreIcon, WrapTextIcon } from "@kiko/ui/icons"
+import { CheckIcon, CopyIcon, DownloadIcon, InfoIcon, MaximizeIcon, MoreIcon, WrapTextIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TabsPill, TabsV2 as Tabs } from "@kiko/ui/v2/tabs-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { Show } from "solid-js"
+import { onCleanup, onMount, Show } from "solid-js"
 import { fileSrc } from "../state/room"
 import { ACTION, SurfaceAction } from "./chrome"
 import { TEXT_KINDS, type ViewerKind } from "./kind"
 import { where } from "./model"
-import { wrap, setWrap } from "./prefs"
+import { aboutOpen, setAboutOpen, setRoomy, wrap, setWrap } from "./prefs"
+import { FileAbout } from "./about"
 import { FileViewer } from "./viewer"
 import type { FileView } from "./view"
 
@@ -90,6 +91,13 @@ export function FileActions(props: {
         />
       )}
       <SurfaceAction
+        label="About this file"
+        icon={InfoIcon}
+        action="toggle-about"
+        pressed={aboutOpen()}
+        onPress={() => setAboutOpen(!aboutOpen())}
+      />
+      <SurfaceAction
         label={`Save ${fileName(props.path)}`}
         icon={DownloadIcon}
         action="download-file"
@@ -103,7 +111,7 @@ export function FileActions(props: {
   )
 }
 
-export function FileBody(props: {
+function FileBody(props: {
   chatId: string
   path: string
   file: FileRef | undefined
@@ -124,5 +132,35 @@ export function FileBody(props: {
         onEditorState={props.view.setEditor}
       />
     </section>
+  )
+}
+
+export function FileWorkspace(props: {
+  chatId: string
+  path: string
+  file: FileRef | undefined
+  kind: ViewerKind
+  view: FileView
+}) {
+  let box!: HTMLDivElement
+  onMount(() => {
+    const watch = new ResizeObserver(([entry]) => entry && setRoomy(entry.contentRect.width >= 680))
+    watch.observe(box)
+    onCleanup(() => watch.disconnect())
+  })
+  return (
+    <div ref={box} class="@container/file flex min-h-0 min-w-0 flex-1" data-component="file-workspace">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col @min-[680px]/file:flex-row">
+        <FileBody chatId={props.chatId} path={props.path} file={props.file} kind={props.kind} view={props.view} />
+        <Show when={aboutOpen()}>
+          <aside
+            class="max-h-[36%] shrink-0 overflow-y-auto bg-side @min-[680px]/file:max-h-none @min-[680px]/file:w-[260px]"
+            data-component="file-about-panel"
+          >
+            <FileAbout chatId={props.chatId} path={props.path} file={props.file} />
+          </aside>
+        </Show>
+      </div>
+    </div>
   )
 }
