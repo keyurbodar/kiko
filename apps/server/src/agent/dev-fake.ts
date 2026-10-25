@@ -1,7 +1,13 @@
 import { awaitWithContext, BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { getCurrentTools, Type } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
-import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
+import {
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxText,
+  fauxThinking,
+  fauxToolCall,
+} from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { type Effect, declareEffect } from "@kiko/agent/effects"
 import { plainReport } from "@kiko/agent/workers"
@@ -19,6 +25,12 @@ const SLOW_WRITE_TOOL = "slow_write"
 const SLOW_TOOL_MS = 5_000
 const LATER_MS = 3_000
 const TOKENS_PER_SECOND = 25
+const THOUGHT = [
+  "They want a quiet place, so the loud side near the main gate is out.",
+  "Three options fit the budget, and one of them includes breakfast.",
+  "The second one is a long walk from the station with bags, so I will drop it.",
+  "Breakfast helps the food budget, so the first one is the best pick.",
+].join(" ")
 const LONG = Array.from({ length: 12 }, (_, i) => `slow words ${i + 1} keep this paragraph open for a while,`).join(" ")
 
 type Part = { type: string; text?: string }
@@ -171,7 +183,8 @@ function replyWithDelay(users: string[], results: string[], last: Message | unde
       { stopReason: "toolUse" },
     )
   if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
-    return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, {}), { stopReason: "toolUse" })
+    const thought = users.some((u) => u.includes("[think]")) ? [fauxThinking(THOUGHT)] : []
+    return fauxAssistantMessage([...thought, fauxToolCall(SLOW_TOOL, {})], { stopReason: "toolUse" })
   }
   if (last?.role === "user" && users.some((u) => u.includes("[write]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_WRITE_TOOL, {}), { stopReason: "toolUse" })
@@ -210,6 +223,7 @@ function replyToBurst(since: readonly Message[], users: string[], results: strin
   }
   if (newest.includes("[quiet]") && !results.length) return fauxAssistantMessage("[skip]")
   if (newest.includes("[slow]")) return fauxAssistantMessage(`${LONG} ${heard}`)
+  if (newest.includes("[think]")) return fauxAssistantMessage([fauxThinking(THOUGHT), fauxText(heard)])
   return fauxAssistantMessage(heard)
 }
 

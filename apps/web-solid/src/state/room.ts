@@ -45,6 +45,7 @@ import { describeLast, isListed } from "../sidebar/activity"
 import { clearUnreadMark } from "../sidebar/unread-mark"
 import { connection } from "./connection"
 import { liveLine, liveStatusOf, thinkingLine, type LiveStatus } from "./live-status"
+import { createThoughts, type ThinkingSignal, type Thought } from "./thoughts"
 import { attempt, owner, registry, valueOf, watch } from "./runtime"
 import { onUserSignal, user } from "./user"
 
@@ -265,7 +266,8 @@ function createWarmRooms(roomId: () => RoomId | null, exists: (id: RoomId) => bo
 function createRuns(
   roomId: () => RoomId | null,
   warm: () => readonly RoomId[],
-  onStatus: (id: RoomId, slug: string) => void,
+  onStatus: (id: RoomId, slug: string, state: AgentState) => void,
+  onThinking: (id: RoomId, signal: ThinkingSignal) => void,
 ) {
   const [all, setAll] = createStore<Record<string, Runs>>({})
   const fetched = new Map<RoomId, Set<string>>()
@@ -288,8 +290,9 @@ function createRuns(
   }
   const onSignal = (id: RoomId, signal: RoomSignal) => {
     if (signal.t === "step") take(id, [signal.step], false)
+    else if (signal.t === "thinking") onThinking(id, signal)
     else if (signal.t === "status") {
-      onStatus(id, signal.slug)
+      onStatus(id, signal.slug, signal.state)
       if (signal.state === "idle" && all[id]) setAll(id, "live", signal.slug, undefined)
     } else if (signal.t === "error" && id === roomId()) showNotice(signal.error)
   }
@@ -473,9 +476,20 @@ function createRoom() {
   const warm = createWarmRooms(activeId, (id) => !user.synced() || user.chat(id) !== undefined)
   const [marks, setMarks] = createSignal<Readonly<Record<string, number>>>({})
   createComputed(on(activeId, () => setMarks({})))
-  const runs = createRuns(activeId, warm, (id, slug) => {
-    if (id === untrack(activeId)) setMarks((all) => ({ ...all, [slug]: newestSeq(untrack(liveMessages)) }))
-  })
+  const thoughts = createThoughts()
+  createComputed(on(activeId, thoughts.clear))
+  const runs = createRuns(
+    activeId,
+    warm,
+    (id, slug, state) => {
+      if (id !== untrack(activeId)) return
+      setMarks((all) => ({ ...all, [slug]: newestSeq(untrack(liveMessages)) }))
+      if (state === "idle") thoughts.idle(slug)
+    },
+    (id, signal) => {
+      if (id === untrack(activeId)) thoughts.hear(signal, newestSeq(untrack(liveMessages)))
+    },
+  )
   const typing = createTyping(activeId)
 
   createComputed(
@@ -538,6 +552,17 @@ function createRoom() {
     })
   })
   const windows = createMemo(() => stepWindows(rows()))
+  const thoughtAnchors = createMemo(() => {
+    const out = new Map<string, Thought>()
+    for (const list of Object.values(thoughts.all()))
+      for (const thought of list) {
+        const reply = rows().find(
+          (m) => m.botId === thought.slug && !m.event && m.seq !== undefined && m.seq > thought.after,
+        )
+        if (reply) out.set(reply.id, thought)
+      }
+    return out
+  })
 
   const members = createMemo(() => (snapshot()?.members ?? []).filter((m) => !user.isGone(m.slug)))
   const memberRows = createMemo(() => members().map((m) => memberRow(m, presenceOf(liveOf()[m.slug]))))
@@ -793,6 +818,8 @@ function createRoom() {
     typingSlugs,
     typingNames: () => typingSlugs().map((slug) => agentDisplayName(slug, members())),
     typingDoings: () => typingSlugs().map((slug) => liveOf()[slug]?.text),
+    thinking: (slug: string) => thoughts.latest(slug),
+    thoughtFor: (m: ChatMessage) => thoughtAnchors().get(m.id),
     runWindow: (m: ChatMessage) => (m.botId && m.steps ? windowKey(m.botId, m.stepAfter ?? 0) : undefined),
     typingRun(slug: string): string | undefined {
       if (!runs.current().live[slug]) return undefined

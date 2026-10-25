@@ -20,10 +20,13 @@ import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
 const context = BACKGROUND_CONTEXT
 const DRAFT_INTERVAL_MS = 300
+const THINKING_INTERVAL_MS = 500
+const THINKING_CHARS = 1_500
 
 export interface RoomPort {
   post(runId: string, attempt: number, index: number, block: string): Promise<unknown>
   draft(runId: string, index: number, text: string): Promise<void>
+  thinking(runId: string, part: number, text: string, done: boolean): Promise<void>
   note(runId: string, id: string, text: string): Promise<void>
   status(state: AgentState, detail?: string | null): Promise<void>
   workers(rows: readonly WorkerRow[]): Promise<void>
@@ -44,6 +47,19 @@ function textOf(message: AssistantLike | undefined, final = true): string {
     .join("\n\n")
 }
 
+type Change = Extract<AgentEvent, { type: "message_update" }>["changes"][number]
+
+const startsAnswer = (change: Change) => change.type === "text_start" || change.type === "toolcall_start"
+
+function hearThought(generation: Generation, change: Change): void {
+  if (change.type === "thinking_start" && change.block.type === "thinking")
+    generation.thoughts.set(change.contentIndex, change.block.thinking)
+  else if (change.type === "thinking_delta")
+    generation.thoughts.set(change.contentIndex, (generation.thoughts.get(change.contentIndex) ?? "") + change.delta)
+  else if (change.type === "block" && change.block.type === "thinking")
+    generation.thoughts.set(change.contentIndex, change.block.thinking)
+}
+
 function partsOf(text: string): { blocks: string[]; reactions: Reaction[] } {
   const splitter = createSplitter()
   const head = splitter.push(text)
@@ -59,6 +75,8 @@ const assistant = (entry: EntryRecord): AssistantLike | undefined => {
 type Generation = {
   reactionIndex: number
   texts: Map<number, string>
+  thoughts: Map<number, string>
+  thought: "none" | "open" | "done"
   fed: string
   splitter: Splitter
   blocks: string[]
@@ -67,6 +85,8 @@ type Generation = {
 const newGeneration = (): Generation => ({
   reactionIndex: 0,
   texts: new Map(),
+  thoughts: new Map(),
+  thought: "none",
   fed: "",
   splitter: createSplitter(),
   blocks: [],
@@ -104,6 +124,7 @@ export class Outbox {
   private run: Run | null = null
   private lastEntry = 0
   private lastDraft = 0
+  private lastThought = 0
   private state: AgentState = "idle"
   private detail: string | undefined
   private backgroundRunning = false
@@ -266,9 +287,11 @@ export class Outbox {
             generation.texts.clear()
             change.message.content.forEach((part, i) => {
               if (part.type === "text") generation.texts.set(i, part.text)
+              if (part.type === "thinking") generation.thoughts.set(i, part.thinking)
             })
-          }
+          } else hearThought(generation, change)
         }
+        await this.think(generation, event.changes.some(startsAnswer))
         const text = [...generation.texts.entries()]
           .sort(([a], [b]) => a - b)
           .map(([, t]) => scrubToolMarkup(t, false))
@@ -277,6 +300,7 @@ export class Outbox {
         return this.stream(text)
       }
       case "message_end":
+        if (this.run?.generation) await this.think(this.run.generation, true)
         this.lastEntry = Math.max(this.lastEntry, event.entry.id)
         this.see(event.entry)
         return this.entry(event.entry)
@@ -369,6 +393,21 @@ export class Outbox {
       this.lastDraft = this.now()
       await this.room()?.draft(run.id, run.blocks.length + generation.blocks.length, out.draft)
     }
+  }
+
+  private async think(generation: Generation, answered: boolean): Promise<void> {
+    const run = this.run
+    if (!run || run.quiet || generation.thought === "done" || generation.thoughts.size === 0) return
+    const done = answered || generation.texts.size > 0
+    if (!done && generation.thought === "open" && this.now() - this.lastThought < THINKING_INTERVAL_MS) return
+    generation.thought = done ? "done" : "open"
+    this.lastThought = this.now()
+    const text = [...generation.thoughts.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([, t]) => t.trim())
+      .filter(Boolean)
+      .join("\n\n")
+    await this.room()?.thinking(run.id, run.generationIndex, text.slice(-THINKING_CHARS), done)
   }
 
   private async entry(entry: EntryRecord): Promise<void> {

@@ -12,6 +12,7 @@ import { ReactionStack } from "./ReactionBadge"
 import { MessageActions } from "./MessageActions"
 import { room } from "../../state/room"
 import { RunTree } from "../run/RunTree"
+import { ThoughtRow } from "../thinking/Thinking"
 import { RichText } from "./RichText"
 import { Collapsible } from "../Collapsible"
 import { isPhotoTree } from "../rich/model"
@@ -99,6 +100,9 @@ export function MessageRow(props: {
         <div class="truncate pb-0.5 text-[13px] leading-[18px] font-semibold text-fg2" data-component="chat-sender">
           {senderName()}
         </div>
+      </Show>
+      <Show when={own() ? undefined : room.thoughtFor(props.message)}>
+        {(thought) => <ThoughtRow thought={thought()} />}
       </Show>
       <Bubble
         variant={

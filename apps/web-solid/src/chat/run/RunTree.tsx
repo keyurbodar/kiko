@@ -7,6 +7,7 @@ import { room } from "../../state/room"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { findFile } from "../ui/find-file"
 import { Mochi } from "../ui/Mochi"
+import { Shine } from "./Shine"
 import { GLYPH } from "./glyphs"
 import {
   type DetailStatus,
@@ -67,23 +68,9 @@ function foldOf(isOpen: boolean, moves: boolean, list: HTMLDivElement | undefine
 }
 
 function Label(props: { text: string; parts?: readonly LabelPart[]; running: boolean }) {
-  let element!: HTMLSpanElement
-  const running = createMemo(() => props.running)
-  createEffect(() => {
-    if (!running()) return
-    let off: (() => void) | undefined
-    let stopped = false
-    void import("./visible-animation").then(({ observeVisibleAnimation }) => {
-      if (!stopped) off = observeVisibleAnimation(element)
-    })
-    onCleanup(() => {
-      stopped = true
-      off?.()
-    })
-  })
   return (
-    <span ref={element} class={running() ? "run-tree-label motion-shine" : "run-tree-label"}>
-      <Show when={!running() && props.parts} fallback={props.text}>
+    <Shine running={props.running} class="run-tree-label">
+      <Show when={!props.running && props.parts} fallback={props.text}>
         {(parts) => (
           <For each={parts()}>
             {(part) => (
@@ -96,7 +83,7 @@ function Label(props: { text: string; parts?: readonly LabelPart[]; running: boo
           </For>
         )}
       </Show>
-    </span>
+    </Shine>
   )
 }
 
