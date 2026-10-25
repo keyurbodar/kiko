@@ -73,6 +73,8 @@ export const HANDLERS: Handlers = {
 
   "credentials.list": (_, { host }) => host.user().credentialsList(),
   "credentials.connect": ({ provider, apiKey }, { host }) => host.user().credentialsConnect(provider, apiKey),
+  "credentials.addCustom": ({ name, api, baseUrl, apiKey }, { host }) =>
+    host.user().credentialsAddCustom(name, api, baseUrl, apiKey),
   "credentials.disconnect": ({ provider }, { host }) => host.user().credentialsDisconnect(provider),
   "credentials.check": ({ provider }, { host }) => host.user().credentialsCheck(provider),
   "login.start": ({ loginId, provider }, { host, socket }) => host.user().loginStart(socket, loginId, provider),

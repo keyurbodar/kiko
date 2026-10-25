@@ -18,6 +18,7 @@ function listed<M extends Model<Api>>(models: readonly M[]): { model: M; name: s
 export function buildCatalog(
   all: readonly Provider[],
   signInMethod: (providerId: string) => ConnectMethod | undefined,
+  custom: (providerId: string) => CatalogProvider["custom"] | undefined = () => undefined,
 ): Catalog {
   const providers: CatalogProvider[] = all.map((provider) => {
     const connect: ConnectMethod[] = []
@@ -45,6 +46,7 @@ export function buildCatalog(
       ...(offer ? { signIn: offer } : {}),
       models,
       classifiers,
+      ...(custom(provider.id) ? { custom: custom(provider.id)! } : {}),
     }
   })
   return { providers: providers.filter((p) => p.connect.length > 0).sort((a, b) => a.id.localeCompare(b.id)) }

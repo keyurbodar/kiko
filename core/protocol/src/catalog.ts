@@ -6,6 +6,9 @@ export type ThinkingLevel = typeof ThinkingLevel.Type
 export const ConnectMethod = Schema.Literals(["api_key", "device_code", "paste_code"])
 export type ConnectMethod = typeof ConnectMethod.Type
 
+export const CustomApi = Schema.Literals(["openai-completions", "anthropic-messages"])
+export type CustomApi = typeof CustomApi.Type
+
 export const CatalogModel = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
@@ -24,6 +27,7 @@ export const CatalogProvider = Schema.Struct({
   signIn: Schema.optionalKey(Schema.Struct({ method: ConnectMethod, label: Schema.String })),
   models: Schema.Array(CatalogModel),
   classifiers: Schema.Number,
+  custom: Schema.optionalKey(Schema.Struct({ api: CustomApi, baseUrl: Schema.String })),
 })
 export type CatalogProvider = typeof CatalogProvider.Type
 

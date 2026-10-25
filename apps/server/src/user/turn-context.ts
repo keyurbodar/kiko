@@ -2,7 +2,8 @@ import type { AuthContext, AuthResult, CredentialStore, Provider } from "@earend
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth"
 import { createModels, isModelType, ModelsError } from "@earendil-works/pi-ai/models"
 import type { ProviderProblem } from "@kiko/protocol"
-import { findProvider, overlayFor, overlayRevision, type WireModel } from "../models/catalog"
+import { customSpec, findProvider, overlayFor, overlayRevision, type WireModel } from "../models/catalog"
+import type { CustomSpec } from "../models/custom"
 import { classifyAuthFailure } from "./provider-health"
 
 registerBunOAuthFlows()
@@ -18,6 +19,7 @@ export type TurnContext = {
   timezone: string
   captures: boolean
   catalog: { revision: string; models: WireModel[] }
+  custom?: CustomSpec
   agent?: { soul: { body: string; sha: string; at: number } }
 }
 
@@ -78,6 +80,7 @@ export async function resolveTurnContext(
     timezone: settings.timezone ?? DEFAULT_TIMEZONE,
     captures: settings.captures,
     catalog: { revision: overlayRevision(), models: overlayFor(provider) },
+    ...(customSpec(provider) ? { custom: customSpec(provider)! } : {}),
     ...(agent ? { agent } : {}),
   }
   if (!found) return { ...base, auth: null }

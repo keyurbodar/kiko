@@ -34,6 +34,7 @@ import { Dialog } from "../lib/dialog"
 import { hiddenModels, setHidden } from "./model-prefs"
 import { cn } from "../lib/cn"
 import { AgentModels } from "./agent-models"
+import { CustomProviderDialog } from "./custom-provider"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import type { ProviderInfo } from "@kiko/protocol"
 
@@ -73,7 +74,8 @@ const savedOf = (id: string) => connectedProviders().find((p) => p.provider === 
 
 function statusLine(info: ProviderInfo | undefined): string {
   if (info?.problem) return PROBLEM_LINE[info.problem]
-  return info?.kind === "api_key" ? `Key ending ${info.last4}` : "Signed in"
+  if (info?.kind !== "api_key") return "Signed in"
+  return info.last4 ? `Key ending ${info.last4}` : "Key saved"
 }
 
 const [flashed, setFlashed] = createSignal<string | null>(null)
@@ -525,6 +527,7 @@ export function AddProviderDialog(props: {
   onPick: (provider: CatalogProvider) => void
 }) {
   const [query, setQuery] = createSignal("")
+  const [custom, setCustom] = createSignal(false)
   const shown = createMemo(() => {
     const q = query().trim().toLowerCase()
     return q
@@ -590,7 +593,31 @@ export function AddProviderDialog(props: {
             </li>
           )}
         </For>
+        <li data-provider="custom">
+          <button
+            type="button"
+            class="flex h-control-big w-full cursor-pointer items-center gap-3 rounded-row px-2 text-left outline-none transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover focus-visible:bg-hover active:scale-[0.99]"
+            data-action="custom-provider"
+            onClick={() => setCustom(true)}
+          >
+            <BrandTile>
+              <RemixIcon icon={PlusIcon} size={16} />
+            </BrandTile>
+            <span class="min-w-0 flex-1 truncate type-ui font-medium text-fg">Custom provider</span>
+            <span class="shrink-0 type-hint text-fg4">OpenAI or Anthropic compatible</span>
+          </button>
+        </li>
       </ul>
+      <CustomProviderDialog
+        open={custom()}
+        onClose={() => setCustom(false)}
+        onAdded={(name) => {
+          setCustom(false)
+          setQuery("")
+          props.onClose()
+          showToastV2({ title: `${name} connected`, variant: "success" })
+        }}
+      />
     </Dialog>
   )
 }
