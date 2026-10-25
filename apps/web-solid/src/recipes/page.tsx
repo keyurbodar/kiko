@@ -1,3 +1,4 @@
+import { EmptyArt } from "../components/empty-art"
 import type { RecipeCard } from "@kiko/protocol"
 import { getRouteApi } from "@tanstack/solid-router"
 import { openChat } from "../app/history"
@@ -29,7 +30,8 @@ const grid = "grid grid-cols-1 gap-x-4 gap-y-1 @min-[640px]/page:grid-cols-2"
 
 function Empty(props: { title: string; children?: JSX.Element }) {
   return (
-    <div class="flex flex-col items-center gap-2 px-6 py-14 text-center">
+    <div class="flex flex-col items-center gap-2 px-6 py-14 text-center" data-component="recipes-no-match">
+      <EmptyArt name="search" />
       <p class="type-ui text-fg2">{props.title}</p>
       {props.children}
     </div>
@@ -98,12 +100,13 @@ export default function RecipesPage() {
                     fallback={
                       <Show when={!query()} fallback={<Empty title="Nothing of yours matches" />}>
                         <div
-                          class="flex flex-col items-start gap-4 rounded-card bg-panel p-6"
+                          class="flex flex-col items-center gap-4 rounded-card bg-panel px-6 py-10 text-center"
                           data-component="recipes-empty"
                         >
+                          <EmptyArt name="pot" size={140} />
                           <div class="flex flex-col gap-1">
-                            <p class="type-row text-fg">No recipes yet</p>
-                            <p class="type-label text-fg3">
+                            <p class="type-ui text-fg2">No recipes yet</p>
+                            <p class="type-label max-w-[320px] text-fg3">
                               Recipes are jobs your team runs on a schedule or when something happens.
                             </p>
                           </div>

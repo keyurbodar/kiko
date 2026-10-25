@@ -1,13 +1,13 @@
 import { fileName, type FileRef } from "@kiko/protocol"
+import { FileIcon } from "@kiko/ui/file-icon"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CloseIcon } from "@kiko/ui/icons"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { Show } from "solid-js"
 import { SUBHEADER } from "./chrome"
-import { KIND_ICON } from "./icons"
 import type { ViewerKind } from "./kind"
 import { setFullSize } from "./prefs"
-import { FileActions, FileBody } from "./surface"
+import { FileActions, FileWorkspace } from "./surface"
 import { createFileView } from "./view"
 
 export default function FileDialog(props: {
@@ -39,7 +39,7 @@ export default function FileDialog(props: {
           data-component="file-dialog"
         >
           <div class={`${SUBHEADER} h-11 min-h-11`}>
-            <RemixIcon icon={KIND_ICON[props.kind]} size={14} />
+            <FileIcon node={{ path: props.path, type: "file" }} class="size-5" />
             <ModalV2.Title class="min-w-0 flex-1 truncate text-label font-medium text-fg">
               {fileName(props.path)}
             </ModalV2.Title>
@@ -57,7 +57,7 @@ export default function FileDialog(props: {
             </ModalV2.Close>
           </div>
           <div class="flex min-h-0 flex-1 overflow-hidden">
-            <FileBody chatId={props.chatId} path={props.path} file={props.file} kind={props.kind} view={view} />
+            <FileWorkspace chatId={props.chatId} path={props.path} file={props.file} kind={props.kind} view={view} />
           </div>
         </ModalV2.Content>
       </ModalV2.Portal>

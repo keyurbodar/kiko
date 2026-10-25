@@ -4,6 +4,7 @@ import { fileSrc } from "../state/room"
 import { NoPreview, SurfaceFailure, SurfaceLoading } from "./chrome"
 import type { EditorState } from "./editor"
 import { TEXT_KINDS, type ViewerKind } from "./kind"
+import { recipeSlugOf } from "../recipes/doc"
 import "./editor.css"
 
 const TextEditor = lazy(() => import("./editor").then((m) => ({ default: m.TextEditor })))
@@ -11,6 +12,7 @@ const MarkdownView = lazy(() => import("./viewers/markdown"))
 const TableView = lazy(() => import("./viewers/table"))
 const HtmlView = lazy(() => import("./viewers/html"))
 const PdfView = lazy(() => import("./viewers/pdf"))
+const RecipeDocument = lazy(() => import("../recipes/document"))
 
 export function FileViewer(props: {
   roomId: string
@@ -49,6 +51,14 @@ export function FileViewer(props: {
                     />
                   )}
                 </Show>
+              </Match>
+              <Match when={props.kind === "markdown" && recipeSlugOf(props.path)}>
+                <RecipeDocument
+                  roomId={props.roomId}
+                  path={props.path}
+                  file={ref()}
+                  fallback={<MarkdownView roomId={props.roomId} file={ref()} />}
+                />
               </Match>
               <Match when={props.kind === "markdown"}>
                 <MarkdownView roomId={props.roomId} file={ref()} />

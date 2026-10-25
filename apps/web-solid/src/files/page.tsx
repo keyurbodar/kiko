@@ -1,3 +1,4 @@
+import { EmptyArt } from "../components/empty-art"
 import { fileName } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { FilterHorizontalIcon, GridIcon, MenuIcon, PlusIcon, UploadIcon } from "@kiko/ui/icons"
@@ -122,22 +123,6 @@ function Maker(props: { entry: Entry }) {
   return <Show when={props.entry.madeBy}>{(slug) => <IdentityAvatar seed={slug()} size={20} class="shrink-0" />}</Show>
 }
 
-function FolderArt() {
-  return (
-    <svg width="96" height="96" viewBox="0 0 96 96" fill="none" aria-hidden="true" class="text-fg3">
-      <path
-        d="M14 30a6 6 0 0 1 6-6h17l7 8h32a6 6 0 0 1 6 6v32a6 6 0 0 1-6 6H20a6 6 0 0 1-6-6V30Z"
-        fill="var(--active)"
-        stroke="currentColor"
-        stroke-width="2.4"
-        stroke-linejoin="round"
-      />
-      <path d="M14 42h68" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
-      <path d="M40 58h16M48 50v16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
-    </svg>
-  )
-}
-
 function Upload(props: { onFiles: (files: File[]) => void; primary?: boolean }) {
   let input!: HTMLInputElement
   return (
@@ -170,8 +155,8 @@ function Upload(props: { onFiles: (files: File[]) => void; primary?: boolean }) 
 function Empty(props: { onFiles: (files: File[]) => void }) {
   return (
     <div class="flex flex-col items-center gap-2 px-6 py-14 text-center" data-component="files-empty">
-      <FolderArt />
-      <p class="type-row mt-2 text-fg">Nothing here yet</p>
+      <EmptyArt name="folder" size={140} />
+      <p class="type-ui mt-2 text-fg2">No files here yet.</p>
       <p class="type-label text-fg3">Drop files anywhere on this page, or upload them.</p>
       <div class="mt-3">
         <Upload onFiles={props.onFiles} primary />
@@ -403,7 +388,12 @@ export default function FilesPage() {
             <Show when={entries().length} fallback={<Empty onFiles={(files) => void saveFiles(files)} />}>
               <Show
                 when={shown().length}
-                fallback={<p class="type-ui px-6 py-16 text-center text-fg3">Nothing matches.</p>}
+                fallback={
+                  <div class="flex flex-col items-center gap-2 px-6 py-12 text-center" data-component="files-no-match">
+                    <EmptyArt name="search" />
+                    <p class="type-ui text-fg2">Nothing matches.</p>
+                  </div>
+                }
               >
                 <Show when={view() === "grid"} fallback={<ListView shown={shown()} open={open} />}>
                   <GridView shown={shown()} open={open} />

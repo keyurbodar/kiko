@@ -1,8 +1,21 @@
 import type { FileRef } from "@kiko/protocol"
 import { viewerKind } from "./kind"
-import type { TYPE_GLYPHS } from "./type-glyphs"
 
-export type FileType = Exclude<keyof typeof TYPE_GLYPHS, "folder">
+export type FileType =
+  | "pdf"
+  | "markdown"
+  | "csv"
+  | "sheet"
+  | "html"
+  | "image"
+  | "code"
+  | "text"
+  | "video"
+  | "audio"
+  | "archive"
+  | "doc"
+  | "slides"
+  | "other"
 export type FileGroup = "documents" | "data" | "images" | "code" | "media"
 
 const ext = (name: string) => /\.([^./]+)$/.exec(name)?.[1]?.toLowerCase() ?? ""
@@ -48,23 +61,6 @@ export const GROUP_LABELS: Record<FileGroup, string> = {
   images: "Images",
   code: "Code",
   media: "Media",
-}
-
-export const TYPE_TINT: Record<FileType, string> = {
-  pdf: "oklch(0.7 0.15 25)",
-  markdown: "oklch(0.72 0.1 250)",
-  text: "oklch(0.72 0.03 260)",
-  doc: "oklch(0.72 0.12 255)",
-  slides: "oklch(0.74 0.14 55)",
-  csv: "oklch(0.74 0.13 155)",
-  sheet: "oklch(0.74 0.13 155)",
-  image: "oklch(0.74 0.12 310)",
-  html: "oklch(0.75 0.14 50)",
-  code: "oklch(0.74 0.1 200)",
-  video: "oklch(0.72 0.13 340)",
-  audio: "oklch(0.74 0.12 285)",
-  archive: "oklch(0.74 0.09 85)",
-  other: "oklch(0.72 0.02 260)",
 }
 
 export const TYPE_NAMES: Record<FileType, string> = {

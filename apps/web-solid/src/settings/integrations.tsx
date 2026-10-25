@@ -1,4 +1,5 @@
 import type { ComposioResult, ComposioStatus, KernelResult, KernelStatus } from "@kiko/protocol"
+import { ProviderIcon } from "@kiko/ui/provider-icon"
 import { Show, createSignal, onCleanup, onMount } from "solid-js"
 import { Button, Notice } from "./kit"
 import { KeyLink, SecretInput } from "./connect-parts"
@@ -10,22 +11,12 @@ const COMPOSIO_PLATFORM = "https://platform.composio.dev"
 
 const KERNEL_HOME = "https://dashboard.onkernel.com"
 
-function GridIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.4"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z" />
-    </svg>
-  )
+function ComposioIcon() {
+  return <ProviderIcon id="composio" />
+}
+
+function KernelIcon() {
+  return <ProviderIcon id="kernel" />
 }
 
 function GlobeIcon() {
@@ -173,14 +164,14 @@ export const APPS = {
     description: "Connect your apps through your own Composio account.",
     home: COMPOSIO_PLATFORM,
     placeholder: "ak_...",
-    icon: GridIcon,
+    icon: ComposioIcon,
   },
   kernel: {
     name: "Kernel browser",
     description: "Lets your agents use a real browser, in your own Kernel account.",
     home: KERNEL_HOME,
     placeholder: "sk_...",
-    icon: GlobeIcon,
+    icon: KernelIcon,
   },
 } as const
 

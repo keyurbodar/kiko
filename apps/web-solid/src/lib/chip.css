@@ -53,12 +53,6 @@
   align-self: center;
 }
 
-.entry-icon {
-  color: var(--entry-icon-light);
-}
-:root.dark .entry-icon {
-  color: var(--entry-icon-dark);
-}
 .file-chip-label {
   display: block;
   min-width: 0;

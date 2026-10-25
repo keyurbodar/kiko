@@ -1,3 +1,4 @@
+import { EmptyArt } from "../components/empty-art"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, PlusIcon } from "@kiko/ui/icons"
 import { createMemo, createSignal, For, Show } from "solid-js"
@@ -26,9 +27,20 @@ export function AppsTab(props: { query: string; scope: Scope }) {
         <For
           each={rows()}
           fallback={
-            <p class="col-span-full px-6 py-14 text-center type-ui text-fg2">
-              {props.scope === "yours" && !props.query ? "No apps connected yet." : "Nothing matches."}
-            </p>
+            <div
+              class="col-span-full flex flex-col items-center gap-2 px-6 py-12 text-center"
+              data-component="apps-empty"
+            >
+              <EmptyArt name={props.scope === "yours" && !props.query ? "plug" : "search"} size={140} />
+              <p class="type-ui text-fg2">
+                {props.scope === "yours" && !props.query ? "No apps connected." : "Nothing matches."}
+              </p>
+              <Show when={props.scope === "yours" && !props.query}>
+                <p class="type-label max-w-[280px] text-fg3">
+                  Connect Gmail or Calendar so your agents can help with real things.
+                </p>
+              </Show>
+            </div>
           }
         >
           {(row) => {
@@ -40,7 +52,7 @@ export function AppsTab(props: { query: string; scope: Scope }) {
                 data-tool={`app:${row.id}`}
                 onClick={() => setOpenId(row.id)}
               >
-                <span class="grid size-12 shrink-0 place-items-center rounded-tile bg-raise text-fg2 transition-colors duration-(--dur-hover) group-hover:bg-active [&_svg]:size-6">
+                <span class="grid size-12 shrink-0 place-items-center rounded-tile bg-raise text-fg transition-colors duration-(--dur-hover) group-hover:bg-active [&_svg]:size-7">
                   <row.app.icon />
                 </span>
                 <span class="flex min-w-0 flex-1 flex-col">
