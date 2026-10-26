@@ -124,6 +124,15 @@ describe("RoomFs", () => {
     expect(await check("ab")).toBe("word")
   })
 
+  it("answers a call to a runtime that is not here", async () => {
+    const fs = new RoomFs("test", memoryBackend().backend)
+    for (const runtime of ["node", "python3", "deno"]) {
+      const out = await bash(fs, `${runtime} /inventory.js test`)
+      expect(out.exitCode).toBe(127)
+      expect(out.output).toContain("check the code by reading it")
+    }
+  })
+
   it("saves nothing when a command hits a limit", async () => {
     const { backend, files } = memoryBackend()
     const fs = new RoomFs("test", backend)

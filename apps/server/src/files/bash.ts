@@ -11,6 +11,7 @@ import {
 import {
   Bash,
   type BufferEncoding,
+  defineCommand,
   type CpOptions,
   type CreateExclusiveOptions,
   type FileContent,
@@ -526,6 +527,29 @@ const stopped = (timer: AbortSignal, seconds: number) =>
     ? new ExecutionError("unknown", `the command ran past ${seconds} seconds, and none of its changes were saved`)
     : new ExecutionError("aborted", "the command was stopped, and none of its changes were saved")
 
+const RUNTIMES = [
+  "node",
+  "nodejs",
+  "deno",
+  "bun",
+  "npm",
+  "npx",
+  "python",
+  "python3",
+  "pip",
+  "pip3",
+  "perl",
+  "ruby",
+  "php",
+]
+const NO_RUNTIME = RUNTIMES.map((name) =>
+  defineCommand(name, async () => ({
+    stdout: "",
+    stderr: `${name}: not here. only shell runs in this sandbox, nothing can be installed, and no app or other tool stands in for a runtime. check the code by reading it, and tell the human it was not run\n`,
+    exitCode: 127,
+  })),
+)
+
 const OVER_READ = `bash: the command read more than ${MAX_READS} files and was stopped, and none of its changes were saved. narrow it to a folder or a pattern, or split it\n`
 
 export async function runCommand(
@@ -553,6 +577,7 @@ export async function runCommand(
       fs,
       cwd,
       env: { HOME: "/", USER: "agent", TMPDIR: "/tmp", ...options?.env },
+      customCommands: NO_RUNTIME,
       ...(files.network ? { fetch: files.network } : {}),
     })
     const out = await bash.exec(command, { cwd, signal: AbortSignal.any([outside, fs.overRead.signal]) })
