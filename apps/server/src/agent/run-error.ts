@@ -1,4 +1,5 @@
 import type { ErrorAction, RunErrorAction, RunErrorKind } from "@kiko/protocol"
+import { limitOf } from "./limits"
 import { RETRY_AFTER_TOO_LONG } from "./retry"
 
 const KINDS: readonly (readonly [RunErrorKind, RegExp])[] = [
@@ -82,16 +83,24 @@ function providerWords(message: string | undefined): string {
     .join(" ")
 }
 
-export function runErrorDetail(message: string | undefined): string | undefined {
-  const text = redact(providerWords(message)).replace(/\s+/g, " ").trim()
+const resetOf = (text: string, now: number): number | undefined => limitOf({ message: text, now })?.resetAt
+
+export function runErrorDetail(message: string | undefined, now = Date.now()): string | undefined {
+  const words = providerWords(message)
+  const resetAt = resetOf(words, now)
+  const said = redact(words).replace(/\s+/g, " ").trim()
+  const text = resetAt === undefined || !said ? said : `resets_at=${new Date(resetAt).toISOString()} ${said}`
   if (!text) return undefined
   return text.length > DETAIL_MAX ? `${text.slice(0, DETAIL_MAX - 1)}…` : text
 }
 
-export function classifyRunError(message: string | undefined): RunErrorKind {
+const BEFORE_LIMITS: ReadonlySet<RunErrorKind> = new Set(["too_long", "model_not_found"])
+
+export function classifyRunError(message: string | undefined, now = Date.now()): RunErrorKind {
   const text = providerWords(message)
   if (text.includes(RETRY_AFTER_TOO_LONG)) return "rate_limit"
   const kind = KINDS.find(([, pattern]) => pattern.test(text))?.[0] ?? "other"
+  if (!BEFORE_LIMITS.has(kind) && resetOf(text, now) !== undefined) return "rate_limit"
   return kind === "refused" && HTML.test(message ?? "") ? "other" : kind
 }
 

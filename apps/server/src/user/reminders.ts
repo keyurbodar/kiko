@@ -4,7 +4,7 @@ import type { RoutineDelivery, RoutineScheduler, ScheduledRoutine } from "../own
 import { RRule } from "rrule"
 import { sha256Hex, toHex } from "@kiko/durable/hash"
 import { getSetting, setSetting } from "../lib/settings"
-import { nextOccurrence, repeatProblem, validZone } from "@kiko/sandbox/recurrence"
+import { localMoment, nextOccurrence, repeatProblem, validZone } from "@kiko/sandbox/recurrence"
 import { MIN_REPEAT_MS, ruleProblem } from "@kiko/sandbox/rule"
 
 const MAX_ROUTINES = 50
@@ -102,10 +102,11 @@ const toReminder = (r: Row): Reminder => ({
   lastFired: r.last_fired,
 })
 
-function parseTime(time: string, now: number): number {
-  if (!/(z|[+-]\d{2}:?\d{2})$/i.test(time.trim()))
-    throw new ReminderError({ message: "time must include an offset or z" })
-  const at = Date.parse(time)
+function parseTime(time: string, tz: string, now: number): number {
+  const local = localMoment(time, tz)
+  if (local === null && !/(z|[+-]\d{2}:?\d{2})$/i.test(time.trim()))
+    throw new ReminderError({ message: "time must be a local time like 2026-05-04T08:30, or include an offset or z" })
+  const at = local ?? Date.parse(time)
   if (Number.isNaN(at)) throw new ReminderError({ message: "time is not an iso date" })
   const due = Math.ceil(at / 1000) * 1000
   if (due > now + YEAR_MS) throw new ReminderError({ message: "time is more than a year away" })
@@ -234,7 +235,7 @@ export class Reminders {
     const now = this.now()
     switch (t.on) {
       case "time": {
-        let due = parseTime(t.at, now)
+        let due = parseTime(t.at, input.tz, now)
         const rrule = t.rrule?.trim().replace(/^RRULE:/i, "") || null
         if (rrule) {
           checkRepeat(rrule, input.tz, due)

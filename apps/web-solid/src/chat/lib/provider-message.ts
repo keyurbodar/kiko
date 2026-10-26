@@ -28,8 +28,32 @@ function sentence(text: string): string {
   return /[.!?…]$/.test(short) ? short : `${short}.`
 }
 
-export function providerMessage(detail: string | undefined): string | undefined {
+const RESETS = /^resets_at=(\S+)/
+function clock(at: number, timeZone: string | undefined): Record<string, string> {
+  return Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      weekday: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(new Date(at))
+      .map((part) => [part.type, part.value]),
+  )
+}
+
+function resetLine(at: number, now: number, timeZone: string | undefined): string {
+  const then = clock(at, timeZone)
+  const day = then.day === clock(now, timeZone).day && at - now < 86_400_000 ? "" : ` ${then.weekday}`
+  return `Resets${day} at ${then.hour}:${then.minute}.`
+}
+
+export function providerMessage(detail: string | undefined, now = Date.now(), timeZone?: string): string | undefined {
   const text = detail?.trim()
+  const reset = Date.parse(RESETS.exec(text ?? "")?.[1] ?? "")
+  if (!Number.isNaN(reset)) return resetLine(reset, now, timeZone)
   if (!text || text.startsWith("<")) return undefined
   const found = fromJson(text) ?? (text.includes("{") ? undefined : text.replace(STATUS, ""))
   return found?.trim() ? sentence(found) : undefined

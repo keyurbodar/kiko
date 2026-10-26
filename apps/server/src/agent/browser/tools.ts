@@ -227,7 +227,7 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
             failed = { step, result }
             break
           }
-          done.push(describe(step))
+          done.push(result.note ? `${describe(step)} (${result.note})` : describe(step))
         }
         const describeResult = () => {
           return failed

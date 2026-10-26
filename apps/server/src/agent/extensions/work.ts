@@ -15,6 +15,7 @@ import {
   ToolTask,
   wrapSection,
 } from "@earendil-works/pi-durable"
+import { ThinkingLevel } from "@kiko/protocol"
 import { declareEffect } from "@kiko/agent/effects"
 import { MAX_WORKER_STEPS, MAX_WORKERS, type Workers } from "@kiko/agent/workers"
 import { forRole } from "../roles"
@@ -25,17 +26,24 @@ import { WorkerMissing } from "../errors"
 
 const WORKER_PROMPT = `You are a background worker in Kiko. An agent who talks with the human gave you one job: do it, then report once at the end.
 - Work silently. Your text is not a chat bubble, and you cannot message the human. A later message is that agent passing on a change from the human: follow it.
-- End with one report: what you found or did, and the path of every file you saved. Never quote a tool error or markup.
+- End with one report of about 200 words: the answer first, then the evidence, then the path of every file you saved. Never quote a tool error or markup.
 - If the job needs an app that is not connected or a key that is missing, stop at once and report only which one is missing. Do not try other routes.`
 
 const say = (text: string) => ({ output: [{ type: "text" as const, text }] })
 
 const SPENT = `you used ${MAX_WORKER_STEPS} steps, the most a worker gets. call no more tools. end now with your report, starting "stopped after ${MAX_WORKER_STEPS} steps:" and then what you have so far, with the path of every file you saved.`
 
-function workerAgent(agent: Agent, all: readonly Extension[]): AgentChange {
+const LEVELS = ThinkingLevel.literals
+
+export function workerThinking(parent: ThinkingLevel, asked: ThinkingLevel | undefined): ThinkingLevel {
+  if (asked === undefined) return parent
+  return LEVELS.indexOf(asked) < LEVELS.indexOf(parent) ? asked : parent
+}
+
+function workerAgent(agent: Agent, all: readonly Extension[], thinking?: ThinkingLevel): AgentChange {
   return {
     model: agent.model ?? null,
-    thinkingLevel: agent.thinkingLevel,
+    thinkingLevel: workerThinking(agent.thinkingLevel, thinking),
     extensions: forRole(all, "worker"),
     instructions: WORKER_PROMPT,
   }
@@ -120,9 +128,15 @@ export function workExtensions(
       "Start one background worker for a whole job, with everything it needs. Use it for slow work, work with many parts, pages in the browser, or a run of screen steps; do a quick search or one connected-app call yourself. A job with many parts (say, 20 lookups) is one call, since the worker runs the parts at once: never one worker per part or batch. Returns its id at once; its report comes back later as <work>.",
     parameters: Type.Object({
       task: Type.String({ description: "The whole task, with everything the worker needs to know" }),
+      thinking: Type.Optional(
+        Type.Union(
+          LEVELS.map((level) => Type.Literal(level)),
+          { description: "how hard the worker thinks, at most your own level; low or minimal suits a lookup" },
+        ),
+      ),
     }),
     replay: "safe",
-    execute: async ({ task }, api, ctx) => {
+    execute: async ({ task, thinking }, api, ctx) => {
       const work = workers.byTask(String(api.taskId)) ?? workers.reserve(String(api.taskId), task, runId())
       if (!work) {
         const ids = workers
@@ -135,7 +149,7 @@ export function workExtensions(
       }
       let conversationId = work.conversationId
       if (conversationId === null) {
-        const agent = workerAgent(await api.agent(ctx), all())
+        const agent = workerAgent(await api.agent(ctx), all(), thinking)
         conversationId = await api.commit(async (tx) => {
           const tasks = await tx.doc(WorkerTasks, api.conversationId)
           const existing = tasks.children[String(api.taskId)]
