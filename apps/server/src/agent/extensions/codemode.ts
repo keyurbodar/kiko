@@ -30,7 +30,7 @@ const MAX_OUTPUT_TOKENS = 10_000
 const CHARS_PER_TOKEN = 4
 const DEFAULT_TIMEOUT_MS = 60_000
 const MAX_TIMEOUT_MS = 120_000
-export const MEMORY_LIMIT_BYTES = 64 * 1024 * 1024
+const MEMORY_LIMIT_BYTES = 64 * 1024 * 1024
 
 const DESCRIPTION = `Run JavaScript that calls your other tools. The input is raw JavaScript (not JSON, no code fence), run as an async function body in a QuickJS sandbox: top-level \`await\` and \`return\` work. No require, process, network, file system, or timers.
 - \`await tools.<name>({ ...args })\` takes the same arguments as calling the tool directly, resolves to its text output, and rejects with an Error when the call fails. Calls still running when the script ends are cancelled.
