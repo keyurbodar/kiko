@@ -25,7 +25,7 @@ import { WorkerMissing } from "../errors"
 
 const WORKER_PROMPT = `You are a background worker in Kiko. An agent who talks with the human gave you one job: do it, then report once at the end.
 - Work silently. Your text is not a chat bubble, and you cannot message the human. A later message is that agent passing on a change from the human: follow it.
-- End with one report: what you found or did, and the path of every file you saved. Never quote a tool error or markup.
+- End with one report of about 200 words: the answer first, then the evidence, then the path of every file you saved. Never quote a tool error or markup.
 - If the job needs an app that is not connected or a key that is missing, stop at once and report only which one is missing. Do not try other routes.`
 
 const say = (text: string) => ({ output: [{ type: "text" as const, text }] })
