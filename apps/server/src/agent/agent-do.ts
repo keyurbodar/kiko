@@ -705,6 +705,7 @@ export class Agent {
         : {}),
       inputInvalidated: () => this.inputInvalidated(),
       inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined),
+      joinMemory: (batch: Batch, joined: number[]) => this.joinMemory(batch, joined),
       beforeCompact: (harness) => this.beforeCompact(harness),
     }
   }
@@ -777,6 +778,16 @@ export class Agent {
       })
     this.#shown.clear()
     return { fresh: true, text: memoryBlock(life, view.text), data: { memoryPos: view.count } }
+  }
+
+  private async joinMemory(batch: Batch, joined: number[]): Promise<{ text?: string; data?: { memoryPos: number } }> {
+    const home = this.home()
+    const seen = await this.memoryPos()
+    if (!home || seen === undefined) return {}
+    const seqs = [...batch.envelopes.map((e) => e.seq), ...joined]
+    const delta = await this.services.room(home.roomId).memorySince(home.slug, seen, seqs)
+    if (delta.count - seen > MAX_DELTA_TURNS) return {}
+    return { data: { memoryPos: delta.count }, ...(delta.text ? { text: memoryDelta(delta.text) } : {}) }
   }
 
   private async memoryPos(): Promise<number | undefined> {

@@ -139,6 +139,7 @@ export type AgentSetup = {
     fresh: boolean,
     joined: number[],
   ) => Promise<{ text?: string; fresh: boolean; data?: Record<string, JsonValue> }>
+  joinMemory?: (batch: Batch, joined: number[]) => Promise<{ text?: string; data?: Record<string, JsonValue> }>
   beforeCompact?: (harness: Harness) => Promise<void>
   stale?: () => Promise<boolean>
   rollover?: {
@@ -775,6 +776,10 @@ export class AgentHost {
         else await root.reset(undefined, context)
       }
       await this.ctx.storage.delete(JOINED_KEY)
+      memory = out.text
+    } else if (run && setup.joinMemory) {
+      const out = await setup.joinMemory(batch, await this.joinedSeqs())
+      inputData = out.data ?? {}
       memory = out.text
     }
     const [extra, last] = await Promise.all([
