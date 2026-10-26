@@ -2,6 +2,7 @@ import * as Schema from "effect/Schema"
 const RUN_CALL_LIMIT = 40
 const RUN_DURATION_MS = 12 * 60_000
 const SHARE_AFTER_CALLS = 3
+const SPARE_CALLS = 6
 
 type RunOutcome = "done" | "continue"
 
@@ -12,6 +13,7 @@ class RunCallLimitError extends Schema.TaggedError<RunCallLimitError>()("RunCall
 class RunBudget {
   private outgoing = 0
   private rejected = false
+  private drained = false
   private readonly sharing = new AbortController()
   readonly deadline: number
 
@@ -32,6 +34,14 @@ class RunBudget {
     }
     this.outgoing++
   }
+  spare(): boolean {
+    if (this.outgoing >= RUN_CALL_LIMIT - SPARE_CALLS) {
+      this.drained = true
+      return false
+    }
+    this.outgoing++
+    return true
+  }
   get shared(): AbortSignal {
     return this.sharing.signal
   }
@@ -40,7 +50,7 @@ class RunBudget {
   }
   due(othersWaiting: () => boolean = () => false): boolean {
     if (this.rejected) return false
-    if (this.outgoing >= RUN_CALL_LIMIT || this.now() >= this.deadline) return true
+    if (this.drained || this.outgoing >= RUN_CALL_LIMIT || this.now() >= this.deadline) return true
     return this.outgoing >= SHARE_AFTER_CALLS && othersWaiting()
   }
 }
@@ -72,6 +82,12 @@ export class Runs {
       }
     }
     if (errors.length) throw errors[0]
+  }
+
+  spareActive(): boolean {
+    let spared = true
+    for (const budget of new Set([...this.active.values()].map((a) => a.budget))) spared = budget.spare() && spared
+    return spared
   }
 
   has(agent: string): boolean {

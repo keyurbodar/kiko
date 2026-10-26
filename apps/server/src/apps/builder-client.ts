@@ -1,23 +1,8 @@
-import type { Builder, BuildResult } from "./service"
+import type { Builder, BuildResult, Target } from "./service"
 
-export type BuilderEnv = { BUILDER?: Fetcher; BUILDER_URL?: string; BUILDER_SECRET?: string }
+export type BuilderBinding = { build(files: Record<string, string>, target: Target): Promise<BuildResult> }
 
-export function builderFrom(env: BuilderEnv): Builder | null {
-  if (!env.BUILDER_SECRET) return null
-  const send = env.BUILDER
-    ? (init: RequestInit) => env.BUILDER?.fetch("https://builder/build", init) as Promise<Response>
-    : env.BUILDER_URL
-      ? (init: RequestInit) => fetch(`${env.BUILDER_URL}/build`, init)
-      : null
-  if (!send) return null
-  const secret = env.BUILDER_SECRET
-  return async (files, target) => {
-    const response = await send({
-      method: "POST",
-      headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
-      body: JSON.stringify({ files, target }),
-    })
-    if (!response.ok) throw new Error(`the app builder answered ${response.status}`)
-    return (await response.json()) as BuildResult
-  }
+export function builderFrom(env: { BUILDER?: BuilderBinding }): Builder | null {
+  const binding = env.BUILDER
+  return binding ? (files, target) => binding.build(files, target) : null
 }

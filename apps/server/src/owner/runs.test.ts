@@ -10,6 +10,16 @@ const runs = (scheduled: [string, boolean | undefined][] = []) =>
   })
 
 describe("run budget", () => {
+  it("stops bash fetches with calls to spare, so the model can finish the step and the run continues fresh", () => {
+    const budget = runs().budget()
+    let spared = 0
+    while (budget.spare()) spared++
+    expect(spared).toBe(34)
+    expect(budget.due()).toBe(true)
+    for (let call = 0; call < 6; call++) budget.count()
+    expect(() => budget.count()).toThrow()
+  })
+
   it("keeps running alone, and yields to a waiting agent once it has made progress", () => {
     const budget = runs().budget()
     let waiting = true

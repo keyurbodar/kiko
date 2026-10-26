@@ -10,6 +10,8 @@ import {
 } from "../core/computer/src/install.ts"
 import { sha256Hex } from "../core/durable/src/hash.ts"
 import {
+  BUILDER_DIR,
+  type ReleaseBuilder,
   type ReleaseComputer,
   type ReleaseManifest,
   verifyModuleHash,
@@ -18,6 +20,7 @@ import {
 
 const ROOT = resolve(import.meta.dir, "..")
 const SERVER = join(ROOT, "apps/server")
+const BUILDER = join(ROOT, "apps/builder")
 const COMPUTER = join(ROOT, "apps/computer")
 const OUT = join(ROOT, "dist-release")
 const KEY_DIR = join(homedir(), ".config", "kiko")
@@ -70,15 +73,69 @@ async function loadKey(): Promise<{ privateKey: CryptoKey; x: string }> {
   return { privateKey, x: jwk.x }
 }
 
-async function dryRun(outdir: string): Promise<void> {
-  await rm(outdir, { recursive: true, force: true })
-  const proc = Bun.spawn(["bunx", "wrangler", "deploy", "--dry-run", "--outdir", outdir], {
-    cwd: SERVER,
+async function run(cmd: string[], cwd: string, what: string): Promise<void> {
+  const proc = Bun.spawn(cmd, {
+    cwd,
     env: { ...process.env, NODE_ENV: "production" },
     stdout: "inherit",
     stderr: "inherit",
   })
-  if ((await proc.exited) !== 0) throw new Error("wrangler dry-run failed")
+  if ((await proc.exited) !== 0) throw new Error(`${what} failed`)
+}
+
+type WranglerConfig = {
+  main: string
+  compatibility_date: string
+  compatibility_flags: string[]
+  migrations: ReleaseManifest["migrations"]
+  durable_objects: { bindings: { name: string; class_name: string }[] }
+}
+
+const mainModuleOf = (config: WranglerConfig) =>
+  `${config.main
+    .split("/")
+    .pop()
+    ?.replace(/\.tsx?$/, "")}.js`
+
+async function readModules(
+  dir: string,
+): Promise<{ modules: ReleaseManifest["modules"]; contents: Map<string, Uint8Array> }> {
+  const modules: ReleaseManifest["modules"] = []
+  const contents = new Map<string, Uint8Array>()
+  for (const name of await moduleFiles(dir)) {
+    const type = MODULE_TYPES[extname(name)]
+    if (!type) throw new Error(`No content type for module ${name}`)
+    const bytes = new Uint8Array(await readFile(join(dir, name)))
+    contents.set(name, bytes)
+    modules.push({ name, type, sha256: await sha256Hex(bytes) })
+  }
+  return { modules, contents }
+}
+
+async function buildBuilder(outdir: string): Promise<{ builder: ReleaseBuilder; contents: Map<string, Uint8Array> }> {
+  await rm(outdir, { recursive: true, force: true })
+  await run(["bun", "scripts/vendor.ts"], BUILDER, "the builder vendor step")
+  await run(["bunx", "wrangler", "deploy", "--dry-run", "--outdir", outdir], BUILDER, "the builder dry-run")
+  const config = Bun.JSONC.parse(await readFile(join(BUILDER, "wrangler.jsonc"), "utf8")) as WranglerConfig
+  const { modules, contents } = await readModules(outdir)
+  const main_module = mainModuleOf(config)
+  if (!contents.has(main_module)) throw new Error(`wrangler wrote no builder ${main_module}`)
+  return {
+    builder: {
+      main_module,
+      compatibility_date: config.compatibility_date,
+      compatibility_flags: config.compatibility_flags,
+      durable_objects: config.durable_objects.bindings,
+      migrations: config.migrations,
+      modules,
+    },
+    contents,
+  }
+}
+
+async function dryRun(outdir: string): Promise<void> {
+  await rm(outdir, { recursive: true, force: true })
+  await run(["bunx", "wrangler", "deploy", "--dry-run", "--outdir", outdir], SERVER, "wrangler dry-run")
 }
 
 async function protocolVersion(): Promise<number> {
@@ -136,29 +193,12 @@ async function main(): Promise<void> {
   await dryRun(staging)
   const computer = await buildComputer()
 
-  const config = Bun.JSONC.parse(await readFile(join(SERVER, "wrangler.jsonc"), "utf8")) as {
-    main: string
-    compatibility_date: string
-    compatibility_flags: string[]
-    migrations: ReleaseManifest["migrations"]
-    durable_objects: { bindings: { name: string; class_name: string }[] }
-  }
-  const mainModule = `${config.main
-    .split("/")
-    .pop()
-    ?.replace(/\.tsx?$/, "")}.js`
-  const files = await moduleFiles(staging)
-  if (!files.includes(mainModule)) throw new Error(`wrangler wrote no ${mainModule}`)
-
-  const modules: ReleaseManifest["modules"] = []
-  const contents = new Map<string, Uint8Array>()
-  for (const name of files) {
-    const type = MODULE_TYPES[extname(name)]
-    if (!type) throw new Error(`No content type for module ${name}`)
-    const bytes = new Uint8Array(await readFile(join(staging, name)))
-    contents.set(name, bytes)
-    modules.push({ name, type, sha256: await sha256Hex(bytes) })
-  }
+  const builderStaging = join(OUT, ".staging-builder")
+  const built = await buildBuilder(builderStaging)
+  const config = Bun.JSONC.parse(await readFile(join(SERVER, "wrangler.jsonc"), "utf8")) as WranglerConfig
+  const mainModule = mainModuleOf(config)
+  const { modules, contents } = await readModules(staging)
+  if (!contents.has(mainModule)) throw new Error(`wrangler wrote no ${mainModule}`)
 
   const manifest: ReleaseManifest & { durable_objects: { name: string; class_name: string }[] } = {
     version,
@@ -170,6 +210,7 @@ async function main(): Promise<void> {
     durable_objects: config.durable_objects.bindings,
     modules,
     computer: computerRelease(version, computer.assets),
+    builder: built.builder,
   }
   const manifestBytes = new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`)
   const signature = Buffer.from(await crypto.subtle.sign({ name: "Ed25519" }, privateKey, manifestBytes)).toString(
@@ -181,10 +222,15 @@ async function main(): Promise<void> {
     if (!(await verifyModuleHash(module, contents.get(module.name) as Uint8Array)))
       throw new Error(`self-check failed: ${module.name}`)
   }
+  for (const module of built.builder.modules) {
+    if (!(await verifyModuleHash(module, built.contents.get(module.name) as Uint8Array)))
+      throw new Error(`self-check failed: ${BUILDER_DIR}/${module.name}`)
+  }
 
   const dir = join(OUT, version)
   await rm(dir, { recursive: true, force: true })
   for (const [name, bytes] of contents) await Bun.write(join(dir, name), bytes)
+  for (const [name, bytes] of built.contents) await Bun.write(join(dir, BUILDER_DIR, name), bytes)
   await Bun.write(join(dir, "manifest.json"), manifestBytes)
   await Bun.write(join(dir, "manifest.sig"), `${signature}\n`)
   const computerDir = join(OUT, "computer")
@@ -193,6 +239,7 @@ async function main(): Promise<void> {
   await Bun.write(join(computerDir, COMPUTER_SUMS_FILE), computerSums(computer.assets))
   await Bun.write(join(OUT, "latest-owner.json"), `${JSON.stringify({ version })}\n`)
   await rm(staging, { recursive: true, force: true })
+  await rm(builderStaging, { recursive: true, force: true })
   console.log(`Built ${dir}`)
   console.log(`Built ${computerDir}`)
   console.log(new TextDecoder().decode(manifestBytes))

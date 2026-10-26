@@ -10,7 +10,7 @@ Everything an owner has lives in one `OwnerDO` with one SQLite database. Rooms, 
 - **Agent** (`agent/`) is a room member with its own `pi-durable` harness. Its state is a journal in the same database (`core/agent/src/journal.ts`). Only `agent/factory.ts` builds agents.
 - **User** (`user/`) owns credentials, memory, reminders, routines and presence.
 - **Files** (`files/`) is an index in SQLite. The bytes live in R2, or in the database when the owner has no R2.
-- **Extensions** are a manifest and a script that add tools, instructions or schedules. They run in QuickJS and reach the outside only through the sandbox bridge. Only the human installs one.
+- **Apps** (`apps/`) are Lakebed capsules an agent writes under `/home/apps/<name>/`. A second Worker, `<script>-builder` (`apps/builder`), compiles them. It ships in the same signed release, kiko uploads it with the owner's Cloudflare grant, and kiko reaches it only through the `BUILDER` service binding. It stays a separate Worker because its 14 MB esbuild wasm would otherwise compile on every `OwnerDO` cold start and share that isolate's 128 MB. Lakebed hosts the apps. Kiko keeps one row per app, with the deploy and account tokens sealed.
 
 ## A prompt, end to end
 

@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema"
-import { type ReleaseManifest, parseManifest, verifyModuleHash, verifyRelease } from "./release"
+import { BUILDER_DIR, type ReleaseManifest, parseManifest, verifyModuleHash, verifyRelease } from "./release"
 
 type ReleaseFetch = (url: string) => Promise<Response>
 
@@ -73,6 +73,17 @@ export async function loadVerifiedRelease(
       })
     }
     files.set(module.name, bytes)
+  }
+  for (const module of manifest.builder?.modules ?? []) {
+    const name = `${BUILDER_DIR}/${module.name}`
+    const bytes = await fetchBytes(f, `${dir}/${name}`)
+    if (!(await verifyModuleHash(module, bytes))) {
+      throw new ReleaseRefused({
+        code: "release_untrusted",
+        message: `Module ${name} does not match the signed manifest. Nothing was uploaded.`,
+      })
+    }
+    files.set(name, bytes)
   }
   return { manifest, files }
 }

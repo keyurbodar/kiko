@@ -17,7 +17,7 @@ type FakeAccount = {
   name?: string
   subdomain: string | null
   scripts: Record<string, FakeScript>
-  refuses?: "listing" | "creating"
+  refuses?: "listing" | "creating" | "builder"
 }
 type FakeUser = { email: string; metadata: Record<string, unknown> }
 type Upload = { account: string; script: string; bindings: UploadedBinding[]; migrations: unknown }
@@ -47,31 +47,55 @@ const ownedBy = (sub: string, tag?: string, modified?: string) =>
 const unclaimed = (tag?: string) => kikoScript(secret("OWNER_ID"), tag)
 const foreign = (): FakeScript => ({ tag: "x", modified: "2026-01-01T00:00:00Z", bindings: [secret("API_KEY")] })
 
-const signedRelease = Effect.promise(async () => {
-  const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])) as CryptoKeyPair
-  const publicKey = ((await crypto.subtle.exportKey("jwk", pair.publicKey)) as JsonWebKey).x as string
-  const module = new TextEncoder().encode("export default {}")
-  const manifest = new TextEncoder().encode(
-    JSON.stringify({
-      version: VERSION,
-      protocol: 3,
-      main_module: "index.js",
-      compatibility_date: "2026-09-01",
-      compatibility_flags: [],
-      durable_objects: [{ name: "OWNER", class_name: "OwnerDO" }],
-      migrations: [{ tag: "v5", new_sqlite_classes: ["OwnerDO"] }],
-      modules: [{ name: "index.js", type: "application/javascript+module", sha256: await sha256Hex(module) }],
-    }),
-  )
-  const signature = Buffer.from(await crypto.subtle.sign({ name: "Ed25519" }, pair.privateKey, manifest))
-  const files: Record<string, Uint8Array | string> = {
-    "/latest-owner.json": JSON.stringify({ version: VERSION }),
-    [`/${VERSION}/manifest.json`]: manifest,
-    [`/${VERSION}/manifest.sig`]: signature.toString("base64"),
-    [`/${VERSION}/index.js`]: module,
-  }
-  return { publicKey, files }
-})
+const BUILDER_CODE = "export class Builder {}"
+
+const signedReleaseWith = (withBuilder: boolean) =>
+  Effect.promise(async () => {
+    const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])) as CryptoKeyPair
+    const publicKey = ((await crypto.subtle.exportKey("jwk", pair.publicKey)) as JsonWebKey).x as string
+    const module = new TextEncoder().encode("export default {}")
+    const manifest = new TextEncoder().encode(
+      JSON.stringify({
+        version: VERSION,
+        protocol: 3,
+        main_module: "index.js",
+        compatibility_date: "2026-09-01",
+        compatibility_flags: [],
+        durable_objects: [{ name: "OWNER", class_name: "OwnerDO" }],
+        migrations: [{ tag: "v5", new_sqlite_classes: ["OwnerDO"] }],
+        modules: [{ name: "index.js", type: "application/javascript+module", sha256: await sha256Hex(module) }],
+        ...(withBuilder
+          ? {
+              builder: {
+                main_module: "index.js",
+                compatibility_date: "2026-09-01",
+                compatibility_flags: [],
+                durable_objects: [{ name: "BUILDER", class_name: "Builder" }],
+                migrations: [{ tag: "v1", new_sqlite_classes: ["Builder"] }],
+                modules: [
+                  {
+                    name: "index.js",
+                    type: "application/javascript+module",
+                    sha256: await sha256Hex(new TextEncoder().encode(BUILDER_CODE)),
+                  },
+                ],
+              },
+            }
+          : {}),
+      }),
+    )
+    const signature = Buffer.from(await crypto.subtle.sign({ name: "Ed25519" }, pair.privateKey, manifest))
+    const files: Record<string, Uint8Array | string> = {
+      "/latest-owner.json": JSON.stringify({ version: VERSION }),
+      [`/${VERSION}/manifest.json`]: manifest,
+      [`/${VERSION}/manifest.sig`]: signature.toString("base64"),
+      [`/${VERSION}/index.js`]: module,
+      ...(withBuilder ? { [`/${VERSION}/builder/index.js`]: BUILDER_CODE } : {}),
+    }
+    return { publicKey, files }
+  })
+
+const signedRelease = signedReleaseWith(false)
 
 const ok = (result: unknown) => Response.json({ success: true, result })
 const refusal = (status: number, code: number, message: string) =>
@@ -100,6 +124,7 @@ function makeWorld(input: {
     }
     const existing = owner.scripts[name]
     if (!existing && owner.refuses === "creating") return refusal(403, 10000, "Authentication error")
+    if (name.endsWith("-builder") && owner.refuses === "builder") return refusal(500, 10013, "builder refused")
     const resolved = metadata.bindings.map((binding) =>
       binding.type === "inherit"
         ? existing?.bindings.find((kept) => kept.name === binding.name)
@@ -254,9 +279,9 @@ const releaseFetch = (world: World, release: Effect.Success<typeof signedRelease
   }
 }
 
-const installerFor = (world: World) =>
+const installerFor = (world: World, withBuilder = false) =>
   Effect.gen(function* () {
-    const release = yield* signedRelease
+    const release = yield* signedReleaseWith(withBuilder)
     const installer = yield* makeInstaller
     const layer = Layer.mergeAll(
       world.services(release.publicKey),
@@ -281,9 +306,13 @@ const installerFor = (world: World) =>
 const TOKEN_GRANT = { kind: "token", token: API_TOKEN } as const
 const OAUTH_GRANT = { kind: "oauth", code: "code-1", verifier: "verifier", redirectUri: "https://app.test/cb" } as const
 
-const shape = (bindings: ReadonlyArray<UploadedBinding>) =>
+const shape = (bindings: ReadonlyArray<UploadedBinding & { service?: string }>) =>
   bindings.map((binding) =>
-    binding.type === "plain_text" ? `${binding.name}=${binding.text}` : `${binding.type}:${binding.name}`,
+    binding.type === "plain_text"
+      ? `${binding.name}=${binding.text}`
+      : binding.type === "service"
+        ? `service:${binding.name}=${binding.service}`
+        : `${binding.type}:${binding.name}`,
   )
 
 const storedGrant = (upload: Upload | undefined) =>
@@ -526,6 +555,46 @@ describe("install", () => {
       assert.deepStrictEqual(reply, { status: 204, body: null })
       assert.deepStrictEqual(world.users.get("user_a")?.metadata, { theme: "dark" })
       assert.deepStrictEqual(world.writes, [])
+    }),
+  )
+
+  it.effect("uploads the app builder before the backend and binds the backend to it", () =>
+    Effect.gen(function* () {
+      const world = makeWorld({ accounts: [{ id: "acc1", subdomain: "owner", scripts: {} }] })
+      const installer = yield* installerFor(world, true)
+      const reply = yield* installer.install({ sub: "user_a", grant: TOKEN_GRANT })
+      assert.strictEqual(reply.status, 200)
+      assert.deepStrictEqual(
+        world.uploads.map((upload) => [upload.script, shape(upload.bindings)]),
+        [
+          ["kiko-builder", ["durable_object_namespace:BUILDER"]],
+          [
+            "kiko",
+            [
+              "durable_object_namespace:OWNER",
+              "OWNER_ID=user_a",
+              "secret_text:CF_GRANT",
+              "secret_text:SESSION_SECRET",
+              "secret_text:CREDENTIALS_KEK",
+              "service:BUILDER=kiko-builder",
+            ],
+          ],
+        ],
+      )
+    }),
+  )
+
+  it.effect("still installs the backend when the app builder upload fails", () =>
+    Effect.gen(function* () {
+      const world = makeWorld({ accounts: [{ id: "acc1", subdomain: "owner", scripts: {}, refuses: "builder" }] })
+      const installer = yield* installerFor(world, true)
+      const reply = yield* installer.install({ sub: "user_a", grant: TOKEN_GRANT })
+      assert.strictEqual(reply.status, 200)
+      assert.deepStrictEqual(
+        world.uploads.map((upload) => upload.script),
+        ["kiko"],
+      )
+      assert.notInclude(shape(world.uploads[0]?.bindings ?? []), "service:BUILDER=kiko-builder")
     }),
   )
 })

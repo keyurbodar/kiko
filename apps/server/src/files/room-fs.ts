@@ -23,6 +23,7 @@ import type { AgentSlug } from "@kiko/protocol"
 import type { OwnerServices } from "../owner/services"
 import type { FsChange, FsEntry, FsFail } from "../room/files"
 import type { AgentHome } from "../room/room-do"
+import type { SecureFetch } from "just-bash"
 import { type BashResult, runCommand } from "./bash"
 import { cleanPath, deleteFiles, fileKey, HOME } from "./paths"
 import { type BatchChange, batchPaths, typeForPath } from "./batch"
@@ -83,6 +84,7 @@ export class RoomFs implements ExecutionEnv {
   constructor(
     readonly id: string,
     private readonly backend: FilesBackend,
+    readonly network?: SecureFetch,
   ) {}
 
   roomPath(path: string): Result<string, FileError> {
@@ -433,12 +435,16 @@ export class RoomFs implements ExecutionEnv {
   async cleanup(_context?: Context): Promise<void> {}
 }
 
-export function roomViews(id: string, backend: FilesBackend): (conversationId: ConversationId) => RoomFs {
+export function roomViews(
+  id: string,
+  backend: FilesBackend,
+  network?: SecureFetch,
+): (conversationId: ConversationId) => RoomFs {
   const views = new Map<ConversationId, RoomFs>()
   return (conversationId) => {
     let view = views.get(conversationId)
     if (!view) {
-      view = new RoomFs(id, backend)
+      view = new RoomFs(id, backend, network)
       views.set(conversationId, view)
     }
     return view

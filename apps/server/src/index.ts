@@ -1,3 +1,4 @@
+import type { BuilderBinding } from "./apps/builder-client"
 import type { BackendDescriptor } from "@kiko/protocol"
 import { serveAsset } from "./lib/assets"
 import { devResponse } from "./lib/dev-guard"
@@ -27,9 +28,7 @@ export interface Env extends AuthEnv {
   CF_TURN_KEY_ID?: string
   CF_TURN_KEY_TOKEN?: string
   CF_GRANT?: string
-  BUILDER?: Fetcher
-  BUILDER_URL?: string
-  BUILDER_SECRET?: string
+  BUILDER?: BuilderBinding
 }
 
 function version(env: Env): Response {

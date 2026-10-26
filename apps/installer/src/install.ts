@@ -7,6 +7,7 @@ import {
   listScripts,
   scriptBindings,
 } from "@kiko/durable/cloudflare"
+import { installBuilder } from "@kiko/durable/builder-install"
 import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
 import {
   buildMetadata,
@@ -313,12 +314,13 @@ const upload = Effect.fn("Installer.upload")(function* (
         ? [fresh("SESSION_SECRET")]
         : []),
   ]
+  const builder = yield* installBuilder(cf, account.id, deployment.name, release)
   const metadata = yield* Effect.try({
     try: () =>
       buildMetadata(
         release.manifest,
         selectMigrations(release.manifest.migrations, deployment.existing?.tag ?? null),
-        keptBindings(deployment.existing?.bindings ?? [], written),
+        keptBindings(deployment.existing?.bindings ?? [], builder ? [...written, builder] : written),
       ),
     catch: (error) =>
       error instanceof ReleasePlanRefused && error.reason === "unknown_migration"

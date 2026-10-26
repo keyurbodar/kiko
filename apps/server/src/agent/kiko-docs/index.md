@@ -24,7 +24,7 @@ Read this page first. The other pages go deeper:
 | /chat.md | This chat's goal, decisions, and who does what | you |
 | /kiko/ | This folder: how Kiko works | nobody, it is read-only |
 
-The tools `read`, `write`, `edit`, `ls`, `rm`, `mv`, `cp`, `mkdir`, and `bash` all work over these paths. `bash` sees /tmp as scratch that is not saved. Prefer `edit` to `write`: it changes one part of a file without loading the whole thing.
+The tools `read`, `write`, `edit`, `ls`, `rm`, `mv`, `cp`, `mkdir`, and `bash` all work over these paths. `bash` sees /tmp as scratch that is not saved, and has `curl` for https urls, `jq`, and `html-to-markdown`. Prefer `edit` to `write`: it changes one part of a file without loading the whole thing.
 
 To make a path clickable in a reply, write a markdown link to it: `[app.ts](/src/app.ts)`, or `[src](/src/)` with a trailing slash for a folder. A bare path in backticks also links a file.
 
