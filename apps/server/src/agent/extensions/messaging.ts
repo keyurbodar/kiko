@@ -7,7 +7,7 @@ import { declareEffect } from "@kiko/agent/effects"
 export const MESSAGING = "messaging"
 
 export type MessagingPort = {
-  send(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
+  send(input: AgentSend): Promise<{ ok: true; to: AgentSlug[]; answered?: true } | { ok: false; error: string }>
   askHuman(input: {
     id: string
     question?: string
@@ -46,11 +46,15 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
     })
     if (!out.ok) return { output: text(out.error), isError: true }
     const who = out.to.map((s) => `@${s}`).join(", ")
+    const said =
+      out.answered && expectsReply !== true
+        ? `sent to ${who} as your answer to their message. it shows in the chat, so do not repeat it or sum it up in your reply.`
+        : expectsReply === false
+          ? `sent to ${who}. it shows in the chat. no reply is expected, so do not wait for one.`
+          : `sent to ${who}. it shows in the chat, and their answer will reach you as a new message and wake you. When it arrives, continue the work or tell the human the result without waiting for another human message.`
     return {
       output: text(
-        expectsReply === false
-          ? `sent to ${who}. it shows in the chat. no reply is expected, so do not wait for one.`
-          : `sent to ${who}. it shows in the chat, and their answer will reach you as a new message and wake you. When it arrives, continue the work or tell the human the result without waiting for another human message. If you have nothing else to add now, reply with just [skip].`,
+        `${said} the chat already shows what you sent, so do not narrate it. If you have nothing else for the human now, reply with just [skip].`,
       ),
     }
   }

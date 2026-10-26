@@ -19,7 +19,7 @@ type StoredSend = {
 }
 
 export type SendOutcome =
-  | { ok: true; send: StoredSend; events: RoomEvent[] }
+  | { ok: true; send: StoredSend; events: RoomEvent[]; answered?: true }
   | { ok: false; error: string; events: RoomEvent[] }
 
 export type Chain = { rootId: string; hop: number }
@@ -75,7 +75,7 @@ export class MessageChains {
     const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, recipients }
     this.count(rootId, recipients.length)
     const answering = !pair && input.to !== "all" && input.expectsReply !== true
-    const settled = answering ? this.asks.answer(from, input.to as AgentSlug, text) : false
+    const settled = answering ? this.asks.answer(from, input.to as AgentSlug, text, input.id) : []
     const back = answering ? this.asks.answerRemote(from, input.to as AgentSlug, text) : []
     if (back.length) send.returns = back
     this.sql.exec(
@@ -86,11 +86,18 @@ export class MessageChains {
       this.log.roomId,
     )
     for (const ask of back) this.giveBack(ask.id, from, input.to as AgentSlug, text, ask.remote, { rootId, hop })
-    if (!back.length) this.enqueue(from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
-    if (!back.length && (input.expectsReply ?? !settled))
+    const held = settled.some((messageId) => this.asks.waiting(input.to as AgentSlug, messageId, ""))
+    if (!back.length && !held) this.enqueue(from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
+    if (!back.length && (input.expectsReply ?? !settled.length))
       for (const to of recipients) this.asks.expect(`${input.id}:${to}`, from, to, stored.id, this.now(), pair)
+    if (!held) for (const messageId of settled) this.release(input.to as AgentSlug, messageId, "", input.id)
     this.prune()
-    return { ok: true, send, events: stored.event ? [stored.event] : [] }
+    return {
+      ok: true,
+      send,
+      events: stored.event ? [stored.event] : [],
+      ...(settled.length || back.length ? { answered: true as const } : {}),
+    }
   }
 
   private resend(earlier: { send: string }, from: AgentSlug, input: AgentSend, pair: RoomId | null): SendOutcome {
@@ -216,9 +223,10 @@ export class MessageChains {
     from: AgentSlug,
     to: AgentSlug,
     message: { id: string; seq: number; text: string },
+    hold = false,
   ): StoredSend | null {
     return this.storage.transactionSync(() => {
-      const previous = this.replay(id, from)
+      const previous = this.replay(id, from, null, hold)
       if (previous) return previous
       const { rootId, hop: was } = this.chain(from)
       const hop = was + 1
@@ -239,16 +247,23 @@ export class MessageChains {
         this.now(),
         this.log.roomId,
       )
-      this.enqueue(from, send)
+      if (!hold) this.enqueue(from, send)
       return send
     })
+  }
+
+  release(asker: AgentSlug, messageId: string, except = "", sent = ""): boolean {
+    if (this.asks.waiting(asker, messageId, except)) return false
+    for (const ask of this.asks.batch(asker, messageId))
+      if (ask.send !== sent) this.replay(ask.send ?? `answer:${ask.id}`, ask.askee)
+    return true
   }
 
   async settle(): Promise<void> {
     await Promise.all(this.admissions.splice(0))
   }
 
-  private replay(id: string, from: AgentSlug, remote: Remote | null = null): StoredSend | null {
+  private replay(id: string, from: AgentSlug, remote: Remote | null = null, hold = false): StoredSend | null {
     const row = this.sql
       .exec<{ send: string }>(
         "SELECT send FROM agent_sends WHERE id = ?1 AND agent_sends.room_id = ?2",
@@ -258,7 +273,7 @@ export class MessageChains {
       .toArray()[0]
     if (!row) return null
     const send = JSON.parse(row.send) as StoredSend
-    this.enqueue(from, send, remote)
+    if (!hold) this.enqueue(from, send, remote)
     return send
   }
 
@@ -387,7 +402,7 @@ import type { Team } from "./team"
 import type { Members } from "./members"
 import { receive, type ReceiveDeps } from "./receive"
 
-type MailOutcome = { ok: true; to: AgentSlug[] } | { ok: false; error: string }
+type MailOutcome = { ok: true; to: AgentSlug[]; answered?: true } | { ok: false; error: string }
 
 type MailDeps = ReceiveDeps & {
   ctx: DurableObjectState
@@ -426,7 +441,7 @@ export class RoomMessaging {
     this.d.publish(out.events)
     if (!out.ok) return out
     await this.d.mail.settle()
-    return { ok: true, to: out.send.recipients }
+    return { ok: true, to: out.send.recipients, ...(out.answered ? { answered: out.answered } : {}) }
   }
 
   async answerAsks(slug: AgentSlug, runId: string, heard: readonly string[]): Promise<void> {
@@ -461,16 +476,15 @@ export class RoomMessaging {
         this.d.asks.settle(ask.id, text)
         continue
       }
-      if (!message) {
-        this.d.asks.settle(ask.id, "")
-        continue
-      }
-      if (!this.d.mail.relay(`answer:${ask.id}`, slug, ask.asker, { ...message, text })) {
-        this.d.asks.settle(ask.id, "")
+      const relayed = message
+        ? this.d.mail.relay(`answer:${ask.id}`, slug, ask.asker, { ...message, text }, true)
+        : null
+      if (!this.d.mail.release(ask.asker, ask.messageId, ask.id)) {
+        this.d.asks.settle(ask.id, relayed ? text : "")
         continue
       }
       await this.d.mail.settle()
-      this.d.asks.settle(ask.id, text)
+      this.d.asks.settle(ask.id, relayed ? text : "")
     }
   }
 

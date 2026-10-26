@@ -8,7 +8,9 @@ import { MessageChains, RoomMessaging } from "./messaging"
 const ROOM = "room"
 const JUNO = "juno" as AgentSlug
 const MIRA = "mira" as AgentSlug
+const ROSA = "rosa" as AgentSlug
 const MEMBERS = [{ slug: JUNO }, { slug: MIRA }]
+const TRIO = [{ slug: JUNO }, { slug: MIRA }, { slug: ROSA }]
 
 const TABLES = [
   "CREATE TABLE root_counts (room_id TEXT NOT NULL, root_id TEXT, deliveries INTEGER NOT NULL, tripped INTEGER NOT NULL DEFAULT 0, at INTEGER, PRIMARY KEY (room_id, root_id)) WITHOUT ROWID",
@@ -43,8 +45,12 @@ function room() {
     setMeta: () => {},
   } as unknown as RoomLog
   const asks = new Asks(sql, ROOM)
-  const mail = new MessageChains(storage, log, asks)
-  return { asks, mail }
+  const delivered: { from: AgentSlug; to: AgentSlug; text: string }[] = []
+  const mail = new MessageChains(storage, log, asks, undefined, undefined, (m) => {
+    delivered.push({ from: m.from, to: m.to, text: m.send.text })
+  })
+  const messaging = new RoomMessaging({ asks, mail } as unknown as ConstructorParameters<typeof RoomMessaging>[0])
+  return { asks, mail, messaging, delivered }
 }
 
 const sent = (out: ReturnType<MessageChains["send"]>) => {
@@ -104,5 +110,72 @@ describe("hop cap", () => {
     await messaging.relayHeard(MIRA, [`agent:${request}:${MIRA}`], "here it is", { id: "m9", seq: 9 })
 
     expect(asks.unanswered(MIRA, [request])).toEqual([])
+  })
+})
+
+describe("fan-out answers", () => {
+  it("reach the asker together once every teammate has answered", async () => {
+    const { mail, messaging, delivered } = room()
+    const kickoff = sent(mail.send(JUNO, { id: "k", to: "all", text: "three facts each" }, TRIO))
+    delivered.length = 0
+
+    await messaging.relayHeard(MIRA, [`agent:${kickoff}:${MIRA}`], "mira's facts", { id: "m8", seq: 8 })
+    const early = delivered.length
+    await messaging.relayHeard(ROSA, [`agent:${kickoff}:${ROSA}`], "rosa's facts", { id: "m9", seq: 9 })
+
+    expect(early).toBe(0)
+    expect(delivered).toEqual([
+      { from: MIRA, to: JUNO, text: "mira's facts" },
+      { from: ROSA, to: JUNO, text: "rosa's facts" },
+    ])
+  })
+
+  it("are released when the last teammate has nothing to add", async () => {
+    const { mail, messaging, delivered } = room()
+    const kickoff = sent(mail.send(JUNO, { id: "k", to: "all", text: "three facts each" }, TRIO))
+    delivered.length = 0
+
+    await messaging.relayHeard(MIRA, [`agent:${kickoff}:${MIRA}`], "mira's facts", { id: "m8", seq: 8 })
+    await messaging.relayHeard(ROSA, [`agent:${kickoff}:${ROSA}`], "", null)
+
+    expect(delivered).toEqual([{ from: MIRA, to: JUNO, text: "mira's facts" }])
+  })
+
+  it("are released when the last teammate answers with send_message", async () => {
+    const { mail, messaging, delivered } = room()
+    const kickoff = sent(mail.send(JUNO, { id: "k", to: "all", text: "three facts each" }, TRIO))
+    delivered.length = 0
+
+    await messaging.relayHeard(MIRA, [`agent:${kickoff}:${MIRA}`], "mira's facts", { id: "m8", seq: 8 })
+    mail.send(ROSA, { id: "r", to: JUNO, text: "rosa's facts" }, TRIO)
+
+    expect(delivered.map((d) => d.text).sort()).toEqual(["mira's facts", "rosa's facts"])
+  })
+})
+
+describe("fan-out answers sent with send_message", () => {
+  it("wait for the teammates still working", async () => {
+    const { mail, messaging, delivered } = room()
+    const kickoff = sent(mail.send(JUNO, { id: "k", to: "all", text: "three facts each" }, TRIO))
+    delivered.length = 0
+
+    mail.send(MIRA, { id: "m", to: JUNO, text: "mira's facts" }, TRIO)
+    const early = delivered.length
+    await messaging.relayHeard(ROSA, [`agent:${kickoff}:${ROSA}`], "rosa's facts", { id: "m9", seq: 9 })
+
+    expect(early).toBe(0)
+    expect(delivered.map((d) => d.text).sort()).toEqual(["mira's facts", "rosa's facts"])
+  })
+})
+
+describe("task reports", () => {
+  it("are owed to the lead only while its ask is unanswered", async () => {
+    const { asks, mail, messaging } = room()
+    const request = sent(mail.send(JUNO, { id: "a", to: MIRA, text: "write the faq" }, MEMBERS))
+    const owedBefore = asks.owes(MIRA, JUNO)
+
+    await messaging.relayHeard(MIRA, [`agent:${request}:${MIRA}`], "faq is in review", { id: "m9", seq: 9 })
+
+    expect([owedBefore, asks.owes(MIRA, JUNO)]).toEqual([true, false])
   })
 })

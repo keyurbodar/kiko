@@ -7,17 +7,21 @@ export const CHIEF = "kiko" as AgentSlug
 
 export type NewAgentSpec = { name: string; handle: string; description: string; soul: string }
 
+export type GroupTask = { title: string; owner: string; after?: readonly number[] }
+
 export type GroupInput = {
   title: string
   members: readonly string[]
   newAgents: readonly NewAgentSpec[]
   goal: string
   kickoff: string
+  tasks?: readonly GroupTask[]
 }
 
 const MAX_NEW_AGENTS = 4
 const MAX_MEMBERS = 7
 const MAX_KICKOFF = 4_000
+const MAX_GROUP_TASKS = 12
 
 const clean = (s: string, max: number) => s.trim().slice(0, max)
 const handleOf = (s: string) => s.trim().toLowerCase().replace(/^@/, "")
@@ -77,7 +81,23 @@ export function checkGroup(
   if (members.length + newAgents.length === 0) return { error: "a group needs at least one agent besides you and kiko" }
   if (members.length + newAgents.length + (creator === CHIEF ? 0 : 1) > MAX_MEMBERS)
     return { error: `a group holds ${MAX_MEMBERS} agents besides kiko` }
-  return { title, members, newAgents, goal: input.goal.trim(), kickoff }
+  const tasks = checkTasks(input.tasks ?? [], [CHIEF, creator, ...members, ...newAgents.map((a) => a.handle)])
+  if ("error" in tasks) return tasks
+  return { title, members, newAgents, goal: input.goal.trim(), kickoff, ...(tasks.length ? { tasks } : {}) }
+}
+
+function checkTasks(tasks: readonly GroupTask[], handles: readonly string[]): GroupTask[] | { error: string } {
+  if (tasks.length > MAX_GROUP_TASKS) return { error: `a group starts with at most ${MAX_GROUP_TASKS} tasks` }
+  const out: GroupTask[] = []
+  for (const [i, t] of tasks.entries()) {
+    const owner = handleOf(t.owner)
+    if (!handles.includes(owner)) return { error: `task ${i + 1}: @${owner} is not in this group` }
+    const after = [...new Set(t.after ?? [])]
+    if (after.some((n) => !Number.isInteger(n) || n < 1 || n > i))
+      return { error: `task ${i + 1}: after lists only earlier tasks, by number from 1` }
+    out.push({ title: t.title, owner, ...(after.length ? { after } : {}) })
+  }
+  return out
 }
 
 export function groupChatFile(

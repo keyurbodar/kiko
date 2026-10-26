@@ -22,7 +22,7 @@ export type GroupsPort = {
 const CHIEF_RULES = `You are the chief: you make the human's agents. This chat is only ever you and them and never gets members, even when asked; to bring an agent into a conversation with you, create_group with kiko and that agent.
 - For something ongoing (a trip, a habit, a project), offer a specialist. For a one-off question, just answer.
 - A new agent: get the goal (one question at most), then create_agent with a short memorable name. Write its soul as the agent, in the first person: who it is, how it talks, how it works for this human, what it will not do. Specific, under 1500 characters, casual and direct. End it with "## what i've learned about working with them".
-- A quick one-off for an agent the human has: send_message it privately. A team effort: reuse agents that fit, make new ones only for roles nobody covers, and create_group. Drive the rounds yourself and tell the human the result.
+- A quick one-off for an agent the human has: send_message it privately. A team effort: reuse agents that fit, make new ones only for roles nobody covers, and create_group, with its tasks when the work is tracked. From then on the group is the work's only home: you drive it there, and the human reads the result there. Do not message its members from this chat.
 - After you make something, show it in two or three lines (name, what it does, its vibe). To change it, ask the human what, then make it again.`
 
 const MEMBER_RULES = `For a job that needs several agents together, create_group. For a quick one-off with another agent, send_message them privately. Only Kiko makes new agents; ask Kiko when none fits.`
@@ -70,7 +70,7 @@ export function groupsExtension(port: GroupsPort): Extension {
   const createGroup = defineTool({
     name: "create_group",
     description:
-      "start a new group chat for a team effort. kiko is always in it, and you are too. members are the human's existing agents by handle. goal becomes /chat.md with who does what. kickoff is your first message to everyone in the group: it is posted as yours and delivered at once, so they start without the human. asking again for the same agents reuses the chat and sends the kickoff there. only kiko may pass new_agents.",
+      "start a new group chat for a team effort. kiko is always in it, and you are too. members are the human's existing agents by handle. goal becomes /chat.md with who does what. kickoff is your first message to everyone in the group: it is posted as yours and delivered at once, so they start without the human. a teammate acts only on a message or task that reaches it, and never on another teammate's reply, so the kickoff asks only for work each can start now; you send each later step yourself when the answers come back, together. tasks go on the group's board, which only exists in the group. asking again for the same agents reuses the chat and sends the kickoff there. only kiko may pass new_agents.",
     parameters: Type.Object({
       title: Type.String(),
       members: Type.Array(Type.String(), { description: "handles of the human's existing agents to include" }),
@@ -81,6 +81,24 @@ export function groupsExtension(port: GroupsPort): Extension {
       new_agents: Type.Optional(
         Type.Array(NewAgent, { description: "kiko only: agents to make for this group, with souls" }),
       ),
+      tasks: Type.Optional(
+        Type.Array(
+          Type.Object({
+            title: Type.String({ description: "an action label of fewer than 12 words" }),
+            owner: Type.String({ description: "the member's handle" }),
+            after: Type.Optional(
+              Type.Array(Type.Integer(), {
+                description: "numbers, from 1, of earlier tasks in this list that must be done first",
+              }),
+            ),
+          }),
+          {
+            maxItems: 12,
+            description:
+              "only when the human asks for tracked tasks: the group's starting board. leave it out for a single round of steps, which you drive with messages",
+          },
+        ),
+      ),
     }),
     replay: "safe",
     execute: async (g) => {
@@ -90,6 +108,7 @@ export function groupsExtension(port: GroupsPort): Extension {
         goal: g.goal,
         kickoff: g.kickoff,
         newAgents: (g.new_agents ?? []) as NewAgentSpec[],
+        ...(g.tasks?.length ? { tasks: g.tasks } : {}),
       })
       return out.ok ? { output: text(out.text) } : fail(out.error)
     },
