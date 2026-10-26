@@ -20,6 +20,11 @@ export const installBuilder = (
     ),
     Effect.flatMap((body) => cf.call(`/accounts/${accountId}/workers/scripts/${name}`, { method: "PUT", body })),
     Effect.as(builderBinding(mainScript)),
-    Effect.catch(() => Effect.succeed(null)),
+    Effect.catch((error) =>
+      Effect.sync(() => {
+        console.error(`app builder install failed: ${error instanceof Error ? error.message : String(error)}`)
+        return null
+      }),
+    ),
   )
 }

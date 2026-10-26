@@ -163,6 +163,8 @@ const LAST_CHAT = "last_chat"
 
 type NewAgentOutcome = { ok: true; agent: Agent; roomId: RoomId } | { ok: false; error: string }
 
+const BUILDER_REPAIR = "builder_repair"
+
 export class User {
   private readonly sql: SqlStorage
   private alarms!: Alarms
@@ -1215,9 +1217,16 @@ export class User {
   appsService(): Apps | null {
     if (this.#apps === undefined) {
       const build = builderFrom(this.env)
+      if (!build) this.installMissingBuilder()
       this.#apps = build ? new Apps(this.sql, keyringFromEnv(this.env), this.ownerId, build, this.egress) : null
     }
     return this.#apps
+  }
+
+  private installMissingBuilder(): void {
+    if (!this.env.CF_GRANT || getSetting(this.sql, BUILDER_REPAIR) === BACKEND.version) return
+    setSetting(this.sql, BUILDER_REPAIR, BACKEND.version)
+    this.selfUpdate.start(BACKEND.version)
   }
 
   #composioConnection?: ComposioConnection

@@ -162,7 +162,7 @@ async function manage(apps: Apps, fs: RoomFs, a: ManageArgs): Promise<string> {
 export function appsExtension(deps: AppsDeps): Extension {
   const apps = () => {
     const service = deps.apps()
-    if (!service) throw new Error("App building arrives with the next Kiko update on this install.")
+    if (!service) throw new Error("Kiko is installing the app builder on this install. Try again in a few minutes.")
     return service
   }
   const guarded =
