@@ -1,28 +1,29 @@
-import { For, Match, Suspense, Switch, createSignal, lazy, onCleanup, onMount, Show, type JSX } from "solid-js"
+import { For, Match, Suspense, Switch, createSignal, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CheckIcon, CollapseIcon, CopyIcon, ExpandIcon } from "@kiko/ui/icons"
+import { CheckIcon, ChevronDownIcon, CollapseIcon, CopyIcon, ExpandIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Dynamic } from "solid-js/web"
-import type { RichText as RichTextTree } from "@kiko/protocol"
+import { plainText, type RichText as RichTextTree } from "@kiko/protocol"
 import { EmojiText } from "../../lib/emoji"
 import { FileChip } from "../ui/FileChip"
 import { Mention } from "../ui/Mention"
+import { TokenText } from "./token-chips"
 import { CodeBlock } from "./CodeBlock"
 import { LinkIcon } from "./LinkIcon"
 import { linkHost, linkLead, richNodes, type RichNode, type TableCopy } from "./model"
+import { PlainFallback } from "./plain-fallback"
 import { RichImage } from "./RichImage"
 import "./rich.css"
+import { SuspiciousLinkDialog } from "../ui/SuspiciousLinkDialog"
 
-const SuspiciousLinkDialog = lazy(() =>
-  import("../ui/SuspiciousLinkDialog").then((m) => ({ default: m.SuspiciousLinkDialog })),
-)
+type Masked = { href: string; text: string }
 
-function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.Element {
+function Node(props: { node: RichNode; onMasked: (link: Masked) => void }): JSX.Element {
   return (
     <Switch>
       <Match when={props.node.kind === "text" && props.node}>
-        {(n) => <EmojiText text={(n() as { text: string }).text} />}
+        {(n) => <TokenText text={(n() as { text: string }).text} />}
       </Match>
       <Match when={props.node.kind === "mention" && props.node}>
         {(n) => <Mention slug={(n() as { slug: string }).slug} />}
@@ -40,7 +41,7 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
         }}
       </Match>
       <Match when={props.node.kind === "code" && props.node}>
-        {(n) => <CodeBlock lang={(n() as { lang?: string }).lang} text={(n() as { text: string }).text} />}
+        {(n) => <CodeBlock files={(n() as Extract<RichNode, { kind: "code" }>).files} />}
       </Match>
       <Match when={props.node.kind === "masked" && props.node}>
         {(n) => {
@@ -50,7 +51,7 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
               type="button"
               class="cursor-pointer text-inherit underline underline-offset-2"
               data-component="chat-masked-link"
-              onClick={() => props.onMasked(m().href)}
+              onClick={(e) => props.onMasked({ href: m().href, text: e.currentTarget.textContent?.trim() ?? "" })}
             >
               <For each={m().children}>{(child) => <Node node={child} onMasked={props.onMasked} />}</For>
             </button>
@@ -87,7 +88,7 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
   )
 }
 
-function IconLead(props: { host: string; nodes: RichNode[]; onMasked: (href: string) => void }): JSX.Element {
+function IconLead(props: { host: string; nodes: RichNode[]; onMasked: (link: Masked) => void }): JSX.Element {
   const first = () => props.nodes[0]
   const lead = () => {
     const n = first()
@@ -113,6 +114,10 @@ function orderedGutter(start: string | undefined, count: number): { "--list-gutt
   return width <= 1 ? undefined : { "--list-gutter": `${width + 2}ch` }
 }
 
+const TABLE_ROWS_SHOWN = 4
+
+const TABLE_FOLD_AFTER = 6
+
 function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Element {
   const [expanded, setExpanded] = createSignal(true)
   const [copied, setCopied] = createSignal(false)
@@ -129,7 +134,11 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
       `${Math.max(0, scroller.scrollWidth - scroller.clientWidth - scroller.scrollLeft)}px`,
     )
   }
+  const [rows, setRows] = createSignal(0)
+  const [allRows, setAllRows] = createSignal(false)
+  const folded = () => !allRows() && rows() > TABLE_FOLD_AFTER
   onMount(() => {
+    setRows(root?.querySelectorAll("tbody tr").length ?? 0)
     fade()
     const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(fade)
     if (scroller) observer?.observe(scroller)
@@ -159,11 +168,24 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
     timer = setTimeout(() => setCopied(false), 1200)
   }
   return (
-    <div class="rich-table" ref={root} data-expanded={expanded() ? "true" : "false"} data-component="chat-table">
+    <div
+      class="rich-table"
+      ref={root}
+      data-expanded={expanded() ? "true" : "false"}
+      data-rows-folded={folded() ? "" : undefined}
+      data-component="chat-table"
+    >
       <div class="rich-table-scroll" ref={scroller} onScroll={fade}>
         {props.children}
       </div>
       <div class="rich-table-footer">
+        <Show when={folded()} fallback={<span />}>
+          <button type="button" class="rich-table-more" data-disclosure="" onClick={() => setAllRows(true)}>
+            <RemixIcon icon={ChevronDownIcon} size={13} />
+            Show {rows() - TABLE_ROWS_SHOWN} more
+          </button>
+        </Show>
+        <span class="ml-auto" />
         <TooltipV2 placement="top" value={expanded() ? "Collapse table cells" : "Expand table cells"}>
           <button
             type="button"
@@ -194,20 +216,32 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
   )
 }
 
-export function RichText(props: { tree: RichTextTree; class?: string }): JSX.Element {
-  const [maskedHref, setMaskedHref] = createSignal<string | null>(null)
+function RichTree(props: { tree: RichTextTree; class?: string }): JSX.Element {
+  const [masked, setMasked] = createSignal<Masked | null>(null)
   return (
     <>
       <div class={`rich${props.class ? ` ${props.class}` : ""}`}>
-        <For each={richNodes(props.tree)}>{(node) => <Node node={node} onMasked={setMaskedHref} />}</For>
+        <For each={richNodes(props.tree)}>{(node) => <Node node={node} onMasked={setMasked} />}</For>
       </div>
-      <Show when={maskedHref()}>
-        {(href) => (
+      <Show when={masked()}>
+        {(link) => (
           <Suspense>
-            <SuspiciousLinkDialog href={href()} onClose={() => setMaskedHref(null)} />
+            <SuspiciousLinkDialog
+              href={link().href}
+              {...(link().text ? { text: link().text } : {})}
+              onClose={() => setMasked(null)}
+            />
           </Suspense>
         )}
       </Show>
     </>
+  )
+}
+
+export function RichText(props: { tree: RichTextTree; class?: string }): JSX.Element {
+  return (
+    <PlainFallback text={plainText(props.tree)}>
+      <RichTree tree={props.tree} class={props.class} />
+    </PlainFallback>
   )
 }

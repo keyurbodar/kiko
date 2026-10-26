@@ -1,6 +1,9 @@
-import type { FileRef } from "@kiko/protocol"
+import type { FileRef, RoomId } from "@kiko/protocol"
+import { FileConflictError } from "@kiko/protocol/rpc"
+import * as Cause from "effect/Cause"
 import { createSignal } from "solid-js"
-import { urls } from "../lib/store"
+import { fileSrc } from "../state/room"
+import { failureMessage, owner, run } from "../state/runtime"
 import { apiFetch } from "../lib/api"
 
 export const sha256Hex = async (data: BufferSource): Promise<string> =>
@@ -13,6 +16,19 @@ export type SaveResult =
   | { kind: "conflict"; theirs: FileRef | null }
   | { kind: "error"; message: string }
 
+async function putHome(path: string, body: string, type: string, expect: string): Promise<SaveResult> {
+  const res = await apiFetch(`/api/files/home?path=${encodeURIComponent(path)}`, {
+    method: "PUT",
+    headers: { "content-type": type, "x-kiko-if-sha256": expect },
+    body,
+  }).catch(() => null)
+  if (!res) return { kind: "error", message: "Could not reach the server" }
+  const reply = (await res.json().catch(() => ({}))) as { file?: FileRef | null; error?: string }
+  if (res.ok && reply.file) return { kind: "saved", file: reply.file }
+  if (reply.error === "conflict") return { kind: "conflict", theirs: reply.file ?? null }
+  return { kind: "error", message: reply.error ?? `The server said ${res.status}` }
+}
+
 export async function putFile(
   roomId: string,
   path: string,
@@ -20,18 +36,18 @@ export async function putFile(
   type: string,
   expect: string,
 ): Promise<SaveResult> {
-  try {
-    const res = await apiFetch(`/api/files/${roomId}?path=${encodeURIComponent(path)}`, {
-      method: "PUT",
-      headers: { "content-type": type, "x-kiko-if-sha256": expect },
-      body,
-    })
-    if (res.status === 409) return { kind: "conflict", theirs: ((await res.json()) as { file: FileRef | null }).file }
-    if (!res.ok) return { kind: "error", message: `The server said ${res.status}` }
-    return { kind: "saved", file: ((await res.json()) as { file: FileRef }).file }
-  } catch {
-    return { kind: "error", message: "Could not reach the server" }
-  }
+  if (roomId === "home") return putHome(path, body, type, expect)
+  const result = await run(owner.commands.writeText, {
+    roomId: roomId as RoomId,
+    path,
+    type,
+    text: body,
+    expectSha: expect,
+  })
+  if (result._tag === "Success") return { kind: "saved", file: result.value }
+  const error = Cause.squash(result.cause)
+  if (error instanceof FileConflictError) return { kind: "conflict", theirs: error.theirs }
+  return { kind: "error", message: failureMessage(result.cause, "Could not reach the server") }
 }
 
 export const PREVIEW_BYTES = 1024 * 1024
@@ -60,7 +76,7 @@ function decodeText(
 }
 
 export async function readText(roomId: string, id: string, limit?: number): Promise<TextRead> {
-  const res = await apiFetch(urls.file(roomId, id), limit ? { headers: { range: `bytes=0-${limit - 1}` } } : undefined)
+  const res = await apiFetch(fileSrc(roomId, id), limit ? { headers: { range: `bytes=0-${limit - 1}` } } : undefined)
   if (!res.ok) throw new Error(`The server said ${res.status}`)
   const bytes = new Uint8Array(await res.arrayBuffer())
   const size = Number(res.headers.get("content-range")?.split("/")[1]) || bytes.length
@@ -87,9 +103,13 @@ export function forgetMade(roomId: string, path: string) {
   setMade((list) => list.filter((f) => f.roomId !== roomId || (f.name !== path && !f.name.startsWith(`${path}/`))))
 }
 
+export function rememberMade(roomId: string, file: FileRef) {
+  setMade((m) => [...m, { ...file, roomId }])
+}
+
 export async function createFile(roomId: string, path: string): Promise<boolean> {
   const res = await putFile(roomId, path, "", "text/plain", "none")
   if (res.kind !== "saved") return false
-  setMade((m) => [...m, { ...res.file, roomId }])
+  rememberMade(roomId, res.file)
   return true
 }

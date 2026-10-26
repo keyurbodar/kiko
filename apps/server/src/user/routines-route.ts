@@ -1,12 +1,12 @@
 import { isAgentSlug, isRoomId } from "@kiko/protocol"
-import { Trigger } from "@kiko/protocol/schema"
+import { Trigger } from "@kiko/protocol"
 import { Schema } from "effect"
 import type { Env } from "../index"
 import { error, signedIn } from "../lib/route"
 import { ownerStub } from "../lib/names"
 import type { RoutineResult } from "./routines"
 
-const ACTION = /^\/api\/routines\/([0-9a-f-]{36})(\/run|\/cancel)?$/
+const ACTION = /^\/api\/routines\/([0-9a-f-]{36})(\/run)?$/
 const decodeTrigger = Schema.decodeUnknownSync(Trigger)
 
 const reply = (r: RoutineResult) =>
@@ -71,7 +71,6 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
   if (request.method !== "POST") return error(405, "method not allowed")
   const id = action[1]
   if (id === undefined) return error(400, "need a routine id")
-  if (action[2] === "/cancel") return reply(await stub.userCall("cancelRoutine", [id]))
   if (action[2]) return Response.json({ delivery: await stub.userCall("runRoutine", [id]) })
   const b = await json(request)
   if (!b) return error(400, "expected an object")

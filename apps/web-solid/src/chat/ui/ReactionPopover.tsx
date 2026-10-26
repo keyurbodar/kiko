@@ -10,7 +10,7 @@ const PICKER = { width: 340, height: 400 }
 const GAP = 8
 const EDGE = 8
 
-export function placeAbove(
+function placeAbove(
   anchor: { top: number; bottom: number; left: number; width: number },
   size: { width: number; height: number },
   viewport: { width: number; height: number },
@@ -89,7 +89,7 @@ export function ReactionPopover(props: {
           when={full()}
           fallback={
             <div
-              class="grid grid-cols-7 rounded-[24px] bg-popover p-2 text-foreground shadow-popover"
+              class="grid grid-cols-7 rounded-[24px] bg-raise p-2 text-fg shadow-popover"
               role="menu"
               aria-label="Reactions"
             >
@@ -98,7 +98,7 @@ export function ReactionPopover(props: {
                   <button
                     type="button"
                     role="menuitem"
-                    class="grid size-10 cursor-default place-items-center rounded-[10px] p-0 font-emoji text-[26px] leading-none hover:bg-[var(--accent-strong)] focus-visible:bg-[var(--accent-strong)] focus-visible:outline-none"
+                    class="grid size-10 cursor-default place-items-center rounded-[10px] p-0 font-emoji text-[26px] leading-none hover:bg-[var(--active)] focus-visible:bg-[var(--active)] focus-visible:outline-none"
                     aria-label={`React with ${emoji}`}
                     data-emoji={emoji}
                     onClick={() => pick(emoji)}
@@ -110,7 +110,7 @@ export function ReactionPopover(props: {
               <button
                 type="button"
                 role="menuitem"
-                class="grid size-10 cursor-default place-items-center rounded-[10px] p-0 text-[20px] leading-none font-semibold text-muted-foreground hover:bg-[var(--accent-strong)] hover:text-foreground focus-visible:bg-[var(--accent-strong)] focus-visible:outline-none"
+                class="grid size-10 cursor-default place-items-center rounded-[10px] p-0 text-[20px] leading-none font-semibold text-fg2 hover:bg-[var(--active)] hover:text-fg focus-visible:bg-[var(--active)] focus-visible:outline-none"
                 aria-label="More emoji"
                 data-action="more-emoji"
                 onClick={() => setFull(true)}

@@ -1,9 +1,10 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
-import { captionOf, ELAPSED_AFTER_MS, motionOf } from "./action"
+import { captionOf, motionOf } from "./action"
 import { describe } from "./create-typing-presence"
-import { useApp } from "../../lib/store"
+import { room } from "../../state/room"
 import { RunTree } from "../run/RunTree"
+import { ThinkingLine } from "../thinking/Thinking"
 import "./typing.css"
 
 export interface TypingIndicatorProps {
@@ -18,10 +19,7 @@ export interface TypingIndicatorProps {
 
 const ROWS = 3
 
-const CAPTION_AFTER_MS = 2000
-
 function Row(props: { seed: string; doing?: string; group?: boolean }) {
-  const motion = () => motionOf(props.doing)
   const [since, setSince] = createSignal(Date.now())
   const [now, setNow] = createSignal(Date.now())
   const tick = setInterval(() => setNow(Date.now()), 1000)
@@ -37,33 +35,15 @@ function Row(props: { seed: string; doing?: string; group?: boolean }) {
       { defer: true },
     ),
   )
-  const elapsed = () => now() - since()
-  const caption = () =>
-    useApp.typingRun(props.seed) || elapsed() < CAPTION_AFTER_MS ? "" : captionOf(props.doing, elapsed())
+  const caption = () => (room.typingRun(props.seed) ? "Working" : captionOf(props.doing, now() - since()))
   return (
-    <div class="typing" data-component="typing-row" data-motion={motion()}>
+    <div class="typing" data-component="typing-row">
       <Show when={props.group}>
         <IdentityAvatar seed={props.seed} size={32} class="typing-bird" />
       </Show>
       <div class="typing-body">
-        <div class="typing-line">
-          <div class="typing-bubble" aria-hidden="true">
-            <span class="typing-dots">
-              <span class="typing-dot" />
-              <span class="typing-dot" />
-              <span class="typing-dot" />
-            </span>
-          </div>
-          <span
-            class="typing-doing"
-            data-component="typing-doing"
-            data-elapsed={elapsed() >= ELAPSED_AFTER_MS ? "" : undefined}
-            aria-hidden="true"
-          >
-            {caption()}
-          </span>
-        </div>
-        <Show when={useApp.typingRun(props.seed)}>{(windowKey) => <RunTree windowKey={windowKey()} />}</Show>
+        <ThinkingLine thought={room.thinking(props.seed)} fallback={caption()} />
+        <Show when={room.typingRun(props.seed)}>{(windowKey) => <RunTree windowKey={windowKey()} />}</Show>
       </div>
     </div>
   )
@@ -73,7 +53,8 @@ export function TypingIndicator(props: TypingIndicatorProps) {
   const max = () => props.max ?? 2
   const label = createMemo(() => {
     const doing = props.doings?.[0]
-    if (props.typists.length === 1 && motionOf(doing) !== "wave") return `${props.typists[0]} is ${doing}`
+    if (props.typists.length === 1 && doing && motionOf(doing) !== "wave")
+      return `${props.typists[0]} is ${doing.charAt(0).toLowerCase()}${doing.slice(1)}`
     return describe(props.typists, max())
   })
   const rows = createMemo(() => props.typists.slice(0, ROWS).map((name, i) => props.seeds?.[i] ?? name))

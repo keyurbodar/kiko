@@ -1,5 +1,6 @@
 import type { RoomLog } from "../room/log"
 import { searchMessages, type SearchOptions } from "../room/search"
+import { HistoryError } from "./errors"
 import type { ArchivedMessage, HistoryStore, PendingArchive } from "./history-archive"
 
 export class RoomHistoryStore implements HistoryStore {
@@ -108,7 +109,7 @@ export class RoomHistoryStore implements HistoryStore {
       rest = lines.pop() ?? ""
       for (const line of lines) result.push(JSON.parse(line) as ArchivedMessage)
     }
-    if (rest) throw new Error("Incomplete pending archive")
+    if (rest) throw new HistoryError({ kind: "incomplete", message: "Incomplete pending archive" })
     return result
   }
 

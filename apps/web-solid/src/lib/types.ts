@@ -67,13 +67,13 @@ export interface OutgoingMessage {
 }
 
 export interface ComposerProps {
-  room?: import("../sync/room-store").RoomStore
+  room?: import("../state/room").ActiveRoom
   tray?: JSX.Element
   threadId: string
   title?: string
   onSend: (message: OutgoingMessage) => boolean | void
   bots: readonly RosterBot[]
-  busy?: boolean
+  disabled?: boolean
   replyTo?: ChatMessage | null
   onClearReply?: () => void
   editing?: ChatMessage | null

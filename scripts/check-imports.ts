@@ -18,6 +18,7 @@ const PACKAGES: Record<string, readonly string[]> = {
   theme: ["@kiko/avatar"],
   avatar: [],
   ui: ["@kiko/protocol", "@kiko/theme", "@kiko/avatar"],
+  "client-runtime": ["@kiko/protocol"],
 }
 
 const APPS = ["web-solid", "landing", "cli", "installer", "computer", "builder"]

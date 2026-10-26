@@ -9,6 +9,7 @@ import {
 } from "@earendil-works/pi-durable"
 import type { Envelope } from "./envelope"
 import { type Step } from "@kiko/durable/migrate"
+import { WorkerMissing } from "./errors"
 
 const context = BACKGROUND_CONTEXT
 
@@ -373,7 +374,7 @@ export class Workers {
 
   async complete(id: string, submissionId: SubmissionId, settled: SettledSubmissionRecord): Promise<void> {
     const harness = this.harness
-    if (!harness) throw new Error("worker harness not attached")
+    if (!harness) throw new WorkerMissing({ message: "worker harness not attached" })
     const work = this.get(id)
     if (harness !== this.harness || !work || work.delivered || !work.conversationId) return
     if (work.submissionId !== submissionId) return

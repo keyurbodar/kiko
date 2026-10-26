@@ -9,12 +9,14 @@ import {
   onCleanup,
   onMount,
   Show,
+  untrack,
   type JSX,
 } from "solid-js"
 import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
 import type { ChatMessage, RosterBot } from "../lib/types"
 import { buildTimelineItems, dayStartOf, keepUnchanged, type TimelineItem } from "./lib/grouping"
 import { AT_BOTTOM_THRESHOLD_PX, isAtBottom } from "./lib/drift"
+import { createGlide } from "./lib/glide"
 import { dividerParts } from "./lib/time-label"
 import { jumboEmojiClass, quoteOf } from "./lib/reply"
 import { MessageRow } from "./ui/MessageRow"
@@ -28,9 +30,10 @@ import { TypingIndicator } from "./typing/TypingIndicator"
 import { cn } from "../lib/cn"
 import { createMessageMenu } from "./ui/MessageMenu"
 import { ScrollFades } from "./ui/ScrollFades"
+import { NewAbovePill, ScrollDown, type NewAbove } from "./ui/ScrollFaces"
 import { chatImages } from "./ui/chat-images"
 import { createImageDialog, provideThreadImages } from "./ui/image-dialog"
-import type { DraftBook } from "../warm/drafts"
+import type { DraftBook } from "../composer/draft-book"
 
 export interface VirtualThreadState {
   readonly scrollOffset: number
@@ -44,17 +47,17 @@ const BUFFER_SIZE = 600
 
 const LANDING_MS = 1200
 
-const DATE_CHIP_IDLE_MS = 1200
+const DATE_CHIP_IDLE_MS = 800
 
 const READER_SCROLL_MS = 250
 
-const DATE_CHIP_EDGE_PX = 56
-
 const STAGE_CLASS = "relative flex min-h-0 flex-1 flex-col"
 
-const SCROLLER_CLASS = "relative flex min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
+const SCROLLER_CLASS =
+  "relative flex min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [overflow-anchor:none]"
 
-const COLUMN_CLASS = "mx-auto flex min-h-full w-full max-w-(--chat-content-max-width) self-start flex-col pt-12 pb-12"
+const COLUMN_CLASS =
+  "mx-auto flex min-h-full w-full max-w-(--chat-content-max-width) self-start flex-col pt-[calc(3rem+var(--top-bar-h,0px))] pb-12"
 
 const clampIndex = (index: number, count: number): number => Math.min(Math.max(index, 0), Math.max(count - 1, 0))
 
@@ -79,13 +82,16 @@ export function VirtualThread(props: {
   replyTarget?: string | null
   onNearTop?: () => void
   onAtLatest?: () => void
-  onLeftLatest?: () => void
   scrollKey?: string
   scrollBook?: Pick<DraftBook, "scroll" | "saveScroll"> & Partial<Pick<DraftBook, "ready">>
   onJumpHandle?: (handle: { jumpToMessage: (messageId: string) => void; scrollToLatest: () => void }) => void
+  onToLatest?: () => void
+  detached?: boolean
 }): JSX.Element {
   let scrollElement: HTMLDivElement | undefined
   let columnElement: HTMLDivElement | undefined
+  const glide = createGlide(() => scrollElement)
+  onCleanup(glide.stop)
 
   const [handle, setHandle] = createSignal<VirtualizerHandle>()
   const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(new Set())
@@ -146,7 +152,7 @@ export function VirtualThread(props: {
       if (heard.has(m.id)) continue
       const own = m.sender === "user" && !m.id.startsWith("local:")
       if (own || Date.now() - m.sentAt >= 10_000) continue
-      const id = m.id
+      const id = m.clientId ?? m.id
       markFresh(id, true)
       setTimeout(() => markFresh(id, false), 700)
     }
@@ -185,7 +191,6 @@ export function VirtualThread(props: {
   })
 
   const [scrolling, setScrolling] = createSignal(false)
-  const [nearTopEdge, setNearTopEdge] = createSignal(false)
   let scrollIdle: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(scrollIdle))
   const noteScrolling = () => {
@@ -193,7 +198,7 @@ export function VirtualThread(props: {
     clearTimeout(scrollIdle)
     scrollIdle = setTimeout(() => setScrolling(false), DATE_CHIP_IDLE_MS)
   }
-  const dateChipVisible = createMemo(() => topVisibleDay() !== undefined && (scrolling() || nearTopEdge()))
+  const dateChipVisible = createMemo(() => topVisibleDay() !== undefined && scrolling())
 
   const [landed, setLanded] = createSignal<string | undefined>()
   let landingGeneration = 0
@@ -206,6 +211,8 @@ export function VirtualThread(props: {
   let dragging = false
   let dragFrom: { id: number; x: number; y: number } | undefined
 
+  const topInset = () => (scrollElement ? parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0 : 0)
+
   const jumpToMessage = (messageId: string) => {
     const fold = items().find(
       (item) => item.kind === "thread" && !item.expanded && item.messages.some((m) => m.id === messageId),
@@ -214,7 +221,7 @@ export function VirtualThread(props: {
     const index = items().findIndex((item) => item.kind === "message" && item.message.id === messageId)
     if (index < 0) return
     stuck = false
-    handle()?.scrollToIndex(index, { align: "start" })
+    handle()?.scrollToIndex(index, { align: "start", offset: -topInset() })
     const generation = (landingGeneration += 1)
     setLanded(messageId)
     setTimeout(() => {
@@ -240,7 +247,7 @@ export function VirtualThread(props: {
     const index = items().findIndex((item) => item.kind === "message" && dayStartOf(item.message.sentAt) === dayStart)
     if (index < 0) return
     stuck = false
-    handle()?.scrollToIndex(index, { align: "start" })
+    handle()?.scrollToIndex(index, { align: "start", offset: -topInset() })
     commitState(readState())
   }
 
@@ -254,6 +261,55 @@ export function VirtualThread(props: {
   let restoreGeneration = 0
   onCleanup(() => {
     restoreGeneration += 1
+  })
+
+  const farFromLatest = () => {
+    const state = scrollState()
+    return !!state && state.scrollSize - state.scrollOffset - state.viewportSize > state.viewportSize
+  }
+
+  const [replyBelow, setReplyBelow] = createSignal(false)
+  let newestBot: string | undefined
+  let newestKey: string | undefined
+  createComputed(() => {
+    const newest = props.messages.findLast((m) => m.sender === "bot" && !m.event)?.id
+    const key = props.scrollKey
+    const moved = key === newestKey && newestBot !== undefined && newest !== undefined && newest !== newestBot
+    newestKey = key
+    newestBot = newest
+    if (moved && !untrack(isAtLatest)) setReplyBelow(true)
+  })
+  createEffect(
+    on(
+      () => props.scrollKey,
+      () => setReplyBelow(false),
+    ),
+  )
+  createEffect(() => {
+    if (isAtLatest()) setReplyBelow(false)
+  })
+
+  const unreadAt = createMemo(() => items().findIndex((item) => item.kind === "unread-divider"))
+  const unreadSenders = createMemo(() => {
+    const first = props.firstUnreadMessageId
+    const at = first ? props.messages.findIndex((m) => m.id === first) : -1
+    if (at < 0) return { count: 0, slugs: [] as string[] }
+    const unread = props.messages.slice(at).filter((m) => m.sender === "bot" && !m.event)
+    return { count: unread.length, slugs: [...new Set(unread.flatMap((m) => (m.botId ? [m.botId] : [])))] }
+  })
+  const [unreadReached, setUnreadReached] = createSignal(false)
+  createEffect(
+    on(
+      () => [props.scrollKey, props.firstUnreadMessageId],
+      () => setUnreadReached(false),
+    ),
+  )
+  createEffect(() => {
+    const state = scrollState()
+    const at = unreadAt()
+    if (!state || at < 0 || untrack(unreadReached) || !restoredOk || glide.active()) return
+    if (document.visibilityState === "hidden") return
+    if (at >= state.rangeStart && at <= state.rangeEnd) setUnreadReached(true)
   })
 
   const showsKey = () => {
@@ -298,7 +354,11 @@ export function VirtualThread(props: {
       restoredOk = true
       return false
     }
-    const index = items().findIndex((item) => item.kind === "message" && item.message.id === saved.messageId)
+    const index = items().findIndex(
+      (item) =>
+        (item.kind === "message" && item.message.id === saved.messageId) ||
+        (item.kind === "thread" && item.messages.some((m) => m.id === saved.messageId)),
+    )
     if (index < 0) {
       restoreMisses += 1
       if (restoreMisses < 3) return false
@@ -378,35 +438,26 @@ export function VirtualThread(props: {
       props.onStateChange(state)
       return
     }
-    if (isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)) {
+    if (isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX))
       props.onAtLatest?.()
-    } else if (state.scrollSize > state.viewportSize) {
-      props.onLeftLatest?.()
-    }
     props.onStateChange(state)
   }
 
   function scrollToLatest() {
-    const scroller = scrollElement
-    if (!scroller) return
     stuck = true
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    scroller.scrollTo({ top: scroller.scrollHeight, behavior: reduced ? "auto" : "smooth" })
-    if (reduced) return
-    scroller.addEventListener("scrollend", () => scroller.scrollTo({ top: scroller.scrollHeight, behavior: "auto" }), {
-      once: true,
-    })
+    glide.toEnd()
   }
 
   const followEnd = () => {
     const scroller = scrollElement
-    if (!scroller || !stuck || dragging) return
+    if (!scroller || !stuck || dragging || glide.active()) return
     if (scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1)
       scroller.scrollTop = scroller.scrollHeight
   }
 
   let firstLoad = true
   let lastOwner: unknown
+  let lastKey: string | undefined
   let blankTries = 0
   let blankKey: string | undefined
   const repairBlank = () => {
@@ -429,6 +480,7 @@ export function VirtualThread(props: {
     }
     if (blankTries >= 3) return
     blankTries += 1
+    if (blankTries === 3) stuck = true
     if (stuck) virtualizer.scrollToIndex(count - 1, { align: "end" })
     else scroller.scrollTop += 1
   }
@@ -454,7 +506,22 @@ export function VirtualThread(props: {
       checkBlank()
       if (!firstLoad && state.rangeStart < NEAR_TOP_ROWS && state.scrollSize > state.viewportSize) props.onNearTop?.()
     }
+    let resyncFrame = 0
+    onCleanup(() => cancelAnimationFrame(resyncFrame))
+    const resync = () => {
+      cancelAnimationFrame(resyncFrame)
+      resyncFrame = requestAnimationFrame(() => {
+        const virtualizer = handle()
+        if (!virtualizer || scroller.scrollTop !== 0 || glide.active()) return
+        if (virtualizer.scrollOffset > scroller.clientHeight) scroller.scrollTop = virtualizer.scrollOffset
+      })
+    }
+    createEventListener(() => scroller, "pointerenter", resync, { passive: true })
+    createEventListener(() => scroller, "focusin", resync)
+    createEventListener(document, "visibilitychange", resync)
+    createEventListener(window, "focus", resync)
     const sizes = makeResizeObserver(() => {
+      resync()
       followEnd()
       commitState(readState())
       checkBlank()
@@ -465,7 +532,9 @@ export function VirtualThread(props: {
     let readerScrollEnd: ReturnType<typeof setTimeout> | undefined
     onCleanup(() => clearTimeout(readerScrollEnd))
     const readerMoved = () => {
+      resync()
       restoreGeneration += 1
+      glide.stop()
       readerScrolling = true
       noteScrolling()
       clearTimeout(readerScrollEnd)
@@ -508,16 +577,12 @@ export function VirtualThread(props: {
     createEventListener(document, "pointerup", endDrag, { passive: true })
     createEventListener(document, "pointercancel", endDrag, { passive: true })
     createEventListener(
-      () => scroller,
-      "pointermove",
-      (event: PointerEvent) => setNearTopEdge(event.clientY - scroller.getBoundingClientRect().top < DATE_CHIP_EDGE_PX),
-      { passive: true },
-    )
-    createEventListener(
-      () => scroller,
-      "pointerleave",
-      () => setNearTopEdge(false),
-      { passive: true },
+      () => column,
+      "click",
+      (event: MouseEvent) => {
+        if (event.target instanceof Element && event.target.closest("[data-disclosure]")) stuck = false
+      },
+      { capture: true },
     )
     onCleanup(() => {
       sizes.unobserve(scroller)
@@ -541,10 +606,14 @@ export function VirtualThread(props: {
           readerScrolling = false
         }
         const rows = items().length > 0
+        const newest = items().at(-1)?.key
+        const arrived = !firstLoad && newest !== lastKey
+        lastKey = newest
         if (restorePosition()) firstLoad = false
         else if (rows) {
           firstLoad = false
-          followEnd()
+          if (arrived && stuck && !dragging) glide.toEnd()
+          else followEnd()
         }
         commitState(readState())
       },
@@ -555,49 +624,61 @@ export function VirtualThread(props: {
   provideThreadImages(viewer.open)
 
   const renderMessage = (item: TimelineItem & { kind: "message" }): JSX.Element => {
-    const message = item.message
+    const message = () => item.message
     const menu = createMessageMenu({
       messageFor: (id) => {
         for (const entry of items()) {
           if (entry.kind === "message" && entry.message.id === id) return entry.message
         }
-        return message
+        return message()
       },
-      side: message.sender,
-      onReply: () => aimReplyAt(menu.targetId() ?? message.id),
-      onEdit:
-        message.sender === "user" && !message.id.startsWith("local:") && message.body.trim() && props.onEdit
-          ? () => props.onEdit!(menu.targetId() ?? message.id)
-          : undefined,
-      onDelete:
-        message.sender === "user" && !message.id.startsWith("local:") && props.onDelete
-          ? () => props.onDelete!(menu.targetId() ?? message.id)
-          : undefined,
-      onReact: (emoji) => props.onReact?.(menu.targetId() ?? message.id, emoji),
+      side: message().sender,
+      onReply: () => aimReplyAt(menu.targetId() ?? message().id),
+      get onEdit() {
+        return message().sender === "user" &&
+          !message().id.startsWith("local:") &&
+          message().body.trim() &&
+          props.onEdit
+          ? () => props.onEdit!(menu.targetId() ?? message().id)
+          : undefined
+      },
+      get onDelete() {
+        return message().sender === "user" && !message().id.startsWith("local:") && props.onDelete
+          ? () => props.onDelete!(menu.targetId() ?? message().id)
+          : undefined
+      },
+      onReact: (emoji) => props.onReact?.(menu.targetId() ?? message().id, emoji),
     })
+    const bot = createMemo(() => props.botById(message().botId))
+    const parent = createMemo(() => props.replyParent(message().replyToId))
+    const quote = createMemo(() => quoteOf(message(), parent(), (slug) => props.botById(slug)?.name))
     return (
       <>
         <MessageRow
-          message={message}
-          bot={props.botById(message.botId)}
-          quote={quoteOf(message, props.replyParent(message.replyToId), (slug) => props.botById(slug)?.name)}
+          message={message()}
+          bot={bot()}
+          quote={quote()}
           isRunStart={item.isRunStart}
           isRunEnd={item.isRunEnd}
           runKey={item.runKey}
           hasRunGapBefore={item.hasRunGapBefore}
           group={props.groupChat}
           class={
-            fresh().has(message.id) ? (message.sender === "bot" ? "motion-reply-in" : "motion-bubble-in") : undefined
+            fresh().has(message().clientId ?? message().id)
+              ? message().sender === "bot"
+                ? "motion-reply-in"
+                : "motion-bubble-in"
+              : undefined
           }
-          highlighted={landed() === message.id}
-          replying={activeReply() === message.id}
-          jumboClass={jumboEmojiClass(message.body)}
+          highlighted={landed() === message().id}
+          replying={activeReply() === message().id}
+          jumboClass={jumboEmojiClass(message().body)}
           onOpenReplyTarget={openReplyTarget}
-          onReact={(emoji) => props.onReact?.(message.id, emoji)}
-          onReply={() => aimReplyAt(message.id)}
+          onReact={(emoji) => props.onReact?.(message().id, emoji)}
+          onReply={() => aimReplyAt(message().id)}
           onMore={(anchor) => {
             const box = anchor.getBoundingClientRect()
-            menu.openAt(message.id, box.left, box.bottom)
+            menu.openAt(message().id, box.left, box.bottom)
           }}
           onContextMenu={menu.onContextMenu}
           onOpenImages={(images, index, from) => {
@@ -627,6 +708,7 @@ export function VirtualThread(props: {
           message={item.message}
           name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])}
           latest={props.messages.at(-1)?.id === item.message.id}
+          group={props.groupChat}
         />
       )
     }
@@ -649,12 +731,34 @@ export function VirtualThread(props: {
       )
     }
     if (item.kind === "unread-divider") {
-      return <SystemRow label="New messages" tone="accent" data-component="chat-unread-rule" />
+      const count = unreadSenders().count
+      return (
+        <SystemRow
+          label={count > 0 ? `${count} new` : "New messages"}
+          tone="accent"
+          stitch
+          data-component="chat-unread-rule"
+        />
+      )
     }
-    return renderMessage(item)
+    return untrack(() => renderMessage(item))
   }
 
   const hasMessages = () => items().length > 0
+
+  const newAbove = createMemo<NewAbove | null>(() => {
+    const at = unreadAt()
+    const state = scrollState()
+    if (at < 0 || unreadReached() || dateChipVisible() || !state || at >= state.rangeStart) return null
+    const senders = unreadSenders()
+    return senders.count > 0 ? senders : null
+  })
+  const jumpToUnread = () => {
+    const first = props.firstUnreadMessageId
+    if (!first) return
+    setUnreadReached(true)
+    jumpToMessage(first)
+  }
 
   return (
     <div class={STAGE_CLASS} data-component="chat-stage">
@@ -720,6 +824,13 @@ export function VirtualThread(props: {
         hasDay={(day) => days().has(day) || day === dayStartOf(now())}
       />
       <ScrollFades showTop={(scrollState()?.scrollOffset ?? 0) > 0} showBottom={!isAtLatest()} />
+      <NewAbovePill above={newAbove()} onClick={jumpToUnread} />
+      <ScrollDown
+        shown={farFromLatest() || !!props.detached}
+        working={props.waitingSlugs ?? []}
+        landed={replyBelow()}
+        onClick={() => (props.onToLatest ? props.onToLatest() : scrollToLatest())}
+      />
 
       {viewer.view}
     </div>

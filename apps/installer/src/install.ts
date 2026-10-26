@@ -1,397 +1,417 @@
+import {
+  type Cloudflare,
+  type CloudflareError,
+  cloudflare,
+  type FetchLike,
+  json,
+  listScripts,
+  scriptBindings,
+} from "@kiko/durable/cloudflare"
 import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
 import {
-  type FilesBinding,
   buildMetadata,
-  destructiveMigration,
+  keptBindings,
+  ReleasePlanRefused,
   selectMigrations,
+  type UploadBinding,
   uploadBody,
 } from "@kiko/durable/release-plan"
-import { type FetchLike, InstallError, cf, isBlocking, json } from "./cf"
-import { DEFAULT_SCRIPT, type Grant, type StoredGrant, boundSecrets, firstInstallSecrets, ownScriptName } from "./plan"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Result from "effect/Result"
+import * as Schedule from "effect/Schedule"
+import * as Semaphore from "effect/Semaphore"
+import { Clerk } from "./clerk"
+import { failed, fromCloudflare, InstallFailed } from "./failure"
+import type { Grant, StoredGrant } from "./plan"
+import { classify, DEFAULT_SCRIPT, isKikoName, maskEmail, type Pointer, type Scan, type Script, targetOf } from "./scan"
 
-export type InstallEnv = {
-  CF_OAUTH_CLIENT_ID: string
-  CLERK_JWT_KEY: string
-  FRONT_DOOR_ORIGIN: string
-  RELEASE_BASE_URL: string
-  RELEASE_PUBLIC_KEY: string
-}
+export class Http extends Context.Service<Http, { readonly fetch: FetchLike }>()("@kiko/installer/Http") {}
 
-export type InstallDeps = {
-  fetch: FetchLike
-  randomSecret: () => string
-  sleep: (ms: number) => Promise<void>
-  setMetadata: (sub: string, metadata: { backendUrl: string; accountId: string; version: string }) => Promise<void>
-  codes?: {
-    take(code: string): Promise<OAuthTokens | undefined>
-    put(code: string, tokens: OAuthTokens): Promise<void>
+export class InstallerConfig extends Context.Service<
+  InstallerConfig,
+  {
+    readonly oauthClientId: string
+    readonly releaseBase: string
+    readonly releasePublicKey: string
+    readonly random: () => Uint8Array
   }
-}
+>()("@kiko/installer/InstallerConfig") {}
 
-export type OAuthTokens = { accessToken: string; refreshToken?: string }
+export type OAuthTokens = { readonly accessToken: string; readonly refreshToken?: string }
+
+export class CodeCache extends Context.Service<
+  CodeCache,
+  {
+    readonly recall: (code: string) => Effect.Effect<OAuthTokens | null, InstallFailed>
+    readonly remember: (code: string, tokens: OAuthTokens) => Effect.Effect<void, InstallFailed>
+    readonly forget: (code: string) => Effect.Effect<void, InstallFailed>
+  }
+>()("@kiko/installer/CodeCache") {}
+
+export type Decision = "take_over" | "start_fresh"
 
 export type InstallRequest = {
-  clerkToken: string
-  sub: string
-  grant: Grant
-  accountId?: string
-  reset?: "delete-existing-data"
-}
-export type InstallResult = { backendUrl: string; version: string }
-
-type Script = { id: string; migration_tag?: string }
-
-const POLL_MS = 3000
-const POLL_LIMIT_MS = 60_000
-
-async function exchange(env: InstallEnv, grant: Extract<Grant, { kind: "oauth" }>, f: FetchLike): Promise<OAuthTokens> {
-  const res = await f("https://dash.cloudflare.com/oauth2/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      code: grant.code,
-      redirect_uri: grant.redirectUri,
-      client_id: env.CF_OAUTH_CLIENT_ID,
-      code_verifier: grant.verifier,
-    }),
-  })
-  const body = (await res.json().catch(() => null)) as { access_token?: string; refresh_token?: string } | null
-  if (!res.ok || !body?.access_token)
-    throw new InstallError("oauth_failed", "Cloudflare did not accept the sign-in. Try connecting again.", 400)
-  return { accessToken: body.access_token, ...(body.refresh_token ? { refreshToken: body.refresh_token } : {}) }
+  readonly sub: string
+  readonly grant: Grant
+  readonly accountId?: string
+  readonly decision?: Decision
 }
 
-async function loadRelease(env: InstallEnv, f: FetchLike) {
-  try {
-    return await loadVerifiedRelease(
-      { baseUrl: env.RELEASE_BASE_URL, publicKey: env.RELEASE_PUBLIC_KEY, index: "latest-owner.json" },
-      (url) => f(url),
-    )
-  } catch (e) {
-    if (e instanceof ReleaseRefused) throw new InstallError(e.code, e.message, 502)
-    throw e
-  }
+export type Account = { readonly id: string; readonly name: string }
+
+export type Found = {
+  readonly script: string
+  readonly owner: { readonly _tag: "Other"; readonly hint: string } | { readonly _tag: "Unknown" }
+  readonly keepable: boolean
 }
 
-async function isKiko(f: FetchLike, url: string): Promise<boolean> {
-  try {
-    const res = await f(url)
-    const body = (await res.json()) as { version?: unknown }
-    return res.ok && typeof body.version === "string"
-  } catch {
-    return false
-  }
+export type InstallAnswer =
+  | { readonly _tag: "Installed"; readonly backendUrl: string; readonly version: string }
+  | { readonly _tag: "ChooseAccount"; readonly accounts: ReadonlyArray<Account> }
+  | { readonly _tag: "Decide"; readonly found: Found }
+
+type Access = {
+  readonly token: string
+  readonly grant: Omit<StoredGrant, "accountId" | "scriptName">
+  readonly code: string | null
 }
 
-async function ownedByCaller(f: FetchLike, backend: string, clerkToken: string): Promise<boolean> {
-  try {
-    const res = await f(`${backend}/api/auth/clerk`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: clerkToken }),
-      redirect: "error",
-    })
-    if (res.status === 403 || res.status === 404) return false
-    const body: unknown = await res.json()
-    if (
-      res.ok &&
-      typeof body === "object" &&
-      body !== null &&
-      "token" in body &&
-      typeof body.token === "string" &&
-      "user" in body &&
-      typeof body.user === "object" &&
-      body.user !== null &&
-      "id" in body.user &&
-      body.user.id === "owner"
-    )
-      return true
-  } catch {}
-  throw new InstallError(
-    "owner_unverified",
-    "Could not verify this backend's owner. Sign in again and retry when the backend is reachable.",
-    409,
-  )
+type Release = Effect.Success<ReturnType<typeof loadRelease>>
+
+type Place = { readonly _tag: "Place"; readonly account: Account; readonly scans: ReadonlyArray<Scan> }
+
+type Deployment = {
+  readonly _tag: "Deployment"
+  readonly name: string
+  readonly existing: Script | null
+  readonly deleteFirst: boolean
+  readonly rotate: boolean
+  readonly previousOwner: string | null
 }
 
-function blockingOrNull(e: unknown): null {
-  if (isBlocking(e)) throw e
-  return null
-}
+type Claimable = Extract<Scan, { _tag: "Other" | "Unclaimed" }>
 
-const randomLabel = () =>
-  `kiko-${[...crypto.getRandomValues(new Uint8Array(4))].map((b) => b.toString(16).padStart(2, "0")).join("")}`
-
-async function ensureSubdomain(
-  token: string,
-  accountId: string,
-  f: FetchLike,
-  label = randomLabel,
-): Promise<{ subdomain: string; made: boolean }> {
-  const path = `/accounts/${accountId}/workers/subdomain`
-  const sub = await cf<{ subdomain?: string } | null>(token, path, {}, f).catch(blockingOrNull)
-  if (sub?.subdomain) return { subdomain: sub.subdomain, made: false }
-  for (let i = 0; i < 3; i++) {
-    const made = await cf<{ subdomain?: string } | null>(token, path, json({ subdomain: label() }, "PUT"), f).catch(
-      blockingOrNull,
-    )
-    if (made?.subdomain) return { subdomain: made.subdomain, made: true }
-  }
-  throw new InstallError(
-    "no_subdomain",
-    "Open Workers once in your Cloudflare dashboard to create your workers.dev address, then try again.",
-    409,
-  )
-}
-
-type Account = { id: string; name?: string }
-
-async function pickAccount(
-  token: string,
-  accounts: Account[],
-  chosen: string | undefined,
-  ours: string[],
-  clerkToken: string,
-  f: FetchLike,
-): Promise<{ accountId: string; scripts: Script[] }> {
-  let first: unknown = null
-  const usable: { account: Account; scripts: Script[] }[] = []
-  for (const account of chosen ? accounts.filter((a) => a.id === chosen) : accounts) {
-    try {
-      usable.push({ account, scripts: await cf<Script[]>(token, `/accounts/${account.id}/workers/scripts`, {}, f) })
-    } catch (e) {
-      if (isBlocking(e) && !(e instanceof InstallError && e.code === "no_permission")) throw e
-      first ??= e
-    }
-  }
-  const pick = (u: { account: Account; scripts: Script[] }) => ({ accountId: u.account.id, scripts: u.scripts })
-  if (usable.length === 1) return pick(usable[0] as (typeof usable)[number])
-  for (const name of [...ours, DEFAULT_SCRIPT]) {
-    for (const u of usable) {
-      if (!u.scripts.some((s) => s.id === name)) continue
-      const address = await cf<{ subdomain?: string } | null>(
-        token,
-        `/accounts/${u.account.id}/workers/subdomain`,
-        {},
-        f,
-      )
-      if (
-        address?.subdomain &&
-        (await ownedByCaller(f, `https://${name}.${address.subdomain}.workers.dev`, clerkToken))
-      )
-        return pick(u)
-    }
-  }
-  if (usable.length > 1) {
-    throw new InstallError(
-      "choose_account",
-      "This sign-in can use more than one Cloudflare account. Pick the one Kiko goes in.",
-      409,
-      [],
-      undefined,
-      usable.map((u) => ({ id: u.account.id, name: u.account.name ?? u.account.id })),
-    )
-  }
-  throw first ?? new InstallError("no_account", "No Cloudflare account was found for this sign-in.", 400)
-}
-
+const OAUTH_TOKEN_URL = "https://dash.cloudflare.com/oauth2/token"
 const RESOLVERS = ["https://cloudflare-dns.com/dns-query", "https://dns.google/resolve"]
-const DNS_LIMIT_MS = 90_000
+const POLL = Schedule.spaced("3 seconds")
+const SKIPPABLE: ReadonlySet<string> = new Set(["no_permission", "cloudflare_error"])
 
-async function awaitDns(host: string, f: FetchLike, sleep: (ms: number) => Promise<void>): Promise<void> {
-  const seen = async (resolver: string) => {
-    try {
-      const res = await f(`${resolver}?name=${host}&type=A`, { headers: { accept: "application/dns-json" } })
-      const body = (await res.json()) as { Status?: number; Answer?: unknown[] }
-      return body.Status === 0 && (body.Answer?.length ?? 0) > 0
-    } catch {
-      return false
-    }
-  }
-  for (let waited = 0; waited < DNS_LIMIT_MS; waited += POLL_MS) {
-    if ((await Promise.all(RESOLVERS.map(seen))).every(Boolean)) return
-    await sleep(POLL_MS)
-  }
-}
+const base64url = (bytes: Uint8Array) =>
+  btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
 
-export async function runInstall(env: InstallEnv, deps: InstallDeps, req: InstallRequest): Promise<InstallResult> {
-  const f = deps.fetch
-  let stored: Omit<StoredGrant, "accountId" | "scriptName">
-  let token: string
-  let oauth: { code: string; tokens: OAuthTokens } | null = null
-  if (req.grant.kind === "oauth") {
-    oauth = {
-      code: req.grant.code,
-      tokens: (await deps.codes?.take(req.grant.code)) ?? (await exchange(env, req.grant, f)),
-    }
-    const { tokens } = oauth
-    token = tokens.accessToken
-    stored = {
+const hex = (bytes: Uint8Array) => [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")
+
+const exchange = Effect.fn("Installer.exchange")(function* (grant: Extract<Grant, { kind: "oauth" }>) {
+  const { fetch } = yield* Http
+  const config = yield* InstallerConfig
+  const response = yield* Effect.tryPromise({
+    try: () =>
+      fetch(OAUTH_TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code: grant.code,
+          redirect_uri: grant.redirectUri,
+          client_id: config.oauthClientId,
+          code_verifier: grant.verifier,
+        }),
+      }),
+    catch: () => failed("cloudflare_down", "the Cloudflare sign-in could not be reached"),
+  })
+  const body = yield* Effect.promise(
+    () => response.json().catch(() => null) as Promise<{ access_token?: string; refresh_token?: string } | null>,
+  )
+  if (!response.ok || !body?.access_token)
+    return yield* failed("grant_invalid", `the code exchange answered ${response.status}`)
+  return { accessToken: body.access_token, ...(body.refresh_token ? { refreshToken: body.refresh_token } : {}) }
+})
+
+const authorize = Effect.fn("Installer.authorize")(function* (grant: Grant) {
+  if (grant.kind === "token")
+    return { token: grant.token, grant: { kind: "token", token: grant.token }, code: null } satisfies Access
+  const cache = yield* CodeCache
+  const config = yield* InstallerConfig
+  const kept = yield* cache.recall(grant.code)
+  const tokens = kept ?? (yield* exchange(grant))
+  if (!kept) yield* cache.remember(grant.code, tokens)
+  return {
+    token: tokens.accessToken,
+    grant: {
       kind: "oauth",
-      clientId: env.CF_OAUTH_CLIENT_ID,
+      clientId: config.oauthClientId,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-    }
-  } else {
-    token = req.grant.token
-    stored = { kind: "token", token }
-  }
-
-  const accounts = await cf<Account[]>(token, "/accounts", {}, f).catch((e: unknown) => {
-    if (req.grant.kind === "oauth" && e instanceof InstallError && e.code === "bad_token") {
-      throw new InstallError(
-        "oauth_failed",
-        "Cloudflare did not accept the sign-in. Try connecting again.",
-        400,
-        e.cfCodes,
-        e.detail,
-      )
-    }
-    throw e
-  })
-  if (req.accountId && !accounts.some((a) => a.id === req.accountId)) {
-    throw new InstallError("no_account", "No Cloudflare account was found for this sign-in.", 400)
-  }
-  const ours = await ownScriptName(req.sub, 32)
-  const legacy = await ownScriptName(req.sub)
-  const { accountId, scripts } = await pickAccount(
-    token,
-    accounts,
-    req.accountId,
-    [ours, legacy],
-    req.clerkToken,
-    f,
-  ).catch(async (e: unknown) => {
-    if (oauth && e instanceof InstallError && e.code === "choose_account")
-      await deps.codes?.put(oauth.code, oauth.tokens)
-    throw e
-  })
-
-  const { subdomain, made: freshAddress } = await ensureSubdomain(token, accountId, f)
-  const host = (name: string) => `https://${name}.${subdomain}.workers.dev`
-
-  const byName = new Map(scripts.map((s) => [s.id, s]))
-  const findScriptName = async () => {
-    let name: string | undefined
-    for (const candidate of [ours, legacy, DEFAULT_SCRIPT]) {
-      if (byName.has(candidate) && (await ownedByCaller(f, host(candidate), req.clerkToken))) {
-        name = candidate
-        break
-      }
-    }
-    if (!name) {
-      if (byName.has(ours))
-        throw new InstallError(
-          "owner_conflict",
-          "The owner-specific Worker name is already in use. No backend was changed.",
-          409,
-        )
-      name = ours
-    }
-    return name
-  }
-  const name = await findScriptName()
-  const existing = byName.get(name)
-  const fileStore: FilesBinding = existing ? "inherit" : "none"
-
-  const { manifest, files } = await loadRelease(env, f)
-  const grant: StoredGrant = { ...stored, accountId, scriptName: name }
-  if (existing && !existing.migration_tag)
-    throw new InstallError(
-      "migration_unknown",
-      "This backend has no migration tag. Nothing was changed. Export its data and inspect it before replacing it.",
-      409,
-    )
-  let migrations: ReturnType<typeof selectMigrations>
-  try {
-    migrations = selectMigrations(manifest.migrations, existing ? (existing.migration_tag ?? null) : null)
-  } catch (error) {
-    throw new InstallError(
-      "migration_unknown",
-      error instanceof Error
-        ? error.message
-        : "This release does not know the backend's migration tag. Nothing was changed.",
-      409,
-    )
-  }
-  if (existing && destructiveMigration(migrations) && req.reset !== "delete-existing-data") {
-    if (oauth) await deps.codes?.put(oauth.code, oauth.tokens)
-    throw new InstallError(
-      "reset_required",
-      "This upgrade permanently deletes all existing chats, messages, agents, memory, routines, provider keys and built-in file bytes. R2 file bytes remain, but their old indexes are deleted. Cloudflare Worker secrets remain. Returning to an older release will not restore this data. Export anything you need before confirming a fresh start.",
-      409,
-    )
-  }
-  const inheritedR2 = existing
-    ? ((
-        await cf<{ bindings?: { name: string; type: string }[] }>(
-          token,
-          `/accounts/${accountId}/workers/scripts/${name}/settings`,
-          {},
-          f,
-        )
-      ).bindings
-        ?.filter((binding) => binding.type === "r2_bucket")
-        .map((binding) => binding.name) ?? [])
-    : []
-  const bound = {
-    ownerId: req.sub,
-    clerkJwtKey: env.CLERK_JWT_KEY,
-    trustedOrigins: env.FRONT_DOOR_ORIGIN,
-    releaseBase: env.RELEASE_BASE_URL,
-    grant,
-  }
-  const secrets = existing ? null : firstInstallSecrets({ ...bound, random: deps.randomSecret })
-  await cf(
-    token,
-    `/accounts/${accountId}/workers/scripts/${name}`,
-    {
-      method: "PUT",
-      body: uploadBody(manifest, files, buildMetadata(manifest, migrations, secrets, fileStore, inheritedR2)),
     },
-    f,
-  ).catch((e: unknown) => {
-    if (!existing && e instanceof InstallError && e.code === "no_permission") {
-      throw new InstallError(
-        "cannot_create",
-        "This sign-in may change Workers but not create one. Give the token Workers Admin, not Workers Editor, then try again.",
-        403,
-        e.cfCodes,
-        e.detail,
-      )
-    }
-    throw e
-  })
+    code: grant.code,
+  } satisfies Access
+})
 
-  if (existing) {
-    for (const s of boundSecrets(bound)) {
-      await cf(token, `/accounts/${accountId}/workers/scripts/${name}/secrets`, json(s, "PUT"), f)
-    }
-  }
-
-  await cf(
-    token,
-    `/accounts/${accountId}/workers/scripts/${name}/subdomain`,
-    json({ enabled: true, previews_enabled: false }),
-    f,
+const accountsOf = (cf: Cloudflare, kind: Grant["kind"]) =>
+  cf.call<{ id: string; name?: string }[]>("/accounts").pipe(
+    Effect.mapError((error) => {
+      const failure = fromCloudflare(error)
+      return kind === "oauth" && failure.code === "bad_token" ? failed("grant_invalid", failure.detail) : failure
+    }),
+    Effect.map((accounts) => accounts.map((account) => ({ id: account.id, name: account.name ?? account.id }))),
   )
 
-  const backendUrl = host(name)
-  let waited = 0
-  while (!(await isKiko(f, `${backendUrl}/api/version`))) {
-    if (waited >= POLL_LIMIT_MS)
-      throw new InstallError(
-        "not_ready",
-        "The backend was installed but did not answer in time. Try again in a minute.",
-        504,
-      )
-    await deps.sleep(POLL_MS)
-    waited += POLL_MS
+const scanAccount = (cf: Cloudflare, account: Account, sub: string): Effect.Effect<Place, CloudflareError> =>
+  listScripts(cf, account.id).pipe(
+    Effect.flatMap((scripts) =>
+      Effect.forEach(
+        scripts.filter((script) => isKikoName(script.id)),
+        (script) =>
+          scriptBindings(cf, account.id, script.id).pipe(
+            Effect.map((bindings) =>
+              classify(
+                { name: script.id, tag: script.migration_tag ?? null, modified: script.modified_on ?? "", bindings },
+                sub,
+              ),
+            ),
+          ),
+      ),
+    ),
+    Effect.map((scans) => ({ _tag: "Place", account, scans }) satisfies Place),
+  )
+
+const placeOf = Effect.fn("Installer.place")(function* (
+  cf: Cloudflare,
+  accounts: ReadonlyArray<Account>,
+  request: InstallRequest,
+  pointer: Pointer | null,
+) {
+  const candidates = request.accountId ? accounts.filter((account) => account.id === request.accountId) : accounts
+  if (candidates.length === 0) return yield* failed("no_account")
+  const results = yield* Effect.forEach(candidates, (account) =>
+    scanAccount(cf, account, request.sub).pipe(Effect.mapError(fromCloudflare), Effect.result),
+  )
+  const usable = results.filter(Result.isSuccess).map((result) => result.success)
+  const skipped = results.filter(Result.isFailure).map((result) => result.failure)
+  const blocking = skipped.find((failure) => !SKIPPABLE.has(failure.code))
+  if (blocking) return yield* blocking
+  const [first, ...rest] = usable
+  if (!first) return yield* skipped[0] ?? failed("no_account")
+  if (rest.length === 0) return first
+  const withMine = usable.filter((place) => place.scans.some((scan) => scan._tag === "Mine"))
+  const chosen = withMine.find((place) => place.account.id === pointer?.accountId) ?? withMine[0]
+  if (chosen) return chosen
+  return { _tag: "ChooseAccount", accounts: usable.map((place) => place.account) } satisfies InstallAnswer
+})
+
+const loadRelease = Effect.fn("Installer.loadRelease")(function* () {
+  const { fetch } = yield* Http
+  const config = yield* InstallerConfig
+  return yield* Effect.tryPromise({
+    try: () =>
+      loadVerifiedRelease({ baseUrl: config.releaseBase, publicKey: config.releasePublicKey }, (url) => fetch(url)),
+    catch: (error) =>
+      error instanceof ReleaseRefused
+        ? new InstallFailed({ code: error.code, message: error.message })
+        : failed("release_unavailable"),
+  })
+})
+
+const keepable = (release: Release, script: Script) =>
+  script.tag !== null && release.manifest.migrations.some((migration) => migration.tag === script.tag)
+
+const foundOf = Effect.fn("Installer.found")(function* (scan: Claimable, release: Release) {
+  const clerk = yield* Clerk
+  const email = scan._tag === "Other" ? (yield* clerk.user(scan.ownerId))?.email : null
+  return {
+    script: scan.script.name,
+    owner: email ? { _tag: "Other", hint: maskEmail(email) } : { _tag: "Unknown" },
+    keepable: keepable(release, scan.script),
+  } satisfies Found
+})
+
+const deploymentFor = Effect.fn("Installer.deployment")(function* (
+  place: Place,
+  request: InstallRequest,
+  pointer: Pointer | null,
+  release: Release,
+) {
+  const target = targetOf(
+    place.scans,
+    (scan) => pointer?.accountId === place.account.id && pointer.script === scan.script.name,
+  )
+  yield* Effect.logInfo("install scan", {
+    account: place.account.id,
+    scans: place.scans.map((scan) => `${scan.script.name}:${scan._tag}:${scan.script.tag ?? "untagged"}`),
+    target: target._tag,
+    decision: request.decision ?? "none",
+  })
+  const deployment = (fields: Omit<Deployment, "_tag">): Deployment => ({ _tag: "Deployment", ...fields })
+  if (target._tag === "Empty") {
+    if (target.nameTaken) return yield* failed("name_taken")
+    return deployment({ name: DEFAULT_SCRIPT, existing: null, deleteFirst: false, rotate: true, previousOwner: null })
   }
+  const { script } = target
+  if (target._tag === "Mine")
+    return deployment({ name: script.name, existing: script, deleteFirst: false, rotate: false, previousOwner: null })
+  const previousOwner = target._tag === "Other" ? target.ownerId : null
+  if (request.decision === "start_fresh")
+    return deployment({ name: script.name, existing: null, deleteFirst: true, rotate: true, previousOwner })
+  if (request.decision === "take_over") {
+    if (!keepable(release, script)) return yield* failed("not_keepable")
+    return deployment({ name: script.name, existing: script, deleteFirst: false, rotate: true, previousOwner })
+  }
+  return { _tag: "Decide", found: yield* foundOf(target, release) } satisfies InstallAnswer
+})
 
-  if (freshAddress) await awaitDns(new URL(backendUrl).host, f, deps.sleep)
+const ensureSubdomain = Effect.fn("Installer.subdomain")(function* (cf: Cloudflare, accountId: string) {
+  const config = yield* InstallerConfig
+  const path = `/accounts/${accountId}/workers/subdomain`
+  const missingAsNull = <A>(effect: Effect.Effect<A, CloudflareError>) =>
+    effect.pipe(
+      Effect.mapError(fromCloudflare),
+      Effect.catchIf(
+        (failure) => failure.code === "cloudflare_error",
+        () => Effect.succeed(null),
+      ),
+    )
+  const current = yield* missingAsNull(cf.call<{ subdomain?: string } | null>(path))
+  if (current?.subdomain) return { subdomain: current.subdomain, made: false }
+  const made = yield* missingAsNull(
+    Effect.suspend(() =>
+      cf.call<{ subdomain?: string } | null>(
+        path,
+        json({ subdomain: `kiko-${hex(config.random()).slice(0, 8)}` }, "PUT"),
+      ),
+    ),
+  ).pipe(
+    Effect.filterOrFail(
+      (answer): answer is { subdomain: string } => Boolean(answer?.subdomain),
+      () => failed("no_subdomain"),
+    ),
+    Effect.retry({ times: 2, while: (failure) => failure.code === "no_subdomain" }),
+  )
+  return { subdomain: made.subdomain, made: true }
+})
 
-  await deps.setMetadata(req.sub, { backendUrl, accountId, version: manifest.version })
-  return { backendUrl, version: manifest.version }
-}
+const upload = Effect.fn("Installer.upload")(function* (
+  cf: Cloudflare,
+  account: Account,
+  deployment: Deployment,
+  access: Access,
+  release: Release,
+  sub: string,
+) {
+  const config = yield* InstallerConfig
+  const fresh = (name: string): UploadBinding => ({ type: "secret_text", name, text: base64url(config.random()) })
+  const grant: StoredGrant = { ...access.grant, accountId: account.id, scriptName: deployment.name }
+  const written: UploadBinding[] = [
+    { type: "plain_text", name: "OWNER_ID", text: sub },
+    { type: "secret_text", name: "CF_GRANT", text: JSON.stringify(grant) },
+    ...(deployment.existing === null
+      ? [fresh("SESSION_SECRET"), fresh("CREDENTIALS_KEK")]
+      : deployment.rotate
+        ? [fresh("SESSION_SECRET")]
+        : []),
+  ]
+  const metadata = yield* Effect.try({
+    try: () =>
+      buildMetadata(
+        release.manifest,
+        selectMigrations(release.manifest.migrations, deployment.existing?.tag ?? null),
+        keptBindings(deployment.existing?.bindings ?? [], written),
+      ),
+    catch: (error) =>
+      error instanceof ReleasePlanRefused && error.reason === "unknown_migration"
+        ? failed("not_keepable", error.message)
+        : failed("release_untrusted", error instanceof Error ? error.message : undefined),
+  })
+  const script = `/accounts/${account.id}/workers/scripts/${deployment.name}`
+  if (deployment.deleteFirst)
+    yield* cf.call(`${script}?force=true`, { method: "DELETE" }).pipe(Effect.mapError(fromCloudflare))
+  yield* cf.call(script, { method: "PUT", body: uploadBody(release.manifest, release.files, metadata) }).pipe(
+    Effect.mapError((error) => {
+      const failure = fromCloudflare(error)
+      return deployment.existing === null && failure.code === "no_permission"
+        ? failed("cannot_create", failure.detail)
+        : failure
+    }),
+  )
+  yield* cf
+    .call(`${script}/subdomain`, json({ enabled: true, previews_enabled: false }))
+    .pipe(Effect.mapError(fromCloudflare))
+})
+
+const answersKiko = (fetch: FetchLike, url: string) =>
+  fetch(`${url}/api/version`)
+    .then(
+      async (response) => response.ok && typeof ((await response.json()) as { version?: unknown }).version === "string",
+    )
+    .catch(() => false)
+
+const seenEverywhere = (fetch: FetchLike, host: string) =>
+  Promise.all(
+    RESOLVERS.map((resolver) =>
+      fetch(`${resolver}?name=${host}&type=A`, { headers: { accept: "application/dns-json" } })
+        .then(async (response) => {
+          const body = (await response.json()) as { Status?: number; Answer?: unknown[] }
+          return body.Status === 0 && (body.Answer?.length ?? 0) > 0
+        })
+        .catch(() => false),
+    ),
+  ).then((seen) => seen.every(Boolean))
+
+const goLive = Effect.fn("Installer.goLive")(function* (backendUrl: string, freshAddress: boolean) {
+  const { fetch } = yield* Http
+  yield* Effect.promise(() => answersKiko(fetch, backendUrl)).pipe(
+    Effect.filterOrFail(Boolean, () => failed("not_ready")),
+    Effect.retry({ schedule: POLL, times: 20 }),
+  )
+  if (freshAddress)
+    yield* Effect.promise(() => seenEverywhere(fetch, new URL(backendUrl).host)).pipe(
+      Effect.repeat({ schedule: POLL, until: Boolean, times: 30 }),
+    )
+})
+
+const releasePrevious = Effect.fn("Installer.releasePrevious")(function* (ownerId: string, here: Pointer) {
+  const clerk = yield* Clerk
+  const previous = yield* clerk.user(ownerId)
+  const pointsHere = previous?.pointer
+    ? previous.pointer.accountId === here.accountId && previous.pointer.script === here.script
+    : previous?.url === here.url
+  if (pointsHere) yield* clerk.point(ownerId, null)
+})
+
+const install = Effect.fn("Installer.install")(function* (request: InstallRequest) {
+  const access = yield* authorize(request.grant)
+  const { fetch } = yield* Http
+  const clerk = yield* Clerk
+  const cf = cloudflare({ token: access.token, fetch })
+  const accounts = yield* accountsOf(cf, request.grant.kind)
+  const pointer = (yield* clerk.user(request.sub))?.pointer ?? null
+  const place = yield* placeOf(cf, accounts, request, pointer)
+  if (place._tag === "ChooseAccount") return place
+  const release = yield* loadRelease()
+  const deployment = yield* deploymentFor(place, request, pointer, release)
+  if (deployment._tag === "Decide") return deployment
+  const { subdomain, made } = yield* ensureSubdomain(cf, place.account.id)
+  yield* upload(cf, place.account, deployment, access, release, request.sub)
+  const backendUrl = `https://${deployment.name}.${subdomain}.workers.dev`
+  yield* goLive(backendUrl, made)
+  const here: Pointer = { v: 1, url: backendUrl, accountId: place.account.id, script: deployment.name }
+  yield* clerk.point(request.sub, here)
+  if (deployment.previousOwner) yield* releasePrevious(deployment.previousOwner, here)
+  if (access.code) yield* (yield* CodeCache).forget(access.code)
+  return { _tag: "Installed", backendUrl, version: release.manifest.version } satisfies InstallAnswer
+})
+
+const detach = Effect.fn("Installer.detach")(function* (sub: string) {
+  yield* (yield* Clerk).point(sub, null)
+})
+
+export const makeInstaller = Effect.gen(function* () {
+  const lock = yield* Semaphore.make(1)
+  return {
+    install: (request: InstallRequest) => lock.withPermits(1)(install(request)),
+    detach: (sub: string) => lock.withPermits(1)(detach(sub)),
+  }
+})

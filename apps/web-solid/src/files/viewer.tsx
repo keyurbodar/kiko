@@ -1,9 +1,10 @@
-import type { FileRef } from "@kiko/protocol"
+import { fileName, type FileRef } from "@kiko/protocol"
 import { createEffect, createMemo, createSignal, lazy, Match, on, Show, Suspense, Switch, type JSX } from "solid-js"
-import { urls } from "../lib/store"
+import { fileSrc } from "../state/room"
 import { NoPreview, SurfaceFailure, SurfaceLoading } from "./chrome"
 import type { EditorState } from "./editor"
 import { TEXT_KINDS, type ViewerKind } from "./kind"
+import { recipeSlugOf } from "../recipes/doc"
 import "./editor.css"
 
 const TextEditor = lazy(() => import("./editor").then((m) => ({ default: m.TextEditor })))
@@ -11,8 +12,7 @@ const MarkdownView = lazy(() => import("./viewers/markdown"))
 const TableView = lazy(() => import("./viewers/table"))
 const HtmlView = lazy(() => import("./viewers/html"))
 const PdfView = lazy(() => import("./viewers/pdf"))
-
-const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1)
+const RecipeDocument = lazy(() => import("../recipes/document"))
 
 export function FileViewer(props: {
   roomId: string
@@ -25,7 +25,7 @@ export function FileViewer(props: {
   onEditorState?: (state: EditorState) => void
 }) {
   const opened = createMemo<FileRef | undefined>((prev) => (props.file ? (prev ?? props.file) : undefined), undefined)
-  const src = (f: FileRef) => urls.file(props.roomId, f.id)
+  const src = (f: FileRef) => fileSrc(props.roomId, f.id)
   return (
     <div
       class="file-view flex min-h-0 min-w-0 flex-1 flex-col"
@@ -36,7 +36,7 @@ export function FileViewer(props: {
       <Show when={props.file} fallback={<SurfaceFailure message="This file is no longer here." />}>
         {(ref) => (
           <Suspense fallback={<SurfaceLoading />}>
-            <Switch fallback={<NoPreview name={baseName(ref().name)} href={src(ref())} />}>
+            <Switch fallback={<NoPreview name={fileName(ref().name)} href={src(ref())} />}>
               <Match when={TEXT_KINDS.has(props.kind) && !props.rendered}>
                 <Show when={opened()} keyed>
                   {(initial) => (
@@ -51,6 +51,14 @@ export function FileViewer(props: {
                     />
                   )}
                 </Show>
+              </Match>
+              <Match when={props.kind === "markdown" && recipeSlugOf(props.path)}>
+                <RecipeDocument
+                  roomId={props.roomId}
+                  path={props.path}
+                  file={ref()}
+                  fallback={<MarkdownView roomId={props.roomId} file={ref()} />}
+                />
               </Match>
               <Match when={props.kind === "markdown"}>
                 <MarkdownView roomId={props.roomId} file={ref()} />
@@ -70,7 +78,7 @@ export function FileViewer(props: {
                     >
                       <img
                         src={url}
-                        alt={baseName(ref().name)}
+                        alt={fileName(ref().name)}
                         class="max-h-full max-w-full object-contain"
                         onError={fail}
                       />
@@ -79,7 +87,7 @@ export function FileViewer(props: {
                 </Media>
               </Match>
               <Match when={props.kind === "pdf"}>
-                <PdfView src={src(ref())} title={baseName(ref().name)} />
+                <PdfView src={src(ref())} title={fileName(ref().name)} />
               </Match>
               <Match when={props.kind === "video"}>
                 <Media src={src(ref())} error="Unable to load video.">

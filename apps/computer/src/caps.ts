@@ -46,6 +46,18 @@ async function readDisplays(driver: DriverHandle): Promise<Display[]> {
   return [{ id: "primary", width: Math.round(width), height: Math.round(height), scale }]
 }
 
+export function presence(dir: string): Detection {
+  const driverPath = findDriver(dir)
+  const desktop = driverPath !== null && hasDesktopSession()
+  return {
+    driverPath,
+    driver: null,
+    desktop: null,
+    caps: capsFor(desktop, hasFfmpeg(), { live: false, input: false }),
+    displays: [],
+  }
+}
+
 export async function detect(
   dir: string,
   log: Logger,

@@ -1,32 +1,38 @@
 import type { Agent, Member, Task, TaskStatus } from "@kiko/protocol"
-import { RemixIcon } from "@kiko/ui/remix-icon"
-import {
-  CheckIcon,
-  CircleIcon,
-  CloseCircleIcon,
-  type Glyph,
-  GroupIcon,
-  PauseCircleIcon,
-  PullRequestIcon,
-  RecordCircleIcon,
-} from "@kiko/ui/icons"
-import { For, Show } from "solid-js"
-import { AgentChip } from "../ui/agent-chip"
+import { For, Match, Show, Switch } from "solid-js"
+import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { TASK_LABEL, taskDependencies, taskText, taskOwner } from "./tasks-model"
 
-const ICONS: Record<TaskStatus, Glyph> = {
-  doing: RecordCircleIcon,
-  done: CheckIcon,
-  todo: CircleIcon,
-  blocked: PauseCircleIcon,
-  review: PullRequestIcon,
-  cancelled: CloseCircleIcon,
-}
+const CLOSED = new Set<TaskStatus>(["done", "cancelled"])
 
-function TaskIcon(props: { status: TaskStatus }) {
+function TaskGlyph(props: { task: Task }) {
   return (
-    <span class="task-step-icon" data-status={props.status}>
-      <RemixIcon icon={ICONS[props.status]} class="size-3" />
+    <span
+      class="task-glyph"
+      data-status={props.task.status}
+      role="img"
+      aria-label={`${TASK_LABEL[props.task.status]}: ${props.task.title}`}
+    >
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <circle cx="8" cy="8" r="6.25" class="task-glyph-ring" />
+        <Switch>
+          <Match when={props.task.status === "doing"}>
+            <path d="M8 1.75A6.25 6.25 0 0 1 14.25 8" class="task-glyph-arc" />
+          </Match>
+          <Match when={props.task.status === "done"}>
+            <path d="M5.2 8.2l2 2 3.6-4" stroke-linejoin="round" class="task-glyph-mark" />
+          </Match>
+          <Match when={props.task.status === "cancelled"}>
+            <path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4" class="task-glyph-mark" />
+          </Match>
+          <Match when={props.task.status === "blocked"}>
+            <path d="M5.5 8h5" class="task-glyph-mark" />
+          </Match>
+          <Match when={props.task.status === "review"}>
+            <path d="M8 4.5a3.5 3.5 0 0 1 0 7z" fill="currentColor" stroke="none" class="task-glyph-mark" />
+          </Match>
+        </Switch>
+      </svg>
     </span>
   )
 }
@@ -46,23 +52,11 @@ export function TaskList(props: {
           const owner = () => taskOwner(task, props.members, props.agents)
           return (
             <li class="task-step" data-component="task-step" data-id={task.id} data-status={task.status}>
-              <TaskIcon status={task.status} />
-              <span class="task-step-owner">
-                <Show
-                  when={owner().slug}
-                  fallback={
-                    <span class="task-step-unassigned">
-                      <RemixIcon icon={GroupIcon} class="size-3" />
-                      Unassigned
-                    </span>
-                  }
-                >
-                  {(slug) => <AgentChip slug={slug()} name={owner().name} />}
-                </Show>
-              </span>
+              <TaskGlyph task={task} />
               <div class="task-step-content">
-                <span class="sr-only">{TASK_LABEL[task.status]}: </span>
-                <span class="task-step-title">{display(task.title)}</span>
+                <span class="task-step-title" data-closed={CLOSED.has(task.status) || undefined}>
+                  {display(task.title)}
+                </span>
                 <Show when={props.showDetails}>
                   <Show when={task.note}>
                     <p class="task-step-detail">{display(task.note!)}</p>
@@ -80,6 +74,10 @@ export function TaskList(props: {
                   : task.status === "blocked" || task.status === "review"
                     ? TASK_LABEL[task.status]
                     : ""}
+              </span>
+              <span class="task-step-owner" title={owner().name}>
+                <Show when={owner().slug}>{(slug) => <IdentityAvatar seed={slug()} size={20} />}</Show>
+                <span class="sr-only">{owner().name}</span>
               </span>
             </li>
           )

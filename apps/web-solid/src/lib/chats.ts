@@ -1,9 +1,16 @@
-import { type Agent, type AgentSlug, type Chat, KIKO, KIKO_HOME_ROOM, type RoomId } from "@kiko/protocol"
+import { type Agent, type AgentSlug, type Chat, KIKO, KIKO_HOME_ROOM, type Member, type RoomId } from "@kiko/protocol"
 
 const BUILTIN_AGENT: Agent = { id: KIKO, name: "Kiko", slug: KIKO as AgentSlug, prompt: "", model: "" }
 
 export function agentList(stored: readonly Agent[]): Agent[] {
   return [BUILTIN_AGENT, ...stored.filter((a) => a.id !== BUILTIN_AGENT.id)]
+}
+
+export function newChatMembers(agentIds: readonly string[] | undefined, stored: readonly Agent[]): Member[] {
+  const known = agentList(stored)
+  const picked = (agentIds ?? []).flatMap((id) => known.find((a) => a.id === id) ?? [])
+  const team = picked.length > 1 ? [BUILTIN_AGENT, ...picked.filter((a) => a.id !== KIKO)] : picked
+  return (team.length ? team : [BUILTIN_AGENT]).map((a, i) => ({ slug: a.slug, name: a.name, lead: i === 0 }))
 }
 
 export function kikoPlaceholder(now: number): Chat {

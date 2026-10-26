@@ -1,15 +1,14 @@
+import { Segmented } from "@kiko/ui/v2/segmented"
 import type { UserSettings } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { createSignal, onMount, Show } from "solid-js"
-import { Group, Row, Segmented, Skeleton } from "./kit"
-import { apiFetch } from "../lib/api"
+import { Show } from "solid-js"
+import { Group, Row, Skeleton } from "./kit"
+import { createQuery, owner, run } from "../state/runtime"
 
 type Settings = UserSettings
 export type Level = Settings["initiative"]
 export type Capture = Settings["capture"]
 
-const LEVELS = new Set<Level>(["off", "chat", "digest", "active"])
-const CAPTURES = new Set<Capture>(["auto", "off"])
 const HELP: Record<Level, string> = {
   off: "No initiative and no background judge cost.",
   chat: "Brings things up only inside replies.",
@@ -18,48 +17,15 @@ const HELP: Record<Level, string> = {
 }
 const DEFAULTS: Settings = { initiative: "digest", capture: "auto" }
 
-const [settings, setSettings] = createSignal<Settings>(DEFAULTS)
-const [loaded, setLoaded] = createSignal(false)
-
-function readSettings(value: unknown): Settings {
-  const v = (value ?? {}) as Record<string, unknown>
-  return {
-    initiative: LEVELS.has(v.initiative as Level) ? (v.initiative as Level) : DEFAULTS.initiative,
-    capture: CAPTURES.has(v.capture as Capture) ? (v.capture as Capture) : DEFAULTS.capture,
-  }
-}
-
-const latest: Partial<Record<keyof Settings, number>> = {}
-let counter = 0
-
-async function save(patch: Partial<Settings>): Promise<void> {
-  const before = settings()
-  const id = ++counter
-  for (const k of Object.keys(patch)) latest[k as keyof Settings] = id
-  setSettings({ ...before, ...patch })
-  const ok = await apiFetch("/api/settings", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(patch),
-  })
-    .then((r) => r.ok)
-    .catch(() => false)
-  if (!ok) {
-    const mine = Object.keys(patch).filter((k) => latest[k as keyof Settings] === id)
-    if (mine.length)
-      setSettings((now) => ({ ...now, ...Object.fromEntries(mine.map((k) => [k, before[k as keyof Settings]])) }))
-    showToastV2({ title: "Could not save that setting", variant: "error" })
-  }
+async function save(patch: Partial<Pick<Settings, "initiative" | "capture">>): Promise<void> {
+  if ((await run(owner.commands.settingsUpdate, { patch }))._tag === "Success") return
+  showToastV2({ title: "Could not save that setting", variant: "error" })
 }
 
 export default function InitiativePage() {
-  onMount(() => {
-    void apiFetch("/api/settings")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((v) => v && setSettings(readSettings(v)))
-      .catch(() => {})
-      .finally(() => setLoaded(true))
-  })
+  const remote = createQuery(() => owner.queries.settings(undefined))
+  const loaded = () => remote() !== undefined || remote.error !== undefined
+  const settings = () => remote() ?? DEFAULTS
   return (
     <div class="flex flex-col gap-8" data-component="initiative-settings">
       <Group title="Agents">
@@ -78,11 +44,7 @@ export default function InitiativePage() {
             />
           </Show>
         </Row>
-        <Row
-          label="Memory capture"
-          id="capture"
-          description="Auto captures facts when you have saved a judge key. Off never captures."
-        >
+        <Row label="Memory capture" id="capture" description="Saves facts from your chats when a judge key is set.">
           <Show when={loaded()} fallback={<Skeleton class="h-7 w-24" />}>
             <Segmented<Capture>
               label="Memory capture"

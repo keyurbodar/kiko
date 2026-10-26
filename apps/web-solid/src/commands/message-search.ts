@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js"
 import type { Hit } from "../search/model"
-import type { Command } from "./registry"
+import type { Command, CommandId } from "./registry"
 
 type Engine = (typeof import("./message-search-engine"))["searchEngine"]
 const [engine, setEngine] = createSignal<Engine>()
@@ -10,7 +10,21 @@ const load = () =>
 
 export const preloadMessageSearch = () => void load()
 
-export function messageSearchCommand(deps: { open: (hit: Hit) => void; openView: (id: string) => void }): Command {
+export const messageRows = (open: (hit: Hit) => void) => {
+  const e = engine()
+  if (e) return e.rows(open)
+  void load()
+  return []
+}
+
+export const typeMessageQuery = (query: string) => void load().then((e) => e.type(query))
+
+export const messageStatus = () => {
+  const status = engine()?.status()
+  return status === "loading" || status === "error" ? status : undefined
+}
+
+export function messageSearchCommand(deps: { open: (hit: Hit) => void; openView: (id: CommandId) => void }): Command {
   return {
     id: "chats.search-all",
     title: "Search messages…",

@@ -1,462 +1,194 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CloseIcon, MuteIcon, SearchIcon, UnreadIcon } from "@kiko/ui/icons"
-import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
-import { MenuV2 } from "@kiko/ui/v2/menu-v2"
+import { ChevronDownIcon, PlusIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { openAvatarPicker } from "../avatar/picker-state"
-import { useNavigate } from "@solidjs/router"
-import { createEffect, createMemo, createSignal, For, type JSX, onCleanup, Show } from "solid-js"
-import { VList } from "virtua/solid"
-import { ChatAvatar } from "../lib/IdentityAvatar"
-import { intentRef } from "../lib/intent"
-import { agentDisplayName } from "../lib/names"
-import { useApp } from "../lib/store"
-import type { BotPresence, ChatMessage, RosterBot } from "../lib/types"
-import {
-  cancelRename,
-  clearUnreadMark,
-  closeChat,
-  commitRename,
-  deleteChat,
-  markedUnread,
-  markUnread,
-  renamingId,
-  startRename,
-  toggleMute,
-  togglePin,
-} from "./actions"
-import { isListed, quoteOf } from "./activity"
+import { createMemo, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js"
+import { runCommand } from "../commands/registry"
+import type { RosterBot } from "../lib/types"
+import { room } from "../state/room"
+import { user } from "../state/user"
+import { isDeleted, markedUnread } from "./actions"
+import { ChatRow, isLive } from "./chat-row"
 import { filterRows, pinnedRows } from "./filter"
+import { flipRows, glideActive } from "./flip"
+import { createFailuresElsewhere } from "./failures"
+import { type Folded, loadFolded, saveFolded, type Section } from "./folded"
+import { type Need, needsOf } from "./needs"
 
-const MINUTE = 60_000
-const HOUR = 60 * MINUTE
-const DAY = 24 * HOUR
-
-const ROW_H = 52
 const SKELETON_ROWS = [62, 48, 70, 54, 66, 44]
 
-function rowStamp(updatedAt: number, now: number): string {
-  const delta = now - updatedAt
-  if (delta < MINUTE) return "now"
-  if (delta < HOUR) return `${Math.floor(delta / MINUTE)}m`
-  if (delta < DAY) return `${Math.floor(delta / HOUR)}h`
-  return `${Math.floor(delta / DAY)}d`
-}
+const sameIds = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((id, i) => id === b[i])
 
-const PRESENCE: Record<BotPresence, string> = {
-  idle: "Idle",
-  typing: "Typing",
-  working: "Working",
-  sleeping: "Sleeping",
-}
-
-function ChatMenuItems(props: { id: string }) {
-  const navigate = useNavigate()
-  const chat = createMemo(() =>
-    useApp
-      .user()
-      ?.chats()
-      .find((c) => c.roomId === props.id),
-  )
-  const active = () => useApp.activeThreadId()
-  const [sure, setSure] = createSignal(false)
-  return (
-    <>
-      <MenuV2.Item onSelect={() => startRename(props.id)} shortcut="F2">
-        Rename
-      </MenuV2.Item>
-
-      <Show when={!chat()?.kiko} fallback={<MenuV2.Item disabled>Always pinned</MenuV2.Item>}>
-        <MenuV2.Item onSelect={() => togglePin(props.id)}>{chat()?.pinned ? "Unpin" : "Pin"}</MenuV2.Item>
-      </Show>
-      <MenuV2.Item onSelect={() => toggleMute(props.id)}>{chat()?.muted ? "Unmute" : "Mute"}</MenuV2.Item>
-      <Show when={useApp.chatFaces(props.id).length === 1}>
-        <MenuV2.Item onSelect={() => openAvatarPicker(useApp.chatFaces(props.id)[0]!)}>Change avatar</MenuV2.Item>
-      </Show>
-      <MenuV2.Separator />
-      <MenuV2.Item onSelect={() => markUnread(props.id)}>Mark as unread</MenuV2.Item>
-      <MenuV2.Item onSelect={() => closeChat(props.id, active(), navigate)}>Close</MenuV2.Item>
-      <MenuV2.Separator />
-      <Show when={!chat()?.kiko} fallback={<MenuV2.Item disabled>Kiko can't be deleted</MenuV2.Item>}>
-        <MenuV2.Item
-          class="text-error"
-          closeOnSelect={false}
-          onSelect={() => (sure() ? deleteChat(props.id, active(), navigate) : setSure(true))}
-        >
-          {sure() ? "Delete chat?" : "Delete"}
-        </MenuV2.Item>
-      </Show>
-    </>
-  )
-}
-
-const [openPreview, setOpenPreview] = createSignal<string | null>(null)
-
-if (typeof document !== "undefined") {
-  const close = () => setOpenPreview(null)
-  document.addEventListener("pointerdown", close, true)
-  document.addEventListener(
-    "keydown",
-    (event) => {
-      if (!["Tab", "Shift", "Control", "Alt", "Meta"].includes(event.key)) close()
-    },
-    true,
-  )
-}
-
-function previewState(id: string) {
-  const open = () => openPreview() === id
-  const set = (on: boolean) => {
-    if (on) setOpenPreview(id)
-    else if (open()) setOpenPreview(null)
-  }
-  return [open, set] as const
-}
-
-function ChatPreview(props: { bot: RosterBot }) {
-  const tail = createMemo(() => useApp.messagesFor(props.bot.id).filter(isListed).slice(-3))
-  const name = (slug: string) => agentDisplayName(slug, useApp.agents())
-  const speaker = (message: ChatMessage) =>
-    message.sender === "user"
-      ? "You"
-      : message.botId === undefined
-        ? props.bot.name
-        : agentDisplayName(message.botId, useApp.agents())
-
-  return (
-    <div class="w-[280px] p-3" data-component="sidebar-preview">
-      <div class="flex items-center gap-2.5">
-        <ChatAvatar faces={useApp.chatFaces(props.bot.id)} size={32} />
-        <div class="min-w-0">
-          <div class="truncate text-[13px] font-semibold text-foreground">{props.bot.name}</div>
-          <div class="truncate text-[11px] text-muted-foreground">{PRESENCE[props.bot.presence]}</div>
-        </div>
-      </div>
-
-      <Show when={tail().length > 0}>
-        <div class="mt-2.5 flex flex-col gap-1.5">
-          <For each={tail()}>
-            {(message) => (
-              <p class="line-clamp-2 text-[12px] leading-snug text-muted-foreground">
-                <span class="font-semibold text-foreground">{speaker(message)}:</span> {quoteOf(message, name)}
-              </p>
-            )}
-          </For>
-        </div>
-      </Show>
-    </div>
-  )
-}
-
-function RowTitle(props: { id: string; title: string }) {
-  let input: HTMLInputElement | undefined
-  let done = false
-  const editing = () => renamingId() === props.id
-  createEffect(() => {
-    if (!editing()) return
-    done = false
-    setTimeout(() => {
-      input?.focus()
-      input?.select()
-    }, 0)
-  })
-  onCleanup(() => {
-    if (done || !editing()) return
-    done = true
-    const value = input?.value ?? props.title
-    commitRename(props.id, value)
-  })
-  return (
-    <Show when={editing()} fallback={<span class="chat-name">{props.title}</span>}>
-      <input
-        ref={(el) => (input = el)}
-        class="chat-rename"
-        data-component="sidebar-rename"
-        aria-label="Chat name"
-        value={props.title}
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          e.stopPropagation()
-          if (e.key === "Enter") {
-            done = true
-            commitRename(props.id, e.currentTarget.value)
-          } else if (e.key === "Escape") {
-            done = true
-            cancelRename()
-          }
-        }}
-        onBlur={(e) => {
-          if (done) return
-          done = true
-          commitRename(props.id, e.currentTarget.value)
-        }}
-      />
-    </Show>
-  )
-}
-
-function ChatRow(props: {
-  bot: RosterBot
-  muted: boolean
-  active: boolean
-  now: number
-  hint?: string
-  main?: boolean
-}) {
-  const [menuOpen, setMenuOpen] = createSignal(false)
-  const [previewOpen, setPreviewOpen] = previewState(props.bot.id)
-  const navigate = useNavigate()
-  const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id)
-  const draft = () => {
-    const book = useApp.drafts()
-    return props.active || !book?.has(props.bot.id) ? "" : (book.get(props.bot.id)?.text.trim() ?? "")
-  }
-
-  const select = () => {
-    clearUnreadMark(props.bot.id)
-    navigate(`/chat/${props.bot.id}`)
-  }
-
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== "Enter" && event.key !== " ") return
-    if (event.target !== event.currentTarget) return
-    event.preventDefault()
-    select()
-  }
-
-  return (
-    <MenuV2.Context gutter={8} onOpenChange={setMenuOpen}>
-      <MenuV2.Context.Trigger
-        as="div"
-        class="chat-row"
-        ref={intentRef(() => void useApp.preloadChat(props.bot.id))}
-        data-component="sidebar-row"
-        data-main={props.main ? "" : undefined}
-        data-pinned={props.bot.pinned ? "" : undefined}
-        data-chat-id={props.bot.id}
-        data-hint={props.hint}
-        data-hint-label="Chat"
-        data-hint-side="right"
-        data-active={props.active ? "" : undefined}
-        data-unread={unread() ? "" : undefined}
-        data-draft={draft() ? "" : undefined}
-        data-muted={props.muted ? "" : undefined}
-        aria-current={props.active ? "true" : undefined}
-        role="button"
-        tabindex={0}
-        onClick={select}
-        onKeyDown={onKeyDown}
-      >
-        <HoverCardV2
-          open={previewOpen() && !menuOpen() && renamingId() !== props.bot.id}
-          onOpenChange={setPreviewOpen}
-          openDelay={400}
-          closeDelay={150}
-          placement="right-start"
-          gutter={12}
-        >
-          <HoverCardV2.Trigger as="span" class="absolute inset-0 z-[1]" aria-hidden="true" />
-          <HoverCardV2.Portal>
-            <HoverCardV2.Content>
-              <ChatPreview bot={props.bot} />
-            </HoverCardV2.Content>
-          </HoverCardV2.Portal>
-        </HoverCardV2>
-
-        <ChatAvatar faces={useApp.chatFaces(props.bot.id)} class="chat-avatar" />
-
-        <span class="chat-text">
-          <span class="chat-line">
-            <RowTitle id={props.bot.id} title={props.bot.name} />
-            <Show when={props.muted}>
-              <RemixIcon icon={MuteIcon} size={12} class="chat-muted-icon" />
-            </Show>
-            <span class="chat-time">{rowStamp(props.bot.updatedAt, props.now)}</span>
-          </span>
-
-          <span class="chat-line">
-            <span
-              class="chat-preview"
-              data-typing={props.bot.presence === "typing" ? "" : undefined}
-              data-empty={!props.bot.preview && !draft() && props.bot.presence !== "typing" ? "" : undefined}
-            >
-              <Show
-                when={props.bot.presence === "typing"}
-                fallback={
-                  <Show
-                    when={draft()}
-                    fallback={
-                      <>
-                        <Show when={props.bot.previewFrom}>
-                          <span class="chat-preview-from" data-component="sidebar-preview-from">
-                            {props.bot.previewFrom}:
-                          </span>{" "}
-                        </Show>
-                        {props.bot.preview}
-                      </>
-                    }
-                  >
-                    <span class="chat-draft" data-component="sidebar-draft">
-                      Draft:
-                    </span>{" "}
-                    {draft()}
-                  </Show>
-                }
-              >
-                {props.bot.typing ?? "Typing"}
-                <i class="chat-typing-dot" aria-hidden="true" />
-                <i class="chat-typing-dot" aria-hidden="true" />
-                <i class="chat-typing-dot" aria-hidden="true" />
-              </Show>
-            </span>
-
-            <Show when={props.bot.mentions}>
-              <i
-                class="chat-mention-badge"
-                data-component="sidebar-mention-badge"
-                role="img"
-                aria-label="You were mentioned"
-              >
-                @
-              </i>
-            </Show>
-            <Show when={props.bot.unread > 0}>
-              <span
-                class="chat-count"
-                data-component="sidebar-unread-count"
-                role="img"
-                aria-label={`${props.bot.unread} unread`}
-              >
-                {props.bot.unread > 99 ? "99+" : props.bot.unread}
-              </span>
-            </Show>
-          </span>
-        </span>
-      </MenuV2.Context.Trigger>
-
-      <MenuV2.Context.Portal>
-        <MenuV2.Context.Content data-component="sidebar-chat-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
-          <ChatMenuItems id={props.bot.id} />
-        </MenuV2.Context.Content>
-      </MenuV2.Context.Portal>
-    </MenuV2.Context>
-  )
-}
-
-function SearchRow(props: {
-  query: string
-  onQuery: (query: string) => void
-  unreadOnly: boolean
-  onUnreadOnly: (on: boolean) => void
+function SectionLabel(props: {
+  label: string
+  open: boolean
+  onToggle: () => void
+  children?: JSX.Element
 }): JSX.Element {
   return (
-    <div class="chat-search" data-component="sidebar-search" data-hint="chats.go" data-hint-label="Go to chat">
-      <label class="chat-search-field">
-        <RemixIcon icon={SearchIcon} size={15} />
-        <input
-          type="text"
-          class="chat-search-input"
-          data-component="sidebar-search-input"
-          placeholder="Search"
-          aria-label="Search chats"
-          autocomplete="off"
-          spellcheck={false}
-          value={props.query}
-          onInput={(e) => props.onQuery(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape" && props.query !== "") {
-              e.preventDefault()
-              props.onQuery("")
-            }
-          }}
-        />
-        <Show when={props.query !== ""}>
-          <button
-            type="button"
-            class="chat-search-clear"
-            data-component="sidebar-search-clear"
-            aria-label="Clear search"
-            onClick={() => props.onQuery("")}
-          >
-            <RemixIcon icon={CloseIcon} size={13} />
-          </button>
+    <div class="chat-section" data-component="sidebar-section-label">
+      <button
+        type="button"
+        class="chat-section-toggle"
+        aria-expanded={props.open}
+        data-open={props.open ? "" : undefined}
+        onClick={props.onToggle}
+      >
+        <Show when={props.label} keyed>
+          {(label) => <span class="chat-section-name">{label}</span>}
         </Show>
-      </label>
-      <TooltipV2 placement="bottom" openDelay={400} value="Unread only">
-        <button
-          type="button"
-          class="chat-filter"
-          data-component="sidebar-filter"
-          aria-label="Show unread only"
-          aria-pressed={props.unreadOnly}
-          onClick={() => props.onUnreadOnly(!props.unreadOnly)}
-        >
-          <RemixIcon icon={UnreadIcon} size={16} />
-        </button>
-      </TooltipV2>
+        <RemixIcon icon={ChevronDownIcon} size={12} class="chat-section-chevron" />
+      </button>
+      <span class="chat-section-actions">{props.children}</span>
     </div>
   )
 }
 
-export function ChatPanel() {
-  const [now, setNow] = createSignal(Date.now())
-  const clock = setInterval(() => setNow(Date.now()), 60_000)
-  onCleanup(() => clearInterval(clock))
-  const [query, setQuery] = createSignal("")
-  const [unreadOnly, setUnreadOnly] = createSignal(false)
-
-  const all = createMemo(() => useApp.bots())
-  const shown = createMemo(() =>
-    filterRows(all(), { query: query(), unreadOnly: unreadOnly() }, (row) => row.unread > 0 || markedUnread(row.id)),
+function Fold(props: { open: boolean; children: JSX.Element }): JSX.Element {
+  return (
+    <div class="chat-fold" data-open={props.open ? "" : undefined} inert={!props.open}>
+      <div class="chat-fold-inner">{props.children}</div>
+    </div>
   )
-  const pinned = createMemo(() => pinnedRows(shown(), useApp.kikoChatId()))
+}
+
+export type ChatSectionsProps = {
+  bots: readonly RosterBot[]
+  needs: ReadonlyMap<string, Need>
+  activeId: string | null
+  mainId: string | null | undefined
+  muted: ReadonlySet<string>
+  now: number
+  loading: boolean
+}
+
+export function ChatSections(props: ChatSectionsProps): JSX.Element {
+  const [unreadOnly, setUnreadOnly] = createSignal(false)
+  const [folded, setFolded] = createSignal<Folded>(loadFolded())
+  const open = (key: Section) => !folded()[key]
+  const toggle = (key: Section) => {
+    const next = { ...folded(), [key]: open(key) }
+    setFolded(next)
+    saveFolded(next)
+  }
+  const [settled, setSettled] = createSignal(false)
+  onMount(() => requestAnimationFrame(() => setSettled(true)))
+
+  const shown = createMemo(() =>
+    filterRows(
+      props.bots.filter((bot) => !isDeleted(bot.id)),
+      { query: "", unreadOnly: unreadOnly() },
+      (row) => row.unread > 0 || markedUnread(row.id) || props.needs.has(row.id),
+    ),
+  )
+  const asking = createMemo(() => shown().filter((bot) => props.needs.has(bot.id)))
+  const calm = createMemo(() => shown().filter((bot) => !props.needs.has(bot.id)))
+  const working = createMemo(() => calm().filter(isLive))
+  const rest = createMemo(() => calm().filter((bot) => !isLive(bot)))
+  const pinned = createMemo(() => pinnedRows(rest(), props.mainId))
+  const showPinned = createMemo(() => pinned().some((bot) => bot.id !== props.mainId))
+  const pinnedList = createMemo(() => (showPinned() ? pinned() : []))
+  const chats = createMemo(() =>
+    showPinned() ? rest().filter((bot) => !bot.pinned) : [...pinned(), ...rest().filter((bot) => !bot.pinned)],
+  )
+
+  const idsOf = (rows: () => readonly RosterBot[]) =>
+    createMemo(() => rows().map((bot) => bot.id), undefined, { equals: sameIds })
+  const needIds = idsOf(asking)
+  const workingIds = idsOf(working)
+  const pinnedIds = idsOf(pinnedList)
+  const chatIds = idsOf(chats)
+  const byId = createMemo(() => new Map(shown().map((bot) => [bot.id, bot])))
   const jumpHint = createMemo(() => {
-    if (query() !== "" || unreadOnly()) return new Map<string, string>()
-    const order = [...all().filter((b) => b.pinned), ...all().filter((b) => !b.pinned)].slice(0, 9)
+    if (unreadOnly()) return new Map<string, string>()
+    const order = [...props.bots.filter((b) => b.pinned), ...props.bots.filter((b) => !b.pinned)].slice(0, 9)
     return new Map(order.map((b, i) => [b.id, `chats.go-${i + 1}`]))
   })
-  const rowIds = createMemo(() =>
-    shown()
-      .filter((bot) => !bot.pinned)
-      .map((bot) => bot.id),
+
+  let scroller: HTMLDivElement | undefined
+  flipRows(
+    () => scroller,
+    () => [...needIds(), "|", ...workingIds(), "|", ...pinnedIds(), "|", ...chatIds()],
   )
-  const byId = createMemo(() => new Map(shown().map((bot) => [bot.id, bot])))
-  const muted = createMemo(
-    () => new Set((useApp.user()?.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)),
+  glideActive(
+    () => scroller,
+    () => props.activeId,
   )
-  const active = () => useApp.activeThreadId()
-  const loading = () => all().length === 0 && !!useApp.user()?.state.loaded && !useApp.user()?.state.synced
+
+  const latest = (id: string) => createMemo<RosterBot>((prev) => byId().get(id) ?? prev, byId().get(id) as RosterBot)
+
+  const rows = (ids: () => readonly string[], pinMark = false) => (
+    <For each={ids()}>
+      {(id) => {
+        const bot = latest(id)
+        return (
+          <ChatRow
+            bot={bot()}
+            hint={jumpHint().get(id)}
+            active={props.activeId === id}
+            main={id === props.mainId}
+            muted={props.muted.has(id)}
+            now={props.now}
+            enter={settled()}
+            pinMark={pinMark}
+            need={props.needs.get(id)}
+          />
+        )
+      }}
+    </For>
+  )
 
   return (
-    <div class="chat-panel" data-component="sidebar-chats">
-      <SearchRow query={query()} onQuery={setQuery} unreadOnly={unreadOnly()} onUnreadOnly={setUnreadOnly} />
-      <Show when={pinned().length > 0}>
-        <div class="pinned-chats">
-          <For each={pinned()}>
-            {(bot) => (
-              <ChatRow
-                bot={bot}
-                hint={jumpHint().get(bot.id)}
-                active={active() === bot.id}
-                main={bot.id === useApp.kikoChatId()}
-                muted={muted().has(bot.id)}
-                now={now()}
-              />
-            )}
-          </For>
+    <div class="chat-scroll" data-component="sidebar-list" ref={(el) => (scroller = el)}>
+      <Show when={asking().length > 0}>
+        <div data-component="sidebar-needs" data-section="needs">
+          <SectionLabel label="Needs you" open={open("needs")} onToggle={() => toggle("needs")} />
+          <Fold open={open("needs")}>{rows(needIds)}</Fold>
         </div>
       </Show>
-      <Show when={pinned().length > 0 && rowIds().length > 0}>
-        <div class="chat-section" data-component="sidebar-chats-label">
-          Chats
+      <Show when={working().length > 0}>
+        <div data-section="working">
+          <SectionLabel label="Busy" open={open("working")} onToggle={() => toggle("working")} />
+          <Fold open={open("working")}>{rows(workingIds)}</Fold>
         </div>
       </Show>
-      <Show when={shown().length === 0 && (query() !== "" || unreadOnly())}>
-        <div class="flex flex-col items-center gap-2 py-6" data-component="sidebar-empty">
-          <p class="text-xs text-muted-foreground">No chats match</p>
+      <Show when={pinnedList().length > 0}>
+        <div data-section="pinned">
+          <SectionLabel label="Pinned" open={open("pinned")} onToggle={() => toggle("pinned")} />
+          <Fold open={open("pinned")}>{rows(pinnedIds, true)}</Fold>
         </div>
       </Show>
-      <Show when={loading()}>
+      <SectionLabel label={unreadOnly() ? "Unread" : "Chats"} open={open("chats")} onToggle={() => toggle("chats")}>
+        <button
+          type="button"
+          class="chat-section-filter"
+          data-component="sidebar-filter"
+          aria-label="Show unread only"
+          aria-pressed={unreadOnly()}
+          onClick={() => setUnreadOnly(!unreadOnly())}
+        >
+          Unread
+        </button>
+        <TooltipV2 placement="bottom" openDelay={400} value="New chat">
+          <button
+            type="button"
+            class="chat-section-button"
+            data-component="sidebar-chats-new"
+            aria-label="New chat"
+            onClick={() => runCommand("chat.new")}
+          >
+            <RemixIcon icon={PlusIcon} size={15} />
+          </button>
+        </TooltipV2>
+      </SectionLabel>
+      <Show when={shown().length === 0 && unreadOnly()}>
+        <div class="sidebar-empty type-label" data-component="sidebar-empty">
+          <span>You're all caught up</span>
+          <button type="button" class="sidebar-empty-link link-grow" onClick={() => setUnreadOnly(false)}>
+            Show all
+          </button>
+        </div>
+      </Show>
+      <Show when={props.loading}>
         <div class="chat-skeleton-list" data-component="sidebar-skeleton" aria-hidden="true">
           <For each={SKELETON_ROWS}>
             {(width) => (
@@ -471,21 +203,41 @@ export function ChatPanel() {
           </For>
         </div>
       </Show>
-      <VList class="chat-list" data={rowIds()} itemSize={ROW_H} bufferSize={ROW_H * 4} data-component="sidebar-list">
-        {(id) => (
-          <Show when={byId().get(id)} keyed>
-            {(bot) => (
-              <ChatRow
-                bot={bot}
-                muted={muted().has(id)}
-                active={active() === id}
-                now={now()}
-                hint={jumpHint().get(id)}
-              />
-            )}
-          </Show>
-        )}
-      </VList>
+      <Fold open={open("chats")}>{rows(chatIds)}</Fold>
+    </div>
+  )
+}
+
+export function ChatPanel() {
+  const [now, setNow] = createSignal(Date.now())
+  const clock = setInterval(() => setNow(Date.now()), 60_000)
+  onCleanup(() => clearInterval(clock))
+
+  const all = createMemo(() => room.bots())
+  const muted = createMemo(() => new Set((user.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)))
+  const elsewhere = createFailuresElsewhere(() => room.activeId())
+  const needs = createMemo(() =>
+    needsOf({
+      activeId: room.activeId(),
+      asks: room.active()?.asks() ?? [],
+      messages: room.messages(),
+      retry: (id) => room.retryRun(id),
+      elsewhere: elsewhere(),
+    }),
+  )
+  const loading = () => all().length === 0 && !!user.loaded() && !user.synced()
+
+  return (
+    <div class="chat-panel" data-component="sidebar-chats">
+      <ChatSections
+        bots={all()}
+        needs={needs()}
+        activeId={room.activeId()}
+        mainId={user.kikoChatId()}
+        muted={muted()}
+        now={now()}
+        loading={loading()}
+      />
     </div>
   )
 }

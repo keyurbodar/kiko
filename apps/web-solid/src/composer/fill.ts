@@ -12,3 +12,7 @@ export function takeComposerFill(roomId: string): string | undefined {
   setPending(null)
   return fill.text
 }
+
+export function fillComposer(roomId: string, text: string): void {
+  setPending({ roomId, text })
+}

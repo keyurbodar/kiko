@@ -1,8 +1,8 @@
-import type { ClientToUser, ComputerSummary, UserToClient } from "@kiko/protocol"
+import type { SettledAsyncResult } from "@kiko/client-runtime/state"
+import type { ComputerSummary } from "@kiko/protocol"
 import { createSignal } from "solid-js"
-import { userChannel } from "../sync/socket"
-
-const ASK_TIMEOUT_MS = 15_000
+import { failureMessage, owner, run } from "../state/runtime"
+import { onUserSignal } from "../state/user"
 
 const [list, setList] = createSignal<readonly ComputerSummary[]>([])
 export const computers = list
@@ -16,7 +16,7 @@ let started = false
 export function startComputers(): void {
   if (started) return
   started = true
-  userChannel.on("pcState", (frame) => setList(frame.computers))
+  onUserSignal("pcState", (signal) => setList(signal.computers))
 }
 
 export const computerById = (pcId: string): ComputerSummary | undefined => list().find((c) => c.id === pcId)
@@ -27,67 +27,42 @@ function patch(pcId: string, change: (computer: ComputerSummary) => ComputerSumm
 
 export function takeOver(pcId: string): void {
   patch(pcId, (c) => ({ ...c, holder: "human", heldBy: "you" }))
-  userChannel.send({ t: "pc.take", pcId })
+  void run(owner.commands.pcTake, { pcId })
   openViewer(pcId)
 }
 
 export function release(pcId: string): void {
   patch(pcId, ({ agent: _agent, heldBy: _heldBy, ...c }) => ({ ...c, holder: "agent" }))
-  userChannel.send({ t: "pc.release", pcId })
+  void run(owner.commands.pcRelease, { pcId })
   if (viewing() === pcId) closeViewer()
-}
-
-type Reply = {
-  "pc.result": Extract<UserToClient, { t: "pc.result" }>
-  "pc.pairCode": Extract<UserToClient, { t: "pc.pairCode" }>
-}
-
-let n = 0
-function ask<T extends keyof Reply>(reply: T, frame: (reqId: string) => ClientToUser): Promise<Reply[T] | null> {
-  return new Promise((resolve) => {
-    const reqId = `pc${++n}`
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const off = userChannel.on(reply, (frame) => {
-      const got = frame as Reply[T]
-      if (got.reqId !== reqId) return
-      off()
-      clearTimeout(timer)
-      resolve(got)
-    })
-    timer = setTimeout(() => {
-      off()
-      resolve(null)
-    }, ASK_TIMEOUT_MS)
-    if (!userChannel.send(frame(reqId))) {
-      off()
-      clearTimeout(timer)
-      resolve(null)
-    }
-  })
 }
 
 export type Outcome = { ok: true } | { ok: false; error: string }
 
-const outcome = (result: Reply["pc.result"] | null): Outcome =>
-  result?.ok ? { ok: true } : { ok: false, error: result?.error ?? "Kiko did not answer." }
+const outcome = (result: SettledAsyncResult<unknown, unknown>): Outcome =>
+  result._tag === "Success" ? { ok: true } : { ok: false, error: failureMessage(result.cause, "Kiko did not answer.") }
 
 export async function renameComputer(pcId: string, name: string): Promise<Outcome> {
-  const result = outcome(await ask("pc.result", (reqId) => ({ t: "pc.rename", reqId, pcId, name })))
-  if (result.ok) patch(pcId, (c) => ({ ...c, name }))
+  const previous = computerById(pcId)?.name
+  patch(pcId, (c) => ({ ...c, name }))
+  const result = outcome(await run(owner.commands.pcRename, { pcId, name }))
+  if (!result.ok && previous !== undefined) patch(pcId, (c) => ({ ...c, name: previous }))
   return result
 }
 
 export async function removeComputer(pcId: string): Promise<Outcome> {
-  const result = outcome(await ask("pc.result", (reqId) => ({ t: "pc.remove", reqId, pcId })))
-  if (result.ok) setList((all) => all.filter((c) => c.id !== pcId))
+  const previous = list()
+  setList((all) => all.filter((c) => c.id !== pcId))
+  const result = outcome(await run(owner.commands.pcRemove, { pcId }))
+  if (!result.ok) setList((all) => (all.some((c) => c.id === pcId) ? all : previous))
   return result
 }
 
 export type PairCode = { code: string; url: string; expiresAt: number }
 
 export async function requestPairCode(): Promise<PairCode | null> {
-  const got = await ask("pc.pairCode", (reqId) => ({ t: "pc.pairCode", reqId }))
-  return got ? { code: got.code, url: got.url, expiresAt: got.expiresAt } : null
+  const result = await run(owner.commands.pcPairCode, {})
+  return result._tag === "Success" ? result.value : null
 }
 
 export function watchTarget(roomId: string | null): string {

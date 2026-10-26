@@ -1,3 +1,4 @@
+import { typeVars } from "./system"
 export type ChatWidth = "comfortable" | "wide" | "full"
 
 export type Display = Readonly<{
@@ -24,22 +25,28 @@ export const DEFAULT_DISPLAY: Display = {
 }
 
 export const CHAT_WIDTHS: Record<ChatWidth, { label: string; width: string }> = {
-  comfortable: { label: "Comfortable", width: "736px" },
+  comfortable: { label: "Comfortable", width: "820px" },
   wide: { label: "Wide", width: "1152px" },
   full: { label: "Full", width: "100%" },
 }
 
-const SANS_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
-const DISPLAY_STACK = SANS_STACK
-export const MONO_STACK = '"SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace'
+const SANS_STACK = 'Satoshi, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
+const MONO_STACK = '"JetBrains Mono", "SF Mono", Menlo, Consolas, ui-monospace, monospace'
 
-export function fontFamily(name: string, stack: string): string {
-  const names = name
+function quoteFamily(name: string): string {
+  const bare = name.trim()
+  if (bare.length === 0) return ""
+  if (/^(['"]).*\1$/.test(bare)) return bare
+  if (/^[a-zA-Z][a-zA-Z0-9-]*$/.test(bare)) return bare
+  return `"${bare.replaceAll('"', "")}"`
+}
+
+export function cssFontFamilies(input: string): string | null {
+  const families = input
     .split(",")
-    .map((n) => n.trim())
-    .filter(Boolean)
-    .map((n) => (/^[\p{L}\p{N}-]+$/u.test(n) ? n : `"${n}"`))
-  return names.length ? `${names.join(", ")}, ${stack}` : stack
+    .map(quoteFamily)
+    .filter((name) => name.length > 0)
+  return families.length > 0 ? families.join(", ") : null
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
@@ -72,17 +79,21 @@ export function readDisplay(value: unknown): Display {
   }
 }
 
+function fontVars(display: Display): Record<string, string> {
+  const vars: Record<string, string> = {}
+  const sans = cssFontFamilies(display.interfaceFont)
+  const mono = cssFontFamilies(display.codeFont)
+  if (sans !== null) vars["--font-family-sans"] = `${sans}, ${SANS_STACK}`
+  if (mono !== null) vars["--font-family-mono"] = `${mono}, ${MONO_STACK}`
+  return vars
+}
+
 export function displayVars(display: Display): Record<string, string> {
   const b = display.baseSize
   return {
-    "--font-xs": `${b - 2}px`,
-    "--font-sm": `${b - 1}px`,
-    "--font-md": `${b}px`,
-    "--font-base": `${b + 1}px`,
+    ...fontVars(display),
+    ...typeVars(b),
     "--chat-content-max-width": CHAT_WIDTHS[display.chatWidth].width,
-    "--font-family-sans": fontFamily(display.interfaceFont, SANS_STACK),
-    "--font-family-display": display.interfaceFont ? fontFamily(display.interfaceFont, SANS_STACK) : DISPLAY_STACK,
-    "--font-family-mono": fontFamily(display.codeFont, MONO_STACK),
     "--font-smoothing": display.smoothing ? "antialiased" : "auto",
   }
 }

@@ -17,6 +17,7 @@ import { DEFAULT_TIMEOUT_S, MAX_TIMEOUT_S } from "../../files/bash"
 import { filesOf } from "../../files/room-fs"
 import { encodeBase64 } from "../../lib/base64"
 import { declareEffect } from "@kiko/agent/effects"
+import { AgentFileMissing } from "../errors"
 
 const FILES = "files"
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -231,7 +232,7 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
         files.map(async (f) => {
           const to = `${target}/${f.path.slice(src.path.length + 1)}`
           const bytes = await fs.bytesOf(f)
-          if (!bytes) throw new Error(`no file at ${f.path}`)
+          if (!bytes) throw new AgentFileMissing({ path: f.path, message: `no file at ${f.path}` })
           getOrThrow(await fs.write(to, bytes, f.type))
           return roomPathOf(api, to)
         }),

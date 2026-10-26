@@ -1,7 +1,6 @@
 import type { ProviderProblem } from "@kiko/protocol"
 import { createSignal } from "solid-js"
 import { openSettings } from "../lib/errors"
-import { setModelsTab } from "./models-tab"
 
 export const PROBLEM_LINE: Record<ProviderProblem, string> = {
   signed_out: "Sign-in expired. Sign in again.",
@@ -27,7 +26,6 @@ export const reconnectTarget = target
 export const clearReconnect = () => setTarget(null)
 
 export function reconnect(provider: string): void {
-  setModelsTab("providers")
   setTarget(provider)
   openSettings()
 }

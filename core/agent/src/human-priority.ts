@@ -12,6 +12,7 @@ import {
 } from "@earendil-works/pi-durable"
 import { stoppable } from "./effects"
 import type { JournalStorage } from "./journal"
+import { JournalCorrupt } from "./errors"
 
 const context = BACKGROUND_CONTEXT
 const RESTART = "kiko.restart"
@@ -113,7 +114,7 @@ async function replayRestart(
     typeof entry.data !== "object" ||
     Array.isArray(entry.data)
   )
-    throw new Error("Invalid human restart input")
+    throw new JournalCorrupt({ reason: "restart_input", message: "Invalid human restart input" })
   const queued = await storage.scanSubmissions({ conversationId: root.id, status: "queued" }, 1, undefined, context)
   if (abort && !queued.items.length) {
     if ((await durable.get<number>(RESTARTS_KEY)) !== data.restarts) await durable.put(RESTARTS_KEY, data.restarts)

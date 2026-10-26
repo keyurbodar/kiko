@@ -5,6 +5,45 @@ import { defaultThinking, THINKING_LABELS, type ThinkingLevel } from "@kiko/prot
 import { For, Show } from "solid-js"
 import { cn } from "../lib/cn"
 import { canReason } from "./agent-model"
+import "./reasoning-menu.css"
+
+const choices = (levels: readonly ThinkingLevel[]) => levels.filter((level) => level !== "off" || levels.length > 1)
+
+function LevelLabel(props: { level: ThinkingLevel; levels: readonly ThinkingLevel[] }) {
+  return (
+    <>
+      <span>{THINKING_LABELS[props.level]}</span>
+      <Show when={props.level === defaultThinking(props.levels)}>
+        <span class="reasoning-default">Default</span>
+      </Show>
+    </>
+  )
+}
+
+export function ReasoningChoices(props: {
+  levels: readonly ThinkingLevel[]
+  value: ThinkingLevel
+  onChange: (level: ThinkingLevel) => void
+}) {
+  return (
+    <div class="reasoning-choices" role="radiogroup" aria-label="Reasoning">
+      <For each={choices(props.levels)}>
+        {(level) => (
+          <button
+            type="button"
+            role="radio"
+            class="reasoning-choice"
+            aria-checked={level === props.value}
+            data-level={level}
+            onClick={() => level !== props.value && props.onChange(level)}
+          >
+            <LevelLabel level={level} levels={props.levels} />
+          </button>
+        )}
+      </For>
+    </div>
+  )
+}
 
 export function ReasoningMenu(props: {
   levels: readonly ThinkingLevel[] | undefined
@@ -17,10 +56,10 @@ export function ReasoningMenu(props: {
   const value = () => props.value ?? defaultThinking(levels())
   return (
     <Show when={canReason(props.levels)}>
-      <MenuV2 gutter={6} placement={props.placement ?? "top-start"}>
+      <MenuV2 gutter={8} placement={props.placement ?? "top-start"}>
         <MenuV2.Trigger
           class={cn(
-            "flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground",
+            "reasoning-trigger flex h-7 shrink-0 items-center gap-1.5 rounded-control px-2 text-label text-fg2 hover:bg-hover hover:text-fg aria-expanded:bg-hover aria-expanded:text-fg",
             props.class,
           )}
           aria-label="Reasoning"
@@ -28,24 +67,23 @@ export function ReasoningMenu(props: {
           data-component="reasoning-trigger"
         >
           <RemixIcon icon={ReasoningIcon} size={14} />
-          <span>{THINKING_LABELS[value()]}</span>
+          <span class="reasoning-label">{THINKING_LABELS[value()]}</span>
           <RemixIcon icon={ChevronDownIcon} size={10} class="opacity-70" />
         </MenuV2.Trigger>
         <MenuV2.Portal>
-          <MenuV2.Content class="z-[80] min-w-44" data-component="reasoning-menu">
+          <MenuV2.Content class="min-w-52" data-component="reasoning-menu">
             <MenuV2.Group>
-              <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
-                Reasoning
-              </MenuV2.GroupLabel>
-              <MenuV2.RadioGroup value={value()} onChange={(level) => props.onChange(level as ThinkingLevel)}>
-                <For each={levels()}>
+              <MenuV2.GroupLabel>Reasoning</MenuV2.GroupLabel>
+              <MenuV2.RadioGroup
+                value={value()}
+                onChange={(next) => next !== value() && props.onChange(next as ThinkingLevel)}
+              >
+                <For each={choices(levels())}>
                   {(level) => (
-                    <MenuV2.RadioItem
-                      value={level}
-                      badge={level === defaultThinking(levels()) ? "Default" : undefined}
-                      data-level={level}
-                    >
-                      {THINKING_LABELS[level]}
+                    <MenuV2.RadioItem value={level} closeOnSelect data-level={level}>
+                      <span class="flex flex-1 items-center gap-2">
+                        <LevelLabel level={level} levels={levels()} />
+                      </span>
                     </MenuV2.RadioItem>
                   )}
                 </For>

@@ -1,0 +1,134 @@
+.theme-preview {
+  position: relative;
+  display: flex;
+  height: 76px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--tp-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tp-fg) 8%, transparent);
+}
+
+.theme-preview [data-slot="side"] {
+  display: flex;
+  width: 22%;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 8px;
+  background: var(--tp-side);
+}
+
+.theme-preview [data-slot="side"] span {
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in oklab, var(--tp-muted) 45%, transparent);
+}
+
+.theme-preview [data-slot="side"] span:first-child {
+  width: 70%;
+  background: color-mix(in oklab, var(--tp-fg) 70%, transparent);
+}
+
+.theme-preview [data-slot="side"] span:last-child {
+  width: 55%;
+}
+
+.theme-preview [data-slot="code"] {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  padding: 9px 10px;
+  color: var(--tp-fg);
+  font-family: var(--font-family-mono);
+  font-size: 9.5px;
+  line-height: 14px;
+  white-space: pre;
+}
+
+.theme-preview [data-slot="code"] > span {
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.theme-preview [data-token="kw"] {
+  color: var(--tp-kw);
+}
+
+.theme-preview [data-token="fn"] {
+  color: var(--tp-fn);
+}
+
+.theme-preview [data-token="str"] {
+  color: var(--tp-str);
+}
+
+.theme-preview [data-token="cm"] {
+  color: var(--tp-cm);
+}
+
+.theme-preview [data-slot="bubble"] {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 34%;
+  height: 12px;
+  border-radius: 6px 6px 2px 6px;
+  background: var(--tp-accent);
+}
+
+.theme-variant-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 12px;
+}
+
+@container themes (min-width: 460px) {
+  .theme-variant-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container themes (min-width: 560px) {
+  .theme-variant-grid--nested {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding-left: 52px;
+  }
+}
+
+.theme-variant-remove {
+  opacity: 0;
+  transition: opacity var(--dur-hover) var(--ease-kiko);
+}
+
+.theme-variant-remove:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .theme-variant-remove {
+    opacity: 1;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .theme-row-hover:hover {
+    background: var(--hover);
+  }
+
+  .group\/variant:hover .theme-variant-remove {
+    opacity: 1;
+  }
+
+  .theme-preview-hover:hover {
+    box-shadow:
+      0 0 0 2px var(--raise),
+      0 0 0 3.5px var(--line2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-variant-remove {
+    transition: none;
+  }
+}

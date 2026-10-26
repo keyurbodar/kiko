@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 import { type UserId } from "@kiko/protocol"
 import type { OwnerDO } from "../owner/owner-do"
 import { rpc } from "./dev-guard"
@@ -6,12 +7,14 @@ export const USER_ID_HEADER = "x-kiko-user-id"
 export const HANDLE_HEADER = "x-kiko-handle"
 export const ROOM_ID_HEADER = "x-kiko-room-id"
 
-export class NameError extends Error {}
+export class NameError extends Schema.TaggedError<NameError>()("NameError", {
+  message: Schema.String,
+}) {}
 
 const USER_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 
 function checkUser(userId: string): UserId {
-  if (!USER_ID_PATTERN.test(userId)) throw new NameError("bad user id")
+  if (!USER_ID_PATTERN.test(userId)) throw new NameError({ message: "bad user id" })
   return userId as UserId
 }
 

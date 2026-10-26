@@ -1,6 +1,6 @@
 import type { ProviderInfo } from "@kiko/protocol"
-import { useApp } from "../lib/store"
+import { user } from "../state/user"
 
-export const connectedProviders = (): ProviderInfo[] => useApp.rows("provider")
+export const connectedProviders = (): ProviderInfo[] => user.rows("provider")
 
-export const connectedReady = (): boolean => useApp.user()?.state.synced ?? false
+export const connectedReady = (): boolean => user.synced() ?? false

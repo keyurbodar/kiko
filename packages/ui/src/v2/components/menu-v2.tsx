@@ -1,5 +1,5 @@
 import type { MenuV2 as Impl } from "./menu-v2-impl"
-import { Children, part, trigger } from "./overlays"
+import { part } from "./overlays"
 
 export type {
   MenuV2CheckboxItemProps,
@@ -12,18 +12,18 @@ type M = typeof Impl
 type C = M["Context"]
 
 const MenuV2Context = Object.assign(
-  part<C>((i) => i.MenuV2.Context, Children),
+  part<C>((i) => i.MenuV2.Context),
   {
-    Trigger: part<C["Trigger"]>((i) => i.MenuV2.Context.Trigger, trigger("div")),
+    Trigger: part<C["Trigger"]>((i) => i.MenuV2.Context.Trigger),
     Portal: part<C["Portal"]>((i) => i.MenuV2.Context.Portal),
     Content: part<C["Content"]>((i) => i.MenuV2.Context.Content),
   },
 )
 
 export const MenuV2 = Object.assign(
-  part<M>((i) => i.MenuV2, Children),
+  part<M>((i) => i.MenuV2),
   {
-    Trigger: part<M["Trigger"]>((i) => i.MenuV2.Trigger, trigger("button")),
+    Trigger: part<M["Trigger"]>((i) => i.MenuV2.Trigger),
     Portal: part<M["Portal"]>((i) => i.MenuV2.Portal),
     Content: part<M["Content"]>((i) => i.MenuV2.Content),
     Item: part<M["Item"]>((i) => i.MenuV2.Item),
@@ -33,7 +33,7 @@ export const MenuV2 = Object.assign(
     Group: part<M["Group"]>((i) => i.MenuV2.Group),
     GroupLabel: part<M["GroupLabel"]>((i) => i.MenuV2.GroupLabel),
     Separator: part<M["Separator"]>((i) => i.MenuV2.Separator),
-    Sub: part<M["Sub"]>((i) => i.MenuV2.Sub, Children),
+    Sub: part<M["Sub"]>((i) => i.MenuV2.Sub),
     SubTrigger: part<M["SubTrigger"]>((i) => i.MenuV2.SubTrigger),
     SubContent: part<M["SubContent"]>((i) => i.MenuV2.SubContent),
     Context: MenuV2Context,

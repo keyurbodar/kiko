@@ -1,67 +1,85 @@
-import { type Keyring, keyringFromEnv } from "@kiko/durable/crypto"
-import type { UpdateStage, UserToClient } from "@kiko/protocol"
+import { keyringFromEnv } from "@kiko/durable/crypto"
+import type { UpdateState } from "@kiko/protocol"
+import * as Cause from "effect/Cause"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import type { Env } from "../index"
 import { devOverride } from "../lib/dev-guard"
 import { updateConfig } from "../lib/release-config"
 import { getSetting, setSetting } from "../lib/settings"
-import { openGrant, parseGrant, runUpdate, sealGrant, type UpdateConfig } from "./update"
+import { grantStore, runUpdate, type UpdateConfig, UpdateFailed } from "./update"
 
 const GRANT = "cf_grant"
 const DEV_UPDATE = "dev_update"
+const RESTART_GRACE_MS = 60_000
 
 type Dev = Partial<UpdateConfig> & { grant?: string }
 
-export class UpdateWiring {
-  #stage: { stage: UpdateStage; error?: string } | null = null
-  #running = false
+export class SelfUpdate {
+  #state: UpdateState = { stage: "idle" }
+  #restartedAt = 0
 
   constructor(
     private readonly deps: {
       env: Env
       sql: SqlStorage
       userId: () => string
-      broadcast: (frame: UserToClient) => void
+      waitUntil: (work: Promise<unknown>) => void
     },
   ) {}
 
-  #dev(): Dev | null {
-    return devOverride(() => {
+  state(): UpdateState {
+    return this.#state
+  }
+
+  start(version: string): UpdateState {
+    if (this.#running()) return this.#state
+    this.#state = { stage: "uploading", to: version }
+    this.deps.waitUntil(this.#run(version))
+    return this.#state
+  }
+
+  #running(): boolean {
+    const { stage } = this.#state
+    return stage === "uploading" || (stage === "restarting" && Date.now() - this.#restartedAt < RESTART_GRACE_MS)
+  }
+
+  async #run(version: string): Promise<void> {
+    const dev = devOverride(() => {
       const text = getSetting(this.deps.sql, DEV_UPDATE)
       return text ? (JSON.parse(text) as Dev) : null
     })
-  }
-
-  async start(version: string): Promise<void> {
-    if (this.#running) {
-      if (this.#stage) this.deps.broadcast({ t: "update.state", ...this.#stage })
+    const exit = await Effect.runPromiseExit(
+      Effect.suspend(() =>
+        runUpdate(
+          {
+            fetch: (url, init) => fetch(url, init),
+            config: updateConfig(this.deps.env, dev),
+            grants: grantStore({
+              keyring: keyringFromEnv(this.deps.env),
+              userId: this.deps.userId(),
+              env: dev?.grant ?? this.deps.env.CF_GRANT,
+              cell: {
+                read: () => getSetting(this.deps.sql, GRANT),
+                write: (text) => setSetting(this.deps.sql, GRANT, text),
+              },
+            }),
+          },
+          version,
+        ),
+      ),
+    )
+    if (Exit.isSuccess(exit)) {
+      this.#restartedAt = Date.now()
+      this.#state = { stage: "restarting", to: version }
       return
     }
-    this.#running = true
-    const keyring: Keyring = keyringFromEnv(this.deps.env)
-    const dev = this.#dev()
-    try {
-      await runUpdate(
-        {
-          fetch: (url, init) => fetch(url, init),
-          config: updateConfig(this.deps.env, dev),
-          loadGrant: async () => {
-            const stored = getSetting(this.deps.sql, GRANT)
-            return (
-              (stored ? await openGrant(keyring, this.deps.userId(), stored) : null) ??
-              parseGrant(dev?.grant ?? this.deps.env.CF_GRANT)
-            )
-          },
-          saveGrant: async (grant) =>
-            setSetting(this.deps.sql, GRANT, await sealGrant(keyring, this.deps.userId(), grant)),
-          report: (stage, error) => {
-            this.#stage = { stage, ...(error ? { error } : {}) }
-            this.deps.broadcast({ t: "update.state", ...this.#stage })
-          },
-        },
-        version,
-      )
-    } finally {
-      this.#running = false
-    }
+    const failure = Cause.squash(exit.cause)
+    const failed =
+      failure instanceof UpdateFailed
+        ? failure
+        : new UpdateFailed({ code: "cloudflare_error", message: "The update failed. Try again." })
+    if (!(failure instanceof UpdateFailed)) console.error(`update failed: ${String(failure)}`)
+    this.#state = { stage: "failed", to: version, error: failed.code, message: failed.message }
   }
 }

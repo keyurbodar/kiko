@@ -12,6 +12,7 @@ import { count } from "../../lib/dev-guard"
 import { filesOf } from "../../files/room-fs"
 import type { BrowserConnection } from "./connection"
 import type { LeasePort } from "./lease"
+import { BrowserError } from "../errors"
 
 export const BROWSER_EXT = "browser"
 const BROWSER_INFO_EXT = "browser-info"
@@ -188,7 +189,7 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
       call(deps, "browse", api, async (_signal, scope) => {
         const urls = (args.urls ?? []).slice(0, BROWSER.urlsPerBrowse)
         const bad = firstBadUrl(urls)
-        if (bad) throw new Error(bad)
+        if (bad) throw new BrowserError({ message: bad })
         const conn = deps.connection()
         const browseMs = deps.browseMs ?? BROWSER.browseMs
         const deadline = Date.now() + browseMs

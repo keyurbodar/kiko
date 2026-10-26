@@ -1,8 +1,11 @@
+import * as Schema from "effect/Schema"
 import type { AuthOperationOptions, Credential, CredentialInfo, CredentialStore } from "@earendil-works/pi-ai"
 import { type Keyring, open, seal } from "@kiko/durable/crypto"
 import type { ProviderInfo, ProviderProblem } from "@kiko/protocol"
 
-export class CredentialError extends Error {}
+export class CredentialError extends Schema.TaggedError<CredentialError>()("CredentialError", {
+  message: Schema.String,
+}) {}
 
 const PROVIDER_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/
 const MAX_KEY_LENGTH = 8192
@@ -13,10 +16,10 @@ export function isProviderId(value: unknown): value is string {
 }
 
 export function checkApiKey(value: unknown): string {
-  if (typeof value !== "string") throw new CredentialError("api key must be a string")
+  if (typeof value !== "string") throw new CredentialError({ message: "api key must be a string" })
   const key = value.trim()
-  if (key.length === 0) throw new CredentialError("api key is empty")
-  if (key.length > MAX_KEY_LENGTH) throw new CredentialError("api key is too long")
+  if (key.length === 0) throw new CredentialError({ message: "api key is empty" })
+  if (key.length > MAX_KEY_LENGTH) throw new CredentialError({ message: "api key is too long" })
   return key
 }
 
@@ -71,11 +74,11 @@ export class CredentialVault implements CredentialStore {
   }
 
   async connect(provider: string, apiKey: unknown): Promise<ProviderInfo> {
-    if (!isProviderId(provider)) throw new CredentialError("bad provider id")
+    if (!isProviderId(provider)) throw new CredentialError({ message: "bad provider id" })
     const key = checkApiKey(apiKey)
     await this.modify(provider, async () => ({ type: "api_key", key }))
     const info = this.info(provider)
-    if (!info) throw new CredentialError("provider is missing right after connect")
+    if (!info) throw new CredentialError({ message: "provider is missing right after connect" })
     return info
   }
 

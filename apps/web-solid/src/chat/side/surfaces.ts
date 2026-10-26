@@ -1,39 +1,47 @@
 import { createSignal } from "solid-js"
 import { rememberFile } from "../../files/recent"
+import {
+  back,
+  closeFile,
+  closeFiles,
+  closeRightOf,
+  type DeskNav,
+  dropFiles,
+  EMPTY_NAV,
+  type FileSurface,
+  fileSurface,
+  keepOnly,
+  moveFiles,
+  openView,
+} from "./desk-nav"
+import { type FixedKind, loadPanelViews, PANELS, type PanelKind, panelOf, type Surface } from "./panels"
 
-export type FixedKind = "files" | "memory" | "routines" | "tasks"
-
-export type Surface =
-  | { id: "files"; kind: "files" }
-  | { id: `file:${string}`; kind: "file"; path: string }
-  | { id: "memory"; kind: "memory" }
-  | { id: "routines"; kind: "routines" }
-  | { id: "tasks"; kind: "tasks" }
-  | { id: `agent:${string}`; kind: "agent"; slug: string }
-
-export type SidecarState = { open: boolean; active: string | null; surfaces: Surface[] }
+export type { FixedKind, Surface }
 
 export type Reveal = { chatId: string; path: string; line: number | null; n: number }
 
-const KEY = "kiko:sidecar:v1"
-const EMPTY: SidecarState = { open: false, active: null, surfaces: [] }
+const KEY = "kiko:desk:v1"
+const SHOWN_KEY = "kiko:device:card"
 
-const FIXED: { [K in FixedKind]: Extract<Surface, { kind: K }> } = {
-  files: { id: "files", kind: "files" },
-  memory: { id: "memory", kind: "memory" },
-  routines: { id: "routines", kind: "routines" },
-  tasks: { id: "tasks", kind: "tasks" },
-}
-export const fixedSurface = (kind: FixedKind): Surface => FIXED[kind]
-const fileSurface = (path: string): Surface => ({ id: `file:${path}`, kind: "file", path })
-export const agentSurface = (slug: string): Surface => ({ id: `agent:${slug}`, kind: "agent", slug })
+export const fixedSurface = (kind: FixedKind): Surface => ({ id: kind, kind }) as Surface
+export const agentSurface = (slug: string): Surface => ({
+  id: PANELS.agent.instance!.id({ slug }),
+  kind: "agent",
+  slug,
+})
 
-function read(): string | null {
+function readKey(key: string): string | null {
   try {
-    return localStorage.getItem(KEY)
+    return localStorage.getItem(key)
   } catch {
     return null
   }
+}
+
+function writeKey(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {}
 }
 
 let writing: ReturnType<typeof setTimeout> | undefined
@@ -46,10 +54,7 @@ function write(value: string) {
     writing = undefined
     const out = pending
     pending = null
-    if (out === null) return
-    try {
-      localStorage.setItem(KEY, out)
-    } catch {}
+    if (out !== null) writeKey(KEY, out)
   }, 250)
 }
 
@@ -58,37 +63,37 @@ if (typeof document !== "undefined") {
     if (document.visibilityState !== "hidden" || pending === null) return
     const out = pending
     pending = null
-    try {
-      localStorage.setItem(KEY, out)
-    } catch {}
+    writeKey(KEY, out)
   })
 }
 
 function parseSurface(value: unknown): Surface | null {
   if (typeof value !== "object" || value === null) return null
-  const s = value as { kind?: unknown; path?: unknown; slug?: unknown }
-  if (s.kind === "file") return typeof s.path === "string" ? fileSurface(s.path) : null
-  if (s.kind === "agent") return typeof s.slug === "string" ? agentSurface(s.slug) : null
-  if (s.kind === "files" || s.kind === "memory" || s.kind === "routines" || s.kind === "tasks")
-    return fixedSurface(s.kind)
-  return null
+  const raw = value as Record<string, unknown>
+  const kind = raw.kind
+  if (typeof kind !== "string" || !Object.hasOwn(PANELS, kind)) return null
+  const instance = panelOf(kind as PanelKind).instance as
+    | { id: (fields: object) => string; parse: (raw: Record<string, unknown>) => object | null }
+    | undefined
+  if (!instance) return fixedSurface(kind as FixedKind)
+  const fields = instance.parse(raw)
+  return fields ? ({ ...fields, kind, id: instance.id(fields) } as Surface) : null
 }
 
-function parseState(value: unknown): SidecarState | null {
+function parseNav(value: unknown): DeskNav | null {
   if (typeof value !== "object" || value === null) return null
-  const { open, active, surfaces } = value as { open?: unknown; active?: unknown; surfaces?: unknown }
-  if (typeof open !== "boolean" || !Array.isArray(surfaces)) return null
-  const list: Surface[] = []
-  for (const item of surfaces) {
+  const { view, files } = value as { view?: unknown; files?: unknown }
+  if (!Array.isArray(files)) return null
+  const list: FileSurface[] = []
+  for (const item of files) {
     const surface = parseSurface(item)
-    if (surface && !list.some((s) => s.id === surface.id)) list.push(surface)
+    if (surface?.kind === "file" && !list.some((s) => s.id === surface.id)) list.push(surface)
   }
-  const activeId = typeof active === "string" && list.some((s) => s.id === active) ? active : null
-  return { open, active: activeId, surfaces: list }
+  return { view: parseSurface(view), files: list }
 }
 
-function readAll(): Record<string, SidecarState> {
-  const saved = read()
+function readAll(): Record<string, DeskNav> {
+  const saved = readKey(KEY)
   if (saved === null) return {}
   let raw: unknown
   try {
@@ -97,23 +102,39 @@ function readAll(): Record<string, SidecarState> {
     return {}
   }
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return {}
-  const out: Record<string, SidecarState> = {}
+  const out: Record<string, DeskNav> = {}
   for (const [chatId, value] of Object.entries(raw)) {
-    const state = parseState(value)
-    if (state) out[chatId] = state
+    const nav = parseNav(value)
+    if (nav) out[chatId] = nav
   }
   return out
 }
 
-const [all, setAll] = createSignal<Readonly<Record<string, SidecarState>>>(readAll())
+const [all, setAll] = createSignal<Readonly<Record<string, DeskNav>>>(readAll())
 const [reveal, setReveal] = createSignal<Reveal | null>(null)
+const [docked, setDocked] = createSignal(readKey(SHOWN_KEY) !== "0")
+const [popped, setPopped] = createSignal(false)
+const [compact, setCompact] = createSignal(false)
 
-export const sidecarOpen = (chatId: string): boolean => (all()[chatId] ?? EMPTY).open
-export const sidecarSurfaces = (chatId: string): readonly Surface[] => (all()[chatId] ?? EMPTY).surfaces
+export const setDeskCompact = (value: boolean) => setCompact(value)
 
-function edit(chatId: string, change: (s: SidecarState) => SidecarState) {
+export const deskShown = (): boolean => (compact() ? popped() : docked())
+
+function setShown(next: boolean) {
+  if (compact()) return setPopped(next)
+  setDocked(next)
+  writeKey(SHOWN_KEY, next ? "1" : "0")
+}
+
+export const toggleDesk = () => setShown(!deskShown())
+export const closeDesk = () => deskShown() && setShown(false)
+
+export const deskView = (chatId: string): Surface | null => (all()[chatId] ?? EMPTY_NAV).view
+export const openFiles = (chatId: string): readonly FileSurface[] => (all()[chatId] ?? EMPTY_NAV).files
+
+function edit(chatId: string, change: (nav: DeskNav) => DeskNav) {
   setAll((map) => {
-    const before = map[chatId] ?? EMPTY
+    const before = map[chatId] ?? EMPTY_NAV
     const after = change(before)
     if (after === before) return map
     const next = { ...map, [chatId]: after }
@@ -122,78 +143,27 @@ function edit(chatId: string, change: (s: SidecarState) => SidecarState) {
   })
 }
 
-function neighbor(list: readonly Surface[], at: number): string | null {
-  return (list[at] ?? list[at - 1])?.id ?? null
+export function openSurface(chatId: string, surface: Surface) {
+  edit(chatId, (nav) => openView(nav, surface))
+  if (!deskShown()) setShown(true)
 }
 
-export function openSurface(chatId: string, surface: Surface) {
-  edit(chatId, (s) => ({
-    open: true,
-    active: surface.id,
-    surfaces: s.surfaces.some((x) => x.id === surface.id) ? s.surfaces : [...s.surfaces, surface],
-  }))
-}
+export const deskBack = (chatId: string) => edit(chatId, back)
+export const closeSurface = (chatId: string, id: string) => edit(chatId, (nav) => closeFile(nav, id))
+export const closeOthers = (chatId: string, id: string) => edit(chatId, (nav) => keepOnly(nav, id))
+export const closeToRight = (chatId: string, id: string) => edit(chatId, (nav) => closeRightOf(nav, id))
+export const closeAll = (chatId: string) => edit(chatId, (nav) => ({ ...closeFiles(nav), view: null }))
+export const closeTabs = (chatId: string) => edit(chatId, closeFiles)
 
 export function activateSurface(chatId: string, id: string) {
-  edit(chatId, (s) => (s.active !== id && s.surfaces.some((x) => x.id === id) ? { ...s, active: id } : s))
+  const file = openFiles(chatId).find((f) => f.id === id)
+  if (file) edit(chatId, (nav) => openView(nav, file))
 }
 
-export function closeSurface(chatId: string, id: string) {
-  edit(chatId, (s) => {
-    const at = s.surfaces.findIndex((x) => x.id === id)
-    if (at < 0) return s
-    const surfaces = s.surfaces.filter((_, i) => i !== at)
-    return { ...s, surfaces, active: s.active === id ? neighbor(surfaces, at) : s.active }
-  })
-}
+export const moveFileSurfaces = (chatId: string, from: string, to: string) =>
+  edit(chatId, (nav) => moveFiles(nav, from, to))
 
-export function closeOthers(chatId: string, id: string) {
-  edit(chatId, (s) => {
-    const keep = s.surfaces.find((x) => x.id === id)
-    return keep ? { ...s, surfaces: [keep], active: id } : s
-  })
-}
-
-export function closeToRight(chatId: string, id: string) {
-  edit(chatId, (s) => {
-    const at = s.surfaces.findIndex((x) => x.id === id)
-    if (at < 0 || at === s.surfaces.length - 1) return s
-    const surfaces = s.surfaces.slice(0, at + 1)
-    return { ...s, surfaces, active: surfaces.some((x) => x.id === s.active) ? s.active : id }
-  })
-}
-
-export function closeAll(chatId: string) {
-  edit(chatId, (s) => ({ ...s, surfaces: [], active: null }))
-}
-
-export function toggleSidecar(chatId: string) {
-  edit(chatId, (s) => ({ ...s, open: !s.open }))
-}
-
-export function closeSidecar(chatId: string) {
-  edit(chatId, (s) => (s.open ? { ...s, open: false } : s))
-}
-
-export function moveFileSurfaces(chatId: string, from: string, to: string) {
-  edit(chatId, (s) => {
-    const under = (p: string) => p === from || p.startsWith(`${from}/`)
-    const moved = (x: Surface): Surface =>
-      x.kind === "file" && under(x.path) ? fileSurface(to + x.path.slice(from.length)) : x
-    if (!s.surfaces.some((x) => moved(x) !== x)) return s
-    const surfaces: Surface[] = []
-    for (const x of s.surfaces.map(moved)) if (!surfaces.some((y) => y.id === x.id)) surfaces.push(x)
-    const was = s.surfaces.find((x) => x.id === s.active)
-    const next = was ? moved(was).id : null
-    return { ...s, surfaces, active: surfaces.some((x) => x.id === next) ? next : null }
-  })
-}
-
-export function dropFileSurfaces(chatId: string, path: string) {
-  for (const x of sidecarSurfaces(chatId)) {
-    if (x.kind === "file" && (x.path === path || x.path.startsWith(`${path}/`))) closeSurface(chatId, x.id)
-  }
-}
+export const dropFileSurfaces = (chatId: string, path: string) => edit(chatId, (nav) => dropFiles(nav, path))
 
 export function openFile(chatId: string, path: string, line?: number) {
   openSurface(chatId, fileSurface(path))
@@ -201,27 +171,9 @@ export function openFile(chatId: string, path: string, line?: number) {
   setReveal({ chatId, path, line: line !== undefined && line > 0 ? line : null, n: (reveal()?.n ?? 0) + 1 })
 }
 
-export const loadSidecar = () => import("./Sidecar")
-
-export const activeSurface = (chatId: string): Surface | null => {
-  const s = all()[chatId] ?? EMPTY
-  return s.surfaces.find((x) => x.id === s.active) ?? s.surfaces[0] ?? null
-}
+export const loadDesk = () => Promise.all([import("./Desk"), loadPanelViews()]).then(([desk]) => desk)
 
 export function fileReveal(chatId: string, path: string): { line: number | null; n: number } | null {
   const r = reveal()
   return r && r.chatId === chatId && r.path === path ? { line: r.line, n: r.n } : null
-}
-
-export type LauncherItem = { kind: FixedKind; label: string; key: string; group?: true }
-
-export const LAUNCHER: readonly LauncherItem[] = [
-  { kind: "files", label: "Files", key: "F" },
-  { kind: "memory", label: "Memory", key: "M" },
-  { kind: "routines", label: "Routines", key: "R" },
-  { kind: "tasks", label: "Tasks", key: "T", group: true },
-]
-
-export function launcherEntries(group: boolean): LauncherItem[] {
-  return LAUNCHER.filter((item) => group || !item.group)
 }

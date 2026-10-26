@@ -7,7 +7,11 @@ export type ImportedTheme = {
   appearance: ThemeAppearance
   accent: string
   palette: Palette
+  syntax?: Syntax
 }
+
+const SYNTAX_KEYS = ["keyword", "string", "func", "comment"] as const
+export type Syntax = Record<(typeof SYNTAX_KEYS)[number], string>
 
 export type Imported = {
   themes: ImportedTheme[]
@@ -45,7 +49,27 @@ function readTheme(raw: unknown): ImportedTheme | null {
     if (typeof value !== "string" || !HEX.test(value)) return null
     palette[key] = value
   }
-  return { id, name, source, appearance: appearance as ThemeAppearance, accent, palette: palette as Palette }
+  const theme: ImportedTheme = {
+    id,
+    name,
+    source,
+    appearance: appearance as ThemeAppearance,
+    accent,
+    palette: palette as Palette,
+  }
+  const syntax = readSyntax(raw.syntax)
+  return syntax ? { ...theme, syntax } : theme
+}
+
+function readSyntax(raw: unknown): Syntax | null {
+  if (!isObject(raw)) return null
+  const syntax: Partial<Syntax> = {}
+  for (const key of SYNTAX_KEYS) {
+    const value = raw[key]
+    if (typeof value !== "string" || !HEX.test(value)) return null
+    syntax[key] = value
+  }
+  return syntax as Syntax
 }
 
 export function parseImported(text: string | null): Imported {

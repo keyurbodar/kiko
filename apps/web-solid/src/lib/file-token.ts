@@ -1,5 +1,4 @@
 import { createSignal } from "solid-js"
-import { apiFetch } from "./api"
 import { apiUrl, read, write } from "./api-base"
 
 const KEY = "kiko:file-token"
@@ -17,16 +16,16 @@ export function setFileToken(next: string): void {
   timer = setTimeout(() => void refreshFileToken(), Math.max(0, expiresAt(next) - REFRESH_BEFORE_MS - Date.now()))
 }
 
-async function refreshFileToken(): Promise<void> {
-  const res = await apiFetch("/api/files/token").catch(() => null)
-  if (res?.ok) setFileToken(((await res.json()) as { fileToken: string }).fileToken)
-  else timer = setTimeout(() => void refreshFileToken(), 60_000)
+let fetchToken: () => Promise<string | undefined> = async () => undefined
+
+export function setFileTokenSource(source: () => Promise<string | undefined>): void {
+  fetchToken = source
 }
 
-export function clearFileToken(): void {
-  clearTimeout(timer)
-  write(KEY, null)
-  setSignal(null)
+async function refreshFileToken(): Promise<void> {
+  const next = await fetchToken().catch(() => undefined)
+  if (next) setFileToken(next)
+  else timer = setTimeout(() => void refreshFileToken(), 60_000)
 }
 
 export function fileUrl(path: string): string {

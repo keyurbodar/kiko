@@ -1,4 +1,6 @@
-export class CliError extends Error {}
+import * as Schema from "effect/Schema"
+
+export class CliError extends Schema.TaggedError<CliError>()("CliError", { message: Schema.String }) {}
 
 export interface Context {
   url: string
@@ -9,9 +11,6 @@ export interface Context {
   name?: string
   port?: string
   identity?: string
-  list: boolean
-  noModel: boolean
-  fake: boolean
   runs: string
   tail?: string
 }

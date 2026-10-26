@@ -6,7 +6,6 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.css",
-    "src/components/file-icons/sprite.svg",
     "src/components/provider-icons/sprite.svg"
   ],
   "type": "module",
@@ -47,6 +46,6 @@
     "vite": "8.3.2"
   },
   "peerDependencies": {
-    "solid-js": "1.9.13"
+    "solid-js": "1.9.17"
   }
 }

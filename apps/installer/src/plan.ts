@@ -1,5 +1,3 @@
-import type { SecretBinding } from "@kiko/durable/release-plan"
-
 export type Grant =
   | { kind: "oauth"; code: string; verifier: string; redirectUri: string }
   | { kind: "token"; token: string }
@@ -12,38 +10,6 @@ export type StoredGrant = {
   accessToken?: string
   refreshToken?: string
   token?: string
-}
-
-export const DEFAULT_SCRIPT = "kiko"
-
-type BoundInput = {
-  ownerId: string
-  clerkJwtKey: string
-  trustedOrigins: string
-  releaseBase: string
-  grant: StoredGrant
-}
-
-const secret = (name: string, text: string): SecretBinding => ({ type: "secret_text", name, text })
-
-export function boundSecrets(input: BoundInput): SecretBinding[] {
-  return [
-    secret("OWNER_ID", input.ownerId),
-    secret("CLERK_JWT_KEY", input.clerkJwtKey),
-    secret("TRUSTED_ORIGINS", input.trustedOrigins),
-    secret("RELEASE_BASE_URL", input.releaseBase),
-    secret("CF_GRANT", JSON.stringify(input.grant)),
-  ]
-}
-
-export function firstInstallSecrets(input: BoundInput & { random: () => string }): SecretBinding[] {
-  return [secret("SESSION_SECRET", input.random()), secret("CREDENTIALS_KEK", input.random()), ...boundSecrets(input)]
-}
-
-export async function ownScriptName(sub: string, length = 6): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(sub))
-  const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")
-  return `${DEFAULT_SCRIPT}-${hex.slice(0, length)}`
 }
 
 export const TOKEN_PERMISSIONS = [

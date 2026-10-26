@@ -1,56 +1,84 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { MonitorIcon, NotesIcon, SearchIcon, SidebarRightIcon } from "@kiko/ui/icons"
+import { MonitorIcon, NotesIcon, SearchIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { Show, onMount } from "solid-js"
+import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { computers, openViewer, startComputers, watchTarget } from "../chat/computers"
-import { cardShown, loadCard, toggleCard } from "../chat/side/card-state"
-import { loadSidecar, sidecarOpen, toggleSidecar } from "../chat/side/surfaces"
+import { deskShown, loadDesk, toggleDesk } from "../chat/side/surfaces"
 import { runCommand } from "../commands/registry"
 import { ChatAvatar } from "../lib/IdentityAvatar"
-import { useApp } from "../lib/store"
+import { connection, createDelayedStatus, type ConnectionView } from "../state/connection"
+import { room } from "../state/room"
+import { user } from "../state/user"
 import { preloadSearch } from "../search/state"
 import { SidebarToggle } from "../sidebar"
 
-export function TopBar(props: { pathname: string; sidebarOpen: boolean; onToggleSidebar: () => void }) {
-  const chatId = () => {
-    const id = /^\/chat\/([^/]+)\/?$/.exec(props.pathname)?.[1]
-    return id ? decodeURIComponent(id) : null
-  }
-  const offline = () => {
-    const status = useApp.user()?.state.connection
-    if (status === "blocked") return "Reload to reconnect"
-    if (status === "closed") return "Reconnecting"
-    return null
-  }
+const CONNECTION_LABEL: Partial<Record<ConnectionView, string>> = {
+  reconnecting: "Reconnecting",
+  disconnected: "Not connected",
+}
+
+const LONG_OFFLINE_MS = 10_000
+
+export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onToggleSidebar: () => void }) {
+  const chatId = () => props.chatId
+  const offline = createDelayedStatus(() => CONNECTION_LABEL[connection.view()] ?? null)
+  const [long, setLong] = createSignal(false)
+  createEffect(() => {
+    if (!offline()) return setLong(false)
+    const timer = setTimeout(() => setLong(true), LONG_OFFLINE_MS)
+    onCleanup(() => clearTimeout(timer))
+  })
   const title = () => {
     const id = chatId()
     if (!id) return "Chats"
-    const name = useApp.chatById(id)?.name
+    const name = room.chatById(id)?.name
     if (name) return name
-    return useApp.user()?.state.loaded ? "" : "Loading…"
+    return user.loaded() ? "" : "Loading…"
   }
   onMount(startComputers)
-  const toggle = (on: boolean) => `top-bar-button ${on ? "bg-accent text-foreground" : ""}`
+  const toggle = () => "top-bar-button"
+  const live = () => {
+    const bot = chatId() ? room.chatById(chatId()!) : undefined
+    if (!bot || (bot.presence !== "working" && bot.presence !== "typing")) return null
+    return bot.typing ?? "Thinking"
+  }
+  const roster = () => {
+    const names = room.members().map((member) => member.name)
+    if (names.length < 2) return ""
+    return `You, ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+  }
   return (
-    <header class="flex h-[50px] shrink-0 items-center gap-2 px-3" data-component="top-bar">
+    <header class="top-bar flex h-[58px] shrink-0 items-center gap-2.5 px-5" data-component="top-bar">
       <Show when={!props.sidebarOpen}>
         <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
       </Show>
-      <div class="flex min-w-0 flex-1 items-center gap-2.5 px-1">
+      <div class="flex min-w-0 flex-1 items-center gap-2.5">
         <Show when={chatId()} keyed>
-          {(id) => <ChatAvatar faces={useApp.chatFaces(id)} size={32} />}
+          {(id) => <ChatAvatar faces={room.chatFaces(id)} size={28} />}
         </Show>
-        <h1 class="min-w-0 truncate text-md font-medium text-foreground" data-component="top-bar-title">
+        <h1
+          class="min-w-0 shrink truncate font-sans text-[15px] leading-5 font-semibold text-fg"
+          data-component="top-bar-title"
+        >
           {title()}
         </h1>
+        <Show when={chatId()}>
+          <Show when={live()} fallback={<span class="top-bar-sub truncate text-[13px] text-fg3">{roster()}</span>}>
+            {(text) => (
+              <span class="top-bar-sub chat-shimmer truncate text-[13px]" data-component="top-bar-status">
+                {text()}
+              </span>
+            )}
+          </Show>
+        </Show>
         <Show when={offline()}>
           {(message) => (
             <span
-              class="shrink-0 rounded-full bg-warning-surface px-2 py-0.5 text-[11px] text-warning"
+              class={`min-w-0 truncate text-label ${long() ? "text-fg3" : "chat-shimmer"}`}
               role="status"
               data-component="connection-status"
             >
-              {message()}
+              {long() ? "Offline, messages will send when you're back" : message()}
             </span>
           )}
         </Show>
@@ -66,7 +94,7 @@ export function TopBar(props: { pathname: string; sidebarOpen: boolean; onToggle
           onPointerEnter={preloadSearch}
           onClick={() => runCommand(chatId() ? "chats.search-current" : "chats.search-all")}
         >
-          <RemixIcon icon={SearchIcon} size={16} />
+          <RemixIcon icon={SearchIcon} size={17} />
         </button>
       </TooltipV2>
       <Show when={computers().length > 0}>
@@ -78,47 +106,26 @@ export function TopBar(props: { pathname: string; sidebarOpen: boolean; onToggle
             data-action="computer-watch"
             onClick={() => openViewer(watchTarget(chatId()))}
           >
-            <RemixIcon icon={MonitorIcon} size={16} />
+            <RemixIcon icon={MonitorIcon} size={17} />
           </button>
         </TooltipV2>
       </Show>
-      <Show when={chatId()} keyed>
-        {(id) => (
-          <>
-            <TooltipV2 placement="bottom" openDelay={400} value={cardShown() ? "Hide chat card" : "Show chat card"}>
-              <button
-                type="button"
-                class={toggle(cardShown())}
-                aria-label="Chat card"
-                aria-pressed={cardShown()}
-                data-action="toggle-card"
-                data-hint="chat.info"
-                data-hint-label="Card"
-                onPointerEnter={() => void loadCard()}
-                onClick={toggleCard}
-              >
-                <RemixIcon icon={NotesIcon} size={15} />
-              </button>
-            </TooltipV2>
-            <TooltipV2
-              placement="bottom"
-              openDelay={400}
-              value={sidecarOpen(id) ? "Hide side panel" : "Show side panel"}
-            >
-              <button
-                type="button"
-                class={toggle(sidecarOpen(id))}
-                aria-label="Side panel"
-                aria-pressed={sidecarOpen(id)}
-                data-action="toggle-sidecar"
-                onPointerEnter={() => void loadSidecar()}
-                onClick={() => toggleSidecar(id)}
-              >
-                <RemixIcon icon={SidebarRightIcon} size={15} />
-              </button>
-            </TooltipV2>
-          </>
-        )}
+      <Show when={chatId()}>
+        <TooltipV2 placement="bottom" openDelay={400} value={deskShown() ? "Hide chat details" : "Show chat details"}>
+          <button
+            type="button"
+            class={toggle()}
+            aria-label="This chat"
+            aria-pressed={deskShown()}
+            data-action="toggle-card"
+            data-hint="chat.info"
+            data-hint-label="Details"
+            onPointerEnter={() => void loadDesk()}
+            onClick={toggleDesk}
+          >
+            <RemixIcon icon={NotesIcon} size={17} />
+          </button>
+        </TooltipV2>
       </Show>
     </header>
   )

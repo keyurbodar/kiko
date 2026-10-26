@@ -1,4 +1,4 @@
-export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
+import type { ThinkingLevel } from "./catalog"
 
 export const THINKING_LABELS: Readonly<Record<ThinkingLevel, string>> = {
   off: "Off",
@@ -8,10 +8,6 @@ export const THINKING_LABELS: Readonly<Record<ThinkingLevel, string>> = {
   high: "High",
   xhigh: "Extra high",
   max: "Max",
-}
-
-export function defaultThinking(supported: readonly ThinkingLevel[]): ThinkingLevel {
-  return supported.find((level) => level !== "off") ?? "off"
 }
 
 const ORDER: readonly ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
@@ -27,4 +23,9 @@ export function clampThinking(supported: readonly ThinkingLevel[], wanted: Think
     supported[0] ??
     "off"
   )
+}
+
+export function defaultThinking(supported: readonly ThinkingLevel[]): ThinkingLevel {
+  const thinking = supported.filter((level) => level !== "off")
+  return thinking.length ? clampThinking(thinking, "medium") : "off"
 }

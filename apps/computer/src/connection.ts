@@ -19,6 +19,8 @@ import { Fail, failureCode, failureMessage, type Logger } from "./log"
 import { read, shell, write } from "./ops"
 
 const PING_MS = 20_000
+const PING = JSON.stringify({ _tag: "Ping" })
+const PONGS = new Set(["pong", JSON.stringify({ _tag: "Pong" })])
 const MIN_BACKOFF_MS = 1_000
 const MAX_BACKOFF_MS = 300_000
 const STABLE_MS = 30_000
@@ -36,7 +38,8 @@ export type Host = {
   live: LiveFrames
   holder(): Holder
   log: Logger
-  onWelcome?(name: string): void
+  onWelcome?(name: string, version: string | undefined): void
+  onIdle?(): void
 }
 
 type Call = Extract<Frame, { t: "call" }>
@@ -45,7 +48,8 @@ const decodeFrame = Schema.decodeUnknownOption(ToDaemon)
 
 function decodeArgs(op: Op, raw: unknown): unknown {
   const decoded = Schema.decodeUnknownOption(Calls[op].args)(raw)
-  if (Option.isNone(decoded)) throw new Fail("failed", `the worker sent arguments that ${op} cannot use`)
+  if (Option.isNone(decoded))
+    throw new Fail({ code: "failed", message: `the worker sent arguments that ${op} cannot use` })
   return decoded.value
 }
 
@@ -99,6 +103,10 @@ class Link {
       this.host.log.info(`reconnecting in ${Math.round(wait / 1000)}s`)
       await Bun.sleep(wait)
     }
+  }
+
+  busy(): boolean {
+    return this.pending.size > 0
   }
 
   stop(): void {
@@ -172,7 +180,7 @@ class Link {
     this.host.log.info(`connected to ${this.host.endpoint.url}`)
     this.send(this.host.hello())
     if (this.ping) clearInterval(this.ping)
-    this.ping = setInterval(() => this.send("ping"), PING_MS)
+    this.ping = setInterval(() => this.send(PING), PING_MS)
   }
 
   private async explainRejection(url: string, headers: Record<string, string>): Promise<void> {
@@ -199,7 +207,7 @@ class Link {
   }
 
   private receive(data: unknown): void {
-    if (typeof data !== "string" || data === "pong") return
+    if (typeof data !== "string" || PONGS.has(data)) return
     let parsed: unknown
     try {
       parsed = JSON.parse(data)
@@ -234,7 +242,7 @@ class Link {
       case "ack":
         return this.host.live.ack(frame)
       case "welcome":
-        this.host.onWelcome?.(frame.name)
+        this.host.onWelcome?.(frame.name, frame.version)
     }
   }
 
@@ -242,7 +250,7 @@ class Link {
     const context = new Deadline(clampDeadline(frame.deadlineMs))
     this.pending.set(frame.id, context)
     const timer = setTimeout(
-      () => context.controller.abort(new Fail("timeout", `${frame.op} ran out of time`)),
+      () => context.controller.abort(new Fail({ code: "timeout", message: `${frame.op} ran out of time` })),
       context.budgetMs,
     )
     try {
@@ -253,6 +261,7 @@ class Link {
     } finally {
       clearTimeout(timer)
       this.pending.delete(frame.id)
+      if (this.pending.size === 0) this.host.onIdle?.()
     }
   }
 
@@ -267,18 +276,20 @@ class Link {
 
   private async desktop(op: Op): Promise<Desktop> {
     const machine = this.host.desktop()
-    if (!machine) throw new Fail("unsupported", "this machine has no desktop to look at or act on")
+    if (!machine) throw new Fail({ code: "unsupported", message: "this machine has no desktop to look at or act on" })
     const policy = await this.host.policy()
-    if (!policy.desktop) throw new Fail("denied", "policy.json turns desktop control off on this machine")
-    if (op === "act" && !policy.input) throw new Fail("denied", "policy.json turns input off on this machine")
+    if (!policy.desktop)
+      throw new Fail({ code: "denied", message: "policy.json turns desktop control off on this machine" })
+    if (op === "act" && !policy.input)
+      throw new Fail({ code: "denied", message: "policy.json turns input off on this machine" })
     if (op === "act" && this.host.holder() === "human") {
-      throw new Fail("denied", "the owner has control of this screen right now")
+      throw new Fail({ code: "denied", message: "the owner has control of this screen right now" })
     }
     return machine
   }
 
   private cancel(id: string): void {
-    this.pending.get(id)?.controller.abort(new Fail("cancelled", "the agent cancelled this call"))
+    this.pending.get(id)?.controller.abort(new Fail({ code: "cancelled", message: "the agent cancelled this call" }))
   }
 
   private answer(
@@ -313,7 +324,8 @@ class Link {
     if (this.ping) clearInterval(this.ping)
     this.ping = null
     this.socket = null
-    for (const deadline of this.pending.values()) deadline.controller.abort(new Fail("failed", reason))
+    for (const deadline of this.pending.values())
+      deadline.controller.abort(new Fail({ code: "failed", message: reason }))
     this.pending.clear()
   }
 }

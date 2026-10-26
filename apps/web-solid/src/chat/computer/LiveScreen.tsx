@@ -1,6 +1,6 @@
-import { createEffect, createSignal, onCleanup, Show, type JSX } from "solid-js"
+import { createEffect, createSignal, on, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
-import { userChannel } from "../../sync/socket"
+import { connection } from "../../state/connection"
 import { computerById } from "../computers"
 import { Cursor } from "./Cursor"
 import { bindInput, escapeEvents, type Point } from "./input"
@@ -34,7 +34,15 @@ export default function LiveScreen(props: {
   let you: HTMLDivElement | undefined
   let session: Session | undefined
 
-  onCleanup(userChannel.onOpen(() => setEpoch((n) => n + 1)))
+  createEffect(
+    on(
+      connection.connected,
+      (up) => {
+        if (up) setEpoch((n) => n + 1)
+      },
+      { defer: true },
+    ),
+  )
 
   createEffect(() => {
     epoch()
@@ -140,7 +148,7 @@ export default function LiveScreen(props: {
       </div>
       <Show when={mode() === "connecting"}>
         <div
-          class="absolute inset-0 grid place-items-center text-sm text-white/70"
+          class="absolute inset-0 grid place-items-center text-label text-white/70"
           role="status"
           data-part="connecting"
         >

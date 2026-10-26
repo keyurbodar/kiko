@@ -1,4 +1,5 @@
-import { apiFetch } from "../lib/api"
+import { load, owner, run } from "../state/runtime"
+
 let sent = false
 
 export async function syncTimeZone(): Promise<void> {
@@ -7,14 +8,10 @@ export async function syncTimeZone(): Promise<void> {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
   if (!zone) return
   try {
-    const res = await apiFetch("/api/settings")
-    const stored = res.ok ? ((await res.json()) as { timezone?: unknown }).timezone : undefined
+    const stored = (await load(owner.queries.settings(undefined))).timezone
     if (stored === zone) return
-    await apiFetch("/api/settings", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ timezone: zone }),
-    })
+    const result = await run(owner.commands.settingsUpdate, { patch: { timezone: zone } })
+    if (result._tag === "Failure") sent = false
   } catch {
     sent = false
   }

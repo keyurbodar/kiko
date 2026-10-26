@@ -4,7 +4,6 @@ import { kernel } from "./commands/kernel"
 import { health } from "./commands/health"
 import { login, whoami } from "./commands/login"
 import { pc } from "./commands/pc"
-import { verify } from "./commands/verify"
 import { ws } from "./commands/ws"
 import { CliError, type Context } from "./context"
 
@@ -17,14 +16,13 @@ const commands: Record<string, (ctx: Context) => Promise<void>> = {
   ws,
   login,
   whoami,
-  verify,
   composio,
   kernel,
   pc,
 }
 
 const usage =
-  "usage: kiko <health | ws <path> | login --dev [--name <name>] | whoami | pc <add <user@host> | list | code> | composio <connect | disconnect | status> | kernel <connect | disconnect | status> | verify [--list] [--no-model] [--fake] [suite...]> [--url <url>] [--json] [--idle <ms>] (--url defaults to $KIKO_URL, then http://localhost:8787)"
+  "usage: kiko <health | ws <path> | login --dev [--name <name>] | whoami | pc <add <user@host> | list | code> | composio <connect | disconnect | status> | kernel <connect | disconnect | status>> [--url <url>] [--json] [--idle <ms>] (--url defaults to $KIKO_URL, then http://localhost:8787)"
 
 export async function main(argv: string[]): Promise<number> {
   try {
@@ -39,18 +37,15 @@ export async function main(argv: string[]): Promise<number> {
         name: { type: "string" },
         port: { type: "string" },
         identity: { type: "string" },
-        list: { type: "boolean", default: false },
-        "no-model": { type: "boolean", default: false },
-        fake: { type: "boolean", default: false },
         runs: { type: "string", default: "5" },
         tail: { type: "string" },
       },
     })
     const [name, ...args] = positionals
     const run = name ? commands[name] : undefined
-    if (!run) throw new CliError(name ? `unknown command: ${name}. ${usage}` : usage)
+    if (!run) throw new CliError({ message: name ? `unknown command: ${name}. ${usage}` : usage })
     const idle = Number(values.idle)
-    if (!Number.isFinite(idle) || idle < 0) throw new CliError(`bad --idle: ${values.idle}`)
+    if (!Number.isFinite(idle) || idle < 0) throw new CliError({ message: `bad --idle: ${values.idle}` })
     console.error(`kiko: target ${values.url}`)
     await run({
       url: withSlash(values.url),
@@ -61,9 +56,6 @@ export async function main(argv: string[]): Promise<number> {
       name: values.name,
       port: values.port,
       identity: values.identity,
-      list: values.list,
-      noModel: values["no-model"],
-      fake: values.fake,
       runs: values.runs,
       tail: values.tail,
     })

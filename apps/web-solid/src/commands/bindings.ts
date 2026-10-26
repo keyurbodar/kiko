@@ -1,8 +1,9 @@
 import { createRoot, createSignal } from "solid-js"
+import { type CommandId, isCommandId } from "./ids"
 
-export type Bindings = Readonly<Record<string, string | null>>
+export type Bindings = Readonly<Partial<Record<CommandId, string | null>>>
 
-const KEY = "kiko.keybindings"
+const KEY = "kiko:device:keybindings"
 
 function parseBindings(text: string | null): Bindings {
   try {
@@ -10,7 +11,8 @@ function parseBindings(text: string | null): Bindings {
     if (!value || typeof value !== "object" || Array.isArray(value)) return {}
     return Object.fromEntries(
       Object.entries(value).filter(
-        (e): e is [string, string | null] => e[1] === null || (typeof e[1] === "string" && e[1] !== ""),
+        (e): e is [CommandId, string | null] =>
+          isCommandId(e[0]) && (e[1] === null || (typeof e[1] === "string" && e[1] !== "")),
       ),
     )
   } catch {
@@ -37,11 +39,11 @@ function write(next: Bindings): void {
   } catch {}
 }
 
-export function bindKey(id: string, key: string | null): void {
+export function bindKey(id: CommandId, key: string | null): void {
   write({ ...bindings(), [id]: key })
 }
 
-export function resetKey(id: string): void {
+export function resetKey(id: CommandId): void {
   const { [id]: _, ...rest } = bindings()
   write(rest)
 }

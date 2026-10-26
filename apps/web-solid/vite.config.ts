@@ -1,10 +1,28 @@
 import { resolve } from "node:path"
 import tailwindcss from "@tailwindcss/vite"
-import { defineConfig, loadEnv } from "vite"
+import { tanstackRouter } from "@tanstack/router-plugin/vite"
+import { defineConfig, loadEnv, type Plugin } from "vite"
 import solid from "vite-plugin-solid"
-import { firstPaintPreload } from "./scripts/preload-plugin.ts"
-import { serviceWorker } from "./scripts/service-worker-plugin.ts"
 import pkg from "../../package.json" with { type: "json" }
+
+const SW_KILL_SWITCH = `self.addEventListener("install", () => self.skipWaiting())
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((names) => Promise.all(names.map((name) => caches.delete(name))))
+      .then(() => self.registration.unregister()),
+  )
+})
+`
+
+const swKillSwitch: Plugin = {
+  name: "kiko-sw-kill-switch",
+  apply: "build",
+  generateBundle() {
+    this.emitFile({ type: "asset", fileName: "sw.js", source: SW_KILL_SWITCH })
+  },
+}
 
 function requireInstaller(mode: string): void {
   const env = { ...loadEnv(mode, import.meta.dirname, "VITE_"), ...process.env }
@@ -18,7 +36,7 @@ function requireInstaller(mode: string): void {
 export default defineConfig(({ mode }) => {
   requireInstaller(mode)
   return {
-    plugins: [solid(), tailwindcss(), firstPaintPreload(), serviceWorker()],
+    plugins: [tanstackRouter({ target: "solid" }), solid(), tailwindcss(), swKillSwitch],
     define: { __KIKO_VERSION__: JSON.stringify(pkg.version) },
     optimizeDeps: {
       include: [

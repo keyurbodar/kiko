@@ -2,7 +2,7 @@ import { createHotkey, formatForDisplay, type RegisterableHotkey } from "@tansta
 import { createMemo, mapArray } from "solid-js"
 import { commands, isEnabled, keysOf, type Command } from "./registry"
 
-export function hotkeyOptions(command: Command) {
+function hotkeyOptions(command: Command) {
   return {
     ignoreInputs: !command.global,
     enabled: isEnabled(command),

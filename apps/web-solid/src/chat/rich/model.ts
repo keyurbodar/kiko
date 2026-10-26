@@ -12,7 +12,7 @@ import {
 
 export type RichNode =
   | { kind: "text"; text: string }
-  | { kind: "code"; lang?: string; text: string }
+  | { kind: "code"; files: CodeFile[] }
   | { kind: "mention"; slug: string }
   | { kind: "file"; file: FileTarget; label: string; bare?: true }
   | { kind: "masked"; href: string; children: RichNode[] }
@@ -20,6 +20,27 @@ export type RichNode =
   | { kind: "el"; tag: string; attrs: Record<string, string>; children: RichNode[]; copy?: TableCopy }
 
 export type TableCopy = { markdown: string; csv: string }
+
+export type CodeFile = { lang?: string; name?: string; text: string }
+
+const FILE_NAME = /^[\w@+-][\w.@+-]*\.([A-Za-z0-9]+)$/
+
+function codeFile(lang: string | undefined, text: string): CodeFile {
+  const named = lang ? FILE_NAME.exec(lang) : null
+  if (named) return { name: lang, lang: named[1]!.toLowerCase(), text }
+  return lang ? { lang, text } : { text }
+}
+
+function tabbed(nodes: RichNode[]): RichNode[] {
+  const out: RichNode[] = []
+  for (const node of nodes) {
+    const last = out.at(-1)
+    const named = node.kind === "code" && node.files.every((file) => file.name)
+    if (named && last?.kind === "code" && last.files.every((file) => file.name)) last.files.push(...node.files)
+    else out.push(node)
+  }
+  return out
+}
 
 const el = (tag: string, children: RichNode[], attrs: Record<string, string> = {}): RichNode => ({
   kind: "el",
@@ -195,7 +216,7 @@ function block(node: Block): RichNode {
     case "rule":
       return el("hr", [], { class: "rich-rule" })
     case "code_block":
-      return { kind: "code", lang: node.lang, text: node.text }
+      return { kind: "code", files: [codeFile(node.lang, node.text)] }
     case "image":
       return {
         kind: "image",
@@ -251,7 +272,7 @@ export function isPhotoTree(tree: RichText): boolean {
 }
 
 export function richNodes(tree: RichText): RichNode[] {
-  const nodes = tree.map(block)
+  const nodes = tabbed(tree.map(block))
   const files = chips(nodes)
   const suffixes = parentSuffixes([...new Set(files.map((f) => f.file.path))])
   for (const chip of files) chip.label = chipLabel(chip.file, suffixes.get(chip.file.path))

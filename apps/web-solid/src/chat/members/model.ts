@@ -6,11 +6,14 @@ export function addable(agents: readonly Agent[], members: readonly Member[]): A
 }
 
 export function addOp(agent: Agent): MemberOp {
-  const op: MemberOp = { op: "add", slug: agent.slug as AgentSlug, name: agent.name }
   const role = tagline(agent.prompt)
-  if (role) op.role = role
-  if (agent.model) op.model = agent.model
-  return op
+  return {
+    op: "add",
+    slug: agent.slug as AgentSlug,
+    name: agent.name,
+    ...(role ? { role } : {}),
+    ...(agent.model ? { model: agent.model } : {}),
+  }
 }
 
 export function refusalText(op: MemberOp, reason: MemberRefusal): string {

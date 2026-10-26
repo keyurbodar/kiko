@@ -1,5 +1,6 @@
 import { For, Show, createSignal, onMount } from "solid-js"
 import { displayShortcut } from "./hotkeys"
+import { isCommandId } from "./ids"
 import { findCommand, isEnabled, shortcutOf } from "./registry"
 import { paletteStack } from "../palette/state"
 
@@ -85,7 +86,8 @@ function onScreen(el: HTMLElement, r: DOMRect): boolean {
 function collect(): Pill[] {
   const pills: Pill[] = []
   for (const el of document.querySelectorAll<HTMLElement>("[data-hint]")) {
-    const command = findCommand(el.dataset.hint!)
+    const id = el.dataset.hint
+    const command = isCommandId(id) ? findCommand(id) : undefined
     const shortcut = command && shortcutOf(command)
     if (!shortcut || !isEnabled(command)) continue
     const r = el.getBoundingClientRect()
@@ -123,14 +125,14 @@ export default function HintLayer() {
           {(pill, i) => (
             <span
               ref={(el) => (els[i()] = el)}
-              class="absolute top-0 left-0 flex h-6 items-center gap-1.5 rounded-[8px] bg-popover px-2 text-[12px] whitespace-nowrap text-foreground shadow-menu"
+              class="absolute top-0 left-0 flex h-6 items-center gap-1.5 rounded-[8px] bg-raise px-2 text-[12px] whitespace-nowrap text-fg shadow-menu"
               style={{
                 visibility: boxes() ? "visible" : "hidden",
                 transform: boxes() ? `translate(${boxes()![i()]!.x}px, ${boxes()![i()]!.y}px)` : undefined,
               }}
             >
               {pill.label}
-              <kbd class="rounded-[5px] bg-control px-1 font-sans text-[11px] text-muted-foreground">{pill.keys}</kbd>
+              <kbd class="rounded-[5px] bg-active px-1 font-sans text-[11px] text-fg2">{pill.keys}</kbd>
             </span>
           )}
         </For>

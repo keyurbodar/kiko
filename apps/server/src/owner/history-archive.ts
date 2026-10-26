@@ -1,5 +1,6 @@
 import { plainText, type Message, type ReplyPreview, type SearchHit } from "@kiko/protocol"
 import { snippetOf, type SearchOptions, type SearchPage } from "../room/search"
+import { HistoryError } from "./errors"
 
 export const UTC_DAY = 86_400_000
 export const HISTORY_ARCHIVE_STEPS = [
@@ -186,12 +187,12 @@ export class HistoryArchive {
   }
 
   async mutate<T>(id: string, apply: () => T): Promise<T> {
-    if (this.erased) throw new Error("Chat deleted")
+    if (this.erased) throw new HistoryError({ kind: "deleted", message: "Chat deleted" })
     if (!this.store.overrides([id]).length) {
       const row = await this.archived(id)
       if (row && !this.erased) this.store.hydrate(row)
     }
-    if (this.erased) throw new Error("Chat deleted")
+    if (this.erased) throw new HistoryError({ kind: "deleted", message: "Chat deleted" })
     return apply()
   }
 

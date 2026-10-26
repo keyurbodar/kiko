@@ -12,13 +12,10 @@ export function identityLook(seed: string): IdentityLook {
 }
 
 function inkColor(seed: string): string {
-  if (seed === KIKO) return "var(--ring)"
+  if (seed === KIKO) return "var(--info)"
   const grain = FLAVOURS[resolve(seed, pinsFor(seed)).flavour].grain
   return `light-dark(color-mix(in oklch, ${grain}, #000 45%), color-mix(in oklch, ${grain}, #fff 30%))`
 }
-
-export const identityTint = (seed: string, percent: number) =>
-  `color-mix(in oklch, ${identityLook(seed).color} ${percent}%, transparent)`
 
 const DEFAULT_AGENT_SLUG = KIKO
 

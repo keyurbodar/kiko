@@ -12,19 +12,27 @@ const CONNECT_PATH = "/api/pc/connect"
 const MAX_BODY = 8_192
 const NAME_MAX = 60
 const KEY_MAX = 128
+const ID_MAX = 64
 
 const decodeHello = Schema.decodeUnknownSync(Hello)
 
-type PairBody = { code: string; publicKey: string; name: string; hello: ReturnType<typeof decodeHello> }
+type PairBody = {
+  code: string
+  publicKey: string
+  name: string
+  hello: ReturnType<typeof decodeHello>
+  replaces?: string
+}
 
 function readPair(body: unknown): PairBody | null {
   if (!body || typeof body !== "object") return null
-  const { code, publicKey, name, hello } = body as Record<string, unknown>
+  const { code, publicKey, name, hello, replaces } = body as Record<string, unknown>
   if (typeof code !== "string" || code.length > 512) return null
   if (typeof publicKey !== "string" || publicKey.length > KEY_MAX) return null
   if (typeof name !== "string" || !name.trim() || name.trim().length > NAME_MAX) return null
+  if (replaces !== undefined && (typeof replaces !== "string" || !replaces || replaces.length > ID_MAX)) return null
   try {
-    return { code, publicKey, name: name.trim(), hello: decodeHello(hello) }
+    return { code, publicKey, name: name.trim(), hello: decodeHello(hello), ...(replaces ? { replaces } : {}) }
   } catch {
     return null
   }
@@ -51,6 +59,7 @@ async function pair(request: Request, env: Env): Promise<Response> {
       name: input.name,
       hello: input.hello,
       pairNonce: read.nonce,
+      ...(input.replaces ? { replaces: input.replaces } : {}),
     })
     return out.ok ? Response.json({ id: out.id, name: out.name, userId: read.userId }) : error(409, out.error)
   } catch (e) {

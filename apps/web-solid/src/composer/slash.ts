@@ -1,32 +1,31 @@
-import { findCommand, isEnabled, runCommand } from "../commands/registry"
-import type { PromptInputV2Suggestion } from "./prompt-input/types"
+import { type CommandId, findCommand, isEnabled, runCommand } from "../commands/registry"
+import type { Token } from "./tokens"
 
 interface Slash {
   trigger: string
   title: string
-  commandId?: string
+  commandId?: CommandId
 }
 
 const SLASH: readonly Slash[] = [
   { trigger: "new", title: "Start a new chat", commandId: "chat.new" },
   { trigger: "file", title: "Go to a file", commandId: "files.go" },
   { trigger: "search", title: "Search messages", commandId: "chats.search-all" },
-  { trigger: "remind", title: "Ask for a reminder" },
+  { trigger: "remind", title: "Remind me" },
   { trigger: "skill", title: "Use a skill" },
 ]
 
-export function slashSuggestions(): PromptInputV2Suggestion[] {
+export function slashTokens(): Token[] {
   return SLASH.filter((s) => {
     if (!s.commandId) return true
     const command = findCommand(s.commandId)
     return command !== undefined && isEnabled(command)
   }).map((s) => ({
-    id: `slash-${s.trigger}`,
     kind: "command",
-    label: `/${s.trigger}`,
+    id: `slash-${s.trigger}`,
     trigger: s.trigger,
     title: s.title,
-    description: s.title,
+    hint: `/${s.trigger}`,
   }))
 }
 

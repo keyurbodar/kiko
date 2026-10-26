@@ -1,3 +1,4 @@
+import { SearchField } from "@kiko/ui/v2/search-field"
 import type { FileRef } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import {
@@ -34,16 +35,16 @@ const plain = (path: string) => path.replace(/\/+$/, "")
 const TREE_CSS = `
 	:host {
 		--trees-bg-override: transparent;
-		--trees-fg-override: var(--foreground);
+		--trees-fg-override: var(--fg);
 		--trees-selected-bg-override: color-mix(in srgb, currentColor 12%, transparent);
 		--trees-hover-bg-override: color-mix(in srgb, currentColor 7%, transparent);
 		--trees-border-color-override: color-mix(in srgb, currentColor 14%, transparent);
 		--trees-font-family-override: var(--font-sans);
 		--trees-font-size-override: 0.75rem;
-		--trees-fg-muted-override: var(--muted-foreground);
+		--trees-fg-muted-override: var(--fg3);
 		--trees-selected-focused-border-color-override: transparent;
 	}
-	button[data-type='item'], button[data-type='item']::before { border-radius: var(--radius-md); }
+	button[data-type='item'], button[data-type='item']::before { border-radius: var(--radius-control); }
 	svg[data-icon-name='t3-tree-icon-loading'] { opacity: 0.6; }
 	@media (prefers-reduced-motion: no-preference) {
 		svg[data-icon-name='t3-tree-icon-loading'] { animation: t3-tree-spin 1s linear infinite; }
@@ -353,22 +354,15 @@ export function FileTree(props: FileTreeProps): JSX.Element {
   return (
     <div class="kt-root" data-component="file-tree">
       <div class="kt-bar">
-        <label class="kt-field">
-          <input
-            type="search"
-            aria-label="Search files"
-            placeholder="Search files"
-            spellcheck={false}
-            autocomplete="off"
-            value={query()}
-            onInput={(e) => setQuery(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key !== "Escape" || !query()) return
-              e.stopPropagation()
-              setQuery("")
-            }}
-          />
-        </label>
+        <SearchField
+          wrapClass="min-w-0 flex-1"
+          aria-label="Search files"
+          placeholder="Search files"
+          spellcheck={false}
+          autocomplete="off"
+          value={query()}
+          onValue={setQuery}
+        />
         <TooltipV2 placement="bottom" openDelay={400} value="New file">
           <button
             type="button"

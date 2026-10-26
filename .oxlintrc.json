@@ -10,7 +10,12 @@
   "rules": {
     "eslint/no-use-before-define": [
       "error",
-      { "functions": false, "classes": true, "variables": true, "typedefs": false }
+      {
+        "functions": false,
+        "classes": true,
+        "variables": true,
+        "typedefs": false
+      }
     ],
     "eslint/no-await-in-loop": "off",
     "eslint/no-shadow": "off",
@@ -19,12 +24,44 @@
     "unicorn/no-array-sort": "off",
     "oxc/no-map-spread": "off",
     "import/no-unassigned-import": "off",
-    "import/no-cycle": ["error", { "ignoreTypes": true }]
+    "import/no-cycle": [
+      "error",
+      {
+        "ignoreTypes": true
+      }
+    ],
+    "kiko/no-low-value-comments": "error",
+    "kiko/no-polling-loop-in-tests": "error",
+    "kiko/no-real-time-wait-in-tests": "error",
+    "kiko/no-test-in-loop": "error",
+    "kiko/no-test-timeout-or-unreasoned-skip": "error",
+    "kiko/no-wall-clock-in-tests": "error"
   },
   "overrides": [
     {
       "files": ["**/*.tsx"],
-      "rules": { "eslint/no-unassigned-vars": "off" }
+      "rules": {
+        "eslint/no-unassigned-vars": "off"
+      }
+    },
+    {
+      "files": ["apps/web-solid/**/*.test.{ts,tsx}"],
+      "rules": {
+        "kiko/require-disposable-render": "error"
+      }
+    },
+    {
+      "files": ["apps/web-solid/src/**/*.browser.test.{ts,tsx}"],
+      "rules": {
+        "kiko/no-frame-waits-in-browser-tests": "error"
+      }
+    },
+    {
+      "files": ["apps/**/src/**", "packages/**/src/**", "core/**/src/**"],
+      "rules": {
+        "kiko/no-dom-test-environment": "error"
+      }
     }
-  ]
+  ],
+  "jsPlugins": ["./oxlint-plugin-kiko/index.ts"]
 }

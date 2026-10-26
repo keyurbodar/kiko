@@ -77,7 +77,7 @@ export class Desktop {
     const frame = this.resolve(args.captureId)
     let done = 0
     for (const step of args.steps) {
-      if (deadline.signal.aborted) throw new Fail("cancelled", "the call was cancelled")
+      if (deadline.signal.aborted) throw new Fail({ code: "cancelled", message: "the call was cancelled" })
       await this.queue.run(
         () => this.step(frame, step, deadline),
         () => this.releaseHeldInputs(),
@@ -105,7 +105,7 @@ export class Desktop {
   }
 
   private async step(frame: Frame, step: Step, deadline: Deadline): Promise<void> {
-    if (deadline.signal.aborted) throw new Fail("cancelled", "the call was cancelled")
+    if (deadline.signal.aborted) throw new Fail({ code: "cancelled", message: "the call was cancelled" })
     this.showPointer(frame, step)
     if (step.op === "wait") return Bun.sleep(Math.min(step.ms, Math.max(0, deadline.remaining() - 500)))
     if (step.op === "key") return this.keys(this.targetArgs(frame, {}), step.keys, deadline)
@@ -136,7 +136,7 @@ export class Desktop {
       .map((part) => part.trim().toLowerCase())
       .filter(Boolean)
     const key = parts.at(-1)
-    if (!key) throw new Fail("failed", "a key step needs a key name")
+    if (!key) throw new Fail({ code: "failed", message: "a key step needs a key name" })
     const modifiers = parts.slice(0, -1)
     const target = scope.pid === undefined || scope.window_id === undefined ? { scope: "desktop" } : scope
     if (modifiers.length > 0 && this.has("hotkey")) {
@@ -176,14 +176,15 @@ export class Desktop {
   }
 
   private async launch(app: string, deadline: Deadline): Promise<void> {
-    if (!this.has("launch_app")) throw new Fail("unsupported", "this machine cannot launch applications")
+    if (!this.has("launch_app"))
+      throw new Fail({ code: "unsupported", message: "this machine cannot launch applications" })
     await this.call("launch_app", { name: app }, deadline)
   }
 
   private elementOf(frame: Frame, id: number | undefined): Element | null {
     if (id === undefined) return null
     const element = frame.elements.get(id)
-    if (!element) throw new Fail("stale", `control ${id} is gone; look again for fresh ids`)
+    if (!element) throw new Fail({ code: "stale", message: `control ${id} is gone; look again for fresh ids` })
     return element
   }
 
@@ -198,7 +199,7 @@ export class Desktop {
   }
 
   private pointArgs(frame: Frame, x: number | undefined, y: number | undefined): Record<string, unknown> {
-    if (x === undefined || y === undefined) throw new Fail("failed", "a pixel step needs x and y")
+    if (x === undefined || y === undefined) throw new Fail({ code: "failed", message: "a pixel step needs x and y" })
     return this.targetArgs(frame, this.point(frame, x, y))
   }
 
@@ -214,11 +215,11 @@ export class Desktop {
 
   private resolve(captureId: string | undefined): Frame {
     if (!captureId) {
-      if (!this.current) throw new Fail("stale", "there is no view yet; look first")
+      if (!this.current) throw new Fail({ code: "stale", message: "there is no view yet; look first" })
       return this.current
     }
     const found = this.frames.find((frame) => frame.id === captureId)
-    if (!found) throw new Fail("stale", "that capture id is gone; look again")
+    if (!found) throw new Fail({ code: "stale", message: "that capture id is gone; look again" })
     return found
   }
 
@@ -233,9 +234,9 @@ export class Desktop {
     const window = await this.frontWindow(deadline)
     const desktop = await this.desktopFrame(limit, deadline)
     if (desktop) return this.mergeDesktop(desktop, window, limit, deadline, args.controls !== false)
-    if (!window) throw new Fail("unsupported", "this machine returned no screenshot")
+    if (!window) throw new Fail({ code: "unsupported", message: "this machine returned no screenshot" })
     const state = await this.windowState(window, limit, deadline, image)
-    if (!state) throw new Fail("unsupported", "this machine returned no screenshot")
+    if (!state) throw new Fail({ code: "unsupported", message: "this machine returned no screenshot" })
     return state.frame
   }
 
@@ -248,7 +249,7 @@ export class Desktop {
       const shotHeight = positive(result.structured.screenshot_height)
       const screenWidth = positive(result.structured.screen_width) ?? shotWidth
       if (!captureId || !shotWidth || !shotHeight || !screenWidth) {
-        throw new Fail("failed", "cua-driver returned no desktop capture")
+        throw new Fail({ code: "failed", message: "cua-driver returned no desktop capture" })
       }
       const encoded = await this.encode(result.image, limit)
       const width = encoded?.width ?? shotWidth
@@ -405,7 +406,7 @@ export class Desktop {
   }
 
   private async call(name: string, args: Record<string, unknown>, deadline: Deadline): Promise<DriverResult> {
-    if (!this.has(name)) throw new Fail("unsupported", `cua-driver has no ${name} tool`)
+    if (!this.has(name)) throw new Fail({ code: "unsupported", message: `cua-driver has no ${name} tool` })
     const schema = this.driver.tools.get(name)?.schema
     let result: DriverResult
     try {
@@ -413,7 +414,10 @@ export class Desktop {
     } catch (error) {
       if (deadline.aborted) throw abortReason(deadline.signal)
       const message = describe(error)
-      throw new Fail(/timed? ?out/i.test(message) ? "timeout" : "failed", `cua-driver ${name} failed: ${message}`)
+      throw new Fail({
+        code: /timed? ?out/i.test(message) ? "timeout" : "failed",
+        message: `cua-driver ${name} failed: ${message}`,
+      })
     }
     if (!result.isError) return result
     throw refusal(name, result)
@@ -437,9 +441,9 @@ function refusal(name: string, result: DriverResult): Fail {
   const payload = record(structured.refusal)
   const code = text(payload.code) ?? text(structured.code) ?? ""
   const message = text(payload.message) ?? result.text ?? `${name} was refused`
-  if (/stale/i.test(code) || /stale/i.test(message)) return new Fail("stale", message)
-  if (/timed? ?out/i.test(code)) return new Fail("timeout", message)
-  return new Fail("failed", message)
+  if (/stale/i.test(code) || /stale/i.test(message)) return new Fail({ code: "stale", message: message })
+  if (/timed? ?out/i.test(code)) return new Fail({ code: "timeout", message: message })
+  return new Fail({ code: "failed", message: message })
 }
 
 function pickFront(windows: unknown[]): WindowInfo | null {

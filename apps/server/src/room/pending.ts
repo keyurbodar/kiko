@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 import {
   attachmentMessages,
   attachmentsError,
@@ -24,7 +25,9 @@ export type PendingRow = {
 
 export type NewPending = { id: string; name: string; type: string; size: number; r2Key: string; uploadId?: string }
 
-export class ClaimRefused extends Error {}
+export class ClaimRefused extends Schema.TaggedError<ClaimRefused>()("ClaimRefused", {
+  message: Schema.String,
+}) {}
 
 export class PendingUploads {
   constructor(
@@ -175,15 +178,15 @@ export function claim(
   now: number,
 ): { refs: FileRef[]; events: RoomEvent[] } {
   const limit = attachmentsError(list)
-  if (limit) throw new ClaimRefused(limit)
+  if (limit) throw new ClaimRefused({ message: limit })
   if (new Set(list.map((a) => a.pendingId)).size !== list.length)
-    throw new ClaimRefused("Duplicate attachment ids are not allowed.")
+    throw new ClaimRefused({ message: "Duplicate attachment ids are not allowed." })
   const refs: FileRef[] = []
   const events: RoomEvent[] = []
   const used = new Set<string>()
   for (const a of list) {
     const row = pending.get(a.pendingId)
-    const refuse = (why: string) => new ClaimRefused(attachmentMessages.notSendable(a.name, why))
+    const refuse = (why: string) => new ClaimRefused({ message: attachmentMessages.notSendable(a.name, why) })
     if (!row || row.sha256 === null) throw refuse("attachment not found (removed or expired)")
     if (row.size !== a.size) throw refuse("stored size does not match")
     if (row.type !== a.type) throw refuse("attachment type does not match the upload")

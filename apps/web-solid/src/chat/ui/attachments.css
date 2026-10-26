@@ -1,0 +1,199 @@
+.att-mosaic {
+  display: grid;
+  width: min(100%, 340px);
+  gap: 2px;
+  overflow: hidden;
+  border-radius: 18px;
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.att-mosaic > button {
+  position: relative;
+  display: block;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--active);
+  cursor: zoom-in;
+  transition: filter var(--dur-hover) var(--ease-kiko);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .att-mosaic > button:hover {
+    filter: brightness(1.08);
+  }
+}
+
+.att-mosaic > button img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: att-fade 300ms var(--ease-kiko) both;
+}
+
+.att-mosaic[data-count="1"] > button {
+  grid-column: span 6;
+  aspect-ratio: 4 / 3;
+}
+.att-mosaic[data-count="2"] > button {
+  grid-column: span 3;
+  aspect-ratio: 3 / 4;
+}
+.att-mosaic[data-count="3"] {
+  grid-template-rows: 1fr 1fr;
+  aspect-ratio: 1;
+}
+.att-mosaic[data-count="3"] > button:first-child {
+  grid-column: span 4;
+  grid-row: span 2;
+}
+.att-mosaic[data-count="3"] > button:not(:first-child) {
+  grid-column: span 2;
+}
+.att-mosaic[data-count="4"] > button {
+  grid-column: span 3;
+  aspect-ratio: 4 / 3;
+}
+.att-mosaic[data-count="many"] > button {
+  grid-column: span 2;
+  aspect-ratio: 1;
+}
+.att-mosaic[data-count="many"] > button:nth-child(-n + 2) {
+  grid-column: span 3;
+  aspect-ratio: 4 / 3;
+}
+
+.att-more {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, black 45%, transparent);
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.att-files {
+  display: flex;
+  min-width: 240px;
+  flex-direction: column;
+}
+
+.att-file {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.att-open {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.att-file + .att-file {
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--fg) 8%, transparent);
+}
+
+.att-tile {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--active);
+}
+
+.att-name {
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.att-meta {
+  color: var(--fg3);
+  font-size: 12.5px;
+  line-height: 16px;
+}
+
+.att-download {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--fg3);
+  transition:
+    background var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .att-file:hover .att-download {
+    background: var(--active);
+    color: var(--fg);
+  }
+}
+
+.att-download:active {
+  transform: scale(0.96);
+}
+
+.att-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0 2px;
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--fg) 8%, transparent);
+}
+
+.att-foot-action {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  border-radius: 9px;
+  color: var(--fg2);
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .att-foot-action:hover {
+    background: var(--active);
+    color: var(--fg);
+  }
+}
+
+@keyframes att-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .att-mosaic > button img {
+    animation: none;
+  }
+}

@@ -1,338 +1,213 @@
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as ManagedRuntime from "effect/ManagedRuntime"
+import * as Queue from "effect/Queue"
+import * as Stream from "effect/Stream"
+import * as SubscriptionRef from "effect/SubscriptionRef"
 import { createSignal } from "solid-js"
-import { apiFetch, getToken, setToken, setUnauthorizedHandler } from "../lib/api"
-import { base, read, write } from "../lib/api-base"
-import { clearFileToken } from "../lib/file-token"
+import { apiFetch, setUnauthorizedHandler } from "../lib/api"
+import { base, useBackend } from "../lib/api-base"
+import { onAuthChange, purge, readAuth, setSigningOut, signingOut, writeAuth } from "../lib/storage"
+import { attachBackend, releaseRuntime } from "../state/runtime"
+import { formatRecord, parseRecord } from "./auth-record"
+import { backendKey, describeBackend, exchangeToken, normalizeUrl, sessionOf } from "./backend"
+import { clerkPointer, clerkSignOut, clerkToken, clerkUser, onClerkUser } from "./clerk"
 import { hosted, setProfile } from "./hosted"
+import { type ClerkUser, type Event, start } from "./machine"
+import type { BackendUser, Phase } from "./phase"
+import { BackendClient, Clerk, ClerkUnavailable, DetachFailed, Device, Installer, Session } from "./session-service"
 
-export interface SessionUser {
-  id: string
-  name: string
-}
+type SessionState = { status: "unknown" } | { status: "signed-in"; user: BackendUser } | { status: "signed-out" }
 
-export type SessionState = { status: "unknown" } | { status: "signed-in"; user: SessionUser } | { status: "signed-out" }
+const INSTALLER_URL = (import.meta.env.VITE_INSTALLER_URL ?? "").replace(/\/+$/, "")
+const RELEASE_TIMEOUT = "10 seconds"
 
-const FLAG_KEY = "kiko:session"
-const CLEANUP_KEY = "kiko:pending-cleanup"
-function readPendingCleanup(): string[] {
-  try {
-    const ids: unknown = JSON.parse(read(CLEANUP_KEY) ?? "[]")
-    return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : []
-  } catch {
-    return []
-  }
-}
-let generation = 0
-let clearing: Promise<void> = Promise.resolve()
-const pendingCleanup = new Set(readPendingCleanup())
-function savePendingCleanup(): void {
-  if (!pendingCleanup.size) {
-    write(CLEANUP_KEY, null)
-    return
-  }
-  const value = JSON.stringify([...pendingCleanup])
-  try {
-    localStorage.setItem(CLEANUP_KEY, value)
-    if (localStorage.getItem(CLEANUP_KEY) !== value) throw new Error("Cleanup was not saved")
-  } catch {
-    throw new Error("Could not safely clear this account's local data. Allow browser storage and try again.")
-  }
-}
-const [authReset, setAuthReset] = createSignal(0)
-const [autoResume, setAutoResume] = createSignal(true)
-export { authReset, autoResume }
-export const authIdentity = () => read("kiko:identity") ?? base()
-export const authGeneration = () => generation
-export const cancelAuthAttempt = () => {
-  generation++
-}
-export const allowClerkResume = () => setAutoResume(true)
+const messageOf = (cause: unknown, fallback: string) =>
+  cause instanceof Error && cause.message ? cause.message : fallback
 
-const warmDbPrefix = (userId: string) => `kiko:warm:${userId}`
+const fromClerk = <A>(use: () => Promise<A>) =>
+  Effect.tryPromise({
+    try: use,
+    catch: (cause) => new ClerkUnavailable({ message: messageOf(cause, "Kiko could not reach Clerk.") }),
+  })
 
-function readFlag(): SessionUser | null {
-  try {
-    const raw = localStorage.getItem(FLAG_KEY)
-    const user = raw ? (JSON.parse(raw) as Partial<SessionUser>) : null
-    return user && typeof user.id === "string" ? (user as SessionUser) : null
-  } catch {
-    return null
-  }
-}
-
-function writeFlag(user: SessionUser | null): void {
-  try {
-    if (user) localStorage.setItem(FLAG_KEY, JSON.stringify(user))
-    else localStorage.removeItem(FLAG_KEY)
-  } catch {}
-}
-
-async function clearWarmTier(userId: string): Promise<void> {
-  if (typeof indexedDB === "undefined" || typeof indexedDB.databases !== "function") return
-  const prefix = warmDbPrefix(userId)
-  const names = (await indexedDB.databases())
-    .map((db) => db.name ?? "")
-    .filter((name) => name === prefix || name.startsWith(`${prefix}:`))
-  await Promise.all(
-    names.map(
-      (name) =>
-        new Promise<void>((resolve, reject) => {
-          const request = indexedDB.deleteDatabase(name)
-          const fail = () => reject(new Error("Close other Kiko tabs and try again"))
-          request.onsuccess = () => resolve()
-          request.addEventListener("error", fail)
-          request.addEventListener("blocked", fail)
-        }),
+const ClerkLive = Layer.succeed(Clerk, {
+  user: fromClerk(clerkUser),
+  changes: Stream.callback<ClerkUser | null>((queue) =>
+    Effect.acquireRelease(
+      Effect.sync(() => onClerkUser((user) => Queue.offerUnsafe(queue, user))),
+      (stop) => Effect.sync(stop),
     ),
-  )
-}
-
-const cached = readFlag()
-const [state, setState] = createSignal<SessionState>(
-  cached ? { status: "signed-in", user: cached } : { status: "signed-out" },
-)
-
-export const session = state
-
-export const [backendConnectionNotice, setBackendConnectionNotice] = createSignal("")
-
-function signedIn(user: SessionUser): void {
-  writeFlag(user)
-  setState({ status: "signed-in", user })
-}
-
-async function finishCleanup(): Promise<void> {
-  clearing = clearing
-    .catch(() => {})
-    .then(async () => {
-      for (const id of pendingCleanup) {
-        await clearWarmTier(id)
-        pendingCleanup.delete(id)
-        savePendingCleanup()
-      }
-    })
-  await clearing
-}
-
-async function signedOut(reset = true): Promise<void> {
-  generation++
-  const current = state()
-  const userId = current.status === "signed-in" ? current.user.id : readFlag()?.id
-  if (userId) pendingCleanup.add(userId)
-  savePendingCleanup()
-  if (reset) setAuthReset((n) => n + 1)
-  setBackendConnectionNotice("")
-  setProfile(null)
-  write("kiko:snap", null)
-  writeFlag(null)
-  setToken(null)
-  clearFileToken()
-  setState({ status: "signed-out" })
-  await finishCleanup()
-}
-
-export async function bootstrapSession(): Promise<void> {
-  const attempt = generation
-  const backend = base()
-  let token = getToken()
-  const current = () => attempt === generation && backend === base() && token === getToken()
-  try {
-    const boot = globalThis.__kikoBoot
-    let early = boot?.token === token && boot?.url === `${backend}/api/me` ? boot.me : undefined
-    if (globalThis.__kikoBoot) globalThis.__kikoBoot.me = undefined
-    const handed = import.meta.env.DEV ? /^#token=(\S+)$/.exec(location.hash)?.[1] : undefined
-    if (handed) {
-      setToken(handed)
-      token = handed
-      history.replaceState(null, "", location.pathname + location.search)
-      early = undefined
-    }
-    if (!token) {
-      if (state().status !== "signed-out") await signedOut()
-      else await finishCleanup()
-      return
-    }
-    const res = await (early ?? apiFetch("/api/me"))
-    if (!current()) return
-    if (res.status === 401) {
-      if (state().status !== "signed-out") await signedOut()
-      return
-    }
-    if (!res.ok) throw new Error(String(res.status))
-    const { user } = (await res.json()) as { user: SessionUser }
-    if (!current()) return
-    const before = state()
-    if (before.status === "signed-in" && before.user.id !== user.id) await clearWarmTier(before.user.id)
-    await finishCleanup()
-    if (current()) signedIn(user)
-  } catch {
-    if (current() && state().status === "unknown") setState({ status: "signed-out" })
-  }
-}
-
-setUnauthorizedHandler(() => {
-  if (state().status === "signed-in") void signedOut()
+  ),
+  pointer: fromClerk(clerkPointer).pipe(
+    Effect.tap((pointed) => Effect.sync(() => pointed && setProfile(pointed.profile))),
+    Effect.map((pointed) => (pointed?.url ? normalizeUrl(pointed.url) : null)),
+  ),
+  token: (fresh) => fromClerk(() => clerkToken(fresh)),
+  signOut: fromClerk(clerkSignOut),
 })
 
-export async function signOut(): Promise<void> {
-  setAutoResume(false)
-  const done = signedOut()
-  const attempt = generation
-  if (hosted) await import("./clerk").then((m) => m.clerkSignOut()).catch(() => {})
-  await done
-  if (attempt === generation) write("kiko:identity", null)
+const ClerkNone = Layer.succeed(Clerk, {
+  user: Effect.succeed(null),
+  changes: Stream.empty,
+  pointer: Effect.succeed(null),
+  token: () => Effect.succeed(null),
+  signOut: Effect.void,
+})
+
+const request = (input: string, init?: RequestInit) => fetch(input, init)
+
+const BackendLive = Layer.succeed(BackendClient, {
+  describe: (url) => Effect.promise(() => describeBackend(url, request)),
+  exchange: (url, clerkToken) => Effect.promise(() => exchangeToken(url, clerkToken, request)),
+  key: (clerkUserId, url) => Effect.promise(() => backendKey(clerkUserId, url)),
+})
+
+const DeviceLive = Layer.succeed(Device, {
+  save: (record) => Effect.sync(() => writeAuth(formatRecord(record))),
+  clearAuth: Effect.sync(() => writeAuth(null)),
+  signingOut: (on) => Effect.sync(() => setSigningOut(on)),
+  release: Effect.promise(releaseRuntime).pipe(Effect.timeoutOption(RELEASE_TIMEOUT), Effect.asVoid),
+  purge: Effect.promise(() => purge().catch(() => {})),
+  leave: Effect.sync(() => location.replace("/")),
+  reload: Effect.sync(() => location.reload()),
+})
+
+const InstallerLive = Layer.succeed(Installer, {
+  detach: (clerkToken) =>
+    Effect.tryPromise({
+      try: async () => {
+        const response = await fetch(`${INSTALLER_URL}/detach`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ clerkToken }),
+        })
+        if (response.status !== 204) throw new Error(String(response.status))
+      },
+      catch: () => new DetachFailed({ message: "Kiko could not forget this backend. Try again." }),
+    }),
+})
+
+const clerkSession = (): boolean => {
+  const active = /(?:^|;\s*)__client_uat=([^;]*)/.exec(document.cookie)?.[1]
+  return active !== undefined && active !== "0"
 }
 
-async function adopt(res: Response | null, failure: string, attempt: number): Promise<void> {
-  if (!res?.ok) throw new Error(failure)
-  const { user, token } = (await res.json()) as { user: SessionUser; token: string }
-  if (attempt !== generation) return
-  await finishCleanup()
-  if (attempt !== generation) return
-  setToken(token)
-  signedIn(user)
+const initial = start({
+  record: parseRecord(readAuth()),
+  signingOut: signingOut(),
+  hosted,
+  clerkSession: clerkSession(),
+  callback: location.pathname === "/connect/callback",
+})
+
+const runtime = ManagedRuntime.make(
+  Session.layer(initial).pipe(
+    Layer.provide(Layer.mergeAll(hosted ? ClerkLive : ClerkNone, BackendLive, DeviceLive, InstallerLive)),
+  ),
+)
+
+const [phase, setPhase] = createSignal<Phase>(initial.phase)
+export { phase }
+
+function follow(next: Phase): void {
+  const attachment = next._tag === "Ready" ? { url: next.backend.url, key: next.backend.key, token: next.token } : null
+  useBackend(attachment)
+  attachBackend(attachment)
+  setPhase(next)
+}
+
+follow(initial.phase)
+
+const dispatch = (event: Event): Promise<void> => runtime.runPromise(Session.use((session) => session.send(event)))
+
+void runtime.runPromise(
+  Session.use((session) =>
+    SubscriptionRef.changes(session.phase).pipe(Stream.runForEach((next) => Effect.sync(() => follow(next)))),
+  ),
+)
+
+onAuthChange((raw) => void dispatch({ _tag: "Stored", record: parseRecord(raw) }))
+
+setUnauthorizedHandler(() => void dispatch({ _tag: "Rejected" }))
+
+export function session(): SessionState {
+  const current = phase()
+  if (current._tag === "Ready") return { status: "signed-in", user: current.user }
+  return current._tag === "Booting" || current._tag === "SigningOut" ? { status: "unknown" } : { status: "signed-out" }
+}
+
+export const signOut = (): Promise<void> => dispatch({ _tag: "SignOut" })
+
+export const continueAs = (): Promise<void> => dispatch({ _tag: "Continue" })
+
+export const useAnotherAccount = (): Promise<void> => dispatch({ _tag: "SwitchAccount" })
+
+export const retryBackend = (): Promise<void> => dispatch({ _tag: "Retry" })
+
+export const connectCloudflare = (): Promise<void> => dispatch({ _tag: "ConnectCloudflare" })
+
+export const rejected = (): Promise<void> => dispatch({ _tag: "Rejected" })
+
+export const signInToInstalledBackend = (): Promise<void> =>
+  runtime.runPromise(
+    Session.use((session) => session.send({ _tag: "Installed" }).pipe(Effect.andThen(session.settled))),
+  )
+
+export async function forgetBackend(): Promise<void> {
+  const failure = await runtime.runPromise(
+    Session.use((session) =>
+      session.forget.pipe(
+        Effect.as(null),
+        Effect.catch((error) => Effect.succeed(error.message)),
+      ),
+    ),
+  )
+  if (failure !== null) throw new Error(failure)
+}
+
+const bodyOf = (response: Response): Promise<unknown> => response.json().catch(() => null)
+
+async function openSession(body: unknown): Promise<void> {
+  const signed = sessionOf(body)
+  if (!signed) throw new Error("Could not sign in. Try again")
+  const url = normalizeUrl(base() || location.origin)
+  const backend = { url, key: await backendKey(null, url) }
+  const record = { v: 1 as const, identity: { clerkUserId: null, email: "" }, backend, ...signed }
+  await dispatch({ _tag: "SignedIn", record })
 }
 
 export async function signInWithAccessCode(code: string): Promise<void> {
-  const attempt = ++generation
-  const res = await apiFetch("/api/auth/access-code", {
+  const response = await apiFetch("/api/auth/access-code", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ code }),
   }).catch(() => null)
-  if (res && !res.ok) {
-    const { message } = (await res.json().catch(() => ({}))) as { message?: string }
+  if (!response) throw new Error("Could not reach Kiko. Check your connection, then try again")
+  if (!response.ok) {
+    const { message } = (await response.json().catch(() => ({}))) as { message?: string }
     throw new Error(message ?? "Could not sign in. Try again")
   }
-  await adopt(res, "Could not sign in. Try again", attempt)
+  await openSession(await bodyOf(response))
 }
 
 export async function signInAsDev(name = "dev"): Promise<void> {
-  const attempt = ++generation
-  const res = await apiFetch("/api/auth/dev/session", {
+  const response = await apiFetch("/api/auth/dev/session", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name }),
   })
-  await adopt(res, "dev sign-in failed", attempt)
+  if (!response.ok) throw new Error("dev sign-in failed")
+  await openSession(await bodyOf(response))
 }
 
-class Unreachable extends Error {}
-
-class ClerkRejected extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message)
-  }
-}
-
-export async function signInWithClerk(): Promise<"in" | "connect" | "none"> {
-  let attempt = ++generation
-  const { clerkSignIn } = await import("./clerk")
-  const found = await clerkSignIn()
-  if (attempt !== generation) return "none"
-  if (!found) {
-    await signedOut()
-    if (generation === attempt + 1) setAutoResume(true)
-    return "none"
-  }
-  setBackendConnectionNotice("")
-  const identity = JSON.stringify([found.userId, found.backendUrl?.replace(/\/+$/, "") ?? null])
-  if (read("kiko:identity") !== identity) {
-    const previous = attempt
-    await signedOut()
-    if (previous + 1 !== generation) return "none"
-    attempt = generation
-    setAutoResume(true)
-    write("kiko:identity", identity)
-  }
-  await clearing
-  if (attempt !== generation) return "none"
-  write("kiko:backend", found.backendUrl)
-  setProfile(found.profile)
-  if (!found.backendUrl) return "connect"
-  try {
-    await exchangeClerkToken(found.token, attempt)
-  } catch (e) {
-    if (attempt !== generation) return "none"
-    if (e instanceof ClerkRejected) {
-      if (e.status === 403 && e.message === "This backend belongs to someone else.") {
-        await signedOut()
-        write("kiko:backend", null)
-        setBackendConnectionNotice(
-          "This backend belongs to another Kiko account. Connect your own Cloudflare backend to continue, or sign out and use the account that owns it.",
-        )
-        return "connect"
-      }
-      if (e.status === 401 || e.status === 403) throw e
-    }
-    if (!(e instanceof Unreachable) && (await backendGone()) && attempt === generation) return "connect"
-    throw e
-  }
-  return attempt === generation ? "in" : "none"
-}
-
-async function backendGone(): Promise<boolean> {
-  const res = await fetch(`${base()}/api/version`, { cache: "no-store" }).catch(() => null)
-  if (!res) return false
-  if (!res.ok) return res.status === 404 || res.status === 410
-  const body = (await res.json().catch(() => null)) as { version?: unknown } | null
-  return typeof body?.version !== "string"
-}
-
-const hostOf = () => {
-  try {
-    return new URL(base()).host
-  } catch {
-    return "your backend"
-  }
-}
-
-const unreachableText = () =>
-  `This device cannot reach ${hostOf()} yet. A new Cloudflare address can take a few minutes to reach every network. Try again in a minute. If you use a VPN, Private DNS, or an ad blocker, allow workers.dev.`
-
-async function exchangeClerkToken(clerkToken: string, attempt: number): Promise<void> {
-  const res = await apiFetch("/api/auth/clerk", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ token: clerkToken }),
-  }).catch(() => null)
-  if (!res) throw new Unreachable(unreachableText())
-  if (!res.ok) {
-    const { message } = (await res.json().catch(() => ({}))) as { message?: string }
-    throw new ClerkRejected(res.status, message ? `${message}.` : `Your backend answered ${res.status}. Try again.`)
-  }
-  await adopt(res, "Could not sign in. Try again", attempt)
-}
-
-const REACH_MS = 90_000
-const REACH_STEP_MS = 3_000
-
-export async function signInToInstalledBackend(): Promise<void> {
-  let attempt = ++generation
-  const { clerkSignIn } = await import("./clerk")
-  const until = Date.now() + REACH_MS
-  for (;;) {
-    const found = await clerkSignIn()
-    if (attempt !== generation) return
-    if (!found) throw new Error("Your Kiko sign-in ended. Sign in again to finish connecting.")
-    const identity = JSON.stringify([found.userId, base() || null])
-    if (read("kiko:identity") !== identity) {
-      const previous = attempt
-      await signedOut(false)
-      if (generation !== previous + 1) return
-      attempt = generation
-      write("kiko:identity", identity)
-      setProfile(found.profile)
-    }
-    await clearing
-    if (attempt !== generation) return
-    try {
-      return await exchangeClerkToken(found.token, attempt)
-    } catch (e) {
-      if (!(e instanceof Unreachable) || Date.now() + REACH_STEP_MS > until) throw e
-      await new Promise((r) => setTimeout(r, REACH_STEP_MS))
-    }
+if (import.meta.env.DEV) {
+  const handed = /^#token=(\S+)$/.exec(location.hash)?.[1]
+  if (handed) {
+    history.replaceState(null, "", location.pathname + location.search)
+    void fetch(`${base()}/api/me`, { headers: { authorization: `Bearer ${handed}` } })
+      .then(bodyOf)
+      .then((body) => openSession({ ...(body as object), token: handed }))
+      .catch(() => {})
   }
 }

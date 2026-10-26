@@ -1,6 +1,6 @@
-import type { ErrorAction, KikoError } from "@kiko/protocol"
+import type { ErrorAction } from "@kiko/protocol"
 import { showToastV2, type ToastV2Action, type ToastV2Options } from "@kiko/ui/v2/toast-v2"
-import { openSettings } from "../settings/dialog-state"
+import { openSettings } from "../settings/open"
 
 const PLAIN_ERROR_MS = 10_000
 
@@ -12,7 +12,7 @@ const ACTIONS: Record<ErrorAction, { label: string; run: () => void }> = {
 }
 
 function errorToast(message: string, action?: ToastV2Action | undefined): ToastV2Options & { title: string } {
-  return { title: message, variant: "error", ...(action ? { action, persistent: true } : { duration: PLAIN_ERROR_MS }) }
+  return { title: message, variant: "error", ...(action ? { action } : { duration: PLAIN_ERROR_MS }) }
 }
 
 export function showFailure(message: string, action?: ToastV2Action): number | undefined {
@@ -23,7 +23,9 @@ function showMissing(message: string, action: ErrorAction): number | undefined {
   return showFailure(message, { label: ACTIONS[action].label, onClick: ACTIONS[action].run })
 }
 
-export function showKikoError(error: KikoError): number | undefined {
+export type Notice = { readonly message: string; readonly action?: ErrorAction }
+
+export function showNotice(error: Notice): number | undefined {
   return error.action ? showMissing(error.message, error.action) : showFailure(error.message)
 }
 

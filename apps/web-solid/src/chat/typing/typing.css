@@ -8,10 +8,9 @@
 }
 
 .typing {
-  --typing-period: 1.25s;
   display: flex;
   max-width: 100%;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 8px;
 }
 
@@ -20,69 +19,17 @@
   min-width: 0;
   flex-direction: column;
   align-items: flex-start;
-}
-
-.typing-line {
-  display: flex;
-  max-width: 100%;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-.typing-bubble {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  padding: var(--bubble-pad-y) var(--bubble-pad-x);
-
-  border-radius: var(--radius-bubble);
-  border-end-start-radius: 4px;
-  background: var(--message-assistant);
-  color: var(--message-assistant-foreground);
-  font-size: var(--font-base);
-  line-height: calc(var(--font-base) + 6px);
-  transform-origin: 0 100%;
-}
-
-.typing-dots {
-  position: relative;
-  display: inline-flex;
-  height: 1lh;
-  align-items: center;
-  gap: 5px;
-}
-
-.typing-dot {
-  display: block;
-  width: 7px;
-  height: 7px;
-  flex: none;
-  border-radius: 9999px;
-  background: currentColor;
-  opacity: 0.5;
+  gap: 4px;
+  padding-top: 1px;
 }
 
 .typing-bird {
   flex: none;
 }
 
-.typing-doing {
-  min-width: 0;
-  overflow: hidden;
-  padding-bottom: calc(var(--bubble-pad-y) + 1px);
-  color: var(--muted-foreground);
-  font-size: var(--font-md);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.typing-doing[data-elapsed] {
-  white-space: normal;
-}
-
 .typing-more {
-  color: var(--muted-foreground);
-  font-size: var(--font-md);
+  color: var(--fg3);
+  font-size: 13px;
 }
 .typing-more[data-group] {
   padding-left: 40px;
@@ -101,121 +48,34 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .typing-bubble {
-    animation: typing-pop 260ms cubic-bezier(0.34, 1.4, 0.64, 1) backwards;
+  .typing {
+    animation: typing-in 200ms var(--ease-kiko) backwards;
   }
-  .typing-doing:not(:empty) {
-    animation: typing-fade 200ms ease-out backwards;
-  }
-
-  .typing-dot {
-    animation: var(--dot-anim, typing-wave) var(--typing-period) var(--dot-ease, linear) infinite;
-  }
-  .typing-dot:nth-child(2) {
-    animation-delay: calc(var(--typing-period) * var(--dot-step, -0.6667));
-  }
-  .typing-dot:nth-child(3) {
-    animation-delay: calc(var(--typing-period) * var(--dot-step, -0.6667) * 2);
-  }
-
-  [data-motion="scan"] {
-    --typing-period: 1.5s;
-    --dot-anim: typing-scan;
-    --dot-step: 0.16;
-  }
-
-  [data-motion="hop"] {
-    --typing-period: 1.3s;
-    --dot-anim: typing-hop;
-    --dot-ease: cubic-bezier(0.3, 0.7, 0.4, 1);
-    --dot-step: 0.14;
-  }
-
-  [data-motion="orbit"] .typing-dots {
-    width: 31px;
-    justify-content: center;
-    animation: typing-turn 1.4s linear infinite;
-  }
-  [data-motion="orbit"] .typing-dot {
-    position: absolute;
-    top: calc(50% - 3.5px);
-    left: calc(50% - 3.5px);
-    animation: none;
-  }
-  [data-motion="orbit"] .typing-dot:nth-child(1) {
-    opacity: 1;
-    transform: translate(0, -7px);
-  }
-  [data-motion="orbit"] .typing-dot:nth-child(2) {
-    opacity: 0.7;
-    transform: translate(6px, 3.5px);
-  }
-  [data-motion="orbit"] .typing-dot:nth-child(3) {
-    opacity: 0.4;
-    transform: translate(-6px, 3.5px);
+  .typing-bird {
+    animation: typing-bird-hop 1.2s var(--ease-kiko) infinite;
+    transform-origin: 50% 100%;
   }
 }
 
-@keyframes typing-wave {
-  0%,
-  100% {
-    transform: scale(1.35);
-    opacity: 1;
-  }
-  33.333%,
-  66.667% {
-    transform: scale(1);
-    opacity: 0.5;
-  }
-}
-
-@keyframes typing-scan {
-  0%,
-  40%,
-  100% {
-    transform: scaleX(1);
-    opacity: 0.35;
-  }
-  14% {
-    transform: scaleX(1.6);
-    opacity: 1;
-  }
-}
-
-@keyframes typing-hop {
-  0%,
-  55%,
-  100% {
-    transform: translateY(0) scaleY(1);
-    opacity: 0.6;
-  }
-  10% {
-    transform: translateY(0) scaleY(0.75);
-  }
-  27% {
-    transform: translateY(-6px) scaleY(1.1);
-    opacity: 1;
-  }
-  42% {
-    transform: translateY(0) scaleY(0.9);
-  }
-}
-
-@keyframes typing-turn {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes typing-pop {
+@keyframes typing-in {
   from {
     opacity: 0;
-    transform: scale(0.72);
+    transform: translateY(4px);
   }
 }
 
-@keyframes typing-fade {
-  from {
-    opacity: 0;
+@keyframes typing-bird-hop {
+  0%,
+  100% {
+    transform: none;
+  }
+  35% {
+    transform: translateY(-5px) scale(0.94, 1.06);
+  }
+  55% {
+    transform: scale(1.07, 0.93);
+  }
+  70% {
+    transform: none;
   }
 }

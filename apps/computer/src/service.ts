@@ -3,7 +3,7 @@ import { dirname, join } from "node:path"
 import { CliError } from "./errors"
 import { homeDir } from "./platform"
 
-const LABEL = "com.kiko.computer"
+export const LABEL = "com.kiko.computer"
 const UNIT = "kiko-computer.service"
 const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
 const MAC_PATHS = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
@@ -127,7 +127,7 @@ async function launchd(action: ServiceAction): Promise<number> {
   if (action === "install") {
     await writeUnit(file, launchdPlist())
     await bootout(domain, file)
-    if (!(await bootstrap(domain, file))) throw new CliError(`launchctl could not load ${file}`)
+    if (!(await bootstrap(domain, file))) throw new CliError({ message: `launchctl could not load ${file}` })
     console.log(`installed ${file}`)
     return 0
   }
@@ -151,8 +151,11 @@ async function systemd(action: ServiceAction): Promise<number> {
   if (action === "install") {
     await writeUnit(file, systemdUnit())
     await run(["systemctl", "--user", "daemon-reload"])
-    const code = await run(["systemctl", "--user", "enable", "--now", UNIT])
-    if (code !== 0) throw new CliError(`systemctl could not enable ${UNIT}. Run it yourself to see why.`)
+    const enabled = await run(["systemctl", "--user", "enable", UNIT])
+    if (enabled !== 0)
+      throw new CliError({ message: `systemctl could not enable ${UNIT}. Run it yourself to see why.` })
+    const started = await run(["systemctl", "--user", "restart", UNIT])
+    if (started !== 0) throw new CliError({ message: `systemctl could not start ${UNIT}. Run it yourself to see why.` })
     console.log(`installed ${file}`)
     return 0
   }
@@ -186,7 +189,7 @@ async function windows(action: ServiceAction): Promise<number> {
     return 0
   }
   const code = await run(["reg", "add", RUN_KEY, "/v", "kiko-computer", "/t", "REG_SZ", "/d", quote(program), "/f"])
-  if (code !== 0) throw new CliError("could not register kiko-computer to start at logon")
+  if (code !== 0) throw new CliError({ message: "could not register kiko-computer to start at logon" })
   Bun.spawn(program, { detached: true, stdio: ["ignore", "ignore", "ignore"] }).unref()
   console.log("kiko-computer starts at logon and is running now")
   return 0

@@ -1,7 +1,7 @@
 import { hostname } from "node:os"
 import { version } from "../package.json"
 
-export const VERSION = version
+export const VERSION = process.env.KIKO_COMPUTER_VERSION ?? version
 
 export type OsName = "macos" | "linux" | "windows"
 

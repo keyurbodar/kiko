@@ -7,6 +7,7 @@ import { makeAgentChat } from "./new-agent"
 import type { Home } from "./home"
 import type { RoomLog } from "./log"
 import type { Members } from "./members"
+import { GroupRefused } from "./errors"
 
 export type GroupResult = { ok: true; text: string } | { ok: false; error: string }
 
@@ -121,7 +122,7 @@ export class Groups {
 
   private owned(mine: readonly Agent[], slug: string): Agent {
     const a = mine.find((x) => x.slug === slug)
-    if (!a) throw new Error(`@${slug} is not your agent`)
+    if (!a) throw new GroupRefused({ reason: "not_yours", message: `@${slug} is not your agent` })
     return a
   }
 
@@ -129,7 +130,11 @@ export class Groups {
     const agent = await this.d.services
       .user()
       .makeAgent({ name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model: "" })
-    if (!agent) throw new Error(`@${spec.handle} could not be made (the handle may be taken)`)
+    if (!agent)
+      throw new GroupRefused({
+        reason: "could_not_make",
+        message: `@${spec.handle} could not be made (the handle may be taken)`,
+      })
     return agent
   }
 }

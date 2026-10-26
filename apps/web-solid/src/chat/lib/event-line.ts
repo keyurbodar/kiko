@@ -1,7 +1,14 @@
 import type { SystemEvent } from "@kiko/protocol"
 import type { ChatMessage } from "../../lib/types"
+import { providerMessage } from "./provider-message"
 
-export type EventRow = { label: string; detail?: string; title?: string; tone?: "muted" | "danger" | "warning" }
+export type EventRow = {
+  label: string
+  detail?: string
+  note?: string
+  title?: string
+  tone?: "muted" | "danger" | "warning"
+}
 
 type Loose = Record<string, unknown>
 const text = (value: unknown): string | undefined => (typeof value === "string" && value ? value : undefined)
@@ -26,7 +33,7 @@ export function eventRow(message: ChatMessage, name: (slug: string) => string): 
     case "model_changed":
       return e.from
         ? { label: "Context handoff", detail: `${e.from} to ${e.model}` }
-        : { label: `${name(e.agent)} now uses ${e.model}` }
+        : { label: `${name(e.agent)} switched to`, detail: e.model }
     case "compacted": {
       const detail = tokens(loose)
       return { label: "Context compacted", ...(detail ? { detail } : {}) }
@@ -44,12 +51,13 @@ export function eventRow(message: ChatMessage, name: (slug: string) => string): 
     case "run_stopped":
       return { label: "Stopped", detail: name(e.agent) }
     case "run_error": {
-      const detail = [message.body, e.detail].filter(Boolean).join(". ") || undefined
+      const note = providerMessage(e.detail)
       const title = [message.body, e.detail].filter(Boolean).join("\n")
       return {
         label: `${name(e.slug)} could not answer`,
         tone: "danger",
-        ...(detail ? { detail } : {}),
+        ...(message.body ? { detail: message.body } : {}),
+        ...(note ? { note } : {}),
         ...(title ? { title } : {}),
       }
     }

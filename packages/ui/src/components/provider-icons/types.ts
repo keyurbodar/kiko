@@ -1,4 +1,6 @@
 export const iconNames = [
+  "kernel",
+  "composio",
   "zhipuai",
   "zhipuai-coding-plan",
   "zenmux",

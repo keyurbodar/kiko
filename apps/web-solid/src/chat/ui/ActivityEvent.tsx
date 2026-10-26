@@ -11,16 +11,16 @@ import {
   PlusIcon,
   StopIcon,
 } from "@kiko/ui/icons"
-import { createMemo, createSignal, lazy, onCleanup, Show, Suspense } from "solid-js"
+import { createMemo, createSignal, onCleanup, Show, Suspense } from "solid-js"
 import { openSettings } from "../../lib/errors"
-import { useApp } from "../../lib/store"
+import { room } from "../../state/room"
 import type { ChatMessage } from "../../lib/types"
 import { openModelPicker } from "../../settings/model-picker"
 import { reconnect } from "../../settings/provider-problem"
 import { eventRow } from "../lib/event-line"
+import { RunErrorCard } from "./RunErrorCard"
 import { SystemRow, type RowAction } from "./SystemRow"
-
-const ComputerCard = lazy(() => import("../computer/ComputerCard"))
+import ComputerCard from "../computer/ComputerCard"
 
 const ICONS: Record<string, Glyph> = {
   created: GroupIcon,
@@ -45,7 +45,12 @@ const LABELS: Record<RunErrorAction, string> = {
   open_settings: "Settings",
 }
 
-export function ActivityEvent(props: { message: ChatMessage; name: (slug: string) => string; latest?: boolean }) {
+export function ActivityEvent(props: {
+  message: ChatMessage
+  name: (slug: string) => string
+  latest?: boolean
+  group?: boolean
+}) {
   const row = createMemo(() => eventRow(props.message, props.name))
   const failed = () =>
     props.message.event?.kind === "run_error"
@@ -54,7 +59,7 @@ export function ActivityEvent(props: { message: ChatMessage; name: (slug: string
   const [retrying, setRetrying] = createSignal(false)
   let timer: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(timer))
-  const busy = (slug: string) => retrying() || useApp.typingSlugs().includes(slug)
+  const busy = (slug: string) => retrying() || room.typingSlugs().includes(slug as never)
 
   const failureAction = (
     event: { slug: string; reason: RunErrorKind; provider?: string | undefined },
@@ -69,7 +74,7 @@ export function ActivityEvent(props: { message: ChatMessage; name: (slug: string
         if (action === "retry") {
           setRetrying(true)
           timer = setTimeout(() => setRetrying(false), RETRY_WAIT_MS)
-          useApp.retryRun(props.message.id)
+          room.retryRun(props.message.id)
         } else if (action === "change_model") openModelPicker(event.slug)
         else if (signIn && event.provider) reconnect(event.provider)
         else openSettings()
@@ -80,7 +85,7 @@ export function ActivityEvent(props: { message: ChatMessage; name: (slug: string
   const actions = (): RowAction[] | undefined => {
     const event = failed()
     if (event) return props.latest ? event.actions.slice(0, 2).map((action) => failureAction(event, action)) : undefined
-    return props.message.goto ? [{ label: "Open chat", href: `/chat/${props.message.goto}` }] : undefined
+    return props.message.goto ? [{ label: "Open chat", chat: props.message.goto }] : undefined
   }
 
   return (
@@ -94,16 +99,32 @@ export function ActivityEvent(props: { message: ChatMessage; name: (slug: string
     >
       <Show when={row()}>
         {(r) => (
-          <SystemRow
-            label={r().label}
-            detail={r().detail}
-            title={r().title}
-            tone={r().tone}
-            icon={ICONS[props.message.event?.kind ?? "created"]}
-            actions={actions()}
-            data-component={failed() ? "run-error" : "chat-event"}
-            data-message-id={props.message.id}
-          />
+          <Show
+            when={!failed()}
+            fallback={
+              <RunErrorCard
+                label={r().label}
+                reason={r().detail}
+                note={r().note}
+                actions={actions()}
+                group={props.group}
+                latest={props.latest}
+                data-message-id={props.message.id}
+              />
+            }
+          >
+            <SystemRow
+              label={r().label}
+              detail={r().detail}
+              title={r().title}
+              tone={r().tone}
+              icon={ICONS[props.message.event?.kind ?? "created"]}
+              actions={actions()}
+              stitch={props.message.event?.kind === "model_changed"}
+              data-component="chat-event"
+              data-message-id={props.message.id}
+            />
+          </Show>
         )}
       </Show>
     </Show>

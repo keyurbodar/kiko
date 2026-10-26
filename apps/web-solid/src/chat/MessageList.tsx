@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js"
 import type { ChatMessage, RosterBot } from "../lib/types"
-import type { DraftBook } from "../warm/drafts"
+import type { DraftBook } from "../composer/draft-book"
 import { VirtualThread, type VirtualThreadState } from "./VirtualThread"
 
 export function MessageList(props: {
@@ -24,10 +24,11 @@ export function MessageList(props: {
   replyTarget?: string | null
   onNearTop?: () => void
   onAtLatest?: () => void
-  onLeftLatest?: () => void
   scrollKey?: string
   scrollBook?: Pick<DraftBook, "scroll" | "saveScroll"> & Partial<Pick<DraftBook, "ready">>
   onJumpHandle?: (handle: { jumpToMessage: (messageId: string) => void; scrollToLatest: () => void }) => void
+  onToLatest?: () => void
+  detached?: boolean
 }): JSX.Element {
   return <VirtualThread {...props} />
 }

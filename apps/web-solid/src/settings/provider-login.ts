@@ -1,5 +1,8 @@
-import type { LoginEvent, LoginPrompt, UserToClient } from "@kiko/protocol"
-import { type UserChannel, userChannel } from "../sync/socket"
+import type { LoginEvent, LoginPrompt, UserSignal } from "@kiko/protocol"
+import { createComputed, createRoot, on } from "solid-js"
+import { connection } from "../state/connection"
+import { attempt, owner } from "../state/runtime"
+import { onUserSignal } from "../state/user"
 
 export type SignIn = {
   status: "running" | "done" | "error"
@@ -12,7 +15,7 @@ export type SignIn = {
 
 const started: SignIn = { status: "running", code: null, link: null, note: null, prompt: null, error: null }
 
-type LoginFrame = Extract<UserToClient, { t: `login.${string}` }>
+type LoginFrame = Extract<UserSignal, { t: `login.${string}` }>
 
 function reduceSignIn(state: SignIn, frame: LoginFrame): SignIn {
   switch (frame.t) {
@@ -36,19 +39,20 @@ export type SignInHandle = {
   cancel(): void
 }
 
-export function startSignIn(
-  provider: string,
-  onState: (state: SignIn) => void,
-  channel: UserChannel = userChannel,
-): SignInHandle {
+export function startSignIn(provider: string, onState: (state: SignIn) => void): SignInHandle {
   const loginId = crypto.randomUUID()
   let state = started
   let ended = false
-  let sent = false
   const offs: (() => void)[] = []
   const finish = () => {
     ended = true
-    for (const off of offs) off()
+    for (const off of offs.splice(0)) off()
+  }
+  const fail = (error: string) => {
+    if (ended) return
+    finish()
+    state = { ...state, status: "error", prompt: null, error }
+    onState(state)
   }
   const receive = (frame: LoginFrame) => {
     if (ended || frame.loginId !== loginId) return
@@ -57,31 +61,29 @@ export function startSignIn(
     if (state.status !== "running") finish()
   }
   for (const t of ["login.notify", "login.prompt", "login.done", "login.error"] as const)
-    offs.push(channel.on(t, receive))
-  const start = () => {
-    if (!ended && !sent) sent = channel.send({ t: "login.start", loginId, provider })
-  }
-  offs.push(channel.onOpen(start))
+    offs.push(onUserSignal(t, receive))
   offs.push(
-    channel.onStatus((status) => {
-      if (status !== "closed" || !sent || ended) return
-      finish()
-      state = { ...state, status: "error", prompt: null, error: "The connection closed. Try again." }
-      onState(state)
+    createRoot((dispose) => {
+      createComputed(
+        on(connection.connected, (connected) => !connected && fail("The connection closed. Try again."), {
+          defer: true,
+        }),
+      )
+      return dispose
     }),
   )
   onState(state)
-  start()
+  void attempt(owner.commands.loginStart, { loginId, provider }, fail)
   return {
     answer(promptId, value) {
       if (ended) return
       state = { ...state, prompt: null }
       onState(state)
-      channel.send({ t: "login.answer", loginId, promptId, value })
+      void attempt(owner.commands.loginAnswer, { loginId, promptId, value }, fail)
     },
     cancel() {
       if (ended) return
-      if (sent) channel.send({ t: "login.cancel", loginId })
+      void attempt(owner.commands.loginCancel, { loginId }, () => {})
       finish()
     },
   }

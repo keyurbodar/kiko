@@ -1,38 +1,18 @@
-import { A, useLocation, useNavigate } from "@solidjs/router"
-import { type Component, createEffect, createSignal, For, lazy, Show, Suspense } from "solid-js"
+import { Link, useLocation } from "@tanstack/solid-router"
+import { Suspense } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ComposeIcon, SettingsIcon, SidebarLeftIcon, SparklesIcon } from "@kiko/ui/icons"
+import { HelpIcon, SearchIcon, SettingsIcon, SidebarLeftIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { session } from "../app/session"
 import { profile } from "../app/hosted"
-import { SECTIONS, type SectionId } from "../app/sections"
+import type { SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
-import { KikoMark, KikoWordmark } from "../lib/brand"
-import { openSettings, settingsSection } from "../settings/dialog-state"
-import { Sky } from "../sky/Sky"
+import { inSettings, openSettings } from "../settings/open"
 import { ChatPanel } from "./chat-panel"
-const UpdatePill = lazy(() => import("../app/update-pill"))
+import { SidebarNav } from "./nav"
 import "./sidebar.css"
-
-const PANELS: Record<SectionId, Component> = {
-  chat: ChatPanel,
-  recipes: lazy(() => import("./recipes/sidebar")),
-}
-const SECTION_IDS = SECTIONS.map((section) => section.id)
-
-type PanelAction = {
-  label: string
-  run: (navigate: (to: string) => void) => void
-}
-
-const ACTIONS: Record<SectionId, PanelAction | null> = {
-  chat: {
-    label: "New chat",
-    run: () => runCommand("chat.new"),
-  },
-  recipes: null,
-}
+import UpdatePill from "../app/update-pill"
 
 export interface SidebarProps {
   section: SectionId | null
@@ -42,12 +22,6 @@ export interface SidebarProps {
 
 export function Sidebar(props: SidebarProps) {
   const collapsed = () => props.collapsed
-  const shown = (): SectionId => props.section ?? "chat"
-  const [visited, setVisited] = createSignal<ReadonlySet<SectionId>>(new Set())
-  createEffect(() => {
-    const id = props.section
-    if (id && !visited().has(id)) setVisited((seen) => new Set(seen).add(id))
-  })
 
   return (
     <aside
@@ -56,36 +30,41 @@ export function Sidebar(props: SidebarProps) {
       data-panel={props.section ?? undefined}
       data-collapsed={collapsed() ? "" : undefined}
     >
-      <Sky />
       <header class="panel-header">
-        <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
-          <KikoMark class="panel-brand-mark" />
-          <KikoWordmark class="panel-brand-wordmark" />
-        </A>
+        <Link to="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
+          Kiko
+        </Link>
         <span class="flex-1" aria-hidden="true" />
-        <Show when={ACTIONS[shown()]}>{(action) => <HeaderAction action={action()} />}</Show>
+        <HeaderSearch />
         <SidebarToggle open onToggle={props.onToggle} />
       </header>
 
+      <SidebarNav />
+
       <div class="panel-scroll">
-        <For each={SECTION_IDS}>
-          {(id) => {
-            const Panel = PANELS[id]
-            return (
-              <Show when={id === "chat" || visited().has(id)}>
-                <div class="panel-slot" data-slot={id} data-hidden={shown() === id ? undefined : ""}>
-                  <Suspense>
-                    <Panel />
-                  </Suspense>
-                </div>
-              </Show>
-            )
-          }}
-        </For>
+        <div class="panel-slot" data-slot="chat">
+          <ChatPanel />
+        </div>
       </div>
 
       <Foot />
     </aside>
+  )
+}
+
+function HeaderSearch() {
+  return (
+    <TooltipV2 placement="bottom" openDelay={400} value="Search">
+      <button
+        type="button"
+        class="panel-icon-button"
+        data-component="sidebar-header-search"
+        aria-label="Search"
+        onClick={() => runCommand("palette.open")}
+      >
+        <RemixIcon icon={SearchIcon} size={16} />
+      </button>
+    </TooltipV2>
   )
 }
 
@@ -109,8 +88,8 @@ export function SidebarToggle(props: { open: boolean; onToggle: () => void; clas
 }
 
 function Foot() {
-  const location = useLocation()
-  const onRecipes = () => location.pathname.startsWith("/recipes")
+  const pathname = useLocation({ select: (location) => location.pathname })
+  const onSettings = () => inSettings(pathname())
   const user = () => {
     const s = session()
     return s.status === "signed-in" ? s.user : null
@@ -129,20 +108,19 @@ function Foot() {
           aria-haspopup="dialog"
           onClick={() => openSettings("account")}
         >
-          <IdentityAvatar seed={user()?.id ?? "you"} size={26} />
+          <IdentityAvatar seed={user()?.id ?? "you"} size={28} class="panel-me-avatar" />
           <span class="panel-me-name">{profile()?.name ?? user()?.name ?? "You"}</span>
         </button>
-        <TooltipV2 placement="top" openDelay={400} value="Recipes">
-          <A
-            href="/recipes"
+        <TooltipV2 placement="top" openDelay={400} value="Keyboard shortcuts">
+          <button
+            type="button"
             class="panel-icon-button"
-            data-component="sidebar-recipes"
-            data-active={onRecipes() ? "" : undefined}
-            aria-current={onRecipes() ? "page" : undefined}
-            aria-label="Recipes"
+            data-component="sidebar-help"
+            aria-label="Help and shortcuts"
+            onClick={() => openSettings("keyboard")}
           >
-            <RemixIcon icon={SparklesIcon} size={17} />
-          </A>
+            <RemixIcon icon={HelpIcon} size={17} />
+          </button>
         </TooltipV2>
         <TooltipV2 placement="top" openDelay={400} value="Settings">
           <button
@@ -151,9 +129,9 @@ function Foot() {
             data-component="sidebar-settings"
             data-hint="settings.open"
             data-hint-label="Settings"
-            data-active={settingsSection() ? "" : undefined}
+            data-active={onSettings() ? "" : undefined}
             aria-haspopup="dialog"
-            aria-expanded={settingsSection() !== null}
+            aria-expanded={onSettings()}
             aria-label="Settings"
             onClick={() => openSettings()}
           >
@@ -162,23 +140,5 @@ function Foot() {
         </TooltipV2>
       </footer>
     </>
-  )
-}
-
-function HeaderAction(props: { action: PanelAction }) {
-  const navigate = useNavigate()
-  return (
-    <TooltipV2 placement="bottom" openDelay={400} value={props.action.label}>
-      <button
-        type="button"
-        class="panel-icon-button"
-        data-component="sidebar-add"
-        aria-label={props.action.label}
-        title={props.action.label}
-        onClick={() => props.action.run(navigate)}
-      >
-        <RemixIcon icon={ComposeIcon} size={17} />
-      </button>
-    </TooltipV2>
   )
 }

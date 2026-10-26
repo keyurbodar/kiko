@@ -1,9 +1,6 @@
-import { createEffect, createSignal, lazy, Show, Suspense, type JSX } from "solid-js"
+import { createEffect, createSignal, Show, Suspense, type JSX } from "solid-js"
 import type { ChatMessage } from "../../lib/types"
-
-const loadView = () => import("./MessageMenuView")
-const MessageMenu = lazy(loadView)
-export const preloadMessageMenu = () => void loadView()
+import MessageMenu from "./MessageMenuView"
 
 export interface MessageMenuOptions {
   message: ChatMessage

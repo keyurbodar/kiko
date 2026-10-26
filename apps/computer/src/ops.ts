@@ -41,7 +41,7 @@ class Ring {
 }
 
 export async function shell(args: Args<"shell">, policy: Policy, deadline: Deadline): Promise<Value<"shell">> {
-  if (!policy.shell) throw new Fail("denied", "policy.json turns off shell commands on this machine")
+  if (!policy.shell) throw new Fail({ code: "denied", message: "policy.json turns off shell commands on this machine" })
   const budget = Math.max(1_000, Math.min(args.timeoutMs ?? 60_000, MAX_TIMEOUT_MS, deadline.remaining()))
   const proc = Bun.spawn(shellCommand(args.command), {
     cwd: args.cwd,
@@ -106,9 +106,9 @@ function killTree(pid: number | undefined): void {
 
 export async function read(args: Args<"read">, policy: Policy): Promise<Value<"read">> {
   const path = allowedPath(policy, args.path)
-  if (!path) throw new Fail("denied", `${args.path} is outside the paths policy.json allows`)
+  if (!path) throw new Fail({ code: "denied", message: `${args.path} is outside the paths policy.json allows` })
   const info = await stat(path).catch(() => null)
-  if (!info?.isFile()) throw new Fail("failed", `${args.path} is not a file this machine can read`)
+  if (!info?.isFile()) throw new Fail({ code: "failed", message: `${args.path} is not a file this machine can read` })
   const cap = Math.max(1, Math.min(args.maxBytes ?? READ_CAP, READ_CAP))
   const size = Math.min(info.size, cap)
   const handle = await open(path, "r")
@@ -130,8 +130,9 @@ function isBinary(buffer: Buffer): boolean {
 
 export async function write(args: Args<"write">, policy: Policy): Promise<Value<"write">> {
   const path = allowedPath(policy, args.path)
-  if (!path) throw new Fail("denied", `${args.path} is outside the paths policy.json allows`)
-  if (args.text === undefined && args.base64 === undefined) throw new Fail("failed", "write needs text or base64")
+  if (!path) throw new Fail({ code: "denied", message: `${args.path} is outside the paths policy.json allows` })
+  if (args.text === undefined && args.base64 === undefined)
+    throw new Fail({ code: "failed", message: "write needs text or base64" })
   const bytes = args.base64 === undefined ? Buffer.from(args.text ?? "", "utf8") : Buffer.from(args.base64, "base64")
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, bytes, args.append ? { flag: "a" } : {})

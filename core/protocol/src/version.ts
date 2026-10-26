@@ -1,1 +1,34 @@
+import * as Schema from "effect/Schema"
+import { ReleaseVersion } from "./user"
+
 export const PROTOCOL = 3
+
+export const BackendDescriptor = Schema.Struct({
+  kiko: Schema.Literal(1),
+  version: Schema.String,
+  protocol: Schema.Number,
+  selfUpdate: Schema.Boolean,
+  storage: Schema.optionalKey(Schema.Literals(["r2", "built-in"])),
+})
+export type BackendDescriptor = typeof BackendDescriptor.Type
+
+export const UpdateErrorCode = Schema.Literals([
+  "no_grant",
+  "grant_refused",
+  "release_unavailable",
+  "release_untrusted",
+  "cloudflare_error",
+])
+export type UpdateErrorCode = typeof UpdateErrorCode.Type
+
+export const UpdateState = Schema.Union([
+  Schema.Struct({ stage: Schema.Literal("idle") }),
+  Schema.Struct({ stage: Schema.Literals(["uploading", "restarting"]), to: ReleaseVersion }),
+  Schema.Struct({
+    stage: Schema.Literal("failed"),
+    to: ReleaseVersion,
+    error: UpdateErrorCode,
+    message: Schema.String,
+  }),
+])
+export type UpdateState = typeof UpdateState.Type

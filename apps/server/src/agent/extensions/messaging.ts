@@ -20,6 +20,8 @@ export type MessagingPort = {
   team(): Promise<{ slug: AgentSlug; name: string; status: string; doing: string | null; holds: string[] }[]>
 }
 
+import { AgentHomeMissing } from "../errors"
+
 const text = (t: string) => [{ type: "text" as const, text: t }]
 
 const ASK_WAIT_MS = 120_000
@@ -27,7 +29,7 @@ const ASK_WAIT_MS = 120_000
 export function messagingExtension(port: () => MessagingPort | null): Extension {
   const room = () => {
     const p = port()
-    if (!p) throw new Error("this agent is not in a room yet")
+    if (!p) throw new AgentHomeMissing({ message: "this agent is not in a room yet" })
     return p
   }
   const send = async (

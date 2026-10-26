@@ -1,0 +1,309 @@
+.file-card {
+  --plate: color-mix(in oklab, var(--tone) 5%, var(--raise));
+  --plate-deep: color-mix(in oklab, var(--tone) 9%, var(--raise));
+  --plate-glow: color-mix(in oklab, var(--tone) 9%, transparent);
+  --rest: scale(0.84);
+  --lift-ease: cubic-bezier(0.15, 0.65, 0.7, 1);
+  position: relative;
+  min-width: 0;
+  border-radius: var(--radius-card);
+  background: var(--panel);
+  padding: 6px;
+  box-shadow: var(--card-shadow);
+  transition:
+    transform var(--dur-hover) var(--ease-kiko),
+    box-shadow var(--dur-pop) var(--ease-kiko);
+}
+
+:root:not(.dark) .file-card {
+  --plate: color-mix(in oklab, var(--tone) 5%, var(--active));
+  --plate-deep: color-mix(in oklab, var(--tone) 9%, var(--active));
+  --plate-glow: color-mix(in oklab, var(--tone) 8%, transparent);
+}
+
+.file-card[data-compact] {
+  border-radius: var(--radius-tile);
+  padding: 4px;
+}
+
+.file-card-hit {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  cursor: pointer;
+  text-align: left;
+  outline: none;
+}
+
+.file-card-plate {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: var(--radius-row);
+  background-color: var(--plate);
+  background-image: radial-gradient(120% 80% at 50% 0%, var(--plate-glow), transparent 70%);
+  transition: background-color 180ms var(--ease-kiko);
+}
+
+.file-card[data-compact] .file-card-plate {
+  border-radius: 8px;
+}
+
+.file-card-sheet {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--radius-row);
+  background: var(--bg);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.14);
+  transform: var(--rest);
+  transform-origin: 50% 100%;
+  transition: transform 180ms var(--lift-ease);
+}
+
+.file-card[data-compact] .file-card-sheet {
+  border-radius: 8px;
+}
+
+.file-card-sheet::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 40%, color-mix(in oklab, var(--plate) 70%, transparent));
+  content: "";
+  pointer-events: none;
+  transition: opacity 180ms var(--ease-kiko);
+}
+
+.file-card-sheet:is([data-kind="html"], [data-kind="picture"]) {
+  background: #fff;
+}
+
+.file-card-sheet:not([data-drawn]) {
+  display: grid;
+  place-items: center;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.file-card-sheet:not([data-drawn])::after {
+  content: none;
+}
+
+.file-card-icon {
+  transition: transform 180ms var(--ease-kiko);
+}
+
+.file-card-picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
+.file-card-sheet[data-kind="image"] .file-card-picture {
+  object-position: center;
+}
+
+.file-card-frame {
+  display: block;
+  border: 0;
+  background: #fff;
+  pointer-events: none;
+}
+
+.file-card-md {
+  padding: 22px 24px;
+  color: var(--fg);
+  font-size: 14px;
+  line-height: 1.5;
+  text-rendering: geometricPrecision;
+}
+
+.file-card-md > * + * {
+  margin-top: 0.6em;
+}
+
+.file-card-lines {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--fg2);
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  line-height: 14px;
+  white-space: pre;
+}
+
+.file-card-lines[data-mono] {
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.file-card[data-compact] .file-card-lines {
+  padding: 7px 8px;
+  font-size: 7.5px;
+  line-height: 11px;
+}
+
+.file-card-table {
+  min-width: 100%;
+  border-collapse: collapse;
+  color: var(--fg2);
+  font-size: 9.5px;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.file-card[data-compact] .file-card-table {
+  font-size: 7.5px;
+  line-height: 10px;
+}
+
+.file-card-table td {
+  max-width: 96px;
+  overflow: hidden;
+  padding: 3px 8px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  text-overflow: ellipsis;
+}
+
+.file-card-table tr[data-head] td {
+  background: color-mix(in oklab, var(--tone) 10%, var(--bg));
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.file-card-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 6px 4px;
+}
+
+.file-card[data-compact] .file-card-text {
+  padding: 6px 4px 2px;
+}
+
+.file-card[data-compact] .file-card-name {
+  font-size: var(--type-label);
+}
+
+.file-card[data-compact] .file-card-meta {
+  font-size: var(--type-hint);
+}
+
+.file-card-action {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: var(--radius-control);
+  background: color-mix(in oklab, var(--raise) 86%, transparent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+  color: var(--fg);
+  opacity: 0;
+  outline: none;
+  pointer-events: none;
+  transform: scale(0.85);
+  transition:
+    opacity var(--dur-pop) var(--ease-kiko),
+    transform var(--dur-pop) var(--ease-kiko),
+    background-color var(--dur-hover) var(--ease-kiko);
+  backdrop-filter: blur(8px);
+}
+
+.file-card[data-compact] .file-card-action {
+  display: none;
+}
+
+.file-card-action:focus-visible {
+  box-shadow: var(--focus-ring);
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+
+.file-card:has(.file-card-hit:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.file-card:has(.file-card-hit:focus-visible) .file-card-sheet {
+  transform: none;
+}
+
+.file-card:has(.file-card-hit:active) {
+  transform: scale(0.98);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .file-card:hover .file-card-plate {
+    background-color: var(--plate-deep);
+  }
+
+  .file-card:hover .file-card-sheet {
+    transform: none;
+    transition-duration: 280ms;
+  }
+
+  .file-card:hover .file-card-sheet::after {
+    opacity: 0;
+  }
+
+  .file-card:hover .file-card-icon {
+    transform: translateY(-3px) scale(1.08);
+    transition-duration: 280ms;
+  }
+
+  .file-card:hover {
+    box-shadow:
+      var(--card-shadow),
+      0 10px 28px -14px rgb(0 0 0 / 0.45);
+  }
+
+  .file-card:hover .file-card-action {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
+
+  .file-card-action:hover {
+    background: var(--raise);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .file-card-sheet[data-fresh] > * {
+    animation: file-card-in 160ms var(--ease-kiko) both;
+  }
+}
+
+@keyframes file-card-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .file-card,
+  .file-card-sheet,
+  .file-card-icon {
+    transition: none;
+  }
+
+  .file-card-sheet,
+  .file-card:hover .file-card-sheet {
+    transform: none;
+  }
+
+  .file-card:has(.file-card-hit:active) {
+    transform: none;
+  }
+}

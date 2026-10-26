@@ -6,7 +6,7 @@ Kiko is a self-deployed chat app where one person texts one agent or a team of a
 
 1. **One owner, one Worker.** Every install serves exactly one person. Keep every feature, but cut any machinery that only exists for multi-tenant scale.
 2. **Writes are the budget.** Cloudflare bills rows written, and the Free plan allows 100,000 a day. A warm prompt writes at most 7 rows. A change that adds a write per prompt, per minute, or per open tab is a regression even when it works.
-3. **The client never waits.** It paints from IndexedDB and applies every action locally before the server answers. Navigation and the composer do not animate or block on the network.
+3. **The client never waits.** It paints from IndexedDB and applies every action locally before the server answers. Navigation and the composer never block on the network. A new screen paints at once; it may ease in for at most 160ms, and nothing waits for the old screen to animate out.
 4. **Production stays up.** Owners update from our releases. A crash we ship lands in every install at once.
 
 ## Glossary
@@ -36,13 +36,16 @@ Copy `apps/server/.dev.vars.example` to `.dev.vars` for local runs. If a port is
 
 ## Verifying
 
-Run the cheapest check that covers your change. Every gate below also runs in CI, and nothing reaches `main` or a release without CI passing.
+Run the cheapest check that covers your change. CI runs every gate again, and nothing reaches a release without the `Check` job passing.
 
-- **While you work:** `bun run check:changed`. It formats-checks and lints the files you changed, runs knip and the import layering check, checks generated files, and typechecks only the packages you touched plus their dependents. A one-file change takes a few seconds.
-- **On commit:** the pre-commit hook runs the same checks on staged files. `bun install` installs it. Do not bypass it with `--no-verify`.
+- **Before you push:** `bun run check:changed`. It runs CI's fast checks for the files you changed: format, lint, knip, import layering, generated files, typecheck of the packages you touched plus their dependents, and the test files beside your changes. A passing result is cached, so a rerun with no new changes returns at once. The pre-push hook runs it. Do not bypass it with `--no-verify`.
+- **On commit:** the pre-commit hook formats staged files. `bun install` installs both hooks.
+- **While you iterate:** `bunx vitest run <files>`. Add `-t "<name>"` for one test.
 - **Formatting:** `bun fmt` fixes it. Do not hand-format.
-- **Before a PR that touches many packages:** `bun run check` runs every static gate across the repo in about 15 seconds.
-- **Behavior:** there are no unit or integration tests, and no mocks. Prove behavior against the real app. `bun kiko verify journal-overhead --url http://localhost:8787` drives prompts end to end and fails on extra writes or error rows. `bun run verify:web --url http://localhost:8787` drives the client in Chromium. CI runs both, so run them locally only when you changed the path they cover.
+- **Do not run repo-wide checks** unless asked. CI owns the full suite.
+- **Tests:** test logic and observable behavior beside the source as `*.test.ts`, with `@effect/vitest` for Effect code (`it.effect`, `TestClock`, `Deferred`, `Queue`). Client DOM tests are `*.browser.test.tsx`, run in Chromium, and render with `await using screen = await render(...)` from `apps/web-solid/test/render.tsx`. No sleeps, polling loops, wall-clock deltas, per-test timeouts or retries; lint enforces this (`oxlint-plugin-kiko`).
+- **Bug fixes:** logic, state and protocol bugs get a failing test first, then the fix. Purely visual bugs get before/after captures instead.
+- **Writes budget:** `apps/server/integration` starts the real Worker and fails if a warm prompt writes more than 7 billed rows or an idle minute writes anything. CI runs it when server or core code changes.
 - **UI changes:** look at the change in a real browser before calling it done.
 
 Never silence a rule to pass a gate. Not with a disable comment, not by editing `.oxlintrc.json`, `biome.json` or `knip.json`. If a rule is wrong for this code, say so and get the owner's sign-off.

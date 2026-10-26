@@ -10,7 +10,7 @@ export type Json = {
 
 const MARKS = ["link", "bold", "italic", "strike", "code"] as const
 const WRAP: Record<string, string> = { bold: "**", italic: "*", strike: "~~" }
-const MENTION = /(^|[^\w@/.-])@([a-z0-9-]{1,32})(?![\w-])/g
+const TOKEN = /(^|[^\w@/.:-])([@/])([a-z0-9][a-z0-9-]{0,63})(?![\w/-])/g
 
 export function docToMarkdown(doc: Json): string {
   return blocks(doc.content ?? [], "\n\n").trim()
@@ -151,6 +151,7 @@ function sameMark(head: Json, node: Json, mark: string): boolean {
 function leaf(node: Json): string {
   if (node.type === "hardBreak") return "\n"
   if (node.type === "mention") return `@${String(node.attrs?.slug ?? "")}`
+  if (node.type === "slash") return `/${String(node.attrs?.name ?? "")}`
   if (node.type === "fileRef") return fileRefToken(String(node.attrs?.path ?? ""), Boolean(node.attrs?.folder))
   if (node.type === "attachment") return attachmentToken(String(node.attrs?.id ?? ""), String(node.attrs?.name ?? ""))
   if (node.type === "text") return node.text ?? ""
@@ -179,7 +180,7 @@ function wrap(mark: string, head: Json, run: Json[]): string {
   return `${lead}${marker}${core}${marker}${trail}`
 }
 
-export type ParseOptions = { isMention?: (slug: string) => boolean }
+export type ParseOptions = { isMention?: (slug: string) => boolean; isSlash?: (name: string) => boolean }
 
 export function markdownToDoc(markdown: string, options: ParseOptions = {}): Json {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n")
@@ -425,19 +426,25 @@ function emphasis(rest: string, marker: string, kinds: string[], options: ParseO
   }
 }
 
+function tokenNode(sign: string, name: string, options: ParseOptions): Json | null {
+  if (sign === "@")
+    return name.length <= 32 && options.isMention?.(name) ? { type: "mention", attrs: { slug: name } } : null
+  return options.isSlash?.(name) ? { type: "slash", attrs: { name } } : null
+}
+
 function textNodes(text: string, options: ParseOptions, marks: Mark[]): Json[] {
   const withMarks = (node: Json): Json => (marks.length ? { ...node, marks: marks } : node)
-  if (!options.isMention) return [withMarks({ type: "text", text })]
+  if (!options.isMention && !options.isSlash) return [withMarks({ type: "text", text })]
   const out: Json[] = []
   let last = 0
-  for (const match of text.matchAll(MENTION)) {
+  for (const match of text.matchAll(TOKEN)) {
     const lead = match[1]!
-    const slug = match[2]!
-    if (!options.isMention(slug)) continue
+    const node = tokenNode(match[2]!, match[3]!, options)
+    if (!node) continue
     const start = match.index + lead.length
     if (start > last) out.push(withMarks({ type: "text", text: text.slice(last, start) }))
-    out.push({ type: "mention", attrs: { slug } })
-    last = start + 1 + slug.length
+    out.push(node)
+    last = start + 1 + match[3]!.length
   }
   if (last < text.length) out.push(withMarks({ type: "text", text: text.slice(last) }))
   return out

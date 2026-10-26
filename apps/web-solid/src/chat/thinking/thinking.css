@@ -1,0 +1,127 @@
+.thinking {
+  --run-text: var(--fg3);
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.thinking-row {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg2);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.thinking-live {
+  display: block;
+  overflow: hidden;
+  color: var(--fg3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thinking-toggle,
+.thought-head {
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--dur-hover) var(--ease-kiko);
+}
+
+.thinking-time,
+.thinking-chevron {
+  flex: none;
+  color: var(--fg4);
+  font-variant-numeric: tabular-nums;
+}
+.thinking-chevron[data-open] {
+  transform: rotate(90deg);
+}
+
+.thinking-stream {
+  width: min(36rem, 100%);
+  max-height: min(280px, 36vh);
+  margin-left: 9px;
+  padding: 2px 0 2px 18px;
+  overflow-y: auto;
+  border-left: 1.5px solid var(--line);
+  scrollbar-width: thin;
+  color: var(--fg3);
+  font-size: 13.5px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.thinking-stream[data-scrolled] {
+  -webkit-mask: linear-gradient(transparent, #000 32px);
+  mask: linear-gradient(transparent, #000 32px);
+}
+
+.thought {
+  display: flex;
+  min-width: 0;
+  max-width: min(36rem, 100%);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 0 0 6px 8px;
+}
+.thought .thinking-stream {
+  margin-left: 0;
+  padding-left: 12px;
+}
+
+.thought-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg3);
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+.thinking-toggle:focus-visible,
+.thought-head:focus-visible {
+  border-radius: 6px;
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .thinking-toggle:hover,
+  .thought-head:hover {
+    color: var(--fg);
+  }
+  .thinking-toggle:hover .thinking-chevron,
+  .thought-head:hover .thinking-chevron {
+    color: var(--fg2);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .thinking-live {
+    animation: thinking-fade var(--dur-hover) var(--ease-kiko) backwards;
+  }
+  .thinking-live.motion-shine {
+    animation:
+      thinking-fade var(--dur-hover) var(--ease-kiko) backwards,
+      motion-shine var(--dur-shimmer) steps(30) infinite;
+    animation-play-state: running, var(--visible-animation-state, paused);
+  }
+  .thinking-stream {
+    animation: thinking-fade var(--dur-pop) var(--ease-kiko) backwards;
+  }
+}
+
+@keyframes thinking-fade {
+  from {
+    opacity: 0;
+  }
+}

@@ -1,124 +1,99 @@
 import { createEffect, createRoot, createSignal } from "solid-js"
-import { apiFetch } from "../../lib/api"
 import { connectedProviders } from "../../settings/connected"
-import { listProviders } from "../../settings/credentials"
 import { hasModelProvider } from "../../settings/provider-kinds"
+import { load, owner, run } from "../../state/runtime"
 import { hosted } from "../hosted"
-import { authGeneration, authIdentity, authReset, session, signOut, setBackendConnectionNotice } from "../session"
-import { advance, stepFor, stepFromSaved, type Move, type Step } from "./steps"
+import type { Phase } from "../phase"
+import { phase } from "../session"
+import { advance, onboardingStep, resumedStep, type Move, type Step } from "./steps"
 
-const key = (userId: string) => `kiko:first-run:${authIdentity()}:${userId}`
+const ON_CLOUDFLARE: ReadonlySet<Phase["_tag"]> = new Set(["NeedsBackend", "Installing", "Unreachable"])
 
-function read(userId: string): Step | null {
-  try {
-    return stepFromSaved(localStorage.getItem(key(userId)))
-  } catch {
-    return null
-  }
+interface Probe {
+  readonly key: string
+  readonly connected: boolean
+  readonly onboarded: boolean
 }
 
-function write(userId: string, step: Step): void {
-  try {
-    localStorage.setItem(key(userId), step)
-  } catch {}
-}
-
-const userId = () => {
-  const s = session()
-  return s.status === "signed-in" ? s.user.id : null
-}
-
-const [saved, setSaved] = createSignal<{ userId: string; step: Step | null } | null>(null)
-const [probe, setProbe] = createSignal<{ userId: string; connected: boolean; onboarded: boolean } | null>(null)
-const [fresh, setFresh] = createSignal(false)
-
-const [needsBackend, setNeedsBackend] = createSignal(hosted && /^\/connect(\/callback)?$/.test(location.pathname))
+const [chosen, setChosen] = createSignal<{ readonly key: string; readonly step: Step } | null>(null)
+const [probe, setProbe] = createSignal<Probe | null>(null)
+const [fresh, setFresh] = createSignal(phase()._tag !== "Ready")
+const [acted, setActed] = createSignal(false)
 
 export const [working, setWorking] = createSignal(false)
-export const installBackend = () => setNeedsBackend(true)
-
-export async function useDifferentSignIn(): Promise<void> {
-  await signOut()
-  setBackendConnectionNotice("")
-  setNeedsBackend(false)
-}
+export const [finished, setFinished] = createSignal(false)
 
 export const enteringFresh = () => setFresh(true)
-export const codeFailed = () => setFresh(false)
 
-const savedStep = (): Step | null => {
-  const id = userId()
-  if (!id) return null
-  const s = saved()
-  return s?.userId === id ? s.step : read(id)
+const readyKey = (): string | null => {
+  const current = phase()
+  return current._tag === "Ready" ? current.backend.key : null
+}
+
+const chosenStep = (key: string): Step | null => {
+  const current = chosen()
+  return current?.key === key ? current.step : null
+}
+
+const probed = (key: string): Probe | null => {
+  const current = probe()
+  return current?.key === key ? current : null
 }
 
 export function currentStep(): Step {
-  const id = userId()
-  const known = probe()?.userId === id && id !== null
-  return stepFor({
-    signedIn: id !== null,
-    hosted,
-    needsBackend: needsBackend(),
-    saved: savedStep(),
+  const current = phase()
+  if (current._tag !== "Ready") return hosted && ON_CLOUDFLARE.has(current._tag) ? "cloudflare" : "sign-in"
+  const key = current.backend.key
+  const known = probed(key)
+  return onboardingStep({
+    chosen: chosenStep(key),
     fresh: fresh(),
-    known,
-    connected: hasModelProvider(connectedProviders()) || (known && probe()!.connected),
-    onboarded: known && probe()!.onboarded,
+    known: known !== null,
+    connected: hasModelProvider(connectedProviders()) || (known?.connected ?? false),
+    onboarded: known?.onboarded ?? false,
   })
+}
+
+function remember() {
+  return run(owner.commands.settingsUpdate, { patch: { onboarded: true } })
+}
+
+export const resumed = (): Step | null => resumedStep({ fresh: fresh(), acted: acted(), step: currentStep() })
+
+export const dismissResume = () => setActed(true)
+
+export function setStep(step: Step): void {
+  const key = readyKey()
+  if (!key) return
+  setActed(true)
+  setChosen({ key, step })
+  if (step === "done") void remember()
 }
 
 export function move(how: Move): void {
   setStep(advance(currentStep(), how))
 }
 
-export function setStep(step: Step): void {
-  const id = userId()
-  if (!id) return
-  write(id, step)
-  setSaved({ userId: id, step })
-  if (step === "done") void remember()
-}
-
-function remember() {
-  return apiFetch("/api/settings", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ onboarded: true }),
-  }).catch(() => {})
-}
-
 async function onboardedOnServer(): Promise<boolean> {
-  const res = await apiFetch("/api/settings")
-  return res.ok && ((await res.json()) as { onboarded?: unknown }).onboarded === true
+  return (await load(owner.queries.settings(undefined))).onboarded === true
 }
 
 createRoot(() => {
   createEffect(() => {
-    if (authReset() === 0) return
-    setNeedsBackend(false)
-    setFresh(false)
-    setSaved(null)
-    setProbe(null)
-    setWorking(false)
-  })
-  createEffect(() => {
-    const id = userId()
-    if (!id || savedStep() === "done" || probe()?.userId === id) return
-    const attempt = authGeneration()
-    void Promise.all([listProviders(), onboardedOnServer()])
+    const key = readyKey()
+    if (!key || chosenStep(key) === "done" || probed(key)) return
+    void Promise.all([load(owner.queries.credentials(undefined)), onboardedOnServer()])
       .then(([list, onboarded]) => {
-        if (attempt === authGeneration()) setProbe({ userId: id, connected: hasModelProvider(list), onboarded })
+        if (readyKey() === key) setProbe({ key, connected: hasModelProvider(list), onboarded })
       })
       .catch(() => {})
   })
   createEffect(() => {
-    const id = userId()
-    if (!id) return
+    const key = readyKey()
+    if (!key) return
     const step = currentStep()
-    if (step === savedStep()) return
-    if (savedStep() === null && probe()?.userId !== id) return
-    write(id, step)
-    setSaved({ userId: id, step })
+    const before = chosenStep(key)
+    if (step === before || (before === null && !probed(key))) return
+    setChosen({ key, step })
   })
 })

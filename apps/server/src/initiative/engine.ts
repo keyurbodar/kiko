@@ -1,5 +1,5 @@
 import type { AgentSlug } from "@kiko/protocol"
-import type { UserSettings } from "@kiko/protocol/schema"
+import type { UserSettings } from "@kiko/protocol"
 import { validZone } from "@kiko/sandbox/recurrence"
 import type { WakeResult } from "../room/delivery"
 

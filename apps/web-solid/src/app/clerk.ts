@@ -1,8 +1,11 @@
 import { Clerk } from "@clerk/clerk-js"
+import type { ClerkUser } from "./machine"
 import { CLERK_KEY, type Profile } from "./hosted"
+import { ClerkUserId } from "./phase"
 
 type Options = NonNullable<Parameters<Clerk["load"]>[0]>
 type ClerkUI = Awaited<NonNullable<NonNullable<Options["ui"]>["ClerkUI"]>>
+type User = NonNullable<Clerk["user"]>
 
 const UI_VERSION = "1"
 
@@ -32,32 +35,74 @@ function loadUi(key: string): Promise<ClerkUI> {
   })
 }
 
-export const appearance = {
+const appearance = {
   elements: {
     formButtonPrimary: { boxShadow: "none" },
     formFieldInput: { boxShadow: "none", outline: "none" },
     socialButtonsBlockButton: { boxShadow: "none" },
   },
   variables: {
-    colorPrimary: "var(--foreground)",
-    colorPrimaryForeground: "var(--popover)",
-    colorDanger: "var(--error)",
-    colorSuccess: "var(--success)",
-    colorWarning: "var(--warning)",
-    colorNeutral: "var(--foreground)",
-    colorForeground: "var(--foreground)",
-    colorMuted: "color-mix(in srgb, var(--popover) 98%, var(--foreground))",
-    colorMutedForeground: "var(--muted-foreground)",
-    colorBackground: "var(--popover)",
-    colorInputForeground: "var(--foreground)",
-    colorInput: "var(--input)",
+    colorPrimary: "var(--fg)",
+    colorPrimaryForeground: "var(--raise)",
+    colorDanger: "var(--bad)",
+    colorSuccess: "var(--ok)",
+    colorWarning: "var(--warn)",
+    colorNeutral: "var(--fg)",
+    colorForeground: "var(--fg)",
+    colorMuted: "color-mix(in srgb, var(--raise) 98%, var(--fg))",
+    colorMutedForeground: "var(--fg2)",
+    colorBackground: "var(--raise)",
+    colorInputForeground: "var(--fg)",
+    colorInput: "var(--line2)",
     colorRing: "transparent",
   },
 }
 
-let loading: Promise<Clerk> | undefined
+const emailOf = (user: User) => user.primaryEmailAddress?.emailAddress ?? ""
 
-export function loadClerk(): Promise<Clerk> {
+const userOf = (user: User): ClerkUser => ({ id: ClerkUserId.make(user.id), email: emailOf(user) })
+
+function profileOf(user: User): Profile {
+  const provider = String(user.externalAccounts[0]?.provider ?? "").replace(/^oauth_/, "")
+  return {
+    name: user.fullName ?? user.username ?? (emailOf(user) || "You"),
+    email: emailOf(user),
+    imageUrl: user.imageUrl,
+    provider: provider || null,
+  }
+}
+
+function pointerOf(user: User): string | null {
+  const pointer = user.publicMetadata.kiko as { v?: unknown; url?: unknown } | undefined
+  return pointer?.v === 1 && typeof pointer.url === "string" && pointer.url ? pointer.url : null
+}
+
+const stay = () => {}
+
+interface Loaded {
+  readonly clerk: Clerk
+  readonly ui: Promise<ClerkUI>
+}
+
+const listeners = new Set<(user: ClerkUser | null) => void>()
+
+let loading: Promise<Loaded> | undefined
+
+function follow(clerk: Clerk): void {
+  let last = clerk.user?.id ?? null
+  clerk.addListener(
+    ({ user }) => {
+      const id = user?.id ?? null
+      if (id === last) return
+      last = id
+      const next = user ? userOf(user) : null
+      for (const listener of listeners) listener(next)
+    },
+    { skipInitialEmit: true },
+  )
+}
+
+function load(): Promise<Loaded> {
   if (!CLERK_KEY) return Promise.reject(new Error("Sign-in is not set up"))
   const key = CLERK_KEY
   loading ??= (async () => {
@@ -68,7 +113,8 @@ export function loadClerk(): Promise<Clerk> {
       console.error("clerk load failed", e)
       throw new Error(BLOCKED)
     })
-    return clerk
+    follow(clerk)
+    return { clerk, ui }
   })()
   loading.catch(() => {
     loading = undefined
@@ -76,53 +122,44 @@ export function loadClerk(): Promise<Clerk> {
   return loading
 }
 
-export async function openSignIn(): Promise<void> {
-  const clerk = await loadClerk()
-  const href = window.location.href
-  clerk.openSignIn({ forceRedirectUrl: href, signUpForceRedirectUrl: href })
+export const loadClerk = (): Promise<Clerk> => load().then(({ clerk }) => clerk)
+
+export async function clerkUser(): Promise<ClerkUser | null> {
+  const { user } = await loadClerk()
+  return user ? userOf(user) : null
 }
 
-export async function onClerkSession(callback: (active: boolean) => void): Promise<() => void> {
-  const clerk = await loadClerk()
-  let previous: string | null | undefined
-  return clerk.addListener(({ session }) => {
-    const identity = session?.id ?? null
-    if (identity === previous) return
-    previous = identity
-    callback(!!session)
-  })
+export function onClerkUser(listener: (user: ClerkUser | null) => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
 }
 
-export interface ClerkSignIn {
-  token: string
-  userId: string
-  backendUrl: string | null
-  profile: Profile
+export interface Pointed {
+  readonly url: string | null
+  readonly profile: Profile
 }
 
-export async function clerkSignIn(): Promise<ClerkSignIn | null> {
-  const clerk = await loadClerk()
-  const { session, user } = clerk
-  if (!session || !user) return null
-  const token = await session.getToken()
-  if (!token || clerk.session !== session || clerk.user !== user) return null
-  const account = user.externalAccounts[0]
-  const provider = String(account?.provider ?? "").replace(/^oauth_/, "")
-  const url = user.publicMetadata.backendUrl
-  return {
-    token,
-    userId: user.id,
-    backendUrl: typeof url === "string" && url ? url : null,
-    profile: {
-      name: user.fullName ?? user.username ?? user.primaryEmailAddress?.emailAddress ?? "You",
-      email: user.primaryEmailAddress?.emailAddress ?? "",
-      imageUrl: user.imageUrl,
-      provider: provider || null,
-    },
-  }
+export async function clerkPointer(): Promise<Pointed | null> {
+  const { user } = await loadClerk()
+  if (!user) return null
+  const fresh = await user.reload()
+  return { url: pointerOf(fresh), profile: profileOf(fresh) }
+}
+
+export async function clerkToken(fresh: boolean): Promise<string | null> {
+  const { session } = await loadClerk()
+  return session ? session.getToken(fresh ? { skipCache: true } : undefined) : null
 }
 
 export async function clerkSignOut(): Promise<void> {
   const clerk = await loadClerk()
-  await clerk.signOut()
+  await clerk.signOut(stay)
+  if (clerk.client?.signedInSessions.length) throw new Error("Clerk kept the session")
+}
+
+export async function openSignIn(): Promise<void> {
+  const { clerk, ui } = await load()
+  await ui
+  const href = location.href
+  clerk.openSignIn({ withSignUp: true, forceRedirectUrl: href, signUpForceRedirectUrl: href })
 }

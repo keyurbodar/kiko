@@ -6,6 +6,7 @@ import {
   For,
   getOwner,
   lazy,
+  on,
   onCleanup,
   onMount,
   runWithOwner,
@@ -15,42 +16,99 @@ import {
 } from "solid-js"
 import { Portal } from "solid-js/web"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ArrowUpIcon, AtIcon, AttachIcon, CloseIcon, EnterIcon } from "@kiko/ui/icons"
+import { ArrowUpIcon, AttachIcon, ChevronDownIcon, PlusIcon } from "@kiko/ui/icons"
 import { useI18n } from "@kiko/ui/context/i18n"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import type { PromptInputV2Interaction } from "./interaction"
-import { createComposerEmoji, createShortcodes } from "../emoji"
+import { createShortcodes } from "../emoji"
 import type { RichBinding } from "../rich/bind"
+import type { ParseOptions } from "../rich/markdown"
 import { setRichLoaded } from "../rich/loaded"
 import { mountLite, type LiteField } from "../rich/lite"
-import { isImage } from "../../lib/attachments"
-import { EntryIcon } from "../../lib/EntryIcon"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
-import { progressLabel, uploadState } from "../../sync/uploads"
+import { afterFirstPaint } from "../../lib/motion"
+import { progressLabel, uploadState } from "../uploads"
+import type { Token } from "../tokens"
+import type { ChipSource } from "./chip"
+import { type Rejected, Tray } from "./tray"
+import "./prompt-input.css"
+import type { PromptInputV2Attachment } from "./types"
 
-export type {
-  PromptInputV2Attachment,
-  PromptInputV2Option,
-  PromptInputV2PersistedState,
-  PromptInputV2Suggestion,
-} from "./types"
+export type { PromptInputV2Attachment, PromptInputV2PersistedState } from "./types"
 
-export type PromptInputV2Mode = "normal" | "shell"
+const TokenPopover = lazy(() => import("./popover"))
 
-const extras = () => import("./extras")
-const PromptInputV2Attachments = lazy(() => extras().then((m) => ({ default: m.PromptInputV2Attachments })))
-const PromptInputV2Popover = lazy(() => extras().then((m) => ({ default: m.PromptInputV2Popover })))
+const HINT_EVERY_MS = 6000
+const POPOVER_WIDTH = 320
+
+type RecipientPeople = {
+  group: boolean
+  adding: boolean
+  onAddingChange: (open: boolean) => void
+  addItems: () => JSX.Element
+}
 
 export type PromptInputV2Props = {
   controller: PromptInputV2Interaction
   disabled?: boolean
   readOnly?: boolean
-  class?: string
   reply?: JSX.Element
+  below?: JSX.Element
   tray?: JSX.Element
   answering?: boolean
-  isMention?: (slug: string) => boolean
+  editing?: boolean
+  parse: ParseOptions
+  chips: Omit<ChipSource, "attachments" | "openAttachment">
+  recipient?: Token
+  people?: RecipientPeople
+  hints: () => readonly string[]
+  stop?: () => void
+  waiting?: boolean
+  rejected: Rejected[]
+  onDismissRejected: (id: string) => void
+  onExpandPasted: (part: PromptInputV2Attachment) => void
+}
+
+function createGrow(editable: () => HTMLElement | undefined, host: () => HTMLElement) {
+  createEffect(() => {
+    const dom = editable()
+    if (!dom) return
+    const wrap = host()
+    const sync = () => {
+      wrap.style.height = `${dom.offsetHeight}px`
+      wrap.toggleAttribute("data-scrolled", dom.scrollTop > 2)
+    }
+    sync()
+    const observer = new ResizeObserver(sync)
+    observer.observe(dom)
+    dom.addEventListener("scroll", sync, { passive: true })
+    onCleanup(() => {
+      observer.disconnect()
+      dom.removeEventListener("scroll", sync)
+    })
+  })
+}
+
+function createHint(hints: () => readonly string[], quiet: () => boolean) {
+  const [index, setIndex] = createSignal(0)
+  createEffect(() => {
+    const count = hints().length
+    if (count < 2 || quiet() || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+    const timer = setInterval(() => setIndex((at) => (at + 1) % count), HINT_EVERY_MS)
+    onCleanup(() => clearInterval(timer))
+  })
+  return () => hints()[index() % Math.max(1, hints().length)] ?? ""
+}
+
+function caretLeft(form: HTMLElement | undefined): number {
+  const selection = window.getSelection()
+  if (!form || !selection?.rangeCount) return 0
+  const range = selection.getRangeAt(0)
+  const rect = range.getClientRects()[0] ?? range.getBoundingClientRect()
+  const box = form.getBoundingClientRect()
+  if (!rect || !rect.left) return 0
+  return Math.max(0, Math.min(rect.left - box.left - 24, box.width - POPOVER_WIDTH))
 }
 
 export function PromptInputV2(props: PromptInputV2Props) {
@@ -58,18 +116,17 @@ export function PromptInputV2(props: PromptInputV2Props) {
   const state = props.controller.state
   const view = props.controller.view
   const [blank, setBlank] = createSignal(true)
+  const painted = afterFirstPaint()
+  const [focused, setFocused] = createSignal(false)
   let binding: RichBinding | undefined
   let lite: LiteField | undefined
   const field = () => binding?.editor ?? lite
   const shortcodes = createShortcodes(() => field()?.dom as HTMLDivElement | undefined)
-  const emoji = createComposerEmoji(
-    () => field()?.dom as HTMLDivElement | undefined,
-    () => !!props.disabled || !!props.readOnly,
-  )
   const popoverID = createUniqueId()
   const statusID = createUniqueId()
   const [editable, setEditable] = createSignal<HTMLElement>()
   let richHost!: HTMLDivElement
+  let form: HTMLFormElement | undefined
   const syncBlank = () => setBlank(field()?.isEmpty() ?? true)
   const dropArea = createMemo(() => {
     if (state.drag !== "active") return null
@@ -99,21 +156,22 @@ export function PromptInputV2(props: PromptInputV2Props) {
     void import("../rich/bind").then(({ bindRich }) => {
       setRichLoaded(true)
       return runWithOwner(owner, () => {
-        const focused = lite?.isFocused()
+        const wasFocused = lite?.isFocused()
         lite?.destroy()
         lite = undefined
         binding = bindRich({
           host: richHost,
           controller: props.controller,
           label,
-          isMention: (slug) => props.isMention?.(slug) ?? false,
+          parse: props.parse,
+          chips: props.chips,
           disabled: () => !!props.disabled || !!props.readOnly,
           shortcodes,
           onEdit: syncBlank,
           onFocus: () => {},
         })
         setEditable(binding.editor.dom)
-        if (focused) binding.editor.focus()
+        if (wasFocused) binding.editor.focus()
         syncBlank()
       })
     })
@@ -141,17 +199,29 @@ export function PromptInputV2(props: PromptInputV2Props) {
     })
   })
 
+  createGrow(editable, () => richHost)
+  const hint = createHint(props.hints, () => !blank() || focused())
+
+  const open = () => state.popover.type === "open" && props.controller.groups().length > 0
+  const [left, setLeft] = createSignal(0)
+  createEffect(
+    on(
+      () => (state.popover.type === "open" ? state.popover.start : -1),
+      (start) => {
+        if (start >= 0) setLeft(caretLeft(form))
+      },
+    ),
+  )
+
   createEffect(() => {
     const dom = editable()
     if (!dom) return
-    const popover = state.popover
-    const open = popover.type !== "closed"
-    const activeID = popover.type === "closed" ? undefined : popover.activeID
+    const activeID = state.popover.type === "open" ? state.popover.activeID : undefined
     const active = activeID ? props.controller.suggestions().findIndex((item) => item.id === activeID) : -1
-    dom.setAttribute("aria-expanded", open ? "true" : "false")
-    if (open) dom.setAttribute("aria-controls", popoverID)
+    dom.setAttribute("aria-expanded", open() ? "true" : "false")
+    if (open()) dom.setAttribute("aria-controls", popoverID)
     else dom.removeAttribute("aria-controls")
-    if (active >= 0) dom.setAttribute("aria-activedescendant", `${popoverID}-opt-${active}`)
+    if (open() && active >= 0) dom.setAttribute("aria-activedescendant", `${popoverID}-opt-${active}`)
     else dom.removeAttribute("aria-activedescendant")
   })
 
@@ -159,7 +229,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
     const uploading = props.controller
       .attachments()
       .map((part) => uploadState(part.id))
-      .flatMap((upload) => (upload?.status === "uploading" ? [progressLabel(upload.progress)] : []))
+      .flatMap((upload) => (upload?.status === "uploading" ? [progressLabel(upload.loaded, upload.total)] : []))
     return uploading.length ? `Uploading ${uploading.join(", ")}` : ""
   })
 
@@ -169,12 +239,10 @@ export function PromptInputV2(props: PromptInputV2Props) {
       .join(". "),
   )
 
-  const pictures = () =>
-    props.controller.attachments().filter((part) => isImage({ name: part.filename, type: part.mime }))
-  const documents = () =>
-    props.controller.attachments().filter((part) => !isImage({ name: part.filename, type: part.mime }))
+  const stopping = () => !!props.stop && blank() && props.controller.attachments().length === 0 && !props.answering
+  const showTray = () => props.controller.trayAttachments().length > 0 || props.rejected.length > 0
   return (
-    <div class={`relative flex flex-col ${props.class ?? ""}`}>
+    <div class="relative flex flex-col">
       <input
         ref={props.controller.setFileInput}
         type="file"
@@ -188,26 +256,14 @@ export function PromptInputV2(props: PromptInputV2Props) {
         }}
       />
       {shortcodes.view}
-      {emoji.view}
-      <Show when={state.popover.type !== "closed"}>
+      <Show when={open()}>
         <Suspense>
-          <PromptInputV2Popover
+          <TokenPopover
             id={popoverID}
-            label={i18n.t(state.popover.type === "command-menu" ? "ui.promptInput.commands" : "ui.promptInput.context")}
-            emptyLabel={i18n.t("ui.promptInput.noMatchingItems")}
-            items={props.controller.suggestions()}
-            activeID={state.popover.type === "closed" ? undefined : state.popover.activeID}
-            search={
-              state.popover.type === "command-menu"
-                ? {
-                    value: state.popover.query,
-                    label: i18n.t("ui.promptInput.commands"),
-                    placeholder: "/",
-                    onValueChange: props.controller.setQuery,
-                    onKeyDown: props.controller.onKeyDown,
-                  }
-                : undefined
-            }
+            label={state.popover.type === "open" && state.popover.trigger === "/" ? "Skills and commands" : "Mention"}
+            groups={props.controller.groups()}
+            activeID={state.popover.type === "open" ? state.popover.activeID : undefined}
+            left={left()}
             onActiveChange={(item) => props.controller.dispatch({ type: "popover.active", id: item.id })}
             onSelect={(item) => props.controller.dispatch({ type: "popover.select", item })}
           />
@@ -216,16 +272,9 @@ export function PromptInputV2(props: PromptInputV2Props) {
       <Show when={dropArea()}>
         {(area) => (
           <Portal>
-            <div
-              class="pointer-events-none fixed z-40 flex items-center justify-center rounded-2xl border border-dashed border-ring/60 bg-ring/[0.035]"
-              style={area()}
-              data-component="composer-drop-overlay"
-            >
-              <div
-                role="status"
-                class="flex items-center gap-2 rounded-full border border-ring/25 bg-background/95 px-4 py-2.5 text-sm font-medium text-foreground shadow-lg"
-              >
-                <RemixIcon icon={AttachIcon} class="size-4 text-ring" />
+            <div class="composer-drop" style={area()} data-component="composer-drop-overlay">
+              <div role="status" class="composer-drop-label">
+                <RemixIcon icon={AttachIcon} size={16} />
                 {i18n.t(
                   props.controller.dragKind() === "reference"
                     ? "ui.promptInput.dropReference"
@@ -237,6 +286,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
         )}
       </Show>
       <form
+        ref={form}
         data-component="prompt-input-v2"
         class="composer-form"
         onSubmit={(event) => {
@@ -244,42 +294,25 @@ export function PromptInputV2(props: PromptInputV2Props) {
           if (!props.disabled) props.controller.submit()
         }}
       >
-        <div class="composer-box">
+        <div
+          class="composer-box"
+          data-editing={props.editing ? "" : undefined}
+          onFocusIn={() => setFocused(true)}
+          onFocusOut={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false)
+          }}
+        >
           {props.reply}
-          <Show when={pictures().length > 0}>
-            <Suspense>
-              <PromptInputV2Attachments
-                attachments={pictures()}
-                onImageClick={props.controller.openAttachment}
-                onRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
-              />
-            </Suspense>
-          </Show>
-          <Show when={documents().length > 0}>
-            <ul class="flex flex-wrap items-center gap-1.5" data-component="prompt-input-v2-files">
-              <For each={documents()}>
-                {(attachment) => (
-                  <li
-                    class="flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-border/70 bg-accent py-0.5 pr-0.5 pl-2 text-xs"
-                    data-component="composer-file"
-                    data-id={attachment.id}
-                  >
-                    <EntryIcon path={attachment.filename} />
-                    <span class="min-w-0 truncate" title={attachment.filename}>
-                      {attachment.filename}
-                    </span>
-                    <button
-                      type="button"
-                      class="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-control hover:text-foreground"
-                      aria-label={`Remove ${attachment.filename}`}
-                      onClick={() => props.controller.removeAttachment(attachment.id)}
-                    >
-                      <RemixIcon icon={CloseIcon} size={12} />
-                    </button>
-                  </li>
-                )}
-              </For>
-            </ul>
+          <Show when={showTray()}>
+            <Tray
+              attachments={props.controller.trayAttachments()}
+              rejected={props.rejected}
+              onOpen={props.controller.openAttachment}
+              onRemove={(part) => props.controller.removeAttachment(part.id)}
+              onExpand={props.onExpandPasted}
+              onMove={props.controller.moveAttachment}
+              onDismiss={props.onDismissRejected}
+            />
           </Show>
           <div
             class="composer-main"
@@ -289,46 +322,18 @@ export function PromptInputV2(props: PromptInputV2Props) {
             <div class="composer-field">
               <div ref={richHost} class="composer-rich" classList={{ "opacity-50": props.disabled }} />
               <Show when={blank()}>
-                <div class="composer-placeholder">{view.placeholder?.() ?? i18n.t("ui.promptInput.label")}</div>
+                <Show when={hint()} keyed>
+                  {(text) => (
+                    <div class="composer-placeholder" data-enter={painted() ? "" : undefined}>
+                      {text}
+                    </div>
+                  )}
+                </Show>
               </Show>
             </div>
           </div>
           <div class="composer-footer">
             <div class="composer-tray">
-              <Show when={!props.answering && !props.readOnly && props.controller.agents().length > 0}>
-                <MenuV2 gutter={6} placement="top-start">
-                  <MenuV2.Trigger
-                    class="composer-icon"
-                    aria-label="Mention an agent"
-                    title="Mention an agent"
-                    data-action="composer-mention"
-                  >
-                    <RemixIcon icon={AtIcon} class="size-4" />
-                  </MenuV2.Trigger>
-                  <MenuV2.Portal>
-                    <MenuV2.Content class="z-[80] min-w-44" data-component="mention-menu">
-                      <For each={props.controller.agents()}>
-                        {(item) => (
-                          <MenuV2.Item
-                            onSelect={() => props.controller.mention(item)}
-                            data-agent={item.mention?.type === "agent" ? item.mention.name : undefined}
-                          >
-                            <IdentityAvatar
-                              seed={item.mention?.type === "agent" ? item.mention.name : item.id}
-                              size={18}
-                            />
-                            <span class="truncate">{item.title ?? item.label}</span>
-                          </MenuV2.Item>
-                        )}
-                      </For>
-                    </MenuV2.Content>
-                  </MenuV2.Portal>
-                </MenuV2>
-              </Show>
-              {props.tray}
-            </div>
-            <div class="composer-actions">
-              <Show when={!props.readOnly}>{emoji.trigger}</Show>
               <Show when={!props.answering}>
                 <TooltipV2 placement="top" openDelay={400} value={i18n.t("ui.promptInput.add")}>
                   <button
@@ -338,16 +343,27 @@ export function PromptInputV2(props: PromptInputV2Props) {
                     aria-label={i18n.t("ui.promptInput.add")}
                     onClick={() => props.controller.attach()}
                   >
-                    <RemixIcon icon={AttachIcon} class="size-4" />
+                    <RemixIcon icon={PlusIcon} size={18} />
                   </button>
                 </TooltipV2>
-                <PromptInputV2SubmitButton
-                  mode={state.mode}
-                  disabled={!props.controller.canSubmit()}
+              </Show>
+              <Show when={!props.answering && !props.readOnly && props.recipient}>
+                {(recipient) => (
+                  <Recipient recipient={recipient()} controller={props.controller} people={props.people} />
+                )}
+              </Show>
+              {props.tray}
+            </div>
+            <div class="composer-actions">
+              <Show when={!props.answering}>
+                <SubmitButton
+                  stop={stopping()}
+                  waiting={!!props.waiting}
+                  disabled={!stopping() && !props.controller.canSubmit()}
                   blocked={view.submit.blocked?.() ?? null}
                   sendLabel={i18n.t("ui.promptInput.send")}
                   describedBy={statusID}
-                  onSubmit={props.controller.submit}
+                  onSubmit={() => (stopping() ? props.stop?.() : props.controller.submit())}
                 />
               </Show>
             </div>
@@ -356,41 +372,137 @@ export function PromptInputV2(props: PromptInputV2Props) {
             {submitStatus()}
           </div>
         </div>
+        {props.below}
       </form>
     </div>
   )
 }
 
-function PromptInputV2SubmitButton(props: {
-  mode: PromptInputV2Mode
+function RecipientFace(props: { recipient: Token }) {
+  const seed = () => (props.recipient.kind === "agent" ? props.recipient.slug : props.recipient.id)
+  const painted = afterFirstPaint()
+  return (
+    <>
+      <span class="composer-agent-face">
+        <Show when={seed()} keyed>
+          {(face) => <IdentityAvatar seed={face} size={20} class={painted() ? "composer-agent-avatar" : ""} />}
+        </Show>
+      </span>
+      <span class="composer-agent-name">{props.recipient.title}</span>
+    </>
+  )
+}
+
+function AddSomeoneMenu(props: { people: RecipientPeople }) {
+  return (
+    <MenuV2 gutter={6} placement="top-start" open={props.people.adding} onOpenChange={props.people.onAddingChange}>
+      <MenuV2.Trigger class="composer-agent-anchor" tabIndex={-1} aria-label="Add someone to this chat">
+        <span />
+      </MenuV2.Trigger>
+      <MenuV2.Portal>
+        <MenuV2.Content class="min-w-48" data-component="add-member-menu">
+          {props.people.addItems()}
+        </MenuV2.Content>
+      </MenuV2.Portal>
+    </MenuV2>
+  )
+}
+
+function Recipient(props: { recipient: Token; controller: PromptInputV2Interaction; people?: RecipientPeople }) {
+  return (
+    <span class="composer-agent-wrap">
+      <Show when={props.people?.group !== false}>
+        <MenuV2 gutter={6} placement="top-start">
+          <MenuV2.Trigger
+            class="composer-agent"
+            aria-label="Mention an agent"
+            title="Mention an agent"
+            data-action="composer-mention"
+          >
+            <RecipientFace recipient={props.recipient} />
+            <RemixIcon icon={ChevronDownIcon} size={11} class="composer-agent-chevron" />
+          </MenuV2.Trigger>
+          <MenuV2.Portal>
+            <MenuV2.Content class="min-w-44" data-component="mention-menu">
+              <For each={props.controller.agents()}>
+                {(item) => (
+                  <MenuV2.Item
+                    onSelect={() => props.controller.mention(item)}
+                    data-agent={item.kind === "agent" ? item.slug : undefined}
+                  >
+                    <IdentityAvatar seed={item.kind === "agent" ? item.slug : item.id} size={18} />
+                    <span class="truncate">{item.title}</span>
+                  </MenuV2.Item>
+                )}
+              </For>
+              <Show when={props.people}>
+                {(people) => (
+                  <>
+                    <MenuV2.Separator />
+                    <MenuV2.Item
+                      data-action="add-someone"
+                      onSelect={() => requestAnimationFrame(() => people().onAddingChange(true))}
+                    >
+                      <RemixIcon icon={PlusIcon} size={16} class="text-fg2" />
+                      <span class="truncate">Add someone…</span>
+                    </MenuV2.Item>
+                  </>
+                )}
+              </Show>
+            </MenuV2.Content>
+          </MenuV2.Portal>
+        </MenuV2>
+      </Show>
+      <Show when={props.people}>{(people) => <AddSomeoneMenu people={people()} />}</Show>
+    </span>
+  )
+}
+
+function SubmitButton(props: {
+  stop: boolean
+  waiting: boolean
   disabled: boolean
   blocked?: string | null
   sendLabel: string
   describedBy?: string
   onSubmit: () => void
 }) {
+  const [sent, setSent] = createSignal(false)
+  const label = () => (props.stop ? "Stop" : props.sendLabel)
   return (
-    <TooltipV2 placement="top" inactive={props.disabled && !props.blocked} value={props.blocked ?? props.sendLabel}>
+    <TooltipV2
+      placement="top"
+      inactive={props.disabled && !props.blocked}
+      value={props.stop ? "Stop (Esc)" : (props.blocked ?? props.sendLabel)}
+    >
       <button
-        data-action="prompt-submit"
+        data-action={props.stop ? "prompt-stop" : "prompt-submit"}
+        data-mode={props.stop ? "stop" : "send"}
+        data-sent={sent() ? "" : undefined}
+        data-waiting={props.waiting ? "" : undefined}
         type="button"
         disabled={props.disabled}
-        tabIndex={props.mode === "normal" ? undefined : -1}
         class="composer-send"
-        aria-label={props.sendLabel}
+        aria-label={label()}
         aria-describedby={props.blocked ? props.describedBy : undefined}
         title={props.blocked ?? undefined}
+        onAnimationEnd={(event) => {
+          if (event.animationName === "composer-send-ripple") setSent(false)
+        }}
         onClick={(event) => {
           event.preventDefault()
           event.stopPropagation()
+          if (!props.stop) setSent(true)
           props.onSubmit()
         }}
       >
-        {props.mode === "shell" ? (
-          <RemixIcon icon={EnterIcon} class="size-4" />
-        ) : (
-          <RemixIcon icon={ArrowUpIcon} class="size-4" />
-        )}
+        <RemixIcon icon={ArrowUpIcon} class="composer-send-arrow size-4" />
+        <span class="composer-send-square" aria-hidden="true" />
+        <Show when={props.waiting}>
+          <svg class="composer-send-ring" viewBox="0 0 36 36" aria-hidden="true">
+            <circle cx="18" cy="18" r="16.5" />
+          </svg>
+        </Show>
       </button>
     </TooltipV2>
   )

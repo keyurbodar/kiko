@@ -1,20 +1,18 @@
+import * as Schema from "effect/Schema"
 const RUN_CALL_LIMIT = 40
 const RUN_DURATION_MS = 12 * 60_000
+const SHARE_AFTER_CALLS = 3
 
 type RunOutcome = "done" | "continue"
 
-class RunCallLimitError extends Error {
-  constructor() {
-    super(
-      "This run reached its network call budget during a tool. Completed actions were kept. Check those actions before retrying.",
-    )
-    this.name = "RunCallLimitError"
-  }
-}
+class RunCallLimitError extends Schema.TaggedError<RunCallLimitError>()("RunCallLimitError", {
+  message: Schema.String,
+}) {}
 
 class RunBudget {
   private outgoing = 0
   private rejected = false
+  private readonly sharing = new AbortController()
   readonly deadline: number
 
   constructor(private readonly now: () => number = Date.now) {
@@ -27,17 +25,28 @@ class RunBudget {
   count(): void {
     if (this.outgoing >= RUN_CALL_LIMIT) {
       this.rejected = true
-      throw new RunCallLimitError()
+      throw new RunCallLimitError({
+        message:
+          "This run reached its network call budget during a tool. Completed actions were kept. Check those actions before retrying.",
+      })
     }
     this.outgoing++
   }
-  due(): boolean {
-    return !this.rejected && (this.outgoing >= RUN_CALL_LIMIT || this.now() >= this.deadline)
+  get shared(): AbortSignal {
+    return this.sharing.signal
+  }
+  share(): void {
+    this.sharing.abort()
+  }
+  due(othersWaiting: () => boolean = () => false): boolean {
+    if (this.rejected) return false
+    if (this.outgoing >= RUN_CALL_LIMIT || this.now() >= this.deadline) return true
+    return this.outgoing >= SHARE_AFTER_CALLS && othersWaiting()
   }
 }
 
 type RunsOptions = {
-  schedule: (agent: string, requestId: string) => Promise<void>
+  schedule: (agent: string, requestId: string, behind?: boolean) => Promise<void>
   now?: () => number
 }
 
@@ -69,6 +78,18 @@ export class Runs {
     return this.active.has(agent)
   }
 
+  running(): string | undefined {
+    return this.active.keys().next().value
+  }
+
+  waiting(agent: string): void {
+    for (const [key, { budget }] of this.active) if (key !== agent) budget.share()
+  }
+
+  shared(agent: string): AbortSignal | undefined {
+    return this.active.get(agent)?.budget.shared
+  }
+
   budget(): RunBudget {
     return new RunBudget(this.options.now)
   }
@@ -88,7 +109,7 @@ export class Runs {
       } finally {
         this.active.delete(agent)
       }
-      if (outcome === "continue") await this.options.schedule(agent, requestId)
+      if (outcome === "continue") await this.options.schedule(agent, requestId, true)
     })
     this.active.set(agent, { budget, work })
     return work

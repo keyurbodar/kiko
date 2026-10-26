@@ -1,7 +1,6 @@
-import { apiUrl, base, getToken, setToken } from "./api-base"
+import { apiUrl, getToken } from "./api-base"
 
-export { apiUrl, getToken, setToken }
-const SOCKET_PROTOCOL = "kiko"
+export { apiUrl, getToken }
 
 let onUnauthorized = () => {}
 export function setUnauthorizedHandler(handler: () => void): void {
@@ -14,19 +13,6 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   if (token) headers.set("authorization", `Bearer ${token}`)
   const url = apiUrl(path)
   const res = await fetch(url, { ...init, headers })
-  if (res.status === 401 && token && token === getToken() && url === apiUrl(path)) {
-    setToken(null)
-    onUnauthorized()
-  }
+  if (res.status === 401 && token && token === getToken() && url === apiUrl(path)) onUnauthorized()
   return res
-}
-
-export function socketUrl(path: string): string {
-  const root = base() || globalThis.location?.origin || "http://localhost"
-  return root.replace(/^http/, "ws") + path
-}
-
-export function socketProtocols(): string[] {
-  const token = getToken()
-  return token ? [SOCKET_PROTOCOL, token] : [SOCKET_PROTOCOL]
 }

@@ -1,32 +1,22 @@
 import type { ComposioResult, ComposioStatus, KernelResult, KernelStatus } from "@kiko/protocol"
-import { Show, createSignal, lazy, onCleanup, onMount } from "solid-js"
-import { cn } from "../lib/cn"
-import { Button, Notice, fieldClass } from "./kit"
+import { ProviderIcon } from "@kiko/ui/provider-icon"
+import { Show, createSignal, onCleanup, onMount } from "solid-js"
+import { Button, Notice } from "./kit"
+import { KeyLink, SecretInput } from "./connect-parts"
 import { createComposioClient, createKernelClient, type ComposioClient, type KernelClient } from "./integrations-client"
-import { SECRET_FIELD } from "../lib/secret-field"
-import { onChanged } from "../sync/changed"
+import LiveBrowser from "./live-browser"
+import { createQuery, owner } from "../state/runtime"
 
 const COMPOSIO_PLATFORM = "https://platform.composio.dev"
-const LiveBrowser = lazy(() => import("./live-browser"))
 
 const KERNEL_HOME = "https://dashboard.onkernel.com"
 
-function GridIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.4"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z" />
-    </svg>
-  )
+function ComposioIcon() {
+  return <ProviderIcon id="composio" />
+}
+
+function KernelIcon() {
+  return <ProviderIcon id="kernel" />
 }
 
 function GlobeIcon() {
@@ -55,6 +45,8 @@ function KeyField(props: {
   placeholder: string
   submit: string
   busy: boolean
+  home: string
+  error: string | undefined
   onKey: (key: string) => void
   [data: `data-${string}`]: string | undefined
 }) {
@@ -63,50 +55,59 @@ function KeyField(props: {
     event.preventDefault()
     if (!input) return
     const key = input.value.trim()
-    input.value = ""
     if (key) props.onKey(key)
   }
   return (
-    <form class="flex gap-2" onSubmit={submit}>
-      <label class="sr-only" for={props.id}>
-        {props.label}
-      </label>
-      <input
+    <form class="flex flex-col gap-3" onSubmit={submit}>
+      <SecretInput
         id={props.id}
-        ref={input}
-        {...SECRET_FIELD}
-        name={`kiko-${props.id}-secret`}
+        label={props.label}
         placeholder={props.placeholder}
-        class={cn(fieldClass, "flex-1")}
+        ref={(el) => (input = el)}
+        error={props.error}
         data-component={props.id}
       />
-      <Button type="submit" variant="primary" busy={props.busy} data-action={props["data-action"]}>
-        {props.submit}
-      </Button>
+      <div class="flex items-center justify-between gap-3">
+        <KeyLink href={props.home}>Get a key at {props.home.replace(/^https:\/\//, "")}</KeyLink>
+        <Button type="submit" variant="primary" busy={props.busy} data-action={props["data-action"]}>
+          {props.submit}
+        </Button>
+      </div>
     </form>
   )
 }
 
 export function useIntegrations(props: { client?: ComposioClient; kernel?: KernelClient } = {}) {
-  const [status, setStatus] = createSignal<ComposioStatus | null>(null)
+  const composioQuery = createQuery(() => owner.queries.composio({}))
+  const kernelQuery = createQuery(() => owner.queries.kernel(undefined))
+  const [pushedStatus, setPushedStatus] = createSignal<ComposioStatus | null>(null)
+  const [pushedKernel, setPushedKernel] = createSignal<KernelStatus | null>(null)
   const [error, setError] = createSignal<{ where: Where; text: string } | null>(null)
   const [busy, setBusy] = createSignal(false)
   const errorAt = (where: Where) => (error()?.where === where ? error()?.text : undefined)
-  const [kernel, setKernel] = createSignal<KernelStatus | null>(null)
+  const status = (): ComposioStatus | null => {
+    const result = composioQuery()
+    return pushedStatus() ?? (result?.ok ? result.status : null)
+  }
+  const kernel = (): KernelStatus | null => {
+    const result = kernelQuery()
+    return pushedKernel() ?? (result?.ok ? result.status : null)
+  }
   let client: ComposioClient | undefined
   let kernelClient: KernelClient | undefined
-  let closed = false
 
   function applyKernel(result: KernelResult) {
     if (!result.ok) return setError({ where: "kernel", text: result.error })
     setError(null)
-    setKernel(result.status)
+    setPushedKernel(result.status)
+    kernelQuery.refetch()
   }
 
   function apply(result: ComposioResult) {
     if (!result.ok) return setError({ where: "app", text: result.error })
     setError(null)
-    setStatus(result.status)
+    setPushedStatus(result.status)
+    composioQuery.refetch()
   }
 
   onMount(() => {
@@ -114,16 +115,8 @@ export function useIntegrations(props: { client?: ComposioClient; kernel?: Kerne
     client.onPush(apply)
     kernelClient = props.kernel ?? createKernelClient()
     kernelClient.onPush(applyKernel)
-    const refresh = () => {
-      void client?.request({ t: "composioStatus" }).then((r) => !closed && apply(r))
-      void kernelClient?.request({ t: "kernelStatus" }).then((r) => !closed && applyKernel(r))
-    }
-    refresh()
-    const stop = onChanged("memory", refresh)
-    onCleanup(stop)
   })
   onCleanup(() => {
-    closed = true
     if (!props.client) client?.close()
     if (!props.kernel) kernelClient?.close()
   })
@@ -171,14 +164,14 @@ export const APPS = {
     description: "Connect your apps through your own Composio account.",
     home: COMPOSIO_PLATFORM,
     placeholder: "ak_...",
-    icon: GridIcon,
+    icon: ComposioIcon,
   },
   kernel: {
     name: "Kernel browser",
     description: "Lets your agents use a real browser, in your own Kernel account.",
     home: KERNEL_HOME,
     placeholder: "sk_...",
-    icon: GlobeIcon,
+    icon: KernelIcon,
   },
 } as const
 
@@ -199,29 +192,21 @@ export function AppDetail(props: { id: AppId; api: Integrations }) {
       <Show
         when={state() === "connected"}
         fallback={
-          <>
-            <KeyField
-              id={`${props.id}-key`}
-              label={`${app().name} API key`}
-              placeholder={app().placeholder}
-              submit="Connect"
-              busy={props.api.busy()}
-              data-action={`${props.id}-connect`}
-              onKey={props.id === "composio" ? props.api.connectComposio : props.api.connectKernel}
-            />
-            <a
-              class="text-sm text-muted-foreground underline hover:text-foreground"
-              href={app().home}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Get a key at {app().home.replace(/^https:\/\//, "")}
-            </a>
-          </>
+          <KeyField
+            id={`${props.id}-key`}
+            label={`${app().name} API key`}
+            placeholder={app().placeholder}
+            submit="Connect"
+            busy={props.api.busy()}
+            home={app().home}
+            error={props.api.errorAt(where())}
+            data-action={`${props.id}-connect`}
+            onKey={props.id === "composio" ? props.api.connectComposio : props.api.connectKernel}
+          />
         }
       >
         <div class="flex items-center justify-between gap-3">
-          <span class="text-md text-success">Connected</span>
+          <span class="type-ui text-ok">Connected</span>
           <Button
             variant="danger"
             data-action={`${props.id}-disconnect`}
@@ -235,7 +220,7 @@ export function AppDetail(props: { id: AppId; api: Integrations }) {
           <LiveBrowser icon={<GlobeIcon />} />
         </Show>
       </Show>
-      <Show when={props.api.errorAt(where())}>{(text) => <Notice>{text()}</Notice>}</Show>
+      <Show when={state() === "connected" && props.api.errorAt(where())}>{(text) => <Notice>{text()}</Notice>}</Show>
     </div>
   )
 }

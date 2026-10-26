@@ -4,46 +4,31 @@ import Resizable, {
   useContext as useResizableContext,
   usePanelContext as useResizablePanelContext,
 } from "@corvu/resizable"
-import { useLocation } from "@solidjs/router"
+import { useLocation, useRouter } from "@tanstack/solid-router"
 import { I18nProvider, pluralCategory, pluralKey, type UiI18n } from "@kiko/ui/context/i18n"
 import { dict } from "@kiko/ui/i18n/en"
 import { ToastV2 } from "@kiko/ui/v2/toast-v2"
 import { avatarPickerSlug } from "../avatar/picker-state"
-import {
-  createEffect,
-  createSignal,
-  getOwner,
-  lazy,
-  on,
-  onCleanup,
-  onMount,
-  runWithOwner,
-  Show,
-  Suspense,
-  type ParentProps,
-} from "solid-js"
+import { createEffect, createSignal, lazy, on, onCleanup, onMount, Show, Suspense, type ParentProps } from "solid-js"
 import { viewerFor } from "../chat/computers"
-import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces"
-import { preloadMessageMenu } from "../chat/ui/MessageMenu"
-import { preloadModelPicker } from "../settings/model-picker"
+import { closeDesk, deskBack, deskShown, deskView, loadDesk, setDeskCompact } from "../chat/side/surfaces"
 import { preloadMessageSearch } from "../commands/message-search"
 
 import { richLoaded } from "../composer/rich/loaded"
-import { CARD_WIDTH, cardBeside, cardShown, loadCard, setCardRoom } from "../chat/side/card-state"
 import { useKatCommands } from "../commands/use-kat-commands"
 import { Palette, preloadPalette } from "../palette"
 import { botPickerOpen } from "../chat/bot-picker-state"
 import { newAgentOpen } from "../newagent/state"
 import { preloadSearch, SearchOverlay, searchScope } from "../search/state"
-import { settingsSection } from "../settings/dialog-state"
+import { bindCommandHotkeys } from "../commands/hotkeys"
 import { hintsShown, watchHold } from "../commands/hints"
-const HintLayer = lazy(() => import("../commands/HintLayer"))
 import { Sidebar, SidebarToggle } from "../sidebar"
 import { deletingChatId } from "../sidebar/actions"
 import { drawerOpen, setDrawerOpen } from "./drawer"
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe"
-import { sectionOf } from "./sections"
+import { sectionOf, useChatInView } from "./sections"
 import { whenIdle } from "../lib/idle"
+import { Rail } from "./rail"
 import { TopBar } from "./top-bar"
 import {
   CHAT_MIN,
@@ -56,8 +41,13 @@ import {
   saveWidth,
   SIDEBAR,
 } from "./widths"
+import HintLayer from "../commands/HintLayer"
+import AvatarPicker from "../avatar/picker"
+import BotPicker from "../chat/bot-picker"
+import NewAgent from "../newagent/dialog"
+import DeleteChatDialog from "../sidebar/delete-chat-dialog"
 
-const idlePreloads = [preloadMessageMenu, preloadModelPicker, preloadMessageSearch]
+const idlePreloads = [loadDesk, preloadMessageSearch]
 
 const fill = (text: string, params?: Record<string, string | number | boolean>) =>
   text.replace(/{{\s*([^}]+?)\s*}}/g, (_, key: string) => String(params?.[key] ?? ""))
@@ -72,33 +62,12 @@ const i18n: UiI18n = {
     }),
 }
 
-const Sidecar = lazy(loadSidecar)
-const ChatCard = lazy(loadCard)
-const watchPanel = (el: HTMLElement) => {
-  const observer = new ResizeObserver(([entry]) => setCardRoom(entry?.contentRect.width ?? 0))
-  observer.observe(el)
-  onCleanup(() => observer.disconnect())
-}
-const AvatarPicker = lazy(() => import("../avatar/picker"))
-const BotPicker = lazy(() => import("../chat/bot-picker"))
-const NewAgent = lazy(() => import("../newagent/dialog"))
-const SettingsDialog = lazy(() => import("../settings/settings-dialog"))
 const ComputerViewer = lazy(() => import("../chat/computer/Viewer"))
-const DeleteChatDialog = lazy(() => import("../sidebar/delete-chat-dialog"))
-const CHAT_PATH = /^\/chat\/([^/]+)\/?$/
+const Desk = lazy(loadDesk)
 
-function PageSkeleton() {
-  return (
-    <div class="flex min-h-0 flex-1 flex-col gap-3 p-6" data-component="page-skeleton" aria-hidden="true">
-      <span class="motion-skeleton h-6 w-40 rounded-md" />
-      <span class="motion-skeleton h-4 w-64 rounded-md" />
-      <span class="motion-skeleton mt-2 h-24 w-full rounded-lg" />
-      <span class="motion-skeleton h-4 w-3/4 rounded-md" />
-    </div>
-  )
-}
+const TOAST_COLUMNS = ['[data-component="chat-shell"]', '[data-component="main-column"]'] as const
 
-const KEY = "kiko:sidebar-collapsed"
+const KEY = "kiko:device:sidebar-collapsed"
 
 function readCollapsed() {
   try {
@@ -126,14 +95,19 @@ function writeCollapsed(value: boolean) {
 }
 
 export function Shell(props: ParentProps) {
-  const location = useLocation()
+  const pathname = useLocation({ select: (location) => location.pathname })
+  const router = useRouter()
   const [collapsed, setCollapsed] = createSignal(readCollapsed())
   const narrowQuery = typeof matchMedia === "function" ? matchMedia("(width < 768px)") : undefined
   const [narrow, setNarrow] = createSignal(narrowQuery?.matches ?? false)
   const compactQuery = typeof matchMedia === "function" ? matchMedia("(width < 960px)") : undefined
   const [compact, setCompact] = createSignal(compactQuery?.matches ?? false)
+  setDeskCompact(compact())
   onMount(() => {
-    const on = () => setCompact(compactQuery!.matches)
+    const on = () => {
+      setCompact(compactQuery!.matches)
+      setDeskCompact(compactQuery!.matches)
+    }
     compactQuery?.addEventListener("change", on)
     onCleanup(() => compactQuery?.removeEventListener("change", on))
   })
@@ -168,17 +142,16 @@ export function Shell(props: ParentProps) {
   }
   const drawer = drawerOpen
   const setDrawer = setDrawerOpen
-  const sideChat = () => {
-    const id = CHAT_PATH.exec(location.pathname)?.[1]
-    return id && id !== "new" ? decodeURIComponent(id) : null
-  }
+  const sideChat = useChatInView()
   const sideOpen = () => {
     const id = sideChat()
-    return id !== null && sidecarOpen(id)
+    return id !== null && deskShown()
   }
-  const closeSide = () => {
+  const closeSide = closeDesk
+  const swipeBack = () => {
     const id = sideChat()
-    if (id) closeSidecar(id)
+    if (id && deskView(id)) deskBack(id)
+    else closeDesk()
   }
   const overlaidSide = () => (compact() && sideOpen() ? sideChat() : null)
   onMount(() => {
@@ -232,7 +205,7 @@ export function Shell(props: ParentProps) {
       start = null
       if (action === "open-drawer") setDrawer(true)
       else if (action === "close-drawer") setDrawer(false)
-      else if (action === "close-sidecar") closeSide()
+      else if (action === "close-sidecar") swipeBack()
     }
     window.addEventListener("touchstart", down, { passive: true })
     window.addEventListener("touchend", up, { passive: true })
@@ -273,28 +246,26 @@ export function Shell(props: ParentProps) {
     } else sidebarPanel.collapse()
   }
   createEffect((prev: string | undefined) => {
-    const path = location.pathname
+    const path = pathname()
     if (prev !== undefined && prev !== path && narrow()) setDrawer(false)
     return path
   })
   useKatCommands({ toggleSidebar: toggle })
-  const owner = getOwner()
   onMount(() => {
-    void import("../commands/hotkeys").then((m) => runWithOwner(owner, () => m.bindCommandHotkeys()))
+    bindCommandHotkeys()
   })
   onMount(() => {
-    if (sideOpen()) void loadSidecar()
+    if (sideOpen()) void loadDesk()
     whenIdle(() => {
-      void SettingsDialog.preload()
-        .catch(() => {})
-        .then(() => import("./idle-preload"))
-        .then((m) => m.warmApp())
+      void router.preloadRoute({ to: "/settings/models" }).catch(() => {})
+      preloadSearch()
+      preloadPalette()
       setTimeout(() => void import("../settings/catalog").then((m) => m.prefetchCatalog()), 3000)
     })
   })
   createEffect(() => {
     if (!richLoaded()) return
-    for (const load of idlePreloads) load()
+    for (const load of idlePreloads) void load()
   })
   onMount(() => onCleanup(watchHold()))
   onMount(() => {
@@ -302,22 +273,25 @@ export function Shell(props: ParentProps) {
       if (!e.metaKey && !e.ctrlKey) return
       preloadPalette()
       preloadSearch()
-      void HintLayer.preload()
       window.removeEventListener("keydown", on, true)
     }
     window.addEventListener("keydown", on, true)
     onCleanup(() => window.removeEventListener("keydown", on, true))
   })
-  const sidebar = () => <Sidebar section={sectionOf(location.pathname)} collapsed={closed()} onToggle={toggle} />
+  const sidebar = () => <Sidebar section={sectionOf(pathname())} collapsed={closed()} onToggle={toggle} />
   const dockedSide = () => (compact() || !sideOpen() ? null : sideChat())
+  const endSideResize = () => {
+    if (sidePanel()?.collapsed()) closeSide()
+    else saveWidth(INFO, "kiko-sidecar-panel")
+  }
   createEffect(
-    on(dockedSide, (docked) => {
+    on(dockedSide, () => {
       requestAnimationFrame(() => {
         if (!layout()) return
         const sizes = layout()!.sizes()
         const index = sizes.length - 1
         if (index < 1) return
-        const want = docked ? readWidth(INFO) : 0
+        const want = dockedSide() ? readWidth(INFO) : 0
         setColumnWidth(index, want)
       })
     }),
@@ -350,9 +324,9 @@ export function Shell(props: ParentProps) {
   return (
     <I18nProvider value={i18n}>
       <div
-        class="sidebar-shell relative flex h-dvh overflow-hidden bg-[var(--sidebar)]"
+        class="sidebar-shell relative flex h-dvh overflow-hidden bg-side"
         data-component="app-shell"
-        data-section={sectionOf(location.pathname) ?? undefined}
+        data-section={sectionOf(pathname()) ?? undefined}
       >
         <Show when={narrow()}>{sidebar()}</Show>
         <Show when={narrow() && drawer()}>
@@ -362,6 +336,9 @@ export function Shell(props: ParentProps) {
             aria-hidden="true"
             onPointerDown={() => setDrawer(false)}
           />
+        </Show>
+        <Show when={!narrow() && collapsed()}>
+          <Rail onExpand={toggle} />
         </Show>
         <Show when={narrow() ? "narrow" : compact() ? "compact" : "wide"} keyed>
           {(_mode) => {
@@ -416,42 +393,22 @@ export function Shell(props: ParentProps) {
                   minSize={`${CHAT_MIN}px`}
                 >
                   <main class="relative flex min-w-0 flex-1 flex-col overflow-hidden" data-component="main-column">
-                    <Show when={sectionOf(location.pathname) === "chat"}>
-                      <TopBar pathname={location.pathname} sidebarOpen={!closed()} onToggleSidebar={toggle} />
+                    <Show when={sectionOf(pathname()) === "chat"}>
+                      <TopBar chatId={sideChat()} sidebarOpen={!narrow() || !closed()} onToggleSidebar={toggle} />
                     </Show>
-                    <Show when={closed() && sectionOf(location.pathname) !== "chat"}>
+                    <Show when={narrow() && closed() && sectionOf(pathname()) !== "chat"}>
                       <SidebarToggle open={false} onToggle={toggle} class="main-sidebar-toggle" />
                     </Show>
                     <div
                       class="main-row relative flex min-h-0 min-w-0 flex-1"
                       data-component="main-row"
-                      data-top={sectionOf(location.pathname) === "chat" ? undefined : ""}
+                      data-top={sectionOf(pathname()) === "chat" ? undefined : ""}
                     >
                       <div
                         class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
                         data-component="main-panel"
-                        ref={watchPanel}
                       >
-                        <div
-                          class="flex min-w-0 flex-1 flex-col"
-                          style={{
-                            "padding-right": sideChat() !== null && cardBeside() ? `${CARD_WIDTH + 24}px` : undefined,
-                          }}
-                        >
-                          <Suspense fallback={<PageSkeleton />}>{props.children}</Suspense>
-                        </div>
-                        <Show when={cardShown() ? sideChat() : null} keyed>
-                          {(id) => (
-                            <div
-                              class="absolute top-2 right-3 z-30 flex max-h-[calc(100%-16px)] flex-col"
-                              style={{ width: `${CARD_WIDTH}px` }}
-                            >
-                              <Suspense>
-                                <ChatCard chatId={id} />
-                              </Suspense>
-                            </div>
-                          )}
-                        </Show>
+                        <div class="flex min-w-0 flex-1 flex-col">{props.children}</div>
                       </div>
                       <Show when={searchScope()}>
                         <Suspense>
@@ -469,8 +426,8 @@ export function Shell(props: ParentProps) {
                     aria-label="Resize side panel"
                     altKey={false}
                     disabled={!dockedSide()}
-                    onHandleDragEnd={() => saveWidth(INFO, "kiko-sidecar-panel")}
-                    onKeyUp={() => saveWidth(INFO, "kiko-sidecar-panel")}
+                    onHandleDragEnd={endSideResize}
+                    onKeyUp={endSideResize}
                     onDblClick={() => {
                       const want = defaultWidth(INFO, window.innerWidth)
                       try {
@@ -483,24 +440,17 @@ export function Shell(props: ParentProps) {
                     panelId="kiko-sidecar-panel"
                     class="shell-panel"
                     data-component="sidecar-column"
-                    initialSize={
-                      fitWidths(
-                        window.innerWidth,
-                        collapsed() ? 0 : readWidth(SIDEBAR),
-                        dockedSide() ? readWidth(INFO) : 0,
-                      ).info / window.innerWidth
-                    }
+                    initialSize={sizes.info}
                     minSize={`${INFO.min}px`}
                     maxSize={`${INFO.max}px`}
                     collapsible
                     collapsedSize={0}
-                    onCollapse={() => dockedSide() && closeSide()}
                   >
                     <GrabPanel onGrab={setSidePanel} />
                     <Show when={dockedSide()} keyed>
                       {(chatId) => (
                         <Suspense>
-                          <Sidecar chatId={chatId} />
+                          <Desk chatId={chatId} onClose={closeSide} />
                         </Suspense>
                       )}
                     </Show>
@@ -521,13 +471,15 @@ export function Shell(props: ParentProps) {
               />
               <div class="sidecar-overlay" data-component="sidecar-overlay">
                 <Suspense>
-                  <Sidecar chatId={chatId} />
+                  <Desk chatId={chatId} onClose={closeSide} />
                 </Suspense>
               </div>
             </>
           )}
         </Show>
-        <Palette />
+        <Suspense>
+          <Palette />
+        </Suspense>
         <Show when={deletingChatId() !== null}>
           <Suspense>
             <DeleteChatDialog />
@@ -543,9 +495,6 @@ export function Shell(props: ParentProps) {
             <NewAgent />
           </Suspense>
         </Show>
-        <Show when={settingsSection()}>
-          <SettingsDialog />
-        </Show>
         <Show when={hintsShown()}>
           <Suspense>
             <HintLayer />
@@ -556,7 +505,7 @@ export function Shell(props: ParentProps) {
             <ComputerViewer />
           </Suspense>
         </Show>
-        <ToastV2.Region />
+        <ToastV2.Region within={TOAST_COLUMNS} />
         <Show when={avatarPickerSlug()}>
           <Suspense>
             <AvatarPicker />

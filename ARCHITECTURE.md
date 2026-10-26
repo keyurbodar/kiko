@@ -17,8 +17,21 @@ Everything an owner has lives in one `OwnerDO` with one SQLite database. Rooms, 
 1. The client applies the message locally, then sends it over the socket.
 2. `OwnerDO` stores the message row and acknowledges it.
 3. Human messages that arrive before a short pause form a burst. The burst goes to the agents it addresses.
-4. Admission persists a ready ticket and returns. An alarm runs one queued run to completion with a budget of 40 outbound calls. Runs execute one at a time because overlapping events share Cloudflare's subrequest limit.
+4. Admission persists a ready ticket and returns. An alarm runs one queued run to completion with a budget of 40 outbound calls. Runs execute one at a time because overlapping events share Cloudflare's subrequest limit. So no run may hold the slot while another agent waits: after 3 calls a run yields at its next task boundary and goes behind the queue, an `ask_human` wait ends as soon as another agent is queued, and the queued agents show who they are waiting for.
 5. Each agent writes its reply as short bubbles. Each finished model turn writes one journal row.
+
+## Socket RPC
+
+`core/protocol` is the contract: every wire type is an Effect Schema, and `OwnerRpcs` (`core/protocol/src/rpc.ts`) lists every call a client makes over `/api/rpc`. `apps/server/src/rpc/` speaks the Effect RPC JSON wire format, so the stock `RpcClient` with a socket protocol works against it. There is no other client socket, and the REST routes that duplicated an RPC are gone. HTTP stays for sign-in, `/api/me`, `/api/health`, `/api/version` (probed before sign-in), file bytes and uploads, webhooks, the computer daemon and dev-only routes.
+
+The client reads `/api/version` before each connect. The Worker answers it without waking `OwnerDO`, with the descriptor `{kiko: 1, version, protocol, selfUpdate}`. A protocol other than the client's parks the supervisor in `blocked` instead of a retry loop, and the chats keep painting from the cache, read-only, with the composer disabled. A backend behind `APP_VERSION` that has `selfUpdate` gets `POST /api/update` with no click. The client then polls `GET /api/update` and `/api/version` every 2 s for at most 3 minutes and reconnects without a reload once the descriptor matches. An answer without `kiko: 1`, or a 404, comes from a backend that predates the descriptor and cannot update itself, so the client offers one action: reconnect Cloudflare, which redeploys the Worker.
+
+- **Transports stay thin.** Each entry in `rpc/handlers.ts` calls one service method: `room/commands.ts` for a room, `User`, its `kernel` and `pc` wirings, or `rpc/subscriptions.ts` for streams. Methods are `Effect.fn` spans that fail with the contract's tagged errors, and the dispatcher turns any defect into the `StorageError` every RPC declares.
+
+- **Nothing lives in memory between messages.** Each unary request is decoded, run as an Effect and answered with an `Exit` inside one `webSocketMessage`. A stream subscription is a `{requestId, stream, cursor}` entry in the socket attachment, and broadcasts are turned into `Chunk` frames for it, so a stream survives hibernation. Updating the cursor rewrites the attachment, which is not a billed row.
+- **Streams follow t3code.** `user.subscribe` and `room.subscribe` send a snapshot when `afterSequence` is 0 or too far behind to replay, otherwise the events after it, then `synchronized`, then live events and signals. A user replay ends with a projection of every chat, because chat activity is projected from room state and not stored as events. Events at or below the cursor are dropped. Broadcast frames are decoded through the contract's JSON codec before they become stream items, so tagged errors in signals survive the trip.
+- **Retries are free.** Every command carries a client `commandId`. A send stores it in the message's existing `client_id` column and a repeat returns the first ack. Creates use client-made ids (room, agent, task, install) as their primary key, and most other commands set a value, so a repeat changes nothing and writes nothing.
+- **One auto-response pair.** A Durable Object can only auto-answer one exact frame. It is the stock client's `{"_tag":"Ping"}` to `{"_tag":"Pong"}`, so an idle tab never wakes the object, and the computer daemon sends the same frame. Daemons that still send `ping` get `pong` from `webSocketMessage`.
 
 ## Writes are the budget
 
@@ -42,11 +55,9 @@ A warm prompt writes 6 billed rows: the human's message, the reply, one journal 
 
 ## Client
 
-The client paints from IndexedDB first and applies every action locally before the server answers. The first-paint tiers stay small, and `scripts/bundle-budget.ts` fails the build when one grows past its limit.
+The client paints from IndexedDB first and applies every action locally before the server answers.
 
-After first paint the client warms every lazy module in `apps/web-solid/src/app/idle-preload.ts`, so opening the sidecar, palette, search, emoji picker, composer extras or a route page never waits on a chunk. Add a new lazy boundary to that list.
-
-A service worker (`apps/web-solid/scripts/service-worker.ts`, built to `/sw.js`) caches hashed `/assets/*` files cache-first and, once the client is idle, downloads every lazy chunk listed in the build's `/sw-manifest.json`. It never touches `/`, `/index.html`, `/api/*`, `/pc/*`, websockets or non-GET requests, so a release still reaches an install through the network-first HTML. It deletes cached files the current manifest no longer lists and unregisters itself when `/sw-off` exists or the manifest is missing. To switch it off in every install without a release, serve a `/sw-off` file.
+There is no service worker. `/sw.js` is a kill switch that unregisters the old one and clears its caches in installs that registered it. Hashed `/assets/*` files are served `public, max-age=31536000, immutable`, and `index.html` is served `no-cache`, so every load picks up the current build. A deploy removes the previous build's chunks, so an open tab can hit a 404 on its next lazy import. `vite:preloadError` then reloads the page once, guarded by a `sessionStorage` key that a clean startup clears. Without `sessionStorage` it does not reload, and the import rejects as usual.
 
 Solid components run top to bottom once, and memos and effects evaluate as soon as they are created. Declaration order inside a component is runtime order, which is why lint rejects any use before definition.
 
@@ -54,21 +65,26 @@ The live computer view is its own lazy chunk and is never in a first-paint tier.
 
 ## Verification
 
-There are no unit or integration tests. Correctness rests on static gates that are cheap enough to run on every commit, and on one end-to-end pass against the real Worker in CI.
+Static gates are cheap enough to run on every push. Behavior is proven by Vitest against real code: no mocks, no DOM emulator, and no end-to-end suite against a deployed app.
 
 | Gate | Tool | Why |
 |---|---|---|
 | Format | oxfmt | One style, no review noise |
 | Lint | oxlint, `--deny-warnings` | Catches use-before-define, runtime cycles and dead code paths that TypeScript accepts |
+| Test hygiene | `oxlint-plugin-kiko` | Tests never read the wall clock, sleep, poll, set their own timeout or retry, or skip without a `quarantine: #issue` line. Browser tests render through `apps/web-solid/test/render.tsx` |
 | Complexity | Biome, cognitive complexity 30 | oxlint has no complexity rule, so Biome runs that one rule only |
 | Layering | `scripts/check-imports.ts` | `core/` and `packages/` stay independent of `apps/` |
 | Dead code | knip | Unused files, exports and dependencies |
 | Generated | `scripts/check-generated.ts` | `*.gen.ts` matches its Markdown source |
 | Types | tsgo per package | About 4x faster than tsc |
 | Bundles | `vite build`, `wrangler deploy --dry-run` | Imports that resolve in types but not in the bundle |
-| Behavior | `bun kiko verify journal-overhead`, `verify:web` | Real prompts and a real browser against `wrangler dev` |
+| Unit tests | Vitest, `*.test.ts` beside the source | One root `vitest.config.ts`, `retry: 0`, `.only` fails in CI |
+| Browser tests | Vitest browser mode in headless Chromium, `*.browser.test.tsx` | Solid components run through the app's own Vite plugins |
+| Write budget | `apps/server/integration/journal-overhead.integration.test.ts` | Starts the real Worker with `unstable_startWorker` on a fresh persist dir and fails when a warm prompt writes more than 7 billable rows, a quiet minute writes anything, objects call each other, or a failing prompt shows or persists anything but one error row |
 
-`scripts/check-changed.ts` runs the static gates for only the files and packages a change touches. The pre-commit hook runs it on staged files. CI runs every gate on each pull request, and `main` requires the `Check` and `E2E` jobs to pass before a merge, so every commit a release ships has already passed CI.
+`scripts/ci-changes.ts` maps changed files to workspace packages and their dependents. CI uses it to skip jobs a change cannot affect, and `scripts/check-changed.ts` uses the same mapping locally. `bun run check:changed` is the pre-push hook: it formats-checks and lints the changed files, runs knip, layering and generated checks, typechecks the affected packages, and runs the tests beside the changed files, all in parallel, and remembers a passing run until an input changes. The pre-commit hook only formats staged files.
+
+CI runs `Changes`, `Lint`, `Build and Typecheck`, `Test`, `Test Web` and `Worker` side by side. Branch protection requires only the aggregate `Check` job, which fails when any job fails or skips without `Changes` saying it could. Pushes to `main` run every job, and a release refuses to tag a commit whose `Check` has not passed.
 
 ## Computers
 
@@ -82,10 +98,39 @@ There are no unit or integration tests. Correctness rests on static gates that a
 - **Desktop tools go through cua-driver over MCP stdio.** Tools are discovered with `tools/list` at connect time and every argument is filtered against the advertised schema, because the driver's input shape differs by platform and version. Element ids are the driver's `element_token`s mapped to our small integers per capture; an unknown id answers `stale` so the agent looks again. Images shrink to a 1280 long edge and coordinates map back through the capture's own scale.
 - **No desktop is not a broken machine.** When cua-driver is missing, or Linux has no `$DISPLAY`/`$WAYLAND_DISPLAY`, `caps.desktop` is false and shell and files keep working.
 - **`src/live/` is the seam for the live view.** `connection.ts` hands `rtc`, `live`, `input` and `control` frames to the `Live` object it is given. The default in `src/live/index.ts` reports no live capability and still forwards holder changes.
+- **Pairing again replaces, never dedupes.** `pair` sends the `pcId` already in the config dir as `replaces`, and the Worker deletes that row in the same turn that inserts the new one, so a re-run install leaves one row. Nothing matches on host or name, because two machines can share both.
+- **The daemon updates itself through `install.sh`.** `welcome` carries the Worker's `BACKEND.version`, and `scripts/build.ts` stamps the same root `package.json` version into the daemon's `VERSION`. On a mismatch it runs `${worker}/pc/install.sh` with no pair link, so the checksums stay in one place, then exits for systemd or launchd to restart it. It tries once per served version per process, backs off after a failure, and waits for running calls. It skips Windows and any daemon that is not a supervised `bin/kiko-computer`, because nothing would restart those.
 - **Writes cost nothing here.** The daemon keeps captures, pending calls and the holder in memory. Nothing is written per call or per ping.
 
 ## Releases
 
-`scripts/release.ts` builds and signs a release, and the release workflow publishes it to `latest-owner.json`. The workflow commits the version bump off `main` and pushes only its tag, because `main` accepts changes only through a pull request with green CI and has no bypass. The newest `v*` tag is the current version; `package.json` on `main` can lag behind it. Moving an install from v0.4 to `OwnerDO` deletes the old databases after the owner types `delete-existing-data` in the installer.
+`scripts/release.ts` builds and signs a release, and the release workflow publishes it to `latest-owner.json`. The workflow commits the version bump off `main` and pushes only its tag, because `main` accepts changes only through a pull request with green CI and has no bypass. The newest `v*` tag is the current version; `package.json` on `main` can lag behind it. Owner Workers migrate from one baseline tag, `v5`, which creates `OwnerDO`. `core/durable/src/release.ts` refuses any signed manifest with `deleted_classes`, so neither an update nor an install can delete stored data.
 
 The same signed manifest names the five `kiko-computer` daemon binaries and their sha256, and the release uploads them to the GitHub release for its tag. A Worker serves `GET /pc/install.sh` and `/pc/install.ps1` from `BACKEND.version`, pinning the hashes it reads back from that manifest and verifying its signature first, so an install never runs a binary the release did not sign. A Worker whose version is not published yet hands the script the release base and lets it verify against `SHA256SUMS-computer` instead.
+
+Config that is the same for every owner ships in the release, not in the owner's Worker: the Clerk public key, the trusted front-door origin, and the release base and signing key are constants in `apps/server/src/lib/release-config.ts`. Production ignores env copies of them, so a self-update repairs any drift and a Clerk key rotation needs a release. DEV may override them from `.dev.vars`. `core/durable/src/clerk-token.ts` is the one Clerk verifier, shared with the installer.
+
+`GET /api/version` is the frozen descriptor `{kiko: 1, version, protocol, selfUpdate}`. The Worker answers it without waking `OwnerDO`, and fields may be added but never removed. `ensureHome` seeds the Kiko chat on the first user subscribe of each object instance, not on sign-in or `/api/me`.
+
+`POST /api/update {version}` starts a self-update and `GET /api/update` reads it: `idle`, `uploading`, `restarting`, or `failed` with one of `no_grant`, `grant_refused`, `release_unavailable`, `release_untrusted` and `cloudflare_error`. A start while one runs returns that run's state. The update is one upload that lists every binding: the release's Durable Object bindings, then `inherit` for each binding the Worker keeps, minus the config the release now ships. A token refresh can rotate the Cloudflare refresh token, so the object stores the newest grant sealed next to the sha256 of the `CF_GRANT` it came from, and uses it only while that hash matches. A reconnect writes a new `CF_GRANT`, so it always wins, and an update writes at most that one row.
+
+## Installing
+
+The owner's Worker is the one record of who owns it: `OWNER_ID` is a `plain_text` binding, so the installer reads it through Cloudflare's settings API and never calls the backend. Control of the Cloudflare account is the root of trust; the Clerk pointer (`publicMetadata.kiko = {v: 1, url, accountId, script}`) and the browser's record are caches, and `OWNER_ID` wins when they disagree.
+
+- **Scan, then act.** `apps/installer/src/scan.ts` classifies every `kiko` or `kiko-*` script: `Mine` (`OWNER_ID` is the caller), `Other` (another `OWNER_ID`), `Unclaimed` (it has a Durable Object binding but no readable `OWNER_ID`, which is every install made before this scheme) or `Foreign` (no Durable Object, never touched). `Mine` redeploys in place. `Other` and `Unclaimed` answer `decide` until the caller sends `take_over`, which keeps the data and needs a migration tag the release knows, or `start_fresh`, which deletes the script with `?force=true` first. An empty account gets `kiko`, unless a `Foreign` script holds that name.
+- **One upload writes every binding.** The upload lists the release's Durable Object bindings, `OWNER_ID`, a fresh `CF_GRANT`, new secrets where needed, and `inherit` for everything kept, so no follow-up secret writes exist and stale bindings fall away.
+- **A new owner rotates the session secret.** Every take-over and every fresh install writes a new `SESSION_SECRET`, so the previous owner's sessions, file links and pair codes die at once. `CREDENTIALS_KEK` is never rotated, because it seals the stored keys and grant. On start, `OwnerDO` compares `OWNER_ID` with the owner it last saw and deletes every paired computer when it changed; that check writes one row per change, not per start.
+- **Every failure names its retry.** `same` retries with the same grant, reusing the OAuth tokens the installer keeps for ten minutes; `new-grant` needs a new Cloudflare sign-in; `token` needs a new API token. One `Installer` object per Clerk user serializes that user's installs and detaches.
+- **Detach clears the pointer only.** `POST /detach` leaves the Worker and its data in place, so connecting the same account again finds it as `Mine`.
+
+## Hosted Workers
+
+`infra/` owns the two Workers Kiko itself serves: the front door (`kiko-app`, `app.kiko.works`) and the installer (`kiko-installer`, `api.kiko.works`). `infra/alchemy.run.ts` declares both with Alchemy and deploys them from `.github/workflows/deploy.yml`. The owner Worker (`apps/server/wrangler.jsonc`) is not here: the installer uploads it into an owner's account, so it keeps its wrangler config, `wrangler dev` and the `release.ts` dry-run.
+
+- **Adoption, never recreation.** Both Workers were created by `wrangler deploy` before Alchemy owned them, so the stack wraps its body in `adopt(true)`. Adopting leaves the live Durable Object namespace (`Installer`) and its data in place; a first deploy reports `adopted` and one binding create, and later deploys are no-ops.
+- **`plan` and `deploy` need the Cloudflare state store.** `Cloudflare.state()` keeps state in an `alchemy-state-store` Worker on the account, which the deploy job creates or adopts with `alchemy provider cloudflare bootstrap` before every deploy.
+- **`legacy_module_registry` is pinned** on both Workers. Alchemy defaults new Workers to `new_module_registry`, and flipping the registry under a running Worker is a code change no deploy can undo. Drop the flag deliberately, with a deploy that expects the switch.
+- **`apps/server/wrangler.front-door.jsonc` stays for the CI bundle gate only.** `wrangler deploy --dry-run` there and in `release.ts` needs no credentials, so CI keeps a bundle check on every entry point; the deploy itself ignores these two configs.
+- **The installer's Clerk key comes from the deploy.** Alchemy binds `CLERK_JWT_KEY` from the `CLERK_JWT_KEY` repository variable, the same PEM public key the release embeds. A deploy without it fails before it builds anything.
+- **The other installer secrets are set once, out of band.** The installer reads `CLERK_SECRET_KEY`, `CF_OAUTH_CLIENT_ID`, `RELEASE_BASE_URL`, `RELEASE_PUBLIC_KEY` and `TRUSTED_ORIGINS` as `secret_text` bindings that Alchemy does not declare. Cloudflare keeps an undeclared secret binding on upload, so a deploy neither needs those values nor wipes them.

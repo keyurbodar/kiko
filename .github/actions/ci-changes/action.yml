@@ -1,0 +1,49 @@
+name: CI changes
+description: Decide which CI jobs a change needs. See scripts/ci-changes.ts.
+outputs:
+  typecheck:
+    value: ${{ steps.detect.outputs.typecheck }}
+  build:
+    value: ${{ steps.detect.outputs.build }}
+  test:
+    value: ${{ steps.detect.outputs.test }}
+  test_packages:
+    value: ${{ steps.detect.outputs.test_packages }}
+  test_web:
+    value: ${{ steps.detect.outputs.test_web }}
+  worker:
+    value: ${{ steps.detect.outputs.worker }}
+runs:
+  using: composite
+  steps:
+    - id: detect
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        BEFORE_SHA: ${{ github.event.before }}
+      run: |
+        set -uo pipefail
+
+        decide() {
+          bun scripts/ci-changes.ts "$@" | tee -a "$GITHUB_OUTPUT"
+          exit "${PIPESTATUS[0]}"
+        }
+
+        fail_open() {
+          echo "$* Running every job."
+          decide
+        }
+
+        if [[ "$EVENT_NAME" == pull_request ]]; then
+          base=HEAD^1
+          mode=()
+        else
+          base=$BEFORE_SHA
+          git fetch --quiet --no-tags --depth=1 --filter=blob:none origin "$base" \
+            || fail_open "Could not fetch ${base}."
+          mode=(--full)
+        fi
+
+        git diff --name-only --no-renames "$base" HEAD > "$RUNNER_TEMP/changed-paths" \
+          || fail_open "Could not diff against ${base}."
+        decide --paths "$RUNNER_TEMP/changed-paths" "${mode[@]}"

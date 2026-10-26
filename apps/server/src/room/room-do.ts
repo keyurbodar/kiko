@@ -18,7 +18,6 @@ import type {
   AgentSlug,
   AgentState,
   Chat,
-  ClientToRoom,
   Envelope,
   FileOp,
   MemberOp,
@@ -38,7 +37,6 @@ import { loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 import { runDue } from "../owner/clock"
-import { enforceHello, HELLO_WAKEUP } from "@kiko/durable/hello-deadline"
 import { RoomRoutines } from "./routines"
 import type { Wake, WakeResult } from "./delivery"
 
@@ -53,12 +51,13 @@ import type { StepItem } from "../agent/extensions/presence"
 import { roomActivity, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./activity"
 import { Deliveries, withContext } from "./deliver"
 import { type AgentSend, MessageChains } from "./messaging"
-import { isRoomId } from "@kiko/protocol"
+import { isRoomId, ModelError } from "@kiko/protocol"
 import { cleanPath, deleteFiles, fileKey } from "../files/paths"
 import { changePaths, type CommitResult, type FileIndex, type IndexChange } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
 import { Team } from "./team"
 import { CHIEF, type GroupInput, type NewAgentSpec } from "./chief"
+import { RoomClosed, RoomIdentityError } from "./errors"
 import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { isPrivate, RoomLog } from "./log"
 import type { HeardStep } from "./steps"
@@ -70,7 +69,7 @@ import { describeRunError } from "../agent/run-error"
 import { problemOfRun } from "../user/provider-health"
 import { parseModelRef } from "../agent/thinking"
 import { parseRichText } from "@kiko/protocol/markdown"
-import { type MemberRow, Members, type NewMember } from "./members"
+import { listMembers, type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, reactionBrief } from "./reactions"
 import {
   attachmentPath,
@@ -84,8 +83,7 @@ import {
 import { bubbleOf, discardWhole, putWhole, WHOLE_NAME, WHOLE_TYPE, type WholeText } from "./whole-text"
 import { tags } from "./recipients"
 import { searchMessages, type SearchOptions } from "./search"
-import { STORAGE_ERROR } from "../lib/storage-error"
-import { handleFrame, send, type SocketRoom } from "./socket"
+import { type CommandRoom, makeRoomCommands, send, type SendInput, type SendOutcome } from "./commands"
 import type { RoomDev } from "./dev"
 import { MemoryNaps } from "./memory-naps"
 import { applyTaskOp, RoomWorkspace, runCall, type WorkspaceAnswer, type WorkspaceCall } from "./workspace"
@@ -131,9 +129,8 @@ const ROW_EVENTS: ReadonlySet<RoomEvent["t"]> = new Set([
   "member_removed",
 ])
 
-type SendOutcome = { ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }
-
-export class Room implements SocketRoom {
+export class Room implements CommandRoom {
+  readonly commands = makeRoomCommands(this)
   log!: RoomLog
   private deliveries!: Deliveries
   private alarms!: Alarms
@@ -171,7 +168,7 @@ export class Room implements SocketRoom {
   private readonly sql: SqlStorage
   constructor(options: ServiceOptions) {
     const { ctx, env, services, sql, broadcast } = options
-    if (!options.identity.roomId) throw new Error("Room identity required")
+    if (!options.identity.roomId) throw new RoomIdentityError({ message: "Room identity required" })
     this.identity = { ownerId: options.identity.ownerId, roomId: options.identity.roomId }
     this.ownerStorage = ctx.storage
     this.ctx = ctx
@@ -291,7 +288,7 @@ export class Room implements SocketRoom {
     }
   }
 
-  private replyTarget(frame: Extract<ClientToRoom, { t: "send" }>): MessageId | undefined {
+  private replyTarget(frame: SendInput): MessageId | undefined {
     const target = frame.replyTo ? this.log.message(frame.replyTo) : null
     const replyTo = target && !isPrivate(target) ? target.id : undefined
     return replyTo
@@ -351,7 +348,7 @@ export class Room implements SocketRoom {
         })
       : null
     if (filed && (!filed.file || filed.refused || filed.drop))
-      throw new ClaimRefused("The message's text could not be stored as a file.")
+      throw new ClaimRefused({ message: "The message's text could not be stored as a file." })
     return filed
   }
 
@@ -725,7 +722,6 @@ export class Room implements SocketRoom {
     if (this.log.meta("deleted") === "1" || this.log.meta("erasing") === "1") return
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
-      [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
       [BURST_WAKEUP]: () => this.flushBurst(),
       ["routine_events"]: () => this.reports.flush(),
       [PENDING_WAKEUP]: () => this.sweepPending(),
@@ -844,7 +840,7 @@ export class Room implements SocketRoom {
       if (message) this.publish([message], { deliver: false })
       return
     }
-    const out = await this.humanSend({ t: "send", clientId: `answer:${id}`, text, replyTo: ask.messageId })
+    const out = await this.humanSend({ clientId: `answer:${id}`, text, replyTo: ask.messageId })
     if ("events" in out) this.publish(out.events)
   }
 
@@ -957,15 +953,24 @@ export class Room implements SocketRoom {
     await this.alarms.clearWakeup(BURST_WAKEUP)
   }
 
-  async subscribe(ws: WebSocket, lastSeq: number, handle?: string): Promise<void> {
-    const userId = this.identity.ownerId
-    this.adopt(userId)
+  async subscribe(ws: WebSocket, afterSequence: number, handle?: string): Promise<boolean> {
+    if (this.gone(this.adopt(this.identity.ownerId))) return false
     if (handle && handle !== this.log.meta(HUMAN_HANDLE)) this.log.setMeta(HUMAN_HANDLE, handle)
     const home = this.home()
-    if (!home) return
-    const chat = await this.chat(home)
-    if (chat) await this.seedMembers(home, chat)
-    await handleFrame(this, ws, JSON.stringify({ t: "hello", lastSeq }))
+    const chat = home && (await this.chat(home))
+    if (home && chat) await this.seedMembers(home, chat)
+    send(ws, afterSequence === 0 ? { t: "reset", snapshot: this.log.snapshot() } : this.log.catchUp(afterSequence))
+    for (const frame of this.presence()) send(ws, frame)
+    ws.serializeAttachment({ ready: true })
+    return true
+  }
+
+  gone(home = this.home()): boolean {
+    return home === null || this.log.meta("deleted") === "1" || this.log.meta("erasing") === "1"
+  }
+
+  memberList() {
+    return listMembers(this.ownerStorage, this.log.roomId)
   }
 
   async restoreHumanInput(): Promise<void> {
@@ -980,23 +985,6 @@ export class Room implements SocketRoom {
 
   async settleHumanInput(): Promise<void> {
     await this.burst.settle(() => this.flushBurst())
-  }
-
-  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    if (this.log.meta("deleted") === "1" || this.log.meta("erasing") === "1") return
-    try {
-      await handleFrame(this, ws, message)
-      await this.settleHumanInput()
-    } catch (e) {
-      console.error(`room frame failed: ${e instanceof Error ? e.message : String(e)}`)
-      send(ws, { t: "error", error: STORAGE_ERROR })
-    }
-  }
-
-  async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
-    try {
-      ws.close(code, reason)
-    } catch {}
   }
 
   publish(
@@ -1049,7 +1037,7 @@ export class Room implements SocketRoom {
   }
 
   async mutateMessage<T>(id: string, apply: () => T): Promise<T> {
-    if (this.erasing || this.log.meta("erasing") === "1") throw new Error("Chat is being deleted")
+    if (this.erasing || this.log.meta("erasing") === "1") throw new RoomClosed({ message: "Chat is being deleted" })
     return this.historyArchive()?.mutate(id, apply) ?? apply()
   }
 
@@ -1095,13 +1083,13 @@ export class Room implements SocketRoom {
     return this.wakes.wake(w)
   }
 
-  humanSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<SendOutcome> {
+  humanSend(frame: SendInput): Promise<SendOutcome> {
     const out = this.sends.then(() => this.storeSend(frame))
     this.sends = out.catch(() => {})
     return out
   }
 
-  private async storeSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<SendOutcome> {
+  private async storeSend(frame: SendInput): Promise<SendOutcome> {
     if (this.erasing || this.log.meta("erasing") === "1" || this.log.meta("deleted") === "1")
       return { refused: "This chat is being deleted." }
     const text = bubbleOf(frame.text)
@@ -1109,7 +1097,7 @@ export class Room implements SocketRoom {
     try {
       if (text.length < frame.text.length && !this.log.sentBefore(frame.clientId)) {
         const home = this.home()
-        if (!home) throw new ClaimRefused("This chat is not ready. Send again in a moment.")
+        if (!home) throw new ClaimRefused({ message: "This chat is not ready. Send again in a moment." })
         whole = await putWhole(this.services.files(), home, frame.clientId, frame.text)
       }
       const store = (): SendOutcome =>
@@ -1642,11 +1630,10 @@ export class Room implements SocketRoom {
     this.ctx.waitUntil(
       Promise.all([
         user.notifyError(
-          {
-            code: "model",
+          new ModelError({
             message: `${member.name} could not answer. ${failure.message}`,
             ...(failure.toast ? { action: failure.toast } : {}),
-          },
+          }),
           home.roomId,
         ),
         problemOfRun(kind) && provider ? user.recordProviderProblem(provider, kind) : undefined,
@@ -1676,6 +1663,10 @@ export class Room implements SocketRoom {
     this.broadcast({ t: "draft", slug, runId, index, text: replyTag(text).text })
   }
 
+  async thinking(slug: AgentSlug, runId: string, part: number, text: string, done: boolean): Promise<void> {
+    this.broadcast({ t: "thinking", slug, runId, part, text, done })
+  }
+
   async note(slug: AgentSlug, runId: string, id: string, text: string): Promise<void> {
     if (!this.members.list().some((m) => m.slug === slug)) return
     const at = Date.now()
@@ -1701,15 +1692,33 @@ export class Room implements SocketRoom {
       this.reports.run(this.routines.ended(slug), "ended")
     } else if (this.members.get(slug)?.status === "idle") this.routines.started(slug, this.log.lastSeq())
     if (!this.members.setStatus(slug, state)) return false
-    if (state === "typing" && detail !== undefined)
-      this.team.doing(slug, detail ?? "writing a reply", Date.now(), { kind: "writing" })
-    else if (state === "typing" && !this.team.now(slug))
-      this.team.doing(slug, "writing a reply", Date.now(), { kind: "writing" })
+    if (state === "typing") this.team.writing(slug, detail, Date.now())
     this.broadcastStatus(slug)
     this.broadcast(this.activeFrame())
     await this.pushTyping()
 
     return true
+  }
+
+  memberName(slug: AgentSlug): string | null {
+    return this.members.get(slug)?.name ?? null
+  }
+
+  turnStarted(slug: AgentSlug): void {
+    if (this.members.get(slug)?.status !== "idle") this.broadcastStatus(slug)
+  }
+
+  waitingTurn(slug: AgentSlug, behind: string): void {
+    const kind = this.team.activity(slug)?.kind
+    if (!this.members.get(slug) || (kind && kind !== "writing")) return
+    const doing = `waiting for ${behind} to finish`
+    this.broadcast({
+      t: "status",
+      slug,
+      state: "working",
+      doing,
+      activity: { kind: "tool", tool: "other", caption: doing },
+    })
   }
 
   private agentStatus(slug: AgentSlug): import("@kiko/protocol").AgentStatus | null {
@@ -1772,7 +1781,13 @@ export class Room implements SocketRoom {
         const status = this.agentStatus(m.slug)
         return status ? [status] : []
       })
-    return statuses.length ? [this.activeFrame(), ...statuses.map((s): RoomToClient => ({ t: "status", ...s }))] : []
+    if (!statuses.length) return []
+    const steps = this.log.openSteps(statuses.map((s) => s.slug))
+    return [
+      this.activeFrame(),
+      ...statuses.map((s): RoomToClient => ({ t: "status", ...s })),
+      ...steps.map((step): RoomToClient => ({ t: "step", step })),
+    ]
   }
 
   private pushTyping(): Promise<void> {

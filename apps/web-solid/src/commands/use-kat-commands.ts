@@ -1,10 +1,10 @@
 import { createSignal, onCleanup } from "solid-js"
-import { useLocation, useNavigate } from "@solidjs/router"
+import { history, openChat } from "../app/history"
+import { useChatInView } from "../app/sections"
 import { withMade } from "../files/api"
 import { askDeleteChat, closeChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
 import { signOut } from "../app/session"
-import { toggleCard } from "../chat/side/card-state"
-import { fixedSurface, openFile, openSurface, toggleSidecar } from "../chat/side/surfaces"
+import { fixedSurface, openFile, openSurface, toggleDesk } from "../chat/side/surfaces"
 import { answeringMember, canReason } from "../settings/agent-model"
 import { connectedProviders } from "../settings/connected"
 import { hasModelProvider } from "../settings/provider-kinds"
@@ -20,7 +20,8 @@ import { messageSearchCommand } from "./message-search"
 import { katCommands } from "./kat-commands"
 import { themeCommands } from "./theme-commands"
 import { openAvatarPicker } from "../avatar/picker-state"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
+import { user } from "../state/user"
 import { openBotPicker } from "../chat/bot-picker-state"
 import { openNewAgent } from "../newagent/state"
 import { navCommands } from "./nav-commands"
@@ -36,17 +37,10 @@ const loadGoTo = () =>
     setGoTo(() => ({ ...g, HOME: m.HOME, recentFiles: r.recentFiles })),
   )
 
-const CHAT_PATH = /^\/chat\/([^/]+)$/
-
 export function useKatCommands(deps: { toggleSidebar: () => void }): void {
   startBrowser()
   useCommands(browserCommands())
-  const navigate = useNavigate()
-  const location = useLocation()
-  const activeId = () => {
-    const id = CHAT_PATH.exec(location.pathname)?.[1]
-    return id ? decodeURIComponent(id) : null
-  }
+  const activeId = useChatInView()
   useCommands(
     katCommands({
       mac: isMac,
@@ -56,17 +50,15 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       openChats: () => openPalette("chats.go"),
       openView: openPalette,
       chatChoices: () =>
-        useApp
-          .bots()
-          .map((chat) => ({ id: chat.id, title: chat.name, chatId: chat.id, run: () => navigate(`/chat/${chat.id}`) })),
+        room.bots().map((chat) => ({ id: chat.id, title: chat.name, chatId: chat.id, run: () => openChat(chat.id) })),
       agentChoices: () =>
-        agentList(useApp.agents()).map((agent) => ({
+        agentList(user.agents()).map((agent) => ({
           id: agent.id,
           title: agent.name,
           seed: agent.slug,
           run: () => {
-            const roomId = useApp.user()?.createChat(agent.name, [agent.id])
-            if (roomId) navigate(`/chat/${roomId}`)
+            const roomId = user.createChat(agent.name, [agent.id])
+            if (roomId) openChat(roomId)
           },
         })),
       fileSearch: (query) => {
@@ -78,8 +70,8 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
           return []
         }
         const hits = mod.fileHits(
-          withMade(id, useApp.activeFiles()).map((f) => f.name),
-          withMade(mod.HOME, useApp.homeFiles()).map((f) => f.name),
+          withMade(id, room.files()).map((f) => f.name),
+          withMade(mod.HOME, user.homeFiles()).map((f) => f.name),
         )
         return mod.listFiles(hits, query, mod.recentFiles(id)).map(({ hit, group }) => ({
           id: hit.path,
@@ -92,39 +84,35 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       },
       newGroup: openBotPicker,
       newAgent: openNewAgent,
-      toggleSidecar: () => {
-        const id = activeId()
-        if (id) toggleSidecar(id)
-      },
       copyLink: () => {
         const id = activeId()
         if (id) void navigator.clipboard?.writeText(`${window.location.origin}/chat/${id}`)
       },
       hasActiveChat: () => activeId() !== null,
-      toggleCard,
+      toggleCard: toggleDesk,
       openPanel: (kind) => {
         const id = activeId()
         if (id) openSurface(id, fixedSurface(kind))
       },
       closeChat: () => {
         const id = activeId()
-        if (id) closeChat(id, id, navigate)
+        if (id) closeChat(id, id)
       },
       goToChat: (n) => {
         const row = sidebarOrder()[n - 1]
-        if (row) navigate(`/chat/${row.id}`)
+        if (row) openChat(row.id)
       },
       stepChat: (step) => {
         const order = sidebarOrder()
         const at = order.findIndex((r) => r.id === activeId())
         const row = order[at === -1 ? 0 : Math.max(0, Math.min(order.length - 1, at + step))]
-        if (row && row.id !== activeId()) navigate(`/chat/${row.id}`)
+        if (row && row.id !== activeId()) openChat(row.id)
       },
-      chatCount: () => useApp.bots().length,
+      chatCount: () => room.bots().length,
       searchChat: () => openSearch("chat"),
       reopenClosed: () => {
         const id = reopenClosedChat()
-        if (id) navigate(`/chat/${id}`)
+        if (id) openChat(id)
       },
       attach: () => document.querySelector<HTMLButtonElement>('[data-hint="chat.attach"]')?.click(),
       rename: () => {
@@ -133,15 +121,15 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       },
       canMove: () => {
         const id = activeId()
-        return id !== null && !useApp.chat(id)?.kiko
+        return id !== null && !user.chat(id)?.kiko
       },
       togglePin: () => {
         const id = activeId()
-        if (id && !useApp.chat(id)?.kiko) togglePin(id)
+        if (id && !user.chat(id)?.kiko) togglePin(id)
       },
       deleteChat: () => {
         const id = activeId()
-        if (id && !useApp.chat(id)?.kiko) askDeleteChat(id)
+        if (id && !user.chat(id)?.kiko) askDeleteChat(id)
       },
     }),
   )
@@ -149,31 +137,31 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
     messageSearchCommand({
       open: (hit) => {
         requestJump({ roomId: hit.roomId, id: hit.id, seq: hit.seq })
-        if (hit.roomId !== activeId()) navigate(`/chat/${hit.roomId}`)
+        if (hit.roomId !== activeId()) openChat(hit.roomId)
       },
       openView: openPalette,
     }),
   ])
-  const chipAgent = () => answeringMember(useApp.roomMembers(), "")
+  const chipAgent = () => answeringMember(room.roomMembers(), "")
   useCommands(
     navCommands({
-      go: (href) => navigate(href),
+      openChats: () => openChat(null),
       signOut: () => void signOut(),
       chooseModel: () => {
-        if (!location.pathname.startsWith("/chat")) navigate("/chat")
+        if (!history.location.pathname.startsWith("/chat")) openChat(room.activeId())
         openModelPicker()
       },
       openView: openPalette,
-      canReason: () => canReason(useApp.agentModel(chipAgent()?.slug ?? "")?.thinkingLevels),
+      canReason: () => canReason(user.agentModel(chipAgent()?.slug ?? "")?.thinkingLevels),
       reasoningChoices: () => {
         const agent = chipAgent()
-        const picked = agent ? useApp.agentModel(agent.slug) : undefined
+        const picked = agent ? user.agentModel(agent.slug) : undefined
         if (!agent || !picked) return []
         return picked.thinkingLevels.map((level): Choice => ({
           id: level,
           title: THINKING_LABELS[level],
           current: level === picked.thinking,
-          run: () => useApp.setAgentModel(agent.slug, { thinking: level }),
+          run: () => room.setAgentModel(agent.slug, { thinking: level }),
         }))
       },
       canChooseModel: () => hasModelProvider(connectedProviders()),
@@ -210,7 +198,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       openView: openPalette,
       activeAgent: () => {
         const id = activeId()
-        const faces = id ? useApp.chatFaces(id) : []
+        const faces = id ? room.chatFaces(id) : []
         return faces.length === 1 ? faces[0]! : null
       },
       changeAvatar: openAvatarPicker,

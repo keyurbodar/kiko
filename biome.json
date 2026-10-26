@@ -1,6 +1,10 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "files": {
     "includes": [
       "apps/*/src/**",
@@ -9,18 +13,30 @@
       "packages/*/scripts/**",
       "core/*/src/**",
       "scripts/**",
+      "apps/*/integration/**",
+      "apps/*/test/**",
+      "oxlint-plugin-kiko/**",
       "!**/*.css",
       "!**/*.gen.ts"
     ]
   },
-  "formatter": { "enabled": false },
-  "assist": { "enabled": false },
+  "formatter": {
+    "enabled": false
+  },
+  "assist": {
+    "enabled": false
+  },
   "linter": {
     "enabled": true,
     "rules": {
       "preset": "none",
       "complexity": {
-        "noExcessiveCognitiveComplexity": { "level": "error", "options": { "maxAllowedComplexity": 30 } }
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": {
+            "maxAllowedComplexity": 30
+          }
+        }
       }
     }
   }

@@ -20,6 +20,7 @@ export function DateChip(props: {
   const [month, setMonth] = createSignal(new Date(props.dayStart))
   const [picked, setPicked] = createSignal<Date | null>(new Date(props.dayStart))
   const [picking, setPicking] = createSignal(false)
+  const [hovered, setHovered] = createSignal(false)
   let trigger: HTMLButtonElement | undefined
 
   const close = () => {
@@ -42,23 +43,23 @@ export function DateChip(props: {
   return (
     <div
       class={cn(
-        "chat-chip-anchor pointer-events-none absolute top-2.5 right-5 left-3 z-20 flex-col items-center",
-        "hidden data-[visible]:flex",
+        "chat-chip-anchor pointer-events-none absolute top-[calc(0.625rem+var(--top-bar-h,0px))] right-5 left-3 z-20 flex-col items-center",
+        "invisible flex opacity-0 transition-[opacity,visibility] duration-(--dur-hover) ease-kiko motion-reduce:transition-none",
+        "data-[visible]:visible data-[visible]:opacity-100",
         props.class,
       )}
       data-component="chat-date-chip"
-      data-visible={props.visible || open() ? "" : undefined}
+      data-visible={props.visible || open() || hovered() ? "" : undefined}
       data-open={open() ? "" : undefined}
       onWheel={onWheel}
     >
       <DismissableLayerV2
         active={open()}
         class={cn(
-          "flex w-max max-w-full flex-col items-stretch overflow-clip text-foreground",
-          "bg-popover",
+          "flex w-max max-w-full flex-col items-stretch overflow-clip text-fg",
           open()
-            ? "rounded-[calc(20px*var(--radius-mult))] w-[320px] max-w-full shadow-popover"
-            : "rounded-full shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--foreground)_10%,transparent)]",
+            ? "w-[320px] max-w-full rounded-sheet bg-raise shadow-popover"
+            : "rounded-full bg-bg/80 shadow-[0_6px_16px_-6px_oklch(0%_0_none/0.22),0_0_0_1px_color-mix(in_oklab,var(--fg)_6%,transparent)] backdrop-blur-sm",
         )}
         excludedElements={() => [trigger]}
         onDismiss={close}
@@ -70,15 +71,19 @@ export function DateChip(props: {
             }}
             type="button"
             class={cn(
-              "chat-chip pointer-events-auto min-h-6 cursor-pointer rounded-full px-3 py-1 text-sm leading-4 font-semibold text-[color-mix(in_oklab,var(--foreground)_75%,transparent)] hover:bg-control-strong aria-expanded:bg-control-strong",
-              open() && "bg-control",
+              "chat-chip pointer-events-auto min-h-6 cursor-pointer rounded-full px-3 py-1 type-label font-semibold text-fg2 transition-colors duration-(--dur-hover) hover:bg-hover aria-expanded:bg-hover",
+              open() && "bg-active",
             )}
             data-component="chat-day-chip"
             aria-expanded={open()}
             aria-haspopup="dialog"
             title={formatFullTimestamp(props.dayStart)}
             onClick={toggle}
-            onPointerEnter={() => void loadCalendar()}
+            onPointerEnter={() => {
+              setHovered(true)
+              void loadCalendar()
+            }}
+            onPointerLeave={() => setHovered(false)}
             onFocus={() => void loadCalendar()}
           >
             {dayChipLabel(props.dayStart, props.now)}
@@ -86,7 +91,7 @@ export function DateChip(props: {
           <Show when={open()}>
             <button
               type="button"
-              class="pointer-events-auto absolute top-[calc(50%+4px)] right-3 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-muted-foreground hover:bg-control hover:text-foreground"
+              class="pointer-events-auto absolute top-[calc(50%+4px)] right-3 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-fg2 hover:bg-active hover:text-fg"
               aria-label="Close calendar"
               onClick={close}
             >

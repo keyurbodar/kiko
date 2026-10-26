@@ -2,6 +2,7 @@ import type { Context } from "@earendil-works/chord"
 import type { EntryRecord, Id, Seq, StorageWrite, SubmissionId, SubmissionRecord } from "@earendil-works/pi-durable"
 import { MemoryStorage } from "@earendil-works/pi-durable/storage/memory"
 import type { Step } from "@kiko/durable/migrate"
+import { IdSpaceExhausted, JournalClosed, JournalCorrupt } from "./errors"
 
 export const JOURNAL_STEPS: Step[] = [
   `CREATE TABLE IF NOT EXISTS journal (
@@ -65,23 +66,28 @@ export class JournalStorage extends MemoryStorage {
     const replay = () => {
       const first = group[0]
       if (!first) return
-      if (group.length !== first.parts) throw new Error("Incomplete journal commit")
+      if (group.length !== first.parts)
+        throw new JournalCorrupt({ reason: "incomplete_commit", message: "Incomplete journal commit" })
       const bytes = new Uint8Array(first.bytes)
       let offset = 0
       for (const [part, row] of group.entries()) {
         if (row.part !== part || row.parts !== first.parts || row.bytes !== first.bytes)
-          throw new Error("Invalid journal parts")
+          throw new JournalCorrupt({ reason: "parts", message: "Invalid journal parts" })
         const chunk = new Uint8Array(row.data)
         bytes.set(chunk, offset)
         offset += chunk.length
       }
-      if (offset !== bytes.length) throw new Error("Invalid journal byte length")
+      if (offset !== bytes.length)
+        throw new JournalCorrupt({ reason: "byte_length", message: "Invalid journal byte length" })
       const envelope: Envelope | Batch = JSON.parse(decoder.decode(bytes))
-      if (envelope.seq !== first.seq) throw new Error("Invalid journal envelope")
+      if (envelope.seq !== first.seq)
+        throw new JournalCorrupt({ reason: "envelope", message: "Invalid journal envelope" })
       const commits = "commits" in envelope ? envelope.commits : [envelope]
-      if (!Array.isArray(commits) || commits.at(-1)?.seq !== envelope.seq) throw new Error("Invalid journal batch")
+      if (!Array.isArray(commits) || commits.at(-1)?.seq !== envelope.seq)
+        throw new JournalCorrupt({ reason: "batch", message: "Invalid journal batch" })
       for (const commit of commits) {
-        if (!Array.isArray(commit.writes)) throw new Error("Invalid journal commit")
+        if (!Array.isArray(commit.writes))
+          throw new JournalCorrupt({ reason: "commit", message: "Invalid journal commit" })
         journal.prepareCommit(commit.writes, commit.seq).apply()
         journal.observeIds(commit.writes, commit.seq)
       }
@@ -160,7 +166,7 @@ export class JournalStorage extends MemoryStorage {
 
   override mintId<I extends Id<string>>(): Promise<I> {
     return this.serial(async () => {
-      if (this.finished) throw new Error("Storage is closed")
+      if (this.finished) throw new JournalClosed({ message: "Storage is closed" })
       if (this.ids.next >= this.ids.end) {
         this.durable.transactionSync(() => {
           const persisted =
@@ -168,7 +174,7 @@ export class JournalStorage extends MemoryStorage {
               .exec<{ next_id: number }>("SELECT next_id FROM journal_ids WHERE agent = ?", this.key)
               .toArray()[0]?.next_id ?? 2
           const start = Math.max(this.ids.next, persisted)
-          if (!Number.isSafeInteger(start)) throw new Error("ID space is exhausted")
+          if (!Number.isSafeInteger(start)) throw new IdSpaceExhausted({ message: "ID space is exhausted" })
           const end = Math.min(start + ID_RANGE, Number.MAX_SAFE_INTEGER + 1)
           this.durable.sql.exec(
             "INSERT INTO journal_ids (agent, next_id) VALUES (?, ?) ON CONFLICT(agent) DO UPDATE SET next_id = excluded.next_id",

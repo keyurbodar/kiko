@@ -2,84 +2,176 @@ name: ci
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  check:
-    name: Check
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      typecheck: ${{ steps.detect.outputs.typecheck }}
+      build: ${{ steps.detect.outputs.build }}
+      test: ${{ steps.detect.outputs.test }}
+      test_packages: ${{ steps.detect.outputs.test_packages }}
+      test_web: ${{ steps.detect.outputs.test_web }}
+      worker: ${{ steps.detect.outputs.worker }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          sparse-checkout: |
+            /package.json
+            /scripts/ci-changes.ts
+            /.github/actions/ci-changes/
+            /*/*/package.json
+            /*/package.json
+          sparse-checkout-cone-mode: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - id: detect
+        uses: ./.github/actions/ci-changes
+
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.14"
-      - uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
-      - run: bun install --frozen-lockfile
-      - run: bun run check
-      - run: bun run build
-      - name: bundle every worker
+      - uses: ./.github/actions/setup
+      - name: Format
+        run: bun run fmt:check
+      - name: Lint
+        run: bun run lint
+      - name: Unused code
+        run: bun run knip
+      - name: Import layering
+        run: bun scripts/check-imports.ts
+      - name: Generated files
+        run: bun scripts/check-generated.ts
+
+  build:
+    name: Build and Typecheck
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.outputs.build != 'false' || needs.changes.outputs.typecheck != 'false') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - id: setup
+        uses: ./.github/actions/setup
+      - name: Start typecheck
+        id: typecheck
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && needs.changes.outputs.typecheck != 'false' }}
+        run: |
+          (
+            set +e
+            bun run typecheck
+            echo "$?" > "$RUNNER_TEMP/typecheck-status"
+          ) > "$RUNNER_TEMP/typecheck.log" 2>&1 < /dev/null &
+      - name: Build the client
+        id: build
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && needs.changes.outputs.build != 'false' }}
+        run: bun run build
+      - name: Bundle every worker
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           (cd apps/server && bunx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/owner")
           (cd apps/server && bunx wrangler deploy --dry-run --config wrangler.front-door.jsonc --outdir "$RUNNER_TEMP/front-door")
           (cd apps/installer && bunx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/installer")
+      - name: Typecheck
+        if: ${{ !cancelled() && steps.typecheck.outcome == 'success' }}
+        timeout-minutes: 5
+        run: |
+          until test -s "$RUNNER_TEMP/typecheck-status"; do sleep 1; done
+          cat "$RUNNER_TEMP/typecheck.log"
+          exit "$(cat "$RUNNER_TEMP/typecheck-status")"
 
-  e2e:
-    name: E2E
+  test:
+    name: Test
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.test != 'false' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.14"
-      - uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
-      - run: bun install --frozen-lockfile
-      - run: bun run --cwd apps/web-solid build
-      - working-directory: apps/server
-        run: |
-          {
-            echo "SESSION_SECRET=$(openssl rand -hex 32)"
-            echo "CREDENTIALS_KEK=$(openssl rand -base64 32)"
-          } > .dev.vars
-      - working-directory: apps/server
+      - uses: ./.github/actions/setup
+      - name: Test
         env:
-          NODE_ENV: development
-        run: nohup bunx wrangler dev --port 8787 --inspector-port 9229 > "$RUNNER_TEMP/wrangler.log" 2>&1 &
-      - run: |
-          for i in $(seq 1 60); do
-            curl -fsS http://localhost:8787/api/health && exit 0
-            sleep 2
-          done
-          tail -n 50 "$RUNNER_TEMP/wrangler.log"
-          exit 1
-      - shell: bash
+          TEST_PACKAGES: ${{ needs.changes.outputs.test_packages }}
         run: |
-          set -o pipefail
-          bun kiko verify journal-overhead --url http://localhost:8787 2>&1 | tee "$RUNNER_TEMP/e2e.log"
-      - run: bunx playwright install --with-deps chromium
-        working-directory: apps/web-solid
-      - run: bun run verify:web --url http://localhost:8787
-      - if: failure()
-        uses: actions/upload-artifact@v4
+          filters=()
+          for package in $TEST_PACKAGES; do filters+=(--filter "$package"); done
+          bun run --parallel --no-exit-on-error "${filters[@]}" test
+
+  test_web:
+    name: Test Web
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.test_web != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Resolve Playwright version
+        id: playwright_version
+        run: echo "version=$(node -p "require('./apps/web-solid/node_modules/playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Chromium
+        id: chromium_cache
+        uses: actions/cache@v4
         with:
-          name: e2e-logs
-          path: |
-            ${{ runner.temp }}/e2e.log
-            ${{ runner.temp }}/wrangler.log
-          if-no-files-found: ignore
-          retention-days: 7
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright_version.outputs.version }}
+      - name: Install Chromium for browser tests
+        if: steps.chromium_cache.outputs.cache-hit != 'true'
+        run: node apps/web-solid/node_modules/playwright/cli.js install --only-shell chromium
+      - name: Install missing Chromium system dependencies
+        run: |
+          browser=$(find "$HOME/.cache/ms-playwright" -name chrome-headless-shell -type f -print -quit)
+          test -n "$browser"
+          if ldd "$browser" | grep '=> not found'; then
+            node apps/web-solid/node_modules/playwright/cli.js install-deps chromium
+          fi
+      - name: Test
+        run: bun run --cwd apps/web-solid test
+
+  worker:
+    name: Worker
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.worker != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Journal overhead against a local worker
+        run: bun run --cwd apps/server test:worker
+
+  check:
+    name: Check
+    if: ${{ always() }}
+    needs: [changes, lint, build, test, test_web, worker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every job to pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$RESULTS" | jq -e '.changes.outputs as $gates
+            | {build: ["build", "typecheck"]} as $renamed
+            | all(to_entries[];
+                .value.result == "success"
+                or (.value.result == "skipped"
+                  and (($renamed[.key] // [.key]) | all(.[]; $gates[.] == "false"))))' > /dev/null

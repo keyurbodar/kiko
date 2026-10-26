@@ -1,6 +1,7 @@
 import type { AnyModel, Provider } from "@earendil-works/pi-ai"
 import { getModelType } from "@earendil-works/pi-ai/models"
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
+import { type CustomSpec, customProvider } from "./custom"
 
 export type CatalogOverlay = Record<string, AnyModel[]>
 
@@ -22,6 +23,9 @@ let overlay: CatalogOverlay = {}
 let revision = ""
 let bundled: Provider[] | undefined
 let wrapped: Map<string, Provider> | undefined
+let custom = new Map<string, { spec: CustomSpec; provider: Provider }>()
+let customRevision = ""
+let customVersion = 0
 
 function bundledProviders(): Provider[] {
   bundled ??= builtinProviders()
@@ -46,12 +50,33 @@ function overlaid(provider: Provider): Provider {
 
 export function providers(): Provider[] {
   wrapped ??= new Map(bundledProviders().map((p) => [p.id, overlaid(p)]))
-  return [...wrapped.values()]
+  return [...wrapped.values(), ...[...custom.values()].map((c) => c.provider)]
 }
 
 export function findProvider(id: string): Provider | undefined {
   providers()
-  return wrapped?.get(id)
+  return wrapped?.get(id) ?? custom.get(id)?.provider
+}
+
+export function setCustomProviders(specs: readonly CustomSpec[]): void {
+  const next = JSON.stringify(specs)
+  if (next === customRevision) return
+  customRevision = next
+  customVersion++
+  custom = new Map(specs.map((spec) => [spec.id, { spec, provider: customProvider(spec) }]))
+}
+
+export function setCustomProvider(spec: CustomSpec): void {
+  const others = [...custom.values()].map((c) => c.spec).filter((s) => s.id !== spec.id)
+  setCustomProviders([...others, spec].sort((a, b) => a.id.localeCompare(b.id)))
+}
+
+export function customSpec(id: string): CustomSpec | undefined {
+  return custom.get(id)?.spec
+}
+
+export function customSpecs(): CustomSpec[] {
+  return [...custom.values()].map((c) => c.spec)
 }
 
 export function applyOverlay(next: CatalogOverlay, nextRevision = ""): void {
@@ -61,6 +86,10 @@ export function applyOverlay(next: CatalogOverlay, nextRevision = ""): void {
 
 export function overlayRevision(): string {
   return revision
+}
+
+export function catalogRevision(): string {
+  return `${revision}:${customVersion}`
 }
 
 export function setOverlay(providerId: string, models: readonly WireModel[]): void {

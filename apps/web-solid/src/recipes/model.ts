@@ -29,6 +29,13 @@ export function filterRecipes(cards: readonly RecipeCard[], query: string, tag: 
   )
 }
 
+export type Section = "yours" | "discover"
+
+export function openingSection(installs: readonly RecipeInstall[] | undefined, inRoom: boolean): Section | undefined {
+  if (!installs) return undefined
+  return installs.length && !inRoom ? "yours" : "discover"
+}
+
 export function installedSlugs(
   installs: readonly RecipeInstall[],
   target: { roomId: string; agent: string },
@@ -46,7 +53,7 @@ export function installStatus(install: RecipeInstall, card: RecipeCard): Install
   const active = routines.filter((r) => r.status === "active")
   if (active.length) return { kind: "next", at: Math.min(...active.map((r) => r.dueUtc)) }
   if (routines.length) return { kind: "paused", schedule: triggerLabel(routines[0].trigger, routines[0].tz) }
-  return { kind: "ask", label: card.when }
+  return { kind: "ask", label: localizeWhen(card.when) }
 }
 
 const formats = new Map<string, Intl.DateTimeFormat>()
@@ -64,6 +71,19 @@ const dayNumber = (ms: number, tz?: string): number => {
     .split("-")
     .map(Number)
   return Date.UTC(y, m - 1, d) / 86_400_000
+}
+
+const clock = (locale: string, hour: number, minute: number, key: string, options: Intl.DateTimeFormatOptions) =>
+  formatter(locale, key, options).format(new Date(2000, 0, 1, hour, minute))
+
+export function localizeWhen(when: string, locale: string = globalThis.navigator?.language ?? "en-US"): string {
+  return when
+    .replace(/\b(\d{1,2}):(\d{2})\b/g, (_, h, m) =>
+      clock(locale, Number(h), Number(m), "hm", { hour: "numeric", minute: "2-digit" }),
+    )
+    .replace(/\b(\d{1,2}) to (\d{1,2})\b/g, (_, from, to) =>
+      [from, to].map((h) => clock(locale, Number(h), 0, "h", { hour: "numeric" })).join(" to "),
+    )
 }
 
 function nextLabel(at: number, now: number, tz?: string): string {
@@ -90,4 +110,23 @@ export function byChatOrder(installs: readonly RecipeInstall[], chatOrder: reado
 
 export function recipeForRoutine(cards: readonly RecipeCard[], routineName: string): RecipeCard | undefined {
   return cards.find((c) => c.title.toLowerCase() === routineName)
+}
+
+export function recipeTemplate(slug: string): string {
+  return `---
+name: ${slug}
+title: My recipe
+description: What this recipe does, in one sentence.
+when: When you ask
+tags: []
+apps: []
+---
+Describe what the agent should do each time this recipe runs.
+`
+}
+
+export function freeSlug(taken: ReadonlySet<string>): string {
+  let slug = "my-recipe"
+  for (let n = 2; taken.has(slug); n++) slug = `my-recipe-${n}`
+  return slug
 }

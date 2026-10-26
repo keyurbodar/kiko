@@ -1,15 +1,4 @@
 import type { Member } from "@kiko/protocol"
-import type { BotPresence } from "../../lib/types"
-import { typingLine } from "../../sidebar/activity"
-
-export type Chip = { tone: "working" | "idle"; label: "Working" | "Idle" }
-
-const WORKING: Chip = { tone: "working", label: "Working" }
-const IDLE: Chip = { tone: "idle", label: "Idle" }
-
-export function statusChip(presence: BotPresence | undefined): Chip {
-  return presence === "typing" || presence === "working" ? WORKING : IDLE
-}
 
 function since(ms: number): string {
   const minutes = Math.floor(Math.max(0, ms) / 60_000)
@@ -28,16 +17,6 @@ export function liveLine(
   if (working) return working
   if (!row?.lastFrom) return "No messages yet"
   return `${row.lastFrom === "agent" ? "Replied" : "Active"} ${since(now - row.updatedAt)}`
-}
-
-export function workingLine(agents: readonly { name: string; doing?: string }[], group: boolean): string | null {
-  const [first] = agents
-  if (!first) return null
-  if (agents.length === 1 && first.doing) return `${first.name} is ${first.doing}`
-  return typingLine(
-    agents.map((a) => a.name),
-    group,
-  )
 }
 
 export const isGroup = (members: readonly Member[]): boolean => members.length > 1

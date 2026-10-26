@@ -27,14 +27,30 @@ export const PALETTE_KEYS = [
   "gold",
 ] as const satisfies readonly (keyof Palette)[]
 
-export const DARK_THEME_IDS = ["glacier", "slate", "graphite", "moss", "tide", "dusk", "plum"] as const
+export const DARK_THEME_IDS = ["kiko", "glacier", "slate", "graphite", "moss", "tide", "dusk", "plum"] as const
 export type DarkThemeId = (typeof DARK_THEME_IDS)[number]
 export type ThemeId = DarkThemeId | "snow"
 export const THEME_IDS = [...DARK_THEME_IDS, "snow"] as const
-export const DEFAULT_DARK_THEME: DarkThemeId = "glacier"
+export const DEFAULT_DARK_THEME: DarkThemeId = "kiko"
 export const isDarkThemeId = (value: unknown): value is DarkThemeId => DARK_THEME_IDS.some((id) => id === value)
 
 export const THEMES = {
+  kiko: {
+    label: "Kiko",
+    accent: "#5b9cf6",
+    palette: {
+      canvas: "#121212",
+      sidebar: "#171717",
+      text: "#ededed",
+      muted: "#a6a6a6",
+      faint: "#878787",
+      action: "#ededed",
+      actionHover: "#ffffff",
+      onAction: "#141414",
+      danger: "#ef6a6a",
+      gold: "#e8c47b",
+    },
+  },
   glacier: {
     label: "Glacier",
     accent: "#96c8eb",
@@ -148,19 +164,19 @@ export const THEMES = {
     },
   },
   snow: {
-    label: "Snow",
-    accent: "#505f78",
+    label: "Paper",
+    accent: "#2f6fe4",
     palette: {
-      canvas: "#eef0f3",
-      sidebar: "#fafbfc",
-      text: "#16191e",
-      muted: "#5b616b",
-      faint: "#5b616b",
-      action: "#16191e",
-      actionHover: "#505f78",
-      onAction: "#eef0f3",
-      danger: "#b32632",
-      gold: "#805500",
+      canvas: "#ffffff",
+      sidebar: "#f7f7f6",
+      text: "#1b1b1b",
+      muted: "#5c5c5c",
+      faint: "#808080",
+      action: "#1b1b1b",
+      actionHover: "#000000",
+      onAction: "#ffffff",
+      danger: "#d6453f",
+      gold: "#a86b00",
     },
   },
 } as const satisfies Record<ThemeId, { label: string; accent: string; palette: Palette }>
@@ -170,23 +186,50 @@ export function paletteFor(mode: ThemeAppearance, darkTheme: DarkThemeId = DEFAU
 }
 export const PALETTES: Record<ThemeAppearance, Palette> = { light: paletteFor("light"), dark: paletteFor("dark") }
 
-export const NEUTRALS: ReadonlyArray<readonly [token: string, dark: number, light: number]> = [
-  ["--card", 6, 7],
-  ["--muted", 3, 3.5],
-  ["--secondary", 4, 4],
-  ["--accent", 4, 4.5],
-  ["--sidebar-row-hover", 4, 4.5],
-  ["--accent-strong", 8, 7],
-  ["--sidebar-row-active", 8, 7],
-  ["--control", 7, 6],
-  ["--control-strong", 11, 9],
-  ["--border", 6, 9],
-  ["--input", 8, 13],
-  ["--scrollbar-thumb", 18, 18],
-  ["--scrollbar-thumb-hover", 30, 30],
-]
-
 const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places
+
+type Ink = Readonly<{
+  p: Palette
+  accent: string
+  dark: boolean
+  solid: (share: number) => string
+  clear: (share: number) => string
+}>
+
+const ROLES: ReadonlyArray<readonly [token: string, value: (ink: Ink) => string]> = [
+  ["--bg", ({ p }) => p.canvas],
+  ["--side", ({ p }) => p.sidebar],
+  ["--panel", ({ solid, dark }) => solid(dark ? 2.3 : 1.6)],
+  ["--raise", ({ solid, dark }) => solid(dark ? 4.6 : 2.4)],
+  ["--hover", ({ solid, dark }) => solid(dark ? 6.4 : 4)],
+  ["--active", ({ solid, dark }) => solid(dark ? 9.1 : 6.5)],
+  ["--tip", ({ solid, dark }) => solid(dark ? 16 : 7)],
+  ["--me", ({ solid, dark }) => solid(dark ? 9.6 : 5.5)],
+  ["--kiko-bubble", ({ solid, dark }) => solid(dark ? 3.2 : 3)],
+  ["--line", ({ solid, dark }) => solid(dark ? 8.2 : 8)],
+  ["--line2", ({ solid, dark }) => solid(dark ? 12.8 : 12)],
+  ["--fg", ({ p }) => p.text],
+  ["--fg2", ({ p }) => p.muted],
+  ["--fg3", ({ p }) => p.faint],
+  ["--fg4", ({ solid, dark }) => solid(dark ? 35 : 40)],
+  ["--on-fg", ({ p }) => p.onAction],
+  ["--ok", ({ dark }) => (dark ? "#5cc489" : "#1f9d55")],
+  ["--bad", ({ p }) => p.danger],
+  ["--warn", ({ p }) => p.gold],
+  ["--info", ({ accent }) => accent],
+  ["--leaf", ({ dark }) => (dark ? "#7fd19c" : "#2f9e5b")],
+  ["--info-wash", ({ accent, dark }) => `color-mix(in oklab, ${accent} ${dark ? 14 : 11}%, transparent)`],
+  ["--bad-wash", ({ p }) => `color-mix(in oklab, ${p.danger} 12%, transparent)`],
+  ["--scrollbar-thumb", ({ clear }) => clear(18)],
+  ["--scrollbar-thumb-hover", ({ clear }) => clear(30)],
+  [
+    "--card-shadow",
+    ({ clear, dark }) =>
+      dark
+        ? "inset 0 1px 0 rgb(255 255 255 / 3%)"
+        : `0 0 0 1px ${clear(6)}, 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px -16px rgb(0 0 0 / 18%)`,
+  ],
+]
 
 export function tokensFor(
   mode: ThemeAppearance,
@@ -196,34 +239,15 @@ export function tokensFor(
 ): Record<string, string> {
   const p = imported?.palette ?? paletteFor(mode, darkTheme)
   const accent = imported?.accent ?? THEMES[mode === "light" ? "snow" : darkTheme].accent
-  const ink = (share: number) =>
-    `color-mix(in oklab, ${p.text} ${Math.min(100, round((share * contrast) / 100, 2))}%, transparent)`
-  const vars: Record<string, string> = {
-    "--background": p.canvas,
-    "--sidebar": p.sidebar,
-    "--foreground": p.text,
-    "--muted-foreground": p.muted,
-    "--secondary-label": p.faint,
-    "--ring": accent,
-    "--primary": p.action,
-    "--primary-hover": p.actionHover,
-    "--primary-foreground": p.onAction,
-    "--error": p.danger,
-    "--warning": p.gold,
-    "--success": mode === "dark" ? "oklch(0.7937 0.12 150)" : "oklch(0.52 0.12 150)",
+  const share = (n: number) => Math.min(100, round((n * contrast) / 100, 2))
+  const ink: Ink = {
+    p,
+    accent,
+    dark: mode === "dark",
+    solid: (n) => `color-mix(in oklab, ${p.text} ${share(n)}%, ${p.canvas})`,
+    clear: (n) => `color-mix(in oklab, ${p.text} ${share(n)}%, transparent)`,
   }
-  for (const [token, dark, light] of NEUTRALS) vars[token] = ink(mode === "dark" ? dark : light)
-  vars["--surface"] = p.sidebar
-  vars["--popover"] = vars["--surface"]!
-  vars["--message-assistant"] = vars["--surface"]!
-  vars["--tooltip"] = mode === "dark" ? `color-mix(in oklab, ${p.text} 14%, ${p.canvas})` : p.text
-  vars["--tooltip-foreground"] = mode === "dark" ? p.text : p.canvas
-  vars["--message-user"] =
-    mode === "dark" ? `oklch(from ${accent} 0.32 calc(c * 0.42) h)` : `oklch(from ${accent} 0.93 calc(c * 0.6) h)`
-  vars["--message-user-deep"] = vars["--message-user"]!
-  vars["--message-user-foreground"] = p.text
-  vars["--ring-wash"] = `color-mix(in oklab, ${accent} ${mode === "dark" ? 14 : 11}%, transparent)`
-  return vars
+  return Object.fromEntries(ROLES.map(([token, value]) => [token, value(ink)]))
 }
 
 export const resolveAppearance = (mode: ThemeMode, systemDark: boolean): ThemeAppearance =>

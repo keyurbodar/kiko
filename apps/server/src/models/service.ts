@@ -1,7 +1,7 @@
 import type { Catalog, ConnectMethod } from "@kiko/protocol"
 import { BACKEND } from "../lib/version"
 import { buildCatalog } from "./build"
-import { overlayRevision, providers } from "./catalog"
+import { catalogRevision, customSpec, providers } from "./catalog"
 import { isStale, restoreOverlay, type SyncDeps, syncCatalog } from "./sync"
 
 type Deps = SyncDeps & {
@@ -11,7 +11,7 @@ type Deps = SyncDeps & {
 
 export class ModelCatalog {
   #syncing: Promise<boolean> | undefined
-  #built: { revision: string; json: string } | undefined
+  #built: { revision: string; catalog: Catalog } | undefined
 
   constructor(private readonly d: Deps) {}
 
@@ -35,14 +35,17 @@ export class ModelCatalog {
     return this.#syncing
   }
 
-  async catalog(have: string | null): Promise<{ revision: string; json: string | null }> {
+  current(): Catalog {
     if (isStale(this.d.sql, this.d.now())) void this.sync()
-    const revision = `${BACKEND.version}:${overlayRevision()}`
-    if (have === revision) return { revision, json: null }
-    if (this.#built?.revision !== revision) {
-      const catalog: Catalog = buildCatalog(providers(), this.d.signInMethod)
-      this.#built = { revision, json: JSON.stringify(catalog) }
-    }
-    return { revision, json: this.#built.json }
+    const revision = `${BACKEND.version}:${catalogRevision()}`
+    if (this.#built?.revision !== revision)
+      this.#built = {
+        revision,
+        catalog: buildCatalog(providers(), this.d.signInMethod, (id) => {
+          const spec = customSpec(id)
+          return spec ? { api: spec.api, baseUrl: spec.baseUrl } : undefined
+        }),
+      }
+    return this.#built.catalog
   }
 }

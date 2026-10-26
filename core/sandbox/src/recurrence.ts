@@ -1,9 +1,16 @@
+import * as Schema from "effect/Schema"
 import { RRule } from "rrule"
 import { MIN_REPEAT_MS, ruleProblem } from "./rule"
 
+export class RecurrenceError extends Schema.TaggedError<RecurrenceError>()("RecurrenceError", {
+  reason: Schema.Literals(["unsafe_rule", "no_wall_time"]),
+  timeZone: Schema.String,
+  message: Schema.String,
+}) {}
+
 export function nextOccurrence(rrule: string, tz: string, afterUtc: Date | number): Date | null {
   const unsafe = ruleProblem(rrule)
-  if (unsafe) throw new Error(unsafe)
+  if (unsafe) throw new RecurrenceError({ reason: "unsafe_rule", timeZone: tz, message: unsafe })
   const after = new Date(afterUtc)
   const afterWall = toWall(after, tz)
   const options = RRule.parseString(rrule.trim())
@@ -56,7 +63,11 @@ function toWall(utc: Date, tz: string): Date {
     minute === undefined ||
     second === undefined
   ) {
-    throw new Error(`Intl formatter omitted date parts for ${tz}`)
+    throw new RecurrenceError({
+      reason: "no_wall_time",
+      timeZone: tz,
+      message: `Intl formatter omitted date parts for ${tz}`,
+    })
   }
   return new Date(Date.UTC(year, month - 1, day, hour, minute, second))
 }

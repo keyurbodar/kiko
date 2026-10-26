@@ -1,13 +1,24 @@
-import { isAgentSlug, isRoomId, type ClientToUser as UserFrame } from "@kiko/protocol"
+import {
+  isAgentSlug,
+  isRoomId,
+  NotFoundError,
+  RefusedError,
+  type ComputerInput,
+  type ComputerSignal,
+} from "@kiko/protocol"
+import * as Effect from "effect/Effect"
 import type { Op } from "@kiko/computer/wire"
 import type { OwnerServices } from "../owner/services"
 import { MAX_DEADLINE_MS, type ComputerHub } from "../computer/hub"
 import { mintPairCode } from "../computer/pairing"
 import type { ComputerLinkResult, PcCallOutcome, PcReleased } from "../computer/types"
 import type { Env } from "../index"
-import { send, type Attachment } from "./socket-frames"
+import type { Attachment } from "./socket-frames"
+import { subscribe } from "../owner/socket"
+import { frameStream } from "../computer/frames"
+import type { RequestId } from "../rpc/wire"
 
-export type ComputerFrame = Extract<UserFrame, { t: `pc.${string}` }>
+const missing = () => new NotFoundError({ resource: "computer", message: "there is no such computer" })
 
 const RESUMED = {
   released: "The human released control of the computer: it is yours again.",
@@ -72,6 +83,7 @@ export class ComputerWiring {
     name: string
     hello: Parameters<ComputerHub["pair"]>[0]["hello"]
     pairNonce: string
+    replaces?: string
   }) {
     const id = crypto.randomUUID()
     const created = this.hub.pair({ ...input, id })
@@ -127,45 +139,81 @@ export class ComputerWiring {
     this.hub.sendState(ws)
   }
 
-  async frame(ws: WebSocket, frame: ComputerFrame): Promise<void> {
-    if (frame.t === "pc.pairCode") {
-      const minted = await mintPairCode(this.d.env.CREDENTIALS_KEK, this.d.userId())
-      send(ws, {
-        t: "pc.pairCode",
-        reqId: frame.reqId,
-        code: minted.code,
-        url: pairUrl(workerOrigin(ws) ?? (await this.d.publicOrigin()), minted.code),
-        expiresAt: minted.expiresAt,
-      })
-      return
-    }
-    if (frame.t === "pc.remove" || frame.t === "pc.rename") return this.nameFrame(ws, frame)
-    const row = this.find(frame.pcId)
-    if (!row) return
-    if (frame.t === "pc.watch") {
-      if (frame.on && (frame.mode ?? "rtc") === "rtc") await this.hub.watchRtc(row.id, ws)
-      else this.hub.watch(row.id, ws, frame.on, frame.mode ?? "rtc")
-    } else if (frame.t === "pc.take") this.take(ws, row.id, row.name)
-    else if (frame.t === "pc.release") this.released(this.hub.release(row.id))
-    else if (frame.t === "pc.rtc") await this.hub.rtcFromTab(ws, row.id, frame.signal)
-    else if (frame.t === "pc.input") this.hub.input(row.id, frame.events)
-    else this.hub.ack(row.id, frame.seq)
+  readonly pairCode = Effect.fn("Computers.pairCode")({ self: this }, function* (socket: WebSocket) {
+    const minted = yield* Effect.promise(() => mintPairCode(this.d.env.CREDENTIALS_KEK, this.d.userId()))
+    const origin = workerOrigin(socket) ?? (yield* Effect.promise(() => this.d.publicOrigin()))
+    return { code: minted.code, url: pairUrl(origin, minted.code), expiresAt: minted.expiresAt }
+  })
+
+  readonly remove = Effect.fn("Computers.remove")({ self: this }, function* (pcId: string) {
+    const row = yield* this.row(pcId)
+    this.hub.remove(row.id)
+  })
+
+  readonly rename = Effect.fn("Computers.rename")({ self: this }, function* (pcId: string, name: string) {
+    const row = yield* this.row(pcId)
+    const clean = name.trim().slice(0, NAME_MAX)
+    if (!clean) return yield* new RefusedError({ reason: "name", message: "a name is required" })
+    if (!this.hub.rename(row.id, clean)) return yield* missing()
+  })
+
+  readonly watch = Effect.fn("Computers.watch")(
+    { self: this },
+    function* (socket: WebSocket, pcId: string, on: boolean, mode: "rtc" | "relay" = "rtc") {
+      const row = yield* this.row(pcId)
+      if (on && mode === "rtc") yield* Effect.promise(() => this.hub.watchRtc(row.id, socket))
+    },
+  )
+
+  readonly frames = Effect.fn("Computers.frames")(
+    { self: this },
+    function* (socket: WebSocket, requestId: RequestId, pcId: string) {
+      const row = yield* this.row(pcId)
+      subscribe(socket, { requestId, stream: frameStream(row.id), cursor: 0 })
+      this.hub.syncRelay(row.id)
+    },
+  )
+
+  ended(stream: string): void {
+    if (stream.startsWith("pc:")) this.hub.syncRelay(stream.slice("pc:".length))
   }
 
-  private take(ws: WebSocket, id: string, name: string): void {
-    if (!this.hub.take(id, ws)) send(ws, { t: "pc.result", reqId: id, ok: false, error: `${name} is not connected` })
-  }
+  readonly take = Effect.fn("Computers.take")({ self: this }, function* (socket: WebSocket, pcId: string) {
+    const row = yield* this.row(pcId)
+    if (!this.hub.take(row.id, socket))
+      return yield* new RefusedError({ reason: "offline", message: `${row.name} is not connected` })
+  })
 
-  private nameFrame(ws: WebSocket, frame: Extract<ComputerFrame, { t: "pc.remove" | "pc.rename" }>): void {
-    const row = this.find(frame.pcId)
-    const name = frame.t === "pc.rename" ? frame.name.trim().slice(0, NAME_MAX) : ""
-    if (frame.t === "pc.remove" && row) this.hub.remove(row.id)
-    const ok = frame.t === "pc.remove" ? row !== null : row !== null && name.length > 0 && this.hub.rename(row.id, name)
-    send(ws, {
-      t: "pc.result",
-      reqId: frame.reqId,
-      ok,
-      ...(ok ? {} : { error: frame.t === "pc.rename" && !name ? "a name is required" : "there is no such computer" }),
+  readonly release = Effect.fn("Computers.release")({ self: this }, function* (pcId: string) {
+    const row = yield* this.row(pcId)
+    this.released(this.hub.release(row.id))
+  })
+
+  readonly rtc = Effect.fn("Computers.rtc")(
+    { self: this },
+    function* (socket: WebSocket, pcId: string, signal: ComputerSignal) {
+      const row = yield* this.row(pcId)
+      yield* Effect.promise(() => this.hub.rtcFromTab(socket, row.id, signal))
+    },
+  )
+
+  readonly input = Effect.fn("Computers.input")(
+    { self: this },
+    function* (pcId: string, events: readonly ComputerInput[]) {
+      const row = yield* this.row(pcId)
+      this.hub.input(row.id, events)
+    },
+  )
+
+  readonly ack = Effect.fn("Computers.ack")({ self: this }, function* (pcId: string, seq: number) {
+    const row = yield* this.row(pcId)
+    this.hub.ack(row.id, seq)
+  })
+
+  private row(pcId: string) {
+    return Effect.suspend(() => {
+      const row = this.find(pcId)
+      return row ? Effect.succeed(row) : Effect.fail(missing())
     })
   }
 

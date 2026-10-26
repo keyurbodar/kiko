@@ -8,13 +8,17 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsgo --noEmit",
+    "test": "vitest run --config ../../vitest.config.ts --dir ."
   },
   "dependencies": {
+    "effect": "4.0.6",
     "rrule": "2.8.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260101.0",
-    "typescript": "^5.9.0"
+    "@effect/vitest": "4.0.6",
+    "typescript": "^5.9.0",
+    "vitest": "5.0.5"
   }
 }

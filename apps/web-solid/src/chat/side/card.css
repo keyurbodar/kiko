@@ -1,0 +1,93 @@
+.desk-tab-close {
+  opacity: 0;
+}
+.desk-tab[aria-selected="true"] .desk-tab-close,
+.desk-tab:focus-visible .desk-tab-close {
+  opacity: 1;
+}
+@media (hover: hover) and (pointer: fine) {
+  .desk-tab:hover .desk-tab-close {
+    opacity: 1;
+  }
+}
+@media not ((hover: hover) and (pointer: fine)) {
+  .desk-tab-close {
+    opacity: 1;
+  }
+  .desk-head-chev {
+    width: 13px;
+    opacity: 1;
+  }
+}
+@media (width < 768px) {
+  .sidebar-shell .sidecar-overlay[data-component="sidecar-overlay"] {
+    left: 0;
+    width: 100%;
+    box-shadow: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes desk-push-in {
+    from {
+      opacity: 0;
+      transform: translateX(12px);
+    }
+  }
+  @keyframes desk-push-back {
+    from {
+      opacity: 0;
+      transform: translateX(-12px);
+    }
+  }
+  .desk-push[data-dir="in"] {
+    animation: desk-push-in var(--dur-step) var(--ease-kiko) both;
+  }
+  .desk-push[data-dir="back"] {
+    animation: desk-push-back var(--dur-step) var(--ease-kiko) both;
+  }
+  @keyframes desk-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+  @keyframes desk-shimmer {
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @keyframes desk-pulse {
+    50% {
+      opacity: 0.35;
+    }
+  }
+  @keyframes desk-hop {
+    0%,
+    60%,
+    100% {
+      transform: translateY(0);
+    }
+    30% {
+      transform: translateY(-2px);
+    }
+  }
+  .desk-section[data-enter] {
+    animation: desk-in var(--dur-pop) var(--ease-kiko) both;
+  }
+  .desk-bar {
+    transition: width var(--dur-step, 400ms) var(--ease-kiko, ease);
+  }
+  .desk-shimmer {
+    background: linear-gradient(90deg, var(--fg) 40%, var(--fg3) 50%, var(--fg) 60%) 100% 0 / 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: desk-shimmer 2.2s linear infinite;
+  }
+  .desk-pulse {
+    animation: desk-pulse 1.4s ease-in-out infinite;
+  }
+  .desk-hop {
+    animation: desk-hop 1.2s ease-in-out infinite;
+  }
+}

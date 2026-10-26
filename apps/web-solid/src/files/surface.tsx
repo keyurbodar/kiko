@@ -1,29 +1,72 @@
-import type { FileRef } from "@kiko/protocol"
-import {
-  CheckIcon,
-  CodeIcon,
-  CopyIcon,
-  DownloadIcon,
-  EyeIcon,
-  MaximizeIcon,
-  TableIcon,
-  WrapTextIcon,
-} from "@kiko/ui/icons"
-import { urls } from "../lib/store"
-import { SurfaceAction } from "./chrome"
+import { fileName, type FileRef } from "@kiko/protocol"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CheckIcon, CopyIcon, DownloadIcon, InfoIcon, MaximizeIcon, MoreIcon, WrapTextIcon } from "@kiko/ui/icons"
+import { MenuV2 } from "@kiko/ui/v2/menu-v2"
+import { TabsPill, TabsV2 as Tabs } from "@kiko/ui/v2/tabs-v2"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { onCleanup, onMount, Show } from "solid-js"
+import { fileSrc } from "../state/room"
+import { ACTION, SurfaceAction } from "./chrome"
 import { TEXT_KINDS, type ViewerKind } from "./kind"
 import { where } from "./model"
-import { wrap, setWrap } from "./prefs"
+import { aboutOpen, setAboutOpen, setRoomy, wrap, setWrap } from "./prefs"
+import { FileAbout } from "./about"
 import { FileViewer } from "./viewer"
 import type { FileView } from "./view"
 
-const RENDERED_LABELS = {
-  markdown: ["Show rendered markdown", "Show markdown source"],
-  table: ["Show table", "Show source"],
-  html: ["Show rendered page", "Show HTML source"],
-} as const
+const PREVIEW_LABEL = { markdown: "Preview", table: "Table", html: "Page" } as const
 
-const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1)
+function ViewSwitch(props: { view: FileView; mode: keyof typeof PREVIEW_LABEL }) {
+  const value = () => (props.view.rendered() ? "preview" : "source")
+  return (
+    <Tabs
+      value={value()}
+      onChange={(next) => next !== value() && props.view.toggleRendered(props.mode)}
+      class="shrink-0"
+      data-component="file-view-switch"
+    >
+      <Tabs.List class="file-view-switch shrink-0" aria-label="Show file as">
+        <TabsPill />
+        <Tabs.Trigger value="preview" class="file-view-tab" data-action="show-rendered">
+          {PREVIEW_LABEL[props.mode]}
+        </Tabs.Trigger>
+        <Tabs.Trigger value="source" class="file-view-tab" data-action="show-source">
+          Source
+        </Tabs.Trigger>
+      </Tabs.List>
+    </Tabs>
+  )
+}
+
+function MoreActions(props: { wrap: boolean; onExpand?: () => void }) {
+  return (
+    <MenuV2 gutter={4} placement="bottom-end">
+      <TooltipV2 placement="bottom" openDelay={400} value="More">
+        <MenuV2.Trigger class={ACTION} aria-label="More file actions" data-action="file-more">
+          <RemixIcon icon={MoreIcon} size={14} />
+        </MenuV2.Trigger>
+      </TooltipV2>
+      <MenuV2.Portal>
+        <MenuV2.Content class="min-w-44" data-component="file-more-menu">
+          <Show when={props.wrap}>
+            <MenuV2.CheckboxItem checked={wrap()} onChange={setWrap} data-action="toggle-wrap">
+              <RemixIcon icon={WrapTextIcon} class="size-3.5 shrink-0" />
+              <span class="flex-1">Wrap long lines</span>
+            </MenuV2.CheckboxItem>
+          </Show>
+          <Show when={props.onExpand}>
+            {(expand) => (
+              <MenuV2.Item onSelect={() => expand()()} data-action="expand-file">
+                <RemixIcon icon={MaximizeIcon} class="size-3.5 shrink-0" />
+                <span class="flex-1">Open full size</span>
+              </MenuV2.Item>
+            )}
+          </Show>
+        </MenuV2.Content>
+      </MenuV2.Portal>
+    </MenuV2>
+  )
+}
 
 export function FileActions(props: {
   view: FileView
@@ -33,26 +76,12 @@ export function FileActions(props: {
   kind: ViewerKind
   onExpand?: () => void
 }) {
+  const canWrap = () => TEXT_KINDS.has(props.kind) && !props.view.rendered()
   return (
     <>
-      {props.view.mode() && (
-        <SurfaceAction
-          label={RENDERED_LABELS[props.view.mode()!][props.view.rendered() ? 1 : 0]}
-          icon={props.view.rendered() ? CodeIcon : props.view.mode() === "table" ? TableIcon : EyeIcon}
-          action="toggle-rendered"
-          pressed={props.view.rendered()}
-          onPress={() => props.view.toggleRendered(props.view.mode()!)}
-        />
-      )}
-      {TEXT_KINDS.has(props.kind) && !props.view.rendered() && (
-        <SurfaceAction
-          label={wrap() ? "Disable word wrap" : "Enable word wrap"}
-          icon={WrapTextIcon}
-          action="toggle-wrap"
-          pressed={wrap()}
-          onPress={() => setWrap(!wrap())}
-        />
-      )}
+      <Show when={props.view.mode()} keyed>
+        {(mode) => <ViewSwitch view={props.view} mode={mode} />}
+      </Show>
       {TEXT_KINDS.has(props.kind) && (
         <SurfaceAction
           label={props.view.copied() ? "Copied" : "Copy contents"}
@@ -62,20 +91,27 @@ export function FileActions(props: {
         />
       )}
       <SurfaceAction
-        label="Save file"
+        label="About this file"
+        icon={InfoIcon}
+        action="toggle-about"
+        pressed={aboutOpen()}
+        onPress={() => setAboutOpen(!aboutOpen())}
+      />
+      <SurfaceAction
+        label={`Save ${fileName(props.path)}`}
         icon={DownloadIcon}
         action="download-file"
-        href={urls.file(where(props.chatId, props.path).space, props.file.id)}
-        download={baseName(props.path)}
+        href={fileSrc(where(props.chatId, props.path).space, props.file.id)}
+        download={fileName(props.path)}
       />
-      {props.onExpand && (
-        <SurfaceAction label="Open full size" icon={MaximizeIcon} action="expand-file" onPress={props.onExpand} />
-      )}
+      <Show when={canWrap() || props.onExpand}>
+        <MoreActions wrap={canWrap()} onExpand={props.onExpand} />
+      </Show>
     </>
   )
 }
 
-export function FileBody(props: {
+function FileBody(props: {
   chatId: string
   path: string
   file: FileRef | undefined
@@ -84,7 +120,11 @@ export function FileBody(props: {
 }) {
   const at = () => where(props.chatId, props.path)
   return (
-    <section class="flex min-w-0 flex-1 flex-col" aria-label={baseName(props.path)} data-component="file-surface">
+    <section
+      class="flex min-h-0 min-w-0 flex-1 flex-col"
+      aria-label={fileName(props.path)}
+      data-component="file-surface"
+    >
       <FileViewer
         roomId={at().space}
         path={at().path}
@@ -96,5 +136,35 @@ export function FileBody(props: {
         onEditorState={props.view.setEditor}
       />
     </section>
+  )
+}
+
+export function FileWorkspace(props: {
+  chatId: string
+  path: string
+  file: FileRef | undefined
+  kind: ViewerKind
+  view: FileView
+}) {
+  let box!: HTMLDivElement
+  onMount(() => {
+    const watch = new ResizeObserver(([entry]) => entry && setRoomy(entry.contentRect.width >= 680))
+    watch.observe(box)
+    onCleanup(() => watch.disconnect())
+  })
+  return (
+    <div ref={box} class="@container/file flex min-h-0 min-w-0 flex-1" data-component="file-workspace">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col @min-[680px]/file:flex-row">
+        <FileBody chatId={props.chatId} path={props.path} file={props.file} kind={props.kind} view={props.view} />
+        <Show when={aboutOpen()}>
+          <aside
+            class="max-h-[36%] shrink-0 overflow-y-auto bg-side @min-[680px]/file:max-h-none @min-[680px]/file:w-[260px]"
+            data-component="file-about-panel"
+          >
+            <FileAbout chatId={props.chatId} path={props.path} file={props.file} />
+          </aside>
+        </Show>
+      </div>
+    </div>
   )
 }

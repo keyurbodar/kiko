@@ -1,7 +1,9 @@
 import { createEffect, createMemo, createRoot, createSignal, on } from "solid-js"
-import { useApp } from "../lib/store"
-import { type UserChannel, userChannel } from "../sync/socket"
+import { user } from "../state/user"
+import { connection } from "../state/connection"
+import { owner as runtime, run } from "../state/runtime"
 import {
+  appearanceOf,
   applyCommitted,
   dropLegacyImported,
   legacyImported,
@@ -12,12 +14,12 @@ import {
 } from "@kiko/theme/apply"
 import { type Imported, type ImportedTheme, MAX_IMPORTED } from "@kiko/theme/imported"
 import { setAvatarPicks } from "../avatar/picks"
-import type { ThemeId } from "@kiko/theme/palette"
-import { read } from "../lib/api-base"
+import { isDarkThemeId, type ThemeId } from "@kiko/theme/palette"
+import { hasAuth } from "../lib/storage"
 import { DEFAULT_LOOK, formatLook, isCurrentLook, parseLook, type Look } from "@kiko/theme/look"
 
 const cached = readCache()
-const signedInBefore = read("kiko:session") !== null
+const signedInBefore = hasAuth()
 let legacy: Imported | null = signedInBefore ? legacyImported() : null
 if (!legacy?.themes.length) legacy = null
 const first = signedInBefore ? withThemes(parseLook(cached?.text ?? null), legacy) : DEFAULT_LOOK
@@ -42,7 +44,7 @@ export const hasLook = () => saved() !== null
 const [synced, setSynced] = createSignal(cached !== null)
 export const lookSynced = synced
 
-let channel: UserChannel | null = null
+let started = false
 let stops: (() => void)[] = []
 let owner: string | null = null
 let outbox: string | null | undefined
@@ -56,8 +58,11 @@ function adopt(text: string | null, withImported = true): void {
 }
 
 function flush(): void {
-  if (outbox === undefined || !channel) return
-  if (channel.send({ t: "theme", theme: outbox })) outbox = undefined
+  const text = outbox
+  if (text === undefined || !started || !connection.connected()) return
+  void run(runtime.commands.setTheme, text).then((result) => {
+    if (result._tag === "Success" && outbox === text) outbox = undefined
+  })
 }
 
 export function saveLook(next: Look): void {
@@ -71,20 +76,20 @@ export const updateLook = (patch: Partial<Look>) => saveLook({ ...look(), ...pat
 
 export const previewLook = (next: Look): (() => void) => preview({ ...next })
 
-export function startTheme(userId: string, shared: UserChannel = userChannel): void {
+export function startTheme(userId: string): void {
   if (owner === userId) return
   stopTheme()
   owner = userId
   applyCommitted(look())
-  channel = shared
+  started = true
   stops.push(
     createRoot((dispose) => {
       createEffect(() => {
-        if (useApp.user()?.state.synced) setSynced(true)
+        if (user.synced()) setSynced(true)
       })
       createEffect(
         on(
-          () => useApp.user()?.state.theme,
+          () => user.theme(),
           (theme) => {
             if (theme === undefined || outbox !== undefined) return
             if (legacy) {
@@ -100,9 +105,9 @@ export function startTheme(userId: string, shared: UserChannel = userChannel): v
           },
         ),
       )
+      createEffect(on(connection.connected, (connected) => connected && flush(), { defer: true }))
       return dispose
     }),
-    shared.onOpen(flush),
   )
   flush()
 }
@@ -110,7 +115,7 @@ export function startTheme(userId: string, shared: UserChannel = userChannel): v
 export function stopTheme(): void {
   for (const stop of stops) stop()
   stops = []
-  channel = null
+  started = false
   owner = null
 }
 
@@ -120,11 +125,11 @@ export function forgetTheme(): void {
   adopt(null, false)
 }
 
-export const DEFAULT = ""
+const DEFAULT = ""
 
 export const themes = () => look().imported
 
-export function commit(next: Imported) {
+function commit(next: Imported) {
   saveLook({ ...look(), imported: next })
 }
 
@@ -135,6 +140,13 @@ export function choose(appearance: "light" | "dark", id: string) {
   commit({ ...themes(), active })
 }
 
+export function wear(theme: ImportedTheme, list: ImportedTheme[] = themes().themes): void {
+  const current = look()
+  const mode = current.mode === "system" && appearanceOf("system") === theme.appearance ? "system" : theme.appearance
+  const active = { ...themes().active, [theme.appearance]: theme.id }
+  saveLook({ ...current, mode, imported: { themes: list, active } })
+}
+
 export function remove(theme: ImportedTheme) {
   const active = { ...themes().active }
   for (const appearance of ["light", "dark"] as const) if (active[appearance] === theme.id) delete active[appearance]
@@ -143,4 +155,12 @@ export function remove(theme: ImportedTheme) {
 
 export function chooseBuiltin(id: ThemeId): void {
   saveLook(selectBuiltin(look(), id))
+}
+
+export function pickTheme(appearance: "light" | "dark", id: string): void {
+  const active = { ...themes().active }
+  if (isDarkThemeId(id) || id === "snow") delete active[appearance]
+  else active[appearance] = id
+  const darkTheme = isDarkThemeId(id) ? id : look().darkTheme
+  saveLook({ ...look(), darkTheme, imported: { ...themes(), active } })
 }

@@ -1,4 +1,5 @@
-import type { Choice, Command } from "./registry"
+import { CHAT_SLOTS } from "./ids"
+import type { Choice, Command, CommandId } from "./registry"
 
 export function katCommands(deps: {
   mac: boolean
@@ -8,10 +9,9 @@ export function katCommands(deps: {
   hasActiveChat: () => boolean
   toggleCard: () => void
   openPanel: (kind: "files" | "memory" | "routines") => void
-  toggleSidecar: () => void
   copyLink: () => void
   agentChoices: () => Choice[]
-  openView: (id: string) => void
+  openView: (id: CommandId) => void
   newGroup: () => void
   newAgent: () => void
   openPalette: () => void
@@ -38,14 +38,6 @@ export function katCommands(deps: {
       shortcut: "Mod+\\",
       global: true,
       run: deps.toggleSidebar,
-    },
-    {
-      id: "view.toggle-panel",
-      title: "Toggle right panel",
-      group: "view",
-      icon: "board",
-      when: deps.hasActiveChat,
-      run: deps.toggleSidecar,
     },
     {
       id: "chat.new",
@@ -90,7 +82,7 @@ export function katCommands(deps: {
     { id: "chat.pin", title: "Pin chat", group: "chat", icon: "pin", when: deps.canMove, run: deps.togglePin },
     {
       id: "chat.info",
-      title: "Chat details",
+      title: "Show chat details",
       group: "chat",
       icon: "info",
       shortcut: "Mod+I",
@@ -164,16 +156,16 @@ export function katCommands(deps: {
       empty: { none: "No files yet", noMatch: "No matching files" },
       run: () => deps.openView("files.go"),
     },
-    ...Array.from({ length: 9 }, (_, i): Command => ({
-      id: `chats.go-${i + 1}`,
-      title: `Go to chat ${i + 1}`,
+    ...CHAT_SLOTS.map((slot, i): Command => ({
+      id: `chats.go-${slot}`,
+      title: `Go to chat ${slot}`,
       group: "chats",
       icon: "chat",
-      shortcut: `${deps.mac ? "Control" : "Alt"}+${i + 1}`,
+      shortcut: `${deps.mac ? "Control" : "Alt"}+${slot}`,
       global: true,
       unlisted: true,
       when: () => deps.chatCount() > i,
-      run: () => deps.goToChat(i + 1),
+      run: () => deps.goToChat(slot),
     })),
     {
       id: "chats.previous",

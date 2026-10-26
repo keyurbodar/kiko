@@ -1,4 +1,5 @@
 import type { ComputerCaps } from "@kiko/protocol"
+import { getSetting, setSetting } from "../lib/settings"
 
 export type ComputerOs = "macos" | "linux" | "windows"
 
@@ -28,6 +29,8 @@ export type NewComputer = {
 
 const COLUMNS = "id, name, public_key, os, arch, host, caps_json, pair_nonce, created_at"
 
+const PAIRED_BY = "computers_owner"
+
 export class ComputerStore {
   constructor(private readonly sql: SqlStorage) {}
 
@@ -39,7 +42,7 @@ export class ComputerStore {
     return this.sql.exec<ComputerRow>(`SELECT ${COLUMNS} FROM computers WHERE id = ?`, id).toArray()[0] ?? null
   }
 
-  insert(input: NewComputer): boolean {
+  insert(input: NewComputer, replaces?: string): boolean {
     const inserted = this.sql.exec(
       `INSERT INTO computers (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(pair_nonce) DO NOTHING`,
       input.id,
@@ -52,7 +55,9 @@ export class ComputerStore {
       input.pairNonce,
       input.at,
     )
-    return inserted.rowsWritten > 0
+    if (inserted.rowsWritten === 0) return false
+    if (replaces) this.remove(replaces)
+    return true
   }
 
   rename(id: string, name: string): boolean {
@@ -61,6 +66,13 @@ export class ComputerStore {
 
   remove(id: string): boolean {
     return this.sql.exec("DELETE FROM computers WHERE id = ?", id).rowsWritten > 0
+  }
+
+  followOwner(ownerId: string): void {
+    const known = getSetting(this.sql, PAIRED_BY)
+    if (known === ownerId) return
+    if (known !== null) this.sql.exec("DELETE FROM computers")
+    setSetting(this.sql, PAIRED_BY, ownerId)
   }
 
   caps(row: ComputerRow): ComputerCaps {

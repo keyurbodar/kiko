@@ -1,8 +1,10 @@
+import * as Schema from "effect/Schema"
 import { connect } from "@kiko/browser/cdp/browser"
 import { BROWSER } from "@kiko/browser/config"
 import type { BrowserSession, Tab } from "@kiko/browser/page/types"
 import { count } from "../../lib/dev-guard"
 import type { LeasePort } from "./lease"
+import { BrowserError } from "../errors"
 
 const IDLE_CLOSE_MS = 15_000
 const CLAIM_MS = 60_000
@@ -23,17 +25,16 @@ export type ConnectionDeps = {
 
 type Held = { id?: string; tab?: Tab; url: string; opening?: Promise<Tab> }
 
-class Busy extends Error {
-  constructor(holders: Record<string, number>) {
-    const who = Object.entries(holders)
-      .filter(([, n]) => n > 0)
-      .map(([agent, n]) => `${agent.split(/[:/]/).at(-1)} has ${n}`)
-    super(
-      `the browser is full: ${BROWSER.tabsPerBrowser} tabs are open (${who.join(", ")}). ask one of them to finish, or try again later.`,
-    )
-    this.name = "Busy"
-  }
+function busyMessage(holders: Record<string, number>): string {
+  const who = Object.entries(holders)
+    .filter(([, n]) => n > 0)
+    .map(([agent, n]) => `${agent.split(/[:/]/).at(-1)} has ${n}`)
+  return `the browser is full: ${BROWSER.tabsPerBrowser} tabs are open (${who.join(", ")}). ask one of them to finish, or try again later.`
 }
+
+class Busy extends Schema.TaggedError<Busy>()("Busy", {
+  message: Schema.String,
+}) {}
 
 export class BrowserConnection {
   private session: BrowserSession | null = null
@@ -151,7 +152,7 @@ export class BrowserConnection {
     const others = Object.entries(tabs).reduce((n, [agent, c]) => (agent === this.deps.agentId ? n : n + c), 0)
     const over = () => others + Object.keys(this.tabs()).length + this.opening + extra - BROWSER.tabsPerBrowser
     if (over() > 0) await this.reclaim(over())
-    if (over() > 0) throw new Busy(tabs)
+    if (over() > 0) throw new Busy({ message: busyMessage(tabs) })
     this.opening += extra
     try {
       return await open()
@@ -267,7 +268,9 @@ export class BrowserConnection {
       const tab = await this.tabOf(held, scope)
       const result = await tab.act({ op: "goto", url })
       if (!result.ok)
-        throw new Error(`could not open ${url}: ${result.reason}${result.detail ? ` (${result.detail})` : ""}`)
+        throw new BrowserError({
+          message: `could not open ${url}: ${result.reason}${result.detail ? ` (${result.detail})` : ""}`,
+        })
       held.url = url
       return tab
     }

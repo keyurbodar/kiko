@@ -1,76 +1,51 @@
-import { createClerkClient } from "@clerk/backend"
 import { DurableObject } from "cloudflare:workers"
-import { installFailure } from "./cf"
-import handler, { type Env, type InstallOutcome } from "./handler"
-import { type InstallRequest, type OAuthTokens, runInstall } from "./install"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Layer from "effect/Layer"
+import { Clerk, clerkRest } from "./clerk"
+import { codeCache } from "./code-cache"
+import type { InstallFailed } from "./failure"
+import handler, { answerReply, type Env, exitReply, type InstallReply } from "./handler"
+import { CodeCache, Http, InstallerConfig, type InstallRequest, makeInstaller } from "./install"
 
 export default handler
 
-function randomSecret(): string {
-  return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")
-}
-
-const CODE_KEEP_MS = 10 * 60_000
-
-async function sha(text: string): Promise<string> {
-  return Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))).toString("hex")
+const logged = <A>(exit: Exit.Exit<A, InstallFailed>, reply: InstallReply): InstallReply => {
+  if (Exit.isFailure(exit)) console.error(`install failed: ${JSON.stringify(reply.body)}`)
+  return reply
 }
 
 export class Installer extends DurableObject<Env> {
-  async install(req: InstallRequest): Promise<InstallOutcome> {
-    const clerk = createClerkClient({ secretKey: this.env.CLERK_SECRET_KEY })
-    try {
-      const value = await runInstall(
-        this.env,
-        {
-          fetch: (input, init) => fetch(input, init),
-          randomSecret,
-          sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-          setMetadata: async (sub, publicMetadata) => {
-            await clerk.users.updateUserMetadata(sub, { publicMetadata })
-          },
-          codes: {
-            take: async (code) => {
-              const key = `code:${await sha(code)}`
-              const kept = await this.ctx.storage.get<{ tokens: OAuthTokens; at: number }>(key)
-              if (!kept) return undefined
-              await this.ctx.storage.delete(key)
-              return Date.now() - kept.at < CODE_KEEP_MS ? kept.tokens : undefined
-            },
-            put: async (code, tokens) => {
-              const now = Date.now()
-              const stale = [...(await this.ctx.storage.list<{ at: number }>({ prefix: "code:" }))]
-                .filter(([, kept]) => now - kept.at >= CODE_KEEP_MS)
-                .map(([key]) => key)
-              if (stale.length > 0) await this.ctx.storage.delete(stale)
-              await this.ctx.storage.put(`code:${await sha(code)}`, { tokens, at: now })
-            },
-          },
-        },
-        req,
-      )
-      return { ok: true, value }
-    } catch (e) {
-      const failed = installFailure(e)
-      if (!failed) {
-        const said = e instanceof Error ? e.message : String(e)
-        console.error(`install failed: ${said}`)
-        return {
-          ok: false,
-          error: { code: "internal", message: "The install failed. Try again.", status: 500, detail: said },
-        }
-      }
-      console.error(`install failed: ${failed.code} ${failed.detail ?? failed.message}`)
-      return {
-        ok: false,
-        error: {
-          code: failed.code,
-          message: failed.message,
-          status: failed.status,
-          ...(failed.detail ? { detail: failed.detail } : {}),
-          ...(failed.accounts ? { accounts: failed.accounts } : {}),
-        },
-      }
-    }
+  readonly #installer = Effect.runSync(makeInstaller)
+
+  readonly #services = Layer.mergeAll(
+    Layer.succeed(Http, Http.of({ fetch: (input, init) => fetch(input, init) })),
+    Layer.succeed(
+      InstallerConfig,
+      InstallerConfig.of({
+        oauthClientId: this.env.CF_OAUTH_CLIENT_ID,
+        releaseBase: this.env.RELEASE_BASE_URL,
+        releasePublicKey: this.env.RELEASE_PUBLIC_KEY,
+        random: () => crypto.getRandomValues(new Uint8Array(32)),
+      }),
+    ),
+    Layer.succeed(
+      Clerk,
+      clerkRest({ secretKey: this.env.CLERK_SECRET_KEY, fetch: (input, init) => fetch(input, init) }),
+    ),
+    Layer.succeed(CodeCache, codeCache(this.ctx.storage)),
+  )
+
+  async install(request: InstallRequest): Promise<InstallReply> {
+    const exit = await Effect.runPromiseExit(this.#installer.install(request).pipe(Effect.provide(this.#services)))
+    return logged(exit, exitReply(exit, answerReply))
+  }
+
+  async detach(sub: string): Promise<InstallReply> {
+    const exit = await Effect.runPromiseExit(this.#installer.detach(sub).pipe(Effect.provide(this.#services)))
+    return logged(
+      exit,
+      exitReply(exit, () => ({ status: 204, body: null })),
+    )
   }
 }

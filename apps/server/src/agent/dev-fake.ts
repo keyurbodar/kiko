@@ -1,11 +1,18 @@
-import { awaitWithContext } from "@earendil-works/chord/context"
+import { awaitWithContext, BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { getCurrentTools, Type } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
-import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
+import {
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxText,
+  fauxThinking,
+  fauxToolCall,
+} from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { type Effect, declareEffect } from "@kiko/agent/effects"
 import { plainReport } from "@kiko/agent/workers"
 import { boundedWait } from "@kiko/durable/bounded-wait"
+import { DevFakeError } from "./errors"
 import { type BuildAgentInput, buildAgent, RUN_SETTINGS } from "./factory"
 import { withTextToolCalls } from "./tool-markup"
 import type { AgentSetup } from "@kiko/agent/host"
@@ -18,6 +25,12 @@ const SLOW_WRITE_TOOL = "slow_write"
 const SLOW_TOOL_MS = 5_000
 const LATER_MS = 3_000
 const TOKENS_PER_SECOND = 25
+const THOUGHT = [
+  "They want a quiet place, so the loud side near the main gate is out.",
+  "Three options fit the budget, and one of them includes breakfast.",
+  "The second one is a long walk from the station with bags, so I will drop it.",
+  "Breakfast helps the food budget, so the first one is the best pick.",
+].join(" ")
 const LONG = Array.from({ length: 12 }, (_, i) => `slow words ${i + 1} keep this paragraph open for a while,`).join(" ")
 
 type Part = { type: string; text?: string }
@@ -49,7 +62,7 @@ const WORK_STEP_MS = 3_000
 
 function capture(match: readonly string[], index: number): string {
   const value = match[index]
-  if (value === undefined) throw new Error(`regex group ${index} did not participate in the match`)
+  if (value === undefined) throw new DevFakeError({ message: `regex group ${index} did not participate in the match` })
   return value
 }
 
@@ -170,7 +183,8 @@ function replyWithDelay(users: string[], results: string[], last: Message | unde
       { stopReason: "toolUse" },
     )
   if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
-    return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, {}), { stopReason: "toolUse" })
+    const thought = users.some((u) => u.includes("[think]")) ? [fauxThinking(THOUGHT)] : []
+    return fauxAssistantMessage([...thought, fauxToolCall(SLOW_TOOL, {})], { stopReason: "toolUse" })
   }
   if (last?.role === "user" && users.some((u) => u.includes("[write]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_WRITE_TOOL, {}), { stopReason: "toolUse" })
@@ -209,6 +223,7 @@ function replyToBurst(since: readonly Message[], users: string[], results: strin
   }
   if (newest.includes("[quiet]") && !results.length) return fauxAssistantMessage("[skip]")
   if (newest.includes("[slow]")) return fauxAssistantMessage(`${LONG} ${heard}`)
+  if (newest.includes("[think]")) return fauxAssistantMessage([fauxThinking(THOUGHT), fauxText(heard)])
   return fauxAssistantMessage(heard)
 }
 
@@ -365,6 +380,7 @@ function teamCall(turn: string) {
   const send = /\[send ([a-z0-9-]+)\]\s*([\s\S]*)$/.exec(turn)
   if (send) return fauxToolCall("send_message", { to: capture(send, 1), text: capture(send, 2) })
   if (turn.includes("[shout]")) return fauxToolCall("send_message", { to: "all", text: "[shout]" })
+  if (turn.includes("[ask-human]")) return fauxToolCall("ask_human", { question: "Which one?" })
   return turn.includes("[team]") ? fauxToolCall("team", {}) : null
 }
 
@@ -386,16 +402,23 @@ export function fakeSetup(
     streamSimple: withTextToolCalls(faux.provider.streamSimple),
     stream: withTextToolCalls(faux.provider.stream as never) as never,
   })
+  const built = buildAgent({
+    ...role,
+    ...more,
+    model: FAKE_MODEL,
+    messaging,
+    ...(workspace ? { workspace } : {}),
+    testExtensions: [SLOW_TOOL_EXTENSION, FAKE_TOOLS_EXTENSION, ...(more.testExtensions ?? [])],
+  })
   return {
     models,
     settings: RUN_SETTINGS,
-    ...buildAgent({
-      ...role,
-      ...more,
-      model: FAKE_MODEL,
-      messaging,
-      ...(workspace ? { workspace } : {}),
-      testExtensions: [SLOW_TOOL_EXTENSION, FAKE_TOOLS_EXTENSION, ...(more.testExtensions ?? [])],
-    }),
+    beginRun: async (_batch, root) => {
+      const { model } = await root.agent(BACKGROUND_CONTEXT)
+      if (model?.provider !== FAKE_MODEL.provider || model.modelId !== FAKE_MODEL.modelId)
+        await root.configure({ model: FAKE_MODEL, thinkingLevel: built.agent.thinkingLevel }, BACKGROUND_CONTEXT)
+      return true
+    },
+    ...built,
   } satisfies AgentSetup
 }

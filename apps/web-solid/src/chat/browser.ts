@@ -2,7 +2,9 @@ import type { BrowserState } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal } from "solid-js"
 import type { Command } from "../commands/registry"
-import { userChannel } from "../sync/socket"
+import { connection } from "../state/connection"
+import { failureMessage, owner, run } from "../state/runtime"
+import { onUserSignal } from "../state/user"
 
 const [state, setState] = createSignal<BrowserState>(null)
 export const browser = state
@@ -13,47 +15,37 @@ let started = false
 export function startBrowser(): void {
   if (started) return
   started = true
-  userChannel.on("browserState", (frame) => setState(frame.state))
-  userChannel.send({ t: "kernelStatus", reqId: "browser" })
+  onUserSignal("browserState", (signal) => setState(signal.state))
 }
-
-let n = 0
 
 export function openLive(mode: "watch" | "control"): void {
   const tab = window.open("about:blank", "_blank")
   if (tab) tab.opener = null
   const now = state()
   if (now) setState({ ...now, takeover: now.takeover || mode === "control", switching: now.mode === "headless" })
-  const reqId = `browser${++n}`
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const off = userChannel.on("browserLink", (frame) => {
-    if (frame.reqId !== reqId) return
-    off()
-    clearTimeout(timer)
-    if (frame.result.ok && tab) tab.location.href = frame.result.url
-    else if (frame.result.ok) window.open(frame.result.url, "_blank")
-    else {
-      tab?.close()
-      setError(frame.result.error)
-    }
-  })
-  timer = setTimeout(() => {
-    off()
-    tab?.close()
-    setError("The browser did not open. Try again.")
-  }, 60_000)
-  if (!userChannel.send({ t: "browserLink", reqId, mode })) {
-    off()
-    clearTimeout(timer)
+  if (!connection.connected()) {
     tab?.close()
     setError("You are offline.")
+    return
   }
+  void run(owner.commands.browserLink, { mode }).then((result) => {
+    const link =
+      result._tag === "Success"
+        ? result.value
+        : { ok: false as const, error: failureMessage(result.cause, "The browser did not open. Try again.") }
+    if (link.ok && tab) tab.location.href = link.url
+    else if (link.ok) window.open(link.url, "_blank")
+    else {
+      tab?.close()
+      setError(link.error)
+    }
+  })
 }
 
 export function handBack(): void {
   const now = state()
   if (now) setState({ ...now, takeover: false })
-  userChannel.send({ t: "handBack" })
+  void run(owner.commands.browserHandBack, {})
 }
 
 export function browserCommands(): Command[] {
@@ -63,7 +55,7 @@ export function browserCommands(): Command[] {
       title: "Watch the browser",
       group: "browser",
       icon: "globe",
-      when: () => !state()?.takeover,
+      when: () => state() !== null && !state()?.takeover,
       run: () => openLive("watch"),
     },
     {
@@ -95,5 +87,5 @@ export function browserCommands(): Command[] {
 
 export function closeBrowser(): void {
   setState(null)
-  userChannel.send({ t: "closeBrowser" })
+  void run(owner.commands.browserClose, {})
 }

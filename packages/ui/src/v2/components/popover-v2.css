@@ -1,6 +1,8 @@
+@layer theme, base, v2, components, utilities;
+
 @layer v2 {
   [data-popper-positioner]:has([data-component="popover-v2-content"]) {
-    z-index: 55;
+    z-index: 80;
   }
 
   [data-component="popover-v2-content"] {
@@ -11,20 +13,17 @@
     max-width: var(--kb-popper-content-available-width);
     max-height: var(--kb-popper-content-available-height);
     overflow: hidden;
-    z-index: 55;
+    z-index: 80;
     pointer-events: auto;
 
-    background: var(--popover);
-    -webkit-backdrop-filter: var(--popover-blur);
-    backdrop-filter: var(--popover-blur);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--popover-edge), var(--menu-shadow);
-    color: var(--foreground);
+    background: var(--raise);
+    border-radius: 14px;
+    box-shadow: var(--float-shadow);
+    color: var(--fg);
 
     outline: none;
 
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    -webkit-font-smoothing: auto;
     text-rendering: geometricPrecision;
 
     transform-origin: var(--kb-popover-content-transform-origin);

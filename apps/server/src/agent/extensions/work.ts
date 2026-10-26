@@ -21,6 +21,7 @@ import { forRole } from "../roles"
 import { WORK_LINES } from "../prompt"
 import { count } from "../../lib/dev-guard"
 import { WORK, WORK_STEPS } from "./names"
+import { WorkerMissing } from "../errors"
 
 const WORKER_PROMPT = `You are a background worker in Kiko. The agent who talks with the human gave you one job. Do it and report once at the end.
 - Work silently. Make independent tool calls together, in one message.
@@ -82,7 +83,7 @@ export function workExtensions(
     phases: {
       report: async (task, runtime, context) => {
         const child = await runtime.conversation(task.input.conversationId, context)
-        if (!child) throw new Error("worker conversation missing")
+        if (!child) throw new WorkerMissing({ message: "worker conversation missing" })
         const submission = await child.submit(
           { type: "input", content: task.input.content, requestId: task.input.requestId, whenBusy: "steer" },
           context,

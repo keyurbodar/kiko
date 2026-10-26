@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
 import { Runs } from "./runs"
-import { isRoomId, MAX_FRAME } from "@kiko/protocol"
+import { isAgentSlug, isRoomId, MAX_FRAME, type UpdateState } from "@kiko/protocol"
 import { Agent } from "../agent/agent-do"
 import { Room } from "../room/room-do"
 import { User } from "../user/user-do"
@@ -10,14 +10,19 @@ import { fileStore, localBucket } from "../files/store"
 import { instrument } from "../lib/dev-guard"
 import { HANDLE_HEADER } from "../lib/names"
 import type { OwnerServices, ServiceOptions } from "./services"
+import { AgentKeyError, EgressError } from "./errors"
 import { serviceContext, metadata } from "./context"
 import { Clock, createServiceClock, RECOVERY_DELAY_MS } from "./clock"
 import { AfterRun } from "./after-run"
 import { initializeSchema } from "./schema"
-import { ownerAttachment, socketView } from "./socket"
+import { openAttachment, ownerAttachment, socketView } from "./socket"
 import { CONNECT_HEADERS } from "@kiko/computer/sign"
 import { ComputerHub, pcSocketId } from "../computer/hub"
 import { ComputerStore } from "../computer/store"
+import { dispatch } from "../rpc/dispatcher"
+import { HANDLERS, type RpcHost } from "../rpc/handlers"
+import { makeStreams } from "../rpc/subscriptions"
+import { RPC_PING, RPC_PONG } from "../rpc/wire"
 
 type Method<T> = { [K in keyof T]: T[K] extends (...args: never[]) => unknown ? K : never }[keyof T]
 type Args<T> = T extends (...args: infer A) => unknown ? A : never
@@ -26,14 +31,13 @@ type Run = { agent: string; room_id: string; slug: string; request_id: string }
 type QueuedRun = Run & { version: number }
 
 const RUN_GAP_MS = 250
+const LEGACY_PING = "ping"
+const LEGACY_PONG = "pong"
 
 const DEADLINES = `SELECT m.scope, min(j.value) AS at FROM owner_meta m, json_each(m.value) j WHERE m.key = 'clock:application' GROUP BY m.scope`
 
 export class OwnerDO extends DurableObject<Env> {
   private readonly runs: Runs
-  async storageUsage() {
-    return { objectBytes: this.ctx.storage.sql.databaseSize, archiveEnabled: Boolean(this.env.ARCHIVE) }
-  }
   protected readonly services: OwnerServices
   private readonly rooms = new Map<string, Room>()
   private readonly agents = new Map<string, Agent>()
@@ -44,7 +48,12 @@ export class OwnerDO extends DurableObject<Env> {
   private readonly clock: Clock
   private readonly afterRunHook = new AfterRun({ services: () => this.services })
   private alarmRunning = false
-  private readonly greeting = new WeakMap<WebSocket, Promise<void>>()
+  private readonly rpcHost: RpcHost = {
+    streams: makeStreams({ user: () => this.user(), room: (roomId) => this.room(roomId) }),
+    user: () => this.user(),
+    room: (roomId) => this.room(roomId).commands,
+    streamEnded: (stream) => this.user().pc.ended(stream),
+  }
   private nextRunAt = 0
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -73,13 +82,15 @@ export class OwnerDO extends DurableObject<Env> {
       }
     })
     this.runs = new Runs({
-      schedule: (agent, requestId) => this.enqueueRun(agent, requestId),
+      schedule: (agent, requestId, behind) => this.enqueueRun(agent, requestId, behind),
     })
     this.blobs = new BlobStore(this.ctx)
+    const computers = new ComputerStore(ctx.storage.sql)
+    if (env.OWNER_ID) computers.followOwner(env.OWNER_ID)
     this.computers = new ComputerHub({
       ctx,
       env,
-      store: new ComputerStore(ctx.storage.sql),
+      store: computers,
       ownerId: this.ownerId,
       released: (out) => this.user().computerReleased(out),
       wakeup: {
@@ -94,7 +105,8 @@ export class OwnerDO extends DurableObject<Env> {
       agent: (roomId, slug) => this.agent(roomId, slug),
       files: () => (env.FILES ? fileStore(env) : localBucket(this.blobs)),
       egress: async (request) => {
-        if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
+        if (new URL(request.url).protocol !== "https:")
+          throw new EgressError({ url: request.url, message: "egress is https only" })
         this.runs.countActive()
         return fetch(request.url, {
           redirect: "manual",
@@ -104,6 +116,7 @@ export class OwnerDO extends DurableObject<Env> {
         })
       },
       countOutgoing: () => this.runs.countActive(),
+      runShared: (roomId, slug) => this.runs.shared(`${roomId}:${slug}`),
       trimAgents: () => this.trimAgents(),
       dispatchRun: (roomId, slug) => this.dispatchRun(roomId, slug),
       cancelRun: (roomId, slug) => this.cancelRun(roomId, slug),
@@ -111,7 +124,7 @@ export class OwnerDO extends DurableObject<Env> {
       syncRoutines: (routines) => this.user().syncRoutines(routines),
       fireRoutine: (delivery) => this.user().fireRoutine(delivery),
     }
-    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"))
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(RPC_PING, RPC_PONG))
   }
 
   private context(roomId?: string): DurableObjectState {
@@ -158,31 +171,58 @@ export class OwnerDO extends DurableObject<Env> {
     }
   }
 
-  private async enqueueRun(agent: string, requestId: string): Promise<void> {
+  private async enqueueRun(agent: string, requestId: string, behind = false): Promise<void> {
     const [roomId, slug, ...extra] = agent.split(":")
-    if (!isRoomId(roomId) || !slug || extra.length) throw new Error("bad agent key")
+    if (!isRoomId(roomId) || !slug || extra.length)
+      throw new AgentKeyError({ kind: "agent_key", key: agent, message: "bad agent key" })
     this.ctx.storage.sql.exec(
       `INSERT INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(agent) DO UPDATE SET ready_at = min(owner_runs.ready_at, excluded.ready_at), version = owner_runs.version + 1`,
+       ON CONFLICT(agent) DO UPDATE SET ready_at = ${behind ? "excluded.ready_at" : "min(owner_runs.ready_at, excluded.ready_at)"}, version = owner_runs.version + 1`,
       agent,
       roomId,
       slug,
       requestId,
       Date.now() + (this.runs.has(agent) ? RECOVERY_DELAY_MS : 0),
     )
+    this.runs.waiting(agent)
+    const running = this.runs.running()
+    if (running && running !== agent && isAgentSlug(slug)) this.room(roomId).waitingTurn(slug, this.nameOf(running))
     await this.refreshClock()
   }
 
   private async executeRun(queued: QueuedRun): Promise<void> {
-    if (this.runs.has(queued.agent)) return
     try {
       await this.runs.run(queued.agent, queued.request_id, async (budget) => {
+        if (this.othersWaiting(queued.agent)) budget.share()
+        if (isAgentSlug(queued.slug)) this.room(queued.room_id).turnStarted(queued.slug)
+        this.showWaiting(queued)
         const agent = this.agent(queued.room_id, queued.slug)
-        return agent.runInvocation(() => budget.due())
+        return agent.runInvocation(() => budget.due(() => this.othersWaiting(queued.agent)))
       })
     } finally {
       this.ctx.storage.sql.exec("DELETE FROM owner_runs WHERE agent = ? AND version = ?", queued.agent, queued.version)
     }
+  }
+
+  private nameOf(agent: string): string {
+    const [roomId = "", slug = ""] = agent.split(":")
+    return (isAgentSlug(slug) && this.room(roomId).memberName(slug)) || slug
+  }
+
+  private showWaiting(running: QueuedRun): void {
+    const name = this.nameOf(running.agent)
+    const waiting = this.ctx.storage.sql
+      .exec<{ room_id: string; slug: string }>("SELECT room_id, slug FROM owner_runs WHERE agent != ?", running.agent)
+      .toArray()
+    for (const row of waiting) if (isAgentSlug(row.slug)) this.room(row.room_id).waitingTurn(row.slug, name)
+  }
+
+  private othersWaiting(agent: string): boolean {
+    return (
+      this.ctx.storage.sql
+        .exec("SELECT 1 FROM owner_runs WHERE agent != ? AND ready_at <= ? LIMIT 1", agent, Date.now())
+        .toArray().length > 0
+    )
   }
 
   private async cancelRun(roomId: string, slug: string): Promise<void> {
@@ -217,12 +257,21 @@ export class OwnerDO extends DurableObject<Env> {
     name: string
     hello: import("@kiko/computer/wire").Hello
     pairNonce: string
+    replaces?: string
   }) {
     return this.user().computerPair(input)
   }
 
+  async updateStart(version: string): Promise<UpdateState> {
+    return this.user().selfUpdate.start(version)
+  }
+
+  async updateState(): Promise<UpdateState> {
+    return this.user().selfUpdate.state()
+  }
+
   protected room(roomId: string): Room {
-    if (!isRoomId(roomId)) throw new Error("bad room id")
+    if (!isRoomId(roomId)) throw new AgentKeyError({ kind: "room", key: roomId, message: "bad room id" })
     let room = this.rooms.get(roomId)
     if (!room) {
       room = new Room(this.options(`room:${roomId}`, roomId))
@@ -272,90 +321,17 @@ export class OwnerDO extends DurableObject<Env> {
     const client = pair[0]
     const server = pair[1]
     this.ctx.acceptWebSocket(server, ["tab"])
-    server.serializeAttachment({
-      user: { ready: false },
-      rooms: {},
-      handle: request.headers.get(HANDLE_HEADER) ?? undefined,
-    })
+    server.serializeAttachment(openAttachment(request.headers.get(HANDLE_HEADER) ?? undefined))
     await this.user().openSocket(socketView(server), request)
     this.ctx.waitUntil(this.resumeSocket())
     return new Response(null, { status: 101, webSocket: client })
   }
 
   async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
-    const pcId = pcSocketId(ws)
-    if (pcId !== null) {
-      await this.computers.message(ws, raw)
-      return
-    }
-    const greeting = this.greeting.get(ws)
-    if (greeting) await greeting
-    await this.receive(ws, raw)
-  }
-
-  private async receive(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
-    if (typeof raw !== "string" || raw.length > MAX_FRAME) {
-      ws.close(1008, "bad frame")
-      return
-    }
-    let frame: unknown
-    try {
-      frame = JSON.parse(raw)
-    } catch {
-      ws.close(1008, "bad frame")
-      return
-    }
-    if (!frame || typeof frame !== "object" || !("t" in frame)) {
-      ws.close(1008, "bad frame")
-      return
-    }
-    if (frame.t === "hello") {
-      const greeting = this.user().webSocketMessage(socketView(ws), raw)
-      this.greeting.set(
-        ws,
-        greeting.catch(() => {}),
-      )
-      return greeting
-    }
-    if (frame.t === "subscribe" || frame.t === "unsubscribe" || frame.t === "room") {
-      if (!("roomId" in frame) || typeof frame.roomId !== "string" || !isRoomId(frame.roomId)) {
-        ws.close(1008, "bad room id")
-        return
-      }
-      const saved = ownerAttachment(ws)
-      if (!saved.user.ready) {
-        ws.close(1008, "hello required")
-        return
-      }
-      const roomId = frame.roomId
-      if (frame.t === "unsubscribe") {
-        delete saved.rooms[roomId]
-        ws.serializeAttachment(saved)
-        return
-      }
-      if (frame.t === "subscribe") {
-        if (
-          !("lastSeq" in frame) ||
-          !Number.isSafeInteger(frame.lastSeq) ||
-          Number(frame.lastSeq) < 0 ||
-          (Object.keys(saved.rooms).length >= 32 && !saved.rooms[roomId])
-        ) {
-          ws.close(1008, "bad subscription")
-          return
-        }
-        saved.rooms[roomId] = { ready: false }
-        ws.serializeAttachment(saved)
-        await this.room(roomId).subscribe(socketView(ws, roomId), Number(frame.lastSeq), saved.handle)
-        return
-      }
-      if (!saved.rooms[roomId] || !("frame" in frame)) {
-        ws.close(1008, "room not subscribed")
-        return
-      }
-      await this.room(roomId).webSocketMessage(socketView(ws, roomId), JSON.stringify(frame.frame))
-      return
-    }
-    await this.user().webSocketMessage(socketView(ws), raw)
+    if (raw === LEGACY_PING) return ws.send(LEGACY_PONG)
+    if (pcSocketId(ws) !== null) return this.computers.message(ws, raw)
+    if (typeof raw === "string" && raw.length > MAX_FRAME) return ws.close(1009, "rpc frame too large")
+    await dispatch(HANDLERS, { host: this.rpcHost, ws, socket: socketView(ws) }, raw)
   }
 
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
@@ -365,6 +341,7 @@ export class OwnerDO extends DurableObject<Env> {
       return
     }
     await this.user().webSocketClose(socketView(ws), code)
+    this.computers.leave(ws)
     await this.recoverDisconnected()
   }
 
@@ -375,6 +352,7 @@ export class OwnerDO extends DurableObject<Env> {
       return
     }
     await this.user().webSocketError(socketView(ws))
+    this.computers.leave(ws)
     await this.recoverDisconnected()
   }
 
@@ -392,7 +370,8 @@ export class OwnerDO extends DurableObject<Env> {
         if (scope.startsWith("agent:")) {
           const key = scope.slice("agent:".length)
           const [roomId, slug, ...extra] = key.split(":")
-          if (!isRoomId(roomId) || !slug || extra.length) throw new Error("bad agent deadline")
+          if (!isRoomId(roomId) || !slug || extra.length)
+            throw new AgentKeyError({ kind: "deadline", key, message: "bad agent deadline" })
           this.ctx.storage.sql.exec(
             "INSERT OR IGNORE INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)",
             key,
@@ -420,13 +399,7 @@ export class OwnerDO extends DurableObject<Env> {
           .toArray()[0]
         if (queued) {
           try {
-            if (this.runs.has(queued.agent)) {
-              this.ctx.storage.sql.exec(
-                "UPDATE owner_runs SET ready_at = ? WHERE agent = ?",
-                Date.now() + RECOVERY_DELAY_MS,
-                queued.agent,
-              )
-            } else await this.executeRun(queued)
+            await this.executeRun(queued)
           } finally {
             this.nextRunAt = Date.now() + RUN_GAP_MS
           }

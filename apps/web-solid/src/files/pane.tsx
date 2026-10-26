@@ -2,27 +2,24 @@ import type { FileOp } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createEffect, createMemo, lazy, onCleanup, Show, Suspense } from "solid-js"
 import { dropFileSurfaces, moveFileSurfaces, openFile } from "../chat/side/surfaces"
-import { useApp } from "../lib/store"
+import { room } from "../state/room"
+import { user } from "../state/user"
 import { createFile, forgetMade, withMade } from "./api"
 import { FileBreadcrumbs } from "./breadcrumbs"
 import { SUBHEADER } from "./chrome"
 import { viewerKind, type ViewerKind } from "./kind"
 import { buildIndex, HOME, inHome, strip, where } from "./model"
 import { fullSize, setFullSize } from "./prefs"
-import { FileActions, FileBody } from "./surface"
+import { FileActions, FileWorkspace } from "./surface"
 import { FileTree } from "./tree"
 import { createFileView, setSourceFor } from "./view"
 
 const FileDialog = lazy(() => import("./FileDialog"))
 
 function useChatFiles(chatId: () => string) {
-  const home = createMemo(() => withMade(HOME, useApp.homeFiles()).map((f) => ({ ...f, name: `${HOME}/${f.name}` })))
-  const files = createMemo(() => [...withMade(chatId(), useApp.activeFiles()), ...home()])
-  const folders = createMemo(() => [
-    ...useApp.activeFolders(),
-    HOME,
-    ...useApp.homeFolders().map((f) => `${HOME}/${f}`),
-  ])
+  const home = createMemo(() => withMade(HOME, user.homeFiles()).map((f) => ({ ...f, name: `${HOME}/${f.name}` })))
+  const files = createMemo(() => [...withMade(chatId(), room.files()), ...home()])
+  const folders = createMemo(() => [...room.folders(), HOME, ...user.homeFolders().map((f) => `${HOME}/${f}`)])
   const index = createMemo(() =>
     buildIndex(
       files().map((f) => f.name),
@@ -33,8 +30,8 @@ function useChatFiles(chatId: () => string) {
 }
 
 export function FilesTree(props: { chatId: string }) {
-  createEffect(() => onCleanup(useApp.onFilesRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
-  createEffect(() => onCleanup(useApp.onHomeRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
+  createEffect(() => onCleanup(room.onFilesRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
+  createEffect(() => onCleanup(user.onHomeRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
   const op = (o: FileOp) => {
     const paths = o.op === "rm" ? o.paths : o.op === "mv" ? [o.from, o.to] : [o.path]
     const home = paths.map(inHome)
@@ -44,8 +41,8 @@ export function FilesTree(props: { chatId: string }) {
         variant: "error",
       })
     if (paths.includes(HOME)) return showToastV2({ title: "Home stays where it is", variant: "error" })
-    if (!home[0]) return useApp.fileOp(o)
-    useApp.homeOp(
+    if (!home[0]) return room.fileOp(o)
+    user.homeOp(
       o.op === "rm"
         ? { ...o, paths: o.paths.map(strip) }
         : o.op === "mv"
@@ -100,6 +97,10 @@ export function FilesTree(props: { chatId: string }) {
 export function FileSurface(props: { chatId: string; path: string }) {
   const { files, index } = useChatFiles(() => props.chatId)
   const file = createMemo(() => files().find((f) => f.name === props.path))
+  createEffect(() => {
+    if (!file() && room.activeId() === props.chatId && room.filesLive() && user.synced())
+      dropFileSurfaces(props.chatId, props.path)
+  })
   const kind = createMemo<ViewerKind>(() => {
     const f = file()
     return f ? viewerKind(f) : "other"
@@ -134,14 +135,14 @@ export function FileSurface(props: { chatId: string; path: string }) {
           when={!fullSize()}
           fallback={
             <div
-              class="flex min-w-0 flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground"
+              class="flex min-w-0 flex-1 items-center justify-center p-6 text-center text-label text-fg3"
               data-component="file-full-size-note"
             >
               Open full size. Close it to return here.
             </div>
           }
         >
-          <FileBody chatId={props.chatId} path={props.path} file={file()} kind={kind()} view={view} />
+          <FileWorkspace chatId={props.chatId} path={props.path} file={file()} kind={kind()} view={view} />
         </Show>
         <Show when={fullSize()}>
           <Suspense>

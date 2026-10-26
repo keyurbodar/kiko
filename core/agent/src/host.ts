@@ -18,6 +18,7 @@ import type { Step } from "@kiko/durable/migrate"
 import { JournalStorage } from "./journal"
 import { continueAtBoundary } from "./continuation"
 import { submitPaused } from "./admission"
+import { InvocationBusy, JournalCorrupt } from "./errors"
 import { type Batch, type Refusal, renderInput, requestIdFor } from "./input"
 import { decide, FRESH_RUN, type RunProgress, type RunState } from "./mid-run"
 import {
@@ -353,7 +354,7 @@ export class AgentHost {
   }
 
   async runInvocation(due: () => boolean): Promise<"done" | "continue"> {
-    if (this.invocation) throw new Error("An agent invocation is already running")
+    if (this.invocation) throw new InvocationBusy({ message: "An agent invocation is already running" })
     if (this.opened) {
       const opened = await this.opened
       if ((await opened.harness.inspect(context)).scheduling !== "paused") {
@@ -556,7 +557,8 @@ export class AgentHost {
     }
     try {
       await restoreRollover(this.ctx.storage, this.options.agentKey, async (input) => {
-        if (!setup.rollover) throw new Error("Agent task handoff has no registered restorer")
+        if (!setup.rollover)
+          throw new JournalCorrupt({ reason: "handoff", message: "Agent task handoff has no registered restorer" })
         await setup.rollover.restore(harness, root, input)
       })
     } catch (error) {

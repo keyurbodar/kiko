@@ -1,0 +1,302 @@
+.picker-trigger {
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko),
+    transform var(--dur-hover) var(--ease-kiko);
+}
+.picker-trigger:active {
+  transform: scale(0.97);
+}
+.picker-swap {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.picker-chevron {
+  opacity: 0.7;
+  transition: transform var(--dur-hover) var(--ease-kiko);
+}
+.picker-trigger[aria-expanded="true"] .picker-chevron {
+  transform: rotate(180deg);
+}
+
+.picker-panel {
+  transform-origin: bottom left;
+}
+.picker-row {
+  transition: background-color 80ms var(--ease-kiko);
+}
+
+.picker-star {
+  color: var(--fg4);
+  opacity: 0;
+  transition:
+    opacity var(--dur-hover) var(--ease-kiko),
+    background-color var(--dur-hover) var(--ease-kiko),
+    transform var(--dur-hover) var(--ease-kiko);
+}
+.picker-star[aria-pressed="true"] {
+  color: var(--warn);
+}
+.picker-star[data-shown],
+.picker-star:focus-visible {
+  opacity: 1;
+}
+.picker-star:active {
+  transform: scale(0.9);
+}
+@media (hover: hover) and (pointer: fine) {
+  .picker-row:hover .picker-star {
+    opacity: 1;
+  }
+  .picker-star:hover {
+    background: var(--active);
+  }
+}
+@media (hover: none) {
+  .picker-star {
+    opacity: 1;
+  }
+}
+
+.picker-rail {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 52px;
+  padding: 8px 0;
+  overflow-y: auto;
+  background: var(--panel);
+  scrollbar-width: none;
+}
+.picker-rail-rule {
+  flex-shrink: 0;
+  width: 20px;
+  height: 1px;
+  background: var(--line2);
+}
+.picker-rail-item {
+  position: relative;
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-row);
+  color: var(--fg3);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko),
+    transform var(--dur-hover) var(--ease-kiko);
+}
+.picker-rail-item:active {
+  transform: scale(0.94);
+}
+.picker-rail-item[aria-pressed="true"] {
+  background: var(--active);
+  color: var(--fg);
+}
+.picker-rail-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--bad);
+}
+@media (hover: hover) and (pointer: fine) {
+  .picker-rail-item:hover {
+    color: var(--fg);
+  }
+  .picker-rail-item[aria-pressed="false"]:hover {
+    background: var(--hover);
+  }
+}
+
+.picker-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  min-width: 22px;
+  padding: 1px 6px 0;
+  border-radius: 7px;
+  background: var(--active);
+  color: var(--fg3);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+}
+.picker-kbd svg {
+  width: 12px;
+  height: 12px;
+}
+.picker-flip svg {
+  transform: rotate(180deg);
+}
+.picker-kbd-pair {
+  display: inline-flex;
+  gap: 4px;
+}
+.picker-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+  height: 44px;
+  padding: 0 16px;
+  background: var(--panel);
+  color: var(--fg3);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.picker-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .picker-panel {
+    animation: picker-in var(--dur-pop) var(--ease-kiko);
+  }
+  .picker-swap[data-enter] {
+    animation: picker-swap var(--dur-pop) var(--ease-kiko);
+  }
+  .picker-swap[data-slide] {
+    animation-name: picker-slide;
+  }
+}
+@keyframes picker-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+@keyframes picker-swap {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes picker-slide {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.model-sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.model-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  -webkit-backdrop-filter: var(--scrim-blur);
+  backdrop-filter: var(--scrim-blur);
+}
+.model-sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: min(640px, 86dvh);
+  padding-bottom: env(safe-area-inset-bottom);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  background: var(--raise);
+  box-shadow: var(--float-shadow);
+}
+.model-sheet:not([data-dragging]) {
+  transition: transform var(--dur-pop) var(--ease-kiko);
+}
+.model-sheet-grip {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  height: 20px;
+  touch-action: none;
+  cursor: grab;
+}
+.model-sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line2);
+}
+.model-sheet-head {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding: 0 12px 0 16px;
+}
+.model-sheet-done {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9px;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 500;
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    transform var(--dur-hover) var(--ease-kiko);
+}
+.model-sheet-done:active {
+  transform: scale(0.97);
+  background: var(--hover);
+}
+.model-sheet-list {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.model-sheet-thinking {
+  flex-shrink: 0;
+  margin: 0 8px 8px;
+  padding: 14px 16px 12px;
+  border-radius: var(--radius-card);
+  background: var(--panel);
+}
+
+.model-chip {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .model-sheet-backdrop {
+    animation: model-sheet-fade 120ms var(--ease-kiko);
+  }
+  .model-sheet {
+    animation: model-sheet-up var(--dur-step) var(--ease-kiko);
+  }
+}
+@keyframes model-sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes model-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+.model-sheet-thinking-title {
+  margin: 0 0 10px;
+  color: var(--fg3);
+  font-size: 12px;
+  font-weight: 500;
+}

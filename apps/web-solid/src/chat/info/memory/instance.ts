@@ -1,16 +1,16 @@
-import { onChanged } from "../../../sync/changed"
-import { createMemoryClient, type MemoryClient } from "./client"
+import { onUserSignal } from "../../../state/user"
+import { memoryClient } from "./client"
 import { createMemoryStore, type MemoryStore } from "./store"
 
-let current: { userId: string; store: MemoryStore; client: MemoryClient; stop: () => void } | null = null
+let current: { userId: string; store: MemoryStore; stop: () => void } | null = null
 
 export async function memoryFor(userId: string): Promise<MemoryStore> {
   if (current?.userId === userId) return current.store
-  current?.client.close()
   current?.stop()
-  const client = createMemoryClient()
-  const store = createMemoryStore(client)
-  const stop = onChanged("memory", () => (store.state.loaded ? store.load() : undefined))
-  current = { userId, store, client, stop }
+  const store = createMemoryStore(memoryClient)
+  const stop = onUserSignal("changed", (signal) => {
+    if (signal.what === "memory" && store.state.loaded) void store.refresh()
+  })
+  current = { userId, store, stop }
   return store
 }

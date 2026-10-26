@@ -4,9 +4,11 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "tsgo --noEmit && tsgo --noEmit -p integration",
     "deploy": "NODE_ENV=production wrangler deploy",
-    "deploy:dry": "NODE_ENV=production wrangler deploy --dry-run"
+    "deploy:dry": "NODE_ENV=production wrangler deploy --dry-run",
+    "test": "vitest run --passWithNoTests --project server",
+    "test:worker": "vitest run --project worker --silent=false"
   },
   "dependencies": {
     "@earendil-works/chord": "1.3.0",
@@ -20,7 +22,7 @@
     "@kiko/protocol": "workspace:*",
     "@kiko/sandbox": "workspace:*",
     "@onkernel/sdk": "^0.123.0",
-    "effect": "4.0.0",
+    "effect": "4.0.6",
     "just-bash": "3.6.0",
     "rrule": "2.8.1",
     "unpdf": "^1.8.1",
@@ -28,7 +30,10 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260101.0",
+    "@effect/vitest": "4.0.6",
+    "@types/node": "24.19.2",
     "typescript": "^5.9.0",
+    "vitest": "5.0.5",
     "wrangler": "^4.0.0"
   }
 }

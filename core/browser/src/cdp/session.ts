@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping"
 import { Effect, Exit, Scope } from "effect"
 import { BROWSER } from "../config"
@@ -10,15 +11,10 @@ export type Params<M extends Method> = Commands[M]["paramsType"] extends [] ? un
 export type Result<M extends Method> = Commands[M]["returnType"]
 export type Payload<E extends EventName> = Events[E] extends [infer P] ? P : undefined
 
-export class CdpError extends Error {
-  constructor(
-    readonly kind: "closed" | "timeout" | "protocol",
-    message: string,
-  ) {
-    super(message)
-    this.name = "CdpError"
-  }
-}
+export class CdpError extends Schema.TaggedError<CdpError>()("CdpError", {
+  kind: Schema.Literals(["closed", "timeout", "protocol"]),
+  message: Schema.String,
+}) {}
 
 export interface Channel {
   readonly sessionId: string | undefined
@@ -54,7 +50,7 @@ export async function openSession(url: string, options: SessionOptions = {}): Pr
   const shutdown = (reason: string) => {
     if (!open) return
     open = false
-    const error = Effect.fail(new CdpError("closed", reason))
+    const error = Effect.fail(new CdpError({ kind: "closed", message: reason }))
     for (const resume of pending.values()) resume(error)
     pending.clear()
     for (const hook of onClose) hook()
@@ -76,7 +72,9 @@ export async function openSession(url: string, options: SessionOptions = {}): Pr
       if (!resume) return
       pending.delete(message.id)
       resume(
-        message.error ? Effect.fail(new CdpError("protocol", message.error.message)) : Effect.succeed(message.result),
+        message.error
+          ? Effect.fail(new CdpError({ kind: "protocol", message: message.error.message }))
+          : Effect.succeed(message.result),
       )
       return
     }
@@ -89,14 +87,18 @@ export async function openSession(url: string, options: SessionOptions = {}): Pr
   const acquire = Effect.callback<WebSocket, CdpError>((resume) => {
     const ws = new WebSocket(url)
     ws.addEventListener("open", () => resume(Effect.succeed(ws)), { once: true })
-    ws.addEventListener("error", () => resume(Effect.fail(new CdpError("closed", "The CDP socket failed to open"))), {
-      once: true,
-    })
+    ws.addEventListener(
+      "error",
+      () => resume(Effect.fail(new CdpError({ kind: "closed", message: "The CDP socket failed to open" }))),
+      {
+        once: true,
+      },
+    )
     return Effect.sync(() => ws.close())
   }).pipe(
     Effect.timeoutOrElse({
       duration: commandMs,
-      orElse: () => Effect.fail(new CdpError("timeout", "The CDP socket did not open in time")),
+      orElse: () => Effect.fail(new CdpError({ kind: "timeout", message: "The CDP socket did not open in time" })),
     }),
   )
 
@@ -118,7 +120,7 @@ export async function openSession(url: string, options: SessionOptions = {}): Pr
 
   const command = (method: string, params: unknown, sessionId: string | undefined) =>
     Effect.callback<unknown, CdpError>((resume) => {
-      if (!open) return resume(Effect.fail(new CdpError("closed", "The CDP socket is closed")))
+      if (!open) return resume(Effect.fail(new CdpError({ kind: "closed", message: "The CDP socket is closed" })))
       const id = ++nextId
       pending.set(id, resume)
       ws.send(
@@ -130,7 +132,8 @@ export async function openSession(url: string, options: SessionOptions = {}): Pr
     }).pipe(
       Effect.timeoutOrElse({
         duration: commandMs,
-        orElse: () => Effect.fail(new CdpError("timeout", `${method} got no answer in ${commandMs} ms`)),
+        orElse: () =>
+          Effect.fail(new CdpError({ kind: "timeout", message: `${method} got no answer in ${commandMs} ms` })),
       }),
     )
 
@@ -157,8 +160,8 @@ export async function openSession(url: string, options: SessionOptions = {}): Pr
     })
     const wait = Effect.callback<unknown, CdpError>((resume) => {
       if (hit) return resume(Effect.succeed(hit.params))
-      if (!open) return resume(Effect.fail(new CdpError("closed", "The CDP socket is closed")))
-      const fail = () => resume(Effect.fail(new CdpError("closed", "The CDP socket closed")))
+      if (!open) return resume(Effect.fail(new CdpError({ kind: "closed", message: "The CDP socket is closed" })))
+      const fail = () => resume(Effect.fail(new CdpError({ kind: "closed", message: "The CDP socket closed" })))
       wake = () => {
         onClose.delete(fail)
         resume(Effect.succeed(hit?.params))

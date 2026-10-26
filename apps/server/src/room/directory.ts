@@ -51,12 +51,13 @@ export class RoomDirectory {
     this.services.room(op.roomId).saveChat(chat)
     return { t: "chat", chat: this.get(op.roomId)! }
   }
-  agents(roomId: string, agents: readonly string[]): ChatChange | null {
+  agents(roomId: string, agents: readonly string[], titleOf: (ids: readonly string[]) => string): ChatChange | null {
     const current = this.get(roomId)
     if (!current) return null
     const ids = agentIds(agents)
     if ((current.agents ?? []).length === ids.length && ids.every((id) => current.agents?.includes(id))) return null
-    this.services.room(roomId).saveChat({ ...current, agents: ids })
+    const automatic = current.title === titleOf(current.agents ?? [])
+    this.services.room(roomId).saveChat({ ...current, agents: ids, ...(automatic ? { title: titleOf(ids) } : {}) })
     return { t: "chat", chat: this.get(roomId)! }
   }
 }

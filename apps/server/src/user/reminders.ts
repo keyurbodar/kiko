@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 import type { RoomId, RoutineRunStatus, Trigger } from "@kiko/protocol"
 import type { RoutineDelivery, RoutineScheduler, ScheduledRoutine } from "../owner/schedules"
 import { RRule } from "rrule"
@@ -65,7 +66,9 @@ export type Notice = (roomId: RoomId, id: string, text: string) => Promise<void>
 
 export type RunGate = { away(): boolean }
 
-export class ReminderError extends Error {}
+export class ReminderError extends Schema.TaggedError<ReminderError>()("ReminderError", {
+  message: Schema.String,
+}) {}
 
 type Row = {
   id: string
@@ -100,11 +103,12 @@ const toReminder = (r: Row): Reminder => ({
 })
 
 function parseTime(time: string, now: number): number {
-  if (!/(z|[+-]\d{2}:?\d{2})$/i.test(time.trim())) throw new ReminderError("time must include an offset or z")
+  if (!/(z|[+-]\d{2}:?\d{2})$/i.test(time.trim()))
+    throw new ReminderError({ message: "time must include an offset or z" })
   const at = Date.parse(time)
-  if (Number.isNaN(at)) throw new ReminderError("time is not an iso date")
+  if (Number.isNaN(at)) throw new ReminderError({ message: "time is not an iso date" })
   const due = Math.ceil(at / 1000) * 1000
-  if (due > now + YEAR_MS) throw new ReminderError("time is more than a year away")
+  if (due > now + YEAR_MS) throw new ReminderError({ message: "time is more than a year away" })
   return due
 }
 
@@ -140,7 +144,7 @@ export class Reminders {
 
   private required(id: string): Reminder {
     const reminder = this.get(id)
-    if (!reminder) throw new ReminderError(`no reminder ${id}`)
+    if (!reminder) throw new ReminderError({ message: `no reminder ${id}` })
     return reminder
   }
 
@@ -169,10 +173,10 @@ export class Reminders {
     if (this.owner() === null) {
       setSetting(this.sql, "owner", JSON.stringify(owner))
     } else if (this.owner() !== owner) {
-      throw new ReminderError("wrong owner")
+      throw new ReminderError({ message: "wrong owner" })
     }
     if (!this.sql.exec("SELECT 1 FROM room_directory WHERE room_id = ?", roomId).toArray().length) {
-      throw new ReminderError("unknown chat")
+      throw new ReminderError({ message: "unknown chat" })
     }
   }
 
@@ -189,7 +193,9 @@ export class Reminders {
       )
       .one().n
     if (open >= MAX_ROUTINES)
-      throw new ReminderError(`@${input.target} already has ${MAX_ROUTINES} routines in this chat. cancel one first.`)
+      throw new ReminderError({
+        message: `@${input.target} already has ${MAX_ROUTINES} routines in this chat. cancel one first.`,
+      })
     const id = crypto.randomUUID()
     this.sql.exec(
       `INSERT INTO reminders (id, text, due_utc, tz, rrule, room_id, target, created_by, status, last_fired, created_at, name, trigger, fails, hook_hash)
@@ -216,12 +222,14 @@ export class Reminders {
     validateFreshness = true,
   ): { name: string; text: string; due: number; rrule: string | null } {
     const name = input.name.trim().toLowerCase().replace(/\s+/g, " ")
-    if (!name || name.length > 60) throw new ReminderError("name must be 1 to 60 characters")
+    if (!name || name.length > 60) throw new ReminderError({ message: "name must be 1 to 60 characters" })
     const text = input.instructions.trim()
-    if (!text) throw new ReminderError("instructions are empty")
-    if (text.length > MAX_TEXT) throw new ReminderError(`instructions are longer than ${MAX_TEXT} characters`)
-    if (!/^[a-z0-9-]{1,32}$/.test(input.target)) throw new ReminderError("a routine runs as an agent in this chat")
-    if (!validZone(input.tz)) throw new ReminderError("unknown time zone")
+    if (!text) throw new ReminderError({ message: "instructions are empty" })
+    if (text.length > MAX_TEXT)
+      throw new ReminderError({ message: `instructions are longer than ${MAX_TEXT} characters` })
+    if (!/^[a-z0-9-]{1,32}$/.test(input.target))
+      throw new ReminderError({ message: "a routine runs as an agent in this chat" })
+    if (!validZone(input.tz)) throw new ReminderError({ message: "unknown time zone" })
     const t = input.trigger
     const now = this.now()
     switch (t.on) {
@@ -233,16 +241,16 @@ export class Reminders {
           if (validateFreshness && due <= now)
             due = nextAfter(rrule, input.tz, due, now) ?? fail("the rule has no time after now")
         } else if (validateFreshness && due < now - 1000)
-          throw new ReminderError("that time is in the past. pick a future time.")
+          throw new ReminderError({ message: "that time is in the past. pick a future time." })
         return { name, text, due, rrule }
       }
       case "message":
       case "webhook":
         return { name, text, due: 0, rrule: null }
       default:
-        throw new ReminderError(
-          `its ${(t as { on: string }).on} trigger is no longer supported. give it a time, message, or webhook trigger.`,
-        )
+        throw new ReminderError({
+          message: `its ${(t as { on: string }).on} trigger is no longer supported. give it a time, message, or webhook trigger.`,
+        })
     }
   }
 
@@ -507,10 +515,14 @@ export class Reminders {
     await this.rearm()
   }
 
-  async cancelAgent(slug: string): Promise<void> {
+  async cancelAgent(slug: string, roomId?: string): Promise<void> {
     this.purge(
       this.sql
-        .exec<{ id: string }>("SELECT id FROM reminders WHERE target = ? OR created_by = ?", slug, slug)
+        .exec<{ id: string }>(
+          "SELECT id FROM reminders WHERE (target = ?1 OR created_by = ?1) AND (?2 IS NULL OR room_id = ?2)",
+          slug,
+          roomId ?? null,
+        )
         .toArray()
         .map((row) => row.id),
     )
@@ -550,7 +562,7 @@ export class Reminders {
       return
     }
     if (this.now() < runAt) return
-    if (requestId !== `${routineId}:${runAt}`) throw new ReminderError("invalid routine requestId")
+    if (requestId !== `${routineId}:${runAt}`) throw new ReminderError({ message: "invalid routine requestId" })
     this.expireLostRuns()
     if (routine.rrule === null || this.now() - runAt <= LATE_MS)
       await this.run(routine, String(runAt), "its scheduled time", "")
@@ -593,7 +605,7 @@ function toRun(r: RunRow): RoutineRun {
 }
 
 function fail(message: string): never {
-  throw new ReminderError(message)
+  throw new ReminderError({ message: message })
 }
 
 function thrownAsRefused(e: unknown): "refused" {
@@ -603,7 +615,7 @@ function thrownAsRefused(e: unknown): "refused" {
 
 function checkRepeat(rrule: string, tz: string, from: number): void {
   const problem = repeatProblem(rrule, tz, from)
-  if (problem) throw new ReminderError(problem)
+  if (problem) throw new ReminderError({ message: problem })
 }
 
 function nextTime(r: Pick<Reminder, "rrule" | "tz" | "dueUtc">, now: number): number | null {
@@ -654,7 +666,7 @@ export function describeTrigger(trigger: Trigger, tz: string, due: number): stri
 
 function routineBody(routine: Reminder, why: string, last: RoutineRun | null, extra: string): string {
   const trigger = routine.trigger
-  if (!trigger) throw new ReminderError("routine has no trigger")
+  if (!trigger) throw new ReminderError({ message: "routine has no trigger" })
   const lines = [
     `routine "${routine.name}" (id ${routine.id}), run because of ${why}.`,
     `it runs ${describeTrigger(trigger, routine.tz, routine.dueUtc)}.`,

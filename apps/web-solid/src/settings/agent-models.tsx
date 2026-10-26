@@ -2,22 +2,22 @@ import { ProviderIcon } from "@kiko/ui/provider-icon"
 import type { AgentSlug } from "@kiko/protocol"
 import { createSignal, For, Show } from "solid-js"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
-import { useApp } from "../lib/store"
-import { connectedProviders } from "./connected"
-import { Group, Hint, Row } from "./kit"
+import { room } from "../state/room"
+import { user } from "../state/user"
+import { Group, Row } from "./kit"
 import { ModelPicker } from "./model-picker"
-import { hasModelProvider } from "./provider-kinds"
 import { ReasoningMenu } from "./reasoning-menu"
+import { useLiveModel } from "./catalog"
 
 function AgentRow(props: { slug: AgentSlug; name: string }) {
   const [open, setOpen] = createSignal(false)
-  const current = () => useApp.agentModel(props.slug)
+  const current = useLiveModel(() => user.agentModel(props.slug))
   return (
     <Row
       data-agent={props.slug}
       label={
-        <span class="flex items-center gap-2">
-          <IdentityAvatar seed={props.slug} size={20} />
+        <span class="flex items-center gap-3 py-1 text-[13.5px] font-semibold">
+          <IdentityAvatar seed={props.slug} size={36} />
           {props.name}
         </span>
       }
@@ -26,9 +26,11 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
         current={current()?.model}
         open={open()}
         onOpenChange={setOpen}
-        onPick={(ref, levels) => ref !== current()?.model && useApp.setAgentModel(props.slug, { ref, levels })}
+        onPick={(ref, levels, name) =>
+          ref !== current()?.model && room.setAgentModel(props.slug, { ref, levels, name })
+        }
         title={`Choose model for ${props.name}`}
-        class="flex h-7 max-w-[240px] min-w-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground"
+        class="flex h-8 max-w-[240px] min-w-0 items-center gap-1.5 rounded-[9px] bg-active px-3 text-[13px] text-fg transition-colors duration-[var(--dur-hover)] hover:bg-hover aria-expanded:bg-hover active:scale-[0.98]"
       >
         <Show when={current()?.model.split("/")[0]}>
           {(provider) => <ProviderIcon id={provider()} width="13" height="13" />}
@@ -41,7 +43,8 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
         levels={current()?.thinkingLevels}
         value={current()?.thinking}
         placement="bottom-end"
-        onChange={(thinking) => useApp.setAgentModel(props.slug, { thinking })}
+        class="h-8 rounded-[9px] bg-active px-3 text-[13px] text-fg"
+        onChange={(thinking) => room.setAgentModel(props.slug, { thinking })}
       />
     </Row>
   )
@@ -49,16 +52,12 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
 
 export function AgentModels() {
   return (
-    <Show
-      when={hasModelProvider(connectedProviders())}
-      fallback={<Hint>Connect a provider in the Providers tab to choose models for your agents.</Hint>}
+    <Group
+      title="Your agents"
+      description="Each agent keeps its own model and reasoning level in every chat."
+      data-component="agent-models"
     >
-      <Group
-        description="Each agent keeps its own model and reasoning level in every chat."
-        data-component="agent-models"
-      >
-        <For each={useApp.modelAgents()}>{(agent) => <AgentRow slug={agent.slug} name={agent.name} />}</For>
-      </Group>
-    </Show>
+      <For each={user.modelAgents()}>{(agent) => <AgentRow slug={agent.slug} name={agent.name} />}</For>
+    </Group>
   )
 }

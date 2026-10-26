@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 const API = "https://backend.composio.dev/api/v3.1/"
 const SESSION_ORIGIN = "https://backend.composio.dev"
 export const REJECTED = "Composio rejected this key"
@@ -20,15 +21,11 @@ export type ComposioResultBlock = { type: "text"; text: string } | { type: "imag
 export type ComposioCallResult = { content: ComposioResultBlock[]; isError?: boolean }
 export type ComposioCall = (name: string, args: Record<string, unknown>) => Promise<ComposioCallResult>
 
-export class ComposioError extends Error {
-  constructor(
-    message: string,
-    readonly status?: number,
-    readonly retryAfter?: number,
-  ) {
-    super(message)
-  }
-}
+export class ComposioError extends Schema.TaggedError<ComposioError>()("ComposioError", {
+  message: Schema.String,
+  status: Schema.optional(Schema.Number),
+  retryAfter: Schema.optional(Schema.Number),
+}) {}
 
 function retryAfterSeconds(res: Response): number | undefined {
   const seconds = Number(res.headers.get("retry-after"))
@@ -46,12 +43,12 @@ function parseRpcResponse(body: string, contentType: string, id: number): unknow
     }
     if (message?.id !== id) continue
     if (message.error)
-      throw new ComposioError(
-        `Composio refused the request: ${String(message.error.message ?? "unknown error").slice(0, 300)}`,
-      )
+      throw new ComposioError({
+        message: `Composio refused the request: ${String(message.error.message ?? "unknown error").slice(0, 300)}`,
+      })
     return message.result
   }
-  throw new ComposioError("Composio sent no answer")
+  throw new ComposioError({ message: "Composio sent no answer" })
 }
 
 function eventData(body: string): string[] {
@@ -93,11 +90,15 @@ async function composioRpc(
   })
   if (res.status === 401 || res.status === 403) {
     await res.body?.cancel()
-    throw new ComposioError(REJECTED, res.status)
+    throw new ComposioError({ message: REJECTED, status: res.status })
   }
   if (!res.ok) {
     await res.body?.cancel()
-    throw new ComposioError(`Composio answered ${res.status}`, res.status, retryAfterSeconds(res))
+    throw new ComposioError({
+      message: `Composio answered ${res.status}`,
+      status: res.status,
+      retryAfter: retryAfterSeconds(res),
+    })
   }
   return parseRpcResponse(await res.text(), res.headers.get("content-type") ?? "", id)
 }
@@ -157,11 +158,11 @@ async function api(
   })
   if (res.ok) return res
   await res.body?.cancel()
-  throw new ComposioError(
-    res.status === 401 || res.status === 403 ? REJECTED : `Composio answered ${res.status}`,
-    res.status,
-    retryAfterSeconds(res),
-  )
+  throw new ComposioError({
+    message: res.status === 401 || res.status === 403 ? REJECTED : `Composio answered ${res.status}`,
+    status: res.status,
+    retryAfter: retryAfterSeconds(res),
+  })
 }
 
 export async function checkKey(key: string, fetchImpl: typeof fetch = fetch): Promise<void> {
@@ -182,7 +183,7 @@ export async function createSession(key: string, userId: string, fetchImpl: type
   const id = body.session_id
   const url = body.mcp?.url
   if (typeof id !== "string" || typeof url !== "string" || new URL(url).origin !== SESSION_ORIGIN)
-    throw new ComposioError("Composio sent no session")
+    throw new ComposioError({ message: "Composio sent no session" })
   return { id, url }
 }
 

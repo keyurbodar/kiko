@@ -244,7 +244,7 @@ export class ComposioConnection {
 
   private async session<T>(work: (target: Target) => Promise<T>, egress: typeof fetch = this.fetcher): Promise<T> {
     const target = await this.store.target()
-    if (!target) throw new ComposioError("Composio is not connected")
+    if (!target) throw new ComposioError({ message: "Composio is not connected" })
     try {
       return await work(target)
     } catch (e) {
@@ -260,7 +260,7 @@ export class ComposioConnection {
       const session = await createSession(key, await this.userId(), egress)
       if (generation !== this.store.generation) {
         this.dropSession(Promise.resolve({ key, url: session.url, session: session.id }))
-        throw new ComposioError("Composio is not connected")
+        throw new ComposioError({ message: "Composio is not connected" })
       }
       this.store.putSession(session, generation)
       return { key, url: session.url }

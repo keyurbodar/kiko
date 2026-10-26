@@ -18,6 +18,7 @@ import { AnswerWaiters } from "@kiko/agent/answers"
 import type { OwnerServices, ServiceOptions } from "../owner/services"
 import type { AgentHome } from "../room/room-do"
 import type { Soul } from "../user/souls"
+import { AgentEgressError, AgentGone, AgentHomeMissing } from "./errors"
 import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
 import type { GroupsPort } from "./extensions/chief"
@@ -49,7 +50,7 @@ import { integrationNote } from "./prompt"
 
 import { buildAgent, openAgentHarness, userModels } from "./factory"
 import { isKnownModel, parseModelRef } from "./thinking"
-import { setOverlay } from "../models/catalog"
+import { setCustomProvider, setOverlay } from "../models/catalog"
 import { projectRecovery } from "../owner/clock"
 import {
   RoutineSchedules,
@@ -259,7 +260,7 @@ export class Agent {
   }
 
   async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
-    if (this.metadata.get("deleted")) throw new Error("agent deleted")
+    if (this.metadata.get("deleted")) throw new AgentGone({ message: "agent deleted" })
     if (home) this.setHome(home)
     const only = envelopes.length === 1 ? envelopes[0] : undefined
     const requestId = only?.from.kind === "agent" ? (messageIdOf(only.id) ?? undefined) : undefined
@@ -312,7 +313,7 @@ export class Agent {
 
   private homeOrThrow(): AgentHome {
     const home = this.home()
-    if (!home) throw new Error("this agent has no room yet")
+    if (!home) throw new AgentHomeMissing({ message: "this agent has no room yet" })
     return home
   }
 
@@ -328,6 +329,7 @@ export class Agent {
     return {
       post: (runId, attempt, index, block) => room().post(home.slug, runId, attempt, index, block),
       draft: (runId, index, text) => room().draft(home.slug, runId, index, text),
+      thinking: (runId, part, text, done) => room().thinking(home.slug, runId, part, text, done),
       note: (runId, id, text) => room().note(home.slug, runId, id, text),
       status: async (state, detail) => {
         await room().setStatus(home.slug, state, detail)
@@ -464,7 +466,10 @@ export class Agent {
     const room = () => this.services.room(home.roomId)
     return {
       send: (input) => room().agentMessage(home.slug, input),
-      waitAnswer: (id, ms, signal) => this.answers.wait(id, ms, signal),
+      waitAnswer: (id, ms, signal) => {
+        const shared = this.services.runShared(this.identity.roomId, this.identity.slug)
+        return this.answers.wait(id, ms, shared && signal ? AbortSignal.any([signal, shared]) : (shared ?? signal))
+      },
       askHuman: (input) => room().askHuman(home.slug, input),
       humanAskState: (id) => room().humanAskState(id),
       humanWaiting: () => this.host.humanWaiting(),
@@ -577,7 +582,6 @@ export class Agent {
       return {
         ...fake,
         rollover,
-        beginRun: async () => true,
         inputMemory: (batch, fresh, joined) => this.inputMemory(batch, fresh, joined, false),
         beforeCompact: (harness) => this.beforeCompact(harness),
       }
@@ -831,7 +835,8 @@ export class Agent {
   }
 
   async egress(request: EgressRequest): Promise<Response> {
-    if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
+    if (new URL(request.url).protocol !== "https:")
+      throw new AgentEgressError({ url: request.url, message: "egress is https only" })
     return this.services.egress(request)
   }
 
@@ -935,6 +940,7 @@ export class Agent {
     if (!home) return false
     this.#runStamp++
     const turn = await this.services.user().agentTurn(home.slug)
+    if (turn.custom) setCustomProvider(turn.custom)
     if (turn.provider) setOverlay(turn.provider, turn.catalog.models)
     const model = turn.model ? parseModelRef(turn.model) : null
     const listed = model ? isKnownModel(model) : false
@@ -981,6 +987,7 @@ export class Agent {
   private async loadAuth(provider: string): Promise<AuthResult | null> {
     const home = this.home()
     const context = home ? await this.services.user().turnContext(provider, home.slug) : null
+    if (context?.custom) setCustomProvider(context.custom)
     if (context) setOverlay(provider, context.catalog.models)
     this.#run = {
       provider,
@@ -1096,7 +1103,8 @@ export class Agent {
   }
 
   async devFake(): Promise<void> {
-    return (await this.dev()).devFake(this.agentDevHost())
+    await (await this.dev()).devFake(this.agentDevHost())
+    await this.invalidate()
   }
 
   async devWorkers(): Promise<Work[]> {

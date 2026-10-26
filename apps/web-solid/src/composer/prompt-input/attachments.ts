@@ -1,11 +1,13 @@
 import { createSignal, onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { MAX_IMAGE_BYTES, attachmentMessages } from "@kiko/protocol"
-import { admit, attachmentType, isImage } from "../../lib/attachments"
+import { MAX_IMAGE_BYTES, attachmentError, attachmentKind, attachmentLimit, attachmentMessages } from "@kiko/protocol"
+import { formatBytes } from "../../chat/info/format"
+import { admit, attachmentType } from "../../lib/attachments"
 import { droppedFilePath, hasFileDrag } from "../../lib/file-drag"
 import { prepareImageForAttachment } from "../../lib/image-compression"
 import { rememberClipboardFile } from "../rich/clipboard"
 import { entriesOf, hasFolder, walkEntries } from "./dropped"
+import { type AttachSource, attachPlacement } from "./placement"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 
 type PromptTarget = {
@@ -14,9 +16,11 @@ type PromptTarget = {
   set: (prompt: PromptInputV2Prompt, cursor?: number) => void
 }
 
+export type Refusal = { name?: string; reason: string }
+
 export type PromptInputV2AttachmentConfig = {
   blocked?: () => string | null
-  refuse: (reasons: string[]) => void
+  refuse: (refusals: Refusal[]) => void
   onAdded?: (attachment: PromptInputV2Attachment, file: File) => void
   onDiscarded?: (attachment: PromptInputV2Attachment) => void
   key?: () => string
@@ -32,9 +36,9 @@ export function createPromptInputV2Attachments(
     editor: () => HTMLElement | undefined
     focusEditor: () => void
     addPart: (part: PromptInputV2Prompt[number]) => boolean
-    chip: (items: readonly { id: string; name: string }[], at?: { x: number; y: number }) => void
     fileRef: (paths: readonly string[], at?: { x: number; y: number }) => void
-    hasText: () => boolean
+    chip: (items: readonly { id: string; name: string }[], at?: { x: number; y: number }) => void
+    draft: () => string
     setDragging: (dragging: boolean) => void
   },
 ) {
@@ -46,16 +50,21 @@ export function createPromptInputV2Attachments(
   const [dragKind, setDragKind] = createSignal<"files" | "reference">("files")
   const addAttachments = async (
     files: File[],
+    source: AttachSource,
     target = capture(),
-    at?: { x: number; y: number },
     notes: string[] = [],
+    at?: { x: number; y: number },
   ) => {
     const blocked = input.blocked?.()
-    if (blocked) return void input.refuse([blocked])
+    if (blocked) return void input.refuse([{ reason: blocked }])
     const openedFor = input.key?.()
     const held = target.current().filter((part) => part.type === "image")
-    const { images, files: others, error } = admit(held.length, files)
-    const refusals = [...notes, ...(error ? [error] : [])]
+    const { images, files: others } = admit(held.length, files)
+    const admitted = new Set<File>([...images, ...others])
+    const refusals: Refusal[] = [
+      ...notes.map((reason) => ({ reason })),
+      ...files.filter((file) => !admitted.has(file)).map((file) => ({ name: file.name, reason: shortRefusal(file) })),
+    ]
     const added: PromptInputV2Attachment[] = []
     const abandoned = () => openedFor !== undefined && input.key?.() !== openedFor
     const release = () => {
@@ -89,14 +98,13 @@ export function createPromptInputV2Attachments(
       setPreparing((count) => count - 1)
     }
     if (abandoned()) return release()
-    if (refusals.length) input.refuse([refusals.at(-1)!])
+    if (refusals.length) input.refuse(refusals)
     if (!added.length) return
-    const prose = input.hasText()
+    const inline = attachPlacement(source, input.draft()) === "inline"
     target.set([...target.current(), ...added], target.cursor())
-    const named = added.filter((part) => prose || !isImage({ name: part.filename, type: part.mime }))
-    if (named.length)
+    if (inline)
       input.chip(
-        named.map((part) => ({ id: part.id, name: part.filename })),
+        added.map((part) => ({ id: part.id, name: part.filename })),
         at,
       )
   }
@@ -119,12 +127,12 @@ export function createPromptInputV2Attachments(
     const files = Array.from(clipboardData.items).flatMap((item) => {
       if (item.kind !== "file") return []
       const file = item.getAsFile()
-      return file ? [file] : []
+      return file ? [pastedName(file)] : []
     })
     const plainText = clipboardData.getData("text/plain") ?? ""
     const text = plainText.includes("\r") ? plainText.replace(/\r\n?/g, "\n") : plainText
     if (files.length > 0) {
-      await addAttachments(files, target)
+      await addAttachments(files, "paste", target)
       if (text) insertPastedText(text)
       return
     }
@@ -139,7 +147,7 @@ export function createPromptInputV2Attachments(
     if (path) {
       event.preventDefault()
       const blocked = input.blocked?.()
-      if (blocked) return input.refuse([blocked])
+      if (blocked) return input.refuse([{ reason: blocked }])
       input.fileRef([path], at)
       return
     }
@@ -148,11 +156,11 @@ export function createPromptInputV2Attachments(
     const entries = entriesOf(transfer.items)
     const files = Array.from(transfer.files)
     const target = capture()
-    if (!hasFolder(entries)) return void addAttachments(files, target, at)
+    if (!hasFolder(entries)) return void addAttachments(files, "drop", target, [], at)
     const walked = await walkEntries(entries)
     const notes = walked.truncated ? [attachmentMessages.folderCut] : []
-    if (!walked.files.length) return input.refuse([attachmentMessages.folderEmpty])
-    await addAttachments(walked.files, target, at, notes)
+    if (!walked.files.length) return input.refuse([{ reason: attachmentMessages.folderEmpty }])
+    await addAttachments(walked.files, "drop", target, notes, at)
   }
 
   onMount(() => {
@@ -174,10 +182,17 @@ export function createPromptInputV2Attachments(
   return { addAttachments, handlePaste, handleDrop, dragKind }
 }
 
+function shortRefusal(file: File): string {
+  if (attachmentKind(file) === "unsupported-image") return "Not a supported image type"
+  if (file.size <= 0) return "Empty or unreadable"
+  if (attachmentError(file)) return `Over ${formatBytes(attachmentLimit(attachmentType(file)))}. Share a link?`
+  return attachmentMessages.tooMany
+}
+
 async function prepareImages(
   images: File[],
   take: (file: File) => Promise<void>,
-  refusals: string[],
+  refusals: Refusal[],
   abandoned: () => boolean,
 ) {
   for (const file of images) {
@@ -187,11 +202,10 @@ async function prepareImages(
     const prepared = await prepareImageForAttachment(typed, MAX_IMAGE_BYTES)
     if (prepared.ok) await take(prepared.file)
     else
-      refusals.push(
-        prepared.reason === "unreadable"
-          ? attachmentMessages.unreadable(file.name)
-          : attachmentMessages.tooLargeCompressed(file.name),
-      )
+      refusals.push({
+        name: file.name,
+        reason: prepared.reason === "unreadable" ? "Could not be read as an image" : "Too large, even compressed",
+      })
   }
 }
 
@@ -223,6 +237,13 @@ function cursorPosition(editor: HTMLElement) {
   before.selectNodeContents(editor)
   before.setEnd(range.startContainer, range.startOffset)
   return before.toString().replace(/​/g, "").length
+}
+
+function pastedName(file: File): File {
+  const generic = /^image\.(\w+)$/.exec(file.name)
+  return generic
+    ? new File([file], `Pasted image.${generic[1]}`, { type: file.type, lastModified: file.lastModified })
+    : file
 }
 
 function largePaste(text: string) {
