@@ -13,3 +13,5 @@ export function parseFrontmatter(content: string): Frontmatter {
     body: text.slice(end + 4).trim(),
   }
 }
+
+export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/

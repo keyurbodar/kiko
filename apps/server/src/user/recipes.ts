@@ -49,9 +49,12 @@ export function saveInstall(sql: SqlStorage, install: Install): void {
 export const recipeRule = (every: string) =>
   /BYMINUTE=/i.test(every) && !/BYSECOND=/i.test(every) ? `${every};BYSECOND=0` : every
 
-export function recipeWake(r: Recipe, routines: readonly Reminder[]): string {
+export const recipeLocation = (slug: string, custom: boolean) =>
+  `/${custom ? "home" : "kiko"}/recipes/${slug}/RECIPE.md`
+
+export function recipeWake(r: Recipe, location: string, routines: readonly Reminder[]): string {
   const lines = [
-    `the human just added the "${r.title}" recipe to this chat. its instructions are the ${r.slug} skill: load it with read_skill("${r.slug}") first.`,
+    `the human just added the "${r.title}" recipe to this chat. read its instructions in ${location} first.`,
   ]
   lines.push(
     routines.length

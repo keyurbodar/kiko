@@ -8,6 +8,7 @@ import {
   findTarget,
   type Install,
   listInstalls,
+  recipeLocation,
   recipeRule,
   recipeWake,
   saveInstall,
@@ -115,7 +116,7 @@ export class RecipeService {
         setup: `${recipe.title} is already on for @${agent} in this chat.`,
         existed: true,
       }
-    return this.add(recipe, input.installId, roomId, agent, by)
+    return this.add(recipe, lib.custom.has(recipe.slug), input.installId, roomId, agent, by)
   }
 
   private async gate(recipe: Recipe): Promise<RecipeNeedsConnect | null> {
@@ -141,6 +142,7 @@ export class RecipeService {
 
   private async add(
     recipe: Recipe,
+    custom: boolean,
     installId: string,
     roomId: RoomId,
     agent: string,
@@ -169,7 +171,7 @@ export class RecipeService {
         }
         made.push(out.routine)
       }
-      const setup = recipeWake(recipe, made)
+      const setup = recipeWake(recipe, recipeLocation(recipe.slug, custom), made)
       const woke = await this.p.announce(roomId, {
         installId,
         agent,
@@ -240,27 +242,22 @@ export class RecipeService {
     })
   }
 
-  async briefs(roomId: string, agent: string): Promise<{ name: string; description: string }[]> {
-    const { recipes } = await this.p.library.read()
+  async briefs(roomId: string, agent: string): Promise<{ name: string; description: string; location: string }[]> {
     const on = new Set(
       this.p.sql
         .exec<{ slug: string }>("SELECT slug FROM recipe_installs WHERE room_id = ? AND agent = ?", roomId, agent)
         .toArray()
         .map((r) => r.slug),
     )
-    return recipes.map((r) => ({
-      name: r.slug,
-      description: `${r.title} recipe: ${r.description}${on.has(r.slug) && !r.triggers.length ? ON_FOR_YOU : ""}`,
-    }))
-  }
-
-  async skillText(slug: string): Promise<string | null> {
-    const lib = await this.p.library.read()
-    const r = lib.recipes.find((x) => x.slug === slug)
-    if (!r) return null
-    const from = lib.custom.has(slug) ? `/home/recipes/${r.slug}/RECIPE.md` : "kiko's built-in recipes"
-    const apps = r.apps.length ? ` it uses ${r.apps.join(", ")} through the human's connected apps.` : ""
-    return `the ${r.title.toLowerCase()} recipe, from ${from}. it runs: ${r.when.toLowerCase()}.${apps}\n\n${r.body}`
+    if (!on.size) return []
+    const { recipes, custom } = await this.p.library.read()
+    return recipes
+      .filter((r) => on.has(r.slug))
+      .map((r) => ({
+        name: r.slug,
+        description: `${r.title} recipe: ${r.description}${r.triggers.length ? "" : ON_FOR_YOU}`,
+        location: recipeLocation(r.slug, custom.has(r.slug)),
+      }))
   }
 
   private withRoutines(install: Install): RecipeInstall {

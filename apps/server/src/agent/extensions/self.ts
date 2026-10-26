@@ -1,7 +1,7 @@
 import { defineExtension, type Extension, wrapSection } from "@earendil-works/pi-durable"
 import { CHAT_PATH, MAX_CHAT, type RoomFs, type SoulPort } from "../../files/room-fs"
 
-const SELF = "self"
+export const SELF = "self"
 
 export function perRun<T>(read: () => Promise<T>, stamp?: () => number): () => Promise<T> {
   if (!stamp) return read

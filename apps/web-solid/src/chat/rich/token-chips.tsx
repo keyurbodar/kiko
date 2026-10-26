@@ -4,14 +4,14 @@ import { TokenGlyph } from "../../composer/prompt-input/chip"
 import "../../composer/prompt-input/prompt-input.css"
 import { skillNames, titleOf, type Token } from "../../composer/tokens"
 import { cards } from "../../recipes/state"
-import { room } from "../../state/room"
+import { user } from "../../state/user"
 import { slashPieces } from "./slash"
 
 function slashToken(name: string): Token | undefined {
   const card = cards().find((c) => c.slug === name)
   if (card) return { kind: "recipe", id: `recipe:${name}`, name, title: card.title, hint: card.when }
-  if (skillNames(room.files().map((file) => file.name)).includes(name))
-    return { kind: "skill", id: `skill:${name}`, name, title: titleOf(name), hint: "Skill in this chat" }
+  if (skillNames(user.homeFiles().map((file) => file.name)).includes(name))
+    return { kind: "skill", id: `skill:${name}`, name, title: titleOf(name), hint: "Your skill" }
   return undefined
 }
 

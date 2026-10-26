@@ -378,7 +378,7 @@ export class Agent {
 
   private recipesPort(home: { userId: string; roomId: string; slug: string }): RecipesPort {
     const user = () => this.services.user()
-    return { list: () => user().recipeBriefs(home.roomId, home.slug), body: (name) => user().recipeSkillText(name) }
+    return { list: () => user().recipeBriefs(home.roomId, home.slug) }
   }
 
   private routinesPort(): RoutinesPort | null {
