@@ -92,10 +92,10 @@ import {
   type FsChange,
   type FsEntry,
   type FsFail,
-  HOME_TABLES,
   listOwnerFiles,
   type NewFile,
   type PutResult,
+  ROOM_TABLES,
 } from "../files/file-index"
 import { actorKey } from "../room/actor-key"
 import { RoomDirectory, type ChatChange } from "../room/directory"
@@ -227,7 +227,7 @@ export class User {
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(
         ctx.storage,
-        HOME_TABLES,
+        ROOM_TABLES,
         (_, body) => {
           const event = this.commit(body)
           if (!event) throw new Error("file change produced no event")

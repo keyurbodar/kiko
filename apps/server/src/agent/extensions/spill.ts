@@ -66,5 +66,5 @@ export async function spill(fs: RoomFs | undefined, label: string, text: string)
   const path = `/downloads/${slug(label)}-${await sha8(body)}.${ext}`
   const saved = (await fs.stat(path)).ok || (await fs.write(path, encoder.encode(body))).ok
   if (!saved) return `${start}\n(cut: the whole result is ${size}, and it could not be saved)`
-  return `${start}\n(the start of ${size}. the whole result is saved at ${path}. search it with bash, like grep -n "word" ${path}, or read it with read and an offset. do not fetch it again.)`
+  return `${start}\n(the start of ${size}. the whole result is saved at ${path}. view it with read and an offset, or search it with bash, like grep -n "word" ${path}. do not fetch it again.)`
 }
