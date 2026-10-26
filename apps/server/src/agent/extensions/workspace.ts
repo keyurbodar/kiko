@@ -52,7 +52,7 @@ export function workspaceExtension(port: WorkspacePort, lead: boolean): Extensio
   const createTask = defineTool({
     name: "create_task",
     description:
-      "track one meaningful step, not every tool call. Write an action title of fewer than 12 words, without handles, detailed instructions, or report-to text. Assign an owner. A different owner is woken immediately when ready, or when dependencies finish. Keep details in the handoff message or files. Do not create a plan for a simple reply.",
+      "track one meaningful step, not every tool call. Write an action title of fewer than 12 words, without handles, detailed instructions, or report-to text. Assign an owner. A different owner is woken when it is ready: at once, or when you close the tasks it depends on. Keep details in the handoff message or files. Do not create a plan for a simple reply.",
     parameters: Type.Object({
       title: Type.String({
         maxLength: 80,

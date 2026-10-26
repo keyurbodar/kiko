@@ -32,6 +32,7 @@ import type { Home } from "./home"
 import type { RoomWorkspace } from "./workspace"
 import { wakeBody } from "./workspace"
 import type { Burst } from "./burst"
+import type { Asks } from "./asks"
 
 export class RoomDelivery {
   private humanTypingAt = 0
@@ -43,6 +44,7 @@ export class RoomDelivery {
       routines: RoomRoutines
       workspace: RoomWorkspace
       burst: Burst
+      asks: Asks
       home: () => Home | null
       chat: (home: Home) => Promise<Chat | null>
       seedMembers: (home: Home, chat: Chat) => Promise<void>
@@ -132,7 +134,12 @@ export class RoomDelivery {
       })
       this.d.workspace.markReported(report.seq)
     }
+    const lead = this.d.members.list().find((m) => m.lead)?.slug
     for (const wake of this.d.workspace.pendingWakes()) {
+      if (lead && wake.owner !== lead && this.d.asks.owes(wake.owner, lead)) {
+        this.d.workspace.markWoken(wake.taskId)
+        continue
+      }
       await this.wake({
         id: `unblocked:${wake.taskId}`,
         to: wake.owner,

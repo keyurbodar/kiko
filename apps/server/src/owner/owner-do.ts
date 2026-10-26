@@ -222,10 +222,13 @@ export class OwnerDO extends DurableObject<Env> {
 
   private async haltRun(agent: string): Promise<void> {
     const [roomId = "", slug = ""] = agent.split(":")
-    await this.agent(roomId, slug).stop()
-    if (!isAgentSlug(slug)) return
+    if (!isAgentSlug(slug)) {
+      await this.agent(roomId, slug).stop()
+      return
+    }
     const room = this.room(roomId)
-    await room.homeNotice(slug, "stopped: this request ran long, so it was paused. say continue to keep going.")
+    await room.halted(slug, "stopped: this request ran long, so it was paused. say continue to keep going.")
+    await this.agent(roomId, slug).stop()
     await room.setStatus(slug, "idle")
   }
 

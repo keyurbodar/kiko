@@ -38,7 +38,7 @@ const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0
 
 function traceLine(kind: string, m: TraceMessage | undefined): TraceLine {
   const parts: TracePart[] = typeof m?.content === "string" ? [{ type: "text", text: m.content }] : (m?.content ?? [])
-  const text = clip(parts.map((p) => p.text ?? "").join(""), 600)
+  const text = clip(parts.map((p) => p.text ?? "").join(""), 4000)
   const calls = parts
     .filter((p) => p.type === "toolCall")
     .map((p) => `${p.name}(${clip(JSON.stringify(p.arguments ?? {}), 400)})`)

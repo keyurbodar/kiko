@@ -8,6 +8,7 @@ export const INITIATIVE_RUN = "initiative"
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
 const RENUDGE_MS = 3 * DAY
+const STALE_MS = 6 * HOUR
 const KEEP_MS = 90 * DAY
 const TRIES = 5
 const PER_PASS = { digest: 1, active: 3 }
@@ -48,7 +49,9 @@ export class InitiativeEngine {
     )
     return this.boards()
       .flatMap((board) => {
-        const task = board.oldest.find((t) => t.id && !seen.has(`task:${board.roomId}:${t.id}`))
+        const task = board.oldest.find(
+          (t) => t.id && t.updatedAt <= now - STALE_MS && !seen.has(`task:${board.roomId}:${t.id}`),
+        )
         return task?.id ? [{ room: board.roomId, task: { ...task, id: task.id } }] : []
       })
       .sort((a, b) => a.task.updatedAt - b.task.updatedAt)

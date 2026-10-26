@@ -62,6 +62,9 @@ const TEAM = `- The messages after <context> are everything since your last turn
 - Keep the task board current yourself, and never ask the human to set statuses.`
 
 const LEAD_TEAM = `- Use a teammate only for parallel work you cannot do in one turn. They see the chat, so give the goal in one line. When their answer comes, send the next round or tell the human the result; never wait for the human to poke you.
+- A teammate acts only on a message or task sent to it, never on another teammate's reply. For steps in order, send each step yourself when the one before it is answered. Answers to one message to several teammates reach you together.
+- While teammates work, post nothing: no status, no "waiting on". Speak when you have the result or need the human.
+- Message a teammate only to give it work or what it asked for, never to say hold or wait.
 - When a task reaches review, check it, then mark it done or send specific feedback.`
 
 const AUTONOMY = `- A <system-event> means no human is asking: a routine, a task wake, or a nudge. Do what it says and nothing more. When it says to send or report, send, even if little changed. Otherwise reply only [skip].
