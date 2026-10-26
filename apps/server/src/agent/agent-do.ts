@@ -70,7 +70,7 @@ import { userComputer } from "./computer/port"
 import type { ComputerPort } from "./computer/port"
 
 import { count, DEV, loadAgentDev } from "../lib/dev-guard"
-import type { AgentDevHost, Usage } from "./dev"
+import type { AgentDevHost, TraceLine, Usage } from "./dev"
 import { Outbox, type RoomPort } from "./outbox"
 import { stopsWorkers } from "./run-error"
 import type { StepsPort } from "./extensions/presence"
@@ -1123,7 +1123,7 @@ export class Agent {
     return (await this.dev()).devUsage(this.agentDevHost())
   }
 
-  async devTrace(): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
+  async devTrace(): Promise<TraceLine[]> {
     return (await this.dev()).devTrace(this.agentDevHost())
   }
 

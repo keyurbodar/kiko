@@ -351,7 +351,7 @@ class CommandFs implements IFileSystem {
       isFile: true,
       isDirectory: false,
       isSymbolicLink: false,
-      mode: 0o100644,
+      mode: 0o100755,
       size: sizeOf(n),
       mtime: new Date(n.at),
       identity: path,

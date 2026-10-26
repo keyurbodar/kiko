@@ -106,13 +106,22 @@ describe("RoomFs", () => {
     expect(out.ok).toBe(true)
   })
 
-  it("saves a command's writes when its last step is a script that cannot run", async () => {
+  it("runs a script the agent wrote as ./script.sh", async () => {
     const { backend, files } = memoryBackend()
     const fs = new RoomFs("test", backend)
-    const out = await bash(fs, "echo hi > /run.sh; echo kept > /kept.txt; cd / && ./run.sh")
-    expect(out.exitCode).toBe(126)
-    expect(out.output).toContain("Permission denied")
+    const out = await bash(fs, "printf 'echo ran\\n' > /run.sh; echo kept > /kept.txt; cd / && ./run.sh")
+    expect(out.exitCode).toBe(0)
+    expect(out.output).toContain("ran")
     expect(decoder.decode(files.get("kept.txt")?.bytes)).toBe("kept\n")
+  })
+
+  it("matches a negated bracket in a case pattern", async () => {
+    const { backend } = memoryBackend()
+    const fs = new RoomFs("test", backend)
+    const check = (n: string) =>
+      bash(fs, `n=${n}; case "$n" in ''|*[!0-9]*) echo word;; *) echo number;; esac`).then((o) => o.output.trim())
+    expect(await check("12")).toBe("number")
+    expect(await check("ab")).toBe("word")
   })
 
   it("saves nothing when a command hits a limit", async () => {

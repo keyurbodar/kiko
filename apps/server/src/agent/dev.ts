@@ -29,29 +29,34 @@ export async function devUsage(host: AgentDevHost): Promise<Usage> {
   }
 }
 
-export async function devTrace(
-  host: AgentDevHost,
-): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
+type TracePart = { type: string; text?: string; name?: string; thinking?: string; arguments?: unknown }
+type TraceMessage = { role?: string; content?: string | TracePart[]; toolName?: string; isError?: boolean }
+
+export type TraceLine = { kind: string; role?: string; text?: string; calls?: string[]; tool?: string; error?: boolean }
+
+const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}…` : text)
+
+function traceLine(kind: string, m: TraceMessage | undefined): TraceLine {
+  const parts: TracePart[] = typeof m?.content === "string" ? [{ type: "text", text: m.content }] : (m?.content ?? [])
+  const text = clip(parts.map((p) => p.text ?? "").join(""), 600)
+  const calls = parts
+    .filter((p) => p.type === "toolCall")
+    .map((p) => `${p.name}(${clip(JSON.stringify(p.arguments ?? {}), 400)})`)
+  return {
+    kind,
+    ...(m?.role ? { role: m.role } : {}),
+    ...(text ? { text } : {}),
+    ...(calls.length ? { calls } : {}),
+    ...(m?.toolName ? { tool: m.toolName } : {}),
+    ...(m?.isError ? { error: true } : {}),
+  }
+}
+
+export async function devTrace(host: AgentDevHost): Promise<TraceLine[]> {
   if (!host.home()) return []
   const { root } = await host.opened()
   const view = await root.context(BACKGROUND_CONTEXT)
-  return view.entries.map((e) => {
-    const m = e.model?.[0] as
-      | { content?: string | { type: string; text?: string; name?: string; thinking?: string }[] }
-      | undefined
-    const parts = typeof m?.content === "string" ? [{ type: "text", text: m.content }] : (m?.content ?? [])
-    const tool = parts.find((p) => p.type === "toolCall")?.name
-    const text = parts
-      .map((p) => p.text ?? "")
-      .join("")
-      .slice(0, 300)
-    return {
-      kind: e.kind,
-      ...(tool ? { tool } : {}),
-      chars: parts.reduce((n, p) => n + (p.text?.length ?? 0) + (p.thinking?.length ?? 0), 0),
-      ...(text ? { text } : {}),
-    }
-  })
+  return view.entries.flatMap((e) => (e.model ?? []).map((m) => traceLine(e.kind, m as TraceMessage)))
 }
 
 export async function devFake(host: AgentDevHost): Promise<void> {
