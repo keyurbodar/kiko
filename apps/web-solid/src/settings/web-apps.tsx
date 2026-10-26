@@ -183,7 +183,9 @@ export default function WebApps(): JSX.Element {
               <Show
                 when={ready().available}
                 fallback={
-                  <Hint data-field="web-apps-unavailable">App building arrives with the next Kiko update.</Hint>
+                  <Hint data-field="web-apps-unavailable">
+                    Kiko is installing the app builder. This takes a few minutes.
+                  </Hint>
                 }
               >
                 <Group title="Account">

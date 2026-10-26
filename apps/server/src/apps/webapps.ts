@@ -33,7 +33,8 @@ export const webAppsDisconnect = (apps: Apps | null) =>
   })
 
 export function webAppsClaim(apps: Apps | null, name: string): Effect.Effect<ClaimResult> {
-  if (!apps) return Effect.succeed({ ok: false, error: "App building arrives with the next Kiko update." })
+  if (!apps)
+    return Effect.succeed({ ok: false, error: "Kiko is installing the app builder. Try again in a few minutes." })
   return Effect.promise(() =>
     apps.claimLink(name).then(
       (link): ClaimResult => ({ ok: true, ...link }),
