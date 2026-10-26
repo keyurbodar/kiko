@@ -48,7 +48,7 @@ function lines(list: string[], bytes: number): string[] {
 function ends(text: string): { start: string; end: string; cut: number } {
   const all = text.split("\n")
   const start = lines(all, HEAD_BYTES)
-  const end = lines(all.slice(start.length).reverse(), TAIL_BYTES).reverse()
+  const end = lines(all.slice(start.length).toReversed(), TAIL_BYTES).toReversed()
   if (start.length && end.length)
     return { start: start.join("\n"), end: end.join("\n"), cut: all.length - start.length - end.length }
   return { start: text.slice(0, HEAD_BYTES / 4), end: text.slice(-TAIL_BYTES / 4), cut: 0 }
