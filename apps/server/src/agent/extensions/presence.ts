@@ -31,7 +31,7 @@ const tool = (name: string, doing: string): Described => ({
 })
 
 function describeCall(name: string, args: Record<string, unknown>): Described | null {
-  if (name.startsWith("memory_") || name === "read_skill") return null
+  if (name.startsWith("memory_")) return null
   switch (name) {
     case "read":
       return tool(name, `reading${path(args)}`)

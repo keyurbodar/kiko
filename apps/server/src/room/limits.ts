@@ -1,4 +1,4 @@
-const MAX_HOP = 24
+const MAX_HOP = 8
 const MAX_DELIVERIES_PER_ROOT = 60
 
 export type Limit = "hop" | "root"

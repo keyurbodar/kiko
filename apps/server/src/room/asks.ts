@@ -37,7 +37,7 @@ export class Asks {
   answer(from: AgentSlug, to: AgentSlug, text: string): boolean {
     return (
       this.sql.exec(
-        "UPDATE agent_asks SET answer = ?1 WHERE (asker = ?2 AND askee = ?3 AND state = 'closed' AND answer IS NULL AND remote IS NULL) AND agent_asks.room_id = ?4",
+        "UPDATE agent_asks SET answer = ?1 WHERE (asker = ?2 AND askee = ?3 AND answer IS NULL AND remote IS NULL) AND agent_asks.room_id = ?4",
         text,
         to,
         from,
@@ -49,7 +49,7 @@ export class Asks {
   answerRemote(from: AgentSlug, to: AgentSlug, text: string): { id: string; remote: RoomId }[] {
     const rows = this.sql
       .exec<{ id: string; remote: RoomId }>(
-        "SELECT id, remote FROM agent_asks WHERE (asker = ?1 AND askee = ?2 AND state = 'closed' AND answer IS NULL AND NOT remote IS NULL) AND agent_asks.room_id = ?3 ORDER BY at",
+        "SELECT id, remote FROM agent_asks WHERE (asker = ?1 AND askee = ?2 AND answer IS NULL AND NOT remote IS NULL) AND agent_asks.room_id = ?3 ORDER BY at",
         to,
         from,
         this.roomId,

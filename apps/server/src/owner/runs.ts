@@ -3,6 +3,7 @@ const RUN_CALL_LIMIT = 40
 const RUN_DURATION_MS = 12 * 60_000
 const SHARE_AFTER_CALLS = 3
 const SPARE_CALLS = 6
+const MAX_CONTINUES = 3
 
 type RunOutcome = "done" | "continue"
 
@@ -12,7 +13,6 @@ class RunCallLimitError extends Schema.TaggedError<RunCallLimitError>()("RunCall
 
 class RunBudget {
   private outgoing = 0
-  private rejected = false
   private drained = false
   private readonly sharing = new AbortController()
   readonly deadline: number
@@ -21,12 +21,8 @@ class RunBudget {
     this.deadline = now() + RUN_DURATION_MS
   }
 
-  get calls(): number {
-    return this.outgoing
-  }
   count(): void {
     if (this.outgoing >= RUN_CALL_LIMIT) {
-      this.rejected = true
       throw new RunCallLimitError({
         message:
           "This run reached its network call budget during a tool. Completed actions were kept. Check those actions before retrying.",
@@ -49,7 +45,6 @@ class RunBudget {
     this.sharing.abort()
   }
   due(othersWaiting: () => boolean = () => false): boolean {
-    if (this.rejected) return false
     if (this.drained || this.outgoing >= RUN_CALL_LIMIT || this.now() >= this.deadline) return true
     return this.outgoing >= SHARE_AFTER_CALLS && othersWaiting()
   }
@@ -57,6 +52,7 @@ class RunBudget {
 
 type RunsOptions = {
   schedule: (agent: string, requestId: string, behind?: boolean) => Promise<void>
+  halt: (agent: string) => Promise<void>
   now?: () => number
 }
 
@@ -114,10 +110,11 @@ export class Runs {
     agent: string,
     requestId: string,
     invoke: (budget: RunBudget) => Promise<RunOutcome>,
-    budget = this.budget(),
+    continues = 0,
   ): Promise<void> {
     const existing = this.active.get(agent)
     if (existing) return existing.work
+    const budget = this.budget()
     const work = Promise.resolve().then(async () => {
       let outcome: RunOutcome
       try {
@@ -125,7 +122,9 @@ export class Runs {
       } finally {
         this.active.delete(agent)
       }
-      if (outcome === "continue") await this.options.schedule(agent, requestId, true)
+      if (outcome !== "continue") return
+      if (continues >= MAX_CONTINUES) await this.options.halt(agent)
+      else await this.options.schedule(agent, requestId, true)
     })
     this.active.set(agent, { budget, work })
     return work

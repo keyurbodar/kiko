@@ -29,6 +29,7 @@ import { CHIEF } from "../room/chief"
 import { HOME } from "../files/paths"
 import {
   homeBackend,
+  HomeNotices,
   ObjectCache,
   RoomFs,
   roomBackend,
@@ -106,6 +107,7 @@ export class Agent {
   private hostInstance?: AgentHost
   private outboxInstance?: Outbox
   private afterHumanRun = false
+  private readonly homeNotices = new HomeNotices()
   protected readonly answers = new AnswerWaiters()
 
   protected readonly ctx: DurableObjectState
@@ -346,6 +348,11 @@ export class Agent {
         const { mail, human } = await this.heard(inputs).catch(() => ({ mail: [], human: false }))
         this.afterHumanRun ||= human
         this.recovered()
+        const said = this.homeNotices.take()
+        if (said)
+          await room()
+            .homeNotice(home.slug, said)
+            .catch(() => undefined)
         const ended = await room().endRun(home.slug, runId, mail, working)
         if (!working) await this.releaseTabs()
         return ended
@@ -378,7 +385,7 @@ export class Agent {
 
   private recipesPort(home: { userId: string; roomId: string; slug: string }): RecipesPort {
     const user = () => this.services.user()
-    return { list: () => user().recipeBriefs(home.roomId, home.slug), body: (name) => user().recipeSkillText(name) }
+    return { list: () => user().recipeBriefs(home.roomId, home.slug) }
   }
 
   private routinesPort(): RoutinesPort | null {
@@ -410,6 +417,7 @@ export class Agent {
       runRoutine: async (id) => ((await mine(id)) ? user().runRoutine(id) : null),
       runs: async (id) => ((await mine(id)) ? user().routineRuns(id) : []),
       origin: () => user().publicOrigin(),
+      self: () => home.slug,
       addRecipe: async (slug) => {
         const out = await user().installRecipe(
           home.userId,
@@ -603,16 +611,12 @@ export class Agent {
     const soul = this.soulPort()
     const cache = new ObjectCache()
     const where = () => this.home()
-    const notice = (text: string) => {
-      const h = this.home()
-      return h ? this.services.room(h.roomId).homeNotice(h.slug, text) : Promise.resolve()
-    }
     const locked = () => (this.home()?.private ? PRIVATE_REFUSAL : null)
     const backend = withMount(
       withMount(
         roomBackend(this.services, where, cache),
         HOME,
-        homeBackend(this.services, where, notice, cache, locked),
+        homeBackend(this.services, where, this.homeNotices, cache, locked),
       ),
       KIKO,
       kikoDocsBackend(),
@@ -709,7 +713,11 @@ export class Agent {
     const live = ((await this.routinesPort()?.list()) ?? []).filter(
       (routine) => routine.status === "active" || routine.status === "paused" || routine.status === "failed",
     )
-    const inventory = live.slice(0, 32).map((routine) => routineLine(routine))
+    const runs = live.length ? await this.services.user().routineRuns() : []
+    const inventory = live.slice(0, 32).map((routine) => {
+      const mine = runs.filter((run) => run.routineId === routine.id)
+      return routineLine(routine, mine.length ? mine : undefined)
+    })
     return `Live routines (current; replaces earlier inventories):\n${inventory.join("\n") || "(none)"}${live.length > inventory.length ? `\n${live.length - inventory.length} more; use list_routines for the full list.` : ""}`
   }
 

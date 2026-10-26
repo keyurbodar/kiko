@@ -276,14 +276,22 @@ export class RoomFs implements ExecutionEnv {
       })
       const out = await this.backend.commit(mapped)
       this.stats.clear()
-      if (out.ok)
-        for (const c of mapped)
-          for (const p of c.op === "rmdir" ? [c.path, ...Object.keys(c.files)] : batchPaths(c)) this.seen.delete(p)
-      return out.ok ? out : { ...out, path: `/${out.path}` }
+      if (!out.ok) return { ...out, path: `/${out.path}` }
+      for (const c of mapped) await this.saw(c)
+      return out
     } catch (e) {
       if (e instanceof FileError) return { ok: false, path: e.path ?? "", message: e.message, conflict: false }
       throw e
     }
+  }
+
+  private async saw(c: BatchChange): Promise<void> {
+    if (c.op === "write") this.seen.set(c.path, await sha256Hex(c.bytes))
+    else if (c.op === "move") {
+      this.seen.delete(c.from)
+      this.seen.set(c.to, c.sha256)
+    } else if (c.op === "rmdir") for (const p of [c.path, ...Object.keys(c.files)]) this.seen.delete(p)
+    else if (c.op === "remove") this.seen.delete(c.path)
   }
 
   async writeFile(path: string, content: string | Uint8Array): Promise<Result<void, FileError>> {
@@ -617,16 +625,43 @@ export function roomBackend(
   )
 }
 
+const MAX_NOTICED = 6
+
+export class HomeNotices {
+  private readonly said = new Set<string>()
+
+  add(lines: readonly string[]): void {
+    for (const line of lines) this.said.add(line)
+  }
+
+  take(): string | null {
+    if (!this.said.size) return null
+    const all = [...this.said]
+    this.said.clear()
+    const more = all.length - MAX_NOTICED
+    return all.slice(0, MAX_NOTICED).join(", ") + (more > 0 ? `, and ${more} more` : "")
+  }
+}
+
+const saidOf = (c: BatchChange): string[] =>
+  c.op === "write"
+    ? [`saved /home/${c.path}`]
+    : c.op === "move"
+      ? [`moved /home/${c.from} to /home/${c.to}`]
+      : c.op === "mkdir"
+        ? []
+        : [`deleted /home/${c.path}`]
+
 export function homeBackend(
   services: OwnerServices,
   home: () => AgentHome | null,
-  notice: (text: string) => Promise<unknown>,
+  notices: HomeNotices,
   cache = new ObjectCache(),
   locked: () => string | null = () => null,
 ): FilesBackend {
   const h = homeOf(home)
-  const told = async <T extends { ok: boolean }>(out: T, text: string) => {
-    if (out.ok) await notice(text).catch(() => undefined)
+  const told = <T extends { ok: boolean }>(out: T, lines: readonly string[]) => {
+    if (out.ok) notices.add(lines)
     return out
   }
   const base = spaceBackend(
@@ -654,17 +689,20 @@ export function homeBackend(
     ...base,
     write: async (path, bytes, type, expect) => {
       const why = locked()
-      return why ? refuse(why) : told(await base.write(path, bytes, type, expect), `saved /home/${path}`)
+      return why ? refuse(why) : told(await base.write(path, bytes, type, expect), [`saved /home/${path}`])
     },
     move: async (from, to) => {
       const why = locked()
-      return why ? refuse(why) : told(await base.move(from, to), `moved /home/${from} to /home/${to}`)
+      return why ? refuse(why) : told(await base.move(from, to), [`moved /home/${from} to /home/${to}`])
     },
     remove: async (paths, recursive) => {
       const why = locked()
       return why
         ? refuse(why)
-        : told(await base.remove(paths, recursive), `deleted ${paths.map((p) => `/home/${p}`).join(", ")}`)
+        : told(
+            await base.remove(paths, recursive),
+            paths.map((p) => `deleted /home/${p}`),
+          )
     },
     mkdir: async (path) => {
       const why = locked()
@@ -673,17 +711,7 @@ export function homeBackend(
     commit: async (changes) => {
       const why = locked()
       if (why) return { ok: false, path: changes.flatMap(batchPaths)[0] ?? "", message: why, conflict: false }
-      const out = await base.commit(changes)
-      const said = changes.flatMap((c) =>
-        c.op === "write"
-          ? [`saved /home/${c.path}`]
-          : c.op === "move"
-            ? [`moved /home/${c.from} to /home/${c.to}`]
-            : c.op === "mkdir"
-              ? []
-              : [`deleted /home/${c.path}`],
-      )
-      return said.length ? told(out, said.join(", ")) : out
+      return told(await base.commit(changes), changes.flatMap(saidOf))
     },
   }
 }

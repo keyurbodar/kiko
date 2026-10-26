@@ -10,6 +10,8 @@ import {
   createRegistry,
   defineExtension,
   type Extension,
+  hook,
+  ToolTask,
   type HarnessSettings,
   type ModelRef,
   type Registry,
@@ -18,6 +20,7 @@ import {
 import { workExtensions } from "./extensions/work"
 import { withTextToolCalls } from "./tool-markup"
 import { withDraft2020Tools } from "./tool-schema"
+import { RepeatGuard } from "./repeats"
 import type { Workers } from "@kiko/agent/workers"
 import { effectTable } from "@kiko/agent/effects"
 import { type FilesOptions, filesExtension } from "./extensions/files"
@@ -37,7 +40,7 @@ import { composioExtension } from "../integrations/composio/tools"
 import { connectAppExtension } from "../integrations/composio/connect-tool"
 import { type BrowserToolDeps, browserExtension, browserInfoExtension } from "./browser/tools"
 import { type ComputerToolDeps, computerExtension, computerInfoExtension } from "./computer/tools"
-import { baseSections, type RoleInput } from "./prompt"
+import { promptExtensions, type RoleInput } from "./prompt"
 import { forRole } from "./roles"
 import { count } from "../lib/dev-guard"
 import type { ThinkingLevel } from "@kiko/protocol"
@@ -71,12 +74,12 @@ export type BuiltAgent = {
   agent: AgentChange
 }
 
-const BASE = "base"
+const REPEATS = "repeats"
 const journals = new WeakMap<RegistryReader, JournalStorage>()
 
 function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]): Extension[] {
   return [
-    defineExtension({ name: BASE, sections: baseSections(input) }),
+    ...promptExtensions(input),
     ...(input.files && input.soul ? [selfExtension(input.files.fs, input.soul, input.runStamp)] : []),
     ...(input.memory ? memoryExtensions(input.memory) : []),
     ...(input.files
@@ -119,6 +122,19 @@ export function buildAgent(input: BuildAgentInput): BuiltAgent {
   let builtins: Extension[] = []
   const extensions = extensionsFor(input, () => builtins)
   const effects = effectTable(extensions)
+  const repeats = new RepeatGuard(input.runId)
+  const guard = defineExtension({
+    name: REPEATS,
+    hooks: [
+      hook(ToolTask, {
+        beforeTool: (call, api) => {
+          if (call.parent) return undefined
+          const refusal = repeats.check(api.conversationId, call, effects.get(call.name))
+          return refusal ? { block: refusal } : undefined
+        },
+      }),
+    ],
+  })
   builtins = extensions.map((extension) => ({
     ...extension,
     tools: extension.tools?.map((tool) => {
@@ -126,6 +142,7 @@ export function buildAgent(input: BuildAgentInput): BuiltAgent {
       if (effect !== "external" && effect !== "write") return tool
       return {
         ...tool,
+        ...(effect === "write" ? { executionMode: "sequential" as const } : {}),
         execute: async (args, api, context) => {
           journals.get(registry)?.flush()
           return tool.execute(args, api, context)
@@ -133,6 +150,7 @@ export function buildAgent(input: BuildAgentInput): BuiltAgent {
       } satisfies typeof tool
     }),
   }))
+  builtins.push(guard)
   for (const extension of builtins) registry.install(extension)
   return {
     registry,

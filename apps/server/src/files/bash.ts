@@ -490,7 +490,7 @@ class CommandFs implements IFileSystem {
           continue
         }
         const why = out.conflict
-          ? `${out.path} changed after this command started (a teammate or the human wrote it)`
+          ? `${out.path} changed after this command started, maybe by another of your own calls`
           : out.message
         refused.push({ path: out.path, message: `${why}. ${refuse(SPACE_NAME[space])}` })
       }
@@ -514,12 +514,16 @@ class CommandFs implements IFileSystem {
 }
 
 const LIMIT_EXIT = 126
+const LIMIT_TEXT = /\blimit\b|exceed|too many|maximum/i
+
+const hitLimit = (exitCode: number, stderr: string) =>
+  exitCode === LIMIT_EXIT && LIMIT_TEXT.test(stderr.trimEnd().split("\n").at(-1) ?? "")
 
 export type BashResult = ShellExecResult & { changed: string[] }
 
 const stopped = (timer: AbortSignal, seconds: number) =>
   timer.aborted
-    ? new ExecutionError("timeout", `the command ran past ${seconds} seconds, and none of its changes were saved`)
+    ? new ExecutionError("unknown", `the command ran past ${seconds} seconds, and none of its changes were saved`)
     : new ExecutionError("aborted", "the command was stopped, and none of its changes were saved")
 
 const OVER_READ = `bash: the command read more than ${MAX_READS} files and was stopped, and none of its changes were saved. narrow it to a folder or a pattern, or split it\n`
@@ -534,6 +538,8 @@ export async function runCommand(
   const timer = AbortSignal.timeout(seconds * 1000)
   const outside = context.abortSignal ? AbortSignal.any([context.abortSignal, timer]) : timer
   const say = (text: string) => void (text && options?.onOutput?.(text, context, { stream: "stdout" }))
+  if ((options?.timeout ?? 0) > MAX_TIMEOUT_S)
+    say(`bash: the timeout is at most ${MAX_TIMEOUT_S} seconds, so it is ${MAX_TIMEOUT_S}\n`)
   const overRead = (): Result<BashResult, ExecutionError> => {
     say(OVER_READ)
     return ok({ exitCode: LIMIT_EXIT, changed: [] })
@@ -552,7 +558,7 @@ export async function runCommand(
     const out = await bash.exec(command, { cwd, signal: AbortSignal.any([outside, fs.overRead.signal]) })
     if (outside.aborted) return err(stopped(timer, seconds))
     if (fs.overRead.signal.aborted) return overRead()
-    if (out.exitCode === LIMIT_EXIT) {
+    if (hitLimit(out.exitCode, out.stderr)) {
       say(
         `${out.stdout}${out.stderr}bash: the command hit a limit and was stopped, and none of its changes were saved\n`,
       )

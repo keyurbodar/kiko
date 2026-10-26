@@ -5,7 +5,7 @@ import type { ComposioCall, ComposioCallResult, ComposioTool } from "./client"
 import { composioErrorText } from "./connect"
 import { fillFlags } from "./tools"
 
-const CONNECT_APP = "composio_connect"
+export const CONNECT_APP = "composio_connect"
 export const MANAGE_CONNECTIONS = "COMPOSIO_MANAGE_CONNECTIONS"
 
 const text = (t: string, isError = false) => ({
@@ -119,7 +119,7 @@ export function connectAppExtension(
           defineTool({
             name: "connect_app",
             description:
-              "get the one link that connects an app through Composio, such as Gmail, Google Calendar, GitHub, Slack, or web search. use it the moment you need a capability the human has not connected, and say in one line why you need it. send the link as one markdown link and add no steps.",
+              "get the one link that connects an app through Composio, such as Gmail, Google Calendar, GitHub, Slack, or web search. use it the moment you need a capability the human has not connected, or a tool, worker, or recipe says an app is missing; never wait to be asked. say in one line why you need it, and send the link in the same reply as one markdown link, with no steps.",
             parameters: Type.Object({
               app: Type.String({
                 description: "the app or capability as people say it, like gmail, google calendar, or web search",

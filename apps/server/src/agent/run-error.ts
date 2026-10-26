@@ -2,6 +2,7 @@ import type { ErrorAction, RunErrorAction, RunErrorKind } from "@kiko/protocol"
 import { RETRY_AFTER_TOO_LONG } from "./retry"
 
 const KINDS: readonly (readonly [RunErrorKind, RegExp])[] = [
+  ["other", /reached its network call budget/i],
   [
     "too_long",
     /context[ _-]?(length|window)|maximum context|prompt is too long|too many tokens|input is too long|token limit|exceeds the (model|context)/i,

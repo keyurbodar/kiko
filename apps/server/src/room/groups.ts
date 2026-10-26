@@ -8,6 +8,7 @@ import type { Home } from "./home"
 import type { RoomLog } from "./log"
 import type { Members } from "./members"
 import { GroupRefused } from "./errors"
+import type { Chain } from "./messaging"
 
 export type GroupResult = { ok: true; text: string } | { ok: false; error: string }
 
@@ -19,6 +20,7 @@ type GroupsDeps = {
   members: Members
   home: () => Home | null
   publish: (events: RoomEvent[]) => void
+  chain: (slug: AgentSlug) => Chain
 }
 
 export class Groups {
@@ -100,7 +102,12 @@ export class Groups {
       const { roomId, created } = await user.openChat(checked.title, [CHIEF, ...everyone.map((a) => a.id)])
       await this.d.services
         .room(roomId)
-        .startGroup(home.userId, { chat: created ? chat : null, creator: slug, kickoff: checked.kickoff })
+        .startGroup(home.userId, {
+          chat: created ? chat : null,
+          creator: slug,
+          kickoff: checked.kickoff,
+          chain: this.d.chain(slug),
+        })
         .catch((e: unknown) => console.error(`start group failed: ${e instanceof Error ? e.message : String(e)}`))
       const { event } = this.d.log.addMessage({
         from: { kind: "system", reason: "created" },

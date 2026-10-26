@@ -136,7 +136,7 @@ export async function runDue(
   clock: import("@kiko/durable/clock-port").ClockPort,
   due: readonly string[],
   handlers: Readonly<Record<string, () => unknown>>,
-): Promise<string[]> {
+): Promise<void> {
   const errors: unknown[] = []
   for (const key of due) {
     const handler = handlers[key]
@@ -150,7 +150,6 @@ export async function runDue(
     }
   }
   if (errors.length) throw new AggregateError(errors, "Clock handlers failed")
-  return []
 }
 
 export function projectRecovery(

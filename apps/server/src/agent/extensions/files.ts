@@ -1,5 +1,5 @@
 import { Type } from "@earendil-works/pi-ai"
-import type { Models } from "@earendil-works/pi-ai"
+import type { Models, ToolResultMessage } from "@earendil-works/pi-ai"
 import {
   type ConversationId,
   defineExtension,
@@ -9,7 +9,7 @@ import {
   type ToolExecutionApi,
   type ToolRegistration,
 } from "@earendil-works/pi-durable"
-import { type ExecutionEnv, getOrThrow } from "@earendil-works/pi-durable/env"
+import { type ExecutionEnv, FileError, getOrThrow } from "@earendil-works/pi-durable/env"
 import { createBashTool, createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-durable/tools"
 import type { FsEntry } from "../../room/files"
 import { baseName } from "../../room/files"
@@ -38,22 +38,41 @@ async function pdfText(bytes: Uint8Array): Promise<{ text: string; pages: number
   }
 }
 
-const STRICT = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false })
+const SNIFF_BYTES = 8 * 1024
+
+type ToolOutput = ToolResultMessage["content"]
 
 function isBinary(bytes: Uint8Array): boolean {
   if (bytes.includes(0)) return true
   try {
-    STRICT.decode(bytes)
+    new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes, { stream: true })
     return false
   } catch {
     return true
   }
 }
 
+function numbered(out: ToolOutput, offset: number | undefined): ToolOutput {
+  let at = Math.max(1, Math.trunc(offset ?? 1))
+  return out.map((part) => {
+    if (part.type !== "text") return part
+    const lines = part.text.split("\n")
+    const last = lines.at(-1) === "" ? lines.pop() : undefined
+    const text = lines.map((l) => `${at++}\t${l}`).join("\n")
+    return { ...part, text: last === undefined ? text : `${text}\n` }
+  })
+}
+
+const NUMBERED =
+  " Each line comes back as its line number, a tab, then the line; the numbers are not part of the file, so never put them in an edit's oldText."
+
+function causeOf(e: unknown): unknown {
+  if (!(e instanceof Error) || !(e.cause instanceof FileError)) return e
+  return new Error(`${e.message.replace(/ Error code: \w+\.$/, "")} ${e.cause.message}`)
+}
+
 const text = (value: string) => [{ type: "text" as const, text: value }]
 const refused = (message: string) => ({ output: text(message), isError: true })
-
-type Saved = { changed: string[] }
 
 const roomPathOf = (api: Pick<ToolExecutionApi, "env">, path: string) => `/${getOrThrow(filesOf(api).roomPath(path))}`
 
@@ -75,15 +94,13 @@ export type FilesOptions = {
 }
 
 export function filesExtension({ acceptsImages, touched }: FilesOptions): Extension {
-  const saved = (api: Pick<ToolExecutionApi, "conversationId">, paths: readonly string[]): Saved | undefined => {
-    if (!paths.length) return undefined
-    touched(api.conversationId, paths)
-    return { changed: [...paths] }
+  const saved = (api: Pick<ToolExecutionApi, "conversationId">, paths: readonly string[]) => {
+    if (paths.length) touched(api.conversationId, paths)
   }
   const piRead = createReadTool()
   const read = defineTool({
     ...piRead,
-    description: `${piRead.description} Pdfs come back as text, page by page; images come back as images when the model can see them. Paths start at / (the chat's files); what the human attached is under /attachments/.`,
+    description: `${piRead.description}${NUMBERED} Pdfs come back as text, page by page; images come back as images when the model can see them. Paths start at / (the chat's files); what the human attached is under /attachments/.`,
     replay: "safe",
     execute: (args, api, context) =>
       filesOf(api).within(async () => {
@@ -120,16 +137,15 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
         if (found.ok && found.value.kind === "file") {
           const media = await readMedia(found.value)
           if (media) return media
-        }
-        if (found.ok && found.value.kind === "file") {
-          const bytes = await fs.bytesOf(found.value)
-          if (bytes && isBinary(bytes))
+          const head = await fs.bytesOf(found.value, SNIFF_BYTES)
+          if (head && isBinary(head))
             return refused(
               `${args.path} is a binary file (${found.value.type}, ${size(found.value.size)}) and cannot be read as text`,
             )
         }
         if (found.ok && found.value.kind === "directory") return refused(`${args.path} is a folder. use ls`)
-        return piRead.execute(args, api, context)
+        const out = await piRead.execute(args, api, context)
+        return out.output ? { ...out, output: numbered(out.output, args.offset) } : out
       }),
   })
 
@@ -168,9 +184,9 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
         out.changed ? count(out.changed, "file") : "",
         out.folders ? count(out.folders, "folder") : "",
       ].filter(Boolean)
+      saved(api, parts.length ? out.paths : [])
       return {
         output: text(parts.length ? `deleted ${parts.join(" and ")}` : "nothing to delete"),
-        details: saved(api, parts.length ? out.paths : []),
       }
     },
   })
@@ -184,7 +200,8 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     execute: async (args, api) => {
       const out = getOrThrow(await filesOf(api).move(args.from, args.to))
       if (!out.changed) return { output: text(`${args.from} is already there`) }
-      return { output: text(`moved ${args.from} to ${out.to.slice(1)}`), details: saved(api, [out.to]) }
+      saved(api, [out.to])
+      return { output: text(`moved ${args.from} to ${out.to.slice(1)}`) }
     },
   })
 
@@ -196,10 +213,8 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     replay: "safe",
     execute: async (args, api) => {
       const out = getOrThrow(await filesOf(api).mkdir(args.path))
-      return {
-        output: text(out.changed ? `made ${args.path}` : `${args.path} already exists`),
-        details: saved(api, out.changed ? [roomPathOf(api, args.path)] : []),
-      }
+      saved(api, out.changed ? [roomPathOf(api, args.path)] : [])
+      return { output: text(out.changed ? `made ${args.path}` : `${args.path} already exists`) }
     },
   })
 
@@ -219,7 +234,8 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
         const bytes = await fs.bytesOf(src)
         if (!bytes) return refused(`no file at ${args.from}`)
         getOrThrow(await fs.write(target, bytes, src.type))
-        return { output: text(`copied ${args.from} to ${target}`), details: saved(api, [roomPathOf(api, target)]) }
+        saved(api, [roomPathOf(api, target)])
+        return { output: text(`copied ${args.from} to ${target}`) }
       }
       if (!args.recursive) return refused(`${args.from} is a folder. copy it with recursive`)
       if ((await fs.stat(target)).ok) return refused(`${target} already exists`)
@@ -244,7 +260,8 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
       const content = failed.length
         ? `copied ${done.length} of ${files.length} files to ${target}. ${failed.length} not copied: ${failed[0]}`
         : `copied ${files.length} files to ${target}`
-      return { output: text(content), details: saved(api, done), isError: failed.length > 0 }
+      saved(api, done)
+      return { output: text(content), isError: failed.length > 0 }
     },
   })
 
@@ -253,7 +270,8 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     ...piWrite,
     execute: async (args, api, context) => {
       const out = await piWrite.execute(args, api, context)
-      return out.isError ? out : { ...out, details: saved(api, [roomPathOf(api, args.path)]) }
+      if (!out.isError) saved(api, [roomPathOf(api, args.path)])
+      return out
     },
   })
   const piEdit = createEditTool()
@@ -261,15 +279,18 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     ...piEdit,
     execute: (args, api, context) =>
       filesOf(api).within(async () => {
-        const out = await piEdit.execute(args, api, context)
-        return out.isError ? out : { ...out, details: saved(api, [roomPathOf(api, args.path)]) }
+        const out = await piEdit.execute(args, api, context).catch((e: unknown) => {
+          throw causeOf(e)
+        })
+        if (!out.isError) saved(api, [roomPathOf(api, args.path)])
+        return out
       }),
   })
 
   const piBash = createBashTool()
   const bash = defineTool({
     ...piBash,
-    description: `run a bash command over the chat's files, as on linux: pipes, redirects, loops, globs, and grep, sed, awk, jq, sort, uniq, cut, tr, wc, head, tail, find, xargs, diff and the rest. /tmp is scratch for the one command and is not saved. / is the chat's files, /home the human's drive, /me your soul. no network, no python, no programs to install. a command saves per space (the chat's files, /home, /me): every write saves first, and deletions save only when every write did, so a refused write never loses the source of a move. the output says what was not saved. it sees the files as they were when it started, and a write to a file someone changed since then fails, so run it again. calls in one turn run at once. output is cut to the last lines. timeout in seconds, default ${DEFAULT_TIMEOUT_S}, at most ${MAX_TIMEOUT_S}.`,
+    description: `Run a bash command over the chat's files (/), the human's drive (/home) and your soul (/me): pipes, loops, globs, grep, sed, awk, jq, find, xargs, diff and the rest. No python, no programs to install. Each call starts at /, so use absolute paths. Use read (with offset/limit) to view a file; use bash to search (grep -rn, find) and to run things. /tmp is scratch for one command and is not kept. curl fetches https:// urls only, and a few fetches per step share the run's budget. sleep really waits and counts toward the timeout: seconds, default ${DEFAULT_TIMEOUT_S}, at most ${MAX_TIMEOUT_S}. Each space saves when the command ends: writes first, deletions only if every write saved; the output names what was not saved. A write fails if the file changed after the command started; look again and rerun. Calls that write run one after another. Output is cut to the last lines.`,
     replay: "unsafe",
     execute: (args, api, context) => {
       const files = filesOf(api)

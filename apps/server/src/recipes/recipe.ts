@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
 import { triggerProblem } from "@kiko/sandbox/rule"
-import { parseFrontmatter } from "../skills/frontmatter"
+import { parseFrontmatter, SLUG } from "../skills/frontmatter"
 
 type RecipeTrigger = { name: string; every: string; run: string }
 
@@ -26,7 +26,6 @@ export type Recipe = {
 
 const RECIPE_TAGS = ["mornings", "inbox", "money", "health", "fun", "thinking", "home", "work", "travel"] as const
 
-export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const HANDLE = /^[a-z][a-z0-9-]{1,31}$/
 const MAX_DESCRIPTION = 140
 const MAX_RUN = 2000

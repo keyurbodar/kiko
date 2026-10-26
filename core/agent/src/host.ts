@@ -180,7 +180,6 @@ export type Opened = {
 
 export type HostStatus = {
   open: boolean
-  inbox: { waiting: number; claimed: number; submitted: number }
   tasks: number
   submissions: number
 }
@@ -401,7 +400,6 @@ export class AgentHost {
   }
 
   async alarm(): Promise<void> {
-    const batches: Batch[] = []
     let opened: Opened | undefined
     let draining = false
     try {
@@ -409,12 +407,7 @@ export class AgentHost {
       while (this.compaction) await this.compaction
       this.draining++
       draining = true
-      if (
-        !batches.length &&
-        !this.opened &&
-        !(await this.ctx.storage.get<boolean>(STOP_KEY)) &&
-        !(await this.unfinished())
-      ) {
+      if (!this.opened && !(await this.ctx.storage.get<boolean>(STOP_KEY)) && !(await this.unfinished())) {
         await this.serializeAlarm(async () => {
           for (const key of await this.alarms.dueWakeups(Date.now())) await this.alarms.clearWakeup(key)
         })
@@ -436,24 +429,24 @@ export class AgentHost {
         this.admission = recovery.catch(() => {})
         await recovery
       }
-      await this.drain(opened, batches)
+      await this.drain(opened, [])
       await this.refreshRecovery(opened)
       this.pulse(opened)
     } catch (error) {
       if (this.invocation?.boundary?.continuing()) return
-      await this.fail(error, batches, opened)
+      await this.fail(error, opened)
     } finally {
       if (draining) this.draining--
     }
   }
 
-  private fail(error: unknown, batches: readonly Batch[], opened?: Opened): Promise<void> {
+  private fail(error: unknown, opened?: Opened): Promise<void> {
     if (this.failure) return this.failure
     const work = (async () => {
       console.error("agent alarm failed")
       if (opened) this.retiring.add(opened)
       const stopped = await this.ctx.storage.get<boolean>(STOP_KEY)
-      const requestId = batches[0]?.requestId ?? `epoch:${this.epoch()}`
+      const requestId = `epoch:${this.epoch()}`
       if (stopped) await this.ctx.storage.delete([STOP_KEY, RESTARTS_KEY])
       await this.alarms.clearWakeup(INBOX_WAKEUP)
       try {
@@ -571,7 +564,7 @@ export class AgentHost {
       if (publication.changes.some((change) => change.type === "task")) {
         this.options.waitUntil(
           this.refreshRecovery(opened).catch((error) => {
-            if (!this.retiring.has(opened)) return this.fail(error, [], opened)
+            if (!this.retiring.has(opened)) return this.fail(error, opened)
           }),
         )
       }
@@ -638,7 +631,7 @@ export class AgentHost {
             .waitForTask(id, context)
             .then(() => this.refreshRecovery(opened))
             .catch((error) => {
-              if (!this.retiring.has(opened)) return this.fail(error, [], opened)
+              if (!this.retiring.has(opened)) return this.fail(error, opened)
             })
             .finally(() => watches.delete(id)),
         )
@@ -709,11 +702,10 @@ export class AgentHost {
   }
 
   async status(): Promise<HostStatus> {
-    const inbox = { waiting: 0, claimed: 0, submitted: 0 }
-    if (!this.opened) return { open: false, inbox, tasks: 0, submissions: 0 }
+    if (!this.opened) return { open: false, tasks: 0, submissions: 0 }
     const { harness } = await this.opened
     const live = await harness.inspect(context)
-    return { open: true, inbox, tasks: live.tasks.length, submissions: live.submissions.length }
+    return { open: true, tasks: live.tasks.length, submissions: live.submissions.length }
   }
 
   private async drain(opened: Opened, batches: readonly Batch[]): Promise<void> {
@@ -955,7 +947,7 @@ export class AgentHost {
       }
     })()
       .catch((error) => {
-        if (!this.retiring.has(opened)) return this.fail(error, [], opened)
+        if (!this.retiring.has(opened)) return this.fail(error, opened)
       })
       .finally(() => {
         uncommit()

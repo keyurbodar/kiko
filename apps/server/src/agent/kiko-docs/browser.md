@@ -6,6 +6,8 @@ One real browser is shared by every agent: Kernel cloud Chromium. It keeps its t
 
 A page that needs javascript, a login, or clicks goes to the browser. A search, a plain page, or an article goes to a connected app first: it is faster and cheaper.
 
+`browse`, `browser_act`, and `browser_look` run only in background workers, so the agent that talks with the human hands page work to `start_work`. Every agent has `browser_link`.
+
 ## The tools
 
 - `browse {urls?, find?}` reads pages. Up to four urls are read at once, and the first becomes your current tab. With no urls it re-reads your current tab. It returns the title, the url, the controls as `id role "label"`, and the text. `find` returns only the passages about it.

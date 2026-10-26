@@ -62,7 +62,7 @@ import * as Effect from "effect/Effect"
 import { validZone } from "@kiko/sandbox/recurrence"
 import { sha256Hex } from "@kiko/durable/hash"
 import { cleanPath, deleteFiles, fileKey, MAX_SINGLE_PUT_BYTES, mime } from "../files/paths"
-import { SLUG } from "../recipes/recipe"
+import { SLUG } from "../skills/frontmatter"
 import type { Env } from "../index"
 import { ComposioConnection } from "../integrations/composio/connect"
 import { composioFailure, composioIntegrationError } from "./user-errors"
@@ -92,10 +92,10 @@ import {
   type FsChange,
   type FsEntry,
   type FsFail,
-  HOME_TABLES,
   listOwnerFiles,
   type NewFile,
   type PutResult,
+  ROOM_TABLES,
 } from "../files/file-index"
 import { actorKey } from "../room/actor-key"
 import { RoomDirectory, type ChatChange } from "../room/directory"
@@ -227,7 +227,7 @@ export class User {
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(
         ctx.storage,
-        HOME_TABLES,
+        ROOM_TABLES,
         (_, body) => {
           const event = this.commit(body)
           if (!event) throw new Error("file change produced no event")
@@ -350,10 +350,6 @@ export class User {
     return this.#recipes.briefs(roomId, agent)
   }
 
-  async recipeSkillText(slug: string): Promise<string | null> {
-    return this.#recipes.skillText(slug)
-  }
-
   #recipeService?: RecipeService
   get #recipes(): RecipeService {
     if (this.#recipeService) return this.#recipeService
@@ -473,7 +469,7 @@ export class User {
     for (const s of batch.signals)
       if (s.kind === "routine_result" && s.routineId !== INITIATIVE_RUN)
         await this.reminders.finishRun(s.routineId, s.occurrence, s.outcome, s.seq)
-    if (!batch.signals.some((s) => s.kind === "burst" || s.kind === "agent_final")) return
+    if (!batch.signals.some((s) => s.kind === "burst")) return
     for (const routine of this.reminders.roomRoutines(batch.roomId)) {
       const run = routineRun(roomRoutine(routine), batch)
       if (run) await this.reminders.fireEvent(routine.id, `event:${batch.openedAt}`, "events in this chat", run.body)

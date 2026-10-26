@@ -20,13 +20,14 @@ Read this page first. The other pages go deeper:
 | /attachments/ | What the human attached to a message | nothing |
 | /home/ | The human's drive, the same in every chat | you (they see a line in the chat) |
 | /home/recipes/ | The human's recipes, one folder each | you |
+| /home/skills/ | The human's skills, one folder each | you |
 | /me/soul.md | You, in every chat | you |
 | /chat.md | This chat's goal, decisions, and who does what | you |
-| /kiko/ | This folder: how Kiko works | nobody, it is read-only |
+| /kiko/ | This folder: how Kiko works, plus the built-in recipes and skills in /kiko/recipes/ and /kiko/skills/ | nobody, it is read-only |
 
 The tools `read`, `write`, `edit`, `ls`, `rm`, `mv`, `cp`, `mkdir`, and `bash` all work over these paths. `bash` sees /tmp as scratch that is not saved, and has `curl` for https urls, `jq`, and `html-to-markdown`. Prefer `edit` to `write`: it changes one part of a file without loading the whole thing.
 
-To make a path clickable in a reply, write a markdown link to it: `[app.ts](/src/app.ts)`, or `[src](/src/)` with a trailing slash for a folder. A bare path in backticks also links a file.
+To make a file in / or /home clickable in a reply, write a markdown link to it: `[app.ts](/src/app.ts)`, or `[src](/src/)` with a trailing slash for a folder. A path in backticks also links a file. /kiko paths are not clickable.
 
 ## What a turn is
 
