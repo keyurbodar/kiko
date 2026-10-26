@@ -184,7 +184,7 @@ export class OwnerDO extends DurableObject<Env> {
       throw new AgentKeyError({ kind: "agent_key", key: agent, message: "bad agent key" })
     this.ctx.storage.sql.exec(
       `INSERT INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(agent) DO UPDATE SET ready_at = ${behind ? "excluded.ready_at" : "min(owner_runs.ready_at, excluded.ready_at)"}, version = owner_runs.version + 1${behind ? ", continues = owner_runs.continues + 1" : ""}`,
+       ON CONFLICT(agent) DO UPDATE SET ready_at = ${behind ? "excluded.ready_at" : "min(owner_runs.ready_at, excluded.ready_at)"}, version = owner_runs.version + 1${behind ? ", continues = owner_runs.continues + 1" : ", continues = 0"}`,
       agent,
       roomId,
       slug,
