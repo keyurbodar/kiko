@@ -87,7 +87,6 @@ function toRef(r: FileRow): FileRef {
 type Tables = { files: string; dirs: string }
 
 export const ROOM_TABLES: Tables = { files: "files", dirs: "directories" }
-export const HOME_TABLES: Tables = { files: "files", dirs: "directories" }
 
 export function fileIndexSteps(t: Tables): Step[] {
   return [
