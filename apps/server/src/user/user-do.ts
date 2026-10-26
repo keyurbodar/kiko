@@ -44,6 +44,8 @@ import { STORAGE_ERROR } from "../lib/storage-error"
 import { composioFailure } from "./user-errors"
 import { connectLinkFor, MANAGE_CONNECTIONS } from "../integrations/composio/connect-tool"
 import { ComposioStore } from "../integrations/composio/store"
+import { Apps } from "../apps/service"
+import { builderFrom } from "../apps/builder-client"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
 import type { Lease } from "../agent/browser/lease"
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
@@ -1144,6 +1146,15 @@ export class User {
   private fail(error: KikoError | null, cause: unknown): never {
     if (error) this.broadcast({ t: "error", error })
     throw cause
+  }
+
+  #apps?: Apps | null
+  appsService(): Apps | null {
+    if (this.#apps === undefined) {
+      const build = builderFrom(this.env)
+      this.#apps = build ? new Apps(this.sql, keyringFromEnv(this.env), this.ownerId, build, this.egress) : null
+    }
+    return this.#apps
   }
 
   #composioConnection?: ComposioConnection

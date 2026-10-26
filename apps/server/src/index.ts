@@ -34,6 +34,9 @@ export interface Env extends AuthEnv {
   CF_TURN_KEY_ID?: string
   CF_TURN_KEY_TOKEN?: string
   CF_GRANT?: string
+  BUILDER?: Fetcher
+  BUILDER_URL?: string
+  BUILDER_SECRET?: string
   RELEASE_BASE_URL?: string
 }
 

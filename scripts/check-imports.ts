@@ -20,7 +20,7 @@ const PACKAGES: Record<string, readonly string[]> = {
   ui: ["@kiko/protocol", "@kiko/theme", "@kiko/avatar"],
 }
 
-const APPS = ["web-solid", "landing", "cli", "installer", "computer"]
+const APPS = ["web-solid", "landing", "cli", "installer", "computer", "builder"]
 
 const APP_PACKAGES: Record<string, readonly string[]> = { computer: ["@kiko/computer"] }
 

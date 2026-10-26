@@ -640,6 +640,7 @@ export class Agent {
       memory,
       messaging,
       routines: { port: () => this.routinesPort() },
+      apps: () => this.services.user().appsService(),
       ...(home ? { recipes: this.recipesPort(home) } : {}),
       ...(Array.isArray(composio) && home
         ? {

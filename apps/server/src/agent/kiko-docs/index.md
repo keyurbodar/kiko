@@ -10,6 +10,7 @@ Read this page first. The other pages go deeper:
 - /kiko/recipes.md: the human's recipes and your skills
 - /kiko/integrations.md: connected apps through Composio
 - /kiko/browser.md: the shared browser
+- /kiko/apps.md: building and deploying web apps
 
 ## The file space
 

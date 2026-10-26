@@ -292,6 +292,18 @@ const OWNER_STEPS: readonly Step[] = [
     pair_nonce TEXT NOT NULL UNIQUE,
     created_at INTEGER NOT NULL
   ) WITHOUT ROWID`,
+  `CREATE TABLE IF NOT EXISTS apps (
+    name TEXT PRIMARY KEY,
+    deploy_id TEXT NOT NULL,
+    url TEXT NOT NULL,
+    claimed INTEGER NOT NULL,
+    expires_at TEXT,
+    artifact_hash TEXT NOT NULL,
+    kek_version INTEGER NOT NULL,
+    iv BLOB NOT NULL,
+    ciphertext BLOB NOT NULL,
+    updated_at INTEGER NOT NULL
+  ) WITHOUT ROWID`,
 ]
 
 export function initializeSchema(storage: DurableObjectStorage): void {
