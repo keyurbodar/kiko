@@ -56,7 +56,7 @@ Never silence a rule to pass a gate. Not with a disable comment, not by editing 
 - Titles are plain sentences that say what changed for the owner: `Keep transcript bubbles visible through loading`.
 - Body: the problem in a sentence or two, then the fix, then how you verified it. End with the model and harness that did the work.
 - One request is one PR.
-- Releases run nightly from `main`. `main` only takes merges whose `Check` and `E2E` jobs passed, so do not dispatch `deploy` on any other ref.
+- Releases run nightly from `main`. `main` only takes merges whose `Check` job passed, and a release ships only a commit with a passing `Check`, so do not dispatch `deploy` on any other ref.
 
 ## Code
 
