@@ -34,7 +34,7 @@ const text = (v: unknown): string => (typeof v === "string" ? v.trim() : "")
 const texts = (v: unknown): string[] | null =>
   Array.isArray(v) && v.every((x) => typeof x === "string" && x.trim())
     ? v.map((x: string) => x.trim())
-    : v === undefined
+    : v === undefined || v === null
       ? []
       : null
 

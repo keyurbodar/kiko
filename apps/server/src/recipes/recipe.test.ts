@@ -17,6 +17,11 @@ const parsed = (content: string, dir: string) =>
   Effect.try({ try: () => parseRecipe(content, dir), catch: (error) => error as RecipeError })
 
 describe("parseRecipe", () => {
+  it("reads empty triggers and setup as none", () => {
+    const recipe = parseRecipe(RECIPE.replace("agent:", "triggers:\nsetup:\napps:\nagent:"), "inbox-zero")
+    assert.deepStrictEqual([recipe.triggers, recipe.setup, recipe.apps], [[], [], []])
+  })
+
   it("reads a recipe", () => {
     const recipe = parseRecipe(RECIPE, "inbox-zero")
     assert.strictEqual(recipe.slug, "inbox-zero")
