@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest"
 import { Runs } from "./runs"
 
-const runs = (scheduled: [string, boolean | undefined][] = []) =>
+const runs = (scheduled: [string, boolean | undefined][] = [], halted: string[] = []) =>
   new Runs({
     schedule: async (agent, _requestId, behind) => {
       scheduled.push([agent, behind])
+    },
+    halt: async (agent) => {
+      halted.push(agent)
     },
     now: () => 0,
   })
@@ -30,6 +33,27 @@ describe("run budget", () => {
     expect(budget.due(() => waiting)).toBe(true)
     waiting = false
     expect(budget.due(() => waiting)).toBe(false)
+  })
+
+  it("keeps a run that hit the call limit inside a tool able to yield, so the next model call is not refused", () => {
+    const budget = runs().budget()
+    for (let call = 0; call < 40; call++) budget.count()
+    expect(() => budget.count()).toThrow()
+    expect(budget.due()).toBe(true)
+  })
+
+  it("ends a request after three continuations instead of queuing a fourth", async () => {
+    const scheduled: [string, boolean | undefined][] = []
+    const halted: string[] = []
+    const all = runs(scheduled, halted)
+    await all.run("room:forge", "r1", async () => "continue", 2)
+    expect(scheduled).toEqual([["room:forge", true]])
+    expect(halted).toEqual([])
+    await all.run("room:forge", "r1", async () => "continue", 3)
+    expect(scheduled).toHaveLength(1)
+    expect(halted).toEqual(["room:forge"])
+    await all.run("room:forge", "r1", async () => "done", 3)
+    expect(halted).toEqual(["room:forge"])
   })
 
   it("puts a run that yielded behind the agents already waiting", async () => {

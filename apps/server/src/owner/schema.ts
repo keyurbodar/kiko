@@ -304,6 +304,7 @@ const OWNER_STEPS: readonly Step[] = [
     ciphertext BLOB NOT NULL,
     updated_at INTEGER NOT NULL
   ) WITHOUT ROWID`,
+  `ALTER TABLE owner_runs ADD COLUMN continues INTEGER NOT NULL DEFAULT 0`,
 ]
 
 export function initializeSchema(storage: DurableObjectStorage): void {

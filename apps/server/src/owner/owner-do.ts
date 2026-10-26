@@ -28,7 +28,7 @@ type Method<T> = { [K in keyof T]: T[K] extends (...args: never[]) => unknown ? 
 type Args<T> = T extends (...args: infer A) => unknown ? A : never
 type Result<T> = T extends (...args: never[]) => infer R ? Awaited<R> : never
 type Run = { agent: string; room_id: string; slug: string; request_id: string }
-type QueuedRun = Run & { version: number }
+type QueuedRun = Run & { version: number; continues: number }
 
 const RUN_GAP_MS = 250
 const LEGACY_PING = "ping"
@@ -83,6 +83,7 @@ export class OwnerDO extends DurableObject<Env> {
     })
     this.runs = new Runs({
       schedule: (agent, requestId, behind) => this.enqueueRun(agent, requestId, behind),
+      halt: (agent) => this.haltRun(agent),
     })
     this.blobs = new BlobStore(this.ctx)
     const computers = new ComputerStore(ctx.storage.sql)
@@ -126,7 +127,7 @@ export class OwnerDO extends DurableObject<Env> {
       trimAgents: () => this.trimAgents(),
       dispatchRun: (roomId, slug) => this.dispatchRun(roomId, slug),
       cancelRun: (roomId, slug) => this.cancelRun(roomId, slug),
-      afterRun: (roomId, slug) => this.afterRun(roomId, slug),
+      afterRun: (roomId) => this.afterRun(roomId),
       syncRoutines: (routines) => this.user().syncRoutines(routines),
       fireRoutine: (delivery) => this.user().fireRoutine(delivery),
     }
@@ -183,7 +184,7 @@ export class OwnerDO extends DurableObject<Env> {
       throw new AgentKeyError({ kind: "agent_key", key: agent, message: "bad agent key" })
     this.ctx.storage.sql.exec(
       `INSERT INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(agent) DO UPDATE SET ready_at = ${behind ? "excluded.ready_at" : "min(owner_runs.ready_at, excluded.ready_at)"}, version = owner_runs.version + 1`,
+       ON CONFLICT(agent) DO UPDATE SET ready_at = ${behind ? "excluded.ready_at" : "min(owner_runs.ready_at, excluded.ready_at)"}, version = owner_runs.version + 1${behind ? ", continues = owner_runs.continues + 1" : ""}`,
       agent,
       roomId,
       slug,
@@ -198,16 +199,30 @@ export class OwnerDO extends DurableObject<Env> {
 
   private async executeRun(queued: QueuedRun): Promise<void> {
     try {
-      await this.runs.run(queued.agent, queued.request_id, async (budget) => {
-        if (this.othersWaiting(queued.agent)) budget.share()
-        if (isAgentSlug(queued.slug)) this.room(queued.room_id).turnStarted(queued.slug)
-        this.showWaiting(queued)
-        const agent = this.agent(queued.room_id, queued.slug)
-        return agent.runInvocation(() => budget.due(() => this.othersWaiting(queued.agent)))
-      })
+      await this.runs.run(
+        queued.agent,
+        queued.request_id,
+        async (budget) => {
+          if (this.othersWaiting(queued.agent)) budget.share()
+          if (isAgentSlug(queued.slug)) this.room(queued.room_id).turnStarted(queued.slug)
+          this.showWaiting(queued)
+          const agent = this.agent(queued.room_id, queued.slug)
+          return agent.runInvocation(() => budget.due(() => this.othersWaiting(queued.agent)))
+        },
+        queued.continues,
+      )
     } finally {
       this.ctx.storage.sql.exec("DELETE FROM owner_runs WHERE agent = ? AND version = ?", queued.agent, queued.version)
     }
+  }
+
+  private async haltRun(agent: string): Promise<void> {
+    const [roomId = "", slug = ""] = agent.split(":")
+    await this.agent(roomId, slug).stop()
+    if (!isAgentSlug(slug)) return
+    const room = this.room(roomId)
+    await room.homeNotice(slug, "stopped: this request ran long, so it was paused. say continue to keep going.")
+    await room.setStatus(slug, "idle")
   }
 
   private nameOf(agent: string): string {
@@ -247,8 +262,8 @@ export class OwnerDO extends DurableObject<Env> {
     await this.runs.start(`${roomId}:${slug}`, "pending")
   }
 
-  private async afterRun(roomId: string, slug: string): Promise<void> {
-    await this.afterRunHook.run(roomId, slug)
+  private async afterRun(roomId: string): Promise<void> {
+    await this.afterRunHook.run(roomId)
   }
 
   protected user(): User {
@@ -399,7 +414,7 @@ export class OwnerDO extends DurableObject<Env> {
       if (Date.now() >= this.nextRunAt) {
         const queued = this.ctx.storage.sql
           .exec<QueuedRun>(
-            "SELECT agent, room_id, slug, request_id, version FROM owner_runs WHERE ready_at <= ? ORDER BY ready_at, agent LIMIT 1",
+            "SELECT agent, room_id, slug, request_id, version, continues FROM owner_runs WHERE ready_at <= ? ORDER BY ready_at, agent LIMIT 1",
             Date.now(),
           )
           .toArray()[0]

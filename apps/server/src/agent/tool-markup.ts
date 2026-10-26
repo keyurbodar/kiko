@@ -76,14 +76,28 @@ function kimi(inner: string): TextCall[] {
   return out
 }
 
+const DEEPSEEK_CALL = "<｜tool▁call▁begin｜>"
+const DEEPSEEK_END = "<｜tool▁call▁end｜>"
+const DEEPSEEK_SEP = "<｜tool▁sep｜>"
+const FENCE = /^```(?:json)?\s*([\s\S]*?)\s*(?:```)?$/
+
+function deepseekCall(call: string): TextCall[] {
+  const [head = "", ...rest] = call.split(DEEPSEEK_SEP)
+  if (!rest.length) return []
+  const body = rest.join(DEEPSEEK_SEP).trim()
+  const typed = head.trim() === "function"
+  const line = typed ? body.indexOf("\n") : -1
+  const name = typed ? (line < 0 ? body : body.slice(0, line)).trim() : head.trim()
+  const raw = typed ? (line < 0 ? "" : body.slice(line + 1).trim()) : body
+  const args = (FENCE.exec(raw)?.[1] ?? raw).trim()
+  return jsonCall(`{"name":${JSON.stringify(name)},"arguments":${args || "{}"}}`)
+}
+
 function deepseek(inner: string): TextCall[] {
-  const out: TextCall[] = []
-  for (const m of inner.matchAll(
-    /<｜tool▁call▁begin｜>[\s\S]*?<｜tool▁sep｜>\s*([^\n<]+?)\s*\n?(?:```(?:json)?\s*([\s\S]*?)\s*```)?\s*(?:<｜tool▁call▁end｜>|$)/g,
-  )) {
-    out.push(...jsonCall(`{"name":${JSON.stringify(m[1] ?? "")},"arguments":${(m[2] ?? "").trim() || "{}"}}`))
-  }
-  return out
+  return inner
+    .split(DEEPSEEK_CALL)
+    .slice(1)
+    .flatMap((segment) => deepseekCall(segment.split(DEEPSEEK_END)[0] ?? ""))
 }
 
 const hidden = (tag: string): Family => ({ open: new RegExp(`<${tag}(?:\\s[^>]*)?>`), close: new RegExp(`</${tag}>`) })
@@ -209,7 +223,13 @@ function rewrite(message: AssistantMessage, context: Context, final: boolean): A
   }
   if (!changed) return message
   const called = final && content.some((p) => p.type === "toolCall")
-  return { ...message, content, ...(called && message.stopReason === "stop" ? { stopReason: "toolUse" as const } : {}) }
+  return {
+    ...message,
+    content,
+    ...(called && (message.stopReason === "stop" || message.stopReason === "length")
+      ? { stopReason: "toolUse" as const }
+      : {}),
+  }
 }
 
 function rewriteEvent(

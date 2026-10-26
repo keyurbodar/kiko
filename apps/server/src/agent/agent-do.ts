@@ -709,7 +709,11 @@ export class Agent {
     const live = ((await this.routinesPort()?.list()) ?? []).filter(
       (routine) => routine.status === "active" || routine.status === "paused" || routine.status === "failed",
     )
-    const inventory = live.slice(0, 32).map((routine) => routineLine(routine))
+    const runs = live.length ? await this.services.user().routineRuns() : []
+    const inventory = live.slice(0, 32).map((routine) => {
+      const mine = runs.filter((run) => run.routineId === routine.id)
+      return routineLine(routine, mine.length ? mine : undefined)
+    })
     return `Live routines (current; replaces earlier inventories):\n${inventory.join("\n") || "(none)"}${live.length > inventory.length ? `\n${live.length - inventory.length} more; use list_routines for the full list.` : ""}`
   }
 
