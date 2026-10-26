@@ -1,5 +1,7 @@
 import { sha256Hex } from "@kiko/durable/hash"
 import { KIKO_DOCS } from "../agent/kiko-docs.gen"
+import { BUILTIN_RECIPES } from "../recipes/catalog.gen"
+import { BUILTIN_SKILLS } from "../skills/builtin.gen"
 import type { FsEntry, FsFail } from "../room/files"
 import type { FilesBackend } from "./room-fs"
 import { type BatchChange, batchPaths } from "./batch"
@@ -8,7 +10,19 @@ export const KIKO = "kiko"
 
 const REFUSAL = `/${KIKO} is read-only. It explains how Kiko works. Write your own files under / or /home.`
 
-const DOCS = new Map(KIKO_DOCS)
+const DOCS = new Map<string, string>([
+  ...KIKO_DOCS,
+  ...BUILTIN_SKILLS.map(([path, text]) => [`skills/${path}`, text] as const),
+  ...BUILTIN_RECIPES.map(([slug, text]) => [`recipes/${slug}/RECIPE.md`, text] as const),
+])
+const FOLDERS = new Set(
+  [...DOCS.keys()].flatMap((name) =>
+    name
+      .split("/")
+      .slice(0, -1)
+      .map((_, i, parts) => parts.slice(0, i + 1).join("/")),
+  ),
+)
 const encoder = new TextEncoder()
 const sha = new Map<string, string>()
 
@@ -31,11 +45,13 @@ async function entry(name: string): Promise<FsEntry & { kind: "file" }> {
   }
 }
 
-const root = (files: number, size: number): FsEntry => ({ kind: "directory", path: "", files, size })
+const under = (dir: string, name: string) => dir === "" || name.startsWith(`${dir}/`)
+const direct = (dir: string, name: string) => under(dir, name) && !name.slice(dir ? dir.length + 1 : 0).includes("/")
 
-async function sizes(): Promise<{ files: FsEntry[]; size: number }> {
-  const files = await Promise.all([...DOCS.keys()].map((name) => entry(name)))
-  return { files, size: files.reduce((sum, f) => sum + f.size, 0) }
+function folder(path: string): FsEntry {
+  const names = [...DOCS.keys()].filter((name) => under(path, name))
+  const size = names.reduce((sum, name) => sum + encoder.encode(DOCS.get(name) ?? "").length, 0)
+  return { kind: "directory", path, files: names.length, size }
 }
 
 const refuse = (): FsFail => ({ ok: false, code: "invalid", message: REFUSAL })
@@ -43,19 +59,17 @@ const refuse = (): FsFail => ({ ok: false, code: "invalid", message: REFUSAL })
 export function kikoDocsBackend(): FilesBackend {
   return {
     async stat(path) {
-      if (path === "") {
-        const { files, size } = await sizes()
-        return root(files.length, size)
-      }
+      if (path === "" || FOLDERS.has(path)) return folder(path)
       return DOCS.has(path) ? await entry(path) : null
     },
-    async list(dir) {
-      if (dir !== "")
-        return DOCS.has(dir)
-          ? [await entry(dir)]
-          : { ok: false, code: "not_found", message: `no such file or folder: /${KIKO}/${dir}` }
-      const { files } = await sizes()
-      return files
+    async list(dir, recursive) {
+      if (DOCS.has(dir)) return [await entry(dir)]
+      if (dir !== "" && !FOLDERS.has(dir))
+        return { ok: false, code: "not_found", message: `no such file or folder: /${KIKO}/${dir}` }
+      const pick = recursive ? under : direct
+      const dirs = [...FOLDERS].filter((name) => name !== dir && pick(dir, name)).sort()
+      const files = [...DOCS.keys()].filter((name) => pick(dir, name))
+      return [...dirs.map(folder), ...(await Promise.all(files.map((name) => entry(name))))]
     },
     async bytes(r2Key, maxBytes) {
       const name = r2Key.startsWith(`${KIKO}:`) ? r2Key.slice(KIKO.length + 1) : ""

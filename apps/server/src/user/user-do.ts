@@ -62,7 +62,7 @@ import * as Effect from "effect/Effect"
 import { validZone } from "@kiko/sandbox/recurrence"
 import { sha256Hex } from "@kiko/durable/hash"
 import { cleanPath, deleteFiles, fileKey, MAX_SINGLE_PUT_BYTES, mime } from "../files/paths"
-import { SLUG } from "../recipes/recipe"
+import { SLUG } from "../skills/frontmatter"
 import type { Env } from "../index"
 import { ComposioConnection } from "../integrations/composio/connect"
 import { composioFailure, composioIntegrationError } from "./user-errors"
@@ -348,10 +348,6 @@ export class User {
 
   async recipeBriefs(roomId: string, agent: string) {
     return this.#recipes.briefs(roomId, agent)
-  }
-
-  async recipeSkillText(slug: string): Promise<string | null> {
-    return this.#recipes.skillText(slug)
   }
 
   #recipeService?: RecipeService

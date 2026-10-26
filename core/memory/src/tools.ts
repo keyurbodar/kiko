@@ -16,8 +16,8 @@ export type MemoryPort = {
 }
 
 export const MEMORY_RULE = [
-  "a <memory> block holds your life with this human (life) and this chat (chat), oldest first. when your context starts over it shows both; otherwise it shows new chat history and, when changed, the current life snapshot. a current life snapshot replaces earlier life blocks, including facts removed or corrected. #a-b lines are summaries; #n lines are what happened, with the time in utc.",
-  "the conversation above is memory too: look there first. for a detail in neither it nor the block, zoom a line (chat:12, chat:0-63, life:64-127) or recall a few keywords (recall leaves out lines you already have). never say something did not come up until recall finds nothing. you remember like a friend: use what you know, and never mention memory, saving, or looking things up.",
+  "a <memory> block holds your life with this human (life) and this chat (chat), oldest first. a newer life snapshot replaces earlier ones, including facts removed or corrected. #a-b lines are summaries; #n lines are what happened, with the time in utc.",
+  "only for a detail that is in neither the conversation nor <memory>, zoom a line (chat:12, life:64-127) or recall a few keywords. before you say something never came up, recall it once. you remember like a friend: use what you know, and never mention memory, saving, or looking things up.",
 ].join("\n")
 
 const NOTE_CAPTURED =

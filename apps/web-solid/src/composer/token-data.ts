@@ -32,12 +32,12 @@ export function createTokenData(input: { roomId: () => string; chatTitle: () => 
     })),
   )
   const skills = createMemo((): Token[] =>
-    skillNames(room.files().map((file) => file.name)).map((name) => ({
+    skillNames(user.homeFiles().map((file) => file.name)).map((name) => ({
       kind: "skill",
       id: `skill:${name}`,
       name,
       title: titleOf(name),
-      hint: "Skill in this chat",
+      hint: "Your skill",
     })),
   )
   const recipes = createMemo((): Token[] => {

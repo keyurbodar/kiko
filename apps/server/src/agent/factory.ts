@@ -8,7 +8,6 @@ import { providers } from "../models/catalog"
 import {
   type AgentChange,
   createRegistry,
-  defineExtension,
   type Extension,
   hook,
   ToolTask,
@@ -40,7 +39,7 @@ import { composioExtension } from "../integrations/composio/tools"
 import { connectAppExtension } from "../integrations/composio/connect-tool"
 import { type BrowserToolDeps, browserExtension, browserInfoExtension } from "./browser/tools"
 import { type ComputerToolDeps, computerExtension, computerInfoExtension } from "./computer/tools"
-import { baseSections, type RoleInput } from "./prompt"
+import { promptExtensions, type RoleInput } from "./prompt"
 import { forRole } from "./roles"
 import { count } from "../lib/dev-guard"
 import type { ThinkingLevel } from "@kiko/protocol"
@@ -74,13 +73,12 @@ export type BuiltAgent = {
   agent: AgentChange
 }
 
-const BASE = "base"
 const REPEATS = "repeats"
 const journals = new WeakMap<RegistryReader, JournalStorage>()
 
 function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]): Extension[] {
   return [
-    defineExtension({ name: BASE, sections: baseSections(input) }),
+    ...promptExtensions(input),
     ...(input.files && input.soul ? [selfExtension(input.files.fs, input.soul, input.runStamp)] : []),
     ...(input.memory ? memoryExtensions(input.memory) : []),
     ...(input.files
