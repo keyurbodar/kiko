@@ -28,13 +28,15 @@ Kiko adds `server/kiko.ts` when it builds. Never write that file.
 
 ## Owned and anonymous apps
 
-Without a Lakebed account, an app is anonymous. It expires in about a week, and its server code cannot `fetch` other sites or read `ctx.env`. Tell the human the expiry.
+Without a Lakebed account, an app is anonymous. It expires in about a week, and its server code cannot `fetch` other sites or read `ctx.env`.
 
 With the account connected, every new app is owned. It never expires, it can `fetch`, and `env_set` gives it secrets as `ctx.env.KEY` from the next deploy. Domains, archive, restore, terminate, and storage deletes need the account.
 
-Two ways to connect it:
+When `app_deploy` makes an anonymous app, it returns a claim link and a code. Send them to the human with the app url, and say plainly: one click keeps this app forever, and every app after it is theirs automatically. Then make the one-time reminder routine the deploy result describes. The human can also connect or claim from Settings, Web apps.
+
+Other ways to connect:
 - `lakebed_account connect` returns a link and a code. Give both to the human, then check with `lakebed_account status`.
-- `app_manage claim_link` on an anonymous app. Claiming it keeps that app, with its url and data, and connects the account at the same time.
+- `app_manage claim_link` gets a fresh claim link for an anonymous app.
 
 If an anonymous app's code uses `fetch` or env, `app_deploy` puts up a "claim required" page and tells you to get the claim link. A claim link is a key to the app. Give it only to the human.
 

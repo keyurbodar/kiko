@@ -1,6 +1,7 @@
 import {
   AppearanceIcon,
   CommandIcon,
+  GlobeIcon,
   type Glyph,
   LinkIcon,
   ModelIcon,
@@ -39,6 +40,13 @@ const SECTIONS: { [Id in SettingsId]: SectionMeta } = {
     hint: "Machines your agents can use, and that you can watch and take over.",
     icon: MonitorIcon,
     keywords: "computer pc mac linux windows desktop remote screen pair install daemon vps server takeover",
+  },
+  "web-apps": {
+    group: "Connections",
+    label: "Web apps",
+    hint: "Apps your agents built, and the Lakebed account that keeps them.",
+    icon: GlobeIcon,
+    keywords: "lakebed website site deploy app claim own expire domain hosting publish",
   },
   appearance: {
     group: "Kiko",

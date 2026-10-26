@@ -1,6 +1,7 @@
 import type { OwnerRpcs, RoomId } from "@kiko/protocol"
 import type * as Effect from "effect/Effect"
 import type * as Rpc from "effect/rpc/Rpc"
+import { webAppsClaim, webAppsConnect, webAppsDisconnect, webAppsStatus } from "../apps/webapps"
 import type { RoomCommands } from "../room/commands"
 import type { User } from "../user/user-do"
 import type { Streams } from "./subscriptions"
@@ -88,6 +89,10 @@ export const HANDLERS: Handlers = {
   "kernel.connect": ({ apiKey }, { host }) => host.user().kernel.kernelConnect(apiKey),
   "kernel.disconnect": (_, { host }) => host.user().kernel.kernelDisconnect(),
   "kernel.status": (_, { host, socket }) => host.user().kernel.kernelStatus(socket),
+  "webapps.status": (_, { host }) => webAppsStatus(host.user().appsService()),
+  "webapps.connect": (_, { host }) => webAppsConnect(host.user().appsService()),
+  "webapps.disconnect": (_, { host }) => webAppsDisconnect(host.user().appsService()),
+  "webapps.claim": ({ name }, { host }) => webAppsClaim(host.user().appsService(), name),
   "browser.link": ({ mode }, { host }) => host.user().kernel.browserLink(mode),
   "browser.handBack": (_, { host }) => host.user().kernel.browserHandBack(),
   "browser.close": (_, { host }) => host.user().kernel.browserClose(),

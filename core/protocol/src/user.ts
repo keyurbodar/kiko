@@ -185,6 +185,38 @@ export const KernelResult = Schema.Union([
 ])
 export type KernelResult = typeof KernelResult.Type
 
+export const WebApp = Schema.Struct({
+  name: Schema.String,
+  url: Schema.String,
+  owned: Schema.Boolean,
+  expiresAt: Schema.NullOr(Schema.String),
+})
+export type WebApp = typeof WebApp.Type
+
+export const LakebedAccount = Schema.Union([
+  Schema.Struct({ state: Schema.Literal("connected"), login: Schema.NullOr(Schema.String) }),
+  Schema.Struct({ state: Schema.Literal("waiting"), url: Schema.String, code: Schema.String }),
+  Schema.Struct({ state: Schema.Literal("none") }),
+])
+export type LakebedAccount = typeof LakebedAccount.Type
+
+export const WebAppsResult = Schema.Union([
+  Schema.Struct({
+    ok: Schema.Literal(true),
+    available: Schema.Boolean,
+    account: LakebedAccount,
+    apps: Schema.Array(WebApp),
+  }),
+  Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
+])
+export type WebAppsResult = typeof WebAppsResult.Type
+
+export const ClaimResult = Schema.Union([
+  Schema.Struct({ ok: Schema.Literal(true), url: Schema.String, code: Schema.String }),
+  Schema.Struct({ ok: Schema.Literal(false), error: Schema.String }),
+])
+export type ClaimResult = typeof ClaimResult.Type
+
 export const BrowserState = Schema.NullOr(
   Schema.Struct({
     mode: BrowserMode,

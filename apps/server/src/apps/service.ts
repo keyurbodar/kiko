@@ -19,7 +19,7 @@ export type Builder = (files: Record<string, string>, target: Target) => Promise
 
 export type AppSummary = { name: string; url: string; claimed: boolean; expiresAt: string | null; updatedAt: number }
 export type DeployOutcome =
-  | { ok: true; app: AppSummary; changed: boolean }
+  | { ok: true; app: AppSummary; changed: boolean; claim?: ClaimLink }
   | { ok: false; diagnostics: Diagnostic[] }
   | { ok: false; error: string }
 export type CallResult = { status: number; body: string; bytes: Uint8Array; type: string }
@@ -28,6 +28,8 @@ export type AccountStatus =
   | { state: "connected"; login: string | null }
   | { state: "waiting"; url: string; code: string }
   | { state: "none" }
+export type ClaimLink = { url: string; code: string }
+export type AppsOverview = { account: AccountStatus; apps: AppSummary[] }
 
 type Secrets = { key: string; claimToken?: string; env?: Record<string, string> }
 type Account = { token?: string; login?: string | null; session?: CliSession }
@@ -52,6 +54,7 @@ const SECRETS_AAD = "apps/secrets"
 const ACCOUNT_AAD = "apps/lakebed-account"
 const ACCOUNT_SETTING = "lakebedAccount"
 const CLAIM_DIAGNOSTIC = /fetch/i
+const SESSION_MARGIN_MS = 60_000
 const INSPECT_PATHS: Record<InspectWhat, string> = {
   logs: "/__lakebed/logs",
   tables: "/__lakebed/db/tables",
@@ -172,7 +175,8 @@ export class Apps {
       ...secrets,
       ...this.claimTokenOf(result, secrets),
     })
-    return { ok: true as const, app, changed: true }
+    if (app.claimed) return { ok: true as const, app, changed: true }
+    return { ok: true as const, app, changed: true, claim: await this.claimLink(name) }
   }
 
   private claimTokenOf(result: Deployed, secrets: Secrets): Pick<Secrets, "claimToken"> {
@@ -266,13 +270,11 @@ export class Apps {
     return { status: response.status, body: "", bytes, type }
   }
 
-  async claimLink(name: string): Promise<string> {
+  async claimLink(name: string): Promise<ClaimLink> {
     const { row, secrets } = await this.require(name)
     if (row.claimed) throw new LakebedError(`${name} is already claimed.`)
-    const session = await this.lakebed.startSession()
-    const account = await this.readAccount()
-    await this.writeAccount({ ...account, session })
-    return `${claimUrl(row.deploy_id, this.claimTokenFor(secrets), session.sessionId)} (verification code ${session.code})`
+    const session = await this.pendingSession()
+    return { url: claimUrl(row.deploy_id, this.claimTokenFor(secrets), session.sessionId), code: session.code }
   }
 
   async signedHeaders(url: URL): Promise<Record<string, string> | null> {
@@ -290,9 +292,27 @@ export class Apps {
   async connect(): Promise<AccountStatus> {
     const current = await this.status()
     if (current.state === "connected") return current
-    const session = await this.lakebed.startSession()
-    await this.writeAccount({ ...(await this.readAccount()), session })
+    const session = await this.pendingSession()
     return { state: "waiting", url: session.verificationUrl, code: session.code }
+  }
+
+  async overview(): Promise<AppsOverview> {
+    const account = await this.status()
+    for (const row of this.sql.exec<Row>("SELECT * FROM apps WHERE claimed = 0").toArray()) {
+      const record = await this.lakebed.record(row.deploy_id).catch(() => "gone" as const)
+      if (record !== "gone" && record.claimed)
+        this.sql.exec("UPDATE apps SET claimed = 1, expires_at = NULL WHERE name = ?", row.name)
+    }
+    return { account, apps: this.list() }
+  }
+
+  private async pendingSession(): Promise<CliSession> {
+    const account = await this.readAccount()
+    if (account.session && Date.parse(account.session.expiresAt) - SESSION_MARGIN_MS > Date.now())
+      return account.session
+    const session = await this.lakebed.startSession()
+    await this.writeAccount({ ...account, session })
+    return session
   }
 
   async status(): Promise<AccountStatus> {

@@ -37,12 +37,14 @@ import {
   ComputerId,
   ComputerInput,
   ComputerSignal,
+  ClaimResult,
   KernelResult,
   UserEvent,
   UserSettings,
   UserSettingsPatch,
   UserSnapshot,
   UserSignal,
+  WebAppsResult,
 } from "./user"
 
 export class DuplicateChatError extends Schema.TaggedError<DuplicateChatError>()("DuplicateChatError", {
@@ -283,6 +285,10 @@ export const OwnerRpcs = RpcGroup.make(
   }),
   Rpc.make("kernel.disconnect", { payload: command, success: KernelResult, error: Integration }),
   Rpc.make("kernel.status", { success: KernelResult, error: Integration }),
+  Rpc.make("webapps.status", { payload: {}, success: WebAppsResult, error: Base }),
+  Rpc.make("webapps.connect", { payload: command, success: WebAppsResult, error: Base }),
+  Rpc.make("webapps.disconnect", { payload: command, success: WebAppsResult, error: Base }),
+  Rpc.make("webapps.claim", { payload: { ...command, name: Schema.String }, success: ClaimResult, error: Base }),
   Rpc.make("browser.link", {
     payload: { mode: Schema.Literals(["watch", "control"]) },
     success: BrowserLinkResult,

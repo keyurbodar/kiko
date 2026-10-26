@@ -1,7 +1,7 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { declareEffect } from "@kiko/agent/effects"
-import type { Apps, CallResult, DeployOutcome, Diagnostic, InspectWhat } from "../../apps/service"
+import type { Apps, CallResult, ClaimLink, DeployOutcome, Diagnostic, InspectWhat } from "../../apps/service"
 import type { RoomFs } from "../../files/room-fs"
 
 const APPS = "apps"
@@ -56,10 +56,25 @@ async function saveTo(fs: RoomFs, path: string, bytes: Uint8Array): Promise<stri
 
 const where = (d: Diagnostic) => [d.file ?? d.path, d.line].filter((x) => x !== undefined).join(":")
 
+const claimText = (claim: ClaimLink) => `${claim.url} (verification code ${claim.code})`
+
+function claimAsk(out: { app: { expiresAt: string | null }; claim: ClaimLink }): string {
+  return [
+    `Give the human this claim link with the app url: ${claimText(out.claim)}.`,
+    "One click keeps this app forever and connects their Lakebed account, so every app after it is owned automatically. They can also do it from Settings, Web apps.",
+    out.app.expiresAt
+      ? `Then make a one-time routine for yourself two days before ${out.app.expiresAt} that runs app_list and, if this app is still not owned, sends the human its claim link again from app_manage claim_link.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+}
+
 function deployReport(out: DeployOutcome): string {
   if (out.ok) {
     const expiry = out.app.claimed ? "owned, never expires" : `expires ${out.app.expiresAt ?? "soon"} unless claimed`
-    return `${out.changed ? "deployed" : "unchanged, already live"}: ${out.app.url} (${expiry})`
+    const line = `${out.changed ? "deployed" : "unchanged, already live"}: ${out.app.url} (${expiry})`
+    return out.claim ? `${line}\n${claimAsk({ app: out.app, claim: out.claim })}` : line
   }
   if ("error" in out) return `not deployed: ${out.error}`
   return `build failed, fix these and deploy again:\n${out.diagnostics.map((d) => `${where(d)} ${d.message}`).join("\n")}`
@@ -138,7 +153,7 @@ async function manage(apps: Apps, fs: RoomFs, a: ManageArgs): Promise<string> {
     case "terminate":
       return shown(await apps.lifecycle(a.name, a.action))
     case "claim_link":
-      return `Give the human this link. Claiming makes the app permanent and connects their Lakebed account to Kiko: ${await apps.claimLink(a.name)}`
+      return `Give the human this link. Claiming makes the app permanent and connects their Lakebed account to Kiko: ${claimText(await apps.claimLink(a.name))}`
     case "forget":
       return apps.forget(a.name) ? `Kiko forgot ${a.name}. The deploy itself is untouched.` : `No app named ${a.name}.`
   }
@@ -206,9 +221,9 @@ export function appsExtension(deps: AppsDeps): Extension {
           replay: "safe",
           execute: guarded(async () => {
             const service = apps()
-            const mine = service
-              .list()
-              .map((a) => `${a.name}: ${a.url} ${a.claimed ? "(owned)" : `(expires ${a.expiresAt ?? "?"})`}`)
+            const mine = (await service.overview()).apps.map(
+              (a) => `${a.name}: ${a.url} ${a.claimed ? "(owned)" : `(expires ${a.expiresAt ?? "?"})`}`,
+            )
             const account = await service.accountDeploys().catch(() => null)
             return [mine.join("\n") || "no apps yet", account ? `account deploys: ${shown(account)}` : ""]
               .filter(Boolean)
