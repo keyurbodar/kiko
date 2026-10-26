@@ -1,6 +1,6 @@
 import type { AgentSlug, Envelope, RoomEvent, RoomId } from "@kiko/protocol"
 import { checkSend, type Limit, limitError, limitNotice } from "./limits"
-import type { Asks } from "./asks"
+import type { Asks, Unanswered } from "./asks"
 import { RECENT_MESSAGES } from "./message-position"
 import type { RoomLog } from "./log"
 import { parseRichText } from "@kiko/protocol/markdown"
@@ -466,10 +466,28 @@ export class RoomMessaging {
     text: string,
     message: { id: string; seq: number } | null,
   ): Promise<void> {
-    for (const ask of this.d.asks.unanswered(
+    await this.relay(
       slug,
-      heard.flatMap((id) => messageIdOf(id) ?? []),
-    )) {
+      this.d.asks.unanswered(
+        slug,
+        heard.flatMap((id) => messageIdOf(id) ?? []),
+      ),
+      text,
+      message,
+    )
+  }
+
+  async halted(slug: AgentSlug, text: string, message: { id: string; seq: number }): Promise<void> {
+    await this.relay(slug, this.d.asks.owed(slug), text, message)
+  }
+
+  private async relay(
+    slug: AgentSlug,
+    asks: readonly Unanswered[],
+    text: string,
+    message: { id: string; seq: number } | null,
+  ): Promise<void> {
+    for (const ask of asks) {
       if (ask.remote) {
         this.d.mail.giveBack(ask.id, slug, ask.asker, text, ask.remote)
         await this.d.mail.settle()

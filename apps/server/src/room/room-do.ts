@@ -1280,6 +1280,20 @@ export class Room implements CommandRoom {
     })
   }
 
+  async halted(slug: AgentSlug, text: string): Promise<void> {
+    const stored = this.log.addMessage({
+      from: { kind: "system", reason: "files" },
+      text: `@${slug} ${text}`.slice(0, 300),
+    })
+    if (stored.event) this.publish([stored.event])
+    if (!this.home()) return
+    await this.mailer.halted(
+      slug,
+      `(no answer: @${slug} was paused because its turn ran long. go on without it, or give it a smaller step.)`,
+      { id: stored.id, seq: stored.seq },
+    )
+  }
+
   async homeNotice(slug: AgentSlug, text: string): Promise<void> {
     const { event } = this.log.addMessage({
       from: { kind: "system", reason: "files" },

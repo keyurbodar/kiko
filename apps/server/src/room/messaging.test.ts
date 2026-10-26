@@ -168,6 +168,19 @@ describe("fan-out answers sent with send_message", () => {
   })
 })
 
+describe("a teammate paused mid-turn", () => {
+  it("tells the asker there is no answer so the round can go on", async () => {
+    const { mail, messaging, delivered } = room()
+    const kickoff = sent(mail.send(JUNO, { id: "k", to: "all", text: "three facts each" }, TRIO))
+    delivered.length = 0
+    await messaging.relayHeard(MIRA, [`agent:${kickoff}:${MIRA}`], "mira's facts", { id: "m8", seq: 8 })
+
+    await messaging.halted(ROSA, "(no answer: rosa was paused)", { id: "m9", seq: 9 })
+
+    expect(delivered.map((d) => d.text)).toEqual(["mira's facts", "(no answer: rosa was paused)"])
+  })
+})
+
 describe("task reports", () => {
   it("are owed to the lead only while its ask is unanswered", async () => {
     const { asks, mail, messaging } = room()

@@ -125,6 +125,16 @@ export class Asks {
     )
   }
 
+  owed(askee: AgentSlug): Unanswered[] {
+    return this.sql
+      .exec<Unanswered>(
+        "SELECT id, asker, remote, message_id AS messageId FROM agent_asks WHERE (askee = ?1 AND answer IS NULL) AND agent_asks.room_id = ?2 ORDER BY at",
+        askee,
+        this.roomId,
+      )
+      .toArray()
+  }
+
   unanswered(askee: AgentSlug, messageIds: readonly string[]): Unanswered[] {
     if (!messageIds.length) return []
     return this.sql
