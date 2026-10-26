@@ -4,8 +4,6 @@ import type { OwnerServices } from "../owner/services"
 import type { Inflight, RoomRoutines } from "./routines"
 import { matches, type Signal, signalOf } from "./routine-events"
 import type { RoomLog } from "./log"
-import type { Members } from "./members"
-import type { MessageChains } from "./messaging"
 import type { Home } from "./home"
 
 export type ReportsDeps = {
@@ -13,8 +11,6 @@ export type ReportsDeps = {
   services: OwnerServices
   alarms: Alarms
   log: RoomLog
-  members: Members
-  mail: MessageChains
   routines: RoomRoutines
   home: () => Home | null
 }
@@ -39,18 +35,7 @@ export class Reports {
     const home = this.d.home()
     if (!home) return []
     return events.flatMap((event) => {
-      if (event.t !== "message" || event.from.kind === "system") return []
-      const from = event.from
-      const by =
-        from.kind === "human"
-          ? { kind: "human" as const }
-          : {
-              kind: "agent" as const,
-              slug: from.slug,
-              name: this.d.members.get(from.slug)?.name ?? from.slug,
-              eventRun: /^routine:[^:]+:(event|hook|watch):/.test(this.d.mail.chainRoot(from.slug) ?? ""),
-            }
-      const signal = signalOf(event, { roomId: home.roomId, at: event.at, by })
+      const signal = signalOf(event, { roomId: home.roomId, at: event.at })
       return signal ? [signal] : []
     })
   }
@@ -61,8 +46,8 @@ export class Reports {
     if (!stored || !home) return
     const { after, at } = JSON.parse(stored) as { after: number; at: number }
     const caught = this.d.log.catchUp(after)
-    const events = caught.t === "events" ? caught.events : []
-    await this.d.services.user().signals({ roomId: home.roomId, openedAt: at, signals: this.signals(events), more: 0 })
+    const signals = this.signals(caught.t === "events" ? caught.events : [])
+    if (signals.length) await this.d.services.user().signals({ roomId: home.roomId, openedAt: at, signals, more: 0 })
     this.d.ctx.storage.sql.exec(
       "DELETE FROM owner_meta WHERE key = 'routine_window' AND owner_meta.scope = 'room:' || ?1",
       this.d.log.roomId,
@@ -88,5 +73,4 @@ export class Reports {
     })
     this.d.ctx.waitUntil(this.d.services.user().signals({ roomId: home.roomId, openedAt: now, signals, more: 0 }))
   }
-  async sendResults(): Promise<void> {}
 }

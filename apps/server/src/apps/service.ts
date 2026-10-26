@@ -19,7 +19,7 @@ export type Builder = (files: Record<string, string>, target: Target) => Promise
 
 export type AppSummary = { name: string; url: string; claimed: boolean; expiresAt: string | null; updatedAt: number }
 export type DeployOutcome =
-  | { ok: true; app: AppSummary; changed: boolean; claim?: ClaimLink }
+  | { ok: true; app: AppSummary; changed: boolean; claim?: ClaimLink; live?: number | null }
   | { ok: false; diagnostics: Diagnostic[] }
   | { ok: false; error: string }
 export type CallResult = { status: number; body: string; bytes: Uint8Array; type: string }
@@ -55,6 +55,9 @@ const ACCOUNT_AAD = "apps/lakebed-account"
 const ACCOUNT_SETTING = "lakebedAccount"
 const CLAIM_DIAGNOSTIC = /fetch/i
 const SESSION_MARGIN_MS = 60_000
+const LIVE_TRIES = 2
+const LIVE_GAP_MS = 2_000
+const LIVE_WAIT_MS = 5_000
 const INSPECT_PATHS: Record<InspectWhat, string> = {
   logs: "/__lakebed/logs",
   tables: "/__lakebed/db/tables",
@@ -107,7 +110,23 @@ const needsClaim = (diagnostics: Diagnostic[]) =>
   diagnostics.length > 0 && diagnostics.every((d) => CLAIM_DIAGNOSTIC.test(d.message))
 
 const CLAIM_FIRST =
-  "This app uses server fetch or env, which only a claimed deploy runs. Get the claim link with app_manage claim_link and give it to the human, then deploy again once they claim it."
+  "This app uses server fetch or env, which only a claimed deploy runs. Get the claim link with app_manage claim_link, give it to the human and end your turn. Deploy again once, after they reply."
+
+const pauseFor = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+async function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms)
+  })
+  try {
+    return await Promise.race([work, late])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const isUp = (status: number | null) => status !== null && status < 500 && status !== 404
 
 export class Apps {
   private readonly lakebed: Lakebed
@@ -118,6 +137,7 @@ export class Apps {
     private readonly ownerId: string,
     private readonly build: Builder,
     private readonly egress: typeof fetch,
+    private readonly pause: (ms: number) => Promise<void> = pauseFor,
   ) {
     this.lakebed = new Lakebed(egress)
   }
@@ -126,9 +146,11 @@ export class Apps {
     return this.sql.exec<Row>("SELECT * FROM apps ORDER BY name").toArray().map(summary)
   }
 
-  async accountDeploys(): Promise<unknown> {
-    const token = await this.accountToken()
-    return token ? this.lakebed.deploys(token) : null
+  async inventory(): Promise<{ apps: AppSummary[]; deploys: unknown }> {
+    const account = await this.settle()
+    await this.markClaimed()
+    const deploys = account.token ? await this.lakebed.deploys(account.token).catch(() => null) : null
+    return { apps: this.list(), deploys }
   }
 
   async deploy(name: string, files: Record<string, string>, options: DeployOptions = {}): Promise<DeployOutcome> {
@@ -152,7 +174,7 @@ export class Apps {
       return {
         ok: false as const,
         error:
-          "This app is claimed. Connect the human's Lakebed account with lakebed_account connect, then deploy again.",
+          "This app is claimed. Connect the human's Lakebed account with lakebed_account connect, give them the link and end your turn. Deploy again once, after they reply.",
       }
     const source = { ...files, [KIKO_MODULE]: kikoModule(await sha256Hex(secrets.key)) }
     const built = await this.build(source, claimed ? "claimed" : "anonymous")
@@ -170,13 +192,28 @@ export class Apps {
         : "gone"
     if (updated === "gone" && options.deleteTables?.length)
       return { ok: false as const, error: "delete_tables needs an existing deploy. Nothing was created." }
-    const result = updated === "gone" ? await this.lakebed.create(built.envelope, send, account) : updated
+    const created = updated === "gone"
+    const result = created ? await this.lakebed.create(built.envelope, send, account) : updated
     const app = await this.save(name, result, built.envelope.artifactHash, {
       ...secrets,
       ...this.claimTokenOf(result, secrets),
     })
-    if (app.claimed) return { ok: true as const, app, changed: true }
-    return { ok: true as const, app, changed: true, claim: await this.claimLink(name) }
+    const answered = await this.liveStatus(app.url)
+    if (app.claimed || !created) return { ok: true as const, app, changed: true, live: answered }
+    return { ok: true as const, app, changed: true, live: answered, claim: await this.claimLink(name) }
+  }
+
+  private async liveStatus(url: string): Promise<number | null> {
+    let status: number | null = null
+    for (let tries = 0; tries < LIVE_TRIES && !isUp(status); tries++) {
+      if (tries) await this.pause(LIVE_GAP_MS)
+      const answer = this.egress(url, { redirect: "manual" }).then(async (response) => {
+        await response.body?.cancel()
+        return response.status
+      })
+      status = await within(answer, LIVE_WAIT_MS).catch(() => null)
+    }
+    return status
   }
 
   private claimTokenOf(result: Deployed, secrets: Secrets): Pick<Secrets, "claimToken"> {
@@ -298,12 +335,16 @@ export class Apps {
 
   async overview(): Promise<AppsOverview> {
     const account = await this.status()
+    await this.markClaimed()
+    return { account, apps: this.list() }
+  }
+
+  private async markClaimed(): Promise<void> {
     for (const row of this.sql.exec<Row>("SELECT * FROM apps WHERE claimed = 0").toArray()) {
       const record = await this.lakebed.record(row.deploy_id).catch(() => "gone" as const)
       if (record !== "gone" && record.claimed)
         this.sql.exec("UPDATE apps SET claimed = 1, expires_at = NULL WHERE name = ?", row.name)
     }
-    return { account, apps: this.list() }
   }
 
   private async pendingSession(): Promise<CliSession> {

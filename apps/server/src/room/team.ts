@@ -14,12 +14,12 @@ export class Team {
     private readonly roomId: string,
   ) {}
 
-  doing(slug: AgentSlug, text: string, now: number, activity: Activity): void {
+  doing(slug: AgentSlug, text: string, activity: Activity): void {
     this.activities.set(slug, { text, activity })
   }
-  writing(slug: AgentSlug, detail: string | null | undefined, now: number): void {
+  writing(slug: AgentSlug, detail: string | null | undefined): void {
     if (detail === undefined && this.activities.get(slug)?.activity.kind === "writing") return
-    this.doing(slug, detail ?? "writing a reply", now, { kind: "writing" })
+    this.doing(slug, detail ?? "writing a reply", { kind: "writing" })
   }
   activity(slug: AgentSlug): Activity | null {
     return this.activities.get(slug)?.activity ?? null
@@ -78,6 +78,6 @@ export class Team {
   }
 
   static refusal(h: Holder): string {
-    return `@${h.slug} is working on /${h.path} right now${h.doing ? ` (${h.doing})` : ""}. it is theirs until they finish: wait, or send_message @${h.slug} about it. don't work around it with a copy.`
+    return `@${h.slug} is working on /${h.path} right now${h.doing ? ` (${h.doing})` : ""}. it is theirs until they finish: leave it to them, or send_message @${h.slug} about it. don't work around it with a copy.`
   }
 }

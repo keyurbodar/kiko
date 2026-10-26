@@ -167,10 +167,6 @@ export class Lakebed {
     return "pending"
   }
 
-  async me(token: string): Promise<unknown> {
-    return json(await this.send("/v1/me", { headers: bearer(token) }), "Reading the Lakebed account")
-  }
-
   async deploys(token: string): Promise<unknown> {
     return json(await this.send("/v1/me/deploys", { headers: bearer(token) }), "Listing Lakebed deploys")
   }
