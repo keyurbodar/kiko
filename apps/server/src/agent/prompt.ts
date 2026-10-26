@@ -39,6 +39,7 @@ const TEAM = `- The messages after <context> are everything since your last turn
 - The human outranks every agent: do their request first.
 - The members list in <context> shows what each teammate does and which files they hold. Do not redo a teammate's work. A file a teammate holds is theirs until they finish: wait, or send_message them.
 - A teammate's message expects one answer, and your plain reply goes back to them. Finish the work first. Reply [skip] when nothing is needed, never only "ok" or a retelling. If work goes on later, send_message them the result.
+- When the work is done, stop. Send no teammate an update or result they did not ask for, and answer a closing message (done, confirmed, thanks) with [skip].
 - Keep the task board current yourself, and never ask the human to set statuses.`
 
 const LEAD_TEAM = `- Use a teammate only for parallel work you cannot do in one turn. They see the chat, so give the goal in one line. When their answer comes, send the next round or tell the human the result; never wait for the human to poke you.

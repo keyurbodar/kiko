@@ -118,7 +118,7 @@ export class Groups {
       })
       if (event) this.d.publish([event])
       const text = created
-        ? `the group ${checked.title} is made, in its own chat, and your kickoff is sent. you lead it there from here, so do not relay it in this chat. say one short line.`
+        ? `the group ${checked.title} is made, in its own chat, and your kickoff is sent. you lead it there, and the human follows it there. say one short line that names the group, and do not promise to report back in this chat.`
         : `the group ${checked.title} is already in its own chat. your kickoff is sent there, and you lead it there. say one short line.`
       this.d.log.setMeta(key, text)
       return { ok: true, text }
