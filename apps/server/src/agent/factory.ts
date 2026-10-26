@@ -25,6 +25,7 @@ import { type MemoryPort, memoryExtensions } from "@kiko/memory/tools"
 import { type WorkspacePort, workspaceExtension } from "./extensions/workspace"
 import { type MessagingPort, messagingExtension } from "./extensions/messaging"
 import { type RoutinesPort, routinesExtension } from "./extensions/routines"
+import { type AppsDeps, appsExtension } from "./extensions/apps"
 import { type RecipesPort, skillsExtension } from "./extensions/skills"
 import { selfExtension } from "./extensions/self"
 import { type GroupsPort, groupsExtension } from "./extensions/chief"
@@ -58,6 +59,7 @@ export type BuildAgentInput = RoleInput & {
   browser?: BrowserToolDeps
   computers?: ComputerToolDeps
   routines?: { port: () => RoutinesPort | null }
+  apps?: AppsDeps["apps"]
   recipes?: RecipesPort
   messaging?: () => MessagingPort | null
   testExtensions?: readonly Extension[]
@@ -98,6 +100,7 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
         ]
       : []),
     ...(input.routines ? [routinesExtension(input.routines.port)] : []),
+    ...(input.apps && input.files ? [appsExtension({ apps: input.apps, fs: input.files.fs })] : []),
     ...(input.composio?.tools.length
       ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)]
       : []),

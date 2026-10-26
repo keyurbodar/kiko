@@ -107,7 +107,13 @@ export class OwnerDO extends DurableObject<Env> {
       egress: async (request) => {
         if (new URL(request.url).protocol !== "https:")
           throw new EgressError({ url: request.url, message: "egress is https only" })
-        this.runs.countActive()
+        if (!request.spare) this.runs.countActive()
+        else if (!this.runs.spareActive())
+          throw new EgressError({
+            url: request.url,
+            message:
+              "this step used its share of the run's network calls. Finish this step; the run then continues with a fresh budget, and the rest of the fetches can go in your next command",
+          })
         return fetch(request.url, {
           redirect: "manual",
           method: request.method,

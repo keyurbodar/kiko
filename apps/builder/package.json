@@ -1,0 +1,22 @@
+{
+  "name": "@kiko/builder",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "vendor": "bun scripts/vendor.ts",
+    "dev": "bun scripts/vendor.ts && wrangler dev",
+    "typecheck": "bun scripts/vendor.ts && tsgo --noEmit",
+    "deploy:dry": "bun scripts/vendor.ts && wrangler deploy --dry-run"
+  },
+  "dependencies": {
+    "esbuild-wasm": "0.28.2",
+    "lakebed": "0.0.41",
+    "quickjs-wasi": "3.6.3",
+    "tailwindcss": "4.3.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260101.0",
+    "typescript": "^5.9.0",
+    "wrangler": "^4.0.0"
+  }
+}

@@ -2,6 +2,8 @@ import { sha256Hex } from "./hash"
 
 const ALGORITHM = { name: "Ed25519" } as const
 
+export const BUILDER_DIR = "builder"
+
 function fromBase64Url(text: string): Uint8Array | null {
   if (!/^[A-Za-z0-9_-]*$/.test(text)) return null
   const padded = text
@@ -49,6 +51,14 @@ export async function verifyRelease(manifestBytes: Uint8Array, sigB64: string, p
 }
 
 type ReleaseModule = { name: string; type: string; sha256: string }
+export type ReleaseBuilder = {
+  main_module: string
+  compatibility_date: string
+  compatibility_flags: string[]
+  durable_objects: { name: string; class_name: string }[]
+  migrations: ReleaseMigration[]
+  modules: ReleaseModule[]
+}
 export type ReleaseMigration = { tag: string; new_sqlite_classes?: string[]; deleted_classes?: string[] }
 export type ReleaseComputer = { version: string; base: string; assets: { name: string; sha256: string }[] }
 export type ReleaseManifest = {
@@ -61,6 +71,7 @@ export type ReleaseManifest = {
   migrations: ReleaseMigration[]
   modules: ReleaseModule[]
   computer?: ReleaseComputer
+  builder?: ReleaseBuilder
 }
 
 function isComputer(value: unknown): boolean {
@@ -72,6 +83,29 @@ function isComputer(value: unknown): boolean {
     Array.isArray(computer.assets) &&
     computer.assets.length > 0 &&
     computer.assets.every((asset) => asset && typeof asset.name === "string" && typeof asset.sha256 === "string")
+  )
+}
+
+const isModule = (x: Partial<ReleaseModule> | null | undefined) =>
+  Boolean(x) && typeof x?.name === "string" && typeof x?.type === "string" && typeof x?.sha256 === "string"
+
+const isBinding = (x: { name?: unknown; class_name?: unknown } | null | undefined) =>
+  Boolean(x) && typeof x?.name === "string" && typeof x?.class_name === "string"
+
+function isBuilder(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false
+  const b = value as Partial<ReleaseBuilder>
+  return (
+    typeof b.main_module === "string" &&
+    typeof b.compatibility_date === "string" &&
+    Array.isArray(b.compatibility_flags) &&
+    Array.isArray(b.durable_objects) &&
+    b.durable_objects.every(isBinding) &&
+    Array.isArray(b.migrations) &&
+    b.migrations.every((step) => step && typeof step.tag === "string" && !step.deleted_classes?.length) &&
+    Array.isArray(b.modules) &&
+    b.modules.every((m) => isModule(m) && !m.name.includes("..") && !m.name.startsWith("/")) &&
+    b.modules.some((m) => m.name === b.main_module)
   )
 }
 
@@ -93,6 +127,7 @@ export function parseManifest(manifestBytes: Uint8Array): ReleaseManifest | null
       Array.isArray(m.migrations) &&
       m.migrations.every((step) => step && typeof step.tag === "string" && !step.deleted_classes?.length) &&
       (m.computer === undefined || isComputer(m.computer)) &&
+      (m.builder === undefined || isBuilder(m.builder)) &&
       Array.isArray(m.modules) &&
       m.modules.every(
         (x) => x && typeof x.name === "string" && typeof x.type === "string" && typeof x.sha256 === "string",

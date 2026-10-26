@@ -20,7 +20,7 @@ for (const version of versions) {
     continue
   }
   const manifest = await get(`${version}/manifest.json`)
-  let parsed: { version?: string; modules?: { name: string }[] } = {}
+  let parsed: { version?: string; modules?: { name: string }[]; builder?: { modules?: { name: string }[] } } = {}
   try {
     parsed = JSON.parse(new TextDecoder().decode(manifest))
   } catch {}
@@ -33,6 +33,8 @@ for (const version of versions) {
     ["manifest.sig", await get(`${version}/manifest.sig`)],
   ]
   for (const m of parsed.modules ?? []) files.push([m.name, await get(`${version}/${m.name}`)])
+  for (const m of parsed.builder?.modules ?? [])
+    files.push([`builder/${m.name}`, await get(`${version}/builder/${m.name}`)])
   for (const [name, bytes] of files) {
     mkdirSync(join(dir, name, ".."), { recursive: true })
     writeFileSync(join(dir, name), bytes)

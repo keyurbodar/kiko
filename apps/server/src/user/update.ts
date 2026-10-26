@@ -1,6 +1,7 @@
 import { type Keyring, open, seal } from "@kiko/durable/crypto"
 import { type Cloudflare, CloudflareError, cloudflare, listScripts, scriptBindings } from "@kiko/durable/cloudflare"
 import type { FetchLike } from "@kiko/durable/cloudflare"
+import { installBuilder } from "@kiko/durable/builder-install"
 import { sha256Hex } from "@kiko/durable/hash"
 import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
 import {
@@ -123,12 +124,13 @@ const upload = Effect.fn("SelfUpdate.upload")(function* (
       message: `This backend was not found in the Cloudflare account it was installed from. ${RECONNECT}`,
     })
   const existing = yield* scriptBindings(cf, grant.accountId, grant.scriptName)
+  const builder = yield* installBuilder(cf, grant.accountId, grant.scriptName, release)
   const metadata = yield* Effect.try({
     try: () =>
       buildMetadata(
         release.manifest,
         selectMigrations(release.manifest.migrations, own.migration_tag ?? null),
-        keptBindings(existing, []),
+        keptBindings(existing, builder ? [builder] : []),
       ),
     catch: (error) =>
       new UpdateFailed({

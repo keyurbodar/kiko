@@ -543,7 +543,12 @@ export async function runCommand(
   try {
     fs = await CommandFs.open(files)
     const cwd = options?.cwd && (await fs.stat(options.cwd).catch(() => null))?.isDirectory ? options.cwd : "/"
-    const bash = new Bash({ fs, cwd, env: { HOME: "/", USER: "agent", TMPDIR: "/tmp", ...options?.env } })
+    const bash = new Bash({
+      fs,
+      cwd,
+      env: { HOME: "/", USER: "agent", TMPDIR: "/tmp", ...options?.env },
+      ...(files.network ? { fetch: files.network } : {}),
+    })
     const out = await bash.exec(command, { cwd, signal: AbortSignal.any([outside, fs.overRead.signal]) })
     if (outside.aborted) return err(stopped(timer, seconds))
     if (fs.overRead.signal.aborted) return overRead()

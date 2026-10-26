@@ -1,3 +1,4 @@
+import { bashFetch } from "../files/net"
 import { agentStorage } from "./storage"
 import { JournalStorage } from "@kiko/agent/journal"
 import type { ClockPort } from "@kiko/durable/clock-port"
@@ -85,7 +86,13 @@ const MEMORY_FORGOTTEN_KEY = "memory:forgotten"
 const MAX_DELTA_TURNS = 32
 const USAGE_CARRIED_KEY = "usage:carried"
 const COMPACTIONS_KEY = "compactions"
-type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
+type EgressRequest = {
+  url: string
+  method: string
+  headers: [string, string][]
+  body: ArrayBuffer | null
+  spare?: boolean
+}
 const RECENT_WORKERS = 8
 const MODEL_APPLIED_KEY = "model:applied"
 
@@ -612,8 +619,12 @@ export class Agent {
     )
     const id = `room-files:${this.identity.ownerId}:${this.agentKey}`
     const space = withSoul(backend, soul)
-    const views = roomViews(id, space)
-    const files = { fs: new RoomFs(id, space), acceptsImages: imageReader(user.models) }
+    const network = bashFetch(
+      this.egressFetch(true),
+      (url) => this.services.user().appsService()?.signedHeaders(url) ?? Promise.resolve(null),
+    )
+    const views = roomViews(id, space, network)
+    const files = { fs: new RoomFs(id, space, network), acceptsImages: imageReader(user.models) }
     const memory = this.memoryPort()
     const composio = await this.composioTools()
     const signature = Array.isArray(composio) ? learnedSignature(composio) : composio
@@ -644,6 +655,7 @@ export class Agent {
       memory,
       messaging,
       routines: { port: () => this.routinesPort() },
+      apps: () => this.services.user().appsService(),
       ...(home ? { recipes: this.recipesPort(home) } : {}),
       ...(Array.isArray(composio) && home
         ? {
@@ -839,14 +851,20 @@ export class Agent {
     return this.services.egress(request)
   }
 
-  private egressFetch(): typeof fetch {
+  private egressFetch(spare = false): typeof fetch {
     return (async (input: RequestInfo | URL, init?: RequestInit) => {
       const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined)
       signal?.throwIfAborted()
       const request = new Request(input as RequestInfo, { ...init, signal: null })
       const body = request.body ? await request.arrayBuffer() : null
       const sent = await orStall(
-        this.egress({ url: request.url, method: request.method, headers: [...request.headers], body }),
+        this.egress({
+          url: request.url,
+          method: request.method,
+          headers: [...request.headers],
+          body,
+          ...(spare ? { spare } : {}),
+        }),
         FIRST_BYTE_MS,
       )
       const response = guardStall(sent, STALL_MS)

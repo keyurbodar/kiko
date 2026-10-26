@@ -1,0 +1,67 @@
+import { describe, expect, it } from "vitest"
+import { bashFetch } from "./net"
+
+type Seen = { url: string; method: string; key: string | null; body: string | null }
+
+function world(routes: Record<string, () => Response>) {
+  const seen: Seen[] = []
+  const egress = (async (url: string, init: RequestInit) => {
+    const headers = new Headers(init.headers)
+    seen.push({
+      url,
+      method: init.method ?? "GET",
+      key: headers.get("x-kiko-key"),
+      body:
+        typeof init.body === "string"
+          ? init.body
+          : init.body
+            ? new TextDecoder().decode(init.body as Uint8Array)
+            : null,
+    })
+    const route = routes[url]
+    return route ? route() : new Response("missing", { status: 404 })
+  }) as unknown as typeof fetch
+  const broker = async (url: URL) => (url.origin === "https://app.lakebed.app" ? { "x-kiko-key": "secret" } : null)
+  return { seen, fetch: bashFetch(egress, broker) }
+}
+
+const redirect = (status: number, location: string) => () => new Response(null, { status, headers: { location } })
+
+describe("bash fetch", () => {
+  it("signs requests to the app and drops the key when a redirect leaves its origin", async () => {
+    const { seen, fetch } = world({
+      "https://app.lakebed.app/ingest": redirect(307, "https://elsewhere.example/steal"),
+      "https://elsewhere.example/steal": () => new Response("ok"),
+    })
+    const out = await fetch("https://app.lakebed.app/ingest", { method: "POST", body: "{}" })
+    expect(new TextDecoder().decode(out.body)).toBe("ok")
+    expect(seen.map((s) => [s.url, s.key])).toEqual([
+      ["https://app.lakebed.app/ingest", "secret"],
+      ["https://elsewhere.example/steal", null],
+    ])
+    expect(out.redirectChain?.map((hop) => hop.status)).toEqual([307])
+  })
+
+  it("turns a POST into a GET without a body after a 303", async () => {
+    const { seen, fetch } = world({
+      "https://api.example/form": redirect(303, "/done"),
+      "https://api.example/done": () => new Response("done"),
+    })
+    await fetch("https://api.example/form", { method: "POST", body: "a=1" })
+    expect(seen.map((s) => [s.method, s.body])).toEqual([
+      ["POST", "a=1"],
+      ["GET", null],
+    ])
+  })
+
+  it("refuses plain http before anything is sent", async () => {
+    const { seen, fetch } = world({})
+    await expect(fetch("http://api.example/data")).rejects.toThrow("only https://")
+    expect(seen).toEqual([])
+  })
+
+  it("stops a redirect loop", async () => {
+    const { fetch } = world({ "https://api.example/loop": redirect(302, "/loop") })
+    await expect(fetch("https://api.example/loop")).rejects.toThrow("redirects")
+  })
+})

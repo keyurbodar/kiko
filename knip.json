@@ -21,6 +21,9 @@
     "apps/computer": {
       "entry": ["scripts/*.ts"]
     },
+    "apps/builder": {
+      "entry": ["scripts/*.ts"]
+    },
     "infra": {
       "entry": ["alchemy.run.ts"]
     }

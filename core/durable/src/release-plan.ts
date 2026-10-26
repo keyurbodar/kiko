@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
 import type { ScriptBinding } from "./cloudflare"
-import type { ReleaseManifest, ReleaseMigration } from "./release"
+import { BUILDER_DIR, type ReleaseBuilder, type ReleaseManifest, type ReleaseMigration } from "./release"
 
 export class ReleasePlanRefused extends Schema.TaggedError<ReleasePlanRefused>()("ReleasePlanRefused", {
   reason: Schema.Literals(["no_bindings", "bad_bindings", "no_migrations", "unknown_migration"]),
@@ -14,6 +14,7 @@ type ReleaseBindings = { name: string; class_name: string }[]
 export type UploadBinding =
   | { readonly type: "plain_text" | "secret_text"; readonly name: string; readonly text: string }
   | { readonly type: "inherit"; readonly name: string }
+  | { readonly type: "service"; readonly name: string; readonly service: string }
 
 const SHIPPED_IN_RELEASE: ReadonlySet<string> = new Set(["CLERK_JWT_KEY", "TRUSTED_ORIGINS", "RELEASE_BASE_URL"])
 
@@ -96,6 +97,35 @@ export function uploadBody(manifest: ReleaseManifest, files: Map<string, Uint8Ar
       new Blob([files.get(module.name) as Uint8Array<ArrayBuffer>], { type: module.type }),
       module.name,
     )
+  }
+  return form
+}
+
+export const builderScriptName = (mainScript: string) => `${mainScript}-builder`
+
+export const builderBinding = (mainScript: string): UploadBinding => ({
+  type: "service",
+  name: "BUILDER",
+  service: builderScriptName(mainScript),
+})
+
+export function builderUploadBody(
+  builder: ReleaseBuilder,
+  files: Map<string, Uint8Array>,
+  currentTag: string | null,
+): FormData {
+  const metadata = {
+    main_module: builder.main_module,
+    compatibility_date: builder.compatibility_date,
+    compatibility_flags: builder.compatibility_flags,
+    bindings: builder.durable_objects.map((binding) => ({ type: "durable_object_namespace" as const, ...binding })),
+    migrations: selectMigrations(builder.migrations, currentTag),
+  }
+  const form = new FormData()
+  form.set("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }))
+  for (const module of builder.modules) {
+    const bytes = files.get(`${BUILDER_DIR}/${module.name}`) as Uint8Array<ArrayBuffer>
+    form.set(module.name, new Blob([bytes], { type: module.type }), module.name)
   }
   return form
 }
