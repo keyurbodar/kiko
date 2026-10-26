@@ -246,7 +246,7 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
         defineTool({
           name: "add_recipe",
           description:
-            "Add one of the human's recipes (from /home/recipes, listed with the skills) to this chat, run by you. It makes the recipe's routines at once. Use it when the human wants a recipe set up here.",
+            "Add a recipe (the human's from /home/recipes, or a built-in from /kiko/recipes) to this chat, run by you. It makes the recipe's routines at once. Use it when the human wants a recipe set up here.",
           parameters: Type.Object({
             slug: Type.String({ description: "the recipe's folder name, like morning-briefing" }),
           }),

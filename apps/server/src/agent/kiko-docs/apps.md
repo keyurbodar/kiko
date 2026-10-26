@@ -96,4 +96,4 @@ Each app gets 10,000 requests and 1,000 writes a day, 1 MB of data, 16,384 rows,
 
 ## Check your work
 
-After a deploy, open the url with `browse` to see the page, read `app_inspect logs` for errors, and read `app_inspect db` after you push data. Report the url, what you checked, and the expiry if the app is anonymous.
+app_deploy reports whether the url answers, so do not poll it. When something looks wrong, read `app_inspect logs` for errors, and read `app_inspect db` after you push data. A worker can open the page with `browse`. Report the url, what you checked, and the expiry if the app is anonymous.
