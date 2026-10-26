@@ -508,13 +508,21 @@ export class Outbox {
       run.generation = null
       await this.flush()
     }
-    const failure = run?.failure
+    const failure = run?.failure ?? (await this.unanswered(inputs?.[0]))
     if (failure) await this.reportError(id, failure)
     const working = this.backgroundRunning
     await this.room()?.endRun(id, inputs, working)
     if (this.run?.id === id) this.run = null
     this.state = working ? "working" : "idle"
     if (!this.run) await this.setStatus(this.backgroundRunning ? "working" : "idle")
+  }
+
+  private async unanswered(input: SubmissionId | undefined): Promise<Failure | null> {
+    const record = input === undefined ? undefined : await this.journal?.submission(input, context)
+    if (record?.status !== "unanswered") return null
+    if (record.reason === "no_model") return { errorMessage: "model is not available" }
+    if (record.reason !== "model_error" && record.reason !== "faulted") return null
+    return { errorMessage: typeof record.detail === "string" ? record.detail : record.reason }
   }
 
   private async setStatus(state: AgentState, detail?: string | null): Promise<void> {

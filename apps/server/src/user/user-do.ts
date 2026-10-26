@@ -104,9 +104,8 @@ import { itemLine, spanOf } from "@kiko/memory/optmem"
 import type { NoteAnswer } from "@kiko/memory/tools"
 import { ProviderLogins, signInMethod } from "./provider-login"
 import { ModelCatalog } from "../models/service"
-import { restoreOverlay } from "../models/sync"
 import { isCustomId } from "../models/custom"
-import { addCustom, refreshCustom, removeCustom, restoreCustom } from "./custom-providers"
+import { addCustom, refreshCustom, removeCustom } from "./custom-providers"
 import { type CatalogOverlay, findProvider } from "../models/catalog"
 import { type NewRoutine, Reminders, type RoutineRun, type RunDelivery } from "./reminders"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
@@ -204,8 +203,6 @@ export class User {
     this.directory = new RoomDirectory(this.sql, this.services)
     {
       this.alarms = options.clock
-      restoreOverlay(this.sql)
-      restoreCustom(this.sql)
       this.models = new ModelCatalog({
         sql: this.sql,
         now: Date.now,

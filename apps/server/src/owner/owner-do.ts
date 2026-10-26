@@ -4,6 +4,8 @@ import { isAgentSlug, isRoomId, MAX_FRAME, type UpdateState } from "@kiko/protoc
 import { Agent } from "../agent/agent-do"
 import { Room } from "../room/room-do"
 import { User } from "../user/user-do"
+import { restoreCustom } from "../user/custom-providers"
+import { restoreOverlay } from "../models/sync"
 import type { Env } from "../index"
 import { BlobStore } from "../files/blob-store"
 import { fileStore, localBucket } from "../files/store"
@@ -62,6 +64,8 @@ export class OwnerDO extends DurableObject<Env> {
     const name = ctx.id.name ?? "owner"
     this.ownerId = name === "owner" ? "owner" : name.replace(/^owner:/, "")
     initializeSchema(ctx.storage)
+    restoreOverlay(ctx.storage.sql)
+    restoreCustom(ctx.storage.sql)
     this.clock = new Clock(ctx.storage, async () => {
       const queued = ctx.storage.sql.exec<{ at: number | null }>("SELECT min(ready_at) AS at FROM owner_runs").one().at
       return {
