@@ -247,7 +247,13 @@ export const guardScript = (id: number, label: string, focus: boolean) => `(() =
   }
   ${focus ? "el.focus(); if (typeof el.select === 'function') el.select(); else if (el.isContentEditable) { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }" : ""}
   const role = Y.role(el);
-  return { status: "ok", x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, menu: role === "combobox" || el.hasAttribute("aria-haspopup") };
+  const x = rect.left + rect.width / 2;
+  const y = rect.top + rect.height / 2;
+  let hit = document.elementFromPoint(x, y);
+  while (hit && hit.shadowRoot) { const inner = hit.shadowRoot.elementFromPoint(x, y); if (!inner || inner === hit) break; hit = inner; }
+  const within = (outer, node) => { for (let at = node; at; at = at.assignedSlot || at.parentNode || at.host) { if (at === outer) return true; } return false; };
+  const covered = hit && !within(el, hit) && !within(hit, el) ? (Y.label(hit) || hit.tagName.toLowerCase()) : undefined;
+  return { status: "ok", x, y, label: now, covered, menu: role === "combobox" || el.hasAttribute("aria-haspopup") };
 })()`
 
 export const selectScript = (id: number, option: string) => `(() => {

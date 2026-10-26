@@ -34,7 +34,7 @@ export type Step =
 
 type StepFailure = "stale" | "gone" | "hidden" | "dialog" | "timeout" | "crashed"
 
-export type StepResult = { ok: true } | { ok: false; reason: StepFailure; detail?: string }
+export type StepResult = { ok: true; note?: string } | { ok: false; reason: StepFailure; detail?: string }
 
 export interface Tab {
   readonly id: string

@@ -5,7 +5,7 @@ import { guardScript, selectScript } from "./script"
 import type { Step, StepResult } from "./types"
 
 type Guard =
-  | { status: "ok"; x: number; y: number; menu: boolean }
+  | { status: "ok"; x: number; y: number; label: string; covered?: string; menu: boolean }
   | { status: "gone" | "hidden" }
   | { status: "stale"; label: string }
 
@@ -163,13 +163,14 @@ async function awaitPage(page: PageState, step: Extract<Step, { op: "wait" }>): 
   }
 }
 
-async function perform(page: PageState, step: Step): Promise<StepResult | { ok: true; menu: boolean }> {
+async function perform(page: PageState, step: Step): Promise<StepResult | { ok: true; menu: boolean; note?: string }> {
   switch (step.op) {
     case "click": {
       const g = await guard(page, step.id, false)
       if (g.status !== "ok") return refused(g)
       await click(page, g.x, g.y)
-      return { ok: true, menu: g.menu }
+      const note = g.covered === undefined ? undefined : `something else was on top: ${g.covered}, and it got the click`
+      return { ok: true, menu: g.menu, ...(note ? { note } : {}) }
     }
     case "hover": {
       const g = await guard(page, step.id, false)
@@ -180,6 +181,12 @@ async function perform(page: PageState, step: Step): Promise<StepResult | { ok: 
     case "type": {
       const g = await guard(page, step.id, true)
       if (g.status !== "ok") return refused(g)
+      if (g.covered !== undefined)
+        return {
+          ok: false,
+          reason: "hidden",
+          detail: `${g.label || "it"} is covered by ${g.covered}: nothing was typed`,
+        }
       const text = step.text ? page.channel.send("Input.insertText", { text: step.text }) : press(page, "Delete")
       await Promise.all([text, step.submit ? press(page, "Enter") : undefined])
       return { ok: true, menu: g.menu }
@@ -219,7 +226,7 @@ export async function act(page: PageState, step: Step): Promise<StepResult> {
     const done = await perform(page, step)
     if (!done.ok) return done
     if (!NAVIGATES.has(step.op)) page.settle = "menu" in done && done.menu
-    return { ok: true }
+    return done.note ? { ok: true, note: done.note } : { ok: true }
   } catch (error) {
     if (page.crashed) return { ok: false, reason: "crashed" }
     const message = error instanceof Error ? error.message : String(error)
