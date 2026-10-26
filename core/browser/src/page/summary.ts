@@ -45,6 +45,12 @@ function findPassages(text: string, find: string, limit: number = BROWSER.textMa
 const controlLine = (control: Control): string =>
   `${control.id} ${control.role} "${control.label}"${control.href ? ` -> ${control.href}` : ""}`
 
+function scrolled(page: PageView): string[] {
+  const s = page.scroll
+  if (!s || s.height <= s.view) return []
+  return [`scrolled ${s.y} of ${s.height}px, ${Math.max(0, s.height - s.view - s.y)}px below`]
+}
+
 export function summarize(page: PageView, find?: string): string {
   const terms = find ? words(find) : []
   const matching = terms.length
@@ -56,5 +62,5 @@ export function summarize(page: PageView, find?: string): string {
   if (terms.length && !matching.length) lines.push(`(no control mentions ${find})`)
   const text = find ? findPassages(page.text, find) : page.text
   const body = text || (find ? `nothing on this page mentions ${find}` : "(no text on the page)")
-  return [page.title, page.url, ...lines, "", body].join("\n")
+  return [page.title, page.url, ...scrolled(page), ...lines, "", body].join("\n")
 }

@@ -14,7 +14,7 @@ import { WorkerMissing } from "./errors"
 const context = BACKGROUND_CONTEXT
 
 export const MAX_WORKERS = 3
-export const REPORT_CHARS = 16_000
+export const REPORT_CHARS = 4_000
 const LISTED_PATHS = 20
 const KEEP_DELIVERED_MS = 7 * 86_400_000
 export const MAX_WORKER_RESUMES = 3

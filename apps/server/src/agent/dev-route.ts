@@ -143,7 +143,7 @@ async function devRoomAction(request: Request, env: Env, userId: string, action:
     })
   }
   if (action === "trace")
-    return Response.json(await ownerStub(env.OWNER, userId).agentCall(roomId, DEFAULT_AGENT, "devTrace", []))
+    return Response.json(await ownerStub(env.OWNER, userId).agentCall(roomId, slugOf(body), "devTrace", []))
   const slugs = action === "status" ? [body.slug] : (body.slugs ?? [DEFAULT_AGENT])
   if (
     !Array.isArray(slugs) ||

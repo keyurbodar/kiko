@@ -7,6 +7,7 @@ export type HeaderBroker = (url: URL) => Promise<Record<string, string> | null>
 const MAX_REDIRECTS = 10
 const MAX_BYTES = 10 * 1024 * 1024
 const REDIRECTS = new Set([301, 302, 303, 307, 308])
+const USER_AGENT = "curl/8.7.1"
 
 class NetError extends Error {}
 
@@ -56,7 +57,11 @@ export function bashFetch(egress: typeof fetch, broker: HeaderBroker): SecureFet
     const sendsBody = request.body !== undefined && request.method !== "GET" && request.method !== "HEAD"
     return egress(request.url.href, {
       method: request.method,
-      headers: { ...headersOf(new Headers(options.headers)), ...(await broker(request.url)) },
+      headers: {
+        "user-agent": USER_AGENT,
+        ...headersOf(new Headers(options.headers)),
+        ...(await broker(request.url)),
+      },
       ...(sendsBody ? { body: request.body } : {}),
       redirect: "manual",
       ...(options.signal ? { signal: options.signal } : {}),

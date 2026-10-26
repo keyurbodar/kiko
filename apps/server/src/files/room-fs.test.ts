@@ -106,13 +106,40 @@ describe("RoomFs", () => {
     expect(out.ok).toBe(true)
   })
 
-  it("saves a command's writes when its last step is a script that cannot run", async () => {
+  it("runs a script the agent wrote as ./script.sh", async () => {
     const { backend, files } = memoryBackend()
     const fs = new RoomFs("test", backend)
-    const out = await bash(fs, "echo hi > /run.sh; echo kept > /kept.txt; cd / && ./run.sh")
-    expect(out.exitCode).toBe(126)
-    expect(out.output).toContain("Permission denied")
+    const out = await bash(fs, "printf 'echo ran\\n' > /run.sh; echo kept > /kept.txt; cd / && ./run.sh")
+    expect(out.exitCode).toBe(0)
+    expect(out.output).toContain("ran")
     expect(decoder.decode(files.get("kept.txt")?.bytes)).toBe("kept\n")
+  })
+
+  it("matches a negated bracket in a case pattern", async () => {
+    const { backend } = memoryBackend()
+    const fs = new RoomFs("test", backend)
+    const check = (n: string) =>
+      bash(fs, `n=${n}; case "$n" in ''|*[!0-9]*) echo word;; *) echo number;; esac`).then((o) => o.output.trim())
+    expect(await check("12")).toBe("number")
+    expect(await check("ab")).toBe("word")
+  })
+
+  it("answers a call to a runtime that is not here", async () => {
+    const fs = new RoomFs("test", memoryBackend().backend)
+    for (const runtime of ["node", "python3", "deno"]) {
+      const out = await bash(fs, `${runtime} /inventory.js test`)
+      expect(out.exitCode).toBe(127)
+      expect(out.output).toContain("run JavaScript with the codemode tool")
+    }
+  })
+
+  it("keeps /tmp from one command to the next without saving it", async () => {
+    const { backend, files } = memoryBackend()
+    const fs = new RoomFs("test", backend)
+    await bash(fs, "mkdir -p /tmp/run && echo kept > /tmp/run/a.json")
+    expect((await bash(fs, "cat /tmp/run/a.json")).output).toBe("kept\n")
+    expect([...files.keys()]).toEqual([])
+    expect((await bash(new RoomFs("test", backend), "ls /tmp")).output).toBe("")
   })
 
   it("saves nothing when a command hits a limit", async () => {

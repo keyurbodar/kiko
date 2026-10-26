@@ -56,7 +56,7 @@ import { cleanPath, deleteFiles, fileKey } from "../files/paths"
 import { changePaths, type CommitResult, type FileIndex, type IndexChange } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
 import { Team } from "./team"
-import { CHIEF, type GroupInput, type NewAgentSpec } from "./chief"
+import { CHIEF, type GroupInput, type GroupTask, type NewAgentSpec } from "./chief"
 import { RoomClosed, RoomIdentityError } from "./errors"
 import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { isPrivate, RoomLog } from "./log"
@@ -257,6 +257,7 @@ export class Room implements CommandRoom {
         routines: this.routines,
         workspace: this.workspace,
         burst: this.burst,
+        asks: this.asks,
         home: () => this.home(),
         chat: (home) => this.chat(home),
         seedMembers: (home, chat) => this.seedMembers(home, chat),
@@ -672,7 +673,7 @@ export class Room implements CommandRoom {
 
   async startGroup(
     userId: string,
-    input: { chat: string | null; creator: AgentSlug; kickoff: string; chain?: Chain },
+    input: { chat: string | null; creator: AgentSlug; kickoff: string; tasks?: readonly GroupTask[]; chain?: Chain },
   ): Promise<void> {
     const home = this.adopt(userId)
     if (!home) return
@@ -684,7 +685,37 @@ export class Room implements CommandRoom {
     }
     await this.seedMembers(home, chat)
     const id = `kickoff:${(await sha256Hex(`${input.creator}\n${input.kickoff}`)).slice(0, 16)}`
-    await this.mailer.send(input.creator, { id, to: "all", text: input.kickoff }, input.chain ?? null)
+    await this.startTasks(input.creator, id, input.tasks ?? [], input.chain ?? null)
+    await this.mailer.send(
+      input.creator,
+      { id, to: "all", text: input.kickoff, expectsReply: true },
+      input.chain ?? null,
+    )
+  }
+
+  private async startTasks(
+    creator: AgentSlug,
+    kickoff: string,
+    tasks: readonly GroupTask[],
+    chain: Chain | null,
+  ): Promise<void> {
+    const planned = await Promise.all(
+      tasks.map(async (t, i) => ({ ...t, id: `t${(await sha256Hex(`${kickoff}:${i}`)).slice(0, 6)}` })),
+    )
+    const slugs = this.members.list().map((m) => m.slug)
+    const by = { kind: "agent", slug: creator } as const
+    for (const t of planned) {
+      const dependsOn = (t.after ?? []).flatMap((n) => planned[n - 1]?.id ?? [])
+      const made = this.workspace.create(
+        by,
+        { id: t.id, title: t.title, owner: t.owner, dependsOn },
+        slugs,
+        chain ?? undefined,
+      )
+      if (!made.ok) continue
+      this.publish(made.events)
+      if (!dependsOn.length) this.workspace.markWoken(t.id)
+    }
   }
 
   private adopt(userId: string): Home | null {
@@ -753,7 +784,7 @@ export class Room implements CommandRoom {
   async agentMessage(
     slug: AgentSlug,
     send: AgentSend,
-  ): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }> {
+  ): Promise<{ ok: true; to: AgentSlug[]; answered?: true } | { ok: false; error: string }> {
     return this.mailer.send(slug, send)
   }
 
@@ -1253,6 +1284,21 @@ export class Room implements CommandRoom {
     })
   }
 
+  async halted(slug: AgentSlug, text: string): Promise<void> {
+    const stored = this.log.addMessage({
+      from: { kind: "system", reason: "files" },
+      text: `@${slug} ${text}`.slice(0, 300),
+    })
+    if (stored.event) this.publish([stored.event])
+    if (!this.home()) return
+    const note = `(no answer: @${slug} was paused because its turn ran long. go on without it, or give it a smaller step.)`
+    const owed = this.asks.owed(slug).length > 0
+    await this.mailer.halted(slug, note, { id: stored.id, seq: stored.seq })
+    const lead = this.members.list().find((m) => m.lead)
+    if (!owed && lead && lead.slug !== slug)
+      await this.wakes.wake({ id: `halted:${stored.id}`, to: lead.slug, why: "stalled", body: note, chain: null })
+  }
+
   async homeNotice(slug: AgentSlug, text: string): Promise<void> {
     const { event } = this.log.addMessage({
       from: { kind: "system", reason: "files" },
@@ -1458,8 +1504,11 @@ export class Room implements CommandRoom {
         members.map((m) => m.slug),
         this.mail.chain(slug),
       )
+      const owner = call.op === "create_task" ? call.owner?.replace(/^@/, "").trim().toLowerCase() : undefined
+      if (result.answer.ok && owner && isAgentSlug(owner) && this.asks.owes(owner, slug))
+        this.workspace.markWoken(call.id)
       const lead = members.find((m) => m.lead)
-      if (lead && lead.slug !== slug)
+      if (lead && lead.slug !== slug && !this.asks.owes(slug, lead.slug))
         for (const event of result.events) {
           if (
             event.t === "task" &&
@@ -1470,8 +1519,7 @@ export class Room implements CommandRoom {
       return result
     })
     this.publish(events)
-
-    this.ctx.waitUntil(this.deliverWakes())
+    if (member.status === "idle") this.ctx.waitUntil(this.deliverWakes())
     return answer
   }
 
@@ -1761,6 +1809,7 @@ export class Room implements CommandRoom {
     if (home) {
       this.memory.trace(slug, runId, Date.now())
       await this.mailer.answerAsks(slug, runId, heard)
+      this.ctx.waitUntil(this.deliverWakes())
     }
     this.mail.runEnded(slug)
     if (working) this.team.clearDoing(slug)

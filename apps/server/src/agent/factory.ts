@@ -41,6 +41,7 @@ import { connectAppExtension } from "../integrations/composio/connect-tool"
 import { type BrowserToolDeps, browserExtension, browserInfoExtension } from "./browser/tools"
 import { type ComputerToolDeps, computerExtension, computerInfoExtension } from "./computer/tools"
 import { promptExtensions, type RoleInput } from "./prompt"
+import { codemodeExtension, type MakeSandbox } from "./extensions/codemode"
 import { forRole } from "./roles"
 import { count } from "../lib/dev-guard"
 import type { ThinkingLevel } from "@kiko/protocol"
@@ -67,6 +68,7 @@ export type BuildAgentInput = RoleInput & {
   messaging?: () => MessagingPort | null
   testExtensions?: readonly Extension[]
   work?: Workers
+  codemode?: MakeSandbox
 }
 
 export type BuiltAgent = {
@@ -113,6 +115,7 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
     ...(input.browser ? [browserExtension(input.browser), browserInfoExtension(input.browser)] : []),
     ...(input.computers ? [computerExtension(input.computers), computerInfoExtension(input.computers)] : []),
     ...(input.work ? workExtensions(input.work, all, input.runId) : []),
+    ...(input.codemode ? [codemodeExtension(input.codemode)] : []),
     ...(input.testExtensions ?? []),
   ]
 }
@@ -192,9 +195,9 @@ export function userModels(
 ): { models: Models; settings: HarnessSettings } {
   const models = createModels({ authContext: { env: async () => undefined, fileExists: async () => false } })
   for (const provider of providers()) {
-    const through = egress ? withRetryAfter(egress) : undefined
-    const via = (model: { api: string }, options: object | undefined) => {
-      if (through && !NO_CUSTOM_FETCH.has(model.api)) return { ...options, fetch: through }
+    const through = egress ? withRetryAfter(egress, provider.id) : undefined
+    const via = (model: { api: string; id: string }, options: object | undefined) => {
+      if (through && !NO_CUSTOM_FETCH.has(model.api)) return { ...options, fetch: through(model.id) }
       directCall?.()
       return options
     }

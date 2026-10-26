@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 const ROOT = join(import.meta.dir, "..")
-const GENERATORS = ["gen-skills.ts", "gen-kiko-docs.ts", "gen-recipes.ts"]
+const GENERATORS = ["gen-kiko-docs.ts", "gen-recipes.ts"]
 
 const outputs = Bun.spawnSync(["git", "ls-files", "*.gen.ts"], { cwd: ROOT })
   .stdout.toString()

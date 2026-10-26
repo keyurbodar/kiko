@@ -84,7 +84,8 @@ export class RecipeService {
       return { ok: true, install: this.withRoutines(done), setup: `${done.slug} is already on here.`, existed: true }
     const lib = await this.p.library.read()
     const recipe = lib.recipes.find((r) => r.slug === input.slug)
-    if (!recipe) return { ok: false, error: `no recipe named ${input.slug} in /home/recipes` }
+    if (!recipe)
+      return { ok: false, error: lib.problems.get(input.slug) ?? `no recipe named ${input.slug} in /home/recipes` }
     const on = "own" in input ? undefined : findTarget(this.p.sql, recipe.slug, input.roomId, input.agent)
     if (on)
       return {

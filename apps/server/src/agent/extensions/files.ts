@@ -268,6 +268,7 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
   const piWrite = createWriteTool()
   const write = defineTool({
     ...piWrite,
+    description: `${piWrite.description} To change parts of a file that exists, use edit with one entry per change instead of writing it all again.`,
     execute: async (args, api, context) => {
       const out = await piWrite.execute(args, api, context)
       if (!out.isError) saved(api, [roomPathOf(api, args.path)])
@@ -290,7 +291,7 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
   const piBash = createBashTool()
   const bash = defineTool({
     ...piBash,
-    description: `Run a bash command over the chat's files (/), the human's drive (/home) and your soul (/me): pipes, loops, globs, grep, sed, awk, jq, find, xargs, diff and the rest. No python, no programs to install. Each call starts at /, so use absolute paths. Use read (with offset/limit) to view a file; use bash to search (grep -rn, find) and to run things. /tmp is scratch for one command and is not kept. curl fetches https:// urls only, and a few fetches per step share the run's budget. sleep really waits and counts toward the timeout: seconds, default ${DEFAULT_TIMEOUT_S}, at most ${MAX_TIMEOUT_S}. Each space saves when the command ends: writes first, deletions only if every write saved; the output names what was not saved. A write fails if the file changed after the command started; look again and rerun. Calls that write run one after another. Output is cut to the last lines.`,
+    description: `Run a bash command over the chat's files (/), the human's drive (/home) and your soul (/me): pipes, loops, globs, grep, sed, awk, jq, find, xargs, diff and the rest. Only shell runs here, and nothing can be installed. Check JSON with jq. Each call starts at /, so use absolute paths. Use read (with offset/limit) to view a file; use bash to search (grep -rn, find) and to run things. /tmp is scratch that lasts between your commands and is never saved. curl fetches https:// urls only, and a few fetches per step share the run's budget. Read a web page as text with curl -sL <url> | html-to-markdown, then grep it; never strip tags with sed. sleep really waits and counts toward the timeout: seconds, default ${DEFAULT_TIMEOUT_S}, at most ${MAX_TIMEOUT_S}. Each space saves when the command ends: writes first, deletions only if every write saved; the output names what was not saved. A write fails if the file changed after the command started; look again and rerun. Calls that write run one after another. Output is cut to the last lines.`,
     replay: "unsafe",
     execute: (args, api, context) => {
       const files = filesOf(api)

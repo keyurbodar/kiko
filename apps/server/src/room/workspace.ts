@@ -304,7 +304,7 @@ export class RoomWorkspace implements Workspace {
       )
       const emitted = this.emit(by, next)
       const events = [emitted]
-      if (status === "done" && current.status !== "done") this.markUnblocked(id, emitted.seq)
+      if (status === "done" && current.status !== "done" && lead) this.markUnblocked(id, emitted.seq)
       return { ok: true as const, value: next, events }
     })
   }
@@ -346,7 +346,7 @@ export class RoomWorkspace implements Workspace {
   pendingWakes(): Wake[] {
     return this.sql
       .exec<{ id: string; owner: string; title: string; seq: number; chain: string | null }>(
-        "SELECT id, owner, title, unblocked_seq AS seq, chain FROM ws_tasks WHERE (NOT unblocked_seq IS NULL AND woken_at IS NULL AND NOT owner IS NULL AND NOT status IN ('done', 'cancelled')) AND ws_tasks.room_id = ?1 ORDER BY unblocked_seq, id LIMIT 8",
+        "SELECT id, owner, title, unblocked_seq AS seq, chain FROM ws_tasks WHERE (NOT unblocked_seq IS NULL AND woken_at IS NULL AND NOT owner IS NULL AND status IN ('todo', 'blocked')) AND ws_tasks.room_id = ?1 ORDER BY unblocked_seq, id LIMIT 8",
         this.log.roomId,
       )
       .toArray()

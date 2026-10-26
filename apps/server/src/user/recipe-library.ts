@@ -21,7 +21,12 @@ type Deps = {
   remove: (paths: string[], recursive: boolean) => { ok: boolean }
 }
 
-type Library = { recipes: Recipe[]; custom: ReadonlySet<string>; broken: string[] }
+type Library = {
+  recipes: Recipe[]
+  custom: ReadonlySet<string>
+  broken: string[]
+  problems: ReadonlyMap<string, string>
+}
 
 const builtinParsed = new Map<string, { text: string; recipe: Recipe }>()
 for (const [slug, text] of BUILTIN_RECIPES) builtinParsed.set(slug, { text, recipe: parseRecipe(text, slug) })
@@ -35,7 +40,7 @@ export class RecipeLibrary {
     const recipes = new Map<string, Recipe>()
     for (const [slug, b] of builtinParsed) recipes.set(slug, b.recipe)
     const custom = new Set<string>()
-    const broken: string[] = []
+    const problems = new Map<string, string>()
     const listed = this.d.list(RECIPES_DIR, true)
     if (Array.isArray(listed)) {
       for (const f of listed) {
@@ -47,15 +52,17 @@ export class RecipeLibrary {
           r = await this.parse(f, slug)
           this.parsed.set(key, r)
         }
-        if (typeof r === "string") broken.push(r)
-        else {
+        if (typeof r === "string") {
+          recipes.delete(slug)
+          problems.set(slug, r)
+        } else {
           recipes.set(slug, r)
           custom.add(slug)
         }
       }
     }
     const sorted = [...recipes.values()].sort((a, b) => a.title.localeCompare(b.title))
-    return { recipes: sorted, custom, broken }
+    return { recipes: sorted, custom, broken: [...problems.values()], problems }
   }
 
   async edit(slug: string): Promise<string | null> {

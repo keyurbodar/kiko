@@ -70,12 +70,13 @@ import { userComputer } from "./computer/port"
 import type { ComputerPort } from "./computer/port"
 
 import { count, DEV, loadAgentDev } from "../lib/dev-guard"
-import type { AgentDevHost, Usage } from "./dev"
+import type { AgentDevHost, TraceLine, Usage } from "./dev"
 import { Outbox, type RoomPort } from "./outbox"
 import { stopsWorkers } from "./run-error"
 import type { StepsPort } from "./extensions/presence"
 
 const WORKER_TASK_CHARS = 200
+const INTERRUPT_BUDGET = 30_000
 import { FIRST_BYTE_MS, guardStall, orStall, STALL_MS } from "./stall"
 import { type Applied, modelName, renderHandoff, sameApplied, switchedModel } from "./handoff"
 
@@ -672,6 +673,10 @@ export class Agent {
         : {}),
       workspace: roomWorkspacePort(this.services, () => this.home()),
       work: this.host.workers,
+      codemode: async (options) => {
+        const { createInlineCodemodeSandbox } = await import("@earendil-works/pi-codemode/cloudflare")
+        return createInlineCodemodeSandbox({ ...options, interruptBudget: INTERRUPT_BUDGET })
+      },
     })
     return {
       ...built,
@@ -705,6 +710,7 @@ export class Agent {
         : {}),
       inputInvalidated: () => this.inputInvalidated(),
       inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined),
+      joinMemory: (batch: Batch, joined: number[]) => this.joinMemory(batch, joined),
       beforeCompact: (harness) => this.beforeCompact(harness),
     }
   }
@@ -777,6 +783,16 @@ export class Agent {
       })
     this.#shown.clear()
     return { fresh: true, text: memoryBlock(life, view.text), data: { memoryPos: view.count } }
+  }
+
+  private async joinMemory(batch: Batch, joined: number[]): Promise<{ text?: string; data?: { memoryPos: number } }> {
+    const home = this.home()
+    const seen = await this.memoryPos()
+    if (!home || seen === undefined) return {}
+    const seqs = [...batch.envelopes.map((e) => e.seq), ...joined]
+    const delta = await this.services.room(home.roomId).memorySince(home.slug, seen, seqs)
+    if (delta.count - seen > MAX_DELTA_TURNS) return {}
+    return { data: { memoryPos: delta.count }, ...(delta.text ? { text: memoryDelta(delta.text) } : {}) }
   }
 
   private async memoryPos(): Promise<number | undefined> {
@@ -1123,7 +1139,7 @@ export class Agent {
     return (await this.dev()).devUsage(this.agentDevHost())
   }
 
-  async devTrace(): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
+  async devTrace(): Promise<TraceLine[]> {
     return (await this.dev()).devTrace(this.agentDevHost())
   }
 

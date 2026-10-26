@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest"
 import { Effect, Exit } from "effect"
-import { nextOccurrence, RecurrenceError } from "./recurrence"
+import { localMoment, nextOccurrence, RecurrenceError } from "./recurrence"
 
 const AFTER = Date.UTC(2026, 0, 1)
 
@@ -29,4 +29,43 @@ describe("nextOccurrence", () => {
       assert.isString(failure?.message)
     }),
   )
+})
+
+describe("localMoment", () => {
+  it("reads a local time in the zone", () => {
+    assert.strictEqual(
+      new Date(localMoment("2026-05-04T08:30", "Europe/Berlin") ?? 0).toISOString(),
+      "2026-05-04T06:30:00.000Z",
+    )
+  })
+
+  it("keeps seconds", () => {
+    assert.strictEqual(
+      new Date(localMoment("2026-01-15T09:00:15", "America/New_York") ?? 0).toISOString(),
+      "2026-01-15T14:00:15.000Z",
+    )
+  })
+
+  it("moves a time skipped when clocks go forward to just after the gap", () => {
+    assert.strictEqual(
+      new Date(localMoment("2026-03-08T02:30", "America/New_York") ?? 0).toISOString(),
+      "2026-03-08T07:30:00.000Z",
+    )
+  })
+
+  it("picks the first of a time that happens twice when clocks go back", () => {
+    assert.strictEqual(
+      new Date(localMoment("2026-11-01T01:30", "America/New_York") ?? 0).toISOString(),
+      "2026-11-01T05:30:00.000Z",
+    )
+  })
+
+  it("leaves a time with an offset alone", () => {
+    assert.strictEqual(localMoment("2026-05-04T08:30:00+02:00", "America/New_York"), null)
+    assert.strictEqual(localMoment("2026-05-04T08:30Z", "America/New_York"), null)
+  })
+
+  it("refuses a date that does not exist", () => {
+    assert.strictEqual(localMoment("2026-02-30T08:30", "UTC"), null)
+  })
 })
