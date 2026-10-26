@@ -27,11 +27,56 @@ export type RoutinesPort = {
   runRoutine(id: string): Promise<RunDelivery | null>
   runs(id: string): Promise<RoutineRun[]>
   origin(): Promise<string | null>
+  self(): string
   addRecipe(slug: string): Promise<{ ok: true; setup: string; existed: boolean } | { ok: false; error: string }>
 }
 
 const decodeTrigger = Schema.decodeUnknownSync(TriggerSchema)
 const SHAPES = "shapes: {on:'time',at:'<iso with offset>',rrule?} | {on:'message',contains?} | {on:'webhook',match?}"
+
+const TriggerParam = Type.Union([
+  Type.Object({
+    on: Type.Literal("time"),
+    at: Type.Optional(Type.String({ description: "ISO time with an offset, like 2026-05-04T08:30:00+02:00" })),
+    in_seconds: Type.Optional(Type.Number({ description: "instead of at: run once this many seconds from now" })),
+    rrule: Type.Optional(
+      Type.String({
+        description: "repeat, like FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR; at most every 30 minutes",
+      }),
+    ),
+  }),
+  Type.Object({
+    on: Type.Literal("message"),
+    contains: Type.Optional(Type.String({ description: "only human posts here containing this" })),
+  }),
+  Type.Object({
+    on: Type.Literal("webhook"),
+    match: Type.Optional(
+      Type.Array(
+        Type.Object({
+          path: Type.String({ description: "dot path into the posted JSON" }),
+          equals: Type.Optional(Type.Union([Type.String(), Type.Number(), Type.Boolean()])),
+          contains: Type.Optional(Type.String()),
+        }),
+        { maxItems: 8 },
+      ),
+    ),
+  }),
+])
+
+function tidyArguments(args: unknown): unknown {
+  const raw = args as { trigger?: unknown } | null
+  if (!raw || typeof raw !== "object" || raw.trigger === undefined) return args
+  return { ...raw, trigger: tidyTrigger(raw.trigger) }
+}
+
+function runNowLine(ran: RunDelivery | null, target: string, self: string): string {
+  if (ran === null) return "not run: it is not active"
+  if (ran !== "delivered") return ran
+  if (target === self)
+    return "queued. it runs after you end this turn and its result comes to you then. end your turn now; do not poll or sleep."
+  return `delivered to @${target}. its reply arrives later as a message; do not poll or sleep.`
+}
 
 function tidyTrigger(value: unknown, now = Date.now()): unknown {
   let v = value
@@ -102,16 +147,17 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
         defineTool({
           name: "create_routine",
           description:
-            "Give yourself or any of the human's agents a job that runs on its own. Pass agent with the intended owner's handle; omitting it runs as you. A teammate answers here; an agent outside this chat answers in its own chat. Use it whenever the human wants a reminder, or something done on a schedule (every day, each Monday) or when something happens (whenever they post, a service posts to a webhook). Saying \"got it\" sets nothing. A reminder is a routine that runs once: trigger {on:'time', in_seconds:600} or {on:'time', at:'<iso with offset>'}, with instructions that say what to tell the human. Triggers: {on:'time', at:'<iso with offset>', rrule?:'FREQ=DAILY'} for a schedule, at most every 30 minutes (a weekday 8:30 is at: the next 08:30 with an offset, rrule 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'; use the zone on the now line, which is UTC when the human never set one, and say which zone you used; never ask for a zone first); {on:'message', contains?} when the human posts here (agent messages never match; never make a routine to talk with another agent, message the agent with send_message); {on:'webhook', match?:[{path,equals|contains}]} for posts from an outside service. To return to something yourself later, make a one-time routine for yourself.",
+            'A job that runs on its own: a reminder (a time trigger without rrule runs once), a schedule, or a reaction to the human\'s posts here or to a webhook. Saying "got it" sets nothing. Use the zone on the now line and say which you used. Agent messages never trigger it; to talk with an agent use send_message. To return to something later yourself, make a one-time routine.',
           parameters: Type.Object({
             name: Type.String({ description: "short, lowercase" }),
             instructions: Type.String({ description: "what to do each run, and what to do when a source is missing" }),
-            trigger: Type.Unknown({ description: "when it runs" }),
+            trigger: TriggerParam,
             agent: Type.Optional(
               Type.String({ description: "who runs it: omit for yourself, or any agent's handle from list_agents" }),
             ),
           }),
           replay: "unsafe",
+          prepareArguments: (args) => tidyArguments(args) as never,
           execute: async (args) => {
             const trigger = parseTrigger(args.trigger)
             if (typeof trigger === "string") return { output: text(trigger), isError: true }
@@ -140,11 +186,12 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
             id: Type.String(),
             name: Type.Optional(Type.String()),
             instructions: Type.Optional(Type.String()),
-            trigger: Type.Optional(Type.Unknown()),
+            trigger: Type.Optional(TriggerParam),
             status: Type.Optional(Type.Union([Type.Literal("active"), Type.Literal("paused")])),
             run_now: Type.Optional(Type.Boolean()),
           }),
           replay: "unsafe",
+          prepareArguments: (args) => tidyArguments(args) as never,
           execute: async (args) => {
             const trigger = args.trigger === undefined ? undefined : parseTrigger(args.trigger)
             if (typeof trigger === "string") return { output: text(trigger), isError: true }
@@ -173,7 +220,7 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
             const ran = args.run_now ? await user().runRoutine(args.id) : null
             return {
               output: text(
-                `${routineLine(routine, await user().runs(routine.id))}${hook}${args.run_now ? `\nrun now: ${ran ?? "not run: it is not active"}` : ""}`,
+                `${routineLine(routine, await user().runs(routine.id))}${hook}${args.run_now ? `\nrun now: ${runNowLine(ran, routine.target, user().self())}` : ""}`,
               ),
             }
           },

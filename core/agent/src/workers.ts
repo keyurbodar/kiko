@@ -18,9 +18,12 @@ export const REPORT_CHARS = 16_000
 const LISTED_PATHS = 20
 const KEEP_DELIVERED_MS = 7 * 86_400_000
 export const MAX_WORKER_RESUMES = 3
+export const MAX_WORKER_STEPS = 60
 const GAVE_UP = "it stopped after repeated restarts."
 
 export type WorkStatus = "pending" | "running" | "done" | "failed" | "stopped"
+
+export type StepTaken = "talker" | "worker" | "spent"
 
 type WorkEvent = "submit" | "done" | "lose" | "stop"
 
@@ -64,14 +67,16 @@ type Row = {
   updated_at: number
 }
 
-const toWork = (r: Row): Work => ({
+type Progress = { step: string; steps: number }
+
+const toWork = (r: Row, progress: Progress | undefined): Work => ({
   id: r.id,
   task: r.task,
   conversationId: r.conversation_id as ConversationId | null,
   submissionId: r.submission_id as SubmissionId | null,
   status: r.status,
-  step: r.step,
-  steps: r.steps,
+  step: progress?.step ?? r.step,
+  steps: progress?.steps ?? r.steps,
   delivered: r.delivered === 1,
   runId: r.run_id,
   startedAt: r.started_at,
@@ -112,6 +117,7 @@ export class Workers {
   private readonly sql: SqlStorage
   private readonly now: () => number
   private readonly agent: string
+  private readonly progress = new Map<string, Progress>()
   private harness?: Harness
 
   constructor(
@@ -124,19 +130,26 @@ export class Workers {
   }
 
   list(): Work[] {
-    return this.sql.exec<Row>("SELECT * FROM workers WHERE agent = ? ORDER BY n", this.agent).toArray().map(toWork)
+    return this.sql
+      .exec<Row>("SELECT * FROM workers WHERE agent = ? ORDER BY n", this.agent)
+      .toArray()
+      .map((r) => this.toWork(r))
+  }
+
+  private toWork(r: Row): Work {
+    return toWork(r, this.progress.get(r.id))
   }
 
   get(id: string): Work | null {
     const row = this.sql.exec<Row>("SELECT * FROM workers WHERE id = ? AND agent = ?", id, this.agent).toArray()[0]
-    return row ? toWork(row) : null
+    return row ? this.toWork(row) : null
   }
 
   byTask(taskId: string): Work | null {
     const row = this.sql
       .exec<Row>("SELECT * FROM workers WHERE task_id = ? AND agent = ?", taskId, this.agent)
       .toArray()[0]
-    return row ? toWork(row) : null
+    return row ? this.toWork(row) : null
   }
 
   running(): Work[] {
@@ -151,7 +164,7 @@ export class Workers {
     const row = this.sql
       .exec<Row>("SELECT * FROM workers WHERE conversation_id = ? AND agent = ?", conversationId, this.agent)
       .toArray()[0]
-    return row ? toWork(row) : null
+    return row ? this.toWork(row) : null
   }
 
   reserve(taskId: string, task: string, runId: string | null = null): Work | null {
@@ -204,6 +217,7 @@ export class Workers {
   follow(id: string, submissionId: SubmissionId): void {
     const work = this.get(id)
     if (!work || work.submissionId === submissionId) return
+    if (work.status !== "running") this.progress.delete(id)
     this.sql.exec(
       "UPDATE workers SET submission_id = ?, status = ?, delivered = 0, updated_at = ? WHERE id = ? AND agent = ?",
       submissionId,
@@ -215,16 +229,19 @@ export class Workers {
     this.changed()
   }
 
-  step(conversationId: ConversationId, step: string): boolean {
-    const cursor = this.sql.exec(
-      "UPDATE workers SET step = ?, steps = steps + 1, updated_at = ? WHERE conversation_id = ? AND status = 'running' AND agent = ?",
-      step,
-      this.now(),
-      conversationId,
-      this.agent,
-    )
-    cursor.toArray()
-    return cursor.rowsWritten > 0
+  step(conversationId: ConversationId, step: string): StepTaken {
+    const row = this.sql
+      .exec<{ id: string }>(
+        "SELECT id FROM workers WHERE conversation_id = ? AND status = 'running' AND agent = ?",
+        conversationId,
+        this.agent,
+      )
+      .toArray()[0]
+    if (!row) return "talker"
+    const steps = this.progress.get(row.id)?.steps ?? 0
+    if (steps >= MAX_WORKER_STEPS) return "spent"
+    this.progress.set(row.id, { step, steps: steps + 1 })
+    return "worker"
   }
 
   touched(conversationId: ConversationId, paths: readonly string[]): void {
@@ -303,6 +320,7 @@ export class Workers {
     const previous = this.list()
     this.forget()
     this.sql.exec("UPDATE workers SET task = '', step = NULL WHERE agent = ?", this.agent)
+    this.progress.clear()
     this.sql.exec("DELETE FROM worker_changes WHERE agent = ?", this.agent)
     await Promise.all(
       previous.map(async (work) => {

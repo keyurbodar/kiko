@@ -2,16 +2,10 @@ import type { RoomEvent } from "@kiko/protocol"
 import * as Schema from "effect/Schema"
 import type { RoomRoutine } from "../user/routines"
 
-const By = Schema.Union([
-  Schema.Struct({ kind: Schema.Literal("human") }),
-  Schema.Struct({ kind: Schema.Literal("agent"), slug: Schema.String, name: Schema.String, eventRun: Schema.Boolean }),
-])
-
 const base = { roomId: Schema.String, at: Schema.Number }
 
 export const Signal = Schema.Union([
-  Schema.Struct({ kind: Schema.Literal("burst"), ...base, seq: Schema.Number, text: Schema.String, by: By }),
-  Schema.Struct({ kind: Schema.Literal("agent_final"), ...base, seq: Schema.Number, text: Schema.String, by: By }),
+  Schema.Struct({ kind: Schema.Literal("burst"), ...base, seq: Schema.Number, text: Schema.String }),
   Schema.Struct({
     kind: Schema.Literal("routine_result"),
     ...base,
@@ -33,40 +27,22 @@ export type SignalBatch = typeof SignalBatch.Type
 
 const MAX_SIGNALS = 20
 
-type Act = Extract<Signal, { kind: "burst" | "agent_final" }>
-type By = typeof By.Type
+type Burst = Extract<Signal, { kind: "burst" }>
 
-export function signalOf(event: RoomEvent, ctx: { roomId: string; at: number; by: By | null }): Act | null {
-  const { roomId, at, by } = ctx
-  switch (event.t) {
-    case "message":
-      if (event.from.kind === "system" || !by) return null
-      if (event.from.kind === "human") return { kind: "burst", roomId, at, seq: event.seq, text: event.text, by }
-      return { kind: "agent_final", roomId, at, seq: event.seq, text: event.text, by }
-    default:
-      return null
-  }
+export function signalOf(event: RoomEvent, ctx: { roomId: string; at: number }): Burst | null {
+  if (event.t !== "message" || event.from.kind !== "human") return null
+  return { kind: "burst", roomId: ctx.roomId, at: ctx.at, seq: event.seq, text: event.text }
 }
 
-function signalLine(s: Act): string {
-  switch (s.kind) {
-    case "burst":
-    case "agent_final":
-      return `${s.by.kind === "human" ? "the human" : `@${s.by.name}`} wrote: "${s.text.replace(/\s+/g, " ").slice(0, 200)}"`
-  }
-}
+const signalLine = (s: Burst) => `the human wrote: "${s.text.replace(/\s+/g, " ").slice(0, 200)}"`
 
-export function matches(routine: RoomRoutine, s: Signal): boolean {
+export function matches(routine: RoomRoutine, s: Signal): s is Burst {
   const t = routine.trigger
   return s.kind === "burst" && (!t.contains || s.text.toLowerCase().includes(t.contains.toLowerCase()))
 }
 
 export function routineRun(routine: RoomRoutine, batch: SignalBatch): { body: string } | null {
-  const hits = batch.signals.filter((s): s is Act => {
-    if (!matches(routine, s)) return false
-    const by = "by" in s ? s.by : null
-    return !(by?.kind === "agent" && (by.eventRun || by.slug === routine.target))
-  })
+  const hits = batch.signals.filter((s): s is Burst => matches(routine, s))
   if (!hits.length) return null
   const lines = hits.slice(0, MAX_SIGNALS).map(signalLine)
   if (hits.length > MAX_SIGNALS || batch.more) lines.push("and more")

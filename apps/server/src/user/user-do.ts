@@ -473,7 +473,7 @@ export class User {
     for (const s of batch.signals)
       if (s.kind === "routine_result" && s.routineId !== INITIATIVE_RUN)
         await this.reminders.finishRun(s.routineId, s.occurrence, s.outcome, s.seq)
-    if (!batch.signals.some((s) => s.kind === "burst" || s.kind === "agent_final")) return
+    if (!batch.signals.some((s) => s.kind === "burst")) return
     for (const routine of this.reminders.roomRoutines(batch.roomId)) {
       const run = routineRun(roomRoutine(routine), batch)
       if (run) await this.reminders.fireEvent(routine.id, `event:${batch.openedAt}`, "events in this chat", run.body)

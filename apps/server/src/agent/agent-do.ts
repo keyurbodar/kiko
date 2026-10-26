@@ -410,6 +410,7 @@ export class Agent {
       runRoutine: async (id) => ((await mine(id)) ? user().runRoutine(id) : null),
       runs: async (id) => ((await mine(id)) ? user().routineRuns(id) : []),
       origin: () => user().publicOrigin(),
+      self: () => home.slug,
       addRecipe: async (slug) => {
         const out = await user().installRecipe(
           home.userId,

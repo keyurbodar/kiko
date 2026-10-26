@@ -6,7 +6,7 @@ import type { RoomLog } from "./log"
 import { parseRichText } from "@kiko/protocol/markdown"
 import { InboxFull } from "./errors"
 
-export type AgentSend = { id: string; to: AgentSlug | "all"; text: string }
+export type AgentSend = { id: string; to: AgentSlug | "all"; text: string; expectsReply?: boolean }
 
 type StoredSend = {
   messageId: string
@@ -74,8 +74,9 @@ export class MessageChains {
     })
     const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, recipients }
     this.count(rootId, recipients.length)
-    const settled = pair || input.to === "all" ? false : this.asks.answer(from, input.to, text)
-    const back = pair || input.to === "all" ? [] : this.asks.answerRemote(from, input.to, text)
+    const answering = !pair && input.to !== "all" && input.expectsReply !== true
+    const settled = answering ? this.asks.answer(from, input.to as AgentSlug, text) : false
+    const back = answering ? this.asks.answerRemote(from, input.to as AgentSlug, text) : []
     if (back.length) send.returns = back
     this.sql.exec(
       "INSERT INTO agent_sends (id, send, at, room_id) VALUES (?1, ?2, ?3, ?4)",
@@ -86,7 +87,7 @@ export class MessageChains {
     )
     for (const ask of back) this.giveBack(ask.id, from, input.to as AgentSlug, text, ask.remote, { rootId, hop })
     if (!back.length) this.enqueue(from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
-    if (!back.length && !settled)
+    if (!back.length && (input.expectsReply ?? !settled))
       for (const to of recipients) this.asks.expect(`${input.id}:${to}`, from, to, stored.id, this.now(), pair)
     this.prune()
     return { ok: true, send, events: stored.event ? [stored.event] : [] }
@@ -175,6 +176,7 @@ export class MessageChains {
     input: AgentSend,
     members: readonly { slug: AgentSlug }[],
     pair: RoomId | null = null,
+    chain: Chain | null = null,
   ): SendOutcome {
     return this.storage.transactionSync((): SendOutcome => {
       const earlier = this.sql
@@ -200,7 +202,7 @@ export class MessageChains {
       }
       const recipients = pair ? [input.to as AgentSlug] : input.to === "all" ? others : [input.to]
       if (!recipients.length) return { ok: false, error: "not sent: you are the only agent in this room.", events: [] }
-      const { rootId, hop: was } = this.chain(from)
+      const { rootId, hop: was } = chain ?? this.chain(from)
       if (this.stopped(rootId)) return { ok: false, error: "not sent: the human pressed stop.", events: [] }
       const hop = was + 1
       const check = checkSend(hop, this.deliveries(rootId), recipients.length)
@@ -402,23 +404,24 @@ type MailDeps = ReceiveDeps & {
 export class RoomMessaging {
   constructor(private readonly d: MailDeps) {}
 
-  async send(slug: AgentSlug, send: AgentSend): Promise<MailOutcome> {
+  async send(slug: AgentSlug, send: AgentSend, chain: Chain | null = null): Promise<MailOutcome> {
     const home = this.d.home()
     const members = this.d.members.list()
     if (!home || !members.some((m) => m.slug === slug))
       return { ok: false, error: "not sent: you are not a member of this room." }
     let pair: RoomId | null = null
     if (send.to !== "all" && send.to !== slug && !members.some((m) => m.slug === send.to)) {
-      const made = await this.d
-        .pair(slug, send.to)
-        .catch(() => ({ ok: false as const, error: `not sent: @${send.to} cannot be reached right now. try again.` }))
+      const made = await this.d.pair(slug, send.to).catch(() => ({
+        ok: false as const,
+        error: `not sent: @${send.to} cannot be reached right now. go on without them, or tell the human.`,
+      }))
       if (!made.ok) return made
       pair = made.roomId
     }
-    const out = this.d.mail.send(slug, send, members, pair)
+    const out = this.d.mail.send(slug, send, members, pair, chain)
     if (out.ok) {
       const doing = `messaging ${send.to === "all" ? "everyone" : `@${send.to}`}`
-      this.d.team.doing(slug, doing, Date.now(), { kind: "tool", tool: "other", caption: doing })
+      this.d.team.doing(slug, doing, { kind: "tool", tool: "other", caption: doing })
     }
     this.d.publish(out.events)
     if (!out.ok) return out
@@ -462,7 +465,10 @@ export class RoomMessaging {
         this.d.asks.settle(ask.id, "")
         continue
       }
-      if (!this.d.mail.relay(`answer:${ask.id}`, slug, ask.asker, { ...message, text })) continue
+      if (!this.d.mail.relay(`answer:${ask.id}`, slug, ask.asker, { ...message, text })) {
+        this.d.asks.settle(ask.id, "")
+        continue
+      }
       await this.d.mail.settle()
       this.d.asks.settle(ask.id, text)
     }

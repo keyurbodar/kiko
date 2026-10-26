@@ -35,10 +35,23 @@ const build: Builder = async (files) => ({
 })
 
 function lakebed() {
-  const state = { sessions: 0, claimed: false, deploys: 0 }
+  const state = {
+    sessions: 0,
+    claimed: false,
+    deploys: 0,
+    updates: 0,
+    sessionExpiresAt: "2099-01-01T00:00:00.000Z",
+    pages: [] as number[],
+    visits: 0,
+  }
   const fetcher = (async (input: string, init: RequestInit = {}) => {
-    const path = new URL(input).pathname
+    const url = new URL(input)
+    const path = url.pathname
     const method = init.method ?? "GET"
+    if (url.hostname.endsWith(".lakebed.app")) {
+      state.visits += 1
+      return new Response("page", { status: state.pages.shift() ?? 200 })
+    }
     if (method === "POST" && path === "/v1/auth/cli-sessions") {
       state.sessions += 1
       return Response.json({
@@ -46,7 +59,7 @@ function lakebed() {
         pollSecret: "secret",
         code: `CODE-${state.sessions}`,
         verificationUrl: "https://api.lakebed.dev/cli",
-        expiresAt: "2099-01-01T00:00:00.000Z",
+        expiresAt: state.sessionExpiresAt,
       })
     }
     if (method === "POST" && path.endsWith("/exchange")) return Response.json({ status: "pending" })
@@ -59,6 +72,16 @@ function lakebed() {
         claimed: false,
         expiresAt: "2026-11-02T00:00:00.000Z",
         claimUrl: `https://api.lakebed.dev/claim/${id}/token-${id}`,
+      })
+    }
+    if (method === "PUT" && path.startsWith("/v1/deploys/")) {
+      state.updates += 1
+      const id = path.split("/").at(-1) ?? ""
+      return Response.json({
+        deployId: id,
+        url: `https://${id}.lakebed.app`,
+        claimed: false,
+        expiresAt: "2026-11-02T00:00:00.000Z",
       })
     }
     if (method === "GET" && path.startsWith("/v1/deploys/")) return Response.json({ claimed: state.claimed })
@@ -96,5 +119,56 @@ describe("apps ownership", () => {
     ])
     api.state.claimed = true
     expect((await apps.overview()).apps.map((a) => [a.claimed, a.expiresAt])).toEqual([[true, null]])
+  })
+
+  it("asks for the claim on an app's first deploy only, without a new sign-in per redeploy", async () => {
+    const api = lakebed()
+    const apps = new Apps(sqlite(), keyring, "owner", build, api.fetcher)
+    const first = await apps.deploy("radar", source("radar"))
+    api.state.sessionExpiresAt = "2000-01-01T00:00:00.000Z"
+
+    const second = await apps.deploy("radar", source("radar, now with a map"))
+
+    if (!first.ok || !second.ok) throw new Error("deploy failed")
+    expect(first.claim?.url).toBe("https://api.lakebed.dev/claim/d1/token-d1?cli_session=s1")
+    expect([second.changed, second.claim, second.app.expiresAt]).toEqual([true, undefined, "2026-11-02T00:00:00.000Z"])
+    expect([api.state.updates, api.state.sessions]).toEqual([1, 1])
+  })
+})
+
+describe("apps liveness after deploy", () => {
+  it("reports the page as live once the url answers", async () => {
+    const api = lakebed()
+    const apps = new Apps(sqlite(), keyring, "owner", build, api.fetcher)
+
+    const out = await apps.deploy("radar", source("radar"))
+
+    expect(out.ok && out.live).toBe(200)
+    expect(api.state.visits).toBe(1)
+  })
+
+  it("looks again once when the url is not up yet, and no more", async () => {
+    const api = lakebed()
+    api.state.pages = [503, 503, 503]
+    const pauses: number[] = []
+    const apps = new Apps(sqlite(), keyring, "owner", build, api.fetcher, async (ms) => {
+      pauses.push(ms)
+    })
+
+    const out = await apps.deploy("radar", source("radar"))
+
+    expect(out.ok && out.live).toBe(503)
+    expect([api.state.visits, pauses.length]).toEqual([2, 1])
+  })
+
+  it("does not look at the url when the source did not change", async () => {
+    const api = lakebed()
+    const apps = new Apps(sqlite(), keyring, "owner", build, api.fetcher)
+    await apps.deploy("radar", source("radar"))
+
+    const again = await apps.deploy("radar", source("radar"))
+
+    expect(again.ok && again.changed).toBe(false)
+    expect(api.state.visits).toBe(1)
   })
 })

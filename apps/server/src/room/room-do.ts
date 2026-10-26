@@ -50,7 +50,7 @@ import { Bubbles, replyTag } from "./bubbles"
 import type { StepItem } from "../agent/extensions/presence"
 import { roomActivity, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./activity"
 import { Deliveries, withContext } from "./deliver"
-import { type AgentSend, MessageChains } from "./messaging"
+import { type AgentSend, type Chain, MessageChains } from "./messaging"
 import { isRoomId, ModelError } from "@kiko/protocol"
 import { cleanPath, deleteFiles, fileKey } from "../files/paths"
 import { changePaths, type CommitResult, type FileIndex, type IndexChange } from "../files/file-index"
@@ -239,6 +239,7 @@ export class Room implements CommandRoom {
         members: this.members,
         home: () => this.home(),
         publish: (events) => this.publish(events),
+        chain: (slug) => this.mail.chain(slug),
       })
       this.pending = new PendingUploads(ctx.storage.sql, roomId)
       this.reports = new Reports({
@@ -246,8 +247,6 @@ export class Room implements CommandRoom {
         services: this.services,
         alarms: this.alarms,
         log: this.log,
-        members: this.members,
-        mail: this.mail,
         routines: this.routines,
         home: () => this.home(),
       })
@@ -671,7 +670,10 @@ export class Room implements CommandRoom {
     await this.services.agent(home.roomId, slug).receive(d.envelopes, d.brief, this.agentHome(home, slug, member))
   }
 
-  async startGroup(userId: string, input: { chat: string | null; creator: AgentSlug; kickoff: string }): Promise<void> {
+  async startGroup(
+    userId: string,
+    input: { chat: string | null; creator: AgentSlug; kickoff: string; chain?: Chain },
+  ): Promise<void> {
     const home = this.adopt(userId)
     if (!home) return
     const chat = await this.chat(home)
@@ -682,7 +684,7 @@ export class Room implements CommandRoom {
     }
     await this.seedMembers(home, chat)
     const id = `kickoff:${(await sha256Hex(`${input.creator}\n${input.kickoff}`)).slice(0, 16)}`
-    await this.mailer.send(input.creator, { id, to: "all", text: input.kickoff })
+    await this.mailer.send(input.creator, { id, to: "all", text: input.kickoff }, input.chain ?? null)
   }
 
   private adopt(userId: string): Home | null {
@@ -1273,7 +1275,7 @@ export class Room implements CommandRoom {
     this.team.take(slug, paths, now)
     this.memory.did(slug, doing, now)
     if (this.team.now(slug) === doing) return
-    this.team.doing(slug, doing, now, activity)
+    this.team.doing(slug, doing, activity)
     this.broadcastStatus(slug)
   }
 
@@ -1692,7 +1694,7 @@ export class Room implements CommandRoom {
       this.reports.run(this.routines.ended(slug), "ended")
     } else if (this.members.get(slug)?.status === "idle") this.routines.started(slug, this.log.lastSeq())
     if (!this.members.setStatus(slug, state)) return false
-    if (state === "typing") this.team.writing(slug, detail, Date.now())
+    if (state === "typing") this.team.writing(slug, detail)
     this.broadcastStatus(slug)
     this.broadcast(this.activeFrame())
     await this.pushTyping()

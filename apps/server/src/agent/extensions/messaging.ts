@@ -35,16 +35,24 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
   const send = async (
     to: AgentSlug | "all",
     body: string,
+    expectsReply: boolean | undefined,
     api: Pick<ToolExecutionApi, "conversationId" | "callId">,
   ) => {
-    const out = await room().send({ id: `${api.conversationId}:${api.callId}`, to, text: body })
-    return out.ok
-      ? {
-          output: text(
-            `sent to ${out.to.map((s) => `@${s}`).join(", ")}. it shows in the chat, and their answer will reach you as a new message and wake you. When it arrives, continue the work or tell the human the result without waiting for another human message. If you have nothing else to add now, reply with just [skip].`,
-          ),
-        }
-      : { output: text(out.error), isError: true }
+    const out = await room().send({
+      id: `${api.conversationId}:${api.callId}`,
+      to,
+      text: body,
+      ...(expectsReply === undefined ? {} : { expectsReply }),
+    })
+    if (!out.ok) return { output: text(out.error), isError: true }
+    const who = out.to.map((s) => `@${s}`).join(", ")
+    return {
+      output: text(
+        expectsReply === false
+          ? `sent to ${who}. it shows in the chat. no reply is expected, so do not wait for one.`
+          : `sent to ${who}. it shows in the chat, and their answer will reach you as a new message and wake you. When it arrives, continue the work or tell the human the result without waiting for another human message. If you have nothing else to add now, reply with just [skip].`,
+      ),
+    }
   }
   const slug = (description: string) => Type.String({ description })
 
@@ -133,11 +141,16 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
           parameters: Type.Object({
             to: slug("the agent's slug, without @, or all"),
             text: Type.String({ description: "the message" }),
+            expects_reply: Type.Optional(
+              Type.Boolean({
+                description: "true when you need an answer; a result or FYI should be false and ends the exchange",
+              }),
+            ),
           }),
           replay: "safe",
-          execute: async ({ to, text: body }, api) => {
+          execute: async ({ to, text: body, expects_reply }, api) => {
             const who = to.replace(/^@/, "").toLowerCase()
-            return send(who === "all" ? "all" : (who as AgentSlug), body, api)
+            return send(who === "all" ? "all" : (who as AgentSlug), body, expects_reply, api)
           },
         }),
       ),

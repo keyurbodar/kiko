@@ -18,6 +18,23 @@ const clip = (t: string) =>
 const appDir = (name: string) => `/home/apps/${name}`
 const shown = (value: unknown) => clip(typeof value === "string" ? value : JSON.stringify(value, null, 1))
 
+const LISTED_DEPLOYS = 30
+
+function accountLines(deploys: unknown, known: ReadonlySet<string>): string[] {
+  const body = deploys as { deploys?: unknown } | null
+  const items: unknown[] = Array.isArray(deploys) ? deploys : Array.isArray(body?.deploys) ? body.deploys : []
+  const lines = items.flatMap((item) => {
+    const fields = (item ?? {}) as Record<string, unknown>
+    const url = typeof fields.url === "string" ? fields.url : ""
+    if (!url || known.has(url)) return []
+    const name = [fields.name, fields.title, fields.deployId, fields.id].find((v) => typeof v === "string") ?? "?"
+    return [`${name}: ${url}`]
+  })
+  return lines.length > LISTED_DEPLOYS
+    ? [...lines.slice(0, LISTED_DEPLOYS), `and ${lines.length - LISTED_DEPLOYS} more`]
+    : lines
+}
+
 export type AppsDeps = { apps: () => Apps | null; fs: RoomFs }
 
 async function sources(fs: RoomFs, name: string): Promise<Record<string, string>> {
@@ -58,23 +75,42 @@ const where = (d: Diagnostic) => [d.file ?? d.path, d.line].filter((x) => x !== 
 
 const claimText = (claim: ClaimLink) => `${claim.url} (verification code ${claim.code})`
 
-function claimAsk(out: { app: { expiresAt: string | null }; claim: ClaimLink }): string {
+const HOUR_MS = 3_600_000
+const REMIND_BEFORE_MS = 48 * HOUR_MS
+
+function remindAt(expiresAt: string | null, now: number): string | null {
+  const expires = expiresAt ? Date.parse(expiresAt) : Number.NaN
+  if (!Number.isFinite(expires) || expires - now < 2 * HOUR_MS) return null
+  const at = expires - REMIND_BEFORE_MS > now + HOUR_MS ? expires - REMIND_BEFORE_MS : now + (expires - now) / 2
+  return new Date(at).toISOString()
+}
+
+function claimAsk(out: { app: { expiresAt: string | null }; claim: ClaimLink }, now: number): string {
+  const at = remindAt(out.app.expiresAt, now)
   return [
     `Give the human this claim link with the app url: ${claimText(out.claim)}.`,
     "One click keeps this app forever and connects their Lakebed account, so every app after it is owned automatically. They can also do it from Settings, Web apps.",
-    out.app.expiresAt
-      ? `Then make a one-time routine for yourself two days before ${out.app.expiresAt} that runs app_list and, if this app is still not owned, sends the human its claim link again from app_manage claim_link.`
+    at
+      ? `Then make one one-time routine for yourself at ${at} that runs app_list and, if this app is still not owned, sends the human its claim link again from app_manage claim_link.`
       : "",
   ]
     .filter(Boolean)
     .join(" ")
 }
 
-function deployReport(out: DeployOutcome): string {
+function liveLine(status: number | null | undefined): string {
+  if (status === undefined) return ""
+  if (status === null)
+    return "\nthe url did not answer yet. do not poll it; look at app_inspect logs once if the human reports a problem."
+  if (status < 400) return `\nlive (${status})`
+  return `\nthe url answered ${status} right after the deploy. read app_inspect logs once to find out why; do not poll it with sleep.`
+}
+
+export function deployReport(out: DeployOutcome, now = Date.now()): string {
   if (out.ok) {
-    const expiry = out.app.claimed ? "owned, never expires" : `expires ${out.app.expiresAt ?? "soon"} unless claimed`
-    const line = `${out.changed ? "deployed" : "unchanged, already live"}: ${out.app.url} (${expiry})`
-    return out.claim ? `${line}\n${claimAsk({ app: out.app, claim: out.claim })}` : line
+    const expiry = out.app.claimed ? "owned, never expires" : `unclaimed, expires ${out.app.expiresAt ?? "soon"}`
+    const line = `${out.changed ? "deployed" : "unchanged, already live"}: ${out.app.url} (${expiry})${liveLine(out.live)}`
+    return out.claim ? `${line}\n${claimAsk({ app: out.app, claim: out.claim }, now)}` : line
   }
   if ("error" in out) return `not deployed: ${out.error}`
   return `build failed, fix these and deploy again:\n${out.diagnostics.map((d) => `${where(d)} ${d.message}`).join("\n")}`
@@ -162,7 +198,10 @@ async function manage(apps: Apps, fs: RoomFs, a: ManageArgs): Promise<string> {
 export function appsExtension(deps: AppsDeps): Extension {
   const apps = () => {
     const service = deps.apps()
-    if (!service) throw new Error("Kiko is installing the app builder on this install. Try again in a few minutes.")
+    if (!service)
+      throw new Error(
+        "Kiko is installing the app builder on this install. Tell the human and end your turn; check once after they reply.",
+      )
     return service
   }
   const guarded =
@@ -220,12 +259,15 @@ export function appsExtension(deps: AppsDeps): Extension {
           parameters: Type.Object({}),
           replay: "safe",
           execute: guarded(async () => {
-            const service = apps()
-            const mine = (await service.overview()).apps.map(
+            const { apps: mine, deploys } = await apps().inventory()
+            const lines = mine.map(
               (a) => `${a.name}: ${a.url} ${a.claimed ? "(owned)" : `(expires ${a.expiresAt ?? "?"})`}`,
             )
-            const account = await service.accountDeploys().catch(() => null)
-            return [mine.join("\n") || "no apps yet", account ? `account deploys: ${shown(account)}` : ""]
+            const others = accountLines(deploys, new Set(mine.map((a) => a.url)))
+            return [
+              lines.join("\n") || "no apps yet",
+              others.length ? `also on the human's Lakebed account:\n${others.join("\n")}` : "",
+            ]
               .filter(Boolean)
               .join("\n")
           }),
@@ -347,7 +389,7 @@ export function appsExtension(deps: AppsDeps): Extension {
             const status = args.action === "connect" ? await service.connect() : await service.status()
             if (status.state === "connected") return `connected${status.login ? ` as ${status.login}` : ""}`
             if (status.state === "waiting")
-              return `waiting for the human: open ${status.url} and approve code ${status.code}, then check status`
+              return `waiting for the human: they open ${status.url} and approve code ${status.code}. tell the human and end your turn; check status once after they reply.`
             return "not connected"
           }),
         }),
