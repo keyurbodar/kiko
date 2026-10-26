@@ -192,9 +192,9 @@ export function userModels(
 ): { models: Models; settings: HarnessSettings } {
   const models = createModels({ authContext: { env: async () => undefined, fileExists: async () => false } })
   for (const provider of providers()) {
-    const through = egress ? withRetryAfter(egress) : undefined
-    const via = (model: { api: string }, options: object | undefined) => {
-      if (through && !NO_CUSTOM_FETCH.has(model.api)) return { ...options, fetch: through }
+    const through = egress ? withRetryAfter(egress, provider.id) : undefined
+    const via = (model: { api: string; id: string }, options: object | undefined) => {
+      if (through && !NO_CUSTOM_FETCH.has(model.api)) return { ...options, fetch: through(model.id) }
       directCall?.()
       return options
     }

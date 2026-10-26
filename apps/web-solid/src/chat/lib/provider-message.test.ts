@@ -28,4 +28,13 @@ describe("providerMessage", () => {
     expect(providerMessage("500")).toBeUndefined()
     expect(providerMessage("<html><body>Bad gateway</body></html>")).toBeUndefined()
   })
+
+  it("says when a limit resets, in the given zone", () => {
+    const now = Date.parse("2026-10-26T12:00:00Z")
+    const detail = '400 {"error":{"message":"wait. resets_at=2026-10-26T14:05:00.000Z"}}'
+    expect(providerMessage(`resets_at=2026-10-26T14:05:00.000Z ${detail}`, now, "UTC")).toBe("Resets at 14:05.")
+    expect(providerMessage("resets_at=2026-10-29T08:00:00.000Z usage limit", now, "Europe/Berlin")).toBe(
+      "Resets Thu at 09:00.",
+    )
+  })
 })
