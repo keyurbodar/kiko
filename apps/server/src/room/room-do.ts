@@ -686,7 +686,11 @@ export class Room implements CommandRoom {
     await this.seedMembers(home, chat)
     const id = `kickoff:${(await sha256Hex(`${input.creator}\n${input.kickoff}`)).slice(0, 16)}`
     await this.startTasks(input.creator, id, input.tasks ?? [], input.chain ?? null)
-    await this.mailer.send(input.creator, { id, to: "all", text: input.kickoff }, input.chain ?? null)
+    await this.mailer.send(
+      input.creator,
+      { id, to: "all", text: input.kickoff, expectsReply: true },
+      input.chain ?? null,
+    )
   }
 
   private async startTasks(
@@ -1287,11 +1291,12 @@ export class Room implements CommandRoom {
     })
     if (stored.event) this.publish([stored.event])
     if (!this.home()) return
-    await this.mailer.halted(
-      slug,
-      `(no answer: @${slug} was paused because its turn ran long. go on without it, or give it a smaller step.)`,
-      { id: stored.id, seq: stored.seq },
-    )
+    const note = `(no answer: @${slug} was paused because its turn ran long. go on without it, or give it a smaller step.)`
+    const owed = this.asks.owed(slug).length > 0
+    await this.mailer.halted(slug, note, { id: stored.id, seq: stored.seq })
+    const lead = this.members.list().find((m) => m.lead)
+    if (!owed && lead && lead.slug !== slug)
+      await this.wakes.wake({ id: `halted:${stored.id}`, to: lead.slug, why: "stalled", body: note, chain: null })
   }
 
   async homeNotice(slug: AgentSlug, text: string): Promise<void> {

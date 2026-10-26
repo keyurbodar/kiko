@@ -433,7 +433,9 @@ export class RoomMessaging {
       if (!made.ok) return made
       pair = made.roomId
     }
-    const out = this.d.mail.send(slug, send, members, pair, chain)
+    const broadcast =
+      send.to === "all" && send.expectsReply === undefined && !members.some((m) => m.slug === slug && m.lead)
+    const out = this.d.mail.send(slug, broadcast ? { ...send, expectsReply: false } : send, members, pair, chain)
     if (out.ok) {
       const doing = `messaging ${send.to === "all" ? "everyone" : `@${send.to}`}`
       this.d.team.doing(slug, doing, { kind: "tool", tool: "other", caption: doing })
