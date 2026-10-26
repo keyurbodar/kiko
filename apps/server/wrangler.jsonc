@@ -14,7 +14,6 @@
     "bindings": [{ "name": "OWNER", "class_name": "OwnerDO" }],
   },
   "migrations": [{ "tag": "v5", "new_sqlite_classes": ["OwnerDO"] }],
-  "services": [{ "binding": "BUILDER", "service": "kiko-builder" }],
   "r2_buckets": [
     { "binding": "FILES", "bucket_name": "kiko-files" },
     { "binding": "ARCHIVE", "bucket_name": "kiko-history" },
