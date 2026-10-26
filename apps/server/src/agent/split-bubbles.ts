@@ -37,8 +37,12 @@ export function createSplitter(): Splitter {
   let reactions: Reaction[] = []
 
   const close = () => {
-    const text = block.trim()
-    if (text && !SKIP.test(text)) blocks.push(text)
+    const text = block
+      .split(/\n{2,}/)
+      .filter((part) => !SKIP.test(part.trim()))
+      .join("\n\n")
+      .trim()
+    if (text) blocks.push(text)
     block = ""
   }
 
