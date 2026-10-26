@@ -8,6 +8,7 @@ import { providers } from "../models/catalog"
 import {
   type AgentChange,
   createRegistry,
+  defineExtension,
   type Extension,
   hook,
   ToolTask,
