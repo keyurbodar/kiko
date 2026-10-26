@@ -221,6 +221,7 @@ const json = JSON.stringify({
   controls,
   text,
   omitted: candidates.length - kept.length,
+  scroll: { y: Math.round(window.scrollY), height: Math.round(document.documentElement.scrollHeight), view: vh },
 });
 if (json.length < ${GZIP_FROM} || typeof CompressionStream !== "function") return json;
 return new Response(new Blob([json]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer().then((buf) => {

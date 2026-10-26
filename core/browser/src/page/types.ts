@@ -17,6 +17,7 @@ export type PageView = {
   controls: Control[]
   text: string
   omitted: number
+  scroll?: { y: number; height: number; view: number }
 }
 
 export type Step =
