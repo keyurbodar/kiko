@@ -29,6 +29,7 @@ import { Route as ChatSettingsGeneralRouteImport } from './routes/_chat.settings
 import { Route as ChatSettingsKeyboardRouteImport } from './routes/_chat.settings.keyboard'
 import { Route as ChatSettingsModelsRouteImport } from './routes/_chat.settings.models'
 import { Route as ChatSettingsToolsRouteImport } from './routes/_chat.settings.tools'
+import { Route as ChatSettingsWebAppsRouteImport } from './routes/_chat.settings.web-apps'
 
 const SplatRoute = SplatRouteImport.update({
   id: '/$',
@@ -129,6 +130,11 @@ const ChatSettingsToolsRoute = ChatSettingsToolsRouteImport.update({
   path: '/tools',
   getParentRoute: () => ChatSettingsRoute,
 } as any)
+const ChatSettingsWebAppsRoute = ChatSettingsWebAppsRouteImport.update({
+  id: '/web-apps',
+  path: '/web-apps',
+  getParentRoute: () => ChatSettingsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
@@ -149,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/settings/keyboard': typeof ChatSettingsKeyboardRoute
   '/settings/models': typeof ChatSettingsModelsRoute
   '/settings/tools': typeof ChatSettingsToolsRoute
+  '/settings/web-apps': typeof ChatSettingsWebAppsRoute
   '/chat/': typeof ChatChatIndexRoute
 }
 export interface FileRoutesByTo {
@@ -170,6 +177,7 @@ export interface FileRoutesByTo {
   '/settings/keyboard': typeof ChatSettingsKeyboardRoute
   '/settings/models': typeof ChatSettingsModelsRoute
   '/settings/tools': typeof ChatSettingsToolsRoute
+  '/settings/web-apps': typeof ChatSettingsWebAppsRoute
   '/chat': typeof ChatChatIndexRoute
 }
 export interface FileRoutesById {
@@ -193,6 +201,7 @@ export interface FileRoutesById {
   '/_chat/settings/keyboard': typeof ChatSettingsKeyboardRoute
   '/_chat/settings/models': typeof ChatSettingsModelsRoute
   '/_chat/settings/tools': typeof ChatSettingsToolsRoute
+  '/_chat/settings/web-apps': typeof ChatSettingsWebAppsRoute
   '/_chat/chat/': typeof ChatChatIndexRoute
 }
 export interface FileRouteTypes {
@@ -216,6 +225,7 @@ export interface FileRouteTypes {
     | '/settings/keyboard'
     | '/settings/models'
     | '/settings/tools'
+    | '/settings/web-apps'
     | '/chat/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -237,6 +247,7 @@ export interface FileRouteTypes {
     | '/settings/keyboard'
     | '/settings/models'
     | '/settings/tools'
+    | '/settings/web-apps'
     | '/chat'
   id:
     | '__root__'
@@ -259,6 +270,7 @@ export interface FileRouteTypes {
     | '/_chat/settings/keyboard'
     | '/_chat/settings/models'
     | '/_chat/settings/tools'
+    | '/_chat/settings/web-apps'
     | '/_chat/chat/'
   fileRoutesById: FileRoutesById
 }
@@ -415,6 +427,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof ChatSettingsToolsRouteImport
       parentRoute: typeof ChatSettingsRoute
     }
+    '/_chat/settings/web-apps': {
+      id: '/_chat/settings/web-apps'
+      path: '/web-apps'
+      fullPath: '/settings/web-apps'
+      preLoaderRoute: typeof ChatSettingsWebAppsRouteImport
+      parentRoute: typeof ChatSettingsRoute
+    }
   }
 }
 
@@ -427,6 +446,7 @@ interface ChatSettingsRouteChildren {
   ChatSettingsKeyboardRoute: typeof ChatSettingsKeyboardRoute
   ChatSettingsModelsRoute: typeof ChatSettingsModelsRoute
   ChatSettingsToolsRoute: typeof ChatSettingsToolsRoute
+  ChatSettingsWebAppsRoute: typeof ChatSettingsWebAppsRoute
 }
 
 const ChatSettingsRouteChildren: ChatSettingsRouteChildren = {
@@ -438,6 +458,7 @@ const ChatSettingsRouteChildren: ChatSettingsRouteChildren = {
   ChatSettingsKeyboardRoute: ChatSettingsKeyboardRoute,
   ChatSettingsModelsRoute: ChatSettingsModelsRoute,
   ChatSettingsToolsRoute: ChatSettingsToolsRoute,
+  ChatSettingsWebAppsRoute: ChatSettingsWebAppsRoute,
 }
 
 const ChatSettingsRouteWithChildren = ChatSettingsRoute._addFileChildren(

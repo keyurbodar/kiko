@@ -396,6 +396,19 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     composioDisconnect: rpc("composio.disconnect"),
     kernelConnect: rpc("kernel.connect"),
     kernelDisconnect: rpc("kernel.disconnect"),
+    webAppsStatus: effect(
+      "webapps.status",
+      () =>
+        onceConnected.pipe(Effect.andThen(sendRpc("webapps.status", {}))) as Effect.Effect<
+          OwnerRpcSuccess<"webapps.status">,
+          RequestError<"webapps.status">,
+          OwnerSupervisor
+        >,
+      { mode: "singleFlight", key: () => "webapps" },
+    ),
+    webAppsConnect: rpc("webapps.connect"),
+    webAppsDisconnect: rpc("webapps.disconnect"),
+    webAppsClaim: rpc("webapps.claim"),
     browserLink: rpc("browser.link"),
     browserHandBack: rpc("browser.handBack"),
     browserClose: rpc("browser.close"),
