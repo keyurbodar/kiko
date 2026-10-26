@@ -133,6 +133,15 @@ describe("RoomFs", () => {
     }
   })
 
+  it("keeps /tmp from one command to the next without saving it", async () => {
+    const { backend, files } = memoryBackend()
+    const fs = new RoomFs("test", backend)
+    await bash(fs, "mkdir -p /tmp/run && echo kept > /tmp/run/a.json")
+    expect((await bash(fs, "cat /tmp/run/a.json")).output).toBe("kept\n")
+    expect([...files.keys()]).toEqual([])
+    expect((await bash(new RoomFs("test", backend), "ls /tmp")).output).toBe("")
+  })
+
   it("saves nothing when a command hits a limit", async () => {
     const { backend, files } = memoryBackend()
     const fs = new RoomFs("test", backend)

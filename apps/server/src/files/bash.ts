@@ -32,12 +32,15 @@ const PREFETCH_MAX_FILE = 256 * 1024
 const PREFETCH_BYTES = 8 * 1024 * 1024
 const MAX_READS = 400
 const DIRTY_BYTES = 16 * 1024 * 1024
+const TMP_BYTES = 16 * 1024 * 1024
 
 type Base = FsEntry & { kind: "file" }
 type FileNode = { kind: "file"; base?: Base; bytes?: Uint8Array; at: number }
 type Node = FileNode | { kind: "directory" }
 
 const SCRATCH = ["/tmp", "/dev"]
+const TMP = "/tmp"
+const keptTmp = new WeakMap<RoomFs, ReadonlyMap<string, Node>>()
 const DEV_NULL = "/dev/null"
 
 const failure = (code: string, message: string) => Object.assign(new Error(`${code}: ${message}`), { code })
@@ -209,7 +212,8 @@ class CommandFs implements IFileSystem {
       if (!scratch(path)) fs.put(path, e.kind === "file" ? { kind: "file", base: e, at: e.at } : { kind: "directory" })
     }
     fs.start = new Map(fs.tree)
-    fs.put("/tmp", { kind: "directory" })
+    fs.put(TMP, { kind: "directory" })
+    for (const [path, node] of keptTmp.get(files) ?? []) fs.put(path, node)
     fs.put(DEV_NULL, { kind: "file", bytes: new Uint8Array(), at: 0 })
     return fs
   }
@@ -217,6 +221,14 @@ class CommandFs implements IFileSystem {
   private put(path: string, node: Node) {
     for (let dir = parent(path); !this.tree.has(dir); dir = parent(dir)) this.tree.set(dir, { kind: "directory" })
     this.tree.set(path, node)
+  }
+
+  keepTmp(): boolean {
+    const nodes = this.subtree(TMP).filter(([p]) => p !== TMP)
+    const bytes = nodes.reduce((sum, [, n]) => sum + (n.kind === "file" ? sizeOf(n) : 0), 0)
+    if (bytes > TMP_BYTES) keptTmp.delete(this.files)
+    else keptTmp.set(this.files, new Map(nodes))
+    return bytes <= TMP_BYTES
   }
 
   private subtree(path: string): [string, Node][] {
@@ -583,6 +595,7 @@ export async function runCommand(
     const out = await bash.exec(command, { cwd, signal: AbortSignal.any([outside, fs.overRead.signal]) })
     if (outside.aborted) return err(stopped(timer, seconds))
     if (fs.overRead.signal.aborted) return overRead()
+    if (!fs.keepTmp()) say(`bash: /tmp held over ${TMP_BYTES / 1024 / 1024} MB, so it was cleared\n`)
     if (hitLimit(out.exitCode, out.stderr)) {
       say(
         `${out.stdout}${out.stderr}bash: the command hit a limit and was stopped, and none of its changes were saved\n`,

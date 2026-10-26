@@ -1,7 +1,6 @@
 import { sha256Hex } from "@kiko/durable/hash"
 import { KIKO_DOCS } from "../agent/kiko-docs.gen"
 import { BUILTIN_RECIPES } from "../recipes/catalog.gen"
-import { BUILTIN_SKILLS } from "../skills/builtin.gen"
 import type { FsEntry, FsFail } from "../room/files"
 import type { FilesBackend } from "./room-fs"
 import { type BatchChange, batchPaths } from "./batch"
@@ -12,7 +11,6 @@ const REFUSAL = `/${KIKO} is read-only. It explains how Kiko works. Write your o
 
 const DOCS = new Map<string, string>([
   ...KIKO_DOCS,
-  ...BUILTIN_SKILLS.map(([path, text]) => [`skills/${path}`, text] as const),
   ...BUILTIN_RECIPES.map(([slug, text]) => [`recipes/${slug}/RECIPE.md`, text] as const),
 ])
 const FOLDERS = new Set(

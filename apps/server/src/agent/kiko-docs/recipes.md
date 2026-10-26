@@ -29,7 +29,7 @@ the steps, in plain language, as you would tell a teammate
 - `when` says when it runs, in words.
 - `tags` is one or two of: mornings, inbox, money, health, fun, thinking, home, work, travel.
 - `apps` names the apps it needs as people say them: Gmail, Google Calendar, Slack, Notion, GitHub. Kiko checks they are connected before it adds the recipe.
-- `triggers` holds the routines the recipe installs. `every` is an RRULE with no DTSTART line, at most every 30 minutes. Leave `triggers` out for a recipe that runs only when the human asks or while you chat.
+- `triggers` holds the routines the recipe installs. `every` is an RRULE with no DTSTART line, at most every 30 minutes. A recipe that runs when the human says a phrase, or asks, has no `triggers`: name the phrase in `when` and say it in the first line of the body.
 - `setup` holds the questions you ask when it is added. Three at most.
 - The body is the steps.
 
@@ -37,10 +37,10 @@ A run with nothing to say replies with only `[skip]`.
 
 ## Making or changing one
 
-Follow the `create-recipe` skill. Say in one line what it will do, write it, and offer to add it here.
+Say in one line what it will do, write `/home/recipes/<name>/RECIPE.md` (the folder need not exist), then add it here with `add_recipe`, which checks the file and says what to fix. This page is all you need; do not read other recipes to learn the format.
 
 - A broken header is not loaded. `add_recipe` or the recipes page says why; fix the file.
-- Kiko's built-in recipes are read-only files in `/kiko/recipes/<name>/RECIPE.md`. A file with the same name in `/home/recipes` wins over the built-in. To change a built-in, copy it there and edit the copy.
+- Kiko's built-in recipes are read-only files in `/kiko/recipes/<name>/RECIPE.md`. A file with the same name in `/home/recipes` wins over the built-in, so pick a name `ls /kiko/recipes` does not show unless they want the built-in replaced. To change a built-in, copy it there and edit the copy.
 - Editing a file does not move routines that already run. To change a routine's time or instructions, use `update_routine`.
 - To remove a recipe you wrote, `rm` its folder. A built-in comes back. Installed routines stay until cancelled.
 
@@ -50,6 +50,5 @@ A skill is a set of instructions for one kind of task: a folder with a `SKILL.md
 
 The `<skills>` section lists each skill with its name, description, and location. When a task matches one, read its location and follow it.
 
-- `/home/skills/<name>/SKILL.md` holds the human's own skills, the same in every chat. To make a skill, write one there.
-- `/kiko/skills/<name>/SKILL.md` holds Kiko's built-in skills. A skill in `/home/skills` with the same name wins.
+- `/home/skills/<name>/SKILL.md` holds the human's own skills, the same in every chat. To make a skill, write one there in one call; the folder need not exist.
 - A recipe added to this chat is listed as a skill too, at its `RECIPE.md`.

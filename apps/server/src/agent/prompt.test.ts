@@ -5,6 +5,7 @@ import { fakeSetup } from "./dev-fake"
 import type { RoleInput } from "./prompt"
 import { forRole } from "./roles"
 import { skillsExtension } from "./extensions/skills"
+import { type GroupsPort, groupsExtension } from "./extensions/chief"
 import { KIKO, kikoDocsBackend } from "../files/kiko-docs"
 import type { FsEntry, FsFail } from "../files/file-index"
 import { type FilesBackend, RoomFs, withMount } from "../files/room-fs"
@@ -84,6 +85,21 @@ describe("system prompt", () => {
     expect(prompt).not.toContain("When a task reaches review")
   })
 
+  it("leaves the team rules out of the chief's own chat", async () => {
+    const port = (chief: boolean) => ({ chief }) as unknown as GroupsPort
+    const own = await systemPrompt({ role: "", lead: true }, false, [groupsExtension(port(true))])
+    const group = await systemPrompt({ role: "", lead: true }, false, [groupsExtension(port(false))])
+    expect(own).not.toContain("<team>")
+    expect(group).toContain("<team>")
+  })
+
+  it("tells every agent and worker where it runs", async () => {
+    for (const worker of [false, true])
+      expect(await systemPrompt({ role: "", lead: true }, worker)).toContain(
+        "there is no node, python or other runtime",
+      )
+  })
+
   it("gives a worker the shared rules without the chat voice, team, or lead", async () => {
     const prompt = await systemPrompt({ role: "", lead: true }, true)
     expect(prompt).toContain("never repeat a call unchanged")
@@ -96,7 +112,7 @@ describe("system prompt", () => {
 
   it("lists skills with a location the agent can read, the human's own winning by name", async () => {
     const home = homeBackend({
-      "skills/create-recipe/SKILL.md": "---\nname: create-recipe\ndescription: my own way to make recipes\n---\nsteps",
+      "skills/daily-weather/SKILL.md": "---\nname: daily-weather\ndescription: my own weather check\n---\nsteps",
       "skills/packing/SKILL.md": "---\ndescription: pack for a trip\n---\nsteps",
       "skills/broken/SKILL.md": "---\nname: other\ndescription: wrong folder\n---\n",
     })
@@ -112,12 +128,8 @@ describe("system prompt", () => {
     }
     const prompt = await systemPrompt({ role: "", lead: true }, false, [skillsExtension(fs, undefined, recipes)])
     const locations = [...prompt.matchAll(/<location>([^<]+)<\/location>/g)].map((m) => m[1] ?? "")
-    expect(locations).toEqual([
-      "/home/skills/create-recipe/SKILL.md",
-      "/kiko/recipes/daily-weather/RECIPE.md",
-      "/home/skills/packing/SKILL.md",
-    ])
-    expect(prompt).toContain("my own way to make recipes")
+    expect(locations).toEqual(["/home/skills/daily-weather/SKILL.md", "/home/skills/packing/SKILL.md"])
+    expect(prompt).toContain("my own weather check")
     for (const location of locations) expect((await fs.readTextFile(location)).ok).toBe(true)
   })
 })

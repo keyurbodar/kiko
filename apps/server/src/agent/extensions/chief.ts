@@ -1,5 +1,5 @@
 import { Type } from "@earendil-works/pi-ai"
-import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
+import { defineExtension, defineTool, type Extension, section, wrapSection } from "@earendil-works/pi-durable"
 import type { Agent } from "@kiko/protocol"
 import type { GroupInput, NewAgentSpec } from "../../room/chief"
 import { declareEffect } from "@kiko/agent/effects"
@@ -140,6 +140,7 @@ export function groupsExtension(port: GroupsPort): Extension {
   return defineExtension({
     name: GROUPS_EXT,
     sections: [section("groups", () => (port.chief ? CHIEF_RULES : MEMBER_RULES))],
+    wraps: port.chief ? [wrapSection("team", (team) => ({ ...team, render: () => undefined }))] : [],
     tools: port.chief
       ? [
           declareEffect("read", list),

@@ -1,5 +1,4 @@
 import { defineExtension, type Extension, wrapSection } from "@earendil-works/pi-durable"
-import { builtinSkills } from "../../skills/builtin"
 import { formatSkills, parseSkill, resolveSkills, type Skill } from "../../skills/registry"
 import type { FsEntry } from "../../files/file-index"
 import type { RoomFs } from "../../files/room-fs"
@@ -49,10 +48,7 @@ async function recipeSkills(recipes: RecipesPort | undefined): Promise<Skill[]> 
 
 export function skillsExtension(files?: RoomFs, stamp?: () => number, recipes?: RecipesPort): Extension {
   const homeSkills = homeSkillsReader(files)
-  const listed = perRun(
-    async () => formatSkills(resolveSkills(await homeSkills(), await recipeSkills(recipes), builtinSkills())),
-    stamp,
-  )
+  const listed = perRun(async () => formatSkills(resolveSkills(await homeSkills(), await recipeSkills(recipes))), stamp)
   return defineExtension({
     name: SKILLS,
     wraps: [wrapSection(SKILLS, (slot) => ({ ...slot, render: listed }))],
