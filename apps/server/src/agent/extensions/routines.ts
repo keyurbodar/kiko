@@ -32,12 +32,18 @@ export type RoutinesPort = {
 }
 
 const decodeTrigger = Schema.decodeUnknownSync(TriggerSchema)
-const SHAPES = "shapes: {on:'time',at:'<iso with offset>',rrule?} | {on:'message',contains?} | {on:'webhook',match?}"
+const SHAPES =
+  "shapes: {on:'time',at:'<local iso or iso with offset>',rrule?} | {on:'message',contains?} | {on:'webhook',match?}"
 
 const TriggerParam = Type.Union([
   Type.Object({
     on: Type.Literal("time"),
-    at: Type.Optional(Type.String({ description: "ISO time with an offset, like 2026-05-04T08:30:00+02:00" })),
+    at: Type.Optional(
+      Type.String({
+        description:
+          "ISO time. A local time like 2026-05-04T08:30 is read in the owner's timezone; one with an offset, like 2026-05-04T08:30:00+02:00, is used as given",
+      }),
+    ),
     in_seconds: Type.Optional(Type.Number({ description: "instead of at: run once this many seconds from now" })),
     rrule: Type.Optional(
       Type.String({

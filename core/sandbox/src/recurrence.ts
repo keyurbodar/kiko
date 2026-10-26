@@ -84,6 +84,22 @@ function fromWall(wall: Date, tz: string): Date {
   return new Date(valid.length ? Math.min(...valid) : w - before)
 }
 
+const LOCAL_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/
+
+export function localMoment(time: string, tz: string): number | null {
+  const m = LOCAL_TIME.exec(time.trim())
+  if (!m) return null
+  const [year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0] = m.slice(1).map((part) => Number(part ?? 0))
+  const wall = new Date(Date.UTC(year, month - 1, day, hour, minute, second))
+  const exists =
+    wall.getUTCFullYear() === year &&
+    wall.getUTCMonth() === month - 1 &&
+    wall.getUTCDate() === day &&
+    wall.getUTCHours() === hour &&
+    wall.getUTCMinutes() === minute
+  return exists ? fromWall(wall, tz).getTime() : null
+}
+
 export function validZone(tz: string): boolean {
   if (!tz || tz.length > 64) return false
   try {
