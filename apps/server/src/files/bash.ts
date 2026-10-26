@@ -557,7 +557,7 @@ const RUNTIMES = [
 const NO_RUNTIME = RUNTIMES.map((name) =>
   defineCommand(name, async () => ({
     stdout: "",
-    stderr: `${name}: not here. only shell runs in this sandbox, nothing can be installed, and no app or other tool stands in for a runtime. check the code by reading it, and tell the human it was not run\n`,
+    stderr: `${name}: not here, and nothing can be installed. run JavaScript with the codemode tool; check other code by reading it, and say it was not run\n`,
     exitCode: 127,
   })),
 )

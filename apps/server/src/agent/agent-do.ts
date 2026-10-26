@@ -76,6 +76,7 @@ import { stopsWorkers } from "./run-error"
 import type { StepsPort } from "./extensions/presence"
 
 const WORKER_TASK_CHARS = 200
+const INTERRUPT_BUDGET = 30_000
 import { FIRST_BYTE_MS, guardStall, orStall, STALL_MS } from "./stall"
 import { type Applied, modelName, renderHandoff, sameApplied, switchedModel } from "./handoff"
 
@@ -672,6 +673,10 @@ export class Agent {
         : {}),
       workspace: roomWorkspacePort(this.services, () => this.home()),
       work: this.host.workers,
+      codemode: async (options) => {
+        const { createInlineCodemodeSandbox } = await import("@earendil-works/pi-codemode/cloudflare")
+        return createInlineCodemodeSandbox({ ...options, interruptBudget: INTERRUPT_BUDGET })
+      },
     })
     return {
       ...built,

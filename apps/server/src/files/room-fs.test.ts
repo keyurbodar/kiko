@@ -129,7 +129,7 @@ describe("RoomFs", () => {
     for (const runtime of ["node", "python3", "deno"]) {
       const out = await bash(fs, `${runtime} /inventory.js test`)
       expect(out.exitCode).toBe(127)
-      expect(out.output).toContain("check the code by reading it")
+      expect(out.output).toContain("run JavaScript with the codemode tool")
     }
   })
 

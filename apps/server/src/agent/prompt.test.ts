@@ -6,6 +6,7 @@ import type { RoleInput } from "./prompt"
 import { forRole } from "./roles"
 import { skillsExtension } from "./extensions/skills"
 import { type GroupsPort, groupsExtension } from "./extensions/chief"
+import { codemodeExtension } from "./extensions/codemode"
 import { KIKO, kikoDocsBackend } from "../files/kiko-docs"
 import type { FsEntry, FsFail } from "../files/file-index"
 import { type FilesBackend, RoomFs, withMount } from "../files/room-fs"
@@ -98,6 +99,16 @@ describe("system prompt", () => {
       expect(await systemPrompt({ role: "", lead: true }, worker)).toContain(
         "there is no node, python or other runtime",
       )
+  })
+
+  it("gives the codemode rules only to an agent that has codemode", async () => {
+    const sandbox = async () => {
+      throw new Error("not run")
+    }
+    const without = await systemPrompt({ role: "", lead: true })
+    const withIt = await systemPrompt({ role: "", lead: true }, false, [codemodeExtension(sandbox)])
+    expect(without).not.toContain("Use codemode")
+    expect(withIt).toContain("Use codemode to batch independent tool calls")
   })
 
   it("gives a worker the shared rules without the chat voice, team, or lead", async () => {
