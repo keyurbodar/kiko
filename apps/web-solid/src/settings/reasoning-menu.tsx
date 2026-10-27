@@ -1,5 +1,5 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ChevronDownIcon, ReasoningIcon } from "@kiko/ui/icons"
+import { ChevronDownIcon, GaugeIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { defaultThinking, THINKING_LABELS, type ThinkingLevel } from "@kiko/protocol"
 import { For, Show } from "solid-js"
@@ -66,7 +66,7 @@ export function ReasoningMenu(props: {
           title="Reasoning"
           data-component="reasoning-trigger"
         >
-          <RemixIcon icon={ReasoningIcon} size={14} />
+          <RemixIcon icon={GaugeIcon} size={14} />
           <span class="reasoning-label">{THINKING_LABELS[value()]}</span>
           <RemixIcon icon={ChevronDownIcon} size={10} class="opacity-70" />
         </MenuV2.Trigger>

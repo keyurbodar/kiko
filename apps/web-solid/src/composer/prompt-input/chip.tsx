@@ -229,9 +229,7 @@ function Chip(props: { id: string; name: string; source: ChipSource }) {
         <TypeIcon type={fileType({ name: props.name, type: part()?.mime ?? "" })} size={16} />
       )}
       <span class="token-chip-label">{middleTruncate(props.name, 28)}</span>
-      <Show when={upload()?.status === "uploading" || upload()?.status === "failed"}>
-        <span class="token-chip-meta">{meta()}</span>
-      </Show>
+      <span class="token-chip-meta">{meta()}</span>
       <Show when={upload()?.status === "uploading"}>
         <span class="token-chip-fill" aria-hidden="true" />
       </Show>

@@ -789,10 +789,13 @@ button.token-chip:active {
     transform var(--dur-hover) var(--ease-kiko);
 }
 
+.tray-aside-name {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+
 .tray-aside-size {
   font-variant-numeric: tabular-nums;
-  opacity: 0;
-  transform: translateY(3px);
 }
 
 .tray-bytes {
@@ -921,10 +924,15 @@ button.token-chip:active {
     background: color-mix(in oklab, var(--fg) 22%, var(--raise));
   }
   .tray-tile:hover .tray-aside-name {
-    opacity: 0;
-    transform: translateY(-3px);
+    opacity: 1;
+    transform: none;
   }
   .tray-tile:hover .tray-aside-size {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  .tray-tile[data-look="image"]:hover .tray-aside-size,
+  .tray-tile[data-look="video"]:hover .tray-aside-size {
     opacity: 1;
     transform: none;
   }
