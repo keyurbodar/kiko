@@ -3,25 +3,25 @@ const RADIUS = {
   check: 5,
   control: 8,
   row: 8,
-  tile: 12,
+  tile: 10,
   pop: 12,
-  card: 16,
+  card: 12,
   bubble: 18,
   sheet: 20,
-  composer: 20,
+  composer: 14,
 } as const
 
 const SIZE = {
-  "nav-tab": 36,
-  "chat-row": 48,
+  "nav-tab": 32,
+  "chat-row": 50,
   mascot: 32,
   avatar: 30,
   "section-label": 28,
   step: 28,
   control: 32,
-  "control-big": 48,
+  "control-big": 40,
   icon: 28,
-  chip: 26,
+  chip: 24,
   tab: 28,
   "composer-min": 96,
   sidebar: 288,
@@ -36,14 +36,14 @@ const BASE = 14
 
 const TYPE = {
   page: { size: 40, line: 44, weight: 400, face: "display", scales: false },
-  section: { size: 26, line: 32, weight: 400, face: "display", scales: false },
+  section: { size: 22, line: 28, weight: 400, face: "display", scales: false },
   wordmark: { size: 24, line: 28, weight: 400, face: "display", scales: false },
-  msg: { size: 16, line: 25, weight: 400, face: "sans", scales: true },
-  ui: { size: 14, line: 20, weight: 400, face: "sans", scales: true },
-  row: { size: 14, line: 20, weight: 500, face: "sans", scales: true },
-  label: { size: 13, line: 18, weight: 500, face: "sans", scales: true },
-  hint: { size: 12, line: 16, weight: 500, face: "sans", scales: true },
-  code: { size: 13, line: 21, weight: 400, face: "mono", scales: true },
+  msg: { size: 16, line: 24, weight: 400, face: "sans", scales: true },
+  ui: { size: 14, line: 20, weight: 435, face: "sans", scales: true },
+  row: { size: 14, line: 20, weight: 520, face: "sans", scales: true },
+  label: { size: 13, line: 17, weight: 435, face: "sans", scales: true },
+  hint: { size: 12, line: 17, weight: 435, face: "sans", scales: true },
+  code: { size: 13, line: 19, weight: 400, face: "mono", scales: true },
 } as const satisfies Record<string, Type>
 
 type TypeName = keyof typeof TYPE
@@ -54,7 +54,7 @@ const MOTION = {
   step: 400,
   shimmer: 2200,
   hop: 1200,
-  ease: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+  ease: "cubic-bezier(0.32, 0.72, 0, 1)",
 } as const
 
 const round = (n: number) => Math.round(n * 100) / 100

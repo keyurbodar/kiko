@@ -37,18 +37,18 @@ export const isDarkThemeId = (value: unknown): value is DarkThemeId => DARK_THEM
 export const THEMES = {
   kiko: {
     label: "Kiko",
-    accent: "#5b9cf6",
+    accent: "#6aabf1",
     palette: {
-      canvas: "#1a1a1a",
-      sidebar: "#202020",
-      text: "#f0efed",
-      muted: "#a8a7a4",
-      faint: "#8b8a87",
-      action: "#f0efed",
-      actionHover: "#ffffff",
-      onAction: "#141414",
-      danger: "#ef6a6a",
-      gold: "#e8c47b",
+      canvas: "#191919",
+      sidebar: "#1f1f1f",
+      text: "#efefef",
+      muted: "#9c9c9c",
+      faint: "#757575",
+      action: "#efefef",
+      actionHover: "#d7d7d7",
+      onAction: "#191919",
+      danger: "#f17778",
+      gold: "#e49c06",
     },
   },
   glacier: {
@@ -165,18 +165,18 @@ export const THEMES = {
   },
   snow: {
     label: "Paper",
-    accent: "#2f6fe4",
+    accent: "#1757ac",
     palette: {
       canvas: "#ffffff",
-      sidebar: "#f7f7f5",
-      text: "#141413",
-      muted: "#4b4a47",
-      faint: "#6e6d69",
-      action: "#141413",
-      actionHover: "#000000",
+      sidebar: "#fafafa",
+      text: "#1a1a1a",
+      muted: "#666666",
+      faint: "#888888",
+      action: "#191919",
+      actionHover: "#3c3c3c",
       onAction: "#ffffff",
-      danger: "#d6453f",
-      gold: "#a86b00",
+      danger: "#a42528",
+      gold: "#794c02",
     },
   },
 } as const satisfies Record<ThemeId, { label: string; accent: string; palette: Palette }>
@@ -192,28 +192,28 @@ type Ink = Readonly<{
   p: Palette
   accent: string
   dark: boolean
-  solid: (share: number) => string
+  wash: (share: number) => string
   clear: (share: number) => string
 }>
 
 const ROLES: ReadonlyArray<readonly [token: string, value: (ink: Ink) => string]> = [
   ["--bg", ({ p }) => p.canvas],
   ["--side", ({ p }) => p.sidebar],
-  ["--panel", ({ solid, dark }) => solid(dark ? 4 : 1.8)],
-  ["--raise", ({ solid, dark }) => solid(dark ? 7 : 3)],
-  ["--hover", ({ solid, dark }) => solid(dark ? 9.5 : 5)],
-  ["--active", ({ solid, dark }) => solid(dark ? 14 : 8)],
-  ["--tip", ({ solid, dark }) => solid(dark ? 16 : 7)],
-  ["--me", ({ solid, dark }) => solid(dark ? 6.5 : 5)],
-  ["--kiko-bubble", ({ solid, dark }) => solid(dark ? 4 : 3)],
-  ["--line", ({ solid, dark }) => solid(dark ? 10 : 9)],
-  ["--line2", ({ solid, dark }) => solid(dark ? 16 : 14)],
+  ["--panel", ({ wash, dark }) => wash(dark ? 2.61 : 2.35)],
+  ["--raise", ({ wash, dark }) => wash(dark ? 10 : 5.1)],
+  ["--hover", ({ wash, dark }) => wash(dark ? 7.45 : 5.1)],
+  ["--active", ({ wash, dark }) => wash(dark ? 14.9 : 10.2)],
+  ["--tip", ({ wash, dark }) => wash(dark ? 10 : 7)],
+  ["--me", ({ wash, dark }) => wash(dark ? 10 : 5.1)],
+  ["--kiko-bubble", ({ wash, dark }) => wash(dark ? 2.61 : 2.35)],
+  ["--line", ({ wash, dark }) => wash(dark ? 3.92 : 7.84)],
+  ["--line2", ({ wash, dark }) => wash(dark ? 12.2 : 12.2)],
   ["--fg", ({ p }) => p.text],
   ["--fg2", ({ p }) => p.muted],
   ["--fg3", ({ p }) => p.faint],
-  ["--fg4", ({ solid, dark }) => solid(dark ? 38 : 34)],
+  ["--fg4", ({ wash }) => wash(35)],
   ["--on-fg", ({ p }) => p.onAction],
-  ["--ok", ({ dark }) => (dark ? "#5cc489" : "#1f9d55")],
+  ["--ok", ({ dark }) => (dark ? "#53c556" : "#006c10")],
   ["--bad", ({ p }) => p.danger],
   ["--warn", ({ p }) => p.gold],
   ["--info", ({ accent }) => accent],
@@ -222,13 +222,7 @@ const ROLES: ReadonlyArray<readonly [token: string, value: (ink: Ink) => string]
   ["--bad-wash", ({ p }) => `color-mix(in oklab, ${p.danger} 12%, transparent)`],
   ["--scrollbar-thumb", ({ clear }) => clear(18)],
   ["--scrollbar-thumb-hover", ({ clear }) => clear(30)],
-  [
-    "--card-shadow",
-    ({ clear, dark }) =>
-      dark
-        ? "inset 0 1px 0 rgb(255 255 255 / 3%)"
-        : `0 0 0 1px ${clear(6)}, 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px -16px rgb(0 0 0 / 18%)`,
-  ],
+  ["--card-shadow", ({ dark }) => (dark ? "none" : "0 0 0 1px rgb(0 0 0 / 6%), 0 4px 24px rgb(0 0 0 / 4%)")],
 ]
 
 export function tokensFor(
@@ -244,7 +238,7 @@ export function tokensFor(
     p,
     accent,
     dark: mode === "dark",
-    solid: (n) => `color-mix(in oklab, ${p.text} ${share(n)}%, ${p.canvas})`,
+    wash: (n) => `color-mix(in srgb, ${mode === "dark" ? "#ffffff" : "#000000"} ${share(n)}%, ${p.canvas})`,
     clear: (n) => `color-mix(in oklab, ${p.text} ${share(n)}%, transparent)`,
   }
   return Object.fromEntries(ROLES.map(([token, value]) => [token, value(ink)]))
