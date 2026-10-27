@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { extraInput, iconOf, liveLabel } from "./run-log"
+import { extraInput, iconOf, liveLabel, summarizeSteps } from "./run-log"
 
 const step = (name: string, input?: string, label = `Used ${name}`) => ({
   tool: "other" as const,
@@ -60,5 +60,53 @@ describe("shell and app steps", () => {
     expect(liveLabel(step("app_deploy", '{"name":"hn-live"}'))).toBe("Deployed hn-live")
     expect(liveLabel(step("app_inspect", '{"name":"hn-live","what":"logs"}'))).toBe("Checked hn-live logs")
     expect(iconOf({ ...step("app_deploy", "{}"), app: undefined })).toBe("deploy")
+  })
+})
+
+describe("summarizeSteps", () => {
+  const bash = (command: string, status: "done" | "failed" = "done") => ({
+    tool: "run" as const,
+    name: "bash",
+    label: `Ran ${command}`,
+    input: command,
+    status,
+  })
+  const URL_ = "https://open-signal.lakebed.app"
+
+  it("leads with the most frequent kinds of work and counts the rest", () => {
+    expect(
+      summarizeSteps([
+        step("app_list", "{}"),
+        bash(`curl -s -o /dev/null -w "%{http_code}" ${URL_}`),
+        bash("cd /home/hn-feeds && jq -r '.at' feed.json"),
+        bash(`curl -sL ${URL_}`),
+        step("app_inspect", '{"name":"hn-live","what":"logs"}'),
+        bash(`curl -s ${URL_}/api/feed`),
+        bash('cd /home/apps/hn-live && grep -n "PAPER\\s*=" index.html'),
+      ]),
+    ).toBe("Fetched 3 pages, ran 2 commands, and 2 more steps")
+  })
+
+  it("puts what changed first and names a single step when it is short", () => {
+    expect(
+      summarizeSteps([
+        step("app_deploy", '{"name":"hn-live"}'),
+        bash(`curl -sL ${URL_}`),
+        bash("cd /tmp && head -c 300 feed.json", "failed"),
+        step("app_inspect", '{"name":"hn-live","what":"tables"}'),
+      ]),
+    ).toBe("Deployed hn-live, fetched open-signal.lakebed.app, and 2 more steps")
+  })
+
+  it("never quotes a raw command", () => {
+    expect(summarizeSteps([bash("python3 build.py --fast")])).toBe("Ran a command")
+    expect(summarizeSteps([bash("bun test"), bash("bun run build")])).toBe("Ran 2 commands")
+  })
+
+  it("counts helpers once each, however many steps they took", () => {
+    const worker = { id: "w1", task: "Layouts" }
+    expect(summarizeSteps([bash("cat a.md"), { ...bash("cat b.md"), worker }, { ...bash("cat c.md"), worker }])).toBe(
+      "Read a.md and started a helper",
+    )
   })
 })

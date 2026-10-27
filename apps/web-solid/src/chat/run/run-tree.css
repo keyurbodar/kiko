@@ -23,6 +23,21 @@
   font-variant-numeric: tabular-nums;
   transition: color var(--dur-hover) var(--ease-kiko);
 }
+.run-tree-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.run-tree-took {
+  flex: none;
+  margin-left: 2px;
+  color: var(--fg4);
+  transition: color var(--dur-hover) var(--ease-kiko);
+}
+.run-tree-head {
+  max-width: 100%;
+}
 .run-tree-head + .run-tree-fold {
   margin-top: 2px;
 }
@@ -64,6 +79,7 @@ button.run-tree-row:focus-visible,
 }
 
 .run-tree-slot {
+  position: relative;
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -226,6 +242,15 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
 .run-tree-fold[data-shut] {
   grid-template-rows: 0fr;
 }
+@media (prefers-reduced-motion: no-preference) {
+  .run-tree-fold[data-reply] {
+    transition-duration: 320ms;
+  }
+  .run-tree-fold[data-reply][data-shut] > div {
+    opacity: 0;
+    transition: opacity 240ms var(--ease-kiko);
+  }
+}
 .run-tree-fold > div {
   display: flex;
   flex-direction: column;
@@ -349,8 +374,20 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
   .run-tree-item[data-fresh] > .run-tree-row {
     animation: run-tree-rise var(--dur-pop) var(--ease-kiko) backwards;
   }
-  .run-tree-icon[data-settled] {
-    animation: run-tree-settle 280ms var(--spring325-bounce-easing, var(--ease-kiko)) backwards;
+  .run-tree-slot[data-settled] > .run-tree-icon {
+    animation: run-tree-settle 300ms var(--spring325-bounce-easing, var(--ease-kiko)) backwards;
+  }
+  .run-tree-slot[data-settled]::before {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: var(--fg);
+    animation: run-tree-disc 300ms var(--ease-kiko) forwards;
+    pointer-events: none;
+  }
+  .run-tree-row[data-settled] > .run-tree-label {
+    animation: run-tree-ink 300ms var(--ease-kiko) backwards;
   }
   .run-tree-detail {
     animation: run-tree-rise 160ms var(--ease-kiko) backwards;
@@ -373,6 +410,23 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
   from {
     opacity: 0;
     transform: translateY(3px);
+  }
+}
+
+@keyframes run-tree-disc {
+  from {
+    opacity: 0.22;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+@keyframes run-tree-ink {
+  from {
+    color: var(--fg);
   }
 }
 

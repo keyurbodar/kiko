@@ -72,7 +72,15 @@ const runKeyOf = (windowKey: string) => `${room.activeId() ?? ""}|${windowKey}`
 
 export const runOpen = (windowKey: string): boolean => opened().has(runKeyOf(windowKey))
 
-export const toggleRun = (windowKey: string): void => setOpen(runKeyOf(windowKey), !runOpen(windowKey))
+const openedLive = new Set<string>()
+
+export function toggleRun(windowKey: string): void {
+  const key = runKeyOf(windowKey)
+  const next = !runOpen(windowKey)
+  if (next) openedLive.add(key)
+  else openedLive.delete(key)
+  setOpen(key, next)
+}
 
 type Fold = "gone" | "open" | "grow" | "shut"
 
@@ -165,14 +173,13 @@ function Leaves(props: { running: boolean }) {
 
 function Icon(props: { icon?: StepIcon; running: boolean; failed: boolean; settled: boolean }) {
   return (
-    <span class="run-tree-slot" aria-hidden="true">
+    <span class="run-tree-slot" aria-hidden="true" data-settled={props.settled && !props.running ? "" : undefined}>
       <Show when={!props.running} fallback={<Mochi size={16} />}>
         <RemixIcon
           icon={GLYPH[props.failed ? "alert-circle" : (props.icon ?? "wrench")]}
           size={15}
           class="run-tree-icon"
           data-failed={props.failed ? "" : undefined}
-          data-settled={props.settled ? "" : undefined}
         />
       </Show>
     </span>
@@ -254,6 +261,7 @@ function StepRow(props: { step: StepItem; view: View }) {
         class="run-tree-row"
         data-kind="step"
         data-running={props.step.running ? "" : undefined}
+        data-settled={settled() && !props.step.running ? "" : undefined}
         data-failed={props.step.failed ? "" : undefined}
         data-file={props.step.target ? "" : undefined}
         aria-expanded={props.step.target ? undefined : open()}
@@ -371,11 +379,16 @@ function Missing(props: { missing: "loading" | "error"; onRetry: () => void }) {
   )
 }
 
+const tookOf = (head: WorkHead) =>
+  head.startedAt !== undefined && head.endedAt !== undefined && head.endedAt >= head.startedAt
+    ? durationLabel(head.endedAt - head.startedAt)
+    : undefined
+
 function headLabel(head: WorkHead, who: string | undefined): string {
+  const took = tookOf(head)
+  if (head.summary) return who ? `${who} ${head.summary.charAt(0).toLowerCase()}${head.summary.slice(1)}` : head.summary
   const worked = who ? `${who} worked` : "Worked"
-  return head.startedAt !== undefined && head.endedAt !== undefined && head.endedAt >= head.startedAt
-    ? `${worked} for ${durationLabel(head.endedAt - head.startedAt)}`
-    : worked
+  return took ? `${worked} for ${took}` : worked
 }
 
 export function RunTree(props: {
@@ -460,6 +473,25 @@ export function RunTree(props: {
     clicked = false
   }
 
+  const [replying, setReplying] = createSignal(false)
+  createEffect(() => {
+    if (live() || !openedLive.has(openKey())) return
+    const key = openKey()
+    openedLive.delete(key)
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        setReplying(true)
+        clicked = true
+        setOpen(key, false)
+        clicked = false
+      })
+    })
+    onCleanup(() => cancelAnimationFrame(frame))
+  })
+  createEffect(() => {
+    if (fold() === "gone") setReplying(false)
+  })
+
   const [whole, setWhole] = createSignal(false)
   const [shownSteps, setShownSteps] = createSignal<ReadonlySet<string>>(new Set())
   const view: View = {
@@ -503,7 +535,8 @@ export function RunTree(props: {
             title={props.at ? fullTimeLabel(props.at) : undefined}
             onClick={toggleHead}
           >
-            {headLabel(head(), props.who)}
+            <span class="run-tree-summary">{headLabel(head(), props.who)}</span>
+            <Show when={head().summary && tookOf(head())}>{(took) => <span class="run-tree-took">{took()}</span>}</Show>
             <Chevron open={open()} />
           </button>
         )}
@@ -514,6 +547,7 @@ export function RunTree(props: {
           class="run-tree-fold motion-run-fold"
           data-grow={fold() === "grow" || live() ? "" : undefined}
           data-shut={!live() && fold() === "shut" ? "" : undefined}
+          data-reply={replying() ? "" : undefined}
         >
           <div>{body()}</div>
         </div>

@@ -28,6 +28,21 @@
   white-space: nowrap;
 }
 
+.thinking-caption {
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+}
+.thinking-caption > * {
+  grid-area: 1 / 1;
+}
+.thinking-leaving {
+  width: 0;
+  overflow: visible;
+  text-overflow: clip;
+  visibility: hidden;
+}
+
 .thinking-toggle,
 .thought-head {
   cursor: pointer;
@@ -120,11 +135,22 @@
   .thinking-stream {
     animation: thinking-fade var(--dur-pop) var(--ease-kiko) backwards;
   }
+  .thinking-leaving {
+    visibility: visible;
+    animation: thinking-leave 220ms var(--ease-kiko) forwards;
+  }
 }
 
 @keyframes thinking-fade {
   from {
     opacity: 0;
+  }
+}
+
+@keyframes thinking-leave {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
   }
 }
 

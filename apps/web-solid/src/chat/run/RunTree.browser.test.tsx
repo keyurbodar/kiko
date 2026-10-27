@@ -95,7 +95,7 @@ describe("RunTree", () => {
     await vi.waitFor(() => expect(rows(screen.container).filter((row) => row.dataset.kind === "step")).toHaveLength(14))
   })
 
-  it("says how long the agent worked, from its first step to its reply, and opens to the steps", async () => {
+  it("sums up the work and how long it took, from its first step to its reply, and opens to the steps", async () => {
     fake.live = false
     fake.steps = [
       step("a", { startedAt: START, endedAt: START + 2_000 }),
@@ -103,7 +103,7 @@ describe("RunTree", () => {
     ]
     await using screen = await render(() => <RunTree windowKey="kiko#0" count={2} endedAt={START + 75_000} />)
 
-    expect(head(screen.container).textContent).toBe("Worked for 1m 15s")
+    expect(head(screen.container).textContent).toBe("Ran 2 commands1m 15s")
     expect(rows(screen.container)).toHaveLength(0)
 
     head(screen.container).click()
@@ -148,17 +148,45 @@ describe("RunTree", () => {
     expect(head(screen.container).querySelector("[data-failed]")).toBeNull()
   })
 
-  it("keeps how long it worked once the steps are no longer loaded", async () => {
+  it("keeps its summary and how long it worked once the steps are no longer loaded", async () => {
     fake.live = false
     fake.steps = [step("a", { startedAt: START, endedAt: START + 5_000 })]
     {
       await using first = await render(() => <RunTree windowKey="kiko#7" count={1} endedAt={START + 8_000} />)
-      expect(head(first.container).textContent).toBe("Worked for 8.0s")
+      expect(head(first.container).textContent).toBe("Ran a command8.0s")
     }
     fake.steps = []
     await using screen = await render(() => <RunTree windowKey="kiko#7" count={1} endedAt={START + 8_000} />)
 
-    expect(head(screen.container).textContent).toBe("Worked for 8.0s")
+    expect(head(screen.container).textContent).toBe("Ran a command8.0s")
+  })
+
+  it("folds the steps someone opened while it worked once the reply lands, and opens again on request", async () => {
+    fake.steps = [step("ls", { startedAt: START }), step("cat", { startedAt: START + 1_000 })]
+    fake.live = true
+    await using screen = await render(() => <RunTree windowKey="kiko#3" count={2} />)
+    toggleRun("kiko#3")
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(2))
+
+    fake.live = false
+
+    await vi.waitFor(() => expect(head(screen.container).getAttribute("aria-expanded")).toBe("false"))
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(0))
+
+    head(screen.container).click()
+
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(2))
+    expect(head(screen.container).getAttribute("aria-expanded")).toBe("true")
+  })
+
+  it("leaves a log nobody opened while it worked folded when the reply lands", async () => {
+    fake.steps = [step("ls", { startedAt: START })]
+    fake.live = true
+    await using screen = await render(() => <RunTree windowKey="kiko#4" count={1} />)
+    fake.live = false
+
+    await vi.waitFor(() => expect(head(screen.container).getAttribute("aria-expanded")).toBe("false"))
+    expect(rows(screen.container)).toHaveLength(0)
   })
 
   it("shows helpers as private lanes and keeps them out of the step rows", async () => {

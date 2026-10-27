@@ -42,7 +42,7 @@ export type WorkerItem = Span & {
 
 export type WorkItem = StepItem | NoteItem | WorkerItem
 
-export type WorkHead = { startedAt?: number; endedAt?: number }
+export type WorkHead = { summary?: string; startedAt?: number; endedAt?: number }
 
 export type WorkLog = {
   live: boolean
@@ -170,11 +170,11 @@ export function workLogOf(steps: readonly RunStep[], state: WorkState): WorkLog 
   const count = Math.max(state.count ?? 0, steps.length)
   if (count === 0) return { live, items: [] }
   const missing = steps.length < count
-  const summary = (missing ? undefined : summaryOf(steps, state.endedAt)) ??
-    state.known ?? { label: plural(count, "step", "steps") }
+  const summary = (missing ? undefined : summaryOf(steps, state.endedAt)) ?? state.known
   const head: WorkHead = {
-    ...(summary.startedAt === undefined ? {} : { startedAt: summary.startedAt }),
-    ...(summary.endedAt === undefined ? {} : { endedAt: summary.endedAt }),
+    ...(summary?.label ? { summary: summary.label } : {}),
+    ...(summary?.startedAt === undefined ? {} : { startedAt: summary.startedAt }),
+    ...(summary?.endedAt === undefined ? {} : { endedAt: summary.endedAt }),
   }
   const items = itemsOf(own, state.detail)
   if (!missing) return { live, head, items }

@@ -9,6 +9,7 @@ import "./thinking.css"
 
 const OPEN_KEY = "kiko.thinking-open"
 const LINE_EVERY_MS = 700
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)"
 
 function remembered(): boolean {
   try {
@@ -99,14 +100,31 @@ function Chevron(props: { open: boolean }): JSX.Element {
 export type StepsToggle = { open: boolean; toggle: () => void }
 
 function Caption(props: { text: string; running: boolean }): JSX.Element {
+  const [leaving, setLeaving] = createSignal<string>()
+  createEffect(
+    on(
+      () => props.text,
+      (_, previous) => setLeaving(previous && !matchMedia(REDUCED_MOTION).matches ? previous : undefined),
+      { defer: true },
+    ),
+  )
   return (
-    <Show when={props.text} keyed>
-      {(text) => (
-        <Shine running={props.running} class="thinking-live">
-          {text}
-        </Shine>
-      )}
-    </Show>
+    <span class="thinking-caption">
+      <Show when={leaving()} keyed>
+        {(old) => (
+          <span class="thinking-live thinking-leaving" aria-hidden="true" onAnimationEnd={() => setLeaving(undefined)}>
+            {old}
+          </span>
+        )}
+      </Show>
+      <Show when={props.text} keyed>
+        {(text) => (
+          <Shine running={props.running} class="thinking-live">
+            {text}
+          </Shine>
+        )}
+      </Show>
+    </span>
   )
 }
 
