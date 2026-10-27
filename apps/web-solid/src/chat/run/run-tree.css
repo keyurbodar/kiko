@@ -4,7 +4,7 @@
   flex-direction: column;
   width: min(100%, 36rem);
   min-width: 0;
-  font-size: 13.5px;
+  font-size: var(--type-label);
   line-height: 20px;
 }
 .run-tree:not([data-live]) {
@@ -86,7 +86,7 @@ button.run-tree-row:focus-visible,
   margin-left: auto;
   padding-left: 12px;
   color: var(--fg4);
-  font-size: 12px;
+  font-size: var(--type-hint);
   font-variant-numeric: tabular-nums;
   opacity: 0;
   transition: opacity var(--dur-hover) var(--ease-kiko);
@@ -100,7 +100,7 @@ button.run-tree-row[aria-expanded="true"] > .run-tree-time {
 .run-tree-meta {
   flex: none;
   color: var(--fg4);
-  font-size: 12px;
+  font-size: var(--type-hint);
   font-variant-numeric: tabular-nums;
 }
 
@@ -123,7 +123,7 @@ button.run-tree-row[aria-expanded="true"] > .run-tree-time {
 }
 .run-tree-object[data-mono] {
   font-family: var(--font-family-mono);
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   font-weight: 400;
 }
 .motion-shine .run-tree-object {
@@ -278,7 +278,7 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
   padding: 8px 12px;
   overflow: auto;
   font-family: var(--font-family-mono);
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;

@@ -220,7 +220,7 @@
   padding: 0 12px;
   border-radius: 9px;
   color: var(--fg);
-  font-size: 14px;
+  font-size: var(--type-ui);
   font-weight: 500;
   transition:
     background-color var(--dur-hover) var(--ease-kiko),
@@ -272,6 +272,6 @@
 .model-sheet-thinking-title {
   margin: 0 0 10px;
   color: var(--fg3);
-  font-size: 12px;
+  font-size: var(--type-hint);
   font-weight: 500;
 }
