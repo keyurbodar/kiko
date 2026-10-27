@@ -74,7 +74,7 @@ function newer(a: readonly number[], b: readonly number[]): boolean {
   return false
 }
 
-export function legacyModelIds(models: readonly CatalogModel[]): Set<string> {
+function legacyModelIds(models: readonly CatalogModel[]): Set<string> {
   const families = new Map<string, CatalogModel[]>()
   for (const model of models) {
     const family = model.name
