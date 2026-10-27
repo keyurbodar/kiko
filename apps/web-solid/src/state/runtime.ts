@@ -15,7 +15,8 @@ import * as AsyncResult from "effect/reactivity/AsyncResult"
 import * as Atom from "effect/reactivity/Atom"
 import * as AtomRegistry from "effect/reactivity/AtomRegistry"
 import { createComponent, createComputed, createMemo, createSignal, onCleanup, type Accessor, type JSX } from "solid-js"
-import { RUNTIME_DATABASE } from "../lib/storage"
+import { parseRecord } from "../app/auth-record"
+import { readAuth, RUNTIME_DATABASE, signingOut } from "../lib/storage"
 
 export interface Attachment {
   readonly url: string
@@ -23,11 +24,19 @@ export interface Attachment {
   readonly token: string
 }
 
-let attached: Attachment | null = null
+function storedAttachment(): Attachment | null {
+  const record = signingOut() ? null : parseRecord(readAuth())
+  return record && { url: record.backend.url, key: record.backend.key, token: record.token }
+}
+
+let attached = storedAttachment()
 let closed: Promise<void> = Promise.resolve()
 let replaced: Promise<void> = Promise.resolve()
 
-const cacheKeyAtom = Atom.make<string | null>(null).pipe(Atom.keepAlive, Atom.withLabel("kiko-cache-key"))
+const cacheKeyAtom = Atom.make<string | null>(attached?.key ?? null).pipe(
+  Atom.keepAlive,
+  Atom.withLabel("kiko-cache-key"),
+)
 
 const lifetime = () =>
   Layer.effectDiscard(

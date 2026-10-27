@@ -1,4 +1,4 @@
-import { Clerk } from "@clerk/clerk-js"
+import type { Clerk } from "@clerk/clerk-js"
 import type { ClerkUser } from "./machine"
 import { CLERK_KEY, type Profile } from "./hosted"
 import { ClerkUserId } from "./phase"
@@ -106,9 +106,10 @@ function load(): Promise<Loaded> {
   if (!CLERK_KEY) return Promise.reject(new Error("Sign-in is not set up"))
   const key = CLERK_KEY
   loading ??= (async () => {
-    const clerk = new Clerk(key)
     const ui = loadUi(key)
     ui.catch(() => {})
+    const { Clerk } = await import("@clerk/clerk-js")
+    const clerk = new Clerk(key)
     await clerk.load({ ui: { ClerkUI: ui }, appearance }).catch((e: unknown) => {
       console.error("clerk load failed", e)
       throw new Error(BLOCKED)
