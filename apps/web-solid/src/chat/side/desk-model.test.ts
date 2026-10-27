@@ -1,6 +1,6 @@
-import type { HumanAsk, LifeLine, Task, WorkerRow } from "@kiko/protocol"
+import type { HumanAsk, LifeLine, Task } from "@kiko/protocol"
 import { describe, expect, it } from "vitest"
-import { deskTasks, fileTiles, helperLabel, helpers, knowns, nowProgress, waiting } from "./desk-model"
+import { deskMode, deskTasks, fileTiles, knowns, nowProgress, taskMark, tasksLine, waiting } from "./desk-model"
 
 const task = (id: string, status: Task["status"]) => ({ id, title: id, status, dependsOn: [] }) as unknown as Task
 const line = (pos: number, extra: Partial<LifeLine> = {}): LifeLine => ({
@@ -12,15 +12,6 @@ const line = (pos: number, extra: Partial<LifeLine> = {}): LifeLine => ({
   redacted: false,
   ...extra,
 })
-const worker = (id: string, status: WorkerRow["status"], startedAt: number): WorkerRow => ({
-  id,
-  task: id,
-  status,
-  step: status === "running" ? "reading" : null,
-  steps: 1,
-  startedAt,
-})
-
 describe("desk model", () => {
   it("shows the newest files first and counts the rest", () => {
     const tiles = fileTiles([1, 2, 3, 4, 5, 6])
@@ -59,11 +50,36 @@ describe("desk model", () => {
     expect(b?.choices).toEqual([])
   })
 
-  it("lists running helpers before finished ones", () => {
-    const sorted = helpers([worker("old", "done", 1), worker("new", "running", 2), worker("older", "failed", 0)])
-    expect(sorted.map((w) => w.id)).toEqual(["new", "old", "older"])
-    expect(helperLabel(sorted[0]!)).toBe("reading")
-    expect(helperLabel(sorted[1]!)).toBe("done")
+  it("marks each task by what it is doing", () => {
+    const none = new Set<string>()
+    expect(taskMark({ status: "todo" }, none)).toBe("todo")
+    expect(taskMark({ status: "doing" }, none)).toBe("doing")
+    expect(taskMark({ status: "review" }, none)).toBe("partial")
+    expect(taskMark({ status: "done" }, none)).toBe("done")
+    expect(taskMark({ status: "blocked" }, none)).toBe("waiting")
+  })
+
+  it("marks a running task as waiting on you while its owner has an open question", () => {
+    expect(taskMark({ status: "doing", owner: "kiko" } as Task, new Set(["kiko"]))).toBe("waiting")
+    expect(taskMark({ status: "doing", owner: "kiko" } as Task, new Set(["alpha"]))).toBe("doing")
+    expect(taskMark({ status: "done", owner: "kiko" } as Task, new Set(["kiko"]))).toBe("done")
+  })
+
+  it("is working while anything runs, waits on you, or a helper works, and done otherwise", () => {
+    const quiet = { running: false, tasks: [task("a", "done")], lanes: [{ state: "done" as const }], asks: 0 }
+    expect(deskMode(quiet)).toBe("done")
+    expect(deskMode({ ...quiet, running: true })).toBe("working")
+    expect(deskMode({ ...quiet, asks: 1 })).toBe("working")
+    expect(deskMode({ ...quiet, lanes: [{ state: "working" }] })).toBe("working")
+    expect(deskMode({ ...quiet, tasks: [task("a", "doing")] })).toBe("working")
+    expect(deskMode({ ...quiet, lanes: [{ state: "failed" }, { state: "stopped" }] })).toBe("done")
+  })
+
+  it("folds finished tasks into one line", () => {
+    expect(tasksLine([])).toBe("No tasks")
+    expect(tasksLine([task("a", "done")])).toBe("The task is done")
+    expect(tasksLine([task("a", "done"), task("b", "done"), task("c", "cancelled")])).toBe("All 2 tasks done")
+    expect(tasksLine([task("a", "done"), task("b", "todo")])).toBe("1 of 2 tasks done")
   })
 
   it("keeps pinned, live memory facts first and skips redacted or replaced ones", () => {

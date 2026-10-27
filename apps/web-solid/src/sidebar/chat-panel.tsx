@@ -7,6 +7,7 @@ import type { RosterBot } from "../lib/types"
 import { room } from "../state/room"
 import { user } from "../state/user"
 import { isDeleted, markedUnread } from "./actions"
+import { HelperNest } from "../chat/helpers/HelperNest"
 import { ChatRow, isLive } from "./chat-row"
 import { filterRows, pinnedRows } from "./filter"
 import { flipRows, glideActive } from "./flip"
@@ -116,22 +117,27 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
 
   const latest = (id: string) => createMemo<RosterBot>((prev) => byId().get(id) ?? prev, byId().get(id) as RosterBot)
 
-  const rows = (ids: () => readonly string[], pinMark = false) => (
+  const rows = (ids: () => readonly string[], pinMark = false, nest = false) => (
     <For each={ids()}>
       {(id) => {
         const bot = latest(id)
         return (
-          <ChatRow
-            bot={bot()}
-            hint={jumpHint().get(id)}
-            active={props.activeId === id}
-            main={id === props.mainId}
-            muted={props.muted.has(id)}
-            now={props.now}
-            enter={settled()}
-            pinMark={pinMark}
-            need={props.needs.get(id)}
-          />
+          <>
+            <ChatRow
+              bot={bot()}
+              hint={jumpHint().get(id)}
+              active={props.activeId === id}
+              main={id === props.mainId}
+              muted={props.muted.has(id)}
+              now={props.now}
+              enter={settled()}
+              pinMark={pinMark}
+              need={props.needs.get(id)}
+            />
+            <Show when={nest}>
+              <HelperNest chatId={id} />
+            </Show>
+          </>
         )
       }}
     </For>
@@ -148,7 +154,7 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
       <Show when={working().length > 0}>
         <div data-section="working">
           <SectionLabel label="Busy" open={open("working")} onToggle={() => toggle("working")} />
-          <Fold open={open("working")}>{rows(workingIds)}</Fold>
+          <Fold open={open("working")}>{rows(workingIds, false, true)}</Fold>
         </div>
       </Show>
       <Show when={pinnedList().length > 0}>

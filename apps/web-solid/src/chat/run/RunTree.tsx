@@ -19,6 +19,7 @@ import { unwrap } from "solid-js/store"
 import { room } from "../../state/room"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { findFile } from "../ui/find-file"
+import { HelperLanes } from "../helpers/HelperLanes"
 import { Mochi } from "../ui/Mochi"
 import { clockLabel, durationLabel, elapsedLabel, fullTimeLabel, shortClock } from "./duration"
 import { GLYPH } from "./glyphs"
@@ -372,8 +373,11 @@ export function RunTree(props: {
     onCleanup(() => clearInterval(clock))
   })
 
+  const lanes = createMemo(() => room.helpers().filter((lane) => lane.window === props.windowKey))
+
   const log = createMemo(() =>
     workLogOf(steps(), {
+      lanes: lanes().length > 0,
       working: working(),
       count: props.count,
       endedAt: props.endedAt,
@@ -479,6 +483,7 @@ export function RunTree(props: {
           </div>
         </div>
       </Show>
+      <HelperLanes lanes={lanes()} now={now()} />
     </div>
   )
 }

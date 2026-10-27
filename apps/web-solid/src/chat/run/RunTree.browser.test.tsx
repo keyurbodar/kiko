@@ -6,12 +6,14 @@ import { render } from "../../../test/render"
 import { clockLabel } from "./duration"
 import { RunTree } from "./RunTree"
 
-const fake = vi.hoisted(() => ({ steps: [] as RunStep[], live: false }))
+const fake = vi.hoisted(() => ({ steps: [] as RunStep[], live: false, helpers: [] as unknown[] }))
 
 vi.mock("../../state/room", async () => {
   const { createSignal: signal } = await import("solid-js")
   const [steps, setSteps] = signal<readonly RunStep[]>([])
   const [live, setLive] = signal(false)
+  const [helpers, setHelpers] = signal<readonly unknown[]>([])
+  Object.defineProperty(fake, "helpers", { get: helpers, set: setHelpers })
   Object.defineProperty(fake, "steps", { get: steps, set: setSteps })
   Object.defineProperty(fake, "live", { get: live, set: setLive })
   return {
@@ -21,11 +23,19 @@ vi.mock("../../state/room", async () => {
       runFetching: () => false,
       loadRunSteps: () => {},
       activeId: () => "room",
+      helpers: () => helpers(),
+      roomMembers: () => [],
     },
   }
 })
 
-vi.mock("../side/surfaces", () => ({ fixedSurface: () => ({}), openFile: () => {}, openSurface: () => {} }))
+vi.mock("../side/surfaces", () => ({
+  fixedSurface: () => ({}),
+  openFile: () => {},
+  openSurface: () => {},
+  deskView: () => null,
+  helperSurface: () => ({}),
+}))
 
 vi.mock("../ui/find-file", () => ({ findFile: () => null }))
 
@@ -133,5 +143,36 @@ describe("RunTree", () => {
     await using screen = await render(() => <RunTree windowKey="kiko#7" count={1} endedAt={START + 8_000} />)
 
     expect(head(screen.container).textContent).toBe("Worked for 8.0s")
+  })
+
+  it("shows helpers as private lanes and keeps them out of the step rows", async () => {
+    fake.live = false
+    const worker = { id: "w1", task: "Try 3 hero layouts" }
+    fake.steps = [step("plain", { startedAt: START }), step("inner", { startedAt: START + 1_000, worker })]
+    fake.helpers = [
+      {
+        id: "w1",
+        slug: "kiko",
+        window: "kiko#9",
+        task: worker.task,
+        title: "Try 3 hero layouts",
+        state: "done",
+        line: "Ran inner",
+        startedAt: START + 1_000,
+        endedAt: START + 5_000,
+        count: 1,
+        steps: [],
+      },
+    ]
+    await using screen = await render(() => <RunTree windowKey="kiko#9" count={2} />)
+    screen.container.querySelector<HTMLElement>(".run-tree-head")!.click()
+
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(1))
+    expect(rows(screen.container)[0]!.getAttribute("data-kind")).toBe("step")
+    const lanes = screen.container.querySelector('[data-component="helper-lanes"]')!
+    expect(lanes.textContent).toContain("Started a helper")
+    expect(lanes.textContent).toContain("Private to")
+    expect(lanes.querySelectorAll('[data-component="helper-lane"]')).toHaveLength(1)
+    fake.helpers = []
   })
 })

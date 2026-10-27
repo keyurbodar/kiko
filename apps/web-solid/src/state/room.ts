@@ -34,6 +34,7 @@ import { createStore, produce } from "solid-js/store"
 import { session as signedIn } from "../app/session"
 import { arriveLine, hideLine, NO_LINE, openLine, sendLine, showLine, type UnreadLine } from "../chat/lib/unread-line"
 import { inWindow, newestAfter, parseWindow, stepWindows, upsertStep, windowKey } from "../chat/run/run-log"
+import { helperLanes, nestedLanes } from "../chat/helpers/helper-model"
 import { fillComposer } from "../composer/fill"
 import { distinctTitles, resumeChat, rosterChats } from "../lib/chats"
 import { seenInChat, showFailure, showNotice } from "../lib/errors"
@@ -555,6 +556,20 @@ function createRoom() {
     })
   })
   const windows = createMemo(() => stepWindows(rows()))
+  const helperStatuses = createMemo(
+    () =>
+      new Map(
+        (snapshot()?.agents ?? []).flatMap((a) =>
+          a.activity?.kind === "background" ? a.activity.workers.map((w) => [w.id, w.status] as const) : [],
+        ),
+      ),
+  )
+  const helpers = createMemo(() =>
+    Object.values(runs.current().steps)
+      .flatMap((steps) => helperLanes(steps, helperStatuses(), busy))
+      .toSorted((a, b) => a.startedAt - b.startedAt),
+  )
+  const nestedHelpers = createMemo(() => nestedLanes(helpers(), busy))
   const thoughtAnchors = createMemo(() => {
     const out = new Map<string, Thought>()
     for (const list of Object.values(thoughts.all()))
@@ -853,6 +868,8 @@ function createRoom() {
       const { slug, after } = parseWindow(key)
       return inWindow(runs.current().steps[slug] ?? [], after)
     },
+    helpers,
+    nestedHelpers,
     runLive: (key: string) => !windows().has(key) && busy(parseWindow(key).slug),
     loadRunSteps(key: string, force = false) {
       const w = windows().get(key)

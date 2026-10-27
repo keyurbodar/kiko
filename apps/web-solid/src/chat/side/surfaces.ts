@@ -30,6 +30,13 @@ export const agentSurface = (slug: string): Surface => ({
   slug,
 })
 
+export const helperSurface = (helper: string, window: string): Surface => ({
+  id: PANELS.helper.instance!.id({ helper, window }),
+  kind: "helper",
+  helper,
+  window,
+})
+
 function readKey(key: string): string | null {
   try {
     return localStorage.getItem(key)
@@ -149,6 +156,8 @@ export function openSurface(chatId: string, surface: Surface) {
 }
 
 export const deskBack = (chatId: string) => edit(chatId, back)
+export const showOverview = (chatId: string) =>
+  edit(chatId, (nav) => (nav.view === null ? nav : { ...nav, view: null }))
 export const closeSurface = (chatId: string, id: string) => edit(chatId, (nav) => closeFile(nav, id))
 export const closeOthers = (chatId: string, id: string) => edit(chatId, (nav) => keepOnly(nav, id))
 export const closeToRight = (chatId: string, id: string) => edit(chatId, (nav) => closeRightOf(nav, id))

@@ -68,6 +68,7 @@ export type WorkState = {
   endedAt?: number
   detail: DetailStatus
   known?: RunSummary
+  lanes?: boolean
 }
 
 export const isLive = (steps: readonly Pick<RunStep, "status">[], working: boolean): boolean =>
@@ -94,7 +95,7 @@ const countParts = (label: string): LabelPart[] =>
     .filter(Boolean)
     .map((text) => (/^\d/.test(text) ? { text, strong: true as const } : { text }))
 
-function stillFailing(steps: readonly Pick<RunStep, "name" | "status" | "startedAt">[]): boolean {
+export function stillFailing(steps: readonly Pick<RunStep, "name" | "status" | "startedAt">[]): boolean {
   return steps.some(
     (failed) =>
       failed.status === "failed" &&
@@ -217,7 +218,8 @@ export function summaryOf(steps: readonly RunStep[], endedAt?: number): RunSumma
 
 export function workLogOf(steps: readonly RunStep[], state: WorkState): WorkLog {
   const live = isLive(steps, state.working)
-  if (live) return { live, items: itemsOf(steps, state.detail, true) }
+  const own = state.lanes ? steps.filter((step) => !step.worker) : steps
+  if (live) return { live, items: itemsOf(own, state.detail, true) }
   const count = Math.max(state.count ?? 0, steps.length)
   if (count === 0) return { live, items: [] }
   const missing = steps.length < count
@@ -229,7 +231,7 @@ export function workLogOf(steps: readonly RunStep[], state: WorkState): WorkLog 
     ...(summary.startedAt === undefined ? {} : { startedAt: summary.startedAt }),
     ...(summary.endedAt === undefined ? {} : { endedAt: summary.endedAt }),
   }
-  const items = itemsOf(steps, state.detail, false)
+  const items = itemsOf(own, state.detail, false)
   if (!missing) return { live, head, items }
   if (state.detail === "error") return { live, head, items, missing: "error" }
   return { live, head, items, ...(state.detail === "ready" ? {} : { missing: "loading" as const }) }

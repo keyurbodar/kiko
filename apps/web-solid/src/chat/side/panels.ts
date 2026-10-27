@@ -1,7 +1,10 @@
 import { FileTextIcon, FolderOpenIcon, type Glyph, MemoryIcon, RepeatIcon, TasksIcon, WorkerIcon } from "@kiko/ui/icons"
 import { fileName } from "@kiko/protocol"
 import { type Component, lazy } from "solid-js"
+import { room } from "../../state/room"
 import { roomMembers } from "../info/sections"
+
+const helperTitleOf = (id: string) => room.helpers().find((lane) => lane.id === id)?.title ?? "Helper"
 
 type Views = typeof import("./panel-views")
 export const loadPanelViews = (): Promise<Views> => import("./panel-views")
@@ -57,6 +60,19 @@ export const PANELS = {
       },
     },
     component: view("FileView"),
+  }),
+  helper: panel<{ helper: string; window: string }>({
+    label: (surface) => helperTitleOf(surface.helper),
+    icon: WorkerIcon,
+    instance: {
+      id: (surface) => `helper:${surface.helper}`,
+      parse: (raw) => {
+        const helper = text(raw, "helper")
+        const window = text(raw, "window")
+        return helper === null || window === null ? null : { helper, window }
+      },
+    },
+    component: view("HelperView"),
   }),
   agent: panel<{ slug: string }>({
     label: (surface) => roomMembers().find((m) => m.slug === surface.slug)?.name ?? surface.slug,
