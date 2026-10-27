@@ -142,7 +142,7 @@ function Shortcode(props: { match: EmojiMatch; query: string }): JSX.Element {
     <>
       :{parts()[0]}
       <Show when={parts()[1]}>
-        <mark class="rounded-[3px] bg-info-wash text-inherit">{parts()[1]}</mark>
+        <mark class="rounded-tail bg-info-wash text-inherit">{parts()[1]}</mark>
       </Show>
       {parts()[2]}:
     </>

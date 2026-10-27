@@ -156,7 +156,7 @@ function RefusedTile(props: { item: Rejected; onDismiss: () => void }) {
       <span class="tray-tile-open" title={`${props.item.name}: ${props.item.reason}`}>
         <span class="tray-body">
           <span class="tray-face">
-            <TypeIcon type={fileType({ name: props.item.name, type: "" })} size={22} />
+            <TypeIcon type={fileType({ name: props.item.name, type: "" })} size={24} />
             <span class="tray-face-name">{middleTruncate(props.item.name, 44)}</span>
           </span>
         </span>

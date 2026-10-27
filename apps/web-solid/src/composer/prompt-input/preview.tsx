@@ -93,7 +93,7 @@ function Table(props: { text: string; name: string }) {
 function TypeFace(props: { part: PromptInputV2Attachment }) {
   return (
     <span class="tray-face">
-      <TypeIcon type={tileType(props.part)} size={22} />
+      <TypeIcon type={tileType(props.part)} size={24} />
       <span class="tray-face-name">{middleTruncate(props.part.filename, 44)}</span>
     </span>
   )

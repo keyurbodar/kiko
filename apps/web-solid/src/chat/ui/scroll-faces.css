@@ -4,9 +4,9 @@
   left: 50%;
   z-index: 6;
   display: grid;
-  width: 52px;
-  height: 52px;
-  margin-left: -26px;
+  width: var(--spacing-header);
+  height: var(--spacing-header);
+  margin-left: calc(var(--spacing-header) / -2);
   place-items: center;
   border-radius: 9999px;
   background: var(--raise);
