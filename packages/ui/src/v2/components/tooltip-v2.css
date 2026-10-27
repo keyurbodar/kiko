@@ -8,25 +8,26 @@
 
 [data-component="tooltip-v2"] {
   z-index: 1000;
-  max-width: min(280px, var(--kb-popper-content-available-width));
+  max-width: min(320px, var(--kb-popper-content-available-width));
   box-sizing: border-box;
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  padding: 5px 9px;
+  padding: 4px 8px;
   gap: 8px;
 
-  background: var(--tip);
-  box-shadow:
-    0 8px 22px -6px oklch(0% 0 none / 0.5),
-    0 0 0 1px color-mix(in oklab, var(--fg) 7%, transparent);
-  border-radius: 8px;
+  background: var(--popover);
+  border: 1px solid var(--popover-edge);
+  box-shadow: var(--popover-shadow-sm);
+  border-radius: 6px;
 
   font-style: normal;
-  font-weight: 500;
-  font-size: 12.5px;
-  line-height: 16px;
-  color: var(--fg);
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.375;
+  color: var(--popover-fg);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
 
   user-select: none;
   pointer-events: none;

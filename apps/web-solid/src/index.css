@@ -257,6 +257,19 @@
 /* palette:end */
 
 :root {
+  --popover: color-mix(in srgb, var(--bg) 91%, #fff);
+  --popover-fg: var(--fg);
+  --popover-edge: color-mix(in srgb, var(--fg) 16%, transparent);
+  --popover-shadow-sm: 0 4px 6px -1px rgb(0 0 0 / 5%), 0 2px 4px -2px rgb(0 0 0 / 5%);
+  --popover-shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 25%), 0 8px 10px -6px rgb(0 0 0 / 25%);
+}
+
+:root:not(.dark) {
+  --popover: var(--bg);
+  --popover-edge: color-mix(in srgb, var(--fg) 14%, transparent);
+}
+
+:root {
   --tab-bg: transparent;
   --tab-bg-hover: var(--hover);
   --tab-bg-active: var(--panel);

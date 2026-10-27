@@ -1,6 +1,6 @@
 export type ToastV2Variant = "default" | "success" | "error" | "warning" | "info" | "loading"
 
-const TOAST_DURATION_MS = 4000
+const TOAST_DURATION_MS = 5000
 const ACTIONABLE_ERROR_MS = 12000
 const ANCHORED_TOAST_DURATION_MS = 1000
 const TOAST_LIMIT = 3
