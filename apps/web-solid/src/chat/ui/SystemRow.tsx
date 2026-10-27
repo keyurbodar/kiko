@@ -46,7 +46,7 @@ export function SystemRow(props: {
     <div
       role={tone() === "danger" ? "alert" : "separator"}
       class={cn(
-        "mx-auto flex w-full max-w-(--chat-content-max-width) items-center gap-3 px-4 py-3 text-[12.5px] leading-5",
+        "mx-auto flex w-full max-w-(--chat-content-max-width) items-center gap-3 px-4 py-3 type-hint",
         TONE[tone()],
         props.class,
       )}

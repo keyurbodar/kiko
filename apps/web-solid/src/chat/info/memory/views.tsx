@@ -73,7 +73,7 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
   const [sure, setSure] = createSignal(false)
   return (
     <li
-      class="group/row rounded-[10px] px-2.5 py-2 transition-colors duration-[120ms] hover:bg-hover focus-within:bg-hover"
+      class="group/row rounded-row px-2.5 py-2 transition-colors duration-[120ms] hover:bg-hover focus-within:bg-hover"
       data-component="memory-line"
       data-pos={l().pos}
       data-pinned={l().pinned ? "" : undefined}

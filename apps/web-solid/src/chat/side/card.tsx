@@ -20,7 +20,7 @@ function AddMember(props: { chatId: string }) {
   return (
     <MenuV2 gutter={6} placement="bottom-start">
       <MenuV2.Trigger
-        class="flex h-7 items-center gap-1 rounded-full py-0.5 pr-2.5 pl-2 text-[13px] text-fg3 transition-colors duration-(--dur-hover) hover:bg-hover hover:text-fg aria-expanded:bg-hover"
+        class="flex h-7 items-center gap-1 rounded-full py-0.5 pr-2.5 pl-2 type-label text-fg3 transition-colors duration-(--dur-hover) hover:bg-hover hover:text-fg aria-expanded:bg-hover"
         aria-label="Add agent"
         data-action="add-member"
       >
@@ -83,7 +83,7 @@ export default function DeskOverview(props: { chatId: string }) {
               {(m) => (
                 <button
                   type="button"
-                  class={`flex h-7 items-center gap-1.5 rounded-full bg-active py-0.5 pr-2.5 pl-0.5 text-[13px] text-fg hover:bg-hover ${press}`}
+                  class={`flex h-7 items-center gap-1.5 rounded-full bg-active py-0.5 pr-2.5 pl-0.5 type-label text-fg hover:bg-hover ${press}`}
                   data-member={m.slug}
                   onClick={() => openSurface(props.chatId, agentSurface(m.slug))}
                 >

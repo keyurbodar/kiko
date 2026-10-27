@@ -53,7 +53,7 @@ export function SuspiciousLinkDialog(props: { href: string; text?: string; onClo
         </Show>
         <div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-2">
           <dt class="type-label text-fg3">Goes to</dt>
-          <dd class="font-mono text-[13px] leading-5 break-all" data-field="real-address">
+          <dd class="font-mono type-label break-all" data-field="real-address">
             <span class="text-fg">{target().host}</span>
             <span class="text-fg3">{target().rest}</span>
           </dd>
