@@ -389,23 +389,6 @@ button.token-chip:active {
   transform: scale(1);
 }
 
-.composer-send[data-waiting] {
-  color: var(--fg3);
-  background: var(--active);
-}
-
-.composer-send-ring {
-  position: absolute;
-  inset: -3px;
-  width: 40px;
-  height: 40px;
-  fill: none;
-  stroke: var(--fg2);
-  stroke-dasharray: 26 78;
-  stroke-linecap: round;
-  stroke-width: 1.5;
-}
-
 .composer-dock .composer-agent-face {
   position: relative;
   display: inline-grid;
@@ -789,10 +772,13 @@ button.token-chip:active {
     transform var(--dur-hover) var(--ease-kiko);
 }
 
+.tray-aside-name {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+
 .tray-aside-size {
   font-variant-numeric: tabular-nums;
-  opacity: 0;
-  transform: translateY(3px);
 }
 
 .tray-bytes {
@@ -921,10 +907,15 @@ button.token-chip:active {
     background: color-mix(in oklab, var(--fg) 22%, var(--raise));
   }
   .tray-tile:hover .tray-aside-name {
-    opacity: 0;
-    transform: translateY(-3px);
+    opacity: 1;
+    transform: none;
   }
   .tray-tile:hover .tray-aside-size {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  .tray-tile[data-look="image"]:hover .tray-aside-size,
+  .tray-tile[data-look="video"]:hover .tray-aside-size {
     opacity: 1;
     transform: none;
   }
@@ -983,9 +974,6 @@ button.token-chip:active {
   }
   .composer-send[data-sent] .composer-send-arrow {
     animation: composer-send-fly 320ms var(--ease-kiko);
-  }
-  .composer-send-ring {
-    animation: composer-spin 0.9s linear infinite;
   }
   .composer-agent-avatar {
     animation: composer-face-in var(--dur-pop) var(--ease-kiko) both;
@@ -1076,12 +1064,6 @@ button.token-chip:active {
   46% {
     opacity: 0;
     transform: translateY(10px);
-  }
-}
-
-@keyframes composer-spin {
-  to {
-    transform: rotate(360deg);
   }
 }
 

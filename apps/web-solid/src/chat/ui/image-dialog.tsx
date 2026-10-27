@@ -1,20 +1,14 @@
-import { Show, createSignal, lazy, onCleanup, type JSX } from "solid-js"
-
-const ImageDialog = lazy(() => import("./ImageDialog"))
-
-export type DialogImage = { src: string; name: string; path?: string }
+import { Show, createSignal, onCleanup, type JSX } from "solid-js"
+import type { DialogImage } from "./chat-images"
+import ImageDialog from "./ImageDialog"
 
 export interface ImageDialogController {
-  open(images: readonly DialogImage[], index: number, from?: Element | null): void
+  open(images: readonly DialogImage[], index: number): void
   view: JSX.Element
 }
 
 export function createImageDialog(): ImageDialogController {
-  const [shown, setShown] = createSignal<{
-    images: readonly DialogImage[]
-    index: number
-    from: Element | null
-  } | null>(null)
+  const [shown, setShown] = createSignal<{ images: readonly DialogImage[]; index: number } | null>(null)
   let opener: HTMLElement | null = null
   const close = () => {
     setShown(null)
@@ -23,15 +17,11 @@ export function createImageDialog(): ImageDialogController {
     requestAnimationFrame(() => back?.isConnected && back.focus({ preventScroll: true }))
   }
   return {
-    open: (images, index, from) => {
+    open: (images, index) => {
       opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
-      setShown({ images, index, from: from ?? null })
+      setShown({ images, index })
     },
-    view: (
-      <Show when={shown()}>
-        {(s) => <ImageDialog images={s().images} index={s().index} from={s().from} onClose={close} />}
-      </Show>
-    ),
+    view: <Show when={shown()}>{(s) => <ImageDialog images={s().images} index={s().index} onClose={close} />}</Show>,
   }
 }
 

@@ -25,13 +25,13 @@ import { ActivityEvent } from "./ui/ActivityEvent"
 import { SystemRow } from "./ui/SystemRow"
 import { agentDisplayName } from "../lib/names"
 import { AgentThread } from "./AgentThread"
+import { BackgroundWork } from "./run/BackgroundWork"
 import { MentionLookup } from "./ui/Mention"
 import { TypingIndicator } from "./typing/TypingIndicator"
 import { cn } from "../lib/cn"
 import { createMessageMenu } from "./ui/MessageMenu"
 import { ScrollFades } from "./ui/ScrollFades"
 import { NewAbovePill, ScrollDown, type NewAbove } from "./ui/ScrollFaces"
-import { chatImages } from "./ui/chat-images"
 import { createImageDialog, provideThreadImages } from "./ui/image-dialog"
 import type { DraftBook } from "../composer/draft-book"
 
@@ -58,6 +58,8 @@ const SCROLLER_CLASS =
 
 const COLUMN_CLASS =
   "mx-auto flex min-h-full w-full max-w-(--chat-content-max-width) self-start flex-col pt-[calc(3rem+var(--top-bar-h,0px))] pb-12"
+
+const PAINTED_ROWS = '[data-component="chat-vrow"], [data-component="chat-typing-row"]'
 
 const clampIndex = (index: number, count: number): number => Math.min(Math.max(index, 0), Math.max(count - 1, 0))
 
@@ -471,7 +473,7 @@ export function VirtualThread(props: {
       blankTries = 0
     }
     const view = scroller.getBoundingClientRect()
-    for (const row of column.querySelectorAll<HTMLElement>('[data-component="chat-vrow"]')) {
+    for (const row of column.querySelectorAll<HTMLElement>(PAINTED_ROWS)) {
       const box = row.getBoundingClientRect()
       if (box.bottom > view.top && box.top < view.bottom) {
         blankTries = 0
@@ -681,16 +683,7 @@ export function VirtualThread(props: {
             menu.openAt(message().id, box.left, box.bottom)
           }}
           onContextMenu={menu.onContextMenu}
-          onOpenImages={(images, index, from) => {
-            const clicked = images[index]
-            const chat = clicked
-              ? chatImages(
-                  items().flatMap((entry) => (entry.kind === "message" ? [entry.message] : [])),
-                  clicked,
-                )
-              : { images, index }
-            viewer.open(chat.images, chat.index, from)
-          }}
+          onOpenImages={viewer.open}
         />
         {menu.view}
       </>
@@ -717,6 +710,16 @@ export function VirtualThread(props: {
         <ActivityEvent
           message={item.message}
           name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])}
+        />
+      )
+    }
+    if (item.kind === "background") {
+      return (
+        <BackgroundWork
+          messages={item.messages}
+          name={props.botById(item.slug)?.name ?? agentDisplayName(item.slug, [])}
+          expanded={item.expanded}
+          onToggle={() => toggleThread(item.key)}
         />
       )
     }

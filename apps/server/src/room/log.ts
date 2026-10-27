@@ -56,6 +56,11 @@ function previewText(text: string, files: readonly Pick<FileRef, "name" | "type"
   return rest > 0 ? `${others[0]!.name} and ${rest} more` : others[0]!.name
 }
 
+function windowOwner(input: NewMessage): AgentSlug | null {
+  if (input.from.kind === "agent" && !input.to) return input.from.slug
+  return input.event?.kind === "activity" ? input.event.agent : null
+}
+
 export const isPrivate = (m: { event?: { kind: string } }): boolean =>
   (m.event as { private?: boolean } | undefined)?.private === true
 
@@ -187,7 +192,7 @@ export class RoomLog {
       const after =
         this.sql
           .exec<{ seq: number }>(
-            "SELECT seq FROM messages WHERE room_id = ? AND json_extract(sender, '$.kind') = 'agent' AND json_extract(sender, '$.slug') = ? AND addressed IS NULL ORDER BY seq DESC LIMIT 1",
+            "SELECT seq FROM messages WHERE room_id = ?1 AND ((json_extract(sender, '$.kind') = 'agent' AND json_extract(sender, '$.slug') = ?2 AND addressed IS NULL) OR (json_extract(event, '$.kind') = 'activity' AND json_extract(event, '$.agent') = ?2)) ORDER BY seq DESC LIMIT 1",
             this.roomId,
             slug,
           )
@@ -196,6 +201,15 @@ export class RoomLog {
       this.windows.set(slug, open)
     }
     return open
+  }
+
+  closeWindow(slug: AgentSlug): RoomEvent | null {
+    if (this.window(slug).count === 0) return null
+    return this.addMessage({
+      from: { kind: "system", reason: "system" },
+      text: "",
+      event: { kind: "activity", agent: slug, private: true },
+    }).event
   }
 
   hearStep(heard: HeardStep): RunStep | null {
@@ -524,7 +538,8 @@ export class RoomLog {
       if (earlier) return { ...earlier, event: null }
       const seq = this.lastSeq() + 1
       const id = messageIdAt(this.roomId, seq)
-      const open = input.from.kind === "agent" && !input.to ? this.window(input.from.slug) : null
+      const owner = windowOwner(input)
+      const open = owner ? this.window(owner) : null
       const steps = open?.count ?? 0
       const reply = input.replyTo ? this.previews([input.replyTo]).get(input.replyTo) : undefined
       const message = this.messagePayload(input, id, open, steps, reply)
@@ -536,7 +551,7 @@ export class RoomLog {
         at: this.now(),
       } satisfies RoomEvent
       this.insertMessage(input, id, event, steps, open)
-      if (open && input.from.kind === "agent") this.windows.set(input.from.slug, { after: event.seq, count: 0 })
+      if (owner) this.windows.set(owner, { after: event.seq, count: 0 })
       this.trim(event.seq)
       return { id, seq: event.seq, event }
     })

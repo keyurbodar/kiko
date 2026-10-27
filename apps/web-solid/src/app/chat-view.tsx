@@ -111,7 +111,6 @@ export function ChatView() {
     const name = id === "kiko" ? "Kiko" : user.agents().find((a) => a.slug === id)?.name
     return name ? { id, name, preview: "", updatedAt: 0, presence: "idle", unread: 0, pinned: false } : undefined
   }
-  const outsiders = createMemo(() => messages().some((m) => m.botId !== undefined && !members().has(m.botId)))
   const byId = createMemo(() => new Map<string, ChatMessage>(messages().map((message) => [message.id, message])))
   const [armed, setArmed] = createSignal<ChatMessage | null>(null)
   const aim = (id: string) => {
@@ -243,7 +242,7 @@ export function ChatView() {
           waitingNames={room.typingNames()}
           waitingSlugs={room.typingSlugs()}
           waitingDoings={room.typingDoings()}
-          groupChat={members().size > 1 || outsiders()}
+          groupChat={members().size > 1}
           memberSlugs={memberSlugs()}
           onReact={room.toggleReaction}
           onEdit={startEdit}

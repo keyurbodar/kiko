@@ -625,45 +625,13 @@ export function roomBackend(
   )
 }
 
-const MAX_NOTICED = 6
-
-export class HomeNotices {
-  private readonly said = new Set<string>()
-
-  add(lines: readonly string[]): void {
-    for (const line of lines) this.said.add(line)
-  }
-
-  take(): string | null {
-    if (!this.said.size) return null
-    const all = [...this.said]
-    this.said.clear()
-    const more = all.length - MAX_NOTICED
-    return all.slice(0, MAX_NOTICED).join(", ") + (more > 0 ? `, and ${more} more` : "")
-  }
-}
-
-const saidOf = (c: BatchChange): string[] =>
-  c.op === "write"
-    ? [`saved /home/${c.path}`]
-    : c.op === "move"
-      ? [`moved /home/${c.from} to /home/${c.to}`]
-      : c.op === "mkdir"
-        ? []
-        : [`deleted /home/${c.path}`]
-
 export function homeBackend(
   services: OwnerServices,
   home: () => AgentHome | null,
-  notices: HomeNotices,
   cache = new ObjectCache(),
   locked: () => string | null = () => null,
 ): FilesBackend {
   const h = homeOf(home)
-  const told = <T extends { ok: boolean }>(out: T, lines: readonly string[]) => {
-    if (out.ok) notices.add(lines)
-    return out
-  }
   const base = spaceBackend(
     services,
     h,
@@ -689,20 +657,15 @@ export function homeBackend(
     ...base,
     write: async (path, bytes, type, expect) => {
       const why = locked()
-      return why ? refuse(why) : told(await base.write(path, bytes, type, expect), [`saved /home/${path}`])
+      return why ? refuse(why) : base.write(path, bytes, type, expect)
     },
     move: async (from, to) => {
       const why = locked()
-      return why ? refuse(why) : told(await base.move(from, to), [`moved /home/${from} to /home/${to}`])
+      return why ? refuse(why) : base.move(from, to)
     },
     remove: async (paths, recursive) => {
       const why = locked()
-      return why
-        ? refuse(why)
-        : told(
-            await base.remove(paths, recursive),
-            paths.map((p) => `deleted /home/${p}`),
-          )
+      return why ? refuse(why) : base.remove(paths, recursive)
     },
     mkdir: async (path) => {
       const why = locked()
@@ -711,7 +674,7 @@ export function homeBackend(
     commit: async (changes) => {
       const why = locked()
       if (why) return { ok: false, path: changes.flatMap(batchPaths)[0] ?? "", message: why, conflict: false }
-      return told(await base.commit(changes), changes.flatMap(saidOf))
+      return base.commit(changes)
     },
   }
 }

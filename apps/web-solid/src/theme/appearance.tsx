@@ -33,8 +33,8 @@ function Preview(props: { palette: Palette; light: boolean }) {
         <span class="h-[5px] w-[70%] rounded-[3px]" style={{ background: tint(p().muted, 40) }} />
       </div>
       <div class="flex flex-1 flex-col items-end gap-1.5 p-3.5">
-        <span class="h-[18px] w-1/2 rounded-[9px]" style={{ background: me() }} />
-        <span class="h-[18px] w-[70%] self-start rounded-[9px]" style={{ background: raise() }} />
+        <span class="h-[18px] w-1/2 rounded-control" style={{ background: me() }} />
+        <span class="h-[18px] w-[70%] self-start rounded-control" style={{ background: raise() }} />
       </div>
     </div>
   )

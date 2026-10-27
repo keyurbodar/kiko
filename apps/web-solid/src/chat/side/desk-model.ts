@@ -1,4 +1,5 @@
-import type { HumanAsk, LifeLine, Task, WorkerRow } from "@kiko/protocol"
+import type { HumanAsk, LifeLine, Task } from "@kiko/protocol"
+import type { HelperLane } from "../helpers/helper-model"
 import { taskProgress } from "../info/tasks-model"
 
 const FILE_TILES = 4
@@ -31,13 +32,37 @@ export function waiting(asks: readonly HumanAsk[]): Waiting[] {
   return asks.map((ask) => ({ ask, choices: ask.questions ? [] : (ask.options ?? []).slice(0, 3) }))
 }
 
-const isLive = (worker: WorkerRow) => worker.status === "running" || worker.status === "pending"
+export type TaskMark = "todo" | "doing" | "partial" | "done" | "waiting"
 
-export function helpers(workers: readonly WorkerRow[]): WorkerRow[] {
-  return workers.toSorted((a, b) => Number(isLive(b)) - Number(isLive(a)) || b.startedAt - a.startedAt)
+export function taskMark(task: Pick<Task, "status" | "owner">, asking: ReadonlySet<string>): TaskMark {
+  if (task.status === "done") return "done"
+  if (task.status === "blocked") return "waiting"
+  if (task.status === "doing") return task.owner !== undefined && asking.has(task.owner) ? "waiting" : "doing"
+  return task.status === "review" ? "partial" : "todo"
 }
 
-export const helperLabel = (worker: WorkerRow): string => (isLive(worker) ? (worker.step ?? "working") : worker.status)
+export type DeskMode = "working" | "done"
+
+export function deskMode(input: {
+  running: boolean
+  tasks: readonly Pick<Task, "status">[]
+  lanes: readonly Pick<HelperLane, "state">[]
+  asks: number
+}): DeskMode {
+  const busy =
+    input.running ||
+    input.asks > 0 ||
+    input.lanes.some((lane) => lane.state === "working") ||
+    input.tasks.some((task) => task.status === "doing")
+  return busy ? "working" : "done"
+}
+
+export function tasksLine(tasks: readonly Task[]): string {
+  const { completed, total } = taskProgress(tasks)
+  if (total === 0) return "No tasks"
+  if (completed === total) return total === 1 ? "The task is done" : `All ${total} tasks done`
+  return `${completed} of ${total} tasks done`
+}
 
 const MEMORY_CHIPS = 6
 

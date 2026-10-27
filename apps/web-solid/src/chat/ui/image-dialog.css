@@ -1,34 +1,4 @@
-@media (prefers-reduced-motion: no-preference) {
-  [data-component="modal-v2-content"][data-lightbox][data-expanded],
-  [data-component="modal-v2-content"][data-lightbox][data-closed] {
-    animation: none;
-  }
-  [data-lightbox] [data-chrome] {
-    animation: lightbox-fade-in var(--motion-dialog) var(--motion-ease-in-out) both;
-  }
-  [data-lightbox][data-closing] [data-chrome] {
-    animation: lightbox-fade-out var(--motion-dialog) var(--motion-ease-in-out) both;
-  }
-  [data-component="modal-v2-overlay"][data-closing] {
-    animation: lightbox-fade-out var(--motion-dialog) var(--motion-ease-in-out) both;
-  }
-  [data-component="image-dialog"][data-swap] {
-    animation: lightbox-fade-in var(--motion-fast) var(--motion-ease-out) both;
-  }
-  @keyframes lightbox-fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-  @keyframes lightbox-fade-out {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0;
-    }
-  }
+[data-component="modal-v2-content"][data-lightbox],
+[data-component="modal-v2-overlay"] {
+  animation: none;
 }

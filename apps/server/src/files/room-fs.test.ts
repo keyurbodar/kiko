@@ -6,7 +6,7 @@ import type { AgentHome } from "../room/room-do"
 import type { FsEntry } from "./file-index"
 import type { BatchChange } from "./batch"
 import { MAX_TIMEOUT_S } from "./bash"
-import { type FilesBackend, HomeNotices, homeBackend, RoomFs } from "./room-fs"
+import { type FilesBackend, homeBackend, RoomFs } from "./room-fs"
 
 type Stored = { bytes: Uint8Array; sha256: string; type: string }
 
@@ -199,37 +199,9 @@ function homeServices() {
 
 describe("homeBackend", () => {
   const home = () => ({ roomId: "room", slug: "juno", userId: "owner" }) as unknown as AgentHome
-  const write = (path: string) => ({
-    op: "write" as const,
-    path,
-    bytes: encoder.encode("x"),
-    type: "text/plain",
-    expect: "none",
-  })
-
-  it("gathers a run's changes to /home into one notice", async () => {
-    const notices = new HomeNotices()
-    const backend = homeBackend(homeServices(), home, notices)
-    await backend.write("a.md", encoder.encode("a"), "text/markdown", "none")
-    await backend.write("a.md", encoder.encode("b"), "text/markdown", "none")
-    await backend.commit([write("b.md"), { op: "remove", path: "c.md", sha256: "x" }])
-    expect(notices.take()).toBe("saved /home/a.md, saved /home/b.md, deleted /home/c.md")
-    expect(notices.take()).toBeNull()
-  })
-
-  it("cuts a long list of changes short", async () => {
-    const notices = new HomeNotices()
-    const backend = homeBackend(homeServices(), home, notices)
-    await backend.commit(Array.from({ length: 12 }, (_, i) => write(`f${i}.md`)))
-    const said = notices.take() ?? ""
-    expect(said.split(", saved").length).toBe(6)
-    expect(said.endsWith("and 6 more")).toBe(true)
-  })
-
-  it("says nothing about a refused write", async () => {
-    const notices = new HomeNotices()
-    const backend = homeBackend(homeServices(), home, notices, undefined, () => "this chat is private")
-    await backend.write("a.md", encoder.encode("a"), "text/markdown", "none")
-    expect(notices.take()).toBeNull()
+  it("refuses writes while the chat is private", async () => {
+    const backend = homeBackend(homeServices(), home, undefined, () => "this chat is private")
+    const out = await backend.write("a.md", encoder.encode("a"), "text/markdown", "none")
+    expect(out.ok).toBe(false)
   })
 })

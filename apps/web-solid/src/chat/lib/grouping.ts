@@ -21,6 +21,7 @@ export type TimelineItem =
       slugs: readonly string[]
       expanded: boolean
     }
+  | { kind: "background"; key: string; slug: string; messages: readonly ChatMessage[]; expanded: boolean }
   | {
       kind: "message"
       key: string
@@ -55,8 +56,21 @@ type Entry =
   | { kind: "message"; message: ChatMessage; inThread: boolean }
   | { kind: "event"; message: ChatMessage }
   | { kind: "thread"; key: string; messages: ChatMessage[]; slugs: string[]; expanded: boolean }
+  | { kind: "background"; key: string; slug: string; messages: ChatMessage[]; expanded: boolean }
 
 const isEvent = (m: ChatMessage) => m.event !== undefined || m.goto !== undefined
+
+const backgroundOf = (m: ChatMessage) => (m.event?.kind === "activity" && m.botId && m.steps ? m.botId : undefined)
+
+function addBackground(out: Entry[], message: ChatMessage, slug: string, options: TimelineOptions): void {
+  const last = out.at(-1)
+  if (last?.kind === "background" && last.slug === slug) {
+    last.messages.push(message)
+    return
+  }
+  const key = `background:${message.id}`
+  out.push({ kind: "background", key, slug, messages: [message], expanded: options.expanded?.has(key) ?? false })
+}
 
 function entries(messages: readonly ChatMessage[], options: TimelineOptions): Entry[] {
   const out: Entry[] = []
@@ -68,6 +82,12 @@ function entries(messages: readonly ChatMessage[], options: TimelineOptions): En
     thread = null
   }
   for (const message of messages) {
+    const background = backgroundOf(message)
+    if (background) {
+      close()
+      addBackground(out, message, background, options)
+      continue
+    }
     if (isEvent(message)) {
       close()
       out.push({ kind: "event", message })
@@ -90,8 +110,17 @@ function entries(messages: readonly ChatMessage[], options: TimelineOptions): En
   return out
 }
 
-const entryTime = (e: Entry): number =>
-  e.kind === "thread" ? (e.messages[e.messages.length - 1]?.sentAt ?? 0) : e.message.sentAt
+const isFold = (e: Entry): e is Extract<Entry, { kind: "thread" | "background" }> =>
+  e.kind === "thread" || e.kind === "background"
+
+const entryTime = (e: Entry): number => (isFold(e) ? (e.messages.at(-1)?.sentAt ?? 0) : e.message.sentAt)
+
+const entryId = (e: Entry): string => (isFold(e) ? e.key : e.message.id)
+
+function foldItem(entry: Extract<Entry, { kind: "thread" | "background" }>): TimelineItem {
+  if (entry.kind === "background") return { ...entry }
+  return { kind: "thread", key: entry.key, messages: entry.messages, slugs: entry.slugs, expanded: entry.expanded }
+}
 
 export function buildTimelineItems(
   messages: readonly ChatMessage[],
@@ -133,7 +162,7 @@ export function buildTimelineItems(
 
     if (i > 0 && startsTimeBreak(entryTime(list[i - 1]), at)) {
       const newDay = dayStartOf(entryTime(list[i - 1])) !== dayStart
-      const id = entry.kind === "thread" ? entry.key : entry.message.id
+      const id = entryId(entry)
       items.push({
         kind: "day-divider",
         key: newDay ? `day:${dayStart}` : `gap:${id}`,
@@ -145,14 +174,8 @@ export function buildTimelineItems(
       items.push({ kind: "event", key: `event:${entry.message.id}`, message: entry.message })
       continue
     }
-    if (entry.kind === "thread") {
-      items.push({
-        kind: "thread",
-        key: entry.key,
-        messages: entry.messages,
-        slugs: entry.slugs,
-        expanded: entry.expanded,
-      })
+    if (isFold(entry)) {
+      items.push(foldItem(entry))
       continue
     }
     const message = entry.message

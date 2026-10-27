@@ -1,7 +1,7 @@
-import { fileName, type FileRef, type HumanAsk, type LifeLine, type Task, type WorkerRow } from "@kiko/protocol"
+import { fileName, type FileRef, type HumanAsk, type LifeLine, type Task } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CheckIcon, ChevronRightIcon, ClockIcon, WorkerIcon } from "@kiko/ui/icons"
-import { createContext, createMemo, For, type JSX, onMount, Show, useContext } from "solid-js"
+import { ChevronDownIcon, ChevronRightIcon, MemoryIcon, UploadIcon } from "@kiko/ui/icons"
+import { createContext, createMemo, createSignal, For, type JSX, onCleanup, onMount, Show, useContext } from "solid-js"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { agentDisplayName } from "../../lib/names"
 import { room } from "../../state/room"
@@ -9,11 +9,12 @@ import { user } from "../../state/user"
 import { type CardFile, FileCard } from "../../files/card"
 import { library } from "../../files/library"
 import { fileType } from "../../files/type"
-import type { Routine } from "../info/routines"
-import { triggerLabel } from "../info/routines-model"
+import { elapsed, type HelperLane, helperWord } from "../helpers/helper-model"
+import { Snowflake } from "../helpers/Snowflake"
 import { taskText } from "../info/tasks-model"
-import { deskTasks, fileTiles, helperLabel, helpers, knowns, nowProgress, waiting } from "./desk-model"
-import { type FixedKind, fixedSurface, openFile, openSurface } from "./surfaces"
+import { deskTasks, fileTiles, knowns, nowProgress, taskMark, tasksLine, waiting } from "./desk-model"
+import { MarkView } from "./marks"
+import { type FixedKind, fixedSurface, helperSurface, openFile, openSurface } from "./surfaces"
 import "./card.css"
 
 export const DeskSettled = createContext<() => boolean>(() => true)
@@ -37,7 +38,12 @@ export function Section(props: {
     >
       <Show
         when={props.kind}
-        fallback={<h3 class="flex h-7 items-center px-1 font-sans text-label font-normal text-fg3">{props.label}</h3>}
+        fallback={
+          <h3 class="flex h-7 items-center px-1 font-sans text-label font-normal text-fg3">
+            <span class="min-w-0 flex-1 truncate">{props.label}</span>
+            <span class="shrink-0 text-hint text-fg4">{props.meta}</span>
+          </h3>
+        }
       >
         <button
           type="button"
@@ -139,77 +145,96 @@ export function Waiting(props: { asks: readonly HumanAsk[]; chatId: string }) {
   )
 }
 
-function Box(props: { status: Task["status"] }) {
-  return (
-    <span
-      class="grid size-[18px] shrink-0 place-items-center rounded-check text-on-fg data-[status=done]:bg-fg data-[status!=done]:bg-hover"
-      data-status={props.status}
-    >
-      <Show when={props.status === "done"}>
-        <RemixIcon icon={CheckIcon} size={12} />
-      </Show>
-      <Show when={props.status === "doing"}>
-        <span class="desk-pulse size-1.5 rounded-full bg-fg" />
-      </Show>
-    </span>
-  )
-}
-
-export function Tasks(props: { tasks: readonly Task[]; chatId: string }) {
+export function Tasks(props: { tasks: readonly Task[]; chatId: string; fold?: boolean }) {
   const desk = createMemo(() => deskTasks(props.tasks))
   const members = () => room.roomMembers()
+  const asking = createMemo(() => new Set((room.active()?.asks() ?? []).map((ask) => ask.from)))
+  const [open, setOpen] = createSignal(false)
+  const folded = () => props.fold === true && !open()
   return (
     <Section label="Tasks" kind="tasks" chatId={props.chatId} meta={`${desk().completed} of ${desk().total}`}>
-      <ul class="flex flex-col" aria-label="Tasks">
-        <For each={desk().shown}>
-          {(task) => (
-            <li
-              class="flex min-h-9 items-center gap-2.5 px-1 py-1.5"
-              data-component="card-task"
-              data-status={task.status}
-            >
-              <Box status={task.status} />
-              <span
-                class={`min-w-0 flex-1 truncate text-ui ${task.status === "done" ? "text-fg4 line-through" : "text-fg"}`}
+      <Show when={props.fold === true}>
+        <button
+          type="button"
+          class={`-mx-1 flex min-h-11 items-center gap-2.5 rounded-row px-1 text-left hover:bg-hover ${press}`}
+          data-component="card-tasks-fold"
+          aria-expanded={!folded()}
+          onClick={() => setOpen(!open())}
+        >
+          <MarkView mark="done" />
+          <span class="min-w-0 flex-1 truncate text-ui text-fg3">{tasksLine(props.tasks)}</span>
+          <RemixIcon icon={folded() ? ChevronRightIcon : ChevronDownIcon} size={14} class="shrink-0 text-fg4" />
+        </button>
+      </Show>
+      <Show when={!folded()}>
+        <ul class="flex flex-col" aria-label="Tasks">
+          <For each={desk().shown}>
+            {(task) => (
+              <li
+                class="flex min-h-11 items-center gap-2.5 px-1 py-1.5"
+                data-component="card-task"
+                data-status={task.status}
+                data-mark={taskMark(task, asking())}
               >
-                {taskText(task.title, members())}
-              </span>
-              <Show when={task.owner}>{(slug) => <IdentityAvatar seed={slug()} size={20} />}</Show>
-            </li>
-          )}
-        </For>
-      </ul>
-      <Show when={desk().more}>
-        <span class="px-1 text-hint text-fg4">{`+${desk().more} more`}</span>
+                <MarkView mark={taskMark(task, asking())} />
+                <span class="flex min-w-0 flex-1 flex-col">
+                  <span class={`truncate text-ui ${task.status === "done" ? "text-fg3" : "text-fg"}`}>
+                    {taskText(task.title, members())}
+                  </span>
+                  <Show when={task.status === "doing" && task.owner && members().length > 1}>
+                    <span class="truncate text-hint text-fg4">{agentDisplayName(task.owner!, members())}</span>
+                  </Show>
+                </span>
+              </li>
+            )}
+          </For>
+        </ul>
+        <Show when={desk().more}>
+          <span class="px-1 text-hint text-fg4">{`+${desk().more} more`}</span>
+        </Show>
       </Show>
     </Section>
   )
 }
 
-export function Helpers(props: { workers: readonly WorkerRow[]; chatId: string }) {
-  const sorted = createMemo(() => helpers(props.workers))
-  const running = () => sorted().filter((w) => w.status === "running" || w.status === "pending").length
+export function Helpers(props: { lanes: readonly HelperLane[]; chatId: string }) {
+  const working = () => props.lanes.filter((lane) => lane.state === "working").length
+  const [now, setNow] = createSignal(Date.now())
+  const timer = setInterval(() => setNow(Date.now()), 1000)
+  onCleanup(() => clearInterval(timer))
+  const group = () => room.roomMembers().length > 1
   return (
     <Section
       label="Helpers"
       chatId={props.chatId}
-      meta={running() ? `${running()} of ${sorted().length} working` : `${sorted().length}`}
+      meta={working() ? `${working()} of ${props.lanes.length} working` : `${props.lanes.length}`}
     >
-      <ul class="flex flex-wrap gap-1.5" aria-label="Helpers">
-        <For each={sorted()}>
-          {(worker) => (
-            <li
-              class="flex h-7 max-w-full items-center gap-1.5 rounded-full bg-active pr-2.5 pl-2 text-[13px] text-fg"
-              data-component="card-helper"
-              data-status={worker.status}
-            >
-              <RemixIcon icon={WorkerIcon} size={13} class="shrink-0 text-fg2" />
-              <span class="truncate">{worker.task}</span>
-              <span
-                class={`shrink-0 text-hint ${worker.status === "done" ? "text-ok" : worker.status === "failed" ? "text-bad" : "text-fg3"}`}
+      <ul class="flex flex-col" aria-label="Helpers">
+        <For each={props.lanes}>
+          {(lane) => (
+            <li>
+              <button
+                type="button"
+                class={`-mx-1 flex min-h-11 w-[calc(100%+0.5rem)] items-center gap-2.5 rounded-row px-1 py-1.5 text-left hover:bg-hover ${press}`}
+                data-component="card-helper"
+                data-state={lane.state}
+                onClick={() => openSurface(props.chatId, helperSurface(lane.id, lane.window))}
               >
-                {helperLabel(worker)}
-              </span>
+                <Snowflake seed={lane.id} size={20} state={lane.state} parent={group() ? lane.slug : undefined} />
+                <span class="flex min-w-0 flex-1 flex-col">
+                  <span class={`truncate text-ui ${lane.state === "working" ? "text-fg" : "text-fg3"}`}>
+                    {lane.title}
+                  </span>
+                  <span class="truncate text-hint text-fg4">
+                    {lane.state === "working"
+                      ? `${lane.line}`
+                      : `${helperWord(lane.state)}, ${lane.count} ${lane.count === 1 ? "step" : "steps"}`}
+                  </span>
+                </span>
+                <Show when={lane.state === "working"}>
+                  <span class="shrink-0 text-hint text-fg4">{elapsed(now() - lane.startedAt)}</span>
+                </Show>
+              </button>
             </li>
           )}
         </For>
@@ -240,7 +265,7 @@ export function Files(props: { files: readonly FileRef[]; chatId: string }) {
     }
   }
   return (
-    <Section label="Files" kind="files" chatId={props.chatId} meta={`${props.files.length}`}>
+    <Section label="Outputs" kind="files" chatId={props.chatId} meta={`${props.files.length}`}>
       <div class="grid grid-cols-2 gap-2" data-component="card-files">
         <For each={tiles().shown}>
           {(file) => (
@@ -268,66 +293,57 @@ export function Files(props: { files: readonly FileRef[]; chatId: string }) {
   )
 }
 
-export function Routines(props: { routines: readonly Routine[]; chatId: string }) {
-  const active = () => props.routines.filter((r) => r.status === "active").length
+function UsedRow(props: { icon: typeof MemoryIcon; label: string; value: string; action: string; onOpen: () => void }) {
   return (
-    <Section
-      label="Routines"
-      kind="routines"
-      chatId={props.chatId}
-      meta={active() ? `${active()} active` : `${props.routines.length} paused`}
+    <button
+      type="button"
+      class={`-mx-1 flex min-h-11 w-[calc(100%+0.5rem)] items-center gap-2.5 rounded-row px-1 text-left hover:bg-hover ${press}`}
+      data-component="card-used"
+      data-action={props.action}
+      onClick={props.onOpen}
     >
-      <ul class="flex flex-col" aria-label="Routines">
-        <For each={props.routines.slice(0, 3)}>
-          {(routine) => (
-            <li class="flex min-h-9 items-center gap-2.5 px-1 py-1.5" data-component="card-routine">
-              <RemixIcon icon={ClockIcon} size={16} class="shrink-0 text-fg2" />
-              <span class="min-w-0 flex-1 truncate text-ui text-fg">{routine.name}</span>
-              <span class="max-w-[45%] shrink-0 truncate text-hint text-fg4">
-                {routine.status === "active" ? triggerLabel(routine.trigger, routine.tz) : "Paused"}
-              </span>
-            </li>
-          )}
-        </For>
-      </ul>
-    </Section>
+      <RemixIcon icon={props.icon} size={16} class="shrink-0 text-fg2" />
+      <span class="shrink-0 text-ui text-fg">{props.label}</span>
+      <span class="min-w-0 flex-1 truncate text-right text-hint text-fg4">{props.value}</span>
+    </button>
   )
 }
 
-export function Memory(props: { lines: readonly LifeLine[]; more: boolean; whose: string; chatId: string }) {
-  const known = createMemo(() => knowns(props.lines))
-  const open = () => openSurface(props.chatId, fixedSurface("memory"))
+export function Used(props: { files: readonly FileRef[]; lines: readonly LifeLine[]; chatId: string }) {
+  onMount(library.want)
+  const yours = createMemo(() => {
+    const made = new Map(library.files().map((f) => [f.file.id, f.madeBy]))
+    return props.files.filter((file) => made.has(file.id) && made.get(file.id) === null)
+  })
+  const known = createMemo(() => knowns(props.lines).shown.slice(0, 2))
+  const uploads = () =>
+    yours()
+      .map((file) => fileName(file.name))
+      .join(", ")
   return (
-    <Section
-      label={`${props.whose} knows here`}
-      kind="memory"
-      chatId={props.chatId}
-      meta={`${props.lines.filter((l) => !l.redacted).length}${props.more ? "+" : ""}`}
-    >
-      <div class="flex flex-wrap gap-1.5" data-component="card-memory">
-        <For each={known().shown}>
-          {(line) => (
-            <button
-              type="button"
-              class={`h-7 max-w-full truncate rounded-full bg-active px-3 text-[13px] text-fg hover:bg-hover ${press}`}
-              data-action="open-memory"
-              title={line.text}
-              onClick={open}
-            >
-              {line.text}
-            </button>
-          )}
-        </For>
-        <Show when={known().more}>
-          <button
-            type="button"
-            class={`h-7 rounded-full px-2.5 text-[13px] text-fg3 hover:bg-hover hover:text-fg ${press}`}
-            onClick={open}
-          >
-            {`+${known().more}`}
-          </button>
+    <Show when={yours().length > 0 || known().length > 0}>
+      <Section label="Used in this chat" chatId={props.chatId}>
+        <Show when={yours().length > 0}>
+          <UsedRow
+            icon={UploadIcon}
+            label="Uploads"
+            value={uploads()}
+            action="open-uploads"
+            onOpen={() => openSurface(props.chatId, fixedSurface("files"))}
+          />
         </Show>
-      </div>
-    </Section>
+        <Show when={known().length > 0}>
+          <UsedRow
+            icon={MemoryIcon}
+            label="Memory"
+            value={known()
+              .map((line) => line.text)
+              .join(", ")}
+            action="open-memory"
+            onOpen={() => openSurface(props.chatId, fixedSurface("memory"))}
+          />
+        </Show>
+      </Section>
+    </Show>
   )
 }

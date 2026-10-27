@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 import { render } from "../../../test/render"
 import Desk from "./Desk"
 import { PANELS, panelLabel } from "./panels"
-import { agentSurface, closeAll, deskView, fixedSurface, openFile, openFiles } from "./surfaces"
+import { agentSurface, closeAll, deskView, fixedSurface, openFile, openFiles, openSurface } from "./surfaces"
 
 const CHAT = "01900000-0000-7000-8000-0000000000aa"
 
@@ -17,22 +17,33 @@ function routed(ui: () => JSX.Element) {
 }
 
 describe("chat details panel", () => {
-  it("drills from the overview into a section and back, with Close always there", async () => {
+  it("moves between the overview and the rail views, with Close always there", async () => {
     closeAll(CHAT)
     const onClose = vi.fn()
     await using screen = await render(routed(() => <Desk chatId={CHAT} onClose={onClose} />))
     await expect.element(screen.getByRole("button", { name: "Close chat details" })).toBeVisible()
+    await expect.element(screen.getByRole("heading", { name: "This chat" })).toBeVisible()
     await screen.getByRole("button", { name: "Routines" }).click()
     await expect.element(screen.getByRole("heading", { name: "Routines" })).toBeVisible()
-    await expect.element(screen.getByRole("button", { name: "Back" })).toBeVisible()
+    await expect.element(screen.getByRole("button", { name: "Back" })).not.toBeInTheDocument()
+    await expect.element(screen.getByRole("button", { name: "Routines" })).toHaveAttribute("aria-pressed", "true")
     expect(screen.container.querySelector('[data-component="sidecar-body"]')?.getAttribute("data-kind")).toBe(
       "routines",
     )
-    await screen.getByRole("button", { name: "Back" }).click()
+    await screen.getByRole("button", { name: "This chat" }).click()
     expect(deskView(CHAT)).toBeNull()
-    await expect.element(screen.getByRole("button", { name: "Back" })).not.toBeInTheDocument()
+    await expect.element(screen.getByRole("heading", { name: "This chat" })).toBeVisible()
     await screen.getByRole("button", { name: "Close chat details" }).click()
     expect(onClose).toHaveBeenCalledOnce()
+    closeAll(CHAT)
+  })
+
+  it("goes back from a member page to the overview", async () => {
+    closeAll(CHAT)
+    await using screen = await render(routed(() => <Desk chatId={CHAT} onClose={() => {}} />))
+    openSurface(CHAT, agentSurface("scout"))
+    await screen.getByRole("button", { name: "Back" }).click()
+    expect(deskView(CHAT)).toBeNull()
     closeAll(CHAT)
   })
 

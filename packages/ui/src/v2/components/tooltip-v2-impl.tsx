@@ -3,7 +3,7 @@ import { createEffect, Match, onCleanup, splitProps, Switch, type JSX } from "so
 import type { ComponentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 
-const HANDOFF_MS = 600
+const HANDOFF_MS = 400
 let lastClosedAt = Number.NEGATIVE_INFINITY
 const warm = () => performance.now() - lastClosedAt < HANDOFF_MS
 
@@ -99,9 +99,10 @@ export function TooltipV2(props: TooltipV2Props) {
       <Match when={true}>
         <KobalteTooltip
           gutter={4}
+          overflowPadding={5}
           skipDelayDuration={HANDOFF_MS}
           {...others}
-          openDelay={warm() ? 0 : (others.openDelay ?? 300)}
+          openDelay={warm() ? 0 : (others.openDelay ?? 600)}
           closeDelay={0}
           ignoreSafeArea={local.ignoreSafeArea ?? true}
           open={local.forceOpen || state.open}

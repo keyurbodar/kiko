@@ -87,7 +87,6 @@ export const SystemEvent = Schema.Union([
   Schema.Struct({ kind: Schema.Literal("delegated"), from: AgentSlug, to: AgentSlug, title: Schema.String }),
   Schema.Struct({ kind: Schema.Literal("routine"), title: Schema.String }),
   Schema.Struct({ kind: Schema.Literal("agent_message"), from: AgentSlug, to: AgentSlug }),
-  Schema.Struct({ kind: Schema.Literal("activity"), count: Count }),
   Schema.Struct({
     kind: Schema.Literal("routine_created"),
     agent: AgentSlug,
@@ -103,6 +102,7 @@ export const SystemEvent = Schema.Union([
     ...privately,
   }),
   Schema.Struct({ kind: Schema.Literal("compacted"), agent: AgentSlug, ...privately }),
+  Schema.Struct({ kind: Schema.Literal("activity"), agent: AgentSlug, ...privately }),
   Schema.Struct({ kind: Schema.Literal("run_stopped"), agent: AgentSlug, ...privately }),
   Schema.Struct({ kind: Schema.Literal("group_formed"), ...privately }),
   Schema.Struct({ kind: Schema.Literal("member_added"), slug: AgentSlug, name: Schema.String, ...privately }),

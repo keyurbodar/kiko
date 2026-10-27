@@ -1,6 +1,6 @@
 import type { CatalogModel, CatalogProvider } from "@kiko/protocol"
 import { describe, expect, it } from "vitest"
-import { ALL_PROVIDERS, modelTrait, pickerEntries, shortModelName, STARRED } from "./model-list"
+import { modelTrait, pickerEntries, shortModelName, STARRED } from "./model-list"
 
 const model = (id: string, over: Partial<CatalogModel> = {}): CatalogModel => ({
   id,
@@ -24,23 +24,13 @@ const provider = (id: string, models: CatalogModel[]): CatalogProvider => ({
 const PROVIDERS = [provider("a", [model("one"), model("two")]), provider("b", [model("three")])]
 
 const shape = (entries: ReturnType<typeof pickerEntries>) =>
-  entries.map((e) => (e.kind === "head" ? `# ${e.label}` : `${e.key}@${e.at}`))
+  entries.map((e) => (e.kind === "legacy" ? `legacy ${e.count}${e.open ? " open" : ""}` : `${e.key}@${e.at}`))
 
-const base = { providers: PROVIDERS, starred: [], hidden: [], current: undefined, filter: ALL_PROVIDERS, query: "" }
+const base = { providers: PROVIDERS, starred: [], hidden: [], current: undefined, filter: "a", query: "" }
 
 describe("pickerEntries", () => {
-  it("labels each provider and lists starred models first, once", () => {
-    expect(shape(pickerEntries({ ...base, starred: ["b/three"] }))).toEqual([
-      "# Starred",
-      "b/three@0",
-      "# A",
-      "a/one@1",
-      "a/two@2",
-    ])
-  })
-
-  it("shows one provider without labels when filtered", () => {
-    expect(shape(pickerEntries({ ...base, filter: "a", starred: ["a/one"] }))).toEqual(["a/one@0", "a/two@1"])
+  it("lists one provider's models", () => {
+    expect(shape(pickerEntries({ ...base, filter: "b" }))).toEqual(["b/three@0"])
   })
 
   it("lists only starred models from every provider under the starred filter", () => {
@@ -50,9 +40,28 @@ describe("pickerEntries", () => {
     ])
   })
 
-  it("searches without labels and keeps the current model even when hidden", () => {
+  it("searches every provider and keeps the current model even when hidden", () => {
     expect(shape(pickerEntries({ ...base, query: "t", hidden: ["a/two", "b/three"], current: "a/two" }))).toEqual([
       "a/two@0",
+    ])
+  })
+
+  it("folds superseded versions into a legacy group that opens on request", () => {
+    const glm = [provider("g", [model("5.2", { name: "GLM 5.2" }), model("5.3", { name: "GLM 5.3" })])]
+    const input = { ...base, providers: glm, filter: "g" }
+    expect(shape(pickerEntries(input))).toEqual(["g/5.3@0", "legacy 1"])
+    expect(shape(pickerEntries({ ...input, legacyOpen: true }))).toEqual(["g/5.3@0", "legacy 1 open", "g/5.2@1"])
+  })
+
+  it("keeps a starred or current legacy model in the main list", () => {
+    const glm = [provider("g", [model("5.2", { name: "GLM 5.2" }), model("5.3", { name: "GLM 5.3" })])]
+    expect(shape(pickerEntries({ ...base, providers: glm, filter: "g", starred: ["g/5.2"] }))).toEqual([
+      "g/5.2@0",
+      "g/5.3@1",
+    ])
+    expect(shape(pickerEntries({ ...base, providers: glm, filter: "g", current: "g/5.2" }))).toEqual([
+      "g/5.2@0",
+      "g/5.3@1",
     ])
   })
 })

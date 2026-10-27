@@ -15,7 +15,7 @@ import * as AtomRegistry from "effect/reactivity/AtomRegistry"
 import type { PreparedConnection, SupervisorConnectionState } from "../connection/model"
 import { OwnerSupervisor } from "../connection/supervisor"
 import * as Wakeups from "../connection/wakeups"
-import { layer as cacheLayer, SnapshotCache, SnapshotStore } from "../platform/cache"
+import { layer as cacheLayer, layerMemoryStore, SnapshotCache, SnapshotStore } from "../platform/cache"
 import type { OwnerRpcClient } from "../rpc/protocol"
 import type { RpcSession } from "../rpc/session"
 import { runAtomCommand } from "./atomCommand"
@@ -101,20 +101,23 @@ const setup = Effect.fnUntraced(function* (connected = true) {
     signals: yield* PubSub.unbounded<UserSignal>(),
     disconnected: Effect.void,
   })
-  const services = Layer.mergeAll(
-    Layer.succeed(OwnerSupervisor, supervisor),
-    Layer.succeed(UserStore, user),
-    cacheLayer.pipe(Layer.provide(Layer.succeed(SnapshotStore, store))),
-    Pending.layer,
-    Wakeups.layerNone,
-  )
+  const servicesWith = (snapshots: Layer.Layer<SnapshotStore>) =>
+    Layer.mergeAll(
+      Layer.succeed(OwnerSupervisor, supervisor),
+      Layer.succeed(UserStore, user),
+      cacheLayer.pipe(Layer.provide(snapshots)),
+      Pending.layer,
+      Wakeups.layerNone,
+    )
+  const services = servicesWith(Layer.succeed(SnapshotStore, store))
   const cache = yield* SnapshotCache.pipe(
     Effect.provide(cacheLayer.pipe(Layer.provide(Layer.succeed(SnapshotStore, store)))),
   )
   const runtime = Atom.runtime(services) as unknown as Atom.AtomRuntime<OwnerRuntimeServices, never>
   const owner = createOwnerAtoms(runtime)
   const registry = AtomRegistry.make()
-  return { owner, registry, subscribes, feeds, reads, cache, session, sessions, requests, user }
+  registry.mount(owner.connectionAtom)
+  return { owner, registry, subscribes, feeds, reads, cache, session, sessions, requests, user, services, servicesWith }
 })
 
 const settle = Effect.repeat(Effect.yieldNow, { times: 50 })
@@ -185,6 +188,26 @@ describe("room atoms", () => {
       expect(subscribes).toEqual([{ roomId: ROOM, afterSequence: 4 }])
       leave()
       hover()
+    }),
+  )
+
+  it.effect("a room opened before the disk cache is attached paints the cached snapshot once it is", () =>
+    Effect.gen(function* () {
+      const { registry, cache, subscribes, services, servicesWith } = yield* setup()
+      yield* cache.saveRoom(ROOM, { sequence: 5, snapshot: roomSnapshot(5, [message(5, "on disk")]) })
+      const attached = Atom.make(false)
+      const runtime = Atom.runtime((get) =>
+        get(attached) ? services : servicesWith(layerMemoryStore),
+      ) as unknown as Atom.AtomRuntime<OwnerRuntimeServices, never>
+      const owner = createOwnerAtoms(runtime)
+      const leave = registry.mount(owner.roomAtom(ROOM))
+      yield* settle
+      registry.set(attached, true)
+      yield* settle
+      const state = stateOf(registry, owner)
+      expect(Option.getOrThrow(state.data).messages.map((m) => m.text)).toEqual(["on disk"])
+      expect(subscribes.at(-1)).toEqual({ roomId: ROOM, afterSequence: 5 })
+      leave()
     }),
   )
 

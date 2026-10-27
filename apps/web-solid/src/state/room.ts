@@ -34,13 +34,15 @@ import { createStore, produce } from "solid-js/store"
 import { session as signedIn } from "../app/session"
 import { arriveLine, hideLine, NO_LINE, openLine, sendLine, showLine, type UnreadLine } from "../chat/lib/unread-line"
 import { inWindow, newestAfter, parseWindow, stepWindows, upsertStep, windowKey } from "../chat/run/run-log"
+import { helperLanes, nestedLanes } from "../chat/helpers/helper-model"
 import { fillComposer } from "../composer/fill"
+import { releaseUpload, uploadedFile } from "../composer/uploads"
 import { distinctTitles, resumeChat, rosterChats } from "../lib/chats"
 import { seenInChat, showFailure, showNotice } from "../lib/errors"
 import { fileUrl } from "../lib/file-token"
 import { chatFaces } from "../lib/identity"
 import { agentDisplayName } from "../lib/names"
-import type { BotPresence, ChatMessage, OutgoingMessage, Reaction, RosterBot } from "../lib/types"
+import type { BotPresence, ChatMessage, MessageFile, OutgoingMessage, Reaction, RosterBot } from "../lib/types"
 import { describeLast, isListed } from "../sidebar/activity"
 import { clearUnreadMark } from "../sidebar/unread-mark"
 import { connection } from "./connection"
@@ -48,6 +50,8 @@ import { liveLine, liveStatusOf, thinkingLine, type LiveStatus } from "./live-st
 import { createThoughts, type ThinkingSignal, type Thought } from "./thoughts"
 import { attempt, observe, owner, registry, valueOf, watch } from "./runtime"
 import { onUserSignal, user } from "./user"
+import { withSentFiles } from "./sent-files"
+import { createOutbox, type Outbound } from "./outbox"
 
 const PENDING_SEQ = Number.MAX_SAFE_INTEGER
 const HISTORY_PAGE = 30
@@ -101,6 +105,7 @@ function toChatMessage(m: Message, roomId: string): ChatMessage {
     sentAt: Number.isFinite(m.at) ? m.at : Date.now(),
   }
   if (m.from.kind === "agent") out.botId = m.from.slug
+  else if (m.event?.kind === "activity" && "agent" in m.event) out.botId = m.event.agent
   if (m.clientId) out.clientId = m.clientId
   if (!pending) out.seq = m.seq
   copyOptional(out, m)
@@ -520,19 +525,83 @@ function createRoom() {
     return out
   })
 
-  const views = new WeakMap<Message, ChatMessage>()
+  let views = new WeakMap<Message, ChatMessage>()
+  const sentFiles = new Map<string, readonly MessageFile[]>()
+  const releaseSentFiles = (commandId?: string) => {
+    const ids = commandId === undefined ? [...sentFiles.keys()] : [commandId]
+    for (const id of ids) {
+      for (const file of sentFiles.get(id) ?? []) URL.revokeObjectURL(file.src)
+      sentFiles.delete(id)
+    }
+  }
+  createComputed(
+    on(
+      activeId,
+      () => {
+        releaseSentFiles()
+        views = new WeakMap()
+      },
+      { defer: true },
+    ),
+  )
+  const outbox = createOutbox()
+  let queuedViews = new Map<string, { failed: boolean; view: ChatMessage }>()
+  const queuedRows = createMemo(
+    (): readonly ChatMessage[] => {
+      const id = activeId()
+      const next = new Map<string, { failed: boolean; view: ChatMessage }>()
+      const out = id
+        ? outbox.queued(id).map(({ entry, failed }) => {
+            const cached = queuedViews.get(entry.commandId)
+            const view =
+              cached?.failed === failed
+                ? cached.view
+                : {
+                    ...withSentFiles(toChatMessage(entry.message, id), entry.files),
+                    ...(failed ? { status: "failed" as const } : {}),
+                  }
+            next.set(entry.commandId, { failed, view })
+            return view
+          })
+        : []
+      queuedViews = next
+      return out
+    },
+    [],
+    { equals: (a, b) => a.length === b.length && a.every((view, i) => view === b[i]) },
+  )
   const rows = createMemo(() => {
     const id = activeId()
     if (!id) return [] as ChatMessage[]
-    return messages().map((m) => {
+    const list = messages().map((m) => {
       const cached = views.get(m)
       if (cached && cached.threadId === id) return cached
-      const view = toChatMessage(m, id)
+      const sent = m.clientId ? sentFiles.get(m.clientId) : undefined
+      const base = toChatMessage(m, id)
+      const view = sent ? withSentFiles(base, sent) : base
       views.set(m, view)
       return view
     })
+    const queued = queuedRows()
+    if (queued.length === 0) return list
+    const landed = new Set(list.map((view) => view.clientId))
+    return [...list, ...queued.filter((view) => !landed.has(view.clientId))]
   })
   const windows = createMemo(() => stepWindows(rows()))
+  const helperStatuses = createMemo(
+    () =>
+      new Map(
+        (snapshot()?.agents ?? []).flatMap((a) =>
+          a.activity?.kind === "background" ? a.activity.workers.map((w) => [w.id, w.status] as const) : [],
+        ),
+      ),
+  )
+  const helpers = createMemo(() =>
+    Object.values(runs.current().steps)
+      .flatMap((steps) => helperLanes(steps, helperStatuses(), busy))
+      .toSorted((a, b) => a.startedAt - b.startedAt),
+  )
+  const nestedHelpers = createMemo(() => nestedLanes(helpers(), busy))
   const thoughtAnchors = createMemo(() => {
     const out = new Map<string, Thought>()
     for (const list of Object.values(thoughts.all()))
@@ -693,13 +762,28 @@ function createRoom() {
   const findMessage = (id: string) => messages().find((m) => m.id === id)
 
   const sendRefusals = new Set<(reason: string) => void>()
+  async function restoreDraft(roomId: RoomId, text: string, uploads: readonly string[]) {
+    const files = uploads.flatMap((id) => {
+      const file = uploadedFile(id)
+      return file ? [{ id, name: file.name, type: file.type, size: file.blob.size, blob: file.blob }] : []
+    })
+    for (const id of uploads) releaseUpload(id)
+    if (files.length) {
+      const drafts = await import("../composer/rich/draft-files")
+      await Promise.all(files.map((file) => drafts.putDraftFile(roomId, file)))
+    }
+    fillComposer(roomId, text)
+  }
+
   async function deliver(
     roomId: RoomId,
     text: string,
     extra: Omit<Parameters<typeof sendInput>[0], "roomId" | "text">,
+    uploads: readonly string[] = [],
   ) {
     const result = await attempt(owner.commands.sendMessage, sendInput({ roomId, text, ...extra }), (reason) => {
-      fillComposer(roomId, text)
+      releaseSentFiles(extra.commandId)
+      void restoreDraft(roomId, text, uploads)
       showFailure(reason)
       for (const listener of sendRefusals) listener(reason)
     })
@@ -717,13 +801,50 @@ function createRoom() {
     const commandId = crypto.randomUUID()
     typing.sent()
     history.live()
-    void deliver(id, message.body, {
+    const extra = {
       commandId,
       ...(stored ? { replyTo: replyTo as MessageId, ...(quote ? { quote } : {}) } : {}),
       ...(message.attachments?.length ? { attachments: message.attachments } : {}),
-    })
+    }
+    const files = message.files ?? []
+    const uploads = message.uploads ?? []
+    if (uploads.length) outbox.add(queuedSend(id, message.body, extra, files, uploads))
+    else {
+      if (files.length) sentFiles.set(commandId, files)
+      void deliver(id, message.body, extra)
+    }
     setLine(sendLine)
     return `local:${commandId}`
+  }
+
+  function queuedSend(
+    roomId: RoomId,
+    text: string,
+    extra: Omit<Parameters<typeof sendInput>[0], "roomId" | "text">,
+    files: readonly MessageFile[],
+    uploads: readonly string[],
+  ): Outbound {
+    const message: Message = {
+      id: `local:${extra.commandId}` as MessageId,
+      clientId: extra.commandId as Message["clientId"],
+      seq: PENDING_SEQ,
+      at: Date.now(),
+      from: { kind: "human" },
+      text,
+      ...(extra.replyTo ? { replyTo: extra.replyTo, ...(extra.quote ? { quote: extra.quote } : {}) } : {}),
+    }
+    return {
+      commandId: extra.commandId,
+      roomId,
+      message,
+      files,
+      uploads,
+      deliver: () => {
+        if (roomId === untrack(activeId)) sentFiles.set(extra.commandId, files)
+        else for (const file of files) URL.revokeObjectURL(file.src)
+        return deliver(roomId, text, extra, uploads)
+      },
+    }
   }
 
   const refusal =
@@ -829,6 +950,8 @@ function createRoom() {
       const { slug, after } = parseWindow(key)
       return inWindow(runs.current().steps[slug] ?? [], after)
     },
+    helpers,
+    nestedHelpers,
     runLive: (key: string) => !windows().has(key) && busy(parseWindow(key).slug),
     loadRunSteps(key: string, force = false) {
       const w = windows().get(key)
@@ -877,12 +1000,14 @@ function createRoom() {
       void attempt(owner.commands.editMessage, { roomId: id, messageId: m.id, text }, showFailure)
     },
     retryRun(messageId: string) {
+      if (outbox.retry(messageId)) return
       const id = activeId()
       const m = findMessage(messageId)
       if (!id || (m && isPending(m))) return
       void attempt(owner.commands.retry, { roomId: id, messageId: messageId as MessageId }, showFailure)
     },
     deleteMessage(messageId: string) {
+      if (outbox.remove(messageId)) return
       const id = activeId()
       const m = findMessage(messageId)
       if (!id || !m || isPending(m) || m.from.kind !== "human") return

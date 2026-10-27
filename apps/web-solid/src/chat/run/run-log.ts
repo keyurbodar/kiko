@@ -316,41 +316,5 @@ export const inWindow = (steps: readonly RunStep[], after: number) => steps.filt
 
 export const newestAfter = (steps: readonly RunStep[]) => steps.reduce((n, s) => Math.max(n, s.after), -1)
 
-export type Entry =
-  | { key: string; kind: "step"; step: RunStep; child: boolean }
-  | { key: string; kind: "worker"; id: string; task: string; steps: readonly RunStep[]; open: boolean }
-
-export function buildEntries(steps: readonly RunStep[], open: ReadonlySet<string>): Entry[] {
-  type Item = { at: number; order: number; step?: RunStep; worker?: { id: string; task: string; steps: RunStep[] } }
-  const items: Item[] = []
-  const workers = new Map<string, { id: string; task: string; steps: RunStep[] }>()
-  for (const step of steps) {
-    if (!step.worker) {
-      items.push({ at: step.startedAt, order: 0, step })
-      continue
-    }
-    const group = workers.get(step.worker.id)
-    if (group) group.steps.push(step)
-    else {
-      const created = { id: step.worker.id, task: step.worker.task, steps: [step] }
-      workers.set(step.worker.id, created)
-      items.push({ at: step.startedAt, order: 1, worker: created })
-    }
-  }
-  items.sort((a, b) => a.at - b.at || a.order - b.order)
-  const out: Entry[] = []
-  for (const item of items) {
-    if (item.step) {
-      out.push({ key: `s:${item.step.id}`, kind: "step", step: item.step, child: false })
-      continue
-    }
-    const w = item.worker!
-    const isOpen = open.has(w.id)
-    out.push({ key: `w:${w.id}`, kind: "worker", id: w.id, task: w.task, steps: w.steps, open: isOpen })
-    if (isOpen) for (const step of w.steps) out.push({ key: `s:${step.id}`, kind: "step", step, child: true })
-  }
-  return out
-}
-
 export const anyRunning = (steps: readonly Pick<RunStep, "status">[]): boolean =>
   steps.some((s) => s.status === "running")

@@ -129,6 +129,14 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
       Atom.setIdleTTL(ROOM_SNAPSHOT_IDLE_TTL_MS),
     ),
   )
+  const resumeIn = (resume: RoomResumeCache, current: Atom.Type<typeof runtime>) => {
+    const services = Option.getOrUndefined(AsyncResult.value(current))
+    if (resume.services === services) return resume
+    resume.services = services
+    resume.snapshot = undefined
+    resume.owner = undefined
+    return resume
+  }
   const roomSignalsFamily = Atom.family((_roomId: RoomId) =>
     Atom.make(() => Effect.runSync(PubSub.unbounded<RoomSignal>())).pipe(Atom.setIdleTTL(ROOM_SNAPSHOT_IDLE_TTL_MS)),
   )
@@ -164,7 +172,7 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
         (get) => {
           const resumeAtom = roomResumeFamily(roomId)
           get.mount(resumeAtom)
-          const resume = get.once(resumeAtom)
+          const resume = resumeIn(get.once(resumeAtom), get(runtime))
           const signals = get.once(roomSignalsFamily(roomId))
           const pages = get.once(roomPagesFamily(roomId))
           const loaded = resume.snapshot === undefined ? loadedCachedRoom(get.registry, roomId) : undefined
@@ -182,7 +190,7 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
   )
 
   const seedNewRoom = (registry: AtomRegistry.AtomRegistry, roomId: RoomId, members: ReadonlyArray<Member>) => {
-    const resume = registry.get(roomResumeFamily(roomId))
+    const resume = resumeIn(registry.get(roomResumeFamily(roomId)), registry.get(runtime))
     if (resume.snapshot === undefined) resume.snapshot = newRoomState(members)
   }
 

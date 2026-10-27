@@ -1,18 +1,18 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ChevronRightIcon, PlusIcon } from "@kiko/ui/icons"
-import { createMemo, For, onMount, Show } from "solid-js"
+import { PlusIcon } from "@kiko/ui/icons"
+import { For, onMount, Show } from "solid-js"
 import { AddSomeoneItems } from "../../composer/add-someone"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { room } from "../../state/room"
 import { useMemoryStore } from "../info/memory/views"
 import { routinesOf } from "../info/routines"
 import { leadName } from "../info/empty"
-import { DeskSettled, Files, Helpers, Memory, Now, Routines, Section, Tasks, Waiting } from "./desk-sections"
-import { type FixedKind, PANELS } from "./panels"
+import { DeskSettled, Files, Helpers, Now, Section, Tasks, Used, Waiting } from "./desk-sections"
+import { useDeskMode } from "./desk-live"
 import { isGroup } from "./overview-model"
 import "./card.css"
-import { agentSurface, fixedSurface, openSurface } from "./surfaces"
+import { agentSurface, openSurface } from "./surfaces"
 
 const press = "transition-[background-color,transform] duration-(--dur-hover) ease-kiko active:scale-[0.98]"
 
@@ -36,25 +36,6 @@ function AddMember(props: { chatId: string }) {
   )
 }
 
-function Drill(props: { chatId: string; kind: FixedKind; label: string }) {
-  return (
-    <button
-      type="button"
-      class={`group/drill flex h-9 items-center gap-2.5 rounded-row px-2 text-left text-ui text-fg hover:bg-hover ${press}`}
-      data-action={`open-${props.kind}`}
-      onClick={() => openSurface(props.chatId, fixedSurface(props.kind))}
-    >
-      <RemixIcon icon={PANELS[props.kind].icon} size={16} class="shrink-0 text-fg2" />
-      <span class="min-w-0 flex-1 truncate">{props.label}</span>
-      <RemixIcon
-        icon={ChevronRightIcon}
-        size={14}
-        class="shrink-0 text-fg4 transition-transform duration-(--dur-hover) ease-kiko group-hover/drill:translate-x-0.5"
-      />
-    </button>
-  )
-}
-
 export default function DeskOverview(props: { chatId: string }) {
   let settled = false
   onMount(() => requestAnimationFrame(() => (settled = true)))
@@ -65,40 +46,35 @@ export default function DeskOverview(props: { chatId: string }) {
     const row = chat()
     return row && row.presence !== "idle" ? (row.typing ?? null) : null
   }
+  const mode = useDeskMode(() => props.chatId)
   const files = () => room.files()
   const routines = () => routinesOf(props.chatId)
   const tasks = () => room.tasks() ?? []
   const asks = () => room.active()?.asks() ?? []
+  const lanes = () =>
+    room
+      .helpers()
+      .toReversed()
+      .toSorted((a, b) => Number(b.state === "working") - Number(a.state === "working"))
   const lines = () => memory()?.state.lines.filter((l) => !l.redacted) ?? []
-  const hasMemory = () => lines().length > 0
-  const workers = createMemo(() =>
-    Object.keys(room.status()).length
-      ? (room.snapshot()?.agents ?? []).flatMap((a) => (a.activity?.kind === "background" ? a.activity.workers : []))
-      : [],
-  )
   const hasTasks = () => tasks().some((t) => t.status !== "cancelled")
-  const missing = createMemo(() => {
-    const out: { kind: FixedKind; label: string }[] = []
-    if (files().length === 0) out.push({ kind: "files", label: "Files" })
-    if (!hasMemory() && memory()?.state.loaded === true) out.push({ kind: "memory", label: `${leadName()} knows here` })
-    if (routines().length === 0) out.push({ kind: "routines", label: "Routines" })
-    if (!hasTasks() && isGroup(members())) out.push({ kind: "tasks", label: "Tasks" })
-    return out
-  })
+  const isDone = () => mode() === "done"
+  const finished = () => tasks().every((t) => t.status === "done" || t.status === "cancelled")
   const empty = () =>
     working() === null &&
     asks().length === 0 &&
     !hasTasks() &&
-    workers().length === 0 &&
+    lanes().length === 0 &&
     files().length === 0 &&
     routines().length === 0 &&
-    !hasMemory() &&
+    lines().length === 0 &&
     memory()?.state.loaded === true
 
   return (
     <div
       class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 pt-1 pb-4"
       data-component="chat-card"
+      data-mode={mode()}
     >
       <DeskSettled.Provider value={() => settled}>
         <Show when={isGroup(members())}>
@@ -119,42 +95,35 @@ export default function DeskOverview(props: { chatId: string }) {
             <AddMember chatId={props.chatId} />
           </div>
         </Show>
-        <Show when={working()}>
+        <Show when={asks().length}>
+          <Waiting asks={asks()} chatId={props.chatId} />
+        </Show>
+        <Show when={!isDone() && !hasTasks() ? working() : null}>
           {(line) => (
             <Section label="Now" chatId={props.chatId}>
               <Now line={line()} slug={room.typingSlugs()[0]} tasks={tasks()} />
             </Section>
           )}
         </Show>
-        <Show when={asks().length}>
-          <Waiting asks={asks()} chatId={props.chatId} />
-        </Show>
-        <Show when={hasTasks()}>
-          <Tasks tasks={tasks()} chatId={props.chatId} />
-        </Show>
-        <Show when={workers().length}>
-          <Helpers workers={workers()} chatId={props.chatId} />
-        </Show>
-        <Show when={files().length}>
+        <Show when={isDone() && files().length}>
           <Files files={files()} chatId={props.chatId} />
         </Show>
-        <Show when={hasMemory()}>
-          <Memory lines={lines()} more={memory()?.state.next != null} whose={leadName()} chatId={props.chatId} />
+        <Show when={isDone()}>
+          <Used files={files()} lines={lines()} chatId={props.chatId} />
         </Show>
-        <Show when={routines().length}>
-          <Routines routines={routines()} chatId={props.chatId} />
+        <Show when={hasTasks()}>
+          <Tasks tasks={tasks()} chatId={props.chatId} fold={isDone() && finished()} />
+        </Show>
+        <Show when={lanes().length}>
+          <Helpers lanes={lanes()} chatId={props.chatId} />
+        </Show>
+        <Show when={!isDone() && files().length}>
+          <Files files={files()} chatId={props.chatId} />
         </Show>
         <Show when={empty()}>
           <p class="px-1 text-ui text-fg3" data-component="card-empty">
             {`Nothing here yet. Files, tasks and what ${leadName()} learns will show up here.`}
           </p>
-        </Show>
-        <Show when={missing().length}>
-          <div class="-mx-1 flex flex-col" data-component="card-more">
-            <For each={missing()}>
-              {(entry) => <Drill chatId={props.chatId} kind={entry.kind} label={entry.label} />}
-            </For>
-          </div>
         </Show>
       </DeskSettled.Provider>
     </div>

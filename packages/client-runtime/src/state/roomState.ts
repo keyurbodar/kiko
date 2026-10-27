@@ -35,6 +35,7 @@ export type RoomState = StreamState<RoomSnapshot>
 export interface RoomResumeCache {
   snapshot: RoomState | undefined
   owner: object | undefined
+  services?: unknown
 }
 
 type Item = StreamItem<RoomSnapshot, Extract<RoomStreamItem, { kind: "event" }>["event"], RoomSignal>

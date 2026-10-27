@@ -22,7 +22,7 @@
     pointer-events: none !important;
 
     background: var(--raise);
-    border-radius: 14px;
+    border-radius: var(--radius-pop);
     box-shadow: var(--float-shadow);
 
     outline: none;

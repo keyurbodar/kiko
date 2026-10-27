@@ -15,7 +15,7 @@
   align-items: center;
   gap: 8px;
   color: var(--fg2);
-  font-size: 14px;
+  font-size: var(--type-ui);
   line-height: 22px;
 }
 
@@ -53,7 +53,7 @@
   border-left: 1.5px solid var(--line);
   scrollbar-width: thin;
   color: var(--fg3);
-  font-size: 13.5px;
+  font-size: var(--type-label);
   line-height: 20px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -83,13 +83,13 @@
   align-items: center;
   gap: 6px;
   color: var(--fg3);
-  font-size: 13.5px;
+  font-size: var(--type-label);
   line-height: 20px;
 }
 
 .thinking-toggle:focus-visible,
 .thought-head:focus-visible {
-  border-radius: 6px;
+  border-radius: var(--radius-tail);
   outline: none;
   box-shadow: var(--focus-ring);
 }

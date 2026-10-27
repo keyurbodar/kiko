@@ -186,6 +186,15 @@ function replyWithDelay(users: string[], results: string[], last: Message | unde
     const thought = users.some((u) => u.includes("[think]")) ? [fauxThinking(THOUGHT)] : []
     return fauxAssistantMessage([...thought, fauxToolCall(SLOW_TOOL, {})], { stopReason: "toolUse" })
   }
+  const work = users.map((u) => /\[calls (\d+)\]/.exec(u)).find(Boolean)
+  if (work && results.length >= Number(capture(work, 1)) && users.some((u) => u.includes("[quiet]")))
+    return fauxAssistantMessage("[skip]")
+  if (work && results.length < Number(capture(work, 1))) {
+    const thought = users.some((u) => u.includes("[think]")) ? [fauxThinking(THOUGHT)] : []
+    return fauxAssistantMessage([...thought, fauxToolCall(SLOW_TOOL, { ms: 1_500 })], {
+      stopReason: "toolUse",
+    })
+  }
   if (last?.role === "user" && users.some((u) => u.includes("[write]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_WRITE_TOOL, {}), { stopReason: "toolUse" })
   }

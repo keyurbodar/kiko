@@ -1,7 +1,8 @@
-import type { FileRef, HumanAsk, LifeLine, Task, WorkerRow } from "@kiko/protocol"
+import type { FileRef, HumanAsk, LifeLine, Task } from "@kiko/protocol"
 import { describe, expect, it } from "vitest"
 import { render } from "../../../test/render"
-import { Files, Helpers, Memory, Now, Tasks, Waiting } from "./desk-sections"
+import type { HelperLane } from "../helpers/helper-model"
+import { Files, Helpers, Now, Tasks, Used, Waiting } from "./desk-sections"
 import { closeAll, deskView, openFiles } from "./surfaces"
 
 const CHAT = "01900000-0000-7000-8000-0000000000bb"
@@ -75,19 +76,57 @@ describe("desk card", () => {
     expect(bars[0]?.getAttribute("aria-valuenow")).toBe("50")
   })
 
-  it("lists helpers and memory facts, naming whose memory it is", async () => {
-    const workers: WorkerRow[] = [{ id: "w", task: "Flights", status: "done", step: null, steps: 2, startedAt: 1 }]
-    const lines = [{ pos: 1, at: 0, text: "Window seat", source: "you", pinned: false, redacted: false }] as LifeLine[]
+  it("lists helpers by state and opens the peek panel from one", async () => {
+    closeAll(CHAT)
+    const lane = (id: string, state: HelperLane["state"], title: string): HelperLane => ({
+      id,
+      slug: "kiko",
+      window: "kiko#1",
+      task: title,
+      title,
+      state,
+      line: "Reading brief.md",
+      startedAt: 1,
+      endedAt: state === "working" ? undefined : 2,
+      count: 2,
+      steps: [],
+    })
+    const lanes = [lane("w1", "working", "Hero layouts"), lane("w2", "done", "Icon set")]
+    await using screen = await render(() => <Helpers lanes={lanes} chatId={CHAT} />)
+    expect(screen.getByRole("button", { name: /Hero layouts/ }).element().textContent).toContain("Reading brief.md")
+    expect(screen.getByRole("button", { name: /Icon set/ }).element().textContent).toContain("Finished, 2 steps")
+    await expect.element(screen.getByText("1 of 2 working")).toBeVisible()
+    await screen.getByRole("button", { name: /Icon set/ }).click()
+    expect(deskView(CHAT)?.id).toBe("helper:w2")
+    closeAll(CHAT)
+  })
+
+  it("marks tasks with rings and folds finished tasks into one line", async () => {
+    const tasks = [
+      { id: "1", title: "Calendars", status: "done", dependsOn: [] },
+      { id: "2", title: "Trains", status: "doing", dependsOn: [] },
+    ] as unknown as Task[]
+    const done = tasks.map((t) => ({ ...t, status: "done" })) as Task[]
     await using screen = await render(() => (
       <>
-        <Helpers workers={workers} chatId={CHAT} />
-        <Memory lines={lines} more={false} whose="Kiko" chatId={CHAT} />
+        <Tasks tasks={tasks} chatId={CHAT} />
+        <Tasks tasks={done} chatId={CHAT} fold />
       </>
     ))
-    await expect.element(screen.getByText("Flights")).toBeVisible()
-    await expect
-      .element(screen.getByRole("button", { name: "Open Kiko knows here" }))
-      .toHaveTextContent("Kiko knows here1")
-    await expect.element(screen.getByRole("button", { name: "Window seat" })).toBeVisible()
+    const marks = [...screen.container.querySelectorAll('[data-component="card-task"]')].map((row) =>
+      row.getAttribute("data-mark"),
+    )
+    expect(marks).toEqual(["doing", "done"])
+    await expect.element(screen.getByRole("button", { name: "All 2 tasks done" })).toBeVisible()
+  })
+
+  it("shows what the chat used, naming the remembered facts", async () => {
+    closeAll(CHAT)
+    const lines = [{ pos: 1, at: 0, text: "Window seat", source: "you", pinned: false, redacted: false }] as LifeLine[]
+    await using screen = await render(() => <Used files={[]} lines={lines} chatId={CHAT} />)
+    expect(screen.getByRole("button", { name: /Memory/ }).element().textContent).toContain("Window seat")
+    await screen.getByRole("button", { name: /Memory/ }).click()
+    expect(deskView(CHAT)?.id).toBe("memory")
+    closeAll(CHAT)
   })
 })

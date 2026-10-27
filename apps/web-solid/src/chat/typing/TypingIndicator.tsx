@@ -35,14 +35,19 @@ function Row(props: { seed: string; doing?: string; group?: boolean }) {
       { defer: true },
     ),
   )
-  const caption = () => (room.typingRun(props.seed) ? "Working" : captionOf(props.doing, now() - since()))
+  const runStart = () => {
+    const key = room.typingRun(props.seed)
+    const steps = key ? room.runSteps(key) : []
+    return steps.length ? Math.min(...steps.map((step) => step.startedAt)) : undefined
+  }
+  const caption = () => (room.typingRun(props.seed) ? "Working for" : captionOf(props.doing, now() - since()))
   return (
     <div class="typing" data-component="typing-row">
       <Show when={props.group}>
         <IdentityAvatar seed={props.seed} size={32} class="typing-bird" />
       </Show>
       <div class="typing-body">
-        <ThinkingLine thought={room.thinking(props.seed)} fallback={caption()} />
+        <ThinkingLine thought={room.thinking(props.seed)} fallback={caption()} since={runStart()} />
         <Show when={room.typingRun(props.seed)}>{(windowKey) => <RunTree windowKey={windowKey()} />}</Show>
       </div>
     </div>

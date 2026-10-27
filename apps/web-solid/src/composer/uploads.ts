@@ -230,16 +230,24 @@ export function forgetUpload(id: string): void {
   set(id, undefined)
 }
 
-export function readyAttachments(
+export function pendingAttachments(
   items: readonly { id: string; name: string; type: string; size: number }[],
-): PendingAttachment[] | null {
-  const out: PendingAttachment[] = []
-  for (const item of items) {
-    const state = uploads[item.id]
-    if (state?.status !== "ready") return null
-    out.push({ pendingId: state.pendingId, name: item.name, type: item.type, size: item.size })
-  }
-  return out
+): PendingAttachment[] {
+  return items.flatMap((item) => {
+    const job = jobs.get(item.id)
+    return job ? [{ pendingId: job.pendingId, name: item.name, type: item.type, size: item.size }] : []
+  })
+}
+
+export function uploadsStatus(ids: readonly string[]): UploadState["status"] {
+  const states = ids.map((id) => uploads[id]?.status ?? "failed")
+  if (states.includes("failed")) return "failed"
+  return states.every((status) => status === "ready") ? "ready" : "uploading"
+}
+
+export function uploadedFile(id: string): { blob: Blob; name: string; type: string } | undefined {
+  const job = jobs.get(id)
+  return job && { blob: job.file, name: job.name, type: job.type }
 }
 
 export function progressLabel(loaded: number, total: number): string {
