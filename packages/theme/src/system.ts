@@ -12,8 +12,6 @@ const RADIUS = {
   composer: 14,
 } as const
 
-const ICON = { xs: 12, sm: 16, md: 24 } as const
-
 const OPACITY = { "icon-secondary": 0.4 } as const
 
 const SIZE = {
@@ -87,7 +85,6 @@ export function systemCss(): string {
     ...Object.entries(RADIUS).map(([k, v]) => `  --radius-${k}: ${px(v)};`),
     ...Object.entries(SIZE).map(([k, v]) => `  --spacing-${k}: ${px(v)};`),
     ...Object.entries(CONTAINER).map(([k, v]) => `  --container-${k}: ${px(v)};`),
-    ...Object.entries(ICON).map(([k, v]) => `  --size-icon-${k}: ${px(v)};`),
     ...Object.entries(OPACITY).map(([k, v]) => `  --opacity-${k}: ${v};`),
     `  --ease-kiko: ${MOTION.ease};`,
   ]
