@@ -93,6 +93,11 @@ export const newRoomState = (members: ReadonlyArray<Member>): RoomState => ({
 export const resumedState = (state: RoomState): RoomState =>
   state.status === "live" && Option.isSome(state.data) ? state : markDisconnected(state)
 
+export const markCatchingUp = (state: RoomState): RoomState =>
+  Option.isNone(state.data)
+    ? markSynchronizing(state)
+    : { ...markSynchronizing(state), data: Option.some({ ...state.data.value, agents: [] }) }
+
 export const makeRoomState = Effect.fnUntraced(function* (
   roomId: RoomId,
   signals: PubSub.PubSub<RoomSignal>,
@@ -179,7 +184,7 @@ export const makeRoomState = Effect.fnUntraced(function* (
         if (current.status === "missing") return yield* Effect.never
         const keepLive = resumingLive && current.status === "live"
         resumingLive = false
-        if (!keepLive) yield* update(markSynchronizing)
+        if (!keepLive) yield* update(markCatchingUp)
         return Option.isSome(current.data) ? { roomId, afterSequence: current.sequence } : { roomId }
       }),
     {

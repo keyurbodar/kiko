@@ -78,6 +78,15 @@ export const thinkingLine = (names: readonly string[], group: boolean): string =
 
 export type ChatTyping = { names: readonly string[]; since: number }
 
+const NO_TYPING: Readonly<Record<string, ChatTyping>> = {}
+
+export function typingOnStatus(
+  typing: Readonly<Record<string, ChatTyping>>,
+  status: "empty" | "cached" | "synchronizing" | "live" | "missing",
+): Readonly<Record<string, ChatTyping>> {
+  return status === "live" ? typing : NO_TYPING
+}
+
 type ChatTail = { roomId: string; last?: { from: string; at: number } }
 
 export function otherChatTyping(

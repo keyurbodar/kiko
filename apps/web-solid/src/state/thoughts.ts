@@ -30,7 +30,7 @@ export function heardThought(
   const since = base.openSince ?? now
   return signal.done
     ? { ...base, parts, spentMs: base.spentMs + (now - since), openSince: null }
-    : { ...base, parts, openSince: since }
+    : { ...base, parts, openSince: since, over: false }
 }
 
 export const thoughtMs = (thought: Thought, now: number): number =>
@@ -48,6 +48,17 @@ export const thoughtText = (thought: Thought): string =>
     .map((part) => part.trim())
     .filter(Boolean)
     .join("\n\n")
+
+export const settledThoughts = (
+  all: Readonly<Record<string, readonly Thought[]>>,
+  now: number,
+): Readonly<Record<string, readonly Thought[]>> =>
+  Object.fromEntries(
+    Object.entries(all).map(([slug, list]) => [
+      slug,
+      list.map((thought) => (thought.over ? thought : endedThought(thought, now))),
+    ]),
+  )
 
 export function createThoughts() {
   const [all, setAll] = createSignal<Readonly<Record<string, readonly Thought[]>>>({})
@@ -67,6 +78,9 @@ export function createThoughts() {
     idle(slug: string) {
       const thought = latest(slug)
       if (thought && !thought.over) replace(slug, endedThought(thought, Date.now()))
+    },
+    settle() {
+      setAll((current) => settledThoughts(current, Date.now()))
     },
     clear: () => setAll({}),
   }

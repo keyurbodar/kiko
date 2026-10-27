@@ -17,12 +17,12 @@ import {
 import { DuplicateChatError } from "@kiko/protocol/rpc"
 import * as Cause from "effect/Cause"
 import * as Option from "effect/Option"
-import { createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
+import { createComputed, createMemo, createRoot, createSignal, on, untrack } from "solid-js"
 import { kikoPlaceholder, newChatMembers } from "../lib/chats"
 import { showFailure, showNotice } from "../lib/errors"
 import { setFileToken, setFileTokenSource } from "../lib/file-token"
 import { attempt, failureMessage, observe, owner, registry, run, valueOf, watch } from "./runtime"
-import { type ChatTyping, otherChatTyping } from "./live-status"
+import { type ChatTyping, otherChatTyping, typingOnStatus } from "./live-status"
 import { createUserSignals } from "./user-signals"
 import { type ModelPick, pickedModel } from "./model-pick"
 
@@ -43,10 +43,13 @@ export const user = createRoot(() => {
 
   const snapshot = createMemo(() => Option.getOrUndefined(state().data))
   const status = () => state().status
-  createComputed(() => {
-    if (status() === "live") setEverLive(true)
-    if (status() !== "live" && status() !== "synchronizing") setTyping({})
-  })
+  createComputed(
+    on(status, (next) => {
+      if (next === "live") return setEverLive(true)
+      const held = untrack(typing)
+      if (Object.keys(held).length > 0) setTyping(() => typingOnStatus(held, next))
+    }),
+  )
   createComputed(() => {
     const token = state().build.fileToken
     if (token) untrack(() => setFileToken(token))

@@ -318,3 +318,5 @@ export const newestAfter = (steps: readonly RunStep[]) => steps.reduce((n, s) =>
 
 export const anyRunning = (steps: readonly Pick<RunStep, "status">[]): boolean =>
   steps.some((s) => s.status === "running")
+
+export const settledSteps = (steps: readonly RunStep[]): RunStep[] => steps.filter((step) => step.status !== "running")
