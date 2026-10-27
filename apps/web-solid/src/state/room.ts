@@ -466,6 +466,10 @@ const sendInput = (input: {
 
 function createRoom() {
   const [routeRoom, setRouteRoom] = createSignal<() => string | null>(() => null)
+  const followRoute = (follow: (previous: string | null) => string | null) => {
+    let previous: string | null = null
+    setRouteRoom(() => () => (previous = follow(previous)))
+  }
   const activeId = createMemo(() => {
     const id = routeRoom()()
     return id !== null && isRoomId(id) ? (id as RoomId) : null
@@ -914,7 +918,7 @@ function createRoom() {
     state,
     snapshot,
     status: liveStates,
-    followRoute: (room: () => string | null) => setRouteRoom(() => room),
+    followRoute,
     messages: rows,
     messageById: (id: string) => rows().find((m) => m.id === id),
     bots: roster,
@@ -1067,6 +1071,16 @@ function createRoom() {
 }
 
 export const room = createRoot(createRoom)
+
+const warmReading = new Set<string>()
+
+export function warmRoomSnapshots(ids: readonly string[]): void {
+  for (const id of ids) {
+    if (warmReading.has(id) || !isRoomId(id)) continue
+    warmReading.add(id)
+    registry.mount(owner.cachedRoomAtom(id as RoomId))()
+  }
+}
 
 export function cachedTail(roomId: () => string, wanted: () => boolean): () => ChatMessage[] {
   const cached = watch(() => (wanted() && isRoomId(roomId()) ? owner.cachedRoomAtom(roomId() as RoomId) : NO_CACHE))

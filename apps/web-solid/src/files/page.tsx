@@ -259,7 +259,7 @@ function ListView(props: { shown: readonly Entry[]; open: (key: string) => void 
   )
 }
 
-const route = getRouteApi("/files")
+const route = getRouteApi("/_chat/files")
 
 export default function FilesPage() {
   const asked = route.useSearch({ select: (search) => search.open })

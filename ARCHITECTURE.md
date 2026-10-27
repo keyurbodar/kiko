@@ -62,6 +62,10 @@ There is no service worker. `/sw.js` is a kill switch that unregisters the old o
 
 Solid components run top to bottom once, and memos and effects evaluate as soon as they are created. Declaration order inside a component is runtime order, which is why lint rejects any use before definition.
 
+Customize, Files and Recipes are children of the `_chat` route, not siblings of it, and `app/chat-frame.tsx` renders the chat and the page outlet from the same element. That is what keeps the chat view, its scroll position and the composer draft alive while a page covers it: `Outlet` alone unmounts the previous match's component. The chat stays in the tree but goes `invisible` and `inert` so nothing in it can be read by a screen reader or take a click, and `--top-bar-h` hangs off `main-column:has(chat-view)` rather than off the top bar, because the top bar is not rendered while a page covers the chat. The sidebar reads the room from the previous URL on a covering page (`app/sections.ts:roomForRoute`), so the chat is still there when the page closes.
+
+A chat snapshot is read from IndexedDB once per room per session, on the first of: the row scrolling into view in the sidebar, a hover, or the room opening. `sidebar/warm.ts` warms the visible rows at idle so opening a never-hovered room does not wait on a disk read. Nothing about warming reaches the server, and the atom's idle TTL is what bounds the memory.
+
 The live computer view is its own lazy chunk and is never in a first-paint tier. It tries a WebRTC peer to the daemon first, with input on a DataChannel, and falls back to JPEG frames over the user socket after 5 seconds. Neither path writes to SQLite, and a viewer that is closed holds no socket subscription.
 
 ## Verification

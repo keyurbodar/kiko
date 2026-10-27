@@ -846,7 +846,7 @@ html {
   padding-top: env(safe-area-inset-top, 0px);
 }
 
-[data-component="main-column"]:has(> [data-component="top-bar"]) {
+[data-component="main-column"]:has([data-component="chat-view"]) {
   --top-bar-h: calc(50px + env(safe-area-inset-top, 0px));
 }
 

@@ -27,7 +27,7 @@ import BrowserChip from "../chat/BrowserChip"
 const JUMP_CLASS =
   "pointer-events-auto relative grid size-[26px] place-items-center rounded-control border border-[color-mix(in_oklab,var(--fg)_15%,transparent)] bg-[color-mix(in_oklab,var(--fg)_10%,transparent)] text-fg shadow-md backdrop-blur-md"
 
-export function ChatView() {
+export function ChatView(props: { covered: boolean }) {
   useRefusalToasts()
   const navigate = useNavigate()
   const roomId = () => room.activeId()
@@ -44,7 +44,7 @@ export function ChatView() {
   })
   createEffect(
     on(roomId, (id) => {
-      if (!id || window.matchMedia("(pointer: coarse)").matches) return
+      if (!id || props.covered || window.matchMedia("(pointer: coarse)").matches) return
       requestAnimationFrame(() => {
         const active = document.activeElement
         const typing =
@@ -193,7 +193,7 @@ export function ChatView() {
     const window = snapshot && { live: room.state()?.status === "live", seq: snapshot.seq }
     return roomEmpty(window, messages(), user.chat(roomId())?.lastSeq)
   }
-  const readingLatest = () => !room.tabHidden() && !scrolled()
+  const readingLatest = () => !props.covered && !room.tabHidden() && !scrolled()
   createEffect(() => {
     const id = roomId()
     if (id && readingLatest() && room.hasUnread()) room.markRead(id)

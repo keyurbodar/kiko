@@ -13,6 +13,7 @@ import { cachedTail, room } from "../state/room"
 import { user } from "../state/user"
 import { draftBook } from "../composer/draft-book"
 import { draftPreview } from "../composer/rich/file-ref"
+import { warmWhenSeen } from "./warm"
 import type { ChatMessage, RosterBot } from "../lib/types"
 import {
   cancelRename,
@@ -350,6 +351,8 @@ export function ChatRow(props: {
     clearUnreadMark(props.bot.id)
     openChat(props.bot.id)
   }
+  let unwarm = () => {}
+  onCleanup(() => unwarm())
 
   return (
     <MenuV2.Context gutter={8} onOpenChange={setContextOpen}>
@@ -372,6 +375,7 @@ export function ChatRow(props: {
         data-enter={props.enter ? "" : undefined}
         data-menu-open={menuOpen() ? "" : undefined}
         data-leaving={isLeaving(props.bot.id) ? "" : undefined}
+        ref={(el: HTMLElement) => (unwarm = warmWhenSeen(el, () => props.bot.id))}
         onPointerEnter={(event: PointerEvent) => event.pointerType === "mouse" && setHovered(true)}
       >
         <HoverCardV2

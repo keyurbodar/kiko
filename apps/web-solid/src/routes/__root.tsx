@@ -5,7 +5,7 @@ import { createEffect, ErrorBoundary, Match, on, Switch } from "solid-js"
 import { Broken } from "../app/broken"
 import { FirstRun } from "../app/first-run/lazy"
 import { currentStep } from "../app/first-run/progress"
-import { roomInUrl } from "../app/sections"
+import { roomForRoute } from "../app/sections"
 import { rejected, session } from "../app/session"
 import { Shell } from "../app/shell"
 import { connection } from "../state/connection"
@@ -15,7 +15,7 @@ import { RuntimeProvider } from "../state/runtime"
 function RootLayout() {
   const location = useLocation()
   const router = useRouter()
-  room.followRoute(() => roomInUrl(location().pathname, location().search))
+  room.followRoute((previous) => roomForRoute(previous, location().pathname, location().search))
   createEffect(() => {
     const s = session()
     if (s.status === "signed-in") {
