@@ -18,6 +18,9 @@ const OPACITY = { "icon-secondary": 0.4 } as const
 
 const SIZE = {
   "nav-tab": 32,
+  "nav-gap": 8,
+  "nav-slot": 28,
+  "nav-pad": 10,
   "chat-row": 50,
   mascot: 32,
   avatar: 30,
@@ -41,7 +44,8 @@ const TYPE = {
   page: { size: 40, line: 44, weight: 400, face: "display", scales: false },
   section: { size: 22, line: 28, weight: 400, face: "display", scales: false },
   wordmark: { size: 24, line: 28, weight: 400, face: "display", scales: false },
-  msg: { size: 16, line: 22, weight: 400, face: "sans", scales: true },
+  msg: { size: 16, line: 24, weight: 400, face: "sans", scales: true },
+  bubble: { size: 15, line: 24, weight: 400, face: "sans", scales: true },
   ui: { size: 14, line: 20, weight: 435, face: "sans", scales: true },
   row: { size: 14, line: 20, weight: 520, face: "sans", scales: true },
   label: { size: 13, line: 17, weight: 435, face: "sans", scales: true },

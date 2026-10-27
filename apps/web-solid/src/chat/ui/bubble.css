@@ -3,10 +3,10 @@
 }
 
 [data-slot="bubble"] {
-  --bubble-r: 18px;
+  --bubble-r: 24px;
   --bubble-joint: 6px;
-  --bubble-pad-x: 13px;
-  --bubble-pad-y: 8px;
+  --bubble-pad-x: 16px;
+  --bubble-pad-y: 12px;
 }
 
 [data-slot="bubble"][data-align="start"]:not([data-variant="ghost"]) > [data-slot="bubble-content"] {
@@ -30,8 +30,8 @@
 }
 
 [data-slot="bubble-content"] {
-  font-size: var(--type-msg);
-  line-height: var(--type-msg-line);
+  font-size: var(--type-bubble);
+  line-height: var(--type-bubble-line);
   transition: border-radius 260ms var(--ease-kiko);
 }
 

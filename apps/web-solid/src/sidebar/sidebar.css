@@ -130,8 +130,8 @@
   height: var(--spacing-nav-tab);
   width: 100%;
   align-items: center;
-  gap: 8px;
-  padding: 0 10px;
+  gap: var(--spacing-nav-gap);
+  padding: 0 var(--spacing-nav-pad);
   color: var(--fg);
   font: inherit;
   font-size: var(--type-ui);
@@ -149,6 +149,10 @@
 
 .sidebar-shell .nav-icon {
   display: flex;
+  width: var(--spacing-nav-slot);
+  flex: none;
+  align-items: center;
+  justify-content: center;
   color: var(--fg2);
 }
 
@@ -502,8 +506,8 @@
   width: 100%;
   height: var(--spacing-chat-row);
   align-items: center;
-  gap: 10px;
-  padding: 0 10px;
+  gap: var(--spacing-nav-gap);
+  padding: 0 var(--spacing-nav-pad);
   color: var(--fg);
   font-family: inherit;
   text-align: left;

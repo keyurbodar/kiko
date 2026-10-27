@@ -563,8 +563,11 @@ button.rich-code-tab {
   word-break: break-word;
 }
 [data-slot="bubble"] .rich {
-  font-size: inherit;
-  line-height: inherit;
+  font-size: var(--type-bubble);
+  line-height: var(--type-bubble-line);
+}
+[data-side="bot"] .rich {
+  color: var(--fg);
 }
 
 :where([data-slot="bubble"]) .rich-code {

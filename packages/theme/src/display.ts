@@ -30,7 +30,7 @@ export const CHAT_WIDTHS: Record<ChatWidth, { label: string; width: string }> = 
   full: { label: "Full", width: "100%" },
 }
 
-const SANS_STACK = 'Satoshi, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
+const SANS_STACK = 'Switzer, Satoshi, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
 const MONO_STACK = '"JetBrains Mono", "SF Mono", Menlo, Consolas, ui-monospace, monospace'
 
 function quoteFamily(name: string): string {

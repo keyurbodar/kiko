@@ -104,11 +104,11 @@
 
 .settings-nav-row {
   display: flex;
-  height: 32px;
+  height: var(--spacing-nav-tab);
   flex-shrink: 0;
   align-items: center;
-  gap: 8px;
-  padding: 0 10px;
+  gap: var(--spacing-nav-gap);
+  padding: 0 var(--spacing-nav-pad);
   color: var(--fg2);
   font-size: var(--type-ui);
   border-radius: var(--radius-control);
@@ -163,6 +163,14 @@
       height var(--dur-pop) var(--ease-kiko),
       opacity 80ms linear;
   }
+}
+
+.settings-nav-icon {
+  display: flex;
+  width: var(--spacing-nav-slot);
+  flex: none;
+  align-items: center;
+  justify-content: center;
 }
 
 .settings-nav-label {
