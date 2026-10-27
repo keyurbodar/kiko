@@ -389,23 +389,6 @@ button.token-chip:active {
   transform: scale(1);
 }
 
-.composer-send[data-waiting] {
-  color: var(--fg3);
-  background: var(--active);
-}
-
-.composer-send-ring {
-  position: absolute;
-  inset: -3px;
-  width: 40px;
-  height: 40px;
-  fill: none;
-  stroke: var(--fg2);
-  stroke-dasharray: 26 78;
-  stroke-linecap: round;
-  stroke-width: 1.5;
-}
-
 .composer-dock .composer-agent-face {
   position: relative;
   display: inline-grid;
@@ -992,9 +975,6 @@ button.token-chip:active {
   .composer-send[data-sent] .composer-send-arrow {
     animation: composer-send-fly 320ms var(--ease-kiko);
   }
-  .composer-send-ring {
-    animation: composer-spin 0.9s linear infinite;
-  }
   .composer-agent-avatar {
     animation: composer-face-in var(--dur-pop) var(--ease-kiko) both;
   }
@@ -1084,12 +1064,6 @@ button.token-chip:active {
   46% {
     opacity: 0;
     transform: translateY(10px);
-  }
-}
-
-@keyframes composer-spin {
-  to {
-    transform: rotate(360deg);
   }
 }
 

@@ -64,7 +64,6 @@ export type PromptInputV2Props = {
   people?: RecipientPeople
   hints: () => readonly string[]
   stop?: () => void
-  waiting?: boolean
   rejected: Rejected[]
   onDismissRejected: (id: string) => void
   onExpandPasted: (part: PromptInputV2Attachment) => void
@@ -358,7 +357,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
               <Show when={!props.answering}>
                 <SubmitButton
                   stop={stopping()}
-                  waiting={!!props.waiting}
                   disabled={!stopping() && !props.controller.canSubmit()}
                   blocked={view.submit.blocked?.() ?? null}
                   sendLabel={i18n.t("ui.promptInput.send")}
@@ -460,7 +458,6 @@ function Recipient(props: { recipient: Token; controller: PromptInputV2Interacti
 
 function SubmitButton(props: {
   stop: boolean
-  waiting: boolean
   disabled: boolean
   blocked?: string | null
   sendLabel: string
@@ -479,7 +476,6 @@ function SubmitButton(props: {
         data-action={props.stop ? "prompt-stop" : "prompt-submit"}
         data-mode={props.stop ? "stop" : "send"}
         data-sent={sent() ? "" : undefined}
-        data-waiting={props.waiting ? "" : undefined}
         type="button"
         disabled={props.disabled}
         class="composer-send"
@@ -498,11 +494,6 @@ function SubmitButton(props: {
       >
         <RemixIcon icon={ArrowUpIcon} class="composer-send-arrow size-4" />
         <span class="composer-send-square" aria-hidden="true" />
-        <Show when={props.waiting}>
-          <svg class="composer-send-ring" viewBox="0 0 36 36" aria-hidden="true">
-            <circle cx="18" cy="18" r="16.5" />
-          </svg>
-        </Show>
       </button>
     </TooltipV2>
   )

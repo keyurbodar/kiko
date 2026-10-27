@@ -11,7 +11,6 @@ import {
   onCleanup,
   onMount,
   runWithOwner,
-  untrack,
 } from "solid-js"
 import { createStore } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
@@ -33,7 +32,7 @@ import { openModelPicker } from "../settings/model-picker"
 import { quoteSummary, replySummary } from "../chat/lib/reply"
 import { createImageDialog } from "../chat/ui/image-dialog"
 import { runSlash, slashTokens } from "./slash"
-import { forgetUpload, readyAttachments, releaseUpload, retryUpload, startUpload, uploadState } from "./uploads"
+import { pendingAttachments, releaseUpload, retryUpload, startUpload, uploadState } from "./uploads"
 import { tokenGroups, type Token } from "./tokens"
 import type { TokenData } from "./token-data"
 import { room } from "../state/room"
@@ -188,9 +187,7 @@ export function Composer(props: ComposerProps) {
   })
   const modelBlock = () => (props.editing || question.ask() ? null : (props.sendBlock ?? null))
   const failed = () => boxed().filter((part) => uploadState(part.id)?.status === "failed")
-  const uploading = () => boxed().filter((part) => uploadState(part.id)?.status !== "ready").length - failed().length
   const blocked = () => modelBlock()?.reason ?? (preparingAttachments() ? "Still preparing the attachment" : null)
-  const [waiting, setWaiting] = createSignal(false)
   const [nudged, setNudged] = createSignal(false)
   const [rejected, setRejected] = createSignal<Rejected[]>([])
   function draftText() {
@@ -204,7 +201,6 @@ export function Composer(props: ComposerProps) {
         if (before && before !== key && before.includes(":ask:")) props.onDraftChange?.(before, "")
         filledFor = ""
         leaveChat()
-        setWaiting(false)
         setRejected([])
         if (!key) return
         const filled = takeComposerFill(key)
@@ -228,6 +224,7 @@ export function Composer(props: ComposerProps) {
         const text = takeComposerFill(fill.roomId) ?? ""
         store.setText(text.trimEnd())
         typeHere(text)
+        void restoreFiles(fill.roomId)
       },
       { defer: true },
     ),
@@ -441,23 +438,21 @@ export function Composer(props: ComposerProps) {
           if (props.disabled || blocked()) return
           if (question.ask()) return question.advance()
           if (!props.threadId) return
-          if (holdBack()) return
+          if (failed().length) return void setNudged(true)
           const text = draftText().trimEnd()
           const editing = props.editing
           const parts = boxed()
-          const attachments = readyAttachments(
-            parts.map((part) => ({ id: part.id, name: part.filename, type: part.mime, size: part.size })),
-          )
-          const pending = new Map(parts.map((part, i) => [part.id, attachments?.[i]?.pendingId]))
+          const items = parts.map((part) => ({ id: part.id, name: part.filename, type: part.mime, size: part.size }))
+          const attachments = pendingAttachments(items)
+          const pending = new Map(items.map((item, i) => [item.id, attachments[i]?.pendingId]))
           const body = linkAttachments(text, (id) => {
             const to = pending.get(id)
             return to && `attachment:${to}`
           })
-          const refusal = sendRefusal(body, !!editing, attachments ?? [])
+          const refusal = sendRefusal(body, !!editing, attachments)
           if (refusal) return void showToastV2({ title: refusal, variant: "error" })
           if (editing) return finishEdit(editing, text)
           if (runSlash(text)) return void store.reset()
-          if (!attachments) return
           const files = parts.map((part): MessageFile => ({
             name: part.filename,
             size: part.size,
@@ -466,9 +461,9 @@ export function Composer(props: ComposerProps) {
           }))
           if (!body.trim() && files.length === 0) return
           const sentDraftKey = draftKey()
-          const accepted = props.onSend(files.length ? { body, files, attachments } : { body })
+          const uploads = items.map((item) => item.id)
+          const accepted = props.onSend(files.length ? { body, files, attachments, uploads } : { body })
           if (accepted === false) return
-          for (const part of parts) forgetUpload(part.id)
           held = new Map()
           keptFor.clear()
           if (sentDraftKey) void draftFiles().then((m) => m.clearDraftFiles(sentDraftKey))
@@ -499,32 +494,6 @@ export function Composer(props: ComposerProps) {
   function finishEdit(editing: NonNullable<typeof props.editing>, text: string): void {
     if (text.trim() && text !== editing.body) props.onEdit?.(editing.id, text)
     props.onCancelEdit?.()
-  }
-
-  createEffect(() => {
-    if (!waiting()) return
-    if (failed().length) return setWaiting(false)
-    if (uploading() === 0) untrack(() => controller.submit())
-  })
-  createEffect(
-    on(
-      () => boxed().length,
-      (count) => count === 0 && setWaiting(false),
-      { defer: true },
-    ),
-  )
-
-  function holdBack(): boolean {
-    if (failed().length) {
-      setNudged(true)
-      return true
-    }
-    if (uploading() > 0 && !props.editing) {
-      setWaiting(true)
-      return true
-    }
-    setWaiting(false)
-    return false
   }
 
   const expandPasted = (part: PromptInputV2Attachment) => {
@@ -566,11 +535,6 @@ export function Composer(props: ComposerProps) {
           >
             Send without them
           </button>
-        </div>
-      </Show>
-      <Show when={waiting() && failed().length === 0}>
-        <div class="composer-note" data-component="composer-waiting" role="status">
-          Sending when {plural(uploading(), "file finishes", "files finish")}
         </div>
       </Show>
     </>
@@ -669,7 +633,6 @@ export function Composer(props: ComposerProps) {
         }
         hints={hints}
         stop={working() && !props.editing && !question.ask() ? stop : undefined}
-        waiting={waiting()}
         rejected={rejected()}
         onDismissRejected={(id) => setRejected((list) => list.filter((item) => item.id !== id))}
         onExpandPasted={expandPasted}
