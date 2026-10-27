@@ -81,6 +81,7 @@ const ICONS = {
   scan: "ScanIcon",
   globe: "Globe02Icon",
   clock: "Clock01Icon",
+  lock: "LockIcon",
   sun: "Sun01Icon",
   moon: "Moon02Icon",
   monitor: "ComputerIcon",

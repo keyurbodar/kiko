@@ -6,6 +6,7 @@ import { unwrap } from "solid-js/store"
 import { room } from "../../state/room"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { findFile } from "../ui/find-file"
+import { HelperLanes } from "../helpers/HelperLanes"
 import { Mochi } from "../ui/Mochi"
 import { Shine } from "./Shine"
 import { GLYPH } from "./glyphs"
@@ -295,6 +296,8 @@ export function RunTree(props: { windowKey: string; count?: number }): JSX.Eleme
     onCleanup(() => clearInterval(clock))
   })
 
+  const lanes = createMemo(() => room.helpers().filter((lane) => lane.window === props.windowKey))
+
   const tree = createMemo(() =>
     treeOf(steps(), {
       working: working(),
@@ -302,6 +305,7 @@ export function RunTree(props: { windowKey: string; count?: number }): JSX.Eleme
       count: props.count,
       detail: detailStatus(),
       workers: workers(),
+      lanes: lanes().length > 0,
       known: recallSummary(openKey()),
     }),
   )
@@ -419,6 +423,7 @@ export function RunTree(props: { windowKey: string; count?: number }): JSX.Eleme
           <Row row={row()} open={isRowOpen(row())} now={now()} onOpen={openRow} onRetry={() => request(true)} />
         )}
       </Index>
+      <HelperLanes lanes={lanes()} now={now()} />
     </div>
   )
 }

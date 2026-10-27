@@ -69,6 +69,7 @@ export type TreeState = {
   count?: number
   detail: DetailStatus
   workers?: ReadonlySet<string>
+  lanes?: boolean
   known?: RunSummary
 }
 
@@ -120,7 +121,7 @@ const UNAVAILABLE: TreeRow = {
   path: false,
 }
 
-function stillFailing(steps: readonly Pick<RunStep, "name" | "status" | "startedAt">[]): boolean {
+export function stillFailing(steps: readonly Pick<RunStep, "name" | "status" | "startedAt">[]): boolean {
   return steps.some(
     (failed) =>
       failed.status === "failed" &&
@@ -228,7 +229,9 @@ export function summaryOf(steps: readonly RunStep[]): RunSummary | undefined {
 }
 
 export function treeOf(steps: readonly RunStep[], state: TreeState): Tree {
-  const entries = buildEntries(steps, state.workers ?? NO_WORKERS)
+  const all = buildEntries(steps, state.workers ?? NO_WORKERS)
+  const entries = state.lanes ? all.filter((entry) => entry.kind !== "worker" && !entry.step.worker) : all
+  if (state.lanes && entries.length === 0 && !state.working && !anyRunning(steps)) return { folded: [], shown: [] }
   const marked = markLivePath(entries.map((entry) => rowOf(entry, state.detail)))
   if (isLive(steps, state.working)) {
     const rows = shaped(marked)

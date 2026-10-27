@@ -3,6 +3,7 @@ import { FileSurface, FilesTree } from "../../files/pane"
 import { MemoryError, MemoryList, useMemoryStore } from "../info/memory/views"
 import { RoutinesPage } from "../info/routines"
 import { TasksView } from "../info/tasks"
+import { HelperPeek } from "../helpers/HelperPeek"
 import { AgentPage } from "./agent"
 
 type ViewProps<F = object> = { chatId: string; surface: F; close: () => void }
@@ -43,4 +44,8 @@ export function TasksPanelView() {
 
 export function AgentView(props: ViewProps<{ slug: string }>) {
   return <AgentPage slug={props.surface.slug} chatId={props.chatId} onRemoved={props.close} />
+}
+
+export function HelperView(props: ViewProps<{ helper: string; window: string }>) {
+  return <HelperPeek helper={props.surface.helper} window={props.surface.window} chatId={props.chatId} />
 }
