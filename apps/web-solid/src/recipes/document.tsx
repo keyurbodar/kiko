@@ -128,7 +128,7 @@ function WhenChip(props: { value: string; onCommit: (value: string) => void }) {
         </button>
       }
     >
-      <span class={cn(chip, "cursor-text bg-active text-fg")}>
+      <span class={cn(chip, "cursor-text bg-fill text-fg")}>
         <RemixIcon icon={ClockIcon} size={16} class="shrink-0" />
         <input
           ref={(el) => {

@@ -122,7 +122,7 @@ export default function MessageMenu(props: MessageMenuProps) {
                     aria-expanded={pickerOpen()}
                     onClick={() => setPickerOpen(true)}
                   >
-                    <RemixIcon icon={ReactIcon} class="size-3.5" />
+                    <RemixIcon icon={ReactIcon} class="size-4" />
                   </button>
                 </div>
                 <MenuV2.Separator />
@@ -130,17 +130,17 @@ export default function MessageMenu(props: MessageMenuProps) {
                   {(url) => (
                     <>
                       <MenuV2.Item onSelect={openLink}>
-                        <RemixIcon icon={ExternalIcon} class="size-3.5 shrink-0" />
+                        <RemixIcon icon={ExternalIcon} class="size-4 shrink-0" />
                         Open link
                       </MenuV2.Item>
                       <MenuV2.Item onSelect={() => void copy(url(), "Link copied")}>
-                        <RemixIcon icon={LinkIcon} class="size-3.5 shrink-0" />
+                        <RemixIcon icon={LinkIcon} class="size-4 shrink-0" />
                         Copy link
                       </MenuV2.Item>
 
                       <Show when={canShare}>
                         <MenuV2.Item onSelect={() => void shareLink()}>
-                          <RemixIcon icon={ShareIcon} class="size-3.5 shrink-0" />
+                          <RemixIcon icon={ShareIcon} class="size-4 shrink-0" />
                           Share link
                         </MenuV2.Item>
                       </Show>
@@ -149,16 +149,16 @@ export default function MessageMenu(props: MessageMenuProps) {
                   )}
                 </Show>
                 <MenuV2.Item onSelect={props.onReply}>
-                  <RemixIcon icon={ReplyIcon} class="size-3.5 shrink-0" />
+                  <RemixIcon icon={ReplyIcon} class="size-4 shrink-0" />
                   Reply
                 </MenuV2.Item>
                 <MenuV2.Item onSelect={() => void copy()}>
-                  <RemixIcon icon={CopyIcon} class="size-3.5 shrink-0" />
+                  <RemixIcon icon={CopyIcon} class="size-4 shrink-0" />
                   Copy
                 </MenuV2.Item>
                 <Show when={props.onTogglePin}>
                   <MenuV2.Item onSelect={props.onTogglePin}>
-                    <RemixIcon icon={props.pinned ? UnpinIcon : PinIcon} class="size-3.5 shrink-0" />
+                    <RemixIcon icon={props.pinned ? UnpinIcon : PinIcon} class="size-4 shrink-0" />
                     {props.pinned ? "Unpin" : "Pin"}
                   </MenuV2.Item>
                 </Show>
@@ -168,7 +168,7 @@ export default function MessageMenu(props: MessageMenuProps) {
                 </Show>
                 <Show when={props.side === "user" && props.onEdit}>
                   <MenuV2.Item onSelect={props.onEdit}>
-                    <RemixIcon icon={EditIcon} class="size-3.5 shrink-0" />
+                    <RemixIcon icon={EditIcon} class="size-4 shrink-0" />
                     Edit
                   </MenuV2.Item>
                 </Show>
@@ -177,7 +177,7 @@ export default function MessageMenu(props: MessageMenuProps) {
                     class={cn("chat-menu__danger text-bad [&_svg]:!text-[var(--bad)]")}
                     onSelect={props.onDelete}
                   >
-                    <RemixIcon icon={TrashIcon} class="size-3.5 shrink-0" />
+                    <RemixIcon icon={TrashIcon} class="size-4 shrink-0" />
                     Delete
                   </MenuV2.Item>
                 </Show>

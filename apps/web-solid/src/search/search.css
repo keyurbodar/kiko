@@ -14,12 +14,10 @@
   display: block;
   width: min(720px, calc(100vw - 32px));
   transform: translateX(-50%);
-  background: var(--raise);
+  background: var(--popover);
   color: var(--fg);
   border-radius: var(--radius-sheet);
-  box-shadow:
-    0 28px 80px -20px rgb(0 0 0 / 55%),
-    0 2px 12px rgb(0 0 0 / 18%);
+  box-shadow: var(--float-shadow);
   overflow: hidden;
 }
 .search-bar {

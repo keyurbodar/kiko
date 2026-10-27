@@ -21,7 +21,7 @@
 
     pointer-events: none !important;
 
-    background: var(--raise);
+    background: var(--popover);
     border-radius: var(--radius-pop);
     box-shadow: var(--float-shadow);
 

@@ -36,9 +36,9 @@
 }
 
 [data-component="button-v2"][data-size="large"] {
-  height: 48px;
-  padding: 0 22px;
-  border-radius: var(--radius-pop);
+  height: var(--spacing-control-big);
+  padding: 0 18px;
+  border-radius: var(--radius-tile);
   font-size: var(--type-ui);
 }
 
@@ -81,35 +81,35 @@
 }
 
 [data-component="button-v2"][data-variant="neutral"] {
-  background-color: var(--active);
+  background-color: var(--fill);
   color: var(--fg);
 }
 
 @media (hover: hover) and (pointer: fine) {
   [data-component="button-v2"][data-variant="neutral"]:is(:hover, [data-state="hover"]):not(:disabled) {
-    background-color: color-mix(in oklab, var(--fg) 5%, var(--active));
+    background-color: var(--fill-hover);
   }
 }
 
 [data-component="button-v2"][data-variant="danger"] {
-  background-color: var(--active);
+  background-color: var(--bad-wash);
   color: var(--bad);
 }
 
 @media (hover: hover) and (pointer: fine) {
   [data-component="button-v2"][data-variant="danger"]:is(:hover, [data-state="hover"]):not(:disabled) {
-    background-color: color-mix(in oklab, var(--bad) 14%, var(--active));
+    background-color: color-mix(in srgb, var(--bad) 18%, transparent);
   }
 }
 
 [data-component="button-v2"][data-variant="warning"] {
-  background-color: var(--active);
+  background-color: var(--fill);
   color: var(--fg);
 }
 
 @media (hover: hover) and (pointer: fine) {
   [data-component="button-v2"][data-variant="warning"]:is(:hover, [data-state="hover"]):not(:disabled) {
-    background-color: color-mix(in oklab, var(--fg) 8%, var(--active));
+    background-color: var(--fill-hover);
   }
 }
 

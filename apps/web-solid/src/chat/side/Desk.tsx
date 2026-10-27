@@ -72,7 +72,7 @@ function Tab(props: { chatId: string; file: FileSurface; index: number; count: n
           activate()
         }}
       >
-        <span class="flex size-3.5 shrink-0 items-center justify-center text-[10px]">
+        <span class="flex size-4 shrink-0 items-center justify-center text-micro">
           <EntryIcon path={props.file.path} />
         </span>
         <span class="min-w-0 truncate">{label()}</span>

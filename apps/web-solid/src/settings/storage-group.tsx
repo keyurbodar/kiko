@@ -20,7 +20,7 @@ function Meter(props: { storage: Storage }) {
       aria-valuemax={OBJECT_LIMIT_BYTES}
       aria-valuenow={used()}
       aria-valuetext={`${formatSize(props.storage.objectBytes)} of ${formatSize(OBJECT_LIMIT_BYTES)}`}
-      class="h-1 overflow-hidden rounded-full bg-active"
+      class="h-1 overflow-hidden rounded-full bg-fill"
       data-part="storage-meter"
     >
       <div

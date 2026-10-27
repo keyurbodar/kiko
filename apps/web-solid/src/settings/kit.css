@@ -2,13 +2,6 @@
   --kit-muted: var(--fg2);
 
   --kit-meta: var(--fg3);
-  --kit-bevel: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.08);
-  --kit-raised: 0 1px 2px rgb(0 0 0 / 0.12);
-}
-
-:root:not(.dark) {
-  --kit-bevel: inset 0 -1px 0 rgb(0 0 0 / 0.04), 0 1px 2px rgb(0 0 0 / 0.05);
-  --kit-raised: 0 1px 2px rgb(0 0 0 / 0.1);
 }
 
 .settings-page-title {
@@ -65,9 +58,9 @@
 }
 
 .kit-btn--big {
-  height: 48px;
-  padding: 0 22px;
-  border-radius: var(--radius-pop);
+  height: var(--spacing-control-big);
+  padding: 0 18px;
+  border-radius: var(--radius-tile);
   font-size: var(--type-ui);
 }
 
@@ -82,15 +75,14 @@
   }
 }
 
-.kit-btn--secondary,
-.kit-btn--danger {
+.kit-btn--secondary {
   color: var(--fg);
-  background: var(--active);
+  background: var(--fill);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .kit-btn--secondary:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--fg) 14%, var(--panel));
+    background: var(--fill-hover);
   }
 }
 
@@ -101,11 +93,12 @@
 
 .kit-btn--danger {
   color: var(--bad);
+  background: var(--bad-wash);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .kit-btn--danger:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--bad) 12%, var(--active));
+    background: color-mix(in srgb, var(--bad) 18%, transparent);
   }
 }
 
@@ -137,7 +130,8 @@
   color: var(--fg);
   font-size: var(--type-label);
   text-align: left;
-  background: var(--active);
+  background: var(--fill);
+  box-shadow: inset 0 0 0 1px var(--field-ring);
   border: none;
   border-radius: var(--radius-control);
   cursor: pointer;
@@ -147,7 +141,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .kit-select:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--fg) 14%, var(--panel));
+    background: var(--fill-hover);
   }
 }
 
@@ -175,7 +169,7 @@
 }
 
 .kit-switch[aria-checked="true"] {
-  background: var(--fg);
+  background: var(--accent-fill);
 }
 
 .kit-switch:disabled {
@@ -196,7 +190,7 @@
 }
 
 .kit-switch[aria-checked="true"] > span {
-  background: var(--bg);
+  background: var(--on-accent);
   transform: translateX(14px);
   transform-origin: right center;
 }
@@ -282,15 +276,16 @@
   padding: 0 12px;
   color: var(--fg);
   font-size: var(--type-label);
-  background: var(--active);
+  background: var(--fill);
   border: none;
   border-radius: var(--radius-control);
+  box-shadow: inset 0 0 0 1px var(--field-ring);
   outline: none;
   transition: box-shadow var(--dur-hover) var(--ease-kiko);
 }
 
 .kit-field:focus-visible {
-  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--fg) 35%, transparent);
+  box-shadow: var(--focus-ring);
 }
 
 .kit-field[aria-invalid="true"] {
@@ -344,7 +339,7 @@
 .kit-tab {
   position: relative;
   z-index: 1;
-  height: 34px;
+  height: 32px;
   padding: 0 14px;
   color: var(--fg2);
   font-size: var(--type-ui);

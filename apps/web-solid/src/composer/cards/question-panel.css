@@ -61,7 +61,8 @@
   transform: scale(0.99);
 }
 .question-option[data-pressed] {
-  background: var(--active);
+  background: var(--info-wash);
+  box-shadow: inset 0 0 0 1px var(--accent-edge);
   color: var(--fg);
 }
 .question-option-copy {
@@ -93,10 +94,10 @@
   font-variant-numeric: tabular-nums;
 }
 .question-check {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   flex: none;
-  color: var(--fg);
+  color: var(--info);
 }
 
 [data-component="question-panel"] .composer-card-kind:not([data-owner]) {

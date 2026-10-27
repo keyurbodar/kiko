@@ -210,7 +210,7 @@ export function Item(props: {
     >
       <Show when={local.icon}>
         {(icon) => (
-          <span class="grid size-6 shrink-0 place-items-center overflow-hidden rounded-control bg-active text-fg2">
+          <span class="grid size-6 shrink-0 place-items-center overflow-hidden rounded-control bg-fill text-fg2">
             {icon()}
           </span>
         )}

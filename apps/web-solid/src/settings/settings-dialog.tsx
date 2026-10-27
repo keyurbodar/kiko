@@ -210,7 +210,7 @@ export function SettingsDialog(props: ParentProps) {
               data-action="close-dialog"
               onClick={closeSettings}
             >
-              <RemixIcon icon={CloseIcon} class="size-3.5" />
+              <RemixIcon icon={CloseIcon} class="size-4" />
             </button>
           </div>
         </ModalV2.Content>

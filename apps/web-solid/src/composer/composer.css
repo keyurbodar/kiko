@@ -407,9 +407,7 @@
   color: var(--fg);
   background: var(--raise);
   border-radius: var(--radius-full);
-  box-shadow:
-    inset 0 0 0 1px var(--line2),
-    0 14px 34px rgb(0 0 0 / 28%);
+  box-shadow: var(--float-shadow);
   font-size: var(--type-ui);
   font-weight: 500;
 }

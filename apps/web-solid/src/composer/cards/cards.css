@@ -185,11 +185,9 @@ button.composer-card-row {
   width: var(--kb-popper-anchor-width);
   max-width: calc(100vw - 32px);
   padding: 4px;
-  background: var(--raise);
+  background: var(--popover);
   border-radius: var(--radius-card);
-  box-shadow:
-    inset 0 0 0 1px var(--line2),
-    0 14px 34px rgb(0 0 0 / 28%);
+  box-shadow: var(--float-shadow);
   z-index: 50;
 }
 .composer-card-choice {

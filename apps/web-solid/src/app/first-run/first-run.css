@@ -463,16 +463,17 @@
 }
 .welcome-step :is(button, input, a):focus-visible,
 .ob-back:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--fg) 45%, transparent);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .ob-field {
   width: 100%;
-  height: 48px;
+  height: var(--spacing-control-big);
   flex: none;
   border-radius: var(--radius-tile);
-  background: var(--hover);
+  background: var(--fill);
+  box-shadow: inset 0 0 0 1px var(--field-ring);
   padding: 0 16px;
   color: var(--fg);
   font-size: var(--type-ui);
@@ -483,7 +484,7 @@
 }
 .ob-field:focus {
   outline: none;
-  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--fg) 35%, transparent);
+  box-shadow: var(--focus-ring);
 }
 .ob-field[data-invalid] {
   box-shadow: inset 0 0 0 1.5px var(--bad);
@@ -578,8 +579,8 @@
   font-weight: 600;
 }
 .ob-card[aria-checked="true"] {
-  background: var(--active);
-  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--fg) 85%, transparent);
+  background: var(--info-wash);
+  box-shadow: inset 0 0 0 1px var(--accent-edge);
 }
 .ob-logo {
   display: inline-flex;
@@ -623,8 +624,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--fg);
-  color: var(--bg);
+  background: var(--accent-fill);
+  color: var(--on-accent);
   opacity: 0;
   transform: scale(0.5);
   transition:

@@ -54,7 +54,7 @@ async function runNow(routine: Routine): Promise<boolean> {
 
 const faint = "text-fg4"
 const tool =
-  "grid size-7 shrink-0 place-items-center rounded-row text-fg3 transition-[background-color,transform] duration-[120ms] active:scale-[0.97] hover:bg-active hover:text-fg disabled:opacity-40"
+  "grid size-7 shrink-0 place-items-center rounded-row text-fg3 transition-[background-color,transform] duration-[120ms] active:scale-[0.97] hover:bg-hover hover:text-fg disabled:opacity-40"
 function Tool(props: {
   label: string
   action: string
@@ -104,7 +104,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
           when={props.recipe}
           fallback={
             <span
-              class={`grid size-7 shrink-0 place-items-center rounded-control bg-active ${on() ? "text-fg2" : "text-fg4"}`}
+              class={`grid size-7 shrink-0 place-items-center rounded-control bg-fill ${on() ? "text-fg2" : "text-fg4"}`}
               aria-hidden="true"
             >
               <RemixIcon icon={ClockIcon} size={16} />
@@ -117,7 +117,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
           <span class={`truncate text-hint ${on() ? "text-fg" : "text-fg3"}`}>{props.routine.name}</span>
           <span class={`truncate text-hint ${faint}`} data-component="routine-trigger">
             <Show when={!ran() && !on()}>
-              <span class="mr-1.5 rounded bg-active px-1 text-[10px]">Paused</span>
+              <span class="mr-1.5 rounded bg-fill px-1 text-micro">Paused</span>
             </Show>
             {ran() ? "Started just now" : triggerLabel(props.routine.trigger, props.routine.tz)}
           </span>
@@ -165,7 +165,7 @@ export function RoutinesPage(props: { chatId: string }) {
                 action={
                   <Link
                     to="/recipes"
-                    class="flex h-control items-center rounded-control bg-active px-3 type-ui text-fg transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover active:scale-[0.98]"
+                    class="flex h-control items-center rounded-control bg-fill px-3 type-ui text-fg transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-fill-hover active:scale-[0.98]"
                     data-action="browse-recipes"
                   >
                     Browse recipes

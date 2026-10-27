@@ -91,11 +91,11 @@ export function DateChip(props: {
           <Show when={open()}>
             <button
               type="button"
-              class="pointer-events-auto absolute top-[calc(50%+4px)] right-3 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-fg2 hover:bg-active hover:text-fg"
+              class="pointer-events-auto absolute top-[calc(50%+4px)] right-3 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-fg2 hover:bg-hover hover:text-fg"
               aria-label="Close calendar"
               onClick={close}
             >
-              <RemixIcon icon={CloseIcon} class="size-3.5" />
+              <RemixIcon icon={CloseIcon} class="size-4" />
             </button>
           </Show>
         </div>

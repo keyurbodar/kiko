@@ -68,7 +68,7 @@ export default function NewAgentDialog() {
       <div class="flex flex-col gap-4">
         <div class="flex items-start gap-4">
           <div class="flex shrink-0 flex-col items-center gap-2">
-            <span class="grid size-24 place-items-center rounded-2xl bg-panel" data-part="preview">
+            <span class="grid size-24 place-items-center rounded-hero bg-panel" data-part="preview">
               {face(chosen(), 80)}
             </span>
             <Button variant="ghost" data-action="shuffle-avatar" onClick={shuffle}>

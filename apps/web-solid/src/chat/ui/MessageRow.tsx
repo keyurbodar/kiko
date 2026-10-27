@@ -170,7 +170,7 @@ export function MessageRow(props: {
               data-component="chat-send-failed"
               role="alert"
             >
-              <RemixIcon icon={AlertCircleIcon} class="size-3.5 shrink-0 text-bad" />
+              <RemixIcon icon={AlertCircleIcon} class="size-4 shrink-0 text-bad" />
               <span
                 class="min-w-0 flex-1 truncate text-hint font-medium"
                 title={failure() ?? undefined}

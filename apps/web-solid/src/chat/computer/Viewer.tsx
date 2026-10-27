@@ -8,7 +8,7 @@ import { user } from "../../state/user"
 import { closeViewer, computerById, computers, openViewer, release, takeOver, viewerFor } from "../computers"
 import LiveScreen from "./LiveScreen"
 
-const pill = "h-8 shrink-0 cursor-pointer rounded-full px-3.5 text-[13px] font-medium whitespace-nowrap"
+const pill = "h-8 shrink-0 cursor-pointer rounded-full px-3.5 type-label font-medium whitespace-nowrap"
 
 export default function Viewer(): JSX.Element {
   const pc = () => computerById(viewerFor() ?? "")
@@ -72,7 +72,7 @@ export default function Viewer(): JSX.Element {
               </span>
               <Show when={interactive()}>
                 <span
-                  class="hidden shrink-0 text-[12px] font-normal whitespace-nowrap opacity-70 sm:inline"
+                  class="hidden shrink-0 type-hint font-normal whitespace-nowrap opacity-70 sm:inline"
                   data-field="escape-hint"
                 >
                   Esc goes to the computer · Shift+Esc leaves
@@ -81,7 +81,7 @@ export default function Viewer(): JSX.Element {
               <Show when={computers().length > 1}>
                 <MenuV2 gutter={6} placement="bottom-end">
                   <MenuV2.Trigger
-                    class="flex h-8 max-w-44 min-w-0 cursor-pointer items-center gap-1.5 rounded-full bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] pr-2.5 pl-3.5 text-[13px] font-medium text-fg hover:bg-[color-mix(in_oklab,var(--fg)_12%,transparent)] aria-expanded:bg-[color-mix(in_oklab,var(--fg)_12%,transparent)]"
+                    class="flex h-8 max-w-44 min-w-0 cursor-pointer items-center gap-1.5 rounded-full bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] pr-2.5 pl-3.5 type-label font-medium text-fg hover:bg-[color-mix(in_oklab,var(--fg)_12%,transparent)] aria-expanded:bg-[color-mix(in_oklab,var(--fg)_12%,transparent)]"
                     aria-label="Computer"
                     data-action="computer-switch"
                   >
@@ -113,7 +113,7 @@ export default function Viewer(): JSX.Element {
                     when={computer().online && computer().caps.input}
                     fallback={
                       <span
-                        class="shrink-0 px-2 text-[13px] whitespace-nowrap text-fg3"
+                        class="shrink-0 px-2 type-label whitespace-nowrap text-fg3"
                         data-field="takeover-unavailable"
                       >
                         {computer().online ? "View only" : "Offline"}

@@ -33,7 +33,7 @@ const PANEL_H = 392
 function Star(props: { on: boolean }) {
   return (
     <svg
-      class="size-3.5"
+      class="size-4"
       viewBox="0 0 16 16"
       fill={props.on ? "currentColor" : "none"}
       stroke="currentColor"

@@ -9,8 +9,9 @@
     gap: 8px;
     padding: 0 6px 0 10px;
     color: var(--fg);
-    background: var(--active);
+    background: var(--fill);
     border-radius: var(--radius-control);
+    box-shadow: inset 0 0 0 1px var(--field-ring);
     cursor: text;
     transition:
       background-color var(--dur-hover) var(--ease-kiko),
@@ -23,7 +24,6 @@
   }
 
   [data-component="search-field"]:focus-within {
-    background: var(--hover);
     box-shadow: var(--focus-ring);
   }
 

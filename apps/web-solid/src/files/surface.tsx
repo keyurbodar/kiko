@@ -50,14 +50,14 @@ function MoreActions(props: { wrap: boolean; onExpand?: () => void }) {
         <MenuV2.Content class="min-w-44" data-component="file-more-menu">
           <Show when={props.wrap}>
             <MenuV2.CheckboxItem checked={wrap()} onChange={setWrap} data-action="toggle-wrap">
-              <RemixIcon icon={WrapTextIcon} class="size-3.5 shrink-0" />
+              <RemixIcon icon={WrapTextIcon} class="size-4 shrink-0" />
               <span class="flex-1">Wrap long lines</span>
             </MenuV2.CheckboxItem>
           </Show>
           <Show when={props.onExpand}>
             {(expand) => (
               <MenuV2.Item onSelect={() => expand()()} data-action="expand-file">
-                <RemixIcon icon={MaximizeIcon} class="size-3.5 shrink-0" />
+                <RemixIcon icon={MaximizeIcon} class="size-4 shrink-0" />
                 <span class="flex-1">Open full size</span>
               </MenuV2.Item>
             )}

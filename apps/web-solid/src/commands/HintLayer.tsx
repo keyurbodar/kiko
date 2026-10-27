@@ -132,7 +132,7 @@ export default function HintLayer() {
               }}
             >
               {pill.label}
-              <kbd class="rounded-check bg-active px-1 font-sans text-hint text-fg2">{pill.keys}</kbd>
+              <kbd class="rounded-check bg-fill px-1 font-sans text-hint text-fg2">{pill.keys}</kbd>
             </span>
           )}
         </For>
