@@ -2,7 +2,8 @@
   .motion-shine {
     color: transparent;
     background-image:
-      linear-gradient(to right, transparent, var(--fg), transparent), linear-gradient(var(--run-text, var(--fg2)), var(--run-text, var(--fg2)));
+      linear-gradient(to right, transparent, var(--fg), transparent),
+      linear-gradient(var(--run-text, var(--fg2)), var(--run-text, var(--fg2)));
     background-size:
       4.5rem 100%,
       100% 100%;

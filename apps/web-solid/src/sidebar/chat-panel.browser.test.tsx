@@ -1,6 +1,7 @@
 import { dismissToastV2, ToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal } from "solid-js"
 import { describe, expect, it, vi } from "vitest"
+import "../index.css"
 import { render } from "../../test/render"
 import type { RosterBot } from "../lib/types"
 import "./sidebar.css"
