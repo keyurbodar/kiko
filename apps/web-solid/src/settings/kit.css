@@ -29,8 +29,8 @@
   gap: 6px;
   padding: 0 14px;
   border: 0;
-  border-radius: 9px;
-  font-size: 14px;
+  border-radius: var(--radius-control);
+  font-size: var(--type-ui);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -67,8 +67,8 @@
 .kit-btn--big {
   height: 48px;
   padding: 0 22px;
-  border-radius: 14px;
-  font-size: 15px;
+  border-radius: var(--radius-pop);
+  font-size: var(--type-ui);
 }
 
 .kit-btn--primary {
@@ -135,11 +135,11 @@
   gap: 8px;
   padding: 0 10px 0 12px;
   color: var(--fg);
-  font-size: 13.5px;
+  font-size: var(--type-label);
   text-align: left;
   background: var(--active);
   border: none;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   outline: none;
   transition: background var(--dur-hover) var(--ease-kiko);
@@ -166,7 +166,7 @@
   flex-shrink: 0;
   padding: 3px;
   background: color-mix(in oklab, var(--fg) 16%, var(--panel));
-  border-radius: 10px;
+  border-radius: var(--radius-row);
   transition:
     background var(--dur-pop) var(--ease-kiko),
     box-shadow var(--dur-hover) var(--ease-kiko);
@@ -188,7 +188,7 @@
   width: 14px;
   height: 14px;
   background: var(--fg3);
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   transform-origin: left center;
   transition:
     transform var(--dur-pop) var(--ease-kiko),
@@ -271,7 +271,7 @@
 .kit-value {
   min-width: 2.5rem;
   color: var(--fg2);
-  font-size: 13px;
+  font-size: var(--type-label);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -281,10 +281,10 @@
   min-width: 0;
   padding: 0 12px;
   color: var(--fg);
-  font-size: 13.5px;
+  font-size: var(--type-label);
   background: var(--active);
   border: none;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   outline: none;
   transition: box-shadow var(--dur-hover) var(--ease-kiko);
 }
@@ -305,7 +305,7 @@
 .kit-card {
   overflow: hidden;
   background: var(--panel);
-  border-radius: 16px;
+  border-radius: var(--radius-card);
 }
 
 @container settings (width < 560px) {
@@ -338,7 +338,7 @@
 }
 
 .kit-tabs > .pill-indicator {
-  border-radius: 10px;
+  border-radius: var(--radius-row);
 }
 
 .kit-tab {
@@ -347,9 +347,9 @@
   height: 34px;
   padding: 0 14px;
   color: var(--fg2);
-  font-size: 14px;
+  font-size: var(--type-ui);
   font-weight: 500;
-  border-radius: 10px;
+  border-radius: var(--radius-row);
   cursor: pointer;
   outline: none;
   transition:

@@ -9,10 +9,10 @@
 }
 .reasoning-default {
   padding: 1px 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-tail);
   background: var(--active);
   color: var(--fg3);
-  font-size: 11px;
+  font-size: var(--type-hint);
   font-weight: 500;
   line-height: 16px;
 }
@@ -30,7 +30,7 @@
   border-radius: 999px;
   background: var(--hover);
   color: var(--fg2);
-  font-size: 13.5px;
+  font-size: var(--type-label);
   font-weight: 500;
   cursor: pointer;
   transition:

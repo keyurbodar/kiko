@@ -825,7 +825,7 @@ function SignInMethod(props: {
           <>
             <Show when={!s().code && !s().link && !s().prompt}>
               <div
-                class={cn("flex items-center gap-2 text-[12px]", muted)}
+                class={cn("flex items-center gap-2 text-hint", muted)}
                 data-component="sign-in-waiting"
                 role="status"
               >
@@ -836,7 +836,7 @@ function SignInMethod(props: {
             <Show when={s().code}>
               {(code) => (
                 <div class="flex flex-col gap-1" data-component="device-code">
-                  <span class={cn("text-[12px]", muted)}>Enter this code at the provider</span>
+                  <span class={cn("text-hint", muted)}>Enter this code at the provider</span>
                   <span class="select-all font-mono text-msg tracking-widest text-fg">{code().userCode}</span>
                   <a
                     href={code().verificationUri}
@@ -853,13 +853,13 @@ function SignInMethod(props: {
               {(link) => (
                 <div class="flex flex-col gap-1" data-component="sign-in-link">
                   <Show when={link().instructions}>
-                    <span class={cn("text-[12px]", muted)}>{link().instructions}</span>
+                    <span class={cn("text-hint", muted)}>{link().instructions}</span>
                   </Show>
                   <a
                     href={link().url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="link-grow text-[13px] text-[var(--info)]"
+                    class="link-grow text-label text-[var(--info)]"
                   >
                     Open the sign-in page
                   </a>
@@ -867,7 +867,7 @@ function SignInMethod(props: {
               )}
             </Show>
             <Show when={s().note}>
-              <p class={cn("text-[12px]", muted)} data-component="sign-in-note">
+              <p class={cn("text-hint", muted)} data-component="sign-in-note">
                 {s().note}
               </p>
             </Show>
@@ -876,7 +876,7 @@ function SignInMethod(props: {
                 const prompt = p().prompt
                 return prompt.type === "select" ? (
                   <div class="flex flex-col gap-1.5" data-component="sign-in-select">
-                    <span class={cn("text-[12px]", muted)}>{prompt.message}</span>
+                    <span class={cn("text-hint", muted)}>{prompt.message}</span>
                     <For each={prompt.options}>
                       {(option) => (
                         <Button class="w-full justify-start" onClick={() => handle?.answer(p().promptId, option.id)}>
@@ -887,7 +887,7 @@ function SignInMethod(props: {
                   </div>
                 ) : (
                   <form class="flex flex-col gap-2.5" onSubmit={answer} data-component="sign-in-prompt">
-                    <label class={cn("text-[12px]", muted)} for="sign-in-answer">
+                    <label class={cn("text-hint", muted)} for="sign-in-answer">
                       {prompt.message}
                     </label>
                     <input

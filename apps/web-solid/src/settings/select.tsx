@@ -180,7 +180,7 @@ export function Select<T>(props: {
                       id={`${id}-${i()}`}
                       role="option"
                       aria-selected={selected()}
-                      class="flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-row pr-2 pl-1.5 text-[13.5px] text-fg"
+                      class="flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-row pr-2 pl-1.5 text-label text-fg"
                       classList={{ "bg-[color-mix(in_oklab,var(--fg)_8%,transparent)]": active() === i() }}
                       data-option={String(option.value)}
                       onPointerMove={() => setActive(i())}

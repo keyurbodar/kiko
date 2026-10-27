@@ -106,14 +106,14 @@
   position: relative;
   display: flex;
   padding: 2px;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   background: var(--panel);
 }
 
 .file-view-switch > .pill-indicator {
   top: 2px;
   bottom: 2px;
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   background: var(--raise);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
 }
@@ -123,9 +123,9 @@
   z-index: 1;
   height: 24px;
   padding: 0 8px;
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   color: var(--fg3);
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   font-weight: 500;
   cursor: pointer;
   outline: none;

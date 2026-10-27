@@ -55,7 +55,7 @@ export function Broken(props: { error: unknown; reset: () => void }) {
           </summary>
           <div class="mt-2 flex flex-col gap-2">
             <pre
-              class="max-h-48 overflow-auto rounded-tile bg-panel p-3 type-code text-[12px] leading-[18px] [overflow-wrap:anywhere] whitespace-pre-wrap text-fg2"
+              class="max-h-48 overflow-auto rounded-tile bg-panel p-3 type-code text-hint leading-[18px] [overflow-wrap:anywhere] whitespace-pre-wrap text-fg2"
               data-component="crash-stack"
             >
               {details()}

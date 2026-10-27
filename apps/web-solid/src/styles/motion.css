@@ -443,7 +443,7 @@
   left: 0;
   z-index: 0;
   background: var(--active);
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   pointer-events: none;
 }
 

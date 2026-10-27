@@ -84,7 +84,7 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
       >
         <div class="relative">
           <pre
-            class="overflow-x-auto rounded-tile bg-[color-mix(in_oklab,var(--fg)_6%,transparent)] py-3 pr-24 pl-3 font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-all text-fg"
+            class="overflow-x-auto rounded-tile bg-[color-mix(in_oklab,var(--fg)_6%,transparent)] py-3 pr-24 pl-3 font-mono text-hint leading-relaxed whitespace-pre-wrap break-all text-fg"
             data-field="computer-command"
           >
             {text()}
