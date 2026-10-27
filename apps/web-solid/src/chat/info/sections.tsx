@@ -12,7 +12,7 @@ export function Properties(props: { children: JSX.Element }) {
 
 export function Property(props: { label: string; field?: string; children: JSX.Element }) {
   return (
-    <div class="grid grid-cols-[5.5rem_minmax(0,1fr)] items-start type-hint">
+    <div class="grid grid-cols-[5.5rem_minmax(0,1fr)] items-start text-hint">
       <dt class="flex h-7 items-center text-fg3">{props.label}</dt>
       <dd class="flex min-h-7 min-w-0 items-center truncate text-fg" data-field={props.field}>
         {props.children}
@@ -46,8 +46,8 @@ export function DangerRow(props: {
         onClick={() => props.onClick()}
         onBlur={() => props.onBlur?.()}
       >
-        <span class="type-label text-bad">{props.label}</span>
-        <span class="type-hint text-fg4">{props.description}</span>
+        <span class="text-label text-bad">{props.label}</span>
+        <span class="text-hint text-fg4">{props.description}</span>
       </button>
     </div>
   )

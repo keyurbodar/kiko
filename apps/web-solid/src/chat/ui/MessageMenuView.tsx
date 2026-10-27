@@ -76,7 +76,7 @@ export default function MessageMenu(props: MessageMenuProps) {
             "chat-menu min-w-[184px] rounded-pop p-1 text-fg",
             pickerOpen() && "rounded-sheet p-0",
             "[&_[data-component=menu-v2-item]]:h-[30px]",
-            "[&_[data-slot=menu-v2-item-content]]:type-label",
+            "[&_[data-slot=menu-v2-item-content]]:text-label",
             "[&_[data-slot=menu-v2-item-content]]:gap-2.5",
             "[&_[data-component=menu-v2-item]_svg]:text-fg2",
           )}

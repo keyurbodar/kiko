@@ -20,7 +20,7 @@ export function Quote(props: {
       class={cn(
         "relative flex w-full flex-row items-center gap-2 overflow-hidden",
         props.quote.gone ? "cursor-default opacity-70" : "cursor-pointer",
-        "mb-1 mt-0.5 py-1.5 ps-3.5 pe-3 text-start text-inherit type-label",
+        "mb-1 mt-0.5 py-1.5 ps-3.5 pe-3 text-start text-inherit text-label",
         "rounded-row bg-[color-mix(in_oklab,var(--fg)_7%,transparent)] transition-colors duration-[120ms] hover:bg-[color-mix(in_oklab,var(--fg)_11%,transparent)]",
         "before:absolute before:inset-y-2 before:start-2.5 before:w-[2px] before:rounded-full before:bg-[var(--fg4)] before:content-['']",
         props.class,

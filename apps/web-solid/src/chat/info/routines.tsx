@@ -114,8 +114,8 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
           {(recipe) => <RecipeIcon recipe={recipe()} size={34} />}
         </Show>
         <span class="flex min-w-0 flex-1 flex-col">
-          <span class={`truncate type-hint ${on() ? "text-fg" : "text-fg3"}`}>{props.routine.name}</span>
-          <span class={`truncate type-hint ${faint}`} data-component="routine-trigger">
+          <span class={`truncate text-hint ${on() ? "text-fg" : "text-fg3"}`}>{props.routine.name}</span>
+          <span class={`truncate text-hint ${faint}`} data-component="routine-trigger">
             <Show when={!ran() && !on()}>
               <span class="mr-1.5 rounded bg-active px-1 text-[10px]">Paused</span>
             </Show>
@@ -140,7 +140,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
   )
 }
 
-const heading = "px-2 pt-2 pb-1 type-label text-fg3"
+const heading = "px-2 pt-2 pb-1 text-label text-fg3"
 
 export function RoutinesPage(props: { chatId: string }) {
   const listed = createQuery(() => (routinesOf(props.chatId).length ? owner.queries.recipes(undefined) : null))
