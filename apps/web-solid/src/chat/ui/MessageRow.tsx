@@ -106,6 +106,9 @@ export function MessageRow(props: {
       <Show when={own() ? undefined : room.thoughtFor(props.message)}>
         {(thought) => <ThoughtRow thought={thought()} />}
       </Show>
+      <Show when={windowKey()}>
+        {(key) => <RunTree windowKey={key()} count={props.message.steps} endedAt={props.message.sentAt} />}
+      </Show>
       <Bubble
         variant={
           failed() ? "destructive" : props.jumboClass || imagesOnly() ? "ghost" : own() ? "default" : "secondary"
@@ -212,7 +215,6 @@ export function MessageRow(props: {
           />
         </Show>
       </Bubble>
-      <Show when={windowKey()}>{(key) => <RunTree windowKey={key()} count={props.message.steps} />}</Show>
     </div>
   )
 }

@@ -132,3 +132,28 @@ describe("reopening a chat while an agent works", () => {
     }).pipe(Effect.scoped),
   )
 })
+
+describe("a run that ends without a reply", () => {
+  it.live("keeps its steps on its own row instead of the next reply", () =>
+    Effect.gen(function* () {
+      const worker = yield* localWorker
+      const owner = yield* signIn(worker.url, "quiet-steps")
+      const session = yield* connect(worker.url, owner.token)
+      const room = yield* session.newRoom("quiet steps")
+      yield* owner.post("api/dev/agent/fake", { roomId: room.roomId })
+
+      const quiet = yield* room.mark()
+      yield* room.send("[calls 2] [quiet] check the feed")
+      yield* room.untilMessage((messages) => messages.some((message) => message.event?.kind === "activity"))
+      yield* room.untilIdleAfter(quiet)
+      yield* room.send("[reply] here is the feed")
+      yield* room.untilMessage((messages) => messages.some((message) => message.text === "here is the feed"))
+
+      const messages = yield* room.messages()
+      const background = messages.find((message) => message.event?.kind === "activity")
+      const reply = messages.find((message) => message.text === "here is the feed")
+      assert.strictEqual(background?.steps, 2)
+      assert.isUndefined(reply?.steps)
+    }).pipe(Effect.scoped),
+  )
+})

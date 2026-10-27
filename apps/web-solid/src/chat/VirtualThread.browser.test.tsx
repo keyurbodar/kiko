@@ -277,6 +277,29 @@ describe("VirtualThread scrolling", () => {
     expect(shown()).toBeGreaterThan(0)
   })
 
+  it("leaves the reader inside a tall live run below the last message", async () => {
+    const { screen, host, scroller, atEnd, setWorking } = await mountThread()
+    await using _ = screen
+    setWorking(["kiko"])
+    const typing = await vi.waitFor(() => host.querySelector<HTMLElement>('[data-component="chat-typing-row"]')!)
+    const steps = document.createElement("div")
+    steps.style.height = "3000px"
+    typing.append(steps)
+    await vi.waitFor(() => expect(atEnd()).toBeLessThan(1))
+    scroller.dispatchEvent(new WheelEvent("wheel", { deltaY: -1500 }))
+    scroller.scrollTop -= 1500
+    await vi.waitFor(() => expect(atEnd()).toBeGreaterThan(1000))
+    const reading = scroller.scrollTop
+
+    using _timers = fakeTimers()
+    for (let check = 0; check < 4; check += 1) {
+      vi.advanceTimersByTime(200)
+      scroller.dispatchEvent(new Event("scroll"))
+    }
+
+    expect(scroller.scrollTop).toBe(reading)
+  })
+
   it("shows who wrote above the view and jumps to the first unread message", async () => {
     const { screen, host, scroller } = await mountThread({ firstUnread: (messages) => messages[100]!.id })
     const first = () => host.querySelector('[data-message-id="101.room"]')?.getBoundingClientRect()

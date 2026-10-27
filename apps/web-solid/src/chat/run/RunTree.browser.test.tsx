@@ -3,6 +3,7 @@ import type { RunStep } from "@kiko/protocol"
 import { createSignal } from "solid-js"
 import { describe, expect, it, vi } from "vitest"
 import { render } from "../../../test/render"
+import { clockLabel } from "./duration"
 import { RunTree } from "./RunTree"
 
 const fake = vi.hoisted(() => ({ steps: [] as RunStep[], live: false }))
@@ -46,24 +47,57 @@ function step(id: string, more: Partial<RunStep>): RunStep {
   } as RunStep
 }
 
-const rows = (host: HTMLElement) => [...host.querySelectorAll<HTMLElement>(".run-tree-row:not(.run-tree-head)")]
+const rows = (host: HTMLElement) => [...host.querySelectorAll<HTMLElement>(".run-tree-row")]
+const head = (host: HTMLElement) => host.querySelector<HTMLElement>(".run-tree-head")!
 
 describe("RunTree", () => {
-  it("bounces the mascot on the running step and lights the branch down to it", async () => {
+  it("folds finished steps into one line while the agent works and keeps the current step in view", async () => {
     fake.steps = [
       step("ls", { startedAt: START }),
-      step("split.py", { startedAt: START + 5_000, status: "running", endedAt: undefined }),
+      step("cat", { startedAt: START + 4_000 }),
+      step("split.py", { startedAt: START + 8_000, status: "running", endedAt: undefined }),
     ]
     fake.live = true
     await using screen = await render(() => <RunTree windowKey="kiko#0" />)
-    const [done, running] = rows(screen.container)
+    const [group, running] = rows(screen.container)
 
+    expect(rows(screen.container)).toHaveLength(2)
+    expect(group!.textContent).toContain("Ran 2 commands")
+    expect(group!.getAttribute("aria-expanded")).toBe("false")
+    expect(running!.textContent).toContain("split.py")
     expect(running!.querySelector('[data-component="mochi"]')).not.toBeNull()
-    expect(done!.querySelector('[data-component="mochi"]')).toBeNull()
-    expect(done!.hasAttribute("data-path")).toBe(true)
-    expect(running!.hasAttribute("data-path")).toBe(true)
-    expect(done!.querySelector('[data-component="run-tree-took"]')!.textContent).toBe("4s")
-    expect(running!.querySelector('[data-component="run-tree-took"]')!.textContent).toMatch(/^\d+m \d+s$/)
+    expect(head(screen.container)).toBeNull()
+
+    group!.click()
+
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(4))
+  })
+
+  it("says how long the agent worked, from its first step to its reply, and opens to the steps", async () => {
+    fake.live = false
+    fake.steps = [
+      step("a", { startedAt: START, endedAt: START + 2_000 }),
+      step("b", { startedAt: START + 2_000, endedAt: START + 12_000 }),
+    ]
+    await using screen = await render(() => <RunTree windowKey="kiko#0" count={2} endedAt={START + 75_000} />)
+
+    expect(head(screen.container).textContent).toBe("Worked for 1m 15s")
+    expect(rows(screen.container)).toHaveLength(0)
+
+    head(screen.container).click()
+
+    await vi.waitFor(() => expect(rows(screen.container)[0]!.textContent).toContain("Ran 2 commands"))
+  })
+
+  it("tells when each call ran and how long it took, shown on hover", async () => {
+    fake.live = false
+    fake.steps = [step("solo", { startedAt: START, endedAt: START + 4_200 })]
+    await using screen = await render(() => <RunTree windowKey="kiko#9" count={1} endedAt={START + 5_000} />)
+    head(screen.container).click()
+    const time = await vi.waitFor(() => rows(screen.container)[0]!.querySelector<HTMLElement>(".run-tree-time")!)
+
+    expect(time.textContent).toBe(`${clockLabel(START)} · 4.2s`)
+    expect(getComputedStyle(time).opacity).toBe("0")
   })
 
   it("marks a helper failed until a retry of the failed step works", async () => {
@@ -72,12 +106,11 @@ describe("RunTree", () => {
     fake.live = false
     fake.steps = [step("search", { worker, status: "failed", name: "web_search", tool: "search" })]
     await using screen = await render(() => <RunTree windowKey="kiko#0" count={retried() ? 2 : 1} />)
-    const head = () => screen.container.querySelector<HTMLElement>(".run-tree-head")!
-    head().click()
+    head(screen.container).click()
     const helper = () => rows(screen.container).find((row) => row.dataset.kind === "worker")!
 
     await vi.waitFor(() => expect(helper().hasAttribute("data-failed")).toBe(true))
-    expect(head().querySelector("[data-failed]")).not.toBeNull()
+    expect(head(screen.container).querySelector("[data-failed]")).not.toBeNull()
 
     fake.steps = [
       ...fake.steps,
@@ -86,44 +119,19 @@ describe("RunTree", () => {
     setRetried(true)
 
     await vi.waitFor(() => expect(helper().hasAttribute("data-failed")).toBe(false))
-    expect(head().querySelector("[data-failed]")).toBeNull()
+    expect(head(screen.container).querySelector("[data-failed]")).toBeNull()
   })
 
-  it("shows how long the whole run took on its summary", async () => {
-    fake.live = false
-    fake.steps = [
-      step("a", { startedAt: START, endedAt: START + 2_000 }),
-      step("b", { startedAt: START + 2_000, endedAt: START + 12_000 }),
-    ]
-    await using screen = await render(() => <RunTree windowKey="kiko#0" count={2} />)
-
-    const head = screen.container.querySelector<HTMLElement>(".run-tree-head")!
-    expect(head.textContent).toContain("Ran 2 commands")
-    expect(head.querySelector('[data-component="run-tree-took"]')!.textContent).toBe("12s")
-  })
-
-  it("keeps the summary and time it showed once the steps are no longer loaded", async () => {
+  it("keeps how long it worked once the steps are no longer loaded", async () => {
     fake.live = false
     fake.steps = [step("a", { startedAt: START, endedAt: START + 5_000 })]
     {
-      await using first = await render(() => <RunTree windowKey="kiko#7" count={1} />)
-      expect(first.container.querySelector(".run-tree-head")!.textContent).toContain("Ran 1 command")
+      await using first = await render(() => <RunTree windowKey="kiko#7" count={1} endedAt={START + 8_000} />)
+      expect(head(first.container).textContent).toBe("Worked for 8.0s")
     }
     fake.steps = []
-    await using screen = await render(() => <RunTree windowKey="kiko#7" count={1} />)
+    await using screen = await render(() => <RunTree windowKey="kiko#7" count={1} endedAt={START + 8_000} />)
 
-    const head = screen.container.querySelector<HTMLElement>(".run-tree-head")!
-    expect(head.textContent).toContain("Ran 1 command")
-    expect(head.querySelector('[data-component="run-tree-took"]')!.textContent).toBe("5s")
-  })
-
-  it("shows a step's own time only when it differs from the summary's", async () => {
-    fake.live = false
-    fake.steps = [step("solo", { startedAt: START, endedAt: START + 5_000 })]
-    await using screen = await render(() => <RunTree windowKey="kiko#8" count={1} />)
-    screen.container.querySelector<HTMLElement>(".run-tree-head")!.click()
-
-    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(1))
-    expect(rows(screen.container)[0]!.querySelector('[data-component="run-tree-took"]')).toBeNull()
+    expect(head(screen.container).textContent).toBe("Worked for 8.0s")
   })
 })

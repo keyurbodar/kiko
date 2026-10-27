@@ -1299,14 +1299,6 @@ export class Room implements CommandRoom {
       await this.wakes.wake({ id: `halted:${stored.id}`, to: lead.slug, why: "stalled", body: note, chain: null })
   }
 
-  async homeNotice(slug: AgentSlug, text: string): Promise<void> {
-    const { event } = this.log.addMessage({
-      from: { kind: "system", reason: "files" },
-      text: `@${slug} ${text}`.slice(0, 300),
-    })
-    if (event) this.publish([event])
-  }
-
   async fsMkdir(slug: AgentSlug, path: string): Promise<FsChange<RoomEvent> | FsFail> {
     return this.guarded(slug, [path], `setting up /${path}`, () => this.files.mkdir(path, { kind: "agent", slug }))
   }
@@ -1804,6 +1796,8 @@ export class Room implements CommandRoom {
   async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = [], working = false): Promise<void> {
     const settled = this.bubbles.settle(slug, runId)
     if (settled) this.publish([settled], { touch: false })
+    const worked = this.log.closeWindow(slug)
+    if (worked) this.publish([worked], { touch: false })
     for (const step of this.log.steps.abandon(runId)) this.broadcast({ t: "step", step })
     const home = this.home()
     if (home) {

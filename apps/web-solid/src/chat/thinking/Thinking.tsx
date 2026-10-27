@@ -2,6 +2,7 @@ import { ChevronRightIcon } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { createEffect, createSignal, on, onCleanup, Show, type JSX } from "solid-js"
 import { type Thought, thoughtMs, thoughtText } from "../../state/thoughts"
+import { elapsedLabel } from "../run/duration"
 import { Shine } from "../run/Shine"
 import { Mochi } from "../ui/Mochi"
 import "./thinking.css"
@@ -95,7 +96,7 @@ function Chevron(props: { open: boolean }): JSX.Element {
   )
 }
 
-export function ThinkingLine(props: { thought: Thought | undefined; fallback: string }): JSX.Element {
+export function ThinkingLine(props: { thought: Thought | undefined; fallback: string; since?: number }): JSX.Element {
   const live = () => (props.thought && !props.thought.over ? props.thought : undefined)
   const text = () => {
     const thought = live()
@@ -107,7 +108,7 @@ export function ThinkingLine(props: { thought: Thought | undefined; fallback: st
   }
   const caption = usePacedLine(() => props.fallback)
   const [open, setOpen] = createSignal(remembered())
-  const now = useNow(() => !!live())
+  const now = useNow(() => !!live() || props.since !== undefined)
   const toggle = () => {
     const next = !open()
     setOpen(next)
@@ -123,6 +124,9 @@ export function ThinkingLine(props: { thought: Thought | undefined; fallback: st
             <Shine running class="thinking-live">
               {caption()}
             </Shine>
+            <Show when={caption() === props.fallback ? props.since : undefined}>
+              {(since) => <span class="thinking-time">{elapsedLabel(now() - since())}</span>}
+            </Show>
           </div>
         }
       >

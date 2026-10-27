@@ -101,6 +101,7 @@ function toChatMessage(m: Message, roomId: string): ChatMessage {
     sentAt: Number.isFinite(m.at) ? m.at : Date.now(),
   }
   if (m.from.kind === "agent") out.botId = m.from.slug
+  else if (m.event?.kind === "activity" && "agent" in m.event) out.botId = m.event.agent
   if (m.clientId) out.clientId = m.clientId
   if (!pending) out.seq = m.seq
   copyOptional(out, m)

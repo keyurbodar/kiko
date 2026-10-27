@@ -29,7 +29,6 @@ import { CHIEF } from "../room/chief"
 import { HOME } from "../files/paths"
 import {
   homeBackend,
-  HomeNotices,
   ObjectCache,
   RoomFs,
   roomBackend,
@@ -108,7 +107,6 @@ export class Agent {
   private hostInstance?: AgentHost
   private outboxInstance?: Outbox
   private afterHumanRun = false
-  private readonly homeNotices = new HomeNotices()
   protected readonly answers = new AnswerWaiters()
 
   protected readonly ctx: DurableObjectState
@@ -349,11 +347,6 @@ export class Agent {
         const { mail, human } = await this.heard(inputs).catch(() => ({ mail: [], human: false }))
         this.afterHumanRun ||= human
         this.recovered()
-        const said = this.homeNotices.take()
-        if (said)
-          await room()
-            .homeNotice(home.slug, said)
-            .catch(() => undefined)
         const ended = await room().endRun(home.slug, runId, mail, working)
         if (!working) await this.releaseTabs()
         return ended
@@ -614,11 +607,7 @@ export class Agent {
     const where = () => this.home()
     const locked = () => (this.home()?.private ? PRIVATE_REFUSAL : null)
     const backend = withMount(
-      withMount(
-        roomBackend(this.services, where, cache),
-        HOME,
-        homeBackend(this.services, where, this.homeNotices, cache, locked),
-      ),
+      withMount(roomBackend(this.services, where, cache), HOME, homeBackend(this.services, where, cache, locked)),
       KIKO,
       kikoDocsBackend(),
     )
