@@ -1,37 +1,29 @@
 .toast-v2-region,
 .toast-v2-anchors {
-  --toast-solid: var(--active);
-  --toast-glass: var(--toast-solid);
-  --toast-edge: color-mix(in oklab, var(--fg) 8%, transparent);
   --toast-muted: var(--fg3);
-  --toast-shadow: 0 14px 34px oklch(0% 0 none / 0.5), inset 0 0 0 1px var(--toast-edge);
-}
-
-:root:not(.dark) :is(.toast-v2-region, .toast-v2-anchors) {
-  --toast-solid: var(--raise);
-  --toast-shadow: 0 14px 34px oklch(0% 0 none / 0.16), inset 0 0 0 1px var(--toast-edge);
+  --toast-ring: 0 0 0 1px var(--popover-edge);
 }
 
 .toast-v2-region {
   --toast-inset: 16px;
-
   --toast-header-offset: 50px;
   --toast-gap: 12px;
   --toast-peek: 12px;
   --toast-outward: 1;
   position: fixed;
   z-index: 1000;
-  bottom: calc(var(--toast-inset) + var(--toast-composer-offset, 96px));
-  left: var(--toast-center, 50%);
-  translate: -50% 0;
+  top: calc(var(--toast-inset) + var(--toast-header-offset));
+  right: var(--toast-inset);
   width: calc(100% - var(--toast-inset) * 2);
-  max-width: 340px;
+  max-width: 360px;
   pointer-events: none;
   outline: none;
 }
 
 .toast-v2-region[data-side="left"] {
-  --toast-outward: 1;
+  --toast-outward: -1;
+  right: auto;
+  left: var(--toast-inset);
 }
 
 @media (min-width: 640px) {
@@ -48,41 +40,41 @@
 }
 
 .toast-v2 {
-  --toast-scale: max(0, 1 - var(--toast-index) * 0.05);
-  --toast-y: calc(var(--toast-index) * var(--toast-peek) * -0.75);
-  --toast-open-y: calc((var(--toast-offset-y) + var(--toast-index) * var(--toast-gap)) * -1);
+  --toast-scale: max(0, 1 - var(--toast-index) * 0.1);
+  --toast-y: calc(var(--toast-index) * var(--toast-peek) + (1 - var(--toast-scale)) * var(--toast-front-height));
+  --toast-open-y: calc(var(--toast-offset-y) + var(--toast-index) * var(--toast-gap));
   position: absolute;
-  bottom: 0;
+  top: 0;
   left: 0;
   z-index: calc(9999 - var(--toast-index));
   box-sizing: border-box;
   width: 100%;
-  border-radius: 14px;
-  color: var(--fg);
-  background: var(--toast-glass);
-  box-shadow: var(--toast-shadow);
+  border-radius: 8px;
+  color: var(--popover-fg);
+  background: var(--popover);
+  box-shadow: var(--toast-ring), var(--popover-shadow-lg);
   pointer-events: auto;
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
   outline: none;
-  transform-origin: bottom;
+  transform-origin: top;
   transform: translateX(var(--toast-swipe-x, 0px)) translateY(calc(var(--toast-swipe-y, 0px) + var(--toast-y)))
     scale(var(--toast-scale));
   transition:
     transform var(--dur-pop) var(--ease-kiko),
     opacity var(--dur-pop) var(--ease-kiko),
-    height var(--dur-pop) var(--ease-kiko);
+    height 150ms var(--ease-kiko);
 
   @starting-style {
-    transform: translateY(24px) scale(0.96);
+    transform: translateX(calc(var(--toast-outward) * (100% + var(--toast-inset)))) translateY(var(--toast-y));
     opacity: 0;
   }
 
   &::after {
     content: "";
     position: absolute;
-    bottom: 100%;
+    top: 100%;
     left: 0;
     width: 100%;
     height: calc(var(--toast-gap) + 1px);
@@ -92,7 +84,8 @@
     height: var(--toast-front-height);
   }
 
-  &[data-behind] > .toast-v2-content {
+  &[data-behind] > .toast-v2-content,
+  &[data-behind] > .toast-v2-close {
     opacity: 0;
     pointer-events: none;
   }
@@ -109,7 +102,7 @@
   &[data-ending] {
     opacity: 0;
     pointer-events: none;
-    transform: translateY(calc(var(--toast-y) + 12px)) scale(0.96);
+    transform: translateX(calc(var(--toast-outward) * (100% + var(--toast-inset)))) translateY(var(--toast-y));
     transition-duration: var(--dur-exit, 140ms);
   }
 
@@ -119,7 +112,7 @@
   }
 
   &[data-ending="out-y"] {
-    transform: translateY(calc(var(--toast-swipe-y, 0px) + 100% + var(--toast-inset)));
+    transform: translateY(calc(var(--toast-swipe-y, 0px) - 100% - var(--toast-inset)));
   }
 }
 
@@ -127,7 +120,8 @@
   height: auto;
   transform: translateX(var(--toast-swipe-x, 0px)) translateY(calc(var(--toast-swipe-y, 0px) + var(--toast-open-y)));
 
-  > .toast-v2-content {
+  > .toast-v2-content,
+  > .toast-v2-close {
     opacity: 1;
     pointer-events: auto;
   }
@@ -139,15 +133,15 @@
   justify-content: space-between;
   gap: 6px;
   min-height: 0;
-  padding-block: 10px;
-  padding-inline: 12px 34px;
+  padding-block: 12px;
+  padding-inline: 14px;
   overflow-x: clip;
   font-size: 14px;
   line-height: 20px;
   transition: opacity var(--dur-pop) var(--ease-kiko);
 
   &[data-actions] {
-    padding-inline-end: 34px;
+    padding-inline-end: 24px;
   }
 }
 
@@ -232,31 +226,33 @@
 
 .toast-v2-close {
   position: absolute;
-  z-index: 1;
-  top: 50%;
-  right: 8px;
-  translate: 0 -50%;
+  z-index: 20;
+  top: -6px;
+  right: -6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   padding: 0;
-  border: 0;
-  border-radius: 7px;
-  color: var(--fg4);
-  background: transparent;
+  border: 1px solid color-mix(in oklab, var(--popover-edge) 60%, transparent);
+  border-radius: 50%;
+  color: var(--fg3);
+  background: color-mix(in oklab, var(--popover) 92%, transparent);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
   cursor: pointer;
   outline: none;
-  opacity: 0;
   transition:
-    opacity var(--dur-hover),
-    background var(--dur-hover),
-    color var(--dur-hover);
+    color var(--dur-hover),
+    background var(--dur-hover);
 
   &:hover {
     color: var(--fg);
-    background: var(--hover);
+    background: var(--popover);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--info);
   }
 
   > svg {
@@ -347,14 +343,12 @@
   z-index: 1000;
   max-width: 256px;
   padding: 4px 8px;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 12px;
-  line-height: 16px;
-  color: var(--fg);
-  background: var(--toast-glass);
-  -webkit-backdrop-filter: blur(12px) saturate(1.14);
-  backdrop-filter: blur(12px) saturate(1.14);
-  box-shadow: var(--toast-shadow);
+  line-height: 1.375;
+  color: var(--popover-fg);
+  background: var(--popover);
+  box-shadow: var(--toast-ring), var(--popover-shadow-sm);
   text-wrap: balance;
   pointer-events: none;
   transform: translate(-50%, calc(-100% - 4px));
@@ -374,23 +368,6 @@
   &[data-ending] {
     opacity: 0;
     scale: 0.98;
-  }
-}
-
-.toast-v2:focus-within .toast-v2-close,
-.toast-v2:focus-visible .toast-v2-close {
-  opacity: 1;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .toast-v2:hover .toast-v2-close {
-    opacity: 1;
-  }
-}
-
-@media (pointer: coarse) {
-  .toast-v2-close {
-    opacity: 1;
   }
 }
 
