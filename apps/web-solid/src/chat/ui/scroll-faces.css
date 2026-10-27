@@ -8,7 +8,7 @@
   height: var(--spacing-header);
   margin-left: calc(var(--spacing-header) / -2);
   place-items: center;
-  border-radius: 9999px;
+  border-radius: var(--radius-full);
   background: var(--raise);
   box-shadow:
     inset 0 0 0 1px var(--line2),
@@ -108,7 +108,7 @@
   right: 7px;
   width: 9px;
   height: 9px;
-  border-radius: 9999px;
+  border-radius: var(--radius-full);
   background: var(--fg);
   box-shadow: 0 0 0 2.5px var(--raise);
 }
@@ -135,13 +135,13 @@
   height: 36px;
   align-items: center;
   overflow: hidden;
-  border-radius: 9999px;
+  border-radius: var(--radius-full);
   background: var(--raise);
   box-shadow:
     inset 0 0 0 1px var(--line2),
     var(--float-shadow);
   color: var(--fg);
-  font-size: 13px;
+  font-size: var(--type-label);
   line-height: 18px;
   white-space: nowrap;
   cursor: pointer;
@@ -202,7 +202,7 @@
   display: inline-flex;
 }
 .scroll-faces-pill-face {
-  border-radius: 7px;
+  border-radius: var(--radius-full);
   background: var(--active);
   box-shadow: 0 0 0 2px var(--raise);
 }

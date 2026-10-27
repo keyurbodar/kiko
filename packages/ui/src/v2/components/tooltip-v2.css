@@ -24,7 +24,7 @@
 
   font-style: normal;
   font-weight: 450;
-  font-size: 12.5px;
+  font-size: var(--type-label);
   line-height: 1.4;
   color: var(--tooltip-fg);
   text-wrap: balance;

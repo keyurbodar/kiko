@@ -11,7 +11,6 @@
   }
 }
 
-@import "@kiko/ui/icon.css";
 @import "@kiko/ui/file-icon.css";
 
 @import "./styles/motion.css";
@@ -49,13 +48,7 @@
 }
 
 :root {
-  --font-size-prompt: 14px;
-  --font-size-code: 13px;
   --line-height: 1.45;
-  --line-height-code: 1.5;
-  --font-weight-regular: 400;
-  --font-weight-medium: 500;
-  --font-weight-bold: 600;
   --font-family-sans: Satoshi, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-family-display: Fraunces, Georgia, "Times New Roman", serif;
   --font-family-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, ui-monospace, monospace;
@@ -407,6 +400,14 @@
   --type-label-line: 1.31;
   --type-hint: 12px;
   --type-hint-line: 1.42;
+  --type-caption: 11px;
+  --type-caption-line: 1.36;
+  --type-micro: 10px;
+  --type-micro-line: 1.4;
+  --type-nano: 8px;
+  --type-nano-line: 1.38;
+  --type-heading: 15px;
+  --type-heading-line: 1.4;
   --type-code: 13px;
   --type-code-line: 1.46;
   --dur-hover: 120ms;
@@ -419,6 +420,7 @@
 @theme {
   --radius-tail: 6px;
   --radius-check: 5px;
+  --radius-micro: 4px;
   --radius-control: 8px;
   --radius-row: 8px;
   --radius-tile: 10px;
@@ -428,6 +430,7 @@
   --radius-sheet: 20px;
   --radius-hero: 24px;
   --radius-composer: 14px;
+  --radius-full: 999px;
   --spacing-nav-tab: 32px;
   --spacing-chat-row: 50px;
   --spacing-mascot: 32px;
@@ -469,6 +472,14 @@
   --text-label--line-height: var(--type-label-line);
   --text-hint: var(--type-hint);
   --text-hint--line-height: var(--type-hint-line);
+  --text-caption: var(--type-caption);
+  --text-caption--line-height: var(--type-caption-line);
+  --text-micro: var(--type-micro);
+  --text-micro--line-height: var(--type-micro-line);
+  --text-nano: var(--type-nano);
+  --text-nano--line-height: var(--type-nano-line);
+  --text-heading: var(--type-heading);
+  --text-heading--line-height: var(--type-heading-line);
   --text-code: var(--type-code);
   --text-code--line-height: var(--type-code-line);
 }
@@ -530,6 +541,34 @@
   font-size: var(--type-hint);
   line-height: var(--type-hint-line);
   font-weight: 435;
+}
+
+@utility type-caption {
+  font-family: var(--font-family-sans);
+  font-size: var(--type-caption);
+  line-height: var(--type-caption-line);
+  font-weight: 435;
+}
+
+@utility type-micro {
+  font-family: var(--font-family-sans);
+  font-size: var(--type-micro);
+  line-height: var(--type-micro-line);
+  font-weight: 435;
+}
+
+@utility type-nano {
+  font-family: var(--font-family-sans);
+  font-size: var(--type-nano);
+  line-height: var(--type-nano-line);
+  font-weight: 435;
+}
+
+@utility type-heading {
+  font-family: var(--font-family-sans);
+  font-size: var(--type-heading);
+  line-height: var(--type-heading-line);
+  font-weight: 520;
 }
 
 @utility type-code {

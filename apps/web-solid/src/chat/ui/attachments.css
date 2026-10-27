@@ -82,7 +82,7 @@
 
 .att-name {
   overflow: hidden;
-  font-size: 14.5px;
+  font-size: var(--type-heading);
   font-weight: 500;
   line-height: 20px;
   text-overflow: ellipsis;
@@ -91,7 +91,7 @@
 
 .att-meta {
   color: var(--fg3);
-  font-size: 12.5px;
+  font-size: var(--type-label);
   line-height: 16px;
 }
 
@@ -136,7 +136,7 @@
   padding: 0 6px;
   border-radius: var(--radius-control);
   color: var(--fg2);
-  font-size: 13px;
+  font-size: var(--type-label);
   cursor: pointer;
   transition:
     background var(--dur-hover) var(--ease-kiko),

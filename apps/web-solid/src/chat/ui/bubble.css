@@ -30,7 +30,7 @@
 }
 
 [data-slot="bubble-content"] {
-  font-size: 15px;
+  font-size: var(--type-heading);
   line-height: 24px;
   transition: border-radius 260ms var(--ease-kiko);
 }

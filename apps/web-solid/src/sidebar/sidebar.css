@@ -51,7 +51,7 @@
   align-items: center;
   color: var(--fg);
   font-family: var(--font-family-display);
-  font-size: 24px;
+  font-size: var(--type-wordmark);
   font-weight: 400;
   font-variation-settings: var(--display-variation);
   letter-spacing: -0.015em;
