@@ -16,6 +16,7 @@ import type {
   Sender,
   SystemEvent,
   RoomId,
+  WorkerRow,
 } from "@kiko/protocol"
 import { listSpace, ROOM_TABLES } from "../files/file-index"
 import { messageIdAt, messageSeq, messageSeqs } from "./message-position"
@@ -222,6 +223,13 @@ export class RoomLog {
     const ended = this.steps.finish(heard, open.after)
     if (ended?.fresh) open.count++
     return ended?.step ?? null
+  }
+
+  endWorkers(slug: AgentSlug, rows: readonly Pick<WorkerRow, "id" | "status">[]): RunStep[] {
+    return rows.flatMap((row) => {
+      if (row.status === "pending" || row.status === "running") return []
+      return this.steps.endWorker(slug, row.id, row.status)
+    })
   }
 
   lastSeq(): number {
