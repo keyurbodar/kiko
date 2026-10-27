@@ -309,6 +309,9 @@
   --radius-composer: 14px;
   --radius-full: 999px;
   --spacing-nav-tab: 32px;
+  --spacing-nav-gap: 8px;
+  --spacing-nav-slot: 28px;
+  --spacing-nav-pad: 10px;
   --spacing-chat-row: 50px;
   --spacing-mascot: 32px;
   --spacing-avatar: 30px;
