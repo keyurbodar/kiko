@@ -30,8 +30,8 @@
 }
 
 [data-slot="bubble-content"] {
-  font-size: var(--type-msg);
-  line-height: var(--type-msg-line);
+  font-size: var(--type-bubble);
+  line-height: var(--type-bubble-line);
   transition: border-radius 260ms var(--ease-kiko);
 }
 

@@ -267,7 +267,9 @@
   --type-wordmark: 24px;
   --type-wordmark-line: 1.17;
   --type-msg: 16px;
-  --type-msg-line: 1.38;
+  --type-msg-line: 1.5;
+  --type-bubble: 15px;
+  --type-bubble-line: 1.6;
   --type-ui: 14px;
   --type-ui-line: 1.43;
   --type-row: 14px;
@@ -332,6 +334,8 @@
   --text-wordmark--line-height: var(--type-wordmark-line);
   --text-msg: var(--type-msg);
   --text-msg--line-height: var(--type-msg-line);
+  --text-bubble: var(--type-bubble);
+  --text-bubble--line-height: var(--type-bubble-line);
   --text-ui: var(--type-ui);
   --text-ui--line-height: var(--type-ui-line);
   --text-row: var(--type-row);
@@ -380,6 +384,13 @@
   font-family: var(--font-family-sans);
   font-size: var(--type-msg);
   line-height: var(--type-msg-line);
+  font-weight: 400;
+}
+
+@utility type-bubble {
+  font-family: var(--font-family-sans);
+  font-size: var(--type-bubble);
+  line-height: var(--type-bubble-line);
   font-weight: 400;
 }
 
