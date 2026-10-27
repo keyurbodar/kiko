@@ -98,7 +98,7 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
             data-copied={copied() ? "" : undefined}
             onClick={() => void copy()}
           >
-            <CopyCheckIcon copied={copied()} size={14} class={cn(copied() && "text-ok")} />
+            <CopyCheckIcon copied={copied()} size={16} class={cn(copied() && "text-ok")} />
             <Show when={copied()}>
               <span>Copied</span>
             </Show>
@@ -155,7 +155,7 @@ function Row(props: { computer: ComputerSummary; onError: (message: string | nul
 
   return (
     <Item
-      icon={<RemixIcon icon={MonitorIcon} size={14} />}
+      icon={<RemixIcon icon={MonitorIcon} size={16} />}
       data-component="computer-row"
       data-computer={props.computer.id}
       title={
@@ -198,7 +198,7 @@ function Row(props: { computer: ComputerSummary; onError: (message: string | nul
       actions={
         <>
           <IconButton label="Rename" data-action="computer-rename" onClick={() => setEditing(true)}>
-            <RemixIcon icon={EditIcon} size={14} />
+            <RemixIcon icon={EditIcon} size={16} />
           </IconButton>
           <Button variant="danger" busy={busy()} data-action="computer-remove" onClick={() => void remove()}>
             {confirming() ? "Remove it" : "Remove"}
@@ -239,7 +239,7 @@ export default function Computers(): JSX.Element {
 
   const adding = () => (
     <Button busy={busy()} disabled={pair() !== null} data-action="computer-add" onClick={() => void add()}>
-      <RemixIcon icon={PlusIcon} size={14} />
+      <RemixIcon icon={PlusIcon} size={16} />
       Add a computer
     </Button>
   )

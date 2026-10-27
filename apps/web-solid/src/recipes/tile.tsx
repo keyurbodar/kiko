@@ -43,7 +43,7 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
         </button>
         <span class="type-row line-clamp-2 text-fg3">{props.recipe.description}</span>
         <span class="type-label mt-1 flex min-w-0 items-center gap-2 text-fg4">
-          <RemixIcon icon={ClockIcon} size={14} class="shrink-0" />
+          <RemixIcon icon={ClockIcon} size={16} class="shrink-0" />
           <span class="truncate">
             <Show when={on()} fallback={localizeWhen(props.recipe.when)}>
               {soonest()}

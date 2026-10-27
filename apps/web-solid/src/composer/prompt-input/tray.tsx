@@ -129,7 +129,7 @@ function Tile(props: {
         </span>
         <Show when={upload()?.status === "failed" && pictured()}>
           <span class="tray-veil" data-tone="bad">
-            <RemixIcon icon={ResetIcon} size={18} />
+            <RemixIcon icon={ResetIcon} size={20} />
           </span>
         </Show>
         <Foot part={props.part} upload={upload()} named={look() !== "type" && !pasted()} />
@@ -144,7 +144,7 @@ function Tile(props: {
         data-action="remove-attachment"
         onClick={remove}
       >
-        <RemixIcon icon={CloseIcon} size={11} />
+        <RemixIcon icon={CloseIcon} size={12} />
       </button>
     </div>
   )
@@ -165,7 +165,7 @@ function RefusedTile(props: { item: Rejected; onDismiss: () => void }) {
         </span>
       </span>
       <button type="button" class="tray-remove" aria-label={`Dismiss ${props.item.name}`} onClick={props.onDismiss}>
-        <RemixIcon icon={CloseIcon} size={11} />
+        <RemixIcon icon={CloseIcon} size={12} />
       </button>
     </div>
   )

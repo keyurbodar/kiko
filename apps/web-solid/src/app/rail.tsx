@@ -42,12 +42,12 @@ export function Rail(props: { onExpand: () => void }) {
       <div class="h-2" />
       <Tip label="New chat">
         <button type="button" class={BUTTON} aria-label="New chat" onClick={() => runCommand("chat.new")}>
-          <RemixIcon icon={PlusIcon} size={17} />
+          <RemixIcon icon={PlusIcon} size={16} />
         </button>
       </Tip>
       <Tip label="Search">
         <button type="button" class={BUTTON} aria-label="Search" onClick={() => runCommand("palette.open")}>
-          <RemixIcon icon={SearchIcon} size={17} />
+          <RemixIcon icon={SearchIcon} size={16} />
         </button>
       </Tip>
       <For each={LINKS}>
@@ -58,7 +58,7 @@ export function Rail(props: { onExpand: () => void }) {
               class={`${BUTTON} ${pathname().startsWith(link.to) ? "bg-active text-fg" : ""}`}
               aria-label={link.label}
             >
-              <RemixIcon icon={link.icon} size={17} />
+              <RemixIcon icon={link.icon} size={16} />
             </Link>
           </Tip>
         )}
@@ -82,7 +82,7 @@ export function Rail(props: { onExpand: () => void }) {
       <div class="flex-1" />
       <Tip label="Settings">
         <button type="button" class={BUTTON} aria-label="Settings" onClick={() => runCommand("settings.open")}>
-          <RemixIcon icon={SettingsIcon} size={17} />
+          <RemixIcon icon={SettingsIcon} size={16} />
         </button>
       </Tip>
     </nav>

@@ -30,7 +30,7 @@ export function FileBreadcrumbs(props: {
         {(dir) => (
           <>
             <FolderCrumb dir={dir} current={props.path} index={props.index} onOpen={props.onOpen} />
-            <RemixIcon icon={ChevronRightIcon} size={14} class="mx-1 shrink-0 text-fg3 opacity-60" />
+            <RemixIcon icon={ChevronRightIcon} size={16} class="mx-1 shrink-0 text-fg3 opacity-60" />
           </>
         )}
       </For>

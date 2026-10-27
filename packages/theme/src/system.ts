@@ -24,6 +24,7 @@ const SIZE = {
   chip: 24,
   tab: 28,
   "composer-min": 96,
+  header: 48,
   sidebar: 288,
 } as const
 

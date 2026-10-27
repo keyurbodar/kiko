@@ -100,7 +100,7 @@ function VariantCard(props: { theme: ImportedTheme; label: string; onRemove?: ()
               class="absolute top-1.5 right-1.5 grid size-4 place-items-center rounded-full"
               style={{ background: props.theme.palette.text, color: props.theme.palette.canvas }}
             >
-              <RemixIcon icon={CheckIcon} size={10} />
+              <RemixIcon icon={CheckIcon} size={12} />
             </span>
           </Show>
         </span>
@@ -194,7 +194,7 @@ function ResultRow(props: { item: OpenVsxItem; state?: Install; onInstall: () =>
           when={installed().length === 0}
           fallback={
             <span class="flex shrink-0 items-center gap-1 type-label text-fg3">
-              <RemixIcon icon={CheckIcon} size={14} />
+              <RemixIcon icon={CheckIcon} size={16} />
               Installed
             </span>
           }
@@ -240,7 +240,7 @@ function Message(props: { title: string; children?: JSX.Element }): JSX.Element 
   return (
     <div class="flex flex-col items-center gap-3 px-6 py-12 text-center" data-slot="message">
       <span class="grid size-10 place-items-center rounded-full bg-panel text-fg3">
-        <RemixIcon icon={SearchIcon} size={18} />
+        <RemixIcon icon={SearchIcon} size={20} />
       </span>
       <p class="type-ui text-fg2">{props.title}</p>
       {props.children}

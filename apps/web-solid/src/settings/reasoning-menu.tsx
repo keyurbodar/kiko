@@ -66,9 +66,9 @@ export function ReasoningMenu(props: {
           title="Reasoning"
           data-component="reasoning-trigger"
         >
-          <RemixIcon icon={GaugeIcon} size={14} class="reasoning-needle" />
+          <RemixIcon icon={GaugeIcon} size={16} class="reasoning-needle" />
           <span class="reasoning-label">{THINKING_LABELS[value()]}</span>
-          <RemixIcon icon={ChevronDownIcon} size={10} class="opacity-70" />
+          <RemixIcon icon={ChevronDownIcon} size={12} class="opacity-70" />
         </MenuV2.Trigger>
         <MenuV2.Portal>
           <MenuV2.Content class="min-w-52" data-component="reasoning-menu">

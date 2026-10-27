@@ -371,7 +371,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
             data-action="new-file"
             onClick={() => startNew("file")}
           >
-            <RemixIcon icon={FileAddIcon} size={15} />
+            <RemixIcon icon={FileAddIcon} size={16} />
           </button>
         </TooltipV2>
         <TooltipV2 placement="bottom" openDelay={400} value="New folder">
@@ -382,7 +382,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
             data-action="new-folder"
             onClick={() => startNew("folder")}
           >
-            <RemixIcon icon={FolderAddIcon} size={15} />
+            <RemixIcon icon={FolderAddIcon} size={16} />
           </button>
         </TooltipV2>
         <Show when={folderSet().size > 0}>
@@ -397,8 +397,8 @@ export function FileTree(props: FileTreeProps): JSX.Element {
               aria-label={allOpen() ? "Collapse all folders" : "Expand all folders"}
               onClick={toggleAll}
             >
-              <Show when={allOpen()} fallback={<RemixIcon icon={ExpandAllIcon} size={15} />}>
-                <RemixIcon icon={CollapseAllIcon} size={15} />
+              <Show when={allOpen()} fallback={<RemixIcon icon={ExpandAllIcon} size={16} />}>
+                <RemixIcon icon={CollapseAllIcon} size={16} />
               </Show>
             </button>
           </TooltipV2>

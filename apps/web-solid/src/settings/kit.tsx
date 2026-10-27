@@ -1,4 +1,4 @@
-import { RemixIcon } from "@kiko/ui/remix-icon"
+import { RemixIcon, type IconSize } from "@kiko/ui/remix-icon"
 import { LoaderIcon } from "@kiko/ui/icons"
 import { Show, splitProps, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
@@ -16,8 +16,8 @@ export function buttonClass(variant: Variant = "secondary", extra?: string, big?
 
 export const selectClass = "kit-select"
 
-export function Spinner(props: { size?: number }): JSX.Element {
-  return <RemixIcon icon={LoaderIcon} class="motion-spin" size={props.size ?? 14} />
+export function Spinner(props: { size?: IconSize }): JSX.Element {
+  return <RemixIcon icon={LoaderIcon} class="motion-spin" size={props.size ?? 16} />
 }
 
 export function Skeleton(props: { class?: string }): JSX.Element {

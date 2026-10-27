@@ -107,7 +107,7 @@ export function RecipeSheet(props: {
           <span class="flex min-w-0 flex-col gap-0.5">
             <span class="truncate">{props.recipe.title}</span>
             <span class="type-label flex items-center gap-1.5 truncate text-fg3">
-              <RemixIcon icon={ClockIcon} size={14} class="shrink-0" />
+              <RemixIcon icon={ClockIcon} size={16} class="shrink-0" />
               {adding() ? "Choose where it runs" : localizeWhen(props.recipe.when)}
             </span>
           </span>
@@ -144,7 +144,7 @@ export function RecipeSheet(props: {
                 >
                   <RemixIcon
                     icon={ChevronLeftIcon}
-                    size={14}
+                    size={16}
                     class="transition-transform duration-(--dur-hover) group-hover:-translate-x-0.5"
                   />
                   Back

@@ -127,7 +127,7 @@ export function SettingsDialog(props: ParentProps) {
       data-section={s.id}
       onClick={() => void navigate({ to: s.to })}
     >
-      <RemixIcon icon={s.icon} size={17} />
+      <RemixIcon icon={s.icon} size={16} />
       <span class="settings-nav-label">{s.label}</span>
       <RemixIcon icon={ChevronRightIcon} size={16} class="settings-nav-chevron" />
     </button>
@@ -192,7 +192,7 @@ export function SettingsDialog(props: ParentProps) {
                 >
                   <RemixIcon
                     icon={ChevronLeftIcon}
-                    size={14}
+                    size={16}
                     class="transition-transform duration-(--dur-hover) group-hover:-translate-x-0.5 group-active:-translate-x-0.5"
                   />
                   Settings

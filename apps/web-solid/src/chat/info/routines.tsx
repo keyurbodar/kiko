@@ -107,7 +107,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
               class={`grid size-7 shrink-0 place-items-center rounded-control bg-active ${on() ? "text-fg2" : "text-fg4"}`}
               aria-hidden="true"
             >
-              <RemixIcon icon={ClockIcon} size={14} />
+              <RemixIcon icon={ClockIcon} size={16} />
             </span>
           }
         >
@@ -124,17 +124,17 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
         </span>
       </div>
       <Tool label={ran() ? "Started" : "Run now"} action="routine-run" disabled={ran()} onClick={() => void run()}>
-        <RemixIcon icon={ran() ? CheckIcon : PlayIcon} size={14} />
+        <RemixIcon icon={ran() ? CheckIcon : PlayIcon} size={16} />
       </Tool>
       <Tool
         label={on() ? "Pause" : "Resume"}
         action="routine-toggle"
         onClick={() => void setStatus(props.routine, on() ? "paused" : "active")}
       >
-        <RemixIcon icon={on() ? PauseIcon : PlayIcon} size={14} />
+        <RemixIcon icon={on() ? PauseIcon : PlayIcon} size={16} />
       </Tool>
       <Tool label="Delete routine" action="routine-delete" onClick={() => void cancelRoutine(props.routine)}>
-        <RemixIcon icon={TrashIcon} size={14} />
+        <RemixIcon icon={TrashIcon} size={16} />
       </Tool>
     </li>
   )

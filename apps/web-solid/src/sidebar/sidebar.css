@@ -35,7 +35,7 @@
 .sidebar-shell .panel-header {
   position: relative;
   display: flex;
-  height: 52px;
+  height: var(--spacing-header);
   flex-shrink: 0;
   align-items: center;
   gap: 2px;

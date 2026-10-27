@@ -4,7 +4,7 @@
   overflow: hidden;
   color: var(--fg);
   background: var(--bg);
-  border-radius: 24px;
+  border-radius: var(--radius-sheet);
   box-shadow: 0 50px 140px rgb(0 0 0 / 0.45);
 }
 

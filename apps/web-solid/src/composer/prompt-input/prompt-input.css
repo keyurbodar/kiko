@@ -38,7 +38,7 @@
   color: var(--fg);
   background: var(--chip-fill);
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-tail);
   font: inherit;
   font-size: 13.5px;
   font-weight: 400;
@@ -158,7 +158,7 @@ button.token-chip:active {
 
 .token-app-tile .recipe-logo {
   background: #f4f3f1;
-  border-radius: 5px;
+  border-radius: var(--radius-check);
   box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--bg) 90%, transparent);
 }
 
@@ -174,7 +174,7 @@ button.token-chip:active {
   padding: 12px;
   color: var(--fg);
   background: var(--raise);
-  border-radius: 14px;
+  border-radius: var(--radius-pop);
   box-shadow:
     inset 0 0 0 1px var(--line2),
     var(--float-shadow);
@@ -230,7 +230,7 @@ button.token-chip:active {
   padding: 1px 8px 1px 6px;
   color: var(--fg);
   background: var(--active);
-  border-radius: 6px;
+  border-radius: var(--radius-tail);
   font-size: 13.5px;
   white-space: nowrap;
   box-decoration-break: clone;
@@ -269,7 +269,7 @@ button.token-chip:active {
   overflow: auto;
   padding: 6px;
   background: var(--raise);
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   box-shadow:
     inset 0 0 0 1px var(--line2),
     var(--float-shadow);
@@ -303,7 +303,7 @@ button.token-chip:active {
   align-items: center;
   gap: 10px;
   padding: 0 10px;
-  border-radius: 10px;
+  border-radius: var(--radius-row);
   font-size: 13.5px;
   cursor: pointer;
 }
@@ -434,7 +434,7 @@ button.token-chip:active {
   color: var(--fg);
   background: none;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font: inherit;
   font-weight: 500;
   cursor: pointer;
@@ -468,7 +468,7 @@ button.token-chip:active {
   width: 12px;
   height: 12px;
   flex-shrink: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-tail);
   box-shadow: inset 0 0 0 1.5px var(--bad);
 }
 
@@ -496,7 +496,7 @@ button.token-chip:active {
   flex: none;
   color: var(--fg);
   background: color-mix(in oklab, var(--fg) 4%, var(--bg));
-  border-radius: 12px;
+  border-radius: var(--radius-tile);
   scroll-snap-align: start;
 }
 
@@ -714,7 +714,7 @@ button.token-chip:active {
   align-items: center;
   padding: 0 6px;
   color: var(--fg2);
-  border-radius: 6px;
+  border-radius: var(--radius-tail);
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fg) 16%, transparent);
   font-size: 10px;
   font-weight: 600;
@@ -866,7 +866,7 @@ button.token-chip:active {
   color: var(--fg);
   background: color-mix(in oklab, var(--fg) 12%, var(--raise));
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-row);
   box-shadow: 0 0 0 2px var(--raise);
   opacity: 0;
   cursor: pointer;

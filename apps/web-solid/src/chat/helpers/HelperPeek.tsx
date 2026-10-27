@@ -46,7 +46,7 @@ function Steps(props: { lane: HelperLane }) {
               data-failed={step.status === "failed" ? "" : undefined}
             >
               <Show when={glyph()} fallback={<span class="size-[15px] shrink-0" />}>
-                {(icon) => <RemixIcon icon={GLYPH[icon()]} size={15} class="shrink-0" />}
+                {(icon) => <RemixIcon icon={GLYPH[icon()]} size={16} class="shrink-0" />}
               </Show>
               <Shine running={step.status === "running"}>{liveLabel(step) || step.name}</Shine>
             </div>

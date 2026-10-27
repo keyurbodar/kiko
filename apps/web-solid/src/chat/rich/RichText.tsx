@@ -182,7 +182,7 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
       <div class="rich-table-footer">
         <Show when={folded()} fallback={<span />}>
           <button type="button" class="rich-table-more" data-disclosure="" onClick={() => setAllRows(true)}>
-            <RemixIcon icon={ChevronDownIcon} size={13} />
+            <RemixIcon icon={ChevronDownIcon} size={12} />
             Show {rows() - TABLE_ROWS_SHOWN} more
           </button>
         </Show>

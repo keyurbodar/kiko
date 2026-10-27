@@ -81,7 +81,7 @@
   margin: 0;
   padding: 0.5em 0.75em;
   background: color-mix(in oklab, var(--fg) 7%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-code);
   white-space: pre-wrap;

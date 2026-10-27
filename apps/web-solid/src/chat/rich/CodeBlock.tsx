@@ -57,7 +57,7 @@ function Action(props: { label: string; icon: Glyph; pressed?: boolean; onClick:
         data-active={props.pressed ? "" : undefined}
         onClick={() => props.onClick()}
       >
-        <RemixIcon icon={props.icon} size={15} />
+        <RemixIcon icon={props.icon} size={16} />
       </button>
     </TooltipV2>
   )
@@ -221,7 +221,7 @@ function CodeFiles(props: { files: readonly CodeFile[] }): JSX.Element {
           data-disclosure=""
           onClick={() => setOpen(!open())}
         >
-          <RemixIcon icon={open() ? ChevronUpIcon : ChevronDownIcon} size={13} />
+          <RemixIcon icon={open() ? ChevronUpIcon : ChevronDownIcon} size={12} />
           <span>{open() ? "Show less" : `Show ${count() - FOLD_LINES} more lines`}</span>
           <span class="rich-code-count">{count()} lines</span>
         </button>

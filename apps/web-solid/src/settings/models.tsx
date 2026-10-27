@@ -446,7 +446,7 @@ function PickerModelRow(props: { row: PickerRow; hidden: boolean; showProvider: 
       <Show when={props.row.model.reasoning}>
         <TooltipV2 placement="top" value="Reasoning">
           <span class="grid shrink-0 place-items-center text-fg4" aria-label="Reasoning" role="img">
-            <RemixIcon icon={ReasoningIcon} size={14} />
+            <RemixIcon icon={ReasoningIcon} size={16} />
           </span>
         </TooltipV2>
       </Show>

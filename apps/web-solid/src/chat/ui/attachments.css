@@ -19,7 +19,7 @@
   padding: 0;
   overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--fg) 12%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--active);
   cursor: zoom-in;
 }
@@ -76,7 +76,7 @@
   height: 40px;
   flex: none;
   place-items: center;
-  border-radius: 10px;
+  border-radius: var(--radius-row);
   background: var(--active);
 }
 
@@ -101,7 +101,7 @@
   height: 32px;
   flex: none;
   place-items: center;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   color: var(--fg3);
   transition:
     background var(--dur-hover) var(--ease-kiko),
@@ -134,7 +134,7 @@
   align-items: center;
   gap: 6px;
   padding: 0 6px;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   color: var(--fg2);
   font-size: 13px;
   cursor: pointer;

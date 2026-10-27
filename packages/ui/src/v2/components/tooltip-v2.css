@@ -20,7 +20,7 @@
   box-shadow:
     0 0 0 1px var(--tooltip-edge),
     0 6px 16px -4px rgb(0 0 0 / 35%);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
 
   font-style: normal;
   font-weight: 450;

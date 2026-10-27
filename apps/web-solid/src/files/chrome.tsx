@@ -37,13 +37,13 @@ export function SurfaceAction(props: {
             data-action={props.action}
             onClick={() => props.onPress?.()}
           >
-            <RemixIcon icon={props.icon} size={14} />
+            <RemixIcon icon={props.icon} size={16} />
           </button>
         }
       >
         {(href) => (
           <a class={ACTION} href={href()} download={props.download} aria-label={props.label} data-action={props.action}>
-            <RemixIcon icon={props.icon} size={14} />
+            <RemixIcon icon={props.icon} size={16} />
           </a>
         )}
       </Show>
@@ -110,7 +110,7 @@ export function NoPreview(props: { name: string; href: string }) {
         download={props.name}
         data-action="download"
       >
-        <RemixIcon icon={DownloadIcon} size={14} />
+        <RemixIcon icon={DownloadIcon} size={16} />
         Save file
       </a>
     </div>

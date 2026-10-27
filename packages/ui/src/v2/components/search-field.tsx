@@ -50,7 +50,7 @@ export function SearchField(props: SearchFieldProps) {
           onPointerDown={(event) => event.preventDefault()}
           onClick={clear}
         >
-          <RemixIcon icon={CloseIcon} size={14} />
+          <RemixIcon icon={CloseIcon} size={16} />
         </button>
       </Show>
     </label>

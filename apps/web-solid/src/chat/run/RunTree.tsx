@@ -177,7 +177,7 @@ function Icon(props: { icon?: StepIcon; running: boolean; failed: boolean; settl
       <Show when={!props.running} fallback={<Mochi size={16} />}>
         <RemixIcon
           icon={GLYPH[props.failed ? "alert-circle" : (props.icon ?? "wrench")]}
-          size={15}
+          size={16}
           class="run-tree-icon"
           data-failed={props.failed ? "" : undefined}
         />
@@ -204,7 +204,7 @@ function CopyCommand(props: { text: string }) {
       aria-label={copied() ? "Copied" : "Copy command"}
       onClick={() => void copy()}
     >
-      <RemixIcon icon={copied() ? CheckIcon : CopyIcon} size={13} />
+      <RemixIcon icon={copied() ? CheckIcon : CopyIcon} size={12} />
       <Show when={copied()}>
         <span>Copied</span>
       </Show>

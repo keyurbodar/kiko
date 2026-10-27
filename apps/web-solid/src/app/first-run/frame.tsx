@@ -86,7 +86,7 @@ export default function FirstRun() {
                 </span>
                 <Show when={currentStep() === "model"}>
                   <button type="button" class="ob-back" data-action="first-run-back" onClick={() => setStep("connect")}>
-                    <RemixIcon icon={ChevronLeftIcon} size={13} />
+                    <RemixIcon icon={ChevronLeftIcon} size={12} />
                     Back
                   </button>
                 </Show>
@@ -98,7 +98,7 @@ export default function FirstRun() {
                     disabled={working()}
                     onClick={() => void signOut()}
                   >
-                    <RemixIcon icon={ChevronLeftIcon} size={13} />
+                    <RemixIcon icon={ChevronLeftIcon} size={12} />
                     Back
                   </button>
                 </Show>

@@ -53,13 +53,13 @@ function Origin(props: { line: LifeLine }) {
         <Match when={chat()}>
           {(title) => (
             <>
-              <RemixIcon icon={MessageIcon} size={13} class="shrink-0" />
+              <RemixIcon icon={MessageIcon} size={12} class="shrink-0" />
               <span class="truncate">{title()}</span>
             </>
           )}
         </Match>
         <Match when={true}>
-          <RemixIcon icon={UserIcon} size={13} class="shrink-0" />
+          <RemixIcon icon={UserIcon} size={12} class="shrink-0" />
           <span>You</span>
         </Match>
       </Switch>
@@ -105,8 +105,8 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
               title={l().pinned ? "Unpin" : "Pin"}
               onClick={() => props.store.pin(l().pos, !l().pinned)}
             >
-              <Show when={l().pinned} fallback={<RemixIcon icon={PinIcon} size={13} />}>
-                <RemixIcon icon={UnpinIcon} size={13} />
+              <Show when={l().pinned} fallback={<RemixIcon icon={PinIcon} size={12} />}>
+                <RemixIcon icon={UnpinIcon} size={12} />
               </Show>
             </button>
             <button
@@ -118,7 +118,7 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
               onClick={() => (sure() ? props.store.redact(l().pos) : setSure(true))}
               onBlur={() => setSure(false)}
             >
-              <Show when={sure()} fallback={<RemixIcon icon={TrashIcon} size={13} />}>
+              <Show when={sure()} fallback={<RemixIcon icon={TrashIcon} size={12} />}>
                 Remove for good
               </Show>
             </button>
@@ -244,7 +244,7 @@ export function MemoryList(props: { store: MemoryStore }) {
       <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-none px-2.5 pb-3">
         <div class="sticky top-0 z-10 flex shrink-0 items-center gap-1 bg-bg">
           <label class="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-row bg-hover px-2.5 text-fg3 focus-within:text-fg">
-            <RemixIcon icon={SearchIcon} size={14} />
+            <RemixIcon icon={SearchIcon} size={16} />
             <input
               type="search"
               class="h-full min-w-0 flex-1 bg-transparent text-ui text-fg outline-none placeholder:text-fg3"
@@ -294,7 +294,7 @@ export function MemoryList(props: { store: MemoryStore }) {
               <span class="tabular-nums">
                 {s().view.length} {s().view.length === 1 ? "line" : "lines"}
               </span>
-              <RemixIcon icon={ChevronDownIcon} size={13} class={reading() ? "rotate-180" : ""} />
+              <RemixIcon icon={ChevronDownIcon} size={12} class={reading() ? "rotate-180" : ""} />
             </button>
             <Show when={reading()}>
               <div class="flex max-h-48 flex-col overflow-y-auto pb-1">
@@ -328,7 +328,7 @@ export function MemoryList(props: { store: MemoryStore }) {
             class={`grid size-8 shrink-0 place-items-center rounded-full transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko active:scale-[0.97] ${draft().trim() ? "bg-fg text-bg" : "bg-active text-fg4"}`}
             aria-label="Remember"
           >
-            <RemixIcon icon={ArrowUpIcon} size={15} />
+            <RemixIcon icon={ArrowUpIcon} size={16} />
           </button>
         </form>
       </div>

@@ -27,7 +27,7 @@ const Glide: Component = () => {
 
 const ChevronRight: Component = () => <RemixIcon icon={ChevronRightIcon} data-slot="menu-v2-item-chevron" size={16} />
 
-const CheckMark: Component = () => <RemixIcon icon={CheckIcon} size={14} />
+const CheckMark: Component = () => <RemixIcon icon={CheckIcon} size={16} />
 
 function ItemBody(
   props: ParentProps<{

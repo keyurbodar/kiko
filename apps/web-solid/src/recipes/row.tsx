@@ -38,7 +38,7 @@ function StatusChip(props: { status: InstallStatus }) {
           return (
             <>
               <span class={cn(chip, "bg-panel text-fg3")}>
-                <RemixIcon icon={PauseIcon} size={11} />
+                <RemixIcon icon={PauseIcon} size={12} />
                 Paused
               </span>
               <span class="truncate text-hint text-fg3">{s.schedule}</span>
@@ -137,7 +137,7 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
         <span class="truncate type-ui font-semibold text-fg">{props.card.title}</span>
         <span class="type-row truncate text-fg3">{props.card.description}</span>
         <span class="type-label mt-0.5 flex min-w-0 items-center gap-2 text-fg4">
-          <RemixIcon icon={ClockIcon} size={14} class="shrink-0" />
+          <RemixIcon icon={ClockIcon} size={16} class="shrink-0" />
           <span class="truncate">{localizeWhen(props.card.when)}</span>
           <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={18} />
           <span class="truncate">{chatName()}</span>

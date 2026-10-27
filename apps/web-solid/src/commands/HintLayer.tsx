@@ -125,14 +125,14 @@ export default function HintLayer() {
           {(pill, i) => (
             <span
               ref={(el) => (els[i()] = el)}
-              class="absolute top-0 left-0 flex h-6 items-center gap-1.5 rounded-[8px] bg-raise px-2 text-hint whitespace-nowrap text-fg shadow-menu"
+              class="absolute top-0 left-0 flex h-6 items-center gap-1.5 rounded-control bg-raise px-2 text-hint whitespace-nowrap text-fg shadow-menu"
               style={{
                 visibility: boxes() ? "visible" : "hidden",
                 transform: boxes() ? `translate(${boxes()![i()]!.x}px, ${boxes()![i()]!.y}px)` : undefined,
               }}
             >
               {pill.label}
-              <kbd class="rounded-[5px] bg-active px-1 font-sans text-hint text-fg2">{pill.keys}</kbd>
+              <kbd class="rounded-check bg-active px-1 font-sans text-hint text-fg2">{pill.keys}</kbd>
             </span>
           )}
         </For>

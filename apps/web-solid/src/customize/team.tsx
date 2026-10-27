@@ -143,7 +143,7 @@ export function TeamTab() {
                 </span>
                 <Show when={recipesFor(agent.slug).length}>
                   <span class="flex shrink-0 items-center gap-1.5">
-                    <RemixIcon icon={PlayIcon} size={13} />
+                    <RemixIcon icon={PlayIcon} size={12} />
                     {recipesFor(agent.slug).length === 1 ? "1 recipe" : `${recipesFor(agent.slug).length} recipes`}
                   </span>
                 </Show>

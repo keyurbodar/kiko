@@ -252,7 +252,7 @@ export function FileCard(props: {
         title="Save"
         data-action="save-file"
       >
-        <RemixIcon icon={DownloadIcon} size={14} />
+        <RemixIcon icon={DownloadIcon} size={16} />
       </a>
     </div>
   )

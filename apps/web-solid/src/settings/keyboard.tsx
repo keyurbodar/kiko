@@ -177,7 +177,7 @@ function KeyRow(props: { command: Command }) {
               saved()
             }}
           >
-            <RemixIcon icon={ResetIcon} size={14} />
+            <RemixIcon icon={ResetIcon} size={16} />
           </IconButton>
         </Show>
       </div>
