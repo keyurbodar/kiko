@@ -70,7 +70,7 @@ export function DropZone(props: { folder: string; onFiles: (files: File[]) => vo
                   "--y": `${FAN[hover().glyphs.length === 1 ? 1 : index()]?.lift ?? 0}px`,
                 }}
               >
-                <TypeIcon type={type} size={30} />
+                <TypeIcon type={type} size={24} />
               </span>
             )}
           </For>

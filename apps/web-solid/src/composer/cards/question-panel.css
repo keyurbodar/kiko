@@ -17,7 +17,7 @@
 .question-body .question-hint {
   margin-top: 4px;
   color: var(--fg3);
-  font-size: 12px;
+  font-size: var(--type-hint);
   line-height: 16px;
 }
 .question-options {
@@ -70,13 +70,13 @@
   min-width: 0;
   flex-direction: column;
   gap: 2px;
-  font-size: 14px;
+  font-size: var(--type-ui);
   line-height: 20px;
   font-weight: 500;
 }
 .question-option-copy .question-description {
   color: var(--fg3);
-  font-size: 12px;
+  font-size: var(--type-hint);
   line-height: 16px;
   font-weight: 400;
 }
@@ -88,7 +88,7 @@
   align-items: center;
   justify-content: center;
   color: var(--fg3);
-  font-size: 11px;
+  font-size: var(--type-caption);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
@@ -159,7 +159,7 @@
     background var(--dur-hover),
     opacity var(--dur-hover),
     transform var(--dur-hover) var(--ease-kiko);
-  font-size: 13px;
+  font-size: var(--type-label);
   font-weight: 500;
   cursor: pointer;
 }

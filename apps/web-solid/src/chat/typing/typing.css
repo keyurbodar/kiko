@@ -29,7 +29,7 @@
 
 .typing-more {
   color: var(--fg3);
-  font-size: 13px;
+  font-size: var(--type-label);
 }
 .typing-more[data-group] {
   padding-left: 40px;

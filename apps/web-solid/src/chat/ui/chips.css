@@ -11,7 +11,7 @@
   background: var(--chip-fill);
   color: var(--fg);
   font: inherit;
-  font-size: 13.5px;
+  font-size: var(--type-label);
   line-height: 20px;
   vertical-align: middle;
   white-space: nowrap;
@@ -45,7 +45,7 @@
   flex: none;
 }
 .lchip-thumb {
-  border-radius: 4px;
+  border-radius: var(--radius-micro);
   object-fit: cover;
 }
 .lchip-folder {
@@ -62,7 +62,7 @@
 .lchip-meta {
   flex: none;
   color: var(--fg3);
-  font-size: 12.5px;
+  font-size: var(--type-label);
   font-variant-numeric: tabular-nums;
 }
 
@@ -88,7 +88,7 @@
   --chip-fill: color-mix(in oklab, var(--fg) 11%, transparent);
   gap: 4px;
   padding: 0 7px 0 3px;
-  border-radius: 11px;
+  border-radius: var(--radius-full);
   font-weight: 500;
 }
 .mchip[data-self] {

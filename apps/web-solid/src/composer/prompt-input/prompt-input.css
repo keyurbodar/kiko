@@ -40,7 +40,7 @@
   border: 0;
   border-radius: var(--radius-tail);
   font: inherit;
-  font-size: 13.5px;
+  font-size: var(--type-label);
   font-weight: 400;
   line-height: 20px;
   vertical-align: middle;
@@ -58,7 +58,7 @@
   height: 2px;
   overflow: hidden;
   background: color-mix(in oklab, var(--fg) 12%, transparent);
-  border-radius: 1px;
+  border-radius: var(--radius-full);
 }
 
 .token-chip-fill::after {
@@ -92,7 +92,7 @@
 
 .token-chip-meta {
   color: var(--fg3);
-  font-size: 12.5px;
+  font-size: var(--type-label);
   font-variant-numeric: tabular-nums;
 }
 
@@ -107,7 +107,7 @@
 .token-chip-thumb {
   width: 16px;
   height: 16px;
-  border-radius: 4px;
+  border-radius: var(--radius-micro);
   object-fit: cover;
 }
 
@@ -135,14 +135,14 @@ button.token-chip:active {
   height: 11px;
   flex-shrink: 0;
   background: var(--leaf);
-  border-radius: 8px 1px;
+  border-radius: var(--radius-control) var(--radius-micro);
 }
 
 .composer-popover .token-leaf {
   width: 9px;
   height: 12px;
   margin: 0 4px;
-  border-radius: 9px 1px;
+  border-radius: var(--radius-control) var(--radius-micro);
 }
 
 .token-bolt {
@@ -191,7 +191,7 @@ button.token-chip:active {
 .token-preview-name {
   min-width: 0;
   overflow: hidden;
-  font-size: 13.5px;
+  font-size: var(--type-label);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -201,7 +201,7 @@ button.token-chip:active {
   flex-shrink: 0;
   margin-left: auto;
   color: var(--fg3);
-  font-size: 12px;
+  font-size: var(--type-hint);
 }
 
 .token-preview-lines {
@@ -210,7 +210,7 @@ button.token-chip:active {
   gap: 4px;
   margin-top: 10px;
   color: var(--fg2);
-  font-size: 12px;
+  font-size: var(--type-hint);
   line-height: 16px;
 }
 
@@ -223,7 +223,7 @@ button.token-chip:active {
 .token-preview-foot {
   margin-top: 10px;
   color: var(--fg3);
-  font-size: 12px;
+  font-size: var(--type-hint);
 }
 
 .composer-dock .composer-input a {
@@ -231,7 +231,7 @@ button.token-chip:active {
   color: var(--fg);
   background: var(--active);
   border-radius: var(--radius-tail);
-  font-size: 13.5px;
+  font-size: var(--type-label);
   white-space: nowrap;
   box-decoration-break: clone;
 }
@@ -286,7 +286,7 @@ button.token-chip:active {
 .composer-popover-group {
   padding: 8px 10px 4px;
   color: var(--fg3);
-  font-size: 11.5px;
+  font-size: var(--type-hint);
   line-height: 16px;
 }
 
@@ -304,7 +304,7 @@ button.token-chip:active {
   gap: 10px;
   padding: 0 10px;
   border-radius: var(--radius-row);
-  font-size: 13.5px;
+  font-size: var(--type-label);
   cursor: pointer;
 }
 
@@ -333,7 +333,7 @@ button.token-chip:active {
   margin-left: auto;
   overflow: hidden;
   color: var(--fg4);
-  font-size: 12px;
+  font-size: var(--type-hint);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -361,7 +361,7 @@ button.token-chip:active {
   height: 10px;
   margin: -5px 0 0 -5px;
   background: currentColor;
-  border-radius: 2.5px;
+  border-radius: var(--radius-micro);
   opacity: 0;
   transform: scale(0);
   transition:
@@ -406,7 +406,7 @@ button.token-chip:active {
   order: -2;
   padding: 10px 10px 0 18px;
   color: var(--fg3);
-  font-size: 12.5px;
+  font-size: var(--type-label);
   line-height: 18px;
 }
 
@@ -415,7 +415,7 @@ button.token-chip:active {
   height: 6px;
   flex-shrink: 0;
   background: var(--fg3);
-  border-radius: 3px;
+  border-radius: var(--radius-full);
 }
 
 .composer-working-text {
@@ -456,7 +456,7 @@ button.token-chip:active {
   gap: 2px 6px;
   padding: 8px 6px 0 14px;
   color: var(--fg3);
-  font-size: 12.5px;
+  font-size: var(--type-label);
   line-height: 18px;
 }
 
@@ -588,7 +588,7 @@ button.token-chip:active {
   flex-direction: column;
   gap: 1px;
   color: var(--fg3);
-  font-size: 10.5px;
+  font-size: var(--type-caption);
   line-height: 14px;
 }
 
@@ -601,7 +601,7 @@ button.token-chip:active {
 .tray-lines > span:first-child,
 .tray-lines > span[data-head] {
   color: var(--fg);
-  font-size: 11.5px;
+  font-size: var(--type-hint);
   font-weight: 600;
   line-height: 16px;
 }
@@ -615,7 +615,7 @@ button.token-chip:active {
   overflow: hidden;
   color: var(--fg2);
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: var(--type-micro);
   line-height: 13px;
   white-space: pre;
 }
@@ -624,7 +624,7 @@ button.token-chip:active {
   display: grid;
   margin: -2px -2px 0;
   color: var(--fg2);
-  font-size: 9.5px;
+  font-size: var(--type-micro);
   font-variant-numeric: tabular-nums;
   line-height: 15px;
 }
@@ -670,7 +670,7 @@ button.token-chip:active {
 .tray-face-name {
   display: -webkit-box;
   overflow: hidden;
-  font-size: 12.5px;
+  font-size: var(--type-label);
   font-weight: 500;
   line-height: 16px;
   overflow-wrap: anywhere;
@@ -716,7 +716,7 @@ button.token-chip:active {
   color: var(--fg2);
   border-radius: var(--radius-tail);
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fg) 16%, transparent);
-  font-size: 10px;
+  font-size: var(--type-caption);
   font-weight: 600;
   letter-spacing: 0.03em;
   line-height: 1;
@@ -757,7 +757,7 @@ button.token-chip:active {
   min-width: 0;
   flex: 1;
   color: var(--fg3);
-  font-size: 11px;
+  font-size: var(--type-caption);
   line-height: 16px;
 }
 
@@ -784,7 +784,7 @@ button.token-chip:active {
 .tray-bytes {
   overflow: hidden;
   color: var(--fg2);
-  font-size: 10.5px;
+  font-size: var(--type-caption);
   font-variant-numeric: tabular-nums;
   font-weight: 500;
   white-space: nowrap;
@@ -794,7 +794,7 @@ button.token-chip:active {
   display: -webkit-box;
   overflow: hidden;
   color: var(--bad);
-  font-size: 11px;
+  font-size: var(--type-caption);
   font-weight: 500;
   line-height: 14px;
   -webkit-box-orient: vertical;
@@ -933,7 +933,7 @@ button.token-chip:active {
     right: -6px;
     width: 22px;
     height: 22px;
-    border-radius: 11px;
+    border-radius: var(--radius-full);
     opacity: 1;
     transform: none;
   }

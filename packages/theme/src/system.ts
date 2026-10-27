@@ -1,6 +1,7 @@
 const RADIUS = {
   tail: 6,
   check: 5,
+  micro: 4,
   control: 8,
   row: 8,
   tile: 10,
@@ -10,6 +11,7 @@ const RADIUS = {
   sheet: 20,
   hero: 24,
   composer: 14,
+  full: 999,
 } as const
 
 const OPACITY = { "icon-secondary": 0.4 } as const
@@ -49,6 +51,10 @@ const TYPE = {
   row: { size: 14, line: 20, weight: 520, face: "sans", scales: true },
   label: { size: 13, line: 17, weight: 435, face: "sans", scales: true },
   hint: { size: 12, line: 17, weight: 435, face: "sans", scales: true },
+  caption: { size: 11, line: 15, weight: 435, face: "sans", scales: true },
+  micro: { size: 10, line: 14, weight: 435, face: "sans", scales: false },
+  nano: { size: 8, line: 11, weight: 435, face: "sans", scales: false },
+  heading: { size: 15, line: 21, weight: 520, face: "sans", scales: true },
   code: { size: 13, line: 19, weight: 400, face: "mono", scales: true },
 } as const satisfies Record<string, Type>
 

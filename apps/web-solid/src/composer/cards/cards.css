@@ -38,7 +38,7 @@
   min-height: var(--composer-banner-icon-column, 24px);
   width: 100%;
   text-align: start;
-  font-size: 13px;
+  font-size: var(--type-label);
   line-height: 18px;
 }
 button.composer-card-row {
@@ -78,7 +78,7 @@ button.composer-card-row {
   justify-content: end;
   gap: 4px;
   color: var(--fg3);
-  font-size: 11px;
+  font-size: var(--type-caption);
   font-variant-numeric: tabular-nums;
 }
 .composer-card-toggle {
@@ -97,7 +97,7 @@ button.composer-card-row {
   overscroll-behavior: contain;
 }
 .composer-card-body p {
-  font-size: 14px;
+  font-size: var(--type-ui);
   line-height: 20px;
   color: color-mix(in srgb, var(--fg) 85%, transparent);
   margin: 0 0 8px;
@@ -118,7 +118,7 @@ button.composer-card-row {
   min-height: 30px;
   padding: 0 12px;
   border-radius: var(--radius-control);
-  font-size: 13px;
+  font-size: var(--type-label);
   font-weight: 500;
   color: var(--fg2);
   transition:
@@ -169,7 +169,7 @@ button.composer-card-row {
   height: 4px;
   border: 1px solid var(--card-outline);
   border-bottom: 0;
-  border-radius: 12px 12px 0 0;
+  border-radius: var(--radius-pop) var(--radius-pop) 0 0;
   background: var(--card-surface);
 }
 .composer-card-peek > span {
@@ -177,7 +177,7 @@ button.composer-card-row {
   right: 8px;
   bottom: 100%;
   padding-bottom: 5px;
-  font-size: 11px;
+  font-size: var(--type-caption);
   color: var(--fg3);
   white-space: nowrap;
 }
@@ -212,7 +212,7 @@ button.composer-card-row {
   min-width: 0;
   flex: 1;
   height: 3px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--fg3) 25%, transparent);
 }
 .task-segments i[data-status="done"] {
@@ -226,7 +226,7 @@ button.composer-card-row {
   display: inline-flex;
   min-width: var(--composer-banner-icon-column, 24px);
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--type-hint);
   font-weight: 500;
 }
 @media (max-width: 560px) {
@@ -234,7 +234,7 @@ button.composer-card-row {
     padding-left: 8px;
   }
   .composer-card-input {
-    font-size: 16px;
+    font-size: var(--type-msg);
   }
 }
 
@@ -288,7 +288,7 @@ button.composer-card-row {
   min-height: 32px;
   padding: 6px 8px;
   border-radius: var(--radius-row);
-  font-size: 14px;
+  font-size: var(--type-ui);
   line-height: 20px;
   transition: background var(--dur-hover) var(--ease-kiko);
 }
@@ -354,13 +354,13 @@ button.composer-card-row {
 .task-step-detail {
   margin: 0;
   padding-top: 2px;
-  font-size: 12.5px;
+  font-size: var(--type-label);
   line-height: 18px;
   color: var(--fg3);
   overflow-wrap: anywhere;
 }
 .task-step-state {
-  font-size: 11.5px;
+  font-size: var(--type-hint);
   line-height: 16px;
   color: var(--fg4);
   font-variant-numeric: tabular-nums;
@@ -436,7 +436,7 @@ button.composer-card-row {
   border-radius: var(--radius-pop);
   background: var(--raise);
   color: var(--fg);
-  font-size: 14px;
+  font-size: var(--type-ui);
   line-height: 20px;
   animation: composer-settled-in var(--dur-pop) var(--ease-kiko) both;
 }

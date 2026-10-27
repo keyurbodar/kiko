@@ -30,7 +30,7 @@
 .settings-title {
   padding: 0 10px 14px;
   font-family: var(--font-family-display);
-  font-size: 24px;
+  font-size: var(--type-wordmark);
   font-weight: 400;
   font-variation-settings: var(--display-variation);
   line-height: 30px;
@@ -62,7 +62,7 @@
   height: 6px;
   flex-shrink: 0;
   background: var(--ok);
-  border-radius: 3px;
+  border-radius: var(--radius-full);
   transition: background-color var(--dur-pop) var(--ease-kiko);
 }
 

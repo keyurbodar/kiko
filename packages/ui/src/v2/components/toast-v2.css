@@ -136,7 +136,7 @@
   padding-block: 12px;
   padding-inline: 14px;
   overflow-x: clip;
-  font-size: 14px;
+  font-size: var(--type-ui);
   line-height: 20px;
   transition: opacity var(--dur-pop) var(--ease-kiko);
 
@@ -308,7 +308,7 @@
   transition:
     background var(--dur-hover),
     transform var(--dur-hover) var(--ease-kiko);
-  font-size: 13px;
+  font-size: var(--type-label);
   font-weight: 500;
   line-height: 16px;
   white-space: nowrap;
@@ -344,7 +344,7 @@
   max-width: 256px;
   padding: 4px 8px;
   border-radius: var(--radius-tail);
-  font-size: 12px;
+  font-size: var(--type-hint);
   line-height: 1.375;
   color: var(--popover-fg);
   background: var(--popover);

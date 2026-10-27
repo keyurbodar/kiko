@@ -20,7 +20,7 @@
   padding: 0;
   color: inherit;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--type-label);
   line-height: 20px;
   text-align: left;
   background: none;
@@ -39,7 +39,7 @@
 }
 
 [data-component="run-error"][data-latest] .run-error-head {
-  font-size: 13.5px;
+  font-size: var(--type-label);
 }
 
 .run-error-icon {
@@ -94,14 +94,14 @@
 
 .run-error-pop-title {
   color: var(--fg);
-  font-size: 12.5px;
+  font-size: var(--type-label);
   font-weight: 500;
   line-height: 18px;
 }
 
 .run-error-note {
   color: var(--fg2);
-  font-size: 12.5px;
+  font-size: var(--type-label);
   line-height: 18px;
   overflow-wrap: anywhere;
 }
@@ -121,7 +121,7 @@
   padding: 0 12px;
   border-radius: var(--radius-control);
   color: var(--fg2);
-  font-size: 13px;
+  font-size: var(--type-label);
   font-weight: 500;
   cursor: pointer;
   transition:

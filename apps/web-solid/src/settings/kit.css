@@ -14,7 +14,7 @@
 .settings-page-title {
   color: var(--fg);
   font-family: var(--font-family-display);
-  font-size: 32px;
+  font-size: var(--type-page);
   font-weight: 400;
   font-variation-settings: var(--display-variation);
   line-height: 38px;
@@ -228,7 +228,7 @@
 
 .kit-range::-webkit-slider-runnable-track {
   height: 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: linear-gradient(
     to right,
     var(--fg2) 0 var(--fill),
@@ -238,13 +238,13 @@
 
 .kit-range::-moz-range-track {
   height: 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: color-mix(in oklab, var(--fg) 14%, transparent);
 }
 
 .kit-range::-moz-range-progress {
   height: 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--fg2);
 }
 
@@ -254,7 +254,7 @@
   margin-top: -6px;
   background: #fff;
   border: 1px solid var(--line2);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
   appearance: none;
 }
@@ -264,7 +264,7 @@
   height: 16px;
   background: #fff;
   border: 1px solid var(--line2);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
 }
 

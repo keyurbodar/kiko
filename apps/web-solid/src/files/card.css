@@ -132,19 +132,19 @@
   padding: 10px 12px;
   color: var(--fg2);
   font-family: var(--font-sans);
-  font-size: 9.5px;
+  font-size: var(--type-micro);
   line-height: 14px;
   white-space: pre;
 }
 
 .file-card-lines[data-mono] {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .file-card[data-compact] .file-card-lines {
   padding: 7px 8px;
-  font-size: 7.5px;
+  font-size: var(--type-nano);
   line-height: 11px;
 }
 
@@ -152,13 +152,13 @@
   min-width: 100%;
   border-collapse: collapse;
   color: var(--fg2);
-  font-size: 9.5px;
+  font-size: var(--type-micro);
   line-height: 13px;
   white-space: nowrap;
 }
 
 .file-card[data-compact] .file-card-table {
-  font-size: 7.5px;
+  font-size: var(--type-nano);
   line-height: 10px;
 }
 

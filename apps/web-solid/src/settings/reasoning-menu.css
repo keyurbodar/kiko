@@ -27,7 +27,7 @@
   align-items: center;
   gap: 6px;
   padding: 0 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--hover);
   color: var(--fg2);
   font-size: var(--type-label);

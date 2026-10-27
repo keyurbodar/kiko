@@ -83,7 +83,7 @@
   background: color-mix(in oklab, var(--fg) 7%, transparent);
   border-radius: var(--radius-control);
   font-family: var(--font-family-mono);
-  font-size: var(--font-size-code);
+  font-size: var(--type-code);
   white-space: pre-wrap;
 }
 
