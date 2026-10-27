@@ -17,8 +17,8 @@
 @import "./styles/motion.css";
 
 @font-face {
-  font-family: "Satoshi";
-  src: url("/fonts/satoshi-variable.woff2") format("woff2");
+  font-family: "Inter";
+  src: url("/fonts/inter-variable.woff2") format("woff2");
   font-weight: 300 900;
   font-style: normal;
   font-display: swap;
@@ -56,7 +56,7 @@
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-bold: 600;
-  --font-family-sans: Satoshi, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-family-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-family-display: Fraunces, Georgia, "Times New Roman", serif;
   --font-family-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, ui-monospace, monospace;
   --display-variation: "SOFT" 50, "WONK" 0;
@@ -197,21 +197,21 @@
 
 /* palette:start */
 :root {
-  --bg: #141414;
-  --side: #191919;
-  --panel: color-mix(in oklab, #ececec 3%, #141414);
-  --raise: color-mix(in oklab, #ececec 5%, #141414);
-  --hover: color-mix(in oklab, #ececec 7.4%, #141414);
-  --active: color-mix(in oklab, #ececec 10.5%, #141414);
-  --tip: color-mix(in oklab, #ececec 16%, #141414);
-  --me: color-mix(in oklab, #ececec 9.6%, #141414);
-  --kiko-bubble: color-mix(in oklab, #ececec 3.2%, #141414);
-  --line: color-mix(in oklab, #ececec 6.5%, #141414);
-  --line2: color-mix(in oklab, #ececec 13%, #141414);
-  --fg: #ececec;
-  --fg2: #9a9a9a;
-  --fg3: #7f7f7f;
-  --fg4: color-mix(in oklab, #ececec 35%, #141414);
+  --bg: #161616;
+  --side: #1c1c1c;
+  --panel: color-mix(in oklab, #f2f2f2 4%, #161616);
+  --raise: color-mix(in oklab, #f2f2f2 7%, #161616);
+  --hover: color-mix(in oklab, #f2f2f2 9.5%, #161616);
+  --active: color-mix(in oklab, #f2f2f2 14%, #161616);
+  --tip: color-mix(in oklab, #f2f2f2 16%, #161616);
+  --me: color-mix(in oklab, #f2f2f2 9%, #161616);
+  --kiko-bubble: color-mix(in oklab, #f2f2f2 4%, #161616);
+  --line: color-mix(in oklab, #f2f2f2 10%, #161616);
+  --line2: color-mix(in oklab, #f2f2f2 16%, #161616);
+  --fg: #f2f2f2;
+  --fg2: #ababab;
+  --fg3: #8c8c8c;
+  --fg4: color-mix(in oklab, #f2f2f2 38%, #161616);
   --on-fg: #141414;
   --ok: #5cc489;
   --bad: #ef6a6a;
@@ -220,27 +220,27 @@
   --leaf: #7fd19c;
   --info-wash: color-mix(in oklab, #5b9cf6 14%, transparent);
   --bad-wash: color-mix(in oklab, #ef6a6a 12%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #ececec 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #ececec 30%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #f2f2f2 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #f2f2f2 30%, transparent);
   --card-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
 }
 
 :root:not(.dark) {
   --bg: #ffffff;
-  --side: #f6f6f6;
-  --panel: color-mix(in oklab, #171717 1.6%, #ffffff);
-  --raise: color-mix(in oklab, #171717 2.4%, #ffffff);
-  --hover: color-mix(in oklab, #171717 4%, #ffffff);
-  --active: color-mix(in oklab, #171717 6.5%, #ffffff);
-  --tip: color-mix(in oklab, #171717 7%, #ffffff);
-  --me: color-mix(in oklab, #171717 5.5%, #ffffff);
-  --kiko-bubble: color-mix(in oklab, #171717 3%, #ffffff);
-  --line: color-mix(in oklab, #171717 7%, #ffffff);
-  --line2: color-mix(in oklab, #171717 11.5%, #ffffff);
-  --fg: #171717;
-  --fg2: #5e5e5e;
-  --fg3: #7d7d7d;
-  --fg4: color-mix(in oklab, #171717 40%, #ffffff);
+  --side: #f5f5f5;
+  --panel: color-mix(in oklab, #141414 1.8%, #ffffff);
+  --raise: color-mix(in oklab, #141414 3%, #ffffff);
+  --hover: color-mix(in oklab, #141414 5%, #ffffff);
+  --active: color-mix(in oklab, #141414 8%, #ffffff);
+  --tip: color-mix(in oklab, #141414 7%, #ffffff);
+  --me: color-mix(in oklab, #141414 6%, #ffffff);
+  --kiko-bubble: color-mix(in oklab, #141414 3%, #ffffff);
+  --line: color-mix(in oklab, #141414 9%, #ffffff);
+  --line2: color-mix(in oklab, #141414 14%, #ffffff);
+  --fg: #141414;
+  --fg2: #474747;
+  --fg3: #666666;
+  --fg4: color-mix(in oklab, #141414 34%, #ffffff);
   --on-fg: #ffffff;
   --ok: #1f9d55;
   --bad: #d6453f;
@@ -249,10 +249,10 @@
   --leaf: #2f9e5b;
   --info-wash: color-mix(in oklab, #2f6fe4 11%, transparent);
   --bad-wash: color-mix(in oklab, #d6453f 12%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #171717 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #171717 30%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #141414 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #141414 30%, transparent);
   --card-shadow:
-    0 0 0 1px color-mix(in oklab, #171717 6%, transparent), 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px -16px rgb(0 0 0 / 18%);
+    0 0 0 1px color-mix(in oklab, #141414 6%, transparent), 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px -16px rgb(0 0 0 / 18%);
 }
 /* palette:end */
 
@@ -373,22 +373,22 @@
 :root {
   --type-page: 40px;
   --type-page-line: 1.1;
-  --type-section: 26px;
-  --type-section-line: 1.23;
+  --type-section: 28px;
+  --type-section-line: 1.21;
   --type-wordmark: 24px;
   --type-wordmark-line: 1.17;
-  --type-msg: 15px;
-  --type-msg-line: 1.6;
-  --type-ui: 14px;
-  --type-ui-line: 1.43;
-  --type-row: 14px;
-  --type-row-line: 1.43;
-  --type-label: 13px;
-  --type-label-line: 1.38;
-  --type-hint: 12px;
-  --type-hint-line: 1.33;
-  --type-code: 13px;
-  --type-code-line: 1.62;
+  --type-msg: 16px;
+  --type-msg-line: 1.63;
+  --type-ui: 15px;
+  --type-ui-line: 1.47;
+  --type-row: 15px;
+  --type-row-line: 1.47;
+  --type-label: 13.5px;
+  --type-label-line: 1.33;
+  --type-hint: 12.5px;
+  --type-hint-line: 1.28;
+  --type-code: 13.5px;
+  --type-code-line: 1.63;
   --dur-hover: 120ms;
   --dur-pop: 200ms;
   --dur-step: 400ms;
@@ -404,10 +404,10 @@
   --radius-tile: 12px;
   --radius-pop: 12px;
   --radius-card: 16px;
-  --radius-bubble: 18px;
+  --radius-bubble: 14px;
   --radius-sheet: 20px;
-  --radius-composer: 16px;
-  --spacing-nav-tab: 36px;
+  --radius-composer: 20px;
+  --spacing-nav-tab: 38px;
   --spacing-chat-row: 48px;
   --spacing-mascot: 32px;
   --spacing-avatar: 30px;
@@ -495,14 +495,14 @@
   font-family: var(--font-family-sans);
   font-size: var(--type-label);
   line-height: var(--type-label-line);
-  font-weight: 450;
+  font-weight: 500;
 }
 
 @utility type-hint {
   font-family: var(--font-family-sans);
   font-size: var(--type-hint);
   line-height: var(--type-hint-line);
-  font-weight: 450;
+  font-weight: 400;
 }
 
 @utility type-code {

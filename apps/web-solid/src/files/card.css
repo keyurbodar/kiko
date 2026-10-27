@@ -48,7 +48,7 @@
 }
 
 .file-card[data-compact] .file-card-plate {
-  border-radius: 8px;
+  border-radius: var(--radius-control);
 }
 
 .file-card-sheet {
@@ -64,7 +64,7 @@
 }
 
 .file-card[data-compact] .file-card-sheet {
-  border-radius: 8px;
+  border-radius: var(--radius-control);
 }
 
 .file-card-sheet::after {
@@ -118,7 +118,7 @@
 .file-card-md {
   padding: 22px 24px;
   color: var(--fg);
-  font-size: 14px;
+  font-size: var(--type-ui);
   line-height: 1.5;
   text-rendering: geometricPrecision;
 }

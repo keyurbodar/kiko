@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#141414" />
+    <meta name="theme-color" content="#161616" />
     <title>Kiko</title>
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/png" href="/favicon-32x32.png" sizes="32x32" />
@@ -41,12 +41,12 @@
               label: "Kiko",
               accent: "#5b9cf6",
               palette: {
-                canvas: "#141414",
-                sidebar: "#191919",
-                text: "#ececec",
-                muted: "#9a9a9a",
-                faint: "#7f7f7f",
-                action: "#ececec",
+                canvas: "#161616",
+                sidebar: "#1c1c1c",
+                text: "#f2f2f2",
+                muted: "#ababab",
+                faint: "#8c8c8c",
+                action: "#f2f2f2",
                 actionHover: "#ffffff",
                 onAction: "#141414",
                 danger: "#ef6a6a",
@@ -61,7 +61,7 @@
                 sidebar: "#101a24",
                 text: "#e7f0f6",
                 muted: "#a5b7c4",
-                faint: "#a5b7c4",
+                faint: "#8798a4",
                 action: "#e7f0f6",
                 actionHover: "#96c8eb",
                 onAction: "#08131c",
@@ -77,7 +77,7 @@
                 sidebar: "#121418",
                 text: "#e9ecf0",
                 muted: "#9298a2",
-                faint: "#9298a2",
+                faint: "#787d86",
                 action: "#e9ecf0",
                 actionHover: "#becde1",
                 onAction: "#0c0d10",
@@ -93,7 +93,7 @@
                 sidebar: "#131313",
                 text: "#ededed",
                 muted: "#959595",
-                faint: "#959595",
+                faint: "#7b7b7b",
                 action: "#ededed",
                 actionHover: "#dcdcdc",
                 onAction: "#0c0c0c",
@@ -109,7 +109,7 @@
                 sidebar: "#0f1512",
                 text: "#e8efe9",
                 muted: "#8fa196",
-                faint: "#8fa196",
+                faint: "#76857c",
                 action: "#e8efe9",
                 actionHover: "#86a38d",
                 onAction: "#0a0e0c",
@@ -125,7 +125,7 @@
                 sidebar: "#0c1318",
                 text: "#e6eff3",
                 muted: "#8a9ea8",
-                faint: "#8a9ea8",
+                faint: "#71828b",
                 action: "#e6eff3",
                 actionHover: "#78afc8",
                 onAction: "#080c10",
@@ -141,7 +141,7 @@
                 sidebar: "#181311",
                 text: "#f1ebe6",
                 muted: "#a59a92",
-                faint: "#a59a92",
+                faint: "#887f78",
                 action: "#f1ebe6",
                 actionHover: "#e6aa82",
                 onAction: "#0f0c0b",
@@ -157,7 +157,7 @@
                 sidebar: "#14121a",
                 text: "#ece9f2",
                 muted: "#9a95a6",
-                faint: "#9a95a6",
+                faint: "#7f7b8a",
                 action: "#ece9f2",
                 actionHover: "#afa0dc",
                 onAction: "#0d0c11",
@@ -170,11 +170,11 @@
               accent: "#2f6fe4",
               palette: {
                 canvas: "#ffffff",
-                sidebar: "#f6f6f6",
-                text: "#171717",
-                muted: "#5e5e5e",
-                faint: "#7d7d7d",
-                action: "#171717",
+                sidebar: "#f5f5f5",
+                text: "#141414",
+                muted: "#474747",
+                faint: "#666666",
+                action: "#141414",
                 actionHover: "#000000",
                 onAction: "#ffffff",
                 danger: "#d6453f",
@@ -190,19 +190,19 @@
             ROLES = [
               ["--bg", ({ p }) => p.canvas],
               ["--side", ({ p }) => p.sidebar],
-              ["--panel", ({ solid, dark }) => solid(dark ? 3 : 1.6)],
-              ["--raise", ({ solid, dark }) => solid(dark ? 5 : 2.4)],
-              ["--hover", ({ solid, dark }) => solid(dark ? 7.4 : 4)],
-              ["--active", ({ solid, dark }) => solid(dark ? 10.5 : 6.5)],
+              ["--panel", ({ solid, dark }) => solid(dark ? 4 : 1.8)],
+              ["--raise", ({ solid, dark }) => solid(dark ? 7 : 3)],
+              ["--hover", ({ solid, dark }) => solid(dark ? 9.5 : 5)],
+              ["--active", ({ solid, dark }) => solid(dark ? 14 : 8)],
               ["--tip", ({ solid, dark }) => solid(dark ? 16 : 7)],
-              ["--me", ({ solid, dark }) => solid(dark ? 9.6 : 5.5)],
-              ["--kiko-bubble", ({ solid, dark }) => solid(dark ? 3.2 : 3)],
-              ["--line", ({ solid, dark }) => solid(dark ? 6.5 : 7)],
-              ["--line2", ({ solid, dark }) => solid(dark ? 13 : 11.5)],
+              ["--me", ({ solid, dark }) => solid(dark ? 9 : 6)],
+              ["--kiko-bubble", ({ solid, dark }) => solid(dark ? 4 : 3)],
+              ["--line", ({ solid, dark }) => solid(dark ? 10 : 9)],
+              ["--line2", ({ solid, dark }) => solid(dark ? 16 : 14)],
               ["--fg", ({ p }) => p.text],
               ["--fg2", ({ p }) => p.muted],
               ["--fg3", ({ p }) => p.faint],
-              ["--fg4", ({ solid, dark }) => solid(dark ? 35 : 40)],
+              ["--fg4", ({ solid, dark }) => solid(dark ? 38 : 34)],
               ["--on-fg", ({ p }) => p.onAction],
               ["--ok", ({ dark }) => (dark ? "#5cc489" : "#1f9d55")],
               ["--bad", ({ p }) => p.danger],
@@ -236,14 +236,14 @@
           }
           var TYPE = {
             page: { size: 40, line: 44, weight: 400, face: "display", scales: !1 },
-            section: { size: 26, line: 32, weight: 400, face: "display", scales: !1 },
+            section: { size: 28, line: 34, weight: 400, face: "display", scales: !1 },
             wordmark: { size: 24, line: 28, weight: 400, face: "display", scales: !1 },
-            msg: { size: 15, line: 24, weight: 400, face: "sans", scales: !0 },
-            ui: { size: 14, line: 20, weight: 400, face: "sans", scales: !0 },
-            row: { size: 14, line: 20, weight: 500, face: "sans", scales: !0 },
-            label: { size: 13, line: 18, weight: 450, face: "sans", scales: !0 },
-            hint: { size: 12, line: 16, weight: 450, face: "sans", scales: !0 },
-            code: { size: 13, line: 21, weight: 400, face: "mono", scales: !0 },
+            msg: { size: 16, line: 26, weight: 400, face: "sans", scales: !0 },
+            ui: { size: 15, line: 22, weight: 400, face: "sans", scales: !0 },
+            row: { size: 15, line: 22, weight: 500, face: "sans", scales: !0 },
+            label: { size: 13.5, line: 18, weight: 500, face: "sans", scales: !0 },
+            hint: { size: 12.5, line: 16, weight: 400, face: "sans", scales: !0 },
+            code: { size: 13.5, line: 22, weight: 400, face: "mono", scales: !0 },
           }
           var round2 = (n) => Math.round(n * 100) / 100
           function typeVars(base) {
@@ -270,7 +270,7 @@
               wide: { label: "Wide", width: "1152px" },
               full: { label: "Full", width: "100%" },
             },
-            SANS_STACK = 'Satoshi, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+            SANS_STACK = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
             MONO_STACK = '"JetBrains Mono", "SF Mono", Menlo, Consolas, ui-monospace, monospace'
           function quoteFamily(name) {
             let bare = name.trim()
@@ -467,7 +467,7 @@
       body {
         margin: 0;
         height: 100%;
-        background: var(--boot-bg, #141414);
+        background: var(--boot-bg, #161616);
         color: var(--boot-fg, #ededed);
       }
       body {

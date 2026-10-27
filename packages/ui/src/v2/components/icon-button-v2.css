@@ -3,7 +3,7 @@
   align-items: center;
   justify-content: center;
   flex: none;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: var(--fg2);
   user-select: none;
   outline: none;
@@ -20,7 +20,7 @@
 [data-component="icon-button-v2"][data-size="small"] {
   width: 24px;
   height: 24px;
-  border-radius: 7px;
+  border-radius: var(--radius-control);
 }
 
 [data-component="icon-button-v2"][data-size="normal"] {
@@ -31,7 +31,7 @@
 [data-component="icon-button-v2"][data-size="large"] {
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
 }
 
 [data-component="icon-button-v2"] [data-slot="icon-svg"] {

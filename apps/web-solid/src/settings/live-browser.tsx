@@ -39,8 +39,8 @@ export default function LiveBrowser(props: { icon: JSX.Element }) {
             </>
           }
         >
-          <Show when={b().tabs.length} fallback={<p class="text-[13px] text-fg2">No tabs open.</p>}>
-            <ul class="flex flex-col gap-1 text-[13px]" data-field="browser-tabs">
+          <Show when={b().tabs.length} fallback={<p class="text-label text-fg2">No tabs open.</p>}>
+            <ul class="flex flex-col gap-1 text-label" data-field="browser-tabs">
               <For each={b().tabs}>
                 {(tab) => (
                   <li class="flex gap-2">

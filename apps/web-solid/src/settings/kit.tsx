@@ -79,7 +79,7 @@ export function Page(props: { title: string; description?: string; children: JSX
       <header class="pb-7">
         <h1 class="settings-page-title">{props.title}</h1>
         <Show when={props.description}>
-          {(description) => <p class="mt-1 max-w-xl text-[14px] leading-5 text-fg3">{description()}</p>}
+          {(description) => <p class="mt-1 max-w-xl text-ui leading-5 text-fg3">{description()}</p>}
         </Show>
       </header>
       {props.children}
@@ -139,7 +139,7 @@ export function Row(props: {
     <div class={cn("px-4", rowLine, local.class)} data-setting={local.id} {...rest}>
       <div class="settings-row flex items-center gap-6 py-3">
         <div class="min-w-0 flex-1">
-          <div class="flex min-h-5 items-center gap-1.5 text-[14px] font-medium leading-5 text-fg">
+          <div class="flex min-h-5 items-center gap-1.5 text-ui font-medium leading-5 text-fg">
             {local.label}
 
             <Show when={local.onReset}>

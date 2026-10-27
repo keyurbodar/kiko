@@ -317,9 +317,9 @@
 .recipe-doc-prose {
   margin: 0 -12px;
   padding: 8px 12px;
-  border-radius: 14px;
+  border-radius: var(--radius-pop);
   color: var(--fg3);
-  font-size: 16px;
+  font-size: var(--type-msg);
   line-height: 28px;
   outline: none;
   cursor: text;

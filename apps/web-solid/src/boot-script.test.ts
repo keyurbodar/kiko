@@ -27,9 +27,9 @@ describe("index.html boot script", () => {
   it("paints the Kiko dark palette before the app loads", () => {
     const { vars, classes } = paint({})
     expect(classes.has("dark")).toBe(true)
-    expect(vars.get("--bg")).toBe("#141414")
-    expect(vars.get("--fg")).toBe("#ececec")
-    expect(vars.get("--type-ui")).toBe("14px")
+    expect(vars.get("--bg")).toBe("#161616")
+    expect(vars.get("--fg")).toBe("#f2f2f2")
+    expect(vars.get("--type-ui")).toBe("15px")
   })
 
   it("keeps a saved light mode for a signed-in owner", () => {

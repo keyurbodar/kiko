@@ -57,15 +57,15 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
           {(id) => <ChatAvatar faces={room.chatFaces(id)} size={28} />}
         </Show>
         <h1
-          class="min-w-0 shrink truncate font-sans text-[15px] leading-5 font-semibold text-fg"
+          class="min-w-0 shrink truncate font-sans text-ui leading-5 font-semibold text-fg"
           data-component="top-bar-title"
         >
           {title()}
         </h1>
         <Show when={chatId()}>
-          <Show when={live()} fallback={<span class="top-bar-sub truncate text-[13px] text-fg3">{roster()}</span>}>
+          <Show when={live()} fallback={<span class="top-bar-sub truncate text-label text-fg3">{roster()}</span>}>
             {(text) => (
-              <span class="top-bar-sub chat-shimmer truncate text-[13px]" data-component="top-bar-status">
+              <span class="top-bar-sub chat-shimmer truncate text-label" data-component="top-bar-status">
                 {text()}
               </span>
             )}

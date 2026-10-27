@@ -16,7 +16,7 @@
   transform: translateX(-50%);
   background: var(--raise);
   color: var(--fg);
-  border-radius: 20px;
+  border-radius: var(--radius-sheet);
   box-shadow:
     0 28px 80px -20px rgb(0 0 0 / 55%),
     0 2px 12px rgb(0 0 0 / 18%);
@@ -42,7 +42,7 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 16px;
+  font-size: var(--type-msg);
 }
 .search-input::placeholder {
   color: var(--fg4);
@@ -52,18 +52,18 @@
   display: flex;
   position: relative;
   padding: 2px;
-  border-radius: 10px;
+  border-radius: var(--radius-row);
   background: var(--active);
 }
 .search-scope-option {
   height: 28px;
   padding: 0 12px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--fg3);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--type-label);
   font-weight: 500;
   cursor: default;
   transition:
@@ -88,7 +88,7 @@
 }
 .search-hit {
   padding: 8px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-row);
   cursor: default;
   transition: background-color 80ms var(--ease-kiko);
 }
@@ -104,7 +104,7 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 13.5px;
+  font-size: var(--type-label);
 }
 .search-hit-from {
   font-weight: 600;
@@ -122,12 +122,12 @@
 .search-hit-time {
   margin-left: auto;
   flex: none;
-  font-size: 11.5px;
+  font-size: var(--type-hint);
   color: var(--fg4);
 }
 .search-hit-snippet {
   margin-top: 2px;
-  font-size: 14px;
+  font-size: var(--type-ui);
   line-height: 20px;
   overflow: hidden;
   display: -webkit-box;
@@ -146,7 +146,7 @@
   align-items: center;
   gap: 8px;
   padding: 28px 12px;
-  font-size: 14px;
+  font-size: var(--type-ui);
   color: var(--fg3);
 }
 
