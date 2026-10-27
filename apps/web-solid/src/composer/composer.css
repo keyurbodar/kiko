@@ -87,7 +87,7 @@
 .composer-dock .composer-input,
 .composer-dock .composer-placeholder {
   font-family: var(--font-family-sans);
-  font-size: 15px;
+  font-size: var(--type-msg);
   line-height: 24px;
 }
 
@@ -181,6 +181,11 @@
   min-width: 0;
   align-items: center;
   gap: 2px;
+}
+
+.composer-dock .composer-tray > :first-child > .composer-icon:only-child,
+.composer-dock .composer-tray > .composer-icon:first-child {
+  margin-left: -7px;
 }
 
 .composer-dock .composer-agent {
@@ -349,7 +354,7 @@
   gap: 8px;
   order: -2;
   min-width: 0;
-  padding: 10px 14px 0 18px;
+  padding: 12px 8px 0 16px;
   font-size: 13px;
   line-height: 20px;
   color: var(--fg3);
