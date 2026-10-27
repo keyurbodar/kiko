@@ -51,7 +51,7 @@
 
 .composer-dock .composer-input {
   min-width: 0;
-  min-height: 1.5em;
+  min-height: calc(var(--type-msg) * var(--type-msg-line));
   max-height: min(11.5rem, calc(var(--composer-viewport-height, 100dvh) * 0.45));
   overflow-x: hidden;
   overflow-y: auto;
@@ -71,7 +71,7 @@
 }
 
 [data-session-empty="true"] .composer-dock .composer-input {
-  min-height: 1.5em;
+  min-height: calc(var(--type-msg) * var(--type-msg-line));
 }
 
 .composer-dock .composer-placeholder {
