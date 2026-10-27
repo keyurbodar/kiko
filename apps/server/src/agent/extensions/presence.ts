@@ -195,9 +195,9 @@ export function presenceExtension(port: StepsPort): Extension {
     const described = describeCall(call.name, args)
     return scope && shown && described ? { scope, shown, described } : null
   }
-  const begin = (call: { id: string; name: string; arguments?: unknown }, conversationId: ConversationId): void => {
+  const opening = (call: { id: string; name: string; arguments?: unknown }, conversationId: ConversationId) => {
     const built = build(call, conversationId)
-    if (!built) return
+    if (!built) return null
     const step: StepItem["step"] = {
       id: call.id,
       runId: built.scope.runId,
@@ -206,8 +206,13 @@ export function presenceExtension(port: StepsPort): Extension {
       status: "running",
       startedAt: Date.now(),
     }
-    open.set(stepKey(conversationId, call.id), { step, described: built.described })
-    port.push({ step, doing: built.described.doing, activity: built.described.activity })
+    return { step, described: built.described }
+  }
+  const begin = (call: { id: string; name: string; arguments?: unknown }, conversationId: ConversationId): void => {
+    const opened = opening(call, conversationId)
+    if (!opened) return
+    open.set(stepKey(conversationId, call.id), opened)
+    port.push({ step: opened.step, doing: opened.described.doing, activity: opened.described.activity })
   }
   const finish = (key: string, item: StepItem): void => {
     open.delete(key)
@@ -223,7 +228,7 @@ export function presenceExtension(port: StepsPort): Extension {
         },
         afterTool: async (call, result, api) => {
           const key = stepKey(api.conversationId, call.id)
-          const opened = open.get(key)
+          const opened = open.get(key) ?? (result.isError ? null : opening(call, api.conversationId))
           if (!opened) return undefined
           finish(key, closedStep(opened, result.isError ? "failed" : "done", Date.now(), result.output))
           return undefined
