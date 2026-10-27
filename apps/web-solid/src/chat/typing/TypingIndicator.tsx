@@ -3,7 +3,8 @@ import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { captionOf, motionOf } from "./action"
 import { describe } from "./create-typing-presence"
 import { room } from "../../state/room"
-import { RunTree } from "../run/RunTree"
+import { liveLabel } from "../run/run-log"
+import { RunTree, runOpen, toggleRun } from "../run/RunTree"
 import { ThinkingLine } from "../thinking/Thinking"
 import "./typing.css"
 
@@ -40,14 +41,26 @@ function Row(props: { seed: string; doing?: string; group?: boolean }) {
     const steps = key ? room.runSteps(key) : []
     return steps.length ? Math.min(...steps.map((step) => step.startedAt)) : undefined
   }
-  const caption = () => (room.typingRun(props.seed) ? "Working for" : captionOf(props.doing, now() - since()))
+  const stepCaption = (windowKey: string) => {
+    const current = room.runSteps(windowKey).findLast((step) => step.status === "running" && !step.worker)
+    return current ? liveLabel(current) : "Working"
+  }
+  const caption = () => {
+    const windowKey = room.typingRun(props.seed)
+    return windowKey ? stepCaption(windowKey) : captionOf(props.doing, now() - since())
+  }
+  const steps = () => {
+    const windowKey = room.typingRun(props.seed)
+    if (!windowKey || room.runSteps(windowKey).length === 0) return undefined
+    return { open: runOpen(windowKey), toggle: () => toggleRun(windowKey) }
+  }
   return (
     <div class="typing" data-component="typing-row">
       <Show when={props.group}>
         <IdentityAvatar seed={props.seed} size={32} class="typing-bird" />
       </Show>
       <div class="typing-body">
-        <ThinkingLine thought={room.thinking(props.seed)} fallback={caption()} since={runStart()} />
+        <ThinkingLine thought={room.thinking(props.seed)} fallback={caption()} since={runStart()} steps={steps()} />
         <Show when={room.typingRun(props.seed)}>{(windowKey) => <RunTree windowKey={windowKey()} />}</Show>
       </div>
     </div>

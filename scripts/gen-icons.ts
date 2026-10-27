@@ -140,6 +140,8 @@ const ICONS = {
   bolt: "FlashIcon",
   "filter-horizontal": "FilterHorizontalIcon",
   upload: "Upload04Icon",
+  "cloud-upload": "CloudUploadIcon",
+  api: "ApiIcon",
 } as const
 
 const LUCIDE = {
