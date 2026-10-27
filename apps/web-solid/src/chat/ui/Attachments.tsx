@@ -78,7 +78,7 @@ export function MessageAttachments(props: {
                 >
                   <video src={`${file.src}#t=0.1`} preload="metadata" muted playsinline tabindex={-1} />
                   <span class="att-play" aria-hidden="true">
-                    <RemixIcon icon={PlayIcon} size={20} />
+                    <RemixIcon icon={PlayIcon} size={16} />
                   </span>
                 </Show>
               </button>

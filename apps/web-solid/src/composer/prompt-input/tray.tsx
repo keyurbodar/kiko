@@ -129,7 +129,7 @@ function Tile(props: {
         </span>
         <Show when={upload()?.status === "failed" && pictured()}>
           <span class="tray-veil" data-tone="bad">
-            <RemixIcon icon={ResetIcon} size={20} />
+            <RemixIcon icon={ResetIcon} size={16} />
           </span>
         </Show>
         <Foot part={props.part} upload={upload()} named={look() !== "type" && !pasted()} />

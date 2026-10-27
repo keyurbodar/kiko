@@ -237,7 +237,7 @@ function RailButton(props: {
         data-action={props.action}
         onClick={props.onClick}
       >
-        <RemixIcon icon={props.icon} size={20} />
+        <RemixIcon icon={props.icon} size={24} />
         <Show when={props.dot}>
           <span class="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-fg" data-component="rail-dot" />
         </Show>

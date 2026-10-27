@@ -17,7 +17,7 @@ export function PanelEmpty(props: {
 }) {
   return (
     <div class="flex flex-col items-center gap-1 px-4 py-10 text-center" data-component={props.component}>
-      <RemixIcon icon={props.icon} size={20} class="mb-1 text-fg3" />
+      <RemixIcon icon={props.icon} size={24} class="mb-1 text-fg3 opacity-(--opacity-icon-secondary)" />
       <p class="type-ui text-fg">{props.title}</p>
       <p class="max-w-64 type-label text-fg3">{props.line}</p>
       <Show when={props.action}>

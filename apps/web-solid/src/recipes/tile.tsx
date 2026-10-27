@@ -30,7 +30,7 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
           aria-hidden="true"
           innerHTML={props.recipe.glyph}
         />
-        <RemixIcon class="tpl-plus" icon={PlusIcon} size={20} />
+        <RemixIcon class="tpl-plus" icon={PlusIcon} size={16} />
       </span>
       <span class="flex min-w-0 flex-1 flex-col gap-1">
         <button

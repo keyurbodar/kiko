@@ -57,7 +57,7 @@ export function ScrollDown(props: {
         </span>
       </Show>
       <span class="scroll-faces-arrow">
-        <RemixIcon icon={ArrowDownIcon} size={20} />
+        <RemixIcon icon={ArrowDownIcon} size={16} />
       </span>
       <Show when={props.landed && !working()}>
         <span class="scroll-faces-dot" data-component="chat-scroll-down-new" />
@@ -90,7 +90,7 @@ export function NewAbovePill(props: { above: NewAbove | null; onClick: () => voi
               <RemixIcon icon={ArrowUpIcon} size={16} class="text-fg3" />
             </span>
             <span class="scroll-faces-pill-arrow" aria-hidden="true">
-              <RemixIcon icon={ArrowUpIcon} size={20} />
+              <RemixIcon icon={ArrowUpIcon} size={16} />
             </span>
           </button>
         )}

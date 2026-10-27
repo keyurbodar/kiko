@@ -342,7 +342,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
                     aria-label={i18n.t("ui.promptInput.add")}
                     onClick={() => props.controller.attach()}
                   >
-                    <RemixIcon icon={PlusIcon} size={20} />
+                    <RemixIcon icon={PlusIcon} size={16} />
                   </button>
                 </TooltipV2>
               </Show>
