@@ -40,7 +40,7 @@ import { seenInChat, showFailure, showNotice } from "../lib/errors"
 import { fileUrl } from "../lib/file-token"
 import { chatFaces } from "../lib/identity"
 import { agentDisplayName } from "../lib/names"
-import type { BotPresence, ChatMessage, OutgoingMessage, Reaction, RosterBot } from "../lib/types"
+import type { BotPresence, ChatMessage, MessageFile, OutgoingMessage, Reaction, RosterBot } from "../lib/types"
 import { describeLast, isListed } from "../sidebar/activity"
 import { clearUnreadMark } from "../sidebar/unread-mark"
 import { connection } from "./connection"
@@ -48,6 +48,7 @@ import { liveLine, liveStatusOf, thinkingLine, type LiveStatus } from "./live-st
 import { createThoughts, type ThinkingSignal, type Thought } from "./thoughts"
 import { attempt, observe, owner, registry, valueOf, watch } from "./runtime"
 import { onUserSignal, user } from "./user"
+import { withSentFiles } from "./sent-files"
 
 const PENDING_SEQ = Number.MAX_SAFE_INTEGER
 const HISTORY_PAGE = 30
@@ -520,14 +521,34 @@ function createRoom() {
     return out
   })
 
-  const views = new WeakMap<Message, ChatMessage>()
+  let views = new WeakMap<Message, ChatMessage>()
+  const sentFiles = new Map<string, readonly MessageFile[]>()
+  const releaseSentFiles = (commandId?: string) => {
+    const ids = commandId === undefined ? [...sentFiles.keys()] : [commandId]
+    for (const id of ids) {
+      for (const file of sentFiles.get(id) ?? []) URL.revokeObjectURL(file.src)
+      sentFiles.delete(id)
+    }
+  }
+  createComputed(
+    on(
+      activeId,
+      () => {
+        releaseSentFiles()
+        views = new WeakMap()
+      },
+      { defer: true },
+    ),
+  )
   const rows = createMemo(() => {
     const id = activeId()
     if (!id) return [] as ChatMessage[]
     return messages().map((m) => {
       const cached = views.get(m)
       if (cached && cached.threadId === id) return cached
-      const view = toChatMessage(m, id)
+      const sent = m.clientId ? sentFiles.get(m.clientId) : undefined
+      const base = toChatMessage(m, id)
+      const view = sent ? withSentFiles(base, sent) : base
       views.set(m, view)
       return view
     })
@@ -699,6 +720,7 @@ function createRoom() {
     extra: Omit<Parameters<typeof sendInput>[0], "roomId" | "text">,
   ) {
     const result = await attempt(owner.commands.sendMessage, sendInput({ roomId, text, ...extra }), (reason) => {
+      releaseSentFiles(extra.commandId)
       fillComposer(roomId, text)
       showFailure(reason)
       for (const listener of sendRefusals) listener(reason)
@@ -717,6 +739,7 @@ function createRoom() {
     const commandId = crypto.randomUUID()
     typing.sent()
     history.live()
+    if (message.files?.length) sentFiles.set(commandId, message.files)
     void deliver(id, message.body, {
       commandId,
       ...(stored ? { replyTo: replyTo as MessageId, ...(quote ? { quote } : {}) } : {}),
