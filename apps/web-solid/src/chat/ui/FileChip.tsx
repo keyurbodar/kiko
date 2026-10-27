@@ -66,17 +66,12 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
     return f?.name.startsWith("attachments/") ? formatBytes(f.size) : null
   }
   const folder = () => find(props.file.path).kind === "folder"
-  const open = (from?: Element | null) => {
+  const open = () => {
     const id = chat()
     if (!id) return
     const src = picture()
     const at = ref()?.name
-    if (src)
-      return openThreadImages(
-        [{ src, name: props.label, ...(at ? { path: at } : {}) }],
-        0,
-        from?.querySelector("img") ?? from,
-      )
+    if (src) return openThreadImages([{ src, name: props.label, ...(at ? { path: at } : {}) }], 0)
     const found = find(props.file.path)
     if (found.kind === "file") return openFile(id, found.path, props.file.line)
     if (found.kind === "folder" || found.kind === "many") return openSurface(id, fixedSurface("files"))
@@ -115,7 +110,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
               if (!file) return event.preventDefault()
               setFileDrag(event.dataTransfer, file.name)
             }}
-            onClick={(event: MouseEvent) => open(event.currentTarget as Element)}
+            onClick={open}
           >
             <ChipGlyph path={props.file.path} folder={folder()} picture={picture()} />
             <span class="lchip-label">{props.label}</span>
