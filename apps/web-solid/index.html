@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#1a1a1a" />
+    <meta name="theme-color" content="#191919" />
     <title>Kiko</title>
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/png" href="/favicon-32x32.png" sizes="32x32" />
@@ -39,18 +39,18 @@
           var THEMES = {
             kiko: {
               label: "Kiko",
-              accent: "#5b9cf6",
+              accent: "#6aabf1",
               palette: {
-                canvas: "#1a1a1a",
-                sidebar: "#202020",
-                text: "#f0efed",
-                muted: "#a8a7a4",
-                faint: "#8b8a87",
-                action: "#f0efed",
-                actionHover: "#ffffff",
-                onAction: "#141414",
-                danger: "#ef6a6a",
-                gold: "#e8c47b",
+                canvas: "#191919",
+                sidebar: "#1f1f1f",
+                text: "#efefef",
+                muted: "#9c9c9c",
+                faint: "#757575",
+                action: "#efefef",
+                actionHover: "#d7d7d7",
+                onAction: "#191919",
+                danger: "#f17778",
+                gold: "#e49c06",
               },
             },
             glacier: {
@@ -167,18 +167,18 @@
             },
             snow: {
               label: "Paper",
-              accent: "#2f6fe4",
+              accent: "#1757ac",
               palette: {
                 canvas: "#ffffff",
-                sidebar: "#f7f7f5",
-                text: "#141413",
-                muted: "#4b4a47",
-                faint: "#6e6d69",
-                action: "#141413",
-                actionHover: "#000000",
+                sidebar: "#fafafa",
+                text: "#1a1a1a",
+                muted: "#666666",
+                faint: "#888888",
+                action: "#191919",
+                actionHover: "#3c3c3c",
                 onAction: "#ffffff",
-                danger: "#d6453f",
-                gold: "#a86b00",
+                danger: "#a42528",
+                gold: "#794c02",
               },
             },
           }
@@ -190,21 +190,21 @@
             ROLES = [
               ["--bg", ({ p }) => p.canvas],
               ["--side", ({ p }) => p.sidebar],
-              ["--panel", ({ solid, dark }) => solid(dark ? 4 : 1.8)],
-              ["--raise", ({ solid, dark }) => solid(dark ? 7 : 3)],
-              ["--hover", ({ solid, dark }) => solid(dark ? 9.5 : 5)],
-              ["--active", ({ solid, dark }) => solid(dark ? 14 : 8)],
-              ["--tip", ({ solid, dark }) => solid(dark ? 16 : 7)],
-              ["--me", ({ solid, dark }) => solid(dark ? 6.5 : 5)],
-              ["--kiko-bubble", ({ solid, dark }) => solid(dark ? 4 : 3)],
-              ["--line", ({ solid, dark }) => solid(dark ? 10 : 9)],
-              ["--line2", ({ solid, dark }) => solid(dark ? 16 : 14)],
+              ["--panel", ({ wash, dark }) => wash(dark ? 2.61 : 2.35)],
+              ["--raise", ({ wash, dark }) => wash(dark ? 10 : 5.1)],
+              ["--hover", ({ wash, dark }) => wash(dark ? 7.45 : 5.1)],
+              ["--active", ({ wash, dark }) => wash(dark ? 14.9 : 10.2)],
+              ["--tip", ({ wash, dark }) => wash(dark ? 10 : 7)],
+              ["--me", ({ wash, dark }) => wash(dark ? 10 : 5.1)],
+              ["--kiko-bubble", ({ wash, dark }) => wash(dark ? 2.61 : 2.35)],
+              ["--line", ({ wash, dark }) => wash(dark ? 3.92 : 7.84)],
+              ["--line2", ({ wash, dark }) => wash(dark ? 12.2 : 12.2)],
               ["--fg", ({ p }) => p.text],
               ["--fg2", ({ p }) => p.muted],
               ["--fg3", ({ p }) => p.faint],
-              ["--fg4", ({ solid, dark }) => solid(dark ? 38 : 34)],
+              ["--fg4", ({ wash }) => wash(35)],
               ["--on-fg", ({ p }) => p.onAction],
-              ["--ok", ({ dark }) => (dark ? "#5cc489" : "#1f9d55")],
+              ["--ok", ({ dark }) => (dark ? "#53c556" : "#006c10")],
               ["--bad", ({ p }) => p.danger],
               ["--warn", ({ p }) => p.gold],
               ["--info", ({ accent }) => accent],
@@ -215,10 +215,7 @@
               ["--scrollbar-thumb-hover", ({ clear }) => clear(30)],
               [
                 "--card-shadow",
-                ({ clear, dark }) =>
-                  dark
-                    ? "inset 0 1px 0 rgb(255 255 255 / 3%)"
-                    : `0 0 0 1px ${clear(6)}, 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px -16px rgb(0 0 0 / 18%)`,
+                ({ dark }) => (dark ? "none" : "0 0 0 1px rgb(0 0 0 / 6%), 0 4px 24px rgb(0 0 0 / 4%)"),
               ],
             ]
           function tokensFor(mode, darkTheme = "kiko", contrast = 100, imported) {
@@ -229,21 +226,21 @@
                 p,
                 accent,
                 dark: mode === "dark",
-                solid: (n) => `color-mix(in oklab, ${p.text} ${share(n)}%, ${p.canvas})`,
+                wash: (n) => `color-mix(in srgb, ${mode === "dark" ? "#ffffff" : "#000000"} ${share(n)}%, ${p.canvas})`,
                 clear: (n) => `color-mix(in oklab, ${p.text} ${share(n)}%, transparent)`,
               }
             return Object.fromEntries(ROLES.map(([token, value]) => [token, value(ink)]))
           }
           var TYPE = {
             page: { size: 40, line: 44, weight: 400, face: "display", scales: !1 },
-            section: { size: 26, line: 32, weight: 400, face: "display", scales: !1 },
+            section: { size: 22, line: 28, weight: 400, face: "display", scales: !1 },
             wordmark: { size: 24, line: 28, weight: 400, face: "display", scales: !1 },
-            msg: { size: 16, line: 25, weight: 400, face: "sans", scales: !0 },
-            ui: { size: 14, line: 20, weight: 400, face: "sans", scales: !0 },
-            row: { size: 14, line: 20, weight: 500, face: "sans", scales: !0 },
-            label: { size: 13, line: 18, weight: 500, face: "sans", scales: !0 },
-            hint: { size: 12, line: 16, weight: 500, face: "sans", scales: !0 },
-            code: { size: 13, line: 21, weight: 400, face: "mono", scales: !0 },
+            msg: { size: 16, line: 24, weight: 400, face: "sans", scales: !0 },
+            ui: { size: 14, line: 20, weight: 435, face: "sans", scales: !0 },
+            row: { size: 14, line: 20, weight: 520, face: "sans", scales: !0 },
+            label: { size: 13, line: 17, weight: 435, face: "sans", scales: !0 },
+            hint: { size: 12, line: 17, weight: 435, face: "sans", scales: !0 },
+            code: { size: 13, line: 19, weight: 400, face: "mono", scales: !0 },
           }
           var round2 = (n) => Math.round(n * 100) / 100
           function typeVars(base) {
@@ -467,8 +464,8 @@
       body {
         margin: 0;
         height: 100%;
-        background: var(--boot-bg, #1a1a1a);
-        color: var(--boot-fg, #ededed);
+        background: var(--boot-bg, #191919);
+        color: var(--boot-fg, #efefef);
       }
       body {
         font: var(--font-md, 14px) var(--font-family-sans, system-ui, sans-serif);
@@ -511,16 +508,16 @@
         right: 0;
         text-align: center;
         font: var(--type-ui, 14px) / var(--type-ui-line, 1.43) var(--font-family-sans, system-ui, sans-serif);
-        color: var(--fg2, #a6a6a6);
+        color: var(--fg2, #9c9c9c);
       }
       #boot-error button {
         height: 32px;
         margin-left: 8px;
         padding: 0 12px;
         border: 0;
-        border-radius: 9px;
-        background: var(--raise, #262626);
-        color: var(--fg, #ededed);
+        border-radius: 8px;
+        background: var(--raise, #303030);
+        color: var(--fg, #efefef);
         font: inherit;
         cursor: pointer;
       }
