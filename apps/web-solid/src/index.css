@@ -193,7 +193,7 @@
   --hover: color-mix(in srgb, #ffffff 7.45%, #191919);
   --active: color-mix(in srgb, #ffffff 14.9%, #191919);
   --tip: color-mix(in srgb, #ffffff 10%, #191919);
-  --me: color-mix(in srgb, #ffffff 10%, #191919);
+  --me: color-mix(in srgb, #ffffff 5.1%, #191919);
   --kiko-bubble: color-mix(in srgb, #ffffff 2.61%, #191919);
   --line: color-mix(in srgb, #ffffff 3.92%, #191919);
   --line2: color-mix(in srgb, #ffffff 12.2%, #191919);
@@ -391,7 +391,7 @@
   --type-wordmark: 24px;
   --type-wordmark-line: 1.17;
   --type-msg: 16px;
-  --type-msg-line: 1.5;
+  --type-msg-line: 1.38;
   --type-ui: 14px;
   --type-ui-line: 1.43;
   --type-row: 14px;

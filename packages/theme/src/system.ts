@@ -46,7 +46,7 @@ const TYPE = {
   page: { size: 40, line: 44, weight: 400, face: "display", scales: false },
   section: { size: 22, line: 28, weight: 400, face: "display", scales: false },
   wordmark: { size: 24, line: 28, weight: 400, face: "display", scales: false },
-  msg: { size: 16, line: 24, weight: 400, face: "sans", scales: true },
+  msg: { size: 16, line: 22, weight: 400, face: "sans", scales: true },
   ui: { size: 14, line: 20, weight: 435, face: "sans", scales: true },
   row: { size: 14, line: 20, weight: 520, face: "sans", scales: true },
   label: { size: 13, line: 17, weight: 435, face: "sans", scales: true },

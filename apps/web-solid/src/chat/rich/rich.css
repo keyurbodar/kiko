@@ -35,16 +35,16 @@
   line-height: 1.3;
 }
 .rich h1 {
-  font-size: var(--type-heading);
-  line-height: 26px;
+  font-size: calc(var(--type-msg) * 1.25);
+  line-height: 1.4;
 }
 .rich h2 {
-  font-size: var(--type-msg);
-  line-height: 24px;
+  font-size: calc(var(--type-msg) * 1.125);
+  line-height: 1.4;
 }
 .rich h3 {
-  font-size: var(--type-ui);
-  line-height: 22px;
+  font-size: var(--type-msg);
+  line-height: var(--type-msg-line);
 }
 .rich h4,
 .rich h5,

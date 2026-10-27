@@ -130,7 +130,7 @@
   height: var(--spacing-nav-tab);
   width: 100%;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 0 10px;
   color: var(--fg);
   font: inherit;
@@ -301,8 +301,8 @@
   margin-top: 14px;
   padding: 0 4px 0 10px;
   color: var(--fg3);
-  font-size: var(--type-hint);
-  font-weight: 500;
+  font-size: var(--type-label);
+  font-weight: 435;
   user-select: none;
 }
 
@@ -689,9 +689,9 @@
   flex: 1;
   overflow: hidden;
   color: var(--fg2);
-  font-size: var(--type-label);
-  font-weight: 500;
-  line-height: 18px;
+  font-size: var(--type-ui);
+  font-weight: 435;
+  line-height: 20px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -702,7 +702,7 @@
 }
 
 .sidebar-shell .chat-row[data-unread] .chat-name {
-  font-weight: 600;
+  font-weight: 520;
   transition-duration: 0s;
 }
 
@@ -734,7 +734,7 @@
   flex: 1;
   overflow: hidden;
   color: var(--fg3);
-  font-size: var(--type-hint);
+  font-size: var(--type-label);
   line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
