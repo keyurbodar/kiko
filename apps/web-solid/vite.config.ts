@@ -24,6 +24,28 @@ const swKillSwitch: Plugin = {
   },
 }
 
+function shipEveryStylesheet(): Plugin {
+  const imported = new Set<string>()
+  return {
+    name: "kiko-ship-every-stylesheet",
+    apply: "build",
+    transform(_code, id) {
+      if (id.endsWith(".css") && !id.includes("?")) imported.add(id)
+    },
+    generateBundle(_options, bundle) {
+      const shipped = new Set(
+        Object.values(bundle).flatMap((output) => (output.type === "chunk" ? Object.keys(output.modules) : [])),
+      )
+      const dropped = [...imported].filter((id) => !shipped.has(id))
+      if (dropped.length > 0) {
+        this.error(
+          `These stylesheets were imported but tree-shaken out of the build. Import each one from the module that defines its component, not from a re-export:\n${dropped.join("\n")}`,
+        )
+      }
+    },
+  }
+}
+
 function requireInstaller(mode: string): void {
   const env = { ...loadEnv(mode, import.meta.dirname, "VITE_"), ...process.env }
   if (mode === "production" && env.VITE_CLERK_PUBLISHABLE_KEY && !env.VITE_INSTALLER_URL) {
@@ -36,7 +58,7 @@ function requireInstaller(mode: string): void {
 export default defineConfig(({ mode }) => {
   requireInstaller(mode)
   return {
-    plugins: [tanstackRouter({ target: "solid" }), solid(), tailwindcss(), swKillSwitch],
+    plugins: [tanstackRouter({ target: "solid" }), solid(), tailwindcss(), swKillSwitch, shipEveryStylesheet()],
     define: { __KIKO_VERSION__: JSON.stringify(pkg.version) },
     optimizeDeps: {
       include: [

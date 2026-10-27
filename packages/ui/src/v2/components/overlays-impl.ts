@@ -1,5 +1,4 @@
 export { HoverCardV2 } from "./hover-card-v2-impl"
 export { MenuV2 } from "./menu-v2-impl"
 export { ModalV2 } from "./modal-v2-impl"
-export { TooltipV2 } from "./tooltip-v2-impl"
 export { DismissableLayerV2Hooks } from "./dismissable-layer-v2-impl"
