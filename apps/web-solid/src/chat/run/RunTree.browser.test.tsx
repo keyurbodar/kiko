@@ -3,8 +3,7 @@ import type { RunStep } from "@kiko/protocol"
 import { createSignal } from "solid-js"
 import { describe, expect, it, vi } from "vitest"
 import { render } from "../../../test/render"
-import { clockLabel } from "./duration"
-import { RunTree } from "./RunTree"
+import { RunTree, toggleRun } from "./RunTree"
 
 const fake = vi.hoisted(() => ({ steps: [] as RunStep[], live: false, helpers: [] as unknown[] }))
 
@@ -61,7 +60,7 @@ const rows = (host: HTMLElement) => [...host.querySelectorAll<HTMLElement>(".run
 const head = (host: HTMLElement) => host.querySelector<HTMLElement>(".run-tree-head")!
 
 describe("RunTree", () => {
-  it("folds finished steps into one line while the agent works and keeps the current step in view", async () => {
+  it("keeps the live log to one line until it is opened, then lists every step in order", async () => {
     fake.steps = [
       step("ls", { startedAt: START }),
       step("cat", { startedAt: START + 4_000 }),
@@ -69,18 +68,31 @@ describe("RunTree", () => {
     ]
     fake.live = true
     await using screen = await render(() => <RunTree windowKey="kiko#0" />)
-    const [group, running] = rows(screen.container)
 
-    expect(rows(screen.container)).toHaveLength(2)
-    expect(group!.textContent).toContain("Ran 2 commands")
-    expect(group!.getAttribute("aria-expanded")).toBe("false")
-    expect(running!.textContent).toContain("split.py")
-    expect(running!.querySelector('[data-component="mochi"]')).not.toBeNull()
+    expect(rows(screen.container)).toHaveLength(0)
     expect(head(screen.container)).toBeNull()
 
-    group!.click()
+    toggleRun("kiko#0")
 
-    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(4))
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(3))
+    const running = rows(screen.container)[2]!
+    expect(running.textContent).toContain("split.py")
+    expect(running.querySelector('[data-component="mochi"]')).not.toBeNull()
+    toggleRun("kiko#0")
+  })
+
+  it("shows the first steps of a long log and the rest on request", async () => {
+    fake.live = false
+    fake.steps = Array.from({ length: 14 }, (_, i) => step(`s${i}`, { startedAt: START + i * 1_000 }))
+    await using screen = await render(() => <RunTree windowKey="kiko#5" count={14} endedAt={START + 20_000} />)
+    head(screen.container).click()
+
+    await vi.waitFor(() => expect(screen.container.textContent).toContain("Show all steps"))
+    expect(rows(screen.container).filter((row) => row.dataset.kind === "step")).toHaveLength(6)
+
+    screen.container.querySelector<HTMLElement>(".run-tree-more")!.click()
+
+    await vi.waitFor(() => expect(rows(screen.container).filter((row) => row.dataset.kind === "step")).toHaveLength(14))
   })
 
   it("says how long the agent worked, from its first step to its reply, and opens to the steps", async () => {
@@ -96,21 +108,25 @@ describe("RunTree", () => {
 
     head(screen.container).click()
 
-    await vi.waitFor(() => expect(rows(screen.container)[0]!.textContent).toContain("Ran 2 commands"))
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(2))
+    expect(rows(screen.container).map((row) => row.querySelector(".run-tree-label")!.textContent)).toEqual([
+      "Ran a",
+      "Ran b",
+    ])
   })
 
-  it("tells when each call ran and how long it took, shown on hover", async () => {
+  it("tells how long each call took, shown on hover", async () => {
     fake.live = false
     fake.steps = [step("solo", { startedAt: START, endedAt: START + 4_200 })]
     await using screen = await render(() => <RunTree windowKey="kiko#9" count={1} endedAt={START + 5_000} />)
     head(screen.container).click()
     const time = await vi.waitFor(() => rows(screen.container)[0]!.querySelector<HTMLElement>(".run-tree-time")!)
 
-    expect(time.textContent).toBe(`${clockLabel(START)} · 4.2s`)
+    expect(time.textContent).toBe("4.2s")
     expect(getComputedStyle(time).opacity).toBe("0")
   })
 
-  it("marks a helper failed until a retry of the failed step works", async () => {
+  it("marks a helper failed until a retry of the failed step works, and never marks the whole log", async () => {
     const worker = { id: "w1", task: "Food helper" }
     const [retried, setRetried] = createSignal(false)
     fake.live = false
@@ -120,7 +136,7 @@ describe("RunTree", () => {
     const helper = () => rows(screen.container).find((row) => row.dataset.kind === "worker")!
 
     await vi.waitFor(() => expect(helper().hasAttribute("data-failed")).toBe(true))
-    expect(head(screen.container).querySelector("[data-failed]")).not.toBeNull()
+    expect(head(screen.container).querySelector("[data-failed]")).toBeNull()
 
     fake.steps = [
       ...fake.steps,

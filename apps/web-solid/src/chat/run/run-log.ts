@@ -1,4 +1,5 @@
 import type { RunStep, RunStepStatus, ToolKind } from "@kiko/protocol"
+import { shellLabel } from "./shell-label"
 
 export type StepIcon =
   | "file-view"
@@ -37,6 +38,9 @@ export type StepIcon =
   | "wrench"
   | "alert-circle"
   | "app"
+  | "apps"
+  | "deploy"
+  | "api"
   | "bulb"
 
 const NAME_ICON: Record<string, StepIcon> = {
@@ -88,6 +92,11 @@ const NAME_ICON: Record<string, StepIcon> = {
   computer_look: "monitor",
   computer_act: "cursor",
   computer_link: "monitor",
+  app_deploy: "deploy",
+  app_list: "apps",
+  app_inspect: "eye",
+  app_call: "api",
+  app_manage: "apps",
 }
 
 const KIND_ICON: Record<ToolKind, StepIcon> = {
@@ -99,9 +108,13 @@ const KIND_ICON: Record<ToolKind, StepIcon> = {
   other: "wrench",
 }
 
-export function iconOf(step: Pick<RunStep, "tool" | "status" | "name" | "app" | "note">): StepIcon | undefined {
+export function iconOf(
+  step: Pick<RunStep, "tool" | "status" | "name" | "app" | "note"> & { input?: string },
+): StepIcon | undefined {
   if (step.note) return "bulb"
   if (step.status === "failed") return "alert-circle"
+  const shell = commandOf(step)
+  if (shell !== undefined) return shellLabel(shell)?.icon ?? "terminal"
   return NAME_ICON[step.name] ?? (step.app ? "app" : KIND_ICON[step.tool])
 }
 
@@ -176,6 +189,7 @@ const PRESENT: Record<string, string> = {
   Looked: "Looking",
   Clicked: "Clicking",
   Zoomed: "Zooming",
+  Deployed: "Deploying",
 }
 
 const WRAPPERS = new Set(["sudo", "env", "time", "command", "exec", "nohup"])
@@ -205,23 +219,29 @@ function argsOf(input: string | undefined): Args {
   }
 }
 
-const COMMAND_CHARS = 80
-
 const said = (value: unknown) => (typeof value === "string" ? value.trim() : "")
-const cut = (text: string) => (text.length > COMMAND_CHARS ? `${text.slice(0, COMMAND_CHARS - 1)}…` : text)
 const titled = (value: unknown) => {
   const text = said(value).replace(/^@/, "").replace(/[-_]+/g, " ")
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : ""
 }
 const did = (verb: string, what: string, otherwise: string) => (what ? `${verb} ${what}` : otherwise)
 
+const inApp = (args: Args) => said(args.name)
+
 const HUMAN: Record<string, (args: Args) => string> = {
+  app_list: () => "Listed your apps",
+  app_deploy: (a) => did("Deployed", inApp(a), "Deployed an app"),
+  app_inspect: (a) => (inApp(a) && said(a.what) ? `Checked ${inApp(a)} ${said(a.what)}` : "Checked an app"),
+  app_call: (a) =>
+    inApp(a) && said(a.method) && said(a.path)
+      ? `Called ${said(a.method)} ${said(a.path)} on ${inApp(a)}`
+      : "Called an app",
   delete_agent: (a) => did("Deleted", titled(a.handle), "Deleted an agent"),
   delete_group: () => "Deleted a group",
   remove_member: (a) => did("Removed", titled(a.handle), "Removed a member"),
   connect_app: (a) => did("Connected", titled(a.app), "Connected an app"),
   add_recipe: (a) => did("Added recipe", titled(a.slug), "Added a recipe"),
-  computer_shell: (a) => did("Ran", cut(said(a.command)), "Ran a command on the computer"),
+  computer_shell: () => "Ran a command on the computer",
   computer_read: (a) => did("Read", said(a.path), "Read a file on the computer"),
   computer_write: (a) => did("Wrote", said(a.path), "Wrote a file on the computer"),
   computer_look: () => "Looked at the screen",
@@ -233,7 +253,16 @@ const HUMAN: Record<string, (args: Args) => string> = {
   zoom: () => "Zoomed in on the page",
 }
 
+function commandOf(step: Pick<RunStep, "name"> & { input?: string }): string | undefined {
+  if (step.name === "bash") return step.input?.trim() || undefined
+  if (step.name === "computer_shell") return said(argsOf(step.input).command) || undefined
+  return undefined
+}
+
 function humanLabel(step: Pick<RunStep, "name" | "label" | "input">): string {
+  const shell = commandOf(step)
+  const described = shell === undefined ? undefined : shellLabel(shell)
+  if (described) return described.label
   if (step.label !== `Used ${step.name}`) return step.label
   return HUMAN[step.name]?.(argsOf(step.input)) ?? `Used ${step.name.replace(/_/g, " ")}`
 }
@@ -241,7 +270,7 @@ function humanLabel(step: Pick<RunStep, "name" | "label" | "input">): string {
 export function liveLabel(step: Pick<RunStep, "tool" | "name" | "label" | "input" | "status">): string {
   const label = humanLabel(step)
   if (step.status !== "running") return label
-  if (step.tool === "run") return `Running ${programOf(step.input ?? label.replace(/^Ran\s+/, "")) ?? "command"}`
+  if (label.startsWith("Ran ")) return `Running ${programOf(commandOf(step) ?? label.slice(4)) ?? "command"}`
   const space = label.indexOf(" ")
   const verb = space === -1 ? label : label.slice(0, space)
   const present = PRESENT[verb]
@@ -249,7 +278,9 @@ export function liveLabel(step: Pick<RunStep, "tool" | "name" | "label" | "input
   return space === -1 ? present : `${present}${label.slice(space)}`
 }
 
-export function extraInput(step: Pick<RunStep, "label" | "input">): string | undefined {
+export function extraInput(step: Pick<RunStep, "name" | "label" | "input">): string | undefined {
+  const shell = commandOf(step)
+  if (shell !== undefined) return shell
   const input = step.input?.trim()
   if (!input) return undefined
   const label = step.label.trim()

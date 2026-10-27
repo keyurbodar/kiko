@@ -6,13 +6,13 @@ const RADIUS = {
   tile: 12,
   pop: 12,
   card: 16,
-  bubble: 14,
+  bubble: 18,
   sheet: 20,
   composer: 20,
 } as const
 
 const SIZE = {
-  "nav-tab": 38,
+  "nav-tab": 36,
   "chat-row": 48,
   mascot: 32,
   avatar: 30,
@@ -36,14 +36,14 @@ const BASE = 14
 
 const TYPE = {
   page: { size: 40, line: 44, weight: 400, face: "display", scales: false },
-  section: { size: 28, line: 34, weight: 400, face: "display", scales: false },
+  section: { size: 26, line: 32, weight: 400, face: "display", scales: false },
   wordmark: { size: 24, line: 28, weight: 400, face: "display", scales: false },
-  msg: { size: 16, line: 26, weight: 400, face: "sans", scales: true },
-  ui: { size: 15, line: 22, weight: 400, face: "sans", scales: true },
-  row: { size: 15, line: 22, weight: 500, face: "sans", scales: true },
-  label: { size: 13.5, line: 18, weight: 500, face: "sans", scales: true },
-  hint: { size: 12.5, line: 16, weight: 400, face: "sans", scales: true },
-  code: { size: 13.5, line: 22, weight: 400, face: "mono", scales: true },
+  msg: { size: 16, line: 25, weight: 400, face: "sans", scales: true },
+  ui: { size: 14, line: 20, weight: 400, face: "sans", scales: true },
+  row: { size: 14, line: 20, weight: 500, face: "sans", scales: true },
+  label: { size: 13, line: 18, weight: 500, face: "sans", scales: true },
+  hint: { size: 12, line: 16, weight: 500, face: "sans", scales: true },
+  code: { size: 13, line: 21, weight: 400, face: "mono", scales: true },
 } as const satisfies Record<string, Type>
 
 type TypeName = keyof typeof TYPE

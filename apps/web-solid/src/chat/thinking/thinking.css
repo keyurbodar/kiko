@@ -1,5 +1,5 @@
 .thinking {
-  --run-text: var(--fg3);
+  --run-text: var(--fg2);
   display: flex;
   min-width: 0;
   max-width: 100%;
@@ -21,8 +21,9 @@
 
 .thinking-live {
   display: block;
+  min-width: 0;
   overflow: hidden;
-  color: var(--fg3);
+  color: var(--fg2);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -50,11 +51,11 @@
   margin-left: 9px;
   padding: 2px 0 2px 18px;
   overflow-y: auto;
-  border-left: 1.5px solid var(--line);
+  border-left: 1px solid var(--line);
   scrollbar-width: thin;
   color: var(--fg3);
-  font-size: var(--type-label);
-  line-height: 20px;
+  font-size: var(--type-ui);
+  line-height: 22px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;
@@ -67,23 +68,24 @@
 .thought {
   display: flex;
   min-width: 0;
-  max-width: min(36rem, 100%);
+  max-width: min(38rem, 100%);
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
-  padding: 0 0 6px 8px;
+  gap: 2px;
+  padding: 0 0 4px 2px;
 }
 .thought .thinking-stream {
-  margin-left: 0;
-  padding-left: 12px;
+  margin-left: 7px;
+  padding-left: 16px;
 }
 
 .thought-head {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  min-height: 26px;
   color: var(--fg3);
-  font-size: var(--type-label);
+  font-size: var(--type-ui);
   line-height: 20px;
 }
 
@@ -107,11 +109,11 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .thinking-live {
-    animation: thinking-fade var(--dur-hover) var(--ease-kiko) backwards;
+    animation: thinking-slide 220ms var(--ease-kiko) backwards;
   }
   .thinking-live.motion-shine {
     animation:
-      thinking-fade var(--dur-hover) var(--ease-kiko) backwards,
+      thinking-slide 220ms var(--ease-kiko) backwards,
       motion-shine var(--dur-shimmer) steps(30) infinite;
     animation-play-state: running, var(--visible-animation-state, paused);
   }
@@ -123,5 +125,12 @@
 @keyframes thinking-fade {
   from {
     opacity: 0;
+  }
+}
+
+@keyframes thinking-slide {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
   }
 }

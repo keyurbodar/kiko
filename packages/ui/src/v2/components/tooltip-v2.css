@@ -13,19 +13,20 @@
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  padding: 4px 8px;
+  padding: 5px 9px;
   gap: 8px;
 
-  background: var(--popover);
-  border: 1px solid var(--popover-edge);
-  box-shadow: var(--popover-shadow-sm);
-  border-radius: 6px;
+  background: var(--tooltip-bg);
+  box-shadow:
+    0 0 0 1px var(--tooltip-edge),
+    0 6px 16px -4px rgb(0 0 0 / 35%);
+  border-radius: 8px;
 
   font-style: normal;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 1.375;
-  color: var(--popover-fg);
+  font-weight: 450;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--tooltip-fg);
   text-wrap: balance;
   overflow-wrap: anywhere;
 
@@ -35,4 +36,8 @@
 
 [data-component="tooltip-v2"] [data-component="keybind-v2"] {
   margin-right: -3px;
+}
+
+[data-component="tooltip-v2"] [data-component="keybind-v2"][data-variant="neutral"] [data-slot="keybind-v2-key"] {
+  background: color-mix(in oklab, var(--tooltip-fg) 14%, transparent);
 }

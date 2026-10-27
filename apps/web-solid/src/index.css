@@ -17,8 +17,8 @@
 @import "./styles/motion.css";
 
 @font-face {
-  font-family: "Inter";
-  src: url("/fonts/inter-variable.woff2") format("woff2");
+  font-family: "Satoshi";
+  src: url("/fonts/satoshi-variable.woff2") format("woff2");
   font-weight: 300 900;
   font-style: normal;
   font-display: swap;
@@ -56,7 +56,7 @@
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-bold: 600;
-  --font-family-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-family-sans: Satoshi, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-family-display: Fraunces, Georgia, "Times New Roman", serif;
   --font-family-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, ui-monospace, monospace;
   --display-variation: "SOFT" 50, "WONK" 0;
@@ -197,21 +197,21 @@
 
 /* palette:start */
 :root {
-  --bg: #161616;
-  --side: #1c1c1c;
-  --panel: color-mix(in oklab, #f2f2f2 4%, #161616);
-  --raise: color-mix(in oklab, #f2f2f2 7%, #161616);
-  --hover: color-mix(in oklab, #f2f2f2 9.5%, #161616);
-  --active: color-mix(in oklab, #f2f2f2 14%, #161616);
-  --tip: color-mix(in oklab, #f2f2f2 16%, #161616);
-  --me: color-mix(in oklab, #f2f2f2 9%, #161616);
-  --kiko-bubble: color-mix(in oklab, #f2f2f2 4%, #161616);
-  --line: color-mix(in oklab, #f2f2f2 10%, #161616);
-  --line2: color-mix(in oklab, #f2f2f2 16%, #161616);
-  --fg: #f2f2f2;
-  --fg2: #ababab;
-  --fg3: #8c8c8c;
-  --fg4: color-mix(in oklab, #f2f2f2 38%, #161616);
+  --bg: #1a1a1a;
+  --side: #202020;
+  --panel: color-mix(in oklab, #f0efed 4%, #1a1a1a);
+  --raise: color-mix(in oklab, #f0efed 7%, #1a1a1a);
+  --hover: color-mix(in oklab, #f0efed 9.5%, #1a1a1a);
+  --active: color-mix(in oklab, #f0efed 14%, #1a1a1a);
+  --tip: color-mix(in oklab, #f0efed 16%, #1a1a1a);
+  --me: color-mix(in oklab, #f0efed 6.5%, #1a1a1a);
+  --kiko-bubble: color-mix(in oklab, #f0efed 4%, #1a1a1a);
+  --line: color-mix(in oklab, #f0efed 10%, #1a1a1a);
+  --line2: color-mix(in oklab, #f0efed 16%, #1a1a1a);
+  --fg: #f0efed;
+  --fg2: #a8a7a4;
+  --fg3: #8b8a87;
+  --fg4: color-mix(in oklab, #f0efed 38%, #1a1a1a);
   --on-fg: #141414;
   --ok: #5cc489;
   --bad: #ef6a6a;
@@ -220,27 +220,27 @@
   --leaf: #7fd19c;
   --info-wash: color-mix(in oklab, #5b9cf6 14%, transparent);
   --bad-wash: color-mix(in oklab, #ef6a6a 12%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #f2f2f2 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #f2f2f2 30%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #f0efed 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #f0efed 30%, transparent);
   --card-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
 }
 
 :root:not(.dark) {
   --bg: #ffffff;
-  --side: #f5f5f5;
-  --panel: color-mix(in oklab, #141414 1.8%, #ffffff);
-  --raise: color-mix(in oklab, #141414 3%, #ffffff);
-  --hover: color-mix(in oklab, #141414 5%, #ffffff);
-  --active: color-mix(in oklab, #141414 8%, #ffffff);
-  --tip: color-mix(in oklab, #141414 7%, #ffffff);
-  --me: color-mix(in oklab, #141414 6%, #ffffff);
-  --kiko-bubble: color-mix(in oklab, #141414 3%, #ffffff);
-  --line: color-mix(in oklab, #141414 9%, #ffffff);
-  --line2: color-mix(in oklab, #141414 14%, #ffffff);
-  --fg: #141414;
-  --fg2: #474747;
-  --fg3: #666666;
-  --fg4: color-mix(in oklab, #141414 34%, #ffffff);
+  --side: #f7f7f5;
+  --panel: color-mix(in oklab, #141413 1.8%, #ffffff);
+  --raise: color-mix(in oklab, #141413 3%, #ffffff);
+  --hover: color-mix(in oklab, #141413 5%, #ffffff);
+  --active: color-mix(in oklab, #141413 8%, #ffffff);
+  --tip: color-mix(in oklab, #141413 7%, #ffffff);
+  --me: color-mix(in oklab, #141413 5%, #ffffff);
+  --kiko-bubble: color-mix(in oklab, #141413 3%, #ffffff);
+  --line: color-mix(in oklab, #141413 9%, #ffffff);
+  --line2: color-mix(in oklab, #141413 14%, #ffffff);
+  --fg: #141413;
+  --fg2: #4b4a47;
+  --fg3: #6e6d69;
+  --fg4: color-mix(in oklab, #141413 34%, #ffffff);
   --on-fg: #ffffff;
   --ok: #1f9d55;
   --bad: #d6453f;
@@ -249,10 +249,10 @@
   --leaf: #2f9e5b;
   --info-wash: color-mix(in oklab, #2f6fe4 11%, transparent);
   --bad-wash: color-mix(in oklab, #d6453f 12%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #141414 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #141414 30%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #141413 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #141413 30%, transparent);
   --card-shadow:
-    0 0 0 1px color-mix(in oklab, #141414 6%, transparent), 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px -16px rgb(0 0 0 / 18%);
+    0 0 0 1px color-mix(in oklab, #141413 6%, transparent), 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px -16px rgb(0 0 0 / 18%);
 }
 /* palette:end */
 
@@ -267,6 +267,18 @@
 :root:not(.dark) {
   --popover: var(--bg);
   --popover-edge: color-mix(in srgb, var(--fg) 14%, transparent);
+}
+
+:root {
+  --tooltip-bg: color-mix(in oklab, var(--fg) 13%, var(--bg));
+  --tooltip-fg: var(--fg);
+  --tooltip-edge: color-mix(in oklab, var(--fg) 7%, transparent);
+}
+
+:root:not(.dark) {
+  --tooltip-bg: color-mix(in oklab, var(--fg) 92%, var(--bg));
+  --tooltip-fg: var(--bg);
+  --tooltip-edge: transparent;
 }
 
 :root {
@@ -386,22 +398,22 @@
 :root {
   --type-page: 40px;
   --type-page-line: 1.1;
-  --type-section: 28px;
-  --type-section-line: 1.21;
+  --type-section: 26px;
+  --type-section-line: 1.23;
   --type-wordmark: 24px;
   --type-wordmark-line: 1.17;
   --type-msg: 16px;
-  --type-msg-line: 1.63;
-  --type-ui: 15px;
-  --type-ui-line: 1.47;
-  --type-row: 15px;
-  --type-row-line: 1.47;
-  --type-label: 13.5px;
-  --type-label-line: 1.33;
-  --type-hint: 12.5px;
-  --type-hint-line: 1.28;
-  --type-code: 13.5px;
-  --type-code-line: 1.63;
+  --type-msg-line: 1.56;
+  --type-ui: 14px;
+  --type-ui-line: 1.43;
+  --type-row: 14px;
+  --type-row-line: 1.43;
+  --type-label: 13px;
+  --type-label-line: 1.38;
+  --type-hint: 12px;
+  --type-hint-line: 1.33;
+  --type-code: 13px;
+  --type-code-line: 1.62;
   --dur-hover: 120ms;
   --dur-pop: 200ms;
   --dur-step: 400ms;
@@ -417,10 +429,10 @@
   --radius-tile: 12px;
   --radius-pop: 12px;
   --radius-card: 16px;
-  --radius-bubble: 14px;
+  --radius-bubble: 18px;
   --radius-sheet: 20px;
   --radius-composer: 20px;
-  --spacing-nav-tab: 38px;
+  --spacing-nav-tab: 36px;
   --spacing-chat-row: 48px;
   --spacing-mascot: 32px;
   --spacing-avatar: 30px;
@@ -515,7 +527,7 @@
   font-family: var(--font-family-sans);
   font-size: var(--type-hint);
   line-height: var(--type-hint-line);
-  font-weight: 400;
+  font-weight: 500;
 }
 
 @utility type-code {

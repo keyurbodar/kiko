@@ -2,20 +2,21 @@
   --run-text: var(--fg2);
   display: flex;
   flex-direction: column;
-  width: min(100%, 36rem);
+  width: min(100%, 38rem);
   min-width: 0;
-  font-size: var(--type-label);
+  font-size: var(--type-ui);
   line-height: 20px;
 }
 .run-tree:not([data-live]) {
-  padding: 0 0 6px 8px;
+  padding: 0 0 4px 2px;
 }
 
 .run-tree-head {
   display: inline-flex;
   align-self: flex-start;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  min-height: 26px;
   color: var(--fg3);
   cursor: pointer;
   user-select: none;
@@ -23,7 +24,7 @@
   transition: color var(--dur-hover) var(--ease-kiko);
 }
 .run-tree-head + .run-tree-fold {
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .run-tree-list {
@@ -43,9 +44,9 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  min-height: 28px;
-  padding: 4px 6px 4px 0;
-  border-radius: 8px;
+  min-height: 26px;
+  padding: 3px 6px 3px 0;
+  border-radius: var(--radius-tail);
   color: var(--run-text);
   text-align: start;
   cursor: default;
@@ -57,10 +58,18 @@ button.run-tree-row {
 }
 button.run-tree-row:focus-visible,
 .run-tree-head:focus-visible {
-  border-radius: 6px;
   outline: none;
   color: var(--fg);
   box-shadow: var(--focus-ring);
+}
+
+.run-tree-slot {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
 }
 
 .run-tree-children {
@@ -68,8 +77,8 @@ button.run-tree-row:focus-visible,
   flex-direction: column;
   min-width: 0;
   margin-left: 7px;
-  padding-left: 16px;
-  border-left: 1.5px solid var(--line);
+  padding-left: 15px;
+  border-left: 1px solid var(--line);
 }
 
 .run-tree-said {
@@ -104,12 +113,6 @@ button.run-tree-row[aria-expanded="true"] > .run-tree-time {
   font-variant-numeric: tabular-nums;
 }
 
-.run-tree-mochi {
-  display: inline-flex;
-  width: 16px;
-  justify-content: center;
-}
-
 .run-tree-label {
   min-width: 0;
   overflow: hidden;
@@ -119,12 +122,10 @@ button.run-tree-row[aria-expanded="true"] > .run-tree-time {
 
 .run-tree-object {
   color: var(--fg);
-  font-weight: 500;
 }
 .run-tree-object[data-mono] {
   font-family: var(--font-family-mono);
   font-size: var(--type-hint);
-  font-weight: 400;
 }
 .motion-shine .run-tree-object {
   color: inherit;
@@ -135,8 +136,9 @@ button.run-tree-row[aria-expanded="true"] > .run-tree-time {
   color: var(--fg3);
   transition: color var(--dur-hover) var(--ease-kiko);
 }
-.run-tree-icon[data-failed] {
-  color: var(--bad);
+
+.run-tree-more {
+  color: var(--fg3);
 }
 
 .run-tree-chevron {
@@ -153,7 +155,8 @@ button.run-tree-row[data-kind="step"] > .run-tree-chevron {
   opacity: 0;
   transition:
     opacity var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
+    color var(--dur-hover) var(--ease-kiko),
+    transform var(--motion-run-chevron) var(--ease-kiko);
 }
 button.run-tree-row[data-kind="step"]:focus-visible > .run-tree-chevron,
 button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron {
@@ -165,7 +168,7 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
   .run-tree-head:hover {
     color: var(--fg);
   }
-  button.run-tree-row:hover .run-tree-icon:not([data-failed]),
+  button.run-tree-row:hover .run-tree-icon,
   button.run-tree-row:hover .run-tree-chevron,
   .run-tree-head:hover .run-tree-chevron {
     color: var(--fg2);
@@ -184,8 +187,8 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
 .run-tree-leaves {
   position: relative;
   display: inline-block;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 .run-tree-leaves > i {
   position: absolute;
@@ -216,33 +219,6 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
   color: var(--fg);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .run-tree-leaves[data-running] > i::before {
-    animation: run-tree-leaf 1.2s infinite;
-  }
-  .run-tree-leaves[data-running] > i:nth-child(2)::before {
-    animation-delay: 0.3s;
-  }
-  .run-tree-leaves[data-running] > i:nth-child(3)::before {
-    animation-delay: 0.6s;
-  }
-  .run-tree-leaves[data-running] > i:nth-child(4)::before {
-    animation-delay: 0.9s;
-  }
-}
-
-@keyframes run-tree-leaf {
-  0%,
-  100% {
-    opacity: 0.35;
-    transform: scale(0.8);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
 .run-tree-fold {
   display: grid;
   grid-template-rows: 1fr;
@@ -262,16 +238,16 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
   min-width: 0;
   flex-direction: column;
   gap: 4px;
-  padding: 2px 0 6px 24px;
+  padding: 2px 0 8px 24px;
 }
 .run-tree-block {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 2px;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: var(--radius-tile);
   background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 .run-tree-mono {
   margin: 0;
@@ -279,13 +255,20 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
   overflow: auto;
   font-family: var(--font-family-mono);
   font-size: var(--type-hint);
-  line-height: 1.55;
+  line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;
 }
 .run-tree-input {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+.run-tree-input > .run-tree-mono {
+  flex: 1;
   max-height: 8rem;
+  padding-right: 40px;
   color: var(--fg);
 }
 .run-tree-output {
@@ -293,13 +276,113 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
   color: var(--fg2);
 }
 .run-tree-input + .run-tree-output {
-  background: color-mix(in oklab, var(--fg) 3%, transparent);
-}
-.run-tree-output[data-failed] {
-  color: var(--bad);
+  border-top: 1px solid var(--line);
 }
 .run-tree-note {
   margin: 0;
   color: var(--fg3);
   user-select: text;
+}
+
+.run-tree-copy {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  min-width: 24px;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: var(--radius-tail);
+  color: var(--fg3);
+  font-size: var(--type-hint);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko),
+    background-color var(--dur-hover) var(--ease-kiko);
+}
+.run-tree-copy:focus-visible,
+.run-tree-copy[data-copied],
+.run-tree-input:focus-within > .run-tree-copy {
+  opacity: 1;
+}
+.run-tree-copy:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.run-tree-copy[data-copied] {
+  color: var(--fg);
+  background: var(--hover);
+}
+@media (hover: hover) and (pointer: fine) {
+  .run-tree-input:hover > .run-tree-copy {
+    opacity: 1;
+  }
+  .run-tree-copy:hover {
+    color: var(--fg);
+    background: var(--hover);
+  }
+}
+@media (hover: none) {
+  .run-tree-copy {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .run-tree-leaves[data-running] > i::before {
+    animation: run-tree-leaf 1.2s infinite;
+  }
+  .run-tree-leaves[data-running] > i:nth-child(2)::before {
+    animation-delay: 0.3s;
+  }
+  .run-tree-leaves[data-running] > i:nth-child(3)::before {
+    animation-delay: 0.6s;
+  }
+  .run-tree-leaves[data-running] > i:nth-child(4)::before {
+    animation-delay: 0.9s;
+  }
+  .run-tree-item[data-fresh] > .run-tree-row {
+    animation: run-tree-rise var(--dur-pop) var(--ease-kiko) backwards;
+  }
+  .run-tree-icon[data-settled] {
+    animation: run-tree-settle 280ms var(--spring325-bounce-easing, var(--ease-kiko)) backwards;
+  }
+  .run-tree-detail {
+    animation: run-tree-rise 160ms var(--ease-kiko) backwards;
+  }
+}
+
+@keyframes run-tree-leaf {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes run-tree-rise {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+@keyframes run-tree-settle {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+.run-tree[data-live] {
+  padding-left: 2px;
 }

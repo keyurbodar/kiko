@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { liveLabel } from "./run-log"
+import { extraInput, iconOf, liveLabel } from "./run-log"
 
 const step = (name: string, input?: string, label = `Used ${name}`) => ({
   tool: "other" as const,
@@ -31,5 +31,34 @@ describe("liveLabel", () => {
 
   it("puts a running humanized call in the present tense", () => {
     expect(liveLabel({ ...step("delete_agent", '{"handle":"ping"}'), status: "running" })).toBe("Deleting Ping")
+  })
+})
+
+describe("shell and app steps", () => {
+  const shell = (command: string, status: "done" | "running" = "done") => ({
+    tool: "run" as const,
+    name: "bash",
+    label: `Ran ${command}`,
+    input: command,
+    status,
+  })
+
+  it("names a certain shell command and keeps the full command for the detail", () => {
+    const read = shell("cd /tmp && head -c 300 feed.json")
+    expect(liveLabel(read)).toBe("Read feed.json")
+    expect(iconOf(read)).toBe("file-view")
+    expect(extraInput({ ...read, label: "Read feed.json" })).toBe("cd /tmp && head -c 300 feed.json")
+  })
+
+  it("puts a running shell step in the present tense", () => {
+    expect(liveLabel(shell("cd /tmp && head -c 300 feed.json", "running"))).toBe("Reading feed.json")
+    expect(liveLabel(shell("cd /tmp && jq -r . feed.json", "running"))).toBe("Running jq")
+  })
+
+  it("says what an app tool did", () => {
+    expect(liveLabel(step("app_list", "{}"))).toBe("Listed your apps")
+    expect(liveLabel(step("app_deploy", '{"name":"hn-live"}'))).toBe("Deployed hn-live")
+    expect(liveLabel(step("app_inspect", '{"name":"hn-live","what":"logs"}'))).toBe("Checked hn-live logs")
+    expect(iconOf({ ...step("app_deploy", "{}"), app: undefined })).toBe("deploy")
   })
 })
