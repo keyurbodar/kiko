@@ -2,7 +2,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { defineExtension, Harness, hook, MemoryStorage, ToolTask } from "@earendil-works/pi-durable"
 import { describe, expect, it } from "vitest"
 import { fakeSetup } from "../dev-fake"
-import { type StepItem, type StepsPort } from "./presence"
+import { presenceExtension, type StepItem, type StepsPort } from "./presence"
 
 const context = BACKGROUND_CONTEXT
 
@@ -71,6 +71,21 @@ describe("a step shown while a call runs", () => {
     expect(pushed.filter((item) => item.step.status === "running")).toHaveLength(1)
     expect(pushed.filter((item) => item.step.status === "failed")).toHaveLength(1)
     expect(stillOpen(pushed)).toEqual([])
+  })
+
+  it("closes a call that finishes after the server restarted mid-call", async () => {
+    const { pushed, port } = recorder()
+    const restarted = presenceExtension(port)
+    const handlers = restarted.hooks?.find((each) => "afterTool" in each.handlers)?.handlers as {
+      afterTool: (call: unknown, result: unknown, api: unknown) => Promise<unknown>
+    }
+    await handlers.afterTool(
+      { id: "c1", name: "bash", arguments: { command: "ls" } },
+      { output: [{ type: "text", text: "a.txt" }], isError: false },
+      { conversationId: "conv-1" },
+    )
+
+    expect(pushed.map((item) => [item.step.id, item.step.status])).toEqual([["c1", "done"]])
   })
 
   it("closes every step of a round whose calls all ran", async () => {
