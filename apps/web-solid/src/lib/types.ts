@@ -64,6 +64,7 @@ export interface OutgoingMessage {
   body: string
   files?: MessageFile[]
   attachments?: PendingAttachment[]
+  uploads?: string[]
 }
 
 export interface ComposerProps {
