@@ -31,11 +31,20 @@ export function isImage(file: Named): boolean {
   return isImageType(attachmentType(file))
 }
 
-export function splitFiles<T extends Named>(files: readonly T[]): { images: T[]; others: T[] } {
+const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "mov", "m4v", "ogv"])
+
+export function isVideo(file: Named): boolean {
+  if (attachmentType(file).startsWith("video/")) return true
+  const dot = file.name.lastIndexOf(".")
+  return dot > 0 && VIDEO_EXTENSIONS.has(file.name.slice(dot + 1).toLowerCase())
+}
+
+export function splitFiles<T extends Named>(files: readonly T[]): { images: T[]; videos: T[]; others: T[] } {
   const images: T[] = []
+  const videos: T[] = []
   const others: T[] = []
-  for (const f of files) (isImage(f) ? images : others).push(f)
-  return { images, others }
+  for (const f of files) (isImage(f) ? images : isVideo(f) ? videos : others).push(f)
+  return { images, videos, others }
 }
 
 export function wrapIndex(index: number, count: number): number {

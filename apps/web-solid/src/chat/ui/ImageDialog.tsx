@@ -16,8 +16,7 @@ import { wrapIndex } from "../../lib/attachments"
 import { room } from "../../state/room"
 import { openFile } from "../side/surfaces"
 import "./image-dialog.css"
-import { FLIP_MS, flip, reducedMotion } from "./flip"
-import type { DialogImage } from "./image-dialog"
+import type { DialogImage } from "./chat-images"
 import {
   anchorAt,
   clampZoom,
@@ -86,7 +85,6 @@ function Toolbar(props: { image: DialogImage | undefined; failed: boolean; onClo
   }
   return (
     <div
-      data-chrome=""
       data-component="image-dialog-toolbar"
       class="absolute top-0 right-0 z-30 flex items-center gap-0.5 rounded-pop bg-raise/80 p-1 shadow-[var(--float-shadow)] backdrop-blur-md"
     >
@@ -105,7 +103,7 @@ function Toolbar(props: { image: DialogImage | undefined; failed: boolean; onClo
             <RemixIcon icon={DownloadIcon} size={16} />
           </a>
         </Tool>
-        <Show when={typeof ClipboardItem !== "undefined"}>
+        <Show when={typeof ClipboardItem !== "undefined" && !props.image?.video}>
           <Tool
             label={copied() ? "Copied" : "Copy image"}
             icon={copied() ? CheckIcon : CopyIcon}
@@ -118,12 +116,7 @@ function Toolbar(props: { image: DialogImage | undefined; failed: boolean; onClo
   )
 }
 
-export default function ImageDialog(props: {
-  images: readonly DialogImage[]
-  index: number
-  from?: Element | null
-  onClose: () => void
-}) {
+export default function ImageDialog(props: { images: readonly DialogImage[]; index: number; onClose: () => void }) {
   const [offset, setOffset] = createSignal(0)
   const [failed, setFailed] = createSignal<string | null>(null)
   const [scale, setScale] = createSignal<number | null>(null)
@@ -141,27 +134,14 @@ export default function ImageDialog(props: {
   const item = () => props.images[index()]
   const step = (by: -1 | 1) => setOffset((n) => n + by)
   let pan: ((key: string) => boolean) | undefined
-  const [closing, setClosing] = createSignal(false)
-  let shrink: ((to: DOMRect) => void) | undefined
-  const thumbnail = () =>
-    offset() === 0 && props.from?.isConnected ? (props.from.querySelector("img") ?? props.from) : null
-  const close = () => {
-    if (closing()) return
-    const to = thumbnail()?.getBoundingClientRect()
-    if (reducedMotion() || !to || !shrink) return props.onClose()
-    setClosing(true)
-    shrink(to)
-    setTimeout(props.onClose, FLIP_MS)
-  }
 
   return (
-    <ModalV2 open onOpenChange={(open: boolean) => !open && close()}>
+    <ModalV2 open onOpenChange={(open: boolean) => !open && props.onClose()}>
       <ModalV2.Portal>
-        <ModalV2.Overlay class="bg-black/80!" data-closing={closing() ? "" : undefined} />
+        <ModalV2.Overlay class="bg-black/80!" />
         <ModalV2.Content
           class="h-[92vh] w-[92vw] items-center justify-center"
           data-lightbox=""
-          data-closing={closing() ? "" : undefined}
           onOpenAutoFocus={(event: Event) => {
             const picture = (event.currentTarget as HTMLElement | null)?.querySelector<HTMLElement>(
               '[data-component="image-dialog-viewport"]',
@@ -171,26 +151,20 @@ export default function ImageDialog(props: {
             picture.focus()
           }}
           onKeyDown={(event: KeyboardEvent) => {
-            if (event.ctrlKey || event.metaKey || event.altKey) return
+            if (event.ctrlKey || event.metaKey || event.altKey || event.target instanceof HTMLVideoElement) return
             if (pan?.(event.key)) return event.preventDefault()
             if (count() < 2 || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return
             event.preventDefault()
             step(event.key === "ArrowLeft" ? -1 : 1)
           }}
           onClick={(event: MouseEvent) => {
-            if (event.target === event.currentTarget) close()
+            if (event.target === event.currentTarget) props.onClose()
           }}
         >
-          <ModalV2.Title class="sr-only">Image preview</ModalV2.Title>
-          <Toolbar image={item()} failed={failed() === item()?.src} onClose={close} />
+          <ModalV2.Title class="sr-only">{item()?.video ? "Video preview" : "Image preview"}</ModalV2.Title>
+          <Toolbar image={item()} failed={failed() === item()?.src} onClose={props.onClose} />
           <Show when={count() > 1}>
-            <button
-              type="button"
-              data-chrome=""
-              class={`${NAV} left-0`}
-              aria-label="Previous image"
-              onClick={() => step(-1)}
-            >
+            <button type="button" class={`${NAV} left-0`} aria-label="Previous" onClick={() => step(-1)}>
               <RemixIcon icon={ChevronLeftIcon} class="size-5" />
             </button>
           </Show>
@@ -199,7 +173,6 @@ export default function ImageDialog(props: {
               <div
                 class="relative z-10 flex max-w-[calc(92vw-96px)] flex-col items-center"
                 data-component="image-dialog"
-                data-swap={offset() === 0 ? undefined : ""}
               >
                 <Show
                   when={failed() !== image.src}
@@ -208,32 +181,44 @@ export default function ImageDialog(props: {
                       role="alert"
                       class="flex h-48 w-[min(92vw,32rem)] flex-col items-center justify-center gap-1 rounded-card bg-panel p-6 text-center"
                     >
-                      <p class="type-row text-fg">Image unavailable</p>
+                      <p class="type-row text-fg">{image.video ? "Video unavailable" : "Image unavailable"}</p>
                       <p class="type-label text-fg3">The file may have been moved or deleted.</p>
                     </div>
                   }
                 >
-                  <ZoomableImage
-                    src={image.src}
-                    name={image.name}
-                    from={offset() === 0 ? (props.from?.querySelector("img") ?? props.from ?? null) : null}
-                    onError={() => setFailed(image.src)}
-                    panRef={(fn) => (pan = fn)}
-                    shrinkRef={(fn) => (shrink = fn)}
-                    onZoom={zoomed}
-                  />
+                  <Show
+                    when={image.video}
+                    fallback={
+                      <ZoomableImage
+                        src={image.src}
+                        name={image.name}
+                        onError={() => setFailed(image.src)}
+                        panRef={(fn) => (pan = fn)}
+                        onZoom={zoomed}
+                      />
+                    }
+                  >
+                    <video
+                      src={image.src}
+                      controls
+                      autoplay
+                      playsinline
+                      aria-label={image.name}
+                      class="max-h-[80vh] max-w-[calc(92vw-96px)] rounded-tile shadow-[var(--float-shadow)] outline-none max-sm:max-w-[92vw]"
+                      onError={() => setFailed(image.src)}
+                    />
+                  </Show>
                 </Show>
                 <p
                   class="mt-2 max-w-full truncate text-hint text-white/80"
                   aria-live="polite"
-                  data-chrome=""
                   data-component="image-dialog-caption"
                 >
                   {image.name}
                   {count() > 1 ? ` (${index() + 1}/${count()})` : ""}
                 </p>
                 <p
-                  class="h-4 type-hint text-white/70 tabular-nums transition-opacity duration-(--dur-pop) ease-kiko"
+                  class="h-4 type-hint text-white/70 tabular-nums"
                   classList={{ "opacity-0": !readout() }}
                   aria-hidden="true"
                   data-component="image-dialog-zoom"
@@ -244,13 +229,7 @@ export default function ImageDialog(props: {
             )}
           </Show>
           <Show when={count() > 1}>
-            <button
-              type="button"
-              data-chrome=""
-              class={`${NAV} right-0`}
-              aria-label="Next image"
-              onClick={() => step(1)}
-            >
+            <button type="button" class={`${NAV} right-0`} aria-label="Next" onClick={() => step(1)}>
               <RemixIcon icon={ChevronRightIcon} class="size-5" />
             </button>
           </Show>
@@ -263,10 +242,8 @@ export default function ImageDialog(props: {
 function ZoomableImage(props: {
   src: string
   name: string
-  from: Element | null
   onError: () => void
   panRef: (pan: (key: string) => boolean) => void
-  shrinkRef: (shrink: (to: DOMRect) => void) => void
   onZoom: (scale: number) => void
 }) {
   let viewport!: HTMLDivElement
@@ -275,10 +252,6 @@ function ZoomableImage(props: {
   const [window_, setWindow] = createSignal({ width: window.innerWidth, height: window.innerHeight })
   const [zoom, setZoom] = createSignal(1)
   const [dragging, setDragging] = createSignal(false)
-  const [waiting, setWaiting] = createSignal(props.from !== null && !reducedMotion())
-  props.shrinkRef((to) => flip(viewport, to, "out"))
-  const impatient = setTimeout(() => setWaiting(false), 250)
-  onCleanup(() => clearTimeout(impatient))
   let drag: { pointerId: number; x: number; y: number; left: number; top: number } | null = null
   let dragged = false
   const fit = () => fitScale(natural(), window_())
@@ -313,6 +286,7 @@ function ZoomableImage(props: {
   })
 
   onMount(() => {
+    viewport.focus({ preventScroll: true })
     const resize = () => {
       setWindow({ width: window.innerWidth, height: window.innerHeight })
       change(1)
@@ -351,7 +325,6 @@ function ZoomableImage(props: {
           width: width() ? `${width()}px` : undefined,
           height: height() ? `${height()}px` : undefined,
           "max-height": `${maxHeight(window_())}px`,
-          opacity: waiting() ? 0 : undefined,
           cursor: zoom() > 1 ? (dragging() ? "grabbing" : "grab") : "zoom-in",
         }}
         data-component="image-dialog-viewport"
@@ -408,14 +381,8 @@ function ZoomableImage(props: {
           }
           onLoad={(event) => {
             setNatural({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })
-            if (!waiting()) return
-            setWaiting(false)
-            if (props.from?.isConnected) flip(viewport, props.from.getBoundingClientRect(), "in")
           }}
-          onError={() => {
-            setWaiting(false)
-            props.onError()
-          }}
+          onError={props.onError}
         />
       </div>
       <span id={hint} class="sr-only">

@@ -45,7 +45,9 @@ export function quoteSummary(quote: string): ReplySummary {
 }
 
 export function replySummary(message: ChatMessage): ReplySummary {
-  const { images, others } = splitFiles(message.files ?? [])
+  const split = splitFiles(message.files ?? [])
+  const { images } = split
+  const others = [...split.videos, ...split.others]
   const body = message.body.trim()
   const text =
     body !== "" ? replyQuoteText(body) : images.length + others.length > 0 ? filesLabel(images.length, others) : ""

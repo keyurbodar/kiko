@@ -399,7 +399,6 @@ export function Composer(props: ComposerProps) {
           0,
           all.findIndex((p) => p.id === attachment.id),
         ),
-        document.querySelector(`[data-component="composer-attachment"][data-id="${attachment.id}"] img`),
       )
     },
     attachments: {

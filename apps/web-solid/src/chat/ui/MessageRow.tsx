@@ -1,4 +1,4 @@
-import { isImage, unnamedFiles } from "../../lib/attachments"
+import { unnamedFiles } from "../../lib/attachments"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { AlertCircleIcon } from "@kiko/ui/icons"
 import { Show, Suspense, type JSX } from "solid-js"
@@ -6,7 +6,7 @@ import { cn } from "../../lib/cn"
 import type { ChatMessage, RosterBot } from "../../lib/types"
 import type { QuoteModel } from "../lib/reply"
 import { MessageAttachments } from "./Attachments"
-import type { DialogImage } from "./image-dialog"
+import type { DialogImage } from "./chat-images"
 import { Quote } from "./Quote"
 import { ReactionStack } from "./ReactionBadge"
 import { MessageActions } from "./MessageActions"
@@ -57,22 +57,17 @@ export function MessageRow(props: {
   onReact?: (emoji: string) => void
   onReply?: () => void
   onMore?: (anchor: HTMLElement) => void
-  onOpenImages?: (images: readonly DialogImage[], index: number, from?: Element | null) => void
+  onOpenImages?: (images: readonly DialogImage[], index: number) => void
 }): JSX.Element {
   const own = () => props.message.sender === "user"
   const grouped = () => !!props.group && !own() && props.message.botId !== undefined
   const senderName = () => props.bot?.name ?? props.message.botId ?? ""
   const files = () => unnamedFiles(props.message.files ?? [], props.message.body)
   const hasFiles = () => files().length > 0
-  const imagesOnly = () =>
-    hasFiles() &&
-    props.message.body.length === 0 &&
-    !props.quote &&
-    files().every((file) => isImage({ name: file.name, type: file.type }))
   const photo = () => !!props.message.rich && isPhotoTree(props.message.rich)
   const windowKey = () => (own() ? undefined : room.runWindow(props.message))
   const named = () => grouped() && props.isRunStart
-  const nameInBubble = () => named() && !props.jumboClass && !imagesOnly()
+  const nameInBubble = () => named() && !props.jumboClass
   const failed = () => props.message.status === "failed"
   const failure = (): string | undefined => undefined
   return (
@@ -110,9 +105,7 @@ export function MessageRow(props: {
         {(key) => <RunTree windowKey={key()} count={props.message.steps} endedAt={props.message.sentAt} />}
       </Show>
       <Bubble
-        variant={
-          failed() ? "destructive" : props.jumboClass || imagesOnly() ? "ghost" : own() ? "default" : "secondary"
-        }
+        variant={failed() ? "destructive" : props.jumboClass ? "ghost" : own() ? "default" : "secondary"}
         align={own() ? "end" : "start"}
         position={bubblePosition(props.isRunStart, props.isRunEnd)}
         class={

@@ -1,15 +1,14 @@
-import { isImage } from "../../lib/attachments"
-import type { DialogImage } from "./image-dialog"
+import { splitFiles } from "../../lib/attachments"
+import type { MessageFile } from "../../lib/types"
+export type DialogImage = { src: string; name: string; path?: string; video?: true }
 
-export function chatImages(
-  messages: readonly { files?: readonly { src: string; name: string; type: string; path?: string }[] }[],
-  clicked: DialogImage,
-): { images: DialogImage[]; index: number } {
-  const all = messages.flatMap((m) =>
-    (m.files ?? [])
-      .filter((f) => isImage(f))
-      .map((f): DialogImage => ({ src: f.src, name: f.name, ...(f.path ? { path: f.path } : {}) })),
-  )
-  const index = all.findIndex((image) => image.src === clicked.src)
-  return index < 0 ? { images: [clicked], index: 0 } : { images: all, index }
+export function messageGallery(files: readonly MessageFile[]): DialogImage[] {
+  const { images, videos } = splitFiles(files)
+  const item = (file: MessageFile, video: boolean): DialogImage => ({
+    src: file.src,
+    name: file.name,
+    ...(file.path ? { path: file.path } : {}),
+    ...(video ? { video: true as const } : {}),
+  })
+  return [...images.map((file) => item(file, false)), ...videos.map((file) => item(file, true))]
 }

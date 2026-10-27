@@ -36,9 +36,7 @@ function LoadedImage(props: { alt: string; url?: string; fileId?: string }): JSX
             data-component="chat-image"
             data-state={loaded() ? "ready" : "loading"}
             aria-label={`View ${name()}`}
-            onClick={(event) =>
-              openThreadImages([{ src: href(), name: name() }], 0, event.currentTarget.querySelector("img"))
-            }
+            onClick={() => openThreadImages([{ src: href(), name: name() }], 0)}
           >
             <img
               src={href()}
