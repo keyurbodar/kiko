@@ -4,6 +4,7 @@ export const TEST_EXCLUDE = [
   "**/node_modules/**",
   "**/dist/**",
   "refs/**",
+  "**/.claude/**",
   "**/.wrangler/**",
   "**/.{idea,git,cache,output,temp}/**",
 ]
