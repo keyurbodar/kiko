@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#121212" />
+    <meta name="theme-color" content="#141414" />
     <title>Kiko</title>
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/png" href="/favicon-32x32.png" sizes="32x32" />
@@ -41,12 +41,12 @@
               label: "Kiko",
               accent: "#5b9cf6",
               palette: {
-                canvas: "#121212",
-                sidebar: "#171717",
-                text: "#ededed",
-                muted: "#a6a6a6",
-                faint: "#878787",
-                action: "#ededed",
+                canvas: "#141414",
+                sidebar: "#191919",
+                text: "#ececec",
+                muted: "#9a9a9a",
+                faint: "#7f7f7f",
+                action: "#ececec",
                 actionHover: "#ffffff",
                 onAction: "#141414",
                 danger: "#ef6a6a",
@@ -170,11 +170,11 @@
               accent: "#2f6fe4",
               palette: {
                 canvas: "#ffffff",
-                sidebar: "#f7f7f6",
-                text: "#1b1b1b",
-                muted: "#5c5c5c",
-                faint: "#808080",
-                action: "#1b1b1b",
+                sidebar: "#f6f6f6",
+                text: "#171717",
+                muted: "#5e5e5e",
+                faint: "#7d7d7d",
+                action: "#171717",
                 actionHover: "#000000",
                 onAction: "#ffffff",
                 danger: "#d6453f",
@@ -190,14 +190,15 @@
             ROLES = [
               ["--bg", ({ p }) => p.canvas],
               ["--side", ({ p }) => p.sidebar],
-              ["--panel", ({ solid, dark }) => solid(dark ? 2.3 : 1.6)],
-              ["--raise", ({ solid, dark }) => solid(dark ? 4.6 : 2.4)],
-              ["--hover", ({ solid, dark }) => solid(dark ? 6.4 : 4)],
-              ["--active", ({ solid, dark }) => solid(dark ? 9.1 : 6.5)],
+              ["--panel", ({ solid, dark }) => solid(dark ? 3 : 1.6)],
+              ["--raise", ({ solid, dark }) => solid(dark ? 5 : 2.4)],
+              ["--hover", ({ solid, dark }) => solid(dark ? 7.4 : 4)],
+              ["--active", ({ solid, dark }) => solid(dark ? 10.5 : 6.5)],
+              ["--tip", ({ solid, dark }) => solid(dark ? 16 : 7)],
               ["--me", ({ solid, dark }) => solid(dark ? 9.6 : 5.5)],
               ["--kiko-bubble", ({ solid, dark }) => solid(dark ? 3.2 : 3)],
-              ["--line", ({ solid, dark }) => solid(dark ? 8.2 : 8)],
-              ["--line2", ({ solid, dark }) => solid(dark ? 12.8 : 12)],
+              ["--line", ({ solid, dark }) => solid(dark ? 6.5 : 7)],
+              ["--line2", ({ solid, dark }) => solid(dark ? 13 : 11.5)],
               ["--fg", ({ p }) => p.text],
               ["--fg2", ({ p }) => p.muted],
               ["--fg3", ({ p }) => p.faint],
@@ -239,9 +240,9 @@
             wordmark: { size: 24, line: 28, weight: 400, face: "display", scales: !1 },
             msg: { size: 15, line: 24, weight: 400, face: "sans", scales: !0 },
             ui: { size: 14, line: 20, weight: 400, face: "sans", scales: !0 },
-            row: { size: 13.5, line: 18, weight: 600, face: "sans", scales: !0 },
-            label: { size: 12.5, line: 16, weight: 400, face: "sans", scales: !0 },
-            hint: { size: 11.5, line: 14, weight: 400, face: "sans", scales: !0 },
+            row: { size: 14, line: 20, weight: 500, face: "sans", scales: !0 },
+            label: { size: 13, line: 18, weight: 450, face: "sans", scales: !0 },
+            hint: { size: 12, line: 16, weight: 450, face: "sans", scales: !0 },
             code: { size: 13, line: 21, weight: 400, face: "mono", scales: !0 },
           }
           var round2 = (n) => Math.round(n * 100) / 100
@@ -331,6 +332,7 @@
               "--font-smoothing": display.smoothing ? "antialiased" : "auto",
             }
           }
+          var SYNTAX_KEYS = ["keyword", "string", "func", "comment"]
           var MAX_IMPORTED = 50,
             HEX = /^#[0-9a-f]{6}$/i,
             ID = /^[\w:./-]{1,160}$/
@@ -351,7 +353,19 @@
               if (typeof value !== "string" || !HEX.test(value)) return null
               palette[key] = value
             }
-            return { id, name, source, appearance, accent, palette }
+            let theme = { id, name, source, appearance, accent, palette },
+              syntax = readSyntax(raw.syntax)
+            return syntax ? { ...theme, syntax } : theme
+          }
+          function readSyntax(raw) {
+            if (!isObject2(raw)) return null
+            let syntax = {}
+            for (let key of SYNTAX_KEYS) {
+              let value = raw[key]
+              if (typeof value !== "string" || !HEX.test(value)) return null
+              syntax[key] = value
+            }
+            return syntax
           }
           function parseImported(text) {
             if (!text) return EMPTY_IMPORTED
@@ -453,7 +467,7 @@
       body {
         margin: 0;
         height: 100%;
-        background: var(--boot-bg, #121212);
+        background: var(--boot-bg, #141414);
         color: var(--boot-fg, #ededed);
       }
       body {

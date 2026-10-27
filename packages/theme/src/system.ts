@@ -1,19 +1,19 @@
 const RADIUS = {
   tail: 6,
   check: 5,
-  control: 9,
-  row: 10,
+  control: 8,
+  row: 8,
   tile: 12,
-  pop: 14,
+  pop: 12,
   card: 16,
   bubble: 18,
   sheet: 20,
-  composer: 22,
+  composer: 16,
 } as const
 
 const SIZE = {
-  "nav-tab": 34,
-  "chat-row": 50,
+  "nav-tab": 36,
+  "chat-row": 48,
   mascot: 32,
   avatar: 30,
   "section-label": 28,
@@ -24,7 +24,7 @@ const SIZE = {
   chip: 26,
   tab: 28,
   "composer-min": 96,
-  sidebar: 296,
+  sidebar: 288,
 } as const
 
 const CONTAINER = { chat: 820, page: 1040 } as const
@@ -38,11 +38,11 @@ const TYPE = {
   page: { size: 40, line: 44, weight: 400, face: "display", scales: false },
   section: { size: 26, line: 32, weight: 400, face: "display", scales: false },
   wordmark: { size: 24, line: 28, weight: 400, face: "display", scales: false },
-  msg: { size: 15, line: 24, weight: 450, face: "sans", scales: true },
-  ui: { size: 14, line: 20, weight: 450, face: "sans", scales: true },
-  row: { size: 13.5, line: 18, weight: 600, face: "sans", scales: true },
-  label: { size: 12.5, line: 16, weight: 450, face: "sans", scales: true },
-  hint: { size: 11.5, line: 14, weight: 450, face: "sans", scales: true },
+  msg: { size: 15, line: 24, weight: 400, face: "sans", scales: true },
+  ui: { size: 14, line: 20, weight: 400, face: "sans", scales: true },
+  row: { size: 14, line: 20, weight: 500, face: "sans", scales: true },
+  label: { size: 13, line: 18, weight: 450, face: "sans", scales: true },
+  hint: { size: 12, line: 16, weight: 450, face: "sans", scales: true },
   code: { size: 13, line: 21, weight: 400, face: "mono", scales: true },
 } as const satisfies Record<string, Type>
 
