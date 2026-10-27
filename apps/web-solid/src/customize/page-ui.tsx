@@ -23,7 +23,7 @@ export function PageFrame(props: {
               >
                 <RemixIcon
                   icon={ChevronLeftIcon}
-                  size={14}
+                  size={16}
                   class="transition-transform duration-(--dur-hover) group-hover:-translate-x-0.5"
                 />
                 {back().label}
@@ -140,7 +140,7 @@ export function PageSearch(props: { label: string; query: string; onQuery: (quer
     <>
       <Show when={open()}>
         <label class="motion-page-in flex h-control w-[min(240px,40vw)] items-center gap-2 rounded-control bg-panel px-3 text-fg3">
-          <RemixIcon icon={SearchIcon} size={15} />
+          <RemixIcon icon={SearchIcon} size={16} />
           <input
             ref={input}
             type="search"
@@ -178,7 +178,7 @@ export function ToolButton(props: {
       class={toolButton}
       onClick={() => props.onClick?.()}
     >
-      <RemixIcon icon={props.icon} size={17} />
+      <RemixIcon icon={props.icon} size={16} />
     </button>
   )
 }
@@ -201,7 +201,7 @@ export function SectionHead(props: { title: string; count?: number; onAll?: () =
           {props.allLabel ?? "Show all"}
           <RemixIcon
             icon={ChevronRightIcon}
-            size={13}
+            size={12}
             class="transition-transform duration-(--dur-hover) group-hover:translate-x-0.5"
           />
         </button>

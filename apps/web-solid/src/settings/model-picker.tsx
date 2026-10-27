@@ -162,7 +162,7 @@ export function ModelPickerButton(props: { draft: string }) {
                   </span>
                 )}
               </Show>
-              <RemixIcon icon={ChevronDownIcon} size={10} class="picker-chevron shrink-0" />
+              <RemixIcon icon={ChevronDownIcon} size={12} class="picker-chevron shrink-0" />
             </ModelPicker>
             <ReasoningMenu levels={current()?.thinkingLevels} value={current()?.thinking} onChange={setThinking} />
           </Show>

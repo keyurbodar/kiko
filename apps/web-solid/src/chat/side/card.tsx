@@ -24,7 +24,7 @@ function AddMember(props: { chatId: string }) {
         aria-label="Add agent"
         data-action="add-member"
       >
-        <RemixIcon icon={PlusIcon} size={13} />
+        <RemixIcon icon={PlusIcon} size={12} />
         Add
       </MenuV2.Trigger>
       <MenuV2.Portal>

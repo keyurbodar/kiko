@@ -55,10 +55,10 @@ export function TokenGlyph(props: { token: Token; size: number }) {
     )
   if (token.kind === "file") return <TypeIcon type={fileType({ name: token.path, type: "" })} size={props.size - 1} />
   if (token.kind === "recipe") return <span class="token-leaf" aria-hidden="true" />
-  if (token.kind === "action") return <RemixIcon icon={PlusIcon} size={props.size - 2} class="token-bolt" />
+  if (token.kind === "action") return <RemixIcon icon={PlusIcon} size={16} class="token-bolt" />
   if (token.kind === "command")
-    return <RemixIcon icon={COMMAND_ICONS[token.trigger] ?? CommandIcon} size={props.size - 2} class="token-bolt" />
-  return <RemixIcon icon={BoltIcon} size={props.size - 2} class="token-bolt" />
+    return <RemixIcon icon={COMMAND_ICONS[token.trigger] ?? CommandIcon} size={16} class="token-bolt" />
+  return <RemixIcon icon={BoltIcon} size={16} class="token-bolt" />
 }
 
 function TokenChip(props: { sign: "@" | "/"; name: string; source: ChipSource }) {

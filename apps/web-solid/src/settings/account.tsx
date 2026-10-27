@@ -211,7 +211,7 @@ function Address() {
           data-action="copy-address"
           onClick={() => void copy()}
         >
-          <CopyCheckIcon copied={copied()} size={14} class={cn(copied() && "text-ok")} />
+          <CopyCheckIcon copied={copied()} size={16} class={cn(copied() && "text-ok")} />
         </IconButton>
       </span>
     </Row>

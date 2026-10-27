@@ -272,7 +272,7 @@ function RowBody(props: {
           <Show when={props.pinMark && props.bot.pinned}>
             <RemixIcon
               icon={PinFillIcon}
-              size={11}
+              size={12}
               class="chat-pin-icon"
               data-bounce={pinBounce() ? "" : undefined}
               onAnimationEnd={() => setPinBounce(false)}

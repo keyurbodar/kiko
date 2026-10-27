@@ -56,11 +56,11 @@ export default function Viewer(): JSX.Element {
             aria-modal="true"
             aria-label={`${computer().name} screen`}
             tabindex="-1"
-            class="flex h-full max-h-[min(860px,100%)] w-full max-w-[1280px] flex-col gap-2 rounded-[22px] bg-[color-mix(in_oklab,var(--bg)_92%,var(--fg))] p-2 shadow-2xl outline-none"
+            class="flex h-full max-h-[min(860px,100%)] w-full max-w-[1280px] flex-col gap-2 rounded-sheet bg-[color-mix(in_oklab,var(--bg)_92%,var(--fg))] p-2 shadow-2xl outline-none"
           >
             <div
               class={cn(
-                "flex min-h-11 shrink-0 items-center gap-3 rounded-[14px] py-1.5 pr-2 pl-4",
+                "flex min-h-11 shrink-0 items-center gap-3 rounded-pop py-1.5 pr-2 pl-4",
                 interactive()
                   ? "bg-[color-mix(in_oklab,var(--warn)_16%,transparent)] text-warn"
                   : "bg-[color-mix(in_oklab,var(--fg)_6%,transparent)] text-fg",
@@ -151,7 +151,7 @@ export default function Viewer(): JSX.Element {
                 <RemixIcon icon={CloseIcon} size={16} />
               </button>
             </div>
-            <div class="min-h-0 flex-1 overflow-hidden rounded-[14px] bg-black">
+            <div class="min-h-0 flex-1 overflow-hidden rounded-pop bg-black">
               <Show when={computer().id} keyed>
                 {(id) => (
                   <LiveScreen pcId={id} interactive={interactive()} agentName={agentName() ?? ""} class="size-full" />

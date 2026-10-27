@@ -89,7 +89,7 @@ export function ReactionPopover(props: {
           when={full()}
           fallback={
             <div
-              class="grid grid-cols-7 rounded-[24px] bg-raise p-2 text-fg shadow-popover"
+              class="grid grid-cols-7 rounded-sheet bg-raise p-2 text-fg shadow-popover"
               role="menu"
               aria-label="Reactions"
             >

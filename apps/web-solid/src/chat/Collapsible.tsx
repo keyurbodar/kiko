@@ -117,7 +117,7 @@ export function Collapsible(props: { messageId: string; fixed?: boolean; childre
           onClick={toggle}
         >
           {clamped() ? "Show more" : "Show less"}
-          <RemixIcon icon={clamped() ? ChevronDownIcon : ChevronUpIcon} size={13} />
+          <RemixIcon icon={clamped() ? ChevronDownIcon : ChevronUpIcon} size={12} />
         </button>
       </Show>
     </div>

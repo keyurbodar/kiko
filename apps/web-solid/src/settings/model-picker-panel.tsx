@@ -98,7 +98,7 @@ function Row(props: {
       </button>
       <span class="grid size-4 shrink-0 place-items-center text-fg" aria-hidden="true">
         <Show when={selected()}>
-          <RemixIcon icon={CheckIcon} size={14} />
+          <RemixIcon icon={CheckIcon} size={16} />
         </Show>
       </span>
     </div>
@@ -118,7 +118,7 @@ function LegacyRow(props: { entry: Extract<PickerEntry, { kind: "legacy" }>; onT
         <span class="type-ui text-fg">Legacy models</span>
         <span class="text-hint text-fg3">{props.entry.count} models</span>
       </span>
-      <RemixIcon icon={ChevronRightIcon} size={14} class="picker-legacy-chevron shrink-0 text-fg2" />
+      <RemixIcon icon={ChevronRightIcon} size={16} class="picker-legacy-chevron shrink-0 text-fg2" />
     </button>
   )
 }

@@ -103,7 +103,7 @@ export default function Tools(): JSX.Element {
                     Connect
                     <RemixIcon
                       icon={ChevronRightIcon}
-                      size={14}
+                      size={16}
                       class="transition-transform duration-(--dur-hover) ease-kiko group-hover:translate-x-0.5"
                     />
                   </span>

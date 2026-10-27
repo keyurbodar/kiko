@@ -48,7 +48,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
     return `You, ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
   }
   return (
-    <header class="top-bar flex h-[58px] shrink-0 items-center gap-2.5 px-5" data-component="top-bar">
+    <header class="top-bar flex h-header shrink-0 items-center gap-2.5 px-5" data-component="top-bar">
       <Show when={!props.sidebarOpen}>
         <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
       </Show>
@@ -94,7 +94,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
           onPointerEnter={preloadSearch}
           onClick={() => runCommand(chatId() ? "chats.search-current" : "chats.search-all")}
         >
-          <RemixIcon icon={SearchIcon} size={17} />
+          <RemixIcon icon={SearchIcon} size={16} />
         </button>
       </TooltipV2>
       <Show when={computers().length > 0}>
@@ -106,7 +106,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
             data-action="computer-watch"
             onClick={() => openViewer(watchTarget(chatId()))}
           >
-            <RemixIcon icon={MonitorIcon} size={17} />
+            <RemixIcon icon={MonitorIcon} size={16} />
           </button>
         </TooltipV2>
       </Show>
@@ -123,7 +123,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
             onPointerEnter={() => void loadDesk()}
             onClick={toggleDesk}
           >
-            <RemixIcon icon={NotesIcon} size={17} />
+            <RemixIcon icon={NotesIcon} size={16} />
           </button>
         </TooltipV2>
       </Show>

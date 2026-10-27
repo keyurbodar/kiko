@@ -130,7 +130,7 @@ function Upload(props: { onFiles: (files: File[]) => void; primary?: boolean }) 
         data-action="upload-files"
         onClick={() => input.click()}
       >
-        <RemixIcon icon={UploadIcon} size={15} />
+        <RemixIcon icon={UploadIcon} size={16} />
         Upload
       </button>
     </>
@@ -160,7 +160,7 @@ function SortMenu(props: {
   return (
     <MenuV2 gutter={4} placement="bottom-end">
       <MenuV2.Trigger class={toolButton} aria-label="Sort and filter files" data-action="sort-files">
-        <RemixIcon icon={FilterHorizontalIcon} size={17} />
+        <RemixIcon icon={FilterHorizontalIcon} size={16} />
       </MenuV2.Trigger>
       <MenuV2.Portal>
         <MenuV2.Content class="min-w-48">
@@ -191,7 +191,7 @@ function NewMenu(props: { onNew: (blank: (typeof BLANKS)[number]) => void }) {
   return (
     <MenuV2 gutter={4} placement="bottom-end">
       <MenuV2.Trigger class={primaryButton} data-action="new-file">
-        <RemixIcon icon={PlusIcon} size={15} />
+        <RemixIcon icon={PlusIcon} size={16} />
         New
       </MenuV2.Trigger>
       <MenuV2.Portal>

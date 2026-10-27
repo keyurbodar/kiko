@@ -67,10 +67,6 @@
     0 16px 40px -8px oklch(0% 0 none / 0.55), 0 2px 8px oklch(0% 0 none / 0.25),
     0 0 0 1px color-mix(in oklab, var(--fg) 6%, transparent);
   --font-family-text: var(--font-family-sans);
-  --icon-xs: 12px;
-  --icon-sm: 14px;
-  --icon-md: 16px;
-  --icon-lg: 20px;
 
   --control-h-xs: 24px;
   --control-h-sm: 28px;
@@ -443,6 +439,7 @@
   --spacing-chip: 24px;
   --spacing-tab: 28px;
   --spacing-composer-min: 96px;
+  --spacing-header: 48px;
   --spacing-sidebar: 288px;
   --container-chat: 820px;
   --container-page: 1040px;
@@ -832,7 +829,7 @@ html {
   background: var(--scrollbar-thumb);
   border: 2px solid transparent;
   background-clip: content-box;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
 }
 
 ::-webkit-scrollbar-thumb:hover {

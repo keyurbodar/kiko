@@ -72,7 +72,7 @@ export function ModelStep() {
       </p>
       <Show when={all().length > SEARCH_FROM}>
         <label class="welcome-search" style={{ "--i": 2 }}>
-          <RemixIcon icon={SearchIcon} size={15} />
+          <RemixIcon icon={SearchIcon} size={16} />
           <input
             type="search"
             placeholder="Search models"
@@ -146,7 +146,7 @@ function ModelRow(props: { row: ModelChoice; selected: boolean; onPick: () => vo
         </span>
       </span>
       <span class="ob-tick" aria-hidden="true">
-        <RemixIcon icon={CheckIcon} size={13} />
+        <RemixIcon icon={CheckIcon} size={12} />
       </span>
     </button>
   )

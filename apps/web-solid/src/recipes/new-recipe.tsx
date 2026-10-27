@@ -19,7 +19,7 @@ export function NewRecipe() {
   return (
     <MenuV2 gutter={4} placement="bottom-end">
       <MenuV2.Trigger class={primaryButton} data-action="new-recipe">
-        <RemixIcon icon={PlusIcon} size={15} />
+        <RemixIcon icon={PlusIcon} size={16} />
         New recipe
       </MenuV2.Trigger>
       <MenuV2.Portal>

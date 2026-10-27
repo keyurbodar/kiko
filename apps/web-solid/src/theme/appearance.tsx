@@ -71,7 +71,7 @@ function ThemeCard(props: {
               class="absolute top-2 right-2 grid size-[18px] place-items-center rounded-full"
               style={{ background: props.palette.text, color: props.palette.canvas }}
             >
-              <RemixIcon icon={CheckIcon} size={11} />
+              <RemixIcon icon={CheckIcon} size={12} />
             </span>
           </Show>
         </span>

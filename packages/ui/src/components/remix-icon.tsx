@@ -3,9 +3,11 @@ import type { Glyph } from "../icons.gen"
 
 export type { Glyph }
 
+export type IconSize = 12 | 16 | 20 | 24
+
 export type RemixIconProps = Omit<ComponentProps<"svg">, "children"> & {
   icon: Glyph
-  size?: number
+  size?: IconSize
 }
 
 export function RemixIcon(props: RemixIconProps) {

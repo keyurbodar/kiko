@@ -46,13 +46,13 @@ export function RunErrorCard(props: {
             disabled={!props.note}
             onClick={() => setOpen((now) => !now)}
           >
-            <RemixIcon icon={AlertCircleIcon} size={props.latest ? 16 : 14} class="run-error-icon" />
+            <RemixIcon icon={AlertCircleIcon} size={16} class="run-error-icon" />
             <span class="run-error-label">{props.label}</span>
             <Show when={props.reason}>
               <span class="run-error-reason">{props.reason}</span>
             </Show>
             <Show when={props.note}>
-              <RemixIcon icon={InfoIcon} size={13} class="run-error-more" />
+              <RemixIcon icon={InfoIcon} size={12} class="run-error-more" />
             </Show>
           </HoverCardV2.Trigger>
           <Show when={props.note}>

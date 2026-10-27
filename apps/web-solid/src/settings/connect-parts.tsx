@@ -48,7 +48,7 @@ export function KeyLink(props: { href: string; children?: JSX.Element }): JSX.El
       data-component="key-link"
     >
       {props.children ?? "Get a key"}
-      <RemixIcon icon={ExternalIcon} size={13} />
+      <RemixIcon icon={ExternalIcon} size={12} />
     </a>
   )
 }
@@ -90,7 +90,7 @@ export function SecretInput(props: {
           aria-pressed={shown()}
           onClick={() => setShown(!shown())}
         >
-          <RemixIcon icon={EyeIcon} size={15} />
+          <RemixIcon icon={EyeIcon} size={16} />
         </button>
       </div>
       <Show when={props.error}>

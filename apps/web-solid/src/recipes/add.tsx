@@ -84,7 +84,7 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
   return (
     <div class="flex flex-col gap-1.5" data-component="recipe-picker">
       <label class="mb-1 flex h-9 items-center gap-2 rounded-full bg-panel px-3.5 text-fg3">
-        <RemixIcon icon={SearchIcon} size={15} />
+        <RemixIcon icon={SearchIcon} size={16} />
         <input
           class="min-w-0 flex-1 bg-transparent text-label text-fg outline-none placeholder:text-fg3"
           placeholder={`Add ${props.card.title} to…`}
@@ -163,7 +163,7 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
                     <Show when={o.kind === "chat" && o.targets.length > 1}>
                       <RemixIcon
                         icon={ChevronRightIcon}
-                        size={14}
+                        size={16}
                         class={expanded() === (o as { roomId?: string }).roomId ? "rotate-90" : ""}
                       />
                     </Show>

@@ -81,7 +81,7 @@ export function SidebarToggle(props: { open: boolean; onToggle: () => void; clas
         data-hint="view.toggle-sidebar"
         onClick={() => props.onToggle()}
       >
-        <RemixIcon icon={SidebarLeftIcon} size={17} />
+        <RemixIcon icon={SidebarLeftIcon} size={16} />
       </button>
     </TooltipV2>
   )
@@ -119,7 +119,7 @@ function Foot() {
             aria-label="Help and shortcuts"
             onClick={() => openSettings("keyboard")}
           >
-            <RemixIcon icon={HelpIcon} size={17} />
+            <RemixIcon icon={HelpIcon} size={16} />
           </button>
         </TooltipV2>
         <TooltipV2 placement="top" openDelay={400} value="Settings">
@@ -135,7 +135,7 @@ function Foot() {
             aria-label="Settings"
             onClick={() => openSettings()}
           >
-            <RemixIcon icon={SettingsIcon} size={17} />
+            <RemixIcon icon={SettingsIcon} size={16} />
           </button>
         </TooltipV2>
       </footer>

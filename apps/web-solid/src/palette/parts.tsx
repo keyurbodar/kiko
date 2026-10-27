@@ -192,11 +192,11 @@ export function Row(props: {
         )}
       </Show>
       <Show when={props.item.current}>
-        <RemixIcon icon={CheckIcon} size={14} class="palette-trail" />
+        <RemixIcon icon={CheckIcon} size={16} class="palette-trail" />
       </Show>
       <Show when={props.item.shortcut}>{(shortcut) => <Chips keys={keyChips(displayShortcut(shortcut()))} />}</Show>
       <Show when={props.item.submenu || props.item.folder}>
-        <RemixIcon icon={ChevronRightIcon} size={14} class="palette-trail" />
+        <RemixIcon icon={ChevronRightIcon} size={16} class="palette-trail" />
       </Show>
       <span class="palette-enter" aria-hidden="true">
         <Key name="enter" />

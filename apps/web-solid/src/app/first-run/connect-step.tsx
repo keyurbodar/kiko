@@ -75,7 +75,7 @@ export function ConnectStep() {
           />
           <button type="button" class="ob-more" data-action="view-all-providers" onClick={() => setBrowsing(true)}>
             More providers
-            <RemixIcon icon={ChevronRightIcon} size={14} />
+            <RemixIcon icon={ChevronRightIcon} size={16} />
           </button>
         </Show>
       </div>
@@ -151,7 +151,7 @@ function ChoiceGroup(props: {
               </span>
               <Show when={props.linked.has(choice.provider.id)}>
                 <span class="welcome-connected">
-                  <RemixIcon icon={CheckIcon} size={14} />
+                  <RemixIcon icon={CheckIcon} size={16} />
                   Connected
                 </span>
               </Show>

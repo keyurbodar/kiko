@@ -20,7 +20,7 @@
 .lchip {
   gap: 5px;
   padding: 0 8px 0 4px;
-  border-radius: 6px;
+  border-radius: var(--radius-tail);
   cursor: pointer;
   transition:
     background-color var(--dur-hover) var(--ease-kiko),

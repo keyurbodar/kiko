@@ -53,7 +53,7 @@ export default function FileDialog(props: {
               data-action="close-file-dialog"
               class="grid size-7 shrink-0 place-items-center rounded-control text-fg2 transition-colors duration-(--dur-hover) hover:bg-hover hover:text-fg"
             >
-              <RemixIcon icon={CloseIcon} size={14} />
+              <RemixIcon icon={CloseIcon} size={16} />
             </ModalV2.Close>
           </div>
           <div class="flex min-h-0 flex-1 overflow-hidden">

@@ -134,7 +134,7 @@ function InstallProgress() {
         {(label, i) => (
           <div class="ob-check" data-state={i() < stage() ? "done" : i() === stage() ? "running" : "next"}>
             <span class="ob-check-box" aria-hidden="true">
-              <RemixIcon icon={CheckIcon} size={11} />
+              <RemixIcon icon={CheckIcon} size={12} />
             </span>
             <span class="ob-check-label">{label}</span>
           </div>

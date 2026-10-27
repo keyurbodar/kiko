@@ -45,7 +45,7 @@ function Lane(props: { lane: HelperLane; now: number; chatId: string }) {
         <span data-word>{helperWord(props.lane.state)}</span>
         <span>{when(props.lane, props.now)}</span>
       </span>
-      <RemixIcon icon={ChevronRightIcon} size={14} class="helper-lane-chev" />
+      <RemixIcon icon={ChevronRightIcon} size={16} class="helper-lane-chev" />
     </button>
   )
 }

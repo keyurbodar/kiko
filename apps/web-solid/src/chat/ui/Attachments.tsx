@@ -115,7 +115,7 @@ export function MessageAttachments(props: {
                   data-action="download-file"
                   onClick={() => saveFile(file.src, file.name)}
                 >
-                  <RemixIcon icon={DownloadIcon} size={17} />
+                  <RemixIcon icon={DownloadIcon} size={16} />
                 </button>
               </div>
             )}
@@ -124,7 +124,7 @@ export function MessageAttachments(props: {
             <div class="att-foot">
               <Show when={!allFiles()} fallback={<span />}>
                 <button type="button" class="att-foot-action" onClick={() => setAllFiles(true)}>
-                  <RemixIcon icon={ChevronDownIcon} size={14} />
+                  <RemixIcon icon={ChevronDownIcon} size={16} />
                   Show {moreFiles()} more
                 </button>
               </Show>
@@ -136,7 +136,7 @@ export function MessageAttachments(props: {
                   for (const file of split().others) saveFile(file.src, file.name)
                 }}
               >
-                <RemixIcon icon={DownloadIcon} size={14} />
+                <RemixIcon icon={DownloadIcon} size={16} />
                 Download all
               </button>
             </div>

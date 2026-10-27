@@ -74,7 +74,7 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
               data-field="status"
             >
               <Show when={open()} fallback={<Dot />}>
-                <RemixIcon icon={LoaderIcon} class="motion-spin" size={13} />
+                <RemixIcon icon={LoaderIcon} class="motion-spin" size={12} />
               </Show>
               {LABEL[status()]}
             </span>
@@ -85,7 +85,7 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
           <Show when={watching()}>
             <button
               type="button"
-              class="relative block w-full cursor-pointer overflow-hidden rounded-[14px] bg-black/60 outline-none"
+              class="relative block w-full cursor-pointer overflow-hidden rounded-pop bg-black/60 outline-none"
               style={{ "aspect-ratio": String(ratio()) }}
               aria-label="Open the screen"
               data-action="computer-open"

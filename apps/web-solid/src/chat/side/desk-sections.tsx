@@ -56,7 +56,7 @@ export function Section(props: {
           <span class="shrink-0 text-hint text-fg4">{props.meta}</span>
           <RemixIcon
             icon={ChevronRightIcon}
-            size={13}
+            size={12}
             class="desk-head-chev ml-0.5 w-0 shrink-0 text-fg3 opacity-0 transition-[opacity,width,transform] duration-(--dur-hover) ease-kiko group-hover/head:w-[13px] group-hover/head:translate-x-0.5 group-hover/head:opacity-100"
           />
         </button>
@@ -163,7 +163,7 @@ export function Tasks(props: { tasks: readonly Task[]; chatId: string; fold?: bo
         >
           <MarkView mark="done" />
           <span class="min-w-0 flex-1 truncate text-ui text-fg3">{tasksLine(props.tasks)}</span>
-          <RemixIcon icon={folded() ? ChevronRightIcon : ChevronDownIcon} size={14} class="shrink-0 text-fg4" />
+          <RemixIcon icon={folded() ? ChevronRightIcon : ChevronDownIcon} size={16} class="shrink-0 text-fg4" />
         </button>
       </Show>
       <Show when={!folded()}>

@@ -44,13 +44,13 @@ export default function CustomizePage() {
               when={tab() === "apps"}
               fallback={
                 <button type="button" class={primaryButton} data-action="new-agent" onClick={openNewAgent}>
-                  <RemixIcon icon={PlusIcon} size={15} />
+                  <RemixIcon icon={PlusIcon} size={16} />
                   New agent
                 </button>
               }
             >
               <button type="button" class={primaryButton} data-action="add-app" onClick={() => setScope("discover")}>
-                <RemixIcon icon={PlusIcon} size={15} />
+                <RemixIcon icon={PlusIcon} size={16} />
                 Add
               </button>
             </Show>
