@@ -193,21 +193,21 @@
 
 /* palette:start */
 :root {
-  --bg: #151515;
+  --bg: #191919;
   --side: #1f1f1f;
-  --panel: color-mix(in srgb, #ffffff 2.61%, #151515);
-  --raise: color-mix(in srgb, #ffffff 10%, #151515);
-  --hover: color-mix(in srgb, #ffffff 7.45%, #151515);
-  --active: color-mix(in srgb, #ffffff 14.9%, #151515);
-  --tip: color-mix(in srgb, #ffffff 10%, #151515);
-  --me: color-mix(in srgb, #ffffff 10%, #151515);
-  --kiko-bubble: color-mix(in srgb, #ffffff 2.61%, #151515);
-  --line: color-mix(in srgb, #ffffff 3.92%, #151515);
-  --line2: color-mix(in srgb, #ffffff 12.2%, #151515);
-  --fg: #ededed;
+  --panel: color-mix(in srgb, #ffffff 2.61%, #191919);
+  --raise: color-mix(in srgb, #ffffff 10%, #191919);
+  --hover: color-mix(in srgb, #ffffff 7.45%, #191919);
+  --active: color-mix(in srgb, #ffffff 14.9%, #191919);
+  --tip: color-mix(in srgb, #ffffff 10%, #191919);
+  --me: color-mix(in srgb, #ffffff 10%, #191919);
+  --kiko-bubble: color-mix(in srgb, #ffffff 2.61%, #191919);
+  --line: color-mix(in srgb, #ffffff 3.92%, #191919);
+  --line2: color-mix(in srgb, #ffffff 12.2%, #191919);
+  --fg: #efefef;
   --fg2: #9c9c9c;
   --fg3: #757575;
-  --fg4: color-mix(in srgb, #ffffff 35%, #151515);
+  --fg4: color-mix(in srgb, #ffffff 35%, #191919);
   --on-fg: #191919;
   --ok: #53c556;
   --bad: #f17778;
@@ -216,27 +216,27 @@
   --leaf: #7fd19c;
   --info-wash: color-mix(in oklab, #6aabf1 14%, transparent);
   --bad-wash: color-mix(in oklab, #f17778 12%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #ededed 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #ededed 30%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #efefef 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #efefef 30%, transparent);
   --card-shadow: none;
 }
 
 :root:not(.dark) {
-  --bg: #f9f9f7;
-  --side: #f3f3f0;
-  --panel: color-mix(in srgb, #000000 2.35%, #f9f9f7);
-  --raise: color-mix(in srgb, #000000 5.1%, #f9f9f7);
-  --hover: color-mix(in srgb, #000000 5.1%, #f9f9f7);
-  --active: color-mix(in srgb, #000000 10.2%, #f9f9f7);
-  --tip: color-mix(in srgb, #000000 7%, #f9f9f7);
-  --me: color-mix(in srgb, #000000 5.1%, #f9f9f7);
-  --kiko-bubble: color-mix(in srgb, #000000 2.35%, #f9f9f7);
-  --line: color-mix(in srgb, #000000 7.84%, #f9f9f7);
-  --line2: color-mix(in srgb, #000000 12.2%, #f9f9f7);
+  --bg: #ffffff;
+  --side: #fafafa;
+  --panel: color-mix(in srgb, #000000 2.35%, #ffffff);
+  --raise: color-mix(in srgb, #000000 5.1%, #ffffff);
+  --hover: color-mix(in srgb, #000000 5.1%, #ffffff);
+  --active: color-mix(in srgb, #000000 10.2%, #ffffff);
+  --tip: color-mix(in srgb, #000000 7%, #ffffff);
+  --me: color-mix(in srgb, #000000 5.1%, #ffffff);
+  --kiko-bubble: color-mix(in srgb, #000000 2.35%, #ffffff);
+  --line: color-mix(in srgb, #000000 7.84%, #ffffff);
+  --line2: color-mix(in srgb, #000000 12.2%, #ffffff);
   --fg: #1a1a1a;
   --fg2: #666666;
   --fg3: #888888;
-  --fg4: color-mix(in srgb, #000000 35%, #f9f9f7);
+  --fg4: color-mix(in srgb, #000000 35%, #ffffff);
   --on-fg: #ffffff;
   --ok: #006c10;
   --bad: #a42528;
@@ -444,9 +444,6 @@
   --spacing-sidebar: 288px;
   --container-chat: 820px;
   --container-page: 1040px;
-  --size-icon-xs: 12px;
-  --size-icon-sm: 16px;
-  --size-icon-md: 24px;
   --opacity-icon-secondary: 0.4;
   --ease-kiko: cubic-bezier(0.32, 0.72, 0, 1);
 }
