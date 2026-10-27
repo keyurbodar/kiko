@@ -94,7 +94,7 @@ export function MessageRow(props: {
         <RunAvatar seed={props.message.botId!} runKey={props.runKey ?? props.message.id} isRunEnd={props.isRunEnd} />
       </Show>
       <Show when={named() && !nameInBubble() && !props.jumboClass}>
-        <div class="truncate pb-0.5 text-[13px] leading-[18px] font-semibold text-fg2" data-component="chat-sender">
+        <div class="truncate pb-0.5 text-hint font-semibold text-fg2" data-component="chat-sender">
           {senderName()}
         </div>
       </Show>
@@ -126,7 +126,7 @@ export function MessageRow(props: {
           )}
         >
           <Show when={nameInBubble()}>
-            <div class="truncate text-[13px] leading-[18px] font-semibold text-fg2" data-component="chat-sender">
+            <div class="truncate text-hint font-semibold text-fg2" data-component="chat-sender">
               {senderName()}
             </div>
           </Show>

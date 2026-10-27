@@ -89,7 +89,7 @@ export default function DateCalendar(props: {
                       <button
                         type="button"
                         class={cn(
-                          "cursor-pointer rounded-[10px] py-2 text-label",
+                          "cursor-pointer rounded-row py-2 text-label",
                           "hover:bg-[oklch(from_var(--fg)_l_c_h_/_6%)]",
                           "aria-current:bg-[oklch(from_var(--info)_l_c_h_/_22%)]",
                           "aria-current:font-bold aria-current:text-info",

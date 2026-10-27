@@ -15,6 +15,7 @@ import * as RpcClient from "effect/rpc/RpcClient"
 import * as RpcClientError from "effect/rpc/RpcClientError"
 import * as RpcSerialization from "effect/rpc/RpcSerialization"
 import * as Socket from "effect/socket/Socket"
+import * as ConnectionWakeups from "../connection/wakeups"
 import { OwnerEndpoint } from "../connection/endpoint"
 import {
   ConnectionBlockedError,
@@ -73,6 +74,7 @@ const make = Effect.gen(function* () {
   const webSocketConstructor = yield* Socket.WebSocketConstructor
   const endpoint = yield* OwnerEndpoint
   const feed = yield* UserFeed
+  const wakeups = yield* ConnectionWakeups.ConnectionWakeups
 
   const connect = Effect.fnUntraced(function* (connection: PreparedConnection) {
     const label = connection.label
@@ -116,7 +118,6 @@ const make = Effect.gen(function* () {
 
     const userReady = yield* Deferred.make<void, ConnectionAttemptError>()
     const userClosed = yield* Deferred.make<never, ConnectionAttemptError>()
-    const afterSequence = yield* feed.afterSequence
     const applyItems = Effect.fnUntraced(function* (items: ReadonlyArray<UserStreamItem>) {
       for (const item of items) {
         const protocol = protocolOf(item)
@@ -125,14 +126,26 @@ const make = Effect.gen(function* () {
       yield* feed.apply(items)
       if (items.some((item) => item.kind === "synchronized")) yield* Deferred.succeed(userReady, undefined)
     })
-    yield* client("user.subscribe", afterSequence === undefined ? {} : { afterSequence }).pipe(
+    const closedFeed = () =>
+      new ConnectionTransientError({ reason: "remote-unavailable", detail: `${label} closed your chat list.` })
+    const subscribeFromCursor = () =>
+      Stream.unwrap(
+        feed.afterSequence.pipe(
+          Effect.map((cursor) =>
+            Stream.concat(
+              client("user.subscribe", cursor === undefined ? {} : { afterSequence: cursor }),
+              Stream.fail(closedFeed()),
+            ),
+          ),
+        ),
+      )
+    const foreground = wakeups.changes.pipe(Stream.filter(ConnectionWakeups.shouldResubscribeAfterWakeup))
+    yield* Stream.concat(Stream.make(undefined), foreground).pipe(
+      Stream.switchMap(subscribeFromCursor),
       Stream.runForEachArray(applyItems),
       Effect.onExit((exit) => {
         if (Exit.isSuccess(exit)) {
-          const ended = new ConnectionTransientError({
-            reason: "remote-unavailable",
-            detail: `${label} closed your chat list.`,
-          })
+          const ended = closedFeed()
           return Effect.all([Deferred.fail(userReady, ended), Deferred.fail(userClosed, ended)], { discard: true })
         }
         if (Cause.hasInterruptsOnly(exit.cause)) return Effect.void

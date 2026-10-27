@@ -1,6 +1,5 @@
-import { CheckIcon, CopyIcon } from "@kiko/ui/icons"
+import { CopyCheckIcon } from "@kiko/ui/v2/copy-check-icon"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
-import { RemixIcon } from "@kiko/ui/remix-icon"
 import { useNavigate } from "@tanstack/solid-router"
 import * as Effect from "effect/Effect"
 import * as Result from "effect/Result"
@@ -212,7 +211,7 @@ function Address() {
           data-action="copy-address"
           onClick={() => void copy()}
         >
-          <RemixIcon icon={copied() ? CheckIcon : CopyIcon} size={14} class={cn(copied() && "text-ok")} />
+          <CopyCheckIcon copied={copied()} size={14} class={cn(copied() && "text-ok")} />
         </IconButton>
       </span>
     </Row>

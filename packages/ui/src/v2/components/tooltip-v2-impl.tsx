@@ -50,6 +50,8 @@ export function TooltipV2(props: TooltipV2Props) {
     return ref.contains(active)
   }
 
+  const invited = () => !!ref?.matches(":hover") || (inside() && document.activeElement!.matches(":focus-visible"))
+
   const drop = (expand = state.expand) => {
     if (expand) return
     if (ref?.matches(":hover")) return
@@ -77,6 +79,25 @@ export function TooltipV2(props: TooltipV2Props) {
     if (!inside()) close()
     drop()
   }
+
+  createEffect(() => {
+    if (!state.open || local.forceOpen) return
+    const shut = () => close()
+    const left = (event: PointerEvent) => {
+      if (event.relatedTarget === null) close()
+    }
+    const hidden = () => {
+      if (document.hidden) close()
+    }
+    window.addEventListener("blur", shut)
+    document.addEventListener("pointerout", left)
+    document.addEventListener("visibilitychange", hidden)
+    onCleanup(() => {
+      window.removeEventListener("blur", shut)
+      document.removeEventListener("pointerout", left)
+      document.removeEventListener("visibilitychange", hidden)
+    })
+  })
 
   createEffect(() => {
     if (!ref) return
@@ -109,6 +130,7 @@ export function TooltipV2(props: TooltipV2Props) {
           onOpenChange={(open) => {
             if (local.forceOpen) return
             if (state.block && open) return
+            if (open && !invited()) return
             if (justClickedTrigger) {
               justClickedTrigger = false
               return

@@ -33,7 +33,15 @@ import { batch, createComputed, createMemo, createRoot, createSignal, on, untrac
 import { createStore, produce } from "solid-js/store"
 import { session as signedIn } from "../app/session"
 import { arriveLine, hideLine, NO_LINE, openLine, sendLine, showLine, type UnreadLine } from "../chat/lib/unread-line"
-import { inWindow, newestAfter, parseWindow, stepWindows, upsertStep, windowKey } from "../chat/run/run-log"
+import {
+  inWindow,
+  newestAfter,
+  parseWindow,
+  settledSteps,
+  stepWindows,
+  upsertStep,
+  windowKey,
+} from "../chat/run/run-log"
 import { helperLanes, nestedLanes } from "../chat/helpers/helper-model"
 import { fillComposer } from "../composer/fill"
 import { releaseUpload, uploadedFile } from "../composer/uploads"
@@ -310,6 +318,20 @@ function createRuns(
     fetched.delete(id)
     if (all[id]) setAll(id, "fetching", {})
   }
+  const settle = (id: RoomId) => {
+    if (!all[id]) return
+    setAll(
+      produce((s) => {
+        const runs = s[id]
+        if (!runs) return
+        for (const slug of Object.keys(runs.steps)) {
+          const kept = settledSteps(runs.steps[slug] ?? [])
+          if (kept.length === 0) delete runs.steps[slug]
+          else runs.steps[slug] = kept
+        }
+      }),
+    )
+  }
   const clearAll = () => {
     for (const id of Object.keys(all)) clear(id as RoomId)
   }
@@ -328,7 +350,7 @@ function createRuns(
     const id = roomId()
     return (id !== null && all[id]) || NO_RUNS
   }
-  return { current, take, clear, clearAll, request }
+  return { current, take, clear, settle, clearAll, request }
 }
 
 function createTyping(roomId: () => RoomId | null) {
@@ -444,6 +466,10 @@ const sendInput = (input: {
 
 function createRoom() {
   const [routeRoom, setRouteRoom] = createSignal<() => string | null>(() => null)
+  const followRoute = (follow: (previous: string | null) => string | null) => {
+    let previous: string | null = null
+    setRouteRoom(() => () => (previous = follow(previous)))
+  }
   const activeId = createMemo(() => {
     const id = routeRoom()()
     return id !== null && isRoomId(id) ? (id as RoomId) : null
@@ -502,6 +528,19 @@ function createRoom() {
     return out
   })
   const busy = (slug: string) => (statusOf()[slug] ?? "idle") !== "idle"
+  createComputed(
+    on(
+      () => state()?.status,
+      (status, previous) => {
+        if (status !== "synchronizing" || previous === "synchronizing") return
+        untrack(() => {
+          thoughts.settle()
+          const id = activeId()
+          if (id) runs.settle(id)
+        })
+      },
+    ),
+  )
   const liveOf = createMemo(() => {
     const out: Record<string, LiveStatus> = {}
     if (!streaming()) return out
@@ -879,7 +918,7 @@ function createRoom() {
     state,
     snapshot,
     status: liveStates,
-    followRoute: (room: () => string | null) => setRouteRoom(() => room),
+    followRoute,
     messages: rows,
     messageById: (id: string) => rows().find((m) => m.id === id),
     bots: roster,
@@ -1032,6 +1071,16 @@ function createRoom() {
 }
 
 export const room = createRoot(createRoom)
+
+const warmReading = new Set<string>()
+
+export function warmRoomSnapshots(ids: readonly string[]): void {
+  for (const id of ids) {
+    if (warmReading.has(id) || !isRoomId(id)) continue
+    warmReading.add(id)
+    registry.mount(owner.cachedRoomAtom(id as RoomId))()
+  }
+}
 
 export function cachedTail(roomId: () => string, wanted: () => boolean): () => ChatMessage[] {
   const cached = watch(() => (wanted() && isRoomId(roomId()) ? owner.cachedRoomAtom(roomId() as RoomId) : NO_CACHE))

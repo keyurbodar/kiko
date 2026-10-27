@@ -10,9 +10,19 @@ const SECTIONS: readonly { id: SectionId; label: string; href: string; paths: re
 
 const CHAT_ROOM = /^\/chat\/([^/]+)\/?$/
 
+const COVERING = new Set(["customize", "files", "recipes"])
+
 export function sectionOf(pathname: string): SectionId | null {
   const first = pathname.split("/")[1] ?? ""
   return SECTIONS.find((section) => section.paths.includes(first))?.id ?? null
+}
+
+export function coversChat(pathname: string): boolean {
+  return COVERING.has(pathname.split("/")[1] ?? "")
+}
+
+export function roomForRoute(previous: string | null, pathname: string, search: { room?: unknown }): string | null {
+  return roomInUrl(pathname, search) ?? (coversChat(pathname) ? previous : null)
 }
 
 export function roomInUrl(pathname: string, search: { room?: unknown }): string | null {

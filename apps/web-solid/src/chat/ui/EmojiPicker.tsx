@@ -130,7 +130,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
   return (
     <div
       class={cn(
-        "flex h-[400px] w-[340px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[20px] bg-raise text-fg shadow-popover",
+        "flex h-[400px] w-[340px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-sheet bg-raise text-fg shadow-popover",
         props.class,
       )}
       data-component="emoji-picker"
@@ -189,7 +189,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
                           type="button"
                           tabIndex={-1}
                           role="option"
-                          class="grid size-10 cursor-default place-items-center rounded-[10px] p-0 font-emoji text-[28px] leading-none data-[active]:bg-[var(--active)]"
+                          class="grid size-10 cursor-default place-items-center rounded-row p-0 font-emoji text-[28px] leading-none data-[active]:bg-[var(--active)]"
                           data-at={`${index()}:${at()}`}
                           data-emoji={cell.emoji}
                           data-active={isActive(`${index()}:${at()}`) ? "" : undefined}

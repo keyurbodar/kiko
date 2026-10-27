@@ -38,7 +38,7 @@ function Empty(props: { title: string; children?: JSX.Element }) {
   )
 }
 
-const route = getRouteApi("/recipes")
+const route = getRouteApi("/_chat/recipes")
 
 export default function RecipesPage() {
   const roomId = route.useSearch({ select: (search) => search.room })

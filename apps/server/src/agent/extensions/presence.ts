@@ -1,4 +1,11 @@
-import { type ConversationId, defineExtension, type Extension, hook, ToolTask } from "@earendil-works/pi-durable"
+import {
+  type ConversationId,
+  defineExtension,
+  type Extension,
+  GenerationTask,
+  hook,
+  ToolTask,
+} from "@earendil-works/pi-durable"
 import type { Activity, RunStep, ToolKind } from "@kiko/protocol"
 import { redact } from "../run-error"
 
@@ -164,9 +171,23 @@ export type StepsPort = {
   describe?: Describe
 }
 
+type StepShownIn = readonly { type: string; text?: string }[] | undefined
+
+type Opened = { step: StepItem["step"]; described: Described }
+
+const stepKey = (conversationId: ConversationId, id: string) => `${conversationId}:${id}`
+
+function closedStep(opened: Opened, status: "done" | "failed", endedAt: number, content?: StepShownIn): StepItem {
+  const output = outputOf(content)
+  const out = status === "failed" ? failedCall(opened.described, content) : null
+  return {
+    step: { ...opened.step, status, endedAt, ...(output ? { output } : {}) },
+    ...(out ? { doing: out.doing, activity: out.activity } : {}),
+  }
+}
+
 export function presenceExtension(port: StepsPort): Extension {
-  const started = new Map<string, number>()
-  const key = (conversationId: ConversationId, id: string) => `${conversationId}:${id}`
+  const open = new Map<string, Opened>()
   const build = (call: { name: string; arguments?: unknown }, conversationId: ConversationId) => {
     const args = (call.arguments ?? {}) as Record<string, unknown>
     const scope = port.scope(conversationId)
@@ -174,54 +195,47 @@ export function presenceExtension(port: StepsPort): Extension {
     const described = describeCall(call.name, args)
     return scope && shown && described ? { scope, shown, described } : null
   }
+  const begin = (call: { id: string; name: string; arguments?: unknown }, conversationId: ConversationId): void => {
+    const built = build(call, conversationId)
+    if (!built) return
+    const step: StepItem["step"] = {
+      id: call.id,
+      runId: built.scope.runId,
+      ...(built.scope.worker ? { worker: built.scope.worker } : {}),
+      ...built.shown,
+      status: "running",
+      startedAt: Date.now(),
+    }
+    open.set(stepKey(conversationId, call.id), { step, described: built.described })
+    port.push({ step, doing: built.described.doing, activity: built.described.activity })
+  }
+  const finish = (key: string, item: StepItem): void => {
+    open.delete(key)
+    port.push(item)
+  }
   return defineExtension({
     name: PRESENCE,
     hooks: [
       hook(ToolTask, {
         beforeTool: async (call, api) => {
-          const built = build(call, api.conversationId)
-          if (!built) return undefined
-          const startedAt = Date.now()
-          started.set(key(api.conversationId, call.id), startedAt)
-          const { scope, shown, described } = built
-          port.push({
-            step: {
-              id: call.id,
-              runId: scope.runId,
-              ...(scope.worker ? { worker: scope.worker } : {}),
-              ...shown,
-              status: "running",
-              startedAt,
-            },
-            doing: described.doing,
-            activity: described.activity,
-          })
+          begin(call, api.conversationId)
           return undefined
         },
         afterTool: async (call, result, api) => {
-          const built = build(call, api.conversationId)
-          if (!built) return undefined
-          const at = key(api.conversationId, call.id)
-          const endedAt = Date.now()
-          const startedAt = started.get(at) ?? endedAt
-          started.delete(at)
-          const { scope, shown, described } = built
-          const output = outputOf(result.output)
-          const out = result.isError ? failedCall(described, result.output) : null
-          port.push({
-            step: {
-              id: call.id,
-              runId: scope.runId,
-              ...(scope.worker ? { worker: scope.worker } : {}),
-              ...shown,
-              status: result.isError ? "failed" : "done",
-              startedAt,
-              endedAt,
-              ...(output ? { output } : {}),
-            },
-            ...(out ? { doing: out.doing, activity: out.activity } : {}),
-          })
+          const key = stepKey(api.conversationId, call.id)
+          const opened = open.get(key)
+          if (!opened) return undefined
+          finish(key, closedStep(opened, result.isError ? "failed" : "done", Date.now(), result.output))
           return undefined
+        },
+      }),
+      hook(GenerationTask, {
+        afterTools: async (_assistant, _results, api) => {
+          const mine = `${api.conversationId}:`
+          for (const [key, opened] of open) {
+            if (!key.startsWith(mine)) continue
+            finish(key, closedStep(opened, "failed", Date.now()))
+          }
         },
       }),
     ],

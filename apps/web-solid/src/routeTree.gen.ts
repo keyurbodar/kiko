@@ -12,11 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as ChatRouteImport } from './routes/_chat'
 import { Route as ConnectRouteImport } from './routes/connect'
-import { Route as CustomizeRouteImport } from './routes/customize'
-import { Route as FilesRouteImport } from './routes/files'
-import { Route as RecipesRouteImport } from './routes/recipes'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as ChatIndexRouteImport } from './routes/_chat.index'
+import { Route as ChatCustomizeRouteImport } from './routes/_chat.customize'
+import { Route as ChatFilesRouteImport } from './routes/_chat.files'
+import { Route as ChatRecipesRouteImport } from './routes/_chat.recipes'
 import { Route as ChatSettingsRouteImport } from './routes/_chat.settings'
 import { Route as ConnectCallbackRouteImport } from './routes/connect_.callback'
 import { Route as ChatChatIndexRouteImport } from './routes/_chat.chat.index'
@@ -45,21 +45,6 @@ const ConnectRoute = ConnectRouteImport.update({
   path: '/connect',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CustomizeRoute = CustomizeRouteImport.update({
-  id: '/customize',
-  path: '/customize',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FilesRoute = FilesRouteImport.update({
-  id: '/files',
-  path: '/files',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RecipesRoute = RecipesRouteImport.update({
-  id: '/recipes',
-  path: '/recipes',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
   path: '/welcome',
@@ -68,6 +53,21 @@ const WelcomeRoute = WelcomeRouteImport.update({
 const ChatIndexRoute = ChatIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => ChatRoute,
+} as any)
+const ChatCustomizeRoute = ChatCustomizeRouteImport.update({
+  id: '/customize',
+  path: '/customize',
+  getParentRoute: () => ChatRoute,
+} as any)
+const ChatFilesRoute = ChatFilesRouteImport.update({
+  id: '/files',
+  path: '/files',
+  getParentRoute: () => ChatRoute,
+} as any)
+const ChatRecipesRoute = ChatRecipesRouteImport.update({
+  id: '/recipes',
+  path: '/recipes',
   getParentRoute: () => ChatRoute,
 } as any)
 const ChatSettingsRoute = ChatSettingsRouteImport.update({
@@ -140,10 +140,10 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/': typeof ChatIndexRoute
   '/connect': typeof ConnectRoute
-  '/customize': typeof CustomizeRoute
-  '/files': typeof FilesRoute
-  '/recipes': typeof RecipesRoute
   '/welcome': typeof WelcomeRoute
+  '/customize': typeof ChatCustomizeRoute
+  '/files': typeof ChatFilesRoute
+  '/recipes': typeof ChatRecipesRoute
   '/settings': typeof ChatSettingsRouteWithChildren
   '/connect/callback': typeof ConnectCallbackRoute
   '/chat/$roomId': typeof ChatChatRoomIdRoute
@@ -161,10 +161,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/connect': typeof ConnectRoute
-  '/customize': typeof CustomizeRoute
-  '/files': typeof FilesRoute
-  '/recipes': typeof RecipesRoute
   '/welcome': typeof WelcomeRoute
+  '/customize': typeof ChatCustomizeRoute
+  '/files': typeof ChatFilesRoute
+  '/recipes': typeof ChatRecipesRoute
   '/settings': typeof ChatSettingsRouteWithChildren
   '/connect/callback': typeof ConnectCallbackRoute
   '/': typeof ChatIndexRoute
@@ -185,10 +185,10 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/_chat': typeof ChatRouteWithChildren
   '/connect': typeof ConnectRoute
-  '/customize': typeof CustomizeRoute
-  '/files': typeof FilesRoute
-  '/recipes': typeof RecipesRoute
   '/welcome': typeof WelcomeRoute
+  '/_chat/customize': typeof ChatCustomizeRoute
+  '/_chat/files': typeof ChatFilesRoute
+  '/_chat/recipes': typeof ChatRecipesRoute
   '/_chat/settings': typeof ChatSettingsRouteWithChildren
   '/connect_/callback': typeof ConnectCallbackRoute
   '/_chat/': typeof ChatIndexRoute
@@ -210,10 +210,10 @@ export interface FileRouteTypes {
     | '/$'
     | '/'
     | '/connect'
+    | '/welcome'
     | '/customize'
     | '/files'
     | '/recipes'
-    | '/welcome'
     | '/settings'
     | '/connect/callback'
     | '/chat/$roomId'
@@ -231,10 +231,10 @@ export interface FileRouteTypes {
   to:
     | '/$'
     | '/connect'
+    | '/welcome'
     | '/customize'
     | '/files'
     | '/recipes'
-    | '/welcome'
     | '/settings'
     | '/connect/callback'
     | '/'
@@ -254,10 +254,10 @@ export interface FileRouteTypes {
     | '/$'
     | '/_chat'
     | '/connect'
-    | '/customize'
-    | '/files'
-    | '/recipes'
     | '/welcome'
+    | '/_chat/customize'
+    | '/_chat/files'
+    | '/_chat/recipes'
     | '/_chat/settings'
     | '/connect_/callback'
     | '/_chat/'
@@ -278,9 +278,6 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   ChatRoute: typeof ChatRouteWithChildren
   ConnectRoute: typeof ConnectRoute
-  CustomizeRoute: typeof CustomizeRoute
-  FilesRoute: typeof FilesRoute
-  RecipesRoute: typeof RecipesRoute
   WelcomeRoute: typeof WelcomeRoute
   ConnectCallbackRoute: typeof ConnectCallbackRoute
 }
@@ -308,27 +305,6 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof ConnectRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/customize': {
-      id: '/customize'
-      path: '/customize'
-      fullPath: '/customize'
-      preLoaderRoute: typeof CustomizeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/files': {
-      id: '/files'
-      path: '/files'
-      fullPath: '/files'
-      preLoaderRoute: typeof FilesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/recipes': {
-      id: '/recipes'
-      path: '/recipes'
-      fullPath: '/recipes'
-      preLoaderRoute: typeof RecipesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/welcome': {
       id: '/welcome'
       path: '/welcome'
@@ -341,6 +317,27 @@ declare module '@tanstack/solid-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof ChatIndexRouteImport
+      parentRoute: typeof ChatRoute
+    }
+    '/_chat/customize': {
+      id: '/_chat/customize'
+      path: '/customize'
+      fullPath: '/customize'
+      preLoaderRoute: typeof ChatCustomizeRouteImport
+      parentRoute: typeof ChatRoute
+    }
+    '/_chat/files': {
+      id: '/_chat/files'
+      path: '/files'
+      fullPath: '/files'
+      preLoaderRoute: typeof ChatFilesRouteImport
+      parentRoute: typeof ChatRoute
+    }
+    '/_chat/recipes': {
+      id: '/_chat/recipes'
+      path: '/recipes'
+      fullPath: '/recipes'
+      preLoaderRoute: typeof ChatRecipesRouteImport
       parentRoute: typeof ChatRoute
     }
     '/_chat/settings': {
@@ -466,6 +463,9 @@ const ChatSettingsRouteWithChildren = ChatSettingsRoute._addFileChildren(
 )
 
 interface ChatRouteChildren {
+  ChatCustomizeRoute: typeof ChatCustomizeRoute
+  ChatFilesRoute: typeof ChatFilesRoute
+  ChatRecipesRoute: typeof ChatRecipesRoute
   ChatSettingsRoute: typeof ChatSettingsRouteWithChildren
   ChatIndexRoute: typeof ChatIndexRoute
   ChatChatRoomIdRoute: typeof ChatChatRoomIdRoute
@@ -473,6 +473,9 @@ interface ChatRouteChildren {
 }
 
 const ChatRouteChildren: ChatRouteChildren = {
+  ChatCustomizeRoute: ChatCustomizeRoute,
+  ChatFilesRoute: ChatFilesRoute,
+  ChatRecipesRoute: ChatRecipesRoute,
   ChatSettingsRoute: ChatSettingsRouteWithChildren,
   ChatIndexRoute: ChatIndexRoute,
   ChatChatRoomIdRoute: ChatChatRoomIdRoute,
@@ -485,9 +488,6 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   ChatRoute: ChatRouteWithChildren,
   ConnectRoute: ConnectRoute,
-  CustomizeRoute: CustomizeRoute,
-  FilesRoute: FilesRoute,
-  RecipesRoute: RecipesRoute,
   WelcomeRoute: WelcomeRoute,
   ConnectCallbackRoute: ConnectCallbackRoute,
 }

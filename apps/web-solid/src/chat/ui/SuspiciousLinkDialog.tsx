@@ -46,14 +46,14 @@ export function SuspiciousLinkDialog(props: { href: string; text?: string; onClo
         <Show when={says}>
           {(text) => (
             <div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-2">
-              <dt class="type-label text-fg3">Says</dt>
+              <dt class="text-label text-fg3">Says</dt>
               <dd class="type-ui break-words text-fg">{text()}</dd>
             </div>
           )}
         </Show>
         <div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-2">
-          <dt class="type-label text-fg3">Goes to</dt>
-          <dd class="font-mono text-[13px] leading-5 break-all" data-field="real-address">
+          <dt class="text-label text-fg3">Goes to</dt>
+          <dd class="font-mono text-label break-all" data-field="real-address">
             <span class="text-fg">{target().host}</span>
             <span class="text-fg3">{target().rest}</span>
           </dd>

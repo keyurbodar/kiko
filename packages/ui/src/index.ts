@@ -3,6 +3,7 @@ export { Icon } from "./components/icon"
 export { ProviderIcon } from "./components/provider-icon"
 
 export { ButtonV2 } from "./v2/components/button-v2"
+export { CopyCheckIcon } from "./v2/components/copy-check-icon"
 export { HoverCardV2 } from "./v2/components/hover-card-v2"
 export { Icon as IconV2 } from "./v2/components/icon"
 export { IconButtonV2 } from "./v2/components/icon-button-v2"

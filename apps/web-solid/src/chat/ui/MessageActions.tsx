@@ -1,5 +1,6 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CheckIcon, CopyIcon, MoreIcon, ReactIcon, ReplyIcon } from "@kiko/ui/icons"
+import { MoreIcon, ReactIcon, ReplyIcon } from "@kiko/ui/icons"
+import { CopyCheckIcon } from "@kiko/ui/v2/copy-check-icon"
 import { createSignal, onCleanup, onMount, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { warmEmoji } from "../../lib/emoji-data"
@@ -143,11 +144,7 @@ export function MessageActions(props: {
         data-copied={copied() ? "" : undefined}
         onClick={() => void copy()}
       >
-        <RemixIcon
-          icon={copied() ? CheckIcon : CopyIcon}
-          size={16}
-          class={copied() ? "text-ok motion-pop" : undefined}
-        />
+        <CopyCheckIcon copied={copied()} size={16} class={copied() ? "text-ok" : undefined} />
       </button>
       <button type="button" class={BUTTON} aria-label="Reply" data-action="reply" onClick={() => props.onReply()}>
         <RemixIcon icon={ReplyIcon} size={16} />

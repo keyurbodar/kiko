@@ -1,4 +1,4 @@
-import type { AgentSlug, RunStep, RunStepStatus, ToolKind } from "@kiko/protocol"
+import type { AgentSlug, RunStep, RunStepStatus, ToolKind, WorkerRow } from "@kiko/protocol"
 
 const KEEP_STEPS = 2_000
 const HIGH_WATER = 2_200
@@ -127,6 +127,14 @@ export class RunSteps {
   abandon(runId: string): RunStep[] {
     const cut = [...this.running.values()].filter((s) => s.runId === runId && !s.worker)
     return cut.flatMap((s) => this.finish({ ...s, status: "failed", endedAt: this.now() }, s.after)?.step ?? [])
+  }
+
+  endWorker(slug: string, workerId: string, status: Exclude<WorkerRow["status"], "pending" | "running">): RunStep[] {
+    const cut = [...this.running.values()].filter((s) => s.slug === slug && s.worker?.id === workerId)
+    return cut.flatMap(
+      (s) =>
+        this.finish({ ...s, status: status === "done" ? "done" : "failed", endedAt: this.now() }, s.after)?.step ?? [],
+    )
   }
 
   window(slug: string, after: number): RunStep[] {

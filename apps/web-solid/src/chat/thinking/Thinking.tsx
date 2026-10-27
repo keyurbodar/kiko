@@ -8,7 +8,8 @@ import { Mochi } from "../ui/Mochi"
 import "./thinking.css"
 
 const OPEN_KEY = "kiko.thinking-open"
-const LINE_EVERY_MS = 2_000
+const LINE_EVERY_MS = 700
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)"
 
 function remembered(): boolean {
   try {
@@ -96,7 +97,43 @@ function Chevron(props: { open: boolean }): JSX.Element {
   )
 }
 
-export function ThinkingLine(props: { thought: Thought | undefined; fallback: string; since?: number }): JSX.Element {
+export type StepsToggle = { open: boolean; toggle: () => void }
+
+function Caption(props: { text: string; running: boolean }): JSX.Element {
+  const [leaving, setLeaving] = createSignal<string>()
+  createEffect(
+    on(
+      () => props.text,
+      (_, previous) => setLeaving(previous && !matchMedia(REDUCED_MOTION).matches ? previous : undefined),
+      { defer: true },
+    ),
+  )
+  return (
+    <span class="thinking-caption">
+      <Show when={leaving()} keyed>
+        {(old) => (
+          <span class="thinking-live thinking-leaving" aria-hidden="true" onAnimationEnd={() => setLeaving(undefined)}>
+            {old}
+          </span>
+        )}
+      </Show>
+      <Show when={props.text} keyed>
+        {(text) => (
+          <Shine running={props.running} class="thinking-live">
+            {text}
+          </Shine>
+        )}
+      </Show>
+    </span>
+  )
+}
+
+export function ThinkingLine(props: {
+  thought: Thought | undefined
+  fallback: string
+  since?: number
+  steps?: StepsToggle
+}): JSX.Element {
   const live = () => (props.thought && !props.thought.over ? props.thought : undefined)
   const text = () => {
     const thought = live()
@@ -114,27 +151,42 @@ export function ThinkingLine(props: { thought: Thought | undefined; fallback: st
     setOpen(next)
     remember(next)
   }
+  const elapsed = () => (props.since === undefined ? undefined : elapsedLabel(now() - props.since))
   return (
     <div class="thinking" data-component="thinking-line" data-open={open() && text() ? "" : undefined}>
       <Show
         when={text()}
         fallback={
-          <div class="thinking-row">
-            <Mochi size={20} />
-            <Shine running class="thinking-live">
-              {caption()}
-            </Shine>
-            <Show when={caption() === props.fallback ? props.since : undefined}>
-              {(since) => <span class="thinking-time">{elapsedLabel(now() - since())}</span>}
-            </Show>
-          </div>
+          <Show
+            when={props.steps}
+            fallback={
+              <div class="thinking-row">
+                <Mochi size={20} />
+                <Caption text={caption()} running />
+                <Show when={elapsed()}>{(time) => <span class="thinking-time">{time()}</span>}</Show>
+              </div>
+            }
+          >
+            {(steps) => (
+              <button
+                type="button"
+                class="thinking-row thinking-toggle"
+                aria-expanded={steps().open}
+                aria-label={`${caption()}. ${steps().open ? "Hide" : "Show"} steps`}
+                onClick={() => steps().toggle()}
+              >
+                <Mochi size={20} />
+                <Caption text={caption()} running />
+                <Show when={elapsed()}>{(time) => <span class="thinking-time">{time()}</span>}</Show>
+                <Chevron open={steps().open} />
+              </button>
+            )}
+          </Show>
         }
       >
         <button type="button" class="thinking-row thinking-toggle" aria-expanded={open()} onClick={toggle}>
           <Mochi size={20} />
-          <Shine running={thinking()} class="thinking-live">
-            {thinking() ? "Thinking" : caption()}
-          </Shine>
+          <Caption text={thinking() ? "Thinking" : caption()} running={thinking()} />
           <Show when={thinking()}>
             <span class="thinking-time">{took(thoughtMs(live()!, now()))}</span>
           </Show>

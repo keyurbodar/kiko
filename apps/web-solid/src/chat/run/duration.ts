@@ -17,11 +17,5 @@ export function elapsedLabel(ms: number): string {
   return h ? `${h}h ${m}m` : `${m}m ${total % 60}s`
 }
 
-export const clockLabel = (at: number): string =>
-  new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })
-
 export const fullTimeLabel = (at: number): string =>
   new Date(at).toLocaleString([], { dateStyle: "medium", timeStyle: "medium" })
-
-export const shortClock = (at: number): string =>
-  new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })

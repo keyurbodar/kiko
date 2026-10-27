@@ -1790,6 +1790,7 @@ export class Room implements CommandRoom {
     const before = JSON.stringify(this.workerRows.get(slug) ?? [])
     if (before === next) return
     this.workerRows.set(slug, rows)
+    for (const step of this.log.endWorkers(slug, rows)) this.broadcast({ t: "step", step })
     if (member.status !== "idle") this.broadcastStatus(slug)
   }
 

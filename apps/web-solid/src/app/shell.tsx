@@ -26,7 +26,7 @@ import { Sidebar, SidebarToggle } from "../sidebar"
 import { deletingChatId } from "../sidebar/actions"
 import { drawerOpen, setDrawerOpen } from "./drawer"
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe"
-import { sectionOf, useChatInView } from "./sections"
+import { coversChat, sectionOf, useChatInView } from "./sections"
 import { whenIdle } from "../lib/idle"
 import { Rail } from "./rail"
 import { TopBar } from "./top-bar"
@@ -277,6 +277,7 @@ export function Shell(props: ParentProps) {
     onCleanup(() => window.removeEventListener("keydown", on, true))
   })
   const sidebar = () => <Sidebar section={sectionOf(pathname())} collapsed={closed()} onToggle={toggle} />
+  const onChat = () => !coversChat(pathname())
   const dockedSide = () => (compact() || !sideOpen() ? null : sideChat())
   const endSideResize = () => {
     if (sidePanel()?.collapsed()) closeSide()
@@ -324,7 +325,7 @@ export function Shell(props: ParentProps) {
       <div
         class="sidebar-shell relative flex h-dvh overflow-hidden bg-side"
         data-component="app-shell"
-        data-section={sectionOf(pathname()) ?? undefined}
+        data-section={(onChat() && sectionOf(pathname())) || undefined}
       >
         <Show when={narrow()}>{sidebar()}</Show>
         <Show when={narrow() && drawer()}>
@@ -391,16 +392,16 @@ export function Shell(props: ParentProps) {
                   minSize={`${CHAT_MIN}px`}
                 >
                   <main class="relative flex min-w-0 flex-1 flex-col overflow-hidden" data-component="main-column">
-                    <Show when={sectionOf(pathname()) === "chat"}>
+                    <Show when={onChat()}>
                       <TopBar chatId={sideChat()} sidebarOpen={!narrow() || !closed()} onToggleSidebar={toggle} />
                     </Show>
-                    <Show when={narrow() && closed() && sectionOf(pathname()) !== "chat"}>
+                    <Show when={narrow() && closed() && !onChat()}>
                       <SidebarToggle open={false} onToggle={toggle} class="main-sidebar-toggle" />
                     </Show>
                     <div
                       class="main-row relative flex min-h-0 min-w-0 flex-1"
                       data-component="main-row"
-                      data-top={sectionOf(pathname()) === "chat" ? undefined : ""}
+                      data-top={onChat() ? undefined : ""}
                     >
                       <div
                         class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden"

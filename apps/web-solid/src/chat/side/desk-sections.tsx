@@ -108,7 +108,7 @@ function Ask(props: { ask: HumanAsk; choices: readonly string[]; who: string }) 
           fallback={
             <button
               type="button"
-              class={`h-8 rounded-control bg-fg px-3 text-[13px] font-medium text-on-fg hover:opacity-90 ${press}`}
+              class={`h-8 rounded-control bg-fg px-3 text-label font-medium text-on-fg hover:opacity-90 ${press}`}
               data-action="answer-ask"
               onClick={focus}
             >
@@ -119,7 +119,7 @@ function Ask(props: { ask: HumanAsk; choices: readonly string[]; who: string }) 
           {(choice, at) => (
             <button
               type="button"
-              class={`h-8 max-w-full truncate rounded-control px-3 text-[13px] font-medium ${press} ${
+              class={`h-8 max-w-full truncate rounded-control px-3 text-label font-medium ${press} ${
                 at() === 0 ? "bg-fg text-on-fg hover:opacity-90" : "bg-hover text-fg hover:bg-raise"
               }`}
               data-action="answer-choice"

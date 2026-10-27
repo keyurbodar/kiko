@@ -98,6 +98,7 @@ function Leading(props: { item: Item }) {
               <RemixIcon
                 icon={props.item.glyph ?? (props.item.folder ? FolderIcon : iconFor(props.item.icon ?? "command"))}
                 size={16}
+                class={props.item.icon === "attach" ? "palette-clip" : undefined}
               />
             </span>
           }

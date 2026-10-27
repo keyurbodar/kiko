@@ -1,8 +1,9 @@
 import { For, Match, Suspense, Switch, createSignal, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CheckIcon, ChevronDownIcon, CollapseIcon, CopyIcon, ExpandIcon } from "@kiko/ui/icons"
+import { ChevronDownIcon, CollapseIcon, ExpandIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { CopyCheckIcon } from "@kiko/ui/v2/copy-check-icon"
 import { Dynamic } from "solid-js/web"
 import { plainText, type RichText as RichTextTree } from "@kiko/protocol"
 import { EmojiText } from "../../lib/emoji"
@@ -201,7 +202,7 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
         <MenuV2 gutter={4} placement="bottom-end">
           <TooltipV2 placement="top" value={copied() ? "Copied" : "Copy table"}>
             <MenuV2.Trigger class="rich-table-action" aria-label={copied() ? "Copied" : "Copy table"}>
-              <RemixIcon icon={copied() ? CheckIcon : CopyIcon} class="size-3" />
+              <CopyCheckIcon copied={copied()} size={12} />
             </MenuV2.Trigger>
           </TooltipV2>
           <MenuV2.Portal>
