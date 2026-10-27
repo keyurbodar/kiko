@@ -16,6 +16,7 @@
     ".": "./src/index.ts",
     "./file-icon.css": "./src/components/file-icon.css",
     "./remix-icon": "./src/components/remix-icon.tsx",
+    "./remix-icon.css": "./src/components/remix-icon.css",
     "./icons": "./src/icons.gen.ts",
     "./provider-icon.css": "./src/components/provider-icon.css",
     "./provider-icon": "./src/components/provider-icon.tsx",
