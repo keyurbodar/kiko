@@ -62,10 +62,8 @@
   min-width: 160px;
   padding: 4px;
   border-radius: var(--radius-pop);
-  background: var(--raise);
-  box-shadow:
-    0 8px 28px rgb(0 0 0 / 0.4),
-    0 0 0 1px var(--line);
+  background: var(--popover);
+  box-shadow: var(--float-shadow);
   color: var(--fg);
 }
 .kt-menu-item {
@@ -88,7 +86,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .kt-menu-item:hover {
-    background: var(--active);
+    background: var(--popover-hover);
     outline: none;
   }
 }

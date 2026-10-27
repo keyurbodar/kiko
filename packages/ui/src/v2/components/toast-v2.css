@@ -52,7 +52,7 @@
   border-radius: var(--radius-control);
   color: var(--popover-fg);
   background: var(--popover);
-  box-shadow: var(--toast-ring), var(--popover-shadow-lg);
+  box-shadow: var(--toast-ring), var(--popover-shadow);
   pointer-events: auto;
   user-select: none;
   -webkit-user-select: none;
@@ -348,7 +348,7 @@
   line-height: 1.375;
   color: var(--popover-fg);
   background: var(--popover);
-  box-shadow: var(--toast-ring), var(--popover-shadow-sm);
+  box-shadow: var(--toast-ring), var(--popover-shadow);
   text-wrap: balance;
   pointer-events: none;
   transform: translate(-50%, calc(-100% - 4px));

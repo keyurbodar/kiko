@@ -13,7 +13,7 @@ const CLOSE_DELAY = 200
 const BUTTON = cn(
   "grid size-7 shrink-0 cursor-default place-items-center rounded-full p-0 text-fg2",
   "transition-[background,color,transform] duration-[120ms] active:scale-95",
-  "hover:bg-active hover:text-fg focus-visible:bg-active focus-visible:text-fg",
+  "hover:bg-hover hover:text-fg focus-visible:bg-hover focus-visible:text-fg",
   "data-[open]:bg-active data-[open]:text-fg",
 )
 

@@ -16,7 +16,7 @@
     z-index: 80;
     pointer-events: auto;
 
-    background: var(--raise);
+    background: var(--popover);
     border-radius: var(--radius-pop);
     box-shadow: var(--float-shadow);
     color: var(--fg);

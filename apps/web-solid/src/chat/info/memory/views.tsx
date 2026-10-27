@@ -25,7 +25,7 @@ import { ago, matching, mergeResults, ordered, originOf, replacedMark } from "./
 import type { MemoryStore } from "./store"
 
 const quiet = "rounded-control px-1.5 py-0.5 text-hint text-fg3 hover:bg-hover hover:text-fg"
-const action = "grid size-6 place-items-center rounded-control text-fg3 hover:bg-active hover:text-fg"
+const action = "grid size-6 place-items-center rounded-control text-fg3 hover:bg-hover hover:text-fg"
 
 const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
@@ -91,7 +91,7 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
           <RemixIcon icon={PinFillIcon} size={12} class="shrink-0" aria-label="Pinned" aria-hidden={false} />
         </Show>
         <Origin line={l()} />
-        <Show when={replacedMark(l())}>{(mark) => <span class="rounded bg-active px-1 text-hint">{mark()}</span>}</Show>
+        <Show when={replacedMark(l())}>{(mark) => <span class="rounded bg-fill px-1 text-hint">{mark()}</span>}</Show>
         <span class="ml-auto shrink-0 tabular-nums text-fg4 group-hover/row:hidden group-focus-within/row:hidden">
           {ago(l().at)}
         </span>

@@ -9,7 +9,7 @@ export function BrandTile(props: { children: JSX.Element; size?: "row" | "head" 
   return (
     <span
       class={cn(
-        "grid shrink-0 place-items-center overflow-hidden rounded-tile bg-active text-fg2",
+        "grid shrink-0 place-items-center overflow-hidden rounded-tile bg-fill text-fg2",
         props.size === "head" ? "size-10" : "size-8",
       )}
       aria-hidden="true"

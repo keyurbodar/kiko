@@ -45,12 +45,8 @@
 }
 
 .composer-dock .composer-input a {
-  color: oklch(0.707 0.165 254.624);
+  color: var(--info);
   text-decoration: none;
-}
-
-:root:not(.dark) .composer-dock .composer-input a {
-  color: oklch(0.488 0.243 264.376);
 }
 
 .composer-dock .composer-input a:focus-visible {

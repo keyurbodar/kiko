@@ -65,7 +65,7 @@ export function Dialog(props: {
         >
           <div class="relative flex min-h-0 flex-1 flex-col" data-component={props["data-component"]}>
             <header class="shrink-0 px-5 pt-4 pr-12 pb-4">
-              <ModalV2.Title class="font-display text-[20px] font-normal leading-snug text-fg [font-variation-settings:var(--display-variation)]">
+              <ModalV2.Title class="type-section font-normal leading-snug text-fg [font-variation-settings:var(--display-variation)]">
                 {props.title}
               </ModalV2.Title>
               <Show when={props.description}>
@@ -89,7 +89,7 @@ export function Dialog(props: {
               onClick={() => props.onClose()}
             >
               <svg
-                class="size-3.5"
+                class="size-4"
                 viewBox="0 0 16 16"
                 fill="none"
                 stroke="currentColor"

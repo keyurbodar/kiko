@@ -19,7 +19,7 @@
     z-index: 80;
     pointer-events: auto;
 
-    background: var(--raise);
+    background: var(--popover);
     border-radius: var(--radius-pop);
     box-shadow: var(--float-shadow);
     color: var(--fg);
@@ -34,7 +34,7 @@
 
     & > [data-slot="glide"] {
       border-radius: var(--radius-control);
-      background: var(--active);
+      background: var(--popover-hover);
     }
 
     & > [data-slot="glide"][data-tone="bad"] {
@@ -62,7 +62,7 @@
     flex-direction: row;
     align-items: center;
     gap: 8px;
-    height: 34px;
+    height: 32px;
     padding: 0 10px;
     background: transparent;
     position: relative;

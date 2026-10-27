@@ -189,7 +189,7 @@ export function Select<T>(props: {
                       <span class="grid size-4 shrink-0 place-items-center" aria-hidden="true">
                         <Show when={selected()}>
                           <svg
-                            class="size-3.5"
+                            class="size-4"
                             viewBox="0 0 16 16"
                             fill="none"
                             stroke="currentColor"

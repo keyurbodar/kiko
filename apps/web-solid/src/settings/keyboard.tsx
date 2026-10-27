@@ -23,7 +23,7 @@ function Keys(props: { keys: string; ref?: (el: HTMLSpanElement) => void }) {
     <span ref={props.ref} class="inline-flex items-center gap-1" data-field="keys">
       <For each={formatForDisplay(props.keys, { platform, parts: true })}>
         {(part) => (
-          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-tail bg-active px-1 font-sans text-hint font-medium text-fg2">
+          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-tail bg-fill px-1 font-sans text-hint font-medium text-fg2">
             {part}
           </kbd>
         )}

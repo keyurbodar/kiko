@@ -115,7 +115,7 @@ export function createShortcodes(editor: () => HTMLElement | undefined) {
               onClick={() => choose(match)}
             >
               <span class="w-6 shrink-0 text-center font-emoji text-[20px] leading-none">{match.entry.emoji}</span>
-              <span class="truncate text-[14px] font-semibold">
+              <span class="truncate text-ui font-semibold">
                 <Shortcode match={match} query={typed()?.query ?? ""} />
               </span>
             </div>

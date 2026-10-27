@@ -16,7 +16,7 @@ const SEARCH_AFTER = 6
 
 function Glyph(props: { entry: Entry }): JSX.Element {
   return (
-    <span class="grid size-8 shrink-0 place-items-center rounded-control bg-active text-fg2">
+    <span class="grid size-8 shrink-0 place-items-center rounded-control bg-fill text-fg2">
       <Show
         when={APPS[props.entry.id].icon}
         fallback={<span class="text-ui font-semibold text-fg">{props.entry.name.slice(0, 1).toUpperCase()}</span>}

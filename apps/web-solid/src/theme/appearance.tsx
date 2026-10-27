@@ -61,16 +61,13 @@ function ThemeCard(props: {
         <span
           class="relative block rounded-pop transition-shadow duration-(--dur-pop) ease-kiko"
           classList={{
-            "shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--fg3)]": props.selected,
+            "shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--accent-fill)]": props.selected,
             "hover:shadow-[0_0_0_1px_var(--line2)]": !props.selected,
           }}
         >
           <Preview palette={props.palette} light={props.light} />
           <Show when={props.selected}>
-            <span
-              class="absolute top-2 right-2 grid size-[18px] place-items-center rounded-full"
-              style={{ background: props.palette.text, color: props.palette.canvas }}
-            >
+            <span class="absolute top-2 right-2 grid size-[18px] place-items-center rounded-full bg-(--accent-fill) text-(--on-accent)">
               <RemixIcon icon={CheckIcon} size={12} />
             </span>
           </Show>

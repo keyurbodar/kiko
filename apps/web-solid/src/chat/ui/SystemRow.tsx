@@ -26,7 +26,7 @@ const STITCH =
   "h-[3px] bg-[radial-gradient(circle,var(--line2)_0_1px,transparent_1.3px)] bg-size-[6px_3px] mask-x-from-70% mask-x-to-100%"
 
 const PILL =
-  "shrink-0 cursor-pointer rounded-full bg-active px-2.5 py-0.5 text-fg transition-colors duration-[120ms] hover:bg-hover"
+  "shrink-0 cursor-pointer rounded-full bg-fill px-2.5 py-0.5 text-fg transition-colors duration-[120ms] hover:bg-fill-hover"
 
 export function SystemRow(props: {
   label: string

@@ -13,7 +13,7 @@ import { addToTarget, editRecipe, installsFor, isAdded, isEditing, refreshListin
 
 const label = "type-label text-fg3"
 const sheetSecondary =
-  "type-ui flex h-control cursor-pointer items-center gap-2 rounded-control bg-active px-3 font-medium text-fg transition-[background-color,transform] duration-(--dur-hover) hover:bg-hover active:scale-[0.97] disabled:opacity-60"
+  "type-ui flex h-control cursor-pointer items-center gap-2 rounded-control bg-fill px-3 font-medium text-fg transition-[background-color,transform] duration-(--dur-hover) hover:bg-fill-hover active:scale-[0.97] disabled:opacity-60"
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 const asksFirst = (count: number) =>

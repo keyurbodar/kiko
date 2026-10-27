@@ -20,7 +20,7 @@ import {
 } from "./state"
 
 const pillClass =
-  "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-hint text-fg3 hover:bg-active hover:text-fg"
+  "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-hint text-fg3 hover:bg-hover hover:text-fg"
 
 function StatusChip(props: { status: InstallStatus }) {
   const chip = "flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-hint"

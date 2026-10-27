@@ -55,50 +55,15 @@
   --display-variation: "SOFT" 50, "WONK" 0;
 
   --shimmer-duration: 2.2s;
-  --focus-ring: 0 0 0 2px color-mix(in oklab, var(--fg) 28%, transparent);
-  --float-shadow:
-    0 16px 40px -8px oklch(0% 0 none / 0.55), 0 2px 8px oklch(0% 0 none / 0.25),
-    0 0 0 1px color-mix(in oklab, var(--fg) 6%, transparent);
-  --font-family-text: var(--font-family-sans);
-
-  --control-h-xs: 24px;
-  --control-h-sm: 28px;
-  --control-h: 32px;
-  --field-h: 30px;
-
-  --radius-mult: 0.5;
 
   --chat-content-max-width: 736px;
-  --sidebar-content-w: 280px;
   --sidebar-nav-w: 60px;
-  --topbar-h: 50px;
 
   --bubble-pad-y: 8px;
   --bubble-pad-x: 14px;
 
   --row-gap: 1px;
   --run-gap: 11px;
-  --popup-max-w: 560px;
-
-  --rail-tab: 44px;
-  --rail-icon: 22px;
-  --pin-circle: 48px;
-  --pin-avatar: 26px;
-  --row-avatar: 28px;
-  --row-avatar-img: 22px;
-
-  --tab-h: 28px;
-  --tab-max-w: 172px;
-
-  --tree-row-h: 30px;
-  --tree-indent: 16px;
-
-  --board-column-gap: 12px;
-  --board-card-gap: 8px;
-
-  --clamp-fade-h: 48px;
-
-  --palette-max-w: var(--popup-max-w);
 
   --spring250-easing: linear(
     0,
@@ -175,12 +140,10 @@
     1
   );
   --spring150-duration: 0.249s;
-  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @supports (corner-shape: squircle) {
   :root {
-    --radius-mult: 1;
   }
 }
 
@@ -192,8 +155,11 @@
   --raise: color-mix(in srgb, #ffffff 10%, #191919);
   --hover: color-mix(in srgb, #ffffff 7.45%, #191919);
   --active: color-mix(in srgb, #ffffff 14.9%, #191919);
-  --tip: color-mix(in srgb, #ffffff 10%, #191919);
-  --me: color-mix(in srgb, #ffffff 10%, #191919);
+  --fill: color-mix(in srgb, #ffffff 14.9%, #191919);
+  --fill-hover: color-mix(in srgb, #ffffff 21.6%, #191919);
+  --ghost: color-mix(in oklab, #efefef 7.45%, transparent);
+  --field-ring: transparent;
+  --me: color-mix(in srgb, #ffffff 5.1%, #191919);
   --kiko-bubble: color-mix(in srgb, #ffffff 2.61%, #191919);
   --line: color-mix(in srgb, #ffffff 3.92%, #191919);
   --line2: color-mix(in srgb, #ffffff 12.2%, #191919);
@@ -206,9 +172,12 @@
   --bad: #f17778;
   --warn: #e49c06;
   --info: #6aabf1;
+  --accent-fill: oklch(from #6aabf1 0.59 min(calc(c * 1.4), 0.17) h);
+  --on-accent: #ffffff;
+  --accent-edge: color-mix(in srgb, var(--accent-fill) 22%, transparent);
   --leaf: #7fd19c;
-  --info-wash: color-mix(in oklab, #6aabf1 14%, transparent);
-  --bad-wash: color-mix(in oklab, #f17778 12%, transparent);
+  --info-wash: color-mix(in srgb, var(--accent-fill) 12%, transparent);
+  --bad-wash: color-mix(in srgb, #f17778 12%, transparent);
   --scrollbar-thumb: color-mix(in oklab, #efefef 18%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #efefef 30%, transparent);
   --card-shadow: none;
@@ -221,7 +190,10 @@
   --raise: color-mix(in srgb, #000000 5.1%, #ffffff);
   --hover: color-mix(in srgb, #000000 5.1%, #ffffff);
   --active: color-mix(in srgb, #000000 10.2%, #ffffff);
-  --tip: color-mix(in srgb, #000000 7%, #ffffff);
+  --fill: color-mix(in srgb, #000000 5.1%, #ffffff);
+  --fill-hover: color-mix(in srgb, #000000 7.45%, #ffffff);
+  --ghost: color-mix(in oklab, #1a1a1a 5.1%, transparent);
+  --field-ring: color-mix(in oklab, #1a1a1a 10%, transparent);
   --me: color-mix(in srgb, #000000 5.1%, #ffffff);
   --kiko-bubble: color-mix(in srgb, #000000 2.35%, #ffffff);
   --line: color-mix(in srgb, #000000 7.84%, #ffffff);
@@ -235,9 +207,12 @@
   --bad: #a42528;
   --warn: #794c02;
   --info: #1757ac;
+  --accent-fill: oklch(from #1757ac 0.59 min(calc(c * 1.4), 0.17) h);
+  --on-accent: #ffffff;
+  --accent-edge: color-mix(in srgb, var(--accent-fill) 22%, transparent);
   --leaf: #2f9e5b;
-  --info-wash: color-mix(in oklab, #1757ac 11%, transparent);
-  --bad-wash: color-mix(in oklab, #a42528 12%, transparent);
+  --info-wash: color-mix(in srgb, var(--accent-fill) 12%, transparent);
+  --bad-wash: color-mix(in srgb, #a42528 12%, transparent);
   --scrollbar-thumb: color-mix(in oklab, #1a1a1a 18%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #1a1a1a 30%, transparent);
   --card-shadow: 0 0 0 1px rgb(0 0 0 / 6%), 0 4px 24px rgb(0 0 0 / 4%);
@@ -245,131 +220,32 @@
 /* palette:end */
 
 :root {
-  --popover: color-mix(in srgb, var(--bg) 91%, #fff);
+  --popover: color-mix(in srgb, #fff 10%, var(--bg));
   --popover-fg: var(--fg);
-  --popover-edge: color-mix(in srgb, var(--fg) 16%, transparent);
-  --popover-shadow-sm: 0 4px 6px -1px rgb(0 0 0 / 5%), 0 2px 4px -2px rgb(0 0 0 / 5%);
-  --popover-shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 25%), 0 8px 10px -6px rgb(0 0 0 / 25%);
-}
-
-:root:not(.dark) {
-  --popover: var(--bg);
-  --popover-edge: color-mix(in srgb, var(--fg) 14%, transparent);
-}
-
-:root {
-  --tooltip-bg: color-mix(in oklab, var(--fg) 13%, var(--bg));
+  --popover-hover: color-mix(in srgb, var(--fg) 7.45%, var(--popover));
+  --popover-edge: color-mix(in srgb, var(--fg) 12%, transparent);
+  --popover-shadow: 0 8px 24px rgb(0 0 0 / 32%), 0 2px 6px rgb(0 0 0 / 20%);
+  --float-shadow: 0 0 0 1px var(--popover-edge), var(--popover-shadow);
+  --menu-shadow: var(--float-shadow);
+  --tooltip-bg: var(--popover);
   --tooltip-fg: var(--fg);
-  --tooltip-edge: color-mix(in oklab, var(--fg) 7%, transparent);
-}
-
-:root:not(.dark) {
-  --tooltip-bg: color-mix(in oklab, var(--fg) 92%, var(--bg));
-  --tooltip-fg: var(--bg);
-  --tooltip-edge: transparent;
-}
-
-:root {
-  --tab-bg: transparent;
-  --tab-bg-hover: var(--hover);
-  --tab-bg-active: var(--panel);
-  --tab-text: var(--fg2);
-  --tab-text-active: var(--fg);
-  --tab-shadow: 0 1px 2px oklch(0% 0 none / 0.1);
-
-  --date-pill-bg: oklch(from var(--bg) calc(l + 0.1) c h / 80%);
-  --date-pill-text: var(--fg2);
-  --calendar-day-hover: color-mix(in oklab, var(--fg) 6%, transparent);
-  --calendar-day-selected: var(--fg);
-  --calendar-day-selected-text: var(--on-fg);
-  --calendar-day-today: color-mix(in oklab, var(--info) 22%, transparent);
-  --calendar-day-outside: var(--fg3);
-
-  --palette-row-hover: var(--hover);
-  --palette-row-active: var(--active);
-  --palette-kbd-bg: var(--hover);
-  --palette-kbd-text: var(--fg2);
-
-  --editor-line-active: oklch(0.2 0 none);
-  --editor-selection: color-mix(in oklab, var(--info) 25%, transparent);
-
-  --clamp-fade-assistant: linear-gradient(to bottom, transparent, var(--kiko-bubble));
-  --clamp-fade-user: linear-gradient(to bottom, transparent, var(--me));
-  --clamp-fade-panel: linear-gradient(to bottom, transparent, var(--bg));
-
-  --reply-bar-bg: var(--panel);
-  --reply-bar-accent: var(--info);
-  --reply-bar-name: var(--info);
-  --reply-bar-text: var(--fg2);
-
-  --count-bg: var(--active);
-  --count-text: var(--fg);
-  --count-muted-bg: var(--hover);
-  --count-muted-text: var(--fg3);
-
-  --out-quote-bg: oklch(0% 0 none / 0.2);
-  --out-quote-bar: oklch(from var(--info) 0.9 0.062 h);
-  --out-quote-name: oklch(from var(--info) 0.94 0.04 h);
-  --in-quote-bg: var(--raise);
-  --in-quote-bar: var(--info);
-  --in-quote-name: var(--info);
-
-  --rule: color-mix(in oklab, var(--fg) 14%, transparent);
-  --info-wash: color-mix(in oklab, var(--info) 22%, transparent);
-  --info-wash: color-mix(in oklab, var(--info) 16%, transparent);
-  --bad-wash: color-mix(in oklab, var(--bad) 12%, transparent);
-  --scrim: rgb(10 10 10 / 40%);
+  --tooltip-edge: var(--popover-edge);
+  --focus-ring: inset 0 0 0 1px var(--bg), 0 0 0 1px var(--info), 0 0 6px 1px var(--info-wash);
+  --scrim: rgb(0 0 0 / 50%);
   --scrim-blur: blur(6px) saturate(0.7);
-
-  --message-assistant-foreground: var(--fg);
-  --message-user-gradient: linear-gradient(135deg, var(--me), var(--me));
-
   --dock-bg: var(--bg);
-  --popover-edge: 0 0 0 1px var(--line);
-  --glass-edge: inset 0 0 0 1px var(--line);
-  --popover-blur: none;
   --surface-blur: none;
-
-  --syntax-comment: oklch(50% 0.02 340);
-  --syntax-string: oklch(72% 0.12 145);
-  --syntax-regexp: oklch(70% 0.14 30);
-  --syntax-keyword: oklch(68% 0.14 340);
-  --syntax-primitive: oklch(74% 0.11 75);
-  --syntax-operator: oklch(66% 0.09 340);
-  --syntax-variable: oklch(78% 0.015 340);
-  --syntax-property: oklch(70% 0.08 230);
-  --syntax-type: oklch(72% 0.1 310);
-  --syntax-constant: oklch(74% 0.11 75);
-  --syntax-punctuation: oklch(55% 0.015 340);
-  --syntax-object: oklch(84% 0.012 340);
-  --syntax-success: var(--ok);
-  --syntax-warning: var(--warn);
-  --syntax-critical: var(--bad);
-  --syntax-info: var(--info);
-  --syntax-diff-add: var(--ok);
-  --syntax-diff-delete: var(--bad);
-  --syntax-diff-unknown: var(--bad);
-}
-
-:root {
-  --popover-shadow: 0 12px 40px oklch(0% 0 none / 0.45), 0 2px 6px oklch(0% 0 none / 0.12);
-  --menu-shadow: 0 0 0 0.5px oklch(0% 0 none / 0.4), 0 10px 28px oklch(0% 0 none / 0.32);
-  --row-shadow: 0 6px 18px oklch(0% 0 none / 0.35);
-  --segment-shadow: 0 2px 8px oklch(0% 0 none / 0.35);
 }
 
 :root:not(.dark) {
   color-scheme: light;
-  --popover-shadow: 0 12px 40px oklch(0% 0 none / 0.16), 0 2px 6px oklch(0% 0 none / 0.08);
-  --menu-shadow: 0 0 0 0.5px oklch(0% 0 none / 0.1), 0 10px 28px oklch(0% 0 none / 0.12);
-  --float-shadow:
-    0 16px 40px -8px oklch(0% 0 none / 0.18), 0 2px 8px oklch(0% 0 none / 0.08),
-    0 0 0 1px color-mix(in oklab, var(--fg) 7%, transparent);
-  --segment-shadow: 0 1px 4px oklch(0% 0 none / 0.12);
-  --out-quote-bg: oklch(0% 0 none / 0.14);
-  --scrim: rgb(20 20 20 / 18%);
-  --count-bg: var(--fg);
-  --count-text: var(--bg);
+  --popover: var(--bg);
+  --popover-hover: color-mix(in srgb, var(--fg) 5.1%, var(--popover));
+  --popover-shadow: 0 8px 24px rgb(0 0 0 / 12%), 0 2px 6px rgb(0 0 0 / 8%);
+  --tooltip-bg: var(--fg);
+  --tooltip-fg: var(--bg);
+  --tooltip-edge: transparent;
+  --scrim: rgb(0 0 0 / 40%);
 }
 
 @theme {
@@ -391,7 +267,7 @@
   --type-wordmark: 24px;
   --type-wordmark-line: 1.17;
   --type-msg: 16px;
-  --type-msg-line: 1.5;
+  --type-msg-line: 1.38;
   --type-ui: 14px;
   --type-ui-line: 1.43;
   --type-row: 14px;
@@ -414,7 +290,6 @@
   --dur-pop: 200ms;
   --dur-step: 400ms;
   --dur-shimmer: 2200ms;
-  --dur-hop: 1200ms;
 }
 
 @theme {
@@ -442,15 +317,8 @@
   --spacing-icon: 28px;
   --spacing-chip: 24px;
   --spacing-tab: 28px;
-  --spacing-composer-min: 96px;
   --spacing-header: 48px;
   --spacing-sidebar: 288px;
-  --container-chat: 820px;
-  --container-page: 1040px;
-  --size-icon-xs: 12px;
-  --size-icon-sm: 16px;
-  --size-icon-md: 20px;
-  --size-icon-lg: 24px;
   --opacity-icon-secondary: 0.4;
   --ease-kiko: cubic-bezier(0.32, 0.72, 0, 1);
 }
@@ -583,14 +451,6 @@
 @theme inline {
   --shadow-popover: var(--popover-shadow);
   --shadow-menu: var(--menu-shadow);
-  --shadow-card: var(--card-shadow);
-  --shadow-row: var(--row-shadow);
-  --shadow-segment: var(--segment-shadow);
-  --shadow-tab: var(--tab-shadow);
-
-  --color-scrollbar: var(--scrollbar-thumb);
-  --color-scrollbar-hover: var(--scrollbar-thumb-hover);
-  --color-scrim: var(--scrim);
 
   --color-bg: var(--bg);
   --color-side: var(--side);
@@ -598,6 +458,8 @@
   --color-raise: var(--raise);
   --color-hover: var(--hover);
   --color-active: var(--active);
+  --color-fill: var(--fill);
+  --color-fill-hover: var(--fill-hover);
   --color-me: var(--me);
   --color-line: var(--line);
   --color-line2: var(--line2);
@@ -608,45 +470,10 @@
   --color-ok: var(--ok);
   --color-bad: var(--bad);
   --color-info: var(--info);
-  --color-leaf: var(--leaf);
   --color-warn: var(--warn);
   --color-on-fg: var(--on-fg);
-  --color-kiko-bubble: var(--kiko-bubble);
   --color-info-wash: var(--info-wash);
   --color-bad-wash: var(--bad-wash);
-
-  --color-tab: var(--tab-bg);
-  --color-tab-hover: var(--tab-bg-hover);
-  --color-tab-active: var(--tab-bg-active);
-  --color-date-pill: var(--date-pill-bg);
-  --color-editor-line: var(--editor-line-active);
-
-  --color-file-pdf: oklch(0.6 0.17 25);
-  --color-file-archive: oklch(0.7 0.15 60);
-  --color-file-sheet: oklch(0.62 0.13 150);
-  --color-file-doc: oklch(0.6 0.12 255);
-  --color-file-media: oklch(0.62 0.12 320);
-  --color-file-default: oklch(0.55 0.05 340);
-
-  --color-syntax-comment: var(--syntax-comment);
-  --color-syntax-regexp: var(--syntax-regexp);
-  --color-syntax-string: var(--syntax-string);
-  --color-syntax-keyword: var(--syntax-keyword);
-  --color-syntax-primitive: var(--syntax-primitive);
-  --color-syntax-operator: var(--syntax-operator);
-  --color-syntax-variable: var(--syntax-variable);
-  --color-syntax-property: var(--syntax-property);
-  --color-syntax-type: var(--syntax-type);
-  --color-syntax-constant: var(--syntax-constant);
-  --color-syntax-punctuation: var(--syntax-punctuation);
-  --color-syntax-object: var(--syntax-object);
-  --color-syntax-success: var(--syntax-success);
-  --color-syntax-warning: var(--syntax-warning);
-  --color-syntax-critical: var(--syntax-critical);
-  --color-syntax-info: var(--syntax-info);
-  --color-syntax-diff-add: var(--syntax-diff-add);
-  --color-syntax-diff-delete: var(--syntax-diff-delete);
-  --color-syntax-diff-unknown: var(--syntax-diff-unknown);
 }
 
 @layer base {

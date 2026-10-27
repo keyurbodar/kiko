@@ -34,7 +34,7 @@ export function Cursor(props: {
         {(label) => (
           <span
             class={cn(
-              "absolute top-4 left-4 rounded-full px-2 py-0.5 text-[11px] leading-none font-medium whitespace-nowrap shadow-sm",
+              "absolute top-4 left-4 rounded-full px-2 py-0.5 text-caption leading-none font-medium whitespace-nowrap shadow-sm",
               props.tone === "you" ? "bg-black/70 text-white" : "bg-[#f0b45a] text-black",
             )}
           >

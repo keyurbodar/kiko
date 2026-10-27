@@ -54,7 +54,7 @@ export default function DateCalendar(props: {
             <div class="flex min-h-9 w-full items-center gap-0.5">
               <button
                 type="button"
-                class="chat-calendar__title -ml-2 flex cursor-pointer items-center gap-1 rounded-row px-2 py-1 text-msg font-medium whitespace-nowrap text-info hover:bg-active"
+                class="chat-calendar__title -ml-2 flex cursor-pointer items-center gap-1 rounded-row px-2 py-1 text-msg font-medium whitespace-nowrap text-info hover:bg-hover"
                 aria-expanded={picking()}
                 onClick={() => setPicking((was) => !was)}
               >
@@ -64,7 +64,7 @@ export default function DateCalendar(props: {
               <div class="ml-auto flex items-center gap-0.5">
                 <button
                   type="button"
-                  class="grid size-7 cursor-pointer place-items-center rounded-full text-fg2 hover:bg-active hover:text-fg"
+                  class="grid size-7 cursor-pointer place-items-center rounded-full text-fg2 hover:bg-hover hover:text-fg"
                   aria-label={picking() ? "Previous year" : "Previous month"}
                   onClick={() => calendar.navigate(picking() ? "prev-year" : "prev-month")}
                 >
@@ -72,7 +72,7 @@ export default function DateCalendar(props: {
                 </button>
                 <button
                   type="button"
-                  class="grid size-7 cursor-pointer place-items-center rounded-full text-fg2 hover:bg-active hover:text-fg"
+                  class="grid size-7 cursor-pointer place-items-center rounded-full text-fg2 hover:bg-hover hover:text-fg"
                   aria-label={picking() ? "Next year" : "Next month"}
                   onClick={() => calendar.navigate(picking() ? "next-year" : "next-month")}
                 >

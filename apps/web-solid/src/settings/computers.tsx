@@ -253,7 +253,7 @@ export default function Computers(): JSX.Element {
           fallback={
             <Show when={!pair()}>
               <div class="flex flex-col items-center gap-1 px-6 py-10 text-center" data-component="computers-empty">
-                <span class="mb-3 grid size-12 place-items-center rounded-tile bg-active text-fg2">
+                <span class="mb-3 grid size-12 place-items-center rounded-tile bg-fill text-fg2">
                   <RemixIcon icon={MonitorIcon} size={24} />
                 </span>
                 <span class="type-row text-fg">No computers yet</span>

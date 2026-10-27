@@ -5,7 +5,7 @@
   color: var(--fg);
   background: var(--bg);
   border-radius: var(--radius-sheet);
-  box-shadow: 0 50px 140px rgb(0 0 0 / 0.45);
+  box-shadow: var(--float-shadow);
 }
 
 [data-component="settings"] {
@@ -104,10 +104,10 @@
 
 .settings-nav-row {
   display: flex;
-  height: 34px;
+  height: 32px;
   flex-shrink: 0;
   align-items: center;
-  gap: 11px;
+  gap: 8px;
   padding: 0 10px;
   color: var(--fg2);
   font-size: var(--type-ui);

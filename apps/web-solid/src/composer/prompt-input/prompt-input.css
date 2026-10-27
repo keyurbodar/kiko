@@ -173,7 +173,7 @@ button.token-chip:active {
   width: 260px;
   padding: 12px;
   color: var(--fg);
-  background: var(--raise);
+  background: var(--popover);
   border-radius: var(--radius-pop);
   box-shadow:
     inset 0 0 0 1px var(--line2),
@@ -268,7 +268,7 @@ button.token-chip:active {
   max-height: 360px;
   overflow: auto;
   padding: 6px;
-  background: var(--raise);
+  background: var(--popover);
   border-radius: var(--radius-card);
   box-shadow:
     inset 0 0 0 1px var(--line2),

@@ -26,7 +26,7 @@
   max-height: min(40rem, calc(100dvh - 2 * max(16px, 4vh)));
   display: flex;
   flex-direction: column;
-  background: var(--raise);
+  background: var(--popover);
   color: var(--fg);
   border-radius: var(--radius-sheet);
   box-shadow: var(--float-shadow);
@@ -311,7 +311,8 @@
     box-shadow var(--dur-hover) var(--ease-kiko);
 }
 .palette-check[aria-checked="true"] {
-  background: var(--fg);
+  color: var(--on-accent);
+  background: var(--accent-fill);
   box-shadow: none;
 }
 

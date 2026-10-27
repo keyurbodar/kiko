@@ -16,8 +16,6 @@ const RADIUS = {
 
 const OPACITY = { "icon-secondary": 0.4 } as const
 
-const ICON = { xs: 12, sm: 16, md: 20, lg: 24 } as const
-
 const SIZE = {
   "nav-tab": 32,
   "chat-row": 50,
@@ -30,12 +28,9 @@ const SIZE = {
   icon: 28,
   chip: 24,
   tab: 28,
-  "composer-min": 96,
   header: 48,
   sidebar: 288,
 } as const
-
-const CONTAINER = { chat: 820, page: 1040 } as const
 
 type Face = "sans" | "display" | "mono"
 type Type = Readonly<{ size: number; line: number; weight: number; face: Face; scales: boolean }>
@@ -46,7 +41,7 @@ const TYPE = {
   page: { size: 40, line: 44, weight: 400, face: "display", scales: false },
   section: { size: 22, line: 28, weight: 400, face: "display", scales: false },
   wordmark: { size: 24, line: 28, weight: 400, face: "display", scales: false },
-  msg: { size: 16, line: 24, weight: 400, face: "sans", scales: true },
+  msg: { size: 16, line: 22, weight: 400, face: "sans", scales: true },
   ui: { size: 14, line: 20, weight: 435, face: "sans", scales: true },
   row: { size: 14, line: 20, weight: 520, face: "sans", scales: true },
   label: { size: 13, line: 17, weight: 435, face: "sans", scales: true },
@@ -65,7 +60,6 @@ const MOTION = {
   pop: 200,
   step: 400,
   shimmer: 2200,
-  hop: 1200,
   ease: "cubic-bezier(0.32, 0.72, 0, 1)",
 } as const
 
@@ -92,8 +86,6 @@ export function systemCss(): string {
   const fixed = [
     ...Object.entries(RADIUS).map(([k, v]) => `  --radius-${k}: ${px(v)};`),
     ...Object.entries(SIZE).map(([k, v]) => `  --spacing-${k}: ${px(v)};`),
-    ...Object.entries(CONTAINER).map(([k, v]) => `  --container-${k}: ${px(v)};`),
-    ...Object.entries(ICON).map(([k, v]) => `  --size-icon-${k}: ${px(v)};`),
     ...Object.entries(OPACITY).map(([k, v]) => `  --opacity-${k}: ${v};`),
     `  --ease-kiko: ${MOTION.ease};`,
   ]
@@ -111,7 +103,6 @@ export function systemCss(): string {
     `  --dur-pop: ${MOTION.pop}ms;`,
     `  --dur-step: ${MOTION.step}ms;`,
     `  --dur-shimmer: ${MOTION.shimmer}ms;`,
-    `  --dur-hop: ${MOTION.hop}ms;`,
   ]
   return [
     "/* system:start */",

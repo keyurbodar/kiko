@@ -30,7 +30,7 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
           ref !== current()?.model && room.setAgentModel(props.slug, { ref, levels, name })
         }
         title={`Choose model for ${props.name}`}
-        class="flex h-8 max-w-[240px] min-w-0 items-center gap-1.5 rounded-control bg-active px-3 text-label text-fg transition-colors duration-[var(--dur-hover)] hover:bg-hover aria-expanded:bg-hover active:scale-[0.98]"
+        class="flex h-8 max-w-[240px] min-w-0 items-center gap-1.5 rounded-control bg-fill px-3 text-label text-fg transition-colors duration-[var(--dur-hover)] hover:bg-fill-hover aria-expanded:bg-fill-hover active:scale-[0.98]"
       >
         <Show when={current()?.model.split("/")[0]}>
           {(provider) => <ProviderIcon id={provider()} width="13" height="13" />}
@@ -43,7 +43,7 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
         levels={current()?.thinkingLevels}
         value={current()?.thinking}
         placement="bottom-end"
-        class="h-8 rounded-control bg-active px-3 text-label text-fg"
+        class="h-8 rounded-control bg-fill px-3 text-label text-fg"
         onChange={(thinking) => room.setAgentModel(props.slug, { thinking })}
       />
     </Row>

@@ -35,16 +35,16 @@
   line-height: 1.3;
 }
 .rich h1 {
-  font-size: var(--type-heading);
-  line-height: 26px;
+  font-size: calc(var(--type-msg) * 1.25);
+  line-height: 1.4;
 }
 .rich h2 {
-  font-size: var(--type-msg);
-  line-height: 24px;
+  font-size: calc(var(--type-msg) * 1.125);
+  line-height: 1.4;
 }
 .rich h3 {
-  font-size: var(--type-ui);
-  line-height: 22px;
+  font-size: var(--type-msg);
+  line-height: var(--type-msg-line);
 }
 .rich h4,
 .rich h5,
@@ -181,11 +181,8 @@
   white-space: nowrap;
 }
 .rich-link {
-  color: oklch(0.707 0.165 254.624);
+  color: var(--info);
   text-decoration: none;
-}
-:root:not(.dark) .rich-link {
-  color: oklch(0.488 0.243 264.376);
 }
 .rich-link:focus-visible {
   background-image: radial-gradient(circle, currentcolor 0.75px, transparent 1px);
@@ -209,9 +206,9 @@
 .rich-inline-code {
   font-family: var(--font-family-mono);
   font-size: var(--type-label);
-  padding: 0.1rem 0.35rem;
-  border-radius: var(--radius-tail);
-  background: var(--active);
+  padding: 1px 4px;
+  border-radius: var(--radius-micro);
+  background: var(--ghost);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
@@ -565,15 +562,12 @@ button.rich-code-tab {
   line-height: 24px;
   word-break: break-word;
 }
-[data-slot="bubble"][data-variant="ghost"] .rich {
+[data-slot="bubble"] .rich {
   font-size: inherit;
   line-height: inherit;
 }
 
-[data-side="bot"] .rich {
-  color: color-mix(in srgb, var(--fg) 80%, transparent);
-}
-
-:root.dark .rich-code {
-  background: var(--side);
+:where([data-slot="bubble"]) .rich-code {
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--line);
 }

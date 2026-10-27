@@ -161,11 +161,11 @@
 }
 
 .tpl-switch[aria-checked="true"] {
-  background: var(--fg);
+  background: var(--accent-fill);
 }
 
 .tpl-switch[aria-checked="true"]::after {
-  background: var(--bg);
+  background: var(--on-accent);
   transform: translateX(14px);
 }
 

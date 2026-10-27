@@ -72,7 +72,7 @@ function FolderCrumb(props: { dir: string; current: string; index: TreeIndex; on
         <MenuV2.Content class="max-h-80 min-w-48 overflow-y-auto" data-component="file-crumb-menu">
           <Show when={at() !== props.dir}>
             <MenuV2.Item closeOnSelect={false} onSelect={() => setAt(dirname(at()))}>
-              <RemixIcon icon={BackIcon} class="size-3.5 shrink-0" />
+              <RemixIcon icon={BackIcon} class="size-4 shrink-0" />
               <span class="truncate">Back to {label(dirname(at()))}</span>
             </MenuV2.Item>
             <MenuV2.Separator />
@@ -84,7 +84,7 @@ function FolderCrumb(props: { dir: string; current: string; index: TreeIndex; on
                   <MenuV2.Item closeOnSelect={false} onSelect={() => setAt(path)}>
                     <FileIcon node={{ path, type: "directory" }} />
                     <span class="min-w-0 flex-1 truncate">{label(path)}</span>
-                    <RemixIcon icon={ChevronRightIcon} class="size-3.5 shrink-0 text-fg3" />
+                    <RemixIcon icon={ChevronRightIcon} class="size-4 shrink-0 text-fg3" />
                   </MenuV2.Item>
                 ) : (
                   <MenuV2.Item
