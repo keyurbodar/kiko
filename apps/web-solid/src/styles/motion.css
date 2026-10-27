@@ -522,3 +522,102 @@
     transform: rotate(calc(var(--look, 0) * 9deg)) translateY(-1px);
   }
 }
+
+@keyframes motion-icon-wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  35% {
+    transform: rotate(-16deg);
+  }
+  70% {
+    transform: rotate(9deg);
+  }
+}
+
+@keyframes motion-needle-sweep {
+  from {
+    transform: rotate(-40deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes motion-folder-open {
+  50% {
+    transform: translateY(-1px) scale(1.07);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .sidebar-shell .nav-icon > svg,
+  .sidebar-shell [data-component="sidebar-settings"] > svg,
+  .sidebar-shell [data-component="sidebar-help"] > svg,
+  .composer-dock .composer-icon > svg,
+  .composer-dock .reply-bar-dismiss > svg,
+  .composer-send-arrow {
+    transform-box: view-box;
+    transform-origin: 50% 50%;
+    transition: transform var(--dur-pop) var(--ease-kiko);
+  }
+
+  .sidebar-shell .nav-row[data-hint="chat.new"]:hover .nav-icon > svg,
+  .sidebar-shell .nav-row[data-hint="chat.new"]:focus-visible .nav-icon > svg,
+  .composer-dock .composer-icon:hover:not(:disabled) > svg,
+  .composer-dock .reply-bar-dismiss:hover > svg {
+    transform: rotate(90deg);
+  }
+
+  .sidebar-shell .nav-row[data-hint="palette.open"]:hover .nav-icon > svg,
+  .sidebar-shell .nav-row[data-hint="palette.open"]:focus-visible .nav-icon > svg {
+    transform: rotate(-14deg) scale(1.06);
+  }
+
+  .sidebar-shell .nav-row[data-component="sidebar-files"]:hover .nav-icon > svg,
+  .sidebar-shell .nav-row[data-component="sidebar-files"]:focus-visible .nav-icon > svg {
+    animation: motion-folder-open var(--dur-pop) var(--ease-kiko);
+  }
+
+  .sidebar-shell [data-component="sidebar-settings"]:hover > svg,
+  .sidebar-shell [data-component="sidebar-settings"]:focus-visible > svg {
+    transform: rotate(60deg);
+  }
+
+  .sidebar-shell [data-component="sidebar-help"]:hover > svg,
+  .sidebar-shell [data-component="sidebar-help"]:focus-visible > svg {
+    transform: rotate(-10deg);
+  }
+
+  .composer-dock .composer-send:not(:disabled):not([data-mode="stop"]):hover .composer-send-arrow,
+  .composer-dock .composer-send:not(:disabled):not([data-mode="stop"]):focus-visible .composer-send-arrow {
+    transform: translateY(-2px);
+  }
+
+  .reasoning-trigger:hover .reasoning-needle,
+  .reasoning-trigger:focus-visible .reasoning-needle {
+    transform-box: view-box;
+    transform-origin: 50% 82%;
+    animation: motion-needle-sweep var(--dur-pop) var(--ease-kiko);
+  }
+
+  .palette-row:hover .palette-clip,
+  .palette-row:focus-visible .palette-clip {
+    animation: motion-icon-wiggle var(--dur-pop) var(--ease-kiko);
+  }
+
+  [data-disclosure] > svg:last-child {
+    transform-box: view-box;
+    transform-origin: 50% 50%;
+    transition: transform var(--dur-hover) var(--ease-kiko);
+  }
+
+  [data-disclosure]:not([aria-expanded="true"]):hover > svg:last-child {
+    transform: translateY(2px) scale(1.1);
+  }
+
+  [data-disclosure][aria-expanded="true"]:hover > svg:last-child {
+    transform: translateY(-2px) scale(1.1);
+  }
+}

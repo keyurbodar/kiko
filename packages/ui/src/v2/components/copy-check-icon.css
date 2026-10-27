@@ -1,0 +1,36 @@
+[data-component="copy-check-icon"] {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+}
+
+[data-component="copy-check-icon"] > svg {
+  grid-area: 1 / 1;
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  transition:
+    opacity var(--dur-hover) var(--ease-kiko),
+    transform var(--dur-pop) var(--ease-kiko);
+}
+
+[data-component="copy-check-icon"] > .copy-check-icon-check {
+  opacity: 0;
+  transform: scale(0.55) rotate(-18deg);
+}
+
+[data-component="copy-check-icon"][data-copied] > .copy-check-icon-copy {
+  opacity: 0;
+  transform: scale(0.55) rotate(18deg);
+}
+
+[data-component="copy-check-icon"][data-copied] > .copy-check-icon-check {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="copy-check-icon"] > svg {
+    transition: none;
+  }
+}

@@ -204,7 +204,7 @@
 }
 
 .sidebar-shell .nav-row:active {
-  transform: scale(0.985);
+  transform: scale(var(--press-scale));
 }
 
 .sidebar-shell .panel-scroll {

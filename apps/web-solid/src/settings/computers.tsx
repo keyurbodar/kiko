@@ -1,6 +1,7 @@
 import { Segmented } from "@kiko/ui/v2/segmented"
 import type { ComputerSummary } from "@kiko/protocol"
-import { CheckIcon, CopyIcon, EditIcon, MonitorIcon, PlusIcon } from "@kiko/ui/icons"
+import { EditIcon, MonitorIcon, PlusIcon } from "@kiko/ui/icons"
+import { CopyCheckIcon } from "@kiko/ui/v2/copy-check-icon"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
@@ -97,7 +98,7 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
             data-copied={copied() ? "" : undefined}
             onClick={() => void copy()}
           >
-            <RemixIcon icon={copied() ? CheckIcon : CopyIcon} size={14} class={cn(copied() && "text-ok")} />
+            <CopyCheckIcon copied={copied()} size={14} class={cn(copied() && "text-ok")} />
             <Show when={copied()}>
               <span>Copied</span>
             </Show>
