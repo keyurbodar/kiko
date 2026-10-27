@@ -410,7 +410,7 @@ export function PaletteSurface(props: { source: TabData }) {
           >
             <div class="palette-bar">
               <span class="palette-addon" aria-hidden="true">
-                <RemixIcon icon={view().parent ? iconFor(view().parent!.icon) : SearchIcon} size={20} />
+                <RemixIcon icon={view().parent ? iconFor(view().parent!.icon) : SearchIcon} size={16} />
               </span>
               <Cmdk.Input
                 ref={input}

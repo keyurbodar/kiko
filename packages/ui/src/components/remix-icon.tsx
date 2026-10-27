@@ -3,7 +3,7 @@ import type { Glyph } from "../icons.gen"
 
 export type { Glyph }
 
-export type IconSize = 12 | 16 | 20 | 24
+export type IconSize = 12 | 16 | 24
 
 export type RemixIconProps = Omit<ComponentProps<"svg">, "children"> & {
   icon: Glyph

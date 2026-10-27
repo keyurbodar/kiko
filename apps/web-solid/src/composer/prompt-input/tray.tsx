@@ -129,7 +129,7 @@ function Tile(props: {
         </span>
         <Show when={upload()?.status === "failed" && pictured()}>
           <span class="tray-veil" data-tone="bad">
-            <RemixIcon icon={ResetIcon} size={20} />
+            <RemixIcon icon={ResetIcon} size={16} />
           </span>
         </Show>
         <Foot part={props.part} upload={upload()} named={look() !== "type" && !pasted()} />
@@ -156,7 +156,7 @@ function RefusedTile(props: { item: Rejected; onDismiss: () => void }) {
       <span class="tray-tile-open" title={`${props.item.name}: ${props.item.reason}`}>
         <span class="tray-body">
           <span class="tray-face">
-            <TypeIcon type={fileType({ name: props.item.name, type: "" })} size={22} />
+            <TypeIcon type={fileType({ name: props.item.name, type: "" })} size={24} />
             <span class="tray-face-name">{middleTruncate(props.item.name, 44)}</span>
           </span>
         </span>

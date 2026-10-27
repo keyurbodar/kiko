@@ -41,7 +41,7 @@ export function Quote(props: {
       >
         {(src) => (
           <img
-            class="chat-quote__thumb size-8 shrink-0 rounded-[4px] object-cover"
+            class="chat-quote__thumb size-8 shrink-0 rounded-tail object-cover"
             src={src()}
             alt=""
             loading="lazy"

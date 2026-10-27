@@ -238,7 +238,7 @@ function ListView(props: { shown: readonly Entry[]; open: (key: string) => void 
               class="grid size-8 shrink-0 place-items-center rounded-control transition-colors duration-(--dur-hover)"
               style={{ background: `color-mix(in oklab, ${toneOf(e.name)} 14%, var(--panel))` }}
             >
-              <TypeIcon type={e.type} size={20} />
+              <TypeIcon type={e.type} size={16} />
             </span>
             <span class="type-row min-w-0 flex-1 truncate text-fg">{e.name}</span>
             <span

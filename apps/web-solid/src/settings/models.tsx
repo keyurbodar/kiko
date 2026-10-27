@@ -461,7 +461,7 @@ function PickerModelRow(props: { row: PickerRow; hidden: boolean; showProvider: 
 }
 
 function ProviderSkeletons() {
-  return <For each={[0, 1, 2, 3]}>{() => <Skeleton class="h-[58px] rounded-card" />}</For>
+  return <For each={[0, 1, 2, 3]}>{() => <Skeleton class="h-header rounded-card" />}</For>
 }
 
 function CheckAgain(props: { id: string }) {

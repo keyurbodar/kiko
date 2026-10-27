@@ -36,6 +36,6 @@ export interface IconProps extends Omit<ComponentProps<"svg">, "children"> {
 
 export function Icon(props: IconProps) {
   const [split, rest] = splitProps(props, ["name", "size"])
-  const px = () => (split.size === "small" ? 12 : split.size === "large" ? 20 : 16)
+  const px = () => (split.size === "small" ? 12 : split.size === "large" ? 24 : 16)
   return <RemixIcon {...rest} data-slot="icon-svg" icon={NAMES[split.name]} size={px()} />
 }

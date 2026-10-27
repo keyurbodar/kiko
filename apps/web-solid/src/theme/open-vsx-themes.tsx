@@ -240,7 +240,7 @@ function Message(props: { title: string; children?: JSX.Element }): JSX.Element 
   return (
     <div class="flex flex-col items-center gap-3 px-6 py-12 text-center" data-slot="message">
       <span class="grid size-10 place-items-center rounded-full bg-panel text-fg3">
-        <RemixIcon icon={SearchIcon} size={20} />
+        <RemixIcon icon={SearchIcon} size={24} class="opacity-(--opacity-icon-secondary)" />
       </span>
       <p class="type-ui text-fg2">{props.title}</p>
       {props.children}

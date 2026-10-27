@@ -28,9 +28,9 @@ function Preview(props: { palette: Palette; light: boolean }) {
       aria-hidden="true"
     >
       <div class="flex w-[34%] flex-col gap-[5px] p-2.5" style={{ background: p().sidebar }}>
-        <span class="h-[5px] w-3/5 rounded-[3px]" style={{ background: tint(p().text, 60) }} />
-        <span class="h-[7px] w-[85%] rounded-[3px]" style={{ background: tint(p().text, 35) }} />
-        <span class="h-[5px] w-[70%] rounded-[3px]" style={{ background: tint(p().muted, 40) }} />
+        <span class="h-[5px] w-3/5 rounded-tail" style={{ background: tint(p().text, 60) }} />
+        <span class="h-[7px] w-[85%] rounded-tail" style={{ background: tint(p().text, 35) }} />
+        <span class="h-[5px] w-[70%] rounded-tail" style={{ background: tint(p().muted, 40) }} />
       </div>
       <div class="flex flex-1 flex-col items-end gap-1.5 p-3.5">
         <span class="h-[18px] w-1/2 rounded-control" style={{ background: me() }} />

@@ -129,7 +129,7 @@ function FilePreview(props: { path: string; anchor: HTMLElement; source: ChipSou
           style={{ left: `${Math.max(8, box.left)}px`, bottom: `${window.innerHeight - box.top + 8}px` }}
         >
           <div class="token-preview-head">
-            <TypeIcon type={fileType({ name: props.path, type: record().file?.type ?? "" })} size={18} />
+            <TypeIcon type={fileType({ name: props.path, type: record().file?.type ?? "" })} size={16} />
             <span class="token-preview-name">{shownName(props.path)}</span>
             <Show when={record().file}>
               {(file) => <span class="token-preview-meta">{formatBytes(file().size)}</span>}
