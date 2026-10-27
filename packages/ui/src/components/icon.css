@@ -7,23 +7,23 @@
   color: var(--icon-base);
 
   &[data-size="small"] {
-    width: 16px;
-    height: 16px;
+    width: var(--size-icon-sm, 16px);
+    height: var(--size-icon-sm, 16px);
   }
 
   &[data-size="normal"] {
-    width: 20px;
-    height: 20px;
+    width: var(--size-icon-md, 20px);
+    height: var(--size-icon-md, 20px);
   }
 
   &[data-size="medium"] {
-    width: 24px;
-    height: 24px;
+    width: var(--size-icon-lg, 24px);
+    height: var(--size-icon-lg, 24px);
   }
 
   &[data-size="large"] {
-    width: 24px;
-    height: 24px;
+    width: var(--size-icon-lg, 24px);
+    height: var(--size-icon-lg, 24px);
   }
 
   [data-slot="icon-svg"] {

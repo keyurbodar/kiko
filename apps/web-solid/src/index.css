@@ -444,6 +444,10 @@
   --spacing-sidebar: 288px;
   --container-chat: 820px;
   --container-page: 1040px;
+  --size-icon-xs: 12px;
+  --size-icon-sm: 16px;
+  --size-icon-md: 20px;
+  --size-icon-lg: 24px;
   --opacity-icon-secondary: 0.4;
   --ease-kiko: cubic-bezier(0.32, 0.72, 0, 1);
 }
