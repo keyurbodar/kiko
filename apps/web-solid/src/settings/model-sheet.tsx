@@ -77,7 +77,6 @@ export function ModelSheet(props: {
             <ModelList
               current={props.current}
               autofocus={false}
-              footer={false}
               onClose={() => props.onClose()}
               onPick={(row) => {
                 const ref = modelRef(row.provider.id, row.model.id)

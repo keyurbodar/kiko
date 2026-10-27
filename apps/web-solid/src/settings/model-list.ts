@@ -60,8 +60,44 @@ export function shortModelName(name: string): string {
 export const ALL_PROVIDERS = "all"
 export const STARRED = "starred"
 
+const VERSION = /\d+(?:\.\d+)*/g
+
+function versionOf(name: string): number[] {
+  return (name.match(VERSION) ?? []).flatMap((part) => part.split(".").map(Number))
+}
+
+function newer(a: readonly number[], b: readonly number[]): boolean {
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const diff = (a[i] ?? 0) - (b[i] ?? 0)
+    if (diff !== 0) return diff > 0
+  }
+  return false
+}
+
+export function legacyModelIds(models: readonly CatalogModel[]): Set<string> {
+  const families = new Map<string, CatalogModel[]>()
+  for (const model of models) {
+    const family = model.name
+      .toLowerCase()
+      .replace(VERSION, "")
+      .replace(/\((new|latest)\)/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+    families.set(family, [...(families.get(family) ?? []), model])
+  }
+  const legacy = new Set<string>()
+  for (const group of families.values()) {
+    const versions = group.map((model) => versionOf(model.name))
+    const best = versions.reduce((top, v) => (newer(v, top) ? v : top), versions[0]!)
+    group.forEach((model, i) => {
+      if (versions[i]!.length > 0 && newer(best, versions[i]!)) legacy.add(model.id)
+    })
+  }
+  return legacy
+}
+
 export type PickerEntry =
-  | { kind: "head"; key: string; label: string; provider?: CatalogProvider }
+  | { kind: "legacy"; key: string; count: number; open: boolean }
   | { kind: "row"; key: string; row: ModelRow; at: number; mixed: boolean }
 
 export function pickerEntries(input: {
@@ -71,13 +107,14 @@ export function pickerEntries(input: {
   current: string | undefined
   filter: string
   query: string
+  legacyOpen?: boolean
 }): PickerEntry[] {
   const hidden = new Set(input.hidden)
   const starred = new Set(input.starred)
   const refOf = (r: ModelRow) => modelRef(r.provider.id, r.model.id)
   const visible = (r: ModelRow) => !hidden.has(refOf(r)) || refOf(r) === input.current
   const scope =
-    input.filter === ALL_PROVIDERS || input.filter === STARRED
+    input.filter === STARRED || input.query.trim()
       ? input.providers
       : input.providers.filter((p) => p.id === input.filter)
   const out: PickerEntry[] = []
@@ -96,21 +133,14 @@ export function pickerEntries(input: {
     )
     return out
   }
-  if (input.filter !== ALL_PROVIDERS) {
-    push(searchModels(scope, "").filter(visible), false)
-    return out
-  }
-  const all = searchModels(scope, "")
-  const stars = all.filter((r) => starred.has(refOf(r)))
-  if (stars.length) {
-    out.push({ kind: "head", key: "head:starred", label: "Starred" })
-    push(stars, scope.length > 1)
-  }
-  for (const provider of scope) {
-    const rows = all.filter((r) => r.provider.id === provider.id && !starred.has(refOf(r)) && visible(r))
-    if (!rows.length) continue
-    out.push({ kind: "head", key: `head:${provider.id}`, label: provider.name, provider })
-    push(rows, false)
-  }
+  const rows = searchModels(scope, "").filter(visible)
+  const old = scope[0] ? legacyModelIds(scope[0].models) : new Set<string>()
+  const isLegacy = (r: ModelRow) => old.has(r.model.id) && !starred.has(refOf(r)) && refOf(r) !== input.current
+  const main = rows.filter((r) => !isLegacy(r))
+  push([...main.filter((r) => starred.has(refOf(r))), ...main.filter((r) => !starred.has(refOf(r)))], false)
+  const legacy = rows.filter(isLegacy)
+  if (!legacy.length) return out
+  out.push({ kind: "legacy", key: `legacy:${input.filter}`, count: legacy.length, open: !!input.legacyOpen })
+  if (input.legacyOpen) push(legacy, false)
   return out
 }
