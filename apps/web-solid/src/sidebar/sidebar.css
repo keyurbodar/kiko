@@ -121,7 +121,7 @@
   display: flex;
   flex-shrink: 0;
   flex-direction: column;
-  gap: 0;
+  gap: var(--spacing-nav-gap-row);
   padding: 6px 8px 0;
 }
 
@@ -153,7 +153,7 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  color: var(--fg2);
+  color: color-mix(in srgb, var(--fg) 78%, transparent);
 }
 
 .sidebar-shell .nav-label {
