@@ -39,9 +39,9 @@ export const THEMES = {
     label: "Kiko",
     accent: "#6aabf1",
     palette: {
-      canvas: "#191919",
+      canvas: "#151515",
       sidebar: "#1f1f1f",
-      text: "#efefef",
+      text: "#ededed",
       muted: "#9c9c9c",
       faint: "#757575",
       action: "#efefef",
@@ -167,8 +167,8 @@ export const THEMES = {
     label: "Paper",
     accent: "#1757ac",
     palette: {
-      canvas: "#ffffff",
-      sidebar: "#fafafa",
+      canvas: "#f9f9f7",
+      sidebar: "#f3f3f0",
       text: "#1a1a1a",
       muted: "#666666",
       faint: "#888888",
