@@ -18,14 +18,14 @@ const OPACITY = { "icon-secondary": 0.4 } as const
 
 const SIZE = {
   "nav-tab": 32,
-  "nav-gap": 8,
+  "nav-gap": 10,
   "nav-gap-row": 2,
   "nav-slot": 28,
   "nav-pad": 8,
-  "chat-row": 74,
+  "chat-row": 44,
   mascot: 32,
   avatar: 30,
-  "section-label": 28,
+  "section-label": 32,
   step: 28,
   control: 32,
   "control-big": 40,
@@ -33,7 +33,11 @@ const SIZE = {
   chip: 24,
   tab: 28,
   header: 48,
+  "top-bar": 52,
   sidebar: 288,
+  "rail-width": 56,
+  footer: 56,
+  "menu-min": 220,
 } as const
 
 type Face = "sans" | "display" | "mono"
@@ -42,20 +46,20 @@ type Type = Readonly<{ size: number; line: number; weight: number; face: Face; s
 const BASE = 14
 
 const TYPE = {
-  page: { size: 40, line: 44, weight: 400, face: "display", scales: false },
-  section: { size: 22, line: 28, weight: 400, face: "display", scales: false },
-  wordmark: { size: 24, line: 28, weight: 400, face: "display", scales: false },
+  page: { size: 40, line: 46, weight: 400, face: "display", scales: false },
+  section: { size: 22, line: 28, weight: 600, face: "sans", scales: false },
+  wordmark: { size: 21, line: 26, weight: 500, face: "display", scales: false },
   msg: { size: 16, line: 24, weight: 400, face: "sans", scales: true },
-  bubble: { size: 15, line: 24, weight: 400, face: "sans", scales: true },
-  ui: { size: 14, line: 20, weight: 435, face: "sans", scales: true },
-  row: { size: 14, line: 20, weight: 520, face: "sans", scales: true },
-  label: { size: 13, line: 17, weight: 435, face: "sans", scales: true },
-  hint: { size: 12, line: 17, weight: 435, face: "sans", scales: true },
-  caption: { size: 11, line: 15, weight: 435, face: "sans", scales: true },
-  micro: { size: 10, line: 14, weight: 435, face: "sans", scales: false },
-  nano: { size: 8, line: 11, weight: 435, face: "sans", scales: false },
-  heading: { size: 15, line: 21, weight: 520, face: "sans", scales: true },
-  code: { size: 13, line: 19, weight: 400, face: "mono", scales: true },
+  bubble: { size: 15, line: 22, weight: 400, face: "sans", scales: true },
+  ui: { size: 15, line: 22, weight: 400, face: "sans", scales: true },
+  row: { size: 14, line: 18, weight: 500, face: "sans", scales: true },
+  label: { size: 14, line: 20, weight: 500, face: "sans", scales: true },
+  hint: { size: 13, line: 18, weight: 400, face: "sans", scales: true },
+  caption: { size: 12, line: 16, weight: 400, face: "sans", scales: true },
+  micro: { size: 11, line: 14, weight: 600, face: "sans", scales: false },
+  nano: { size: 10, line: 13, weight: 500, face: "sans", scales: false },
+  heading: { size: 16, line: 22, weight: 600, face: "sans", scales: true },
+  code: { size: 13, line: 21, weight: 400, face: "mono", scales: true },
 } as const satisfies Record<string, Type>
 
 type TypeName = keyof typeof TYPE
