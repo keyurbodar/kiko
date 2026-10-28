@@ -216,14 +216,13 @@
 }
 
 .file-card-action:focus-visible {
-  box-shadow: var(--focus-ring);
   opacity: 1;
   pointer-events: auto;
   transform: none;
 }
 
 .file-card:has(.file-card-hit:focus-visible) {
-  box-shadow: var(--focus-ring);
+  background: var(--hover);
 }
 
 .file-card:has(.file-card-hit:focus-visible) .file-card-sheet {

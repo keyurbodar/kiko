@@ -180,8 +180,8 @@ export function Select<T>(props: {
                       id={`${id}-${i()}`}
                       role="option"
                       aria-selected={selected()}
-                      class="flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-row pr-2 pl-1.5 text-label text-fg transition-colors duration-(--dur-hover) hover:bg-[var(--fill-hover)]"
-                      classList={{ "bg-[var(--fill-hover)]": active() === i() }}
+                      class="flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-row pr-2 pl-1.5 text-label text-fg transition-colors duration-(--dur-hover) hover:bg-[var(--hover)]"
+                      classList={{ "bg-[var(--hover)]": active() === i() }}
                       data-option={String(option.value)}
                       onPointerMove={() => setActive(i())}
                       onClick={() => pick(option.value)}

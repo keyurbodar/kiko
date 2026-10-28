@@ -98,7 +98,7 @@
 }
 .ob-back-composer {
   height: 96px;
-  border-radius: var(--radius-sheet);
+  border-radius: 22px;
   background: var(--raise);
 }
 
@@ -109,7 +109,7 @@
   left: 36px;
   font-family: var(--font-family-display);
   font-variation-settings: var(--display-variation);
-  font-size: var(--type-section);
+  font-size: 23px;
   font-weight: 400;
   letter-spacing: -0.015em;
   line-height: 1;
@@ -129,7 +129,7 @@
   width: min(1000px, 100%);
   height: min(680px, 100%);
   min-height: 0;
-  border-radius: var(--radius-sheet);
+  border-radius: 28px;
   background: var(--raise);
   box-shadow:
     0 1px 0 color-mix(in oklab, var(--fg) 4%, transparent) inset,
@@ -162,7 +162,7 @@
   flex: 1;
   align-items: center;
   justify-content: center;
-  border-radius: 0 var(--radius-sheet) var(--radius-sheet) 0;
+  border-radius: 0 28px 28px 0;
   background: radial-gradient(circle at 50% 46%, var(--hover), var(--raise) 70%);
   animation: ob-fade var(--dur-step) var(--ease-kiko) both;
 }
@@ -172,7 +172,7 @@
   bottom: 26px;
   left: 0;
   color: var(--fg3);
-  font-size: var(--type-hint);
+  font-size: 12.5px;
   text-align: center;
 }
 
@@ -195,14 +195,14 @@
   height: 4px;
   flex: 1;
   overflow: hidden;
-  border-radius: var(--radius-full);
+  border-radius: 2px;
   background: var(--active);
 }
 .ob-segs > li::after {
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: var(--radius-full);
+  border-radius: 2px;
   background: var(--fg);
   transform: scaleX(0);
   transform-origin: left;
@@ -216,7 +216,7 @@
 }
 .ob-count {
   color: var(--fg3);
-  font-size: var(--type-hint);
+  font-size: 12.5px;
 }
 .ob-back {
   display: inline-flex;
@@ -225,10 +225,10 @@
   cursor: pointer;
   align-items: center;
   gap: 4px;
-  border-radius: var(--radius-control);
+  border-radius: 8px;
   padding: 0 8px;
   color: var(--fg3);
-  font-size: var(--type-label);
+  font-size: 13px;
   transition:
     color var(--dur-hover),
     background-color var(--dur-hover),
@@ -263,7 +263,7 @@
   color: var(--fg);
   font-family: var(--font-family-display);
   font-variation-settings: var(--display-variation);
-  font-size: var(--type-page);
+  font-size: 38px;
   font-weight: 400;
   letter-spacing: -0.015em;
   line-height: 44px;
@@ -272,7 +272,7 @@
   margin: -4px 0 0;
   flex: none;
   color: var(--fg2);
-  font-size: var(--type-ui);
+  font-size: 15px;
   line-height: 23px;
   overflow-wrap: anywhere;
 }
@@ -300,7 +300,7 @@
 .ob-label {
   padding: 0 4px;
   color: var(--fg3);
-  font-size: var(--type-hint);
+  font-size: 12.5px;
   font-weight: 500;
 }
 .ob-empty {
@@ -338,7 +338,7 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  font-size: var(--type-ui);
+  font-size: 15px;
   font-weight: 600;
   white-space: nowrap;
   transition:
@@ -413,10 +413,10 @@
   cursor: pointer;
   align-items: center;
   align-self: flex-start;
-  border-radius: var(--radius-control);
+  border-radius: 8px;
   padding: 0 4px;
   color: var(--fg3);
-  font-size: var(--type-label);
+  font-size: 13px;
   transition: color var(--dur-hover);
 }
 @media (hover: hover) and (pointer: fine) {
@@ -435,10 +435,10 @@
   cursor: pointer;
   align-items: center;
   justify-content: space-between;
-  border-radius: var(--radius-row);
+  border-radius: 10px;
   padding: 0 14px;
   color: var(--fg2);
-  font-size: var(--type-label);
+  font-size: 13.5px;
   font-weight: 600;
   transition:
     color var(--dur-hover),
@@ -461,18 +461,12 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.welcome-step :is(button, input, a):focus-visible,
-.ob-back:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
 .ob-field {
   width: 100%;
   height: var(--spacing-control-big);
   flex: none;
   border-radius: var(--radius-tile);
-  background: var(--fill);
+  background: var(--hover);
   box-shadow: inset 0 0 0 1px var(--field-ring);
   padding: 0 16px;
   color: var(--fg);
@@ -483,8 +477,7 @@
   color: var(--fg4);
 }
 .ob-field:focus {
-  outline: none;
-  box-shadow: var(--focus-ring);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--fg) 35%, transparent);
 }
 .ob-field[data-invalid] {
   box-shadow: inset 0 0 0 1.5px var(--bad);
@@ -493,7 +486,7 @@
 .ob-error {
   margin: 0;
   color: var(--bad);
-  font-size: var(--type-label);
+  font-size: 13.5px;
   line-height: 20px;
 }
 .ob-note {
@@ -502,7 +495,7 @@
   background: var(--hover);
   padding: 12px 14px;
   color: var(--fg2);
-  font-size: var(--type-label);
+  font-size: 13.5px;
   line-height: 20px;
 }
 .ob-resume {
@@ -533,7 +526,7 @@
   background: var(--fg);
   padding: 0 12px;
   color: var(--bg);
-  font-size: var(--type-label);
+  font-size: 13.5px;
   font-weight: 600;
   transition: transform var(--dur-hover) var(--ease-kiko);
 }
@@ -579,8 +572,8 @@
   font-weight: 600;
 }
 .ob-card[aria-checked="true"] {
-  background: var(--info-wash);
-  box-shadow: inset 0 0 0 1px var(--accent-edge);
+  background: var(--active);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--fg) 85%, transparent);
 }
 .ob-logo {
   display: inline-flex;
@@ -611,7 +604,7 @@
 .ob-card-note {
   overflow: hidden;
   color: var(--fg2);
-  font-size: var(--type-label);
+  font-size: 13px;
   line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -642,7 +635,7 @@
   align-items: center;
   gap: 4px;
   color: var(--ok);
-  font-size: var(--type-hint);
+  font-size: 12.5px;
   font-weight: 500;
   animation: ob-fade var(--dur-pop) var(--ease-kiko) both;
 }

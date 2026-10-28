@@ -45,7 +45,7 @@
 }
 
 .file-editor .cm-gutters {
-  color: var(--text-400);
+  color: var(--fg4);
   background: transparent;
 }
 
@@ -93,8 +93,8 @@
 }
 
 .file-view .fv-markdown {
-  font-size: var(--type-bubble);
-  line-height: 22px;
+  font-size: var(--type-msg);
+  line-height: 1.6;
   color: var(--fg);
 }
 
@@ -130,15 +130,16 @@
   position: relative;
   display: flex;
   padding: 2px;
-  border-radius: var(--radius-control);
-  background: var(--fill-control);
+  border-radius: 9px;
+  background: var(--panel);
 }
 
 .file-view-switch > .pill-indicator {
   top: 2px;
   bottom: 2px;
-  border-radius: var(--radius-control);
+  border-radius: 7px;
   background: var(--raise);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
 }
 
 .file-view-tab {
@@ -148,18 +149,14 @@
   height: 24px;
   align-items: center;
   gap: 4px;
-  padding: 0 7px;
-  border-radius: var(--radius-control);
-  color: var(--text-300);
-  font-size: var(--type-hint);
+  padding: 0 8px;
+  border-radius: 7px;
+  color: var(--fg3);
+  font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
   outline: none;
   transition: color var(--dur-hover) var(--ease-snap);
-}
-
-.file-view-tab:focus-visible {
-  box-shadow: var(--focus-ring);
 }
 
 .file-view-tab[aria-selected="true"] {

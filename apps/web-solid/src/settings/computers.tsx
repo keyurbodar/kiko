@@ -93,7 +93,7 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
           <button
             type="button"
             aria-label={copied() ? "Copied" : "Copy the command"}
-            class="absolute top-2 right-2 flex h-7 cursor-pointer items-center gap-1.5 rounded-control px-2 type-label text-fg2 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-[var(--fill-hover)] hover:text-fg active:scale-[0.96]"
+            class="absolute top-2 right-2 flex h-7 cursor-pointer items-center gap-1.5 rounded-control px-2 type-label text-fg2 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-[var(--hover)] hover:text-fg active:scale-[0.96]"
             data-action="computer-copy"
             data-copied={copied() ? "" : undefined}
             onClick={() => void copy()}
@@ -106,10 +106,10 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
         </div>
         <div class="flex items-center justify-between gap-3">
           <span class="flex min-w-0 flex-col gap-0.5" role="status" data-field="computer-waiting">
-            <span class="motion-shine w-fit type-ui text-[var(--text-300)]" style={SHINE}>
+            <span class="motion-shine w-fit type-ui text-[var(--fg3)]" style={SHINE}>
               Waiting for your computer
             </span>
-            <span class="type-hint text-[var(--text-400)]">
+            <span class="type-hint text-[var(--fg4)]">
               The code works once and expires in <span class="tabular-nums">{clock(left())}</span>
             </span>
           </span>
@@ -253,11 +253,11 @@ export default function Computers(): JSX.Element {
           fallback={
             <Show when={!pair()}>
               <div class="flex flex-col items-center gap-1 px-6 py-10 text-center" data-component="computers-empty">
-                <span class="mb-3 grid size-12 place-items-center rounded-pop bg-[var(--fill-control)] text-[var(--text-200)]">
+                <span class="mb-3 grid size-12 place-items-center rounded-pop bg-[var(--fill-control)] text-[var(--fg2)]">
                   <RemixIcon icon={MonitorIcon} size={24} />
                 </span>
                 <span class="type-row text-fg">No computers yet</span>
-                <span class="max-w-sm type-hint leading-[18px] text-[var(--text-300)]">
+                <span class="max-w-sm type-hint leading-[18px] text-[var(--fg3)]">
                   Add your Mac, PC or a server. Your agents can run commands there, and you can watch and take over.
                 </span>
                 <Button

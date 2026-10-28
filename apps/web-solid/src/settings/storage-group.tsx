@@ -54,11 +54,11 @@ export function StorageGroup() {
                 <span class="type-row text-fg" data-field="object-bytes">
                   {formatSize(s().objectBytes)}
                 </span>
-                <span class="type-label text-[var(--text-300)]">of {formatSize(OBJECT_LIMIT_BYTES)}</span>
-                <span class="ml-auto truncate type-label text-[var(--text-300)]">Stored in your Worker</span>
+                <span class="type-label text-[var(--fg3)]">of {formatSize(OBJECT_LIMIT_BYTES)}</span>
+                <span class="ml-auto truncate type-label text-[var(--fg3)]">Stored in your Worker</span>
               </div>
               <Meter storage={s()} />
-              <span class="type-label text-[var(--text-300)]">{about(s())}</span>
+              <span class="type-label text-[var(--fg3)]">{about(s())}</span>
               <Show when={nearlyFull(s())}>
                 <div data-part="storage-warning">
                   <Notice>

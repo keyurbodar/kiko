@@ -254,7 +254,7 @@ function RowBody(props: {
   return (
     <>
       <span class="chat-avatar" data-faces={faces().length}>
-        <ChatAvatar faces={faces()} size={28} />
+        <ChatAvatar faces={faces()} size={faces().length > 1 ? 26 : 25} />
       </span>
 
       <span class="chat-text">

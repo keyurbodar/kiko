@@ -23,7 +23,7 @@ function Keys(props: { keys: string; ref?: (el: HTMLSpanElement) => void }) {
     <span ref={props.ref} class="inline-flex items-center gap-1" data-field="keys">
       <For each={formatForDisplay(props.keys, { platform, parts: true })}>
         {(part) => (
-          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-tail bg-[var(--fill-field)] px-1 font-sans text-hint font-medium text-[var(--text-200)]">
+          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-tail bg-[var(--raise)] px-1 font-sans text-hint font-medium text-[var(--fg2)]">
             {part}
           </kbd>
         )}
@@ -113,7 +113,7 @@ function KeyRow(props: { command: Command }) {
       <div class="flex items-center gap-1">
         <button
           type="button"
-          class="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-6 rounded-row px-3 py-2 text-left outline-none transition-[background-color,transform] duration-(--dur-hover) ease-[var(--ease-out)] hover:bg-[var(--fill-hover)] focus-visible:shadow-[var(--focus-ring)] active:scale-[0.99]"
+          class="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-6 rounded-row px-3 py-2 text-left outline-none transition-[background-color,transform] duration-(--dur-hover) ease-[var(--ease-out)] hover:bg-[var(--hover)] active:scale-[0.99]"
           aria-label={
             recorder.isRecording()
               ? `Press the new shortcut for ${props.command.title}`
@@ -132,7 +132,7 @@ function KeyRow(props: { command: Command }) {
                 <Show when={problem() ?? claimed()}>
                   {(text) => (
                     <span
-                      class={cn("type-label", problem() ? "text-[var(--danger)]" : "text-[var(--text-300)]")}
+                      class={cn("type-label", problem() ? "text-[var(--danger)]" : "text-[var(--fg3)]")}
                       data-field="shortcut-note"
                     >
                       {text()}
@@ -141,7 +141,7 @@ function KeyRow(props: { command: Command }) {
                 </Show>
               }
             >
-              <span class="type-hint text-[var(--text-400)]">Esc to cancel, Backspace to remove</span>
+              <span class="type-hint text-[var(--fg4)]">Esc to cancel, Backspace to remove</span>
             </Show>
           </span>
           <span
@@ -153,7 +153,7 @@ function KeyRow(props: { command: Command }) {
             <Show
               when={!recorder.isRecording()}
               fallback={
-                <span class="motion-shine type-label text-[var(--text-300)]" style={SHINE}>
+                <span class="motion-shine type-label text-[var(--fg3)]" style={SHINE}>
                   Press keys
                 </span>
               }
@@ -161,7 +161,7 @@ function KeyRow(props: { command: Command }) {
               <Show
                 when={key()}
                 fallback={
-                  <span class="type-label text-[var(--text-300)] opacity-0 transition-opacity duration-(--dur-hover) group-hover/key:opacity-100 group-focus-within/key:opacity-100">
+                  <span class="type-label text-[var(--fg3)] opacity-0 transition-opacity duration-(--dur-hover) group-hover/key:opacity-100 group-focus-within/key:opacity-100">
                     Add shortcut
                   </span>
                 }

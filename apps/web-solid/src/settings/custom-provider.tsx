@@ -22,7 +22,7 @@ const addCustomProvider = (input: {
 function Field(props: { id: string; label: string; placeholder: string; ref: (el: HTMLInputElement) => void }) {
   return (
     <div class="flex flex-col gap-1.5">
-      <label class="type-label text-[var(--text-300)]" for={props.id}>
+      <label class="type-label text-[var(--fg3)]" for={props.id}>
         {props.label}
       </label>
       <input

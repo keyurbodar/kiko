@@ -17,7 +17,7 @@ const SEARCH_AFTER = 6
 
 function Glyph(props: { entry: Entry }): JSX.Element {
   return (
-    <span class="grid size-8 shrink-0 place-items-center rounded-control bg-[var(--fill-field)] text-[var(--text-200)]">
+    <span class="grid size-8 shrink-0 place-items-center rounded-control bg-[var(--raise)] text-[var(--fg2)]">
       <Show
         when={APPS[props.entry.id].icon}
         fallback={<span class="text-ui font-semibold text-fg">{props.entry.name.slice(0, 1).toUpperCase()}</span>}
@@ -98,14 +98,14 @@ export default function Tools(): JSX.Element {
           {(entry) => (
             <button
               type="button"
-              class="group flex min-h-control-big w-full cursor-pointer items-center gap-3 rounded-row px-2.5 py-2 text-left transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-[var(--fill-hover)] active:scale-[0.99] focus-visible:shadow-[var(--focus-ring)]"
+              class="group flex min-h-control-big w-full cursor-pointer items-center gap-3 rounded-row px-2.5 py-2 text-left transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-[var(--hover)] active:scale-[0.99]"
               data-tool={entry.key}
               onClick={() => setOpenId(entry.id)}
             >
               <Glyph entry={entry} />
               <span class="flex min-w-0 flex-1 flex-col">
                 <span class="truncate type-row text-fg">{entry.name}</span>
-                <span class="truncate type-label text-[var(--text-300)]">{entry.about}</span>
+                <span class="truncate type-label text-[var(--fg3)]">{entry.about}</span>
               </span>
               <Show
                 when={entry.state}

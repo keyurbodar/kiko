@@ -18,10 +18,12 @@
   flex-direction: column;
   overflow: clip;
   background: var(--side);
+  box-shadow: inset -1px 0 0 var(--line);
 }
 
 .sidebar-shell .panel[data-collapsed] {
   width: 0;
+  box-shadow: none;
 }
 
 .sidebar-shell .panel[data-collapsed] > * {
@@ -32,11 +34,11 @@
 .sidebar-shell .panel-header {
   position: relative;
   display: flex;
-  height: var(--spacing-header);
+  height: 52px;
   flex-shrink: 0;
   align-items: center;
   gap: 2px;
-  padding: 0 9px 0 18px;
+  padding: 4px 10px 0 18px;
 }
 
 .sidebar-shell :is(.panel-brand, .chat-row, .nav-row) {
@@ -47,9 +49,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text-000);
+  color: var(--fg);
   font-family: var(--font-family-display);
-  font-size: var(--type-wordmark);
+  font-size: 24px;
   font-weight: 400;
   font-variation-settings: var(--display-variation);
   letter-spacing: -0.015em;
@@ -74,10 +76,10 @@
   flex-shrink: 0;
   place-items: center;
   padding: 0;
-  color: var(--text-200);
+  color: var(--fg2);
   background: none;
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: 9px;
   cursor: pointer;
   appearance: none;
   transition:
@@ -90,8 +92,8 @@
   .sidebar-shell .panel-icon-button:hover,
   .sidebar-shell .top-bar-button:hover,
   .sidebar-shell .main-sidebar-toggle:hover {
-    color: var(--text-000);
-    background: var(--fill-hover);
+    color: var(--fg);
+    background: var(--hover);
   }
 }
 
@@ -101,7 +103,7 @@
 }
 
 .sidebar-shell .panel-header .panel-icon-button {
-  color: var(--text-200);
+  color: var(--fg3);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -127,8 +129,8 @@
   display: flex;
   flex-shrink: 0;
   flex-direction: column;
-  gap: var(--spacing-nav-gap-row);
-  padding: 4px 9px 0;
+  gap: 0;
+  padding: 6px 8px 0;
 }
 
 .sidebar-shell .nav-row {
@@ -137,15 +139,15 @@
   width: 100%;
   align-items: center;
   gap: 12px;
-  padding: 0 11px;
-  color: var(--text-100);
+  padding: 0 10px;
+  color: var(--fg);
   font: inherit;
   font-size: var(--type-ui);
   text-align: left;
   text-decoration: none;
   background: none;
   border: none;
-  border-radius: var(--radius-row);
+  border-radius: 9px;
   cursor: pointer;
   appearance: none;
   transition:
@@ -155,11 +157,7 @@
 
 .sidebar-shell .nav-icon {
   display: flex;
-  width: 20px;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-200);
+  color: var(--fg2);
 }
 
 .sidebar-shell .nav-label {
@@ -170,9 +168,9 @@
 .sidebar-shell .nav-kbd {
   margin-left: auto;
   padding-left: 12px;
-  color: var(--fg3);
+  color: var(--fg4);
   font: inherit;
-  font-size: var(--type-hint);
+  font-size: 11.5px;
   line-height: 16px;
   white-space: nowrap;
   opacity: 0;
@@ -199,31 +197,24 @@
   }
 }
 
+.sidebar-shell .nav-row[data-filled],
 .sidebar-shell .nav-row[data-active] {
-  color: var(--text-000);
-  background: var(--fill-selected);
-}
-
-.sidebar-shell .nav-row[data-active] .nav-icon {
-  color: var(--text-000);
+  background: var(--active);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .nav-row:hover {
-    background: var(--fill-hover);
+    background: var(--hover);
   }
 
-  .sidebar-shell .nav-row:hover .nav-icon {
-    color: var(--text-000);
-  }
-
+  .sidebar-shell .nav-row[data-filled]:hover,
   .sidebar-shell .nav-row[data-active]:hover {
-    background: var(--fill-selected);
+    background: color-mix(in oklab, var(--active) 88%, var(--fg));
   }
 }
 
 .sidebar-shell .nav-row:active {
-  transform: scale(var(--press-scale));
+  transform: scale(0.985);
   transition-duration: var(--dur-press);
 }
 
@@ -247,25 +238,24 @@
 
 .sidebar-shell .panel-foot {
   display: flex;
-  height: 56px;
+  height: 52px;
   flex-shrink: 0;
   align-items: center;
   gap: 4px;
-  padding: 0 9px;
+  padding: 6px 8px 4px;
 }
 
 .sidebar-shell .panel-me {
   display: flex;
-  height: 44px;
+  height: 40px;
   min-width: 0;
   flex: 1;
   align-items: center;
   gap: 10px;
-  padding: 0 8px;
-  color: var(--text-100);
+  padding: 0 8px 0 6px;
+  color: var(--fg);
   font: inherit;
   font-size: 14px;
-  line-height: 18px;
   text-decoration: none;
   background: none;
   border: none;
@@ -275,7 +265,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .panel-me:hover {
-    background: var(--fill-hover);
+    background: var(--hover);
   }
 }
 
@@ -305,7 +295,7 @@
 .sidebar-shell .chat-scroll {
   min-height: 0;
   flex: 1;
-  padding: 0 9px 8px;
+  padding: 0 8px 8px;
   overflow-y: auto;
   overscroll-behavior: contain;
   position: relative;
@@ -315,22 +305,21 @@
 
 .sidebar-shell .chat-section {
   display: flex;
-  height: 32px;
+  height: 28px;
   flex-shrink: 0;
   align-items: center;
-  gap: 4px;
-  margin-top: 18px;
-  padding: 0 4px 0 11px;
-  color: var(--text-300);
-  font-size: var(--type-hint);
-  font-weight: 400;
-  line-height: 18px;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 0 4px 0 10px;
+  color: var(--fg3);
+  font-size: var(--type-label);
+  font-weight: 500;
   user-select: none;
 }
 
 .sidebar-shell .chat-section-toggle {
   display: inline-flex;
-  height: 32px;
+  height: 28px;
   align-items: center;
   gap: 6px;
   padding: 0;
@@ -344,12 +333,12 @@
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-section-toggle:hover {
-    color: var(--text-200);
+    color: var(--fg2);
   }
 }
 
 .sidebar-shell .chat-section-chevron {
-  color: var(--text-300);
+  color: var(--fg4);
   transition: transform var(--dur-pop) var(--ease-kiko);
 }
 
@@ -369,10 +358,10 @@
   height: 24px;
   place-items: center;
   padding: 0;
-  color: var(--text-300);
+  color: var(--fg4);
   background: none;
   border: none;
-  border-radius: var(--radius-tail);
+  border-radius: 7px;
   cursor: pointer;
   transition:
     background var(--dur-hover) var(--ease-kiko),
@@ -382,8 +371,8 @@
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-section-button:hover {
-    color: var(--text-000);
-    background: var(--fill-hover);
+    color: var(--fg);
+    background: var(--hover);
   }
 }
 
@@ -411,10 +400,7 @@
 }
 
 .sidebar-shell .chat-fold-inner {
-  display: flex;
   min-height: 0;
-  flex-direction: column;
-  gap: 2px;
   overflow: hidden;
 }
 
@@ -527,14 +513,14 @@
   width: 100%;
   height: var(--spacing-chat-row);
   align-items: center;
-  gap: var(--spacing-nav-gap);
-  padding: 0 var(--spacing-nav-pad);
-  color: var(--text-100);
+  gap: 10px;
+  padding: 0 10px;
+  color: var(--fg);
   font-family: inherit;
   text-align: left;
   background: none;
   border: none;
-  border-radius: var(--radius-row);
+  border-radius: 10px;
   cursor: pointer;
   appearance: none;
   content-visibility: auto;
@@ -559,7 +545,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-row:hover {
-    background: var(--fill-hover);
+    background: var(--hover);
     transition:
       background var(--dur-hover) var(--ease-out),
       transform var(--dur-slow) var(--press-spring);
@@ -575,11 +561,11 @@
 
 .sidebar-shell .chat-row[data-active],
 .sidebar-shell .chat-row[data-menu-open] {
-  background: var(--fill-selected);
+  background: var(--active);
 }
 
 .sidebar-shell .chat-row:has(.chat-link:focus-visible) {
-  box-shadow: var(--focus-ring);
+  background: var(--hover);
 }
 
 .sidebar-shell .chat-link {
@@ -603,17 +589,17 @@
 
 .sidebar-shell .chat-row > button.chat-more {
   position: absolute;
-  top: 10px;
+  top: 5px;
   right: 6px;
   display: grid;
   width: 24px;
   height: 24px;
   place-items: center;
   padding: 0;
-  color: var(--text-200);
+  color: var(--fg3);
   background: none;
   border: none;
-  border-radius: var(--radius-tail);
+  border-radius: var(--radius-check);
   cursor: pointer;
   opacity: 0;
   transition:
@@ -644,8 +630,8 @@
   }
 
   .sidebar-shell .chat-more:hover {
-    color: var(--text-000);
-    background: var(--fill-hover);
+    color: var(--fg);
+    background: var(--hover);
   }
 }
 
@@ -657,7 +643,7 @@
     opacity: 1;
   }
 
-  .sidebar-shell .chat-row .chat-line:last-child {
+  .sidebar-shell .chat-row .chat-preview {
     padding-right: 26px;
   }
 
@@ -691,19 +677,21 @@
 
 .sidebar-shell .chat-glide {
   position: absolute;
-  border-radius: var(--radius-row);
-  background: var(--fill-selected);
+  border-radius: 10px;
+  background: var(--active);
   pointer-events: none;
 }
 
 .sidebar-shell .chat-avatar {
   position: relative;
   display: flex;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   flex: none;
   align-items: center;
   justify-content: center;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--fg) 5.5%, transparent);
 }
 
 .sidebar-shell .chat-live-ring,
@@ -732,7 +720,7 @@
   display: flex;
   min-width: 0;
   align-items: baseline;
-  gap: 8px;
+  gap: 6px;
   height: 18px;
 }
 
@@ -749,8 +737,8 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: var(--text-100);
-  font-size: 14px;
+  color: var(--fg2);
+  font-size: 13.5px;
   font-weight: 500;
   line-height: 18px;
   text-overflow: ellipsis;
@@ -759,7 +747,7 @@
 
 .sidebar-shell .chat-row[data-unread] .chat-name,
 .sidebar-shell .chat-row[data-active] .chat-name {
-  color: var(--text-000);
+  color: var(--fg);
 }
 
 .sidebar-shell .chat-row[data-unread] .chat-name {
@@ -768,7 +756,7 @@
 }
 
 .sidebar-shell .chat-row[data-muted] .chat-name {
-  color: var(--text-300);
+  color: var(--fg3);
 }
 
 .sidebar-shell .chat-muted-icon {
@@ -779,15 +767,14 @@
 
 .sidebar-shell .chat-time {
   flex-shrink: 0;
-  color: var(--text-300);
-  font-size: 12px;
-  line-height: 16px;
+  color: var(--fg4);
+  font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .sidebar-shell .chat-row[data-unread] .chat-time {
-  color: var(--text-200);
+  color: var(--fg2);
 }
 
 .sidebar-shell .chat-preview {
@@ -795,8 +782,8 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: var(--text-300);
-  font-size: var(--type-hint);
+  color: var(--fg3);
+  font-size: var(--type-label);
   line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -807,17 +794,21 @@
 }
 
 .sidebar-shell .chat-row[data-unread] .chat-preview {
-  color: var(--text-200);
+  color: var(--fg2);
+}
+
+.sidebar-shell .chat-row[data-muted] .chat-preview {
+  color: var(--fg4);
 }
 
 .sidebar-shell .chat-preview-from {
-  color: var(--text-200);
+  color: var(--fg2);
 }
 
 .sidebar-shell .chat-draft {
   flex: none;
-  color: var(--text-100);
-  font-size: var(--type-hint);
+  color: var(--fg2);
+  font-size: var(--type-label);
   font-weight: 500;
   line-height: 18px;
   animation: sidebar-fade-in var(--dur-pop) var(--ease-kiko) both;
@@ -828,12 +819,12 @@
   height: 6px;
   flex: none;
   border-radius: 50%;
-  background: var(--warning);
+  background: var(--warn);
 }
 
 .sidebar-shell .chat-not-sent {
   flex: none;
-  color: var(--danger);
+  color: var(--bad);
   font-size: var(--type-hint);
   line-height: 18px;
 }
@@ -842,7 +833,7 @@
   width: 10px;
   height: 10px;
   flex: none;
-  border: 1.5px solid var(--accent);
+  border: 1.5px solid var(--info);
   border-right-color: transparent;
   border-radius: 50%;
   animation: sidebar-spin 0.9s linear infinite;
@@ -864,9 +855,9 @@
   position: relative;
   z-index: 2;
   padding: 0;
-  color: var(--text-100);
+  color: var(--fg);
   font: inherit;
-  font-weight: 500;
+  font-weight: 600;
   text-decoration: underline;
   text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
   text-underline-offset: 2px;
@@ -876,7 +867,7 @@
 }
 
 .sidebar-shell .chat-mention {
-  color: var(--accent);
+  color: var(--info);
 }
 
 .sidebar-shell .chat-dot {
@@ -884,7 +875,7 @@
   height: 8px;
   flex: none;
   align-self: center;
-  background: var(--accent-unread);
+  background: var(--info);
   border-radius: 50%;
   animation: sidebar-dot-pop var(--dur-pop) var(--ease-pop) both;
 }
@@ -899,7 +890,7 @@
 .sidebar-shell .chat-pin-icon {
   flex-shrink: 0;
   align-self: center;
-  color: var(--text-300);
+  color: var(--fg4);
   transform-origin: 50% 100%;
 }
 
@@ -909,15 +900,8 @@
 
 .sidebar-shell .chat-shimmer {
   color: transparent;
-  background: linear-gradient(
-      90deg,
-      var(--text-300) 0%,
-      var(--text-300) 40%,
-      var(--text-000) 50%,
-      var(--text-300) 60%,
-      var(--text-300) 100%
-    )
-    0 0 / 300% 100%;
+  background: linear-gradient(90deg, var(--fg3) 0%, var(--fg3) 40%, var(--fg) 50%, var(--fg3) 60%, var(--fg3) 100%) 0
+    0 / 300% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   animation: sidebar-shimmer var(--shimmer-duration) linear infinite;
@@ -931,11 +915,11 @@
   margin: -2px 0 -2px -6px;
   color: var(--fg);
   font: inherit;
-  font-size: var(--type-label);
+  font-size: 13.5px;
   font-weight: 500;
   background: var(--raise);
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: 7px;
   outline: none;
   box-shadow: inset 0 0 0 1px var(--line2);
 }
@@ -997,7 +981,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar-shell .chat-shimmer {
-    color: var(--text-300);
+    color: var(--fg3);
     background: none;
     animation: none;
   }
