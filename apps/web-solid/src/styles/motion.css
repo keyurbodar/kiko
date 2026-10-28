@@ -1,10 +1,10 @@
 :root {
   --default-transition-duration: var(--dur-hover);
-  --default-transition-timing-function: var(--ease-kiko);
+  --default-transition-timing-function: var(--ease-out);
 
   --dur-exit: 140ms;
   --dur-page: 140ms;
-  --press-scale: 0.97;
+  --press-scale: 0.975;
   --press-scale-icon: 0.94;
 
   --motion-fast: var(--dur-hover);
@@ -108,7 +108,7 @@
   @keyframes motion-bubble-in {
     from {
       opacity: 0;
-      transform: translateY(14px);
+      transform: translateY(6px) scale(0.92);
     }
     to {
       opacity: 1;
@@ -129,7 +129,8 @@
   }
 
   .motion-bubble-in {
-    animation: motion-bubble-in var(--motion-rise) var(--ease-kiko) both;
+    transform-origin: bottom right;
+    animation: motion-bubble-in var(--dur-slow) var(--ease-pop) both;
   }
 
   @keyframes motion-reply-in {
@@ -144,7 +145,7 @@
   }
 
   .motion-reply-in {
-    animation: motion-reply-in var(--motion-reveal) var(--ease-kiko) both;
+    animation: motion-reply-in var(--dur-move) var(--ease-out) both;
   }
 
   @keyframes motion-overlay-in {
@@ -218,7 +219,7 @@
   @keyframes motion-origin-in {
     from {
       opacity: 0;
-      transform: scale(0.96);
+      transform: scale(0.98);
     }
     to {
       opacity: 1;
@@ -233,7 +234,7 @@
     }
     to {
       opacity: 0;
-      transform: scale(0.96);
+      transform: scale(0.98);
     }
   }
 
@@ -252,13 +253,13 @@
   [data-component="hover-card-v2-content"][data-expanded],
   [data-component="popover-v2-content"][data-expanded],
   .motion-popover-in {
-    animation: motion-origin-in var(--dur-pop) var(--ease-kiko) both;
+    animation: motion-origin-in var(--dur-pop) var(--ease-out) both;
   }
 
   [data-component="menu-v2-content"][data-closed],
   [data-component="hover-card-v2-content"][data-closed],
   [data-component="popover-v2-content"][data-closed] {
-    animation: motion-origin-out var(--dur-hover) var(--motion-ease-in) both;
+    animation: motion-origin-out 100ms var(--motion-ease-in) both;
   }
 
   [data-component="tooltip-v2"][data-expanded] {

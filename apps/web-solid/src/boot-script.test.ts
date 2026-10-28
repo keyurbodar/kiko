@@ -37,6 +37,6 @@ describe("index.html boot script", () => {
     const look = JSON.stringify({ version: 5, kind: "look", mode: "light", darkTheme: "kiko" })
     const { vars, classes } = paint({ "kiko:auth": "{}", "kiko:look": JSON.stringify({ v: 6, text: look }) })
     expect(classes.has("dark")).toBe(false)
-    expect(vars.get("--bg")).toBe("#ffffff")
+    expect(vars.get("--bg")).toBe("#fbfbfa")
   })
 })

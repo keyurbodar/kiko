@@ -81,7 +81,7 @@ export function Page(props: { title: string; description?: string; children: JSX
         <h1 class="settings-page-title">{props.title}</h1>
         <Show when={props.description}>
           {(description) => (
-            <p class="mt-1.5 max-w-xl text-hint leading-[18px] text-[var(--text-300)]">{description()}</p>
+            <p class="mt-1.5 max-w-xl text-ui leading-[22px] text-[var(--text-300)]">{description()}</p>
           )}
         </Show>
       </header>
@@ -108,7 +108,7 @@ export function Group(props: {
           <div class="min-w-0 flex-1">
             <Show when={local.title}>
               {(title) => (
-                <h2 class="flex min-h-[18px] items-center text-hint leading-[18px] text-[var(--text-300)]">
+                <h2 class="flex min-h-[20px] items-center text-label leading-5 font-medium text-[var(--text-100)]">
                   {title()}
                 </h2>
               )}

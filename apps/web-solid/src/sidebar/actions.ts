@@ -83,8 +83,8 @@ export function closeChat(id: string, active: string | null): void {
 const toastFor = new Map<string, number>()
 
 const deletes = createPendingDeletes({
-  undoMs: 6000,
-  foldMs: 200,
+  undoMs: 8000,
+  foldMs: 350,
   commit: (id) => {
     user.remove(id as RoomId)
     clearUnreadMark(id)

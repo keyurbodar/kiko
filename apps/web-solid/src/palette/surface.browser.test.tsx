@@ -69,8 +69,8 @@ const source = (over: Partial<TabData> = {}): TabData => ({
   ...over,
 })
 
-let panelEl: HTMLElement
-const panel = () => page.elementLocator(panelEl)
+let panelEl: HTMLElement | undefined
+const panel = () => page.elementLocator(panelEl ?? document.querySelector<HTMLElement>(".palette-panel")!)
 const tab = (name: string) => page.getByRole("tab", { name })
 
 async function open(over?: Partial<TabData>) {
@@ -227,7 +227,7 @@ describe("command palette", () => {
     const scrim = document.querySelector<HTMLElement>(".palette-scrim")
     if (scrim) {
       expect(scrim).toHaveAttribute("data-closing")
-      expect(getComputedStyle(panelEl).visibility).toBe("hidden")
+      expect(getComputedStyle(panelEl!).visibility).toBe("hidden")
       expect(getComputedStyle(scrim, "::before").animationDuration).toBe("0.08s")
     }
     await expect.element(panel()).not.toBeInTheDocument()

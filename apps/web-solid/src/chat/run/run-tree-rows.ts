@@ -1,5 +1,5 @@
 import type { RunStep } from "@kiko/protocol"
-import { anyRunning, extraInput, iconOf, liveLabel, pathOf, type StepIcon, summarizeSteps } from "./run-log"
+import { anyRunning, extraInput, iconOf, liveLabel, pathOf, sourcesOf, type StepIcon, summarizeSteps } from "./run-log"
 import type { RunSummary } from "./run-summary"
 
 export type DetailStatus = "idle" | "loading" | "ready" | "error"
@@ -26,6 +26,7 @@ export type StepItem = Span & {
   failed: boolean
   meta?: string
   target?: { path: string; folder: boolean }
+  sources: readonly string[]
   detail: RowDetail
 }
 
@@ -138,6 +139,7 @@ function stepItem(step: RunStep, status: DetailStatus): StepItem {
     ...(step.endedAt === undefined ? {} : { endedAt: step.endedAt }),
     ...(icon ? { icon } : {}),
     ...(target ? { target } : {}),
+    sources: sourcesOf(step),
     detail: { input: extraInput(step), output: step.output, failed: step.status === "failed", running, status },
   }
 }

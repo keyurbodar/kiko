@@ -45,12 +45,7 @@ const LABELS: Record<RunErrorAction, string> = {
   open_settings: "Settings",
 }
 
-export function ActivityEvent(props: {
-  message: ChatMessage
-  name: (slug: string) => string
-  latest?: boolean
-  group?: boolean
-}) {
+export function ActivityEvent(props: { message: ChatMessage; name: (slug: string) => string; latest?: boolean }) {
   const row = createMemo(() => eventRow(props.message, props.name))
   const failed = () =>
     props.message.event?.kind === "run_error"
@@ -107,7 +102,6 @@ export function ActivityEvent(props: {
                 reason={r().detail}
                 note={r().note}
                 actions={actions()}
-                group={props.group}
                 latest={props.latest}
                 data-message-id={props.message.id}
               />

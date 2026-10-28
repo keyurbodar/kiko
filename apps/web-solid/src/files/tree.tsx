@@ -14,7 +14,7 @@ import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show, t
 import { setFileDrag } from "../lib/file-drag"
 import "./tree.css"
 import { createParent, dirname, HOME, join, loadExpanded, pathsUnder, ROOT, saveExpanded } from "./model"
-import { KDS_FILE_TREE_ICONS } from "./tree-icons"
+import { KIKO_FILE_ICONS } from "../lib/entry-icon-pierre"
 import { syncTree } from "./tree-sync"
 
 export type FileTreeProps = {
@@ -41,7 +41,6 @@ const TREE_CSS = `
 		--trees-selected-fg-override: var(--fg);
 		--trees-border-color-override: var(--border-100);
 		--trees-indent-guide-bg-override: var(--border-100);
-		--trees-file-icon-color: var(--text-300);
 		--trees-font-family-override: var(--font-family-sans);
 		--trees-font-size-override: var(--type-hint);
 		--trees-fg-muted-override: var(--text-300);
@@ -55,9 +54,7 @@ const TREE_CSS = `
 	}
 	button[data-type='item'], button[data-type='item']::before { border-radius: var(--radius-row); }
 	button[data-type='item'] [data-item-section='spacing-item'] { opacity: 1; }
-	button[data-type='item'] [data-item-section='icon'] > [data-icon-token] { color: var(--text-300); }
 	button[data-type='item'] [data-item-section='icon'] > [data-icon-name='file-tree-icon-chevron'] { width: 13px; height: 13px; color: var(--text-300); }
-	button[data-type='item'][data-item-selected='true'] [data-item-section='icon'] > [data-icon-token],
 	button[data-type='item'][data-item-selected='true'] [data-item-section='icon'] > [data-icon-name='file-tree-icon-chevron'] { color: var(--fg); }
 	svg[data-icon-name='t3-tree-icon-loading'] { opacity: 0.6; }
 	@media (prefers-reduced-motion: no-preference) {
@@ -228,7 +225,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
     const expanded = loadExpanded(props.roomId, storage()).map(asFolder)
     const instance = new Pierre({
       paths: wanted(),
-      icons: KDS_FILE_TREE_ICONS,
+      icons: KIKO_FILE_ICONS,
       itemHeight: 32,
       flattenEmptyDirectories: true,
       initialExpansion: "closed",
@@ -377,7 +374,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
           value={query()}
           onValue={setQuery}
         />
-        <TooltipV2 placement="bottom" openDelay={400} value="New file">
+        <TooltipV2 placement="bottom" openDelay={500} value="New file">
           <button
             type="button"
             class="kt-btn"
@@ -388,7 +385,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
             <RemixIcon icon={FileAddIcon} size={16} />
           </button>
         </TooltipV2>
-        <TooltipV2 placement="bottom" openDelay={400} value="New folder">
+        <TooltipV2 placement="bottom" openDelay={500} value="New folder">
           <button
             type="button"
             class="kt-btn"
@@ -402,7 +399,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
         <Show when={folderSet().size > 0}>
           <TooltipV2
             placement="bottom"
-            openDelay={400}
+            openDelay={500}
             value={allOpen() ? "Collapse all folders" : "Expand all folders"}
           >
             <button

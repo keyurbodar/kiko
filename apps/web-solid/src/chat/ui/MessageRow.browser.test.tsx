@@ -28,18 +28,45 @@ const row = (group: boolean) => (
 )
 
 describe("MessageRow avatars", () => {
-  it("shows no avatar and no gutter in a one-to-one chat", async () => {
+  it("shows the agent avatar and gutter in a one-to-one chat", async () => {
     await using screen = await render(() => row(false))
-
-    expect(screen.container.querySelector('[data-component="chat-run-avatar"]')).toBeNull()
-    expect(screen.container.querySelector('[data-component="chat-row"]')!.className).not.toContain("pl-[calc")
-  })
-
-  it("keeps the avatar and gutter in a group chat", async () => {
-    await using screen = await render(() => row(true))
 
     expect(screen.container.querySelector('[data-component="chat-run-avatar"]')).toBeTruthy()
     expect(screen.container.querySelector('[data-component="chat-row"]')!.className).toContain("pl-[calc")
+    expect(screen.container.querySelector('[data-component="chat-sender"]')).toBeNull()
+  })
+
+  it("names the sender inside the first bubble in a group chat", async () => {
+    await using screen = await render(() => row(true))
+
+    expect(screen.container.querySelector('[data-component="chat-run-avatar"]')).toBeTruthy()
+    expect(
+      screen.container.querySelector('[data-slot="bubble-content"] [data-component="chat-sender"]')?.textContent,
+    ).toBe("kiko")
+  })
+
+  it("keeps your own messages free of an avatar", async () => {
+    await using screen = await render(() => (
+      <MessageRow
+        message={{ ...message, sender: "user", botId: undefined }}
+        bot={undefined}
+        quote={null}
+        isRunStart
+        isRunEnd
+        hasRunGapBefore={false}
+        onOpenReplyTarget={() => {}}
+      />
+    ))
+
+    expect(screen.container.querySelector('[data-component="chat-run-avatar"]')).toBeNull()
+  })
+})
+
+describe("MessageRow time", () => {
+  it("puts the send time inside the bubble", async () => {
+    await using screen = await render(() => row(false))
+
+    expect(screen.container.querySelector('[data-slot="bubble-content"] [data-component="bubble-time"]')).toBeTruthy()
   })
 })
 

@@ -63,8 +63,8 @@
   --bubble-pad-y: 7px;
   --bubble-pad-x: 12px;
 
-  --row-gap: 1px;
-  --run-gap: 11px;
+  --row-gap: 2px;
+  --run-gap: 12px;
 
   --spring250-easing: linear(
     0,
@@ -154,16 +154,22 @@
   --side: #1f1f1f;
   --panel: color-mix(in srgb, #ffffff 2.61%, #191919);
   --raise: color-mix(in srgb, #ffffff 7%, #191919);
-  --hover: color-mix(in srgb, #ffffff 7.45%, #191919);
-  --active: color-mix(in srgb, #ffffff 15%, #191919);
-  --fill: color-mix(in srgb, #ffffff 10%, #191919);
-  --fill-hover: color-mix(in srgb, #ffffff 14%, #191919);
+  --hover: color-mix(in srgb, #ffffff 7.5%, transparent);
+  --active: color-mix(in srgb, #ffffff 15%, transparent);
+  --fill: color-mix(in srgb, #ffffff 10%, transparent);
+  --fill-field: color-mix(in srgb, #ffffff 5%, transparent);
+  --fill-hover: color-mix(in srgb, #ffffff 7.5%, transparent);
+  --fill-control: color-mix(in srgb, #ffffff 10%, transparent);
+  --fill-control-hover: color-mix(in srgb, #ffffff 14%, transparent);
+  --fill-selected: color-mix(in srgb, #ffffff 15%, transparent);
+  --fill-pressed: color-mix(in srgb, #ffffff 20%, transparent);
   --ghost: color-mix(in oklab, #efefef 7.45%, transparent);
   --field-ring: transparent;
-  --me: color-mix(in srgb, #ffffff 10.2%, #191919);
-  --kiko-bubble: color-mix(in srgb, #ffffff 5.1%, #191919);
-  --line: color-mix(in srgb, #ffffff 10%, #191919);
-  --line2: color-mix(in srgb, #ffffff 20%, #191919);
+  --me: color-mix(in srgb, #ffffff 10%, #191919);
+  --kiko-bubble: color-mix(in srgb, #ffffff 5.65%, #191919);
+  --line: color-mix(in srgb, #ffffff 10%, transparent);
+  --line2: color-mix(in srgb, #ffffff 20%, transparent);
+  --line3: color-mix(in srgb, #ffffff 40%, transparent);
   --fg: #efefef;
   --fg2: #9c9c9c;
   --fg3: #757575;
@@ -182,27 +188,40 @@
   --scrollbar-thumb: color-mix(in oklab, #efefef 18%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #efefef 30%, transparent);
   --card-shadow: none;
+  --chip-file: #32a9e7;
+  --chip-mention: #32aec7;
+  --chip-pdf: #f97873;
+  --chip-word: #51a5ef;
+  --chip-sheet: #5ab26a;
+  --chip-slides: #e18b47;
+  --chip-epub: #a58fff;
 }
 
 :root:not(.dark) {
-  --bg: #ffffff;
-  --side: #fafafa;
-  --panel: color-mix(in srgb, #000000 2.35%, #ffffff);
-  --raise: color-mix(in srgb, #000000 5.1%, #ffffff);
-  --hover: color-mix(in srgb, #000000 5.1%, #ffffff);
-  --active: color-mix(in srgb, #000000 8%, #ffffff);
-  --fill: color-mix(in srgb, #000000 6%, #ffffff);
-  --fill-hover: color-mix(in srgb, #000000 9%, #ffffff);
-  --ghost: color-mix(in oklab, #1a1a1a 5.1%, transparent);
-  --field-ring: color-mix(in oklab, #1a1a1a 10%, transparent);
-  --me: color-mix(in srgb, #000000 5.1%, #ffffff);
-  --kiko-bubble: color-mix(in srgb, #000000 2.35%, #ffffff);
-  --line: color-mix(in srgb, #000000 8%, #ffffff);
-  --line2: color-mix(in srgb, #000000 15%, #ffffff);
-  --fg: #1a1a1a;
-  --fg2: #5a5a5a;
-  --fg3: #717171;
-  --fg4: color-mix(in srgb, #000000 35%, #ffffff);
+  --bg: #fbfbfa;
+  --side: #f4f4f3;
+  --panel: color-mix(in srgb, #000000 2.35%, #fbfbfa);
+  --raise: #ffffff;
+  --hover: color-mix(in srgb, #000000 4.5%, transparent);
+  --active: color-mix(in srgb, #000000 8%, transparent);
+  --fill: color-mix(in srgb, #000000 6%, transparent);
+  --fill-field: color-mix(in srgb, #000000 2.5%, transparent);
+  --fill-hover: color-mix(in srgb, #000000 4.5%, transparent);
+  --fill-control: color-mix(in srgb, #000000 6%, transparent);
+  --fill-control-hover: color-mix(in srgb, #000000 9%, transparent);
+  --fill-selected: color-mix(in srgb, #000000 8%, transparent);
+  --fill-pressed: color-mix(in srgb, #000000 11%, transparent);
+  --ghost: color-mix(in oklab, #1f1f1f 5.1%, transparent);
+  --field-ring: color-mix(in oklab, #1f1f1f 10%, transparent);
+  --me: color-mix(in srgb, #000000 6.2%, #fbfbfa);
+  --kiko-bubble: #ffffff;
+  --line: color-mix(in srgb, #000000 8%, transparent);
+  --line2: color-mix(in srgb, #000000 15%, transparent);
+  --line3: color-mix(in srgb, #000000 32%, transparent);
+  --fg: #1f1f1f;
+  --fg2: #4a4a4a;
+  --fg3: #6b6b6b;
+  --fg4: color-mix(in srgb, #000000 35%, #fbfbfa);
   --on-fg: #ffffff;
   --ok: #006c10;
   --bad: #a42528;
@@ -214,9 +233,16 @@
   --leaf: #2f9e5b;
   --info-wash: color-mix(in srgb, var(--accent-fill) 12%, transparent);
   --bad-wash: color-mix(in srgb, #a42528 12%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #1a1a1a 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #1a1a1a 30%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #1f1f1f 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #1f1f1f 30%, transparent);
   --card-shadow: 0 0 0 1px rgb(0 0 0 / 6%), 0 4px 24px rgb(0 0 0 / 4%);
+  --chip-file: #0068a3;
+  --chip-mention: #006d86;
+  --chip-pdf: #b33739;
+  --chip-word: #0066ac;
+  --chip-sheet: #11732f;
+  --chip-slides: #9e4d00;
+  --chip-epub: #6b51bc;
 }
 /* palette:end */
 
@@ -228,14 +254,9 @@
   --bg-300: color-mix(in srgb, #000000 25%, var(--bg));
   --bg-400: color-mix(in srgb, #000000 50%, var(--bg));
   --accent: var(--info);
-  --fill-selected: var(--active);
-  --fill-field: color-mix(in srgb, #ffffff 5%, transparent);
-  --fill-control: var(--fill);
-  --fill-control-hover: var(--fill-hover);
-  --fill-pressed: color-mix(in srgb, #ffffff 20%, transparent);
   --border-100: var(--line);
   --border-200: var(--line2);
-  --border-300: color-mix(in srgb, #ffffff 40%, transparent);
+  --border-300: var(--line3);
   --bubble-agent: var(--kiko-bubble);
   --bubble-me: var(--me);
   --sunken: var(--bg-300);
@@ -251,10 +272,29 @@
   --danger-fill: var(--bad-wash);
   --warning: var(--warn);
   --on-primary: var(--on-fg);
+  --text-000: color-mix(in srgb, #ffffff 40%, var(--fg));
+  --text-100: var(--fg);
   --text-200: #c2c2c2;
   --text-300: #9e9e9e;
   --text-400: #6e6e6e;
   --dur-press: 60ms;
+  --press-spring: linear(
+    0,
+    0.2459,
+    0.6526,
+    0.9468,
+    1.0764,
+    1.0915,
+    1.0585,
+    1.0219,
+    0.9993,
+    0.9914,
+    0.9921,
+    0.9957,
+    0.9988,
+    1.0004,
+    1
+  );
   --dur-move: 300ms;
   --dur-slow: 450ms;
   --delay-tooltip: 500ms;
@@ -269,16 +309,14 @@
   --bg-400: color-mix(in srgb, #000000 12%, var(--bg));
   --sunken: var(--bg-300);
   --backdrop: var(--bg-400);
-  --fill-field: color-mix(in srgb, #000000 2.5%, transparent);
-  --fill-pressed: color-mix(in srgb, #000000 11%, transparent);
-  --border-300: color-mix(in srgb, #000000 32%, transparent);
+  --text-000: color-mix(in srgb, #000000 40%, var(--fg));
   --selection: color-mix(in srgb, var(--info) 20%, transparent);
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 8%);
   --shadow-pop: 0 8px 24px rgb(0 0 0 / 8%), 0 2px 6px rgb(0 0 0 / 6%);
   --shadow-float: 0 24px 64px rgb(0 0 0 / 14%), 0 4px 12px rgb(0 0 0 / 6%);
-  --text-200: #5f5f5f;
-  --text-300: #707070;
-  --text-400: #8a8a8a;
+  --text-200: #4a4a4a;
+  --text-300: #6b6b6b;
+  --text-400: #a3a3a3;
 }
 
 ::selection {
@@ -287,17 +325,17 @@
 /* kds:end */
 
 :root {
-  --popover: color-mix(in srgb, #fff 10%, var(--bg));
+  --popover: var(--bg-000);
   --popover-fg: var(--fg);
-  --popover-hover: color-mix(in srgb, var(--fg) 7.45%, var(--popover));
-  --popover-edge: color-mix(in srgb, var(--fg) 12%, transparent);
+  --popover-hover: var(--fill-hover);
+  --popover-edge: var(--border-100);
   --popover-shadow: 0 8px 24px rgb(0 0 0 / 32%), 0 2px 6px rgb(0 0 0 / 20%);
   --float-shadow: 0 0 0 1px var(--popover-edge), var(--popover-shadow);
   --menu-shadow: var(--float-shadow);
-  --tooltip-bg: var(--popover);
+  --tooltip-bg: var(--bg-300);
   --tooltip-fg: var(--fg);
-  --tooltip-edge: var(--popover-edge);
-  --focus-ring: inset 0 0 0 1px var(--bg), 0 0 0 1px var(--info), 0 0 6px 1px var(--info-wash);
+  --tooltip-edge: var(--border-100);
+  --focus-ring: 0 0 0 1px var(--bg), 0 0 0 3px var(--accent);
   --scrim: rgb(0 0 0 / 50%);
   --scrim-blur: blur(6px) saturate(0.7);
   --dock-bg: var(--bg);
@@ -306,16 +344,13 @@
 
 :root:not(.dark) {
   color-scheme: light;
-  --popover: var(--bg);
-  --popover-hover: color-mix(in srgb, var(--fg) 5.1%, var(--popover));
-  --popover-shadow: 0 8px 24px rgb(0 0 0 / 12%), 0 2px 6px rgb(0 0 0 / 8%);
-  --tooltip-bg: var(--fg);
-  --tooltip-fg: var(--bg);
-  --tooltip-edge: transparent;
-  --scrim: rgb(0 0 0 / 40%);
+  --popover-shadow: 0 8px 24px rgb(0 0 0 / 8%), 0 2px 6px rgb(0 0 0 / 6%);
+  --scrim: rgb(0 0 0 / 32%);
 }
 
 @theme {
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
   --font-sans: var(--font-family-sans);
   --font-display: var(--font-family-display);
   --font-mono: var(--font-family-mono);
@@ -328,33 +363,33 @@
 /* system:start */
 :root {
   --type-page: 40px;
-  --type-page-line: 1.15;
+  --type-page-line: 46px;
   --type-section: 22px;
-  --type-section-line: 1.27;
-  --type-wordmark: 21px;
-  --type-wordmark-line: 1.24;
+  --type-section-line: 28px;
+  --type-wordmark: 24px;
+  --type-wordmark-line: 28px;
   --type-msg: 16px;
-  --type-msg-line: 1.5;
+  --type-msg-line: 24px;
   --type-bubble: 15px;
-  --type-bubble-line: 1.47;
+  --type-bubble-line: 22px;
   --type-ui: 15px;
-  --type-ui-line: 1.47;
+  --type-ui-line: 22px;
   --type-row: 14px;
-  --type-row-line: 1.29;
+  --type-row-line: 18px;
   --type-label: 14px;
-  --type-label-line: 1.43;
+  --type-label-line: 20px;
   --type-hint: 13px;
-  --type-hint-line: 1.38;
+  --type-hint-line: 18px;
   --type-caption: 12px;
-  --type-caption-line: 1.33;
+  --type-caption-line: 16px;
   --type-micro: 11px;
-  --type-micro-line: 1.27;
+  --type-micro-line: 14px;
   --type-nano: 10px;
-  --type-nano-line: 1.3;
+  --type-nano-line: 13px;
   --type-heading: 16px;
-  --type-heading-line: 1.38;
+  --type-heading-line: 22px;
   --type-code: 13px;
-  --type-code-line: 1.62;
+  --type-code-line: 21px;
   --dur-hover: 120ms;
   --dur-pop: 200ms;
   --dur-step: 400ms;
@@ -440,17 +475,18 @@
 }
 
 @utility type-section {
-  font-family: var(--font-family-sans);
+  font-family: var(--font-family-display);
   font-size: var(--type-section);
   line-height: var(--type-section-line);
-  font-weight: 600;
+  font-weight: 400;
+  font-variation-settings: var(--display-variation);
 }
 
 @utility type-wordmark {
   font-family: var(--font-family-display);
   font-size: var(--type-wordmark);
   line-height: var(--type-wordmark-line);
-  font-weight: 500;
+  font-weight: 400;
   font-variation-settings: var(--display-variation);
 }
 
@@ -479,14 +515,14 @@
   font-family: var(--font-family-sans);
   font-size: var(--type-row);
   line-height: var(--type-row-line);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 @utility type-label {
   font-family: var(--font-family-sans);
   font-size: var(--type-label);
   line-height: var(--type-label-line);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 @utility type-hint {
@@ -507,21 +543,21 @@
   font-family: var(--font-family-sans);
   font-size: var(--type-micro);
   line-height: var(--type-micro-line);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 @utility type-nano {
   font-family: var(--font-family-sans);
   font-size: var(--type-nano);
   line-height: var(--type-nano-line);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 @utility type-heading {
   font-family: var(--font-family-sans);
   font-size: var(--type-heading);
   line-height: var(--type-heading-line);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 @utility type-code {
@@ -545,6 +581,10 @@
   --color-active: var(--active);
   --color-fill: var(--fill);
   --color-fill-hover: var(--fill-hover);
+  --color-fill-selected: var(--fill-selected);
+  --color-fill-control: var(--fill-control);
+  --color-fill-control-hover: var(--fill-control-hover);
+  --color-fill-field: var(--fill-field);
   --color-me: var(--me);
   --color-line: var(--line);
   --color-line2: var(--line2);
@@ -846,4 +886,9 @@ html {
 [data-component="app-shell"]:not([data-section="chat"]) {
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+:root.dark {
+  --font-weight-medium: 480;
+  --font-weight-semibold: 580;
 }

@@ -245,6 +245,27 @@ function Detail(props: { detail: RowDetail; onRetry: () => void }) {
   )
 }
 
+const SOURCES_SHOWN = 3
+
+function Sources(props: { hosts: readonly string[] }) {
+  const hidden = () => props.hosts.length - SOURCES_SHOWN
+  return (
+    <div class="run-tree-sources" data-component="run-sources">
+      <For each={props.hosts.slice(0, SOURCES_SHOWN)}>
+        {(host) => (
+          <span class="run-tree-source" title={host}>
+            <i aria-hidden="true">{host.charAt(0).toUpperCase()}</i>
+            {host}
+          </span>
+        )}
+      </For>
+      <Show when={hidden() > 0}>
+        <span class="run-tree-source-more">+{hidden()}</span>
+      </Show>
+    </div>
+  )
+}
+
 function StepRow(props: { step: StepItem; view: View }) {
   const open = () => props.view.isOpen(props.step.id)
   const opensFile = () => !!props.step.target && !props.step.target.folder
@@ -293,6 +314,9 @@ function StepRow(props: { step: StepItem; view: View }) {
           )}
         </Show>
       </button>
+      <Show when={props.step.sources.length > 0}>
+        <Sources hosts={props.step.sources} />
+      </Show>
       <Show when={open()}>
         <Detail detail={props.step.detail} onRetry={props.view.retry} />
       </Show>

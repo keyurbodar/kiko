@@ -53,7 +53,7 @@ export default function UpdatePill() {
       <div class="px-2 pb-1" data-component="update-pill-row">
         <TooltipV2
           placement="top"
-          openDelay={400}
+          openDelay={500}
           value={<Versions note={offered() === "reconnect" ? "Your chats stay." : undefined} />}
         >
           <Switch>

@@ -53,7 +53,7 @@ function ViewSwitch(props: { view: FileView; mode: keyof typeof PREVIEW_LABEL })
 function MoreActions(props: { wrap: boolean; onExpand?: () => void }) {
   return (
     <MenuV2 gutter={4} placement="bottom-end">
-      <TooltipV2 placement="bottom" openDelay={400} value="More">
+      <TooltipV2 placement="bottom" openDelay={500} value="More">
         <MenuV2.Trigger class={ACTION} aria-label="More file actions" data-action="file-more">
           <RemixIcon icon={MoreIcon} size={16} />
         </MenuV2.Trigger>

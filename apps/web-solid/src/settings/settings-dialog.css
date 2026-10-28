@@ -28,13 +28,13 @@
 }
 
 .settings-title {
-  padding: 0 10px 12px;
+  padding: 0 10px 14px;
   color: var(--fg);
-  font-family: var(--font-family-sans);
-  font-size: var(--type-section);
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: var(--type-section-line);
+  font-family: var(--font-family-display);
+  font-size: 24px;
+  font-weight: 400;
+  font-variation-settings: var(--display-variation);
+  line-height: 30px;
 }
 
 .settings-nav-heading {
@@ -137,12 +137,12 @@
 }
 
 .settings-nav-row[aria-current="page"] {
-  color: var(--fg);
-  background: var(--active);
+  color: var(--text-000);
+  background: var(--fill-selected);
 }
 
 .settings-nav-glide {
-  background: var(--active);
+  background: var(--fill-selected);
   border-radius: var(--radius-row);
 }
 

@@ -1,5 +1,5 @@
-import { EmptyArt } from "../components/empty-art"
 import { fileName } from "@kiko/protocol"
+import { EmptyState } from "../settings/kit"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { FilterHorizontalIcon, GridIcon, MenuIcon, PlusIcon, UploadIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
@@ -139,14 +139,13 @@ function Upload(props: { onFiles: (files: File[]) => void; primary?: boolean }) 
 
 function Empty(props: { onFiles: (files: File[]) => void }) {
   return (
-    <div class="flex flex-col items-center gap-2 px-6 py-14 text-center" data-component="files-empty">
-      <EmptyArt name="folder" size={140} />
-      <p class="type-ui mt-2 text-fg2">No files here yet.</p>
-      <p class="type-label text-fg3">Drop files anywhere on this page, or upload them.</p>
-      <div class="mt-3">
-        <Upload onFiles={props.onFiles} primary />
-      </div>
-    </div>
+    <EmptyState
+      art="folder"
+      title="No files yet"
+      line="Files from chats and uploads land here. Drop some anywhere on this page."
+      action={<Upload onFiles={props.onFiles} primary />}
+      data-component="files-empty"
+    />
   )
 }
 
@@ -359,10 +358,12 @@ export default function FilesPage() {
               <Show
                 when={shown().length}
                 fallback={
-                  <div class="flex flex-col items-center gap-2 px-6 py-12 text-center" data-component="files-no-match">
-                    <EmptyArt name="search" />
-                    <p class="type-ui text-fg2">Nothing matches.</p>
-                  </div>
+                  <EmptyState
+                    art="search"
+                    title="No results"
+                    line="Try another name, or clear the filter."
+                    data-component="files-no-match"
+                  />
                 }
               >
                 <Show when={view() === "grid"} fallback={<ListView shown={shown()} open={open} />}>

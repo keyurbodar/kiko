@@ -50,7 +50,7 @@ async function pngOf(src: string): Promise<Blob> {
 
 function Tool(props: { label: string; icon: Glyph; onClick?: () => void; children?: JSX.Element }) {
   return (
-    <TooltipV2 placement="bottom" openDelay={400} value={props.label}>
+    <TooltipV2 placement="bottom" openDelay={500} value={props.label}>
       {props.children ?? (
         <button type="button" class={TOOL} aria-label={props.label} onClick={() => props.onClick?.()}>
           <RemixIcon icon={props.icon} size={16} />

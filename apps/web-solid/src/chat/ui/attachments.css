@@ -1,27 +1,37 @@
 .att-grid {
   display: grid;
-  width: 100%;
-  max-width: 210px;
-  gap: 8px;
-  grid-template-columns: repeat(2, 1fr);
+  width: fit-content;
+  max-width: 100%;
+  gap: 4px;
+  grid-template-columns: repeat(2, 150px);
+  grid-auto-rows: 120px;
 }
 
-.att-grid[data-single] {
-  max-width: 240px;
-  grid-template-columns: 1fr;
+.att-grid[data-count="1"] {
+  grid-template-columns: minmax(0, 280px);
+  grid-auto-rows: auto;
+}
+
+.att-grid[data-count="2"] {
+  grid-template-columns: repeat(2, 170px);
+  grid-auto-rows: 170px;
 }
 
 .att-grid > button {
   position: relative;
   display: block;
-  aspect-ratio: 4 / 3;
   min-height: 0;
   padding: 0;
   overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--fg) 12%, transparent);
-  border-radius: var(--radius-control);
-  background: var(--active);
+  border: 0;
+  border-radius: 10px;
+  background: var(--fill-control);
+  box-shadow: var(--edge);
   cursor: zoom-in;
+}
+
+.att-grid:is([data-count="1"], [data-count="2"]) > button {
+  border-radius: 16px;
 }
 
 .att-grid > button img,
@@ -33,6 +43,13 @@
   pointer-events: none;
 }
 
+.att-grid[data-count="1"] > button :is(img, video) {
+  width: auto;
+  max-width: 280px;
+  height: auto;
+  max-height: 320px;
+}
+
 .att-play {
   position: absolute;
   inset: 0;
@@ -42,18 +59,41 @@
   background: color-mix(in oklab, black 30%, transparent);
 }
 
+.att-more {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 600;
+  background: rgb(0 0 0 / 50%);
+}
+
 .att-files {
   display: flex;
-  min-width: 240px;
+  min-width: min(280px, 100%);
   flex-direction: column;
+  gap: 6px;
 }
 
 .att-file {
   display: flex;
+  height: 44px;
   min-width: 0;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
+  gap: 4px;
+  padding: 0 6px 0 12px;
+  border-radius: 14px;
+  box-shadow: var(--edge);
+}
+
+[data-slot="bubble"][data-variant="ghost"] .att-file {
+  background: var(--bubble-fill);
+}
+
+[data-slot="bubble"][data-variant="ghost"][data-align="end"] .att-file {
+  background: var(--bubble-me);
 }
 
 .att-open {
@@ -61,48 +101,47 @@
   min-width: 0;
   flex: 1;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  padding: 0;
+  color: var(--text-100);
   text-align: start;
+  background: none;
+  border: 0;
   cursor: pointer;
 }
 
-.att-file + .att-file {
-  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--fg) 8%, transparent);
-}
-
 .att-tile {
-  display: grid;
-  width: 40px;
-  height: 40px;
+  display: flex;
   flex: none;
-  place-items: center;
-  border-radius: var(--radius-row);
-  background: var(--active);
+  color: var(--text-200);
 }
 
 .att-name {
+  min-width: 0;
+  flex: 1;
   overflow: hidden;
-  font-size: var(--type-heading);
-  font-weight: 500;
+  font-size: var(--type-label);
   line-height: 20px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .att-meta {
-  color: var(--fg3);
-  font-size: var(--type-label);
+  flex: none;
+  color: var(--text-300);
+  font-size: var(--type-caption);
   line-height: 16px;
+  font-variant-numeric: tabular-nums;
 }
 
 .att-download {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   flex: none;
   place-items: center;
   border-radius: var(--radius-control);
-  color: var(--fg3);
+  color: var(--text-300);
   transition:
     background var(--dur-hover) var(--ease-kiko),
     color var(--dur-hover) var(--ease-kiko);
@@ -110,13 +149,13 @@
 
 @media (hover: hover) and (pointer: fine) {
   .att-file:hover .att-download {
-    background: var(--active);
-    color: var(--fg);
+    background: var(--fill-hover);
+    color: var(--text-000);
   }
 }
 
 .att-download:active {
-  transform: scale(0.96);
+  transform: scale(var(--press-scale));
 }
 
 .att-foot {
@@ -125,7 +164,6 @@
   justify-content: space-between;
   gap: 12px;
   padding: 6px 0 2px;
-  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--fg) 8%, transparent);
 }
 
 .att-foot-action {
@@ -135,8 +173,8 @@
   gap: 6px;
   padding: 0 6px;
   border-radius: var(--radius-control);
-  color: var(--fg2);
-  font-size: var(--type-label);
+  color: var(--text-200);
+  font-size: var(--type-hint);
   cursor: pointer;
   transition:
     background var(--dur-hover) var(--ease-kiko),
@@ -145,7 +183,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .att-foot-action:hover {
-    background: var(--active);
-    color: var(--fg);
+    background: var(--fill-hover);
+    color: var(--text-000);
   }
 }

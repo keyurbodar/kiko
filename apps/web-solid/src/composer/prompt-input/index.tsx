@@ -334,7 +334,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
           <div class="composer-footer">
             <div class="composer-tray">
               <Show when={!props.answering}>
-                <TooltipV2 placement="top" openDelay={400} value={i18n.t("ui.promptInput.add")}>
+                <TooltipV2 placement="top" openDelay={500} value={i18n.t("ui.promptInput.add")}>
                   <button
                     type="button"
                     class="composer-icon"

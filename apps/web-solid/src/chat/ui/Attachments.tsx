@@ -11,29 +11,7 @@ import { messageGallery, type DialogImage } from "./chat-images"
 import "./attachments.css"
 
 const FILES_SHOWN = 3
-
-const KINDS: Record<string, string> = {
-  pdf: "PDF",
-  doc: "Word",
-  docx: "Word",
-  xls: "Spreadsheet",
-  xlsx: "Spreadsheet",
-  csv: "CSV",
-  md: "Markdown",
-  txt: "Text",
-  zip: "Archive",
-  json: "JSON",
-  ppt: "Slides",
-  pptx: "Slides",
-}
-
-function fileMeta(name: string, size: number): string {
-  const dot = name.lastIndexOf(".")
-  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : ""
-  const kind = KINDS[ext] ?? (ext ? ext.toUpperCase() : "")
-  const bytes = formatBytes(size)
-  return kind ? `${kind}, ${bytes}` : bytes
-}
+const TILES_SHOWN = 4
 
 const dragProps = (file: MessageFile) => ({
   draggable: file.path !== undefined,
@@ -56,14 +34,16 @@ export function MessageAttachments(props: {
   const split = () => splitFiles(props.files)
   const gallery = () => messageGallery(props.files)
   const media = () => [...split().images, ...split().videos]
+  const tiles = () => media().slice(0, TILES_SHOWN)
+  const hidden = () => media().length - TILES_SHOWN
   const [allFiles, setAllFiles] = createSignal(false)
   const files = () => (allFiles() ? split().others : split().others.slice(0, FILES_SHOWN))
   const moreFiles = () => split().others.length - FILES_SHOWN
   return (
-    <div class="flex flex-col gap-2" data-component="chat-attachments">
+    <div class="flex flex-col gap-1.5" data-component="chat-attachments">
       <Show when={media().length > 0}>
-        <div class="att-grid" data-single={media().length === 1 ? "" : undefined}>
-          <For each={media()}>
+        <div class="att-grid" data-count={Math.min(media().length, 3)}>
+          <For each={tiles()}>
             {(file, i) => (
               <button
                 type="button"
@@ -79,6 +59,11 @@ export function MessageAttachments(props: {
                   <video src={`${file.src}#t=0.1`} preload="metadata" muted playsinline tabindex={-1} />
                   <span class="att-play" aria-hidden="true">
                     <RemixIcon icon={PlayIcon} size={16} />
+                  </span>
+                </Show>
+                <Show when={i() === TILES_SHOWN - 1 && hidden() > 0}>
+                  <span class="att-more" aria-hidden="true">
+                    +{hidden()}
                   </span>
                 </Show>
               </button>
@@ -103,10 +88,8 @@ export function MessageAttachments(props: {
                   <span class="att-tile">
                     <EntryIcon path={file.name} />
                   </span>
-                  <span class="flex min-w-0 flex-1 flex-col">
-                    <span class="att-name">{file.name}</span>
-                    <span class="att-meta">{fileMeta(file.name, file.size)}</span>
-                  </span>
+                  <span class="att-name">{file.name}</span>
+                  <span class="att-meta">{formatBytes(file.size)}</span>
                 </button>
                 <button
                   type="button"

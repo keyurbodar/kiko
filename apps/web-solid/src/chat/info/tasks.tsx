@@ -1,7 +1,6 @@
 import { For, Show } from "solid-js"
 import { room } from "../../state/room"
 import { user } from "../../state/user"
-import { TasksIcon } from "@kiko/ui/icons"
 import { leadName, PanelEmpty } from "./empty"
 import { TaskList } from "./task-list"
 import { groupTasks, TASK_LABEL } from "./tasks-model"
@@ -16,7 +15,7 @@ export function TasksView() {
         fallback={
           <PanelEmpty
             component="tasks-empty"
-            icon={TasksIcon}
+            art="tasks"
             title="No tasks yet"
             line={`${leadName()} adds a plan here when there is work to track.`}
           />
