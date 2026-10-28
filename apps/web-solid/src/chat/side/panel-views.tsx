@@ -1,10 +1,12 @@
-import { createSignal, Show } from "solid-js"
+import { createMemo, createSignal, Show } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CloseIcon, ExpandIcon, MenuIcon, MoreIcon, SearchIcon } from "@kiko/ui/icons"
+import { CloseIcon, ExpandIcon, MoreIcon, SearchIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { FileSurface, FilesTree } from "../../files/pane"
 import type { FileTreeHandle } from "../../files/tree"
+import { room } from "../../state/room"
+import { user } from "../../state/user"
 import { MemoryError, MemoryList, useMemoryStore } from "../info/memory/views"
 import { RoutinesPage } from "../info/routines"
 import { TasksView } from "../info/tasks"
@@ -17,10 +19,10 @@ const HEADER_BUTTON =
   "grid size-8 shrink-0 place-items-center rounded-control text-fg2 transition-colors duration-(--dur-hover) hover:bg-hover hover:text-fg aria-pressed:bg-active aria-pressed:text-fg"
 
 function FilesHeader(props: {
+  count?: number
   search: boolean
   tree: boolean
   onSearch: () => void
-  onTree: () => void
   onNewFile: () => void
   onNewFolder: () => void
   onToggleAll: () => void
@@ -29,45 +31,49 @@ function FilesHeader(props: {
 }) {
   return (
     <header class="flex h-[52px] shrink-0 items-center gap-2 px-4" data-component="files-panel-header">
-      <h2 class="min-w-0 flex-1 type-label font-medium text-fg">Files</h2>
+      <div class="flex min-w-0 flex-1 items-baseline gap-2">
+        <h2 class="min-w-0 truncate type-label font-medium text-fg">Files</h2>
+        <Show when={props.count !== undefined}>
+          <span class="shrink-0 text-caption text-[var(--text-300)] tabular-nums">{props.count}</span>
+        </Show>
+      </div>
       <div class="flex items-center gap-1">
-        <TooltipV2 placement="bottom" openDelay={500} value="Filter files">
-          <button
-            type="button"
-            class={HEADER_BUTTON}
-            aria-label="Filter files"
-            aria-pressed={props.search}
-            data-action="filter-files"
-            onClick={props.onSearch}
-          >
-            <RemixIcon icon={SearchIcon} size={18} />
-          </button>
-        </TooltipV2>
-        <TooltipV2 placement="bottom" openDelay={500} value="Show file tree">
-          <button
-            type="button"
-            class={HEADER_BUTTON}
-            aria-label="Show file tree"
-            aria-pressed={props.tree}
-            data-action="toggle-file-tree"
-            onClick={props.onTree}
-          >
-            <RemixIcon icon={MenuIcon} size={18} />
-          </button>
-        </TooltipV2>
+        <Show when={props.tree}>
+          <TooltipV2 placement="bottom" openDelay={500} value="Filter files">
+            <button
+              type="button"
+              class={HEADER_BUTTON}
+              aria-label="Filter files"
+              aria-pressed={props.search}
+              data-action="filter-files"
+              onClick={props.onSearch}
+            >
+              <RemixIcon icon={SearchIcon} size={18} />
+            </button>
+          </TooltipV2>
+        </Show>
         <MenuV2 gutter={4} placement="bottom-end">
           <MenuV2.Trigger class={HEADER_BUTTON} aria-label="File options" data-action="file-options">
             <RemixIcon icon={MoreIcon} size={18} />
           </MenuV2.Trigger>
           <MenuV2.Portal>
-            <MenuV2.Content class="min-w-48">
-              <MenuV2.CheckboxItem checked={props.tree} onChange={props.onTree} closeOnSelect={false}>
-                Show file tree
-              </MenuV2.CheckboxItem>
-              <MenuV2.Separator />
-              <MenuV2.Item onSelect={props.onNewFile}>New file</MenuV2.Item>
-              <MenuV2.Item onSelect={props.onNewFolder}>New folder</MenuV2.Item>
-              <MenuV2.Item onSelect={props.onToggleAll}>Expand or collapse folders</MenuV2.Item>
+            <MenuV2.Content class="min-w-48" onCloseAutoFocus={(event: Event) => event.preventDefault()}>
+              <Show
+                when={props.tree}
+                fallback={
+                  <MenuV2.Item onSelect={props.onExpand} disabled={props.onExpand === undefined}>
+                    Open full size
+                  </MenuV2.Item>
+                }
+              >
+                <MenuV2.Item onSelect={props.onNewFile}>New file</MenuV2.Item>
+                <MenuV2.Item onSelect={props.onNewFolder}>New folder</MenuV2.Item>
+                <MenuV2.Item onSelect={props.onToggleAll}>Expand or collapse folders</MenuV2.Item>
+                <Show when={props.onExpand}>
+                  <MenuV2.Separator />
+                  <MenuV2.Item onSelect={props.onExpand}>Open full size</MenuV2.Item>
+                </Show>
+              </Show>
             </MenuV2.Content>
           </MenuV2.Portal>
         </MenuV2>
@@ -102,35 +108,28 @@ function FilesHeader(props: {
 
 function FilesLayout(props: { chatId: string; path?: string; close: () => void; onExpand?: () => void }) {
   const [search, setSearch] = createSignal(true)
-  const [tree, setTree] = createSignal(true)
   let handle: FileTreeHandle | undefined
+  const tree = () => props.path === undefined
+  const count = createMemo(() => room.files().length + user.homeFiles().length)
   return (
     <div class="flex min-h-0 min-w-0 flex-1 flex-col" data-component="files-workspace">
       <FilesHeader
+        count={tree() ? count() : undefined}
         search={search()}
         tree={tree()}
         onSearch={() => setSearch(!search())}
-        onTree={() => setTree(!tree())}
-        onNewFile={() => {
-          setTree(true)
-          handle?.newFile()
-        }}
-        onNewFolder={() => {
-          setTree(true)
-          handle?.newFolder()
-        }}
+        onNewFile={() => handle?.newFile()}
+        onNewFolder={() => handle?.newFolder()}
         onToggleAll={() => handle?.toggleAll()}
         onExpand={props.onExpand}
         onClose={props.close}
       />
-      <div class="flex min-h-0 flex-1" data-component="files-split">
-        <FileSurface chatId={props.chatId} path={props.path} />
-        <Show when={tree()}>
-          <div class="files-tree-rail" data-component="files-tree-rail">
-            <FilesTree ref={(value) => (handle = value)} chatId={props.chatId} searchOpen={search()} />
-          </div>
-        </Show>
-      </div>
+      <Show
+        when={props.path}
+        fallback={<FilesTree ref={(value) => (handle = value)} chatId={props.chatId} searchOpen={search()} />}
+      >
+        {(path) => <FileSurface chatId={props.chatId} path={path()} />}
+      </Show>
     </div>
   )
 }
