@@ -62,7 +62,7 @@
 
 .thinking-stream {
   width: min(36rem, 100%);
-  max-height: min(280px, 36vh);
+  max-height: 24rem;
   margin-left: 9px;
   padding: 2px 0 2px 18px;
   overflow-y: auto;
@@ -71,7 +71,6 @@
   color: var(--fg3);
   font-size: var(--type-ui);
   line-height: 22px;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;
 }
@@ -132,18 +131,16 @@
       motion-shine var(--dur-shimmer) steps(30) infinite;
     animation-play-state: running, var(--visible-animation-state, paused);
   }
-  .thinking-stream {
-    animation: thinking-fade var(--dur-pop) var(--ease-kiko) backwards;
+  .thinking-stream[data-streaming] > * {
+    transition: opacity 600ms ease-out;
+
+    @starting-style {
+      opacity: 0;
+    }
   }
   .thinking-leaving {
     visibility: visible;
     animation: thinking-leave 220ms var(--ease-kiko) forwards;
-  }
-}
-
-@keyframes thinking-fade {
-  from {
-    opacity: 0;
   }
 }
 
