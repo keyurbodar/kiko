@@ -2,7 +2,9 @@
   display: grid;
   width: 100%;
   max-width: 210px;
-  gap: 8px;
+  gap: 2px;
+  overflow: hidden;
+  border-radius: var(--radius-bubble);
   grid-template-columns: repeat(2, 1fr);
 }
 
@@ -18,8 +20,7 @@
   min-height: 0;
   padding: 0;
   overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--fg) 12%, transparent);
-  border-radius: var(--radius-control);
+  border: 0;
   background: var(--active);
   cursor: zoom-in;
 }
@@ -82,7 +83,7 @@
 
 .att-name {
   overflow: hidden;
-  font-size: var(--type-heading);
+  font-size: var(--type-ui);
   font-weight: 500;
   line-height: 20px;
   text-overflow: ellipsis;

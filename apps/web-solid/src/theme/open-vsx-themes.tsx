@@ -88,7 +88,7 @@ function VariantCard(props: { theme: ImportedTheme; label: string; onRemove?: ()
         onClick={() => wear(props.theme)}
       >
         <span
-          class="relative block rounded-tile transition-shadow duration-(--dur-pop) ease-kiko group-focus-visible/variant:shadow-[var(--focus-ring)]"
+          class="relative block rounded-tile transition-shadow duration-(--dur-pop) ease-kiko"
           classList={{
             "shadow-[0_0_0_2px_var(--raise),0_0_0_3.5px_var(--fg2)]": isShowing(props.theme),
             "theme-preview-hover": !isShowing(props.theme),

@@ -9,7 +9,7 @@ export function BrandTile(props: { children: JSX.Element; size?: "row" | "head" 
   return (
     <span
       class={cn(
-        "grid shrink-0 place-items-center overflow-hidden rounded-tile bg-[var(--fill-field)] text-[var(--text-200)]",
+        "grid shrink-0 place-items-center overflow-hidden rounded-tile bg-[var(--raise)] text-[var(--fg2)]",
         props.size === "head" ? "size-10" : "size-8",
       )}
       aria-hidden="true"
@@ -23,14 +23,14 @@ export function ConnectHead(props: { icon: JSX.Element; hint?: JSX.Element }): J
   return (
     <div class="flex items-center gap-3 pb-1" data-component="connect-head">
       <BrandTile size="head">{props.icon}</BrandTile>
-      <Show when={props.hint}>{(hint) => <p class="min-w-0 type-label text-[var(--text-300)]">{hint()}</p>}</Show>
+      <Show when={props.hint}>{(hint) => <p class="min-w-0 type-label text-[var(--fg3)]">{hint()}</p>}</Show>
     </div>
   )
 }
 
 export function OrDivider(props: { children: JSX.Element }): JSX.Element {
   return (
-    <div class="flex items-center gap-3 type-hint text-[var(--text-400)]" role="separator">
+    <div class="flex items-center gap-3 type-hint text-[var(--fg4)]" role="separator">
       <span class="h-px flex-1 bg-line2" />
       {props.children}
       <span class="h-px flex-1 bg-line2" />
@@ -66,7 +66,7 @@ export function SecretInput(props: {
   const [shown, setShown] = createSignal(false)
   return (
     <div class="flex flex-col gap-1.5">
-      <label class="type-label text-[var(--text-300)]" for={props.id}>
+      <label class="type-label text-[var(--fg3)]" for={props.id}>
         {props.label}
       </label>
       <div class="relative flex items-center">
@@ -85,7 +85,7 @@ export function SecretInput(props: {
         />
         <button
           type="button"
-          class="absolute right-1 grid size-7 cursor-pointer place-items-center rounded-control text-[var(--text-300)] transition-colors duration-(--dur-hover) hover:bg-[var(--fill-hover)] hover:text-fg aria-pressed:text-fg"
+          class="absolute right-1 grid size-7 cursor-pointer place-items-center rounded-control text-[var(--fg3)] transition-colors duration-(--dur-hover) hover:bg-[var(--hover)] hover:text-fg aria-pressed:text-fg"
           aria-label={shown() ? "Hide key" : "Show key"}
           aria-pressed={shown()}
           onClick={() => setShown(!shown())}

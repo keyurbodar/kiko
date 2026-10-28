@@ -3,11 +3,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   border-radius: var(--radius-control);
   font-style: normal;
   font-weight: 500;
-  font-size: var(--type-label);
+  font-size: var(--type-ui);
   line-height: 20px;
   color: var(--fg);
   font-variant-numeric: tabular-nums;
@@ -25,32 +25,33 @@
 
 [data-component="button-v2"][data-size="small"] {
   height: 28px;
-  padding: 0 10px;
+  padding: 0 11px;
   border-radius: var(--radius-control);
-  font-size: var(--type-hint);
+  font-size: var(--type-row);
 }
 
 [data-component="button-v2"][data-size="normal"] {
   height: 32px;
-  padding: 0 12px;
+  padding: 0 14px;
 }
 
 [data-component="button-v2"][data-size="large"] {
-  height: 36px;
-  padding: 0 14px;
-  border-radius: var(--radius-control);
+  height: var(--spacing-control-big);
+  padding: 0 22px;
+  border-radius: var(--radius-pop);
+  font-size: var(--type-msg);
 }
 
 [data-component="button-v2"][data-icon][data-size="small"] {
-  padding-left: 8px;
+  padding-left: 9px;
 }
 
 [data-component="button-v2"][data-icon][data-size="normal"] {
-  padding-left: 10px;
+  padding-left: 11px;
 }
 
 [data-component="button-v2"][data-icon][data-size="large"] {
-  padding-left: 12px;
+  padding-left: 18px;
 }
 
 [data-component="button-v2"] [data-slot="icon-svg"] {
@@ -80,7 +81,7 @@
 }
 
 [data-component="button-v2"][data-variant="neutral"] {
-  background-color: var(--fill);
+  background-color: var(--active);
   color: var(--fg);
 }
 
@@ -102,7 +103,7 @@
 }
 
 [data-component="button-v2"][data-variant="warning"] {
-  background-color: var(--fill);
+  background-color: var(--active);
   color: var(--fg);
 }
 
@@ -153,10 +154,6 @@
 [data-component="button-v2"][data-variant="ghost-muted"]:where([data-expanded]):not(:disabled) {
   background-color: var(--active);
   color: var(--fg);
-}
-
-[data-component="button-v2"]:focus-visible {
-  box-shadow: var(--focus-ring);
 }
 
 @media (prefers-reduced-motion: reduce) {

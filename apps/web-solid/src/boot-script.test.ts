@@ -27,16 +27,16 @@ describe("index.html boot script", () => {
   it("paints the Kiko dark palette before the app loads", () => {
     const { vars, classes } = paint({})
     expect(classes.has("dark")).toBe(true)
-    expect(vars.get("--bg")).toBe("#191919")
-    expect(vars.get("--fg")).toBe("#efefef")
-    expect(vars.get("--type-ui")).toBe("15px")
-    expect(vars.get("--type-section")).toBe("22px")
+    expect(vars.get("--bg")).toBe("#121212")
+    expect(vars.get("--fg")).toBe("#ededed")
+    expect(vars.get("--type-ui")).toBe("14px")
+    expect(vars.get("--type-section")).toBe("26px")
   })
 
   it("keeps a saved light mode for a signed-in owner", () => {
     const look = JSON.stringify({ version: 5, kind: "look", mode: "light", darkTheme: "kiko" })
     const { vars, classes } = paint({ "kiko:auth": "{}", "kiko:look": JSON.stringify({ v: 6, text: look }) })
     expect(classes.has("dark")).toBe(false)
-    expect(vars.get("--bg")).toBe("#fbfbfa")
+    expect(vars.get("--bg")).toBe("#ffffff")
   })
 })

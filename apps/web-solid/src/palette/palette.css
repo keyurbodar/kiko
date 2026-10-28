@@ -26,10 +26,10 @@
   max-height: min(40rem, calc(100dvh - 2 * max(16px, 4vh)));
   display: flex;
   flex-direction: column;
-  background: var(--popover);
+  background: var(--raise);
   color: var(--fg);
-  border-radius: var(--radius-pop);
-  box-shadow: var(--edge), var(--shadow-float);
+  border-radius: var(--radius-sheet);
+  box-shadow: var(--edge-strong), var(--shadow-float);
   overflow: hidden;
 }
 .palette-bar {
@@ -49,7 +49,7 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: var(--type-heading);
+  font-size: 17px;
 }
 .palette-input::placeholder {
   color: var(--fg4);
@@ -65,11 +65,11 @@
   align-items: center;
   height: 24px;
   padding: 0 8px;
-  border-radius: var(--radius-control);
+  border-radius: 7px;
   background: var(--active);
   color: var(--fg3);
   font-family: var(--font-sans);
-  font-size: var(--type-hint);
+  font-size: 11.5px;
   font-weight: 500;
 }
 
@@ -84,11 +84,11 @@
 .palette-tab {
   position: relative;
   z-index: 1;
-  height: 28px;
+  height: 30px;
   padding: 0 12px;
-  border-radius: var(--radius-control);
+  border-radius: 9px;
   color: var(--fg2);
-  font-size: var(--type-label);
+  font-size: 13.5px;
   font-weight: 500;
   transition: color var(--dur-hover) var(--ease-kiko);
 }
@@ -104,9 +104,9 @@
   position: absolute;
   top: 0;
   left: 0;
-  height: 28px;
-  border-radius: var(--radius-control);
-  background: var(--fill-control);
+  height: 30px;
+  border-radius: 9px;
+  background: var(--active);
 }
 .palette-pill[data-ready] {
   transition:
@@ -119,8 +119,8 @@
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  padding: 4px 20px 6px;
-  font-size: var(--type-label);
+  padding: 10px 20px 4px;
+  font-size: 13px;
   color: var(--fg3);
 }
 .palette-crumb {
@@ -184,29 +184,29 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 32px;
-  padding: 0 8px;
+  gap: 12px;
+  min-height: 42px;
+  padding: 6px 12px;
   border-radius: var(--radius-row);
-  font-size: var(--type-ui);
-  line-height: 22px;
+  font-size: 14px;
+  line-height: 20px;
   cursor: default;
   transition: background-color var(--dur-hover) var(--ease-snap);
 }
 .palette-row[data-two] {
-  min-height: 44px;
-  padding-block: 4px;
+  min-height: 56px;
+  padding-block: 8px;
 }
 .palette-row[data-picked="true"] {
-  background: var(--fill-hover);
+  background: var(--hover);
 }
 .palette-glide {
   background: var(--active);
 }
 .palette-group [cmdk-group-heading] {
-  padding: 12px 8px 4px;
-  color: var(--text-300);
-  font-size: var(--type-hint);
+  padding: 12px 12px 6px;
+  color: var(--fg3);
+  font-size: var(--type-label);
   font-weight: 500;
 }
 .palette-label {
@@ -232,8 +232,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-300);
-  font-size: var(--type-hint);
+  color: var(--fg3);
+  font-size: 12.5px;
   line-height: 18px;
 }
 .palette-from {
@@ -244,14 +244,14 @@
   display: inline-flex;
   flex-shrink: 0;
   justify-content: center;
-  width: 24px;
-  color: var(--text-300);
+  width: 28px;
+  color: var(--fg2);
 }
 .palette-file-icon {
   display: inline-flex;
   flex-shrink: 0;
   justify-content: center;
-  width: 24px;
+  width: 28px;
 }
 .palette-file-icon svg {
   width: 18px;
@@ -271,7 +271,7 @@
 .palette-meta {
   flex-shrink: 0;
   color: var(--fg4);
-  font-size: var(--type-hint);
+  font-size: 12.5px;
 }
 .palette-meta[data-tone="bad"] {
   color: var(--bad);
@@ -319,20 +319,20 @@
 .palette-ask {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-shrink: 0;
-  height: 40px;
+  height: 44px;
   margin: 0 8px 4px;
-  padding: 0 8px;
+  padding: 0 12px;
   border-radius: var(--radius-row);
   color: var(--fg2);
-  font-size: var(--type-ui);
+  font-size: 14px;
   text-align: left;
   transition: background-color var(--dur-hover) var(--ease-snap);
 }
 @media (hover: hover) and (pointer: fine) {
   .palette-ask:hover {
-    background: var(--fill-hover);
+    background: var(--hover);
   }
 }
 .palette-ask-face {
@@ -370,7 +370,7 @@
 }
 .palette-empty-sub {
   color: var(--fg3);
-  font-size: var(--type-hint);
+  font-size: 12.5px;
 }
 .palette-ask-pill {
   display: inline-flex;
@@ -382,7 +382,7 @@
   border-radius: var(--radius-full);
   background: var(--fg);
   color: var(--bg);
-  font-size: var(--type-label);
+  font-size: 13.5px;
   font-weight: 600;
   transition: transform var(--dur-hover) var(--ease-kiko);
 }
@@ -426,7 +426,7 @@
   right: 8px;
   bottom: 8px;
   width: 46%;
-  padding: 4px;
+  padding: 6px;
   border-radius: var(--radius-pop);
   background: var(--raise);
   box-shadow: var(--edge);
@@ -440,18 +440,18 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  height: 32px;
-  padding: 0 8px;
-  border-radius: var(--radius-row);
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 9px;
   color: var(--fg);
-  font-size: var(--type-label);
+  font-size: 14px;
   text-align: left;
 }
 .palette-action svg {
-  color: var(--text-300);
+  color: var(--fg2);
 }
 .palette-action[data-active] {
-  background: var(--fill-hover);
+  background: var(--hover);
 }
 .palette-action[data-danger],
 .palette-action[data-danger] svg {
@@ -491,7 +491,7 @@
 }
 .palette-peek-meta {
   color: var(--fg3);
-  font-size: var(--type-hint);
+  font-size: 12.5px;
 }
 
 .palette-kbd {
@@ -499,15 +499,15 @@
   align-items: center;
   justify-content: center;
   gap: 1px;
-  height: 20px;
+  height: 22px;
   min-width: 22px;
   padding: 1px 6px 0;
   line-height: 1;
-  border-radius: var(--radius-control);
-  background: var(--fill-control);
+  border-radius: 7px;
+  background: var(--active);
   color: var(--fg3);
   font-family: var(--font-sans);
-  font-size: var(--type-hint);
+  font-size: 11.5px;
   font-weight: 500;
 }
 .palette-row[data-selected="true"] .palette-kbd {
@@ -534,11 +534,11 @@
   align-items: center;
   gap: 16px;
   flex-shrink: 0;
-  min-height: 48px;
+  min-height: 46px;
   padding: 0 16px;
   background: var(--panel);
   color: var(--fg3);
-  font-size: var(--type-hint);
+  font-size: 12.5px;
   font-weight: 500;
 }
 .palette-hint {
@@ -575,7 +575,7 @@
   border-radius: var(--radius-control);
   background: var(--active);
   color: var(--fg);
-  font-size: var(--type-label);
+  font-size: 13px;
   font-weight: 500;
   transition:
     background-color var(--dur-hover) var(--ease-kiko),

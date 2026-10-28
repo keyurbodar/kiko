@@ -122,7 +122,7 @@ function badgeFor(path: string): Badge | undefined {
 
 export const fileTone = (path: string): Tone | undefined => badgeFor(path)?.tone
 
-const LABEL_FONT = "Hanken Grotesk, system-ui, sans-serif"
+const LABEL_FONT = "Satoshi, system-ui, sans-serif"
 const OUTLINE = 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"'
 
 function labelWidth(label: string) {

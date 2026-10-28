@@ -218,11 +218,11 @@
 }
 
 .tpl-switch[aria-checked="true"] {
-  background: var(--accent-fill);
+  background: var(--fg);
 }
 
 .tpl-switch[aria-checked="true"]::after {
-  background: var(--on-accent);
+  background: var(--bg);
   transform: translateX(14px);
 }
 

@@ -40,7 +40,7 @@
   border: 0;
   border-radius: var(--radius-tail);
   font: inherit;
-  font-size: var(--type-label);
+  font-size: var(--type-row);
   font-weight: 400;
   line-height: 20px;
   vertical-align: middle;
@@ -231,7 +231,7 @@ button.token-chip:active {
   color: var(--fg);
   background: var(--active);
   border-radius: var(--radius-tail);
-  font-size: var(--type-label);
+  font-size: var(--type-row);
   white-space: nowrap;
   box-decoration-break: clone;
 }
@@ -535,11 +535,6 @@ button.token-chip:active {
   font: inherit;
   text-align: left;
   cursor: default;
-}
-
-.tray-tile-open:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
 }
 
 .tray-tile[data-look="image"] .tray-tile-open {
@@ -880,9 +875,7 @@ button.token-chip:active {
 .tray-remove:focus-visible {
   opacity: 1;
   outline: none;
-  box-shadow:
-    0 0 0 2px var(--raise),
-    var(--focus-ring);
+  box-shadow: 0 0 0 2px var(--raise);
   transform: none;
 }
 

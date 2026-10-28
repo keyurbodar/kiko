@@ -30,7 +30,7 @@
   }
 
   [data-component="search-field"]:focus-within {
-    box-shadow: var(--edge-strong), var(--focus-ring);
+    box-shadow: var(--edge-strong);
   }
 
   [data-slot="search-field-icon"] {

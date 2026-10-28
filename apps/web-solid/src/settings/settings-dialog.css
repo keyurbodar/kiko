@@ -21,7 +21,7 @@
   width: 240px;
   flex-shrink: 0;
   flex-direction: column;
-  padding: 20px 10px 12px;
+  padding: 22px 12px 14px;
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--side);
@@ -38,10 +38,9 @@
 }
 
 .settings-nav-heading {
-  padding: 18px 10px 4px;
-  color: var(--text-300);
-  font-size: var(--type-hint);
-  line-height: 18px;
+  padding: 16px 10px 6px;
+  color: var(--fg4);
+  font-size: 12.5px;
 }
 
 .settings-nav-foot {
@@ -50,13 +49,13 @@
   gap: 8px;
   margin-top: auto;
   padding: 12px 10px 0;
-  color: var(--text-300);
-  font-size: var(--type-hint);
+  color: var(--fg3);
+  font-size: 12px;
   line-height: 16px;
 }
 
 .settings-nav-foot [data-field="app-version"] {
-  color: var(--text-400);
+  color: var(--fg4);
 }
 
 .settings-status-dot {
@@ -64,7 +63,7 @@
   height: 6px;
   flex-shrink: 0;
   background: var(--ok);
-  border-radius: var(--radius-full);
+  border-radius: 3px;
   transition: background-color var(--dur-pop) var(--ease-out);
 }
 
@@ -73,7 +72,7 @@
 }
 
 [data-health="unreachable"] > .settings-status-dot {
-  background: var(--danger);
+  background: var(--bad);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -106,15 +105,14 @@
 
 .settings-nav-row {
   display: flex;
-  height: 32px;
+  height: 34px;
   flex-shrink: 0;
   align-items: center;
-  gap: 10px;
-  padding: 0 8px;
-  color: var(--text-200);
-  font-size: var(--type-row);
-  line-height: 20px;
-  border-radius: var(--radius-row);
+  gap: 11px;
+  padding: 0 10px;
+  color: var(--fg2);
+  font-size: 14px;
+  border-radius: 9px;
   position: relative;
   z-index: 1;
   cursor: pointer;
@@ -132,18 +130,18 @@
 @media (hover: hover) and (pointer: fine) {
   .settings-nav-row:hover {
     color: var(--fg);
-    background: var(--fill-hover);
+    background: var(--hover);
   }
 }
 
 .settings-nav-row[aria-current="page"] {
-  color: var(--text-000);
-  background: var(--fill-selected);
+  color: var(--fg);
+  background: var(--active);
 }
 
 .settings-nav-glide {
-  background: var(--fill-selected);
-  border-radius: var(--radius-row);
+  background: var(--active);
+  border-radius: 9px;
 }
 
 @media (width >= 768px) {
@@ -188,8 +186,7 @@
 
 .settings-nav-empty {
   padding: 24px 8px;
-  color: var(--text-300);
-  font-size: var(--type-hint);
+  color: var(--fg4);
   text-align: center;
 }
 
@@ -218,8 +215,8 @@
 
   .settings-title {
     padding: 0 4px 16px;
-    font-size: var(--type-section);
-    line-height: var(--type-section-line);
+    font-size: var(--type-page);
+    line-height: var(--type-page-line);
   }
 
   .settings-search {
@@ -228,10 +225,11 @@
 
   .settings-nav-heading {
     display: flex;
+    height: var(--spacing-section-label);
     align-items: center;
-    padding: 18px 4px 4px;
-    color: var(--text-300);
-    font-size: var(--type-hint);
+    padding: 12px 4px 0;
+    color: var(--fg3);
+    font-size: var(--type-label);
   }
 
   .settings-nav-group {
@@ -239,29 +237,29 @@
   }
 
   .settings-nav-row {
-    height: 44px;
+    height: var(--spacing-chat-row);
     gap: 14px;
     padding: 0 12px;
     color: var(--fg);
     font-size: var(--type-ui);
-    border-radius: var(--radius-row);
+    border-radius: 10px;
   }
 
   .settings-nav-row > svg:first-child {
     width: 18px;
     height: 18px;
-    color: var(--text-200);
+    color: var(--fg2);
   }
 
   .settings-nav-row:active,
   .settings-nav-row[aria-current="page"] {
-    background: var(--fill-hover);
+    background: var(--hover);
   }
 
   .settings-nav-chevron {
     display: block;
     flex-shrink: 0;
-    color: var(--text-400);
+    color: var(--fg4);
   }
 
   .settings-nav-foot {
@@ -279,12 +277,12 @@
     gap: 4px;
     margin: 0 0 4px -4px;
     padding: 2px 4px;
-    color: var(--text-300);
-    font-size: var(--type-label);
+    color: var(--fg3);
+    font-size: 13px;
     line-height: 20px;
-    border-radius: var(--radius-row);
+    border-radius: 10px;
     cursor: pointer;
-    transition: color var(--dur-hover) var(--ease-out);
+    transition: color var(--dur-hover) var(--ease-kiko);
   }
 
   .settings-back:active {
@@ -292,7 +290,7 @@
   }
 
   .settings-page.motion-page-in {
-    animation: settings-push 160ms var(--ease-out) backwards;
+    animation: settings-push var(--dur-step) var(--ease-kiko) backwards;
   }
 
   .settings-close {

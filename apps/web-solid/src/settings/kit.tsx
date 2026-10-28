@@ -48,7 +48,7 @@ export function Button(
 }
 
 export const iconButtonClass = cn(
-  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-row text-[var(--text-200)] transition-[background-color,color,transform] duration-[var(--dur-hover)] ease-[var(--ease-out)] enabled:hover:bg-[var(--fill-hover)] enabled:hover:text-fg enabled:active:scale-[0.94] focus-visible:shadow-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-60",
+  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-row text-[var(--fg2)] transition-[background-color,color,transform] duration-[var(--dur-hover)] ease-[var(--ease-out)] enabled:hover:bg-[var(--hover)] enabled:hover:text-fg enabled:active:scale-[0.94] disabled:cursor-not-allowed disabled:opacity-60",
   focus,
 )
 
@@ -80,9 +80,7 @@ export function Page(props: { title: string; description?: string; children: JSX
       <header class="pb-6">
         <h1 class="settings-page-title">{props.title}</h1>
         <Show when={props.description}>
-          {(description) => (
-            <p class="mt-1.5 max-w-xl text-ui leading-[22px] text-[var(--text-300)]">{description()}</p>
-          )}
+          {(description) => <p class="mt-1.5 max-w-xl text-ui leading-[22px] text-[var(--fg3)]">{description()}</p>}
         </Show>
       </header>
       {props.children}
@@ -108,13 +106,13 @@ export function Group(props: {
           <div class="min-w-0 flex-1">
             <Show when={local.title}>
               {(title) => (
-                <h2 class="flex min-h-[20px] items-center text-label leading-5 font-medium text-[var(--text-100)]">
+                <h2 class="flex min-h-[20px] items-center text-label leading-5 font-medium text-[var(--fg)]">
                   {title()}
                 </h2>
               )}
             </Show>
             <Show when={local.description}>
-              {(description) => <div class={cn("mt-1 text-hint leading-[18px]", muted)}>{description()}</div>}
+              {(description) => <div class={cn("mt-1 text-label leading-relaxed", muted)}>{description()}</div>}
             </Show>
           </div>
           <Show when={local.action}>
@@ -144,16 +142,16 @@ export function Row(props: {
   const [local, rest] = splitProps(props, ["label", "description", "id", "onReset", "details", "class", "children"])
   return (
     <div class={cn("px-4", rowLine, local.class)} data-setting={local.id} {...rest}>
-      <div class="settings-row flex min-h-8 items-center gap-3.5 py-2.5">
+      <div class="settings-row flex items-center gap-6 py-3">
         <div class="min-w-0 flex-1">
-          <div class="flex min-h-5 items-center gap-1.5 text-row leading-5 font-medium text-fg">
+          <div class="flex min-h-5 items-center gap-1.5 text-ui leading-5 font-medium text-fg">
             {local.label}
 
             <Show when={local.onReset}>
               <button
                 type="button"
                 class={cn(
-                  "relative grid size-5 cursor-pointer place-items-center rounded-control outline-none before:absolute before:-inset-1.5 hover:bg-[var(--fill-hover)] hover:text-fg",
+                  "relative grid size-5 cursor-pointer place-items-center rounded-control outline-none before:absolute before:-inset-1.5 hover:bg-[var(--hover)] hover:text-fg",
                   muted,
                 )}
                 title="Reset to default"
@@ -178,7 +176,9 @@ export function Row(props: {
             </Show>
           </div>
           <Show when={local.description}>
-            {(description) => <div class={cn("mt-0.5 max-w-xl text-hint leading-[18px]", muted)}>{description()}</div>}
+            {(description) => (
+              <div class={cn("mt-0.5 max-w-xl text-label leading-relaxed", muted)}>{description()}</div>
+            )}
           </Show>
         </div>
         <Show when={local.children}>
@@ -208,7 +208,7 @@ export function Item(props: {
   return (
     <div
       class={cn(
-        "grid min-h-8 items-center gap-x-3 px-4 py-2",
+        "grid items-center gap-x-3 px-4 py-2",
         local.icon ? "grid-cols-[auto_minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)_auto]",
         rowLine,
         local.class,
@@ -217,19 +217,19 @@ export function Item(props: {
     >
       <Show when={local.icon}>
         {(icon) => (
-          <span class="grid size-6 shrink-0 place-items-center overflow-hidden rounded-control bg-[var(--fill-field)] text-[var(--text-200)]">
+          <span class="grid size-6 shrink-0 place-items-center overflow-hidden rounded-control bg-[var(--raise)] text-[var(--fg2)]">
             {icon()}
           </span>
         )}
       </Show>
       <div class="flex min-h-7 min-w-0 flex-col justify-center">
-        <div class="flex items-center gap-1.5 truncate text-row leading-5 font-medium text-fg">
+        <div class="flex items-center gap-1.5 truncate text-ui leading-5 font-medium text-fg">
           {local.title}
           <Show when={local.trouble}>
             <span class="size-1.5 shrink-0 rounded-full bg-[var(--danger)]" aria-hidden="true" />
           </Show>
         </div>
-        <Show when={local.meta}>{(meta) => <div class={cn("text-hint leading-[18px]", muted)}>{meta()}</div>}</Show>
+        <Show when={local.meta}>{(meta) => <div class={cn("text-label leading-relaxed", muted)}>{meta()}</div>}</Show>
       </div>
       <div class="flex shrink-0 items-center gap-1.5">{local.actions}</div>
       <Show when={local.children}>
@@ -242,7 +242,7 @@ export function Item(props: {
 export function Hint(props: { children: JSX.Element; [data: `data-${string}`]: string | undefined }): JSX.Element {
   const [local, rest] = splitProps(props, ["children"])
   return (
-    <p class={cn("text-hint leading-[18px]", muted)} {...rest}>
+    <p class={cn("text-label leading-relaxed", muted)} {...rest}>
       {local.children}
     </p>
   )
@@ -287,7 +287,7 @@ export function Notice(props: {
     <p
       role="alert"
       class={cn(
-        "text-hint leading-[18px]",
+        "text-label leading-relaxed",
         local.tone === "muted" ? muted : "text-[color-mix(in_oklab,var(--danger)_90%,transparent)]",
       )}
       {...rest}

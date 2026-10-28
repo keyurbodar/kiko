@@ -17,9 +17,9 @@
 @import "./styles/motion.css";
 
 @font-face {
-  font-family: "Hanken Grotesk";
-  src: url("/fonts/hanken-grotesk-latin.woff2") format("woff2");
-  font-weight: 100 900;
+  font-family: "Satoshi";
+  src: url("/fonts/satoshi-variable.woff2") format("woff2");
+  font-weight: 300 900;
   font-style: normal;
   font-display: swap;
 }
@@ -50,7 +50,7 @@
 
 :root {
   --line-height: 1.45;
-  --font-family-sans: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-family-sans: Satoshi, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-family-display: Fraunces, Georgia, "Times New Roman", serif;
   --font-family-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, ui-monospace, monospace;
   --display-variation: "SOFT" 50, "WONK" 0;
@@ -150,99 +150,100 @@
 
 /* palette:start */
 :root {
-  --bg: #191919;
-  --side: #1f1f1f;
-  --panel: color-mix(in srgb, #ffffff 2.61%, #191919);
-  --raise: color-mix(in srgb, #ffffff 7%, #191919);
-  --hover: color-mix(in srgb, #ffffff 7.5%, transparent);
-  --active: color-mix(in srgb, #ffffff 15%, transparent);
-  --fill: color-mix(in srgb, #ffffff 10%, transparent);
-  --fill-field: color-mix(in srgb, #ffffff 5%, transparent);
-  --fill-hover: color-mix(in srgb, #ffffff 7.5%, transparent);
-  --fill-control: color-mix(in srgb, #ffffff 10%, transparent);
-  --fill-control-hover: color-mix(in srgb, #ffffff 14%, transparent);
-  --fill-selected: color-mix(in srgb, #ffffff 15%, transparent);
-  --fill-pressed: color-mix(in srgb, #ffffff 20%, transparent);
-  --ghost: color-mix(in oklab, #efefef 7.45%, transparent);
+  --bg: #121212;
+  --side: #171717;
+  --panel: color-mix(in oklab, #ededed 2.3%, #121212);
+  --raise: color-mix(in oklab, #ededed 4.6%, #121212);
+  --hover: color-mix(in oklab, #ededed 6.4%, #121212);
+  --active: color-mix(in oklab, #ededed 9.1%, #121212);
+  --fill: color-mix(in oklab, #ededed 8.2%, transparent);
+  --fill-field: color-mix(in oklab, #ededed 4.6%, transparent);
+  --fill-hover: color-mix(in oklab, #ededed 6.4%, transparent);
+  --fill-control: color-mix(in oklab, #ededed 9.1%, transparent);
+  --fill-control-hover: color-mix(in oklab, #ededed 12.8%, transparent);
+  --fill-selected: color-mix(in oklab, #ededed 9.1%, transparent);
+  --fill-pressed: color-mix(in oklab, #ededed 12.8%, transparent);
+  --ghost: color-mix(in oklab, #ededed 8.2%, transparent);
   --field-ring: transparent;
-  --me: color-mix(in srgb, #ffffff 10%, #191919);
-  --kiko-bubble: color-mix(in srgb, #ffffff 5.65%, #191919);
-  --line: color-mix(in srgb, #ffffff 10%, transparent);
-  --line2: color-mix(in srgb, #ffffff 20%, transparent);
-  --line3: color-mix(in srgb, #ffffff 40%, transparent);
-  --fg: #efefef;
-  --fg2: #9c9c9c;
-  --fg3: #757575;
-  --fg4: color-mix(in srgb, #ffffff 35%, #191919);
-  --on-fg: #191919;
-  --ok: #53c556;
-  --bad: #f17778;
-  --warn: #e49c06;
-  --info: #6aabf1;
-  --accent-fill: oklch(from #6aabf1 0.59 min(calc(c * 1.4), 0.17) h);
+  --me: color-mix(in oklab, #ededed 9.6%, #121212);
+  --kiko-bubble: color-mix(in oklab, #ededed 3.2%, #121212);
+  --line: color-mix(in oklab, #ededed 8.2%, #121212);
+  --line2: color-mix(in oklab, #ededed 12.8%, #121212);
+  --line3: color-mix(in oklab, #ededed 20%, transparent);
+  --fg: #ededed;
+  --fg2: #a6a6a6;
+  --fg3: #878787;
+  --fg4: color-mix(in oklab, #ededed 35%, #121212);
+  --on-fg: #141414;
+  --ok: #5cc489;
+  --bad: #ef6a6a;
+  --warn: #e8c47b;
+  --info: #5b9cf6;
+  --accent-fill: oklch(from #5b9cf6 0.59 min(calc(c * 1.4), 0.17) h);
   --on-accent: #ffffff;
   --accent-edge: color-mix(in srgb, var(--accent-fill) 22%, transparent);
   --leaf: #7fd19c;
-  --info-wash: color-mix(in srgb, var(--accent-fill) 12%, transparent);
-  --bad-wash: color-mix(in srgb, #f17778 12%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #efefef 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #efefef 30%, transparent);
-  --card-shadow: none;
-  --chip-file: #32a9e7;
-  --chip-mention: #32aec7;
-  --chip-pdf: #f97873;
-  --chip-word: #51a5ef;
-  --chip-sheet: #5ab26a;
-  --chip-slides: #e18b47;
-  --chip-epub: #a58fff;
+  --info-wash: color-mix(in oklab, #5b9cf6 14%, transparent);
+  --bad-wash: color-mix(in oklab, #ef6a6a 12%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #ededed 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #ededed 30%, transparent);
+  --card-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
+  --chip-file: #27a2df;
+  --chip-mention: #26a6bf;
+  --chip-pdf: #f1716c;
+  --chip-word: #4a9ee7;
+  --chip-sheet: #52aa63;
+  --chip-slides: #da8340;
+  --chip-epub: #9e88f7;
 }
 
 :root:not(.dark) {
-  --bg: #fbfbfa;
-  --side: #f4f4f3;
-  --panel: color-mix(in srgb, #000000 2.35%, #fbfbfa);
-  --raise: #ffffff;
-  --hover: color-mix(in srgb, #000000 4.5%, transparent);
-  --active: color-mix(in srgb, #000000 8%, transparent);
-  --fill: color-mix(in srgb, #000000 6%, transparent);
-  --fill-field: color-mix(in srgb, #000000 2.5%, transparent);
-  --fill-hover: color-mix(in srgb, #000000 4.5%, transparent);
-  --fill-control: color-mix(in srgb, #000000 6%, transparent);
-  --fill-control-hover: color-mix(in srgb, #000000 9%, transparent);
-  --fill-selected: color-mix(in srgb, #000000 8%, transparent);
-  --fill-pressed: color-mix(in srgb, #000000 11%, transparent);
-  --ghost: color-mix(in oklab, #1f1f1f 5.1%, transparent);
-  --field-ring: color-mix(in oklab, #1f1f1f 10%, transparent);
-  --me: color-mix(in srgb, #000000 6.2%, #fbfbfa);
-  --kiko-bubble: #ffffff;
-  --line: color-mix(in srgb, #000000 8%, transparent);
-  --line2: color-mix(in srgb, #000000 15%, transparent);
-  --line3: color-mix(in srgb, #000000 32%, transparent);
-  --fg: #1f1f1f;
-  --fg2: #4a4a4a;
-  --fg3: #6b6b6b;
-  --fg4: color-mix(in srgb, #000000 35%, #fbfbfa);
+  --bg: #ffffff;
+  --side: #f7f7f6;
+  --panel: color-mix(in oklab, #1b1b1b 1.6%, #ffffff);
+  --raise: color-mix(in oklab, #1b1b1b 2.4%, #ffffff);
+  --hover: color-mix(in oklab, #1b1b1b 4%, #ffffff);
+  --active: color-mix(in oklab, #1b1b1b 6.5%, #ffffff);
+  --fill: color-mix(in oklab, #1b1b1b 8%, transparent);
+  --fill-field: color-mix(in oklab, #1b1b1b 2.4%, transparent);
+  --fill-hover: color-mix(in oklab, #1b1b1b 4%, transparent);
+  --fill-control: color-mix(in oklab, #1b1b1b 6.5%, transparent);
+  --fill-control-hover: color-mix(in oklab, #1b1b1b 12%, transparent);
+  --fill-selected: color-mix(in oklab, #1b1b1b 6.5%, transparent);
+  --fill-pressed: color-mix(in oklab, #1b1b1b 12%, transparent);
+  --ghost: color-mix(in oklab, #1b1b1b 8%, transparent);
+  --field-ring: color-mix(in oklab, #1b1b1b 8%, transparent);
+  --me: color-mix(in oklab, #1b1b1b 5.5%, #ffffff);
+  --kiko-bubble: color-mix(in oklab, #1b1b1b 3%, #ffffff);
+  --line: color-mix(in oklab, #1b1b1b 8%, #ffffff);
+  --line2: color-mix(in oklab, #1b1b1b 12%, #ffffff);
+  --line3: color-mix(in oklab, #1b1b1b 20%, transparent);
+  --fg: #1b1b1b;
+  --fg2: #5c5c5c;
+  --fg3: #808080;
+  --fg4: color-mix(in oklab, #1b1b1b 40%, #ffffff);
   --on-fg: #ffffff;
-  --ok: #006c10;
-  --bad: #a42528;
-  --warn: #794c02;
-  --info: #1757ac;
-  --accent-fill: oklch(from #1757ac 0.59 min(calc(c * 1.4), 0.17) h);
+  --ok: #1f9d55;
+  --bad: #d6453f;
+  --warn: #a86b00;
+  --info: #2f6fe4;
+  --accent-fill: oklch(from #2f6fe4 0.59 min(calc(c * 1.4), 0.17) h);
   --on-accent: #ffffff;
   --accent-edge: color-mix(in srgb, var(--accent-fill) 22%, transparent);
   --leaf: #2f9e5b;
-  --info-wash: color-mix(in srgb, var(--accent-fill) 12%, transparent);
-  --bad-wash: color-mix(in srgb, #a42528 12%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #1f1f1f 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #1f1f1f 30%, transparent);
-  --card-shadow: 0 0 0 1px rgb(0 0 0 / 6%), 0 4px 24px rgb(0 0 0 / 4%);
-  --chip-file: #0068a3;
-  --chip-mention: #006d86;
-  --chip-pdf: #b33739;
-  --chip-word: #0066ac;
-  --chip-sheet: #11732f;
-  --chip-slides: #9e4d00;
-  --chip-epub: #6b51bc;
+  --info-wash: color-mix(in oklab, #2f6fe4 11%, transparent);
+  --bad-wash: color-mix(in oklab, #d6453f 12%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #1b1b1b 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #1b1b1b 30%, transparent);
+  --card-shadow:
+    0 0 0 1px color-mix(in oklab, #1b1b1b 6%, transparent), 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px -16px rgb(0 0 0 / 18%);
+  --chip-file: #006ba6;
+  --chip-mention: #006f88;
+  --chip-pdf: #b63a3b;
+  --chip-word: #0369af;
+  --chip-sheet: #157531;
+  --chip-slides: #a14f00;
+  --chip-epub: #6d53be;
 }
 /* palette:end */
 
@@ -274,9 +275,9 @@
   --on-primary: var(--on-fg);
   --text-000: color-mix(in srgb, #ffffff 40%, var(--fg));
   --text-100: var(--fg);
-  --text-200: #c2c2c2;
-  --text-300: #9e9e9e;
-  --text-400: #6e6e6e;
+  --text-200: #c9c9c9;
+  --text-300: #a6a6a6;
+  --text-400: #878787;
   --dur-press: 60ms;
   --press-spring: linear(
     0,
@@ -314,9 +315,9 @@
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 8%);
   --shadow-pop: 0 8px 24px rgb(0 0 0 / 8%), 0 2px 6px rgb(0 0 0 / 6%);
   --shadow-float: 0 24px 64px rgb(0 0 0 / 14%), 0 4px 12px rgb(0 0 0 / 6%);
-  --text-200: #4a4a4a;
-  --text-300: #6b6b6b;
-  --text-400: #a3a3a3;
+  --text-200: #3d3d3d;
+  --text-300: #5c5c5c;
+  --text-400: #808080;
 }
 
 ::selection {
@@ -335,7 +336,6 @@
   --tooltip-bg: var(--bg-300);
   --tooltip-fg: var(--fg);
   --tooltip-edge: var(--border-100);
-  --focus-ring: 0 0 0 1px var(--bg), 0 0 0 3px var(--accent);
   --scrim: rgb(0 0 0 / 50%);
   --scrim-blur: blur(6px) saturate(0.7);
   --dock-bg: var(--bg);
@@ -363,24 +363,24 @@
 /* system:start */
 :root {
   --type-page: 40px;
-  --type-page-line: 46px;
-  --type-section: 22px;
-  --type-section-line: 28px;
+  --type-page-line: 44px;
+  --type-section: 26px;
+  --type-section-line: 32px;
   --type-wordmark: 24px;
   --type-wordmark-line: 28px;
-  --type-msg: 16px;
+  --type-msg: 15px;
   --type-msg-line: 24px;
   --type-bubble: 15px;
-  --type-bubble-line: 22px;
-  --type-ui: 15px;
-  --type-ui-line: 22px;
-  --type-row: 14px;
+  --type-bubble-line: 24px;
+  --type-ui: 14px;
+  --type-ui-line: 20px;
+  --type-row: 13.5px;
   --type-row-line: 18px;
-  --type-label: 14px;
-  --type-label-line: 20px;
-  --type-hint: 13px;
-  --type-hint-line: 18px;
-  --type-caption: 12px;
+  --type-label: 12.5px;
+  --type-label-line: 16px;
+  --type-hint: 11.5px;
+  --type-hint-line: 14px;
+  --type-caption: 12.5px;
   --type-caption-line: 16px;
   --type-micro: 11px;
   --type-micro-line: 14px;
@@ -394,45 +394,47 @@
   --dur-pop: 200ms;
   --dur-step: 400ms;
   --dur-shimmer: 2200ms;
+  --dur-hop: 1200ms;
 }
 
 @theme {
   --radius-tail: 6px;
   --radius-check: 5px;
   --radius-micro: 4px;
-  --radius-control: 8px;
-  --radius-row: 8px;
-  --radius-tile: 10px;
-  --radius-pop: 12px;
-  --radius-card: 12px;
+  --radius-control: 9px;
+  --radius-row: 10px;
+  --radius-tile: 12px;
+  --radius-pop: 14px;
+  --radius-card: 16px;
   --radius-bubble: 18px;
   --radius-sheet: 20px;
-  --radius-hero: 24px;
-  --radius-composer: 14px;
+  --radius-hero: 20px;
+  --radius-composer: 22px;
   --radius-full: 999px;
-  --spacing-nav-tab: 32px;
+  --spacing-nav-tab: 34px;
   --spacing-nav-gap: 10px;
   --spacing-nav-gap-row: 2px;
   --spacing-nav-slot: 28px;
   --spacing-nav-pad: 8px;
-  --spacing-chat-row: 44px;
+  --spacing-chat-row: 50px;
   --spacing-mascot: 32px;
   --spacing-avatar: 30px;
-  --spacing-section-label: 32px;
+  --spacing-section-label: 28px;
   --spacing-step: 28px;
   --spacing-control: 32px;
-  --spacing-control-big: 40px;
+  --spacing-control-big: 48px;
   --spacing-icon: 28px;
-  --spacing-chip: 24px;
+  --spacing-chip: 26px;
   --spacing-tab: 28px;
-  --spacing-header: 48px;
-  --spacing-top-bar: 52px;
-  --spacing-sidebar: 288px;
+  --spacing-composer-min: 96px;
+  --spacing-sidebar: 296px;
+  --spacing-header: 50px;
+  --spacing-top-bar: 50px;
   --spacing-rail-width: 56px;
   --spacing-footer: 56px;
   --spacing-menu-min: 220px;
   --opacity-icon-secondary: 0.4;
-  --ease-kiko: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-kiko: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @theme inline {
@@ -515,14 +517,14 @@
   font-family: var(--font-family-sans);
   font-size: var(--type-row);
   line-height: var(--type-row-line);
-  font-weight: var(--font-weight-medium);
+  font-weight: 600;
 }
 
 @utility type-label {
   font-family: var(--font-family-sans);
   font-size: var(--type-label);
   line-height: var(--type-label-line);
-  font-weight: var(--font-weight-medium);
+  font-weight: 400;
 }
 
 @utility type-hint {
@@ -543,21 +545,21 @@
   font-family: var(--font-family-sans);
   font-size: var(--type-micro);
   line-height: var(--type-micro-line);
-  font-weight: var(--font-weight-semibold);
+  font-weight: 600;
 }
 
 @utility type-nano {
   font-family: var(--font-family-sans);
   font-size: var(--type-nano);
   line-height: var(--type-nano-line);
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
 }
 
 @utility type-heading {
   font-family: var(--font-family-sans);
   font-size: var(--type-heading);
   line-height: var(--type-heading-line);
-  font-weight: var(--font-weight-semibold);
+  font-weight: 600;
 }
 
 @utility type-code {
@@ -792,8 +794,16 @@
   outline: none;
 }
 
-:is(a, [role="tab"], [role="menuitem"], summary):focus-visible {
-  box-shadow: var(--focus-ring);
+:where(
+  button,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"],
+  [role="treeitem"],
+  summary
+):focus-visible {
+  background-color: var(--fill-hover);
   border-radius: inherit;
 }
 

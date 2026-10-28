@@ -33,11 +33,6 @@
   cursor: default;
 }
 
-.run-error-head:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
 [data-component="run-error"][data-latest] .run-error-head {
   font-size: var(--type-label);
 }
@@ -142,11 +137,6 @@
 .run-error-action:disabled {
   cursor: default;
   opacity: 0.6;
-}
-
-.run-error-action:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
 }
 
 @media (hover: hover) and (pointer: fine) {

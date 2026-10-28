@@ -1,13 +1,13 @@
 :root {
-  --kit-muted: var(--text-200);
+  --kit-muted: var(--fg2);
 
-  --kit-meta: var(--text-300);
+  --kit-meta: var(--fg3);
 }
 
 .settings-page-title {
   color: var(--fg);
   font-family: var(--font-family-display);
-  font-size: var(--type-page);
+  font-size: 32px;
   font-weight: 400;
   font-variation-settings: var(--display-variation);
   line-height: 38px;
@@ -22,8 +22,8 @@
   gap: 6px;
   padding: 0 14px;
   border: 0;
-  border-radius: var(--radius-control);
-  font-size: var(--type-ui);
+  border-radius: 9px;
+  font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -41,10 +41,6 @@
   transition-timing-function: var(--ease-out);
 }
 
-.kit-btn:focus-visible {
-  box-shadow: var(--focus-ring);
-}
-
 .kit-btn:disabled,
 .kit-select:disabled,
 .kit-field:disabled {
@@ -59,13 +55,13 @@
 
 .kit-btn--big {
   height: var(--spacing-control-big);
-  padding: 0 18px;
-  border-radius: var(--radius-tile);
-  font-size: var(--type-ui);
+  padding: 0 22px;
+  border-radius: var(--radius-pop);
+  font-size: 15px;
 }
 
 .kit-btn--primary {
-  color: var(--on-fg);
+  color: var(--bg);
   background: var(--fg);
 }
 
@@ -75,14 +71,15 @@
   }
 }
 
-.kit-btn--secondary {
+.kit-btn--secondary,
+.kit-btn--danger {
   color: var(--fg);
-  background: var(--fill-control);
+  background: var(--active);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .kit-btn--secondary:hover:not(:disabled) {
-    background: var(--fill-control-hover);
+    background: color-mix(in oklab, var(--fg) 14%, var(--panel));
   }
 }
 
@@ -92,13 +89,12 @@
 }
 
 .kit-btn--danger {
-  color: var(--danger);
-  background: var(--danger-fill);
+  color: var(--bad);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .kit-btn--danger:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--danger) 18%, transparent);
+    background: color-mix(in oklab, var(--bad) 12%, var(--active));
   }
 }
 
@@ -122,31 +118,26 @@
   display: inline-flex;
   min-width: 9rem;
   max-width: 14rem;
-  min-height: 36px;
+  min-height: 32px;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   padding: 0 10px 0 12px;
   color: var(--fg);
-  font-size: var(--type-label);
+  font-size: 13.5px;
   text-align: left;
-  background: var(--fill-field);
-  box-shadow: var(--edge);
+  background: var(--active);
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: 9px;
   cursor: pointer;
   outline: none;
-  transition: box-shadow var(--dur-hover) var(--ease-out);
+  transition: background var(--dur-hover) var(--ease-kiko);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .kit-select:hover:not(:disabled) {
-    box-shadow: var(--edge-strong);
+    background: color-mix(in oklab, var(--fg) 14%, var(--panel));
   }
-}
-
-.kit-select:focus-visible {
-  box-shadow: var(--edge-strong), var(--focus-ring);
 }
 
 .kit-select > svg:last-child {
@@ -159,12 +150,12 @@
 .kit-switch {
   position: relative;
   display: inline-flex;
-  width: 32px;
-  height: 18px;
+  width: 34px;
+  height: 20px;
   flex-shrink: 0;
-  padding: 2px;
-  background: var(--fill-control-hover);
-  border-radius: var(--radius-full);
+  padding: 3px;
+  background: color-mix(in oklab, var(--fg) 16%, var(--panel));
+  border-radius: 10px;
   transition:
     background var(--dur-pop) var(--ease-snap),
     box-shadow var(--dur-hover) var(--ease-out);
@@ -185,9 +176,8 @@
   display: block;
   width: 14px;
   height: 14px;
-  background: var(--fg);
-  border-radius: var(--radius-full);
-  box-shadow: var(--shadow-sm);
+  background: var(--fg3);
+  border-radius: 7px;
   transform-origin: left center;
   transition:
     transform var(--dur-pop) var(--ease-snap),
@@ -195,7 +185,7 @@
 }
 
 .kit-switch[aria-checked="true"] > span {
-  background: var(--on-fg);
+  background: var(--bg);
   transform: translateX(14px);
   transform-origin: right center;
 }
@@ -206,10 +196,6 @@
 
 .kit-switch[aria-checked="true"]:active:not(:disabled) > span {
   transform: translateX(14px) scaleX(1.15);
-}
-
-.kit-switch:focus-visible {
-  box-shadow: var(--focus-ring);
 }
 
 .kit-range {
@@ -228,37 +214,41 @@
 .kit-range::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: var(--radius-full);
-  background: linear-gradient(to right, var(--text-200) 0 var(--fill), var(--fill-control) var(--fill) 100%);
+  background: linear-gradient(
+    to right,
+    var(--fg2) 0 var(--fill),
+    color-mix(in oklab, var(--fg) 14%, transparent) var(--fill) 100%
+  );
 }
 
 .kit-range::-moz-range-track {
   height: 4px;
   border-radius: var(--radius-full);
-  background: var(--fill-control);
+  background: color-mix(in oklab, var(--fg) 14%, transparent);
 }
 
 .kit-range::-moz-range-progress {
   height: 4px;
   border-radius: var(--radius-full);
-  background: var(--text-200);
+  background: var(--fg2);
 }
 
 .kit-range::-webkit-slider-thumb {
-  width: 18px;
-  height: 18px;
-  margin-top: -7px;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
   background: var(--fg);
-  border: none;
+  border: 1px solid var(--line2);
   border-radius: var(--radius-full);
   box-shadow: var(--shadow-sm);
   appearance: none;
 }
 
 .kit-range::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   background: var(--fg);
-  border: none;
+  border: 1px solid var(--line2);
   border-radius: var(--radius-full);
   box-shadow: var(--shadow-sm);
 }
@@ -272,32 +262,25 @@
 }
 
 .kit-field {
-  height: 36px;
+  height: 32px;
   min-width: 0;
   padding: 0 12px;
   color: var(--fg);
-  font-size: var(--type-label);
-  background: var(--fill-field);
+  font-size: 13.5px;
+  background: var(--active);
   border: none;
-  border-radius: var(--radius-control);
-  box-shadow: var(--edge);
+  border-radius: 9px;
   outline: none;
-  transition: box-shadow var(--dur-hover) var(--ease-out);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .kit-field:hover:not(:disabled) {
-    box-shadow: var(--edge-strong);
-  }
+  transition: box-shadow var(--dur-hover) var(--ease-kiko);
 }
 
 .kit-field:focus-visible {
-  box-shadow: var(--edge-strong), var(--focus-ring);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--fg) 35%, transparent);
 }
 
 .kit-field[aria-invalid="true"] {
-  box-shadow: inset 0 0 0 1px var(--danger);
-  animation: motion-shake 260ms var(--ease-out);
+  box-shadow: inset 0 0 0 1.5px var(--bad);
+  animation: motion-shake 260ms var(--ease-kiko);
 }
 
 .kit-field::placeholder {
@@ -307,7 +290,7 @@
 .kit-card {
   overflow: hidden;
   background: var(--panel);
-  border-radius: var(--radius-pop);
+  border-radius: var(--radius-card);
   box-shadow: var(--edge);
 }
 
@@ -326,14 +309,14 @@
   height: 88px;
   place-items: center;
   margin-bottom: 6px;
-  color: var(--text-100);
+  color: var(--fg);
   background: var(--bg-000);
   border-radius: 16px;
   box-shadow: var(--edge);
 }
 
 .kit-empty-title {
-  color: var(--text-000);
+  color: var(--fg);
   font-size: 14.5px;
   line-height: 20px;
   font-weight: 500;
@@ -341,7 +324,7 @@
 
 .kit-empty-line {
   max-width: 320px;
-  color: var(--text-300);
+  color: var(--fg3);
   font-size: var(--type-hint);
   line-height: 18px;
 }
@@ -380,18 +363,18 @@
 }
 
 .kit-tabs > .pill-indicator {
-  border-radius: var(--radius-row);
+  border-radius: 10px;
 }
 
 .kit-tab {
   position: relative;
   z-index: 1;
-  height: 32px;
+  height: 34px;
   padding: 0 14px;
   color: var(--fg2);
-  font-size: var(--type-ui);
+  font-size: 14px;
   font-weight: 500;
-  border-radius: var(--radius-row);
+  border-radius: 10px;
   cursor: pointer;
   outline: none;
   transition:

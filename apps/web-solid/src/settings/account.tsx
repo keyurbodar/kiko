@@ -42,12 +42,7 @@ const BUSY: Record<string, string> = { Updating: "Updating your backend", Restar
 
 function Shine(props: { children: JSX.Element; [data: `data-${string}`]: string | undefined }) {
   return (
-    <span
-      class="motion-shine type-label text-[var(--text-300)]"
-      style={SHINE}
-      role="status"
-      data-part={props["data-part"]}
-    >
+    <span class="motion-shine type-label text-[var(--fg3)]" style={SHINE} role="status" data-part={props["data-part"]}>
       {props.children}
     </span>
   )
@@ -73,7 +68,7 @@ function Profile() {
         </span>
         <Show when={profile()?.email}>
           {(email) => (
-            <span class="flex min-w-0 items-center gap-1.5 type-label text-[var(--text-300)]">
+            <span class="flex min-w-0 items-center gap-1.5 type-label text-[var(--fg3)]">
               <Show when={profile()?.provider}>
                 {(p) => (
                   <ProviderIcon
@@ -150,19 +145,19 @@ function Version() {
             </span>
           </Match>
           <Match when={view().kind === "reconnect"}>
-            <span class="type-label text-[var(--text-300)]" data-field="backend-status">
+            <span class="type-label text-[var(--fg3)]" data-field="backend-status">
               Sign in to Cloudflare to update
             </span>
           </Match>
           <Match when={true}>
-            <span class="type-label text-[var(--text-300)]" data-field="backend-status">
+            <span class="type-label text-[var(--fg3)]" data-field="backend-status">
               <span data-field="backend-version">{backendVersion() ?? "Unknown"}</span>
               {SKEW_TEXT[currentSkew() ?? "unknown"]}
             </span>
           </Match>
         </Switch>
         <Show when={backendVersion() !== APP_VERSION}>
-          <span class="type-hint text-[var(--text-400)]">
+          <span class="type-hint text-[var(--fg4)]">
             App <span data-field="app-version">{APP_VERSION}</span>
           </span>
         </Show>
@@ -238,7 +233,7 @@ function FileStorage() {
           <Show
             when={storage() === "built-in"}
             fallback={
-              <span class="type-label text-[var(--text-300)]" data-field="file-storage">
+              <span class="type-label text-[var(--fg3)]" data-field="file-storage">
                 R2
               </span>
             }
@@ -269,7 +264,7 @@ function Server() {
         </span>
         <span class="flex min-w-0 flex-1 flex-col">
           <span class="truncate type-ui font-medium text-fg">Running on your Cloudflare</span>
-          <span class="truncate type-label text-[var(--text-300)]">Your chats never leave your account</span>
+          <span class="truncate type-label text-[var(--fg3)]">Your chats never leave your account</span>
         </span>
         <Health />
       </div>

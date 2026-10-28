@@ -96,7 +96,3 @@
   background-color: var(--active);
   color: var(--fg);
 }
-
-[data-component="icon-button-v2"]:focus-visible {
-  box-shadow: var(--focus-ring);
-}
