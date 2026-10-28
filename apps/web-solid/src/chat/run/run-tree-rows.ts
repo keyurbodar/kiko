@@ -192,27 +192,41 @@ const VERB: Partial<Record<StepIcon, (count: number) => string>> = {
   browser: (n) => `browsed ${plural(n, "page", "pages")}`,
 }
 
+type StepTally = {
+  edited: Set<string>
+  wrote: Set<string>
+  helpers: Set<string>
+  counted: Map<StepIcon, number>
+  other: number
+  failed: number
+}
+
+function tallyStep(step: RunStep, tally: StepTally): void {
+  if (step.status === "failed") tally.failed++
+  if (step.worker) {
+    tally.helpers.add(step.worker.id)
+    return
+  }
+  const icon = iconOf({ ...step, status: "done" })
+  if (icon === "edit") tally.edited.add(pathOf(step)?.path ?? step.id)
+  else if (icon === "file-add") tally.wrote.add(pathOf(step)?.path ?? step.id)
+  else if (icon && VERB[icon]) tally.counted.set(icon, (tally.counted.get(icon) ?? 0) + 1)
+  else tally.other++
+}
+
 export function groupSummary(steps: readonly RunStep[]): readonly SummarySegment[] {
   const calls = steps.filter((step) => !step.note)
   if (calls.length === 0) return []
-  const edited = new Set<string>()
-  const wrote = new Set<string>()
-  const helpers = new Set<string>()
-  const counted = new Map<StepIcon, number>()
-  let other = 0
-  let failed = 0
-  for (const step of calls) {
-    if (step.status === "failed") failed++
-    if (step.worker) {
-      helpers.add(step.worker.id)
-      continue
-    }
-    const icon = iconOf({ ...step, status: "done" })
-    if (icon === "edit") edited.add(pathOf(step)?.path ?? step.id)
-    else if (icon === "file-add") wrote.add(pathOf(step)?.path ?? step.id)
-    else if (icon && VERB[icon]) counted.set(icon, (counted.get(icon) ?? 0) + 1)
-    else other++
+  const tally: StepTally = {
+    edited: new Set(),
+    wrote: new Set(),
+    helpers: new Set(),
+    counted: new Map(),
+    other: 0,
+    failed: 0,
   }
+  for (const step of calls) tallyStep(step, tally)
+  const { edited, wrote, helpers, counted, other, failed } = tally
   const parts: string[] = []
   const commands = counted.get("terminal") ?? 0
   if (commands > 0) parts.push(VERB.terminal!(commands))
