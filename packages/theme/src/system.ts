@@ -2,39 +2,40 @@ const RADIUS = {
   tail: 6,
   check: 5,
   micro: 4,
-  control: 8,
-  row: 8,
-  tile: 10,
-  pop: 12,
-  card: 12,
+  control: 9,
+  row: 10,
+  tile: 12,
+  pop: 14,
+  card: 16,
   bubble: 18,
   sheet: 20,
-  hero: 24,
-  composer: 14,
+  hero: 20,
+  composer: 22,
   full: 999,
 } as const
 
 const OPACITY = { "icon-secondary": 0.4 } as const
 
 const SIZE = {
-  "nav-tab": 32,
+  "nav-tab": 34,
   "nav-gap": 10,
   "nav-gap-row": 2,
   "nav-slot": 28,
   "nav-pad": 8,
-  "chat-row": 44,
+  "chat-row": 50,
   mascot: 32,
   avatar: 30,
-  "section-label": 32,
+  "section-label": 28,
   step: 28,
   control: 32,
-  "control-big": 40,
+  "control-big": 48,
   icon: 28,
-  chip: 24,
+  chip: 26,
   tab: 28,
-  header: 48,
-  "top-bar": 52,
-  sidebar: 288,
+  "composer-min": 96,
+  sidebar: 296,
+  header: 50,
+  "top-bar": 50,
   "rail-width": 56,
   footer: 56,
   "menu-min": 220,
@@ -46,16 +47,16 @@ type Type = Readonly<{ size: number; line: number; weight: number; face: Face; s
 const BASE = 14
 
 const TYPE = {
-  page: { size: 40, line: 46, weight: 400, face: "display", scales: false },
-  section: { size: 22, line: 28, weight: 400, face: "display", scales: false },
+  page: { size: 40, line: 44, weight: 400, face: "display", scales: false },
+  section: { size: 26, line: 32, weight: 400, face: "display", scales: false },
   wordmark: { size: 24, line: 28, weight: 400, face: "display", scales: false },
-  msg: { size: 16, line: 24, weight: 400, face: "sans", scales: true },
-  bubble: { size: 15, line: 22, weight: 400, face: "sans", scales: true },
-  ui: { size: 15, line: 22, weight: 400, face: "sans", scales: true },
-  row: { size: 14, line: 18, weight: 500, face: "sans", scales: true },
-  label: { size: 14, line: 20, weight: 500, face: "sans", scales: true },
-  hint: { size: 13, line: 18, weight: 400, face: "sans", scales: true },
-  caption: { size: 12, line: 16, weight: 400, face: "sans", scales: true },
+  msg: { size: 15, line: 24, weight: 400, face: "sans", scales: true },
+  bubble: { size: 15, line: 24, weight: 400, face: "sans", scales: true },
+  ui: { size: 14, line: 20, weight: 400, face: "sans", scales: true },
+  row: { size: 13.5, line: 18, weight: 600, face: "sans", scales: true },
+  label: { size: 12.5, line: 16, weight: 400, face: "sans", scales: true },
+  hint: { size: 11.5, line: 14, weight: 400, face: "sans", scales: true },
+  caption: { size: 12.5, line: 16, weight: 400, face: "sans", scales: true },
   micro: { size: 11, line: 14, weight: 600, face: "sans", scales: false },
   nano: { size: 10, line: 13, weight: 500, face: "sans", scales: false },
   heading: { size: 16, line: 22, weight: 600, face: "sans", scales: true },
@@ -69,7 +70,8 @@ const MOTION = {
   pop: 200,
   step: 400,
   shimmer: 2200,
-  ease: "cubic-bezier(0.32, 0.72, 0, 1)",
+  hop: 1200,
+  ease: "cubic-bezier(0.2, 0.8, 0.2, 1)",
 } as const
 
 const round = (n: number) => Math.round(n * 100) / 100
@@ -83,8 +85,6 @@ export function typeVars(base: number): Record<string, string> {
   }
   return vars
 }
-
-const WEIGHTS: Record<number, string> = { 500: "var(--font-weight-medium)", 600: "var(--font-weight-semibold)" }
 
 const FACES: Record<Face, string> = {
   sans: "var(--font-family-sans)",
@@ -106,7 +106,7 @@ export function systemCss(): string {
   ])
   const utilities = (Object.entries(TYPE) as [TypeName, Type][]).map(
     ([name, t]) =>
-      `@utility type-${name} {\n  font-family: ${FACES[t.face]};\n  font-size: var(--type-${name});\n  line-height: var(--type-${name}-line);\n  font-weight: ${WEIGHTS[t.weight] ?? t.weight};${t.face === "display" ? "\n  font-variation-settings: var(--display-variation);" : ""}\n}`,
+      `@utility type-${name} {\n  font-family: ${FACES[t.face]};\n  font-size: var(--type-${name});\n  line-height: var(--type-${name}-line);\n  font-weight: ${t.weight};${t.face === "display" ? "\n  font-variation-settings: var(--display-variation);" : ""}\n}`,
   )
   const root = [
     ...Object.entries(typeVars(BASE)).map(([k, v]) => `  ${k}: ${v};`),
@@ -114,6 +114,7 @@ export function systemCss(): string {
     `  --dur-pop: ${MOTION.pop}ms;`,
     `  --dur-step: ${MOTION.step}ms;`,
     `  --dur-shimmer: ${MOTION.shimmer}ms;`,
+    `  --dur-hop: ${MOTION.hop}ms;`,
   ]
   return [
     "/* system:start */",
