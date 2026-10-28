@@ -35,7 +35,7 @@ export function flipRows(root: () => HTMLElement | undefined, order: () => reado
               ]
             : [{ transform: `translateY(${delta}px)` }, { transform: "none" }]
           row.animate(frames, {
-            duration: rising ? 320 : 260,
+            duration: 200,
             easing: "cubic-bezier(.2,.8,.2,1)",
           })
         }
