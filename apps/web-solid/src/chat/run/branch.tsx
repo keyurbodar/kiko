@@ -15,8 +15,8 @@ function elbow(x: number, end: number): string {
   return `M ${x} ${start} Q ${x} ${MID} ${x + BEND} ${MID} H ${end}`
 }
 
-function trunk(x: number): string {
-  return `M ${x} 0 V ${MID - BEND}`
+function trunk(x: number, continues: boolean): string {
+  return `M ${x} 0 V ${continues ? ROW : MID - BEND}`
 }
 
 export function Branch(props: {
@@ -25,6 +25,7 @@ export function Branch(props: {
   liveBranch: boolean
   failed: boolean
   fresh: boolean
+  continues?: boolean
 }): JSX.Element {
   const x = () => TRUNK_X + props.depth * INDENT
   const end = () => BRANCH_END + props.depth * INDENT
@@ -51,7 +52,7 @@ export function Branch(props: {
         )}
       </For>
       <path
-        d={trunk(x())}
+        d={trunk(x(), props.continues === true)}
         pathLength="1"
         class="run-tree-branch-line"
         data-part="incoming"

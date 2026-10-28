@@ -299,6 +299,7 @@ function StepRow(props: {
   steps: readonly RunStep[]
   liveTrunk: boolean
   liveBranch: boolean
+  continues: boolean
 }) {
   const open = () => props.view.isOpen(props.step.id)
   const opensFile = () => !!props.step.target && !props.step.target.folder
@@ -332,6 +333,7 @@ function StepRow(props: {
           liveBranch={props.liveBranch}
           failed={failed()}
           fresh={born()}
+          continues={props.continues}
         />
         <Icon icon={props.step.icon} running={props.step.running} failed={failed()} settled={settled()} />
         <Label text={props.step.label} parts={props.step.parts} running={props.step.running} />
@@ -366,6 +368,7 @@ function WorkerRow(props: {
   liveBranch: boolean
   liveChild?: string
   liveChildIndex: number
+  continues: boolean
 }) {
   const open = () => props.worker.running || props.view.isOpen(props.worker.id)
   const born = () => fresh(props.worker.startedAt, props.view.now())
@@ -394,6 +397,7 @@ function WorkerRow(props: {
           liveBranch={props.liveBranch}
           failed={props.worker.failed}
           fresh={born()}
+          continues={props.continues}
         />
         <span class="run-tree-slot">
           <Leaves running={props.worker.running} failed={props.worker.failed} />
@@ -422,6 +426,7 @@ function WorkerRow(props: {
                 steps={props.steps}
                 liveTrunk={props.liveChild !== undefined && index <= props.liveChildIndex}
                 liveBranch={props.liveChild === step().id}
+                continues={index < props.worker.steps.length - 1}
               />
             )}
           </Index>
@@ -431,7 +436,14 @@ function WorkerRow(props: {
   )
 }
 
-function NoteRow(props: { note: NoteItem; view: View; depth: number; order: number; liveTrunk: boolean }) {
+function NoteRow(props: {
+  note: NoteItem
+  view: View
+  depth: number
+  order: number
+  liveTrunk: boolean
+  continues: boolean
+}) {
   const born = () => fresh(props.note.startedAt, props.view.now())
   return (
     <div
@@ -442,7 +454,14 @@ function NoteRow(props: { note: NoteItem; view: View; depth: number; order: numb
       style={{ "--run-delay": `${delayOf(born(), props.order)}ms` }}
     >
       <div class="run-tree-row run-tree-said">
-        <Branch depth={props.depth} liveTrunk={props.liveTrunk} liveBranch={false} failed={false} fresh={born()} />
+        <Branch
+          depth={props.depth}
+          liveTrunk={props.liveTrunk}
+          liveBranch={false}
+          failed={false}
+          fresh={born()}
+          continues={props.continues}
+        />
         <span class="run-tree-slot">
           <RemixIcon icon={GLYPH.bulb} size={16} class="run-tree-icon" />
         </span>
@@ -452,7 +471,14 @@ function NoteRow(props: { note: NoteItem; view: View; depth: number; order: numb
   )
 }
 
-function ThoughtRow(props: { thought: Thought; depth: number; order: number; now: number; live: boolean }) {
+function ThoughtRow(props: {
+  thought: Thought
+  depth: number
+  order: number
+  now: number
+  live: boolean
+  continues: boolean
+}) {
   const [open, setOpen] = createSignal(false)
   const ms = () => thoughtMs(props.thought, props.now)
   const text = () => thoughtText(props.thought)
@@ -474,7 +500,14 @@ function ThoughtRow(props: { thought: Thought; depth: number; order: number; now
           data-disclosure=""
           onClick={() => setOpen(!open())}
         >
-          <Branch depth={props.depth} liveTrunk={props.live} liveBranch={props.live} failed={false} fresh={born()} />
+          <Branch
+            depth={props.depth}
+            liveTrunk={props.live}
+            liveBranch={props.live}
+            failed={false}
+            fresh={born()}
+            continues={props.continues}
+          />
           <span class="run-tree-slot">
             <RemixIcon icon={GLYPH.bulb} size={16} class="run-tree-icon" />
           </span>
@@ -507,7 +540,16 @@ function Items(props: {
   return (
     <>
       <Show when={props.thought}>
-        {(thought) => <ThoughtRow thought={thought()} depth={0} order={0} now={props.view.now()} live={props.live} />}
+        {(thought) => (
+          <ThoughtRow
+            thought={thought()}
+            depth={0}
+            order={0}
+            now={props.view.now()}
+            live={props.live}
+            continues={props.items.length > 0}
+          />
+        )}
       </Show>
       <Index each={shown()}>
         {(item, index) => (
@@ -522,6 +564,7 @@ function Items(props: {
                   steps={props.steps}
                   liveTrunk={props.live && props.liveTopIndex >= 0 && index <= props.liveTopIndex}
                   liveBranch={props.live && props.liveTop === step().id}
+                  continues={index < shown().length - 1}
                 />
               )}
             </Match>
@@ -533,6 +576,7 @@ function Items(props: {
                   depth={0}
                   order={index}
                   liveTrunk={props.live && props.liveTopIndex >= 0 && index <= props.liveTopIndex}
+                  continues={index < shown().length - 1}
                 />
               )}
             </Match>
@@ -548,6 +592,7 @@ function Items(props: {
                   liveBranch={props.live && props.liveTop === worker().id}
                   liveChild={props.liveTop === worker().id ? props.liveChild : undefined}
                   liveChildIndex={props.liveChildIndex}
+                  continues={index < shown().length - 1}
                 />
               )}
             </Match>
