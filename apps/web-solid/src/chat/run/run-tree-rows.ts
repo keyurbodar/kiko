@@ -181,3 +181,72 @@ export function workLogOf(steps: readonly RunStep[], state: WorkState): WorkLog 
   if (state.detail === "error") return { live, head, items, missing: "error" }
   return { live, head, items, ...(state.detail === "ready" ? {} : { missing: "loading" as const }) }
 }
+
+export type SummarySegment = { text: string; failed?: true }
+
+const VERB: Partial<Record<StepIcon, (count: number) => string>> = {
+  terminal: (n) => `ran ${plural(n, "command", "commands")}`,
+  "file-view": (n) => `read ${plural(n, "file", "files")}`,
+  search: (n) => `searched ${plural(n, "time", "times")}`,
+  globe: (n) => `browsed ${plural(n, "page", "pages")}`,
+  browser: (n) => `browsed ${plural(n, "page", "pages")}`,
+}
+
+type StepTally = {
+  edited: Set<string>
+  wrote: Set<string>
+  helpers: Set<string>
+  counted: Map<StepIcon, number>
+  other: number
+  failed: number
+}
+
+function tallyStep(step: RunStep, tally: StepTally): void {
+  if (step.status === "failed") tally.failed++
+  if (step.worker) {
+    tally.helpers.add(step.worker.id)
+    return
+  }
+  const icon = iconOf({ ...step, status: "done" })
+  if (icon === "edit") tally.edited.add(pathOf(step)?.path ?? step.id)
+  else if (icon === "file-add") tally.wrote.add(pathOf(step)?.path ?? step.id)
+  else if (icon && VERB[icon]) tally.counted.set(icon, (tally.counted.get(icon) ?? 0) + 1)
+  else tally.other++
+}
+
+export function groupSummary(steps: readonly RunStep[]): readonly SummarySegment[] {
+  const calls = steps.filter((step) => !step.note)
+  if (calls.length === 0) return []
+  const tally: StepTally = {
+    edited: new Set(),
+    wrote: new Set(),
+    helpers: new Set(),
+    counted: new Map(),
+    other: 0,
+    failed: 0,
+  }
+  for (const step of calls) tallyStep(step, tally)
+  const { edited, wrote, helpers, counted, other, failed } = tally
+  const parts: string[] = []
+  const commands = counted.get("terminal") ?? 0
+  if (commands > 0) parts.push(VERB.terminal!(commands))
+  if (edited.size > 0) parts.push(`edited ${plural(edited.size, "file", "files")}`)
+  if (wrote.size > 0) parts.push(`wrote ${plural(wrote.size, "file", "files")}`)
+  for (const icon of ["file-view", "search", "globe", "browser"] as const) {
+    const count = counted.get(icon) ?? 0
+    if (count > 0) parts.push(VERB[icon]!(count))
+  }
+  if (helpers.size > 0) parts.push(`started ${plural(helpers.size, "helper", "helpers")}`)
+  if (other > 0) parts.push(`used ${plural(other, "tool", "tools")}`)
+  if (parts.length === 0) return failed > 0 ? [{ text: `${failed} failed`, failed: true }] : []
+  const first = parts[0]!
+  const segments: SummarySegment[] = [
+    { text: first.charAt(0).toUpperCase() + first.slice(1) },
+    ...parts.slice(1).map((text) => ({ text })),
+  ]
+  if (failed > 0) segments.push({ text: `${failed} failed`, failed: true })
+  return segments
+}
+
+export const summaryText = (segments: readonly SummarySegment[]): string =>
+  segments.map((segment) => segment.text).join(" · ")
