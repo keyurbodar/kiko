@@ -233,8 +233,8 @@ export function FileCard(props: {
           <Sheet entry={props.entry} compact={props.compact ?? false} />
         </span>
         <span class="file-card-text">
-          <span class="file-card-name type-row truncate text-fg">{props.entry.name}</span>
-          <span class="file-card-meta type-label flex min-w-0 items-center gap-1.5 text-fg4">
+          <span class="file-card-name type-label truncate text-fg">{props.entry.name}</span>
+          <span class="file-card-meta type-hint flex min-w-0 items-center gap-1.5 text-[var(--text-300)]">
             <Show when={props.entry.madeBy}>
               {(slug) => <IdentityAvatar seed={slug()} size={props.compact ? 14 : 16} class="shrink-0" />}
             </Show>

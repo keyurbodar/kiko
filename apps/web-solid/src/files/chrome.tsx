@@ -8,10 +8,10 @@ export const UNREADABLE = {
   "not-utf8": "This file is not UTF-8 text. Open it in another app to view its contents.",
 } as const
 
-export const SUBHEADER = "flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--line)] px-3"
+export const SUBHEADER = "flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--border-100)] px-2"
 
 export const ACTION =
-  "grid size-7 shrink-0 place-items-center rounded-control text-fg3 hover:bg-hover hover:text-fg aria-pressed:bg-active-strong aria-pressed:text-fg disabled:opacity-50"
+  "grid size-8 shrink-0 place-items-center rounded-control text-[var(--text-300)] transition-[background-color,color] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg aria-pressed:bg-active aria-pressed:text-fg disabled:opacity-50"
 
 export function SurfaceAction(props: {
   label: string

@@ -35,7 +35,7 @@ export default function FileDialog(props: {
       <ModalV2.Portal>
         <ModalV2.Overlay />
         <ModalV2.Content
-          class="h-[88vh] w-[min(64rem,92vw)] flex-col overflow-hidden rounded-sheet bg-bg shadow-2xl"
+          class="h-[88vh] w-[min(64rem,92vw)] flex-col overflow-hidden rounded-hero bg-bg shadow-2xl"
           data-component="file-dialog"
         >
           <div class={`${SUBHEADER} h-11 min-h-11`}>

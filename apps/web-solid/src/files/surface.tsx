@@ -1,6 +1,16 @@
 import { fileName, type FileRef } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CheckIcon, CopyIcon, DownloadIcon, InfoIcon, MaximizeIcon, MoreIcon, WrapTextIcon } from "@kiko/ui/icons"
+import {
+  CheckIcon,
+  CodeIcon,
+  CopyIcon,
+  DownloadIcon,
+  EyeIcon,
+  InfoIcon,
+  MaximizeIcon,
+  MoreIcon,
+  WrapTextIcon,
+} from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TabsPill, TabsV2 as Tabs } from "@kiko/ui/v2/tabs-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -28,9 +38,11 @@ function ViewSwitch(props: { view: FileView; mode: keyof typeof PREVIEW_LABEL })
       <Tabs.List class="file-view-switch shrink-0" aria-label="Show file as">
         <TabsPill />
         <Tabs.Trigger value="preview" class="file-view-tab" data-action="show-rendered">
+          <RemixIcon icon={EyeIcon} size={12} />
           {PREVIEW_LABEL[props.mode]}
         </Tabs.Trigger>
         <Tabs.Trigger value="source" class="file-view-tab" data-action="show-source">
+          <RemixIcon icon={CodeIcon} size={12} />
           Source
         </Tabs.Trigger>
       </Tabs.List>

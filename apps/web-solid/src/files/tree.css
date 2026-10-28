@@ -12,19 +12,28 @@
   height: 40px;
   flex: none;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   padding: 0 8px;
 }
+
+.kt-bar > label,
+.kt-bar [data-component="search-field"] {
+  height: 32px;
+}
+
 .kt-btn {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   flex: none;
   place-items: center;
   border: 0;
   border-radius: var(--radius-control);
   background: transparent;
-  color: var(--fg3);
+  color: var(--text-300);
+  transition:
+    background-color var(--dur-hover) var(--ease-snap),
+    color var(--dur-hover) var(--ease-snap);
 }
 .kt-btn:focus-visible {
   background: var(--hover);
@@ -54,8 +63,8 @@
 
 .kt-empty {
   padding: 8px 12px;
-  font-size: var(--type-label);
-  color: var(--fg3);
+  font-size: var(--type-hint);
+  color: var(--text-300);
 }
 
 .kt-menu {
@@ -63,19 +72,21 @@
   padding: 4px;
   border-radius: var(--radius-pop);
   background: var(--popover);
-  box-shadow: var(--float-shadow);
+  box-shadow: var(--edge), var(--shadow-pop);
   color: var(--fg);
 }
 .kt-menu-item {
   display: block;
   width: 100%;
-  padding: 6px 10px;
+  height: 32px;
+  padding: 0 8px;
   border: 0;
   border-radius: var(--radius-control);
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: var(--type-ui);
+  font-size: var(--type-label);
+  line-height: 32px;
   text-align: left;
   cursor: default;
 }
@@ -86,14 +97,14 @@
 
 @media (hover: hover) and (pointer: fine) {
   .kt-menu-item:hover {
-    background: var(--popover-hover);
+    background: var(--fill-hover);
     outline: none;
   }
 }
 .kt-menu-sep {
   height: 1px;
   margin: 4px 6px;
-  background: var(--line);
+  background: var(--border-100);
 }
 
 .kt-host[data-pointer] {

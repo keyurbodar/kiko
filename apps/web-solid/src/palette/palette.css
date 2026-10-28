@@ -28,8 +28,8 @@
   flex-direction: column;
   background: var(--popover);
   color: var(--fg);
-  border-radius: var(--radius-sheet);
-  box-shadow: var(--float-shadow);
+  border-radius: var(--radius-pop);
+  box-shadow: var(--edge), var(--shadow-float);
   overflow: hidden;
 }
 .palette-bar {
@@ -106,7 +106,7 @@
   left: 0;
   height: 28px;
   border-radius: var(--radius-control);
-  background: var(--active);
+  background: var(--fill-control);
 }
 .palette-pill[data-ready] {
   transition:
@@ -146,7 +146,7 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
-  background: var(--raise);
+  background: transparent;
 }
 .palette-list {
   position: relative;
@@ -184,31 +184,28 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 42px;
-  padding: 6px 12px;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0 8px;
   border-radius: var(--radius-row);
   font-size: var(--type-ui);
-  line-height: 20px;
+  line-height: 22px;
   cursor: default;
-  transition: background-color var(--dur-hover) var(--ease-kiko);
+  transition: background-color var(--dur-hover) var(--ease-snap);
 }
 .palette-row[data-two] {
-  min-height: 56px;
-  padding-block: 8px;
-}
-.palette-row[data-selected="true"] {
-  background: transparent;
+  min-height: 44px;
+  padding-block: 4px;
 }
 .palette-row[data-picked="true"] {
-  background: var(--hover);
+  background: var(--fill-hover);
 }
-.palette-row[data-selected="true"][data-picked="true"] {
-  background: transparent;
+.palette-glide {
+  background: var(--active);
 }
 .palette-group [cmdk-group-heading] {
-  padding: 14px 12px 6px;
-  color: var(--fg3);
+  padding: 12px 8px 4px;
+  color: var(--text-300);
   font-size: var(--type-hint);
   font-weight: 500;
 }
@@ -235,7 +232,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--fg3);
+  color: var(--text-300);
   font-size: var(--type-hint);
   line-height: 18px;
 }
@@ -247,14 +244,14 @@
   display: inline-flex;
   flex-shrink: 0;
   justify-content: center;
-  width: 28px;
-  color: var(--fg2);
+  width: 24px;
+  color: var(--text-300);
 }
 .palette-file-icon {
   display: inline-flex;
   flex-shrink: 0;
   justify-content: center;
-  width: 28px;
+  width: 24px;
 }
 .palette-file-icon svg {
   width: 18px;
@@ -305,34 +302,37 @@
   height: 18px;
   border-radius: var(--radius-check);
   box-shadow: inset 0 0 0 1.5px var(--fg4);
-  color: var(--bg);
   transition:
     background-color var(--dur-hover) var(--ease-kiko),
     box-shadow var(--dur-hover) var(--ease-kiko);
 }
-.palette-check[aria-checked="true"] {
-  color: var(--on-accent);
-  background: var(--accent-fill);
-  box-shadow: none;
+.palette-check[aria-checked="true"] svg {
+  display: none;
+}
+.palette-check[aria-checked="true"]::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: var(--fg);
 }
 
 .palette-ask {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-shrink: 0;
-  height: 44px;
+  height: 40px;
   margin: 0 8px 4px;
-  padding: 0 12px;
+  padding: 0 8px;
   border-radius: var(--radius-row);
   color: var(--fg2);
   font-size: var(--type-ui);
   text-align: left;
-  transition: background-color var(--dur-hover) var(--ease-kiko);
+  transition: background-color var(--dur-hover) var(--ease-snap);
 }
 @media (hover: hover) and (pointer: fine) {
   .palette-ask:hover {
-    background: var(--hover);
+    background: var(--fill-hover);
   }
 }
 .palette-ask-face {
@@ -426,9 +426,10 @@
   right: 8px;
   bottom: 8px;
   width: 46%;
-  padding: 6px;
+  padding: 4px;
   border-radius: var(--radius-pop);
-  background: var(--panel);
+  background: var(--raise);
+  box-shadow: var(--edge);
   overflow-y: auto;
 }
 .palette-actions {
@@ -439,18 +440,18 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  height: 36px;
-  padding: 0 10px;
-  border-radius: var(--radius-control);
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--radius-row);
   color: var(--fg);
-  font-size: var(--type-ui);
+  font-size: var(--type-label);
   text-align: left;
 }
 .palette-action svg {
-  color: var(--fg2);
+  color: var(--text-300);
 }
 .palette-action[data-active] {
-  background: var(--active);
+  background: var(--fill-hover);
 }
 .palette-action[data-danger],
 .palette-action[data-danger] svg {
@@ -498,12 +499,12 @@
   align-items: center;
   justify-content: center;
   gap: 1px;
-  height: 22px;
+  height: 20px;
   min-width: 22px;
   padding: 1px 6px 0;
   line-height: 1;
   border-radius: var(--radius-control);
-  background: var(--active);
+  background: var(--fill-control);
   color: var(--fg3);
   font-family: var(--font-sans);
   font-size: var(--type-hint);

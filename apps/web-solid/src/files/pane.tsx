@@ -62,7 +62,7 @@ export function FilesTree(props: { chatId: string }) {
 
   return (
     <aside
-      class="flex min-h-0 min-w-0 flex-1 flex-col px-2 pt-1 pb-2"
+      class="flex min-h-0 min-w-0 flex-1 flex-col px-0 pt-1 pb-2"
       aria-label="File explorer"
       data-component="file-explorer"
     >

@@ -16,20 +16,20 @@
   transform: translateX(-50%);
   background: var(--popover);
   color: var(--fg);
-  border-radius: var(--radius-sheet);
-  box-shadow: var(--float-shadow);
+  border-radius: var(--radius-pop);
+  box-shadow: var(--edge), var(--shadow-float);
   overflow: hidden;
 }
 .search-bar {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 56px;
-  padding: 0 14px 0 20px;
+  height: 52px;
+  padding: 0 12px 0 16px;
 }
 .search-glass {
   flex: none;
-  color: var(--fg2);
+  color: var(--text-300);
 }
 .search-input {
   flex: 1;
@@ -43,15 +43,15 @@
   font-size: var(--type-msg);
 }
 .search-input::placeholder {
-  color: var(--fg4);
+  color: var(--text-300);
 }
 .search-scope {
   flex: none;
   display: flex;
   position: relative;
   padding: 2px;
-  border-radius: var(--radius-row);
-  background: var(--active);
+  border-radius: var(--radius-control);
+  background: var(--fill-control);
 }
 .search-scope-option {
   height: 28px;
@@ -59,20 +59,20 @@
   border: 0;
   border-radius: var(--radius-control);
   background: transparent;
-  color: var(--fg3);
+  color: var(--text-300);
   font: inherit;
   font-size: var(--type-label);
   font-weight: 500;
   cursor: default;
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
+    background-color var(--dur-hover) var(--ease-snap),
+    color var(--dur-hover) var(--ease-snap);
 }
 .search-scope-option:active:not(:disabled) {
   transform: scale(0.97);
 }
 .search-scope-option[aria-checked="true"] {
-  background: var(--raise);
+  background: var(--active);
   color: var(--fg);
 }
 .search-scope-option:disabled {
@@ -82,17 +82,21 @@
   max-height: min(460px, 60dvh);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 4px 8px 8px;
+  padding: 0 8px 8px;
 }
 .search-hit {
-  padding: 8px 12px;
+  display: flex;
+  min-height: 32px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4px 8px;
   border-radius: var(--radius-row);
   cursor: default;
-  transition: background-color 80ms var(--ease-kiko);
+  transition: background-color var(--dur-hover) var(--ease-snap);
 }
 @media (hover: hover) and (pointer: fine) {
   .search-hit:hover {
-    background: var(--hover);
+    background: var(--fill-hover);
   }
 }
 .search-hit[aria-selected="true"] {
@@ -103,6 +107,7 @@
   align-items: baseline;
   gap: 8px;
   font-size: var(--type-label);
+  line-height: 20px;
 }
 .search-hit-from {
   font-weight: 600;
@@ -112,7 +117,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--fg3);
+  color: var(--text-300);
 }
 .search-hit-chat::before {
   content: "in ";
@@ -120,23 +125,24 @@
 .search-hit-time {
   margin-left: auto;
   flex: none;
-  font-size: var(--type-hint);
-  color: var(--fg4);
+  font-size: var(--type-caption);
+  color: var(--text-300);
+  font-variant-numeric: tabular-nums;
 }
 .search-hit-snippet {
-  margin-top: 2px;
-  font-size: var(--type-ui);
-  line-height: 20px;
+  margin-top: 1px;
+  font-size: var(--type-hint);
+  line-height: 19px;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  color: var(--fg3);
+  color: var(--text-300);
 }
 .search-hit-snippet mark {
   background: transparent;
   color: var(--fg);
-  font-weight: 700;
+  font-weight: 600;
 }
 .search-empty {
   display: flex;
@@ -145,7 +151,7 @@
   gap: 8px;
   padding: 28px 12px;
   font-size: var(--type-ui);
-  color: var(--fg3);
+  color: var(--text-300);
 }
 
 @media (width < 768px) {
@@ -154,7 +160,7 @@
     width: calc(100vw - 16px);
   }
   .search-hit {
-    padding: 10px;
+    padding: 6px 8px;
   }
 }
 

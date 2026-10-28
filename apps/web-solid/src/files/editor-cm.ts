@@ -27,14 +27,14 @@ export type Mounted = {
 }
 
 const theme = EditorView.theme({
-  "&": { height: "100%", backgroundColor: "transparent", color: "var(--fg)", fontSize: "12.5px" },
-  ".cm-scroller": { fontFamily: "var(--font-family-mono)", lineHeight: "1.6", overflow: "auto" },
+  "&": { height: "100%", backgroundColor: "transparent", color: "var(--fg)", fontSize: "13px" },
+  ".cm-scroller": { fontFamily: "var(--font-family-mono)", lineHeight: "21px", overflow: "auto" },
   ".cm-content": { caretColor: "var(--fg)", padding: "8px 0" },
   "&.cm-focused": { outline: "none" },
   ".cm-cursor": { borderLeftColor: "var(--fg)" },
-  ".cm-gutters": { backgroundColor: "transparent", color: "var(--fg3)", border: "none" },
+  ".cm-gutters": { backgroundColor: "transparent", color: "var(--text-400)", border: "none" },
   ".cm-lineNumbers .cm-gutterElement": { padding: "0 16px 0 8px", minWidth: "40px" },
-  ".cm-activeLine": { backgroundColor: "var(--hover)" },
+  ".cm-activeLine": { backgroundColor: "var(--fe-active-line)" },
   ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--fg)" },
   "&.cm-readonly .cm-activeLine": { backgroundColor: "transparent" },
   "&.cm-readonly .cm-cursor": { display: "none" },
