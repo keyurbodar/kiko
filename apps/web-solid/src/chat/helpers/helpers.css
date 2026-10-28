@@ -92,10 +92,6 @@
 .helper-lane:active {
   transform: scale(0.99);
 }
-.helper-lane:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
 @media (hover: hover) and (pointer: fine) {
   .helper-lane:hover {
     background: var(--hover);
@@ -181,10 +177,6 @@
   top: 50%;
   width: 12px;
   border-top: 1px solid color-mix(in oklab, var(--fg4) 45%, transparent);
-}
-.helper-nest-row:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
 }
 @media (hover: hover) and (pointer: fine) {
   .helper-nest-row:hover {

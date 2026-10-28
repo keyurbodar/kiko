@@ -34,7 +34,7 @@ const NAV =
   "absolute top-1/2 z-20 grid size-9 -translate-y-1/2 place-items-center rounded-row text-white/90 hover:bg-white/10 hover:text-white"
 
 const TOOL =
-  "grid size-8 cursor-pointer place-items-center rounded-control text-fg2 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.94] focus-visible:shadow-[var(--focus-ring)] outline-none"
+  "grid size-8 cursor-pointer place-items-center rounded-control text-fg2 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.94] outline-none"
 
 const DONE_MS = 1200
 const READOUT_MS = 1000

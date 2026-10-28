@@ -10,7 +10,7 @@
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    padding: 4px;
+    padding: 6px;
     min-width: 192px;
     max-width: var(--kb-popper-content-available-width);
     max-height: var(--kb-popper-content-available-height);
@@ -33,7 +33,7 @@
     position: relative;
 
     & > [data-slot="glide"] {
-      border-radius: var(--radius-row);
+      border-radius: var(--radius-control);
       background: var(--fill-hover);
     }
 
@@ -62,12 +62,12 @@
     flex-direction: row;
     align-items: center;
     gap: 10px;
-    height: 32px;
+    height: 34px;
     padding: 0 8px;
     background: transparent;
     position: relative;
     z-index: 1;
-    border-radius: var(--radius-row);
+    border-radius: var(--radius-control);
     outline: none;
     cursor: default;
     user-select: none;
@@ -84,7 +84,7 @@
       gap: 10px;
       min-width: 0;
 
-      font-size: 14px;
+      font-size: var(--type-ui);
       font-weight: 400;
       line-height: 20px;
       color: inherit;
@@ -101,7 +101,7 @@
       display: inline-flex;
       align-items: center;
       flex: none;
-      font-size: 13px;
+      font-size: var(--type-label);
       font-weight: 400;
       line-height: 16px;
       color: var(--text-300);
@@ -137,7 +137,7 @@
       flex: none;
       width: 8px;
       height: 8px;
-      border-radius: 999px;
+      border-radius: var(--radius-full);
       background: transparent;
       color: var(--menu-v2-icon);
     }
@@ -199,7 +199,7 @@
     align-items: center;
     padding: 6px 8px 2px;
 
-    font-size: 12px;
+    font-size: var(--type-label);
     font-weight: 500;
     line-height: 16px;
     color: var(--text-300);

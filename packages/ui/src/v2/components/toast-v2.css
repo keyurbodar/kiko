@@ -1,7 +1,7 @@
 .toast-v2-region,
 .toast-v2-anchors {
   --toast-muted: var(--fg3);
-  --toast-ring: 0 0 0 1px var(--popover-edge);
+  --toast-edge: inset 0 0 0 1px var(--line2);
 }
 
 .toast-v2-region {
@@ -49,8 +49,8 @@
   width: 100%;
   border-radius: var(--radius-pop);
   color: var(--fg);
-  background: var(--popover);
-  box-shadow: var(--edge), var(--shadow-pop);
+  background: var(--hover);
+  box-shadow: var(--toast-edge), var(--shadow-float);
   pointer-events: auto;
   user-select: none;
   -webkit-user-select: none;
@@ -131,9 +131,9 @@
   justify-content: space-between;
   gap: 10px;
   min-height: 0;
-  padding: 10px 10px 10px 14px;
+  padding: 10px 12px;
   overflow-x: clip;
-  font-size: 14px;
+  font-size: var(--type-ui);
   line-height: 20px;
   transition: opacity var(--dur-pop) var(--ease-kiko);
 
@@ -305,7 +305,7 @@
   transition:
     background var(--dur-hover),
     transform var(--dur-hover) var(--ease-kiko);
-  font-size: 13px;
+  font-size: var(--type-label);
   font-weight: 500;
   line-height: 16px;
   white-space: nowrap;
@@ -342,10 +342,10 @@
   padding: 4px 8px;
   border-radius: var(--radius-tail);
   font-size: var(--type-hint);
-  line-height: 1.375;
+  line-height: 16px;
   color: var(--popover-fg);
-  background: var(--popover);
-  box-shadow: var(--toast-ring), var(--popover-shadow);
+  background: var(--hover);
+  box-shadow: var(--toast-edge), var(--shadow-float);
   text-wrap: balance;
   pointer-events: none;
   transform: translate(-50%, calc(-100% - 4px));

@@ -11,7 +11,7 @@
   background: var(--chip-fill);
   color: var(--fg);
   font: inherit;
-  font-size: var(--type-label);
+  font-size: var(--type-row);
   line-height: 20px;
   vertical-align: middle;
   white-space: nowrap;
@@ -68,11 +68,6 @@
 
 .lchip[data-missing] {
   color: var(--fg2);
-}
-
-.lchip:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
 }
 
 @media (hover: hover) and (pointer: fine) {
