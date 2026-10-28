@@ -1,8 +1,8 @@
-export const SIDEBAR = { key: "kiko:device:sidebar-width", min: 220, max: 420, fallback: 288 }
+export const SIDEBAR = { key: "kiko:device:sidebar-width", min: 220, max: 420, fallback: 288, floor: 288 }
 export const INFO = { key: "kiko:device:info-width", min: 280, max: 720, fallback: 340 }
 export const CHAT_MIN = 360
 
-type Rule = typeof SIDEBAR
+type Rule = { key: string; min: number; max: number; fallback: number; floor?: number }
 
 export function defaultWidth(rule: Rule, viewport = globalThis.innerWidth ?? 1280): number {
   const raw = rule === INFO ? Math.round(viewport * 0.26) : rule.fallback
@@ -42,7 +42,7 @@ export function resetWidth(
 export function fitWidths(viewport: number, sidebar: number, info: number) {
   const room = Math.max(0, viewport - CHAT_MIN)
   let right = info > 0 ? Math.max(INFO.min, info) : 0
-  let side = sidebar > 0 ? Math.max(SIDEBAR.min, sidebar) : 0
+  let side = sidebar > 0 ? Math.max(SIDEBAR.floor ?? SIDEBAR.min, sidebar) : 0
   if (side + right > room) right = Math.max(INFO.min, room - side)
   if (side + right > room) side = Math.max(0, room - right)
   return { sidebar: side, info: right }
@@ -53,6 +53,6 @@ export function initialSizes(width: number, sidebar: number | null, info: number
   let right = info ?? 0
   const room = Math.max(0, width - CHAT_MIN)
   if (right > 0) right = Math.max(INFO.min, Math.min(right, room - side))
-  if (side > 0 && side + right > room) side = Math.max(SIDEBAR.min, room - right)
+  if (side > 0 && side + right > room) side = Math.max(SIDEBAR.floor ?? SIDEBAR.min, room - right)
   return { sidebar: side / width, info: right / width, chat: 1 - side / width - right / width }
 }
