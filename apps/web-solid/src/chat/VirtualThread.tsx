@@ -51,8 +51,6 @@ const DATE_CHIP_IDLE_MS = 800
 
 const READER_SCROLL_MS = 250
 
-const RESYNC_TRIES = 8
-
 const STAGE_CLASS = "relative flex min-h-0 flex-1 flex-col"
 
 const SCROLLER_CLASS =
@@ -98,6 +96,7 @@ export function VirtualThread(props: {
   onCleanup(glide.stop)
 
   const [handle, setHandle] = createSignal<VirtualizerHandle>()
+  const [measuredOffset, setMeasuredOffset] = createSignal(0)
   const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(new Set())
   const toggleThread = (key: string) =>
     setExpanded((open) => {
@@ -510,23 +509,21 @@ export function VirtualThread(props: {
       checkBlank()
       if (!firstLoad && state.rangeStart < NEAR_TOP_ROWS && state.scrollSize > state.viewportSize) props.onNearTop?.()
     }
-    let resyncFrame = 0
-    let resyncTries = 0
-    onCleanup(() => cancelAnimationFrame(resyncFrame))
-    const resync = () => {
-      cancelAnimationFrame(resyncFrame)
-      resyncTries = RESYNC_TRIES
-      const step = () => {
-        const virtualizer = handle()
-        if (!virtualizer || scroller.scrollTop !== 0 || glide.active()) return
-        if (virtualizer.scrollOffset > scroller.clientHeight) {
-          scroller.scrollTop = virtualizer.scrollOffset
-          return
-        }
-        if (resyncTries-- > 0) resyncFrame = requestAnimationFrame(step)
+    const [resyncRequested, setResyncRequested] = createSignal(false)
+    const resync = () => setResyncRequested(true)
+    createEffect(() => {
+      const offset = measuredOffset()
+      const virtualizer = handle()
+      if (!resyncRequested() || !virtualizer) return
+      if (scroller.scrollTop !== 0 || glide.active()) {
+        setResyncRequested(false)
+        return
       }
-      resyncFrame = requestAnimationFrame(step)
-    }
+      if (offset <= virtualizer.viewportSize) return
+      setResyncRequested(false)
+      const index = virtualizer.findItemIndex(offset)
+      virtualizer.scrollToIndex(index, { align: "start", offset: offset - virtualizer.getItemOffset(index) })
+    })
     createEventListener(() => scroller, "pointerenter", resync, { passive: true })
     createEventListener(() => scroller, "focusin", resync)
     createEventListener(document, "visibilitychange", resync)
@@ -543,7 +540,7 @@ export function VirtualThread(props: {
     let readerScrollEnd: ReturnType<typeof setTimeout> | undefined
     onCleanup(() => clearTimeout(readerScrollEnd))
     const readerMoved = () => {
-      resync()
+      setResyncRequested(false)
       restoreGeneration += 1
       glide.stop()
       readerScrolling = true
@@ -802,6 +799,7 @@ export function VirtualThread(props: {
                 bufferSize={BUFFER_SIZE}
                 shift={isShifted()}
                 ref={setHandle}
+                onScroll={setMeasuredOffset}
               >
                 {(item) => <div data-component="chat-vrow">{renderItem(item)}</div>}
               </Virtualizer>
