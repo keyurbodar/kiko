@@ -39,21 +39,21 @@ export function Section(props: {
       <Show
         when={props.kind}
         fallback={
-          <h3 class="flex h-7 items-center px-1 font-sans text-label font-normal text-fg3">
+          <h3 class="flex h-8 items-center px-1 font-sans text-hint font-normal text-[var(--text-300)]">
             <span class="min-w-0 flex-1 truncate">{props.label}</span>
-            <span class="shrink-0 text-hint text-fg4">{props.meta}</span>
+            <span class="shrink-0 text-caption text-[var(--text-300)]">{props.meta}</span>
           </h3>
         }
       >
         <button
           type="button"
-          class={`group/head -mx-1 flex h-7 items-center rounded-control px-1 text-left text-label text-fg3 hover:bg-hover hover:text-fg ${press}`}
+          class={`group/head -mx-1 flex h-8 items-center rounded-control px-1 text-left text-hint text-[var(--text-300)] hover:bg-hover hover:text-fg ${press}`}
           data-action={`open-${props.kind}`}
           aria-label={`Open ${props.label}`}
           onClick={open}
         >
           <span class="min-w-0 flex-1 truncate">{props.label}</span>
-          <span class="shrink-0 text-hint text-fg4">{props.meta}</span>
+          <span class="shrink-0 text-caption text-[var(--text-300)]">{props.meta}</span>
           <RemixIcon
             icon={ChevronRightIcon}
             size={12}

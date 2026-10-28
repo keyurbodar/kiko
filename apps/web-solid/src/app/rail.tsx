@@ -23,7 +23,7 @@ const MAX_FACES = 5
 
 function Tip(props: { label: string; children: JSX.Element }) {
   return (
-    <TooltipV2 placement="right" openDelay={300} value={props.label}>
+    <TooltipV2 placement="right" openDelay={500} value={props.label}>
       {props.children}
     </TooltipV2>
   )
@@ -34,7 +34,7 @@ export function Rail(props: { onExpand: () => void }) {
   const live = () => room.bots().filter(isLive).slice(0, MAX_FACES)
   return (
     <nav
-      class="flex h-full w-14 shrink-0 flex-col items-center gap-1 border-r border-line bg-side py-3"
+      class="flex h-full w-14 shrink-0 flex-col items-center gap-1 bg-side py-3"
       data-component="sidebar-rail"
       aria-label="Main"
     >
@@ -42,12 +42,12 @@ export function Rail(props: { onExpand: () => void }) {
       <div class="h-2" />
       <Tip label="New chat">
         <button type="button" class={BUTTON} aria-label="New chat" onClick={() => runCommand("chat.new")}>
-          <RemixIcon icon={PlusIcon} size={16} />
+          <RemixIcon icon={PlusIcon} size={20} />
         </button>
       </Tip>
       <Tip label="Search">
         <button type="button" class={BUTTON} aria-label="Search" onClick={() => runCommand("palette.open")}>
-          <RemixIcon icon={SearchIcon} size={16} />
+          <RemixIcon icon={SearchIcon} size={20} />
         </button>
       </Tip>
       <For each={LINKS}>
@@ -58,7 +58,7 @@ export function Rail(props: { onExpand: () => void }) {
               class={`${BUTTON} ${pathname().startsWith(link.to) ? "bg-active text-fg" : ""}`}
               aria-label={link.label}
             >
-              <RemixIcon icon={link.icon} size={16} />
+              <RemixIcon icon={link.icon} size={20} />
             </Link>
           </Tip>
         )}
@@ -82,7 +82,7 @@ export function Rail(props: { onExpand: () => void }) {
       <div class="flex-1" />
       <Tip label="Settings">
         <button type="button" class={BUTTON} aria-label="Settings" onClick={() => runCommand("settings.open")}>
-          <RemixIcon icon={SettingsIcon} size={16} />
+          <RemixIcon icon={SettingsIcon} size={20} />
         </button>
       </Tip>
     </nav>

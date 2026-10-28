@@ -1,6 +1,5 @@
 .sidebar-shell {
   --frame-gap: 0px;
-  --draft: color-mix(in oklab, #8b7cf0 70%, var(--fg));
   display: flex;
   height: 100%;
   min-height: 0;
@@ -19,12 +18,10 @@
   flex-direction: column;
   overflow: clip;
   background: var(--side);
-  box-shadow: inset -1px 0 0 var(--line);
 }
 
 .sidebar-shell .panel[data-collapsed] {
   width: 0;
-  box-shadow: none;
 }
 
 .sidebar-shell .panel[data-collapsed] > * {
@@ -39,7 +36,7 @@
   flex-shrink: 0;
   align-items: center;
   gap: 2px;
-  padding: 4px 10px 0 18px;
+  padding: 4px 9px 0 18px;
 }
 
 .sidebar-shell :is(.panel-brand, .chat-row, .nav-row) {
@@ -122,7 +119,7 @@
   flex-shrink: 0;
   flex-direction: column;
   gap: var(--spacing-nav-gap-row);
-  padding: 6px 8px 0;
+  padding: 6px 9px 0;
 }
 
 .sidebar-shell .nav-row {
@@ -131,7 +128,7 @@
   width: 100%;
   align-items: center;
   gap: var(--spacing-nav-gap);
-  padding: 0 var(--spacing-nav-pad);
+  padding: 0 11px;
   color: var(--fg);
   font: inherit;
   font-size: var(--type-ui);
@@ -153,7 +150,7 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  color: color-mix(in srgb, var(--fg) 78%, transparent);
+  color: var(--text-200);
 }
 
 .sidebar-shell .nav-label {
@@ -164,7 +161,7 @@
 .sidebar-shell .nav-kbd {
   margin-left: auto;
   padding-left: 12px;
-  color: var(--fg4);
+  color: var(--fg3);
   font: inherit;
   font-size: var(--type-hint);
   line-height: 16px;
@@ -231,7 +228,7 @@
 
 .sidebar-shell .panel-foot {
   display: flex;
-  height: 52px;
+  height: 56px;
   flex-shrink: 0;
   align-items: center;
   gap: 4px;
@@ -240,7 +237,7 @@
 
 .sidebar-shell .panel-me {
   display: flex;
-  height: 40px;
+  height: 44px;
   min-width: 0;
   flex: 1;
   align-items: center;
@@ -288,7 +285,7 @@
 .sidebar-shell .chat-scroll {
   min-height: 0;
   flex: 1;
-  padding: 0 8px 8px;
+  padding: 0 9px 8px;
   overflow-y: auto;
   overscroll-behavior: contain;
   position: relative;
@@ -298,21 +295,22 @@
 
 .sidebar-shell .chat-section {
   display: flex;
-  height: 28px;
+  height: 32px;
   flex-shrink: 0;
   align-items: center;
   gap: 6px;
-  margin-top: 14px;
+  margin-top: 18px;
   padding: 0 4px 0 10px;
-  color: var(--fg3);
-  font-size: var(--type-label);
-  font-weight: 435;
+  color: var(--text-300);
+  font-size: var(--type-hint);
+  font-weight: 400;
+  line-height: 18px;
   user-select: none;
 }
 
 .sidebar-shell .chat-section-toggle {
   display: inline-flex;
-  height: 28px;
+  height: 32px;
   align-items: center;
   gap: 6px;
   padding: 0;
@@ -393,7 +391,10 @@
 }
 
 .sidebar-shell .chat-fold-inner {
+  display: flex;
   min-height: 0;
+  flex-direction: column;
+  gap: 2px;
   overflow: hidden;
 }
 
@@ -577,7 +578,7 @@
   color: var(--fg3);
   background: none;
   border: none;
-  border-radius: var(--radius-check);
+  border-radius: var(--radius-tail);
   cursor: pointer;
   opacity: 0;
   transition:
@@ -657,8 +658,8 @@
 .sidebar-shell .chat-avatar {
   position: relative;
   display: flex;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   flex: none;
   align-items: center;
   justify-content: center;
@@ -694,8 +695,8 @@
   flex: 1;
   overflow: hidden;
   color: var(--fg2);
-  font-size: var(--type-label);
-  font-weight: 435;
+  font-size: var(--type-row);
+  font-weight: 500;
   line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -707,7 +708,7 @@
 }
 
 .sidebar-shell .chat-row[data-unread] .chat-name {
-  font-weight: 520;
+  font-weight: 600;
   transition-duration: 0s;
 }
 
@@ -723,8 +724,8 @@
 
 .sidebar-shell .chat-time {
   flex-shrink: 0;
-  color: var(--fg4);
-  font-size: var(--type-hint);
+  color: var(--fg3);
+  font-size: var(--type-caption);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -739,7 +740,7 @@
   flex: 1;
   overflow: hidden;
   color: var(--fg3);
-  font-size: var(--type-label);
+  font-size: var(--type-hint);
   line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -758,7 +759,7 @@
 }
 
 .sidebar-shell .chat-draft {
-  color: var(--draft);
+  color: var(--fg3);
   font-weight: 500;
   animation: sidebar-fade-in var(--dur-pop) var(--ease-kiko) both;
 }
@@ -797,11 +798,11 @@
 }
 
 .sidebar-shell .chat-dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   flex: none;
   align-self: center;
-  background: var(--fg);
+  background: var(--accent-unread);
   border-radius: 50%;
   animation: sidebar-fade-in var(--dur-pop) var(--ease-kiko) both;
 }
