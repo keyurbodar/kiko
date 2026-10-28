@@ -79,7 +79,7 @@ export function typeVars(base: number): Record<string, string> {
   for (const [name, t] of Object.entries(TYPE) as [TypeName, Type][]) {
     const size = t.scales ? round(t.size + base - BASE) : t.size
     vars[`--type-${name}`] = `${size}px`
-    vars[`--type-${name}-line`] = String(round(t.line / t.size))
+    vars[`--type-${name}-line`] = `${round((t.line / t.size) * size)}px`
   }
   return vars
 }

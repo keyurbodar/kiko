@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     "./palette": "./src/palette.ts",
+    "./chips": "./src/chips.ts",
     "./look": "./src/look.ts",
     "./display": "./src/display.ts",
     "./system": "./src/system.ts",

@@ -1,4 +1,5 @@
 import { fileName } from "@kiko/protocol"
+import { toneOf } from "@kiko/theme/chips"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CopyIcon, FileIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
@@ -92,6 +93,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
             class="lchip"
             data-component="chat-file-chip"
             data-kind={picture() ? "image" : folder() ? "folder" : "file"}
+            data-tone={folder() ? "mention" : toneOf(props.file.path)}
             data-path={props.file.path}
             data-missing={find(props.file.path).kind === "none" ? "" : undefined}
             aria-label={`${folder() ? "Show" : "Open"} ${spoken()}`}

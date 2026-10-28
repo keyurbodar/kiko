@@ -1,3 +1,5 @@
+import { chipTokens } from "./chips"
+
 export type ThemeAppearance = "light" | "dark"
 export type ThemeMode = ThemeAppearance | "system"
 
@@ -255,7 +257,10 @@ export function tokensFor(
     veil: (n) => `color-mix(in srgb, ${mode === "dark" ? "#ffffff" : "#000000"} ${share(n)}%, transparent)`,
     clear: (n) => `color-mix(in oklab, ${p.text} ${share(n)}%, transparent)`,
   }
-  return Object.fromEntries(ROLES.map(([token, value]) => [token, value(ink)]))
+  return {
+    ...Object.fromEntries(ROLES.map(([token, value]) => [token, value(ink)])),
+    ...chipTokens(mode, p),
+  }
 }
 
 export const resolveAppearance = (mode: ThemeMode, systemDark: boolean): ThemeAppearance =>
