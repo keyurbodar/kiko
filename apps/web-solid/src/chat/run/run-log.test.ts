@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { extraInput, iconOf, liveLabel, summarizeSteps } from "./run-log"
+import { extraInput, iconOf, liveLabel, sourcesOf, summarizeSteps } from "./run-log"
 
 const step = (name: string, input?: string, label = `Used ${name}`) => ({
   tool: "other" as const,
@@ -108,5 +108,23 @@ describe("summarizeSteps", () => {
     expect(summarizeSteps([bash("cat a.md"), { ...bash("cat b.md"), worker }, { ...bash("cat c.md"), worker }])).toBe(
       "Read a.md and started a helper",
     )
+  })
+})
+
+describe("sourcesOf", () => {
+  it("lists each site a web step read once, without www", () => {
+    expect(
+      sourcesOf(
+        step(
+          "browse",
+          '{"urls":["https://www.kyohaku.go.jp/en/","https://japan-guide.com/a","https://japan-guide.com/b"]}',
+        ),
+      ),
+    ).toEqual(["kyohaku.go.jp", "japan-guide.com"])
+  })
+
+  it("reads a single url and ignores input that is not a link", () => {
+    expect(sourcesOf(step("fetch", '{"url":"https://nishiki-ichiba.jp"}'))).toEqual(["nishiki-ichiba.jp"])
+    expect(sourcesOf(step("bash", "ls -la"))).toEqual([])
   })
 })

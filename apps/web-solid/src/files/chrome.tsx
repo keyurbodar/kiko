@@ -24,7 +24,7 @@ export function SurfaceAction(props: {
   download?: string
 }) {
   return (
-    <TooltipV2 placement="bottom" openDelay={400} value={props.label}>
+    <TooltipV2 placement="bottom" openDelay={500} value={props.label}>
       <Show
         when={props.href}
         fallback={

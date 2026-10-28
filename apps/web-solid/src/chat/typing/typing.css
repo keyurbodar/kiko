@@ -10,7 +10,7 @@
 .typing {
   display: flex;
   max-width: 100%;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: 8px;
 }
 
@@ -28,11 +28,9 @@
 }
 
 .typing-more {
-  color: var(--fg3);
-  font-size: var(--type-label);
-}
-.typing-more[data-group] {
-  padding-left: 40px;
+  padding-left: 36px;
+  color: var(--text-300);
+  font-size: var(--type-hint);
 }
 
 .typing-sr {

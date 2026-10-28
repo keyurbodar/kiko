@@ -12,7 +12,6 @@ export interface TypingIndicatorProps {
   typists: string[]
   seeds?: readonly string[]
   doings?: readonly (string | undefined)[]
-  group?: boolean
   max?: number
   announceAfter?: number
   class?: string
@@ -20,7 +19,7 @@ export interface TypingIndicatorProps {
 
 const ROWS = 3
 
-function Row(props: { seed: string; doing?: string; group?: boolean }) {
+function Row(props: { seed: string; doing?: string }) {
   const [since, setSince] = createSignal(Date.now())
   const [now, setNow] = createSignal(Date.now())
   const tick = setInterval(() => setNow(Date.now()), 1000)
@@ -56,9 +55,7 @@ function Row(props: { seed: string; doing?: string; group?: boolean }) {
   }
   return (
     <div class="typing" data-component="typing-row">
-      <Show when={props.group}>
-        <IdentityAvatar seed={props.seed} size={32} class="typing-bird" />
-      </Show>
+      <IdentityAvatar seed={props.seed} size={28} class="typing-bird" />
       <div class="typing-body">
         <ThinkingLine thought={room.thinking(props.seed)} fallback={caption()} since={runStart()} steps={steps()} />
         <Show when={room.typingRun(props.seed)}>{(windowKey) => <RunTree windowKey={windowKey()} />}</Show>
@@ -92,9 +89,9 @@ export function TypingIndicator(props: TypingIndicatorProps) {
 
   return (
     <div class={`typing-stack ${props.class ?? ""}`} data-component="typing-indicator">
-      <For each={rows()}>{(seed, i) => <Row seed={seed} doing={props.doings?.[i()]} group={props.group} />}</For>
+      <For each={rows()}>{(seed, i) => <Row seed={seed} doing={props.doings?.[i()]} />}</For>
       <Show when={more() > 0}>
-        <span class="typing-more" data-group={props.group ? "" : undefined} aria-hidden="true">
+        <span class="typing-more" aria-hidden="true">
           And {more()} {more() === 1 ? "other" : "others"}
         </span>
       </Show>

@@ -174,7 +174,7 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
         >
           Unread
         </button>
-        <TooltipV2 placement="bottom" openDelay={400} value="New chat">
+        <TooltipV2 placement="bottom" openDelay={500} value="New chat">
           <button
             type="button"
             class="chat-section-button"

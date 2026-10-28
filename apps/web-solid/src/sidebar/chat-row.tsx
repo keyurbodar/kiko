@@ -5,7 +5,6 @@ import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { openAvatarPicker } from "../avatar/picker-state"
 import { openChat } from "../app/history"
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
-import { Mochi } from "../chat/ui/Mochi"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { agentDisplayName } from "../lib/names"
 import { presenceWords } from "../state/live-status"
@@ -31,20 +30,9 @@ import {
 } from "./actions"
 import { isListed, quoteOf } from "./activity"
 import type { Need } from "./needs"
-
-const MINUTE = 60_000
-const HOUR = 60 * MINUTE
-const DAY = 24 * HOUR
+import { rowStamp } from "./row-stamp"
 
 export const isLive = (bot: RosterBot) => bot.presence === "working" || bot.presence === "typing"
-
-function rowStamp(updatedAt: number, now: number): string {
-  const delta = now - updatedAt
-  if (delta < MINUTE) return "now"
-  if (delta < HOUR) return `${Math.floor(delta / MINUTE)}m`
-  if (delta < DAY) return `${Math.floor(delta / HOUR)}h`
-  return `${Math.floor(delta / DAY)}d`
-}
 
 function ChatMenuItems(props: { id: string }) {
   const chat = createMemo(() => user.chats().find((c) => c.roomId === props.id))
@@ -206,13 +194,13 @@ function RowPreview(props: { bot: RosterBot; need: Need | undefined; live: boole
               }
             >
               <span class="chat-draft" data-component="sidebar-draft">
-                Draft:
+                Draft
               </span>{" "}
               {props.draft}
             </Show>
           }
         >
-          <Mochi size={12} class="chat-mochi" />
+          <span class="chat-live-ring" aria-hidden="true" />
           <span class="chat-shimmer">
             {props.bot.typing ?? presenceWords(props.bot.presence === "working" ? "working" : "typing")}
           </span>
@@ -221,6 +209,9 @@ function RowPreview(props: { bot: RosterBot; need: Need | undefined; live: boole
     >
       {(need) => (
         <>
+          <Show when={need().kind === "failed"} fallback={<span class="chat-need-disc" aria-hidden="true" />}>
+            <span class="chat-not-sent">Not sent</span>{" "}
+          </Show>
           <span data-component="sidebar-need-text">{need().text}</span>
           <Show when={need().retry}>
             {(retry) => (

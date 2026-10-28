@@ -36,7 +36,7 @@
   flex-shrink: 0;
   align-items: center;
   gap: 2px;
-  padding: 4px 9px 0 18px;
+  padding: 0 9px 0 18px;
 }
 
 .sidebar-shell :is(.panel-brand, .chat-row, .nav-row) {
@@ -46,7 +46,8 @@
 .sidebar-shell .panel-brand {
   display: flex;
   align-items: center;
-  color: var(--fg);
+  gap: 8px;
+  color: var(--text-000);
   font-family: var(--font-family-display);
   font-size: var(--type-wordmark);
   font-weight: 400;
@@ -54,6 +55,13 @@
   letter-spacing: -0.015em;
   line-height: 1;
   text-decoration: none;
+}
+
+.sidebar-shell .panel-mark {
+  display: block;
+  width: 24px;
+  height: 24px;
+  flex: none;
 }
 
 .sidebar-shell .panel-icon-button,
@@ -66,7 +74,7 @@
   flex-shrink: 0;
   place-items: center;
   padding: 0;
-  color: var(--fg2);
+  color: var(--text-200);
   background: none;
   border: none;
   border-radius: var(--radius-control);
@@ -75,24 +83,25 @@
   transition:
     background var(--dur-hover) var(--ease-kiko),
     color var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    transform var(--dur-slow) var(--press-spring);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .panel-icon-button:hover,
   .sidebar-shell .top-bar-button:hover,
   .sidebar-shell .main-sidebar-toggle:hover {
-    color: var(--fg);
-    background: var(--hover);
+    color: var(--text-000);
+    background: var(--fill-hover);
   }
 }
 
 .sidebar-shell :is(.panel-icon-button, .top-bar-button, .main-sidebar-toggle):active {
-  transform: scale(0.94);
+  transform: scale(var(--press-scale));
+  transition-duration: var(--dur-press);
 }
 
 .sidebar-shell .panel-header .panel-icon-button {
-  color: var(--fg3);
+  color: var(--text-200);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -119,7 +128,7 @@
   flex-shrink: 0;
   flex-direction: column;
   gap: var(--spacing-nav-gap-row);
-  padding: 6px 9px 0;
+  padding: 4px 9px 0;
 }
 
 .sidebar-shell .nav-row {
@@ -127,9 +136,9 @@
   height: var(--spacing-nav-tab);
   width: 100%;
   align-items: center;
-  gap: var(--spacing-nav-gap);
+  gap: 12px;
   padding: 0 11px;
-  color: var(--fg);
+  color: var(--text-100);
   font: inherit;
   font-size: var(--type-ui);
   text-align: left;
@@ -141,12 +150,12 @@
   appearance: none;
   transition:
     background var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    transform var(--dur-slow) var(--press-spring);
 }
 
 .sidebar-shell .nav-icon {
   display: flex;
-  width: var(--spacing-nav-slot);
+  width: 20px;
   flex: none;
   align-items: center;
   justify-content: center;
@@ -191,21 +200,31 @@
 }
 
 .sidebar-shell .nav-row[data-active] {
-  background: var(--active);
+  color: var(--text-000);
+  background: var(--fill-selected);
+}
+
+.sidebar-shell .nav-row[data-active] .nav-icon {
+  color: var(--text-000);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .nav-row:hover {
-    background: var(--hover);
+    background: var(--fill-hover);
+  }
+
+  .sidebar-shell .nav-row:hover .nav-icon {
+    color: var(--text-000);
   }
 
   .sidebar-shell .nav-row[data-active]:hover {
-    background: color-mix(in oklab, var(--active) 88%, var(--fg));
+    background: var(--fill-selected);
   }
 }
 
 .sidebar-shell .nav-row:active {
   transform: scale(var(--press-scale));
+  transition-duration: var(--dur-press);
 }
 
 .sidebar-shell .panel-scroll {
@@ -232,7 +251,7 @@
   flex-shrink: 0;
   align-items: center;
   gap: 4px;
-  padding: 6px 8px 4px;
+  padding: 0 9px;
 }
 
 .sidebar-shell .panel-me {
@@ -242,10 +261,11 @@
   flex: 1;
   align-items: center;
   gap: 10px;
-  padding: 0 8px 0 6px;
-  color: var(--fg);
+  padding: 0 8px;
+  color: var(--text-100);
   font: inherit;
-  font-size: var(--type-ui);
+  font-size: 14px;
+  line-height: 18px;
   text-decoration: none;
   background: none;
   border: none;
@@ -255,7 +275,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .panel-me:hover {
-    background: var(--hover);
+    background: var(--fill-hover);
   }
 }
 
@@ -298,9 +318,9 @@
   height: 32px;
   flex-shrink: 0;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   margin-top: 18px;
-  padding: 0 4px 0 10px;
+  padding: 0 4px 0 11px;
   color: var(--text-300);
   font-size: var(--type-hint);
   font-weight: 400;
@@ -324,12 +344,12 @@
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-section-toggle:hover {
-    color: var(--fg2);
+    color: var(--text-200);
   }
 }
 
 .sidebar-shell .chat-section-chevron {
-  color: var(--fg4);
+  color: var(--text-300);
   transition: transform var(--dur-pop) var(--ease-kiko);
 }
 
@@ -349,10 +369,10 @@
   height: 24px;
   place-items: center;
   padding: 0;
-  color: var(--fg4);
+  color: var(--text-300);
   background: none;
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-tail);
   cursor: pointer;
   transition:
     background var(--dur-hover) var(--ease-kiko),
@@ -362,8 +382,8 @@
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-section-button:hover {
-    color: var(--fg);
-    background: var(--hover);
+    color: var(--text-000);
+    background: var(--fill-hover);
   }
 }
 
@@ -509,7 +529,7 @@
   align-items: center;
   gap: var(--spacing-nav-gap);
   padding: 0 var(--spacing-nav-pad);
-  color: var(--fg);
+  color: var(--text-100);
   font-family: inherit;
   text-align: left;
   background: none;
@@ -520,27 +540,42 @@
   content-visibility: auto;
   contain-intrinsic-size: auto var(--spacing-chat-row);
   transition:
-    background var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    background 0ms,
+    transform var(--dur-slow) var(--press-spring);
 }
 
 .sidebar-shell .chat-row[data-enter] {
-  animation: sidebar-row-in var(--dur-pop) var(--ease-kiko) both;
+  overflow: hidden;
+  animation: sidebar-row-open var(--dur-move) var(--ease-out) both;
+}
+
+@keyframes sidebar-row-open {
+  from {
+    height: 0;
+    opacity: 0;
+    transform: translateY(-12px);
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-row:hover {
-    background: var(--hover);
+    background: var(--fill-hover);
+    transition:
+      background var(--dur-hover) var(--ease-out),
+      transform var(--dur-slow) var(--press-spring);
   }
 }
 
 .sidebar-shell .chat-row:active {
-  transform: scale(0.985);
+  transform: scale(0.99);
+  transition:
+    background var(--dur-hover) var(--ease-out),
+    transform var(--dur-press) var(--ease-out);
 }
 
 .sidebar-shell .chat-row[data-active],
 .sidebar-shell .chat-row[data-menu-open] {
-  background: var(--active);
+  background: var(--fill-selected);
 }
 
 .sidebar-shell .chat-row:has(.chat-link:focus-visible) {
@@ -568,14 +603,14 @@
 
 .sidebar-shell .chat-row > button.chat-more {
   position: absolute;
-  top: 5px;
+  top: 10px;
   right: 6px;
   display: grid;
   width: 24px;
   height: 24px;
   place-items: center;
   padding: 0;
-  color: var(--fg3);
+  color: var(--text-200);
   background: none;
   border: none;
   border-radius: var(--radius-tail);
@@ -609,8 +644,8 @@
   }
 
   .sidebar-shell .chat-more:hover {
-    color: var(--fg);
-    background: var(--hover);
+    color: var(--text-000);
+    background: var(--fill-hover);
   }
 }
 
@@ -632,15 +667,21 @@
 }
 
 .sidebar-shell .chat-row[data-leaving] {
-  animation: chat-row-fold var(--dur-pop) var(--ease-kiko) forwards;
+  overflow: hidden;
+  animation: chat-row-fold 350ms var(--ease-out) forwards;
   pointer-events: none;
 }
 
 @keyframes chat-row-fold {
+  43% {
+    height: var(--spacing-chat-row);
+    opacity: 0;
+    transform: translateX(-16px);
+  }
   to {
     height: 0;
     opacity: 0;
-    transform: scale(0.98);
+    transform: translateX(-16px);
   }
 }
 
@@ -651,7 +692,7 @@
 .sidebar-shell .chat-glide {
   position: absolute;
   border-radius: var(--radius-row);
-  background: var(--active);
+  background: var(--fill-selected);
   pointer-events: none;
 }
 
@@ -665,9 +706,18 @@
   justify-content: center;
 }
 
-.sidebar-shell .chat-mochi {
-  margin-right: 5px;
+.sidebar-shell .chat-live-ring,
+.sidebar-shell .chat-need-disc {
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.sidebar-shell .chat-live-ring {
   vertical-align: -1px;
+}
+
+.sidebar-shell .chat-need-disc {
+  vertical-align: 1px;
 }
 
 .sidebar-shell .chat-text {
@@ -676,7 +726,6 @@
   flex: 1;
   flex-direction: column;
   justify-content: center;
-  gap: 2px;
 }
 
 .sidebar-shell .chat-line {
@@ -687,6 +736,11 @@
   height: 18px;
 }
 
+.sidebar-shell .chat-line + .chat-line {
+  align-items: center;
+  gap: 6px;
+}
+
 .sidebar-shell .chat-name {
   transition:
     color 400ms var(--ease-kiko),
@@ -695,7 +749,7 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: var(--fg);
+  color: var(--text-100);
   font-size: 14px;
   font-weight: 500;
   line-height: 18px;
@@ -705,7 +759,7 @@
 
 .sidebar-shell .chat-row[data-unread] .chat-name,
 .sidebar-shell .chat-row[data-active] .chat-name {
-  color: var(--fg);
+  color: var(--text-000);
 }
 
 .sidebar-shell .chat-row[data-unread] .chat-name {
@@ -714,7 +768,7 @@
 }
 
 .sidebar-shell .chat-row[data-muted] .chat-name {
-  color: var(--fg3);
+  color: var(--text-300);
 }
 
 .sidebar-shell .chat-muted-icon {
@@ -733,7 +787,7 @@
 }
 
 .sidebar-shell .chat-row[data-unread] .chat-time {
-  color: var(--fg2);
+  color: var(--text-200);
 }
 
 .sidebar-shell .chat-preview {
@@ -741,7 +795,7 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: var(--fg3);
+  color: var(--text-300);
   font-size: var(--type-hint);
   line-height: 18px;
   text-overflow: ellipsis;
@@ -757,21 +811,47 @@
 }
 
 .sidebar-shell .chat-preview-from {
-  color: var(--fg2);
+  color: var(--text-200);
 }
 
 .sidebar-shell .chat-draft {
-  color: var(--fg3);
+  flex: none;
+  color: var(--text-100);
+  font-size: var(--type-hint);
   font-weight: 500;
+  line-height: 18px;
   animation: sidebar-fade-in var(--dur-pop) var(--ease-kiko) both;
 }
 
-.sidebar-shell .chat-row[data-need="ask"] .chat-preview {
-  color: var(--warn);
+.sidebar-shell .chat-need-disc {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--warning);
 }
 
-.sidebar-shell .chat-row[data-need="failed"] .chat-preview {
-  color: var(--bad);
+.sidebar-shell .chat-not-sent {
+  flex: none;
+  color: var(--danger);
+  font-size: var(--type-hint);
+  line-height: 18px;
+}
+
+.sidebar-shell .chat-live-ring {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border: 1.5px solid var(--accent);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: sidebar-spin 0.9s linear infinite;
+}
+
+@keyframes sidebar-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .sidebar-shell .chat-row[data-need="failed"][data-enter] {
@@ -784,9 +864,9 @@
   position: relative;
   z-index: 2;
   padding: 0;
-  color: var(--fg);
+  color: var(--text-100);
   font: inherit;
-  font-weight: 600;
+  font-weight: 500;
   text-decoration: underline;
   text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
   text-underline-offset: 2px;
@@ -796,7 +876,7 @@
 }
 
 .sidebar-shell .chat-mention {
-  color: var(--info);
+  color: var(--accent);
 }
 
 .sidebar-shell .chat-dot {
@@ -806,13 +886,20 @@
   align-self: center;
   background: var(--accent-unread);
   border-radius: 50%;
-  animation: sidebar-fade-in var(--dur-pop) var(--ease-kiko) both;
+  animation: sidebar-dot-pop var(--dur-pop) var(--ease-pop) both;
+}
+
+@keyframes sidebar-dot-pop {
+  from {
+    opacity: 0;
+    transform: scale(1.25);
+  }
 }
 
 .sidebar-shell .chat-pin-icon {
   flex-shrink: 0;
   align-self: center;
-  color: var(--fg4);
+  color: var(--text-300);
   transform-origin: 50% 100%;
 }
 
@@ -822,8 +909,15 @@
 
 .sidebar-shell .chat-shimmer {
   color: transparent;
-  background: linear-gradient(90deg, var(--fg3) 0%, var(--fg3) 40%, var(--fg) 50%, var(--fg3) 60%, var(--fg3) 100%) 0
-    0 / 300% 100%;
+  background: linear-gradient(
+      90deg,
+      var(--text-300) 0%,
+      var(--text-300) 40%,
+      var(--text-000) 50%,
+      var(--text-300) 60%,
+      var(--text-300) 100%
+    )
+    0 0 / 300% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   animation: sidebar-shimmer var(--shimmer-duration) linear infinite;
@@ -903,9 +997,13 @@
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar-shell .chat-shimmer {
-    color: var(--fg3);
+    color: var(--text-300);
     background: none;
     animation: none;
+  }
+
+  .sidebar-shell .chat-live-ring {
+    animation-duration: 2.7s;
   }
 
   .sidebar-shell .chat-row[data-enter],

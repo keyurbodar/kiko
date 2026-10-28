@@ -48,13 +48,13 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
     return `You, ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
   }
   return (
-    <header class="top-bar flex h-[52px] shrink-0 items-center gap-2.5 px-5" data-component="top-bar">
+    <header class="top-bar flex h-[52px] shrink-0 items-center gap-0.5 pr-3 pl-5" data-component="top-bar">
       <Show when={!props.sidebarOpen}>
         <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
       </Show>
       <div class="flex min-w-0 flex-1 items-center gap-2.5">
         <Show when={chatId()} keyed>
-          {(id) => <ChatAvatar faces={room.chatFaces(id)} size={28} />}
+          {(id) => <ChatAvatar faces={room.chatFaces(id)} size={20} />}
         </Show>
         <h1
           class="min-w-0 shrink truncate font-sans text-[14px] leading-5 font-medium text-[var(--text-100)]"
@@ -86,7 +86,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
           )}
         </Show>
       </div>
-      <TooltipV2 placement="bottom" openDelay={400} value="Search messages">
+      <TooltipV2 placement="bottom" openDelay={500} value="Search messages">
         <button
           type="button"
           class="top-bar-button"
@@ -101,7 +101,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
         </button>
       </TooltipV2>
       <Show when={computers().length > 0}>
-        <TooltipV2 placement="bottom" openDelay={400} value="Watch your computer">
+        <TooltipV2 placement="bottom" openDelay={500} value="Watch your computer">
           <button
             type="button"
             class="top-bar-button"
@@ -114,7 +114,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
         </TooltipV2>
       </Show>
       <Show when={chatId()}>
-        <TooltipV2 placement="bottom" openDelay={400} value={deskShown() ? "Hide chat details" : "Show chat details"}>
+        <TooltipV2 placement="bottom" openDelay={500} value={deskShown() ? "Hide chat details" : "Show chat details"}>
           <button
             type="button"
             class={toggle()}

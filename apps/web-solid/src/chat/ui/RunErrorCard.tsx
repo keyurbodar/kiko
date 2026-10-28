@@ -12,7 +12,6 @@ export function RunErrorCard(props: {
   reason?: string | undefined
   note?: string | undefined
   actions?: readonly RowAction[] | undefined
-  group?: boolean | undefined
   latest?: boolean | undefined
   "data-message-id"?: string
 }): JSX.Element {
@@ -20,10 +19,7 @@ export function RunErrorCard(props: {
   return (
     <div
       role="alert"
-      class={cn(
-        "mx-auto w-full max-w-(--chat-content-max-width) px-4 pt-(--run-gap) pb-(--row-gap)",
-        props.group && GROUP_GUTTER,
-      )}
+      class={cn("mx-auto w-full max-w-(--chat-content-max-width) px-4 pt-(--run-gap) pb-(--row-gap)", GROUP_GUTTER)}
       data-component="run-error"
       data-latest={props.latest ? "" : undefined}
       data-message-id={props["data-message-id"]}

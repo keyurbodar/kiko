@@ -47,8 +47,8 @@ const BASE = 14
 
 const TYPE = {
   page: { size: 40, line: 46, weight: 400, face: "display", scales: false },
-  section: { size: 22, line: 28, weight: 600, face: "sans", scales: false },
-  wordmark: { size: 21, line: 26, weight: 500, face: "display", scales: false },
+  section: { size: 22, line: 28, weight: 400, face: "display", scales: false },
+  wordmark: { size: 24, line: 28, weight: 400, face: "display", scales: false },
   msg: { size: 16, line: 24, weight: 400, face: "sans", scales: true },
   bubble: { size: 15, line: 22, weight: 400, face: "sans", scales: true },
   ui: { size: 15, line: 22, weight: 400, face: "sans", scales: true },
@@ -84,6 +84,8 @@ export function typeVars(base: number): Record<string, string> {
   return vars
 }
 
+const WEIGHTS: Record<number, string> = { 500: "var(--font-weight-medium)", 600: "var(--font-weight-semibold)" }
+
 const FACES: Record<Face, string> = {
   sans: "var(--font-family-sans)",
   display: "var(--font-family-display)",
@@ -104,7 +106,7 @@ export function systemCss(): string {
   ])
   const utilities = (Object.entries(TYPE) as [TypeName, Type][]).map(
     ([name, t]) =>
-      `@utility type-${name} {\n  font-family: ${FACES[t.face]};\n  font-size: var(--type-${name});\n  line-height: var(--type-${name}-line);\n  font-weight: ${t.weight};${t.face === "display" ? "\n  font-variation-settings: var(--display-variation);" : ""}\n}`,
+      `@utility type-${name} {\n  font-family: ${FACES[t.face]};\n  font-size: var(--type-${name});\n  line-height: var(--type-${name}-line);\n  font-weight: ${WEIGHTS[t.weight] ?? t.weight};${t.face === "display" ? "\n  font-variation-settings: var(--display-variation);" : ""}\n}`,
   )
   const root = [
     ...Object.entries(typeVars(BASE)).map(([k, v]) => `  ${k}: ${v};`),

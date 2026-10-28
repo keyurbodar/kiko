@@ -1,5 +1,5 @@
 .thinking {
-  --run-text: var(--fg2);
+  --run-text: var(--text-300);
   display: flex;
   min-width: 0;
   max-width: 100%;
@@ -13,17 +13,17 @@
   min-width: 0;
   max-width: 100%;
   align-items: center;
-  gap: 8px;
-  color: var(--fg2);
-  font-size: var(--type-ui);
-  line-height: 22px;
+  gap: 6px;
+  color: var(--text-300);
+  font-size: var(--type-label);
+  line-height: 20px;
 }
 
 .thinking-live {
   display: block;
   min-width: 0;
   overflow: hidden;
-  color: var(--fg2);
+  color: var(--text-300);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -53,8 +53,12 @@
 .thinking-time,
 .thinking-chevron {
   flex: none;
-  color: var(--fg4);
+  color: var(--text-300);
   font-variant-numeric: tabular-nums;
+}
+
+.thinking-time {
+  font-size: var(--type-caption);
 }
 .thinking-chevron[data-open] {
   transform: rotate(90deg);
@@ -133,11 +137,17 @@
 .thought-head {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  min-height: 26px;
-  color: var(--fg3);
-  font-size: var(--type-ui);
+  gap: 6px;
+  min-height: 28px;
+  margin-left: -4px;
+  padding: 0 8px 0 4px;
+  border-radius: var(--radius-row);
+  color: var(--text-300);
+  font-size: var(--type-label);
   line-height: 20px;
+  transition:
+    color var(--dur-hover) var(--ease-kiko),
+    background-color var(--dur-hover) var(--ease-kiko);
 }
 
 .thinking-toggle:focus-visible,
@@ -150,11 +160,14 @@
 @media (hover: hover) and (pointer: fine) {
   .thinking-toggle:hover,
   .thought-head:hover {
-    color: var(--fg);
+    color: var(--text-100);
+  }
+  .thought-head:hover {
+    background: var(--fill-hover);
   }
   .thinking-toggle:hover .thinking-chevron,
   .thought-head:hover .thinking-chevron {
-    color: var(--fg2);
+    color: var(--text-200);
   }
 }
 

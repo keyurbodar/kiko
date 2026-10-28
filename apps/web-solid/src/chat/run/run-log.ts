@@ -289,6 +289,21 @@ const HUMAN: Record<string, (args: Args) => string> = {
   zoom: () => "Zoomed in on the page",
 }
 
+const hostOf = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined
+  try {
+    return new URL(value).hostname.replace(/^www\./, "") || undefined
+  } catch {
+    return undefined
+  }
+}
+
+export function sourcesOf(step: Pick<RunStep, "input">): string[] {
+  const args = argsOf(step.input)
+  const urls = Array.isArray(args.urls) ? args.urls : [args.url]
+  return [...new Set(urls.map(hostOf).filter((host): host is string => host !== undefined))]
+}
+
 function commandOf(step: Pick<RunStep, "name"> & { input?: string }): string | undefined {
   if (step.name === "bash") return step.input?.trim() || undefined
   if (step.name === "computer_shell") return said(argsOf(step.input).command) || undefined

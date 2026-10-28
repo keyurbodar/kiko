@@ -11,7 +11,7 @@ import { room } from "../state/room"
 import { openChat } from "./history"
 
 const BUTTON =
-  "grid size-9 shrink-0 place-items-center rounded-control text-fg2 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.97]"
+  "grid size-9 shrink-0 place-items-center rounded-control text-[var(--text-200)] transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-fill-hover hover:text-[var(--text-000)] active:scale-(--press-scale)"
 
 const LINKS: readonly { to: "/files" | "/recipes" | "/customize"; label: string; icon: Glyph }[] = [
   { to: "/files", label: "Files", icon: FolderIcon },
@@ -34,12 +34,13 @@ export function Rail(props: { onExpand: () => void }) {
   const live = () => room.bots().filter(isLive).slice(0, MAX_FACES)
   return (
     <nav
-      class="flex h-full w-14 shrink-0 flex-col items-center gap-1 bg-side py-3"
+      class="flex h-full w-14 shrink-0 flex-col items-center gap-1 bg-side pb-3"
       data-component="sidebar-rail"
       aria-label="Main"
     >
-      <SidebarToggle open={false} onToggle={props.onExpand} class={BUTTON} />
-      <div class="h-2" />
+      <div class="grid h-14 w-full shrink-0 place-items-center">
+        <SidebarToggle open={false} onToggle={props.onExpand} class={BUTTON} iconSize={20} />
+      </div>
       <Tip label="New chat">
         <button type="button" class={BUTTON} aria-label="New chat" onClick={() => runCommand("chat.new")}>
           <RemixIcon icon={PlusIcon} size={20} />
@@ -55,7 +56,7 @@ export function Rail(props: { onExpand: () => void }) {
           <Tip label={link.label}>
             <Link
               to={link.to}
-              class={`${BUTTON} ${pathname().startsWith(link.to) ? "bg-active text-fg" : ""}`}
+              class={`${BUTTON} ${pathname().startsWith(link.to) ? "bg-fill-selected text-[var(--text-000)]" : ""}`}
               aria-label={link.label}
             >
               <RemixIcon icon={link.icon} size={20} />
@@ -69,7 +70,7 @@ export function Rail(props: { onExpand: () => void }) {
             <Tip label={`${bot.name}, ${bot.typing ?? "Thinking"}`}>
               <button
                 type="button"
-                class="grid size-9 place-items-center rounded-control transition-transform duration-(--dur-hover) ease-kiko hover:bg-hover active:scale-[0.97]"
+                class="grid size-9 place-items-center rounded-control transition-transform duration-(--dur-hover) ease-kiko hover:bg-fill-hover active:scale-(--press-scale)"
                 aria-label={bot.name}
                 onClick={() => openChat(bot.id)}
               >

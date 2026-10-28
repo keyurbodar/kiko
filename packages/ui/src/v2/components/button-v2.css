@@ -7,7 +7,7 @@
   border-radius: var(--radius-control);
   font-style: normal;
   font-weight: 500;
-  font-size: var(--type-ui);
+  font-size: var(--type-label);
   line-height: 20px;
   color: var(--fg);
   font-variant-numeric: tabular-nums;
@@ -19,39 +19,38 @@
     background-color var(--dur-hover) var(--ease-kiko),
     color var(--dur-hover) var(--ease-kiko),
     box-shadow var(--dur-hover) var(--ease-kiko),
-    transform var(--spring150-duration) var(--spring150-easing),
+    transform var(--dur-slow) var(--press-spring),
     opacity var(--dur-hover) var(--ease-kiko);
 }
 
 [data-component="button-v2"][data-size="small"] {
   height: 28px;
-  padding: 0 11px;
+  padding: 0 10px;
   border-radius: var(--radius-control);
-  font-size: var(--type-label);
+  font-size: var(--type-hint);
 }
 
 [data-component="button-v2"][data-size="normal"] {
   height: 32px;
-  padding: 0 14px;
+  padding: 0 12px;
 }
 
 [data-component="button-v2"][data-size="large"] {
-  height: var(--spacing-control-big);
-  padding: 0 18px;
-  border-radius: var(--radius-tile);
-  font-size: var(--type-ui);
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-control);
 }
 
 [data-component="button-v2"][data-icon][data-size="small"] {
-  padding-left: 9px;
+  padding-left: 8px;
 }
 
 [data-component="button-v2"][data-icon][data-size="normal"] {
-  padding-left: 11px;
+  padding-left: 10px;
 }
 
 [data-component="button-v2"][data-icon][data-size="large"] {
-  padding-left: 18px;
+  padding-left: 12px;
 }
 
 [data-component="button-v2"] [data-slot="icon-svg"] {
@@ -59,8 +58,8 @@
 }
 
 [data-component="button-v2"]:active:not(:disabled):not([data-variant="loading"]) {
-  transform: scale(var(--press-scale, 0.97));
-  transition-duration: var(--dur-hover), var(--dur-hover), var(--dur-hover), 80ms, var(--dur-hover);
+  transform: scale(var(--press-scale, 0.975));
+  transition-duration: var(--dur-hover), var(--dur-hover), var(--dur-hover), var(--dur-press), var(--dur-hover);
   transition-timing-function: var(--ease-kiko);
 }
 
@@ -87,7 +86,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   [data-component="button-v2"][data-variant="neutral"]:is(:hover, [data-state="hover"]):not(:disabled) {
-    background-color: var(--fill-hover);
+    background-color: var(--fill-control-hover);
   }
 }
 
@@ -109,7 +108,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   [data-component="button-v2"][data-variant="warning"]:is(:hover, [data-state="hover"]):not(:disabled) {
-    background-color: var(--fill-hover);
+    background-color: var(--fill-control-hover);
   }
 }
 

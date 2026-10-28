@@ -1,4 +1,3 @@
-import { Pictogram } from "@kiko/ui/pictogram"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { PlusIcon } from "@kiko/ui/icons"
@@ -8,7 +7,7 @@ import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { room } from "../../state/room"
 import { useMemoryStore } from "../info/memory/views"
 import { routinesOf } from "../info/routines"
-import { leadName } from "../info/empty"
+import { leadName, PanelEmpty } from "../info/empty"
 import { DeskSettled, Files, Helpers, Now, Section, Tasks, Used, Waiting } from "./desk-sections"
 import { useDeskMode } from "./desk-live"
 import { isGroup } from "./overview-model"
@@ -122,12 +121,12 @@ export default function DeskOverview(props: { chatId: string }) {
           <Files files={files()} chatId={props.chatId} />
         </Show>
         <Show when={empty()}>
-          <div class="flex flex-col items-start gap-4 px-1 pt-2" data-component="card-empty">
-            <Pictogram name="thinking" size={56} class="text-fg4" />
-            <p class="text-ui text-fg3">
-              {`Nothing here yet. Files, tasks and what ${leadName()} learns will show up here.`}
-            </p>
-          </div>
+          <PanelEmpty
+            art="thinking"
+            title="Nothing here yet"
+            line={`Files, tasks and what ${leadName()} learns will show up here.`}
+            component="card-empty"
+          />
         </Show>
       </DeskSettled.Provider>
     </div>

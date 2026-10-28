@@ -1,6 +1,6 @@
 import type { RecipeCard, RoutineRow as RoutineData } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CheckIcon, ClockIcon, PauseIcon, PlayIcon, RepeatIcon, TrashIcon } from "@kiko/ui/icons"
+import { CheckIcon, ClockIcon, PauseIcon, PlayIcon, TrashIcon } from "@kiko/ui/icons"
 import { Link } from "@tanstack/solid-router"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -63,7 +63,7 @@ function Tool(props: {
   children: JSX.Element
 }) {
   return (
-    <TooltipV2 placement="top" openDelay={400} value={props.label}>
+    <TooltipV2 placement="top" openDelay={500} value={props.label}>
       <button
         type="button"
         class={tool}
@@ -159,7 +159,7 @@ export function RoutinesPage(props: { chatId: string }) {
             <Show when={!list().length}>
               <PanelEmpty
                 component="routines-empty"
-                icon={RepeatIcon}
+                art="scheduled"
                 title="No routines yet"
                 line={`Ask ${leadName()} to remind you, or to do something every morning.`}
                 action={

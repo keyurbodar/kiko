@@ -18,10 +18,21 @@
 .rich p,
 .rich ul,
 .rich ol,
-.rich blockquote,
+.rich blockquote {
+  margin: 8px 0;
+}
 .rich-code,
 .rich-table {
-  margin: 0.65rem 0;
+  margin: 10px 0;
+}
+.rich strong {
+  color: var(--text-000);
+  font-weight: 600;
+}
+.rich em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--text-000);
 }
 .rich h1,
 .rich h2,
@@ -83,7 +94,7 @@
   list-style-type: lower-roman;
 }
 .rich li + li {
-  margin-top: 0.25rem;
+  margin-top: 3px;
 }
 
 .rich li > p {

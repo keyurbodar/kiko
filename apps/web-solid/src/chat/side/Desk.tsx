@@ -321,7 +321,7 @@ export default function Desk(props: { chatId: string; onClose: () => void }) {
           <Show when={view()} keyed fallback={<Title text="This chat" />}>
             {(surface) => <DetailHead chatId={props.chatId} surface={surface} />}
           </Show>
-          <TooltipV2 placement="bottom" openDelay={400} value="Close">
+          <TooltipV2 placement="bottom" openDelay={500} value="Close">
             <button
               type="button"
               class={ICON_BUTTON}

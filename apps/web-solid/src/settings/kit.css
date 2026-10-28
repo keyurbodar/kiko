@@ -6,11 +6,11 @@
 
 .settings-page-title {
   color: var(--fg);
-  font-family: var(--font-family-sans);
-  font-size: var(--type-section);
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: var(--type-section-line);
+  font-family: var(--font-family-display);
+  font-size: var(--type-page);
+  font-weight: 400;
+  font-variation-settings: var(--display-variation);
+  line-height: 38px;
 }
 
 .kit-btn {
@@ -322,18 +322,19 @@
 
 .kit-empty-tile {
   display: grid;
-  width: 96px;
-  height: 96px;
+  width: 88px;
+  height: 88px;
   place-items: center;
-  margin-bottom: 4px;
-  color: var(--fg2);
-  background: var(--fill-control);
-  border-radius: var(--radius-pop);
+  margin-bottom: 6px;
+  color: var(--text-100);
+  background: var(--bg-000);
+  border-radius: 16px;
+  box-shadow: var(--edge);
 }
 
 .kit-empty-title {
-  color: var(--fg);
-  font-size: var(--type-row);
+  color: var(--text-000);
+  font-size: 14.5px;
   line-height: 20px;
   font-weight: 500;
 }

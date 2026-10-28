@@ -167,11 +167,11 @@ export const THEMES = {
     label: "Paper",
     accent: "#1757ac",
     palette: {
-      canvas: "#ffffff",
-      sidebar: "#fafafa",
-      text: "#1a1a1a",
-      muted: "#5a5a5a",
-      faint: "#717171",
+      canvas: "#fbfbfa",
+      sidebar: "#f4f4f3",
+      text: "#1f1f1f",
+      muted: "#4a4a4a",
+      faint: "#6b6b6b",
       action: "#191919",
       actionHover: "#3c3c3c",
       onAction: "#ffffff",
@@ -193,6 +193,7 @@ type Ink = Readonly<{
   accent: string
   dark: boolean
   wash: (share: number) => string
+  veil: (share: number) => string
   clear: (share: number) => string
 }>
 
@@ -200,17 +201,23 @@ const ROLES: ReadonlyArray<readonly [token: string, value: (ink: Ink) => string]
   ["--bg", ({ p }) => p.canvas],
   ["--side", ({ p }) => p.sidebar],
   ["--panel", ({ wash, dark }) => wash(dark ? 2.61 : 2.35)],
-  ["--raise", ({ wash, dark }) => wash(dark ? 7 : 5.1)],
-  ["--hover", ({ wash, dark }) => wash(dark ? 7.45 : 5.1)],
-  ["--active", ({ wash, dark }) => wash(dark ? 15 : 8)],
-  ["--fill", ({ wash, dark }) => wash(dark ? 10 : 6)],
-  ["--fill-hover", ({ wash, dark }) => wash(dark ? 14 : 9)],
+  ["--raise", ({ wash, dark }) => (dark ? wash(7) : "#ffffff")],
+  ["--hover", ({ veil, dark }) => veil(dark ? 7.5 : 4.5)],
+  ["--active", ({ veil, dark }) => veil(dark ? 15 : 8)],
+  ["--fill", ({ veil, dark }) => veil(dark ? 10 : 6)],
+  ["--fill-field", ({ veil, dark }) => veil(dark ? 5 : 2.5)],
+  ["--fill-hover", ({ veil, dark }) => veil(dark ? 7.5 : 4.5)],
+  ["--fill-control", ({ veil, dark }) => veil(dark ? 10 : 6)],
+  ["--fill-control-hover", ({ veil, dark }) => veil(dark ? 14 : 9)],
+  ["--fill-selected", ({ veil, dark }) => veil(dark ? 15 : 8)],
+  ["--fill-pressed", ({ veil, dark }) => veil(dark ? 20 : 11)],
   ["--ghost", ({ clear, dark }) => clear(dark ? 7.45 : 5.1)],
   ["--field-ring", ({ clear, dark }) => (dark ? "transparent" : clear(10))],
-  ["--me", ({ wash, dark }) => wash(dark ? 10.2 : 5.1)],
-  ["--kiko-bubble", ({ wash, dark }) => wash(dark ? 5.1 : 2.35)],
-  ["--line", ({ wash, dark }) => wash(dark ? 10 : 8)],
-  ["--line2", ({ wash, dark }) => wash(dark ? 20 : 15)],
+  ["--me", ({ wash, dark }) => wash(dark ? 10 : 6.2)],
+  ["--kiko-bubble", ({ wash, dark }) => (dark ? wash(5.65) : "#ffffff")],
+  ["--line", ({ veil, dark }) => veil(dark ? 10 : 8)],
+  ["--line2", ({ veil, dark }) => veil(dark ? 20 : 15)],
+  ["--line3", ({ veil, dark }) => veil(dark ? 40 : 32)],
   ["--fg", ({ p }) => p.text],
   ["--fg2", ({ p }) => p.muted],
   ["--fg3", ({ p }) => p.faint],
@@ -245,6 +252,7 @@ export function tokensFor(
     accent,
     dark: mode === "dark",
     wash: (n) => `color-mix(in srgb, ${mode === "dark" ? "#ffffff" : "#000000"} ${share(n)}%, ${p.canvas})`,
+    veil: (n) => `color-mix(in srgb, ${mode === "dark" ? "#ffffff" : "#000000"} ${share(n)}%, transparent)`,
     clear: (n) => `color-mix(in oklab, ${p.text} ${share(n)}%, transparent)`,
   }
   return Object.fromEntries(ROLES.map(([token, value]) => [token, value(ink)]))

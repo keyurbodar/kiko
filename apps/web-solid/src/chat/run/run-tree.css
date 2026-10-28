@@ -30,7 +30,8 @@
     background-color var(--dur-hover) var(--ease-kiko);
 }
 .run-tree-head:not([data-live]):hover {
-  background: var(--hover);
+  color: var(--text-100);
+  background: var(--fill-hover);
 }
 .run-tree-summary {
   min-width: 0;
@@ -111,7 +112,9 @@ button.run-tree-row:focus-visible,
 .run-tree-mark[data-state="running"] {
   width: 11px;
   height: 11px;
-  box-shadow: inset 0 0 0 1.5px var(--info);
+  border: 1.5px solid var(--text-300);
+  border-right-color: transparent;
+  animation: run-tree-spin 0.9s linear infinite;
 }
 .run-tree-mark[data-state="next"] {
   width: 9px;
@@ -130,8 +133,8 @@ button.run-tree-row:focus-visible,
 .run-tree-item[data-kind="step"]::before {
   content: "";
   position: absolute;
-  top: 22px;
-  bottom: -2px;
+  top: 18px;
+  bottom: -6px;
   left: 7.5px;
   width: 1px;
   background: var(--border-100);
@@ -141,19 +144,67 @@ button.run-tree-row:focus-visible,
   display: none;
 }
 
+.run-tree-sources {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0 4px 26px;
+}
+
+.run-tree-source {
+  display: inline-flex;
+  height: 22px;
+  min-width: 0;
+  max-width: 180px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px 0 3px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  color: var(--text-200);
+  font-size: var(--type-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--fill-control);
+}
+
+.run-tree-source > i {
+  display: flex;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  color: var(--text-100);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 600;
+  background: var(--bg-000);
+  box-shadow: var(--edge);
+}
+
+.run-tree-source-more {
+  color: var(--text-300);
+  font-size: var(--type-caption);
+}
+
 .run-tree-children {
   display: flex;
   flex-direction: column;
   min-width: 0;
   margin-left: 7px;
   padding-left: 15px;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--border-100);
 }
 
 .run-tree-said {
   margin: 2px 0 4px;
   padding-left: 24px;
-  color: var(--fg2);
+  color: var(--text-300);
+  line-height: 22px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;
@@ -199,7 +250,7 @@ button.run-tree-row:focus-visible,
 }
 
 .run-tree-object {
-  color: var(--fg);
+  color: var(--text-100);
 }
 .run-tree-object[data-mono] {
   font-family: var(--font-family-mono);
@@ -223,11 +274,14 @@ button.run-tree-row:focus-visible,
   display: grid;
   flex: none;
   place-items: center;
-  color: var(--fg4);
+  color: var(--text-300);
   transition: color var(--dur-hover) var(--ease-kiko);
 }
 .run-tree-chevron[data-open] {
   transform: rotate(90deg);
+}
+.run-tree-head .run-tree-chevron {
+  transition: transform var(--dur-move) var(--ease-snap);
 }
 button.run-tree-row[data-kind="step"] > .run-tree-chevron {
   opacity: 0;
@@ -430,10 +484,23 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
     animation-delay: 0.9s;
   }
   .run-tree-item[data-fresh] > .run-tree-row {
-    animation: run-tree-rise var(--dur-pop) var(--ease-kiko) backwards;
+    transform-origin: 0 50%;
+    animation: run-tree-arrive 600ms var(--ease-out) backwards;
+  }
+  .run-tree-item[data-fresh] > .run-tree-sources > * {
+    animation: run-tree-chip 200ms var(--ease-out) backwards;
+  }
+  .run-tree-item[data-fresh] > .run-tree-sources > :nth-child(2) {
+    animation-delay: 30ms;
+  }
+  .run-tree-item[data-fresh] > .run-tree-sources > :nth-child(3) {
+    animation-delay: 60ms;
+  }
+  .run-tree-item[data-fresh] > .run-tree-sources > :nth-child(4) {
+    animation-delay: 90ms;
   }
   .run-tree-mark[data-settled] {
-    animation: run-tree-disc 300ms var(--ease-kiko) backwards;
+    animation: run-tree-disc 300ms var(--ease-pop) backwards;
   }
   .run-tree-row[data-settled] > .run-tree-label {
     animation: run-tree-ink 300ms var(--ease-kiko) backwards;
@@ -467,9 +534,43 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
     opacity: 0;
     transform: scale(0.3);
   }
-  to {
+  60% {
     opacity: 1;
+    transform: scale(1.3);
+  }
+  to {
     transform: scale(1);
+  }
+}
+
+@keyframes run-tree-arrive {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(5px) scale(0.9);
+  }
+  30% {
+    filter: blur(0);
+  }
+}
+
+@keyframes run-tree-chip {
+  from {
+    opacity: 0;
+    filter: blur(2px);
+    transform: scale(0.8);
+  }
+}
+
+@keyframes run-tree-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-tree-mark[data-state="running"] {
+    animation-duration: 2.7s;
   }
 }
 

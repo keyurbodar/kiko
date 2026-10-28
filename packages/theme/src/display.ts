@@ -25,7 +25,7 @@ export const DEFAULT_DISPLAY: Display = {
 }
 
 export const CHAT_WIDTHS: Record<ChatWidth, { label: string; width: string }> = {
-  comfortable: { label: "Comfortable", width: "820px" },
+  comfortable: { label: "Comfortable", width: "736px" },
   wide: { label: "Wide", width: "1152px" },
   full: { label: "Full", width: "100%" },
 }

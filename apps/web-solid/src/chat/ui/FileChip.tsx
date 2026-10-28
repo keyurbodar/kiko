@@ -16,20 +16,12 @@ import { resolveFile, type FileTarget } from "../rich/file-links"
 import { FileIcon as FileTypeIcon } from "@kiko/ui/file-icon"
 import "./chips.css"
 
-function ChipGlyph(props: { path: string; folder: boolean; picture: string | null }) {
+function ChipGlyph(props: { path: string; folder: boolean }) {
   return (
-    <Show
-      when={props.picture}
-      fallback={
-        <FileTypeIcon
-          class={props.folder ? "lchip-folder" : undefined}
-          style={{ width: "16px", height: "16px" }}
-          node={{ path: props.path, type: props.folder ? "directory" : "file" }}
-        />
-      }
-    >
-      {(src) => <img class="lchip-thumb" src={src()} alt="" loading="lazy" draggable={false} />}
-    </Show>
+    <FileTypeIcon
+      class={props.folder ? "lchip-folder" : undefined}
+      node={{ path: props.path, type: props.folder ? "directory" : "file" }}
+    />
   )
 }
 
@@ -113,7 +105,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
             }}
             onClick={open}
           >
-            <ChipGlyph path={props.file.path} folder={folder()} picture={picture()} />
+            <ChipGlyph path={props.file.path} folder={folder()} />
             <span class="lchip-label">{props.label}</span>
             <Show when={size()}>{(text) => <span class="lchip-meta">{text()}</span>}</Show>
           </MenuV2.Context.Trigger>
