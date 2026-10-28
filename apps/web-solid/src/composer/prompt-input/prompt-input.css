@@ -819,20 +819,36 @@ button.token-chip:active {
 
 .tray-fill {
   position: absolute;
-  inset: auto 0 0;
-  height: 3px;
-  overflow: hidden;
-  background: color-mix(in oklab, var(--fg) 10%, transparent);
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from 0deg,
+    var(--fg) calc(var(--upload-share, 0) * 360deg),
+    color-mix(in oklab, var(--fg) 12%, transparent) 0
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
-.tray-fill::after {
+.tray-done {
   position: absolute;
   inset: 0;
-  background: var(--fg);
-  content: "";
-  transform: scaleX(var(--upload-share, 0));
-  transform-origin: left;
-  transition: transform var(--dur-pop) var(--ease-kiko);
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  color: var(--fg);
+  background: color-mix(in oklab, var(--bg) 45%, transparent);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .tray-veil {
@@ -982,7 +998,10 @@ button.token-chip:active {
     animation: composer-shake 260ms var(--ease-kiko);
   }
   .tray-tile {
-    animation: tray-tile-in 320ms var(--ease-kiko) both;
+    animation: tray-tile-in var(--dur-shift) var(--ease-kiko) both;
+  }
+  .tray-done {
+    animation: tray-done 460ms var(--ease-kiko) both;
   }
   .tray-tile[data-state="uploading"] .tray-tile-open::after {
     position: absolute;
@@ -1091,11 +1110,28 @@ button.token-chip:active {
 @keyframes tray-tile-in {
   from {
     opacity: 0;
-    transform: scale(0.82);
+    transform: scale(0.96);
   }
-  55% {
+  60% {
     opacity: 1;
-    transform: scale(1.03);
+    transform: scale(1.015);
+  }
+}
+
+@keyframes tray-done {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  22% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  62% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 

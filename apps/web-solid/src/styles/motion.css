@@ -21,6 +21,9 @@
   --motion-collapse: var(--dur-pop);
   --motion-slide: 260ms;
   --motion-run-chevron: var(--dur-pop);
+  --dur-land: 160ms;
+  --dur-shift: 200ms;
+  --land-stagger: 40ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -34,6 +37,9 @@
     --spring150-duration: 0s;
     --spring250-duration: 0s;
     --spring325-bounce-duration: 0s;
+    --dur-land: 0ms;
+    --dur-shift: 0ms;
+    --land-stagger: 0ms;
   }
 }
 
@@ -108,7 +114,7 @@
   @keyframes motion-bubble-in {
     from {
       opacity: 0;
-      transform: translateY(6px) scale(0.92);
+      transform: translateY(8px) scale(0.94);
     }
     to {
       opacity: 1;
@@ -130,13 +136,13 @@
 
   .motion-bubble-in {
     transform-origin: bottom right;
-    animation: motion-bubble-in var(--dur-slow) var(--ease-pop) both;
+    animation: motion-bubble-in var(--dur-pop) var(--ease-pop) both;
   }
 
   @keyframes motion-reply-in {
     from {
       opacity: 0;
-      transform: translateY(10px);
+      transform: translateY(4px);
     }
     to {
       opacity: 1;
@@ -145,7 +151,37 @@
   }
 
   .motion-reply-in {
-    animation: motion-reply-in var(--dur-move) var(--ease-out) both;
+    animation: motion-reply-in var(--dur-land) var(--ease-out) both;
+  }
+
+  [data-component="chat-vrow"]:has(.motion-reply-in) ~ [data-component="chat-vrow"] .motion-reply-in {
+    animation-delay: var(--land-stagger);
+  }
+
+  [data-component="chat-vrow"]:has(.motion-reply-in)
+    ~ [data-component="chat-vrow"]:has(.motion-reply-in)
+    ~ [data-component="chat-vrow"]
+    .motion-reply-in {
+    animation-delay: calc(var(--land-stagger) * 2);
+  }
+
+  @keyframes motion-check-draw {
+    from {
+      opacity: 0;
+      transform: scale(0.6) rotate(-14deg);
+    }
+    65% {
+      transform: scale(1.08);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .motion-check-draw {
+    transform-origin: 50% 50%;
+    animation: motion-check-draw var(--dur-land) var(--ease-pop) both;
   }
 
   @keyframes motion-overlay-in {

@@ -1,6 +1,6 @@
-import { createSignal, For, Show } from "solid-js"
+import { createEffect, createSignal, For, Show } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CloseIcon, ResetIcon } from "@kiko/ui/icons"
+import { CloseIcon, ResetIcon, CheckIcon } from "@kiko/ui/icons"
 import { formatBytes } from "../../chat/info/format"
 import { fileType } from "../../files/type"
 import { TypeIcon } from "../../files/type-icon"
@@ -64,6 +64,19 @@ function Tile(props: {
 }) {
   const upload = () => uploadState(props.part.id)
   const [leaving, setLeaving] = createSignal(false)
+  const [landed, setLanded] = createSignal(false)
+  let uploaded = false
+  createEffect(() => {
+    const status = upload()?.status
+    if (status === "uploading") {
+      uploaded = true
+      return
+    }
+    if (status !== "ready" || !uploaded) return
+    uploaded = false
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+    setLanded(true)
+  })
   const [dragging, setDragging] = createSignal(false)
   const [broken, setBroken] = createSignal(false)
   const look = (): TileLook => (broken() ? "type" : tileLook(props.part))
@@ -135,6 +148,11 @@ function Tile(props: {
         <Foot part={props.part} upload={upload()} named={look() !== "type" && !pasted()} />
         <Show when={upload()?.status === "uploading"}>
           <span class="tray-fill" aria-hidden="true" />
+        </Show>
+        <Show when={landed()}>
+          <span class="tray-done" aria-hidden="true" onAnimationEnd={() => setLanded(false)}>
+            <RemixIcon icon={CheckIcon} size={18} />
+          </span>
         </Show>
       </button>
       <button

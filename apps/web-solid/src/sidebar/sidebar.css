@@ -34,11 +34,11 @@
 .sidebar-shell .panel-header {
   position: relative;
   display: flex;
-  height: 52px;
+  height: 48px;
   flex-shrink: 0;
   align-items: center;
   gap: 2px;
-  padding: 4px 10px 0 18px;
+  padding: 4px 10px 0 14px;
 }
 
 .sidebar-shell :is(.panel-brand, .chat-row, .nav-row) {
@@ -532,14 +532,14 @@
 
 .sidebar-shell .chat-row[data-enter] {
   overflow: hidden;
-  animation: sidebar-row-open var(--dur-move) var(--ease-out) both;
+  animation: sidebar-row-open var(--dur-land) var(--ease-out) both;
 }
 
 @keyframes sidebar-row-open {
   from {
     height: 0;
     opacity: 0;
-    transform: translateY(-12px);
+    transform: translateY(-10px) scale(0.98);
   }
 }
 
@@ -549,6 +549,26 @@
     transition:
       background var(--dur-hover) var(--ease-out),
       transform var(--dur-slow) var(--press-spring);
+  }
+
+  .sidebar-shell .chat-row:hover .chat-name {
+    color: var(--fg);
+  }
+
+  .sidebar-shell .chat-row:hover .chat-preview {
+    color: var(--fg2);
+  }
+
+  .sidebar-shell .chat-row[data-muted]:hover .chat-name {
+    color: var(--fg3);
+  }
+
+  .sidebar-shell .chat-row[data-muted]:hover .chat-preview {
+    color: var(--fg4);
+  }
+
+  .sidebar-shell .chat-row[data-need="failed"]:hover .chat-preview {
+    color: var(--bad);
   }
 }
 
@@ -731,8 +751,8 @@
 
 .sidebar-shell .chat-name {
   transition:
-    color 400ms var(--ease-kiko),
-    font-weight 400ms var(--ease-kiko);
+    color 250ms var(--ease-kiko),
+    font-weight 250ms var(--ease-kiko);
   display: block;
   min-width: 0;
   flex: 1;
@@ -795,6 +815,10 @@
 
 .sidebar-shell .chat-row[data-unread] .chat-preview {
   color: var(--fg2);
+}
+
+.sidebar-shell .chat-row[data-need="failed"] .chat-preview {
+  color: var(--bad);
 }
 
 .sidebar-shell .chat-row[data-muted] .chat-preview {

@@ -98,7 +98,7 @@ function Row(props: {
       </button>
       <span class="grid size-4 shrink-0 place-items-center text-fg" aria-hidden="true">
         <Show when={selected()}>
-          <RemixIcon icon={CheckIcon} size={16} />
+          <RemixIcon icon={CheckIcon} size={16} class="picker-check" />
         </Show>
       </span>
     </div>

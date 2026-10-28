@@ -146,6 +146,23 @@
   .picker-swap[data-slide] {
     animation-name: picker-slide;
   }
+  .picker-check {
+    transform-origin: 50% 50%;
+    animation: picker-check var(--dur-land) var(--ease-pop) both;
+  }
+}
+@keyframes picker-check {
+  from {
+    opacity: 0;
+    transform: scale(0.5) rotate(-16deg);
+  }
+  65% {
+    transform: scale(1.12) rotate(3deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 @keyframes picker-in {
   from {
