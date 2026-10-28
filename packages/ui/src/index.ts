@@ -1,4 +1,6 @@
 export { FileIcon } from "./components/file-icon"
+export { Pictogram } from "./components/pictogram"
+export type { PictogramName } from "./components/pictogram"
 export { ProviderIcon } from "./components/provider-icon"
 
 export { ButtonV2 } from "./v2/components/button-v2"

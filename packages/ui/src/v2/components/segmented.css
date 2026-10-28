@@ -11,7 +11,7 @@
     gap: 2px;
     padding: 3px;
     overflow-x: auto;
-    background: color-mix(in oklab, var(--active) 60%, transparent);
+    background: var(--panel);
     border-radius: var(--radius-tile);
     scrollbar-width: none;
   }
@@ -21,17 +21,10 @@
     top: 3px;
     bottom: 3px;
     left: 0;
-    background: color-mix(in oklab, var(--fg) 9%, var(--active));
-    border-radius: var(--radius-control);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.28);
-    pointer-events: none;
-  }
-
-  :root:not(.dark) [data-slot="segmented-pill"] {
     background: var(--bg);
-    box-shadow:
-      0 1px 2px rgb(0 0 0 / 0.08),
-      0 0 0 0.5px rgb(0 0 0 / 0.04);
+    border-radius: var(--radius-control);
+    box-shadow: var(--edge), var(--shadow-sm);
+    pointer-events: none;
   }
 
   [data-slot="segmented-item"] {

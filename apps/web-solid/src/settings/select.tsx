@@ -151,7 +151,7 @@ export function Select<T>(props: {
             active={open()}
             onDismiss={close}
             excludedElements={() => [trigger]}
-            class="motion-popover-in bg-raise pointer-events-auto fixed z-[80] flex max-w-[min(320px,calc(100vw-16px))] origin-top items-start overflow-y-auto rounded-pop p-1 shadow-popover"
+            class="motion-popover-in bg-[var(--popover)] pointer-events-auto fixed z-[80] flex max-w-[min(320px,calc(100vw-16px))] origin-top items-start overflow-y-auto rounded-pop p-1 shadow-[var(--shadow-pop)]"
             style={place()}
             onKeyDown={onPanelKey}
             data-kb-top-layer=""
@@ -180,25 +180,15 @@ export function Select<T>(props: {
                       id={`${id}-${i()}`}
                       role="option"
                       aria-selected={selected()}
-                      class="flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-row pr-2 pl-1.5 text-label text-fg"
-                      classList={{ "bg-[color-mix(in_oklab,var(--fg)_8%,transparent)]": active() === i() }}
+                      class="flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-row pr-2 pl-1.5 text-label text-fg transition-colors duration-(--dur-hover) hover:bg-[var(--fill-hover)]"
+                      classList={{ "bg-[var(--fill-hover)]": active() === i() }}
                       data-option={String(option.value)}
                       onPointerMove={() => setActive(i())}
                       onClick={() => pick(option.value)}
                     >
                       <span class="grid size-4 shrink-0 place-items-center" aria-hidden="true">
                         <Show when={selected()}>
-                          <svg
-                            class="size-4"
-                            viewBox="0 0 16 16"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.8"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                          >
-                            <path d="M3.5 8.5l3 3 6-7" />
-                          </svg>
+                          <span class="size-2 rounded-full bg-fg" />
                         </Show>
                       </span>
                       <Show when={option.icon}>{option.icon}</Show>

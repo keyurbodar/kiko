@@ -7,6 +7,7 @@ import { ChevronRightIcon } from "@kiko/ui/icons"
 import { Dialog } from "../lib/dialog"
 import { cn } from "../lib/cn"
 import { AppDetail, type AppId, APPS, appState, useIntegrations } from "./integrations"
+import { EmptyState } from "./kit"
 
 type Entry = { key: string; id: AppId; name: string; about: string; added: boolean; state: string }
 
@@ -16,7 +17,7 @@ const SEARCH_AFTER = 6
 
 function Glyph(props: { entry: Entry }): JSX.Element {
   return (
-    <span class="grid size-8 shrink-0 place-items-center rounded-control bg-fill text-fg2">
+    <span class="grid size-8 shrink-0 place-items-center rounded-control bg-[var(--fill-field)] text-[var(--text-200)]">
       <Show
         when={APPS[props.entry.id].icon}
         fallback={<span class="text-ui font-semibold text-fg">{props.entry.name.slice(0, 1).toUpperCase()}</span>}
@@ -83,18 +84,28 @@ export default function Tools(): JSX.Element {
         </div>
       </Show>
       <div class="kit-card flex flex-col gap-0.5 p-1.5" data-component="tools-list">
-        <For each={shown()} fallback={<p class="px-4 py-6 text-center type-ui text-fg3">Nothing matches.</p>}>
+        <For
+          each={shown()}
+          fallback={
+            <EmptyState
+              art="search"
+              title="Nothing matches"
+              line="Try a shorter word, or show every app."
+              data-field="tools-empty"
+            />
+          }
+        >
           {(entry) => (
             <button
               type="button"
-              class="group flex min-h-control-big w-full cursor-pointer items-center gap-3 rounded-row px-2.5 py-2 text-left transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover active:scale-[0.99]"
+              class="group flex min-h-control-big w-full cursor-pointer items-center gap-3 rounded-row px-2.5 py-2 text-left transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-[var(--fill-hover)] active:scale-[0.99] focus-visible:shadow-[var(--focus-ring)]"
               data-tool={entry.key}
               onClick={() => setOpenId(entry.id)}
             >
               <Glyph entry={entry} />
               <span class="flex min-w-0 flex-1 flex-col">
                 <span class="truncate type-row text-fg">{entry.name}</span>
-                <span class="truncate type-label text-fg3">{entry.about}</span>
+                <span class="truncate type-label text-[var(--text-300)]">{entry.about}</span>
               </span>
               <Show
                 when={entry.state}
@@ -110,7 +121,7 @@ export default function Tools(): JSX.Element {
                 }
               >
                 <span
-                  class={cn("shrink-0 type-label", entry.state === "Key rejected" ? "text-bad" : "text-ok")}
+                  class={cn("shrink-0 type-label", entry.state === "Key rejected" ? "text-[var(--danger)]" : "text-ok")}
                   data-field="tool-state"
                 >
                   {entry.state}

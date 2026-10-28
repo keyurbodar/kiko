@@ -49,10 +49,10 @@
   z-index: calc(9999 - var(--toast-index));
   box-sizing: border-box;
   width: 100%;
-  border-radius: var(--radius-control);
-  color: var(--popover-fg);
+  border-radius: var(--radius-pop);
+  color: var(--fg);
   background: var(--popover);
-  box-shadow: var(--toast-ring), var(--popover-shadow);
+  box-shadow: var(--edge), var(--shadow-pop);
   pointer-events: auto;
   user-select: none;
   -webkit-user-select: none;
@@ -131,12 +131,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 10px;
   min-height: 0;
-  padding-block: 12px;
-  padding-inline: 14px;
+  padding: 10px 10px 10px 14px;
   overflow-x: clip;
-  font-size: var(--type-ui);
+  font-size: 14px;
   line-height: 20px;
   transition: opacity var(--dur-pop) var(--ease-kiko);
 
@@ -301,14 +300,14 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  height: 26px;
+  height: 28px;
   padding: 0 10px;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-row);
   transition:
     background var(--dur-hover),
     transform var(--dur-hover) var(--ease-kiko);
-  font-size: var(--type-label);
+  font-size: 13px;
   font-weight: 500;
   line-height: 16px;
   white-space: nowrap;

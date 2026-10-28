@@ -20,6 +20,8 @@
     "./icons": "./src/icons.gen.ts",
     "./provider-icon.css": "./src/components/provider-icon.css",
     "./provider-icon": "./src/components/provider-icon.tsx",
+    "./pictogram": "./src/components/pictogram.tsx",
+    "./pictogram.css": "./src/components/pictogram.css",
     "./file-icon": "./src/components/file-icon.tsx",
     "./hooks": "./src/hooks/index.ts",
     "./context/*": "./src/context/*.tsx",

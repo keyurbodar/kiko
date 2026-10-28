@@ -1,0 +1,5 @@
+[data-component="pictogram"] {
+  display: block;
+  flex: none;
+  color: currentColor;
+}

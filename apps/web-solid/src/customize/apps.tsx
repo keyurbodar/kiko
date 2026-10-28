@@ -1,4 +1,4 @@
-import { EmptyArt } from "../components/empty-art"
+import { Pictogram } from "@kiko/ui/pictogram"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, PlusIcon } from "@kiko/ui/icons"
 import { createMemo, createSignal, For, Show } from "solid-js"
@@ -28,11 +28,13 @@ export function AppsTab(props: { query: string; scope: Scope }) {
           each={rows()}
           fallback={
             <div
-              class="col-span-full flex flex-col items-center gap-2 px-6 py-12 text-center"
+              class="col-span-full flex flex-col items-center gap-1 px-6 py-12 text-center"
               data-component="apps-empty"
             >
-              <EmptyArt name={props.scope === "yours" && !props.query ? "plug" : "search"} size={140} />
-              <p class="type-ui text-fg2">
+              <span class="mb-3 grid size-24 place-items-center rounded-pop bg-[var(--fill-control)] text-[var(--text-200)]">
+                <Pictogram name={props.scope === "yours" && !props.query ? "web" : "search"} size={56} />
+              </span>
+              <p class="type-ui text-fg">
                 {props.scope === "yours" && !props.query ? "No apps connected." : "Nothing matches."}
               </p>
               <Show when={props.scope === "yours" && !props.query}>

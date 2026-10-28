@@ -23,7 +23,7 @@ function Keys(props: { keys: string; ref?: (el: HTMLSpanElement) => void }) {
     <span ref={props.ref} class="inline-flex items-center gap-1" data-field="keys">
       <For each={formatForDisplay(props.keys, { platform, parts: true })}>
         {(part) => (
-          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-tail bg-fill px-1 font-sans text-hint font-medium text-fg2">
+          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-tail bg-[var(--fill-field)] px-1 font-sans text-hint font-medium text-[var(--text-200)]">
             {part}
           </kbd>
         )}
@@ -113,7 +113,7 @@ function KeyRow(props: { command: Command }) {
       <div class="flex items-center gap-1">
         <button
           type="button"
-          class="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-6 rounded-row px-3 py-2 text-left outline-none transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover focus-visible:shadow-[var(--focus-ring)] active:scale-[0.99]"
+          class="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-6 rounded-row px-3 py-2 text-left outline-none transition-[background-color,transform] duration-(--dur-hover) ease-[var(--ease-out)] hover:bg-[var(--fill-hover)] focus-visible:shadow-[var(--focus-ring)] active:scale-[0.99]"
           aria-label={
             recorder.isRecording()
               ? `Press the new shortcut for ${props.command.title}`
@@ -125,32 +125,35 @@ function KeyRow(props: { command: Command }) {
           onBlur={() => recorder.isRecording() && recorder.cancelRecording()}
         >
           <span class="flex min-w-0 flex-1 flex-col">
-            <span class="truncate type-ui font-medium text-fg">{props.command.title}</span>
+            <span class="truncate text-row leading-5 font-medium text-fg">{props.command.title}</span>
             <Show
               when={recorder.isRecording()}
               fallback={
                 <Show when={problem() ?? claimed()}>
                   {(text) => (
-                    <span class={cn("type-label", problem() ? "text-bad" : "text-fg3")} data-field="shortcut-note">
+                    <span
+                      class={cn("type-label", problem() ? "text-[var(--danger)]" : "text-[var(--text-300)]")}
+                      data-field="shortcut-note"
+                    >
                       {text()}
                     </span>
                   )}
                 </Show>
               }
             >
-              <span class="type-hint text-fg4">Esc to cancel, Backspace to remove</span>
+              <span class="type-hint text-[var(--text-400)]">Esc to cancel, Backspace to remove</span>
             </Show>
           </span>
           <span
             class={cn(
               "inline-flex h-7 min-w-24 shrink-0 items-center justify-end rounded-control px-2 transition-colors duration-(--dur-hover)",
-              recorder.isRecording() && "bg-active",
+              recorder.isRecording() && "bg-[var(--active)]",
             )}
           >
             <Show
               when={!recorder.isRecording()}
               fallback={
-                <span class="motion-shine type-label text-fg3" style={SHINE}>
+                <span class="motion-shine type-label text-[var(--text-300)]" style={SHINE}>
                   Press keys
                 </span>
               }
@@ -158,7 +161,7 @@ function KeyRow(props: { command: Command }) {
               <Show
                 when={key()}
                 fallback={
-                  <span class="type-label text-fg3 opacity-0 transition-opacity duration-(--dur-hover) group-hover/key:opacity-100 group-focus-within/key:opacity-100">
+                  <span class="type-label text-[var(--text-300)] opacity-0 transition-opacity duration-(--dur-hover) group-hover/key:opacity-100 group-focus-within/key:opacity-100">
                     Add shortcut
                   </span>
                 }
@@ -184,7 +187,7 @@ function KeyRow(props: { command: Command }) {
       <Show when={conflict()}>
         {(taken) => (
           <p
-            class="flex flex-wrap items-center gap-x-2 px-3 pb-2 type-label text-bad"
+            class="flex flex-wrap items-center gap-x-2 px-3 pb-2 type-label text-[var(--danger)]"
             role="alert"
             data-field="shortcut-conflict"
           >
@@ -220,7 +223,7 @@ export default function KeyboardPage() {
   })
   const changed = () => Object.keys(bindings()).length > 0
   return (
-    <div class="flex flex-col gap-8" data-component="keyboard-settings">
+    <div class="flex flex-col gap-[18px]" data-component="keyboard-settings">
       <div class="flex items-center gap-2">
         <SearchField
           wrapClass="min-w-0 flex-1"

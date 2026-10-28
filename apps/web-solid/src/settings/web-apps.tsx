@@ -1,7 +1,7 @@
 import type { WebApp, WebAppsResult } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal, For, type JSX, Match, onCleanup, onMount, Show, Switch } from "solid-js"
-import { Button, buttonClass, Empty, Group, Hint, Item, Notice, Row, Skeleton } from "./kit"
+import { Button, buttonClass, EmptyState, Group, Hint, Item, Notice, Row, Skeleton } from "./kit"
 import { call, owner } from "../state/runtime"
 
 const POLL_MS = 4000
@@ -163,7 +163,7 @@ export default function WebApps(): JSX.Element {
   })
 
   return (
-    <div class="flex flex-col gap-8" data-component="web-apps-settings">
+    <div class="flex flex-col gap-[18px]" data-component="web-apps-settings">
       <Show
         when={state()}
         fallback={
@@ -194,7 +194,7 @@ export default function WebApps(): JSX.Element {
                 <Group title="Apps">
                   <For
                     each={ready().apps}
-                    fallback={<Empty data-field="web-apps-empty">No apps yet. Ask any agent to build one.</Empty>}
+                    fallback={<EmptyState art="web" title="No apps yet" line="Ask any agent to build one." />}
                   >
                     {(app) => (
                       <AppRow app={app} claiming={claiming() === app.name} onClaim={() => void claim(app.name)} />

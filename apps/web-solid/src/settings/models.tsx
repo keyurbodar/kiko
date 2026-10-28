@@ -115,7 +115,7 @@ export function ModelsPage() {
   )
 
   return (
-    <div class="flex flex-col gap-8" data-component="models-page">
+    <div class="flex flex-col gap-[18px]" data-component="models-page">
       <Show when={cheer()}>
         <p class="rounded-tile bg-panel px-4 py-3 type-ui text-fg" data-component="first-provider-cheer" role="status">
           Connected. Your agents can reply now.
@@ -206,7 +206,7 @@ function PopularProviders(props: {
             {({ provider, note }) => (
               <button
                 type="button"
-                class="group flex cursor-pointer items-center gap-3 rounded-card bg-panel p-3 text-left transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover active:scale-[0.99]"
+                class="group flex cursor-pointer items-center gap-3 rounded-card bg-panel p-3 text-left transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-[var(--fill-hover)] active:scale-[0.99]"
                 data-provider={provider.id}
                 data-action="connect"
                 onClick={() => props.onPick(provider)}
@@ -216,12 +216,12 @@ function PopularProviders(props: {
                 </BrandTile>
                 <span class="flex min-w-0 flex-1 flex-col">
                   <span class="truncate type-row text-fg">{provider.name}</span>
-                  <span class="truncate type-label text-fg3">{note}</span>
+                  <span class="truncate type-label text-[var(--text-300)]">{note}</span>
                 </span>
                 <RemixIcon
                   icon={ChevronRightIcon}
                   size={16}
-                  class="shrink-0 text-fg4 transition-[color,transform] duration-(--dur-hover) group-hover:translate-x-0.5 group-hover:text-fg2"
+                  class="shrink-0 text-[var(--text-400)] transition-[color,transform] duration-(--dur-hover) group-hover:translate-x-0.5 group-hover:text-fg2"
                 />
               </button>
             )}
@@ -247,7 +247,7 @@ function ProviderList(props: {
       <For each={props.providers}>{(provider) => <ProviderRow provider={provider} onManage={props.onManage} />}</For>
       <button
         type="button"
-        class="group flex h-control-big w-full cursor-pointer items-center gap-3 px-4 text-left transition-colors duration-(--dur-hover) hover:bg-hover"
+        class="group flex h-control-big w-full cursor-pointer items-center gap-3 px-4 text-left transition-colors duration-(--dur-hover) hover:bg-[var(--fill-hover)]"
         data-action="view-all-providers"
         onClick={() => props.onAdd()}
       >
@@ -255,7 +255,7 @@ function ProviderList(props: {
           <RemixIcon icon={PlusIcon} size={16} />
         </BrandTile>
         <span class="min-w-0 flex-1 truncate type-ui text-fg2 group-hover:text-fg">Add a provider</span>
-        <span class="flex shrink-0 items-center gap-1.5 text-fg3" aria-hidden="true">
+        <span class="flex shrink-0 items-center gap-1.5 text-[var(--text-300)]" aria-hidden="true">
           <For each={strip()}>{(p) => <ProviderIcon id={p.id} width="14" height="14" />}</For>
         </span>
       </button>
@@ -287,7 +287,10 @@ function ProviderRow(props: { provider: CatalogProvider; onManage: (provider: Ca
       </BrandTile>
       <div class="flex min-w-0 flex-1 flex-col">
         <span class="truncate type-ui font-medium text-fg">{props.provider.name}</span>
-        <span class={cn("truncate type-label", info()?.problem ? "text-bad" : "text-fg3")} data-part="provider-status">
+        <span
+          class={cn("truncate type-label", info()?.problem ? "text-[var(--danger)]" : "text-[var(--text-300)]")}
+          data-part="provider-status"
+        >
           {statusLine(info())}
         </span>
       </div>
@@ -295,7 +298,9 @@ function ProviderRow(props: { provider: CatalogProvider; onManage: (provider: Ca
         when={info()?.problem}
         fallback={<span class="shrink-0 type-label text-ok max-[420px]:hidden">Connected</span>}
       >
-        {(problem) => <span class="shrink-0 type-label text-bad max-[420px]:hidden">{PROBLEM_SHORT[problem()]}</span>}
+        {(problem) => (
+          <span class="shrink-0 type-label text-[var(--danger)] max-[420px]:hidden">{PROBLEM_SHORT[problem()]}</span>
+        )}
       </Show>
       <Button data-action="manage-provider" onClick={() => props.onManage(props.provider)}>
         {info()?.problem && FIX_LABEL[info()!.problem!] ? FIX_LABEL[info()!.problem!] : "Manage"}
@@ -420,7 +425,7 @@ function PickerModelRow(props: { row: PickerRow; hidden: boolean; showProvider: 
   const label = () => `Show ${props.row.model.name} in the model picker`
   return (
     <div
-      class="flex h-[46px] cursor-pointer items-center gap-3 px-4 outline-none transition-colors duration-(--dur-hover) hover:bg-hover focus-visible:bg-hover"
+      class="flex h-[46px] cursor-pointer items-center gap-3 px-4 outline-none transition-colors duration-(--dur-hover) hover:bg-[var(--fill-hover)] focus-visible:bg-[var(--fill-hover)]"
       role="switch"
       tabIndex={0}
       aria-checked={!props.hidden}
@@ -435,22 +440,22 @@ function PickerModelRow(props: { row: PickerRow; hidden: boolean; showProvider: 
       }}
     >
       <Show when={props.showProvider}>
-        <ProviderIcon id={props.row.provider.id} width="14" height="14" class="shrink-0 text-fg3" />
+        <ProviderIcon id={props.row.provider.id} width="14" height="14" class="shrink-0 text-[var(--text-300)]" />
       </Show>
       <span
-        class={cn("min-w-0 flex-1 truncate type-ui", props.hidden ? "text-fg3" : "text-fg")}
+        class={cn("min-w-0 flex-1 truncate type-ui", props.hidden ? "text-[var(--text-300)]" : "text-fg")}
         title={props.row.model.id}
       >
         {props.row.model.name}
       </span>
       <Show when={props.row.model.reasoning}>
         <TooltipV2 placement="top" value="Reasoning">
-          <span class="grid shrink-0 place-items-center text-fg4" aria-label="Reasoning" role="img">
+          <span class="grid shrink-0 place-items-center text-[var(--text-400)]" aria-label="Reasoning" role="img">
             <RemixIcon icon={ReasoningIcon} size={16} />
           </span>
         </TooltipV2>
       </Show>
-      <span class="w-10 shrink-0 text-right type-hint tabular-nums text-fg4">
+      <span class="w-10 shrink-0 text-right type-hint tabular-nums text-[var(--text-400)]">
         {formatContext(props.row.model.contextWindow)}
       </span>
       <span onClick={(event) => event.stopPropagation()}>
@@ -578,7 +583,7 @@ export function AddProviderDialog(props: {
             <li data-provider={provider.id}>
               <button
                 type="button"
-                class="flex h-control-big w-full cursor-pointer items-center gap-3 rounded-row px-2 text-left outline-none transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover focus-visible:bg-hover active:scale-[0.99]"
+                class="flex h-control-big w-full cursor-pointer items-center gap-3 rounded-row px-2 text-left outline-none transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-[var(--fill-hover)] focus-visible:bg-[var(--fill-hover)] active:scale-[0.99]"
                 data-action="connect"
                 onClick={() => props.onPick(provider)}
               >
@@ -586,7 +591,7 @@ export function AddProviderDialog(props: {
                   <ProviderIcon id={provider.id} width="16" height="16" />
                 </BrandTile>
                 <span class="min-w-0 flex-1 truncate type-ui font-medium text-fg">{provider.name}</span>
-                <span class="shrink-0 type-hint tabular-nums text-fg4">
+                <span class="shrink-0 type-hint tabular-nums text-[var(--text-400)]">
                   {provider.models.length} {provider.models.length === 1 ? "model" : "models"}
                 </span>
               </button>
@@ -596,7 +601,7 @@ export function AddProviderDialog(props: {
         <li data-provider="custom">
           <button
             type="button"
-            class="flex h-control-big w-full cursor-pointer items-center gap-3 rounded-row px-2 text-left outline-none transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover focus-visible:bg-hover active:scale-[0.99]"
+            class="flex h-control-big w-full cursor-pointer items-center gap-3 rounded-row px-2 text-left outline-none transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-[var(--fill-hover)] focus-visible:bg-[var(--fill-hover)] active:scale-[0.99]"
             data-action="custom-provider"
             onClick={() => setCustom(true)}
           >
@@ -604,7 +609,7 @@ export function AddProviderDialog(props: {
               <RemixIcon icon={PlusIcon} size={16} />
             </BrandTile>
             <span class="min-w-0 flex-1 truncate type-ui font-medium text-fg">Custom provider</span>
-            <span class="shrink-0 type-hint text-fg4">OpenAI or Anthropic compatible</span>
+            <span class="shrink-0 type-hint text-[var(--text-400)]">OpenAI or Anthropic compatible</span>
           </button>
         </li>
       </ul>

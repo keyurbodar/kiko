@@ -124,7 +124,7 @@ export function TooltipV2(props: TooltipV2Props) {
           overflowPadding={5}
           skipDelayDuration={HANDOFF_MS}
           {...others}
-          openDelay={warm() ? 0 : (others.openDelay ?? 600)}
+          openDelay={warm() ? 0 : (others.openDelay ?? 500)}
           closeDelay={0}
           ignoreSafeArea={local.ignoreSafeArea ?? true}
           open={local.forceOpen || state.open}
