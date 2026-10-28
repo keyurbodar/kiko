@@ -62,22 +62,58 @@
 
 .thinking-stream {
   width: min(36rem, 100%);
-  max-height: min(280px, 36vh);
+  max-height: 320px;
   margin-left: 9px;
-  padding: 2px 0 2px 18px;
+  padding: 2px 0 2px 14px;
   overflow-y: auto;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--border-200);
   scrollbar-width: thin;
-  color: var(--fg3);
-  font-size: var(--type-ui);
+  color: var(--text-300);
+  font-size: var(--type-label);
   line-height: 22px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;
 }
-.thinking-stream[data-scrolled] {
+.thinking-stream[data-live] {
+  max-height: 110px;
+  -webkit-mask: linear-gradient(transparent, #000 30%);
+  mask: linear-gradient(transparent, #000 30%);
+}
+.thinking-stream[data-fade-top] {
   -webkit-mask: linear-gradient(transparent, #000 32px);
   mask: linear-gradient(transparent, #000 32px);
+}
+.thinking-stream[data-fade-bottom] {
+  -webkit-mask: linear-gradient(#000 calc(100% - 32px), transparent);
+  mask: linear-gradient(#000 calc(100% - 32px), transparent);
+}
+.thinking-stream[data-fade-top][data-fade-bottom] {
+  -webkit-mask: linear-gradient(transparent, #000 32px, #000 calc(100% - 32px), transparent);
+  mask: linear-gradient(transparent, #000 32px, #000 calc(100% - 32px), transparent);
+}
+.thinking-stream[data-live][data-fade-top] {
+  -webkit-mask: linear-gradient(transparent, #000 30%);
+  mask: linear-gradient(transparent, #000 30%);
+}
+
+.thinking-fold {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+.thinking-fold[data-shut] {
+  grid-template-rows: 0fr;
+}
+.thinking-fold > div {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .thinking-fold {
+    transition: grid-template-rows var(--dur-move) var(--ease-snap);
+  }
 }
 
 .thought {

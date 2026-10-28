@@ -62,10 +62,13 @@ function usePacedLine(text: () => string) {
   return shown
 }
 
-function Stream(props: { text: string; follow: boolean }): JSX.Element {
+function Stream(props: { text: string; follow: boolean; live?: boolean }): JSX.Element {
   let box!: HTMLDivElement
   let pinned = props.follow
-  const mark = () => box.toggleAttribute("data-scrolled", box.scrollTop > 0)
+  const mark = () => {
+    box.toggleAttribute("data-fade-top", box.scrollTop > 0)
+    box.toggleAttribute("data-fade-bottom", box.scrollHeight - box.scrollTop - box.clientHeight > 1)
+  }
   createEffect(
     on(
       () => props.text,
@@ -80,7 +83,13 @@ function Stream(props: { text: string; follow: boolean }): JSX.Element {
     mark()
   }
   return (
-    <div ref={box} class="thinking-stream" data-component="thinking-stream" onScroll={onScroll}>
+    <div
+      ref={box}
+      class="thinking-stream"
+      data-component="thinking-stream"
+      data-live={props.live ? "" : undefined}
+      onScroll={onScroll}
+    >
       {props.text}
     </div>
   )
@@ -146,6 +155,9 @@ export function ThinkingLine(props: {
   const caption = usePacedLine(() => props.fallback)
   const [open, setOpen] = createSignal(remembered())
   const now = useNow(() => !!live() || props.since !== undefined)
+  createEffect(() => {
+    if (thinking()) setOpen(true)
+  })
   const toggle = () => {
     const next = !open()
     setOpen(next)
@@ -192,9 +204,11 @@ export function ThinkingLine(props: {
           </Show>
           <Chevron open={open()} />
         </button>
-        <Show when={open()}>
-          <Stream text={text()} follow />
-        </Show>
+        <div class="thinking-fold" data-shut={open() ? undefined : ""}>
+          <div>
+            <Stream text={text()} follow live={thinking()} />
+          </div>
+        </div>
       </Show>
     </div>
   )
@@ -217,7 +231,7 @@ export function ThoughtRow(props: { thought: Thought }): JSX.Element {
           <Chevron open={open()} />
         </button>
         <Show when={open()}>
-          <Stream text={text()} follow={false} />
+          <Stream text={text()} follow={false} live={false} />
         </Show>
       </div>
     </Show>

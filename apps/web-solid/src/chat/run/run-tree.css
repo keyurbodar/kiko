@@ -1,10 +1,10 @@
 .run-tree {
-  --run-text: var(--fg2);
+  --run-text: var(--text-200);
   display: flex;
   flex-direction: column;
   width: min(100%, 38rem);
   min-width: 0;
-  font-size: var(--type-ui);
+  font-size: var(--type-label);
   line-height: 20px;
 }
 .run-tree:not([data-live]) {
@@ -15,25 +15,28 @@
   display: inline-flex;
   align-self: flex-start;
   align-items: center;
-  gap: 4px;
-  min-height: 26px;
-  color: var(--fg3);
+  gap: 6px;
+  height: 28px;
+  margin-left: -4px;
+  padding: 0 8px 0 4px;
+  border-radius: var(--radius-row);
+  color: var(--text-300);
+  font-size: var(--type-label);
   cursor: pointer;
   user-select: none;
   font-variant-numeric: tabular-nums;
-  transition: color var(--dur-hover) var(--ease-kiko);
+  transition:
+    color var(--dur-hover) var(--ease-kiko),
+    background-color var(--dur-hover) var(--ease-kiko);
+}
+.run-tree-head:not([data-live]):hover {
+  background: var(--hover);
 }
 .run-tree-summary {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.run-tree-took {
-  flex: none;
-  margin-left: 2px;
-  color: var(--fg4);
-  transition: color var(--dur-hover) var(--ease-kiko);
 }
 .run-tree-head {
   max-width: 100%;
@@ -52,21 +55,25 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  position: relative;
 }
 
 .run-tree-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
   min-width: 0;
-  min-height: 26px;
-  padding: 3px 6px 3px 0;
+  min-height: 28px;
+  padding: 4px 6px 4px 0;
   border-radius: var(--radius-tail);
   color: var(--run-text);
   text-align: start;
   cursor: default;
   user-select: none;
   transition: color var(--dur-hover) var(--ease-kiko);
+}
+.run-tree-row > .run-tree-label {
+  padding-top: 1px;
 }
 button.run-tree-row {
   cursor: pointer;
@@ -85,7 +92,53 @@ button.run-tree-row:focus-visible,
   align-items: center;
   justify-content: center;
   width: 16px;
-  height: 16px;
+  height: 20px;
+}
+
+.run-tree-mark {
+  display: block;
+  flex: none;
+  border-radius: var(--radius-full);
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    box-shadow var(--dur-hover) var(--ease-kiko);
+}
+.run-tree-mark[data-state="done"] {
+  width: 8px;
+  height: 8px;
+  background: var(--text-300);
+}
+.run-tree-mark[data-state="running"] {
+  width: 11px;
+  height: 11px;
+  box-shadow: inset 0 0 0 1.5px var(--info);
+}
+.run-tree-mark[data-state="next"] {
+  width: 9px;
+  height: 9px;
+  box-shadow: inset 0 0 0 1.5px var(--text-400);
+}
+.run-tree-mark[data-state="failed"] {
+  width: 8px;
+  height: 8px;
+  background: var(--danger);
+}
+
+.run-tree-item {
+  position: relative;
+}
+.run-tree-item[data-kind="step"]::before {
+  content: "";
+  position: absolute;
+  top: 22px;
+  bottom: -2px;
+  left: 7.5px;
+  width: 1px;
+  background: var(--border-100);
+  pointer-events: none;
+}
+.run-tree-item[data-kind="step"]:last-child::before {
+  display: none;
 }
 
 .run-tree-children {
@@ -110,23 +163,32 @@ button.run-tree-row:focus-visible,
   flex: none;
   margin-left: auto;
   padding-left: 12px;
-  color: var(--fg4);
-  font-size: var(--type-hint);
+  color: var(--text-300);
+  font-size: var(--type-caption);
   font-variant-numeric: tabular-nums;
-  opacity: 0;
-  transition: opacity var(--dur-hover) var(--ease-kiko);
-}
-.run-tree-time[data-live],
-button.run-tree-row:focus-visible > .run-tree-time,
-button.run-tree-row[aria-expanded="true"] > .run-tree-time {
-  opacity: 1;
+  transition: color var(--dur-hover) var(--ease-kiko);
 }
 
 .run-tree-meta {
   flex: none;
-  color: var(--fg4);
-  font-size: var(--type-hint);
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--text-300);
+  font-size: var(--type-caption);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.run-tree-meta[data-tone="danger"] {
+  color: var(--danger);
+}
+
+.run-tree-counts {
+  flex: none;
+  margin-left: 6px;
+  color: var(--text-300);
+  font-size: var(--type-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .run-tree-label {
@@ -243,12 +305,8 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
   grid-template-rows: 0fr;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .run-tree-fold[data-reply] {
-    transition-duration: 320ms;
-  }
-  .run-tree-fold[data-reply][data-shut] > div {
-    opacity: 0;
-    transition: opacity 240ms var(--ease-kiko);
+  .run-tree-fold {
+    transition: grid-template-rows var(--dur-move) var(--ease-snap);
   }
 }
 .run-tree-fold > div {
@@ -374,17 +432,8 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
   .run-tree-item[data-fresh] > .run-tree-row {
     animation: run-tree-rise var(--dur-pop) var(--ease-kiko) backwards;
   }
-  .run-tree-slot[data-settled] > .run-tree-icon {
-    animation: run-tree-settle 300ms var(--spring325-bounce-easing, var(--ease-kiko)) backwards;
-  }
-  .run-tree-slot[data-settled]::before {
-    content: "";
-    position: absolute;
-    inset: -3px;
-    border-radius: 50%;
-    background: var(--fg);
-    animation: run-tree-disc 300ms var(--ease-kiko) forwards;
-    pointer-events: none;
+  .run-tree-mark[data-settled] {
+    animation: run-tree-disc 300ms var(--ease-kiko) backwards;
   }
   .run-tree-row[data-settled] > .run-tree-label {
     animation: run-tree-ink 300ms var(--ease-kiko) backwards;
@@ -415,11 +464,11 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
 
 @keyframes run-tree-disc {
   from {
-    opacity: 0.22;
+    opacity: 0;
     transform: scale(0.3);
   }
   to {
-    opacity: 0;
+    opacity: 1;
     transform: scale(1);
   }
 }
@@ -427,13 +476,6 @@ button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron 
 @keyframes run-tree-ink {
   from {
     color: var(--fg);
-  }
-}
-
-@keyframes run-tree-settle {
-  from {
-    opacity: 0;
-    transform: scale(0.6);
   }
 }
 
