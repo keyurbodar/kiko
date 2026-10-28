@@ -272,8 +272,8 @@ function ToastV2Region(props: ToastV2RegionProps) {
         <ol
           ref={list}
           class="toast-v2-list"
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
+          onPointerEnter={() => setHovered(true)}
+          onPointerLeave={() => setHovered(false)}
           onPointerDown={() => setPressed(true)}
           onPointerCancel={() => setPressed(false)}
           onFocusIn={() => setFocused(true)}

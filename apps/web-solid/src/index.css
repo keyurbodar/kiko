@@ -25,9 +25,9 @@
 }
 
 @font-face {
-  font-family: "Newsreader";
-  src: url("/fonts/newsreader-var.woff2") format("woff2");
-  font-weight: 200 800;
+  font-family: "Fraunces";
+  src: url("/fonts/fraunces-latin.woff2") format("woff2");
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
@@ -51,9 +51,9 @@
 :root {
   --line-height: 1.45;
   --font-family-sans: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --font-family-display: Newsreader, Georgia, "Times New Roman", serif;
+  --font-family-display: Fraunces, Georgia, "Times New Roman", serif;
   --font-family-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, ui-monospace, monospace;
-  --display-variation: "opsz" 32;
+  --display-variation: "SOFT" 50, "WONK" 0;
 
   --shimmer-duration: 2.2s;
 
@@ -153,7 +153,7 @@
   --bg: #191919;
   --side: #1f1f1f;
   --panel: color-mix(in srgb, #ffffff 2.61%, #191919);
-  --raise: color-mix(in srgb, #ffffff 7.45%, #191919);
+  --raise: color-mix(in srgb, #ffffff 7%, #191919);
   --hover: color-mix(in srgb, #ffffff 7.45%, #191919);
   --active: color-mix(in srgb, #ffffff 15%, #191919);
   --fill: color-mix(in srgb, #ffffff 10%, #191919);
@@ -200,8 +200,8 @@
   --line: color-mix(in srgb, #000000 8%, #ffffff);
   --line2: color-mix(in srgb, #000000 15%, #ffffff);
   --fg: #1a1a1a;
-  --fg2: #666666;
-  --fg3: #888888;
+  --fg2: #5a5a5a;
+  --fg3: #717171;
   --fg4: color-mix(in srgb, #000000 35%, #ffffff);
   --on-fg: #ffffff;
   --ok: #006c10;
@@ -222,6 +222,13 @@
 
 /* kds:start */
 :root {
+  --bg-000: var(--raise);
+  --bg-100: var(--side);
+  --bg-200: var(--bg);
+  --bg-300: color-mix(in srgb, #000000 25%, var(--bg));
+  --bg-400: color-mix(in srgb, #000000 50%, var(--bg));
+  --accent: var(--info);
+  --fill-selected: var(--active);
   --fill-field: color-mix(in srgb, #ffffff 5%, transparent);
   --fill-control: var(--fill);
   --fill-control-hover: var(--fill-hover);
@@ -231,8 +238,8 @@
   --border-300: color-mix(in srgb, #ffffff 40%, transparent);
   --bubble-agent: var(--kiko-bubble);
   --bubble-me: var(--me);
-  --sunken: color-mix(in srgb, #000000 25%, var(--bg));
-  --backdrop: color-mix(in srgb, #000000 50%, var(--bg));
+  --sunken: var(--bg-300);
+  --backdrop: var(--bg-400);
   --accent-unread: var(--info);
   --selection: color-mix(in srgb, var(--info) 35%, transparent);
   --edge: inset 0 0 0 1px var(--line);
@@ -258,6 +265,10 @@
 }
 
 :root:not(.dark) {
+  --bg-300: color-mix(in srgb, #000000 7%, var(--bg));
+  --bg-400: color-mix(in srgb, #000000 12%, var(--bg));
+  --sunken: var(--bg-300);
+  --backdrop: var(--bg-400);
   --fill-field: color-mix(in srgb, #000000 2.5%, transparent);
   --fill-pressed: color-mix(in srgb, #000000 11%, transparent);
   --border-300: color-mix(in srgb, #000000 32%, transparent);
@@ -265,9 +276,9 @@
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 8%);
   --shadow-pop: 0 8px 24px rgb(0 0 0 / 8%), 0 2px 6px rgb(0 0 0 / 6%);
   --shadow-float: 0 24px 64px rgb(0 0 0 / 14%), 0 4px 12px rgb(0 0 0 / 6%);
-  --text-200: #6b6b6b;
-  --text-300: #a3a3a3;
-  --text-400: #b8b8b8;
+  --text-200: #5f5f5f;
+  --text-300: #707070;
+  --text-400: #8a8a8a;
 }
 
 ::selection {

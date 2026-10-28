@@ -9,11 +9,25 @@ import { AgentPage } from "./agent"
 type ViewProps<F = object> = { chatId: string; surface: F; close: () => void }
 
 export function FilesView(props: ViewProps) {
-  return <FilesTree chatId={props.chatId} />
+  return (
+    <div class="flex min-h-0 flex-1" data-component="files-split">
+      <FileSurface chatId={props.chatId} />
+      <div class="files-tree-rail" data-component="files-tree-rail">
+        <FilesTree chatId={props.chatId} />
+      </div>
+    </div>
+  )
 }
 
 export function FileView(props: ViewProps<{ path: string }>) {
-  return <FileSurface chatId={props.chatId} path={props.surface.path} />
+  return (
+    <div class="flex min-h-0 flex-1" data-component="files-split">
+      <FileSurface chatId={props.chatId} path={props.surface.path} />
+      <div class="files-tree-rail" data-component="files-tree-rail">
+        <FilesTree chatId={props.chatId} />
+      </div>
+    </div>
+  )
 }
 
 export function MemoryView() {

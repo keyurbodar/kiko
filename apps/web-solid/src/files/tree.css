@@ -110,3 +110,13 @@
 .kt-host[data-pointer] {
   --trees-focus-ring-color-override: transparent;
 }
+
+.files-tree-rail {
+  display: flex;
+  width: 300px;
+  min-width: 300px;
+  flex: none;
+  flex-direction: column;
+  border-left: 1px solid var(--border-100);
+  background: var(--side);
+}

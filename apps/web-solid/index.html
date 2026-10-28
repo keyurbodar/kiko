@@ -172,8 +172,8 @@
                 canvas: "#ffffff",
                 sidebar: "#fafafa",
                 text: "#1a1a1a",
-                muted: "#666666",
-                faint: "#888888",
+                muted: "#5a5a5a",
+                faint: "#717171",
                 action: "#191919",
                 actionHover: "#3c3c3c",
                 onAction: "#ffffff",
@@ -191,7 +191,7 @@
               ["--bg", ({ p }) => p.canvas],
               ["--side", ({ p }) => p.sidebar],
               ["--panel", ({ wash, dark }) => wash(dark ? 2.61 : 2.35)],
-              ["--raise", ({ wash, dark }) => wash(dark ? 7.45 : 5.1)],
+              ["--raise", ({ wash, dark }) => wash(dark ? 7 : 5.1)],
               ["--hover", ({ wash, dark }) => wash(dark ? 7.45 : 5.1)],
               ["--active", ({ wash, dark }) => wash(dark ? 15 : 8)],
               ["--fill", ({ wash, dark }) => wash(dark ? 10 : 6)],
@@ -239,7 +239,7 @@
           }
           var TYPE = {
             page: { size: 40, line: 46, weight: 400, face: "display", scales: !1 },
-            section: { size: 22, line: 28, weight: 400, face: "display", scales: !1 },
+            section: { size: 22, line: 28, weight: 600, face: "sans", scales: !1 },
             wordmark: { size: 21, line: 26, weight: 500, face: "display", scales: !1 },
             msg: { size: 16, line: 24, weight: 400, face: "sans", scales: !0 },
             bubble: { size: 15, line: 22, weight: 400, face: "sans", scales: !0 },

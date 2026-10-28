@@ -683,7 +683,8 @@
   display: flex;
   min-width: 0;
   align-items: baseline;
-  gap: 6px;
+  gap: 8px;
+  height: 18px;
 }
 
 .sidebar-shell .chat-name {
@@ -694,8 +695,8 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: var(--fg2);
-  font-size: var(--type-row);
+  color: var(--fg);
+  font-size: 14px;
   font-weight: 500;
   line-height: 18px;
   text-overflow: ellipsis;
@@ -724,8 +725,9 @@
 
 .sidebar-shell .chat-time {
   flex-shrink: 0;
-  color: var(--fg3);
-  font-size: var(--type-caption);
+  color: var(--text-300);
+  font-size: 12px;
+  line-height: 16px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -751,7 +753,7 @@
 }
 
 .sidebar-shell .chat-row[data-unread] .chat-preview {
-  color: var(--fg2);
+  color: var(--text-200);
 }
 
 .sidebar-shell .chat-preview-from {
