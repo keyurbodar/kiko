@@ -1,114 +1,96 @@
+.lchip,
 .mchip {
+  --chip-fill: color-mix(in oklab, var(--fg) 9%, transparent);
+  --chip-fill-hover: color-mix(in oklab, var(--fg) 14%, transparent);
   display: inline-flex;
   box-sizing: border-box;
   max-width: 100%;
+  height: 22px;
   align-items: center;
   border: 0;
+  background: var(--chip-fill);
   color: var(--fg);
   font: inherit;
+  font-size: var(--type-label);
   line-height: 20px;
   vertical-align: middle;
   white-space: nowrap;
 }
 
 .lchip {
-  display: inline;
-  max-width: 100%;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: none;
-  color: var(--chip-mention);
-  font: inherit;
-  font-weight: 500;
-  text-align: start;
+  gap: 5px;
+  padding: 0 8px 0 4px;
+  border-radius: var(--radius-tail);
   cursor: pointer;
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    transform var(--dur-hover) var(--ease-kiko);
 }
 
-.mchip {
-  --chip-fill: color-mix(in oklab, var(--fg) 11%, transparent);
-  height: 22px;
-  gap: 4px;
-  padding: 0 7px 0 3px;
-  border-radius: var(--radius-full);
-  background: var(--chip-fill);
-  font-size: var(--type-label);
-  font-weight: 500;
+.lchip-anchor,
+.lchip-anchor[data-component] {
+  display: inline-flex;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.lchip-anchor > .lchip {
+  vertical-align: baseline;
 }
 
+.lchip > svg,
+.lchip-thumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.lchip-thumb {
+  border-radius: var(--radius-micro);
+  object-fit: cover;
+}
+.lchip-folder {
+  color: var(--fg2);
+}
+
+.lchip-label,
 .mchip-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.lchip > svg {
-  display: inline-block;
-  width: 1em;
-  height: 1em;
-  margin-inline-end: 0.25em;
-  vertical-align: -0.14em;
-}
-
-.lchip[data-tone="pdf"] {
-  color: var(--chip-pdf);
-}
-
-.lchip[data-tone="word"] {
-  color: var(--chip-word);
-}
-
-.lchip[data-tone="sheet"] {
-  color: var(--chip-sheet);
-}
-
-.lchip[data-tone="slides"] {
-  color: var(--chip-slides);
-}
-
-.lchip[data-tone="epub"] {
-  color: var(--chip-epub);
-}
-
-.lchip-folder {
-  color: currentColor;
-}
-
-.lchip-label {
-  overflow-wrap: anywhere;
-  text-decoration: underline;
-  text-decoration-color: transparent;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.2em;
-  transition: text-decoration-color var(--dur-hover) var(--ease-kiko);
-}
-
 .lchip-meta {
-  margin-inline-start: 0.35em;
-  font-size: 0.8em;
-  font-weight: 400;
+  flex: none;
+  color: var(--fg3);
+  font-size: var(--type-label);
   font-variant-numeric: tabular-nums;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.2em;
-  white-space: nowrap;
 }
 
 .lchip[data-missing] {
-  color: var(--text-200);
+  color: var(--fg2);
 }
 
 .lchip:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .lchip:hover .lchip-label {
-    text-decoration-color: currentColor;
+  .lchip:hover {
+    background: var(--chip-fill-hover);
   }
 }
+.lchip:active {
+  transform: scale(0.97);
+}
 
+.mchip {
+  --chip-fill: color-mix(in oklab, var(--fg) 11%, transparent);
+  gap: 4px;
+  padding: 0 7px 0 3px;
+  border-radius: var(--radius-full);
+  font-weight: 500;
+}
 .mchip[data-self] {
   padding-left: 7px;
   background: color-mix(in oklab, var(--info) 16%, transparent);
@@ -116,7 +98,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lchip-label {
+  .lchip {
     transition: none;
+  }
+  .lchip:active {
+    transform: none;
   }
 }

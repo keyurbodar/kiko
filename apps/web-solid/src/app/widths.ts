@@ -4,13 +4,12 @@ export const CHAT_MIN = 360
 
 type Rule = { key: string; min: number; max: number; fallback: number; floor?: number }
 
-export function defaultWidth(rule: Rule, viewport = globalThis.innerWidth ?? 1280): number {
-  const raw = rule === INFO ? Math.round(viewport * 0.44) : rule.fallback
-  return Math.round(Math.max(rule.min, Math.min(rule.max, raw)))
+export function defaultWidth(rule: Rule): number {
+  return Math.round(Math.max(rule.min, Math.min(rule.max, rule.fallback)))
 }
 
-export function readWidth(rule: Rule, viewport = globalThis.innerWidth ?? 1280): number {
-  const fallback = defaultWidth(rule, viewport)
+export function readWidth(rule: Rule): number {
+  const fallback = defaultWidth(rule)
   try {
     const value = Number(localStorage.getItem(rule.key))
     return value >= rule.min && value <= rule.max ? Math.round(value) : fallback
@@ -27,12 +26,8 @@ export function saveWidth(rule: Rule, panelId: string) {
   } catch {}
 }
 
-export function resetWidth(
-  rule: Rule,
-  panel: { resize: (size: `${number}px`) => void } | undefined,
-  viewport = globalThis.innerWidth ?? 1280,
-) {
-  const width = defaultWidth(rule, viewport)
+export function resetWidth(rule: Rule, panel: { resize: (size: `${number}px`) => void } | undefined) {
+  const width = defaultWidth(rule)
   panel?.resize(`${width}px`)
   try {
     localStorage.setItem(rule.key, String(width))

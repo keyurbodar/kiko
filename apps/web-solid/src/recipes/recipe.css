@@ -58,7 +58,6 @@
 .tpl {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
   border-radius: var(--radius-card);
   transition: background-color var(--dur-hover) var(--ease-kiko);
 }
@@ -67,6 +66,34 @@
   .tpl:hover,
   .tpl:focus-within {
     background: var(--panel);
+  }
+}
+
+.tpl-preview {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% - 34px);
+  right: 12px;
+  display: block;
+  width: 152px;
+  padding: 10px 12px;
+  border-radius: var(--radius-pop);
+  opacity: 0;
+  background: var(--popover);
+  box-shadow: var(--edge), var(--shadow-pop);
+  transform: translateY(4px) scale(0.98);
+  transform-origin: 100% 0;
+  transition:
+    opacity var(--dur-hover) var(--ease-out),
+    transform var(--dur-pop) var(--ease-pop);
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tpl:hover .tpl-preview,
+  .tpl:focus-within .tpl-preview {
+    opacity: 1;
+    transform: none;
   }
 }
 

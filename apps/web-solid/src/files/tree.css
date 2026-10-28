@@ -13,7 +13,7 @@
   flex: none;
   align-items: center;
   gap: 2px;
-  padding: 0 8px;
+  padding: 4px 8px;
 }
 
 .kt-bar > label,
@@ -21,10 +21,18 @@
   height: 32px;
 }
 
+.kt-bar [data-component="search-field"] > input {
+  font-size: var(--type-label);
+}
+
+.kt-bar [data-component="search-field"] > input::placeholder {
+  color: var(--text-300);
+}
+
 .kt-btn {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   flex: none;
   place-items: center;
   border: 0;
@@ -118,5 +126,5 @@
   flex: none;
   flex-direction: column;
   border-left: 1px solid var(--border-100);
-  background: var(--side);
+  background: transparent;
 }

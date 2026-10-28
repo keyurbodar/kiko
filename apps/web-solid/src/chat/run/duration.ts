@@ -19,5 +19,3 @@ export function elapsedLabel(ms: number): string {
 
 export const fullTimeLabel = (at: number): string =>
   new Date(at).toLocaleString([], { dateStyle: "medium", timeStyle: "medium" })
-
-export const workLabel = (ms: number): string => elapsedLabel(ms)

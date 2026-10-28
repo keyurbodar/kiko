@@ -428,7 +428,7 @@ export function Shell(props: ParentProps) {
                     onHandleDragEnd={endSideResize}
                     onKeyUp={endSideResize}
                     onDblClick={() => {
-                      const want = defaultWidth(INFO, window.innerWidth)
+                      const want = defaultWidth(INFO)
                       try {
                         localStorage.setItem(INFO.key, String(want))
                       } catch {}
@@ -449,7 +449,11 @@ export function Shell(props: ParentProps) {
                     <Show when={dockedSide()} keyed>
                       {(chatId) => (
                         <Suspense>
-                          <Desk chatId={chatId} onClose={closeSide} />
+                          <Desk
+                            chatId={chatId}
+                            onClose={closeSide}
+                            onExpand={() => setColumnWidth(layout() ? layout()!.sizes().length - 1 : 2, INFO.max)}
+                          />
                         </Suspense>
                       )}
                     </Show>

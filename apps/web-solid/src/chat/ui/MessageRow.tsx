@@ -1,4 +1,6 @@
 import { unnamedFiles } from "../../lib/attachments"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { AlertCircleIcon } from "@kiko/ui/icons"
 import { Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage, RosterBot } from "../../lib/types"
@@ -31,13 +33,10 @@ function tailRun(isRunStart: boolean, isRunEnd: boolean): "start" | "mid" | "bot
   return "mid"
 }
 
-export const GROUP_GUTTER = "pl-[calc(1rem+36px)]"
-
-const bubbleTime = (at: number): string =>
-  new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
+export const GROUP_GUTTER = "pl-[calc(1rem+40px)]"
 
 const FAILED_ACTION =
-  "shrink-0 cursor-pointer rounded-micro px-1 font-medium text-[var(--text-100)] underline decoration-[var(--border-200)] underline-offset-2 transition-colors duration-(--dur-hover) hover:decoration-[var(--text-200)]"
+  "shrink-0 cursor-pointer rounded-full border border-bad/40 bg-bg px-2 py-0.5 text-hint font-medium text-fg hover:bg-hover"
 
 export function MessageRow(props: {
   message: ChatMessage
@@ -61,8 +60,7 @@ export function MessageRow(props: {
   onOpenImages?: (images: readonly DialogImage[], index: number) => void
 }): JSX.Element {
   const own = () => props.message.sender === "user"
-  const agent = () => !own() && props.message.botId !== undefined
-  const grouped = () => !!props.group && agent()
+  const grouped = () => !!props.group && !own() && props.message.botId !== undefined
   const senderName = () => props.bot?.name ?? props.message.botId ?? ""
   const files = () => unnamedFiles(props.message.files ?? [], props.message.body)
   const hasFiles = () => files().length > 0
@@ -71,15 +69,14 @@ export function MessageRow(props: {
   const named = () => grouped() && props.isRunStart
   const nameInBubble = () => named() && !props.jumboClass
   const failed = () => props.message.status === "failed"
-  const bare = () => props.message.body.length === 0 && hasFiles() && !props.quote
-  const timed = () => !props.jumboClass && !photo() && props.message.body.length > 0
+  const failure = (): string | undefined => undefined
   return (
     <div
       class={cn(
         "group/row relative mx-auto flex w-full max-w-(--chat-content-max-width) flex-col items-start",
         "px-4 pb-(--row-gap) contain-layout",
         props.hasRunGapBefore ? "pt-(--run-gap)" : "pt-(--row-gap)",
-        agent() && GROUP_GUTTER,
+        grouped() && GROUP_GUTTER,
         props.class,
       )}
       data-component="chat-row"
@@ -93,15 +90,11 @@ export function MessageRow(props: {
       data-replying={props.replying ? "" : undefined}
       onContextMenu={props.onContextMenu}
     >
-      <Show when={agent()}>
+      <Show when={grouped()}>
         <RunAvatar seed={props.message.botId!} runKey={props.runKey ?? props.message.id} isRunEnd={props.isRunEnd} />
       </Show>
       <Show when={named() && !nameInBubble() && !props.jumboClass}>
-        <div
-          class="truncate pb-0.5 text-hint font-semibold text-fg2"
-          style={{ "padding-left": "var(--bubble-pad-x)" }}
-          data-component="chat-sender"
-        >
+        <div class="truncate pb-0.5 text-hint font-semibold text-fg2" data-component="chat-sender">
           {senderName()}
         </div>
       </Show>
@@ -112,8 +105,7 @@ export function MessageRow(props: {
         {(key) => <RunTree windowKey={key()} count={props.message.steps} endedAt={props.message.sentAt} />}
       </Show>
       <Bubble
-        variant={props.jumboClass || bare() ? "ghost" : own() ? "default" : "secondary"}
-        data-failed={failed() ? "" : undefined}
+        variant={failed() ? "destructive" : props.jumboClass ? "ghost" : own() ? "default" : "secondary"}
         align={own() ? "end" : "start"}
         position={bubblePosition(props.isRunStart, props.isRunEnd)}
         class={
@@ -125,7 +117,6 @@ export function MessageRow(props: {
         }
       >
         <BubbleContent
-          data-timed={timed() ? "" : undefined}
           class={cn(
             "relative",
             "after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:content-['']",
@@ -135,10 +126,7 @@ export function MessageRow(props: {
           )}
         >
           <Show when={nameInBubble()}>
-            <div
-              class="mb-px truncate text-[13.5px] leading-[18px] font-semibold text-[var(--text-200)]"
-              data-component="chat-sender"
-            >
+            <div class="truncate text-hint font-semibold text-fg2" data-component="chat-sender">
               {senderName()}
             </div>
           </Show>
@@ -176,39 +164,39 @@ export function MessageRow(props: {
               </Show>
             </Collapsible>
           </Show>
-          <Show when={timed()}>
-            <span class="bubble-time" data-component="bubble-time">
-              {bubbleTime(props.message.sentAt)}
-            </span>
+          <Show when={failed()}>
+            <div
+              class="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1"
+              data-component="chat-send-failed"
+              role="alert"
+            >
+              <RemixIcon icon={AlertCircleIcon} class="size-4 shrink-0 text-bad" />
+              <span
+                class="min-w-0 flex-1 truncate text-hint font-medium"
+                title={failure() ?? undefined}
+                data-part="reason"
+              >
+                {failure() ?? "Didn't send"}
+              </span>
+              <button
+                type="button"
+                class={FAILED_ACTION}
+                data-action="retry-send"
+                onClick={() => room.retryRun(props.message.id)}
+              >
+                Retry
+              </button>
+              <button
+                type="button"
+                class={FAILED_ACTION}
+                data-action="delete-send"
+                onClick={() => room.deleteMessage(props.message.id)}
+              >
+                Delete
+              </button>
+            </div>
           </Show>
         </BubbleContent>
-        <Show when={failed()}>
-          <div
-            class="flex flex-wrap items-center justify-end gap-x-1.5 text-caption"
-            data-component="chat-send-failed"
-            role="alert"
-          >
-            <span class="text-danger" data-part="reason">
-              Not sent
-            </span>
-            <button
-              type="button"
-              class={FAILED_ACTION}
-              data-action="retry-send"
-              onClick={() => room.retryRun(props.message.id)}
-            >
-              Retry
-            </button>
-            <button
-              type="button"
-              class={FAILED_ACTION}
-              data-action="delete-send"
-              onClick={() => room.deleteMessage(props.message.id)}
-            >
-              Delete
-            </button>
-          </div>
-        </Show>
         <ReactionStack reactions={props.message.reactions} side={props.message.sender} onToggle={props.onReact} />
         <Show when={props.onReact && props.onReply && props.onMore}>
           <MessageActions

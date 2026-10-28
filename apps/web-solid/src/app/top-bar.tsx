@@ -1,9 +1,9 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ChevronDownIcon, MonitorIcon, NotesIcon, SearchIcon } from "@kiko/ui/icons"
+import { ChevronDownIcon, FolderIcon, MonitorIcon, SearchIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { computers, openViewer, startComputers, watchTarget } from "../chat/computers"
-import { deskShown, loadDesk, toggleDesk } from "../chat/side/surfaces"
+import { closeDesk, deskShown, deskView, fixedSurface, loadDesk, openSurface } from "../chat/side/surfaces"
 import { runCommand } from "../commands/registry"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { connection, createDelayedStatus, type ConnectionView } from "../state/connection"
@@ -114,19 +114,25 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
         </TooltipV2>
       </Show>
       <Show when={chatId()}>
-        <TooltipV2 placement="bottom" openDelay={500} value={deskShown() ? "Hide chat details" : "Show chat details"}>
+        <TooltipV2 placement="bottom" openDelay={500} value={deskShown() ? "Hide files" : "Show files"}>
           <button
             type="button"
             class={toggle()}
-            aria-label="This chat"
+            aria-label="Files"
             aria-pressed={deskShown()}
             data-action="toggle-card"
             data-hint="chat.info"
-            data-hint-label="Details"
+            data-hint-label="Files"
             onPointerEnter={() => void loadDesk()}
-            onClick={toggleDesk}
+            onClick={() => {
+              const id = chatId()
+              if (!id) return
+              const kind = deskView(id)?.kind
+              if (deskShown() && (kind === "files" || kind === "file")) closeDesk()
+              else openSurface(id, fixedSurface("files"))
+            }}
           >
-            <RemixIcon icon={NotesIcon} size={18} />
+            <RemixIcon icon={FolderIcon} size={18} />
           </button>
         </TooltipV2>
       </Show>

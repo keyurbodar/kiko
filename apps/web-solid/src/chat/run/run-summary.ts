@@ -1,4 +1,4 @@
-export type RunSummary = { label: string; counts?: string; startedAt?: number; endedAt?: number }
+export type RunSummary = { label: string; startedAt?: number; endedAt?: number }
 
 const KEY = "kiko.run-summaries"
 const MAX = 300
@@ -21,13 +21,7 @@ export const recallSummary = (key: string): RunSummary | undefined => all().get(
 export function rememberSummary(key: string, summary: RunSummary): void {
   const map = all()
   const old = map.get(key)
-  if (
-    old?.label === summary.label &&
-    old.counts === summary.counts &&
-    old.startedAt === summary.startedAt &&
-    old.endedAt === summary.endedAt
-  )
-    return
+  if (old?.label === summary.label && old.startedAt === summary.startedAt && old.endedAt === summary.endedAt) return
   map.delete(key)
   map.set(key, summary)
   while (map.size > MAX) map.delete(map.keys().next().value as string)
