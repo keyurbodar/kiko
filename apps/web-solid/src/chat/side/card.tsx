@@ -1,3 +1,4 @@
+import { Pictogram } from "@kiko/ui/pictogram"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { PlusIcon } from "@kiko/ui/icons"
@@ -121,9 +122,12 @@ export default function DeskOverview(props: { chatId: string }) {
           <Files files={files()} chatId={props.chatId} />
         </Show>
         <Show when={empty()}>
-          <p class="px-1 text-ui text-fg3" data-component="card-empty">
-            {`Nothing here yet. Files, tasks and what ${leadName()} learns will show up here.`}
-          </p>
+          <div class="flex flex-col items-start gap-4 px-1 pt-2" data-component="card-empty">
+            <Pictogram name="thinking" size={56} class="text-fg4" />
+            <p class="text-ui text-fg3">
+              {`Nothing here yet. Files, tasks and what ${leadName()} learns will show up here.`}
+            </p>
+          </div>
         </Show>
       </DeskSettled.Provider>
     </div>

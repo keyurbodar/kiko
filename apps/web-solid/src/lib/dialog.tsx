@@ -65,9 +65,7 @@ export function Dialog(props: {
         >
           <div class="relative flex min-h-0 flex-1 flex-col" data-component={props["data-component"]}>
             <header class="shrink-0 px-5 pt-4 pr-12 pb-4">
-              <ModalV2.Title class="type-section font-normal leading-snug text-fg [font-variation-settings:var(--display-variation)]">
-                {props.title}
-              </ModalV2.Title>
+              <ModalV2.Title class="type-section font-semibold leading-snug text-fg">{props.title}</ModalV2.Title>
               <Show when={props.description}>
                 <p id={describedBy} class="mt-1 text-label leading-relaxed text-[var(--kit-meta)]">
                   {props.description}

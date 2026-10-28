@@ -286,7 +286,7 @@
   border-radius: var(--radius-control, 8px);
   background: transparent;
   color: var(--fg);
-  font-family: var(--font-display, "Fraunces", serif);
+  font-family: var(--font-family-display);
   font-variation-settings: var(--display-variation);
   font-size: clamp(26px, 8vw, 40px);
   font-weight: 400;

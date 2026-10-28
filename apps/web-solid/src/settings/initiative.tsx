@@ -27,7 +27,7 @@ export default function InitiativePage() {
   const loaded = () => remote() !== undefined || remote.error !== undefined
   const settings = () => remote() ?? DEFAULTS
   return (
-    <div class="flex flex-col gap-8" data-component="initiative-settings">
+    <div class="flex flex-col gap-[18px]" data-component="initiative-settings">
       <Group title="Agents">
         <Row label="Initiative" id="initiative" description={HELP[settings().initiative]}>
           <Show when={loaded()} fallback={<Skeleton class="h-7 w-72" />}>

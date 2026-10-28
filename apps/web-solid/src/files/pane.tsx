@@ -1,4 +1,6 @@
 import type { FileOp } from "@kiko/protocol"
+import { FileIcon } from "@kiko/ui/icons"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createEffect, createMemo, lazy, onCleanup, Show, Suspense } from "solid-js"
 import { dropFileSurfaces, moveFileSurfaces, openFile } from "../chat/side/surfaces"
@@ -62,7 +64,7 @@ export function FilesTree(props: { chatId: string }) {
 
   return (
     <aside
-      class="flex min-h-0 min-w-0 flex-1 flex-col px-2 pt-1 pb-2"
+      class="flex min-h-0 min-w-0 flex-1 flex-col px-0 pt-1 pb-2"
       aria-label="File explorer"
       data-component="file-explorer"
     >
@@ -94,25 +96,38 @@ export function FilesTree(props: { chatId: string }) {
   )
 }
 
-export function FileSurface(props: { chatId: string; path: string }) {
+export function FileSurface(props: { chatId: string; path?: string }) {
+  const path = () => props.path ?? ""
   const { files, index } = useChatFiles(() => props.chatId)
-  const file = createMemo(() => files().find((f) => f.name === props.path))
+  const file = createMemo(() => files().find((f) => f.name === path()))
   createEffect(() => {
     if (!file() && room.activeId() === props.chatId && room.filesLive() && user.synced())
-      dropFileSurfaces(props.chatId, props.path)
+      dropFileSurfaces(props.chatId, path())
   })
   const kind = createMemo<ViewerKind>(() => {
     const f = file()
     return f ? viewerKind(f) : "other"
   })
-  const view = createFileView(props.chatId, () => props.path, file, kind)
+  const view = createFileView(props.chatId, path, file, kind)
   onCleanup(() => setFullSize(false))
+
+  if (!props.path)
+    return (
+      <div
+        class="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2 p-6 text-center"
+        data-component="files-pane-empty"
+      >
+        <RemixIcon icon={FileIcon} size={24} class="text-[var(--text-300)]" />
+        <p class="type-ui text-fg">Open files appear here</p>
+        <p class="type-label text-[var(--text-300)]">Pick a file in the tree, or drop one here.</p>
+      </div>
+    )
 
   return (
     <div class="flex min-h-0 min-w-0 flex-1 flex-col" data-component="files-pane">
       <div class={SUBHEADER} data-component="file-header">
         <FileBreadcrumbs
-          path={props.path}
+          path={path()}
           index={index()}
           unsaved={view.unsaved()}
           onOpen={(to) => openFile(props.chatId, to)}
@@ -122,7 +137,7 @@ export function FileSurface(props: { chatId: string; path: string }) {
             <FileActions
               view={view}
               chatId={props.chatId}
-              path={props.path}
+              path={path()}
               file={f}
               kind={kind()}
               onExpand={() => setFullSize(true)}
@@ -142,11 +157,11 @@ export function FileSurface(props: { chatId: string; path: string }) {
             </div>
           }
         >
-          <FileWorkspace chatId={props.chatId} path={props.path} file={file()} kind={kind()} view={view} />
+          <FileWorkspace chatId={props.chatId} path={path()} file={file()} kind={kind()} view={view} />
         </Show>
         <Show when={fullSize()}>
           <Suspense>
-            <FileDialog chatId={props.chatId} path={props.path} file={file()} kind={kind()} />
+            <FileDialog chatId={props.chatId} path={path()} file={file()} kind={kind()} />
           </Suspense>
         </Show>
       </div>

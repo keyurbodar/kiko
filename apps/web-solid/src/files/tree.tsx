@@ -11,10 +11,10 @@ import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CollapseAllIcon, ExpandAllIcon, FileAddIcon, FolderAddIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show, type JSX } from "solid-js"
-import { KIKO_FILE_ICONS } from "../lib/entry-icon-pierre"
 import { setFileDrag } from "../lib/file-drag"
 import "./tree.css"
 import { createParent, dirname, HOME, join, loadExpanded, pathsUnder, ROOT, saveExpanded } from "./model"
+import { KDS_FILE_TREE_ICONS } from "./tree-icons"
 import { syncTree } from "./tree-sync"
 
 export type FileTreeProps = {
@@ -36,15 +36,29 @@ const TREE_CSS = `
 	:host {
 		--trees-bg-override: transparent;
 		--trees-fg-override: var(--fg);
-		--trees-selected-bg-override: color-mix(in srgb, currentColor 12%, transparent);
-		--trees-hover-bg-override: color-mix(in srgb, currentColor 7%, transparent);
-		--trees-border-color-override: color-mix(in srgb, currentColor 14%, transparent);
-		--trees-font-family-override: var(--font-sans);
-		--trees-font-size-override: 0.75rem;
-		--trees-fg-muted-override: var(--fg3);
+		--trees-bg-muted-override: var(--hover);
+		--trees-selected-bg-override: var(--active);
+		--trees-selected-fg-override: var(--fg);
+		--trees-border-color-override: var(--border-100);
+		--trees-indent-guide-bg-override: var(--border-100);
+		--trees-file-icon-color: var(--text-300);
+		--trees-font-family-override: var(--font-family-sans);
+		--trees-font-size-override: var(--type-hint);
+		--trees-fg-muted-override: var(--text-300);
+		--trees-border-radius-override: var(--radius-row);
+		--trees-level-gap-override: 14px;
+		--trees-icon-width-override: 15px;
+		--trees-item-row-gap-override: 6px;
+		--trees-padding-inline-override: 8px;
 		--trees-selected-focused-border-color-override: transparent;
+		--trees-focus-ring-color-override: transparent;
 	}
-	button[data-type='item'], button[data-type='item']::before { border-radius: var(--radius-control); }
+	button[data-type='item'], button[data-type='item']::before { border-radius: var(--radius-row); }
+	button[data-type='item'] [data-item-section='spacing-item'] { opacity: 1; }
+	button[data-type='item'] [data-item-section='icon'] > [data-icon-token] { color: var(--text-300); }
+	button[data-type='item'] [data-item-section='icon'] > [data-icon-name='file-tree-icon-chevron'] { width: 13px; height: 13px; color: var(--text-300); }
+	button[data-type='item'][data-item-selected='true'] [data-item-section='icon'] > [data-icon-token],
+	button[data-type='item'][data-item-selected='true'] [data-item-section='icon'] > [data-icon-name='file-tree-icon-chevron'] { color: var(--fg); }
 	svg[data-icon-name='t3-tree-icon-loading'] { opacity: 0.6; }
 	@media (prefers-reduced-motion: no-preference) {
 		svg[data-icon-name='t3-tree-icon-loading'] { animation: t3-tree-spin 1s linear infinite; }
@@ -214,8 +228,8 @@ export function FileTree(props: FileTreeProps): JSX.Element {
     const expanded = loadExpanded(props.roomId, storage()).map(asFolder)
     const instance = new Pierre({
       paths: wanted(),
-      icons: KIKO_FILE_ICONS,
-      density: "compact",
+      icons: KDS_FILE_TREE_ICONS,
+      itemHeight: 32,
       flattenEmptyDirectories: true,
       initialExpansion: "closed",
       initialExpandedPaths: expanded,

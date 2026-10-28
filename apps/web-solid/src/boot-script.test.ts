@@ -29,7 +29,8 @@ describe("index.html boot script", () => {
     expect(classes.has("dark")).toBe(true)
     expect(vars.get("--bg")).toBe("#191919")
     expect(vars.get("--fg")).toBe("#efefef")
-    expect(vars.get("--type-ui")).toBe("14px")
+    expect(vars.get("--type-ui")).toBe("15px")
+    expect(vars.get("--type-section")).toBe("22px")
   })
 
   it("keeps a saved light mode for a signed-in owner", () => {

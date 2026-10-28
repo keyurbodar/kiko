@@ -20,9 +20,7 @@ import { room } from "../../state/room"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { findFile } from "../ui/find-file"
 import { HelperLanes } from "../helpers/HelperLanes"
-import { Mochi } from "../ui/Mochi"
-import { durationLabel, elapsedLabel, fullTimeLabel } from "./duration"
-import { GLYPH } from "./glyphs"
+import { durationLabel, elapsedLabel, fullTimeLabel, workLabel } from "./duration"
 import type { StepIcon } from "./run-log"
 import {
   type DetailStatus,
@@ -72,14 +70,8 @@ const runKeyOf = (windowKey: string) => `${room.activeId() ?? ""}|${windowKey}`
 
 export const runOpen = (windowKey: string): boolean => opened().has(runKeyOf(windowKey))
 
-const openedLive = new Set<string>()
-
 export function toggleRun(windowKey: string): void {
-  const key = runKeyOf(windowKey)
-  const next = !runOpen(windowKey)
-  if (next) openedLive.add(key)
-  else openedLive.delete(key)
-  setOpen(key, next)
+  setOpen(runKeyOf(windowKey), !runOpen(windowKey))
 }
 
 type Fold = "gone" | "open" | "grow" | "shut"
@@ -171,17 +163,21 @@ function Leaves(props: { running: boolean }) {
   )
 }
 
-function Icon(props: { icon?: StepIcon; running: boolean; failed: boolean; settled: boolean }) {
+function Mark(props: { running: boolean; failed: boolean; settled: boolean }) {
   return (
-    <span class="run-tree-slot" aria-hidden="true" data-settled={props.settled && !props.running ? "" : undefined}>
-      <Show when={!props.running} fallback={<Mochi size={16} />}>
-        <RemixIcon
-          icon={GLYPH[props.failed ? "alert-circle" : (props.icon ?? "wrench")]}
-          size={16}
-          class="run-tree-icon"
-          data-failed={props.failed ? "" : undefined}
-        />
-      </Show>
+    <span
+      class="run-tree-mark"
+      data-state={props.failed ? "failed" : props.running ? "running" : "done"}
+      data-settled={props.settled && !props.running ? "" : undefined}
+      aria-hidden="true"
+    />
+  )
+}
+
+function StepIconMark(props: { icon?: StepIcon; running: boolean; failed: boolean; settled: boolean }) {
+  return (
+    <span class="run-tree-slot" aria-hidden="true">
+      <Mark running={props.running} failed={props.failed} settled={props.settled} />
     </span>
   )
 }
@@ -269,17 +265,33 @@ function StepRow(props: { step: StepItem; view: View }) {
         title={opensFile() ? `Open ${props.step.target!.path}` : undefined}
         onClick={() => props.view.openStep(props.step)}
       >
-        <Icon icon={props.step.icon} running={props.step.running} failed={props.step.failed} settled={settled()} />
+        <StepIconMark
+          icon={props.step.icon}
+          running={props.step.running}
+          failed={props.step.failed}
+          settled={settled()}
+        />
         <Label text={props.step.label} parts={props.step.parts} running={props.step.running} />
         <Show when={!props.step.target}>
           <Chevron open={open()} />
         </Show>
-        <Took
-          startedAt={props.step.startedAt}
-          endedAt={props.step.endedAt}
-          running={props.step.running}
-          now={props.view.now()}
-        />
+        <Show
+          when={props.step.meta}
+          fallback={
+            <Took
+              startedAt={props.step.startedAt}
+              endedAt={props.step.endedAt}
+              running={props.step.running}
+              now={props.view.now()}
+            />
+          }
+        >
+          {(meta) => (
+            <span class="run-tree-meta" data-tone="danger">
+              {meta()}
+            </span>
+          )}
+        </Show>
       </button>
       <Show when={open()}>
         <Detail detail={props.step.detail} onRetry={props.view.retry} />
@@ -332,9 +344,12 @@ function NoteRow(props: { note: NoteItem }) {
   )
 }
 
-function Items(props: { items: readonly WorkItem[]; view: View; whole: boolean; onWhole: () => void }) {
-  const long = () => !props.whole && props.items.length > LONG_LIST
-  const shown = () => (long() ? props.items.slice(0, SHORT_LIST) : props.items)
+function Items(props: { items: readonly WorkItem[]; view: View; whole: boolean; live: boolean; onWhole: () => void }) {
+  const long = () => !props.whole && !props.live && props.items.length > LONG_LIST
+  const shown = () => {
+    if (props.live) return props.items.slice(-SHORT_LIST)
+    return long() ? props.items.slice(0, SHORT_LIST) : props.items
+  }
   return (
     <>
       <Index each={shown()}>
@@ -379,16 +394,22 @@ function Missing(props: { missing: "loading" | "error"; onRetry: () => void }) {
   )
 }
 
+const startedAt = (items: readonly WorkItem[]): number =>
+  items.reduce((first, item) => Math.min(first, item.startedAt), Number.MAX_SAFE_INTEGER)
+
 const tookOf = (head: WorkHead) =>
   head.startedAt !== undefined && head.endedAt !== undefined && head.endedAt >= head.startedAt
-    ? durationLabel(head.endedAt - head.startedAt)
+    ? head.endedAt - head.startedAt
     : undefined
 
 function headLabel(head: WorkHead, who: string | undefined): string {
   const took = tookOf(head)
+  if (took !== undefined) {
+    const worked = who ? `${who} worked` : "Worked"
+    return `${worked} for ${workLabel(took)}`
+  }
   if (head.summary) return who ? `${who} ${head.summary.charAt(0).toLowerCase()}${head.summary.slice(1)}` : head.summary
-  const worked = who ? `${who} worked` : "Worked"
-  return took ? `${worked} for ${took}` : worked
+  return who ? `${who} worked` : "Worked"
 }
 
 export function RunTree(props: {
@@ -448,9 +469,23 @@ export function RunTree(props: {
     if (!live() && steps().length < (props.count ?? 0)) untrack(() => request())
   })
 
-  const [fold, setFold] = createSignal<Fold>(untrack(open) ? "open" : "gone")
+  const [fold, setFold] = createSignal<Fold>(untrack(live) ? "open" : "gone")
   let clicked = false
   let list: HTMLDivElement | undefined
+
+  let wasLive = untrack(live)
+  let folding: ReturnType<typeof setTimeout> | undefined
+  onCleanup(() => clearTimeout(folding))
+  const shut = () => {
+    clearTimeout(folding)
+    if (list?.matches(":hover") || list?.contains(document.activeElement)) {
+      setFold("gone")
+      return
+    }
+    setFold("shut")
+    folding = setTimeout(() => setFold("gone"), list ? foldMs(list) : 0)
+  }
+
   createEffect(
     on(
       open,
@@ -467,30 +502,26 @@ export function RunTree(props: {
     ),
   )
 
+  createEffect(
+    on(
+      live,
+      (isLive) => {
+        if (isLive) {
+          wasLive = true
+          return
+        }
+        if (wasLive) shut()
+        wasLive = false
+      },
+      { defer: true },
+    ),
+  )
+
   const toggleHead = () => {
     clicked = true
     setOpen(openKey(), !open())
     clicked = false
   }
-
-  const [replying, setReplying] = createSignal(false)
-  createEffect(() => {
-    if (live() || !openedLive.has(openKey())) return
-    const key = openKey()
-    openedLive.delete(key)
-    let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => {
-        setReplying(true)
-        clicked = true
-        setOpen(key, false)
-        clicked = false
-      })
-    })
-    onCleanup(() => cancelAnimationFrame(frame))
-  })
-  createEffect(() => {
-    if (fold() === "gone") setReplying(false)
-  })
 
   const [whole, setWhole] = createSignal(false)
   const [shownSteps, setShownSteps] = createSignal<ReadonlySet<string>>(new Set())
@@ -518,13 +549,18 @@ export function RunTree(props: {
 
   const body = () => (
     <div class="run-tree-list">
-      <Items items={log().items} view={view} whole={whole() || live()} onWhole={() => setWhole(true)} />
+      <Items items={log().items} view={view} whole={whole()} live={live()} onWhole={() => setWhole(true)} />
       <Show when={log().missing}>{(missing) => <Missing missing={missing()} onRetry={view.retry} />}</Show>
     </div>
   )
 
   return (
     <div class="run-tree" data-component="run-tree" data-live={live() ? "" : undefined}>
+      <Show when={live() && log().items.length > 0}>
+        <div class="run-tree-head" data-live="">
+          <span class="run-tree-summary">Working for {elapsedLabel(now() - startedAt(log().items))}</span>
+        </div>
+      </Show>
       <Show when={!live() && log().head}>
         {(head) => (
           <button
@@ -536,18 +572,17 @@ export function RunTree(props: {
             onClick={toggleHead}
           >
             <span class="run-tree-summary">{headLabel(head(), props.who)}</span>
-            <Show when={head().summary && tookOf(head())}>{(took) => <span class="run-tree-took">{took()}</span>}</Show>
+            <Show when={head().counts}>{(counts) => <span class="run-tree-counts">{counts()}</span>}</Show>
             <Chevron open={open()} />
           </button>
         )}
       </Show>
-      <Show when={live() ? open() && log().items.length > 0 : fold() !== "gone"}>
+      <Show when={live() ? log().items.length > 0 : fold() !== "gone"}>
         <div
           ref={list}
           class="run-tree-fold motion-run-fold"
           data-grow={fold() === "grow" || live() ? "" : undefined}
           data-shut={!live() && fold() === "shut" ? "" : undefined}
-          data-reply={replying() ? "" : undefined}
         >
           <div>{body()}</div>
         </div>

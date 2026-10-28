@@ -3,7 +3,6 @@ import { RemixIcon } from "@kiko/ui/remix-icon"
 import {
   ArrowUpIcon,
   ChevronDownIcon,
-  MemoryIcon,
   MessageIcon,
   MoreIcon,
   PinFillIcon,
@@ -275,7 +274,7 @@ export function MemoryList(props: { store: MemoryStore }) {
         <Show when={empty() && !searching()}>
           <PanelEmpty
             component="memory-empty"
-            icon={MemoryIcon}
+            art="memory"
             title="Nothing remembered yet"
             line={`Talk to ${leadName()} about people, places, and how you like things done. The lasting parts stay here.`}
           />

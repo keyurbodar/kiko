@@ -13,20 +13,18 @@
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  padding: 5px 9px;
+  padding: 4px 8px;
   gap: 8px;
 
-  background: var(--tooltip-bg);
-  box-shadow:
-    0 0 0 1px var(--tooltip-edge),
-    var(--popover-shadow);
-  border-radius: var(--radius-control);
+  background: var(--popover);
+  box-shadow: var(--edge), var(--shadow-pop);
+  border-radius: 6px;
 
   font-style: normal;
   font-weight: 450;
-  font-size: var(--type-label);
-  line-height: 1.4;
-  color: var(--tooltip-fg);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--fg);
   text-wrap: balance;
   overflow-wrap: anywhere;
 
@@ -39,5 +37,5 @@
 }
 
 [data-component="tooltip-v2"] [data-component="keybind-v2"][data-variant="neutral"] [data-slot="keybind-v2-key"] {
-  background: color-mix(in oklab, var(--tooltip-fg) 14%, transparent);
+  background: var(--fill-control);
 }

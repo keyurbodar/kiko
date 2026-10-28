@@ -9,13 +9,13 @@ type Token = { type: string; text: string }
 
 const MAX_HIGHLIGHT_CHARS = 20_000
 
-const FOLD_LINES = 8
+const FOLD_LINES = 24
 
 const SCROLL_LINES = 20
 
 const LINE_PX = 21
 
-const PAD_PX = 16
+const PAD_PX = 24
 
 const COPIED_MS = 1500
 

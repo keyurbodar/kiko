@@ -1,11 +1,11 @@
 export const SIDEBAR = { key: "kiko:device:sidebar-width", min: 220, max: 420, fallback: 288, floor: 288 }
-export const INFO = { key: "kiko:device:info-width", min: 280, max: 720, fallback: 340 }
+export const INFO = { key: "kiko:device:info-width", min: 320, max: 900, fallback: 620 }
 export const CHAT_MIN = 360
 
 type Rule = { key: string; min: number; max: number; fallback: number; floor?: number }
 
 export function defaultWidth(rule: Rule, viewport = globalThis.innerWidth ?? 1280): number {
-  const raw = rule === INFO ? Math.round(viewport * 0.26) : rule.fallback
+  const raw = rule === INFO ? Math.round(viewport * 0.44) : rule.fallback
   return Math.round(Math.max(rule.min, Math.min(rule.max, raw)))
 }
 

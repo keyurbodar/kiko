@@ -1,5 +1,5 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { MonitorIcon, NotesIcon, SearchIcon } from "@kiko/ui/icons"
+import { ChevronDownIcon, MonitorIcon, NotesIcon, SearchIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { computers, openViewer, startComputers, watchTarget } from "../chat/computers"
@@ -48,7 +48,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
     return `You, ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
   }
   return (
-    <header class="top-bar flex h-header shrink-0 items-center gap-2.5 px-5" data-component="top-bar">
+    <header class="top-bar flex h-[52px] shrink-0 items-center gap-2.5 px-5" data-component="top-bar">
       <Show when={!props.sidebarOpen}>
         <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
       </Show>
@@ -57,13 +57,16 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
           {(id) => <ChatAvatar faces={room.chatFaces(id)} size={28} />}
         </Show>
         <h1
-          class="min-w-0 shrink truncate font-sans text-ui leading-5 font-semibold text-fg"
+          class="min-w-0 shrink truncate font-sans text-[14px] leading-5 font-medium text-[var(--text-100)]"
           data-component="top-bar-title"
         >
           {title()}
         </h1>
         <Show when={chatId()}>
-          <Show when={live()} fallback={<span class="top-bar-sub truncate text-label text-fg3">{roster()}</span>}>
+          <RemixIcon icon={ChevronDownIcon} size={16} class="shrink-0 text-[var(--text-300)]" />
+        </Show>
+        <Show when={chatId()}>
+          <Show when={live()} fallback={<span class="hidden">{roster()}</span>}>
             {(text) => (
               <span class="top-bar-sub chat-shimmer truncate text-label" data-component="top-bar-status">
                 {text()}
@@ -94,7 +97,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
           onPointerEnter={preloadSearch}
           onClick={() => runCommand(chatId() ? "chats.search-current" : "chats.search-all")}
         >
-          <RemixIcon icon={SearchIcon} size={16} />
+          <RemixIcon icon={SearchIcon} size={18} />
         </button>
       </TooltipV2>
       <Show when={computers().length > 0}>
@@ -106,7 +109,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
             data-action="computer-watch"
             onClick={() => openViewer(watchTarget(chatId()))}
           >
-            <RemixIcon icon={MonitorIcon} size={16} />
+            <RemixIcon icon={MonitorIcon} size={18} />
           </button>
         </TooltipV2>
       </Show>
@@ -123,7 +126,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
             onPointerEnter={() => void loadDesk()}
             onClick={toggleDesk}
           >
-            <RemixIcon icon={NotesIcon} size={16} />
+            <RemixIcon icon={NotesIcon} size={18} />
           </button>
         </TooltipV2>
       </Show>

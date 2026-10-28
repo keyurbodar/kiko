@@ -6,24 +6,22 @@
 
 .toast-v2-region {
   --toast-inset: 16px;
-  --toast-header-offset: 50px;
   --toast-gap: 12px;
   --toast-peek: 12px;
   --toast-outward: 1;
   position: fixed;
   z-index: 1000;
-  top: calc(var(--toast-inset) + var(--toast-header-offset));
-  right: var(--toast-inset);
+  bottom: calc(var(--toast-inset) + env(safe-area-inset-bottom));
+  left: 50%;
   width: calc(100% - var(--toast-inset) * 2);
   max-width: 360px;
   pointer-events: none;
   outline: none;
+  translate: -50% 0;
 }
 
 .toast-v2-region[data-side="left"] {
   --toast-outward: -1;
-  right: auto;
-  left: var(--toast-inset);
 }
 
 @media (min-width: 640px) {
@@ -41,24 +39,24 @@
 
 .toast-v2 {
   --toast-scale: max(0, 1 - var(--toast-index) * 0.1);
-  --toast-y: calc(var(--toast-index) * var(--toast-peek) + (1 - var(--toast-scale)) * var(--toast-front-height));
-  --toast-open-y: calc(var(--toast-offset-y) + var(--toast-index) * var(--toast-gap));
+  --toast-y: calc(-1 * (var(--toast-index) * var(--toast-peek) + (1 - var(--toast-scale)) * var(--toast-front-height)));
+  --toast-open-y: calc(-1 * (var(--toast-offset-y) + var(--toast-index) * var(--toast-gap)));
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 0;
   z-index: calc(9999 - var(--toast-index));
   box-sizing: border-box;
   width: 100%;
-  border-radius: var(--radius-control);
-  color: var(--popover-fg);
+  border-radius: var(--radius-pop);
+  color: var(--fg);
   background: var(--popover);
-  box-shadow: var(--toast-ring), var(--popover-shadow);
+  box-shadow: var(--edge), var(--shadow-pop);
   pointer-events: auto;
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
   outline: none;
-  transform-origin: top;
+  transform-origin: bottom;
   transform: translateX(var(--toast-swipe-x, 0px)) translateY(calc(var(--toast-swipe-y, 0px) + var(--toast-y)))
     scale(var(--toast-scale));
   transition:
@@ -67,14 +65,14 @@
     height 150ms var(--ease-kiko);
 
   @starting-style {
-    transform: translateX(calc(var(--toast-outward) * (100% + var(--toast-inset)))) translateY(var(--toast-y));
+    transform: translateX(var(--toast-swipe-x, 0px)) translateY(calc(var(--toast-y) + 8px));
     opacity: 0;
   }
 
   &::after {
     content: "";
     position: absolute;
-    top: 100%;
+    bottom: 100%;
     left: 0;
     width: 100%;
     height: calc(var(--toast-gap) + 1px);
@@ -102,7 +100,7 @@
   &[data-ending] {
     opacity: 0;
     pointer-events: none;
-    transform: translateX(calc(var(--toast-outward) * (100% + var(--toast-inset)))) translateY(var(--toast-y));
+    transform: translateX(var(--toast-swipe-x, 0px)) translateY(calc(var(--toast-y) + 8px));
     transition-duration: var(--dur-exit, 140ms);
   }
 
@@ -131,12 +129,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 10px;
   min-height: 0;
-  padding-block: 12px;
-  padding-inline: 14px;
+  padding: 10px 10px 10px 14px;
   overflow-x: clip;
-  font-size: var(--type-ui);
+  font-size: 14px;
   line-height: 20px;
   transition: opacity var(--dur-pop) var(--ease-kiko);
 
@@ -301,14 +298,14 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  height: 26px;
+  height: 28px;
   padding: 0 10px;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-row);
   transition:
     background var(--dur-hover),
     transform var(--dur-hover) var(--ease-kiko);
-  font-size: var(--type-label);
+  font-size: 13px;
   font-weight: 500;
   line-height: 16px;
   white-space: nowrap;

@@ -24,6 +24,7 @@ export type StepItem = Span & {
   icon?: StepIcon
   running: boolean
   failed: boolean
+  meta?: string
   target?: { path: string; folder: boolean }
   detail: RowDetail
 }
@@ -42,7 +43,7 @@ export type WorkerItem = Span & {
 
 export type WorkItem = StepItem | NoteItem | WorkerItem
 
-export type WorkHead = { summary?: string; startedAt?: number; endedAt?: number }
+export type WorkHead = { summary?: string; counts?: string; startedAt?: number; endedAt?: number }
 
 export type WorkLog = {
   live: boolean
@@ -64,6 +65,30 @@ export const isLive = (steps: readonly Pick<RunStep, "status">[], working: boole
   working || anyRunning(steps)
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
+
+const TIMED_OUT = /time(d)?[ _-]?out/i
+
+function failureMeta(step: RunStep): string | undefined {
+  if (step.status !== "failed") return undefined
+  return TIMED_OUT.test(step.output ?? "") ? "timed out" : "failed"
+}
+
+function countsOf(steps: readonly RunStep[]): string | undefined {
+  const calls = steps.filter((step) => !step.worker && !step.note)
+  const files = new Set(
+    calls.flatMap((step) => {
+      const target = pathOf(step)
+      return target && !target.folder && target.path ? [target.path] : []
+    }),
+  )
+  const helpers = new Set(calls.flatMap((step) => (step.worker ? [step.worker.id] : [])))
+  const parts = [
+    calls.length ? plural(calls.length, "step", "steps") : "",
+    files.size ? plural(files.size, "file", "files") : "",
+    helpers.size ? plural(helpers.size, "helper", "helpers") : "",
+  ].filter(Boolean)
+  return parts.length ? parts.join(", ") : undefined
+}
 
 const QUIET_OBJECT = /^(?:a|an|the|at|on|in|through|it|memory|files|routines|background)\b/i
 const TWO_WORD_VERB = /^(?:Added task|Added recipe|Made folder) /
@@ -108,6 +133,7 @@ function stepItem(step: RunStep, status: DetailStatus): StepItem {
     parts: running ? [{ text: label }] : stepParts(label, step.tool === "run"),
     running,
     failed: step.status === "failed",
+    ...(failureMeta(step) ? { meta: failureMeta(step) } : {}),
     startedAt: step.startedAt,
     ...(step.endedAt === undefined ? {} : { endedAt: step.endedAt }),
     ...(icon ? { icon } : {}),
@@ -157,10 +183,16 @@ function itemsOf(steps: readonly RunStep[], status: DetailStatus): WorkItem[] {
 
 export function summaryOf(steps: readonly RunStep[], endedAt?: number): RunSummary | undefined {
   const label = summarizeSteps(steps)
-  if (!label) return undefined
+  const counts = countsOf(steps)
+  if (!label && !counts) return undefined
   const own = steps.filter((step) => !step.worker)
   const times = span(own.length ? own : steps)
-  return { label, ...times, ...(endedAt === undefined ? {} : { endedAt }) }
+  return {
+    label,
+    ...(counts ? { counts } : {}),
+    ...times,
+    ...(endedAt === undefined ? {} : { endedAt }),
+  }
 }
 
 export function workLogOf(steps: readonly RunStep[], state: WorkState): WorkLog {
@@ -173,6 +205,7 @@ export function workLogOf(steps: readonly RunStep[], state: WorkState): WorkLog 
   const summary = (missing ? undefined : summaryOf(steps, state.endedAt)) ?? state.known
   const head: WorkHead = {
     ...(summary?.label ? { summary: summary.label } : {}),
+    ...(summary?.counts ? { counts: summary.counts } : {}),
     ...(summary?.startedAt === undefined ? {} : { startedAt: summary.startedAt }),
     ...(summary?.endedAt === undefined ? {} : { endedAt: summary.endedAt }),
   }

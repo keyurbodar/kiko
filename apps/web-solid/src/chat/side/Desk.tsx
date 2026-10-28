@@ -54,7 +54,7 @@ function Tab(props: { chatId: string; file: FileSurface; index: number; count: n
         role="tab"
         aria-selected={props.active}
         tabIndex={props.active ? 0 : -1}
-        class={`desk-tab group/tab flex h-7 max-w-40 min-w-0 shrink-0 cursor-pointer items-center gap-1.5 rounded-control pr-1 pl-2 text-label transition-colors duration-(--dur-hover) ${
+        class={`desk-tab group/tab flex h-[30px] max-w-40 min-w-0 shrink-0 cursor-pointer items-center gap-1.5 rounded-control pr-1 pl-2 text-label transition-colors duration-(--dur-hover) ${
           props.active ? "bg-active text-fg" : "text-fg3 hover:bg-hover hover:text-fg"
         }`}
         title={label()}
@@ -129,7 +129,7 @@ function Tabs(props: { chatId: string; active: string }) {
   }
   return (
     <div
-      class="desk-tabs flex shrink-0 items-center gap-1 overflow-x-auto px-2 pb-2 [scrollbar-width:none]"
+      class="desk-tabs flex shrink-0 items-center gap-0.5 overflow-x-auto px-2 pb-2 [scrollbar-width:none]"
       role="tablist"
       aria-label="Open files"
       onKeyDown={onKey}
@@ -196,7 +196,7 @@ const isRailView = (surface: Surface) => RAIL.some((kind) => kind === surface.ki
 
 function Title(props: { text: string }) {
   return (
-    <h2 class="min-w-0 flex-1 truncate pl-2 type-row text-fg" data-component="desk-title">
+    <h2 class="min-w-0 flex-1 truncate pl-2 type-label font-medium text-fg" data-component="desk-title">
       {props.text}
     </h2>
   )
@@ -207,7 +207,7 @@ function DetailHead(props: { chatId: string; surface: Surface }) {
     <Show when={!isRailView(props.surface)} fallback={<Title text={panelLabel(props.surface)} />}>
       <button
         type="button"
-        class="flex h-control shrink-0 items-center gap-1.5 rounded-control pr-2.5 pl-2 text-ui text-fg2 transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.97]"
+        class="flex h-8 shrink-0 items-center gap-1.5 rounded-control pr-2 pl-1.5 text-label text-[var(--text-300)] transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.97]"
         data-action="desk-back"
         onClick={() => deskBack(props.chatId)}
       >
@@ -231,13 +231,13 @@ function RailButton(props: {
     <TooltipV2 placement="left" openDelay={300} value={props.label}>
       <button
         type="button"
-        class="relative grid size-9 shrink-0 place-items-center rounded-control text-fg3 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.97] aria-pressed:bg-active aria-pressed:text-fg"
+        class="relative grid size-9 shrink-0 place-items-center rounded-control text-[var(--text-300)] transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.97] aria-pressed:bg-active aria-pressed:text-fg"
         aria-label={props.label}
         aria-pressed={props.active}
         data-action={props.action}
         onClick={props.onClick}
       >
-        <RemixIcon icon={props.icon} size={24} />
+        <RemixIcon icon={props.icon} size={20} />
         <Show when={props.dot}>
           <span class="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-fg" data-component="rail-dot" />
         </Show>
@@ -251,7 +251,7 @@ function Rail(props: { chatId: string; current: Surface | null }) {
   const active = () => railOf(props.current)
   return (
     <nav
-      class="flex w-12 shrink-0 flex-col items-center gap-1 pt-2"
+      class="flex w-14 shrink-0 flex-col items-center gap-1 pt-2"
       aria-label="Chat panels"
       data-component="desk-rail"
     >
@@ -317,7 +317,7 @@ export default function Desk(props: { chatId: string; onClose: () => void }) {
   return (
     <aside class="flex h-full min-h-0 w-full min-w-0 overflow-hidden" data-component="sidecar" aria-label="This chat">
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header class="flex min-h-14 shrink-0 items-center gap-1 px-2 py-2" data-component="desk-head">
+        <header class="flex h-[52px] shrink-0 items-center gap-2 px-2" data-component="desk-head">
           <Show when={view()} keyed fallback={<Title text="This chat" />}>
             {(surface) => <DetailHead chatId={props.chatId} surface={surface} />}
           </Show>

@@ -9,9 +9,9 @@
     gap: 8px;
     padding: 0 6px 0 10px;
     color: var(--fg);
-    background: var(--fill);
-    border-radius: var(--radius-control);
-    box-shadow: inset 0 0 0 1px var(--field-ring);
+    background: var(--fill-field);
+    border-radius: var(--radius-row);
+    box-shadow: var(--edge);
     cursor: text;
     transition:
       background-color var(--dur-hover) var(--ease-kiko),
@@ -23,8 +23,14 @@
     border-radius: var(--radius-tile);
   }
 
+  @media (hover: hover) and (pointer: fine) {
+    [data-component="search-field"]:hover {
+      box-shadow: var(--edge-strong);
+    }
+  }
+
   [data-component="search-field"]:focus-within {
-    box-shadow: var(--focus-ring);
+    box-shadow: var(--edge-strong), var(--focus-ring);
   }
 
   [data-slot="search-field-icon"] {

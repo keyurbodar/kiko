@@ -19,11 +19,11 @@ describe("CodeBlock", () => {
     expect(selection.toString().trim()).toBe("a = 1\nb = 2")
   })
 
-  it("folds long code after eight lines and opens it in place", async () => {
-    await using screen = await render(() => <RichText tree={parseRichText(`\`\`\`py\n${lines(38)}\n\`\`\``)} />)
-    const fold = screen.getByRole("button", { name: /Show 30 more lines/ })
+  it("folds long code after twenty-four lines and opens it in place", async () => {
+    await using screen = await render(() => <RichText tree={parseRichText(`\`\`\`py\n${lines(48)}\n\`\`\``)} />)
+    const fold = screen.getByRole("button", { name: /Show 24 more lines/ })
 
-    expect(block(screen.container).textContent).toContain("38 lines")
+    expect(block(screen.container).textContent).toContain("48 lines")
     await fold.click()
 
     await vi.waitFor(() => expect(screen.getByRole("button", { name: /Show less/ }).element()).toBeTruthy())

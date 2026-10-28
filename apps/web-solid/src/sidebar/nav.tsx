@@ -16,7 +16,7 @@ function NavBody(props: { icon: Glyph; label: string; hint?: string }): JSX.Elem
   return (
     <>
       <span class="nav-icon">
-        <RemixIcon icon={props.icon} size={16} />
+        <RemixIcon icon={props.icon} size={18} />
       </span>
       <span class="nav-label">{props.label}</span>
       <Show when={props.hint}>

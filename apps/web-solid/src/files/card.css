@@ -1,24 +1,24 @@
 .file-card {
-  --plate: color-mix(in oklab, var(--tone) 5%, var(--raise));
-  --plate-deep: color-mix(in oklab, var(--tone) 9%, var(--raise));
-  --plate-glow: color-mix(in oklab, var(--tone) 9%, transparent);
+  --plate: var(--raise);
+  --plate-deep: var(--hover);
+  --plate-glow: transparent;
   --rest: scale(0.84);
   --lift-ease: cubic-bezier(0.15, 0.65, 0.7, 1);
   position: relative;
   min-width: 0;
-  border-radius: var(--radius-card);
-  background: var(--panel);
+  border-radius: var(--radius-tile);
+  background: transparent;
   padding: 6px;
-  box-shadow: var(--card-shadow);
+  box-shadow: var(--edge);
   transition:
-    transform var(--dur-hover) var(--ease-kiko),
-    box-shadow var(--dur-pop) var(--ease-kiko);
+    transform var(--dur-press) var(--ease-snap),
+    box-shadow var(--dur-pop) var(--ease-snap);
 }
 
 :root:not(.dark) .file-card {
-  --plate: color-mix(in oklab, var(--tone) 5%, var(--active));
-  --plate-deep: color-mix(in oklab, var(--tone) 9%, var(--active));
-  --plate-glow: color-mix(in oklab, var(--tone) 8%, transparent);
+  --plate: var(--raise);
+  --plate-deep: var(--hover);
+  --plate-glow: transparent;
 }
 
 .file-card[data-compact] {
@@ -172,7 +172,7 @@
 }
 
 .file-card-table tr[data-head] td {
-  background: color-mix(in oklab, var(--tone) 10%, var(--bg));
+  background: var(--raise);
   color: var(--fg);
   font-weight: 600;
 }
@@ -263,9 +263,7 @@
   }
 
   .file-card:hover {
-    box-shadow:
-      var(--card-shadow),
-      0 10px 28px -14px rgb(0 0 0 / 0.45);
+    box-shadow: var(--edge-strong);
   }
 
   .file-card:hover .file-card-action {

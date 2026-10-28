@@ -35,18 +35,18 @@ describe("toasts", () => {
     await expect.poll(() => document.querySelectorAll("[data-toast-v2-id]").length).toBe(0)
   })
 
-  it("lands every toast in one stack at the top right", async () => {
+  it("lands every toast in one stack at the bottom centre", async () => {
     await using _screen = await render(() => <ToastV2.Region />)
     showToastV2({ title: "Saved", variant: "success", persistent: true })
     showToastV2({ title: "Could not save", variant: "error", persistent: true })
     await expect.poll(() => document.querySelectorAll("[data-toast-v2-id]:not([data-ending])").length).toBe(2)
     const region = document.querySelector<HTMLElement>(".toast-v2-region")!.getBoundingClientRect()
     expect(document.querySelectorAll(".toast-v2-region").length).toBe(1)
-    expect(region.right).toBeGreaterThan(window.innerWidth - 40)
-    expect(region.top).toBeLessThan(window.innerHeight / 3)
+    expect(Math.abs(region.left + region.width / 2 - window.innerWidth / 2)).toBeLessThan(2)
+    expect(region.bottom).toBeGreaterThanOrEqual(window.innerHeight - 40)
     expect(region.width).toBeLessThanOrEqual(360)
     const [front, behind] = [...document.querySelectorAll<HTMLElement>("[data-toast-v2-id]")]
-    expect(behind!.getBoundingClientRect().top).toBeGreaterThanOrEqual(front!.getBoundingClientRect().top)
+    expect(behind!.getBoundingClientRect().bottom).toBeLessThanOrEqual(front!.getBoundingClientRect().bottom)
     dismissToastV2()
     await expect.poll(() => document.querySelectorAll("[data-toast-v2-id]").length).toBe(0)
   })

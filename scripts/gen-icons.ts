@@ -1,192 +1,184 @@
-import { writeFileSync } from "node:fs"
+import { readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
-import * as huge from "@hugeicons/core-free-icons"
 
-const ICONS = {
-  search: "Search01Icon",
-  shield: "Shield01Icon",
-  wallet: "Wallet01Icon",
-  plus: "PlusSignIcon",
-  minus: "MinusSignIcon",
-  close: "Cancel01Icon",
-  check: "Tick02Icon",
-  "check-double": "TickDouble02Icon",
-  "chevron-down": "ArrowDown01Icon",
-  "chevron-up": "ArrowUp01Icon",
-  "chevron-left": "ArrowLeft01Icon",
-  "chevron-right": "ArrowRight01Icon",
-  "arrow-up": "ArrowUp02Icon",
-  "arrow-down": "ArrowDown02Icon",
-  "arrow-left": "ArrowLeft02Icon",
-  back: "ArrowLeft01Icon",
-  reply: "ArrowTurnBackwardIcon",
-  undo: "Undo02Icon",
-  reset: "RefreshIcon",
-  compose: "PencilEdit02Icon",
-  edit: "PencilEdit01Icon",
-  chat: "Message01Icon",
-  message: "BubbleChatIcon",
-  unread: "MessageNotification01Icon",
-  group: "UserGroupIcon",
-  user: "UserCircleIcon",
-  settings: "Settings02Icon",
-  "sidebar-left": "SidebarLeftIcon",
-  "sidebar-right": "SidebarRightIcon",
-  pin: "PinIcon",
-  "pin-fill": "PinIcon",
-  unpin: "PinOffIcon",
-  mute: "NotificationOff01Icon",
-  bell: "Notification02Icon",
-  more: "MoreHorizontalIcon",
-  menu: "Menu01Icon",
-  link: "Link04Icon",
-  external: "LinkSquare02Icon",
-  copy: "Copy01Icon",
-  share: "Share08Icon",
-  trash: "Delete02Icon",
-  archive: "Archive02Icon",
-  attach: "Attachment01Icon",
-  at: "AtIcon",
-  enter: "ArrowTurnBackwardIcon",
-  image: "Image01Icon",
-  file: "File01Icon",
-  "file-text": "File02Icon",
-  folder: "Folder01Icon",
-  "folder-open": "FolderOpenIcon",
-  "folder-tree": "HierarchyIcon",
-  memory: "AiBrain01Icon",
-  tasks: "TaskDone01Icon",
-  todo: "CheckListIcon",
-  info: "InformationCircleIcon",
-  help: "HelpCircleIcon",
-  model: "CubeIcon",
-  reasoning: "BulbIcon",
-  appearance: "PaintBoardIcon",
-  integrations: "Plug01Icon",
-  extensions: "PuzzleIcon",
-  skills: "MagicWand01Icon",
-  command: "CommandLineIcon",
-  signout: "Logout03Icon",
-  key: "Key01Icon",
-  board: "DashboardSquare01Icon",
-  play: "PlayIcon",
-  pause: "PauseIcon",
-  stop: "StopIcon",
-  repeat: "RepeatIcon",
-  maximize: "Maximize01Icon",
-  expand: "ArrowExpand01Icon",
-  collapse: "ArrowShrink01Icon",
-  "expand-all": "ArrowExpandIcon",
-  "collapse-all": "ArrowShrinkIcon",
-  scan: "ScanIcon",
-  globe: "Globe02Icon",
-  clock: "Clock01Icon",
-  lock: "LockIcon",
-  sun: "Sun01Icon",
-  moon: "Moon02Icon",
-  monitor: "ComputerIcon",
-  sparkles: "SparklesIcon",
-  star: "StarIcon",
-  "star-fill": "StarIcon",
-  eye: "EyeIcon",
-  smile: "SmileIcon",
-  react: "SmileDizzyIcon",
-  download: "Download01Icon",
-  "wrap-text": "TextWrapIcon",
-  code: "SourceCodeIcon",
-  table: "Table01Icon",
-  grid: "GridViewIcon",
-  "file-add": "FileAddIcon",
-  "folder-add": "FolderAddIcon",
-  "file-markdown": "FileEditIcon",
-  "file-json": "CodeIcon",
-  "file-csv": "Csv01Icon",
-  "file-html": "Html5Icon",
-  "file-source": "FileScriptIcon",
-  "file-diff": "GitCompareIcon",
-  "file-image": "FileImageIcon",
-  "file-pdf": "Pdf01Icon",
-  "file-audio": "FileAudioIcon",
-  "file-video": "FileVideoIcon",
-  "file-xls": "Xls01Icon",
-  "file-doc": "Doc01Icon",
-  "file-ppt": "Ppt01Icon",
-  "file-zip": "Zip01Icon",
-  "file-mp4": "Mp401Icon",
-  "file-mp3": "Mp301Icon",
-  "file-txt": "Txt01Icon",
-  terminal: "ComputerTerminal01Icon",
-  "alert-circle": "AlertCircleIcon",
-  "alert-triangle": "Alert02Icon",
-  "check-circle": "CheckmarkCircle02Icon",
-  "close-circle": "CancelCircleIcon",
-  "pause-circle": "PauseCircleIcon",
-  "record-circle": "RecordIcon",
-  circle: "CircleIcon",
-  "pull-request": "GitPullRequestIcon",
-  loader: "Loading03Icon",
-  wrench: "Wrench01Icon",
-  "file-view": "FileSearchIcon",
-  cursor: "Cursor01Icon",
-  worker: "Robot01Icon",
-  move: "FolderTransferIcon",
-  browser: "BrowserIcon",
-  notes: "StickyNote01Icon",
-  book: "Book02Icon",
-  send: "SentIcon",
-  leaf: "Leaf01Icon",
-  sliders: "SlidersHorizontalIcon",
-  dashboard: "DashboardSquare01Icon",
-  bolt: "FlashIcon",
-  "filter-horizontal": "FilterHorizontalIcon",
-  upload: "Upload04Icon",
-  "cloud-upload": "CloudUploadIcon",
-  api: "ApiIcon",
+const PHOSPHOR = resolve(import.meta.dirname, "../node_modules/@phosphor-icons/core/assets")
+
+const REGULAR = {
+  search: "magnifying-glass",
+  shield: "shield",
+  wallet: "wallet",
+  plus: "plus",
+  minus: "minus",
+  close: "x",
+  check: "check",
+  "check-double": "checks",
+  "chevron-down": "caret-down",
+  "chevron-up": "caret-up",
+  "chevron-left": "caret-left",
+  "chevron-right": "caret-right",
+  "arrow-up": "arrow-up",
+  "arrow-down": "arrow-down",
+  "arrow-left": "arrow-left",
+  back: "arrow-left",
+  reply: "arrow-bend-up-left",
+  undo: "arrow-counter-clockwise",
+  reset: "arrow-clockwise",
+  compose: "note-pencil",
+  edit: "pencil-simple",
+  chat: "chat-circle",
+  message: "chat-circle-dots",
+  unread: "chat-circle-text",
+  group: "users",
+  user: "user",
+  settings: "gear-six",
+  "sidebar-left": "sidebar-simple",
+  "sidebar-right": "sidebar-simple",
+  pin: "push-pin",
+  "pin-fill": "push-pin",
+  unpin: "push-pin-slash",
+  mute: "bell-slash",
+  bell: "bell-simple",
+  more: "dots-three",
+  menu: "list",
+  link: "link-simple",
+  external: "arrow-square-out",
+  copy: "copy",
+  share: "export",
+  trash: "trash",
+  archive: "archive",
+  attach: "paperclip",
+  at: "at",
+  enter: "arrow-elbow-down-left",
+  image: "image",
+  file: "file",
+  "file-text": "file-text",
+  folder: "folder-simple",
+  "folder-open": "folder-open",
+  "folder-tree": "tree-view",
+  memory: "brain",
+  tasks: "list-checks",
+  todo: "check-square",
+  info: "info",
+  help: "question",
+  model: "robot",
+  reasoning: "brain",
+  appearance: "palette",
+  integrations: "plugs-connected",
+  extensions: "puzzle-piece",
+  skills: "sparkle",
+  command: "command",
+  signout: "sign-out",
+  key: "key",
+  board: "squares-four",
+  play: "play",
+  pause: "pause",
+  stop: "stop",
+  repeat: "arrows-clockwise",
+  maximize: "arrows-out-simple",
+  expand: "arrows-out",
+  collapse: "arrows-in",
+  "expand-all": "arrows-out-line-vertical",
+  "collapse-all": "arrows-in-line-vertical",
+  scan: "scan",
+  globe: "globe-simple",
+  clock: "clock",
+  lock: "lock-simple",
+  sun: "sun",
+  moon: "moon",
+  monitor: "desktop",
+  sparkles: "sparkle",
+  star: "star",
+  "star-fill": "star",
+  eye: "eye",
+  smile: "smiley",
+  react: "smiley-meh",
+  download: "download-simple",
+  "wrap-text": "text-align-left",
+  code: "code",
+  table: "table",
+  grid: "squares-four",
+  "file-add": "file-plus",
+  "folder-add": "folder-simple-plus",
+  "file-markdown": "note-pencil",
+  "file-json": "brackets-curly",
+  "file-csv": "table",
+  "file-html": "globe-simple",
+  "file-source": "file-code",
+  "file-diff": "git-diff",
+  "file-image": "image",
+  "file-pdf": "file-pdf",
+  "file-audio": "file-audio",
+  "file-video": "file-video",
+  "file-xls": "table",
+  "file-doc": "file-text",
+  "file-ppt": "file-text",
+  "file-zip": "archive",
+  "file-mp4": "file-video",
+  "file-mp3": "file-audio",
+  "file-txt": "file-text",
+  terminal: "terminal",
+  "alert-circle": "warning-circle",
+  "alert-triangle": "warning",
+  "check-circle": "check-circle",
+  "close-circle": "x-circle",
+  "pause-circle": "pause-circle",
+  "record-circle": "record",
+  circle: "circle",
+  "pull-request": "git-pull-request",
+  loader: "spinner",
+  wrench: "wrench",
+  "file-view": "file-magnifying-glass",
+  cursor: "cursor",
+  worker: "robot",
+  move: "folder-simple-star",
+  browser: "browser",
+  notes: "notepad",
+  book: "book-open",
+  send: "arrow-up",
+  leaf: "leaf",
+  sliders: "sliders-horizontal",
+  dashboard: "squares-four",
+  bolt: "lightning",
+  "filter-horizontal": "funnel",
+  upload: "upload-simple",
+  "cloud-upload": "cloud-arrow-up",
+  api: "brackets-curly",
+  gauge: "gauge",
 } as const
 
-const LUCIDE = {
-  gauge:
-    '<path d="m12 14 4-4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path d="M3.34 19a10 10 0 1 1 17.32 0" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>',
-} as const
+const FILL = new Set(["pin-fill", "star-fill"])
 
-type Node = readonly [tag: string, attrs: Readonly<Record<string, string>>]
-
-const kebab = (name: string) => name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
-const short = (value: string) => value.replace(/\d*\.\d+/g, (n) => String(Math.round(Number(n) * 100) / 100))
-
-function svgOf(nodes: readonly Node[], solid: boolean): string {
-  return nodes
-    .map(([tag, attrs]) => {
-      const pairs = Object.entries(solid ? { ...attrs, fill: "currentColor" } : attrs)
-        .filter(([key]) => key !== "key")
-        .map(([key, value]) => `${kebab(key)}="${short(String(value))}"`)
-      return `<${tag} ${pairs.join(" ")}/>`
-    })
-    .join("")
+const bodyOf = (svg: string): string => {
+  const inner = svg.replace(/^[\s\S]*?<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "")
+  return inner.replace(/\s+/g, " ").trim()
 }
 
-const table = huge as unknown as Record<string, readonly Node[] | undefined>
-const rows = Object.entries(ICONS).map(([name, icon]) => {
-  const nodes = table[icon]
-  if (!nodes) throw new Error(`no hugeicon named ${icon}`)
-  const id = name.replace(/(^|-)([a-z0-9])/g, (_, __, c: string) => c.toUpperCase())
-  return `export const ${id}Icon = ${JSON.stringify(svgOf(nodes, name.endsWith("-fill")))} as Glyph`
-})
+const readFill = (name: string) => {
+  const path = resolve(PHOSPHOR, "fill", `${name}-fill.svg`)
+  return bodyOf(readFileSync(path, "utf8"))
+}
 
-const lucideRows = Object.entries(LUCIDE).map(([name, body]) => {
-  const id = name.replace(/(^|-)([a-z0-9])/g, (_, __, c: string) => c.toUpperCase())
-  return `export const ${id}Icon = ${JSON.stringify(body)} as Glyph`
+const read = (weight: string, name: string) => bodyOf(readFileSync(resolve(PHOSPHOR, weight, `${name}.svg`), "utf8"))
+
+const available = new Set(readdirSync(resolve(PHOSPHOR, "regular")).map((f) => f.replace(/\.svg$/, "")))
+const missing = Object.values(REGULAR).filter((name) => !available.has(name))
+if (missing.length) throw new Error(`no phosphor icon named ${[...new Set(missing)].join(", ")}`)
+
+const id = (name: string) => name.replace(/(^|-)([a-z0-9])/g, (_, __, c: string) => c.toUpperCase())
+
+const rows = Object.entries(REGULAR).map(([name, icon]) => {
+  const body = FILL.has(name) ? readFill(icon) : read("regular", icon)
+  return `export const ${id(name)}Icon = ${JSON.stringify(body)} as Glyph`
 })
 
 const out = `// Generated by scripts/gen-icons.ts. Do not edit.
-// Glyphs from Hugeicons (@hugeicons/core-free-icons), MIT License, Copyright (c) 2025 Hugeicons.
-// Gauge from Lucide, ISC License, Copyright (c) Lucide Contributors.
+// Glyphs from Phosphor (@phosphor-icons/core), MIT License, Copyright (c) 2023 Phosphor Icons.
 // One export per glyph, so a chunk carries only the glyphs it imports.
 
-/** A glyph's svg body on a 24 unit grid, stroked with the text color. */
+/** A glyph's svg body on a 256 unit grid, filled with the text color. */
 export type Glyph = string & { readonly glyph: true }
 
-${[...rows, ...lucideRows].join("\n")}
+${rows.join("\n")}
 `
 writeFileSync(resolve(import.meta.dirname, "../packages/ui/src/icons.gen.ts"), out)
-console.log(`wrote ${rows.length + lucideRows.length} icons`)
+console.log(`wrote ${rows.length} icons`)
