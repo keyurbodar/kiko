@@ -19,9 +19,9 @@ const OPACITY = { "icon-secondary": 0.4 } as const
 const SIZE = {
   "nav-tab": 32,
   "nav-gap": 8,
-  "nav-gap-row": 4,
+  "nav-gap-row": 2,
   "nav-slot": 28,
-  "nav-pad": 10,
+  "nav-pad": 8,
   "chat-row": 50,
   mascot: 32,
   avatar: 30,
