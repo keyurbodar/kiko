@@ -31,7 +31,12 @@ function useChatFiles(chatId: () => string) {
   return { files, folders, index }
 }
 
-export function FilesTree(props: { chatId: string; searchOpen: boolean; ref?: (handle: FileTreeHandle) => void }) {
+export function FilesTree(props: {
+  chatId: string
+  searchOpen: boolean
+  active?: string | null
+  ref?: (handle: FileTreeHandle) => void
+}) {
   createEffect(() => onCleanup(room.onFilesRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
   createEffect(() => onCleanup(user.onHomeRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
   const op = (o: FileOp) => {
@@ -63,11 +68,7 @@ export function FilesTree(props: { chatId: string; searchOpen: boolean; ref?: (h
   }
 
   return (
-    <aside
-      class="flex min-h-0 min-w-0 flex-1 flex-col px-0 pt-1 pb-2"
-      aria-label="File explorer"
-      data-component="file-explorer"
-    >
+    <aside class="flex min-h-0 min-w-0 flex-1 flex-col" aria-label="File explorer" data-component="file-explorer">
       <Show when={props.chatId} keyed>
         {(chatId) => (
           <FileTree
@@ -76,10 +77,17 @@ export function FilesTree(props: { chatId: string; searchOpen: boolean; ref?: (h
             searchOpen={props.searchOpen}
             files={files()}
             folders={folders()}
+            active={props.active}
             onNewFolder={(p) => op({ op: "mkdir", path: p })}
             onOpen={(p) => openFile(props.chatId, p)}
             onNewFile={make}
             onRename={(from, to) => {
+              op({ op: "mv", from, to })
+              moveFileSurfaces(props.chatId, from, to)
+              const at = where(props.chatId, from)
+              forgetMade(at.space, at.path)
+            }}
+            onMove={(from, to) => {
               op({ op: "mv", from, to })
               moveFileSurfaces(props.chatId, from, to)
               const at = where(props.chatId, from)

@@ -17,7 +17,7 @@ function routed(ui: () => JSX.Element) {
 }
 
 describe("chat details panel", () => {
-  it("puts files in a full-width header without a separate icon rail", async () => {
+  it("puts the file tree under a full-width header, with no rail or toggle", async () => {
     closeAll(CHAT)
     const onClose = vi.fn()
     await using screen = await render(routed(() => <Desk chatId={CHAT} onClose={onClose} />))
@@ -28,8 +28,11 @@ describe("chat details panel", () => {
     expect(screen.container.querySelector('[data-component="desk-rail"]')).toBeNull()
     expect(screen.container.querySelector('[data-component="desk-head"]')).toBeNull()
     expect(screen.container.querySelector('[data-component="files-panel-header"]')).not.toBeNull()
-    await screen.getByRole("button", { name: "Show file tree" }).click()
-    await expect.element(screen.getByRole("searchbox", { name: "Search files" })).not.toBeInTheDocument()
+    expect(screen.container.querySelector('[data-component="files-split"]')).toBeNull()
+    expect(screen.container.querySelector('[data-component="files-tree-rail"]')).toBeNull()
+    expect(screen.container.querySelector('[data-component="file-tree"]')).not.toBeNull()
+    expect(screen.container.querySelector('[data-action="toggle-file-tree"]')).toBeNull()
+    await expect.element(screen.getByRole("searchbox", { name: "Search files" })).toBeVisible()
     await screen.getByRole("button", { name: "Close chat details" }).click()
     await expect.poll(() => onClose.mock.calls.length).toBe(1)
     closeAll(CHAT)
