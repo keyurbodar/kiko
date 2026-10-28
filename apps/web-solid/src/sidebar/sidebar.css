@@ -674,6 +674,7 @@
   min-width: 0;
   flex: 1;
   flex-direction: column;
+  justify-content: center;
   gap: 2px;
 }
 
@@ -693,9 +694,9 @@
   flex: 1;
   overflow: hidden;
   color: var(--fg2);
-  font-size: var(--type-ui);
+  font-size: var(--type-label);
   font-weight: 435;
-  line-height: 20px;
+  line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
