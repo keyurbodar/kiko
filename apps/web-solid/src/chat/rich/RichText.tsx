@@ -217,11 +217,26 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
   )
 }
 
-function RichTree(props: { tree: RichTextTree; class?: string }): JSX.Element {
+type RichTextProps = {
+  tree: RichTextTree
+  class?: string
+  streaming?: boolean
+  component?: string
+  ref?: (element: HTMLDivElement) => void
+  onScroll?: JSX.EventHandler<HTMLDivElement, Event>
+}
+
+function RichTree(props: RichTextProps): JSX.Element {
   const [masked, setMasked] = createSignal<Masked | null>(null)
   return (
     <>
-      <div class={`rich${props.class ? ` ${props.class}` : ""}`}>
+      <div
+        ref={props.ref}
+        class={`rich${props.class ? ` ${props.class}` : ""}`}
+        data-component={props.component}
+        data-streaming={props.streaming ? "" : undefined}
+        onScroll={props.onScroll}
+      >
         <For each={richNodes(props.tree)}>{(node) => <Node node={node} onMasked={setMasked} />}</For>
       </div>
       <Show when={masked()}>
@@ -239,10 +254,10 @@ function RichTree(props: { tree: RichTextTree; class?: string }): JSX.Element {
   )
 }
 
-export function RichText(props: { tree: RichTextTree; class?: string }): JSX.Element {
+export function RichText(props: RichTextProps): JSX.Element {
   return (
     <PlainFallback text={plainText(props.tree)}>
-      <RichTree tree={props.tree} class={props.class} />
+      <RichTree {...props} />
     </PlainFallback>
   )
 }

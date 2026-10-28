@@ -1,15 +1,63 @@
 import { ChevronRightIcon } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { createEffect, createSignal, on, onCleanup, Show, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, on, onCleanup, Show, type JSX } from "solid-js"
 import { type Thought, thoughtMs, thoughtText } from "../../state/thoughts"
+import { createRichTextCache } from "../rich/block-cache"
+import { RichText } from "../rich/RichText"
 import { elapsedLabel } from "../run/duration"
 import { Shine } from "../run/Shine"
 import { Mochi } from "../ui/Mochi"
+import { useSmoothText } from "./smooth"
 import "./thinking.css"
 
 const OPEN_KEY = "kiko.thinking-open"
-const LINE_EVERY_MS = 700
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)"
+const HEADING = /^ {0,3}#{1,6}[ \t]+(.+)$/gm
+const BOLD_LEAD = /^ {0,3}\*\*([^*\n]+)\*\*/gm
+const LINK = /!?\[([^\]]*)\]\([^)]*\)/g
+const BLOCK_MARKER = /^[ \t]*(?:#{1,6}|[-*+]|\d+[.)]|>)[ \t]+/gm
+const EMPHASIS = /`+|\*\*|__|~~/g
+const ITALIC = /(^|[^\w*])[*_]([^*_\n]+)[*_](?![\w*])/g
+
+function plainPreview(markdown: string): string {
+  return markdown
+    .replace(LINK, "$1")
+    .replace(BLOCK_MARKER, "")
+    .replace(EMPHASIS, "")
+    .replace(ITALIC, "$1$2")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function latestMatch(text: string, pattern: RegExp): { index: number; value: string } | undefined {
+  let found: { index: number; value: string } | undefined
+  for (const match of text.matchAll(pattern)) found = { index: match.index, value: match[1] ?? "" }
+  return found
+}
+
+function latestLead(markdown: string): { index: number; value: string } | undefined {
+  const heading = latestMatch(markdown, HEADING)
+  const bold = latestMatch(markdown, BOLD_LEAD)
+  if (!heading) return bold
+  if (!bold) return heading
+  return heading.index > bold.index ? heading : bold
+}
+
+function lastSentence(markdown: string): string {
+  const plain = plainPreview(markdown)
+  const ends = Array.from(plain.matchAll(/[.!?]+["'”’)]?/g))
+  const last = ends.at(-1)
+  if (!last) return plain
+  const end = last.index + last[0].length
+  if (end < plain.length) return plain.slice(end).trim()
+  const previous = ends.at(-2)
+  return previous ? plain.slice(previous.index + previous[0].length).trim() : plain
+}
+
+function thoughtPreview(markdown: string): string {
+  const lead = latestLead(markdown)
+  return lead ? plainPreview(lead.value) : lastSentence(markdown)
+}
 
 function remembered(): boolean {
   try {
@@ -42,47 +90,47 @@ function useNow(live: () => boolean) {
   return now
 }
 
-function usePacedLine(text: () => string) {
-  const [shown, setShown] = createSignal(text())
-  let last = 0
-  let timer: ReturnType<typeof setTimeout> | undefined
-  onCleanup(() => clearTimeout(timer))
-  createEffect(
-    on(text, (next) => {
-      clearTimeout(timer)
-      const wait = LINE_EVERY_MS - (Date.now() - last)
-      const show = () => {
-        last = Date.now()
-        setShown(next)
-      }
-      if (wait <= 0) show()
-      else timer = setTimeout(show, wait)
-    }),
-  )
-  return shown
-}
+export function ThoughtStream(props: { text: string; live?: boolean; follow?: boolean; class?: string }): JSX.Element {
+  const live = () => props.live === true
+  const shown = useSmoothText(() => props.text, live)
+  const cache = createRichTextCache()
+  const tree = createMemo(() => cache.parse(shown()))
+  const follows = () => props.follow ?? live()
+  let box: HTMLDivElement | undefined
+  let frame: number | undefined
+  let pinned = true
 
-function Stream(props: { text: string; follow: boolean }): JSX.Element {
-  let box!: HTMLDivElement
-  let pinned = props.follow
-  const mark = () => box.toggleAttribute("data-scrolled", box.scrollTop > 0)
-  createEffect(
-    on(
-      () => props.text,
-      () => {
-        if (pinned) box.scrollTop = box.scrollHeight
-        mark()
-      },
-    ),
-  )
-  const onScroll = () => {
-    pinned = props.follow && box.scrollHeight - box.scrollTop - box.clientHeight < 8
+  const mark = () => box?.toggleAttribute("data-scrolled", box.scrollTop > 0)
+  const stick = () => {
+    frame = undefined
+    if (!box || !pinned || !follows()) return
+    box.scrollTop = box.scrollHeight
     mark()
   }
+  const schedule = () => {
+    if (frame !== undefined) return
+    frame = requestAnimationFrame(stick)
+  }
+  const onScroll = () => {
+    if (!box) return
+    pinned = follows() && box.scrollHeight - box.scrollTop - box.clientHeight <= 24
+    mark()
+  }
+  createEffect(on([shown, follows], schedule))
+  onCleanup(() => {
+    if (frame !== undefined) cancelAnimationFrame(frame)
+  })
   return (
-    <div ref={box} class="thinking-stream" data-component="thinking-stream" onScroll={onScroll}>
-      {props.text}
-    </div>
+    <RichText
+      tree={tree()}
+      class={`thinking-stream${props.class ? ` ${props.class}` : ""}`}
+      component="thinking-stream"
+      streaming={live()}
+      onScroll={onScroll}
+      ref={(element) => {
+        box = element
+      }}
+    />
   )
 }
 
@@ -143,7 +191,7 @@ export function ThinkingLine(props: {
     const thought = live()
     return thought !== undefined && thought.openSince !== null && text() !== ""
   }
-  const caption = usePacedLine(() => props.fallback)
+  const caption = () => (text() ? thoughtPreview(text()) || "Thinking" : props.fallback)
   const [open, setOpen] = createSignal(remembered())
   const now = useNow(() => !!live() || props.since !== undefined)
   const toggle = () => {
@@ -162,7 +210,7 @@ export function ThinkingLine(props: {
             fallback={
               <div class="thinking-row">
                 <Mochi size={20} />
-                <Caption text={caption()} running />
+                <Caption text={props.fallback} running />
                 <Show when={elapsed()}>{(time) => <span class="thinking-time">{time()}</span>}</Show>
               </div>
             }
@@ -172,11 +220,11 @@ export function ThinkingLine(props: {
                 type="button"
                 class="thinking-row thinking-toggle"
                 aria-expanded={steps().open}
-                aria-label={`${caption()}. ${steps().open ? "Hide" : "Show"} steps`}
+                aria-label={`${props.fallback}. ${steps().open ? "Hide" : "Show"} steps`}
                 onClick={() => steps().toggle()}
               >
                 <Mochi size={20} />
-                <Caption text={caption()} running />
+                <Caption text={props.fallback} running />
                 <Show when={elapsed()}>{(time) => <span class="thinking-time">{time()}</span>}</Show>
                 <Chevron open={steps().open} />
               </button>
@@ -186,14 +234,14 @@ export function ThinkingLine(props: {
       >
         <button type="button" class="thinking-row thinking-toggle" aria-expanded={open()} onClick={toggle}>
           <Mochi size={20} />
-          <Caption text={thinking() ? "Thinking" : caption()} running={thinking()} />
+          <Caption text={caption()} running={thinking()} />
           <Show when={thinking()}>
             <span class="thinking-time">{took(thoughtMs(live()!, now()))}</span>
           </Show>
           <Chevron open={open()} />
         </button>
         <Show when={open()}>
-          <Stream text={text()} follow />
+          <ThoughtStream text={text()} live follow />
         </Show>
       </Show>
     </div>
@@ -217,7 +265,7 @@ export function ThoughtRow(props: { thought: Thought }): JSX.Element {
           <Chevron open={open()} />
         </button>
         <Show when={open()}>
-          <Stream text={text()} follow={false} />
+          <ThoughtStream text={text()} follow={false} />
         </Show>
       </div>
     </Show>
