@@ -22,7 +22,7 @@ const SIZE = {
   "nav-gap-row": 2,
   "nav-slot": 28,
   "nav-pad": 8,
-  "chat-row": 50,
+  "chat-row": 74,
   mascot: 32,
   avatar: 30,
   "section-label": 28,
