@@ -3,12 +3,18 @@ import { Dynamic } from "solid-js/web"
 import { cn } from "../../lib/cn"
 import "./bubble.css"
 
-export type BubbleVariant = "default" | "secondary" | "ghost"
+export type BubbleVariant = "default" | "secondary" | "muted" | "tinted" | "outline" | "ghost" | "destructive"
 
 const VARIANTS: Record<BubbleVariant, string> = {
-  default: "[&>[data-slot=bubble-content]]:bg-(--bubble-me) [&>[data-slot=bubble-content]]:text-[var(--text-100)]",
-  secondary: "[&>[data-slot=bubble-content]]:bg-(--bubble-agent) [&>[data-slot=bubble-content]]:text-[var(--text-100)]",
+  default: "[&>[data-slot=bubble-content]]:bg-me [&>[data-slot=bubble-content]]:text-fg",
+  secondary: "[&>[data-slot=bubble-content]]:bg-[var(--kiko-bubble)] [&>[data-slot=bubble-content]]:text-fg",
+  muted: "[&>[data-slot=bubble-content]]:bg-panel [&>[data-slot=bubble-content]]:text-fg",
+  tinted: "[&>[data-slot=bubble-content]]:bg-active [&>[data-slot=bubble-content]]:text-fg",
+  outline:
+    "[&>[data-slot=bubble-content]]:bg-panel [&>[data-slot=bubble-content]]:text-fg [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1px_var(--line2)]",
   ghost: "[&>[data-slot=bubble-content]]:bg-transparent [&>[data-slot=bubble-content]]:p-0",
+  destructive:
+    "[&>[data-slot=bubble-content]]:bg-me [&>[data-slot=bubble-content]]:text-fg [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1.5px_var(--bad)]",
 }
 
 export type BubbleAlign = "start" | "end"
@@ -38,8 +44,8 @@ export function Bubble(rawProps: BubbleProps) {
       data-align={local.align}
       data-position={local.position}
       class={cn(
-        "relative flex w-fit min-w-0 max-w-[88%] flex-col gap-1",
-        "data-[align=end]:max-w-[80%] data-[align=end]:self-end data-[variant=ghost]:max-w-full",
+        "relative flex w-fit min-w-0 max-w-[min(calc(100%-3.5rem),520px)] flex-col gap-1",
+        "data-[align=end]:self-end data-[variant=ghost]:max-w-full",
         VARIANTS[local.variant],
         local.class,
       )}

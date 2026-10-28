@@ -13,7 +13,7 @@ import { viewerKind, type ViewerKind } from "./kind"
 import { buildIndex, HOME, inHome, strip, where } from "./model"
 import { fullSize, setFullSize } from "./prefs"
 import { FileActions, FileWorkspace } from "./surface"
-import { FileTree } from "./tree"
+import { FileTree, type FileTreeHandle } from "./tree"
 import { createFileView, setSourceFor } from "./view"
 
 const FileDialog = lazy(() => import("./FileDialog"))
@@ -31,7 +31,7 @@ function useChatFiles(chatId: () => string) {
   return { files, folders, index }
 }
 
-export function FilesTree(props: { chatId: string }) {
+export function FilesTree(props: { chatId: string; searchOpen: boolean; ref?: (handle: FileTreeHandle) => void }) {
   createEffect(() => onCleanup(room.onFilesRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
   createEffect(() => onCleanup(user.onHomeRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
   const op = (o: FileOp) => {
@@ -71,7 +71,9 @@ export function FilesTree(props: { chatId: string }) {
       <Show when={props.chatId} keyed>
         {(chatId) => (
           <FileTree
+            ref={props.ref}
             roomId={chatId}
+            searchOpen={props.searchOpen}
             files={files()}
             folders={folders()}
             onNewFolder={(p) => op({ op: "mkdir", path: p })}

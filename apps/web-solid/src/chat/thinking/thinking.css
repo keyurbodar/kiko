@@ -1,5 +1,5 @@
 .thinking {
-  --run-text: var(--text-300);
+  --run-text: var(--fg2);
   display: flex;
   min-width: 0;
   max-width: 100%;
@@ -13,17 +13,17 @@
   min-width: 0;
   max-width: 100%;
   align-items: center;
-  gap: 6px;
-  color: var(--text-300);
-  font-size: var(--type-label);
-  line-height: 20px;
+  gap: 8px;
+  color: var(--fg2);
+  font-size: var(--type-ui);
+  line-height: 22px;
 }
 
 .thinking-live {
   display: block;
   min-width: 0;
   overflow: hidden;
-  color: var(--text-300);
+  color: var(--fg2);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -53,12 +53,8 @@
 .thinking-time,
 .thinking-chevron {
   flex: none;
-  color: var(--text-300);
+  color: var(--fg4);
   font-variant-numeric: tabular-nums;
-}
-
-.thinking-time {
-  font-size: var(--type-caption);
 }
 .thinking-chevron[data-open] {
   transform: rotate(90deg);
@@ -66,58 +62,22 @@
 
 .thinking-stream {
   width: min(36rem, 100%);
-  max-height: 320px;
+  max-height: min(280px, 36vh);
   margin-left: 9px;
-  padding: 2px 0 2px 14px;
+  padding: 2px 0 2px 18px;
   overflow-y: auto;
-  border-left: 1px solid var(--border-200);
+  border-left: 1px solid var(--line);
   scrollbar-width: thin;
-  color: var(--text-300);
-  font-size: var(--type-label);
+  color: var(--fg3);
+  font-size: var(--type-ui);
   line-height: 22px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;
 }
-.thinking-stream[data-live] {
-  max-height: 110px;
-  -webkit-mask: linear-gradient(transparent, #000 30%);
-  mask: linear-gradient(transparent, #000 30%);
-}
-.thinking-stream[data-fade-top] {
+.thinking-stream[data-scrolled] {
   -webkit-mask: linear-gradient(transparent, #000 32px);
   mask: linear-gradient(transparent, #000 32px);
-}
-.thinking-stream[data-fade-bottom] {
-  -webkit-mask: linear-gradient(#000 calc(100% - 32px), transparent);
-  mask: linear-gradient(#000 calc(100% - 32px), transparent);
-}
-.thinking-stream[data-fade-top][data-fade-bottom] {
-  -webkit-mask: linear-gradient(transparent, #000 32px, #000 calc(100% - 32px), transparent);
-  mask: linear-gradient(transparent, #000 32px, #000 calc(100% - 32px), transparent);
-}
-.thinking-stream[data-live][data-fade-top] {
-  -webkit-mask: linear-gradient(transparent, #000 30%);
-  mask: linear-gradient(transparent, #000 30%);
-}
-
-.thinking-fold {
-  display: grid;
-  grid-template-rows: 1fr;
-}
-.thinking-fold[data-shut] {
-  grid-template-rows: 0fr;
-}
-.thinking-fold > div {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .thinking-fold {
-    transition: grid-template-rows var(--dur-move) var(--ease-snap);
-  }
 }
 
 .thought {
@@ -137,17 +97,11 @@
 .thought-head {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 28px;
-  margin-left: -4px;
-  padding: 0 8px 0 4px;
-  border-radius: var(--radius-row);
-  color: var(--text-300);
-  font-size: var(--type-label);
+  gap: 4px;
+  min-height: 26px;
+  color: var(--fg3);
+  font-size: var(--type-ui);
   line-height: 20px;
-  transition:
-    color var(--dur-hover) var(--ease-kiko),
-    background-color var(--dur-hover) var(--ease-kiko);
 }
 
 .thinking-toggle:focus-visible,
@@ -160,14 +114,11 @@
 @media (hover: hover) and (pointer: fine) {
   .thinking-toggle:hover,
   .thought-head:hover {
-    color: var(--text-100);
-  }
-  .thought-head:hover {
-    background: var(--fill-hover);
+    color: var(--fg);
   }
   .thinking-toggle:hover .thinking-chevron,
   .thought-head:hover .thinking-chevron {
-    color: var(--text-200);
+    color: var(--fg2);
   }
 }
 

@@ -19,7 +19,7 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
   return (
     <article
       class="tpl flex min-w-0 cursor-pointer gap-4 p-3.5 active:scale-[0.995]"
-      data-recipe={props.recipe.slug}
+      data-recipe-slug={props.recipe.slug}
       data-on={on() ? "" : undefined}
     >
       <span class="tpl-tile mt-0.5">
@@ -61,6 +61,15 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
         data-action="add-recipe"
         onClick={() => props.onAdd()}
       />
+      <span class="tpl-preview" data-component="recipe-preview" aria-hidden="true">
+        <span class="block truncate text-label font-medium text-fg">{props.recipe.title}</span>
+        <span class="mt-0.5 block truncate text-hint text-fg3">{localizeWhen(props.recipe.when)}</span>
+        <Show when={props.recipe.apps.length}>
+          <span class="mt-2 flex items-center gap-1">
+            <For each={props.recipe.apps.slice(0, 3)}>{(app) => <AppLogo app={app} size={14} />}</For>
+          </span>
+        </Show>
+      </span>
     </article>
   )
 }

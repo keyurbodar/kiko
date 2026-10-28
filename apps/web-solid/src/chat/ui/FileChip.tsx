@@ -1,9 +1,9 @@
 import { fileName } from "@kiko/protocol"
-import { toneOf } from "@kiko/theme/chips"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CopyIcon, FileIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Show, type JSX } from "solid-js"
 import { isImage } from "../../lib/attachments"
 import { setFileDrag } from "../../lib/file-drag"
@@ -11,18 +11,25 @@ import { fileSrc, room } from "../../state/room"
 import { user } from "../../state/user"
 import { formatBytes } from "../info/format"
 import { openThreadImages } from "./image-dialog"
-import { FilePeek } from "./FilePeek"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { resolveFile, type FileTarget } from "../rich/file-links"
 import { FileIcon as FileTypeIcon } from "@kiko/ui/file-icon"
 import "./chips.css"
 
-function ChipGlyph(props: { path: string; folder: boolean }) {
+function ChipGlyph(props: { path: string; folder: boolean; picture: string | null }) {
   return (
-    <FileTypeIcon
-      class={props.folder ? "lchip-folder" : undefined}
-      node={{ path: props.path, type: props.folder ? "directory" : "file" }}
-    />
+    <Show
+      when={props.picture}
+      fallback={
+        <FileTypeIcon
+          class={props.folder ? "lchip-folder" : undefined}
+          style={{ width: "16px", height: "16px" }}
+          node={{ path: props.path, type: props.folder ? "directory" : "file" }}
+        />
+      }
+    >
+      {(src) => <img class="lchip-thumb" src={src()} alt="" loading="lazy" draggable={false} />}
+    </Show>
   )
 }
 
@@ -44,7 +51,6 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
   const full = () => `${props.file.path}${props.file.line ? `:${props.file.line}` : ""}`
   const spoken = () => `${fileName(props.file.path)}${props.file.line ? `, line ${props.file.line}` : ""}`
   const isChip = () => !props.bare || find(props.file.path).kind !== "none"
-  let anchor!: HTMLSpanElement
   const chat = () => room.activeId()
   const ref = () => {
     const found = find(props.file.path)
@@ -85,7 +91,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
   }
   return (
     <Show when={isChip()} fallback={<code class="rich-inline-code">{full()}</code>}>
-      <span class="lchip-anchor" ref={(el: HTMLSpanElement) => (anchor = el)}>
+      <TooltipV2 class="lchip-anchor" placement="top" value={<span class="font-mono">{full()}</span>}>
         <MenuV2.Context gutter={4}>
           <MenuV2.Context.Trigger
             as="button"
@@ -93,7 +99,6 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
             class="lchip"
             data-component="chat-file-chip"
             data-kind={picture() ? "image" : folder() ? "folder" : "file"}
-            data-tone={folder() ? "mention" : toneOf(props.file.path)}
             data-path={props.file.path}
             data-missing={find(props.file.path).kind === "none" ? "" : undefined}
             aria-label={`${folder() ? "Show" : "Open"} ${spoken()}`}
@@ -107,7 +112,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
             }}
             onClick={open}
           >
-            <ChipGlyph path={props.file.path} folder={folder()} />
+            <ChipGlyph path={props.file.path} folder={folder()} picture={picture()} />
             <span class="lchip-label">{props.label}</span>
             <Show when={size()}>{(text) => <span class="lchip-meta">{text()}</span>}</Show>
           </MenuV2.Context.Trigger>
@@ -124,15 +129,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
             </MenuV2.Context.Content>
           </MenuV2.Context.Portal>
         </MenuV2.Context>
-      </span>
-      <Show when={isChip()}>
-        <FilePeek
-          file={ref()}
-          name={fileName(props.file.path)}
-          note={folder() ? "In this chat" : `In this chat${props.file.line ? `, line ${props.file.line}` : ""}`}
-          anchor={() => anchor}
-        />
-      </Show>
+      </TooltipV2>
     </Show>
   )
 }

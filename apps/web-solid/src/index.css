@@ -17,9 +17,9 @@
 @import "./styles/motion.css";
 
 @font-face {
-  font-family: "Instrument Sans";
-  src: url("/fonts/instrument-sans-var.woff2") format("woff2");
-  font-weight: 400 700;
+  font-family: "Hanken Grotesk";
+  src: url("/fonts/hanken-grotesk-latin.woff2") format("woff2");
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
@@ -50,7 +50,7 @@
 
 :root {
   --line-height: 1.45;
-  --font-family-sans: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-family-sans: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-family-display: Fraunces, Georgia, "Times New Roman", serif;
   --font-family-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, ui-monospace, monospace;
   --display-variation: "SOFT" 50, "WONK" 0;
@@ -664,8 +664,13 @@
     line-height: var(--line-height);
     font-optical-sizing: auto;
 
-    -webkit-font-smoothing: auto;
-    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: geometricPrecision;
+    font-feature-settings:
+      "liga" 1,
+      "kern" 1;
+    letter-spacing: -0.01em;
     color: var(--fg);
     background: var(--bg);
   }

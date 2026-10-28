@@ -7,9 +7,6 @@ import {
   type ContextMenuItem as FileTreeContextMenuItem,
   type ContextMenuOpenContext as FileTreeContextMenuOpenContext,
 } from "@pierre/trees"
-import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CollapseAllIcon, ExpandAllIcon, FileAddIcon, FolderAddIcon } from "@kiko/ui/icons"
-import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { setFileDrag } from "../lib/file-drag"
 import "./tree.css"
@@ -17,7 +14,14 @@ import { createParent, dirname, HOME, join, loadExpanded, pathsUnder, ROOT, save
 import { KIKO_FILE_ICONS } from "../lib/entry-icon-pierre"
 import { syncTree } from "./tree-sync"
 
+export type FileTreeHandle = {
+  newFile: () => void
+  newFolder: () => void
+  toggleAll: () => void
+}
+
 export type FileTreeProps = {
+  ref?: (handle: FileTreeHandle) => void
   roomId: string
   files: readonly FileRef[]
   folders?: readonly string[]
@@ -27,6 +31,7 @@ export type FileTreeProps = {
   onNewFile?: (path: string) => void
   onRename?: (from: string, to: string, paths: string[]) => void
   onDelete?: (path: string, paths: string[]) => void
+  searchOpen?: boolean
 }
 
 const asFolder = (path: string) => `${path.replace(/\/+$/, "")}/`
@@ -42,7 +47,7 @@ const TREE_CSS = `
 		--trees-border-color-override: var(--border-100);
 		--trees-indent-guide-bg-override: var(--border-100);
 		--trees-font-family-override: var(--font-family-sans);
-		--trees-font-size-override: var(--type-hint);
+		--trees-font-size-override: var(--type-label);
 		--trees-fg-muted-override: var(--text-300);
 		--trees-border-radius-override: var(--radius-row);
 		--trees-level-gap-override: 14px;
@@ -345,6 +350,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
   )
 
   createEffect(() => {
+    if (props.searchOpen === false) setQuery("")
     const q = query().trim()
     tree?.setSearch(q || null)
   })
@@ -362,59 +368,24 @@ export function FileTree(props: FileTreeProps): JSX.Element {
     setAllOpen(open)
   }
 
+  props.ref?.({ newFile: () => startNew("file"), newFolder: () => startNew("folder"), toggleAll })
+
   return (
     <div class="kt-root" data-component="file-tree">
-      <div class="kt-bar">
-        <SearchField
-          wrapClass="min-w-0 flex-1"
-          aria-label="Search files"
-          placeholder="Search files"
-          spellcheck={false}
-          autocomplete="off"
-          value={query()}
-          onValue={setQuery}
-        />
-        <TooltipV2 placement="bottom" openDelay={500} value="New file">
-          <button
-            type="button"
-            class="kt-btn"
-            aria-label="New file"
-            data-action="new-file"
-            onClick={() => startNew("file")}
-          >
-            <RemixIcon icon={FileAddIcon} size={16} />
-          </button>
-        </TooltipV2>
-        <TooltipV2 placement="bottom" openDelay={500} value="New folder">
-          <button
-            type="button"
-            class="kt-btn"
-            aria-label="New folder"
-            data-action="new-folder"
-            onClick={() => startNew("folder")}
-          >
-            <RemixIcon icon={FolderAddIcon} size={16} />
-          </button>
-        </TooltipV2>
-        <Show when={folderSet().size > 0}>
-          <TooltipV2
-            placement="bottom"
-            openDelay={500}
-            value={allOpen() ? "Collapse all folders" : "Expand all folders"}
-          >
-            <button
-              type="button"
-              class="kt-btn"
-              aria-label={allOpen() ? "Collapse all folders" : "Expand all folders"}
-              onClick={toggleAll}
-            >
-              <Show when={allOpen()} fallback={<RemixIcon icon={ExpandAllIcon} size={16} />}>
-                <RemixIcon icon={CollapseAllIcon} size={16} />
-              </Show>
-            </button>
-          </TooltipV2>
-        </Show>
-      </div>
+      <Show when={props.searchOpen !== false}>
+        <div class="kt-bar">
+          <SearchField
+            wrapClass="min-w-0 flex-1"
+            aria-label="Search files"
+            placeholder="Search files"
+            spellcheck={false}
+            autocomplete="off"
+            value={query()}
+            ref={(input) => queueMicrotask(() => input.focus())}
+            onValue={setQuery}
+          />
+        </div>
+      </Show>
       <div class="kt-host" ref={host} role="region" aria-label="Files" />
       <Show when={wanted().length === 0}>
         <div class="kt-empty">No files yet. Agents save what they make here, and + adds one.</div>

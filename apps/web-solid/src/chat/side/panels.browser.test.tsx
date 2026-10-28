@@ -17,24 +17,21 @@ function routed(ui: () => JSX.Element) {
 }
 
 describe("chat details panel", () => {
-  it("moves between the overview and the rail views, with Close always there", async () => {
+  it("puts files in a full-width header without a separate icon rail", async () => {
     closeAll(CHAT)
     const onClose = vi.fn()
     await using screen = await render(routed(() => <Desk chatId={CHAT} onClose={onClose} />))
-    await expect.element(screen.getByRole("button", { name: "Close chat details" })).toBeVisible()
-    await expect.element(screen.getByRole("heading", { name: "This chat" })).toBeVisible()
-    await screen.getByRole("button", { name: "Routines" }).click()
-    await expect.element(screen.getByRole("heading", { name: "Routines" })).toBeVisible()
-    await expect.element(screen.getByRole("button", { name: "Back" })).not.toBeInTheDocument()
-    await expect.element(screen.getByRole("button", { name: "Routines" })).toHaveAttribute("aria-pressed", "true")
-    expect(screen.container.querySelector('[data-component="sidecar-body"]')?.getAttribute("data-kind")).toBe(
-      "routines",
-    )
-    await screen.getByRole("button", { name: "This chat" }).click()
-    expect(deskView(CHAT)).toBeNull()
-    await expect.element(screen.getByRole("heading", { name: "This chat" })).toBeVisible()
+    openSurface(CHAT, fixedSurface("files"))
+    await expect.element(screen.getByRole("heading", { name: "Files" })).toBeVisible()
+    await expect.element(screen.getByRole("button", { name: "Filter files" })).toBeVisible()
+    await expect.element(screen.getByRole("button", { name: "File options" })).toBeVisible()
+    expect(screen.container.querySelector('[data-component="desk-rail"]')).toBeNull()
+    expect(screen.container.querySelector('[data-component="desk-head"]')).toBeNull()
+    expect(screen.container.querySelector('[data-component="files-panel-header"]')).not.toBeNull()
+    await screen.getByRole("button", { name: "Show file tree" }).click()
+    await expect.element(screen.getByRole("searchbox", { name: "Search files" })).not.toBeInTheDocument()
     await screen.getByRole("button", { name: "Close chat details" }).click()
-    expect(onClose).toHaveBeenCalledOnce()
+    await expect.poll(() => onClose.mock.calls.length).toBe(1)
     closeAll(CHAT)
   })
 
@@ -47,18 +44,17 @@ describe("chat details panel", () => {
     closeAll(CHAT)
   })
 
-  it("shows file tabs only once two files are open, and Back returns to the Files list", async () => {
+  it("shows file tabs only once two files are open", async () => {
     closeAll(CHAT)
     await using screen = await render(routed(() => <Desk chatId={CHAT} onClose={() => {}} />))
     openFile(CHAT, "attachments/mvmm766u-notes.md")
-    await expect.element(screen.getByRole("heading", { name: "notes.md" })).toBeVisible()
+    await expect.element(screen.getByRole("heading", { name: "Files" })).toBeVisible()
+    expect(deskView(CHAT)?.id).toBe("file:attachments/mvmm766u-notes.md")
     await expect.element(screen.getByRole("tablist")).not.toBeInTheDocument()
     openFile(CHAT, "plan.md")
     await expect.element(screen.getByRole("tab", { name: /notes\.md/ })).toBeVisible()
     await expect.element(screen.getByRole("tab", { name: /plan\.md/ })).toHaveAttribute("aria-selected", "true")
     await expect.element(screen.getByRole("button", { name: "Close notes.md" })).toBeVisible()
-    await screen.getByRole("button", { name: "Back" }).click()
-    expect(deskView(CHAT)?.id).toBe("files")
     expect(openFiles(CHAT)).toHaveLength(2)
     closeAll(CHAT)
   })

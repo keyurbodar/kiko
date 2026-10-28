@@ -3,7 +3,7 @@ import type { RunStep } from "@kiko/protocol"
 import { createSignal } from "solid-js"
 import { describe, expect, it, vi } from "vitest"
 import { render } from "../../../test/render"
-import { RunTree } from "./RunTree"
+import { RunTree, toggleRun } from "./RunTree"
 
 const fake = vi.hoisted(() => ({ steps: [] as RunStep[], live: false, helpers: [] as unknown[] }))
 
@@ -60,7 +60,7 @@ const rows = (host: HTMLElement) => [...host.querySelectorAll<HTMLElement>(".run
 const head = (host: HTMLElement) => host.querySelector<HTMLElement>(".run-tree-head")!
 
 describe("RunTree", () => {
-  it("shows the live log as a timeline of every step in order, with a working summary", async () => {
+  it("keeps the live log to one line until it is opened, then lists every step in order", async () => {
     fake.steps = [
       step("ls", { startedAt: START }),
       step("cat", { startedAt: START + 4_000 }),
@@ -69,14 +69,16 @@ describe("RunTree", () => {
     fake.live = true
     await using screen = await render(() => <RunTree windowKey="kiko#0" />)
 
-    expect(head(screen.container).getAttribute("data-live")).toBe("")
-    expect(head(screen.container).textContent).toContain("Working for")
+    expect(rows(screen.container)).toHaveLength(0)
+    expect(head(screen.container)).toBeNull()
+
+    toggleRun("kiko#0")
 
     await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(3))
     const running = rows(screen.container)[2]!
     expect(running.textContent).toContain("split.py")
-    expect(running.querySelector('.run-tree-mark[data-state="running"]')).not.toBeNull()
-    expect(rows(screen.container)[0]!.querySelector('.run-tree-mark[data-state="done"]')).not.toBeNull()
+    expect(running.querySelector('[data-component="mochi"]')).not.toBeNull()
+    toggleRun("kiko#0")
   })
 
   it("shows the first steps of a long log and the rest on request", async () => {
@@ -101,7 +103,7 @@ describe("RunTree", () => {
     ]
     await using screen = await render(() => <RunTree windowKey="kiko#0" count={2} endedAt={START + 75_000} />)
 
-    expect(head(screen.container).textContent).toBe("Worked for 1m 15s2 steps")
+    expect(head(screen.container).textContent).toBe("Ran 2 commands1m 15s")
     expect(rows(screen.container)).toHaveLength(0)
 
     head(screen.container).click()
@@ -116,12 +118,12 @@ describe("RunTree", () => {
   it("tells how long each call took, shown on hover", async () => {
     fake.live = false
     fake.steps = [step("solo", { startedAt: START, endedAt: START + 4_200 })]
-    await using screen = await render(() => <RunTree windowKey="kiko#91" count={1} endedAt={START + 5_000} />)
+    await using screen = await render(() => <RunTree windowKey="kiko#9" count={1} endedAt={START + 5_000} />)
     head(screen.container).click()
     const time = await vi.waitFor(() => rows(screen.container)[0]!.querySelector<HTMLElement>(".run-tree-time")!)
 
     expect(time.textContent).toBe("4.2s")
-    expect(getComputedStyle(time).opacity).toBe("1")
+    expect(getComputedStyle(time).opacity).toBe("0")
   })
 
   it("marks a helper failed until a retry of the failed step works, and never marks the whole log", async () => {
@@ -129,7 +131,7 @@ describe("RunTree", () => {
     const [retried, setRetried] = createSignal(false)
     fake.live = false
     fake.steps = [step("search", { worker, status: "failed", name: "web_search", tool: "search" })]
-    await using screen = await render(() => <RunTree windowKey="kiko#90" count={retried() ? 2 : 1} />)
+    await using screen = await render(() => <RunTree windowKey="kiko#0" count={retried() ? 2 : 1} />)
     head(screen.container).click()
     const helper = () => rows(screen.container).find((row) => row.dataset.kind === "worker")!
 
@@ -151,18 +153,19 @@ describe("RunTree", () => {
     fake.steps = [step("a", { startedAt: START, endedAt: START + 5_000 })]
     {
       await using first = await render(() => <RunTree windowKey="kiko#7" count={1} endedAt={START + 8_000} />)
-      expect(head(first.container).textContent).toBe("Worked for 8s1 step")
+      expect(head(first.container).textContent).toBe("Ran a command8.0s")
     }
     fake.steps = []
     await using screen = await render(() => <RunTree windowKey="kiko#7" count={1} endedAt={START + 8_000} />)
 
-    expect(head(screen.container).textContent).toBe("Worked for 8s1 step")
+    expect(head(screen.container).textContent).toBe("Ran a command8.0s")
   })
 
-  it("folds the live timeline to one line when the reply lands, and opens again on request", async () => {
+  it("folds the steps someone opened while it worked once the reply lands, and opens again on request", async () => {
     fake.steps = [step("ls", { startedAt: START }), step("cat", { startedAt: START + 1_000 })]
     fake.live = true
     await using screen = await render(() => <RunTree windowKey="kiko#3" count={2} />)
+    toggleRun("kiko#3")
     await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(2))
 
     fake.live = false
@@ -176,14 +179,14 @@ describe("RunTree", () => {
     expect(head(screen.container).getAttribute("aria-expanded")).toBe("true")
   })
 
-  it("folds the live timeline to one line when the reply lands even when nobody touched it", async () => {
+  it("leaves a log nobody opened while it worked folded when the reply lands", async () => {
     fake.steps = [step("ls", { startedAt: START })]
     fake.live = true
     await using screen = await render(() => <RunTree windowKey="kiko#4" count={1} />)
     fake.live = false
 
     await vi.waitFor(() => expect(head(screen.container).getAttribute("aria-expanded")).toBe("false"))
-    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(0))
+    expect(rows(screen.container)).toHaveLength(0)
   })
 
   it("shows helpers as private lanes and keeps them out of the step rows", async () => {
@@ -215,46 +218,5 @@ describe("RunTree", () => {
     expect(lanes.textContent).toContain("Private to")
     expect(lanes.querySelectorAll('[data-component="helper-lane"]')).toHaveLength(1)
     fake.helpers = []
-  })
-
-  it("draws a ring for the step that runs, a disc for the ones that finished and a danger disc for a failure", async () => {
-    fake.live = false
-    fake.steps = [
-      step("a", { startedAt: START, endedAt: START + 1_000 }),
-      step("b", { startedAt: START + 1_000, status: "failed", output: "Command timed out after 60s" }),
-    ]
-    await using screen = await render(() => <RunTree windowKey="kiko#70" count={2} />)
-    head(screen.container).click()
-
-    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(2))
-    const marks = [...screen.container.querySelectorAll<HTMLElement>(".run-tree-mark")]
-    expect(marks.map((mark) => mark.dataset.state)).toEqual(["done", "failed"])
-
-    const meta = rows(screen.container)[1]!.querySelector<HTMLElement>(".run-tree-meta")!
-    expect(meta.textContent).toBe("timed out")
-    expect(meta.dataset.tone).toBe("danger")
-  })
-
-  it("keeps the timeline to the last few steps while it works so a long run cannot paint every row", async () => {
-    fake.live = true
-    fake.steps = Array.from({ length: 14 }, (_, i) => step(`s${i}`, { startedAt: START + i * 1_000 }))
-    await using screen = await render(() => <RunTree windowKey="kiko#71" />)
-
-    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(6))
-    const labels = rows(screen.container).map((row) => row.querySelector(".run-tree-label")!.textContent)
-    expect(labels).toEqual(["Ran s8", "Ran s9", "Ran s10", "Ran s11", "Ran s12", "Ran s13"])
-    expect(screen.container.textContent).not.toContain("Show all steps")
-  })
-
-  it("counts the steps and the files it touched above the timeline", async () => {
-    fake.live = false
-    fake.steps = [
-      step("a", { startedAt: START, name: "read", label: "Read /notes.md", tool: "read" }),
-      step("b", { startedAt: START + 1_000, name: "read", label: "Read /plans.pdf", tool: "read" }),
-      step("c", { startedAt: START + 2_000 }),
-    ]
-    await using screen = await render(() => <RunTree windowKey="kiko#72" count={3} endedAt={START + 9_000} />)
-
-    expect(head(screen.container).textContent).toBe("Worked for 9s3 steps, 2 files")
   })
 })

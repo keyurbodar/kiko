@@ -49,8 +49,8 @@ describe("shell", () => {
     const router = firstSignIn()
     await using screen = await render(() => <RouterProvider router={router} />)
 
-    await expect.poll(() => width(screen.container, "sidecar-column")).toBe(defaultWidth(INFO, 1440))
-    expect(width(screen.container, "sidebar-panel")).toBe(defaultWidth(SIDEBAR, 1440))
+    await expect.poll(() => width(screen.container, "sidecar-column")).toBe(defaultWidth(INFO))
+    expect(width(screen.container, "sidebar-panel")).toBe(defaultWidth(SIDEBAR))
     expect(localStorage.getItem("kiko:device:card")).not.toBe("0")
   })
 })
