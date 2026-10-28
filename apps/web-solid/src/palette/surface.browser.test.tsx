@@ -1,5 +1,5 @@
 import "../index.css"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
 import { render } from "../../test/render"
 import type { Choice } from "../commands/registry"
@@ -70,7 +70,10 @@ const source = (over: Partial<TabData> = {}): TabData => ({
 })
 
 let panelEl: HTMLElement | undefined
-const panel = () => page.elementLocator(panelEl ?? document.querySelector<HTMLElement>(".palette-panel")!)
+const panel = () => page.getByTestId("palette-panel")
+const panelGone = () => {
+  if (document.querySelector('[data-testid="palette-panel"]')) throw new Error("the panel is still in the document")
+}
 const tab = (name: string) => page.getByRole("tab", { name })
 
 async function open(over?: Partial<TabData>) {
@@ -175,7 +178,7 @@ describe("command palette", () => {
     await expect.element(menu).toBeVisible()
     await userEvent.keyboard("{ArrowDown}{Enter}")
     expect(ran).toEqual(["pin tokyo"])
-    await expect.element(panel()).not.toBeInTheDocument()
+    await vi.waitFor(panelGone)
   })
 
   it("closes only the actions on the first Escape and the palette on the second", async () => {
@@ -186,7 +189,7 @@ describe("command palette", () => {
     await expect.element(page.getByRole("menu")).not.toBeInTheDocument()
     await expect.element(panel()).toBeVisible()
     await userEvent.keyboard("{Escape}")
-    await expect.element(panel()).not.toBeInTheDocument()
+    await vi.waitFor(panelGone)
   })
 
   it("walks folders on the Files tab with the arrow keys and shows the path", async () => {
@@ -230,6 +233,6 @@ describe("command palette", () => {
       expect(getComputedStyle(panelEl!).visibility).toBe("hidden")
       expect(getComputedStyle(scrim, "::before").animationDuration).toBe("0.08s")
     }
-    await expect.element(panel()).not.toBeInTheDocument()
+    await vi.waitFor(panelGone)
   })
 })

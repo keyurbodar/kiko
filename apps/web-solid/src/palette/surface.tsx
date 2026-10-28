@@ -400,6 +400,7 @@ export function PaletteSurface(props: { source: TabData }) {
         >
           <Cmdk
             class="palette-panel"
+            data-testid="palette-panel"
             label="Command palette"
             loop
             disablePointerSelection
