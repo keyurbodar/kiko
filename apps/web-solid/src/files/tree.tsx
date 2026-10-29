@@ -517,8 +517,8 @@ export function FileTree(props: FileTreeProps): JSX.Element {
     setDragging(row.path)
     if (!event.dataTransfer) return
     event.dataTransfer.effectAllowed = "copyMove"
-    if (row.kind === "file") setFileDrag(event.dataTransfer, row.path)
-    else event.dataTransfer.setData("text/plain", row.path)
+    setFileDrag(event.dataTransfer, row.path)
+    if (row.kind !== "file") event.dataTransfer.setData("text/plain", row.path)
   }
 
   const freshAt = (row: FileTreeVisibleRow) => {

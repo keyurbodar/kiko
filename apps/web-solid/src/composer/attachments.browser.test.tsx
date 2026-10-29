@@ -160,6 +160,22 @@ describe("composer attachments", () => {
     expect(tray(screen.container).length).toBe(1)
   })
 
+  it("drops a folder dragged out of the files tree as a folder reference", async () => {
+    using _xhr = fakeXhr()
+    await using screen = await mountComposer()
+    const data = new DataTransfer()
+    data.setData("application/x-kiko-file", "docs/")
+
+    document.dispatchEvent(new DragEvent("dragover", { dataTransfer: data, bubbles: true, cancelable: true }))
+    await expect.poll(() => document.querySelector('[data-component="composer-drop-overlay"]')).not.toBeNull()
+
+    screen.editor.dispatchEvent(new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true }))
+    await expect
+      .poll(() => screen.editor.querySelector("[data-file-ref]")?.getAttribute("data-file-ref") ?? "")
+      .toBe("docs")
+    expect(document.querySelector('[data-component="composer-drop-overlay"]')).toBeNull()
+  })
+
   it("clears the drop overlay when another surface takes the drop", async () => {
     using _xhr = fakeXhr()
     await using _screen = await mountComposer()

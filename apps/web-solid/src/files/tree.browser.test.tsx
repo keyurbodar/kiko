@@ -3,6 +3,7 @@ import { createSignal } from "solid-js"
 import { describe, expect, it, vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
 import { render } from "../../test/render"
+import { droppedFilePath } from "../lib/file-drag"
 import { FileTree } from "./tree"
 
 const ref = (name: string): FileRef => ({ id: name, name, size: 10, type: "text/markdown" })
@@ -118,6 +119,23 @@ describe("file tree", () => {
     await expect.element(page.getByRole("dialog")).toBeVisible()
     await page.getByRole("button", { name: "Delete" }).click()
     expect(onDelete).toHaveBeenCalledWith("a.md", ["a.md"])
+  })
+
+  it("starts a reference drag from a folder row as well as a file row", async () => {
+    await using screen = await render(
+      () => <FileTree roomId="drag" files={[ref("docs/a.md"), ref("root.md")]} folders={["docs"]} />,
+      { container: boxed() },
+    )
+    await expect.element(screen.getByRole("treeitem", { name: "docs" })).toBeVisible()
+    const dragOf = (path: string) => {
+      const data = new DataTransfer()
+      rowOf(screen.container, path)!.dispatchEvent(
+        new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer: data }),
+      )
+      return droppedFilePath(data)
+    }
+    expect(dragOf("docs/")).toBe("docs/")
+    expect(dragOf("root.md")).toBe("root.md")
   })
 
   it("starts a new file inside a folder from the context menu", async () => {
