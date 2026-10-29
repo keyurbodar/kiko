@@ -124,7 +124,7 @@ export class RoomDelivery {
   }
   async deliverWakes(): Promise<void> {
     for (const report of this.d.workspace.pendingReports()) {
-      await this.wake({
+      const result = await this.wake({
         id: `task-report:${report.seq}`,
         to: report.recipient,
         why: "task_updated",
@@ -132,7 +132,7 @@ export class RoomDelivery {
         chain: report.chain,
         seq: report.seq,
       })
-      this.d.workspace.markReported(report.seq)
+      if (result === "delivered") this.d.workspace.markReported(report.seq)
     }
     const lead = this.d.members.list().find((m) => m.lead)?.slug
     for (const wake of this.d.workspace.pendingWakes()) {
@@ -140,7 +140,7 @@ export class RoomDelivery {
         this.d.workspace.markWoken(wake.taskId)
         continue
       }
-      await this.wake({
+      const result = await this.wake({
         id: `unblocked:${wake.taskId}`,
         to: wake.owner,
         why: "task_unblocked",
@@ -148,7 +148,7 @@ export class RoomDelivery {
         chain: wake.chain,
         seq: wake.seq,
       })
-      this.d.workspace.markWoken(wake.taskId)
+      if (result === "delivered") this.d.workspace.markWoken(wake.taskId)
     }
   }
 }

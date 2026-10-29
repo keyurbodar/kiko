@@ -748,9 +748,10 @@ export class RoomLog {
     if (!membership) return []
     return this.sql
       .exec<MessageRow>(
-        "SELECT * FROM messages WHERE room_id = ? AND seq > ? AND json_extract(sender, '$.kind') = 'human' ORDER BY seq",
+        "SELECT * FROM messages WHERE room_id = ? AND seq > ? AND json_extract(sender, '$.kind') = 'human' ORDER BY seq LIMIT ?",
         this.roomId,
         Math.max(after, membership.added_seq),
+        limit,
       )
       .toArray()
       .flatMap((row): Pending[] => {
