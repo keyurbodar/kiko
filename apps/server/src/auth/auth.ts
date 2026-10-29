@@ -2,6 +2,7 @@ import { verifyClerkToken } from "@kiko/durable/clerk-token"
 import * as Effect from "effect/Effect"
 import * as Result from "effect/Result"
 import { type ReleaseEnv, releaseConfig } from "../lib/release-config"
+import { readCapped } from "../lib/read-capped"
 
 export interface AuthEnv extends ReleaseEnv {
   SESSION_SECRET: string
@@ -106,8 +107,9 @@ export async function authRoute(request: Request, env: AuthEnv): Promise<Respons
   if (!pathname.startsWith(`${AUTH_PATH}/`)) return null
   if (request.method !== "POST") return Response.json({ message: "method not allowed" }, { status: 405 })
   if (pathname === `${AUTH_PATH}/access-code` && env.ACCESS_CODE) {
-    const input = (await request.json().catch(() => null)) as { code?: unknown } | null
-    const given = typeof input?.code === "string" ? input.code : ""
+    const input = await readJson(request)
+    if (!input) return tooLarge()
+    const given = typeof input.code === "string" ? input.code : ""
     if (!(await matches(env.ACCESS_CODE, given))) {
       return Response.json({ message: "That access code is not right" }, { status: 401 })
     }
@@ -117,9 +119,27 @@ export async function authRoute(request: Request, env: AuthEnv): Promise<Respons
   return null
 }
 
+const MAX_AUTH_BODY = 8_192
+
+function tooLarge(): Response {
+  return Response.json({ message: "body is too large" }, { status: 413 })
+}
+
+async function readJson(request: Request): Promise<Record<string, unknown> | null> {
+  const text = await readCapped(request, MAX_AUTH_BODY)
+  if (text === null) return null
+  try {
+    const value: unknown = JSON.parse(text)
+    return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+  } catch {
+    return {}
+  }
+}
+
 async function clerkSignIn(request: Request, env: AuthEnv, ownerId: string): Promise<Response> {
-  const input = (await request.json().catch(() => null)) as { token?: unknown } | null
-  if (typeof input?.token !== "string")
+  const input = await readJson(request)
+  if (!input) return tooLarge()
+  if (typeof input.token !== "string")
     return Response.json({ code: "token_invalid", message: "token is required" }, { status: 400 })
   const verdict = await Effect.runPromise(
     Effect.result(verifyClerkToken(releaseConfig(env).clerk, input.token, Date.now())),

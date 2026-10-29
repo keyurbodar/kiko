@@ -23,13 +23,14 @@ const sendExit = (ws: WebSocket, request: IncomingRequest, exit: Exit.Exit<unkno
   try {
     send(ws, exitFrame(request.id, codec ? codec.encodeExit(exit) : null))
   } catch (e) {
-    send(ws, dieFrame(request.id, `Kiko could not encode the ${request.tag} reply: ${String(e)}`))
+    console.error(`rpc ${request.tag} reply could not be encoded`, e)
+    send(ws, dieFrame(request.id, "Kiko could not answer that. Try again."))
   }
 }
 
 const storageOnDefect = (tag: string) =>
   Effect.catchDefect((defect: unknown) => {
-    console.error(`rpc ${tag} failed: ${defect instanceof Error ? defect.message : String(defect)}`)
+    console.error(`rpc ${tag} failed`, defect)
     return Effect.fail(STORAGE_ERROR)
   })
 
