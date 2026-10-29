@@ -12,6 +12,7 @@ import type { Live, LiveDeps, LiveFrame } from "./types"
 const CURSOR_INTERVAL_MS = Math.round(1000 / 30)
 const CURSOR_EPSILON = 0.0008
 const RELAY_MAX_IN_FLIGHT = 2
+const RELAY_MIN_ACK_MS = 250
 const RELAY_FPS = 8
 const RELAY_WIDTH = 1280
 const RELAY_QUALITY = 60
@@ -66,7 +67,7 @@ class Daemon implements Live {
   onLive(frame: LiveFrame): void {
     if (this.closed) return
     if (!frame.on || !this.deps.policy.live) {
-      this.stopWatching()
+      this.stopRelay()
       return
     }
     this.startRelay(frame)
@@ -146,7 +147,9 @@ class Daemon implements Live {
     if (!peer) return
     this.sessions.delete(id)
     peer.close()
-    if (this.sessions.size > 0 || this.mjpeg) return
+    if (this.sessions.size > 0) return
+    this.stopRtc()
+    if (this.mjpeg) return
     this.stopWatching()
   }
 
@@ -186,14 +189,21 @@ class Daemon implements Live {
   }
 
   private startRelay(frame: LiveFrame): void {
-    this.stopCapture()
+    if (this.relay) return
+    if (this.sessions.size === 0) this.stopCapture()
     const ffmpeg = findBinary("ffmpeg", this.deps.configDir)
     if (!ffmpeg) return
-    this.relay = { inFlight: new Set(), latest: null, seq: 0 }
+    const fps = clamp(frame.fps, 1, 15, RELAY_FPS)
+    this.relay = {
+      inFlight: new Map(),
+      latest: null,
+      seq: 0,
+      ackMs: Math.max(RELAY_MIN_ACK_MS, Math.round(2000 / fps)),
+    }
     this.mjpeg = startMjpeg({
       ffmpeg,
       screen: this.screen,
-      fps: clamp(frame.fps, 1, 15, RELAY_FPS),
+      fps,
       maxWidth: clamp(frame.maxWidth, 320, 1920, RELAY_WIDTH),
       quality: clamp(frame.quality, 10, 95, RELAY_QUALITY),
       handlers: {
@@ -215,11 +225,14 @@ class Daemon implements Live {
 
   private flushRelay(): void {
     const relay = this.relay
-    if (!relay || !relay.latest || relay.inFlight.size >= RELAY_MAX_IN_FLIGHT) return
+    if (!relay) return
+    const cutoff = Date.now() - relay.ackMs
+    for (const [seq, sentAt] of relay.inFlight) if (sentAt <= cutoff) relay.inFlight.delete(seq)
+    if (!relay.latest || relay.inFlight.size >= RELAY_MAX_IN_FLIGHT) return
     const image = relay.latest
     relay.latest = null
     relay.seq += 1
-    relay.inFlight.add(relay.seq)
+    relay.inFlight.set(relay.seq, Date.now())
     this.deps.sendBinary(
       encodeFrame(
         {
@@ -253,12 +266,23 @@ class Daemon implements Live {
     this.h264?.requestKeyframe()
   }
 
-  private stopCapture(): void {
+  private stopRtc(): void {
     this.gop = []
     this.h264?.stop()
     this.h264 = null
+  }
+
+  private stopCapture(): void {
+    this.stopRtc()
     this.mjpeg?.stop()
     this.mjpeg = null
+  }
+
+  private stopRelay(): void {
+    this.relay = null
+    this.mjpeg?.stop()
+    this.mjpeg = null
+    if (this.sessions.size === 0) this.stopWatching()
   }
 
   private stopWatching(): void {
@@ -280,8 +304,9 @@ export function createLive(deps: LiveDeps): Live {
 
 type Relay = {
   seq: number
-  inFlight: Set<number>
+  inFlight: Map<number, number>
   latest: Uint8Array | null
+  ackMs: number
 }
 
 function clamp(value: number | undefined, min: number, max: number, fallback: number): number {

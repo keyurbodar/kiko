@@ -242,6 +242,7 @@ export function startSession(pcId: string, hooks: Hooks): Session {
         const frame = Option.flatten(Option.fromNullishOr(valueOf(result)))
         if (Option.isNone(frame)) return
         relay?.frame(frame.value)
+        void run(owner.commands.pcAck, { pcId, seq: frame.value.seq })
         setMode("relay")
       },
       { immediate: true },

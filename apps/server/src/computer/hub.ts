@@ -38,6 +38,7 @@ const MAX_WAITERS = 8
 const STUN: IceServer = { urls: "stun:stun.cloudflare.com:3478" }
 const TURN_TTL_S = 3600
 const TURN_CACHE_MS = 30 * 60_000
+const TURN_TIMEOUT_MS = 5_000
 const RELAY = { fps: 8, maxWidth: 1280, quality: 60 } as const
 const CLOSE = { replaced: 4000, notReady: 1008, protocol: 4001 } as const
 
@@ -358,6 +359,8 @@ export class ComputerHub {
     ws.serializeAttachment({ ...saved, hello } satisfies PcAttachment)
     this.memory.set(saved.id, { ...saved, hello })
     this.send(ws, { t: "welcome", id: saved.id, name: this.name(saved.id), version: BACKEND.version })
+    this.tellHolder(saved.id, saved.holder)
+    this.syncRelay(saved.id)
     void this.iceServers().catch(() => {})
     this.push()
   }
@@ -547,6 +550,7 @@ export class ComputerHub {
           method: "POST",
           headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
           body: JSON.stringify({ ttl: TURN_TTL_S }),
+          signal: AbortSignal.timeout(TURN_TIMEOUT_MS),
         },
       )
       if (!response.ok) return servers
@@ -653,6 +657,7 @@ export class ComputerHub {
     const saved = attachmentOf(ws)
     this.unwatch(ws)
     if (!saved) return
+    this.relaying.delete(saved.id)
     const replaced = this.sockets(saved.id).some((other) => other !== ws && other.readyState === WebSocket.OPEN)
     if (!replaced) {
       for (const [callId, call] of this.pending)

@@ -24,6 +24,7 @@ const PONGS = new Set(["pong", JSON.stringify({ _tag: "Pong" })])
 const MIN_BACKOFF_MS = 1_000
 const MAX_BACKOFF_MS = 300_000
 const STABLE_MS = 30_000
+const OPEN_TIMEOUT_MS = 20_000
 const DEFAULT_DEADLINE_MS = 60_000
 const MAX_DEADLINE_MS = 600_000
 
@@ -127,14 +128,27 @@ class Link {
     return new Promise<number | null>((resolve) => {
       let opened: number | null = null
       let settled = false
+      let timer: ReturnType<typeof setTimeout> | null = null
+      let socket: WebSocket | null = null
       const finish = () => {
         if (settled) return
         settled = true
+        if (timer) clearTimeout(timer)
+        timer = null
         resolve(opened)
       }
-      const socket = this.createSocket(url, headers, {
+      timer = setTimeout(() => {
+        log.warn(`no answer from ${endpoint.url} after ${OPEN_TIMEOUT_MS / 1000}s; retrying`)
+        try {
+          socket?.close(4000, "connect timed out")
+        } catch {}
+        finish()
+      }, OPEN_TIMEOUT_MS)
+      socket = this.createSocket(url, headers, {
         opened: (at) => {
           opened = at
+          if (timer) clearTimeout(timer)
+          timer = null
         },
         closed: finish,
       })

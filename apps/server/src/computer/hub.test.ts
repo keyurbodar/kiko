@@ -194,3 +194,106 @@ describe("pairing again", () => {
     }),
   )
 })
+
+type SentFrame = { t: string; holder?: string; on?: boolean }
+
+function pcSocket(id: string, holder: "agent" | "human" = "agent") {
+  const sent: SentFrame[] = []
+  let attachment: unknown = { kind: "pc", id, hello: null, holder, at: 1 }
+  const ws = {
+    send: (text: string) => sent.push(JSON.parse(text) as SentFrame),
+    serializeAttachment: (value: unknown) => {
+      attachment = structuredClone(value)
+    },
+    deserializeAttachment: () => structuredClone(attachment),
+    readyState: WebSocket.OPEN,
+    close: () => {},
+  } as unknown as WebSocket
+  return { ws, sent }
+}
+
+function liveHub(tabs: readonly WebSocket[], pcs: readonly WebSocket[]) {
+  const store = {
+    get: (id: string) => ({ id, name: "box" }),
+    list: () => [],
+  }
+  const deps = {
+    ctx: { getWebSockets: (tag: string) => (tag === "tab" ? [...tabs] : [...pcs]) },
+    env: {},
+    store,
+    ownerId: "owner",
+    released: () => {},
+    wakeup: { set: () => Promise.resolve(), clear: () => Promise.resolve() },
+  } as unknown as HubDeps
+  return new ComputerHub(deps)
+}
+
+describe("daemon reconnect", () => {
+  it.effect("tells a reconnecting daemon who holds the screen", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1", "human")
+      const computers = liveHub([], [pc.ws])
+
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      assert.deepStrictEqual(
+        pc.sent.map((frame) => frame.t),
+        ["welcome", "control"],
+      )
+      assert.strictEqual(pc.sent[1]?.holder, "human")
+    }),
+  )
+
+  it.effect("arms the relay again when a disconnected daemon comes back", () =>
+    Effect.promise(async () => {
+      const watching = tab()
+      watching.ws.serializeAttachment({
+        user: { ready: true },
+        rooms: {},
+        rpc: [{ requestId: "9", stream: "pc:pc-1" }],
+      })
+      const first = pcSocket("pc-1")
+      const pcs: WebSocket[] = [first.ws]
+      const computers = liveHub([watching.ws], pcs)
+
+      await computers.message(first.ws, JSON.stringify(HELLO))
+      await computers.close(first.ws)
+      const second = pcSocket("pc-1")
+      pcs.splice(0, pcs.length, second.ws)
+      await computers.message(second.ws, JSON.stringify(HELLO))
+
+      assert.isTrue(first.sent.some((frame) => frame.t === "live" && frame.on === true))
+      assert.isTrue(second.sent.some((frame) => frame.t === "live" && frame.on === true))
+    }),
+  )
+})
+
+describe("TURN credentials", () => {
+  it.effect("gives the request a timeout and does not wedge later calls on a failed mint", () =>
+    Effect.promise(async () => {
+      let signal: AbortSignal | undefined
+      let calls = 0
+      const deps = {
+        ctx: { getWebSockets: () => [] },
+        env: { CF_TURN_KEY_ID: "key", CF_TURN_KEY_TOKEN: "token" },
+        store: { get: () => null, list: () => [] },
+        ownerId: "owner",
+        released: () => {},
+        wakeup: { set: () => Promise.resolve(), clear: () => Promise.resolve() },
+        fetch: ((_url: string, init: RequestInit) => {
+          calls += 1
+          signal = init.signal ?? undefined
+          return Promise.reject(new DOMException("The operation was aborted.", "AbortError"))
+        }) as unknown as typeof fetch,
+      } as unknown as HubDeps
+      const computers = new ComputerHub(deps)
+
+      const servers = await computers.iceServers()
+      await computers.iceServers()
+
+      assert.deepStrictEqual(servers, [{ urls: "stun:stun.cloudflare.com:3478" }])
+      assert.isTrue(signal instanceof AbortSignal)
+      assert.strictEqual(calls, 2)
+    }),
+  )
+})
