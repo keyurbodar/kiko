@@ -36,7 +36,19 @@ export const FILE_STEPS: Step[] = [
 	`,
 ]
 
+export const UPLOAD_STEPS: Step[] = [`ALTER TABLE upload ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0`]
+
 const partKey = (uploadId: string, n: number) => `part:${uploadId}:${n}`
+const stagingKey = () => `staging:${Date.now()}:${crypto.randomUUID()}`
+
+function inOrder(parts: readonly { partNumber: number }[]): boolean {
+  let last = 0
+  for (const part of parts) {
+    if (!Number.isSafeInteger(part.partNumber) || part.partNumber <= last) return false
+    last = part.partNumber
+  }
+  return parts.length > 0
+}
 
 export class BlobStore {
   constructor(private readonly ctx: DurableObjectState) {}
@@ -64,6 +76,11 @@ export class BlobStore {
     sql.exec("DELETE FROM obj WHERE key IN (SELECT value FROM json_each(?))", list)
   }
 
+  #needRoom(key: string, size: number): void {
+    if (size > MAX_SPACE_BYTES - this.#used(key))
+      throw new UploadError({ reason: "storage_full", message: STORAGE_FULL })
+  }
+
   async #write(
     key: string,
     body: ReadableStream<Uint8Array> | Uint8Array,
@@ -71,7 +88,7 @@ export class BlobStore {
     meta: Record<string, string>,
   ): Promise<StoredInfo> {
     const sql = this.ctx.storage.sql
-    this.#drop([key])
+    const staging = stagingKey()
     const room = MAX_SPACE_BYTES - this.#used(key)
     let size = 0
     let idx = 0
@@ -91,7 +108,7 @@ export class BlobStore {
         const piece = joined.slice(offset, offset + CHUNK_BYTES)
         sql.exec(
           "INSERT INTO chunk (key, idx, pos, len, data) VALUES (?, ?, ?, ?, ?)",
-          key,
+          staging,
           idx++,
           written,
           piece.length,
@@ -123,18 +140,23 @@ export class BlobStore {
       }
       flush(true)
     } catch (e) {
-      this.#drop([key])
+      this.#drop([staging])
       throw e
     }
     const info = { size, type, meta, etag: `"${crypto.randomUUID()}"` }
-    sql.exec(
-      "INSERT INTO obj (key, size, type, meta, etag) VALUES (?, ?, ?, ?, ?)",
-      key,
-      size,
-      type,
-      JSON.stringify(meta),
-      info.etag,
-    )
+    this.ctx.storage.transactionSync(() => {
+      this.#drop([key])
+      this.#needRoom(key, size)
+      sql.exec("UPDATE chunk SET key = ? WHERE key = ?", key, staging)
+      sql.exec(
+        "INSERT INTO obj (key, size, type, meta, etag) VALUES (?, ?, ?, ?, ?)",
+        key,
+        size,
+        type,
+        JSON.stringify(meta),
+        info.etag,
+      )
+    })
     return info
   }
 
@@ -197,11 +219,12 @@ export class BlobStore {
   startUpload(key: string, type: string, meta: Record<string, string>): string {
     const id = crypto.randomUUID()
     this.ctx.storage.sql.exec(
-      "INSERT INTO upload (id, key, type, meta) VALUES (?, ?, ?, ?)",
+      "INSERT INTO upload (id, key, type, meta, created_at) VALUES (?, ?, ?, ?, ?)",
       id,
       key,
       type,
       JSON.stringify(meta),
+      Date.now(),
     )
     return id
   }
@@ -224,18 +247,25 @@ export class BlobStore {
         .exec<{ type: string; meta: string }>("SELECT type, meta FROM upload WHERE id = ? AND key = ?", uploadId, key)
         .toArray()[0]
       if (!upload) throw new UploadError({ reason: "no_upload", message: "no such upload" })
-      this.#drop([key])
-      let size = 0
-      let chunks = 0
-      for (const part of parts) {
+      if (!inOrder(parts)) throw new UploadError({ reason: "part_order", message: "list each part once, in order" })
+      const found = parts.map((part) => {
         const from = partKey(uploadId, part.partNumber)
         const info = this.#info(from)
         if (!info || info.etag !== part.etag)
           throw new UploadError({ reason: "part_missing", message: "a part is missing" })
-        sql.exec("UPDATE chunk SET key = ?, idx = idx + ?, pos = pos + ? WHERE key = ?", key, chunks, size, from)
-        chunks = sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM chunk WHERE key = ?", key).one().n
-        size += info.size
-        sql.exec("DELETE FROM obj WHERE key = ?", from)
+        const chunks = sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM chunk WHERE key = ?", from).one().n
+        return { from, info, chunks }
+      })
+      const size = found.reduce((n, f) => n + f.info.size, 0)
+      this.#drop([key])
+      this.#needRoom(key, size)
+      let moved = 0
+      let at = 0
+      for (const f of found) {
+        sql.exec("UPDATE chunk SET key = ?, idx = idx + ?, pos = pos + ? WHERE key = ?", key, moved, at, f.from)
+        moved += f.chunks
+        at += f.info.size
+        sql.exec("DELETE FROM obj WHERE key = ?", f.from)
       }
       const info = {
         size,
@@ -254,6 +284,28 @@ export class BlobStore {
       sql.exec("DELETE FROM upload WHERE id = ?", uploadId)
       return info
     })
+  }
+
+  sweep(before: number, live: readonly string[]): number {
+    const sql = this.ctx.storage.sql
+    const uploads = sql
+      .exec<{ id: string }>(
+        "SELECT id FROM upload WHERE created_at < ?1 AND id NOT IN (SELECT value FROM json_each(?2))",
+        before,
+        JSON.stringify(live),
+      )
+      .toArray()
+    for (const row of uploads) this.abort(row.id)
+    const staging = sql
+      .exec<{ key: string }>("SELECT DISTINCT key FROM chunk WHERE key >= 'staging:' AND key < 'staging;'")
+      .toArray()
+    let swept = uploads.length
+    for (const { key } of staging)
+      if (Number(key.split(":")[1]) < before) {
+        sql.exec("DELETE FROM chunk WHERE key = ?", key)
+        swept++
+      }
+    return swept
   }
 
   abort(uploadId: string): void {
