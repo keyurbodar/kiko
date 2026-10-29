@@ -139,6 +139,8 @@ export class RoomWorkspace implements Workspace {
       return fail(`task ${id} has no owner. set it to doing to take it`)
     const starts =
       patch.status === undefined &&
+      by.kind === "agent" &&
+      by.slug === owner &&
       taking &&
       !current.owner &&
       (current.status === "todo" || current.status === "blocked") &&
@@ -193,12 +195,29 @@ export class RoomWorkspace implements Workspace {
   private openDeps(id: string): string[] {
     return this.sql
       .exec<{ id: string }>(
-        "SELECT d.depends_on AS id FROM ws_task_deps AS d JOIN ws_tasks AS t ON t.id = d.depends_on WHERE ((d.task_id = ?1 AND t.status <> 'done') AND d.room_id = ?2) AND t.room_id = ?2",
+        "SELECT d.depends_on AS id FROM ws_task_deps AS d JOIN ws_tasks AS t ON t.id = d.depends_on WHERE ((d.task_id = ?1 AND t.status NOT IN ('done', 'cancelled')) AND d.room_id = ?2) AND t.room_id = ?2",
         id,
         this.log.roomId,
       )
       .toArray()
       .map((r) => r.id)
+  }
+
+  private ready(task: Task): boolean {
+    return (
+      Boolean(task.owner) && (task.status === "todo" || task.status === "blocked") && !this.openDeps(task.id).length
+    )
+  }
+
+  private armWake(id: string, seq: number): void {
+    const task = this.task(id)
+    if (!task || !this.ready(task)) return
+    this.sql.exec(
+      "UPDATE ws_tasks SET unblocked_seq = ?1, woken_at = NULL WHERE id = ?2 AND ws_tasks.room_id = ?3",
+      seq,
+      id,
+      this.log.roomId,
+    )
   }
 
   private emit(by: Actor, task: Task): RoomEvent {
@@ -253,14 +272,7 @@ export class RoomWorkspace implements Workspace {
       const task = this.task(input.id)
       if (!task) throw new Error(`task ${input.id} missing after insert`)
       const event = this.emit(by, task)
-      if (owner && by.kind === "agent" && owner !== by.slug && !this.openDeps(input.id).length) {
-        this.sql.exec(
-          "UPDATE ws_tasks SET unblocked_seq = ?1 WHERE id = ?2 AND ws_tasks.room_id = ?3",
-          event.seq,
-          input.id,
-          this.log.roomId,
-        )
-      }
+      if ((by.kind === "agent" ? by.slug : null) !== owner) this.armWake(input.id, event.seq)
       return { ok: true as const, value: task, events: [event] }
     })
   }
@@ -304,34 +316,38 @@ export class RoomWorkspace implements Workspace {
       )
       const emitted = this.emit(by, next)
       const events = [emitted]
-      if (status === "done" && current.status !== "done" && lead) this.markUnblocked(id, emitted.seq)
+      if (CLOSED.has(status) && !CLOSED.has(current.status)) this.markUnblocked(id, emitted.seq)
+      this.wakeChangedTask(by, current, next, emitted.seq)
       return { ok: true as const, value: next, events }
     })
   }
 
-  private markUnblocked(doneId: string, seq: number): void {
-    const dependents = this.sql
+  private wakeChangedTask(by: Actor, current: Task, next: Task, seq: number): void {
+    const actor = by.kind === "agent" ? by.slug : null
+    if (actor === next.owner) return
+    if (next.owner === current.owner && this.ready(current)) return
+    this.armWake(next.id, seq)
+  }
+
+  private dependents(id: string): string[] {
+    return this.sql
       .exec<{ id: string }>(
         "SELECT task_id AS id FROM ws_task_deps WHERE depends_on = ?1 AND ws_task_deps.room_id = ?2",
-        doneId,
-        this.log.roomId,
-      )
-      .toArray()
-    for (const { id } of dependents) {
-      const t = this.task(id)
-      if (!t || CLOSED.has(t.status) || this.openDeps(id).length) continue
-      this.sql.exec(
-        "UPDATE ws_tasks SET unblocked_seq = ?1 WHERE (id = ?2 AND unblocked_seq IS NULL) AND ws_tasks.room_id = ?3",
-        seq,
         id,
         this.log.roomId,
       )
-    }
+      .toArray()
+      .map((r) => r.id)
+  }
+
+  private markUnblocked(closedId: string, seq: number): void {
+    for (const id of this.dependents(closedId)) this.armWake(id, seq)
   }
 
   remove(id: string): Result<null> {
     return this.storage.transactionSync(() => {
       if (!this.task(id)) return { ok: true as const, value: null, events: [] }
+      const dependents = this.dependents(id)
       this.sql.exec("DELETE FROM ws_tasks WHERE id = ?1 AND ws_tasks.room_id = ?2", id, this.log.roomId)
       this.sql.exec(
         "DELETE FROM ws_task_deps WHERE (task_id = ?1 OR depends_on = ?2) AND ws_task_deps.room_id = ?3",
@@ -339,7 +355,9 @@ export class RoomWorkspace implements Workspace {
         id,
         this.log.roomId,
       )
-      return { ok: true as const, value: null, events: [this.log.append("human", { t: "task_removed", id })] }
+      const removed = this.log.append("human", { t: "task_removed", id })
+      for (const dependent of dependents) this.armWake(dependent, removed.seq)
+      return { ok: true as const, value: null, events: [removed] }
     })
   }
 
@@ -389,8 +407,22 @@ export class RoomWorkspace implements Workspace {
       .map((r) => ({ ...r, chain: r.chain ? (JSON.parse(r.chain) as Chain) : null }))
   }
 
-  markReported(seq: number): void {
-    this.sql.exec("DELETE FROM ws_task_reports WHERE seq = ?1 AND ws_task_reports.room_id = ?2", seq, this.log.roomId)
+  claimReport(seq: number): boolean {
+    return (
+      this.sql.exec("DELETE FROM ws_task_reports WHERE seq = ?1 AND ws_task_reports.room_id = ?2", seq, this.log.roomId)
+        .rowsWritten > 0
+    )
+  }
+
+  requeueReport(report: { seq: number; recipient: AgentSlug; body: string; chain: Chain | null }): void {
+    this.sql.exec(
+      "INSERT OR IGNORE INTO ws_task_reports (seq, recipient, body, chain, room_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+      report.seq,
+      report.recipient,
+      report.body,
+      report.chain ? JSON.stringify(report.chain) : null,
+      this.log.roomId,
+    )
   }
 
   chainOf(id: string): Chain | null {
@@ -402,6 +434,25 @@ export class RoomWorkspace implements Workspace {
       )
       .toArray()[0]?.chain
     return raw ? (JSON.parse(raw) as Chain) : null
+  }
+
+  claimWake(taskId: string): boolean {
+    return (
+      this.sql.exec(
+        "UPDATE ws_tasks SET woken_at = ?1 WHERE (id = ?2 AND woken_at IS NULL AND NOT unblocked_seq IS NULL) AND ws_tasks.room_id = ?3",
+        this.now(),
+        taskId,
+        this.log.roomId,
+      ).rowsWritten > 0
+    )
+  }
+
+  requeueWake(taskId: string): void {
+    this.sql.exec(
+      "UPDATE ws_tasks SET woken_at = NULL WHERE id = ?1 AND ws_tasks.room_id = ?2",
+      taskId,
+      this.log.roomId,
+    )
   }
 
   markWoken(taskId: string): void {

@@ -7,6 +7,7 @@ type Asked = { id: string; askee: AgentSlug; send: string | null }
 type RemoteAsk = { asker: AgentSlug; answer: string | null }
 
 const KEEP_ASKS_MS = 7 * 86_400_000
+const ASK_HOLD_MS = 30 * 60_000
 
 export class Asks {
   constructor(
@@ -81,13 +82,14 @@ export class Asks {
       .toArray()
   }
 
-  owes(askee: AgentSlug, asker: AgentSlug): boolean {
+  owes(askee: AgentSlug, asker: AgentSlug, now = Date.now()): boolean {
     return (
       this.sql
         .exec(
-          "SELECT 1 FROM agent_asks WHERE (asker = ?1 AND askee = ?2 AND answer IS NULL AND remote IS NULL) AND agent_asks.room_id = ?3 LIMIT 1",
+          "SELECT 1 FROM agent_asks WHERE (asker = ?1 AND askee = ?2 AND answer IS NULL AND remote IS NULL AND at >= ?3) AND agent_asks.room_id = ?4 LIMIT 1",
           asker,
           askee,
+          now - ASK_HOLD_MS,
           this.roomId,
         )
         .toArray().length > 0
@@ -125,11 +127,12 @@ export class Asks {
     )
   }
 
-  owed(askee: AgentSlug): Unanswered[] {
+  owed(askee: AgentSlug, now = Date.now()): Unanswered[] {
     return this.sql
       .exec<Unanswered>(
-        "SELECT id, asker, remote, message_id AS messageId FROM agent_asks WHERE (askee = ?1 AND answer IS NULL) AND agent_asks.room_id = ?2 ORDER BY at",
+        "SELECT id, asker, remote, message_id AS messageId FROM agent_asks WHERE (askee = ?1 AND answer IS NULL AND at >= ?2) AND agent_asks.room_id = ?3 ORDER BY at",
         askee,
+        now - ASK_HOLD_MS,
         this.roomId,
       )
       .toArray()

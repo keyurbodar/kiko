@@ -952,7 +952,7 @@ export class Room implements CommandRoom {
 
   async eraseFormerAgent(slug: AgentSlug): Promise<void> {
     const home = this.home()
-    if (home && this.members.everyone().includes(slug) && !this.members.get(slug))
+    if (home && this.members.allSlugs().includes(slug) && !this.members.get(slug))
       await this.services.agent(home.roomId, slug).erase()
   }
 
@@ -972,7 +972,7 @@ export class Room implements CommandRoom {
     this.log.setMeta("erasing", "1")
     for (const slug of this.members.everyone()) await this.services.agent(home.roomId, slug).stop()
     await archive?.erase()
-    for (const slug of this.members.everyone()) await this.services.agent(home.roomId, slug).erase()
+    for (const slug of this.members.allSlugs()) await this.services.agent(home.roomId, slug).erase()
     const pending = this.sql
       .exec<{ r2_key: string; upload_id: string | null }>(
         "SELECT r2_key, upload_id FROM pending_uploads WHERE pending_uploads.room_id = ?1",
@@ -1517,9 +1517,6 @@ export class Room implements CommandRoom {
         members.map((m) => m.slug),
         this.mail.chain(slug),
       )
-      const owner = call.op === "create_task" ? call.owner?.replace(/^@/, "").trim().toLowerCase() : undefined
-      if (result.answer.ok && owner && isAgentSlug(owner) && this.asks.owes(owner, slug))
-        this.workspace.markWoken(call.id)
       const lead = members.find((m) => m.lead)
       if (lead && lead.slug !== slug && !this.asks.owes(slug, lead.slug))
         for (const event of result.events) {
