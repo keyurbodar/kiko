@@ -10,7 +10,13 @@ export type Deployed = {
   claimToken: string | null
 }
 
-export type DeployRecord = { claimed: boolean; url?: string; access?: string; status?: string }
+export type DeployRecord = {
+  claimed: boolean
+  url?: string
+  access?: string
+  status?: string
+  expiresAt?: string | null
+}
 
 export type DeployOptions = {
   publicInspect?: boolean

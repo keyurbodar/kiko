@@ -307,6 +307,7 @@ const OWNER_STEPS: readonly Step[] = [
   `ALTER TABLE owner_runs ADD COLUMN continues INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE reminders ADD COLUMN series_start INTEGER`,
   `UPDATE reminders SET series_start = due_utc WHERE series_start IS NULL`,
+  `ALTER TABLE apps ADD COLUMN inspect_public INTEGER NOT NULL DEFAULT 0`,
 ]
 
 export function initializeSchema(storage: DurableObjectStorage): void {

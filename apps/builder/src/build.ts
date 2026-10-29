@@ -15,7 +15,7 @@ import { compile } from "tailwindcss"
 import vendor from "./vendor.json"
 
 export type Target = "anonymous" | "claimed"
-export type Diagnostic = { path?: string; line?: number; message: string }
+export type Diagnostic = { path?: string; line?: number; message: string; code?: string }
 export type Envelope = { artifact: unknown; artifactHash: string; clientBundle: string; clientBundleHash: string }
 export type BuildResult =
   | { ok: true; envelope: Envelope; timings: Record<string, number> }
@@ -41,6 +41,9 @@ const ROOT = "/w"
 const NM = `${ROOT}/node_modules`
 const SOURCE = "lakebed-source"
 const BUILD_DIR = `${ROOT}/.lakebed/build/kiko`
+const ANONYMOUS_FETCH_CODE = "anonymous_fetch"
+const EVAL_TIMEOUT_MS = 5_000
+const EVAL_MEMORY_LIMIT = 64 * 1024 * 1024
 class CapsuleError extends Error {
   constructor(readonly diagnostics: Diagnostic[]) {
     super(diagnostics.map((d) => d.message).join("\n"))
@@ -218,12 +221,21 @@ async function evaluate(source: Map<string, string>, entry: string, serverSdk: s
     outfile: "/eval.js",
     plugins: [sourcePlugin(source, "server", serverSdk)],
   })
-  const vm = await QuickJS.create({ wasm: quickjsWasm })
+  const deadline = Date.now() + EVAL_TIMEOUT_MS
+  const vm = await QuickJS.create({
+    wasm: quickjsWasm,
+    memoryLimit: EVAL_MEMORY_LIMIT,
+    interruptHandler: () => Date.now() > deadline,
+  })
   try {
     vm.setProp(vm.global, "__input", vm.hostToHandle(input))
     vm.evalCode(QUICKJS_TEXT + (built.outputFiles[0]?.text ?? "")).dispose()
     return JSON.parse(vm.evalCode("globalThis.__out").consume((h) => h.toString()))
   } catch (error) {
+    if (Date.now() > deadline)
+      throw new CapsuleError([
+        { path: "server/index.ts", message: `The server code ran longer than ${EVAL_TIMEOUT_MS / 1000} seconds.` },
+      ])
     const handle = (error as { handle?: Parameters<typeof vm.dump>[0] }).handle
     const dumped = handle ? (vm.dump(handle) as { message?: string }) : null
     throw new CapsuleError([{ path: "server/index.ts", message: dumped?.message ?? String(error) }])
@@ -324,7 +336,9 @@ async function assemble(source: Map<string, string>, target: Target) {
   })) as Manifest
   const tools = (await evaluate(source, "__kiko/tools.ts", "dist/server-tools.js", null)) as Record<string, unknown>
   const diagnostics = [
-    ...manifest.forbidden.filter((d) => anonymous || d.message !== ANONYMOUS_FETCH_DIAGNOSTIC),
+    ...manifest.forbidden
+      .filter((d) => anonymous || d.message !== ANONYMOUS_FETCH_DIAGNOSTIC)
+      .map((d) => (d.message === ANONYMOUS_FETCH_DIAGNOSTIC ? { ...d, code: ANONYMOUS_FETCH_CODE } : d)),
     ...manifest.schema.diagnostics,
     ...manifest.endpoints.diagnostics,
     ...manifest.auth.diagnostics,

@@ -13,11 +13,18 @@ import {
 } from "./lakebed"
 
 export type Target = "anonymous" | "claimed"
-export type Diagnostic = { path?: string; file?: string; line?: number; message: string }
+export type Diagnostic = { path?: string; file?: string; line?: number; message: string; code?: string }
 export type BuildResult = { ok: true; envelope: Envelope } | { ok: false; diagnostics: Diagnostic[] }
 export type Builder = (files: Record<string, string>, target: Target) => Promise<BuildResult>
 
-export type AppSummary = { name: string; url: string; claimed: boolean; expiresAt: string | null; updatedAt: number }
+export type AppSummary = {
+  name: string
+  url: string
+  claimed: boolean
+  expired: boolean
+  expiresAt: string | null
+  updatedAt: number
+}
 export type DeployOutcome =
   | { ok: true; app: AppSummary; changed: boolean; claim?: ClaimLink; live?: number | null }
   | { ok: false; diagnostics: Diagnostic[] }
@@ -40,6 +47,7 @@ type Row = {
   claimed: number
   expires_at: string | null
   artifact_hash: string
+  inspect_public: number
   kek_version: number
   iv: ArrayBuffer
   ciphertext: ArrayBuffer
@@ -53,11 +61,12 @@ const KIKO_MODULE = "server/kiko.ts"
 const SECRETS_AAD = "apps/secrets"
 const ACCOUNT_AAD = "apps/lakebed-account"
 const ACCOUNT_SETTING = "lakebedAccount"
-const CLAIM_DIAGNOSTIC = /fetch/i
+const CLAIM_DIAGNOSTIC = "anonymous_fetch"
 const SESSION_MARGIN_MS = 60_000
 const LIVE_TRIES = 2
 const LIVE_GAP_MS = 2_000
 const LIVE_WAIT_MS = 5_000
+const BUILD_WAIT_MS = 60_000
 const INSPECT_PATHS: Record<InspectWhat, string> = {
   logs: "/__lakebed/logs",
   tables: "/__lakebed/db/tables",
@@ -82,10 +91,13 @@ const PLACEHOLDER_CLIENT = `export function App() {
 }
 `
 
+const isExpired = (row: Row) => row.claimed !== 1 && row.expires_at !== null && Date.parse(row.expires_at) <= Date.now()
+
 const summary = (row: Row): AppSummary => ({
   name: row.name,
   url: row.url,
   claimed: row.claimed === 1,
+  expired: isExpired(row),
   expiresAt: row.expires_at,
   updatedAt: row.updated_at,
 })
@@ -107,7 +119,12 @@ export async function isKiko(req: { headers: { get(name: string): string | null 
 }
 
 const needsClaim = (diagnostics: Diagnostic[]) =>
-  diagnostics.length > 0 && diagnostics.every((d) => CLAIM_DIAGNOSTIC.test(d.message))
+  diagnostics.length > 0 && diagnostics.every((d) => d.code === CLAIM_DIAGNOSTIC)
+
+const DEAD_STATUS = new Set(["archived", "terminated", "expired", "deleted"])
+const isLive = (record: DeployRecord) =>
+  (record.status === undefined || !DEAD_STATUS.has(record.status.toLowerCase())) &&
+  (record.expiresAt == null || Date.parse(record.expiresAt) > Date.now())
 
 const CLAIM_FIRST =
   "This app uses server fetch or env, which only a claimed deploy runs. Get the claim link with app_manage claim_link, give it to the human and end your turn. Deploy again once, after they reply."
@@ -126,10 +143,24 @@ async function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
   }
 }
 
+async function bounded<T>(work: Promise<T>, ms: number, said: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new LakebedError(said)), ms)
+  })
+  try {
+    return await Promise.race([work, late])
+  } finally {
+    clearTimeout(timer)
+    work.catch(() => undefined)
+  }
+}
+
 const isUp = (status: number | null) => status !== null && status < 500 && status !== 404
 
 export class Apps {
   private readonly lakebed: Lakebed
+  private readonly inflight = new Map<string, Promise<unknown>>()
 
   constructor(
     private readonly sql: SqlStorage,
@@ -156,11 +187,27 @@ export class Apps {
   async deploy(name: string, files: Record<string, string>, options: DeployOptions = {}): Promise<DeployOutcome> {
     if (!APP_NAME.test(name)) return { ok: false, error: "Name apps with 3-40 lowercase letters, digits or dashes." }
     try {
-      return await this.deployChecked(name, files, options)
+      return await this.queued(name, () => this.deployChecked(name, files, options))
     } catch (e) {
       if (e instanceof LakebedError) return { ok: false, error: e.message }
       throw e
     }
+  }
+
+  private queued<T>(name: string, work: () => Promise<T>): Promise<T> {
+    const run = (this.inflight.get(name) ?? Promise.resolve()).then(work, work)
+    this.inflight.set(name, run)
+    return run.finally(() => {
+      if (this.inflight.get(name) === run) this.inflight.delete(name)
+    })
+  }
+
+  private async built(files: Record<string, string>, target: Target): Promise<BuildResult> {
+    return bounded(
+      this.build(files, target),
+      BUILD_WAIT_MS,
+      "The app builder did not answer in time. Deploy again; if it keeps timing out, tell the human.",
+    )
   }
 
   private async deployChecked(name: string, files: Record<string, string>, options: DeployOptions) {
@@ -168,7 +215,12 @@ export class Apps {
     const secrets: Secrets = row ? await this.secrets(row) : { key: toHex(crypto.getRandomValues(new Uint8Array(24))) }
     const record: DeployRecord | "gone" = row ? await this.lakebed.record(row.deploy_id) : "gone"
     const account = await this.accountToken()
-    const live = record !== "gone"
+    const live = record !== "gone" && isLive(record)
+    if (row?.claimed === 1 && !live)
+      return {
+        ok: false as const,
+        error: `${name} is owned by the human, but its Lakebed deploy is gone or no longer live. Kiko left the app as it was, so nothing is lost. Check the deploy on Lakebed, or drop it with app_manage forget and deploy again.`,
+      }
     const claimed = live ? record.claimed : Boolean(account)
     if (live && record.claimed && !account)
       return {
@@ -176,13 +228,20 @@ export class Apps {
         error:
           "This app is claimed. Connect the human's Lakebed account with lakebed_account connect, give them the link and end your turn. Deploy again once, after they reply.",
       }
+    const inspectPublic = options.publicInspect ? 1 : (row?.inspect_public ?? 0)
     const source = { ...files, [KIKO_MODULE]: kikoModule(await sha256Hex(secrets.key)) }
-    const built = await this.build(source, claimed ? "claimed" : "anonymous")
+    const built = await this.built(source, claimed ? "claimed" : "anonymous")
     const env = secrets.env ?? {}
     if (!claimed && (built.ok ? Object.keys(env).length > 0 : needsClaim(built.diagnostics)))
       return this.claimFirst(name, row, live, secrets)
     if (!built.ok) return { ok: false as const, diagnostics: built.diagnostics }
-    if (row && live && row.artifact_hash === built.envelope.artifactHash && !options.deleteTables?.length)
+    if (
+      row &&
+      live &&
+      row.artifact_hash === built.envelope.artifactHash &&
+      row.inspect_public === inspectPublic &&
+      !options.deleteTables?.length
+    )
       return { ok: true as const, app: summary(row), changed: false }
     const send: DeployOptions = { ...options, ...(claimed ? { serverEnv: env } : {}) }
     const token = claimed ? account : (secrets.claimToken ?? null)
@@ -194,10 +253,13 @@ export class Apps {
       return { ok: false as const, error: "delete_tables needs an existing deploy. Nothing was created." }
     const created = updated === "gone"
     const result = created ? await this.lakebed.create(built.envelope, send, account) : updated
-    const app = await this.save(name, result, built.envelope.artifactHash, {
-      ...secrets,
-      ...this.claimTokenOf(result, secrets),
-    })
+    const app = await this.save(
+      name,
+      result,
+      built.envelope.artifactHash,
+      { ...secrets, ...this.claimTokenOf(result, secrets) },
+      inspectPublic,
+    )
     const answered = await this.liveStatus(app.url)
     if (app.claimed || !created) return { ok: true as const, app, changed: true, live: answered }
     return { ok: true as const, app, changed: true, live: answered, claim: await this.claimLink(name) }
@@ -228,13 +290,13 @@ export class Apps {
     secrets: Secrets,
   ): Promise<DeployOutcome> {
     if (row && live) return { ok: false, error: CLAIM_FIRST }
-    const built = await this.build(
+    const built = await this.built(
       { "server/index.ts": PLACEHOLDER_SERVER, "client/index.tsx": PLACEHOLDER_CLIENT },
       "anonymous",
     )
     if (!built.ok) return { ok: false, diagnostics: built.diagnostics }
     const result = await this.lakebed.create(built.envelope, {}, null)
-    await this.save(name, result, "", { ...secrets, ...this.claimTokenOf(result, secrets) })
+    await this.save(name, result, "", { ...secrets, ...this.claimTokenOf(result, secrets) }, row?.inspect_public ?? 0)
     return { ok: false, error: `${CLAIM_FIRST} Until then ${result.url} shows a claim-required page.` }
   }
 
@@ -255,7 +317,7 @@ export class Apps {
     const { row, secrets } = await this.require(name)
     const headers: Record<string, string> = { "x-kiko-key": secrets.key }
     if (body !== undefined) headers["content-type"] = type ?? "application/json"
-    const response = await this.egress(new URL(path, row.url).toString(), {
+    const response = await this.egress(this.appUrl(row, path).toString(), {
       method,
       headers,
       ...(body !== undefined ? { body } : {}),
@@ -265,7 +327,20 @@ export class Apps {
     return { status: response.status, body: new TextDecoder().decode(bytes), bytes, type: contentType }
   }
 
+  private appUrl(row: Row, path: string): URL {
+    const said = `Use a path on the app, like /ingest, not ${path}.`
+    if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) throw new LakebedError(said)
+    const base = new URL(row.url)
+    const url = new URL(path, base)
+    if (url.origin !== base.origin) throw new LakebedError(said)
+    return url
+  }
+
   async env(name: string, set: Record<string, string>, unset: string[]): Promise<string[]> {
+    return this.queued(name, () => this.envChecked(name, set, unset))
+  }
+
+  private async envChecked(name: string, set: Record<string, string>, unset: string[]): Promise<string[]> {
     const { row, secrets } = await this.require(name)
     const bad = Object.keys(set).find((key) => !ENV_KEY.test(key) || key.startsWith("LAKEBED_"))
     if (bad)
@@ -341,7 +416,7 @@ export class Apps {
 
   private async markClaimed(): Promise<void> {
     for (const row of this.sql.exec<Row>("SELECT * FROM apps WHERE claimed = 0").toArray()) {
-      const record = await this.lakebed.record(row.deploy_id).catch(() => "gone" as const)
+      const record = await this.lakebed.record(row.deploy_id)
       if (record !== "gone" && record.claimed)
         this.sql.exec("UPDATE apps SET claimed = 1, expires_at = NULL WHERE name = ?", row.name)
     }
@@ -449,14 +524,21 @@ export class Apps {
     )
   }
 
-  private async save(name: string, deployed: Deployed, artifactHash: string, secrets: Secrets): Promise<AppSummary> {
+  private async save(
+    name: string,
+    deployed: Deployed,
+    artifactHash: string,
+    secrets: Secrets,
+    inspectPublic: number,
+  ): Promise<AppSummary> {
     const sealed = await seal(this.keyring, this.ownerId, SECRETS_AAD, JSON.stringify(secrets))
     const updatedAt = Date.now()
     this.sql.exec(
-      `INSERT INTO apps (name, deploy_id, url, claimed, expires_at, artifact_hash, kek_version, iv, ciphertext, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO apps (name, deploy_id, url, claimed, expires_at, artifact_hash, inspect_public, kek_version, iv, ciphertext, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (name) DO UPDATE SET deploy_id = excluded.deploy_id, url = excluded.url, claimed = excluded.claimed,
-         expires_at = excluded.expires_at, artifact_hash = excluded.artifact_hash, kek_version = excluded.kek_version,
+         expires_at = excluded.expires_at, artifact_hash = excluded.artifact_hash,
+         inspect_public = excluded.inspect_public, kek_version = excluded.kek_version,
          iv = excluded.iv, ciphertext = excluded.ciphertext, updated_at = excluded.updated_at`,
       name,
       deployed.deployId,
@@ -464,11 +546,19 @@ export class Apps {
       deployed.claimed ? 1 : 0,
       deployed.expiresAt,
       artifactHash,
+      inspectPublic,
       sealed.kekVersion,
       sealed.iv,
       sealed.ciphertext,
       updatedAt,
     )
-    return { name, url: deployed.url, claimed: deployed.claimed, expiresAt: deployed.expiresAt, updatedAt }
+    return {
+      name,
+      url: deployed.url,
+      claimed: deployed.claimed,
+      expired: !deployed.claimed && deployed.expiresAt !== null && Date.parse(deployed.expiresAt) <= updatedAt,
+      expiresAt: deployed.expiresAt,
+      updatedAt,
+    }
   }
 }

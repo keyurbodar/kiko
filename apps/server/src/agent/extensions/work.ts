@@ -30,6 +30,7 @@ const WORKER_PROMPT = `You are a background worker in Kiko. An agent who talks w
 - If the job needs an app that is not connected or a key that is missing, stop at once and report only which one is missing. Do not try other routes.`
 
 const say = (text: string) => ({ output: [{ type: "text" as const, text }] })
+const sayError = (text: string) => ({ ...say(text), isError: true })
 
 const SPENT = `you used ${MAX_WORKER_STEPS} steps, the most a worker gets. call no more tools. end now with your report, starting "stopped after ${MAX_WORKER_STEPS} steps:" and then what you have so far, with the path of every file you saved.`
 
@@ -143,7 +144,7 @@ export function workExtensions(
           .live()
           .map((w) => w.id)
           .join(", ")
-        return say(
+        return sayError(
           `${MAX_WORKERS} workers are running (${ids}). their reports wake you, so end your turn, or stop one with stop_work.`,
         )
       }
