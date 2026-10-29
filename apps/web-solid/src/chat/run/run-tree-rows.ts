@@ -255,4 +255,4 @@ export function groupSummary(steps: readonly RunStep[]): readonly SummarySegment
 }
 
 export const summaryText = (segments: readonly SummarySegment[]): string =>
-  segments.map((segment) => segment.text).join(" · ")
+  segments.map((segment) => segment.text).join(", ")

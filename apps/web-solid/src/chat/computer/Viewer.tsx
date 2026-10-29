@@ -75,7 +75,7 @@ export default function Viewer(): JSX.Element {
                   class="hidden shrink-0 type-hint font-normal whitespace-nowrap opacity-70 sm:inline"
                   data-field="escape-hint"
                 >
-                  Esc goes to the computer · Shift+Esc leaves
+                  Esc goes to the computer, Shift+Esc leaves
                 </span>
               </Show>
               <Show when={computers().length > 1}>

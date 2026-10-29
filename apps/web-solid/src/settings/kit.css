@@ -6,11 +6,10 @@
 
 .settings-page-title {
   color: var(--fg);
-  font-family: var(--font-family-display);
-  font-size: 32px;
-  font-weight: 400;
-  font-variation-settings: var(--display-variation);
-  line-height: 38px;
+  font-family: var(--font-family-sans);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 30px;
 }
 
 .kit-btn {
@@ -164,12 +163,22 @@
 }
 
 .kit-switch[aria-checked="true"] {
-  background: var(--fg);
+  background: var(--accent-fill);
 }
 
 .kit-switch:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kit-switch:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--fg) 20%, var(--panel));
+  }
+
+  .kit-switch[aria-checked="true"]:hover:not(:disabled) {
+    background: var(--accent-fill-hover);
+  }
 }
 
 .kit-switch > span {
@@ -185,7 +194,7 @@
 }
 
 .kit-switch[aria-checked="true"] > span {
-  background: var(--bg);
+  background: var(--on-accent);
   transform: translateX(14px);
   transform-origin: right center;
 }

@@ -3,3 +3,7 @@
   flex: none;
   color: currentColor;
 }
+
+.pg-accent {
+  color: var(--accent);
+}

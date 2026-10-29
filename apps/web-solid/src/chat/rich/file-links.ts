@@ -230,7 +230,7 @@ export function chipLabel(file: FileTarget, suffix?: string): string {
   const parts = [fileName(file.path)]
   if (suffix) parts.push(suffix)
   if (file.line) parts.push(`L${file.line}${file.column ? `:C${file.column}` : ""}`)
-  return parts.join(" · ")
+  return parts.join(", ")
 }
 
 export type Resolved =

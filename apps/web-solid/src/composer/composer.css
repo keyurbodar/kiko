@@ -138,6 +138,7 @@
 
 .composer-dock .composer-icon:active:not(:disabled) {
   transform: scale(0.94);
+  transition-duration: var(--dur-hover), var(--dur-hover), var(--dur-press);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -154,8 +155,8 @@
   margin-left: 4px;
   place-items: center;
   padding: 0;
-  color: var(--bg);
-  background: var(--fg);
+  color: var(--on-accent);
+  background: var(--accent-fill);
   border: 0;
   border-radius: var(--radius-full);
   cursor: pointer;
@@ -167,6 +168,13 @@
 
 .composer-dock .composer-send:active:not(:disabled) {
   transform: scale(0.92);
+  transition-duration: var(--dur-hover), var(--dur-hover), var(--dur-press);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .composer-dock .composer-send:hover:not(:disabled) {
+    background: var(--accent-fill-hover);
+  }
 }
 
 .composer-dock .composer-send:disabled {

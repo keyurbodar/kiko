@@ -91,6 +91,7 @@
 
 .sidebar-shell :is(.panel-icon-button, .top-bar-button, .main-sidebar-toggle):active {
   transform: scale(0.94);
+  transition-duration: var(--dur-hover), var(--dur-hover), var(--dur-press);
 }
 
 .sidebar-shell .panel-header .panel-icon-button {
@@ -138,7 +139,7 @@
   text-decoration: none;
   background: none;
   border: none;
-  border-radius: var(--radius-row);
+  border-radius: var(--radius-control);
   cursor: pointer;
   appearance: none;
   transition:
@@ -188,9 +189,12 @@
   }
 }
 
-.sidebar-shell .nav-row[data-filled],
 .sidebar-shell .nav-row[data-active] {
-  background: var(--active);
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+
+.sidebar-shell .nav-row[data-active] .nav-icon {
+  color: var(--accent);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -198,14 +202,14 @@
     background: var(--hover);
   }
 
-  .sidebar-shell .nav-row[data-filled]:hover,
   .sidebar-shell .nav-row[data-active]:hover {
-    background: color-mix(in oklab, var(--active) 88%, var(--fg));
+    background: color-mix(in oklab, var(--accent) 18%, transparent);
   }
 }
 
 .sidebar-shell .nav-row:active {
   transform: scale(var(--press-scale));
+  transition-duration: var(--dur-hover), var(--dur-press);
 }
 
 .sidebar-shell .panel-scroll {
@@ -483,8 +487,8 @@
 }
 
 .sidebar-shell .chat-skeleton-avatar {
-  width: var(--spacing-avatar);
-  height: var(--spacing-avatar);
+  width: var(--spacing-mascot);
+  height: var(--spacing-mascot);
   flex: none;
   border-radius: var(--radius-row);
 }
@@ -510,7 +514,7 @@
   text-align: left;
   background: none;
   border: none;
-  border-radius: var(--radius-tile);
+  border-radius: var(--radius-row);
   cursor: pointer;
   appearance: none;
   content-visibility: auto;
@@ -687,7 +691,7 @@
 
 .sidebar-shell .chat-glide {
   position: absolute;
-  border-radius: var(--radius-tile);
+  border-radius: var(--radius-row);
   background: var(--active);
   pointer-events: none;
 }
@@ -695,8 +699,8 @@
 .sidebar-shell .chat-avatar {
   position: relative;
   display: flex;
-  width: var(--spacing-avatar);
-  height: var(--spacing-avatar);
+  width: var(--spacing-mascot);
+  height: var(--spacing-mascot);
   flex: none;
   align-items: center;
   justify-content: center;

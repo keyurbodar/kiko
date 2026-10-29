@@ -89,7 +89,7 @@ function AppRow(props: { app: WebApp; claiming: boolean; onClaim: () => void }):
           <a class="hover:text-fg hover:underline" href={props.app.url} target="_blank" rel="noopener noreferrer">
             {host(props.app.url)}
           </a>
-          {" · "}
+          {", "}
           <span class={props.app.owned ? "text-ok" : undefined}>{expiry(props.app)}</span>
         </>
       }

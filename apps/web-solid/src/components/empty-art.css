@@ -88,6 +88,15 @@
 .empty-art .ea-scan {
   animation: ea-scan 4s ease-in-out infinite;
 }
+.empty-art .ea-line.ea-accent {
+  stroke: var(--accent);
+}
+
+.empty-art .ea-line.ea-fill2.ea-accent {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
 @keyframes ea-steam {
   0% {
     opacity: 0;

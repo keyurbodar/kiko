@@ -39,10 +39,10 @@ export const isDarkThemeId = (value: unknown): value is DarkThemeId => DARK_THEM
 export const THEMES = {
   kiko: {
     label: "Kiko",
-    accent: "#5b9cf6",
+    accent: "#f0bb3b",
     palette: {
       canvas: "#121212",
-      sidebar: "#171717",
+      sidebar: "#161616",
       text: "#ededed",
       muted: "#a6a6a6",
       faint: "#878787",
@@ -50,7 +50,7 @@ export const THEMES = {
       actionHover: "#ffffff",
       onAction: "#141414",
       danger: "#ef6a6a",
-      gold: "#e8c47b",
+      gold: "#f27636",
     },
   },
   glacier: {
@@ -167,7 +167,7 @@ export const THEMES = {
   },
   snow: {
     label: "Paper",
-    accent: "#2f6fe4",
+    accent: "#9a5600",
     palette: {
       canvas: "#ffffff",
       sidebar: "#f7f7f6",
@@ -178,7 +178,7 @@ export const THEMES = {
       actionHover: "#000000",
       onAction: "#ffffff",
       danger: "#d6453f",
-      gold: "#a86b00",
+      gold: "#bb4717",
     },
   },
 } as const satisfies Record<ThemeId, { label: string; accent: string; palette: Palette }>
@@ -189,6 +189,23 @@ export function paletteFor(mode: ThemeAppearance, darkTheme: DarkThemeId = DEFAU
 export const PALETTES: Record<ThemeAppearance, Palette> = { light: paletteFor("light"), dark: paletteFor("dark") }
 
 const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places
+
+const linear = (hex: string) => {
+  const value = Number.parseInt(hex.replace("#", "").slice(0, 6), 16)
+  return [((value >> 16) & 255) / 255, ((value >> 8) & 255) / 255, (value & 255) / 255].map((c) =>
+    c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4,
+  )
+}
+
+const luminance = (hex: string) => {
+  const [r, g, b] = linear(hex)
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+const contrast = (a: string, b: string) => {
+  const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (high + 0.05) / (low + 0.05)
+}
 
 type Ink = Readonly<{
   p: Palette
@@ -201,10 +218,10 @@ type Ink = Readonly<{
 const ROLES: ReadonlyArray<readonly [token: string, value: (ink: Ink) => string]> = [
   ["--bg", ({ p }) => p.canvas],
   ["--side", ({ p }) => p.sidebar],
-  ["--panel", ({ solid, dark }) => solid(dark ? 2.3 : 1.6)],
-  ["--raise", ({ solid, dark }) => solid(dark ? 4.6 : 2.4)],
-  ["--hover", ({ solid, dark }) => solid(dark ? 6.4 : 4)],
-  ["--active", ({ solid, dark }) => solid(dark ? 9.1 : 6.5)],
+  ["--panel", ({ solid, dark }) => solid(dark ? 2.9 : 1.6)],
+  ["--raise", ({ solid, dark }) => solid(dark ? 5.8 : 2.4)],
+  ["--hover", ({ solid, dark }) => solid(dark ? 8 : 4)],
+  ["--active", ({ solid, dark }) => solid(dark ? 11.3 : 6.5)],
   ["--fill", ({ clear, dark }) => clear(dark ? 8.2 : 8)],
   ["--fill-field", ({ clear, dark }) => clear(dark ? 4.6 : 2.4)],
   ["--fill-hover", ({ clear, dark }) => clear(dark ? 6.4 : 4)],
@@ -214,22 +231,29 @@ const ROLES: ReadonlyArray<readonly [token: string, value: (ink: Ink) => string]
   ["--fill-pressed", ({ clear, dark }) => clear(dark ? 12.8 : 12)],
   ["--ghost", ({ clear, dark }) => clear(dark ? 8.2 : 8)],
   ["--field-ring", ({ clear, dark }) => (dark ? "transparent" : clear(8))],
-  ["--me", ({ solid, dark }) => solid(dark ? 9.6 : 5.5)],
-  ["--kiko-bubble", ({ solid, dark }) => solid(dark ? 3.2 : 3)],
-  ["--line", ({ solid, dark }) => solid(dark ? 8.2 : 8)],
+  ["--me", ({ solid, dark }) => solid(dark ? 11.8 : 5.5)],
+  ["--kiko-bubble", ({ solid, dark }) => solid(dark ? 5.8 : 3)],
+  ["--line", ({ solid, dark }) => solid(dark ? 10.2 : 8)],
   ["--line2", ({ solid, dark }) => solid(dark ? 12.8 : 12)],
   ["--line3", ({ clear }) => clear(20)],
   ["--fg", ({ p }) => p.text],
   ["--fg2", ({ p }) => p.muted],
   ["--fg3", ({ p }) => p.faint],
-  ["--fg4", ({ solid, dark }) => solid(dark ? 35 : 40)],
+  ["--fg4", ({ solid, dark }) => solid(dark ? 39.2 : 40)],
   ["--on-fg", ({ p }) => p.onAction],
   ["--ok", ({ dark }) => (dark ? "#5cc489" : "#1f9d55")],
   ["--bad", ({ p }) => p.danger],
   ["--warn", ({ p }) => p.gold],
   ["--info", ({ accent }) => accent],
-  ["--accent-fill", ({ accent }) => `oklch(from ${accent} 0.59 min(calc(c * 1.4), 0.17) h)`],
-  ["--on-accent", () => "#ffffff"],
+  ["--accent-fill", ({ accent }) => accent],
+  ["--accent-fill-hover", ({ accent, p }) => `color-mix(in oklab, ${accent} 88%, ${p.text})`],
+  [
+    "--on-accent",
+    ({ accent, dark }) => {
+      const ink = dark ? "#141414" : "#1b1b1b"
+      return contrast(accent, ink) >= contrast(accent, "#ffffff") ? ink : "#ffffff"
+    },
+  ],
   ["--accent-edge", () => "color-mix(in srgb, var(--accent-fill) 22%, transparent)"],
   ["--leaf", ({ dark }) => (dark ? "#7fd19c" : "#2f9e5b")],
   ["--info-wash", ({ accent, dark }) => `color-mix(in oklab, ${accent} ${dark ? 14 : 11}%, transparent)`],
