@@ -1,4 +1,5 @@
 import type { SecureFetch } from "just-bash"
+import { check } from "@kiko/durable/safe-fetch"
 
 type SecureFetchOptions = NonNullable<Parameters<SecureFetch>[1]>
 
@@ -54,6 +55,9 @@ export function bashFetch(egress: typeof fetch, broker: HeaderBroker): SecureFet
   const send = async (request: Request, options: SecureFetchOptions) => {
     if (request.url.protocol !== "https:")
       throw new NetError(`only https:// urls can be fetched, not ${request.url.protocol}`)
+    const signal = options.signal ?? new AbortController().signal
+    const allowed = await check(request.url.href, undefined, egress, signal)
+    if (!(allowed instanceof URL)) throw new NetError(`refused to fetch ${request.url.href}: ${allowed.reason}`)
     const sendsBody = request.body !== undefined && request.method !== "GET" && request.method !== "HEAD"
     return egress(request.url.href, {
       method: request.method,
