@@ -5,6 +5,7 @@ import { installBuilder } from "@kiko/durable/builder-install"
 import { sha256Hex } from "@kiko/durable/hash"
 import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
 import {
+  assertDurableObjects,
   buildMetadata,
   keptBindings,
   ReleasePlanRefused,
@@ -126,12 +127,14 @@ const upload = Effect.fn("SelfUpdate.upload")(function* (
   const existing = yield* scriptBindings(cf, grant.accountId, grant.scriptName)
   const builder = yield* installBuilder(cf, grant.accountId, grant.scriptName, release)
   const metadata = yield* Effect.try({
-    try: () =>
-      buildMetadata(
+    try: () => {
+      assertDurableObjects(release.manifest, existing)
+      return buildMetadata(
         release.manifest,
-        selectMigrations(release.manifest.migrations, own.migration_tag ?? null),
+        selectMigrations(release.manifest.migrations, { tag: own.migration_tag ?? null }),
         keptBindings(existing, builder ? [builder] : []),
-      ),
+      )
+    },
     catch: (error) =>
       new UpdateFailed({
         code: "release_untrusted",

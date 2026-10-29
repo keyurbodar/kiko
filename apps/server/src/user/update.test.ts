@@ -34,7 +34,14 @@ const signedRelease = Effect.promise(async () => {
 
 const ok = (result: unknown) => Response.json({ success: true, result })
 
-function fakeCloudflare(release: Effect.Success<typeof signedRelease>, seen: Seen, oauth: "accepts" | "refuses") {
+type Overrides = { bindings?: unknown[]; tag?: string | null }
+
+function fakeCloudflare(
+  release: Effect.Success<typeof signedRelease>,
+  seen: Seen,
+  oauth: "accepts" | "refuses",
+  overrides: Overrides = {},
+) {
   const config: UpdateConfig = {
     releaseBase: "https://releases.test",
     publicKey: release.publicKey,
@@ -52,10 +59,11 @@ function fakeCloudflare(release: Effect.Success<typeof signedRelease>, seen: See
       if (oauth === "refuses") return Response.json({ error: "invalid_grant" }, { status: 400 })
       return Response.json({ access_token: "access", refresh_token: `rotated-${seen.refreshTokens.length}` })
     }
-    if (pathname === "/accounts/acc/workers/scripts") return ok([{ id: "kiko", migration_tag: "v5" }])
+    if (pathname === "/accounts/acc/workers/scripts")
+      return ok([{ id: "kiko", ...(overrides.tag === null ? {} : { migration_tag: overrides.tag ?? "v5" }) }])
     if (pathname === "/accounts/acc/workers/scripts/kiko/settings")
       return ok({
-        bindings: [
+        bindings: overrides.bindings ?? [
           { type: "durable_object_namespace", name: "OWNER", class_name: "OwnerDO" },
           { type: "plain_text", name: "OWNER_ID", text: "user_a" },
           { type: "secret_text", name: "SESSION_SECRET" },
@@ -102,8 +110,9 @@ const update = (options: {
   oauth?: "accepts" | "refuses"
   release: Effect.Success<typeof signedRelease>
   seen: Seen
+  overrides?: Overrides
 }) => {
-  const cloudflare = fakeCloudflare(options.release, options.seen, options.oauth ?? "accepts")
+  const cloudflare = fakeCloudflare(options.release, options.seen, options.oauth ?? "accepts", options.overrides)
   return runUpdate(
     {
       ...cloudflare,
@@ -111,6 +120,28 @@ const update = (options: {
     },
     VERSION,
   ).pipe(Effect.result, Effect.map(Result.match({ onSuccess: () => "uploaded", onFailure: (error) => error.code })))
+}
+
+const updateError = (options: {
+  env: string | undefined
+  cell: GrantCell
+  release: Effect.Success<typeof signedRelease>
+  seen: Seen
+  overrides?: Overrides
+}) => {
+  const cloudflare = fakeCloudflare(options.release, options.seen, "accepts", options.overrides)
+  return runUpdate(
+    {
+      ...cloudflare,
+      grants: grantStore({ keyring: KEYRING, userId: "owner", env: options.env, cell: options.cell }),
+    },
+    VERSION,
+  ).pipe(
+    Effect.result,
+    Effect.map(
+      Result.match({ onSuccess: () => null, onFailure: (error) => ({ code: error.code, message: error.message }) }),
+    ),
+  )
 }
 
 describe("runUpdate", () => {
@@ -170,6 +201,39 @@ describe("runUpdate", () => {
       )
       assert.deepStrictEqual(seen.uploads, [])
       assert.strictEqual(refusedCell.writes, 0)
+    }),
+  )
+
+  it.effect("refuses a release whose Durable Object binding differs from the deployed one", () =>
+    Effect.gen(function* () {
+      const release = yield* signedRelease
+      const seen: Seen = { refreshTokens: [], uploads: [] }
+      const code = yield* update({
+        env: grant("first"),
+        cell: memoryCell(),
+        release,
+        seen,
+        overrides: { bindings: [{ type: "durable_object_namespace", name: "OWNER", class_name: "OtherDO" }] },
+      })
+      assert.strictEqual(code, "release_untrusted")
+      assert.deepStrictEqual(seen.uploads, [])
+    }),
+  )
+
+  it.effect("refuses an update when Cloudflare reports no migration tag for a deployed backend", () =>
+    Effect.gen(function* () {
+      const release = yield* signedRelease
+      const seen: Seen = { refreshTokens: [], uploads: [] }
+      const error = yield* updateError({
+        env: grant("first"),
+        cell: memoryCell(),
+        release,
+        seen,
+        overrides: { tag: null },
+      })
+      assert.strictEqual(error?.code, "release_untrusted")
+      assert.match(error?.message ?? "", /cannot be determined/)
+      assert.deepStrictEqual(seen.uploads, [])
     }),
   )
 })

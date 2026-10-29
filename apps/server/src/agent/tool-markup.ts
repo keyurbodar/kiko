@@ -258,14 +258,48 @@ function rewriteEvent(
 
 type Stream = Provider["streamSimple"]
 
+const EMPTY_USAGE: AssistantMessage["usage"] = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: 0,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+}
+
+type ModelRef = Pick<AssistantMessage, "api" | "provider"> & { id: string }
+
+function failure(error: unknown, model: ModelRef, last: AssistantMessage | undefined): AssistantMessage {
+  return {
+    ...(last ?? {
+      role: "assistant",
+      content: [],
+      api: model.api,
+      provider: model.provider,
+      model: model.id,
+      usage: EMPTY_USAGE,
+      timestamp: Date.now(),
+    }),
+    role: "assistant",
+    stopReason: "error",
+    errorMessage: error instanceof Error ? error.message : String(error),
+  }
+}
+
 export function withTextToolCalls(call: Stream): Stream {
   return ((model, context, options) => {
     const inner = call(model, context, options)
     const out = createAssistantMessageEventStream()
     const seen = new Map<number, string>()
+    let last: AssistantMessage | undefined
     void (async () => {
       try {
-        for await (const event of inner) out.push(rewriteEvent(event, context, seen))
+        for await (const event of inner) {
+          if (event.type !== "done" && event.type !== "error") last = event.partial
+          out.push(rewriteEvent(event, context, seen))
+        }
+      } catch (error) {
+        out.push({ type: "error", reason: "error", error: failure(error, model, last) })
       } finally {
         out.end()
       }

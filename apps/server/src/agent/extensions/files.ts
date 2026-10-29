@@ -178,13 +178,25 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     }),
     replay: "safe",
     execute: async (args, api) => {
-      const out = getOrThrow(await filesOf(api).removeAll(args.paths, args.recursive ?? false))
+      const fs = filesOf(api)
+      const out = await fs.removeAll(args.paths, args.recursive ?? false)
+      if (!out.ok) {
+        const gone = await Promise.all(
+          args.paths.map(async (path) => {
+            const found = await fs.stat(path)
+            return !found.ok && found.error.code === "not_found"
+          }),
+        )
+        if (!gone.every(Boolean)) throw out.error
+        return { output: text("nothing to delete") }
+      }
+      const change = out.value
       const count = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`
       const parts = [
-        out.changed ? count(out.changed, "file") : "",
-        out.folders ? count(out.folders, "folder") : "",
+        change.changed ? count(change.changed, "file") : "",
+        change.folders ? count(change.folders, "folder") : "",
       ].filter(Boolean)
-      saved(api, parts.length ? out.paths : [])
+      saved(api, parts.length ? change.paths : [])
       return {
         output: text(parts.length ? `deleted ${parts.join(" and ")}` : "nothing to delete"),
       }
@@ -198,7 +210,18 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     parameters: Type.Object({ from: Type.String(), to: Type.String() }),
     replay: "safe",
     execute: async (args, api) => {
-      const out = getOrThrow(await filesOf(api).move(args.from, args.to))
+      const fs = filesOf(api)
+      const src = await fs.stat(args.from)
+      if (!src.ok && src.error.code === "not_found") {
+        const dest = await fs.stat(args.to)
+        const target =
+          dest.ok && dest.value.kind === "directory" ? `${args.to.replace(/\/$/, "")}/${baseName(args.from)}` : args.to
+        if ((await fs.stat(target)).ok) {
+          saved(api, [roomPathOf(api, target)])
+          return { output: text(`moved ${args.from} to ${target.replace(/^\//, "")}`) }
+        }
+      }
+      const out = getOrThrow(await fs.move(args.from, args.to))
       if (!out.changed) return { output: text(`${args.from} is already there`) }
       saved(api, [out.to])
       return { output: text(`moved ${args.from} to ${out.to.slice(1)}`) }
@@ -223,7 +246,7 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     description:
       "copy a file or folder, as cp. into an existing folder, the name is kept. a folder needs recursive, and its copy must not exist yet.",
     parameters: Type.Object({ from: Type.String(), to: Type.String(), recursive: Type.Optional(Type.Boolean()) }),
-    replay: "safe",
+    replay: "unsafe",
     execute: async (args, api) => {
       const fs = filesOf(api)
       const src = getOrThrow(await fs.stat(args.from))
@@ -313,7 +336,7 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     declareEffect("write", mv) as ToolRegistration,
     declareEffect("write", cp) as ToolRegistration,
     declareEffect("write", mkdir) as ToolRegistration,
-    declareEffect("write", bash, { stoppable: true }) as ToolRegistration,
+    declareEffect("write", bash) as ToolRegistration,
   ]
   return defineExtension({ name: FILES, tools })
 }

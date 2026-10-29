@@ -43,10 +43,11 @@ export function resolveSkills(...lists: readonly Skill[][]): Skill[] {
 const SKILLS_INTRO =
   "A skill holds instructions for one kind of task. When a task matches one, read its location first and follow it. Paths in a skill are relative to its folder. Recipes added to this chat are skills too; the rest are in /kiko/recipes/ and /home/recipes/, and add_recipe sets one up here."
 
-export function formatSkills(skills: readonly Skill[]): string {
+export function formatSkills(skills: readonly Skill[], skipped: readonly string[] = []): string {
   const visible = skills.filter((s) => !s.disableModelInvocation)
   return [
     SKILLS_INTRO,
+    ...(skipped.length ? [`skills skipped:\n${skipped.map((s) => `- ${s}`).join("\n")}`] : []),
     "<available_skills>",
     ...visible.map(
       (s) =>
