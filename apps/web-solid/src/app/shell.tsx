@@ -449,11 +449,7 @@ export function Shell(props: ParentProps) {
                     <Show when={dockedSide()} keyed>
                       {(chatId) => (
                         <Suspense>
-                          <Desk
-                            chatId={chatId}
-                            onClose={closeSide}
-                            onExpand={() => setColumnWidth(layout() ? layout()!.sizes().length - 1 : 2, INFO.max)}
-                          />
+                          <Desk chatId={chatId} onClose={closeSide} />
                         </Suspense>
                       )}
                     </Show>

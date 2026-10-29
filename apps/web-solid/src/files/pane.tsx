@@ -33,7 +33,7 @@ function useChatFiles(chatId: () => string) {
 
 export function FilesTree(props: {
   chatId: string
-  searchOpen: boolean
+  searchOpen?: boolean
   active?: string | null
   ref?: (handle: FileTreeHandle) => void
 }) {

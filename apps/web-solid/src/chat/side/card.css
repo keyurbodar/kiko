@@ -1,10 +1,6 @@
 .desk-tab-close {
   opacity: 0;
 }
-.desk-head {
-  height: 52px;
-  min-height: 52px;
-}
 .desk-tab:not([aria-selected="true"]) {
   color: var(--text-300);
 }

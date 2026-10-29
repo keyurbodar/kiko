@@ -10,7 +10,7 @@ type Views = typeof import("./panel-views")
 export const loadPanelViews = (): Promise<Views> => import("./panel-views")
 const view = <N extends keyof Views>(name: N) => lazy(async () => ({ default: (await loadPanelViews())[name] }))
 
-type PanelProps<F> = { chatId: string; surface: F; close: () => void; onExpand?: () => void }
+type PanelProps<F> = { chatId: string; surface: F; close: () => void }
 
 export type PanelEntry<F extends object = object> = {
   label: string | ((surface: F) => string)
