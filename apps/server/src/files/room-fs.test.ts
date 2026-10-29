@@ -157,6 +157,15 @@ describe("RoomFs", () => {
     expect((await bash(fs, "true", 60)).output).toBe("")
   })
 
+  it("moves a file to another folder the chat does not own and removes the original", async () => {
+    const { backend, files } = memoryBackend()
+    const fs = new RoomFs("test", backend)
+    await bash(fs, "mkdir -p /home && echo seed > /home/seed.txt && echo one > /a.txt")
+    const out = await bash(fs, "mv /a.txt /home/a.txt")
+    expect(out.exitCode).toBe(0)
+    expect([...files.keys()].sort()).toEqual(["home/a.txt", "home/seed.txt"])
+  })
+
   it("says a conflicting file changed since the command started", async () => {
     let race = async () => {}
     const { backend, put } = memoryBackend(() => race())

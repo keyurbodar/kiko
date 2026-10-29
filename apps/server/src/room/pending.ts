@@ -8,6 +8,7 @@ import {
 } from "@kiko/protocol"
 import { cleanPath, isControl } from "../files/paths"
 import type { FileIndex } from "../files/file-index"
+import type { FileBucket } from "../files/store"
 
 export const PENDING_TTL_MS = 24 * 3_600_000
 export const PENDING_WAKEUP = "pending_sweep"
@@ -97,10 +98,10 @@ export class PendingUploads {
     return row
   }
 
-  expired(before: number, limit = 500): PendingRow[] {
+  claimExpired(before: number, limit = 500): PendingRow[] {
     return this.sql
       .exec<PendingRow>(
-        "SELECT * FROM pending_uploads WHERE created_at < ?1 AND pending_uploads.room_id = ?3 ORDER BY created_at LIMIT ?2",
+        "DELETE FROM pending_uploads WHERE pending_uploads.room_id = ?3 AND id IN (SELECT id FROM pending_uploads WHERE created_at < ?1 AND pending_uploads.room_id = ?3 ORDER BY created_at LIMIT ?2) RETURNING *",
         before,
         limit,
         this.roomId,
@@ -147,6 +148,30 @@ export class PendingUploads {
       this.roomId,
     )
   }
+}
+
+export function liveUploadIds(sql: SqlStorage): string[] {
+  return sql
+    .exec<{ upload_id: string }>("SELECT upload_id FROM pending_uploads WHERE upload_id IS NOT NULL")
+    .toArray()
+    .map((row) => row.upload_id)
+}
+
+export async function openPending(
+  pending: PendingUploads,
+  files: FileBucket,
+  input: NewPending,
+  now: number,
+): Promise<string | null> {
+  const before = pending.get(input.id)
+  const refused = pending.open(input, now)
+  if (refused) return refused
+  if (before?.upload_id && before.upload_id !== (input.uploadId ?? null))
+    await files
+      .resumeMultipartUpload(before.r2_key, before.upload_id)
+      .abort()
+      .catch(() => {})
+  return null
 }
 
 function safeName(name: string): string {

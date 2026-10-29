@@ -102,12 +102,14 @@ async function complete(
     return error(400, "bad parts")
   }
   const key = fileKey(userId, roomId, fileId)
+  const already = (await fileStore(env).head(key)) !== null
   let fresh = true
   try {
     await fileStore(env)
       .resumeMultipartUpload(key, uploadId)
       .complete(parts.map((p) => ({ partNumber: p.partNumber, etag: p.etag })))
   } catch {
+    if (!already) return error(400, "the upload did not complete")
     fresh = false
   }
   const object = await fileStore(env).get(key)

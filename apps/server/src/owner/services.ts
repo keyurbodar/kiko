@@ -17,6 +17,7 @@ export interface OwnerServices {
   syncRoutines(routines: readonly import("./schedules").ScheduledRoutine[]): Promise<void>
   fireRoutine(delivery: import("./schedules").RoutineDelivery): Promise<void>
   files(): FileBucket
+  sweepUploads(before: number): number
   egress(request: Parameters<Agent["egress"]>[0]): ReturnType<Agent["egress"]>
 }
 

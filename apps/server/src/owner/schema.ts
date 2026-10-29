@@ -1,7 +1,7 @@
 import { migrate, type Step } from "@kiko/durable/migrate"
 import { INITIAL_AGENT_STEPS } from "../agent/schema"
 import { HISTORY_ARCHIVE_STEPS } from "./history-archive"
-import { FILE_STEPS } from "../files/blob-store"
+import { FILE_STEPS, UPLOAD_STEPS } from "../files/blob-store"
 import { fileIndexSteps, ROOM_TABLES } from "../files/file-index"
 
 const INITIAL_ROOM_STEPS: readonly Step[] = [
@@ -309,6 +309,7 @@ const OWNER_STEPS: readonly Step[] = [
   `UPDATE reminders SET series_start = due_utc WHERE series_start IS NULL`,
   `ALTER TABLE agent_sends ADD COLUMN delivered INTEGER NOT NULL DEFAULT 0`,
   `UPDATE agent_sends SET delivered = 1`,
+  ...UPLOAD_STEPS,
 ]
 
 export function initializeSchema(storage: DurableObjectStorage): void {

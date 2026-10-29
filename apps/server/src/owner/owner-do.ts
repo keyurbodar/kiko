@@ -3,6 +3,7 @@ import { Runs } from "./runs"
 import { isAgentSlug, isRoomId, MAX_FRAME, type UpdateState } from "@kiko/protocol"
 import { Agent } from "../agent/agent-do"
 import { Room } from "../room/room-do"
+import { liveUploadIds, PENDING_TTL_MS } from "../room/pending"
 import { User } from "../user/user-do"
 import { restoreCustom } from "../user/custom-providers"
 import { restoreOverlay } from "../models/sync"
@@ -109,6 +110,7 @@ export class OwnerDO extends DurableObject<Env> {
       room: (roomId) => this.room(roomId),
       agent: (roomId, slug) => this.agent(roomId, slug),
       files: () => (env.FILES ? fileStore(env) : localBucket(this.blobs)),
+      sweepUploads: (before) => this.sweepUploads(before),
       egress: async (request) => {
         if (new URL(request.url).protocol !== "https:")
           throw new EgressError({ url: request.url, message: "egress is https only" })
@@ -537,6 +539,7 @@ export class OwnerDO extends DurableObject<Env> {
     return this.blobs.remove(...args)
   }
   async blobStartUpload(...args: Parameters<BlobStore["startUpload"]>) {
+    this.sweepUploads(Date.now() - PENDING_TTL_MS)
     return this.blobs.startUpload(...args)
   }
   blobPutPart(...args: Parameters<BlobStore["putPart"]>) {
@@ -547,5 +550,9 @@ export class OwnerDO extends DurableObject<Env> {
   }
   async blobAbort(...args: Parameters<BlobStore["abort"]>) {
     return this.blobs.abort(...args)
+  }
+
+  private sweepUploads(before: number): number {
+    return this.blobs.sweep(before, liveUploadIds(this.ctx.storage.sql))
   }
 }

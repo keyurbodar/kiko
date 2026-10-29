@@ -76,6 +76,7 @@ import {
   claim,
   ClaimRefused,
   type NewPending,
+  openPending,
   PENDING_TTL_MS,
   PENDING_WAKEUP,
   PendingUploads,
@@ -1184,7 +1185,7 @@ export class Room implements CommandRoom {
   }
 
   async pendingOpen(input: NewPending): Promise<string | null> {
-    const refused = this.pending.open(input, Date.now())
+    const refused = await openPending(this.pending, this.services.files(), input, Date.now())
     if (!refused) await this.armPending()
     return refused
   }
@@ -1199,7 +1200,7 @@ export class Room implements CommandRoom {
   }
 
   async sweepPending(now = Date.now()): Promise<number> {
-    const stale = this.pending.expired(now - PENDING_TTL_MS)
+    const stale = this.pending.claimExpired(now - PENDING_TTL_MS)
     for (const row of stale) {
       if (row.upload_id)
         await this.services
@@ -1213,7 +1214,7 @@ export class Room implements CommandRoom {
         this.services.files(),
         stale.map((r) => r.r2_key),
       )
-    this.pending.drop(stale.map((r) => r.id))
+    this.services.sweepUploads(now - PENDING_TTL_MS)
     await this.armPending()
     return stale.length
   }
