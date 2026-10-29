@@ -160,6 +160,23 @@ describe("composer attachments", () => {
     expect(tray(screen.container).length).toBe(1)
   })
 
+  it("clears the drop overlay when another surface takes the drop", async () => {
+    using _xhr = fakeXhr()
+    await using _screen = await mountComposer()
+    const surface = document.createElement("div")
+    surface.addEventListener("drop", (event) => event.stopPropagation())
+    document.body.append(surface)
+    const file = new File(["x"], "tree.md", { type: "text/markdown" })
+    const overlay = () => document.querySelector('[data-component="composer-drop-overlay"]')
+
+    document.dispatchEvent(new DragEvent("dragover", { dataTransfer: transfer(file), bubbles: true, cancelable: true }))
+    await expect.poll(overlay).not.toBeNull()
+
+    surface.dispatchEvent(new DragEvent("drop", { dataTransfer: transfer(file), bubbles: true, cancelable: true }))
+    await expect.poll(overlay).toBeNull()
+    surface.remove()
+  })
+
   it("puts files picked with the + button in the tray even mid-sentence", async () => {
     using _xhr = fakeXhr()
     await using screen = await mountComposer()
