@@ -355,6 +355,7 @@ export class Room implements CommandRoom {
   private async flushBurst(): Promise<void> {
     const home = this.home()
     if (!home) return
+    await this.burst.restore()
     const pending = this.burst.envelopes(home.roomId)
     const batch = deliverable(pending)
     if (!batch.length) return
@@ -753,6 +754,7 @@ export class Room implements CommandRoom {
 
   async alarm(): Promise<void> {
     if (this.log.meta("deleted") === "1" || this.log.meta("erasing") === "1") return
+    await this.restoreHumanInput()
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
       [BURST_WAKEUP]: () => this.flushBurst(),
@@ -1399,30 +1401,32 @@ export class Room implements CommandRoom {
     return out
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
     const home = this.home()
     if (!home) return
     this.mail.stop()
-    for (const member of this.members.list()) {
-      if (member.status !== "idle")
-        this.divider(`stopped:${member.slug}:${crypto.randomUUID()}`, "Stopped", {
-          kind: "run_stopped",
-          agent: member.slug,
-          private: true,
-        })
-      this.stopAgent(home, member.slug)
-      this.reports.run(this.routines.dropped(member.slug), "stopped")
-    }
+    await Promise.all(
+      this.members.list().map(async (member) => {
+        if (member.status !== "idle")
+          this.divider(`stopped:${member.slug}:${crypto.randomUUID()}`, "Stopped", {
+            kind: "run_stopped",
+            agent: member.slug,
+            private: true,
+          })
+        this.reports.run(this.routines.dropped(member.slug), "stopped")
+        await this.stopAgent(home, member.slug)
+      }),
+    )
   }
 
-  private stopAgent(home: Home, slug: AgentSlug): void {
-    const agent = this.services.agent(home.roomId, slug)
-    this.ctx.waitUntil(
-      agent.stop().then(
+  private stopAgent(home: Home, slug: AgentSlug): Promise<void> {
+    return this.services
+      .agent(home.roomId, slug)
+      .stop()
+      .then(
         () => undefined,
         (error: unknown) => console.error(`stop failed: ${error instanceof Error ? error.message : String(error)}`),
-      ),
-    )
+      )
   }
 
   memberOp(op: MemberOp): MemberRefusal | null {
@@ -1433,7 +1437,7 @@ export class Room implements CommandRoom {
     const notice = this.memberNotices(op, name, result)
     this.publish([...result.events, ...notice])
     const home = this.home()
-    if (op.op === "remove" && home) this.stopAgent(home, op.slug)
+    if (op.op === "remove" && home) this.ctx.waitUntil(this.stopAgent(home, op.slug))
     if (op.op !== "rename" && home) {
       const slugs = this.members.list().map((m) => m.slug)
       this.ctx.waitUntil(

@@ -42,24 +42,47 @@ describe("run budget", () => {
     expect(budget.due()).toBe(true)
   })
 
-  it("ends a request after three continuations instead of queuing a fourth", async () => {
+  it("ends a request after three continuations that spent the budget instead of queuing a fourth", async () => {
     const scheduled: [string, boolean | undefined][] = []
     const halted: string[] = []
     const all = runs(scheduled, halted)
-    await all.run("room:forge", "r1", async () => "continue", 2)
+    const spend = () => {
+      for (let call = 0; call < 40; call++) all.spareActive()
+    }
+    await all.run(
+      "room:forge",
+      "r1",
+      async () => {
+        spend()
+        return "continue"
+      },
+      2,
+    )
     expect(scheduled).toEqual([["room:forge", true]])
     expect(halted).toEqual([])
-    await all.run("room:forge", "r1", async () => "continue", 3)
+    await all.run(
+      "room:forge",
+      "r1",
+      async () => {
+        spend()
+        return "continue"
+      },
+      3,
+    )
     expect(scheduled).toHaveLength(1)
     expect(halted).toEqual(["room:forge"])
     await all.run("room:forge", "r1", async () => "done", 3)
     expect(halted).toEqual(["room:forge"])
   })
 
-  it("puts a run that yielded behind the agents already waiting", async () => {
+  it("requeues a run that yielded to a waiting agent without spending its long-run budget", async () => {
     const scheduled: [string, boolean | undefined][] = []
-    await runs(scheduled).run("room:forge", "r1", async () => "continue")
-    expect(scheduled).toEqual([["room:forge", true]])
+    const halted: string[] = []
+    const all = runs(scheduled, halted)
+    for (let continues = 0; continues < 6; continues++)
+      await all.run("room:forge", "r1", async () => "continue", continues)
+    expect(scheduled).toEqual(Array.from({ length: 6 }, () => ["room:forge", false]))
+    expect(halted).toEqual([])
   })
 
   it("tells a running agent to share as soon as another agent queues, and not before", async () => {

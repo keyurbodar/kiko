@@ -859,13 +859,25 @@ export class User {
     for (const key of previous)
       if (!byAgent.has(key)) {
         const [roomId, target] = key.split(":")
-        if (roomId && target) await this.services.agent(roomId, target).syncRoutines([])
+        if (roomId && target) await this.syncAgentRoutines(roomId, target, [])
       }
     for (const list of byAgent.values()) {
       const { roomId, target } = list[0]!
-      await this.services.agent(roomId, target).syncRoutines(list)
+      await this.syncAgentRoutines(roomId, target, list)
     }
     this.putSetting("routine_agents", JSON.stringify([...byAgent.keys()]))
+  }
+
+  private async syncAgentRoutines(
+    roomId: string,
+    target: string,
+    routines: readonly import("../owner/schedules").ScheduledRoutine[],
+  ): Promise<void> {
+    try {
+      await this.services.agent(roomId, target).syncRoutines(routines)
+    } catch (e) {
+      console.error(`routine sync for ${roomId}:${target} failed: ${e instanceof Error ? e.message : String(e)}`)
+    }
   }
 
   async fireRoutine(delivery: import("../owner/schedules").RoutineDelivery): Promise<void> {

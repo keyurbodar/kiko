@@ -59,17 +59,25 @@ export class RoutineSchedules {
       sync: async (routines) => {
         const update = this.updating.then(async () => {
           const current = await harness.snapshot(schedules, conversationId, BACKGROUND_CONTEXT)
+          const entries = current?.entries ?? []
+          const alive = new Set<string>()
+          for (const entry of entries) {
+            const task = await harness.getTask(entry.taskId, BACKGROUND_CONTEXT)
+            const status = task?.state.status
+            if (status !== undefined && status !== "terminal" && status !== "completing")
+              alive.add(routineRequestId(entry))
+          }
           const keys = new Set(routines.map(routineRequestId))
-          if (
-            (current?.entries.length ?? 0) === keys.size &&
-            (current?.entries ?? []).every((entry) => keys.has(routineRequestId(entry)))
-          )
-            return []
+          if (entries.length === keys.size && [...keys].every((key) => alive.has(key))) return []
           return harness.commit(async (tx) => {
             const doc = await tx.doc(schedules, conversationId)
-            const wanted = new Set(routines.map(routineRequestId))
-            const obsolete = doc.entries.filter((entry) => !wanted.has(routineRequestId(entry)))
-            if (obsolete.length) doc.entries = doc.entries.filter((entry) => wanted.has(routineRequestId(entry)))
+            const wanted = keys
+            const obsolete = doc.entries.filter(
+              (entry) => !wanted.has(routineRequestId(entry)) && alive.has(routineRequestId(entry)),
+            )
+            doc.entries = doc.entries.filter(
+              (entry) => wanted.has(routineRequestId(entry)) && alive.has(routineRequestId(entry)),
+            )
             const present = new Set(doc.entries.map(routineRequestId))
             for (const input of routines) {
               const key = routineRequestId(input)

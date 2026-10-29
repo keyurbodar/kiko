@@ -168,7 +168,7 @@ export function projectRecovery(
     const before = watches.get(task.record.id) ?? Math.min(current ?? Infinity, now + RECOVERY_DELAY_MS)
     const fallback = before > now ? before : now + RECOVERY_DELAY_MS
     const deadline = future ? scheduled : fallback
-    if (future) next = Math.min(next ?? deadline, deadline)
+    next = Math.min(next ?? deadline, deadline)
     if (!future) resume.push({ id: task.record.id, deadline: fallback })
   }
   return { next, resume }

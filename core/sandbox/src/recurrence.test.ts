@@ -69,3 +69,23 @@ describe("localMoment", () => {
     assert.strictEqual(localMoment("2026-02-30T08:30", "UTC"), null)
   })
 })
+
+describe("nextOccurrence with a series anchor", () => {
+  it.effect("counts a bounded rule from its first occurrence instead of restarting", () =>
+    Effect.gen(function* () {
+      const anchor = Date.UTC(2026, 0, 1, 7)
+      const seen: string[] = []
+      let at = anchor
+      for (let i = 0; i < 10; i++) {
+        const date = yield* Effect.try({
+          try: () => nextOccurrence("FREQ=DAILY;COUNT=3", "UTC", at, anchor),
+          catch: (e) => e as RecurrenceError,
+        })
+        if (!date) break
+        at = date.getTime()
+        seen.push(date.toISOString())
+      }
+      assert.deepStrictEqual(seen, ["2026-01-02T07:00:00.000Z", "2026-01-03T07:00:00.000Z"])
+    }),
+  )
+})

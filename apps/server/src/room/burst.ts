@@ -157,9 +157,13 @@ export class Burst {
             this.envelopes()
               .map(({ envelope }) => envelope.id)
               .join("\n")
-        )
+        ) {
+          this.readyAt = this.now() + AFTER_MESSAGE_MS
+          await this.alarms.setWakeup(BURST_WAKEUP, this.readyAt)
           return
+        }
       }
+      this.readyAt = undefined
       await this.alarms.clearWakeup(BURST_WAKEUP)
     } finally {
       this.settling = false

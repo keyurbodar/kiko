@@ -44,8 +44,11 @@ class RunBudget {
   share(): void {
     this.sharing.abort()
   }
+  exhausted(): boolean {
+    return this.drained || this.outgoing >= RUN_CALL_LIMIT || this.now() >= this.deadline
+  }
   due(othersWaiting: () => boolean = () => false): boolean {
-    if (this.drained || this.outgoing >= RUN_CALL_LIMIT || this.now() >= this.deadline) return true
+    if (this.exhausted()) return true
     return this.outgoing >= SHARE_AFTER_CALLS && othersWaiting()
   }
 }
@@ -113,7 +116,7 @@ export class Runs {
     continues = 0,
   ): Promise<void> {
     const existing = this.active.get(agent)
-    if (existing) return existing.work
+    if (existing) return existing.work.catch(() => {}).then(() => this.run(agent, requestId, invoke, continues))
     const budget = this.budget()
     const work = Promise.resolve().then(async () => {
       let outcome: RunOutcome
@@ -123,8 +126,9 @@ export class Runs {
         this.active.delete(agent)
       }
       if (outcome !== "continue") return
-      if (continues >= MAX_CONTINUES) await this.options.halt(agent)
-      else await this.options.schedule(agent, requestId, true)
+      const spent = budget.exhausted()
+      if (spent && continues >= MAX_CONTINUES) await this.options.halt(agent)
+      else await this.options.schedule(agent, requestId, spent)
     })
     this.active.set(agent, { budget, work })
     return work

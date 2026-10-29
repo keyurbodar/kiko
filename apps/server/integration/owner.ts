@@ -103,6 +103,10 @@ export class Room {
     return this.client["room.send"]({ roomId: this.roomId, commandId: newCommandId(), text })
   }
 
+  stop() {
+    return this.client["room.stop"]({ roomId: this.roomId, commandId: newCommandId() })
+  }
+
   untilMessage(ready: (messages: Message[]) => boolean): Effect.Effect<void> {
     return this.stream.until((items) => ready(messagesOf(items)))
   }

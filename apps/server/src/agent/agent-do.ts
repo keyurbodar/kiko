@@ -178,7 +178,6 @@ export class Agent {
       openHarness: openAgentHarness,
       scheduledDeadline,
       requestRun: this.requestRun,
-      progress: () => this.outbox.progress(),
       shortBrief,
       onReset: () => this.outbox.clear(),
       onWorkers: (running, pending) => void this.workersChanged(running, pending),
@@ -676,16 +675,17 @@ export class Agent {
         this.prefetchDelta(batch)
         return this.beginRun(batch, root)
       },
-      inputContext: async () => {
+      inputContext: async (midRun) => {
         const tz = this.#run?.timezone ?? "UTC"
         const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
+        const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
+        if (midRun) return [clock, quiet].filter(Boolean).join("\n\n")
         const down =
           composio === "unreachable"
             ? "composio (the human's connected apps) is unreachable right now, so its tools are missing this run."
             : undefined
         const integrations = integrationNote(composio, browserOn)
         const learned = Array.isArray(composio) ? learnedNote(composio) : undefined
-        const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
         const routines = await this.routineContext()
         return [clock, integrations, down, learned, quiet, routines].filter(Boolean).join("\n\n")
       },

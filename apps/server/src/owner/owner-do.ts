@@ -193,7 +193,7 @@ export class OwnerDO extends DurableObject<Env> {
       roomId,
       slug,
       requestId,
-      Date.now() + (this.runs.has(agent) ? RECOVERY_DELAY_MS : 0),
+      Date.now(),
     )
     this.runs.waiting(agent)
     const running = this.runs.running()
@@ -395,23 +395,27 @@ export class OwnerDO extends DurableObject<Env> {
         )
         .toArray()
       for (const { scope, at } of due) {
-        if (scope.startsWith("agent:")) {
-          const key = scope.slice("agent:".length)
-          const [roomId, slug, ...extra] = key.split(":")
-          if (!isRoomId(roomId) || !slug || extra.length)
-            throw new AgentKeyError({ kind: "deadline", key, message: "bad agent deadline" })
-          this.ctx.storage.sql.exec(
-            "INSERT OR IGNORE INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)",
-            key,
-            roomId,
-            slug,
-            "recovery",
-            at,
-          )
-          continue
+        try {
+          if (scope.startsWith("agent:")) {
+            const key = scope.slice("agent:".length)
+            const [roomId, slug, ...extra] = key.split(":")
+            if (!isRoomId(roomId) || !slug || extra.length)
+              throw new AgentKeyError({ kind: "deadline", key, message: "bad agent deadline" })
+            this.ctx.storage.sql.exec(
+              "INSERT OR IGNORE INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)",
+              key,
+              roomId,
+              slug,
+              "recovery",
+              at,
+            )
+            continue
+          }
+          if (scope === "user") await this.user().alarm()
+          else if (scope.startsWith("room:")) await this.room(scope.slice("room:".length)).alarm()
+        } catch (error) {
+          console.error(`clock ${scope} failed: ${error instanceof Error ? error.message : String(error)}`)
         }
-        if (scope === "user") await this.user().alarm()
-        else if (scope.startsWith("room:")) await this.room(scope.slice("room:".length)).alarm()
       }
       if (!this.connected())
         for (const roomId of await this.pendingRooms()) {
@@ -436,8 +440,8 @@ export class OwnerDO extends DurableObject<Env> {
       await this.trimAgents()
     } finally {
       this.alarmRunning = false
+      await this.refreshClock()
     }
-    await this.refreshClock()
   }
 
   private connected(): boolean {
@@ -468,7 +472,8 @@ export class OwnerDO extends DurableObject<Env> {
 
   private async resumeSocket(): Promise<void> {
     for (const roomId of await this.pendingRooms()) await this.room(roomId).settleHumanInput()
-    for (const run of await this.unfinishedRuns()) await this.enqueueRun(run.agent, run.request_id)
+    for (const run of await this.unfinishedRuns())
+      if (!this.runs.has(run.agent)) await this.enqueueRun(run.agent, run.request_id)
   }
 
   private async recoverDisconnected(): Promise<void> {
