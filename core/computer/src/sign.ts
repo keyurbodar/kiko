@@ -22,8 +22,12 @@ export function toBase64Url(bytes: Uint8Array): string {
 
 export function fromBase64Url(text: string): Uint8Array | null {
   if (!/^[A-Za-z0-9_-]*$/.test(text)) return null
-  const binary = atob(text.replaceAll("-", "+").replaceAll("_", "/"))
-  return Uint8Array.from(binary, (c) => c.charCodeAt(0))
+  try {
+    const binary = atob(text.replaceAll("-", "+").replaceAll("_", "/"))
+    return Uint8Array.from(binary, (c) => c.charCodeAt(0))
+  } catch {
+    return null
+  }
 }
 
 export async function generateKeys(): Promise<{ publicKey: string; privateKey: JsonWebKey }> {

@@ -71,13 +71,16 @@ async function pair(request: Request, env: Env): Promise<Response> {
 function connect(request: Request, env: Env): Promise<Response> | Response {
   if (request.method !== "GET") return error(405, "method not allowed")
   const user = request.headers.get(CONNECT_HEADERS.user)
+  const id = request.headers.get(CONNECT_HEADERS.id)
+  const ts = request.headers.get(CONNECT_HEADERS.ts)
+  const sig = request.headers.get(CONNECT_HEADERS.sig)
   const protocol = Number(request.headers.get(CONNECT_HEADERS.protocol) ?? "")
   if (protocol !== PROTOCOL)
     return new Response("protocol mismatch", {
       status: 426,
       headers: { [CONNECT_HEADERS.protocol]: String(PROTOCOL) },
     })
-  if (!user) return error(401, "unauthorized")
+  if (!user || !id || !ts || !sig) return error(401, "unauthorized")
   try {
     return ownerStub(env.OWNER, user).fetch(request)
   } catch (e) {
