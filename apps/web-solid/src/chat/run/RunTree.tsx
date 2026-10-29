@@ -45,7 +45,6 @@ import {
 } from "./run-tree-rows"
 import { recallSummary, rememberSummary } from "./run-summary"
 import { Shine } from "./Shine"
-import { Branch } from "./branch"
 import "./run-tree.css"
 
 const [opened, setOpened] = createSignal<ReadonlySet<string>>(new Set())
@@ -304,13 +303,10 @@ function Detail(props: { detail: RowDetail; onRetry: () => void }) {
 function StepRow(props: {
   step: StepItem
   view: View
-  depth: number
   order: number
   steps: readonly RunStep[]
-  liveTrunk: boolean
-  liveBranch: boolean
-  liveNext: boolean
-  continues: boolean
+  live: boolean
+  hot: boolean
 }) {
   const open = () => props.view.isOpen(props.step.id)
   const opensFile = () => !!props.step.target && !props.step.target.folder
@@ -321,8 +317,9 @@ function StepRow(props: {
     <div
       class="run-tree-item"
       data-kind="step"
-      data-depth={props.depth}
       data-fresh={born() ? "" : undefined}
+      data-live={props.live ? "" : undefined}
+      data-hot={props.hot ? "" : undefined}
       style={{ "--run-delay": `${delayOf(born(), props.order)}ms` }}
     >
       <button
@@ -338,15 +335,6 @@ function StepRow(props: {
         title={opensFile() ? `Open ${props.step.target!.path}` : undefined}
         onClick={() => props.view.openStep(props.step)}
       >
-        <Branch
-          depth={props.depth}
-          liveTrunk={props.liveTrunk}
-          liveBranch={props.liveBranch}
-          liveNext={props.liveNext}
-          failed={failed()}
-          fresh={born()}
-          continues={props.continues}
-        />
         <Icon icon={props.step.icon} running={props.step.running} failed={failed()} settled={settled()} />
         <Label text={props.step.label} parts={props.step.parts} running={props.step.running} />
         <Show when={!props.step.target}>
@@ -373,25 +361,26 @@ function runningChild(worker: WorkerItem): StepItem | undefined {
 function WorkerRow(props: {
   worker: WorkerItem
   view: View
-  depth: number
   order: number
   steps: readonly RunStep[]
-  liveTrunk: boolean
-  liveBranch: boolean
-  liveNext: boolean
+  live: boolean
+  hot: boolean
   liveChild?: string
   liveChildIndex: number
-  continues: boolean
 }) {
   const open = () => props.worker.running || props.view.isOpen(props.worker.id)
   const born = () => fresh(props.worker.startedAt, props.view.now())
-  const state = () => (props.worker.running ? (runningChild(props.worker)?.label ?? "Working") : props.worker.meta)
+  const text = () => {
+    const child = runningChild(props.worker)
+    return child ? `${props.worker.label}: ${child.label}` : props.worker.label
+  }
   return (
     <div
       class="run-tree-item"
       data-kind="worker"
-      data-depth={props.depth}
       data-fresh={born() ? "" : undefined}
+      data-live={props.live ? "" : undefined}
+      data-hot={props.hot ? "" : undefined}
       style={{ "--run-delay": `${delayOf(born(), props.order)}ms` }}
     >
       <button
@@ -404,29 +393,17 @@ function WorkerRow(props: {
         data-disclosure=""
         onClick={() => props.view.toggle(props.worker.id)}
       >
-        <Branch
-          depth={props.depth}
-          liveTrunk={props.liveTrunk}
-          liveBranch={props.liveBranch}
-          liveNext={props.liveNext || props.liveChild !== undefined}
-          failed={props.worker.failed}
-          fresh={born()}
-          continues={props.continues}
-        />
         <span class="run-tree-slot">
           <Leaves running={props.worker.running} failed={props.worker.failed} />
         </span>
-        <Label text={props.worker.label} running={props.worker.running} />
-        <Show when={state()} keyed>
-          {(text) => (
-            <Show when={props.worker.running} fallback={<span class="run-tree-meta">{text}</span>}>
-              <Shine running class="run-tree-meta">
-                {text}
-              </Shine>
-            </Show>
-          )}
-        </Show>
+        <Label text={text()} running={props.worker.running} />
         <Chevron open={open()} />
+        <Show
+          when={props.worker.running}
+          fallback={<Show when={props.worker.meta}>{(meta) => <span class="run-tree-meta">{meta()}</span>}</Show>}
+        >
+          <Took startedAt={props.worker.startedAt} endedAt={props.worker.endedAt} running now={props.view.now()} />
+        </Show>
       </button>
       <Show when={open()}>
         <div class="run-tree-children">
@@ -435,13 +412,10 @@ function WorkerRow(props: {
               <StepRow
                 step={step()}
                 view={props.view}
-                depth={props.depth + 1}
                 order={index}
                 steps={props.steps}
-                liveTrunk={props.liveChild !== undefined && index <= props.liveChildIndex}
-                liveBranch={props.liveChild === step().id}
-                liveNext={props.liveChild !== undefined && index < props.liveChildIndex}
-                continues={index < props.worker.steps.length - 1}
+                live={props.liveChild !== undefined && index <= props.liveChildIndex}
+                hot={props.liveChild === step().id}
               />
             )}
           </Index>
@@ -451,23 +425,15 @@ function WorkerRow(props: {
   )
 }
 
-function NoteRow(props: {
-  note: NoteItem
-  view: View
-  depth: number
-  order: number
-  liveTrunk: boolean
-  liveNext: boolean
-  continues: boolean
-}) {
+function NoteRow(props: { note: NoteItem; view: View; order: number; live: boolean }) {
   const born = () => fresh(props.note.startedAt, props.view.now())
   const [open, setOpen] = createSignal(false)
   return (
     <div
       class="run-tree-item"
       data-kind="note"
-      data-depth={props.depth}
       data-fresh={born() ? "" : undefined}
+      data-live={props.live ? "" : undefined}
       style={{ "--run-delay": `${delayOf(born(), props.order)}ms` }}
     >
       <button
@@ -478,15 +444,6 @@ function NoteRow(props: {
         data-disclosure=""
         onClick={() => setOpen(!open())}
       >
-        <Branch
-          depth={props.depth}
-          liveTrunk={props.liveTrunk}
-          liveBranch={false}
-          liveNext={props.liveNext}
-          failed={false}
-          fresh={born()}
-          continues={props.continues}
-        />
         <span class="run-tree-slot">
           <RemixIcon icon={GLYPH.bulb} size={16} class="run-tree-icon" />
         </span>
@@ -500,15 +457,7 @@ function NoteRow(props: {
   )
 }
 
-function ThoughtRow(props: {
-  thought: Thought
-  depth: number
-  order: number
-  now: number
-  live: boolean
-  liveNext: boolean
-  continues: boolean
-}) {
+function ThoughtRow(props: { thought: Thought; order: number; now: number; live: boolean; hot: boolean }) {
   const [open, setOpen] = createSignal(false)
   const ms = () => thoughtMs(props.thought, props.now)
   const text = () => thoughtText(props.thought)
@@ -518,8 +467,9 @@ function ThoughtRow(props: {
       <div
         class="run-tree-item"
         data-kind="thought"
-        data-depth={props.depth}
         data-fresh={born() ? "" : undefined}
+        data-live={props.live ? "" : undefined}
+        data-hot={props.hot ? "" : undefined}
         style={{ "--run-delay": `${delayOf(born(), props.order)}ms` }}
       >
         <button
@@ -530,15 +480,6 @@ function ThoughtRow(props: {
           data-disclosure=""
           onClick={() => setOpen(!open())}
         >
-          <Branch
-            depth={props.depth}
-            liveTrunk={props.live}
-            liveBranch={props.live}
-            liveNext={props.liveNext}
-            failed={false}
-            fresh={born()}
-            continues={props.continues}
-          />
           <span class="run-tree-slot">
             <RemixIcon icon={GLYPH.bulb} size={16} class="run-tree-icon" />
           </span>
@@ -574,12 +515,10 @@ function Items(props: {
         {(thought) => (
           <ThoughtRow
             thought={thought()}
-            depth={0}
             order={0}
             now={props.view.now()}
             live={props.live}
-            liveNext={props.live && props.liveTopIndex >= 0}
-            continues={props.items.length > 0}
+            hot={props.live && props.liveTopIndex === -1}
           />
         )}
       </Show>
@@ -591,13 +530,10 @@ function Items(props: {
                 <StepRow
                   step={step()}
                   view={props.view}
-                  depth={0}
                   order={index}
                   steps={props.steps}
-                  liveTrunk={props.live && props.liveTopIndex >= 0 && index <= props.liveTopIndex}
-                  liveBranch={props.live && props.liveTop === step().id}
-                  liveNext={props.live && props.liveTopIndex > index}
-                  continues={index < shown().length - 1}
+                  live={props.live && props.liveTopIndex >= 0 && index <= props.liveTopIndex}
+                  hot={props.live && props.liveTop === step().id}
                 />
               )}
             </Match>
@@ -606,11 +542,8 @@ function Items(props: {
                 <NoteRow
                   note={note()}
                   view={props.view}
-                  depth={0}
                   order={index}
-                  liveTrunk={props.live && props.liveTopIndex >= 0 && index <= props.liveTopIndex}
-                  liveNext={props.live && props.liveTopIndex > index}
-                  continues={index < shown().length - 1}
+                  live={props.live && props.liveTopIndex >= 0 && index <= props.liveTopIndex}
                 />
               )}
             </Match>
@@ -619,15 +552,12 @@ function Items(props: {
                 <WorkerRow
                   worker={worker()}
                   view={props.view}
-                  depth={0}
                   order={index}
                   steps={props.steps}
-                  liveTrunk={props.live && props.liveTopIndex >= 0 && index <= props.liveTopIndex}
-                  liveBranch={props.live && props.liveTop === worker().id}
-                  liveNext={props.live && props.liveTopIndex > index}
+                  live={props.live && props.liveTopIndex >= 0 && index <= props.liveTopIndex}
+                  hot={props.live && props.liveTop === worker().id}
                   liveChild={props.liveTop === worker().id ? props.liveChild : undefined}
                   liveChildIndex={props.liveChildIndex}
-                  continues={index < shown().length - 1}
                 />
               )}
             </Match>
@@ -635,11 +565,12 @@ function Items(props: {
         )}
       </Index>
       <Show when={long()}>
-        <button type="button" class="run-tree-row run-tree-more" onClick={() => props.onWhole()}>
-          <Branch depth={0} liveTrunk={false} liveBranch={false} liveNext={false} failed={false} fresh={false} />
-          <span class="run-tree-slot" />
-          <span class="run-tree-label">+{props.items.length - SHORT_LIST} steps</span>
-        </button>
+        <div class="run-tree-item">
+          <button type="button" class="run-tree-row run-tree-more" onClick={() => props.onWhole()}>
+            <span class="run-tree-slot" />
+            <span class="run-tree-label">+{props.items.length - SHORT_LIST} steps</span>
+          </button>
+        </div>
       </Show>
     </>
   )
@@ -647,20 +578,21 @@ function Items(props: {
 
 function Missing(props: { missing: "loading" | "error"; onRetry: () => void }) {
   return (
-    <div class="run-tree-row" data-kind={props.missing}>
-      <Branch depth={0} liveTrunk={false} liveBranch={false} liveNext={false} failed={false} fresh={false} />
-      <span class="run-tree-slot" />
-      <Show
-        when={props.missing === "error"}
-        fallback={
-          <Shine running class="run-tree-label">
-            Loading steps…
-          </Shine>
-        }
-      >
-        <span class="run-tree-label">Steps unavailable</span>
-        <Retry onRetry={props.onRetry} />
-      </Show>
+    <div class="run-tree-item">
+      <div class="run-tree-row" data-kind={props.missing}>
+        <span class="run-tree-slot" />
+        <Show
+          when={props.missing === "error"}
+          fallback={
+            <Shine running class="run-tree-label">
+              Loading steps…
+            </Shine>
+          }
+        >
+          <span class="run-tree-label">Steps unavailable</span>
+          <Retry onRetry={props.onRetry} />
+        </Show>
+      </div>
     </div>
   )
 }
@@ -692,10 +624,10 @@ function Head(props: {
               onClick={props.onToggle}
             >
               <span class="run-tree-summary">{props.worked}</span>
+              <Chevron open={props.open} />
               <Show when={props.startedAt}>
                 {(at) => <Time at={at()} now={props.now} text={dividerParts(at(), props.now).time} />}
               </Show>
-              <Chevron open={props.open} />
             </button>
           }
         >

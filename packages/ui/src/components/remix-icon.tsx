@@ -25,11 +25,11 @@ export function RemixIcon(props: RemixIconProps) {
     <svg
       data-component="remix-icon"
       aria-hidden="true"
-      viewBox="0 0 256 256"
+      viewBox="0 0 24 24"
       width={own.size ?? 16}
       height={own.size ?? 16}
       style={box() === undefined ? undefined : { width: box(), height: box() }}
-      fill="currentColor"
+      fill="none"
       {...rest}
       innerHTML={own.icon}
     />

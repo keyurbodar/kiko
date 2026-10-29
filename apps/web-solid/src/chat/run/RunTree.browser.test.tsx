@@ -4,6 +4,7 @@ import { createSignal } from "solid-js"
 import { describe, expect, it, vi } from "vitest"
 import { userEvent } from "vitest/browser"
 import { render } from "../../../test/render"
+import { fakeTimers } from "../../../test/timers"
 import { fullTimeLabel } from "./duration"
 import { RunTree } from "./RunTree"
 
@@ -66,6 +67,9 @@ const rows = (host: HTMLElement) => [...host.querySelectorAll<HTMLElement>(".run
 const head = (host: HTMLElement) => host.querySelector<HTMLElement>(".run-tree-head")!
 const labels = (host: HTMLElement) => rows(host).map((row) => row.querySelector(".run-tree-label")?.textContent)
 const tip = () => document.querySelector<HTMLElement>('[data-component="tooltip-v2"]')
+const items = (host: HTMLElement) => [...host.querySelectorAll<HTMLElement>(".run-tree-item")]
+const elbowOf = (item: HTMLElement) => getComputedStyle(item, "::after")
+const railOf = (item: HTMLElement) => getComputedStyle(item, "::before")
 
 function tokenColor(token: string): string {
   const probe = document.createElement("div")
@@ -73,6 +77,28 @@ function tokenColor(token: string): string {
   document.body.append(probe)
   const value = getComputedStyle(probe).color
   probe.remove()
+  return value
+}
+
+async function openTree(host: HTMLElement, count: number) {
+  head(host).click()
+  return vi.waitFor(() => {
+    const found = items(host)
+    expect(found).toHaveLength(count)
+    return found
+  })
+}
+
+function authored(selector: string, property: string): string {
+  let value = ""
+  for (const sheet of document.styleSheets) {
+    for (const rule of sheet.cssRules) {
+      if (!(rule instanceof CSSStyleRule) || !rule.selectorText.split(",").some((part) => part.trim() === selector))
+        continue
+      const found = rule.style.getPropertyValue(property)
+      if (found) value = found
+    }
+  }
   return value
 }
 
@@ -269,5 +295,107 @@ describe("RunTree", () => {
     expect(lanes.textContent).toContain("Private to")
     expect(lanes.querySelectorAll('[data-component="helper-lane"]')).toHaveLength(1)
     fake.helpers = []
+  })
+
+  it("hangs every step off a 30px row with a 13 by 15 elbow and a 1.5px rail", async () => {
+    fake.live = false
+    fake.steps = [
+      step("a", { after: 30, startedAt: START, endedAt: START + 2_000 }),
+      step("b", { after: 30, startedAt: START + 2_000, endedAt: START + 4_000 }),
+    ]
+    await using screen = await render(() => <RunTree windowKey="kiko#30" count={2} endedAt={START + 6_000} />)
+    const [first, last] = await openTree(screen.container, 2)
+
+    const row = first!.querySelector<HTMLElement>(".run-tree-row")!
+    expect(getComputedStyle(row).height).toBe("30px")
+    expect(getComputedStyle(row).gap).toBe("9px")
+
+    const rail = tokenColor("--border-300")
+    const elbow = elbowOf(first!)
+    expect(elbow.left).toBe("-20px")
+    expect(elbow.width).toBe("13px")
+    expect(elbow.height).toBe("15px")
+    expect(elbow.borderBottomLeftRadius).toBe("9px")
+    expect(elbow.borderLeftColor).toBe(rail)
+    expect(railOf(first!).borderLeftColor).toBe(rail)
+    expect(railOf(last!).display).toBe("none")
+    expect(authored(".run-tree-item::before", "border-left")).toBe("1.5px solid var(--run-rail)")
+    expect(authored(".run-tree-item::after", "border-bottom")).toBe("1.5px solid var(--run-rail)")
+  })
+
+  it("indents each level by 27px and hangs a helper's steps off its own rail", async () => {
+    const worker = { id: "w1", task: "Trains helper" }
+    fake.live = false
+    fake.steps = [
+      step("a", { after: 31, worker, startedAt: START }),
+      step("b", { after: 31, worker, startedAt: START + 1_000 }),
+    ]
+    await using screen = await render(() => <RunTree windowKey="kiko#31" count={2} />)
+    await openTree(screen.container, 1)
+
+    const list = screen.container.querySelector<HTMLElement>(".run-tree-list")!
+    expect(getComputedStyle(list).marginLeft).toBe("7px")
+    expect(getComputedStyle(list).paddingLeft).toBe("20px")
+
+    rows(screen.container)
+      .find((row) => row.dataset.kind === "worker")!
+      .click()
+    const helperStep = await vi.waitFor(() => {
+      const found = [...screen.container.querySelectorAll<HTMLElement>(".run-tree-children > .run-tree-item")]
+      expect(found).toHaveLength(2)
+      return found[1]!
+    })
+
+    const children = screen.container.querySelector<HTMLElement>(".run-tree-children")!
+    expect(getComputedStyle(children).marginLeft).toBe("7px")
+    expect(getComputedStyle(children).paddingLeft).toBe("20px")
+    expect(elbowOf(helperStep).left).toBe("-20px")
+    expect(railOf(helperStep).display).toBe("none")
+  })
+
+  it("turns the branch white from the top down to the running step", async () => {
+    fake.live = true
+    fake.steps = [
+      step("a", { after: 32, startedAt: START, endedAt: START + 2_000 }),
+      step("b", { after: 32, startedAt: START + 2_000, endedAt: START + 4_000 }),
+      step("c", { after: 32, startedAt: START + 4_000, status: "running", endedAt: undefined }),
+    ]
+    await using screen = await render(() => <RunTree windowKey="kiko#32" />)
+    const found = await vi.waitFor(() => {
+      const all = items(screen.container)
+      expect(all).toHaveLength(3)
+      return all
+    })
+
+    const white = tokenColor("--text-100")
+    const rail = tokenColor("--border-300")
+
+    expect(found[0]!.hasAttribute("data-live")).toBe(true)
+    expect(found[0]!.hasAttribute("data-hot")).toBe(false)
+    expect(railOf(found[0]!).borderLeftColor).toBe(white)
+    expect(elbowOf(found[0]!).borderLeftColor).toBe(rail)
+
+    expect(found[2]!.hasAttribute("data-hot")).toBe(true)
+    expect(railOf(found[2]!).borderLeftColor).toBe(white)
+    expect(elbowOf(found[2]!).borderLeftColor).toBe(white)
+  })
+
+  it("folds a running helper to one row with the step it is on and a time", async () => {
+    using _timers = fakeTimers()
+    vi.setSystemTime(START + 5_000)
+    const worker = { id: "w1", task: "Food helper" }
+    fake.live = true
+    fake.steps = [step("look", { after: 33, worker, startedAt: START, status: "running", endedAt: undefined })]
+    await using screen = await render(() => <RunTree windowKey="kiko#33" />)
+
+    const helper = rows(screen.container).find((row) => row.dataset.kind === "worker")!
+    expect(helper).toBeDefined()
+    expect(helper.textContent).toContain("Food helper: Running look")
+
+    const chevron = helper.querySelector(".run-tree-chevron")!
+    const meta = helper.querySelector(".run-tree-meta")!
+    const order = [...helper.children]
+    expect(order.indexOf(chevron)).toBeLessThan(order.indexOf(meta.parentElement!))
+    expect(meta.textContent).toBe("5s")
   })
 })

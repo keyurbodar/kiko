@@ -164,6 +164,7 @@ export function createPromptInputV2Attachments(
   }
 
   onMount(() => {
+    const clearDrag = () => input.setDragging(false)
     makeEventListener(document, "dragover", (event) => {
       const reference = hasFileDrag(event.dataTransfer)
       if (!reference && !event.dataTransfer?.types.includes("Files")) return
@@ -173,10 +174,18 @@ export function createPromptInputV2Attachments(
       input.setDragging(true)
     })
     makeEventListener(document, "dragleave", (event) => {
-      if (!event.relatedTarget) input.setDragging(false)
+      if (!event.relatedTarget) clearDrag()
     })
-    makeEventListener(window, "dragend", () => input.setDragging(false))
+    makeEventListener(window, "dragend", clearDrag)
+    makeEventListener(window, "blur", clearDrag)
+    makeEventListener(document, "drop", clearDrag, { capture: true })
     makeEventListener(document, "drop", handleDrop)
+    makeEventListener(document, "keydown", (event) => {
+      if (event.key === "Escape") clearDrag()
+    })
+    makeEventListener(document, "visibilitychange", () => {
+      if (document.hidden) clearDrag()
+    })
   })
 
   return { addAttachments, handlePaste, handleDrop, dragKind }
