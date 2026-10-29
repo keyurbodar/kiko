@@ -34,11 +34,12 @@
 .sidebar-shell .panel-header {
   position: relative;
   display: flex;
-  height: 52px;
+  height: var(--spacing-header);
   flex-shrink: 0;
   align-items: center;
   gap: 2px;
-  padding: 4px 10px 0 18px;
+  margin: 10px 8px 4px;
+  padding: 0 8px 0 12px;
 }
 
 .sidebar-shell :is(.panel-brand, .chat-row, .nav-row) {
@@ -122,7 +123,7 @@
   flex-shrink: 0;
   flex-direction: column;
   gap: 0;
-  padding: 6px 8px 0;
+  padding: 0 8px;
 }
 
 .sidebar-shell .nav-row {
@@ -135,11 +136,12 @@
   color: var(--fg);
   font: inherit;
   font-size: var(--type-ui);
+  line-height: var(--type-ui-line);
   text-align: left;
   text-decoration: none;
   background: none;
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-nav);
   cursor: pointer;
   appearance: none;
   transition:
@@ -190,11 +192,7 @@
 }
 
 .sidebar-shell .nav-row[data-active] {
-  background: color-mix(in oklab, var(--accent) 12%, transparent);
-}
-
-.sidebar-shell .nav-row[data-active] .nav-icon {
-  color: var(--accent);
+  background: var(--active);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -203,7 +201,7 @@
   }
 
   .sidebar-shell .nav-row[data-active]:hover {
-    background: color-mix(in oklab, var(--accent) 18%, transparent);
+    background: var(--active);
   }
 }
 
@@ -299,21 +297,22 @@
 
 .sidebar-shell .chat-section {
   display: flex;
-  height: 28px;
+  height: var(--spacing-section-label);
   flex-shrink: 0;
   align-items: center;
   gap: 6px;
   margin-top: 14px;
-  padding: 0 4px 0 10px;
+  padding: 0 10px;
   color: var(--fg3);
-  font-size: var(--type-label);
+  font-size: var(--type-caption);
+  line-height: var(--type-caption-line);
   font-weight: 500;
   user-select: none;
 }
 
 .sidebar-shell .chat-section-toggle {
   display: inline-flex;
-  height: 28px;
+  height: var(--spacing-section-label);
   align-items: center;
   gap: 6px;
   padding: 0;
@@ -795,8 +794,8 @@
   flex: 1;
   overflow: hidden;
   color: var(--fg3);
-  font-size: var(--type-label);
-  line-height: var(--type-label-line);
+  font-size: var(--type-caption);
+  line-height: var(--type-caption-line);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

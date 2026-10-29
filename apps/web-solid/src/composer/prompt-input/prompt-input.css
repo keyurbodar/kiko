@@ -813,24 +813,20 @@ button.token-chip:active {
 
 .tray-fill {
   position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--fg) 10%, transparent);
+}
+
+.tray-fill::after {
+  position: absolute;
   inset: 0;
-  z-index: 2;
-  border-radius: inherit;
-  padding: 2px;
-  background: conic-gradient(
-    from 0deg,
-    var(--fg) calc(var(--upload-share, 0) * 360deg),
-    color-mix(in oklab, var(--fg) 12%, transparent) 0
-  );
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  pointer-events: none;
+  background: var(--fg);
+  content: "";
+  transform: scaleX(var(--upload-share, 0));
+  transform-origin: left;
+  transition: transform var(--dur-pop) var(--ease-kiko);
 }
 
 .tray-done {

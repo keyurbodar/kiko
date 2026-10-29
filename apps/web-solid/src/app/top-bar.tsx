@@ -48,13 +48,13 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
     return `You, ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
   }
   return (
-    <header class="top-bar flex h-[60px] shrink-0 items-center gap-0.5 pr-3 pl-5" data-component="top-bar">
+    <header class="top-bar flex h-[60px] shrink-0 items-center gap-0.5 px-7" data-component="top-bar">
       <Show when={!props.sidebarOpen}>
         <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
       </Show>
       <div class="flex min-w-0 flex-1 items-center gap-2.5">
         <Show when={chatId()} keyed>
-          {(id) => <ChatAvatar faces={room.chatFaces(id)} size={32} />}
+          {(id) => <ChatAvatar faces={room.chatFaces(id)} size={22} />}
         </Show>
         <h1
           class="min-w-0 shrink truncate font-sans text-[15px] leading-[19px] font-semibold text-[var(--text-100)]"

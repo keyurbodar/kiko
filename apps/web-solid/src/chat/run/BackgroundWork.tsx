@@ -48,7 +48,7 @@ export function BackgroundWork(props: {
             </span>
           </button>
           <Show when={props.expanded}>
-            <div class="run-tree-children">
+            <div class="run-tree-nest">
               <For each={props.messages}>{(message) => <Run message={message} />}</For>
             </div>
           </Show>
