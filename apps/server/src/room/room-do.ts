@@ -1407,26 +1407,37 @@ export class Room implements CommandRoom {
     this.mail.stop()
     await Promise.all(
       this.members.list().map(async (member) => {
+        this.reports.run(this.routines.dropped(member.slug), "stopped")
+        const stopped = await this.stopAgent(home, member.slug)
+        await this.cancelRun(home, member.slug)
+        if (!stopped) return
         if (member.status !== "idle")
           this.divider(`stopped:${member.slug}:${crypto.randomUUID()}`, "Stopped", {
             kind: "run_stopped",
             agent: member.slug,
             private: true,
           })
-        this.reports.run(this.routines.dropped(member.slug), "stopped")
-        await this.stopAgent(home, member.slug)
+        await this.setStatus(member.slug, "idle")
       }),
     )
   }
 
-  private stopAgent(home: Home, slug: AgentSlug): Promise<void> {
-    return this.services
-      .agent(home.roomId, slug)
-      .stop()
-      .then(
-        () => undefined,
-        (error: unknown) => console.error(`stop failed: ${error instanceof Error ? error.message : String(error)}`),
-      )
+  private async stopAgent(home: Home, slug: AgentSlug): Promise<boolean> {
+    try {
+      await this.services.agent(home.roomId, slug).stop()
+      return true
+    } catch (error) {
+      console.error(`stop failed: ${error instanceof Error ? error.message : String(error)}`)
+      return false
+    }
+  }
+
+  private async cancelRun(home: Home, slug: AgentSlug): Promise<void> {
+    try {
+      await this.services.cancelRun(home.roomId, slug)
+    } catch (error) {
+      console.error(`run cancel failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   memberOp(op: MemberOp): MemberRefusal | null {
