@@ -14,7 +14,9 @@ type StoredSend = {
   text: string
   hop: number
   rootId: string
+  from: AgentSlug
   recipients: AgentSlug[]
+  remote?: Remote
   returns?: { id: string; remote: RoomId }[]
 }
 
@@ -26,12 +28,13 @@ export type Chain = { rootId: string; hop: number }
 
 type Remote = { room: RoomId; askId: string; back?: true }
 
-type QueuedMail = { n: number; from: AgentSlug; to: AgentSlug; send: StoredSend; remote: Remote | null }
+type QueuedMail = { id: string; n: number; from: AgentSlug; to: AgentSlug; send: StoredSend; remote: Remote | null }
 
 type Returned = { events: RoomEvent[]; asker: AgentSlug; queued: boolean }
 
 const KEEP_SENDS_MS = 7 * 86_400_000
 const PRUNE_EVERY_MS = 3_600_000
+const REDRIVE_AFTER_MS = 5_000
 
 export function messageIdOf(envelopeId: string): string | null {
   if (!envelopeId.startsWith("agent:")) return null
@@ -72,22 +75,24 @@ export class MessageChains {
       rich: parseRichText(shown),
       to: input.to,
     })
-    const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, recipients }
+    const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, from, recipients }
     this.count(rootId, recipients.length)
     const answering = !pair && input.to !== "all" && input.expectsReply !== true
     const settled = answering ? this.asks.answer(from, input.to as AgentSlug, text, input.id) : []
     const back = answering ? this.asks.answerRemote(from, input.to as AgentSlug, text) : []
     if (back.length) send.returns = back
+    const held = settled.some((messageId) => this.asks.waiting(input.to as AgentSlug, messageId, ""))
+    if (pair) send.remote = { room: pair, askId: `${input.id}:${input.to}` }
     this.sql.exec(
-      "INSERT INTO agent_sends (id, send, at, room_id) VALUES (?1, ?2, ?3, ?4)",
+      "INSERT INTO agent_sends (id, send, at, room_id, delivered) VALUES (?1, ?2, ?3, ?4, ?5)",
       input.id,
       JSON.stringify(send),
       this.now(),
       this.log.roomId,
+      back.length || held ? 1 : 0,
     )
     for (const ask of back) this.giveBack(ask.id, from, input.to as AgentSlug, text, ask.remote, { rootId, hop })
-    const held = settled.some((messageId) => this.asks.waiting(input.to as AgentSlug, messageId, ""))
-    if (!back.length && !held) this.enqueue(from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
+    if (!back.length && !held) this.enqueue(input.id, from, send, send.remote ?? null)
     if (!back.length && (input.expectsReply ?? !settled.length))
       for (const to of recipients) this.asks.expect(`${input.id}:${to}`, from, to, stored.id, this.now(), pair)
     if (!held) for (const messageId of settled) this.release(input.to as AgentSlug, messageId, "", input.id)
@@ -108,7 +113,7 @@ export class MessageChains {
           rootId: send.rootId,
           hop: send.hop,
         })
-    else this.enqueue(from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
+    else this.enqueue(input.id, from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
     return { ok: true, send, events: [] }
   }
 
@@ -237,17 +242,19 @@ export class MessageChains {
         text: message.text,
         hop,
         rootId,
+        from,
         recipients: [to],
       }
       this.count(rootId, 1)
       this.sql.exec(
-        "INSERT INTO agent_sends (id, send, at, room_id) VALUES (?1, ?2, ?3, ?4)",
+        "INSERT INTO agent_sends (id, send, at, room_id, delivered) VALUES (?1, ?2, ?3, ?4, ?5)",
         id,
         JSON.stringify(send),
         this.now(),
         this.log.roomId,
+        hold ? 1 : 0,
       )
-      if (!hold) this.enqueue(from, send)
+      if (!hold) this.enqueue(id, from, send, null)
       return send
     })
   }
@@ -273,13 +280,36 @@ export class MessageChains {
       .toArray()[0]
     if (!row) return null
     const send = JSON.parse(row.send) as StoredSend
-    if (!hold) this.enqueue(from, send, remote)
+    if (!hold) this.enqueue(id, from, send, remote)
     return send
   }
 
-  private enqueue(from: AgentSlug, send: StoredSend, remote: Remote | null = null): void {
+  private enqueue(id: string, from: AgentSlug, send: StoredSend, remote: Remote | null): void {
     for (const to of send.recipients)
-      this.admissions.push(Promise.resolve(this.deliver({ n: 0, from, to, send, remote })))
+      this.admissions.push(Promise.resolve(this.deliver({ id, n: 0, from, to, send, remote })))
+  }
+
+  admitted(mail: QueuedMail): void {
+    this.sql.exec(
+      "UPDATE agent_sends SET delivered = 1 WHERE id = ?1 AND agent_sends.room_id = ?2",
+      mail.id,
+      this.log.roomId,
+    )
+  }
+
+  redrive(): void {
+    const rows = this.sql
+      .exec<{ id: string; send: string }>(
+        "SELECT id, send FROM agent_sends WHERE delivered = 0 AND at < ?1 AND agent_sends.room_id = ?2 ORDER BY at",
+        this.now() - REDRIVE_AFTER_MS,
+        this.log.roomId,
+      )
+      .toArray()
+    for (const row of rows) {
+      const send = JSON.parse(row.send) as StoredSend
+      if (!send.from || this.stopped(send.rootId)) continue
+      this.enqueue(row.id, send.from, send, send.remote ?? null)
+    }
   }
 
   giveBack(askId: string, from: AgentSlug, to: AgentSlug, text: string, room: RoomId, chain?: Chain): void {
@@ -287,15 +317,15 @@ export class MessageChains {
       const id = `back:${askId}`
       if (this.replay(id, from, { room, askId, back: true })) return
       const own = chain ?? { rootId: this.chain(from).rootId, hop: this.chain(from).hop + 1 }
-      const send: StoredSend = { messageId: "", seq: 0, text, hop: own.hop, rootId: own.rootId, recipients: [to] }
+      const send: StoredSend = { messageId: "", seq: 0, text, hop: own.hop, rootId: own.rootId, from, recipients: [to] }
       this.sql.exec(
-        "INSERT INTO agent_sends (id, send, at, room_id) VALUES (?1, ?2, ?3, ?4)",
+        "INSERT INTO agent_sends (id, send, at, room_id, delivered) VALUES (?1, ?2, ?3, ?4, 0)",
         id,
         JSON.stringify(send),
         this.now(),
         this.log.roomId,
       )
-      this.enqueue(from, send, { room, askId, back: true })
+      this.enqueue(id, from, send, { room, askId, back: true })
     })
   }
 
@@ -323,17 +353,18 @@ export class MessageChains {
           text,
           hop,
           rootId: chain.rootId,
+          from,
           recipients: [ask.asker],
         }
         this.count(chain.rootId, 1)
         this.sql.exec(
-          "INSERT INTO agent_sends (id, send, at, room_id) VALUES (?1, ?2, ?3, ?4)",
+          "INSERT INTO agent_sends (id, send, at, room_id, delivered) VALUES (?1, ?2, ?3, ?4, 0)",
           `answer:${askId}`,
           JSON.stringify(send),
           this.now(),
           this.log.roomId,
         )
-        this.enqueue(from, send)
+        this.enqueue(`answer:${askId}`, from, send, null)
       }
       return { events: stored.event ? [stored.event] : [], asker: ask.asker, queued }
     })
@@ -529,7 +560,11 @@ export class RoomMessaging {
   private async deliverRemote(home: Home, mail: QueuedMail, remote: NonNullable<QueuedMail["remote"]>): Promise<void> {
     const { rootId, hop, text } = mail.send
     const room = this.d.services.room(remote.room)
-    if (remote.back) return await room.pairBack({ askId: remote.askId, from: mail.from, text, rootId, hop })
+    if (remote.back) {
+      await room.pairBack({ askId: remote.askId, from: mail.from, text, rootId, hop })
+      this.d.mail.admitted(mail)
+      return
+    }
     if (this.d.mail.stopped(rootId)) return
     const receipt = await room.pairIn(home.userId, {
       askId: remote.askId,
@@ -541,6 +576,7 @@ export class RoomMessaging {
       hop,
     })
     if (receipt === "full") throw new InboxFull({ recipient: mail.to, message: `${mail.to}'s inbox is full` })
+    this.d.mail.admitted(mail)
     if (receipt === "refused")
       await this.pairBack({
         askId: remote.askId,
@@ -557,7 +593,8 @@ export class RoomMessaging {
     const member = members.find((m) => m.slug === mail.to)
     if (!member || this.d.mail.stopped(mail.send.rootId)) return
     const envelope = this.d.mail.envelope(home.roomId, mail.from, mail.send, mail.to)
-    if ((await receive(this.d, home, member, members, await this.d.title(home), [envelope])) === "full")
-      throw new InboxFull({ recipient: mail.to, message: `${mail.to}'s inbox is full` })
+    const receipt = await receive(this.d, home, member, members, await this.d.title(home), [envelope])
+    if (receipt === "full") throw new InboxFull({ recipient: mail.to, message: `${mail.to}'s inbox is full` })
+    this.d.mail.admitted(mail)
   }
 }

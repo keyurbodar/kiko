@@ -14,12 +14,12 @@ const TRIO = [{ slug: JUNO }, { slug: MIRA }, { slug: ROSA }]
 
 const TABLES = [
   "CREATE TABLE root_counts (room_id TEXT NOT NULL, root_id TEXT, deliveries INTEGER NOT NULL, tripped INTEGER NOT NULL DEFAULT 0, at INTEGER, PRIMARY KEY (room_id, root_id)) WITHOUT ROWID",
-  "CREATE TABLE agent_sends (room_id TEXT NOT NULL, id TEXT, send TEXT NOT NULL, at INTEGER, PRIMARY KEY (room_id, id)) WITHOUT ROWID",
+  "CREATE TABLE agent_sends (room_id TEXT NOT NULL, id TEXT, send TEXT NOT NULL, at INTEGER, delivered INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (room_id, id)) WITHOUT ROWID",
   "CREATE TABLE mail_refused (room_id TEXT NOT NULL, id TEXT, at INTEGER NOT NULL, PRIMARY KEY (room_id, id)) WITHOUT ROWID",
   "CREATE TABLE agent_asks (room_id TEXT NOT NULL, id TEXT, asker TEXT NOT NULL, askee TEXT NOT NULL, at INTEGER NOT NULL, state TEXT NOT NULL CHECK (state IN ('open', 'answered', 'closed')), answer TEXT, message_id TEXT, answer_send TEXT, remote TEXT, PRIMARY KEY (room_id, id)) WITHOUT ROWID",
 ]
 
-function room() {
+function room({ now = Date.now, drop }: { now?: () => number; drop?: (text: string) => boolean } = {}) {
   const db = new DatabaseSync(":memory:")
   for (const table of TABLES) db.exec(table)
   const sql = {
@@ -46,8 +46,10 @@ function room() {
   } as unknown as RoomLog
   const asks = new Asks(sql, ROOM)
   const delivered: { from: AgentSlug; to: AgentSlug; text: string }[] = []
-  const mail = new MessageChains(storage, log, asks, undefined, undefined, (m) => {
+  const mail = new MessageChains(storage, log, asks, undefined, now, (m) => {
+    if (drop?.(m.send.text)) return
     delivered.push({ from: m.from, to: m.to, text: m.send.text })
+    sql.exec("UPDATE agent_sends SET delivered = 1 WHERE id = ?1 AND room_id = ?2", m.id, ROOM)
   })
   const messaging = new RoomMessaging({ asks, mail } as unknown as ConstructorParameters<typeof RoomMessaging>[0])
   return { asks, mail, messaging, delivered }
@@ -190,5 +192,62 @@ describe("task reports", () => {
     await messaging.relayHeard(MIRA, [`agent:${request}:${MIRA}`], "faq is in review", { id: "m9", seq: 9 })
 
     expect([owedBefore, asks.owes(MIRA, JUNO)]).toEqual([true, false])
+  })
+})
+
+describe("a send left undelivered by a restart", () => {
+  it("is redriven once, and only once", () => {
+    let clock = 1_000
+    let lose = true
+    const { mail, delivered } = room({
+      now: () => clock,
+      drop: () => {
+        if (!lose) return false
+        lose = false
+        return true
+      },
+    })
+    mail.send(JUNO, { id: "a", to: MIRA, text: "the radar app is up" }, MEMBERS)
+    expect(delivered).toEqual([])
+
+    clock += 1_000
+    mail.redrive()
+    expect(delivered).toEqual([])
+
+    clock += 10_000
+    mail.redrive()
+    expect(delivered).toEqual([{ from: JUNO, to: MIRA, text: "the radar app is up" }])
+
+    clock += 10_000
+    mail.redrive()
+    expect(delivered).toEqual([{ from: JUNO, to: MIRA, text: "the radar app is up" }])
+  })
+
+  it("spares a delivered send", () => {
+    let clock = 1_000
+    const { mail, delivered } = room({ now: () => clock })
+    mail.send(JUNO, { id: "a", to: MIRA, text: "the radar app is up" }, MEMBERS)
+    clock += 10_000
+    mail.redrive()
+    expect(delivered).toEqual([{ from: JUNO, to: MIRA, text: "the radar app is up" }])
+  })
+
+  it("spares a send whose root the human stopped", () => {
+    let clock = 1_000
+    let lose = true
+    const { mail, delivered } = room({
+      now: () => clock,
+      drop: () => {
+        if (!lose) return false
+        lose = false
+        return true
+      },
+    })
+    mail.send(JUNO, { id: "a", to: MIRA, text: "the radar app is up" }, MEMBERS)
+    mail.restore(JUNO, [{ rootId: "agent:juno", hop: 1 }])
+    mail.stop()
+    clock += 10_000
+    mail.redrive()
+    expect(delivered).toEqual([])
   })
 })
