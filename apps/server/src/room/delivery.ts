@@ -12,6 +12,9 @@ export type Wake = {
 
 export type WakeResult = "delivered" | "refused" | "gone" | "duplicate"
 
+type PendingReport = ReturnType<RoomWorkspace["pendingReports"]>[number]
+type UnblockedTask = ReturnType<RoomWorkspace["pendingWakes"]>[number]
+
 function wakeStamp(
   w: Pick<Wake, "id" | "chain">,
   stopped: (rootId: string) => boolean,
@@ -124,7 +127,19 @@ export class RoomDelivery {
   }
   async deliverWakes(): Promise<void> {
     for (const report of this.d.workspace.pendingReports()) {
-      const result = await this.wake({
+      if (this.d.workspace.claimReport(report.seq)) await this.deliverReport(report)
+    }
+    const lead = this.d.members.list().find((m) => m.lead)?.slug
+    for (const wake of this.d.workspace.pendingWakes()) {
+      if (lead && wake.owner !== lead && this.d.asks.owes(wake.owner, lead)) continue
+      if (this.d.workspace.claimWake(wake.taskId)) await this.deliverUnblocked(wake)
+    }
+  }
+
+  private async deliverReport(report: PendingReport): Promise<void> {
+    let result: WakeResult = "refused"
+    try {
+      result = await this.wake({
         id: `task-report:${report.seq}`,
         to: report.recipient,
         why: "task_updated",
@@ -132,15 +147,15 @@ export class RoomDelivery {
         chain: report.chain,
         seq: report.seq,
       })
-      if (result === "delivered" || result === "gone") this.d.workspace.markReported(report.seq)
+    } finally {
+      if (result === "refused") this.d.workspace.requeueReport(report)
     }
-    const lead = this.d.members.list().find((m) => m.lead)?.slug
-    for (const wake of this.d.workspace.pendingWakes()) {
-      if (lead && wake.owner !== lead && this.d.asks.owes(wake.owner, lead)) {
-        this.d.workspace.markWoken(wake.taskId)
-        continue
-      }
-      const result = await this.wake({
+  }
+
+  private async deliverUnblocked(wake: UnblockedTask): Promise<void> {
+    let result: WakeResult = "refused"
+    try {
+      result = await this.wake({
         id: `unblocked:${wake.taskId}`,
         to: wake.owner,
         why: "task_unblocked",
@@ -148,7 +163,8 @@ export class RoomDelivery {
         chain: wake.chain,
         seq: wake.seq,
       })
-      if (result === "delivered" || result === "gone") this.d.workspace.markWoken(wake.taskId)
+    } finally {
+      if (result === "refused") this.d.workspace.requeueWake(wake.taskId)
     }
   }
 }

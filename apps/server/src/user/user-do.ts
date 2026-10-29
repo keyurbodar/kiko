@@ -524,6 +524,19 @@ export class User {
     return result
   }
 
+  async discardAgents(slugs: readonly AgentSlug[]): Promise<void> {
+    if (!slugs.length) return
+    for (const slug of slugs) {
+      const agent = this.sql.exec<{ id: string }>("SELECT id FROM agents WHERE slug = ?", slug).toArray()[0]
+      if (!agent) continue
+      this.sql.exec("DELETE FROM souls WHERE slug = ?", slug)
+      deleteSetting(this.sql, `agentModel:${slug}`)
+      this.sql.exec("DELETE FROM agents WHERE id = ?", agent.id)
+      this.commit({ t: "agent_removed", id: agent.id, slug })
+    }
+    this.project("soul")
+  }
+
   private async cleanDeletedAgents(): Promise<void> {
     for (const { slug } of this.sql.exec<{ slug: AgentSlug }>("SELECT slug FROM deletion_agents").toArray()) {
       const result = await this.deleteAgentNow(slug)

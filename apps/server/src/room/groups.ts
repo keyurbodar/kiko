@@ -87,8 +87,9 @@ export class Groups {
     const mine = await user.listAgents()
     const checked = checkGroup(input, slug, mine)
     if ("error" in checked) return { ok: false, error: checked.error }
+    const made: Agent[] = []
+    let opened = false
     try {
-      const made: Agent[] = []
       for (const spec of checked.newAgents) made.push(await this.make(home, spec))
       const picked = [...checked.members.map((m) => this.owned(mine, m)), ...made]
       const creator = slug === CHIEF ? [] : [this.owned(mine, slug)]
@@ -98,18 +99,19 @@ export class Groups {
         { slug: CHIEF, role: "leads" },
         ...everyone.map((a) => ({ slug: a.slug, role: role(a) })),
       ])
-      if (typeof chat !== "string") return { ok: false, error: chat.error }
+      if (typeof chat !== "string") {
+        await user.discardAgents(made.map((a) => a.slug))
+        return { ok: false, error: chat.error }
+      }
       const { roomId, created } = await user.openChat(checked.title, [CHIEF, ...everyone.map((a) => a.id)])
-      await this.d.services
-        .room(roomId)
-        .startGroup(home.userId, {
-          chat: created ? chat : null,
-          creator: slug,
-          kickoff: checked.kickoff,
-          tasks: checked.tasks ?? [],
-          chain: this.d.chain(slug),
-        })
-        .catch((e: unknown) => console.error(`start group failed: ${e instanceof Error ? e.message : String(e)}`))
+      opened = true
+      await this.d.services.room(roomId).startGroup(home.userId, {
+        chat: created ? chat : null,
+        creator: slug,
+        kickoff: checked.kickoff,
+        tasks: checked.tasks ?? [],
+        chain: this.d.chain(slug),
+      })
       const { event } = this.d.log.addMessage({
         from: { kind: "system", reason: "created" },
         text: `${checked.title} is ready.`,
@@ -124,6 +126,7 @@ export class Groups {
       this.d.log.setMeta(key, text)
       return { ok: true, text }
     } catch (error) {
+      if (!opened) await user.discardAgents(made.map((a) => a.slug))
       return { ok: false, error: error instanceof Error ? error.message : String(error) }
     }
   }

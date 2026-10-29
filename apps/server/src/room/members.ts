@@ -1,4 +1,4 @@
-import type { AgentSlug, AgentState, Member, MemberOp, MemberRefusal, RoomEvent } from "@kiko/protocol"
+import type { AgentSlug, AgentState, Member, MemberOp, MemberRefusal, RoomEvent, TaskStatus } from "@kiko/protocol"
 import type { RoomLog } from "./log"
 
 import { CHIEF } from "./chief"
@@ -82,6 +82,16 @@ export class Members {
   }
 
   everyone(): AgentSlug[] {
+    return this.sql
+      .exec<{ slug: string }>(
+        "SELECT slug FROM members WHERE removed_at IS NULL AND members.room_id = ?1 ORDER BY added_seq, slug",
+        this.log.roomId,
+      )
+      .toArray()
+      .map((r) => r.slug as AgentSlug)
+  }
+
+  allSlugs(): AgentSlug[] {
     return this.sql
       .exec<{ slug: string }>(
         "SELECT slug FROM members WHERE members.room_id = ?1 ORDER BY added_seq, slug",
@@ -177,6 +187,7 @@ export class Members {
       slug,
       this.log.roomId,
     )
+    events.push(...this.releaseInside(slug))
     if (current.lead) {
       const next = { ...successor, lead: true }
       const promoted = this.log.append("human", { t: "member", member: toMember(next) })
@@ -189,6 +200,48 @@ export class Members {
       )
     }
     return { ok: true, events }
+  }
+
+  private releaseInside(slug: AgentSlug): RoomEvent[] {
+    const owned = this.sql
+      .exec<{ id: string; title: string; status: string; note: string | null }>(
+        "SELECT id, title, status, note FROM ws_tasks WHERE (owner = ?1 AND status NOT IN ('done', 'cancelled')) AND ws_tasks.room_id = ?2 ORDER BY created_seq, id",
+        slug,
+        this.log.roomId,
+      )
+      .toArray()
+    this.sql.exec(
+      "UPDATE ws_tasks SET owner = NULL, unblocked_seq = NULL, woken_at = NULL WHERE (owner = ?1 AND status NOT IN ('done', 'cancelled')) AND ws_tasks.room_id = ?2",
+      slug,
+      this.log.roomId,
+    )
+    const events = owned.map((row) =>
+      this.log.append("human", {
+        t: "task",
+        task: {
+          id: row.id,
+          title: row.title,
+          status: row.status as TaskStatus,
+          dependsOn: this.sql
+            .exec<{ d: string }>(
+              "SELECT depends_on AS d FROM ws_task_deps WHERE task_id = ?1 AND ws_task_deps.room_id = ?2 ORDER BY rowid",
+              row.id,
+              this.log.roomId,
+            )
+            .toArray()
+            .map((r) => r.d),
+          ...(row.note ? { note: row.note } : {}),
+        },
+      }),
+    )
+    this.sql.exec(
+      "UPDATE agent_asks SET answer = ?1, state = 'closed' WHERE ((askee = ?2 OR asker = ?2) AND answer IS NULL) AND agent_asks.room_id = ?3",
+      `@${slug} left the room before answering`,
+      slug,
+      this.log.roomId,
+    )
+    this.sql.exec("DELETE FROM team_leases WHERE slug = ?1 AND team_leases.room_id = ?2", slug, this.log.roomId)
+    return events
   }
 
   private renameInside(slug: AgentSlug, name: string): MemberResult {
