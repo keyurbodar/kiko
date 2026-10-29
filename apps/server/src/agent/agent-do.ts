@@ -188,10 +188,9 @@ export class Agent {
       onIdle: async () => {
         await this.hostOptions.onIdle?.()
         const home = this.home()
-        if (home && this.afterHumanRun) {
-          this.afterHumanRun = false
-          await this.services.afterRun(home.roomId, home.slug)
-        }
+        const human = this.afterHumanRun
+        this.afterHumanRun = false
+        if (home) await this.services.afterRun(home.roomId, home.slug, human)
         await this.services.trimAgents()
       },
       onOpen: async (opened) => {
@@ -444,10 +443,6 @@ export class Agent {
   async humanComing(): Promise<void> {
     this.host.humanComing()
     this.answers.interrupt()
-  }
-
-  async humanGone(): Promise<void> {
-    await this.host.humanGone()
   }
 
   private async heard(inputs: readonly SubmissionId[]): Promise<{ mail: string[]; human: boolean }> {
@@ -716,16 +711,12 @@ export class Agent {
     return `Live routines (current; replaces earlier inventories):\n${inventory.join("\n") || "(none)"}${live.length > inventory.length ? `\n${live.length - inventory.length} more; use list_routines for the full list.` : ""}`
   }
 
-  private async inputInvalidated(): Promise<"refresh" | "forget" | null> {
+  private async inputInvalidated(): Promise<"forget" | null> {
     const home = this.home()
     if (!home) return null
-    const [known, forgotten, current] = await Promise.all([
-      this.ctx.storage.get<number>(MEMORY_REVISION_KEY),
-      this.ctx.storage.get<number>(MEMORY_FORGOTTEN_KEY),
-      this.services.user().lifeRevisions(),
-    ])
-    if ((forgotten ?? 0) !== current.forgotten) return "forget"
-    return known !== current.revision ? "refresh" : null
+    const forgotten = await this.ctx.storage.get<number>(MEMORY_FORGOTTEN_KEY)
+    const current = await this.services.user().lifeRevisions()
+    return (forgotten ?? 0) !== current.forgotten ? "forget" : null
   }
 
   private async inputMemory(
@@ -751,13 +742,16 @@ export class Agent {
     ])
     const life = state.text
     const changedLife = withLife && (state.revision !== previousRevision || life !== previousLife)
-    if (!fresh && !changedLife && seen !== undefined) {
+    if (!fresh && seen !== undefined) {
       const delta = (await ahead) ?? (await room.memorySince(home.slug, seen, seqs))
       if (delta.count - seen <= MAX_DELTA_TURNS) {
+        if (changedLife) await this.ctx.storage.put({ [MEMORY_LIFE_KEY]: life, [MEMORY_REVISION_KEY]: state.revision })
         return {
           fresh: false,
           data: { memoryPos: delta.count },
-          ...(delta.text ? { text: memoryDelta(delta.text) } : {}),
+          ...(delta.text || changedLife
+            ? { text: memoryDelta(delta.text || "(nothing new)", changedLife ? life : undefined) }
+            : {}),
         }
       }
     }

@@ -739,7 +739,10 @@ export class AgentHost {
     if (human) await this.alarms.clearWakeup(HUMAN_COMING)
     const invalidated = (await setup.inputInvalidated?.()) ?? null
     if (invalidated) {
+      const live = await harness.inspect(context)
+      const kept = await takeQueued(root, live)
       await root.abort(context)
+      if (kept.length) await replayQueued(root, kept, `invalidate:${this.epoch()}:${Date.now()}`)
       if (invalidated === "forget") await this.workers.invalidate(harness)
       run = false
     }
@@ -862,11 +865,6 @@ export class AgentHost {
 
   humanComing(): void {
     this.options.waitUntil(this.alarms.setWakeup(HUMAN_COMING, Date.now() + HUMAN_COMING_MS))
-  }
-
-  async humanGone(): Promise<void> {
-    if (this.alarms.deadline(HUMAN_COMING) === undefined) return
-    await this.alarms.clearWakeup(HUMAN_COMING)
   }
 
   async inputData(field?: string): Promise<Record<string, JsonValue> | undefined> {

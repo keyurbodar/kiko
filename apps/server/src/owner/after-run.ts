@@ -7,10 +7,10 @@ type AfterRunDeps = {
 export class AfterRun {
   constructor(private readonly d: AfterRunDeps) {}
 
-  async run(roomId: string): Promise<void> {
+  async run(roomId: string, human: boolean): Promise<void> {
     await step("room background", () => this.d.services().room(roomId).afterRun())
     await step("memory capture", () => this.d.services().user().captureNow())
-    await step("initiative", () => this.d.services().user().initiativePass())
+    if (human) await step("initiative", () => this.d.services().user().initiativePass())
   }
 }
 

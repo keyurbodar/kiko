@@ -131,7 +131,7 @@ export class OwnerDO extends DurableObject<Env> {
       trimAgents: () => this.trimAgents(),
       dispatchRun: (roomId, slug) => this.dispatchRun(roomId, slug),
       cancelRun: (roomId, slug) => this.cancelRun(roomId, slug),
-      afterRun: (roomId) => this.afterRun(roomId),
+      afterRun: (roomId, _slug, human) => this.afterRun(roomId, human),
       syncRoutines: (routines) => this.user().syncRoutines(routines),
       fireRoutine: (delivery) => this.user().fireRoutine(delivery),
     }
@@ -269,8 +269,8 @@ export class OwnerDO extends DurableObject<Env> {
     await this.runs.start(`${roomId}:${slug}`, "pending")
   }
 
-  private async afterRun(roomId: string): Promise<void> {
-    await this.afterRunHook.run(roomId)
+  private async afterRun(roomId: string, human: boolean): Promise<void> {
+    await this.afterRunHook.run(roomId, human)
   }
 
   protected user(): User {

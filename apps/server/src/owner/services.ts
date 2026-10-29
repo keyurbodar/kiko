@@ -13,7 +13,7 @@ export interface OwnerServices {
   agent(roomId: string, slug: string): Agent
   dispatchRun(roomId: string, slug: string): Promise<void>
   cancelRun(roomId: string, slug: string): Promise<void>
-  afterRun(roomId: string, slug: string): Promise<void>
+  afterRun(roomId: string, slug: string, human: boolean): Promise<void>
   syncRoutines(routines: readonly import("./schedules").ScheduledRoutine[]): Promise<void>
   fireRoutine(delivery: import("./schedules").RoutineDelivery): Promise<void>
   files(): FileBucket
