@@ -314,12 +314,15 @@ const upload = Effect.fn("Installer.upload")(function* (
         ? [fresh("SESSION_SECRET")]
         : []),
   ]
-  const builder = yield* installBuilder(cf, account.id, deployment.name, release)
+  const builder = yield* installBuilder(cf, account.id, deployment.name, release).pipe(Effect.mapError(fromCloudflare))
   const metadata = yield* Effect.try({
     try: () =>
       buildMetadata(
         release.manifest,
-        selectMigrations(release.manifest.migrations, deployment.existing?.tag ?? null),
+        selectMigrations(
+          release.manifest.migrations,
+          deployment.existing === null ? null : { tag: deployment.existing.tag },
+        ),
         keptBindings(deployment.existing?.bindings ?? [], builder ? [...written, builder] : written),
       ),
     catch: (error) =>

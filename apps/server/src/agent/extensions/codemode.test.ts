@@ -28,7 +28,11 @@ function filesWith(seed: Record<string, string>): RoomFs {
   return new RoomFs("test", backend)
 }
 
-function run(budget = 30_000) {
+type DocDraft = { values: Record<string, unknown> }
+type State = { doc?: DocDraft }
+type TxLike = { doc: () => Promise<DocDraft> }
+
+function run(budget = 30_000, state: State = {}) {
   const ext = codemodeExtension(
     async (options) => new InlineCodemodeSandbox({ ...options, wasm, interruptBudget: budget }),
   )
@@ -55,6 +59,8 @@ function run(budget = 30_000) {
       calls.push({ name, args })
       return answer(name, args)
     },
+    snapshot: async () => state.doc,
+    commit: async (change: (tx: TxLike) => unknown) => change({ doc: async () => (state.doc ??= { values: {} }) }),
   } as unknown as ToolExecutionApi
   const exec = async (code: string) => {
     const out = await tool.execute({ code } as never, api as never, {} as Context)
@@ -93,6 +99,18 @@ return Object.keys(module.exports)`)
     const { exec } = run()
     await exec(`store("seen", 3)`)
     expect((await exec(`return load("seen") + 1`)).text).toContain("4")
+  })
+
+  it("keeps stored values across a new extension, as after an eviction", async () => {
+    const state: State = {}
+    await run(30_000, state).exec(`store("seen", 3)`)
+    expect((await run(30_000, state).exec(`return load("seen") + 1`)).text).toContain("4")
+  })
+
+  it("saves nothing when a script changes no stored value", async () => {
+    const state: State = {}
+    await run(30_000, state).exec(`return 1 + 1`)
+    expect(state.doc).toBeUndefined()
   })
 
   it("stops a script that computes forever and says so", async () => {

@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord"
+import type { Context, JsonValue } from "@earendil-works/chord"
 import { withAbortSignal } from "@earendil-works/chord/context"
 import { Type } from "@earendil-works/pi-ai"
 import {
@@ -10,9 +10,9 @@ import {
 } from "@earendil-works/pi-codemode/portable"
 import { parseCodemodeSource } from "@earendil-works/pi-codemode/source"
 import {
+  defineDoc,
   defineExtension,
   defineTool,
-  type ConversationId,
   type Extension,
   type JsonObject,
   type NestedToolExecutionResult,
@@ -36,13 +36,20 @@ const DESCRIPTION = `Run JavaScript that calls your other tools. The input is ra
 - \`await tools.<name>({ ...args })\` takes the same arguments as calling the tool directly, resolves to its text output, and rejects with an Error when the call fails. Calls still running when the script ends are cancelled.
 - \`await readText(path)\` resolves to a file's whole text, without line numbers.
 - \`text(value)\`, \`console.log(...)\`, and top-level \`return\` add output; \`exit()\` ends the script.
-- \`store(key, value)\` and \`load(key)\` keep JSON values between your scripts in this conversation.
+- \`store(key, value)\` and \`load(key)\` keep small JSON values between your scripts in this conversation; they are saved with the chat and survive a restart. \`load\` gives undefined for a key you never stored.
 - Optional first line: \`// @options: {"max_output_tokens": 10000, "timeout_ms": 60000}\`
 To run a CommonJS file and its test block:
 const module = { exports: {} }
 new Function("module", "exports", "require", "process", await readText("/home/a.js"))(module, module.exports, () => ({}), { argv: ["node", "a.js", "test"], exit() {}, exitCode: 0 })`
 
-type Store = Record<string, unknown>
+const CodemodeStore = defineDoc<{ values: JsonObject }>({
+  kind: "kiko.codemode-store",
+  version: 1,
+  scope: "conversation",
+  history: "latest",
+  fork: "initial",
+  initial: () => ({ values: {} }),
+})
 
 const nestedText = (out: NestedToolExecutionResult): string => {
   const value = out.structuredOutput
@@ -77,8 +84,6 @@ function budgeted(items: readonly CodemodeOutputItem[], maxTokens: number): stri
 }
 
 export function codemodeExtension(makeSandbox: MakeSandbox): Extension {
-  const stores = new Map<ConversationId, Store>()
-
   const codemode = defineTool({
     name: CODEMODE,
     description: DESCRIPTION,
@@ -126,7 +131,8 @@ export function codemodeExtension(makeSandbox: MakeSandbox): Extension {
         timeoutMs: Math.min(options.timeoutMs ?? DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS),
         memoryLimitBytes: MEMORY_LIMIT_BYTES,
       })
-      const store = stores.get(api.conversationId) ?? {}
+      const stored = await api.snapshot(CodemodeStore, api.conversationId, context)
+      const store: Record<string, unknown> = { ...stored?.values }
       let result: CodemodeResult
       try {
         result = await sandbox.execute(code, {
@@ -138,9 +144,14 @@ export function codemodeExtension(makeSandbox: MakeSandbox): Extension {
       }
       const items = [...result.output]
       if (result.ok) {
-        const kept = { ...store, ...result.storeWrites.set }
-        for (const key of result.storeWrites.delete) delete kept[key]
-        stores.set(api.conversationId, kept)
+        const writes = result.storeWrites
+        if (Object.keys(writes.set).length || writes.delete.length) {
+          await api.commit(async (tx) => {
+            const doc = await tx.doc(CodemodeStore, api.conversationId)
+            for (const key of Object.keys(writes.set)) doc.values[key] = writes.set[key] as JsonValue
+            for (const key of writes.delete) delete doc.values[key]
+          }, context)
+        }
         if (result.value !== undefined) items.push({ type: "text", text: valueText(result.value) })
       } else items.push({ type: "text", text: `Script error:\n${errorText(result)}` })
       const seconds = ((performance.now() - started) / 1000).toFixed(1)

@@ -60,6 +60,7 @@ export type Pending = { envelope: Envelope; mentions: string[] }
 export class Burst {
   private readyAt?: number
   private settling = false
+  private flushing?: Promise<void>
   private restored?: Promise<void>
   private readonly durable = new Map<AgentSlug, number>()
   private readonly admitted = new Map<AgentSlug, number>()
@@ -110,10 +111,8 @@ export class Burst {
   }
 
   forAgent(slug: AgentSlug, limit = MAX_DELIVERY_ENVELOPES): Pending[] {
-    return this.log
-      .unansweredFor(slug, this.durable.get(slug) ?? 0, Number.MAX_SAFE_INTEGER)
-      .filter(({ envelope }) => envelope.seq > (this.admitted.get(slug) ?? 0))
-      .slice(0, limit)
+    const after = Math.max(this.durable.get(slug) ?? 0, this.admitted.get(slug) ?? 0)
+    return this.log.unansweredFor(slug, after, limit).slice(0, limit)
   }
 
   accepted(slug: AgentSlug, envelopes: readonly Envelope[]): void {
@@ -121,7 +120,7 @@ export class Burst {
   }
 
   pending(): boolean {
-    return this.members.list().some(({ slug }) => this.forAgent(slug, 1).length > 0)
+    return this.members.list().some(({ slug }) => this.forAgent(slug).length > 0)
   }
 
   private startedAt(): number | null {
@@ -136,7 +135,14 @@ export class Burst {
     await this.alarms.setWakeup(BURST_WAKEUP, this.readyAt)
   }
 
-  async settle(flush: () => Promise<void>): Promise<void> {
+  flush(run: () => Promise<void>): Promise<void> {
+    this.flushing ??= run().finally(() => {
+      this.flushing = undefined
+    })
+    return this.flushing
+  }
+
+  async settle(deliver: () => Promise<void>): Promise<void> {
     await this.restore()
     if (this.settling || !this.pending()) return
     this.settling = true
@@ -150,16 +156,20 @@ export class Burst {
         const before = this.envelopes()
           .map(({ envelope }) => envelope.id)
           .join("\n")
-        await flush()
+        await deliver()
         if (
           this.pending() &&
           before ===
             this.envelopes()
               .map(({ envelope }) => envelope.id)
               .join("\n")
-        )
+        ) {
+          this.readyAt = this.now() + AFTER_MESSAGE_MS
+          await this.alarms.setWakeup(BURST_WAKEUP, this.readyAt)
           return
+        }
       }
+      this.readyAt = undefined
       await this.alarms.clearWakeup(BURST_WAKEUP)
     } finally {
       this.settling = false

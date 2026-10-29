@@ -3,9 +3,18 @@ import { bashFetch } from "./net"
 
 type Seen = { url: string; method: string; key: string | null; agent: string | null; body: string | null }
 
-function world(routes: Record<string, () => Response>) {
+const DNS = "https://cloudflare-dns.com/dns-query"
+
+function world(routes: Record<string, () => Response>, dns: Record<string, string> = {}) {
   const seen: Seen[] = []
   const egress = (async (url: string, init: RequestInit) => {
+    if (url.startsWith(DNS)) {
+      const name = new URL(url).searchParams.get("name") ?? ""
+      return Response.json(
+        { Status: 0, Answer: [{ type: 1, TTL: 60, data: dns[name] ?? "93.184.216.34" }] },
+        { headers: { "content-type": "application/dns-json" } },
+      )
+    }
     const headers = new Headers(init.headers)
     seen.push({
       url,
@@ -66,6 +75,13 @@ describe("bash fetch", () => {
   it("refuses plain http before anything is sent", async () => {
     const { seen, fetch } = world({})
     await expect(fetch("http://api.example/data")).rejects.toThrow("only https://")
+    expect(seen).toEqual([])
+  })
+
+  it("refuses ip literals and private addresses before anything is sent", async () => {
+    const { seen, fetch } = world({}, { "private.example": "10.0.0.5" })
+    await expect(fetch("https://127.0.0.1/x")).rejects.toThrow("ip-literal")
+    await expect(fetch("https://private.example/x")).rejects.toThrow("blocked-address")
     expect(seen).toEqual([])
   })
 

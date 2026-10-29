@@ -84,7 +84,7 @@ async function follow(
   }
 }
 
-async function check(
+export async function check(
   raw: string,
   base: URL | undefined,
   fetcher: Fetcher,

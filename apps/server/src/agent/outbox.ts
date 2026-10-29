@@ -11,7 +11,6 @@ import {
 } from "@earendil-works/pi-durable"
 import type { AgentState, RunErrorKind, WorkerRow } from "@kiko/protocol"
 import type { JournalStorage } from "@kiko/agent/journal"
-import type { RunProgress } from "@kiko/agent/mid-run"
 import { classifyRunError, runErrorDetail } from "./run-error"
 import { retrying } from "./retry"
 import { type Assistant, ackOf, hasToolCall, noteOf, postOf } from "./pacing"
@@ -101,9 +100,6 @@ type Run = {
   reactions: (Reaction & { deliveryId: string })[]
   generationIndex: number
   generation: Generation | null
-  bubbled: boolean
-  toolStarted: boolean
-  tools: Map<string, string>
   quiet: boolean
   notes: { id: string; text: string }[]
   failure: Failure | null
@@ -147,12 +143,7 @@ export class Outbox {
     liveId: string | null,
     livePartial: boolean,
   ): void {
-    if (livePartial && this.run?.id === row.run_id) {
-      run.bubbled = this.run.bubbled
-      run.toolStarted = this.run.toolStarted
-      run.tools = this.run.tools
-      run.quiet = this.run.quiet
-    }
+    if (livePartial && this.run?.id === row.run_id) run.quiet = this.run.quiet
     for (const entry of entries) {
       if (entry.kind === "pi.user" || entry.kind === "kiko.input")
         run.quiet = entry.id <= run.cursor ? quietInput(entry) : run.quiet && quietInput(entry)
@@ -242,16 +233,6 @@ export class Outbox {
     await this.end(id)
   }
 
-  progress(): RunProgress | null {
-    const run = this.run
-    if (!run) return null
-    return {
-      bubblePosted: run.bubbled || run.posted > 0 || run.attempt > 0,
-      toolStarted: run.toolStarted,
-      tools: new Map(run.tools),
-    }
-  }
-
   private async guard(step: () => Promise<void>): Promise<void> {
     try {
       await step()
@@ -309,14 +290,9 @@ export class Outbox {
         this.see(event.entry)
         return
       case "tool_execution_start":
-        if (this.run) {
-          this.run.toolStarted = true
-          this.run.tools.set(event.toolCallId, event.toolName)
-        }
         return this.setStatus("working")
       case "tool_execution_end":
         this.see(event.entry)
-        this.run?.tools.delete(event.toolCallId)
         return this.setStatus("typing")
       case "auto_retry_start":
         if (this.run?.failure) {
@@ -357,11 +333,6 @@ export class Outbox {
       await this.notes(run)
     }
     if (!this.run) return
-    const answered = entries.findLastIndex((e) => {
-      const m = assistant(e)
-      return m !== undefined && !hasToolCall(m) && m.stopReason !== "aborted"
-    })
-    if (entries.slice(answered + 1).some((e) => hasToolCall(assistant(e)))) this.run.toolStarted = true
     await this.flush()
     await this.setStatus("typing")
     const partial = snapshot.generation?.message as AssistantLike | undefined
@@ -456,7 +427,6 @@ export class Outbox {
             ...(message.provider ? { provider: message.provider } : {}),
           }
         : null
-    if (hasToolCall(message)) run.toolStarted = true
     const streamed = run.generation?.blocks ?? []
     run.generation = null
     if (message.stopReason === "aborted") return true
@@ -487,7 +457,6 @@ export class Outbox {
     if (!run || !room) return
     const all = [...run.blocks, ...(run.generation?.blocks ?? [])]
     while (run.posted < all.length) {
-      run.bubbled = true
       const block = all[run.posted]
       if (block === undefined) break
       await room.post(run.id, run.attempt, run.posted, block)
@@ -504,17 +473,26 @@ export class Outbox {
 
   private async end(id: string, inputs?: readonly SubmissionId[]): Promise<void> {
     const run = this.run?.id === id ? this.run : null
-    if (run) {
-      run.generation = null
-      await this.flush()
+    try {
+      if (run) {
+        run.generation = null
+        await this.flush()
+      }
+      const failure = run?.failure ?? (await this.unanswered(inputs?.[0]))
+      if (failure) await this.reportError(id, failure)
+      const working = this.backgroundRunning
+      await this.room()?.endRun(id, inputs, working)
+      this.state = working ? "working" : "idle"
+    } finally {
+      if (this.run?.id === id) this.run = null
+      if (!this.run) {
+        for (const waiter of this.idleWaiters) {
+          this.idleWaiters.delete(waiter)
+          waiter.resolve()
+        }
+        await this.setStatus(this.backgroundRunning ? "working" : "idle").catch(() => {})
+      }
     }
-    const failure = run?.failure ?? (await this.unanswered(inputs?.[0]))
-    if (failure) await this.reportError(id, failure)
-    const working = this.backgroundRunning
-    await this.room()?.endRun(id, inputs, working)
-    if (this.run?.id === id) this.run = null
-    this.state = working ? "working" : "idle"
-    if (!this.run) await this.setStatus(this.backgroundRunning ? "working" : "idle")
   }
 
   private async unanswered(input: SubmissionId | undefined): Promise<Failure | null> {
@@ -592,9 +570,6 @@ export class Outbox {
       reactions: [],
       generationIndex: 0,
       generation: null,
-      bubbled: false,
-      toolStarted: false,
-      tools: new Map(),
       quiet: false,
       notes: [],
       failure: null,

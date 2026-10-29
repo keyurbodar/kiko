@@ -1,4 +1,4 @@
-import { COMPUTER_REPO, COMPUTER_SUMS_FILE, computerAssetBase, computerSums } from "@kiko/computer/install"
+import { computerSums } from "@kiko/computer/install"
 import { parseManifest, verifyRelease } from "@kiko/durable/release"
 import type { Env } from "../index"
 import { updateConfig } from "../lib/release-config"
@@ -7,8 +7,12 @@ import { BACKEND } from "../lib/version"
 type DaemonRelease = { version: string; base: string; sums: string }
 
 const CACHE = "public, max-age=300"
+const UNAVAILABLE = "this worker has no signed kiko-computer release to install right now; try again later"
 
-async function pinnedRelease(env: Env): Promise<DaemonRelease | null> {
+const shQuote = (value: string): string => value.replace(/'/g, `'\\''`)
+const psQuote = (value: string): string => value.replace(/'/g, "''")
+
+async function daemonRelease(env: Env): Promise<DaemonRelease | null> {
   const config = updateConfig(env, null)
   const dir = `${config.releaseBase.replace(/\/$/, "")}/${BACKEND.version}`
   try {
@@ -24,17 +28,11 @@ async function pinnedRelease(env: Env): Promise<DaemonRelease | null> {
   }
 }
 
-async function daemonRelease(env: Env): Promise<DaemonRelease> {
-  const pinned = await pinnedRelease(env)
-  if (pinned) return pinned
-  return { version: BACKEND.version, base: computerAssetBase(COMPUTER_REPO, BACKEND.version), sums: "" }
-}
-
-function installSh(origin: string, release: DaemonRelease): string {
+export function installSh(origin: string, release: DaemonRelease): string {
   return `#!/bin/sh
 set -eu
 
-origin='${origin}'
+origin='${shQuote(origin)}'
 version='${release.version}'
 base='${release.base}'
 sums='${release.sums}'
@@ -135,11 +133,6 @@ mkdir -p "$bin"
 step=0
 steps=2
 if [ -n "$pair" ]; then steps=4; fi
-if [ -z "$sums" ]; then
-  sums_file="$home/${COMPUTER_SUMS_FILE}"
-  download "$base/${COMPUTER_SUMS_FILE}" "$sums_file" || die "could not download the checksums for $version"
-  sums="$(cat "$sums_file")"
-fi
 file="$asset"
 want="$(checksum_of "$asset.gz")"
 if [ -n "$want" ] && command -v gzip >/dev/null 2>&1; then
@@ -214,7 +207,7 @@ say "kiko: done. $exe doctor checks this machine."
 `
 }
 
-function installPs1(origin: string, release: DaemonRelease): string {
+export function installPs1(origin: string, release: DaemonRelease): string {
   return `param(
   [Parameter(Position = 0)][string]$PairUrl = $env:KIKO_PAIR_URL,
   [string]$Name = '',
@@ -224,7 +217,7 @@ function installPs1(origin: string, release: DaemonRelease): string {
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-$origin = '${origin}'
+$origin = '${psQuote(origin)}'
 $version = '${release.version}'
 $base = '${release.base}'
 $sums = @'
@@ -244,9 +237,6 @@ New-Item -ItemType Directory -Force -Path $bin | Out-Null
 $exe = Join-Path $bin 'kiko-computer.exe'
 $tmp = Join-Path $bin '.kiko-computer.part'
 
-if (-not $sums) {
-  $sums = (Invoke-WebRequest -UseBasicParsing -Uri "$base/${COMPUTER_SUMS_FILE}").Content
-}
 $want = ''
 foreach ($line in ($sums -split '\\r?\\n')) {
   $parts = $line.Trim() -split '\\s+'
@@ -303,13 +293,30 @@ Say "done. $exe doctor checks this machine."
 `
 }
 
+function unavailableSh(): string {
+  return `#!/bin/sh
+printf '%s\n' 'kiko: ${UNAVAILABLE}' >&2
+exit 1
+`
+}
+
+function unavailablePs1(): string {
+  return `throw 'kiko: ${UNAVAILABLE}'
+`
+}
+
+function installScript(shell: boolean, origin: string, release: DaemonRelease | null): string {
+  if (!release) return shell ? unavailableSh() : unavailablePs1()
+  return shell ? installSh(origin, release) : installPs1(origin, release)
+}
+
 export async function installRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const shell = url.pathname === "/pc/install.sh"
   if (!shell && url.pathname !== "/pc/install.ps1") return null
   if (request.method !== "GET" && request.method !== "HEAD") return new Response("method not allowed", { status: 405 })
   const release = await daemonRelease(env)
-  const body = shell ? installSh(url.origin, release) : installPs1(url.origin, release)
+  const body = installScript(shell, url.origin, release)
   return new Response(request.method === "HEAD" ? null : body, {
     headers: { "content-type": "text/plain; charset=utf-8", "cache-control": CACHE },
   })

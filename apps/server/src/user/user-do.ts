@@ -524,6 +524,19 @@ export class User {
     return result
   }
 
+  async discardAgents(slugs: readonly AgentSlug[]): Promise<void> {
+    if (!slugs.length) return
+    for (const slug of slugs) {
+      const agent = this.sql.exec<{ id: string }>("SELECT id FROM agents WHERE slug = ?", slug).toArray()[0]
+      if (!agent) continue
+      this.sql.exec("DELETE FROM souls WHERE slug = ?", slug)
+      deleteSetting(this.sql, `agentModel:${slug}`)
+      this.sql.exec("DELETE FROM agents WHERE id = ?", agent.id)
+      this.commit({ t: "agent_removed", id: agent.id, slug })
+    }
+    this.project("soul")
+  }
+
   private async cleanDeletedAgents(): Promise<void> {
     for (const { slug } of this.sql.exec<{ slug: AgentSlug }>("SELECT slug FROM deletion_agents").toArray()) {
       const result = await this.deleteAgentNow(slug)
@@ -859,13 +872,25 @@ export class User {
     for (const key of previous)
       if (!byAgent.has(key)) {
         const [roomId, target] = key.split(":")
-        if (roomId && target) await this.services.agent(roomId, target).syncRoutines([])
+        if (roomId && target) await this.syncAgentRoutines(roomId, target, [])
       }
     for (const list of byAgent.values()) {
       const { roomId, target } = list[0]!
-      await this.services.agent(roomId, target).syncRoutines(list)
+      await this.syncAgentRoutines(roomId, target, list)
     }
     this.putSetting("routine_agents", JSON.stringify([...byAgent.keys()]))
+  }
+
+  private async syncAgentRoutines(
+    roomId: string,
+    target: string,
+    routines: readonly import("../owner/schedules").ScheduledRoutine[],
+  ): Promise<void> {
+    try {
+      await this.services.agent(roomId, target).syncRoutines(routines)
+    } catch (e) {
+      console.error(`routine sync for ${roomId}:${target} failed: ${e instanceof Error ? e.message : String(e)}`)
+    }
   }
 
   async fireRoutine(delivery: import("../owner/schedules").RoutineDelivery): Promise<void> {
@@ -910,7 +935,7 @@ export class User {
   }
 
   async memoryUsage(): Promise<Record<string, number>> {
-    return this.#mem.usage()
+    return { ...this.#mem.usage(), capture_queue: this.#mem.pending() }
   }
 
   async compress(prompt: string): Promise<{ text: string } | { retryAt: number } | { error: string }> {
@@ -1218,8 +1243,12 @@ export class User {
 
   private installMissingBuilder(): void {
     if (!this.env.CF_GRANT || getSetting(this.sql, BUILDER_REPAIR) === BACKEND.version) return
-    setSetting(this.sql, BUILDER_REPAIR, BACKEND.version)
-    this.selfUpdate.start(BACKEND.version)
+    void this.selfUpdate.start(BACKEND.version)
+    this.ctx.waitUntil(
+      this.selfUpdate.done().then((state) => {
+        if (state.stage === "restarting") setSetting(this.sql, BUILDER_REPAIR, BACKEND.version)
+      }),
+    )
   }
 
   #composioConnection?: ComposioConnection

@@ -15,9 +15,13 @@ export type MemoryPort = {
   captures(): boolean
 }
 
+const ZOOM_MAX_KB = 24
+const ZOOM_MAX_BYTES = ZOOM_MAX_KB * 1024
+const ZOOM_MORE = `a zoom stops at ${ZOOM_MAX_KB} kb; zoom one of its # ids for the rest.`
+
 export const MEMORY_RULE = [
   "a <memory> block holds your life with this human (life) and this chat (chat), oldest first. a newer life snapshot replaces earlier ones, including facts removed or corrected. #a-b lines are summaries; #n lines are what happened, with the time in utc.",
-  "only for a detail that is in neither the conversation nor <memory>, zoom a line (chat:12, life:64-127) or recall a few keywords. before you say something never came up, recall it once. you remember like a friend: use what you know, and never mention memory, saving, or looking things up.",
+  `only for a detail that is in neither the conversation nor <memory>, zoom a line (chat:12, life:64-127) or recall a few keywords. ${ZOOM_MORE} before you say something never came up, recall it once. you remember like a friend: use what you know, and never mention memory, saving, or looking things up.`,
 ].join("\n")
 
 const NOTE_CAPTURED =
@@ -30,6 +34,22 @@ const NOTE_REPLACES =
 export const noteRule = (captures: boolean) => `${captures ? NOTE_CAPTURED : NOTE_ALL} ${NOTE_REPLACES}`
 
 const text = (value: string) => [{ type: "text" as const, text: value }]
+
+const encoder = new TextEncoder()
+
+function boundZoom(found: string): string {
+  if (encoder.encode(found).length <= ZOOM_MAX_BYTES) return found
+  const all = found.split("\n")
+  const kept: string[] = []
+  let used = 0
+  for (const line of all) {
+    const size = encoder.encode(line).length + 1
+    if (kept.length && used + size > ZOOM_MAX_BYTES) break
+    kept.push(line)
+    used += size
+  }
+  return `${kept.join("\n")}\n\n(zoom stops at ${ZOOM_MAX_KB} kb: ${all.length - kept.length} more lines. zoom one of the # ids above for the rest.)`
+}
 
 export function memoryExtensions(port: MemoryPort): Extension[] {
   const recall = defineTool({
@@ -46,14 +66,13 @@ export function memoryExtensions(port: MemoryPort): Extension[] {
 
   const zoom = defineTool({
     name: "zoom",
-    description:
-      "open a line of the <memory> block: a summary into its two halves, or one turn or memory in full. ids look like chat:12, chat:0-63, or life:64-127.",
+    description: `open a line of the <memory> block: a summary into its two halves, or one turn or memory in full. ids look like chat:12, chat:0-63, or life:64-127. ${ZOOM_MORE}`,
     parameters: Type.Object({ id: Type.String() }),
     replay: "safe",
     execute: async (args) => {
       const found = await port.zoom(args.id.trim())
       return found
-        ? { output: text(found) }
+        ? { output: text(boundZoom(found)) }
         : { output: text(`no memory ${args.id}. use an id from the <memory> block, like chat:12.`), isError: true }
     },
   })

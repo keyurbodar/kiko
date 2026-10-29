@@ -178,7 +178,6 @@ export class Agent {
       openHarness: openAgentHarness,
       scheduledDeadline,
       requestRun: this.requestRun,
-      progress: () => this.outbox.progress(),
       shortBrief,
       onReset: () => this.outbox.clear(),
       onWorkers: (running, pending) => void this.workersChanged(running, pending),
@@ -189,10 +188,9 @@ export class Agent {
       onIdle: async () => {
         await this.hostOptions.onIdle?.()
         const home = this.home()
-        if (home && this.afterHumanRun) {
-          this.afterHumanRun = false
-          await this.services.afterRun(home.roomId, home.slug)
-        }
+        const human = this.afterHumanRun
+        this.afterHumanRun = false
+        if (home) await this.services.afterRun(home.roomId, home.slug, human)
         await this.services.trimAgents()
       },
       onOpen: async (opened) => {
@@ -447,10 +445,6 @@ export class Agent {
     this.answers.interrupt()
   }
 
-  async humanGone(): Promise<void> {
-    await this.host.humanGone()
-  }
-
   private async heard(inputs: readonly SubmissionId[]): Promise<{ mail: string[]; human: boolean }> {
     if (!inputs.length) return { mail: [], human: false }
     const { storage } = await this.host.open()
@@ -676,16 +670,17 @@ export class Agent {
         this.prefetchDelta(batch)
         return this.beginRun(batch, root)
       },
-      inputContext: async () => {
+      inputContext: async (midRun) => {
         const tz = this.#run?.timezone ?? "UTC"
         const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
+        const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
+        if (midRun) return [clock, quiet].filter(Boolean).join("\n\n")
         const down =
           composio === "unreachable"
             ? "composio (the human's connected apps) is unreachable right now, so its tools are missing this run."
             : undefined
         const integrations = integrationNote(composio, browserOn)
         const learned = Array.isArray(composio) ? learnedNote(composio) : undefined
-        const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
         const routines = await this.routineContext()
         return [clock, integrations, down, learned, quiet, routines].filter(Boolean).join("\n\n")
       },
@@ -716,16 +711,12 @@ export class Agent {
     return `Live routines (current; replaces earlier inventories):\n${inventory.join("\n") || "(none)"}${live.length > inventory.length ? `\n${live.length - inventory.length} more; use list_routines for the full list.` : ""}`
   }
 
-  private async inputInvalidated(): Promise<"refresh" | "forget" | null> {
+  private async inputInvalidated(): Promise<"forget" | null> {
     const home = this.home()
     if (!home) return null
-    const [known, forgotten, current] = await Promise.all([
-      this.ctx.storage.get<number>(MEMORY_REVISION_KEY),
-      this.ctx.storage.get<number>(MEMORY_FORGOTTEN_KEY),
-      this.services.user().lifeRevisions(),
-    ])
-    if ((forgotten ?? 0) !== current.forgotten) return "forget"
-    return known !== current.revision ? "refresh" : null
+    const forgotten = await this.ctx.storage.get<number>(MEMORY_FORGOTTEN_KEY)
+    const current = await this.services.user().lifeRevisions()
+    return (forgotten ?? 0) !== current.forgotten ? "forget" : null
   }
 
   private async inputMemory(
@@ -751,13 +742,16 @@ export class Agent {
     ])
     const life = state.text
     const changedLife = withLife && (state.revision !== previousRevision || life !== previousLife)
-    if (!fresh && !changedLife && seen !== undefined) {
+    if (!fresh && seen !== undefined) {
       const delta = (await ahead) ?? (await room.memorySince(home.slug, seen, seqs))
       if (delta.count - seen <= MAX_DELTA_TURNS) {
+        if (changedLife) await this.ctx.storage.put({ [MEMORY_LIFE_KEY]: life, [MEMORY_REVISION_KEY]: state.revision })
         return {
           fresh: false,
           data: { memoryPos: delta.count },
-          ...(delta.text ? { text: memoryDelta(delta.text) } : {}),
+          ...(delta.text || changedLife
+            ? { text: memoryDelta(delta.text || "(nothing new)", changedLife ? life : undefined) }
+            : {}),
         }
       }
     }
@@ -1010,8 +1004,13 @@ export class Agent {
   }
 
   private async runAuth(provider: string): Promise<AuthResult | undefined> {
-    if (this.#run?.provider === provider) return this.#run.auth ?? undefined
+    const run = this.#run
+    if (run?.provider === provider && (await this.stillConnected(provider))) return run.auth ?? undefined
     return (await this.loadAuth(provider)) ?? undefined
+  }
+
+  private async stillConnected(provider: string): Promise<boolean> {
+    return (await this.services.user().listProviders()).some((info) => info.provider === provider)
   }
 
   private async loadAuth(provider: string): Promise<AuthResult | null> {

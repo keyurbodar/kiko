@@ -8,13 +8,13 @@ export class RecurrenceError extends Schema.TaggedError<RecurrenceError>()("Recu
   message: Schema.String,
 }) {}
 
-export function nextOccurrence(rrule: string, tz: string, afterUtc: Date | number): Date | null {
+export function nextOccurrence(rrule: string, tz: string, afterUtc: Date | number, anchorUtc?: number): Date | null {
   const unsafe = ruleProblem(rrule)
   if (unsafe) throw new RecurrenceError({ reason: "unsafe_rule", timeZone: tz, message: unsafe })
   const after = new Date(afterUtc)
   const afterWall = toWall(after, tz)
   const options = RRule.parseString(rrule.trim())
-  options.dtstart ??= afterWall
+  options.dtstart ??= anchorUtc === undefined ? afterWall : toWall(new Date(anchorUtc), tz)
   options.tzid = undefined
   const rule = new RRule(options)
 

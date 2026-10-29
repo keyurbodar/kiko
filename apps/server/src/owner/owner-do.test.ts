@@ -14,6 +14,10 @@ function ownerState() {
   const db = new DatabaseSync(":memory:")
   const sql = {
     exec: (query: string, ...bindings: SQLInputValue[]) => {
+      if (!bindings.length && query.includes(";")) {
+        db.exec(query)
+        return { toArray: () => [], one: () => undefined, rowsWritten: 0 }
+      }
       const statement = db.prepare(query)
       const reads = statement.columns().length > 0
       const rows = reads ? statement.all(...bindings) : []

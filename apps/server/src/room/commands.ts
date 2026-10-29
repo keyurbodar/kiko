@@ -40,7 +40,7 @@ export interface CommandRoom {
   mutateMessage<T>(id: string, apply: () => T): Promise<T>
   publish(events: readonly RoomEvent[]): void
   humanTyping(): void
-  stop(): void
+  stop(): Promise<void>
   search(query: string, options?: SearchOptions): SearchPage | Promise<SearchPage>
   history(seq: number, before: number, after: number): Promise<Message[]>
   stepWindow(slug: AgentSlug, after: number): RunStep[]
@@ -157,7 +157,7 @@ export function makeRoomCommands(room: CommandRoom) {
     }),
     stop: Effect.fn("Room.stop")(function* () {
       yield* open
-      room.stop()
+      yield* Effect.promise(() => room.stop())
       yield* settle
     }),
     setModel: Effect.fn("Room.setModel")(function* (input: { readonly ref: string; readonly slug?: AgentSlug }) {

@@ -26,6 +26,11 @@ function memoryFs(seed: Record<string, string | Uint8Array>) {
     at: 0,
   })
   const done = { ok: true as const, events: [], drop: [], changed: 1 }
+  const missing = (path: string) => ({
+    ok: false as const,
+    code: "not_found" as const,
+    message: `no such file or folder: ${path}`,
+  })
   const backend: FilesBackend = {
     stat: async (path) => {
       const f = files.get(path)
@@ -40,8 +45,19 @@ function memoryFs(seed: Record<string, string | Uint8Array>) {
       files.set(path, { bytes, type })
       return { ok: true, entry: entry(path, { bytes, type }) }
     },
-    move: async () => done,
-    remove: async () => done,
+    move: async (from, to) => {
+      const f = files.get(from)
+      if (!f) return missing(from)
+      files.delete(from)
+      files.set(to, f)
+      return done
+    },
+    remove: async (paths) => {
+      const absent = paths.find((path) => !files.has(path))
+      if (absent !== undefined) return missing(absent)
+      for (const path of paths) files.delete(path)
+      return { ...done, changed: paths.length }
+    },
     mkdir: async () => done,
     commit: async () => ({ ok: true }),
   }
@@ -104,5 +120,35 @@ describe("edit", () => {
     )
     expect((out.details as { diff?: string }).diff).toContain("two")
     expect(touched).toEqual([["/notes.md"]])
+  })
+})
+
+describe("rm", () => {
+  it("treats every path already gone as done, so a rerun reports success", async () => {
+    const { fs } = memoryFs({ "a.txt": "one" })
+    const first = await tool("rm").execute({ paths: ["/a.txt"] }, apiOf(fs), context)
+    expect(textOf(first)).toBe("deleted 1 file")
+    const again = await tool("rm").execute({ paths: ["/a.txt"] }, apiOf(fs), context)
+    expect(again.isError).toBeFalsy()
+    expect(textOf(again)).toBe("nothing to delete")
+  })
+
+  it("still deletes nothing when one path of several is missing", async () => {
+    const { fs } = memoryFs({ "a.txt": "one", "b.txt": "two" })
+    await expect(tool("rm").execute({ paths: ["/a.txt", "/missing.txt"] }, apiOf(fs), context)).rejects.toThrow(
+      /missing/,
+    )
+    expect((await tool("read").execute({ path: "/a.txt" }, apiOf(fs), context)).isError).toBeFalsy()
+  })
+})
+
+describe("mv", () => {
+  it("treats a source already moved as done, so a rerun reports success", async () => {
+    const { fs } = memoryFs({ "a.txt": "one" })
+    const first = await tool("mv").execute({ from: "/a.txt", to: "/b.txt" }, apiOf(fs), context)
+    expect(textOf(first)).toBe("moved /a.txt to b.txt")
+    const again = await tool("mv").execute({ from: "/a.txt", to: "/b.txt" }, apiOf(fs), context)
+    expect(again.isError).toBeFalsy()
+    expect(textOf(again)).toBe("moved /a.txt to b.txt")
   })
 })

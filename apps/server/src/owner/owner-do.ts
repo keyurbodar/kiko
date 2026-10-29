@@ -3,6 +3,7 @@ import { Runs } from "./runs"
 import { isAgentSlug, isRoomId, MAX_FRAME, type UpdateState } from "@kiko/protocol"
 import { Agent } from "../agent/agent-do"
 import { Room } from "../room/room-do"
+import { liveUploadIds, PENDING_TTL_MS } from "../room/pending"
 import { User } from "../user/user-do"
 import { restoreCustom } from "../user/custom-providers"
 import { restoreOverlay } from "../models/sync"
@@ -109,6 +110,7 @@ export class OwnerDO extends DurableObject<Env> {
       room: (roomId) => this.room(roomId),
       agent: (roomId, slug) => this.agent(roomId, slug),
       files: () => (env.FILES ? fileStore(env) : localBucket(this.blobs)),
+      sweepUploads: (before) => this.sweepUploads(before),
       egress: async (request) => {
         if (new URL(request.url).protocol !== "https:")
           throw new EgressError({ url: request.url, message: "egress is https only" })
@@ -131,7 +133,7 @@ export class OwnerDO extends DurableObject<Env> {
       trimAgents: () => this.trimAgents(),
       dispatchRun: (roomId, slug) => this.dispatchRun(roomId, slug),
       cancelRun: (roomId, slug) => this.cancelRun(roomId, slug),
-      afterRun: (roomId) => this.afterRun(roomId),
+      afterRun: (roomId, _slug, human) => this.afterRun(roomId, human),
       syncRoutines: (routines) => this.user().syncRoutines(routines),
       fireRoutine: (delivery) => this.user().fireRoutine(delivery),
     }
@@ -193,7 +195,7 @@ export class OwnerDO extends DurableObject<Env> {
       roomId,
       slug,
       requestId,
-      Date.now() + (this.runs.has(agent) ? RECOVERY_DELAY_MS : 0),
+      Date.now(),
     )
     this.runs.waiting(agent)
     const running = this.runs.running()
@@ -269,8 +271,8 @@ export class OwnerDO extends DurableObject<Env> {
     await this.runs.start(`${roomId}:${slug}`, "pending")
   }
 
-  private async afterRun(roomId: string): Promise<void> {
-    await this.afterRunHook.run(roomId)
+  private async afterRun(roomId: string, human: boolean): Promise<void> {
+    await this.afterRunHook.run(roomId, human)
   }
 
   protected user(): User {
@@ -395,23 +397,27 @@ export class OwnerDO extends DurableObject<Env> {
         )
         .toArray()
       for (const { scope, at } of due) {
-        if (scope.startsWith("agent:")) {
-          const key = scope.slice("agent:".length)
-          const [roomId, slug, ...extra] = key.split(":")
-          if (!isRoomId(roomId) || !slug || extra.length)
-            throw new AgentKeyError({ kind: "deadline", key, message: "bad agent deadline" })
-          this.ctx.storage.sql.exec(
-            "INSERT OR IGNORE INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)",
-            key,
-            roomId,
-            slug,
-            "recovery",
-            at,
-          )
-          continue
+        try {
+          if (scope.startsWith("agent:")) {
+            const key = scope.slice("agent:".length)
+            const [roomId, slug, ...extra] = key.split(":")
+            if (!isRoomId(roomId) || !slug || extra.length)
+              throw new AgentKeyError({ kind: "deadline", key, message: "bad agent deadline" })
+            this.ctx.storage.sql.exec(
+              "INSERT OR IGNORE INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)",
+              key,
+              roomId,
+              slug,
+              "recovery",
+              at,
+            )
+            continue
+          }
+          if (scope === "user") await this.user().alarm()
+          else if (scope.startsWith("room:")) await this.room(scope.slice("room:".length)).alarm()
+        } catch (error) {
+          console.error(`clock ${scope} failed: ${error instanceof Error ? error.message : String(error)}`)
         }
-        if (scope === "user") await this.user().alarm()
-        else if (scope.startsWith("room:")) await this.room(scope.slice("room:".length)).alarm()
       }
       if (!this.connected())
         for (const roomId of await this.pendingRooms()) {
@@ -436,8 +442,8 @@ export class OwnerDO extends DurableObject<Env> {
       await this.trimAgents()
     } finally {
       this.alarmRunning = false
+      await this.refreshClock()
     }
-    await this.refreshClock()
   }
 
   private connected(): boolean {
@@ -468,7 +474,8 @@ export class OwnerDO extends DurableObject<Env> {
 
   private async resumeSocket(): Promise<void> {
     for (const roomId of await this.pendingRooms()) await this.room(roomId).settleHumanInput()
-    for (const run of await this.unfinishedRuns()) await this.enqueueRun(run.agent, run.request_id)
+    for (const run of await this.unfinishedRuns())
+      if (!this.runs.has(run.agent)) await this.enqueueRun(run.agent, run.request_id)
   }
 
   private async recoverDisconnected(): Promise<void> {
@@ -532,6 +539,7 @@ export class OwnerDO extends DurableObject<Env> {
     return this.blobs.remove(...args)
   }
   async blobStartUpload(...args: Parameters<BlobStore["startUpload"]>) {
+    this.sweepUploads(Date.now() - PENDING_TTL_MS)
     return this.blobs.startUpload(...args)
   }
   blobPutPart(...args: Parameters<BlobStore["putPart"]>) {
@@ -542,5 +550,9 @@ export class OwnerDO extends DurableObject<Env> {
   }
   async blobAbort(...args: Parameters<BlobStore["abort"]>) {
     return this.blobs.abort(...args)
+  }
+
+  private sweepUploads(before: number): number {
+    return this.blobs.sweep(before, liveUploadIds(this.ctx.storage.sql))
   }
 }

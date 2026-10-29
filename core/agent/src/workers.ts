@@ -231,16 +231,21 @@ export class Workers {
 
   step(conversationId: ConversationId, step: string): StepTaken {
     const row = this.sql
-      .exec<{ id: string }>(
-        "SELECT id FROM workers WHERE conversation_id = ? AND status = 'running' AND agent = ?",
+      .exec<{ id: string; steps: number }>(
+        "SELECT id, steps FROM workers WHERE conversation_id = ? AND status = 'running' AND agent = ?",
         conversationId,
         this.agent,
       )
       .toArray()[0]
     if (!row) return "talker"
-    const steps = this.progress.get(row.id)?.steps ?? 0
+    const steps = Math.max(row.steps, this.progress.get(row.id)?.steps ?? 0)
     if (steps >= MAX_WORKER_STEPS) return "spent"
-    this.progress.set(row.id, { step, steps: steps + 1 })
+    const next = steps + 1
+    this.progress.set(row.id, { step, steps: next })
+    if (next % 10 === 0) {
+      this.sql.exec("UPDATE workers SET step = ?, steps = ? WHERE id = ? AND agent = ?", step, next, row.id, this.agent)
+      this.changed()
+    }
     return "worker"
   }
 

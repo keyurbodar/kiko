@@ -584,17 +584,14 @@ describe("install", () => {
     }),
   )
 
-  it.effect("still installs the backend when the app builder upload fails", () =>
+  it.effect("fails the install and uploads nothing when the app builder upload fails", () =>
     Effect.gen(function* () {
       const world = makeWorld({ accounts: [{ id: "acc1", subdomain: "owner", scripts: {}, refuses: "builder" }] })
       const installer = yield* installerFor(world, true)
       const reply = yield* installer.install({ sub: "user_a", grant: TOKEN_GRANT })
-      assert.strictEqual(reply.status, 200)
-      assert.deepStrictEqual(
-        world.uploads.map((upload) => upload.script),
-        ["kiko"],
-      )
-      assert.notInclude(shape(world.uploads[0]?.bindings ?? []), "service:BUILDER=kiko-builder")
+      assert.strictEqual(reply.status, 502)
+      assert.strictEqual(reply.body.error?.code, "cloudflare_down")
+      assert.deepStrictEqual(world.uploads, [])
     }),
   )
 })

@@ -1,7 +1,15 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { declareEffect } from "@kiko/agent/effects"
-import type { Apps, CallResult, ClaimLink, DeployOutcome, Diagnostic, InspectWhat } from "../../apps/service"
+import type {
+  Apps,
+  AppSummary,
+  CallResult,
+  ClaimLink,
+  DeployOutcome,
+  Diagnostic,
+  InspectWhat,
+} from "../../apps/service"
 import type { RoomFs } from "../../files/room-fs"
 
 const APPS = "apps"
@@ -72,6 +80,15 @@ async function saveTo(fs: RoomFs, path: string, bytes: Uint8Array): Promise<stri
 }
 
 const where = (d: Diagnostic) => [d.file ?? d.path, d.line].filter((x) => x !== undefined).join(":")
+
+export const appLine = (a: AppSummary) =>
+  `${a.name}: ${a.url} ${
+    a.claimed
+      ? "(owned)"
+      : a.expired
+        ? "(expired and no longer live: deploy it again, or send the human a claim link with app_manage claim_link)"
+        : `(expires ${a.expiresAt ?? "?"})`
+  }`
 
 const claimText = (claim: ClaimLink) => `${claim.url} (verification code ${claim.code})`
 
@@ -205,10 +222,12 @@ export function appsExtension(deps: AppsDeps): Extension {
     return service
   }
   const guarded =
-    <A>(run: (args: A) => Promise<string>) =>
+    <A>(run: (args: A) => Promise<string | { text: string; isError: boolean }>) =>
     async (args: A) => {
       try {
-        return { output: text(await run(args)) }
+        const answer = await run(args)
+        if (typeof answer === "string") return { output: text(answer) }
+        return { output: text(answer.text), ...(answer.isError ? { isError: true } : {}) }
       } catch (e) {
         return { output: text(e instanceof Error ? e.message : String(e)), isError: true }
       }
@@ -239,15 +258,15 @@ export function appsExtension(deps: AppsDeps): Extension {
               name: string
               public_inspect?: boolean
               delete_tables?: { table: string; row_count: number }[]
-            }) =>
-              deployReport(
-                await apps().deploy(args.name, await sources(deps.fs, args.name), {
-                  ...(args.public_inspect ? { publicInspect: true } : {}),
-                  ...(args.delete_tables?.length
-                    ? { deleteTables: args.delete_tables.map((t) => ({ table: t.table, rowCount: t.row_count })) }
-                    : {}),
-                }),
-              ),
+            }) => {
+              const out = await apps().deploy(args.name, await sources(deps.fs, args.name), {
+                ...(args.public_inspect ? { publicInspect: true } : {}),
+                ...(args.delete_tables?.length
+                  ? { deleteTables: args.delete_tables.map((t) => ({ table: t.table, rowCount: t.row_count })) }
+                  : {}),
+              })
+              return { text: deployReport(out), isError: !out.ok }
+            },
           ),
         }),
       ),
@@ -260,9 +279,7 @@ export function appsExtension(deps: AppsDeps): Extension {
           replay: "safe",
           execute: guarded(async () => {
             const { apps: mine, deploys } = await apps().inventory()
-            const lines = mine.map(
-              (a) => `${a.name}: ${a.url} ${a.claimed ? "(owned)" : `(expires ${a.expiresAt ?? "?"})`}`,
-            )
+            const lines = mine.map(appLine)
             const others = accountLines(deploys, new Set(mine.map((a) => a.url)))
             return [
               lines.join("\n") || "no apps yet",

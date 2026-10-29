@@ -30,7 +30,7 @@ type Track = ReturnType<Peer["addTrack"]>
 type Channel = ReturnType<Peer["createDataChannel"]>
 
 export function createSession(id: string, rtc: PeerModule, events: SessionEvents): Session {
-  let peer: Peer | null = new rtc.default.PeerConnection(`kiko-${id}`, rtcConfig([]))
+  let peer: Peer | null = null
   let track: Track | null = null
   let channel: Channel | null = null
   let config: { timestamp: number } | null = null
@@ -95,10 +95,9 @@ export function createSession(id: string, rtc: PeerModule, events: SessionEvents
     })
   }
 
-  const publish = (offer: string, connection: Peer, iceServers: readonly IceServer[]): void => {
+  const publish = (offer: string, connection: Peer): void => {
     if (closed) return
     timer = setTimeout(close, CONNECT_TIMEOUT_MS)
-    void iceServers
     const payloadType = videoPayloadType(offer)
     const video = new rtc.default.Video(videoMid(offer), "SendOnly")
     video.addH264Codec(payloadType)
@@ -125,10 +124,11 @@ export function createSession(id: string, rtc: PeerModule, events: SessionEvents
   return {
     id,
     answer(offer, iceServers) {
-      if (closed || track || !peer) return
-      void iceServers
-      watch(peer)
-      publish(offer, peer, iceServers)
+      if (closed || track || peer) return
+      const connection = new rtc.default.PeerConnection(`kiko-${id}`, rtcConfig(iceServers))
+      peer = connection
+      watch(connection)
+      publish(offer, connection)
     },
     candidate,
     send(unit, timestamp) {

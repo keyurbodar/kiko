@@ -76,6 +76,7 @@ import {
   claim,
   ClaimRefused,
   type NewPending,
+  openPending,
   PENDING_TTL_MS,
   PENDING_WAKEUP,
   PendingUploads,
@@ -101,6 +102,8 @@ import { type PairIn, RoomPair } from "./pair"
 
 const MAX_DOING = 160
 const DELEGATED_TITLE = 100
+const HUMAN_NOTIFY_MS = 10_000
+const ASK_TYPING_MS = 120_000
 const edit = (caption: string): Activity => ({ kind: "tool", tool: "edit", caption })
 
 const modelNamed = (ref: string): string => {
@@ -149,6 +152,7 @@ export class Room implements CommandRoom {
   private routines!: RoomRoutines
   private reports!: Reports
   private wakes!: RoomDelivery
+  private humanNotifiedAt = 0
   private mailer!: RoomMessaging
   private pairs!: RoomPair
   private receiver!: ReceiveDeps
@@ -285,6 +289,7 @@ export class Room implements CommandRoom {
         chat: (home) => this.chat(home),
         seedMembers: (home, chat) => this.seedMembers(home, chat),
       })
+      this.mail.redrive()
     }
   }
 
@@ -352,9 +357,14 @@ export class Room implements CommandRoom {
     return filed
   }
 
-  private async flushBurst(): Promise<void> {
+  private flushBurst(): Promise<void> {
+    return this.burst.flush(() => this.flushBurstOnce())
+  }
+
+  private async flushBurstOnce(): Promise<void> {
     const home = this.home()
     if (!home) return
+    await this.burst.restore()
     const pending = this.burst.envelopes(home.roomId)
     const batch = deliverable(pending)
     if (!batch.length) return
@@ -753,6 +763,8 @@ export class Room implements CommandRoom {
 
   async alarm(): Promise<void> {
     if (this.log.meta("deleted") === "1" || this.log.meta("erasing") === "1") return
+    await this.restoreHumanInput()
+    this.mail.redrive()
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
       [BURST_WAKEUP]: () => this.flushBurst(),
@@ -944,7 +956,7 @@ export class Room implements CommandRoom {
 
   async eraseFormerAgent(slug: AgentSlug): Promise<void> {
     const home = this.home()
-    if (home && this.members.everyone().includes(slug) && !this.members.get(slug))
+    if (home && this.members.allSlugs().includes(slug) && !this.members.get(slug))
       await this.services.agent(home.roomId, slug).erase()
   }
 
@@ -964,7 +976,7 @@ export class Room implements CommandRoom {
     this.log.setMeta("erasing", "1")
     for (const slug of this.members.everyone()) await this.services.agent(home.roomId, slug).stop()
     await archive?.erase()
-    for (const slug of this.members.everyone()) await this.services.agent(home.roomId, slug).erase()
+    for (const slug of this.members.allSlugs()) await this.services.agent(home.roomId, slug).erase()
     const pending = this.sql
       .exec<{ r2_key: string; upload_id: string | null }>(
         "SELECT r2_key, upload_id FROM pending_uploads WHERE pending_uploads.room_id = ?1",
@@ -1173,7 +1185,7 @@ export class Room implements CommandRoom {
   }
 
   async pendingOpen(input: NewPending): Promise<string | null> {
-    const refused = this.pending.open(input, Date.now())
+    const refused = await openPending(this.pending, this.services.files(), input, Date.now())
     if (!refused) await this.armPending()
     return refused
   }
@@ -1188,7 +1200,7 @@ export class Room implements CommandRoom {
   }
 
   async sweepPending(now = Date.now()): Promise<number> {
-    const stale = this.pending.expired(now - PENDING_TTL_MS)
+    const stale = this.pending.claimExpired(now - PENDING_TTL_MS)
     for (const row of stale) {
       if (row.upload_id)
         await this.services
@@ -1202,7 +1214,7 @@ export class Room implements CommandRoom {
         this.services.files(),
         stale.map((r) => r.r2_key),
       )
-    this.pending.drop(stale.map((r) => r.id))
+    this.services.sweepUploads(now - PENDING_TTL_MS)
     await this.armPending()
     return stale.length
   }
@@ -1399,30 +1411,43 @@ export class Room implements CommandRoom {
     return out
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
     const home = this.home()
     if (!home) return
     this.mail.stop()
-    for (const member of this.members.list()) {
-      if (member.status !== "idle")
-        this.divider(`stopped:${member.slug}:${crypto.randomUUID()}`, "Stopped", {
-          kind: "run_stopped",
-          agent: member.slug,
-          private: true,
-        })
-      this.stopAgent(home, member.slug)
-      this.reports.run(this.routines.dropped(member.slug), "stopped")
+    await Promise.all(
+      this.members.list().map(async (member) => {
+        this.reports.run(this.routines.dropped(member.slug), "stopped")
+        const stopped = await this.stopAgent(home, member.slug)
+        await this.cancelRun(home, member.slug)
+        if (!stopped) return
+        if (member.status !== "idle")
+          this.divider(`stopped:${member.slug}:${crypto.randomUUID()}`, "Stopped", {
+            kind: "run_stopped",
+            agent: member.slug,
+            private: true,
+          })
+        await this.setStatus(member.slug, "idle")
+      }),
+    )
+  }
+
+  private async stopAgent(home: Home, slug: AgentSlug): Promise<boolean> {
+    try {
+      await this.services.agent(home.roomId, slug).stop()
+      return true
+    } catch (error) {
+      console.error(`stop failed: ${error instanceof Error ? error.message : String(error)}`)
+      return false
     }
   }
 
-  private stopAgent(home: Home, slug: AgentSlug): void {
-    const agent = this.services.agent(home.roomId, slug)
-    this.ctx.waitUntil(
-      agent.stop().then(
-        () => undefined,
-        (error: unknown) => console.error(`stop failed: ${error instanceof Error ? error.message : String(error)}`),
-      ),
-    )
+  private async cancelRun(home: Home, slug: AgentSlug): Promise<void> {
+    try {
+      await this.services.cancelRun(home.roomId, slug)
+    } catch (error) {
+      console.error(`run cancel failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   memberOp(op: MemberOp): MemberRefusal | null {
@@ -1433,7 +1458,7 @@ export class Room implements CommandRoom {
     const notice = this.memberNotices(op, name, result)
     this.publish([...result.events, ...notice])
     const home = this.home()
-    if (op.op === "remove" && home) this.stopAgent(home, op.slug)
+    if (op.op === "remove" && home) this.ctx.waitUntil(this.stopAgent(home, op.slug))
     if (op.op !== "rename" && home) {
       const slugs = this.members.list().map((m) => m.slug)
       this.ctx.waitUntil(
@@ -1496,9 +1521,6 @@ export class Room implements CommandRoom {
         members.map((m) => m.slug),
         this.mail.chain(slug),
       )
-      const owner = call.op === "create_task" ? call.owner?.replace(/^@/, "").trim().toLowerCase() : undefined
-      if (result.answer.ok && owner && isAgentSlug(owner) && this.asks.owes(owner, slug))
-        this.workspace.markWoken(call.id)
       const lead = members.find((m) => m.lead)
       if (lead && lead.slug !== slug && !this.asks.owes(slug, lead.slug))
         for (const event of result.events) {
@@ -1522,6 +1544,13 @@ export class Room implements CommandRoom {
   humanTyping(): void {
     this.wakes.humanTyped()
     this.ctx.waitUntil(this.burst.typing())
+    const home = this.home()
+    if (!home || Date.now() - this.humanNotifiedAt < HUMAN_NOTIFY_MS) return
+    const askers = this.humanAsks.waitingAskers(Date.now() - ASK_TYPING_MS)
+    if (!askers.some(isAgentSlug)) return
+    this.humanNotifiedAt = Date.now()
+    for (const slug of askers)
+      if (isAgentSlug(slug)) this.ctx.waitUntil(this.services.agent(home.roomId, slug).humanComing())
   }
 
   async post(slug: AgentSlug, runId: string, attempt: number, index: number, block: string): Promise<boolean> {

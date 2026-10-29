@@ -14,6 +14,7 @@ const routine = (target: string): Reminder => ({
   createdBy: "juno",
   status: "active",
   lastFired: null,
+  seriesStart: null,
   name: "radar check",
   trigger: { on: "time", at: "2026-10-27T08:00:00Z" },
   fails: 0,

@@ -29,6 +29,7 @@ export type Reminder = {
   createdBy: string
   status: ReminderStatus
   lastFired: number | null
+  seriesStart: number | null
   name: string | null
   trigger: Trigger | null
   fails: number
@@ -81,6 +82,7 @@ type Row = {
   created_by: string
   status: string
   last_fired: number | null
+  series_start: number | null
   name: string | null
   trigger: string | null
   fails: number
@@ -100,6 +102,7 @@ const toReminder = (r: Row): Reminder => ({
   createdBy: r.created_by,
   status: r.status as ReminderStatus,
   lastFired: r.last_fired,
+  seriesStart: r.series_start,
 })
 
 function parseTime(time: string, tz: string, now: number): number {
@@ -113,11 +116,11 @@ function parseTime(time: string, tz: string, now: number): number {
   return due
 }
 
-function nextAfter(rrule: string, tz: string, due: number, now: number): number | null {
+function nextAfter(rrule: string, tz: string, due: number, now: number, anchor: number): number | null {
   if (ruleProblem(rrule)) return null
   let at = due
   for (let i = 0; i < MAX_SKIPS; i++) {
-    const next = nextOccurrence(rrule, tz, at)
+    const next = nextOccurrence(rrule, tz, at, anchor)
     if (!next) return null
     if (next.getTime() > now) return next.getTime()
     at = next.getTime()
@@ -199,8 +202,8 @@ export class Reminders {
       })
     const id = crypto.randomUUID()
     this.sql.exec(
-      `INSERT INTO reminders (id, text, due_utc, tz, rrule, room_id, target, created_by, status, last_fired, created_at, name, trigger, fails, hook_hash)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, ?, ?, ?, 0, ?)`,
+      `INSERT INTO reminders (id, text, due_utc, tz, rrule, room_id, target, created_by, status, last_fired, created_at, name, trigger, fails, hook_hash, series_start)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, ?, ?, ?, 0, ?, ?)`,
       id,
       fields.text,
       fields.due,
@@ -213,6 +216,7 @@ export class Reminders {
       fields.name,
       JSON.stringify(input.trigger),
       tokenHash,
+      fields.due,
     )
     await this.rearm()
     return { routine: this.required(id), ...(token ? { token } : {}) }
@@ -240,7 +244,7 @@ export class Reminders {
         if (rrule) {
           checkRepeat(rrule, input.tz, due)
           if (validateFreshness && due <= now)
-            due = nextAfter(rrule, input.tz, due, now) ?? fail("the rule has no time after now")
+            due = nextAfter(rrule, input.tz, due, now, due) ?? fail("the rule has no time after now")
         } else if (validateFreshness && due < now - 1000)
           throw new ReminderError({ message: "that time is in the past. pick a future time." })
         return { name, text, due, rrule }
@@ -300,7 +304,7 @@ export class Reminders {
     }
     this.sql.exec(
       `UPDATE reminders SET name = ?, text = ?, trigger = ?, rrule = ?, due_utc = ?, status = ?, fails = CASE WHEN ? = 'active' THEN 0 ELSE fails END,
-       hook_hash = coalesce(?, hook_hash) WHERE id = ?`,
+       hook_hash = coalesce(?, hook_hash), series_start = coalesce(?, series_start) WHERE id = ?`,
       fields.name,
       fields.text,
       JSON.stringify(trigger),
@@ -309,6 +313,7 @@ export class Reminders {
       status,
       patch.status ?? (current.status === "done" ? "active" : ""),
       freshHash,
+      retimed ? due : null,
       id,
     )
     await this.rearm()
@@ -562,11 +567,25 @@ export class Reminders {
       await this.rearm()
       return
     }
-    if (this.now() < runAt) return
+    if (this.now() < runAt) {
+      await this.rearm()
+      return
+    }
     if (requestId !== `${routineId}:${runAt}`) throw new ReminderError({ message: "invalid routine requestId" })
     this.expireLostRuns()
     if (routine.rrule === null || this.now() - runAt <= LATE_MS)
       await this.run(routine, String(runAt), "its scheduled time", "")
+    else {
+      this.beginRun(routine.id, String(runAt))
+      this.settleRun(routine.id, String(runAt), "skipped", true)
+      await this.ports
+        ?.notice(
+          routine.roomId,
+          `late:${routine.id}:${runAt}`,
+          `routine "${routine.name}" missed a run because kiko was offline for more than an hour. it is scheduled again for its next time.`,
+        )
+        .catch((e: unknown) => console.error(`late notice not sent: ${e instanceof Error ? e.message : String(e)}`))
+    }
     const next = nextTime(routine, this.now())
     this.sql.exec(
       `UPDATE reminders SET last_fired = due_utc, due_utc = ?, status = ?
@@ -619,8 +638,10 @@ function checkRepeat(rrule: string, tz: string, from: number): void {
   if (problem) throw new ReminderError({ message: problem })
 }
 
-function nextTime(r: Pick<Reminder, "rrule" | "tz" | "dueUtc">, now: number): number | null {
-  return r.rrule ? nextAfter(r.rrule, r.tz, r.dueUtc, Math.max(now, r.dueUtc + MIN_REPEAT_MS - 1)) : null
+function nextTime(r: Pick<Reminder, "rrule" | "tz" | "dueUtc" | "seriesStart">, now: number): number | null {
+  return r.rrule
+    ? nextAfter(r.rrule, r.tz, r.dueUtc, Math.max(now, r.dueUtc + MIN_REPEAT_MS - 1), r.seriesStart ?? r.dueUtc)
+    : null
 }
 
 export function localTime(at: number, tz: string): string {

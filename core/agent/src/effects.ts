@@ -13,31 +13,22 @@ export const EFFECTS: readonly Effect[] = ["read", "write", "message", "external
 
 const DECLARED = Symbol.for("kiko.effect")
 
-type Declaration = { effect: Effect; stoppable: boolean }
+type Declaration = { effect: Effect }
 
 type Declared = { [DECLARED]?: Declaration }
 
-export function declareEffect<T extends ToolRegistration>(
-  effect: Effect,
-  tool: T,
-  options: { stoppable?: boolean } = {},
-): T {
+export function declareEffect<T extends ToolRegistration>(effect: Effect, tool: T): T {
   if (!EFFECTS.includes(effect))
     throw new EffectDeclarationError({
       tool: tool.name,
       reason: "unknown",
       message: `tool ${tool.name}: unknown effect ${String(effect)}`,
     })
-  return Object.assign({ ...tool }, { [DECLARED]: { effect, stoppable: options.stoppable ?? false } }) as T
+  return Object.assign({ ...tool }, { [DECLARED]: { effect } }) as T
 }
 
 function effectOf(tool: ToolRegistration): Effect | undefined {
   return (tool as Declared)[DECLARED]?.effect
-}
-
-export function stoppable(tool: ToolRegistration): boolean {
-  const declared = (tool as Declared)[DECLARED]
-  return declared?.effect === "read" || declared?.stoppable === true
 }
 
 export function effectTable(extensions: readonly Extension[]): ReadonlyMap<string, Effect> {
