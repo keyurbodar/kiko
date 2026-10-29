@@ -214,6 +214,7 @@ export class AgentHost {
   private draining = 0
   private readonly retiring = new WeakSet<Opened>()
   private resumed = false
+  private endedByStop = false
   private alarmUpdate: Promise<void> = Promise.resolve()
   private readonly taskWatches = new WeakMap<Harness, Map<TaskId, number>>()
 
@@ -363,6 +364,7 @@ export class AgentHost {
     }
     const invocation: NonNullable<AgentHost["invocation"]> = { due }
     this.invocation = invocation
+    this.endedByStop = false
     try {
       if (this.opened) {
         const opened = await this.opened
@@ -710,6 +712,7 @@ export class AgentHost {
 
   private async drain(opened: Opened, batches: readonly Batch[]): Promise<boolean> {
     if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
+      this.endedByStop = true
       await cancelRestart(opened.root, opened.storage)
       const live = await opened.harness.inspect(context)
       const paused = live.scheduling === "paused"
@@ -934,7 +937,7 @@ export class AgentHost {
           continue
         }
         await this.idle()
-        await this.options.onIdle?.()
+        if (!this.endedByStop) await this.options.onIdle?.()
         return
       }
     })()
