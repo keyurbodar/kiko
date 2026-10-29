@@ -1004,8 +1004,13 @@ export class Agent {
   }
 
   private async runAuth(provider: string): Promise<AuthResult | undefined> {
-    if (this.#run?.provider === provider) return this.#run.auth ?? undefined
+    const run = this.#run
+    if (run?.provider === provider && (await this.stillConnected(provider))) return run.auth ?? undefined
     return (await this.loadAuth(provider)) ?? undefined
+  }
+
+  private async stillConnected(provider: string): Promise<boolean> {
+    return (await this.services.user().listProviders()).some((info) => info.provider === provider)
   }
 
   private async loadAuth(provider: string): Promise<AuthResult | null> {
