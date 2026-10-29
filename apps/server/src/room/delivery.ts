@@ -132,7 +132,7 @@ export class RoomDelivery {
         chain: report.chain,
         seq: report.seq,
       })
-      if (result === "delivered") this.d.workspace.markReported(report.seq)
+      if (result === "delivered" || result === "gone") this.d.workspace.markReported(report.seq)
     }
     const lead = this.d.members.list().find((m) => m.lead)?.slug
     for (const wake of this.d.workspace.pendingWakes()) {
@@ -148,7 +148,7 @@ export class RoomDelivery {
         chain: wake.chain,
         seq: wake.seq,
       })
-      if (result === "delivered") this.d.workspace.markWoken(wake.taskId)
+      if (result === "delivered" || result === "gone") this.d.workspace.markWoken(wake.taskId)
     }
   }
 }
