@@ -205,6 +205,31 @@ button.run-tree-row:focus-visible,
 }
 .run-tree-time {
   margin-left: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.run-tree-time[data-live],
+.run-tree-row[aria-expanded="true"] > .run-tree-time,
+.run-tree-row:focus-within > .run-tree-time,
+.run-tree-head[aria-expanded="true"] .run-tree-time,
+.run-tree-head:focus-within .run-tree-time {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.run-tree-time-slot {
+  display: inline-flex;
+  flex: none;
+  min-width: 0;
+  margin-left: auto;
+}
+.run-tree-head .run-tree-time-slot {
+  margin-left: 4px;
+}
+.run-tree-clock-slot {
+  display: inline-flex;
+  flex: none;
+  min-width: 0;
 }
 
 .run-tree-more {
@@ -243,10 +268,22 @@ button.run-tree-row[data-kind="thought"][aria-expanded="true"] > .run-tree-chevr
   .run-tree-head:hover {
     color: var(--text-100);
   }
+  button.run-tree-row:hover .run-tree-label,
+  .run-tree-head:hover .run-tree-label {
+    color: var(--text-100);
+  }
   button.run-tree-row:hover .run-tree-icon,
   button.run-tree-row:hover .run-tree-chevron,
   .run-tree-head:hover .run-tree-chevron {
     color: var(--text-200);
+  }
+  button.run-tree-row:hover .run-tree-icon[data-failed] {
+    color: var(--danger);
+  }
+  button.run-tree-row:hover > .run-tree-time-slot > .run-tree-time,
+  .run-tree-head:hover .run-tree-time {
+    opacity: 1;
+    pointer-events: auto;
   }
   button.run-tree-row:hover > .run-tree-chevron {
     opacity: 1;

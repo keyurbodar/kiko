@@ -1,6 +1,7 @@
 import type { RunStep } from "@kiko/protocol"
 import { CheckIcon, ChevronRightIcon, CopyIcon } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import {
   createEffect,
   createMemo,
@@ -25,6 +26,7 @@ import { Mochi } from "../ui/Mochi"
 import { ThoughtStream } from "../thinking/Thinking"
 import { durationLabel, elapsedLabel, fullTimeLabel } from "./duration"
 import { GLYPH } from "./glyphs"
+import { dividerParts } from "../lib/time-label"
 import { type StepIcon } from "./run-log"
 import {
   type DetailStatus,
@@ -39,6 +41,7 @@ import {
   type WorkerItem,
   type WorkItem,
   workLogOf,
+  retried,
 } from "./run-tree-rows"
 import { recallSummary, rememberSummary } from "./run-summary"
 import { Shine } from "./Shine"
@@ -114,10 +117,9 @@ const secondsLabel = (ms: number) => `${Math.max(1, Math.round(ms / 1_000))}s`
 
 const delayOf = (freshRow: boolean, order: number) => (freshRow ? FIRST_DELAY_MS + Math.min(order, 8) * STAGGER_MS : 0)
 
-const retried = (step: StepItem, steps: readonly RunStep[]) => {
+const retriedIn = (step: StepItem, steps: readonly RunStep[]) => {
   const raw = steps.find((entry) => entry.id === step.id)
-  if (!raw) return false
-  return steps.some((later) => later.name === raw.name && later.status === "done" && later.startedAt > raw.startedAt)
+  return raw ? retried(raw, steps) : false
 }
 
 function Label(props: { text: string; parts?: readonly LabelPart[]; running: boolean }) {
@@ -160,15 +162,23 @@ function Took(props: { startedAt: number; endedAt?: number; running: boolean; no
   const ms = () => (props.running || props.endedAt === undefined ? props.now : props.endedAt) - props.startedAt
   return (
     <Show when={ms() >= 1_000}>
-      <span
-        class="run-tree-meta run-tree-time"
-        data-component="run-tree-time"
-        data-live={props.running ? "" : undefined}
-        title={fullTimeLabel(props.startedAt)}
-      >
-        {props.running ? elapsedLabel(ms()) : durationLabel(ms())}
-      </span>
+      <Time
+        at={props.startedAt}
+        now={props.now}
+        live={props.running}
+        text={props.running ? elapsedLabel(ms()) : durationLabel(ms())}
+      />
     </Show>
+  )
+}
+
+function Time(props: { at: number; now: number; text: string; live?: boolean }) {
+  return (
+    <TooltipV2 class="run-tree-time-slot" placement="top" openDelay={0} value={fullTimeLabel(props.at)}>
+      <span class="run-tree-meta run-tree-time" data-component="run-tree-time" data-live={props.live ? "" : undefined}>
+        {props.text}
+      </span>
+    </TooltipV2>
   )
 }
 
@@ -305,7 +315,7 @@ function StepRow(props: {
   const opensFile = () => !!props.step.target && !props.step.target.folder
   const born = () => fresh(props.step.startedAt, props.view.now())
   const settled = () => fresh(props.step.endedAt, props.view.now())
-  const failed = () => props.step.failed && !retried(props.step, props.steps)
+  const failed = () => props.step.failed && !retriedIn(props.step, props.steps)
   return (
     <div
       class="run-tree-item"
@@ -637,6 +647,8 @@ function Head(props: {
   summary: string
   worked: string
   clock: string
+  startedAt: number | undefined
+  now: number
   open: boolean
   onToggle: () => void
 }) {
@@ -655,6 +667,9 @@ function Head(props: {
               onClick={props.onToggle}
             >
               <span class="run-tree-summary">{props.worked}</span>
+              <Show when={props.startedAt}>
+                {(at) => <Time at={at()} now={props.now} text={dividerParts(at(), props.now).time} />}
+              </Show>
               <Chevron open={props.open} />
             </button>
           }
@@ -674,9 +689,16 @@ function Head(props: {
         </Shine>
         <Show when={props.clock} keyed>
           {(text) => (
-            <span class="run-tree-clock" aria-hidden="true">
-              <span class="run-tree-clock-text">{text}</span>
-            </span>
+            <TooltipV2
+              class="run-tree-clock-slot"
+              placement="top"
+              openDelay={0}
+              value={props.startedAt === undefined ? "" : fullTimeLabel(props.startedAt)}
+            >
+              <span class="run-tree-clock" aria-hidden="true">
+                <span class="run-tree-clock-text">{text}</span>
+              </span>
+            </TooltipV2>
           )}
         </Show>
       </div>
@@ -899,6 +921,8 @@ export function RunTree(props: {
         summary={crossFrom()}
         worked={worked()}
         clock={clock()}
+        startedAt={startedAt()}
+        now={now()}
         open={open()}
         onToggle={toggleHead}
       />

@@ -68,6 +68,8 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 const QUIET_OBJECT = /^(?:a|an|the|at|on|in|through|it|memory|files|routines|background)\b/i
 const TWO_WORD_VERB = /^(?:Added task|Added recipe|Made folder) /
 
+type Attempt = Pick<RunStep, "name" | "status" | "startedAt"> & { worker?: { id: string } }
+
 function stepParts(label: string, command: boolean): LabelPart[] {
   const lead = TWO_WORD_VERB.exec(label)?.[0] ?? /^\S+ /.exec(label)?.[0]
   const object = lead ? label.slice(lead.length) : ""
@@ -78,14 +80,20 @@ function stepParts(label: string, command: boolean): LabelPart[] {
   ]
 }
 
-export function stillFailing(steps: readonly Pick<RunStep, "name" | "status" | "startedAt">[]): boolean {
+export function retried(step: Attempt, steps: readonly Attempt[]): boolean {
+  if (step.status !== "failed") return false
   return steps.some(
-    (failed) =>
-      failed.status === "failed" &&
-      !steps.some(
-        (retry) => retry.name === failed.name && retry.status === "done" && retry.startedAt > failed.startedAt,
-      ),
+    (later) =>
+      later !== step &&
+      later.name === step.name &&
+      later.status === "done" &&
+      later.startedAt > step.startedAt &&
+      later.worker?.id === step.worker?.id,
   )
+}
+
+export function stillFailing(steps: readonly Attempt[]): boolean {
+  return steps.some((step) => step.status === "failed" && !retried(step, steps))
 }
 
 function span(steps: readonly Pick<RunStep, "startedAt" | "endedAt">[]): { startedAt?: number; endedAt?: number } {
@@ -198,11 +206,9 @@ type StepTally = {
   helpers: Set<string>
   counted: Map<StepIcon, number>
   other: number
-  failed: number
 }
 
 function tallyStep(step: RunStep, tally: StepTally): void {
-  if (step.status === "failed") tally.failed++
   if (step.worker) {
     tally.helpers.add(step.worker.id)
     return
@@ -223,10 +229,10 @@ export function groupSummary(steps: readonly RunStep[]): readonly SummarySegment
     helpers: new Set(),
     counted: new Map(),
     other: 0,
-    failed: 0,
   }
   for (const step of calls) tallyStep(step, tally)
-  const { edited, wrote, helpers, counted, other, failed } = tally
+  const { edited, wrote, helpers, counted, other } = tally
+  const failed = calls.filter((step) => step.status === "failed" && !retried(step, calls)).length
   const parts: string[] = []
   const commands = counted.get("terminal") ?? 0
   if (commands > 0) parts.push(VERB.terminal!(commands))

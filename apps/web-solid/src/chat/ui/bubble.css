@@ -35,6 +35,40 @@
   transition: border-radius 260ms var(--ease-kiko);
 }
 
+[data-slot="bubble"] > .bubble-time {
+  position: absolute;
+  top: 50%;
+  color: var(--text-400);
+  font-size: var(--type-hint);
+  line-height: var(--type-hint-line);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  translate: 0 -50%;
+  transition: opacity var(--dur-hover) var(--ease-kiko);
+}
+
+[data-slot="bubble"] > .bubble-time[data-align="end"] {
+  right: calc(100% + 8px);
+}
+
+[data-slot="bubble"] > .bubble-time[data-align="start"] {
+  left: calc(100% + 8px);
+}
+
+[data-component="chat-row"]:hover > [data-slot="bubble"] > .bubble-time,
+[data-component="chat-row"]:focus-within > [data-slot="bubble"] > .bubble-time {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  [data-slot="bubble"] > .bubble-time {
+    display: none;
+  }
+}
+
 .message-actions {
   transform: translateY(4px);
   transition:
@@ -55,6 +89,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   [data-slot="bubble-content"],
+  [data-slot="bubble"] > .bubble-time,
   .message-actions {
     transition: none;
   }
