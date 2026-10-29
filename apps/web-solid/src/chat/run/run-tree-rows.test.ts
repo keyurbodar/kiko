@@ -1,6 +1,6 @@
 import type { RunStep } from "@kiko/protocol"
 import { describe, expect, it } from "vitest"
-import { groupSummary, summaryText } from "./run-tree-rows"
+import { groupSummary, stillFailing, summaryText } from "./run-tree-rows"
 
 const START = Date.UTC(2024, 9, 24, 9)
 
@@ -58,5 +58,39 @@ describe("groupSummary", () => {
 
   it("has nothing to say about an empty run", () => {
     expect(groupSummary([])).toEqual([])
+  })
+
+  it("stops counting a failure once that same step is retried and succeeds", () => {
+    const steps = [
+      step("first", { tool: "search", name: "web_search", label: "Searched hotels", status: "failed" }),
+      step("retry", {
+        tool: "search",
+        name: "web_search",
+        label: "Searched hotels",
+        startedAt: START + 5_000,
+      }),
+    ]
+    expect(summaryText(groupSummary(steps))).not.toContain("failed")
+  })
+})
+
+describe("stillFailing", () => {
+  const mine = { id: "w1", task: "Trains helper" }
+  const other = { id: "w2", task: "Food helper" }
+
+  it("clears a failure when the same step is retried and succeeds in the same helper", () => {
+    const steps = [
+      step("first", { worker: mine, name: "web_search", status: "failed" }),
+      step("retry", { worker: mine, name: "web_search", startedAt: START + 5_000 }),
+    ]
+    expect(stillFailing(steps)).toBe(false)
+  })
+
+  it("keeps a failure when a different helper runs the same tool well afterwards", () => {
+    const steps = [
+      step("mine", { worker: mine, name: "web_search", status: "failed" }),
+      step("theirs", { worker: other, name: "web_search", startedAt: START + 5_000 }),
+    ]
+    expect(stillFailing(steps)).toBe(true)
   })
 })

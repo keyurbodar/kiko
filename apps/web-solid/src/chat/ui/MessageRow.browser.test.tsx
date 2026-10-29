@@ -1,7 +1,9 @@
 import "../../index.css"
 import { describe, expect, it, vi } from "vitest"
+import { userEvent } from "vitest/browser"
 import { render } from "../../../test/render"
 import type { ChatMessage } from "../../lib/types"
+import { fullTimeLabel } from "../run/duration"
 import { MessageRow } from "./MessageRow"
 
 const message = {
@@ -71,6 +73,41 @@ describe("MessageRow attachments", () => {
     expect(open).toHaveBeenCalledWith(
       [expect.objectContaining({ name: "a.png" }), expect.objectContaining({ name: "b.png" })],
       1,
+    )
+  })
+})
+
+describe("MessageRow time", () => {
+  it("shows the sent time only while the row is hovered, with the full time in a tooltip", async () => {
+    const sentAt = Date.UTC(2024, 9, 24, 9, 5)
+    await using screen = await render(() => (
+      <MessageRow
+        message={{ ...message, id: "2.room", sentAt }}
+        bot={undefined}
+        quote={null}
+        isRunStart
+        isRunEnd
+        hasRunGapBefore={false}
+        onOpenReplyTarget={() => {}}
+        onReact={() => {}}
+        onReply={() => {}}
+        onMore={() => {}}
+      />
+    ))
+
+    const actions = screen.container.querySelector<HTMLElement>('[data-component="chat-actions"]')!
+    const time = actions.querySelector<HTMLElement>('[data-component="bubble-time"]')!
+    expect(time.parentElement!.closest('[data-component="chat-actions"]')).toBe(actions)
+    expect(getComputedStyle(actions).opacity).toBe("0")
+
+    await userEvent.hover(screen.container.querySelector<HTMLElement>('[data-component="chat-row"]')!)
+    await vi.waitFor(() => expect(getComputedStyle(actions).opacity).toBe("1"))
+
+    await userEvent.hover(time)
+    await vi.waitFor(() =>
+      expect(document.querySelector<HTMLElement>('[data-component="tooltip-v2"]')?.textContent).toContain(
+        fullTimeLabel(sentAt),
+      ),
     )
   })
 })

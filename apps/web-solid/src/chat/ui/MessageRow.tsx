@@ -211,6 +211,7 @@ export function MessageRow(props: {
           <MessageActions
             side={props.message.sender}
             copyText={props.message.body}
+            sentAt={props.message.sentAt}
             onReact={(emoji) => props.onReact!(emoji)}
             onReply={() => props.onReply!()}
             onMore={(anchor) => props.onMore!(anchor)}

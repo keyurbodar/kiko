@@ -1,7 +1,7 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ArrowLeftIcon, CloseIcon } from "@kiko/ui/icons"
+import { type Glyph, RemixIcon } from "@kiko/ui/remix-icon"
+import { ArrowLeftIcon, CloseIcon, DashboardIcon } from "@kiko/ui/icons"
 import { createEffect, createMemo, For, on, onCleanup, Show, Suspense } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { EntryIcon } from "../../lib/EntryIcon"
@@ -9,7 +9,8 @@ import { room } from "../../state/room"
 import { roomMembers } from "../info/sections"
 import DeskOverview from "./card"
 import type { FileSurface } from "./desk-nav"
-import { launcherEntries, panelLabel, panelOf } from "./panels"
+import { useDeskMode } from "./desk-live"
+import { type FixedKind, launcherEntries, PANELS, panelLabel, panelOf } from "./panels"
 import {
   activateSurface,
   closeOthers,
@@ -21,6 +22,7 @@ import {
   fixedSurface,
   openFiles,
   openSurface,
+  showOverview,
   type Surface,
 } from "./surfaces"
 import "./card.css"
@@ -141,7 +143,7 @@ function Tabs(props: { chatId: string; active: string }) {
   )
 }
 
-function SurfaceBody(props: { chatId: string; surface: Surface; close: () => void; onExpand?: () => void }) {
+function SurfaceBody(props: { chatId: string; surface: Surface }) {
   const key = `${props.chatId}:${props.surface.id}`
   let scroller: HTMLDivElement | undefined
   let observer: ResizeObserver | undefined
@@ -174,19 +176,27 @@ function SurfaceBody(props: { chatId: string; surface: Surface; close: () => voi
           component={entry.component}
           chatId={props.chatId}
           surface={props.surface as never}
-          close={props.close}
-          onExpand={props.onExpand}
+          close={() => deskBack(props.chatId)}
         />
       </Suspense>
     </div>
   )
 }
 
-const isRailView = (surface: Surface) => ["files", "memory", "routines"].includes(surface.kind)
+const RAIL: readonly FixedKind[] = ["files", "memory", "routines"]
+
+const railOf = (surface: Surface | null): FixedKind | "overview" =>
+  surface === null
+    ? "overview"
+    : surface.kind === "file"
+      ? "files"
+      : (RAIL.find((kind) => kind === surface.kind) ?? "overview")
+
+const isRailView = (surface: Surface) => RAIL.some((kind) => kind === surface.kind)
 
 function Title(props: { text: string }) {
   return (
-    <h2 class="min-w-0 flex-1 truncate pl-2 type-label font-medium text-fg" data-component="desk-title">
+    <h2 class="min-w-0 flex-1 truncate pl-2 type-row text-fg" data-component="desk-title">
       {props.text}
     </h2>
   )
@@ -197,7 +207,7 @@ function DetailHead(props: { chatId: string; surface: Surface }) {
     <Show when={!isRailView(props.surface)} fallback={<Title text={panelLabel(props.surface)} />}>
       <button
         type="button"
-        class="flex h-8 shrink-0 items-center gap-1.5 rounded-control pr-2 pl-1.5 text-label text-[var(--text-300)] transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.97]"
+        class="flex h-control shrink-0 items-center gap-1.5 rounded-control pr-2.5 pl-2 text-ui text-fg2 transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.97]"
         data-action="desk-back"
         onClick={() => deskBack(props.chatId)}
       >
@@ -206,6 +216,65 @@ function DetailHead(props: { chatId: string; surface: Surface }) {
       </button>
       <Title text={panelLabel(props.surface)} />
     </Show>
+  )
+}
+
+function RailButton(props: {
+  icon: Glyph
+  label: string
+  action: string
+  active: boolean
+  dot?: boolean
+  onClick: () => void
+}) {
+  return (
+    <TooltipV2 placement="left" openDelay={300} value={props.label}>
+      <button
+        type="button"
+        class="relative grid size-9 shrink-0 place-items-center rounded-control text-fg3 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.97] aria-pressed:bg-active aria-pressed:text-fg"
+        aria-label={props.label}
+        aria-pressed={props.active}
+        data-action={props.action}
+        onClick={props.onClick}
+      >
+        <RemixIcon icon={props.icon} size={18} />
+        <Show when={props.dot}>
+          <span class="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-fg" data-component="rail-dot" />
+        </Show>
+      </button>
+    </TooltipV2>
+  )
+}
+
+function Rail(props: { chatId: string; current: Surface | null }) {
+  const mode = useDeskMode(() => props.chatId)
+  const active = () => railOf(props.current)
+  return (
+    <nav
+      class="flex w-12 shrink-0 flex-col items-center gap-1 pt-2"
+      aria-label="Chat panels"
+      data-component="desk-rail"
+    >
+      <RailButton
+        icon={DashboardIcon}
+        label="This chat"
+        action="rail-overview"
+        active={active() === "overview"}
+        dot={mode() === "working"}
+        onClick={() => showOverview(props.chatId)}
+      />
+      <For each={RAIL}>
+        {(kind) => (
+          <RailButton
+            icon={PANELS[kind].icon}
+            label={PANELS[kind].label as string}
+            action={`rail-${kind}`}
+            active={active() === kind}
+            onClick={() => openSurface(props.chatId, fixedSurface(kind))}
+          />
+        )}
+      </For>
+    </nav>
   )
 }
 
@@ -224,7 +293,7 @@ function useLauncherKeys(chatId: () => string) {
   onCleanup(() => window.removeEventListener("keydown", onKey))
 }
 
-export default function Desk(props: { chatId: string; onClose: () => void; onExpand?: () => void }) {
+export default function Desk(props: { chatId: string; onClose: () => void }) {
   const view = () => deskView(props.chatId)
   const step = createMemo<{ id: string | null; dir: "in" | "back" | undefined }>(
     (prev) => {
@@ -248,24 +317,22 @@ export default function Desk(props: { chatId: string; onClose: () => void; onExp
   return (
     <aside class="flex h-full min-h-0 w-full min-w-0 overflow-hidden" data-component="sidecar" aria-label="This chat">
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-        <Show when={view()?.kind !== "files" && view()?.kind !== "file"}>
-          <header class="flex h-[52px] shrink-0 items-center gap-2 px-2" data-component="desk-head">
-            <Show when={view()} keyed fallback={<Title text="This chat" />}>
-              {(surface) => <DetailHead chatId={props.chatId} surface={surface} />}
-            </Show>
-            <TooltipV2 placement="bottom" openDelay={500} value="Close">
-              <button
-                type="button"
-                class={ICON_BUTTON}
-                aria-label="Close chat details"
-                data-action="close-desk"
-                onClick={() => props.onClose()}
-              >
-                <RemixIcon icon={CloseIcon} size={16} />
-              </button>
-            </TooltipV2>
-          </header>
-        </Show>
+        <header class="flex min-h-14 shrink-0 items-center gap-1 px-2 py-2" data-component="desk-head">
+          <Show when={view()} keyed fallback={<Title text="This chat" />}>
+            {(surface) => <DetailHead chatId={props.chatId} surface={surface} />}
+          </Show>
+          <TooltipV2 placement="bottom" openDelay={400} value="Close">
+            <button
+              type="button"
+              class={ICON_BUTTON}
+              aria-label="Close chat details"
+              data-action="close-desk"
+              onClick={() => props.onClose()}
+            >
+              <RemixIcon icon={CloseIcon} size={16} />
+            </button>
+          </TooltipV2>
+        </header>
         <Show when={view()?.kind === "file" && openFiles(props.chatId).length > 1}>
           <Tabs chatId={props.chatId} active={view()!.id} />
         </Show>
@@ -280,11 +347,12 @@ export default function Desk(props: { chatId: string; onClose: () => void; onExp
         >
           {(surface) => (
             <div class="desk-push flex min-h-0 flex-1 flex-col" data-dir={step().dir}>
-              <SurfaceBody chatId={props.chatId} surface={surface} close={props.onClose} onExpand={props.onExpand} />
+              <SurfaceBody chatId={props.chatId} surface={surface} />
             </div>
           )}
         </Show>
       </div>
+      <Rail chatId={props.chatId} current={view()} />
     </aside>
   )
 }

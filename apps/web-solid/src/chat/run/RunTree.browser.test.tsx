@@ -2,7 +2,9 @@ import "../../index.css"
 import type { RunStep } from "@kiko/protocol"
 import { createSignal } from "solid-js"
 import { describe, expect, it, vi } from "vitest"
+import { userEvent } from "vitest/browser"
 import { render } from "../../../test/render"
+import { fullTimeLabel } from "./duration"
 import { RunTree } from "./RunTree"
 
 const fake = vi.hoisted(() => ({ steps: [] as RunStep[], live: false, helpers: [] as unknown[] }))
@@ -63,6 +65,16 @@ function step(id: string, more: Partial<RunStep>): RunStep {
 const rows = (host: HTMLElement) => [...host.querySelectorAll<HTMLElement>(".run-tree-row")]
 const head = (host: HTMLElement) => host.querySelector<HTMLElement>(".run-tree-head")!
 const labels = (host: HTMLElement) => rows(host).map((row) => row.querySelector(".run-tree-label")?.textContent)
+const tip = () => document.querySelector<HTMLElement>('[data-component="tooltip-v2"]')
+
+function tokenColor(token: string): string {
+  const probe = document.createElement("div")
+  probe.style.color = `var(${token})`
+  document.body.append(probe)
+  const value = getComputedStyle(probe).color
+  probe.remove()
+  return value
+}
 
 describe("RunTree", () => {
   it("shows a live run's rows in order, with the running step marked", async () => {
@@ -90,7 +102,7 @@ describe("RunTree", () => {
     ]
     await using screen = await render(() => <RunTree windowKey="kiko#10" count={2} endedAt={START + 20_000} />)
 
-    expect(head(screen.container).textContent).toBe("Worked for 20s")
+    expect(head(screen.container).querySelector(".run-tree-summary")?.textContent).toBe("Worked for 20s")
     expect(rows(screen.container)).toHaveLength(0)
 
     head(screen.container).click()
@@ -186,6 +198,43 @@ describe("RunTree", () => {
     screen.container.querySelector<HTMLElement>(".run-tree-more")!.click()
 
     await vi.waitFor(() => expect(rows(screen.container).filter((row) => row.dataset.kind === "step")).toHaveLength(14))
+  })
+
+  it("brightens the whole row, label included, and reveals the start time on hover", async () => {
+    fake.live = false
+    fake.steps = [step("a", { after: 20, startedAt: START, endedAt: START + 4_000 })]
+    await using screen = await render(() => <RunTree windowKey="kiko#20" count={1} endedAt={START + 6_000} />)
+    head(screen.container).click()
+
+    const row = await vi.waitFor(() => rows(screen.container)[0]!)
+    const label = row.querySelector<HTMLElement>(".run-tree-label")!
+    const time = row.querySelector<HTMLElement>(".run-tree-time")!
+    expect(getComputedStyle(time).opacity).toBe("0")
+
+    await userEvent.hover(row)
+
+    const bright = tokenColor("--text-100")
+    await vi.waitFor(() => expect(getComputedStyle(label).color).toBe(bright))
+    await vi.waitFor(() => expect(getComputedStyle(time).opacity).toBe("1"))
+
+    await userEvent.hover(time)
+    await vi.waitFor(() => expect(tip()?.textContent).toContain(fullTimeLabel(START)))
+  })
+
+  it("reveals the start time on the folded footer, with the full time in a tooltip", async () => {
+    fake.live = false
+    fake.steps = [step("a", { after: 21, startedAt: START, endedAt: START + 2_000 })]
+    await using screen = await render(() => <RunTree windowKey="kiko#21" count={1} endedAt={START + 12_000} />)
+
+    const footer = head(screen.container)
+    const time = footer.querySelector<HTMLElement>(".run-tree-time")!
+    expect(getComputedStyle(time).opacity).toBe("0")
+
+    await userEvent.hover(footer)
+    await vi.waitFor(() => expect(getComputedStyle(time).opacity).toBe("1"))
+
+    await userEvent.hover(time)
+    await vi.waitFor(() => expect(tip()?.textContent).toContain(fullTimeLabel(START)))
   })
 
   it("shows helpers as private lanes and keeps them out of the step rows", async () => {

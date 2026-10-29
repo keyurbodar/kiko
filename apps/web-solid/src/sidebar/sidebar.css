@@ -34,11 +34,11 @@
 .sidebar-shell .panel-header {
   position: relative;
   display: flex;
-  height: 48px;
+  height: 52px;
   flex-shrink: 0;
   align-items: center;
   gap: 2px;
-  padding: 4px 10px 0 14px;
+  padding: 4px 10px 0 18px;
 }
 
 .sidebar-shell :is(.panel-brand, .chat-row, .nav-row) {
@@ -48,10 +48,9 @@
 .sidebar-shell .panel-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
   color: var(--fg);
   font-family: var(--font-family-display);
-  font-size: 24px;
+  font-size: var(--type-wordmark);
   font-weight: 400;
   font-variation-settings: var(--display-variation);
   letter-spacing: -0.015em;
@@ -59,33 +58,26 @@
   text-decoration: none;
 }
 
-.sidebar-shell .panel-mark {
-  display: block;
-  width: 24px;
-  height: 24px;
-  flex: none;
-}
-
 .sidebar-shell .panel-icon-button,
 .sidebar-shell .top-bar-button,
 .sidebar-shell .main-sidebar-toggle {
   position: relative;
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: var(--spacing-control);
+  height: var(--spacing-control);
   flex-shrink: 0;
   place-items: center;
   padding: 0;
   color: var(--fg2);
   background: none;
   border: none;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   appearance: none;
   transition:
     background var(--dur-hover) var(--ease-kiko),
     color var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-slow) var(--press-spring);
+    transform var(--dur-hover) var(--ease-kiko);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -98,8 +90,7 @@
 }
 
 .sidebar-shell :is(.panel-icon-button, .top-bar-button, .main-sidebar-toggle):active {
-  transform: scale(var(--press-scale));
-  transition-duration: var(--dur-press);
+  transform: scale(0.94);
 }
 
 .sidebar-shell .panel-header .panel-icon-button {
@@ -147,12 +138,12 @@
   text-decoration: none;
   background: none;
   border: none;
-  border-radius: 9px;
+  border-radius: var(--radius-row);
   cursor: pointer;
   appearance: none;
   transition:
     background var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-slow) var(--press-spring);
+    transform var(--dur-hover) var(--ease-kiko);
 }
 
 .sidebar-shell .nav-icon {
@@ -170,8 +161,8 @@
   padding-left: 12px;
   color: var(--fg4);
   font: inherit;
-  font-size: 11.5px;
-  line-height: 16px;
+  font-size: var(--type-hint);
+  line-height: var(--type-hint-line);
   white-space: nowrap;
   opacity: 0;
   transition: opacity var(--dur-hover) var(--ease-kiko);
@@ -214,8 +205,7 @@
 }
 
 .sidebar-shell .nav-row:active {
-  transform: scale(0.985);
-  transition-duration: var(--dur-press);
+  transform: scale(var(--press-scale));
 }
 
 .sidebar-shell .panel-scroll {
@@ -255,7 +245,7 @@
   padding: 0 8px 0 6px;
   color: var(--fg);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--type-ui);
   text-decoration: none;
   background: none;
   border: none;
@@ -361,7 +351,7 @@
   color: var(--fg4);
   background: none;
   border: none;
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   transition:
     background var(--dur-hover) var(--ease-kiko),
@@ -482,7 +472,7 @@
   height: var(--spacing-chat-row);
   align-items: center;
   gap: 10px;
-  padding: 0 10px;
+  padding: 8px 10px;
 }
 
 .sidebar-shell .chat-skeleton {
@@ -493,8 +483,8 @@
 }
 
 .sidebar-shell .chat-skeleton-avatar {
-  width: 32px;
-  height: 32px;
+  width: var(--spacing-avatar);
+  height: var(--spacing-avatar);
   flex: none;
   border-radius: var(--radius-row);
 }
@@ -514,13 +504,13 @@
   height: var(--spacing-chat-row);
   align-items: center;
   gap: 10px;
-  padding: 0 10px;
+  padding: 8px 10px;
   color: var(--fg);
   font-family: inherit;
   text-align: left;
   background: none;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-tile);
   cursor: pointer;
   appearance: none;
   content-visibility: auto;
@@ -697,7 +687,7 @@
 
 .sidebar-shell .chat-glide {
   position: absolute;
-  border-radius: 10px;
+  border-radius: var(--radius-tile);
   background: var(--active);
   pointer-events: none;
 }
@@ -705,13 +695,11 @@
 .sidebar-shell .chat-avatar {
   position: relative;
   display: flex;
-  width: 32px;
-  height: 32px;
+  width: var(--spacing-avatar);
+  height: var(--spacing-avatar);
   flex: none;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
-  background: color-mix(in oklab, var(--fg) 5.5%, transparent);
 }
 
 .sidebar-shell .chat-live-ring,
@@ -741,7 +729,6 @@
   min-width: 0;
   align-items: baseline;
   gap: 6px;
-  height: 18px;
 }
 
 .sidebar-shell .chat-line + .chat-line {
@@ -758,9 +745,9 @@
   flex: 1;
   overflow: hidden;
   color: var(--fg2);
-  font-size: 13.5px;
+  font-size: var(--type-row);
   font-weight: 500;
-  line-height: 18px;
+  line-height: var(--type-row-line);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -788,7 +775,8 @@
 .sidebar-shell .chat-time {
   flex-shrink: 0;
   color: var(--fg4);
-  font-size: 11.5px;
+  font-size: var(--type-hint);
+  line-height: var(--type-hint-line);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -804,7 +792,7 @@
   overflow: hidden;
   color: var(--fg3);
   font-size: var(--type-label);
-  line-height: 18px;
+  line-height: var(--type-label-line);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -834,7 +822,7 @@
   color: var(--fg2);
   font-size: var(--type-label);
   font-weight: 500;
-  line-height: 18px;
+  line-height: var(--type-label-line);
   animation: sidebar-fade-in var(--dur-pop) var(--ease-kiko) both;
 }
 
@@ -850,7 +838,7 @@
   flex: none;
   color: var(--bad);
   font-size: var(--type-hint);
-  line-height: 18px;
+  line-height: var(--type-label-line);
 }
 
 .sidebar-shell .chat-live-ring {
@@ -939,11 +927,11 @@
   margin: -2px 0 -2px -6px;
   color: var(--fg);
   font: inherit;
-  font-size: 13.5px;
+  font-size: var(--type-row);
   font-weight: 500;
   background: var(--raise);
   border: none;
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   outline: none;
   box-shadow: inset 0 0 0 1px var(--line2);
 }
