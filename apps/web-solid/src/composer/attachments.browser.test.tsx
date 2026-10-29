@@ -1,3 +1,4 @@
+import "../index.css"
 import { describe, expect, it, vi } from "vitest"
 import { userEvent } from "vitest/browser"
 import { render } from "../../test/render"
@@ -23,6 +24,9 @@ class FakeXhr {
     FakeXhr.sent.push(this)
   }
   abort() {}
+  fail() {
+    this.events.dispatchEvent(new Event("error"))
+  }
   progress(loaded: number, total: number) {
     this.upload.dispatchEvent(new ProgressEvent("progress", { lengthComputable: true, loaded, total }))
   }
@@ -89,6 +93,28 @@ describe("composer attachments", () => {
       .toBe("ready")
     await userEvent.keyboard("{Enter}")
     expect(sent).toMatch(/^Read \[notes\.md\]\(attachment:[\w-]+\) +first$/)
+  })
+
+  it("keeps the red inset on a chip whose upload failed", async () => {
+    using _xhr = fakeXhr()
+    await using screen = await mountComposer()
+    const editor = screen.editor
+    await userEvent.keyboard("Read ")
+    paste(editor, new File(["lost"], "lost.md", { type: "text/markdown" }))
+    await expect.poll(() => FakeXhr.sent.length).toBe(1)
+
+    FakeXhr.sent[0]!.fail()
+    await expect.poll(() => editor.querySelector('.token-chip[data-state="failed"]')).not.toBeNull()
+    const chip = editor.querySelector<HTMLElement>('.token-chip[data-state="failed"]')!
+    const probe = document.createElement("span")
+    probe.style.color = "var(--bad)"
+    document.body.append(probe)
+    const bad = getComputedStyle(probe).color
+    probe.remove()
+
+    const shadow = () => getComputedStyle(chip).boxShadow
+    await expect.poll(shadow).toContain(bad)
+    expect(shadow()).toContain("inset")
   })
 
   it("shows upload progress in bytes on the inline chip", async () => {
