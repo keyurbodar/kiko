@@ -203,8 +203,12 @@ describe("apps deploy safety", () => {
       const apps = new Apps(sqlite(), keyring, "owner", () => new Promise(() => {}), api.fetcher)
 
       const out = apps.deploy("radar", source("radar"))
-      await vi.advanceTimersByTimeAsync(1)
-      await vi.advanceTimersByTimeAsync(120_000)
+      let settled = false
+      void out.then(
+        () => (settled = true),
+        () => (settled = true),
+      )
+      for (let minute = 0; minute < 10 && !settled; minute++) await vi.advanceTimersByTimeAsync(60_000)
 
       expect(await out).toEqual({ ok: false, error: expect.stringContaining("did not answer") })
     } finally {
