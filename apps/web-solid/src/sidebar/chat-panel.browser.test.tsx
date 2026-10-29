@@ -129,6 +129,26 @@ describe("chat sections", () => {
     expect(names(screen.container)).toEqual(["Alpha", "Beta"])
   })
 
+  it("sits the avatar on the sidebar and keeps the row on the board's rhythm", async () => {
+    await using screen = await render(() => (
+      <div class="sidebar-shell" style={{ height: "400px", display: "flex", "flex-direction": "column" }}>
+        <ChatSections {...quiet} bots={[bot("a", "Alpha")]} />
+      </div>
+    ))
+    await expect.element(screen.getByText("Alpha")).toBeVisible()
+    const row = screen.container.querySelector('[data-chat-id="a"]') as HTMLElement
+    const avatar = row.querySelector(".chat-avatar") as HTMLElement
+    const name = row.querySelector(".chat-name") as HTMLElement
+    const time = row.querySelector(".chat-time") as HTMLElement
+    const avatarStyle = getComputedStyle(avatar)
+    expect(getComputedStyle(row).height).toBe(getComputedStyle(row).getPropertyValue("--spacing-chat-row").trim())
+    expect(avatarStyle.backgroundColor).toBe("rgba(0, 0, 0, 0)")
+    expect(avatarStyle.backgroundImage).toBe("none")
+    expect(avatarStyle.borderRadius).toBe("0px")
+    expect(name.parentElement).toBe(time.parentElement)
+    expect(name.closest(".chat-line")).toBe(row.querySelector(".chat-text")?.firstElementChild)
+  })
+
   it("folds a deleted chat out at once and brings it back in place on Undo, deleting nothing", async () => {
     const remove = vi.spyOn(user, "remove").mockImplementation(() => {})
     try {

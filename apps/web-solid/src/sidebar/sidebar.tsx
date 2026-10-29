@@ -1,13 +1,13 @@
 import { Link, useLocation } from "@tanstack/solid-router"
 import { Suspense } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { HelpIcon, SettingsIcon, SidebarLeftIcon } from "@kiko/ui/icons"
+import { HelpIcon, SearchIcon, SettingsIcon, SidebarLeftIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { session } from "../app/session"
 import { profile } from "../app/hosted"
 import type { SectionId } from "../app/sections"
+import { runCommand } from "../commands/registry"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
-import { KikoMark } from "../lib/brand"
 import { inSettings, openSettings } from "../settings/open"
 import { ChatPanel } from "./chat-panel"
 import { SidebarNav } from "./nav"
@@ -32,10 +32,10 @@ export function Sidebar(props: SidebarProps) {
     >
       <header class="panel-header">
         <Link to="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
-          <KikoMark size={24} class="panel-mark" />
-          <span class="panel-wordmark">kiko</span>
+          Kiko
         </Link>
         <span class="flex-1" aria-hidden="true" />
+        <HeaderSearch />
         <SidebarToggle open onToggle={props.onToggle} />
       </header>
 
@@ -49,6 +49,22 @@ export function Sidebar(props: SidebarProps) {
 
       <Foot />
     </aside>
+  )
+}
+
+function HeaderSearch() {
+  return (
+    <TooltipV2 placement="bottom" openDelay={500} value="Search">
+      <button
+        type="button"
+        class="panel-icon-button"
+        data-component="sidebar-header-search"
+        aria-label="Search"
+        onClick={() => runCommand("palette.open")}
+      >
+        <RemixIcon icon={SearchIcon} size={16} />
+      </button>
+    </TooltipV2>
   )
 }
 
