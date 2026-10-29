@@ -83,4 +83,15 @@ export class HumanAsks {
       ).rowsWritten > 0
     )
   }
+
+  waitingAskers(since: number): string[] {
+    return this.sql
+      .exec<{ asker: string }>(
+        "SELECT DISTINCT asker FROM human_asks WHERE room_id = ?1 AND state = 'open' AND at > ?2",
+        this.roomId,
+        since,
+      )
+      .toArray()
+      .map((row) => row.asker)
+  }
 }

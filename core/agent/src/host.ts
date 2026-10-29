@@ -123,6 +123,8 @@ const STOP_KEY = "mid-run:stop"
 const BRIEF_KEY = "brief:last"
 const JOINED_KEY = "memory:joined"
 
+const retried = (envelope: Envelope): boolean => envelope.id.includes("#")
+
 export type AgentSetup = {
   models: Models
   registry: RegistryReader
@@ -717,7 +719,7 @@ export class AgentHost {
       const live = await opened.harness.inspect(context)
       const paused = live.scheduling === "paused"
       await this.workers.stopAll({ deferAbort: paused })
-      const kept = await takeQueued(opened.root, live)
+      const kept = await takeQueued(opened.root)
       if (paused)
         await cancelPaused(opened.harness, opened.root, {
           ...live,
@@ -726,7 +728,10 @@ export class AgentHost {
       else await opened.root.abort(context, { background: true })
       opened.storage.flush()
       await this.ctx.storage.delete(STOP_KEY)
-      if (kept.length) await replayQueued(opened.root, kept, `stop:${this.epoch()}:${Date.now()}`)
+      if (kept.length) {
+        await replayQueued(opened.root, kept, `stop:${this.epoch()}`)
+        this.endedByStop = false
+      }
     }
     let admitted = false
     for (const batch of batches) if (await this.drainBatch(opened, batch)) admitted = true
@@ -742,17 +747,16 @@ export class AgentHost {
     if (human) await this.alarms.clearWakeup(HUMAN_COMING)
     const invalidated = (await setup.inputInvalidated?.()) ?? null
     if (invalidated) {
-      const live = await harness.inspect(context)
-      const kept = await takeQueued(root, live)
+      const kept = await takeQueued(root)
       await root.abort(context, { background: true })
-      if (kept.length) await replayQueued(root, kept, `invalidate:${this.epoch()}:${Date.now()}`)
+      if (kept.length) await replayQueued(root, kept, `invalidate:${this.epoch()}`)
       if (invalidated === "forget") await this.workers.invalidate(harness)
       run = false
     }
     batch.envelopes = batch.envelopes.filter(
       (envelope) =>
         (!envelope.work || this.workers.get(envelope.work.id)?.conversationId != null) &&
-        (envelope.from.kind !== "human" || envelope.seq > storage.humanDeliveredSeq),
+        (envelope.from.kind !== "human" || retried(envelope) || envelope.seq > storage.humanDeliveredSeq),
     )
     if (!batch.envelopes.length) return false
     if (!run && setup.beginRun && !(await setup.beginRun(batch, root))) return false

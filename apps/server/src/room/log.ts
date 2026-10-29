@@ -32,6 +32,7 @@ import type { ArchivedMessage } from "../owner/history-archive"
 
 const REPLAY_LIMIT = 500
 const KEEP_EVENTS = 2 * REPLAY_LIMIT
+const UNANSWERED_PAGES = 20
 const TRIM_EVERY = 100
 const SNAPSHOT_MESSAGES = 200
 
@@ -746,39 +747,55 @@ export class RoomLog {
       )
       .toArray()[0]
     if (!membership) return []
-    return this.sql
-      .exec<MessageRow>(
-        "SELECT * FROM messages WHERE room_id = ? AND seq > ? AND json_extract(sender, '$.kind') = 'human' ORDER BY seq LIMIT ?",
-        this.roomId,
-        Math.max(after, membership.added_seq),
-        limit,
-      )
-      .toArray()
-      .flatMap((row): Pending[] => {
-        const mentions = row.mentions ? (JSON.parse(row.mentions) as string[]) : tags(row.text)
-        const replyTo = row.reply_to ? replyAddressees((id) => this.message(id), row.reply_to) : []
-        const addressed =
-          mentions.includes("all") ||
-          members.some((member) => mentions.includes(member.slug) || replyTo.includes(member.slug))
-        if (!addressed && row.seq <= membership.lead_seq) return []
-        if (!resolveRecipients({ mentions, replyTo }, members).includes(agentSlug)) return []
-        return [
-          {
-            envelope: {
-              id: `human:${row.id}`,
-              roomId: this.roomId as RoomId,
-              from: { kind: "human" },
-              body: row.text,
-              ...(row.reply_to ? { replyTo: row.reply_to as MessageId } : {}),
-              hop: 0,
-              rootId: row.id,
-              seq: row.seq,
-            },
-            mentions,
-          },
-        ]
-      })
-      .slice(0, limit)
+    const pending: Pending[] = []
+    let cursor = Math.max(after, membership.added_seq)
+    for (let page = 0; page < UNANSWERED_PAGES && pending.length < limit; page++) {
+      const rows = this.sql
+        .exec<MessageRow>(
+          "SELECT * FROM messages WHERE room_id = ? AND seq > ? AND json_extract(sender, '$.kind') = 'human' ORDER BY seq LIMIT ?",
+          this.roomId,
+          cursor,
+          limit,
+        )
+        .toArray()
+      if (!rows.length) break
+      cursor = rows[rows.length - 1]!.seq
+      for (const row of rows) {
+        const found = this.pendingOf(row, agentSlug, members, membership)
+        if (found) pending.push(found)
+        if (pending.length >= limit) break
+      }
+      if (rows.length < limit) break
+    }
+    return pending
+  }
+
+  private pendingOf(
+    row: MessageRow,
+    agentSlug: AgentSlug,
+    members: ReturnType<typeof listMembers>,
+    membership: { added_seq: number; lead_seq: number },
+  ): Pending | null {
+    const mentions = row.mentions ? (JSON.parse(row.mentions) as string[]) : tags(row.text)
+    const replyTo = row.reply_to ? replyAddressees((id) => this.message(id), row.reply_to) : []
+    const addressed =
+      mentions.includes("all") ||
+      members.some((member) => mentions.includes(member.slug) || replyTo.includes(member.slug))
+    if (!addressed && row.seq <= membership.lead_seq) return null
+    if (!resolveRecipients({ mentions, replyTo }, members).includes(agentSlug)) return null
+    return {
+      envelope: {
+        id: `human:${row.id}`,
+        roomId: this.roomId as RoomId,
+        from: { kind: "human" },
+        body: row.text,
+        ...(row.reply_to ? { replyTo: row.reply_to as MessageId } : {}),
+        hop: 0,
+        rootId: row.id,
+        seq: row.seq,
+      },
+      mentions,
+    }
   }
 
   private toMessage(r: MessageRow, preloaded?: Reaction[], replies?: ReadonlyMap<string, ReplyPreview>): Message {

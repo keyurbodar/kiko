@@ -58,39 +58,34 @@ export async function cancelPaused(
 }
 
 type KeptInput = {
+  id: string
   content: JsonValue
   entry?: { kind: string; data?: JsonValue }
 }
 
-export async function takeQueued(
-  root: Conversation,
-  live: Pick<Awaited<ReturnType<Harness["inspect"]>>, "tasks" | "submissions">,
-): Promise<KeptInput[]> {
-  const conversations = new Set([
-    root.id,
-    ...live.tasks.map(({ record }) => record.conversationId),
-    ...live.submissions.map((submission) => submission.conversationId),
-  ])
+export async function takeQueued(root: Conversation): Promise<KeptInput[]> {
   const kept: KeptInput[] = []
   await root.commit(async (tx) => {
-    for (const id of conversations) {
-      const inbox = await tx.doc(InboxDoc, id)
-      for (const item of inbox.items) {
-        if (item.mode === "write") continue
-        kept.push({ content: item.content as JsonValue, ...(item.entry ? { entry: item.entry } : {}) })
-      }
+    const inbox = await tx.doc(InboxDoc, root.id)
+    for (const item of inbox.items) {
+      if (item.mode === "write") continue
+      kept.push({
+        id: String(item.id),
+        content: item.content as JsonValue,
+        ...(item.entry ? { entry: item.entry } : {}),
+      })
     }
   }, context)
   return kept
 }
 
-export async function replayQueued(root: Conversation, kept: readonly KeptInput[], requestId: string): Promise<void> {
-  for (const [index, item] of kept.entries())
+export async function replayQueued(root: Conversation, kept: readonly KeptInput[], prefix: string): Promise<void> {
+  for (const item of kept)
     await root.submit(
       {
         type: "input",
         whenBusy: "steer",
-        requestId: `${requestId}:kept:${index}`,
+        requestId: `${prefix}:kept:${item.id}`,
         content: item.content as UserInput,
         ...(item.entry ? { entry: item.entry } : {}),
       },

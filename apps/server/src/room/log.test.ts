@@ -35,14 +35,20 @@ function room() {
 const say = (log: RoomLog, text: string) => log.addMessage({ from: { kind: "human" }, text })
 
 describe("a human message scan", () => {
-  it("reads no more messages than the caller asked for", () => {
+  it("finds a message addressed to the agent past a page of messages for someone else", () => {
     const log = room()
     say(log, "@mira one")
     say(log, "@mira two")
     say(log, "@mira three")
     const late = say(log, "@kiko four")
 
-    expect(log.unansweredFor(KIKO, 0, 1)).toEqual([])
-    expect(log.unansweredFor(KIKO, 0, 4).map(({ envelope }) => envelope.seq)).toEqual([late.seq])
+    expect(log.unansweredFor(KIKO, 0, 1).map(({ envelope }) => envelope.seq)).toEqual([late.seq])
+  })
+
+  it("returns no more addressed messages than the caller asked for", () => {
+    const log = room()
+    for (let n = 0; n < 5; n++) say(log, `@kiko ${n}`)
+
+    expect(log.unansweredFor(KIKO, 0, 2)).toHaveLength(2)
   })
 })

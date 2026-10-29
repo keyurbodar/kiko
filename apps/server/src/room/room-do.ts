@@ -102,6 +102,7 @@ import { type PairIn, RoomPair } from "./pair"
 const MAX_DOING = 160
 const DELEGATED_TITLE = 100
 const HUMAN_NOTIFY_MS = 10_000
+const ASK_TYPING_MS = 120_000
 const edit = (caption: string): Activity => ({ kind: "tool", tool: "edit", caption })
 
 const modelNamed = (ref: string): string => {
@@ -1545,9 +1546,11 @@ export class Room implements CommandRoom {
     this.ctx.waitUntil(this.burst.typing())
     const home = this.home()
     if (!home || Date.now() - this.humanNotifiedAt < HUMAN_NOTIFY_MS) return
+    const askers = this.humanAsks.waitingAskers(Date.now() - ASK_TYPING_MS)
+    if (!askers.some(isAgentSlug)) return
     this.humanNotifiedAt = Date.now()
-    for (const member of this.members.list())
-      this.ctx.waitUntil(this.services.agent(home.roomId, member.slug).humanComing())
+    for (const slug of askers)
+      if (isAgentSlug(slug)) this.ctx.waitUntil(this.services.agent(home.roomId, slug).humanComing())
   }
 
   async post(slug: AgentSlug, runId: string, attempt: number, index: number, block: string): Promise<boolean> {
