@@ -723,7 +723,7 @@ export class AgentHost {
           ...live,
           tasks: live.tasks.filter((task) => this.options.scheduledDeadline?.(task) === undefined),
         })
-      else await opened.root.abort(context)
+      else await opened.root.abort(context, { background: true })
       opened.storage.flush()
       await this.ctx.storage.delete(STOP_KEY)
       if (kept.length) await replayQueued(opened.root, kept, `stop:${this.epoch()}:${Date.now()}`)
@@ -744,7 +744,7 @@ export class AgentHost {
     if (invalidated) {
       const live = await harness.inspect(context)
       const kept = await takeQueued(root, live)
-      await root.abort(context)
+      await root.abort(context, { background: true })
       if (kept.length) await replayQueued(root, kept, `invalidate:${this.epoch()}:${Date.now()}`)
       if (invalidated === "forget") await this.workers.invalidate(harness)
       run = false
