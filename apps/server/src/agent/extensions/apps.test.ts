@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest"
-import type { DeployOutcome } from "../../apps/service"
-import { deployReport } from "./apps"
+import type { AppSummary, DeployOutcome } from "../../apps/service"
+import { appLine, deployReport } from "./apps"
 
 const NOW = Date.parse("2026-10-26T12:00:00.000Z")
 const app = (expiresAt: string) => ({
   name: "radar",
   url: "https://d1.lakebed.app",
   claimed: false,
+  expired: false,
   expiresAt,
   updatedAt: NOW,
 })
@@ -38,6 +39,22 @@ describe("deployReport", () => {
 
     expect(deployReport(out, NOW)).toBe(
       "deployed: https://d1.lakebed.app (unclaimed, expires 2026-11-02T12:00:00.000Z)\nlive (200)",
+    )
+  })
+})
+
+describe("appLine", () => {
+  it("tells the agent an expired app is down and how to bring it back", () => {
+    const line = appLine({ ...app("2026-10-01T00:00:00.000Z"), expired: true } satisfies AppSummary)
+
+    expect(line).toContain("expired and no longer live")
+    expect(line).toContain("deploy it again")
+    expect(line).toContain("claim_link")
+  })
+
+  it("gives an app that still has time its expiry date", () => {
+    expect(appLine(app("2026-11-02T12:00:00.000Z"))).toBe(
+      "radar: https://d1.lakebed.app (expires 2026-11-02T12:00:00.000Z)",
     )
   })
 })

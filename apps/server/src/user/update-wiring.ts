@@ -32,11 +32,12 @@ export class SelfUpdate {
     return this.#state
   }
 
-  start(version: string): UpdateState {
-    if (this.#running()) return this.#state
+  start(version: string): Promise<UpdateState> {
+    if (this.#running()) return Promise.resolve(this.#state)
     this.#state = { stage: "uploading", to: version }
-    this.deps.waitUntil(this.#run(version))
-    return this.#state
+    const run = this.#run(version)
+    this.deps.waitUntil(run)
+    return run
   }
 
   #running(): boolean {
@@ -44,7 +45,7 @@ export class SelfUpdate {
     return stage === "uploading" || (stage === "restarting" && Date.now() - this.#restartedAt < RESTART_GRACE_MS)
   }
 
-  async #run(version: string): Promise<void> {
+  async #run(version: string): Promise<UpdateState> {
     const dev = devOverride(() => {
       const text = getSetting(this.deps.sql, DEV_UPDATE)
       return text ? (JSON.parse(text) as Dev) : null
@@ -72,7 +73,7 @@ export class SelfUpdate {
     if (Exit.isSuccess(exit)) {
       this.#restartedAt = Date.now()
       this.#state = { stage: "restarting", to: version }
-      return
+      return this.#state
     }
     const failure = Cause.squash(exit.cause)
     const failed =
@@ -81,5 +82,6 @@ export class SelfUpdate {
         : new UpdateFailed({ code: "cloudflare_error", message: "The update failed. Try again." })
     if (!(failure instanceof UpdateFailed)) console.error(`update failed: ${String(failure)}`)
     this.#state = { stage: "failed", to: version, error: failed.code, message: failed.message }
+    return this.#state
   }
 }

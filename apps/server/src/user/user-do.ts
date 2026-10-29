@@ -1243,8 +1243,11 @@ export class User {
 
   private installMissingBuilder(): void {
     if (!this.env.CF_GRANT || getSetting(this.sql, BUILDER_REPAIR) === BACKEND.version) return
-    setSetting(this.sql, BUILDER_REPAIR, BACKEND.version)
-    this.selfUpdate.start(BACKEND.version)
+    this.ctx.waitUntil(
+      this.selfUpdate.start(BACKEND.version).then((state) => {
+        if (state.stage === "restarting") setSetting(this.sql, BUILDER_REPAIR, BACKEND.version)
+      }),
+    )
   }
 
   #composioConnection?: ComposioConnection
