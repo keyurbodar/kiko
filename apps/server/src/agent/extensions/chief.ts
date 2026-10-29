@@ -60,7 +60,7 @@ export function groupsExtension(port: GroupsPort): Extension {
     description:
       "make a new agent for the human: its name, handle, one line on what it does, and its soul. it gets its own chat and says hi. only kiko can.",
     parameters: NewAgent,
-    replay: "safe",
+    replay: "unsafe",
     execute: async (a) => {
       const out = await port.createAgent(a as NewAgentSpec)
       return out.ok ? { output: text(out.text) } : fail(out.error)
@@ -100,7 +100,7 @@ export function groupsExtension(port: GroupsPort): Extension {
         ),
       ),
     }),
-    replay: "safe",
+    replay: "unsafe",
     execute: async (g) => {
       const out = await port.createGroup({
         title: g.title,

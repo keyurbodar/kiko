@@ -13,21 +13,25 @@ export type RecipesPort = {
   list(): Promise<{ name: string; description: string; location: string }[]>
 }
 
-async function readSkill(fs: RoomFs, file: FsEntry & { kind: "file" }, folder: string): Promise<Skill | null> {
+type Listed = { skills: Skill[]; skipped: string[] }
+
+async function readSkill(
+  fs: RoomFs,
+  file: FsEntry & { kind: "file" },
+  folder: string,
+): Promise<Skill | { skipped: string }> {
   const bytes = await fs.bytesOf(file, MAX_SKILL_BYTES).catch(() => null)
-  if (!bytes) return null
+  if (!bytes) return { skipped: `skill ${folder}: it could not be read, skipped` }
   const skill = parseSkill(new TextDecoder().decode(bytes), folder, `/${file.path}`)
-  if (!("warning" in skill)) return skill
-  console.warn(skill.warning)
-  return null
+  return "warning" in skill ? { skipped: skill.warning } : skill
 }
 
-function homeSkillsReader(fs: RoomFs | undefined): () => Promise<Skill[]> {
-  const parsed = new Map<string, Promise<Skill | null>>()
+function homeSkillsReader(fs: RoomFs | undefined): () => Promise<Listed> {
+  const parsed = new Map<string, Promise<Skill | { skipped: string }>>()
   return async () => {
-    if (!fs) return []
+    if (!fs) return { skills: [], skipped: [] }
     const listed = await fs.list(HOME_SKILLS, true)
-    if (!listed.ok) return []
+    if (!listed.ok) return { skills: [], skipped: [`${HOME_SKILLS} could not be read: ${listed.error.message}`] }
     const found = listed.value.map((f) => {
       const folder = f.kind === "file" ? SKILL_FILE.exec(f.path)?.[1] : undefined
       if (!folder || f.kind !== "file") return null
@@ -36,19 +40,28 @@ function homeSkillsReader(fs: RoomFs | undefined): () => Promise<Skill[]> {
       parsed.set(key, skill)
       return skill
     })
-    return (await Promise.all(found)).filter((s): s is Skill => s !== null)
+    const resolved = (await Promise.all(found)).filter((s): s is Skill | { skipped: string } => s !== null)
+    return {
+      skills: resolved.filter((s): s is Skill => !("skipped" in s)),
+      skipped: resolved.flatMap((s) => ("skipped" in s ? [s.skipped] : [])),
+    }
   }
 }
 
-async function recipeSkills(recipes: RecipesPort | undefined): Promise<Skill[]> {
-  if (!recipes) return []
-  const listed = await recipes.list().catch(() => [])
-  return listed.map((r) => ({ ...r, disableModelInvocation: false }))
+async function recipeSkills(recipes: RecipesPort | undefined): Promise<Listed> {
+  if (!recipes) return { skills: [], skipped: [] }
+  const listed = await recipes.list().catch(() => null)
+  if (!listed) return { skills: [], skipped: ["the recipe skills could not be read"] }
+  return { skills: listed.map((r) => ({ ...r, disableModelInvocation: false })), skipped: [] }
 }
 
 export function skillsExtension(files?: RoomFs, stamp?: () => number, recipes?: RecipesPort): Extension {
   const homeSkills = homeSkillsReader(files)
-  const listed = perRun(async () => formatSkills(resolveSkills(await homeSkills(), await recipeSkills(recipes))), stamp)
+  const listed = perRun(async () => {
+    const home = await homeSkills()
+    const recipe = await recipeSkills(recipes)
+    return formatSkills(resolveSkills(home.skills, recipe.skills), [...home.skipped, ...recipe.skipped])
+  }, stamp)
   return defineExtension({
     name: SKILLS,
     wraps: [wrapSection(SKILLS, (slot) => ({ ...slot, render: listed }))],

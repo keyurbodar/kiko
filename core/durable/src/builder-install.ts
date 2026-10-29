@@ -14,9 +14,7 @@ export const installBuilder = (
   const name = builderScriptName(mainScript)
   return listScripts(cf, accountId).pipe(
     Effect.flatMap((scripts) =>
-      Effect.try(() =>
-        builderUploadBody(builder, release.files, scripts.find((script) => script.id === name)?.migration_tag ?? null),
-      ),
+      Effect.try(() => builderUploadBody(builder, release.files, scripts.find((script) => script.id === name) ?? null)),
     ),
     Effect.flatMap((body) => cf.call(`/accounts/${accountId}/workers/scripts/${name}`, { method: "PUT", body })),
     Effect.as(builderBinding(mainScript)),

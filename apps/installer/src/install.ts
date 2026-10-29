@@ -319,7 +319,10 @@ const upload = Effect.fn("Installer.upload")(function* (
     try: () =>
       buildMetadata(
         release.manifest,
-        selectMigrations(release.manifest.migrations, deployment.existing?.tag ?? null),
+        selectMigrations(
+          release.manifest.migrations,
+          deployment.existing === null ? null : { tag: deployment.existing.tag },
+        ),
         keptBindings(deployment.existing?.bindings ?? [], builder ? [...written, builder] : written),
       ),
     catch: (error) =>

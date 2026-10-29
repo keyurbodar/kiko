@@ -3,7 +3,14 @@ import type { ScriptBinding } from "./cloudflare"
 import { BUILDER_DIR, type ReleaseBuilder, type ReleaseManifest, type ReleaseMigration } from "./release"
 
 export class ReleasePlanRefused extends Schema.TaggedError<ReleasePlanRefused>()("ReleasePlanRefused", {
-  reason: Schema.Literals(["no_bindings", "bad_bindings", "no_migrations", "unknown_migration"]),
+  reason: Schema.Literals([
+    "no_bindings",
+    "bad_bindings",
+    "no_migrations",
+    "unknown_migration",
+    "missing_migration_tag",
+    "binding_mismatch",
+  ]),
   message: Schema.String,
 }) {}
 
@@ -46,17 +53,37 @@ function releaseBindings(manifest: ReleaseManifest): ReleaseBindings {
   })
 }
 
-export function selectMigrations(all: ReleaseMigration[], currentTag: string | null): MigrationPlan {
+export function selectMigrations(all: ReleaseMigration[], current: { tag: string | null } | null): MigrationPlan {
   const last = all.at(-1)
   if (!last) throw new ReleasePlanRefused({ reason: "no_migrations", message: "The release has no migrations." })
-  if (currentTag === null) return { new_tag: last.tag, steps: all }
-  const at = all.findIndex((m) => m.tag === currentTag)
+  if (current === null) return { new_tag: last.tag, steps: all }
+  if (current.tag === null)
+    throw new ReleasePlanRefused({
+      reason: "missing_migration_tag",
+      message:
+        "This backend is deployed, but Cloudflare reports no migration tag for it, so its migration state cannot be determined. Run the installer to repair it.",
+    })
+  const at = all.findIndex((m) => m.tag === current.tag)
   if (at < 0)
     throw new ReleasePlanRefused({
       reason: "unknown_migration",
-      message: `The backend is at migration ${currentTag}, which this release does not know.`,
+      message: `The backend is at migration ${current.tag}, which this release does not know.`,
     })
-  return { old_tag: currentTag, new_tag: last.tag, steps: all.slice(at + 1) }
+  return { old_tag: current.tag, new_tag: last.tag, steps: all.slice(at + 1) }
+}
+
+export function assertDurableObjects(manifest: ReleaseManifest, existing: ReadonlyArray<ScriptBinding>): void {
+  const wanted = releaseBindings(manifest)
+  const current = existing.filter((binding) => binding.type === "durable_object_namespace")
+  const same =
+    wanted.length === current.length &&
+    wanted.every((binding) => current.some((c) => c.name === binding.name && c.class_name === binding.class_name))
+  if (!same)
+    throw new ReleasePlanRefused({
+      reason: "binding_mismatch",
+      message:
+        "The release binds a different Durable Object class than this backend uses. Updating would strand the owner's data. Run the installer.",
+    })
 }
 
 export function keptBindings(
@@ -112,14 +139,17 @@ export const builderBinding = (mainScript: string): UploadBinding => ({
 export function builderUploadBody(
   builder: ReleaseBuilder,
   files: Map<string, Uint8Array>,
-  currentTag: string | null,
+  existing: { migration_tag?: string } | null,
 ): FormData {
   const metadata = {
     main_module: builder.main_module,
     compatibility_date: builder.compatibility_date,
     compatibility_flags: builder.compatibility_flags,
     bindings: builder.durable_objects.map((binding) => ({ type: "durable_object_namespace" as const, ...binding })),
-    migrations: selectMigrations(builder.migrations, currentTag),
+    migrations: selectMigrations(
+      builder.migrations,
+      existing === null ? null : { tag: existing.migration_tag ?? null },
+    ),
   }
   const form = new FormData()
   form.set("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }))

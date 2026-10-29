@@ -1,5 +1,6 @@
 import {
   type AssistantMessage,
+  type AssistantMessageEvent,
   createAssistantMessageEventStream,
   type Provider,
   type TranscriptContext,
@@ -92,5 +93,30 @@ describe("deepseek text tool calls", () => {
     )
     expect(callsOf(message)).toEqual([{ name: "bash", arguments: { command: "ls" } }])
     expect(message.stopReason).toBe("toolUse")
+  })
+})
+
+describe("a provider stream that throws", () => {
+  it("ends with a real error message instead of hanging", async () => {
+    const provider = (() => ({
+      [Symbol.asyncIterator]() {
+        return {
+          next: async (): Promise<IteratorResult<never>> => {
+            throw new Error("socket closed")
+          },
+        }
+      },
+    })) as unknown as Provider["streamSimple"]
+    const out = withTextToolCalls(provider)(
+      { api: "openai-completions", provider: "deepseek", id: "deepseek-v4.1-flash" } as never,
+      context as never,
+      {} as never,
+    )
+    const events: AssistantMessageEvent[] = []
+    for await (const event of out) events.push(event)
+    expect(events.at(-1)?.type).toBe("error")
+    const message = await out.result()
+    expect(message.stopReason).toBe("error")
+    expect(message.errorMessage).toContain("socket closed")
   })
 })
