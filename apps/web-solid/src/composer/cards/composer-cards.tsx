@@ -29,7 +29,9 @@ function CardSummary(props: { card: ComposerCard; room: ActiveRoom }) {
   const progress = createMemo(() => taskProgress(props.room.tasks()))
   const kind = () =>
     props.card.kind === "ask"
-      ? `Question${props.room.members().length > 1 ? ` · ${name(props.card.ask.from)}` : ""}`
+      ? props.room.members().length > 1
+        ? `Question from ${name(props.card.ask.from)}`
+        : "Question"
       : "Tasks"
   return (
     <>

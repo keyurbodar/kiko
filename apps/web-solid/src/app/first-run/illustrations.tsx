@@ -25,6 +25,7 @@ function Drawing(props: { id: string; seed: number; children: JSX.Element }) {
 
 const FILL = "var(--active)"
 const FILL_DEEP = "var(--hover)"
+const ACCENT = "var(--accent)"
 
 function Envelope() {
   return (
@@ -32,8 +33,8 @@ function Envelope() {
       <rect class="ob-draw" pathLength="1" x="24" y="44" width="102" height="70" rx="8" fill={FILL} {...LINE} />
       <path class="ob-draw" pathLength="1" d="M26 48 l49 36 l49 -36" fill="none" {...LINE} />
       <g class="ob-pop">
-        <circle cx="112" cy="44" r="16" fill={FILL_DEEP} {...LINE} />
-        <path d="M105 44 l5 5 l9 -10" fill="none" {...LINE} />
+        <circle cx="112" cy="44" r="16" fill={ACCENT} {...LINE} />
+        <path d="M105 44 l5 5 l9 -10" fill="none" {...LINE} stroke="var(--on-accent)" />
       </g>
     </Drawing>
   )
@@ -43,7 +44,7 @@ function Plug() {
   return (
     <Drawing id="ob-plug" seed={3}>
       <g class="ob-reach">
-        <path class="ob-draw" pathLength="1" d="M38 64 h34 v22 a17 17 0 0 1 -34 0 z" fill={FILL} {...LINE} />
+        <path class="ob-draw" pathLength="1" d="M38 64 h34 v22 a17 17 0 0 1 -34 0 z" fill={ACCENT} {...LINE} />
         <path d="M46 64 v-16 M64 64 v-16" {...LINE} />
         <path class="ob-draw" pathLength="1" d="M55 103 q0 18 22 20 q20 2 22 -14" fill="none" {...LINE} />
       </g>
@@ -70,6 +71,7 @@ function Pot() {
         fill="none"
         opacity=".7"
         {...LINE}
+        stroke={ACCENT}
       />
       <path d="M75 96 v-10 M75 96 l8 5" {...LINE} />
       <circle cx="75" cy="96" r="14" fill="none" {...LINE} />
@@ -91,7 +93,7 @@ function Chat() {
         class="ob-draw"
         pathLength="1"
         d="M66 92 h50 a10 10 0 0 1 10 10 v14 a10 10 0 0 1 -10 10 h-4 v12 l-14 -12 h-32 a10 10 0 0 1 -10 -10 z"
-        fill={FILL_DEEP}
+        fill={ACCENT}
         {...LINE}
       />
       <path d="M40 56 h40 M40 66 h26" opacity=".7" {...LINE} />

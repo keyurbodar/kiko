@@ -57,11 +57,11 @@
 
   --shimmer-duration: 2.2s;
 
-  --chat-content-max-width: 736px;
+  --chat-content-max-width: 820px;
   --sidebar-nav-w: 60px;
 
-  --bubble-pad-y: 7px;
-  --bubble-pad-x: 12px;
+  --bubble-pad-y: 8px;
+  --bubble-pad-x: 14px;
 
   --row-gap: 2px;
   --run-gap: 12px;
@@ -151,11 +151,11 @@
 /* palette:start */
 :root {
   --bg: #121212;
-  --side: #171717;
-  --panel: color-mix(in oklab, #ededed 2.3%, #121212);
-  --raise: color-mix(in oklab, #ededed 4.6%, #121212);
-  --hover: color-mix(in oklab, #ededed 6.4%, #121212);
-  --active: color-mix(in oklab, #ededed 9.1%, #121212);
+  --side: #161616;
+  --panel: color-mix(in oklab, #ededed 2.9%, #121212);
+  --raise: color-mix(in oklab, #ededed 5.8%, #121212);
+  --hover: color-mix(in oklab, #ededed 8%, #121212);
+  --active: color-mix(in oklab, #ededed 11.3%, #121212);
   --fill: color-mix(in oklab, #ededed 8.2%, transparent);
   --fill-field: color-mix(in oklab, #ededed 4.6%, transparent);
   --fill-hover: color-mix(in oklab, #ededed 6.4%, transparent);
@@ -165,25 +165,26 @@
   --fill-pressed: color-mix(in oklab, #ededed 12.8%, transparent);
   --ghost: color-mix(in oklab, #ededed 8.2%, transparent);
   --field-ring: transparent;
-  --me: color-mix(in oklab, #ededed 9.6%, #121212);
-  --kiko-bubble: color-mix(in oklab, #ededed 3.2%, #121212);
-  --line: color-mix(in oklab, #ededed 8.2%, #121212);
+  --me: color-mix(in oklab, #ededed 11.8%, #121212);
+  --kiko-bubble: color-mix(in oklab, #ededed 5.8%, #121212);
+  --line: color-mix(in oklab, #ededed 10.2%, #121212);
   --line2: color-mix(in oklab, #ededed 12.8%, #121212);
   --line3: color-mix(in oklab, #ededed 20%, transparent);
   --fg: #ededed;
   --fg2: #a6a6a6;
   --fg3: #878787;
-  --fg4: color-mix(in oklab, #ededed 35%, #121212);
+  --fg4: color-mix(in oklab, #ededed 39.2%, #121212);
   --on-fg: #141414;
   --ok: #5cc489;
   --bad: #ef6a6a;
-  --warn: #e8c47b;
-  --info: #5b9cf6;
-  --accent-fill: oklch(from #5b9cf6 0.59 min(calc(c * 1.4), 0.17) h);
-  --on-accent: #ffffff;
+  --warn: #f27636;
+  --info: #f0bb3b;
+  --accent-fill: #f0bb3b;
+  --accent-fill-hover: color-mix(in oklab, #f0bb3b 88%, #ededed);
+  --on-accent: #141414;
   --accent-edge: color-mix(in srgb, var(--accent-fill) 22%, transparent);
   --leaf: #7fd19c;
-  --info-wash: color-mix(in oklab, #5b9cf6 14%, transparent);
+  --info-wash: color-mix(in oklab, #f0bb3b 14%, transparent);
   --bad-wash: color-mix(in oklab, #ef6a6a 12%, transparent);
   --scrollbar-thumb: color-mix(in oklab, #ededed 18%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #ededed 30%, transparent);
@@ -225,13 +226,14 @@
   --on-fg: #ffffff;
   --ok: #1f9d55;
   --bad: #d6453f;
-  --warn: #a86b00;
-  --info: #2f6fe4;
-  --accent-fill: oklch(from #2f6fe4 0.59 min(calc(c * 1.4), 0.17) h);
+  --warn: #bb4717;
+  --info: #9a5600;
+  --accent-fill: #9a5600;
+  --accent-fill-hover: color-mix(in oklab, #9a5600 88%, #1b1b1b);
   --on-accent: #ffffff;
   --accent-edge: color-mix(in srgb, var(--accent-fill) 22%, transparent);
   --leaf: #2f9e5b;
-  --info-wash: color-mix(in oklab, #2f6fe4 11%, transparent);
+  --info-wash: color-mix(in oklab, #9a5600 11%, transparent);
   --bad-wash: color-mix(in oklab, #d6453f 12%, transparent);
   --scrollbar-thumb: color-mix(in oklab, #1b1b1b 18%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #1b1b1b 30%, transparent);
@@ -371,7 +373,7 @@
   --type-msg: 15px;
   --type-msg-line: 24px;
   --type-bubble: 15px;
-  --type-bubble-line: 24px;
+  --type-bubble-line: 22px;
   --type-ui: 14px;
   --type-ui-line: 20px;
   --type-row: 13.5px;
@@ -418,7 +420,6 @@
   --spacing-nav-pad: 8px;
   --spacing-chat-row: 50px;
   --spacing-mascot: 32px;
-  --spacing-avatar: 30px;
   --spacing-section-label: 28px;
   --spacing-step: 28px;
   --spacing-control: 32px;
@@ -429,7 +430,7 @@
   --spacing-composer-min: 96px;
   --spacing-sidebar: 296px;
   --spacing-header: 50px;
-  --spacing-top-bar: 50px;
+  --spacing-top-bar: 60px;
   --spacing-rail-width: 56px;
   --spacing-footer: 56px;
   --spacing-menu-min: 220px;
@@ -666,9 +667,10 @@
     line-height: var(--line-height);
     font-optical-sizing: auto;
 
-    -webkit-font-smoothing: antialiased;
+    -webkit-font-smoothing: var(--font-smoothing, antialiased);
     -moz-osx-font-smoothing: grayscale;
     text-rendering: geometricPrecision;
+    font-synthesis: none;
     font-feature-settings:
       "liga" 1,
       "kern" 1;
@@ -763,7 +765,7 @@
     color: inherit;
   }
 
-  :focus {
+  :focus:not(:focus-visible) {
     outline: none;
   }
 
@@ -805,6 +807,8 @@
 ):focus-visible {
   background-color: var(--fill-hover);
   border-radius: inherit;
+  outline: 1.5px solid var(--accent);
+  outline-offset: 1px;
 }
 
 @media (hover: none) {
@@ -849,7 +853,7 @@ html {
   background-clip: content-box;
 }
 
-:focus {
+:focus:not(:focus-visible) {
   outline: none !important;
 }
 
@@ -857,17 +861,17 @@ html {
   box-shadow: none !important;
   filter: brightness(1.12);
 }
-.cl-formFieldInput:focus {
+.cl-formFieldInput:focus-visible {
   background: var(--line2);
 }
 
 [data-component="top-bar"] {
-  height: calc(50px + env(safe-area-inset-top, 0px));
+  height: calc(60px + env(safe-area-inset-top, 0px));
   padding-top: env(safe-area-inset-top, 0px);
 }
 
 [data-component="main-column"]:has([data-component="chat-view"]) {
-  --top-bar-h: calc(50px + env(safe-area-inset-top, 0px));
+  --top-bar-h: calc(60px + env(safe-area-inset-top, 0px));
 }
 
 [data-component="main-column"] > [data-component="top-bar"] {

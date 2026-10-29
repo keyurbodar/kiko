@@ -33,7 +33,7 @@ describe("groupSummary", () => {
       step("browse", { tool: "web", name: "browse", label: "Browsed asakusa.jp" }),
     ]
     expect(summaryText(groupSummary(steps))).toBe(
-      "Ran 3 commands · edited 1 file · read 2 files · searched 1 time · browsed 1 page · 1 failed",
+      "Ran 3 commands, edited 1 file, read 2 files, searched 1 time, browsed 1 page, 1 failed",
     )
   })
 

@@ -32,6 +32,15 @@ describe("liveLabel", () => {
   it("puts a running humanized call in the present tense", () => {
     expect(liveLabel({ ...step("delete_agent", '{"handle":"ping"}'), status: "running" })).toBe("Deleting Ping")
   })
+
+  it("puts the rarer verbs the server writes in the present tense", () => {
+    const running = (name: string, label: string) => liveLabel({ ...step(name, "{}", label), status: "running" })
+    expect(running("ask_human", "Asked the human")).toBe("Asking the human")
+    expect(running("cp", "Copied /a to /b")).toBe("Copying /a to /b")
+    expect(running("mkdir", "Made folder /home/trips")).toBe("Making folder /home/trips")
+    expect(running("start_work", "Started background work")).toBe("Starting background work")
+    expect(running("cancel_routine", "Cancelled a routine")).toBe("Cancelling a routine")
+  })
 })
 
 describe("shell and app steps", () => {

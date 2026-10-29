@@ -30,16 +30,15 @@
 .settings-title {
   padding: 0 10px 14px;
   color: var(--fg);
-  font-family: var(--font-family-display);
-  font-size: 24px;
-  font-weight: 400;
-  font-variation-settings: var(--display-variation);
-  line-height: 30px;
+  font-family: var(--font-family-sans);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
 }
 
 .settings-nav-heading {
   padding: 16px 10px 6px;
-  color: var(--fg4);
+  color: var(--fg3);
   font-size: 12.5px;
 }
 

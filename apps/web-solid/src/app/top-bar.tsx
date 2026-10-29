@@ -1,5 +1,5 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ChevronDownIcon, FolderIcon, MonitorIcon, SearchIcon } from "@kiko/ui/icons"
+import { FolderIcon, MonitorIcon, SearchIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { computers, openViewer, startComputers, watchTarget } from "../chat/computers"
@@ -48,23 +48,20 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
     return `You, ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
   }
   return (
-    <header class="top-bar flex h-[52px] shrink-0 items-center gap-0.5 pr-3 pl-5" data-component="top-bar">
+    <header class="top-bar flex h-[60px] shrink-0 items-center gap-0.5 pr-3 pl-5" data-component="top-bar">
       <Show when={!props.sidebarOpen}>
         <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
       </Show>
       <div class="flex min-w-0 flex-1 items-center gap-2.5">
         <Show when={chatId()} keyed>
-          {(id) => <ChatAvatar faces={room.chatFaces(id)} size={20} />}
+          {(id) => <ChatAvatar faces={room.chatFaces(id)} size={32} />}
         </Show>
         <h1
-          class="min-w-0 shrink truncate font-sans text-[14px] leading-5 font-medium text-[var(--text-100)]"
+          class="min-w-0 shrink truncate font-sans text-[15px] leading-[19px] font-semibold text-[var(--text-100)]"
           data-component="top-bar-title"
         >
           {title()}
         </h1>
-        <Show when={chatId()}>
-          <RemixIcon icon={ChevronDownIcon} size={16} class="shrink-0 text-[var(--text-300)]" />
-        </Show>
         <Show when={chatId()}>
           <Show when={live()} fallback={<span class="hidden">{roster()}</span>}>
             {(text) => (
