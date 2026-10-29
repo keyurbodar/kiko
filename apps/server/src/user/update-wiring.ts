@@ -18,6 +18,7 @@ type Dev = Partial<UpdateConfig> & { grant?: string }
 export class SelfUpdate {
   #state: UpdateState = { stage: "idle" }
   #restartedAt = 0
+  #pending: Promise<UpdateState> | null = null
 
   constructor(
     private readonly deps: {
@@ -36,8 +37,13 @@ export class SelfUpdate {
     if (this.#running()) return Promise.resolve(this.#state)
     this.#state = { stage: "uploading", to: version }
     const run = this.#run(version)
+    this.#pending = run
     this.deps.waitUntil(run)
-    return run
+    return Promise.resolve(this.#state)
+  }
+
+  done(): Promise<UpdateState> {
+    return this.#pending ?? Promise.resolve(this.#state)
   }
 
   #running(): boolean {
