@@ -119,8 +119,7 @@ export function scheduledDeadline(task: Pick<TaskInspection, "record">): number 
     return undefined
   const { input, state } = task.record
   const checkpoint = state.checkpoint
-  if (!checkpoint || typeof checkpoint !== "object" || !("phase" in checkpoint) || checkpoint.phase !== "wait")
-    return undefined
+  if (!checkpoint || typeof checkpoint !== "object" || !("phase" in checkpoint)) return undefined
   if (
     !input ||
     typeof input !== "object" ||
