@@ -34,7 +34,7 @@ const MEMORY_USAGE = "memory_usage"
 const MEMORY_MODEL = "memory_model"
 const MEMORY_POLICY = "memory_policy"
 const REFUSED = /\((401|403)\)/
-const CAPTURE_QUEUE_MAX = 200
+const CAPTURE_QUEUE_AGE_MS = 30 * 24 * 60 * 60 * 1000
 const CAPTURE_PER_RUN = 24
 const CAPTURE_CHUNK = 4
 const CAPTURE_TEXT_MAX = 8_000
@@ -73,11 +73,19 @@ export class MemoryCapture {
   }
 
   captures(): boolean {
-    return this.policy().capture !== "off" && this.judgeKey() !== null
+    return !this.captureOff() && this.judgeKey() !== null
+  }
+
+  private captureOff(): boolean {
+    return this.policy().capture === "off"
   }
 
   judgeKey(): ProviderInfo | null {
     return pickJudge(this.d.credentials().listProviders(), (p) => p.problem === "key_refused")
+  }
+
+  private judgeConfigured(): boolean {
+    return pickJudge(this.d.credentials().listProviders(), () => false) !== null
   }
 
   judgeFor(timeoutMs: number): Judge | null {
@@ -149,8 +157,16 @@ export class MemoryCapture {
     )
   }
 
+  private expire(now: number): void {
+    this.sql.exec("DELETE FROM capture_queue WHERE queued_at < ?", now - CAPTURE_QUEUE_AGE_MS)
+  }
+
+  pending(): number {
+    return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM capture_queue").one().n
+  }
+
   async captureHuman(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
-    if (!this.captures() || !this.capturable(roomId)) return
+    if (this.captureOff() || !this.judgeConfigured() || !this.capturable(roomId)) return
     const rows = items.flatMap((i) =>
       i.messageId && candidates(i.text).length
         ? [{ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }]
@@ -163,18 +179,18 @@ export class MemoryCapture {
       Date.now(),
       JSON.stringify(rows),
     )
-    if (inserted.rowsWritten)
-      this.sql.exec(
-        "DELETE FROM capture_queue WHERE (room_id, message_id) NOT IN (SELECT room_id, message_id FROM capture_queue ORDER BY queued_at DESC, room_id, message_id LIMIT ?)",
-        CAPTURE_QUEUE_MAX,
-      )
+    if (inserted.rowsWritten) this.expire(Date.now())
     await this.captureNow()
   }
 
   async captureNow(): Promise<void> {
-    if (!this.captures()) {
+    if (this.captureOff() || !this.judgeConfigured()) {
       if (this.sql.exec("SELECT 1 FROM capture_queue LIMIT 1").toArray().length)
         this.sql.exec("DELETE FROM capture_queue")
+      return
+    }
+    if (this.judgeKey() === null) {
+      this.expire(Date.now())
       return
     }
     type QueueRow = { room_id: RoomId; message_id: string; text: string; at: number }

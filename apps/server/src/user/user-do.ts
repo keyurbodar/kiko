@@ -922,7 +922,7 @@ export class User {
   }
 
   async memoryUsage(): Promise<Record<string, number>> {
-    return this.#mem.usage()
+    return { ...this.#mem.usage(), capture_queue: this.#mem.pending() }
   }
 
   async compress(prompt: string): Promise<{ text: string } | { retryAt: number } | { error: string }> {
