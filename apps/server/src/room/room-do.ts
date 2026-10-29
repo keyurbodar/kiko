@@ -288,6 +288,7 @@ export class Room implements CommandRoom {
         chat: (home) => this.chat(home),
         seedMembers: (home, chat) => this.seedMembers(home, chat),
       })
+      this.mail.redrive()
     }
   }
 
@@ -762,6 +763,7 @@ export class Room implements CommandRoom {
   async alarm(): Promise<void> {
     if (this.log.meta("deleted") === "1" || this.log.meta("erasing") === "1") return
     await this.restoreHumanInput()
+    this.mail.redrive()
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
       [BURST_WAKEUP]: () => this.flushBurst(),
