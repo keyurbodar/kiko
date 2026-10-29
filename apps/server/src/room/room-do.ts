@@ -354,7 +354,11 @@ export class Room implements CommandRoom {
     return filed
   }
 
-  private async flushBurst(): Promise<void> {
+  private flushBurst(): Promise<void> {
+    return this.burst.flush(() => this.flushBurstOnce())
+  }
+
+  private async flushBurstOnce(): Promise<void> {
     const home = this.home()
     if (!home) return
     await this.burst.restore()
