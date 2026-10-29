@@ -12,9 +12,6 @@ import { ReactionStack } from "./ReactionBadge"
 import { MessageActions } from "./MessageActions"
 import { room } from "../../state/room"
 import { RunTree } from "../run/RunTree"
-import { fullTimeLabel } from "../run/duration"
-import { dividerParts } from "../lib/time-label"
-import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { ThoughtRow } from "../thinking/Thinking"
 import { RichText } from "./RichText"
 import { Collapsible } from "../Collapsible"
@@ -80,7 +77,6 @@ export function MessageRow(props: {
   }
   const named = () => grouped() && props.isRunStart
   const nameInBubble = () => named() && !props.jumboClass
-  const sentClock = () => dividerParts(props.message.sentAt, Date.now()).time
   const failed = () => props.message.status === "failed"
   const failure = (): string | undefined => undefined
   return (
@@ -211,15 +207,11 @@ export function MessageRow(props: {
           </Show>
         </BubbleContent>
         <ReactionStack reactions={props.message.reactions} side={props.message.sender} onToggle={props.onReact} />
-        <span class="bubble-time" data-component="bubble-time" data-align={own() ? "end" : "start"}>
-          <TooltipV2 placement={own() ? "left" : "right"} openDelay={0} value={fullTimeLabel(props.message.sentAt)}>
-            {sentClock()}
-          </TooltipV2>
-        </span>
         <Show when={props.onReact && props.onReply && props.onMore}>
           <MessageActions
             side={props.message.sender}
             copyText={props.message.body}
+            sentAt={props.message.sentAt}
             onReact={(emoji) => props.onReact!(emoji)}
             onReply={() => props.onReply!()}
             onMore={(anchor) => props.onMore!(anchor)}

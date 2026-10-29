@@ -89,15 +89,19 @@ describe("MessageRow time", () => {
         isRunEnd
         hasRunGapBefore={false}
         onOpenReplyTarget={() => {}}
+        onReact={() => {}}
+        onReply={() => {}}
+        onMore={() => {}}
       />
     ))
 
-    const time = screen.container.querySelector<HTMLElement>('[data-component="bubble-time"]')!
-    const row = screen.container.querySelector<HTMLElement>('[data-component="chat-row"]')!
-    expect(getComputedStyle(time).opacity).toBe("0")
+    const actions = screen.container.querySelector<HTMLElement>('[data-component="chat-actions"]')!
+    const time = actions.querySelector<HTMLElement>('[data-component="bubble-time"]')!
+    expect(time.parentElement!.closest('[data-component="chat-actions"]')).toBe(actions)
+    expect(getComputedStyle(actions).opacity).toBe("0")
 
-    await userEvent.hover(row)
-    await vi.waitFor(() => expect(getComputedStyle(time).opacity).toBe("1"))
+    await userEvent.hover(screen.container.querySelector<HTMLElement>('[data-component="chat-row"]')!)
+    await vi.waitFor(() => expect(getComputedStyle(actions).opacity).toBe("1"))
 
     await userEvent.hover(time)
     await vi.waitFor(() =>
