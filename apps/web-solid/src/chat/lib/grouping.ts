@@ -26,6 +26,7 @@ export type TimelineItem =
       kind: "message"
       key: string
       message: ChatMessage
+      foldedRuns?: readonly ChatMessage[]
       runKey: string
       runIndex: number
       runSize: number
@@ -53,7 +54,7 @@ function canGroup(a: ChatMessage, b: ChatMessage): boolean {
 const addressee = (message: ChatMessage): string | undefined => (message.sender === "bot" ? message.to : undefined)
 
 type Entry =
-  | { kind: "message"; message: ChatMessage; inThread: boolean }
+  | { kind: "message"; message: ChatMessage; inThread: boolean; foldedRuns?: ChatMessage[] }
   | { kind: "event"; message: ChatMessage }
   | { kind: "thread"; key: string; messages: ChatMessage[]; slugs: string[]; expanded: boolean }
   | { kind: "background"; key: string; slug: string; messages: ChatMessage[]; expanded: boolean }
@@ -61,6 +62,36 @@ type Entry =
 const isEvent = (m: ChatMessage) => m.event !== undefined || m.goto !== undefined
 
 const backgroundOf = (m: ChatMessage) => (m.event?.kind === "activity" && m.botId && m.steps ? m.botId : undefined)
+
+const senderKey = (m: ChatMessage) => (m.sender === "user" ? "user" : (m.botId ?? ""))
+
+type Folds = { byTarget: Map<string, ChatMessage[]>; waiting: Map<string, ChatMessage[]>; taken: Set<string> }
+
+function folds(messages: readonly ChatMessage[]): Folds {
+  const byTarget = new Map<string, ChatMessage[]>()
+  const waiting = new Map<string, ChatMessage[]>()
+  const taken = new Set<string>()
+  for (const message of messages) {
+    const activity = backgroundOf(message)
+    const key = activity ?? senderKey(message)
+    const held = waiting.get(key)
+    const target = !activity && held && message.sender === "bot" && message.steps && !message.to && !isEvent(message)
+    if (target) {
+      byTarget.set(message.id, held!)
+      waiting.delete(key)
+    }
+    for (const other of waiting.keys()) if (other !== key) waiting.delete(other)
+    if (!activity) continue
+    if (held) held.push(message)
+    else waiting.set(key, [message])
+  }
+  for (const list of byTarget.values()) for (const message of list) taken.add(message.id)
+  return { byTarget, waiting, taken }
+}
+
+export function unfoldedRuns(messages: readonly ChatMessage[], slug: string): readonly ChatMessage[] {
+  return folds(messages).waiting.get(slug) ?? []
+}
 
 function addBackground(out: Entry[], message: ChatMessage, slug: string, options: TimelineOptions): void {
   const last = out.at(-1)
@@ -72,7 +103,7 @@ function addBackground(out: Entry[], message: ChatMessage, slug: string, options
   out.push({ kind: "background", key, slug, messages: [message], expanded: options.expanded?.has(key) ?? false })
 }
 
-function entries(messages: readonly ChatMessage[], options: TimelineOptions): Entry[] {
+function entries(messages: readonly ChatMessage[], options: TimelineOptions, fold: Folds): Entry[] {
   const out: Entry[] = []
   let thread: Extract<Entry, { kind: "thread" }> | null = null
   const close = () => {
@@ -85,7 +116,7 @@ function entries(messages: readonly ChatMessage[], options: TimelineOptions): En
     const background = backgroundOf(message)
     if (background) {
       close()
-      addBackground(out, message, background, options)
+      if (!fold.taken.has(message.id)) addBackground(out, message, background, options)
       continue
     }
     if (isEvent(message)) {
@@ -93,10 +124,11 @@ function entries(messages: readonly ChatMessage[], options: TimelineOptions): En
       out.push({ kind: "event", message })
       continue
     }
+    const foldedRuns = fold.byTarget.get(message.id)
     const to = options.members ? addressee(message) : undefined
     if (to === undefined) {
       close()
-      out.push({ kind: "message", message, inThread: false })
+      out.push({ kind: "message", message, inThread: false, ...(foldedRuns ? { foldedRuns } : {}) })
       continue
     }
     if (!thread) {
@@ -132,7 +164,7 @@ export function buildTimelineItems(
   if (unreadIndex >= 0 && !drawable(messages[unreadIndex])) {
     firstUnreadMessageId = messages.slice(unreadIndex + 1).find((m) => drawable(m) && m.sender !== "user")?.id
   }
-  const list = entries(messages, options)
+  const list = entries(messages, options, folds(messages))
   const n = list.length
   if (n === 0) return []
 
@@ -195,6 +227,7 @@ export function buildTimelineItems(
       kind: "message",
       key: `msg:${message.clientId ?? message.id}`,
       message,
+      ...(entry.foldedRuns ? { foldedRuns: entry.foldedRuns } : {}),
       runKey: start.kind === "message" ? start.message.id : message.id,
       runIndex,
       runSize,
@@ -241,18 +274,22 @@ const sameRun = (a: Run, b: Run) =>
   a.isRunEnd === b.isRunEnd &&
   a.hasRunGapBefore === b.hasRunGapBefore
 
-type Moves = { run: Setter<Run>; message: Setter<ChatMessage> }
+type Moves = { run: Setter<Run>; message: Setter<ChatMessage>; folded: Setter<readonly ChatMessage[] | undefined> }
 
 const moves = new WeakMap<TimelineItem, Moves>()
 
 function live(item: MessageItem): MessageItem {
   const [run, setRun] = createSignal(runOf(item), { equals: sameRun })
   const [message, setMessage] = createSignal(item.message)
+  const [folded, setFolded] = createSignal(item.foldedRuns)
   const out: MessageItem = {
     kind: "message",
     key: item.key,
     get message() {
       return message()
+    },
+    get foldedRuns() {
+      return folded()
     },
     get runKey() {
       return run().runKey
@@ -273,7 +310,7 @@ function live(item: MessageItem): MessageItem {
       return run().hasRunGapBefore
     },
   }
-  moves.set(out, { run: setRun, message: setMessage })
+  moves.set(out, { run: setRun, message: setMessage, folded: setFolded })
   return out
 }
 
@@ -286,6 +323,7 @@ export function keepUnchanged(previous: Map<string, TimelineItem>, next: Timelin
     if (!movesFor) return live(item)
     movesFor.run(runOf(item))
     if ((old as MessageItem).message !== item.message) movesFor.message(item.message)
+    if ((old as MessageItem).foldedRuns !== item.foldedRuns) movesFor.folded(item.foldedRuns)
     return old as MessageItem
   })
   previous.clear()

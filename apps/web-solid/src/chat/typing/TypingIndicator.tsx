@@ -60,7 +60,7 @@ function Row(props: { seed: string; doing?: string }) {
           when={treeKey()}
           fallback={<ThinkingLine thought={room.thinking(props.seed)} fallback={caption()} since={runStart()} />}
         >
-          {(windowKey) => <RunTree windowKey={windowKey()} />}
+          {(windowKey) => <RunTree windowKey={windowKey()} windows={room.pendingWindows(props.seed)} />}
         </Show>
       </div>
     </div>

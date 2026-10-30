@@ -33,6 +33,7 @@ vi.mock("../../state/room", async () => {
       typingDoings: () => [],
       typingRun: () => null,
       runSteps: () => [],
+      runReady: () => true,
       chatById: () => ({ presence: presence() }),
       active: () => ({ asks: () => [] }),
       roomMembers: () => [],

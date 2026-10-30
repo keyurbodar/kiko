@@ -167,8 +167,7 @@ function itemsOf(steps: readonly RunStep[], status: DetailStatus): WorkItem[] {
 export function summaryOf(steps: readonly RunStep[], endedAt?: number): RunSummary | undefined {
   const label = summarizeSteps(steps)
   if (!label) return undefined
-  const own = steps.filter((step) => !step.worker)
-  const times = span(own.length ? own : steps)
+  const times = span(steps)
   return { label, ...times, ...(endedAt === undefined ? {} : { endedAt }) }
 }
 

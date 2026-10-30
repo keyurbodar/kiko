@@ -44,6 +44,7 @@ import {
   windowKey,
 } from "../chat/run/run-log"
 import { helperLanes, nestedLanes } from "../chat/helpers/helper-model"
+import { unfoldedRuns } from "../chat/lib/grouping"
 import { liveLabel } from "../chat/run/run-log"
 import { summaryOf } from "../chat/run/run-tree-rows"
 import { fillComposer } from "../composer/fill"
@@ -641,7 +642,7 @@ function createRoom() {
   )
   const helpers = createMemo(() =>
     Object.values(runs.current().steps)
-      .flatMap((steps) => helperLanes(steps, helperStatuses(), busy))
+      .flatMap((steps) => helperLanes(steps, helperStatuses(), { busy, stale: state()?.status !== "live" }))
       .toSorted((a, b) => a.startedAt - b.startedAt),
   )
   const nestedHelpers = createMemo(() => nestedLanes(helpers(), busy))
@@ -1070,9 +1071,15 @@ function createRoom() {
     helpers,
     nestedHelpers,
     runLive: (key: string) => !windows().has(key) && busy(parseWindow(key).slug),
+    runReady: () => state()?.status === "live",
+    pendingWindows: (slug: string) =>
+      unfoldedRuns(rows(), slug).flatMap((m) =>
+        m.steps ? [{ key: windowKey(slug, m.stepAfter ?? 0), count: m.steps }] : [],
+      ),
     loadRunSteps(key: string, force = false) {
       const w = windows().get(key)
-      if (w && inWindow(runs.current().steps[w.slug] ?? [], w.after).length < w.steps)
+      if (!w || state()?.status !== "live") return
+      if (inWindow(runs.current().steps[w.slug] ?? [], w.after).length < w.steps)
         void runs.request(w.slug, w.after, force)
     },
     runFetching: (key: string) => !!runs.current().fetching[key],
