@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>page</title>
+  </head>
+  <body>
+    <h1>Background browser</h1>
+    <button id="press" aria-label="Press">Press</button>
+    <label>Name <input id="text" aria-label="Name" data-events="0" data-trapped="0" /></label>
+    <label
+      >Choice
+      <select id="choice" aria-label="Choice">
+        <option value="one">one</option>
+        <option value="two">two</option>
+      </select>
+    </label>
+    <form id="form">
+      <label>Query <input id="query" name="q" aria-label="Query" /></label>
+      <button type="submit" id="go">Go</button>
+    </form>
+    <iframe
+      id="frame"
+      title="Frame"
+      srcdoc="&lt;button id='inner' aria-label='Inner'&gt;Inner&lt;/button&gt;&lt;script&gt;document.getElementById('inner').onclick = function () { parent.document.title = 'inner:' + parent.name; };&lt;/script&gt;"
+    ></iframe>
+    <script>
+      const page = new URLSearchParams(location.search).get("name") || "page"
+      window.name = page
+      document.title = page
+      const press = document.getElementById("press")
+      press.onclick = () => {
+        document.title = "pressed:" + page
+      }
+      const text = document.getElementById("text")
+      text.addEventListener("input", () => {
+        text.dataset.events = String(Number(text.dataset.events) + 1)
+      })
+      const nativeValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")
+      Object.defineProperty(text, "value", {
+        configurable: true,
+        get() {
+          return nativeValue.get.call(this)
+        },
+        set(value) {
+          text.dataset.trapped = String(Number(text.dataset.trapped) + 1)
+          nativeValue.set.call(this, value)
+        },
+      })
+      document.getElementById("choice").addEventListener("change", (event) => {
+        document.title = "chosen:" + event.target.value + ":" + page
+      })
+      document.getElementById("form").addEventListener("submit", (event) => {
+        event.preventDefault()
+        document.title = "submitted:" + page
+      })
+    </script>
+  </body>
+</html>
