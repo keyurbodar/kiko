@@ -123,7 +123,7 @@ fn describe(result: &Result<String>) -> String {
 }
 
 async fn wait_for_paint(link: &Link, session: &str) -> bool {
-    let expression = "new Promise(resolve => { let seen = 0; const tick = () => { if (++seen >= 2) { resolve(true); return; } requestAnimationFrame(tick) }; requestAnimationFrame(tick); setTimeout(() => resolve(false), 2000) })";
+    let expression = "new Promise(resolve => { const painted = () => { let seen = 0; const tick = () => { if (++seen >= 2) { resolve(true); return; } requestAnimationFrame(tick) }; requestAnimationFrame(tick) }; if (document.readyState === 'complete') { painted(); return; } window.addEventListener('load', painted, { once: true }); setTimeout(() => resolve(false), 8000) })";
     link.send_with(
         Some(session),
         "Runtime.evaluate",
