@@ -220,18 +220,12 @@ fn splice_at_selection(element: &IUIAutomationElement, text: &str) -> Result<Out
     let current = unsafe { value.CurrentValue() }
         .map(|value| value.to_string())
         .unwrap_or_default();
-    let document_text = range_text(&document);
-    let base = if current.encode_utf16().count() == document_text.encode_utf16().count() {
-        current
-    } else {
-        document_text
-    };
     let (prefix, selected) = match selection_range(element) {
         Some(selection) => (prefix_text(&document, &selection)?, range_text(&selection)),
-        None if base.is_empty() => (String::new(), String::new()),
+        None if current.is_empty() => (String::new(), String::new()),
         None => return Err(no_selection()),
     };
-    let spliced = splice(&base, &prefix, &selected, text);
+    let spliced = splice(&current, &prefix, &selected, text);
     unsafe {
         value
             .SetValue(&BSTR::from(spliced))

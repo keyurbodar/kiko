@@ -108,6 +108,19 @@ fn wait_for<T>(what: &str, mut probe: impl FnMut() -> Option<T>) -> T {
     panic!("timed out waiting for {what}");
 }
 
+fn wait_for_edit_value(driver: &mut Box<dyn Native>, window: &str, expected: Option<&str>) -> Look {
+    let mut last: Option<Option<String>> = None;
+    wait_for("the edit value", || {
+        let found = try_look(driver, window).ok()?;
+        let edit = find_optional(&found.nodes, "edit", None)?;
+        if last.as_ref() != Some(&edit.value) {
+            eprintln!("edit value while waiting: {:?}", edit.value);
+            last = Some(edit.value.clone());
+        }
+        (edit.value.as_deref() == expected).then_some(found)
+    })
+}
+
 fn window_of(driver: &mut Box<dyn Native>, pid: u32) -> Option<Window> {
     driver
         .windows()
@@ -733,14 +746,19 @@ fn foreground_input_reaches_the_testapp_and_raises_it() {
     let mut select_all = foreground_act(&target.id(), Some(edit.reference), Action::Key);
     select_all.keys = Some("ctrl+a".into());
     assert_eq!(act(&mut driver, select_all).route, Route::Foreground);
+    let mut replace = foreground_act(&target.id(), Some(edit.reference), Action::Type);
+    replace.text = Some("Z".into());
+    assert_eq!(act(&mut driver, replace).route, Route::Foreground);
+    let replaced = wait_for_edit_value(&mut driver, &target.id(), Some("Z"));
+    let edit = find(&replaced.nodes, "edit", None).clone();
+
+    let mut home = foreground_act(&target.id(), Some(edit.reference), Action::Key);
+    home.keys = Some("home".into());
+    assert_eq!(act(&mut driver, home).route, Route::Foreground);
     let mut delete = foreground_act(&target.id(), Some(edit.reference), Action::Key);
     delete.keys = Some("delete".into());
     assert_eq!(act(&mut driver, delete).route, Route::Foreground);
-    let cleared = wait_for("ctrl+a then delete to clear the edit", || {
-        let found = try_look(&mut driver, &target.id()).ok()?;
-        let edit = find_optional(&found.nodes, "edit", None)?;
-        edit.value.is_none().then_some(found)
-    });
+    let cleared = wait_for_edit_value(&mut driver, &target.id(), None);
     let edit = find(&cleared.nodes, "edit", None).clone();
 
     let mut scroll = foreground_act(&target.id(), None, Action::Scroll);
@@ -754,11 +772,7 @@ fn foreground_input_reaches_the_testapp_and_raises_it() {
     let mut again = foreground_act(&target.id(), Some(edit.reference), Action::Type);
     again.text = Some("second".into());
     assert_eq!(act(&mut driver, again).route, Route::Foreground);
-    let after = wait_for("the second typed text to arrive", || {
-        let found = try_look(&mut driver, &target.id()).ok()?;
-        let edit = find_optional(&found.nodes, "edit", None)?;
-        (edit.value.as_deref() == Some("second")).then_some(found)
-    });
+    let after = wait_for_edit_value(&mut driver, &target.id(), Some("second"));
     assert_eq!(
         find(&after.nodes, "edit", None).value.as_deref(),
         Some("second"),
