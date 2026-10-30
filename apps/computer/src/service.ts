@@ -5,6 +5,7 @@ import { homeDir } from "./platform"
 import { selfArgv } from "./self"
 
 export const LABEL = "com.kiko.computer"
+const MOVE_LABEL = `${LABEL}.move`
 const UNIT = "kiko-computer.service"
 const HOST = "kiko-computer-host"
 const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
@@ -66,12 +67,12 @@ function systemdPath(): string {
   return join(process.env.XDG_CONFIG_HOME ?? join(homeDir(), ".config"), "systemd", "user", UNIT)
 }
 
-function launchdPlist(program: string[]): string {
+function launchdPlist(program: string[], label = LABEL, keepAlive = true): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>${LABEL}</string>
+  <key>Label</key><string>${label}</string>
   <key>ProgramArguments</key>
   <array>
 ${program.map((part) => `    <string>${xml(part)}</string>`).join("\n")}
@@ -81,7 +82,7 @@ ${program.map((part) => `    <string>${xml(part)}</string>`).join("\n")}
     <key>PATH</key><string>${xml(macPath())}</string>
   </dict>
   <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
+  <key>KeepAlive</key><${keepAlive}/>
   <key>ProcessType</key><string>Interactive</string>
 </dict>
 </plist>
@@ -157,11 +158,15 @@ export function needsHost(plist: string | null, platform: NodeJS.Platform, env: 
 }
 
 export async function moveToHost(): Promise<boolean> {
-  if (!hostPath()) return false
+  const host = hostPath()
+  if (!host) return false
   const plist = await readFile(launchdPath(), "utf8").catch(() => null)
   if (!needsHost(plist, process.platform, process.env)) return false
-  Bun.spawn([...selfArgv(), "service", "install"], { detached: true, stdio: ["ignore", "ignore", "ignore"] }).unref()
-  return true
+  const file = join(dirname(host), `${MOVE_LABEL}.plist`)
+  const domain = `gui/${process.getuid?.() ?? 501}`
+  await writeUnit(file, launchdPlist([...selfArgv(), "service", "install"], MOVE_LABEL, false))
+  await quiet(["launchctl", "bootout", `${domain}/${MOVE_LABEL}`])
+  return (await quiet(["launchctl", "bootstrap", domain, file])) === 0
 }
 
 export async function service(action: ServiceAction): Promise<number> {
@@ -203,7 +208,7 @@ async function launchd(action: ServiceAction): Promise<number> {
     if (await exists(file)) await writeFile(file, "")
     const code = await run(["rm", "-f", file])
     const host = hostPath()
-    if (host) await run(["rm", "-f", host])
+    if (host) await run(["rm", "-f", host, join(dirname(host), `${MOVE_LABEL}.plist`)])
     console.log(`removed ${file}`)
     return code
   }

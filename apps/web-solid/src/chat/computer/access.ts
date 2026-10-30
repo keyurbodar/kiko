@@ -9,7 +9,7 @@ export function accessHint(computer: ComputerSummary): string | null {
     if (missing.length > 0) {
       const list = missing.join(" and ")
       return computer.os === "macos"
-        ? `Allow ${list} for kiko-computer-host in System Settings > Privacy & Security`
+        ? `Allow ${list} for kiko-computer-host in System Settings > Privacy & Security. If it is already on, remove it and add it again`
         : `Allow ${list} for kiko-computer-host`
     }
   }

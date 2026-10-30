@@ -2,6 +2,7 @@ import { createEffect, createSignal, on, onCleanup, Show, type JSX } from "solid
 import { cn } from "../../lib/cn"
 import { connection } from "../../state/connection"
 import { computerById } from "../computers"
+import { accessHint } from "./access"
 import { Cursor } from "./Cursor"
 import { bindInput, escapeEvents, type Point } from "./input"
 import { type Cursor as AgentPoint, type Mode, type Session, startSession } from "./session"
@@ -93,7 +94,10 @@ export default function LiveScreen(props: {
   })
 
   const notice = () => {
-    if (!online()) return "This computer is offline"
+    const computer = computerById(props.pcId)
+    if (!computer?.online) return "This computer is offline"
+    const hint = accessHint(computer)
+    if (hint) return hint
     return mode() === "stalled"
       ? "The screen is not sharing. Check that ffmpeg is installed on that computer."
       : "Connecting to the screen"
