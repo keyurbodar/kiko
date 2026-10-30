@@ -64,7 +64,15 @@ describe("coming back to the tab", () => {
       const meter = yield* owner.meter()
       assert.strictEqual(meter.billingVersion, 1, "KV-key and setAlarm meters are live")
       const billed = Object.entries(meter.counters).filter(([, value]) => value > 0)
-      assert.strictEqual(billedWrites(meter.counters), 0, `a resubscribe bills no row: ${JSON.stringify(billed)}`)
+      const wrote = (meter.statements ?? [])
+        .filter((row) => row.rowsWritten > 0)
+        .slice(0, 4)
+        .map((row) => `${row.kind} wrote ${row.rowsWritten}: ${row.sql.replace(/\s+/g, " ").slice(0, 120)}`)
+      assert.strictEqual(
+        billedWrites(meter.counters),
+        0,
+        `a resubscribe bills no row: ${JSON.stringify(billed)} ${wrote.join(" | ")}`,
+      )
     }).pipe(Effect.scoped),
   )
 })

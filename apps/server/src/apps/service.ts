@@ -169,6 +169,7 @@ export class Apps {
     private readonly build: Builder,
     private readonly egress: typeof fetch,
     private readonly pause: (ms: number) => Promise<void> = pauseFor,
+    private readonly buildWaitMs: number = BUILD_WAIT_MS,
   ) {
     this.lakebed = new Lakebed(egress)
   }
@@ -205,7 +206,7 @@ export class Apps {
   private async built(files: Record<string, string>, target: Target): Promise<BuildResult> {
     return bounded(
       this.build(files, target),
-      BUILD_WAIT_MS,
+      this.buildWaitMs,
       "The app builder did not answer in time. Deploy again; if it keeps timing out, tell the human.",
     )
   }

@@ -1,5 +1,5 @@
 import { DatabaseSync, type SQLInputValue } from "node:sqlite"
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 import { Apps, type Builder } from "./service"
 
 const SCHEMA = [
@@ -197,18 +197,12 @@ describe("apps deploy safety", () => {
   })
 
   it("gives up on a builder that never answers", async () => {
-    vi.useFakeTimers()
-    try {
-      const api = lakebed()
-      const apps = new Apps(sqlite(), keyring, "owner", () => new Promise(() => {}), api.fetcher)
+    const api = lakebed()
+    const apps = new Apps(sqlite(), keyring, "owner", () => new Promise(() => {}), api.fetcher, undefined, 5)
 
-      const out = apps.deploy("radar", source("radar"))
-      for (let minute = 0; minute < 10; minute++) await vi.advanceTimersByTimeAsync(60_000)
+    const out = apps.deploy("radar", source("radar"))
 
-      expect(await out).toEqual({ ok: false, error: expect.stringContaining("did not answer") })
-    } finally {
-      vi.useRealTimers()
-    }
+    expect(await out).toEqual({ ok: false, error: expect.stringContaining("did not answer") })
   })
 
   it("redeploys an unchanged app when the public inspect policy changes", async () => {
