@@ -1,9 +1,4 @@
 [data-component="remix-icon"] {
   display: block;
   flex: none;
-  vector-effect: non-scaling-stroke;
-}
-
-[data-component="remix-icon"] * {
-  vector-effect: non-scaling-stroke;
 }
