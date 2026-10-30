@@ -1,0 +1,236 @@
+name: desktop build
+
+on:
+  workflow_call:
+    inputs:
+      installer:
+        description: "run the generated installer end to end on every OS"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  BUN_VERSION: "1.3.14"
+
+jobs:
+  linux:
+    name: Linux ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop
+      - name: Toolchain
+        run: |
+          rustup component add clippy rustfmt
+          sudo apt-get update
+          sudo apt-get install -y dbus libclang-dev libpipewire-0.3-dev pkgconf xvfb
+      - name: Format
+        working-directory: apps/desktop
+        run: cargo fmt -p kiko-app -- --check
+      - name: Lint
+        working-directory: apps/desktop
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test
+        working-directory: apps/desktop
+        run: dbus-run-session -- xvfb-run -a cargo test --all-targets
+      - name: Build
+        working-directory: apps/desktop
+        run: cargo build --release --locked
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Install the workspace
+        run: bun install --frozen-lockfile
+      - name: Build the daemon
+        run: bun apps/computer/scripts/build.ts linux-${{ matrix.arch }}
+      - name: Check the daemon's webrtc
+        run: apps/computer/dist/kiko-computer-linux-${{ matrix.arch }} webrtc
+      - name: Package the app
+        run: |
+          mkdir -p dist
+          cp apps/desktop/target/release/kiko dist/
+          cp apps/computer/dist/kiko-computer-linux-${{ matrix.arch }} dist/kiko-core
+          cp apps/desktop/packaging/kiko.desktop dist/
+          cp apps/desktop/crates/kiko-app/resources/icon-1024.png dist/kiko.png
+          tar -czf kiko-linux-${{ matrix.arch }}.tar.gz -C dist kiko kiko-core kiko.desktop kiko.png
+      - name: Installer end to end
+        if: inputs.installer
+        run: bash scripts/installer-e2e.sh "$PWD" 8765
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kiko-app-linux-${{ matrix.arch }}
+          path: kiko-linux-${{ matrix.arch }}.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  macos:
+    name: macOS
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop
+      - name: Toolchain
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Build kiko for both architectures
+        working-directory: apps/desktop
+        run: |
+          cargo build --release --locked --target aarch64-apple-darwin
+          cargo build --release --locked --target x86_64-apple-darwin
+          lipo -create target/aarch64-apple-darwin/release/kiko target/x86_64-apple-darwin/release/kiko -output "$RUNNER_TEMP/kiko"
+      - name: Install the workspace
+        run: bun install --frozen-lockfile
+      - name: Build the daemon for arm64
+        timeout-minutes: 20
+        run: bun apps/computer/scripts/build.ts darwin-arm64
+      - name: Build the daemon for x64
+        timeout-minutes: 20
+        run: bun apps/computer/scripts/build.ts darwin-x64
+      - name: Join the two daemons into one universal binary
+        run: |
+          lipo -create apps/computer/dist/kiko-computer-darwin-arm64 apps/computer/dist/kiko-computer-darwin-x64 -output "$RUNNER_TEMP/kiko-core"
+      - name: Check the daemon's webrtc
+        run: |
+          chmod +x "$RUNNER_TEMP/kiko-core"
+          "$RUNNER_TEMP/kiko-core" webrtc
+      - name: Import the signing identity
+        env:
+          CERT: ${{ secrets.KIKO_MACOS_CERT_P12 }}
+          PASSWORD: ${{ secrets.KIKO_MACOS_CERT_PASSWORD }}
+        run: |
+          PASSWORD="$(printf '%s' "$PASSWORD" | tr -d '\r\n')"
+          KEYCHAIN="$RUNNER_TEMP/kiko.keychain-db"
+          security create-keychain -p "$PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
+          printf '%s' "$CERT" | base64 -d > "$RUNNER_TEMP/kiko.p12"
+          if ! openssl pkcs12 -in "$RUNNER_TEMP/kiko.p12" -passin "pass:$PASSWORD" -noout 2>/dev/null; then
+            echo "::error::KIKO_MACOS_CERT_P12 and KIKO_MACOS_CERT_PASSWORD do not match"
+            exit 1
+          fi
+          security import "$RUNNER_TEMP/kiko.p12" -k "$KEYCHAIN" -P "$PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          openssl pkcs12 -in "$RUNNER_TEMP/kiko.p12" -clcerts -nokeys -passin "pass:$PASSWORD" -out "$RUNNER_TEMP/kiko.pem"
+          sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$RUNNER_TEMP/kiko.pem"
+          rm -f "$RUNNER_TEMP/kiko.p12" "$RUNNER_TEMP/kiko.pem"
+      - name: Bundle and sign
+        env:
+          KIKO_BIN: ${{ runner.temp }}/kiko
+          KIKO_CORE_BIN: ${{ runner.temp }}/kiko-core
+        run: bash apps/desktop/scripts/bundle-macos.sh arm64 dist kiko
+      - name: Verify the designated requirement
+        run: |
+          expected="$(cat apps/desktop/macos-requirement.txt)"
+          actual="$(codesign -d -r- dist/kiko.app 2>&1 | sed -n 's/^designated => //p')"
+          echo "designated: $actual"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::the designated requirement changed; TCC grants would not survive an update"
+            exit 1
+          fi
+          codesign --verify --strict dist/kiko.app
+      - name: Version
+        run: dist/kiko.app/Contents/MacOS/kiko --version
+      - name: Smoke test
+        working-directory: apps/desktop
+        run: cargo test -p kiko-app --test smoke -- --test-threads=1
+      - name: Package the app
+        run: ditto -c -k --keepParent dist/kiko.app kiko-macos-universal.zip
+      - name: Installer end to end
+        if: inputs.installer
+        run: bash scripts/installer-e2e.sh "$PWD" 8765
+      - name: Menu bar screenshot
+        if: inputs.installer
+        run: |
+          dist/kiko.app/Contents/MacOS/kiko &
+          sleep 6
+          screencapture -x "$RUNNER_TEMP/menu-bar.png" || echo "::warning::screencapture needs the screen recording grant on this runner"
+          dist/kiko.app/Contents/MacOS/kiko --quit || true
+          kill %1 || true
+      - uses: actions/upload-artifact@v4
+        if: inputs.installer
+        with:
+          name: kiko-macos-menu-bar
+          path: ${{ runner.temp }}/menu-bar.png
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kiko-app-macos
+          path: kiko-macos-universal.zip
+          retention-days: 1
+          if-no-files-found: error
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop
+      - name: Build
+        working-directory: apps/desktop
+        run: cargo build --release --locked
+      - name: Check the embedded manifest
+        shell: pwsh
+        run: |
+          $mt = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter mt.exe |
+            Where-Object { $_.FullName -match "x64" } | Select-Object -First 1
+          if (-not $mt) { throw "mt.exe is missing" }
+          & $mt.FullName -nologo "-inputresource:apps/desktop/target/release/kiko.exe;#1" -out:manifest.xml
+          $manifest = Get-Content manifest.xml -Raw
+          if ($manifest -notmatch "PerMonitorV2") { throw "the manifest does not set PerMonitorV2" }
+          if ($manifest -notmatch "asInvoker") { throw "the manifest does not request asInvoker" }
+          Get-Content manifest.xml
+      - name: Version
+        run: apps/desktop/target/release/kiko.exe --version
+      - name: Smoke test
+        working-directory: apps/desktop
+        run: cargo test -p kiko-app --test smoke -- --test-threads=1
+      - name: Install the workspace
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Package the app
+        shell: pwsh
+        run: |
+          bun apps/computer/scripts/build.ts windows-x64
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item apps/desktop/target/release/kiko.exe dist/kiko.exe
+          Copy-Item apps/computer/dist/kiko-computer-windows-x64.exe dist/kiko-core.exe
+          Compress-Archive -Path dist/kiko.exe, dist/kiko-core.exe -DestinationPath kiko-windows-x64.zip -Force
+      - name: Check the daemon's webrtc
+        shell: pwsh
+        run: ./apps/computer/dist/kiko-computer-windows-x64.exe webrtc
+      - name: Installer end to end
+        if: inputs.installer
+        shell: pwsh
+        run: ./scripts/installer-e2e.ps1 -Assets "$PWD" -Port 8765
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kiko-app-windows
+          path: kiko-windows-x64.zip
+          retention-days: 1
+          if-no-files-found: error

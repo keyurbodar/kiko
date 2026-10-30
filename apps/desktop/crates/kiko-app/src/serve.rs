@@ -20,6 +20,8 @@ pub fn name(path: &str) -> io::Result<interprocess::local_socket::Name<'_>> {
 }
 
 pub fn bind(path: &str) -> io::Result<LocalSocketListener> {
+    #[cfg(unix)]
+    let _ = std::fs::remove_file(path);
     let listener = ListenerOptions::new().name(name(path)?).create_sync()?;
     #[cfg(unix)]
     restrict(path)?;

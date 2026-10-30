@@ -2,7 +2,8 @@ import { chmod, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises
 import { homedir } from "node:os"
 import { extname, join, resolve } from "node:path"
 import {
-  COMPUTER_ASSETS,
+  COMPUTER_APPS,
+  COMPUTER_DAEMONS,
   COMPUTER_REPO,
   COMPUTER_SUMS_FILE,
   computerAssetBase,
@@ -164,7 +165,7 @@ async function buildComputer(): Promise<{ assets: ReleaseComputer["assets"]; fil
   if ((await proc.exited) !== 0) throw new Error("the computer daemon build failed")
   const files = new Map<string, Uint8Array>()
   const assets: ReleaseComputer["assets"] = []
-  for (const name of COMPUTER_ASSETS) {
+  for (const name of COMPUTER_DAEMONS) {
     const bytes = new Uint8Array(await readFile(join(COMPUTER, "dist", name)))
     files.set(name, bytes)
     assets.push({ name, sha256: await sha256Hex(bytes) })
@@ -173,7 +174,22 @@ async function buildComputer(): Promise<{ assets: ReleaseComputer["assets"]; fil
     files.set(`${name}.gz`, packed)
     assets.push({ name: `${name}.gz`, sha256: await sha256Hex(packed) })
   }
+  for (const [name, bytes] of await appArchives()) {
+    files.set(name, bytes)
+    assets.push({ name, sha256: await sha256Hex(bytes) })
+  }
   return { assets, files }
+}
+
+async function appArchives(): Promise<Map<string, Uint8Array>> {
+  const dir = process.env.KIKO_APP_ASSETS
+  const out = new Map<string, Uint8Array>()
+  if (!dir) {
+    console.warn("KIKO_APP_ASSETS is unset: publishing without the kiko app archives, so install.sh cannot install")
+    return out
+  }
+  for (const name of COMPUTER_APPS) out.set(name, new Uint8Array(await readFile(join(dir, name))))
+  return out
 }
 
 function computerRelease(version: string, assets: ReleaseComputer["assets"]): ReleaseComputer {

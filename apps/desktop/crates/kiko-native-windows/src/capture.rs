@@ -52,11 +52,17 @@ pub fn supported() -> bool {
 
 pub fn capture(window: isize, frame: Rect, max_width: u32) -> Option<Image> {
     let _com = crate::uia::ComGuard::init();
-    if let Some((pixels, width, height)) = wgc(window) {
+    if !forced_print_window()
+        && let Some((pixels, width, height)) = wgc(window)
+    {
         return encode(&pixels, width, height, frame, max_width);
     }
     let (pixels, width, height) = print_window(window, frame)?;
     encode(&pixels, width, height, frame, max_width)
+}
+
+fn forced_print_window() -> bool {
+    std::env::var_os("KIKO_FORCE_PRINT_WINDOW").is_some_and(|value| value != "0")
 }
 
 fn wgc(window: isize) -> Option<(Vec<u8>, u32, u32)> {

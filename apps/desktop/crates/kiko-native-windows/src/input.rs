@@ -2,7 +2,9 @@ use std::ffi::c_void;
 
 use kiko_driver::api::{Point, Rect, Route};
 use kiko_driver::{DriverError, ErrorCode, Result};
-use windows::Win32::Foundation::{CloseHandle, HANDLE, HWND, LPARAM, POINT, WPARAM};
+use windows::Win32::Foundation::{
+    CloseHandle, ERROR_SUCCESS, GetLastError, HANDLE, HWND, LPARAM, POINT, SetLastError, WPARAM,
+};
 use windows::Win32::Graphics::Gdi::ScreenToClient;
 use windows::Win32::Security::{
     GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation, TOKEN_MANDATORY_LABEL,
@@ -12,21 +14,23 @@ use windows::Win32::System::Threading::{
     AttachThreadInput, GetCurrentProcess, GetCurrentThreadId, OpenProcess, OpenProcessToken,
     PROCESS_QUERY_LIMITED_INFORMATION,
 };
+use windows::Win32::UI::Controls::EM_REPLACESEL;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBD_EVENT_FLAGS, KEYBDINPUT,
     KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, KEYEVENTF_UNICODE,
     MOUSE_EVENT_FLAGS, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_HWHEEL, MOUSEEVENTF_LEFTDOWN,
     MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
-    MOUSEEVENTF_VIRTUALDESK, MOUSEEVENTF_WHEEL, MOUSEINPUT, SendInput, SetFocus, VIRTUAL_KEY,
+    MOUSEEVENTF_VIRTUALDESK, MOUSEEVENTF_WHEEL, MOUSEINPUT, SendInput, VIRTUAL_KEY,
 };
 use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CWP_SKIPDISABLED, CWP_SKIPINVISIBLE, CWP_SKIPTRANSPARENT, ChildWindowFromPointEx, GA_ROOT,
-    GUITHREADINFO, GetAncestor, GetForegroundWindow, GetGUIThreadInfo, GetParent, GetSystemMetrics,
-    GetWindowThreadProcessId, PostMessageW, SHOW_WINDOW_CMD, SM_CXVIRTUALSCREEN,
-    SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SMTO_ABORTIFHUNG, SMTO_BLOCK,
-    SW_SHOWNOACTIVATE, SW_SHOWNORMAL, SendMessageTimeoutW, SetForegroundWindow, WM_CHAR,
-    WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_SETTEXT,
+    ASFW_ANY, AllowSetForegroundWindow, BringWindowToTop, CWP_SKIPDISABLED, CWP_SKIPINVISIBLE,
+    CWP_SKIPTRANSPARENT, ChildWindowFromPointEx, GA_ROOT, GUITHREADINFO, GetAncestor,
+    GetForegroundWindow, GetGUIThreadInfo, GetParent, GetSystemMetrics, GetWindowThreadProcessId,
+    IsIconic, PostMessageW, SHOW_WINDOW_CMD, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
+    SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SMTO_ABORTIFHUNG, SMTO_BLOCK, SW_RESTORE,
+    SW_SHOWNOACTIVATE, SW_SHOWNORMAL, SendMessageTimeoutW, SetForegroundWindow, ShowWindow,
+    WM_CHAR, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_SETTEXT,
 };
 use windows::core::{HSTRING, PCWSTR};
 
@@ -41,6 +45,8 @@ const WHEEL_PIXELS: f64 = 100.0;
 const MAX_CHILD_DEPTH: usize = 16;
 const VK_RETURN: u16 = 0x0d;
 const VK_CONTROL: u16 = 0x11;
+const VK_MENU: u16 = 0x12;
+const VK_NONAME: u16 = 0xfc;
 const MK_LBUTTON_BIT: usize = 0x0001;
 const SET_TEXT_TIMEOUT: u32 = 1000;
 
@@ -340,6 +346,36 @@ pub fn post_set_text(window: isize, text: &str) -> Result<Route> {
     Ok(Route::WindowEvent)
 }
 
+pub fn post_insert_text(window: isize, text: &str) -> Result<Route> {
+    if let Some(message) = blocked_by_uipi(window) {
+        return Err(background_unavailable(message));
+    }
+    let value = HSTRING::from(text);
+    unsafe { SetLastError(ERROR_SUCCESS) };
+    let sent = unsafe {
+        SendMessageTimeoutW(
+            to_hwnd(window),
+            EM_REPLACESEL,
+            WPARAM(1),
+            LPARAM(value.as_ptr() as isize),
+            SMTO_ABORTIFHUNG | SMTO_BLOCK,
+            SET_TEXT_TIMEOUT,
+            None,
+        )
+    };
+    let error = unsafe { GetLastError() };
+    if sent.0 == 0 && error != ERROR_SUCCESS {
+        return Err(DriverError::new(
+            ErrorCode::Failed,
+            format!(
+                "the edit control did not take the text at its caret (error {})",
+                error.0
+            ),
+        ));
+    }
+    Ok(Route::WindowEvent)
+}
+
 pub fn post_text(window: isize, text: &str) -> Result<Route> {
     let target = post_target(window)?;
     ensure_postable(window, target, Kind::Text)?;
@@ -395,31 +431,77 @@ pub fn post_keys(window: isize, chords: &[Chord]) -> Result<Route> {
     Ok(Route::WindowEvent)
 }
 
-pub fn foreground_window(window: isize) -> Result<()> {
+fn root_window(window: isize) -> HWND {
     let root = unsafe { GetAncestor(to_hwnd(window), GA_ROOT) };
-    let target = if root.0.is_null() {
+    if root.0.is_null() {
         to_hwnd(window)
     } else {
         root
-    };
+    }
+}
+
+fn attach_threads(current: u32, threads: [u32; 2], attach: bool) {
+    for thread in threads {
+        if thread != 0 && thread != current {
+            unsafe {
+                let _ = AttachThreadInput(current, thread, attach);
+            }
+        }
+    }
+}
+
+fn claim_last_input() {
+    send(&[
+        keyboard_input(0, VK_NONAME, KEYBD_EVENT_FLAGS(0)),
+        keyboard_input(0, VK_NONAME, KEYEVENTF_KEYUP),
+    ]);
+}
+
+fn alt_tap() {
+    let alt = scan_code("AltLeft");
+    send(&[
+        keyboard_input(alt, VK_MENU, KEYEVENTF_SCANCODE),
+        keyboard_input(alt, VK_MENU, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP),
+    ]);
+}
+
+fn raised(target: HWND) -> bool {
+    unsafe { SetForegroundWindow(target) }.as_bool() && unsafe { GetForegroundWindow() } == target
+}
+
+pub fn foreground_window(window: isize) -> Result<()> {
+    let target = root_window(window);
+    if unsafe { GetForegroundWindow() } == target {
+        return Ok(());
+    }
+    if unsafe { IsIconic(target) }.as_bool() {
+        unsafe {
+            let _ = ShowWindow(target, SW_RESTORE);
+        }
+    }
     let current = unsafe { GetCurrentThreadId() };
-    let target_thread = unsafe { GetWindowThreadProcessId(target, None) };
-    let foreground = unsafe { GetForegroundWindow() };
-    let foreground_thread = unsafe { GetWindowThreadProcessId(foreground, None) };
-    unsafe {
-        if foreground_thread != 0 && foreground_thread != current {
-            let _ = AttachThreadInput(current, foreground_thread, true);
+    let threads = [
+        unsafe { GetWindowThreadProcessId(GetForegroundWindow(), None) },
+        unsafe { GetWindowThreadProcessId(target, None) },
+    ];
+    attach_threads(current, threads, true);
+    let _ = unsafe { AllowSetForegroundWindow(ASFW_ANY) };
+    if !raised(target) {
+        claim_last_input();
+        if !raised(target) {
+            alt_tap();
+            let _ = raised(target);
+            unsafe {
+                let _ = BringWindowToTop(target);
+            }
         }
-        if target_thread != 0 && target_thread != current {
-            let _ = AttachThreadInput(current, target_thread, true);
-        }
-        let _ = SetForegroundWindow(target);
-        if target_thread != 0 && target_thread != current {
-            let _ = AttachThreadInput(current, target_thread, false);
-        }
-        if foreground_thread != 0 && foreground_thread != current {
-            let _ = AttachThreadInput(current, foreground_thread, false);
-        }
+    }
+    attach_threads(current, threads, false);
+    if unsafe { GetForegroundWindow() } != target {
+        return Err(DriverError::new(
+            ErrorCode::Failed,
+            "Windows kept another window in front of the target; bring it forward yourself or retry",
+        ));
     }
     Ok(())
 }
@@ -503,11 +585,12 @@ pub fn foreground_wheel(screen: Point, dx: f64, dy: f64) -> Result<()> {
 }
 
 fn keyboard_input(scan: u16, key: u16, flags: KEYBD_EVENT_FLAGS) -> INPUT {
+    let scancode = flags.0 & KEYEVENTF_SCANCODE.0 != 0 && scan != 0;
     INPUT {
         r#type: INPUT_KEYBOARD,
         Anonymous: INPUT_0 {
             ki: KEYBDINPUT {
-                wVk: VIRTUAL_KEY(key),
+                wVk: VIRTUAL_KEY(if scancode { 0 } else { key }),
                 wScan: scan,
                 dwFlags: flags,
                 time: 0,
@@ -554,21 +637,6 @@ pub fn foreground_text(text: &str) -> Result<()> {
             keyboard_input(unit, 0, KEYEVENTF_UNICODE),
             keyboard_input(unit, 0, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP),
         ]);
-    }
-    Ok(())
-}
-
-pub fn foreground_focus(window: isize) -> Result<()> {
-    let thread = unsafe { GetWindowThreadProcessId(to_hwnd(window), None) };
-    let current = unsafe { GetCurrentThreadId() };
-    unsafe {
-        if thread != 0 && thread != current {
-            let _ = AttachThreadInput(current, thread, true);
-        }
-        let _ = SetFocus(Some(to_hwnd(window)));
-        if thread != 0 && thread != current {
-            let _ = AttachThreadInput(current, thread, false);
-        }
     }
     Ok(())
 }

@@ -295,14 +295,11 @@ fn target<'a>(
         .ok_or_else(|| stale(request.reference))
 }
 
-fn pointer(element: &IUIAutomationElement, window: isize) -> Result<Outcome> {
+fn pointer(element: &IUIAutomationElement) -> Result<Outcome> {
     let screen = center(element).ok_or_else(|| {
         unsupported("the element has no position on screen; scroll it into view first")
     })?;
-    Ok(Outcome::Pointer {
-        hwnd: native_handle(element).unwrap_or(window),
-        screen,
-    })
+    Ok(Outcome::Pointer { screen })
 }
 
 fn route(route: Route) -> Result<Outcome> {

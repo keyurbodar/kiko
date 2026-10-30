@@ -140,24 +140,24 @@ const SCAN: &[(&str, u16)] = &[
     ("IntlBackslash", 0x56),
     ("F11", 0x57),
     ("F12", 0x58),
-    ("NumpadEnter", 0x9c),
-    ("ControlRight", 0x9d),
-    ("NumpadDivide", 0xb5),
-    ("PrintScreen", 0xb7),
-    ("AltRight", 0xb8),
-    ("Home", 0xc7),
-    ("ArrowUp", 0xc8),
-    ("PageUp", 0xc9),
-    ("ArrowLeft", 0xcb),
-    ("ArrowRight", 0xcd),
-    ("End", 0xcf),
-    ("ArrowDown", 0xd0),
-    ("PageDown", 0xd1),
-    ("Insert", 0xd2),
-    ("Delete", 0xd3),
-    ("MetaLeft", 0xdb),
-    ("MetaRight", 0xdc),
-    ("ContextMenu", 0xdd),
+    ("NumpadEnter", 0x1c),
+    ("ControlRight", 0x1d),
+    ("NumpadDivide", 0x35),
+    ("PrintScreen", 0x37),
+    ("AltRight", 0x38),
+    ("Home", 0x47),
+    ("ArrowUp", 0x48),
+    ("PageUp", 0x49),
+    ("ArrowLeft", 0x4b),
+    ("ArrowRight", 0x4d),
+    ("End", 0x4f),
+    ("ArrowDown", 0x50),
+    ("PageDown", 0x51),
+    ("Insert", 0x52),
+    ("Delete", 0x53),
+    ("MetaLeft", 0x5b),
+    ("MetaRight", 0x5c),
+    ("ContextMenu", 0x5d),
 ];
 
 const VIRTUAL_KEYS: &[(&str, u16)] = &[
@@ -446,5 +446,14 @@ mod tests {
         assert_eq!(scan_code("KeyA"), 0x1e);
         assert!(extended("ArrowLeft"));
         assert!(!extended("KeyA"));
+    }
+
+    #[test]
+    fn extended_keys_keep_their_base_scan_code() {
+        assert_eq!(scan_code("Delete"), 0x53);
+        assert_eq!(scan_code("ArrowLeft"), 0x4b);
+        assert_eq!(scan_code("ControlRight"), 0x1d);
+        assert_eq!(scan_code("MetaLeft"), 0x5b);
+        assert_eq!(scan_code("NumpadEnter"), 0x1c);
     }
 }
