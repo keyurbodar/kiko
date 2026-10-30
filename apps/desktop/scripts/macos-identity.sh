@@ -38,6 +38,6 @@ CONF
 fi
 
 hash() { if command -v shasum >/dev/null; then shasum -a 1; else sha1sum; fi; }
-leaf="$(openssl x509 -in "$dir/kiko.crt" -outform der | hash | cut -d' ' -f1 | tr '[:lower:]' '[:upper:]')"
+leaf="$(openssl x509 -in "$dir/kiko.crt" -outform der | hash | cut -d' ' -f1)"
 echo "certificate leaf = H\"$leaf\""
 echo "designated requirement: identifier \"com.kiko.computer\" and certificate leaf = H\"$leaf\""

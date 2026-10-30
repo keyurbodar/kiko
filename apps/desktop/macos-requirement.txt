@@ -1,1 +1,1 @@
-identifier "com.kiko.computer" and certificate leaf = H"19D8CF0971B86F34B8AA1BB0D5C9DBB4DD8F3068"
+identifier "com.kiko.computer" and certificate leaf = H"19d8cf0971b86f34b8aa1bb0d5c9dbb4dd8f3068"
