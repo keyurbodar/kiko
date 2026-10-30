@@ -45,7 +45,8 @@
 
 .att-files {
   display: flex;
-  width: min(360px, 100%);
+  width: 360px;
+  max-width: 100%;
   min-width: 0;
   flex-direction: column;
   overflow: hidden;

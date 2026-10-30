@@ -1,6 +1,6 @@
 import { For, Match, Suspense, Switch, createSignal, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ChevronDownIcon, CollapseIcon, ExpandIcon } from "@kiko/ui/icons"
+import { ChevronDownIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { CopyCheckIcon } from "@kiko/ui/v2/copy-check-icon"
@@ -140,7 +140,6 @@ const TABLE_ROWS_SHOWN = 4
 const TABLE_FOLD_AFTER = 6
 
 function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Element {
-  const [expanded, setExpanded] = createSignal(true)
   const [copied, setCopied] = createSignal(false)
   let root: HTMLDivElement | undefined
   let scroller: HTMLDivElement | undefined
@@ -168,17 +167,6 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
     onCleanup(() => observer?.disconnect())
   })
 
-  const toggle = () => {
-    const table = root?.querySelector("table")
-    if (table && !expanded()) {
-      const widths: number[] = []
-      for (const row of table.rows) {
-        ;[...row.cells].forEach((cell, i) => (widths[i] = Math.max(widths[i] ?? 0, cell.getBoundingClientRect().width)))
-      }
-      ;[...(table.tHead?.rows[0]?.cells ?? [])].forEach((cell, i) => (cell.style.minWidth = `${widths[i] ?? 0}px`))
-    }
-    setExpanded(!expanded())
-  }
   const copy = async (text: string | undefined) => {
     if (text === undefined) return
     try {
@@ -191,13 +179,7 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
     timer = setTimeout(() => setCopied(false), 1200)
   }
   return (
-    <div
-      class="rich-table"
-      ref={root}
-      data-expanded={expanded() ? "true" : "false"}
-      data-rows-folded={folded() ? "" : undefined}
-      data-component="chat-table"
-    >
+    <div class="rich-table" ref={root} data-rows-folded={folded() ? "" : undefined} data-component="chat-table">
       <div class="rich-table-scroll" ref={scroller} onScroll={fade}>
         {props.children}
       </div>
@@ -209,18 +191,6 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
           </button>
         </Show>
         <span class="ml-auto" />
-        <TooltipV2 placement="top" value={expanded() ? "Collapse table cells" : "Expand table cells"}>
-          <button
-            type="button"
-            class="rich-table-action"
-            aria-pressed={expanded()}
-            data-active={expanded() ? "" : undefined}
-            aria-label={expanded() ? "Collapse table cells" : "Expand table cells"}
-            onClick={toggle}
-          >
-            <RemixIcon icon={expanded() ? CollapseIcon : ExpandIcon} class="size-3" />
-          </button>
-        </TooltipV2>
         <MenuV2 gutter={4} placement="bottom-end">
           <TooltipV2 placement="top" value={copied() ? "Copied" : "Copy table"}>
             <MenuV2.Trigger class="rich-table-action" aria-label={copied() ? "Copied" : "Copy table"}>
