@@ -58,6 +58,8 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Build the daemon
         run: bun apps/computer/scripts/build.ts linux-${{ matrix.arch }}
+      - name: Check the daemon's webrtc
+        run: apps/computer/dist/kiko-computer-linux-${{ matrix.arch }} webrtc
       - name: Package the app
         run: |
           mkdir -p dist
@@ -107,6 +109,10 @@ jobs:
       - name: Join the two daemons into one universal binary
         run: |
           lipo -create apps/computer/dist/kiko-computer-darwin-arm64 apps/computer/dist/kiko-computer-darwin-x64 -output "$RUNNER_TEMP/kiko-core"
+      - name: Check the daemon's webrtc
+        run: |
+          chmod +x "$RUNNER_TEMP/kiko-core"
+          "$RUNNER_TEMP/kiko-core" webrtc
       - name: Import the signing identity
         env:
           CERT: ${{ secrets.KIKO_MACOS_CERT_P12 }}
@@ -215,6 +221,9 @@ jobs:
           Copy-Item apps/desktop/target/release/kiko.exe dist/kiko.exe
           Copy-Item apps/computer/dist/kiko-computer-windows-x64.exe dist/kiko-core.exe
           Compress-Archive -Path dist/kiko.exe, dist/kiko-core.exe -DestinationPath kiko-windows-x64.zip -Force
+      - name: Check the daemon's webrtc
+        shell: pwsh
+        run: ./apps/computer/dist/kiko-computer-windows-x64.exe webrtc
       - name: Installer end to end
         if: inputs.installer
         shell: pwsh

@@ -35,6 +35,7 @@ export async function main(argv: string[]): Promise<number> {
     if (command === "pair") return await runPair(dir, rest, values.name ?? null)
     if (command === "doctor") return await runDoctor(dir)
     if (command === "run") return await serve(dir)
+    if (command === "webrtc") return await runWebrtc()
     throw new CliError({ message: `unknown command: ${command ?? ""}\n\n${USAGE}` })
   } catch (error) {
     console.error(`kiko-core: ${error instanceof Error ? error.message : String(error)}`)
@@ -62,4 +63,12 @@ async function runDoctor(dir: string): Promise<number> {
   detection?.backend?.close()
   for (const check of checks) console.log(`${check.ok ? "ok  " : "FAIL"} ${check.name}: ${check.detail}`)
   return checks.every((check) => check.ok) ? 0 : 1
+}
+
+async function runWebrtc(): Promise<number> {
+  const rtc = await import("node-datachannel")
+  const connection = new rtc.default.PeerConnection("kiko-self-test", { iceServers: [] })
+  connection.close()
+  console.log(`webrtc ${rtc.default.getLibraryVersion()}`)
+  return 0
 }
