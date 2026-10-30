@@ -920,15 +920,16 @@ fn cancel_menus(window: &Window) {
 
 fn launch_chrome(driver: &mut MacDriver, url: &str) -> Window {
     let mut notes = Vec::new();
-    if window_named(driver, "Google Chrome").is_some() {
-        notes.push(open_app(CHROME, Some(url), true));
-    } else {
-        notes.push(spawn_chrome(url));
+    if window_named(driver, "Google Chrome").is_none() {
+        notes.push(start_chrome());
+        wait_for(LAUNCH, || window_named(driver, "Google Chrome"));
     }
-    let window = wait_for(LAUNCH, || {
-        window_titled(driver, "Google Chrome", "before")
-            .or_else(|| window_named(driver, "Google Chrome"))
-    });
+    notes.push(open_app(CHROME, Some(url), true));
+    let mut window = wait_for(LAUNCH, || chrome_page(driver));
+    if window.is_none() {
+        notes.push(open_app(CHROME, Some(url), false));
+        window = wait_for(LAUNCH, || chrome_page(driver));
+    }
     match window {
         Some(window) => {
             println!("Chrome answered; {notes:?}");
@@ -942,7 +943,12 @@ fn launch_chrome(driver: &mut MacDriver, url: &str) -> Window {
     }
 }
 
-fn spawn_chrome(url: &str) -> String {
+fn chrome_page(driver: &mut MacDriver) -> Option<Window> {
+    window_titled(driver, "Google Chrome", "before")
+        .or_else(|| window_named(driver, "Google Chrome"))
+}
+
+fn start_chrome() -> String {
     let profile = std::env::temp_dir().join(format!("kiko-chrome-{}", std::process::id()));
     let mut command = std::process::Command::new("open");
     command
@@ -950,8 +956,7 @@ fn spawn_chrome(url: &str) -> String {
         .args(["-a", CHROME])
         .arg("--args")
         .args(CHROME_FLAGS)
-        .arg(format!("--user-data-dir={}", profile.display()))
-        .arg(url);
+        .arg(format!("--user-data-dir={}", profile.display()));
     finish_open(CHROME, true, command)
 }
 
