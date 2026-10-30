@@ -32,14 +32,14 @@ const closeThreadDetails = (chatId: string) => {
   else setThreadDetailsOpen(chatId, false)
 }
 
-const buttonRect = (): DOMRect | undefined =>
-  document.querySelector<HTMLElement>('[data-action="toggle-thread-details"]')?.getBoundingClientRect()
+const headerRect = (): DOMRect | undefined =>
+  document.querySelector<HTMLElement>('[data-component="top-bar"]')?.getBoundingClientRect()
 
 export default function ThreadDetailsLayer(props: { chatId: string; inline: boolean }) {
   const [anchor, setAnchor] = createSignal<DOMRect | null>(null)
   const open = () => threadDetailsOpenFor(props.chatId)
   const popover = () => !props.inline
-  const place = () => setAnchor(buttonRect() ?? null)
+  const place = () => setAnchor(headerRect() ?? null)
   onMount(() => {
     place()
     window.addEventListener("resize", place)
@@ -87,8 +87,9 @@ export default function ThreadDetailsLayer(props: { chatId: string; inline: bool
           class="td-pop td-enter"
           data-mode="popover"
           style={{
-            top: `${(anchor()?.bottom ?? 60) + 8}px`,
-            right: `${Math.max(8, window.innerWidth - (anchor()?.right ?? window.innerWidth - 12))}px`,
+            "--td-top": `${anchor()?.bottom ?? 60}px`,
+            top: `${anchor()?.bottom ?? 60}px`,
+            right: `${window.innerWidth - (anchor()?.right ?? window.innerWidth) + 12}px`,
           }}
         >
           <ThreadDetails chatId={props.chatId} />

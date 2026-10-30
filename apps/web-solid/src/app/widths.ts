@@ -1,14 +1,17 @@
 export const SIDEBAR = { key: "kiko:device:sidebar-width", min: 220, max: 420, fallback: 296, floor: 296 }
-export const INFO = { key: "kiko:device:info-width", min: 320, max: 760, fallback: 400 }
+export const INFO = { key: "kiko:device:info-width", min: 360, max: 4096, fallback: 540 }
 export const CHAT_MIN = 360
 export const RAIL = 56
-export const PANEL_CHAT_MIN = 420
 
-export const panelMaxWidth = (viewport: number) => Math.min(INFO.max, Math.round(viewport * 0.6))
+const PANEL_MAX_TENTHS = 7
 
-export function readPanelWidth(viewport: number): number {
-  return Math.max(INFO.min, Math.min(readWidth(INFO), panelMaxWidth(viewport)))
+export function panelMaxWidth(viewport: number, row?: number): number {
+  const fractionCap = Math.floor((viewport * PANEL_MAX_TENTHS) / 10)
+  const rowCap = row === undefined ? Infinity : Math.floor(row) - CHAT_MIN
+  return Math.max(INFO.min, Math.min(fractionCap, rowCap))
 }
+
+export const clampPanelWidth = (width: number, max: number) => Math.max(INFO.min, Math.min(max, width))
 
 type Rule = { key: string; min: number; max: number; fallback: number; floor?: number }
 
@@ -26,33 +29,26 @@ export function readWidth(rule: Rule): number {
   }
 }
 
+export function writeWidth(rule: Rule, width: number) {
+  try {
+    localStorage.setItem(rule.key, String(Math.round(Math.max(rule.min, Math.min(rule.max, width)))))
+  } catch {}
+}
+
 export function saveWidth(rule: Rule, panelId: string) {
   const width = Math.round(document.getElementById(panelId)?.getBoundingClientRect().width ?? 0)
   if (width < rule.min) return
-  try {
-    localStorage.setItem(rule.key, String(Math.min(rule.max, width)))
-  } catch {}
+  writeWidth(rule, width)
 }
 
 export function resetWidth(rule: Rule, panel: { resize: (size: `${number}px`) => void } | undefined) {
   const width = defaultWidth(rule)
   panel?.resize(`${width}px`)
-  try {
-    localStorage.setItem(rule.key, String(width))
-  } catch {}
+  writeWidth(rule, width)
 }
 
-export function fitWidths(viewport: number, sidebar: number, info: number) {
+export function fitSidebar(viewport: number, sidebar: number) {
   const room = Math.max(0, viewport - CHAT_MIN)
   const side = sidebar <= 0 ? 0 : sidebar <= RAIL ? RAIL : Math.max(SIDEBAR.floor ?? SIDEBAR.min, sidebar)
-  const want = info > 0 ? readPanelWidth(viewport) : 0
-  const right = side + want <= room ? want : 0
-  return { sidebar: Math.min(side, room), info: right }
-}
-
-export function initialSizes(width: number, sidebar: number | null, info: number | null) {
-  const side = sidebar ?? 0
-  const room = Math.max(0, width - CHAT_MIN)
-  const right = info !== null && info > 0 ? Math.min(info, Math.max(0, room - side)) : 0
-  return { sidebar: side / width, info: right / width, chat: 1 - side / width - right / width }
+  return Math.min(side, room)
 }

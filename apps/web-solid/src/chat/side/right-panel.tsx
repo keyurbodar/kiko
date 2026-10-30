@@ -376,7 +376,7 @@ export default function RightPanel(props: { chatId: string; onClose: () => void;
       data-maximized={maximized() ? "" : undefined}
       aria-label="Chat panels"
     >
-      <header class="rp-head flex h-11 shrink-0 items-center gap-1 px-2" data-component="right-panel-head">
+      <header class="rp-head flex shrink-0 items-center gap-1 pr-3 pl-2" data-component="right-panel-head">
         <Show when={surfaces().length > 0}>
           <TabStrip chatId={props.chatId} />
         </Show>

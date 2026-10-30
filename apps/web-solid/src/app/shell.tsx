@@ -1,9 +1,4 @@
-import Resizable, {
-  type ContextValue,
-  type PanelContextValue,
-  useContext as useResizableContext,
-  usePanelContext as useResizablePanelContext,
-} from "@corvu/resizable"
+import Resizable, { type PanelContextValue, usePanelContext as useResizablePanelContext } from "@corvu/resizable"
 import { useLocation, useRouter } from "@tanstack/solid-router"
 import { I18nProvider, pluralCategory, pluralKey, type UiI18n } from "@kiko/ui/context/i18n"
 import { dict } from "@kiko/ui/i18n/en"
@@ -14,7 +9,6 @@ import {
   createEffect,
   createSignal,
   lazy,
-  on,
   onCleanup,
   onMount,
   Show,
@@ -49,21 +43,8 @@ import { coversChat, sectionOf, useChatInView } from "./sections"
 import { whenIdle } from "../lib/idle"
 import { Rail } from "./rail"
 import { TopBar } from "./top-bar"
-import {
-  CHAT_MIN,
-  defaultWidth,
-  fitWidths,
-  INFO,
-  initialSizes,
-  PANEL_CHAT_MIN,
-  panelMaxWidth,
-  RAIL,
-  readPanelWidth,
-  readWidth,
-  resetWidth,
-  saveWidth,
-  SIDEBAR,
-} from "./widths"
+import { RightPanelHost } from "./right-panel-host"
+import { CHAT_MIN, fitSidebar, RAIL, readWidth, resetWidth, saveWidth, SIDEBAR } from "./widths"
 import HintLayer from "../commands/HintLayer"
 import AvatarPicker from "../avatar/picker"
 import BotPicker from "../chat/bot-picker"
@@ -90,7 +71,7 @@ const Desk = lazy(loadDesk)
 
 const KEY = "kiko:device:sidebar-collapsed"
 
-const DETAILS_GUTTER = 320
+const DETAILS_GUTTER = 324
 
 const DETAILS_MIN_COLUMN = 560
 
@@ -102,11 +83,6 @@ function readCollapsed() {
   } catch {
     return false
   }
-}
-
-function GrabLayout(props: { onGrab: (layout: ContextValue) => void }) {
-  props.onGrab(useResizableContext())
-  return null
 }
 
 function GrabPanel(props: { onGrab: (panel: PanelContextValue | undefined) => void }) {
@@ -127,7 +103,7 @@ export function Shell(props: ParentProps) {
   const [collapsed, setCollapsed] = createSignal(readCollapsed())
   const narrowQuery = typeof matchMedia === "function" ? matchMedia("(width < 768px)") : undefined
   const [narrow, setNarrow] = createSignal(narrowQuery?.matches ?? false)
-  const compactQuery = typeof matchMedia === "function" ? matchMedia("(width < 960px)") : undefined
+  const compactQuery = typeof matchMedia === "function" ? matchMedia("(width <= 980px)") : undefined
   const [compact, setCompact] = createSignal(compactQuery?.matches ?? false)
   setDeskCompact(compact())
   onMount(() => {
@@ -139,38 +115,6 @@ export function Shell(props: ParentProps) {
     onCleanup(() => compactQuery?.removeEventListener("change", on))
   })
   let sidebarPanel: PanelContextValue | undefined
-  const [sidePanel, setSidePanel] = createSignal<PanelContextValue | undefined>()
-  const [layout, setLayout] = createSignal<ContextValue | undefined>()
-  const [viewport, setViewport] = createSignal(typeof window === "undefined" ? 1440 : window.innerWidth)
-  const [groupWidthSignal, setGroupWidthSignal] = createSignal(0)
-  const [sideWidth, setSideWidth] = createSignal(readPanelWidth(window.innerWidth))
-  let groupWidth = 0
-  const watchGroup = (el: Element) => {
-    if (!(el instanceof HTMLElement)) return
-    const measure = () => {
-      groupWidth = el.getBoundingClientRect().width
-      setGroupWidthSignal(groupWidth)
-    }
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(el)
-    onCleanup(() => observer.disconnect())
-  }
-  const setColumnWidth = (index: number, px: number) => {
-    const ctx = layout()
-    if (!ctx) return
-    const total = groupWidth > 0 ? groupWidth : window.innerWidth
-    const sizes = [...ctx.sizes()]
-    if (index >= sizes.length) return
-    const want = Math.max(0, px) / total
-    const delta = want - sizes[index]
-    if (Math.abs(delta) < 0.0005) return
-    sizes[index] = want
-    const chat = sizes.length === 3 ? 1 : 0
-    sizes[chat] = Math.max(CHAT_MIN / total, sizes[chat] - delta)
-    const sum = sizes.reduce((a, b) => a + b, 0)
-    ctx.setSizes(sizes.map((size) => size / sum))
-  }
   const drawer = drawerOpen
   const setDrawer = setDrawerOpen
   const sideChat = useChatInView()
@@ -180,17 +124,8 @@ export function Shell(props: ParentProps) {
   }
   const closeSide = closeDesk
   const maximized = () => sideOpen() && !compact() && panelMaximized()
-  const groupWidthNow = () => (groupWidthSignal() > 0 ? groupWidthSignal() : viewport())
-  const sidebarWidth = () => {
-    const ctx = layout()
-    if (!ctx) return 0
-    const sizes = ctx.sizes()
-    return sizes.length === 3 ? sizes[0]! * groupWidthNow() : 0
-  }
-  const dockFits = () => groupWidthNow() - sidebarWidth() - sideWidth() >= PANEL_CHAT_MIN
-  const dockedSide = () => (compact() || !sideOpen() || maximized() || !dockFits() ? null : sideChat())
-  const overlaidSide = () => (!sideOpen() || dockedSide() !== null ? null : sideChat())
-  const overlayMode = () => (maximized() ? "max" : compact() ? "sheet" : "float")
+  const inlineSide = () => (compact() || !sideOpen() ? null : sideChat())
+  const sheetSide = () => (compact() && sideOpen() ? sideChat() : null)
   onMount(() => {
     const root = document.documentElement
     const keys = (e: KeyboardEvent) => {
@@ -213,12 +148,12 @@ export function Shell(props: ParentProps) {
     onCleanup(() => narrowQuery?.removeEventListener("change", on))
   })
   createEffect(() => {
-    if (!(narrow() && drawer()) && !overlaidSide()) return
+    if (!(narrow() && drawer()) && !sheetSide() && !maximized()) return
     const on = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return
-      if (!overlaidSide()) return setDrawer(false)
-      if (overlayMode() === "max") setPanelMaximized(false)
-      else closeSide()
+      if (sheetSide()) return closeSide()
+      if (maximized()) return setPanelMaximized(false)
+      setDrawer(false)
     }
     window.addEventListener("keydown", on)
     onCleanup(() => window.removeEventListener("keydown", on))
@@ -366,40 +301,18 @@ export function Shell(props: ParentProps) {
     const id = sideChat()
     return id !== null && onChat() && threadDetailsOpenFor(id) ? id : null
   }
-  const detailsInline = () => !sideOpen() && canvasWidth() >= DETAILS_MIN_CANVAS
+  const detailsInline = () => canvasWidth() >= DETAILS_MIN_CANVAS
   createComputed(() => setThreadDetailsFloating(!detailsInline()))
   const detailsReserved = () => detailsChat() !== null && detailsInline()
-  const endSideResize = () => {
-    if (sidePanel()?.collapsed()) return closeSide()
-    saveWidth(INFO, "kiko-sidecar-panel")
-    setSideWidth(readPanelWidth(viewport()))
-  }
-  createEffect(
-    on(dockedSide, () => {
-      setSideWidth(readPanelWidth(viewport()))
-      requestAnimationFrame(() => {
-        const ctx = layout()
-        if (!ctx) return
-        const sizes = ctx.sizes()
-        const index = sizes.length - 1
-        if (index < 1) return
-        setColumnWidth(index, dockedSide() ? readPanelWidth(viewport()) : 0)
-      })
-    }),
-  )
   onMount(() => {
     let frame = 0
     let last = window.innerWidth
     const on = () => {
       if (window.innerWidth === last) return
       last = window.innerWidth
-      setViewport(window.innerWidth)
-      setSideWidth(readPanelWidth(window.innerWidth))
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => {
-          const ctx = layout()
-          if (ctx && dockedSide()) setColumnWidth(ctx.sizes().length - 1, readPanelWidth(window.innerWidth))
           const room = window.innerWidth - CHAT_MIN
           if (!sidebarPanel || sidebarPanel.collapsed() || readWidth(SIDEBAR) <= room) return
           sidebarPanel.resize(`${Math.max(SIDEBAR.min, room)}px`)
@@ -430,23 +343,14 @@ export function Shell(props: ParentProps) {
         </Show>
         <Show when={narrow() ? "narrow" : compact() ? "compact" : "wide"} keyed>
           {(_mode) => {
-            const fitted = fitWidths(
-              window.innerWidth,
-              narrow() ? 0 : collapsed() ? RAIL : readWidth(SIDEBAR),
-              compact() ? 0 : dockedSide() ? readPanelWidth(window.innerWidth) : 0,
-            )
-            const sizes = initialSizes(
-              window.innerWidth,
-              narrow() ? null : fitted.sidebar,
-              compact() ? null : dockedSide() ? fitted.info : 0,
-            )
+            const sidebarSize = narrow() ? 0 : fitSidebar(window.innerWidth, collapsed() ? RAIL : readWidth(SIDEBAR))
+            const sizes = { sidebar: sidebarSize / window.innerWidth, chat: 1 - sidebarSize / window.innerWidth }
             return (
               <Resizable
                 class="min-w-0 flex-1"
                 keyboardDelta="16px"
                 handleCursorStyle={false}
                 data-component="app-panels"
-                ref={watchGroup}
               >
                 <Show when={!narrow()}>
                   <Resizable.Panel
@@ -489,108 +393,76 @@ export function Shell(props: ParentProps) {
                   initialSize={sizes.chat}
                   minSize={`${CHAT_MIN}px`}
                 >
-                  <main class="relative flex min-w-0 flex-1 flex-col overflow-hidden" data-component="main-column">
-                    <Show when={onChat()}>
-                      <TopBar chatId={sideChat()} sidebarOpen={!narrow() || !closed()} onToggleSidebar={toggle} />
-                    </Show>
-                    <Show when={narrow() && closed() && !onChat()}>
-                      <SidebarToggle open={false} onToggle={toggle} class="main-sidebar-toggle" />
-                    </Show>
-                    <div
-                      class="main-row relative flex min-h-0 min-w-0 flex-1"
-                      data-component="main-row"
-                      data-top={onChat() ? undefined : ""}
+                  <div class="relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-component="workspace-row">
+                    <main
+                      class="relative flex min-w-0 flex-col overflow-hidden"
+                      classList={{ "flex-1": !maximized(), "w-0 flex-none": maximized() }}
+                      data-component="main-column"
+                      data-maximized-away={maximized() ? "" : undefined}
+                      inert={maximized() || undefined}
                     >
+                      <Show when={onChat()}>
+                        <TopBar chatId={sideChat()} sidebarOpen={!narrow() || !closed()} onToggleSidebar={toggle} />
+                      </Show>
+                      <Show when={narrow() && closed() && !onChat()}>
+                        <SidebarToggle open={false} onToggle={toggle} class="main-sidebar-toggle" />
+                      </Show>
                       <div
-                        class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
-                        data-component="main-panel"
-                        ref={watchCanvas}
+                        class="main-row relative flex min-h-0 min-w-0 flex-1"
+                        data-component="main-row"
+                        data-top={onChat() ? undefined : ""}
                       >
                         <div
-                          class="details-reserve flex min-w-0 flex-1 flex-col"
-                          data-on={detailsReserved() ? "" : undefined}
+                          class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
+                          data-component="main-panel"
+                          ref={watchCanvas}
                         >
-                          {props.children}
+                          <div
+                            class="details-reserve flex min-w-0 flex-1 flex-col"
+                            data-on={detailsReserved() ? "" : undefined}
+                          >
+                            {props.children}
+                          </div>
+                          <Show when={onChat() && detailsChat()}>
+                            <Suspense>
+                              <ThreadDetailsLayer chatId={detailsChat()!} inline={detailsInline()} />
+                            </Suspense>
+                          </Show>
                         </div>
-                        <Show when={onChat() && detailsChat()}>
+                        <Show when={searchScope()}>
                           <Suspense>
-                            <ThreadDetailsLayer chatId={detailsChat()!} inline={detailsInline()} />
+                            <SearchOverlay />
                           </Suspense>
                         </Show>
                       </div>
-                      <Show when={searchScope()}>
-                        <Suspense>
-                          <SearchOverlay />
-                        </Suspense>
-                      </Show>
-                    </div>
-                  </main>
-                </Resizable.Panel>
-                <Show when={!compact()}>
-                  <GrabLayout onGrab={setLayout} />
-                  <Resizable.Handle
-                    class="resize-handle"
-                    data-component="sidecar-resize"
-                    aria-label="Resize side panel"
-                    altKey={false}
-                    disabled={!dockedSide()}
-                    onHandleDragEnd={endSideResize}
-                    onKeyUp={endSideResize}
-                    onDblClick={() => {
-                      const want = defaultWidth(INFO)
-                      try {
-                        localStorage.setItem(INFO.key, String(want))
-                      } catch {}
-                      setColumnWidth(layout() ? layout()!.sizes().length - 1 : 2, want)
-                    }}
-                  />
-                  <Resizable.Panel
-                    panelId="kiko-sidecar-panel"
-                    class="shell-panel"
-                    data-component="sidecar-column"
-                    initialSize={sizes.info}
-                    minSize={`${INFO.min}px`}
-                    maxSize={`${panelMaxWidth(viewport())}px`}
-                    collapsible
-                    collapsedSize={0}
-                  >
-                    <GrabPanel onGrab={setSidePanel} />
-                    <Show when={dockedSide()} keyed>
+                    </main>
+                    <Show when={inlineSide()} keyed>
                       {(chatId) => (
-                        <Suspense>
-                          <Desk chatId={chatId} onClose={closeSide} />
-                        </Suspense>
+                        <RightPanelHost maximized={maximized()}>
+                          <Suspense>
+                            <Desk chatId={chatId} onClose={closeSide} />
+                          </Suspense>
+                        </RightPanelHost>
                       )}
                     </Show>
-                  </Resizable.Panel>
-                </Show>
+                  </div>
+                </Resizable.Panel>
               </Resizable>
             )
           }}
         </Show>
-        <Show when={overlaidSide()} keyed>
+        <Show when={sheetSide()} keyed>
           {(chatId) => (
             <>
-              <Show when={overlayMode() !== "max"}>
-                <div
-                  class="drawer-scrim sidecar-scrim"
-                  data-component="sidecar-scrim"
-                  aria-hidden="true"
-                  onPointerDown={closeSide}
-                />
-              </Show>
               <div
-                class="sidecar-overlay"
-                data-component="sidecar-overlay"
-                data-mode={overlayMode()}
-                style={
-                  overlayMode() === "max"
-                    ? { left: `${sidebarWidth()}px`, right: "0px", top: "var(--frame-gap)", bottom: "var(--frame-gap)" }
-                    : undefined
-                }
-              >
+                class="drawer-scrim sidecar-scrim"
+                data-component="sidecar-scrim"
+                aria-hidden="true"
+                onPointerDown={closeSide}
+              />
+              <div class="sidecar-overlay" data-component="sidecar-overlay" data-mode="sheet">
                 <Suspense>
-                  <Desk chatId={chatId} onClose={closeSide} sheet={overlayMode() !== "max"} />
+                  <Desk chatId={chatId} onClose={closeSide} sheet />
                 </Suspense>
               </div>
             </>

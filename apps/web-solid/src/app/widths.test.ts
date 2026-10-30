@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { defaultWidth, fitWidths, INFO, RAIL, readPanelWidth, readWidth } from "./widths"
+import { clampPanelWidth, defaultWidth, fitSidebar, INFO, panelMaxWidth, RAIL, readWidth } from "./widths"
 
 describe("right panel width", () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it("uses the design's fixed default on large screens", () => {
-    expect(defaultWidth(INFO)).toBe(400)
+  it("opens at t3code's 540px default", () => {
+    expect(defaultWidth(INFO)).toBe(540)
   })
 
   it("keeps an owner's resized width", () => {
@@ -13,27 +13,26 @@ describe("right panel width", () => {
     expect(readWidth(INFO)).toBe(740)
   })
 
-  it("never opens wider than 60% of the window", () => {
-    vi.stubGlobal("localStorage", { getItem: () => "740" })
-    expect(readPanelWidth(1440)).toBe(740)
-    expect(readPanelWidth(1000)).toBe(600)
-    expect(readPanelWidth(900)).toBe(540)
+  it("never grows past 70% of the window or squeezes the chat under 360px", () => {
+    expect(panelMaxWidth(1440)).toBe(1008)
+    expect(panelMaxWidth(1440, 1144)).toBe(784)
+    expect(panelMaxWidth(1100, 804)).toBe(444)
   })
 
-  it("never opens narrower than the 320px minimum", () => {
-    vi.stubGlobal("localStorage", { getItem: () => "200" })
-    expect(readPanelWidth(1440)).toBe(400)
-    expect(readPanelWidth(500)).toBe(320)
+  it("never shrinks below the 360px minimum, even when the row is tight", () => {
+    expect(panelMaxWidth(1000, 600)).toBe(INFO.min)
+    expect(clampPanelWidth(200, 800)).toBe(INFO.min)
+    expect(clampPanelWidth(900, 444)).toBe(444)
   })
 })
 
-describe("fitted widths", () => {
+describe("fitted sidebar", () => {
   it("counts a collapsed sidebar as the rail instead of the width floor", () => {
-    expect(fitWidths(1440, RAIL, 400)).toEqual({ sidebar: RAIL, info: 400 })
+    expect(fitSidebar(1440, RAIL)).toBe(RAIL)
+    expect(fitSidebar(1440, 240)).toBe(296)
   })
 
-  it("keeps the right panel open only when the rail and it fit beside the chat", () => {
-    expect(fitWidths(1000, RAIL, 400)).toEqual({ sidebar: RAIL, info: 400 })
-    expect(fitWidths(800, RAIL, 400)).toEqual({ sidebar: RAIL, info: 0 })
+  it("leaves the chat its minimum width", () => {
+    expect(fitSidebar(600, 296)).toBe(240)
   })
 })

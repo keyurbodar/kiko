@@ -277,9 +277,10 @@
   --popover-shadow: 0 8px 24px rgb(0 0 0 / 32%), 0 2px 6px rgb(0 0 0 / 20%);
   --float-shadow: 0 0 0 1px var(--popover-edge), var(--popover-shadow);
   --menu-shadow: var(--float-shadow);
-  --tooltip-bg: var(--fg);
-  --tooltip-fg: var(--on-fg);
-  --tooltip-muted: color-mix(in oklab, var(--on-fg) 60%, transparent);
+  --tooltip-bg: var(--raise);
+  --tooltip-fg: var(--fg);
+  --tooltip-edge: var(--line2);
+  --tooltip-muted: var(--fg3);
   --scrim: rgb(0 0 0 / 50%);
   --scrim-blur: blur(6px) saturate(0.7);
   --dock-bg: var(--bg);
@@ -290,6 +291,10 @@
   color-scheme: light;
   --popover-shadow: 0 8px 24px rgb(0 0 0 / 8%), 0 2px 6px rgb(0 0 0 / 6%);
   --scrim: rgb(0 0 0 / 32%);
+  --tooltip-bg: var(--fg);
+  --tooltip-fg: var(--on-fg);
+  --tooltip-edge: transparent;
+  --tooltip-muted: color-mix(in oklab, var(--on-fg) 60%, transparent);
 }
 
 @theme {
