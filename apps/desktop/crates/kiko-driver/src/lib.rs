@@ -1,7 +1,9 @@
 pub mod api;
+mod outline;
 mod serve;
 
 pub use api::*;
+pub use outline::{MAX_NODES, outline};
 pub use serve::{dispatch, serve};
 
 pub type Result<T> = std::result::Result<T, DriverError>;
