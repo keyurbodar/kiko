@@ -12,7 +12,7 @@ import {
   SearchIcon,
   SkillsIcon,
 } from "@kiko/ui/icons"
-import { isImage, saveFile } from "../../lib/attachments"
+import { isImage } from "../../lib/attachments"
 import { formatBytes } from "../../chat/info/format"
 import { isTextFile, readText } from "../../files/api"
 import { HOME, inHome, strip } from "../../files/model"
@@ -206,8 +206,7 @@ function Chip(props: { id: string; name: string; source: ChipSource }) {
     const p = part()
     if (!p) return
     if (upload()?.status === "failed") return retryUpload(props.id)
-    if (image()) return props.source.openAttachment(p)
-    saveFile(p.blob.url, p.filename)
+    props.source.openAttachment(p)
   }
   return (
     <button

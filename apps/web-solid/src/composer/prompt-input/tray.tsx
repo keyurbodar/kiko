@@ -92,8 +92,8 @@ function Tile(props: {
   }
   const open = () => {
     if (upload()?.status === "failed") return retryUpload(props.part.id)
-    if (look() === "image") return props.onOpen()
-    if (pasted()) props.onExpand()
+    if (pasted()) return props.onExpand()
+    props.onOpen()
   }
   return (
     <div

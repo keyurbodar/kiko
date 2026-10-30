@@ -144,6 +144,39 @@ describe("composer attachments", () => {
     expect(editor.querySelector("[data-attachment]")).toBeNull()
   })
 
+  it("previews a text file from its tray tile", async () => {
+    using _xhr = fakeXhr()
+    await using screen = await mountComposer()
+    paste(screen.editor, new File(["hello from the draft"], "notes.txt", { type: "text/plain" }))
+    await expect.poll(() => tray(screen.container).length).toBe(1)
+
+    await userEvent.click(screen.container.querySelector<HTMLElement>(".tray-tile-open")!)
+    const dialog = screen.getByRole("dialog", { name: "notes.txt" })
+    await expect.element(dialog.getByText("hello from the draft")).toBeVisible()
+    await expect.element(dialog.getByRole("button", { name: "Close preview" })).toHaveFocus()
+    await dialog.getByRole("button", { name: "Close preview" }).click()
+    await expect.element(dialog).not.toBeInTheDocument()
+  })
+
+  it("previews the clicked inline file, not the draft's picture", async () => {
+    using _xhr = fakeXhr()
+    await using screen = await mountComposer()
+    const editor = screen.editor
+    const drop = (file: File) =>
+      editor.dispatchEvent(new DragEvent("drop", { dataTransfer: transfer(file), bubbles: true, cancelable: true }))
+    await userEvent.keyboard("Look ")
+    drop(new File([new Uint8Array([137, 80, 78, 71])], "shot.png", { type: "image/png" }))
+    await expect.poll(() => editor.querySelectorAll("[data-attachment]").length).toBe(1)
+    drop(new File(["plain words"], "readme.txt", { type: "text/plain" }))
+    await expect.poll(() => editor.querySelectorAll("[data-attachment]").length).toBe(2)
+
+    const chip = [...editor.querySelectorAll<HTMLElement>("[data-attachment]")].find((el) =>
+      el.textContent?.includes("readme.txt"),
+    )!
+    await userEvent.click(chip)
+    await expect.element(screen.getByRole("dialog", { name: "readme.txt" }).getByText("plain words")).toBeVisible()
+  })
+
   it("drops a file inline when the draft has words, and into the tray when it is empty", async () => {
     using _xhr = fakeXhr()
     await using screen = await mountComposer()

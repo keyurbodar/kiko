@@ -755,8 +755,17 @@ button.token-chip:active {
   text-overflow: ellipsis;
   white-space: nowrap;
   transition:
-    opacity var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    opacity 80ms var(--ease-kiko),
+    transform 80ms var(--ease-kiko);
+}
+
+.tray-aside > .tray-aside-size,
+.tray-tile:hover .tray-aside-name {
+  transition-delay: 80ms;
+}
+
+.tray-tile:hover .tray-aside-size {
+  transition-delay: 0ms;
 }
 
 .tray-aside-name {

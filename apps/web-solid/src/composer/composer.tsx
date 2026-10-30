@@ -7,6 +7,7 @@ import {
   createMemo,
   createSignal,
   getOwner,
+  lazy,
   on,
   onCleanup,
   onMount,
@@ -16,7 +17,7 @@ import { createStore } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { MAX_MESSAGE_TEXT, humanAnswerText, sendFits, linkAttachments } from "@kiko/protocol"
 import type { ComposerProps, MessageFile } from "../lib/types"
-import { isImage, sendRefusal } from "../lib/attachments"
+import { isImage, isVideo, sendRefusal } from "../lib/attachments"
 import "./composer.css"
 import { PromptInputV2 } from "./prompt-input"
 import { createPromptInputV2Controller } from "./prompt-input/interaction"
@@ -48,6 +49,7 @@ import { PlusMenu } from "./plus-menu"
 import { history } from "../app/history"
 
 const draftFiles = () => import("./rich/draft-files")
+const DraftFileDialog = lazy(() => import("./draft-file-dialog"))
 
 const ASKING = "Answer or skip the question before attaching files."
 
@@ -272,10 +274,13 @@ export function Composer(props: ComposerProps) {
   )
 
   const viewer = createImageDialog()
-  const pictures = () =>
-    store.state.prompt.flatMap((part) =>
-      part.type === "image" && isImage({ name: part.filename, type: part.mime }) ? [part] : [],
-    )
+  const media = () =>
+    store.state.prompt.flatMap((part) => {
+      if (part.type !== "image") return []
+      const named = { name: part.filename, type: part.mime }
+      return isImage(named) || isVideo(named) ? [part] : []
+    })
+  const [previewing, setPreviewing] = createSignal<PromptInputV2Attachment | null>(null)
 
   const botById = (botId: string | undefined) =>
     botId === undefined ? undefined : props.bots.find((bot) => bot.id === botId)
@@ -391,13 +396,16 @@ export function Composer(props: ComposerProps) {
     onAction: () => requestAnimationFrame(() => setAdding(true)),
     agents,
     openAttachment: (attachment) => {
-      const all = pictures()
+      const all = media()
+      const at = all.findIndex((p) => p.id === attachment.id)
+      if (at < 0) return setPreviewing(attachment)
       viewer.open(
-        all.map((p) => ({ src: p.blob.url, name: p.filename })),
-        Math.max(
-          0,
-          all.findIndex((p) => p.id === attachment.id),
-        ),
+        all.map((p) => ({
+          src: p.blob.url,
+          name: p.filename,
+          ...(isVideo({ name: p.filename, type: p.mime }) ? { video: true as const } : {}),
+        })),
+        at,
       )
     },
     attachments: {
@@ -657,6 +665,20 @@ export function Composer(props: ComposerProps) {
         onExpandPasted={expandPasted}
       />
       {viewer.view}
+      <Show when={previewing()} keyed>
+        {(part) => (
+          <Suspense>
+            <DraftFileDialog
+              part={part}
+              onRemove={() => {
+                setPreviewing(null)
+                controller.removeAttachment(part.id)
+              }}
+              onClose={() => setPreviewing(null)}
+            />
+          </Suspense>
+        )}
+      </Show>
     </>
   )
 }
