@@ -116,6 +116,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 0 12px 12px;
+  container-type: inline-size;
 }
 
 @media (min-width: 640px) {
@@ -126,7 +127,8 @@
 
 .composer-dock .composer-actions {
   display: flex;
-  flex-shrink: 0;
+  min-width: 0;
+  flex-shrink: 1;
   align-items: center;
   gap: 2px;
 }
@@ -165,6 +167,7 @@
   width: 32px;
   height: 32px;
   margin-left: 6px;
+  flex-shrink: 0;
   place-items: center;
   padding: 0;
   color: var(--bg-000);
@@ -214,8 +217,9 @@
   cursor: default;
 }
 
-.composer-dock .composer-actions :is([data-component="model-picker-button"], [data-component="reasoning-trigger"]) {
+.composer-dock :is([data-component="model-picker-button"], [data-component="reasoning-trigger"]) {
   height: 32px;
+  min-width: 0;
   gap: 6px;
   padding: 0 4px;
   color: var(--text-200);
@@ -224,18 +228,36 @@
   line-height: 18px;
 }
 
-.composer-dock .composer-actions :is([data-component="model-picker-button"], [data-component="reasoning-trigger"]) svg {
+.composer-dock :is([data-component="model-picker-button"], [data-component="reasoning-trigger"]) svg {
   display: none;
 }
 
-.composer-dock .composer-actions [data-component="reasoning-trigger"] .reasoning-label {
+.composer-dock [data-component="reasoning-trigger"] {
+  flex-shrink: 1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.composer-dock [data-component="reasoning-trigger"] .reasoning-label {
+  min-width: 0;
+  overflow: hidden;
   color: var(--text-400);
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.composer-dock [data-component="composer-model"] {
+  min-width: 6ch;
+}
+
+@container (max-width: 380px) {
+  .composer-dock [data-component="reasoning-trigger"] {
+    display: none;
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .composer-dock
-    .composer-actions
-    :is([data-component="model-picker-button"], [data-component="reasoning-trigger"]):hover {
+  .composer-dock :is([data-component="model-picker-button"], [data-component="reasoning-trigger"]):hover {
     color: var(--text-100);
     background: none;
   }
