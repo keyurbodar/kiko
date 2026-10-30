@@ -502,7 +502,7 @@ fn chromium_background_press_runs_onclick() {
         .arg("--disable-dev-shm-usage")
         .arg("--window-size=900,700")
         .arg("--window-position=0,0");
-    if std::env::var("USER").as_deref() == Ok("root") {
+    if std::env::var("USER").as_deref() == Ok("root") || std::env::var_os("CI").is_some() {
         command.arg("--no-sandbox");
     }
     let child = command
