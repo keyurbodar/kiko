@@ -88,6 +88,8 @@ fn wait_for<F: Fn() -> bool>(what: &str, ready: F) {
 
 #[test]
 fn the_tray_registers_and_the_menu_pauses_the_agent() {
+    let runtime = tokio::runtime::Runtime::new().expect("start a runtime for the watcher");
+    let _inside = runtime.enter();
     let dir = std::env::temp_dir().join(format!("kiko-tray-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("create the fixture");

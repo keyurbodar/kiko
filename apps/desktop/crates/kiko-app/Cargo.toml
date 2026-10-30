@@ -37,10 +37,11 @@ png = "0.18"
 libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-ksni = { version = "0.3", default-features = false, features = ["blocking", "async-io"] }
+ksni = { version = "0.3", default-features = false, features = ["blocking", "tokio"] }
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]
-zbus = "5"
+zbus = { version = "5", default-features = false, features = ["blocking-api", "tokio"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }
 
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
 muda = "0.21"
