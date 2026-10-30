@@ -19,7 +19,7 @@
   --motion-ease-in-out: var(--ease-kiko);
   --motion-dialog: var(--dur-pop);
   --motion-collapse: var(--dur-pop);
-  --motion-slide: 260ms;
+  --motion-slide: 200ms;
   --motion-run-chevron: var(--dur-pop);
   --dur-land: 160ms;
   --dur-shift: 200ms;
@@ -40,6 +40,7 @@
     --dur-land: 0ms;
     --dur-shift: 0ms;
     --land-stagger: 0ms;
+    --motion-slide: 0ms;
   }
 }
 

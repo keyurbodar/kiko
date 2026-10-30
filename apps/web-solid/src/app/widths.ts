@@ -1,6 +1,7 @@
 export const SIDEBAR = { key: "kiko:device:sidebar-width", min: 220, max: 420, fallback: 296, floor: 296 }
 export const INFO = { key: "kiko:device:info-width", min: 320, max: 760, fallback: 400 }
 export const CHAT_MIN = 360
+export const RAIL = 56
 export const PANEL_CHAT_MIN = 420
 
 export const panelMaxWidth = (viewport: number) => Math.min(INFO.max, Math.round(viewport * 0.6))
@@ -43,7 +44,7 @@ export function resetWidth(rule: Rule, panel: { resize: (size: `${number}px`) =>
 
 export function fitWidths(viewport: number, sidebar: number, info: number) {
   const room = Math.max(0, viewport - CHAT_MIN)
-  const side = sidebar > 0 ? Math.max(SIDEBAR.floor ?? SIDEBAR.min, sidebar) : 0
+  const side = sidebar <= 0 ? 0 : sidebar <= RAIL ? RAIL : Math.max(SIDEBAR.floor ?? SIDEBAR.min, sidebar)
   const want = info > 0 ? readPanelWidth(viewport) : 0
   const right = side + want <= room ? want : 0
   return { sidebar: Math.min(side, room), info: right }
