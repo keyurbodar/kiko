@@ -14,6 +14,7 @@ use crate::{apps, ax, cf, driver::MacDriver, input, look, window};
 
 const LAUNCH: Duration = Duration::from_secs(30);
 const SETTLE: Duration = Duration::from_secs(5);
+const WEB_SETTLE: Duration = Duration::from_secs(20);
 const POINTER_SLACK: f64 = 1.0;
 const SAFARI: &str = "/Applications/Safari.app";
 const CHROME: &str = "/Applications/Google Chrome.app";
@@ -270,21 +271,9 @@ fn chrome_web_area_answers_in_the_background() {
     println!("Chrome: page at {url}");
     let chrome = launch_chrome(&mut driver, &url);
     set_window_frame(&chrome, FRAME);
+    let look = web_area(&mut driver, &chrome, "Chrome");
     let finder = cover_with_finder(&mut driver, FRAME);
     let owner = Owner::capture();
-
-    let look = wait_for(SETTLE, || {
-        let look = look_at(&mut driver, &chrome);
-        look.outline.contains("webarea").then_some(look)
-    });
-    let Some(look) = look else {
-        let look = look_at(&mut driver, &chrome);
-        panic!(
-            "Chrome exposed no web area; nodes are {:?}; opt-in is {:?}",
-            roles(&look.nodes),
-            opt_in_state(chrome.pid as i32)
-        );
-    };
 
     press_page_button(&mut driver, &chrome, &look);
     let title = wait_for(SETTLE, || {
@@ -325,17 +314,9 @@ fn electron_web_area_answers_in_the_background() {
         );
     };
     set_window_frame(&window, FRAME);
+    let look = web_area(&mut driver, &window, "Electron");
     let finder = cover_with_finder(&mut driver, FRAME);
     let owner = Owner::capture();
-
-    let look = wait_for(SETTLE, || {
-        let look = look_at(&mut driver, &window);
-        look.outline.contains("webarea").then_some(look)
-    });
-    let Some(look) = look else {
-        let look = look_at(&mut driver, &window);
-        panic!("Electron exposed no web area; outline:\n{}", look.outline);
-    };
 
     press_page_button(&mut driver, &window, &look);
     let title = wait_for(SETTLE, || {
@@ -613,6 +594,21 @@ fn long_document() -> String {
         .map(|line| format!("line {line} of the kiko scroll test"))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn web_area(driver: &mut MacDriver, window: &Window, app: &str) -> Look {
+    let look = wait_for(WEB_SETTLE, || {
+        let look = look_at(driver, window);
+        look.outline.contains("webarea").then_some(look)
+    });
+    match look {
+        Some(look) => look,
+        None => panic!(
+            "{app} exposed no web area; outline:\n{}; opt-in is {:?}",
+            look_at(driver, window).outline,
+            opt_in_state(window.pid as i32)
+        ),
+    }
 }
 
 fn press_page_button(driver: &mut MacDriver, window: &Window, look: &Look) {
