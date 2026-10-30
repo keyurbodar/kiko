@@ -142,13 +142,17 @@ impl Worker {
                 if foreground {
                     bring_forward(pid, id);
                 }
-                let route = act::apply(
+                let route = match act::apply(
                     &element,
                     action,
                     params.text.as_deref(),
                     params.dx,
                     params.dy,
-                )?;
+                ) {
+                    Ok(route) => route,
+                    Err(error) if foreground || action != Action::Press => return Err(error),
+                    Err(error) => press_by_click(pid, id, &element, &window).map_err(|_| error)?,
+                };
                 Ok(ActResult {
                     route: if foreground { Route::Foreground } else { route },
                 })
@@ -182,6 +186,29 @@ fn make_key_window(pid: i32, id: u32) {
     };
     let application = ax::application(pid);
     ax::set(&application, ax::FOCUSED_WINDOW, &element);
+}
+
+fn press_by_click(
+    pid: i32,
+    id: u32,
+    element: &objc2_application_services::AXUIElement,
+    window: &Window,
+) -> kiko_driver::Result<Route> {
+    let frame = ax::frame(element).ok_or_else(|| {
+        DriverError::new(
+            ErrorCode::BackgroundUnavailable,
+            "this element has no frame to click in the background",
+        )
+    })?;
+    let center = Point {
+        x: frame.x + frame.w / 2.0,
+        y: frame.y + frame.h / 2.0,
+    };
+    let local = Point {
+        x: center.x - window.frame.x,
+        y: center.y - window.frame.y,
+    };
+    input::click(pid, id, center, local, false)
 }
 
 fn open(params: &OpenParams) -> kiko_driver::Result<()> {

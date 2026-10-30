@@ -237,7 +237,7 @@ fn act(
             dy: 0.0,
             mode: Mode::Background,
         })
-        .unwrap_or_else(|error| panic!("{action:?} failed: {error}"));
+        .unwrap_or_else(|error| panic!("{action:?} on {} failed: {error}", window.app));
 }
 
 fn assert_image_matches(image: &Image, frame: Rect) {
