@@ -112,3 +112,21 @@ describe("mergeThoughtRows", () => {
     expect(rows.map((row) => row.kind)).toEqual(["thought", "item"])
   })
 })
+
+describe("workLogOf lanes", () => {
+  const worker = { id: "w1", task: "handoff probe" }
+  const steps = [
+    step("start", { name: "start_work", label: "Started background work" }),
+    step("inner", { worker, label: "Used slow tool", startedAt: START + 1_000 }),
+  ]
+
+  it("leaves out the step that started a helper once its lane is drawn", () => {
+    const items = workLogOf(steps, { working: false, detail: "ready", lanes: true }).items
+    expect(items.some((item) => item.kind === "step" && item.label === "Started background work")).toBe(false)
+  })
+
+  it("keeps the step that started a helper while its lane is not drawn", () => {
+    const items = workLogOf(steps, { working: false, detail: "ready", lanes: false }).items
+    expect(items.some((item) => item.kind === "step" && item.label === "Started background work")).toBe(true)
+  })
+})
