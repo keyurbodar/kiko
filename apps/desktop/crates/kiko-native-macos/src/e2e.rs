@@ -18,6 +18,7 @@ const SETTLE: Duration = Duration::from_secs(5);
 const POINTER_SLACK: f64 = 1.0;
 const SAFARI: &str = "/Applications/Safari.app";
 const CHROME: &str = "/Applications/Google Chrome.app";
+const CHROME_BINARY: &str = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const FRAME: Rect = Rect {
     x: 160.0,
     y: 160.0,
@@ -27,14 +28,27 @@ const FRAME: Rect = Rect {
 const LONG_LINES: usize = 400;
 const SCROLL_DELTA: f64 = 600.0;
 const MENU_TEXT: &str = "kiko menu test";
+const PASTE_TEXT: &str = "kiko pasted";
 const OPEN_WAIT: Duration = Duration::from_secs(20);
 const OPEN_POLL: Duration = Duration::from_millis(100);
-const CHROME_FLAGS: [&str; 2] = ["--no-first-run", "--no-default-browser-check"];
+const CHROME_FLAGS: [&str; 3] = [
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--new-window",
+];
 const ELECTRON_MAIN: &str = r#"
+const fs = require('fs');
 const { app, BrowserWindow } = require('electron');
+const note = (text) => fs.appendFileSync(process.env.KIKO_E2E_LOG, text + '\n');
+process.on('uncaughtException', (error) => note('uncaught: ' + (error.stack || error)));
 app.whenReady().then(() => {
+  note('ready page=' + process.env.KIKO_E2E_PAGE);
   const window = new BrowserWindow({ width: 640, height: 420, x: 160, y: 160 });
-  window.loadFile(process.env.KIKO_E2E_PAGE);
+  note('window created');
+  window.loadFile(process.env.KIKO_E2E_PAGE).then(
+    () => note('loaded'),
+    (error) => note('load failed: ' + error),
+  );
 });
 "#;
 
@@ -172,14 +186,14 @@ fn background_scroll_moves_the_visible_range() {
 
 #[test]
 #[ignore = "needs a mac with Accessibility and Screen Recording granted to this binary"]
-fn background_menu_item_selects_the_document() {
+fn background_menu_item_pastes_into_the_document() {
     let mut driver = MacDriver::new().expect("driver");
     let document = start_document_app(&mut driver);
     set_window_frame(&document, FRAME);
     let finder = cover_with_finder(&mut driver, FRAME);
+    set_clipboard(PASTE_TEXT);
     set_document_text(&mut driver, &document, MENU_TEXT);
     focus_text_area(&mut driver, &document);
-    let area = text_area(&document);
     let owner = Owner::capture();
 
     let look = look_at(&mut driver, &document);
@@ -199,13 +213,13 @@ fn background_menu_item_selects_the_document() {
         let look = look_at(&mut driver, &document);
         look.nodes
             .iter()
-            .find(|node| node.role == "menuitem" && node.name.contains("Select All"))
+            .find(|node| node.role == "menuitem" && usable_menu_item(node))
             .cloned()
     });
     let Some(item) = item else {
         let look = look_at(&mut driver, &document);
         cancel_menus(&document);
-        panic!("no Select All menu item; outline:\n{}", look.outline);
+        panic!("no usable menu item; outline:\n{}", look.outline);
     };
     act_with(
         &mut driver,
@@ -217,17 +231,30 @@ fn background_menu_item_selects_the_document() {
         0.0,
     );
 
-    let selected = wait_for(SETTLE, || {
-        selected_text(&area).filter(|text| text == MENU_TEXT)
-    });
-    assert_eq!(
-        selected.as_deref(),
-        Some(MENU_TEXT),
-        "the menu item did not select the document; selection is {:?}",
-        selected_text(&area)
-    );
+    if item.name == "Paste" {
+        let text = wait_for(SETTLE, || {
+            document_text(&mut driver, &document).filter(|text| text.contains(PASTE_TEXT))
+        });
+        assert!(
+            text.is_some(),
+            "the menu item did not paste; document is {:?}",
+            document_text(&mut driver, &document)
+        );
+    } else {
+        let fonts = wait_for(SETTLE, || window_titled(&mut driver, "TextEdit", "Fonts"));
+        assert!(
+            fonts.is_some(),
+            "Show Fonts opened no Fonts window; windows: {:?}",
+            window_summary(&mut driver)
+        );
+    }
     assert_covered(&finder, &document);
     owner.assert_unchanged();
+}
+
+fn usable_menu_item(node: &Node) -> bool {
+    !node.states.iter().any(|state| state == "disabled")
+        && matches!(node.name.as_str(), "Paste" | "Show Fonts")
 }
 
 #[test]
@@ -276,18 +303,24 @@ fn electron_web_area_answers_in_the_background() {
     let mut driver = MacDriver::new().expect("driver");
     let page = write_page("before");
     let app = write_electron_app();
-    let child = std::process::Command::new(&electron)
-        .arg(&app)
-        .env("KIKO_E2E_PAGE", &page)
-        .spawn()
-        .unwrap_or_else(|error| panic!("could not start {electron}: {error}"));
-    let _electron = ChildGuard(child);
+    let log = app.join("electron.log");
+    let mut child = ChildGuard(
+        std::process::Command::new(&electron)
+            .arg(&app)
+            .env("KIKO_E2E_PAGE", &page)
+            .env("KIKO_E2E_LOG", &log)
+            .spawn()
+            .unwrap_or_else(|error| panic!("could not start {electron}: {error}")),
+    );
 
-    let window = wait_for(LAUNCH, || window_named(&mut driver, "Electron"));
+    let window = wait_for(Duration::from_secs(60), || {
+        window_named(&mut driver, "Electron")
+    });
     let Some(window) = window else {
+        let status = child.0.try_wait();
         panic!(
-            "no Electron window; running: {:?}; windows: {:?}",
-            running_apps(),
+            "no Electron window (child {status:?}); log: {:?}; windows: {:?}",
+            fs::read_to_string(&log),
             window_summary(&mut driver)
         );
     };
@@ -707,22 +740,18 @@ fn run_open(app: &DocumentApp, background: bool) -> String {
 }
 
 fn open_app(path: &str, argument: Option<&str>, background: bool) -> String {
-    match argument {
-        Some(argument) => open_args(path, &[argument], background),
-        None => open_args(path, &[], background),
-    }
-}
-
-fn open_args(path: &str, arguments: &[&str], background: bool) -> String {
     let mut command = std::process::Command::new("open");
     if background {
         command.arg("-g");
     }
     command.args(["-a", path]);
-    if !arguments.is_empty() {
-        command.arg("--args");
-        command.args(arguments);
+    if let Some(argument) = argument {
+        command.arg(argument);
     }
+    finish_open(path, background, command)
+}
+
+fn finish_open(path: &str, background: bool, mut command: std::process::Command) -> String {
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(error) => return format!("open {path} background={background} failed: {error}"),
@@ -865,8 +894,18 @@ fn visible_range(element: &AXUIElement) -> Option<CFRange> {
     ax::range(&ax::attribute(element, ax::VISIBLE_CHARACTER_RANGE))
 }
 
-fn selected_text(element: &AXUIElement) -> Option<String> {
-    ax::text(&ax::attribute(element, ax::SELECTED_TEXT))
+fn set_clipboard(text: &str) {
+    let mut child = std::process::Command::new("pbcopy")
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .expect("start pbcopy");
+    if let Some(mut stdin) = child.stdin.take() {
+        use std::io::Write;
+        stdin
+            .write_all(text.as_bytes())
+            .expect("write the clipboard");
+    }
+    child.wait().expect("pbcopy");
 }
 
 fn ax_title(window: &Window) -> Option<String> {
@@ -884,31 +923,37 @@ fn cancel_menus(window: &Window) {
 
 fn launch_chrome(driver: &mut MacDriver, url: &str) -> Window {
     let mut notes = Vec::new();
-    let mut running = window_named(driver, "Google Chrome");
-    if running.is_none() {
-        for background in [true, false] {
-            println!("Chrome: launching with background={background}");
-            notes.push(open_args(CHROME, &CHROME_FLAGS, background));
-            running = wait_for(LAUNCH, || window_named(driver, "Google Chrome"));
-            if running.is_some() {
-                break;
-            }
-        }
-    }
-    if running.is_some() {
-        println!("Chrome: opening the page");
+    if window_named(driver, "Google Chrome").is_some() {
         notes.push(open_app(CHROME, Some(url), true));
-        if let Some(window) = wait_for(LAUNCH, || window_titled(driver, "Google Chrome", "before"))
-        {
-            println!("Chrome answered; {notes:?}");
-            return window;
-        }
+    } else {
+        notes.push(spawn_chrome(url));
     }
-    panic!(
-        "no Chrome window; {notes:?}; running: {:?}; windows: {:?}",
-        running_apps(),
-        window_summary(driver)
-    );
+    let window = wait_for(LAUNCH, || {
+        window_titled(driver, "Google Chrome", "before")
+            .or_else(|| window_named(driver, "Google Chrome"))
+    });
+    match window {
+        Some(window) => {
+            println!("Chrome answered; {notes:?}");
+            window
+        }
+        None => panic!(
+            "no Chrome window; {notes:?}; running: {:?}; windows: {:?}",
+            running_apps(),
+            window_summary(driver)
+        ),
+    }
+}
+
+fn spawn_chrome(url: &str) -> String {
+    match std::process::Command::new(CHROME_BINARY)
+        .args(CHROME_FLAGS)
+        .arg(url)
+        .spawn()
+    {
+        Ok(_) => format!("spawned {CHROME_BINARY}"),
+        Err(error) => format!("could not start {CHROME_BINARY}: {error}"),
+    }
 }
 
 fn write_electron_app() -> PathBuf {

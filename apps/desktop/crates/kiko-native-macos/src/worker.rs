@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ptr::NonNull;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::{Duration, Instant};
 
@@ -6,6 +7,8 @@ use kiko_driver::{
     ActParams, ActResult, Action, DriverError, ErrorCode, Look, LookParams, Mode, OpenParams,
     OpenTarget, Point, Route, Window,
 };
+use objc2_application_services::{AXError, AXValue, AXValueType};
+use objc2_core_foundation::CFRange;
 
 use crate::{act, apps, ax, capture, input, look, menu, window};
 
@@ -116,7 +119,7 @@ impl Worker {
                     bring_forward(pid, id);
                 } else {
                     make_key_window(pid, id);
-                    if let Some(result) = menu_route(pid, keys, window.bundle.as_deref()) {
+                    if let Some(result) = shortcut_route(pid, keys, window.bundle.as_deref()) {
                         return result.map(|route| ActResult { route });
                     }
                 }
@@ -214,6 +217,47 @@ fn menu_route(pid: i32, keys: &str, bundle: Option<&str>) -> Option<kiko_driver:
     let (key, modifiers) = input::split(keys).ok()?;
     let combo = menu::Combo::parse(key, &modifiers)?;
     menu::invoke(pid, &combo)
+}
+
+fn shortcut_route(
+    pid: i32,
+    keys: &str,
+    bundle: Option<&str>,
+) -> Option<kiko_driver::Result<Route>> {
+    match menu_route(pid, keys, bundle) {
+        Some(Ok(route)) => Some(Ok(route)),
+        other => select_all_route(pid, keys).map(Ok).or(other),
+    }
+}
+
+fn select_all_route(pid: i32, keys: &str) -> Option<Route> {
+    let (key, modifiers) = input::split(keys).ok()?;
+    let command = modifiers.len() == 1
+        && matches!(modifiers[0].as_str(), "cmd" | "command" | "meta" | "super");
+    if !key.eq_ignore_ascii_case("a") || !command {
+        return None;
+    }
+    select_all(pid).then_some(Route::Accessibility)
+}
+
+fn select_all(pid: i32) -> bool {
+    let application = ax::application(pid);
+    let Some(element) = ax::element_attribute(&application, ax::FOCUSED_ELEMENT) else {
+        return false;
+    };
+    let Some(text) = ax::text(&ax::attribute(&element, ax::VALUE)) else {
+        return false;
+    };
+    let mut range = CFRange {
+        location: 0,
+        length: text.encode_utf16().count() as isize,
+    };
+    let Some(value) =
+        (unsafe { AXValue::new(AXValueType::CFRange, NonNull::from(&mut range).cast()) })
+    else {
+        return false;
+    };
+    ax::set(&element, ax::SELECTED_TEXT_RANGE, &value) == AXError::Success
 }
 
 fn restore_order(target: i32, front: i32) {

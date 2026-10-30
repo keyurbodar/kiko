@@ -28,6 +28,8 @@ pub const FOCUSED_WINDOW: &str = "AXFocusedWindow";
 pub const SELECTED_TEXT: &str = "AXSelectedText";
 pub const PARENT: &str = "AXParent";
 pub const VISIBLE_CHARACTER_RANGE: &str = "AXVisibleCharacterRange";
+pub const FOCUSED_ELEMENT: &str = "AXFocusedUIElement";
+pub const SELECTED_TEXT_RANGE: &str = "AXSelectedTextRange";
 
 pub const MESSAGING_TIMEOUT: f32 = 0.5;
 
