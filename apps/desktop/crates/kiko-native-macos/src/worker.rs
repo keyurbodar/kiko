@@ -7,7 +7,7 @@ use kiko_driver::{
     OpenTarget, Point, Route, Window,
 };
 
-use crate::{act, apps, ax, capture, input, look, window};
+use crate::{act, apps, ax, capture, input, look, menu, window};
 
 const ORDER_SETTLE: Duration = Duration::from_millis(400);
 const ORDER_POLL: Duration = Duration::from_millis(40);
@@ -116,6 +116,9 @@ impl Worker {
                     bring_forward(pid, id);
                 } else {
                     make_key_window(pid, id);
+                    if let Some(result) = menu_route(pid, keys, window.bundle.as_deref()) {
+                        return result.map(|route| ActResult { route });
+                    }
                 }
                 let route = input::keys(pid, keys, foreground)?;
                 Ok(ActResult { route })
@@ -202,6 +205,15 @@ fn background_menu_front(action: Action, foreground: bool) -> Option<i32> {
     (action == Action::ShowMenu && !foreground)
         .then(|| apps::frontmost().map(|app| app.pid))
         .flatten()
+}
+
+fn menu_route(pid: i32, keys: &str, bundle: Option<&str>) -> Option<kiko_driver::Result<Route>> {
+    if look::web_app(bundle) {
+        return None;
+    }
+    let (key, modifiers) = input::split(keys).ok()?;
+    let combo = menu::Combo::parse(key, &modifiers)?;
+    menu::invoke(pid, &combo)
 }
 
 fn restore_order(target: i32, front: i32) {

@@ -189,7 +189,7 @@ fn event_record(event: &CGEvent) -> *mut c_void {
     std::ptr::null_mut()
 }
 
-fn split(keys: &str) -> kiko_driver::Result<(&str, Vec<String>)> {
+pub fn split(keys: &str) -> kiko_driver::Result<(&str, Vec<String>)> {
     let parts: Vec<&str> = keys
         .split('+')
         .map(str::trim)

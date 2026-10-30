@@ -299,9 +299,12 @@ pub fn enable(pid: i32, bundle: Option<&str>) -> Element {
 }
 
 fn opt_in(application: &AXUIElement, bundle: Option<&str>) -> bool {
-    let web = bundle.is_some_and(|bundle| CHROMIUM.contains(&bundle) || WEBKIT.contains(&bundle));
-    let name = if web { ENHANCED } else { MANUAL };
+    let name = if web_app(bundle) { ENHANCED } else { MANUAL };
     ax::set_flag(application, name, true) == objc2_application_services::AXError::Success
+}
+
+pub fn web_app(bundle: Option<&str>) -> bool {
+    bundle.is_some_and(|bundle| CHROMIUM.contains(&bundle) || WEBKIT.contains(&bundle))
 }
 
 pub fn open_menus(application: &AXUIElement) -> Vec<Element> {

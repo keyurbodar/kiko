@@ -88,6 +88,13 @@ pub fn flag(value: &Option<CFRetained<CFType>>) -> Option<bool> {
     value.as_deref().and_then(cf::flag)
 }
 
+pub fn number(value: &Option<CFRetained<CFType>>) -> Option<i64> {
+    value
+        .as_deref()?
+        .downcast_ref::<objc2_core_foundation::CFNumber>()?
+        .as_i64()
+}
+
 pub fn elements(value: &Option<CFRetained<CFType>>) -> Vec<Element> {
     let Some(items) = value.as_deref().and_then(cf::items) else {
         return Vec::new();

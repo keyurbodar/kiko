@@ -10,6 +10,7 @@ mod driver;
 mod e2e;
 mod input;
 mod look;
+mod menu;
 mod permissions;
 mod private;
 mod window;

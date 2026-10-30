@@ -27,6 +27,9 @@ const FRAME: Rect = Rect {
 const LONG_LINES: usize = 400;
 const SCROLL_DELTA: f64 = 600.0;
 const MENU_TEXT: &str = "kiko menu test";
+const OPEN_WAIT: Duration = Duration::from_secs(20);
+const OPEN_POLL: Duration = Duration::from_millis(100);
+const CHROME_FLAGS: [&str; 2] = ["--no-first-run", "--no-default-browser-check"];
 const ELECTRON_MAIN: &str = r#"
 const { app, BrowserWindow } = require('electron');
 app.whenReady().then(() => {
@@ -105,11 +108,16 @@ fn background_keys_clear_the_document() {
     let owner = Owner::capture();
 
     let route = press_keys(&mut driver, &document, "cmd+a");
+    assert_eq!(
+        route,
+        Route::Accessibility,
+        "cmd+a should run Edit > Select All through accessibility in the background"
+    );
+    let route = press_keys(&mut driver, &document, "delete");
     assert!(
         matches!(route, Route::Private | Route::WindowEvent),
-        "cmd+a took the foreground route {route:?}"
+        "delete took the foreground route {route:?}"
     );
-    press_keys(&mut driver, &document, "delete");
 
     let text = wait_for(SETTLE, || {
         document_text(&mut driver, &document).filter(String::is_empty)
@@ -197,10 +205,7 @@ fn background_menu_item_selects_the_document() {
     let Some(item) = item else {
         let look = look_at(&mut driver, &document);
         cancel_menus(&document);
-        panic!(
-            "no Select All menu item; nodes are {:?}",
-            roles(&look.nodes)
-        );
+        panic!("no Select All menu item; outline:\n{}", look.outline);
     };
     act_with(
         &mut driver,
@@ -231,6 +236,7 @@ fn chrome_web_area_answers_in_the_background() {
     let mut driver = MacDriver::new().expect("driver");
     let page = write_page("before");
     let url = format!("file://{}", page.display());
+    println!("Chrome: page at {url}");
     let chrome = launch_chrome(&mut driver, &url);
     set_window_frame(&chrome, FRAME);
     let finder = cover_with_finder(&mut driver, FRAME);
@@ -701,21 +707,42 @@ fn run_open(app: &DocumentApp, background: bool) -> String {
 }
 
 fn open_app(path: &str, argument: Option<&str>, background: bool) -> String {
+    match argument {
+        Some(argument) => open_args(path, &[argument], background),
+        None => open_args(path, &[], background),
+    }
+}
+
+fn open_args(path: &str, arguments: &[&str], background: bool) -> String {
     let mut command = std::process::Command::new("open");
     if background {
         command.arg("-g");
     }
     command.args(["-a", path]);
-    if let Some(argument) = argument {
-        command.arg(argument);
+    if !arguments.is_empty() {
+        command.arg("--args");
+        command.args(arguments);
     }
-    match command.output() {
-        Ok(output) => format!(
-            "open {path} background={background} {:?} {}",
-            output.status.code(),
-            String::from_utf8_lossy(&output.stderr).trim()
-        ),
-        Err(error) => format!("open {path} background={background} failed: {error}"),
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(error) => return format!("open {path} background={background} failed: {error}"),
+    };
+    let deadline = Instant::now() + OPEN_WAIT;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                return format!("open {path} background={background} {:?}", status.code());
+            }
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(OPEN_POLL),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return format!(
+                    "open {path} background={background} did not return in {}s",
+                    OPEN_WAIT.as_secs()
+                );
+            }
+        }
     }
 }
 
@@ -860,7 +887,8 @@ fn launch_chrome(driver: &mut MacDriver, url: &str) -> Window {
     let mut running = window_named(driver, "Google Chrome");
     if running.is_none() {
         for background in [true, false] {
-            notes.push(open_app(CHROME, None, background));
+            println!("Chrome: launching with background={background}");
+            notes.push(open_args(CHROME, &CHROME_FLAGS, background));
             running = wait_for(LAUNCH, || window_named(driver, "Google Chrome"));
             if running.is_some() {
                 break;
@@ -868,6 +896,7 @@ fn launch_chrome(driver: &mut MacDriver, url: &str) -> Window {
         }
     }
     if running.is_some() {
+        println!("Chrome: opening the page");
         notes.push(open_app(CHROME, Some(url), true));
         if let Some(window) = wait_for(LAUNCH, || window_titled(driver, "Google Chrome", "before"))
         {
