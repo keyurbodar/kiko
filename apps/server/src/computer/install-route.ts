@@ -367,6 +367,7 @@ fi
 
 if [ "$installed" = "$version" ]; then
   say "kiko: kiko $version is already installed"
+  steps=1
 else
   steps=3
   if [ -n "$pair" ]; then steps=4; fi

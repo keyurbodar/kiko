@@ -66,6 +66,7 @@ type InstallOptions = {
   home?: string
   systemd?: boolean
   running?: boolean
+  shell?: string
 }
 
 function install(body: string, base: string, options: InstallOptions = {}) {
@@ -77,7 +78,7 @@ function install(body: string, base: string, options: InstallOptions = {}) {
     writeFileSync(join(bin, "systemctl"), FAKE_SYSTEMCTL)
     chmodSync(join(bin, "systemctl"), 0o755)
   }
-  const run = spawnSync("sh", ["-s", "--", ...(options.args ?? [PAIR])], {
+  const run = spawnSync(options.shell ?? "sh", ["-s", "--", ...(options.args ?? [PAIR])], {
     input: body,
     encoding: "utf8",
     env: {
@@ -173,6 +174,20 @@ describe.skipIf(process.platform !== "linux")("install.sh", () => {
     expect(again.stdout).toContain(`kiko: kiko ${VERSION} is already installed`)
     expect(again.calls()).not.toContain("systemctl --user restart kiko.service")
     expect(again.file(".local/share/kiko/kiko")).toBe(FAKE_APP)
+  })
+
+  it("pairs again on a rerun under bash, where an unset step count would abort", () => {
+    const assets = { [APP]: tarball() }
+    const body = installSh(ORIGIN, signed(assets))
+    const base = release(assets)
+    const first = install(body, base, { systemd: true })
+    writeFileSync(join(first.home, "running"), "1")
+    writeFileSync(join(first.home, "calls"), "")
+    const again = install(body, base, { home: first.home, systemd: true, shell: "bash" })
+    expect(again.stderr).toBe("")
+    expect(again.status).toBe(0)
+    expect(again.stdout).toContain("kiko: [1/1] pairing with https://kiko.example")
+    expect(again.calls()).toContain(`core pair ${PAIR}`)
   })
 
   it("installs nothing when the download does not match its checksum", () => {
