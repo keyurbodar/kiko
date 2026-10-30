@@ -66,9 +66,11 @@
     color var(--dur-hover) var(--ease-kiko);
 }
 
-.fb-name:hover {
-  background: var(--fill-hover);
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .fb-name:hover {
+    background: var(--fill-hover);
+    color: var(--fg);
+  }
 }
 
 .fb-name[data-descendant] {
@@ -81,8 +83,10 @@
   font-weight: 500;
 }
 
-.fb-name[data-current]:hover {
-  background: none;
+@media (hover: hover) and (pointer: fine) {
+  .fb-name[data-current]:hover {
+    background: none;
+  }
 }
 
 .fb-chev {
@@ -101,16 +105,16 @@
     color var(--dur-hover) var(--ease-kiko);
 }
 
-.fb-chev:hover,
 .fb-chev[data-expanded] {
   background: var(--fill-hover);
   color: var(--fg);
 }
 
-.fb-sep {
-  margin: 0 4px;
-  flex: none;
-  color: color-mix(in oklab, var(--text-400) 60%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  .fb-chev:hover {
+    background: var(--fill-hover);
+    color: var(--fg);
+  }
 }
 
 @media (pointer: coarse) {

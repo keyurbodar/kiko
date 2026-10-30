@@ -21,8 +21,13 @@
   transition: background-color var(--dur-hover) var(--ease-kiko);
 }
 
-.fe-handle:hover::after,
 .fe-handle:focus-visible::after,
 .fe-handle[data-dragging]::after {
   background: var(--border-300);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .fe-handle:hover::after {
+    background: var(--border-300);
+  }
 }

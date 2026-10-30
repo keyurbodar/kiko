@@ -108,11 +108,6 @@
   }
 }
 
-.kit-select.kit-select--size {
-  min-width: 5.5rem;
-  width: 5.5rem;
-}
-
 .kit-select {
   display: inline-flex;
   min-width: 9rem;

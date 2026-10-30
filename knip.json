@@ -18,6 +18,15 @@
     "packages/theme": {
       "entry": ["scripts/*.ts"]
     },
+    "packages/ui": {
+      "includeEntryExports": true
+    },
+    "packages/avatar": {
+      "includeEntryExports": true
+    },
+    "packages/client-runtime": {
+      "includeEntryExports": true
+    },
     "apps/computer": {
       "entry": ["scripts/*.ts"]
     },

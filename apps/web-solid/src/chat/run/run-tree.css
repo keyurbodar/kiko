@@ -424,8 +424,10 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   cursor: pointer;
   background: var(--fill-hover);
 }
-.run-tree-more-lines:hover {
-  color: var(--text-100);
+@media (hover: hover) and (pointer: fine) {
+  .run-tree-more-lines:hover {
+    color: var(--text-100);
+  }
 }
 
 .run-tree-copy {

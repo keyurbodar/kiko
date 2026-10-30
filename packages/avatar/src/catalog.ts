@@ -75,7 +75,7 @@ export const CHARM_NAMES = [
 ] as const
 export const OUTFIT_NAMES = ["scarf", "hachimaki", "obi", "bib", "bowtie", "kerchief"] as const
 export const PATTERN_NAMES = ["mizutama", "shima", "dipped", "leafwrap", "sprinkles", "frost", "heart"] as const
-export const MOOD_NAMES = [
+const MOOD_NAMES = [
   "calm",
   "happy",
   "wink",
@@ -626,7 +626,6 @@ export const FESTIVALS = {
   omisoka: { label: "Ōmisoka", date: "Dec 31", flavour: "hojicha", charm: "suzu", mood: "sleepy" },
 } as const satisfies Record<string, Festival>
 export type FestivalName = keyof typeof FESTIVALS
-export const FESTIVAL_NAMES = Object.keys(FESTIVALS) as FestivalName[]
 
 export const COLLECTIONS = {
   wagashi: ["sakura", "ume", "ichigo", "kinako", "yomogi", "azuki", "kuri", "goma", "momo", "mochi", "kuromitsu"],
@@ -640,7 +639,6 @@ export const COLLECTIONS = {
   pastel: ["sakura", "fuji", "sora", "ramune", "momo", "melon", "remon", "ume"],
 } as const satisfies Record<string, readonly FlavourName[]>
 export type CollectionName = keyof typeof COLLECTIONS
-export const COLLECTION_NAMES = Object.keys(COLLECTIONS) as CollectionName[]
 
 export const CHARM_RATE = 0.35
 export const OUTFIT_RATE = 0.3

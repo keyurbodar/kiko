@@ -209,10 +209,6 @@
     background-size: 4px 2px;
   }
 }
-.rich-mention {
-  font-weight: 600;
-}
-
 .rich-inline-code {
   font-family: var(--font-family-mono);
   font-size: 13px;

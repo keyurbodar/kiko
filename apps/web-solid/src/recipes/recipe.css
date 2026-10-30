@@ -181,13 +181,11 @@
 }
 
 @media (pointer: coarse) {
-  .tpl:hover .tpl-glyph,
   .tpl:focus-within .tpl-glyph {
     opacity: 1;
     transform: none;
   }
 
-  .tpl:hover .tpl-plus,
   .tpl:focus-within .tpl-plus {
     opacity: 0;
   }

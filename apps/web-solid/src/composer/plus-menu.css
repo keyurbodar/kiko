@@ -149,9 +149,11 @@
   cursor: pointer;
 }
 
-.composer-plus-foot:hover {
-  color: var(--text-100);
-  background: var(--hover);
+@media (hover: hover) and (pointer: fine) {
+  .composer-plus-foot:hover {
+    color: var(--text-100);
+    background: var(--hover);
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {

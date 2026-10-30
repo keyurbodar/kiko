@@ -3,7 +3,7 @@ import { avatar, type AvatarOptions } from "./index"
 const LIMIT = 256
 const cache = new Map<string, string>()
 
-export function avatarUri(name: string, options: AvatarOptions = {}): string {
+function avatarUri(name: string, options: AvatarOptions = {}): string {
   return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(avatar(name, options))
 }
 

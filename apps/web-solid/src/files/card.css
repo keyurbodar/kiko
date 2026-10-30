@@ -283,9 +283,14 @@
     transition: none;
   }
 
-  .file-card-sheet,
-  .file-card:hover .file-card-sheet {
+  .file-card-sheet {
     transform: none;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .file-card:hover .file-card-sheet {
+      transform: none;
+    }
   }
 
   .file-card:has(.file-card-hit:active) {
