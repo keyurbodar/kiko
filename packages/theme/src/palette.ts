@@ -42,7 +42,7 @@ export const THEMES = {
     accent: "#5b9cf6",
     palette: {
       canvas: "#121212",
-      sidebar: "#161616",
+      sidebar: "#171717",
       text: "#ededed",
       muted: "#a6a6a6",
       faint: "#878787",
@@ -217,7 +217,7 @@ const ROLES: ReadonlyArray<readonly [token: string, value: (ink: Ink) => string]
   ["--me", ({ solid, dark }) => solid(dark ? 11.8 : 5.5)],
   ["--kiko-bubble", ({ solid, dark }) => solid(dark ? 5.8 : 3)],
   ["--line", ({ solid, dark }) => solid(dark ? 10.2 : 8)],
-  ["--line2", ({ solid, dark }) => solid(dark ? 12.8 : 12)],
+  ["--line2", ({ solid, dark }) => solid(dark ? 15.5 : 12)],
   ["--line3", ({ clear }) => clear(20)],
   ["--fg", ({ p }) => p.text],
   ["--fg2", ({ p }) => p.muted],

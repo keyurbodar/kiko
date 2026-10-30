@@ -304,8 +304,8 @@
   margin-top: 14px;
   padding: 0 10px;
   color: var(--fg3);
-  font-size: var(--type-caption);
-  line-height: var(--type-caption-line);
+  font-size: var(--type-label);
+  line-height: var(--type-label-line);
   font-weight: 500;
   user-select: none;
 }
@@ -475,7 +475,7 @@
   height: var(--spacing-chat-row);
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 0 10px;
 }
 
 .sidebar-shell .chat-skeleton {
@@ -507,7 +507,7 @@
   height: var(--spacing-chat-row);
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 0 10px;
   color: var(--fg);
   font-family: inherit;
   text-align: left;
@@ -725,6 +725,7 @@
   flex: 1;
   flex-direction: column;
   justify-content: center;
+  gap: 1px;
 }
 
 .sidebar-shell .chat-line {
@@ -749,7 +750,7 @@
   overflow: hidden;
   color: var(--fg2);
   font-size: var(--type-row);
-  font-weight: 500;
+  font-weight: 600;
   line-height: var(--type-row-line);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -794,8 +795,8 @@
   flex: 1;
   overflow: hidden;
   color: var(--fg3);
-  font-size: var(--type-caption);
-  line-height: var(--type-caption-line);
+  font-size: var(--type-label);
+  line-height: var(--type-label-line);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
