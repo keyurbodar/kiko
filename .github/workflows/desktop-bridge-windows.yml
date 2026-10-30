@@ -26,6 +26,6 @@ jobs:
         with:
           node-version: "24"
       - name: Install
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
       - name: Test
         run: bunx vitest run apps/computer/src/driver.test.ts
