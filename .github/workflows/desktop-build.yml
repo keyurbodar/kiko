@@ -98,9 +98,14 @@ jobs:
           lipo -create target/aarch64-apple-darwin/release/kiko target/x86_64-apple-darwin/release/kiko -output "$RUNNER_TEMP/kiko"
       - name: Install the workspace
         run: bun install --frozen-lockfile
-      - name: Build the daemon for both architectures
+      - name: Build the daemon for arm64
+        timeout-minutes: 20
+        run: bun apps/computer/scripts/build.ts darwin-arm64
+      - name: Build the daemon for x64
+        timeout-minutes: 20
+        run: bun apps/computer/scripts/build.ts darwin-x64
+      - name: Join the two daemons into one universal binary
         run: |
-          bun apps/computer/scripts/build.ts darwin-arm64 darwin-x64
           lipo -create apps/computer/dist/kiko-computer-darwin-arm64 apps/computer/dist/kiko-computer-darwin-x64 -output "$RUNNER_TEMP/kiko-core"
       - name: Import the signing identity
         env:
