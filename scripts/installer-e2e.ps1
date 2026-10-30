@@ -71,6 +71,23 @@ try {
   $again = (& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $site 'install.ps1') 2>&1 | Out-String)
   if ($again -notmatch 'is already installed') { Fail "a rerun did not skip the download: $again" }
   if ((Get-Process -Name 'kiko').Id -ne $proc.Id) { Fail 'a rerun restarted the app' }
+
+  Write-Host 'installing a newer version over the running app'
+  $next = (& bun "$root\scripts\installer-e2e.ts" version) + '-e2e'
+  bun "$root\scripts\installer-e2e.ts" write $Assets $site $Port $next
+  & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $site 'install.ps1')
+  if ($LASTEXITCODE -ne 0) { Fail "the update installer exited with $LASTEXITCODE" }
+  $old = $proc.Id
+  WaitFor { @(Get-Process -Name 'kiko' -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $old }).Count -gt 0 } 'the updated kiko to start'
+  $proc = Get-Process -Name 'kiko' | Where-Object { $_.Id -ne $old } | Select-Object -First 1
+  WaitFor { $null -ne (Get-CimInstance Win32_Process -Filter "Name='kiko-core.exe'") } 'the updated kiko-core to run'
+  $core = Get-CimInstance Win32_Process -Filter "Name='kiko-core.exe'" | Select-Object -First 1
+  if ($core.ParentProcessId -ne $proc.Id) {
+    Fail "after the update kiko-core ($($core.ProcessId)) is not a child of kiko ($($proc.Id))"
+  }
+  bun "$root\scripts\installer-e2e.ts" status '\\.\pipe\kiko-driver'
+  if ($LASTEXITCODE -ne 0) { Fail 'the driver pipe did not answer status after the update' }
+  if ((Get-Content (Join-Path $app 'VERSION') -Raw).Trim() -ne $next) { Fail 'the update did not write the new version' }
   Write-Host 'installer e2e passed'
 } finally {
   & (Join-Path $app 'kiko.exe') --quit

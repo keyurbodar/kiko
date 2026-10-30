@@ -5,10 +5,15 @@ import { join } from "node:path"
 import { installPs1, installSh } from "../apps/server/src/computer/install-route"
 import { COMPUTER_APPS, computerSums } from "../core/computer/src/install"
 
-const VERSION = "0.0.0-e2e"
 const STATUS_TIMEOUT_MS = 10_000
 
-async function publish(assets: string, site: string, base: string): Promise<void> {
+async function version(explicit?: string): Promise<string> {
+  if (explicit) return explicit
+  const pkg = (await Bun.file(join(import.meta.dir, "..", "package.json")).json()) as { version: string }
+  return pkg.version
+}
+
+async function publish(assets: string, site: string, base: string, release: string): Promise<void> {
   await mkdir(site, { recursive: true })
   const present: { name: string; sha256: string }[] = []
   for (const name of COMPUTER_APPS) {
@@ -18,9 +23,9 @@ async function publish(assets: string, site: string, base: string): Promise<void
     await copyFile(join(assets, name), join(site, name))
   }
   if (present.length === 0) throw new Error(`no kiko app archives in ${assets}`)
-  const release = { version: VERSION, base, sums: computerSums(present) }
-  await writeFile(join(site, "install.sh"), installSh(base, release))
-  await writeFile(join(site, "install.ps1"), installPs1(base, release))
+  const manifest = { version: release, base, sums: computerSums(present) }
+  await writeFile(join(site, "install.sh"), installSh(base, manifest))
+  await writeFile(join(site, "install.ps1"), installPs1(base, manifest))
 }
 
 function serve(site: string, port: number): void {
@@ -64,11 +69,15 @@ function status(path: string): Promise<{ ok: boolean; value?: unknown; error?: u
 
 async function main(argv: string[]): Promise<number> {
   const [mode, ...rest] = argv
-  if (mode === "serve") {
-    const [assets, site, port] = rest
-    if (!assets || !site || !port) throw new Error("usage: serve <assets> <site> <port>")
-    await publish(assets, site, `http://127.0.0.1:${port}`)
-    serve(site, Number(port))
+  if (mode === "version") {
+    console.log(await version())
+    return 0
+  }
+  if (mode === "write" || mode === "serve") {
+    const [assets, site, port, release] = rest
+    if (!assets || !site || !port) throw new Error(`usage: ${mode} <assets> <site> <port> [version]`)
+    await publish(assets, site, `http://127.0.0.1:${port}`, await version(release))
+    if (mode === "serve") serve(site, Number(port))
     return 0
   }
   if (mode === "status") {
@@ -78,7 +87,7 @@ async function main(argv: string[]): Promise<number> {
     console.log(JSON.stringify(answer))
     return answer.ok ? 0 : 1
   }
-  throw new Error("usage: installer-e2e.ts serve <assets> <site> <port> | status <socket>")
+  throw new Error("usage: installer-e2e.ts write|serve <assets> <site> <port> [version] | status <socket> | version")
 }
 
 process.exitCode = await main(process.argv.slice(2))

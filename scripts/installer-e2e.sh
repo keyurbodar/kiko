@@ -150,4 +150,12 @@ case "$again" in
 esac
 [ "$(pgrep -x kiko | head -1)" = "$app_pid" ] || fail "a rerun restarted the app"
 check_child
+
+echo "installing a newer version over the running app"
+bun "$root/scripts/installer-e2e.ts" write "$assets" "$site" "$port" "$(bun "$root/scripts/installer-e2e.ts" version)-e2e"
+sh "$site/install.sh"
+wait_until 150 kiko_running || fail "kiko is not running after the update"
+[ "$(pgrep -x kiko | head -1)" != "$app_pid" ] || fail "the update did not restart the app"
+check_child
+check_driver
 echo "installer e2e passed"

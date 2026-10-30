@@ -86,6 +86,7 @@ function install(body: string, base: string, options: InstallOptions = {}) {
       KIKO_PC_BASE: `file://${base}`,
       KIKO_CALLS: calls,
       KIKO_RUNNING: join(home, "running"),
+      DISPLAY: ":0",
     },
   })
   return {
@@ -128,6 +129,7 @@ describe.skipIf(process.platform !== "linux")("install.sh", () => {
     expect(run.status).toBe(0)
     const unit = run.file(".config/systemd/user/kiko.service")
     expect(unit).toContain(`ExecStart="${run.home}/.local/share/kiko/kiko"`)
+    expect(unit).toContain('Environment="DISPLAY=:0"')
     expect(unit).toContain("Restart=always")
     expect(run.calls()).toContain("systemctl --user enable kiko.service")
     expect(run.calls()).toContain("systemctl --user restart kiko.service")

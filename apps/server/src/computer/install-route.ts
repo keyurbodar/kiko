@@ -64,6 +64,14 @@ checksum_of() {
 
 xml() {
   printf '%s' "$1" | sed -e 's/&/\\&amp;/g' -e 's/</\\&lt;/g' -e 's/>/\\&gt;/g'
+}
+
+wait_gone() {
+  n=0
+  while "$1" && [ "$n" -lt 50 ]; do
+    sleep 0.2
+    n=$((n + 1))
+  done
 }`
 
 const SH_FFMPEG = `install_ffmpeg() {
@@ -118,6 +126,18 @@ mac_running() {
   launchctl print "gui/$uid/com.kiko.computer" >/dev/null 2>&1
 }
 
+mac_app_process() {
+  pgrep -f -- "$app/Contents/MacOS/kiko" >/dev/null 2>&1
+}
+
+mac_stop() {
+  if mac_running; then launchctl bootout "gui/$uid/com.kiko.computer" >/dev/null 2>&1 || true; fi
+  if mac_app_process; then
+    "$app/Contents/MacOS/kiko" --quit >/dev/null 2>&1 || true
+    wait_gone mac_app_process
+  fi
+}
+
 mac_replace() {
   mkdir -p "$home/Applications"
   mkdir -p "$work/unpack"
@@ -127,7 +147,7 @@ mac_replace() {
     unzip -q "$work/$asset" -d "$work/unpack"
   fi
   [ -d "$work/unpack/kiko.app" ] || die "the archive has no kiko.app"
-  launchctl bootout "gui/$uid/com.kiko.computer" >/dev/null 2>&1 || true
+  mac_stop
   old="$app.replaced"
   rm -rf "$old"
   if [ -d "$app" ]; then mv "$app" "$old"; fi
@@ -180,11 +200,15 @@ const SH_LINUX = `linux_version() {
   if [ -f "$root/VERSION" ]; then cat "$root/VERSION"; fi
 }
 
+linux_app_process() {
+  pgrep -f -- "$root/kiko" >/dev/null 2>&1
+}
+
 linux_running() {
   if [ "$use_systemd" = 1 ]; then
     systemctl --user is-active --quiet kiko.service
   else
-    pgrep -f -- "$root/kiko" >/dev/null 2>&1
+    linux_app_process
   fi
 }
 
@@ -194,6 +218,10 @@ linux_replace() {
   [ -f "$work/unpack/kiko" ] || die "the archive has no kiko binary"
   mkdir -p "$root"
   if [ "$use_systemd" = 1 ]; then systemctl --user stop kiko.service >/dev/null 2>&1 || true; fi
+  if linux_app_process; then
+    "$root/kiko" --quit >/dev/null 2>&1 || true
+    wait_gone linux_app_process
+  fi
   install -m 755 "$work/unpack/kiko" "$root/.kiko.new"
   install -m 755 "$work/unpack/kiko-core" "$root/.kiko-core.new"
   mv -f "$root/.kiko.new" "$root/kiko"
@@ -213,8 +241,15 @@ linux_replace() {
 }
 
 linux_environment() {
+  adopted=''
+  if [ -z "$(printenv DISPLAY 2>/dev/null || true)" ] && [ -z "$(printenv WAYLAND_DISPLAY 2>/dev/null || true)" ]; then
+    adopted="$(systemctl --user show-environment 2>/dev/null || true)"
+  fi
   for name in DISPLAY WAYLAND_DISPLAY XAUTHORITY XDG_RUNTIME_DIR XDG_SESSION_TYPE DBUS_SESSION_BUS_ADDRESS; do
     value="$(printenv "$name" 2>/dev/null || true)"
+    if [ -z "$value" ] && [ -n "$adopted" ]; then
+      value="$(printf '%s\\n' "$adopted" | sed -n "s/^$name=//p" | head -1)"
+    fi
     if [ -n "$value" ]; then
       escaped="$(printf '%s' "$value" | sed -e 's/\\\\/\\\\\\\\/g' -e 's/"/\\\\"/g')"
       printf 'Environment="%s=%s"\\n' "$name" "$escaped"
@@ -360,7 +395,7 @@ if [ -n "$pair" ]; then
   else
     "$core" pair "$pair"
   fi
-else
+elif [ -z "$installed" ]; then
   say "kiko: no pair link yet. Open $origin in a browser, add this computer, then run:"
   say "  $core pair '<pair-url>'"
 fi
