@@ -36,6 +36,7 @@ describe("coming back to the tab", () => {
     Effect.gen(function* () {
       const worker = yield* localWorker
       const owner = yield* signIn(worker.url, "resubscribe")
+      yield* owner.post("api/dev/user/model-overlay", { provider: "anthropic", models: [] })
       yield* connect(worker.url, owner.token)
       const client = yield* clientFor(worker.url, owner.token)
 

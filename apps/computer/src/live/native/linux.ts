@@ -1,5 +1,9 @@
-import { dlopen, FFIType, ptr } from "bun:ffi"
+import { dlopen, FFIType, ptr, toArrayBuffer } from "bun:ffi"
 import type { Native } from "./contract"
+import { spareKeycode, unicodeKeysym } from "./keysym"
+
+const REMAP_SETTLE_MS = 40
+const X_BUTTONS = [1, 3, 2]
 
 const NAMED = new Map<string, number>([
   ["Escape", 0xff1b],
@@ -88,6 +92,8 @@ const SHIFTED = new Map<string, string>([
   ["?", "/"],
 ])
 
+type Keyboard = { min: number; max: number; perKeycode: number; syms: Float64Array }
+
 type Symbols = {
   display: number
   width: number
@@ -99,6 +105,9 @@ type Symbols = {
   keycodeDown: (keycode: number, down: boolean) => void
   flush: () => void
   query: () => { x: number; y: number } | null
+  keyboard: () => Keyboard | null
+  change: (keycode: number, keysyms: BigUint64Array) => void
+  sync: () => void
 }
 
 function openSymbols(): Symbols | null {
@@ -129,6 +138,14 @@ function openSymbols(): Symbols | null {
         returns: "bool",
       },
       XKeysymToKeycode: { args: [FFIType.ptr, FFIType.u64], returns: "u8" },
+      XFree: { args: [FFIType.ptr], returns: "i32" },
+      XDisplayKeycodes: { args: [FFIType.ptr, FFIType.ptr, FFIType.ptr], returns: "i32" },
+      XGetKeyboardMapping: { args: [FFIType.ptr, FFIType.u8, FFIType.i32, FFIType.ptr], returns: "ptr" },
+      XChangeKeyboardMapping: {
+        args: [FFIType.ptr, FFIType.i32, FFIType.i32, FFIType.ptr, FFIType.i32],
+        returns: "i32",
+      },
+      XSync: { args: [FFIType.ptr, FFIType.bool], returns: "i32" },
     })
     const display = x11.symbols.XOpenDisplay(null)
     if (!display) return null
@@ -166,6 +183,33 @@ function openSymbols(): Symbols | null {
         )
         return ok ? { x: coords[0]!, y: coords[1]! } : null
       },
+      keyboard: () => {
+        const bounds = new Int32Array(2)
+        if (!x11.symbols.XDisplayKeycodes(display, ptr(bounds), ptr(bounds, 4))) return null
+        const min = bounds[0]!
+        const max = bounds[1]!
+        const count = max - min + 1
+        if (count <= 0) return null
+        const per = new Int32Array(1)
+        const map = x11.symbols.XGetKeyboardMapping(display, min, count, ptr(per))
+        if (!map) return null
+        const perKeycode = per[0]!
+        try {
+          if (perKeycode <= 0) return null
+          const syms = Float64Array.from(new BigUint64Array(toArrayBuffer(map, 0, count * perKeycode * 8)), (value) =>
+            Number(value),
+          )
+          return { min, max, perKeycode, syms }
+        } finally {
+          x11.symbols.XFree(map)
+        }
+      },
+      change: (keycode, keysyms) => {
+        x11.symbols.XChangeKeyboardMapping(display, keycode, keysyms.length, keysyms, 1)
+      },
+      sync: () => {
+        x11.symbols.XSync(display, false)
+      },
     }
   } catch {
     return null
@@ -194,6 +238,40 @@ export function linuxNative(): Native | null {
   const symbols = openSymbols()
   if (!symbols) return null
   const down = new Set<string>()
+  const heldButtons = new Set<number>()
+
+  const typeAscii = (char: string): void => {
+    const shift = needsShift(char)
+    const code = symbols.keycode(baseOf(char).charCodeAt(0))
+    if (!code) return
+    if (shift) symbols.keycodeDown(symbols.keycode(0xffe1), true)
+    symbols.keycodeDown(code, true)
+    symbols.keycodeDown(code, false)
+    if (shift) symbols.keycodeDown(symbols.keycode(0xffe1), false)
+  }
+
+  const typeSymbol = (keysym: number): void => {
+    const mapped = symbols.keycode(keysym)
+    if (mapped) {
+      symbols.keycodeDown(mapped, true)
+      symbols.keycodeDown(mapped, false)
+      return
+    }
+    const keyboard = symbols.keyboard()
+    if (!keyboard) return
+    const spare = spareKeycode(keyboard.syms, keyboard.min, keyboard.max, keyboard.perKeycode)
+    if (spare === null) return
+    const remap = new BigUint64Array(keyboard.perKeycode)
+    remap[0] = BigInt(keysym)
+    symbols.change(spare, remap)
+    symbols.sync()
+    symbols.keycodeDown(spare, true)
+    symbols.keycodeDown(spare, false)
+    symbols.sync()
+    Bun.sleepSync(REMAP_SETTLE_MS)
+    symbols.change(spare, new BigUint64Array(keyboard.perKeycode))
+    symbols.sync()
+  }
 
   const type = (char: string): void => {
     if (char === "\n" || char === "\r") {
@@ -208,13 +286,10 @@ export function linuxNative(): Native | null {
       symbols.keycodeDown(code, false)
       return
     }
-    const shift = needsShift(char)
-    const code = symbols.keycode(baseOf(char).charCodeAt(0))
-    if (!code) return
-    if (shift) symbols.keycodeDown(symbols.keycode(0xffe1), true)
-    symbols.keycodeDown(code, true)
-    symbols.keycodeDown(code, false)
-    if (shift) symbols.keycodeDown(symbols.keycode(0xffe1), false)
+    const codepoint = char.codePointAt(0)
+    if (codepoint === undefined) return
+    if (codepoint < 0x7f) typeAscii(char)
+    else typeSymbol(unicodeKeysym(codepoint))
   }
 
   return {
@@ -224,14 +299,18 @@ export function linuxNative(): Native | null {
     },
     button(slot, isDown, x, y) {
       symbols.motion(x, y)
-      symbols.button(slot + 1, isDown)
+      symbols.button(X_BUTTONS[slot] ?? 1, isDown)
+      if (isDown) heldButtons.add(slot)
+      else heldButtons.delete(slot)
       symbols.flush()
     },
     wheel(steps, horizontal) {
-      const button = horizontal ? (steps > 0 ? 6 : 7) : steps > 0 ? 4 : 5
+      const button = horizontal ? (steps > 0 ? 7 : 6) : steps > 0 ? 5 : 4
       const count = Math.min(10, Math.max(1, Math.abs(steps)))
-      for (let i = 0; i < count; i++) symbols.button(button, true)
-      for (let i = 0; i < count; i++) symbols.button(button, false)
+      for (let i = 0; i < count; i++) {
+        symbols.button(button, true)
+        symbols.button(button, false)
+      }
       symbols.flush()
     },
     key(code, key, isDown) {
@@ -258,6 +337,8 @@ export function linuxNative(): Native | null {
         if (keycode) symbols.keycodeDown(keycode, false)
       }
       down.clear()
+      for (const slot of heldButtons) symbols.button(X_BUTTONS[slot] ?? 1, false)
+      heldButtons.clear()
       symbols.flush()
     },
   }

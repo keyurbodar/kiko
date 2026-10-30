@@ -299,6 +299,8 @@ export const ComputerSummary = Schema.Struct({
   busy: Schema.optionalKey(Schema.Boolean),
   agent: Schema.optionalKey(ComputerAgent),
   displays: Schema.Array(ComputerDisplay),
+  access: Schema.optionalKey(Schema.Struct({ screen: Schema.Boolean, input: Schema.Boolean })),
+  note: Schema.optionalKey(Schema.String),
 })
 export type ComputerSummary = typeof ComputerSummary.Type
 

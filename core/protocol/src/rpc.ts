@@ -38,6 +38,7 @@ import {
   ComputerId,
   ComputerInput,
   ComputerSignal,
+  ComputerSummary,
   ClaimResult,
   KernelResult,
   UserEvent,
@@ -303,6 +304,7 @@ export const OwnerRpcs = RpcGroup.make(
   Rpc.make("browser.handBack", { error: Integration }),
   Rpc.make("browser.close", { error: Integration }),
 
+  Rpc.make("pc.list", { payload: {}, success: Schema.Array(ComputerSummary), error: Base }),
   Rpc.make("pc.pairCode", {
     success: Schema.Struct({ code: Schema.String, url: Schema.String, expiresAt: Count }),
     error: Refusable,

@@ -109,7 +109,7 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
                   class={cn(button, "bg-fg text-bg")}
                   data-action="computer-takeover"
                   disabled={!computer()?.online || computer()?.caps.input === false}
-                  onClick={() => takeOver(event().pc)}
+                  onClick={() => void takeOver(event().pc)}
                 >
                   Take over
                 </button>
@@ -118,7 +118,7 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
                 type="button"
                 class={cn(button, "bg-[color-mix(in_oklab,var(--fg)_10%,transparent)] text-fg")}
                 data-action="computer-done"
-                onClick={() => release(event().pc)}
+                onClick={() => void release(event().pc)}
               >
                 I’m done
               </button>

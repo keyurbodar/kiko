@@ -7,40 +7,67 @@ import { onUserSignal } from "../state/user"
 const [list, setList] = createSignal<readonly ComputerSummary[]>([])
 export const computers = list
 
-const [viewing, setViewing] = createSignal<string | null>(null)
-export const viewerFor = viewing
-export const openViewer = (pcId: string) => setViewing(pcId)
-export const closeViewer = () => setViewing(null)
-
-let started = false
-export function startComputers(): void {
-  if (started) return
-  started = true
-  onUserSignal("pcState", (signal) => setList(signal.computers))
-}
-
 export const computerById = (pcId: string): ComputerSummary | undefined => list().find((c) => c.id === pcId)
 
 function patch(pcId: string, change: (computer: ComputerSummary) => ComputerSummary): void {
   setList((all) => all.map((c) => (c.id === pcId ? change(c) : c)))
 }
 
-export function takeOver(pcId: string): void {
-  patch(pcId, (c) => ({ ...c, holder: "human", heldBy: "you" }))
-  void run(owner.commands.pcTake, { pcId })
-  openViewer(pcId)
-}
-
-export function release(pcId: string): void {
-  patch(pcId, ({ agent: _agent, heldBy: _heldBy, ...c }) => ({ ...c, holder: "agent" }))
-  void run(owner.commands.pcRelease, { pcId })
-  if (viewing() === pcId) closeViewer()
-}
-
 export type Outcome = { ok: true } | { ok: false; error: string }
 
 const outcome = (result: SettledAsyncResult<unknown, unknown>): Outcome =>
   result._tag === "Success" ? { ok: true } : { ok: false, error: failureMessage(result.cause, "Kiko did not answer.") }
+
+const [viewing, setViewing] = createSignal<string | null>(null)
+export const viewerFor = viewing
+export const openViewer = (pcId: string) => setViewing(pcId)
+export function closeViewer(): void {
+  const pcId = viewing()
+  if (pcId === null) return
+  const pc = computerById(pcId)
+  if (pc?.holder === "human" && pc.heldBy === "you") void release(pcId)
+  setViewing(null)
+}
+
+async function refreshList(): Promise<void> {
+  const result = await run(owner.commands.pcList, {})
+  if (result._tag === "Success") setList(result.value)
+}
+
+let started = false
+export function startComputers(): void {
+  if (started) return
+  started = true
+  onUserSignal("pcState", (signal) => setList(signal.computers))
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void refreshList()
+  })
+  window.addEventListener("online", () => void refreshList())
+}
+
+export async function takeOver(pcId: string): Promise<Outcome> {
+  const previous = computerById(pcId)
+  patch(pcId, (c) => ({ ...c, holder: "human", heldBy: "you" }))
+  const result = outcome(await run(owner.commands.pcTake, { pcId }))
+  if (!result.ok) {
+    if (previous) patch(pcId, () => previous)
+    return result
+  }
+  openViewer(pcId)
+  return result
+}
+
+export async function release(pcId: string): Promise<Outcome> {
+  const previous = computerById(pcId)
+  patch(pcId, ({ agent: _agent, heldBy: _heldBy, ...c }) => ({ ...c, holder: "agent" }))
+  const result = outcome(await run(owner.commands.pcRelease, { pcId }))
+  if (!result.ok) {
+    if (previous) patch(pcId, () => previous)
+    return result
+  }
+  if (viewing() === pcId) closeViewer()
+  return result
+}
 
 export async function renameComputer(pcId: string, name: string): Promise<Outcome> {
   const previous = computerById(pcId)?.name

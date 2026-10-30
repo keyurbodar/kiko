@@ -92,6 +92,12 @@ export default function LiveScreen(props: {
     })
   })
 
+  const notice = () => {
+    if (!online()) return "This computer is offline"
+    return mode() === "stalled"
+      ? "The screen is not sharing. Check that ffmpeg is installed on that computer."
+      : "Connecting to the screen"
+  }
   const showing = (which: Mode) => (mode() === which ? "opacity-100" : "opacity-0")
 
   return (
@@ -146,13 +152,13 @@ export default function LiveScreen(props: {
           </Show>
         </div>
       </div>
-      <Show when={mode() === "connecting"}>
+      <Show when={mode() === "connecting" || mode() === "stalled"}>
         <div
-          class="absolute inset-0 grid place-items-center text-label text-white/70"
+          class="absolute inset-0 grid place-items-center px-6 text-center text-label text-white/70"
           role="status"
           data-part="connecting"
         >
-          {online() ? "Connecting to the screen" : "This computer is offline"}
+          {notice()}
         </div>
       </Show>
     </div>

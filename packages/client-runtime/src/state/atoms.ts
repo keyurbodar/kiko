@@ -434,6 +434,7 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
         >,
       { mode: "singleFlight", key: () => "pair" },
     ),
+    pcList: rpc("pc.list"),
     pcRemove: rpc("pc.remove"),
     pcRename: rpc("pc.rename"),
     pcWatch: rpc("pc.watch"),
