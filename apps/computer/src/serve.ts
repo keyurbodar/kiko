@@ -73,7 +73,9 @@ export async function serve(dir = configDir()): Promise<number> {
     })
   }
   const point = (next: Detection) => {
-    if (next.desktop) next.desktop.pointer = (x, y) => live.agentCursor(x, y)
+    if (!next.desktop) return
+    next.desktop.pointer = (x, y) => live.agentCursor(x, y)
+    next.desktop.holder = () => holder
   }
   point(detection)
   const shutdown = () => {

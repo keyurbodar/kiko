@@ -1,5 +1,5 @@
 import { setTimeout as sleep } from "node:timers/promises"
-import type { Args, Step, Value } from "@kiko/computer/wire"
+import type { Args, Holder, Step, Value } from "@kiko/computer/wire"
 import type { Area, Backend, Shot } from "./desk/backend"
 import { parseKeys } from "./desk/keys"
 import { Fail } from "./log"
@@ -13,6 +13,8 @@ const SETTLE_MS = 350
 const DRAG_STEPS = 12
 const DRAG_STEP_MS = 8
 const MIN_WHEEL_PIXELS = 50
+const MAX_WHEEL_PIXELS = 3_000
+const OPEN_SETTLE_MS = 1_000
 const HOVER_MS = 40
 const PRESS_MS = 30
 const FOCUS_MS = 120
@@ -50,6 +52,7 @@ const encodeJpeg: Codec = async (bytes, limit) => {
 export class Desktop {
   readonly queue = new InputQueue()
   pointer: ((x: number, y: number) => void) | null = null
+  holder: () => Holder = () => "agent"
   private frames: Frame[] = []
   private current: Frame | null = null
   private screen = false
@@ -89,12 +92,18 @@ export class Desktop {
   }
 
   async act(args: Args<"act">, deadline: Deadline): Promise<Value<"act">> {
-    const frame = await this.resolve(args.captureId, deadline)
+    const frame = args.captureId ? await this.resolve(args.captureId, deadline) : await this.fresh(deadline)
     this.requireInput()
+    const outside = args.steps.map((step) => outsideOf(frame, step)).find((message) => message !== null)
+    if (outside) throw new Fail({ code: "failed", message: outside })
     let done = 0
     let error: string | undefined
     for (const step of args.steps) {
       if (deadline.signal.aborted) throw new Fail({ code: "cancelled", message: "the call was cancelled" })
+      if (this.holder() === "human") {
+        error = "the owner took over the screen, so the rest did not run"
+        break
+      }
       const failed = await this.queue
         .run(
           () => this.step(frame, step, deadline),
@@ -121,7 +130,10 @@ export class Desktop {
     this.showPointer(frame, step)
     if (step.op === "wait") return this.wait(step.ms, deadline)
     if (step.op === "key") return this.keys(step.keys)
-    if (step.op === "open") return this.backend.open(step.app, deadline.signal)
+    if (step.op === "open") {
+      await this.backend.open(step.app, deadline.signal)
+      return this.wait(OPEN_SETTLE_MS, deadline)
+    }
     if (step.op === "type") return this.type(frame, step)
     if (step.op === "click") return this.click(frame, step)
     if (step.op === "drag") return this.drag(frame, step)
@@ -224,6 +236,12 @@ export class Desktop {
     if (at) this.pointer(at.x / frame.width, at.y / frame.height)
   }
 
+  private async fresh(deadline: Deadline): Promise<Frame> {
+    await this.look({ image: false }, deadline)
+    if (!this.current) throw new Fail({ code: "stale", message: "that screenshot is gone; call computer_look again" })
+    return this.current
+  }
+
   private async resolve(captureId: string | undefined, deadline: Deadline): Promise<Frame> {
     if (captureId) {
       const found = this.frames.find((frame) => frame.id === captureId)
@@ -238,7 +256,7 @@ export class Desktop {
 
   private requireInput(): void {
     if (this.backend.access().input) return
-    throw new Fail({ code: "denied", message: inputDenied() })
+    throw new Fail({ code: "unsupported", message: inputDenied() })
   }
 
   private requireScreen(): void {
@@ -247,7 +265,7 @@ export class Desktop {
       this.screen = true
       return
     }
-    throw new Fail({ code: "denied", message: screenDenied() })
+    throw new Fail({ code: "unsupported", message: screenDenied() })
   }
 
   private async capture(args: Args<"look">, deadline: Deadline): Promise<Captured> {
@@ -295,7 +313,20 @@ function limitOf(maxWidth: number | undefined): number {
 }
 
 function wheelPixels(pixels: number): number {
-  return Math.sign(pixels) * Math.max(MIN_WHEEL_PIXELS, Math.round(Math.abs(pixels)))
+  return Math.sign(pixels) * Math.min(MAX_WHEEL_PIXELS, Math.max(MIN_WHEEL_PIXELS, Math.round(Math.abs(pixels))))
+}
+
+function pointsOf(step: Step): (readonly [number, number])[] {
+  if (step.op === "drag") return [step.from, step.to]
+  const at = targetOf(step)
+  return at ? [[at.x, at.y]] : []
+}
+
+function outsideOf(frame: Frame, step: Step): string | null {
+  const bad = pointsOf(step).find(([x, y]) => x >= frame.width || y >= frame.height)
+  return bad
+    ? `the screenshot is ${frame.width}x${frame.height}, so ${bad[0]},${bad[1]} is outside it. nothing was done.`
+    : null
 }
 
 function targetOf(step: Step): { x: number; y: number } | null {

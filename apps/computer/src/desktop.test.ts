@@ -95,7 +95,7 @@ describe("Desktop.look", () => {
 
     const error = await rejection(() => desktop.look({}, deadline()))
 
-    expect(error.code).toBe("denied")
+    expect(error.code).toBe("unsupported")
     expect(error.message).toMatch(/record the screen/)
   })
 
@@ -240,7 +240,7 @@ describe("Desktop.act", () => {
 
     const error = await rejection(() => desktop.act({ captureId: view.captureId, steps: [] }, deadline()))
 
-    expect(error.code).toBe("denied")
+    expect(error.code).toBe("unsupported")
     expect(error.message).toMatch(/control/)
   })
 
@@ -273,5 +273,47 @@ describe("Desktop.act", () => {
     const failure = await rejection(() => desktop.look({ zoom: { x: 5000, y: 0, width: 10, height: 10 } }, deadline()))
 
     expect(failure.message).toContain("outside the screenshot")
+  })
+
+  it("stops between steps when the owner takes over", async () => {
+    const { desktop, calls } = fake()
+    const view = await desktop.look({}, deadline())
+    desktop.holder = () => (named(calls, "text").length > 0 ? "human" : "agent")
+
+    const out = await desktop.act(
+      {
+        captureId: view.captureId,
+        steps: [
+          { op: "type", text: "a" },
+          { op: "type", text: "b" },
+        ],
+      },
+      deadline(),
+    )
+
+    expect(out.done).toBe(1)
+    expect(out.error).toContain("took over")
+    expect(named(calls, "text")).toEqual([{ name: "text", args: ["a"] }])
+  })
+
+  it("refuses a point outside the screenshot before doing anything", async () => {
+    const { desktop, calls } = fake()
+    const view = await desktop.look({}, deadline())
+
+    const failure = await rejection(() =>
+      desktop.act(
+        {
+          captureId: view.captureId,
+          steps: [
+            { op: "key", keys: "enter" },
+            { op: "click", x: 1280, y: 10 },
+          ],
+        },
+        deadline(),
+      ),
+    )
+
+    expect(failure.message).toContain("1280x800")
+    expect(named(calls, "key")).toEqual([])
   })
 })

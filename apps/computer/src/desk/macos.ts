@@ -1,7 +1,7 @@
 import { readFile, unlink } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { dlopen, FFIType } from "bun:ffi"
+import { dlopen, FFIType, type Pointer } from "bun:ffi"
 import { macNative } from "../live/native/macos"
 import { Fail } from "../log"
 import { selfArgv } from "../self"
@@ -42,13 +42,24 @@ function openDisplay(): Display | null {
   try {
     const symbols = dlopen(CORE_GRAPHICS, {
       CGMainDisplayID: { args: [], returns: FFIType.u32 },
-      CGDisplayPixelsWide: { args: [FFIType.u32], returns: FFIType.u64 },
-      CGDisplayPixelsHigh: { args: [FFIType.u32], returns: FFIType.u64 },
+      CGDisplayCopyDisplayMode: { args: [FFIType.u32], returns: FFIType.ptr },
+      CGDisplayModeGetWidth: { args: [FFIType.ptr], returns: FFIType.u64 },
+      CGDisplayModeGetHeight: { args: [FFIType.ptr], returns: FFIType.u64 },
+      CGDisplayModeRelease: { args: [FFIType.ptr], returns: FFIType.void },
     }).symbols
+    const points = (display: number, measure: (mode: Pointer) => number | bigint): number => {
+      const mode = symbols.CGDisplayCopyDisplayMode(display)
+      if (!mode) return 0
+      try {
+        return Number(measure(mode))
+      } finally {
+        symbols.CGDisplayModeRelease(mode)
+      }
+    }
     return {
       id: () => symbols.CGMainDisplayID(),
-      wide: (display) => Number(symbols.CGDisplayPixelsWide(display)),
-      high: (display) => Number(symbols.CGDisplayPixelsHigh(display)),
+      wide: (display) => points(display, (mode) => symbols.CGDisplayModeGetWidth(mode)),
+      high: (display) => points(display, (mode) => symbols.CGDisplayModeGetHeight(mode)),
     }
   } catch {
     return null

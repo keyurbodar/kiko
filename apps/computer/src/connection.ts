@@ -349,7 +349,7 @@ class Link {
     if (op === "act" && !policy.input)
       throw new Fail({ code: "denied", message: "policy.json turns input off on this machine" })
     if (op === "act" && this.host.holder() === "human") {
-      throw new Fail({ code: "denied", message: "the owner has control of this screen right now" })
+      throw new Fail({ code: "busy", message: "the owner has control of this screen right now" })
     }
     return machine
   }

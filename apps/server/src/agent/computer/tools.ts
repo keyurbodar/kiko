@@ -20,6 +20,7 @@ const COMPUTER_INFO_EXT = "computer-info"
 const SHELL_TIMEOUT_MS = 60_000
 const CALL_DEADLINE_MS = 60_000
 const MAX_DEADLINE_MS = 600_000
+const ACT_DEADLINE_MS = 150_000
 const SHELL_SLACK_MS = 10_000
 const MAX_OUTPUT_CHARS = 12_000
 const MAX_CONTROLS = 150
@@ -203,6 +204,7 @@ const clickStep = (s: StepArgs): Built => {
   if (typeof at === "string") return at
   const count = s.count === undefined ? undefined : whole(s.count, "count")
   if (typeof count === "string") return count
+  if (count === 0) return "count must be 1 or more"
   return { op: "click", ...at, ...(s.button ? { button: s.button } : {}), ...(count ? { count } : {}) }
 }
 
@@ -259,11 +261,13 @@ const decodeBase64 = (data: string): Uint8Array => Uint8Array.from(atob(data), (
 
 const extensionOf = (mime: string) => (mime === "image/png" ? "png" : "jpg")
 
-function saveScreenshot(api: Pick<ToolExecutionApi, "env">, image: { mime: string; data: string }): Promise<string> {
-  const saved = `/computer-${Date.now().toString(36)}.${extensionOf(image.mime)}`
-  return filesOf(api)
-    .write(saved, decodeBase64(image.data), image.mime)
-    .then(() => saved)
+async function saveScreenshot(
+  api: Pick<ToolExecutionApi, "env">,
+  image: { mime: string; data: string },
+): Promise<string | null> {
+  const saved = `/computer-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 6)}.${extensionOf(image.mime)}`
+  const out = await filesOf(api).write(saved, decodeBase64(image.data), image.mime)
+  return out.ok ? saved : null
 }
 
 function viewResult(
@@ -282,7 +286,9 @@ function viewResult(
       ],
     })
   return saveScreenshot(api, view.image).then((saved) =>
-    text(`${body}\n\nsaved to ${saved}. share it in your reply as ![what it shows](${saved})`),
+    saved
+      ? text(`${body}\n\nsaved to ${saved}. share it in your reply as ![what it shows](${saved})`)
+      : text(`${body}\n\nthe screenshot could not be saved, and your model cannot see images.`, true),
   )
 }
 
@@ -455,7 +461,7 @@ export function computerExtension(deps: ComputerToolDeps): Extension {
         if (!target.ok) return target.result
         const pc = target.pc
         const sees = deps.acceptsImages((await api.agent(ctx)).model)
-        const scope = String(api.conversationId)
+        const scope = `${api.conversationId}:${pc.id}`
         const zoom = zoomOf(args.zoom, captures.get(scope))
         if (typeof zoom === "string") return text(zoom, true)
         const body = {
@@ -494,17 +500,20 @@ export function computerExtension(deps: ComputerToolDeps): Extension {
         const steps = args.steps.slice(0, MAX_STEPS).map((s) => STEPS[s.op](s))
         const bad = steps.findIndex((s) => typeof s === "string")
         if (bad >= 0) return text(`step ${bad + 1}: ${steps[bad]}. nothing was done.`, true)
-        const scope = String(api.conversationId)
+        const scope = `${api.conversationId}:${pc.id}`
         const captureId = captures.get(scope)
         const sees = deps.acceptsImages((await api.agent(ctx)).model)
         const body = { ...(captureId ? { captureId } : {}), steps: steps as Step[], image: args.image ?? sees }
-        const out = await deps.port().call(pc.id, "act", body, MAX_DEADLINE_MS)
+        const out = await deps.port().call(pc.id, "act", body, ACT_DEADLINE_MS)
         if (!out.ok) return text(failText(out.code, out.message, pc), true)
         const value = out.value as Value<"act">
         captures.set(scope, value.view.captureId)
+        const after = value.view.image
+          ? "check the screenshot below before you say what happened."
+          : "no screenshot came back, so call computer_look before you say what happened."
         const head = value.error
-          ? `did ${value.done} of ${steps.length} steps on ${pc.name}. step ${value.done + 1} failed: ${value.error}. the screen changed, so look at the screenshot below.`
-          : `did all ${value.done} steps on ${pc.name}.`
+          ? `did ${value.done} of ${steps.length} steps on ${pc.name}. step ${value.done + 1} failed: ${value.error}. ${after}`
+          : `did all ${value.done} steps on ${pc.name}. ${after}`
         return viewResult(api, value.view, sees, head)
       }),
   })

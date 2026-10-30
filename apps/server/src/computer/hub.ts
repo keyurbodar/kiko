@@ -408,7 +408,8 @@ export class ComputerHub {
       return { ok: false, code: "unsupported", message: `${row.name} has input off` }
     if ((op === "look" || op === "act") && saved.holder === "human")
       return { ok: false, code: "busy", message: `the human has control of ${row.name} right now` }
-    const taken = op === "act" && options.user ? this.claimDesk(pcId, options.user) : null
+    const deadlineMs = Math.min(Math.max(1_000, Number(options.deadlineMs ?? DEFAULT_DEADLINE_MS)), MAX_DEADLINE_MS)
+    const taken = op === "act" && options.user ? this.claimDesk(pcId, options.user, deadlineMs) : null
     if (taken)
       return {
         ok: false,
@@ -421,13 +422,13 @@ export class ComputerHub {
     } catch {
       return { ok: false, code: "failed", message: `bad ${op} arguments` }
     }
-    const deadlineMs = Math.min(Math.max(1_000, Number(options.deadlineMs ?? DEFAULT_DEADLINE_MS)), MAX_DEADLINE_MS)
     const id = crypto.randomUUID()
     const busy = BUSY_OPS.has(op)
     if (busy) this.track(pcId, true)
     const outcome = new Promise<CallOutcome>((resolve) => {
       const done = (out: CallOutcome) => {
         if (busy) this.track(pcId, false)
+        if (taken === null && op === "act" && options.user) this.claimDesk(pcId, options.user, 0)
         resolve(out)
       }
       const timer = setTimeout(() => {
@@ -598,11 +599,15 @@ export class ComputerHub {
     } catch {}
   }
 
-  private claimDesk(pcId: string, user: { key: string; name: string }): { name: string; until: number } | null {
+  private claimDesk(
+    pcId: string,
+    user: { key: string; name: string },
+    runningMs: number,
+  ): { name: string; until: number } | null {
     const now = Date.now()
     const current = this.desk.get(pcId)
     if (current && current.user !== user.key && current.until > now) return current
-    this.desk.set(pcId, { user: user.key, name: user.name, until: now + DESK_MS })
+    this.desk.set(pcId, { user: user.key, name: user.name, until: now + runningMs + DESK_MS })
     return null
   }
 

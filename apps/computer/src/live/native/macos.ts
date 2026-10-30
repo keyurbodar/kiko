@@ -70,8 +70,10 @@ function open(): Core | null {
       CGEventPost: { args: [FFIType.u32, FFIType.ptr], returns: "void" },
       CGEventSourceCreate: { args: [FFIType.u32], returns: "ptr" },
       CGMainDisplayID: { args: [], returns: FFIType.u32 },
-      CGDisplayPixelsWide: { args: [FFIType.u32], returns: FFIType.u64 },
-      CGDisplayPixelsHigh: { args: [FFIType.u32], returns: FFIType.u64 },
+      CGDisplayCopyDisplayMode: { args: [FFIType.u32], returns: FFIType.ptr },
+      CGDisplayModeGetWidth: { args: [FFIType.ptr], returns: FFIType.u64 },
+      CGDisplayModeGetHeight: { args: [FFIType.ptr], returns: FFIType.u64 },
+      CGDisplayModeRelease: { args: [FFIType.ptr], returns: FFIType.void },
     })
     const cf = dlopen(`${FRAMEWORKS}/CoreFoundation.framework/CoreFoundation`, {
       CFRelease: { args: [FFIType.ptr], returns: "void" },
@@ -132,9 +134,11 @@ function open(): Core | null {
         return { x: point[0] ?? 0, y: point[1] ?? 0 }
       },
       display() {
-        const id = cg.symbols.CGMainDisplayID()
-        const width = Number(cg.symbols.CGDisplayPixelsWide(id))
-        const height = Number(cg.symbols.CGDisplayPixelsHigh(id))
+        const mode = cg.symbols.CGDisplayCopyDisplayMode(cg.symbols.CGMainDisplayID())
+        if (!mode) return null
+        const width = Number(cg.symbols.CGDisplayModeGetWidth(mode))
+        const height = Number(cg.symbols.CGDisplayModeGetHeight(mode))
+        cg.symbols.CGDisplayModeRelease(mode)
         if (width <= 0 || height <= 0) return null
         return { width, height }
       },
