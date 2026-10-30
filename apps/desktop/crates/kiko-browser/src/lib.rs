@@ -6,6 +6,7 @@ mod eval;
 mod image;
 mod jpeg;
 mod keys;
+mod paint;
 mod read;
 mod state;
 mod tabs;

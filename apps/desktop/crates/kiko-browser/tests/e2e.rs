@@ -33,6 +33,38 @@ fn eval(driver: &mut Box<dyn Browser>, tab: &Tab, expression: &str) -> Value {
         .unwrap_or_else(|error| panic!("eval {expression} failed: {error}"))
 }
 
+fn try_eval(driver: &mut Box<dyn Browser>, tab: &Tab, expression: &str) -> Option<Value> {
+    driver
+        .eval(&BrowserEvalParams {
+            tab: tab.id.clone(),
+            expression: expression.to_string(),
+        })
+        .ok()
+}
+
+fn navigate(driver: &mut Box<dyn Browser>, tab: &Tab, url: &str) {
+    let expression = format!("location.href = {url:?}");
+    if let Err(error) = driver.eval(&BrowserEvalParams {
+        tab: tab.id.clone(),
+        expression,
+    }) {
+        assert!(
+            error.to_string().contains("navigated"),
+            "navigating {} failed: {error}",
+            tab.id
+        );
+    }
+}
+
+fn wait_search(driver: &mut Box<dyn Browser>, tab: &Tab, marker: &str) {
+    wait_for(&format!("{} to load {marker}", tab.id), || {
+        try_eval(driver, tab, "location.search")
+            .and_then(|value| value.as_str().map(str::to_string))
+            .is_some_and(|search| search.contains(marker))
+            .then_some(())
+    });
+}
+
 fn title(driver: &mut Box<dyn Browser>, tab: &Tab) -> String {
     eval(driver, tab, "document.title")
         .as_str()
@@ -44,8 +76,11 @@ fn wait_title(driver: &mut Box<dyn Browser>, tab: &Tab, wanted: &str) {
     wait_for(
         &format!("the title of {} to become {wanted}", tab.id),
         || {
-            let current = title(driver, tab);
-            (current == wanted).then_some(())
+            (try_eval(driver, tab, "document.title")
+                .as_ref()
+                .and_then(Value::as_str)
+                == Some(wanted))
+            .then_some(())
         },
     );
 }
@@ -222,6 +257,61 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
         "typing fires input events: {events}"
     );
 
+    for attempt in 1..=20 {
+        let name = format!("cold{attempt}");
+        driver
+            .open(&BrowserOpenParams {
+                url: page_url(&name),
+                mode: Mode::Background,
+            })
+            .expect("open a freshly hidden tab");
+        let cold = tab_for(&mut driver, &name);
+        wait_title(&mut driver, &cold, &name);
+        let page = read(&mut driver, &cold, false);
+        let press = find(&page, "button", "Press");
+        let started = Instant::now();
+        let route = act(&mut driver, &cold, press, PageAction::Click, None);
+        eprintln!(
+            "trusted click {attempt} of a freshly opened hidden tab: {route:?} in {:?}",
+            started.elapsed()
+        );
+        assert_eq!(
+            route,
+            Route::Trusted,
+            "trusted click {attempt} reaches a freshly opened hidden tab"
+        );
+        wait_title(&mut driver, &cold, &format!("pressed:{name}"));
+        driver
+            .close(&kiko_driver::TabParams {
+                tab: cold.id.clone(),
+            })
+            .expect("close the freshly hidden tab");
+    }
+
+    for attempt in 1..=20 {
+        let marker = format!("click{attempt}");
+        navigate(
+            &mut driver,
+            &b,
+            &format!("{}&again={marker}", page_url("B")),
+        );
+        wait_search(&mut driver, &b, &marker);
+        let page = read(&mut driver, &b, false);
+        let press = find(&page, "button", "Press");
+        let started = Instant::now();
+        let route = act(&mut driver, &b, press, PageAction::Click, None);
+        eprintln!(
+            "trusted click {attempt} of a freshly loaded hidden tab: {route:?} in {:?}",
+            started.elapsed()
+        );
+        assert_eq!(
+            route,
+            Route::Trusted,
+            "trusted click {attempt} reaches a freshly loaded hidden tab"
+        );
+        wait_title(&mut driver, &b, "pressed:B");
+    }
+
     let third = read(&mut driver, &b, false);
     let choice = find(&third, "combo box", "Choice");
     assert_eq!(
@@ -273,15 +363,12 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
 
     for attempt in 1..=20 {
         let marker = format!("reload{attempt}");
-        let url = format!("{}&again={marker}", page_url("B"));
-        eval(&mut driver, &b, &format!("location.href = {url:?}"));
-        wait_for(&format!("the hidden tab to load {marker}"), || {
-            eval(&mut driver, &b, "location.search")
-                .as_str()
-                .unwrap_or_default()
-                .contains(&marker)
-                .then_some(())
-        });
+        navigate(
+            &mut driver,
+            &b,
+            &format!("{}&again={marker}", page_url("B")),
+        );
+        wait_search(&mut driver, &b, &marker);
         let started = Instant::now();
         let captured = driver
             .read(&BrowserReadParams {
@@ -302,13 +389,13 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
         );
     }
 
-    eval(
-        &mut driver,
-        &b,
-        &format!("location.href = {:?}", page_url("B")),
-    );
+    navigate(&mut driver, &b, &page_url("B"));
     wait_for("the hidden tab to return to its page", || {
-        (eval(&mut driver, &b, "location.search").as_str() == Some("?name=B")).then_some(())
+        (try_eval(&mut driver, &b, "location.search")
+            .as_ref()
+            .and_then(Value::as_str)
+            == Some("?name=B"))
+        .then_some(())
     });
 
     assert!(

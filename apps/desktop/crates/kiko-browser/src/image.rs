@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 
 use crate::cdp::{Link, REQUEST_TIMEOUT};
 use crate::jpeg;
+use crate::paint;
 
 pub const DEFAULT_MAX_WIDTH: u32 = 1280;
 
@@ -74,12 +75,12 @@ async fn pixel_ratio(link: &Link, session: &str) -> f64 {
 }
 
 async fn shoot(link: &Link, session: &str, clip: &Value) -> Result<String> {
-    set_focus_emulation(link, session, true).await?;
+    paint::emulate_visible(link, session, true).await?;
     let captured = match send_capture(link, session, clip, PAINT_SHOT).await {
         Ok(data) => Ok(data),
         Err(_) => send_capture(link, session, clip, REQUEST_TIMEOUT).await,
     };
-    let restored = set_focus_emulation(link, session, false).await;
+    let restored = paint::emulate_visible(link, session, false).await;
     captured.and_then(|data| restored.map(|()| data))
 }
 
@@ -98,14 +99,4 @@ async fn send_capture(
         .filter(|data| !data.is_empty())
         .map(str::to_string)
         .ok_or_else(|| DriverError::new(ErrorCode::Failed, "the browser sent no image data"))
-}
-
-async fn set_focus_emulation(link: &Link, session: &str, enabled: bool) -> Result<()> {
-    link.send_to(
-        session,
-        "Emulation.setFocusEmulationEnabled",
-        json!({ "enabled": enabled }),
-    )
-    .await
-    .map(|_| ())
 }
