@@ -271,40 +271,45 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
         "capturing the owner's tab leaves it in front"
     );
 
-    for attempt in 1..=3 {
-        let name = format!("cold{attempt}");
-        driver
-            .open(&BrowserOpenParams {
-                url: page_url(&name),
-                mode: Mode::Background,
-            })
-            .expect("open a freshly hidden tab");
-        let cold = tab_for(&mut driver, &name);
-        wait_title(&mut driver, &cold, &name);
+    for attempt in 1..=20 {
+        let marker = format!("reload{attempt}");
+        let url = format!("{}&again={marker}", page_url("B"));
+        eval(&mut driver, &b, &format!("location.href = {url:?}"));
+        wait_for(&format!("the hidden tab to load {marker}"), || {
+            eval(&mut driver, &b, "location.search")
+                .as_str()
+                .unwrap_or_default()
+                .contains(&marker)
+                .then_some(())
+        });
         let started = Instant::now();
         let captured = driver
             .read(&BrowserReadParams {
-                tab: cold.id.clone(),
+                tab: b.id.clone(),
                 image: true,
                 max_width: Some(640),
             })
             .unwrap_or_else(|error| {
-                panic!("the first capture of a freshly hidden tab {attempt} failed: {error}")
+                panic!("capture {attempt} of the reloaded hidden tab failed: {error}")
             });
         eprintln!(
-            "the first capture of a freshly hidden tab {attempt} took {:?}",
+            "capture {attempt} of the reloaded hidden tab took {:?}",
             started.elapsed()
         );
         assert!(
             captured.image.is_some_and(|image| !image.data.is_empty()),
-            "a freshly hidden tab yields a screenshot on attempt {attempt}"
+            "the hidden tab yields a screenshot after reload {attempt}"
         );
-        driver
-            .close(&kiko_driver::TabParams {
-                tab: cold.id.clone(),
-            })
-            .expect("close the freshly hidden tab");
     }
+
+    eval(
+        &mut driver,
+        &b,
+        &format!("location.href = {:?}", page_url("B")),
+    );
+    wait_for("the hidden tab to return to its page", || {
+        (eval(&mut driver, &b, "location.search").as_str() == Some("?name=B")).then_some(())
+    });
 
     assert!(
         active(&mut driver, "A"),

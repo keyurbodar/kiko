@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use kiko_driver::{DriverError, ErrorCode, Image, Rect, Result};
@@ -7,6 +9,8 @@ use crate::cdp::{Link, REQUEST_TIMEOUT};
 use crate::jpeg;
 
 pub const DEFAULT_MAX_WIDTH: u32 = 1280;
+
+const PAINT_SHOT: Duration = Duration::from_millis(500);
 
 pub async fn capture(link: &Link, session: &str, max_width: Option<u32>) -> Result<Image> {
     let max_width = f64::from(max_width.unwrap_or(DEFAULT_MAX_WIDTH).max(1));
@@ -71,80 +75,23 @@ async fn pixel_ratio(link: &Link, session: &str) -> f64 {
 
 async fn shoot(link: &Link, session: &str, clip: &Value) -> Result<String> {
     set_focus_emulation(link, session, true).await?;
-    let started = std::time::Instant::now();
-    let painted = wait_for_paint(link, session).await;
-    eprintln!("probe paint wait {painted} in {:?}", started.elapsed());
-    let started = std::time::Instant::now();
-    let captured = match send_capture(link, session, clip).await {
-        Ok(data) => {
-            eprintln!("probe capture after paint: ok in {:?}", started.elapsed());
-            Ok(data)
-        }
-        Err(first) => {
-            eprintln!(
-                "probe capture after paint: {first} in {:?}",
-                started.elapsed()
-            );
-            let started = std::time::Instant::now();
-            let window = json!({ "format": "jpeg", "quality": 80, "fromSurface": false });
-            let warm = link
-                .send_with(
-                    Some(session),
-                    "Page.captureScreenshot",
-                    window,
-                    REQUEST_TIMEOUT,
-                )
-                .await
-                .map(|value| value["data"].as_str().unwrap_or_default().to_string());
-            eprintln!(
-                "probe window: {} in {:?}",
-                describe(&warm),
-                started.elapsed()
-            );
-            let started = std::time::Instant::now();
-            let second = send_capture(link, session, clip).await;
-            eprintln!(
-                "probe capture after window: {} in {:?}",
-                describe(&second),
-                started.elapsed()
-            );
-            second
-        }
+    let captured = match send_capture(link, session, clip, PAINT_SHOT).await {
+        Ok(data) => Ok(data),
+        Err(_) => send_capture(link, session, clip, REQUEST_TIMEOUT).await,
     };
     let restored = set_focus_emulation(link, session, false).await;
     captured.and_then(|data| restored.map(|()| data))
 }
 
-fn describe(result: &Result<String>) -> String {
-    match result {
-        Ok(data) => format!("ok {} bytes", data.len()),
-        Err(error) => error.to_string(),
-    }
-}
-
-async fn wait_for_paint(link: &Link, session: &str) -> bool {
-    let expression = "new Promise(resolve => { const painted = () => { let seen = 0; const tick = () => { if (++seen >= 2) { resolve(true); return; } requestAnimationFrame(tick) }; requestAnimationFrame(tick) }; if (document.readyState === 'complete') { painted(); return; } window.addEventListener('load', painted, { once: true }); setTimeout(() => resolve(false), 8000) })";
-    link.send_with(
-        Some(session),
-        "Runtime.evaluate",
-        json!({ "expression": expression, "awaitPromise": true, "returnByValue": true }),
-        REQUEST_TIMEOUT,
-    )
-    .await
-    .ok()
-    .and_then(|result| result["result"]["value"].as_bool())
-    .unwrap_or(false)
-}
-
-async fn send_capture(link: &Link, session: &str, clip: &Value) -> Result<String> {
+async fn send_capture(
+    link: &Link,
+    session: &str,
+    clip: &Value,
+    budget: Duration,
+) -> Result<String> {
     let params = json!({ "format": "jpeg", "quality": 80, "fromSurface": true, "captureBeyondViewport": true, "clip": clip });
     let result = link
-        .send_with(
-            Some(session),
-            "Page.captureScreenshot",
-            params,
-            REQUEST_TIMEOUT,
-        )
+        .send_with(Some(session), "Page.captureScreenshot", params, budget)
         .await?;
     result["data"]
         .as_str()
