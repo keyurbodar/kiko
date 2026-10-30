@@ -5,7 +5,7 @@ import { render } from "../../../test/render"
 import MermaidViewer, { safeDiagramSvg } from "./mermaid"
 
 it("draws a mermaid file and flips to its source", async () => {
-  await import("mermaid")
+  await (await import("mermaid")).default.parse(flow)
   const url = URL.createObjectURL(new Blob([flow], { type: "text/plain" }))
   try {
     const container = document.createElement("div")

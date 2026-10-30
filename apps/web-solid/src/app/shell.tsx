@@ -315,7 +315,7 @@ export function Shell(props: ParentProps) {
     if (narrow()) return setDrawer(!drawer())
     const panel = sidebarPanel
     if (!panel) return
-    if (panel.collapsed()) expandSidebar(panel)
+    if (railShown() || panel.collapsed()) expandSidebar(panel)
     else collapseSidebar(panel)
   }
   createEffect((prev: string | undefined) => {

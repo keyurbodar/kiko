@@ -134,6 +134,10 @@ describe("shell", () => {
     await expect.poll(() => width(screen.container, "sidebar-panel")).toBe(RAIL)
     expect(screen.container.querySelector('[data-component="sidebar-rail"]')).not.toBeNull()
     expect(screen.container.querySelector('[data-component="sidebar"]')).toBeNull()
+
+    await screen.getByRole("button", { name: "Toggle sidebar" }).click()
+    await expect.poll(() => width(screen.container, "sidebar-panel")).toBe(defaultWidth(SIDEBAR))
+    expect(screen.container.querySelector('[data-component="sidebar-rail"]')).toBeNull()
   })
 
   it("opens the right panel at its default width once the owner has opened it", async () => {
