@@ -107,15 +107,17 @@ fn window_of(driver: &mut Box<dyn Native>, pid: u32) -> Option<Window> {
         .find(|window| window.pid == pid)
 }
 
+fn try_look(driver: &mut Box<dyn Native>, id: &str) -> kiko_driver::Result<Look> {
+    driver.look(&LookParams {
+        window: id.to_string(),
+        tree: true,
+        image: true,
+        max_width: Some(1280),
+    })
+}
+
 fn look(driver: &mut Box<dyn Native>, id: &str) -> Look {
-    driver
-        .look(&LookParams {
-            window: id.to_string(),
-            tree: true,
-            image: true,
-            max_width: Some(1280),
-        })
-        .expect("look at the window")
+    try_look(driver, id).expect("look at the window")
 }
 
 fn find_optional<'a>(nodes: &'a [Node], role: &str, name: Option<&str>) -> Option<&'a Node> {
@@ -328,7 +330,11 @@ fn background_actions_reach_a_covered_window_without_stealing_focus() {
         &mut driver,
         background(&target.id(), Some(button.reference), Action::Press),
     );
-    assert_eq!(pressed.route, Route::Accessibility);
+    assert_eq!(
+        pressed.route,
+        Route::WindowEvent,
+        "classic controls take a posted click"
+    );
     checkpoint("press", foreground_before);
     let log = directory.join("target.log");
     wait_for("the button press to reach the app", || {
@@ -441,7 +447,16 @@ fn edge_page_content_is_readable_and_pressable_in_the_background() {
         .args([
             "--no-first-run",
             "--no-default-browser-check",
-            "--disable-features=msEdgeFirstRunExperience",
+            "--disable-sync",
+            "--disable-extensions",
+            "--disable-default-apps",
+            "--disable-component-update",
+            "--disable-background-networking",
+            "--disable-client-side-phishing-detection",
+            "--metrics-recording-only",
+            "--no-service-autorun",
+            "--password-store=basic",
+            "--disable-features=msEdgeFirstRunExperience,msImplicitSignin",
             &profile_argument,
             &url,
         ])
@@ -451,7 +466,7 @@ fn edge_page_content_is_readable_and_pressable_in_the_background() {
     let window = wait_for_edge(&mut driver, &mut browser);
 
     let first = wait_for("the Edge page tree", || {
-        let found = look(&mut driver, &window.id);
+        let found = try_look(&mut driver, &window.id).ok()?;
         let ready = find_optional(&found.nodes, "button", Some("Fire")).is_some();
         ready.then_some(found)
     });
