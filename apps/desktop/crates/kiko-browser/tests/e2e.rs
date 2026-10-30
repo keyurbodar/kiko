@@ -76,8 +76,11 @@ fn wait_title(driver: &mut Box<dyn Browser>, tab: &Tab, wanted: &str) {
     wait_for(
         &format!("the title of {} to become {wanted}", tab.id),
         || {
-            let current = title(driver, tab);
-            (current == wanted).then_some(())
+            (try_eval(driver, tab, "document.title")
+                .as_ref()
+                .and_then(Value::as_str)
+                == Some(wanted))
+            .then_some(())
         },
     );
 }

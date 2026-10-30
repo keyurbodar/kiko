@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 
 use crate::cdp::Link;
 use crate::keys;
+use crate::paint;
 use crate::read::quad_rect;
 use crate::state::{State, split_tab};
 
@@ -109,11 +110,8 @@ pub async fn act(state: &mut State, params: &BrowserActParams) -> Result<ActResu
 }
 
 async fn click(link: &Link, session: &str, backend: u32, in_frame: bool) -> Result<Route> {
-    if !in_frame {
-        match trusted_click(link, session, backend).await {
-            Ok(()) => return Ok(Route::Trusted),
-            Err(error) => eprintln!("probe trusted click fell back: {error}"),
-        }
+    if !in_frame && trusted_click(link, session, backend).await.is_ok() {
+        return Ok(Route::Trusted);
     }
     let object = object(link, session, backend).await?;
     call(
@@ -128,57 +126,35 @@ async fn click(link: &Link, session: &str, backend: u32, in_frame: bool) -> Resu
 }
 
 async fn trusted_click(link: &Link, session: &str, backend: u32) -> Result<()> {
-    let started = std::time::Instant::now();
-    let scrolled = link
+    paint::emulate_visible(link, session, true).await?;
+    let clicked = click_box(link, session, backend).await;
+    let restored = paint::emulate_visible(link, session, false).await;
+    clicked.and(restored)
+}
+
+async fn click_box(link: &Link, session: &str, backend: u32) -> Result<()> {
+    let _ = link
         .send_to(
             session,
             "DOM.scrollIntoViewIfNeeded",
             json!({ "backendNodeId": backend }),
         )
         .await;
-    eprintln!(
-        "probe scroll: {} in {:?}",
-        describe(&scrolled),
-        started.elapsed()
-    );
-    let started = std::time::Instant::now();
+    paint::wait_for_frame(link, session).await?;
     let model = link
         .send_to(
             session,
             "DOM.getBoxModel",
             json!({ "backendNodeId": backend }),
         )
-        .await
-        .inspect_err(|error| {
-            eprintln!(
-                "probe getBoxModel failed: {error} in {:?}",
-                started.elapsed()
-            )
-        })?;
+        .await?;
     let rect = quad_rect(&model["model"]["content"])
         .filter(|rect| rect.w > 0.0 && rect.h > 0.0)
         .ok_or_else(|| DriverError::new(ErrorCode::Failed, "that element has no box to click"))?;
-    eprintln!("probe getBoxModel: ok in {:?}", started.elapsed());
     let (x, y) = (rect.x + rect.w / 2.0, rect.y + rect.h / 2.0);
-    for kind in ["mouseMoved", "mousePressed", "mouseReleased"] {
-        let started = std::time::Instant::now();
-        let button = if kind == "mouseMoved" { "none" } else { "left" };
-        let sent = mouse(link, session, kind, x, y, button).await;
-        eprintln!(
-            "probe {kind} at {x},{y}: {} in {:?}",
-            describe(&sent),
-            started.elapsed()
-        );
-        sent?;
-    }
-    Ok(())
-}
-
-fn describe<T>(result: &Result<T>) -> String {
-    match result {
-        Ok(_) => "ok".to_string(),
-        Err(error) => error.to_string(),
-    }
+    mouse(link, session, "mouseMoved", x, y, "none").await?;
+    mouse(link, session, "mousePressed", x, y, "left").await?;
+    mouse(link, session, "mouseReleased", x, y, "left").await
 }
 
 async fn mouse(link: &Link, session: &str, kind: &str, x: f64, y: f64, button: &str) -> Result<()> {
