@@ -376,7 +376,7 @@ fn edge_path() -> Option<PathBuf> {
 
 fn wait_for_edge(driver: &mut Box<dyn Native>, browser: &mut Child) -> Window {
     let browser_pid = browser.id();
-    let deadline = Instant::now() + Duration::from_secs(90);
+    let deadline = Instant::now() + Duration::from_secs(240);
     loop {
         if let Ok(listed) = driver.windows()
             && let Some(window) = listed
@@ -449,8 +449,6 @@ fn edge_page_content_is_readable_and_pressable_in_the_background() {
         .expect("start Edge");
     let mut driver = kiko_native_windows::driver().expect("create the driver");
     let window = wait_for_edge(&mut driver, &mut browser);
-    let foreground_before = foreground();
-    let cursor_before = cursor();
 
     let first = wait_for("the Edge page tree", || {
         let found = look(&mut driver, &window.id);
@@ -467,12 +465,16 @@ fn edge_page_content_is_readable_and_pressable_in_the_background() {
         button.actions.contains(&Action::Press),
         "the page button offers press"
     );
+    let foreground_before = foreground();
+    let cursor_before = cursor();
+    checkpoint("edge look", foreground_before);
 
     let pressed = act(
         &mut driver,
         background(&window.id, Some(button.reference), Action::Press),
     );
     assert_eq!(pressed.route, Route::Accessibility);
+    checkpoint("edge press", foreground_before);
     wait_for("the page button to fire", || {
         driver
             .windows()

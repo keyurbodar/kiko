@@ -11,10 +11,10 @@ use windows::Win32::UI::Accessibility::{
     UIA_ControlTypePropertyId, UIA_ExpandCollapseExpandCollapseStatePropertyId,
     UIA_ExpandCollapsePatternId, UIA_HasKeyboardFocusPropertyId, UIA_InvokePatternId,
     UIA_IsEnabledPropertyId, UIA_IsOffscreenPropertyId, UIA_LegacyIAccessiblePatternId,
-    UIA_NamePropertyId, UIA_ScrollItemPatternId, UIA_ScrollPatternId,
-    UIA_SelectionItemIsSelectedPropertyId, UIA_SelectionItemPatternId, UIA_TextPatternId,
-    UIA_TogglePatternId, UIA_ToggleToggleStatePropertyId, UIA_ValueIsReadOnlyPropertyId,
-    UIA_ValuePatternId, UIA_ValueValuePropertyId,
+    UIA_NamePropertyId, UIA_NativeWindowHandlePropertyId, UIA_ScrollItemPatternId,
+    UIA_ScrollPatternId, UIA_SelectionItemIsSelectedPropertyId, UIA_SelectionItemPatternId,
+    UIA_TextPatternId, UIA_TogglePatternId, UIA_ToggleToggleStatePropertyId,
+    UIA_ValueIsReadOnlyPropertyId, UIA_ValuePatternId, UIA_ValueValuePropertyId,
 };
 
 use super::Table;
@@ -83,6 +83,7 @@ fn cache_request(automation: &IUIAutomation) -> Result<IUIAutomationCacheRequest
             UIA_IsEnabledPropertyId,
             UIA_HasKeyboardFocusPropertyId,
             UIA_IsOffscreenPropertyId,
+            UIA_NativeWindowHandlePropertyId,
             UIA_ValueValuePropertyId,
             UIA_ValueIsReadOnlyPropertyId,
             UIA_ToggleToggleStatePropertyId,

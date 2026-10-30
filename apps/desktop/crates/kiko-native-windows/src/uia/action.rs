@@ -37,12 +37,11 @@ fn background(element: &IUIAutomationElement, request: &OwnedAct) -> Result<Outc
     match request.action {
         Action::Press => press(element, request.window),
         Action::Toggle => toggle(element),
-        Action::SetValue if legacy(element) => Ok(Outcome::Text {
-            hwnd: native_handle(element, request.window),
-            text: request.text.clone().unwrap_or_default(),
-        }),
+        Action::SetValue if legacy(element) => {
+            text_outcome(element, request.text.as_deref().unwrap_or_default())
+        }
         Action::SetValue => set_value(element, request.text.as_deref()),
-        Action::Type if legacy(element) => Ok(legacy_text(element, request)),
+        Action::Type if legacy(element) => text_outcome(element, &legacy_text(element, request)),
         Action::Type => type_text(element, request),
         Action::Key => native(element, request.window),
         Action::Scroll => scroll(element, request.dx, request.dy),
@@ -101,23 +100,29 @@ fn legacy(element: &IUIAutomationElement) -> bool {
         .unwrap_or(false)
 }
 
-fn legacy_text(element: &IUIAutomationElement, request: &OwnedAct) -> Outcome {
+fn legacy_text(element: &IUIAutomationElement, request: &OwnedAct) -> String {
     let current =
         unsafe { element.GetCachedPatternAs::<IUIAutomationValuePattern>(UIA_ValuePatternId) }
             .ok()
             .and_then(|pattern| unsafe { pattern.CachedValue() }.ok())
             .map(|value| value.to_string())
             .unwrap_or_default();
-    Outcome::Text {
-        hwnd: native_handle(element, request.window),
-        text: format!("{current}{}", request.text.as_deref().unwrap_or_default()),
-    }
+    format!("{current}{}", request.text.as_deref().unwrap_or_default())
+}
+
+fn text_outcome(element: &IUIAutomationElement, text: &str) -> Result<Outcome> {
+    let hwnd = native_handle(element)
+        .ok_or_else(|| unsupported("this element has no window that accepts posted text"))?;
+    Ok(Outcome::Text {
+        hwnd,
+        text: text.to_string(),
+    })
 }
 
 fn native(element: &IUIAutomationElement, window: isize) -> Result<Outcome> {
     let screen = center(element).unwrap_or(Point { x: 0.0, y: 0.0 });
     Ok(Outcome::Native {
-        hwnd: native_handle(element, window),
+        hwnd: native_handle(element).unwrap_or(window),
         screen,
     })
 }
@@ -147,7 +152,7 @@ fn press(element: &IUIAutomationElement, window: isize) -> Result<Outcome> {
         return Err(unsupported("this element has no press action"));
     };
     Ok(Outcome::Native {
-        hwnd: native_handle(element, window),
+        hwnd: native_handle(element).unwrap_or(window),
         screen,
     })
 }

@@ -267,12 +267,11 @@ fn failed(action: &str, error: windows::core::Error) -> DriverError {
     DriverError::new(ErrorCode::Failed, format!("{action} failed: {error}"))
 }
 
-fn native_handle(element: &IUIAutomationElement, window: isize) -> isize {
+fn native_handle(element: &IUIAutomationElement) -> Option<isize> {
     unsafe { element.CachedNativeWindowHandle() }
         .ok()
         .map(|handle| handle.0 as isize)
         .filter(|handle| *handle != 0)
-        .unwrap_or(window)
 }
 
 fn center(element: &IUIAutomationElement) -> Option<Point> {
@@ -301,7 +300,7 @@ fn pointer(element: &IUIAutomationElement, window: isize) -> Result<Outcome> {
         unsupported("the element has no position on screen; scroll it into view first")
     })?;
     Ok(Outcome::Pointer {
-        hwnd: native_handle(element, window),
+        hwnd: native_handle(element).unwrap_or(window),
         screen,
     })
 }
