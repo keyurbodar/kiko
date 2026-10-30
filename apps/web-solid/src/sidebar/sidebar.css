@@ -133,7 +133,7 @@
   align-items: center;
   gap: 12px;
   padding: 0 10px;
-  color: var(--fg);
+  color: var(--fg2);
   font: inherit;
   font-size: var(--type-ui);
   line-height: var(--type-ui-line);
@@ -146,12 +146,19 @@
   appearance: none;
   transition:
     background var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko),
     transform var(--dur-hover) var(--ease-kiko);
 }
 
 .sidebar-shell .nav-icon {
   display: flex;
-  color: var(--fg2);
+  color: var(--fg3);
+  transition: color var(--dur-hover) var(--ease-kiko);
+}
+
+.sidebar-shell .nav-row:is([data-active], :active),
+.sidebar-shell .nav-row:is([data-active], :active) .nav-icon {
+  color: var(--fg);
 }
 
 .sidebar-shell .nav-label {
@@ -185,7 +192,12 @@
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .nav-row:hover {
+    color: var(--fg);
     background: var(--hover);
+  }
+
+  .sidebar-shell .nav-row:hover .nav-icon {
+    color: var(--fg);
   }
 
   .sidebar-shell .nav-row[data-active]:hover {
@@ -195,7 +207,7 @@
 
 .sidebar-shell .nav-row:active {
   transform: scale(var(--press-scale));
-  transition-duration: var(--dur-hover), var(--dur-press);
+  transition-duration: var(--dur-hover), var(--dur-hover), var(--dur-press);
 }
 
 .sidebar-shell .panel-scroll {

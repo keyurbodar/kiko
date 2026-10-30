@@ -19,7 +19,7 @@
   background: var(--tooltip-bg);
   border: 1px solid var(--tooltip-edge);
   box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
-  border-radius: 7px;
+  border-radius: var(--radius-tail);
 
   font-style: normal;
   font-weight: 400;

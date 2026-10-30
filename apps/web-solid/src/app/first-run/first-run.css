@@ -245,7 +245,7 @@
 }
 .ob-back:disabled {
   cursor: default;
-  opacity: 0.5;
+  opacity: var(--opacity-disabled);
 }
 
 .welcome-step {
@@ -400,7 +400,7 @@
 .ob-ghost:disabled,
 .ob-danger:disabled {
   cursor: default;
-  opacity: 0.55;
+  opacity: var(--opacity-disabled);
 }
 .ob-primary:disabled[data-action="sign-in"],
 .ob-primary:disabled[type="submit"] {
