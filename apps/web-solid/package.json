@@ -7,7 +7,8 @@
     "build": "vite build",
     "typecheck": "tsgo --noEmit",
     "preview": "vite preview",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "bench:hot-path": "vitest run --config test/bench/vitest.config.ts --reporter=verbose"
   },
   "dependencies": {
     "@clerk/clerk-js": "^6.39.0",

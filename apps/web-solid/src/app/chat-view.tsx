@@ -111,17 +111,16 @@ export function ChatView(props: { covered: boolean }) {
     const name = id === "kiko" ? "Kiko" : user.agents().find((a) => a.slug === id)?.name
     return name ? { id, name, preview: "", updatedAt: 0, presence: "idle", unread: 0, pinned: false } : undefined
   }
-  const byId = createMemo(() => new Map<string, ChatMessage>(messages().map((message) => [message.id, message])))
   const [armed, setArmed] = createSignal<ChatMessage | null>(null)
   const aim = (id: string) => {
-    setArmed(byId().get(id) ?? null)
+    setArmed(room.messageById(id) ?? null)
     setReplyTarget(id)
   }
   const replyTo = createMemo(() => {
     const id = replyTarget()
     if (id === null) return null
     const kept = armed()
-    return byId().get(id) ?? (kept?.id === id ? kept : null)
+    return room.messageById(id) ?? (kept?.id === id ? kept : null)
   })
   createEffect(() => {
     const id = replyTarget()
@@ -227,7 +226,7 @@ export function ChatView(props: { covered: boolean }) {
         <MessageList
           messages={messages()}
           botById={(id) => (id === undefined ? undefined : speaker(id))}
-          replyParent={(id) => (id === undefined ? undefined : byId().get(id))}
+          replyParent={(id) => (id === undefined ? undefined : room.messageById(id))}
           firstUnreadMessageId={room.firstUnreadMessageId()}
           onJumpToMessage={() => {}}
           onReplyTarget={aim}
@@ -337,7 +336,7 @@ export function ChatView(props: { covered: boolean }) {
           replyTo={replyTo()}
           replyQuote={replyQuote()}
           onClearReply={() => (setReplyTarget(null), setQuote(null))}
-          editing={editTarget() === null ? null : (byId().get(editTarget()!) ?? null)}
+          editing={editTarget() === null ? null : (room.messageById(editTarget()!) ?? null)}
           onEdit={(id, text) => room.editMessage(id, text)}
           onCancelEdit={() => setEditTarget(null)}
           onEditLast={() => {
