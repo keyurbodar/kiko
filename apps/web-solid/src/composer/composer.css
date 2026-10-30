@@ -406,11 +406,6 @@
   object-fit: cover;
 }
 
-.composer-dock .reply-bar-glyph {
-  flex-shrink: 0;
-  color: var(--fg3);
-}
-
 .composer-dock .reply-bar-dismiss {
   display: flex;
   width: 28px;

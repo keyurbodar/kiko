@@ -37,9 +37,11 @@
     color var(--dur-hover) var(--ease-kiko);
 }
 
-.kt-tool:hover {
-  background: var(--fill-hover);
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .kt-tool:hover {
+    background: var(--fill-hover);
+    color: var(--fg);
+  }
 }
 
 .kt-tool[aria-pressed="true"] {
@@ -279,15 +281,22 @@
     color var(--dur-hover) var(--ease-kiko);
 }
 
-.ft-row:hover .ft-more,
 .ft-row:focus-within .ft-more,
 .ft-more:focus-visible {
   opacity: 1;
 }
 
-.ft-more:hover {
-  background: var(--fill-control);
-  color: var(--fg);
+@media (hover: hover) and (pointer: fine) {
+  .ft-row:hover .ft-more {
+    opacity: 1;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ft-more:hover {
+    background: var(--fill-control);
+    color: var(--fg);
+  }
 }
 
 @media not ((hover: hover) and (pointer: fine)) {

@@ -106,7 +106,7 @@ export function showToastV2(input: ToastV2Options | string): number {
   return id
 }
 
-export function updateToastV2(id: number, options: ToastV2Options) {
+function updateToastV2(id: number, options: ToastV2Options) {
   setToasts(
     (toast) => toast.id === id && !toast.ending,
     produce((toast) => {
@@ -128,26 +128,6 @@ export function dismissToastV2(id?: number, ending: Ending = "close") {
     () => setToasts((list) => list.filter((toast) => !closing.includes(toast.id))),
     reducedMotion() ? 0 : EXIT_MS,
   )
-}
-
-type ToastV2Step<T> = string | ToastV2Options | ((value: T) => string | ToastV2Options)
-
-export interface ToastV2PromiseOptions<T> {
-  loading: string | ToastV2Options
-  success: ToastV2Step<T>
-  error: ToastV2Step<unknown>
-}
-
-export function promiseToastV2<T>(promise: Promise<T>, steps: ToastV2PromiseOptions<T>): Promise<T> {
-  const asOptions = (step: string | ToastV2Options) => (typeof step === "string" ? { title: step } : step)
-  const id = showToastV2({ ...asOptions(steps.loading), variant: "loading" })
-  const settle = <V,>(step: ToastV2Step<V>, value: V, variant: ToastV2Variant) =>
-    updateToastV2(id, { variant, ...asOptions(typeof step === "function" ? step(value) : step) })
-  promise.then(
-    (value) => settle(steps.success, value, "success"),
-    (error: unknown) => settle(steps.error, error, "error"),
-  )
-  return promise
 }
 
 function pulse(id: number) {

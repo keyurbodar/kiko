@@ -14,7 +14,7 @@ function finalize(h: number): number {
   return (h ^ (h >>> 16)) >>> 0
 }
 
-export function normalizeName(name: string): string {
+function normalizeName(name: string): string {
   return name.normalize("NFC").trim().toLowerCase()
 }
 

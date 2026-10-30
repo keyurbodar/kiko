@@ -103,52 +103,6 @@ button.composer-card-row {
   margin: 0 0 8px;
   overflow-wrap: anywhere;
 }
-.composer-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: end;
-  gap: 6px;
-  padding-top: 8px;
-}
-.composer-card-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-height: 30px;
-  padding: 0 12px;
-  border-radius: var(--radius-control);
-  font-size: var(--type-label);
-  font-weight: 500;
-  color: var(--fg2);
-  transition:
-    background var(--dur-hover, 120ms),
-    color var(--dur-hover, 120ms),
-    transform var(--dur-hover, 120ms) var(--ease-kiko, ease);
-}
-.composer-card-button:active:not(:disabled) {
-  transform: scale(0.97);
-}
-@media (hover: hover) and (pointer: fine) {
-  .composer-card-button:hover {
-    background: var(--active);
-    color: var(--fg);
-  }
-}
-.composer-card-button[data-primary] {
-  background: var(--fg);
-  color: var(--bg);
-}
-@media (hover: hover) and (pointer: fine) {
-  .composer-card-button[data-primary]:hover {
-    background: var(--fg);
-    opacity: 0.88;
-  }
-}
-.composer-card-button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
 .composer-card-peek {
   position: relative;
   display: block;
@@ -230,9 +184,6 @@ button.composer-card-row {
 @media (max-width: 560px) {
   .composer-card-body {
     padding-left: 8px;
-  }
-  .composer-card-input {
-    font-size: var(--type-msg);
   }
 }
 

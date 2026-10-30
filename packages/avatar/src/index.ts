@@ -10,8 +10,7 @@ export function avatar(name: string, options: AvatarOptions = {}): string {
   return render(resolve(name, { ...defaults, ...pins }), options)
 }
 
-export { render, resolve }
+export { resolve }
 export type { RenderOptions } from "./render"
 export type { Facing, Pin, TraitOptions, AvatarTraits } from "./traits"
 export * from "./catalog"
-export { normalizeName } from "./hash"

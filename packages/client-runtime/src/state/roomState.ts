@@ -50,7 +50,7 @@ const failureMessage = (cause: Cause.Cause<unknown>) => {
   return error instanceof Error && error.message.trim() ? error.message : "Kiko could not open this chat."
 }
 
-export function mergeBySeq(a: ReadonlyArray<Message>, b: ReadonlyArray<Message>): Message[] {
+function mergeBySeq(a: ReadonlyArray<Message>, b: ReadonlyArray<Message>): Message[] {
   const out: Message[] = []
   let i = 0
   let j = 0

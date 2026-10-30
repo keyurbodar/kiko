@@ -1,12 +1,10 @@
 .td-card {
   --td-hover: color-mix(in oklab, #1b1b1b 3.5%, transparent);
-  --td-press: color-mix(in oklab, #1b1b1b 6%, transparent);
 }
 
 :root.dark .td-card,
 .dark .td-card {
   --td-hover: color-mix(in oklab, #ffffff 8%, transparent);
-  --td-press: color-mix(in oklab, #ffffff 12%, transparent);
 }
 
 .td-card {
@@ -73,9 +71,14 @@
     scale 120ms var(--ease-kiko);
 }
 
-.td-row:hover,
 .td-row[data-open] {
   background: var(--td-hover);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .td-row:hover {
+    background: var(--td-hover);
+  }
 }
 
 .td-row:active {
@@ -117,9 +120,11 @@
     background-color var(--dur-hover) var(--ease-kiko);
 }
 
-.td-tile:hover {
-  transform: translateY(-1px);
-  background: var(--fill-hover);
+@media (hover: hover) and (pointer: fine) {
+  .td-tile:hover {
+    transform: translateY(-1px);
+    background: var(--fill-hover);
+  }
 }
 
 .td-thumb {
@@ -159,8 +164,10 @@
     scale 120ms var(--ease-kiko);
 }
 
-.td-button:hover {
-  background: var(--fill-hover);
+@media (hover: hover) and (pointer: fine) {
+  .td-button:hover {
+    background: var(--fill-hover);
+  }
 }
 
 .td-button:active {

@@ -114,8 +114,3 @@ export async function runAtomCommand<W, A, E>(
   reportAtomCommandResult(command.label, result, reporter)
   return result
 }
-
-export const commandFailure = (result: { readonly cause: Cause.Cause<unknown> }): unknown => Cause.squash(result.cause)
-
-export const isInterrupted = (result: SettledAsyncResult<unknown, unknown>): boolean =>
-  result._tag === "Failure" && Cause.hasInterruptsOnly(result.cause)

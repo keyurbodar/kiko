@@ -4,7 +4,7 @@ import { dict as en } from "../i18n/en"
 
 export type UiI18nKey = keyof typeof en
 
-export const UI_PLURAL_KEYS = [
+const UI_PLURAL_KEYS = [
   "ui.sessionTurn.diffs.changed",
   "ui.messagePart.context.read",
   "ui.messagePart.context.search",

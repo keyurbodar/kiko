@@ -243,9 +243,11 @@
     color var(--dur-hover),
     background var(--dur-hover);
 
-  &:hover {
-    color: var(--fg);
-    background: var(--popover);
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      color: var(--fg);
+      background: var(--popover);
+    }
   }
 
   &:focus-visible {
@@ -279,8 +281,10 @@
   cursor: pointer;
   outline: none;
 
-  &:hover {
-    color: var(--toast-muted);
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      color: var(--toast-muted);
+    }
   }
 
   &[data-copied] {
@@ -321,8 +325,10 @@
     background: var(--fg);
   }
 
-  &[data-variant="primary"]:hover {
-    background: color-mix(in oklab, var(--fg) 88%, var(--bg));
+  @media (hover: hover) and (pointer: fine) {
+    &[data-variant="primary"]:hover {
+      background: color-mix(in oklab, var(--fg) 88%, var(--bg));
+    }
   }
 
   &[data-variant="secondary"] {
@@ -330,8 +336,10 @@
     background: color-mix(in oklab, var(--fg) 8%, transparent);
   }
 
-  &[data-variant="secondary"]:hover {
-    background: color-mix(in oklab, var(--fg) 13%, transparent);
+  @media (hover: hover) and (pointer: fine) {
+    &[data-variant="secondary"]:hover {
+      background: color-mix(in oklab, var(--fg) 13%, transparent);
+    }
   }
 }
 

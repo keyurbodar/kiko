@@ -72,9 +72,11 @@
     scale 120ms var(--ease-kiko);
 }
 
-.rp-control:hover {
-  background: var(--fill);
-  color: var(--text-000);
+@media (hover: hover) and (pointer: fine) {
+  .rp-control:hover {
+    background: var(--fill);
+    color: var(--text-000);
+  }
 }
 
 .rp-control:active {

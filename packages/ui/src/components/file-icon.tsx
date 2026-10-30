@@ -162,28 +162,6 @@ export function fileIconMarkup(path: string): string {
   return `<svg ${SVG_ATTRS} data-kind="${directory ? "directory" : "file"}">${inner}</svg>`
 }
 
-export function fileIconSprite() {
-  const symbols: string[] = []
-  const byFileExtension: Record<string, string> = {}
-  const seen = new Set<string>()
-  const add = (id: string, markup: string) => {
-    if (seen.has(id)) return
-    seen.add(id)
-    symbols.push(`<symbol id="${id}" viewBox="0 0 24 24">${markup}</symbol>`)
-  }
-  for (const [ext, found] of Object.entries(EXTENSIONS)) {
-    const id = `kiko-file-${found.label.toLowerCase().replace(/\W/g, "x")}-${found.tone[0].slice(1)}`
-    add(id, pageMarkup(found))
-    byFileExtension[ext] = id
-  }
-  add("kiko-file-plain", pageMarkup(undefined))
-  return {
-    spriteSheet: `<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true">${symbols.join("")}</svg>`,
-    byFileExtension,
-    plain: "kiko-file-plain",
-  }
-}
-
 export type FileIconProps = JSX.GSVGAttributes<SVGSVGElement> & {
   node: { path: string; type: "file" | "directory" }
   expanded?: boolean

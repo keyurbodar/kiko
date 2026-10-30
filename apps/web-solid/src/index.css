@@ -86,61 +86,6 @@
     0.9982 82.45%,
     0.9997 99.87%
   );
-  --spring250-duration: 0.415s;
-  --spring325-bounce-easing: linear(
-    0,
-    0.0025,
-    0.0096 1.37%,
-    0.0359 2.75%,
-    0.1247 5.5%,
-    0.5935 15.8%,
-    0.7747 20.61%,
-    0.8551,
-    0.9187,
-    0.9668,
-    1.0011 31.61%,
-    1.0193 33.67%,
-    1.0351,
-    1.0434,
-    1.046 41.92%,
-    1.0452 43.98%,
-    1.0419 46.73%,
-    1.0141 60.47%,
-    1.0028 69.4%,
-    0.9981 80.4%,
-    0.9991 99.64%
-  );
-  --spring325-bounce-duration: 0.5395s;
-  --spring150-easing: linear(
-    0,
-    0.0051 1%,
-    0.0198 2.05%,
-    0.0447 3.2%,
-    0.0811 4.5%,
-    0.115 5.55%,
-    0.159 6.8%,
-    0.3671 12.3%,
-    0.4686 15.15%,
-    0.5196 16.7%,
-    0.5658 18.2%,
-    0.6086 19.7%,
-    0.6494 21.25%,
-    0.6868 22.8%,
-    0.7218 24.4%,
-    0.7544 26.05%,
-    0.7837 27.7%,
-    0.8106 29.4%,
-    0.8351 31.15%,
-    0.8777 34.85%,
-    0.914 39.1%,
-    0.9422 43.8%,
-    0.9636 49.15%,
-    0.9789 55.35%,
-    0.9888 62.4%,
-    0.995 71.15%,
-    1
-  );
-  --spring150-duration: 0.249s;
 }
 
 @supports (corner-shape: squircle) {
@@ -261,7 +206,6 @@
   --border-200: var(--line2);
   --border-300: var(--line3);
   --bubble-agent: var(--kiko-bubble);
-  --bubble-me: var(--me);
   --sunken: var(--bg-300);
   --backdrop: var(--bg-400);
   --accent-unread: var(--info);
@@ -298,9 +242,7 @@
     1.0004,
     1
   );
-  --dur-move: 300ms;
   --dur-slow: 450ms;
-  --delay-tooltip: 500ms;
   --ease-out: cubic-bezier(0.165, 0.84, 0.44, 1);
   --ease-snap: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-pop: cubic-bezier(0.34, 1.3, 0.64, 1);
@@ -337,7 +279,6 @@
   --menu-shadow: var(--float-shadow);
   --tooltip-bg: var(--fg);
   --tooltip-fg: var(--on-fg);
-  --tooltip-edge: transparent;
   --tooltip-muted: color-mix(in oklab, var(--on-fg) 60%, transparent);
   --scrim: rgb(0 0 0 / 50%);
   --scrim-blur: blur(6px) saturate(0.7);
@@ -850,9 +791,11 @@ html {
   border-radius: var(--radius-control);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-  background-clip: content-box;
+@media (hover: hover) and (pointer: fine) {
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+    background-clip: content-box;
+  }
 }
 
 :focus:not(:focus-visible) {
