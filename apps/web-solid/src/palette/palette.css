@@ -307,14 +307,10 @@
     background-color var(--dur-hover) var(--ease-kiko),
     box-shadow var(--dur-hover) var(--ease-kiko);
 }
-.palette-check[aria-checked="true"] svg {
-  display: none;
-}
-.palette-check[aria-checked="true"]::after {
-  content: "";
-  width: 8px;
-  height: 8px;
+.palette-check[aria-checked="true"] {
   background: var(--fg);
+  box-shadow: none;
+  color: var(--on-fg);
 }
 
 .palette-ask {

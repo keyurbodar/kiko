@@ -836,7 +836,7 @@
   width: 10px;
   height: 10px;
   flex: none;
-  border: 1.5px solid var(--info);
+  border: 1.5px solid var(--fg2);
   border-right-color: transparent;
   border-radius: 50%;
   animation: sidebar-spin 0.9s linear infinite;
@@ -871,23 +871,6 @@
 
 .sidebar-shell .chat-mention {
   color: var(--info);
-}
-
-.sidebar-shell .chat-dot {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  align-self: center;
-  background: var(--info);
-  border-radius: 50%;
-  animation: sidebar-dot-pop var(--dur-pop) var(--ease-pop) both;
-}
-
-@keyframes sidebar-dot-pop {
-  from {
-    opacity: 0;
-    transform: scale(1.25);
-  }
 }
 
 .sidebar-shell .chat-pin-icon {

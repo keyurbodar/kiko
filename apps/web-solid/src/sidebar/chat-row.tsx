@@ -283,9 +283,6 @@ function RowBody(props: {
           >
             <RowPreview bot={props.bot} need={props.need} live={live()} draft={props.draft} />
           </span>
-          <Show when={props.unread}>
-            <span class="chat-dot" data-component="sidebar-unread-dot" aria-hidden="true" />
-          </Show>
         </span>
       </span>
     </>
