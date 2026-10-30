@@ -1,7 +1,8 @@
 import type { RunStep } from "@kiko/protocol"
-import { CheckIcon, ChevronRightIcon, CopyIcon } from "@kiko/ui/icons"
+import { ChevronRightIcon } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { CopyCheckIcon } from "@kiko/ui/v2/copy-check-icon"
 import {
   createEffect,
   createMemo,
@@ -227,7 +228,7 @@ function CopyText(props: { text: string; label: string }) {
       aria-label={copied() ? "Copied" : props.label}
       onClick={() => void copy()}
     >
-      <RemixIcon icon={copied() ? CheckIcon : CopyIcon} size={12} />
+      <CopyCheckIcon copied={copied()} size={12} />
       <Show when={copied()}>
         <span>Copied</span>
       </Show>

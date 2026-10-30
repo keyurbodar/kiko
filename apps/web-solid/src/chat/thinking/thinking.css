@@ -110,8 +110,6 @@
 .thinking-toggle:focus-visible,
 .thought-head:focus-visible {
   border-radius: var(--radius-tail);
-  outline: none;
-  box-shadow: var(--focus-ring);
 }
 
 @media (hover: hover) and (pointer: fine) {

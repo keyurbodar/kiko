@@ -387,7 +387,7 @@ export default function RightPanel(props: { chatId: string; onClose: () => void;
         <PanelControls chatId={props.chatId} onClose={props.onClose} sheet={props.sheet === true} />
       </header>
       <Show when={slot()} keyed fallback={<EmptyPanel chatId={props.chatId} />}>
-        {() => <SurfaceBody chatId={props.chatId} surface={view()!} />}
+        <SurfaceBody chatId={props.chatId} surface={view()!} />
       </Show>
     </aside>
   )

@@ -147,9 +147,7 @@ button.run-tree-row {
 }
 button.run-tree-row:focus-visible,
 .run-tree-head:focus-visible {
-  outline: none;
   color: var(--text-100);
-  box-shadow: var(--focus-ring);
 }
 
 .run-tree-slot {
@@ -456,10 +454,6 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
 .run-tree-input:focus-within > .run-tree-copy,
 .run-tree-output-wrap:focus-within > .run-tree-copy {
   opacity: 1;
-}
-.run-tree-copy:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
 }
 .run-tree-copy[data-copied] {
   color: var(--text-100);
