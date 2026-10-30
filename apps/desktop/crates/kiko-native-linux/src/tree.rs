@@ -182,6 +182,7 @@ pub(crate) async fn build(
     let mut seen: HashSet<Target> = HashSet::new();
     let mut nodes: Vec<Node> = Vec::new();
     let mut enriched: Vec<(usize, Target, Role, StateSet, InterfaceSet)> = Vec::new();
+    let mut enabled_is_reported = false;
     let mut stack = vec![(start.clone(), 0usize)];
     while let Some((target, depth)) = stack.pop() {
         if nodes.len() >= kiko_driver::MAX_NODES || remaining(deadline).is_zero() {
@@ -215,13 +216,16 @@ pub(crate) async fn build(
                     .or_insert_with(|| alloc.allocate(child.clone()))
             })
             .collect();
+        if nodes.is_empty() {
+            enabled_is_reported = item.states.contains(State::Enabled);
+        }
         let node = Node {
             reference,
             role: item.role.name().to_string(),
             name: item.name.clone(),
             value: None,
             frame: None,
-            states: states_of(&item.states),
+            states: states_of(&item.states, enabled_is_reported),
             actions: actions_of(item.role, &item.states, item.ifaces),
             children,
         };
@@ -338,9 +342,10 @@ fn format_number(value: f64) -> String {
     }
 }
 
-fn states_of(states: &StateSet) -> Vec<String> {
+fn states_of(states: &StateSet, enabled_is_reported: bool) -> Vec<String> {
     const NAMED: &[(State, &str)] = &[
         (State::Focused, "focused"),
+        (State::Active, "active"),
         (State::Checked, "checked"),
         (State::Selected, "selected"),
         (State::Expanded, "expanded"),
@@ -360,7 +365,7 @@ fn states_of(states: &StateSet) -> Vec<String> {
         .filter(|(state, _)| states.contains(*state))
         .map(|(_, name)| (*name).to_string())
         .collect();
-    if !states.contains(State::Enabled) {
+    if enabled_is_reported && !states.contains(State::Enabled) {
         names.push("disabled".to_string());
     }
     names
@@ -487,4 +492,29 @@ pub(crate) fn is_window_role(role: Role) -> bool {
         role,
         Role::Frame | Role::Window | Role::Dialog | Role::Alert | Role::FileChooser
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use atspi::{State, StateSet};
+
+    use super::states_of;
+
+    #[test]
+    fn infers_disabled_from_a_missing_enabled_state() {
+        let states = StateSet::empty();
+        assert_eq!(states_of(&states, true), vec!["disabled".to_string()]);
+    }
+
+    #[test]
+    fn leaves_enabled_alone() {
+        let states = StateSet::new(State::Enabled);
+        assert!(states_of(&states, true).is_empty());
+    }
+
+    #[test]
+    fn does_not_infer_disabled_when_the_toolkit_never_reports_enabled() {
+        let states = StateSet::new(State::Focusable);
+        assert_eq!(states_of(&states, false), vec!["focusable".to_string()]);
+    }
 }
