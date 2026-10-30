@@ -7,6 +7,7 @@ import { helloPayload } from "./hello"
 import { emptyLive, startLive, type Live } from "./live"
 import { createLogger, type Logger } from "./log"
 import { VERSION } from "./platform"
+import { adoptSession, moveToHost } from "./service"
 import { createUpdater, updateTarget, type Updater } from "./update"
 
 const REPAIR_POLL_MS = 30_000
@@ -26,6 +27,7 @@ export async function serve(dir = configDir()): Promise<number> {
     return 1
   }
   await warnOnLooseKey(dir, log)
+  if (await moveToHost()) log.info("moving the service under kiko-computer-host so macOS permissions survive updates")
   let holder: Holder = "agent"
   const setHolder = (next: Holder) => {
     holder = next
@@ -33,6 +35,7 @@ export async function serve(dir = configDir()): Promise<number> {
   }
   const policy = await loadPolicy(dir)
   let live: Live = emptyLive({ logger: log, setHolder })
+  adoptSession()
   let detection = detect(log, policy)
   if (policy.desktop) detection.backend?.requestAccess()
   let update: Updater | null = null

@@ -1,4 +1,4 @@
-import { chmod, copyFile, mkdir, stat, writeFile } from "node:fs/promises"
+import { chmod, copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { CliError } from "./errors"
 import { homeDir } from "./platform"
@@ -129,6 +129,39 @@ async function exists(file: string): Promise<boolean> {
     (info) => info.isFile(),
     () => false,
   )
+}
+
+export function sessionEnv(listing: string, env: NodeJS.ProcessEnv): Record<string, string> {
+  if (env.DISPLAY || env.WAYLAND_DISPLAY) return {}
+  const wanted = new Set<string>(SYSTEMD_ENV)
+  const adopted: Record<string, string> = {}
+  for (const line of listing.split("\n")) {
+    const at = line.indexOf("=")
+    const key = line.slice(0, at)
+    if (at > 0 && wanted.has(key) && env[key] === undefined) adopted[key] = line.slice(at + 1)
+  }
+  return adopted
+}
+
+export function adoptSession(): void {
+  if (process.platform !== "linux" || !process.env.INVOCATION_ID) return
+  if (process.env.DISPLAY || process.env.WAYLAND_DISPLAY) return
+  try {
+    const proc = Bun.spawnSync(["systemctl", "--user", "show-environment"], { stdout: "pipe", stderr: "ignore" })
+    if (proc.exitCode === 0) Object.assign(process.env, sessionEnv(proc.stdout.toString("utf8"), process.env))
+  } catch {}
+}
+
+export function needsHost(plist: string | null, platform: NodeJS.Platform, env: NodeJS.ProcessEnv): boolean {
+  return platform === "darwin" && env.XPC_SERVICE_NAME === LABEL && plist !== null && !plist.includes(HOST)
+}
+
+export async function moveToHost(): Promise<boolean> {
+  if (!hostPath()) return false
+  const plist = await readFile(launchdPath(), "utf8").catch(() => null)
+  if (!needsHost(plist, process.platform, process.env)) return false
+  Bun.spawn([...selfArgv(), "service", "install"], { detached: true, stdio: ["ignore", "ignore", "ignore"] }).unref()
+  return true
 }
 
 export async function service(action: ServiceAction): Promise<number> {
