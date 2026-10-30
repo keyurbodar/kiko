@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::ptr::NonNull;
 use std::time::{Duration, Instant};
 
@@ -15,6 +15,7 @@ use crate::{apps, ax, driver::MacDriver, input, window};
 const LAUNCH: Duration = Duration::from_secs(30);
 const SETTLE: Duration = Duration::from_secs(5);
 const POINTER_SLACK: f64 = 1.0;
+const TEXTEDIT: &str = "/System/Applications/TextEdit.app";
 
 #[test]
 #[ignore = "needs a mac with Accessibility and Screen Recording granted to this binary"]
@@ -39,18 +40,7 @@ fn permissions_are_granted() {
 fn textedit_answers_in_the_background_while_finder_covers_it() {
     let mut driver = MacDriver::new().expect("driver");
     let document = write_document("hello from kiko\n");
-    std::process::Command::new("open")
-        .args(["-g", "-a", "TextEdit", &document.display().to_string()])
-        .status()
-        .expect("open TextEdit");
-
-    let textedit =
-        wait_for(LAUNCH, || window_named(&mut driver, "TextEdit")).unwrap_or_else(|| {
-            panic!(
-                "no TextEdit window; windows are {:?}",
-                window_summary(&mut driver)
-            )
-        });
+    let textedit = start_textedit(&mut driver, &document);
     let frame = Rect {
         x: 160.0,
         y: 160.0,
@@ -300,6 +290,69 @@ fn window_titled(driver: &mut MacDriver, app: &str, title: &str) -> Option<Windo
         .ok()?
         .into_iter()
         .find(|window| window.app == app && window.title == title)
+}
+
+fn start_textedit(driver: &mut MacDriver, document: &Path) -> Window {
+    let attempts: [fn(&Path) -> String; 5] = [
+        |document| run_open(Some(document), &["-g", "-a", TEXTEDIT]),
+        |document| run_open(Some(document), &["-a", TEXTEDIT]),
+        |document| run_open(Some(document), &["-g", "-b", "com.apple.TextEdit"]),
+        |_document| run_open(None, &["-g", "-a", TEXTEDIT]),
+        spawn_textedit,
+    ];
+    let mut notes = Vec::new();
+    for attempt in attempts {
+        notes.push(attempt(document));
+        if let Some(window) = wait_for(LAUNCH, || window_named(driver, "TextEdit")) {
+            return window;
+        }
+    }
+    panic!(
+        "no TextEdit window; {notes:?}; app present: {}; running: {:?}; windows: {:?}",
+        Path::new(TEXTEDIT).exists(),
+        running_apps(),
+        window_summary(driver)
+    )
+}
+
+fn run_open(document: Option<&Path>, arguments: &[&str]) -> String {
+    let mut command = std::process::Command::new("open");
+    command.args(arguments);
+    if let Some(document) = document {
+        command.arg(document);
+    }
+    match command.output() {
+        Ok(output) => format!(
+            "open {arguments:?} {:?} {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ),
+        Err(error) => format!("open {arguments:?} failed: {error}"),
+    }
+}
+
+fn running_apps() -> Vec<String> {
+    objc2_app_kit::NSWorkspace::sharedWorkspace()
+        .runningApplications()
+        .iter()
+        .map(|app| {
+            format!(
+                "{:?}:{:?}",
+                app.localizedName().map(|name| name.to_string()),
+                app.activationPolicy()
+            )
+        })
+        .collect()
+}
+
+fn spawn_textedit(document: &Path) -> String {
+    match std::process::Command::new(format!("{TEXTEDIT}/Contents/MacOS/TextEdit"))
+        .arg(document)
+        .spawn()
+    {
+        Ok(child) => format!("spawned TextEdit as {}", child.id()),
+        Err(error) => format!("spawn failed: {error}"),
+    }
 }
 
 fn set_window_frame(window: &Window, frame: Rect) {
