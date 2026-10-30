@@ -1,0 +1,114 @@
+name: Desktop macOS
+
+on:
+  push:
+    branches:
+      - "t3/bg-*"
+  pull_request:
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/desktop-macos.yml"
+
+concurrency:
+  group: desktop-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  macos:
+    name: macos-15 native driver
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop
+
+      - name: Report the runner
+        run: |
+          sw_vers
+          uname -m
+          system_profiler SPDisplaysDataType | head -20 || true
+
+      - name: Format
+        run: cargo fmt -p kiko-native-macos --check
+
+      - name: Clippy
+        run: cargo clippy -p kiko-native-macos --all-targets -- -D warnings
+
+      - name: Unit tests
+        run: cargo test -p kiko-native-macos
+
+      - name: Build the e2e binary
+        id: e2e
+        run: |
+          binary=$(cargo test -p kiko-native-macos --lib --no-run --message-format=json \
+            | jq -r 'select(.reason == "compiler-artifact" and .profile.test == true and .target.name == "kiko_native_macos") | .executable' \
+            | tail -1)
+          test -n "$binary"
+          echo "binary=$binary" >> "$GITHUB_OUTPUT"
+          echo "e2e binary: $binary"
+          codesign -dv "$binary" 2>&1 || true
+
+      - name: Grant Accessibility and Screen Recording to the e2e binary
+        env:
+          CLIENT: ${{ steps.e2e.outputs.binary }}
+        run: |
+          set -euo pipefail
+          test -n "$CLIENT"
+          database="/Library/Application Support/com.apple.TCC/TCC.db"
+          now=$(date +%s)
+          for service in kTCCServiceAccessibility kTCCServiceScreenCapture; do
+            sudo sqlite3 "$database" \
+              "INSERT OR REPLACE INTO access(service,client,client_type,auth_value,auth_reason,auth_version,csreq,policy_id,indirect_object_identifier_type,indirect_object_identifier,indirect_object_code_identity,flags,last_modified) \
+               VALUES('${service}','${CLIENT}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,${now});"
+          done
+          sudo killall tccd 2>/dev/null || true
+          sleep 2
+          pgrep -lx tccd || sudo launchctl kickstart -k system/com.apple.tccd || true
+          sudo sqlite3 "$database" "SELECT service, client, auth_value FROM access WHERE client LIKE '%kiko_native_macos%';"
+
+      - name: Start the apps the e2e drives
+        run: |
+          open -g -a /System/Applications/TextEdit.app
+          sleep 3
+          open -g -a /Applications/Safari.app
+          sleep 5
+          open /tmp
+          sleep 2
+          ps aux | grep -i "[T]extEdit" || echo "no TextEdit process"
+          ps aux | grep -i "[S]afari" || echo "no Safari process"
+
+      - name: End to end
+        env:
+          E2E_ARTIFACT_DIR: ${{ runner.temp }}/e2e-artifacts
+        run: |
+          set -o pipefail
+          "${{ steps.e2e.outputs.binary }}" --ignored --test-threads=1 --nocapture 2>&1 | tee "${{ runner.temp }}/e2e.log"
+
+      - name: Upload the captured windows
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-look-${{ github.run_id }}
+          path: ${{ runner.temp }}/e2e-artifacts
+          if-no-files-found: warn
+
+      - name: Upload the e2e log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-e2e-log-${{ github.run_id }}
+          path: ${{ runner.temp }}/e2e.log
+          if-no-files-found: warn

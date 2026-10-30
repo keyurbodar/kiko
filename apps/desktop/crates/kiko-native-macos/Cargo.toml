@@ -1,0 +1,67 @@
+[package]
+name = "kiko-native-macos"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+kiko-driver = { workspace = true }
+serde_json.workspace = true
+base64.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = { version = "0.3", features = [
+  "NSString",
+  "NSArray",
+  "NSDictionary",
+  "NSData",
+  "NSValue",
+  "NSGeometry",
+  "NSError",
+] }
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "libc",
+  "objc2-core-graphics",
+  "NSBitmapImageRep",
+  "NSImageRep",
+  "NSRunningApplication",
+  "NSWorkspace",
+] }
+objc2-core-foundation = { version = "0.3", features = [
+  "CFArray",
+  "CFBase",
+  "CFCGTypes",
+  "CFData",
+  "CFDictionary",
+  "CFNumber",
+  "CFString",
+] }
+objc2-core-graphics = { version = "0.3", features = [
+  "CGBase",
+  "CGDirectDisplay",
+  "CGEvent",
+  "CGEventSource",
+  "CGEventTypes",
+  "CGImage",
+  "CGRemoteOperation",
+  "CGWindow",
+] }
+objc2-application-services = { version = "0.3", features = [
+  "libc",
+  "AXError",
+  "AXUIElement",
+  "AXValue",
+] }
+objc2-screen-capture-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "block2",
+  "objc2-core-foundation",
+  "objc2-core-graphics",
+  "SCScreenshotManager",
+  "SCShareableContent",
+  "SCStream",
+] }
