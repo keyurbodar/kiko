@@ -921,16 +921,21 @@ fn cancel_menus(window: &Window) {
 fn launch_chrome(driver: &mut MacDriver, url: &str) -> Window {
     let mut notes = Vec::new();
     if window_named(driver, "Google Chrome").is_none() {
-        notes.push(start_chrome());
-        wait_for(LAUNCH, || window_named(driver, "Google Chrome"));
-    }
-    notes.push(open_app(CHROME, Some(url), true));
-    let mut window = wait_for(LAUNCH, || chrome_page(driver));
-    if window.is_none() {
+        notes.push(start_chrome(url, true));
+        if let Some(window) = wait_for(LAUNCH, || chrome_page(driver)) {
+            println!("Chrome answered; {notes:?}");
+            return window;
+        }
         notes.push(open_app(CHROME, Some(url), false));
-        window = wait_for(LAUNCH, || chrome_page(driver));
+        if let Some(window) = wait_for(LAUNCH, || chrome_page(driver)) {
+            println!("Chrome answered; {notes:?}");
+            return window;
+        }
+        notes.push(open_app(CHROME, Some(url), true));
+    } else {
+        notes.push(open_app(CHROME, Some(url), true));
     }
-    match window {
+    match wait_for(LAUNCH, || chrome_page(driver)) {
         Some(window) => {
             println!("Chrome answered; {notes:?}");
             window
@@ -949,16 +954,19 @@ fn chrome_page(driver: &mut MacDriver) -> Option<Window> {
         .or_else(|| window_named(driver, "Google Chrome"))
 }
 
-fn start_chrome() -> String {
+fn start_chrome(url: &str, activated: bool) -> String {
     let profile = std::env::temp_dir().join(format!("kiko-chrome-{}", std::process::id()));
     let mut command = std::process::Command::new("open");
+    if !activated {
+        command.arg("-g");
+    }
     command
-        .arg("-g")
         .args(["-a", CHROME])
         .arg("--args")
         .args(CHROME_FLAGS)
-        .arg(format!("--user-data-dir={}", profile.display()));
-    finish_open(CHROME, true, command)
+        .arg(format!("--user-data-dir={}", profile.display()))
+        .arg(url);
+    finish_open(CHROME, !activated, command)
 }
 
 fn write_electron_app() -> PathBuf {
