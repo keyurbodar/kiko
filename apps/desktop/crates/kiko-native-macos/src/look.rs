@@ -309,12 +309,17 @@ pub fn enable(pid: i32, bundle: Option<&str>, app: &str) -> Element {
 }
 
 fn opt_in(application: &AXUIElement, bundle: Option<&str>, app: &str) -> bool {
-    let name = if web_app(bundle, app) {
-        ENHANCED
+    let names: &[&str] = if web_app(bundle, app) {
+        &[ENHANCED, MANUAL]
     } else {
-        MANUAL
+        &[MANUAL]
     };
-    ax::set_flag(application, name, true) == objc2_application_services::AXError::Success
+    let mut enabled = false;
+    for name in names {
+        enabled |=
+            ax::set_flag(application, name, true) == objc2_application_services::AXError::Success;
+    }
+    enabled
 }
 
 pub fn web_app(bundle: Option<&str>, app: &str) -> bool {

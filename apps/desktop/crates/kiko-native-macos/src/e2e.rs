@@ -7,10 +7,10 @@ use kiko_driver::{
     ActParams, Action, Grant, Image, Look, LookParams, Mode, Native, Node, OpenParams, OpenTarget,
     Point, Rect, Ref, Route, Window,
 };
-use objc2_application_services::{AXUIElement, AXValue, AXValueType};
+use objc2_application_services::{AXError, AXUIElement, AXValue, AXValueType};
 use objc2_core_foundation::{CFRange, CGPoint, CGSize};
 
-use crate::{apps, ax, driver::MacDriver, input, look, window};
+use crate::{apps, ax, cf, driver::MacDriver, input, look, window};
 
 const LAUNCH: Duration = Duration::from_secs(30);
 const SETTLE: Duration = Duration::from_secs(5);
@@ -280,8 +280,9 @@ fn chrome_web_area_answers_in_the_background() {
     let Some(look) = look else {
         let look = look_at(&mut driver, &chrome);
         panic!(
-            "Chrome exposed no web area; nodes are {:?}",
-            roles(&look.nodes)
+            "Chrome exposed no web area; nodes are {:?}; opt-in is {:?}",
+            roles(&look.nodes),
+            opt_in_state(chrome.pid as i32)
         );
     };
 
@@ -974,6 +975,23 @@ fn chrome_processes() -> Vec<String> {
 
 fn chrome_page(driver: &mut MacDriver) -> Option<Window> {
     window_titled(driver, "Google Chrome", "before")
+}
+
+fn opt_in_state(pid: i32) -> Vec<(String, bool, bool)> {
+    let application = ax::application(pid);
+    ["AXEnhancedUserInterface", "AXManualAccessibility"]
+        .into_iter()
+        .map(|name| {
+            let set = ax::set_flag(&application, name, true) == AXError::Success;
+            let values = ax::attributes(&application, &[name]);
+            let value = values
+                .first()
+                .and_then(|value| value.as_ref())
+                .and_then(|value| cf::flag(value))
+                .unwrap_or(false);
+            (name.to_string(), set, value)
+        })
+        .collect()
 }
 
 fn start_chrome(url: &str) -> String {
