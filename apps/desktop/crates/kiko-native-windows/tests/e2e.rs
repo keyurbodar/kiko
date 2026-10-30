@@ -618,6 +618,7 @@ fn background_typing_splices_at_the_caret_in_a_page_field() {
         let found = try_look(&mut driver, &window.id).ok()?;
         find_optional(&found.nodes, "edit", Some("kiko note")).cloned()
     });
+    eprintln!("page field before: {:?} {:?}", field.value, field.states);
     let mut first = background(&window.id, Some(field.reference), Action::Type);
     first.text = Some("alpha".into());
     assert_eq!(
