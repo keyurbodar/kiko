@@ -39,6 +39,12 @@ const CHROME_FLAGS: [&str; 5] = [
     "--use-mock-keychain",
     "--force-renderer-accessibility",
 ];
+const PLAIN_CHROME_FLAGS: [&str; 4] = [
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--new-window",
+    "--use-mock-keychain",
+];
 const ELECTRON_MAIN: &str = r#"
 const fs = require('fs');
 const { app, BrowserWindow } = require('electron');
@@ -288,6 +294,36 @@ fn chrome_web_area_answers_in_the_background() {
     );
     assert_covered(&finder, &chrome);
     owner.assert_unchanged();
+}
+
+#[test]
+#[ignore = "needs a mac with Accessibility and Screen Recording granted to this binary"]
+fn chrome_without_the_renderer_flag_reports_the_page_as_hidden() {
+    let mut driver = MacDriver::new().expect("driver");
+    let page = write_page("plain");
+    let url = format!("file://{}", page.display());
+    let chrome = launch_plain_chrome(&mut driver, &url);
+    set_window_frame(&chrome, FRAME);
+    let finder = cover_with_finder(&mut driver, FRAME);
+    let owner = Owner::capture();
+
+    let first = timed_look(&mut driver, &chrome, "first");
+    let second = timed_look(&mut driver, &chrome, "second");
+    for (which, look) in [("first", &first), ("second", &second)] {
+        assert!(
+            look.outline.contains(look::PAGE_HIDDEN),
+            "the {which} look did not say the page is hidden; outline:\n{}",
+            look.outline
+        );
+        assert!(
+            !look.outline.contains("Push kiko"),
+            "the {which} look showed page content from a browser launched without the renderer flag:\n{}",
+            look.outline
+        );
+    }
+    assert_covered(&finder, &chrome);
+    owner.assert_unchanged();
+    quit(&chrome);
 }
 
 #[test]
@@ -546,6 +582,18 @@ fn look_at(driver: &mut MacDriver, window: &Window) -> Look {
             max_width: None,
         })
         .unwrap_or_else(|error| panic!("look at {} failed: {error}", window.app))
+}
+
+fn timed_look(driver: &mut MacDriver, window: &Window, which: &str) -> Look {
+    let started = Instant::now();
+    let look = look_at(driver, window);
+    println!(
+        "the {which} look at {} returned {} nodes in {:?}",
+        window.app,
+        look.nodes.len(),
+        started.elapsed()
+    );
+    look
 }
 
 fn node<'a>(look: &'a Look, role: &str) -> &'a Node {
@@ -991,7 +1039,37 @@ fn chrome_processes() -> Vec<String> {
 }
 
 fn chrome_page(driver: &mut MacDriver) -> Option<Window> {
-    window_titled(driver, "Google Chrome", "before")
+    chrome_titled(driver, "before")
+}
+
+fn chrome_titled(driver: &mut MacDriver, title: &str) -> Option<Window> {
+    driver
+        .windows()
+        .ok()?
+        .into_iter()
+        .find(|window| window.app == "Google Chrome" && window.title.starts_with(title))
+}
+
+fn launch_plain_chrome(driver: &mut MacDriver, url: &str) -> Window {
+    let note = start_plain_chrome(url);
+    match wait_for(CHROME_PAGE, || chrome_titled(driver, "plain")) {
+        Some(window) => {
+            println!("plain Chrome answered; {note:?}");
+            window
+        }
+        None => panic!(
+            "no plain Chrome window; {note}; running: {:?}; windows: {:?}",
+            chrome_processes(),
+            window_summary(driver)
+        ),
+    }
+}
+
+fn quit(window: &Window) {
+    unsafe { libc::kill(window.pid as i32, libc::SIGTERM) };
+    let _ = wait_for(SETTLE, || {
+        apps::with_pid(window.pid as i32).is_none().then_some(())
+    });
 }
 
 fn opt_in_state(pid: i32) -> Vec<String> {
@@ -1020,6 +1098,19 @@ fn start_chrome(url: &str) -> String {
         .args(["-a", CHROME])
         .arg("--args")
         .args(CHROME_FLAGS)
+        .arg(format!("--user-data-dir={}", profile.display()))
+        .arg(url);
+    finish_open(CHROME, false, command, CHROME_WAIT)
+}
+
+fn start_plain_chrome(url: &str) -> String {
+    let profile = std::env::temp_dir().join(format!("kiko-chrome-plain-{}", std::process::id()));
+    let mut command = std::process::Command::new("open");
+    command
+        .arg("-n")
+        .args(["-a", CHROME])
+        .arg("--args")
+        .args(PLAIN_CHROME_FLAGS)
         .arg(format!("--user-data-dir={}", profile.display()))
         .arg(url);
     finish_open(CHROME, false, command, CHROME_WAIT)

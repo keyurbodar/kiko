@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use kiko_driver::{Action, Node, Rect, Ref};
@@ -9,11 +10,13 @@ use crate::cf;
 
 pub const MAX_DEPTH: usize = 40;
 pub const DEADLINE: Duration = Duration::from_millis(3000);
+pub const PAGE_HIDDEN: &str = "the page content is not exposed to macOS accessibility: use browser_tabs, browser_read or browser_act for it, and if they say the browser needs consent, ask the owner to allow remote debugging\n";
 const VALUE_LIMIT: usize = 500;
 const WEB_PROBE_DEPTH: usize = 10;
 const WEB_PROBE_NODES: usize = 400;
 const WEB_WAIT: Duration = Duration::from_secs(4);
 const WEB_POLL: Duration = Duration::from_millis(100);
+const REMEMBERED: usize = 32;
 
 const ATTRIBUTES: [&str; 13] = [
     ax::ROLE,
@@ -31,12 +34,14 @@ const ATTRIBUTES: [&str; 13] = [
     ax::CHILDREN,
 ];
 
-const CHROMIUM: [&str; 5] = [
+const CHROMIUM: [&str; 7] = [
     "com.google.Chrome",
+    "com.google.Chrome.canary",
     "com.microsoft.edgemac",
     "com.brave.Browser",
     "org.chromium.Chromium",
     "company.thebrowser.Browser",
+    "com.vivaldi.Vivaldi",
 ];
 
 const WEBKIT: [&str; 1] = ["com.apple.Safari"];
@@ -296,34 +301,115 @@ fn push(actions: &mut Vec<Action>, action: Action) {
     }
 }
 
-pub fn enable(pid: i32, bundle: Option<&str>, app: &str) -> Element {
-    let application = ax::application(pid);
-    if !opt_in(&application, bundle, app) {
-        return application;
-    }
-    let deadline = Instant::now() + WEB_WAIT;
-    while !web_content_present(&application) && Instant::now() < deadline {
-        opt_in(&application, bundle, app);
-        std::thread::sleep(WEB_POLL);
-    }
-    application
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum WebPage {
+    Exposed,
+    Hidden,
 }
 
-fn opt_in(application: &AXUIElement, bundle: Option<&str>, app: &str) -> bool {
+#[derive(Default)]
+pub struct WebPages {
+    seen: HashMap<(i32, u64), WebPage>,
+}
+
+impl WebPages {
+    pub fn enable(&mut self, pid: i32, bundle: Option<&str>, app: &str) -> (Element, WebPage) {
+        let application = ax::application(pid);
+        let key = launch(pid).map(|started| (pid, started));
+        if let Some(page) = key.and_then(|key| self.seen.get(&key).copied()) {
+            return (application, page);
+        }
+        let (page, settled) = probe(&application, bundle, app);
+        if let (Some(key), true) = (key, settled) {
+            self.remember(key, page);
+        }
+        (application, page)
+    }
+
+    fn remember(&mut self, key: (i32, u64), page: WebPage) {
+        if self.seen.len() >= REMEMBERED {
+            self.seen.clear();
+        }
+        self.seen.retain(|(pid, _), _| *pid != key.0);
+        self.seen.insert(key, page);
+    }
+}
+
+fn probe(application: &AXUIElement, bundle: Option<&str>, app: &str) -> (WebPage, bool) {
+    let opt = opt_in(application, bundle, app);
+    if !opt.active && !opt.refused {
+        return (WebPage::Hidden, false);
+    }
+    let present = web_content_present(application);
+    let appeared = !present && wait_for_web_area(application, bundle, app);
+    decide(&opt, present || appeared)
+}
+
+fn decide(opt: &OptIn, exposed: bool) -> (WebPage, bool) {
+    if exposed {
+        return (WebPage::Exposed, true);
+    }
+    (WebPage::Hidden, opt.refused)
+}
+
+fn launch(pid: i32) -> Option<u64> {
+    let mut info = std::mem::MaybeUninit::<libc::proc_bsdinfo>::zeroed();
+    let size = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
+    let read = unsafe {
+        libc::proc_pidinfo(
+            pid,
+            libc::PROC_PIDTBSDINFO,
+            0,
+            info.as_mut_ptr().cast(),
+            size,
+        )
+    };
+    if read != size {
+        return None;
+    }
+    let info = unsafe { info.assume_init() };
+    Some(
+        info.pbi_start_tvsec
+            .wrapping_mul(1_000_000)
+            .wrapping_add(info.pbi_start_tvusec),
+    )
+}
+
+fn wait_for_web_area(application: &AXUIElement, bundle: Option<&str>, app: &str) -> bool {
+    let deadline = Instant::now() + WEB_WAIT;
+    while !web_content_present(application) {
+        if Instant::now() >= deadline {
+            return false;
+        }
+        opt_in(application, bundle, app);
+        std::thread::sleep(WEB_POLL);
+    }
+    true
+}
+
+#[derive(Default)]
+struct OptIn {
+    active: bool,
+    refused: bool,
+}
+
+fn opt_in(application: &AXUIElement, bundle: Option<&str>, app: &str) -> OptIn {
     let names: &[&str] = if web_app(bundle, app) {
         &[ENHANCED, MANUAL]
     } else {
         &[MANUAL]
     };
-    let mut enabled = false;
+    let mut opt_in = OptIn::default();
     for name in names {
         if attribute_on(application, name) {
-            enabled = true;
+            opt_in.active = true;
             continue;
         }
-        enabled |= turn_on(application, name);
+        let turned = turn_on(application, name);
+        opt_in.active |= turned.active;
+        opt_in.refused |= turned.refused;
     }
-    enabled
+    opt_in
 }
 
 fn attribute_on(application: &AXUIElement, name: &str) -> bool {
@@ -334,12 +420,28 @@ fn attribute_on(application: &AXUIElement, name: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn turn_on(application: &AXUIElement, name: &str) -> bool {
-    if ax::set_flag(application, name, true) == AXError::Success {
-        return true;
+fn turn_on(application: &AXUIElement, name: &str) -> OptIn {
+    let boolean = ax::set_flag(application, name, true);
+    if boolean == AXError::Success {
+        return OptIn {
+            active: true,
+            refused: false,
+        };
     }
     let number = CFNumber::new_i64(1);
-    ax::set(application, name, &number) == AXError::Success
+    let numeric = ax::set(application, name, &number);
+    OptIn {
+        active: numeric == AXError::Success,
+        refused: refused(boolean) || refused(numeric),
+    }
+}
+
+fn refused(error: AXError) -> bool {
+    error == AXError::NotImplemented || error == AXError::AttributeUnsupported
+}
+
+pub fn chromium(bundle: Option<&str>) -> bool {
+    bundle.is_some_and(|bundle| CHROMIUM.contains(&bundle))
 }
 
 pub fn web_app(bundle: Option<&str>, app: &str) -> bool {
@@ -385,4 +487,58 @@ fn web_content_present(application: &AXUIElement) -> bool {
         }
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_an_unsupported_attribute_counts_as_refused() {
+        assert!(refused(AXError::NotImplemented));
+        assert!(refused(AXError::AttributeUnsupported));
+        assert!(!refused(AXError::CannotComplete));
+        assert!(!refused(AXError::Success));
+    }
+
+    fn opt_in(active: bool, refused: bool) -> OptIn {
+        OptIn { active, refused }
+    }
+
+    #[test]
+    fn a_web_area_that_appeared_is_remembered() {
+        assert_eq!(decide(&opt_in(true, false), true), (WebPage::Exposed, true));
+        assert_eq!(decide(&opt_in(false, true), true), (WebPage::Exposed, true));
+    }
+
+    #[test]
+    fn a_refused_opt_in_with_no_web_area_is_remembered_as_hidden() {
+        assert_eq!(decide(&opt_in(false, true), false), (WebPage::Hidden, true));
+    }
+
+    #[test]
+    fn an_accepted_opt_in_that_was_only_slow_is_asked_again() {
+        assert_eq!(
+            decide(&opt_in(true, false), false),
+            (WebPage::Hidden, false)
+        );
+    }
+
+    #[test]
+    fn a_relaunch_replaces_the_page_decision() {
+        let mut pages = WebPages::default();
+        pages.remember((7, 100), WebPage::Hidden);
+        pages.remember((7, 101), WebPage::Exposed);
+        assert_eq!(pages.seen.len(), 1);
+        assert_eq!(pages.seen.get(&(7, 101)), Some(&WebPage::Exposed));
+    }
+
+    #[test]
+    fn the_memory_stays_small() {
+        let mut pages = WebPages::default();
+        for pid in 0..(REMEMBERED as i32 + 5) {
+            pages.remember((pid, 1), WebPage::Hidden);
+        }
+        assert!(pages.seen.len() <= REMEMBERED);
+    }
 }

@@ -26,12 +26,14 @@ pub enum Job {
 
 pub struct Worker {
     refs: HashMap<String, look::Refs>,
+    pages: look::WebPages,
 }
 
 impl Worker {
     pub fn new() -> Self {
         Self {
             refs: HashMap::new(),
+            pages: look::WebPages::default(),
         }
     }
 
@@ -68,9 +70,12 @@ impl Worker {
         let window = resolve(&params.window)?;
         let id = window_id(&window)?;
         let mut nodes = Vec::new();
+        let mut page = None;
         if params.tree {
-            let application =
-                look::enable(window.pid as i32, window.bundle.as_deref(), &window.app);
+            let (application, state) =
+                self.pages
+                    .enable(window.pid as i32, window.bundle.as_deref(), &window.app);
+            page = Some(state);
             let element = window::ax_element_for(id, window.pid as i32).ok_or_else(|| {
                 DriverError::new(ErrorCode::NotFound, "this window has no accessibility tree")
             })?;
@@ -84,7 +89,14 @@ impl Worker {
             true => Some(capture::screenshot(id, window.frame, params.max_width)?),
             false => None,
         };
-        let outline = kiko_driver::outline(&nodes);
+        let mut outline = String::new();
+        if page == Some(look::WebPage::Hidden)
+            && look::chromium(window.bundle.as_deref())
+            && !nodes.iter().any(|node| node.role == "webarea")
+        {
+            outline.push_str(look::PAGE_HIDDEN);
+        }
+        outline.push_str(&kiko_driver::outline(&nodes));
         Ok(Look {
             window,
             image,
