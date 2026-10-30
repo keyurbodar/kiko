@@ -1,7 +1,7 @@
 export const EXPLORER_WIDTH_KEY = "kiko:files:explorer-width"
 export const EXPLORER_MIN = 160
 export const EXPLORER_MAX = 560
-export const FILE_CONTENT_MIN = 256
+const FILE_CONTENT_MIN = 256
 export const EXPLORER_STEP = 16
 
 type Store = Pick<Storage, "getItem"> | undefined

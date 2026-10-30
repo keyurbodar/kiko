@@ -47,11 +47,6 @@ export function trailChildOf(folder: string, trail: string): string | null {
   return at < 0 || at === paths.length - 1 ? null : (segments(paths[at + 1]!).at(-1) ?? null)
 }
 
-export function isCrumbBelow(current: string, crumb: string): boolean {
-  const index = crumbIndex(current, crumb)
-  return index >= 0 && index < prefixes(current).length - 1
-}
-
 export function navigableBack(crumb: string, at: string): string | null {
   const folder = breadcrumbPathOf(crumb)
   const here = breadcrumbPathOf(at)

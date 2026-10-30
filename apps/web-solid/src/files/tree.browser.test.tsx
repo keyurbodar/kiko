@@ -314,6 +314,21 @@ describe("file tree", () => {
     await expect.element(page.getByRole("dialog")).toBeVisible()
   })
 
+  it("renames a folder next to itself, not inside itself", async () => {
+    const onRename = vi.fn()
+    await using screen = await render(
+      () => <FileTree roomId="rename-folder" files={[ref("docs/a.md")]} folders={["docs"]} onRename={onRename} />,
+      { container: boxed() },
+    )
+    await userEvent.click(rowOf(screen.container, "docs/")!, { button: "right" })
+    await page.getByRole("menuitem", { name: "Rename" }).click()
+    const input = nameInput(screen.container)
+    await userEvent.clear(input)
+    await userEvent.type(input, "guides{Enter}")
+    expect(onRename).toHaveBeenCalledWith("docs", "guides", ["docs/a.md"])
+    await expect.element(screen.getByRole("treeitem", { name: "guides" })).toBeVisible()
+  })
+
   it("keeps folders open when a file inside them is renamed", async () => {
     const onRename = vi.fn()
     await using screen = await render(

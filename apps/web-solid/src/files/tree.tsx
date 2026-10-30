@@ -410,7 +410,8 @@ export function FileTree(props: FileTreeProps): JSX.Element {
       cancelNew(edit)
       return
     }
-    const to = edit.kind === "folder" ? asFolder(join(dirname(edit.path), name)) : join(dirname(edit.path), name)
+    const parent = dirname(plain(edit.path))
+    const to = edit.kind === "folder" ? asFolder(join(parent, name)) : join(parent, name)
     if (edit.isNew) return createNew(edit, to)
     if (to !== edit.path) rename(edit, to)
   }
