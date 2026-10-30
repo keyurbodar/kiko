@@ -127,7 +127,6 @@
   flex: none;
   font-size: 11.5px;
   color: var(--fg4);
-  font-variant-numeric: tabular-nums;
 }
 .search-hit-snippet {
   margin-top: 2px;

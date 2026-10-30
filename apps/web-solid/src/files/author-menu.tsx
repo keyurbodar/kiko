@@ -40,7 +40,7 @@ function Row(props: { author: Author; count: number }) {
         <AuthorFace author={props.author} />
         <span class="truncate">{authorLabel(props.author)}</span>
       </span>
-      <span class="type-hint ml-3 text-fg4 tabular-nums">{props.count}</span>
+      <span class="type-hint ml-3 text-fg4">{props.count}</span>
     </MenuV2.RadioItem>
   )
 }

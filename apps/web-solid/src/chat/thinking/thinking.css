@@ -54,7 +54,6 @@
 .thinking-chevron {
   flex: none;
   color: var(--fg4);
-  font-variant-numeric: tabular-nums;
 }
 .thinking-chevron[data-open] {
   transform: rotate(90deg);

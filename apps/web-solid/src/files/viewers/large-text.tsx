@@ -107,7 +107,7 @@ export function LargeTextViewer(props: {
               </Show>
               <div
                 role="status"
-                class="flex h-8 shrink-0 items-center border-t border-[var(--border-100)] px-3 text-hint text-fg3 tabular-nums"
+                class="flex h-8 shrink-0 items-center border-t border-[var(--border-100)] px-3 text-hint text-fg3"
               >
                 {rows().toLocaleString()} {props.delimiter ? "rows" : "lines"}
                 {props.delimiter ? `, ${columns().toLocaleString()} columns` : ""}

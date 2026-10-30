@@ -73,7 +73,6 @@
     user-select: none;
 
     font-variation-settings: "slnt" 0;
-    font-variant-numeric: tabular-nums;
     color: var(--menu-v2-fg);
 
     [data-slot="menu-v2-item-content"] {
@@ -217,7 +216,6 @@
     line-height: 16px;
     color: var(--text-300);
     user-select: none;
-    font-variant-numeric: tabular-nums;
   }
 }
 

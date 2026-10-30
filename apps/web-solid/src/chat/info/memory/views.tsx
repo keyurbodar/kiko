@@ -91,7 +91,7 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
         </Show>
         <Origin line={l()} />
         <Show when={replacedMark(l())}>{(mark) => <span class="rounded bg-fill px-1 text-hint">{mark()}</span>}</Show>
-        <span class="ml-auto shrink-0 tabular-nums text-fg4 group-hover/row:hidden group-focus-within/row:hidden">
+        <span class="ml-auto shrink-0 text-fg4 group-hover/row:hidden group-focus-within/row:hidden">
           {ago(l().at)}
         </span>
         <Show when={l().pos >= 0}>
@@ -290,7 +290,7 @@ export function MemoryList(props: { store: MemoryStore }) {
               onClick={() => setReading(!reading())}
             >
               <span class="flex-1">What every agent reads</span>
-              <span class="tabular-nums">
+              <span>
                 {s().view.length} {s().view.length === 1 ? "line" : "lines"}
               </span>
               <RemixIcon icon={ChevronDownIcon} size={12} class={reading() ? "rotate-180" : ""} />

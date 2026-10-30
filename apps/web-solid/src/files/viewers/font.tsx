@@ -58,7 +58,7 @@ export default function FontViewer(props: { name: string; src: string; size: num
               <For each={SIZES}>
                 {(size) => (
                   <div class="flex flex-col gap-1 border-t border-[var(--border-100)] pt-3">
-                    <span class="text-hint text-fg3 tabular-nums">{size} px</span>
+                    <span class="text-hint text-fg3">{size} px</span>
                     <p
                       class="whitespace-pre-wrap break-words text-fg"
                       style={{ "font-family": FAMILY, "font-size": `${size}px`, "line-height": 1.35 }}

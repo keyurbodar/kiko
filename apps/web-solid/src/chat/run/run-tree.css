@@ -24,7 +24,6 @@
   color: var(--text-300);
   cursor: pointer;
   user-select: none;
-  font-variant-numeric: tabular-nums;
   transition: color var(--dur-hover) var(--ease-out);
 }
 .run-tree-head[data-live] {
@@ -53,7 +52,6 @@
   overflow: hidden;
   color: var(--fg4);
   font-size: var(--type-label);
-  font-variant-numeric: tabular-nums;
   line-height: var(--type-label-line);
 }
 .run-tree-clock-text {
@@ -211,7 +209,6 @@ button.run-tree-row:focus-visible,
   padding-left: 14px;
   color: var(--fg4);
   font-size: var(--type-label);
-  font-variant-numeric: tabular-nums;
 }
 .run-tree-time {
   margin-left: 0;

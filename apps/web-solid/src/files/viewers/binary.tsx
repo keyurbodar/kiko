@@ -65,7 +65,7 @@ function HexView(props: { bytes: Uint8Array; size: number }): JSX.Element {
       </div>
       <div
         role="status"
-        class="flex h-8 shrink-0 items-center border-t border-[var(--border-100)] px-3 text-hint text-fg3 tabular-nums"
+        class="flex h-8 shrink-0 items-center border-t border-[var(--border-100)] px-3 text-hint text-fg3"
       >
         {formatBytes(props.size)}
       </div>
@@ -83,7 +83,7 @@ function ArchiveList(props: { entries: readonly ArchiveEntry[]; size: number; na
     <div class="flex min-h-0 flex-1 flex-col" data-component="file-archive">
       <div class="flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--border-100)] px-3 text-hint text-fg3">
         <span class="min-w-0 flex-1 truncate">{props.name}</span>
-        <span class="shrink-0 tabular-nums">
+        <span class="shrink-0">
           {props.entries.length.toLocaleString()} entries, {formatBytes(props.size)}
         </span>
       </div>
@@ -103,7 +103,7 @@ function ArchiveList(props: { entries: readonly ArchiveEntry[]; size: number; na
                   <td class="max-w-0 truncate px-3 py-1.5 text-fg" title={entry.name}>
                     {entry.name}
                   </td>
-                  <td class="px-3 py-1.5 text-right text-fg3 tabular-nums">{formatBytes(entry.size)}</td>
+                  <td class="px-3 py-1.5 text-right text-fg3">{formatBytes(entry.size)}</td>
                   <td class="px-3 py-1.5 text-right text-fg3">
                     {entry.modified ? new Date(entry.modified).toLocaleDateString() : "—"}
                   </td>

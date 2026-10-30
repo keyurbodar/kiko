@@ -59,7 +59,7 @@ function StatusFoot() {
       >
         {HEALTH_LABEL[health()]}
       </span>
-      <span class="shrink-0 tabular-nums" data-field="app-version">
+      <span class="shrink-0" data-field="app-version">
         {APP_VERSION}
       </span>
     </div>

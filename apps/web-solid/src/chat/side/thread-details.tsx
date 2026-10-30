@@ -67,7 +67,7 @@ function CustomizeTrigger(props: { row?: boolean }) {
 function Count(props: { value: string }) {
   return (
     <Show when={props.value} keyed>
-      {(value) => <span class="td-count shrink-0 text-[11px] tabular-nums text-[var(--text-400)]">{value}</span>}
+      {(value) => <span class="td-count shrink-0 text-[11px] text-[var(--text-400)]">{value}</span>}
     </Show>
   )
 }
@@ -162,9 +162,7 @@ function NowSection(props: { now: number; action?: JSX.Element }) {
             <span class="min-w-0 flex-1 truncate">
               <span class="chat-shimmer">{row.line}</span>
             </span>
-            <span class="shrink-0 text-[11px] tabular-nums text-[var(--text-400)]">
-              {elapsed(props.now - row.since)}
-            </span>
+            <span class="shrink-0 text-[11px] text-[var(--text-400)]">{elapsed(props.now - row.since)}</span>
             <span class="sr-only">{agentDisplayName(row.slug, room.roomMembers())}</span>
           </div>
         )}
@@ -363,9 +361,7 @@ function HelpersSection(props: { chatId: string; now: number; action?: JSX.Eleme
               {lane.state === "working" ? lane.line : helperWord(lane.state)}
             </span>
             <Show when={lane.state === "working"}>
-              <span class="shrink-0 text-[11px] tabular-nums text-[var(--text-400)]">
-                {elapsed(props.now - lane.startedAt)}
-              </span>
+              <span class="shrink-0 text-[11px] text-[var(--text-400)]">{elapsed(props.now - lane.startedAt)}</span>
             </Show>
             <Show when={lane.state !== "working"}>
               <RemixIcon
@@ -454,7 +450,7 @@ function OutputsSection(props: { chatId: string; files: readonly FileRef[]; acti
         <Show when={tiles().more > 0}>
           <button
             type="button"
-            class="td-tile text-[12px] font-medium tabular-nums text-[var(--text-300)]"
+            class="td-tile text-[12px] font-medium text-[var(--text-300)]"
             aria-label={`${tiles().more} more files`}
             data-action="open-files"
             onClick={() => openSurface(props.chatId, fixedSurface("files"))}

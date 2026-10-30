@@ -107,7 +107,7 @@ function Presentation(props: { slides: PptxModel["slides"]; urls: ReadonlyMap<st
           disabled={page() === 0}
           onPress={() => setPage((value) => Math.max(0, value - 1))}
         />
-        <span class="flex-1 text-center tabular-nums" aria-live="polite">
+        <span class="flex-1 text-center" aria-live="polite">
           Slide {page() + 1} of {props.slides.length}
         </span>
         <SurfaceAction
@@ -177,7 +177,7 @@ function Sheet(props: { sheets: readonly SheetModel[]; name: string; truncated: 
       </Show>
       <div
         role="status"
-        class="flex h-8 shrink-0 items-center border-t border-[var(--border-100)] px-3 text-hint text-fg3 tabular-nums"
+        class="flex h-8 shrink-0 items-center border-t border-[var(--border-100)] px-3 text-hint text-fg3"
       >
         {Math.max(0, (sheet()?.rows.length ?? 0) - 1).toLocaleString()} rows, {columnCount().toLocaleString()} columns
       </div>

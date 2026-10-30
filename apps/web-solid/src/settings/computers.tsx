@@ -111,7 +111,7 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
               Waiting for your computer
             </span>
             <span class="type-hint text-[var(--fg4)]">
-              The code works once and expires in <span class="tabular-nums">{clock(left())}</span>
+              The code works once and expires in <span>{clock(left())}</span>
             </span>
           </span>
           <Button variant="ghost" onClick={props.onClose}>

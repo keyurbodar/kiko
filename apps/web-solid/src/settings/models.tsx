@@ -341,7 +341,7 @@ function PickerModels(props: { providers: readonly CatalogProvider[] }) {
     <Group
       title="In your picker"
       description={
-        <span class="tabular-nums">
+        <span>
           {shownCount()} of {rows().length} models show in the model picker
         </span>
       }
@@ -455,7 +455,7 @@ function PickerModelRow(props: { row: PickerRow; hidden: boolean; showProvider: 
           </span>
         </TooltipV2>
       </Show>
-      <span class="w-10 shrink-0 text-right type-hint tabular-nums text-[var(--fg4)]">
+      <span class="w-10 shrink-0 text-right type-hint text-[var(--fg4)]">
         {formatContext(props.row.model.contextWindow)}
       </span>
       <span onClick={(event) => event.stopPropagation()}>
@@ -591,7 +591,7 @@ export function AddProviderDialog(props: {
                   <ProviderIcon id={provider.id} width="16" height="16" />
                 </BrandTile>
                 <span class="min-w-0 flex-1 truncate type-ui font-medium text-fg">{provider.name}</span>
-                <span class="shrink-0 type-hint tabular-nums text-[var(--fg4)]">
+                <span class="shrink-0 type-hint text-[var(--fg4)]">
                   {provider.models.length} {provider.models.length === 1 ? "model" : "models"}
                 </span>
               </button>

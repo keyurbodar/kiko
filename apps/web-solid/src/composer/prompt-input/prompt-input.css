@@ -475,7 +475,6 @@ button.token-chip:active {
   flex: none;
   color: var(--text-400);
   font-size: 11px;
-  font-variant-numeric: tabular-nums;
 }
 
 .composer-attach-chip[data-state="failed"],
@@ -638,7 +637,6 @@ button.token-chip:active {
   overflow: hidden;
   color: var(--text-400);
   font-size: 12px;
-  font-variant-numeric: tabular-nums;
   line-height: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -734,7 +732,6 @@ button.token-chip:active {
   border: 0;
   font: inherit;
   font-size: 13px;
-  font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: background var(--dur-hover);
 }
@@ -757,7 +754,6 @@ button.token-chip:active {
 .tray-tip-size {
   color: var(--text-400);
   font-size: 12px;
-  font-variant-numeric: tabular-nums;
 }
 
 @media (hover: hover) and (pointer: fine) {

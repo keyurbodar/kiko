@@ -218,7 +218,7 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
                   {count() > 1 ? ` (${index() + 1}/${count()})` : ""}
                 </p>
                 <p
-                  class="h-4 type-hint text-white/70 tabular-nums"
+                  class="h-4 type-hint text-white/70"
                   classList={{ "opacity-0": !readout() }}
                   aria-hidden="true"
                   data-component="image-dialog-zoom"

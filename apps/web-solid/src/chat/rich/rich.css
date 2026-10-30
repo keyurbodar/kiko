@@ -72,7 +72,6 @@
   padding-inline-start: var(--list-gutter);
 }
 .rich ol > li::marker {
-  font-variant-numeric: tabular-nums;
 }
 .rich ul {
   list-style: disc;
