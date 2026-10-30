@@ -109,6 +109,9 @@ export const Calls = {
       controls: Schema.optionalKey(Schema.Boolean),
       image: Schema.optionalKey(Schema.Boolean),
       maxWidth: Schema.optionalKey(Count),
+      zoom: Schema.optionalKey(
+        Schema.Struct({ captureId: Schema.optionalKey(Id), x: Count, y: Count, width: Count, height: Count }),
+      ),
     }),
     value: View,
   },

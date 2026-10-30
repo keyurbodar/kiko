@@ -9,10 +9,14 @@ export function accessHint(computer: ComputerSummary): string | null {
     if (missing.length > 0) {
       const list = missing.join(" and ")
       return computer.os === "macos"
-        ? `Allow ${list} for kiko-computer-host in System Settings > Privacy & Security`
+        ? `Allow ${list} for kiko-computer-host in System Settings > Privacy & Security. If it is already on, remove it and add it again`
         : `Allow ${list} for kiko-computer-host`
     }
   }
-  if (!computer.caps.desktop && computer.note) return computer.note
+  if ((!computer.caps.desktop || !computer.caps.live) && computer.note) return computer.note
   return null
+}
+
+export function canControl(computer: ComputerSummary): boolean {
+  return computer.online && computer.caps.input && computer.caps.live && computer.access?.input !== false
 }

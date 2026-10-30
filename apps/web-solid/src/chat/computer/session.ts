@@ -277,7 +277,7 @@ export function startSession(pcId: string, hooks: Hooks): Session {
   return {
     send(events) {
       if (rtc?.send(events)) return
-      if (relay) void run(owner.commands.pcInput, { pcId, events })
+      void run(owner.commands.pcInput, { pcId, events })
     },
     close() {
       closed = true

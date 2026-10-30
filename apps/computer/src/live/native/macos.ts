@@ -30,6 +30,7 @@ const CONTROL = 0x00040000
 const ALTERNATE = 0x00080000
 const COMMAND = 0x00100000
 const HID = 0
+const PIXEL_UNITS = 0
 
 const FLAGS: Record<string, number> = {
   ShiftLeft: SHIFT,
@@ -69,8 +70,10 @@ function open(): Core | null {
       CGEventPost: { args: [FFIType.u32, FFIType.ptr], returns: "void" },
       CGEventSourceCreate: { args: [FFIType.u32], returns: "ptr" },
       CGMainDisplayID: { args: [], returns: FFIType.u32 },
-      CGDisplayPixelsWide: { args: [FFIType.u32], returns: FFIType.u64 },
-      CGDisplayPixelsHigh: { args: [FFIType.u32], returns: FFIType.u64 },
+      CGDisplayCopyDisplayMode: { args: [FFIType.u32], returns: FFIType.ptr },
+      CGDisplayModeGetWidth: { args: [FFIType.ptr], returns: FFIType.u64 },
+      CGDisplayModeGetHeight: { args: [FFIType.ptr], returns: FFIType.u64 },
+      CGDisplayModeRelease: { args: [FFIType.ptr], returns: FFIType.void },
     })
     const cf = dlopen(`${FRAMEWORKS}/CoreFoundation.framework/CoreFoundation`, {
       CFRelease: { args: [FFIType.ptr], returns: "void" },
@@ -96,14 +99,14 @@ function open(): Core | null {
         const event = cg.symbols.CGEventCreateMouseEvent(null, type, x, y, button)
         if (!event) return
         if (flags) cg.symbols.CGEventSetFlags(event, flags)
-        if (clicks > 1) cg.symbols.CGEventSetIntegerValueField(event, CLICK_STATE, clicks)
+        if (clicks > 0) cg.symbols.CGEventSetIntegerValueField(event, CLICK_STATE, clicks)
         emit(event as never)
       },
       scroll(vertical, horizontal, flags) {
         const event = scroll2
-          ? scroll2.CGEventCreateScrollWheelEvent2(source, HID, 2, vertical, horizontal, 0)
+          ? scroll2.CGEventCreateScrollWheelEvent2(source, PIXEL_UNITS, 2, vertical, horizontal, 0)
           : horizontal === 0
-            ? cg.symbols.CGEventCreateScrollWheelEvent(source, HID, 1, vertical, 0)
+            ? cg.symbols.CGEventCreateScrollWheelEvent(source, PIXEL_UNITS, 1, vertical, 0)
             : null
         if (!event) return
         if (flags) cg.symbols.CGEventSetFlags(event, flags)
@@ -118,20 +121,24 @@ function open(): Core | null {
       unicode(text, flags) {
         const units = new Uint16Array(text.length)
         for (let i = 0; i < text.length; i++) units[i] = text.charCodeAt(i)
-        const event = cg.symbols.CGEventCreateKeyboardEvent(source, 0, true)
-        if (!event) return
-        cg.symbols.CGEventKeyboardSetUnicodeString(event, units.length, ptr(units))
-        if (flags) cg.symbols.CGEventSetFlags(event, flags)
-        emit(event as never)
+        for (const down of [true, false]) {
+          const event = cg.symbols.CGEventCreateKeyboardEvent(source, 0, down)
+          if (!event) return
+          cg.symbols.CGEventKeyboardSetUnicodeString(event, units.length, ptr(units))
+          cg.symbols.CGEventSetFlags(event, flags)
+          emit(event as never)
+        }
       },
       cursor() {
         if (!mouseAt || mouseAt.HIGetMousePosition(GLOBAL_POINTS, null, ptr(point)) !== 0) return null
         return { x: point[0] ?? 0, y: point[1] ?? 0 }
       },
       display() {
-        const id = cg.symbols.CGMainDisplayID()
-        const width = Number(cg.symbols.CGDisplayPixelsWide(id))
-        const height = Number(cg.symbols.CGDisplayPixelsHigh(id))
+        const mode = cg.symbols.CGDisplayCopyDisplayMode(cg.symbols.CGMainDisplayID())
+        if (!mode) return null
+        const width = Number(cg.symbols.CGDisplayModeGetWidth(mode))
+        const height = Number(cg.symbols.CGDisplayModeGetHeight(mode))
+        cg.symbols.CGDisplayModeRelease(mode)
         if (width <= 0 || height <= 0) return null
         return { width, height }
       },
@@ -185,12 +192,14 @@ export function macNative(): Native | null {
     },
     button(slot, down, x, y) {
       pointer = { x, y }
-      const clicks = down ? clicksFor(slot, x, y) : last.clicks
+      const clicks = down ? clicksFor(slot, x, y) : Math.max(1, last.clicks)
       pressed = down ? slot : null
       core.mouse(buttonEvent(slot, down), x, y, slot, flags, clicks)
     },
-    wheel(steps, horizontal) {
-      core.scroll(horizontal ? 0 : -steps, horizontal ? -steps : 0, flags)
+    wheel(pixels, horizontal) {
+      const amount = Math.round(pixels)
+      if (amount === 0) return
+      core.scroll(horizontal ? 0 : -amount, horizontal ? -amount : 0, flags)
     },
     key(code, key, down) {
       if (down) held.add(code)

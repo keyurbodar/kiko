@@ -95,6 +95,7 @@ const CODES = new Map<string, number>([
   ["F10", 109],
   ["F12", 111],
   ["F15", 113],
+  ["Insert", 114],
   ["Home", 115],
   ["PageUp", 116],
   ["Delete", 117],

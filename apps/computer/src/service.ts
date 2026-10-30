@@ -1,10 +1,11 @@
-import { chmod, copyFile, mkdir, stat, writeFile } from "node:fs/promises"
-import { dirname, join } from "node:path"
+import { chmod, copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises"
+import { basename, dirname, join } from "node:path"
 import { CliError } from "./errors"
 import { homeDir } from "./platform"
 import { selfArgv } from "./self"
 
 export const LABEL = "com.kiko.computer"
+const MOVE_LABEL = `${LABEL}.move`
 const UNIT = "kiko-computer.service"
 const HOST = "kiko-computer-host"
 const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
@@ -66,12 +67,12 @@ function systemdPath(): string {
   return join(process.env.XDG_CONFIG_HOME ?? join(homeDir(), ".config"), "systemd", "user", UNIT)
 }
 
-function launchdPlist(program: string[]): string {
+function launchdPlist(program: string[], label = LABEL, keepAlive = true): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>${LABEL}</string>
+  <key>Label</key><string>${label}</string>
   <key>ProgramArguments</key>
   <array>
 ${program.map((part) => `    <string>${xml(part)}</string>`).join("\n")}
@@ -81,7 +82,7 @@ ${program.map((part) => `    <string>${xml(part)}</string>`).join("\n")}
     <key>PATH</key><string>${xml(macPath())}</string>
   </dict>
   <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
+  <key>KeepAlive</key><${keepAlive}/>
   <key>ProcessType</key><string>Interactive</string>
 </dict>
 </plist>
@@ -131,6 +132,43 @@ async function exists(file: string): Promise<boolean> {
   )
 }
 
+export function sessionEnv(listing: string, env: NodeJS.ProcessEnv): Record<string, string> {
+  if (env.DISPLAY || env.WAYLAND_DISPLAY) return {}
+  const wanted = new Set<string>(SYSTEMD_ENV)
+  const adopted: Record<string, string> = {}
+  for (const line of listing.split("\n")) {
+    const at = line.indexOf("=")
+    const key = line.slice(0, at)
+    if (at > 0 && wanted.has(key) && env[key] === undefined) adopted[key] = line.slice(at + 1)
+  }
+  return adopted
+}
+
+export function adoptSession(): void {
+  if (process.platform !== "linux" || !process.env.INVOCATION_ID) return
+  if (process.env.DISPLAY || process.env.WAYLAND_DISPLAY) return
+  try {
+    const proc = Bun.spawnSync(["systemctl", "--user", "show-environment"], { stdout: "pipe", stderr: "ignore" })
+    if (proc.exitCode === 0) Object.assign(process.env, sessionEnv(proc.stdout.toString("utf8"), process.env))
+  } catch {}
+}
+
+export function needsHost(plist: string | null, platform: NodeJS.Platform, env: NodeJS.ProcessEnv): boolean {
+  return platform === "darwin" && env.XPC_SERVICE_NAME === LABEL && plist !== null && !plist.includes(HOST)
+}
+
+export async function moveToHost(): Promise<boolean> {
+  const host = hostPath()
+  if (!host) return false
+  const plist = await readFile(launchdPath(), "utf8").catch(() => null)
+  if (!needsHost(plist, process.platform, process.env)) return false
+  const file = join(dirname(host), `${MOVE_LABEL}.plist`)
+  const domain = `gui/${process.getuid?.() ?? 501}`
+  await writeUnit(file, launchdPlist([...selfArgv(), "service", "install"], MOVE_LABEL, false))
+  await quiet(["launchctl", "bootout", `${domain}/${MOVE_LABEL}`])
+  return (await quiet(["launchctl", "bootstrap", domain, file])) === 0
+}
+
 export async function service(action: ServiceAction): Promise<number> {
   if (process.platform === "darwin") return launchd(action)
   if (process.platform === "win32") return windows(action)
@@ -170,7 +208,7 @@ async function launchd(action: ServiceAction): Promise<number> {
     if (await exists(file)) await writeFile(file, "")
     const code = await run(["rm", "-f", file])
     const host = hostPath()
-    if (host) await run(["rm", "-f", host])
+    if (host) await run(["rm", "-f", host, join(dirname(host), `${MOVE_LABEL}.plist`)])
     console.log(`removed ${file}`)
     return code
   }
@@ -217,7 +255,8 @@ async function windows(action: ServiceAction): Promise<number> {
     )
     return 0
   }
-  await quiet(["taskkill", "/F", "/IM", "kiko-computer.exe", "/FI", `PID ne ${process.pid}`])
+  if (basename(process.execPath).toLowerCase() === "kiko-computer.exe")
+    await quiet(["taskkill", "/F", "/IM", "kiko-computer.exe", "/FI", `PID ne ${process.pid}`])
   if (action === "uninstall") {
     await quiet(["reg", "delete", RUN_KEY, "/v", "kiko-computer", "/f"])
     console.log("kiko-computer no longer starts at logon")

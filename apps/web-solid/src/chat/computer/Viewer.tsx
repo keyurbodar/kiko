@@ -6,14 +6,17 @@ import { cn } from "../../lib/cn"
 import { agentDisplayName } from "../../lib/names"
 import { user } from "../../state/user"
 import { closeViewer, computerById, computers, openViewer, release, takeOver, viewerFor } from "../computers"
-import { accessHint } from "./access"
+import { accessHint, canControl } from "./access"
 import LiveScreen from "./LiveScreen"
 
 const pill = "h-8 shrink-0 cursor-pointer rounded-full px-3.5 type-label font-medium whitespace-nowrap"
 
 export default function Viewer(): JSX.Element {
   const pc = () => computerById(viewerFor() ?? "")
-  const interactive = () => pc()?.holder === "human" && pc()?.caps.input === true && pc()?.online === true
+  const interactive = () => {
+    const computer = pc()
+    return computer?.holder === "human" && canControl(computer)
+  }
   const reason = () => pc()?.agent?.reason
   const agentName = () => {
     const slug = pc()?.agent?.slug
@@ -113,7 +116,7 @@ export default function Viewer(): JSX.Element {
                 when={interactive()}
                 fallback={
                   <Show
-                    when={computer().online && computer().caps.input}
+                    when={canControl(computer())}
                     fallback={
                       <span
                         class="shrink-0 px-2 type-label whitespace-nowrap text-fg3"

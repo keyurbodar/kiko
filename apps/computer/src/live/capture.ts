@@ -51,9 +51,20 @@ function quality(level: number): string {
 }
 
 function linuxSources(screen: Screen, fps: number): string[][] {
-  const region = `${screen.originX ?? 0},${screen.originY ?? 0},${screen.width || 1},${screen.height || 1}`
+  const origin = `${screen.originX ?? 0},${screen.originY ?? 0}`
   return [
-    ["-f", "x11grab", "-draw_mouse", "0", "-framerate", String(fps), "-i", `${process.env.DISPLAY ?? ":0"}+${region}`],
+    [
+      "-f",
+      "x11grab",
+      "-draw_mouse",
+      "0",
+      "-framerate",
+      String(fps),
+      "-video_size",
+      `${screen.width || 1}x${screen.height || 1}`,
+      "-i",
+      `${process.env.DISPLAY ?? ":0"}+${origin}`,
+    ],
   ]
 }
 
@@ -68,7 +79,22 @@ function windowsSources(screen: Screen, fps: number): string[][] {
   return [
     ["-f", "lavfi", "-i", `ddagrab=output_idx=0:framerate=${fps}:draw_mouse=0`],
     ["-f", "lavfi", "-i", `ddagrab=output_idx=0:framerate=${fps}:draw_mouse=0${offset}`],
-    ["-f", "gdigrab", "-draw_mouse", "0", "-framerate", String(fps), "-i", "desktop"],
+    [
+      "-f",
+      "gdigrab",
+      "-draw_mouse",
+      "0",
+      "-framerate",
+      String(fps),
+      "-offset_x",
+      String(screen.originX ?? 0),
+      "-offset_y",
+      String(screen.originY ?? 0),
+      "-video_size",
+      `${screen.width}x${screen.height}`,
+      "-i",
+      "desktop",
+    ],
   ]
 }
 
