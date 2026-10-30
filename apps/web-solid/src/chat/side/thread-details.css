@@ -267,3 +267,11 @@
     animation: none;
   }
 }
+
+[data-component="main-panel"] {
+  container-type: inline-size;
+}
+
+.details-reserve[data-on] {
+  padding-right: clamp(0px, calc(640px - 100cqw + min(100cqw, var(--chat-content-max-width))), 320px);
+}

@@ -318,16 +318,9 @@ export function Shell(props: ParentProps) {
   const sidebar = () => <Sidebar section={sectionOf(pathname())} collapsed={closed()} onToggle={toggle} />
   const onChat = () => !coversChat(pathname())
   const [canvasWidth, setCanvasWidth] = createSignal(0)
-  const [messageWidth, setMessageWidth] = createSignal(820)
   const watchCanvas = (el: Element) => {
     if (!(el instanceof HTMLElement)) return
-    const measure = () => {
-      const width = el.getBoundingClientRect().width
-      setCanvasWidth(width)
-      const raw = getComputedStyle(el).getPropertyValue("--chat-content-max-width").trim()
-      const px = raw.endsWith("%") ? (width * parseFloat(raw)) / 100 : parseFloat(raw)
-      if (Number.isFinite(px) && px > 0) setMessageWidth(px)
-    }
+    const measure = () => setCanvasWidth(el.getBoundingClientRect().width)
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(el)
@@ -339,11 +332,7 @@ export function Shell(props: ParentProps) {
   }
   const detailsInline = () => !sideOpen() && canvasWidth() >= DETAILS_MIN_CANVAS
   createComputed(() => setThreadDetailsFloating(!detailsInline()))
-  const detailsReserve = () => {
-    if (!detailsChat() || !detailsInline()) return 0
-    const needed = 2 * DETAILS_GUTTER - canvasWidth() + Math.min(canvasWidth(), messageWidth())
-    return Math.min(DETAILS_GUTTER, Math.max(0, needed))
-  }
+  const detailsReserved = () => detailsChat() !== null && detailsInline()
   const endSideResize = () => {
     if (sidePanel()?.collapsed()) return closeSide()
     saveWidth(INFO, "kiko-sidecar-panel")
@@ -476,8 +465,8 @@ export function Shell(props: ParentProps) {
                         ref={watchCanvas}
                       >
                         <div
-                          class="flex min-w-0 flex-1 flex-col"
-                          style={detailsReserve() ? { "padding-right": `${detailsReserve()}px` } : undefined}
+                          class="details-reserve flex min-w-0 flex-1 flex-col"
+                          data-on={detailsReserved() ? "" : undefined}
                         >
                           {props.children}
                         </div>
