@@ -237,6 +237,7 @@ export class Desktop {
   }
 
   private async fresh(deadline: Deadline): Promise<Frame> {
+    if (this.current) return this.current
     await this.look({ image: false }, deadline)
     if (!this.current) throw new Fail({ code: "stale", message: "that screenshot is gone; call computer_look again" })
     return this.current

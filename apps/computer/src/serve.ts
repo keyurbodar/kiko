@@ -27,7 +27,13 @@ export async function serve(dir = configDir()): Promise<number> {
     return 1
   }
   await warnOnLooseKey(dir, log)
-  if (await moveToHost()) log.info("moving the service under kiko-computer-host so macOS permissions survive updates")
+  const moved = await moveToHost().catch((error: unknown) => {
+    log.warn(
+      `could not move the service under kiko-computer-host: ${error instanceof Error ? error.message : String(error)}`,
+    )
+    return false
+  })
+  if (moved) log.info("moving the service under kiko-computer-host so macOS permissions survive updates")
   let holder: Holder = "agent"
   const setHolder = (next: Holder) => {
     holder = next

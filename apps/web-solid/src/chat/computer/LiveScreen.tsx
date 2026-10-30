@@ -49,7 +49,7 @@ export default function LiveScreen(props: {
   )
 
   createEffect(
-    on([streams, epoch], ([live]) => {
+    on([streams, epoch, () => props.pcId], ([live]) => {
       if (!live) return
       const next = startSession(props.pcId, {
         video,

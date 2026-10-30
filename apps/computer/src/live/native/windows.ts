@@ -168,12 +168,12 @@ export function windowsNative(): Native | null {
     text(value) {
       for (const char of value) {
         const code = char.codePointAt(0) ?? 0
-        for (const unit of code > 0xffff
-          ? [0xd800 + ((code - 0x10000) >> 10), 0xdc00 + ((code - 0x10000) & 0x3ff)]
-          : [code]) {
-          keyInput(input.subarray(0), KEYEVENTF_UNICODE, 0, unit)
-          keyInput(input.subarray(INPUT_SIZE), KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, 0, unit)
-          send(2)
+        const units = code > 0xffff ? [0xd800 + ((code - 0x10000) >> 10), 0xdc00 + ((code - 0x10000) & 0x3ff)] : [code]
+        for (const up of [false, true]) {
+          units.forEach((unit, index) =>
+            keyInput(input.subarray(index * INPUT_SIZE), KEYEVENTF_UNICODE | (up ? KEYEVENTF_KEYUP : 0), 0, unit),
+          )
+          send(units.length)
         }
       }
     },

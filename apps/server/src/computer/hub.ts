@@ -408,6 +408,12 @@ export class ComputerHub {
       return { ok: false, code: "unsupported", message: `${row.name} has input off` }
     if ((op === "look" || op === "act") && saved.holder === "human")
       return { ok: false, code: "busy", message: `the human has control of ${row.name} right now` }
+    let parsed: unknown
+    try {
+      parsed = Schema.decodeUnknownSync(Calls[op].args)(args)
+    } catch {
+      return { ok: false, code: "failed", message: `bad ${op} arguments` }
+    }
     const deadlineMs = Math.min(Math.max(1_000, Number(options.deadlineMs ?? DEFAULT_DEADLINE_MS)), MAX_DEADLINE_MS)
     const taken = op === "act" && options.user ? this.claimDesk(pcId, options.user, deadlineMs) : null
     if (taken)
@@ -416,12 +422,6 @@ export class ComputerHub {
         code: "busy",
         message: `${taken.name} is using the screen of ${row.name} for about ${Math.ceil((taken.until - Date.now()) / 1000)}s more. Shell and files still work; try the screen again after that.`,
       }
-    let parsed: unknown
-    try {
-      parsed = Schema.decodeUnknownSync(Calls[op].args)(args)
-    } catch {
-      return { ok: false, code: "failed", message: `bad ${op} arguments` }
-    }
     const id = crypto.randomUUID()
     const busy = BUSY_OPS.has(op)
     if (busy) this.track(pcId, true)
