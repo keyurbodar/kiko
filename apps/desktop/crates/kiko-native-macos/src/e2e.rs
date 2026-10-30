@@ -29,6 +29,8 @@ const MENU_TEXT: &str = "kiko menu test";
 const PASTE_TEXT: &str = "kiko pasted";
 const OPEN_WAIT: Duration = Duration::from_secs(20);
 const OPEN_POLL: Duration = Duration::from_millis(100);
+const CHROME_WAIT: Duration = Duration::from_secs(90);
+const CHROME_PAGE: Duration = Duration::from_secs(90);
 const CHROME_FLAGS: [&str; 4] = [
     "--no-first-run",
     "--no-default-browser-check",
@@ -743,6 +745,15 @@ fn run_open(app: &DocumentApp, background: bool) -> String {
 }
 
 fn open_app(path: &str, argument: Option<&str>, background: bool) -> String {
+    open_app_waiting(path, argument, background, OPEN_WAIT)
+}
+
+fn open_app_waiting(
+    path: &str,
+    argument: Option<&str>,
+    background: bool,
+    wait: Duration,
+) -> String {
     let mut command = std::process::Command::new("open");
     if background {
         command.arg("-g");
@@ -751,15 +762,20 @@ fn open_app(path: &str, argument: Option<&str>, background: bool) -> String {
     if let Some(argument) = argument {
         command.arg(argument);
     }
-    finish_open(path, background, command)
+    finish_open(path, background, command, wait)
 }
 
-fn finish_open(path: &str, background: bool, mut command: std::process::Command) -> String {
+fn finish_open(
+    path: &str,
+    background: bool,
+    mut command: std::process::Command,
+    wait: Duration,
+) -> String {
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(error) => return format!("open {path} background={background} failed: {error}"),
     };
-    let deadline = Instant::now() + OPEN_WAIT;
+    let deadline = Instant::now() + wait;
     loop {
         match child.try_wait() {
             Ok(Some(status)) => {
@@ -771,7 +787,7 @@ fn finish_open(path: &str, background: bool, mut command: std::process::Command)
                 let _ = child.wait();
                 return format!(
                     "open {path} background={background} did not return in {}s",
-                    OPEN_WAIT.as_secs()
+                    wait.as_secs()
                 );
             }
         }
@@ -921,27 +937,21 @@ fn cancel_menus(window: &Window) {
 fn launch_chrome(driver: &mut MacDriver, url: &str) -> Window {
     let mut notes = Vec::new();
     if window_named(driver, "Google Chrome").is_none() {
-        notes.push(start_chrome(url, true));
-        if let Some(window) = wait_for(LAUNCH, || chrome_page(driver)) {
+        notes.push(start_chrome(url));
+        if let Some(window) = wait_for(CHROME_PAGE, || chrome_page(driver)) {
             println!("Chrome answered; {notes:?}");
             return window;
         }
-        notes.push(open_app(CHROME, Some(url), false));
-        if let Some(window) = wait_for(LAUNCH, || chrome_page(driver)) {
-            println!("Chrome answered; {notes:?}");
-            return window;
-        }
-        notes.push(open_app(CHROME, Some(url), true));
-    } else {
-        notes.push(open_app(CHROME, Some(url), true));
     }
-    match wait_for(LAUNCH, || chrome_page(driver)) {
+    notes.push(open_app_waiting(CHROME, Some(url), true, CHROME_WAIT));
+    match wait_for(CHROME_PAGE, || chrome_page(driver)) {
         Some(window) => {
             println!("Chrome answered; {notes:?}");
             window
         }
         None => panic!(
-            "no Chrome window; {notes:?}; windows: {:?}; chrome windows: {:?}; all: {:?}",
+            "no Chrome window; {notes:?}; running: {:?}; windows: {:?}; chrome windows: {:?}; all: {:?}",
+            chrome_processes(),
             window_summary(driver),
             window::debug_entries("Google Chrome"),
             window::debug_all()
@@ -949,24 +959,33 @@ fn launch_chrome(driver: &mut MacDriver, url: &str) -> Window {
     }
 }
 
-fn chrome_page(driver: &mut MacDriver) -> Option<Window> {
-    window_titled(driver, "Google Chrome", "before")
-        .or_else(|| window_named(driver, "Google Chrome"))
+fn chrome_processes() -> Vec<String> {
+    let mut command = std::process::Command::new("ps");
+    command.args(["-Ao", "pid,stat,etime,command"]);
+    let Ok(output) = command.output() else {
+        return Vec::new();
+    };
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|line| line.contains("MacOS/Google Chrome"))
+        .map(str::to_string)
+        .collect()
 }
 
-fn start_chrome(url: &str, activated: bool) -> String {
+fn chrome_page(driver: &mut MacDriver) -> Option<Window> {
+    window_titled(driver, "Google Chrome", "before")
+}
+
+fn start_chrome(url: &str) -> String {
     let profile = std::env::temp_dir().join(format!("kiko-chrome-{}", std::process::id()));
     let mut command = std::process::Command::new("open");
-    if !activated {
-        command.arg("-g");
-    }
     command
         .args(["-a", CHROME])
         .arg("--args")
         .args(CHROME_FLAGS)
         .arg(format!("--user-data-dir={}", profile.display()))
         .arg(url);
-    finish_open(CHROME, !activated, command)
+    finish_open(CHROME, false, command, CHROME_WAIT)
 }
 
 fn write_electron_app() -> PathBuf {
@@ -999,7 +1018,7 @@ fn launch_electron(bundle: &Path, app: &Path, page: &Path, log: &Path) -> String
         .arg(app)
         .arg(page)
         .arg(log);
-    finish_open(&bundle.display().to_string(), true, command)
+    finish_open(&bundle.display().to_string(), true, command, OPEN_WAIT)
 }
 
 fn write_page(title: &str) -> PathBuf {
