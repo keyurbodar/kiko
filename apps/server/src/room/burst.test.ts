@@ -1,7 +1,7 @@
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
 import type { AgentSlug, Envelope, RoomId } from "@kiko/protocol"
 import { describe, expect, it } from "vitest"
-import { Burst } from "./burst"
+import { Burst, debounce } from "./burst"
 import type { RoomLog } from "./log"
 import type { Members } from "./members"
 
@@ -83,5 +83,16 @@ describe("an agent's pending envelopes", () => {
       { slug: KIKO, after: 0, limit: 3 },
       { slug: KIKO, after: 7, limit: 3 },
     ])
+  })
+})
+
+describe("when a burst is due", () => {
+  it("gives a message its own quiet window even after a long burst", () => {
+    expect(debounce("message", 12_000, 0)).toBe(13_000)
+    expect(debounce("fragment", 12_000, 0)).toBe(14_500)
+  })
+
+  it("stops a burst that never pauses", () => {
+    expect(debounce("message", 29_800, 0)).toBe(30_000)
   })
 })
