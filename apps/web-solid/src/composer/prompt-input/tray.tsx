@@ -46,7 +46,7 @@ function FileFace(props: { name: string; mime: string; size?: number; failed?: b
           fallback={
             <span class="tray-meta">
               {tileBadge({ filename: props.name, mime: props.mime })}
-              {" · "}
+              {", "}
               {formatBytes(props.size ?? 0)}
             </span>
           }
