@@ -163,6 +163,8 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
     fade()
     const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(fade)
     if (scroller) observer?.observe(scroller)
+    const table = root?.querySelector("table")
+    if (table) observer?.observe(table)
     onCleanup(() => observer?.disconnect())
   })
 

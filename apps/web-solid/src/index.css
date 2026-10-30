@@ -151,7 +151,7 @@
 /* palette:start */
 :root {
   --bg: #121212;
-  --side: #161616;
+  --side: #171717;
   --panel: color-mix(in oklab, #ededed 2.9%, #121212);
   --raise: color-mix(in oklab, #ededed 5.8%, #121212);
   --hover: color-mix(in oklab, #ededed 8%, #121212);
@@ -168,7 +168,7 @@
   --me: color-mix(in oklab, #ededed 11.8%, #121212);
   --kiko-bubble: color-mix(in oklab, #ededed 5.8%, #121212);
   --line: color-mix(in oklab, #ededed 10.2%, #121212);
-  --line2: color-mix(in oklab, #ededed 12.8%, #121212);
+  --line2: color-mix(in oklab, #ededed 15.5%, #121212);
   --line3: color-mix(in oklab, #ededed 20%, transparent);
   --fg: #ededed;
   --fg2: #a6a6a6;
@@ -280,7 +280,7 @@
   --text-200: #c9c9c9;
   --text-300: #a6a6a6;
   --text-400: #878787;
-  --dur-press: 60ms;
+  --dur-press: 120ms;
   --press-spring: linear(
     0,
     0.2459,
@@ -335,9 +335,10 @@
   --popover-shadow: 0 8px 24px rgb(0 0 0 / 32%), 0 2px 6px rgb(0 0 0 / 20%);
   --float-shadow: 0 0 0 1px var(--popover-edge), var(--popover-shadow);
   --menu-shadow: var(--float-shadow);
-  --tooltip-bg: var(--bg-300);
-  --tooltip-fg: var(--fg);
-  --tooltip-edge: var(--border-100);
+  --tooltip-bg: var(--fg);
+  --tooltip-fg: var(--on-fg);
+  --tooltip-edge: transparent;
+  --tooltip-muted: color-mix(in oklab, var(--on-fg) 60%, transparent);
   --scrim: rgb(0 0 0 / 50%);
   --scrim-blur: blur(6px) saturate(0.7);
   --dock-bg: var(--bg);
@@ -368,7 +369,7 @@
   --type-page-line: 44px;
   --type-section: 26px;
   --type-section-line: 32px;
-  --type-wordmark: 22px;
+  --type-wordmark: 24px;
   --type-wordmark-line: 26px;
   --type-msg: 15px;
   --type-msg-line: 24px;
@@ -376,12 +377,12 @@
   --type-bubble-line: 24px;
   --type-ui: 14px;
   --type-ui-line: 20px;
-  --type-row: 14px;
-  --type-row-line: 20px;
-  --type-label: 13px;
-  --type-label-line: 18px;
-  --type-hint: 12px;
-  --type-hint-line: 16px;
+  --type-row: 13.5px;
+  --type-row-line: 18px;
+  --type-label: 12.5px;
+  --type-label-line: 17px;
+  --type-hint: 11.5px;
+  --type-hint-line: 15px;
   --type-caption: 13px;
   --type-caption-line: 18px;
   --type-micro: 11px;
@@ -403,7 +404,7 @@
   --radius-tail: 6px;
   --radius-check: 5px;
   --radius-micro: 4px;
-  --radius-nav: 8px;
+  --radius-nav: 9px;
   --radius-control: 9px;
   --radius-row: 10px;
   --radius-tile: 12px;
@@ -414,13 +415,13 @@
   --radius-hero: 20px;
   --radius-composer: 22px;
   --radius-full: 999px;
-  --spacing-nav-tab: 32px;
+  --spacing-nav-tab: 34px;
   --spacing-nav-gap: 10px;
   --spacing-nav-gap-row: 2px;
   --spacing-nav-slot: 28px;
   --spacing-nav-pad: 8px;
-  --spacing-chat-row: 48px;
-  --spacing-mascot: 30px;
+  --spacing-chat-row: 50px;
+  --spacing-mascot: 32px;
   --spacing-section-label: 28px;
   --spacing-step: 28px;
   --spacing-control: 32px;
@@ -429,7 +430,7 @@
   --spacing-chip: 26px;
   --spacing-tab: 28px;
   --spacing-composer-min: 96px;
-  --spacing-sidebar: 288px;
+  --spacing-sidebar: 296px;
   --spacing-header: 44px;
   --spacing-top-bar: 60px;
   --spacing-rail-width: 56px;
