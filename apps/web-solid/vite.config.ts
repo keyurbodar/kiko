@@ -64,6 +64,9 @@ export default defineConfig(({ mode }) => {
       include: [
         "@kiko/ui > @kobalte/core > @internationalized/date",
         "@kiko/ui > @kobalte/core > @internationalized/number",
+        "jszip",
+        "mermaid",
+        "saxes",
       ],
     },
     server: {

@@ -62,7 +62,7 @@ function cellText(attrs: string, body: string, shared: readonly string[]): strin
   return value
 }
 
-function sheetRows(xml: string, shared: readonly string[], limit: number, width: number): string[][] {
+function sheetRows(xml: string, shared: readonly string[], limit: number, width: number, cellLimit = 2000): string[][] {
   const rows: string[][] = []
   for (const row of xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
     if (rows.length >= limit) break
@@ -72,19 +72,70 @@ function sheetRows(xml: string, shared: readonly string[], limit: number, width:
       const at = column(/\br="([A-Z]+)/.exec(attrs)?.[1] ?? "") || cells.length
       if (at >= width) continue
       while (cells.length < at) cells.push("")
-      cells[at] = cellText(attrs, cell[2] ?? "", shared)
+      cells[at] = cellText(attrs, cell[2] ?? "", shared).slice(0, cellLimit)
     }
     rows.push(cells)
   }
   return rows
 }
 
-export async function xlsxRows(bytes: Uint8Array, limit = 12, width = 8): Promise<string[][]> {
+export type XlsxSheet = { name: string; rows: string[][]; truncated: boolean }
+
+type SheetPart = { name: string; path: string }
+
+function sheetParts(workbook: string, relationships: string): SheetPart[] {
+  const targets = new Map<string, string>()
+  for (const match of relationships.matchAll(/<Relationship\b([^>]*)>/g)) {
+    const body = match[1] ?? ""
+    const id = /\bId=["']([^"']*)["']/.exec(body)?.[1]
+    const target = /\bTarget=["']([^"']*)["']/.exec(body)?.[1]
+    if (id && target) targets.set(id, target.replace(/^\//, ""))
+  }
+  const parts: SheetPart[] = []
+  for (const match of workbook.matchAll(/<sheet\b([^>]*)>/g)) {
+    const body = match[1] ?? ""
+    const name = /\bname=["']([^"']*)["']/.exec(body)?.[1] ?? `Sheet ${parts.length + 1}`
+    const id = /\br:id=["']([^"']*)["']/.exec(body)?.[1]
+    const target = id ? targets.get(id) : undefined
+    const path = target?.startsWith("xl/") ? target : `xl/${target ?? ""}`
+    if (path) parts.push({ name, path })
+  }
+  return parts
+}
+
+export async function xlsxSheets(
+  bytes: Uint8Array,
+  limits: { rows: number; columns: number; cell: number; sheets?: number } = { rows: 500, columns: 64, cell: 512 },
+): Promise<XlsxSheet[]> {
   const zip = entries(bytes)
-  const sheet =
-    zip.get("xl/worksheets/sheet1.xml") ?? [...zip].find(([name]) => /^xl\/worksheets\/[^/]+\.xml$/.test(name))?.[1]
-  if (!sheet) return []
+  const workbookEntry = zip.get("xl/workbook.xml")
+  const relsEntry = zip.get("xl/_rels/workbook.xml.rels")
+  const workbook = workbookEntry ? await read(bytes, workbookEntry) : ""
+  const relationships = relsEntry ? await read(bytes, relsEntry) : ""
   const strings = zip.get("xl/sharedStrings.xml")
   const shared = strings ? sharedStrings(await read(bytes, strings)) : []
-  return sheetRows(await read(bytes, sheet), shared, limit, width)
+  let parts = workbook ? sheetParts(workbook, relationships) : []
+  if (!parts.length)
+    parts = [...zip.keys()]
+      .filter((name) => /^xl\/worksheets\/[^/]+\.xml$/.test(name))
+      .map((path, index) => ({ name: `Sheet ${index + 1}`, path }))
+  const sheets: XlsxSheet[] = []
+  for (const part of parts.slice(0, limits.sheets ?? 24)) {
+    const entry = zip.get(part.path)
+    if (!entry) continue
+    const xml = await read(bytes, entry)
+    const rows = sheetRows(xml, shared, limits.rows, limits.columns, limits.cell)
+    const width = rows.reduce((widest, row) => Math.max(widest, row.length), 0)
+    sheets.push({
+      name: part.name,
+      rows: rows.map((row) => row.map((cell) => (cell.length > limits.cell ? cell.slice(0, limits.cell) : cell))),
+      truncated: rows.length >= limits.rows || width >= limits.columns,
+    })
+  }
+  return sheets
+}
+
+export async function xlsxRows(bytes: Uint8Array, limit = 12, width = 8): Promise<string[][]> {
+  const sheets = await xlsxSheets(bytes, { rows: limit, columns: width, cell: 2000, sheets: 1 })
+  return sheets[0]?.rows ?? []
 }

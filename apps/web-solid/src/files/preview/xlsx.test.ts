@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { xlsxRows } from "./xlsx"
+import { xlsxRows, xlsxSheets } from "./xlsx"
 
 const encoder = new TextEncoder()
 
@@ -84,5 +84,42 @@ describe("xlsxRows", () => {
 
   it("rejects bytes that are not a zip", async () => {
     await expect(xlsxRows(encoder.encode("not a workbook"))).rejects.toThrow()
+  })
+})
+
+const multi = {
+  "xl/workbook.xml": `<workbook><sheets>
+    <sheet name="Budget" sheetId="1" r:id="rId1"/>
+    <sheet name="Packing" sheetId="2" r:id="rId2"/>
+  </sheets></workbook>`,
+  "xl/_rels/workbook.xml.rels": `<Relationships>
+    <Relationship Id="rId1" Target="worksheets/sheet1.xml"/>
+    <Relationship Id="rId2" Target="worksheets/sheet2.xml"/>
+  </Relationships>`,
+  "xl/sharedStrings.xml": `<sst><si><t>Item</t></si><si><t>Cost</t></si></sst>`,
+  "xl/worksheets/sheet1.xml": `<worksheet><sheetData>
+    <row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>
+    <row r="2"><c r="A2" t="inlineStr"><is><t>Hotels</t></is></c><c r="B2"><v>420</v></c></row>
+  </sheetData></worksheet>`,
+  "xl/worksheets/sheet2.xml": `<worksheet><sheetData>
+    <row r="1"><c r="A1" t="inlineStr"><is><t>Bags</t></is></c></row>
+  </sheetData></worksheet>`,
+}
+
+describe("xlsxSheets", () => {
+  it("reads every sheet in workbook order with its name", async () => {
+    const sheets = await xlsxSheets(await zip(multi, false))
+    expect(sheets.map((sheet) => sheet.name)).toEqual(["Budget", "Packing"])
+    expect(sheets[0]!.rows).toEqual([
+      ["Item", "Cost"],
+      ["Hotels", "420"],
+    ])
+    expect(sheets[1]!.rows).toEqual([["Bags"]])
+    expect(sheets.every((sheet) => !sheet.truncated)).toBe(true)
+  })
+
+  it("reports a sheet cut at the preview limits", async () => {
+    const sheets = await xlsxSheets(await zip(multi, false), { rows: 1, columns: 8, cell: 512 })
+    expect(sheets[0]!.truncated).toBe(true)
   })
 })
