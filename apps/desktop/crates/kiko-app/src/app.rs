@@ -68,17 +68,21 @@ fn start() -> i32 {
     };
     serve::run(listener, Arc::clone(&driver), status());
 
+    let supervisor = Arc::new(Supervisor::start(Arc::clone(&shared)));
+    let shutdown = shutdown(Arc::clone(&supervisor));
     let (commands, incoming) = mpsc::channel();
-    if let Err(error) = control::listen(&config::control_name(), commands.clone()) {
+    let show = commands.clone();
+    let quit = Arc::clone(&shutdown);
+    if let Err(error) = control::listen(&config::control_name(), move |command| match command {
+        Command::Show => {
+            let _ = show.send(Command::Show);
+        }
+        Command::Quit => quit(),
+    }) {
         log::line(format!("control socket failed: {error}"));
     }
 
-    let supervisor = Arc::new(Supervisor::start(Arc::clone(&shared)));
-    let handler = handler(
-        Arc::clone(&driver),
-        Arc::clone(&supervisor),
-        Arc::clone(&shared),
-    );
+    let handler = handler(Arc::clone(&driver), shutdown, Arc::clone(&shared));
     state::refresh(&shared, &driver);
     tray::run(shared, driver, handler, incoming)
 }
@@ -102,7 +106,15 @@ fn deliver(command: Command) -> i32 {
     1
 }
 
-fn handler(driver: SharedDriver, supervisor: Arc<Supervisor>, shared: Shared) -> Handler {
+fn shutdown(supervisor: Arc<Supervisor>) -> Arc<dyn Fn() + Send + Sync> {
+    Arc::new(move || {
+        log::line("kiko quitting");
+        supervisor.stop();
+        std::process::exit(0);
+    })
+}
+
+fn handler(driver: SharedDriver, shutdown: Arc<dyn Fn() + Send + Sync>, shared: Shared) -> Handler {
     Arc::new(move |action| match action {
         Action::Pause => toggle(&config::pause_file()),
         Action::Login => toggle_login(),
@@ -130,11 +142,7 @@ fn handler(driver: SharedDriver, supervisor: Arc<Supervisor>, shared: Shared) ->
                 }
             });
         }
-        Action::Quit => {
-            log::line("kiko quitting");
-            supervisor.stop();
-            std::process::exit(0);
-        }
+        Action::Quit => shutdown(),
     })
 }
 

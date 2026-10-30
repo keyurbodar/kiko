@@ -30,7 +30,10 @@ jobs:
         with:
           workspaces: apps/desktop
       - name: Toolchain
-        run: rustup component add clippy rustfmt
+        run: |
+          rustup component add clippy rustfmt
+          sudo apt-get update
+          sudo apt-get install -y dbus xvfb
       - name: Format
         working-directory: apps/desktop
         run: cargo fmt -p kiko-app -- --check
@@ -66,6 +69,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop
+      - name: Toolchain
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - name: Build kiko for both architectures
         working-directory: apps/desktop
         run: |

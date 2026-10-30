@@ -60,7 +60,11 @@ impl App {
             .unwrap_or(0)
     }
 
-    fn wait_for<F: Fn() -> bool>(what: &str, ready: F) {
+    fn log(&self) -> String {
+        std::fs::read_to_string(self.dir.join("kiko.log")).unwrap_or_default()
+    }
+
+    fn wait_for<F: Fn() -> bool>(&self, what: &str, ready: F) {
         let until = Instant::now() + WAIT;
         while Instant::now() < until {
             if ready() {
@@ -68,7 +72,19 @@ impl App {
             }
             std::thread::sleep(Duration::from_millis(100));
         }
-        panic!("timed out waiting for {what}");
+        panic!("timed out waiting for {what}\n{}", self.log());
+    }
+
+    fn wait_for_exit(&mut self) {
+        let until = Instant::now() + WAIT;
+        while Instant::now() < until {
+            match self.child.try_wait() {
+                Ok(Some(_)) => return,
+                Ok(None) => std::thread::sleep(Duration::from_millis(100)),
+                Err(error) => panic!("could not watch kiko: {error}"),
+            }
+        }
+        panic!("kiko did not exit on quit\n{}", self.log());
     }
 }
 
@@ -130,9 +146,9 @@ fn ask(stream: &LocalSocketStream, request: &str) -> serde_json::Value {
 #[test]
 fn serves_the_driver_and_supervises_the_daemon() {
     let dir = fixture("smoke");
-    let app = App::start(&dir);
+    let mut app = App::start(&dir);
 
-    App::wait_for("the daemon to start", || app.starts() >= 1);
+    app.wait_for("the daemon to start", || app.starts() >= 1);
     let stream = connect(&app.socket());
 
     let status = ask(&stream, r#"{"id":1,"method":"status"}"#);
@@ -144,7 +160,7 @@ fn serves_the_driver_and_supervises_the_daemon() {
     assert_eq!(unsupported["ok"], false, "{unsupported}");
     assert_eq!(unsupported["error"]["code"], "unsupported");
 
-    App::wait_for("the supervisor to restart the daemon", || app.starts() >= 2);
+    app.wait_for("the supervisor to restart the daemon", || app.starts() >= 2);
 
     let second = App::launch(&dir).status().expect("start a second kiko");
     assert!(
@@ -157,16 +173,7 @@ fn serves_the_driver_and_supervises_the_daemon() {
         .status()
         .expect("ask kiko to quit");
     assert!(quit.success(), "{quit}");
-    App::wait_for("kiko to exit", || {
-        std::process::Command::new(binary())
-            .arg("--quit")
-            .env("KIKO_APP_DIR", &dir)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map(|status| !status.success())
-            .unwrap_or(true)
-    });
+    app.wait_for_exit();
 }
 
 #[test]

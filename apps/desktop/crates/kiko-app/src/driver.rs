@@ -1,6 +1,6 @@
 use kiko_driver::{
     ActParams, ActResult, Browser, DriverError, ErrorCode, Grant, Look, LookParams, Native,
-    OpenParams, Permissions, Result, Unavailable, Window,
+    OpenParams, Permissions, Result, Window,
 };
 
 pub type SharedDriver = std::sync::Arc<std::sync::Mutex<Driver>>;
@@ -65,7 +65,7 @@ fn native() -> Box<dyn Native> {
 
 #[cfg(not(feature = "drivers"))]
 fn browser() -> Box<dyn Browser> {
-    Box::new(Unavailable)
+    Box::new(kiko_driver::Unavailable)
 }
 
 #[cfg(feature = "drivers")]

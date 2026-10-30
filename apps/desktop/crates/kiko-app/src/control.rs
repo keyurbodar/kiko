@@ -1,5 +1,4 @@
 use std::io::{self, BufRead, BufReader, Write};
-use std::sync::mpsc::Sender;
 use std::thread;
 
 use interprocess::local_socket::{ListenerOptions, prelude::*};
@@ -60,7 +59,7 @@ pub fn send(path: &str, command: Command) -> io::Result<()> {
     stream.flush()
 }
 
-pub fn listen(path: &str, commands: Sender<Command>) -> io::Result<()> {
+pub fn listen(path: &str, on: impl Fn(Command) + Send + 'static) -> io::Result<()> {
     let listener = bind(path)?;
     thread::spawn(move || {
         for incoming in listener.incoming() {
@@ -70,10 +69,8 @@ pub fn listen(path: &str, commands: Sender<Command>) -> io::Result<()> {
                     let command = line
                         .and_then(|line| line.ok())
                         .and_then(|line| Command::parse(&line));
-                    if let Some(command) = command
-                        && commands.send(command).is_err()
-                    {
-                        log::line("control command dropped: the app is shutting down");
+                    if let Some(command) = command {
+                        on(command);
                     }
                 }
                 Err(error) => log::line(format!("control accept failed: {error}")),
