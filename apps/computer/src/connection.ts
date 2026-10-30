@@ -11,8 +11,10 @@ import {
   type Op,
   type ToDaemon as Frame,
 } from "@kiko/computer/wire"
+import type { DriverCall } from "@kiko/computer/driver"
 import type { Policy } from "./config"
 import type { Desktop } from "./desktop"
+import type { Driver } from "./driver"
 import type { LiveFrames } from "./live"
 import { Deadline } from "./deadline"
 import { Fail, failureCode, failureMessage, type Logger } from "./log"
@@ -28,6 +30,7 @@ const DEFAULT_DEADLINE_MS = 60_000
 const MAX_DEADLINE_MS = 600_000
 const SILENT_MS = 2.5 * PING_MS
 const CLOCK_SKEW_S = 60
+const PAUSED = "the owner paused the agent from the kiko menu"
 
 export type Endpoint = { url: string; userId: string; pcId: string; protocol: number }
 
@@ -37,6 +40,8 @@ export type Host = {
   hello(): string
   policy(): Promise<Policy>
   desktop(): Desktop | null
+  driver(): Driver | null
+  paused(): boolean
   live: LiveFrames
   holder(): Holder
   log: Logger
@@ -335,9 +340,22 @@ class Link {
     if (op === "shell") return shell(args as Parameters<typeof shell>[0], await this.host.policy(), context)
     if (op === "read") return read(args as Parameters<typeof read>[0], await this.host.policy())
     if (op === "write") return write(args as Parameters<typeof write>[0], await this.host.policy())
+    if (op === "driver") return this.driver(args as DriverCall, context)
     const desktop = await this.desktop(op)
     if (op === "look") return desktop.look(args as Parameters<Desktop["look"]>[0], context)
     return desktop.act(args as Parameters<Desktop["act"]>[0], context)
+  }
+
+  private async driver(call: DriverCall, context: Deadline): Promise<unknown> {
+    const policy = await this.host.policy()
+    if (!policy.desktop)
+      throw new Fail({ code: "denied", message: "policy.json turns desktop control off on this machine" })
+    if (this.host.paused()) throw new Fail({ code: "busy", message: PAUSED })
+    if (this.host.holder() === "human")
+      throw new Fail({ code: "busy", message: "the owner has control of this screen right now" })
+    const driver = this.host.driver()
+    if (!driver) throw new Fail({ code: "unsupported", message: "the kiko app is not running on this machine" })
+    return driver.call(call, context)
   }
 
   private async desktop(op: Op): Promise<Desktop> {
@@ -348,6 +366,7 @@ class Link {
       throw new Fail({ code: "denied", message: "policy.json turns desktop control off on this machine" })
     if (op === "act" && !policy.input)
       throw new Fail({ code: "denied", message: "policy.json turns input off on this machine" })
+    if (this.host.paused()) throw new Fail({ code: "busy", message: PAUSED })
     if (op === "act" && this.host.holder() === "human") {
       throw new Fail({ code: "busy", message: "the owner has control of this screen right now" })
     }

@@ -5,7 +5,7 @@ import { CopyCheckIcon } from "@kiko/ui/v2/copy-check-icon"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
-import { accessHint } from "../chat/computer/access"
+import { accessHint, backgroundHint, browserHints } from "../chat/computer/access"
 import {
   computers,
   removeComputer,
@@ -198,6 +198,18 @@ function Row(props: { computer: ComputerSummary; onError: (message: string | nul
       meta={
         <span class="flex flex-col gap-0.5" data-field="meta">
           <span>{meta(props.computer)}</span>
+          <Show when={props.computer.online}>
+            <span class="text-[var(--fg4)]" data-field="background">
+              {backgroundHint(props.computer)}
+            </span>
+          </Show>
+          <For each={browserHints(props.computer)}>
+            {(line) => (
+              <span class="text-[var(--fg4)]" data-field="browser">
+                {line}
+              </span>
+            )}
+          </For>
           <Show when={accessHint(props.computer)}>
             {(line) => (
               <span class="text-[var(--fg4)]" data-field="access">
