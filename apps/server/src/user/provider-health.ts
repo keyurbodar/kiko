@@ -1,5 +1,6 @@
 import type { ProviderProblem, RunErrorKind } from "@kiko/protocol"
 import { classifyRunError } from "../agent/run-error"
+import type { ProbeReply } from "./credentials-check"
 
 type AuthFailure = "signed_out" | "unreachable" | "fresh"
 
@@ -31,7 +32,8 @@ export const problemOfRun = (kind: RunErrorKind): ProviderProblem | null => PROB
 export const runKindFor = (kind: RunErrorKind, credential: "api_key" | "oauth" | undefined): RunErrorKind =>
   kind === "invalid_key" && credential === "oauth" ? "signed_out" : kind
 
-export function probeVerdict(said: string | null, credential: "api_key" | "oauth"): ProviderProblem | null | "keep" {
-  if (said === null) return null
-  return problemOfRun(runKindFor(classifyRunError(said), credential)) ?? "keep"
+export function probeVerdict(probe: ProbeReply, credential: "api_key" | "oauth"): ProviderProblem | null | "keep" {
+  if (!probe.ran) return "keep"
+  if (probe.said === null) return null
+  return problemOfRun(runKindFor(classifyRunError(probe.said), credential)) ?? "keep"
 }

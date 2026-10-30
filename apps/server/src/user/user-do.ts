@@ -188,6 +188,7 @@ export class User {
       method: request.method,
       headers: [...request.headers],
       body: request.body ? await request.arrayBuffer() : null,
+      signal: request.signal,
     })
   }
   constructor(options: ServiceOptions) {
@@ -212,6 +213,7 @@ export class User {
             method: init.method ?? "GET",
             headers: [...new Headers(init.headers)],
             body: null,
+            ...(init.signal ? { signal: init.signal } : {}),
           }),
         signInMethod,
         changed: () => this.changed("models"),
@@ -960,7 +962,7 @@ export class User {
 
   async disconnectProvider(provider: string): Promise<boolean> {
     const removed = await this.#credentials.disconnect(provider)
-    if (isCustomId(provider) && removeCustom(this.sql, provider)) this.changed("models")
+    if (isCustomId(provider) && (await removeCustom(this.sql, provider))) this.changed("models")
     return removed
   }
 

@@ -126,6 +126,7 @@ export class OwnerDO extends DurableObject<Env> {
           method: request.method,
           headers: request.headers,
           ...(request.body ? { body: request.body } : {}),
+          ...(request.signal ? { signal: request.signal } : {}),
         })
       },
       countOutgoing: () => this.runs.countActive(),
