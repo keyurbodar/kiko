@@ -27,6 +27,8 @@ export type Paths = {
   key: string
   policy: string
   log: string
+  state: string
+  agent: string
 }
 
 export function configDir(): string {
@@ -45,6 +47,8 @@ export function paths(dir = configDir()): Paths {
     key: join(dir, "key.jwk"),
     policy: join(dir, "policy.json"),
     log: join(dir, "daemon.log"),
+    state: join(dir, "state.json"),
+    agent: join(appDir(), "agent.json"),
   }
 }
 

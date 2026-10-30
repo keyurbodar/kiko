@@ -1,9 +1,16 @@
-export const COMPUTER_ASSETS = [
+export const COMPUTER_DAEMONS = [
   "kiko-computer-linux-x64",
   "kiko-computer-linux-arm64",
   "kiko-computer-darwin-x64",
   "kiko-computer-darwin-arm64",
   "kiko-computer-windows-x64.exe",
+] as const
+
+export const COMPUTER_APPS = [
+  "kiko-macos-universal.zip",
+  "kiko-windows-x64.zip",
+  "kiko-linux-x64.tar.gz",
+  "kiko-linux-arm64.tar.gz",
 ] as const
 
 export type ComputerAsset = { name: string; sha256: string }
