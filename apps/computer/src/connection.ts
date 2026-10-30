@@ -344,12 +344,12 @@ class Link {
   private async dispatch(frame: Call): Promise<void> {
     const context = new Deadline(clampDeadline(frame.deadlineMs))
     this.pending.set(frame.id, context)
-    const args = decodeArgs(frame.op, frame.args)
     const timer = setTimeout(
       () => context.controller.abort(new Fail({ code: "timeout", message: `${frame.op} ran out of time` })),
       context.budgetMs,
     )
     try {
+      const args = decodeArgs(frame.op, frame.args)
       const value = await this.execute(frame.op, args, context)
       this.working(frame.op, args, value)
       this.answer({ t: "result", id: frame.id, ok: true, value: encodeValue(frame.op, value) })
