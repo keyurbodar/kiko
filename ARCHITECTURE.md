@@ -111,6 +111,16 @@ CI runs `Changes`, `Lint`, `Build and Typecheck`, `Test`, `Test Web` and `Worker
 - **The daemon updates itself through `install.sh`.** `welcome` carries the Worker's `BACKEND.version`, and `scripts/build.ts` stamps the same root `package.json` version into the daemon's `VERSION`. On a mismatch it runs `${worker}/pc/install.sh` with no pair link, so the checksums stay in one place, then exits for systemd or launchd to restart it. It tries once per served version per process, backs off after a failure, and waits for running calls. It skips Windows and any daemon that is not a supervised `bin/kiko-computer`, because nothing would restart those.
 - **Writes cost nothing here.** The daemon keeps captures, pending calls and the holder in memory. Nothing is written per call or per ping.
 
+## Desktop drivers
+
+`apps/desktop` is the kiko app the owner installs. It speaks the driver contract in `crates/kiko-driver` (JSON lines over stdin/stdout) and implements `kiko_driver::Native` once per OS. Background mode never moves the pointer, changes focus or raises a window; a route that cannot honor that answers `background_unavailable` and says foreground mode would work.
+
+- **Linux keeps AT-SPI on its own thread.** `crates/kiko-native-linux` owns a current-thread Tokio runtime on a dedicated thread, so the synchronous trait never touches the owner's executor. Every proxy disables zbus property caching (`CacheProperties::No`): Qt5's AT-SPI bridge reads the second argument of every `Properties` call and segfaults on the one-argument `GetAll` that lazy caching sends.
+- **A window id is the AT-SPI bus name plus object path.** It survives restacking. `_NET_CLIENT_LIST`, `_NET_WM_PID` and the title map it to an X window, so capture and foreground input share one identity, and `_NET_ACTIVE_WINDOW` and `_NET_WM_STATE_HIDDEN` decide `focused` and `minimized`.
+- **Capture reads the window manager's frame, not the client window.** Xvfb, and some X servers, only redirect direct children of the root, so `NameWindowPixmap` fails on a reparented client; the driver names the top ancestor's pixmap and crops the client rect out of it. That is why a fully covered window still returns its own pixels.
+- **Focus is foreground-only on Linux.** AT-SPI `GrabFocus` raises the window, so background `focus` and `key` answer `background_unavailable`; background typing goes through `EditableText` instead. Foreground input is XTest after `_NET_ACTIVE_WINDOW`. A Wayland-only session has neither until the RemoteDesktop portal lands, so it answers `background_unavailable` too.
+- **Chromium exposes actions without names.** Its buttons answer `GetActions` with blank names, so a press falls back to action 0 when every name is empty.
+
 ## Releases
 
 `scripts/release.ts` builds and signs a release, and the release workflow publishes it to `latest-owner.json`. The workflow commits the version bump off `main` and pushes only its tag, because `main` accepts changes only through a pull request with green CI and has no bypass. The newest `v*` tag is the current version; `package.json` on `main` can lag behind it. Owner Workers migrate from one baseline tag, `v5`, which creates `OwnerDO`. `core/durable/src/release.ts` refuses any signed manifest with `deleted_classes`, so neither an update nor an install can delete stored data.
