@@ -48,6 +48,15 @@ describe("groupSummary", () => {
     expect(summaryText(groupSummary(steps))).toBe("Started 1 helper")
   })
 
+  it("does not count the call that started a helper as a tool of its own", () => {
+    const worker = { id: "w1", task: "Trains helper" }
+    const steps = [
+      step("spawn", { tool: "other", name: "start_work", label: "Started Trains helper" }),
+      step("a", { worker, label: "Read timetable" }),
+    ]
+    expect(summaryText(groupSummary(steps))).toBe("Started 1 helper")
+  })
+
   it("counts distinct edited paths once", () => {
     const steps = [
       step("a", { tool: "edit", name: "edit", label: "Edited /src/app.tsx" }),

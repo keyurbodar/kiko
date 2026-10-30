@@ -788,16 +788,6 @@ export function RunTree(props: {
     return worker?.kind === "worker" ? worker.steps.findIndex((step) => step.id === child) : -1
   })
 
-  const liveText = createMemo(() => {
-    const top = path().top
-    const item = log().items.find((entry) => entry.id === top)
-    if (!item) return "Working"
-    if (item.kind === "note") return item.text
-    if (item.kind === "step") return item.label
-    const child = runningChild(item)
-    return child ? `${item.label}: ${child.label}` : item.label
-  })
-
   const runs = createMemo(() => {
     const out: { slug: string; runId: string }[] = []
     for (const window of windows()) {
@@ -827,6 +817,8 @@ export function RunTree(props: {
     return lastItem === undefined || newest.startedAt >= lastItem.startedAt
   })
 
+  const liveLabel = createMemo(() => (thinkingNow() ? "Thinking" : summaryText(groupSummary(steps())) || "Working"))
+
   const handoff = untrack(() => {
     const found = room.runEnd(openKey())
     if (!found || untrack(live)) return undefined
@@ -846,7 +838,7 @@ export function RunTree(props: {
       live,
       (isLive, wasLive) => {
         if (isLive || !wasLive) return
-        setCrossFrom(untrack(summary) || untrack(liveText))
+        setCrossFrom(untrack(summary) || untrack(liveLabel))
         setSettling(true)
         setOpen(openKey(), false)
         clearTimeout(settleTimer)
@@ -948,7 +940,7 @@ export function RunTree(props: {
       <Head
         live={live()}
         settling={settling()}
-        label={thinkingNow() ? "Thinking" : liveText()}
+        label={liveLabel()}
         summary={crossFrom()}
         worked={worked()}
         clock={clock()}

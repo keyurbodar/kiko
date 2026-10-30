@@ -122,7 +122,7 @@ function authored(selector: string, property: string): string {
 }
 
 describe("RunTree", () => {
-  it("shows a live run's rows in order, with the running step marked", async () => {
+  it("shows a live run's rows in order under a tally of its steps, with the running step marked", async () => {
     fake.steps = [
       step("ls", { startedAt: START }),
       step("cat", { startedAt: START + 4_000 }),
@@ -133,7 +133,7 @@ describe("RunTree", () => {
 
     await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(3))
     expect(labels(screen.container)).toEqual(["Ran ls", "Ran cat", "Running split.py"])
-    expect(head(screen.container).textContent).toContain("Running split.py")
+    expect(head(screen.container).querySelector(".run-tree-summary")?.textContent).toBe("Ran 3 commands")
     const running = rows(screen.container)[2]!
     expect(running.querySelector('[data-component="mochi"]')).not.toBeNull()
     expect(running.hasAttribute("data-running")).toBe(true)
@@ -468,5 +468,8 @@ describe("RunTree", () => {
     const order = [...helper.children]
     expect(order.indexOf(chevron)).toBeLessThan(order.indexOf(meta.parentElement!))
     expect(meta.textContent).toBe("5s")
+
+    const clock = screen.container.querySelector(".run-tree-head .run-tree-clock")!
+    expect(Math.round(clock.getBoundingClientRect().right)).toBe(Math.round(meta.getBoundingClientRect().right))
   })
 })

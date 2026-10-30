@@ -222,7 +222,8 @@ function tallyStep(step: RunStep, tally: StepTally): void {
 }
 
 export function groupSummary(steps: readonly RunStep[]): readonly SummarySegment[] {
-  const calls = steps.filter((step) => !step.note)
+  const helped = steps.some((step) => step.worker)
+  const calls = steps.filter((step) => !step.note && !(helped && startedHelper(step)))
   if (calls.length === 0) return []
   const tally: StepTally = {
     edited: new Set(),
