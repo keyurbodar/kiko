@@ -14,7 +14,8 @@ import * as RpcSerialization from "effect/rpc/RpcSerialization"
 import * as Socket from "effect/socket/Socket"
 
 export type Counters = Record<string, number>
-export type Meter = { counters: Counters; billingVersion?: number }
+export type StatementRow = { kind: string; sql: string; statements: number; rowsRead: number; rowsWritten: number }
+export type Meter = { counters: Counters; billingVersion?: number; statements?: StatementRow[] }
 
 type Followed<A> = {
   readonly items: SubscriptionRef.SubscriptionRef<readonly A[]>
