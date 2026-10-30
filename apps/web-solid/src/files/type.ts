@@ -15,6 +15,9 @@ export type FileType =
   | "archive"
   | "doc"
   | "slides"
+  | "mermaid"
+  | "notebook"
+  | "font"
   | "other"
 export type FileGroup = "documents" | "data" | "images" | "code" | "media"
 
@@ -25,6 +28,9 @@ const CODE_EXT =
 
 export function fileType(file: Pick<FileRef, "name" | "type">): FileType {
   const e = ext(file.name)
+  if (e === "ipynb") return "notebook"
+  if (e === "mmd" || e === "mermaid") return "mermaid"
+  if (/^(ttf|otf|woff2?)$/.test(e)) return "font"
   if (/^(xlsx?|numbers|ods)$/.test(e)) return "sheet"
   if (/^(docx?|pages|odt|rtf)$/.test(e)) return "doc"
   if (/^(pptx?|key|odp)$/.test(e)) return "slides"
@@ -42,11 +48,14 @@ const GROUPS: Record<FileType, FileGroup | null> = {
   text: "documents",
   doc: "documents",
   slides: "documents",
+  notebook: "documents",
+  font: "documents",
   csv: "data",
   sheet: "data",
   image: "images",
   html: "code",
   code: "code",
+  mermaid: "code",
   video: "media",
   audio: "media",
   archive: null,
@@ -74,6 +83,9 @@ export const TYPE_NAMES: Record<FileType, string> = {
   image: "Image",
   html: "HTML",
   code: "Code",
+  mermaid: "Mermaid",
+  notebook: "Notebook",
+  font: "Font",
   video: "Video",
   audio: "Audio",
   archive: "Archive",

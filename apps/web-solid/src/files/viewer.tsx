@@ -4,6 +4,7 @@ import { fileSrc } from "../state/room"
 import { NoPreview, SurfaceFailure, SurfaceLoading } from "./chrome"
 import type { EditorState } from "./editor"
 import { TEXT_KINDS, type ViewerKind } from "./kind"
+import { PREVIEW_BYTES } from "./api"
 import { recipeSlugOf } from "../recipes/doc"
 import "./editor.css"
 
@@ -12,6 +13,14 @@ const MarkdownView = lazy(() => import("./viewers/markdown"))
 const TableView = lazy(() => import("./viewers/table"))
 const HtmlView = lazy(() => import("./viewers/html"))
 const PdfView = lazy(() => import("./viewers/pdf"))
+const ImageView = lazy(() => import("./viewers/image"))
+const LargeTextView = lazy(() => import("./viewers/large-text").then((m) => ({ default: m.LargeTextViewer })))
+const AudioView = lazy(() => import("./viewers/audio"))
+const BinaryView = lazy(() => import("./viewers/binary"))
+const OfficeView = lazy(() => import("./viewers/office"))
+const NotebookView = lazy(() => import("./viewers/notebook"))
+const MermaidView = lazy(() => import("./viewers/mermaid"))
+const FontView = lazy(() => import("./viewers/font"))
 const RecipeDocument = lazy(() => import("../recipes/document"))
 
 export function FileViewer(props: {
@@ -37,7 +46,27 @@ export function FileViewer(props: {
         {(ref) => (
           <Suspense fallback={<SurfaceLoading />}>
             <Switch fallback={<NoPreview name={fileName(ref().name)} href={src(ref())} />}>
-              <Match when={TEXT_KINDS.has(props.kind) && !props.rendered}>
+              <Match when={props.kind === "markdown" && recipeSlugOf(props.path)}>
+                <RecipeDocument
+                  roomId={props.roomId}
+                  path={props.path}
+                  file={ref()}
+                  fallback={<MarkdownView roomId={props.roomId} file={ref()} />}
+                />
+              </Match>
+              <Match when={props.kind === "markdown" && props.rendered}>
+                <MarkdownView roomId={props.roomId} file={ref()} />
+              </Match>
+              <Match when={props.kind === "csv" && props.rendered}>
+                <TableView roomId={props.roomId} file={ref()} />
+              </Match>
+              <Match when={props.kind === "html" && props.rendered}>
+                <HtmlView roomId={props.roomId} file={ref()} />
+              </Match>
+              <Match when={TEXT_KINDS.has(props.kind) && ref().size > PREVIEW_BYTES}>
+                <LargeTextView name={fileName(ref().name)} src={src(ref())} size={ref().size} delimiter={null} />
+              </Match>
+              <Match when={TEXT_KINDS.has(props.kind)}>
                 <Show when={opened()} keyed>
                   {(initial) => (
                     <TextEditor
@@ -52,39 +81,8 @@ export function FileViewer(props: {
                   )}
                 </Show>
               </Match>
-              <Match when={props.kind === "markdown" && recipeSlugOf(props.path)}>
-                <RecipeDocument
-                  roomId={props.roomId}
-                  path={props.path}
-                  file={ref()}
-                  fallback={<MarkdownView roomId={props.roomId} file={ref()} />}
-                />
-              </Match>
-              <Match when={props.kind === "markdown"}>
-                <MarkdownView roomId={props.roomId} file={ref()} />
-              </Match>
-              <Match when={props.kind === "csv"}>
-                <TableView roomId={props.roomId} file={ref()} />
-              </Match>
-              <Match when={props.kind === "html"}>
-                <HtmlView roomId={props.roomId} file={ref()} />
-              </Match>
               <Match when={props.kind === "image"}>
-                <Media src={src(ref())} error="Unable to load image.">
-                  {(url, fail) => (
-                    <div
-                      class="flex min-h-0 flex-1 items-center justify-center overflow-auto p-4"
-                      data-component="file-image"
-                    >
-                      <img
-                        src={url}
-                        alt={fileName(ref().name)}
-                        class="max-h-full max-w-full object-contain"
-                        onError={fail}
-                      />
-                    </div>
-                  )}
-                </Media>
+                <ImageView src={src(ref())} name={fileName(ref().name)} />
               </Match>
               <Match when={props.kind === "pdf"}>
                 <PdfView src={src(ref())} title={fileName(ref().name)} />
@@ -105,13 +103,30 @@ export function FileViewer(props: {
                 </Media>
               </Match>
               <Match when={props.kind === "audio"}>
-                <Media src={src(ref())} error="Unable to load audio.">
-                  {(url, fail) => (
-                    <div class="flex min-h-0 flex-1 items-center justify-center p-6" data-component="file-audio">
-                      <audio src={url} controls preload="metadata" class="w-full max-w-xl" onError={fail} />
-                    </div>
-                  )}
-                </Media>
+                <AudioView src={src(ref())} name={fileName(ref().name)} />
+              </Match>
+              <Match when={props.kind === "mermaid"}>
+                <MermaidView name={fileName(ref().name)} src={src(ref())} size={ref().size} />
+              </Match>
+              <Match when={props.kind === "notebook"}>
+                <NotebookView name={fileName(ref().name)} src={src(ref())} size={ref().size} />
+              </Match>
+              <Match when={props.kind === "font"}>
+                <FontView name={fileName(ref().name)} src={src(ref())} size={ref().size} />
+              </Match>
+              <Match when={props.kind === "docx" || props.kind === "xlsx" || props.kind === "pptx"}>
+                <OfficeView
+                  src={src(ref())}
+                  name={fileName(ref().name)}
+                  kind={props.kind as "docx" | "xlsx" | "pptx"}
+                  size={ref().size}
+                />
+              </Match>
+              <Match when={props.kind === "archive"}>
+                <BinaryView src={src(ref())} name={fileName(ref().name)} kind="archive" size={ref().size} />
+              </Match>
+              <Match when={props.kind === "other"}>
+                <BinaryView src={src(ref())} name={fileName(ref().name)} kind="hex" size={ref().size} />
               </Match>
             </Switch>
           </Suspense>

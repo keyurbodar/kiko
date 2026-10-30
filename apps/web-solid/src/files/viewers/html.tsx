@@ -22,7 +22,7 @@ export default function HtmlView(props: { roomId: string; file: FileRef }) {
             class="min-h-0 flex-1 border-0 bg-white"
             src={url()}
             title={props.file.name}
-            sandbox="allow-scripts allow-forms allow-popups"
+            sandbox="allow-scripts allow-forms allow-popups allow-downloads"
             data-component="file-html"
           />
         )

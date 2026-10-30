@@ -1,16 +1,42 @@
-export const CELL_LIMIT = 2000
+const CELL_LIMIT = 2000
+const DEFAULT_ROWS = 1000
 
 export type Delimited = { rows: string[][]; cut: boolean }
+export type DelimitedLimits = { maxRows: number; maxColumns: number; maxCellLength: number }
 
-export function parseDelimited(text: string, separator: "," | "\t", limit = 1000): Delimited {
+export function filePreviewDelimiter(file: { name: string; type: string }): "," | "\t" | null {
+  const type = file.type.split(";", 1)[0]?.trim().toLowerCase()
+  if (type === "text/csv") return ","
+  if (type === "text/tab-separated-values") return "\t"
+  if (type && type !== "text/plain" && type !== "application/octet-stream") return null
+  if (/\.csv$/i.test(file.name)) return ","
+  if (/\.tsv$/i.test(file.name)) return "\t"
+  return null
+}
+
+export function parseDelimitedRows(
+  text: string,
+  separator: string,
+  limits: DelimitedLimits = { maxRows: DEFAULT_ROWS, maxColumns: Number.POSITIVE_INFINITY, maxCellLength: CELL_LIMIT },
+): Delimited {
   const rows: string[][] = []
   let row: string[] = []
   let field = ""
   let quoted = false
   let cut = false
   const add = (c: string) => {
-    if (field.length < CELL_LIMIT) field += c
+    if (field.length < limits.maxCellLength) field += c
     else cut = true
+  }
+  const endField = () => {
+    if (row.length < limits.maxColumns) row.push(field)
+    else cut = true
+    field = ""
+  }
+  const endRow = () => {
+    endField()
+    rows.push(row)
+    row = []
   }
   for (let i = text.charCodeAt(0) === 0xfeff ? 1 : 0; i < text.length; i++) {
     const c = text[i]
@@ -21,21 +47,28 @@ export function parseDelimited(text: string, separator: "," | "\t", limit = 1000
       } else if (c === '"') quoted = false
       else add(c)
     } else if (c === '"' && field === "") quoted = true
-    else if (c === separator) {
-      row.push(field)
-      field = ""
-    } else if (c === "\n" || c === "\r") {
+    else if (c === separator) endField()
+    else if (c === "\n" || c === "\r") {
       if (c === "\r" && text[i + 1] === "\n") i++
-      row.push(field)
-      rows.push(row)
-      row = []
-      field = ""
-      if (rows.length >= limit) return { rows, cut }
+      endRow()
+      if (rows.length >= limits.maxRows) return { rows, cut: cut || i < text.length - 1 }
     } else add(c)
   }
-  if (field || row.length) {
-    row.push(field)
-    rows.push(row)
-  }
-  return { rows, cut }
+  if (field || row.length) endRow()
+  return { rows, cut: cut || quoted }
+}
+
+export function parseDelimited(text: string, separator: "," | "\t", limit = DEFAULT_ROWS): Delimited {
+  return parseDelimitedRows(text, separator, {
+    maxRows: limit,
+    maxColumns: Number.POSITIVE_INFINITY,
+    maxCellLength: CELL_LIMIT,
+  })
+}
+
+export function columnLabel(index: number): string {
+  let label = ""
+  for (let value = index + 1; value > 0; value = Math.floor((value - 1) / 26))
+    label = String.fromCharCode(65 + ((value - 1) % 26)) + label
+  return label
 }
