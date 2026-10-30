@@ -131,7 +131,7 @@ async function runInstallScript(origin: string, log: Logger): Promise<void> {
   const url = new URL(`pc/${name}`, `${origin}/`)
   const response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
   if (!response.ok) throw new Error(`${url} answered ${response.status}`)
-  const file = join(tmpdir(), `kiko-${name}-${process.pid}`)
+  const file = join(tmpdir(), `kiko-install-${process.pid}${windows ? ".ps1" : ".sh"}`)
   await writeFile(file, await response.text(), { mode: 0o700 })
   try {
     const argv = windows ? ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", file] : ["sh", file]
