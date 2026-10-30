@@ -45,4 +45,5 @@ dbus-run-session -- bash -euo pipefail -c '
   gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
     --method org.freedesktop.DBus.Properties.Set org.a11y.Status IsEnabled "<true>" >/dev/null 2>&1 || true
   cargo test -p kiko-native-linux --test wayland -- --ignored --test-threads=1 --nocapture $KIKO_TEST_ARGS
+  cargo test -p kiko-native-linux --lib -- --ignored --test-threads=1 --nocapture
 '

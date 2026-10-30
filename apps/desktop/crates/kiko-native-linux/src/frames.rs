@@ -119,11 +119,11 @@ fn run(
     latest: Arc<Mutex<Option<Frame>>>,
     ready: mpsc::Sender<Result<(), DriverError>>,
 ) {
-    let outcome = start(fd, node, latest);
-    match outcome {
-        Ok(mainloop) => {
+    match start(fd, node, latest) {
+        Ok((mainloop, stream)) => {
             let _ = ready.send(Ok(()));
             mainloop.run();
+            drop(stream);
         }
         Err(error) => {
             let _ = ready.send(Err(error));
@@ -135,7 +135,7 @@ fn start(
     fd: OwnedFd,
     node: u32,
     latest: Arc<Mutex<Option<Frame>>>,
-) -> Result<pw::main_loop::MainLoopRc, DriverError> {
+) -> Result<(pw::main_loop::MainLoopRc, pw::stream::StreamRc), DriverError> {
     pw::init();
     let mainloop = pw::main_loop::MainLoopRc::new(None)
         .map_err(|error| failed(format!("could not open a PipeWire loop: {error}")))?;
@@ -211,14 +211,14 @@ fn start(
         )
         .map_err(|error| failed(format!("could not read the screen share: {error}")))?;
     std::mem::forget(_listener);
-    Ok(mainloop)
+    Ok((mainloop, stream))
 }
 
 fn format() -> Result<&'static spa::pod::Pod, DriverError> {
     use spa::param::format::{FormatProperties, MediaSubtype, MediaType};
     use spa::param::video::VideoFormat;
     use spa::pod::property;
-    use spa::utils::{Fraction, Rectangle};
+    use spa::utils::Fraction;
 
     let object = spa::pod::object!(
         spa::utils::SpaTypes::ObjectParamFormat,
@@ -235,24 +235,6 @@ fn format() -> Result<&'static spa::pod::Pod, DriverError> {
             VideoFormat::BGRx,
             VideoFormat::RGBA,
             VideoFormat::RGBx
-        ),
-        property!(
-            FormatProperties::VideoSize,
-            Choice,
-            Range,
-            Rectangle,
-            Rectangle {
-                width: 1920,
-                height: 1080
-            },
-            Rectangle {
-                width: 1,
-                height: 1
-            },
-            Rectangle {
-                width: 8192,
-                height: 8192
-            }
         ),
         property!(
             FormatProperties::VideoFramerate,
@@ -281,8 +263,91 @@ fn format() -> Result<&'static spa::pod::Pod, DriverError> {
 #[cfg(test)]
 mod tests {
     use pipewire::spa::param::video::VideoFormat;
+    use std::collections::HashMap;
+    use zbus::zvariant::{OwnedObjectPath, Value};
 
-    use super::Frame;
+    use super::{Frame, Frames};
+
+    async fn virtual_monitor() -> (std::os::fd::OwnedFd, u32) {
+        use futures_util::StreamExt as _;
+
+        let connection = zbus::Connection::session()
+            .await
+            .expect("the session bus is missing");
+        let screencast = zbus::Proxy::new(
+            &connection,
+            "org.gnome.Mutter.ScreenCast",
+            "/org/gnome/Mutter/ScreenCast",
+            "org.gnome.Mutter.ScreenCast",
+        )
+        .await
+        .expect("mutter is not running");
+        let session: OwnedObjectPath = screencast
+            .call("CreateSession", &(HashMap::<String, Value>::new(),))
+            .await
+            .expect("could not open a screencast session");
+        let session = zbus::Proxy::new(
+            &connection,
+            "org.gnome.Mutter.ScreenCast",
+            session.as_str(),
+            "org.gnome.Mutter.ScreenCast.Session",
+        )
+        .await
+        .expect("could not reach the screencast session");
+        let stream: OwnedObjectPath = session
+            .call("RecordVirtual", &(HashMap::<String, Value>::new(),))
+            .await
+            .expect("could not record the virtual monitor");
+        let stream = zbus::Proxy::new(
+            &connection,
+            "org.gnome.Mutter.ScreenCast",
+            stream.as_str(),
+            "org.gnome.Mutter.ScreenCast.Stream",
+        )
+        .await
+        .expect("could not reach the stream");
+        let mut added = stream
+            .receive_signal("PipeWireStreamAdded")
+            .await
+            .expect("could not watch the stream");
+        session.call::<_, _, ()>("Start", &()).await.expect("start");
+        let message = added.next().await.expect("the stream never started");
+        let node = message
+            .body()
+            .deserialize::<u32>()
+            .expect("the stream sent no node");
+        let runtime = std::env::var_os("XDG_RUNTIME_DIR").expect("no runtime directory");
+        let socket = std::os::unix::net::UnixStream::connect(
+            std::path::Path::new(&runtime).join("pipewire-0"),
+        )
+        .expect("the PipeWire daemon is not running");
+        (socket.into(), node)
+    }
+
+    #[test]
+    #[ignore]
+    fn reads_frames_from_a_live_compositor_stream() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let (fd, node) = runtime.block_on(virtual_monitor());
+        let frames = Frames::start(fd, node).expect("frame reader");
+        let frame = frames
+            .wait(std::time::Duration::from_secs(10))
+            .expect("the compositor sent no frame");
+        assert!(
+            frame.width >= 640 && frame.height >= 480,
+            "the compositor sent a {}x{} frame",
+            frame.width,
+            frame.height
+        );
+        let picture = frame.to_rgb().expect("the frame is not a picture");
+        assert!(
+            picture.pixels().any(|pixel| pixel.0 != [0, 0, 0]),
+            "the frame is blank"
+        );
+    }
 
     fn frame(data: Vec<u8>, width: u32, height: u32, stride: i32) -> Frame {
         Frame {
