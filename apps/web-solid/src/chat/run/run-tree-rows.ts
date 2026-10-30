@@ -1,4 +1,5 @@
 import type { RunStep } from "@kiko/protocol"
+import type { ThoughtPart } from "../../state/thoughts"
 import { anyRunning, extraInput, iconOf, liveLabel, pathOf, type StepIcon, summarizeSteps } from "./run-log"
 import type { RunSummary } from "./run-summary"
 
@@ -256,3 +257,40 @@ export function groupSummary(steps: readonly RunStep[]): readonly SummarySegment
 
 export const summaryText = (segments: readonly SummarySegment[]): string =>
   segments.map((segment) => segment.text).join(", ")
+
+export const LONG_LIST = 10
+export const SHORT_LIST = 6
+
+export type MergedRow =
+  | { kind: "thought"; part: ThoughtPart; partIndex: number; index: number }
+  | { kind: "item"; item: WorkItem; index: number }
+
+export function mergeThoughtRows(
+  items: readonly WorkItem[],
+  parts: readonly ThoughtPart[],
+  whole: boolean,
+): MergedRow[] {
+  const long = !whole && items.length > LONG_LIST
+  const kept = long ? items.slice(0, SHORT_LIST) : items
+  const edge = long ? (kept.at(-1)?.startedAt ?? Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY
+  type Entry = { startedAt: number; row: MergedRow }
+  const thoughts: Entry[] = parts.flatMap((part, partIndex) =>
+    part.startedAt <= edge
+      ? [{ startedAt: part.startedAt, row: { kind: "thought" as const, part, partIndex, index: 0 } }]
+      : [],
+  )
+  const list: Entry[] = kept.map((item) => ({
+    startedAt: item.startedAt,
+    row: { kind: "item" as const, item, index: 0 },
+  }))
+  const out: MergedRow[] = []
+  let i = 0
+  let j = 0
+  while (i < list.length && j < thoughts.length) {
+    if (thoughts[j]!.startedAt <= list[i]!.startedAt) out.push(thoughts[j++]!.row)
+    else out.push(list[i++]!.row)
+  }
+  while (i < list.length) out.push(list[i++]!.row)
+  while (j < thoughts.length) out.push(thoughts[j++]!.row)
+  return out.map((row, index) => ({ ...row, index }) as MergedRow)
+}

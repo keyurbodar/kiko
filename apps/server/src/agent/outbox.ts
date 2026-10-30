@@ -25,7 +25,7 @@ const THINKING_CHARS = 1_500
 export interface RoomPort {
   post(runId: string, attempt: number, index: number, block: string): Promise<unknown>
   draft(runId: string, index: number, text: string): Promise<void>
-  thinking(runId: string, part: number, text: string, done: boolean): Promise<void>
+  thinking(runId: string, part: number, offset: number, text: string, startedAt: number, done: boolean): Promise<void>
   note(runId: string, id: string, text: string): Promise<void>
   status(state: AgentState, detail?: string | null): Promise<void>
   workers(rows: readonly WorkerRow[]): Promise<void>
@@ -76,16 +76,20 @@ type Generation = {
   texts: Map<number, string>
   thoughts: Map<number, string>
   thought: "none" | "open" | "done"
+  thoughtStartedAt: number
+  thoughtSent: number
   fed: string
   splitter: Splitter
   blocks: string[]
 }
 
-const newGeneration = (): Generation => ({
+const newGeneration = (startedAt: number): Generation => ({
   reactionIndex: 0,
   texts: new Map(),
   thoughts: new Map(),
   thought: "none",
+  thoughtStartedAt: startedAt,
+  thoughtSent: 0,
   fed: "",
   splitter: createSplitter(),
   blocks: [],
@@ -250,7 +254,7 @@ export class Outbox {
       case "message_start": {
         const message = event.message as AssistantLike
         if (message.role !== "assistant" || message.stopReason === "aborted" || !this.run) return
-        this.run.generation = newGeneration()
+        this.run.generation = newGeneration(this.now())
         await this.setStatus("typing")
         return this.stream(textOf(message, false))
       }
@@ -337,7 +341,7 @@ export class Outbox {
     await this.setStatus("typing")
     const partial = snapshot.generation?.message as AssistantLike | undefined
     if (livePartial && partial) {
-      this.run.generation ??= newGeneration()
+      this.run.generation ??= newGeneration(this.now())
       await this.stream(textOf(partial, false))
     }
   }
@@ -380,12 +384,17 @@ export class Outbox {
     if (!done && generation.thought === "open" && this.now() - this.lastThought < THINKING_INTERVAL_MS) return
     generation.thought = done ? "done" : "open"
     this.lastThought = this.now()
-    const text = [...generation.thoughts.entries()]
+    const full = [...generation.thoughts.entries()]
       .sort(([a], [b]) => a - b)
       .map(([, t]) => t.trim())
       .filter(Boolean)
       .join("\n\n")
-    await this.room()?.thinking(run.id, run.generationIndex, text.slice(-THINKING_CHARS), done)
+    const part = run.generationIndex
+    const offset = done ? 0 : generation.thoughtSent
+    const text = done ? full : full.slice(offset, offset + THINKING_CHARS)
+    if (!done && text.length === 0) return
+    generation.thoughtSent = done ? full.length : offset + text.length
+    await this.room()?.thinking(run.id, part, offset, text, generation.thoughtStartedAt, done)
   }
 
   private async entry(entry: EntryRecord): Promise<void> {

@@ -30,9 +30,11 @@ export function helperTitle(task: string): string {
 }
 
 function stateOf(steps: readonly RunStep[], live: WorkerRow["status"] | undefined, awake: boolean): HelperState {
+  if (live === "done") return "done"
+  if (live === "failed") return "failed"
   if (live === "stopped") return "stopped"
   if ((awake && anyRunning(steps)) || live === "pending" || live === "running") return "working"
-  return stillFailing(steps) || live === "failed" ? "failed" : "done"
+  return stillFailing(steps) ? "failed" : "done"
 }
 
 function laneOf(

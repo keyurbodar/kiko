@@ -24,6 +24,7 @@ import {
   RoomSnapshot,
   RunStep,
   TaskOp,
+  ThoughtPart,
 } from "./room"
 import { SoulRow } from "./user"
 import { ThinkingLevel } from "./catalog"
@@ -173,6 +174,11 @@ export const OwnerRpcs = RpcGroup.make(
   Rpc.make("room.steps", {
     payload: { ...inRoom, slug: AgentSlug, after: Count },
     success: Schema.Array(RunStep),
+    error: Lookup,
+  }),
+  Rpc.make("room.thoughts", {
+    payload: { ...inRoom, slug: AgentSlug, runId: Id },
+    success: Schema.Array(ThoughtPart),
     error: Lookup,
   }),
 

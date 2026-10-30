@@ -67,10 +67,6 @@ export function MessageRow(props: {
   const photo = () => !!props.message.rich && isPhotoTree(props.message.rich)
   const windowKey = () => (own() ? undefined : room.runWindow(props.message))
   const thought = () => (own() ? undefined : room.thoughtFor(props.message))
-  const liveKey = () => {
-    const key = windowKey()
-    return key && room.runLive(key) ? key : undefined
-  }
   const finishedKey = () => {
     const key = windowKey()
     return key && !room.runLive(key) && props.isRunEnd ? key : undefined
@@ -108,11 +104,6 @@ export function MessageRow(props: {
         </div>
       </Show>
       <Show when={windowKey() ? undefined : thought()}>{(found) => <ThoughtRow thought={found()} />}</Show>
-      <Show when={liveKey()}>
-        {(key) => (
-          <RunTree windowKey={key()} count={props.message.steps} endedAt={props.message.sentAt} thought={thought()} />
-        )}
-      </Show>
       <Bubble
         variant={failed() ? "destructive" : props.jumboClass ? "ghost" : own() ? "default" : "secondary"}
         align={own() ? "end" : "start"}

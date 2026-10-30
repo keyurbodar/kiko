@@ -18,7 +18,7 @@ import {
 } from "solid-js"
 import { unwrap } from "solid-js/store"
 import { room } from "../../state/room"
-import { thoughtMs, thoughtText, type Thought } from "../../state/thoughts"
+import { filledParts, partMs, type Thought, type ThoughtPart } from "../../state/thoughts"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { findFile } from "../ui/find-file"
 import { HelperLanes } from "../helpers/HelperLanes"
@@ -31,8 +31,12 @@ import { type StepIcon } from "./run-log"
 import {
   type DetailStatus,
   groupSummary,
+  LONG_LIST,
+  mergeThoughtRows,
+  SHORT_LIST,
   isLive,
   type LabelPart,
+  type MergedRow,
   type NoteItem,
   type RowDetail,
   type StepItem,
@@ -43,6 +47,7 @@ import {
   workLogOf,
   retried,
 } from "./run-tree-rows"
+import { parseWindow } from "./run-log"
 import { recallSummary, rememberSummary } from "./run-summary"
 import { Shine } from "./Shine"
 import "./run-tree.css"
@@ -52,8 +57,6 @@ const [asked, setAsked] = createSignal<ReadonlySet<string>>(new Set())
 
 const MAX_OPENED = 100
 const FRESH_MS = 1_200
-const LONG_LIST = 10
-const SHORT_LIST = 6
 const COPIED_MS = 1_200
 const LINE_LIMIT = 200
 const CROSSFADE_MS = 300
@@ -80,12 +83,6 @@ function setOpen(key: string, value: boolean) {
 
 const runKeyOf = (windowKey: string) => `${room.activeId() ?? ""}|${windowKey}`
 
-export const runOpen = (windowKey: string): boolean => opened().has(runKeyOf(windowKey))
-
-export function toggleRun(windowKey: string): void {
-  setOpen(runKeyOf(windowKey), !runOpen(windowKey))
-}
-
 type Fold = "gone" | "open" | "grow" | "shut"
 
 const foldMs = (element: HTMLElement) =>
@@ -104,6 +101,7 @@ function foldOf(isOpen: boolean, moves: boolean, list: HTMLDivElement | undefine
 
 type View = {
   now: () => number
+  seen: () => boolean
   isOpen: (id: string) => boolean
   toggle: (id: string) => void
   openStep: (step: StepItem) => void
@@ -310,7 +308,7 @@ function StepRow(props: {
 }) {
   const open = () => props.view.isOpen(props.step.id)
   const opensFile = () => !!props.step.target && !props.step.target.folder
-  const born = () => fresh(props.step.startedAt, props.view.now())
+  const born = () => !props.view.seen() && fresh(props.step.startedAt, props.view.now())
   const settled = () => fresh(props.step.endedAt, props.view.now())
   const failed = () => props.step.failed && !retriedIn(props.step, props.steps)
   return (
@@ -369,7 +367,7 @@ function WorkerRow(props: {
   liveChildIndex: number
 }) {
   const open = () => props.worker.running || props.view.isOpen(props.worker.id)
-  const born = () => fresh(props.worker.startedAt, props.view.now())
+  const born = () => !props.view.seen() && fresh(props.worker.startedAt, props.view.now())
   const text = () => {
     const child = runningChild(props.worker)
     return child ? `${props.worker.label}: ${child.label}` : props.worker.label
@@ -426,7 +424,7 @@ function WorkerRow(props: {
 }
 
 function NoteRow(props: { note: NoteItem; view: View; order: number; live: boolean }) {
-  const born = () => fresh(props.note.startedAt, props.view.now())
+  const born = () => !props.view.seen() && fresh(props.note.startedAt, props.view.now())
   const [open, setOpen] = createSignal(false)
   return (
     <div
@@ -457,108 +455,121 @@ function NoteRow(props: { note: NoteItem; view: View; order: number; live: boole
   )
 }
 
-function ThoughtRow(props: { thought: Thought; order: number; now: number; live: boolean; hot: boolean }) {
-  const [open, setOpen] = createSignal(false)
-  const ms = () => thoughtMs(props.thought, props.now)
-  const text = () => thoughtText(props.thought)
-  const born = () => props.live
+function ThoughtRow(props: { part: ThoughtPart; order: number; now: number; live: boolean; open: boolean }) {
+  const [opened, setOpened] = createSignal(false)
+  const isOpen = () => (props.live && props.open) || opened()
+  const ms = () => partMs(props.part, props.now, !props.live)
+  const born = () => props.live && fresh(props.part.startedAt, props.now)
   return (
-    <Show when={text()}>
-      <div
-        class="run-tree-item"
+    <div
+      class="run-tree-item"
+      data-kind="thought"
+      data-fresh={born() ? "" : undefined}
+      data-live={props.live ? "" : undefined}
+      data-hot={props.live && props.open ? "" : undefined}
+      style={{ "--run-delay": `${delayOf(born(), props.order)}ms` }}
+    >
+      <button
+        type="button"
+        class="run-tree-row"
         data-kind="thought"
-        data-fresh={born() ? "" : undefined}
-        data-live={props.live ? "" : undefined}
-        data-hot={props.hot ? "" : undefined}
-        style={{ "--run-delay": `${delayOf(born(), props.order)}ms` }}
+        aria-expanded={isOpen()}
+        data-disclosure=""
+        onClick={() => setOpened(!opened())}
       >
-        <button
-          type="button"
-          class="run-tree-row"
-          data-kind="thought"
-          aria-expanded={open()}
-          data-disclosure=""
-          onClick={() => setOpen(!open())}
-        >
-          <span class="run-tree-slot">
-            <RemixIcon icon={GLYPH.bulb} size={16} class="run-tree-icon" />
-          </span>
-          <span class="run-tree-label">Thought for {secondsLabel(ms())}</span>
-          <Chevron open={open()} />
-        </button>
-        <Show when={open()}>
-          <ThoughtStream text={text()} live={props.live} follow={props.live} class="run-tree-thought" />
-        </Show>
-      </div>
-    </Show>
+        <span class="run-tree-slot">
+          <RemixIcon icon={GLYPH.bulb} size={16} class="run-tree-icon" />
+        </span>
+        <span class="run-tree-label">Thought for {secondsLabel(ms())}</span>
+        <Chevron open={isOpen()} />
+      </button>
+      <Show when={isOpen()}>
+        <ThoughtStream
+          text={props.part.text}
+          live={props.live && props.open}
+          follow={props.live && props.open}
+          class="run-tree-thought"
+        />
+      </Show>
+    </div>
   )
 }
 
 function Items(props: {
   items: readonly WorkItem[]
+  parts: readonly ThoughtPart[]
   view: View
   steps: readonly RunStep[]
   live: boolean
   liveTop: string | undefined
-  liveTopIndex: number
   liveChild: string | undefined
   liveChildIndex: number
-  thought: Thought | undefined
   whole: boolean
   onWhole: () => void
 }) {
+  const rows = createMemo(() => mergeThoughtRows(props.items, props.parts, props.whole))
   const long = () => !props.whole && props.items.length > LONG_LIST
-  const shown = () => (long() ? props.items.slice(0, SHORT_LIST) : props.items)
+  const newestPart = createMemo(() => props.parts.length - 1)
+  const liveUpTo = createMemo(() => {
+    const top = rows().findIndex((row) => row.kind === "item" && row.item.id === props.liveTop)
+    if (top >= 0) return top
+    const newest = newestPart()
+    if (newest < 0) return -1
+    return rows().findIndex((row) => row.kind === "thought" && row.partIndex === newest)
+  })
+  const liveRow = (row: MergedRow) => props.live && liveUpTo() >= 0 && row.index <= liveUpTo()
+  const thoughtAt = (row: MergedRow) => (row.kind === "thought" ? row.part : undefined)
+  const itemAt = (row: MergedRow) => (row.kind === "item" ? row.item : undefined)
+  const partIndexOf = (row: MergedRow) => (row.kind === "thought" ? row.partIndex : -1)
   return (
     <>
-      <Show when={props.thought}>
-        {(thought) => (
-          <ThoughtRow
-            thought={thought()}
-            order={0}
-            now={props.view.now()}
-            live={props.live}
-            hot={props.live && props.liveTopIndex === -1}
-          />
-        )}
-      </Show>
-      <Index each={shown()}>
-        {(item, index) => (
+      <Index each={rows()}>
+        {(row) => (
           <Switch>
-            <Match when={item().kind === "step" && (item() as StepItem)}>
-              {(step) => (
-                <StepRow
-                  step={step()}
-                  view={props.view}
-                  order={index}
-                  steps={props.steps}
-                  live={props.live && props.liveTopIndex >= 0 && index <= props.liveTopIndex}
-                  hot={props.live && props.liveTop === step().id}
+            <Match when={thoughtAt(row())}>
+              {(part) => (
+                <ThoughtRow
+                  part={part()}
+                  order={row().index}
+                  now={props.view.now()}
+                  live={liveRow(row())}
+                  open={partIndexOf(row()) === newestPart()}
                 />
               )}
             </Match>
-            <Match when={item().kind === "note" && (item() as NoteItem)}>
-              {(note) => (
-                <NoteRow
-                  note={note()}
-                  view={props.view}
-                  order={index}
-                  live={props.live && props.liveTopIndex >= 0 && index <= props.liveTopIndex}
-                />
-              )}
-            </Match>
-            <Match when={item().kind === "worker" && (item() as WorkerItem)}>
-              {(worker) => (
-                <WorkerRow
-                  worker={worker()}
-                  view={props.view}
-                  order={index}
-                  steps={props.steps}
-                  live={props.live && props.liveTopIndex >= 0 && index <= props.liveTopIndex}
-                  hot={props.live && props.liveTop === worker().id}
-                  liveChild={props.liveTop === worker().id ? props.liveChild : undefined}
-                  liveChildIndex={props.liveChildIndex}
-                />
+            <Match when={itemAt(row())}>
+              {(item) => (
+                <Switch>
+                  <Match when={item().kind === "step" && (item() as StepItem)}>
+                    {(step) => (
+                      <StepRow
+                        step={step()}
+                        view={props.view}
+                        order={row().index}
+                        steps={props.steps}
+                        live={liveRow(row())}
+                        hot={props.live && props.liveTop === step().id}
+                      />
+                    )}
+                  </Match>
+                  <Match when={item().kind === "note" && (item() as NoteItem)}>
+                    {(note) => <NoteRow note={note()} view={props.view} order={row().index} live={liveRow(row())} />}
+                  </Match>
+                  <Match when={item().kind === "worker" && (item() as WorkerItem)}>
+                    {(worker) => (
+                      <WorkerRow
+                        worker={worker()}
+                        view={props.view}
+                        order={row().index}
+                        steps={props.steps}
+                        live={liveRow(row())}
+                        hot={props.live && props.liveTop === worker().id}
+                        liveChild={props.liveTop === worker().id ? props.liveChild : undefined}
+                        liveChildIndex={props.liveChildIndex}
+                      />
+                    )}
+                  </Match>
+                </Switch>
               )}
             </Match>
           </Switch>
@@ -749,11 +760,6 @@ export function RunTree(props: {
     return {}
   })
 
-  const liveTopIndex = createMemo(() => {
-    const top = path().top
-    return top === undefined ? -1 : log().items.findIndex((item) => item.id === top)
-  })
-
   const liveChildIndex = createMemo(() => {
     const top = path().top
     const child = path().child
@@ -772,9 +778,22 @@ export function RunTree(props: {
     return child ? `${item.label}: ${child.label}` : item.label
   })
 
-  const [settling, setSettling] = createSignal(false)
-  const [crossFrom, setCrossFrom] = createSignal("")
+  const runId = createMemo(() => steps()[0]?.runId)
+  const thought = createMemo(() => props.thought ?? (runId() === undefined ? undefined : room.thoughtOfRun(runId()!)))
+
+  const handoff = untrack(() => {
+    const found = room.runEnd(openKey())
+    if (!found || untrack(live)) return undefined
+    const left = CROSSFADE_MS - (Date.now() - found.at)
+    return left > 0 ? { from: found.label, left } : undefined
+  })
+  const [settling, setSettling] = createSignal(handoff !== undefined)
+  const [crossFrom, setCrossFrom] = createSignal(handoff?.from ?? "")
   let settleTimer: ReturnType<typeof setTimeout> | undefined
+  if (handoff) {
+    setOpen(openKey(), false)
+    settleTimer = setTimeout(() => setSettling(false), handoff.left)
+  }
   onCleanup(() => clearTimeout(settleTimer))
   createEffect(
     on(
@@ -790,6 +809,12 @@ export function RunTree(props: {
       { defer: true },
     ),
   )
+
+  createEffect(() => {
+    const id = runId()
+    if (live() || !open() || thought() || id === undefined) return
+    room.loadThoughts(parseWindow(props.windowKey).slug, id)
+  })
 
   const expanded = createMemo(() => live() || settling() || open())
   const [fold, setFold] = createSignal<Fold>(untrack(expanded) ? "open" : "gone")
@@ -830,6 +855,7 @@ export function RunTree(props: {
   const [shownSteps, setShownSteps] = createSignal<ReadonlySet<string>>(new Set())
   const view: View = {
     now,
+    seen: () => settling(),
     isOpen: (id) => (id.startsWith("w:") ? opened().has(itemKey(id)) : shownSteps().has(id)),
     toggle: (id) => setOpen(itemKey(id), !opened().has(itemKey(id))),
     openStep: (step) => {
@@ -854,14 +880,13 @@ export function RunTree(props: {
     <div class="run-tree-list">
       <Items
         items={log().items}
+        parts={thought() === undefined ? [] : filledParts(thought()!)}
         view={view}
         steps={steps()}
         live={live()}
         liveTop={path().top}
-        liveTopIndex={liveTopIndex()}
         liveChild={path().child}
         liveChildIndex={liveChildIndex()}
-        thought={props.thought}
         whole={whole() || live()}
         onWhole={() => setWhole(true)}
       />

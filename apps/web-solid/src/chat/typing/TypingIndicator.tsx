@@ -4,7 +4,7 @@ import { captionOf, motionOf } from "./action"
 import { describe } from "./create-typing-presence"
 import { room } from "../../state/room"
 import { liveLabel } from "../run/run-log"
-import { RunTree, runOpen, toggleRun } from "../run/RunTree"
+import { RunTree } from "../run/RunTree"
 import { ThinkingLine } from "../thinking/Thinking"
 import "./typing.css"
 
@@ -48,17 +48,20 @@ function Row(props: { seed: string; doing?: string }) {
     const windowKey = room.typingRun(props.seed)
     return windowKey ? stepCaption(windowKey) : captionOf(props.doing, now() - since())
   }
-  const steps = () => {
+  const treeKey = () => {
     const windowKey = room.typingRun(props.seed)
-    if (!windowKey || room.runSteps(windowKey).length === 0) return undefined
-    return { open: runOpen(windowKey), toggle: () => toggleRun(windowKey) }
+    return windowKey && room.runSteps(windowKey).length > 0 ? windowKey : undefined
   }
   return (
     <div class="typing" data-component="typing-row">
       <IdentityAvatar seed={props.seed} size={28} class="typing-bird" />
       <div class="typing-body">
-        <ThinkingLine thought={room.thinking(props.seed)} fallback={caption()} since={runStart()} steps={steps()} />
-        <Show when={room.typingRun(props.seed)}>{(windowKey) => <RunTree windowKey={windowKey()} />}</Show>
+        <Show
+          when={treeKey()}
+          fallback={<ThinkingLine thought={room.thinking(props.seed)} fallback={caption()} since={runStart()} />}
+        >
+          {(windowKey) => <RunTree windowKey={windowKey()} />}
+        </Show>
       </div>
     </div>
   )
