@@ -1,5 +1,6 @@
 import type { Block, Inline, RichText } from "@kiko/protocol"
 import isSuspiciousUrl from "../lib/richtext/suspicious"
+import { extractFenceTitle } from "./code/fence"
 import {
   bareFileName,
   chipLabel,
@@ -23,11 +24,9 @@ export type TableCopy = { markdown: string; csv: string }
 
 export type CodeFile = { lang?: string; name?: string; text: string }
 
-const FILE_NAME = /^[\w@+-][\w.@+-]*\.([A-Za-z0-9]+)$/
-
 function codeFile(lang: string | undefined, text: string): CodeFile {
-  const named = lang ? FILE_NAME.exec(lang) : null
-  if (named) return { name: lang, lang: named[1]!.toLowerCase(), text }
+  const name = extractFenceTitle(lang)
+  if (name) return { name, lang: name.split(".").pop()!.toLowerCase(), text }
   return lang ? { lang, text } : { text }
 }
 

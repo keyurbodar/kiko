@@ -31,6 +31,21 @@ function scrollParent(element: HTMLElement): HTMLElement | undefined {
 
 const REVEAL_MS = 200
 
+const CODE_BLOCK = '[data-component="chat-code-block"]'
+
+const CODE_GAP = 8
+
+function clampPastCode(inner: HTMLDivElement, limit: number): number {
+  const top = inner.getBoundingClientRect().top
+  const blocks = [...inner.querySelectorAll<HTMLElement>(CODE_BLOCK)].map((element) => element.getBoundingClientRect())
+  let raised = limit
+  for (const rect of blocks) {
+    if (rect.top - top >= raised || rect.bottom - top <= raised) continue
+    raised = rect.bottom - top + CODE_GAP
+  }
+  return raised
+}
+
 function reveal(clip: HTMLDivElement | undefined, from: number): void {
   if (!clip || matchMedia("(prefers-reduced-motion: reduce)").matches) return
   const to = clip.offsetHeight
@@ -48,6 +63,7 @@ function reveal(clip: HTMLDivElement | undefined, from: number): void {
 export function Collapsible(props: { messageId: string; fixed?: boolean; children: JSX.Element }): JSX.Element {
   const [overflowing, setOverflowing] = createSignal(false)
   const [limit, setLimit] = createSignal(foldLimitFor(globalThis.innerHeight ?? 900))
+  const [maskFrom, setMaskFrom] = createSignal<number | null>(null)
   let root: HTMLDivElement | undefined
   let inner: HTMLDivElement | undefined
   let button: HTMLButtonElement | undefined
@@ -58,9 +74,11 @@ export function Collapsible(props: { messageId: string; fixed?: boolean; childre
     if (!inner) return
     const scroller = root ? scrollParent(root) : undefined
     const room = scroller?.clientHeight ?? globalThis.innerHeight ?? 900
-    const next = foldLimitFor(room)
+    const base = foldLimitFor(room)
+    const next = clampPastCode(inner, base)
     setLimit(next)
-    setOverflowing(shouldFold(inner.offsetHeight, next, props.fixed))
+    setMaskFrom(next > base ? next - CODE_GAP : null)
+    setOverflowing(shouldFold(inner.offsetHeight, base, props.fixed))
   }
   const scheduleMeasure = () => {
     if (frame) return
@@ -83,6 +101,15 @@ export function Collapsible(props: { messageId: string; fixed?: boolean; childre
 
   const clamped = () => overflowing() && !isExpanded(props.messageId)
 
+  const clipStyle = (): JSX.CSSProperties | undefined => {
+    if (!clamped()) return undefined
+    const from = maskFrom()
+    const height = { "max-height": `${limit()}px` }
+    if (from === null) return height
+    const mask = `linear-gradient(to bottom, #000 ${from}px, transparent)`
+    return { ...height, "mask-image": mask, "-webkit-mask-image": mask }
+  }
+
   const toggle = () => {
     if (!root || !button) return
     const expanding = !isExpanded(props.messageId)
@@ -101,8 +128,11 @@ export function Collapsible(props: { messageId: string; fixed?: boolean; childre
     <div ref={root} class="relative" data-component="chat-collapsible" data-collapsed={clamped() ? "" : undefined}>
       <div
         ref={clip}
-        class={cn(clamped() && "overflow-hidden mask-b-from-[calc(100%-1.75rem)] mask-b-to-100%")}
-        style={clamped() ? { "max-height": `${limit()}px` } : undefined}
+        class={cn(
+          clamped() && "overflow-hidden",
+          clamped() && maskFrom() === null && "mask-b-from-[calc(100%-1.75rem)] mask-b-to-100%",
+        )}
+        style={clipStyle()}
       >
         <div ref={inner}>{props.children}</div>
       </div>
