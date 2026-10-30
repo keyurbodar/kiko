@@ -642,7 +642,7 @@ function createRoom() {
   )
   const helpers = createMemo(() =>
     Object.values(runs.current().steps)
-      .flatMap((steps) => helperLanes(steps, helperStatuses(), busy))
+      .flatMap((steps) => helperLanes(steps, helperStatuses(), { busy, stale: state()?.status !== "live" }))
       .toSorted((a, b) => a.startedAt - b.startedAt),
   )
   const nestedHelpers = createMemo(() => nestedLanes(helpers(), busy))

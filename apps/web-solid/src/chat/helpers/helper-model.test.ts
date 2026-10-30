@@ -24,7 +24,7 @@ function step(over: Partial<RunStep> & { worker?: { id: string; task: string } }
 const hero = { id: "w1", task: "Try 3 hero layouts for the landing page. Phones first." }
 const icons = { id: "w2", task: "Draw 12 icons" }
 const none = new Map<string, never>()
-const awake = () => true
+const awake = { busy: () => true, stale: false }
 
 describe("helper lanes", () => {
   it("ignores steps that do not belong to a helper", () => {
@@ -66,9 +66,25 @@ describe("helper lanes", () => {
   })
 
   it("is not working once its agent is idle, even if a step never reported its end", () => {
-    const [lane] = helperLanes([step({ worker: hero, status: "running", endedAt: undefined })], none, () => false)
+    const [lane] = helperLanes([step({ worker: hero, status: "running", endedAt: undefined })], none, {
+      busy: () => false,
+      stale: false,
+    })
     expect(lane?.state).toBe("done")
     expect(lane?.endedAt).toBeUndefined()
+  })
+
+  it("keeps a working helper working while the chat is offline, then shows its real end", () => {
+    const steps = [
+      step({ worker: hero }),
+      step({ worker: hero, status: "running", endedAt: undefined, name: "write_file", label: "Wrote hero.html" }),
+    ]
+    const offline = helperLanes(steps, none, { busy: () => false, stale: true })
+    expect(offline[0]?.state).toBe("working")
+    expect(offline[0]?.line).toBe("Writing hero.html")
+
+    const back = helperLanes(steps, new Map([["w1", "done"]]), { busy: () => false, stale: false })
+    expect(back[0]?.state).toBe("done")
   })
 
   it("is done when every step finished, and ends at the last step", () => {
