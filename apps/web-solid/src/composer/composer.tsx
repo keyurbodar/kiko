@@ -14,7 +14,7 @@ import {
 } from "solid-js"
 import { createStore } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { MAX_MESSAGE_TEXT, attachmentIds, humanAnswerText, sendFits, linkAttachments } from "@kiko/protocol"
+import { MAX_MESSAGE_TEXT, humanAnswerText, sendFits, linkAttachments } from "@kiko/protocol"
 import type { ComposerProps, MessageFile } from "../lib/types"
 import { isImage, sendRefusal } from "../lib/attachments"
 import "./composer.css"
@@ -23,7 +23,6 @@ import { createPromptInputV2Controller } from "./prompt-input/interaction"
 import type { Refusal } from "./prompt-input/attachments"
 import { type Rejected } from "./prompt-input/tray"
 import { createPromptInputV2Store } from "./prompt-input/store"
-import { trayAttachments } from "./prompt-input/placement"
 import { blobId, preparingAttachments, releaseBlobUrl } from "./prompt-input/attachments"
 import { composingKey } from "./ime"
 import type { PromptInputV2Attachment, PromptInputV2PersistedState } from "./prompt-input/types"
@@ -137,7 +136,6 @@ export function Composer(props: ComposerProps) {
   onCleanup(() => document.removeEventListener("keydown", editLast))
   onCleanup(() => document.removeEventListener("keydown", dropReply, true))
   const boxed = () => store.state.prompt.flatMap((part) => (part.type === "image" ? [part] : []))
-  const shown = () => trayAttachments(store.state.prompt)
   let held = new Map<string, string>()
   const keptFor = new Map<string, string>()
   const discard = (id: string, url: string) => {
@@ -165,14 +163,7 @@ export function Composer(props: ComposerProps) {
     if (boxed().length) store.setPrompt(store.state.prompt.filter((part) => part.type !== "image"))
   }
   const restoreFiles = createDraftRestore<{ id: string; part: PromptInputV2Attachment; file: File }>({
-    list: async (key) => {
-      const files = await draftFiles().then((m) => m.listDraftFiles(key))
-      const inline = new Set(attachmentIds(draftText()))
-      const orphans = files.filter((file) => !inline.has(file.id))
-      if (orphans.length)
-        void draftFiles().then((m) => Promise.all(orphans.map((file) => m.deleteDraftFile(key, file.id))))
-      return files.filter((file) => inline.has(file.id))
-    },
+    list: (key) => draftFiles().then((m) => m.listDraftFiles(key)),
     current: () => draftKey(),
     inBox: () => new Set(boxed().map((part) => part.id)),
     build: async (entry) => {
@@ -197,7 +188,7 @@ export function Composer(props: ComposerProps) {
     },
   })
   const modelBlock = () => (props.editing || question.ask() ? null : (props.sendBlock ?? null))
-  const failed = () => shown().filter((part) => uploadState(part.id)?.status === "failed")
+  const failed = () => boxed().filter((part) => uploadState(part.id)?.status === "failed")
   const blocked = () => modelBlock()?.reason ?? (preparingAttachments() ? "Still preparing the attachment" : null)
   const [nudged, setNudged] = createSignal(false)
   const [rejected, setRejected] = createSignal<Rejected[]>([])
@@ -281,7 +272,10 @@ export function Composer(props: ComposerProps) {
   )
 
   const viewer = createImageDialog()
-  const pictures = () => shown().filter((part) => isImage({ name: part.filename, type: part.mime }))
+  const pictures = () =>
+    store.state.prompt.flatMap((part) =>
+      part.type === "image" && isImage({ name: part.filename, type: part.mime }) ? [part] : [],
+    )
 
   const botById = (botId: string | undefined) =>
     botId === undefined ? undefined : props.bots.find((bot) => bot.id === botId)
@@ -449,7 +443,7 @@ export function Composer(props: ComposerProps) {
           if (failed().length) return void setNudged(true)
           const text = draftText().trimEnd()
           const editing = props.editing
-          const parts = shown()
+          const parts = boxed()
           const items = parts.map((part) => ({ id: part.id, name: part.filename, type: part.mime, size: part.size }))
           const attachments = pendingAttachments(items)
           const pending = new Map(items.map((item, i) => [item.id, attachments[i]?.pendingId]))
