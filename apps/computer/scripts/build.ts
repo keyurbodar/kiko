@@ -42,7 +42,12 @@ function embedAddon(file: string): Bun.BunPlugin {
     setup(build) {
       build.onLoad({ filter: /node-datachannel[\\/]dist[\\/]esm[\\/]lib[\\/]node-datachannel\.mjs$/ }, () => ({
         loader: "js",
-        contents: `import addon from ${JSON.stringify(file)}\nexport default addon\n`,
+        contents: [
+          `import { createRequire } from "node:module"`,
+          `import addonPath from ${JSON.stringify(file)} with { type: "file" }`,
+          `const require = createRequire(import.meta.url)`,
+          `export default require(addonPath)`,
+        ].join("\n"),
       }))
     },
   }
