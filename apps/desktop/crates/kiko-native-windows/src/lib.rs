@@ -181,8 +181,8 @@ impl WindowsDriver {
     }
 
     fn act_foreground(&self, handle: isize, params: &ActParams) -> Result<ActResult> {
+        input::foreground_window(handle)?;
         if params.action == Action::Raise {
-            input::foreground_window(handle)?;
             return Ok(ActResult {
                 route: Route::Foreground,
             });
@@ -194,12 +194,14 @@ impl WindowsDriver {
                 x: frame.x + point.x,
                 y: frame.y + point.y,
             };
-            input::foreground_window(handle)?;
             match params.action {
                 Action::Scroll => input::foreground_wheel(screen, params.dx, params.dy)?,
                 Action::ShowMenu => input::foreground_right_click(screen)?,
                 Action::Key => input::foreground_keys(&keys::parse(params.keys.as_deref())?)?,
-                Action::Type => input::foreground_text(params.text.as_deref().unwrap_or_default())?,
+                Action::Type => {
+                    input::foreground_click(screen)?;
+                    input::foreground_text(params.text.as_deref().unwrap_or_default())?;
+                }
                 _ => input::foreground_click(screen)?,
             }
             return Ok(ActResult {
@@ -207,7 +209,6 @@ impl WindowsDriver {
             });
         }
         let Some(reference) = params.reference else {
-            input::foreground_window(handle)?;
             match params.action {
                 Action::Key => input::foreground_keys(&keys::parse(params.keys.as_deref())?)?,
                 Action::Type => input::foreground_text(params.text.as_deref().unwrap_or_default())?,
@@ -233,48 +234,33 @@ impl WindowsDriver {
         })?;
         match outcome {
             Outcome::Route(route) => Ok(ActResult { route }),
-            Outcome::Native { .. } | Outcome::Text { .. } => Err(DriverError::new(
-                ErrorCode::Failed,
-                "the accessibility call returned a background route in foreground mode",
-            )),
-            Outcome::Pointer {
-                hwnd: element,
-                screen,
-            } => {
-                input::foreground_window(handle)?;
-                self.pointer_action(handle, element, screen, params)?;
+            Outcome::Pointer { screen } => {
+                self.pointer_action(screen, params)?;
                 Ok(ActResult {
                     route: Route::Foreground,
                 })
             }
+            Outcome::Native { .. } | Outcome::Text { .. } => Err(DriverError::new(
+                ErrorCode::Failed,
+                "the accessibility call returned a background route in foreground mode",
+            )),
         }
     }
 
-    fn pointer_action(
-        &self,
-        handle: isize,
-        element: isize,
-        screen: Point,
-        params: &ActParams,
-    ) -> Result<()> {
-        let focus_target = if element != 0 { element } else { handle };
+    fn pointer_action(&self, screen: Point, params: &ActParams) -> Result<()> {
         match params.action {
             Action::ShowMenu => input::foreground_right_click(screen),
             Action::Scroll => input::foreground_wheel(screen, params.dx, params.dy),
-            Action::Key => {
-                input::foreground_focus(focus_target)?;
-                input::foreground_keys(&keys::parse(params.keys.as_deref())?)
-            }
+            Action::Key => input::foreground_keys(&keys::parse(params.keys.as_deref())?),
             Action::Type => {
-                input::foreground_focus(focus_target)?;
+                input::foreground_click(screen)?;
                 input::foreground_text(params.text.as_deref().unwrap_or_default())
             }
             Action::SetValue => {
-                input::foreground_focus(focus_target)?;
+                input::foreground_click(screen)?;
                 input::foreground_select_all()?;
                 input::foreground_text(params.text.as_deref().unwrap_or_default())
             }
-            Action::Focus => input::foreground_focus(focus_target),
             _ => input::foreground_click(screen),
         }
     }

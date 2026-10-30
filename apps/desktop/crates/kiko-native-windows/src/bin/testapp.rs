@@ -7,10 +7,10 @@ use windows::Win32::Graphics::Gdi::{CreateSolidBrush, HBRUSH};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
     CS_HREDRAW, CS_VREDRAW, CreateWindowExW, DefWindowProcW, DispatchMessageW, ES_MULTILINE,
-    GWLP_USERDATA, GetMessageW, GetWindowLongPtrW, HMENU, MSG, PostQuitMessage, RegisterClassW,
-    SW_SHOWNORMAL, SetWindowLongPtrW, ShowWindow, TranslateMessage, WINDOW_EX_STYLE, WINDOW_STYLE,
-    WM_COMMAND, WM_CREATE, WM_DESTROY, WNDCLASSW, WS_BORDER, WS_CHILD, WS_OVERLAPPEDWINDOW,
-    WS_VISIBLE,
+    GWLP_USERDATA, GetDlgItem, GetMessageW, GetWindowLongPtrW, HMENU, MSG, PostQuitMessage,
+    RegisterClassW, SW_SHOWNORMAL, SetWindowLongPtrW, ShowWindow, TranslateMessage,
+    WINDOW_EX_STYLE, WINDOW_STYLE, WM_COMMAND, WM_CREATE, WM_DESTROY, WNDCLASSW, WS_BORDER,
+    WS_CHILD, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
 };
 use windows::core::{HSTRING, w};
 
@@ -26,6 +26,7 @@ struct Options {
     color: u32,
     log: String,
     hwnd_file: String,
+    edit_hwnd_file: String,
     x: i32,
     y: i32,
     width: i32,
@@ -39,6 +40,7 @@ impl Options {
             color: 0x3366cc,
             log: String::new(),
             hwnd_file: String::new(),
+            edit_hwnd_file: String::new(),
             x: 100,
             y: 100,
             width: 600,
@@ -55,6 +57,7 @@ impl Options {
                 }
                 "--file" => options.log = value,
                 "--hwnd-file" => options.hwnd_file = value,
+                "--edit-hwnd-file" => options.edit_hwnd_file = value,
                 "--pos" => {
                     let mut parts = value.split(',');
                     options.x = parts
@@ -198,6 +201,12 @@ fn main() {
         && let Ok(mut file) = fs::File::create(&options.hwnd_file)
     {
         let _ = write!(file, "{}", window.0 as isize);
+    }
+    if !options.edit_hwnd_file.is_empty()
+        && let Ok(edit) = unsafe { GetDlgItem(Some(window), EDIT_ID as i32) }
+        && let Ok(mut file) = fs::File::create(&options.edit_hwnd_file)
+    {
+        let _ = write!(file, "{}", edit.0 as isize);
     }
     let mut message = MSG::default();
     while unsafe { GetMessageW(&mut message, None, 0, 0) }.as_bool() {
