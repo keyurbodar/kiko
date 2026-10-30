@@ -1,5 +1,5 @@
 import "../index.css"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { userEvent } from "vitest/browser"
 import { render } from "../../test/render"
 import type { RosterBot } from "../lib/types"
@@ -49,6 +49,7 @@ function fakeXhr() {
 }
 
 async function mountComposer(onSend: (body: string) => void = () => {}) {
+  await clearDraftFiles(ROOM)
   const screen = await render(() => (
     <Composer threadId={ROOM} bots={BOTS} onSend={(message) => void onSend(message.body)} />
   ))
@@ -74,10 +75,6 @@ const tray = (root: HTMLElement) =>
   )
 
 describe("composer attachments", () => {
-  beforeEach(async () => {
-    await clearDraftFiles(ROOM)
-  })
-
   it("pastes a file mid-sentence as a chip at the caret and sends it in place", async () => {
     using _xhr = fakeXhr()
     let sent = ""
@@ -170,30 +167,39 @@ describe("composer attachments", () => {
     await using screen = await mountComposer()
     const data = new DataTransfer()
     data.setData("application/x-kiko-file", "docs/")
+    const box = screen.editor.getBoundingClientRect()
+    const at = { clientX: box.left + 4, clientY: box.top + 4 }
+    const overlay = () => document.querySelector('[data-component="composer-drop-overlay"]')
 
-    document.dispatchEvent(new DragEvent("dragover", { dataTransfer: data, bubbles: true, cancelable: true }))
-    await expect.poll(() => document.querySelector('[data-component="composer-drop-overlay"]')).not.toBeNull()
+    document.dispatchEvent(new DragEvent("dragover", { dataTransfer: data, bubbles: true, cancelable: true, ...at }))
+    await expect.poll(overlay).not.toBeNull()
 
-    screen.editor.dispatchEvent(new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true }))
+    screen.editor.dispatchEvent(new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true, ...at }))
     await expect
       .poll(() => screen.editor.querySelector("[data-file-ref]")?.getAttribute("data-file-ref") ?? "")
       .toBe("docs")
-    expect(document.querySelector('[data-component="composer-drop-overlay"]')).toBeNull()
+    expect(overlay()).toBeNull()
   })
 
   it("clears the drop overlay when another surface takes the drop", async () => {
     using _xhr = fakeXhr()
-    await using _screen = await mountComposer()
+    await using screen = await mountComposer()
     const surface = document.createElement("div")
     surface.addEventListener("drop", (event) => event.stopPropagation())
     document.body.append(surface)
     const file = new File(["x"], "tree.md", { type: "text/markdown" })
+    const box = screen.editor.getBoundingClientRect()
+    const at = { clientX: box.left + 4, clientY: box.top + 4 }
     const overlay = () => document.querySelector('[data-component="composer-drop-overlay"]')
 
-    document.dispatchEvent(new DragEvent("dragover", { dataTransfer: transfer(file), bubbles: true, cancelable: true }))
+    document.dispatchEvent(
+      new DragEvent("dragover", { dataTransfer: transfer(file), bubbles: true, cancelable: true, ...at }),
+    )
     await expect.poll(overlay).not.toBeNull()
 
-    surface.dispatchEvent(new DragEvent("drop", { dataTransfer: transfer(file), bubbles: true, cancelable: true }))
+    surface.dispatchEvent(
+      new DragEvent("drop", { dataTransfer: transfer(file), bubbles: true, cancelable: true, ...at }),
+    )
     await expect.poll(overlay).toBeNull()
     surface.remove()
   })
@@ -226,5 +232,55 @@ describe("composer attachments", () => {
     expect(tray(screen.container)).toEqual([])
     await userEvent.keyboard("ok{Enter}")
     expect(sent).toBe("Read ok")
+  })
+
+  it("removes the chip when its tray tile is removed, and undo brings both back", async () => {
+    using _xhr = fakeXhr()
+    await using screen = await mountComposer()
+    const editor = screen.editor
+    await userEvent.keyboard("Read ")
+    paste(editor, new File(["x"], "undo.md", { type: "text/markdown" }))
+    await expect.poll(() => tray(screen.container)).toHaveLength(1)
+
+    await userEvent.click(screen.container.querySelector<HTMLElement>('[data-action="remove-attachment"]')!)
+    await expect.poll(() => editor.querySelector("[data-attachment]")).toBeNull()
+    expect(tray(screen.container)).toEqual([])
+
+    await userEvent.click(editor)
+    await userEvent.keyboard("{Control>}z{/Control}")
+    await expect.poll(() => editor.querySelector("[data-attachment]")).not.toBeNull()
+    await expect.poll(() => tray(screen.container)).toHaveLength(1)
+  })
+
+  it("opens the file picker with Mod+U", async () => {
+    using _xhr = fakeXhr()
+    await using screen = await mountComposer()
+    const input = screen.container.querySelector<HTMLInputElement>('input[type="file"]')!
+    const click = vi.spyOn(input, "click")
+    await userEvent.keyboard("{Control>}u{/Control}")
+    expect(click).toHaveBeenCalledTimes(1)
+  })
+
+  it("puts the chip back when the same file is picked again", async () => {
+    using _xhr = fakeXhr()
+    await using screen = await mountComposer()
+    const editor = screen.editor
+    const input = screen.container.querySelector<HTMLInputElement>('input[type="file"]')!
+    const file = new File(["x"], "again.md", { type: "text/markdown" })
+    const pickAgain = () => {
+      input.files = transfer(file).files
+      input.dispatchEvent(new Event("change", { bubbles: true }))
+    }
+
+    pickAgain()
+    await expect.poll(() => tray(screen.container)).toHaveLength(1)
+    await userEvent.keyboard("{Backspace}{Backspace}")
+    await expect.poll(() => editor.querySelector("[data-attachment]")).toBeNull()
+    expect(tray(screen.container)).toEqual([])
+
+    pickAgain()
+    await expect.poll(() => editor.querySelector("[data-attachment]")).not.toBeNull()
+    await expect.poll(() => tray(screen.container)).toHaveLength(1)
+    expect(FakeXhr.sent).toHaveLength(1)
   })
 })

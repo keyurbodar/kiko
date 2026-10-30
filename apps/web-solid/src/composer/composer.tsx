@@ -14,7 +14,7 @@ import {
 } from "solid-js"
 import { createStore } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { MAX_MESSAGE_TEXT, humanAnswerText, sendFits, linkAttachments } from "@kiko/protocol"
+import { MAX_MESSAGE_TEXT, attachmentIds, humanAnswerText, sendFits, linkAttachments } from "@kiko/protocol"
 import type { ComposerProps, MessageFile } from "../lib/types"
 import { isImage, sendRefusal } from "../lib/attachments"
 import "./composer.css"
@@ -45,6 +45,8 @@ import { createQuestionInput } from "./cards/question-input"
 import { carryDisplacedCustomAnswerIntoPrompt } from "./cards/question-model"
 import { ComposerCards } from "./cards/composer-cards"
 import { AddSomeoneItems } from "./add-someone"
+import { PlusMenu } from "./plus-menu"
+import { history } from "../app/history"
 
 const draftFiles = () => import("./rich/draft-files")
 
@@ -163,7 +165,14 @@ export function Composer(props: ComposerProps) {
     if (boxed().length) store.setPrompt(store.state.prompt.filter((part) => part.type !== "image"))
   }
   const restoreFiles = createDraftRestore<{ id: string; part: PromptInputV2Attachment; file: File }>({
-    list: (key) => draftFiles().then((m) => m.listDraftFiles(key)),
+    list: async (key) => {
+      const files = await draftFiles().then((m) => m.listDraftFiles(key))
+      const inline = new Set(attachmentIds(draftText()))
+      const orphans = files.filter((file) => !inline.has(file.id))
+      if (orphans.length)
+        void draftFiles().then((m) => Promise.all(orphans.map((file) => m.deleteDraftFile(key, file.id))))
+      return files.filter((file) => inline.has(file.id))
+    },
     current: () => draftKey(),
     inBox: () => new Set(boxed().map((part) => part.id)),
     build: async (entry) => {
@@ -616,6 +625,23 @@ export function Composer(props: ComposerProps) {
         reply={question.ask() ? undefined : above}
         below={question.ask() ? undefined : below}
         tray={props.tray}
+        plus={
+          <PlusMenu
+            disabled={!!props.disabled}
+            pools={{
+              files: (query) => data().files(query),
+              apps: () => data().apps(),
+              skills: () => data().skills(),
+              recipes: () => data().recipes(),
+              agents: () => agents(),
+            }}
+            onInsert={(token) => controller.insertToken(token)}
+            onAddFiles={() => controller.attach()}
+            onAddSomeone={() => setAdding(true)}
+            onManageSkills={() => history.push("/customize")}
+            onConnectApp={() => openSettings("web-apps")}
+          />
+        }
         editing={!!props.editing}
         parse={parse}
         chips={{ resolve, roomId: () => props.threadId, chatTitle: () => props.title }}

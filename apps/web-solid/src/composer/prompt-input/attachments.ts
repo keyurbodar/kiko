@@ -63,6 +63,7 @@ export function createPromptInputV2Attachments(
       ...files.filter((file) => !admitted.has(file)).map((file) => ({ name: file.name, reason: shortRefusal(file) })),
     ]
     const added: PromptInputV2Attachment[] = []
+    const chips: { id: string; name: string }[] = []
     const abandoned = () => openedFor !== undefined && input.key?.() !== openedFor
     const release = () => {
       for (const part of added.splice(0)) {
@@ -74,7 +75,11 @@ export function createPromptInputV2Attachments(
       if (abandoned()) return
       const id = await blobId(file)
       if (abandoned()) return
-      if ([...held, ...added].some((part) => part.blob.id === id)) return
+      const existing = [...held, ...added].find((part) => part.blob.id === id)
+      if (existing) {
+        if (!chips.some((chip) => chip.id === existing.id)) chips.push({ id: existing.id, name: existing.filename })
+        return
+      }
       const attachment: PromptInputV2Attachment = {
         type: "image",
         id: globalThis.crypto?.randomUUID?.() ?? Math.random().toString(16).slice(2),
@@ -85,6 +90,7 @@ export function createPromptInputV2Attachments(
       }
       rememberClipboardFile(attachment, file)
       added.push(attachment)
+      chips.push({ id: attachment.id, name: attachment.filename })
       input.onAdded?.(attachment, file)
     }
     setPreparing((count) => count + 1)
@@ -96,12 +102,9 @@ export function createPromptInputV2Attachments(
     }
     if (abandoned()) return release()
     if (refusals.length) input.refuse(refusals)
-    if (!added.length) return
-    target.set([...target.current(), ...added], target.cursor())
-    input.chip(
-      added.map((part) => ({ id: part.id, name: part.filename })),
-      at,
-    )
+    if (!chips.length) return
+    if (added.length) target.set([...target.current(), ...added], target.cursor())
+    input.chip(chips, at)
   }
   const insertPastedText = (text: string) => {
     const put = () => {

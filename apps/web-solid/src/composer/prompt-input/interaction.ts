@@ -131,6 +131,13 @@ export function createPromptInputV2Controller(input: {
     return result.handled
   }
 
+  const insertToken = (item: Token) => {
+    dispatch({ type: "popover.close" })
+    if (rich) rich.insertToken("@", item)
+    else insert("@", item)
+    requestAnimationFrame(() => editor?.focus())
+  }
+
   const attach = () => fileInput?.click()
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -215,15 +222,15 @@ export function createPromptInputV2Controller(input: {
       input.openAttachment?.(attachment)
     },
     removeAttachment(id: string) {
+      if (rich) return rich.removeAttachment(id)
       draft.removeAttachment(id)
-      rich?.removeAttachment(id)
     },
     canSubmit() {
       if (input.view.submit.blocked?.()) return false
       const pending = input.view.submit.canSubmit?.()
       if (pending !== undefined) return pending
       const persisted = draft.state
-      if (persisted.prompt.some((part) => part.type === "image")) return true
+      if (trayAttachments(persisted.prompt).length > 0) return true
       return persisted.prompt.some((part) => "content" in part && !!part.content.trim())
     },
     setEditor(element: HTMLElement) {
@@ -241,12 +248,8 @@ export function createPromptInputV2Controller(input: {
       if (state.popover.type === "open") dispatch({ type: "input.changed", value, cursor })
     },
     agents: input.agents,
-    mention(item: Token) {
-      dispatch({ type: "popover.close" })
-      if (rich) rich.insertToken("@", item)
-      else insert("@", item)
-      requestAnimationFrame(() => editor?.focus())
-    },
+    insertToken,
+    mention: insertToken,
     submit() {
       input.view.submit.onSubmit()
       dispatch({ type: "popover.close" })

@@ -197,9 +197,12 @@ export function Tray(props: {
     syncFade()
     const observer = new ResizeObserver(syncFade)
     observer.observe(shelf)
+    const content = new MutationObserver(syncFade)
+    content.observe(shelf, { childList: true })
     shelf.addEventListener("scroll", syncFade, { passive: true })
     onCleanup(() => {
       observer.disconnect()
+      content.disconnect()
       shelf.removeEventListener("scroll", syncFade)
     })
   })
