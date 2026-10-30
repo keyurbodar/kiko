@@ -4,7 +4,7 @@ import { BackIcon, ChevronRightIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js"
-import { folderLabel, ROOT, type TreeIndex } from "./model"
+import { folderLabel, type TreeIndex } from "./model"
 import { breadcrumbPathOf, fileCrumbs, folderChildren, navigableBack, type Breadcrumb } from "./explorer/path"
 import "./explorer/breadcrumbs.css"
 
@@ -149,7 +149,7 @@ function FolderContentsMenu(props: {
   return (
     <MenuV2 open={open()} onOpenChange={change} placement="bottom-start" gutter={4}>
       <MenuV2.Trigger class="fb-chev" aria-label={`Browse ${labelOf(props.dir)}`} data-component="file-crumb-menu">
-        <RemixIcon icon={ChevronRightIcon} size={14} />
+        <RemixIcon icon={ChevronRightIcon} size={12} />
       </MenuV2.Trigger>
       <MenuV2.Portal>
         <MenuV2.Content

@@ -9,7 +9,7 @@ import { AgentPage } from "./agent"
 type ViewProps<F = object> = { chatId: string; surface: F; close: () => void }
 
 export function FilesView(props: ViewProps) {
-  return <FilesTree chatId={props.chatId} searchOpen />
+  return <FilesTree chatId={props.chatId} focusSearch />
 }
 
 export function FileView(props: ViewProps<{ path: string }>) {
