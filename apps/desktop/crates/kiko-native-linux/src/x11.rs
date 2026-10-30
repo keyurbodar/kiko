@@ -11,52 +11,7 @@ use x11rb::protocol::xtest::ConnectionExt as _;
 use x11rb::rust_connection::RustConnection;
 use x11rb::wrapper::ConnectionExt as _;
 
-const MODIFIER_KEYSYMS: &[(&str, u32)] = &[
-    ("ctrl", 0xffe3),
-    ("control", 0xffe3),
-    ("shift", 0xffe1),
-    ("alt", 0xffe9),
-    ("super", 0xffeb),
-    ("meta", 0xffeb),
-    ("win", 0xffeb),
-    ("cmd", 0xffeb),
-];
-
-const NAMED_KEYSYMS: &[(&str, u32)] = &[
-    ("Return", 0xff0d),
-    ("Enter", 0xff8d),
-    ("Tab", 0xff09),
-    ("ISO_Left_Tab", 0xfe20),
-    ("Escape", 0xff1b),
-    ("Esc", 0xff1b),
-    ("BackSpace", 0xff08),
-    ("Delete", 0xffff),
-    ("Insert", 0xff63),
-    ("Home", 0xff50),
-    ("End", 0xff57),
-    ("Page_Up", 0xff55),
-    ("Page_Down", 0xff56),
-    ("Prior", 0xff55),
-    ("Next", 0xff56),
-    ("Left", 0xff51),
-    ("Up", 0xff52),
-    ("Right", 0xff53),
-    ("Down", 0xff54),
-    ("Space", 0x0020),
-    ("Menu", 0xff67),
-    ("F1", 0xffbe),
-    ("F2", 0xffbf),
-    ("F3", 0xffc0),
-    ("F4", 0xffc1),
-    ("F5", 0xffc2),
-    ("F6", 0xffc3),
-    ("F7", 0xffc4),
-    ("F8", 0xffc5),
-    ("F9", 0xffc6),
-    ("F10", 0xffc7),
-    ("F11", 0xffc8),
-    ("F12", 0xffc9),
-];
+use crate::keys;
 
 #[derive(Clone, Debug)]
 pub(crate) struct XWindow {
@@ -150,7 +105,6 @@ struct Keymap {
     width: u8,
 }
 
-const SHIFT: u32 = 0xffe1;
 const REMAP_SETTLE: std::time::Duration = std::time::Duration::from_millis(12);
 const WHEEL_STEP: f64 = 50.0;
 const MAX_WHEEL_CLICKS: f64 = 20.0;
@@ -467,12 +421,12 @@ impl X11 {
         let shift = self
             .keymap()?
             .keysyms
-            .get(&SHIFT)
+            .get(&keys::SHIFT)
             .map(|(keycode, _)| *keycode);
         let mut remapped: Vec<u8> = Vec::new();
         let mut outcome = Ok(());
         for character in text.chars() {
-            match self.key_for(character_keysym(character), &mut remapped) {
+            match self.key_for(keys::character(character), &mut remapped) {
                 Ok((keycode, shifted, remapped_key)) => {
                     let shift = shift.filter(|_| shifted);
                     if let Err(error) = self.tap(keycode, shift) {
@@ -553,13 +507,13 @@ impl X11 {
 
     fn strokes(&mut self, spec: &str) -> Result<Vec<Stroke>, String> {
         let map = &self.keymap()?.keysyms;
-        let shift = lookup(map, SHIFT).map(|(keycode, _)| keycode);
+        let shift = lookup(map, keys::SHIFT).map(|(keycode, _)| keycode);
         let mut strokes = Vec::new();
         for combo in spec.split_whitespace() {
             let mut modifiers = Vec::new();
             let mut key = None;
             for token in combo.split('+').filter(|token| !token.is_empty()) {
-                match modifier_keysym(token) {
+                match keys::modifier(token) {
                     Some(keysym) => {
                         let (keycode, _) = lookup(map, keysym)
                             .ok_or_else(|| format!("the keyboard has no {token} key"))?;
@@ -643,39 +597,13 @@ fn wheel_clicks(distance: f64) -> u8 {
     (distance / WHEEL_STEP).round().clamp(1.0, MAX_WHEEL_CLICKS) as u8
 }
 
-fn character_keysym(character: char) -> u32 {
-    match character {
-        '\n' | '\r' => 0xff0d,
-        '\t' => 0xff09,
-        '\u{8}' => 0xff08,
-        '\u{1b}' => 0xff1b,
-        character if (character as u32) <= 0xff => character as u32,
-        character => 0x0100_0000 + character as u32,
-    }
-}
-
 struct Stroke {
     modifiers: Vec<u8>,
     key: u8,
 }
 
-fn modifier_keysym(token: &str) -> Option<u32> {
-    let token = token.to_lowercase();
-    MODIFIER_KEYSYMS
-        .iter()
-        .find(|(name, _)| *name == token)
-        .map(|(_, keysym)| *keysym)
-}
-
-fn named_keysym(token: &str) -> Option<u32> {
-    NAMED_KEYSYMS
-        .iter()
-        .find(|(name, _)| *name == token)
-        .map(|(_, keysym)| *keysym)
-}
-
 fn lookup_key(map: &HashMap<u32, (u8, bool)>, token: &str) -> Result<(u8, bool), String> {
-    if let Some(keysym) = named_keysym(token) {
+    if let Some(keysym) = keys::named(token) {
         return lookup(map, keysym).ok_or_else(|| format!("the keyboard has no {token} key"));
     }
     let mut chars = token.chars();

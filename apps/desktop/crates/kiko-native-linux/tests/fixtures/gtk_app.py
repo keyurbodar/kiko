@@ -68,11 +68,17 @@ scroller.get_vadjustment().connect(
     "value-changed", lambda adjustment: write("scroll", str(int(adjustment.get_value())))
 )
 
+def on_cover_click(_widget, _event):
+    write("cover-clicked")
+
+
 cover = Gtk.Window(title="Kiko Cover")
 cover.set_default_size(700, 500)
 cover.move(0, 0)
 cover_background = Gtk.EventBox()
 cover_background.set_name("cover-bg")
+cover_background.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+cover_background.connect("button-press-event", on_cover_click)
 cover.add(cover_background)
 
 provider = Gtk.CssProvider()

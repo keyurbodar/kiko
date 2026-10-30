@@ -4,9 +4,12 @@ mod a11y;
 mod act;
 mod capture;
 mod error;
+mod frames;
+mod keys;
 mod open;
 mod session;
 mod tree;
+mod wayland;
 mod x11;
 
 pub use session::{Driver, driver, status};

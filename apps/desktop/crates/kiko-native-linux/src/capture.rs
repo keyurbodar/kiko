@@ -78,7 +78,16 @@ pub(crate) fn capture(x11: &mut X11, xid: u32, max_width: u32) -> Result<Image, 
         pad,
         reply.depth,
     )?;
-    let (rgb, out_width, out_height) = scale(rgb, u32::from(width), u32::from(height), max_width);
+    encode(rgb, max_width, rect)
+}
+
+pub(crate) fn encode(
+    rgb: image::RgbImage,
+    max_width: u32,
+    covers: kiko_driver::Rect,
+) -> Result<Image, DriverError> {
+    let (width, height) = rgb.dimensions();
+    let (rgb, out_width, out_height) = scale(rgb, width, height, max_width);
     let mut encoded = Vec::new();
     JpegEncoder::new_with_quality(&mut encoded, QUALITY)
         .encode(rgb.as_raw(), out_width, out_height, ExtendedColorType::Rgb8)
@@ -88,7 +97,7 @@ pub(crate) fn capture(x11: &mut X11, xid: u32, max_width: u32) -> Result<Image, 
         data: base64::engine::general_purpose::STANDARD.encode(&encoded),
         width: out_width,
         height: out_height,
-        covers: rect,
+        covers,
     })
 }
 

@@ -19,6 +19,7 @@ use crate::capture;
 use crate::error::{background_unavailable, failed, not_found, stale, unsupported};
 use crate::open;
 use crate::tree::{self, RefAllocator};
+use crate::wayland::Wayland;
 use crate::x11::{Snapshot, X11};
 
 const FOREGROUND_X11: &str = "foreground input needs an X11 display or the RemoteDesktop portal";
@@ -30,6 +31,7 @@ pub(crate) struct State {
     refs: HashMap<WindowId, HashMap<Ref, Target>>,
     x11: Option<X11>,
     wayland: bool,
+    portal: Option<Wayland>,
 }
 
 struct Listed {
@@ -48,6 +50,7 @@ impl State {
             refs: HashMap::new(),
             x11: None,
             wayland,
+            portal: None,
         }
     }
 
@@ -90,8 +93,9 @@ impl State {
                 a11y::enable().await
             }
             PermissionKind::Screen if self.screen_granted() => Ok(()),
+            PermissionKind::Screen if self.wayland => self.portal().await?.request().await,
             PermissionKind::Screen => Err(unsupported(
-                "screen capture on Wayland needs the ScreenCast portal, which is not implemented yet",
+                "screen capture needs an X11 display or the Wayland ScreenCast portal",
             )),
             PermissionKind::Automation => Ok(()),
             PermissionKind::Browser => Err(unsupported("no browser permission is needed on Linux")),
@@ -162,7 +166,7 @@ impl State {
         self.refs
             .insert(params.window.clone(), allocator.into_table());
         let image = if params.image {
-            self.capture(entry.xid, params.max_width.unwrap_or(1280))
+            self.image(&entry, params.max_width.unwrap_or(1280)).await
         } else {
             None
         };
@@ -174,10 +178,23 @@ impl State {
         })
     }
 
-    fn capture(&mut self, xid: Option<u32>, max_width: u32) -> Option<Image> {
-        let xid = xid?;
-        let x11 = self.x11()?;
-        capture::capture(x11, xid, max_width).ok()
+    async fn image(&mut self, entry: &Listed, max_width: u32) -> Option<Image> {
+        if let Some(xid) = entry.xid {
+            return self
+                .x11()
+                .and_then(|x11| capture::capture(x11, xid, max_width).ok());
+        }
+        let portal = self.portal().await.ok()?;
+        portal.capture(entry.window.frame, max_width).await.ok()
+    }
+
+    async fn portal(&mut self) -> Result<&mut Wayland> {
+        if self.portal.is_none() {
+            self.portal = Some(Wayland::new());
+        }
+        self.portal
+            .as_mut()
+            .ok_or_else(|| failed("the screen sharing session is unavailable"))
     }
 
     async fn act(&mut self, params: &ActParams) -> Result<ActResult> {
@@ -212,9 +229,20 @@ impl State {
             .find(|entry| entry.window.id == window.id())
             .ok_or_else(|| not_found("that window is gone; list windows again"))?;
         let frame = entry.window.frame;
-        let xid = entry
-            .xid
-            .ok_or_else(|| background_unavailable(FOREGROUND_X11))?;
+        match entry.xid {
+            Some(xid) => self.foreground_x11(params, target, frame, xid).await,
+            None if self.wayland => self.foreground_wayland(params, target, frame).await,
+            None => Err(background_unavailable(FOREGROUND_X11)),
+        }
+    }
+
+    async fn foreground_x11(
+        &mut self,
+        params: &ActParams,
+        target: &Target,
+        frame: kiko_driver::Rect,
+        xid: u32,
+    ) -> Result<ActResult> {
         match params.action {
             Action::Key => self.foreground_key(params, xid),
             Action::Press | Action::Toggle => {
@@ -248,6 +276,58 @@ impl State {
                 Ok(foreground())
             }
             _ => act::background(&self.bus().await?, target, params).await,
+        }
+    }
+
+    async fn foreground_wayland(
+        &mut self,
+        params: &ActParams,
+        target: &Target,
+        frame: kiko_driver::Rect,
+    ) -> Result<ActResult> {
+        match params.action {
+            Action::Type => {
+                let text = params.text.as_deref().unwrap_or_default().to_string();
+                self.wayland_focus(params, target).await;
+                self.portal().await?.type_text(&text).await?;
+            }
+            Action::Key => {
+                let keys = params
+                    .keys
+                    .as_deref()
+                    .ok_or_else(|| failed("key needs keys"))?
+                    .to_string();
+                self.portal().await?.type_keys(&keys).await?;
+            }
+            Action::Press | Action::Toggle => {
+                let point = self.foreground_point(params, target, frame).await;
+                let portal = self.portal().await?;
+                portal.motion(point.0 - frame.x, point.1 - frame.y).await?;
+                portal.button(true).await?;
+                portal.button(false).await?;
+            }
+            Action::Scroll => {
+                let point = self.foreground_point(params, target, frame).await;
+                let portal = self.portal().await?;
+                portal.motion(point.0 - frame.x, point.1 - frame.y).await?;
+                portal.scroll(params.dx, params.dy).await?;
+            }
+            Action::Focus | Action::Raise => {
+                return Err(background_unavailable(
+                    "Wayland lets an app move the pointer and type, but not raise or focus another window; ask the owner to focus it",
+                ));
+            }
+            _ => return act::background(&self.bus().await?, target, params).await,
+        }
+        Ok(foreground())
+    }
+
+    async fn wayland_focus(&mut self, params: &ActParams, target: &Target) {
+        if params.reference.is_none() {
+            return;
+        }
+        if let Ok(bus) = self.bus().await {
+            let _ = act::focus(&bus, target).await;
         }
     }
 
@@ -485,7 +565,10 @@ impl Session {
         let screen = if state.screen_granted() {
             Grant::Granted
         } else if state.wayland {
-            Grant::Unknown
+            match state.portal.as_ref() {
+                Some(portal) if portal.shared() => Grant::Granted,
+                _ => Grant::Unknown,
+            }
         } else {
             Grant::Denied
         };

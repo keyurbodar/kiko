@@ -33,7 +33,7 @@ jobs:
         run: |
           rustup component add clippy rustfmt
           sudo apt-get update
-          sudo apt-get install -y dbus xvfb
+          sudo apt-get install -y dbus libclang-dev libpipewire-0.3-dev pkgconf xvfb
       - name: Format
         working-directory: apps/desktop
         run: cargo fmt -p kiko-app -- --check
