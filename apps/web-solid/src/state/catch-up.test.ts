@@ -34,7 +34,7 @@ describe("catching up after the tab was in the background", () => {
   it("stops a thought the background tab left open, so its clock cannot keep running", () => {
     const open = heardThought(
       undefined,
-      { slug: "kiko", runId: "run-1", part: 0, text: "Quiet first.", done: false },
+      { slug: "kiko", runId: "run-1", part: 0, offset: 0, text: "Quiet first.", startedAt: 1_000, done: false },
       1_000,
       4,
     )

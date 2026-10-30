@@ -30,6 +30,7 @@ import type {
   RunStep,
   SystemReason,
   TaskOp,
+  ThoughtPart,
   WorkerRow,
 } from "@kiko/protocol"
 import type { OwnerServices, ServiceOptions } from "../owner/services"
@@ -1372,6 +1373,11 @@ export class Room implements CommandRoom {
     return this.log.steps.window(slug, after)
   }
 
+  async thoughts(slug: AgentSlug, runId: string): Promise<ThoughtPart[]> {
+    if (!this.members.list().some((m) => m.slug === slug)) return []
+    return this.services.agent(this.identity.roomId, slug).thoughts(runId)
+  }
+
   async teamNow(): Promise<
     { slug: AgentSlug; name: string; status: AgentState; doing: string | null; holds: string[] }[]
   > {
@@ -1734,8 +1740,16 @@ export class Room implements CommandRoom {
     this.broadcast({ t: "draft", slug, runId, index, text: replyTag(text).text })
   }
 
-  async thinking(slug: AgentSlug, runId: string, part: number, text: string, done: boolean): Promise<void> {
-    this.broadcast({ t: "thinking", slug, runId, part, text, done })
+  async thinking(
+    slug: AgentSlug,
+    runId: string,
+    part: number,
+    offset: number,
+    text: string,
+    startedAt: number,
+    done: boolean,
+  ): Promise<void> {
+    this.broadcast({ t: "thinking", slug, runId, part, offset, text, startedAt, done })
   }
 
   async note(slug: AgentSlug, runId: string, id: string, text: string): Promise<void> {

@@ -43,6 +43,8 @@ import {
   windowKey,
 } from "../chat/run/run-log"
 import { helperLanes, nestedLanes } from "../chat/helpers/helper-model"
+import { liveLabel } from "../chat/run/run-log"
+import { summaryOf } from "../chat/run/run-tree-rows"
 import { fillComposer } from "../composer/fill"
 import { releaseUpload, uploadedFile } from "../composer/uploads"
 import { distinctTitles, resumeChat, rosterChats } from "../lib/chats"
@@ -55,7 +57,7 @@ import { describeLast, isListed } from "../sidebar/activity"
 import { clearUnreadMark } from "../sidebar/unread-mark"
 import { connection } from "./connection"
 import { liveLine, liveStatusOf, thinkingLine, type LiveStatus } from "./live-status"
-import { createThoughts, type ThinkingSignal, type Thought } from "./thoughts"
+import { createThoughts, restoredThought, type ThinkingSignal, type Thought } from "./thoughts"
 import { attempt, observe, owner, registry, valueOf, watch } from "./runtime"
 import { onUserSignal, user } from "./user"
 import { withSentFiles } from "./sent-files"
@@ -65,6 +67,7 @@ const PENDING_SEQ = Number.MAX_SAFE_INTEGER
 const HISTORY_PAGE = 30
 const TYPING_EVERY_MS = 2_000
 const WARM_ROOMS = 4
+const RUN_END_KEEP_MS = 10_000
 
 export const fileSrc = (roomId: string, fileId: string) => fileUrl(`/api/files/${roomId}/${encodeURIComponent(fileId)}`)
 
@@ -641,6 +644,11 @@ function createRoom() {
       .toSorted((a, b) => a.startedAt - b.startedAt),
   )
   const nestedHelpers = createMemo(() => nestedLanes(helpers(), busy))
+  const thoughtByRun = createMemo(() => {
+    const out = new Map<string, Thought>()
+    for (const list of Object.values(thoughts.all())) for (const thought of list) out.set(thought.runId, thought)
+    return out
+  })
   const thoughtAnchors = createMemo(() => {
     const out = new Map<string, Thought>()
     for (const list of Object.values(thoughts.all()))
@@ -659,6 +667,75 @@ function createRoom() {
     const known = new Set(members().map((m) => m.slug as string))
     return Object.keys(liveOf()).filter((slug) => known.has(slug)) as AgentSlug[]
   })
+
+  const stepsOf = (key: string) => {
+    const { slug, after } = parseWindow(key)
+    return inWindow(runs.current().steps[slug] ?? [], after)
+  }
+  const typingRunOf = (slug: string): string | undefined => {
+    if (!busy(slug)) return undefined
+    const after = newestAfter(runs.current().steps[slug] ?? [])
+    return after >= 0 && !windows().has(windowKey(slug, after)) ? windowKey(slug, after) : undefined
+  }
+  const endLabel = (key: string): string => {
+    const steps = stepsOf(key)
+    const found = summaryOf(steps, undefined)?.label
+    if (found) return found
+    const last = steps.findLast((step) => !step.worker) ?? steps.at(-1)
+    return last ? liveLabel(last) : "Working"
+  }
+
+  const [runEnds, setRunEnds] = createSignal<Readonly<Record<string, { at: number; label: string }>>>({})
+  const liveWindowOf = createMemo(() => {
+    const out: Record<string, string> = {}
+    for (const slug of typingSlugs()) {
+      const key = typingRunOf(slug)
+      if (key) out[slug] = key
+    }
+    return out
+  })
+  createComputed(
+    on(
+      liveWindowOf,
+      (now, previous) => {
+        if (!previous) return
+        const ended: Record<string, { at: number; label: string }> = {}
+        for (const [slug, key] of Object.entries(previous)) {
+          if (now[slug] === key) continue
+          ended[key] = { at: Date.now(), label: endLabel(key) }
+        }
+        if (Object.keys(ended).length)
+          setRunEnds((all) => {
+            const now = Date.now()
+            const kept = Object.entries(all).filter(([, end]) => now - end.at < RUN_END_KEEP_MS)
+            return { ...Object.fromEntries(kept), ...ended }
+          })
+      },
+      { defer: true },
+    ),
+  )
+
+  const [restored, setRestored] = createSignal<Readonly<Record<string, Thought>>>({})
+  let askedThoughts = new Set<string>()
+  const loadThoughts = (slug: string, runId: string) => {
+    const id = activeId()
+    if (!id) return
+    const key = `${id}|${runId}`
+    if (askedThoughts.has(key) || restored()[runId]) return
+    askedThoughts.add(key)
+    void attempt(owner.commands.roomThoughts, { roomId: id, slug: slug as AgentSlug, runId }, () => {}).then(
+      (parts) => {
+        if (!parts || parts.length === 0 || activeId() !== id) return
+        setRestored((all) => ({ ...all, [runId]: restoredThought(slug, runId, parts) }))
+      },
+    )
+  }
+  createComputed(
+    on(activeId, () => {
+      setRestored({})
+      askedThoughts = new Set()
+    }),
+  )
 
   const localRead = new Map<RoomId, number>()
   const [unseen, setUnseen] = createSignal<readonly MessageId[]>([])
@@ -980,15 +1057,11 @@ function createRoom() {
     thinking: (slug: string) => thoughts.latest(slug),
     thoughtFor: (m: ChatMessage) => thoughtAnchors().get(m.id),
     runWindow: (m: ChatMessage) => (m.botId && m.steps ? windowKey(m.botId, m.stepAfter ?? 0) : undefined),
-    typingRun(slug: string): string | undefined {
-      if (!busy(slug)) return undefined
-      const after = newestAfter(runs.current().steps[slug] ?? [])
-      return after >= 0 && !windows().has(windowKey(slug, after)) ? windowKey(slug, after) : undefined
-    },
-    runSteps(key: string): readonly RunStep[] {
-      const { slug, after } = parseWindow(key)
-      return inWindow(runs.current().steps[slug] ?? [], after)
-    },
+    typingRun: typingRunOf,
+    runSteps: stepsOf,
+    runEnd: (key: string) => runEnds()[key],
+    thoughtOfRun: (runId: string) => restored()[runId] ?? thoughtByRun().get(runId),
+    loadThoughts,
     helpers,
     nestedHelpers,
     runLive: (key: string) => !windows().has(key) && busy(parseWindow(key).slug),

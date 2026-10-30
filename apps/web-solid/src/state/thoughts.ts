@@ -1,18 +1,29 @@
 import { createSignal } from "solid-js"
 
+export type ThoughtPart = { text: string; startedAt: number; spentMs: number; since?: number }
+
 export type Thought = {
   runId: string
   slug: string
-  parts: readonly string[]
-  spentMs: number
+  parts: readonly ThoughtPart[]
   openSince: number | null
   after: number
   over: boolean
 }
 
-export type ThinkingSignal = { slug: string; runId: string; part: number; text: string; done: boolean }
+export type ThinkingSignal = {
+  slug: string
+  runId: string
+  part: number
+  offset: number
+  text: string
+  startedAt: number
+  done: boolean
+}
 
 const KEPT = 20
+
+const empty = (startedAt: number): ThoughtPart => ({ text: "", startedAt, spentMs: 0 })
 
 export function heardThought(
   previous: Thought | undefined,
@@ -23,31 +34,60 @@ export function heardThought(
   const base: Thought =
     previous && previous.runId === signal.runId
       ? previous
-      : { runId: signal.runId, slug: signal.slug, parts: [], spentMs: 0, openSince: null, after, over: false }
+      : { runId: signal.runId, slug: signal.slug, parts: [], openSince: null, after, over: false }
   const parts = [...base.parts]
-  while (parts.length < signal.part) parts.push("")
-  parts[signal.part] = signal.text
-  const since = base.openSince ?? now
-  return signal.done
-    ? { ...base, parts, spentMs: base.spentMs + (now - since), openSince: null }
-    : { ...base, parts, openSince: since, over: false }
+  while (parts.length < signal.part) parts.push(empty(signal.startedAt))
+  const fresh = parts[signal.part] === undefined
+  const current = parts[signal.part] ?? empty(signal.startedAt)
+  const appended = signal.offset === current.text.length ? current.text + signal.text : current.text
+  const text = signal.done ? signal.text : appended
+  const since = current.since ?? now
+  parts[signal.part] = {
+    text,
+    startedAt: signal.startedAt || current.startedAt,
+    since,
+    spentMs: signal.done ? Math.max(0, now - since) : current.spentMs,
+  }
+  const openSince = fresh ? now : (base.openSince ?? now)
+  return signal.done ? { ...base, parts, openSince: null } : { ...base, parts, openSince, over: false }
 }
 
+export const partMs = (part: ThoughtPart, now: number, over: boolean): number =>
+  part.spentMs || (over ? 0 : Math.max(0, now - (part.since ?? part.startedAt)))
+
 export const thoughtMs = (thought: Thought, now: number): number =>
-  thought.spentMs + (thought.openSince === null ? 0 : now - thought.openSince)
+  thought.parts.reduce((total, part) => total + partMs(part, now, thought.over), 0)
 
 export const endedThought = (thought: Thought, now: number): Thought => ({
   ...thought,
-  spentMs: thoughtMs(thought, now),
+  parts: thought.parts.map((part) =>
+    part.spentMs ? part : { ...part, spentMs: Math.max(0, now - (part.since ?? part.startedAt)) },
+  ),
   openSince: null,
   over: true,
 })
 
 export const thoughtText = (thought: Thought): string =>
   thought.parts
-    .map((part) => part.trim())
+    .map((part) => part.text.trim())
     .filter(Boolean)
     .join("\n\n")
+
+export const filledParts = (thought: Thought): readonly ThoughtPart[] =>
+  thought.parts.filter((part) => part.text.trim() !== "")
+
+export function restoredThought(
+  slug: string,
+  runId: string,
+  parts: readonly { part: number; text: string; startedAt: number; spentMs: number }[],
+): Thought {
+  const filled: ThoughtPart[] = []
+  for (const part of [...parts].sort((a, b) => a.part - b.part)) {
+    while (filled.length < part.part) filled.push(empty(part.startedAt))
+    filled.push({ text: part.text, startedAt: part.startedAt, spentMs: part.spentMs })
+  }
+  return { runId, slug, parts: filled, openSince: null, after: 0, over: true }
+}
 
 export const settledThoughts = (
   all: Readonly<Record<string, readonly Thought[]>>,

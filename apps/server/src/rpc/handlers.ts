@@ -48,6 +48,7 @@ export const HANDLERS: Handlers = {
   "room.search": ({ roomId, ...input }, { host }) => host.room(roomId).search(input),
   "room.history": ({ roomId, ...input }, { host }) => host.room(roomId).history(input),
   "room.steps": ({ roomId, ...input }, { host }) => host.room(roomId).steps(input),
+  "room.thoughts": ({ roomId, ...input }, { host }) => host.room(roomId).thoughts(input),
 
   "chat.command": ({ op }, { host }) => host.user().chatCommand(op),
   "chat.open": ({ roomId }, { host }) => host.user().chatOpened(roomId),
