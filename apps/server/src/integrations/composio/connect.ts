@@ -33,6 +33,7 @@ import {
 import type { ComposioStore, StoredTarget } from "./store"
 
 const LISTING_FRESH_MS = 10 * 60_000
+const LISTING_MAX_AGE_MS = 24 * 60 * 60_000
 const CONNECTED_FRESH_MS = 60_000
 const CANDIDATES_MAX = 200
 
@@ -148,20 +149,25 @@ export class ComposioConnection {
     if (!this.store.connected()) return null
     const saved = this.store.listing()
     if (saved && now - saved.at < LISTING_FRESH_MS) return saved.tools
-    if (!this.loading) {
-      const loading = this.discover()
+    let loading = this.loading
+    if (!loading) {
+      loading = this.discover()
       const done = () => {
         if (this.loading === loading) this.loading = undefined
       }
+      loading.catch((e) =>
+        console.error(`composio tool list refresh failed: ${e instanceof Error ? e.message : String(e)}`),
+      )
       loading.then(done, done)
       this.loading = loading
     }
-    return saved ? saved.tools : this.loading
+    if (saved && now - saved.at <= LISTING_MAX_AGE_MS) return saved.tools
+    return loading
   }
 
   private async discover(): Promise<ComposioTool[]> {
     const generation = this.store.generation
-    const tools = await this.session((target) => listTools(target, this.fetcher))
+    const tools = await this.session((target) => listTools(target, this.fetcher), this.fetcher, "safe")
     this.store.putListing({ at: Date.now(), tools }, generation)
     return tools
   }
@@ -172,7 +178,11 @@ export class ComposioConnection {
     egress: typeof fetch = this.fetcher,
   ): Promise<ComposioCallResult> {
     const generation = this.store.generation
-    const out = await this.session((target) => callTool(target, name, args, egress), egress)
+    const out = await this.session(
+      (target) => callTool(target, name, args, egress),
+      egress,
+      this.replayable(name) ? "safe" : "unsafe",
+    )
     if (out.isError && name === MULTI_EXECUTE) this.forgetFailed(failed(args, undefined), generation)
     if (out.isError || (name !== SEARCH && name !== SCHEMAS && name !== MULTI_EXECUTE)) return out
     const body = resultJson(out)
@@ -206,21 +216,20 @@ export class ComposioConnection {
   }
 
   private loadSchemas(slugs: string[], generation: number, egress: typeof fetch): void {
-    const work = this.session((target) => callTool(target, SCHEMAS, { tool_slugs: slugs }, egress), egress).then(
-      (out) => {
-        const body = resultJson(out)
-        if (!body) return
-        for (const c of candidates(body)) {
-          this.candidates.delete(c.slug)
-          this.candidates.set(c.slug, c)
-        }
-        if (generation !== this.store.generation) return
-        for (const slug of this.candidates.keys()) {
-          if (this.candidates.size <= CANDIDATES_MAX) break
-          this.candidates.delete(slug)
-        }
-      },
-    )
+    const called = this.session((target) => callTool(target, SCHEMAS, { tool_slugs: slugs }, egress), egress, "safe")
+    const work = called.then((out) => {
+      const body = resultJson(out)
+      if (!body) return
+      for (const c of candidates(body)) {
+        this.candidates.delete(c.slug)
+        this.candidates.set(c.slug, c)
+      }
+      if (generation !== this.store.generation) return
+      for (const slug of this.candidates.keys()) {
+        if (this.candidates.size <= CANDIDATES_MAX) break
+        this.candidates.delete(slug)
+      }
+    })
     this.waitUntil(work.catch(() => undefined))
   }
 
@@ -242,13 +251,25 @@ export class ComposioConnection {
     if (kept.length !== learned.length) this.store.putLearned(kept, generation)
   }
 
-  private async session<T>(work: (target: Target) => Promise<T>, egress: typeof fetch = this.fetcher): Promise<T> {
+  private replayable(name: string): boolean {
+    if (name === SEARCH || name === SCHEMAS) return true
+    return (
+      (this.store.listing()?.tools ?? []).some((t) => t.name === name && t.readOnly === true) ||
+      this.store.learned().some((t) => t.slug === name && t.readOnly === true)
+    )
+  }
+
+  private async session<T>(
+    work: (target: Target) => Promise<T>,
+    egress: typeof fetch,
+    replay: "safe" | "unsafe",
+  ): Promise<T> {
     const target = await this.store.target()
     if (!target) throw new ComposioError({ message: "Composio is not connected" })
     try {
       return await work(target)
     } catch (e) {
-      if (!sessionGone(e)) throw e
+      if (replay === "unsafe" || !sessionGone(e)) throw e
       return work(await this.renew(target.key, target.session, egress))
     }
   }

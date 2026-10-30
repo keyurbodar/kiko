@@ -101,11 +101,13 @@ export class KernelLease {
     return true
   }
 
-  dead(sessionId: string): Promise<boolean> {
+  async dead(sessionId: string): Promise<boolean> {
+    const row = this.deps.store.lease()
+    if (!row || row.dead || row.sessionId !== sessionId) return false
+    if (await (await this.deps.client()).alive(sessionId)) return false
     return this.#serial(async () => {
-      const row = this.deps.store.lease()
-      if (!row || row.dead || row.sessionId !== sessionId) return false
-      if (await (await this.deps.client()).alive(sessionId)) return false
+      const current = this.deps.store.lease()
+      if (!current || current.dead || current.sessionId !== sessionId) return false
       this.deps.store.patchLease({ dead: true })
       return true
     })
@@ -154,6 +156,7 @@ export class KernelLease {
   reap(): Promise<void> {
     return this.#serial(async () => {
       const row = this.deps.store.lease()
+      await this.#sweep(row?.sessionId)
       if (!row) return this.deps.wake.clear()
       const now = this.#now()
       if (row.takeover && !humanHolds(row, now)) this.deps.store.patchLease({ takeover: false })
@@ -161,6 +164,14 @@ export class KernelLease {
       if (verdict.delete) await this.#destroy(row)
       else await this.deps.wake.set(verdict.at)
     })
+  }
+
+  async #sweep(keep: string | undefined): Promise<void> {
+    const client = await this.deps.client().catch(() => undefined)
+    if (!client) return
+    for (const sessionId of await client.listActive().catch(() => [])) {
+      if (sessionId !== keep) await client.deleteBrowser(sessionId).catch(() => undefined)
+    }
   }
 
   close(): Promise<void> {

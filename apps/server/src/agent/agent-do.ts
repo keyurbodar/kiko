@@ -92,6 +92,7 @@ type EgressRequest = {
   method: string
   headers: [string, string][]
   body: ArrayBuffer | null
+  signal?: AbortSignal
   spare?: boolean
 }
 const RECENT_WORKERS = 8

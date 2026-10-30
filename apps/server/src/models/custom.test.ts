@@ -40,6 +40,16 @@ describe("custom providers", () => {
     })
   })
 
+  it("bounds the model list fetch with an abort signal", async () => {
+    let signal: AbortSignal | undefined
+    const fetcher = (async (_url: string, init: RequestInit) => {
+      signal = init.signal ?? undefined
+      return new Response(JSON.stringify({ data: [] }))
+    }) as unknown as typeof fetch
+    await fetchUpstream({ api: "openai-completions", baseUrl: "https://h.example" }, "k", fetcher)
+    expect(signal).toBeInstanceOf(AbortSignal)
+  })
+
   it("gives a model pi knows its reasoning levels and context, and a stranger safe defaults", () => {
     const provider = customProvider({
       id: "custom-gw",

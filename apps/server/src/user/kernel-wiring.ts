@@ -244,7 +244,6 @@ export class KernelWiring {
     const hold = () =>
       mode === "control" ? this.browser.setTakeover(true) : this.browser.watchUntil(Date.now() + WATCH_MS)
     const row = this.store.lease()
-    if (row && !row.dead) hold()
     if (!row || row.dead || row.mode === "headless") {
       onSwitching(true)
       try {
@@ -252,8 +251,8 @@ export class KernelWiring {
       } finally {
         onSwitching(false)
       }
-      hold()
     }
+    hold()
     const live = (await this.store.urls())?.liveUrl
     if (!live) throw new KernelError({ kind: "failed", message: "Kernel gave no live view for this browser" })
     if (mode === "control") return live
