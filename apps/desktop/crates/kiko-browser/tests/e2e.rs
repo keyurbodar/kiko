@@ -261,7 +261,7 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
     );
     assert!(image.covers.w > 0.0);
 
-    for attempt in 1..=3 {
+    for attempt in 1..=20 {
         let name = format!("cold{attempt}");
         driver
             .open(&BrowserOpenParams {
