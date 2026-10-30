@@ -9,8 +9,8 @@ use atspi::zbus::Connection;
 use atspi::{CoordType, State as A11yState, StateSet};
 use atspi_connection::AccessibilityConnection;
 use kiko_driver::{
-    ActParams, ActResult, Grant, Image, Look, LookParams, Mode, Native, OpenParams, PermissionKind,
-    Permissions, Ref, Result, Route, Status, Window, WindowId,
+    ActParams, ActResult, Action, Grant, Image, Look, LookParams, Mode, Native, OpenParams,
+    PermissionKind, Permissions, Ref, Result, Route, Status, Window, WindowId,
 };
 
 use crate::a11y::{self, Target};
@@ -20,6 +20,8 @@ use crate::error::{background_unavailable, failed, not_found, stale, unsupported
 use crate::open;
 use crate::tree::{self, RefAllocator};
 use crate::x11::{Snapshot, X11};
+
+const FOREGROUND_X11: &str = "foreground input needs an X11 display or the RemoteDesktop portal";
 
 pub(crate) struct State {
     a11y: Option<AccessibilityConnection>,
@@ -97,14 +99,22 @@ impl State {
     }
 
     async fn listed(&mut self) -> Result<Vec<Listed>> {
+        let frames = self.frames().await?;
         let snapshot = self.x11().map(|x11| x11.snapshot());
+        Ok(frames
+            .into_iter()
+            .filter_map(|frame| frame.into_listed(snapshot.as_ref()))
+            .collect())
+    }
+
+    async fn frames(&mut self) -> Result<Vec<Frame>> {
         let bus = self.bus().await?;
         let root = a11y::root(&bus).await?;
         let applications = a11y::within(a11y::CALL, root.get_children())
             .await
             .unwrap_or_default();
         let dbus = zbus::fdo::DBusProxy::new(&bus).await.ok();
-        let mut listed = Vec::new();
+        let mut frames = Vec::new();
         for application in applications {
             let Some(app_target) = Target::from_ref(&application) else {
                 continue;
@@ -119,21 +129,19 @@ impl State {
             let app_name = a11y::within(a11y::CALL, app.name())
                 .await
                 .unwrap_or_default();
-            let frames = a11y::within(a11y::CALL, app.get_children())
+            let children = a11y::within(a11y::CALL, app.get_children())
                 .await
                 .unwrap_or_default();
-            for frame in frames {
+            for frame in children {
                 let Some(frame_target) = Target::from_ref(&frame) else {
                     continue;
                 };
-                if let Some(entry) =
-                    frame_entry(&bus, &frame_target, pid, &app_name, snapshot.as_ref()).await
-                {
-                    listed.push(entry);
+                if let Some(entry) = frame_entry(&bus, &frame_target, pid, &app_name).await {
+                    frames.push(entry);
                 }
             }
         }
-        Ok(listed)
+        Ok(frames)
     }
 
     async fn look(&mut self, params: &LookParams) -> Result<Look> {
@@ -204,69 +212,158 @@ impl State {
             .find(|entry| entry.window.id == window.id())
             .ok_or_else(|| not_found("that window is gone; list windows again"))?;
         let frame = entry.window.frame;
-        let xid = entry.xid.ok_or_else(|| background_unavailable("foreground input needs X11; on Wayland it needs the RemoteDesktop portal, which is not implemented yet"))?;
-        let bus = self.bus().await?;
-        if matches!(params.action, kiko_driver::Action::Key) {
-            let keys = params
-                .keys
-                .as_deref()
-                .ok_or_else(|| failed("key needs keys"))?;
-            let x11 = self
-                .x11()
-                .ok_or_else(|| background_unavailable("foreground input needs X11"))?;
-            x11.activate(xid).map_err(failed)?;
-            x11.type_keys(keys).map_err(failed)?;
-            return Ok(ActResult {
-                route: Route::Foreground,
-            });
-        }
-        if matches!(
-            params.action,
-            kiko_driver::Action::Press | kiko_driver::Action::Toggle
-        ) && let Some((x, y)) = click_point(&bus, params, target, frame).await
-        {
-            let x11 = self
-                .x11()
-                .ok_or_else(|| background_unavailable("foreground input needs X11"))?;
-            x11.activate(xid).map_err(failed)?;
-            x11.click(x, y).map_err(failed)?;
-            return Ok(ActResult {
-                route: Route::Foreground,
-            });
-        }
-        if matches!(
-            params.action,
-            kiko_driver::Action::Focus | kiko_driver::Action::Raise
-        ) {
-            let x11 = self
-                .x11()
-                .ok_or_else(|| background_unavailable("foreground input needs X11"))?;
-            x11.activate(xid).map_err(failed)?;
-            if params.action == kiko_driver::Action::Focus {
-                act::focus(&bus, target).await?;
+        let xid = entry
+            .xid
+            .ok_or_else(|| background_unavailable(FOREGROUND_X11))?;
+        match params.action {
+            Action::Key => self.foreground_key(params, xid),
+            Action::Press | Action::Toggle => {
+                let point = self.foreground_point(params, target, frame).await;
+                let x11 = self
+                    .x11()
+                    .ok_or_else(|| background_unavailable(FOREGROUND_X11))?;
+                x11.activate(xid).map_err(failed)?;
+                x11.click(point.0, point.1).map_err(failed)?;
+                Ok(foreground())
             }
-            return Ok(ActResult {
-                route: Route::Foreground,
-            });
+            Action::Type => self.foreground_type(params, target, frame, xid).await,
+            Action::Scroll => {
+                let point = self.foreground_point(params, target, frame).await;
+                let x11 = self
+                    .x11()
+                    .ok_or_else(|| background_unavailable(FOREGROUND_X11))?;
+                x11.activate(xid).map_err(failed)?;
+                x11.scroll(point.0, point.1, params.dx, params.dy)
+                    .map_err(failed)?;
+                Ok(foreground())
+            }
+            Action::Focus | Action::Raise => {
+                let x11 = self
+                    .x11()
+                    .ok_or_else(|| background_unavailable(FOREGROUND_X11))?;
+                x11.activate(xid).map_err(failed)?;
+                if params.action == Action::Focus {
+                    act::focus(&self.bus().await?, target).await?;
+                }
+                Ok(foreground())
+            }
+            _ => act::background(&self.bus().await?, target, params).await,
         }
-        act::background(&bus, target, params).await
+    }
+
+    fn foreground_key(&mut self, params: &ActParams, xid: u32) -> Result<ActResult> {
+        let keys = params
+            .keys
+            .as_deref()
+            .ok_or_else(|| failed("key needs keys"))?;
+        let x11 = self
+            .x11()
+            .ok_or_else(|| background_unavailable(FOREGROUND_X11))?;
+        x11.activate(xid).map_err(failed)?;
+        x11.type_keys(keys).map_err(failed)?;
+        Ok(foreground())
+    }
+
+    async fn foreground_type(
+        &mut self,
+        params: &ActParams,
+        target: &Target,
+        frame: kiko_driver::Rect,
+        xid: u32,
+    ) -> Result<ActResult> {
+        let text = params.text.as_deref().unwrap_or_default();
+        let x11 = self
+            .x11()
+            .ok_or_else(|| background_unavailable(FOREGROUND_X11))?;
+        x11.activate(xid).map_err(failed)?;
+        let focused = match params.reference {
+            Some(_) => {
+                let bus = self.bus().await?;
+                act::focus(&bus, target).await.is_ok()
+            }
+            None => false,
+        };
+        let click = if focused || params.reference.is_none() {
+            None
+        } else {
+            Some(self.foreground_point(params, target, frame).await)
+        };
+        let x11 = self
+            .x11()
+            .ok_or_else(|| background_unavailable(FOREGROUND_X11))?;
+        if let Some((x, y)) = click {
+            x11.click(x, y).map_err(failed)?;
+        }
+        x11.type_text(text).map_err(failed)?;
+        Ok(foreground())
+    }
+
+    async fn foreground_point(
+        &mut self,
+        params: &ActParams,
+        target: &Target,
+        frame: kiko_driver::Rect,
+    ) -> (f64, f64) {
+        if let Some(point) = params.point {
+            return (frame.x + point.x, frame.y + point.y);
+        }
+        if params.reference.is_some()
+            && let Ok(bus) = self.bus().await
+            && let Some(rect) = act::node_rect(&bus, target).await
+        {
+            return (
+                frame.x + rect.x + rect.w / 2.0,
+                frame.y + rect.y + rect.h / 2.0,
+            );
+        }
+        (frame.x + frame.w / 2.0, frame.y + frame.h / 2.0)
     }
 }
 
-async fn click_point(
-    bus: &Connection,
-    params: &ActParams,
-    target: &Target,
-    frame: kiko_driver::Rect,
-) -> Option<(f64, f64)> {
-    if let Some(point) = params.point {
-        return Some((frame.x + point.x, frame.y + point.y));
+fn foreground() -> ActResult {
+    ActResult {
+        route: Route::Foreground,
     }
-    let rect = act::node_rect(bus, target).await?;
-    Some((
-        frame.x + rect.x + rect.w / 2.0,
-        frame.y + rect.y + rect.h / 2.0,
-    ))
+}
+
+struct Frame {
+    target: Target,
+    pid: Option<u32>,
+    app: String,
+    title: String,
+    states: atspi::StateSet,
+    extents: Option<kiko_driver::Rect>,
+}
+
+impl Frame {
+    fn into_listed(self, snapshot: Option<&Snapshot>) -> Option<Listed> {
+        let matched =
+            snapshot.and_then(|snapshot| snapshot.matched(self.pid, &self.title, self.extents));
+        let window = Window {
+            id: self.target.id(),
+            pid: self.pid.unwrap_or(0),
+            app: app_label(&self.app, self.pid),
+            bundle: None,
+            title: self.title,
+            frame: matched
+                .map(|window| window.rect)
+                .or(self.extents)
+                .unwrap_or_default(),
+            focused: matched
+                .map(|window| snapshot.is_some_and(|snapshot| snapshot.active == Some(window.xid)))
+                .unwrap_or_else(|| self.states.contains(A11yState::Focused)),
+            minimized: matched
+                .map(|window| window.hidden)
+                .unwrap_or_else(|| self.states.contains(A11yState::Iconified)),
+            on_screen: matched
+                .map(|window| !window.hidden)
+                .unwrap_or_else(|| self.extents.is_some()),
+        };
+        Some(Listed {
+            window,
+            xid: matched.map(|window| window.xid),
+        })
+    }
 }
 
 async fn frame_entry(
@@ -274,8 +371,7 @@ async fn frame_entry(
     target: &Target,
     pid: Option<u32>,
     app_name: &str,
-    snapshot: Option<&Snapshot>,
-) -> Option<Listed> {
+) -> Option<Frame> {
     let frame = a11y::accessible(bus, target).await.ok()?;
     let role = a11y::within(a11y::CALL, frame.get_role()).await?;
     if !tree::is_window_role(role) {
@@ -288,30 +384,13 @@ async fn frame_entry(
         .await
         .unwrap_or_else(StateSet::empty);
     let extents = frame_rect(&frame).await;
-    let matched = snapshot.and_then(|snapshot| snapshot.matched(pid, &title, extents));
-    let window = Window {
-        id: target.id(),
-        pid: pid.unwrap_or(0),
-        app: app_label(app_name, pid),
-        bundle: None,
+    Some(Frame {
+        target: target.clone(),
+        pid,
+        app: app_name.to_string(),
         title,
-        frame: matched
-            .map(|window| window.rect)
-            .or(extents)
-            .unwrap_or_default(),
-        focused: matched
-            .map(|window| snapshot.is_some_and(|snapshot| snapshot.active == Some(window.xid)))
-            .unwrap_or_else(|| states.contains(A11yState::Focused)),
-        minimized: matched
-            .map(|window| window.hidden)
-            .unwrap_or_else(|| states.contains(A11yState::Iconified)),
-        on_screen: matched
-            .map(|window| !window.hidden)
-            .unwrap_or_else(|| extents.is_some()),
-    };
-    Some(Listed {
-        window,
-        xid: matched.map(|window| window.xid),
+        states,
+        extents,
     })
 }
 

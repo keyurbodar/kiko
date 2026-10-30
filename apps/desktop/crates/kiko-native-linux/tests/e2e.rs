@@ -84,10 +84,19 @@ fn wait_file(path: &Path) -> String {
 }
 
 fn wait_file_text(path: &Path, expected: &str) {
-    wait_for(&format!("{} to say {expected:?}", path.display()), || {
-        let text = std::fs::read_to_string(path).ok()?;
-        (text == expected).then_some(text)
-    });
+    let deadline = Instant::now() + Duration::from_secs(60);
+    loop {
+        let text = std::fs::read_to_string(path).unwrap_or_default();
+        if text == expected {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "{} says {text:?}, not {expected:?}",
+            path.display()
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
 }
 
 fn windows_with(native: &mut Box<dyn Native>, title: &str) -> Option<Window> {
@@ -151,6 +160,66 @@ fn close(pixel: image::Rgb<u8>, expected: (u8, u8, u8)) -> bool {
     let (r, g, b) = (pixel[0], pixel[1], pixel[2]);
     let distance = |a: u8, b: u8| i16::from(a).abs_diff(i16::from(b));
     distance(r, expected.0) <= 24 && distance(g, expected.1) <= 24 && distance(b, expected.2) <= 24
+}
+
+fn key(
+    native: &mut Box<dyn Native>,
+    window: &Window,
+    keys: &str,
+    mode: Mode,
+) -> Result<kiko_driver::ActResult, kiko_driver::DriverError> {
+    native.act(&ActParams {
+        window: window.id.clone(),
+        reference: None,
+        point: None,
+        action: Action::Key,
+        text: None,
+        keys: Some(keys.to_string()),
+        dx: 0.0,
+        dy: 0.0,
+        mode,
+    })
+}
+
+fn scroll(
+    native: &mut Box<dyn Native>,
+    window: &Window,
+    reference: u32,
+    dx: f64,
+    dy: f64,
+    mode: Mode,
+) -> Result<kiko_driver::ActResult, kiko_driver::DriverError> {
+    native.act(&ActParams {
+        window: window.id.clone(),
+        reference: Some(reference),
+        point: None,
+        action: Action::Scroll,
+        text: None,
+        keys: None,
+        dx,
+        dy,
+        mode,
+    })
+}
+
+fn press_point(
+    native: &mut Box<dyn Native>,
+    window: &Window,
+    x: f64,
+    y: f64,
+    mode: Mode,
+) -> Result<kiko_driver::ActResult, kiko_driver::DriverError> {
+    native.act(&ActParams {
+        window: window.id.clone(),
+        reference: None,
+        point: Some(kiko_driver::Point { x, y }),
+        action: Action::Press,
+        text: None,
+        keys: None,
+        dx: 0.0,
+        dy: 0.0,
+        mode,
+    })
 }
 
 struct X {
@@ -245,6 +314,17 @@ fn intern(conn: &RustConnection, name: &str) -> Atom {
         .reply()
         .expect("intern atom reply")
         .atom
+}
+
+fn keyboard_map(conn: &RustConnection) -> Vec<u32> {
+    let setup = conn.setup();
+    let first = setup.min_keycode;
+    let count = setup.max_keycode.saturating_sub(first).saturating_add(1);
+    conn.get_keyboard_mapping(first, count)
+        .expect("get keyboard mapping")
+        .reply()
+        .expect("get keyboard mapping reply")
+        .keysyms
 }
 
 fn decoded(look: &Look) -> image::RgbImage {
@@ -476,6 +556,109 @@ fn gtk_foreground_click_uses_the_pointer() {
         "the pointer is at ({pointer_x}, {pointer_y}), outside {:?}",
         target.frame
     );
+}
+
+#[test]
+#[ignore]
+fn gtk_foreground_typing_keys_scroll_and_point_click_reach_the_window() {
+    let out = tempfile::tempdir().expect("temp dir");
+    let mut native = driver().expect("driver");
+    assert_permissions(&mut native);
+    let _app = spawn_gtk(out.path());
+    wait_file(&out.path().join("ready"));
+    let target = wait_window(&mut native, TARGET);
+
+    let first = look(&mut native, &target, false);
+    let entry = node(&first, &["entry", "text"], "");
+    act(
+        &mut native,
+        &target,
+        entry.reference,
+        Action::SetValue,
+        Some(""),
+        Mode::Background,
+    )
+    .expect("clearing the entry failed");
+    wait_file_text(&out.path().join("entry"), "");
+
+    let typed = act(
+        &mut native,
+        &target,
+        entry.reference,
+        Action::Type,
+        Some("hello world"),
+        Mode::Foreground,
+    )
+    .expect("foreground typing failed");
+    assert_eq!(typed.route, Route::Foreground);
+    wait_file_text(&out.path().join("entry"), "hello world");
+
+    let x = X::new();
+    let target_xid = x
+        .window_by_title(TARGET)
+        .expect("the target has no X window");
+    assert_eq!(
+        x.active_window(),
+        Some(target_xid),
+        "foreground typing should activate the window"
+    );
+
+    key(&mut native, &target, "ctrl+a", Mode::Foreground).expect("ctrl+a failed");
+    key(&mut native, &target, "BackSpace", Mode::Foreground).expect("BackSpace failed");
+    wait_file_text(&out.path().join("entry"), "");
+
+    let map_before = keyboard_map(&x.conn);
+    act(
+        &mut native,
+        &target,
+        entry.reference,
+        Action::Type,
+        Some("héllo→"),
+        Mode::Foreground,
+    )
+    .expect("typing characters outside the keymap failed");
+    wait_file_text(&out.path().join("entry"), "héllo→");
+    assert_eq!(
+        keyboard_map(&x.conn),
+        map_before,
+        "typing restored the spare keycodes to a different keyboard map"
+    );
+
+    let button = node(&look(&mut native, &target, false), &["button"], "Press me");
+    let point = button.frame.expect("the button has no frame");
+    press_point(
+        &mut native,
+        &target,
+        point.x + point.w / 2.0,
+        point.y + point.h / 2.0,
+        Mode::Foreground,
+    )
+    .expect("point click failed");
+    wait_file(&out.path().join("clicked"));
+
+    let pane = node(&look(&mut native, &target, false), &["scroll pane"], "");
+    let scroll_file = out.path().join("scroll");
+    let before = scroll_value(&scroll_file);
+    let scrolled = scroll(
+        &mut native,
+        &target,
+        pane.reference,
+        0.0,
+        200.0,
+        Mode::Foreground,
+    )
+    .expect("foreground scroll failed");
+    assert_eq!(scrolled.route, Route::Foreground);
+    wait_for("the scroll pane to move", || {
+        (scroll_value(&scroll_file) > before).then_some(())
+    });
+}
+
+fn scroll_value(path: &Path) -> i64 {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| text.trim().parse().ok())
+        .unwrap_or(0)
 }
 
 #[test]

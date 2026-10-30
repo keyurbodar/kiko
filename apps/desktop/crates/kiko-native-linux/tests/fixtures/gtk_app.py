@@ -57,6 +57,17 @@ check = Gtk.CheckButton(label="Enable")
 check.connect("toggled", on_toggle)
 box.pack_start(check, False, False, 0)
 
+scroller = Gtk.ScrolledWindow()
+scroller.set_size_request(360, 80)
+scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+view = Gtk.TextView()
+view.get_buffer().set_text("\n".join("line %d" % number for number in range(200)))
+scroller.add(view)
+box.pack_start(scroller, False, False, 0)
+scroller.get_vadjustment().connect(
+    "value-changed", lambda adjustment: write("scroll", str(int(adjustment.get_value())))
+)
+
 cover = Gtk.Window(title="Kiko Cover")
 cover.set_default_size(700, 500)
 cover.move(0, 0)
