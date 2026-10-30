@@ -1,6 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
-use std::process::Child;
+use std::path::{Path, PathBuf};
 use std::ptr::NonNull;
 use std::time::{Duration, Instant};
 
@@ -18,7 +17,6 @@ const SETTLE: Duration = Duration::from_secs(5);
 const POINTER_SLACK: f64 = 1.0;
 const SAFARI: &str = "/Applications/Safari.app";
 const CHROME: &str = "/Applications/Google Chrome.app";
-const CHROME_BINARY: &str = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const FRAME: Rect = Rect {
     x: 160.0,
     y: 160.0,
@@ -40,13 +38,15 @@ const CHROME_FLAGS: [&str; 4] = [
 const ELECTRON_MAIN: &str = r#"
 const fs = require('fs');
 const { app, BrowserWindow } = require('electron');
-const note = (text) => fs.appendFileSync(process.env.KIKO_E2E_LOG, text + '\n');
+const page = process.argv[2] || process.env.KIKO_E2E_PAGE;
+const log = process.argv[3] || process.env.KIKO_E2E_LOG;
+const note = (text) => fs.appendFileSync(log, text + '\n');
 process.on('uncaughtException', (error) => note('uncaught: ' + (error.stack || error)));
 app.whenReady().then(() => {
-  note('ready page=' + process.env.KIKO_E2E_PAGE);
+  note('ready page=' + page);
   const window = new BrowserWindow({ width: 640, height: 420, x: 160, y: 160 });
   note('window created');
-  window.loadFile(process.env.KIKO_E2E_PAGE).then(
+  window.loadFile(page).then(
     () => note('loaded'),
     (error) => note('load failed: ' + error),
   );
@@ -304,23 +304,17 @@ fn electron_web_area_answers_in_the_background() {
     let mut driver = MacDriver::new().expect("driver");
     let page = write_page("before");
     let app = write_electron_app();
-    let log = app.join("electron.log");
-    let mut child = ChildGuard(
-        std::process::Command::new(&electron)
-            .arg(&app)
-            .env("KIKO_E2E_PAGE", &page)
-            .env("KIKO_E2E_LOG", &log)
-            .spawn()
-            .unwrap_or_else(|error| panic!("could not start {electron}: {error}")),
-    );
+    let bundle = electron_bundle(&electron);
+    let log = std::env::temp_dir().join(format!("kiko-electron-{}.log", std::process::id()));
+    let _ = fs::remove_file(&log);
+    let note = launch_electron(&bundle, &app, &page, &log);
 
     let window = wait_for(Duration::from_secs(60), || {
         window_named(&mut driver, "Electron")
     });
     let Some(window) = window else {
-        let status = child.0.try_wait();
         panic!(
-            "no Electron window (child {status:?}); log: {:?}; running: {:?}; windows: {:?}",
+            "no Electron window; {note}; log: {:?}; running: {:?}; windows: {:?}",
             fs::read_to_string(&log),
             running_apps(),
             window_summary(&mut driver)
@@ -958,15 +952,15 @@ fn launch_chrome(driver: &mut MacDriver, url: &str) -> Window {
 
 fn spawn_chrome(url: &str) -> String {
     let profile = std::env::temp_dir().join(format!("kiko-chrome-{}", std::process::id()));
-    match std::process::Command::new(CHROME_BINARY)
+    let mut command = std::process::Command::new("open");
+    command
+        .arg("-g")
+        .args(["-a", CHROME])
+        .arg("--args")
         .args(CHROME_FLAGS)
         .arg(format!("--user-data-dir={}", profile.display()))
-        .arg(url)
-        .spawn()
-    {
-        Ok(_) => format!("spawned {CHROME_BINARY}"),
-        Err(error) => format!("could not start {CHROME_BINARY}: {error}"),
-    }
+        .arg(url);
+    finish_open(CHROME, true, command)
 }
 
 fn write_electron_app() -> PathBuf {
@@ -981,13 +975,25 @@ fn write_electron_app() -> PathBuf {
     directory
 }
 
-struct ChildGuard(Child);
+fn electron_bundle(electron: &str) -> PathBuf {
+    Path::new(electron)
+        .parent()
+        .and_then(Path::parent)
+        .map(|dir| dir.join("electron/dist/Electron.app"))
+        .unwrap_or_else(|| PathBuf::from(electron))
+}
 
-impl Drop for ChildGuard {
-    fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
-    }
+fn launch_electron(bundle: &Path, app: &Path, page: &Path, log: &Path) -> String {
+    let mut command = std::process::Command::new("open");
+    command
+        .arg("-g")
+        .arg("-a")
+        .arg(bundle)
+        .arg("--args")
+        .arg(app)
+        .arg(page)
+        .arg(log);
+    finish_open(&bundle.display().to_string(), true, command)
 }
 
 fn write_page(title: &str) -> PathBuf {

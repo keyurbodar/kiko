@@ -103,6 +103,14 @@ jobs:
           file "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" || true
           "$KIKO_E2E_ELECTRON" --version || true
 
+      - name: Register the browsers with LaunchServices
+        run: |
+          set -euo pipefail
+          lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+          "$lsregister" -f "/Applications/Google Chrome.app"
+          "$lsregister" -f "$RUNNER_TEMP/electron/node_modules/electron/dist/Electron.app"
+          "$lsregister" -dump | grep -c "com.google.Chrome" || true
+
       - name: Start the apps the e2e drives
         run: |
           open -g -a /System/Applications/TextEdit.app
