@@ -17,8 +17,7 @@ export type Routine = RoutineData
 
 const [started, setStarted] = createSignal<ReadonlySet<string>>(new Set())
 
-export const routinesOf = (chatId: string): readonly Routine[] =>
-  user.rows("routine").filter((r) => r.roomId === chatId)
+const routinesOf = (chatId: string): readonly Routine[] => user.rows("routine").filter((r) => r.roomId === chatId)
 
 const post = (path: string, body: unknown) =>
   apiFetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })

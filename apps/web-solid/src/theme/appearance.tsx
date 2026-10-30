@@ -1,5 +1,6 @@
 import { Segmented } from "@kiko/ui/v2/segmented"
 import { RemixIcon } from "@kiko/ui/remix-icon"
+import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { CheckIcon, CloseIcon, PlusIcon } from "@kiko/ui/icons"
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { appearanceOf } from "@kiko/theme/apply"
@@ -7,6 +8,7 @@ import { BASE_SIZE, CHAT_WIDTHS, CONTRAST, DEFAULT_DISPLAY, type ChatWidth, type
 import { DEFAULT_LOOK, type Mode } from "@kiko/theme/look"
 import { DARK_THEME_IDS, THEMES, type Palette, type ThemeAppearance } from "@kiko/theme/palette"
 import { buttonClass, Group, Row, Slider, Toggle } from "../settings/kit"
+import { ThreadDetailsMenuItems } from "../chat/side/thread-details-menu"
 import { Select } from "../settings/select"
 import { look, previewLook, updateLook } from "./live"
 import { chooseBuiltin, pickTheme, remove, themes } from "./live"
@@ -342,6 +344,18 @@ export default function Appearance(): JSX.Element {
         </Row>
         <Row label="Thin text smoothing" onReset={reset("smoothing")}>
           <Toggle label="Thin text smoothing" on={d().smoothing} onChange={(smoothing) => set({ smoothing })} />
+        </Row>
+        <Row label="Thread details" description="The sections the thread details card shows.">
+          <MenuV2 placement="bottom-end" gutter={6}>
+            <MenuV2.Trigger class={buttonClass("ghost")} data-action="thread-details-settings">
+              Customize
+            </MenuV2.Trigger>
+            <MenuV2.Portal>
+              <MenuV2.Content class="min-w-56" data-component="thread-details-settings-menu">
+                <ThreadDetailsMenuItems />
+              </MenuV2.Content>
+            </MenuV2.Portal>
+          </MenuV2>
         </Row>
       </Group>
 

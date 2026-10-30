@@ -53,4 +53,25 @@ describe("shell", () => {
     expect(width(screen.container, "sidebar-panel")).toBe(defaultWidth(SIDEBAR))
     expect(localStorage.getItem("kiko:device:card")).not.toBe("0")
   })
+
+  it("maximizes the right panel over the chat column and leaves the sidebar width alone", async () => {
+    await page.viewport(1440, 900)
+    localStorage.clear()
+    room.followRoute(() => ROOM)
+    const router = firstSignIn()
+    await using screen = await render(() => <RouterProvider router={router} />)
+
+    await expect.poll(() => width(screen.container, "sidecar-column")).toBe(defaultWidth(INFO))
+    const sidebar = width(screen.container, "sidebar-panel")
+    const maximize = () => screen.container.querySelector<HTMLElement>('[data-action="toggle-panel-max"]')
+    await expect.element(screen.getByRole("button", { name: "Maximize panel" })).toBeVisible()
+    maximize()!.click()
+
+    const overlay = () =>
+      screen.container.querySelector<HTMLElement>('[data-component="sidecar-overlay"][data-mode="max"]')
+    await expect.poll(() => overlay() !== null).toBe(true)
+    expect(width(screen.container, "sidebar-panel")).toBe(sidebar)
+    expect(Math.round(overlay()!.getBoundingClientRect().left)).toBe(sidebar)
+    expect(Math.round(overlay()!.getBoundingClientRect().width)).toBe(1440 - sidebar)
+  })
 })
