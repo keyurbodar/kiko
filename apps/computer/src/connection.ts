@@ -46,7 +46,30 @@ export type Host = {
   holder(): Holder
   log: Logger
   onWelcome?(name: string, version: string | undefined): void
+  onOffline?(): void
+  onWorking?(app: string): void
   onIdle?(): void
+}
+
+function record(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null
+}
+
+function rememberWindow(windows: Map<string, string>, value: unknown): string | null {
+  const window = record(value)
+  if (!window || typeof window.id !== "string" || typeof window.app !== "string") return null
+  windows.set(window.id, window.app)
+  return window.app
+}
+
+function openedApp(args: unknown): string | null {
+  const steps = record(args)?.steps
+  if (!Array.isArray(steps)) return null
+  for (const step of steps) {
+    const opened = record(step)
+    if (opened?.op === "open" && typeof opened.app === "string") return opened.app
+  }
+  return null
 }
 
 type Call = Extract<Frame, { t: "call" }>
@@ -102,6 +125,7 @@ class Link {
   private rejection: Promise<void> | null = null
   private lastInbound = 0
   private welcomed = false
+  private readonly windowApps = new Map<string, string>()
   private readonly drops = new WeakMap<WebSocket, (code: number, reason: string) => void>()
   removed = false
 
@@ -325,7 +349,9 @@ class Link {
       context.budgetMs,
     )
     try {
-      const value = await this.execute(frame.op, decodeArgs(frame.op, frame.args), context)
+      const args = decodeArgs(frame.op, frame.args)
+      const value = await this.execute(frame.op, args, context)
+      this.working(frame.op, args, value)
       this.answer({ t: "result", id: frame.id, ok: true, value: encodeValue(frame.op, value) })
     } catch (error) {
       this.answer({ t: "result", id: frame.id, ok: false, error: failure(error) })
@@ -334,6 +360,24 @@ class Link {
       this.pending.delete(frame.id)
       if (this.pending.size === 0) this.host.onIdle?.()
     }
+  }
+
+  private working(op: Op, args: unknown, value: unknown): void {
+    const app = this.appOf(op, args, value)
+    if (app !== null) this.host.onWorking?.(app)
+  }
+
+  private appOf(op: Op, args: unknown, value: unknown): string | null {
+    if (op === "act") return openedApp(args)
+    if (op !== "driver") return null
+    const call = args as DriverCall
+    if (call.method === "windows") {
+      for (const window of Array.isArray(value) ? value : []) rememberWindow(this.windowApps, window)
+      return null
+    }
+    if (call.method === "look") return rememberWindow(this.windowApps, record(value)?.window)
+    if (call.method === "act") return this.windowApps.get(call.params.window) ?? null
+    return null
   }
 
   private async execute(op: Op, args: unknown, context: Deadline) {
@@ -414,6 +458,7 @@ class Link {
     for (const deadline of this.pending.values())
       deadline.controller.abort(new Fail({ code: "failed", message: reason }))
     this.pending.clear()
+    this.host.onOffline?.()
   }
 }
 

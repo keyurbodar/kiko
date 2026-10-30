@@ -136,7 +136,7 @@
 
 .run-error-action:disabled {
   cursor: default;
-  opacity: 0.6;
+  opacity: var(--opacity-disabled);
 }
 
 @media (hover: hover) and (pointer: fine) {

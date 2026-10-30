@@ -11,7 +11,7 @@ import { room } from "../state/room"
 import { openChat } from "./history"
 
 const BUTTON =
-  "grid size-9 shrink-0 place-items-center rounded-control text-[var(--text-200)] transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-fill-hover hover:text-[var(--text-000)] active:scale-(--press-scale)"
+  "grid size-9 shrink-0 place-items-center rounded-control text-fg3 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-fill-hover hover:text-fg active:scale-(--press-scale)"
 
 const LINKS: readonly { to: "/files" | "/recipes" | "/customize"; label: string; icon: Glyph }[] = [
   { to: "/files", label: "Files", icon: FolderIcon },
@@ -56,7 +56,7 @@ export function Rail(props: { onExpand: () => void }) {
           <Tip label={link.label}>
             <Link
               to={link.to}
-              class={`${BUTTON} ${pathname().startsWith(link.to) ? "bg-fill-selected text-[var(--text-000)]" : ""}`}
+              class={`${BUTTON} ${pathname().startsWith(link.to) ? "bg-fill-selected text-fg" : ""}`}
               aria-label={link.label}
             >
               <RemixIcon icon={link.icon} size={20} />

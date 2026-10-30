@@ -6,14 +6,14 @@ import { runLink, type Host } from "./connection"
 import { startDriver, type Driver } from "./driver"
 import { helloPayload } from "./hello"
 import { emptyLive, startLive, type Live } from "./live"
+import { createFeed } from "./feed"
 import { createLogger, type Logger } from "./log"
 import { VERSION } from "./platform"
-import { adoptSession, moveToHost } from "./service"
 import { createUpdater, updateTarget, type Updater } from "./update"
 
 const REPAIR_POLL_MS = 30_000
 const ACCESS_POLL_MS = 30_000
-export const WELCOMED = "the worker calls this machine"
+const WELCOMED = "the worker calls this machine"
 
 export async function serve(dir = configDir()): Promise<number> {
   const log = createLogger("kiko-computer", paths(dir).log)
@@ -28,13 +28,8 @@ export async function serve(dir = configDir()): Promise<number> {
     return 1
   }
   await warnOnLooseKey(dir, log)
-  const moved = await moveToHost().catch((error: unknown) => {
-    log.warn(
-      `could not move the service under kiko-computer-host: ${error instanceof Error ? error.message : String(error)}`,
-    )
-    return false
-  })
-  if (moved) log.info("moving the service under kiko-computer-host so macOS permissions survive updates")
+  const feed = createFeed({ state: paths(dir).state, agent: paths(dir).agent })
+  void feed.connected(null)
   let holder: Holder = "agent"
   const setHolder = (next: Holder) => {
     holder = next
@@ -42,7 +37,6 @@ export async function serve(dir = configDir()): Promise<number> {
   }
   const policy = await loadPolicy(dir)
   let live: Live = emptyLive({ logger: log, setHolder })
-  adoptSession()
   let detection = detect(log, policy, dir)
   if (policy.desktop) detection.backend?.requestAccess()
   let driver: Driver | null = null
@@ -66,9 +60,15 @@ export async function serve(dir = configDir()): Promise<number> {
     log,
     onWelcome: (name, version) => {
       log.info(`${WELCOMED} ${name}`)
+      void feed.connected(name)
       update?.offer(version)
     },
-    onIdle: () => update?.idle(),
+    onOffline: () => void feed.connected(null),
+    onWorking: (app) => void feed.working(app),
+    onIdle: () => {
+      void feed.working(null)
+      update?.idle()
+    },
   }
   const link = runLink(host)
   const driverPath = process.env.KIKO_DRIVER
@@ -103,7 +103,7 @@ export async function serve(dir = configDir()): Promise<number> {
     log,
     origin: config.url,
     running: VERSION,
-    target: updateTarget(process.execPath, process.platform, process.env),
+    target: updateTarget(process.env),
     busy: () => link.busy(),
     restart: shutdown,
   })
@@ -209,14 +209,14 @@ function desktopDetail(detection: Detection): string {
 
 function screenFix(): string {
   return process.platform === "darwin"
-    ? "open System Settings > Privacy & Security > Screen Recording and turn on kiko-computer-host"
-    : "allow screen recording for kiko-computer-host"
+    ? "open System Settings > Privacy & Security > Screen Recording and turn on kiko"
+    : "allow screen recording for kiko"
 }
 
 function inputFix(): string {
   return process.platform === "darwin"
-    ? "open System Settings > Privacy & Security > Accessibility and turn on kiko-computer-host"
-    : "allow input control for kiko-computer-host"
+    ? "open System Settings > Privacy & Security > Accessibility and turn on kiko"
+    : "allow input control for kiko"
 }
 
 async function reachable(base: string): Promise<Check> {

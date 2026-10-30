@@ -47,13 +47,13 @@ export const notRunning = (pc: ComputerSummary) =>
 
 const screenDenied = (pc: ComputerSummary): string =>
   pc.os === "macos"
-    ? "macOS has not allowed kiko-computer-host to record the screen. On the Mac, open System Settings > Privacy & Security > Screen Recording and turn on kiko-computer-host."
-    : `${pc.name} has not allowed kiko-computer-host to record its screen.`
+    ? "macOS has not allowed kiko to record the screen. On the Mac, open System Settings > Privacy & Security > Screen Recording and turn on kiko."
+    : `${pc.name} has not allowed kiko to record its screen.`
 
 const inputDenied = (pc: ComputerSummary): string =>
   pc.os === "macos"
-    ? "macOS has not allowed kiko-computer-host to control this Mac. On the Mac, open System Settings > Privacy & Security > Accessibility and turn on kiko-computer-host."
-    : `${pc.name} has not allowed kiko-computer-host to control it.`
+    ? "macOS has not allowed kiko to control this Mac. On the Mac, open System Settings > Privacy & Security > Accessibility and turn on kiko."
+    : `${pc.name} has not allowed kiko to control it.`
 
 const BLOCKED: Readonly<Record<"shell" | "read" | "write" | "look" | "act", string>> = {
   shell: "running commands",

@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 
 use crate::cdp::Link;
 use crate::keys;
+use crate::paint;
 use crate::read::quad_rect;
 use crate::state::{State, split_tab};
 
@@ -125,6 +126,13 @@ async fn click(link: &Link, session: &str, backend: u32, in_frame: bool) -> Resu
 }
 
 async fn trusted_click(link: &Link, session: &str, backend: u32) -> Result<()> {
+    paint::emulate_visible(link, session, true).await?;
+    let clicked = click_box(link, session, backend).await;
+    let restored = paint::emulate_visible(link, session, false).await;
+    clicked.and(restored)
+}
+
+async fn click_box(link: &Link, session: &str, backend: u32) -> Result<()> {
     let _ = link
         .send_to(
             session,
@@ -132,6 +140,7 @@ async fn trusted_click(link: &Link, session: &str, backend: u32) -> Result<()> {
             json!({ "backendNodeId": backend }),
         )
         .await;
+    paint::wait_for_frame(link, session).await?;
     let model = link
         .send_to(
             session,

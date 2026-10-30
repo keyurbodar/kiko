@@ -1,26 +1,33 @@
-import { createEffect, createSignal, on, onCleanup } from "solid-js"
+import { createEffect, createSignal, onCleanup } from "solid-js"
+import type { ChatMessage } from "../lib/types"
 import { seenInChat } from "../lib/errors"
 import { onUserSignal } from "../state/user"
-import type { Failures } from "./needs"
+import { type Failures, failureOf, loadedFor } from "./needs"
 
-export function createFailuresElsewhere(activeId: () => string | null): () => Failures {
+export function createKnownFailures(input: {
+  activeId: () => string | null
+  messages: () => readonly ChatMessage[]
+}): () => Failures {
   const [failures, setFailures] = createSignal<Failures>(new Map())
+  const put = (roomId: string, text: string | undefined) =>
+    setFailures((all) => {
+      if (all.get(roomId) === text) return all
+      const next = new Map(all)
+      if (text === undefined) next.delete(roomId)
+      else next.set(roomId, text)
+      return next
+    })
   const stop = onUserSignal("error", (signal) => {
     const roomId = signal.roomId
-    if (roomId === undefined || seenInChat(roomId, activeId(), document.visibilityState === "visible")) return
-    setFailures((all) => new Map(all).set(roomId, signal.error.message))
+    if (roomId === undefined || seenInChat(roomId, input.activeId(), document.visibilityState === "visible")) return
+    put(roomId, signal.error.message)
   })
   onCleanup(stop)
-  createEffect(
-    on(activeId, (id) => {
-      if (id === null) return
-      setFailures((all) => {
-        if (!all.has(id)) return all
-        const next = new Map(all)
-        next.delete(id)
-        return next
-      })
-    }),
-  )
+  createEffect(() => {
+    const id = input.activeId()
+    const messages = input.messages()
+    if (id === null || !loadedFor(messages, id)) return
+    put(id, failureOf(messages, () => {})?.text)
+  })
   return failures
 }

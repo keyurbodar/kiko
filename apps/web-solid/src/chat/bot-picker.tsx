@@ -72,7 +72,7 @@ export default function BotPicker() {
   }
 
   const rowClass =
-    "flex h-chat-row w-full cursor-pointer items-center gap-3 rounded-row px-3 text-fg outline-none transition-colors duration-[var(--dur-hover)] data-[selected=true]:bg-active hover:bg-hover"
+    "flex h-chat-row w-full cursor-pointer items-center gap-3 rounded-row px-3 text-fg outline-none transition-colors duration-[var(--dur-hover)] data-[selected=true]:bg-active"
   return (
     <Dialog
       open
@@ -154,7 +154,7 @@ export default function BotPicker() {
         <button
           type="button"
           data-action="start-chat"
-          class="h-control shrink-0 cursor-pointer overflow-hidden rounded-control bg-fg px-3 text-label font-medium whitespace-nowrap text-on-fg transition-transform duration-[var(--dur-hover)] active:scale-[0.97] disabled:opacity-50"
+          class="h-control shrink-0 cursor-pointer overflow-hidden rounded-control bg-fg px-3 text-label font-medium whitespace-nowrap text-on-fg transition-transform duration-[var(--dur-hover)] active:scale-[0.97] disabled:opacity-(--opacity-disabled)"
           disabled={!grouping() && !highlighted() && highlight() !== NEW_AGENT}
           onClick={start}
         >

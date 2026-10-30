@@ -47,9 +47,9 @@
   z-index: calc(9999 - var(--toast-index));
   box-sizing: border-box;
   width: 100%;
-  border-radius: var(--radius-pop);
+  border-radius: var(--radius-control);
   color: var(--fg);
-  background: var(--hover);
+  background: var(--popover);
   box-shadow: var(--toast-edge), var(--shadow-float);
   pointer-events: auto;
   user-select: none;
@@ -352,7 +352,7 @@
   font-size: var(--type-hint);
   line-height: 16px;
   color: var(--popover-fg);
-  background: var(--hover);
+  background: var(--popover);
   box-shadow: var(--toast-edge), var(--shadow-float);
   text-wrap: balance;
   pointer-events: none;

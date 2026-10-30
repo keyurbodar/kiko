@@ -388,19 +388,21 @@
   }
 }
 
-[data-slot="glide"] {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 0;
-  border-radius: inherit;
-  background: var(--hover);
-  pointer-events: none;
-  opacity: 1;
-}
+@layer base {
+  [data-slot="glide"] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    border-radius: inherit;
+    background: var(--hover);
+    pointer-events: none;
+    opacity: 1;
+  }
 
-[data-slot="glide"][data-hidden] {
-  opacity: 0;
+  [data-slot="glide"][data-hidden] {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -519,7 +521,7 @@
 
   .composer-dock .composer-send:not(:disabled):not([data-mode="stop"]):hover .composer-send-arrow,
   .composer-dock .composer-send:not(:disabled):not([data-mode="stop"]):focus-visible .composer-send-arrow {
-    transform: translateY(-2px);
+    transform: translateX(-2px);
   }
 
   .reasoning-trigger:hover .reasoning-needle,

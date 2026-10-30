@@ -96,7 +96,55 @@ fn spawn() -> io::Result<Child> {
     }
     let child = command.spawn()?;
     CHILD_PID.store(child.id() as i32, Ordering::SeqCst);
+    #[cfg(windows)]
+    if let Err(error) = keep_in_job(&child) {
+        log::line(format!("kiko-core is not in a kill-on-close job: {error}"));
+    }
     Ok(child)
+}
+
+#[cfg(windows)]
+fn keep_in_job(child: &Child) -> io::Result<()> {
+    use std::ffi::c_void;
+    use std::os::windows::io::AsRawHandle;
+    use std::sync::OnceLock;
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+        SetInformationJobObject,
+    };
+
+    static JOB: OnceLock<usize> = OnceLock::new();
+    let job = match JOB.get() {
+        Some(job) => *job as *mut c_void,
+        None => {
+            let created = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
+            if created.is_null() {
+                return Err(io::Error::last_os_error());
+            }
+            let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { std::mem::zeroed() };
+            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let size = std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32;
+            let set = unsafe {
+                SetInformationJobObject(
+                    created,
+                    JobObjectExtendedLimitInformation,
+                    &limits as *const _ as *const c_void,
+                    size,
+                )
+            };
+            if set == 0 {
+                return Err(io::Error::last_os_error());
+            }
+            let _ = JOB.set(created as usize);
+            created
+        }
+    };
+    let assigned = unsafe { AssignProcessToJobObject(job, child.as_raw_handle()) };
+    if assigned == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
 }
 
 fn forward(child: &mut Child) {

@@ -42,15 +42,33 @@ pub fn run(args: &[String]) -> i32 {
     let _ = log::init(&config::log_file());
     log::line(format!("kiko {} starting", env!("CARGO_PKG_VERSION")));
 
-    match single::acquire(&config::lock_file()) {
-        Ok(Some(_)) => {}
-        Ok(None) => return show_running(),
-        Err(error) => {
-            log::line(format!("single instance lock failed: {error}"));
-            return 1;
-        }
+    match acquire() {
+        Ok(()) => start(),
+        Err(code) => code,
     }
-    start()
+}
+
+fn acquire() -> Result<(), i32> {
+    for _ in 0..SECOND_LAUNCH_TRIES {
+        match single::acquire(&config::lock_file()) {
+            Ok(Some(_)) => return Ok(()),
+            Ok(None) => {
+                if once(Command::Show) {
+                    return Err(0);
+                }
+            }
+            Err(error) => {
+                log::line(format!("single instance lock failed: {error}"));
+                return Err(1);
+            }
+        }
+        thread::sleep(SECOND_LAUNCH_WAIT);
+    }
+    Err(show_running())
+}
+
+fn once(command: Command) -> bool {
+    control::send(&config::control_name(), command).is_ok()
 }
 
 fn start() -> i32 {

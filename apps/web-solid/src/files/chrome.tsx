@@ -8,10 +8,11 @@ export const UNREADABLE = {
   "not-utf8": "This file is not UTF-8 text. Open it in another app to view its contents.",
 } as const
 
-export const SUBHEADER = "flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--line)] px-3"
+export const SUBHEADER =
+  "flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--line)] px-3 in-data-[panel-mode=inline]:mb-3 in-data-[panel-mode=inline]:h-7 in-data-[panel-mode=inline]:min-h-7 in-data-[panel-mode=inline]:border-b-transparent"
 
 export const ACTION =
-  "grid size-[26px] shrink-0 place-items-center rounded-[7px] text-[var(--text-300)] transition-[background-color,color] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg aria-pressed:bg-active aria-pressed:text-fg disabled:opacity-50"
+  "grid size-7 shrink-0 place-items-center rounded-control text-[var(--text-300)] transition-[background-color,color] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg aria-pressed:bg-active aria-pressed:text-fg disabled:opacity-50"
 
 export function SurfaceAction(props: {
   label: string
@@ -37,13 +38,13 @@ export function SurfaceAction(props: {
             data-action={props.action}
             onClick={() => props.onPress?.()}
           >
-            <RemixIcon icon={props.icon} size={16} />
+            <RemixIcon icon={props.icon} class="size-3.5" />
           </button>
         }
       >
         {(href) => (
           <a class={ACTION} href={href()} download={props.download} aria-label={props.label} data-action={props.action}>
-            <RemixIcon icon={props.icon} size={16} />
+            <RemixIcon icon={props.icon} class="size-3.5" />
           </a>
         )}
       </Show>

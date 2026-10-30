@@ -53,7 +53,7 @@ async function runNow(routine: Routine): Promise<boolean> {
 
 const faint = "text-fg4"
 const tool =
-  "grid size-7 shrink-0 place-items-center rounded-row text-fg3 transition-[background-color,transform] duration-[120ms] active:scale-[0.97] hover:bg-hover hover:text-fg disabled:opacity-40"
+  "grid size-7 shrink-0 place-items-center rounded-row text-fg3 transition-[background-color,transform] duration-[120ms] active:scale-[0.97] hover:bg-hover hover:text-fg disabled:opacity-(--opacity-disabled)"
 function Tool(props: {
   label: string
   action: string

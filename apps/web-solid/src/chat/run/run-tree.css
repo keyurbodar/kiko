@@ -1,6 +1,13 @@
 .run-tree {
-  --run-rail: var(--border-300);
+  --run-rail: color-mix(in oklab, var(--fg) 20%, var(--bg));
   --run-inset: 16px;
+  --run-icon: 16px;
+  --run-space: 9px;
+  --run-indent: calc(var(--run-icon) + var(--run-space));
+  --run-row: 30px;
+  --run-stroke: 1.5px;
+  --run-rail-x: calc((var(--run-icon) - var(--run-stroke)) / 2);
+  --run-elbow-gap: 5px;
   display: flex;
   flex-direction: column;
   width: min(calc(100% - 3.5rem), 520px);
@@ -91,8 +98,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  margin-left: 7px;
-  padding-left: 20px;
+  padding-left: var(--run-indent);
 }
 
 .run-tree-item {
@@ -105,8 +111,8 @@
 .run-tree-item::after {
   content: "";
   position: absolute;
-  left: -20px;
-  border-left: 1.5px solid var(--run-rail);
+  left: calc(var(--run-rail-x) - var(--run-indent));
+  border-left: var(--run-stroke) solid var(--run-rail);
   transition: border-color var(--dur-hover) var(--ease-out);
 }
 .run-tree-item::before {
@@ -118,21 +124,24 @@
 }
 .run-tree-item::after {
   top: 0;
-  width: 13px;
-  height: 15px;
-  border-bottom: 1.5px solid var(--run-rail);
+  width: calc(var(--run-indent) - var(--run-rail-x) - var(--run-elbow-gap));
+  height: calc((var(--run-row) + var(--run-stroke)) / 2);
+  border-bottom: var(--run-stroke) solid var(--run-rail);
   border-bottom-left-radius: var(--radius-control);
 }
 .run-tree-item[data-live]::before,
 .run-tree-item[data-hot]::after {
   border-color: var(--text-100);
 }
+.run-tree-item[data-live]::after {
+  border-left-color: var(--text-100);
+}
 
 .run-tree-row {
   display: flex;
   align-items: center;
-  gap: 9px;
-  height: 30px;
+  gap: var(--run-space);
+  height: var(--run-row);
   min-width: 0;
   padding: 0;
   border-radius: var(--radius-tail);
@@ -159,8 +168,8 @@ button.run-tree-row:focus-visible,
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: var(--run-icon);
+  height: var(--run-icon);
 }
 
 .run-tree-label {
@@ -175,7 +184,7 @@ button.run-tree-row:focus-visible,
   color: var(--text-200);
 }
 .run-tree-said-body {
-  margin: 2px 0 6px 24px;
+  margin: 2px 0 6px var(--run-indent);
   color: var(--text-200);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -313,13 +322,13 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   position: relative;
   display: inline-block;
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: var(--run-icon);
+  height: var(--run-icon);
   color: var(--text-100);
 }
 .run-tree-leaves > i {
   position: absolute;
-  inset: 0;
+  inset: 1.5px;
 }
 .run-tree-leaves > i:nth-child(2) {
   transform: rotate(90deg);
@@ -365,7 +374,7 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   min-width: 0;
   flex-direction: column;
   gap: 4px;
-  padding: 2px 0 8px 24px;
+  padding: 2px 0 8px var(--run-indent);
 }
 .run-tree-block {
   display: flex;
@@ -470,7 +479,7 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
 }
 
 .run-tree-thought.thinking-stream {
-  margin: 0 0 6px 25px;
+  margin: 0 0 6px var(--run-indent);
   padding: 0;
   border-left: 0;
   color: var(--text-400);

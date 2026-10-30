@@ -112,4 +112,10 @@ fi
 
 export KIKO_BROWSER_PROFILE_DIRS="$profile_arg"
 export KIKO_E2E_PAGE="$page_url"
-cargo test -p kiko-browser --test e2e -- --ignored --test-threads=1 --nocapture
+status=0
+cargo test -p kiko-browser --test e2e -- --ignored --test-threads=1 --nocapture || status=$?
+if [ "$status" -ne 0 ]; then
+  echo "--- Chrome log ---" >&2
+  tail -100 /tmp/kiko-browser-e2e-chrome.log >&2 || true
+fi
+exit "$status"

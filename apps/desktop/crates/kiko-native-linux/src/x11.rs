@@ -9,53 +9,9 @@ use x11rb::protocol::xproto::{
 };
 use x11rb::protocol::xtest::ConnectionExt as _;
 use x11rb::rust_connection::RustConnection;
+use x11rb::wrapper::ConnectionExt as _;
 
-const MODIFIER_KEYSYMS: &[(&str, u32)] = &[
-    ("ctrl", 0xffe3),
-    ("control", 0xffe3),
-    ("shift", 0xffe1),
-    ("alt", 0xffe9),
-    ("super", 0xffeb),
-    ("meta", 0xffeb),
-    ("win", 0xffeb),
-    ("cmd", 0xffeb),
-];
-
-const NAMED_KEYSYMS: &[(&str, u32)] = &[
-    ("Return", 0xff0d),
-    ("Enter", 0xff8d),
-    ("Tab", 0xff09),
-    ("ISO_Left_Tab", 0xfe20),
-    ("Escape", 0xff1b),
-    ("Esc", 0xff1b),
-    ("BackSpace", 0xff08),
-    ("Delete", 0xffff),
-    ("Insert", 0xff63),
-    ("Home", 0xff50),
-    ("End", 0xff57),
-    ("Page_Up", 0xff55),
-    ("Page_Down", 0xff56),
-    ("Prior", 0xff55),
-    ("Next", 0xff56),
-    ("Left", 0xff51),
-    ("Up", 0xff52),
-    ("Right", 0xff53),
-    ("Down", 0xff54),
-    ("Space", 0x0020),
-    ("Menu", 0xff67),
-    ("F1", 0xffbe),
-    ("F2", 0xffbf),
-    ("F3", 0xffc0),
-    ("F4", 0xffc1),
-    ("F5", 0xffc2),
-    ("F6", 0xffc3),
-    ("F7", 0xffc4),
-    ("F8", 0xffc5),
-    ("F9", 0xffc6),
-    ("F10", 0xffc7),
-    ("F11", 0xffc8),
-    ("F12", 0xffc9),
-];
+use crate::keys;
 
 #[derive(Clone, Debug)]
 pub(crate) struct XWindow {
@@ -103,12 +59,12 @@ impl Snapshot {
 fn score(window: &XWindow, pid: Option<u32>, title: &str, extents: Option<Rect>) -> f64 {
     let mut score = 0.0;
     let candidate = window.title.trim().to_lowercase();
+    if !title.is_empty() && !candidate.is_empty() && !related(&candidate, title) {
+        return 0.0;
+    }
     if !title.is_empty() && candidate == title {
         score += 1000.0;
-    } else if !title.is_empty()
-        && !candidate.is_empty()
-        && (candidate.contains(title) || title.contains(&candidate))
-    {
+    } else if !title.is_empty() && !candidate.is_empty() && related(&candidate, title) {
         score += 400.0;
     }
     if pid.is_some() && window.pid == pid {
@@ -118,6 +74,10 @@ fn score(window: &XWindow, pid: Option<u32>, title: &str, extents: Option<Rect>)
         score += overlap(&window.rect, &extents) * 300.0;
     }
     score
+}
+
+fn related(candidate: &str, title: &str) -> bool {
+    candidate.contains(title) || title.contains(candidate)
 }
 
 fn overlap(a: &Rect, b: &Rect) -> f64 {
@@ -136,8 +96,18 @@ pub(crate) struct X11 {
     root: Window,
     atoms: Atoms,
     redirected: bool,
-    keymap: Option<HashMap<u32, (u8, bool)>>,
+    keymap: Option<Keymap>,
 }
+
+struct Keymap {
+    keysyms: HashMap<u32, (u8, bool)>,
+    spare: Option<u8>,
+    width: u8,
+}
+
+const REMAP_SETTLE: std::time::Duration = std::time::Duration::from_millis(12);
+const WHEEL_STEP: f64 = 50.0;
+const MAX_WHEEL_CLICKS: f64 = 20.0;
 
 struct Atoms {
     client_list: Atom,
@@ -358,22 +328,70 @@ impl X11 {
             .flush()
             .map_err(|error| format!("could not flush X11: {error}"))?;
         for _ in 0..100 {
-            if self.active_window() == Some(xid) {
+            if self.active_window() == Some(xid) && self.focused(xid) {
                 return Ok(());
             }
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
-        Err("the window manager did not activate the window".to_string())
+        Err("the window manager did not activate and focus the window".to_string())
+    }
+
+    fn focused(&self, xid: Window) -> bool {
+        let Some(mut window) = self.input_focus() else {
+            return false;
+        };
+        for _ in 0..16 {
+            if window == xid {
+                return true;
+            }
+            let Some(parent) = self
+                .conn
+                .query_tree(window)
+                .ok()
+                .and_then(|cookie| cookie.reply().ok())
+                .map(|reply| reply.parent)
+            else {
+                return false;
+            };
+            if parent == 0 || parent == self.root {
+                return false;
+            }
+            window = parent;
+        }
+        false
+    }
+
+    fn input_focus(&self) -> Option<Window> {
+        self.conn
+            .get_input_focus()
+            .ok()?
+            .reply()
+            .ok()
+            .map(|reply| reply.focus)
     }
 
     pub fn click(&self, x: f64, y: f64) -> Result<(), String> {
+        self.move_pointer(x, y)?;
+        self.fake_input(x11rb::protocol::xproto::BUTTON_PRESS_EVENT, 1, 0, 0)?;
+        self.fake_input(x11rb::protocol::xproto::BUTTON_RELEASE_EVENT, 1, 0, 0)
+    }
+
+    pub fn scroll(&self, x: f64, y: f64, dx: f64, dy: f64) -> Result<(), String> {
+        self.move_pointer(x, y)?;
+        let (button, distance) = wheel(dx, dy);
+        for _ in 0..wheel_clicks(distance) {
+            self.fake_input(x11rb::protocol::xproto::BUTTON_PRESS_EVENT, button, 0, 0)?;
+            self.fake_input(x11rb::protocol::xproto::BUTTON_RELEASE_EVENT, button, 0, 0)?;
+        }
+        Ok(())
+    }
+
+    pub fn move_pointer(&self, x: f64, y: f64) -> Result<(), String> {
         let (x, y) = (
             x.round().clamp(0.0, 32767.0) as i16,
             y.round().clamp(0.0, 32767.0) as i16,
         );
-        self.fake_input(x11rb::protocol::xproto::MOTION_NOTIFY_EVENT, 0, x, y)?;
-        self.fake_input(x11rb::protocol::xproto::BUTTON_PRESS_EVENT, 1, x, y)?;
-        self.fake_input(x11rb::protocol::xproto::BUTTON_RELEASE_EVENT, 1, x, y)
+        self.fake_input(x11rb::protocol::xproto::MOTION_NOTIFY_EVENT, 0, x, y)
     }
 
     fn fake_input(&self, kind: u8, detail: u8, x: i16, y: i16) -> Result<(), String> {
@@ -399,15 +417,103 @@ impl X11 {
         Ok(())
     }
 
+    pub fn type_text(&mut self, text: &str) -> Result<(), String> {
+        let shift = self
+            .keymap()?
+            .keysyms
+            .get(&keys::SHIFT)
+            .map(|(keycode, _)| *keycode);
+        let mut remapped: Vec<u8> = Vec::new();
+        let mut outcome = Ok(());
+        for character in text.chars() {
+            match self.key_for(keys::character(character), &mut remapped) {
+                Ok((keycode, shifted, remapped_key)) => {
+                    let shift = shift.filter(|_| shifted);
+                    if let Err(error) = self.tap(keycode, shift) {
+                        outcome = Err(error);
+                        break;
+                    }
+                    if remapped_key {
+                        std::thread::sleep(REMAP_SETTLE);
+                    }
+                }
+                Err(error) => {
+                    outcome = Err(error);
+                    break;
+                }
+            }
+        }
+        if !remapped.is_empty() {
+            std::thread::sleep(REMAP_SETTLE);
+        }
+        let restored = self.restore(&remapped);
+        outcome.and(restored)
+    }
+
+    fn tap(&self, keycode: u8, shift: Option<u8>) -> Result<(), String> {
+        if let Some(shift) = shift {
+            self.fake_input(x11rb::protocol::xproto::KEY_PRESS_EVENT, shift, 0, 0)?;
+        }
+        self.fake_input(x11rb::protocol::xproto::KEY_PRESS_EVENT, keycode, 0, 0)?;
+        self.fake_input(x11rb::protocol::xproto::KEY_RELEASE_EVENT, keycode, 0, 0)?;
+        if let Some(shift) = shift {
+            self.fake_input(x11rb::protocol::xproto::KEY_RELEASE_EVENT, shift, 0, 0)?;
+        }
+        Ok(())
+    }
+
+    fn key_for(&mut self, keysym: u32, remapped: &mut Vec<u8>) -> Result<(u8, bool, bool), String> {
+        if let Some((keycode, shifted)) = self.keymap()?.keysyms.get(&keysym).copied() {
+            return Ok((keycode, shifted, false));
+        }
+        let keycode = self
+            .keymap()?
+            .spare
+            .ok_or_else(|| "the keyboard has no spare keycode for this character".to_string())?;
+        self.remap(keycode, &[keysym])?;
+        std::thread::sleep(REMAP_SETTLE);
+        remapped.push(keycode);
+        Ok((keycode, false, true))
+    }
+
+    fn remap(&mut self, keycode: u8, keysyms: &[u32]) -> Result<(), String> {
+        let width = usize::from(self.keymap()?.width).max(1);
+        let mut values = vec![0u32; width];
+        for (slot, keysym) in values.iter_mut().zip(keysyms) {
+            *slot = *keysym;
+        }
+        self.conn
+            .change_keyboard_mapping(1, keycode, u8::try_from(width).unwrap_or(u8::MAX), &values)
+            .map_err(|error| format!("could not remap a key: {error}"))?
+            .check()
+            .map_err(|error| format!("could not remap a key: {error}"))?;
+        self.conn
+            .sync()
+            .map_err(|error| format!("could not flush the keyboard map: {error}"))
+    }
+
+    fn restore(&mut self, keycodes: &[u8]) -> Result<(), String> {
+        let mut outcome = Ok(());
+        for keycode in keycodes {
+            if let Err(error) = self.remap(*keycode, &[]) {
+                outcome = Err(error);
+            }
+        }
+        if !keycodes.is_empty() {
+            let _ = self.conn.sync();
+        }
+        outcome
+    }
+
     fn strokes(&mut self, spec: &str) -> Result<Vec<Stroke>, String> {
-        let map = self.keymap()?;
-        let shift = lookup(map, 0xffe1).map(|(keycode, _)| keycode);
+        let map = &self.keymap()?.keysyms;
+        let shift = lookup(map, keys::SHIFT).map(|(keycode, _)| keycode);
         let mut strokes = Vec::new();
         for combo in spec.split_whitespace() {
             let mut modifiers = Vec::new();
             let mut key = None;
             for token in combo.split('+').filter(|token| !token.is_empty()) {
-                match modifier_keysym(token) {
+                match keys::modifier(token) {
                     Some(keysym) => {
                         let (keycode, _) = lookup(map, keysym)
                             .ok_or_else(|| format!("the keyboard has no {token} key"))?;
@@ -434,7 +540,7 @@ impl X11 {
         Ok(strokes)
     }
 
-    fn keymap(&mut self) -> Result<&HashMap<u32, (u8, bool)>, String> {
+    fn keymap(&mut self) -> Result<&Keymap, String> {
         if self.keymap.is_none() {
             self.keymap = Some(self.build_keymap()?);
         }
@@ -443,7 +549,7 @@ impl X11 {
             .ok_or_else(|| "keyboard map is unavailable".to_string())
     }
 
-    fn build_keymap(&self) -> Result<HashMap<u32, (u8, bool)>, String> {
+    fn build_keymap(&self) -> Result<Keymap, String> {
         let setup = self.conn.setup();
         let first = setup.min_keycode;
         let count = setup.max_keycode.saturating_sub(first).saturating_add(1);
@@ -454,17 +560,41 @@ impl X11 {
             .reply()
             .map_err(|error| format!("could not read the keyboard map: {error}"))?;
         let width = usize::from(reply.keysyms_per_keycode).max(1);
-        let mut map = HashMap::new();
-        for (index, keysyms) in reply.keysyms.chunks(width).enumerate() {
+        let mut keysyms = HashMap::new();
+        let mut spare = None;
+        for (index, row) in reply.keysyms.chunks(width).enumerate() {
             let keycode = first.saturating_add(index as u8);
-            for (level, keysym) in keysyms.iter().enumerate() {
+            let mut used = false;
+            for (level, keysym) in row.iter().enumerate() {
                 if *keysym != 0 {
-                    map.entry(*keysym).or_insert((keycode, level % 2 == 1));
+                    used = true;
+                    keysyms.entry(*keysym).or_insert((keycode, level % 2 == 1));
                 }
             }
+            if !used && spare.is_none() {
+                spare = Some(keycode);
+            }
         }
-        Ok(map)
+        Ok(Keymap {
+            keysyms,
+            spare,
+            width: u8::try_from(width).unwrap_or(u8::MAX),
+        })
     }
+}
+
+fn wheel(dx: f64, dy: f64) -> (u8, f64) {
+    if dy.abs() >= dx.abs() && dy.abs() > f64::EPSILON {
+        (if dy < 0.0 { 4 } else { 5 }, dy.abs())
+    } else if dx.abs() > f64::EPSILON {
+        (if dx < 0.0 { 6 } else { 7 }, dx.abs())
+    } else {
+        (5, 0.0)
+    }
+}
+
+fn wheel_clicks(distance: f64) -> u8 {
+    (distance / WHEEL_STEP).round().clamp(1.0, MAX_WHEEL_CLICKS) as u8
 }
 
 struct Stroke {
@@ -472,23 +602,8 @@ struct Stroke {
     key: u8,
 }
 
-fn modifier_keysym(token: &str) -> Option<u32> {
-    let token = token.to_lowercase();
-    MODIFIER_KEYSYMS
-        .iter()
-        .find(|(name, _)| *name == token)
-        .map(|(_, keysym)| *keysym)
-}
-
-fn named_keysym(token: &str) -> Option<u32> {
-    NAMED_KEYSYMS
-        .iter()
-        .find(|(name, _)| *name == token)
-        .map(|(_, keysym)| *keysym)
-}
-
 fn lookup_key(map: &HashMap<u32, (u8, bool)>, token: &str) -> Result<(u8, bool), String> {
-    if let Some(keysym) = named_keysym(token) {
+    if let Some(keysym) = keys::named(token) {
         return lookup(map, keysym).ok_or_else(|| format!("the keyboard has no {token} key"));
     }
     let mut chars = token.chars();

@@ -23,7 +23,7 @@ export function NewRecipe() {
         New recipe
       </MenuV2.Trigger>
       <MenuV2.Portal>
-        <MenuV2.Content class="w-70 rounded-pop">
+        <MenuV2.Content class="w-70">
           <MenuV2.Item class={item} data-action="create-with-kiko" onSelect={createWithKiko}>
             <Choice title="Create with Kiko" hint="Describe it in a chat" />
           </MenuV2.Item>

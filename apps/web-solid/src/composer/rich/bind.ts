@@ -1,7 +1,9 @@
 import { createEffect, on, onCleanup } from "solid-js"
 import type { PromptInputV2Interaction } from "../prompt-input/interaction"
+import type { PromptInputV2Attachment } from "../prompt-input/types"
 import { composingKey, enterIsNewline } from "../ime"
 import { chipView, type ChipSource, fileRefView, tokenView } from "../prompt-input/chip"
+import { droppedChips } from "../prompt-input/placement"
 import { PASTED_TEXT } from "../prompt-input/preview"
 import { pastedComposerFragment, prepareClipboardFiles } from "./clipboard"
 import { mountRichEditor, type RichEditor } from "./editor"
@@ -68,11 +70,9 @@ export function bindRich(input: {
     chip: chipView(source),
     fileRef: fileRefView(source),
     onChange: ({ markdown: text, plain, cursor }) => {
-      controller.onInput(
-        plain,
-        [{ type: "text", content: text, start: 0, end: text.length }, ...controller.attachments()],
-        cursor,
-      )
+      const gone = new Set(droppedChips(markdown(), text))
+      const images: PromptInputV2Attachment[] = controller.attachments().filter((part) => !gone.has(part.id))
+      controller.onInput(plain, [{ type: "text", content: text, start: 0, end: text.length }, ...images], cursor)
       input.onEdit()
       input.shortcodes.sync()
     },

@@ -22,7 +22,7 @@
     bottom: 3px;
     left: 0;
     background: var(--active);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-tail);
     pointer-events: none;
   }
 
@@ -38,7 +38,7 @@
     white-space: nowrap;
     background: transparent;
     border: 0;
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-tail);
     cursor: pointer;
     outline: none;
     transition:
@@ -57,7 +57,7 @@
   }
 
   [data-slot="segmented-item"]:disabled {
-    opacity: 0.6;
+    opacity: var(--opacity-disabled);
     cursor: not-allowed;
   }
 

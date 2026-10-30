@@ -48,7 +48,7 @@ export function Button(
 }
 
 export const iconButtonClass = cn(
-  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-row text-[var(--fg2)] transition-[background-color,color,transform] duration-[var(--dur-hover)] ease-[var(--ease-out)] enabled:hover:bg-[var(--hover)] enabled:hover:text-fg enabled:active:scale-[0.94] disabled:cursor-not-allowed disabled:opacity-60",
+  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-row text-[var(--fg2)] transition-[background-color,color,transform] duration-[var(--dur-hover)] ease-[var(--ease-out)] enabled:hover:bg-[var(--hover)] enabled:hover:text-fg enabled:active:scale-[0.94] disabled:cursor-not-allowed disabled:opacity-(--opacity-disabled)",
   focus,
 )
 
@@ -310,7 +310,7 @@ export function Slider(props: {
 }): JSX.Element {
   const fill = () => `${((props.value - props.min) / (props.max - props.min || 1)) * 100}%`
   return (
-    <div class="flex w-56 max-w-full items-center gap-3" classList={{ "opacity-50": props.disabled }}>
+    <div class="flex w-56 max-w-full items-center gap-3" classList={{ "opacity-(--opacity-disabled)": props.disabled }}>
       <output class="kit-value">{props.display}</output>
       <input
         type="range"
