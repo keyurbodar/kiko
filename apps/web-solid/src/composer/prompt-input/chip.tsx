@@ -12,7 +12,7 @@ import {
   SearchIcon,
   SkillsIcon,
 } from "@kiko/ui/icons"
-import { isImage, saveFile } from "../../lib/attachments"
+import { saveFile } from "../../lib/attachments"
 import { formatBytes } from "../../chat/info/format"
 import { isTextFile, readText } from "../../files/api"
 import { HOME, inHome, strip } from "../../files/model"
@@ -27,6 +27,7 @@ import type { ChipView, FileRefView, TokenView } from "../rich/nodes"
 import { middleTruncate } from "../rich/nodes"
 import type { Token } from "../tokens"
 import type { PromptInputV2Attachment } from "./types"
+import { tileLook } from "./preview"
 
 export type ChipSource = {
   attachments: () => PromptInputV2Attachment[]
@@ -185,10 +186,11 @@ export const fileRefView =
 
 function Chip(props: { id: string; name: string; source: ChipSource }) {
   const part = () => props.source.attachments().find((p) => p.id === props.id)
-  const image = () => {
+  const look = () => {
     const p = part()
-    return !!p && isImage({ name: p.filename, type: p.mime })
+    return p ? tileLook(p) : "type"
   }
+  const pictured = () => look() === "image" || look() === "video"
   const upload = () => uploadState(props.id)
   const meta = () => {
     const u = upload()
@@ -206,15 +208,15 @@ function Chip(props: { id: string; name: string; source: ChipSource }) {
     const p = part()
     if (!p) return
     if (upload()?.status === "failed") return retryUpload(props.id)
-    if (image()) return props.source.openAttachment(p)
+    if (look() === "image") return props.source.openAttachment(p)
     saveFile(p.blob.url, p.filename)
   }
   return (
     <button
       type="button"
-      class="token-chip"
+      class="composer-attach-chip"
       data-component="composer-chip"
-      data-kind={image() ? "image" : "file"}
+      data-kind={pictured() ? "image" : "file"}
       data-state={upload()?.status}
       data-missing={part() ? undefined : ""}
       title={upload()?.status === "failed" ? (upload() as { reason: string }).reason : `${props.name}, ${meta()}`}
@@ -223,16 +225,33 @@ function Chip(props: { id: string; name: string; source: ChipSource }) {
       onMouseDown={(event) => event.preventDefault()}
       onClick={open}
     >
-      {image() ? (
-        <img class="token-chip-thumb" src={part()!.blob.url} alt="" draggable={false} />
-      ) : (
-        <TypeIcon type={fileType({ name: props.name, type: part()?.mime ?? "" })} size={16} />
-      )}
-      <span class="token-chip-label">{middleTruncate(props.name, 28)}</span>
-      <span class="token-chip-meta">{meta()}</span>
-      <Show when={upload()?.status === "uploading"}>
-        <span class="token-chip-fill" aria-hidden="true" />
+      <Show
+        when={pictured() && upload()?.status !== "uploading"}
+        fallback={
+          <Show
+            when={upload()?.status === "uploading"}
+            fallback={<TypeIcon type={fileType({ name: props.name, type: part()?.mime ?? "" })} size={14} />}
+          >
+            <span class="composer-attach-ring" aria-hidden="true" />
+          </Show>
+        }
+      >
+        <Show
+          when={look() === "video"}
+          fallback={<img class="composer-attach-thumb" src={part()!.blob.url} alt="" draggable={false} />}
+        >
+          <video
+            class="composer-attach-thumb"
+            src={`${part()!.blob.url}#t=0.1`}
+            muted
+            playsinline
+            preload="metadata"
+            aria-hidden="true"
+          />
+        </Show>
       </Show>
+      <span class="composer-attach-name">{middleTruncate(props.name, 28)}</span>
+      <span class="composer-attach-size">{meta()}</span>
     </button>
   )
 }

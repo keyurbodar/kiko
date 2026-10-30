@@ -36,7 +36,6 @@ const jobs = new Map<string, Job>()
 const queue: Job[] = []
 let active = 0
 
-const newId = () => crypto.randomUUID()
 const base = (job: Job) => `/api/files/${job.roomId}/pending/${job.pendingId}`
 
 function set(id: string, state: UploadState | undefined) {
@@ -191,7 +190,7 @@ function stop(job: Job) {
 
 export function startUpload(id: string, roomId: string, file: Blob, name: string, type: string): void {
   if (jobs.has(id)) return
-  const job: Job = { id, roomId, file, name, type, pendingId: newId(), cancelled: false, abort: null, sent: false }
+  const job: Job = { id, roomId, file, name, type, pendingId: id, cancelled: false, abort: null, sent: false }
   jobs.set(id, job)
   queue.push(job)
   set(id, { status: "uploading", loaded: 0, total: file.size })

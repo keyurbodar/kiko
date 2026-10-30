@@ -26,9 +26,11 @@ import { Text } from "@tiptap/extension-text"
 import { UndoRedo } from "@tiptap/extensions"
 import { chainCommands, newlineInCode, setBlockType, splitBlock, splitBlockKeepMarks } from "@tiptap/pm/commands"
 import { keymap } from "@tiptap/pm/keymap"
-import { Fragment, Slice, type Node as PMNode, type NodeType } from "@tiptap/pm/model"
-import { EditorState, NodeSelection, Plugin, Selection, TextSelection, type Command } from "@tiptap/pm/state"
+import { Fragment, Slice, type MarkType, type Node as PMNode, type NodeType } from "@tiptap/pm/model"
+import { EditorState, NodeSelection, Plugin, PluginKey, Selection, TextSelection, type Command } from "@tiptap/pm/state"
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view"
+import { isMac } from "../../lib/platform"
+import { caretTakesMarksBefore, stepCaretAcrossStyledEdge } from "./styled-edge"
 import {
   backspaceAcrossList,
   bulletItemToTask,
@@ -206,29 +208,59 @@ function styledRanges(doc: PMNode): { from: number; to: number; text: string }[]
   return ranges
 }
 
+function decorationsForSelection(state: EditorState): DecorationSet {
+  const { from, to, empty } = state.selection
+  const caretSide = caretTakesMarksBefore(state) ? 3 : 0
+  const widgets: Decoration[] = []
+  for (const range of styledRanges(state.doc)) {
+    const on = empty ? from >= range.from && from <= range.to : from < range.to && to > range.from
+    if (!on) continue
+    for (const [at, baseSide] of [
+      [range.from, -1],
+      [range.to, 1],
+    ] as const) {
+      const side = empty && at === from ? baseSide + caretSide : baseSide
+      const mark = document.createElement("span")
+      mark.className = "composer-rich-marker"
+      mark.textContent = range.text
+      mark.setAttribute("aria-hidden", "true")
+      widgets.push(Decoration.widget(at, mark, { side, key: `marker-${at}-${side}-${range.text}` }))
+    }
+  }
+  return DecorationSet.create(state.doc, widgets)
+}
+
+const markerKey = new PluginKey<DecorationSet>("composerRichMarkers")
+
 const markers = new Plugin({
+  key: markerKey,
+  state: {
+    init: (_, state) => decorationsForSelection(state),
+    apply: (transaction, previous, _old, state) =>
+      transaction.docChanged || transaction.selectionSet || transaction.storedMarksSet
+        ? decorationsForSelection(state)
+        : previous,
+  },
   props: {
-    decorations(state) {
-      const { from, to, empty } = state.selection
-      const widgets: Decoration[] = []
-      for (const range of styledRanges(state.doc)) {
-        const on = empty ? from >= range.from && from <= range.to : from < range.to && to > range.from
-        if (!on) continue
-        for (const [at, side] of [
-          [range.from, -1],
-          [range.to, 1],
-        ] as const) {
-          const mark = document.createElement("span")
-          mark.className = "composer-rich-marker"
-          mark.textContent = range.text
-          mark.setAttribute("aria-hidden", "true")
-          widgets.push(Decoration.widget(at, mark, { side, key: `${at}${side}${range.text}` }))
-        }
-      }
-      return DecorationSet.create(state.doc, widgets)
-    },
+    decorations: (state) => markerKey.getState(state) ?? null,
   },
 })
+
+function codeInputRule(type: MarkType): InputRule {
+  const rule = markInputRule({ find: /(^|[^`])`([^`]*[^`\s][^`]*)`(?!`)$/, type })
+  return new InputRule({
+    find: rule.find,
+    undoable: false,
+    handler: (props) => {
+      const result = rule.handler(props)
+      const { tr } = props.state
+      const { $from } = tr.selection
+      if (result !== null && tr.selection.empty && $from.nodeBefore?.marks.some((mark) => mark.type === type))
+        tr.setStoredMarks($from.nodeAfter?.marks ?? [])
+      return result
+    },
+  })
+}
 
 const leaveHeading: Command = (state, dispatch) =>
   state.selection.$from.parent.type.name === "heading" && splitBlock(state, dispatch)
@@ -244,6 +276,82 @@ const newline: Command = (state, dispatch) =>
   leaveEmptyQuote(state, dispatch) ||
   leaveHeading(state, dispatch) ||
   splitBlockKeepMarks(state, dispatch)
+
+const ARROWS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"])
+
+function moveAlongLine(view: EditorView, event: KeyboardEvent): boolean {
+  const boundary = event.metaKey
+    ? event.key === "ArrowLeft" || event.key === "ArrowRight"
+      ? "lineboundary"
+      : event.key === "ArrowUp" || event.key === "ArrowDown"
+        ? "documentboundary"
+        : null
+    : event.key === "Home" || event.key === "End"
+      ? "lineboundary"
+      : null
+  if (!isMac || !boundary || event.altKey || event.ctrlKey || event.isComposing) return false
+  const selection = window.getSelection()
+  if (
+    !selection?.anchorNode ||
+    !selection.focusNode ||
+    !view.dom.contains(selection.anchorNode) ||
+    typeof selection.modify !== "function"
+  )
+    return false
+  event.preventDefault()
+  const backward = event.key === "Home" || event.key === "ArrowUp" || event.key === "ArrowLeft"
+  selection.modify(event.shiftKey ? "extend" : "move", backward ? "backward" : "forward", boundary)
+  if (!selection.anchorNode || !selection.focusNode) return true
+  const tr = view.state.tr.setSelection(
+    TextSelection.create(
+      view.state.doc,
+      view.posAtDOM(selection.anchorNode, selection.anchorOffset),
+      view.posAtDOM(selection.focusNode, selection.focusOffset),
+    ),
+  )
+  if (tr.selection.empty) {
+    const { $head } = tr.selection
+    tr.setStoredMarks((backward ? $head.nodeBefore : $head.nodeAfter)?.marks ?? [])
+  }
+  view.dispatch(tr.scrollIntoView())
+  return true
+}
+
+function stepAcrossStyledEdges(view: EditorView, event: KeyboardEvent): boolean {
+  if (
+    !ARROWS.has(event.key) ||
+    event.shiftKey ||
+    event.altKey ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.isComposing ||
+    !view.state.selection.empty
+  )
+    return false
+  const { $from } = view.state.selection
+  const direction = event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 1
+  const horizontal = event.key === "ArrowLeft" || event.key === "ArrowRight"
+  const atDocumentEdge =
+    $from.pos ===
+    (direction === -1 ? TextSelection.atStart(view.state.doc).from : TextSelection.atEnd(view.state.doc).to)
+  const step = horizontal || atDocumentEdge ? stepCaretAcrossStyledEdge(view.state, direction) : null
+  if (step) {
+    event.preventDefault()
+    view.dispatch(step)
+    return true
+  }
+  const adjacent = direction === -1 ? $from.nodeBefore : $from.nodeAfter
+  if (horizontal && adjacent && CHIP_NODES.has(adjacent.type.name)) {
+    event.preventDefault()
+    view.dispatch(
+      view.state.tr
+        .setSelection(TextSelection.create(view.state.doc, $from.pos + direction * adjacent.nodeSize))
+        .scrollIntoView(),
+    )
+    return true
+  }
+  return false
+}
 
 export function mountRichEditor(options: RichOptions) {
   let previousKind: ChangeKind | null = null
@@ -287,7 +395,7 @@ export function mountRichEditor(options: RichOptions) {
         excludes: "code",
         exitable: false,
         addInputRules() {
-          return [markInputRule({ find: /(^|[^`])`([^`]*[^`\s][^`]*)`(?!`)$/, type: this.type })]
+          return [codeInputRule(this.type)]
         },
       }),
       Blockquote.extend({
@@ -372,6 +480,7 @@ export function mountRichEditor(options: RichOptions) {
         cut: (view, event) => copySelection(view, event, true),
       },
       handleKeyDown: (view, event) => {
+        if (moveAlongLine(view, event) || stepAcrossStyledEdges(view, event)) return true
         if (event.key === "Tab" && !event.metaKey && !event.ctrlKey && !event.altKey) {
           if (indentInCode(view.state, event.shiftKey, view.dispatch)) {
             event.preventDefault()

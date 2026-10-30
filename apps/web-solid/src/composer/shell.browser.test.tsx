@@ -44,7 +44,11 @@ function shellParts(root: HTMLElement) {
 }
 
 function expectEdgeless(root: HTMLElement) {
-  for (const part of shellParts(root)) expect(edges(part)).toEqual(EDGELESS)
+  for (const part of shellParts(root).slice(1)) expect(edges(part)).toEqual(EDGELESS)
+}
+
+function ring(element: Element) {
+  return getComputedStyle(element).boxShadow.replace(/\s+/g, " ")
 }
 
 function inTheme(dark: boolean, check: () => void) {
@@ -59,7 +63,7 @@ function inTheme(dark: boolean, check: () => void) {
 }
 
 describe("composer shell", () => {
-  it("reads as a fill with no edge, idle, focused and editing", async () => {
+  it("reads as a fill with a quiet ring that brightens on focus", async () => {
     room.followRoute(() => ROOM)
     await using screen = await render(() => (
       <div class="composer-dock" data-component="composer-dock">
@@ -74,6 +78,7 @@ describe("composer shell", () => {
       let fill = ""
       inTheme(dark, () => {
         expectEdgeless(screen.container)
+        expect(ring(box)).toMatch(/0px 0px 0px 1px inset$/)
         fill = getComputedStyle(box).backgroundColor
         expect(fill).toBe(resolvedColor("background", "--raise"))
       })
@@ -82,7 +87,7 @@ describe("composer shell", () => {
     expect(new Set(fills).size).toBe(2)
 
     await userEvent.click(input)
-    for (const dark of [true, false]) inTheme(dark, () => expectEdgeless(screen.container))
+    await expect.poll(() => ring(box)).toMatch(/0px 0px 0px 1px inset, .* 0px 0px 0px 3px$/)
 
     box.setAttribute("data-editing", "")
     for (const dark of [true, false]) inTheme(dark, () => expectEdgeless(screen.container))
