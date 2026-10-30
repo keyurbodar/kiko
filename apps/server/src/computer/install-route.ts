@@ -29,7 +29,7 @@ async function computerRelease(env: Env): Promise<ComputerRelease | null> {
 }
 
 const SH_HELPERS = `say() { printf '%s\\n' "$*"; }
-step() { step=$((step + 1)); printf 'kiko: [%s/%s] %s\\n' "$step" "$steps" "$*"; }
+step() { step=$((\${step:-0} + 1)); printf 'kiko: [%s/%s] %s\\n' "$step" "$steps" "$*"; }
 die() { printf 'kiko: %s\\n' "$*" >&2; exit 1; }
 
 download() {

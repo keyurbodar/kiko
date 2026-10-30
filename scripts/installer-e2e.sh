@@ -8,6 +8,7 @@ site="$(mktemp -d)"
 origin="http://127.0.0.1:$port"
 pair="$origin/pc#e2e"
 os="$(uname -s)"
+shell="${KIKO_E2E_SHELL:-sh}"
 server=""
 
 fail() {
@@ -134,7 +135,7 @@ server=$!
 wait_until 100 curl -fsS "$origin/install.sh" || fail "the release site did not come up on $origin"
 
 echo "running the installer"
-sh "$site/install.sh" "$pair"
+"$shell" "$site/install.sh" "$pair"
 
 wait_until 150 kiko_running || fail "kiko is not running after the install"
 app_pid="$(pgrep -x kiko | head -1)"
@@ -143,7 +144,7 @@ check_driver
 if [ "$os" = Darwin ]; then check_mac; else check_linux; fi
 
 echo "running the installer again"
-again="$(sh "$site/install.sh" 2>&1)"
+again="$("$shell" "$site/install.sh" 2>&1)"
 case "$again" in
   *"is already installed"*) ;;
   *) fail "a rerun did not skip the download: $again" ;;
@@ -153,7 +154,7 @@ check_child
 
 echo "installing a newer version over the running app"
 bun "$root/scripts/installer-e2e.ts" write "$assets" "$site" "$port" "$(bun "$root/scripts/installer-e2e.ts" version)-e2e"
-sh "$site/install.sh"
+"$shell" "$site/install.sh"
 wait_until 150 kiko_running || fail "kiko is not running after the update"
 [ "$(pgrep -x kiko | head -1)" != "$app_pid" ] || fail "the update did not restart the app"
 check_child
