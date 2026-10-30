@@ -1,6 +1,6 @@
 import type { RunStep } from "@kiko/protocol"
 import { describe, expect, it } from "vitest"
-import { elapsed, helperLanes, helperTitle, nestedLanes, startedLabel } from "./helper-model"
+import { elapsed, helperLanes, helperTitle, nestedLanes } from "./helper-model"
 
 let counter = 0
 
@@ -137,11 +137,6 @@ describe("helper wording", () => {
     expect(helperTitle(hero.task)).toBe("Try 3 hero layouts for…")
     expect(helperTitle("Check copy.")).toBe("Check copy")
     expect(helperTitle("  Write the README\nthen ship it")).toBe("Write the README")
-  })
-
-  it("counts helpers in the lane header", () => {
-    expect(startedLabel(1)).toBe("Started a helper")
-    expect(startedLabel(3)).toBe("Started 3 helpers")
   })
 
   it("formats elapsed time", () => {

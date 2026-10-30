@@ -125,37 +125,30 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .thinking-live {
-    animation: thinking-slide 220ms var(--ease-kiko) backwards;
+    animation: thinking-slide 160ms var(--ease-kiko) backwards;
   }
   .thinking-live.motion-shine {
     animation:
-      thinking-slide 220ms var(--ease-kiko) backwards,
+      thinking-slide 160ms var(--ease-kiko) backwards,
       motion-shine var(--dur-shimmer) steps(30) infinite;
     animation-play-state: running, var(--visible-animation-state, paused);
   }
-  .thinking-stream[data-streaming] > * {
-    transition: opacity 600ms ease-out;
-
-    @starting-style {
-      opacity: 0;
-    }
-  }
   .thinking-leaving {
     visibility: visible;
-    animation: thinking-leave 220ms var(--ease-kiko) forwards;
+    animation: thinking-leave 160ms var(--ease-kiko) forwards;
   }
 }
 
 @keyframes thinking-leave {
   to {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(-100%);
   }
 }
 
 @keyframes thinking-slide {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(100%);
   }
 }

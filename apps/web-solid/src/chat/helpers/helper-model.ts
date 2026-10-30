@@ -88,8 +88,6 @@ export function elapsed(ms: number): string {
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
 }
 
-export const startedLabel = (count: number): string => (count === 1 ? "Started a helper" : `Started ${count} helpers`)
-
 export function nestedLanes(lanes: readonly HelperLane[], busy: (slug: string) => boolean): HelperLane[] {
   const newest = new Map<string, HelperLane>()
   for (const lane of lanes) {

@@ -58,7 +58,6 @@ export type WorkState = {
   endedAt?: number
   detail: DetailStatus
   known?: RunSummary
-  lanes?: boolean
 }
 
 export const isLive = (steps: readonly Pick<RunStep, "status">[], working: boolean): boolean =>
@@ -175,7 +174,7 @@ const startedHelper = (step: RunStep) => step.name === "start_work"
 
 export function workLogOf(steps: readonly RunStep[], state: WorkState): WorkLog {
   const live = isLive(steps, state.working)
-  const own = state.lanes ? steps.filter((step) => !step.worker && !startedHelper(step)) : steps
+  const own = steps.some((step) => step.worker) ? steps.filter((step) => !startedHelper(step)) : steps
   if (live) return { live, items: itemsOf(own, state.detail) }
   const count = Math.max(state.count ?? 0, steps.length)
   if (count === 0) return { live, items: [] }
