@@ -49,14 +49,14 @@ const MOBILE_MAX = 480
 const SUB_LABEL: Record<SubKind, string> = {
   files: "Kiko files",
   skills: "Skills",
-  apps: "Apps",
+  apps: "Connectors",
   mention: "Mention someone",
 }
 
 const SUB_FOOTER: Record<SubKind, string | undefined> = {
   files: undefined,
   skills: "Manage skills",
-  apps: "Connect an app",
+  apps: "Manage connectors",
   mention: undefined,
 }
 
@@ -237,7 +237,7 @@ export function PlusMenu(props: PlusMenuProps) {
     { kind: "action", id: "upload", label: "Upload or add files", hint: "⌘U", icon: UploadIcon, run: props.onAddFiles },
     { kind: "sub", id: "kiko-files", label: "Kiko files", icon: FolderIcon, sub: "files" },
     { kind: "sub", id: "skills", label: "Skills", icon: SkillsIcon, sub: "skills" },
-    { kind: "sub", id: "apps", label: "Apps", icon: GridIcon, sub: "apps" },
+    { kind: "sub", id: "apps", label: "Connectors", icon: GridIcon, sub: "apps" },
     { kind: "rule", id: "rule" },
     { kind: "sub", id: "mention", label: "Mention someone", icon: AtIcon, sub: "mention" },
   ])

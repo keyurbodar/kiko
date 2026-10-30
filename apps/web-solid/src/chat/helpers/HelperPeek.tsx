@@ -8,8 +8,8 @@ import { Shine } from "../run/Shine"
 import { iconOf, liveLabel } from "../run/run-log"
 import { helperSurface, openSurface } from "../side/surfaces"
 import { elapsed, type HelperLane } from "./helper-model"
-import { isGroupChat } from "./HelperLanes"
 import { Snowflake } from "./Snowflake"
+import { isGroupChat } from "./group-chat"
 import "./helpers.css"
 
 function Tabs(props: { chatId: string; lanes: readonly HelperLane[]; active: string }) {

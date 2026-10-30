@@ -13,7 +13,7 @@ import { render } from "../../test/render"
 import { closeDesk, deskShown, toggleDesk } from "../chat/side/surfaces"
 import { room } from "../state/room"
 import { Shell } from "./shell"
-import { defaultWidth, INFO, RAIL, SIDEBAR } from "./widths"
+import { CHAT_MIN, defaultWidth, INFO, RAIL, SIDEBAR } from "./widths"
 
 const ROOM = "01900000-0000-7000-8000-000000000001"
 
@@ -85,7 +85,7 @@ describe("shell", () => {
     await using screen = await render(() => <RouterProvider router={router} />)
 
     await expect.poll(() => width(screen.container, "sidebar-panel")).toBe(defaultWidth(SIDEBAR))
-    expect(Math.max(0, width(screen.container, "sidecar-column"))).toBe(0)
+    expect(screen.container.querySelector('[data-component="right-panel-host"]')).toBeNull()
   })
 
   it("slides the chat column between the rail and the sidebar without a jump", async () => {
@@ -140,7 +140,7 @@ describe("shell", () => {
     expect(screen.container.querySelector('[data-component="sidebar-rail"]')).toBeNull()
   })
 
-  it("opens the right panel at its default width once the owner has opened it", async () => {
+  it("opens the right panel inline beside the chat column at its default width", async () => {
     await page.viewport(1440, 900)
     localStorage.clear()
     if (!deskShown()) toggleDesk()
@@ -148,8 +148,29 @@ describe("shell", () => {
     const router = firstSignIn()
     await using screen = await render(() => <RouterProvider router={router} />)
 
-    await expect.poll(() => width(screen.container, "sidecar-column")).toBe(defaultWidth(INFO))
+    await expect.poll(() => width(screen.container, "right-panel-host")).toBe(defaultWidth(INFO))
+    const host = screen.container.querySelector<HTMLElement>('[data-component="right-panel-host"]')!
+    expect(host.parentElement?.dataset.component).toBe("workspace-row")
+    expect(host.previousElementSibling?.getAttribute("data-component")).toBe("main-column")
     expect(width(screen.container, "sidebar-panel")).toBe(defaultWidth(SIDEBAR))
+    expect(screen.container.querySelector('[data-component="sidecar-overlay"]')).toBeNull()
+    expect(screen.container.querySelector('[data-component="sidecar-scrim"]')).toBeNull()
+  })
+
+  it("docks a wide right panel beside the chat instead of floating it over a dimmed chat", async () => {
+    await page.viewport(1100, 800)
+    localStorage.clear()
+    localStorage.setItem(INFO.key, "1000")
+    if (!deskShown()) toggleDesk()
+    room.followRoute(() => ROOM)
+    const router = firstSignIn()
+    await using screen = await render(() => <RouterProvider router={router} />)
+
+    await expect.poll(() => width(screen.container, "main-column")).toBe(CHAT_MIN)
+    expect(screen.container.querySelector('[data-component="sidecar-overlay"]')).toBeNull()
+    expect(screen.container.querySelector('[data-component="sidecar-scrim"]')).toBeNull()
+    expect(width(screen.container, "sidebar-panel")).toBe(defaultWidth(SIDEBAR))
+    expect(width(screen.container, "right-panel-host")).toBe(1100 - defaultWidth(SIDEBAR) - CHAT_MIN)
   })
 
   it("maximizes the right panel over the chat column and leaves the sidebar width alone", async () => {
@@ -160,17 +181,49 @@ describe("shell", () => {
     const router = firstSignIn()
     await using screen = await render(() => <RouterProvider router={router} />)
 
-    await expect.poll(() => width(screen.container, "sidecar-column")).toBe(defaultWidth(INFO))
+    await expect.poll(() => width(screen.container, "right-panel-host")).toBe(defaultWidth(INFO))
     const sidebar = width(screen.container, "sidebar-panel")
-    const maximize = () => screen.container.querySelector<HTMLElement>('[data-action="toggle-panel-max"]')
-    await expect.element(screen.getByRole("button", { name: "Maximize panel" })).toBeVisible()
-    maximize()!.click()
+    await screen.getByRole("button", { name: "Maximize panel" }).click()
 
-    const overlay = () =>
-      screen.container.querySelector<HTMLElement>('[data-component="sidecar-overlay"][data-mode="max"]')
-    await expect.poll(() => overlay() !== null).toBe(true)
+    await expect.poll(() => width(screen.container, "right-panel-host")).toBe(1440 - sidebar)
     expect(width(screen.container, "sidebar-panel")).toBe(sidebar)
-    expect(Math.round(overlay()!.getBoundingClientRect().left)).toBe(sidebar)
-    expect(Math.round(overlay()!.getBoundingClientRect().width)).toBe(1440 - sidebar)
+    expect(width(screen.container, "main-column")).toBe(0)
+    expect(screen.container.querySelector('[data-component="main-column"]')!.hasAttribute("inert")).toBe(true)
+    expect(screen.container.querySelector('[data-component="sidecar-overlay"]')).toBeNull()
+
+    await screen.getByRole("button", { name: "Restore panel" }).click()
+    await expect.poll(() => width(screen.container, "right-panel-host")).toBe(defaultWidth(INFO))
+    expect(screen.container.querySelector('[data-component="main-column"]')!.hasAttribute("inert")).toBe(false)
+  })
+
+  it("resizes the right panel from its left edge and remembers the width", async () => {
+    await page.viewport(1440, 900)
+    localStorage.clear()
+    if (!deskShown()) toggleDesk()
+    room.followRoute(() => ROOM)
+    const router = firstSignIn()
+    await using screen = await render(() => <RouterProvider router={router} />)
+
+    await expect.poll(() => width(screen.container, "right-panel-host")).toBe(defaultWidth(INFO))
+    const handle = screen.container.querySelector<HTMLElement>('[data-component="sidecar-resize"]')!
+    handle.focus()
+    handle.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }))
+    handle.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }))
+
+    await expect.poll(() => width(screen.container, "right-panel-host")).toBe(defaultWidth(INFO) + 32)
+    expect(localStorage.getItem(INFO.key)).toBe(String(defaultWidth(INFO) + 32))
+    expect(width(screen.container, "sidebar-panel")).toBe(defaultWidth(SIDEBAR))
+  })
+
+  it("shows the right panel as a sheet at 980px and below", async () => {
+    await page.viewport(960, 800)
+    localStorage.clear()
+    room.followRoute(() => ROOM)
+    const router = firstSignIn()
+    await using screen = await render(() => <RouterProvider router={router} />)
+
+    await screen.getByRole("button", { name: "Files" }).first().click()
+    await expect.poll(() => screen.container.querySelector('[data-component="sidecar-overlay"]') !== null).toBe(true)
+    expect(screen.container.querySelector('[data-component="right-panel-host"]')).toBeNull()
   })
 })

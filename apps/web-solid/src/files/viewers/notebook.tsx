@@ -99,7 +99,7 @@ function CellView(props: { cell: Cell; index: number; language: string }): JSX.E
           {label()} {props.index + 1}
         </span>
         <Show when={props.cell.executionCount !== null}>
-          <span class="tabular-nums">In [{props.cell.executionCount}]</span>
+          <span>In [{props.cell.executionCount}]</span>
         </Show>
       </div>
       <Show when={props.cell.kind === "markdown"}>
@@ -176,7 +176,7 @@ export default function NotebookViewer(props: { name: string; src: string; size:
         {(loaded) => (
           <div class="flex min-h-0 flex-1 flex-col" data-component="file-notebook">
             <div class="flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--border-100)] px-3 text-hint text-fg3">
-              <span class="flex-1 tabular-nums">
+              <span class="flex-1">
                 {loaded().cells.length.toLocaleString()} cells, {loaded().language}
               </span>
             </div>

@@ -13,15 +13,16 @@
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  padding: 6px 10px;
-  gap: 8px;
+  padding: 4px 8px;
+  gap: 6px;
 
   background: var(--tooltip-bg);
-  box-shadow: var(--shadow-pop);
-  border-radius: var(--radius-control);
+  border: 1px solid var(--tooltip-edge);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+  border-radius: 7px;
 
   font-style: normal;
-  font-weight: 500;
+  font-weight: 400;
   font-size: 12px;
   line-height: 16px;
   color: var(--tooltip-fg);
@@ -45,7 +46,7 @@
 }
 
 [data-component="tooltip-v2"] [data-component="keybind-v2"] [data-slot="keybind-v2-key"] {
-  background: color-mix(in oklab, var(--on-fg) 12%, transparent);
+  background: transparent;
 }
 
 [data-component="tooltip-v2"] [data-component="keybind-v2"] [data-slot="keybind-v2-label"] {

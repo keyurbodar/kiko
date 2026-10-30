@@ -91,7 +91,6 @@
   color: var(--fg3);
   font-size: var(--type-caption);
   font-weight: 500;
-  font-variant-numeric: tabular-nums;
 }
 .question-check {
   width: 16px;

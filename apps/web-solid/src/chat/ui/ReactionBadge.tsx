@@ -39,7 +39,7 @@ export function ReactionStack(props: ReactionStackProps) {
             >
               <span class="font-emoji text-[17px] leading-none">{reaction.emoji}</span>
               <Show when={reaction.count > 1}>
-                <span class="ml-[3px] text-hint font-medium tabular-nums">{reaction.count}</span>
+                <span class="ml-[3px] text-hint font-medium">{reaction.count}</span>
               </Show>
             </button>
           )}

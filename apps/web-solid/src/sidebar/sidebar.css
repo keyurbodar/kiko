@@ -167,18 +167,6 @@
   font-size: var(--type-hint);
   line-height: var(--type-hint-line);
   white-space: nowrap;
-  opacity: 0;
-  transition: opacity var(--dur-hover) var(--ease-kiko);
-}
-
-.sidebar-shell .nav-row:focus-visible .nav-kbd {
-  opacity: 1;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .sidebar-shell .nav-row:hover .nav-kbd {
-    opacity: 1;
-  }
 }
 
 @media (pointer: coarse) {
@@ -781,7 +769,6 @@
   color: var(--fg4);
   font-size: var(--type-hint);
   line-height: var(--type-hint-line);
-  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 

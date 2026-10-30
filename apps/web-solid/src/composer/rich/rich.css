@@ -26,7 +26,6 @@
 
 .composer-dock .composer-input ol > li[data-marker]::marker {
   content: attr(data-marker) " ";
-  font-variant-numeric: tabular-nums;
 }
 
 .composer-dock .composer-input ul ul {

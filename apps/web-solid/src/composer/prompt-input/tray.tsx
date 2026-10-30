@@ -79,7 +79,8 @@ function Tile(props: {
   onExpand: () => void
 }) {
   const upload = () => uploadState(props.part.id)
-  const look = () => tileLook(props.part)
+  const [broken, setBroken] = createSignal(false)
+  const look = () => (broken() ? "type" : tileLook(props.part))
   const pictured = () => look() !== "type"
   const pasted = () => props.part.filename === PASTED_TEXT
   const failed = () => upload()?.status === "failed"
@@ -125,7 +126,7 @@ function Tile(props: {
               <FileFace name={props.part.filename} mime={props.part.mime} size={props.part.size} failed={failed()} />
             }
           >
-            <TileThumb part={props.part} />
+            <TileThumb part={props.part} onBroken={() => setBroken(true)} />
             <Show when={uploading()}>
               <span class="tray-ring" aria-hidden="true" />
             </Show>

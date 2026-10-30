@@ -129,7 +129,7 @@ export default function DateCalendar(props: {
                               <Calendar.CellTrigger
                                 class={cn(
                                   "chat-calendar__day mx-auto grid size-9 place-items-center rounded-full p-0",
-                                  "tabular-nums cursor-pointer",
+                                  "cursor-pointer",
                                   "not-data-disabled:hover:bg-[oklch(from_var(--fg)_l_c_h_/_6%)]",
                                   "active:not-data-disabled:scale-[0.92]",
                                   "data-disabled:text-fg2 data-disabled:opacity-45",

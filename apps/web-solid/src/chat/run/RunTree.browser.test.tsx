@@ -122,7 +122,7 @@ function authored(selector: string, property: string): string {
 }
 
 describe("RunTree", () => {
-  it("shows a live run's rows in order, with the running step marked", async () => {
+  it("shows a live run's rows in order under a tally of its steps, with the running step marked", async () => {
     fake.steps = [
       step("ls", { startedAt: START }),
       step("cat", { startedAt: START + 4_000 }),
@@ -133,7 +133,7 @@ describe("RunTree", () => {
 
     await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(3))
     expect(labels(screen.container)).toEqual(["Ran ls", "Ran cat", "Running split.py"])
-    expect(head(screen.container).textContent).toContain("Running split.py")
+    expect(head(screen.container).querySelector(".run-tree-summary")?.textContent).toBe("Ran 3 commands")
     const running = rows(screen.container)[2]!
     expect(running.querySelector('[data-component="mochi"]')).not.toBeNull()
     expect(running.hasAttribute("data-running")).toBe(true)
@@ -282,38 +282,24 @@ describe("RunTree", () => {
     await vi.waitFor(() => expect(tip()?.textContent).toContain(fullTimeLabel(START)))
   })
 
-  it("shows helpers as private lanes and keeps them out of the step rows", async () => {
+  it("hangs a helper off the tree as a branch with its steps under it", async () => {
     fake.live = false
     const worker = { id: "w1", task: "Try 3 hero layouts" }
     fake.steps = [
       step("plain", { after: 15, startedAt: START }),
       step("inner", { after: 15, startedAt: START + 1_000, worker }),
     ]
-    fake.helpers = [
-      {
-        id: "w1",
-        slug: "kiko",
-        window: "kiko#15",
-        task: worker.task,
-        title: "Try 3 hero layouts",
-        state: "done",
-        line: "Ran inner",
-        startedAt: START + 1_000,
-        endedAt: START + 5_000,
-        count: 1,
-        steps: [],
-      },
-    ]
     await using screen = await render(() => <RunTree windowKey="kiko#15" count={2} />)
     screen.container.querySelector<HTMLElement>(".run-tree-head")!.click()
 
-    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(1))
-    expect(rows(screen.container)[0]!.getAttribute("data-kind")).toBe("step")
-    const lanes = screen.container.querySelector('[data-component="helper-lanes"]')!
-    expect(lanes.textContent).toContain("Started a helper")
-    expect(lanes.textContent).toContain("Private to")
-    expect(lanes.querySelectorAll('[data-component="helper-lane"]')).toHaveLength(1)
-    fake.helpers = []
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(2))
+    expect(rows(screen.container).map((row) => row.getAttribute("data-kind"))).toEqual(["step", "worker"])
+    expect(rows(screen.container)[1]!.textContent).toContain("Try 3 hero layouts")
+    expect(screen.container.querySelector('[data-component="helper-lanes"]')).toBeNull()
+    rows(screen.container)[1]!.click()
+    await vi.waitFor(() =>
+      expect(screen.container.querySelectorAll(".run-tree-children > .run-tree-item")).toHaveLength(1),
+    )
   })
 
   it("hangs every step off a 30px row with a 13 by 15 elbow and a 1.5px rail", async () => {
@@ -482,5 +468,8 @@ describe("RunTree", () => {
     const order = [...helper.children]
     expect(order.indexOf(chevron)).toBeLessThan(order.indexOf(meta.parentElement!))
     expect(meta.textContent).toBe("5s")
+
+    const clock = screen.container.querySelector(".run-tree-head .run-tree-clock")!
+    expect(Math.round(clock.getBoundingClientRect().right)).toBe(Math.round(meta.getBoundingClientRect().right))
   })
 })

@@ -29,6 +29,8 @@ function plainPreview(markdown: string): string {
     .trim()
 }
 
+type Preview = { at: number; text: string }
+
 function latestMatch(text: string, pattern: RegExp): { index: number; value: string } | undefined {
   let found: { index: number; value: string } | undefined
   for (const match of text.matchAll(pattern)) found = { index: match.index, value: match[1] ?? "" }
@@ -43,20 +45,18 @@ function latestLead(markdown: string): { index: number; value: string } | undefi
   return heading.index > bold.index ? heading : bold
 }
 
-function lastSentence(markdown: string): string {
+function lastSentence(markdown: string): Preview {
   const plain = plainPreview(markdown)
-  const ends = Array.from(plain.matchAll(/[.!?]+["'”’)]?/g))
+  const ends = Array.from(plain.matchAll(/[.!?]+["'”’)]?/g)).map((end) => end.index + end[0].length)
   const last = ends.at(-1)
-  if (!last) return plain
-  const end = last.index + last[0].length
-  if (end < plain.length) return plain.slice(end).trim()
-  const previous = ends.at(-2)
-  return previous ? plain.slice(previous.index + previous[0].length).trim() : plain
+  if (last === undefined) return { at: 0, text: plain }
+  const start = ends.at(-2) ?? 0
+  return { at: start, text: plain.slice(start, last).trim() }
 }
 
-function thoughtPreview(markdown: string): string {
+export function thoughtPreview(markdown: string): Preview {
   const lead = latestLead(markdown)
-  return lead ? plainPreview(lead.value) : lastSentence(markdown)
+  return lead ? { at: -1 - lead.index, text: plainPreview(lead.value) } : lastSentence(markdown)
 }
 
 function remembered(): boolean {
@@ -145,15 +145,17 @@ function Chevron(props: { open: boolean }): JSX.Element {
   )
 }
 
-function Caption(props: { text: string; running: boolean }): JSX.Element {
+function Caption(props: { text: string; at?: number; running: boolean }): JSX.Element {
   const [leaving, setLeaving] = createSignal<string>()
+  let shown = props.text
   createEffect(
     on(
-      () => props.text,
-      (_, previous) => setLeaving(previous && !matchMedia(REDUCED_MOTION).matches ? previous : undefined),
+      () => props.at,
+      () => setLeaving(shown && !matchMedia(REDUCED_MOTION).matches ? shown : undefined),
       { defer: true },
     ),
   )
+  createEffect(() => (shown = props.text))
   return (
     <span class="thinking-caption">
       <Show when={leaving()} keyed>
@@ -163,12 +165,10 @@ function Caption(props: { text: string; running: boolean }): JSX.Element {
           </span>
         )}
       </Show>
-      <Show when={props.text} keyed>
-        {(text) => (
-          <Shine running={props.running} class="thinking-live">
-            {text}
-          </Shine>
-        )}
+      <Show when={`${props.at ?? 0}`} keyed>
+        <Shine running={props.running} class="thinking-live">
+          {props.text}
+        </Shine>
       </Show>
     </span>
   )
@@ -184,7 +184,8 @@ export function ThinkingLine(props: { thought: Thought | undefined; fallback: st
     const thought = live()
     return thought !== undefined && thought.openSince !== null && text() !== ""
   }
-  const caption = () => (text() ? thoughtPreview(text()) || "Thinking" : props.fallback)
+  const preview = createMemo(() => thoughtPreview(text()))
+  const caption = () => preview().text || "Thinking"
   const [open, setOpen] = createSignal(remembered())
   const now = useNow(() => !!live() || props.since !== undefined)
   const toggle = () => {
@@ -207,7 +208,7 @@ export function ThinkingLine(props: { thought: Thought | undefined; fallback: st
       >
         <button type="button" class="thinking-row thinking-toggle" aria-expanded={open()} onClick={toggle}>
           <Mochi size={20} />
-          <Caption text={caption()} running={thinking()} />
+          <Caption text={caption()} at={preview().at} running={thinking()} />
           <Show when={thinking()}>
             <span class="thinking-time">{took(thoughtMs(live()!, now()))}</span>
           </Show>

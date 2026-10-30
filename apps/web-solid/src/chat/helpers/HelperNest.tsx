@@ -2,7 +2,7 @@ import { For, Show } from "solid-js"
 import { room } from "../../state/room"
 import { helperSurface, openSurface } from "../side/surfaces"
 import { helperWord } from "./helper-model"
-import { isGroupChat } from "./HelperLanes"
+import { isGroupChat } from "./group-chat"
 import { Snowflake } from "./Snowflake"
 import "./helpers.css"
 

@@ -162,7 +162,7 @@ export default function PdfViewer(props: { src: string; title: string }): JSX.El
   return (
     <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-component="file-pdf">
       <div class="flex h-10 min-h-10 shrink-0 items-center gap-1 border-b border-[var(--border-100)] px-2 text-hint text-fg3">
-        <span class="mr-auto px-1 tabular-nums" aria-live="polite">
+        <span class="mr-auto px-1" aria-live="polite">
           {doc() ? `Page ${current() + 1} of ${pageCount()}` : "PDF"}
         </span>
         <SurfaceAction
@@ -186,9 +186,7 @@ export default function PdfViewer(props: { src: string; title: string }): JSX.El
           disabled={scale() <= PDF_MIN_ZOOM}
           onPress={() => changeZoom(stepPdfZoom(scale(), -1))}
         />
-        <span class="min-w-14 text-center tabular-nums">
-          {zoom() === null ? "Fit width" : `${Math.round(scale() * 100)}%`}
-        </span>
+        <span class="min-w-14 text-center">{zoom() === null ? "Fit width" : `${Math.round(scale() * 100)}%`}</span>
         <SurfaceAction
           label="Zoom in"
           icon={PlusIcon}

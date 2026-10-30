@@ -165,7 +165,7 @@ export function VirtualTable(props: VirtualTableProps): JSX.Element {
                   >
                     <div
                       role={props.source ? undefined : "rowheader"}
-                      class="sticky left-0 z-10 shrink-0 border-r border-[var(--line)] bg-panel px-2 text-right text-fg3 tabular-nums select-none"
+                      class="sticky left-0 z-10 shrink-0 border-r border-[var(--line)] bg-panel px-2 text-right text-fg3 select-none"
                       style={{ width: `${ROW_NUMBER}px`, "line-height": `${ROW_HEIGHT}px` }}
                       data-row-number={index + 1}
                     >

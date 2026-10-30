@@ -264,7 +264,7 @@ describe("typing row gutter", () => {
     expect(Math.abs(left(liveHead()) - left(finishedHead()))).toBeLessThanOrEqual(0.5)
   })
 
-  it("shows a live helper once, as its lane, without the step that started it", async () => {
+  it("shows a live helper once, as a branch, without the step that started it", async () => {
     fake.live = true
     fake.liveAfter = 1
     fake.folded = false
@@ -274,13 +274,12 @@ describe("typing row gutter", () => {
     await using screen = await render(() => <TypingIndicator typists={["kiko"]} seeds={["kiko"]} />)
 
     const labels = () => [...screen.container.querySelectorAll(".run-tree-label")].map((row) => row.textContent)
-    await vi.waitFor(() => expect(screen.container.querySelector('[data-component="helper-lanes"]')).not.toBeNull())
+    const helpers = () => screen.container.querySelectorAll('.run-tree-row[data-kind="worker"]')
+    await vi.waitFor(() => expect(helpers()).toHaveLength(1))
     expect(labels()).not.toContain("Started background work")
-    expect(screen.container.querySelectorAll('[data-component="helper-lanes"]')).toHaveLength(1)
-    expect(screen.container.querySelectorAll('[data-component="helper-lane"]')).toHaveLength(1)
   })
 
-  it("shows a finished helper once, as its lane, without the step that started it", async () => {
+  it("shows a finished helper once, as a branch, without the step that started it", async () => {
     fake.live = false
     fake.folded = true
     fake.helpers = [{ ...lane, window: "kiko#4", state: "done", endedAt: START + 4_000 }]
@@ -300,8 +299,8 @@ describe("typing row gutter", () => {
 
     await vi.waitFor(() => expect(head()).not.toBeNull())
     head().click()
-    await vi.waitFor(() => expect(screen.container.querySelector('[data-component="helper-lanes"]')).not.toBeNull())
+    const helpers = () => screen.container.querySelectorAll('.run-tree-row[data-kind="worker"]')
+    await vi.waitFor(() => expect(helpers()).toHaveLength(1))
     expect(labels()).not.toContain("Started background work")
-    expect(screen.container.querySelectorAll('[data-component="helper-lane"]')).toHaveLength(1)
   })
 })

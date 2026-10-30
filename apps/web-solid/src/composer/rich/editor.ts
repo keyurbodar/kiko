@@ -651,8 +651,10 @@ export function mountRichEditor(options: RichOptions) {
       const { view } = editor
       const tr = view.state.tr
       view.state.doc.descendants((node, pos) => {
-        if (node.type.name === "attachment" && node.attrs.id === id)
-          tr.delete(tr.mapping.map(pos), tr.mapping.map(pos + node.nodeSize))
+        if (node.type.name !== "attachment" || node.attrs.id !== id) return
+        const end = pos + node.nodeSize
+        const spaced = view.state.doc.textBetween(end, Math.min(end + 1, view.state.doc.content.size)) === " "
+        tr.delete(tr.mapping.map(pos), tr.mapping.map(spaced ? end + 1 : end))
       })
       if (tr.docChanged) view.dispatch(tr)
     },

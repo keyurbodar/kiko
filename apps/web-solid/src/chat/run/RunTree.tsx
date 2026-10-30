@@ -22,7 +22,6 @@ import { room } from "../../state/room"
 import { filledParts, partMs, type Thought, type ThoughtPart } from "../../state/thoughts"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { findFile } from "../ui/find-file"
-import { HelperLanes } from "../helpers/HelperLanes"
 import { Mochi } from "../ui/Mochi"
 import { ThoughtStream } from "../thinking/Thinking"
 import { durationLabel, elapsedLabel, fullTimeLabel } from "./duration"
@@ -60,8 +59,8 @@ const FRESH_MS = 1_200
 const COPIED_MS = 1_200
 const LINE_LIMIT = 200
 const CROSSFADE_MS = 300
-const FIRST_DELAY_MS = 90
-const STAGGER_MS = 65
+const FIRST_DELAY_MS = 0
+const STAGGER_MS = 30
 
 const PILL =
   "cursor-pointer rounded-row bg-fill px-2.5 py-0.5 text-fg transition-transform hover:bg-fill-hover active:scale-[0.97]"
@@ -112,7 +111,7 @@ const fresh = (at: number | undefined, now: number) => at !== undefined && now -
 
 const secondsLabel = (ms: number) => `${Math.max(1, Math.round(ms / 1_000))}s`
 
-const delayOf = (freshRow: boolean, order: number) => (freshRow ? FIRST_DELAY_MS + Math.min(order, 8) * STAGGER_MS : 0)
+const delayOf = (freshRow: boolean, order: number) => (freshRow ? FIRST_DELAY_MS + Math.min(order, 4) * STAGGER_MS : 0)
 
 const retriedIn = (step: StepItem, steps: readonly RunStep[]) => {
   const raw = steps.find((entry) => entry.id === step.id)
@@ -733,14 +732,8 @@ export function RunTree(props: {
     onCleanup(() => clearInterval(clock))
   })
 
-  const lanes = createMemo(() => {
-    const keys = new Set(windows().map((window) => window.key))
-    return room.helpers().filter((lane) => keys.has(lane.window))
-  })
-
   const log = createMemo(() =>
     workLogOf(steps(), {
-      lanes: lanes().length > 0,
       working: working(),
       count: total(),
       endedAt: props.endedAt,
@@ -795,16 +788,6 @@ export function RunTree(props: {
     return worker?.kind === "worker" ? worker.steps.findIndex((step) => step.id === child) : -1
   })
 
-  const liveText = createMemo(() => {
-    const top = path().top
-    const item = log().items.find((entry) => entry.id === top)
-    if (!item) return "Working"
-    if (item.kind === "note") return item.text
-    if (item.kind === "step") return item.label
-    const child = runningChild(item)
-    return child ? `${item.label}: ${child.label}` : item.label
-  })
-
   const runs = createMemo(() => {
     const out: { slug: string; runId: string }[] = []
     for (const window of windows()) {
@@ -826,6 +809,16 @@ export function RunTree(props: {
     return held.sort((a, b) => a.startedAt - b.startedAt)
   })
 
+  const thinkingNow = createMemo(() => {
+    if (!live() || path().top !== undefined) return false
+    const newest = parts().at(-1)
+    if (!newest || newest.spentMs > 0) return false
+    const lastItem = log().items.at(-1)
+    return lastItem === undefined || newest.startedAt >= lastItem.startedAt
+  })
+
+  const liveLabel = createMemo(() => (thinkingNow() ? "Thinking" : summaryText(groupSummary(steps())) || "Working"))
+
   const handoff = untrack(() => {
     const found = room.runEnd(openKey())
     if (!found || untrack(live)) return undefined
@@ -845,7 +838,7 @@ export function RunTree(props: {
       live,
       (isLive, wasLive) => {
         if (isLive || !wasLive) return
-        setCrossFrom(untrack(summary) || untrack(liveText))
+        setCrossFrom(untrack(summary) || untrack(liveLabel))
         setSettling(true)
         setOpen(openKey(), false)
         clearTimeout(settleTimer)
@@ -947,7 +940,7 @@ export function RunTree(props: {
       <Head
         live={live()}
         settling={settling()}
-        label={liveText()}
+        label={liveLabel()}
         summary={crossFrom()}
         worked={worked()}
         clock={clock()}
@@ -966,7 +959,6 @@ export function RunTree(props: {
           <div>{body()}</div>
         </div>
       </Show>
-      <HelperLanes lanes={lanes()} now={now()} />
     </div>
   )
 }

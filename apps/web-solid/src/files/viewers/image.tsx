@@ -99,7 +99,7 @@ export default function ImageViewer(props: { src: string; name: string; onError?
   return (
     <div class="flex min-h-0 min-w-0 flex-1 flex-col" data-component="file-image">
       <div class="flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--border-100)] px-3 text-hint text-fg3">
-        <span class="min-w-0 flex-1 truncate tabular-nums" role="status">
+        <span class="min-w-0 flex-1 truncate" role="status">
           {natural().width
             ? `${natural().width.toLocaleString()} × ${natural().height.toLocaleString()}`
             : "Loading image…"}
@@ -111,7 +111,7 @@ export default function ImageViewer(props: { src: string; name: string; onError?
           disabled={!natural().width || scale() <= 0.05}
           onPress={() => change(stepZoom(scale(), -1))}
         />
-        <span class="min-w-10 text-center tabular-nums" data-component="image-zoom-chip">
+        <span class="min-w-10 text-center" data-component="image-zoom-chip">
           {Math.round(scale() * 100)}%
         </span>
         <SurfaceAction

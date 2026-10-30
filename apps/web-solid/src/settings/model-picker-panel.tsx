@@ -339,18 +339,28 @@ export default function ModelPickerPanel(props: {
     const trigger = props.trigger()
     if (!trigger) return
     const form = trigger.closest(".composer-form")
-    const r = (form ?? trigger).getBoundingClientRect()
-    const anchor = form ? { top: r.top, bottom: r.bottom, left: r.left + 18, right: r.right } : r
-    setPlace(
-      placePanel(
-        anchor,
-        PANEL_W,
-        PANEL_H,
-        { width: window.innerWidth, height: window.innerHeight },
-        form ? "above" : "below",
-        form ? "start" : "end",
-      ),
-    )
+    const measure = () => {
+      const r = (form ?? trigger).getBoundingClientRect()
+      const anchor = form ? { top: r.top, bottom: r.bottom, left: r.left + 18, right: r.right } : r
+      setPlace(
+        placePanel(
+          anchor,
+          PANEL_W,
+          PANEL_H,
+          { width: window.innerWidth, height: window.innerHeight },
+          form ? "above" : "below",
+          form ? "start" : "end",
+        ),
+      )
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(form ?? trigger)
+    window.addEventListener("resize", measure)
+    onCleanup(() => {
+      observer.disconnect()
+      window.removeEventListener("resize", measure)
+    })
   })
   createEffect(() => {
     const outside = (e: PointerEvent) => {

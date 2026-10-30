@@ -48,6 +48,15 @@ describe("groupSummary", () => {
     expect(summaryText(groupSummary(steps))).toBe("Started 1 helper")
   })
 
+  it("does not count the call that started a helper as a tool of its own", () => {
+    const worker = { id: "w1", task: "Trains helper" }
+    const steps = [
+      step("spawn", { tool: "other", name: "start_work", label: "Started Trains helper" }),
+      step("a", { worker, label: "Read timetable" }),
+    ]
+    expect(summaryText(groupSummary(steps))).toBe("Started 1 helper")
+  })
+
   it("counts distinct edited paths once", () => {
     const steps = [
       step("a", { tool: "edit", name: "edit", label: "Edited /src/app.tsx" }),
@@ -113,20 +122,22 @@ describe("mergeThoughtRows", () => {
   })
 })
 
-describe("workLogOf lanes", () => {
+describe("workLogOf helpers", () => {
   const worker = { id: "w1", task: "handoff probe" }
   const steps = [
     step("start", { name: "start_work", label: "Started background work" }),
     step("inner", { worker, label: "Used slow tool", startedAt: START + 1_000 }),
   ]
 
-  it("leaves out the step that started a helper once its lane is drawn", () => {
-    const items = workLogOf(steps, { working: false, detail: "ready", lanes: true }).items
-    expect(items.some((item) => item.kind === "step" && item.label === "Started background work")).toBe(false)
+  it("draws a helper as a branch with its own steps instead of the step that started it", () => {
+    const items = workLogOf(steps, { working: false, detail: "ready" }).items
+    expect(items.map((item) => item.kind)).toEqual(["worker"])
+    const helper = items[0]
+    expect(helper?.kind === "worker" && helper.steps.map((child) => child.label)).toEqual(["Used slow tool"])
   })
 
-  it("keeps the step that started a helper while its lane is not drawn", () => {
-    const items = workLogOf(steps, { working: false, detail: "ready", lanes: false }).items
+  it("keeps the step that started a helper before the helper has done anything", () => {
+    const items = workLogOf(steps.slice(0, 1), { working: false, detail: "ready" }).items
     expect(items.some((item) => item.kind === "step" && item.label === "Started background work")).toBe(true)
   })
 })
