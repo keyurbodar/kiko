@@ -1,6 +1,6 @@
 .run-tree {
   --run-rail: var(--border-300);
-  --run-inset: 14px;
+  --run-inset: 16px;
   display: flex;
   flex-direction: column;
   width: min(calc(100% - 3.5rem), 520px);
