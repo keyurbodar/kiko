@@ -7,6 +7,7 @@ import { helloPayload } from "./hello"
 import { emptyLive, startLive, type Live } from "./live"
 import { createLogger, type Logger } from "./log"
 import { VERSION } from "./platform"
+import { adoptSession, moveToHost } from "./service"
 import { createUpdater, updateTarget, type Updater } from "./update"
 
 const REPAIR_POLL_MS = 30_000
@@ -26,6 +27,13 @@ export async function serve(dir = configDir()): Promise<number> {
     return 1
   }
   await warnOnLooseKey(dir, log)
+  const moved = await moveToHost().catch((error: unknown) => {
+    log.warn(
+      `could not move the service under kiko-computer-host: ${error instanceof Error ? error.message : String(error)}`,
+    )
+    return false
+  })
+  if (moved) log.info("moving the service under kiko-computer-host so macOS permissions survive updates")
   let holder: Holder = "agent"
   const setHolder = (next: Holder) => {
     holder = next
@@ -33,7 +41,8 @@ export async function serve(dir = configDir()): Promise<number> {
   }
   const policy = await loadPolicy(dir)
   let live: Live = emptyLive({ logger: log, setHolder })
-  let detection = detect(log, policy)
+  adoptSession()
+  let detection = detect(log, policy, dir)
   if (policy.desktop) detection.backend?.requestAccess()
   let update: Updater | null = null
   const host: Host = {
@@ -68,9 +77,12 @@ export async function serve(dir = configDir()): Promise<number> {
       display: () => detection.displays[0],
       configDir: dir,
     })
+    if (!live.live) detection = { ...detection, caps: { ...detection.caps, live: false } }
   }
   const point = (next: Detection) => {
-    if (next.desktop) next.desktop.pointer = (x, y) => live.agentCursor(x, y)
+    if (!next.desktop) return
+    next.desktop.pointer = (x, y) => live.agentCursor(x, y)
+    next.desktop.holder = () => holder
   }
   point(detection)
   const shutdown = () => {

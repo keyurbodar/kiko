@@ -141,6 +141,8 @@ export function windowsDesk(): Backend | null {
         throw new Fail({ code: "failed", message: `${target}: ${reason(error)}` })
       }
     },
-    close() {},
+    close() {
+      native.release()
+    },
   }
 }

@@ -4,6 +4,7 @@ import { createBackend } from "./desk"
 import { Desktop } from "./desktop"
 import type { Logger } from "./log"
 import type { LiveCaps } from "./live"
+import { findBinary } from "./live/binary"
 
 export type Detection = {
   backend: Backend | null
@@ -14,8 +15,13 @@ export type Detection = {
   reason: string | null
 }
 
-function hasFfmpeg(): boolean {
-  return Bun.which("ffmpeg") !== null
+const FFMPEG_NOTE =
+  process.platform === "darwin"
+    ? "the live view needs ffmpeg on this computer: brew install ffmpeg"
+    : "the live view needs ffmpeg on this computer"
+
+function hasFfmpeg(configDir?: string): boolean {
+  return findBinary("ffmpeg", configDir) !== null
 }
 
 function capsFor(desktop: boolean, ffmpeg: boolean, live: LiveCaps): Caps {
@@ -48,7 +54,7 @@ function detectionOf(backend: Backend | null, ffmpeg: boolean, live: LiveCaps): 
     caps: capsFor(backend !== null, ffmpeg, live),
     displays: displaysOf(backend),
     access: backend?.access() ?? null,
-    reason: backend ? null : noBackendReason(),
+    reason: backend ? (ffmpeg ? null : FFMPEG_NOTE) : noBackendReason(),
   }
 }
 
@@ -56,8 +62,8 @@ export function presence(): Detection {
   return detectionOf(createBackend(), hasFfmpeg(), { live: false, input: false })
 }
 
-export function detect(log: Logger, live: LiveCaps = { live: false, input: false }): Detection {
+export function detect(log: Logger, live: LiveCaps = { live: false, input: false }, configDir?: string): Detection {
   const backend = createBackend()
   if (!backend) log.warn(`${noBackendReason()}; desktop tools are off`)
-  return detectionOf(backend, hasFfmpeg(), live)
+  return detectionOf(backend, hasFfmpeg(configDir), live)
 }

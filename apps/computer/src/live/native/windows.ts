@@ -20,6 +20,7 @@ const MOUSEEVENTF_MIDDLEUP = 0x0040
 const MOUSEEVENTF_WHEEL = 0x0800
 const MOUSEEVENTF_HWHEEL = 0x01000
 const WHEEL_DELTA = 120
+const WHEEL_PIXELS = 100
 const UNIT = 0xffff
 const SM_XVIRTUALSCREEN = 76
 const SM_YVIRTUALSCREEN = 77
@@ -146,13 +147,11 @@ export function windowsNative(): Native | null {
       )
       send(1)
     },
-    wheel(steps, horizontal) {
-      const flag = horizontal ? MOUSEEVENTF_HWHEEL : MOUSEEVENTF_WHEEL
-      const count = Math.min(5, Math.max(1, Math.abs(steps)))
-      for (let i = 0; i < count; i++) {
-        mouseInput(input, flag, 0, 0, (steps > 0 === horizontal ? 1 : -1) * WHEEL_DELTA)
-        send(1)
-      }
+    wheel(pixels, horizontal) {
+      const data = Math.round((pixels * WHEEL_DELTA) / WHEEL_PIXELS)
+      if (data === 0) return
+      mouseInput(input, horizontal ? MOUSEEVENTF_HWHEEL : MOUSEEVENTF_WHEEL, 0, 0, horizontal ? data : -data)
+      send(1)
     },
     key(code, key, down) {
       if (down) held.add(code)
@@ -167,21 +166,16 @@ export function windowsNative(): Native | null {
       send(1)
     },
     text(value) {
-      let count = 0
       for (const char of value) {
         const code = char.codePointAt(0) ?? 0
-        for (const unit of code > 0xffff
-          ? [0xd800 + ((code - 0x10000) >> 10), 0xdc00 + ((code - 0x10000) & 0x3ff)]
-          : [code]) {
-          keyInput(input.subarray(count * INPUT_SIZE), KEYEVENTF_UNICODE, 0, unit)
-          count++
-          if (count === 2) {
-            send(count)
-            count = 0
-          }
+        const units = code > 0xffff ? [0xd800 + ((code - 0x10000) >> 10), 0xdc00 + ((code - 0x10000) & 0x3ff)] : [code]
+        for (const up of [false, true]) {
+          units.forEach((unit, index) =>
+            keyInput(input.subarray(index * INPUT_SIZE), KEYEVENTF_UNICODE | (up ? KEYEVENTF_KEYUP : 0), 0, unit),
+          )
+          send(units.length)
         }
       }
-      if (count > 0) send(count)
     },
     cursor() {
       if (!user32.GetCursorPos(point as never)) return null
