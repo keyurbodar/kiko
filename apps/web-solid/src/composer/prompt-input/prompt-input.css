@@ -336,10 +336,6 @@ button.token-chip:active {
   overflow: visible;
 }
 
-.composer-dock .composer-send:disabled {
-  transform: scale(0.94);
-}
-
 .composer-send-arrow {
   transition:
     transform var(--dur-pop) var(--ease-kiko),
@@ -362,19 +358,9 @@ button.token-chip:active {
     opacity var(--dur-hover) var(--ease-kiko);
 }
 
-.composer-send::after {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--fg) 40%, transparent);
-  content: "";
-  opacity: 0;
-  pointer-events: none;
-}
-
 .composer-send[data-mode="stop"] .composer-send-arrow {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: scale(0.6);
 }
 
 .composer-send[data-mode="stop"] .composer-send-square {
@@ -964,18 +950,6 @@ button.token-chip:active {
   .composer-dock .composer-placeholder[data-enter] {
     animation: composer-hint-in 160ms var(--ease-kiko) both;
   }
-  .composer-dock .composer-send {
-    transition:
-      background var(--dur-pop) var(--ease-kiko),
-      color var(--dur-pop) var(--ease-kiko),
-      transform var(--dur-pop) var(--ease-kiko);
-  }
-  .composer-send[data-sent]::after {
-    animation: composer-send-ripple 320ms var(--ease-kiko);
-  }
-  .composer-send[data-sent] .composer-send-arrow {
-    animation: composer-send-fly 320ms var(--ease-kiko);
-  }
   .composer-agent-avatar {
     animation: composer-face-in var(--dur-pop) var(--ease-kiko) both;
   }
@@ -1046,28 +1020,6 @@ button.token-chip:active {
   from {
     opacity: 0;
     transform: translateY(3px);
-  }
-}
-
-@keyframes composer-send-ripple {
-  from {
-    opacity: 1;
-    transform: scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: scale(1.55);
-  }
-}
-
-@keyframes composer-send-fly {
-  45% {
-    opacity: 0;
-    transform: translateY(-14px);
-  }
-  46% {
-    opacity: 0;
-    transform: translateY(10px);
   }
 }
 

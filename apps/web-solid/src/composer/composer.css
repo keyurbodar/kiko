@@ -13,20 +13,13 @@
   position: relative;
   z-index: 1;
   display: flex;
-  min-height: var(--spacing-composer-min);
   flex-direction: column;
   gap: 0;
   padding: 0;
   background: var(--raise);
-  border-radius: var(--radius-composer);
+  border-radius: var(--radius-card);
   box-shadow: inset 0 0 0 1px var(--border-100);
   transition: box-shadow 160ms var(--ease-kiko, ease);
-}
-
-.composer-dock .composer-box[data-focused] {
-  box-shadow:
-    inset 0 0 0 1px var(--border-200),
-    0 0 0 3px color-mix(in oklab, var(--fg) 6%, transparent);
 }
 
 .composer-dock .composer-box[data-dragging] {
@@ -36,14 +29,11 @@
 .composer-dock .composer-main {
   display: flex;
   min-width: 0;
-  padding: 14px 18px 8px;
+  min-height: 48px;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px 8px 12px 16px;
   cursor: text;
-}
-
-@media (min-width: 640px) {
-  .composer-dock .composer-main {
-    padding: 16px 18px 8px;
-  }
 }
 
 .composer-dock .composer-field {
@@ -110,27 +100,40 @@
 }
 
 .composer-dock .composer-footer {
-  display: flex;
+  display: grid;
   min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  padding: 0 12px 12px;
+  padding: 6px 2px 0;
   container-type: inline-size;
-}
-
-@media (min-width: 640px) {
-  .composer-dock .composer-footer {
-    padding: 0 16px 16px;
-  }
 }
 
 .composer-dock .composer-actions {
   display: flex;
   min-width: 0;
-  flex-shrink: 1;
+  justify-content: flex-end;
   align-items: center;
   gap: 2px;
+}
+
+.composer-dock .composer-disclaimer {
+  overflow: hidden;
+  color: var(--fg4);
+  font-size: var(--type-label);
+  line-height: var(--type-label-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container (max-width: 560px) {
+  .composer-dock .composer-disclaimer {
+    display: none;
+  }
+
+  .composer-dock .composer-footer {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
 }
 
 .composer-dock .composer-icon {
@@ -139,7 +142,7 @@
   height: 32px;
   place-items: center;
   padding: 0;
-  color: var(--fg2);
+  color: var(--fg3);
   background: transparent;
   border: 0;
   border-radius: var(--radius-full);
@@ -164,40 +167,22 @@
 
 .composer-dock .composer-send {
   display: grid;
-  width: 32px;
-  height: 32px;
-  margin-left: 6px;
+  width: 28px;
+  height: 28px;
+  margin: -2px 0;
   flex-shrink: 0;
   place-items: center;
   padding: 0;
-  color: var(--bg-000);
-  background: var(--text-000);
+  color: var(--fg);
+  background: transparent;
   border: 0;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   cursor: pointer;
-  grid-template-areas: "glyph";
   transition:
     background var(--dur-hover, 120ms),
     color var(--dur-hover, 120ms),
     opacity var(--dur-hover, 120ms),
     transform var(--dur-hover, 120ms) var(--ease-kiko, ease);
-}
-
-.composer-dock .composer-send > * {
-  grid-area: glyph;
-  transition: opacity 120ms var(--ease-kiko, ease);
-}
-
-.composer-dock .composer-send-square {
-  width: 10px;
-  height: 10px;
-  background: currentColor;
-  border-radius: 3px;
-}
-
-.composer-dock .composer-send[data-mode="stop"] .composer-send-arrow,
-.composer-dock .composer-send:not([data-mode="stop"]) .composer-send-square {
-  opacity: 0;
 }
 
 .composer-dock .composer-send:active:not(:disabled) {
@@ -207,13 +192,12 @@
 
 @media (hover: hover) and (pointer: fine) {
   .composer-dock .composer-send:hover:not(:disabled) {
-    opacity: 0.88;
+    background: var(--fill-hover);
   }
 }
 
 .composer-dock .composer-send:disabled {
-  color: var(--text-400);
-  background: var(--fill);
+  color: var(--fg4);
   cursor: default;
 }
 
@@ -256,10 +240,23 @@
   }
 }
 
+.composer-dock :is([data-component="model-picker-button"], [data-component="reasoning-trigger"])[aria-expanded="true"] {
+  color: var(--text-100);
+  background: none;
+}
+
+.composer-dock [data-component="reasoning-trigger"][aria-expanded="true"] .reasoning-label {
+  color: var(--text-200);
+}
+
 @media (hover: hover) and (pointer: fine) {
   .composer-dock :is([data-component="model-picker-button"], [data-component="reasoning-trigger"]):hover {
     color: var(--text-100);
     background: none;
+  }
+
+  .composer-dock [data-component="reasoning-trigger"]:hover .reasoning-label {
+    color: var(--text-200);
   }
 }
 
@@ -268,11 +265,6 @@
   min-width: 0;
   align-items: center;
   gap: 2px;
-}
-
-.composer-dock .composer-tray > :first-child > .composer-icon:only-child,
-.composer-dock .composer-tray > .composer-icon:first-child {
-  margin-left: -7px;
 }
 
 .composer-dock .composer-agent {
@@ -538,7 +530,7 @@
     flex-shrink: 0;
   }
 
-  .composer-dock .composer-tray [data-component="model-picker-button"] {
+  .composer-dock .composer-actions [data-component="model-picker-button"] {
     min-width: 0;
     flex-shrink: 1;
   }
