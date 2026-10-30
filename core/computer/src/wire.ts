@@ -1,4 +1,5 @@
 import * as Schema from "effect/Schema"
+import { BrowserStatus, DriverCall, Permissions } from "./driver"
 
 export const PROTOCOL = 1
 
@@ -13,6 +14,8 @@ export const Caps = Schema.Struct({
   desktop: Schema.Boolean,
   live: Schema.Boolean,
   input: Schema.Boolean,
+  background: Schema.optionalKey(Schema.Boolean),
+  browser: Schema.optionalKey(Schema.Boolean),
 })
 export type Caps = typeof Caps.Type
 
@@ -29,6 +32,7 @@ export const Hello = Schema.Struct({
   caps: Caps,
   displays: Schema.Array(Display),
   access: Schema.optionalKey(Schema.Struct({ screen: Schema.Boolean, input: Schema.Boolean })),
+  driver: Schema.optionalKey(Schema.Struct({ permissions: Permissions, browsers: Schema.Array(BrowserStatus) })),
   note: Schema.optionalKey(Text),
 })
 export type Hello = typeof Hello.Type
@@ -123,6 +127,10 @@ export const Calls = {
     }),
     value: Schema.Struct({ done: Count, error: Schema.optionalKey(Text), view: View }),
   },
+  driver: {
+    args: DriverCall,
+    value: Schema.Unknown,
+  },
 } as const
 export type Op = keyof typeof Calls
 export type Args<O extends Op> = (typeof Calls)[O]["args"]["Type"]
@@ -165,7 +173,7 @@ export const ToDaemon = Schema.Union([
   Schema.Struct({
     t: Schema.Literal("call"),
     id: Id,
-    op: Schema.Literals(["shell", "read", "write", "look", "act"]),
+    op: Schema.Literals(["shell", "read", "write", "look", "act", "driver"]),
     args: Schema.Unknown,
     deadlineMs: Count,
   }),

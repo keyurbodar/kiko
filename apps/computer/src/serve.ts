@@ -1,8 +1,9 @@
 import { stat } from "node:fs/promises"
 import { PROTOCOL, type Holder } from "@kiko/computer/wire"
 import { detect, type Detection } from "./caps"
-import { configDir, loadConfig, loadKey, loadPolicy, paths } from "./config"
+import { configDir, loadConfig, loadKey, loadPolicy, paths, paused } from "./config"
 import { runLink, type Host } from "./connection"
+import { startDriver, type Driver } from "./driver"
 import { helloPayload } from "./hello"
 import { emptyLive, startLive, type Live } from "./live"
 import { createLogger, type Logger } from "./log"
@@ -44,13 +45,16 @@ export async function serve(dir = configDir()): Promise<number> {
   adoptSession()
   let detection = detect(log, policy, dir)
   if (policy.desktop) detection.backend?.requestAccess()
+  let driver: Driver | null = null
   let update: Updater | null = null
   const host: Host = {
     endpoint: { url: config.url, userId: config.userId, pcId: config.pcId, protocol: PROTOCOL },
     key,
-    hello: () => JSON.stringify(helloPayload(detection)),
+    hello: () => JSON.stringify(helloPayload(detection, driver)),
     policy: () => loadPolicy(dir),
     desktop: () => detection.desktop,
+    driver: () => driver,
+    paused: () => paused(dir),
     live: {
       rtc: (frame) => live.frames.rtc(frame),
       live: (frame) => live.frames.live(frame),
@@ -67,6 +71,8 @@ export async function serve(dir = configDir()): Promise<number> {
     onIdle: () => update?.idle(),
   }
   const link = runLink(host)
+  const driverPath = process.env.KIKO_DRIVER
+  if (driverPath) driver = startDriver({ path: driverPath, log, onChange: () => link.reconnect() })
   if (detection.caps.live) {
     live = await startLive({
       logger: log,
@@ -88,6 +94,7 @@ export async function serve(dir = configDir()): Promise<number> {
   const shutdown = () => {
     log.info("stopping")
     link.stop()
+    driver?.close()
     void live.close()
     detection.backend?.close()
     process.exit(0)

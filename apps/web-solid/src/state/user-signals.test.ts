@@ -14,6 +14,8 @@ const computers = (names: readonly string[]) =>
       holder: "agent",
       busy: false,
       displays: [],
+      background: false,
+      browsers: [],
     })),
   }) as UserSignal
 
