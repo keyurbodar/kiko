@@ -36,7 +36,13 @@
 }
 
 [data-slot="bubble"]:has([data-component="chat-attachments"]):not(
-    :has(.rich, [data-component="chat-quote"], [data-component="chat-send-failed"], [data-component="noticed"])
+    :has(
+      .rich,
+      .bubble-text,
+      [data-component="chat-quote"],
+      [data-component="chat-send-failed"],
+      [data-component="noticed"]
+    )
   )
   > [data-slot="bubble-content"] {
   padding: 0;

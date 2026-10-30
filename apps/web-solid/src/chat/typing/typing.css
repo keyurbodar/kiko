@@ -26,14 +26,33 @@
   padding-top: 1px;
 }
 
+.typing-body > .thinking {
+  margin-left: 16px;
+}
+
+.typing[data-group] {
+  position: relative;
+  min-height: 28px;
+  padding-left: 40px;
+}
+
+.typing[data-group] .typing-bird {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+}
+
 .typing-bird {
   flex: none;
 }
 
 .typing-more {
-  padding-left: 36px;
   color: var(--text-300);
   font-size: var(--type-hint);
+}
+
+.typing-stack[data-group] .typing-more {
+  padding-left: 40px;
 }
 
 .typing-sr {

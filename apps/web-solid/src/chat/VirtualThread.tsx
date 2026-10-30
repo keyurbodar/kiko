@@ -824,6 +824,7 @@ export function VirtualThread(props: {
                     typists={[...props.waitingNames]}
                     seeds={props.waitingSlugs}
                     doings={props.waitingDoings}
+                    group={props.groupChat}
                   />
                 </div>
               </Show>

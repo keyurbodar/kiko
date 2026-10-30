@@ -171,9 +171,11 @@ export function summaryOf(steps: readonly RunStep[], endedAt?: number): RunSumma
   return { label, ...times, ...(endedAt === undefined ? {} : { endedAt }) }
 }
 
+const startedHelper = (step: RunStep) => step.name === "start_work"
+
 export function workLogOf(steps: readonly RunStep[], state: WorkState): WorkLog {
   const live = isLive(steps, state.working)
-  const own = state.lanes ? steps.filter((step) => !step.worker) : steps
+  const own = state.lanes ? steps.filter((step) => !step.worker && !startedHelper(step)) : steps
   if (live) return { live, items: itemsOf(own, state.detail) }
   const count = Math.max(state.count ?? 0, steps.length)
   if (count === 0) return { live, items: [] }
