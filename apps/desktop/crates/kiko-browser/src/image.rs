@@ -31,12 +31,7 @@ pub async fn capture(link: &Link, session: &str, max_width: Option<u32>) -> Resu
         "scale": scale,
     });
     let shot = json!({ "format": "jpeg", "quality": 80, "fromSurface": true, "captureBeyondViewport": true, "clip": clip });
-    let data = shoot(link, session, shot).await.map_err(|error| {
-        DriverError::new(
-            ErrorCode::Failed,
-            format!("{} would not capture the page: {error}", link.name()),
-        )
-    })?;
+    let data = probe(link, session, shot).await?;
     let bytes = STANDARD
         .decode(&data)
         .map_err(|error| DriverError::new(ErrorCode::Failed, error.to_string()))?;
@@ -84,4 +79,68 @@ async fn shoot(link: &Link, session: &str, params: Value) -> Result<String> {
         .filter(|data| !data.is_empty())
         .map(str::to_string)
         .ok_or_else(|| DriverError::new(ErrorCode::Failed, "the browser sent no image data"))
+}
+
+fn describe(result: &Result<String>) -> String {
+    match result {
+        Ok(data) => format!("ok {} bytes", data.len()),
+        Err(error) => error.to_string(),
+    }
+}
+
+async fn probe(link: &Link, session: &str, surface: Value) -> Result<String> {
+    let started = std::time::Instant::now();
+    let first = shoot(link, session, surface.clone()).await;
+    eprintln!(
+        "probe surface: {} in {:?}",
+        describe(&first),
+        started.elapsed()
+    );
+    if let Ok(data) = first {
+        return Ok(data);
+    }
+    let started = std::time::Instant::now();
+    let window = json!({ "format": "jpeg", "quality": 80, "fromSurface": false });
+    let warm = shoot(link, session, window).await;
+    eprintln!(
+        "probe window: {} in {:?}",
+        describe(&warm),
+        started.elapsed()
+    );
+    let started = std::time::Instant::now();
+    let second = shoot(link, session, surface.clone()).await;
+    eprintln!(
+        "probe surface after window: {} in {:?}",
+        describe(&second),
+        started.elapsed()
+    );
+    if let Ok(data) = second {
+        return Ok(data);
+    }
+    let enabled = link
+        .send_to(
+            session,
+            "Emulation.setFocusEmulationEnabled",
+            json!({ "enabled": true }),
+        )
+        .await;
+    eprintln!(
+        "probe focus enable: {}",
+        describe(&enabled.map(|_| String::new()))
+    );
+    let started = std::time::Instant::now();
+    let third = shoot(link, session, surface).await;
+    eprintln!(
+        "probe surface under focus: {} in {:?}",
+        describe(&third),
+        started.elapsed()
+    );
+    let _ = link
+        .send_to(
+            session,
+            "Emulation.setFocusEmulationEnabled",
+            json!({ "enabled": false }),
+        )
+        .await;
+    third
 }
