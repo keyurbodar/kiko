@@ -6,6 +6,7 @@ import { cn } from "../../lib/cn"
 import { agentDisplayName } from "../../lib/names"
 import { user } from "../../state/user"
 import { closeViewer, computerById, computers, openViewer, release, takeOver, viewerFor } from "../computers"
+import { accessHint } from "./access"
 import LiveScreen from "./LiveScreen"
 
 const pill = "h-8 shrink-0 cursor-pointer rounded-full px-3.5 type-label font-medium whitespace-nowrap"
@@ -20,16 +21,8 @@ export default function Viewer(): JSX.Element {
   }
   let panel: HTMLDivElement | undefined
 
-  const inSink = (event: KeyboardEvent) => event.target instanceof HTMLElement && event.target.dataset.part === "sink"
   const leave = (event: KeyboardEvent) => {
-    if (event.key !== "Escape" || event.defaultPrevented) return
-    if (interactive()) {
-      if (!event.shiftKey || inSink(event)) return
-      event.preventDefault()
-      closeViewer()
-      return
-    }
-    if (event.shiftKey) return
+    if (event.key !== "Escape" || event.defaultPrevented || event.shiftKey !== interactive()) return
     event.preventDefault()
     closeViewer()
   }
@@ -67,9 +60,19 @@ export default function Viewer(): JSX.Element {
               )}
               data-part="bar"
             >
-              <span class="min-w-0 flex-1 truncate text-ui font-medium" data-field="viewer-reason">
-                {reason() ?? (interactive() ? `You are controlling ${computer().name}` : `Watching ${computer().name}`)}
-              </span>
+              <div class="flex min-w-0 flex-1 flex-col">
+                <span class="truncate text-ui font-medium" data-field="viewer-reason">
+                  {reason() ??
+                    (interactive() ? `You are controlling ${computer().name}` : `Watching ${computer().name}`)}
+                </span>
+                <Show when={accessHint(computer())}>
+                  {(line) => (
+                    <span class="truncate type-hint opacity-70" data-field="viewer-access">
+                      {line()}
+                    </span>
+                  )}
+                </Show>
+              </div>
               <Show when={interactive()}>
                 <span
                   class="hidden shrink-0 type-hint font-normal whitespace-nowrap opacity-70 sm:inline"
@@ -124,7 +127,7 @@ export default function Viewer(): JSX.Element {
                       type="button"
                       class={cn(pill, "bg-fg text-bg")}
                       data-action="computer-takeover"
-                      onClick={() => takeOver(computer().id)}
+                      onClick={() => void takeOver(computer().id)}
                     >
                       Take over
                     </button>
@@ -135,7 +138,7 @@ export default function Viewer(): JSX.Element {
                   type="button"
                   class={cn(pill, "bg-fg text-bg")}
                   data-action="computer-release"
-                  onClick={() => release(computer().id)}
+                  onClick={() => void release(computer().id)}
                 >
                   I’m done, continue
                 </button>

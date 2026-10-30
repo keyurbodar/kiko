@@ -13,6 +13,8 @@ export function helloPayload(detection: Detection): unknown {
     host: hostName(),
     caps: detection.caps,
     displays: detection.displays,
+    ...(detection.access ? { access: detection.access } : {}),
+    ...(detection.reason ? { note: detection.reason } : {}),
   }
   return Schema.encodeSync(Hello)(hello)
 }

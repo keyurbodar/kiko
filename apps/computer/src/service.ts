@@ -1,21 +1,47 @@
-import { chmod, mkdir, stat, writeFile } from "node:fs/promises"
+import { chmod, copyFile, mkdir, stat, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { CliError } from "./errors"
 import { homeDir } from "./platform"
+import { selfArgv } from "./self"
 
 export const LABEL = "com.kiko.computer"
 const UNIT = "kiko-computer.service"
+const HOST = "kiko-computer-host"
 const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
 const MAC_PATHS = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
 const BOOTOUT_WAIT_MS = 5_000
 const BOOTSTRAP_TRIES = 3
+const SYSTEMD_ENV = [
+  "DISPLAY",
+  "WAYLAND_DISPLAY",
+  "XAUTHORITY",
+  "XDG_RUNTIME_DIR",
+  "XDG_SESSION_TYPE",
+  "DBUS_SESSION_BUS_ADDRESS",
+] as const
 
 export type ServiceAction = "install" | "uninstall" | "status"
 
 function selfCommand(): string[] {
-  const exec = process.execPath
-  if (Bun.main.includes("$bunfs") || /kiko-computer/.test(exec)) return [exec, "run"]
-  return [exec, Bun.main, "run"]
+  return [...selfArgv(), "run"]
+}
+
+function hostPath(): string | null {
+  const self = selfArgv()
+  const exec = self[0]
+  return self.length === 1 && exec ? join(dirname(exec), HOST) : null
+}
+
+async function launchdProgram(): Promise<string[]> {
+  const self = selfArgv()
+  const exec = self[0]
+  if (self.length !== 1 || !exec) return selfCommand()
+  const host = join(dirname(exec), HOST)
+  if (!(await exists(host))) {
+    await copyFile(exec, host)
+    await chmod(host, 0o755)
+  }
+  return [host, "supervise", exec]
 }
 
 function quote(argv: string[]): string {
@@ -40,8 +66,7 @@ function systemdPath(): string {
   return join(process.env.XDG_CONFIG_HOME ?? join(homeDir(), ".config"), "systemd", "user", UNIT)
 }
 
-function launchdPlist(): string {
-  const program = selfCommand()
+function launchdPlist(program: string[]): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -63,15 +88,24 @@ ${program.map((part) => `    <string>${xml(part)}</string>`).join("\n")}
 `
 }
 
-function systemdUnit(): string {
+function systemdQuote(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')
+}
+
+export function systemdUnit(program: string[], env: NodeJS.ProcessEnv = process.env): string {
+  const environment = SYSTEMD_ENV.flatMap((key) => {
+    const value = env[key]
+    return value === undefined ? [] : [`Environment="${key}=${systemdQuote(value)}"\n`]
+  }).join("")
   return `[Unit]
 Description=kiko computer daemon
 After=network-online.target
+After=graphical-session.target
 Wants=network-online.target
 
 [Service]
-ExecStart=${quote(selfCommand())}
-Restart=always
+ExecStart=${quote(program)}
+${environment}Restart=always
 RestartSec=5
 
 [Install]
@@ -125,7 +159,7 @@ async function launchd(action: ServiceAction): Promise<number> {
   const file = launchdPath()
   const domain = `gui/${process.getuid?.() ?? 501}`
   if (action === "install") {
-    await writeUnit(file, launchdPlist())
+    await writeUnit(file, launchdPlist(await launchdProgram()))
     await bootout(domain, file)
     if (!(await bootstrap(domain, file))) throw new CliError({ message: `launchctl could not load ${file}` })
     console.log(`installed ${file}`)
@@ -134,10 +168,11 @@ async function launchd(action: ServiceAction): Promise<number> {
   if (action === "uninstall") {
     await bootout(domain, file)
     if (await exists(file)) await writeFile(file, "")
-    return run(["rm", "-f", file]).then(() => {
-      console.log(`removed ${file}`)
-      return 0
-    })
+    const code = await run(["rm", "-f", file])
+    const host = hostPath()
+    if (host) await run(["rm", "-f", host])
+    console.log(`removed ${file}`)
+    return code
   }
   const loaded = await quiet(["launchctl", "print", `${domain}/${LABEL}`])
   console.log(
@@ -149,7 +184,7 @@ async function launchd(action: ServiceAction): Promise<number> {
 async function systemd(action: ServiceAction): Promise<number> {
   const file = systemdPath()
   if (action === "install") {
-    await writeUnit(file, systemdUnit())
+    await writeUnit(file, systemdUnit(selfCommand()))
     await run(["systemctl", "--user", "daemon-reload"])
     const enabled = await run(["systemctl", "--user", "enable", UNIT])
     if (enabled !== 0)

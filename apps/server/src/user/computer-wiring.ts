@@ -170,7 +170,7 @@ export class ComputerWiring {
     function* (socket: WebSocket, requestId: RequestId, pcId: string) {
       const row = yield* this.row(pcId)
       subscribe(socket, { requestId, stream: frameStream(row.id), cursor: 0 })
-      this.hub.syncRelay(row.id)
+      this.hub.syncRelay(row.id, true)
     },
   )
 
@@ -208,6 +208,10 @@ export class ComputerWiring {
   readonly ack = Effect.fn("Computers.ack")({ self: this }, function* (pcId: string, seq: number) {
     const row = yield* this.row(pcId)
     this.hub.ack(row.id, seq)
+  })
+
+  readonly listForTab = Effect.fn("Computers.list")({ self: this }, function (socket: WebSocket) {
+    return Effect.sync(() => this.hub.summaries(socket))
   })
 
   private row(pcId: string) {

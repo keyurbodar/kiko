@@ -31,7 +31,6 @@ export const MAX_DEADLINE_MS = 10 * 60_000
 export const COMPUTER_WAKEUP = "computer_hold"
 
 const BUSY_OPS: ReadonlySet<Op> = new Set<Op>(["shell", "look", "act"])
-const DESK_OPS: ReadonlySet<Op> = new Set<Op>(["look", "act"])
 const DESK_MS = 60_000
 const MAX_WAITERS = 8
 
@@ -108,6 +107,7 @@ export class ComputerHub {
   private readonly busyPushAt = new Map<string, number>()
   private readonly busyTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly sentTo = new WeakMap<WebSocket, string>()
+  private readonly heard = new WeakMap<WebSocket, number>()
   private turn?: { at: number; servers: IceServer[] }
   private turning?: Promise<IceServer[]>
 
@@ -178,12 +178,13 @@ export class ComputerHub {
   }
 
   online(id: string): boolean {
+    const now = Date.now()
     for (const ws of this.sockets(id)) {
       if (ws.readyState !== WebSocket.OPEN) continue
       const seen = this.d.ctx.getWebSocketAutoResponseTimestamp(ws)
-      if (seen && Date.now() - seen.getTime() < PRESENCE_MS) return true
-      const at = attachmentOf(ws)?.at ?? 0
-      if (Date.now() - at < PRESENCE_MS) return true
+      if (seen && now - seen.getTime() < PRESENCE_MS) return true
+      const at = Math.max(attachmentOf(ws)?.at ?? 0, this.heard.get(ws) ?? 0)
+      if (now - at < PRESENCE_MS) return true
     }
     return false
   }
@@ -197,18 +198,21 @@ export class ComputerHub {
     const mine = tab && this.sessionOf(tab)
     return this.rows().map((row) => {
       const hold = this.hold(row.id)
+      const hello = this.helloOf(row.id)
       const heldBy = tab && hold.heldBy ? (mine === hold.heldBy ? "you" : "other") : undefined
       return {
         id: row.id,
         name: row.name,
         os: row.os,
         online: this.online(row.id),
-        caps: this.helloOf(row.id)?.caps ?? this.d.store.caps(row),
+        caps: hello?.caps ?? this.d.store.caps(row),
         holder: hold.holder,
         busy: this.busy(row.id),
         ...(heldBy ? { heldBy } : {}),
         ...(hold.agent ? { agent: hold.agent } : {}),
-        displays: this.helloOf(row.id)?.displays ?? [],
+        displays: hello?.displays ?? [],
+        ...(hello?.access ? { access: hello.access } : {}),
+        ...(hello?.note ? { note: hello.note } : {}),
       }
     })
   }
@@ -303,6 +307,7 @@ export class ComputerHub {
       } catch {}
     }
     this.dropCalls(id)
+    this.relaying.delete(id)
     const pair = new WebSocketPair()
     const client = pair[0]
     const server = pair[1]
@@ -324,6 +329,7 @@ export class ComputerHub {
       ws.close(CLOSE.notReady, "not a computer")
       return
     }
+    this.heard.set(ws, Date.now())
     if (typeof raw !== "string") {
       this.relayFrame(saved.id, new Uint8Array(raw))
       return
@@ -390,6 +396,7 @@ export class ComputerHub {
   ): Promise<CallOutcome> {
     const row = this.d.store.get(pcId)
     if (!row) return { ok: false, code: "unsupported", message: "there is no such computer" }
+    if (!this.online(pcId)) return { ok: false, code: "unsupported", message: `${row.name} is not connected` }
     const ws = this.socket(pcId)
     if (!ws) return { ok: false, code: "unsupported", message: `${row.name} is not connected` }
     const saved = attachmentOf(ws)
@@ -401,7 +408,7 @@ export class ComputerHub {
       return { ok: false, code: "unsupported", message: `${row.name} has input off` }
     if ((op === "look" || op === "act") && saved.holder === "human")
       return { ok: false, code: "busy", message: `the human has control of ${row.name} right now` }
-    const taken = DESK_OPS.has(op) && options.user ? this.claimDesk(pcId, options.user) : null
+    const taken = op === "act" && options.user ? this.claimDesk(pcId, options.user) : null
     if (taken)
       return {
         ok: false,
@@ -470,11 +477,11 @@ export class ComputerHub {
     return [...new Set((saved?.rpc ?? []).map((sub) => sub.stream).filter((stream) => stream.startsWith("pc:")))]
   }
 
-  syncRelay(pcId: string): void {
+  syncRelay(pcId: string, force = false): void {
     const ws = this.socket(pcId)
     if (!ws) return
     const on = this.relayWatchers(pcId) > 0
-    if (on === this.relaying.has(pcId)) return
+    if (!force && on === this.relaying.has(pcId)) return
     if (on) this.relaying.add(pcId)
     else this.relaying.delete(pcId)
     this.send(ws, on ? { t: "live", on: true, ...RELAY } : { t: "live", on: false })
@@ -498,6 +505,17 @@ export class ComputerHub {
     for (const pcId of this.watchingTab(tab)) {
       dropStreams(tab, `pc:${pcId}`)
       this.syncRelay(pcId)
+    }
+    this.dropHuman(tab)
+  }
+
+  private dropHuman(tab: WebSocket): void {
+    const session = this.sessionOf(tab)
+    if (!session) return
+    for (const row of this.rows()) {
+      const hold = this.hold(row.id)
+      if (hold.holder !== "human" || hold.heldBy !== session) continue
+      this.d.released(this.release(row.id))
     }
   }
 
@@ -657,9 +675,9 @@ export class ComputerHub {
     const saved = attachmentOf(ws)
     this.unwatch(ws)
     if (!saved) return
-    this.relaying.delete(saved.id)
     const replaced = this.sockets(saved.id).some((other) => other !== ws && other.readyState === WebSocket.OPEN)
     if (!replaced) {
+      this.relaying.delete(saved.id)
       for (const [callId, call] of this.pending)
         if (call.pcId === saved.id)
           this.settle(callId, { ok: false, code: "cancelled", message: "the computer disconnected" })

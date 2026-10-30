@@ -212,13 +212,16 @@ function pcSocket(id: string, holder: "agent" | "human" = "agent") {
   return { ws, sent }
 }
 
-function liveHub(tabs: readonly WebSocket[], pcs: readonly WebSocket[]) {
+function liveHub(tabs: readonly WebSocket[], pcs: readonly WebSocket[], ids: readonly string[] = []) {
   const store = {
     get: (id: string) => ({ id, name: "box" }),
-    list: () => [],
+    list: () => ids.map((id) => ({ id, name: "box" })),
   }
   const deps = {
-    ctx: { getWebSockets: (tag: string) => (tag === "tab" ? [...tabs] : [...pcs]) },
+    ctx: {
+      getWebSockets: (tag: string) => (tag === "tab" ? [...tabs] : [...pcs]),
+      getWebSocketAutoResponseTimestamp: () => null,
+    },
     env: {},
     store,
     ownerId: "owner",
@@ -264,6 +267,83 @@ describe("daemon reconnect", () => {
 
       assert.isTrue(first.sent.some((frame) => frame.t === "live" && frame.on === true))
       assert.isTrue(second.sent.some((frame) => frame.t === "live" && frame.on === true))
+    }),
+  )
+})
+
+describe("leaving the viewer", () => {
+  it.effect("gives control back to the agent when the tab that held it goes away", () =>
+    Effect.promise(async () => {
+      const viewing = tab()
+      viewing.ws.serializeAttachment({
+        user: { ready: true },
+        rooms: {},
+        rpc: [{ requestId: "9", stream: "pc:pc-1" }],
+      })
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([viewing.ws], [pc.ws], ["pc-1"])
+      const desktop = { ...HELLO, caps: { ...CAPS, desktop: true } }
+      await computers.message(pc.ws, JSON.stringify(desktop))
+      assert.isTrue(computers.take("pc-1", viewing.ws))
+
+      const held = await computers.call("pc-1", "look", { maxWidth: "wide" })
+      assert.deepStrictEqual(held, { ok: false, code: "busy", message: "the human has control of box right now" })
+
+      computers.leave(viewing.ws)
+
+      assert.strictEqual(computers.holder("pc-1"), "agent")
+      const after = await computers.call("pc-1", "look", { maxWidth: "wide" })
+      assert.deepStrictEqual(after, { ok: false, code: "failed", message: "bad look arguments" })
+    }),
+  )
+})
+
+describe("relay fallback", () => {
+  it.effect("tells the daemon to share again when a new frame subscription arrives", () =>
+    Effect.promise(async () => {
+      const viewing = tab()
+      viewing.ws.serializeAttachment({
+        user: { ready: true },
+        rooms: {},
+        rpc: [{ requestId: "9", stream: "pc:pc-1" }],
+      })
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([viewing.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      computers.syncRelay("pc-1")
+      assert.strictEqual(pc.sent.filter((frame) => frame.t === "live").length, 1)
+
+      computers.syncRelay("pc-1", true)
+
+      const live = pc.sent.filter((frame) => frame.t === "live")
+      assert.strictEqual(live.length, 2)
+      assert.strictEqual(live[1]?.on, true)
+    }),
+  )
+})
+
+describe("computer calls", () => {
+  it.effect("answers at once when the daemon is no longer answering", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([], [pc.ws])
+
+      const outcome = await computers.call("pc-1", "shell", { command: "true" })
+
+      assert.deepStrictEqual(outcome, { ok: false, code: "unsupported", message: "box is not connected" })
+    }),
+  )
+
+  it.effect("counts a daemon online once it sends a frame, even with no auto-response timestamp", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([], [pc.ws])
+      assert.isFalse(computers.online("pc-1"))
+
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      assert.isTrue(computers.online("pc-1"))
     }),
   )
 })

@@ -5,6 +5,7 @@ import { CopyCheckIcon } from "@kiko/ui/v2/copy-check-icon"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
+import { accessHint } from "../chat/computer/access"
 import {
   computers,
   removeComputer,
@@ -194,7 +195,18 @@ function Row(props: { computer: ComputerSummary; onError: (message: string | nul
           </form>
         </Show>
       }
-      meta={<span data-field="meta">{meta(props.computer)}</span>}
+      meta={
+        <span class="flex flex-col gap-0.5" data-field="meta">
+          <span>{meta(props.computer)}</span>
+          <Show when={accessHint(props.computer)}>
+            {(line) => (
+              <span class="text-[var(--fg4)]" data-field="access">
+                {line()}
+              </span>
+            )}
+          </Show>
+        </span>
+      }
       actions={
         <>
           <IconButton label="Rename" data-action="computer-rename" onClick={() => setEditing(true)}>

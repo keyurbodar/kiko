@@ -177,6 +177,10 @@ else
   say "  $exe service install"
 fi
 
+if [ "$os" = darwin ]; then
+  say "kiko: macOS will ask to let kiko-computer-host record the screen and control the computer. Allow both in System Settings > Privacy & Security (Screen Recording, Accessibility)."
+fi
+
 case ":$PATH:" in
   *":$bin:"*) ;;
   *) say "kiko: add $bin to PATH, for example: export PATH=$bin:\\$PATH" ;;
@@ -196,11 +200,6 @@ else
   say "  Arch: sudo pacman -S ffmpeg"
   say "  Alpine: sudo apk add ffmpeg"
   say "  or run this script again with --with-ffmpeg"
-fi
-
-if ! command -v cua-driver >/dev/null 2>&1; then
-  say "kiko: desktop control needs cua-driver. Shell and files work without it. Install it with:"
-  say '  /bin/bash -c "$(curl -fsSL https://cua.ai/driver/install.sh)"'
 fi
 
 say "kiko: done. $exe doctor checks this machine."
@@ -269,9 +268,6 @@ if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
   Write-Host '  or download it from https://ffmpeg.org/download.html'
   Write-Host '  or run this script again with -WithFfmpeg'
 }
-
-Say 'desktop control needs cua-driver. Install it as described at https://cua.ai/docs'
-Say 'shell and files work without it.'
 
 if ($PairUrl) {
   if ($Name) {
