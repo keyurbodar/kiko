@@ -32,11 +32,12 @@ const OPEN_WAIT: Duration = Duration::from_secs(20);
 const OPEN_POLL: Duration = Duration::from_millis(100);
 const CHROME_WAIT: Duration = Duration::from_secs(90);
 const CHROME_PAGE: Duration = Duration::from_secs(90);
-const CHROME_FLAGS: [&str; 4] = [
+const CHROME_FLAGS: [&str; 5] = [
     "--no-first-run",
     "--no-default-browser-check",
     "--new-window",
     "--use-mock-keychain",
+    "--force-renderer-accessibility",
 ];
 const ELECTRON_MAIN: &str = r#"
 const fs = require('fs');
@@ -609,8 +610,8 @@ fn web_area(driver: &mut MacDriver, window: &Window, app: &str) -> Look {
     match look {
         Some(look) => look,
         None => panic!(
-            "{app} exposed no web area after {polls} polls; outline:\n{}; opt-in is {:?}; {}",
-            look_at(driver, window).outline,
+            "{app} exposed no web area after {polls} polls; nodes are {:#?}; opt-in is {:?}; {}",
+            look_at(driver, window).nodes,
             opt_in_state(window.pid as i32),
             web_diagnostics(window)
         ),
