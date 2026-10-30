@@ -23,6 +23,7 @@ import {
   type RunStep,
   type SearchHit,
   type Task,
+  type TaskOp,
   type ThinkingLevel,
 } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
@@ -936,6 +937,10 @@ function createRoom() {
       if (id) void attempt(owner.commands.roomFiles, { roomId: id, op }, refusal(fileRefusals, op))
     },
     onFilesRefused: (listener: (op: FileOp, reason: string) => void) => listen(fileRefusals, listener),
+    taskOp(op: TaskOp) {
+      const id = activeId()
+      if (id) void attempt(owner.commands.task, { roomId: id, op }, showFailure)
+    },
     memberOp(op: MemberOp) {
       const id = activeId()
       if (id)

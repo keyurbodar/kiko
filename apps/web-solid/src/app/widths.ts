@@ -1,6 +1,13 @@
 export const SIDEBAR = { key: "kiko:device:sidebar-width", min: 220, max: 420, fallback: 288, floor: 288 }
-export const INFO = { key: "kiko:device:info-width", min: 320, max: 900, fallback: 620 }
+export const INFO = { key: "kiko:device:info-width", min: 320, max: 760, fallback: 400 }
 export const CHAT_MIN = 360
+export const PANEL_CHAT_MIN = 420
+
+export const panelMaxWidth = (viewport: number) => Math.min(INFO.max, Math.round(viewport * 0.6))
+
+export function readPanelWidth(viewport: number): number {
+  return Math.max(INFO.min, Math.min(readWidth(INFO), panelMaxWidth(viewport)))
+}
 
 type Rule = { key: string; min: number; max: number; fallback: number; floor?: number }
 
@@ -36,18 +43,15 @@ export function resetWidth(rule: Rule, panel: { resize: (size: `${number}px`) =>
 
 export function fitWidths(viewport: number, sidebar: number, info: number) {
   const room = Math.max(0, viewport - CHAT_MIN)
-  let right = info > 0 ? Math.max(INFO.min, info) : 0
-  let side = sidebar > 0 ? Math.max(SIDEBAR.floor ?? SIDEBAR.min, sidebar) : 0
-  if (side + right > room) right = Math.max(INFO.min, room - side)
-  if (side + right > room) side = Math.max(0, room - right)
-  return { sidebar: side, info: right }
+  const side = sidebar > 0 ? Math.max(SIDEBAR.floor ?? SIDEBAR.min, sidebar) : 0
+  const want = info > 0 ? readPanelWidth(viewport) : 0
+  const right = side + want <= room ? want : 0
+  return { sidebar: Math.min(side, room), info: right }
 }
 
 export function initialSizes(width: number, sidebar: number | null, info: number | null) {
-  let side = sidebar ?? 0
-  let right = info ?? 0
+  const side = sidebar ?? 0
   const room = Math.max(0, width - CHAT_MIN)
-  if (right > 0) right = Math.max(INFO.min, Math.min(right, room - side))
-  if (side > 0 && side + right > room) side = Math.max(SIDEBAR.floor ?? SIDEBAR.min, room - right)
+  const right = info !== null && info > 0 ? Math.min(info, Math.max(0, room - side)) : 0
   return { sidebar: side / width, info: right / width, chat: 1 - side / width - right / width }
 }

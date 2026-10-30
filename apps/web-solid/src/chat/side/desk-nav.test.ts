@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest"
 import {
-  back,
-  closeFile,
-  closeFiles,
+  activateSurface,
+  closeAll,
+  closeOthers,
   closeRightOf,
+  closeSurface,
+  deactivate,
   dropFiles,
   EMPTY_NAV,
   fileSurface,
-  keepOnly,
   moveFiles,
-  openView,
+  moveSurface,
+  openSurface,
 } from "./desk-nav"
 
 const memory = { id: "memory", kind: "memory" } as const
@@ -18,52 +20,62 @@ const a = fileSurface("notes/a.md")
 const b = fileSurface("notes/b.md")
 
 describe("desk navigation", () => {
-  it("drills into a section and goes back to the overview", () => {
-    const into = openView(EMPTY_NAV, memory)
-    expect(into.view).toEqual(memory)
-    expect(back(into).view).toBeNull()
+  it("opens surfaces as tabs in order, activating the newest", () => {
+    const nav = openSurface(openSurface(openSurface(EMPTY_NAV, memory), a), b)
+    expect(nav.surfaces.map((surface) => surface.id)).toEqual(["memory", a.id, b.id])
+    expect(nav.active).toBe(b.id)
   })
 
-  it("stacks files and goes back from a file to the Files list", () => {
-    const nav = openView(openView(EMPTY_NAV, a), b)
-    expect(nav.files.map((f) => f.id)).toEqual([a.id, b.id])
-    expect(nav.view).toEqual(b)
-    const out = back(nav)
-    expect(out.view).toEqual(files)
-    expect(out.files).toHaveLength(2)
-    expect(back(out).view).toBeNull()
+  it("reopening an open surface focuses its tab instead of adding a second one", () => {
+    const nav = openSurface(openSurface(EMPTY_NAV, a), b)
+    expect(openSurface(nav, a)).toEqual({ surfaces: [a, b], active: a.id })
+    expect(openSurface({ surfaces: [a], active: a.id }, a)).toEqual({ surfaces: [a], active: a.id })
   })
 
-  it("reopening a file does not add a second tab", () => {
-    const nav = openView(openView(openView(EMPTY_NAV, a), b), a)
-    expect(nav.files.map((f) => f.id)).toEqual([a.id, b.id])
-    expect(nav.view).toEqual(a)
+  it("activating a tab and clearing the active one", () => {
+    const nav = openSurface(openSurface(EMPTY_NAV, a), b)
+    expect(activateSurface(nav, a.id).active).toBe(a.id)
+    expect(activateSurface(nav, "missing")).toBe(nav)
+    expect(deactivate(nav)).toEqual({ surfaces: [a, b], active: null })
+    expect(deactivate({ surfaces: [a], active: null }).active).toBeNull()
   })
 
-  it("closing the open file shows its neighbour, then the Files list", () => {
-    const nav = openView(openView(EMPTY_NAV, a), b)
-    const one = closeFile(nav, b.id)
-    expect(one.view).toEqual(a)
-    expect(closeFile(one, a.id)).toEqual({ files: [], view: files })
+  it("closing the active tab shows its neighbour, and the last close empties the panel", () => {
+    const nav = openSurface(openSurface(EMPTY_NAV, a), b)
+    const one = closeSurface(nav, b.id)
+    expect(one.active).toBe(a.id)
+    expect(closeSurface(one, a.id)).toEqual({ surfaces: [], active: null })
   })
 
-  it("closing a background tab keeps the current view", () => {
-    const nav = openView(openView(EMPTY_NAV, a), b)
-    expect(closeFile(nav, a.id)).toEqual({ files: [b], view: b })
+  it("closing a background tab keeps the current one", () => {
+    const nav = openSurface(openSurface(EMPTY_NAV, a), b)
+    expect(closeSurface(nav, a.id)).toEqual({ surfaces: [b], active: b.id })
   })
 
   it("closes other tabs, tabs to the right, and all tabs", () => {
-    const nav = openView(openView(EMPTY_NAV, a), b)
-    expect(keepOnly(nav, a.id)).toEqual({ files: [a], view: a })
-    expect(closeRightOf(nav, a.id)).toEqual({ files: [a], view: a })
-    expect(closeFiles(nav)).toEqual({ files: [], view: files })
-    expect(closeFiles(openView(nav, memory))).toEqual({ files: [], view: memory })
+    const nav = openSurface(openSurface(openSurface(EMPTY_NAV, memory), a), b)
+    expect(closeOthers(nav, a.id)).toEqual({ surfaces: [a], active: a.id })
+    expect(closeRightOf(nav, a.id)).toEqual({ surfaces: [memory, a], active: a.id })
+    expect(closeAll(nav)).toEqual({ surfaces: [], active: null })
+    expect(closeAll(EMPTY_NAV)).toBe(EMPTY_NAV)
   })
 
-  it("follows a moved folder and leaves the Files list when its file is deleted", () => {
-    const nav = openView(EMPTY_NAV, a)
+  it("reorders tabs by dropping one onto another", () => {
+    const nav = openSurface(openSurface(openSurface(EMPTY_NAV, memory), a), b)
+    expect(moveSurface(nav, b.id, "memory").surfaces.map((surface) => surface.id)).toEqual([b.id, "memory", a.id])
+    expect(moveSurface(nav, "missing", "memory")).toBe(nav)
+  })
+
+  it("follows a moved folder and drops files under a deleted one", () => {
+    const nav = openSurface(EMPTY_NAV, a)
     const moved = moveFiles(nav, "notes", "docs")
-    expect(moved.view).toEqual(fileSurface("docs/a.md"))
-    expect(dropFiles(moved, "docs")).toEqual({ files: [], view: files })
+    expect(moved.surfaces).toEqual([fileSurface("docs/a.md")])
+    expect(moved.active).toBe(fileSurface("docs/a.md").id)
+    expect(dropFiles(moved, "docs")).toEqual({ surfaces: [], active: null })
+  })
+
+  it("keeps a fixed surface when its files are dropped", () => {
+    const nav = openSurface(openSurface(EMPTY_NAV, files), a)
+    expect(dropFiles(nav, "notes")).toEqual({ surfaces: [files], active: files.id })
   })
 })

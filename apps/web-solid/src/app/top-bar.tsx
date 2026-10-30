@@ -1,9 +1,10 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { FolderIcon, MonitorIcon, SearchIcon } from "@kiko/ui/icons"
+import { FolderIcon, MonitorIcon, SearchIcon, SidebarRightIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { computers, openViewer, startComputers, watchTarget } from "../chat/computers"
 import { closeDesk, deskShown, deskView, fixedSurface, loadDesk, openSurface } from "../chat/side/surfaces"
+import { threadDetailsOpenFor, toggleThreadDetails } from "../chat/side/thread-details-layer"
 import { runCommand } from "../commands/registry"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { connection, createDelayedStatus, type ConnectionView } from "../state/connection"
@@ -37,6 +38,12 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
   }
   onMount(startComputers)
   const toggle = () => "top-bar-button"
+  const filesOpen = () => {
+    const id = chatId()
+    if (!id || !deskShown()) return false
+    const kind = deskView(id)?.kind
+    return kind === "files" || kind === "file"
+  }
   const live = () => {
     const bot = chatId() ? room.chatById(chatId()!) : undefined
     if (!bot || (bot.presence !== "working" && bot.presence !== "typing")) return null
@@ -83,6 +90,23 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
           )}
         </Show>
       </div>
+      <Show when={chatId()}>
+        <TooltipV2 placement="bottom" openDelay={500} value="Thread details">
+          <button
+            type="button"
+            class="top-bar-button"
+            aria-label="Thread details"
+            aria-pressed={threadDetailsOpenFor(chatId())}
+            data-action="toggle-thread-details"
+            onClick={() => {
+              const id = chatId()
+              if (id) toggleThreadDetails(id)
+            }}
+          >
+            <RemixIcon icon={SidebarRightIcon} size={18} />
+          </button>
+        </TooltipV2>
+      </Show>
       <TooltipV2 placement="bottom" openDelay={500} value="Search messages">
         <button
           type="button"
@@ -111,21 +135,20 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
         </TooltipV2>
       </Show>
       <Show when={chatId()}>
-        <TooltipV2 placement="bottom" openDelay={500} value={deskShown() ? "Hide files" : "Show files"}>
+        <TooltipV2 placement="bottom" openDelay={500} value="Files">
           <button
             type="button"
             class={toggle()}
             aria-label="Files"
-            aria-pressed={deskShown()}
-            data-action="toggle-card"
+            aria-pressed={filesOpen()}
+            data-action="open-files"
             data-hint="chat.info"
             data-hint-label="Files"
             onPointerEnter={() => void loadDesk()}
             onClick={() => {
               const id = chatId()
               if (!id) return
-              const kind = deskView(id)?.kind
-              if (deskShown() && (kind === "files" || kind === "file")) closeDesk()
+              if (filesOpen()) closeDesk()
               else openSurface(id, fixedSurface("files"))
             }}
           >
