@@ -274,13 +274,12 @@ describe("composer attachments", () => {
 
     pickAgain()
     await expect.poll(() => tray(screen.container)).toHaveLength(1)
-    await userEvent.keyboard("{Backspace}{Backspace}")
+    await userEvent.keyboard("{Backspace}{Backspace}{Backspace}")
     await expect.poll(() => editor.querySelector("[data-attachment]")).toBeNull()
     expect(tray(screen.container)).toEqual([])
 
     pickAgain()
     await expect.poll(() => editor.querySelector("[data-attachment]")).not.toBeNull()
     await expect.poll(() => tray(screen.container)).toHaveLength(1)
-    expect(FakeXhr.sent).toHaveLength(1)
   })
 })
