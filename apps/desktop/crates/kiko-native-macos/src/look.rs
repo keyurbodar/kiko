@@ -77,22 +77,27 @@ pub fn walk(window: &AXUIElement, origin: Rect) -> Walk {
         if Instant::now() >= deadline || nodes.len() >= kiko_driver::MAX_NODES {
             break;
         }
-        let index = nodes.len();
         let (node, children) = describe(&pending.element, origin);
-        let Some(mut node) = node else { continue };
-        node.reference = (index + 1) as Ref;
-        if let Some(parent) = pending.parent {
-            nodes[parent].children.push(node.reference);
-        }
-        elements.push(pending.element.clone());
-        nodes.push(node);
+        let parent = match node {
+            Some(mut node) => {
+                let index = nodes.len();
+                node.reference = (index + 1) as Ref;
+                if let Some(parent) = pending.parent {
+                    nodes[parent].children.push(node.reference);
+                }
+                elements.push(pending.element.clone());
+                nodes.push(node);
+                Some(index)
+            }
+            None => pending.parent,
+        };
 
         if pending.depth < MAX_DEPTH {
             for child in children.into_iter().rev() {
                 stack.push(Pending {
                     element: child,
                     depth: pending.depth + 1,
-                    parent: Some(index),
+                    parent,
                 });
             }
         }
@@ -115,7 +120,7 @@ fn describe(element: &AXUIElement, origin: Rect) -> (Option<Node>, Vec<Element>)
     let name = first_name(&values[1], &values[2], &values[3]);
     let value = ax::text(&values[4]).map(|value| truncate(value, VALUE_LIMIT));
     let frame = frame(&values, origin);
-    let states = states(&values);
+    let states = states(&role, &values);
     let actions = actions_for(&role, element);
     let node = Node {
         reference: 0,
@@ -157,7 +162,7 @@ fn frame(
     })
 }
 
-fn states(values: &[Option<objc2_core_foundation::CFRetained<CFType>>]) -> Vec<String> {
+fn states(role: &str, values: &[Option<objc2_core_foundation::CFRetained<CFType>>]) -> Vec<String> {
     let mut states = Vec::new();
     if ax::flag(&values[7]) == Some(false) {
         states.push("disabled".to_string());
@@ -168,10 +173,12 @@ fn states(values: &[Option<objc2_core_foundation::CFRetained<CFType>>]) -> Vec<S
     if ax::flag(&values[9]) == Some(true) {
         states.push("selected".to_string());
     }
-    match ax::flag(&values[10]) {
-        Some(true) => states.push("expanded".to_string()),
-        Some(false) => states.push("collapsed".to_string()),
-        None => {}
+    if expand_role(role) {
+        match ax::flag(&values[10]) {
+            Some(true) => states.push("expanded".to_string()),
+            Some(false) => states.push("collapsed".to_string()),
+            None => {}
+        }
     }
     states
 }
@@ -184,10 +191,7 @@ fn truncate(value: String, limit: usize) -> String {
 }
 
 fn text_role(role: &str) -> bool {
-    matches!(
-        role,
-        "text field" | "text area" | "combo box" | "search field" | "textfield" | "textarea"
-    )
+    matches!(role, "textfield" | "textarea" | "combobox" | "searchfield")
 }
 
 fn range_role(role: &str) -> bool {
@@ -197,21 +201,18 @@ fn range_role(role: &str) -> bool {
 fn select_role(role: &str) -> bool {
     matches!(
         role,
-        "radio button" | "menu item" | "tab" | "row" | "cell" | "list item" | "check box"
+        "radiobutton" | "menuitem" | "tab" | "row" | "cell" | "listitem" | "checkbox"
     )
 }
 
 fn expand_role(role: &str) -> bool {
-    matches!(
-        role,
-        "disclosure triangle" | "pop up button" | "outline row"
-    )
+    matches!(role, "disclosuretriangle" | "popupbutton" | "outlinerow")
 }
 
 fn scroll_role(role: &str) -> bool {
     matches!(
         role,
-        "scroll area" | "web area" | "table" | "outline" | "list" | "browser"
+        "scrollarea" | "webarea" | "table" | "outline" | "list" | "browser"
     )
 }
 
@@ -237,7 +238,7 @@ fn actions_for(role: &str, element: &AXUIElement) -> Vec<Action> {
     if select_role(role) {
         push(&mut actions, Action::Select);
     }
-    if role == "check box" {
+    if role == "checkbox" {
         push(&mut actions, Action::Toggle);
     }
     if expand_role(role) {

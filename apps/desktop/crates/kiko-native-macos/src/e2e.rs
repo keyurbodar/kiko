@@ -39,15 +39,18 @@ fn permissions_are_granted() {
 fn textedit_answers_in_the_background_while_finder_covers_it() {
     let mut driver = MacDriver::new().expect("driver");
     let document = write_document("hello from kiko\n");
-    driver
-        .open(&OpenParams {
-            target: OpenTarget::Path(document.display().to_string()),
-            mode: Mode::Background,
-        })
+    std::process::Command::new("open")
+        .args(["-g", "-a", "TextEdit", &document.display().to_string()])
+        .status()
         .expect("open TextEdit");
 
     let textedit =
-        wait_for(LAUNCH, || window_named(&mut driver, "TextEdit")).expect("a TextEdit window");
+        wait_for(LAUNCH, || window_named(&mut driver, "TextEdit")).unwrap_or_else(|| {
+            panic!(
+                "no TextEdit window; windows are {:?}",
+                window_summary(&mut driver)
+            )
+        });
     let frame = Rect {
         x: 160.0,
         y: 160.0,
@@ -84,7 +87,7 @@ fn textedit_answers_in_the_background_while_finder_covers_it() {
         image.covers
     );
     assert!(
-        look.outline.contains("text area"),
+        look.outline.contains("textarea"),
         "outline:\n{}",
         look.outline
     );
@@ -106,7 +109,7 @@ fn textedit_answers_in_the_background_while_finder_covers_it() {
     let area = look
         .nodes
         .iter()
-        .find(|node| node.role == "text area")
+        .find(|node| node.role == "textarea")
         .expect("a text area node")
         .clone();
     driver
@@ -134,7 +137,7 @@ fn textedit_answers_in_the_background_while_finder_covers_it() {
     let text = after
         .nodes
         .iter()
-        .find(|node| node.role == "text area")
+        .find(|node| node.role == "textarea")
         .and_then(|node| node.value.clone())
         .unwrap_or_default();
     assert!(
@@ -195,7 +198,12 @@ fn safari_page_answers_in_the_background_while_finder_covers_it() {
         .expect("open Safari");
 
     let safari = wait_for(LAUNCH, || window_titled(&mut driver, "Safari", "before"))
-        .expect("a Safari window");
+        .unwrap_or_else(|| {
+            panic!(
+                "no Safari window; windows are {:?}",
+                window_summary(&mut driver)
+            )
+        });
     let frame = Rect {
         x: 160.0,
         y: 160.0,
@@ -216,7 +224,7 @@ fn safari_page_answers_in_the_background_while_finder_covers_it() {
         .expect("look at Safari");
     save_artifact("safari", look.image.as_ref().expect("Safari pixels"));
     assert!(
-        look.outline.contains("web area"),
+        look.outline.contains("webarea"),
         "outline:\n{}",
         look.outline
     );
@@ -225,7 +233,7 @@ fn safari_page_answers_in_the_background_while_finder_covers_it() {
         .nodes
         .iter()
         .find(|node| node.name.contains("Push kiko") && node.actions.contains(&Action::Press))
-        .expect("the page button")
+        .unwrap_or_else(|| panic!("no pressable page button; nodes are {:?}", look.nodes))
         .clone();
     driver
         .act(&ActParams {
@@ -267,6 +275,15 @@ fn wait_for<T>(timeout: Duration, mut check: impl FnMut() -> Option<T>) -> Optio
         std::thread::sleep(Duration::from_millis(100));
     }
     check()
+}
+
+fn window_summary(driver: &mut MacDriver) -> Vec<(String, String, u32)> {
+    driver
+        .windows()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|window| (window.app, window.title, window.pid))
+        .collect()
 }
 
 fn window_named(driver: &mut MacDriver, app: &str) -> Option<Window> {

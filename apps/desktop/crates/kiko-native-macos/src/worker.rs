@@ -62,11 +62,11 @@ impl Worker {
         let id = window_id(&window)?;
         let mut nodes = Vec::new();
         if params.tree {
+            look::enable(window.pid as i32, window.bundle.as_deref());
             let element = window::ax_element_for(id, window.pid as i32).ok_or_else(|| {
                 DriverError::new(ErrorCode::NotFound, "this window has no accessibility tree")
             })?;
             ax::timeout(&element, ax::MESSAGING_TIMEOUT);
-            look::enable(window.pid as i32, window.bundle.as_deref());
             let walk = look::walk(&element, window.frame);
             nodes = walk.nodes;
             self.refs.insert(window.id.clone(), walk.refs);
