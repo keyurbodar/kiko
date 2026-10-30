@@ -242,7 +242,9 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
     );
     wait_title(&mut driver, &b, "submitted:B");
 
+    let started = Instant::now();
     let shot = read(&mut driver, &b, true);
+    eprintln!("capture 0 of the hidden tab took {:?}", started.elapsed());
     let image = shot
         .image
         .expect("a background tab still yields a screenshot");
@@ -257,7 +259,12 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
     assert!(image.covers.w > 0.0);
 
     for attempt in 1..=20 {
+        let started = Instant::now();
         let repeated = read(&mut driver, &b, true);
+        eprintln!(
+            "capture {attempt} of the hidden tab took {:?}",
+            started.elapsed()
+        );
         let image = repeated
             .image
             .unwrap_or_else(|| panic!("capture {attempt} of the hidden tab yielded no image"));
