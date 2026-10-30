@@ -19,7 +19,7 @@ pub(crate) struct Frame {
     data: Vec<u8>,
     width: u32,
     height: u32,
-    stride: u32,
+    stride: i32,
     format: spa::param::video::VideoFormat,
 }
 
@@ -78,8 +78,13 @@ impl Frame {
 
     pub fn to_rgb(&self) -> Result<image::RgbImage, DriverError> {
         let (width, height) = (self.width as usize, self.height as usize);
-        let stride = self.stride as usize;
-        if width == 0 || height == 0 || stride < width * 4 {
+        if width == 0 || height == 0 {
+            return Err(failed("the shared window sent an empty frame"));
+        }
+        let Ok(stride) = usize::try_from(self.stride) else {
+            return Err(failed("the shared window sent a backwards frame"));
+        };
+        if stride < width * 4 {
             return Err(failed("the shared window sent an empty frame"));
         }
         let mut rgb = Vec::with_capacity(width * height * 3);
@@ -173,7 +178,7 @@ fn start(
             let (offset, size, stride) = (
                 data.chunk().offset() as usize,
                 data.chunk().size() as usize,
-                data.chunk().stride() as usize,
+                data.chunk().stride(),
             );
             let Some(bytes) = data.data() else {
                 return;
@@ -187,7 +192,7 @@ fn start(
                 data: bytes[offset..end].to_vec(),
                 width: size.width,
                 height: size.height,
-                stride: stride as u32,
+                stride,
                 format: sink.format.format(),
             };
             if let Ok(mut latest) = sink.latest.lock() {
@@ -271,4 +276,66 @@ fn format() -> Result<&'static spa::pod::Pod, DriverError> {
     .into_inner();
     spa::pod::Pod::from_bytes(Box::leak(bytes.into_boxed_slice()))
         .ok_or_else(|| failed("the capture format is not a PipeWire pod"))
+}
+
+#[cfg(test)]
+mod tests {
+    use pipewire::spa::param::video::VideoFormat;
+
+    use super::Frame;
+
+    fn frame(data: Vec<u8>, width: u32, height: u32, stride: i32) -> Frame {
+        Frame {
+            data,
+            width,
+            height,
+            stride,
+            format: VideoFormat::BGRA,
+        }
+    }
+
+    #[test]
+    fn reads_bgra_pixels() {
+        let picture = frame(
+            vec![0x10, 0x20, 0x30, 0xff, 0x40, 0x50, 0x60, 0xff],
+            2,
+            1,
+            8,
+        )
+        .to_rgb()
+        .expect("a two pixel frame");
+        assert_eq!(picture.get_pixel(0, 0).0, [0x30, 0x20, 0x10]);
+        assert_eq!(picture.get_pixel(1, 0).0, [0x60, 0x50, 0x40]);
+    }
+
+    #[test]
+    fn skips_padding_at_the_end_of_a_row() {
+        let picture = frame(
+            vec![0x10, 0x20, 0x30, 0xff, 0x00, 0x00, 0x00, 0x00],
+            1,
+            1,
+            8,
+        )
+        .to_rgb()
+        .expect("one padded pixel");
+        assert_eq!(picture.get_pixel(0, 0).0, [0x30, 0x20, 0x10]);
+    }
+
+    #[test]
+    fn rejects_a_short_frame() {
+        assert!(
+            frame(vec![0x10, 0x20, 0x30, 0xff], 2, 1, 8)
+                .to_rgb()
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_a_backwards_frame() {
+        assert!(
+            frame(vec![0x10, 0x20, 0x30, 0xff], 1, 1, -4)
+                .to_rgb()
+                .is_err()
+        );
+    }
 }
