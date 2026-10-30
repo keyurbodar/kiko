@@ -23,10 +23,11 @@ const PING = JSON.stringify({ _tag: "Ping" })
 const PONGS = new Set(["pong", JSON.stringify({ _tag: "Pong" })])
 const MIN_BACKOFF_MS = 1_000
 const MAX_BACKOFF_MS = 300_000
-const STABLE_MS = 30_000
 const OPEN_TIMEOUT_MS = 20_000
 const DEFAULT_DEADLINE_MS = 60_000
 const MAX_DEADLINE_MS = 600_000
+const SILENT_MS = 2.5 * PING_MS
+const CLOCK_SKEW_S = 60
 
 export type Endpoint = { url: string; userId: string; pcId: string; protocol: number }
 
@@ -82,12 +83,21 @@ function backoffMs(attempt: number): number {
   return Math.round(base * (0.5 + Math.random() * 0.5))
 }
 
+function closeMeaning(code: number): string {
+  if (code === 4001) return " (that worker speaks a different computer protocol; update one of them)"
+  if (code === 1008) return " (that worker was not ready for this daemon; update the worker)"
+  return ""
+}
+
 class Link {
   private socket: WebSocket | null = null
   private ping: ReturnType<typeof setInterval> | null = null
   private pending = new Map<string, Deadline>()
   private stopping = false
   private rejection: Promise<void> | null = null
+  private lastInbound = 0
+  private welcomed = false
+  private readonly drops = new WeakMap<WebSocket, (code: number, reason: string) => void>()
   removed = false
 
   constructor(private readonly host: Host) {}
@@ -95,11 +105,11 @@ class Link {
   async loop(): Promise<void> {
     let attempt = 0
     while (!this.stopping) {
-      const opened = await this.open()
+      await this.open()
       await this.rejection
       this.rejection = null
       if (this.stopping || this.removed) return
-      attempt = opened !== null && Date.now() - opened > STABLE_MS ? 0 : attempt + 1
+      attempt = this.welcomed ? 0 : attempt + 1
       const wait = backoffMs(attempt)
       this.host.log.info(`reconnecting in ${Math.round(wait / 1000)}s`)
       await Bun.sleep(wait)
@@ -110,6 +120,12 @@ class Link {
     return this.pending.size > 0
   }
 
+  reconnect(): void {
+    const socket = this.socket
+    if (!socket) return
+    this.drops.get(socket)?.(4002, "capabilities changed")
+  }
+
   stop(): void {
     this.stopping = true
     const socket = this.socket
@@ -117,16 +133,16 @@ class Link {
     socket?.close(1000, "daemon stopping")
   }
 
-  private async open(): Promise<number | null> {
+  private async open(): Promise<void> {
     const { endpoint, log } = this.host
     const headers = await connectHeaders(endpoint, this.host.key, Date.now()).catch((error: unknown) => {
       log.error(`cannot sign the connect request: ${failureMessage(error)}`)
       return null
     })
-    if (!headers) return null
+    if (!headers) return
     const url = socketUrl(endpoint.url)
-    return new Promise<number | null>((resolve) => {
-      let opened: number | null = null
+    this.welcomed = false
+    return new Promise<void>((resolve) => {
       let settled = false
       let timer: ReturnType<typeof setTimeout> | null = null
       let socket: WebSocket | null = null
@@ -135,18 +151,18 @@ class Link {
         settled = true
         if (timer) clearTimeout(timer)
         timer = null
-        resolve(opened)
+        resolve()
       }
       timer = setTimeout(() => {
         log.warn(`no answer from ${endpoint.url} after ${OPEN_TIMEOUT_MS / 1000}s; retrying`)
         try {
           socket?.close(4000, "connect timed out")
         } catch {}
+        if (socket) this.release("the worker did not answer", socket)
         finish()
       }, OPEN_TIMEOUT_MS)
       socket = this.createSocket(url, headers, {
-        opened: (at) => {
-          opened = at
+        opened: () => {
           if (timer) clearTimeout(timer)
           timer = null
         },
@@ -163,7 +179,7 @@ class Link {
   private createSocket(
     url: string,
     headers: Record<string, string>,
-    handlers: { opened(at: number): void; closed(): void },
+    handlers: { opened(): void; closed(): void },
   ): WebSocket | null {
     const { log } = this.host
     let socket: WebSocket
@@ -173,33 +189,61 @@ class Link {
       log.error(`cannot reach ${url}: ${failureMessage(error)}`)
       return null
     }
+    const drop = (code: number, reason: string) => {
+      const current = this.socket === socket
+      try {
+        socket.close(code, reason)
+      } catch {}
+      if (current) this.release("the daemon lost the worker", socket)
+      if (current && !this.stopping)
+        log.warn(`socket closed (${code}${reason ? `: ${reason}` : ""})${closeMeaning(code)}`)
+      handlers.closed()
+    }
+    this.drops.set(socket, drop)
     socket.addEventListener("open", () => {
-      handlers.opened(Date.now())
-      this.greet()
-    })
-    socket.addEventListener("message", (event) => this.receive(event.data))
-    socket.addEventListener("error", () => {
+      handlers.opened()
       if (this.socket !== socket) return
-      this.rejection = this.explainRejection(url, headers)
+      this.lastInbound = Date.now()
+      this.greet(socket, drop)
+    })
+    socket.addEventListener("message", (event) => {
+      if (this.socket !== socket) return
+      this.receive(event.data)
+    })
+    socket.addEventListener("error", () => {
+      if (this.socket !== socket) {
+        handlers.closed()
+        return
+      }
+      this.rejection = this.explainRejection(url)
+      drop(4000, "socket error")
     })
     socket.addEventListener("close", (event) => {
-      this.release("the worker closed the socket")
-      if (!this.stopping) log.warn(`socket closed (${event.code}${event.reason ? `: ${event.reason}` : ""})`)
+      const current = this.socket === socket
+      if (current) this.release("the worker closed the socket", socket)
+      if (current && !this.stopping)
+        log.warn(`socket closed (${event.code}${event.reason ? `: ${event.reason}` : ""})${closeMeaning(event.code)}`)
       handlers.closed()
     })
     return socket
   }
 
-  private greet(): void {
+  private greet(socket: WebSocket, drop: (code: number, reason: string) => void): void {
     this.host.log.info(`connected to ${this.host.endpoint.url}`)
     this.send(this.host.hello())
     if (this.ping) clearInterval(this.ping)
-    this.ping = setInterval(() => this.send(PING), PING_MS)
+    this.ping = setInterval(() => {
+      if (this.socket !== socket) return
+      if (Date.now() - this.lastInbound > SILENT_MS) return drop(4000, "no pong")
+      this.send(PING)
+    }, PING_MS)
   }
 
-  private async explainRejection(url: string, headers: Record<string, string>): Promise<void> {
+  private async explainRejection(url: string): Promise<void> {
     const { log, endpoint } = this.host
     const probe = url.replace(/^ws/, "http")
+    const headers = await connectHeaders(endpoint, this.host.key, Date.now()).catch(() => null)
+    if (!headers) return
     try {
       const response = await fetch(probe, { headers, signal: AbortSignal.timeout(10_000) })
       if (response.status === 410) {
@@ -214,6 +258,12 @@ class Link {
         )
         return
       }
+      if (response.status === 401) {
+        const server = Date.parse(response.headers.get("date") ?? "")
+        const off = Number.isFinite(server) ? Math.round((Date.now() - server) / 1000) : 0
+        if (Math.abs(off) > CLOCK_SKEW_S)
+          log.error(`this machine's clock is ${off}s off the worker's; fix the system time`)
+      }
       log.error(`the worker refused the connection: ${response.status} ${response.statusText}`)
     } catch (error) {
       log.error(`cannot reach ${endpoint.url}: ${failureMessage(error)}`)
@@ -221,6 +271,7 @@ class Link {
   }
 
   private receive(data: unknown): void {
+    this.lastInbound = Date.now()
     if (typeof data !== "string" || PONGS.has(data)) return
     let parsed: unknown
     try {
@@ -256,6 +307,7 @@ class Link {
       case "ack":
         return this.host.live.ack(frame)
       case "welcome":
+        this.welcomed = true
         this.host.onWelcome?.(frame.name, frame.version)
     }
   }
@@ -331,10 +383,12 @@ class Link {
       socket.send(payload)
     } catch (error) {
       this.host.log.warn(`cannot send to the worker: ${failureMessage(error)}`)
+      this.drops.get(socket)?.(4000, "cannot send")
     }
   }
 
-  private release(reason: string): void {
+  private release(reason: string, socket?: WebSocket): void {
+    if (socket !== undefined && socket !== this.socket) return
     if (this.ping) clearInterval(this.ping)
     this.ping = null
     this.socket = null

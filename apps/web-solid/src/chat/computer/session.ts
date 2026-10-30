@@ -3,7 +3,7 @@ import * as Option from "effect/Option"
 import { observe, owner, run, valueOf } from "../../state/runtime"
 import { onUserSignal } from "../../state/user"
 
-export type Mode = "connecting" | "rtc" | "relay"
+export type Mode = "connecting" | "rtc" | "relay" | "stalled"
 export type Cursor = { x: number; y: number } | null
 
 export type Hooks = {
@@ -18,6 +18,7 @@ export type Session = { send(events: readonly ComputerInput[]): void; close(): v
 
 const STUN = "stun:stun.cloudflare.com:3478"
 const FALLBACK_MS = 5_000
+const RELAY_SILENT_MS = 15_000
 const ICE_WAIT_MS = 350
 
 type Rtc = { send(events: readonly ComputerInput[]): boolean; close(): void }
@@ -222,6 +223,7 @@ export function startSession(pcId: string, hooks: Hooks): Session {
   let relay: ReturnType<typeof startRelay> | null = null
   let stopFrames: () => void = () => {}
   let fallback: ReturnType<typeof setTimeout> | undefined
+  let silent: ReturnType<typeof setTimeout> | undefined
 
   const setMode = (next: Mode) => {
     if (closed || mode === next) return
@@ -236,11 +238,13 @@ export function startSession(pcId: string, hooks: Hooks): Session {
     rtc = null
     setMode("connecting")
     relay = startRelay(pcId, hooks)
+    silent = setTimeout(() => setMode("stalled"), RELAY_SILENT_MS)
     stopFrames = observe(
       owner.computerFramesAtom(pcId),
       (result) => {
         const frame = Option.flatten(Option.fromNullishOr(valueOf(result)))
         if (Option.isNone(frame)) return
+        clearTimeout(silent)
         relay?.frame(frame.value)
         void run(owner.commands.pcAck, { pcId, seq: frame.value.seq })
         setMode("relay")
@@ -278,6 +282,7 @@ export function startSession(pcId: string, hooks: Hooks): Session {
     close() {
       closed = true
       clearTimeout(fallback)
+      clearTimeout(silent)
       rtc?.close()
       stopFrames()
       relay?.close()

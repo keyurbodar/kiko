@@ -150,7 +150,7 @@ export function windowsNative(): Native | null {
       const flag = horizontal ? MOUSEEVENTF_HWHEEL : MOUSEEVENTF_WHEEL
       const count = Math.min(5, Math.max(1, Math.abs(steps)))
       for (let i = 0; i < count; i++) {
-        mouseInput(input, flag, 0, 0, (steps > 0 ? -1 : 1) * WHEEL_DELTA)
+        mouseInput(input, flag, 0, 0, (steps > 0 === horizontal ? 1 : -1) * WHEEL_DELTA)
         send(1)
       }
     },

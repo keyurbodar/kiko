@@ -97,6 +97,7 @@ export const HANDLERS: Handlers = {
   "browser.handBack": (_, { host }) => host.user().kernel.browserHandBack(),
   "browser.close": (_, { host }) => host.user().kernel.browserClose(),
 
+  "pc.list": (_, { host, socket }) => host.user().pc.listForTab(socket),
   "pc.pairCode": (_, { host, socket }) => host.user().pc.pairCode(socket),
   "pc.remove": ({ pcId }, { host }) => host.user().pc.remove(pcId),
   "pc.rename": ({ pcId, name }, { host }) => host.user().pc.rename(pcId, name),

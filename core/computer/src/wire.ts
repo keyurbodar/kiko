@@ -28,6 +28,8 @@ export const Hello = Schema.Struct({
   host: Text,
   caps: Caps,
   displays: Schema.Array(Display),
+  access: Schema.optionalKey(Schema.Struct({ screen: Schema.Boolean, input: Schema.Boolean })),
+  note: Schema.optionalKey(Text),
 })
 export type Hello = typeof Hello.Type
 

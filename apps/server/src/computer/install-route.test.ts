@@ -154,3 +154,13 @@ describe("install route", () => {
     expect(run.calls()).toEqual([])
   })
 })
+
+describe("install script hints", () => {
+  const assets = { [ASSET]: new Uint8Array([1]) }
+
+  it("tells macOS owners to allow screen recording and accessibility", () => {
+    const body = installSh(ORIGIN, signed(assets))
+    expect(body).toContain("kiko-computer-host")
+    expect(body).toContain("Screen Recording, Accessibility")
+  })
+})

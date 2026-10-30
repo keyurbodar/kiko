@@ -48,6 +48,7 @@ type Core = {
   keyboard: (keycode: number, down: boolean, flags: number) => void
   unicode: (text: string, flags: number) => void
   cursor: () => { x: number; y: number } | null
+  display: () => { width: number; height: number } | null
 }
 
 function open(): Core | null {
@@ -67,6 +68,9 @@ function open(): Core | null {
       CGEventSetIntegerValueField: { args: [FFIType.ptr, FFIType.u32, FFIType.i64], returns: "void" },
       CGEventPost: { args: [FFIType.u32, FFIType.ptr], returns: "void" },
       CGEventSourceCreate: { args: [FFIType.u32], returns: "ptr" },
+      CGMainDisplayID: { args: [], returns: FFIType.u32 },
+      CGDisplayPixelsWide: { args: [FFIType.u32], returns: FFIType.u64 },
+      CGDisplayPixelsHigh: { args: [FFIType.u32], returns: FFIType.u64 },
     })
     const cf = dlopen(`${FRAMEWORKS}/CoreFoundation.framework/CoreFoundation`, {
       CFRelease: { args: [FFIType.ptr], returns: "void" },
@@ -124,6 +128,13 @@ function open(): Core | null {
         if (!mouseAt || mouseAt.HIGetMousePosition(GLOBAL_POINTS, null, ptr(point)) !== 0) return null
         return { x: point[0] ?? 0, y: point[1] ?? 0 }
       },
+      display() {
+        const id = cg.symbols.CGMainDisplayID()
+        const width = Number(cg.symbols.CGDisplayPixelsWide(id))
+        const height = Number(cg.symbols.CGDisplayPixelsHigh(id))
+        if (width <= 0 || height <= 0) return null
+        return { width, height }
+      },
     }
   } catch {
     return null
@@ -143,24 +154,18 @@ function optional<T extends Record<string, { args: FFIType[]; returns: FFIType |
 
 const DRAGGED = [EVENT.leftDragged, EVENT.rightDragged, EVENT.otherDragged] as const
 
-function requestAccess(): void {
-  const access = optional(`${FRAMEWORKS}/CoreGraphics.framework/CoreGraphics`, {
-    CGPreflightPostEventAccess: { args: [], returns: FFIType.bool },
-    CGRequestPostEventAccess: { args: [], returns: FFIType.bool },
-    CGPreflightScreenCaptureAccess: { args: [], returns: FFIType.bool },
-    CGRequestScreenCaptureAccess: { args: [], returns: FFIType.bool },
-  })
-  if (!access) return
-  if (!access.CGPreflightPostEventAccess()) access.CGRequestPostEventAccess()
-  if (!access.CGPreflightScreenCaptureAccess()) access.CGRequestScreenCaptureAccess()
+function buttonEvent(slot: number, down: boolean): number {
+  if (slot === 1) return down ? EVENT.rightDown : EVENT.rightUp
+  if (slot === 2) return down ? EVENT.otherDown : EVENT.otherUp
+  return down ? EVENT.leftDown : EVENT.leftUp
 }
 
 export function macNative(): Native | null {
   const core = open()
   if (!core) return null
-  requestAccess()
   let flags = 0
   let pressed: number | null = null
+  let pointer: { x: number; y: number } | null = null
   let last = { at: 0, x: 0, y: 0, slot: -1, clicks: 0 }
   const held = new Set<string>()
 
@@ -174,25 +179,15 @@ export function macNative(): Native | null {
 
   return {
     move(x, y) {
+      pointer = { x, y }
       const dragged = pressed === null ? undefined : DRAGGED[pressed]
       core.mouse(dragged ?? EVENT.mouseMoved, x, y, pressed ?? 0, flags, 0)
     },
     button(slot, down, x, y) {
+      pointer = { x, y }
       const clicks = down ? clicksFor(slot, x, y) : last.clicks
       pressed = down ? slot : null
-      const type =
-        slot === 1
-          ? down
-            ? EVENT.rightDown
-            : EVENT.rightUp
-          : slot === 2
-            ? down
-              ? EVENT.otherDown
-              : EVENT.otherUp
-            : down
-              ? EVENT.leftDown
-              : EVENT.leftUp
-      core.mouse(type, x, y, slot, flags, clicks)
+      core.mouse(buttonEvent(slot, down), x, y, slot, flags, clicks)
     },
     wheel(steps, horizontal) {
       core.scroll(horizontal ? 0 : -steps, horizontal ? -steps : 0, flags)
@@ -213,9 +208,13 @@ export function macNative(): Native | null {
       return core.cursor()
     },
     screen() {
-      return null
+      return core.display()
     },
     release() {
+      if (pressed !== null) {
+        const at = core.cursor() ?? pointer
+        if (at) core.mouse(buttonEvent(pressed, false), at.x, at.y, pressed, flags, 1)
+      }
       for (const code of held) {
         const keycode = macKeyCode(code, code)
         if (keycode !== 0xffff) core.keyboard(keycode, false, 0)

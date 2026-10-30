@@ -114,8 +114,8 @@ function keyHandlers(target: InputTarget) {
       if (event.isComposing || event.key === "Process" || event.key === "Unidentified") return
       if (isPasteChord(event)) return
       if (event.key === "Escape") {
+        if (event.shiftKey) return
         event.preventDefault()
-        if (event.shiftKey) return sink.blur()
         send(escapeEvents(event))
         return
       }
@@ -130,9 +130,6 @@ function keyHandlers(target: InputTarget) {
       event.preventDefault()
       down.delete(event.code)
       send([{ k: "key", code: event.code, key: held.key, down: false, mods: modsOf(event) }])
-    },
-    compositionend(event: CompositionEvent) {
-      typed(event.data)
     },
     input(event: Event) {
       const { isComposing, data } = event as InputEvent
@@ -173,7 +170,6 @@ export function bindInput(target: InputTarget): () => void {
   const sinkEvents = {
     keydown: keys.keydown,
     keyup: keys.keyup,
-    compositionend: keys.compositionend,
     input: keys.input,
     paste: keys.paste,
     blur: release,

@@ -5,13 +5,12 @@ import { configDir, loadConfig, loadKey, loadPolicy, paths } from "./config"
 import { runLink, type Host } from "./connection"
 import { helloPayload } from "./hello"
 import { emptyLive, startLive, type Live } from "./live"
-import type { LiveCaps } from "./live"
 import { createLogger, type Logger } from "./log"
 import { VERSION } from "./platform"
 import { createUpdater, updateTarget, type Updater } from "./update"
 
-const REDETECT_MS = 10 * 60 * 1000
 const REPAIR_POLL_MS = 30_000
+const ACCESS_POLL_MS = 30_000
 export const WELCOMED = "the worker calls this machine"
 
 export async function serve(dir = configDir()): Promise<number> {
@@ -34,7 +33,8 @@ export async function serve(dir = configDir()): Promise<number> {
   }
   const policy = await loadPolicy(dir)
   let live: Live = emptyLive({ logger: log, setHolder })
-  let detection = await detect(dir, log, policy)
+  let detection = detect(log, policy)
+  if (policy.desktop) detection.backend?.requestAccess()
   let update: Updater | null = null
   const host: Host = {
     endpoint: { url: config.url, userId: config.userId, pcId: config.pcId, protocol: PROTOCOL },
@@ -77,7 +77,7 @@ export async function serve(dir = configDir()): Promise<number> {
     log.info("stopping")
     link.stop()
     void live.close()
-    void detection.driver?.close()
+    detection.backend?.close()
     process.exit(0)
   }
   update = createUpdater({
@@ -93,21 +93,28 @@ export async function serve(dir = configDir()): Promise<number> {
   log.info(
     `${config.name} connecting to ${config.url} with ${detection.caps.desktop ? "desktop tools" : "shell and files only"}`,
   )
-  const refresh = setInterval(() => {
-    void redetect(dir, log, policy, () => detection).then((next) => {
-      if (!next) return
-      detection = next
-      point(next)
-    })
-  }, REDETECT_MS)
+  const access = setInterval(() => {
+    const backend = detection.backend
+    if (!backend) return
+    const next = backend.access()
+    const current = detection.access
+    const granted = next.screen && next.input
+    if (current && current.screen === next.screen && current.input === next.input) {
+      if (granted) clearInterval(access)
+      return
+    }
+    detection = { ...detection, access: next }
+    if (granted) clearInterval(access)
+    link.reconnect()
+  }, ACCESS_POLL_MS)
   try {
     await link.loop()
   } finally {
-    clearInterval(refresh)
+    clearInterval(access)
   }
   if (!link.removed) return 0
   await live.close()
-  await detection.driver?.close().catch(() => undefined)
+  detection.backend?.close()
   await repaired(dir, config.pcId)
   log.info("paired again; restarting")
   return 0
@@ -118,18 +125,6 @@ async function repaired(dir: string, pcId: string): Promise<void> {
     const next = await loadConfig(dir).catch(() => null)
     if (next && next.pcId !== pcId) return
     await Bun.sleep(REPAIR_POLL_MS)
-  }
-}
-
-async function redetect(dir: string, log: Logger, live: LiveCaps, current: () => Detection): Promise<Detection | null> {
-  try {
-    const next = await detect(dir, log, live)
-    const previous = current()
-    if (previous.driver && previous.driver !== next.driver) void previous.driver.close().catch(() => undefined)
-    return next
-  } catch (error) {
-    log.warn(`could not recheck this machine: ${error instanceof Error ? error.message : String(error)}`)
-    return null
   }
 }
 
@@ -165,14 +160,8 @@ export async function diagnose(dir = configDir()): Promise<{ checks: Check[]; de
     ok: true,
     detail: `shell ${policy.shell ? "on" : "off"}, desktop ${policy.desktop ? "on" : "off"}, files ${policy.files.allow.join(", ")}`,
   })
-  const detection = await detect(dir, log)
-  checks.push({
-    name: "desktop",
-    ok: true,
-    detail: detection.caps.desktop
-      ? `${detection.driverPath ?? "cua-driver"}, ${detection.displays.length} display(s)`
-      : "off; shell and files still work",
-  })
+  const detection = detect(log)
+  checks.push({ name: "desktop", ok: desktopOk(detection), detail: desktopDetail(detection) })
   checks.push({ name: "ffmpeg", ok: true, detail: Bun.which("ffmpeg") ?? "not installed; live video is off" })
   checks.push({
     name: "shell",
@@ -181,6 +170,34 @@ export async function diagnose(dir = configDir()): Promise<{ checks: Check[]; de
   })
   if (config) checks.push(await reachable(config.url))
   return { checks, detection }
+}
+
+function desktopOk(detection: Detection): boolean {
+  if (!detection.caps.desktop) return false
+  return detection.access === null || (detection.access.screen && detection.access.input)
+}
+
+function desktopDetail(detection: Detection): string {
+  if (!detection.caps.desktop) return `${detection.reason ?? "desktop tools are off"}; shell and files still work`
+  const access = detection.access
+  if (!access) return "the desktop backend is running"
+  const missing: string[] = []
+  if (!access.screen) missing.push(`screen recording: ${screenFix()}`)
+  if (!access.input) missing.push(`input: ${inputFix()}`)
+  if (missing.length > 0) return missing.join("; ")
+  return `${detection.displays.length} display(s); screen recording and input are allowed`
+}
+
+function screenFix(): string {
+  return process.platform === "darwin"
+    ? "open System Settings > Privacy & Security > Screen Recording and turn on kiko-computer-host"
+    : "allow screen recording for kiko-computer-host"
+}
+
+function inputFix(): string {
+  return process.platform === "darwin"
+    ? "open System Settings > Privacy & Security > Accessibility and turn on kiko-computer-host"
+    : "allow input control for kiko-computer-host"
 }
 
 async function reachable(base: string): Promise<Check> {
