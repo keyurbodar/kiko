@@ -289,6 +289,10 @@ fn window_titled(driver: &mut MacDriver, app: &str, title: &str) -> Option<Windo
 fn start_document_app(driver: &mut MacDriver) -> Window {
     let mut notes = Vec::new();
     for app in &DOCUMENT_APPS {
+        if let Some(window) = window_named(driver, app.name) {
+            println!("the document app is already running: {}", app.name);
+            return window;
+        }
         for background in [true, false] {
             notes.push(run_open(app, background));
             if let Some(window) = wait_for(LAUNCH, || window_named(driver, app.name)) {
@@ -305,11 +309,16 @@ fn start_document_app(driver: &mut MacDriver) -> Window {
 }
 
 fn launch_safari(driver: &mut MacDriver, url: &str) -> Window {
-    let mut notes = vec![open_app(SAFARI, None, true)];
-    let mut running = wait_for(LAUNCH, || window_named(driver, "Safari"));
+    let mut notes = Vec::new();
+    let mut running = window_named(driver, "Safari");
     if running.is_none() {
-        notes.push(open_app(SAFARI, None, false));
-        running = wait_for(LAUNCH, || window_named(driver, "Safari"));
+        for background in [true, false] {
+            notes.push(open_app(SAFARI, None, background));
+            running = wait_for(LAUNCH, || window_named(driver, "Safari"));
+            if running.is_some() {
+                break;
+            }
+        }
     }
     if running.is_some() {
         notes.push(open_app(SAFARI, Some(url), true));
