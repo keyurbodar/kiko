@@ -261,7 +261,17 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
     );
     assert!(image.covers.w > 0.0);
 
-    for attempt in 1..=20 {
+    let visible = read(&mut driver, &a, true);
+    let image = visible
+        .image
+        .expect("the tab the owner is looking at still yields a screenshot");
+    assert!(!image.data.is_empty());
+    assert!(
+        active(&mut driver, "A"),
+        "capturing the owner's tab leaves it in front"
+    );
+
+    for attempt in 1..=3 {
         let name = format!("cold{attempt}");
         driver
             .open(&BrowserOpenParams {

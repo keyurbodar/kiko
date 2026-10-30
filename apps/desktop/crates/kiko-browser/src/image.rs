@@ -71,9 +71,69 @@ async fn pixel_ratio(link: &Link, session: &str) -> f64 {
 
 async fn shoot(link: &Link, session: &str, clip: &Value) -> Result<String> {
     set_focus_emulation(link, session, true).await?;
-    let captured = send_capture(link, session, clip).await;
+    let started = std::time::Instant::now();
+    let painted = wait_for_paint(link, session).await;
+    eprintln!("probe paint wait {painted} in {:?}", started.elapsed());
+    let started = std::time::Instant::now();
+    let captured = match send_capture(link, session, clip).await {
+        Ok(data) => {
+            eprintln!("probe capture after paint: ok in {:?}", started.elapsed());
+            Ok(data)
+        }
+        Err(first) => {
+            eprintln!(
+                "probe capture after paint: {first} in {:?}",
+                started.elapsed()
+            );
+            let started = std::time::Instant::now();
+            let window = json!({ "format": "jpeg", "quality": 80, "fromSurface": false });
+            let warm = link
+                .send_with(
+                    Some(session),
+                    "Page.captureScreenshot",
+                    window,
+                    REQUEST_TIMEOUT,
+                )
+                .await
+                .map(|value| value["data"].as_str().unwrap_or_default().to_string());
+            eprintln!(
+                "probe window: {} in {:?}",
+                describe(&warm),
+                started.elapsed()
+            );
+            let started = std::time::Instant::now();
+            let second = send_capture(link, session, clip).await;
+            eprintln!(
+                "probe capture after window: {} in {:?}",
+                describe(&second),
+                started.elapsed()
+            );
+            second
+        }
+    };
     let restored = set_focus_emulation(link, session, false).await;
     captured.and_then(|data| restored.map(|()| data))
+}
+
+fn describe(result: &Result<String>) -> String {
+    match result {
+        Ok(data) => format!("ok {} bytes", data.len()),
+        Err(error) => error.to_string(),
+    }
+}
+
+async fn wait_for_paint(link: &Link, session: &str) -> bool {
+    let expression = "new Promise(resolve => { let seen = 0; const tick = () => { if (++seen >= 2) { resolve(true); return; } requestAnimationFrame(tick) }; requestAnimationFrame(tick); setTimeout(() => resolve(false), 2000) })";
+    link.send_with(
+        Some(session),
+        "Runtime.evaluate",
+        json!({ "expression": expression, "awaitPromise": true, "returnByValue": true }),
+        REQUEST_TIMEOUT,
+    )
+    .await
+    .ok()
+    .and_then(|result| result["result"]["value"].as_bool())
+    .unwrap_or(false)
 }
 
 async fn send_capture(link: &Link, session: &str, clip: &Value) -> Result<String> {
