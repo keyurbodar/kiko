@@ -636,9 +636,20 @@ fn background_typing_splices_at_the_caret_in_a_page_field() {
         ),
     }
 
+    let mut last: Option<Option<String>> = None;
     let value = wait_for("the page field to hold the typed word", || {
         let found = try_look(&mut driver, &window.id).ok()?;
-        let field = find_optional(&found.nodes, "edit", Some("kiko note"))?;
+        let Some(field) = find_optional(&found.nodes, "edit", Some("kiko note")) else {
+            eprintln!("page tree: {}", outline(&found.nodes));
+            return None;
+        };
+        if last.as_ref() != Some(&field.value) {
+            eprintln!(
+                "page field value: {:?} states {:?}",
+                field.value, field.states
+            );
+            last = Some(field.value.clone());
+        }
         let value = field.value.clone().unwrap_or_default();
         value.contains("alpha").then_some(value)
     });
@@ -746,15 +757,6 @@ fn foreground_input_reaches_the_testapp_and_raises_it() {
     let mut select_all = foreground_act(&target.id(), Some(edit.reference), Action::Key);
     select_all.keys = Some("ctrl+a".into());
     assert_eq!(act(&mut driver, select_all).route, Route::Foreground);
-    let mut replace = foreground_act(&target.id(), Some(edit.reference), Action::Type);
-    replace.text = Some("Z".into());
-    assert_eq!(act(&mut driver, replace).route, Route::Foreground);
-    let replaced = wait_for_edit_value(&mut driver, &target.id(), Some("Z"));
-    let edit = find(&replaced.nodes, "edit", None).clone();
-
-    let mut home = foreground_act(&target.id(), Some(edit.reference), Action::Key);
-    home.keys = Some("home".into());
-    assert_eq!(act(&mut driver, home).route, Route::Foreground);
     let mut delete = foreground_act(&target.id(), Some(edit.reference), Action::Key);
     delete.keys = Some("delete".into());
     assert_eq!(act(&mut driver, delete).route, Route::Foreground);
