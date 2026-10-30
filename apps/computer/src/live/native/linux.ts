@@ -4,6 +4,7 @@ import { notches } from "./wheel"
 import { spareKeycode, unicodeKeysym } from "./keysym"
 
 const WHEEL_NOTCH_PX = 50
+const MAX_NOTCHES = 60
 const REMAP_SETTLE_MS = 40
 const X_BUTTONS = [1, 3, 2]
 
@@ -239,7 +240,7 @@ function needsShift(key: string): boolean {
 export function linuxNative(): Native | null {
   const symbols = openSymbols()
   if (!symbols) return null
-  const down = new Set<string>()
+  const down = new Map<string, number>()
   const heldButtons = new Set<number>()
 
   const typeAscii = (char: string): void => {
@@ -278,12 +279,14 @@ export function linuxNative(): Native | null {
   const type = (char: string): void => {
     if (char === "\n" || char === "\r") {
       const code = symbols.keycode(0xff0d)
+      if (!code) return
       symbols.keycodeDown(code, true)
       symbols.keycodeDown(code, false)
       return
     }
     if (char === "\t") {
       const code = symbols.keycode(0xff09)
+      if (!code) return
       symbols.keycodeDown(code, true)
       symbols.keycodeDown(code, false)
       return
@@ -312,7 +315,7 @@ export function linuxNative(): Native | null {
       const steps = (horizontal ? sideways : upright)(pixels)
       if (steps === 0) return
       const button = horizontal ? (steps > 0 ? 7 : 6) : steps > 0 ? 5 : 4
-      for (let i = 0; i < Math.abs(steps); i++) {
+      for (let i = 0; i < Math.min(MAX_NOTCHES, Math.abs(steps)); i++) {
         symbols.button(button, true)
         symbols.button(button, false)
       }
@@ -321,7 +324,7 @@ export function linuxNative(): Native | null {
     key(code, key, isDown) {
       const keycode = symbols.keycode(symbols.keysym(code, key))
       if (!keycode) return
-      if (isDown) down.add(code)
+      if (isDown) down.set(code, keycode)
       else down.delete(code)
       symbols.keycodeDown(keycode, isDown)
       symbols.flush()
@@ -337,10 +340,7 @@ export function linuxNative(): Native | null {
       return { width: symbols.width, height: symbols.height }
     },
     release() {
-      for (const code of down) {
-        const keycode = symbols.keycode(symbols.keysym(code, code))
-        if (keycode) symbols.keycodeDown(keycode, false)
-      }
+      for (const keycode of down.values()) symbols.keycodeDown(keycode, false)
       down.clear()
       for (const slot of heldButtons) symbols.button(X_BUTTONS[slot] ?? 1, false)
       heldButtons.clear()

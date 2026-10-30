@@ -51,9 +51,20 @@ function quality(level: number): string {
 }
 
 function linuxSources(screen: Screen, fps: number): string[][] {
-  const region = `${screen.originX ?? 0},${screen.originY ?? 0},${screen.width || 1},${screen.height || 1}`
+  const origin = `${screen.originX ?? 0},${screen.originY ?? 0}`
   return [
-    ["-f", "x11grab", "-draw_mouse", "0", "-framerate", String(fps), "-i", `${process.env.DISPLAY ?? ":0"}+${region}`],
+    [
+      "-f",
+      "x11grab",
+      "-draw_mouse",
+      "0",
+      "-framerate",
+      String(fps),
+      "-video_size",
+      `${screen.width || 1}x${screen.height || 1}`,
+      "-i",
+      `${process.env.DISPLAY ?? ":0"}+${origin}`,
+    ],
   ]
 }
 

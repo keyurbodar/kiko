@@ -145,6 +145,7 @@ export function linuxDesk(): Backend | null {
     close() {
       if (!open) return
       open = false
+      native.release()
       x11.symbols.XCloseDisplay(display)
     },
   }
