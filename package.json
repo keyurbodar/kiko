@@ -14,6 +14,7 @@
     "dev:server": "bun run --cwd apps/server dev --port 8787",
     "dev:web": "bun run --cwd apps/web-solid dev --port 5173",
     "kiko": "bun apps/cli/src/index.ts",
+    "icons": "bun apps/desktop/crates/kiko-app/scripts/icons.ts",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "lint": "oxlint --deny-warnings && biome check --diagnostic-level=error",
