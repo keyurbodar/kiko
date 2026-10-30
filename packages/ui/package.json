@@ -13,7 +13,6 @@
     "**/*.css"
   ],
   "exports": {
-    ".": "./src/index.ts",
     "./file-icon.css": "./src/components/file-icon.css",
     "./remix-icon": "./src/components/remix-icon.tsx",
     "./remix-icon.css": "./src/components/remix-icon.css",
@@ -23,11 +22,9 @@
     "./pictogram": "./src/components/pictogram.tsx",
     "./pictogram.css": "./src/components/pictogram.css",
     "./file-icon": "./src/components/file-icon.tsx",
-    "./hooks": "./src/hooks/index.ts",
     "./context/*": "./src/context/*.tsx",
     "./i18n/*": "./src/i18n/*.ts",
     "./v2/*.css": "./src/v2/components/*.css",
-    "./v2/tree/create-tree": "./src/v2/components/tree/create-tree.ts",
     "./v2/*": "./src/v2/components/*.tsx",
     "./package.json": "./package.json"
   },
@@ -35,11 +32,7 @@
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
-    "@headless-tree/core": "^1.7.0",
-    "@kobalte/core": "0.13.11",
-    "fuzzysort": "3.1.0",
-    "remeda": "2.26.0",
-    "solid-list": "0.3.0"
+    "@kobalte/core": "0.13.11"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",

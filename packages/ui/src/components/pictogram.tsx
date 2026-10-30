@@ -1,4 +1,5 @@
-import { splitProps, type ComponentProps } from "solid-js"
+import { createEffect, splitProps, type ComponentProps } from "solid-js"
+import { glyphNodes } from "./glyph-cache"
 import "./pictogram.css"
 
 export type PictogramName =
@@ -73,11 +74,30 @@ export type PictogramProps = Omit<ComponentProps<"svg">, "children"> & {
   size?: number
 }
 
+const server = typeof document === "undefined"
+
 export function Pictogram(props: PictogramProps) {
   const [own, rest] = splitProps(props, ["name", "size"])
   const size = () => Math.max(40, own.size ?? 48)
+  if (server) {
+    return (
+      <svg
+        data-component="pictogram"
+        aria-hidden="true"
+        viewBox="0 0 64 64"
+        width={size()}
+        height={size()}
+        fill="none"
+        {...rest}
+        innerHTML={PICTOGRAMS[own.name]}
+      />
+    )
+  }
+  let element!: SVGSVGElement
+  createEffect(() => element.replaceChildren(...glyphNodes(PICTOGRAMS[own.name])))
   return (
     <svg
+      ref={element}
       data-component="pictogram"
       aria-hidden="true"
       viewBox="0 0 64 64"
@@ -85,7 +105,6 @@ export function Pictogram(props: PictogramProps) {
       height={size()}
       fill="none"
       {...rest}
-      innerHTML={PICTOGRAMS[own.name]}
     />
   )
 }

@@ -3,19 +3,32 @@ import type { RunStep } from "@kiko/protocol"
 import { createSignal } from "solid-js"
 import { describe, expect, it, vi } from "vitest"
 import { userEvent } from "vitest/browser"
+import { page } from "vitest/browser"
 import { render } from "../../../test/render"
 import { fakeTimers } from "../../../test/timers"
+import { heardThought, restoredThought } from "../../state/thoughts"
 import { fullTimeLabel } from "./duration"
 import { RunTree } from "./RunTree"
 
-const fake = vi.hoisted(() => ({ steps: [] as RunStep[], live: false, helpers: [] as unknown[] }))
+const fake = vi.hoisted(() => ({
+  steps: [] as RunStep[],
+  live: false,
+  helpers: [] as unknown[],
+  end: undefined as { at: number; label: string } | undefined,
+  restored: undefined as unknown,
+  asked: [] as string[],
+}))
 
 vi.mock("../../state/room", async () => {
   const { createSignal: signal } = await import("solid-js")
   const [steps, setSteps] = signal<readonly RunStep[]>([])
   const [live, setLive] = signal(false)
   const [helpers, setHelpers] = signal<readonly unknown[]>([])
+  const [end, setEnd] = signal<{ at: number; label: string } | undefined>(undefined)
+  const [restored, setRestored] = signal<unknown>(undefined)
   Object.defineProperty(fake, "helpers", { get: helpers, set: setHelpers })
+  Object.defineProperty(fake, "end", { get: end, set: setEnd })
+  Object.defineProperty(fake, "restored", { get: restored, set: setRestored })
   Object.defineProperty(fake, "steps", { get: steps, set: setSteps })
   Object.defineProperty(fake, "live", { get: live, set: setLive })
   return {
@@ -26,8 +39,14 @@ vi.mock("../../state/room", async () => {
         return steps().filter((step) => (step.after ?? 0) === after)
       },
       runLive: () => live(),
+      runReady: () => true,
       runFetching: () => false,
       loadRunSteps: () => {},
+      runEnd: () => end(),
+      thoughtOfRun: () => restored(),
+      loadThoughts: (slug: string, runId: string) => {
+        fake.asked.push(`${slug}:${runId}`)
+      },
       activeId: () => "room",
       helpers: () => helpers(),
       roomMembers: () => [],
@@ -378,6 +397,72 @@ describe("RunTree", () => {
     expect(found[2]!.hasAttribute("data-hot")).toBe(true)
     expect(railOf(found[2]!).borderLeftColor).toBe(white)
     expect(elbowOf(found[2]!).borderLeftColor).toBe(white)
+  })
+
+  it("settles a tree that mounts right after its run with no second enter animation", async () => {
+    using _timers = fakeTimers()
+    vi.setSystemTime(START + 21_000)
+    fake.live = false
+    fake.end = { at: START + 20_900, label: "Used 2 tools" }
+    fake.steps = [step("a", { after: 40, startedAt: START, endedAt: START + 2_000 })]
+    await using screen = await render(() => <RunTree windowKey="kiko#40" count={1} endedAt={START + 20_000} />)
+
+    expect(screen.container.querySelectorAll(".run-tree-head")).toHaveLength(1)
+    expect(screen.container.querySelector(".run-tree-cross-in")?.textContent).toBe("Worked for 20s")
+    expect(screen.container.querySelector(".run-tree-item[data-fresh]")).toBeNull()
+  })
+
+  it("restores a finished run's thinking from the room when its tree opens", async () => {
+    fake.live = false
+    fake.end = undefined
+    fake.restored = undefined
+    fake.asked = []
+    fake.steps = [step("a", { after: 41, runId: "room:kiko:9", startedAt: START, endedAt: START + 2_000 })]
+    await using screen = await render(() => <RunTree windowKey="kiko#41" count={1} endedAt={START + 4_000} />)
+    expect(screen.container.querySelector('.run-tree-item[data-kind="thought"]')).toBeNull()
+
+    head(screen.container).click()
+    expect(fake.asked).toEqual(["kiko:room:kiko:9"])
+
+    fake.restored = restoredThought("kiko", "room:kiko:9", [
+      { part: 0, text: "Quiet first.", startedAt: START, spentMs: 3_000 },
+    ])
+
+    const row = await vi.waitFor(() => {
+      const found = screen.container.querySelector<HTMLElement>('.run-tree-item[data-kind="thought"]')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    expect(row.textContent).toContain("Thought for 3s")
+
+    row.querySelector<HTMLButtonElement>("button")!.click()
+    await vi.waitFor(() =>
+      expect(screen.container.querySelector(".thinking-stream")?.textContent).toContain("Quiet first."),
+    )
+  })
+
+  it("wraps long reasoning inside its column at 390px", async () => {
+    await page.viewport(390, 844)
+    fake.end = undefined
+    fake.live = true
+    fake.steps = [step("a", { after: 42, startedAt: START, status: "running", endedAt: undefined })]
+    const long = `${"quiet hotel near the station with breakfast included ".repeat(12)}\n\nhttps://example.com/${"very-long-path-segment".repeat(6)}`
+    const thought = heardThought(
+      undefined,
+      { slug: "kiko", runId: "run", part: 0, offset: 0, text: long, startedAt: START, done: false },
+      START + 1_000,
+      0,
+    )
+    await using screen = await render(() => <RunTree windowKey="kiko#42" thought={thought} />)
+
+    const box = await vi.waitFor(() => {
+      const found = screen.container.querySelector<HTMLElement>(".thinking-stream")
+      expect(found).not.toBeNull()
+      return found!
+    })
+    expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth)
+    expect(screen.container.querySelector(".run-tree")!.getBoundingClientRect().right).toBeLessThanOrEqual(390)
+    await page.viewport(1280, 720)
   })
 
   it("folds a running helper to one row with the step it is on and a time", async () => {

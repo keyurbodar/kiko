@@ -2,7 +2,6 @@ import {
   fileName,
   humanHandle,
   isRoomId,
-  mentionsHuman,
   messageLast,
   type AgentSlug,
   type AgentState,
@@ -23,6 +22,7 @@ import {
   type RunStep,
   type SearchHit,
   type Task,
+  type TaskOp,
   type ThinkingLevel,
 } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
@@ -33,16 +33,11 @@ import { batch, createComputed, createMemo, createRoot, createSignal, on, untrac
 import { createStore, produce } from "solid-js/store"
 import { session as signedIn } from "../app/session"
 import { arriveLine, hideLine, NO_LINE, openLine, sendLine, showLine, type UnreadLine } from "../chat/lib/unread-line"
-import {
-  inWindow,
-  newestAfter,
-  parseWindow,
-  settledSteps,
-  stepWindows,
-  upsertStep,
-  windowKey,
-} from "../chat/run/run-log"
+import { inWindow, newestAfter, parseWindow, settledSteps, upsertStep, windowKey } from "../chat/run/run-log"
 import { helperLanes, nestedLanes } from "../chat/helpers/helper-model"
+import { unfoldedRuns } from "../chat/lib/grouping"
+import { liveLabel } from "../chat/run/run-log"
+import { summaryOf } from "../chat/run/run-tree-rows"
 import { fillComposer } from "../composer/fill"
 import { releaseUpload, uploadedFile } from "../composer/uploads"
 import { distinctTitles, resumeChat, rosterChats } from "../lib/chats"
@@ -51,20 +46,21 @@ import { fileUrl } from "../lib/file-token"
 import { chatFaces } from "../lib/identity"
 import { agentDisplayName } from "../lib/names"
 import type { BotPresence, ChatMessage, MessageFile, OutgoingMessage, Reaction, RosterBot } from "../lib/types"
-import { describeLast, isListed } from "../sidebar/activity"
+import { describeLast } from "../sidebar/activity"
 import { clearUnreadMark } from "../sidebar/unread-mark"
 import { connection } from "./connection"
 import { liveLine, liveStatusOf, thinkingLine, type LiveStatus } from "./live-status"
-import { createThoughts, type ThinkingSignal, type Thought } from "./thoughts"
+import { createThoughts, restoredThought, type ThinkingSignal, type Thought } from "./thoughts"
 import { attempt, observe, owner, registry, valueOf, watch } from "./runtime"
 import { onUserSignal, user } from "./user"
 import { withSentFiles } from "./sent-files"
 import { createOutbox, type Outbound } from "./outbox"
+import { MessageLedger, PENDING_SEQ } from "./message-ledger"
 
-const PENDING_SEQ = Number.MAX_SAFE_INTEGER
 const HISTORY_PAGE = 30
 const TYPING_EVERY_MS = 2_000
 const WARM_ROOMS = 4
+const RUN_END_KEEP_MS = 10_000
 
 export const fileSrc = (roomId: string, fileId: string) => fileUrl(`/api/files/${roomId}/${encodeURIComponent(fileId)}`)
 
@@ -176,26 +172,42 @@ function viewLast(m: Message, name: (slug: string) => string): ChatLast {
   })
 }
 
-function mentionIds(messages: readonly Message[], handle: string | null, slugs: readonly string[]) {
-  const own = handle && !slugs.includes(handle) ? handle : null
-  const human = new Set(messages.filter((m) => m.from.kind === "human").map((m) => m.id))
-  return messages
-    .filter(
-      (m) =>
-        !isPending(m) &&
-        m.from.kind === "agent" &&
-        m.to === undefined &&
-        mentionsHuman(m.text, own, !!m.replyTo && human.has(m.replyTo)),
-    )
-    .map((m) => ({ id: m.id, seq: m.seq }))
-}
-
 function sameRow(a: RosterBot, b: RosterBot): boolean {
   const x = a as unknown as Record<string, unknown>
   const y = b as unknown as Record<string, unknown>
   for (const k in x) if (x[k] !== y[k]) return false
   for (const k in y) if (!(k in x)) return false
   return true
+}
+
+function sameLive(a: Record<string, LiveStatus>, b: Record<string, LiveStatus>): boolean {
+  const keys = Object.keys(a)
+  if (keys.length !== Object.keys(b).length) return false
+  for (const key of keys) {
+    const x = a[key]!
+    const y = b[key]
+    if (y === undefined || x.kind !== y.kind || x.text !== y.text) return false
+  }
+  return true
+}
+
+function sameMap<K, V>(a: ReadonlyMap<K, V>, b: ReadonlyMap<K, V>): boolean {
+  if (a.size !== b.size) return false
+  for (const [key, value] of a) if (b.get(key) !== value) return false
+  return true
+}
+
+function createLedger(source: () => readonly Message[]) {
+  const ledger = new MessageLedger()
+  const tick = createMemo(
+    () => {
+      ledger.update(source())
+      return ledger
+    },
+    ledger,
+    { equals: false },
+  )
+  return { ledger, tick }
 }
 
 function memberRow(member: Member, presence: BotPresence = "idle"): RosterBot {
@@ -493,6 +505,8 @@ function createRoom() {
   const liveMessages = createMemo(() => snapshot()?.messages ?? [])
   const history = createHistory(activeId, liveMessages)
   const messages = createMemo(() => history.shown() ?? liveMessages())
+  const liveLedger = createLedger(liveMessages)
+  const messagesLedger = createLedger(messages)
   const warm = createWarmRooms(activeId, (id) => !user.synced() || user.chat(id) !== undefined)
   const [marks, setMarks] = createSignal<Readonly<Record<string, number>>>({})
   createComputed(on(activeId, () => setMarks({})))
@@ -541,22 +555,30 @@ function createRoom() {
       },
     ),
   )
-  const liveOf = createMemo(() => {
-    const out: Record<string, LiveStatus> = {}
-    if (!streaming()) return out
-    const list = liveMessages()
-    for (const a of snapshot()?.agents ?? []) {
-      const live = liveStatusOf({
-        slug: a.slug,
-        status: a,
-        messages: list.filter((m) => !isPending(m) && !m.event),
-        mark: marks()[a.slug],
-        running: (runs.current().steps[a.slug] ?? []).some((step) => step.status === "running"),
-      })
-      if (live.kind !== "idle") out[a.slug] = live
-    }
-    return out
-  })
+  const liveOf = createMemo(
+    () => {
+      const out: Record<string, LiveStatus> = {}
+      if (!streaming()) return out
+      liveLedger.tick()
+      const sent = liveLedger.ledger.sent()
+      const newestHuman = liveLedger.ledger.newestHumanSeq()
+      for (const a of snapshot()?.agents ?? []) {
+        const mark = marks()[a.slug]
+        const live = liveStatusOf({
+          slug: a.slug,
+          status: a,
+          messages: sent,
+          mark,
+          replied: liveLedger.ledger.repliedSince(a.slug, mark ?? newestHuman),
+          running: (runs.current().steps[a.slug] ?? []).some((step) => step.status === "running"),
+        })
+        if (live.kind !== "idle") out[a.slug] = live
+      }
+      return out
+    },
+    {},
+    { equals: sameLive },
+  )
   const liveStates = createMemo(() => {
     const out: Record<string, AgentState> = {}
     const raw = statusOf()
@@ -609,24 +631,63 @@ function createRoom() {
     [],
     { equals: (a, b) => a.length === b.length && a.every((view, i) => view === b[i]) },
   )
-  const rows = createMemo(() => {
+  const viewOf = (m: Message, id: RoomId): ChatMessage => {
+    const cached = views.get(m)
+    if (cached && cached.threadId === id) return cached
+    const sent = m.clientId ? sentFiles.get(m.clientId) : undefined
+    const base = toChatMessage(m, id)
+    const view = sent ? withSentFiles(base, sent) : base
+    views.set(m, view)
+    return view
+  }
+  let lastRoom: RoomId | null = null
+  let lastViews: readonly ChatMessage[] = []
+  let rowMap = new Map<string, ChatMessage>()
+  const rows = createMemo((): readonly ChatMessage[] => {
     const id = activeId()
     if (!id) return [] as ChatMessage[]
-    const list = messages().map((m) => {
-      const cached = views.get(m)
-      if (cached && cached.threadId === id) return cached
-      const sent = m.clientId ? sentFiles.get(m.clientId) : undefined
-      const base = toChatMessage(m, id)
-      const view = sent ? withSentFiles(base, sent) : base
-      views.set(m, view)
-      return view
-    })
+    const list = messages()
+    messagesLedger.tick()
+    const change = messagesLedger.ledger.lastChange
+    const full = id !== lastRoom || change.kind === "rebuild" || list.length !== lastViews.length
+    let base: readonly ChatMessage[]
+    if (full) {
+      const mapped = list.map((m) => viewOf(m, id))
+      rowMap = new Map(mapped.map((row) => [row.id, row]))
+      base = mapped
+    } else if (change.kind === "replace") {
+      const nextBase = lastViews.slice()
+      for (const index of change.changed) {
+        const fresh = viewOf(list[index]!, id)
+        const old = lastViews[index]!
+        nextBase[index] = fresh
+        if (fresh === old) continue
+        if (fresh.id !== old.id) rowMap.delete(old.id)
+        rowMap.set(fresh.id, fresh)
+      }
+      base = nextBase
+    } else base = lastViews
+    lastRoom = id
+    lastViews = base
     const queued = queuedRows()
-    if (queued.length === 0) return list
-    const landed = new Set(list.map((view) => view.clientId))
-    return [...list, ...queued.filter((view) => !landed.has(view.clientId))]
+    if (queued.length === 0) return base
+    const landed = new Set(base.map((view) => view.clientId))
+    const next = [...base, ...queued.filter((view) => !landed.has(view.clientId))]
+    rowMap = new Map(next.map((row) => [row.id, row]))
+    return next
   })
-  const windows = createMemo(() => stepWindows(rows()))
+  const rowIndex = createMemo(
+    () => {
+      rows()
+      return rowMap
+    },
+    rowMap,
+    { equals: false },
+  )
+  const windows = createMemo(() => {
+    messagesLedger.tick()
+    return messagesLedger.ledger.windows()
+  })
   const helperStatuses = createMemo(
     () =>
       new Map(
@@ -637,21 +698,29 @@ function createRoom() {
   )
   const helpers = createMemo(() =>
     Object.values(runs.current().steps)
-      .flatMap((steps) => helperLanes(steps, helperStatuses(), busy))
+      .flatMap((steps) => helperLanes(steps, helperStatuses(), { busy, stale: state()?.status !== "live" }))
       .toSorted((a, b) => a.startedAt - b.startedAt),
   )
   const nestedHelpers = createMemo(() => nestedLanes(helpers(), busy))
-  const thoughtAnchors = createMemo(() => {
+  const thoughtByRun = createMemo(() => {
     const out = new Map<string, Thought>()
-    for (const list of Object.values(thoughts.all()))
-      for (const thought of list) {
-        const reply = rows().find(
-          (m) => m.botId === thought.slug && !m.event && m.seq !== undefined && m.seq > thought.after,
-        )
-        if (reply) out.set(reply.id, thought)
-      }
+    for (const list of Object.values(thoughts.all())) for (const thought of list) out.set(thought.runId, thought)
     return out
   })
+  const thoughtAnchors = createMemo(
+    () => {
+      messagesLedger.tick()
+      const out = new Map<string, Thought>()
+      for (const list of Object.values(thoughts.all()))
+        for (const thought of list) {
+          const reply = messagesLedger.ledger.firstReplyAfter(thought.slug, thought.after)
+          if (reply) out.set(reply.id, thought)
+        }
+      return out
+    },
+    new Map<string, Thought>(),
+    { equals: sameMap },
+  )
 
   const members = createMemo(() => (snapshot()?.members ?? []).filter((m) => !user.isGone(m.slug)))
   const memberRows = createMemo(() => members().map((m) => memberRow(m, presenceOf(liveOf()[m.slug]))))
@@ -659,6 +728,75 @@ function createRoom() {
     const known = new Set(members().map((m) => m.slug as string))
     return Object.keys(liveOf()).filter((slug) => known.has(slug)) as AgentSlug[]
   })
+
+  const stepsOf = (key: string) => {
+    const { slug, after } = parseWindow(key)
+    return inWindow(runs.current().steps[slug] ?? [], after)
+  }
+  const typingRunOf = (slug: string): string | undefined => {
+    if (!busy(slug)) return undefined
+    const after = newestAfter(runs.current().steps[slug] ?? [])
+    return after >= 0 && !windows().has(windowKey(slug, after)) ? windowKey(slug, after) : undefined
+  }
+  const endLabel = (key: string): string => {
+    const steps = stepsOf(key)
+    const found = summaryOf(steps, undefined)?.label
+    if (found) return found
+    const last = steps.findLast((step) => !step.worker) ?? steps.at(-1)
+    return last ? liveLabel(last) : "Working"
+  }
+
+  const [runEnds, setRunEnds] = createSignal<Readonly<Record<string, { at: number; label: string }>>>({})
+  const liveWindowOf = createMemo(() => {
+    const out: Record<string, string> = {}
+    for (const slug of typingSlugs()) {
+      const key = typingRunOf(slug)
+      if (key) out[slug] = key
+    }
+    return out
+  })
+  createComputed(
+    on(
+      liveWindowOf,
+      (now, previous) => {
+        if (!previous) return
+        const ended: Record<string, { at: number; label: string }> = {}
+        for (const [slug, key] of Object.entries(previous)) {
+          if (now[slug] === key) continue
+          ended[key] = { at: Date.now(), label: endLabel(key) }
+        }
+        if (Object.keys(ended).length)
+          setRunEnds((all) => {
+            const now = Date.now()
+            const kept = Object.entries(all).filter(([, end]) => now - end.at < RUN_END_KEEP_MS)
+            return { ...Object.fromEntries(kept), ...ended }
+          })
+      },
+      { defer: true },
+    ),
+  )
+
+  const [restored, setRestored] = createSignal<Readonly<Record<string, Thought>>>({})
+  let askedThoughts = new Set<string>()
+  const loadThoughts = (slug: string, runId: string) => {
+    const id = activeId()
+    if (!id) return
+    const key = `${id}|${runId}`
+    if (askedThoughts.has(key) || restored()[runId]) return
+    askedThoughts.add(key)
+    void attempt(owner.commands.roomThoughts, { roomId: id, slug: slug as AgentSlug, runId }, () => {}).then(
+      (parts) => {
+        if (!parts || parts.length === 0 || activeId() !== id) return
+        setRestored((all) => ({ ...all, [runId]: restoredThought(slug, runId, parts) }))
+      },
+    )
+  }
+  createComputed(
+    on(activeId, () => {
+      setRestored({})
+      askedThoughts = new Set()
+    }),
+  )
 
   const localRead = new Map<RoomId, number>()
   const [unseen, setUnseen] = createSignal<readonly MessageId[]>([])
@@ -668,11 +806,10 @@ function createRoom() {
   const [line, setLine] = createSignal<UnreadLine>(NO_LINE)
   const [tabHidden, setTabHidden] = createSignal(document.visibilityState === "hidden")
   document.addEventListener("visibilitychange", () => setTabHidden(document.visibilityState === "hidden"))
-  const said = createMemo(() =>
-    liveMessages().flatMap((m) =>
-      isPending(m) ? [] : [{ id: m.id, seq: m.seq, at: m.at, agent: !m.event && m.from.kind !== "human" }],
-    ),
-  )
+  const said = createMemo(() => {
+    liveLedger.tick()
+    return liveLedger.ledger.said()
+  })
   let lineRoom: RoomId | null = null
   let openMark: number | undefined
   let lineOpen = false
@@ -710,15 +847,14 @@ function createRoom() {
     const s = signedIn()
     return s.status === "signed-in" ? humanHandle(s.user.name) : null
   }
-  const roomMentions = createMemo(() =>
-    activeId()
-      ? mentionIds(
-          messages(),
-          handle(),
-          members().map((m) => m.slug),
-        )
-      : [],
-  )
+  const roomMentions = createMemo(() => {
+    if (!activeId()) return []
+    messagesLedger.tick()
+    return messagesLedger.ledger.mentions(
+      handle(),
+      members().map((m) => m.slug),
+    )
+  })
 
   const shownRows = new Map<string, RosterBot>()
   const stableRow = (row: RosterBot) => {
@@ -750,9 +886,9 @@ function createRoom() {
     return out
   })
   function activeRow(c: Chat): RosterBot {
-    const list = liveMessages()
+    liveLedger.tick()
     const name = (slug: string) => agentDisplayName(slug, members())
-    const newest = list.findLast(isListed)
+    const newest = liveLedger.ledger.newestListed()
     const fresh = newest && (isPending(newest) || newest.seq > c.lastSeq) ? viewLast(newest, name) : undefined
     const live = Object.entries(liveOf()).map(([slug, status]) => ({ name: name(slug), status }))
     const row = chatRow(c, live.length ? presenceOf(live[0]!.status) : "idle", {
@@ -760,7 +896,7 @@ function createRoom() {
       ...(live.length ? { line: liveLine(live, members().length > 1) ?? undefined } : {}),
       ...(members().length ? { group: members().length > 1 } : {}),
     })
-    if (history.shown() === null && readSeq() >= newestSeq(list)) {
+    if (history.shown() === null && readSeq() >= liveLedger.ledger.newestSeq()) {
       row.unread = 0
       delete row.mentions
     }
@@ -920,7 +1056,7 @@ function createRoom() {
     status: liveStates,
     followRoute,
     messages: rows,
-    messageById: (id: string) => rows().find((m) => m.id === id),
+    messageById: (id: string) => rowIndex().get(id),
     bots: roster,
     chatById: (id: string) => botIndex().get(id),
     members: memberRows,
@@ -936,6 +1072,10 @@ function createRoom() {
       if (id) void attempt(owner.commands.roomFiles, { roomId: id, op }, refusal(fileRefusals, op))
     },
     onFilesRefused: (listener: (op: FileOp, reason: string) => void) => listen(fileRefusals, listener),
+    taskOp(op: TaskOp) {
+      const id = activeId()
+      if (id) void attempt(owner.commands.task, { roomId: id, op }, showFailure)
+    },
     memberOp(op: MemberOp) {
       const id = activeId()
       if (id)
@@ -980,21 +1120,31 @@ function createRoom() {
     thinking: (slug: string) => thoughts.latest(slug),
     thoughtFor: (m: ChatMessage) => thoughtAnchors().get(m.id),
     runWindow: (m: ChatMessage) => (m.botId && m.steps ? windowKey(m.botId, m.stepAfter ?? 0) : undefined),
-    typingRun(slug: string): string | undefined {
-      if (!busy(slug)) return undefined
-      const after = newestAfter(runs.current().steps[slug] ?? [])
-      return after >= 0 && !windows().has(windowKey(slug, after)) ? windowKey(slug, after) : undefined
+    typingRun: typingRunOf,
+    carriesRun: (slug: string) => {
+      const key = typingRunOf(slug)
+      return key !== undefined && stepsOf(key).length > 0
     },
-    runSteps(key: string): readonly RunStep[] {
-      const { slug, after } = parseWindow(key)
-      return inWindow(runs.current().steps[slug] ?? [], after)
-    },
+    runSteps: stepsOf,
+    runEnd: (key: string) => runEnds()[key],
+    thoughtOfRun: (runId: string) => restored()[runId] ?? thoughtByRun().get(runId),
+    loadThoughts,
     helpers,
     nestedHelpers,
     runLive: (key: string) => !windows().has(key) && busy(parseWindow(key).slug),
+    runReady: () => state()?.status === "live",
+    pendingWindows: (slug: string) => {
+      messagesLedger.tick()
+      if (queuedRows().length > 0)
+        return unfoldedRuns(rows(), slug).flatMap((m) =>
+          m.steps ? [{ key: windowKey(slug, m.stepAfter ?? 0), count: m.steps }] : [],
+        )
+      return messagesLedger.ledger.pendingWindows(slug)
+    },
     loadRunSteps(key: string, force = false) {
       const w = windows().get(key)
-      if (w && inWindow(runs.current().steps[w.slug] ?? [], w.after).length < w.steps)
+      if (!w || state()?.status !== "live") return
+      if (inWindow(runs.current().steps[w.slug] ?? [], w.after).length < w.steps)
         void runs.request(w.slug, w.after, force)
     },
     runFetching: (key: string) => !!runs.current().fetching[key],

@@ -1,4 +1,4 @@
-import { unnamedFiles } from "../../lib/attachments"
+import { onlyFileLinks, unnamedFiles } from "../../lib/attachments"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { AlertCircleIcon } from "@kiko/ui/icons"
 import { Show, Suspense, type JSX } from "solid-js"
@@ -42,6 +42,7 @@ export function MessageRow(props: {
   message: ChatMessage
   bot: RosterBot | undefined
   quote: QuoteModel | null
+  foldedRuns?: readonly ChatMessage[]
 
   isRunStart: boolean
   isRunEnd: boolean
@@ -62,19 +63,23 @@ export function MessageRow(props: {
   const own = () => props.message.sender === "user"
   const grouped = () => !!props.group && !own() && props.message.botId !== undefined
   const senderName = () => props.bot?.name ?? props.message.botId ?? ""
-  const files = () => unnamedFiles(props.message.files ?? [], props.message.body)
+  const bare = () => onlyFileLinks(props.message.files ?? [], props.message.body)
+  const files = () =>
+    bare() ? (props.message.files ?? []) : unnamedFiles(props.message.files ?? [], props.message.body)
+  const text = () => (bare() ? "" : props.message.body)
   const hasFiles = () => files().length > 0
   const photo = () => !!props.message.rich && isPhotoTree(props.message.rich)
   const windowKey = () => (own() ? undefined : room.runWindow(props.message))
   const thought = () => (own() ? undefined : room.thoughtFor(props.message))
-  const liveKey = () => {
-    const key = windowKey()
-    return key && room.runLive(key) ? key : undefined
-  }
   const finishedKey = () => {
     const key = windowKey()
     return key && !room.runLive(key) && props.isRunEnd ? key : undefined
   }
+  const foldedWindows = () =>
+    (props.foldedRuns ?? []).flatMap((folded) => {
+      const key = room.runWindow(folded)
+      return key === undefined ? [] : [{ key, ...(folded.steps === undefined ? {} : { count: folded.steps }) }]
+    })
   const named = () => grouped() && props.isRunStart
   const nameInBubble = () => named() && !props.jumboClass
   const failed = () => props.message.status === "failed"
@@ -108,11 +113,6 @@ export function MessageRow(props: {
         </div>
       </Show>
       <Show when={windowKey() ? undefined : thought()}>{(found) => <ThoughtRow thought={found()} />}</Show>
-      <Show when={liveKey()}>
-        {(key) => (
-          <RunTree windowKey={key()} count={props.message.steps} endedAt={props.message.sentAt} thought={thought()} />
-        )}
-      </Show>
       <Bubble
         variant={failed() ? "destructive" : props.jumboClass ? "ghost" : own() ? "default" : "secondary"}
         align={own() ? "end" : "start"}
@@ -154,12 +154,12 @@ export function MessageRow(props: {
           </Show>
           <Show when={hasFiles() ? files() : undefined}>
             {(files) => (
-              <div class={props.message.body.length > 0 ? "mb-2" : undefined}>
+              <div class={text().length > 0 ? "mb-2" : undefined}>
                 <MessageAttachments files={files()} roomId={props.message.threadId} onOpenImages={props.onOpenImages} />
               </div>
             )}
           </Show>
-          <Show when={props.message.body.length > 0}>
+          <Show when={text().length > 0}>
             <Collapsible messageId={props.message.id} fixed={photo()}>
               <Show
                 when={props.message.rich?.length ? props.message.rich : undefined}
@@ -220,7 +220,13 @@ export function MessageRow(props: {
       </Bubble>
       <Show when={finishedKey()}>
         {(key) => (
-          <RunTree windowKey={key()} count={props.message.steps} endedAt={props.message.sentAt} thought={thought()} />
+          <RunTree
+            windowKey={key()}
+            windows={foldedWindows()}
+            count={props.message.steps}
+            endedAt={props.message.sentAt}
+            thought={thought()}
+          />
         )}
       </Show>
     </div>

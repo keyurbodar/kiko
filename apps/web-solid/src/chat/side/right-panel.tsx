@@ -1,0 +1,394 @@
+import { CollapseIcon, CloseIcon, MaximizeIcon, PlusIcon } from "@kiko/ui/icons"
+import { MenuV2 } from "@kiko/ui/v2/menu-v2"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show, Suspense } from "solid-js"
+import { Dynamic } from "solid-js/web"
+import { EntryIcon } from "../../lib/EntryIcon"
+import { room } from "../../state/room"
+import { roomMembers } from "../info/sections"
+import { launcherEntries, type FixedKind, panelLabel, panelOf, type Surface } from "./panels"
+import {
+  activateSurface,
+  closeAll,
+  closeOthers,
+  closeSurface,
+  closeToRight,
+  deskView,
+  fixedSurface,
+  moveTab,
+  openSurface,
+  panelMaximized,
+  setPanelMaximized,
+  showSurfaces,
+  surfacesOf,
+} from "./surfaces"
+import "./right-panel.css"
+
+const scrolls = new Map<string, number>()
+
+const KEY_HINT =
+  "grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-[5px] bg-fill px-1 text-[11px] font-medium text-[var(--text-300)]"
+
+function TabIcon(props: { surface: Surface }) {
+  return (
+    <Show
+      when={props.surface.kind === "file"}
+      fallback={<RemixIcon icon={panelOf(props.surface.kind).icon} size={16} class="shrink-0" />}
+    >
+      <span class="flex size-4 shrink-0 items-center justify-center text-micro">
+        <EntryIcon path={(props.surface as Extract<Surface, { kind: "file" }>).path} />
+      </span>
+    </Show>
+  )
+}
+
+function Tab(props: { chatId: string; surface: Surface; index: number; count: number; active: boolean }) {
+  let el: HTMLDivElement | undefined
+  const label = () => panelLabel(props.surface)
+  createEffect(
+    on(
+      () => props.active,
+      (active) => active && el?.scrollIntoView({ block: "nearest", inline: "nearest" }),
+    ),
+  )
+  const close = () => closeSurface(props.chatId, props.surface.id)
+  return (
+    <MenuV2.Context gutter={8}>
+      <MenuV2.Context.Trigger
+        as="div"
+        ref={el}
+        role="tab"
+        aria-selected={props.active}
+        tabIndex={props.active ? 0 : -1}
+        draggable
+        class="rp-tab group/tab relative flex h-7 max-w-44 min-w-0 shrink-0 cursor-pointer items-center gap-1.5 rounded-[8px] px-2.5 text-[13px] font-medium"
+        title={label()}
+        data-component="right-panel-tab"
+        data-surface={props.surface.id}
+        onClick={() => activateSurface(props.chatId, props.surface.id)}
+        onAuxClick={(event: MouseEvent) => {
+          if (event.button !== 1) return
+          event.preventDefault()
+          close()
+        }}
+        onDragStart={(event: DragEvent) => {
+          event.dataTransfer?.setData("text/plain", props.surface.id)
+          if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
+        }}
+        onDragOver={(event: DragEvent) => {
+          if (!event.dataTransfer?.types.includes("text/plain")) return
+          event.preventDefault()
+        }}
+        onDrop={(event: DragEvent) => {
+          event.preventDefault()
+          const from = event.dataTransfer?.getData("text/plain")
+          if (from) moveTab(props.chatId, from, props.surface.id)
+        }}
+        onKeyDown={(event: KeyboardEvent) => {
+          if (event.key !== "Enter" && event.key !== " ") return
+          event.preventDefault()
+          activateSurface(props.chatId, props.surface.id)
+        }}
+      >
+        <TabIcon surface={props.surface} />
+        <span class="min-w-0 truncate">{label()}</span>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label={`Close ${label()}`}
+          class="rp-tab-close grid size-4 shrink-0 place-items-center rounded-[5px] text-[var(--text-300)] hover:bg-[var(--fill)] hover:text-[var(--text-000)]"
+          data-action="close-surface"
+          onClick={(event) => {
+            event.stopPropagation()
+            close()
+          }}
+        >
+          <RemixIcon icon={CloseIcon} size={16} class="size-3.5" />
+        </button>
+      </MenuV2.Context.Trigger>
+      <MenuV2.Context.Portal>
+        <MenuV2.Context.Content
+          class="outline-none"
+          data-component="right-panel-tab-menu"
+          onCloseAutoFocus={(event: Event) => event.preventDefault()}
+        >
+          <MenuV2.Item onSelect={close}>Close</MenuV2.Item>
+          <MenuV2.Item disabled={props.count < 2} onSelect={() => closeOthers(props.chatId, props.surface.id)}>
+            Close others
+          </MenuV2.Item>
+          <MenuV2.Item
+            disabled={props.index >= props.count - 1}
+            onSelect={() => closeToRight(props.chatId, props.surface.id)}
+          >
+            Close to the right
+          </MenuV2.Item>
+          <MenuV2.Separator />
+          <MenuV2.Item onSelect={() => closeAll(props.chatId)}>Close all</MenuV2.Item>
+        </MenuV2.Context.Content>
+      </MenuV2.Context.Portal>
+    </MenuV2.Context>
+  )
+}
+
+function TabStrip(props: { chatId: string }) {
+  const surfaces = () => surfacesOf(props.chatId)
+  const active = () => deskView(props.chatId)?.id ?? null
+  let strip: HTMLDivElement | undefined
+  const [fade, setFade] = createSignal("")
+  const measure = () => {
+    if (!strip) return
+    const max = strip.scrollWidth - strip.clientWidth
+    const at = strip.scrollLeft
+    setFade([at > 0.5 ? "start" : "", at < max - 0.5 ? "end" : ""].filter(Boolean).join(" "))
+  }
+  createEffect(on(surfaces, () => queueMicrotask(measure)))
+  const onKey = (event: KeyboardEvent) => {
+    const list = surfaces()
+    const at = Math.max(
+      0,
+      list.findIndex((surface) => surface.id === active()),
+    )
+    const to = { ArrowRight: (at + 1) % list.length, ArrowLeft: (at - 1 + list.length) % list.length }[event.key]
+    if (to === undefined || list.length === 0) return
+    event.preventDefault()
+    activateSurface(props.chatId, list[to]!.id)
+  }
+  return (
+    <div class="relative min-w-0 flex-1" data-component="right-panel-tabs">
+      <div
+        ref={(el) => {
+          strip = el
+          const observer = new ResizeObserver(measure)
+          observer.observe(el)
+          onCleanup(() => observer.disconnect())
+          queueMicrotask(measure)
+        }}
+        class="rp-tabs flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none]"
+        data-fade={fade()}
+        role="tablist"
+        aria-label="Open panels"
+        onScroll={measure}
+        onKeyDown={onKey}
+      >
+        <For each={surfaces()}>
+          {(surface, index) => (
+            <Tab
+              chatId={props.chatId}
+              surface={surface}
+              index={index()}
+              count={surfaces().length}
+              active={surface.id === active()}
+            />
+          )}
+        </For>
+      </div>
+    </div>
+  )
+}
+
+function focusTab(id: string) {
+  requestAnimationFrame(() => {
+    for (const tab of document.querySelectorAll<HTMLElement>('[data-component="right-panel-tab"]')) {
+      if (tab.dataset.surface === id) tab.focus()
+    }
+  })
+}
+
+function LauncherItems(props: { onPick: (kind: FixedKind) => void }) {
+  const entries = () => launcherEntries(roomMembers().length > 1)
+  return (
+    <For each={entries()}>
+      {(entry) => (
+        <MenuV2.Item onSelect={() => props.onPick(entry.kind)}>
+          <RemixIcon icon={panelOf(entry.kind).icon} size={16} />
+          <span class="min-w-0 flex-1 truncate">{entry.label}</span>
+          <span class={KEY_HINT}>{entry.key}</span>
+        </MenuV2.Item>
+      )}
+    </For>
+  )
+}
+
+function AddSurface(props: { chatId: string }) {
+  const [open, setOpen] = createSignal(false)
+  const [picked, setPicked] = createSignal<string | null>(null)
+  const pick = (kind: FixedKind) => {
+    setPicked(kind)
+    setOpen(false)
+    openSurface(props.chatId, fixedSurface(kind))
+  }
+  createEffect(() => {
+    if (!open()) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return
+      const entry = launcherEntries(roomMembers().length > 1).find((item) => item.key === event.key.toUpperCase())
+      if (!entry) return
+      event.preventDefault()
+      event.stopPropagation()
+      pick(entry.kind)
+    }
+    window.addEventListener("keydown", onKey, true)
+    onCleanup(() => window.removeEventListener("keydown", onKey, true))
+  })
+  const afterClose = (event: Event) => {
+    const id = picked()
+    if (id === null) return
+    event.preventDefault()
+    setPicked(null)
+    focusTab(id)
+  }
+  return (
+    <MenuV2 open={open()} onOpenChange={setOpen} placement="bottom-start" gutter={6}>
+      <MenuV2.Trigger
+        class="grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--text-300)] transition-colors duration-(--dur-hover) hover:bg-fill hover:text-[var(--text-000)]"
+        aria-label="Open a surface"
+        data-action="add-surface"
+      >
+        <RemixIcon icon={PlusIcon} size={16} />
+      </MenuV2.Trigger>
+      <MenuV2.Portal>
+        <MenuV2.Content class="min-w-52" data-component="right-panel-launcher" onCloseAutoFocus={afterClose}>
+          <LauncherItems onPick={pick} />
+        </MenuV2.Content>
+      </MenuV2.Portal>
+    </MenuV2>
+  )
+}
+
+function EmptyPanel(props: { chatId: string }) {
+  return (
+    <div class="flex min-h-0 flex-1 items-center justify-center px-6" data-component="right-panel-empty">
+      <div class="w-[280px] py-6">
+        <h3 class="mb-3 text-center text-[13px] font-medium text-[var(--text-300)]">Open a surface</h3>
+        <div class="flex flex-col gap-0.5">
+          <For each={launcherEntries(roomMembers().length > 1)}>
+            {(entry) => (
+              <button
+                type="button"
+                class="flex h-8 w-full items-center gap-2.5 rounded-[8px] px-2.5 text-left text-[13px] font-medium text-[var(--text-100)] hover:bg-fill"
+                data-action={`open-${entry.kind}`}
+                onClick={() => openSurface(props.chatId, fixedSurface(entry.kind))}
+              >
+                <RemixIcon icon={panelOf(entry.kind).icon} size={16} class="shrink-0 text-[var(--text-300)]" />
+                <span class="min-w-0 flex-1 truncate">{entry.label}</span>
+                <span class={KEY_HINT}>{entry.key}</span>
+              </button>
+            )}
+          </For>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SurfaceBody(props: { chatId: string; surface: Surface }) {
+  const key = `${props.chatId}:${props.surface.id}`
+  let scroller: HTMLDivElement | undefined
+  let observer: ResizeObserver | undefined
+  const saved = scrolls.get(key) ?? 0
+  const restore = (el: HTMLDivElement) => {
+    scroller = el
+    const target = el.firstElementChild
+    if (!target || saved === 0) return
+    observer = new ResizeObserver(() => {
+      el.scrollTop = saved
+      if (el.scrollTop === saved) observer?.disconnect()
+    })
+    observer.observe(target)
+  }
+  onCleanup(() => observer?.disconnect())
+  const entry = panelOf(props.surface.kind)
+  return (
+    <div
+      ref={(el) => queueMicrotask(() => restore(el))}
+      class={`flex min-h-0 flex-1 flex-col ${entry.selfScrolling ? "overflow-hidden" : "overflow-y-auto overscroll-contain"}`}
+      data-component="right-panel-body"
+      data-kind={props.surface.kind}
+      onScroll={(event) => {
+        observer?.disconnect()
+        if (event.currentTarget === scroller) scrolls.set(key, event.currentTarget.scrollTop)
+      }}
+    >
+      <Suspense>
+        <Dynamic
+          component={entry.component}
+          chatId={props.chatId}
+          surface={props.surface as never}
+          close={() => showSurfaces(props.chatId)}
+        />
+      </Suspense>
+    </div>
+  )
+}
+
+function PanelControls(props: { chatId: string; onClose: () => void; sheet: boolean }) {
+  const maximized = () => panelMaximized()
+  return (
+    <div class="flex shrink-0 items-center gap-0.5" data-component="right-panel-controls">
+      <Show when={!props.sheet}>
+        <TooltipV2 placement="bottom" openDelay={400} value={maximized() ? "Restore panel" : "Maximize panel"}>
+          <button
+            type="button"
+            class="rp-control"
+            aria-label={maximized() ? "Restore panel" : "Maximize panel"}
+            aria-pressed={maximized()}
+            data-action="toggle-panel-max"
+            onClick={() => setPanelMaximized(!maximized())}
+          >
+            <RemixIcon icon={maximized() ? CollapseIcon : MaximizeIcon} size={16} />
+          </button>
+        </TooltipV2>
+      </Show>
+      <TooltipV2 placement="bottom" openDelay={400} value="Close">
+        <button
+          type="button"
+          class="rp-control"
+          aria-label="Close panel"
+          data-action="close-panel"
+          onClick={props.onClose}
+        >
+          <RemixIcon icon={CloseIcon} size={16} />
+        </button>
+      </TooltipV2>
+    </div>
+  )
+}
+
+export default function RightPanel(props: { chatId: string; onClose: () => void; sheet?: boolean }) {
+  const view = () => deskView(props.chatId)
+  const slot = createMemo(() => {
+    const surface = view()
+    return surface?.kind === "file" ? "file" : (surface?.id ?? null)
+  })
+  const surfaces = () => surfacesOf(props.chatId)
+  const maximized = () => panelMaximized() && !props.sheet
+  createEffect(() => {
+    const members = room.roomMembers()
+    const current = view()
+    if (members.length === 0 || current?.kind !== "agent") return
+    if (!members.some((member) => member.slug === current.slug)) closeSurface(props.chatId, current.id)
+  })
+  return (
+    <aside
+      class="rp-panel flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden"
+      data-component="right-panel"
+      data-maximized={maximized() ? "" : undefined}
+      aria-label="Chat panels"
+    >
+      <header class="rp-head flex h-11 shrink-0 items-center gap-1 px-2" data-component="right-panel-head">
+        <Show when={surfaces().length > 0}>
+          <TabStrip chatId={props.chatId} />
+        </Show>
+        <Show when={surfaces().length === 0}>
+          <span class="min-w-0 flex-1" />
+        </Show>
+        <AddSurface chatId={props.chatId} />
+        <PanelControls chatId={props.chatId} onClose={props.onClose} sheet={props.sheet === true} />
+      </header>
+      <Show when={slot()} keyed fallback={<EmptyPanel chatId={props.chatId} />}>
+        <SurfaceBody chatId={props.chatId} surface={view()!} />
+      </Show>
+    </aside>
+  )
+}

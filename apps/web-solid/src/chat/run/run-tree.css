@@ -1,6 +1,6 @@
 .run-tree {
   --run-rail: var(--border-300);
-  --run-inset: 14px;
+  --run-inset: 16px;
   display: flex;
   flex-direction: column;
   width: min(calc(100% - 3.5rem), 520px);
@@ -10,6 +10,7 @@
   line-height: var(--type-row-line);
 }
 .run-tree:not([data-live]) {
+  margin-top: calc(var(--run-gap) + var(--row-gap));
   padding-bottom: 4px;
 }
 
@@ -146,9 +147,7 @@ button.run-tree-row {
 }
 button.run-tree-row:focus-visible,
 .run-tree-head:focus-visible {
-  outline: none;
   color: var(--text-100);
-  box-shadow: var(--focus-ring);
 }
 
 .run-tree-slot {
@@ -425,8 +424,10 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   cursor: pointer;
   background: var(--fill-hover);
 }
-.run-tree-more-lines:hover {
-  color: var(--text-100);
+@media (hover: hover) and (pointer: fine) {
+  .run-tree-more-lines:hover {
+    color: var(--text-100);
+  }
 }
 
 .run-tree-copy {
@@ -456,10 +457,6 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
 .run-tree-output-wrap:focus-within > .run-tree-copy {
   opacity: 1;
 }
-.run-tree-copy:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
 .run-tree-copy[data-copied] {
   color: var(--text-100);
   background: var(--fill-hover);
@@ -473,7 +470,11 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
 .run-tree-thought {
   margin: 2px 0 6px 24px;
   max-height: 16rem;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.run-tree-thought[data-streaming] {
+  max-height: 88px;
 }
 
 @media (prefers-reduced-motion: no-preference) {

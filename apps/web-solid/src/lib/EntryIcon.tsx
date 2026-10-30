@@ -1,6 +1,10 @@
+import { FileIcon } from "@kiko/ui/file-icon"
 import "./chip.css"
-import { entryIconMarkup } from "./entry-icon"
 
 export function EntryIcon(props: { path: string }) {
-  return <span style={{ display: "contents" }} innerHTML={entryIconMarkup(props.path)} />
+  return (
+    <span style={{ display: "contents" }}>
+      <FileIcon class="entry-icon" node={{ path: props.path, type: props.path.endsWith("/") ? "directory" : "file" }} />
+    </span>
+  )
 }

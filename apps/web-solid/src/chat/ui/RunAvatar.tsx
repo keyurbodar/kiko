@@ -1,70 +1,42 @@
 import { createEffect, createSignal, on, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
-
-const RUN_AVATAR_PX = 28
-
-const FAR = 100_000
-
-const runs = new Map<string, Set<() => void>>()
-
-function rowsChanged(runKey: string) {
-  for (const schedule of runs.get(runKey) ?? []) schedule()
-}
+import { registerRunAvatar, runRowsChanged, RUN_AVATAR_PX, type AvatarShape } from "./run-avatar-registry"
 
 export function RunAvatar(props: { seed: string; runKey: string; isRunEnd: boolean }): JSX.Element {
   let track!: HTMLDivElement
-  const [shape, setShape] = createSignal<{ above: number; below: number } | null>(null)
+  const [shape, setShape] = createSignal<AvatarShape | null>(null)
 
-  const measure = () => {
-    const row = track.parentElement
-    const scroller = row?.closest<HTMLElement>("[data-virtual-scroll]")
-    if (!row || !scroller) return
-    const rows = scroller.querySelectorAll<HTMLElement>(`[data-run-key="${CSS.escape(props.runKey)}"]`)
-    if (rows[rows.length - 1] !== row) return setShape(null)
-    const first = rows[0]!
-    const above = first.hasAttribute("data-run-first")
-      ? Math.max(0, row.getBoundingClientRect().top - first.getBoundingClientRect().top)
-      : FAR
-    const below = props.isRunEnd
-      ? 0
-      : Math.max(0, Math.ceil(scroller.getBoundingClientRect().bottom - row.getBoundingClientRect().bottom)) +
-        RUN_AVATAR_PX
+  const apply = (next: AvatarShape | null) => {
     const now = shape()
-    if (!now || now.above !== above || now.below !== below) setShape({ above, below })
+    if (now === next) return
+    if (now && next && now.above === next.above && now.below === next.below) return
+    setShape(next)
   }
 
   onMount(() => {
-    let frame = 0
-    const schedule = () => {
-      if (frame) return
-      frame = requestAnimationFrame(() => {
-        frame = 0
-        measure()
-      })
-    }
-    const scroller = track.closest<HTMLElement>("[data-virtual-scroll]")
-    scroller?.addEventListener("scroll", schedule, { passive: true })
-    createEffect(on(() => props.isRunEnd, schedule))
+    const dispose = registerRunAvatar(track, {
+      track: () => track,
+      runKey: () => props.runKey,
+      isRunEnd: () => props.isRunEnd,
+      apply,
+    })
+    createEffect(
+      on(
+        () => props.isRunEnd,
+        () => runRowsChanged(props.runKey),
+      ),
+    )
     createEffect(
       on(
         () => props.runKey,
-        (key) => {
-          let mine = runs.get(key)
-          if (!mine) runs.set(key, (mine = new Set()))
-          mine.add(schedule)
-          rowsChanged(key)
-          onCleanup(() => {
-            mine.delete(schedule)
-            if (mine.size === 0) runs.delete(key)
-            else rowsChanged(key)
-          })
+        (key, previous) => {
+          if (previous !== undefined) runRowsChanged(previous)
+          runRowsChanged(key)
         },
+        { defer: true },
       ),
     )
-    onCleanup(() => {
-      cancelAnimationFrame(frame)
-      scroller?.removeEventListener("scroll", schedule)
-    })
+    onCleanup(dispose)
   })
 
   return (

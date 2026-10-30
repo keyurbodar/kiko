@@ -21,7 +21,6 @@
 .rich blockquote {
   margin: 8px 0;
 }
-.rich-code,
 .rich-table {
   margin: 10px 0;
 }
@@ -210,10 +209,6 @@
     background-size: 4px 2px;
   }
 }
-.rich-mention {
-  font-weight: 600;
-}
-
 .rich-inline-code {
   font-family: var(--font-family-mono);
   font-size: 13px;
@@ -239,36 +234,39 @@
 }
 .rich-table-scroll table {
   width: 100%;
-  min-width: max-content;
+  min-width: 0;
   border-collapse: collapse;
-  font-size: 0.75rem;
+  font-size: 13px;
   overflow-wrap: normal;
   word-break: normal;
 }
 .rich-table-scroll th,
 .rich-table-scroll td {
   padding: 0.45rem 0.75rem;
-  text-align: left;
+  text-align: start;
+  text-wrap: pretty;
+  vertical-align: top;
+  max-width: 24rem;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.rich-table-scroll :is(th, td):first-child {
+  padding-inline-start: 0;
+}
+.rich-table-scroll :is(th, td):last-child {
+  padding-inline-end: 0;
 }
 .rich-table-scroll thead th {
   padding-block: 0.55rem;
+  color: var(--text-100);
   font-weight: 600;
-  white-space: nowrap;
-  border-bottom: 1px solid color-mix(in srgb, var(--rich-border) 60%, transparent);
+  line-height: 18px;
+  overflow-wrap: normal;
+  word-break: normal;
+  border-bottom: 1px solid var(--line);
 }
 .rich-table-scroll tbody td {
-  border-bottom: 1px solid color-mix(in srgb, var(--rich-border) 60%, transparent);
-}
-.rich-table[data-expanded="false"] th,
-.rich-table[data-expanded="false"] td {
-  max-width: 24rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.rich-table[data-expanded="true"] td {
-  max-width: 24rem;
-  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--line);
 }
 .rich-table-footer {
   display: flex;
@@ -327,235 +325,6 @@
   background: var(--rich-surface);
 }
 
-.rich-code {
-  position: relative;
-  overflow: hidden;
-  border-radius: 12px;
-  background: var(--sunken);
-  box-shadow: var(--edge);
-  line-height: 21px;
-  transition: box-shadow 600ms var(--ease-kiko);
-
-  content-visibility: auto;
-  contain-intrinsic-size: auto 8em;
-
-  --sh-class: var(--text-200);
-  --sh-identifier: var(--fg);
-  --sh-sign: var(--text-400);
-  --sh-property: var(--text-300);
-  --sh-entity: var(--fg);
-  --sh-jsxliterals: var(--text-300);
-  --sh-string: var(--text-300);
-  --sh-keyword: var(--text-200);
-  --sh-comment: var(--text-400);
-  --sh-space: inherit;
-  --sh-break: inherit;
-}
-.rich-code[data-copied] {
-  box-shadow: var(--edge-strong);
-  transition-duration: 80ms;
-}
-.rich-code-bar {
-  display: flex;
-  height: 36px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 6px 0 14px;
-  border-bottom: 1px solid var(--border-100);
-  color: var(--text-300);
-  font-size: 13px;
-  user-select: none;
-}
-.rich-code-tabs {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 2px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.rich-code-tab {
-  flex: none;
-  height: 26px;
-  padding: 0 8px;
-  border-radius: 6px;
-  color: var(--text-300);
-  font-size: 13px;
-  line-height: 26px;
-  white-space: nowrap;
-  transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
-}
-button.rich-code-tab {
-  cursor: pointer;
-}
-@media (hover: hover) and (pointer: fine) {
-  button.rich-code-tab:hover {
-    color: var(--fg);
-  }
-}
-.rich-code-tab[data-active] {
-  background: var(--fill-hover);
-  color: var(--fg);
-}
-.rich-code-actions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 2px;
-  opacity: 0;
-  transition: opacity var(--dur-hover) var(--ease-kiko);
-}
-.rich-code:focus-within .rich-code-actions,
-.rich-code[data-copied] .rich-code-actions {
-  opacity: 1;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .rich-code:hover .rich-code-actions {
-    opacity: 1;
-  }
-}
-@media (pointer: coarse) {
-  .rich-code-actions {
-    opacity: 1;
-  }
-}
-.rich-code-action {
-  display: inline-flex;
-  width: 26px;
-  height: 26px;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: none;
-  color: var(--text-300);
-  cursor: pointer;
-  transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
-}
-@media (hover: hover) and (pointer: fine) {
-  .rich-code-action:hover {
-    background: var(--fill-hover);
-    color: var(--fg);
-  }
-}
-.rich-code-action:active {
-  transform: scale(0.94);
-}
-.rich-code-action[data-active] {
-  background: var(--fill-hover);
-  color: var(--fg);
-}
-.rich-code-pre {
-  margin: 0;
-  padding: 12px 14px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: contain;
-  font-family: var(--font-family-mono);
-  font-size: 13px;
-  line-height: 21px;
-  tab-size: 2;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--rich-border) 78%, transparent) transparent;
-  transition: max-height var(--dur-pop) var(--ease-kiko);
-}
-.rich-code-pre[data-more] {
-  mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
-}
-.rich-code[data-folded] .rich-code-pre {
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 3.5rem), transparent);
-}
-.rich-code-pre[data-scrolls] {
-  overflow-y: auto;
-  mask-image: linear-gradient(to bottom, transparent, #000 1.25rem, #000 calc(100% - 1.25rem), transparent);
-}
-.rich-code-pre::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
-}
-.rich-code-pre::-webkit-scrollbar-thumb {
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--rich-border) 78%, transparent);
-}
-.rich-code-lines {
-  display: grid;
-  min-width: max-content;
-  grid-template-columns: auto 1fr;
-}
-.rich-code-pre[data-wrap] .rich-code-lines {
-  min-width: 0;
-}
-.rich-code-line {
-  display: contents;
-}
-.rich-code-ln {
-  position: sticky;
-  left: 0;
-  z-index: 1;
-  box-sizing: border-box;
-  width: 28px;
-  padding: 0 8px 0 0;
-  background: var(--sunken);
-  color: var(--text-400);
-  text-align: right;
-  user-select: none;
-  font-variant-numeric: tabular-nums;
-}
-.rich-code-text {
-  white-space: pre;
-}
-.rich-code-pre[data-wrap] .rich-code-text {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.rich-code-fold {
-  display: flex;
-  width: 100%;
-  height: 36px;
-  align-items: center;
-  gap: 6px;
-  padding: 0 14px;
-  color: var(--fg2);
-  font-size: var(--type-hint);
-  cursor: pointer;
-  transition: color var(--dur-hover) var(--ease-kiko);
-}
-@media (hover: hover) and (pointer: fine) {
-  .rich-code-fold:hover {
-    color: var(--fg);
-  }
-}
-.rich-code-count {
-  margin-left: auto;
-  color: var(--fg4);
-  font-variant-numeric: tabular-nums;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .rich-code,
-  .rich-code-pre {
-    transition: none;
-  }
-}
-
-.rich-code[data-copied] .rich-code-action:last-child {
-  background: var(--fill-hover);
-  color: var(--fg);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .rich-code[data-copied] .rich-code-action:last-child svg {
-    animation: motion-pop 240ms var(--ease-kiko) both;
-  }
-}
-
 .rich-rule {
   margin: 1rem 0;
   border: 0;
@@ -573,9 +342,4 @@ button.rich-code-tab {
 }
 [data-side="bot"] .rich {
   color: var(--fg);
-}
-
-:where([data-slot="bubble"]) .rich-code {
-  background: var(--sunken);
-  box-shadow: var(--edge);
 }

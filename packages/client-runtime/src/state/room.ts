@@ -14,9 +14,18 @@ const updateMessage = (snapshot: RoomSnapshot, id: MessageId, update: (message: 
   messages: snapshot.messages.map((m) => (m.id === id ? update(m) : m)),
 })
 
+function messageIndex(messages: ReadonlyArray<Message>, id: MessageId): number {
+  for (let i = messages.length - 1; i >= 0; i -= 1) if (messages[i]!.id === id) return i
+  return -1
+}
+
 function putMessage(messages: ReadonlyArray<Message>, message: Message): Message[] {
-  const index = messages.findIndex((m) => m.id === message.id)
-  if (index !== -1) return messages.map((m, i) => (i === index ? message : m))
+  const index = messageIndex(messages, message.id)
+  if (index !== -1) {
+    const next = messages.slice()
+    next[index] = message
+    return next
+  }
   const after = messages.findIndex((m) => m.seq > message.seq)
   return after === -1 ? [...messages, message] : [...messages.slice(0, after), message, ...messages.slice(after)]
 }

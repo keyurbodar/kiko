@@ -183,6 +183,21 @@ describe("VirtualThread scrolling", () => {
     })
   })
 
+  it("pins an agent reply at the end in the frame it lands instead of gliding to it", async () => {
+    const { screen, host, scroller, atEnd, reply } = await mountThread()
+    await using _ = screen
+    const stops: number[] = []
+    scroller.addEventListener("scroll", () => stops.push(atEnd()))
+
+    reply(`A long reply. ${"It keeps going for a while. ".repeat(30)}`)
+
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain("A long reply.")
+      expect(atEnd()).toBeLessThan(1)
+    })
+    expect(stops.filter((gap) => gap >= 1)).toEqual([])
+  })
+
   it("holds the reading position when a reply arrives while scrolled up", async () => {
     const { screen, host, scroller, atEnd, reply } = await mountThread()
     await using _ = screen

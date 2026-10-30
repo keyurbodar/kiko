@@ -1,5 +1,6 @@
 import type { Component, JSX } from "solid-js"
-import { createMemo, splitProps } from "solid-js"
+import { createEffect, createMemo, splitProps } from "solid-js"
+import { glyphNodes } from "./glyph-cache"
 
 type Tone = readonly [light: string, dark: string]
 
@@ -161,38 +162,37 @@ export function fileIconMarkup(path: string): string {
   return `<svg ${SVG_ATTRS} data-kind="${directory ? "directory" : "file"}">${inner}</svg>`
 }
 
-export function fileIconSprite() {
-  const symbols: string[] = []
-  const byFileExtension: Record<string, string> = {}
-  const seen = new Set<string>()
-  const add = (id: string, markup: string) => {
-    if (seen.has(id)) return
-    seen.add(id)
-    symbols.push(`<symbol id="${id}" viewBox="0 0 24 24">${markup}</symbol>`)
-  }
-  for (const [ext, found] of Object.entries(EXTENSIONS)) {
-    const id = `kiko-file-${found.label.toLowerCase().replace(/\W/g, "x")}-${found.tone[0].slice(1)}`
-    add(id, pageMarkup(found))
-    byFileExtension[ext] = id
-  }
-  add("kiko-file-plain", pageMarkup(undefined))
-  return {
-    spriteSheet: `<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true">${symbols.join("")}</svg>`,
-    byFileExtension,
-    plain: "kiko-file-plain",
-  }
-}
-
 export type FileIconProps = JSX.GSVGAttributes<SVGSVGElement> & {
   node: { path: string; type: "file" | "directory" }
   expanded?: boolean
 }
 
+const server = typeof document === "undefined"
+
 export const FileIcon: Component<FileIconProps> = (props) => {
   const [local, rest] = splitProps(props, ["node", "class", "classList", "expanded"])
   const inner = createMemo(() => glyphMarkup(local.node.path, local.node.type, local.expanded ?? false))
+  if (server) {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        data-component="file-icon"
+        data-kind={local.node.type}
+        {...rest}
+        classList={{
+          ...local.classList,
+          [local.class ?? ""]: !!local.class,
+        }}
+        innerHTML={inner()}
+      />
+    )
+  }
+  let element!: SVGSVGElement
+  createEffect(() => element.replaceChildren(...glyphNodes(inner())))
   return (
     <svg
+      ref={element}
       viewBox="0 0 24 24"
       aria-hidden="true"
       data-component="file-icon"
@@ -202,7 +202,6 @@ export const FileIcon: Component<FileIconProps> = (props) => {
         ...local.classList,
         [local.class ?? ""]: !!local.class,
       }}
-      innerHTML={inner()}
     />
   )
 }

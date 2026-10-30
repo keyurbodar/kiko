@@ -9,9 +9,28 @@ import { I18nProvider, pluralCategory, pluralKey, type UiI18n } from "@kiko/ui/c
 import { dict } from "@kiko/ui/i18n/en"
 import { ToastV2 } from "@kiko/ui/v2/toast-v2"
 import { avatarPickerSlug } from "../avatar/picker-state"
-import { createEffect, createSignal, lazy, on, onCleanup, onMount, Show, Suspense, type ParentProps } from "solid-js"
+import {
+  createComputed,
+  createEffect,
+  createSignal,
+  lazy,
+  on,
+  onCleanup,
+  onMount,
+  Show,
+  Suspense,
+  type ParentProps,
+} from "solid-js"
 import { viewerFor } from "../chat/computers"
-import { closeDesk, deskBack, deskShown, deskView, loadDesk, setDeskCompact } from "../chat/side/surfaces"
+import {
+  closeDesk,
+  deskShown,
+  loadDesk,
+  panelMaximized,
+  setDeskCompact,
+  setPanelMaximized,
+} from "../chat/side/surfaces"
+import ThreadDetailsLayer, { setThreadDetailsFloating, threadDetailsOpenFor } from "../chat/side/thread-details-layer"
 import { preloadMessageSearch } from "../commands/message-search"
 
 import { richLoaded } from "../composer/rich/loaded"
@@ -36,6 +55,10 @@ import {
   fitWidths,
   INFO,
   initialSizes,
+  PANEL_CHAT_MIN,
+  panelMaxWidth,
+  RAIL,
+  readPanelWidth,
   readWidth,
   resetWidth,
   saveWidth,
@@ -66,6 +89,12 @@ const ComputerViewer = lazy(() => import("../chat/computer/Viewer"))
 const Desk = lazy(loadDesk)
 
 const KEY = "kiko:device:sidebar-collapsed"
+
+const DETAILS_GUTTER = 320
+
+const DETAILS_MIN_COLUMN = 560
+
+const DETAILS_MIN_CANVAS = DETAILS_MIN_COLUMN + DETAILS_GUTTER
 
 function readCollapsed() {
   try {
@@ -112,11 +141,15 @@ export function Shell(props: ParentProps) {
   let sidebarPanel: PanelContextValue | undefined
   const [sidePanel, setSidePanel] = createSignal<PanelContextValue | undefined>()
   const [layout, setLayout] = createSignal<ContextValue | undefined>()
+  const [viewport, setViewport] = createSignal(typeof window === "undefined" ? 1440 : window.innerWidth)
+  const [groupWidthSignal, setGroupWidthSignal] = createSignal(0)
+  const [sideWidth, setSideWidth] = createSignal(readPanelWidth(window.innerWidth))
   let groupWidth = 0
   const watchGroup = (el: Element) => {
     if (!(el instanceof HTMLElement)) return
     const measure = () => {
       groupWidth = el.getBoundingClientRect().width
+      setGroupWidthSignal(groupWidth)
     }
     measure()
     const observer = new ResizeObserver(measure)
@@ -146,12 +179,18 @@ export function Shell(props: ParentProps) {
     return id !== null && deskShown()
   }
   const closeSide = closeDesk
-  const swipeBack = () => {
-    const id = sideChat()
-    if (id && deskView(id)) deskBack(id)
-    else closeDesk()
+  const maximized = () => sideOpen() && !compact() && panelMaximized()
+  const groupWidthNow = () => (groupWidthSignal() > 0 ? groupWidthSignal() : viewport())
+  const sidebarWidth = () => {
+    const ctx = layout()
+    if (!ctx) return 0
+    const sizes = ctx.sizes()
+    return sizes.length === 3 ? sizes[0]! * groupWidthNow() : 0
   }
-  const overlaidSide = () => (compact() && sideOpen() ? sideChat() : null)
+  const dockFits = () => groupWidthNow() - sidebarWidth() - sideWidth() >= PANEL_CHAT_MIN
+  const dockedSide = () => (compact() || !sideOpen() || maximized() || !dockFits() ? null : sideChat())
+  const overlaidSide = () => (!sideOpen() || dockedSide() !== null ? null : sideChat())
+  const overlayMode = () => (maximized() ? "max" : compact() ? "sheet" : "float")
   onMount(() => {
     const root = document.documentElement
     const keys = (e: KeyboardEvent) => {
@@ -177,8 +216,9 @@ export function Shell(props: ParentProps) {
     if (!(narrow() && drawer()) && !overlaidSide()) return
     const on = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return
-      if (overlaidSide()) closeSide()
-      else setDrawer(false)
+      if (!overlaidSide()) return setDrawer(false)
+      if (overlayMode() === "max") setPanelMaximized(false)
+      else closeSide()
     }
     window.addEventListener("keydown", on)
     onCleanup(() => window.removeEventListener("keydown", on))
@@ -203,7 +243,7 @@ export function Shell(props: ParentProps) {
       start = null
       if (action === "open-drawer") setDrawer(true)
       else if (action === "close-drawer") setDrawer(false)
-      else if (action === "close-sidecar") swipeBack()
+      else if (action === "close-sidecar") closeDesk()
     }
     window.addEventListener("touchstart", down, { passive: true })
     window.addEventListener("touchend", up, { passive: true })
@@ -213,35 +253,70 @@ export function Shell(props: ParentProps) {
     })
   })
   const closed = () => (narrow() ? !drawer() : collapsed())
+  const [railShown, setRailShown] = createSignal(collapsed())
+  const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
   let mounted = false
-  let sliding: ReturnType<typeof setTimeout> | undefined
+  let settling = false
   onMount(() => requestAnimationFrame(() => (mounted = true)))
-  onCleanup(() => clearTimeout(sliding))
+  const slidingPanels = () => [
+    ...document.querySelectorAll<HTMLElement>(
+      '[data-component="app-panels"] > [data-component="sidebar-panel"], [data-component="app-panels"] > [data-component="chat-panel"]',
+    ),
+  ]
+  const dropSlide = () => {
+    for (const panel of slidingPanels()) panel.classList.remove("motion-slide")
+  }
   const slide = () => {
-    if (!mounted) return
-    const panels = [
-      ...document.querySelectorAll<HTMLElement>(
-        '[data-component="app-panels"] > [data-component="sidebar-panel"], [data-component="app-panels"] > [data-component="chat-panel"]',
-      ),
-    ]
-    for (const panel of panels) panel.classList.add("motion-slide")
-    clearTimeout(sliding)
-    sliding = setTimeout(() => {
-      for (const panel of panels) panel.classList.remove("motion-slide")
-    }, 320)
+    if (!mounted || reducedMotion()) return
+    for (const panel of slidingPanels()) panel.classList.add("motion-slide")
+  }
+  const finishCollapse = () => {
+    if (!settling) return
+    settling = false
+    if (sidebarPanel?.collapsed()) setRailShown(true)
+  }
+  const settleSidebar = (event: Event) => {
+    if (
+      !(event instanceof TransitionEvent) ||
+      event.propertyName !== "flex-basis" ||
+      event.target !== event.currentTarget
+    )
+      return
+    dropSlide()
+    finishCollapse()
+  }
+  const beginSidebarDrag = () => {
+    dropSlide()
+    finishCollapse()
+  }
+  const watchSidebarPanel = (el: Element) => {
+    el.addEventListener("transitionend", settleSidebar)
+    onCleanup(() => el.removeEventListener("transitionend", settleSidebar))
   }
   const setAndSave = (value: boolean) => {
     setCollapsed(value)
     writeCollapsed(value)
   }
+  const expandSidebar = (panel: PanelContextValue) => {
+    setRailShown(false)
+    settling = false
+    slide()
+    panel.expand()
+    panel.resize(`${readWidth(SIDEBAR)}px`)
+  }
+  const collapseSidebar = (panel: PanelContextValue) => {
+    const instant = !mounted || reducedMotion()
+    settling = !instant
+    if (instant) setRailShown(true)
+    slide()
+    panel.collapse()
+  }
   const toggle = () => {
     if (narrow()) return setDrawer(!drawer())
-    if (!sidebarPanel) return
-    slide()
-    if (sidebarPanel.collapsed()) {
-      sidebarPanel.expand()
-      sidebarPanel.resize(`${readWidth(SIDEBAR)}px`)
-    } else sidebarPanel.collapse()
+    const panel = sidebarPanel
+    if (!panel) return
+    if (railShown() || panel.collapsed()) expandSidebar(panel)
+    else collapseSidebar(panel)
   }
   createEffect((prev: string | undefined) => {
     const path = pathname()
@@ -276,22 +351,39 @@ export function Shell(props: ParentProps) {
     window.addEventListener("keydown", on, true)
     onCleanup(() => window.removeEventListener("keydown", on, true))
   })
-  const sidebar = () => <Sidebar section={sectionOf(pathname())} collapsed={closed()} onToggle={toggle} />
+  const sidebar = () => <Sidebar section={sectionOf(pathname())} collapsed={narrow() && closed()} onToggle={toggle} />
   const onChat = () => !coversChat(pathname())
-  const dockedSide = () => (compact() || !sideOpen() ? null : sideChat())
+  const [canvasWidth, setCanvasWidth] = createSignal(0)
+  const watchCanvas = (el: Element) => {
+    if (!(el instanceof HTMLElement)) return
+    const measure = () => setCanvasWidth(el.getBoundingClientRect().width)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    onCleanup(() => observer.disconnect())
+  }
+  const detailsChat = () => {
+    const id = sideChat()
+    return id !== null && onChat() && threadDetailsOpenFor(id) ? id : null
+  }
+  const detailsInline = () => !sideOpen() && canvasWidth() >= DETAILS_MIN_CANVAS
+  createComputed(() => setThreadDetailsFloating(!detailsInline()))
+  const detailsReserved = () => detailsChat() !== null && detailsInline()
   const endSideResize = () => {
-    if (sidePanel()?.collapsed()) closeSide()
-    else saveWidth(INFO, "kiko-sidecar-panel")
+    if (sidePanel()?.collapsed()) return closeSide()
+    saveWidth(INFO, "kiko-sidecar-panel")
+    setSideWidth(readPanelWidth(viewport()))
   }
   createEffect(
     on(dockedSide, () => {
+      setSideWidth(readPanelWidth(viewport()))
       requestAnimationFrame(() => {
-        if (!layout()) return
-        const sizes = layout()!.sizes()
+        const ctx = layout()
+        if (!ctx) return
+        const sizes = ctx.sizes()
         const index = sizes.length - 1
         if (index < 1) return
-        const want = dockedSide() ? readWidth(INFO) : 0
-        setColumnWidth(index, want)
+        setColumnWidth(index, dockedSide() ? readPanelWidth(viewport()) : 0)
       })
     }),
   )
@@ -301,16 +393,16 @@ export function Shell(props: ParentProps) {
     const on = () => {
       if (window.innerWidth === last) return
       last = window.innerWidth
+      setViewport(window.innerWidth)
+      setSideWidth(readPanelWidth(window.innerWidth))
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => {
-          const side = sidePanel()
-          const fitted = fitWidths(
-            window.innerWidth,
-            sidebarPanel && !sidebarPanel.collapsed() ? readWidth(SIDEBAR) : 0,
-            side && !side.collapsed() ? readWidth(INFO) : 0,
-          )
-          if (sidebarPanel && !sidebarPanel.collapsed()) sidebarPanel.resize(`${fitted.sidebar}px`)
+          const ctx = layout()
+          if (ctx && dockedSide()) setColumnWidth(ctx.sizes().length - 1, readPanelWidth(window.innerWidth))
+          const room = window.innerWidth - CHAT_MIN
+          if (!sidebarPanel || sidebarPanel.collapsed() || readWidth(SIDEBAR) <= room) return
+          sidebarPanel.resize(`${Math.max(SIDEBAR.min, room)}px`)
         })
       })
     }
@@ -336,15 +428,12 @@ export function Shell(props: ParentProps) {
             onPointerDown={() => setDrawer(false)}
           />
         </Show>
-        <Show when={!narrow() && collapsed()}>
-          <Rail onExpand={toggle} />
-        </Show>
         <Show when={narrow() ? "narrow" : compact() ? "compact" : "wide"} keyed>
           {(_mode) => {
             const fitted = fitWidths(
               window.innerWidth,
-              narrow() ? 0 : collapsed() ? 0 : readWidth(SIDEBAR),
-              compact() ? 0 : dockedSide() ? readWidth(INFO) : 0,
+              narrow() ? 0 : collapsed() ? RAIL : readWidth(SIDEBAR),
+              compact() ? 0 : dockedSide() ? readPanelWidth(window.innerWidth) : 0,
             )
             const sizes = initialSizes(
               window.innerWidth,
@@ -368,18 +457,27 @@ export function Shell(props: ParentProps) {
                     minSize={`${SIDEBAR.min}px`}
                     maxSize={`${SIDEBAR.max}px`}
                     collapsible
-                    collapsedSize={0}
-                    onCollapse={() => setAndSave(true)}
-                    onExpand={() => setAndSave(false)}
+                    collapsedSize={`${RAIL}px`}
+                    ref={watchSidebarPanel}
+                    onCollapse={() => {
+                      setAndSave(true)
+                      if (!settling) setRailShown(true)
+                    }}
+                    onExpand={() => {
+                      setAndSave(false)
+                      settling = false
+                      setRailShown(false)
+                    }}
                   >
                     <GrabPanel onGrab={(panel) => (sidebarPanel = panel)} />
-                    {sidebar()}
+                    {railShown() ? <Rail onExpand={toggle} /> : sidebar()}
                   </Resizable.Panel>
                   <Resizable.Handle
                     class="resize-handle"
                     data-component="sidebar-resize"
                     aria-label="Resize sidebar"
                     altKey={false}
+                    onHandleDragStart={beginSidebarDrag}
                     onHandleDragEnd={() => saveWidth(SIDEBAR, "kiko-sidebar-panel")}
                     onKeyUp={() => saveWidth(SIDEBAR, "kiko-sidebar-panel")}
                     onDblClick={() => resetWidth(SIDEBAR, sidebarPanel)}
@@ -406,8 +504,19 @@ export function Shell(props: ParentProps) {
                       <div
                         class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
                         data-component="main-panel"
+                        ref={watchCanvas}
                       >
-                        <div class="flex min-w-0 flex-1 flex-col">{props.children}</div>
+                        <div
+                          class="details-reserve flex min-w-0 flex-1 flex-col"
+                          data-on={detailsReserved() ? "" : undefined}
+                        >
+                          {props.children}
+                        </div>
+                        <Show when={onChat() && detailsChat()}>
+                          <Suspense>
+                            <ThreadDetailsLayer chatId={detailsChat()!} inline={detailsInline()} />
+                          </Suspense>
+                        </Show>
                       </div>
                       <Show when={searchScope()}>
                         <Suspense>
@@ -441,7 +550,7 @@ export function Shell(props: ParentProps) {
                     data-component="sidecar-column"
                     initialSize={sizes.info}
                     minSize={`${INFO.min}px`}
-                    maxSize={`${INFO.max}px`}
+                    maxSize={`${panelMaxWidth(viewport())}px`}
                     collapsible
                     collapsedSize={0}
                   >
@@ -462,15 +571,26 @@ export function Shell(props: ParentProps) {
         <Show when={overlaidSide()} keyed>
           {(chatId) => (
             <>
+              <Show when={overlayMode() !== "max"}>
+                <div
+                  class="drawer-scrim sidecar-scrim"
+                  data-component="sidecar-scrim"
+                  aria-hidden="true"
+                  onPointerDown={closeSide}
+                />
+              </Show>
               <div
-                class="drawer-scrim sidecar-scrim"
-                data-component="sidecar-scrim"
-                aria-hidden="true"
-                onPointerDown={closeSide}
-              />
-              <div class="sidecar-overlay" data-component="sidecar-overlay">
+                class="sidecar-overlay"
+                data-component="sidecar-overlay"
+                data-mode={overlayMode()}
+                style={
+                  overlayMode() === "max"
+                    ? { left: `${sidebarWidth()}px`, right: "0px", top: "var(--frame-gap)", bottom: "var(--frame-gap)" }
+                    : undefined
+                }
+              >
                 <Suspense>
-                  <Desk chatId={chatId} onClose={closeSide} />
+                  <Desk chatId={chatId} onClose={closeSide} sheet={overlayMode() !== "max"} />
                 </Suspense>
               </div>
             </>

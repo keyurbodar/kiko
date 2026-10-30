@@ -1,18 +1,20 @@
 import { createSignal } from "solid-js"
 import { rememberFile } from "../../files/recent"
 import {
-  back,
-  closeFile,
-  closeFiles,
-  closeRightOf,
+  activateSurface as activate,
+  closeAll as closeEvery,
+  closeOthers as closeEveryOther,
+  closeRightOf as closeEveryRightOf,
+  closeSurface as closeOne,
   type DeskNav,
+  deactivate,
   dropFiles,
   EMPTY_NAV,
-  type FileSurface,
   fileSurface,
-  keepOnly,
   moveFiles,
-  openView,
+  showInActive,
+  moveSurface,
+  openSurface as openIn,
 } from "./desk-nav"
 import { type FixedKind, loadPanelViews, PANELS, type PanelKind, panelOf, type Surface } from "./panels"
 
@@ -21,15 +23,10 @@ export type { FixedKind, Surface }
 export type Reveal = { chatId: string; path: string; line: number | null; n: number }
 
 const KEY = "kiko:desk:v1"
-const SHOWN_KEY = "kiko:device:card"
+const SHOWN_KEY = "kiko:device:panel"
+const MAX_KEY = "kiko:device:panel-max"
 
 export const fixedSurface = (kind: FixedKind): Surface => ({ id: kind, kind }) as Surface
-export const agentSurface = (slug: string): Surface => ({
-  id: PANELS.agent.instance!.id({ slug }),
-  kind: "agent",
-  slug,
-})
-
 export const helperSurface = (helper: string, window: string): Surface => ({
   id: PANELS.helper.instance!.id({ helper, window }),
   kind: "helper",
@@ -89,14 +86,23 @@ function parseSurface(value: unknown): Surface | null {
 
 function parseNav(value: unknown): DeskNav | null {
   if (typeof value !== "object" || value === null) return null
-  const { view, files } = value as { view?: unknown; files?: unknown }
-  if (!Array.isArray(files)) return null
-  const list: FileSurface[] = []
-  for (const item of files) {
-    const surface = parseSurface(item)
-    if (surface?.kind === "file" && !list.some((s) => s.id === surface.id)) list.push(surface)
+  const { surfaces, active, view, files } = value as {
+    surfaces?: unknown
+    active?: unknown
+    view?: unknown
+    files?: unknown
   }
-  return { view: parseSurface(view), files: list }
+  const legacy = !Array.isArray(surfaces)
+  const raw = legacy ? [...(Array.isArray(files) ? files : []), ...(view === undefined ? [] : [view])] : surfaces
+  if (!Array.isArray(raw)) return null
+  const list: Surface[] = []
+  for (const item of raw) {
+    const surface = parseSurface(item)
+    if (surface && !list.some((open) => open.id === surface.id)) list.push(surface)
+  }
+  const wanted = legacy ? (parseSurface(view)?.id ?? null) : typeof active === "string" ? active : null
+  const found = list.some((surface) => surface.id === wanted)
+  return { surfaces: list, active: found ? wanted : (list.at(-1)?.id ?? null) }
 }
 
 function readAll(): Record<string, DeskNav> {
@@ -119,15 +125,17 @@ function readAll(): Record<string, DeskNav> {
 
 const [all, setAll] = createSignal<Readonly<Record<string, DeskNav>>>(readAll())
 const [reveal, setReveal] = createSignal<Reveal | null>(null)
-const [docked, setDocked] = createSignal(readKey(SHOWN_KEY) !== "0")
+const [docked, setDocked] = createSignal(readKey(SHOWN_KEY) === "1")
 const [popped, setPopped] = createSignal(false)
 const [compact, setCompact] = createSignal(false)
+const [maximized, setMaximized] = createSignal(readKey(MAX_KEY) === "1")
 
 export const setDeskCompact = (value: boolean) => setCompact(value)
 
 export const deskShown = (): boolean => (compact() ? popped() : docked())
 
 function setShown(next: boolean) {
+  if (!next) setMaximized(false)
   if (compact()) return setPopped(next)
   setDocked(next)
   writeKey(SHOWN_KEY, next ? "1" : "0")
@@ -136,9 +144,16 @@ function setShown(next: boolean) {
 export const toggleDesk = () => setShown(!deskShown())
 export const closeDesk = () => deskShown() && setShown(false)
 
-export const deskView = (chatId: string): Surface | null => (all()[chatId] ?? EMPTY_NAV).view
-export const openFiles = (chatId: string): readonly FileSurface[] => (all()[chatId] ?? EMPTY_NAV).files
-
+export const panelMaximized = (): boolean => maximized()
+export function setPanelMaximized(value: boolean) {
+  setMaximized(value)
+  writeKey(MAX_KEY, value ? "1" : "0")
+}
+export const surfacesOf = (chatId: string): readonly Surface[] => (all()[chatId] ?? EMPTY_NAV).surfaces
+export const deskView = (chatId: string): Surface | null => {
+  const nav = all()[chatId] ?? EMPTY_NAV
+  return nav.surfaces.find((surface) => surface.id === nav.active) ?? null
+}
 function edit(chatId: string, change: (nav: DeskNav) => DeskNav) {
   setAll((map) => {
     const before = map[chatId] ?? EMPTY_NAV
@@ -151,28 +166,25 @@ function edit(chatId: string, change: (nav: DeskNav) => DeskNav) {
 }
 
 export function openSurface(chatId: string, surface: Surface) {
-  edit(chatId, (nav) => openView(nav, surface))
+  edit(chatId, (nav) => openIn(nav, surface))
   if (!deskShown()) setShown(true)
 }
 
-export const deskBack = (chatId: string) => edit(chatId, back)
-export const showOverview = (chatId: string) =>
-  edit(chatId, (nav) => (nav.view === null ? nav : { ...nav, view: null }))
-export const closeSurface = (chatId: string, id: string) => edit(chatId, (nav) => closeFile(nav, id))
-export const closeOthers = (chatId: string, id: string) => edit(chatId, (nav) => keepOnly(nav, id))
-export const closeToRight = (chatId: string, id: string) => edit(chatId, (nav) => closeRightOf(nav, id))
-export const closeAll = (chatId: string) => edit(chatId, (nav) => ({ ...closeFiles(nav), view: null }))
-export const closeTabs = (chatId: string) => edit(chatId, closeFiles)
-
-export function activateSurface(chatId: string, id: string) {
-  const file = openFiles(chatId).find((f) => f.id === id)
-  if (file) edit(chatId, (nav) => openView(nav, file))
-}
+export const showSurfaces = (chatId: string) => edit(chatId, deactivate)
+export const activateSurface = (chatId: string, id: string) => edit(chatId, (nav) => activate(nav, id))
+export const closeSurface = (chatId: string, id: string) => edit(chatId, (nav) => closeOne(nav, id))
+export const closeOthers = (chatId: string, id: string) => edit(chatId, (nav) => closeEveryOther(nav, id))
+export const closeToRight = (chatId: string, id: string) => edit(chatId, (nav) => closeEveryRightOf(nav, id))
+export const closeAll = (chatId: string) => edit(chatId, closeEvery)
 
 export const moveFileSurfaces = (chatId: string, from: string, to: string) =>
   edit(chatId, (nav) => moveFiles(nav, from, to))
 
 export const dropFileSurfaces = (chatId: string, path: string) => edit(chatId, (nav) => dropFiles(nav, path))
+
+export const showFileInTab = (chatId: string, path: string) => edit(chatId, (nav) => showInActive(nav, path))
+
+export const moveTab = (chatId: string, from: string, to: string) => edit(chatId, (nav) => moveSurface(nav, from, to))
 
 export function openFile(chatId: string, path: string, line?: number) {
   openSurface(chatId, fileSurface(path))
@@ -180,7 +192,7 @@ export function openFile(chatId: string, path: string, line?: number) {
   setReveal({ chatId, path, line: line !== undefined && line > 0 ? line : null, n: (reveal()?.n ?? 0) + 1 })
 }
 
-export const loadDesk = () => Promise.all([import("./Desk"), loadPanelViews()]).then(([desk]) => desk)
+export const loadDesk = () => Promise.all([import("./right-panel"), loadPanelViews()]).then(([panel]) => panel)
 
 export function fileReveal(chatId: string, path: string): { line: number | null; n: number } | null {
   const r = reveal()

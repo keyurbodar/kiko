@@ -6,9 +6,7 @@
   "sideEffects": false,
   "exports": {
     "./connection": "./src/connection/index.ts",
-    "./rpc": "./src/rpc/index.ts",
-    "./state": "./src/state/index.ts",
-    "./platform": "./src/platform/index.ts"
+    "./state": "./src/state/index.ts"
   },
   "scripts": {
     "typecheck": "tsgo --noEmit",

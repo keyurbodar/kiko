@@ -5,7 +5,7 @@
   max-width: var(--chat-content-max-width);
   margin-right: auto;
   margin-left: auto;
-  padding: 0 12px calc(14px + env(safe-area-inset-bottom, 0px) + var(--composer-keyboard-inset, 0px));
+  padding: 0 16px calc(14px + env(safe-area-inset-bottom, 0px) + var(--composer-keyboard-inset, 0px));
   background: var(--dock-bg);
 }
 
@@ -19,6 +19,18 @@
   padding: 0;
   background: var(--raise);
   border-radius: var(--radius-composer);
+  box-shadow: inset 0 0 0 1px var(--border-100);
+  transition: box-shadow 160ms var(--ease-kiko, ease);
+}
+
+.composer-dock .composer-box[data-focused] {
+  box-shadow:
+    inset 0 0 0 1px var(--border-200),
+    0 0 0 3px color-mix(in oklab, var(--fg) 6%, transparent);
+}
+
+.composer-dock .composer-box[data-dragging] {
+  box-shadow: inset 0 0 0 1px var(--border-300);
 }
 
 .composer-dock .composer-main {
@@ -104,6 +116,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 0 12px 12px;
+  container-type: inline-size;
 }
 
 @media (min-width: 640px) {
@@ -114,15 +127,16 @@
 
 .composer-dock .composer-actions {
   display: flex;
-  flex-shrink: 0;
+  min-width: 0;
+  flex-shrink: 1;
   align-items: center;
   gap: 2px;
 }
 
 .composer-dock .composer-icon {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   place-items: center;
   padding: 0;
   color: var(--fg2);
@@ -150,37 +164,103 @@
 
 .composer-dock .composer-send {
   display: grid;
-  width: 34px;
-  height: 34px;
-  margin-left: 4px;
+  width: 32px;
+  height: 32px;
+  margin-left: 6px;
+  flex-shrink: 0;
   place-items: center;
   padding: 0;
-  color: var(--on-accent);
-  background: var(--accent-fill);
+  color: var(--bg-000);
+  background: var(--text-000);
   border: 0;
   border-radius: var(--radius-full);
   cursor: pointer;
+  grid-template-areas: "glyph";
   transition:
     background var(--dur-hover, 120ms),
     color var(--dur-hover, 120ms),
+    opacity var(--dur-hover, 120ms),
     transform var(--dur-hover, 120ms) var(--ease-kiko, ease);
 }
 
+.composer-dock .composer-send > * {
+  grid-area: glyph;
+  transition: opacity 120ms var(--ease-kiko, ease);
+}
+
+.composer-dock .composer-send-square {
+  width: 10px;
+  height: 10px;
+  background: currentColor;
+  border-radius: 3px;
+}
+
+.composer-dock .composer-send[data-mode="stop"] .composer-send-arrow,
+.composer-dock .composer-send:not([data-mode="stop"]) .composer-send-square {
+  opacity: 0;
+}
+
 .composer-dock .composer-send:active:not(:disabled) {
-  transform: scale(0.92);
-  transition-duration: var(--dur-hover), var(--dur-hover), var(--dur-press);
+  transform: scale(0.94);
+  transition-duration: var(--dur-hover), var(--dur-hover), var(--dur-hover), var(--dur-press);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .composer-dock .composer-send:hover:not(:disabled) {
-    background: var(--accent-fill-hover);
+    opacity: 0.88;
   }
 }
 
 .composer-dock .composer-send:disabled {
-  color: var(--fg4);
-  background: var(--active);
+  color: var(--text-400);
+  background: var(--fill);
   cursor: default;
+}
+
+.composer-dock :is([data-component="model-picker-button"], [data-component="reasoning-trigger"]) {
+  height: 32px;
+  min-width: 0;
+  gap: 6px;
+  padding: 0 4px;
+  color: var(--text-200);
+  background: none;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.composer-dock :is([data-component="model-picker-button"], [data-component="reasoning-trigger"]) svg {
+  display: none;
+}
+
+.composer-dock [data-component="reasoning-trigger"] {
+  flex-shrink: 1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.composer-dock [data-component="reasoning-trigger"] .reasoning-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-400);
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.composer-dock [data-component="composer-model"] {
+  min-width: 6ch;
+}
+
+@container (max-width: 380px) {
+  .composer-dock [data-component="reasoning-trigger"] {
+    display: none;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .composer-dock :is([data-component="model-picker-button"], [data-component="reasoning-trigger"]):hover {
+    color: var(--text-100);
+    background: none;
+  }
 }
 
 .composer-dock .composer-tray {
@@ -326,11 +406,6 @@
   object-fit: cover;
 }
 
-.composer-dock .reply-bar-glyph {
-  flex-shrink: 0;
-  color: var(--fg3);
-}
-
 .composer-dock .reply-bar-dismiss {
   display: flex;
   width: 28px;
@@ -393,58 +468,20 @@
   }
 }
 
-.composer-drop {
+.composer-drop-caret {
   position: fixed;
   z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in oklab, var(--bg) 72%, transparent);
-  border-radius: var(--radius-composer);
-  box-shadow: inset 0 0 0 1.5px var(--line2);
+  width: 2px;
+  min-height: 1.25em;
+  background: var(--accent);
+  border-radius: 1px;
   pointer-events: none;
-  backdrop-filter: blur(2px);
-}
-
-.composer-drop-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  color: var(--fg);
-  background: var(--raise);
-  border-radius: var(--radius-full);
-  box-shadow: var(--float-shadow);
-  font-size: var(--type-ui);
-  font-weight: 500;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  [data-component="composer-drop-overlay"] {
-    animation: composer-drop-in var(--dur-pop, 200ms) var(--ease-kiko, ease) both;
-  }
-  [data-component="composer-drop-overlay"] .composer-drop-label {
-    animation: composer-drop-label var(--dur-pop, 200ms) var(--ease-kiko, ease) both;
-  }
   .composer-dock .composer-box > .reply-bar,
   .composer-dock .composer-box > .no-key-hint {
     animation: composer-row-in var(--dur-pop, 200ms) var(--ease-kiko, ease) both;
-  }
-  @keyframes composer-drop-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-  @keyframes composer-drop-label {
-    from {
-      transform: translateY(6px) scale(0.96);
-    }
-    to {
-      transform: none;
-    }
   }
   @keyframes composer-row-in {
     from {

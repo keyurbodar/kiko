@@ -4,6 +4,7 @@ import { userEvent } from "vitest/browser"
 import { render } from "../../test/render"
 import type { RosterBot } from "../lib/types"
 import { Composer } from "./composer"
+import { clearDraftFiles } from "./rich/draft-files"
 
 const ROOM = "01900000-0000-7000-8000-000000000052"
 const MB = 1024 * 1024
@@ -48,6 +49,7 @@ function fakeXhr() {
 }
 
 async function mountComposer(onSend: (body: string) => void = () => {}) {
+  await clearDraftFiles(ROOM)
   const screen = await render(() => (
     <Composer threadId={ROOM} bots={BOTS} onSend={(message) => void onSend(message.body)} />
   ))
@@ -84,7 +86,7 @@ describe("composer attachments", () => {
 
     await expect.poll(() => editor.querySelector("[data-attachment]")?.textContent ?? "").toContain("notes.md")
     expect(editor.textContent?.replace(/\s+/g, " ")).toMatch(/^Read .*notes\.md.* first$/)
-    expect(tray(screen.container)).toEqual([])
+    expect(tray(screen.container)).toHaveLength(1)
 
     await expect.poll(() => FakeXhr.sent.length).toBe(1)
     FakeXhr.sent[0]!.finish()
@@ -95,7 +97,7 @@ describe("composer attachments", () => {
     expect(sent).toMatch(/^Read \[notes\.md\]\(attachment:[\w-]+\) +first$/)
   })
 
-  it("keeps the red inset on a chip whose upload failed", async () => {
+  it("turns the file name red on a chip whose upload failed", async () => {
     using _xhr = fakeXhr()
     await using screen = await mountComposer()
     const editor = screen.editor
@@ -104,17 +106,15 @@ describe("composer attachments", () => {
     await expect.poll(() => FakeXhr.sent.length).toBe(1)
 
     FakeXhr.sent[0]!.fail()
-    await expect.poll(() => editor.querySelector('.token-chip[data-state="failed"]')).not.toBeNull()
-    const chip = editor.querySelector<HTMLElement>('.token-chip[data-state="failed"]')!
+    const failed = () =>
+      editor.querySelector<HTMLElement>('.composer-attach-chip[data-state="failed"] .composer-attach-name')
+    await expect.poll(failed).not.toBeNull()
     const probe = document.createElement("span")
-    probe.style.color = "var(--bad)"
+    probe.style.color = "var(--danger)"
     document.body.append(probe)
-    const bad = getComputedStyle(probe).color
+    const danger = getComputedStyle(probe).color
     probe.remove()
-
-    const shadow = () => getComputedStyle(chip).boxShadow
-    await expect.poll(shadow).toContain(bad)
-    expect(shadow()).toContain("inset")
+    expect(getComputedStyle(failed()!).color).toBe(danger)
   })
 
   it("shows upload progress in bytes on the inline chip", async () => {
@@ -132,32 +132,34 @@ describe("composer attachments", () => {
       .toContain("340 KB of 1.2 MB")
   })
 
-  it("pastes into the tray when the draft is empty", async () => {
+  it("pastes a file into an empty draft as a chip and a tray tile", async () => {
     using _xhr = fakeXhr()
     await using screen = await mountComposer()
     const editor = screen.editor
     paste(editor, new File(["a,b\n1,2\n"], "table.csv", { type: "text/csv" }))
 
     await expect.poll(() => tray(screen.container).length).toBe(1)
-    expect(editor.querySelector("[data-attachment]")).toBeNull()
+    await expect.poll(() => editor.querySelector("[data-attachment]")?.textContent ?? "").toContain("table.csv")
   })
 
-  it("drops a file inline when the draft has words, and into the tray when it is empty", async () => {
+  it("drops a file as an inline chip whether or not the draft has words", async () => {
     using _xhr = fakeXhr()
     await using screen = await mountComposer()
     const editor = screen.editor
     const drop = (file: File) =>
       editor.dispatchEvent(new DragEvent("drop", { dataTransfer: transfer(file), bubbles: true, cancelable: true }))
+    const chips = () => Array.from(editor.querySelectorAll("[data-attachment]")).map((chip) => chip.textContent)
 
     drop(new File(["x"], "first.md", { type: "text/markdown" }))
-    await expect.poll(() => tray(screen.container).length).toBe(1)
-    expect(editor.querySelector("[data-attachment]")).toBeNull()
+    await expect.poll(chips).toHaveLength(1)
+    expect(tray(screen.container)).toHaveLength(1)
 
     await userEvent.click(editor)
     await userEvent.keyboard("Then ")
     drop(new File(["y"], "second.md", { type: "text/markdown" }))
-    await expect.poll(() => editor.querySelector("[data-attachment]")?.textContent ?? "").toContain("second.md")
-    expect(tray(screen.container).length).toBe(1)
+    await expect.poll(chips).toHaveLength(2)
+    expect(chips()[1]).toContain("second.md")
+    expect(tray(screen.container)).toHaveLength(2)
   })
 
   it("drops a folder dragged out of the files tree as a folder reference", async () => {
@@ -165,35 +167,44 @@ describe("composer attachments", () => {
     await using screen = await mountComposer()
     const data = new DataTransfer()
     data.setData("application/x-kiko-file", "docs/")
+    const box = screen.editor.getBoundingClientRect()
+    const at = { clientX: box.left + 4, clientY: box.top + 4 }
+    const overlay = () => document.querySelector('[data-component="composer-drop-overlay"]')
 
-    document.dispatchEvent(new DragEvent("dragover", { dataTransfer: data, bubbles: true, cancelable: true }))
-    await expect.poll(() => document.querySelector('[data-component="composer-drop-overlay"]')).not.toBeNull()
+    document.dispatchEvent(new DragEvent("dragover", { dataTransfer: data, bubbles: true, cancelable: true, ...at }))
+    await expect.poll(overlay).not.toBeNull()
 
-    screen.editor.dispatchEvent(new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true }))
+    screen.editor.dispatchEvent(new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true, ...at }))
     await expect
       .poll(() => screen.editor.querySelector("[data-file-ref]")?.getAttribute("data-file-ref") ?? "")
       .toBe("docs")
-    expect(document.querySelector('[data-component="composer-drop-overlay"]')).toBeNull()
+    expect(overlay()).toBeNull()
   })
 
   it("clears the drop overlay when another surface takes the drop", async () => {
     using _xhr = fakeXhr()
-    await using _screen = await mountComposer()
+    await using screen = await mountComposer()
     const surface = document.createElement("div")
     surface.addEventListener("drop", (event) => event.stopPropagation())
     document.body.append(surface)
     const file = new File(["x"], "tree.md", { type: "text/markdown" })
+    const box = screen.editor.getBoundingClientRect()
+    const at = { clientX: box.left + 4, clientY: box.top + 4 }
     const overlay = () => document.querySelector('[data-component="composer-drop-overlay"]')
 
-    document.dispatchEvent(new DragEvent("dragover", { dataTransfer: transfer(file), bubbles: true, cancelable: true }))
+    document.dispatchEvent(
+      new DragEvent("dragover", { dataTransfer: transfer(file), bubbles: true, cancelable: true, ...at }),
+    )
     await expect.poll(overlay).not.toBeNull()
 
-    surface.dispatchEvent(new DragEvent("drop", { dataTransfer: transfer(file), bubbles: true, cancelable: true }))
+    surface.dispatchEvent(
+      new DragEvent("drop", { dataTransfer: transfer(file), bubbles: true, cancelable: true, ...at }),
+    )
     await expect.poll(overlay).toBeNull()
     surface.remove()
   })
 
-  it("puts files picked with the + button in the tray even mid-sentence", async () => {
+  it("inserts files picked with + at the caret and shows them in the tray", async () => {
     using _xhr = fakeXhr()
     await using screen = await mountComposer()
     const editor = screen.editor
@@ -203,7 +214,8 @@ describe("composer attachments", () => {
     input.dispatchEvent(new Event("change", { bubbles: true }))
 
     await expect.poll(() => tray(screen.container).length).toBe(1)
-    expect(editor.querySelector("[data-attachment]")).toBeNull()
+    await expect.poll(() => editor.querySelector("[data-attachment]")?.textContent ?? "").toContain("photo.txt")
+    expect(editor.textContent).toMatch(/^Look at this/)
   })
 
   it("drops the file when its inline chip is deleted", async () => {
@@ -220,5 +232,54 @@ describe("composer attachments", () => {
     expect(tray(screen.container)).toEqual([])
     await userEvent.keyboard("ok{Enter}")
     expect(sent).toBe("Read ok")
+  })
+
+  it("removes the chip when its tray tile is removed, and undo brings both back", async () => {
+    using _xhr = fakeXhr()
+    await using screen = await mountComposer()
+    const editor = screen.editor
+    await userEvent.keyboard("Read ")
+    paste(editor, new File(["x"], "undo.md", { type: "text/markdown" }))
+    await expect.poll(() => tray(screen.container)).toHaveLength(1)
+
+    await userEvent.click(screen.container.querySelector<HTMLElement>('[data-action="remove-attachment"]')!)
+    await expect.poll(() => editor.querySelector("[data-attachment]")).toBeNull()
+    expect(tray(screen.container)).toEqual([])
+
+    await userEvent.click(editor)
+    await userEvent.keyboard("{Control>}z{/Control}")
+    await expect.poll(() => editor.querySelector("[data-attachment]")).not.toBeNull()
+    await expect.poll(() => tray(screen.container)).toHaveLength(1)
+  })
+
+  it("opens the file picker with Mod+U", async () => {
+    using _xhr = fakeXhr()
+    await using screen = await mountComposer()
+    const input = screen.container.querySelector<HTMLInputElement>('input[type="file"]')!
+    const click = vi.spyOn(input, "click")
+    await userEvent.keyboard("{Control>}u{/Control}")
+    expect(click).toHaveBeenCalledTimes(1)
+  })
+
+  it("puts the chip back when the same file is picked again", async () => {
+    using _xhr = fakeXhr()
+    await using screen = await mountComposer()
+    const editor = screen.editor
+    const input = screen.container.querySelector<HTMLInputElement>('input[type="file"]')!
+    const file = new File(["x"], "again.md", { type: "text/markdown" })
+    const pickAgain = () => {
+      input.files = transfer(file).files
+      input.dispatchEvent(new Event("change", { bubbles: true }))
+    }
+
+    pickAgain()
+    await expect.poll(() => tray(screen.container)).toHaveLength(1)
+    await userEvent.keyboard("{Backspace}{Backspace}{Backspace}")
+    await expect.poll(() => editor.querySelector("[data-attachment]")).toBeNull()
+    expect(tray(screen.container)).toEqual([])
+
+    pickAgain()
+    await expect.poll(() => editor.querySelector("[data-attachment]")).not.toBeNull()
+    await expect.poll(() => tray(screen.container)).toHaveLength(1)
   })
 })

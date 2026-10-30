@@ -46,6 +46,29 @@ describe("MessageRow avatars", () => {
 })
 
 describe("MessageRow attachments", () => {
+  const textInset = async (files: ChatMessage["files"]) => {
+    await using screen = await render(() => (
+      <MessageRow
+        message={{ ...message, body: "Hello", ...(files ? { files } : {}) }}
+        bot={undefined}
+        quote={null}
+        isRunStart
+        isRunEnd
+        hasRunGapBefore={false}
+        onOpenReplyTarget={() => {}}
+      />
+    ))
+    const content = screen.container.querySelector<HTMLElement>('[data-slot="bubble-content"]')!
+    const text = screen.container.querySelector<HTMLElement>(".bubble-text")!
+    return text.getBoundingClientRect().left - content.getBoundingClientRect().left
+  }
+
+  it("keeps the text inset the same with and without an attachment", async () => {
+    const file = { name: "notes.txt", size: 4, type: "text/plain", src: "data:," }
+
+    expect(await textInset([file])).toBeCloseTo(await textInset(undefined), 5)
+  })
+
   it("keeps an image-only message in its bubble and opens only that message's images", async () => {
     const open = vi.fn()
     const files = [

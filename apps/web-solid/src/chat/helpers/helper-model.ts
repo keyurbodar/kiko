@@ -20,6 +20,8 @@ export type HelperLane = {
 
 export type HelperStatuses = ReadonlyMap<string, WorkerRow["status"]>
 
+export type HelperAwake = { busy: (slug: string) => boolean; stale: boolean }
+
 const TITLE_WORDS = 5
 
 export function helperTitle(task: string): string {
@@ -29,10 +31,13 @@ export function helperTitle(task: string): string {
   return words.length > TITLE_WORDS ? `${short}…` : short
 }
 
-function stateOf(steps: readonly RunStep[], live: WorkerRow["status"] | undefined, awake: boolean): HelperState {
+function stateOf(steps: readonly RunStep[], live: WorkerRow["status"] | undefined, awake: HelperAwake): HelperState {
+  if (live === "done") return "done"
+  if (live === "failed") return "failed"
   if (live === "stopped") return "stopped"
-  if ((awake && anyRunning(steps)) || live === "pending" || live === "running") return "working"
-  return stillFailing(steps) || live === "failed" ? "failed" : "done"
+  if (live === "pending" || live === "running") return "working"
+  if (anyRunning(steps) && (awake.stale || awake.busy(steps[0]!.slug))) return "working"
+  return stillFailing(steps) ? "failed" : "done"
 }
 
 function laneOf(
@@ -40,12 +45,12 @@ function laneOf(
   task: string,
   steps: readonly RunStep[],
   live: WorkerRow["status"] | undefined,
-  awake: boolean,
+  awake: HelperAwake,
 ): HelperLane {
   const first = steps[0]!
   const last = steps.findLast((step) => step.status === "running") ?? steps.at(-1)!
   const ends = steps.map((step) => step.endedAt)
-  const open = (awake && anyRunning(steps)) || ends.some((end) => end === undefined)
+  const open = anyRunning(steps) || ends.some((end) => end === undefined)
   return {
     id,
     slug: first.slug,
@@ -61,11 +66,7 @@ function laneOf(
   }
 }
 
-export function helperLanes(
-  steps: readonly RunStep[],
-  statuses: HelperStatuses,
-  busy: (slug: string) => boolean,
-): HelperLane[] {
+export function helperLanes(steps: readonly RunStep[], statuses: HelperStatuses, awake: HelperAwake): HelperLane[] {
   const groups = new Map<string, { task: string; steps: RunStep[] }>()
   for (const step of steps) {
     if (!step.worker) continue
@@ -73,9 +74,7 @@ export function helperLanes(
     if (group) group.steps.push(step)
     else groups.set(step.worker.id, { task: step.worker.task, steps: [step] })
   }
-  return [...groups].map(([id, group]) =>
-    laneOf(id, group.task, group.steps, statuses.get(id), busy(group.steps[0]!.slug)),
-  )
+  return [...groups].map(([id, group]) => laneOf(id, group.task, group.steps, statuses.get(id), awake))
 }
 
 export const helperWord = (state: HelperState): string =>

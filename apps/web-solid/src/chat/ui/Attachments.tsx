@@ -1,5 +1,6 @@
 import { createSignal, For, Show } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
+import { fileTone } from "@kiko/ui/file-icon"
 import { ChevronDownIcon, DownloadIcon, PlayIcon } from "@kiko/ui/icons"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { isVideo, saveFile, splitFiles } from "../../lib/attachments"
@@ -35,6 +36,11 @@ function fileMeta(name: string, size: number): string {
   return kind ? `${kind}, ${bytes}` : bytes
 }
 
+function fileTint(name: string): string | undefined {
+  const tone = fileTone(name)
+  return tone ? `light-dark(${tone[0]}, ${tone[1]})` : undefined
+}
+
 const dragProps = (file: MessageFile) => ({
   draggable: file.path !== undefined,
   onDragStart: (event: DragEvent) => {
@@ -60,7 +66,7 @@ export function MessageAttachments(props: {
   const files = () => (allFiles() ? split().others : split().others.slice(0, FILES_SHOWN))
   const moreFiles = () => split().others.length - FILES_SHOWN
   return (
-    <div class="flex flex-col gap-2" data-component="chat-attachments">
+    <div class="flex flex-col gap-1" data-component="chat-attachments">
       <Show when={media().length > 0}>
         <div class="att-grid" data-single={media().length === 1 ? "" : undefined}>
           <For each={media()}>
@@ -100,7 +106,7 @@ export function MessageAttachments(props: {
                   {...dragProps(file)}
                   onClick={() => preview(props.roomId, file)}
                 >
-                  <span class="att-tile">
+                  <span class="att-tile" style={{ color: fileTint(file.name) }}>
                     <EntryIcon path={file.name} />
                   </span>
                   <span class="flex min-w-0 flex-1 flex-col">

@@ -369,6 +369,10 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     setRoomModel: rpc("room.setModel"),
     roomSearch: rpc("room.search", { mode: "serial", key: (input) => input.roomId }),
     steps: rpc("room.steps", { mode: "singleFlight", key: (input) => `${input.roomId}:${input.slug}:${input.after}` }),
+    roomThoughts: rpc("room.thoughts", {
+      mode: "singleFlight",
+      key: (input) => `${input.roomId}:${input.slug}:${input.runId}`,
+    }),
     openChat: rpc("chat.open", { mode: "serial", key: () => "open" }),
     chatSearch: rpc("chat.search"),
     searchMessages: rpc("search.messages"),

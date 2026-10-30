@@ -1,0 +1,127 @@
+.fb-nav {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+}
+
+.fb-scroll {
+  min-width: 0;
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.fb-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.fb-scroll[data-fade~="start"] {
+  mask-image: linear-gradient(to right, transparent 0, currentColor 16px);
+}
+
+.fb-scroll[data-fade~="end"] {
+  mask-image: linear-gradient(to left, transparent 0, currentColor 16px);
+}
+
+.fb-scroll[data-fade~="start"][data-fade~="end"] {
+  mask-image:
+    linear-gradient(to right, transparent 0, currentColor 16px),
+    linear-gradient(to left, transparent 0, currentColor 16px);
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
+}
+
+.fb-list {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  align-items: center;
+  font-size: 12px;
+}
+
+.fb-item {
+  display: flex;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+}
+
+.fb-name {
+  position: relative;
+  display: block;
+  max-width: 160px;
+  cursor: pointer;
+  overflow: hidden;
+  border-radius: var(--radius-micro);
+  padding: 0 2px;
+  color: var(--text-300);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .fb-name:hover {
+    background: var(--fill-hover);
+    color: var(--fg);
+  }
+}
+
+.fb-name[data-descendant] {
+  color: color-mix(in oklab, var(--text-400) 70%, transparent);
+}
+
+.fb-name[data-current] {
+  cursor: default;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .fb-name[data-current]:hover {
+    background: none;
+  }
+}
+
+.fb-chev {
+  position: relative;
+  display: flex;
+  width: 16px;
+  height: 20px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-micro);
+  color: color-mix(in oklab, var(--text-400) 60%, transparent);
+  outline: none;
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko);
+}
+
+.fb-chev[data-expanded] {
+  background: var(--fill-hover);
+  color: var(--fg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .fb-chev:hover {
+    background: var(--fill-hover);
+    color: var(--fg);
+  }
+}
+
+@media (pointer: coarse) {
+  .fb-name::after,
+  .fb-chev::after {
+    position: absolute;
+    inset: -12px;
+    content: "";
+  }
+}

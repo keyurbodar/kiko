@@ -4,6 +4,7 @@ import { render } from "../../test/render"
 import type { OutgoingMessage, RosterBot } from "../lib/types"
 import { room } from "../state/room"
 import { Composer } from "./composer"
+import { clearDraftFiles } from "./rich/draft-files"
 
 const delivery = vi.hoisted(() => ({
   sent: [] as { roomId: string; text: string; attachments?: readonly { pendingId: string }[] }[],
@@ -73,6 +74,7 @@ function fakeXhr() {
 }
 
 async function mountComposer(onSend: (message: OutgoingMessage) => boolean | void) {
+  await clearDraftFiles(ROOM)
   const screen = await render(() => <Composer threadId={ROOM} draftKey={ROOM} bots={BOTS} onSend={onSend} />)
   await expect.poll(() => screen.container.querySelector(".ProseMirror"), { timeout: 10_000 }).not.toBeNull()
   const editor = screen.container.querySelector<HTMLElement>(".ProseMirror")!
@@ -91,7 +93,8 @@ function pick(container: HTMLElement, ...files: File[]) {
 const tiles = (root: HTMLElement) =>
   root.querySelectorAll('[data-component="prompt-input-v2-attachments"] .tray-tile').length
 
-const shown = (body: string) => room.messages().find((message) => message.body === body)
+const shown = (body: string) => room.messages().find((message) => message.body.includes(body))
+const linked = (name: string, body: string) => new RegExp(`^\\[${name}\\]\\(attachment:[\\w-]+\\) ${body}$`)
 
 async function sendThroughRoom(body: string) {
   room.followRoute(() => ROOM)
@@ -116,7 +119,7 @@ describe("sending attachments", () => {
 
     FakeXhr.sent[0]!.finish()
     await expect.poll(() => delivery.sent.length).toBe(1)
-    expect(delivery.sent[0]!.text).toBe("look")
+    expect(delivery.sent[0]!.text).toMatch(linked("note.txt", "look"))
     expect(delivery.sent[0]!.attachments).toHaveLength(1)
   })
 
@@ -128,7 +131,7 @@ describe("sending attachments", () => {
     FakeXhr.sent[0]!.finish()
     await expect.poll(() => delivery.sent.length).toBe(1)
     expect(delivery.sent[0]!.roomId).toBe(ROOM)
-    expect(delivery.sent[0]!.text).toBe("away")
+    expect(delivery.sent[0]!.text).toMatch(linked("note.txt", "away"))
   })
 
   it("marks the sent message failed when its upload fails, and retries it", async () => {
@@ -164,7 +167,8 @@ describe("sending attachments", () => {
 
     FakeXhr.sent[0]!.finish()
     await expect.poll(() => tiles(screen.container)).toBe(1)
-    await expect.poll(() => screen.editor.textContent).toBe("refused")
+    await expect.poll(() => screen.editor.querySelector("[data-attachment]")).not.toBeNull()
+    await expect.poll(() => screen.editor.textContent ?? "").toContain("refused")
     expect(shown("refused")).toBeUndefined()
   })
 
@@ -181,12 +185,54 @@ describe("sending attachments", () => {
     await expect.poll(() => FakeXhr.sent.length).toBe(1)
     FakeXhr.sent[0]!.finish()
     await userEvent.keyboard("look{Enter}")
-    expect(tiles(screen.container)).toBe(1)
+    await expect.poll(() => tiles(screen.container)).toBe(1)
 
     refuse = false
     await userEvent.keyboard("{Enter}")
     await expect.poll(() => sent.length).toBe(1)
     expect(sent[0]!.attachments).toHaveLength(1)
     await expect.poll(() => tiles(screen.container)).toBe(0)
+  })
+
+  it("posts a lone file as its link with no text", async () => {
+    using _xhr = fakeXhr()
+    room.followRoute(() => ROOM)
+    await using screen = await mountComposer((message) => room.send(message) !== undefined)
+    pick(screen.container, new File(["hello"], "note.txt", { type: "text/plain" }))
+    await expect.poll(() => FakeXhr.sent.length).toBe(1)
+    FakeXhr.sent[0]!.finish()
+    await userEvent.keyboard("{Enter}")
+
+    await expect.poll(() => delivery.sent.length).toBe(1)
+    expect(delivery.sent[0]!.text).toMatch(/^\[note\.txt\]\(attachment:[\w-]+\)$/)
+  })
+
+  it("posts four mixed files as their links with no text", async () => {
+    using _xhr = fakeXhr()
+    room.followRoute(() => ROOM)
+    await using screen = await mountComposer((message) => room.send(message) !== undefined)
+    pick(
+      screen.container,
+      new File(["a"], "a.txt", { type: "text/plain" }),
+      new File(["b,b"], "b.csv", { type: "text/csv" }),
+      new File(["c"], "c.md", { type: "text/markdown" }),
+      new File(["d"], "d.json", { type: "application/json" }),
+    )
+    await expect
+      .poll(
+        () => {
+          for (const xhr of FakeXhr.sent) if (xhr.status === 0) xhr.finish()
+          return FakeXhr.sent.length
+        },
+        { timeout: 10_000 },
+      )
+      .toBe(4)
+    await userEvent.keyboard("{Enter}")
+
+    await expect.poll(() => delivery.sent.length).toBe(1)
+    const text = delivery.sent[0]!.text
+    const named = Array.from(text.matchAll(/\[([^\]]+)\]\(attachment:[\w-]+\)/g), (match) => match[1])
+    expect(named).toEqual(expect.arrayContaining(["a.txt", "b.csv", "c.md", "d.json"]))
+    expect(text.replace(/\[[^\]]+\]\(attachment:[\w-]+\)\s*/g, "")).toBe("")
   })
 })

@@ -152,12 +152,20 @@
       color: var(--menu-v2-fg-muted);
     }
 
-    &:hover,
     &[data-highlighted] {
       --menu-v2-icon: var(--fg);
       --menu-v2-fg: var(--fg);
       background: var(--fill-hover);
       color: var(--fg);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      &:hover {
+        --menu-v2-icon: var(--fg);
+        --menu-v2-fg: var(--fg);
+        background: var(--fill-hover);
+        color: var(--fg);
+      }
     }
 
     &[data-disabled] {

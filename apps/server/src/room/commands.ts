@@ -16,6 +16,7 @@ import {
   type RoomToClient,
   type RunStep,
   type TaskOp,
+  type ThoughtPart,
 } from "@kiko/protocol"
 import { parseRichText } from "@kiko/protocol/markdown"
 import * as Effect from "effect/Effect"
@@ -44,6 +45,7 @@ export interface CommandRoom {
   search(query: string, options?: SearchOptions): SearchPage | Promise<SearchPage>
   history(seq: number, before: number, after: number): Promise<Message[]>
   stepWindow(slug: AgentSlug, after: number): RunStep[]
+  thoughts(slug: AgentSlug, runId: string): Promise<ThoughtPart[]>
   memberOp(op: MemberOp): MemberRefusal | null
   memberList(): Member[]
   fileOp(op: FileOp): string | null
@@ -225,6 +227,10 @@ export function makeRoomCommands(room: CommandRoom) {
     steps: Effect.fn("Room.steps")(function* (input: { readonly slug: AgentSlug; readonly after: number }) {
       yield* open
       return room.stepWindow(input.slug, input.after)
+    }),
+    thoughts: Effect.fn("Room.thoughts")(function* (input: { readonly slug: AgentSlug; readonly runId: string }) {
+      yield* open
+      return yield* Effect.promise(() => room.thoughts(input.slug, input.runId))
     }),
   }
 }

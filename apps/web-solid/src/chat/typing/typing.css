@@ -1,14 +1,16 @@
 .typing-stack {
   position: relative;
   display: flex;
+  width: 100%;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: var(--run-gap);
   max-width: 100%;
 }
 
 .typing {
   display: flex;
+  width: 100%;
   max-width: 100%;
   align-items: flex-end;
   gap: 8px;
@@ -17,10 +19,27 @@
 .typing-body {
   display: flex;
   min-width: 0;
+  flex: 1;
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
   padding-top: 1px;
+}
+
+.typing-body > .thinking {
+  margin-left: 16px;
+}
+
+.typing[data-group] {
+  position: relative;
+  min-height: 28px;
+  padding-left: 40px;
+}
+
+.typing[data-group] .typing-bird {
+  position: absolute;
+  bottom: 0;
+  left: 0;
 }
 
 .typing-bird {
@@ -28,9 +47,12 @@
 }
 
 .typing-more {
-  padding-left: 36px;
   color: var(--text-300);
   font-size: var(--type-hint);
+}
+
+.typing-stack[data-group] .typing-more {
+  padding-left: 40px;
 }
 
 .typing-sr {

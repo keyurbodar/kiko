@@ -42,3 +42,21 @@ export function setAboutOpen(open: boolean) {
 }
 export const [wrap, setWrap] = stored("kiko:device:file-word-wrap", true)
 export const [fullSize, setFullSize] = createSignal(false)
+
+const EXPLORER_KEY = "kiko:files:explorer"
+function readExplorer(): boolean | null {
+  try {
+    const raw = localStorage.getItem(EXPLORER_KEY)
+    return raw === null ? null : raw === "1"
+  } catch {
+    return null
+  }
+}
+const [explorerPref, setExplorerPref] = createSignal<boolean | null>(readExplorer())
+export const explorerOpen = explorerPref
+export function setExplorerOpen(open: boolean) {
+  setExplorerPref(open)
+  try {
+    localStorage.setItem(EXPLORER_KEY, open ? "1" : "0")
+  } catch {}
+}

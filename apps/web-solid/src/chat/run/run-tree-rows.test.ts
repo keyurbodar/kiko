@@ -1,6 +1,6 @@
 import type { RunStep } from "@kiko/protocol"
 import { describe, expect, it } from "vitest"
-import { groupSummary, stillFailing, summaryText } from "./run-tree-rows"
+import { groupSummary, mergeThoughtRows, stillFailing, summaryText, workLogOf } from "./run-tree-rows"
 
 const START = Date.UTC(2024, 9, 24, 9)
 
@@ -92,5 +92,41 @@ describe("stillFailing", () => {
       step("theirs", { worker: other, name: "web_search", startedAt: START + 5_000 }),
     ]
     expect(stillFailing(steps)).toBe(true)
+  })
+})
+
+describe("mergeThoughtRows", () => {
+  const thought = (startedAt: number, text: string) => ({ startedAt, text, spentMs: 0 })
+  const workItems = (steps: readonly RunStep[]) => workLogOf(steps, { working: false, detail: "ready" }).items
+
+  it("places each thought part among the steps in start order", () => {
+    const items = workItems([step("a", { startedAt: START + 2_000 }), step("b", { startedAt: START + 6_000 })])
+    const rows = mergeThoughtRows(items, [thought(START, "first"), thought(START + 4_000, "second")], false)
+    expect(rows.map((row) => (row.kind === "thought" ? row.part.text : (row.item as { label: string }).label))).toEqual(
+      ["first", "Ran a", "second", "Ran b"],
+    )
+  })
+
+  it("puts a thought that starts with a step before it", () => {
+    const rows = mergeThoughtRows(workItems([step("a", { startedAt: START })]), [thought(START, "thinking")], false)
+    expect(rows.map((row) => row.kind)).toEqual(["thought", "item"])
+  })
+})
+
+describe("workLogOf lanes", () => {
+  const worker = { id: "w1", task: "handoff probe" }
+  const steps = [
+    step("start", { name: "start_work", label: "Started background work" }),
+    step("inner", { worker, label: "Used slow tool", startedAt: START + 1_000 }),
+  ]
+
+  it("leaves out the step that started a helper once its lane is drawn", () => {
+    const items = workLogOf(steps, { working: false, detail: "ready", lanes: true }).items
+    expect(items.some((item) => item.kind === "step" && item.label === "Started background work")).toBe(false)
+  })
+
+  it("keeps the step that started a helper while its lane is not drawn", () => {
+    const items = workLogOf(steps, { working: false, detail: "ready", lanes: false }).items
+    expect(items.some((item) => item.kind === "step" && item.label === "Started background work")).toBe(true)
   })
 })

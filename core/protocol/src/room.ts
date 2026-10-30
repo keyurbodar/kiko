@@ -59,6 +59,14 @@ export const RunStep = Schema.Struct({
 })
 export type RunStep = typeof RunStep.Type
 
+export const ThoughtPart = Schema.Struct({
+  part: Count,
+  text: Schema.String,
+  startedAt: Count,
+  spentMs: Count,
+})
+export type ThoughtPart = typeof ThoughtPart.Type
+
 export const RunErrorKind = Schema.Literals([
   "no_key",
   "signed_out",
@@ -394,7 +402,9 @@ export const RoomSignal = Schema.Union([
     slug: AgentSlug,
     runId: Id,
     part: Count,
+    offset: Count,
     text: Schema.String,
+    startedAt: Count,
     done: Schema.Boolean,
   }),
   Schema.Struct({ t: Schema.Literal("status"), ...AgentStatus.fields }),

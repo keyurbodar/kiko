@@ -18,6 +18,7 @@ export type LiveInput = {
   messages: readonly Sent[]
   mark: number | undefined
   running: boolean
+  replied?: boolean
 }
 
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
@@ -35,6 +36,7 @@ function newestHuman(messages: readonly Sent[]): number {
 }
 
 function repliedSince(input: LiveInput): boolean {
+  if (input.replied !== undefined) return input.replied
   const mark = input.mark ?? newestHuman(input.messages)
   return input.messages.some((m) => m.seq > mark && m.from.kind === "agent" && m.from.slug === input.slug)
 }

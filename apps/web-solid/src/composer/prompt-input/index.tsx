@@ -16,7 +16,7 @@ import {
 } from "solid-js"
 import { Portal } from "solid-js/web"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ArrowUpIcon, AttachIcon, ChevronDownIcon, PlusIcon } from "@kiko/ui/icons"
+import { ArrowUpIcon, ChevronDownIcon, PlusIcon } from "@kiko/ui/icons"
 import { useI18n } from "@kiko/ui/context/i18n"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -56,6 +56,7 @@ export type PromptInputV2Props = {
   reply?: JSX.Element
   below?: JSX.Element
   tray?: JSX.Element
+  plus?: JSX.Element
   answering?: boolean
   editing?: boolean
   parse: ParseOptions
@@ -100,6 +101,20 @@ function createHint(hints: () => readonly string[], quiet: () => boolean) {
   return () => hints()[index() % Math.max(1, hints().length)] ?? ""
 }
 
+function caretLine(x: number, y: number): { left: string; top: string; height: string } {
+  const point = document.caretPositionFromPoint?.(x, y)
+  if (point?.offsetNode) {
+    const range = document.createRange()
+    const limit =
+      point.offsetNode.nodeType === Node.TEXT_NODE ? (point.offsetNode.textContent?.length ?? 0) : point.offset
+    range.setStart(point.offsetNode, Math.min(point.offset, limit))
+    range.collapse(true)
+    const rect = range.getBoundingClientRect()
+    if (rect.height > 0) return { left: `${rect.left}px`, top: `${rect.top}px`, height: `${rect.height}px` }
+  }
+  return { left: `${x}px`, top: `${y - 10}px`, height: "20px" }
+}
+
 function caretLeft(form: HTMLElement | undefined): number {
   const selection = window.getSelection()
   if (!form || !selection?.rangeCount) return 0
@@ -127,17 +142,20 @@ export function PromptInputV2(props: PromptInputV2Props) {
   let richHost!: HTMLDivElement
   let form: HTMLFormElement | undefined
   const syncBlank = () => setBlank(field()?.isEmpty() ?? true)
-  const dropArea = createMemo(() => {
-    if (state.drag !== "active") return null
-    const column = richHost?.closest('[data-component="chat-shell"]') ?? richHost?.closest("form")
-    const box = column?.getBoundingClientRect()
-    if (!box) return null
-    return {
-      top: `${box.top + 8}px`,
-      left: `${box.left + 8}px`,
-      width: `${box.width - 16}px`,
-      height: `${box.height - 16}px`,
+  const [dropCaret, setDropCaret] = createSignal<{ left: string; top: string; height: string } | null>(null)
+  createEffect(() => {
+    if (state.drag !== "active") setDropCaret(null)
+  })
+  onMount(() => {
+    const track = (event: DragEvent) => {
+      if (state.drag !== "active") return
+      const area = richHost?.getBoundingClientRect()
+      if (!area || event.clientX < area.left || event.clientX > area.right) return
+      if (event.clientY < area.top - 4 || event.clientY > area.bottom + 4) return
+      setDropCaret(caretLine(event.clientX, event.clientY))
     }
+    document.addEventListener("dragover", track)
+    onCleanup(() => document.removeEventListener("dragover", track))
   })
 
   onMount(() => {
@@ -238,7 +256,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
       .join(". "),
   )
 
-  const stopping = () => !!props.stop && blank() && props.controller.attachments().length === 0 && !props.answering
+  const stopping = () => !!props.stop && blank() && props.controller.trayAttachments().length === 0 && !props.answering
   const showTray = () => props.controller.trayAttachments().length > 0 || props.rejected.length > 0
   return (
     <div class="relative flex flex-col">
@@ -268,19 +286,20 @@ export function PromptInputV2(props: PromptInputV2Props) {
           />
         </Suspense>
       </Show>
-      <Show when={dropArea()}>
-        {(area) => (
+      <Show when={dropCaret()}>
+        {(caret) => (
           <Portal>
-            <div class="composer-drop" style={area()} data-component="composer-drop-overlay">
-              <div role="status" class="composer-drop-label">
-                <RemixIcon icon={AttachIcon} size={16} />
-                {i18n.t(
-                  props.controller.dragKind() === "reference"
-                    ? "ui.promptInput.dropReference"
-                    : "ui.promptInput.dropFiles",
-                )}
-              </div>
-            </div>
+            <div
+              class="composer-drop-caret"
+              style={caret()}
+              data-component="composer-drop-overlay"
+              role="status"
+              aria-label={i18n.t(
+                props.controller.dragKind() === "reference"
+                  ? "ui.promptInput.dropReference"
+                  : "ui.promptInput.dropFiles",
+              )}
+            />
           </Portal>
         )}
       </Show>
@@ -296,6 +315,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
         <div
           class="composer-box"
           data-editing={props.editing ? "" : undefined}
+          data-focused={focused() ? "" : undefined}
+          data-dragging={state.drag === "active" ? "" : undefined}
           onFocusIn={() => setFocused(true)}
           onFocusOut={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false)
@@ -309,7 +330,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
               onOpen={props.controller.openAttachment}
               onRemove={(part) => props.controller.removeAttachment(part.id)}
               onExpand={props.onExpandPasted}
-              onMove={props.controller.moveAttachment}
               onDismiss={props.onDismissRejected}
             />
           </Show>
@@ -334,26 +354,21 @@ export function PromptInputV2(props: PromptInputV2Props) {
           <div class="composer-footer">
             <div class="composer-tray">
               <Show when={!props.answering}>
-                <TooltipV2 placement="top" openDelay={500} value={i18n.t("ui.promptInput.add")}>
-                  <button
-                    type="button"
-                    class="composer-icon"
-                    data-hint="chat.attach"
-                    aria-label={i18n.t("ui.promptInput.add")}
-                    onClick={() => props.controller.attach()}
-                  >
-                    <RemixIcon icon={PlusIcon} size={16} />
-                  </button>
-                </TooltipV2>
+                <Show
+                  when={props.plus}
+                  fallback={<AttachButton controller={props.controller} label={i18n.t("ui.promptInput.add")} />}
+                >
+                  {props.plus}
+                </Show>
               </Show>
               <Show when={!props.answering && !props.readOnly && props.recipient}>
                 {(recipient) => (
                   <Recipient recipient={recipient()} controller={props.controller} people={props.people} />
                 )}
               </Show>
-              {props.tray}
             </div>
             <div class="composer-actions">
+              <Show when={!props.answering}>{props.tray}</Show>
               <Show when={!props.answering}>
                 <SubmitButton
                   stop={stopping()}
@@ -376,6 +391,22 @@ export function PromptInputV2(props: PromptInputV2Props) {
   )
 }
 
+function AttachButton(props: { controller: PromptInputV2Interaction; label: string }) {
+  return (
+    <TooltipV2 placement="top" openDelay={500} value={props.label}>
+      <button
+        type="button"
+        class="composer-icon"
+        data-hint="chat.attach"
+        aria-label={props.label}
+        onClick={() => props.controller.attach()}
+      >
+        <RemixIcon icon={PlusIcon} size={18} />
+      </button>
+    </TooltipV2>
+  )
+}
+
 function RecipientFace(props: { recipient: Token }) {
   const seed = () => (props.recipient.kind === "agent" ? props.recipient.slug : props.recipient.id)
   const painted = afterFirstPaint()
@@ -383,7 +414,7 @@ function RecipientFace(props: { recipient: Token }) {
     <>
       <span class="composer-agent-face">
         <Show when={seed()} keyed>
-          {(face) => <IdentityAvatar seed={face} size={20} class={painted() ? "composer-agent-avatar" : ""} />}
+          {(face) => <IdentityAvatar seed={face} size={16} class={painted() ? "composer-agent-avatar" : ""} />}
         </Show>
       </span>
       <span class="composer-agent-name">{props.recipient.title}</span>

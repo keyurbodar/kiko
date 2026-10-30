@@ -19,7 +19,7 @@
   --motion-ease-in-out: var(--ease-kiko);
   --motion-dialog: var(--dur-pop);
   --motion-collapse: var(--dur-pop);
-  --motion-slide: 260ms;
+  --motion-slide: 200ms;
   --motion-run-chevron: var(--dur-pop);
   --dur-land: 160ms;
   --dur-shift: 200ms;
@@ -34,12 +34,10 @@
     --dur-page: 0ms;
     --press-scale: 1;
     --press-scale-icon: 1;
-    --spring150-duration: 0s;
-    --spring250-duration: 0s;
-    --spring325-bounce-duration: 0s;
     --dur-land: 0ms;
     --dur-shift: 0ms;
     --land-stagger: 0ms;
+    --motion-slide: 0ms;
   }
 }
 
@@ -62,8 +60,7 @@
   }
 }
 
-.motion-skeleton,
-.skeleton-shimmer {
+.motion-skeleton {
   background:
     linear-gradient(90deg, transparent 0%, color-mix(in oklab, var(--fg) 6%, transparent) 50%, transparent 100%) 0 0 /
       50% 100% no-repeat,
@@ -71,24 +68,12 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .motion-skeleton,
-  .skeleton-shimmer {
+  .motion-skeleton {
     animation: motion-shimmer var(--dur-shimmer) linear infinite;
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  @keyframes motion-reaction-pop {
-    from {
-      opacity: 0;
-      transform: scale(0.8);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-
   @keyframes motion-fade-scale-in {
     from {
       opacity: 0;
@@ -97,17 +82,6 @@
     to {
       opacity: 1;
       transform: scale(1);
-    }
-  }
-
-  @keyframes motion-fade-scale-out {
-    from {
-      opacity: 1;
-      transform: scale(1);
-    }
-    to {
-      opacity: 0;
-      transform: scale(0.92);
     }
   }
 
@@ -120,18 +94,6 @@
       opacity: 1;
       transform: translateY(0);
     }
-  }
-
-  .motion-reaction-pop {
-    animation: motion-reaction-pop var(--dur-pop) var(--ease-kiko) both;
-  }
-
-  .motion-attachment-in {
-    animation: motion-fade-scale-in var(--dur-pop) var(--ease-kiko) both;
-  }
-
-  .motion-attachment-in[data-leaving] {
-    animation: motion-fade-scale-out var(--dur-hover) var(--motion-ease-in) both;
   }
 
   .motion-bubble-in {
@@ -163,25 +125,6 @@
     ~ [data-component="chat-vrow"]
     .motion-reply-in {
     animation-delay: calc(var(--land-stagger) * 2);
-  }
-
-  @keyframes motion-check-draw {
-    from {
-      opacity: 0;
-      transform: scale(0.6) rotate(-14deg);
-    }
-    65% {
-      transform: scale(1.08);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-
-  .motion-check-draw {
-    transform-origin: 50% 50%;
-    animation: motion-check-draw var(--dur-land) var(--ease-pop) both;
   }
 
   @keyframes motion-overlay-in {
@@ -235,8 +178,7 @@
     }
   }
 
-  [data-component="modal-v2-overlay"][data-expanded],
-  .motion-scrim-in {
+  [data-component="modal-v2-overlay"][data-expanded] {
     animation: motion-overlay-in var(--dur-pop) var(--ease-kiko) both;
   }
 
@@ -287,14 +229,12 @@
 
   [data-component="menu-v2-content"][data-expanded],
   [data-component="hover-card-v2-content"][data-expanded],
-  [data-component="popover-v2-content"][data-expanded],
   .motion-popover-in {
     animation: motion-origin-in var(--dur-pop) var(--ease-out) both;
   }
 
   [data-component="menu-v2-content"][data-closed],
-  [data-component="hover-card-v2-content"][data-closed],
-  [data-component="popover-v2-content"][data-closed] {
+  [data-component="hover-card-v2-content"][data-closed] {
     animation: motion-origin-out 100ms var(--motion-ease-in) both;
   }
 
@@ -308,32 +248,6 @@
 
   [data-component="tooltip-v2"][data-instant] {
     animation: none;
-  }
-
-  .motion-fade-in {
-    animation: motion-overlay-in var(--dur-pop) var(--ease-kiko) both;
-  }
-
-  .motion-fade-out {
-    animation: motion-overlay-out var(--dur-hover) var(--motion-ease-in) both;
-  }
-
-  .motion-rise {
-    animation: motion-tooltip-in var(--dur-pop) var(--ease-kiko) both;
-  }
-
-  .motion-press {
-    transition: transform var(--spring150-duration) var(--spring150-easing);
-  }
-
-  .motion-press:active {
-    transform: scale(var(--press-scale));
-    transition-duration: 80ms;
-    transition-timing-function: var(--ease-kiko);
-  }
-
-  .motion-dialog-in {
-    animation: motion-popover-in var(--dur-pop) var(--ease-kiko) both;
   }
 
   @keyframes motion-collapse-down {
@@ -378,11 +292,6 @@
 
   .motion-slide {
     transition: flex-basis var(--motion-slide) var(--ease-kiko);
-  }
-
-  [data-component="popover-v2-content"][data-expanded][data-instant],
-  [data-component="popover-v2-content"][data-closed][data-instant] {
-    animation: none;
   }
 
   .motion-busy {
@@ -451,25 +360,6 @@
     80% {
       transform: translateX(2px);
     }
-  }
-
-  .motion-shake {
-    animation: motion-shake 260ms var(--ease-kiko);
-  }
-
-  @keyframes motion-pop {
-    from {
-      opacity: 0;
-      transform: scale(0.5);
-    }
-    60% {
-      opacity: 1;
-      transform: scale(1.08);
-    }
-  }
-
-  .motion-pop {
-    animation: motion-pop 240ms var(--ease-kiko) both;
   }
 }
 

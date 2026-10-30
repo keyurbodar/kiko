@@ -12,7 +12,7 @@ import {
   type ModelRef,
   type SubmissionId,
 } from "@earendil-works/pi-durable"
-import type { Envelope, ProviderProblem, RoomId, ThinkingLevel, WorkerRow } from "@kiko/protocol"
+import type { Envelope, ProviderProblem, RoomId, ThinkingLevel, ThoughtPart, WorkerRow } from "@kiko/protocol"
 import { runKindFor } from "../user/provider-health"
 import type { Env } from "../index"
 import { AnswerWaiters } from "@kiko/agent/answers"
@@ -21,6 +21,7 @@ import type { AgentHome } from "../room/room-do"
 import type { Soul } from "../user/souls"
 import { AgentEgressError, AgentGone, AgentHomeMissing } from "./errors"
 import { fakeSetup } from "./dev-fake"
+import { journalThoughts } from "./thoughts"
 import { imageReader } from "./extensions/files"
 import type { GroupsPort } from "./extensions/chief"
 import { shortBrief } from "../room/brief"
@@ -305,6 +306,10 @@ export class Agent {
     return this.host.unfinished()
   }
 
+  async thoughts(runId: string): Promise<ThoughtPart[]> {
+    return journalThoughts(JournalStorage.open(this.ctx.storage, this.agentKey), runId)
+  }
+
   async wake(): Promise<boolean> {
     return this.host.wake()
   }
@@ -336,7 +341,8 @@ export class Agent {
     return {
       post: (runId, attempt, index, block) => room().post(home.slug, runId, attempt, index, block),
       draft: (runId, index, text) => room().draft(home.slug, runId, index, text),
-      thinking: (runId, part, text, done) => room().thinking(home.slug, runId, part, text, done),
+      thinking: (runId, part, offset, text, startedAt, done) =>
+        room().thinking(home.slug, runId, part, offset, text, startedAt, done),
       note: (runId, id, text) => room().note(home.slug, runId, id, text),
       status: async (state, detail) => {
         await room().setStatus(home.slug, state, detail)

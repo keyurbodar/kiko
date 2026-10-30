@@ -23,9 +23,7 @@ export function HelperNest(props: { chatId: string }) {
               <Snowflake seed={lane.id} size={20} state={lane.state} parent={isGroupChat() ? lane.slug : undefined} />
               <span class="min-w-0 flex-1 truncate">{lane.title}</span>
               <Show when={lane.state !== "working"}>
-                <span class="helper-nest-word">
-                  {helperWord(lane.state) === "Finished" ? "Done" : helperWord(lane.state)}
-                </span>
+                <span class="helper-nest-word">{helperWord(lane.state)}</span>
               </Show>
             </button>
           )}
