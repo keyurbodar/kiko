@@ -7,8 +7,8 @@ mod keys;
 mod uia;
 
 use kiko_driver::api::{
-    ActParams, ActResult, DriverError, ErrorCode, Grant, Look, LookParams, Mode, OpenParams,
-    OpenTarget, PermissionKind, Permissions, Point, Route,
+    ActParams, ActResult, Action, DriverError, ErrorCode, Grant, Look, LookParams, Mode,
+    OpenParams, OpenTarget, PermissionKind, Permissions, Point, Route,
 };
 use kiko_driver::{Native, Result, outline};
 
@@ -110,6 +110,12 @@ impl WindowsDriver {
 
     fn act_background(&self, handle: isize, params: &ActParams) -> Result<ActResult> {
         if let Some(point) = params.point {
+            if params.action != Action::Press {
+                return Err(DriverError::new(
+                    ErrorCode::BackgroundUnavailable,
+                    "only press can use a point in the background; retry with mode foreground",
+                ));
+            }
             let frame = hwnd::frame(handle)
                 .ok_or_else(|| DriverError::new(ErrorCode::NotFound, "the window is gone"))?;
             return Ok(ActResult {
@@ -144,12 +150,8 @@ impl WindowsDriver {
 
     fn act_without_ref(&self, handle: isize, params: &ActParams) -> Result<ActResult> {
         let route = match params.action {
-            kiko_driver::api::Action::Key => {
-                input::post_keys(handle, &keys::parse(params.keys.as_deref())?)?
-            }
-            kiko_driver::api::Action::Type => {
-                input::post_text(handle, params.text.as_deref().unwrap_or_default())?
-            }
+            Action::Key => input::post_keys(handle, &keys::parse(params.keys.as_deref())?)?,
+            Action::Type => input::post_text(handle, params.text.as_deref().unwrap_or_default())?,
             _ => {
                 return Err(DriverError::new(
                     ErrorCode::Unsupported,
@@ -168,19 +170,15 @@ impl WindowsDriver {
         params: &ActParams,
     ) -> Result<ActResult> {
         let route = match params.action {
-            kiko_driver::api::Action::Key => {
-                input::post_keys(native, &keys::parse(params.keys.as_deref())?)?
-            }
-            kiko_driver::api::Action::Type => {
-                input::post_text(native, params.text.as_deref().unwrap_or_default())?
-            }
+            Action::Key => input::post_keys(native, &keys::parse(params.keys.as_deref())?)?,
+            Action::Type => input::post_text(native, params.text.as_deref().unwrap_or_default())?,
             _ => input::post_click_screen(handle, screen)?,
         };
         Ok(ActResult { route })
     }
 
     fn act_foreground(&self, handle: isize, params: &ActParams) -> Result<ActResult> {
-        if params.action == kiko_driver::api::Action::Raise {
+        if params.action == Action::Raise {
             input::foreground_window(handle)?;
             return Ok(ActResult {
                 route: Route::Foreground,
@@ -189,11 +187,18 @@ impl WindowsDriver {
         if let Some(point) = params.point {
             let frame = hwnd::frame(handle)
                 .ok_or_else(|| DriverError::new(ErrorCode::NotFound, "the window is gone"))?;
-            input::foreground_window(handle)?;
-            input::foreground_click(Point {
+            let screen = Point {
                 x: frame.x + point.x,
                 y: frame.y + point.y,
-            })?;
+            };
+            input::foreground_window(handle)?;
+            match params.action {
+                Action::Scroll => input::foreground_wheel(screen, params.dx, params.dy)?,
+                Action::ShowMenu => input::foreground_right_click(screen)?,
+                Action::Key => input::foreground_keys(&keys::parse(params.keys.as_deref())?)?,
+                Action::Type => input::foreground_text(params.text.as_deref().unwrap_or_default())?,
+                _ => input::foreground_click(screen)?,
+            }
             return Ok(ActResult {
                 route: Route::Foreground,
             });
@@ -201,12 +206,8 @@ impl WindowsDriver {
         let Some(reference) = params.reference else {
             input::foreground_window(handle)?;
             match params.action {
-                kiko_driver::api::Action::Key => {
-                    input::foreground_keys(&keys::parse(params.keys.as_deref())?)?
-                }
-                kiko_driver::api::Action::Type => {
-                    input::foreground_text(params.text.as_deref().unwrap_or_default())?
-                }
+                Action::Key => input::foreground_keys(&keys::parse(params.keys.as_deref())?)?,
+                Action::Type => input::foreground_text(params.text.as_deref().unwrap_or_default())?,
                 _ => {
                     return Err(DriverError::new(
                         ErrorCode::Unsupported,
@@ -255,24 +256,22 @@ impl WindowsDriver {
     ) -> Result<()> {
         let focus_target = if element != 0 { element } else { handle };
         match params.action {
-            kiko_driver::api::Action::ShowMenu => input::foreground_right_click(screen),
-            kiko_driver::api::Action::Scroll => {
-                input::foreground_wheel(screen, params.dx, params.dy)
-            }
-            kiko_driver::api::Action::Key => {
+            Action::ShowMenu => input::foreground_right_click(screen),
+            Action::Scroll => input::foreground_wheel(screen, params.dx, params.dy),
+            Action::Key => {
                 input::foreground_focus(focus_target)?;
                 input::foreground_keys(&keys::parse(params.keys.as_deref())?)
             }
-            kiko_driver::api::Action::Type => {
+            Action::Type => {
                 input::foreground_focus(focus_target)?;
                 input::foreground_text(params.text.as_deref().unwrap_or_default())
             }
-            kiko_driver::api::Action::SetValue => {
+            Action::SetValue => {
                 input::foreground_focus(focus_target)?;
                 input::foreground_select_all()?;
                 input::foreground_text(params.text.as_deref().unwrap_or_default())
             }
-            kiko_driver::api::Action::Focus => input::foreground_focus(focus_target),
+            Action::Focus => input::foreground_focus(focus_target),
             _ => input::foreground_click(screen),
         }
     }

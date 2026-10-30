@@ -118,12 +118,14 @@ fn look(driver: &mut Box<dyn Native>, id: &str) -> Look {
         .expect("look at the window")
 }
 
+fn find_optional<'a>(nodes: &'a [Node], role: &str, name: Option<&str>) -> Option<&'a Node> {
+    nodes.iter().find(|node| {
+        node.role == role && name.is_none_or(|wanted| node.name.eq_ignore_ascii_case(wanted))
+    })
+}
+
 fn find<'a>(nodes: &'a [Node], role: &str, name: Option<&str>) -> &'a Node {
-    nodes
-        .iter()
-        .find(|node| {
-            node.role == role && name.is_none_or(|wanted| node.name.eq_ignore_ascii_case(wanted))
-        })
+    find_optional(nodes, role, name)
         .unwrap_or_else(|| panic!("no {role} node named {name:?} in {}", outline(nodes)))
 }
 
@@ -183,6 +185,26 @@ fn cover(cover: isize) {
     });
 }
 
+fn window_title(window: isize) -> String {
+    let mut buffer = [0u16; 256];
+    let length = unsafe {
+        windows::Win32::UI::WindowsAndMessaging::GetWindowTextW(HWND(window as *mut _), &mut buffer)
+    };
+    if length <= 0 {
+        String::new()
+    } else {
+        String::from_utf16_lossy(&buffer[..length as usize])
+    }
+}
+
+fn checkpoint(step: &str, foreground_before: isize) {
+    let current = foreground();
+    eprintln!(
+        "checkpoint {step}: foreground {current} {:?} (expected {foreground_before})",
+        window_title(current)
+    );
+}
+
 fn assert_untouched(foreground_before: isize, cursor_before: POINT) {
     assert_eq!(
         foreground(),
@@ -231,15 +253,18 @@ fn background_actions_reach_a_covered_window_without_stealing_focus() {
     let foreground_before = foreground();
     let cursor_before = cursor();
 
+    checkpoint("start", foreground_before);
     let listed = wait_for("the target window to be listed", || {
         window_of(&mut driver, target.child.id())
     });
+    checkpoint("listed", foreground_before);
     assert_eq!(listed.id, target.id());
     assert_eq!(listed.title, "kiko-target");
     assert!(!listed.focused, "the covered window must not be focused");
     assert!(!listed.minimized);
 
     let first = look(&mut driver, &target.id());
+    checkpoint("look", foreground_before);
     let edit = find(&first.nodes, "edit", None);
     let button = find(&first.nodes, "button", Some("Fire"));
     assert!(
@@ -276,6 +301,7 @@ fn background_actions_reach_a_covered_window_without_stealing_focus() {
     let mut set_value = background(&target.id(), Some(edit.reference), Action::SetValue);
     set_value.text = Some("hello from kiko".into());
     assert_eq!(act(&mut driver, set_value).route, Route::Accessibility);
+    checkpoint("set_value", foreground_before);
     let after_value = look(&mut driver, &target.id());
     let edit = find(&after_value.nodes, "edit", None);
     assert_eq!(
@@ -287,6 +313,7 @@ fn background_actions_reach_a_covered_window_without_stealing_focus() {
     let mut type_more = background(&target.id(), Some(edit.reference), Action::Type);
     type_more.text = Some(" and more".into());
     assert_eq!(act(&mut driver, type_more).route, Route::Accessibility);
+    checkpoint("type", foreground_before);
     let after_type = look(&mut driver, &target.id());
     let edit = find(&after_type.nodes, "edit", None);
     assert_eq!(
@@ -301,6 +328,7 @@ fn background_actions_reach_a_covered_window_without_stealing_focus() {
         background(&target.id(), Some(button.reference), Action::Press),
     );
     assert_eq!(pressed.route, Route::Accessibility);
+    checkpoint("press", foreground_before);
     let log = directory.join("target.log");
     wait_for("the button press to reach the app", || {
         fs::read_to_string(&log)
@@ -319,6 +347,7 @@ fn background_actions_reach_a_covered_window_without_stealing_focus() {
         Route::WindowEvent,
         "a classic control takes a posted click"
     );
+    checkpoint("point click", foreground_before);
     wait_for("the posted click to reach the app", || {
         let text = fs::read_to_string(&log).ok()?;
         (text.lines().count() >= 2).then_some(text)
@@ -342,6 +371,33 @@ fn edge_path() -> Option<PathBuf> {
     .into_iter()
     .map(PathBuf::from)
     .find(|path| path.exists())
+}
+
+fn wait_for_edge(driver: &mut Box<dyn Native>, browser: &mut Child) -> Window {
+    let browser_pid = browser.id();
+    let deadline = Instant::now() + Duration::from_secs(90);
+    loop {
+        if let Ok(listed) = driver.windows()
+            && let Some(window) = listed
+                .into_iter()
+                .find(|window| window.title == "kiko-page")
+        {
+            return window;
+        }
+        if Instant::now() >= deadline {
+            let listed = driver.windows().unwrap_or_default();
+            let titles: Vec<String> = listed
+                .iter()
+                .map(|window| format!("{:?} [pid {} {}]", window.title, window.pid, window.app))
+                .collect();
+            panic!(
+                "timed out waiting for the Edge window (browser pid {browser_pid}, status {:?}); visible windows: {}",
+                browser.try_wait(),
+                titles.join(", ")
+            );
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
 }
 
 fn artifact(directory: &Path, name: &str, image: &kiko_driver::api::Image) {
@@ -390,19 +446,16 @@ fn edge_page_content_is_readable_and_pressable_in_the_background() {
         ])
         .spawn()
         .expect("start Edge");
-
     let mut driver = kiko_native_windows::driver().expect("create the driver");
-    let window = wait_for("the Edge window", || {
-        driver
-            .windows()
-            .ok()?
-            .into_iter()
-            .find(|window| window.title == "kiko-page")
-    });
+    let window = wait_for_edge(&mut driver, &mut browser);
     let foreground_before = foreground();
     let cursor_before = cursor();
 
-    let first = look(&mut driver, &window.id);
+    let first = wait_for("the Edge page tree", || {
+        let found = look(&mut driver, &window.id);
+        let ready = find_optional(&found.nodes, "button", Some("Fire")).is_some();
+        ready.then_some(found)
+    });
     artifact(
         &directory,
         "edge-look.jpg",
