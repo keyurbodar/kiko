@@ -244,7 +244,7 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
 
     let started = Instant::now();
     let shot = read(&mut driver, &b, true);
-    eprintln!("capture 0 of the hidden tab took {:?}", started.elapsed());
+    eprintln!("the first capture of a hidden tab took {:?}", started.elapsed());
     let image = shot
         .image
         .expect("a background tab still yields a screenshot");
@@ -259,19 +259,38 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
     assert!(image.covers.w > 0.0);
 
     for attempt in 1..=20 {
+        let name = format!("cold{attempt}");
+        driver
+            .open(&BrowserOpenParams {
+                url: page_url(&name),
+                mode: Mode::Background,
+            })
+            .expect("open a freshly hidden tab");
+        let cold = tab_for(&mut driver, &name);
+        wait_title(&mut driver, &cold, &name);
         let started = Instant::now();
-        let repeated = read(&mut driver, &b, true);
+        let captured = driver
+            .read(&BrowserReadParams {
+                tab: cold.id.clone(),
+                image: true,
+                max_width: Some(640),
+            })
+            .unwrap_or_else(|error| {
+                panic!("the first capture of a freshly hidden tab {attempt} failed: {error}")
+            });
         eprintln!(
-            "capture {attempt} of the hidden tab took {:?}",
+            "the first capture of a freshly hidden tab {attempt} took {:?}",
             started.elapsed()
         );
-        let image = repeated
-            .image
-            .unwrap_or_else(|| panic!("capture {attempt} of the hidden tab yielded no image"));
         assert!(
-            !image.data.is_empty() && image.width > 0,
-            "capture {attempt} of the hidden tab is empty"
+            captured.image.is_some_and(|image| !image.data.is_empty()),
+            "a freshly hidden tab yields a screenshot on attempt {attempt}"
         );
+        driver
+            .close(&kiko_driver::TabParams {
+                tab: cold.id.clone(),
+            })
+            .expect("close the freshly hidden tab");
     }
 
     assert!(
