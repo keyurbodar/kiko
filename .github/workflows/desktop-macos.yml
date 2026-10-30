@@ -17,24 +17,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  probe:
-    name: macos-15 document app probe
-    runs-on: macos-15
-    timeout-minutes: 10
-    steps:
-      - name: Launch the document apps on a clean runner
-        run: |
-          set -x
-          echo probe > /tmp/kiko-probe.txt
-          open -g -a /System/Applications/TextEdit.app /tmp/kiko-probe.txt || echo "textedit open exit=$?"
-          sleep 5
-          ps aux | grep -i "[T]extEdit" || echo "no TextEdit process"
-          lsappinfo list 2>&1 | grep -i -A4 textedit || echo "TextEdit not in lsappinfo"
-          open -g -a "/System/Applications/Utilities/Script Editor.app" /tmp/kiko-probe.txt || echo "script editor open exit=$?"
-          sleep 5
-          ps aux | grep -i "[S]cript Editor" || echo "no Script Editor process"
-          true
-
   macos:
     name: macos-15 native driver
     runs-on: macos-15

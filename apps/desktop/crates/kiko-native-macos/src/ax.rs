@@ -20,6 +20,7 @@ pub const ENABLED: &str = "AXEnabled";
 pub const FOCUSED: &str = "AXFocused";
 pub const SELECTED: &str = "AXSelected";
 pub const EXPANDED: &str = "AXExpanded";
+pub const SUBROLE: &str = "AXSubrole";
 pub const CHILDREN: &str = "AXChildren";
 pub const WINDOWS: &str = "AXWindows";
 pub const MINIMIZED: &str = "AXMinimized";

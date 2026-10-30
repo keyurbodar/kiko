@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use kiko_driver::{
     ActParams, Action, Grant, Image, LookParams, Mode, Native, OpenParams, OpenTarget, Point, Rect,
-    Window,
+    Ref, Window,
 };
 use objc2_application_services::{AXValue, AXValueType};
 use objc2_core_foundation::{CGPoint, CGSize};
@@ -15,6 +15,7 @@ use crate::{apps, ax, driver::MacDriver, input, window};
 const LAUNCH: Duration = Duration::from_secs(30);
 const SETTLE: Duration = Duration::from_secs(5);
 const POINTER_SLACK: f64 = 1.0;
+const SAFARI: &str = "/Applications/Safari.app";
 
 struct DocumentApp {
     name: &'static str,
@@ -52,19 +53,29 @@ fn permissions_are_granted() {
 
 #[test]
 #[ignore = "needs a mac with Accessibility and Screen Recording granted to this binary"]
-fn document_app_answers_in_the_background_while_finder_covers_it() {
+fn both_apps_answer_in_the_background_while_finder_covers_them() {
     let mut driver = MacDriver::new().expect("driver");
     let document = start_document_app(&mut driver);
+    let page = write_page("before");
+    let url = format!("file://{}", page.display());
+    let safari = launch_safari(&mut driver, &url);
     let frame = Rect {
         x: 160.0,
         y: 160.0,
-        w: 520.0,
-        h: 360.0,
+        w: 640.0,
+        h: 420.0,
     };
     set_window_frame(&document, frame);
+    set_window_frame(&safari, frame);
     let finder = cover_with_finder(&mut driver, frame);
     let owner = Owner::capture();
 
+    check_document(&mut driver, &document, &finder, frame);
+    check_safari(&mut driver, &safari, frame);
+    owner.assert_unchanged();
+}
+
+fn check_document(driver: &mut MacDriver, document: &Window, finder: &Window, frame: Rect) {
     let listed = driver
         .windows()
         .expect("windows")
@@ -84,13 +95,7 @@ fn document_app_answers_in_the_background_while_finder_covers_it() {
         .expect("look at the document");
     let image = look.image.as_ref().expect("the document's pixels");
     save_artifact("document", image);
-    assert!(image.width > 0 && image.height > 0);
-    let captured = image.width as f64 / image.height as f64;
-    let window = frame.w / frame.h;
-    assert!(
-        (captured - window).abs() < 0.02,
-        "the image is {captured} wide per unit tall but the window is {window}"
-    );
+    assert_image_matches(image, frame);
     assert!(
         look.outline.contains("textarea"),
         "outline:\n{}",
@@ -117,19 +122,13 @@ fn document_app_answers_in_the_background_while_finder_covers_it() {
         .find(|node| node.role == "textarea")
         .expect("a text area node")
         .clone();
-    driver
-        .act(&ActParams {
-            window: document.id.clone(),
-            reference: Some(area.reference),
-            point: None,
-            action: Action::SetValue,
-            text: Some("kiko wrote this".to_string()),
-            keys: None,
-            dx: 0.0,
-            dy: 0.0,
-            mode: Mode::Background,
-        })
-        .expect("set the document text");
+    act(
+        driver,
+        document,
+        area.reference,
+        Action::SetValue,
+        Some("kiko wrote this"),
+    );
 
     let after = driver
         .look(&LookParams {
@@ -158,21 +157,9 @@ fn document_app_answers_in_the_background_while_finder_covers_it() {
                 && node.actions.contains(&Action::Press)
                 && node.name.to_lowercase().contains("minimize")
         })
-        .expect("the minimize button")
+        .unwrap_or_else(|| panic!("no minimize button; nodes are {:?}", after.nodes))
         .clone();
-    driver
-        .act(&ActParams {
-            window: document.id.clone(),
-            reference: Some(minimize.reference),
-            point: None,
-            action: Action::Press,
-            text: None,
-            keys: None,
-            dx: 0.0,
-            dy: 0.0,
-            mode: Mode::Background,
-        })
-        .expect("press the minimize button");
+    act(driver, document, minimize.reference, Action::Press, None);
 
     let minimized = wait_for(SETTLE, || {
         let id = document.id.parse().ok()?;
@@ -187,38 +174,9 @@ fn document_app_answers_in_the_background_while_finder_covers_it() {
         Some(true),
         "pressing minimize did not minimize the window"
     );
-
-    owner.assert_unchanged();
 }
 
-#[test]
-#[ignore = "needs a mac with Accessibility and Screen Recording granted to this binary"]
-fn safari_page_answers_in_the_background_while_finder_covers_it() {
-    let mut driver = MacDriver::new().expect("driver");
-    let page = write_page("before");
-    let url = format!("file://{}", page.display());
-    std::process::Command::new("open")
-        .args(["-g", "-a", "Safari", &url])
-        .status()
-        .expect("open Safari");
-
-    let safari = wait_for(LAUNCH, || window_titled(&mut driver, "Safari", "before"))
-        .unwrap_or_else(|| {
-            panic!(
-                "no Safari window; windows are {:?}",
-                window_summary(&mut driver)
-            )
-        });
-    let frame = Rect {
-        x: 160.0,
-        y: 160.0,
-        w: 640.0,
-        h: 420.0,
-    };
-    set_window_frame(&safari, frame);
-    cover_with_finder(&mut driver, frame);
-    let owner = Owner::capture();
-
+fn check_safari(driver: &mut MacDriver, safari: &Window, frame: Rect) {
     let look = driver
         .look(&LookParams {
             window: safari.id.clone(),
@@ -227,7 +185,9 @@ fn safari_page_answers_in_the_background_while_finder_covers_it() {
             max_width: Some(900),
         })
         .expect("look at Safari");
-    save_artifact("safari", look.image.as_ref().expect("Safari pixels"));
+    let image = look.image.as_ref().expect("Safari pixels");
+    save_artifact("safari", image);
+    assert_image_matches(image, frame);
     assert!(
         look.outline.contains("webarea"),
         "outline:\n{}",
@@ -240,19 +200,7 @@ fn safari_page_answers_in_the_background_while_finder_covers_it() {
         .find(|node| node.name.contains("Push kiko") && node.actions.contains(&Action::Press))
         .unwrap_or_else(|| panic!("no pressable page button; nodes are {:?}", look.nodes))
         .clone();
-    driver
-        .act(&ActParams {
-            window: safari.id.clone(),
-            reference: Some(button.reference),
-            point: None,
-            action: Action::Press,
-            text: None,
-            keys: None,
-            dx: 0.0,
-            dy: 0.0,
-            mode: Mode::Background,
-        })
-        .expect("press the page button");
+    act(driver, safari, button.reference, Action::Press, None);
 
     let title = wait_for(SETTLE, || {
         driver
@@ -268,7 +216,38 @@ fn safari_page_answers_in_the_background_while_finder_covers_it() {
         Some("after"),
         "the button did not run its onclick"
     );
-    owner.assert_unchanged();
+}
+
+fn act(
+    driver: &mut MacDriver,
+    window: &Window,
+    reference: Ref,
+    action: Action,
+    text: Option<&str>,
+) {
+    driver
+        .act(&ActParams {
+            window: window.id.clone(),
+            reference: Some(reference),
+            point: None,
+            action,
+            text: text.map(str::to_string),
+            keys: None,
+            dx: 0.0,
+            dy: 0.0,
+            mode: Mode::Background,
+        })
+        .unwrap_or_else(|error| panic!("{action:?} failed: {error}"));
+}
+
+fn assert_image_matches(image: &Image, frame: Rect) {
+    assert!(image.width > 0 && image.height > 0);
+    let captured = image.width as f64 / image.height as f64;
+    let window = frame.w / frame.h;
+    assert!(
+        (captured - window).abs() < 0.02,
+        "the image is {captured} wide per unit tall but the window is {window}"
+    );
 }
 
 fn wait_for<T>(timeout: Duration, mut check: impl FnMut() -> Option<T>) -> Option<T> {
@@ -325,20 +304,42 @@ fn start_document_app(driver: &mut MacDriver) -> Window {
     )
 }
 
+fn launch_safari(driver: &mut MacDriver, url: &str) -> Window {
+    let mut notes = Vec::new();
+    for background in [true, false] {
+        notes.push(open_app(SAFARI, Some(url), background));
+        if let Some(window) = wait_for(LAUNCH, || window_titled(driver, "Safari", "before")) {
+            println!("Safari answered; {notes:?}");
+            return window;
+        }
+    }
+    panic!(
+        "no Safari window; {notes:?}; running: {:?}; windows: {:?}",
+        running_apps(),
+        window_summary(driver)
+    )
+}
+
 fn run_open(app: &DocumentApp, background: bool) -> String {
+    open_app(app.path, None, background)
+}
+
+fn open_app(path: &str, argument: Option<&str>, background: bool) -> String {
     let mut command = std::process::Command::new("open");
     if background {
         command.arg("-g");
     }
-    command.args(["-a", app.path]);
+    command.args(["-a", path]);
+    if let Some(argument) = argument {
+        command.arg(argument);
+    }
     match command.output() {
         Ok(output) => format!(
-            "open {} background={background} {:?} {}",
-            app.name,
+            "open {path} background={background} {:?} {}",
             output.status.code(),
             String::from_utf8_lossy(&output.stderr).trim()
         ),
-        Err(error) => format!("open {} background={background} failed: {error}", app.name),
+        Err(error) => format!("open {path} background={background} failed: {error}"),
     }
 }
 

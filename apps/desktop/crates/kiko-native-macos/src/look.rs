@@ -12,7 +12,7 @@ const VALUE_LIMIT: usize = 500;
 const WEB_PROBE_DEPTH: usize = 10;
 const WEB_PROBE_NODES: usize = 400;
 
-const ATTRIBUTES: [&str; 12] = [
+const ATTRIBUTES: [&str; 13] = [
     ax::ROLE,
     ax::TITLE,
     ax::DESCRIPTION,
@@ -24,6 +24,7 @@ const ATTRIBUTES: [&str; 12] = [
     ax::FOCUSED,
     ax::SELECTED,
     ax::EXPANDED,
+    ax::SUBROLE,
     ax::CHILDREN,
 ];
 
@@ -112,12 +113,12 @@ pub fn walk(window: &AXUIElement, origin: Rect) -> Walk {
 fn describe(element: &AXUIElement, origin: Rect) -> (Option<Node>, Vec<Element>) {
     ax::timeout(element, ax::MESSAGING_TIMEOUT);
     let values = ax::attributes(element, &ATTRIBUTES);
-    let children = ax::elements(&values[11]);
+    let children = ax::elements(&values[12]);
     let Some(role) = ax::text(&values[0]) else {
         return (None, children);
     };
     let role = role.trim_start_matches("AX").to_lowercase();
-    let name = first_name(&values[1], &values[2], &values[3]);
+    let name = first_name(&values[1], &values[2], &values[3], &values[11]);
     let value = ax::text(&values[4]).map(|value| truncate(value, VALUE_LIMIT));
     let frame = frame(&values, origin);
     let states = states(&role, &values);
@@ -139,13 +140,28 @@ fn first_name(
     title: &Option<objc2_core_foundation::CFRetained<CFType>>,
     description: &Option<objc2_core_foundation::CFRetained<CFType>>,
     label: &Option<objc2_core_foundation::CFRetained<CFType>>,
+    subrole: &Option<objc2_core_foundation::CFRetained<CFType>>,
 ) -> String {
     for value in [title, description, label] {
         if let Some(text) = ax::text(value).filter(|text| !text.is_empty()) {
             return text;
         }
     }
-    String::new()
+    ax::text(subrole)
+        .filter(|subrole| !subrole.is_empty() && subrole != "AXUnknown")
+        .map(|subrole| subrole_name(&subrole))
+        .unwrap_or_default()
+}
+
+fn subrole_name(subrole: &str) -> String {
+    let mut name = String::new();
+    for (index, character) in subrole.trim_start_matches("AX").chars().enumerate() {
+        if character.is_uppercase() && index > 0 {
+            name.push(' ');
+        }
+        name.extend(character.to_lowercase());
+    }
+    name
 }
 
 fn frame(
