@@ -1,12 +1,18 @@
 import { fileName, type FileRef, type HumanAsk, type RunStep, type Task } from "@kiko/protocol"
 import {
   AlertCircleIcon,
+  ArchiveIcon,
   CheckIcon,
   ChevronRightIcon,
+  CodeIcon,
+  FileTextIcon,
   GlobeIcon,
+  ImageIcon,
   MemoryIcon,
+  PlayIcon,
   SearchIcon,
   SlidersIcon,
+  TableIcon,
   UploadIcon,
 } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
@@ -14,8 +20,7 @@ import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createEffect, createMemo, createSignal, For, type JSX, on, onCleanup, Show } from "solid-js"
-import { fileType } from "../../files/type"
-import { TypeIcon } from "../../files/type-icon"
+import { type FileType, fileType } from "../../files/type"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { agentDisplayName } from "../../lib/names"
 import { requestJump } from "../../search/state"
@@ -44,7 +49,7 @@ import { ThreadDetailsMenuItems } from "./thread-details-menu"
 import "./thread-details.css"
 
 const OUTPUT_ROWS = 5
-const CUSTOMIZE_INSET = { top: 12, right: 18, size: 24 }
+const CUSTOMIZE_INSET = { top: 8, right: 10, size: 24 }
 
 function CustomizeTrigger() {
   return (
@@ -59,7 +64,7 @@ function CustomizeTrigger() {
 function Count(props: { value: string }) {
   return (
     <Show when={props.value} keyed>
-      {(value) => <span class="td-count shrink-0 text-[11px] text-[var(--text-400)]">{value}</span>}
+      {(value) => <span class="td-count td-meta shrink-0">{value}</span>}
     </Show>
   )
 }
@@ -77,7 +82,7 @@ function Section(props: {
       <div class="td-heading">
         <button
           type="button"
-          class="-ml-2 flex h-8 min-w-0 flex-1 items-center gap-1 rounded-[6px] px-2 text-left hover:bg-[var(--td-hover)]"
+          class="td-heading-button"
           aria-expanded={!folded()}
           aria-controls={`td-body-${props.id}`}
           data-action={`fold-${props.id}`}
@@ -86,10 +91,10 @@ function Section(props: {
           <RemixIcon
             icon={ChevronRightIcon}
             size={16}
-            class="td-chevron size-3.5 shrink-0 text-[var(--text-300)]"
+            class="td-chevron td-heading-chevron size-3 shrink-0"
             data-open={!folded() ? "" : undefined}
           />
-          <span id={`td-head-${props.id}`} class="min-w-0 truncate text-[11px] font-medium text-[var(--text-300)]">
+          <span id={`td-head-${props.id}`} class="min-w-0 truncate">
             {props.title}
           </span>
           <Show when={props.count}>{(count) => <Count value={count()} />}</Show>
@@ -130,10 +135,10 @@ function FoldRow(props: { label: string; open: boolean; action: string; onToggle
       <RemixIcon
         icon={ChevronRightIcon}
         size={16}
-        class="td-chevron size-3.5 shrink-0 text-[var(--text-400)]"
+        class="td-chevron td-icon size-3.5 shrink-0"
         data-open={props.open ? "" : undefined}
       />
-      <span class="min-w-0 flex-1 truncate text-[var(--text-300)]">{props.label}</span>
+      <span class="td-muted min-w-0 flex-1 truncate">{props.label}</span>
     </button>
   )
 }
@@ -166,7 +171,7 @@ function NowSection(props: { now: number }) {
             <span class="min-w-0 flex-1 truncate">
               <span class="chat-shimmer">{row.line}</span>
             </span>
-            <span class="shrink-0 text-[11px] text-[var(--text-400)]">{elapsed(props.now - row.since)}</span>
+            <span class="td-meta shrink-0 tabular-nums">{elapsed(props.now - row.since)}</span>
             <span class="sr-only">{agentDisplayName(row.slug, room.roomMembers())}</span>
           </div>
         )}
@@ -191,24 +196,32 @@ function WaitingSection(props: { chatId: string; asks: readonly HumanAsk[] }) {
       <For each={props.asks}>
         {(ask, index) => (
           <div
-            class="td-row td-row-enter h-auto min-h-8 py-1"
+            class="td-ask td-row-enter"
             style={`--td-i: ${index()}`}
             data-component="details-waiting"
             data-ask={ask.id}
           >
-            <span class="min-w-0 flex-1 truncate">{ask.text}</span>
-            <button
-              type="button"
-              class="td-button"
-              data-tone="strong"
-              data-action="details-approve"
-              onClick={() => approve(ask)}
-            >
-              Approve
-            </button>
-            <button type="button" class="td-button" data-action="details-show" onClick={() => details(ask)}>
-              Details
-            </button>
+            <p class="td-ask-text">{ask.text}</p>
+            <div class="td-ask-actions">
+              <button
+                type="button"
+                class="td-button"
+                data-tone="ghost"
+                data-action="details-show"
+                onClick={() => details(ask)}
+              >
+                Details
+              </button>
+              <button
+                type="button"
+                class="td-button"
+                data-tone="strong"
+                data-action="details-approve"
+                onClick={() => approve(ask)}
+              >
+                Approve
+              </button>
+            </div>
           </div>
         )}
       </For>
@@ -223,7 +236,7 @@ function TaskCheck(props: { task: Task }) {
   return (
     <button
       type="button"
-      class="grid size-4 shrink-0 place-items-center rounded-[4px] border border-[var(--border-300)] text-[var(--text-400)] hover:border-[var(--text-300)] hover:text-[var(--text-200)]"
+      class="td-check"
       role="checkbox"
       aria-checked={props.task.status === "done"}
       aria-label={props.task.title}
@@ -248,13 +261,13 @@ function TaskRow(props: { task: Task; current: boolean; index: number }) {
     >
       <Show when={props.current} fallback={<TaskCheck task={props.task} />}>
         <span class="grid size-4 shrink-0 place-items-center">
-          <span class="td-spinner size-3 rounded-full border-[1.5px] border-[var(--border-300)] border-t-[var(--fg)]" />
+          <span class="td-spinner size-3 rounded-full border-[1.5px] border-[var(--line2)] border-t-[var(--fg)]" />
         </span>
       </Show>
       <span class="min-w-0 flex-1 truncate">{taskText(props.task.title, room.roomMembers())}</span>
       <Show when={props.task.status !== "done" && owner().slug}>
         {(slug) => (
-          <span class="flex shrink-0 items-center gap-1 text-[12px] font-normal text-[var(--text-400)]">
+          <span class="td-meta flex shrink-0 items-center gap-1">
             <IdentityAvatar seed={slug()} size={14} />
             <span class="max-w-24 truncate">{owner().name}</span>
           </span>
@@ -289,10 +302,7 @@ function ProgressSection(props: { view: ProgressView; running: boolean; onGone: 
       count={`${props.view.completed} of ${props.view.total}`}
       class={leaving() ? "td-leaving" : undefined}
     >
-      <Show
-        when={!props.view.allDone}
-        fallback={<div class="td-row text-[var(--text-300)]">{`All ${props.view.total} done`}</div>}
-      >
+      <Show when={!props.view.allDone} fallback={<div class="td-row td-muted">{`All ${props.view.total} done`}</div>}>
         <For each={props.view.open}>
           {(task, index) => <TaskRow task={task} current={task.id === props.view.currentId} index={index()} />}
         </For>
@@ -309,7 +319,7 @@ function ProgressSection(props: { view: ProgressView; running: boolean; onGone: 
                 {(task) => (
                   <div class="td-row" data-component="details-task" data-status="done">
                     <span class="size-4 shrink-0" />
-                    <span class="min-w-0 flex-1 truncate text-[var(--text-400)] line-through">
+                    <span class="td-faint min-w-0 flex-1 truncate line-through">
                       {taskText(task.title, room.roomMembers())}
                     </span>
                   </div>
@@ -335,23 +345,25 @@ function HelpersSection(props: { chatId: string; now: number }) {
           <Row
             label={lane.title}
             action="open-helper"
-            class="td-row-enter"
+            class="td-row-enter td-row-two"
             style={`--td-i: ${index()}`}
             onClick={() => openHelper(lane.id, lane.window)}
           >
-            <Snowflake seed={lane.id} size={14} state={lane.state} parent={group() ? lane.slug : undefined} />
-            <span class="min-w-0 shrink truncate">{lane.title}</span>
-            <span class="min-w-0 flex-1 truncate font-normal text-[var(--text-400)]">
-              {lane.state === "working" ? lane.line : helperWord(lane.state)}
+            <span class="td-lead">
+              <Snowflake seed={lane.id} size={14} state={lane.state} parent={group() ? lane.slug : undefined} />
+            </span>
+            <span class="flex min-w-0 flex-1 flex-col">
+              <span class="truncate">{lane.title}</span>
+              <span class="td-sub truncate">{lane.state === "working" ? lane.line : helperWord(lane.state)}</span>
             </span>
             <Show when={lane.state === "working"}>
-              <span class="shrink-0 text-[11px] text-[var(--text-400)]">{elapsed(props.now - lane.startedAt)}</span>
+              <span class="td-meta shrink-0 self-start tabular-nums">{elapsed(props.now - lane.startedAt)}</span>
             </Show>
             <Show when={lane.state !== "working"}>
               <RemixIcon
                 icon={lane.state === "failed" ? AlertCircleIcon : CheckIcon}
                 size={16}
-                class={`td-check-pop size-3.5 shrink-0 ${
+                class={`td-check-pop size-3.5 shrink-0 self-start ${
                   lane.state === "failed" ? "text-[var(--danger)]" : "text-[var(--ok)]"
                 }`}
               />
@@ -373,11 +385,7 @@ function HelpersSection(props: { chatId: string; now: number }) {
                 <Row label={lane.title} action="open-helper" onClick={() => openHelper(lane.id, lane.window)}>
                   <span class="size-4 shrink-0" />
                   <span class="min-w-0 flex-1 truncate">{lane.title}</span>
-                  <span
-                    class={`shrink-0 text-[12px] font-normal ${
-                      lane.state === "failed" ? "text-[var(--danger)]" : "text-[var(--text-400)]"
-                    }`}
-                  >
+                  <span class={`td-meta shrink-0 ${lane.state === "failed" ? "text-[var(--danger)]" : ""}`}>
                     {helperWord(lane.state)}
                   </span>
                 </Row>
@@ -388,6 +396,16 @@ function HelpersSection(props: { chatId: string; now: number }) {
       </Show>
     </Section>
   )
+}
+
+const OUTPUT_ICON: Partial<Record<FileType, typeof FileTextIcon>> = {
+  code: CodeIcon,
+  csv: TableIcon,
+  sheet: TableIcon,
+  html: GlobeIcon,
+  image: ImageIcon,
+  video: PlayIcon,
+  archive: ArchiveIcon,
 }
 
 const sizeText = (bytes: number): string => {
@@ -408,12 +426,15 @@ function OutputRow(props: { chatId: string; file: FileRef; index: number }) {
       onClick={() => openFile(props.chatId, props.file.name)}
     >
       <span class="td-output-icon">
-        <Show when={type() === "image"} fallback={<TypeIcon type={type()} size={16} />}>
+        <Show
+          when={type() === "image"}
+          fallback={<RemixIcon icon={OUTPUT_ICON[type()] ?? FileTextIcon} size={16} class="td-icon" />}
+        >
           <img class="td-thumb" src={fileSrc(props.chatId, props.file.id)} alt="" loading="lazy" />
         </Show>
       </span>
       <span class="min-w-0 flex-1 truncate">{name()}</span>
-      <span class="shrink-0 text-[11px] font-normal text-[var(--text-400)]">{sizeText(props.file.size)}</span>
+      <span class="td-meta shrink-0 tabular-nums">{sizeText(props.file.size)}</span>
     </Row>
   )
 }
@@ -433,7 +454,7 @@ function OutputsSection(props: { chatId: string; files: readonly FileRef[] }) {
             onClick={() => openSurface(props.chatId, fixedSurface("files"))}
           >
             <span class="td-output-icon" />
-            <span class="min-w-0 flex-1 truncate text-[var(--text-300)]">{`${rows().more} more`}</span>
+            <span class="td-muted min-w-0 flex-1 truncate">{`${rows().more} more`}</span>
           </Row>
         </Show>
       </div>
@@ -460,20 +481,18 @@ function UsedRowView(props: { row: UsedRow }) {
         data-action={`used-${props.row.kind}`}
         onClick={() => setOpen(!open())}
       >
-        <RemixIcon icon={USED_ICON[props.row.kind]} size={16} class="shrink-0 text-[var(--text-300)]" />
+        <RemixIcon icon={USED_ICON[props.row.kind]} size={16} class="td-icon shrink-0" />
         <span class="shrink-0">{props.row.label}</span>
-        <span class="min-w-0 flex-1 truncate text-right text-[12px] font-normal text-[var(--text-400)]">
-          {props.row.summary}
-        </span>
+        <span class="td-meta min-w-0 flex-1 truncate text-right">{props.row.summary}</span>
       </HoverCardV2.Trigger>
       <HoverCardV2.Portal>
         <HoverCardV2.Content>
           <div class="flex max-h-80 w-64 flex-col overflow-y-auto p-1" data-component="details-used-pop">
             <For each={props.row.items}>
               {(item) => (
-                <div class="flex min-w-0 items-center gap-2.5 rounded-[6px] px-2 py-1.5">
-                  <span class="min-w-0 flex-1 truncate text-[13px] text-[var(--text-100)]">{item.name}</span>
-                  <span class="shrink-0 text-[11px] text-[var(--text-400)]">{item.meta}</span>
+                <div class="flex min-h-7 min-w-0 items-center gap-2.5 rounded-[var(--radius-micro)] px-2 py-1">
+                  <span class="min-w-0 flex-1 truncate text-[12.5px] text-[var(--fg)]">{item.name}</span>
+                  <span class="td-meta shrink-0">{item.meta}</span>
                 </div>
               )}
             </For>
@@ -611,8 +630,8 @@ export default function ThreadDetails(props: { chatId: string }) {
                   data-action="customize-details-empty"
                   onClick={() => setMenuOpen(true)}
                 >
-                  <RemixIcon icon={SlidersIcon} size={16} class="shrink-0 text-[var(--text-300)]" />
-                  <span class="min-w-0 flex-1 truncate">Choose what to show</span>
+                  <RemixIcon icon={SlidersIcon} size={16} class="td-icon shrink-0" />
+                  <span class="td-muted min-w-0 flex-1 truncate">Choose what to show</span>
                 </button>
               </div>
             }
