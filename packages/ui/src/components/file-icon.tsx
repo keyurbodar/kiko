@@ -1,5 +1,6 @@
 import type { Component, JSX } from "solid-js"
-import { createMemo, splitProps } from "solid-js"
+import { createEffect, createMemo, splitProps } from "solid-js"
+import { glyphNodes } from "./glyph-cache"
 
 type Tone = readonly [light: string, dark: string]
 
@@ -188,11 +189,32 @@ export type FileIconProps = JSX.GSVGAttributes<SVGSVGElement> & {
   expanded?: boolean
 }
 
+const server = typeof document === "undefined"
+
 export const FileIcon: Component<FileIconProps> = (props) => {
   const [local, rest] = splitProps(props, ["node", "class", "classList", "expanded"])
   const inner = createMemo(() => glyphMarkup(local.node.path, local.node.type, local.expanded ?? false))
+  if (server) {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        data-component="file-icon"
+        data-kind={local.node.type}
+        {...rest}
+        classList={{
+          ...local.classList,
+          [local.class ?? ""]: !!local.class,
+        }}
+        innerHTML={inner()}
+      />
+    )
+  }
+  let element!: SVGSVGElement
+  createEffect(() => element.replaceChildren(...glyphNodes(inner())))
   return (
     <svg
+      ref={element}
       viewBox="0 0 24 24"
       aria-hidden="true"
       data-component="file-icon"
@@ -202,7 +224,6 @@ export const FileIcon: Component<FileIconProps> = (props) => {
         ...local.classList,
         [local.class ?? ""]: !!local.class,
       }}
-      innerHTML={inner()}
     />
   )
 }
