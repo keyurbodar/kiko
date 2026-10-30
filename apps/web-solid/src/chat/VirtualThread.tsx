@@ -453,6 +453,11 @@ export function VirtualThread(props: {
     glide.toEnd()
   }
 
+  const ownNewest = () => {
+    const newest = items().at(-1)
+    return newest?.kind === "message" && newest.message.sender === "user"
+  }
+
   const followEnd = () => {
     const scroller = scrollElement
     if (!scroller || !stuck || dragging || glide.active()) return
@@ -622,7 +627,7 @@ export function VirtualThread(props: {
         if (restorePosition()) firstLoad = false
         else if (rows) {
           firstLoad = false
-          if (arrived && stuck && !dragging) glide.toEnd()
+          if (arrived && stuck && !dragging && ownNewest()) glide.toEnd()
           else followEnd()
         }
         commitState(readState())
