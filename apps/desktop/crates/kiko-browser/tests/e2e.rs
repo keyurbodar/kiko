@@ -244,7 +244,10 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
 
     let started = Instant::now();
     let shot = read(&mut driver, &b, true);
-    eprintln!("the first capture of a hidden tab took {:?}", started.elapsed());
+    eprintln!(
+        "the first capture of a hidden tab took {:?}",
+        started.elapsed()
+    );
     let image = shot
         .image
         .expect("a background tab still yields a screenshot");
