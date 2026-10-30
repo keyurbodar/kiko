@@ -293,6 +293,7 @@ pub fn enable(pid: i32, bundle: Option<&str>) -> Element {
     }
     let deadline = Instant::now() + WEB_WAIT;
     while !web_content_present(&application) && Instant::now() < deadline {
+        opt_in(&application, bundle);
         std::thread::sleep(WEB_POLL);
     }
     application

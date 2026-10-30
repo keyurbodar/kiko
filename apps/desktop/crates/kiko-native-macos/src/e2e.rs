@@ -31,10 +31,11 @@ const MENU_TEXT: &str = "kiko menu test";
 const PASTE_TEXT: &str = "kiko pasted";
 const OPEN_WAIT: Duration = Duration::from_secs(20);
 const OPEN_POLL: Duration = Duration::from_millis(100);
-const CHROME_FLAGS: [&str; 3] = [
+const CHROME_FLAGS: [&str; 4] = [
     "--no-first-run",
     "--no-default-browser-check",
     "--new-window",
+    "--use-mock-keychain",
 ];
 const ELECTRON_MAIN: &str = r#"
 const fs = require('fs');
@@ -319,8 +320,9 @@ fn electron_web_area_answers_in_the_background() {
     let Some(window) = window else {
         let status = child.0.try_wait();
         panic!(
-            "no Electron window (child {status:?}); log: {:?}; windows: {:?}",
+            "no Electron window (child {status:?}); log: {:?}; running: {:?}; windows: {:?}",
             fs::read_to_string(&log),
+            running_apps(),
             window_summary(&mut driver)
         );
     };
@@ -456,22 +458,31 @@ fn check_document(driver: &mut MacDriver, document: &Window, finder: &Window, fr
 }
 
 fn check_safari(driver: &mut MacDriver, safari: &Window, frame: Rect) {
-    let look = driver
-        .look(&LookParams {
-            window: safari.id.clone(),
-            tree: true,
-            image: true,
-            max_width: Some(900),
-        })
-        .expect("look at Safari");
+    let look = wait_for(SETTLE, || {
+        let look = driver
+            .look(&LookParams {
+                window: safari.id.clone(),
+                tree: true,
+                image: true,
+                max_width: Some(900),
+            })
+            .ok()?;
+        look.outline.contains("webarea").then_some(look)
+    });
+    let Some(look) = look else {
+        let look = driver
+            .look(&LookParams {
+                window: safari.id.clone(),
+                tree: true,
+                image: false,
+                max_width: None,
+            })
+            .expect("look at Safari");
+        panic!("Safari exposed no web area; outline:\n{}", look.outline);
+    };
     let image = look.image.as_ref().expect("Safari pixels");
     save_artifact("safari", image);
     assert_image_matches(image, frame);
-    assert!(
-        look.outline.contains("webarea"),
-        "outline:\n{}",
-        look.outline
-    );
 
     let button = look
         .nodes
@@ -946,8 +957,10 @@ fn launch_chrome(driver: &mut MacDriver, url: &str) -> Window {
 }
 
 fn spawn_chrome(url: &str) -> String {
+    let profile = std::env::temp_dir().join(format!("kiko-chrome-{}", std::process::id()));
     match std::process::Command::new(CHROME_BINARY)
         .args(CHROME_FLAGS)
+        .arg(format!("--user-data-dir={}", profile.display()))
         .arg(url)
         .spawn()
     {

@@ -94,7 +94,16 @@ impl Worker {
 
     fn act(&mut self, params: &ActParams) -> kiko_driver::Result<ActResult> {
         let window = resolve(&params.window)?;
-        let id = window_id(&window)?;
+        let front = background_front(params);
+        let result = self.act_on(&window, params);
+        if let Some(front) = front {
+            restore_order(&window, params.action, front);
+        }
+        result
+    }
+
+    fn act_on(&mut self, window: &Window, params: &ActParams) -> kiko_driver::Result<ActResult> {
+        let id = window_id(window)?;
         let pid = window.pid as i32;
         let foreground = params.mode == Mode::Foreground;
 
@@ -153,7 +162,6 @@ impl Worker {
                 if foreground {
                     bring_forward(pid, id);
                 }
-                let front = background_menu_front(action, foreground);
                 let result = match act::apply(
                     &element,
                     action,
@@ -163,11 +171,8 @@ impl Worker {
                 ) {
                     Ok(route) => Ok(route),
                     Err(error) if foreground || action != Action::Press => Err(error),
-                    Err(error) => press_by_click(pid, id, &element, &window).map_err(|_| error),
+                    Err(error) => press_by_click(pid, id, &element, window).map_err(|_| error),
                 };
-                if let Some(front) = front {
-                    restore_order(pid, front);
-                }
                 let route = result?;
                 Ok(ActResult {
                     route: if foreground { Route::Foreground } else { route },
@@ -204,8 +209,8 @@ fn make_key_window(pid: i32, id: u32) {
     ax::set(&application, ax::FOCUSED_WINDOW, &element);
 }
 
-fn background_menu_front(action: Action, foreground: bool) -> Option<i32> {
-    (action == Action::ShowMenu && !foreground)
+fn background_front(params: &ActParams) -> Option<i32> {
+    (params.mode == Mode::Background)
         .then(|| apps::frontmost().map(|app| app.pid))
         .flatten()
 }
@@ -260,10 +265,21 @@ fn select_all(pid: i32) -> bool {
     ax::set(&element, ax::SELECTED_TEXT_RANGE, &value) == AXError::Success
 }
 
-fn restore_order(target: i32, front: i32) {
-    let deadline = Instant::now() + ORDER_SETTLE;
-    while !window::front_window_above(front, target) && Instant::now() < deadline {
-        raise_focused(front);
+fn restore_order(window: &Window, action: Action, front: i32) {
+    let target = window.pid as i32;
+    let settle = if action == Action::ShowMenu {
+        ORDER_SETTLE
+    } else {
+        Duration::ZERO
+    };
+    let deadline = Instant::now() + settle;
+    loop {
+        if !window::front_window_above(front, target) {
+            raise_focused(front);
+        }
+        if Instant::now() >= deadline {
+            break;
+        }
         std::thread::sleep(ORDER_POLL);
     }
 }
