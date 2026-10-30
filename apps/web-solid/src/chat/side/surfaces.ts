@@ -22,7 +22,7 @@ export type { FixedKind, Surface }
 export type Reveal = { chatId: string; path: string; line: number | null; n: number }
 
 const KEY = "kiko:desk:v1"
-const SHOWN_KEY = "kiko:device:card"
+const SHOWN_KEY = "kiko:device:panel"
 const MAX_KEY = "kiko:device:panel-max"
 
 export const fixedSurface = (kind: FixedKind): Surface => ({ id: kind, kind }) as Surface
@@ -124,7 +124,7 @@ function readAll(): Record<string, DeskNav> {
 
 const [all, setAll] = createSignal<Readonly<Record<string, DeskNav>>>(readAll())
 const [reveal, setReveal] = createSignal<Reveal | null>(null)
-const [docked, setDocked] = createSignal(readKey(SHOWN_KEY) !== "0")
+const [docked, setDocked] = createSignal(readKey(SHOWN_KEY) === "1")
 const [popped, setPopped] = createSignal(false)
 const [compact, setCompact] = createSignal(false)
 const [maximized, setMaximized] = createSignal(readKey(MAX_KEY) === "1")

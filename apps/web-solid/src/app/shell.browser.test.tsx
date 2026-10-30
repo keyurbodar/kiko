@@ -42,21 +42,33 @@ const width = (container: HTMLElement, component: string) =>
   Math.round(container.querySelector(`[data-component="${component}"]`)?.getBoundingClientRect().width ?? -1)
 
 describe("shell", () => {
-  it("opens at the default sidebar and info widths when the chat in view is known only after the shell mounts", async () => {
+  it("opens with the right panel closed and the sidebar at its default width on a first sign-in", async () => {
     await page.viewport(1440, 900)
     localStorage.clear()
     room.followRoute(() => null)
     const router = firstSignIn()
     await using screen = await render(() => <RouterProvider router={router} />)
 
+    await expect.poll(() => width(screen.container, "sidebar-panel")).toBe(defaultWidth(SIDEBAR))
+    expect(Math.max(0, width(screen.container, "sidecar-column"))).toBe(0)
+  })
+
+  it("opens the right panel at its default width once the owner has opened it", async () => {
+    await page.viewport(1440, 900)
+    localStorage.clear()
+    localStorage.setItem("kiko:device:panel", "1")
+    room.followRoute(() => null)
+    const router = firstSignIn()
+    await using screen = await render(() => <RouterProvider router={router} />)
+
     await expect.poll(() => width(screen.container, "sidecar-column")).toBe(defaultWidth(INFO))
     expect(width(screen.container, "sidebar-panel")).toBe(defaultWidth(SIDEBAR))
-    expect(localStorage.getItem("kiko:device:card")).not.toBe("0")
   })
 
   it("maximizes the right panel over the chat column and leaves the sidebar width alone", async () => {
     await page.viewport(1440, 900)
     localStorage.clear()
+    localStorage.setItem("kiko:device:panel", "1")
     room.followRoute(() => ROOM)
     const router = firstSignIn()
     await using screen = await render(() => <RouterProvider router={router} />)

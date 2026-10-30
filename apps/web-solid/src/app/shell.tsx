@@ -78,6 +78,12 @@ const Desk = lazy(loadDesk)
 
 const KEY = "kiko:device:sidebar-collapsed"
 
+const DETAILS_GUTTER = 320
+
+const DETAILS_MIN_COLUMN = 560
+
+const DETAILS_MIN_CANVAS = DETAILS_MIN_COLUMN + DETAILS_GUTTER
+
 function readCollapsed() {
   try {
     return localStorage.getItem(KEY) === "1"
@@ -320,9 +326,11 @@ export function Shell(props: ParentProps) {
     const id = sideChat()
     return id !== null && onChat() && threadDetailsOpenFor(id) ? id : null
   }
-  const detailsInline = () => {
-    if (sideOpen() || canvasWidth() === 0) return false
-    return (canvasWidth() - Math.min(canvasWidth(), messageWidth())) / 2 >= 296 + 24
+  const detailsInline = () => !sideOpen() && canvasWidth() >= DETAILS_MIN_CANVAS
+  const detailsReserve = () => {
+    if (!detailsChat() || !detailsInline()) return 0
+    const needed = 2 * DETAILS_GUTTER - canvasWidth() + Math.min(canvasWidth(), messageWidth())
+    return Math.min(DETAILS_GUTTER, Math.max(0, needed))
   }
   const endSideResize = () => {
     if (sidePanel()?.collapsed()) return closeSide()
@@ -455,7 +463,12 @@ export function Shell(props: ParentProps) {
                         data-component="main-panel"
                         ref={watchCanvas}
                       >
-                        <div class="flex min-w-0 flex-1 flex-col">{props.children}</div>
+                        <div
+                          class="flex min-w-0 flex-1 flex-col"
+                          style={detailsReserve() ? { "padding-right": `${detailsReserve()}px` } : undefined}
+                        >
+                          {props.children}
+                        </div>
                         <Show when={onChat() && detailsChat()}>
                           <ThreadDetailsLayer chatId={detailsChat()!} inline={detailsInline()} />
                         </Show>
