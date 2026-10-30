@@ -47,7 +47,6 @@ import {
   workLogOf,
   retried,
 } from "./run-tree-rows"
-import { parseWindow } from "./run-log"
 import { recallSummary, rememberSummary } from "./run-summary"
 import { Shine } from "./Shine"
 import "./run-tree.css"
@@ -674,31 +673,55 @@ function Head(props: {
   )
 }
 
+type RunWindow = { key: string; count?: number }
+
 export function RunTree(props: {
   windowKey: string
+  windows?: readonly RunWindow[]
   count?: number
   endedAt?: number
   who?: string
   at?: number
   thought?: Thought
 }): JSX.Element {
-  const steps = createMemo(() => unwrap(room.runSteps(props.windowKey)) as readonly RunStep[])
-  const working = () => room.runLive(props.windowKey)
+  const windows = createMemo<readonly RunWindow[]>(() => [
+    { key: props.windowKey, ...(props.count === undefined ? {} : { count: props.count }) },
+    ...(props.windows ?? []),
+  ])
+  const steps = createMemo(() => {
+    const seen = new Set<string>()
+    const out: RunStep[] = []
+    for (const window of windows())
+      for (const step of unwrap(room.runSteps(window.key)) as readonly RunStep[]) {
+        if (seen.has(step.id)) continue
+        seen.add(step.id)
+        out.push(step)
+      }
+    return out.sort((a, b) => a.startedAt - b.startedAt)
+  })
+  const short = createMemo(() => windows().filter((w) => room.runSteps(w.key).length < (w.count ?? 0)))
+  const total = createMemo(() => windows().reduce((n, w) => n + (w.count ?? 0), 0))
+  const working = () => windows().some((w) => room.runLive(w.key))
   const live = createMemo(() => isLive(steps(), working()))
   const openKey = () => runKeyOf(props.windowKey)
   const itemKey = (id: string) => `${openKey()}|${id}`
   const open = createMemo(() => opened().has(openKey()))
 
   const detailStatus = createMemo<DetailStatus>(() => {
-    if (steps().length >= (props.count ?? 0)) return "ready"
-    if (room.runFetching(props.windowKey)) return "loading"
-    return asked().has(openKey()) ? "error" : "idle"
+    const missing = short()
+    if (missing.length === 0) return "ready"
+    if (missing.some((w) => room.runFetching(w.key))) return "loading"
+    return missing.every((w) => asked().has(runKeyOf(w.key))) ? "error" : "idle"
   })
 
   const request = (force = false) => {
-    const key = openKey()
-    setAsked((current) => (current.has(key) ? current : withKey(current, key)))
-    room.loadRunSteps(props.windowKey, force)
+    if (!room.runReady()) return
+    const missing = short().map((w) => w.key)
+    if (missing.length === 0) return
+    setAsked((current) =>
+      missing.reduce((next, key) => (next.has(runKeyOf(key)) ? next : withKey(next, runKeyOf(key))), current),
+    )
+    for (const key of missing) room.loadRunSteps(key, force)
   }
 
   const [now, setNow] = createSignal(Date.now())
@@ -709,13 +732,16 @@ export function RunTree(props: {
     onCleanup(() => clearInterval(clock))
   })
 
-  const lanes = createMemo(() => room.helpers().filter((lane) => lane.window === props.windowKey))
+  const lanes = createMemo(() => {
+    const keys = new Set(windows().map((window) => window.key))
+    return room.helpers().filter((lane) => keys.has(lane.window))
+  })
 
   const log = createMemo(() =>
     workLogOf(steps(), {
       lanes: lanes().length > 0,
       working: working(),
-      count: props.count,
+      count: total(),
       endedAt: props.endedAt,
       detail: detailStatus(),
       known: recallSummary(openKey()),
@@ -723,7 +749,7 @@ export function RunTree(props: {
   )
 
   const summary = createMemo(() => {
-    const loaded = steps().length >= (props.count ?? 0)
+    const loaded = steps().length >= total()
     const text = loaded ? summaryText(groupSummary(steps())) : ""
     return text || log().head?.summary || ""
   })
@@ -778,8 +804,26 @@ export function RunTree(props: {
     return child ? `${item.label}: ${child.label}` : item.label
   })
 
-  const runId = createMemo(() => steps()[0]?.runId)
-  const thought = createMemo(() => props.thought ?? (runId() === undefined ? undefined : room.thoughtOfRun(runId()!)))
+  const runs = createMemo(() => {
+    const out: { slug: string; runId: string }[] = []
+    for (const window of windows()) {
+      const first = room.runSteps(window.key)[0]
+      if (first && !out.some((run) => run.runId === first.runId)) out.push({ slug: first.slug, runId: first.runId })
+    }
+    return out
+  })
+  const parts = createMemo(() => {
+    const held: ThoughtPart[] = []
+    const seen = new Set<string>()
+    const add = (thought: Thought | undefined) => {
+      if (!thought || seen.has(thought.runId)) return
+      seen.add(thought.runId)
+      held.push(...filledParts(thought))
+    }
+    add(props.thought)
+    for (const run of runs()) add(room.thoughtOfRun(run.runId))
+    return held.sort((a, b) => a.startedAt - b.startedAt)
+  })
 
   const handoff = untrack(() => {
     const found = room.runEnd(openKey())
@@ -811,9 +855,11 @@ export function RunTree(props: {
   )
 
   createEffect(() => {
-    const id = runId()
-    if (live() || !open() || thought() || id === undefined) return
-    room.loadThoughts(parseWindow(props.windowKey).slug, id)
+    if (live() || !open()) return
+    for (const run of runs()) {
+      if (room.thoughtOfRun(run.runId)) continue
+      room.loadThoughts(run.slug, run.runId)
+    }
   })
 
   const expanded = createMemo(() => live() || settling() || open())
@@ -842,13 +888,14 @@ export function RunTree(props: {
   }
 
   createEffect(() => {
-    if (live() || steps().length < (props.count ?? 0)) return
+    if (live() || steps().length < total()) return
     const found = summaryOf(steps(), props.endedAt)
     if (found) rememberSummary(openKey(), found)
   })
 
   createEffect(() => {
-    if (!live() && steps().length < (props.count ?? 0)) untrack(() => request())
+    if (!room.runReady() || live() || short().length === 0) return
+    untrack(() => request())
   })
 
   const [whole, setWhole] = createSignal(false)
@@ -880,7 +927,7 @@ export function RunTree(props: {
     <div class="run-tree-list">
       <Items
         items={log().items}
-        parts={thought() === undefined ? [] : filledParts(thought()!)}
+        parts={parts()}
         view={view}
         steps={steps()}
         live={live()}

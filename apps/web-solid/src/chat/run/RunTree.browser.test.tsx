@@ -39,6 +39,7 @@ vi.mock("../../state/room", async () => {
         return steps().filter((step) => (step.after ?? 0) === after)
       },
       runLive: () => live(),
+      runReady: () => true,
       runFetching: () => false,
       loadRunSteps: () => {},
       runEnd: () => end(),

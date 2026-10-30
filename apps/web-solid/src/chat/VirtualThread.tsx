@@ -666,6 +666,7 @@ export function VirtualThread(props: {
           message={message()}
           bot={bot()}
           quote={quote()}
+          foldedRuns={item.foldedRuns}
           isRunStart={item.isRunStart}
           isRunEnd={item.isRunEnd}
           runKey={item.runKey}

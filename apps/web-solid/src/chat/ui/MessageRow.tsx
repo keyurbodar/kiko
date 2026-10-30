@@ -42,6 +42,7 @@ export function MessageRow(props: {
   message: ChatMessage
   bot: RosterBot | undefined
   quote: QuoteModel | null
+  foldedRuns?: readonly ChatMessage[]
 
   isRunStart: boolean
   isRunEnd: boolean
@@ -71,6 +72,11 @@ export function MessageRow(props: {
     const key = windowKey()
     return key && !room.runLive(key) && props.isRunEnd ? key : undefined
   }
+  const foldedWindows = () =>
+    (props.foldedRuns ?? []).flatMap((folded) => {
+      const key = room.runWindow(folded)
+      return key === undefined ? [] : [{ key, ...(folded.steps === undefined ? {} : { count: folded.steps }) }]
+    })
   const named = () => grouped() && props.isRunStart
   const nameInBubble = () => named() && !props.jumboClass
   const failed = () => props.message.status === "failed"
@@ -211,7 +217,13 @@ export function MessageRow(props: {
       </Bubble>
       <Show when={finishedKey()}>
         {(key) => (
-          <RunTree windowKey={key()} count={props.message.steps} endedAt={props.message.sentAt} thought={thought()} />
+          <RunTree
+            windowKey={key()}
+            windows={foldedWindows()}
+            count={props.message.steps}
+            endedAt={props.message.sentAt}
+            thought={thought()}
+          />
         )}
       </Show>
     </div>

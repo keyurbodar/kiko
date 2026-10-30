@@ -10,14 +10,23 @@ import { TypingIndicator } from "./TypingIndicator"
 const START = Date.UTC(2026, 9, 24, 9)
 const KEY = "kiko#0"
 
-const fake = vi.hoisted(() => ({ steps: [] as RunStep[], live: false }))
+const fake = vi.hoisted(() => ({
+  steps: [] as RunStep[],
+  live: false,
+  folded: false,
+  pending: [] as { key: string; count?: number }[],
+}))
 
 vi.mock("../../state/room", async () => {
   const { createSignal: signal } = await import("solid-js")
   const [steps, setSteps] = signal<readonly RunStep[]>([])
   const [live, setLive] = signal(false)
+  const [folded, setFolded] = signal(false)
+  const [pending, setPending] = signal<{ key: string; count?: number }[]>([])
   Object.defineProperty(fake, "steps", { get: steps, set: setSteps })
   Object.defineProperty(fake, "live", { get: live, set: setLive })
+  Object.defineProperty(fake, "folded", { get: folded, set: setFolded })
+  Object.defineProperty(fake, "pending", { get: pending, set: setPending })
   return {
     fileSrc: () => "",
     room: {
@@ -27,7 +36,9 @@ vi.mock("../../state/room", async () => {
         return steps().filter((step) => (step.after ?? 0) === after)
       },
       runLive: () => live(),
-      runWindow: () => KEY,
+      runReady: () => true,
+      pendingWindows: () => pending(),
+      runWindow: (m: ChatMessage) => (m.botId && m.steps ? `${m.botId}#${m.stepAfter ?? 0}` : undefined),
       runEnd: () => undefined,
       runFetching: () => false,
       loadRunSteps: () => {},
@@ -69,6 +80,19 @@ const message: ChatMessage = {
   stepAfter: 0,
 }
 
+const earlier: ChatMessage = {
+  id: "0.room",
+  threadId: "room",
+  sender: "bot",
+  botId: "kiko",
+  seq: 0,
+  body: "",
+  sentAt: START - 1_000,
+  steps: 1,
+  stepAfter: 1,
+  event: { kind: "activity", agent: "kiko" as never, private: true },
+}
+
 const bot = { id: "kiko", name: "Kiko", preview: "", updatedAt: 0, presence: "idle" as const, unread: 0, pinned: false }
 
 function Thread() {
@@ -78,6 +102,7 @@ function Thread() {
         message={message}
         bot={bot}
         quote={null}
+        foldedRuns={fake.folded ? [earlier] : []}
         isRunStart
         isRunEnd
         runKey={KEY}
@@ -129,5 +154,36 @@ describe("typing row", () => {
 
     await vi.waitFor(() => expect(tree().closest('[data-component="chat-row"]')).not.toBeNull())
     expect(Math.abs(top() - before)).toBeLessThan(2)
+  })
+
+  it("shows the earlier window's steps while the run is live, so the handoff keeps them", async () => {
+    fake.live = true
+    fake.folded = false
+    fake.pending = [{ key: "kiko#1", count: 1 }]
+    fake.steps = [step({ after: 1, id: "early", label: "Started background work" }), step({ after: 0 })]
+    await using screen = await render(() => <Thread />)
+
+    const labels = () => [...screen.container.querySelectorAll(".run-tree-label")].map((row) => row.textContent)
+    const tree = () => [...screen.container.querySelectorAll<HTMLElement>(".run-tree")].at(-1)!
+    const top = () => tree().getBoundingClientRect().top
+
+    await vi.waitFor(() => expect(labels()).toContain("Started background work"))
+    await Promise.all(
+      screen.container
+        .querySelector(".typing")!
+        .getAnimations()
+        .map((animation) => animation.finished),
+    )
+    const before = top()
+
+    fake.live = false
+    fake.folded = true
+
+    const reply = () => screen.container.querySelector<HTMLElement>('[data-component="chat-row"] .run-tree-head')!
+    await vi.waitFor(() => expect(reply()).not.toBeNull())
+    expect(Math.abs(top() - before)).toBeLessThan(2)
+
+    reply().click()
+    await vi.waitFor(() => expect(labels()).toContain("Started background work"))
   })
 })
