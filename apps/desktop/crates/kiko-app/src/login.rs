@@ -92,82 +92,71 @@ mod imp {
 
 #[cfg(target_os = "macos")]
 mod imp {
-    use std::ffi::CStr;
     use std::io;
+    use std::path::PathBuf;
 
-    use objc2::msg_send;
-    use objc2::runtime::{AnyClass, AnyObject, Bool};
+    const LABEL: &str = "com.kiko.computer";
+    const RUN_AT_LOAD_ON: &str = "<key>RunAtLoad</key><true/>";
+    const RUN_AT_LOAD_OFF: &str = "<key>RunAtLoad</key><false/>";
 
-    #[link(name = "ServiceManagement", kind = "framework")]
-    unsafe extern "C" {}
-
-    const ENABLED: isize = 1;
-
-    fn service() -> Option<*mut AnyObject> {
-        let class = AnyClass::get(c"SMAppService").or_else(load)?;
-        let service: *mut AnyObject = unsafe { msg_send![class, mainAppService] };
-        (!service.is_null()).then_some(service)
-    }
-
-    fn load() -> Option<&'static AnyClass> {
-        unsafe {
-            let path = c"/System/Library/Frameworks/ServiceManagement.framework/ServiceManagement";
-            if libc::dlopen(path.as_ptr(), libc::RTLD_LAZY).is_null() {
-                return None;
-            }
-        }
-        AnyClass::get(c"SMAppService")
-    }
-
-    fn in_bundle() -> bool {
-        std::env::current_exe()
-            .map(|exe| exe.to_string_lossy().contains(".app/Contents/MacOS/"))
-            .unwrap_or(false)
+    fn file() -> PathBuf {
+        dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("Library")
+            .join("LaunchAgents")
+            .join(format!("{LABEL}.plist"))
     }
 
     pub fn enabled() -> bool {
-        let Some(service) = service() else {
-            return false;
-        };
-        let status: isize = unsafe { msg_send![service, status] };
-        status == ENABLED
+        std::fs::read_to_string(file())
+            .map(|body| body.contains(RUN_AT_LOAD_ON))
+            .unwrap_or(false)
     }
 
     pub fn set(on: bool) -> io::Result<()> {
-        if !in_bundle() {
-            return Err(io::Error::other("start at login needs kiko.app"));
-        }
-        let service =
-            service().ok_or_else(|| io::Error::other("ServiceManagement is unavailable"))?;
-        let mut error: *mut AnyObject = std::ptr::null_mut();
-        let changed: Bool = unsafe {
-            if on {
-                msg_send![service, registerAndReturnError: &mut error]
-            } else {
-                msg_send![service, unregisterAndReturnError: &mut error]
-            }
+        let file = file();
+        let body = match std::fs::read_to_string(&file) {
+            Ok(body) => body,
+            Err(_) => plist(&std::env::current_exe()?.to_string_lossy()),
         };
-        if changed.as_bool() {
-            Ok(())
-        } else {
-            Err(io::Error::other(describe(error)))
+        if let Some(parent) = file.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(file, with_run_at_load(&body, on))
+    }
+
+    fn with_run_at_load(body: &str, on: bool) -> String {
+        let stripped = body
+            .replace(RUN_AT_LOAD_ON, "")
+            .replace(RUN_AT_LOAD_OFF, "");
+        let wanted = if on { RUN_AT_LOAD_ON } else { RUN_AT_LOAD_OFF };
+        match stripped.find("<key>KeepAlive</key>") {
+            Some(at) => format!("{}{wanted}{}", &stripped[..at], &stripped[at..]),
+            None => format!("{stripped}{wanted}"),
         }
     }
 
-    fn describe(error: *mut AnyObject) -> String {
-        if error.is_null() {
-            return "ServiceManagement refused the change".into();
-        }
-        let text: *mut AnyObject = unsafe { msg_send![error, localizedDescription] };
-        if text.is_null() {
-            return "ServiceManagement refused the change".into();
-        }
-        let utf8: *const std::ffi::c_char = unsafe { msg_send![text, UTF8String] };
-        if utf8.is_null() {
-            return "ServiceManagement refused the change".into();
-        }
-        unsafe { CStr::from_ptr(utf8) }
-            .to_string_lossy()
-            .into_owned()
+    fn plist(exe: &str) -> String {
+        let escaped = exe
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;");
+        format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
+<plist version=\"1.0\">
+<dict>
+  <key>Label</key><string>{LABEL}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{escaped}</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ProcessType</key><string>Interactive</string>
+</dict>
+</plist>
+"
+        )
     }
 }

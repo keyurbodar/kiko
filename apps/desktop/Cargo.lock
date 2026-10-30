@@ -1340,7 +1340,6 @@ dependencies = [
  "ksni",
  "libc",
  "muda",
- "objc2",
  "png",
  "serde",
  "serde_json",

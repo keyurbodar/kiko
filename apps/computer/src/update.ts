@@ -1,6 +1,7 @@
-import { basename, dirname } from "node:path"
+import { rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { failureMessage, type Logger } from "./log"
-import { LABEL } from "./service"
 
 const FIRST_BACKOFF_MS = 15 * 60_000
 const MAX_BACKOFF_MS = 12 * 60 * 60_000
@@ -52,18 +53,12 @@ export function failed(attempts: Attempts, now: number): Attempts {
   }
 }
 
-type Target = { home: string } | { skip: string }
+export type Target = { mode: "app" } | { skip: string }
 
-export function updateTarget(execPath: string, platform: NodeJS.Platform, env: NodeJS.ProcessEnv): Target {
-  if (platform === "win32")
-    return {
-      skip: "Windows starts kiko-computer from a Run key with nothing to restart it; run the install.ps1 command again",
-    }
-  if (basename(execPath) !== "kiko-computer" || basename(dirname(execPath)) !== "bin")
-    return { skip: `this daemon runs from ${execPath}, not an installed bin/kiko-computer` }
-  const supervised = platform === "darwin" ? env.XPC_SERVICE_NAME === LABEL : Boolean(env.INVOCATION_ID)
-  if (!supervised) return { skip: "it was not started by kiko-computer service install, so nothing would restart it" }
-  return { home: dirname(dirname(execPath)) }
+export function updateTarget(env: NodeJS.ProcessEnv): Target {
+  if (!env.KIKO_DRIVER)
+    return { skip: "the kiko app did not start this daemon, so nothing would replace it and restart it" }
+  return { mode: "app" }
 }
 
 export type Updater = { offer(version: string | undefined): void; idle(): void }
@@ -84,12 +79,12 @@ export function createUpdater(deps: UpdaterDeps): Updater {
   let installing = false
   let timer: ReturnType<typeof setTimeout> | undefined
 
-  const install = async (version: string, home: string) => {
+  const install = async (version: string) => {
     installing = true
     attempts = started(attempts, version)
-    log.info(`update: the worker serves ${version} and this daemon is ${running}; running its install.sh`)
+    log.info(`update: the worker serves ${version} and this daemon is ${running}; running its installer`)
     try {
-      await runInstallScript(deps.origin, home, log)
+      await runInstallScript(deps.origin, log)
       attempts = installed(attempts, version)
       log.info(`update: installed ${version}`)
     } catch (error) {
@@ -118,7 +113,7 @@ export function createUpdater(deps: UpdaterDeps): Updater {
       attempts = started(attempts, step.version)
       return log.warn(`update: the worker serves ${step.version} and this daemon is ${running}; ${deps.target.skip}`)
     }
-    void install(step.version, deps.target.home).then(check)
+    void install(step.version).then(check)
   }
 
   return {
@@ -130,23 +125,25 @@ export function createUpdater(deps: UpdaterDeps): Updater {
   }
 }
 
-async function runInstallScript(origin: string, home: string, log: Logger): Promise<void> {
-  const url = new URL("pc/install.sh", `${origin}/`)
+async function runInstallScript(origin: string, log: Logger): Promise<void> {
+  const windows = process.platform === "win32"
+  const name = windows ? "install.ps1" : "install.sh"
+  const url = new URL(`pc/${name}`, `${origin}/`)
   const response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
   if (!response.ok) throw new Error(`${url} answered ${response.status}`)
-  const script = await response.text()
-  const proc = Bun.spawn(["sh", "-s"], {
-    stdin: new TextEncoder().encode(script),
-    stdout: "pipe",
-    stderr: "pipe",
-    env: { ...process.env, KIKO_COMPUTER_HOME: home },
-    timeout: INSTALL_TIMEOUT_MS,
-  })
-  const [out, err, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ])
-  for (const line of `${out}\n${err}`.split("\n").filter(Boolean)) log.info(`update: ${line}`)
-  if (code !== 0) throw new Error(`install.sh exited with ${code}`)
+  const file = join(tmpdir(), `kiko-${name}-${process.pid}`)
+  await writeFile(file, await response.text(), { mode: 0o700 })
+  try {
+    const argv = windows ? ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", file] : ["sh", file]
+    const proc = Bun.spawn(argv, { stdout: "pipe", stderr: "pipe", timeout: INSTALL_TIMEOUT_MS })
+    const [out, err, code] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ])
+    for (const line of `${out}\n${err}`.split("\n").filter(Boolean)) log.info(`update: ${line}`)
+    if (code !== 0) throw new Error(`${name} exited with ${code}`)
+  } finally {
+    await rm(file, { force: true }).catch(() => undefined)
+  }
 }
