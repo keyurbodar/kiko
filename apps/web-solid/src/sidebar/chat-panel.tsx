@@ -11,7 +11,7 @@ import { HelperNest } from "../chat/helpers/HelperNest"
 import { ChatRow, isLive } from "./chat-row"
 import { filterRows, pinnedRows } from "./filter"
 import { flipRows, glideActive } from "./flip"
-import { createFailuresElsewhere } from "./failures"
+import { createKnownFailures } from "./failures"
 import { type Folded, loadFolded, saveFolded, type Section } from "./folded"
 import { type Need, needsOf } from "./needs"
 
@@ -81,7 +81,11 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
       (row) => row.unread > 0 || markedUnread(row.id) || props.needs.has(row.id),
     ),
   )
-  const lifted = (bot: RosterBot) => bot.id !== props.activeId && props.needs.has(bot.id)
+  const liftedIds = createMemo<ReadonlySet<string>>(
+    (before) => new Set([...props.needs.keys()].filter((id) => id !== props.activeId || before.has(id))),
+    new Set(),
+  )
+  const lifted = (bot: RosterBot) => liftedIds().has(bot.id)
   const asking = createMemo(() => shown().filter(lifted))
   const calm = createMemo(() => shown().filter((bot) => !lifted(bot)))
   const working = createMemo(() => calm().filter(isLive))
@@ -222,14 +226,14 @@ export function ChatPanel() {
 
   const all = createMemo(() => room.bots())
   const muted = createMemo(() => new Set((user.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)))
-  const elsewhere = createFailuresElsewhere(() => room.activeId())
+  const known = createKnownFailures({ activeId: () => room.activeId(), messages: () => room.messages() })
   const needs = createMemo(() =>
     needsOf({
       activeId: room.activeId(),
       asks: room.active()?.asks() ?? [],
       messages: room.messages(),
       retry: (id) => room.retryRun(id),
-      elsewhere: elsewhere(),
+      known: known(),
     }),
   )
   const loading = () => all().length === 0 && !!user.loaded() && !user.synced()
