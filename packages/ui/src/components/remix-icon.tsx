@@ -1,5 +1,6 @@
-import { splitProps, type ComponentProps } from "solid-js"
+import { createEffect, splitProps, type ComponentProps } from "solid-js"
 import type { Glyph } from "../icons.gen"
+import { glyphNodes } from "./glyph-cache"
 
 export type { Glyph }
 
@@ -18,11 +19,31 @@ export type RemixIconProps = Omit<ComponentProps<"svg">, "children"> & {
   size?: IconSize
 }
 
+const server = typeof document === "undefined"
+
 export function RemixIcon(props: RemixIconProps) {
   const [own, rest] = splitProps(props, ["icon", "size"])
   const box = () => (own.size === undefined ? undefined : `var(--size-icon-${STEP[own.size]}, ${own.size}px)`)
+  if (server) {
+    return (
+      <svg
+        data-component="remix-icon"
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        width={own.size ?? 16}
+        height={own.size ?? 16}
+        style={box() === undefined ? undefined : { width: box(), height: box() }}
+        fill="none"
+        {...rest}
+        innerHTML={own.icon}
+      />
+    )
+  }
+  let element!: SVGSVGElement
+  createEffect(() => element.replaceChildren(...glyphNodes(own.icon)))
   return (
     <svg
+      ref={element}
       data-component="remix-icon"
       aria-hidden="true"
       viewBox="0 0 24 24"
@@ -31,7 +52,6 @@ export function RemixIcon(props: RemixIconProps) {
       style={box() === undefined ? undefined : { width: box(), height: box() }}
       fill="none"
       {...rest}
-      innerHTML={own.icon}
     />
   )
 }
