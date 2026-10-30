@@ -22,6 +22,9 @@ use super::{
     unsupported,
 };
 
+const WRITE_VERIFY_ATTEMPTS: usize = 5;
+const WRITE_VERIFY_PAUSE: Duration = Duration::from_millis(40);
+
 pub enum Outcome {
     Route(Route),
     Native { hwnd: isize, screen: Point },
@@ -214,9 +217,6 @@ fn edit_class(window: isize) -> bool {
     let class = crate::hwnd::class_name(window);
     class.starts_with("Edit") || class.starts_with("RichEdit") || class.starts_with("RICHEDIT")
 }
-
-const WRITE_VERIFY_ATTEMPTS: usize = 5;
-const WRITE_VERIFY_PAUSE: Duration = Duration::from_millis(40);
 
 fn splice_at_selection(element: &IUIAutomationElement, text: &str) -> Result<Outcome> {
     if !focused(element) {
