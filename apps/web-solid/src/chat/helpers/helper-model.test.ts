@@ -85,6 +85,17 @@ describe("helper lanes", () => {
     expect(helperLanes([failed, retried], none, awake)[0]?.state).toBe("done")
   })
 
+  it("trusts the agent's finished status over a step it recovered from", () => {
+    const failed = step({ worker: hero, status: "failed", name: "read_file", startedAt: 10 })
+    const [lane] = helperLanes([failed], new Map([["w1", "done"]]), awake)
+    expect(lane?.state).toBe("done")
+  })
+
+  it("trusts the agent's failure over steps that all look finished", () => {
+    const [lane] = helperLanes([step({ worker: hero })], new Map([["w1", "failed"]]), awake)
+    expect(lane?.state).toBe("failed")
+  })
+
   it("is stopped when the agent reports it stopped, even if a step was left running", () => {
     const [lane] = helperLanes([step({ worker: hero, status: "running" })], new Map([["w1", "stopped"]]), awake)
     expect(lane?.state).toBe("stopped")
