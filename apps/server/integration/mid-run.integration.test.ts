@@ -28,6 +28,33 @@ describe("a message sent while an agent works", () => {
   )
 })
 
+describe("twelve short messages sent back to back", () => {
+  it.live("reach the agent as one turn, in the order they were sent", () =>
+    Effect.gen(function* () {
+      const worker = yield* localWorker
+      const owner = yield* signIn(worker.url, "rapid-fire")
+      const session = yield* connect(worker.url, owner.token)
+      const room = yield* session.newRoom("rapid fire")
+      yield* owner.post("api/dev/agent/fake", { roomId: room.roomId })
+
+      const texts = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"]
+      const mark = yield* room.mark()
+      yield* Effect.forEach(texts, (text) => room.send(text), { concurrency: "unbounded" })
+      yield* room.untilIdleAfter(mark)
+
+      const all = (yield* room.messages()).filter((message) => message.text?.startsWith("heard:"))
+      assert.strictEqual(all.length, 1, "twelve messages sent together are answered once")
+      const said = all[0]?.text ?? ""
+      let at = -1
+      for (const text of texts) {
+        const next = said.indexOf(text, at + 1)
+        assert.isAbove(next, at, `${text} is read in the order it was sent`)
+        at = next
+      }
+    }).pipe(Effect.scoped),
+  )
+})
+
 describe("stop while an agent works", () => {
   it.live("ends the turn instead of letting it run on", () =>
     Effect.gen(function* () {
