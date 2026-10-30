@@ -87,7 +87,9 @@ function workerReply(messages: readonly Message[], toolNames: () => string) {
     })
   const steps = direct ? 1 : Number(/\[steps (\d+)\]/.exec(users[0] ?? "")?.[1] ?? 1)
   if (results.length < steps)
-    return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, { ms: WORK_STEP_MS }), { stopReason: "toolUse" })
+    return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, { ms: WORK_STEP_MS, step: results.length }), {
+      stopReason: "toolUse",
+    })
   const told = results.map((r) => plainReport(textOf(r))).filter(Boolean)
   return fauxAssistantMessage(
     `work done: heard=${users.join(" | ")}${direct && told.length ? `; tool: ${told.join(", ")}` : ""}`,
@@ -191,7 +193,7 @@ function replyWithDelay(users: string[], results: string[], last: Message | unde
     return fauxAssistantMessage("[skip]")
   if (work && results.length < Number(capture(work, 1))) {
     const thought = users.some((u) => u.includes("[think]")) ? [fauxThinking(THOUGHT)] : []
-    return fauxAssistantMessage([...thought, fauxToolCall(SLOW_TOOL, { ms: 1_500 })], {
+    return fauxAssistantMessage([...thought, fauxToolCall(SLOW_TOOL, { ms: 1_500, step: results.length })], {
       stopReason: "toolUse",
     })
   }
@@ -283,7 +285,7 @@ const slowTool = (name: string, effect: Effect) =>
     defineTool({
       name,
       description: "waits a few seconds, then says slept.",
-      parameters: Type.Object({ ms: Type.Optional(Type.Number()) }),
+      parameters: Type.Object({ ms: Type.Optional(Type.Number()), step: Type.Optional(Type.Number()) }),
       execute: async (args, _api, context) => {
         await awaitWithContext(boundedWait(Math.min(args.ms ?? SLOW_TOOL_MS, 300_000)), context)
         return { output: [{ type: "text", text: "slept" }] }
