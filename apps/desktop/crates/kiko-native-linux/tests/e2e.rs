@@ -283,8 +283,13 @@ fn gtk_background_actions_leave_the_owner_screen_alone() {
     let ready = out.path().join("ready");
     wait_file(&ready);
 
+    let cover = wait_for("the covering window to be focused", || {
+        let windows = native.windows().ok()?;
+        windows
+            .into_iter()
+            .find(|window| window.title.contains(COVER) && window.focused)
+    });
     let target = wait_window(&mut native, TARGET);
-    let cover = wait_window(&mut native, COVER);
     assert!(cover.focused, "the covering window should be focused");
     assert!(!target.focused, "the target window should not be focused");
 
