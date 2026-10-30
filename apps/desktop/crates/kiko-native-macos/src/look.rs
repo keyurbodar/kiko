@@ -40,6 +40,15 @@ const CHROMIUM: [&str; 5] = [
 
 const WEBKIT: [&str; 1] = ["com.apple.Safari"];
 
+const WEB_NAMES: [&str; 6] = [
+    "Google Chrome",
+    "Google Chrome Canary",
+    "Microsoft Edge",
+    "Brave Browser",
+    "Chromium",
+    "Safari",
+];
+
 const ENHANCED: &str = "AXEnhancedUserInterface";
 const MANUAL: &str = "AXManualAccessibility";
 const WEB_AREA: &str = "AXWebArea";
@@ -286,26 +295,31 @@ fn push(actions: &mut Vec<Action>, action: Action) {
     }
 }
 
-pub fn enable(pid: i32, bundle: Option<&str>) -> Element {
+pub fn enable(pid: i32, bundle: Option<&str>, app: &str) -> Element {
     let application = ax::application(pid);
-    if !opt_in(&application, bundle) {
+    if !opt_in(&application, bundle, app) {
         return application;
     }
     let deadline = Instant::now() + WEB_WAIT;
     while !web_content_present(&application) && Instant::now() < deadline {
-        opt_in(&application, bundle);
+        opt_in(&application, bundle, app);
         std::thread::sleep(WEB_POLL);
     }
     application
 }
 
-fn opt_in(application: &AXUIElement, bundle: Option<&str>) -> bool {
-    let name = if web_app(bundle) { ENHANCED } else { MANUAL };
+fn opt_in(application: &AXUIElement, bundle: Option<&str>, app: &str) -> bool {
+    let name = if web_app(bundle, app) {
+        ENHANCED
+    } else {
+        MANUAL
+    };
     ax::set_flag(application, name, true) == objc2_application_services::AXError::Success
 }
 
-pub fn web_app(bundle: Option<&str>) -> bool {
+pub fn web_app(bundle: Option<&str>, app: &str) -> bool {
     bundle.is_some_and(|bundle| CHROMIUM.contains(&bundle) || WEBKIT.contains(&bundle))
+        || WEB_NAMES.contains(&app)
 }
 
 pub fn open_menus(application: &AXUIElement) -> Vec<Element> {

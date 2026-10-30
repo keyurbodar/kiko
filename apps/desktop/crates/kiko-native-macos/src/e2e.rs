@@ -825,15 +825,13 @@ fn cover_with_finder(driver: &mut MacDriver, target: Rect) -> Window {
     set_window_frame(&finder, cover);
     let front = wait_for(SETTLE, || {
         apps::activate(finder.pid as i32);
-        apps::frontmost()
-            .map(|app| app.pid)
-            .filter(|pid| *pid == finder.pid as i32)
+        window::front_pid().filter(|pid| *pid == finder.pid as i32)
     });
     assert_eq!(
         front,
         Some(finder.pid as i32),
-        "Finder should own the screen for this test; frontmost is {:?}",
-        apps::frontmost().map(|app| (app.name, app.pid))
+        "Finder should own the screen for this test; the front window belongs to pid {:?}",
+        window::front_pid()
     );
     finder
 }
@@ -846,17 +844,13 @@ struct Owner {
 impl Owner {
     fn capture() -> Self {
         Self {
-            front: apps::frontmost().map(|app| app.pid),
+            front: window::front_pid(),
             pointer: input::pointer(),
         }
     }
 
     fn assert_unchanged(&self) {
-        assert_eq!(
-            apps::frontmost().map(|app| app.pid),
-            self.front,
-            "the frontmost app changed"
-        );
+        assert_eq!(window::front_pid(), self.front, "the frontmost app changed");
         let now = input::pointer();
         assert!(
             (now.x - self.pointer.x).abs() < POINTER_SLACK

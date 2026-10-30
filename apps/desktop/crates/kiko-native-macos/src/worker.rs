@@ -69,7 +69,8 @@ impl Worker {
         let id = window_id(&window)?;
         let mut nodes = Vec::new();
         if params.tree {
-            let application = look::enable(window.pid as i32, window.bundle.as_deref());
+            let application =
+                look::enable(window.pid as i32, window.bundle.as_deref(), &window.app);
             let element = window::ax_element_for(id, window.pid as i32).ok_or_else(|| {
                 DriverError::new(ErrorCode::NotFound, "this window has no accessibility tree")
             })?;
@@ -128,7 +129,7 @@ impl Worker {
                     bring_forward(pid, id);
                 } else {
                     make_key_window(pid, id);
-                    if let Some(result) = shortcut_route(pid, keys, window.bundle.as_deref()) {
+                    if let Some(result) = shortcut_route(pid, keys, window) {
                         return result.map(|route| ActResult { route });
                     }
                 }
@@ -211,12 +212,12 @@ fn make_key_window(pid: i32, id: u32) {
 
 fn background_front(params: &ActParams) -> Option<i32> {
     (params.mode == Mode::Background)
-        .then(|| apps::frontmost().map(|app| app.pid))
+        .then(window::front_pid)
         .flatten()
 }
 
-fn menu_route(pid: i32, keys: &str, bundle: Option<&str>) -> Option<kiko_driver::Result<Route>> {
-    if look::web_app(bundle) {
+fn menu_route(pid: i32, keys: &str, window: &Window) -> Option<kiko_driver::Result<Route>> {
+    if look::web_app(window.bundle.as_deref(), &window.app) {
         return None;
     }
     let (key, modifiers) = input::split(keys).ok()?;
@@ -224,12 +225,8 @@ fn menu_route(pid: i32, keys: &str, bundle: Option<&str>) -> Option<kiko_driver:
     menu::invoke(pid, &combo)
 }
 
-fn shortcut_route(
-    pid: i32,
-    keys: &str,
-    bundle: Option<&str>,
-) -> Option<kiko_driver::Result<Route>> {
-    match menu_route(pid, keys, bundle) {
+fn shortcut_route(pid: i32, keys: &str, window: &Window) -> Option<kiko_driver::Result<Route>> {
+    match menu_route(pid, keys, window) {
         Some(Ok(route)) => Some(Ok(route)),
         other => select_all_route(pid, keys).map(Ok).or(other),
     }

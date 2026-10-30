@@ -1,11 +1,8 @@
-use std::collections::HashMap;
-
 use kiko_driver::{Rect, Window};
 use objc2_core_foundation::{CFArray, CFDictionary, CFNumber, CFType};
 use objc2_core_graphics::{CGWindowListCopyWindowInfo, CGWindowListOption};
 
-use crate::apps::{self, App};
-use crate::{ax, cf};
+use crate::{apps, ax, cf};
 
 pub const NULL_WINDOW: u32 = 0;
 
@@ -180,38 +177,40 @@ fn distance(frame: &Option<Rect>, target: &Rect) -> f64 {
     }
 }
 
-pub fn list() -> Vec<Window> {
-    let apps = apps::running();
-    let names: HashMap<i32, App> = apps.iter().map(|app| (app.pid, app.clone())).collect();
-    let focused = apps::frontmost().and_then(|app| focused_window_id(app.pid));
-    let entries: HashMap<u32, Entry> = every().into_iter().map(|entry| (entry.id, entry)).collect();
+pub fn front_pid() -> Option<i32> {
+    on_screen().first().map(|entry| entry.pid)
+}
 
+pub fn list() -> Vec<Window> {
+    let focused = front_pid().and_then(focused_window_id);
+    let entries = every();
     let mut seen = std::collections::HashSet::new();
-    let mut windows: Vec<Window> = on_screen()
-        .into_iter()
-        .filter(|entry| names.contains_key(&entry.pid))
-        .map(|entry| {
-            seen.insert(entry.id);
-            build(&entry, &names, focused)
-        })
+    let mut windows: Vec<Window> = entries
+        .iter()
+        .filter(|entry| seen.insert(entry.id))
+        .map(|entry| build(entry, focused))
         .collect();
 
-    for app in &apps {
-        for window in ax_windows(app.pid) {
+    for pid in entries.iter().map(|entry| entry.pid).collect::<Vec<_>>() {
+        for window in ax_windows(pid) {
             let Some(id) = window.id else { continue };
             if !seen.insert(id) {
                 continue;
             }
-            let entry = entries.get(&id).cloned().unwrap_or(Entry {
-                id,
-                pid: app.pid,
-                app: app.name.clone(),
-                title: window.title.clone(),
-                frame: window.frame.unwrap_or_default(),
-                on_screen: false,
-                layer: 0,
-            });
-            let mut built = build(&entry, &names, focused);
+            let entry = entries
+                .iter()
+                .find(|entry| entry.id == id)
+                .cloned()
+                .unwrap_or(Entry {
+                    id,
+                    pid,
+                    app: String::new(),
+                    title: window.title.clone(),
+                    frame: window.frame.unwrap_or_default(),
+                    on_screen: false,
+                    layer: 0,
+                });
+            let mut built = build(&entry, focused);
             built.minimized = window.minimized;
             if built.title.is_empty() {
                 built.title = window.title.clone();
@@ -223,15 +222,17 @@ pub fn list() -> Vec<Window> {
     windows
 }
 
-fn build(entry: &Entry, names: &HashMap<i32, App>, focused: Option<u32>) -> Window {
-    let app = names.get(&entry.pid);
+fn build(entry: &Entry, focused: Option<u32>) -> Window {
+    let app = apps::with_pid(entry.pid);
     Window {
         id: entry.id.to_string(),
         pid: entry.pid as u32,
         app: app
+            .as_ref()
             .map(|app| app.name.clone())
+            .filter(|name| !name.is_empty())
             .unwrap_or_else(|| entry.app.clone()),
-        bundle: app.and_then(|app| app.bundle.clone()),
+        bundle: app.and_then(|app| app.bundle),
         title: entry.title.clone(),
         frame: entry.frame,
         focused: focused == Some(entry.id),
@@ -242,31 +243,26 @@ fn build(entry: &Entry, names: &HashMap<i32, App>, focused: Option<u32>) -> Wind
 
 pub fn resolve(id: &str) -> Option<Window> {
     let id: u32 = id.parse().ok()?;
-    let focused = apps::frontmost().and_then(|app| focused_window_id(app.pid));
+    let focused = front_pid().and_then(focused_window_id);
     if let Some(entry) = find(id) {
-        let app = apps::with_pid(entry.pid);
-        let minimized = ax_windows(entry.pid)
+        let mut window = build(&entry, focused);
+        window.minimized = ax_windows(entry.pid)
             .into_iter()
             .find(|window| window.id == Some(id))
             .is_some_and(|window| window.minimized);
-        let mut window = build(&entry, &HashMap::new(), focused);
-        if let Some(app) = app {
-            window.app = app.name;
-            window.bundle = app.bundle;
-        }
-        window.minimized = minimized;
         return Some(window);
     }
-    for app in apps::running() {
-        if let Some(window) = ax_windows(app.pid)
+    for pid in every().iter().map(|entry| entry.pid) {
+        if let Some(window) = ax_windows(pid)
             .into_iter()
             .find(|window| window.id == Some(id))
         {
+            let app = apps::with_pid(pid);
             return Some(Window {
                 id: id.to_string(),
-                pid: app.pid as u32,
-                app: app.name.clone(),
-                bundle: app.bundle.clone(),
+                pid: pid as u32,
+                app: app.as_ref().map(|app| app.name.clone()).unwrap_or_default(),
+                bundle: app.and_then(|app| app.bundle),
                 title: window.title.clone(),
                 frame: window.frame.unwrap_or_default(),
                 focused: focused == Some(id),
