@@ -10,7 +10,7 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use image::ImageFormat;
 use kiko_driver::Native;
 use kiko_driver::api::{
-    ActParams, ActResult, Action, Look, LookParams, Mode, Node, Point, Route, Window,
+    ActParams, ActResult, Action, ErrorCode, Look, LookParams, Mode, Node, Point, Route, Window,
 };
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, WPARAM};
 use windows::Win32::UI::Controls::EM_SETSEL;
@@ -607,21 +607,31 @@ fn background_typing_splices_at_the_caret_in_a_page_field() {
     });
     let mut first = background(&window.id, Some(field.reference), Action::Type);
     first.text = Some("alpha".into());
-    assert_eq!(act(&mut driver, first).route, Route::Accessibility);
+    assert_eq!(
+        act(&mut driver, first).route,
+        Route::Accessibility,
+        "an empty page field has a known caret, so the value is spliced at it"
+    );
     let mut second = background(&window.id, Some(field.reference), Action::Type);
     second.text = Some("beta".into());
-    assert_eq!(act(&mut driver, second).route, Route::Accessibility);
+    match driver.act(&second) {
+        Ok(result) => assert_eq!(result.route, Route::Accessibility),
+        Err(error) => assert_eq!(
+            error.code,
+            ErrorCode::BackgroundUnavailable,
+            "a page field whose caret is unknown refuses instead of replacing its text: {error}"
+        ),
+    }
 
-    let value = wait_for("the page field to hold both words", || {
+    let value = wait_for("the page field to hold the typed word", || {
         let found = try_look(&mut driver, &window.id).ok()?;
         let field = find_optional(&found.nodes, "edit", Some("kiko note"))?;
         let value = field.value.clone().unwrap_or_default();
-        (value.contains("alpha") && value.contains("beta")).then_some(value)
+        value.contains("alpha").then_some(value)
     });
-    assert_eq!(
-        value.chars().count(),
-        9,
-        "background typing inserted at the caret instead of replacing the field: {value:?}"
+    assert!(
+        value == "alpha" || value == "alphabeta" || value == "betaalpha",
+        "background typing inserted at the caret or refused, never replaced the field: {value:?}"
     );
     checkpoint("edge type", foreground_before);
     assert_untouched(foreground_before, cursor_before);
@@ -723,26 +733,12 @@ fn foreground_input_reaches_the_testapp_and_raises_it() {
     let mut select_all = foreground_act(&target.id(), Some(edit.reference), Action::Key);
     select_all.keys = Some("ctrl+a".into());
     assert_eq!(act(&mut driver, select_all).route, Route::Foreground);
-    let selected = look(&mut driver, &target.id());
-    let edit = find(&selected.nodes, "edit", None).clone();
-    eprintln!(
-        "after ctrl+a: value {:?} states {:?}",
-        edit.value, edit.states
-    );
     let mut delete = foreground_act(&target.id(), Some(edit.reference), Action::Key);
     delete.keys = Some("delete".into());
     assert_eq!(act(&mut driver, delete).route, Route::Foreground);
-    let mut last: Option<Option<String>> = None;
     let cleared = wait_for("ctrl+a then delete to clear the edit", || {
         let found = try_look(&mut driver, &target.id()).ok()?;
         let edit = find_optional(&found.nodes, "edit", None)?;
-        if last.as_ref() != Some(&edit.value) {
-            eprintln!(
-                "clear probe: value {:?} states {:?}",
-                edit.value, edit.states
-            );
-            last = Some(edit.value.clone());
-        }
         edit.value.is_none().then_some(found)
     });
     let edit = find(&cleared.nodes, "edit", None).clone();

@@ -217,22 +217,20 @@ fn edit_class(window: isize) -> bool {
 fn splice_at_selection(element: &IUIAutomationElement, text: &str) -> Result<Outcome> {
     let value = writable_value(element).ok_or_else(no_value)?;
     let document = document_range(element).ok_or_else(no_text_pattern)?;
-    let selection = selection_range(element).ok_or_else(no_selection)?;
     let current = unsafe { value.CurrentValue() }
         .map(|value| value.to_string())
         .unwrap_or_default();
-    let document_text = unsafe { document.GetText(-1) }
-        .map(|value| value.to_string())
-        .unwrap_or_default();
+    let document_text = range_text(&document);
     let base = if current.encode_utf16().count() == document_text.encode_utf16().count() {
         current
     } else {
         document_text
     };
-    let prefix = prefix_text(&document, &selection)?;
-    let selected = unsafe { selection.GetText(-1) }
-        .map(|value| value.to_string())
-        .unwrap_or_default();
+    let (prefix, selected) = match selection_range(element) {
+        Some(selection) => (prefix_text(&document, &selection)?, range_text(&selection)),
+        None if base.is_empty() => (String::new(), String::new()),
+        None => return Err(no_selection()),
+    };
     let spliced = splice(&base, &prefix, &selected, text);
     unsafe {
         value
@@ -240,6 +238,12 @@ fn splice_at_selection(element: &IUIAutomationElement, text: &str) -> Result<Out
             .map_err(|error| failed("SetValue", error))?
     };
     route(Route::Accessibility)
+}
+
+fn range_text(range: &IUIAutomationTextRange) -> String {
+    unsafe { range.GetText(-1) }
+        .map(|value| value.to_string())
+        .unwrap_or_default()
 }
 
 fn no_value() -> kiko_driver::DriverError {

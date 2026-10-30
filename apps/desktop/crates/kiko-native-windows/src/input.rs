@@ -585,11 +585,12 @@ pub fn foreground_wheel(screen: Point, dx: f64, dy: f64) -> Result<()> {
 }
 
 fn keyboard_input(scan: u16, key: u16, flags: KEYBD_EVENT_FLAGS) -> INPUT {
+    let scancode = flags.0 & KEYEVENTF_SCANCODE.0 != 0 && scan != 0;
     INPUT {
         r#type: INPUT_KEYBOARD,
         Anonymous: INPUT_0 {
             ki: KEYBDINPUT {
-                wVk: VIRTUAL_KEY(key),
+                wVk: VIRTUAL_KEY(if scancode { 0 } else { key }),
                 wScan: scan,
                 dwFlags: flags,
                 time: 0,
