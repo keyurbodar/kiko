@@ -201,7 +201,7 @@ jobs:
         working-directory: apps/desktop
         run: cargo test -p kiko-app --test smoke -- --test-threads=1
       - name: Install the workspace
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
       - name: Package the app
         shell: pwsh
         run: |

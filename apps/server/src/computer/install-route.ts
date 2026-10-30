@@ -540,7 +540,7 @@ if ($PairUrl) {
     & $core pair $PairUrl
   }
   if ($LASTEXITCODE -ne 0) { throw 'kiko: pairing failed' }
-} else {
+} elseif (-not $same) {
   Say "no pair link yet. Open $origin in a browser, add this computer, then run:"
   Write-Host ('  "' + $core + '" pair "<pair-url>"')
 }
