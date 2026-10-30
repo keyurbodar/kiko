@@ -10,6 +10,7 @@
   line-height: var(--type-row-line);
 }
 .run-tree:not([data-live]) {
+  margin-top: calc(var(--run-gap) + var(--row-gap));
   padding-bottom: 4px;
 }
 
@@ -473,7 +474,11 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
 .run-tree-thought {
   margin: 2px 0 6px 24px;
   max-height: 16rem;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.run-tree-thought[data-streaming] {
+  max-height: 88px;
 }
 
 @media (prefers-reduced-motion: no-preference) {

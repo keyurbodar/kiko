@@ -145,8 +145,6 @@ function Chevron(props: { open: boolean }): JSX.Element {
   )
 }
 
-export type StepsToggle = { open: boolean; toggle: () => void }
-
 function Caption(props: { text: string; running: boolean }): JSX.Element {
   const [leaving, setLeaving] = createSignal<string>()
   createEffect(
@@ -176,12 +174,7 @@ function Caption(props: { text: string; running: boolean }): JSX.Element {
   )
 }
 
-export function ThinkingLine(props: {
-  thought: Thought | undefined
-  fallback: string
-  since?: number
-  steps?: StepsToggle
-}): JSX.Element {
+export function ThinkingLine(props: { thought: Thought | undefined; fallback: string; since?: number }): JSX.Element {
   const live = () => (props.thought && !props.thought.over ? props.thought : undefined)
   const text = () => {
     const thought = live()
@@ -205,31 +198,11 @@ export function ThinkingLine(props: {
       <Show
         when={text()}
         fallback={
-          <Show
-            when={props.steps}
-            fallback={
-              <div class="thinking-row">
-                <Mochi size={20} />
-                <Caption text={props.fallback} running />
-                <Show when={elapsed()}>{(time) => <span class="thinking-time">{time()}</span>}</Show>
-              </div>
-            }
-          >
-            {(steps) => (
-              <button
-                type="button"
-                class="thinking-row thinking-toggle"
-                aria-expanded={steps().open}
-                aria-label={`${props.fallback}. ${steps().open ? "Hide" : "Show"} steps`}
-                onClick={() => steps().toggle()}
-              >
-                <Mochi size={20} />
-                <Caption text={props.fallback} running />
-                <Show when={elapsed()}>{(time) => <span class="thinking-time">{time()}</span>}</Show>
-                <Chevron open={steps().open} />
-              </button>
-            )}
-          </Show>
+          <div class="thinking-row">
+            <Mochi size={20} />
+            <Caption text={props.fallback} running />
+            <Show when={elapsed()}>{(time) => <span class="thinking-time">{time()}</span>}</Show>
+          </div>
         }
       >
         <button type="button" class="thinking-row thinking-toggle" aria-expanded={open()} onClick={toggle}>

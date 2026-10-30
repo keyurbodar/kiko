@@ -61,11 +61,15 @@
 }
 
 .thinking-stream {
-  width: min(36rem, 100%);
+  box-sizing: border-box;
+  width: auto;
+  max-width: 36rem;
+  min-width: 0;
   max-height: 24rem;
   margin-left: 9px;
   padding: 2px 0 2px 18px;
   overflow-y: auto;
+  overflow-x: hidden;
   border-left: 1px solid var(--line);
   scrollbar-width: thin;
   color: var(--fg3);
