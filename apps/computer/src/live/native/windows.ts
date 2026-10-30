@@ -20,6 +20,7 @@ const MOUSEEVENTF_MIDDLEUP = 0x0040
 const MOUSEEVENTF_WHEEL = 0x0800
 const MOUSEEVENTF_HWHEEL = 0x01000
 const WHEEL_DELTA = 120
+const WHEEL_PIXELS = 100
 const UNIT = 0xffff
 const SM_XVIRTUALSCREEN = 76
 const SM_YVIRTUALSCREEN = 77
@@ -146,13 +147,11 @@ export function windowsNative(): Native | null {
       )
       send(1)
     },
-    wheel(steps, horizontal) {
-      const flag = horizontal ? MOUSEEVENTF_HWHEEL : MOUSEEVENTF_WHEEL
-      const count = Math.min(5, Math.max(1, Math.abs(steps)))
-      for (let i = 0; i < count; i++) {
-        mouseInput(input, flag, 0, 0, (steps > 0 === horizontal ? 1 : -1) * WHEEL_DELTA)
-        send(1)
-      }
+    wheel(pixels, horizontal) {
+      const data = Math.round((pixels * WHEEL_DELTA) / WHEEL_PIXELS)
+      if (data === 0) return
+      mouseInput(input, horizontal ? MOUSEEVENTF_HWHEEL : MOUSEEVENTF_WHEEL, 0, 0, horizontal ? data : -data)
+      send(1)
     },
     key(code, key, down) {
       if (down) held.add(code)

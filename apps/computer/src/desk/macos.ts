@@ -99,10 +99,15 @@ function aborted(): Fail {
   return new Fail({ code: "cancelled", message: "the call was cancelled" })
 }
 
-async function capture(signal: AbortSignal): Promise<Shot> {
+export function captureCommand(area: Area, whole: boolean, file: string): string[] {
+  const where = whole ? ["-m"] : ["-R", `${area.originX},${area.originY},${area.width},${area.height}`]
+  return [SCREENSHOT, "-x", ...where, "-t", "png", file]
+}
+
+async function capture(area: Area, whole: boolean, signal: AbortSignal): Promise<Shot> {
   if (signal.aborted) throw aborted()
   const file = join(tmpdir(), `kiko-computer-${crypto.randomUUID()}.png`)
-  const proc = Bun.spawn([SCREENSHOT, "-x", "-m", "-t", "png", file], { stdout: "ignore", stderr: "ignore" })
+  const proc = Bun.spawn(captureCommand(area, whole, file), { stdout: "ignore", stderr: "ignore" })
   const kill = () => proc.kill()
   signal.addEventListener("abort", kill, { once: true })
   try {
@@ -131,6 +136,13 @@ async function launch(target: string, signal: AbortSignal): Promise<void> {
   }
 }
 
+function mainArea(display: Display): Area | null {
+  const width = display.wide(display.id())
+  const height = display.high(display.id())
+  if (width <= 0 || height <= 0) return null
+  return { width, height, originX: 0, originY: 0 }
+}
+
 export function macDesk(): Backend | null {
   if (process.platform !== "darwin") return null
   const display = openDisplay()
@@ -139,14 +151,16 @@ export function macDesk(): Backend | null {
   if (!display || !permissions || !native) return null
   return {
     native,
-    area(): Area | null {
-      const width = display.wide(display.id())
-      const height = display.high(display.id())
-      if (width <= 0 || height <= 0) return null
-      return { width, height, originX: 0, originY: 0 }
-    },
-    shoot(_area, signal) {
-      return capture(signal)
+    area: () => mainArea(display),
+    shoot(area, signal) {
+      const full = mainArea(display)
+      const whole =
+        full !== null &&
+        area.originX === full.originX &&
+        area.originY === full.originY &&
+        area.width === full.width &&
+        area.height === full.height
+      return capture(area, whole, signal)
     },
     access() {
       return freshAccess() ?? { screen: permissions.preflightScreen(), input: permissions.preflightInput() }

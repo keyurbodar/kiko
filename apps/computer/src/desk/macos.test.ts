@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
 import { vi } from "vitest"
-import { launchCommand, parseAccess } from "./macos"
+import { captureCommand, launchCommand, parseAccess } from "./macos"
 
 vi.mock("bun:ffi", () => ({ dlopen: () => ({ symbols: {} }), FFIType: {} }))
 
@@ -28,5 +28,32 @@ describe("reading the access answer", () => {
     expect(parseAccess("null")).toBeNull()
     expect(parseAccess('{"screen":"yes","input":true}')).toBeNull()
     expect(parseAccess('{"screen":true}')).toBeNull()
+  })
+})
+
+describe("screencapture arguments", () => {
+  const area = { originX: 100, originY: 40, width: 300, height: 200 }
+
+  it("captures the main display whole", () => {
+    expect(captureCommand(area, true, "/tmp/a.png")).toEqual([
+      "/usr/sbin/screencapture",
+      "-x",
+      "-m",
+      "-t",
+      "png",
+      "/tmp/a.png",
+    ])
+  })
+
+  it("captures only the zoom box in points", () => {
+    expect(captureCommand(area, false, "/tmp/a.png")).toEqual([
+      "/usr/sbin/screencapture",
+      "-x",
+      "-R",
+      "100,40,300,200",
+      "-t",
+      "png",
+      "/tmp/a.png",
+    ])
   })
 })

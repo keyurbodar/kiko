@@ -1,7 +1,9 @@
 import { dlopen, FFIType, ptr, toArrayBuffer } from "bun:ffi"
 import type { Native } from "./contract"
+import { notches } from "./wheel"
 import { spareKeycode, unicodeKeysym } from "./keysym"
 
+const WHEEL_NOTCH_PX = 50
 const REMAP_SETTLE_MS = 40
 const X_BUTTONS = [1, 3, 2]
 
@@ -292,6 +294,8 @@ export function linuxNative(): Native | null {
     else typeSymbol(unicodeKeysym(codepoint))
   }
 
+  const upright = notches(WHEEL_NOTCH_PX)
+  const sideways = notches(WHEEL_NOTCH_PX)
   return {
     move(x, y) {
       symbols.motion(x, y)
@@ -304,10 +308,11 @@ export function linuxNative(): Native | null {
       else heldButtons.delete(slot)
       symbols.flush()
     },
-    wheel(steps, horizontal) {
+    wheel(pixels, horizontal) {
+      const steps = (horizontal ? sideways : upright)(pixels)
+      if (steps === 0) return
       const button = horizontal ? (steps > 0 ? 7 : 6) : steps > 0 ? 5 : 4
-      const count = Math.min(10, Math.max(1, Math.abs(steps)))
-      for (let i = 0; i < count; i++) {
+      for (let i = 0; i < Math.abs(steps); i++) {
         symbols.button(button, true)
         symbols.button(button, false)
       }

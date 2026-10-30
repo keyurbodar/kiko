@@ -12,8 +12,11 @@ const FRAMES = 4
 const SETTLE_MS = 350
 const DRAG_STEPS = 12
 const DRAG_STEP_MS = 8
-const WHEEL_PIXELS_PER_STEP = 100
-const MAX_WHEEL_STEPS = 10
+const MIN_WHEEL_PIXELS = 50
+const HOVER_MS = 40
+const PRESS_MS = 30
+const FOCUS_MS = 120
+const STEP_GAP_MS = 60
 
 const BUTTONS = { left: 0, right: 1, middle: 2 } as const
 
@@ -23,6 +26,8 @@ export type Encoded = { data: string; width: number; height: number }
 export type Codec = (bytes: Uint8Array<ArrayBuffer>, limit: number) => Promise<Encoded>
 
 type Captured = { frame: Frame; image: Encoded }
+
+type Zoom = NonNullable<Args<"look">["zoom"]>
 
 type Placed = { image: { x: number; y: number }; native: { x: number; y: number } }
 
@@ -55,6 +60,7 @@ export class Desktop {
   ) {}
 
   async look(args: Args<"look">, deadline: Deadline): Promise<Value<"look">> {
+    if (args.zoom) return this.zoom(args.zoom, deadline)
     const shot = await this.capture(args, deadline)
     const image = args.image === false ? {} : { image: { mime: "image/jpeg" as const, data: shot.image.data } }
     return {
@@ -63,6 +69,22 @@ export class Desktop {
       height: shot.frame.height,
       controls: [],
       ...image,
+    }
+  }
+
+  private async zoom(zoom: Zoom, deadline: Deadline): Promise<Value<"look">> {
+    const frame = await this.resolve(zoom.captureId, deadline)
+    this.requireScreen()
+    const region = regionOf(frame, zoom)
+    if (!region) throw new Fail({ code: "failed", message: "the zoom box is outside the screenshot" })
+    const shot = await this.backend.shoot(region, deadline.signal)
+    const image = await this.codec(shot.bytes, LONG_EDGE)
+    return {
+      captureId: frame.id,
+      width: frame.width,
+      height: frame.height,
+      controls: [],
+      image: { mime: "image/jpeg", data: image.data },
     }
   }
 
@@ -87,6 +109,7 @@ export class Desktop {
         break
       }
       done += 1
+      if (done < args.steps.length) await sleep(STEP_GAP_MS)
     }
     await sleep(SETTLE_MS)
     const view = await this.look({ image: args.image }, deadline.child(10_000))
@@ -110,12 +133,14 @@ export class Desktop {
     if (step.id !== undefined)
       throw new Fail({ code: "failed", message: "element ids are not supported; click by x,y" })
     const at = this.place(frame, step.x, step.y)
-    this.press(at.native, BUTTONS[step.button ?? "left"], step.count ?? 1)
+    await this.press(at.native, BUTTONS[step.button ?? "left"], step.count ?? 1)
   }
 
   private async type(frame: Frame, step: Extract<Step, { op: "type" }>): Promise<void> {
-    if (step.x !== undefined && step.y !== undefined)
-      this.press(this.place(frame, step.x, step.y).native, BUTTONS.left, 1)
+    if (step.x !== undefined && step.y !== undefined) {
+      await this.press(this.place(frame, step.x, step.y).native, BUTTONS.left, 1)
+      await sleep(FOCUS_MS)
+    }
     this.backend.native.text(step.text)
     if (step.submit) this.keys("enter")
   }
@@ -130,9 +155,12 @@ export class Desktop {
   }
 
   private async scroll(frame: Frame, step: Extract<Step, { op: "scroll" }>): Promise<void> {
-    if (step.x !== undefined && step.y !== undefined) this.moveTo(this.inputPoint(frame, step.x, step.y))
-    if (step.dy !== 0) this.backend.native.wheel(wheelSteps(step.dy), false)
-    if (step.dx !== 0) this.backend.native.wheel(wheelSteps(step.dx), true)
+    if (step.x !== undefined && step.y !== undefined) {
+      this.moveTo(this.inputPoint(frame, step.x, step.y))
+      await sleep(HOVER_MS)
+    }
+    if (step.dy !== 0) this.backend.native.wheel(wheelPixels((step.dy * frame.area.height) / frame.height), false)
+    if (step.dx !== 0) this.backend.native.wheel(wheelPixels((step.dx * frame.area.width) / frame.width), true)
   }
 
   private async drag(frame: Frame, step: Extract<Step, { op: "drag" }>): Promise<void> {
@@ -155,10 +183,12 @@ export class Desktop {
     await sleep(Math.min(ms, Math.max(0, deadline.remaining() - 500)))
   }
 
-  private press(at: { x: number; y: number }, slot: number, count: number): void {
+  private async press(at: { x: number; y: number }, slot: number, count: number): Promise<void> {
     this.moveTo(at)
+    await sleep(HOVER_MS)
     for (let index = 0; index < count; index += 1) {
       this.backend.native.button(slot, true, at.x, at.y)
+      await sleep(PRESS_MS)
       this.backend.native.button(slot, false, at.x, at.y)
     }
   }
@@ -242,13 +272,30 @@ function stepFailure(cause: unknown, deadline: Deadline): string {
   return cause.message
 }
 
+function regionOf(frame: Frame, zoom: Zoom): Area | null {
+  const left = Math.max(0, Math.min(zoom.x, frame.width))
+  const top = Math.max(0, Math.min(zoom.y, frame.height))
+  const right = Math.min(frame.width, zoom.x + zoom.width)
+  const bottom = Math.min(frame.height, zoom.y + zoom.height)
+  if (right - left < 1 || bottom - top < 1) return null
+  const sx = frame.area.width / frame.width
+  const sy = frame.area.height / frame.height
+  const originX = Math.floor(frame.area.originX + left * sx)
+  const originY = Math.floor(frame.area.originY + top * sy)
+  return {
+    originX,
+    originY,
+    width: Math.max(1, Math.ceil(frame.area.originX + right * sx) - originX),
+    height: Math.max(1, Math.ceil(frame.area.originY + bottom * sy) - originY),
+  }
+}
+
 function limitOf(maxWidth: number | undefined): number {
   return Math.min(LONG_EDGE, maxWidth || LONG_EDGE)
 }
 
-function wheelSteps(pixels: number): number {
-  const steps = Math.max(1, Math.min(MAX_WHEEL_STEPS, Math.round(Math.abs(pixels) / WHEEL_PIXELS_PER_STEP) || 1))
-  return pixels < 0 ? -steps : steps
+function wheelPixels(pixels: number): number {
+  return Math.sign(pixels) * Math.max(MIN_WHEEL_PIXELS, Math.round(Math.abs(pixels)))
 }
 
 function targetOf(step: Step): { x: number; y: number } | null {

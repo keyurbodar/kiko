@@ -17,7 +17,7 @@ function fake(options: Options = {}) {
   const native: Native = {
     move: (x, y) => calls.push({ name: "move", args: [x, y] }),
     button: (slot, down, x, y) => calls.push({ name: "button", args: [slot, down, x, y] }),
-    wheel: (steps, horizontal) => calls.push({ name: "wheel", args: [steps, horizontal] }),
+    wheel: (pixels, horizontal) => calls.push({ name: "wheel", args: [pixels, horizontal] }),
     key: (code, key, down) => calls.push({ name: "key", args: [code, key, down] }),
     text: (value) => calls.push({ name: "text", args: [value] }),
     cursor: () => options.cursor ?? null,
@@ -27,7 +27,10 @@ function fake(options: Options = {}) {
   const backend: Backend = {
     native,
     area: () => (options.area === undefined ? AREA : options.area),
-    shoot: async () => ({ bytes: new Uint8Array([1, 2, 3]) }),
+    shoot: async (area) => {
+      calls.push({ name: "shoot", args: [area] })
+      return { bytes: new Uint8Array([1, 2, 3]) }
+    },
     access: () => options.access ?? { screen: true, input: true },
     requestAccess: () => {},
     open: async (target) => {
@@ -172,15 +175,15 @@ describe("Desktop.act", () => {
     ])
   })
 
-  it("scrolls in wheel steps with positive going down", async () => {
+  it("scrolls by screen points with positive going down", async () => {
     const { desktop, calls } = fake()
     const view = await desktop.look({}, deadline())
 
     await desktop.act({ captureId: view.captureId, steps: [{ op: "scroll", dy: 500, dx: -300 }] }, deadline())
 
     expect(named(calls, "wheel")).toEqual([
-      { name: "wheel", args: [5, false] },
-      { name: "wheel", args: [-3, true] },
+      { name: "wheel", args: [563, false] },
+      { name: "wheel", args: [-338, true] },
     ])
   })
 
@@ -247,5 +250,28 @@ describe("Desktop.act", () => {
     const error = await rejection(() => desktop.look({}, deadline()))
 
     expect(error.code).toBe("unsupported")
+  })
+
+  it("zooms into a box of the last screenshot without moving its coordinates", async () => {
+    const { desktop, calls } = fake()
+    const view = await desktop.look({}, deadline())
+
+    const zoomed = await desktop.look({ zoom: { x: 640, y: 0, width: 320, height: 100 } }, deadline())
+
+    expect(named(calls, "shoot").at(-1)).toEqual({
+      name: "shoot",
+      args: [{ originX: 720, originY: 0, width: 360, height: 113 }],
+    })
+    expect(zoomed).toMatchObject({ captureId: view.captureId, width: view.width, height: view.height })
+    expect(zoomed.image?.mime).toBe("image/jpeg")
+  })
+
+  it("refuses a zoom box outside the screenshot", async () => {
+    const { desktop } = fake()
+    await desktop.look({}, deadline())
+
+    const failure = await rejection(() => desktop.look({ zoom: { x: 5000, y: 0, width: 10, height: 10 } }, deadline()))
+
+    expect(failure.message).toContain("outside the screenshot")
   })
 })
