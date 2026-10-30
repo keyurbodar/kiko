@@ -4,7 +4,7 @@ use kiko_driver::Rect;
 use objc2_application_services::{
     AXCopyMultipleAttributeOptions, AXError, AXUIElement, AXValue, AXValueType,
 };
-use objc2_core_foundation::{CFArray, CFRetained, CFString, CFType, CGPoint, CGSize};
+use objc2_core_foundation::{CFArray, CFRange, CFRetained, CFString, CFType, CGPoint, CGSize};
 
 use crate::cf;
 use crate::private;
@@ -26,6 +26,8 @@ pub const WINDOWS: &str = "AXWindows";
 pub const MINIMIZED: &str = "AXMinimized";
 pub const FOCUSED_WINDOW: &str = "AXFocusedWindow";
 pub const SELECTED_TEXT: &str = "AXSelectedText";
+pub const PARENT: &str = "AXParent";
+pub const VISIBLE_CHARACTER_RANGE: &str = "AXVisibleCharacterRange";
 
 pub const MESSAGING_TIMEOUT: f32 = 0.5;
 
@@ -99,6 +101,20 @@ pub fn elements(value: &Option<CFRetained<CFType>>) -> Vec<Element> {
         .collect()
 }
 
+pub fn retain(element: &AXUIElement) -> Element {
+    unsafe { CFRetained::retain(NonNull::from(element)) }
+}
+
+pub fn element_attribute(element: &AXUIElement, name: &str) -> Option<Element> {
+    let value = attribute(element, name)?;
+    let element = value.downcast_ref::<AXUIElement>()?;
+    Some(unsafe { CFRetained::<AXUIElement>::retain(NonNull::from(element)) })
+}
+
+pub fn parent(element: &AXUIElement) -> Option<Element> {
+    element_attribute(element, PARENT)
+}
+
 pub fn children(element: &AXUIElement) -> Vec<Element> {
     elements(&attribute(element, CHILDREN))
 }
@@ -145,6 +161,16 @@ pub fn size(value: &Option<CFRetained<CFType>>) -> Option<CGSize> {
     let mut size = CGSize::default();
     let decoded = unsafe { value.value(AXValueType::CGSize, NonNull::from(&mut size).cast()) };
     decoded.then_some(size)
+}
+
+pub fn range(value: &Option<CFRetained<CFType>>) -> Option<CFRange> {
+    let value = value.as_deref()?.downcast_ref::<AXValue>()?;
+    let mut range = CFRange {
+        location: 0,
+        length: 0,
+    };
+    let decoded = unsafe { value.value(AXValueType::CFRange, NonNull::from(&mut range).cast()) };
+    decoded.then_some(range)
 }
 
 pub fn frame(element: &AXUIElement) -> Option<Rect> {

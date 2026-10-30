@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
+use std::time::{Duration, Instant};
 
 use kiko_driver::{
     ActParams, ActResult, Action, DriverError, ErrorCode, Look, LookParams, Mode, OpenParams,
@@ -7,6 +8,9 @@ use kiko_driver::{
 };
 
 use crate::{act, apps, ax, capture, input, look, window};
+
+const ORDER_SETTLE: Duration = Duration::from_millis(400);
+const ORDER_POLL: Duration = Duration::from_millis(40);
 
 pub type Reply<T> = Sender<kiko_driver::Result<T>>;
 
@@ -62,12 +66,13 @@ impl Worker {
         let id = window_id(&window)?;
         let mut nodes = Vec::new();
         if params.tree {
-            look::enable(window.pid as i32, window.bundle.as_deref());
+            let application = look::enable(window.pid as i32, window.bundle.as_deref());
             let element = window::ax_element_for(id, window.pid as i32).ok_or_else(|| {
                 DriverError::new(ErrorCode::NotFound, "this window has no accessibility tree")
             })?;
             ax::timeout(&element, ax::MESSAGING_TIMEOUT);
-            let walk = look::walk(&element, window.frame);
+            let menus = look::open_menus(&application);
+            let walk = look::walk(&element, window.frame, &menus);
             nodes = walk.nodes;
             self.refs.insert(window.id.clone(), walk.refs);
         }
@@ -142,17 +147,22 @@ impl Worker {
                 if foreground {
                     bring_forward(pid, id);
                 }
-                let route = match act::apply(
+                let front = background_menu_front(action, foreground);
+                let result = match act::apply(
                     &element,
                     action,
                     params.text.as_deref(),
                     params.dx,
                     params.dy,
                 ) {
-                    Ok(route) => route,
-                    Err(error) if foreground || action != Action::Press => return Err(error),
-                    Err(error) => press_by_click(pid, id, &element, &window).map_err(|_| error)?,
+                    Ok(route) => Ok(route),
+                    Err(error) if foreground || action != Action::Press => Err(error),
+                    Err(error) => press_by_click(pid, id, &element, &window).map_err(|_| error),
                 };
+                if let Some(front) = front {
+                    restore_order(pid, front);
+                }
+                let route = result?;
                 Ok(ActResult {
                     route: if foreground { Route::Foreground } else { route },
                 })
@@ -186,6 +196,30 @@ fn make_key_window(pid: i32, id: u32) {
     };
     let application = ax::application(pid);
     ax::set(&application, ax::FOCUSED_WINDOW, &element);
+}
+
+fn background_menu_front(action: Action, foreground: bool) -> Option<i32> {
+    (action == Action::ShowMenu && !foreground)
+        .then(|| apps::frontmost().map(|app| app.pid))
+        .flatten()
+}
+
+fn restore_order(target: i32, front: i32) {
+    let deadline = Instant::now() + ORDER_SETTLE;
+    while !window::front_window_above(front, target) && Instant::now() < deadline {
+        raise_focused(front);
+        std::thread::sleep(ORDER_POLL);
+    }
+}
+
+fn raise_focused(pid: i32) {
+    let Some(id) = window::focused_window_id(pid) else {
+        return;
+    };
+    let Some(element) = window::ax_element_for(id, pid) else {
+        return;
+    };
+    ax::perform(&element, "AXRaise");
 }
 
 fn press_by_click(

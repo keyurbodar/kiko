@@ -20,7 +20,7 @@ jobs:
   macos:
     name: macos-15 native driver
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: apps/desktop
@@ -78,6 +78,24 @@ jobs:
           sleep 2
           pgrep -lx tccd || sudo launchctl kickstart -k system/com.apple.tccd || true
           sudo sqlite3 "$database" "SELECT service, client, auth_value FROM access WHERE client LIKE '%kiko_native_macos%';"
+
+      - name: Make sure Chrome is installed
+        run: |
+          set -euo pipefail
+          if [ ! -d "/Applications/Google Chrome.app" ]; then
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install --cask google-chrome
+          fi
+          ls -d "/Applications/Google Chrome.app"
+
+      - name: Install Electron for the web-content e2e
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/electron"
+          cd "$RUNNER_TEMP/electron"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund electron@38
+          test -x "$RUNNER_TEMP/electron/node_modules/.bin/electron"
+          echo "KIKO_E2E_ELECTRON=$RUNNER_TEMP/electron/node_modules/.bin/electron" >> "$GITHUB_ENV"
 
       - name: Start the apps the e2e drives
         run: |

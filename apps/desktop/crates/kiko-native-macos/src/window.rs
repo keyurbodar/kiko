@@ -143,6 +143,16 @@ pub fn focused_window_id(pid: i32) -> Option<u32> {
     ax::window_id(&window)
 }
 
+pub fn front_window_above(front: i32, target: i32) -> bool {
+    let order = on_screen();
+    let front_index = order.iter().position(|entry| entry.pid == front);
+    let target_index = order.iter().position(|entry| entry.pid == target);
+    match (front_index, target_index) {
+        (Some(front), Some(target)) => front < target,
+        _ => true,
+    }
+}
+
 pub fn ax_element_for(id: u32, pid: i32) -> Option<ax::Element> {
     let windows = ax_windows(pid);
     if let Some(found) = windows.iter().find(|window| window.id == Some(id)) {

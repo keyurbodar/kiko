@@ -1,11 +1,16 @@
+use std::time::{Duration, Instant};
+
 use kiko_driver::{Action, DriverError, ErrorCode, Route};
 use objc2_application_services::{AXError, AXUIElement};
-use objc2_core_foundation::{CFBoolean, CFNumber};
+use objc2_core_foundation::{CFBoolean, CFNumber, CFRange};
 
 use crate::ax;
 
 const VERTICAL_SCROLL_BAR: &str = "AXVerticalScrollBar";
 const HORIZONTAL_SCROLL_BAR: &str = "AXHorizontalScrollBar";
+const SCROLL_ANCESTORS: usize = 8;
+const SCROLL_SETTLE: Duration = Duration::from_millis(400);
+const SCROLL_POLL: Duration = Duration::from_millis(20);
 
 pub fn apply(
     element: &AXUIElement,
@@ -103,27 +108,61 @@ fn scroll(element: &AXUIElement, dx: f64, dy: f64) -> kiko_driver::Result<Route>
     if ax::perform(element, "AXScrollToVisible") == AXError::Success {
         return Ok(Route::Accessibility);
     }
-    let bars = if dy.abs() >= dx.abs() {
-        [VERTICAL_SCROLL_BAR, HORIZONTAL_SCROLL_BAR]
-    } else {
-        [HORIZONTAL_SCROLL_BAR, VERTICAL_SCROLL_BAR]
-    };
-    let delta = if dy.abs() >= dx.abs() { dy } else { dx };
-    for name in bars {
-        let Some(bar) = ax::attribute(element, name).and_then(|value| {
-            let bar = value.downcast_ref::<AXUIElement>()?;
-            Some(unsafe { objc2_core_foundation::CFRetained::retain(std::ptr::NonNull::from(bar)) })
-        }) else {
-            continue;
-        };
-        if nudge(&bar, delta) {
-            return Ok(Route::Accessibility);
+    let vertical = dy.abs() >= dx.abs();
+    let delta = if vertical { dy } else { dx };
+    let before = visible_range(element);
+    let mut current = ax::retain(element);
+    for _ in 0..SCROLL_ANCESTORS {
+        if let Some(bar) = scroll_bar(&current, vertical)
+            && nudge(&bar, delta)
+        {
+            if before.is_none_or(|before| moved(element, before)) {
+                return Ok(Route::Accessibility);
+            }
+            return Err(DriverError::new(
+                ErrorCode::BackgroundUnavailable,
+                "the scrollbar took the value but the content did not move; use foreground mode",
+            ));
         }
+        let Some(parent) = ax::parent(&current) else {
+            break;
+        };
+        current = parent;
     }
     Err(DriverError::new(
         ErrorCode::BackgroundUnavailable,
         "this window has no scrollbar the background can move; use foreground mode",
     ))
+}
+
+fn visible_range(element: &AXUIElement) -> Option<CFRange> {
+    ax::range(&ax::attribute(element, ax::VISIBLE_CHARACTER_RANGE))
+}
+
+fn moved(element: &AXUIElement, before: CFRange) -> bool {
+    let deadline = Instant::now() + SCROLL_SETTLE;
+    loop {
+        if let Some(now) = visible_range(element)
+            && now.location != before.location
+        {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(SCROLL_POLL);
+    }
+}
+
+fn scroll_bar(element: &AXUIElement, vertical: bool) -> Option<ax::Element> {
+    let names: [&str; 2] = if vertical {
+        [VERTICAL_SCROLL_BAR, HORIZONTAL_SCROLL_BAR]
+    } else {
+        [HORIZONTAL_SCROLL_BAR, VERTICAL_SCROLL_BAR]
+    };
+    names
+        .iter()
+        .find_map(|name| ax::element_attribute(element, name))
 }
 
 fn nudge(bar: &AXUIElement, delta: f64) -> bool {

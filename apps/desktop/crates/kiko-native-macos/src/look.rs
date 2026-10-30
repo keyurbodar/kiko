@@ -11,6 +11,8 @@ pub const DEADLINE: Duration = Duration::from_millis(3000);
 const VALUE_LIMIT: usize = 500;
 const WEB_PROBE_DEPTH: usize = 10;
 const WEB_PROBE_NODES: usize = 400;
+const WEB_WAIT: Duration = Duration::from_secs(4);
+const WEB_POLL: Duration = Duration::from_millis(100);
 
 const ATTRIBUTES: [&str; 13] = [
     ax::ROLE,
@@ -41,6 +43,8 @@ const WEBKIT: [&str; 1] = ["com.apple.Safari"];
 const ENHANCED: &str = "AXEnhancedUserInterface";
 const MANUAL: &str = "AXManualAccessibility";
 const WEB_AREA: &str = "AXWebArea";
+const MENU: &str = "AXMenu";
+const MENU_BAR: &str = "AXMenuBar";
 
 #[derive(Default)]
 pub struct Refs {
@@ -64,15 +68,24 @@ struct Pending {
     parent: Option<usize>,
 }
 
-pub fn walk(window: &AXUIElement, origin: Rect) -> Walk {
+pub fn walk(window: &AXUIElement, origin: Rect, extras: &[Element]) -> Walk {
     let deadline = Instant::now() + DEADLINE;
     let mut nodes: Vec<Node> = Vec::new();
     let mut elements: Vec<Element> = Vec::new();
-    let mut stack = vec![Pending {
-        element: unsafe { retain(window) },
+    let mut stack: Vec<Pending> = extras
+        .iter()
+        .rev()
+        .map(|element| Pending {
+            element: element.clone(),
+            depth: 0,
+            parent: None,
+        })
+        .collect();
+    stack.push(Pending {
+        element: ax::retain(window),
         depth: 0,
         parent: None,
-    }];
+    });
 
     while let Some(pending) = stack.pop() {
         if Instant::now() >= deadline || nodes.len() >= kiko_driver::MAX_NODES {
@@ -228,7 +241,7 @@ fn expand_role(role: &str) -> bool {
 fn scroll_role(role: &str) -> bool {
     matches!(
         role,
-        "scrollarea" | "webarea" | "table" | "outline" | "list" | "browser"
+        "scrollarea" | "webarea" | "table" | "outline" | "list" | "browser" | "textarea"
     )
 }
 
@@ -273,35 +286,44 @@ fn push(actions: &mut Vec<Action>, action: Action) {
     }
 }
 
-unsafe fn retain(element: &AXUIElement) -> Element {
-    let pointer = std::ptr::NonNull::from(element);
-    unsafe { objc2_core_foundation::CFRetained::retain(pointer) }
-}
-
 pub fn enable(pid: i32, bundle: Option<&str>) -> Element {
     let application = ax::application(pid);
-    if !assert_accessibility(&application, bundle) {
+    if !opt_in(&application, bundle) {
         return application;
     }
-    if !web_content_present(&application) {
-        std::thread::sleep(Duration::from_millis(100));
-        assert_accessibility(&application, bundle);
+    let deadline = Instant::now() + WEB_WAIT;
+    while !web_content_present(&application) && Instant::now() < deadline {
+        std::thread::sleep(WEB_POLL);
     }
     application
 }
 
-fn assert_accessibility(application: &AXUIElement, bundle: Option<&str>) -> bool {
+fn opt_in(application: &AXUIElement, bundle: Option<&str>) -> bool {
     let web = bundle.is_some_and(|bundle| CHROMIUM.contains(&bundle) || WEBKIT.contains(&bundle));
-    if web {
-        ax::set_flag(application, ENHANCED, true);
-        return true;
+    let name = if web { ENHANCED } else { MANUAL };
+    ax::set_flag(application, name, true) == objc2_application_services::AXError::Success
+}
+
+pub fn open_menus(application: &AXUIElement) -> Vec<Element> {
+    let mut menus = Vec::new();
+    for child in ax::children(application) {
+        let role = ax::text(&ax::attribute(&child, ax::ROLE)).unwrap_or_default();
+        match role.as_str() {
+            MENU => menus.push(child),
+            MENU_BAR => menus.extend(
+                ax::children(&child)
+                    .into_iter()
+                    .filter(|item| ax::flag(&ax::attribute(item, ax::SELECTED)) == Some(true)),
+            ),
+            _ => {}
+        }
     }
-    ax::set_flag(application, MANUAL, true) == objc2_application_services::AXError::Success
+    menus
 }
 
 fn web_content_present(application: &AXUIElement) -> bool {
     let mut budget = WEB_PROBE_NODES;
-    let mut stack: Vec<(Element, usize)> = vec![(unsafe { retain(application) }, 0)];
+    let mut stack: Vec<(Element, usize)> = vec![(ax::retain(application), 0)];
     while let Some((element, depth)) = stack.pop() {
         if budget == 0 || depth >= WEB_PROBE_DEPTH {
             continue;

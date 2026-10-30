@@ -1,21 +1,39 @@
 use std::fs;
 use std::path::PathBuf;
+use std::process::Child;
 use std::ptr::NonNull;
 use std::time::{Duration, Instant};
 
 use kiko_driver::{
-    ActParams, Action, Grant, Image, LookParams, Mode, Native, OpenParams, OpenTarget, Point, Rect,
-    Ref, Window,
+    ActParams, Action, Grant, Image, Look, LookParams, Mode, Native, Node, OpenParams, OpenTarget,
+    Point, Rect, Ref, Route, Window,
 };
-use objc2_application_services::{AXValue, AXValueType};
-use objc2_core_foundation::{CGPoint, CGSize};
+use objc2_application_services::{AXUIElement, AXValue, AXValueType};
+use objc2_core_foundation::{CFRange, CGPoint, CGSize};
 
-use crate::{apps, ax, driver::MacDriver, input, window};
+use crate::{apps, ax, driver::MacDriver, input, look, window};
 
 const LAUNCH: Duration = Duration::from_secs(30);
 const SETTLE: Duration = Duration::from_secs(5);
 const POINTER_SLACK: f64 = 1.0;
 const SAFARI: &str = "/Applications/Safari.app";
+const CHROME: &str = "/Applications/Google Chrome.app";
+const FRAME: Rect = Rect {
+    x: 160.0,
+    y: 160.0,
+    w: 640.0,
+    h: 420.0,
+};
+const LONG_LINES: usize = 400;
+const SCROLL_DELTA: f64 = 600.0;
+const MENU_TEXT: &str = "kiko menu test";
+const ELECTRON_MAIN: &str = r#"
+const { app, BrowserWindow } = require('electron');
+app.whenReady().then(() => {
+  const window = new BrowserWindow({ width: 640, height: 420, x: 160, y: 160 });
+  window.loadFile(process.env.KIKO_E2E_PAGE);
+});
+"#;
 
 struct DocumentApp {
     name: &'static str,
@@ -72,6 +90,228 @@ fn both_apps_answer_in_the_background_while_finder_covers_them() {
 
     check_document(&mut driver, &document, &finder, frame);
     check_safari(&mut driver, &safari, frame);
+    owner.assert_unchanged();
+}
+
+#[test]
+#[ignore = "needs a mac with Accessibility and Screen Recording granted to this binary"]
+fn background_keys_clear_the_document() {
+    let mut driver = MacDriver::new().expect("driver");
+    let document = start_document_app(&mut driver);
+    set_window_frame(&document, FRAME);
+    let finder = cover_with_finder(&mut driver, FRAME);
+    set_document_text(&mut driver, &document, "kiko typed this");
+    focus_text_area(&mut driver, &document);
+    let owner = Owner::capture();
+
+    let route = press_keys(&mut driver, &document, "cmd+a");
+    assert!(
+        matches!(route, Route::Private | Route::WindowEvent),
+        "cmd+a took the foreground route {route:?}"
+    );
+    press_keys(&mut driver, &document, "delete");
+
+    let text = wait_for(SETTLE, || {
+        document_text(&mut driver, &document).filter(String::is_empty)
+    });
+    assert_eq!(
+        text.as_deref(),
+        Some(""),
+        "the document still holds {:?}",
+        document_text(&mut driver, &document)
+    );
+    assert_covered(&finder, &document);
+    owner.assert_unchanged();
+}
+
+#[test]
+#[ignore = "needs a mac with Accessibility and Screen Recording granted to this binary"]
+fn background_scroll_moves_the_visible_range() {
+    let mut driver = MacDriver::new().expect("driver");
+    let document = start_document_app(&mut driver);
+    set_window_frame(&document, FRAME);
+    let finder = cover_with_finder(&mut driver, FRAME);
+    set_document_text(&mut driver, &document, &long_document());
+    focus_text_area(&mut driver, &document);
+    let area = text_area(&document);
+    let before = visible_range(&area).expect("TextEdit reports a visible character range");
+    let owner = Owner::capture();
+
+    let look = look_at(&mut driver, &document);
+    let reference = node(&look, "textarea").reference;
+    let route = act_with(
+        &mut driver,
+        &document,
+        reference,
+        Action::Scroll,
+        None,
+        0.0,
+        SCROLL_DELTA,
+    );
+    assert_eq!(route, Route::Accessibility);
+
+    let after = wait_for(SETTLE, || {
+        visible_range(&area).filter(|range| range.location != before.location)
+    });
+    let after = after.unwrap_or_else(|| panic!("the visible range stayed at {before:?}"));
+    assert!(
+        after.location > before.location,
+        "the document scrolled backwards: {before:?} to {after:?}"
+    );
+    assert_covered(&finder, &document);
+    owner.assert_unchanged();
+}
+
+#[test]
+#[ignore = "needs a mac with Accessibility and Screen Recording granted to this binary"]
+fn background_menu_item_selects_the_document() {
+    let mut driver = MacDriver::new().expect("driver");
+    let document = start_document_app(&mut driver);
+    set_window_frame(&document, FRAME);
+    let finder = cover_with_finder(&mut driver, FRAME);
+    set_document_text(&mut driver, &document, MENU_TEXT);
+    focus_text_area(&mut driver, &document);
+    let area = text_area(&document);
+    let owner = Owner::capture();
+
+    let look = look_at(&mut driver, &document);
+    let reference = node(&look, "textarea").reference;
+    let route = act_with(
+        &mut driver,
+        &document,
+        reference,
+        Action::ShowMenu,
+        None,
+        0.0,
+        0.0,
+    );
+    assert_eq!(route, Route::Accessibility);
+
+    let item = wait_for(SETTLE, || {
+        let look = look_at(&mut driver, &document);
+        look.nodes
+            .iter()
+            .find(|node| node.role == "menuitem" && node.name.contains("Select All"))
+            .cloned()
+    });
+    let Some(item) = item else {
+        let look = look_at(&mut driver, &document);
+        cancel_menus(&document);
+        panic!(
+            "no Select All menu item; nodes are {:?}",
+            roles(&look.nodes)
+        );
+    };
+    act_with(
+        &mut driver,
+        &document,
+        item.reference,
+        Action::Press,
+        None,
+        0.0,
+        0.0,
+    );
+
+    let selected = wait_for(SETTLE, || {
+        selected_text(&area).filter(|text| text == MENU_TEXT)
+    });
+    assert_eq!(
+        selected.as_deref(),
+        Some(MENU_TEXT),
+        "the menu item did not select the document; selection is {:?}",
+        selected_text(&area)
+    );
+    assert_covered(&finder, &document);
+    owner.assert_unchanged();
+}
+
+#[test]
+#[ignore = "needs a mac with Accessibility and Screen Recording granted to this binary"]
+fn chrome_web_area_answers_in_the_background() {
+    let mut driver = MacDriver::new().expect("driver");
+    let page = write_page("before");
+    let url = format!("file://{}", page.display());
+    let chrome = launch_chrome(&mut driver, &url);
+    set_window_frame(&chrome, FRAME);
+    let finder = cover_with_finder(&mut driver, FRAME);
+    let owner = Owner::capture();
+
+    let look = wait_for(SETTLE, || {
+        let look = look_at(&mut driver, &chrome);
+        look.outline.contains("webarea").then_some(look)
+    });
+    let Some(look) = look else {
+        let look = look_at(&mut driver, &chrome);
+        panic!(
+            "Chrome exposed no web area; nodes are {:?}",
+            roles(&look.nodes)
+        );
+    };
+
+    press_page_button(&mut driver, &chrome, &look);
+    let title = wait_for(SETTLE, || {
+        ax_title(&chrome).filter(|title| title == "after")
+    });
+    assert_eq!(
+        title.as_deref(),
+        Some("after"),
+        "the page button did not run its onclick; title is {:?}",
+        ax_title(&chrome)
+    );
+    assert_covered(&finder, &chrome);
+    owner.assert_unchanged();
+}
+
+#[test]
+#[ignore = "needs a mac with Accessibility and Screen Recording granted to this binary"]
+fn electron_web_area_answers_in_the_background() {
+    let electron = std::env::var("KIKO_E2E_ELECTRON")
+        .expect("set KIKO_E2E_ELECTRON to an Electron binary for this test");
+    let mut driver = MacDriver::new().expect("driver");
+    let page = write_page("before");
+    let app = write_electron_app();
+    let child = std::process::Command::new(&electron)
+        .arg(&app)
+        .env("KIKO_E2E_PAGE", &page)
+        .spawn()
+        .unwrap_or_else(|error| panic!("could not start {electron}: {error}"));
+    let _electron = ChildGuard(child);
+
+    let window = wait_for(LAUNCH, || window_named(&mut driver, "Electron"));
+    let Some(window) = window else {
+        panic!(
+            "no Electron window; running: {:?}; windows: {:?}",
+            running_apps(),
+            window_summary(&mut driver)
+        );
+    };
+    set_window_frame(&window, FRAME);
+    let finder = cover_with_finder(&mut driver, FRAME);
+    let owner = Owner::capture();
+
+    let look = wait_for(SETTLE, || {
+        let look = look_at(&mut driver, &window);
+        look.outline.contains("webarea").then_some(look)
+    });
+    let Some(look) = look else {
+        let look = look_at(&mut driver, &window);
+        panic!(
+            "Electron exposed no web area; nodes are {:?}",
+            roles(&look.nodes)
+        );
+    };
+
+    press_page_button(&mut driver, &window, &look);
+    let title = wait_for(SETTLE, || {
+        ax_title(&window).filter(|title| title == "after")
+    });
+    assert_eq!(
+        title.as_deref(),
+        Some("after"),
+        "the page button did not run its onclick; title is {:?}",
+        ax_title(&window)
+    );
+    assert_covered(&finder, &window);
     owner.assert_unchanged();
 }
 
@@ -225,6 +465,18 @@ fn act(
     action: Action,
     text: Option<&str>,
 ) {
+    act_with(driver, window, reference, action, text, 0.0, 0.0);
+}
+
+fn act_with(
+    driver: &mut MacDriver,
+    window: &Window,
+    reference: Ref,
+    action: Action,
+    text: Option<&str>,
+    dx: f64,
+    dy: f64,
+) -> Route {
     driver
         .act(&ActParams {
             window: window.id.clone(),
@@ -233,11 +485,107 @@ fn act(
             action,
             text: text.map(str::to_string),
             keys: None,
+            dx,
+            dy,
+            mode: Mode::Background,
+        })
+        .unwrap_or_else(|error| panic!("{action:?} on {} failed: {error}", window.app))
+        .route
+}
+
+fn press_keys(driver: &mut MacDriver, window: &Window, keys: &str) -> Route {
+    driver
+        .act(&ActParams {
+            window: window.id.clone(),
+            reference: None,
+            point: None,
+            action: Action::Key,
+            text: None,
+            keys: Some(keys.to_string()),
             dx: 0.0,
             dy: 0.0,
             mode: Mode::Background,
         })
-        .unwrap_or_else(|error| panic!("{action:?} on {} failed: {error}", window.app));
+        .unwrap_or_else(|error| panic!("{keys} on {} failed: {error}", window.app))
+        .route
+}
+
+fn look_at(driver: &mut MacDriver, window: &Window) -> Look {
+    driver
+        .look(&LookParams {
+            window: window.id.clone(),
+            tree: true,
+            image: false,
+            max_width: None,
+        })
+        .unwrap_or_else(|error| panic!("look at {} failed: {error}", window.app))
+}
+
+fn node<'a>(look: &'a Look, role: &str) -> &'a Node {
+    look.nodes
+        .iter()
+        .find(|node| node.role == role)
+        .unwrap_or_else(|| panic!("no {role} node; roles are {:?}", roles(&look.nodes)))
+}
+
+fn roles(nodes: &[Node]) -> Vec<String> {
+    let mut roles: Vec<String> = nodes.iter().map(|node| node.role.clone()).collect();
+    roles.sort();
+    roles.dedup();
+    roles
+}
+
+fn set_document_text(driver: &mut MacDriver, window: &Window, text: &str) {
+    let look = look_at(driver, window);
+    let reference = node(&look, "textarea").reference;
+    act_with(
+        driver,
+        window,
+        reference,
+        Action::SetValue,
+        Some(text),
+        0.0,
+        0.0,
+    );
+}
+
+fn focus_text_area(driver: &mut MacDriver, window: &Window) {
+    let look = look_at(driver, window);
+    let reference = node(&look, "textarea").reference;
+    act_with(driver, window, reference, Action::Focus, None, 0.0, 0.0);
+}
+
+fn document_text(driver: &mut MacDriver, window: &Window) -> Option<String> {
+    look_at(driver, window)
+        .nodes
+        .into_iter()
+        .find(|node| node.role == "textarea")
+        .and_then(|node| node.value)
+}
+
+fn long_document() -> String {
+    (1..=LONG_LINES)
+        .map(|line| format!("line {line} of the kiko scroll test"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn press_page_button(driver: &mut MacDriver, window: &Window, look: &Look) {
+    let button = look
+        .nodes
+        .iter()
+        .find(|node| node.name.contains("Push kiko") && node.actions.contains(&Action::Press))
+        .unwrap_or_else(|| panic!("no pressable page button; nodes are {:?}", look.nodes))
+        .clone();
+    act_with(
+        driver,
+        window,
+        button.reference,
+        Action::Press,
+        None,
+        0.0,
+        0.0,
+    );
 }
 
 fn assert_image_matches(image: &Image, frame: Rect) {
@@ -291,13 +639,13 @@ fn start_document_app(driver: &mut MacDriver) -> Window {
     for app in &DOCUMENT_APPS {
         if let Some(window) = window_named(driver, app.name) {
             println!("the document app is already running: {}", app.name);
-            return window;
+            return restore(window);
         }
         for background in [true, false] {
             notes.push(run_open(app, background));
             if let Some(window) = wait_for(LAUNCH, || window_named(driver, app.name)) {
                 println!("the document app is {}; {notes:?}", app.name);
-                return window;
+                return restore(window);
             }
         }
     }
@@ -306,6 +654,20 @@ fn start_document_app(driver: &mut MacDriver) -> Window {
         running_apps(),
         window_summary(driver)
     )
+}
+
+fn restore(window: Window) -> Window {
+    if !window.minimized {
+        return window;
+    }
+    let id = window.id.parse().expect("a numeric window id");
+    if let Some(element) = window::ax_element_for(id, window.pid as i32) {
+        ax::set_flag(&element, ax::MINIMIZED, false);
+    }
+    Window {
+        minimized: false,
+        ..window
+    }
 }
 
 fn launch_safari(driver: &mut MacDriver, url: &str) -> Window {
@@ -442,6 +804,102 @@ impl Owner {
             self.pointer,
             now
         );
+    }
+}
+
+fn assert_covered(cover: &Window, target: &Window) {
+    assert!(
+        window::front_window_above(cover.pid as i32, target.pid as i32),
+        "{} came above {}",
+        target.app,
+        cover.app
+    );
+}
+
+fn text_area(window: &Window) -> ax::Element {
+    let id = window.id.parse().expect("a numeric window id");
+    let element =
+        window::ax_element_for(id, window.pid as i32).expect("the window's accessibility element");
+    descendant(&element, "AXTextArea").unwrap_or_else(|| panic!("no text area in {}", window.app))
+}
+
+fn descendant(element: &AXUIElement, role: &str) -> Option<ax::Element> {
+    let mut stack = vec![ax::retain(element)];
+    while let Some(current) = stack.pop() {
+        if ax::text(&ax::attribute(&current, ax::ROLE)).as_deref() == Some(role) {
+            return Some(current);
+        }
+        stack.extend(ax::children(&current));
+    }
+    None
+}
+
+fn visible_range(element: &AXUIElement) -> Option<CFRange> {
+    ax::range(&ax::attribute(element, ax::VISIBLE_CHARACTER_RANGE))
+}
+
+fn selected_text(element: &AXUIElement) -> Option<String> {
+    ax::text(&ax::attribute(element, ax::SELECTED_TEXT))
+}
+
+fn ax_title(window: &Window) -> Option<String> {
+    let id = window.id.parse().ok()?;
+    let element = window::ax_element_for(id, window.pid as i32)?;
+    ax::text(&ax::attribute(&element, ax::TITLE))
+}
+
+fn cancel_menus(window: &Window) {
+    let application = ax::application(window.pid as i32);
+    for menu in look::open_menus(&application) {
+        ax::perform(&menu, "AXCancel");
+    }
+}
+
+fn launch_chrome(driver: &mut MacDriver, url: &str) -> Window {
+    let mut notes = Vec::new();
+    let mut running = window_named(driver, "Google Chrome");
+    if running.is_none() {
+        for background in [true, false] {
+            notes.push(open_app(CHROME, None, background));
+            running = wait_for(LAUNCH, || window_named(driver, "Google Chrome"));
+            if running.is_some() {
+                break;
+            }
+        }
+    }
+    if running.is_some() {
+        notes.push(open_app(CHROME, Some(url), true));
+        if let Some(window) = wait_for(LAUNCH, || window_titled(driver, "Google Chrome", "before"))
+        {
+            println!("Chrome answered; {notes:?}");
+            return window;
+        }
+    }
+    panic!(
+        "no Chrome window; {notes:?}; running: {:?}; windows: {:?}",
+        running_apps(),
+        window_summary(driver)
+    );
+}
+
+fn write_electron_app() -> PathBuf {
+    let directory = std::env::temp_dir().join(format!("kiko-electron-{}", std::process::id()));
+    fs::create_dir_all(&directory).expect("create the Electron app directory");
+    fs::write(
+        directory.join("package.json"),
+        r#"{"name":"kiko-electron-e2e","version":"1.0.0","main":"main.js"}"#,
+    )
+    .expect("write the Electron package.json");
+    fs::write(directory.join("main.js"), ELECTRON_MAIN).expect("write the Electron main.js");
+    directory
+}
+
+struct ChildGuard(Child);
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
     }
 }
 
