@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { defaultWidth, INFO, readPanelWidth, readWidth } from "./widths"
+import { defaultWidth, fitWidths, INFO, RAIL, readPanelWidth, readWidth } from "./widths"
 
 describe("right panel width", () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -24,5 +24,16 @@ describe("right panel width", () => {
     vi.stubGlobal("localStorage", { getItem: () => "200" })
     expect(readPanelWidth(1440)).toBe(400)
     expect(readPanelWidth(500)).toBe(320)
+  })
+})
+
+describe("fitted widths", () => {
+  it("counts a collapsed sidebar as the rail instead of the width floor", () => {
+    expect(fitWidths(1440, RAIL, 400)).toEqual({ sidebar: RAIL, info: 400 })
+  })
+
+  it("keeps the right panel open only when the rail and it fit beside the chat", () => {
+    expect(fitWidths(1000, RAIL, 400)).toEqual({ sidebar: RAIL, info: 400 })
+    expect(fitWidths(800, RAIL, 400)).toEqual({ sidebar: RAIL, info: 0 })
   })
 })
