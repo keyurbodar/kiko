@@ -93,8 +93,7 @@ function pick(container: HTMLElement, ...files: File[]) {
 const tiles = (root: HTMLElement) =>
   root.querySelectorAll('[data-component="prompt-input-v2-attachments"] .tray-tile').length
 
-const shown = (body: string) => room.messages().find((message) => message.body.includes(body))
-const linked = (name: string, body: string) => new RegExp(`^\\[${name}\\]\\(attachment:[\\w-]+\\) ${body}$`)
+const shown = (body: string) => room.messages().find((message) => message.body === body)
 
 async function sendThroughRoom(body: string) {
   room.followRoute(() => ROOM)
@@ -119,7 +118,7 @@ describe("sending attachments", () => {
 
     FakeXhr.sent[0]!.finish()
     await expect.poll(() => delivery.sent.length).toBe(1)
-    expect(delivery.sent[0]!.text).toMatch(linked("note.txt", "look"))
+    expect(delivery.sent[0]!.text).toBe("look")
     expect(delivery.sent[0]!.attachments).toHaveLength(1)
   })
 
@@ -131,7 +130,7 @@ describe("sending attachments", () => {
     FakeXhr.sent[0]!.finish()
     await expect.poll(() => delivery.sent.length).toBe(1)
     expect(delivery.sent[0]!.roomId).toBe(ROOM)
-    expect(delivery.sent[0]!.text).toMatch(linked("note.txt", "away"))
+    expect(delivery.sent[0]!.text).toBe("away")
   })
 
   it("marks the sent message failed when its upload fails, and retries it", async () => {
@@ -167,8 +166,7 @@ describe("sending attachments", () => {
 
     FakeXhr.sent[0]!.finish()
     await expect.poll(() => tiles(screen.container)).toBe(1)
-    await expect.poll(() => screen.editor.querySelector("[data-attachment]")).not.toBeNull()
-    await expect.poll(() => screen.editor.textContent ?? "").toContain("refused")
+    await expect.poll(() => screen.editor.textContent).toBe("refused")
     expect(shown("refused")).toBeUndefined()
   })
 
@@ -185,7 +183,7 @@ describe("sending attachments", () => {
     await expect.poll(() => FakeXhr.sent.length).toBe(1)
     FakeXhr.sent[0]!.finish()
     await userEvent.keyboard("look{Enter}")
-    await expect.poll(() => tiles(screen.container)).toBe(1)
+    expect(tiles(screen.container)).toBe(1)
 
     refuse = false
     await userEvent.keyboard("{Enter}")
@@ -194,7 +192,7 @@ describe("sending attachments", () => {
     await expect.poll(() => tiles(screen.container)).toBe(0)
   })
 
-  it("posts a lone file as its link with no text", async () => {
+  it("posts a lone file with no text", async () => {
     using _xhr = fakeXhr()
     room.followRoute(() => ROOM)
     await using screen = await mountComposer((message) => room.send(message) !== undefined)
@@ -204,10 +202,11 @@ describe("sending attachments", () => {
     await userEvent.keyboard("{Enter}")
 
     await expect.poll(() => delivery.sent.length).toBe(1)
-    expect(delivery.sent[0]!.text).toMatch(/^\[note\.txt\]\(attachment:[\w-]+\)$/)
+    expect(delivery.sent[0]!.text).toBe("")
+    expect(delivery.sent[0]!.attachments).toHaveLength(1)
   })
 
-  it("posts four mixed files as their links with no text", async () => {
+  it("posts four mixed files with no text", async () => {
     using _xhr = fakeXhr()
     room.followRoute(() => ROOM)
     await using screen = await mountComposer((message) => room.send(message) !== undefined)
@@ -230,9 +229,7 @@ describe("sending attachments", () => {
     await userEvent.keyboard("{Enter}")
 
     await expect.poll(() => delivery.sent.length).toBe(1)
-    const text = delivery.sent[0]!.text
-    const named = Array.from(text.matchAll(/\[([^\]]+)\]\(attachment:[\w-]+\)/g), (match) => match[1])
-    expect(named).toEqual(expect.arrayContaining(["a.txt", "b.csv", "c.md", "d.json"]))
-    expect(text.replace(/\[[^\]]+\]\(attachment:[\w-]+\)\s*/g, "")).toBe("")
+    expect(delivery.sent[0]!.text).toBe("")
+    expect(delivery.sent[0]!.attachments).toHaveLength(4)
   })
 })

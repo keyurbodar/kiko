@@ -21,7 +21,7 @@
   gap: 6px;
   padding: 0 14px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
@@ -43,7 +43,7 @@
 .kit-btn:disabled,
 .kit-select:disabled,
 .kit-field:disabled {
-  opacity: 0.6;
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
 }
 
@@ -78,7 +78,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .kit-btn--secondary:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--fg) 14%, var(--panel));
+    background: var(--fill-pressed);
   }
 }
 
@@ -122,7 +122,7 @@
   text-align: left;
   background: var(--active);
   border: none;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   outline: none;
   transition: background var(--dur-hover) var(--ease-kiko);
@@ -130,7 +130,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .kit-select:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--fg) 14%, var(--panel));
+    background: var(--fill-pressed);
   }
 }
 
@@ -162,7 +162,7 @@
 }
 
 .kit-switch:disabled {
-  opacity: 0.6;
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
 }
 
@@ -272,7 +272,7 @@
   font-size: 13.5px;
   background: var(--active);
   border: none;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   outline: none;
   transition: box-shadow var(--dur-hover) var(--ease-kiko);
 }
@@ -366,7 +366,7 @@
 }
 
 .kit-tabs > .pill-indicator {
-  border-radius: 10px;
+  border-radius: var(--radius-row);
 }
 
 .kit-tab {
@@ -377,7 +377,7 @@
   color: var(--fg2);
   font-size: 14px;
   font-weight: 500;
-  border-radius: 10px;
+  border-radius: var(--radius-row);
   cursor: pointer;
   outline: none;
   transition:

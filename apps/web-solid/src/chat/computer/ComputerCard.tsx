@@ -27,7 +27,7 @@ const PILL: Record<Status, string> = {
 }
 
 const button =
-  "h-9 shrink-0 cursor-pointer rounded-full px-4 text-ui font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+  "h-9 shrink-0 cursor-pointer rounded-full px-4 text-ui font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-(--opacity-disabled)"
 
 function Dot(): JSX.Element {
   return <span class="size-1.5 rounded-full bg-current" aria-hidden="true" />

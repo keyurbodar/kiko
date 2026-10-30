@@ -38,7 +38,7 @@ function MoreActions(props: { onExpand: () => void }) {
     <MenuV2 gutter={4} placement="bottom-end">
       <TooltipV2 placement="bottom" openDelay={500} value="More">
         <MenuV2.Trigger class={ACTION} aria-label="More file actions" data-action="file-more">
-          <RemixIcon icon={MoreIcon} size={16} />
+          <RemixIcon icon={MoreIcon} class="size-3.5" />
         </MenuV2.Trigger>
       </TooltipV2>
       <MenuV2.Portal>

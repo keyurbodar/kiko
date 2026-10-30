@@ -63,7 +63,7 @@ function inTheme(dark: boolean, check: () => void) {
 }
 
 describe("composer shell", () => {
-  it("reads as a fill with a quiet ring that brightens on focus", async () => {
+  it("reads as a fill with a quiet ring that focus leaves alone", async () => {
     room.followRoute(() => ROOM)
     await using screen = await render(() => (
       <div class="composer-dock" data-component="composer-dock">
@@ -86,8 +86,12 @@ describe("composer shell", () => {
     })
     expect(new Set(fills).size).toBe(2)
 
+    const resting = ring(box)
     await userEvent.click(input)
-    await expect.poll(() => ring(box)).toMatch(/0px 0px 0px 1px inset, .* 0px 0px 0px 3px$/)
+    await expect.poll(() => box.hasAttribute("data-focused")).toBe(true)
+    expect(document.activeElement).toBe(input)
+    expect(ring(box)).toBe(resting)
+    expect(getComputedStyle(box).outlineStyle).toBe("none")
 
     box.setAttribute("data-editing", "")
     for (const dark of [true, false]) inTheme(dark, () => expectEdgeless(screen.container))

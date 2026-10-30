@@ -9,7 +9,10 @@ export type Need = {
 
 export type Failures = ReadonlyMap<string, string>
 
-const failureOf = (messages: readonly ChatMessage[], retry: (id: string) => void): Need | undefined => {
+export const loadedFor = (messages: readonly ChatMessage[], activeId: string | null): boolean =>
+  activeId !== null && messages.at(-1)?.threadId === activeId
+
+export const failureOf = (messages: readonly ChatMessage[], retry: (id: string) => void): Need | undefined => {
   const last = messages.at(-1)
   const event = last?.event
   if (!last || event?.kind !== "run_error" || !("actions" in event)) return undefined
@@ -29,14 +32,14 @@ export function needsOf(input: {
   asks: readonly HumanAsk[]
   messages: readonly ChatMessage[]
   retry: (messageId: string) => void
-  elsewhere: Failures
+  known: Failures
 }): ReadonlyMap<string, Need> {
   const out = new Map<string, Need>()
-  for (const [id, text] of input.elsewhere) out.set(id, { kind: "failed", text })
-  if (input.activeId) {
-    out.delete(input.activeId)
-    const own = askOf(input.asks) ?? failureOf(input.messages, input.retry)
-    if (own) out.set(input.activeId, own)
-  }
+  for (const [id, text] of input.known) out.set(id, { kind: "failed", text })
+  if (input.activeId === null) return out
+  const loaded = loadedFor(input.messages, input.activeId)
+  const own = askOf(input.asks) ?? (loaded ? failureOf(input.messages, input.retry) : undefined)
+  if (own) out.set(input.activeId, own)
+  else if (loaded) out.delete(input.activeId)
   return out
 }

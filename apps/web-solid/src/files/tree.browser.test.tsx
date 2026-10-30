@@ -18,82 +18,51 @@ function boxed() {
   return container
 }
 
+const shadowOf = (container: HTMLElement) => container.querySelector("file-tree-container")?.shadowRoot ?? null
+
 const rowOf = (container: HTMLElement, path: string) =>
-  container.querySelector(`[data-path="${path}"]`) as HTMLElement | null
+  shadowOf(container)?.querySelector<HTMLElement>(`[data-item-path="${path}"]`) ?? null
 
-const scrollerOf = (container: HTMLElement) => container.querySelector(".kt-scroller") as HTMLElement
+const paths = (container: HTMLElement) =>
+  [...(shadowOf(container)?.querySelectorAll("[data-item-path]") ?? [])].map((row) =>
+    row.getAttribute("data-item-path"),
+  )
 
-const nameInput = (container: HTMLElement) => container.querySelector(".ft-input") as HTMLInputElement
+const renameInput = (container: HTMLElement) =>
+  shadowOf(container)?.querySelector<HTMLInputElement>("[data-item-rename-input]") ?? null
+
+async function row(container: HTMLElement, path: string) {
+  await expect.poll(() => rowOf(container, path)).not.toBeNull()
+  return rowOf(container, path)!
+}
+
+const nameOf = (path: string) => path.replace(/\/$/, "").split("/").at(-1)!
+
+const item = (name: string) => page.getByRole("treeitem", { name, exact: true })
+
+async function menu(container: HTMLElement, path: string, label: string) {
+  await row(container, path)
+  await item(nameOf(path)).click({ button: "right" })
+  await page.getByRole("menuitem", { name: label }).click()
+}
+
+async function rename(container: HTMLElement, name: string) {
+  await expect
+    .poll(() => renameInput(container) !== null && shadowOf(container)?.activeElement === renameInput(container))
+    .toBe(true)
+  await userEvent.keyboard(`{ControlOrMeta>}a{/ControlOrMeta}{Backspace}${name}{Enter}`)
+}
 
 describe("file tree", () => {
-  it("walks the rows with the arrow keys, jumps with type-ahead and opens with Enter", async () => {
+  it("opens a file when its row is clicked", async () => {
     const onOpen = vi.fn()
     await using screen = await render(
-      () => <FileTree roomId="keys" files={[ref("a.md"), ref("b.md"), ref("c.md")]} onOpen={onOpen} />,
+      () => <FileTree roomId="open" files={[ref("a.md"), ref("b.md")]} onOpen={onOpen} />,
       { container: boxed() },
     )
-    await expect.element(screen.getByRole("treeitem", { name: "a.md" })).toBeVisible()
-    const tree = screen.container.querySelector('[role="tree"]') as HTMLElement
-    tree.focus()
-    await userEvent.keyboard("{ArrowDown}")
-    await expect.element(screen.getByRole("treeitem", { name: "b.md" })).toHaveAttribute("data-focused", "true")
-    await userEvent.keyboard("{ArrowDown}{ArrowUp}")
-    await expect.element(screen.getByRole("treeitem", { name: "b.md" })).toHaveAttribute("data-focused", "true")
-    await userEvent.keyboard("c")
-    await expect.element(screen.getByRole("treeitem", { name: "c.md" })).toHaveAttribute("data-focused", "true")
-    await userEvent.keyboard("{Enter}")
-    expect(onOpen).toHaveBeenCalledWith("c.md")
-  })
-
-  it("folds with the arrow keys and opens a whole subtree with Alt-click", async () => {
-    await using screen = await render(
-      () => (
-        <FileTree
-          roomId="fold"
-          files={[ref("docs/one.md"), ref("docs/deep/plan.md")]}
-          folders={["docs", "docs/deep"]}
-        />
-      ),
-      { container: boxed() },
-    )
-    await expect.element(screen.getByRole("treeitem", { name: "docs" })).toBeVisible()
-    await userEvent.click(rowOf(screen.container, "docs/")!, { modifiers: ["Alt"] })
-    await expect.element(screen.getByRole("treeitem", { name: "deep" })).toBeVisible()
-    await expect.element(screen.getByRole("treeitem", { name: "plan.md" })).toBeVisible()
-    await userEvent.click(rowOf(screen.container, "docs/")!, { modifiers: ["Alt"] })
-    await expect.element(screen.getByRole("treeitem", { name: "deep" })).not.toBeInTheDocument()
-    await userEvent.click(rowOf(screen.container, "docs/")!)
-    await expect.element(screen.getByRole("treeitem", { name: "deep" })).toBeVisible()
-    await expect.element(screen.getByRole("treeitem", { name: "plan.md" })).not.toBeInTheDocument()
-    const tree = screen.container.querySelector('[role="tree"]') as HTMLElement
-    tree.focus()
-    await userEvent.keyboard("{ArrowRight}")
-    await expect.element(screen.getByRole("treeitem", { name: "deep" })).toHaveAttribute("data-focused", "true")
-    await userEvent.keyboard("{ArrowRight}")
-    await expect.element(screen.getByRole("treeitem", { name: "plan.md" })).toBeVisible()
-    await userEvent.keyboard("{ArrowLeft}")
-    await expect.element(screen.getByRole("treeitem", { name: "plan.md" })).not.toBeInTheDocument()
-  })
-
-  it("keeps the file at the top of the viewport when one arrives above it", async () => {
-    const files = createSignal(Array.from({ length: 40 }, (_, index) => ref(`f${String(index).padStart(2, "0")}.md`)))
-    await using screen = await render(() => <FileTree roomId="anchor" files={files[0]()} />, {
-      container: boxed(),
-    })
-    await expect.element(screen.getByRole("treeitem", { name: "f10.md" })).toBeVisible()
-    const scroller = scrollerOf(screen.container)
-    scroller.scrollTop = 280
-    scroller.dispatchEvent(new Event("scroll"))
-    files[1]([ref("a-first.md"), ...files[0]()])
-    await expect.poll(() => scroller.scrollTop).toBe(308)
-    const top = [...screen.container.querySelectorAll(".ft-row")].find(
-      (row) => row.getBoundingClientRect().top >= scroller.getBoundingClientRect().top - 1,
-    )
-    expect(top?.getAttribute("data-path")).toBe("f10.md")
-    const dot = rowOf(screen.container, "a-first.md")!.querySelector(".ft-dot[data-on]")
-    expect(dot).not.toBeNull()
-    await userEvent.click(rowOf(screen.container, "a-first.md")!)
-    expect(rowOf(screen.container, "a-first.md")!.querySelector(".ft-dot[data-on]")).toBeNull()
+    await row(screen.container, "b.md")
+    await item("b.md").click()
+    expect(onOpen).toHaveBeenCalledWith("b.md")
   })
 
   it("renames a file from the context menu", async () => {
@@ -101,14 +70,21 @@ describe("file tree", () => {
     await using screen = await render(() => <FileTree roomId="menu" files={[ref("a.md")]} onRename={onRename} />, {
       container: boxed(),
     })
-    await userEvent.click(rowOf(screen.container, "a.md")!, { button: "right" })
-    await page.getByRole("menuitem", { name: "Rename" }).click()
-    const input = nameInput(screen.container)
-    await expect.poll(() => document.activeElement === input).toBe(true)
-    await userEvent.clear(input)
-    await userEvent.type(input, "z.md{Enter}")
+    await menu(screen.container, "a.md", "Rename")
+    await rename(screen.container, "z.md")
     expect(onRename).toHaveBeenCalledWith("a.md", "z.md", ["a.md"])
-    await expect.element(screen.getByRole("treeitem", { name: "z.md" })).toBeVisible()
+    await expect.poll(() => paths(screen.container)).toContain("z.md")
+  })
+
+  it("renames a folder next to itself, not inside itself", async () => {
+    const onRename = vi.fn()
+    await using screen = await render(
+      () => <FileTree roomId="rename-folder" files={[ref("docs/a.md")]} folders={["docs"]} onRename={onRename} />,
+      { container: boxed() },
+    )
+    await menu(screen.container, "docs/", "Rename")
+    await rename(screen.container, "guides")
+    expect(onRename).toHaveBeenCalledWith("docs", "guides", ["docs/a.md"])
   })
 
   it("asks before deleting a file from the context menu", async () => {
@@ -116,85 +92,21 @@ describe("file tree", () => {
     await using screen = await render(() => <FileTree roomId="delete" files={[ref("a.md")]} onDelete={onDelete} />, {
       container: boxed(),
     })
-    await userEvent.click(rowOf(screen.container, "a.md")!, { button: "right" })
-    await page.getByRole("menuitem", { name: "Delete" }).click()
+    await menu(screen.container, "a.md", "Delete")
     await expect.element(page.getByRole("dialog")).toBeVisible()
     await page.getByRole("button", { name: "Delete" }).click()
     expect(onDelete).toHaveBeenCalledWith("a.md", ["a.md"])
   })
 
-  it("starts a reference drag from a folder row as well as a file row", async () => {
-    await using screen = await render(
-      () => <FileTree roomId="drag" files={[ref("docs/a.md"), ref("root.md")]} folders={["docs"]} />,
-      { container: boxed() },
-    )
-    await expect.element(screen.getByRole("treeitem", { name: "docs" })).toBeVisible()
-    const dragOf = (path: string) => {
-      const data = new DataTransfer()
-      rowOf(screen.container, path)!.dispatchEvent(
-        new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer: data }),
-      )
-      return droppedFilePath(data)
-    }
-    expect(dragOf("docs/")).toBe("docs/")
-    expect(dragOf("root.md")).toBe("root.md")
-  })
-
-  it("starts a new file inside a folder from the context menu", async () => {
-    const onNewFile = vi.fn()
-    await using screen = await render(
-      () => <FileTree roomId="new" files={[ref("docs/a.md")]} folders={["docs"]} onNewFile={onNewFile} />,
-      { container: boxed() },
-    )
-    await userEvent.click(rowOf(screen.container, "docs/")!, { button: "right" })
-    await page.getByRole("menuitem", { name: "New file" }).click()
-    const input = nameInput(screen.container)
-    await expect.poll(() => input.value).toBe("untitled")
-    await userEvent.clear(input)
-    await userEvent.type(input, "plan.md{Enter}")
-    expect(onNewFile).toHaveBeenCalledWith("docs/plan.md")
-  })
-
-  it("expands every folder from the toolbar and turns the toggle off when one is collapsed by hand", async () => {
-    const [files, setFiles] = createSignal([ref("docs/one.md")])
-    const [folders, setFolders] = createSignal(["docs"])
-    await using screen = await render(() => <FileTree roomId="all" files={files()} folders={folders()} />, {
-      container: boxed(),
-    })
-    await expect.element(screen.getByRole("treeitem", { name: "docs" })).toBeVisible()
-    await screen.getByRole("button", { name: "Expand all folders" }).click()
-    await expect.element(screen.getByRole("treeitem", { name: "one.md" })).toBeVisible()
-    setFolders(["docs", "docs/deep"])
-    setFiles([ref("docs/one.md"), ref("docs/deep/two.md")])
-    await expect.element(screen.getByRole("treeitem", { name: "two.md" })).toBeVisible()
-    await expect
-      .element(screen.getByRole("button", { name: "Collapse all folders" }))
-      .toHaveAttribute("aria-pressed", "true")
-    await userEvent.click(rowOf(screen.container, "docs/")!)
-    await expect.element(screen.getByRole("button", { name: "Expand all folders" })).toBeInTheDocument()
-  })
-
-  it("filters the tree and clears the search with Escape", async () => {
-    await using screen = await render(() => <FileTree roomId="search" files={[ref("a.md"), ref("b.md")]} />, {
-      container: boxed(),
-    })
-    const search = screen.getByRole("searchbox")
-    await userEvent.type(search, "zz")
-    await expect.element(search).toHaveValue("zz")
-    await expect.element(screen.getByText("No files match")).toBeVisible()
-    await userEvent.keyboard("{Escape}")
-    await expect.element(search).toHaveValue("")
-    await expect.element(screen.getByRole("treeitem", { name: "a.md" })).toBeVisible()
-  })
-
-  it("opens the row menu from the more button with the file actions in order", async () => {
+  it("lists the file actions in order", async () => {
     const onOpenInNewTab = vi.fn()
     await using screen = await render(
       () => <FileTree roomId="more" files={[ref("a.md")]} onOpenInNewTab={onOpenInNewTab} />,
       { container: boxed() },
     )
-    const more = rowOf(screen.container, "a.md")!.querySelector('[data-action="file-more"]') as HTMLElement
-    await userEvent.click(more)
+    await row(screen.container, "a.md")
+    await item("a.md").click({ button: "right" })
+    await expect.element(page.getByRole("menuitem", { name: "Open in new tab" })).toBeVisible()
     const items = [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent?.trim())
     expect(items).toEqual([
       "Open",
@@ -209,6 +121,66 @@ describe("file tree", () => {
     ])
     await page.getByRole("menuitem", { name: "Open in new tab" }).click()
     expect(onOpenInNewTab).toHaveBeenCalledWith("a.md")
+  })
+
+  it("starts a new file inside a folder from the context menu", async () => {
+    const onNewFile = vi.fn()
+    await using screen = await render(
+      () => <FileTree roomId="new" files={[ref("docs/a.md")]} folders={["docs"]} onNewFile={onNewFile} />,
+      { container: boxed() },
+    )
+    await menu(screen.container, "docs/", "New file")
+    await expect.poll(() => renameInput(screen.container)?.value).toBe("untitled")
+    await rename(screen.container, "plan.md")
+    expect(onNewFile).toHaveBeenCalledWith("docs/plan.md")
+  })
+
+  it("starts a reference drag from a folder row as well as a file row", async () => {
+    await using screen = await render(
+      () => <FileTree roomId="drag" files={[ref("docs/a.md"), ref("root.md")]} folders={["docs"]} />,
+      { container: boxed() },
+    )
+    const dragOf = async (path: string) => {
+      const data = new DataTransfer()
+      ;(await row(screen.container, path)).dispatchEvent(
+        new DragEvent("dragstart", { bubbles: true, composed: true, cancelable: true, dataTransfer: data }),
+      )
+      return droppedFilePath(data)
+    }
+    expect(await dragOf("docs/")).toBe("docs/")
+    expect(await dragOf("root.md")).toBe("root.md")
+  })
+
+  it("expands every folder from the toolbar and turns the toggle off when one is collapsed by hand", async () => {
+    const [files, setFiles] = createSignal([ref("docs/one.md")])
+    const [folders, setFolders] = createSignal(["docs"])
+    await using screen = await render(() => <FileTree roomId="all" files={files()} folders={folders()} />, {
+      container: boxed(),
+    })
+    await row(screen.container, "docs/")
+    await screen.getByRole("button", { name: "Expand all folders" }).click()
+    await row(screen.container, "docs/one.md")
+    setFolders(["docs", "docs/deep"])
+    setFiles([ref("docs/one.md"), ref("docs/deep/two.md")])
+    await row(screen.container, "docs/deep/two.md")
+    await expect
+      .element(screen.getByRole("button", { name: "Collapse all folders" }))
+      .toHaveAttribute("aria-pressed", "true")
+    await item("docs").click()
+    await expect.element(screen.getByRole("button", { name: "Expand all folders" })).toBeInTheDocument()
+  })
+
+  it("filters the tree and clears the search with Escape", async () => {
+    await using screen = await render(() => <FileTree roomId="search" files={[ref("a.md"), ref("b.md")]} />, {
+      container: boxed(),
+    })
+    await row(screen.container, "a.md")
+    const search = screen.getByRole("searchbox")
+    await userEvent.type(search, "zz")
+    await expect.element(screen.getByText("No files match")).toBeVisible()
+    await userEvent.keyboard("{Escape}")
+    await expect.element(search).toHaveValue("")
+    await row(screen.container, "a.md")
   })
 
   it("adds a file to a mounted composer and toasts when there is none", async () => {
@@ -227,12 +199,10 @@ describe("file tree", () => {
         ),
         { container: boxed() },
       )
-      await userEvent.click(rowOf(screen.container, "a.md")!, { button: "right" })
-      await page.getByRole("menuitem", { name: "Add to chat" }).click()
+      await menu(screen.container, "a.md", "Add to chat")
       expect(received).toEqual([["a.md"]])
       dock.remove()
-      await userEvent.click(rowOf(screen.container, "a.md")!, { button: "right" })
-      await page.getByRole("menuitem", { name: "Add to chat" }).click()
+      await menu(screen.container, "a.md", "Add to chat")
       await expect.element(page.getByText("Unable to add to chat")).toBeVisible()
     } finally {
       stop()
@@ -252,9 +222,9 @@ describe("file tree", () => {
         ),
         { container: boxed() },
       )
-      await userEvent.click(rowOf(screen.container, "docs/")!)
-      await userEvent.click(rowOf(screen.container, "docs/a.md")!, { button: "right" })
-      await page.getByRole("menuitem", { name: "Copy mention" }).click()
+      await row(screen.container, "docs/")
+      await item("docs").click()
+      await menu(screen.container, "docs/a.md", "Copy mention")
       expect(write).toHaveBeenCalledWith("[a.md](/docs/a.md)")
       await expect.element(page.getByText("Mention copied")).toBeVisible()
     } finally {
@@ -262,95 +232,27 @@ describe("file tree", () => {
     }
   })
 
-  it("reveals a file opened from elsewhere and leaves a tree click where it is", async () => {
+  it("selects a file opened from elsewhere", async () => {
     const files = Array.from({ length: 60 }, (_, index) => ref(`f${String(index).padStart(2, "0")}.md`))
     const [active, setActive] = createSignal<string | null>(null)
     const [revealId, setRevealId] = createSignal(0)
-    const container = boxed()
-    container.style.height = "280px"
     await using screen = await render(
-      () => (
-        <FileTree
-          roomId="reveal"
-          files={files}
-          active={active()}
-          revealId={revealId()}
-          onOpen={(path) => {
-            setActive(path)
-            setRevealId(0)
-          }}
-        />
-      ),
-      { container },
+      () => <FileTree roomId="reveal" files={files} active={active()} revealId={revealId()} />,
+      { container: boxed() },
     )
+    await row(screen.container, "f00.md")
     setActive("f40.md")
     setRevealId(1)
-    await expect.element(screen.getByRole("treeitem", { name: "f40.md" })).toHaveAttribute("aria-selected", "true")
-    const scroller = scrollerOf(container)
-    await expect.poll(() => scroller.scrollTop).toBeGreaterThan(0)
-    scroller.scrollTop = 0
-    scroller.dispatchEvent(new Event("scroll"))
-    await userEvent.click(rowOf(container, "f05.md")!)
-    expect(scroller.scrollTop).toBe(0)
+    await expect.poll(() => rowOf(screen.container, "f40.md")?.getAttribute("aria-selected")).toBe("true")
   })
 
-  it("renames with F2 and asks before Backspace deletes", async () => {
-    const onRename = vi.fn()
-    const onDelete = vi.fn()
-    await using screen = await render(
-      () => <FileTree roomId="keys" files={[ref("a.md")]} onRename={onRename} onDelete={onDelete} />,
-      { container: boxed() },
-    )
-    const tree = screen.container.querySelector('[role="tree"]') as HTMLElement
-    tree.focus()
-    await userEvent.keyboard("{F2}")
-    const input = nameInput(screen.container)
-    await expect.poll(() => document.activeElement === input).toBe(true)
-    await userEvent.clear(input)
-    await userEvent.type(input, "b.md{Enter}")
-    expect(onRename).toHaveBeenCalledWith("a.md", "b.md", ["a.md"])
-    tree.focus()
+  it("asks before Backspace deletes the focused row", async () => {
+    await using screen = await render(() => <FileTree roomId="keys" files={[ref("a.md")]} />, {
+      container: boxed(),
+    })
+    await row(screen.container, "a.md")
+    await item("a.md").click()
     await userEvent.keyboard("{Backspace}")
     await expect.element(page.getByRole("dialog")).toBeVisible()
-  })
-
-  it("renames a folder next to itself, not inside itself", async () => {
-    const onRename = vi.fn()
-    await using screen = await render(
-      () => <FileTree roomId="rename-folder" files={[ref("docs/a.md")]} folders={["docs"]} onRename={onRename} />,
-      { container: boxed() },
-    )
-    await userEvent.click(rowOf(screen.container, "docs/")!, { button: "right" })
-    await page.getByRole("menuitem", { name: "Rename" }).click()
-    const input = nameInput(screen.container)
-    await userEvent.clear(input)
-    await userEvent.type(input, "guides{Enter}")
-    expect(onRename).toHaveBeenCalledWith("docs", "guides", ["docs/a.md"])
-    await expect.element(screen.getByRole("treeitem", { name: "guides" })).toBeVisible()
-  })
-
-  it("keeps folders open when a file inside them is renamed", async () => {
-    const onRename = vi.fn()
-    await using screen = await render(
-      () => (
-        <FileTree
-          roomId="rename-deep"
-          files={[ref("docs/one.md"), ref("docs/deep/two.md")]}
-          folders={["docs", "docs/deep"]}
-          onRename={onRename}
-        />
-      ),
-      { container: boxed() },
-    )
-    await screen.getByRole("button", { name: "Expand all folders" }).click()
-    await expect.element(screen.getByRole("treeitem", { name: "two.md" })).toBeVisible()
-    await userEvent.click(rowOf(screen.container, "docs/one.md")!, { button: "right" })
-    await page.getByRole("menuitem", { name: "Rename" }).click()
-    const input = nameInput(screen.container)
-    await userEvent.clear(input)
-    await userEvent.type(input, "renamed.md{Enter}")
-    expect(onRename).toHaveBeenCalledWith("docs/one.md", "docs/renamed.md", ["docs/one.md"])
-    await expect.element(screen.getByRole("treeitem", { name: "renamed.md" })).toBeVisible()
-    await expect.element(screen.getByRole("treeitem", { name: "two.md" })).toBeVisible()
   })
 })

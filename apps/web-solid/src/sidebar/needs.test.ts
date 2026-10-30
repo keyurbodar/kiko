@@ -21,7 +21,7 @@ const failure = (retry: boolean): ChatMessage =>
     },
   }) as unknown as ChatMessage
 
-const base = { activeId: "r-1", asks: [], messages: [], retry: () => {}, elsewhere: new Map<string, string>() }
+const base = { activeId: "r-1", asks: [], messages: [], retry: () => {}, known: new Map<string, string>() }
 
 describe("needsOf", () => {
   it("lists the open chat when an agent is waiting on an answer", () => {
@@ -45,11 +45,19 @@ describe("needsOf", () => {
     expect(needsOf(base).size).toBe(0)
   })
 
-  it("keeps failures signalled for other chats and drops one for the chat that is open", () => {
-    const elsewhere = new Map([
+  it("keeps known failures and drops the open chat's once its messages load without one", () => {
+    const known = new Map([
       ["r-2", "Kiko could not answer."],
       ["r-1", "stale"],
     ])
-    expect([...needsOf({ ...base, elsewhere }).keys()]).toEqual(["r-2"])
+    const calm = { id: "m-1", threadId: "r-1", sender: "user", body: "hi", sentAt: 1 } as unknown as ChatMessage
+    expect([...needsOf({ ...base, known, messages: [calm] }).keys()]).toEqual(["r-2"])
+  })
+
+  it("keeps the open chat's known failure while its messages are still loading", () => {
+    const known = new Map([["r-1", "Kiko could not answer."]])
+    const other = { id: "m-1", threadId: "r-9", sender: "user", body: "hi", sentAt: 1 } as unknown as ChatMessage
+    expect(needsOf({ ...base, known, messages: [other] }).get("r-1")?.kind).toBe("failed")
+    expect(needsOf({ ...base, known }).get("r-1")?.kind).toBe("failed")
   })
 })

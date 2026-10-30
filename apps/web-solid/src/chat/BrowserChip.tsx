@@ -3,9 +3,9 @@ import { room } from "../state/room"
 import { browser, handBack, openLive, startBrowser } from "./browser"
 
 const button =
-  "h-7 shrink-0 rounded-control bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] px-3 text-hint font-medium text-fg disabled:opacity-60"
+  "h-7 shrink-0 rounded-control bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] px-3 text-hint font-medium text-fg disabled:opacity-(--opacity-disabled)"
 const primary =
-  "h-7 shrink-0 rounded-control bg-[var(--fg)] px-3 text-hint font-medium text-[var(--on-fg)] disabled:opacity-60"
+  "h-7 shrink-0 rounded-control bg-[var(--fg)] px-3 text-hint font-medium text-[var(--on-fg)] disabled:opacity-(--opacity-disabled)"
 
 function openAsk(): string | null {
   const messages = room.messages()
