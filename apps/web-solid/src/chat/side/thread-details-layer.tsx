@@ -8,12 +8,28 @@ const isDesktop = () => typeof matchMedia !== "function" || matchMedia("(width >
 
 const defaultOpen = (): boolean => isDesktop() && room.messages().length > 0
 
+const [floating, setFloating] = createSignal(false)
+const [popped, setPopped] = createSignal<string | null>(null)
+
+export function setThreadDetailsFloating(value: boolean) {
+  if (value === floating()) return
+  setPopped(null)
+  setFloating(value)
+}
+
 export function threadDetailsOpenFor(chatId: string | null): boolean {
-  return chatId !== null && threadDetailsOpen(chatId, defaultOpen())
+  if (chatId === null) return false
+  return floating() ? popped() === chatId : threadDetailsOpen(chatId, defaultOpen())
 }
 
 export function toggleThreadDetails(chatId: string) {
-  setThreadDetailsOpen(chatId, !threadDetailsOpenFor(chatId))
+  if (floating()) setPopped(popped() === chatId ? null : chatId)
+  else setThreadDetailsOpen(chatId, !threadDetailsOpenFor(chatId))
+}
+
+const closeThreadDetails = (chatId: string) => {
+  if (floating()) setPopped(null)
+  else setThreadDetailsOpen(chatId, false)
 }
 
 const buttonRect = (): DOMRect | undefined =>
@@ -21,18 +37,24 @@ const buttonRect = (): DOMRect | undefined =>
 
 export default function ThreadDetailsLayer(props: { chatId: string; inline: boolean }) {
   const [anchor, setAnchor] = createSignal<DOMRect | null>(null)
-  const open = () => threadDetailsOpen(props.chatId, defaultOpen())
+  const open = () => threadDetailsOpenFor(props.chatId)
   const popover = () => !props.inline
   const place = () => setAnchor(buttonRect() ?? null)
   onMount(() => {
     place()
     window.addEventListener("resize", place)
-    onCleanup(() => window.removeEventListener("resize", place))
+    const canvas = document.querySelector('[data-component="main-panel"]')
+    const observer = canvas && typeof ResizeObserver !== "undefined" ? new ResizeObserver(place) : undefined
+    if (canvas) observer?.observe(canvas)
+    onCleanup(() => {
+      window.removeEventListener("resize", place)
+      observer?.disconnect()
+    })
   })
   createEffect(() => {
     if (!open() || !popover()) return
     place()
-    const close = () => setThreadDetailsOpen(props.chatId, false)
+    const close = () => closeThreadDetails(props.chatId)
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !event.defaultPrevented) close()
     }

@@ -9,7 +9,18 @@ import { I18nProvider, pluralCategory, pluralKey, type UiI18n } from "@kiko/ui/c
 import { dict } from "@kiko/ui/i18n/en"
 import { ToastV2 } from "@kiko/ui/v2/toast-v2"
 import { avatarPickerSlug } from "../avatar/picker-state"
-import { createEffect, createSignal, lazy, on, onCleanup, onMount, Show, Suspense, type ParentProps } from "solid-js"
+import {
+  createComputed,
+  createEffect,
+  createSignal,
+  lazy,
+  on,
+  onCleanup,
+  onMount,
+  Show,
+  Suspense,
+  type ParentProps,
+} from "solid-js"
 import { viewerFor } from "../chat/computers"
 import {
   closeDesk,
@@ -19,7 +30,7 @@ import {
   setDeskCompact,
   setPanelMaximized,
 } from "../chat/side/surfaces"
-import ThreadDetailsLayer, { threadDetailsOpenFor } from "../chat/side/thread-details-layer"
+import ThreadDetailsLayer, { setThreadDetailsFloating, threadDetailsOpenFor } from "../chat/side/thread-details-layer"
 import { preloadMessageSearch } from "../commands/message-search"
 
 import { richLoaded } from "../composer/rich/loaded"
@@ -327,6 +338,7 @@ export function Shell(props: ParentProps) {
     return id !== null && onChat() && threadDetailsOpenFor(id) ? id : null
   }
   const detailsInline = () => !sideOpen() && canvasWidth() >= DETAILS_MIN_CANVAS
+  createComputed(() => setThreadDetailsFloating(!detailsInline()))
   const detailsReserve = () => {
     if (!detailsChat() || !detailsInline()) return 0
     const needed = 2 * DETAILS_GUTTER - canvasWidth() + Math.min(canvasWidth(), messageWidth())
@@ -470,7 +482,9 @@ export function Shell(props: ParentProps) {
                           {props.children}
                         </div>
                         <Show when={onChat() && detailsChat()}>
-                          <ThreadDetailsLayer chatId={detailsChat()!} inline={detailsInline()} />
+                          <Suspense>
+                            <ThreadDetailsLayer chatId={detailsChat()!} inline={detailsInline()} />
+                          </Suspense>
                         </Show>
                       </div>
                       <Show when={searchScope()}>
