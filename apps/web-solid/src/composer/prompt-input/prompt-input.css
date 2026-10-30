@@ -764,9 +764,6 @@ button.token-chip:active {
   transform: translateY(-3px);
 }
 
-.tray-aside-size {
-}
-
 .tray-bytes {
   overflow: hidden;
   color: var(--fg2);

@@ -196,6 +196,7 @@ describe("composer attachments", () => {
       new DragEvent("dragover", { dataTransfer: transfer(file), bubbles: true, cancelable: true, ...at }),
     )
     await expect.poll(overlay).not.toBeNull()
+    expect(overlay()?.textContent?.trim()).not.toBe("")
 
     surface.dispatchEvent(
       new DragEvent("drop", { dataTransfer: transfer(file), bubbles: true, cancelable: true, ...at }),

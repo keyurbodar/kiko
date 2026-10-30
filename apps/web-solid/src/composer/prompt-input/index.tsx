@@ -16,7 +16,7 @@ import {
 } from "solid-js"
 import { Portal } from "solid-js/web"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ArrowUpIcon, ChevronDownIcon, PlusIcon } from "@kiko/ui/icons"
+import { ArrowUpIcon, AttachIcon, ChevronDownIcon, PlusIcon } from "@kiko/ui/icons"
 import { useI18n } from "@kiko/ui/context/i18n"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -101,20 +101,6 @@ function createHint(hints: () => readonly string[], quiet: () => boolean) {
   return () => hints()[index() % Math.max(1, hints().length)] ?? ""
 }
 
-function caretLine(x: number, y: number): { left: string; top: string; height: string } {
-  const point = document.caretPositionFromPoint?.(x, y)
-  if (point?.offsetNode) {
-    const range = document.createRange()
-    const limit =
-      point.offsetNode.nodeType === Node.TEXT_NODE ? (point.offsetNode.textContent?.length ?? 0) : point.offset
-    range.setStart(point.offsetNode, Math.min(point.offset, limit))
-    range.collapse(true)
-    const rect = range.getBoundingClientRect()
-    if (rect.height > 0) return { left: `${rect.left}px`, top: `${rect.top}px`, height: `${rect.height}px` }
-  }
-  return { left: `${x}px`, top: `${y - 10}px`, height: "20px" }
-}
-
 function caretLeft(form: HTMLElement | undefined): number {
   const selection = window.getSelection()
   if (!form || !selection?.rangeCount) return 0
@@ -142,20 +128,17 @@ export function PromptInputV2(props: PromptInputV2Props) {
   let richHost!: HTMLDivElement
   let form: HTMLFormElement | undefined
   const syncBlank = () => setBlank(field()?.isEmpty() ?? true)
-  const [dropCaret, setDropCaret] = createSignal<{ left: string; top: string; height: string } | null>(null)
-  createEffect(() => {
-    if (state.drag !== "active") setDropCaret(null)
-  })
-  onMount(() => {
-    const track = (event: DragEvent) => {
-      if (state.drag !== "active") return
-      const area = richHost?.getBoundingClientRect()
-      if (!area || event.clientX < area.left || event.clientX > area.right) return
-      if (event.clientY < area.top - 4 || event.clientY > area.bottom + 4) return
-      setDropCaret(caretLine(event.clientX, event.clientY))
+  const dropArea = createMemo(() => {
+    if (state.drag !== "active") return null
+    const column = richHost?.closest('[data-component="chat-shell"]') ?? richHost?.closest("form")
+    const box = column?.getBoundingClientRect()
+    if (!box) return null
+    return {
+      top: `${box.top + 8}px`,
+      left: `${box.left + 8}px`,
+      width: `${box.width - 16}px`,
+      height: `${box.height - 16}px`,
     }
-    document.addEventListener("dragover", track)
-    onCleanup(() => document.removeEventListener("dragover", track))
   })
 
   onMount(() => {
@@ -286,20 +269,19 @@ export function PromptInputV2(props: PromptInputV2Props) {
           />
         </Suspense>
       </Show>
-      <Show when={dropCaret()}>
-        {(caret) => (
+      <Show when={dropArea()}>
+        {(area) => (
           <Portal>
-            <div
-              class="composer-drop-caret"
-              style={caret()}
-              data-component="composer-drop-overlay"
-              role="status"
-              aria-label={i18n.t(
-                props.controller.dragKind() === "reference"
-                  ? "ui.promptInput.dropReference"
-                  : "ui.promptInput.dropFiles",
-              )}
-            />
+            <div class="composer-drop" style={area()} data-component="composer-drop-overlay">
+              <div role="status" class="composer-drop-label">
+                <RemixIcon icon={AttachIcon} size={16} />
+                {i18n.t(
+                  props.controller.dragKind() === "reference"
+                    ? "ui.promptInput.dropReference"
+                    : "ui.promptInput.dropFiles",
+                )}
+              </div>
+            </div>
           </Portal>
         )}
       </Show>
