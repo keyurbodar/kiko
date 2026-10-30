@@ -81,8 +81,9 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
       (row) => row.unread > 0 || markedUnread(row.id) || props.needs.has(row.id),
     ),
   )
-  const asking = createMemo(() => shown().filter((bot) => props.needs.has(bot.id)))
-  const calm = createMemo(() => shown().filter((bot) => !props.needs.has(bot.id)))
+  const lifted = (bot: RosterBot) => bot.id !== props.activeId && props.needs.has(bot.id)
+  const asking = createMemo(() => shown().filter(lifted))
+  const calm = createMemo(() => shown().filter((bot) => !lifted(bot)))
   const working = createMemo(() => calm().filter(isLive))
   const rest = createMemo(() => calm().filter((bot) => !isLive(bot)))
   const pinned = createMemo(() => pinnedRows(rest(), props.mainId))
