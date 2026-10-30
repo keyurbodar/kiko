@@ -1064,6 +1064,10 @@ function createRoom() {
     thoughtFor: (m: ChatMessage) => thoughtAnchors().get(m.id),
     runWindow: (m: ChatMessage) => (m.botId && m.steps ? windowKey(m.botId, m.stepAfter ?? 0) : undefined),
     typingRun: typingRunOf,
+    carriesRun: (slug: string) => {
+      const key = typingRunOf(slug)
+      return key !== undefined && stepsOf(key).length > 0
+    },
     runSteps: stepsOf,
     runEnd: (key: string) => runEnds()[key],
     thoughtOfRun: (runId: string) => restored()[runId] ?? thoughtByRun().get(runId),

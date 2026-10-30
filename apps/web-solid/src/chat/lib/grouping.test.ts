@@ -101,6 +101,17 @@ describe("buildTimelineItems", () => {
     expect(reply?.kind === "message" && reply.foldedRuns?.map((m) => m.seq)).toEqual([1, 2])
     expect(items.filter((item) => item.kind === "background")).toHaveLength(0)
   })
+
+  it("leaves a waiting background run to the live tree of the agent still working on it", () => {
+    const messages = [said(1, START, "user"), background(2, START + 60_000)]
+
+    expect(buildTimelineItems(messages, undefined, { carried: new Set(["kiko"]) }).map((i) => i.kind)).not.toContain(
+      "background",
+    )
+    expect(buildTimelineItems(messages, undefined, { carried: new Set(["other"]) }).map((i) => i.kind)).toContain(
+      "background",
+    )
+  })
 })
 
 describe("unfoldedRuns", () => {

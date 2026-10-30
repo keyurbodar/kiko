@@ -31,6 +31,7 @@ vi.mock("../../state/room", async () => {
     fileSrc: () => "",
     room: {
       typingRun: (slug: string) => (live() ? `${slug}#0` : undefined),
+      carriesRun: () => live() && steps().some((step) => (step.after ?? 0) === 0),
       runSteps: (key: string) => {
         const after = Number(key.slice(key.lastIndexOf("#") + 1))
         return steps().filter((step) => (step.after ?? 0) === after)

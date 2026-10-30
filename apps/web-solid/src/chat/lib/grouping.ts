@@ -38,6 +38,7 @@ export type TimelineItem =
 export type TimelineOptions = {
   members?: ReadonlySet<string>
   expanded?: ReadonlySet<string>
+  carried?: ReadonlySet<string>
 }
 
 export { dayStartOf }
@@ -116,7 +117,8 @@ function entries(messages: readonly ChatMessage[], options: TimelineOptions, fol
     const background = backgroundOf(message)
     if (background) {
       close()
-      if (!fold.taken.has(message.id)) addBackground(out, message, background, options)
+      const live = options.carried?.has(background) && fold.waiting.get(background)?.includes(message)
+      if (!fold.taken.has(message.id) && !live) addBackground(out, message, background, options)
       continue
     }
     if (isEvent(message)) {

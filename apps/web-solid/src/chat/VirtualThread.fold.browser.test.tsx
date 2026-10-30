@@ -27,6 +27,7 @@ vi.mock("../state/room", async () => {
     fileSrc: () => "",
     room: {
       runSteps: (key: string) => steps()[key] ?? [],
+      carriesRun: () => false,
       runWindow: (m: ChatMessage) => (m.botId && m.steps ? `${m.botId}#${m.stepAfter ?? 0}` : undefined),
       runReady: () => ready(),
       runLive: () => false,

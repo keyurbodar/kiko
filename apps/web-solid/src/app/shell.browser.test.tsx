@@ -10,6 +10,7 @@ import {
 import { describe, expect, it } from "vitest"
 import { page } from "vitest/browser"
 import { render } from "../../test/render"
+import { closeDesk, deskShown, toggleDesk } from "../chat/side/surfaces"
 import { room } from "../state/room"
 import { Shell } from "./shell"
 import { defaultWidth, INFO, SIDEBAR } from "./widths"
@@ -45,6 +46,7 @@ describe("shell", () => {
   it("opens with the right panel closed and the sidebar at its default width on a first sign-in", async () => {
     await page.viewport(1440, 900)
     localStorage.clear()
+    closeDesk()
     room.followRoute(() => null)
     const router = firstSignIn()
     await using screen = await render(() => <RouterProvider router={router} />)
@@ -56,7 +58,7 @@ describe("shell", () => {
   it("opens the right panel at its default width once the owner has opened it", async () => {
     await page.viewport(1440, 900)
     localStorage.clear()
-    localStorage.setItem("kiko:device:panel", "1")
+    if (!deskShown()) toggleDesk()
     room.followRoute(() => null)
     const router = firstSignIn()
     await using screen = await render(() => <RouterProvider router={router} />)
@@ -68,7 +70,7 @@ describe("shell", () => {
   it("maximizes the right panel over the chat column and leaves the sidebar width alone", async () => {
     await page.viewport(1440, 900)
     localStorage.clear()
-    localStorage.setItem("kiko:device:panel", "1")
+    if (!deskShown()) toggleDesk()
     room.followRoute(() => ROOM)
     const router = firstSignIn()
     await using screen = await render(() => <RouterProvider router={router} />)

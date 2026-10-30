@@ -48,10 +48,7 @@ function Row(props: { seed: string; doing?: string }) {
     const windowKey = room.typingRun(props.seed)
     return windowKey ? stepCaption(windowKey) : captionOf(props.doing, now() - since())
   }
-  const treeKey = () => {
-    const windowKey = room.typingRun(props.seed)
-    return windowKey && room.runSteps(windowKey).length > 0 ? windowKey : undefined
-  }
+  const treeKey = () => (room.carriesRun(props.seed) ? room.typingRun(props.seed) : undefined)
   return (
     <div class="typing" data-component="typing-row">
       <IdentityAvatar seed={props.seed} size={28} class="typing-bird" />

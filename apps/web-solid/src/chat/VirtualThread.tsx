@@ -28,6 +28,7 @@ import { AgentThread } from "./AgentThread"
 import { BackgroundWork } from "./run/BackgroundWork"
 import { MentionLookup } from "./ui/Mention"
 import { TypingIndicator } from "./typing/TypingIndicator"
+import { room } from "../state/room"
 import { cn } from "../lib/cn"
 import { createMessageMenu } from "./ui/MessageMenu"
 import { ScrollFades } from "./ui/ScrollFades"
@@ -116,6 +117,7 @@ export function VirtualThread(props: {
       buildTimelineItems(props.messages, props.firstUnreadMessageId, {
         members: memberSet(),
         expanded: expanded(),
+        carried: new Set((props.waitingSlugs ?? []).filter(room.carriesRun)),
       }),
     )
     const owner = props.scrollKey
