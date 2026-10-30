@@ -129,6 +129,7 @@ function FolderContentsMenu(props: {
 }) {
   const [open, setOpen] = createSignal(false)
   const [at, setAt] = createSignal(props.dir)
+  let shown = false
   createEffect(
     on(
       () => [props.dir, props.current] as const,
@@ -140,6 +141,7 @@ function FolderContentsMenu(props: {
     ),
   )
   const change = (next: boolean) => {
+    shown = false
     setOpen(next)
     if (next) setAt(props.dir)
   }
@@ -154,7 +156,13 @@ function FolderContentsMenu(props: {
       <MenuV2.Portal>
         <MenuV2.Content
           class="max-h-80 min-w-48 overflow-y-auto"
-          data-component="file-crumb-menu-content"
+          onFocusIn={(event: FocusEvent) => {
+            if (shown) return
+            shown = true
+            ;(event.currentTarget as HTMLElement)
+              .querySelector('[aria-current="page"]')
+              ?.scrollIntoView({ block: "nearest" })
+          }}
           onKeyDown={(event: KeyboardEvent) => {
             if (event.key !== "ArrowLeft") return
             const parent = back()

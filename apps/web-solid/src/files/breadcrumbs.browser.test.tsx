@@ -79,6 +79,32 @@ describe("file breadcrumbs", () => {
     expect(onOpenFile).toHaveBeenCalledWith("attachments/k2j9x1aa-budget.csv")
   })
 
+  it("scrolls the current file into view when a long folder menu opens", async () => {
+    const many = Array.from({ length: 40 }, (_, i) => `attachments/f${String(i).padStart(2, "0")}.md`)
+    const last = many.at(-1)!
+    await using screen = await render(() => (
+      <FileBreadcrumbs
+        current={last}
+        trail={last}
+        index={buildIndex(many)}
+        unsaved={false}
+        onNavigateFolder={() => {}}
+        onOpenFile={() => {}}
+      />
+    ))
+    await screen.getByRole("button", { name: "Browse From this chat" }).click()
+    await expect.element(page.getByRole("menu")).toBeVisible()
+    const inView = () => {
+      const menu = document.querySelector<HTMLElement>('[role="menu"]')
+      const row = menu?.querySelector<HTMLElement>('[aria-current="page"]')
+      if (!menu || !row) return false
+      const box = menu.getBoundingClientRect()
+      const item = row.getBoundingClientRect()
+      return item.top >= box.top - 1 && item.bottom <= box.bottom + 1
+    }
+    await expect.poll(inView).toBe(true)
+  })
+
   it("drills into a folder without closing and ArrowLeft walks back to the crumb", async () => {
     await using screen = await render(() => (
       <FileBreadcrumbs
