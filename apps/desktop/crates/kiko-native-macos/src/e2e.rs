@@ -7,8 +7,8 @@ use kiko_driver::{
     ActParams, Action, Grant, Image, Look, LookParams, Mode, Native, Node, OpenParams, OpenTarget,
     Point, Rect, Ref, Route, Window,
 };
-use objc2_application_services::{AXError, AXUIElement, AXValue, AXValueType};
-use objc2_core_foundation::{CFRange, CGPoint, CGSize};
+use objc2_application_services::{AXUIElement, AXValue, AXValueType};
+use objc2_core_foundation::{CFNumber, CFRange, CGPoint, CGSize};
 
 use crate::{apps, ax, cf, driver::MacDriver, input, look, window};
 
@@ -993,19 +993,21 @@ fn chrome_page(driver: &mut MacDriver) -> Option<Window> {
     window_titled(driver, "Google Chrome", "before")
 }
 
-fn opt_in_state(pid: i32) -> Vec<(String, bool, bool)> {
+fn opt_in_state(pid: i32) -> Vec<String> {
     let application = ax::application(pid);
     ["AXEnhancedUserInterface", "AXManualAccessibility"]
         .into_iter()
         .map(|name| {
-            let set = ax::set_flag(&application, name, true) == AXError::Success;
+            let boolean = ax::set_flag(&application, name, true);
+            let number = CFNumber::new_i64(1);
+            let numeric = ax::set(&application, name, &number);
             let values = ax::attributes(&application, &[name]);
             let value = values
                 .first()
                 .and_then(|value| value.as_ref())
                 .and_then(|value| cf::flag(value))
                 .unwrap_or(false);
-            (name.to_string(), set, value)
+            format!("{name}: boolean={boolean:?} number={numeric:?} value={value}")
         })
         .collect()
 }

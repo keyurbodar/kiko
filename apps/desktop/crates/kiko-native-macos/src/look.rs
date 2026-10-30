@@ -1,10 +1,11 @@
 use std::time::{Duration, Instant};
 
 use kiko_driver::{Action, Node, Rect, Ref};
-use objc2_application_services::AXUIElement;
-use objc2_core_foundation::CFType;
+use objc2_application_services::{AXError, AXUIElement};
+use objc2_core_foundation::{CFNumber, CFType};
 
 use crate::ax::{self, Element};
+use crate::cf;
 
 pub const MAX_DEPTH: usize = 40;
 pub const DEADLINE: Duration = Duration::from_millis(3000);
@@ -316,10 +317,29 @@ fn opt_in(application: &AXUIElement, bundle: Option<&str>, app: &str) -> bool {
     };
     let mut enabled = false;
     for name in names {
-        enabled |=
-            ax::set_flag(application, name, true) == objc2_application_services::AXError::Success;
+        if attribute_on(application, name) {
+            enabled = true;
+            continue;
+        }
+        enabled |= turn_on(application, name);
     }
     enabled
+}
+
+fn attribute_on(application: &AXUIElement, name: &str) -> bool {
+    ax::attributes(application, &[name])
+        .first()
+        .and_then(|value| value.as_ref())
+        .and_then(|value| cf::flag(value))
+        .unwrap_or(false)
+}
+
+fn turn_on(application: &AXUIElement, name: &str) -> bool {
+    if ax::set_flag(application, name, true) == AXError::Success {
+        return true;
+    }
+    let number = CFNumber::new_i64(1);
+    ax::set(application, name, &number) == AXError::Success
 }
 
 pub fn web_app(bundle: Option<&str>, app: &str) -> bool {
