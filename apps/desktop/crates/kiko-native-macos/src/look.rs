@@ -316,8 +316,13 @@ impl WebPages {
     pub fn enable(&mut self, pid: i32, bundle: Option<&str>, app: &str) -> (Element, WebPage) {
         let application = ax::application(pid);
         let key = launch(pid).map(|started| (pid, started));
-        if let Some(page) = key.and_then(|key| self.seen.get(&key).copied()) {
-            return (application, page);
+        let known = key.and_then(|key| self.seen.get(&key).copied());
+        match known {
+            Some(WebPage::Hidden) => return (application, WebPage::Hidden),
+            Some(WebPage::Exposed) if web_content_present(&application) => {
+                return (application, WebPage::Exposed);
+            }
+            _ => {}
         }
         let (page, settled) = probe(&application, bundle, app);
         if let (Some(key), true) = (key, settled) {
