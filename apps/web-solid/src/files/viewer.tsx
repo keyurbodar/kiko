@@ -82,17 +82,22 @@ export function FileViewer(props: {
                 </Show>
               </Match>
               <Match when={props.kind === "image"}>
-                <ImageView src={src(ref())} name={fileName(ref().name)} />
+                <Fallible src={src(ref())} fallback={() => <NoPreview name={fileName(ref().name)} href={src(ref())} />}>
+                  {(fail) => <ImageView src={src(ref())} name={fileName(ref().name)} onError={fail} />}
+                </Fallible>
               </Match>
               <Match when={props.kind === "pdf"}>
                 <PdfView src={src(ref())} title={fileName(ref().name)} />
               </Match>
               <Match when={props.kind === "video"}>
-                <Media src={src(ref())} error="Unable to load video.">
-                  {(url, fail) => (
+                <Fallible
+                  src={src(ref())}
+                  fallback={(retry) => <SurfaceFailure message="Unable to load video." onRetry={retry} />}
+                >
+                  {(fail) => (
                     <div class="flex min-h-0 flex-1 items-center justify-center bg-black" data-component="file-video">
                       <video
-                        src={url}
+                        src={src(ref())}
                         controls
                         playsinline
                         class="max-h-full w-full bg-black object-contain"
@@ -100,7 +105,7 @@ export function FileViewer(props: {
                       />
                     </div>
                   )}
-                </Media>
+                </Fallible>
               </Match>
               <Match when={props.kind === "audio"}>
                 <AudioView src={src(ref())} name={fileName(ref().name)} />
@@ -136,7 +141,11 @@ export function FileViewer(props: {
   )
 }
 
-function Media(props: { src: string; error: string; children: (src: string, fail: () => void) => JSX.Element }) {
+function Fallible(props: {
+  src: string
+  fallback: (retry: () => void) => JSX.Element
+  children: (fail: () => void) => JSX.Element
+}) {
   const [failed, setFailed] = createSignal(false)
   createEffect(
     on(
@@ -146,8 +155,8 @@ function Media(props: { src: string; error: string; children: (src: string, fail
     ),
   )
   return (
-    <Show when={!failed()} fallback={<SurfaceFailure message={props.error} onRetry={() => setFailed(false)} />}>
-      {props.children(props.src, () => setFailed(true))}
+    <Show when={!failed()} fallback={props.fallback(() => setFailed(false))}>
+      {props.children(() => setFailed(true))}
     </Show>
   )
 }
