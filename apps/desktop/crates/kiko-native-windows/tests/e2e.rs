@@ -382,14 +382,29 @@ fn edge_path() -> Option<PathBuf> {
 
 fn wait_for_edge(driver: &mut Box<dyn Native>, browser: &mut Child) -> Window {
     let browser_pid = browser.id();
-    let deadline = Instant::now() + Duration::from_secs(240);
+    let started = Instant::now();
+    let deadline = started + Duration::from_secs(240);
+    let mut last_report = started;
     loop {
-        if let Ok(listed) = driver.windows()
-            && let Some(window) = listed
-                .into_iter()
-                .find(|window| window.title == "kiko-page")
-        {
-            return window;
+        if let Ok(listed) = driver.windows() {
+            if let Some(window) = listed
+                .iter()
+                .find(|window| window.title.contains("kiko-page"))
+            {
+                return window.clone();
+            }
+            if last_report.elapsed() >= Duration::from_secs(15) {
+                last_report = Instant::now();
+                let titles: Vec<String> = listed
+                    .iter()
+                    .map(|window| format!("{:?} [pid {} {}]", window.title, window.pid, window.app))
+                    .collect();
+                eprintln!(
+                    "waiting for Edge ({:?} in): {}",
+                    started.elapsed(),
+                    titles.join(", ")
+                );
+            }
         }
         if Instant::now() >= deadline {
             let listed = driver.windows().unwrap_or_default();

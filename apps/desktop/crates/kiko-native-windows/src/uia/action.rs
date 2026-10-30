@@ -35,7 +35,11 @@ pub fn perform(tables: &HashMap<isize, Table>, request: &OwnedAct) -> Result<Out
 
 fn background(element: &IUIAutomationElement, request: &OwnedAct) -> Result<Outcome> {
     match request.action {
-        Action::Press if legacy(element) => native(element, request.window),
+        Action::Press | Action::Toggle | Action::Select | Action::Expand | Action::Collapse
+            if legacy(element) =>
+        {
+            native(element, request.window)
+        }
         Action::Press => press(element, request.window),
         Action::Toggle => toggle(element),
         Action::SetValue if legacy(element) => {
@@ -82,7 +86,6 @@ fn foreground(element: &IUIAutomationElement, request: &OwnedAct) -> Result<Outc
 
 fn primary(element: &IUIAutomationElement, request: &OwnedAct) -> Result<Outcome> {
     let outcome = match request.action {
-        Action::Press if legacy(element) => native(element, request.window),
         Action::Press => press(element, request.window),
         Action::Toggle => toggle(element),
         Action::Select => select(element),
