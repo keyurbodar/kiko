@@ -267,6 +267,22 @@ describe("composer attachments", () => {
     expect(sent).toBe("Read ok")
   })
 
+  it("leaves an empty draft once every tray tile is removed", async () => {
+    using _xhr = fakeXhr()
+    await using screen = await mountComposer()
+    const editor = screen.editor
+    paste(editor, new File(["a"], "one.md", { type: "text/markdown" }))
+    paste(editor, new File(["b"], "two.md", { type: "text/markdown" }))
+    await expect.poll(() => tray(screen.container)).toHaveLength(2)
+
+    for (const left of [1, 0]) {
+      await userEvent.click(screen.container.querySelector<HTMLElement>('[data-action="remove-attachment"]')!)
+      await expect.poll(() => tray(screen.container).length).toBe(left)
+    }
+    await expect.poll(() => editor.querySelectorAll("[data-attachment]").length).toBe(0)
+    expect(editor.textContent).toBe("")
+  })
+
   it("removes the chip when its tray tile is removed, and undo brings both back", async () => {
     using _xhr = fakeXhr()
     await using screen = await mountComposer()
