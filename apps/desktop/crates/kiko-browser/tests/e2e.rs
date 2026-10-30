@@ -222,6 +222,33 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
         "typing fires input events: {events}"
     );
 
+    for attempt in 1..=20 {
+        let marker = format!("click{attempt}");
+        let url = format!("{}&again={marker}", page_url("B"));
+        eval(&mut driver, &b, &format!("location.href = {url:?}"));
+        wait_for(&format!("the hidden tab to load {marker}"), || {
+            eval(&mut driver, &b, "location.search")
+                .as_str()
+                .unwrap_or_default()
+                .contains(&marker)
+                .then_some(())
+        });
+        let page = read(&mut driver, &b, false);
+        let press = find(&page, "button", "Press");
+        let started = Instant::now();
+        let route = act(&mut driver, &b, press, PageAction::Click, None);
+        eprintln!(
+            "trusted click {attempt} of a freshly loaded hidden tab: {route:?} in {:?}",
+            started.elapsed()
+        );
+        assert_eq!(
+            route,
+            Route::Trusted,
+            "trusted click {attempt} reaches a freshly loaded hidden tab"
+        );
+        wait_title(&mut driver, &b, "pressed:B");
+    }
+
     let third = read(&mut driver, &b, false);
     let choice = find(&third, "combo box", "Choice");
     assert_eq!(
