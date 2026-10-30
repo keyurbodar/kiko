@@ -340,8 +340,9 @@ export default function ModelPickerPanel(props: {
     if (!trigger) return
     const form = trigger.closest(".composer-form")
     const measure = () => {
-      const r = (form ?? trigger).getBoundingClientRect()
-      const anchor = form ? { top: r.top, bottom: r.bottom, left: r.left + 18, right: r.right } : r
+      const button = trigger.getBoundingClientRect()
+      const edge = form?.getBoundingClientRect() ?? button
+      const anchor = { top: edge.top, bottom: edge.bottom, left: button.left, right: button.right }
       setPlace(
         placePanel(
           anchor,
@@ -349,7 +350,7 @@ export default function ModelPickerPanel(props: {
           PANEL_H,
           { width: window.innerWidth, height: window.innerHeight },
           form ? "above" : "below",
-          form ? "start" : "end",
+          "end",
         ),
       )
     }
