@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { userEvent } from "vitest/browser"
 import { render } from "../../test/render"
 import type { OutgoingMessage, RosterBot } from "../lib/types"
 import { room } from "../state/room"
 import { Composer } from "./composer"
+import { clearDraftFiles } from "./rich/draft-files"
 
 const delivery = vi.hoisted(() => ({
   sent: [] as { roomId: string; text: string; attachments?: readonly { pendingId: string }[] }[],
@@ -91,7 +92,8 @@ function pick(container: HTMLElement, ...files: File[]) {
 const tiles = (root: HTMLElement) =>
   root.querySelectorAll('[data-component="prompt-input-v2-attachments"] .tray-tile').length
 
-const shown = (body: string) => room.messages().find((message) => message.body === body)
+const shown = (body: string) => room.messages().find((message) => message.body.includes(body))
+const linked = (name: string, body: string) => new RegExp(`^\\[${name}\\]\\(attachment:[\\w-]+\\) ${body}$`)
 
 async function sendThroughRoom(body: string) {
   room.followRoute(() => ROOM)
@@ -103,6 +105,10 @@ async function sendThroughRoom(body: string) {
 }
 
 describe("sending attachments", () => {
+  beforeEach(async () => {
+    await clearDraftFiles(ROOM)
+  })
+
   it("shows the message with its attachment and clears the composer before the upload finishes", async () => {
     using _xhr = fakeXhr()
     await using screen = await sendThroughRoom("look")
@@ -116,7 +122,7 @@ describe("sending attachments", () => {
 
     FakeXhr.sent[0]!.finish()
     await expect.poll(() => delivery.sent.length).toBe(1)
-    expect(delivery.sent[0]!.text).toBe("look")
+    expect(delivery.sent[0]!.text).toMatch(linked("note.txt", "look"))
     expect(delivery.sent[0]!.attachments).toHaveLength(1)
   })
 
@@ -128,7 +134,7 @@ describe("sending attachments", () => {
     FakeXhr.sent[0]!.finish()
     await expect.poll(() => delivery.sent.length).toBe(1)
     expect(delivery.sent[0]!.roomId).toBe(ROOM)
-    expect(delivery.sent[0]!.text).toBe("away")
+    expect(delivery.sent[0]!.text).toMatch(linked("note.txt", "away"))
   })
 
   it("marks the sent message failed when its upload fails, and retries it", async () => {
@@ -164,7 +170,8 @@ describe("sending attachments", () => {
 
     FakeXhr.sent[0]!.finish()
     await expect.poll(() => tiles(screen.container)).toBe(1)
-    await expect.poll(() => screen.editor.textContent).toBe("refused")
+    await expect.poll(() => screen.editor.querySelector("[data-attachment]")).not.toBeNull()
+    await expect.poll(() => screen.editor.textContent ?? "").toContain("refused")
     expect(shown("refused")).toBeUndefined()
   })
 
@@ -181,7 +188,7 @@ describe("sending attachments", () => {
     await expect.poll(() => FakeXhr.sent.length).toBe(1)
     FakeXhr.sent[0]!.finish()
     await userEvent.keyboard("look{Enter}")
-    expect(tiles(screen.container)).toBe(1)
+    await expect.poll(() => tiles(screen.container)).toBe(1)
 
     refuse = false
     await userEvent.keyboard("{Enter}")

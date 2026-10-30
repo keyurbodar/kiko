@@ -1,42 +1,62 @@
-import { createEffect, createSignal, For, Show } from "solid-js"
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { CloseIcon, ResetIcon, CheckIcon } from "@kiko/ui/icons"
+import { CloseIcon, PlusIcon, ResetIcon } from "@kiko/ui/icons"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { formatBytes } from "../../chat/info/format"
 import { fileType } from "../../files/type"
 import { TypeIcon } from "../../files/type-icon"
 import { middleTruncate } from "../rich/nodes"
-import { progressLabel, progressShare, retryUpload, uploadState, type UploadState } from "../uploads"
-import { PASTED_TEXT, TilePreview, tileBadge, tileLook, type TileLook } from "./preview"
+import { progressShare, retryUpload, uploadState } from "../uploads"
+import { PASTED_TEXT, TileThumb, tileBadge, tileLook } from "./preview"
 import type { PromptInputV2Attachment } from "./types"
 
 export type Rejected = { id: string; name: string; reason: string }
 
-const TILE_DRAG = "application/x-kiko-tray-tile"
+const TILES_BEFORE_MORE = 4
+const TILES_MAX = 5
+const TOOLTIP_DELAY = 300
 
-function spoken(part: PromptInputV2Attachment, upload: UploadState | undefined): string {
-  if (upload?.status === "uploading") return `${part.filename}, uploading ${progressLabel(upload.loaded, upload.total)}`
+function spoken(part: PromptInputV2Attachment): string {
+  const upload = uploadState(part.id)
+  if (upload?.status === "uploading") return `${part.filename}, uploading`
   if (upload?.status === "failed") return `${part.filename}, upload failed. ${upload.reason}`
   return `${part.filename}, ${formatBytes(part.size)}`
 }
 
-function Foot(props: { part: PromptInputV2Attachment; upload: UploadState | undefined; named: boolean }) {
+function Tip(props: { part: PromptInputV2Attachment }) {
   return (
-    <span class="tray-foot">
-      <Show
-        when={props.upload?.status === "uploading" && props.upload}
-        fallback={
+    <span class="tray-tip">
+      <span class="tray-tip-name">{props.part.filename}</span>
+      <span class="tray-tip-size">{formatBytes(props.part.size)}</span>
+    </span>
+  )
+}
+
+function FileFace(props: { name: string; mime: string; size?: number; failed?: boolean; note?: string }) {
+  const type = () => fileType({ name: props.name, type: props.mime })
+  return (
+    <>
+      <span class="tray-face">
+        <TypeIcon type={type()} size={26} />
+      </span>
+      <span class="tray-text">
+        <span class="tray-name">{middleTruncate(props.name, 40)}</span>
+        <Show
+          when={props.failed || props.note}
+          fallback={
+            <span class="tray-meta">
+              {tileBadge({ filename: props.name, mime: props.mime })}
+              {" · "}
+              {formatBytes(props.size ?? 0)}
+            </span>
+          }
+        >
           <Show
-            when={props.upload?.status === "failed"}
+            when={props.failed}
             fallback={
-              <>
-                <span class="tray-badge">{tileBadge(props.part)}</span>
-                <span class="tray-aside">
-                  <Show when={props.named}>
-                    <span class="tray-aside-name">{props.part.filename}</span>
-                  </Show>
-                  <span class="tray-aside-size">{formatBytes(props.part.size)}</span>
-                </span>
-              </>
+              <span class="tray-failed" title={props.note}>
+                {props.note}
+              </span>
             }
           >
             <span class="tray-failed">
@@ -46,115 +66,77 @@ function Foot(props: { part: PromptInputV2Attachment; upload: UploadState | unde
               </span>
             </span>
           </Show>
-        }
-      >
-        {(up) => <span class="tray-bytes">{progressLabel(up().loaded, up().total)}</span>}
-      </Show>
-    </span>
+        </Show>
+      </span>
+    </>
   )
 }
 
 function Tile(props: {
   part: PromptInputV2Attachment
-  index: number
   onOpen: () => void
   onRemove: () => void
   onExpand: () => void
-  onMove: (id: string, to: number) => void
 }) {
   const upload = () => uploadState(props.part.id)
-  const [leaving, setLeaving] = createSignal(false)
-  const [landed, setLanded] = createSignal(false)
-  let uploaded = false
-  createEffect(() => {
-    const status = upload()?.status
-    if (status === "uploading") {
-      uploaded = true
-      return
-    }
-    if (status !== "ready" || !uploaded) return
-    uploaded = false
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-    setLanded(true)
-  })
-  const [dragging, setDragging] = createSignal(false)
-  const [broken, setBroken] = createSignal(false)
-  const look = (): TileLook => (broken() ? "type" : tileLook(props.part))
-  const pictured = () => look() === "image" || look() === "video"
+  const look = () => tileLook(props.part)
+  const pictured = () => look() !== "type"
   const pasted = () => props.part.filename === PASTED_TEXT
+  const failed = () => upload()?.status === "failed"
+  const uploading = () => upload()?.status === "uploading"
   const share = () => {
-    const u = upload()
-    return u?.status === "uploading" ? progressShare(u.loaded, u.total) : 1
+    const state = upload()
+    return state?.status === "uploading" ? progressShare(state.loaded, state.total) : 1
+  }
+  const [leaving, setLeaving] = createSignal(false)
+  const open = () => {
+    if (failed()) return retryUpload(props.part.id)
+    if (look() === "image") return props.onOpen()
+    if (pasted()) props.onExpand()
   }
   const remove = () => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return props.onRemove()
     setLeaving(true)
   }
-  const open = () => {
-    if (upload()?.status === "failed") return retryUpload(props.part.id)
-    if (look() === "image") return props.onOpen()
-    if (pasted()) props.onExpand()
-  }
   return (
     <div
       class="tray-tile"
-      data-component={look() === "image" ? "composer-attachment" : "composer-file"}
-      data-id={props.part.id}
-      data-kind={look() === "image" ? "image" : pasted() ? "pasted" : "file"}
-      data-look={look()}
-      data-state={upload()?.status}
       data-leaving={leaving() ? "" : undefined}
-      data-dragging={dragging() ? "" : undefined}
-      style={{ "--upload-share": share() }}
-      draggable={true}
-      onDragStart={(event) => {
-        event.dataTransfer?.setData(TILE_DRAG, props.part.id)
-        if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
-        setDragging(true)
-      }}
-      onDragEnd={() => setDragging(false)}
-      onDragOver={(event) => {
-        if (!event.dataTransfer?.types.includes(TILE_DRAG)) return
-        event.preventDefault()
-        event.stopPropagation()
-      }}
-      onDrop={(event) => {
-        const id = event.dataTransfer?.getData(TILE_DRAG)
-        if (!id) return
-        event.preventDefault()
-        event.stopPropagation()
-        props.onMove(id, props.index)
-      }}
       onAnimationEnd={(event) => {
         if (event.animationName === "tray-tile-out") props.onRemove()
       }}
+      data-component={pictured() ? "composer-attachment" : "composer-file"}
+      data-id={props.part.id}
+      data-look={look()}
+      data-state={upload()?.status}
+      style={{ "--upload-share": share() }}
     >
-      <button
-        type="button"
-        class="tray-tile-open"
-        title={props.part.filename}
-        aria-label={spoken(props.part, upload())}
-        data-action={pasted() ? "expand-pasted" : undefined}
-        onClick={open}
-      >
-        <span class="tray-body">
-          <TilePreview part={props.part} look={look()} onBroken={() => setBroken(true)} />
-        </span>
-        <Show when={upload()?.status === "failed" && pictured()}>
-          <span class="tray-veil" data-tone="bad">
-            <RemixIcon icon={ResetIcon} size={16} />
-          </span>
-        </Show>
-        <Foot part={props.part} upload={upload()} named={look() !== "type" && !pasted()} />
-        <Show when={upload()?.status === "uploading"}>
-          <span class="tray-fill" aria-hidden="true" />
-        </Show>
-        <Show when={landed()}>
-          <span class="tray-done" aria-hidden="true" onAnimationEnd={() => setLanded(false)}>
-            <RemixIcon icon={CheckIcon} size={18} />
-          </span>
-        </Show>
-      </button>
+      <TooltipV2 placement="top" openDelay={TOOLTIP_DELAY} value={<Tip part={props.part} />}>
+        <button
+          type="button"
+          class="tray-tile-open"
+          aria-label={spoken(props.part)}
+          data-action={pasted() ? "expand-pasted" : undefined}
+          onClick={open}
+        >
+          <Show
+            when={pictured()}
+            fallback={
+              <FileFace name={props.part.filename} mime={props.part.mime} size={props.part.size} failed={failed()} />
+            }
+          >
+            <TileThumb part={props.part} />
+            <Show when={uploading()}>
+              <span class="tray-ring" aria-hidden="true" />
+            </Show>
+            <Show when={failed()}>
+              <span class="tray-veil" data-tone="bad">
+                <RemixIcon icon={ResetIcon} size={16} />
+              </span>
+            </Show>
+          </Show>
+        </button>
+      </TooltipV2>
       <button
         type="button"
         class="tray-remove"
@@ -170,22 +152,23 @@ function Tile(props: {
 
 function RefusedTile(props: { item: Rejected; onDismiss: () => void }) {
   return (
-    <div class="tray-tile" data-kind="file" data-look="type" data-state="rejected" data-component="composer-rejected">
+    <div class="tray-tile" data-look="type" data-state="rejected" data-component="composer-rejected">
       <span class="tray-tile-open" title={`${props.item.name}: ${props.item.reason}`}>
-        <span class="tray-body">
-          <span class="tray-face">
-            <TypeIcon type={fileType({ name: props.item.name, type: "" })} size={24} />
-            <span class="tray-face-name">{middleTruncate(props.item.name, 44)}</span>
-          </span>
-        </span>
-        <span class="tray-foot">
-          <span class="tray-failed">{props.item.reason}</span>
-        </span>
+        <FileFace name={props.item.name} mime="" note={props.item.reason} />
       </span>
       <button type="button" class="tray-remove" aria-label={`Dismiss ${props.item.name}`} onClick={props.onDismiss}>
         <RemixIcon icon={CloseIcon} size={12} />
       </button>
     </div>
+  )
+}
+
+function MoreTile(props: { count: number; onOpen: () => void }) {
+  return (
+    <button type="button" class="tray-tile tray-more" data-action="show-all-attachments" onClick={props.onOpen}>
+      <RemixIcon icon={PlusIcon} size={12} />
+      <span>+{props.count}</span>
+    </button>
   )
 }
 
@@ -195,23 +178,52 @@ export function Tray(props: {
   onOpen: (part: PromptInputV2Attachment) => void
   onRemove: (part: PromptInputV2Attachment) => void
   onExpand: (part: PromptInputV2Attachment) => void
-  onMove: (id: string, to: number) => void
   onDismiss: (id: string) => void
 }) {
+  const [expanded, setExpanded] = createSignal(false)
+  const [fade, setFade] = createSignal({ start: false, end: false })
+  let shelf!: HTMLDivElement
+  const tiles = createMemo(() => {
+    const all = props.attachments
+    if (expanded() || all.length <= TILES_MAX) return { shown: all, more: 0 }
+    return { shown: all.slice(0, TILES_BEFORE_MORE), more: all.length - TILES_BEFORE_MORE }
+  })
+  const syncFade = () => {
+    if (!shelf) return
+    const max = shelf.scrollWidth - shelf.clientWidth
+    setFade({ start: shelf.scrollLeft > 1, end: max > 1 && shelf.scrollLeft < max - 1 })
+  }
+  onMount(() => {
+    syncFade()
+    const observer = new ResizeObserver(syncFade)
+    observer.observe(shelf)
+    shelf.addEventListener("scroll", syncFade, { passive: true })
+    onCleanup(() => {
+      observer.disconnect()
+      shelf.removeEventListener("scroll", syncFade)
+    })
+  })
   return (
-    <div class="composer-shelf" data-component="prompt-input-v2-attachments">
-      <For each={props.attachments}>
-        {(part, index) => (
+    <div
+      ref={shelf}
+      class="composer-shelf"
+      data-component="prompt-input-v2-attachments"
+      data-fade-start={fade().start ? "" : undefined}
+      data-fade-end={fade().end ? "" : undefined}
+    >
+      <For each={tiles().shown}>
+        {(part) => (
           <Tile
             part={part}
-            index={index()}
             onOpen={() => props.onOpen(part)}
             onRemove={() => props.onRemove(part)}
             onExpand={() => props.onExpand(part)}
-            onMove={props.onMove}
           />
         )}
       </For>
+      <Show when={tiles().more > 0}>
+        <MoreTile count={tiles().more} onOpen={() => setExpanded(true)} />
+      </Show>
       <For each={props.rejected}>
         {(item) => <RefusedTile item={item} onDismiss={() => props.onDismiss(item.id)} />}
       </For>

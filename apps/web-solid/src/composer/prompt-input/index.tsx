@@ -309,7 +309,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
               onOpen={props.controller.openAttachment}
               onRemove={(part) => props.controller.removeAttachment(part.id)}
               onExpand={props.onExpandPasted}
-              onMove={props.controller.moveAttachment}
               onDismiss={props.onDismissRejected}
             />
           </Show>

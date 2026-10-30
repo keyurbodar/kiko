@@ -23,6 +23,7 @@ import { createPromptInputV2Controller } from "./prompt-input/interaction"
 import type { Refusal } from "./prompt-input/attachments"
 import { type Rejected } from "./prompt-input/tray"
 import { createPromptInputV2Store } from "./prompt-input/store"
+import { trayAttachments } from "./prompt-input/placement"
 import { blobId, preparingAttachments, releaseBlobUrl } from "./prompt-input/attachments"
 import { composingKey } from "./ime"
 import type { PromptInputV2Attachment, PromptInputV2PersistedState } from "./prompt-input/types"
@@ -134,6 +135,7 @@ export function Composer(props: ComposerProps) {
   onCleanup(() => document.removeEventListener("keydown", editLast))
   onCleanup(() => document.removeEventListener("keydown", dropReply, true))
   const boxed = () => store.state.prompt.flatMap((part) => (part.type === "image" ? [part] : []))
+  const shown = () => trayAttachments(store.state.prompt)
   let held = new Map<string, string>()
   const keptFor = new Map<string, string>()
   const discard = (id: string, url: string) => {
@@ -186,7 +188,7 @@ export function Composer(props: ComposerProps) {
     },
   })
   const modelBlock = () => (props.editing || question.ask() ? null : (props.sendBlock ?? null))
-  const failed = () => boxed().filter((part) => uploadState(part.id)?.status === "failed")
+  const failed = () => shown().filter((part) => uploadState(part.id)?.status === "failed")
   const blocked = () => modelBlock()?.reason ?? (preparingAttachments() ? "Still preparing the attachment" : null)
   const [nudged, setNudged] = createSignal(false)
   const [rejected, setRejected] = createSignal<Rejected[]>([])
@@ -270,10 +272,7 @@ export function Composer(props: ComposerProps) {
   )
 
   const viewer = createImageDialog()
-  const pictures = () =>
-    store.state.prompt.flatMap((part) =>
-      part.type === "image" && isImage({ name: part.filename, type: part.mime }) ? [part] : [],
-    )
+  const pictures = () => shown().filter((part) => isImage({ name: part.filename, type: part.mime }))
 
   const botById = (botId: string | undefined) =>
     botId === undefined ? undefined : props.bots.find((bot) => bot.id === botId)
@@ -441,7 +440,7 @@ export function Composer(props: ComposerProps) {
           if (failed().length) return void setNudged(true)
           const text = draftText().trimEnd()
           const editing = props.editing
-          const parts = boxed()
+          const parts = shown()
           const items = parts.map((part) => ({ id: part.id, name: part.filename, type: part.mime, size: part.size }))
           const attachments = pendingAttachments(items)
           const pending = new Map(items.map((item, i) => [item.id, attachments[i]?.pendingId]))
