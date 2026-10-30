@@ -43,6 +43,7 @@ const log = process.argv[3] || process.env.KIKO_E2E_LOG;
 const note = (text) => fs.appendFileSync(log, text + '\n');
 process.on('uncaughtException', (error) => note('uncaught: ' + (error.stack || error)));
 app.whenReady().then(() => {
+  app.setAccessibilitySupportEnabled(true);
   note('ready page=' + page);
   const window = new BrowserWindow({ width: 640, height: 420, x: 160, y: 160 });
   note('window created');
@@ -330,10 +331,7 @@ fn electron_web_area_answers_in_the_background() {
     });
     let Some(look) = look else {
         let look = look_at(&mut driver, &window);
-        panic!(
-            "Electron exposed no web area; nodes are {:?}",
-            roles(&look.nodes)
-        );
+        panic!("Electron exposed no web area; outline:\n{}", look.outline);
     };
 
     press_page_button(&mut driver, &window, &look);
@@ -937,9 +935,9 @@ fn launch_chrome(driver: &mut MacDriver, url: &str) -> Window {
             window
         }
         None => panic!(
-            "no Chrome window; {notes:?}; running: {:?}; windows: {:?}",
-            running_apps(),
-            window_summary(driver)
+            "no Chrome window; {notes:?}; windows: {:?}; chrome windows: {:?}",
+            window_summary(driver),
+            window::debug_entries("Google Chrome")
         ),
     }
 }

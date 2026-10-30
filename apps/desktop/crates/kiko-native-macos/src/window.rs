@@ -78,6 +78,13 @@ fn parse(dictionary: &CFDictionary<CFType, CFType>) -> Option<Entry> {
 }
 
 pub fn entries(option: CGWindowListOption) -> Vec<Entry> {
+    all_entries(option)
+        .into_iter()
+        .filter(|entry| entry.layer == 0)
+        .collect()
+}
+
+fn all_entries(option: CGWindowListOption) -> Vec<Entry> {
     let Some(list) = CGWindowListCopyWindowInfo(
         option | CGWindowListOption::ExcludeDesktopElements,
         NULL_WINDOW,
@@ -91,9 +98,17 @@ pub fn entries(option: CGWindowListOption) -> Vec<Entry> {
         .filter_map(|item| {
             let dictionary = item.downcast_ref::<CFDictionary>()?;
             let dictionary: &CFDictionary<CFType, CFType> = unsafe { dictionary.cast_unchecked() };
-            let entry = parse(dictionary)?;
-            (entry.layer == 0).then_some(entry)
+            parse(dictionary)
         })
+        .collect()
+}
+
+#[cfg(test)]
+pub fn debug_entries(app: &str) -> Vec<(u32, i32, String)> {
+    all_entries(CGWindowListOption::OptionAll)
+        .into_iter()
+        .filter(|entry| entry.app == app)
+        .map(|entry| (entry.id, entry.layer, entry.title))
         .collect()
 }
 
@@ -184,14 +199,18 @@ pub fn front_pid() -> Option<i32> {
 pub fn list() -> Vec<Window> {
     let focused = front_pid().and_then(focused_window_id);
     let entries = every();
+    let shown: Vec<&Entry> = entries
+        .iter()
+        .filter(|entry| entry.on_screen || !entry.title.is_empty())
+        .collect();
     let mut seen = std::collections::HashSet::new();
-    let mut windows: Vec<Window> = entries
+    let mut windows: Vec<Window> = shown
         .iter()
         .filter(|entry| seen.insert(entry.id))
         .map(|entry| build(entry, focused))
         .collect();
 
-    for pid in entries.iter().map(|entry| entry.pid).collect::<Vec<_>>() {
+    for pid in shown.iter().map(|entry| entry.pid).collect::<Vec<_>>() {
         for window in ax_windows(pid) {
             let Some(id) = window.id else { continue };
             if !seen.insert(id) {
