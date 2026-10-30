@@ -145,3 +145,9 @@ jobs:
           name: macos-e2e-log-${{ github.run_id }}
           path: ${{ runner.temp }}/e2e.log
           if-no-files-found: warn
+
+      - name: Show Chrome's log
+        if: always()
+        run: |
+          log show --last 15m --predicate 'process CONTAINS "Google Chrome"' --style compact 2>/dev/null \
+            | grep -viE "updater|crashpad|mojo" | tail -80 || true

@@ -112,6 +112,14 @@ pub fn debug_entries(app: &str) -> Vec<(u32, i32, String)> {
         .collect()
 }
 
+#[cfg(test)]
+pub fn debug_all() -> Vec<(String, i32, String)> {
+    all_entries(CGWindowListOption::OptionAll)
+        .into_iter()
+        .map(|entry| (entry.app, entry.layer, entry.title))
+        .collect()
+}
+
 pub fn on_screen() -> Vec<Entry> {
     entries(CGWindowListOption::OptionOnScreenOnly)
 }

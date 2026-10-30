@@ -936,9 +936,10 @@ fn launch_chrome(driver: &mut MacDriver, url: &str) -> Window {
             window
         }
         None => panic!(
-            "no Chrome window; {notes:?}; windows: {:?}; chrome windows: {:?}",
+            "no Chrome window; {notes:?}; windows: {:?}; chrome windows: {:?}; all: {:?}",
             window_summary(driver),
-            window::debug_entries("Google Chrome")
+            window::debug_entries("Google Chrome"),
+            window::debug_all()
         ),
     }
 }
