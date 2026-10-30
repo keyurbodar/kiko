@@ -166,21 +166,16 @@ export function windowsNative(): Native | null {
       send(1)
     },
     text(value) {
-      let count = 0
       for (const char of value) {
         const code = char.codePointAt(0) ?? 0
         for (const unit of code > 0xffff
           ? [0xd800 + ((code - 0x10000) >> 10), 0xdc00 + ((code - 0x10000) & 0x3ff)]
           : [code]) {
-          keyInput(input.subarray(count * INPUT_SIZE), KEYEVENTF_UNICODE, 0, unit)
-          count++
-          if (count === 2) {
-            send(count)
-            count = 0
-          }
+          keyInput(input.subarray(0), KEYEVENTF_UNICODE, 0, unit)
+          keyInput(input.subarray(INPUT_SIZE), KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, 0, unit)
+          send(2)
         }
       }
-      if (count > 0) send(count)
     },
     cursor() {
       if (!user32.GetCursorPos(point as never)) return null

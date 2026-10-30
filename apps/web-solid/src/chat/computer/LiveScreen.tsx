@@ -1,4 +1,4 @@
-import { createEffect, createSignal, on, onCleanup, Show, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, on, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { connection } from "../../state/connection"
 import { computerById } from "../computers"
@@ -21,7 +21,10 @@ export default function LiveScreen(props: {
   const [size, setSize] = createSignal<{ w: number; h: number } | null>(null)
   const [agent, setAgent] = createSignal<AgentPoint>(null, { equals: sameCursor })
   const [epoch, setEpoch] = createSignal(0)
-  const online = () => computerById(props.pcId)?.online === true
+  const streams = createMemo(() => {
+    const computer = computerById(props.pcId)
+    return computer?.online === true && computer.caps.live
+  })
   const ratio = () => {
     const known = size()
     if (known) return known.w / known.h
@@ -45,23 +48,24 @@ export default function LiveScreen(props: {
     ),
   )
 
-  createEffect(() => {
-    epoch()
-    if (!online()) return
-    const next = startSession(props.pcId, {
-      video,
-      canvas,
-      onMode: setMode,
-      onSize: (w, h) => setSize((prev) => (prev?.w === w && prev.h === h ? prev : { w, h })),
-      onCursor: setAgent,
-    })
-    session = next
-    onCleanup(() => {
-      next.close()
-      if (session === next) session = undefined
-      setMode("connecting")
-    })
-  })
+  createEffect(
+    on([streams, epoch], ([live]) => {
+      if (!live) return
+      const next = startSession(props.pcId, {
+        video,
+        canvas,
+        onMode: setMode,
+        onSize: (w, h) => setSize((prev) => (prev?.w === w && prev.h === h ? prev : { w, h })),
+        onCursor: setAgent,
+      })
+      session = next
+      onCleanup(() => {
+        next.close()
+        if (session === next) session = undefined
+        setMode("connecting")
+      })
+    }),
+  )
 
   const place = (point: Point | null) => {
     if (!you) return
@@ -98,6 +102,7 @@ export default function LiveScreen(props: {
     if (!computer?.online) return "This computer is offline"
     const hint = accessHint(computer)
     if (hint) return hint
+    if (!computer.caps.live) return "The live view is off on this computer"
     return mode() === "stalled"
       ? "The screen is not sharing. Check that ffmpeg is installed on that computer."
       : "Connecting to the screen"

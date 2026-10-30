@@ -1,5 +1,5 @@
 import { chmod, copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises"
-import { dirname, join } from "node:path"
+import { basename, dirname, join } from "node:path"
 import { CliError } from "./errors"
 import { homeDir } from "./platform"
 import { selfArgv } from "./self"
@@ -255,7 +255,8 @@ async function windows(action: ServiceAction): Promise<number> {
     )
     return 0
   }
-  await quiet(["taskkill", "/F", "/IM", "kiko-computer.exe", "/FI", `PID ne ${process.pid}`])
+  if (basename(process.execPath).toLowerCase() === "kiko-computer.exe")
+    await quiet(["taskkill", "/F", "/IM", "kiko-computer.exe", "/FI", `PID ne ${process.pid}`])
   if (action === "uninstall") {
     await quiet(["reg", "delete", RUN_KEY, "/v", "kiko-computer", "/f"])
     console.log("kiko-computer no longer starts at logon")

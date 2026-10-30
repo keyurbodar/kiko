@@ -36,7 +36,7 @@ export async function serve(dir = configDir()): Promise<number> {
   const policy = await loadPolicy(dir)
   let live: Live = emptyLive({ logger: log, setHolder })
   adoptSession()
-  let detection = detect(log, policy)
+  let detection = detect(log, policy, dir)
   if (policy.desktop) detection.backend?.requestAccess()
   let update: Updater | null = null
   const host: Host = {
@@ -71,6 +71,7 @@ export async function serve(dir = configDir()): Promise<number> {
       display: () => detection.displays[0],
       configDir: dir,
     })
+    if (!live.live) detection = { ...detection, caps: { ...detection.caps, live: false } }
   }
   const point = (next: Detection) => {
     if (!next.desktop) return
