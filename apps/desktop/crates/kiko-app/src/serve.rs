@@ -10,7 +10,7 @@ use kiko_driver::Status;
 use crate::driver::{Driver, SharedDriver};
 use crate::log;
 
-fn name(path: &str) -> io::Result<interprocess::local_socket::Name<'_>> {
+pub fn name(path: &str) -> io::Result<interprocess::local_socket::Name<'_>> {
     #[cfg(windows)]
     {
         path.to_ns_name::<interprocess::local_socket::GenericNamespaced>()
@@ -76,8 +76,4 @@ fn connection(driver: &SharedDriver, status: &Status, stream: LocalSocketStream)
         (&stream).flush()?;
     }
     Ok(())
-}
-
-pub fn connect(path: &str) -> io::Result<LocalSocketStream> {
-    LocalSocketStream::connect(name(path)?)
 }

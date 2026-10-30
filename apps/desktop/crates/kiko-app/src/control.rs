@@ -6,6 +6,7 @@ use interprocess::local_socket::{ListenerOptions, prelude::*};
 use interprocess::os::unix::local_socket::ListenerOptionsExt;
 
 use crate::log;
+use crate::serve::name;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
@@ -27,17 +28,6 @@ impl Command {
             "quit" => Some(Command::Quit),
             _ => None,
         }
-    }
-}
-
-fn name(path: &str) -> io::Result<interprocess::local_socket::Name<'_>> {
-    #[cfg(windows)]
-    {
-        path.to_ns_name::<interprocess::local_socket::GenericNamespaced>()
-    }
-    #[cfg(unix)]
-    {
-        path.to_fs_name::<interprocess::local_socket::GenericFilePath>()
     }
 }
 

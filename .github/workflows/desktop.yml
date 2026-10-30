@@ -77,6 +77,8 @@ jobs:
           cargo build --release --locked --target aarch64-apple-darwin
           cargo build --release --locked --target x86_64-apple-darwin
           lipo -create target/aarch64-apple-darwin/release/kiko target/x86_64-apple-darwin/release/kiko -output "$RUNNER_TEMP/kiko"
+      - name: Install the workspace
+        run: bun install --frozen-lockfile
       - name: Build the daemon for both architectures
         run: |
           bun apps/computer/scripts/build.ts darwin-arm64 darwin-x64
@@ -167,6 +169,7 @@ jobs:
       - name: Package
         shell: pwsh
         run: |
+          bun install --frozen-lockfile
           bun apps/computer/scripts/build.ts windows-x64
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item apps/desktop/target/release/kiko.exe dist/kiko.exe
