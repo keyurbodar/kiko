@@ -305,9 +305,14 @@ fn start_document_app(driver: &mut MacDriver) -> Window {
 }
 
 fn launch_safari(driver: &mut MacDriver, url: &str) -> Window {
-    let mut notes = Vec::new();
-    for background in [true, false] {
-        notes.push(open_app(SAFARI, Some(url), background));
+    let mut notes = vec![open_app(SAFARI, None, true)];
+    let mut running = wait_for(LAUNCH, || window_named(driver, "Safari"));
+    if running.is_none() {
+        notes.push(open_app(SAFARI, None, false));
+        running = wait_for(LAUNCH, || window_named(driver, "Safari"));
+    }
+    if running.is_some() {
+        notes.push(open_app(SAFARI, Some(url), true));
         if let Some(window) = wait_for(LAUNCH, || window_titled(driver, "Safari", "before")) {
             println!("Safari answered; {notes:?}");
             return window;

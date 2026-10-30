@@ -86,19 +86,6 @@ jobs:
           set -o pipefail
           "${{ steps.e2e.outputs.binary }}" --ignored --test-threads=1 --nocapture 2>&1 | tee "${{ runner.temp }}/e2e.log"
 
-      - name: Probe app launches after the grant
-        if: always()
-        run: |
-          set -x
-          pgrep -lx tccd || echo "no tccd"
-          open -g -a /System/Applications/Utilities/Script\ Editor.app || echo "script editor open exit=$?"
-          sleep 3
-          ps aux | grep -i "[S]cript Editor" || echo "no Script Editor process"
-          open -g -a /Applications/Safari.app || echo "safari open exit=$?"
-          sleep 3
-          ps aux | grep -i "[S]afari" || echo "no Safari process"
-          true
-
       - name: Upload the captured windows
         if: always()
         uses: actions/upload-artifact@v4
