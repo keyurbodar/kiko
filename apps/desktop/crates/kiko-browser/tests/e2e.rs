@@ -256,6 +256,17 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
     );
     assert!(image.covers.w > 0.0);
 
+    for attempt in 1..=20 {
+        let repeated = read(&mut driver, &b, true);
+        let image = repeated
+            .image
+            .unwrap_or_else(|| panic!("capture {attempt} of the hidden tab yielded no image"));
+        assert!(
+            !image.data.is_empty() && image.width > 0,
+            "capture {attempt} of the hidden tab is empty"
+        );
+    }
+
     assert!(
         active(&mut driver, "A"),
         "everything above left the owner's tab in front"

@@ -35,14 +35,17 @@ pub async fn capture(link: &Link, session: &str, max_width: Option<u32>) -> Resu
     });
     let shot = json!({ "format": "jpeg", "quality": 80, "fromSurface": true, "captureBeyondViewport": true, "clip": clip });
     let data = match shoot(link, session, shot).await {
-        Some(data) => data,
-        None => {
+        Ok(data) => data,
+        Err(surface) => {
             let fallback =
                 json!({ "format": "jpeg", "quality": 80, "fromSurface": false, "clip": clip });
-            shoot(link, session, fallback).await.ok_or_else(|| {
+            shoot(link, session, fallback).await.map_err(|window| {
                 DriverError::new(
                     ErrorCode::Failed,
-                    format!("{} would not capture the page", link.name()),
+                    format!(
+                        "{} would not capture the page: {surface}; without the surface: {window}",
+                        link.name()
+                    ),
                 )
             })?
         }
@@ -80,7 +83,7 @@ async fn pixel_ratio(link: &Link, session: &str) -> f64 {
     ratio.unwrap_or(1.0)
 }
 
-async fn shoot(link: &Link, session: &str, params: Value) -> Option<String> {
+async fn shoot(link: &Link, session: &str, params: Value) -> Result<String> {
     let result = link
         .send_with(
             Some(session),
@@ -88,10 +91,10 @@ async fn shoot(link: &Link, session: &str, params: Value) -> Option<String> {
             params,
             SHOT_TIMEOUT,
         )
-        .await
-        .ok()?;
+        .await?;
     result["data"]
         .as_str()
         .filter(|data| !data.is_empty())
         .map(str::to_string)
+        .ok_or_else(|| DriverError::new(ErrorCode::Failed, "the browser sent no image data"))
 }
