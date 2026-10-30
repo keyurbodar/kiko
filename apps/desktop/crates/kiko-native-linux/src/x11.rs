@@ -258,11 +258,13 @@ impl X11 {
                 .ok()
                 .and_then(|cookie| cookie.reply().ok())
                 .map(|reply| reply.children)
-                .unwrap_or_default();
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|xid| self.viewable(*xid))
+                .collect();
         }
         clients
             .into_iter()
-            .filter(|xid| self.viewable(*xid))
             .filter_map(|xid| self.window(xid))
             .collect()
     }

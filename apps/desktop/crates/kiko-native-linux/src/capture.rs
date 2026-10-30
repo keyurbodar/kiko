@@ -20,7 +20,6 @@ pub(crate) fn capture(x11: &mut X11, xid: u32, max_width: u32) -> Result<Image, 
     if width == 0 || height == 0 {
         return Err(failed("the window has no size"));
     }
-    x11.ensure_composite().map_err(failed)?;
     let (drawable, offset_x, offset_y) = x11
         .top_ancestor(xid)
         .ok_or_else(|| failed("the window is not in the window tree"))?;
@@ -36,14 +35,15 @@ pub(crate) fn capture(x11: &mut X11, xid: u32, max_width: u32) -> Result<Image, 
     {
         return Err(failed("the window sits outside its frame"));
     }
+    let pixmap = match name_pixmap(x11, drawable) {
+        Ok(pixmap) => pixmap,
+        Err(_) => {
+            x11.ensure_composite().map_err(failed)?;
+            name_pixmap(x11, drawable)
+                .map_err(|error| failed(format!("could not read the window's pixels: {error}")))?
+        }
+    };
     let conn = x11.connection();
-    let pixmap = conn
-        .generate_id()
-        .map_err(|error| failed(format!("could not allocate a pixmap: {error}")))?;
-    conn.composite_name_window_pixmap(drawable, pixmap)
-        .map_err(|error| failed(format!("could not name the window pixmap: {error}")))?
-        .check()
-        .map_err(|error| failed(format!("could not read the window's pixels: {error}")))?;
     let reply = conn
         .get_image(
             ImageFormat::Z_PIXMAP,
@@ -90,6 +90,18 @@ pub(crate) fn capture(x11: &mut X11, xid: u32, max_width: u32) -> Result<Image, 
         height: out_height,
         covers: rect,
     })
+}
+
+fn name_pixmap(x11: &X11, drawable: u32) -> Result<u32, String> {
+    let conn = x11.connection();
+    let pixmap = conn
+        .generate_id()
+        .map_err(|error| format!("could not allocate a pixmap: {error}"))?;
+    conn.composite_name_window_pixmap(drawable, pixmap)
+        .map_err(|error| format!("could not name the window pixmap: {error}"))?
+        .check()
+        .map_err(|error| format!("could not name the window pixmap: {error}"))?;
+    Ok(pixmap)
 }
 
 fn to_rgb(
