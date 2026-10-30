@@ -174,8 +174,12 @@ describe("a run that folded its background activity into the reply", () => {
 
     fake.ready = true
 
-    await vi.waitFor(() => expect(screen.container.textContent).toContain("Started background work"))
-    expect(screen.container.textContent).toContain("compare hotels")
+    await vi.waitFor(() =>
+      expect(screen.container.querySelector('.run-tree-row[data-kind="worker"]')?.textContent).toContain(
+        "compare hotels",
+      ),
+    )
+    expect(screen.container.textContent).not.toContain("Loading steps…")
     expect(screen.container.textContent).not.toContain("Steps unavailable")
   })
 })
