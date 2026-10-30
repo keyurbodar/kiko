@@ -24,8 +24,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
     CWP_SKIPDISABLED, CWP_SKIPINVISIBLE, CWP_SKIPTRANSPARENT, ChildWindowFromPointEx, GA_ROOT,
     GUITHREADINFO, GetAncestor, GetForegroundWindow, GetGUIThreadInfo, GetParent, GetSystemMetrics,
     GetWindowThreadProcessId, PostMessageW, SHOW_WINDOW_CMD, SM_CXVIRTUALSCREEN,
-    SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_SHOWNOACTIVATE, SW_SHOWNORMAL,
-    SetForegroundWindow, WM_CHAR, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE,
+    SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SMTO_ABORTIFHUNG, SMTO_BLOCK,
+    SW_SHOWNOACTIVATE, SW_SHOWNORMAL, SendMessageTimeoutW, SetForegroundWindow, WM_CHAR,
+    WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_SETTEXT,
 };
 use windows::core::{HSTRING, PCWSTR};
 
@@ -41,6 +42,7 @@ const MAX_CHILD_DEPTH: usize = 16;
 const VK_RETURN: u16 = 0x0d;
 const VK_CONTROL: u16 = 0x11;
 const MK_LBUTTON_BIT: usize = 0x0001;
+const SET_TEXT_TIMEOUT: u32 = 1000;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
@@ -313,6 +315,29 @@ fn post_key(window: isize, key: u16, scan: u16, extended_key: bool) -> Result<()
         })
         .map_err(post_failed)
     }
+}
+
+pub fn post_set_text(window: isize, text: &str) -> Result<Route> {
+    ensure_postable(window, window, Kind::Text)?;
+    let value = HSTRING::from(text);
+    let sent = unsafe {
+        SendMessageTimeoutW(
+            to_hwnd(window),
+            WM_SETTEXT,
+            WPARAM(0),
+            LPARAM(value.as_ptr() as isize),
+            SMTO_ABORTIFHUNG | SMTO_BLOCK,
+            SET_TEXT_TIMEOUT,
+            None,
+        )
+    };
+    if sent.0 == 0 {
+        return Err(DriverError::new(
+            ErrorCode::Failed,
+            "the window did not accept the posted text",
+        ));
+    }
+    Ok(Route::WindowEvent)
 }
 
 pub fn post_text(window: isize, text: &str) -> Result<Route> {

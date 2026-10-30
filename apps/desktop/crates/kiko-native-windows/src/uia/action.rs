@@ -21,6 +21,7 @@ use super::{
 pub enum Outcome {
     Route(Route),
     Native { hwnd: isize, screen: Point },
+    Text { hwnd: isize, text: String },
     Pointer { hwnd: isize, screen: Point },
 }
 
@@ -36,7 +37,12 @@ fn background(element: &IUIAutomationElement, request: &OwnedAct) -> Result<Outc
     match request.action {
         Action::Press => press(element, request.window),
         Action::Toggle => toggle(element),
+        Action::SetValue if legacy(element) => Ok(Outcome::Text {
+            hwnd: native_handle(element, request.window),
+            text: request.text.clone().unwrap_or_default(),
+        }),
         Action::SetValue => set_value(element, request.text.as_deref()),
+        Action::Type if legacy(element) => Ok(legacy_text(element, request)),
         Action::Type => type_text(element, request),
         Action::Key => native(element, request.window),
         Action::Scroll => scroll(element, request.dx, request.dy),
@@ -86,6 +92,25 @@ fn primary(element: &IUIAutomationElement, request: &OwnedAct) -> Result<Outcome
     match outcome {
         Ok(Outcome::Route(route)) => Ok(Outcome::Route(route)),
         _ => pointer(element, request.window),
+    }
+}
+
+fn legacy(element: &IUIAutomationElement) -> bool {
+    unsafe { element.CurrentFrameworkId() }
+        .map(|framework| framework.to_string().eq_ignore_ascii_case("Win32"))
+        .unwrap_or(false)
+}
+
+fn legacy_text(element: &IUIAutomationElement, request: &OwnedAct) -> Outcome {
+    let current =
+        unsafe { element.GetCachedPatternAs::<IUIAutomationValuePattern>(UIA_ValuePatternId) }
+            .ok()
+            .and_then(|pattern| unsafe { pattern.CachedValue() }.ok())
+            .map(|value| value.to_string())
+            .unwrap_or_default();
+    Outcome::Text {
+        hwnd: native_handle(element, request.window),
+        text: format!("{current}{}", request.text.as_deref().unwrap_or_default()),
     }
 }
 

@@ -280,6 +280,7 @@ fn background_actions_reach_a_covered_window_without_stealing_focus() {
         .image
         .as_ref()
         .expect("the covered window still has pixels");
+    artifact(&directory, "covered-look.jpg", image);
     assert_eq!(image.mime, "image/jpeg");
     assert_eq!(
         image.covers, listed.frame,
@@ -300,7 +301,7 @@ fn background_actions_reach_a_covered_window_without_stealing_focus() {
 
     let mut set_value = background(&target.id(), Some(edit.reference), Action::SetValue);
     set_value.text = Some("hello from kiko".into());
-    assert_eq!(act(&mut driver, set_value).route, Route::Accessibility);
+    assert_eq!(act(&mut driver, set_value).route, Route::WindowEvent);
     checkpoint("set_value", foreground_before);
     let after_value = look(&mut driver, &target.id());
     let edit = find(&after_value.nodes, "edit", None);
@@ -312,7 +313,7 @@ fn background_actions_reach_a_covered_window_without_stealing_focus() {
 
     let mut type_more = background(&target.id(), Some(edit.reference), Action::Type);
     type_more.text = Some(" and more".into());
-    assert_eq!(act(&mut driver, type_more).route, Route::Accessibility);
+    assert_eq!(act(&mut driver, type_more).route, Route::WindowEvent);
     checkpoint("type", foreground_before);
     let after_type = look(&mut driver, &target.id());
     let edit = find(&after_type.nodes, "edit", None);
@@ -435,13 +436,13 @@ fn edge_page_content_is_readable_and_pressable_in_the_background() {
     .expect("write the page");
     let url = format!("file:///{}", page.to_string_lossy().replace('\\', "/"));
     let profile = directory.join("profile");
+    let profile_argument = format!("--user-data-dir={}", profile.display());
     let mut browser = Command::new(edge)
         .args([
             "--no-first-run",
             "--no-default-browser-check",
             "--disable-features=msEdgeFirstRunExperience",
-            "--user-data-dir",
-            profile.to_string_lossy().as_ref(),
+            &profile_argument,
             &url,
         ])
         .spawn()
@@ -477,7 +478,7 @@ fn edge_page_content_is_readable_and_pressable_in_the_background() {
             .windows()
             .ok()?
             .into_iter()
-            .find(|candidate| candidate.title.starts_with("fired-"))
+            .find(|candidate| candidate.title.contains("fired-"))
     });
 
     assert_untouched(foreground_before, cursor_before);

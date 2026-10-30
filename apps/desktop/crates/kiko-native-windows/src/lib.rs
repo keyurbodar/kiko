@@ -141,6 +141,9 @@ impl WindowsDriver {
                 hwnd: native,
                 screen,
             } => self.deliver_native(handle, native, screen, params),
+            Outcome::Text { hwnd: native, text } => Ok(ActResult {
+                route: input::post_set_text(native, &text)?,
+            }),
             Outcome::Pointer { .. } => Err(DriverError::new(
                 ErrorCode::BackgroundUnavailable,
                 "this action needs the screen; retry with mode foreground",
@@ -230,7 +233,7 @@ impl WindowsDriver {
         })?;
         match outcome {
             Outcome::Route(route) => Ok(ActResult { route }),
-            Outcome::Native { .. } => Err(DriverError::new(
+            Outcome::Native { .. } | Outcome::Text { .. } => Err(DriverError::new(
                 ErrorCode::Failed,
                 "the accessibility call returned a background route in foreground mode",
             )),

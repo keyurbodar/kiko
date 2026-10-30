@@ -43,6 +43,7 @@ const JPEG_QUALITY: u8 = 80;
 const BLACK_THRESHOLD: u8 = 8;
 
 pub fn supported() -> bool {
+    let _com = crate::uia::ComGuard::init();
     ApiInformation::IsTypePresent(&HSTRING::from(
         "Windows.Graphics.Capture.GraphicsCaptureItem",
     ))
@@ -59,7 +60,13 @@ pub fn capture(window: isize, frame: Rect, max_width: u32) -> Option<Image> {
 }
 
 fn wgc(window: isize) -> Option<(Vec<u8>, u32, u32)> {
-    unsafe { wgc_impl(hwnd::handle(window)) }.ok()
+    match unsafe { wgc_impl(hwnd::handle(window)) } {
+        Ok(frame) => Some(frame),
+        Err(error) => {
+            eprintln!("kiko: window capture fell back to PrintWindow: {error}");
+            None
+        }
+    }
 }
 
 unsafe fn wgc_impl(window: HWND) -> windows::core::Result<(Vec<u8>, u32, u32)> {
