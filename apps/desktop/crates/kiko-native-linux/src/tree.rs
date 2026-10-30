@@ -237,6 +237,10 @@ pub(crate) async fn build(
             stack.push((child, depth + 1));
         }
     }
+    let present: HashSet<Ref> = nodes.iter().map(|node| node.reference).collect();
+    for node in &mut nodes {
+        node.children.retain(|child| present.contains(child));
+    }
     for (index, target, role, states, ifaces) in enriched {
         if remaining(deadline).is_zero() {
             break;

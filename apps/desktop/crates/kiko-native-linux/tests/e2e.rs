@@ -279,7 +279,8 @@ fn gtk_background_actions_leave_the_owner_screen_alone() {
     let out = tempfile::tempdir().expect("temp dir");
     let mut native = driver().expect("driver");
     assert_permissions(&mut native);
-    let _app = spawn_gtk(out.path());
+    let app = spawn_gtk(out.path());
+    let app_pid = app.child.id();
     let ready = out.path().join("ready");
     wait_file(&ready);
 
@@ -290,6 +291,11 @@ fn gtk_background_actions_leave_the_owner_screen_alone() {
             .find(|window| window.title.contains(COVER) && window.focused)
     });
     let target = wait_window(&mut native, TARGET);
+    assert_eq!(
+        target.pid, app_pid,
+        "the window pid should come from _NET_WM_PID"
+    );
+    assert_eq!(cover.pid, app_pid);
     assert!(cover.focused, "the covering window should be focused");
     assert!(!target.focused, "the target window should not be focused");
 

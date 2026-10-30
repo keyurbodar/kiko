@@ -297,7 +297,7 @@ impl X11 {
     }
 
     fn window_property(&self, window: Window, property: Atom) -> Option<u32> {
-        self.property(window, property, AtomEnum::WINDOW)
+        self.property(window, property, AtomEnum::ANY)
             .and_then(|value| value.into_iter().next())
     }
 
