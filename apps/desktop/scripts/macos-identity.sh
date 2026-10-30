@@ -30,7 +30,8 @@ CONF
     -config "$work/openssl.cnf" -extensions codesign \
     -keyout "$dir/kiko.key" -out "$dir/kiko.crt" 2>/dev/null
   openssl pkcs12 -export -inkey "$dir/kiko.key" -in "$dir/kiko.crt" \
-    -name kiko -passout "pass:$password" -out "$dir/kiko.p12"
+    -name kiko -certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1 \
+    -passout "pass:$password" -out "$dir/kiko.p12"
   chmod 600 "$dir/kiko.key" "$dir/kiko.crt" "$dir/kiko.p12"
   printf '%s\n' "$password" > "$dir/password"
   chmod 600 "$dir/password"

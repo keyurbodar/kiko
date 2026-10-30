@@ -88,15 +88,22 @@ jobs:
           CERT: ${{ secrets.KIKO_MACOS_CERT_P12 }}
           PASSWORD: ${{ secrets.KIKO_MACOS_CERT_PASSWORD }}
         run: |
+          PASSWORD="$(printf '%s' "$PASSWORD" | tr -d '\r\n')"
           KEYCHAIN="$RUNNER_TEMP/kiko.keychain-db"
           security create-keychain -p "$PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 3600 "$KEYCHAIN"
           security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
           printf '%s' "$CERT" | base64 -d > "$RUNNER_TEMP/kiko.p12"
+          if ! openssl pkcs12 -in "$RUNNER_TEMP/kiko.p12" -passin "pass:$PASSWORD" -noout 2>/dev/null; then
+            echo "::error::KIKO_MACOS_CERT_P12 and KIKO_MACOS_CERT_PASSWORD do not match"
+            exit 1
+          fi
           security import "$RUNNER_TEMP/kiko.p12" -k "$KEYCHAIN" -P "$PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
           security set-key-partition-list -S apple-tool:,apple: -s -k "$PASSWORD" "$KEYCHAIN" >/dev/null
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
-          rm -f "$RUNNER_TEMP/kiko.p12"
+          openssl pkcs12 -in "$RUNNER_TEMP/kiko.p12" -clcerts -nokeys -passin "pass:$PASSWORD" -out "$RUNNER_TEMP/kiko.pem"
+          sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$RUNNER_TEMP/kiko.pem"
+          rm -f "$RUNNER_TEMP/kiko.p12" "$RUNNER_TEMP/kiko.pem"
       - name: Bundle and sign
         env:
           KIKO_BIN: ${{ runner.temp }}/kiko
