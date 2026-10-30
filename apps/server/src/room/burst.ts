@@ -14,7 +14,7 @@ export const BURST_WAKEUP = "burst"
 const AFTER_MESSAGE_MS = 1_000
 const AFTER_TYPING_MS = 2_500
 const AFTER_FRAGMENT_MS = 2_500
-const MAX_BURST_MS = 8_000
+const MAX_BURST_MS = 30_000
 
 const DANGLING = new Set(
   "a an the and or but so because cause if then than that which who whom whose when while where though although unless until since as nor yet plus also like with without of to for from in on at by about into onto over under after before between through during against toward towards via per".split(
@@ -30,7 +30,7 @@ function isFragment(text: string): boolean {
   return last !== undefined && DANGLING.has(last)
 }
 
-function debounce(event: "message" | "typing" | "fragment", now: number, startedAt: number): number {
+export function debounce(event: "message" | "typing" | "fragment", now: number, startedAt: number): number {
   const wait = event === "message" ? AFTER_MESSAGE_MS : event === "fragment" ? AFTER_FRAGMENT_MS : AFTER_TYPING_MS
   return Math.min(now + wait, startedAt + MAX_BURST_MS)
 }
