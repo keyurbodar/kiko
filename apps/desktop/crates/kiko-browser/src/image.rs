@@ -5,11 +5,12 @@ use base64::engine::general_purpose::STANDARD;
 use kiko_driver::{DriverError, ErrorCode, Image, Rect, Result};
 use serde_json::{Value, json};
 
-use crate::cdp::Link;
+use crate::cdp::{Link, REQUEST_TIMEOUT};
 use crate::jpeg;
 
-const SHOT_TIMEOUT: Duration = Duration::from_secs(4);
 pub const DEFAULT_MAX_WIDTH: u32 = 1280;
+
+const PAINT_SHOT: Duration = Duration::from_millis(500);
 
 pub async fn capture(link: &Link, session: &str, max_width: Option<u32>) -> Result<Image> {
     let max_width = f64::from(max_width.unwrap_or(DEFAULT_MAX_WIDTH).max(1));
@@ -33,20 +34,12 @@ pub async fn capture(link: &Link, session: &str, max_width: Option<u32>) -> Resu
         "height": height,
         "scale": scale,
     });
-    let shot = json!({ "format": "jpeg", "quality": 80, "fromSurface": true, "captureBeyondViewport": true, "clip": clip });
-    let data = match shoot(link, session, shot).await {
-        Some(data) => data,
-        None => {
-            let fallback =
-                json!({ "format": "jpeg", "quality": 80, "fromSurface": false, "clip": clip });
-            shoot(link, session, fallback).await.ok_or_else(|| {
-                DriverError::new(
-                    ErrorCode::Failed,
-                    format!("{} would not capture the page", link.name()),
-                )
-            })?
-        }
-    };
+    let data = shoot(link, session, &clip).await.map_err(|error| {
+        DriverError::new(
+            ErrorCode::Failed,
+            format!("{} would not capture the page: {error}", link.name()),
+        )
+    })?;
     let bytes = STANDARD
         .decode(&data)
         .map_err(|error| DriverError::new(ErrorCode::Failed, error.to_string()))?;
@@ -80,18 +73,39 @@ async fn pixel_ratio(link: &Link, session: &str) -> f64 {
     ratio.unwrap_or(1.0)
 }
 
-async fn shoot(link: &Link, session: &str, params: Value) -> Option<String> {
+async fn shoot(link: &Link, session: &str, clip: &Value) -> Result<String> {
+    set_focus_emulation(link, session, true).await?;
+    let captured = match send_capture(link, session, clip, PAINT_SHOT).await {
+        Ok(data) => Ok(data),
+        Err(_) => send_capture(link, session, clip, REQUEST_TIMEOUT).await,
+    };
+    let restored = set_focus_emulation(link, session, false).await;
+    captured.and_then(|data| restored.map(|()| data))
+}
+
+async fn send_capture(
+    link: &Link,
+    session: &str,
+    clip: &Value,
+    budget: Duration,
+) -> Result<String> {
+    let params = json!({ "format": "jpeg", "quality": 80, "fromSurface": true, "captureBeyondViewport": true, "clip": clip });
     let result = link
-        .send_with(
-            Some(session),
-            "Page.captureScreenshot",
-            params,
-            SHOT_TIMEOUT,
-        )
-        .await
-        .ok()?;
+        .send_with(Some(session), "Page.captureScreenshot", params, budget)
+        .await?;
     result["data"]
         .as_str()
         .filter(|data| !data.is_empty())
         .map(str::to_string)
+        .ok_or_else(|| DriverError::new(ErrorCode::Failed, "the browser sent no image data"))
+}
+
+async fn set_focus_emulation(link: &Link, session: &str, enabled: bool) -> Result<()> {
+    link.send_to(
+        session,
+        "Emulation.setFocusEmulationEnabled",
+        json!({ "enabled": enabled }),
+    )
+    .await
+    .map(|_| ())
 }

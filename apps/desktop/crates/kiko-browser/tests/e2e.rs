@@ -242,7 +242,12 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
     );
     wait_title(&mut driver, &b, "submitted:B");
 
+    let started = Instant::now();
     let shot = read(&mut driver, &b, true);
+    eprintln!(
+        "the first capture of a hidden tab took {:?}",
+        started.elapsed()
+    );
     let image = shot
         .image
         .expect("a background tab still yields a screenshot");
@@ -255,6 +260,56 @@ fn drives_a_tab_the_owner_is_not_looking_at() {
         image.height
     );
     assert!(image.covers.w > 0.0);
+
+    let visible = read(&mut driver, &a, true);
+    let image = visible
+        .image
+        .expect("the tab the owner is looking at still yields a screenshot");
+    assert!(!image.data.is_empty());
+    assert!(
+        active(&mut driver, "A"),
+        "capturing the owner's tab leaves it in front"
+    );
+
+    for attempt in 1..=20 {
+        let marker = format!("reload{attempt}");
+        let url = format!("{}&again={marker}", page_url("B"));
+        eval(&mut driver, &b, &format!("location.href = {url:?}"));
+        wait_for(&format!("the hidden tab to load {marker}"), || {
+            eval(&mut driver, &b, "location.search")
+                .as_str()
+                .unwrap_or_default()
+                .contains(&marker)
+                .then_some(())
+        });
+        let started = Instant::now();
+        let captured = driver
+            .read(&BrowserReadParams {
+                tab: b.id.clone(),
+                image: true,
+                max_width: Some(640),
+            })
+            .unwrap_or_else(|error| {
+                panic!("capture {attempt} of the reloaded hidden tab failed: {error}")
+            });
+        eprintln!(
+            "capture {attempt} of the reloaded hidden tab took {:?}",
+            started.elapsed()
+        );
+        assert!(
+            captured.image.is_some_and(|image| !image.data.is_empty()),
+            "the hidden tab yields a screenshot after reload {attempt}"
+        );
+    }
+
+    eval(
+        &mut driver,
+        &b,
+        &format!("location.href = {:?}", page_url("B")),
+    );
+    wait_for("the hidden tab to return to its page", || {
+        (eval(&mut driver, &b, "location.search").as_str() == Some("?name=B")).then_some(())
+    });
 
     assert!(
         active(&mut driver, "A"),
