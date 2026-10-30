@@ -2,7 +2,7 @@ import { DropdownMenu } from "@kobalte/core/dropdown-menu"
 import { ContextMenu } from "@kobalte/core/context-menu"
 import { onMount, Show, splitProps, type Component, type ComponentProps, type JSX, type ParentProps } from "solid-js"
 import { RemixIcon } from "../../components/remix-icon"
-import { ChevronRightIcon } from "../../icons.gen"
+import { CheckIcon, ChevronRightIcon } from "../../icons.gen"
 import { glide } from "./glide"
 import "./menu-v2.css"
 
@@ -26,6 +26,12 @@ const Glide: Component = () => {
 }
 
 const ChevronRight: Component = () => <RemixIcon icon={ChevronRightIcon} data-slot="menu-v2-item-chevron" size={16} />
+
+const Check: Component = () => (
+  <DropdownMenu.ItemIndicator data-slot="menu-v2-item-indicator" forceMount>
+    <RemixIcon icon={CheckIcon} size={16} />
+  </DropdownMenu.ItemIndicator>
+)
 
 function ItemBody(
   props: ParentProps<{
@@ -73,11 +79,7 @@ function MenuV2CheckboxItem(props: ParentProps<MenuV2CheckboxItemProps>) {
       data-component="menu-v2-item"
       classList={{ ...s.classList, [s.class ?? ""]: !!s.class }}
     >
-      <ItemBody
-        shortcut={s.shortcut}
-        badge={s.badge}
-        trailing={<DropdownMenu.ItemIndicator data-slot="menu-v2-item-indicator" forceMount />}
-      >
+      <ItemBody shortcut={s.shortcut} badge={s.badge} trailing={<Check />}>
         {s.children}
       </ItemBody>
     </DropdownMenu.CheckboxItem>
@@ -97,11 +99,7 @@ function MenuV2RadioItem(props: ParentProps<MenuV2RadioItemProps>) {
       data-component="menu-v2-item"
       classList={{ ...s.classList, [s.class ?? ""]: !!s.class }}
     >
-      <ItemBody
-        shortcut={s.shortcut}
-        badge={s.badge}
-        trailing={<DropdownMenu.ItemIndicator data-slot="menu-v2-item-indicator" forceMount />}
-      >
+      <ItemBody shortcut={s.shortcut} badge={s.badge} trailing={<Check />}>
         {s.children}
       </ItemBody>
     </DropdownMenu.RadioItem>

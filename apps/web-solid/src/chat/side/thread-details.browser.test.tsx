@@ -85,10 +85,22 @@ describe("thread details card", () => {
     using _timers = fakeTimers()
     resetThreadDetails()
     fake.setPresence("idle")
+    fake.setTasks([task("a", "done"), task("b", "todo")])
+    await using screen = await render(() => <ThreadDetails chatId={CHAT} />)
+    expect(section(screen.container, "progress")?.textContent).toContain("1 of 2")
+    fake.setTasks([task("a", "done"), task("b", "done")])
+    await expect.poll(() => section(screen.container, "progress")?.textContent).toContain("All 2 done")
+    expect(section(screen.container, "progress")?.querySelector('[data-action="fold-done-tasks"]')).toBeNull()
+    vi.advanceTimersByTime(ALL_DONE_MS + 200)
+    await expect.poll(() => section(screen.container, "progress")).toBeNull()
+  })
+
+  it("leaves progress out when the chat opens with every task already done", async () => {
+    using _timers = fakeTimers()
+    resetThreadDetails()
+    fake.setPresence("idle")
     fake.setTasks([task("a", "done"), task("b", "done")])
     await using screen = await render(() => <ThreadDetails chatId={CHAT} />)
-    expect(section(screen.container, "progress")?.textContent).toContain("All 2 done")
-    vi.advanceTimersByTime(ALL_DONE_MS + 200)
     expect(section(screen.container, "progress")).toBeNull()
   })
 
@@ -128,6 +140,35 @@ describe("thread details card", () => {
     await first[Symbol.asyncDispose]()
     await using second = await render(() => <ThreadDetails chatId={CHAT} />)
     expect(section(second.container, "helpers")).toBeNull()
+    resetThreadDetails()
+  })
+
+  it("keeps the customize menu under its button while sections are hidden", async () => {
+    resetThreadDetails()
+    fake.setPresence("idle")
+    fake.setTasks([task("a", "todo")])
+    fake.setHelpers([lane("working")])
+    await using screen = await render(() => <ThreadDetails chatId={CHAT} />)
+    const button = screen.container.querySelector<HTMLElement>('[data-action="customize-details"]')!
+    await userEvent.click(button)
+    await vi.waitFor(() => expect(menuItem("Progress")).toBeDefined())
+    const menu = () => document.querySelector<HTMLElement>('[role="menu"]')!
+    await Promise.all(
+      menu()
+        .getAnimations()
+        .map((animation) => animation.finished),
+    )
+    const before = menu().getBoundingClientRect()
+    const gear = button.getBoundingClientRect()
+    expect(before.top).toBeGreaterThanOrEqual(gear.bottom)
+    expect(Math.abs(before.right - gear.right)).toBeLessThan(2)
+
+    await userEvent.click(menuItem("Progress")!)
+    expect(section(screen.container, "progress")).toBeNull()
+    const after = menu().getBoundingClientRect()
+    expect(after.top).toBe(before.top)
+    expect(after.right).toBe(before.right)
+    expect(menuItem("Progress")?.getAttribute("aria-checked")).toBe("false")
     resetThreadDetails()
   })
 

@@ -6,7 +6,12 @@ import "./thread-details.css"
 
 const isDesktop = () => typeof matchMedia !== "function" || matchMedia("(width >= 960px)").matches
 
-const defaultOpen = (): boolean => isDesktop() && room.messages().length > 0
+const hasHistory = (chatId: string): boolean => {
+  const row = room.chatById(chatId)
+  return row !== undefined && (row.lastFrom !== undefined || row.preview !== "")
+}
+
+const defaultOpen = (chatId: string): boolean => isDesktop() && hasHistory(chatId)
 
 const [floating, setFloating] = createSignal(false)
 const [popped, setPopped] = createSignal<string | null>(null)
@@ -19,7 +24,7 @@ export function setThreadDetailsFloating(value: boolean) {
 
 export function threadDetailsOpenFor(chatId: string | null): boolean {
   if (chatId === null) return false
-  return floating() ? popped() === chatId : threadDetailsOpen(chatId, defaultOpen())
+  return floating() ? popped() === chatId : threadDetailsOpen(chatId, defaultOpen(chatId))
 }
 
 export function toggleThreadDetails(chatId: string) {
