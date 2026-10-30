@@ -492,24 +492,16 @@ fn artifact(directory: &Path, name: &str, image: &kiko_driver::api::Image) {
     );
 }
 
-#[test]
-#[ignore = "needs an interactive Windows desktop with Microsoft Edge"]
-fn edge_page_content_is_readable_and_pressable_in_the_background() {
-    let Some(edge) = edge_path() else {
-        eprintln!("Microsoft Edge is not installed; skipping");
-        return;
-    };
-    let directory = scratch("edge");
-    let page = directory.join("page.html");
-    fs::write(
-        &page,
-        r#"<!doctype html><html><head><title>kiko-page</title></head>
+const EDGE_PAGE: &str = r#"<!doctype html><html><head><title>kiko-page</title></head>
 <body style="background:#2a7f3f;font:20px sans-serif">
 <h1>kiko edge fixture</h1>
 <button onclick="document.title='fired-'+(window.__n=(window.__n||0)+1)">Fire</button>
-</body></html>"#,
-    )
-    .expect("write the page");
+<textarea aria-label="kiko note"></textarea>
+</body></html>"#;
+
+fn start_edge(driver: &mut Box<dyn Native>, directory: &Path, edge: &Path) -> (Child, Window) {
+    let page = directory.join("page.html");
+    fs::write(&page, EDGE_PAGE).expect("write the page");
     let url = format!("file:///{}", page.to_string_lossy().replace('\\', "/"));
     let profile = directory.join("profile");
     let profile_argument = format!("--user-data-dir={}", profile.display());
@@ -532,8 +524,20 @@ fn edge_page_content_is_readable_and_pressable_in_the_background() {
         ])
         .spawn()
         .expect("start Edge");
+    let window = wait_for_edge(driver, &mut browser);
+    (browser, window)
+}
+
+#[test]
+#[ignore = "needs an interactive Windows desktop with Microsoft Edge"]
+fn edge_page_content_is_readable_and_pressable_in_the_background() {
+    let Some(edge) = edge_path() else {
+        eprintln!("Microsoft Edge is not installed; skipping");
+        return;
+    };
+    let directory = scratch("edge");
     let mut driver = kiko_native_windows::driver().expect("create the driver");
-    let window = wait_for_edge(&mut driver, &mut browser);
+    let (mut browser, window) = start_edge(&mut driver, &directory, &edge);
 
     let first = wait_for("the Edge page tree", || {
         let found = try_look(&mut driver, &window.id).ok()?;
@@ -568,6 +572,47 @@ fn edge_page_content_is_readable_and_pressable_in_the_background() {
             .find(|candidate| candidate.title.contains("fired-"))
     });
 
+    assert_untouched(foreground_before, cursor_before);
+    let _ = browser.kill();
+    let _ = browser.wait();
+}
+
+#[test]
+#[ignore = "needs an interactive Windows desktop with Microsoft Edge"]
+fn background_typing_splices_at_the_caret_in_a_page_field() {
+    let Some(edge) = edge_path() else {
+        eprintln!("Microsoft Edge is not installed; skipping");
+        return;
+    };
+    let directory = scratch("edge-type");
+    let mut driver = kiko_native_windows::driver().expect("create the driver");
+    let (mut browser, window) = start_edge(&mut driver, &directory, &edge);
+    let foreground_before = foreground();
+    let cursor_before = cursor();
+
+    let field = wait_for("the page textarea", || {
+        let found = try_look(&mut driver, &window.id).ok()?;
+        find_optional(&found.nodes, "edit", Some("kiko note")).cloned()
+    });
+    let mut first = background(&window.id, Some(field.reference), Action::Type);
+    first.text = Some("alpha".into());
+    assert_eq!(act(&mut driver, first).route, Route::Accessibility);
+    let mut second = background(&window.id, Some(field.reference), Action::Type);
+    second.text = Some("beta".into());
+    assert_eq!(act(&mut driver, second).route, Route::Accessibility);
+
+    let value = wait_for("the page field to hold both words", || {
+        let found = try_look(&mut driver, &window.id).ok()?;
+        let field = find_optional(&found.nodes, "edit", Some("kiko note"))?;
+        let value = field.value.clone().unwrap_or_default();
+        (value.contains("alpha") && value.contains("beta")).then_some(value)
+    });
+    assert_eq!(
+        value.chars().count(),
+        9,
+        "background typing inserted at the caret instead of replacing the field: {value:?}"
+    );
+    checkpoint("edge type", foreground_before);
     assert_untouched(foreground_before, cursor_before);
     let _ = browser.kill();
     let _ = browser.wait();
@@ -651,16 +696,16 @@ fn foreground_input_reaches_the_testapp_and_raises_it() {
         "foreground mode moved the real pointer"
     );
 
-    let after = look(&mut driver, &target.id());
-    let edit = find(&after.nodes, "edit", None).clone();
-    assert!(
+    let after = wait_for("the unicode text to arrive in the edit", || {
+        let found = try_look(&mut driver, &target.id()).ok()?;
+        let edit = find_optional(&found.nodes, "edit", None)?;
         edit.value
             .as_deref()
             .unwrap_or_default()
-            .contains("kiko foreground"),
-        "the unicode text arrived in the edit: {:?}",
-        edit.value
-    );
+            .contains("kiko foreground")
+            .then_some(found)
+    });
+    let edit = find(&after.nodes, "edit", None).clone();
     assert!(
         edit.states.iter().any(|state| state == "focused"),
         "the foreground click gave the edit keyboard focus"
@@ -672,9 +717,12 @@ fn foreground_input_reaches_the_testapp_and_raises_it() {
     let mut delete = foreground_act(&target.id(), Some(edit.reference), Action::Key);
     delete.keys = Some("delete".into());
     assert_eq!(act(&mut driver, delete).route, Route::Foreground);
-    let cleared = look(&mut driver, &target.id());
+    let cleared = wait_for("ctrl+a then delete to clear the edit", || {
+        let found = try_look(&mut driver, &target.id()).ok()?;
+        let edit = find_optional(&found.nodes, "edit", None)?;
+        edit.value.is_none().then_some(found)
+    });
     let edit = find(&cleared.nodes, "edit", None).clone();
-    assert_eq!(edit.value, None, "ctrl+a then delete cleared the edit");
 
     let mut scroll = foreground_act(&target.id(), None, Action::Scroll);
     scroll.point = Some(Point {
@@ -687,10 +735,13 @@ fn foreground_input_reaches_the_testapp_and_raises_it() {
     let mut again = foreground_act(&target.id(), Some(edit.reference), Action::Type);
     again.text = Some("second".into());
     assert_eq!(act(&mut driver, again).route, Route::Foreground);
-    let after = look(&mut driver, &target.id());
-    let edit = find(&after.nodes, "edit", None);
+    let after = wait_for("the second typed text to arrive", || {
+        let found = try_look(&mut driver, &target.id()).ok()?;
+        let edit = find_optional(&found.nodes, "edit", None)?;
+        (edit.value.as_deref() == Some("second")).then_some(found)
+    });
     assert_eq!(
-        edit.value.as_deref(),
+        find(&after.nodes, "edit", None).value.as_deref(),
         Some("second"),
         "foreground typing reached the cleared edit"
     );
