@@ -215,9 +215,9 @@ fn edit_class(window: isize) -> bool {
 }
 
 fn splice_at_selection(element: &IUIAutomationElement, text: &str) -> Result<Outcome> {
-    let value = writable_value(element).ok_or_else(no_caret)?;
-    let document = document_range(element).ok_or_else(no_caret)?;
-    let selection = selection_range(element).ok_or_else(no_caret)?;
+    let value = writable_value(element).ok_or_else(no_value)?;
+    let document = document_range(element).ok_or_else(no_text_pattern)?;
+    let selection = selection_range(element).ok_or_else(no_selection)?;
     let current = unsafe { value.CurrentValue() }
         .map(|value| value.to_string())
         .unwrap_or_default();
@@ -242,9 +242,21 @@ fn splice_at_selection(element: &IUIAutomationElement, text: &str) -> Result<Out
     route(Route::Accessibility)
 }
 
-fn no_caret() -> kiko_driver::DriverError {
+fn no_value() -> kiko_driver::DriverError {
     unavailable(
-        "this control has no caret to type at in the background; use set_value to replace the text, or retry with mode foreground",
+        "this control has no writable value to type into in the background; use set_value to replace the text, or retry with mode foreground",
+    )
+}
+
+fn no_text_pattern() -> kiko_driver::DriverError {
+    unavailable(
+        "this control does not expose a text pattern, so its caret is unknown; use set_value to replace the text, or retry with mode foreground",
+    )
+}
+
+fn no_selection() -> kiko_driver::DriverError {
+    unavailable(
+        "this control reports no text selection to type at in the background; use set_value to replace the text, or retry with mode foreground",
     )
 }
 

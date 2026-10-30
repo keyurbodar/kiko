@@ -435,17 +435,14 @@ fn edge_path() -> Option<PathBuf> {
     .find(|path| path.exists())
 }
 
-fn wait_for_edge(driver: &mut Box<dyn Native>, browser: &mut Child) -> Window {
+fn wait_for_edge(driver: &mut Box<dyn Native>, browser: &mut Child, title: &str) -> Window {
     let browser_pid = browser.id();
     let started = Instant::now();
     let deadline = started + Duration::from_secs(240);
     let mut last_report = started;
     loop {
         if let Ok(listed) = driver.windows() {
-            if let Some(window) = listed
-                .iter()
-                .find(|window| window.title.contains("kiko-page"))
-            {
+            if let Some(window) = listed.iter().find(|window| window.title.contains(title)) {
                 return window.clone();
             }
             if last_report.elapsed() >= Duration::from_secs(15) {
@@ -455,7 +452,7 @@ fn wait_for_edge(driver: &mut Box<dyn Native>, browser: &mut Child) -> Window {
                     .map(|window| format!("{:?} [pid {} {}]", window.title, window.pid, window.app))
                     .collect();
                 eprintln!(
-                    "waiting for Edge ({:?} in): {}",
+                    "waiting for Edge {title:?} ({:?} in): {}",
                     started.elapsed(),
                     titles.join(", ")
                 );
@@ -468,7 +465,7 @@ fn wait_for_edge(driver: &mut Box<dyn Native>, browser: &mut Child) -> Window {
                 .map(|window| format!("{:?} [pid {} {}]", window.title, window.pid, window.app))
                 .collect();
             panic!(
-                "timed out waiting for the Edge window (browser pid {browser_pid}, status {:?}); visible windows: {}",
+                "timed out waiting for the Edge window {title:?} (browser pid {browser_pid}, status {:?}); visible windows: {}",
                 browser.try_wait(),
                 titles.join(", ")
             );
@@ -499,13 +496,29 @@ const EDGE_PAGE: &str = r#"<!doctype html><html><head><title>kiko-page</title></
 <textarea aria-label="kiko note"></textarea>
 </body></html>"#;
 
-fn start_edge(driver: &mut Box<dyn Native>, directory: &Path, edge: &Path) -> (Child, Window) {
+struct Browser {
+    child: Child,
+}
+
+impl Drop for Browser {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+fn start_edge(
+    driver: &mut Box<dyn Native>,
+    directory: &Path,
+    edge: &Path,
+    title: &str,
+) -> (Browser, Window) {
     let page = directory.join("page.html");
-    fs::write(&page, EDGE_PAGE).expect("write the page");
+    fs::write(&page, EDGE_PAGE.replace("kiko-page", title)).expect("write the page");
     let url = format!("file:///{}", page.to_string_lossy().replace('\\', "/"));
     let profile = directory.join("profile");
     let profile_argument = format!("--user-data-dir={}", profile.display());
-    let mut browser = Command::new(edge)
+    let mut child = Command::new(edge)
         .args([
             "--no-first-run",
             "--no-default-browser-check",
@@ -524,8 +537,8 @@ fn start_edge(driver: &mut Box<dyn Native>, directory: &Path, edge: &Path) -> (C
         ])
         .spawn()
         .expect("start Edge");
-    let window = wait_for_edge(driver, &mut browser);
-    (browser, window)
+    let window = wait_for_edge(driver, &mut child, title);
+    (Browser { child }, window)
 }
 
 #[test]
@@ -537,7 +550,7 @@ fn edge_page_content_is_readable_and_pressable_in_the_background() {
     };
     let directory = scratch("edge");
     let mut driver = kiko_native_windows::driver().expect("create the driver");
-    let (mut browser, window) = start_edge(&mut driver, &directory, &edge);
+    let (_browser, window) = start_edge(&mut driver, &directory, &edge, "kiko-page");
 
     let first = wait_for("the Edge page tree", || {
         let found = try_look(&mut driver, &window.id).ok()?;
@@ -573,8 +586,6 @@ fn edge_page_content_is_readable_and_pressable_in_the_background() {
     });
 
     assert_untouched(foreground_before, cursor_before);
-    let _ = browser.kill();
-    let _ = browser.wait();
 }
 
 #[test]
@@ -586,7 +597,7 @@ fn background_typing_splices_at_the_caret_in_a_page_field() {
     };
     let directory = scratch("edge-type");
     let mut driver = kiko_native_windows::driver().expect("create the driver");
-    let (mut browser, window) = start_edge(&mut driver, &directory, &edge);
+    let (_browser, window) = start_edge(&mut driver, &directory, &edge, "kiko-page-type");
     let foreground_before = foreground();
     let cursor_before = cursor();
 
@@ -614,8 +625,6 @@ fn background_typing_splices_at_the_caret_in_a_page_field() {
     );
     checkpoint("edge type", foreground_before);
     assert_untouched(foreground_before, cursor_before);
-    let _ = browser.kill();
-    let _ = browser.wait();
 }
 
 #[test]
@@ -714,12 +723,26 @@ fn foreground_input_reaches_the_testapp_and_raises_it() {
     let mut select_all = foreground_act(&target.id(), Some(edit.reference), Action::Key);
     select_all.keys = Some("ctrl+a".into());
     assert_eq!(act(&mut driver, select_all).route, Route::Foreground);
+    let selected = look(&mut driver, &target.id());
+    let edit = find(&selected.nodes, "edit", None).clone();
+    eprintln!(
+        "after ctrl+a: value {:?} states {:?}",
+        edit.value, edit.states
+    );
     let mut delete = foreground_act(&target.id(), Some(edit.reference), Action::Key);
     delete.keys = Some("delete".into());
     assert_eq!(act(&mut driver, delete).route, Route::Foreground);
+    let mut last: Option<Option<String>> = None;
     let cleared = wait_for("ctrl+a then delete to clear the edit", || {
         let found = try_look(&mut driver, &target.id()).ok()?;
         let edit = find_optional(&found.nodes, "edit", None)?;
+        if last.as_ref() != Some(&edit.value) {
+            eprintln!(
+                "clear probe: value {:?} states {:?}",
+                edit.value, edit.states
+            );
+            last = Some(edit.value.clone());
+        }
         edit.value.is_none().then_some(found)
     });
     let edit = find(&cleared.nodes, "edit", None).clone();
