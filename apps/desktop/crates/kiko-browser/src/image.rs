@@ -1,14 +1,11 @@
-use std::time::Duration;
-
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use kiko_driver::{DriverError, ErrorCode, Image, Rect, Result};
 use serde_json::{Value, json};
 
-use crate::cdp::Link;
+use crate::cdp::{Link, REQUEST_TIMEOUT};
 use crate::jpeg;
 
-const SHOT_TIMEOUT: Duration = Duration::from_secs(4);
 pub const DEFAULT_MAX_WIDTH: u32 = 1280;
 
 pub async fn capture(link: &Link, session: &str, max_width: Option<u32>) -> Result<Image> {
@@ -34,22 +31,12 @@ pub async fn capture(link: &Link, session: &str, max_width: Option<u32>) -> Resu
         "scale": scale,
     });
     let shot = json!({ "format": "jpeg", "quality": 80, "fromSurface": true, "captureBeyondViewport": true, "clip": clip });
-    let data = match shoot(link, session, shot).await {
-        Ok(data) => data,
-        Err(surface) => {
-            let fallback =
-                json!({ "format": "jpeg", "quality": 80, "fromSurface": false, "clip": clip });
-            shoot(link, session, fallback).await.map_err(|window| {
-                DriverError::new(
-                    ErrorCode::Failed,
-                    format!(
-                        "{} would not capture the page: {surface}; without the surface: {window}",
-                        link.name()
-                    ),
-                )
-            })?
-        }
-    };
+    let data = shoot(link, session, shot).await.map_err(|error| {
+        DriverError::new(
+            ErrorCode::Failed,
+            format!("{} would not capture the page: {error}", link.name()),
+        )
+    })?;
     let bytes = STANDARD
         .decode(&data)
         .map_err(|error| DriverError::new(ErrorCode::Failed, error.to_string()))?;
@@ -89,7 +76,7 @@ async fn shoot(link: &Link, session: &str, params: Value) -> Result<String> {
             Some(session),
             "Page.captureScreenshot",
             params,
-            SHOT_TIMEOUT,
+            REQUEST_TIMEOUT,
         )
         .await?;
     result["data"]
