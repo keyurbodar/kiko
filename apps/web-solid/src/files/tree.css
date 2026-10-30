@@ -8,10 +8,11 @@
 
 .kt-bar {
   display: flex;
-  height: 36px;
+  height: 40px;
   flex: none;
   align-items: center;
-  padding: 2px 8px 6px;
+  gap: 4px;
+  padding: 0 8px;
 }
 
 .kt-bar > label,
@@ -21,6 +22,62 @@
 
 .kt-bar [data-component="search-field"] > input {
   font-size: var(--type-hint);
+}
+
+.kt-tool {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--radius-tail);
+  color: var(--text-300);
+  transition:
+    background-color var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko);
+}
+
+.kt-tool:hover {
+  background: var(--fill-hover);
+  color: var(--fg);
+}
+
+.kt-tool[aria-pressed="true"] {
+  background: var(--fill-hover);
+  color: var(--fg);
+}
+
+.kt-tool:focus-visible {
+  outline: none;
+  background: var(--fill-hover);
+  color: var(--fg);
+}
+
+.kt-morph {
+  display: grid;
+  place-items: center;
+}
+
+.kt-morph > svg {
+  grid-area: 1 / 1;
+}
+
+.kt-morph .kt-morph-open {
+  opacity: 0;
+}
+
+.kt-morph[data-open] .kt-morph-rest {
+  opacity: 0;
+}
+
+.kt-morph[data-open] .kt-morph-open {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .kt-morph > svg {
+    transition: opacity var(--dur-hover) var(--ease-kiko);
+  }
 }
 
 .kt-body {
@@ -192,7 +249,7 @@
 .ft-dot {
   position: absolute;
   top: 50%;
-  right: 8px;
+  right: 30px;
   width: 6px;
   height: 6px;
   border-radius: 999px;
@@ -205,6 +262,38 @@
 
 .ft-dot:not([data-on]) {
   opacity: 0;
+}
+
+.ft-more {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--radius-micro);
+  color: var(--text-300);
+  opacity: 0;
+  transition:
+    opacity var(--dur-hover) var(--ease-kiko),
+    background-color var(--dur-hover) var(--ease-kiko),
+    color var(--dur-hover) var(--ease-kiko);
+}
+
+.ft-row:hover .ft-more,
+.ft-row:focus-within .ft-more,
+.ft-more:focus-visible {
+  opacity: 1;
+}
+
+.ft-more:hover {
+  background: var(--fill-control);
+  color: var(--fg);
+}
+
+@media not ((hover: hover) and (pointer: fine)) {
+  .ft-more {
+    opacity: 1;
+  }
 }
 
 .kt-empty {

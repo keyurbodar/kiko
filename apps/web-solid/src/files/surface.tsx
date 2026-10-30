@@ -6,13 +6,14 @@ import {
   CopyIcon,
   DownloadIcon,
   EyeIcon,
+  FolderTreeIcon,
   InfoIcon,
   MaximizeIcon,
   MoreIcon,
+  TableIcon,
   WrapTextIcon,
 } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
-import { TabsPill, TabsV2 as Tabs } from "@kiko/ui/v2/tabs-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { onCleanup, onMount, Show } from "solid-js"
 import { fileSrc } from "../state/room"
@@ -24,33 +25,15 @@ import { FileAbout } from "./about"
 import { FileViewer } from "./viewer"
 import type { FileView } from "./view"
 
-const PREVIEW_LABEL = { markdown: "Preview", table: "Table", html: "Page" } as const
+type RenderedMode = "markdown" | "table" | "html"
 
-function ViewSwitch(props: { view: FileView; mode: keyof typeof PREVIEW_LABEL }) {
-  const value = () => (props.view.rendered() ? "preview" : "source")
-  return (
-    <Tabs
-      value={value()}
-      onChange={(next) => next !== value() && props.view.toggleRendered(props.mode)}
-      class="shrink-0"
-      data-component="file-view-switch"
-    >
-      <Tabs.List class="file-view-switch shrink-0" aria-label="Show file as">
-        <TabsPill />
-        <Tabs.Trigger value="preview" class="file-view-tab" data-action="show-rendered">
-          <RemixIcon icon={EyeIcon} size={12} />
-          {PREVIEW_LABEL[props.mode]}
-        </Tabs.Trigger>
-        <Tabs.Trigger value="source" class="file-view-tab" data-action="show-source">
-          <RemixIcon icon={CodeIcon} size={12} />
-          Source
-        </Tabs.Trigger>
-      </Tabs.List>
-    </Tabs>
-  )
+function renderedLabel(mode: RenderedMode, rendered: boolean): string {
+  if (mode === "markdown") return rendered ? "Show markdown source" : "Show rendered markdown"
+  if (mode === "table") return rendered ? "Show source" : "Show table"
+  return rendered ? "Show HTML source" : "Show rendered page"
 }
 
-function MoreActions(props: { wrap: boolean; onExpand?: () => void }) {
+function MoreActions(props: { onExpand: () => void }) {
   return (
     <MenuV2 gutter={4} placement="bottom-end">
       <TooltipV2 placement="bottom" openDelay={500} value="More">
@@ -60,20 +43,10 @@ function MoreActions(props: { wrap: boolean; onExpand?: () => void }) {
       </TooltipV2>
       <MenuV2.Portal>
         <MenuV2.Content class="min-w-44" data-component="file-more-menu">
-          <Show when={props.wrap}>
-            <MenuV2.CheckboxItem checked={wrap()} onChange={setWrap} data-action="toggle-wrap">
-              <RemixIcon icon={WrapTextIcon} class="size-4 shrink-0" />
-              <span class="flex-1">Wrap long lines</span>
-            </MenuV2.CheckboxItem>
-          </Show>
-          <Show when={props.onExpand}>
-            {(expand) => (
-              <MenuV2.Item onSelect={() => expand()()} data-action="expand-file">
-                <RemixIcon icon={MaximizeIcon} class="size-4 shrink-0" />
-                <span class="flex-1">Open full size</span>
-              </MenuV2.Item>
-            )}
-          </Show>
+          <MenuV2.Item onSelect={() => props.onExpand()} data-action="expand-file">
+            <RemixIcon icon={MaximizeIcon} class="size-4 shrink-0" />
+            <span class="flex-1">Open full size</span>
+          </MenuV2.Item>
         </MenuV2.Content>
       </MenuV2.Portal>
     </MenuV2>
@@ -87,21 +60,50 @@ export function FileActions(props: {
   file: FileRef
   kind: ViewerKind
   onExpand?: () => void
+  explorer?: { open: boolean; onToggle: () => void }
 }) {
-  const canWrap = () => TEXT_KINDS.has(props.kind) && !props.view.rendered()
+  const rawText = () => TEXT_KINDS.has(props.kind) && !props.view.rendered()
   return (
     <>
-      <Show when={props.view.mode()} keyed>
-        {(mode) => <ViewSwitch view={props.view} mode={mode} />}
+      <Show when={props.view.mode()}>
+        {(mode) => (
+          <SurfaceAction
+            label={renderedLabel(mode(), props.view.rendered())}
+            icon={props.view.rendered() ? CodeIcon : mode() === "table" ? TableIcon : EyeIcon}
+            action="toggle-rendered"
+            pressed={props.view.rendered()}
+            onPress={() => props.view.toggleRendered(mode())}
+          />
+        )}
       </Show>
-      {TEXT_KINDS.has(props.kind) && (
+      <Show when={rawText()}>
+        <SurfaceAction
+          label={wrap() ? "Disable word wrap" : "Enable word wrap"}
+          icon={WrapTextIcon}
+          action="toggle-wrap"
+          pressed={wrap()}
+          onPress={() => setWrap(!wrap())}
+        />
+      </Show>
+      <Show when={props.explorer}>
+        {(explorer) => (
+          <SurfaceAction
+            label={explorer().open ? "Hide file explorer" : "Show file explorer"}
+            icon={FolderTreeIcon}
+            action="toggle-explorer"
+            pressed={explorer().open}
+            onPress={explorer().onToggle}
+          />
+        )}
+      </Show>
+      <Show when={TEXT_KINDS.has(props.kind)}>
         <SurfaceAction
           label={props.view.copied() ? "Copied" : "Copy contents"}
           icon={props.view.copied() ? CheckIcon : CopyIcon}
           action="copy-file"
           onPress={props.view.copy}
         />
-      )}
+      </Show>
       <SurfaceAction
         label="About this file"
         icon={InfoIcon}
@@ -116,9 +118,7 @@ export function FileActions(props: {
         href={fileSrc(where(props.chatId, props.path).space, props.file.id)}
         download={fileName(props.path)}
       />
-      <Show when={canWrap() || props.onExpand}>
-        <MoreActions wrap={canWrap()} onExpand={props.onExpand} />
-      </Show>
+      <Show when={props.onExpand}>{(expand) => <MoreActions onExpand={() => expand()()} />}</Show>
     </>
   )
 }

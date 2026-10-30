@@ -1,5 +1,5 @@
 import { RemixIcon, type Glyph } from "@kiko/ui/remix-icon"
-import { DownloadIcon } from "@kiko/ui/icons"
+import { DownloadIcon, LoaderIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Show, type JSX } from "solid-js"
 
@@ -8,10 +8,10 @@ export const UNREADABLE = {
   "not-utf8": "This file is not UTF-8 text. Open it in another app to view its contents.",
 } as const
 
-export const SUBHEADER = "flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--border-100)] px-2"
+export const SUBHEADER = "flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--line)] px-3"
 
 export const ACTION =
-  "grid size-8 shrink-0 place-items-center rounded-control text-[var(--text-300)] transition-[background-color,color] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg aria-pressed:bg-active aria-pressed:text-fg disabled:opacity-50"
+  "grid size-[26px] shrink-0 place-items-center rounded-[7px] text-[var(--text-300)] transition-[background-color,color] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg aria-pressed:bg-active aria-pressed:text-fg disabled:opacity-50"
 
 export function SurfaceAction(props: {
   label: string
@@ -63,10 +63,11 @@ export function SurfaceLoading() {
   return (
     <div
       role="status"
-      class="flex min-h-0 flex-1 items-center justify-center text-hint text-fg3"
+      aria-label="Loading file"
+      class="flex min-h-0 flex-1 items-center justify-center text-fg3"
       data-component="file-loading"
     >
-      Loading file
+      <RemixIcon icon={LoaderIcon} size={20} class="motion-spin" />
     </div>
   )
 }
@@ -87,7 +88,7 @@ export function SurfaceFailure(props: { message: string; onRetry?: () => void })
             data-action="retry-file"
             onClick={() => retry()()}
           >
-            Try again
+            Retry
           </button>
         )}
       </Show>

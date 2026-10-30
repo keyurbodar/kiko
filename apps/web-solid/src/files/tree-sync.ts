@@ -1,6 +1,5 @@
 import type { FileTree } from "@pierre/trees"
-
-type Ops = Parameters<FileTree["batch"]>[0]
+import { buildFileTreePathUpdates } from "./explorer/path-updates"
 
 export function syncTree(
   tree: Pick<FileTree, "batch" | "add" | "remove">,
@@ -8,18 +7,20 @@ export function syncTree(
   target: ReadonlySet<string>,
   pending: ReadonlyMap<string, unknown>,
 ): Set<string> {
-  const ops: Ops[number][] = []
-  for (const path of target) if (!held.has(path)) ops.push({ type: "add", path })
-  for (const path of held)
-    if (!target.has(path) && !pending.has(path)) ops.push({ type: "remove", path, recursive: true })
-  if (!ops.length) return new Set(target)
+  const previous = [...held].filter((path) => !pending.has(path))
+  const updates = buildFileTreePathUpdates(previous, [...target]).filter((update) => {
+    if (update.type === "add") return !held.has(update.path)
+    if (update.type === "remove") return !pending.has(update.path)
+    return false
+  })
+  if (!updates.length) return new Set(target)
   try {
-    tree.batch(ops)
+    tree.batch(updates)
   } catch {
-    for (const op of ops) {
+    for (const update of updates) {
       try {
-        if (op.type === "add") tree.add(op.path)
-        else if (op.type === "remove") tree.remove(op.path, { recursive: true })
+        if (update.type === "add") tree.add(update.path)
+        else if (update.type === "remove") tree.remove(update.path, { recursive: true })
       } catch {}
     }
   }
