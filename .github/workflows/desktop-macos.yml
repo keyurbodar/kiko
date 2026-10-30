@@ -74,8 +74,9 @@ jobs:
               "INSERT OR REPLACE INTO access(service,client,client_type,auth_value,auth_reason,auth_version,csreq,policy_id,indirect_object_identifier_type,indirect_object_identifier,indirect_object_code_identity,flags,last_modified) \
                VALUES('${service}','${CLIENT}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,${now});"
           done
-          sudo launchctl stop com.apple.tccd 2>/dev/null || true
+          sudo killall tccd 2>/dev/null || true
           sleep 2
+          pgrep -lx tccd || sudo launchctl kickstart -k system/com.apple.tccd || true
           sudo sqlite3 "$database" "SELECT service, client, auth_value FROM access WHERE client LIKE '%kiko_native_macos%';"
 
       - name: End to end
@@ -84,6 +85,19 @@ jobs:
         run: |
           set -o pipefail
           "${{ steps.e2e.outputs.binary }}" --ignored --test-threads=1 --nocapture 2>&1 | tee "${{ runner.temp }}/e2e.log"
+
+      - name: Probe app launches after the grant
+        if: always()
+        run: |
+          set -x
+          pgrep -lx tccd || echo "no tccd"
+          open -g -a /System/Applications/Utilities/Script\ Editor.app || echo "script editor open exit=$?"
+          sleep 3
+          ps aux | grep -i "[S]cript Editor" || echo "no Script Editor process"
+          open -g -a /Applications/Safari.app || echo "safari open exit=$?"
+          sleep 3
+          ps aux | grep -i "[S]afari" || echo "no Safari process"
+          true
 
       - name: Upload the captured windows
         if: always()
