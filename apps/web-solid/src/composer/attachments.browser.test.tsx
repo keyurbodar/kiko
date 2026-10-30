@@ -132,6 +132,39 @@ describe("composer attachments", () => {
       .toContain("340 KB of 1.2 MB")
   })
 
+  it("rounds a picture tile's image to the tile's corners", async () => {
+    using _xhr = fakeXhr()
+    await using screen = await mountComposer()
+    const canvas = document.createElement("canvas")
+    canvas.width = canvas.height = 8
+    const png = await new Promise<Blob>((done) => canvas.toBlob((blob) => done(blob!), "image/png"))
+    paste(screen.editor, new File([png], "photo.png", { type: "image/png" }))
+
+    await expect.poll(() => screen.container.querySelector('[data-component="composer-attachment"]')).not.toBeNull()
+    const tile = screen.container.querySelector<HTMLElement>('[data-component="composer-attachment"]')!
+    const open = tile.querySelector<HTMLElement>(".tray-tile-open")!
+    expect(getComputedStyle(open).borderTopLeftRadius).toBe(getComputedStyle(tile).borderTopLeftRadius)
+    expect(parseFloat(getComputedStyle(open).borderTopLeftRadius)).toBeGreaterThan(0)
+  })
+
+  it("shows a video that cannot be decoded as a named file tile instead of a blank square", async () => {
+    using _xhr = fakeXhr()
+    await using screen = await mountComposer()
+    paste(screen.editor, new File([new Uint8Array(4096)], "clip.mov", { type: "video/quicktime" }))
+
+    await expect
+      .poll(() => screen.container.querySelector('[data-component="composer-file"] .tray-name')?.textContent)
+      .toBe("clip.mov")
+    await expect.poll(() => FakeXhr.sent.length).toBe(1)
+    FakeXhr.sent[0]!.finish()
+    await expect
+      .poll(() => screen.editor.querySelector('[data-component="composer-chip"]')?.getAttribute("data-kind"))
+      .toBe("file")
+    expect(
+      screen.editor.querySelector('[data-component="composer-chip"] [data-component="file-type-icon"]'),
+    ).not.toBeNull()
+  })
+
   it("pastes a file into an empty draft as a chip and a tray tile", async () => {
     using _xhr = fakeXhr()
     await using screen = await mountComposer()

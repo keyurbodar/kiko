@@ -560,6 +560,7 @@ button.token-chip:active {
 
 .tray-tile [data-component="tooltip-v2-trigger"] {
   display: contents;
+  border-radius: inherit;
 }
 
 .tray-tile-open {

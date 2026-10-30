@@ -186,9 +186,10 @@ export const fileRefView =
 
 function Chip(props: { id: string; name: string; source: ChipSource }) {
   const part = () => props.source.attachments().find((p) => p.id === props.id)
+  const [broken, setBroken] = createSignal(false)
   const look = () => {
     const p = part()
-    return p ? tileLook(p) : "type"
+    return p && !broken() ? tileLook(p) : "type"
   }
   const pictured = () => look() === "image" || look() === "video"
   const upload = () => uploadState(props.id)
@@ -238,7 +239,15 @@ function Chip(props: { id: string; name: string; source: ChipSource }) {
       >
         <Show
           when={look() === "video"}
-          fallback={<img class="composer-attach-thumb" src={part()!.blob.url} alt="" draggable={false} />}
+          fallback={
+            <img
+              class="composer-attach-thumb"
+              src={part()!.blob.url}
+              alt=""
+              draggable={false}
+              onError={() => setBroken(true)}
+            />
+          }
         >
           <video
             class="composer-attach-thumb"
@@ -247,6 +256,7 @@ function Chip(props: { id: string; name: string; source: ChipSource }) {
             playsinline
             preload="metadata"
             aria-hidden="true"
+            onError={() => setBroken(true)}
           />
         </Show>
       </Show>
