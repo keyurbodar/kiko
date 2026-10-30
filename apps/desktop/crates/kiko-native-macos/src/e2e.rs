@@ -400,11 +400,17 @@ fn cover_with_finder(driver: &mut MacDriver, target: Rect) -> Window {
         h: target.h + 200.0,
     };
     set_window_frame(&finder, cover);
-    apps::activate(finder.pid as i32);
+    let front = wait_for(SETTLE, || {
+        apps::activate(finder.pid as i32);
+        apps::frontmost()
+            .map(|app| app.pid)
+            .filter(|pid| *pid == finder.pid as i32)
+    });
     assert_eq!(
-        apps::frontmost().map(|app| app.pid),
+        front,
         Some(finder.pid as i32),
-        "Finder should own the screen for this test"
+        "Finder should own the screen for this test; frontmost is {:?}",
+        apps::frontmost().map(|app| (app.name, app.pid))
     );
     finder
 }

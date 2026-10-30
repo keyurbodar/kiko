@@ -85,6 +85,8 @@ jobs:
           sleep 3
           open -g -a /Applications/Safari.app
           sleep 5
+          open /tmp
+          sleep 2
           ps aux | grep -i "[T]extEdit" || echo "no TextEdit process"
           ps aux | grep -i "[S]afari" || echo "no Safari process"
 
