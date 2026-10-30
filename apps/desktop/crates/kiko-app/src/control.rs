@@ -1,9 +1,7 @@
 use std::io::{self, BufRead, BufReader, Write};
 use std::thread;
 
-use interprocess::local_socket::{ListenerOptions, prelude::*};
-#[cfg(unix)]
-use interprocess::os::unix::local_socket::ListenerOptionsExt;
+use interprocess::local_socket::prelude::*;
 
 use crate::log;
 use crate::serve::name;
@@ -32,14 +30,7 @@ impl Command {
 }
 
 pub fn bind(path: &str) -> io::Result<LocalSocketListener> {
-    #[cfg(unix)]
-    let listener = ListenerOptions::new()
-        .name(name(path)?)
-        .mode(0o600)
-        .create_sync()?;
-    #[cfg(windows)]
-    let listener = ListenerOptions::new().name(name(path)?).create_sync()?;
-    Ok(listener)
+    crate::serve::bind(path)
 }
 
 pub fn send(path: &str, command: Command) -> io::Result<()> {

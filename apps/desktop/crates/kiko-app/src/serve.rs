@@ -3,8 +3,6 @@ use std::sync::Arc;
 use std::thread;
 
 use interprocess::local_socket::{ListenerOptions, prelude::*};
-#[cfg(unix)]
-use interprocess::os::unix::local_socket::ListenerOptionsExt;
 use kiko_driver::Status;
 
 use crate::driver::{Driver, SharedDriver};
@@ -22,14 +20,16 @@ pub fn name(path: &str) -> io::Result<interprocess::local_socket::Name<'_>> {
 }
 
 pub fn bind(path: &str) -> io::Result<LocalSocketListener> {
-    #[cfg(unix)]
-    let listener = ListenerOptions::new()
-        .name(name(path)?)
-        .mode(0o600)
-        .create_sync()?;
-    #[cfg(windows)]
     let listener = ListenerOptions::new().name(name(path)?).create_sync()?;
+    #[cfg(unix)]
+    restrict(path)?;
     Ok(listener)
+}
+
+#[cfg(unix)]
+fn restrict(path: &str) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
 }
 
 pub fn run(listener: LocalSocketListener, driver: SharedDriver, status: Status) {

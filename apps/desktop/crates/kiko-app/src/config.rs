@@ -147,5 +147,12 @@ pub fn sibling(name: &str) -> PathBuf {
 }
 
 pub fn ensure_dir() -> std::io::Result<()> {
-    std::fs::create_dir_all(app_dir())
+    let dir = app_dir();
+    std::fs::create_dir_all(&dir)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))?;
+    }
+    Ok(())
 }
