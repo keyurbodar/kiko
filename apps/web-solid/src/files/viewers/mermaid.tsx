@@ -119,17 +119,17 @@ export default function MermaidViewer(props: { name: string; src: string; size: 
         <span class="min-w-0 flex-1 truncate text-hint text-fg3">{props.name}</span>
         <Show when={source()}>
           <Tabs value={rendered() ? "diagram" : "source"} onChange={(next: string) => setRendered(next === "diagram")}>
-            <Tabs.List class="flex gap-1" aria-label="Show diagram as">
+            <Tabs.List class="relative flex gap-1" aria-label="Show diagram as">
               <TabsPill />
               <Tabs.Trigger
                 value="diagram"
-                class="rounded-control px-2.5 py-1 text-hint text-fg2 data-[selected]:bg-active data-[selected]:text-fg"
+                class="relative z-10 rounded-control px-2.5 py-1 text-hint text-fg2 data-[selected]:text-fg"
               >
                 Diagram
               </Tabs.Trigger>
               <Tabs.Trigger
                 value="source"
-                class="rounded-control px-2.5 py-1 text-hint text-fg2 data-[selected]:bg-active data-[selected]:text-fg"
+                class="relative z-10 rounded-control px-2.5 py-1 text-hint text-fg2 data-[selected]:text-fg"
               >
                 Source
               </Tabs.Trigger>

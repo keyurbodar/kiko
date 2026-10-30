@@ -12,8 +12,10 @@ it("draws a mermaid file and flips to its source", async () => {
     await using screen = await render(() => <MermaidViewer name="flow.mmd" src={url} size={flow.length} />, {
       container,
     })
-    await expect.element(screen.getByText("Book"), { timeout: 15_000 }).toBeVisible()
-    expect(screen.container.querySelector("[data-component='mermaid-diagram'] svg")).not.toBeNull()
+    await expect.poll(() => screen.container.querySelector("[data-component='mermaid-diagram'] svg")).not.toBeNull()
+    await expect.element(screen.getByText("Book")).toBeVisible()
+    const pill = screen.container.querySelector<HTMLElement>(".pill-indicator")
+    expect(pill?.getBoundingClientRect().height ?? 0).toBeLessThan(48)
     await screen.getByRole("tab", { name: "Source" }).click()
     await expect.element(screen.getByText(/graph LR/)).toBeVisible()
   } finally {

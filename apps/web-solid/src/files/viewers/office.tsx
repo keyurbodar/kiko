@@ -144,13 +144,13 @@ function Sheet(props: { sheets: readonly SheetModel[]; name: string; truncated: 
       <Show when={props.sheets.length > 1}>
         <div class="flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--border-100)] px-2">
           <Tabs value={active()} onChange={(next: string) => setActive(next)} class="min-w-0">
-            <Tabs.List class="flex gap-1 overflow-x-auto" aria-label="Sheets">
+            <Tabs.List class="relative flex gap-1 overflow-x-auto" aria-label="Sheets">
               <TabsPill />
               <For each={props.sheets}>
                 {(item) => (
                   <Tabs.Trigger
                     value={item.name}
-                    class="shrink-0 rounded-control px-2.5 py-1 text-hint text-fg2 data-[selected]:bg-active data-[selected]:text-fg"
+                    class="relative z-10 shrink-0 rounded-control px-2.5 py-1 text-hint text-fg2 data-[selected]:text-fg"
                   >
                     {item.name}
                   </Tabs.Trigger>

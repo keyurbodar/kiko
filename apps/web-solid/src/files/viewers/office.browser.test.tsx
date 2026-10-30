@@ -113,6 +113,8 @@ it("shows a spreadsheet as tabs of tables", async () => {
     expect(screen.container.textContent).toContain("1 rows, 2 columns")
     await screen.getByRole("tab", { name: "Packing" }).click()
     await expect.element(screen.getByText("Bags")).toBeVisible()
+    const pill = screen.container.querySelector<HTMLElement>("[data-component=file-sheet] .pill-indicator")
+    expect(pill?.getBoundingClientRect().height ?? 0).toBeLessThan(48)
   } finally {
     URL.revokeObjectURL(url)
   }
