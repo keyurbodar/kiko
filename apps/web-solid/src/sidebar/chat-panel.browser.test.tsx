@@ -78,6 +78,21 @@ describe("chat sections", () => {
     expect(sectionOf(screen.container, "b")).toBe("needs")
   })
 
+  it("keeps a chat in Needs you while the owner opens it", async () => {
+    const [active, setActive] = createSignal<string | null>("a")
+    const needs = new Map<string, Need>([["b", { kind: "failed", text: "Not sent: rate limited" }]])
+    await using screen = await render(() => (
+      <ChatSections {...quiet} activeId={active()} needs={needs} bots={[bot("a", "Alpha"), bot("b", "Beta")]} />
+    ))
+    await expect.element(screen.getByText("Beta")).toBeVisible()
+    expect(sectionOf(screen.container, "b")).toBe("needs")
+    setActive("b")
+    expect(sectionOf(screen.container, "b")).toBe("needs")
+    expect(names(screen.container)).toEqual(["Beta", "Alpha"])
+    setActive("a")
+    expect(sectionOf(screen.container, "b")).toBe("needs")
+  })
+
   it("shows no Needs you section when nothing waits", async () => {
     await using screen = await render(() => <ChatSections {...quiet} bots={[bot("a", "Alpha")]} />)
     expect(screen.container.querySelector('[data-component="sidebar-needs"]')).toBeNull()

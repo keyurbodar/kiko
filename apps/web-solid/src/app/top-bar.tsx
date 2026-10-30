@@ -56,7 +56,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
     return `You, ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
   }
   return (
-    <header class="top-bar flex h-[60px] shrink-0 items-center gap-0.5 px-7" data-component="top-bar">
+    <header class="top-bar flex h-[52px] shrink-0 items-center gap-0.5 px-7" data-component="top-bar">
       <Show when={!props.sidebarOpen}>
         <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
       </Show>

@@ -59,6 +59,41 @@ describe("right panel", () => {
     closeAll(CHAT)
   })
 
+  it("opens a surface from the empty launcher by its letter, but not while the owner types", async () => {
+    closeAll(CHAT)
+    const field = document.createElement("textarea")
+    document.body.append(field)
+    await using screen = await render(() => <RightPanel chatId={CHAT} onClose={() => {}} />)
+    await expect.element(screen.getByRole("heading", { name: "Open a surface" })).toBeVisible()
+
+    field.focus()
+    field.dispatchEvent(new KeyboardEvent("keydown", { key: "f", bubbles: true }))
+    expect(surfacesOf(CHAT)).toHaveLength(0)
+
+    field.blur()
+    press("f")
+    await expect.element(screen.getByRole("tab", { name: /^Files/ })).toHaveAttribute("aria-selected", "true")
+    field.remove()
+    closeAll(CHAT)
+  })
+
+  it("offers scroll buttons once the tabs overflow the strip", async () => {
+    closeAll(CHAT)
+    for (const name of ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"]) {
+      openSurface(CHAT, { kind: "file", id: `file:docs/${name}.md`, path: `docs/${name}.md` })
+    }
+    activateSurface(CHAT, "file:docs/alpha.md")
+    await using screen = await render(() => (
+      <div style={{ width: "320px", height: "400px", display: "flex" }}>
+        <RightPanel chatId={CHAT} onClose={() => {}} />
+      </div>
+    ))
+    const right = screen.getByRole("button", { name: "Scroll tabs right" })
+    await expect.element(right).toBeVisible()
+    await expect.element(screen.getByRole("button", { name: "Scroll tabs left" })).toBeDisabled()
+    closeAll(CHAT)
+  })
+
   it("keeps the open surfaces as tabs and switches between them", async () => {
     closeAll(CHAT)
     openSurface(CHAT, fixedSurface("files"))

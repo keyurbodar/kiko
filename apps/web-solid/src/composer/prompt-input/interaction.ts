@@ -81,6 +81,7 @@ export function createPromptInputV2Controller(input: {
         addPart,
         fileRef: insertFileRefs,
         chip: insertAttachments,
+        draft: plainText,
         setDragging: (dragging) => {
           if ((state.drag === "active") !== dragging) dispatch({ type: dragging ? "drag.enter" : "drag.leave" })
         },
@@ -222,8 +223,18 @@ export function createPromptInputV2Controller(input: {
       input.openAttachment?.(attachment)
     },
     removeAttachment(id: string) {
-      if (rich) return rich.removeAttachment(id)
+      rich?.removeAttachment(id)
       draft.removeAttachment(id)
+    },
+    moveAttachment(id: string, to: number) {
+      const images = trayAttachments(draft.state.prompt)
+      const from = images.findIndex((part) => part.id === id)
+      if (from < 0 || from === to) return
+      const moved = images.splice(from, 1)[0]!
+      images.splice(Math.max(0, Math.min(to, images.length)), 0, moved)
+      const placed = new Set(images.map((part) => part.id))
+      const rest = draft.state.prompt.filter((part) => part.type !== "image" || !placed.has(part.id))
+      draft.setPrompt([...rest, ...images], draft.state.cursor)
     },
     canSubmit() {
       if (input.view.submit.blocked?.()) return false
@@ -288,7 +299,7 @@ export function createPromptInputV2Controller(input: {
     },
     dragKind: () => attachments?.dragKind() ?? "files",
     addAttachments(files: File[]) {
-      if (attachments) void attachments.addAttachments(files)
+      if (attachments) void attachments.addAttachments(files, "picker")
     },
   }
 }

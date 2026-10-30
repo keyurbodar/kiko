@@ -1,8 +1,16 @@
+.empty-art {
+  --ea-fill: color-mix(in oklab, var(--fg) 11.3%, var(--bg));
+  --ea-fill2: color-mix(in oklab, var(--fg) 8%, var(--bg));
+}
+:root:not(.dark) .empty-art {
+  --ea-fill: color-mix(in oklab, var(--fg) 6.5%, var(--bg));
+  --ea-fill2: color-mix(in oklab, var(--fg) 4%, var(--bg));
+}
 .empty-art .ea-fill {
-  fill: var(--active);
+  fill: var(--ea-fill);
 }
 .empty-art .ea-fill2 {
-  fill: var(--hover);
+  fill: var(--ea-fill2);
 }
 .empty-art .ea-line {
   stroke: var(--fg);
@@ -12,10 +20,10 @@
   fill: none;
 }
 .empty-art .ea-line.ea-fill {
-  fill: var(--active);
+  fill: var(--ea-fill);
 }
 .empty-art .ea-line.ea-fill2 {
-  fill: var(--hover);
+  fill: var(--ea-fill2);
 }
 .empty-art * {
   transform-box: fill-box;

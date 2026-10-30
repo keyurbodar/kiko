@@ -76,7 +76,7 @@
   color: var(--fg);
 }
 .search-scope-option:disabled {
-  opacity: 0.4;
+  opacity: var(--opacity-disabled);
 }
 .search-results {
   max-height: min(460px, 60dvh);
@@ -90,7 +90,7 @@
   flex-direction: column;
   justify-content: center;
   padding: 8px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-row);
   cursor: default;
   transition: background-color var(--dur-hover) var(--ease-snap);
 }

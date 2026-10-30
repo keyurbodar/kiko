@@ -21,7 +21,7 @@
 }
 
 .picker-panel {
-  transform-origin: bottom left;
+  transform-origin: bottom right;
 }
 .picker-row {
   transition: background-color 80ms var(--ease-kiko);
@@ -101,7 +101,7 @@
 .picker-rail-item[aria-pressed="true"]::after {
   position: absolute;
   top: 50%;
-  right: -4px;
+  right: 0;
   width: 3px;
   height: 20px;
   border-radius: var(--radius-full);

@@ -72,14 +72,7 @@ export default function MessageMenu(props: MessageMenuProps) {
       />
       <MenuV2.Context.Portal>
         <MenuV2.Context.Content
-          class={cn(
-            "chat-menu min-w-[184px] rounded-pop p-1 text-fg",
-            pickerOpen() && "rounded-sheet p-0",
-            "[&_[data-component=menu-v2-item]]:h-[30px]",
-            "[&_[data-slot=menu-v2-item-content]]:text-label",
-            "[&_[data-slot=menu-v2-item-content]]:gap-2.5",
-            "[&_[data-component=menu-v2-item]_svg]:text-fg2",
-          )}
+          class={cn("chat-menu min-w-[184px]", pickerOpen() && "rounded-sheet p-0")}
           data-component="chat-menu"
         >
           <Show
@@ -94,8 +87,8 @@ export default function MessageMenu(props: MessageMenuProps) {
                         class={cn(
                           "chat-menu__emoji flex size-8 items-center justify-center rounded-row p-0 font-emoji text-[20px] leading-none",
                           "cursor-default border-none bg-transparent",
-                          "hover:bg-[var(--active)]",
-                          "focus-visible:bg-[var(--active)]",
+                          "hover:bg-fill-hover",
+                          "focus-visible:bg-fill-hover",
                           "active:scale-[0.92]",
                         )}
                         data-emoji={emoji}
@@ -114,8 +107,8 @@ export default function MessageMenu(props: MessageMenuProps) {
                     class={cn(
                       "chat-menu__more ml-auto flex size-8 items-center justify-center rounded-row p-0",
                       "cursor-default border-none bg-transparent text-fg2",
-                      "hover:bg-[var(--active)]",
-                      "hover:text-fg focus-visible:bg-[var(--active)]",
+                      "hover:bg-fill-hover",
+                      "hover:text-fg focus-visible:bg-fill-hover",
                       "focus-visible:text-fg",
                     )}
                     aria-label="More emoji"
@@ -173,10 +166,7 @@ export default function MessageMenu(props: MessageMenuProps) {
                   </MenuV2.Item>
                 </Show>
                 <Show when={props.onDelete}>
-                  <MenuV2.Item
-                    class={cn("chat-menu__danger text-bad [&_svg]:!text-[var(--bad)]")}
-                    onSelect={props.onDelete}
-                  >
+                  <MenuV2.Item class="chat-menu__danger text-bad" onSelect={props.onDelete}>
                     <RemixIcon icon={TrashIcon} class="size-4 shrink-0" />
                     Delete
                   </MenuV2.Item>

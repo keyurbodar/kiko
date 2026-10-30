@@ -7,6 +7,7 @@ import { droppedFilePath, hasFileDrag } from "../../lib/file-drag"
 import { prepareImageForAttachment } from "../../lib/image-compression"
 import { rememberClipboardFile } from "../rich/clipboard"
 import { entriesOf, hasFolder, walkEntries } from "./dropped"
+import { type AttachSource, attachPlacement } from "./placement"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 
 type PromptTarget = {
@@ -37,6 +38,7 @@ export function createPromptInputV2Attachments(
     addPart: (part: PromptInputV2Prompt[number]) => boolean
     fileRef: (paths: readonly string[], at?: { x: number; y: number }) => void
     chip: (items: readonly { id: string; name: string }[], at?: { x: number; y: number }) => void
+    draft: () => string
     setDragging: (dragging: boolean) => void
   },
 ) {
@@ -48,6 +50,7 @@ export function createPromptInputV2Attachments(
   const [dragKind, setDragKind] = createSignal<"files" | "reference">("files")
   const addAttachments = async (
     files: File[],
+    source: AttachSource,
     target = capture(),
     notes: string[] = [],
     at?: { x: number; y: number },
@@ -63,7 +66,6 @@ export function createPromptInputV2Attachments(
       ...files.filter((file) => !admitted.has(file)).map((file) => ({ name: file.name, reason: shortRefusal(file) })),
     ]
     const added: PromptInputV2Attachment[] = []
-    const chips: { id: string; name: string }[] = []
     const abandoned = () => openedFor !== undefined && input.key?.() !== openedFor
     const release = () => {
       for (const part of added.splice(0)) {
@@ -75,11 +77,7 @@ export function createPromptInputV2Attachments(
       if (abandoned()) return
       const id = await blobId(file)
       if (abandoned()) return
-      const existing = [...held, ...added].find((part) => part.blob.id === id)
-      if (existing) {
-        if (!chips.some((chip) => chip.id === existing.id)) chips.push({ id: existing.id, name: existing.filename })
-        return
-      }
+      if ([...held, ...added].some((part) => part.blob.id === id)) return
       const attachment: PromptInputV2Attachment = {
         type: "image",
         id: globalThis.crypto?.randomUUID?.() ?? Math.random().toString(16).slice(2),
@@ -90,7 +88,6 @@ export function createPromptInputV2Attachments(
       }
       rememberClipboardFile(attachment, file)
       added.push(attachment)
-      chips.push({ id: attachment.id, name: attachment.filename })
       input.onAdded?.(attachment, file)
     }
     setPreparing((count) => count + 1)
@@ -102,9 +99,14 @@ export function createPromptInputV2Attachments(
     }
     if (abandoned()) return release()
     if (refusals.length) input.refuse(refusals)
-    if (!chips.length) return
-    if (added.length) target.set([...target.current(), ...added], target.cursor())
-    input.chip(chips, at)
+    if (!added.length) return
+    const inline = attachPlacement(source, input.draft()) === "inline"
+    target.set([...target.current(), ...added], target.cursor())
+    if (inline)
+      input.chip(
+        added.map((part) => ({ id: part.id, name: part.filename })),
+        at,
+      )
   }
   const insertPastedText = (text: string) => {
     const put = () => {
@@ -130,7 +132,7 @@ export function createPromptInputV2Attachments(
     const plainText = clipboardData.getData("text/plain") ?? ""
     const text = plainText.includes("\r") ? plainText.replace(/\r\n?/g, "\n") : plainText
     if (files.length > 0) {
-      await addAttachments(files, target)
+      await addAttachments(files, "paste", target)
       if (text) insertPastedText(text)
       return
     }
@@ -154,11 +156,11 @@ export function createPromptInputV2Attachments(
     const entries = entriesOf(transfer.items)
     const files = Array.from(transfer.files)
     const target = capture()
-    if (!hasFolder(entries)) return void addAttachments(files, target, [], at)
+    if (!hasFolder(entries)) return void addAttachments(files, "drop", target, [], at)
     const walked = await walkEntries(entries)
     const notes = walked.truncated ? [attachmentMessages.folderCut] : []
     if (!walked.files.length) return input.refuse([{ reason: attachmentMessages.folderEmpty }])
-    await addAttachments(walked.files, target, notes, at)
+    await addAttachments(walked.files, "drop", target, notes, at)
   }
 
   onMount(() => {

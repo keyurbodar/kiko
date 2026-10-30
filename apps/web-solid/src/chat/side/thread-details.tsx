@@ -1,21 +1,26 @@
 import { fileName, type FileRef, type HumanAsk, type RunStep, type Task } from "@kiko/protocol"
 import {
   AlertCircleIcon,
+  ArchiveIcon,
   CheckIcon,
   ChevronRightIcon,
+  CodeIcon,
+  FileTextIcon,
   GlobeIcon,
+  ImageIcon,
   MemoryIcon,
+  PlayIcon,
   SearchIcon,
   SlidersIcon,
+  TableIcon,
   UploadIcon,
 } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { createEffect, createMemo, createSignal, For, type JSX, onCleanup, Show } from "solid-js"
-import { fileType } from "../../files/type"
-import { TypeIcon } from "../../files/type-icon"
+import { createEffect, createMemo, createSignal, For, type JSX, on, onCleanup, Show } from "solid-js"
+import { type FileType, fileType } from "../../files/type"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { agentDisplayName } from "../../lib/names"
 import { requestJump } from "../../search/state"
@@ -35,6 +40,7 @@ import {
   nowRows,
   outputTiles,
   progressView,
+  type ProgressView,
   usedRows,
   type UsedRow,
 } from "./thread-details-model"
@@ -42,23 +48,14 @@ import { threadDetailsVisibility } from "./thread-details-state"
 import { ThreadDetailsMenuItems } from "./thread-details-menu"
 import "./thread-details.css"
 
-const TILE_COLUMNS = 6
-const TILE_ROWS = 2
-const SLOTS = TILE_COLUMNS * TILE_ROWS
-const ICON = "grid size-6 shrink-0 place-items-center rounded-control text-fg3 hover:bg-hover hover:text-fg"
+const OUTPUT_ROWS = 5
+const CUSTOMIZE_INSET = { top: 8, right: 10, size: 24 }
 
-function CustomizeTrigger(props: { row?: boolean }) {
+function CustomizeTrigger() {
   return (
-    <TooltipV2 placement="left" openDelay={300} value="Choose what to show">
-      <MenuV2.Trigger
-        class={props.row ? "td-row" : ICON}
-        aria-label="Choose what to show"
-        data-action={props.row ? "customize-details-empty" : "customize-details"}
-      >
-        <RemixIcon icon={SlidersIcon} size={16} class={props.row ? "shrink-0 text-[var(--text-300)]" : "size-3.5"} />
-        <Show when={props.row}>
-          <span class="min-w-0 flex-1 truncate">Choose what to show</span>
-        </Show>
+    <TooltipV2 class="td-customize-host" placement="left" openDelay={300} value="Choose what to show">
+      <MenuV2.Trigger class="td-customize" aria-label="Choose what to show" data-action="customize-details">
+        <RemixIcon icon={SlidersIcon} size={16} class="size-3.5" />
       </MenuV2.Trigger>
     </TooltipV2>
   )
@@ -67,7 +64,7 @@ function CustomizeTrigger(props: { row?: boolean }) {
 function Count(props: { value: string }) {
   return (
     <Show when={props.value} keyed>
-      {(value) => <span class="td-count shrink-0 text-[11px] text-[var(--text-400)]">{value}</span>}
+      {(value) => <span class="td-count td-meta shrink-0">{value}</span>}
     </Show>
   )
 }
@@ -76,7 +73,6 @@ function Section(props: {
   id: ThreadDetailsItemId
   title: string
   count?: string
-  action?: JSX.Element
   class?: string
   children: JSX.Element
 }) {
@@ -86,7 +82,7 @@ function Section(props: {
       <div class="td-heading">
         <button
           type="button"
-          class="-ml-2 flex h-8 min-w-0 flex-1 items-center gap-1 rounded-[6px] px-2 text-left hover:bg-[var(--td-hover)]"
+          class="td-heading-button"
           aria-expanded={!folded()}
           aria-controls={`td-body-${props.id}`}
           data-action={`fold-${props.id}`}
@@ -95,15 +91,14 @@ function Section(props: {
           <RemixIcon
             icon={ChevronRightIcon}
             size={16}
-            class="td-chevron size-3.5 shrink-0 text-[var(--text-300)]"
+            class="td-chevron td-heading-chevron size-3 shrink-0"
             data-open={!folded() ? "" : undefined}
           />
-          <span id={`td-head-${props.id}`} class="min-w-0 truncate text-[11px] font-medium text-[var(--text-300)]">
+          <span id={`td-head-${props.id}`} class="min-w-0 truncate">
             {props.title}
           </span>
           <Show when={props.count}>{(count) => <Count value={count()} />}</Show>
         </button>
-        {props.action}
       </div>
       <div class="td-fold" data-open={!folded() ? "" : undefined}>
         <div id={`td-body-${props.id}`}>{props.children}</div>
@@ -134,7 +129,21 @@ function Row(props: {
   )
 }
 
-function NowSection(props: { now: number; action?: JSX.Element }) {
+function FoldRow(props: { label: string; open: boolean; action: string; onToggle: () => void }) {
+  return (
+    <button type="button" class="td-row" aria-expanded={props.open} data-action={props.action} onClick={props.onToggle}>
+      <RemixIcon
+        icon={ChevronRightIcon}
+        size={16}
+        class="td-chevron td-icon size-3.5 shrink-0"
+        data-open={props.open ? "" : undefined}
+      />
+      <span class="td-muted min-w-0 flex-1 truncate">{props.label}</span>
+    </button>
+  )
+}
+
+function NowSection(props: { now: number }) {
   const rows = () =>
     nowRows({
       slugs: room.typingSlugs(),
@@ -149,7 +158,7 @@ function NowSection(props: { now: number; action?: JSX.Element }) {
       fallback: props.now,
     })
   return (
-    <Section id="now" title="Now" action={props.action}>
+    <Section id="now" title="Now">
       <For each={rows()}>
         {(row, index) => (
           <div
@@ -162,7 +171,7 @@ function NowSection(props: { now: number; action?: JSX.Element }) {
             <span class="min-w-0 flex-1 truncate">
               <span class="chat-shimmer">{row.line}</span>
             </span>
-            <span class="shrink-0 text-[11px] text-[var(--text-400)]">{elapsed(props.now - row.since)}</span>
+            <span class="td-meta shrink-0 tabular-nums">{elapsed(props.now - row.since)}</span>
             <span class="sr-only">{agentDisplayName(row.slug, room.roomMembers())}</span>
           </div>
         )}
@@ -171,7 +180,7 @@ function NowSection(props: { now: number; action?: JSX.Element }) {
   )
 }
 
-function WaitingSection(props: { chatId: string; asks: readonly HumanAsk[]; action?: JSX.Element }) {
+function WaitingSection(props: { chatId: string; asks: readonly HumanAsk[] }) {
   const approve = (ask: HumanAsk) => {
     const choice = ask.options?.[0]
     if (choice !== undefined) room.active()?.answer(ask.id, choice)
@@ -183,28 +192,36 @@ function WaitingSection(props: { chatId: string; asks: readonly HumanAsk[]; acti
     requestJump({ roomId: props.chatId as never, id: ask.messageId, seq })
   }
   return (
-    <Section id="waiting" title="Waiting on you" action={props.action}>
+    <Section id="waiting" title="Waiting on you">
       <For each={props.asks}>
         {(ask, index) => (
           <div
-            class="td-row td-row-enter h-auto min-h-8 py-1"
+            class="td-ask td-row-enter"
             style={`--td-i: ${index()}`}
             data-component="details-waiting"
             data-ask={ask.id}
           >
-            <span class="min-w-0 flex-1 truncate">{ask.text}</span>
-            <button
-              type="button"
-              class="td-button"
-              data-tone="strong"
-              data-action="details-approve"
-              onClick={() => approve(ask)}
-            >
-              Approve
-            </button>
-            <button type="button" class="td-button" data-action="details-show" onClick={() => details(ask)}>
-              Details
-            </button>
+            <p class="td-ask-text">{ask.text}</p>
+            <div class="td-ask-actions">
+              <button
+                type="button"
+                class="td-button"
+                data-tone="ghost"
+                data-action="details-show"
+                onClick={() => details(ask)}
+              >
+                Details
+              </button>
+              <button
+                type="button"
+                class="td-button"
+                data-tone="strong"
+                data-action="details-approve"
+                onClick={() => approve(ask)}
+              >
+                Approve
+              </button>
+            </div>
           </div>
         )}
       </For>
@@ -219,7 +236,7 @@ function TaskCheck(props: { task: Task }) {
   return (
     <button
       type="button"
-      class="grid size-4 shrink-0 place-items-center rounded-[4px] border border-[var(--border-300)] text-[var(--text-400)] hover:border-[var(--text-300)] hover:text-[var(--text-200)]"
+      class="td-check"
       role="checkbox"
       aria-checked={props.task.status === "done"}
       aria-label={props.task.title}
@@ -244,13 +261,13 @@ function TaskRow(props: { task: Task; current: boolean; index: number }) {
     >
       <Show when={props.current} fallback={<TaskCheck task={props.task} />}>
         <span class="grid size-4 shrink-0 place-items-center">
-          <span class="td-spinner size-3 rounded-full border-[1.5px] border-[var(--border-300)] border-t-[var(--fg)]" />
+          <span class="td-spinner size-3 rounded-full border-[1.5px] border-[var(--line2)] border-t-[var(--fg)]" />
         </span>
       </Show>
       <span class="min-w-0 flex-1 truncate">{taskText(props.task.title, room.roomMembers())}</span>
       <Show when={props.task.status !== "done" && owner().slug}>
         {(slug) => (
-          <span class="flex shrink-0 items-center gap-1 text-[12px] font-normal text-[var(--text-400)]">
+          <span class="td-meta flex shrink-0 items-center gap-1">
             <IdentityAvatar seed={slug()} size={14} />
             <span class="max-w-24 truncate">{owner().name}</span>
           </span>
@@ -260,11 +277,9 @@ function TaskRow(props: { task: Task; current: boolean; index: number }) {
   )
 }
 
-function ProgressSection(props: { tasks: readonly Task[]; running: boolean; action?: JSX.Element }) {
+function ProgressSection(props: { view: ProgressView; running: boolean; onGone: () => void }) {
   const [open, setOpen] = createSignal(false)
   const [leaving, setLeaving] = createSignal(false)
-  const [gone, setGone] = createSignal(false)
-  const view = createMemo(() => progressView(props.tasks, props.running))
   let timer: ReturnType<typeof setTimeout> | undefined
   const clear = () => {
     clearTimeout(timer)
@@ -273,54 +288,38 @@ function ProgressSection(props: { tasks: readonly Task[]; running: boolean; acti
   createEffect(() => {
     clear()
     setLeaving(false)
-    setGone(false)
-    if (!view().allDone || props.running) return
+    if (!props.view.allDone || props.running) return
     timer = setTimeout(() => {
       setLeaving(true)
-      timer = setTimeout(() => setGone(true), 200)
+      timer = setTimeout(props.onGone, 200)
     }, ALL_DONE_MS)
   })
   onCleanup(clear)
   return (
-    <Show when={!gone()}>
-      <Section
-        id="progress"
-        title="Progress"
-        count={`${view().completed} of ${view().total}`}
-        action={props.action}
-        class={leaving() ? "td-leaving" : undefined}
-      >
-        <Show
-          when={!view().allDone}
-          fallback={<div class="td-row text-[var(--text-300)]">{`All ${view().total} done`}</div>}
-        >
-          <For each={view().open}>
-            {(task, index) => <TaskRow task={task} current={task.id === view().currentId} index={index()} />}
-          </For>
-        </Show>
-        <Show when={view().done.length > 0}>
-          <button
-            type="button"
-            class="td-row"
-            aria-expanded={open()}
-            data-action="fold-done-tasks"
-            onClick={() => setOpen(!open())}
-          >
-            <RemixIcon
-              icon={ChevronRightIcon}
-              size={16}
-              class="td-chevron size-3.5 shrink-0 text-[var(--text-400)]"
-              data-open={open() ? "" : undefined}
-            />
-            <span class="min-w-0 flex-1 truncate text-[var(--text-300)]">{`${view().done.length} done`}</span>
-          </button>
+    <Section
+      id="progress"
+      title="Progress"
+      count={`${props.view.completed} of ${props.view.total}`}
+      class={leaving() ? "td-leaving" : undefined}
+    >
+      <Show when={!props.view.allDone} fallback={<div class="td-row td-muted">{`All ${props.view.total} done`}</div>}>
+        <For each={props.view.open}>
+          {(task, index) => <TaskRow task={task} current={task.id === props.view.currentId} index={index()} />}
+        </For>
+        <Show when={props.view.done.length > 0}>
+          <FoldRow
+            label={`${props.view.done.length} done`}
+            open={open()}
+            action="fold-done-tasks"
+            onToggle={() => setOpen(!open())}
+          />
           <div class="td-fold" data-open={open() ? "" : undefined}>
             <div>
-              <For each={view().done}>
+              <For each={props.view.done}>
                 {(task) => (
                   <div class="td-row" data-component="details-task" data-status="done">
                     <span class="size-4 shrink-0" />
-                    <span class="min-w-0 flex-1 truncate text-[var(--text-400)] line-through">
+                    <span class="td-faint min-w-0 flex-1 truncate line-through">
                       {taskText(task.title, room.roomMembers())}
                     </span>
                   </div>
@@ -329,45 +328,42 @@ function ProgressSection(props: { tasks: readonly Task[]; running: boolean; acti
             </div>
           </div>
         </Show>
-      </Section>
-    </Show>
+      </Show>
+    </Section>
   )
 }
 
-function HelpersSection(props: { chatId: string; now: number; action?: JSX.Element }) {
+function HelpersSection(props: { chatId: string; now: number }) {
   const [open, setOpen] = createSignal(false)
   const split = () => helperSplit(room.helpers(), props.now)
   const group = () => room.roomMembers().length > 1
   const openHelper = (id: string, window: string) => openSurface(props.chatId, helperSurface(id, window))
   return (
-    <Section
-      id="helpers"
-      title="Helpers"
-      count={split().working > 0 ? `${split().working} working` : undefined}
-      action={props.action}
-    >
+    <Section id="helpers" title="Helpers" count={split().working > 0 ? `${split().working} working` : undefined}>
       <For each={split().shown}>
         {(lane, index) => (
           <Row
             label={lane.title}
             action="open-helper"
-            class="td-row-enter"
+            class="td-row-enter td-row-two"
             style={`--td-i: ${index()}`}
             onClick={() => openHelper(lane.id, lane.window)}
           >
-            <Snowflake seed={lane.id} size={14} state={lane.state} parent={group() ? lane.slug : undefined} />
-            <span class="min-w-0 shrink truncate">{lane.title}</span>
-            <span class="min-w-0 flex-1 truncate font-normal text-[var(--text-400)]">
-              {lane.state === "working" ? lane.line : helperWord(lane.state)}
+            <span class="td-lead">
+              <Snowflake seed={lane.id} size={14} state={lane.state} parent={group() ? lane.slug : undefined} />
+            </span>
+            <span class="flex min-w-0 flex-1 flex-col">
+              <span class="truncate">{lane.title}</span>
+              <span class="td-sub truncate">{lane.state === "working" ? lane.line : helperWord(lane.state)}</span>
             </span>
             <Show when={lane.state === "working"}>
-              <span class="shrink-0 text-[11px] text-[var(--text-400)]">{elapsed(props.now - lane.startedAt)}</span>
+              <span class="td-meta shrink-0 self-start tabular-nums">{elapsed(props.now - lane.startedAt)}</span>
             </Show>
             <Show when={lane.state !== "working"}>
               <RemixIcon
                 icon={lane.state === "failed" ? AlertCircleIcon : CheckIcon}
                 size={16}
-                class={`td-check-pop size-3.5 shrink-0 ${
+                class={`td-check-pop size-3.5 shrink-0 self-start ${
                   lane.state === "failed" ? "text-[var(--danger)]" : "text-[var(--ok)]"
                 }`}
               />
@@ -376,21 +372,12 @@ function HelpersSection(props: { chatId: string; now: number; action?: JSX.Eleme
         )}
       </For>
       <Show when={split().finished.length > 0}>
-        <button
-          type="button"
-          class="td-row"
-          aria-expanded={open()}
-          data-action="fold-finished-helpers"
-          onClick={() => setOpen(!open())}
-        >
-          <RemixIcon
-            icon={ChevronRightIcon}
-            size={16}
-            class="td-chevron size-3.5 shrink-0 text-[var(--text-400)]"
-            data-open={open() ? "" : undefined}
-          />
-          <span class="min-w-0 flex-1 truncate text-[var(--text-300)]">{`${split().finished.length} finished`}</span>
-        </button>
+        <FoldRow
+          label={`${split().finished.length} finished`}
+          open={open()}
+          action="fold-finished-helpers"
+          onToggle={() => setOpen(!open())}
+        />
         <div class="td-fold" data-open={open() ? "" : undefined}>
           <div>
             <For each={split().finished}>
@@ -398,11 +385,7 @@ function HelpersSection(props: { chatId: string; now: number; action?: JSX.Eleme
                 <Row label={lane.title} action="open-helper" onClick={() => openHelper(lane.id, lane.window)}>
                   <span class="size-4 shrink-0" />
                   <span class="min-w-0 flex-1 truncate">{lane.title}</span>
-                  <span
-                    class={`shrink-0 text-[12px] font-normal ${
-                      lane.state === "failed" ? "text-[var(--danger)]" : "text-[var(--text-400)]"
-                    }`}
-                  >
+                  <span class={`td-meta shrink-0 ${lane.state === "failed" ? "text-[var(--danger)]" : ""}`}>
                     {helperWord(lane.state)}
                   </span>
                 </Row>
@@ -415,48 +398,64 @@ function HelpersSection(props: { chatId: string; now: number; action?: JSX.Eleme
   )
 }
 
+const OUTPUT_ICON: Partial<Record<FileType, typeof FileTextIcon>> = {
+  code: CodeIcon,
+  csv: TableIcon,
+  sheet: TableIcon,
+  html: GlobeIcon,
+  image: ImageIcon,
+  video: PlayIcon,
+  archive: ArchiveIcon,
+}
+
 const sizeText = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function OutputTile(props: { chatId: string; file: { id: string; name: string; size: number; type: string } }) {
+function OutputRow(props: { chatId: string; file: FileRef; index: number }) {
   const name = () => fileName(props.file.name)
   const type = () => fileType({ name: name(), type: props.file.type })
   return (
-    <TooltipV2 placement="top" openDelay={300} value={`${name()}, ${sizeText(props.file.size)}`}>
-      <button
-        type="button"
-        class="td-tile"
-        aria-label={name()}
-        data-action="open-output"
-        onClick={() => openFile(props.chatId, props.file.name)}
-      >
-        <Show when={type() === "image"} fallback={<TypeIcon type={type()} size={20} />}>
+    <Row
+      label={name()}
+      action="open-output"
+      class="td-row-enter"
+      style={`--td-i: ${props.index}`}
+      onClick={() => openFile(props.chatId, props.file.name)}
+    >
+      <span class="td-output-icon">
+        <Show
+          when={type() === "image"}
+          fallback={<RemixIcon icon={OUTPUT_ICON[type()] ?? FileTextIcon} size={16} class="td-icon" />}
+        >
           <img class="td-thumb" src={fileSrc(props.chatId, props.file.id)} alt="" loading="lazy" />
         </Show>
-      </button>
-    </TooltipV2>
+      </span>
+      <span class="min-w-0 flex-1 truncate">{name()}</span>
+      <span class="td-meta shrink-0 tabular-nums">{sizeText(props.file.size)}</span>
+    </Row>
   )
 }
 
-function OutputsSection(props: { chatId: string; files: readonly FileRef[]; action?: JSX.Element }) {
-  const tiles = () => outputTiles(props.files, SLOTS)
+function OutputsSection(props: { chatId: string; files: readonly FileRef[] }) {
+  const rows = () => outputTiles(props.files, OUTPUT_ROWS)
   return (
-    <Section id="outputs" title="Outputs" count={`${props.files.length}`} action={props.action}>
-      <div class="flex flex-wrap gap-1.5 px-2.5 py-1" data-component="details-outputs">
-        <For each={tiles().shown}>{(file) => <OutputTile chatId={props.chatId} file={file} />}</For>
-        <Show when={tiles().more > 0}>
-          <button
-            type="button"
-            class="td-tile text-[12px] font-medium text-[var(--text-300)]"
-            aria-label={`${tiles().more} more files`}
-            data-action="open-files"
+    <Section id="outputs" title="Outputs" count={`${props.files.length}`}>
+      <div data-component="details-outputs">
+        <For each={rows().shown}>
+          {(file, index) => <OutputRow chatId={props.chatId} file={file} index={index()} />}
+        </For>
+        <Show when={rows().more > 0}>
+          <Row
+            label={`${rows().more} more files`}
+            action="open-files"
             onClick={() => openSurface(props.chatId, fixedSurface("files"))}
           >
-            {`+${tiles().more}`}
-          </button>
+            <span class="td-output-icon" />
+            <span class="td-muted min-w-0 flex-1 truncate">{`${rows().more} more`}</span>
+          </Row>
         </Show>
       </div>
     </Section>
@@ -482,20 +481,18 @@ function UsedRowView(props: { row: UsedRow }) {
         data-action={`used-${props.row.kind}`}
         onClick={() => setOpen(!open())}
       >
-        <RemixIcon icon={USED_ICON[props.row.kind]} size={16} class="shrink-0 text-[var(--text-300)]" />
+        <RemixIcon icon={USED_ICON[props.row.kind]} size={16} class="td-icon shrink-0" />
         <span class="shrink-0">{props.row.label}</span>
-        <span class="min-w-0 flex-1 truncate text-right text-[12px] font-normal text-[var(--text-400)]">
-          {props.row.summary}
-        </span>
+        <span class="td-meta min-w-0 flex-1 truncate text-right">{props.row.summary}</span>
       </HoverCardV2.Trigger>
       <HoverCardV2.Portal>
         <HoverCardV2.Content>
           <div class="flex max-h-80 w-64 flex-col overflow-y-auto p-1" data-component="details-used-pop">
             <For each={props.row.items}>
               {(item) => (
-                <div class="flex min-w-0 items-center gap-2.5 rounded-[6px] px-2 py-1.5">
-                  <span class="min-w-0 flex-1 truncate text-[13px] text-[var(--text-100)]">{item.name}</span>
-                  <span class="shrink-0 text-[11px] text-[var(--text-400)]">{item.meta}</span>
+                <div class="flex min-h-7 min-w-0 items-center gap-2.5 rounded-[var(--radius-micro)] px-2 py-1">
+                  <span class="min-w-0 flex-1 truncate text-[12.5px] text-[var(--fg)]">{item.name}</span>
+                  <span class="td-meta shrink-0">{item.meta}</span>
                 </div>
               )}
             </For>
@@ -506,20 +503,20 @@ function UsedRowView(props: { row: UsedRow }) {
   )
 }
 
-function UsedSection(props: { steps: readonly RunStep[]; action?: JSX.Element }) {
+function UsedSection(props: { steps: readonly RunStep[] }) {
   const rows = () => usedRows(room.messages(), props.steps)
   return (
-    <Section id="used" title="Used in this session" action={props.action}>
+    <Section id="used" title="Used in this session">
       <For each={rows()}>{(row) => <UsedRowView row={row} />}</For>
     </Section>
   )
 }
 
-function MemorySection(props: { chatId: string; action?: JSX.Element }) {
+function MemorySection(props: { chatId: string }) {
   const memory = useMemoryStore()
   const lines = () => (memory()?.state.lines ?? []).filter((line) => !line.redacted)
   return (
-    <Section id="memory" title="Kiko knows here" action={props.action}>
+    <Section id="memory" title="Kiko knows here">
       <div class="flex flex-wrap gap-1.5 px-2.5 py-1" data-component="details-memory">
         <For each={knowns(lines()).shown}>
           {(line) => (
@@ -533,7 +530,7 @@ function MemorySection(props: { chatId: string; action?: JSX.Element }) {
   )
 }
 
-function Card(props: { children: JSX.Element }) {
+function Card(props: { ref: (el: HTMLDivElement) => void; children: JSX.Element }) {
   let scroller: HTMLDivElement | undefined
   const [fade, setFade] = createSignal("")
   const measure = () => {
@@ -543,7 +540,7 @@ function Card(props: { children: JSX.Element }) {
     setFade([top > 0.5 ? "top" : "", top < bottom - 0.5 ? "bottom" : ""].filter(Boolean).join(" "))
   }
   return (
-    <div class="td-card isolate flex min-h-0 flex-col overflow-hidden" data-component="thread-details">
+    <div class="td-card isolate flex min-h-0 flex-col overflow-hidden" data-component="thread-details" ref={props.ref}>
       <div
         class="td-scroll"
         data-fade={fade()}
@@ -553,10 +550,21 @@ function Card(props: { children: JSX.Element }) {
           queueMicrotask(measure)
         }}
       >
-        {props.children}
+        <div class="relative">{props.children}</div>
       </div>
     </div>
   )
+}
+
+function useProgress(chatId: () => string) {
+  const running = () => room.chatById(chatId())?.presence !== "idle"
+  const view = createMemo(() => progressView(room.tasks(), running()))
+  const [live, setLive] = createSignal(false)
+  createEffect(on(chatId, () => setLive(false)))
+  createEffect(() => {
+    if (view().total > 0 && (!view().allDone || running())) setLive(true)
+  })
+  return { view, running, live, finish: () => setLive(false) }
 }
 
 export default function ThreadDetails(props: { chatId: string }) {
@@ -564,12 +572,17 @@ export default function ThreadDetails(props: { chatId: string }) {
   const tick = setInterval(() => setNow(Date.now()), 1000)
   onCleanup(() => clearInterval(tick))
   const [menuOpen, setMenuOpen] = createSignal(false)
-  const customize = () => setMenuOpen(true)
+  let card: HTMLDivElement | undefined
+  const anchor = () => {
+    const rect = card?.getBoundingClientRect()
+    if (!rect) return undefined
+    const { top, right, size } = CUSTOMIZE_INSET
+    return { x: rect.right - right - size, y: rect.top + top, width: size, height: size }
+  }
   const visibility = () => threadDetailsVisibility()
   const steps = createMemo(() => [...stepWindows(room.messages()).keys()].flatMap((key) => room.runSteps(key)))
   const asks = () => room.active()?.asks() ?? []
-  const running = () => room.chatById(props.chatId)?.presence !== "idle"
-  const progress = () => progressView(room.tasks(), running())
+  const progress = useProgress(() => props.chatId)
   const memory = useMemoryStore()
   const memoryLines = () => (memory()?.state.lines ?? []).filter((line) => !line.redacted)
   const outputs = () => agentFiles(room.files())
@@ -580,7 +593,7 @@ export default function ThreadDetails(props: { chatId: string }) {
       case "waiting":
         return asks().length > 0
       case "progress":
-        return progress().total > 0
+        return progress.live()
       case "helpers":
         return room.helpers().length > 0
       case "outputs":
@@ -591,9 +604,8 @@ export default function ThreadDetails(props: { chatId: string }) {
         return knowns(memoryLines()).shown.length > 0
     }
   }
-  const present = () =>
-    THREAD_DETAILS_ITEMS.filter((item) => visibility()[item.id] && has(item.id)).map((item) => item.id)
-  const action = (id: ThreadDetailsItemId) => (present()[0] === id ? <CustomizeTrigger /> : undefined)
+  const shown = (id: ThreadDetailsItemId) => visibility()[id] && has(id)
+  const present = () => THREAD_DETAILS_ITEMS.some((item) => shown(item.id))
   return (
     <div
       class="flex min-h-0 flex-col"
@@ -603,39 +615,48 @@ export default function ThreadDetails(props: { chatId: string }) {
         if (target instanceof Element && target.closest("input, textarea, a, [contenteditable='true']")) return
         if ((window.getSelection()?.toString() ?? "") !== "") return
         event.preventDefault()
-        customize()
+        setMenuOpen(true)
       }}
     >
-      <MenuV2 open={menuOpen()} onOpenChange={setMenuOpen}>
-        <Card>
+      <MenuV2 open={menuOpen()} onOpenChange={setMenuOpen} getAnchorRect={anchor} placement="bottom-end" gutter={4}>
+        <Card ref={(el) => (card = el)}>
           <Show
-            when={present().length > 0}
+            when={present()}
             fallback={
               <div class="p-2">
-                <CustomizeTrigger row />
+                <button
+                  type="button"
+                  class="td-row"
+                  data-action="customize-details-empty"
+                  onClick={() => setMenuOpen(true)}
+                >
+                  <RemixIcon icon={SlidersIcon} size={16} class="td-icon shrink-0" />
+                  <span class="td-muted min-w-0 flex-1 truncate">Choose what to show</span>
+                </button>
               </div>
             }
           >
-            <Show when={visibility().now && has("now")}>
-              <NowSection now={now()} action={action("now")} />
+            <CustomizeTrigger />
+            <Show when={shown("now")}>
+              <NowSection now={now()} />
             </Show>
-            <Show when={visibility().waiting && has("waiting")}>
-              <WaitingSection chatId={props.chatId} asks={asks()} action={action("waiting")} />
+            <Show when={shown("waiting")}>
+              <WaitingSection chatId={props.chatId} asks={asks()} />
             </Show>
-            <Show when={visibility().progress && has("progress")}>
-              <ProgressSection tasks={room.tasks()} running={running()} action={action("progress")} />
+            <Show when={shown("progress")}>
+              <ProgressSection view={progress.view()} running={progress.running()} onGone={progress.finish} />
             </Show>
-            <Show when={visibility().helpers && has("helpers")}>
-              <HelpersSection chatId={props.chatId} now={now()} action={action("helpers")} />
+            <Show when={shown("helpers")}>
+              <HelpersSection chatId={props.chatId} now={now()} />
             </Show>
-            <Show when={visibility().outputs && has("outputs")}>
-              <OutputsSection chatId={props.chatId} files={outputs()} action={action("outputs")} />
+            <Show when={shown("outputs")}>
+              <OutputsSection chatId={props.chatId} files={outputs()} />
             </Show>
-            <Show when={visibility().used && has("used")}>
-              <UsedSection steps={steps()} action={action("used")} />
+            <Show when={shown("used")}>
+              <UsedSection steps={steps()} />
             </Show>
-            <Show when={visibility().memory && has("memory")}>
-              <MemorySection chatId={props.chatId} action={action("memory")} />
+            <Show when={shown("memory")}>
+              <MemorySection chatId={props.chatId} />
             </Show>
           </Show>
         </Card>

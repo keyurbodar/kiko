@@ -46,6 +46,24 @@
     transform var(--dur-hover) var(--ease-kiko);
 }
 
+.token-chip-fill {
+  position: absolute;
+  inset: auto 4px 0;
+  height: 2px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--fg) 12%, transparent);
+  border-radius: var(--radius-full);
+}
+
+.token-chip-fill::after {
+  position: absolute;
+  inset: 0;
+  background: var(--fg2);
+  content: "";
+  transform: scaleX(var(--upload-share, 0));
+  transform-origin: left;
+}
+
 .token-chip[data-state="uploading"] > :is(svg, img) {
   opacity: 0.6;
 }
@@ -66,8 +84,24 @@
   text-overflow: ellipsis;
 }
 
+.token-chip-meta {
+  color: var(--fg3);
+  font-size: var(--type-label);
+}
+
 .token-chip[data-state="failed"] {
   box-shadow: inset 0 0 0 1px var(--bad);
+}
+
+.token-chip[data-state="failed"] .token-chip-meta {
+  color: var(--bad);
+}
+
+.token-chip-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-micro);
+  object-fit: cover;
 }
 
 button.token-chip {
@@ -302,10 +336,6 @@ button.token-chip:active {
   overflow: visible;
 }
 
-.composer-dock .composer-send:disabled {
-  transform: scale(0.94);
-}
-
 .composer-send-arrow {
   transition:
     transform var(--dur-pop) var(--ease-kiko),
@@ -328,19 +358,9 @@ button.token-chip:active {
     opacity var(--dur-hover) var(--ease-kiko);
 }
 
-.composer-send::after {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--fg) 40%, transparent);
-  content: "";
-  opacity: 0;
-  pointer-events: none;
-}
-
 .composer-send[data-mode="stop"] .composer-send-arrow {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: scale(0.6);
 }
 
 .composer-send[data-mode="stop"] .composer-send-square {
@@ -430,84 +450,17 @@ button.token-chip:active {
   border-radius: var(--radius-tail);
   box-shadow: inset 0 0 0 1.5px var(--bad);
 }
-.composer-attach-chip {
-  display: inline-flex;
-  max-width: 100%;
-  height: 20px;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
-  color: var(--accent);
-  background: none;
-  border: 0;
-  font: inherit;
-  font-size: 13px;
-  line-height: 20px;
-  vertical-align: baseline;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: opacity var(--dur-hover) var(--ease-kiko);
-}
-
-.composer-attach-chip[data-kind="image"] {
-  gap: 5px;
-}
-
-.composer-attach-chip > svg {
-  flex: none;
-}
-
-.composer-attach-thumb {
-  width: 16px;
-  height: 16px;
-  flex: none;
-  object-fit: cover;
-  border-radius: 3px;
-}
-
-.composer-attach-name {
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.composer-attach-size {
-  flex: none;
-  color: var(--text-400);
-  font-size: 11px;
-}
-
-.composer-attach-chip[data-state="failed"],
-.composer-attach-chip[data-state="failed"] .composer-attach-name {
-  color: var(--danger);
-}
-
-.composer-attach-chip[data-state="uploading"] .composer-attach-thumb {
-  opacity: 0.5;
-}
-
-.composer-attach-chip[data-missing] {
-  color: var(--text-400);
-}
-
-.composer-attach-ring {
-  width: 12px;
-  height: 12px;
-  flex: none;
-  background: conic-gradient(
-    var(--fg2) calc(var(--upload-share, 0) * 1turn),
-    color-mix(in oklab, var(--fg) 20%, transparent) 0
-  );
-  border-radius: 50%;
-  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
-}
 
 .composer-shelf {
+  --tile: 120px;
+  --tile-gap: 10px;
   display: flex;
-  gap: 8px;
-  padding: 12px 12px 2px 12px;
+  gap: var(--tile-gap);
+  padding: 14px 14px 4px 12px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
+  scroll-padding-inline: 12px;
+  scroll-snap-type: x proximity;
   scrollbar-width: none;
 }
 
@@ -515,30 +468,15 @@ button.token-chip:active {
   display: none;
 }
 
-.composer-shelf[data-fade-start] {
-  mask-image: linear-gradient(to right, transparent, #000 16px);
-}
-
-.composer-shelf[data-fade-end] {
-  mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
-}
-
-.composer-shelf[data-fade-start][data-fade-end] {
-  mask-image: linear-gradient(to right, transparent, #000 16px, #000 calc(100% - 16px), transparent);
-}
-
 .tray-tile {
   position: relative;
-  width: 68px;
-  height: 68px;
+  width: var(--tile);
+  height: var(--tile);
   flex: none;
   color: var(--fg);
   background: color-mix(in oklab, var(--fg) 4%, var(--bg));
   border-radius: var(--radius-tile);
-}
-
-.tray-tile[data-look="type"] {
-  width: 190px;
+  scroll-snap-align: start;
 }
 
 .tray-tile::after {
@@ -546,7 +484,7 @@ button.token-chip:active {
   inset: 0;
   z-index: 1;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1px var(--border-100);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fg) 8%, transparent);
   content: "";
   pointer-events: none;
   transition: box-shadow var(--dur-hover) var(--ease-kiko);
@@ -554,12 +492,13 @@ button.token-chip:active {
 
 .tray-tile[data-state="failed"]::after,
 .tray-tile[data-state="rejected"]::after {
-  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--danger) 80%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--bad) 80%, transparent);
 }
 
-.tray-tile [data-component="tooltip-v2-trigger"] {
-  display: contents;
-  border-radius: inherit;
+.composer-shelf::after {
+  width: 1px;
+  flex: none;
+  content: "";
 }
 
 .tray-tile-open {
@@ -581,17 +520,33 @@ button.token-chip:active {
   cursor: zoom-in;
 }
 
-.tray-tile[data-action="expand-pasted"],
+.tray-tile[data-kind="pasted"] .tray-tile-open,
 .tray-tile[data-state="failed"] .tray-tile-open {
   cursor: pointer;
 }
 
-.tray-tile[data-look="type"] .tray-tile-open {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 14px 0 10px;
-  text-align: start;
+.tray-body {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  padding: 11px 11px 34px;
+  transition: opacity var(--dur-pop) var(--ease-kiko);
+}
+
+.tray-tile[data-look="lines"] .tray-body,
+.tray-tile[data-look="code"] .tray-body,
+.tray-tile[data-look="table"] .tray-body {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent calc(100% - 30px));
+}
+
+.tray-tile[data-look="image"] .tray-body,
+.tray-tile[data-look="video"] .tray-body {
+  padding: 0;
+}
+
+.tray-tile[data-state="uploading"] .tray-body {
+  opacity: 0.55;
 }
 
 .tray-thumb {
@@ -602,79 +557,276 @@ button.token-chip:active {
   pointer-events: none;
 }
 
-.tray-tile[data-state="uploading"] .tray-thumb {
-  opacity: 0.45;
-}
-
-.tray-face {
-  display: grid;
-  width: 36px;
-  height: 40px;
-  flex: none;
-  place-items: center;
-  background: color-mix(in oklab, var(--fg) 6%, transparent);
-  border-radius: var(--radius-row);
-}
-
-.tray-text {
+.tray-lines {
   display: flex;
-  min-width: 0;
-  flex: 1;
   flex-direction: column;
   gap: 1px;
+  color: var(--fg3);
+  font-size: var(--type-caption);
+  line-height: 14px;
 }
 
-.tray-name {
+.tray-lines > span {
   overflow: hidden;
-  color: var(--fg);
-  font-size: 13px;
-  line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.tray-meta {
-  overflow: hidden;
-  color: var(--text-400);
-  font-size: 12px;
+.tray-lines > span:first-child,
+.tray-lines > span[data-head] {
+  color: var(--fg);
+  font-size: var(--type-hint);
+  font-weight: 600;
   line-height: 16px;
+}
+
+.tray-lines > span[data-head]:not(:first-child) {
+  margin-top: 3px;
+}
+
+.tray-code {
+  display: block;
+  overflow: hidden;
+  color: var(--fg2);
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  line-height: 13px;
+  white-space: pre;
+}
+
+.tray-table {
+  display: grid;
+  margin: -2px -2px 0;
+  color: var(--fg2);
+  font-size: var(--type-micro);
+  line-height: 15px;
+}
+
+.tray-table-row {
+  display: contents;
+}
+
+.tray-table-row[data-head] {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.tray-table-row > span {
+  min-width: 0;
+  max-width: 52px;
+  overflow: hidden;
+  padding: 0 2px;
+  box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--fg) 7%, transparent);
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tray-table-row > span:first-child {
+  max-width: none;
+}
+
+.tray-table-row > span:not(:first-child) {
+  padding-left: 5px;
+  text-align: right;
+}
+
+.tray-face {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tray-face > svg {
+  flex: none;
+}
+
+.tray-face-name {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--type-label);
+  font-weight: 500;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.tray-foot {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  height: 18px;
+  align-items: center;
+  gap: 6px;
+}
+
+.tray-tile[data-look="image"] .tray-tile-open::before,
+.tray-tile[data-look="video"] .tray-tile-open::before {
+  position: absolute;
+  inset: auto 0 0;
+  height: 44px;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.55), transparent);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-hover) var(--ease-kiko);
+}
+
+.tray-tile[data-look="video"] .tray-tile-open::before,
+.tray-tile[data-look="image"][data-state="uploading"] .tray-tile-open::before,
+.tray-tile[data-look="image"][data-state="failed"] .tray-tile-open::before {
+  opacity: 1;
+}
+
+.tray-badge {
+  display: inline-flex;
+  height: 18px;
+  flex: none;
+  align-items: center;
+  padding: 0 6px;
+  color: var(--fg2);
+  border-radius: var(--radius-tail);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fg) 16%, transparent);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+.tray-tile[data-kind="pasted"] .tray-badge {
+  letter-spacing: 0;
+}
+
+.tray-tile[data-look="image"] .tray-badge,
+.tray-tile[data-look="image"] .tray-aside-name {
+  display: none;
+}
+
+.tray-tile[data-look="video"] .tray-badge,
+.tray-tile[data-look="video"] .tray-aside,
+.tray-tile[data-look="image"] .tray-aside,
+.tray-tile[data-look="image"] .tray-bytes,
+.tray-tile[data-look="video"] .tray-bytes,
+.tray-tile[data-look="image"] .tray-failed,
+.tray-tile[data-look="video"] .tray-failed {
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.32);
+}
+
+.tray-tile[data-look="image"] .tray-aside,
+.tray-tile[data-look="video"] .tray-aside,
+.tray-tile[data-look="image"] .tray-bytes,
+.tray-tile[data-look="video"] .tray-bytes,
+.tray-tile[data-look="image"] .tray-failed,
+.tray-tile[data-look="video"] .tray-failed {
+  box-shadow: none;
+}
+
+.tray-aside {
+  position: relative;
+  height: 16px;
+  min-width: 0;
+  flex: 1;
+  color: var(--fg3);
+  font-size: var(--type-caption);
+  line-height: 16px;
+}
+
+.tray-aside > span {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition:
+    opacity 80ms var(--ease-kiko),
+    transform 80ms var(--ease-kiko);
+}
+
+.tray-aside > .tray-aside-size,
+.tray-tile:hover .tray-aside-name {
+  transition-delay: 80ms;
+}
+
+.tray-tile:hover .tray-aside-size {
+  transition-delay: 0ms;
+}
+
+.tray-aside-name {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+
+.tray-bytes {
+  overflow: hidden;
+  color: var(--fg2);
+  font-size: var(--type-caption);
+  font-weight: 500;
   white-space: nowrap;
 }
 
 .tray-failed {
-  display: flex;
-  min-width: 0;
-  align-items: center;
+  display: -webkit-box;
   overflow: hidden;
-  color: var(--danger);
-  font-size: 12px;
-  line-height: 16px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--bad);
+  font-size: var(--type-caption);
+  font-weight: 500;
+  line-height: 14px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.tray-tile[data-state="rejected"] .tray-foot {
+  height: auto;
+  min-height: 18px;
+}
+
+.tray-tile[data-state="rejected"] .tray-body {
+  padding-bottom: 40px;
+}
+
+.tray-tile[data-state="rejected"] .tray-face-name {
+  -webkit-line-clamp: 2;
 }
 
 .tray-retry {
   margin-left: 6px;
-  color: inherit;
+  color: var(--fg2);
   text-decoration: underline;
-  text-decoration-color: color-mix(in oklab, currentcolor 40%, transparent);
+  text-decoration-color: color-mix(in oklab, var(--fg2) 40%, transparent);
   text-underline-offset: 2px;
 }
 
-.tray-ring {
+.tray-fill {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 12px;
-  height: 12px;
-  margin: -6px 0 0 -6px;
-  background: conic-gradient(
-    var(--fg) calc(var(--upload-share, 0) * 1turn),
-    color-mix(in oklab, var(--fg) 20%, transparent) 0
-  );
-  border-radius: 50%;
-  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+  inset: auto 0 0;
+  height: 3px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--fg) 10%, transparent);
+}
+
+.tray-fill::after {
+  position: absolute;
+  inset: 0;
+  background: var(--fg);
+  content: "";
+  transform: scaleX(var(--upload-share, 0));
+  transform-origin: left;
+  transition: transform var(--dur-pop) var(--ease-kiko);
+}
+
+.tray-done {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  color: var(--fg);
+  background: color-mix(in oklab, var(--bg) 45%, transparent);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .tray-veil {
@@ -686,23 +838,28 @@ button.token-chip:active {
   background: rgb(0 0 0 / 0.35);
 }
 
+.tray-veil[data-tone="bad"] {
+  padding-bottom: 18px;
+}
+
 .tray-remove {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: -7px;
+  right: -7px;
   z-index: 3;
   display: grid;
   width: 20px;
   height: 20px;
   place-items: center;
   padding: 0;
-  color: var(--text-000);
-  background: color-mix(in oklab, var(--fg) 14%, var(--raise));
+  color: var(--fg);
+  background: color-mix(in oklab, var(--fg) 12%, var(--raise));
   border: 0;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-row);
+  box-shadow: 0 0 0 2px var(--raise);
   opacity: 0;
   cursor: pointer;
-  transform: scale(0.86);
+  transform: scale(0.8);
   transition:
     opacity var(--dur-hover) var(--ease-kiko),
     transform var(--dur-hover) var(--ease-kiko),
@@ -712,6 +869,7 @@ button.token-chip:active {
 .tray-remove:focus-visible {
   opacity: 1;
   outline: none;
+  box-shadow: 0 0 0 2px var(--raise);
   transform: none;
 }
 
@@ -720,99 +878,77 @@ button.token-chip:active {
   transform: none;
 }
 
-.tray-more {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 0;
-  color: var(--text-200);
-  background: color-mix(in oklab, var(--fg) 4%, var(--bg));
-  border: 0;
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-  transition: background var(--dur-hover);
-}
-
-.tray-tip {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-width: 260px;
-}
-
-.tray-tip-name {
-  overflow: hidden;
-  color: var(--text-100);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tray-tip-size {
-  color: var(--text-400);
-  font-size: 12px;
-}
-
 @media (hover: hover) and (pointer: fine) {
   .tray-tile:hover::after {
-    box-shadow: inset 0 0 0 1px var(--border-200);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fg) 18%, transparent);
   }
   .tray-tile[data-state="failed"]:hover::after,
   .tray-tile[data-state="rejected"]:hover::after {
-    box-shadow: inset 0 0 0 1.5px var(--danger);
+    box-shadow: inset 0 0 0 1.5px var(--bad);
   }
   .tray-tile:hover .tray-remove {
     opacity: 1;
     transform: none;
   }
   .tray-remove:hover {
-    background: color-mix(in oklab, var(--fg) 24%, var(--raise));
+    background: color-mix(in oklab, var(--fg) 22%, var(--raise));
   }
-  .tray-more:hover {
-    background: color-mix(in oklab, var(--fg) 8%, var(--bg));
+  .tray-tile:hover .tray-aside-name {
+    opacity: 1;
+    transform: none;
+  }
+  .tray-tile:hover .tray-aside-size {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  .tray-tile[data-look="image"]:hover .tray-aside-size,
+  .tray-tile[data-look="video"]:hover .tray-aside-size {
+    opacity: 1;
+    transform: none;
+  }
+  .tray-tile[data-look="image"]:hover .tray-tile-open::before {
+    opacity: 1;
   }
   .tray-retry:hover {
-    color: var(--text-100);
-  }
-  .composer-attach-chip:hover {
-    opacity: 0.82;
+    color: var(--fg);
   }
 }
 
 @media (hover: none) {
   .tray-remove {
+    top: -6px;
+    right: -6px;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-full);
     opacity: 1;
     transform: none;
   }
+}
+
+@media (max-width: 480px) {
+  .composer-shelf {
+    --tile: 104px;
+    --tile-gap: 8px;
+  }
+}
+
+.tray-tile[data-dragging] {
+  opacity: 0.5;
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .composer-dock .composer-popover {
     animation: composer-popover-in var(--dur-pop) var(--ease-kiko) both;
   }
-  .composer-chip-node[data-fresh] > :is(.token-chip, .composer-attach-chip) {
-    animation: composer-chip-in 120ms var(--ease-kiko) both;
+  .composer-dock .composer-chip-node[data-fresh] > .token-chip {
+    animation: token-pop 240ms var(--ease-kiko) both;
   }
   .token-preview {
     animation: composer-popover-in var(--dur-pop) var(--ease-kiko) both;
   }
   .composer-dock .composer-placeholder[data-enter] {
     animation: composer-hint-in 160ms var(--ease-kiko) both;
-  }
-  .composer-dock .composer-send {
-    transition:
-      background var(--dur-pop) var(--ease-kiko),
-      color var(--dur-pop) var(--ease-kiko),
-      transform var(--dur-pop) var(--ease-kiko);
-  }
-  .composer-send[data-sent]::after {
-    animation: composer-send-ripple 320ms var(--ease-kiko);
-  }
-  .composer-send[data-sent] .composer-send-arrow {
-    animation: composer-send-fly 320ms var(--ease-kiko);
   }
   .composer-agent-avatar {
     animation: composer-face-in var(--dur-pop) var(--ease-kiko) both;
@@ -828,14 +964,37 @@ button.token-chip:active {
     animation: composer-shake 260ms var(--ease-kiko);
   }
   .tray-tile {
-    animation: tray-tile-in 140ms var(--ease-kiko) both;
+    animation: tray-tile-in var(--dur-shift) var(--ease-kiko) both;
   }
-  .tray-tile[data-leaving] {
-    animation: tray-tile-out 160ms var(--ease-kiko) forwards;
+  .tray-done {
+    animation: tray-done 460ms var(--ease-kiko) both;
+  }
+  .tray-tile[data-state="uploading"] .tray-tile-open::after {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 30%,
+      color-mix(in oklab, var(--fg) 7%, transparent) 50%,
+      transparent 70%
+    );
+    background-size: 250% 100%;
+    content: "";
+    animation: tray-sweep var(--dur-shimmer) linear infinite;
     pointer-events: none;
+  }
+  .token-chip[data-state="uploading"] .token-chip-fill::after {
+    transition: transform var(--dur-pop) var(--ease-kiko);
   }
   .tray-tile[data-state="failed"] {
     animation: tray-shake 260ms var(--ease-kiko);
+  }
+  .tray-tile[data-leaving] {
+    animation: tray-tile-out 240ms var(--ease-kiko) forwards;
+    pointer-events: none;
+  }
+  .tray-tile[data-dragging] {
+    transform: scale(1.04);
   }
 }
 
@@ -846,10 +1005,14 @@ button.token-chip:active {
   }
 }
 
-@keyframes composer-chip-in {
+@keyframes token-pop {
   from {
-    opacity: 0;
-    transform: scale(0.9);
+    opacity: 0.4;
+    transform: scale(0.82);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.04);
   }
 }
 
@@ -857,28 +1020,6 @@ button.token-chip:active {
   from {
     opacity: 0;
     transform: translateY(3px);
-  }
-}
-
-@keyframes composer-send-ripple {
-  from {
-    opacity: 1;
-    transform: scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: scale(1.55);
-  }
-}
-
-@keyframes composer-send-fly {
-  45% {
-    opacity: 0;
-    transform: translateY(-14px);
-  }
-  46% {
-    opacity: 0;
-    transform: translateY(10px);
   }
 }
 
@@ -913,16 +1054,37 @@ button.token-chip:active {
 @keyframes tray-tile-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: scale(0.96);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.015);
   }
 }
 
-@keyframes tray-tile-out {
-  to {
-    width: 0;
-    margin-right: -8px;
+@keyframes tray-done {
+  0% {
     opacity: 0;
-    transform: scale(0.8);
+    transform: scale(0.9);
+  }
+  22% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  62% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes tray-sweep {
+  from {
+    background-position: 125% 0;
+  }
+  to {
+    background-position: -125% 0;
   }
 }
 
@@ -938,5 +1100,14 @@ button.token-chip:active {
   }
   80% {
     transform: translateX(3px);
+  }
+}
+
+@keyframes tray-tile-out {
+  to {
+    width: 0;
+    margin-right: calc(var(--tile-gap) * -1);
+    opacity: 0;
+    transform: scale(0.6);
   }
 }

@@ -151,7 +151,7 @@ export function Select<T>(props: {
             active={open()}
             onDismiss={close}
             excludedElements={() => [trigger]}
-            class="motion-popover-in bg-[var(--popover)] pointer-events-auto fixed z-[80] flex max-w-[min(320px,calc(100vw-16px))] origin-top items-start overflow-y-auto rounded-pop p-1 shadow-[var(--shadow-pop)]"
+            class="motion-popover-in bg-[var(--popover)] pointer-events-auto fixed z-[80] flex max-w-[min(320px,calc(100vw-16px))] origin-top items-start overflow-y-auto rounded-control p-1 shadow-[var(--edge),var(--shadow-pop)]"
             style={place()}
             onKeyDown={onPanelKey}
             data-kb-top-layer=""
@@ -180,8 +180,8 @@ export function Select<T>(props: {
                       id={`${id}-${i()}`}
                       role="option"
                       aria-selected={selected()}
-                      class="flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-row pr-2 pl-1.5 text-label text-fg transition-colors duration-(--dur-hover) hover:bg-[var(--hover)]"
-                      classList={{ "bg-[var(--hover)]": active() === i() }}
+                      class="flex min-h-7 min-w-0 cursor-pointer items-center gap-2 rounded-micro px-2 py-1 text-ui text-fg"
+                      classList={{ "bg-fill-hover": active() === i() }}
                       data-option={String(option.value)}
                       onPointerMove={() => setActive(i())}
                       onClick={() => pick(option.value)}

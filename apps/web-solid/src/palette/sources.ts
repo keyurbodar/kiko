@@ -83,7 +83,7 @@ const needsHere = (): ReadonlyMap<string, Need> =>
     asks: room.active()?.asks() ?? [],
     messages: room.messages(),
     retry: room.retryRun,
-    elsewhere: new Map(),
+    known: new Map(),
   })
 
 export function unreadChats(): Choice[] {
