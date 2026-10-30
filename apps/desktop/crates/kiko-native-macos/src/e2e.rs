@@ -271,9 +271,9 @@ fn chrome_web_area_answers_in_the_background() {
     println!("Chrome: page at {url}");
     let chrome = launch_chrome(&mut driver, &url);
     set_window_frame(&chrome, FRAME);
-    let look = web_area(&mut driver, &chrome, "Chrome");
     let finder = cover_with_finder(&mut driver, FRAME);
     let owner = Owner::capture();
+    let look = web_area(&mut driver, &chrome, "Chrome");
 
     press_page_button(&mut driver, &chrome, &look);
     let title = wait_for(SETTLE, || {
@@ -597,18 +597,38 @@ fn long_document() -> String {
 }
 
 fn web_area(driver: &mut MacDriver, window: &Window, app: &str) -> Look {
+    let mut polls = 0;
     let look = wait_for(WEB_SETTLE, || {
         let look = look_at(driver, window);
+        polls += 1;
+        if polls % 5 == 0 || look.outline.contains("webarea") {
+            println!("{app} poll {polls}: {} nodes", look.nodes.len());
+        }
         look.outline.contains("webarea").then_some(look)
     });
     match look {
         Some(look) => look,
         None => panic!(
-            "{app} exposed no web area; outline:\n{}; opt-in is {:?}",
+            "{app} exposed no web area after {polls} polls; outline:\n{}; opt-in is {:?}; {}",
             look_at(driver, window).outline,
-            opt_in_state(window.pid as i32)
+            opt_in_state(window.pid as i32),
+            web_diagnostics(window)
         ),
     }
+}
+
+fn web_diagnostics(window: &Window) -> String {
+    let pid = window.pid as i32;
+    let windows: Vec<(Option<u32>, String, bool)> = window::ax_windows(pid)
+        .into_iter()
+        .map(|window| (window.id, window.title, window.minimized))
+        .collect();
+    let id = window.id.parse().unwrap_or_default();
+    let children = window::ax_element_for(id, pid)
+        .map(|element| ax::children(&element).len())
+        .unwrap_or_default();
+    let app_children = ax::children(&ax::application(pid)).len();
+    format!("ax windows: {windows:?}; window children: {children}; app children: {app_children}")
 }
 
 fn press_page_button(driver: &mut MacDriver, window: &Window, look: &Look) {
