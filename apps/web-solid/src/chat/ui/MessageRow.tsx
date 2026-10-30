@@ -1,4 +1,4 @@
-import { unnamedFiles } from "../../lib/attachments"
+import { onlyFileLinks, unnamedFiles } from "../../lib/attachments"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { AlertCircleIcon } from "@kiko/ui/icons"
 import { Show, Suspense, type JSX } from "solid-js"
@@ -63,7 +63,10 @@ export function MessageRow(props: {
   const own = () => props.message.sender === "user"
   const grouped = () => !!props.group && !own() && props.message.botId !== undefined
   const senderName = () => props.bot?.name ?? props.message.botId ?? ""
-  const files = () => unnamedFiles(props.message.files ?? [], props.message.body)
+  const bare = () => onlyFileLinks(props.message.files ?? [], props.message.body)
+  const files = () =>
+    bare() ? (props.message.files ?? []) : unnamedFiles(props.message.files ?? [], props.message.body)
+  const text = () => (bare() ? "" : props.message.body)
   const hasFiles = () => files().length > 0
   const photo = () => !!props.message.rich && isPhotoTree(props.message.rich)
   const windowKey = () => (own() ? undefined : room.runWindow(props.message))
@@ -151,12 +154,12 @@ export function MessageRow(props: {
           </Show>
           <Show when={hasFiles() ? files() : undefined}>
             {(files) => (
-              <div class={props.message.body.length > 0 ? "mb-2" : undefined}>
+              <div class={text().length > 0 ? "mb-2" : undefined}>
                 <MessageAttachments files={files()} roomId={props.message.threadId} onOpenImages={props.onOpenImages} />
               </div>
             )}
           </Show>
-          <Show when={props.message.body.length > 0}>
+          <Show when={text().length > 0}>
             <Collapsible messageId={props.message.id} fixed={photo()}>
               <Show
                 when={props.message.rich?.length ? props.message.rich : undefined}

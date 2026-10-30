@@ -84,6 +84,14 @@ export function unnamedFiles<T extends Named & { path?: string }>(files: readonl
   return files.filter((f) => isImage(f) || !f.path || !body.includes(`(${linkTarget(`/${f.path}`)})`))
 }
 
+export function onlyFileLinks<T extends Named & { path?: string }>(files: readonly T[], body: string): boolean {
+  let rest = body
+  for (const f of files) {
+    if (f.path) rest = rest.split(`[${f.name}](${linkTarget(`/${f.path}`)})`).join("")
+  }
+  return rest !== body && rest.trim() === ""
+}
+
 export function saveFile(src: string, name: string) {
   const a = document.createElement("a")
   a.href = src
