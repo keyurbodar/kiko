@@ -1,0 +1,55 @@
+[package]
+name = "kiko-native-windows"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+testapp = []
+
+[[bin]]
+name = "kiko-native-testapp"
+path = "src/bin/testapp.rs"
+required-features = ["testapp"]
+
+[[test]]
+name = "e2e"
+path = "tests/e2e.rs"
+required-features = ["testapp"]
+
+[dependencies]
+kiko-driver.workspace = true
+base64.workspace = true
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_System_Com",
+  "Win32_Security",
+  "Win32_System_Threading",
+  "Win32_System_LibraryLoader",
+  "Win32_UI_Accessibility",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_HiDpi",
+  "Win32_UI_Shell",
+  "Win32_Graphics_Gdi",
+  "Win32_Graphics_Dwm",
+  "Win32_Graphics_Direct3D",
+  "Win32_Graphics_Direct3D11",
+  "Win32_Graphics_Dxgi",
+  "Win32_Graphics_Dxgi_Common",
+  "Win32_Storage_Xps",
+  "Win32_System_WinRT_Direct3D11",
+  "Win32_System_WinRT_Graphics_Capture",
+  "Graphics_Capture",
+  "Graphics_DirectX",
+  "Graphics_DirectX_Direct3D11",
+  "Foundation",
+  "Foundation_Metadata",
+] }
+
+[dev-dependencies]
+serde_json.workspace = true
