@@ -1,6 +1,8 @@
 import type { Task } from "@kiko/protocol"
 import { createSignal } from "solid-js"
 import { describe, expect, it } from "vitest"
+import "../../index.css"
+import "./cards.css"
 import { render } from "../../../test/render"
 import { TaskList } from "../../chat/info/task-list"
 import { Odometer } from "./odometer"
@@ -34,6 +36,36 @@ describe("task rows", () => {
     expect(rows[1]?.querySelector('[data-component="identity-avatar"]')).not.toBeNull()
     expect(rows[2]?.querySelector('[data-component="identity-avatar"]')).toBeNull()
     expect(rows[1]?.textContent).toContain("now")
+  })
+})
+
+describe("task rows with details", () => {
+  it("keeps a long title on one line in the composer card and hides a finished task's note in the panel", async () => {
+    const long = {
+      ...task("a", "Landing copy for the new launch page with a long title that wraps", "done", "kiko"),
+      note: "Wrote three variants of hero copy and picked the clearest.",
+    }
+    const doing = { ...task("b", "Email list import", "doing", "kiko"), note: "Importing 4,200 contacts." }
+    const members = [{ slug: "kiko", name: "Kiko" } as never]
+    await using screen = await render(() => (
+      <div style={{ width: "360px" }}>
+        <div data-testid="card">
+          <TaskList tasks={[long]} members={members} />
+        </div>
+        <div data-testid="panel">
+          <TaskList tasks={[long, doing]} members={members} showDetails />
+        </div>
+      </div>
+    ))
+    const title = screen.container.querySelector<HTMLElement>('[data-testid="card"] .task-step-title')!
+    expect(title.getBoundingClientRect().height).toBe(20)
+    expect(title.title).toBe(long.title)
+    const panel = [...screen.container.querySelectorAll('[data-testid="panel"] [data-component="task-step"]')]
+    expect(panel[0]?.querySelector(".task-step-detail")).toBeNull()
+    expect(panel[1]?.querySelector(".task-step-detail")?.textContent).toBe("Importing 4,200 contacts.")
+    const glyph = panel[1]!.querySelector(".task-glyph")!.getBoundingClientRect()
+    const firstLine = panel[1]!.querySelector(".task-step-title")!.getBoundingClientRect()
+    expect(Math.round(glyph.top - firstLine.top)).toBe(2)
   })
 })
 

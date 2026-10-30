@@ -46,18 +46,19 @@ export function TaskList(props: {
 }) {
   const display = (text: string) => taskText(text, props.members)
   return (
-    <ul class="task-steps" aria-label="Tasks">
+    <ul class="task-steps" aria-label="Tasks" data-details={props.showDetails ? "" : undefined}>
       <For each={props.tasks}>
         {(task) => {
           const owner = () => taskOwner(task, props.members, props.agents)
+          const closed = () => CLOSED.has(task.status)
           return (
             <li class="task-step" data-component="task-step" data-id={task.id} data-status={task.status}>
               <TaskGlyph task={task} />
               <div class="task-step-content">
-                <span class="task-step-title" data-closed={CLOSED.has(task.status) || undefined}>
+                <span class="task-step-title" data-closed={closed() || undefined} title={display(task.title)}>
                   {display(task.title)}
                 </span>
-                <Show when={props.showDetails}>
+                <Show when={props.showDetails && !closed()}>
                   <Show when={task.note}>
                     <p class="task-step-detail">{display(task.note!)}</p>
                   </Show>

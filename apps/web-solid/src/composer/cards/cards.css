@@ -231,7 +231,7 @@ button.composer-card-row {
 .task-step {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto 20px;
-  align-items: center;
+  align-items: start;
   column-gap: 12px;
   min-width: 0;
   min-height: 32px;
@@ -251,6 +251,7 @@ button.composer-card-row {
   place-items: center;
   width: 16px;
   height: 16px;
+  margin-top: 2px;
   color: var(--fg4);
 }
 .task-glyph svg {
@@ -289,7 +290,13 @@ button.composer-card-row {
 }
 .task-step-title {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   transition: color var(--dur-pop) var(--ease-kiko);
+}
+.task-steps[data-details] .task-step-title {
+  white-space: normal;
 }
 .task-step-title[data-closed] {
   color: var(--fg4);
@@ -301,14 +308,19 @@ button.composer-card-row {
   color: var(--fg2);
 }
 .task-step-detail {
+  display: -webkit-box;
   margin: 0;
   padding-top: 2px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   font-size: var(--type-label);
   line-height: 18px;
   color: var(--fg3);
   overflow-wrap: anywhere;
 }
 .task-step-state {
+  margin-top: 2px;
   font-size: var(--type-hint);
   line-height: 16px;
   color: var(--fg4);
