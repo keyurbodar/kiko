@@ -504,10 +504,13 @@ if ($same -eq $version) {
 $ErrorActionPreference = 'Stop'
 & '__EXE__' --quit
 for ($i = 0; $i -lt 60; $i++) {
-  if (-not (Get-Process -Name 'kiko' -ErrorAction SilentlyContinue)) { break }
+  if (-not (Get-Process -Name 'kiko', 'kiko-core' -ErrorAction SilentlyContinue)) { break }
   Start-Sleep -Milliseconds 500
 }
-if (Get-Process -Name 'kiko' -ErrorAction SilentlyContinue) { exit 1 }
+if (Get-Process -Name 'kiko', 'kiko-core' -ErrorAction SilentlyContinue) {
+  Start-Process -FilePath '__EXE__'
+  exit 1
+}
 Expand-Archive -Path '__ZIP__' -DestinationPath '__ROOT__' -Force
 Set-Content -Path (Join-Path '__ROOT__' 'VERSION') -Value '__VERSION__' -NoNewline
 Remove-Item -Force '__ZIP__'
