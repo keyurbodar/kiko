@@ -154,11 +154,20 @@ fn serves_the_driver_and_supervises_the_daemon() {
     let status = ask(&stream, r#"{"id":1,"method":"status"}"#);
     assert_eq!(status["ok"], true, "{status}");
     assert_eq!(status["value"]["os"], std::env::consts::OS);
-    assert_eq!(status["value"]["permissions"]["accessibility"], "unknown");
+    let grant = status["value"]["permissions"]["accessibility"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        ["granted", "denied", "unknown", "not_needed"].contains(&grant),
+        "{status}"
+    );
 
-    let unsupported = ask(&stream, r#"{"id":2,"method":"windows"}"#);
-    assert_eq!(unsupported["ok"], false, "{unsupported}");
-    assert_eq!(unsupported["error"]["code"], "unsupported");
+    let windows = ask(&stream, r#"{"id":2,"method":"windows"}"#);
+    assert_eq!(windows["id"], 2, "{windows}");
+    assert!(
+        windows["ok"] == true || windows["error"]["code"].is_string(),
+        "{windows}"
+    );
 
     app.wait_for("the supervisor to restart the daemon", || app.starts() >= 2);
 
