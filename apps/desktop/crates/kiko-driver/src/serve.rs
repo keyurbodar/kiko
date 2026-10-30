@@ -6,10 +6,17 @@ use crate::api::{Call, DriverError, ErrorCode, False, Request, Response, Status,
 use crate::{Browser, Native};
 
 fn value<T: Serialize>(result: crate::Result<T>) -> crate::Result<serde_json::Value> {
-    result.and_then(|v| serde_json::to_value(v).map_err(|e| DriverError::new(ErrorCode::Failed, e.to_string())))
+    result.and_then(|v| {
+        serde_json::to_value(v).map_err(|e| DriverError::new(ErrorCode::Failed, e.to_string()))
+    })
 }
 
-pub fn dispatch(native: &mut dyn Native, browser: &mut dyn Browser, status: &Status, call: Call) -> crate::Result<serde_json::Value> {
+pub fn dispatch(
+    native: &mut dyn Native,
+    browser: &mut dyn Browser,
+    status: &Status,
+    call: Call,
+) -> crate::Result<serde_json::Value> {
     match call {
         Call::Status => {
             let mut status = status.clone();
@@ -34,22 +41,50 @@ pub fn dispatch(native: &mut dyn Native, browser: &mut dyn Browser, status: &Sta
 
 fn respond(id: u64, result: crate::Result<serde_json::Value>) -> Response {
     match result {
-        Ok(value) => Response::Ok { id, ok: True, value },
-        Err(error) => Response::Err { id, ok: False, error },
+        Ok(value) => Response::Ok {
+            id,
+            ok: True,
+            value,
+        },
+        Err(error) => Response::Err {
+            id,
+            ok: False,
+            error,
+        },
     }
 }
 
-fn answer(native: &mut dyn Native, browser: &mut dyn Browser, status: &Status, line: &str) -> Option<Response> {
+fn answer(
+    native: &mut dyn Native,
+    browser: &mut dyn Browser,
+    status: &Status,
+    line: &str,
+) -> Option<Response> {
     match serde_json::from_str::<Request>(line) {
-        Ok(request) => Some(respond(request.id, dispatch(native, browser, status, request.call))),
+        Ok(request) => Some(respond(
+            request.id,
+            dispatch(native, browser, status, request.call),
+        )),
         Err(error) => {
-            let id = serde_json::from_str::<serde_json::Value>(line).ok()?.get("id")?.as_u64()?;
-            Some(respond(id, Err(DriverError::new(ErrorCode::Unsupported, error.to_string()))))
+            let id = serde_json::from_str::<serde_json::Value>(line)
+                .ok()?
+                .get("id")?
+                .as_u64()?;
+            Some(respond(
+                id,
+                Err(DriverError::new(ErrorCode::Unsupported, error.to_string())),
+            ))
         }
     }
 }
 
-pub fn serve(native: &mut dyn Native, browser: &mut dyn Browser, status: &Status, input: impl BufRead, mut output: impl Write) -> std::io::Result<()> {
+pub fn serve(
+    native: &mut dyn Native,
+    browser: &mut dyn Browser,
+    status: &Status,
+    input: impl BufRead,
+    mut output: impl Write,
+) -> std::io::Result<()> {
     for line in input.lines() {
         let line = line?;
         if line.trim().is_empty() {

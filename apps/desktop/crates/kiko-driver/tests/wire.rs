@@ -4,7 +4,11 @@ struct Fake;
 
 impl Native for Fake {
     fn permissions(&self) -> Permissions {
-        Permissions { accessibility: Grant::Granted, screen: Grant::Denied, automation: Grant::NotNeeded }
+        Permissions {
+            accessibility: Grant::Granted,
+            screen: Grant::Denied,
+            automation: Grant::NotNeeded,
+        }
     }
     fn request_permission(&mut self, _: PermissionKind) -> Result<()> {
         Ok(())
@@ -16,7 +20,12 @@ impl Native for Fake {
             app: "TextEdit".into(),
             bundle: None,
             title: "Notes".into(),
-            frame: Rect { x: 0.0, y: 0.0, w: 10.0, h: 10.0 },
+            frame: Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 10.0,
+                h: 10.0,
+            },
             focused: false,
             minimized: false,
             on_screen: true,
@@ -27,8 +36,13 @@ impl Native for Fake {
     }
     fn act(&mut self, params: &ActParams) -> Result<ActResult> {
         match params.mode {
-            Mode::Background => Err(DriverError::new(ErrorCode::BackgroundUnavailable, "needs the screen")),
-            Mode::Foreground => Ok(ActResult { route: Route::Foreground }),
+            Mode::Background => Err(DriverError::new(
+                ErrorCode::BackgroundUnavailable,
+                "needs the screen",
+            )),
+            Mode::Foreground => Ok(ActResult {
+                route: Route::Foreground,
+            }),
         }
     }
     fn open(&mut self, _: &OpenParams) -> Result<()> {
@@ -45,8 +59,19 @@ fn run(lines: &str) -> Vec<serde_json::Value> {
         browsers: vec![],
     };
     let mut out = Vec::new();
-    serve(&mut Fake, &mut Unavailable, &status, lines.as_bytes(), &mut out).unwrap();
-    String::from_utf8(out).unwrap().lines().map(|l| serde_json::from_str(l).unwrap()).collect()
+    serve(
+        &mut Fake,
+        &mut Unavailable,
+        &status,
+        lines.as_bytes(),
+        &mut out,
+    )
+    .unwrap();
+    String::from_utf8(out)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect()
 }
 
 #[test]
@@ -60,10 +85,14 @@ fn answers_each_request_by_id() {
 
 #[test]
 fn background_act_refuses_instead_of_taking_the_screen() {
-    let out = run("{\"id\":3,\"method\":\"act\",\"params\":{\"window\":\"w1\",\"ref\":4,\"action\":\"press\"}}\n");
+    let out = run(
+        "{\"id\":3,\"method\":\"act\",\"params\":{\"window\":\"w1\",\"ref\":4,\"action\":\"press\"}}\n",
+    );
     assert_eq!(out[0]["ok"], false);
     assert_eq!(out[0]["error"]["code"], "background_unavailable");
-    let out = run("{\"id\":4,\"method\":\"act\",\"params\":{\"window\":\"w1\",\"action\":\"press\",\"mode\":\"foreground\"}}\n");
+    let out = run(
+        "{\"id\":4,\"method\":\"act\",\"params\":{\"window\":\"w1\",\"action\":\"press\",\"mode\":\"foreground\"}}\n",
+    );
     assert_eq!(out[0]["value"]["route"], "foreground");
 }
 

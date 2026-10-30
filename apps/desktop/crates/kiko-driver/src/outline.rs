@@ -6,17 +6,29 @@ use crate::api::{Node, Ref};
 pub const MAX_NODES: usize = 2_000;
 
 fn quoted(text: &str) -> String {
-    let flat: String = text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
+    let flat: String = text
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
     let short: String = flat.chars().take(120).collect();
     format!("{short:?}")
 }
 
 fn is_noise(node: &Node) -> bool {
-    node.name.is_empty() && node.value.is_none() && node.actions.is_empty() && !node.children.is_empty()
+    node.name.is_empty()
+        && node.value.is_none()
+        && node.actions.is_empty()
+        && !node.children.is_empty()
 }
 
 fn line(node: &Node, depth: usize, out: &mut String) {
-    let _ = write!(out, "{}[{}] {}", "  ".repeat(depth), node.reference, node.role);
+    let _ = write!(
+        out,
+        "{}[{}] {}",
+        "  ".repeat(depth),
+        node.reference,
+        node.role
+    );
     if !node.name.is_empty() {
         let _ = write!(out, " {}", quoted(&node.name));
     }
@@ -31,11 +43,18 @@ fn line(node: &Node, depth: usize, out: &mut String) {
 
 pub fn outline(nodes: &[Node]) -> String {
     let by_ref: HashMap<Ref, &Node> = nodes.iter().map(|n| (n.reference, n)).collect();
-    let children: HashSet<Ref> = nodes.iter().flat_map(|n| n.children.iter().copied()).collect();
+    let children: HashSet<Ref> = nodes
+        .iter()
+        .flat_map(|n| n.children.iter().copied())
+        .collect();
     let mut out = String::new();
     let mut seen = HashSet::new();
-    let mut stack: Vec<(Ref, usize)> =
-        nodes.iter().filter(|n| !children.contains(&n.reference)).map(|n| (n.reference, 0)).rev().collect();
+    let mut stack: Vec<(Ref, usize)> = nodes
+        .iter()
+        .filter(|n| !children.contains(&n.reference))
+        .map(|n| (n.reference, 0))
+        .rev()
+        .collect();
     if stack.is_empty() {
         stack.extend(nodes.first().map(|n| (n.reference, 0)));
     }
@@ -43,7 +62,9 @@ pub fn outline(nodes: &[Node]) -> String {
         if seen.len() >= MAX_NODES || !seen.insert(reference) {
             continue;
         }
-        let Some(node) = by_ref.get(&reference) else { continue };
+        let Some(node) = by_ref.get(&reference) else {
+            continue;
+        };
         let next = if is_noise(node) {
             depth
         } else {
@@ -71,7 +92,11 @@ mod tests {
             value: None,
             frame: None,
             states: vec![],
-            actions: if name.is_empty() { vec![] } else { vec![Action::Press] },
+            actions: if name.is_empty() {
+                vec![]
+            } else {
+                vec![Action::Press]
+            },
             children,
         }
     }
@@ -84,12 +109,18 @@ mod tests {
             node(3, "button", "Save", vec![]),
             node(4, "text field", "Title", vec![]),
         ];
-        assert_eq!(outline(&nodes), "[1] window \"Notes\"\n  [3] button \"Save\"\n  [4] text field \"Title\"\n");
+        assert_eq!(
+            outline(&nodes),
+            "[1] window \"Notes\"\n  [3] button \"Save\"\n  [4] text field \"Title\"\n"
+        );
     }
 
     #[test]
     fn survives_cycles() {
-        let nodes = vec![node(1, "window", "A", vec![2]), node(2, "button", "B", vec![1])];
+        let nodes = vec![
+            node(1, "window", "A", vec![2]),
+            node(2, "button", "B", vec![1]),
+        ];
         assert_eq!(outline(&nodes), "[1] window \"A\"\n  [2] button \"B\"\n");
     }
 }

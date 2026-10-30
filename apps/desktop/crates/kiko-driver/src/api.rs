@@ -342,15 +342,26 @@ pub struct DriverError {
 
 impl DriverError {
     pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
-        Self { code, message: message.into() }
+        Self {
+            code,
+            message: message.into(),
+        }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Response {
-    Ok { id: u64, ok: True, value: serde_json::Value },
-    Err { id: u64, ok: False, error: DriverError },
+    Ok {
+        id: u64,
+        ok: True,
+        value: serde_json::Value,
+    },
+    Err {
+        id: u64,
+        ok: False,
+        error: DriverError,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -360,7 +371,11 @@ pub struct True;
 impl TryFrom<bool> for True {
     type Error = &'static str;
     fn try_from(value: bool) -> Result<Self, Self::Error> {
-        if value { Ok(True) } else { Err("expected true") }
+        if value {
+            Ok(True)
+        } else {
+            Err("expected true")
+        }
     }
 }
 
@@ -377,7 +392,11 @@ pub struct False;
 impl TryFrom<bool> for False {
     type Error = &'static str;
     fn try_from(value: bool) -> Result<Self, Self::Error> {
-        if value { Err("expected false") } else { Ok(False) }
+        if value {
+            Err("expected false")
+        } else {
+            Ok(False)
+        }
     }
 }
 

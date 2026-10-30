@@ -113,7 +113,7 @@ CI runs `Changes`, `Lint`, `Build and Typecheck`, `Test`, `Test Web` and `Worker
 
 ## Desktop drivers
 
-`apps/desktop` is the kiko app the owner installs. It speaks the driver contract in `crates/kiko-driver` (JSON lines over stdin/stdout) and implements `kiko_driver::Native` once per OS. Background mode never moves the pointer, changes focus or raises a window; a route that cannot honor that answers `background_unavailable` and says foreground mode would work.
+`apps/desktop` is the kiko app the owner installs. It serves the driver contract in `crates/kiko-driver` (JSON lines over a local socket that it passes to `kiko-core` as `KIKO_DRIVER`) and implements `kiko_driver::Native` once per OS. Background mode never moves the pointer, changes focus or raises a window; a route that cannot honor that answers `background_unavailable` and says foreground mode would work.
 
 - **Linux keeps AT-SPI on its own thread.** `crates/kiko-native-linux` owns a current-thread Tokio runtime on a dedicated thread, so the synchronous trait never touches the owner's executor. Every proxy disables zbus property caching (`CacheProperties::No`): Qt5's AT-SPI bridge reads the second argument of every `Properties` call and segfaults on the one-argument `GetAll` that lazy caching sends.
 - **A window id is the AT-SPI bus name plus object path.** It survives restacking. `_NET_CLIENT_LIST`, `_NET_WM_PID` and the title map it to an X window, so capture and foreground input share one identity, and `_NET_ACTIVE_WINDOW` and `_NET_WM_STATE_HIDDEN` decide `focused` and `minimized`.
