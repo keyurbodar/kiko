@@ -239,36 +239,39 @@
 }
 .rich-table-scroll table {
   width: 100%;
-  min-width: max-content;
+  min-width: 0;
   border-collapse: collapse;
-  font-size: 0.75rem;
+  font-size: 13px;
   overflow-wrap: normal;
   word-break: normal;
 }
 .rich-table-scroll th,
 .rich-table-scroll td {
   padding: 0.45rem 0.75rem;
-  text-align: left;
+  text-align: start;
+  text-wrap: pretty;
+  vertical-align: top;
+  max-width: 24rem;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.rich-table-scroll :is(th, td):first-child {
+  padding-inline-start: 0;
+}
+.rich-table-scroll :is(th, td):last-child {
+  padding-inline-end: 0;
 }
 .rich-table-scroll thead th {
   padding-block: 0.55rem;
+  color: var(--text-100);
   font-weight: 600;
-  white-space: nowrap;
-  border-bottom: 1px solid color-mix(in srgb, var(--rich-border) 60%, transparent);
+  line-height: 18px;
+  overflow-wrap: normal;
+  word-break: normal;
+  border-bottom: 1px solid var(--line);
 }
 .rich-table-scroll tbody td {
-  border-bottom: 1px solid color-mix(in srgb, var(--rich-border) 60%, transparent);
-}
-.rich-table[data-expanded="false"] th,
-.rich-table[data-expanded="false"] td {
-  max-width: 24rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.rich-table[data-expanded="true"] td {
-  max-width: 24rem;
-  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--line);
 }
 .rich-table-footer {
   display: flex;
