@@ -160,6 +160,30 @@ export const IceServer = Schema.Struct({
 })
 export type IceServer = typeof IceServer.Type
 
+export const BrowserTab = Schema.Struct({
+  id: Count,
+  windowId: Count,
+  index: Count,
+  active: Schema.Boolean,
+  focused: Schema.Boolean,
+  pinned: Schema.Boolean,
+  title: Text,
+  url: Text,
+})
+export type BrowserTab = typeof BrowserTab.Type
+
+export const BrowserCall = Schema.Union([
+  Schema.Struct({ op: Schema.Literal("tabs") }),
+  Schema.Struct({ op: Schema.Literal("open"), url: Text }),
+  Schema.Struct({ op: Schema.Literal("close"), tab: Count }),
+  Schema.Struct({ op: Schema.Literal("show"), tab: Count }),
+  Schema.Struct({ op: Schema.Literal("cdp"), tab: Count, method: Text, params: Schema.optionalKey(Schema.Unknown) }),
+])
+export type BrowserCall = typeof BrowserCall.Type
+
+export const BRIDGE_PORT = 47321
+export const EXTENSION_ID = "epfkgiifjgfjoehljmeggebigmcblkoi"
+
 export const ToDaemon = Schema.Union([
   Schema.Struct({ t: Schema.Literal("welcome"), id: Id, name: Text, version: Schema.optionalKey(Text) }),
   Schema.Struct({
@@ -186,6 +210,7 @@ export const ToDaemon = Schema.Union([
     signal: RtcSignal,
     iceServers: Schema.optionalKey(Schema.Array(IceServer)),
   }),
+  Schema.Struct({ t: Schema.Literal("browser"), id: Id, call: BrowserCall }),
 ])
 export type ToDaemon = typeof ToDaemon.Type
 
@@ -201,5 +226,14 @@ export const FromDaemon = Schema.Union([
   Schema.Struct({ t: Schema.Literal("chunk"), id: Id, data: Text }),
   Schema.Struct({ t: Schema.Literal("humanInput") }),
   Schema.Struct({ t: Schema.Literal("rtc"), session: Id, signal: RtcSignal }),
+  Schema.Struct({ t: Schema.Literal("browserResult"), id: Id, ok: Schema.Literal(true), value: Schema.Unknown }),
+  Schema.Struct({ t: Schema.Literal("browserResult"), id: Id, ok: Schema.Literal(false), message: Text }),
+  Schema.Struct({
+    t: Schema.Literal("browserEvent"),
+    tab: Count,
+    method: Text,
+    params: Schema.optionalKey(Schema.Unknown),
+  }),
+  Schema.Struct({ t: Schema.Literal("browserState"), connected: Schema.Boolean, name: Schema.optionalKey(Text) }),
 ])
 export type FromDaemon = typeof FromDaemon.Type

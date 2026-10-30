@@ -301,6 +301,7 @@ export const ComputerSummary = Schema.Struct({
   displays: Schema.Array(ComputerDisplay),
   access: Schema.optionalKey(Schema.Struct({ screen: Schema.Boolean, input: Schema.Boolean })),
   note: Schema.optionalKey(Schema.String),
+  browser: Schema.optionalKey(Schema.Struct({ connected: Schema.Boolean, name: Schema.optionalKey(Schema.String) })),
 })
 export type ComputerSummary = typeof ComputerSummary.Type
 
