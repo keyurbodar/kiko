@@ -754,12 +754,12 @@ fn foreground_input_reaches_the_testapp_and_raises_it() {
         "the foreground click gave the edit keyboard focus"
     );
 
-    let mut select_all = foreground_act(&target.id(), Some(edit.reference), Action::Key);
-    select_all.keys = Some("ctrl+a".into());
-    assert_eq!(act(&mut driver, select_all).route, Route::Foreground);
-    let mut delete = foreground_act(&target.id(), Some(edit.reference), Action::Key);
-    delete.keys = Some("delete".into());
-    assert_eq!(act(&mut driver, delete).route, Route::Foreground);
+    let mut select_line = foreground_act(&target.id(), Some(edit.reference), Action::Key);
+    select_line.keys = Some("shift+home".into());
+    assert_eq!(act(&mut driver, select_line).route, Route::Foreground);
+    let mut erase = foreground_act(&target.id(), Some(edit.reference), Action::Key);
+    erase.keys = Some("backspace".into());
+    assert_eq!(act(&mut driver, erase).route, Route::Foreground);
     let cleared = wait_for_edit_value(&mut driver, &target.id(), None);
     let edit = find(&cleared.nodes, "edit", None).clone();
 

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use kiko_driver::Result;
 use kiko_driver::api::{Action, Mode, Point, Route};
@@ -214,6 +215,9 @@ fn edit_class(window: isize) -> bool {
     class.starts_with("Edit") || class.starts_with("RichEdit") || class.starts_with("RICHEDIT")
 }
 
+const WRITE_VERIFY_ATTEMPTS: usize = 5;
+const WRITE_VERIFY_PAUSE: Duration = Duration::from_millis(40);
+
 fn splice_at_selection(element: &IUIAutomationElement, text: &str) -> Result<Outcome> {
     let value = writable_value(element).ok_or_else(no_value)?;
     let document = document_range(element).ok_or_else(no_text_pattern)?;
@@ -228,10 +232,28 @@ fn splice_at_selection(element: &IUIAutomationElement, text: &str) -> Result<Out
     let spliced = splice(&current, &prefix, &selected, text);
     unsafe {
         value
-            .SetValue(&BSTR::from(spliced))
+            .SetValue(&BSTR::from(spliced.as_str()))
             .map_err(|error| failed("SetValue", error))?
     };
+    verify_value(&value, &spliced)?;
     route(Route::Accessibility)
+}
+
+fn verify_value(value: &IUIAutomationValuePattern, expected: &str) -> Result<()> {
+    for attempt in 0..WRITE_VERIFY_ATTEMPTS {
+        if attempt > 0 {
+            std::thread::sleep(WRITE_VERIFY_PAUSE);
+        }
+        let current = unsafe { value.CurrentValue() }
+            .map(|value| value.to_string())
+            .unwrap_or_default();
+        if current == expected {
+            return Ok(());
+        }
+    }
+    Err(unavailable(
+        "the control did not take the text at its caret in the background; use set_value to replace the text, or retry with mode foreground",
+    ))
 }
 
 fn range_text(range: &IUIAutomationTextRange) -> String {
