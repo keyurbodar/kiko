@@ -1,0 +1,95 @@
+name: desktop-browser
+
+on:
+  push:
+    branches:
+      - "t3/bg-*"
+  pull_request:
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/desktop-browser.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Browser driver (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop
+      - name: Install the test display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb x11-utils
+      - name: Format
+        run: cargo fmt -p kiko-browser -- --check
+      - name: Clippy
+        run: cargo clippy -p kiko-browser --all-targets -- -D warnings
+      - name: Unit tests
+        run: cargo test -p kiko-browser --lib
+      - name: End-to-end against the runner's Chrome
+        run: ./crates/kiko-browser/e2e.sh
+
+  macos:
+    name: Browser driver (macOS)
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop
+      - name: Format
+        run: cargo fmt -p kiko-browser -- --check
+      - name: Clippy
+        run: cargo clippy -p kiko-browser --all-targets -- -D warnings
+      - name: Unit tests
+        run: cargo test -p kiko-browser --lib
+      - name: End-to-end against the runner's Chrome
+        run: ./crates/kiko-browser/e2e.sh
+
+  windows:
+    name: Browser driver (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop
+      - name: Format
+        run: cargo fmt -p kiko-browser -- --check
+      - name: Clippy
+        run: cargo clippy -p kiko-browser --all-targets -- -D warnings
+      - name: Unit tests
+        run: cargo test -p kiko-browser --lib
+      - name: End-to-end against the runner's Chrome
+        shell: bash
+        run: ./crates/kiko-browser/e2e.sh
