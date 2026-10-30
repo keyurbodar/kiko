@@ -12,6 +12,7 @@ import {
   EMPTY_NAV,
   fileSurface,
   moveFiles,
+  showInActive,
   moveSurface,
   openSurface as openIn,
 } from "./desk-nav"
@@ -180,6 +181,8 @@ export const moveFileSurfaces = (chatId: string, from: string, to: string) =>
   edit(chatId, (nav) => moveFiles(nav, from, to))
 
 export const dropFileSurfaces = (chatId: string, path: string) => edit(chatId, (nav) => dropFiles(nav, path))
+
+export const showFileInTab = (chatId: string, path: string) => edit(chatId, (nav) => showInActive(nav, path))
 
 export const moveTab = (chatId: string, from: string, to: string) => edit(chatId, (nav) => moveSurface(nav, from, to))
 

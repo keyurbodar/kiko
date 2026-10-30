@@ -80,3 +80,11 @@ export function dropFiles(nav: DeskNav, path: string): DeskNav {
   const active = surfaces.some((surface) => surface.id === nav.active) ? nav.active : (surfaces[0]?.id ?? null)
   return { surfaces, active }
 }
+
+export function showInActive(nav: DeskNav, path: string): DeskNav {
+  const target = fileSurface(path)
+  if (nav.surfaces.some((surface) => surface.id === target.id)) return openSurface(nav, target)
+  const at = nav.surfaces.findIndex((surface) => surface.id === nav.active)
+  if (nav.surfaces[at]?.kind !== "file") return openSurface(nav, target)
+  return { surfaces: nav.surfaces.map((surface, index) => (index === at ? target : surface)), active: target.id }
+}

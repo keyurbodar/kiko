@@ -2,7 +2,7 @@ import { CollapseIcon, CloseIcon, MaximizeIcon, PlusIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { createEffect, createSignal, For, on, onCleanup, Show, Suspense } from "solid-js"
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show, Suspense } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { room } from "../../state/room"
@@ -357,6 +357,10 @@ function PanelControls(props: { chatId: string; onClose: () => void; sheet: bool
 
 export default function RightPanel(props: { chatId: string; onClose: () => void; sheet?: boolean }) {
   const view = () => deskView(props.chatId)
+  const slot = createMemo(() => {
+    const surface = view()
+    return surface?.kind === "file" ? "file" : (surface?.id ?? null)
+  })
   const surfaces = () => surfacesOf(props.chatId)
   const maximized = () => panelMaximized() && !props.sheet
   createEffect(() => {
@@ -382,8 +386,8 @@ export default function RightPanel(props: { chatId: string; onClose: () => void;
         <AddSurface chatId={props.chatId} />
         <PanelControls chatId={props.chatId} onClose={props.onClose} sheet={props.sheet === true} />
       </header>
-      <Show when={view()} keyed fallback={<EmptyPanel chatId={props.chatId} />}>
-        {(surface) => <SurfaceBody chatId={props.chatId} surface={surface} />}
+      <Show when={slot()} keyed fallback={<EmptyPanel chatId={props.chatId} />}>
+        {() => <SurfaceBody chatId={props.chatId} surface={view()!} />}
       </Show>
     </aside>
   )

@@ -3,7 +3,7 @@ import { FileIcon } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createEffect, createMemo, createSignal, lazy, onCleanup, onMount, Show, Suspense } from "solid-js"
-import { dropFileSurfaces, fileReveal, moveFileSurfaces, openFile } from "../chat/side/surfaces"
+import { dropFileSurfaces, fileReveal, moveFileSurfaces, openFile, showFileInTab } from "../chat/side/surfaces"
 import { room } from "../state/room"
 import { user } from "../state/user"
 import { createFile, forgetMade, withMade } from "./api"
@@ -150,6 +150,7 @@ export function FileSurface(props: { chatId: string; path?: string }) {
   const navigate = (to: string) => {
     setShown(to)
     setTrail((current) => retainedBreadcrumbTrail(current, to))
+    if (props.path !== undefined) showFileInTab(props.chatId, to)
   }
   const wantsExplorer = () => explorerOpen() ?? rootWidth() >= 640
   const toggleExplorer = () => setExplorerOpen(!wantsExplorer())

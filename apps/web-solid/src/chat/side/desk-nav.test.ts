@@ -12,6 +12,7 @@ import {
   moveFiles,
   moveSurface,
   openSurface,
+  showInActive,
 } from "./desk-nav"
 
 const memory = { id: "memory", kind: "memory" } as const
@@ -77,5 +78,16 @@ describe("desk navigation", () => {
   it("keeps a fixed surface when its files are dropped", () => {
     const nav = openSurface(openSurface(EMPTY_NAV, files), a)
     expect(dropFiles(nav, "notes")).toEqual({ surfaces: [files], active: files.id })
+  })
+
+  it("shows another file in the active file tab, or jumps to the tab that already has it", () => {
+    const nav = openSurface(openSurface(openSurface(EMPTY_NAV, memory), a), files)
+    const onA = activateSurface(nav, a.id)
+    const c = fileSurface("notes/c.md")
+    expect(showInActive(onA, c.path)).toEqual({ surfaces: [memory, c, files], active: c.id })
+    const both = openSurface(onA, b)
+    expect(showInActive(activateSurface(both, a.id), b.path)).toEqual({ surfaces: [memory, a, files, b], active: b.id })
+    expect(showInActive(onA, a.path)).toBe(onA)
+    expect(showInActive(activateSurface(nav, memory.id), c.path)).toEqual(openSurface(nav, c))
   })
 })
