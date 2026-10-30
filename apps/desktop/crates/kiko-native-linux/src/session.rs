@@ -9,8 +9,8 @@ use atspi::zbus::Connection;
 use atspi::{CoordType, State as A11yState, StateSet};
 use atspi_connection::AccessibilityConnection;
 use kiko_driver::{
-    ActParams, ActResult, Action, Grant, Image, Look, LookParams, Mode, Native, OpenParams,
-    PermissionKind, Permissions, Ref, Result, Route, Status, Window, WindowId,
+    ActParams, ActResult, Action, ErrorCode, Grant, Image, Look, LookParams, Mode, Native,
+    OpenParams, PermissionKind, Permissions, Ref, Result, Route, Status, Window, WindowId,
 };
 
 use crate::a11y::{self, Target};
@@ -93,7 +93,7 @@ impl State {
                 a11y::enable().await
             }
             PermissionKind::Screen if self.screen_granted() => Ok(()),
-            PermissionKind::Screen if self.wayland => self.portal().await?.request().await,
+            PermissionKind::Screen if self.wayland => self.portal().request().await,
             PermissionKind::Screen => Err(unsupported(
                 "screen capture needs an X11 display or the Wayland ScreenCast portal",
             )),
@@ -166,7 +166,11 @@ impl State {
         self.refs
             .insert(params.window.clone(), allocator.into_table());
         let image = if params.image {
-            self.image(&entry, params.max_width.unwrap_or(1280)).await
+            match self.image(&entry, params.max_width.unwrap_or(1280)).await {
+                Ok(image) => Some(image),
+                Err(error) if params.tree && error.code == ErrorCode::Denied => None,
+                Err(error) => return Err(error),
+            }
         } else {
             None
         };
@@ -178,23 +182,18 @@ impl State {
         })
     }
 
-    async fn image(&mut self, entry: &Listed, max_width: u32) -> Option<Image> {
+    async fn image(&mut self, entry: &Listed, max_width: u32) -> Result<Image> {
         if let Some(xid) = entry.xid {
-            return self
+            let x11 = self
                 .x11()
-                .and_then(|x11| capture::capture(x11, xid, max_width).ok());
+                .ok_or_else(|| failed("the X11 display is unavailable"))?;
+            return capture::capture(x11, xid, max_width);
         }
-        let portal = self.portal().await.ok()?;
-        portal.capture(entry.window.frame, max_width).await.ok()
+        self.portal().capture(entry.window.frame, max_width).await
     }
 
-    async fn portal(&mut self) -> Result<&mut Wayland> {
-        if self.portal.is_none() {
-            self.portal = Some(Wayland::new());
-        }
-        self.portal
-            .as_mut()
-            .ok_or_else(|| failed("the screen sharing session is unavailable"))
+    fn portal(&mut self) -> &mut Wayland {
+        self.portal.get_or_insert_with(Wayland::new)
     }
 
     async fn act(&mut self, params: &ActParams) -> Result<ActResult> {
@@ -231,7 +230,7 @@ impl State {
         let frame = entry.window.frame;
         match entry.xid {
             Some(xid) => self.foreground_x11(params, target, frame, xid).await,
-            None if self.wayland => self.foreground_wayland(params, target, frame).await,
+            None if self.wayland => self.foreground_wayland(params, target, entry).await,
             None => Err(background_unavailable(FOREGROUND_X11)),
         }
     }
@@ -283,32 +282,39 @@ impl State {
         &mut self,
         params: &ActParams,
         target: &Target,
-        frame: kiko_driver::Rect,
+        entry: &Listed,
     ) -> Result<ActResult> {
+        let frame = entry.window.frame;
         match params.action {
             Action::Type => {
+                require_focused(entry)?;
                 let text = params.text.as_deref().unwrap_or_default().to_string();
                 self.wayland_focus(params, target).await;
-                self.portal().await?.type_text(&text).await?;
+                self.portal().type_text(&text).await?;
             }
             Action::Key => {
+                require_focused(entry)?;
                 let keys = params
                     .keys
                     .as_deref()
                     .ok_or_else(|| failed("key needs keys"))?
                     .to_string();
-                self.portal().await?.type_keys(&keys).await?;
+                self.portal().type_keys(&keys).await?;
             }
             Action::Press | Action::Toggle => {
+                require_focused(entry)?;
                 let point = self.foreground_point(params, target, frame).await;
-                let portal = self.portal().await?;
+                require_inside(frame, point)?;
+                let portal = self.portal();
                 portal.motion(point.0 - frame.x, point.1 - frame.y).await?;
                 portal.button(true).await?;
                 portal.button(false).await?;
             }
             Action::Scroll => {
+                require_focused(entry)?;
                 let point = self.foreground_point(params, target, frame).await;
-                let portal = self.portal().await?;
+                require_inside(frame, point)?;
+                let portal = self.portal();
                 portal.motion(point.0 - frame.x, point.1 - frame.y).await?;
                 portal.scroll(params.dx, params.dy).await?;
             }
@@ -404,6 +410,28 @@ fn foreground() -> ActResult {
     ActResult {
         route: Route::Foreground,
     }
+}
+
+fn require_focused(entry: &Listed) -> Result<()> {
+    if entry.window.focused {
+        return Ok(());
+    }
+    Err(background_unavailable(
+        "on Wayland kiko cannot focus another window; ask the owner to click the window first, then retry",
+    ))
+}
+
+fn require_inside(frame: kiko_driver::Rect, point: (f64, f64)) -> Result<()> {
+    let inside = point.0 >= frame.x
+        && point.0 < frame.x + frame.w
+        && point.1 >= frame.y
+        && point.1 < frame.y + frame.h;
+    if inside {
+        return Ok(());
+    }
+    Err(background_unavailable(
+        "that point is outside the target window; ask the owner to move the window or pass a ref",
+    ))
 }
 
 struct Frame {
@@ -565,9 +593,10 @@ impl Session {
         let screen = if state.screen_granted() {
             Grant::Granted
         } else if state.wayland {
-            match state.portal.as_ref() {
-                Some(portal) if portal.shared() => Grant::Granted,
-                _ => Grant::Unknown,
+            if state.portal().screen_granted() {
+                Grant::Granted
+            } else {
+                Grant::Unknown
             }
         } else {
             Grant::Denied

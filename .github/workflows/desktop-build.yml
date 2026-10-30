@@ -51,6 +51,20 @@ jobs:
       - name: Build
         working-directory: apps/desktop
         run: cargo build --release --locked
+      - name: Prove kiko starts without PipeWire
+        run: |
+          ldd apps/desktop/target/release/kiko | tee "$RUNNER_TEMP/ldd.txt"
+          if grep -q libpipewire "$RUNNER_TEMP/ldd.txt"; then
+            echo "::error::the kiko binary links libpipewire; it must load PipeWire at runtime"
+            exit 1
+          fi
+          docker run --rm --volume "$PWD/apps/desktop/target/release/kiko:/kiko:ro" ubuntu:24.04 bash -c '
+            if ldconfig -p | grep -q libpipewire; then
+              echo "the test container already has libpipewire" >&2
+              exit 1
+            fi
+            /kiko --version
+          '
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}

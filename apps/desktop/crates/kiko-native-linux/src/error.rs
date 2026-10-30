@@ -26,3 +26,7 @@ pub(crate) fn background_unavailable(message: impl Into<String>) -> DriverError 
 pub(crate) fn unsupported(message: impl Into<String>) -> DriverError {
     DriverError::new(ErrorCode::Unsupported, message)
 }
+
+pub(crate) fn timeout(message: impl Into<String>) -> DriverError {
+    DriverError::new(ErrorCode::Timeout, message)
+}

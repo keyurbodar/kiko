@@ -4,12 +4,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use base64::Engine as _;
-use kiko_driver::{ActParams, Action, Look, LookParams, Mode, Native, Window};
+use kiko_driver::{ActParams, Action, ErrorCode, Look, LookParams, Mode, Native, Window};
 use kiko_native_linux::driver;
 
 const TARGET: &str = "Kiko Target";
-const TARGET_BLUE: (u8, u8, u8) = (0x33, 0x66, 0xcc);
 
 struct App {
     child: Child,
@@ -51,6 +49,15 @@ fn spawn_gtk(out: &Path) -> App {
         .spawn()
         .expect("could not start the GTK test app");
     App { child }
+}
+
+fn start(name: &str) -> (App, PathBuf) {
+    let out = output_dir().join(name);
+    let _ = std::fs::remove_dir_all(&out);
+    std::fs::create_dir_all(&out).expect("output dir");
+    let app = spawn_gtk(&out);
+    wait_file(&out.join("ready"));
+    (app, out)
 }
 
 fn wait_for<T>(what: &str, mut probe: impl FnMut() -> Option<T>) -> T {
@@ -143,24 +150,10 @@ fn act(
     })
 }
 
-fn decoded(look: &Look) -> image::RgbImage {
-    let image = look.image.as_ref().expect("look returned no image");
-    assert_eq!(image.mime, "image/jpeg");
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(&image.data)
-        .expect("image is not base64");
-    image::load_from_memory(&bytes)
-        .expect("image is not a picture")
-        .to_rgb8()
-}
-
 #[test]
 #[ignore]
 fn wayland_lists_windows_and_runs_background_actions_without_a_pointer() {
-    let out = output_dir();
-    std::fs::create_dir_all(&out).expect("output dir");
-    let _app = spawn_gtk(&out);
-    wait_file(&out.join("ready"));
+    let (_app, out) = start("background-actions");
     let mut native = driver().expect("driver");
     let target = wait_window(&mut native, TARGET);
     wait_window(&mut native, "Kiko Cover");
@@ -199,50 +192,62 @@ fn wayland_lists_windows_and_runs_background_actions_without_a_pointer() {
 
 #[test]
 #[ignore]
-fn wayland_look_captures_the_window_and_foreground_typing_lands_in_it() {
-    let out = output_dir();
-    std::fs::create_dir_all(&out).expect("output dir");
-    let _app = spawn_gtk(&out);
-    wait_file(&out.join("ready"));
+fn wayland_look_without_a_grant_returns_the_tree_and_no_image() {
+    let (_app, _out) = start("tree-without-grant");
     let mut native = driver().expect("driver");
     let target = wait_window(&mut native, TARGET);
     wait_window(&mut native, "Kiko Cover");
 
-    let first = look(&mut native, &target, true);
-    let picture = decoded(&first);
-    let (width, height) = picture.dimensions();
-    assert!(
-        width >= 400 && height >= 300,
-        "the captured window is {width}x{height}"
-    );
-    let blue = picture
-        .pixels()
-        .filter(|pixel| {
-            let close = |a: u8, b: u8| i16::from(a).abs_diff(i16::from(b)) <= 24;
-            close(pixel[0], TARGET_BLUE.0)
-                && close(pixel[1], TARGET_BLUE.1)
-                && close(pixel[2], TARGET_BLUE.2)
+    let first = native
+        .look(&LookParams {
+            window: target.id.clone(),
+            tree: true,
+            image: true,
+            max_width: Some(2000),
         })
-        .count();
-    let total = (width * height) as usize;
+        .expect("a look that asked for a tree failed without a screen capture grant");
     assert!(
-        blue * 10 > total,
-        "only {blue} of {total} pixels are the window's blue background"
+        first.image.is_none(),
+        "look returned an image without a screen capture grant"
     );
+    assert!(
+        first.nodes.iter().any(|node| node.name == "Press me"),
+        "the button is missing from\n{}",
+        first.outline
+    );
+}
 
+#[test]
+#[ignore]
+fn wayland_image_only_look_without_a_grant_is_denied() {
+    let (_app, _out) = start("image-without-grant");
+    let mut native = driver().expect("driver");
+    let target = wait_window(&mut native, TARGET);
+    wait_window(&mut native, "Kiko Cover");
+
+    let error = native
+        .look(&LookParams {
+            window: target.id.clone(),
+            tree: false,
+            image: true,
+            max_width: Some(2000),
+        })
+        .expect_err("look returned an image without a screen capture grant");
+    assert_eq!(error.code, ErrorCode::Denied);
+    assert!(error.message.contains("kiko menu"), "{}", error.message);
+}
+
+#[test]
+#[ignore]
+fn wayland_foreground_typing_into_an_unfocused_window_is_unavailable() {
+    let (_app, _out) = start("unfocused-typing");
+    let mut native = driver().expect("driver");
+    let target = wait_window(&mut native, TARGET);
+    wait_window(&mut native, "Kiko Cover");
+
+    let first = look(&mut native, &target, false);
     let entry = node(&first, &["entry", "text"], "");
-    act(
-        &mut native,
-        &target,
-        Some(entry.reference),
-        Action::SetValue,
-        Some(""),
-        Mode::Background,
-    )
-    .expect("clearing the entry failed");
-    wait_file_text(&out.join("entry"), "");
-
-    let typed = act(
+    let error = act(
         &mut native,
         &target,
         Some(entry.reference),
@@ -250,7 +255,11 @@ fn wayland_look_captures_the_window_and_foreground_typing_lands_in_it() {
         Some("hello wayland"),
         Mode::Foreground,
     )
-    .expect("foreground typing failed");
-    assert_eq!(typed.route, kiko_driver::Route::Foreground);
-    wait_file_text(&out.join("entry"), "hello wayland");
+    .expect_err("typing into an unfocused window was allowed");
+    assert_eq!(error.code, ErrorCode::BackgroundUnavailable);
+    assert!(
+        error.message.contains("click the window first"),
+        "{}",
+        error.message
+    );
 }

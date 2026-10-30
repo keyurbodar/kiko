@@ -7,6 +7,7 @@ mod error;
 mod frames;
 mod keys;
 mod open;
+mod pipewire;
 mod session;
 mod tree;
 mod wayland;

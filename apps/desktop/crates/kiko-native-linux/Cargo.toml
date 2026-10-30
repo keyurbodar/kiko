@@ -17,7 +17,8 @@ zbus.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 ashpd.workspace = true
-pipewire.workspace = true
+libloading.workspace = true
+libspa.workspace = true
 
 [dev-dependencies]
 futures-util.workspace = true

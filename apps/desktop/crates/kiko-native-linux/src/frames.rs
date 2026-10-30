@@ -4,12 +4,13 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use kiko_driver::DriverError;
-use pipewire as pw;
-use pw::spa;
+use libspa::param::video::VideoFormat;
 
-use crate::error::failed;
+use crate::error::{failed, timeout};
+use crate::pipewire::Reader;
 
 const WAIT: Duration = Duration::from_secs(2);
+const START: Duration = Duration::from_secs(5);
 
 pub(crate) struct Frames {
     latest: Arc<Mutex<Option<Frame>>>,
@@ -20,12 +21,7 @@ pub(crate) struct Frame {
     width: u32,
     height: u32,
     stride: i32,
-    format: spa::param::video::VideoFormat,
-}
-
-struct Sink {
-    format: spa::param::video::VideoInfoRaw,
-    latest: Arc<Mutex<Option<Frame>>>,
+    format: VideoFormat,
 }
 
 impl Frames {
@@ -37,8 +33,15 @@ impl Frames {
             .name("kiko-frames".to_string())
             .spawn(move || run(fd, node, thread_latest, ready))
             .map_err(|error| failed(format!("could not start the frame reader: {error}")))?;
-        wait.recv()
-            .map_err(|_| failed("the frame reader stopped before it started"))??;
+        match wait.recv_timeout(START) {
+            Ok(started) => started?,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                return Err(timeout("the screen share did not start in time"));
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(failed("the frame reader stopped before it started"));
+            }
+        }
         Ok(Self { latest })
     }
 
@@ -66,6 +69,22 @@ impl Frames {
 }
 
 impl Frame {
+    pub(crate) fn new(
+        data: Vec<u8>,
+        width: u32,
+        height: u32,
+        stride: i32,
+        format: VideoFormat,
+    ) -> Self {
+        Self {
+            data,
+            width,
+            height,
+            stride,
+            format,
+        }
+    }
+
     fn copy(&self) -> Self {
         Self {
             data: self.data.clone(),
@@ -104,7 +123,6 @@ impl Frame {
     }
 
     fn pixel(&self, pixel: &[u8; 4]) -> Result<(u8, u8, u8), DriverError> {
-        use spa::param::video::VideoFormat;
         match self.format {
             VideoFormat::BGRA | VideoFormat::BGRx => Ok((pixel[2], pixel[1], pixel[0])),
             VideoFormat::RGBA | VideoFormat::RGBx => Ok((pixel[0], pixel[1], pixel[2])),
@@ -119,11 +137,10 @@ fn run(
     latest: Arc<Mutex<Option<Frame>>>,
     ready: mpsc::Sender<Result<(), DriverError>>,
 ) {
-    match start(fd, node, latest) {
-        Ok((mainloop, stream)) => {
+    match Reader::start(fd, node, latest) {
+        Ok(reader) => {
             let _ = ready.send(Ok(()));
-            mainloop.run();
-            drop(stream);
+            reader.run();
         }
         Err(error) => {
             let _ = ready.send(Err(error));
@@ -131,144 +148,15 @@ fn run(
     }
 }
 
-fn start(
-    fd: OwnedFd,
-    node: u32,
-    latest: Arc<Mutex<Option<Frame>>>,
-) -> Result<(pw::main_loop::MainLoopRc, pw::stream::StreamRc), DriverError> {
-    pw::init();
-    let mainloop = pw::main_loop::MainLoopRc::new(None)
-        .map_err(|error| failed(format!("could not open a PipeWire loop: {error}")))?;
-    let context = pw::context::ContextRc::new(&mainloop, None)
-        .map_err(|error| failed(format!("could not open a PipeWire context: {error}")))?;
-    let core = context
-        .connect_fd_rc(fd, None)
-        .map_err(|error| failed(format!("could not connect to the screen share: {error}")))?;
-    let stream = pw::stream::StreamRc::new(
-        core,
-        "kiko-capture",
-        pw::properties::properties! {
-            *pw::keys::MEDIA_TYPE => "Video",
-            *pw::keys::MEDIA_CATEGORY => "Capture",
-            *pw::keys::MEDIA_ROLE => "Screen",
-        },
-    )
-    .map_err(|error| failed(format!("could not create the capture stream: {error}")))?;
-    let sink = Sink {
-        format: Default::default(),
-        latest,
-    };
-    let _listener = stream
-        .add_local_listener_with_user_data(sink)
-        .param_changed(|_, sink, id, param| {
-            if id != spa::param::ParamType::Format.as_raw() {
-                return;
-            }
-            if let Some(param) = param {
-                let _ = sink.format.parse(param);
-            }
-        })
-        .process(|stream, sink| {
-            let Some(mut buffer) = stream.dequeue_buffer() else {
-                return;
-            };
-            let Some(data) = buffer.datas_mut().first_mut() else {
-                return;
-            };
-            let (offset, size, stride) = (
-                data.chunk().offset() as usize,
-                data.chunk().size() as usize,
-                data.chunk().stride(),
-            );
-            let Some(bytes) = data.data() else {
-                return;
-            };
-            let end = (offset + size).min(bytes.len());
-            if size == 0 || stride == 0 || end <= offset {
-                return;
-            }
-            let size = sink.format.size();
-            let frame = Frame {
-                data: bytes[offset..end].to_vec(),
-                width: size.width,
-                height: size.height,
-                stride,
-                format: sink.format.format(),
-            };
-            if let Ok(mut latest) = sink.latest.lock() {
-                *latest = Some(frame);
-            }
-        })
-        .register()
-        .map_err(|error| failed(format!("could not watch the capture stream: {error}")))?;
-    let mut params = [format()?];
-    stream
-        .connect(
-            spa::utils::Direction::Input,
-            Some(node),
-            pw::stream::StreamFlags::AUTOCONNECT | pw::stream::StreamFlags::MAP_BUFFERS,
-            &mut params,
-        )
-        .map_err(|error| failed(format!("could not read the screen share: {error}")))?;
-    std::mem::forget(_listener);
-    Ok((mainloop, stream))
-}
-
-fn format() -> Result<&'static spa::pod::Pod, DriverError> {
-    use spa::param::format::{FormatProperties, MediaSubtype, MediaType};
-    use spa::param::video::VideoFormat;
-    use spa::pod::property;
-    use spa::utils::Fraction;
-
-    let object = spa::pod::object!(
-        spa::utils::SpaTypes::ObjectParamFormat,
-        spa::param::ParamType::EnumFormat,
-        property!(FormatProperties::MediaType, Id, MediaType::Video),
-        property!(FormatProperties::MediaSubtype, Id, MediaSubtype::Raw),
-        property!(
-            FormatProperties::VideoFormat,
-            Choice,
-            Enum,
-            Id,
-            VideoFormat::BGRA,
-            VideoFormat::BGRA,
-            VideoFormat::BGRx,
-            VideoFormat::RGBA,
-            VideoFormat::RGBx
-        ),
-        property!(
-            FormatProperties::VideoFramerate,
-            Choice,
-            Range,
-            Fraction,
-            Fraction { num: 30, denom: 1 },
-            Fraction { num: 0, denom: 1 },
-            Fraction {
-                num: 1000,
-                denom: 1
-            }
-        ),
-    );
-    let bytes = spa::pod::serialize::PodSerializer::serialize(
-        std::io::Cursor::new(Vec::new()),
-        &spa::pod::Value::Object(object),
-    )
-    .map_err(|error| failed(format!("could not describe the capture format: {error}")))?
-    .0
-    .into_inner();
-    spa::pod::Pod::from_bytes(Box::leak(bytes.into_boxed_slice()))
-        .ok_or_else(|| failed("the capture format is not a PipeWire pod"))
-}
-
 #[cfg(test)]
 mod tests {
-    use pipewire::spa::param::video::VideoFormat;
+    use libspa::param::video::VideoFormat;
     use std::collections::HashMap;
     use zbus::zvariant::{OwnedObjectPath, Value};
 
     use super::{Frame, Frames};
 
-    async fn virtual_monitor() -> (std::os::fd::OwnedFd, u32) {
+    async fn virtual_monitor() -> (zbus::Connection, std::os::fd::OwnedFd, u32) {
         use futures_util::StreamExt as _;
 
         let connection = zbus::Connection::session()
@@ -321,7 +209,7 @@ mod tests {
             std::path::Path::new(&runtime).join("pipewire-0"),
         )
         .expect("the PipeWire daemon is not running");
-        (socket.into(), node)
+        (connection, socket.into(), node)
     }
 
     #[test]
@@ -331,7 +219,7 @@ mod tests {
             .enable_all()
             .build()
             .expect("runtime");
-        let (fd, node) = runtime.block_on(virtual_monitor());
+        let (_connection, fd, node) = runtime.block_on(virtual_monitor());
         let frames = Frames::start(fd, node).expect("frame reader");
         let frame = frames
             .wait(std::time::Duration::from_secs(10))
