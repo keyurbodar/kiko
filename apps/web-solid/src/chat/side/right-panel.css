@@ -14,6 +14,10 @@
     background: var(--fill);
     color: var(--text-000);
   }
+
+  .rp-tab-close:hover {
+    background: var(--fill-hover);
+  }
 }
 
 .rp-tab[aria-selected="true"] {
@@ -21,25 +25,32 @@
   color: var(--text-000);
 }
 
-.rp-tab-close {
-  opacity: 0;
+.rp-tab:focus-visible {
+  outline-offset: -1.5px;
 }
 
-.rp-tab[aria-selected="true"] .rp-tab-close,
-.rp-tab:focus-visible .rp-tab-close {
-  opacity: 1;
+.rp-tab-x {
+  display: none;
+  width: 12px;
+  height: 12px;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .rp-tab:hover .rp-tab-close {
-    opacity: 1;
-  }
+.rp-tab:hover .rp-tab-icon,
+.rp-tab-close:focus-visible .rp-tab-icon {
+  display: none;
 }
 
-@media not ((hover: hover) and (pointer: fine)) {
-  .rp-tab-close {
-    opacity: 1;
-  }
+.rp-tab:hover .rp-tab-x,
+.rp-tab-close:focus-visible .rp-tab-x {
+  display: block;
+}
+
+.rp-launch {
+  transition: background-color var(--dur-hover) var(--ease-kiko);
+}
+
+.rp-launch[data-highlighted] {
+  background: var(--fill);
 }
 
 .rp-tabs[data-fade~="start"] {
@@ -81,6 +92,17 @@
 
 .rp-control:active {
   scale: 0.97;
+}
+
+.rp-control:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.rp-control-xs {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
 }
 
 .rp-host {

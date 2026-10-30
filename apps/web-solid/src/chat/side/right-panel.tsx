@@ -1,8 +1,8 @@
-import { CollapseIcon, CloseIcon, MaximizeIcon, PlusIcon } from "@kiko/ui/icons"
+import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, MaximizeIcon, MinimizeIcon, PlusIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { createEffect, createMemo, createSignal, For, on, onCleanup, Show, Suspense } from "solid-js"
+import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, Suspense } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { room } from "../../state/room"
@@ -30,13 +30,21 @@ const scrolls = new Map<string, number>()
 const KEY_HINT =
   "grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-[5px] bg-fill px-1 text-[11px] font-medium text-[var(--text-300)]"
 
+const SHORTCUT_BLOCKING_LAYERS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]'
+
+const TAB_SCROLL_EDGE_TOLERANCE = 1
+
+const typingTarget = (target: EventTarget | null) =>
+  target instanceof Element &&
+  target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])') !== null
+
 function TabIcon(props: { surface: Surface }) {
   return (
     <Show
       when={props.surface.kind === "file"}
-      fallback={<RemixIcon icon={panelOf(props.surface.kind).icon} size={16} class="shrink-0" />}
+      fallback={<RemixIcon icon={panelOf(props.surface.kind).icon} size={12} />}
     >
-      <span class="flex size-4 shrink-0 items-center justify-center text-micro">
+      <span class="flex text-[10px]">
         <EntryIcon path={(props.surface as Extract<Surface, { kind: "file" }>).path} />
       </span>
     </Show>
@@ -59,14 +67,17 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
         as="div"
         ref={el}
         role="tab"
+        aria-label={label()}
         aria-selected={props.active}
         tabIndex={props.active ? 0 : -1}
         draggable
-        class="rp-tab group/tab relative flex h-7 max-w-44 min-w-0 shrink-0 cursor-pointer items-center gap-1.5 rounded-[8px] px-2.5 text-[13px] font-medium"
+        class="rp-tab flex h-6 max-w-36 shrink-0 cursor-pointer items-center gap-0.5 rounded-[6px] pr-2 pl-1.5 text-xs"
         title={label()}
         data-component="right-panel-tab"
         data-surface={props.surface.id}
         onClick={() => activateSurface(props.chatId, props.surface.id)}
+        onMouseDown={(event: MouseEvent) => event.button === 1 && event.preventDefault()}
+        onMouseUp={(event: MouseEvent) => event.button === 1 && event.preventDefault()}
         onAuxClick={(event: MouseEvent) => {
           if (event.button !== 1) return
           event.preventDefault()
@@ -91,21 +102,23 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
           activateSurface(props.chatId, props.surface.id)
         }}
       >
-        <TabIcon surface={props.surface} />
-        <span class="min-w-0 truncate">{label()}</span>
         <button
           type="button"
           tabIndex={-1}
           aria-label={`Close ${label()}`}
-          class="rp-tab-close grid size-4 shrink-0 place-items-center rounded-[5px] text-[var(--text-300)] hover:bg-[var(--fill)] hover:text-[var(--text-000)]"
+          class="rp-tab-close relative flex size-4 shrink-0 items-center justify-center rounded-[4px]"
           data-action="close-surface"
           onClick={(event) => {
             event.stopPropagation()
             close()
           }}
         >
-          <RemixIcon icon={CloseIcon} size={16} class="size-3.5" />
+          <span class="rp-tab-icon flex size-3 items-center justify-center">
+            <TabIcon surface={props.surface} />
+          </span>
+          <RemixIcon icon={CloseIcon} size={12} class="rp-tab-x" />
         </button>
+        <span class="min-w-0 truncate">{label()}</span>
       </MenuV2.Context.Trigger>
       <MenuV2.Context.Portal>
         <MenuV2.Context.Content
@@ -128,62 +141,6 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
         </MenuV2.Context.Content>
       </MenuV2.Context.Portal>
     </MenuV2.Context>
-  )
-}
-
-function TabStrip(props: { chatId: string }) {
-  const surfaces = () => surfacesOf(props.chatId)
-  const active = () => deskView(props.chatId)?.id ?? null
-  let strip: HTMLDivElement | undefined
-  const [fade, setFade] = createSignal("")
-  const measure = () => {
-    if (!strip) return
-    const max = strip.scrollWidth - strip.clientWidth
-    const at = strip.scrollLeft
-    setFade([at > 0.5 ? "start" : "", at < max - 0.5 ? "end" : ""].filter(Boolean).join(" "))
-  }
-  createEffect(on(surfaces, () => queueMicrotask(measure)))
-  const onKey = (event: KeyboardEvent) => {
-    const list = surfaces()
-    const at = Math.max(
-      0,
-      list.findIndex((surface) => surface.id === active()),
-    )
-    const to = { ArrowRight: (at + 1) % list.length, ArrowLeft: (at - 1 + list.length) % list.length }[event.key]
-    if (to === undefined || list.length === 0) return
-    event.preventDefault()
-    activateSurface(props.chatId, list[to]!.id)
-  }
-  return (
-    <div class="relative min-w-0 flex-1" data-component="right-panel-tabs">
-      <div
-        ref={(el) => {
-          strip = el
-          const observer = new ResizeObserver(measure)
-          observer.observe(el)
-          onCleanup(() => observer.disconnect())
-          queueMicrotask(measure)
-        }}
-        class="rp-tabs flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none]"
-        data-fade={fade()}
-        role="tablist"
-        aria-label="Open panels"
-        onScroll={measure}
-        onKeyDown={onKey}
-      >
-        <For each={surfaces()}>
-          {(surface, index) => (
-            <Tab
-              chatId={props.chatId}
-              surface={surface}
-              index={index()}
-              count={surfaces().length}
-              active={surface.id === active()}
-            />
-          )}
-        </For>
-      </div>
-    </div>
   )
 }
 
@@ -240,12 +197,8 @@ function AddSurface(props: { chatId: string }) {
   }
   return (
     <MenuV2 open={open()} onOpenChange={setOpen} placement="bottom-start" gutter={6}>
-      <MenuV2.Trigger
-        class="grid size-7 shrink-0 place-items-center rounded-[8px] text-[var(--text-300)] transition-colors duration-(--dur-hover) hover:bg-fill hover:text-[var(--text-000)]"
-        aria-label="Open a surface"
-        data-action="add-surface"
-      >
-        <RemixIcon icon={PlusIcon} size={16} />
+      <MenuV2.Trigger class="rp-control rp-control-xs" aria-label="Open a surface" data-action="add-surface">
+        <RemixIcon icon={PlusIcon} size={16} class="size-3.5" />
       </MenuV2.Trigger>
       <MenuV2.Portal>
         <MenuV2.Content class="min-w-52" data-component="right-panel-launcher" onCloseAutoFocus={afterClose}>
@@ -256,21 +209,174 @@ function AddSurface(props: { chatId: string }) {
   )
 }
 
-function EmptyPanel(props: { chatId: string }) {
+function wheelToScroll(strip: HTMLDivElement, event: WheelEvent) {
+  if (event.ctrlKey) return
+  let delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) delta *= 16
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) delta *= strip.clientWidth
+  if (delta === 0) return
+  const before = strip.scrollLeft
+  strip.scrollLeft += delta
+  if (strip.scrollLeft !== before) event.preventDefault()
+}
+
+function ScrollButton(props: { direction: -1 | 1; disabled: boolean; onScroll: () => void }) {
+  const label = props.direction < 0 ? "Scroll tabs left" : "Scroll tabs right"
   return (
-    <div class="flex min-h-0 flex-1 items-center justify-center px-6" data-component="right-panel-empty">
-      <div class="w-[280px] py-6">
-        <h3 class="mb-3 text-center text-[13px] font-medium text-[var(--text-300)]">Open a surface</h3>
+    <TooltipV2 placement="bottom" openDelay={400} value={label}>
+      <button
+        type="button"
+        class="rp-control rp-control-xs"
+        aria-label={label}
+        disabled={props.disabled}
+        onClick={() => props.onScroll()}
+      >
+        <RemixIcon icon={props.direction < 0 ? ChevronLeftIcon : ChevronRightIcon} size={16} />
+      </button>
+    </TooltipV2>
+  )
+}
+
+function TabStrip(props: { chatId: string }) {
+  const surfaces = () => surfacesOf(props.chatId)
+  const active = () => deskView(props.chatId)?.id ?? null
+  let strip: HTMLDivElement | undefined
+  const [scroll, setScroll] = createSignal({ overflow: false, left: false, right: false, fade: "" })
+  const measure = () => {
+    if (!strip) return
+    const max = strip.scrollWidth - strip.clientWidth
+    const at = strip.scrollLeft
+    const overflow = max > TAB_SCROLL_EDGE_TOLERANCE
+    const left = overflow && at > TAB_SCROLL_EDGE_TOLERANCE
+    const right = overflow && at < max - TAB_SCROLL_EDGE_TOLERANCE
+    setScroll({ overflow, left, right, fade: [left ? "start" : "", right ? "end" : ""].filter(Boolean).join(" ") })
+  }
+  const scrollTabs = (direction: -1 | 1) => {
+    if (!strip) return
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    strip.scrollBy({ left: direction * Math.max(120, strip.clientWidth * 0.75), behavior: reduce ? "auto" : "smooth" })
+  }
+  createEffect(on(surfaces, () => queueMicrotask(measure)))
+  const onKey = (event: KeyboardEvent) => {
+    const list = surfaces()
+    const at = Math.max(
+      0,
+      list.findIndex((surface) => surface.id === active()),
+    )
+    const to = { ArrowRight: (at + 1) % list.length, ArrowLeft: (at - 1 + list.length) % list.length }[event.key]
+    if (to === undefined || list.length === 0) return
+    event.preventDefault()
+    activateSurface(props.chatId, list[to]!.id)
+  }
+  return (
+    <>
+      <div
+        ref={(el) => {
+          strip = el
+          const observer = new ResizeObserver(measure)
+          observer.observe(el)
+          const onWheel = (event: WheelEvent) => wheelToScroll(el, event)
+          el.addEventListener("wheel", onWheel, { passive: false })
+          onCleanup(() => {
+            observer.disconnect()
+            el.removeEventListener("wheel", onWheel)
+          })
+          queueMicrotask(measure)
+        }}
+        class="rp-tabs min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]"
+        data-component="right-panel-tabs"
+        data-fade={scroll().fade}
+        onScroll={measure}
+      >
+        <div class="flex h-full w-max min-w-full items-center gap-1">
+          <div class="flex items-center gap-1" role="tablist" aria-label="Open panels" onKeyDown={onKey}>
+            <For each={surfaces()}>
+              {(surface, index) => (
+                <Tab
+                  chatId={props.chatId}
+                  surface={surface}
+                  index={index()}
+                  count={surfaces().length}
+                  active={surface.id === active()}
+                />
+              )}
+            </For>
+          </div>
+          <AddSurface chatId={props.chatId} />
+        </div>
+      </div>
+      <Show when={scroll().overflow}>
+        <div class="flex shrink-0 items-center gap-0.5" role="group" aria-label="Scroll panel tabs">
+          <ScrollButton direction={-1} disabled={!scroll().left} onScroll={() => scrollTabs(-1)} />
+          <ScrollButton direction={1} disabled={!scroll().right} onScroll={() => scrollTabs(1)} />
+        </div>
+      </Show>
+    </>
+  )
+}
+
+function EmptyPanel(props: { chatId: string }) {
+  const entries = () => launcherEntries(roomMembers().length > 1)
+  const [highlight, setHighlight] = createSignal(-1)
+  const at = () => (entries().length === 0 ? -1 : Math.min(highlight(), entries().length - 1))
+  const open = (kind: FixedKind) => openSurface(props.chatId, fixedSurface(kind))
+  onMount(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return
+      const entry = entries().find((item) => item.key.toLowerCase() === event.key.toLowerCase())
+      if (!entry || document.querySelector(SHORTCUT_BLOCKING_LAYERS)) return
+      if (typingTarget(event.composedPath()[0] ?? event.target)) return
+      event.preventDefault()
+      event.stopPropagation()
+      open(entry.kind)
+    }
+    window.addEventListener("keydown", onKey, true)
+    onCleanup(() => window.removeEventListener("keydown", onKey, true))
+  })
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+    const count = entries().length
+    if (count === 0) return
+    if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+      event.preventDefault()
+      setHighlight((at() + 1) % count)
+      return
+    }
+    if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+      event.preventDefault()
+      setHighlight(at() === -1 ? count - 1 : (at() - 1 + count) % count)
+      return
+    }
+    if (event.key !== "Enter" || event.target !== event.currentTarget) return
+    const entry = entries()[at()]
+    if (!entry) return
+    event.preventDefault()
+    open(entry.kind)
+  }
+  return (
+    <div
+      ref={(el) => queueMicrotask(() => !typingTarget(document.activeElement) && el.focus())}
+      tabIndex={0}
+      aria-label="Open a surface"
+      class="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 pb-[60px] outline-none"
+      data-component="right-panel-empty"
+      onKeyDown={onKeyDown}
+    >
+      <div class="w-full max-w-xs py-6">
+        <h3 class="mb-3 text-center text-[13px] font-medium text-[var(--text-000)]">Open a surface</h3>
         <div class="flex flex-col gap-0.5">
-          <For each={launcherEntries(roomMembers().length > 1)}>
-            {(entry) => (
+          <For each={entries()}>
+            {(entry, index) => (
               <button
                 type="button"
-                class="flex h-8 w-full items-center gap-2.5 rounded-[8px] px-2.5 text-left text-[13px] font-medium text-[var(--text-100)] hover:bg-fill"
+                class="rp-launch flex h-8 w-full items-center gap-2.5 rounded-[8px] px-2.5 text-left text-[13px] text-[var(--text-000)]"
+                data-highlighted={at() === index() ? "" : undefined}
                 data-action={`open-${entry.kind}`}
-                onClick={() => openSurface(props.chatId, fixedSurface(entry.kind))}
+                onMouseEnter={() => setHighlight(index())}
+                onMouseLeave={() => setHighlight((current) => (current === index() ? -1 : current))}
+                onClick={() => open(entry.kind)}
               >
-                <RemixIcon icon={panelOf(entry.kind).icon} size={16} class="shrink-0 text-[var(--text-300)]" />
+                <RemixIcon icon={panelOf(entry.kind).icon} size={16} class="shrink-0" />
                 <span class="min-w-0 flex-1 truncate">{entry.label}</span>
                 <span class={KEY_HINT}>{entry.key}</span>
               </button>
@@ -336,7 +442,7 @@ function PanelControls(props: { chatId: string; onClose: () => void; sheet: bool
             data-action="toggle-panel-max"
             onClick={() => setPanelMaximized(!maximized())}
           >
-            <RemixIcon icon={maximized() ? CollapseIcon : MaximizeIcon} size={16} />
+            <RemixIcon icon={maximized() ? MinimizeIcon : MaximizeIcon} size={16} />
           </button>
         </TooltipV2>
       </Show>
@@ -361,7 +467,6 @@ export default function RightPanel(props: { chatId: string; onClose: () => void;
     const surface = view()
     return surface?.kind === "file" ? "file" : (surface?.id ?? null)
   })
-  const surfaces = () => surfacesOf(props.chatId)
   const maximized = () => panelMaximized() && !props.sheet
   createEffect(() => {
     const members = room.roomMembers()
@@ -377,13 +482,7 @@ export default function RightPanel(props: { chatId: string; onClose: () => void;
       aria-label="Chat panels"
     >
       <header class="rp-head flex shrink-0 items-center gap-1 pr-3 pl-2" data-component="right-panel-head">
-        <Show when={surfaces().length > 0}>
-          <TabStrip chatId={props.chatId} />
-        </Show>
-        <Show when={surfaces().length === 0}>
-          <span class="min-w-0 flex-1" />
-        </Show>
-        <AddSurface chatId={props.chatId} />
+        <TabStrip chatId={props.chatId} />
         <PanelControls chatId={props.chatId} onClose={props.onClose} sheet={props.sheet === true} />
       </header>
       <Show when={slot()} keyed fallback={<EmptyPanel chatId={props.chatId} />}>
