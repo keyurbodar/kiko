@@ -278,11 +278,11 @@ fn chrome_web_area_answers_in_the_background() {
 
     press_page_button(&mut driver, &chrome, &look);
     let title = wait_for(SETTLE, || {
-        ax_title(&chrome).filter(|title| title == "after")
+        ax_title(&chrome).filter(|title| title.starts_with("after"))
     });
     assert_eq!(
         title.as_deref(),
-        Some("after"),
+        Some("after - Google Chrome"),
         "the page button did not run its onclick; title is {:?}",
         ax_title(&chrome)
     );
