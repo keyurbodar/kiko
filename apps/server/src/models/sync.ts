@@ -94,32 +94,33 @@ export async function syncCatalog(deps: SyncDeps): Promise<boolean> {
     writeState(sql, kept(response))
     return false
   }
-  const missing = response.status === 404 || response.status === 501
+  if (response.status === 404 || response.status === 501) {
+    writeState(sql, kept())
+    return false
+  }
   if (response.status === 304 && stored) {
     const { error: _, ...rest } = kept()
     writeState(sql, rest)
     return false
   }
-  if (!response.ok && !missing) {
+  if (!response.ok) {
     writeState(sql, kept(`status ${response.status}`))
     return false
   }
-  let overlay: CatalogOverlay = {}
-  let lastModified = 0
-  if (!missing) {
-    try {
-      const modified = Date.parse(response.headers.get("last-modified") ?? "")
-      lastModified = Number.isNaN(modified) ? 0 : modified
-      overlay = computeOverlay(await response.json(), lastModified, getBuiltinModelDataGeneratedAt())
-    } catch {
-      writeState(sql, kept("bad body"))
-      return false
-    }
+  let overlay: CatalogOverlay
+  let lastModified: number
+  try {
+    const modified = Date.parse(response.headers.get("last-modified") ?? "")
+    lastModified = Number.isNaN(modified) ? 0 : modified
+    overlay = computeOverlay(await response.json(), lastModified, getBuiltinModelDataGeneratedAt())
+  } catch {
+    writeState(sql, kept("bad body"))
+    return false
   }
   const revision = await revisionOf(overlay)
   const changed = revision !== (stored?.revision ?? (await revisionOf({})))
   if (changed) writeOverlay(sql, overlay)
-  const etag = missing ? undefined : (response.headers.get("etag") ?? undefined)
+  const etag = response.headers.get("etag") ?? undefined
   writeState(sql, { lastModified, checkedAt: deps.now(), revision, ...(etag ? { etag } : {}) })
   applyOverlay(overlay, revision)
   return changed

@@ -75,10 +75,6 @@ export function customSpec(id: string): CustomSpec | undefined {
   return custom.get(id)?.spec
 }
 
-export function customSpecs(): CustomSpec[] {
-  return [...custom.values()].map((c) => c.spec)
-}
-
 export function applyOverlay(next: CatalogOverlay, nextRevision = ""): void {
   overlay = next
   revision = nextRevision

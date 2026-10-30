@@ -16,6 +16,7 @@ export type CustomSpec = {
 }
 
 const MAX_MODELS = 400
+const FETCH_TIMEOUT_MS = 10_000
 const FALLBACK = { contextWindow: 128_000, maxTokens: 16_384 }
 
 export function customId(name: string): string {
@@ -76,7 +77,10 @@ export async function fetchUpstream(
 ): Promise<FetchOutcome> {
   let response: Response
   try {
-    response = await fetcher(modelsUrl(spec), { headers: headers(spec.api, key) })
+    response = await fetcher(modelsUrl(spec), {
+      headers: headers(spec.api, key),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    })
   } catch {
     return { ok: false, reason: "unreachable" }
   }
