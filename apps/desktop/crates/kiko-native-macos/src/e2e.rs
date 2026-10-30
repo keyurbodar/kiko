@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::ptr::NonNull;
 use std::time::{Duration, Instant};
 
@@ -15,7 +15,22 @@ use crate::{apps, ax, driver::MacDriver, input, window};
 const LAUNCH: Duration = Duration::from_secs(30);
 const SETTLE: Duration = Duration::from_secs(5);
 const POINTER_SLACK: f64 = 1.0;
-const TEXTEDIT: &str = "/System/Applications/TextEdit.app";
+
+struct DocumentApp {
+    name: &'static str,
+    path: &'static str,
+}
+
+const DOCUMENT_APPS: [DocumentApp; 2] = [
+    DocumentApp {
+        name: "TextEdit",
+        path: "/System/Applications/TextEdit.app",
+    },
+    DocumentApp {
+        name: "Script Editor",
+        path: "/System/Applications/Utilities/Script Editor.app",
+    },
+];
 
 #[test]
 #[ignore = "needs a mac with Accessibility and Screen Recording granted to this binary"]
@@ -37,17 +52,16 @@ fn permissions_are_granted() {
 
 #[test]
 #[ignore = "needs a mac with Accessibility and Screen Recording granted to this binary"]
-fn textedit_answers_in_the_background_while_finder_covers_it() {
+fn document_app_answers_in_the_background_while_finder_covers_it() {
     let mut driver = MacDriver::new().expect("driver");
-    let document = write_document("hello from kiko\n");
-    let textedit = start_textedit(&mut driver, &document);
+    let document = start_document_app(&mut driver);
     let frame = Rect {
         x: 160.0,
         y: 160.0,
         w: 520.0,
         h: 360.0,
     };
-    set_window_frame(&textedit, frame);
+    set_window_frame(&document, frame);
     let finder = cover_with_finder(&mut driver, frame);
     let owner = Owner::capture();
 
@@ -55,26 +69,27 @@ fn textedit_answers_in_the_background_while_finder_covers_it() {
         .windows()
         .expect("windows")
         .into_iter()
-        .find(|window| window.id == textedit.id)
-        .expect("TextEdit is listed");
-    assert!(!listed.focused, "TextEdit must not own the screen");
+        .find(|window| window.id == document.id)
+        .expect("the document window is listed");
+    assert!(!listed.focused, "the document must not own the screen");
     assert!(listed.on_screen);
 
     let look = driver
         .look(&LookParams {
-            window: textedit.id.clone(),
+            window: document.id.clone(),
             tree: true,
             image: true,
             max_width: Some(800),
         })
-        .expect("look at TextEdit");
-    let image = look.image.as_ref().expect("TextEdit pixels");
-    save_artifact("textedit", image);
+        .expect("look at the document");
+    let image = look.image.as_ref().expect("the document's pixels");
+    save_artifact("document", image);
     assert!(image.width > 0 && image.height > 0);
+    let captured = image.width as f64 / image.height as f64;
+    let window = frame.w / frame.h;
     assert!(
-        (image.covers.w - frame.w).abs() < 2.0,
-        "the image maps to {:?}",
-        image.covers
+        (captured - window).abs() < 0.02,
+        "the image is {captured} wide per unit tall but the window is {window}"
     );
     assert!(
         look.outline.contains("textarea"),
@@ -93,7 +108,7 @@ fn textedit_answers_in_the_background_while_finder_covers_it() {
     assert_ne!(
         covered.image.expect("Finder pixels").data,
         image.data,
-        "the capture shows the covering window instead of TextEdit"
+        "the capture shows the covering window instead of the document"
     );
 
     let area = look
@@ -104,7 +119,7 @@ fn textedit_answers_in_the_background_while_finder_covers_it() {
         .clone();
     driver
         .act(&ActParams {
-            window: textedit.id.clone(),
+            window: document.id.clone(),
             reference: Some(area.reference),
             point: None,
             action: Action::SetValue,
@@ -118,7 +133,7 @@ fn textedit_answers_in_the_background_while_finder_covers_it() {
 
     let after = driver
         .look(&LookParams {
-            window: textedit.id.clone(),
+            window: document.id.clone(),
             tree: true,
             image: false,
             max_width: None,
@@ -147,7 +162,7 @@ fn textedit_answers_in_the_background_while_finder_covers_it() {
         .clone();
     driver
         .act(&ActParams {
-            window: textedit.id.clone(),
+            window: document.id.clone(),
             reference: Some(minimize.reference),
             point: None,
             action: Action::Press,
@@ -160,8 +175,8 @@ fn textedit_answers_in_the_background_while_finder_covers_it() {
         .expect("press the minimize button");
 
     let minimized = wait_for(SETTLE, || {
-        let id = textedit.id.parse().ok()?;
-        window::ax_windows(textedit.pid as i32)
+        let id = document.id.parse().ok()?;
+        window::ax_windows(document.pid as i32)
             .into_iter()
             .find(|window| window.id == Some(id))
             .map(|window| window.minimized)
@@ -292,42 +307,38 @@ fn window_titled(driver: &mut MacDriver, app: &str, title: &str) -> Option<Windo
         .find(|window| window.app == app && window.title == title)
 }
 
-fn start_textedit(driver: &mut MacDriver, document: &Path) -> Window {
-    let attempts: [fn(&Path) -> String; 5] = [
-        |document| run_open(Some(document), &["-g", "-a", TEXTEDIT]),
-        |document| run_open(Some(document), &["-a", TEXTEDIT]),
-        |document| run_open(Some(document), &["-g", "-b", "com.apple.TextEdit"]),
-        |_document| run_open(None, &["-g", "-a", TEXTEDIT]),
-        spawn_textedit,
-    ];
+fn start_document_app(driver: &mut MacDriver) -> Window {
     let mut notes = Vec::new();
-    for attempt in attempts {
-        notes.push(attempt(document));
-        if let Some(window) = wait_for(LAUNCH, || window_named(driver, "TextEdit")) {
-            return window;
+    for app in &DOCUMENT_APPS {
+        for background in [true, false] {
+            notes.push(run_open(app, background));
+            if let Some(window) = wait_for(LAUNCH, || window_named(driver, app.name)) {
+                println!("the document app is {}; {notes:?}", app.name);
+                return window;
+            }
         }
     }
     panic!(
-        "no TextEdit window; {notes:?}; app present: {}; running: {:?}; windows: {:?}",
-        Path::new(TEXTEDIT).exists(),
+        "no document window; {notes:?}; running: {:?}; windows: {:?}",
         running_apps(),
         window_summary(driver)
     )
 }
 
-fn run_open(document: Option<&Path>, arguments: &[&str]) -> String {
+fn run_open(app: &DocumentApp, background: bool) -> String {
     let mut command = std::process::Command::new("open");
-    command.args(arguments);
-    if let Some(document) = document {
-        command.arg(document);
+    if background {
+        command.arg("-g");
     }
+    command.args(["-a", app.path]);
     match command.output() {
         Ok(output) => format!(
-            "open {arguments:?} {:?} {}",
+            "open {} background={background} {:?} {}",
+            app.name,
             output.status.code(),
             String::from_utf8_lossy(&output.stderr).trim()
         ),
-        Err(error) => format!("open {arguments:?} failed: {error}"),
+        Err(error) => format!("open {} background={background} failed: {error}", app.name),
     }
 }
 
@@ -343,16 +354,6 @@ fn running_apps() -> Vec<String> {
             )
         })
         .collect()
-}
-
-fn spawn_textedit(document: &Path) -> String {
-    match std::process::Command::new(format!("{TEXTEDIT}/Contents/MacOS/TextEdit"))
-        .arg(document)
-        .spawn()
-    {
-        Ok(child) => format!("spawned TextEdit as {}", child.id()),
-        Err(error) => format!("spawn failed: {error}"),
-    }
 }
 
 fn set_window_frame(window: &Window, frame: Rect) {
@@ -421,12 +422,6 @@ impl Owner {
             now
         );
     }
-}
-
-fn write_document(text: &str) -> PathBuf {
-    let path = std::env::temp_dir().join(format!("kiko-e2e-{}.txt", std::process::id()));
-    fs::write(&path, text).expect("write the document");
-    path
 }
 
 fn write_page(title: &str) -> PathBuf {
