@@ -105,9 +105,11 @@ pub fn walk(window: &AXUIElement, origin: Rect) -> Walk {
 }
 
 fn describe(element: &AXUIElement, origin: Rect) -> (Option<Node>, Vec<Element>) {
+    ax::timeout(element, ax::MESSAGING_TIMEOUT);
     let values = ax::attributes(element, &ATTRIBUTES);
+    let children = ax::elements(&values[11]);
     let Some(role) = ax::text(&values[0]) else {
-        return (None, Vec::new());
+        return (None, children);
     };
     let role = role.trim_start_matches("AX").to_lowercase();
     let name = first_name(&values[1], &values[2], &values[3]);
@@ -115,7 +117,6 @@ fn describe(element: &AXUIElement, origin: Rect) -> (Option<Node>, Vec<Element>)
     let frame = frame(&values, origin);
     let states = states(&values);
     let actions = actions_for(&role, element);
-    let children = ax::elements(&values[11]);
     let node = Node {
         reference: 0,
         role,
@@ -262,22 +263,23 @@ unsafe fn retain(element: &AXUIElement) -> Element {
 
 pub fn enable(pid: i32, bundle: Option<&str>) -> Element {
     let application = ax::application(pid);
-    let enhanced =
-        bundle.is_some_and(|bundle| CHROMIUM.contains(&bundle) || WEBKIT.contains(&bundle));
-    assert_accessibility(&application, enhanced);
+    if !assert_accessibility(&application, bundle) {
+        return application;
+    }
     if !web_content_present(&application) {
         std::thread::sleep(Duration::from_millis(100));
-        assert_accessibility(&application, enhanced);
+        assert_accessibility(&application, bundle);
     }
     application
 }
 
-fn assert_accessibility(application: &AXUIElement, enhanced: bool) {
-    if enhanced
-        || ax::set_flag(application, MANUAL, true) != objc2_application_services::AXError::Success
-    {
+fn assert_accessibility(application: &AXUIElement, bundle: Option<&str>) -> bool {
+    let web = bundle.is_some_and(|bundle| CHROMIUM.contains(&bundle) || WEBKIT.contains(&bundle));
+    if web {
         ax::set_flag(application, ENHANCED, true);
+        return true;
     }
+    ax::set_flag(application, MANUAL, true) == objc2_application_services::AXError::Success
 }
 
 fn web_content_present(application: &AXUIElement) -> bool {
@@ -288,12 +290,13 @@ fn web_content_present(application: &AXUIElement) -> bool {
             continue;
         }
         for child in ax::children(&element) {
-            budget -= 1;
+            budget = budget.saturating_sub(1);
             if budget == 0 {
                 return false;
             }
-            let role = ax::text(&ax::attribute(&child, ax::ROLE)).unwrap_or_default();
-            if role == WEB_AREA && !ax::children(&child).is_empty() {
+            let values = ax::attributes(&child, &[ax::ROLE, ax::CHILDREN]);
+            let role = ax::text(&values[0]).unwrap_or_default();
+            if role == WEB_AREA && !ax::elements(&values[1]).is_empty() {
                 return true;
             }
             stack.push((child, depth + 1));
