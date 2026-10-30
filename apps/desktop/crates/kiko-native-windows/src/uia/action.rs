@@ -219,6 +219,11 @@ const WRITE_VERIFY_ATTEMPTS: usize = 5;
 const WRITE_VERIFY_PAUSE: Duration = Duration::from_millis(40);
 
 fn splice_at_selection(element: &IUIAutomationElement, text: &str) -> Result<Outcome> {
+    if !focused(element) {
+        return Err(unavailable(
+            "this control does not hold keyboard focus, and writing to it in the background would move the owner's focus; retry with mode foreground",
+        ));
+    }
     let value = writable_value(element).ok_or_else(no_value)?;
     let document = document_range(element).ok_or_else(no_text_pattern)?;
     let current = unsafe { value.CurrentValue() }
@@ -237,6 +242,12 @@ fn splice_at_selection(element: &IUIAutomationElement, text: &str) -> Result<Out
     };
     verify_value(&value, &spliced)?;
     route(Route::Accessibility)
+}
+
+fn focused(element: &IUIAutomationElement) -> bool {
+    unsafe { element.CurrentHasKeyboardFocus() }
+        .map(|value| value.as_bool())
+        .unwrap_or(false)
 }
 
 fn verify_value(value: &IUIAutomationValuePattern, expected: &str) -> Result<()> {

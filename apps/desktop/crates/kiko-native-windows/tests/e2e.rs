@@ -506,7 +506,7 @@ const EDGE_PAGE: &str = r#"<!doctype html><html><head><title>kiko-page</title></
 <body style="background:#2a7f3f;font:20px sans-serif">
 <h1>kiko edge fixture</h1>
 <button onclick="document.title='fired-'+(window.__n=(window.__n||0)+1)">Fire</button>
-<textarea aria-label="kiko note"></textarea>
+<textarea aria-label="kiko note" autofocus></textarea>
 </body></html>"#;
 
 struct Browser {
@@ -616,7 +616,12 @@ fn background_typing_splices_at_the_caret_in_a_page_field() {
 
     let field = wait_for("the page textarea", || {
         let found = try_look(&mut driver, &window.id).ok()?;
-        find_optional(&found.nodes, "edit", Some("kiko note")).cloned()
+        let field = find_optional(&found.nodes, "edit", Some("kiko note"))?;
+        field
+            .states
+            .iter()
+            .any(|state| state == "focused")
+            .then(|| field.clone())
     });
     eprintln!("page field before: {:?} {:?}", field.value, field.states);
     let mut first = background(&window.id, Some(field.reference), Action::Type);
@@ -657,6 +662,13 @@ fn background_typing_splices_at_the_caret_in_a_page_field() {
     assert!(
         value == "alpha" || value == "alphabeta" || value == "betaalpha",
         "background typing inserted at the caret or refused, never replaced the field: {value:?}"
+    );
+    let after = look(&mut driver, &window.id);
+    let field = find(&after.nodes, "edit", Some("kiko note"));
+    assert!(
+        field.states.iter().any(|state| state == "focused"),
+        "the owner's focus stayed in the page field: {:?}",
+        field.states
     );
     checkpoint("edge type", foreground_before);
     assert_untouched(foreground_before, cursor_before);
