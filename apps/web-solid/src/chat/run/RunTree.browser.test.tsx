@@ -90,10 +90,10 @@ const items = (host: HTMLElement) => [...host.querySelectorAll<HTMLElement>(".ru
 const elbowOf = (item: HTMLElement) => getComputedStyle(item, "::after")
 const railOf = (item: HTMLElement) => getComputedStyle(item, "::before")
 
-function tokenColor(token: string): string {
+function tokenColor(token: string, host: HTMLElement = document.body): string {
   const probe = document.createElement("div")
   probe.style.color = `var(${token})`
-  document.body.append(probe)
+  host.append(probe)
   const value = getComputedStyle(probe).color
   probe.remove()
   return value
@@ -302,7 +302,7 @@ describe("RunTree", () => {
     )
   })
 
-  it("hangs every step off a 30px row with a 13 by 15 elbow and a 1.5px rail", async () => {
+  it("hangs every step off a 30px row on a 1.5px rail drawn in one opaque color", async () => {
     fake.live = false
     fake.steps = [
       step("a", { after: 30, startedAt: START, endedAt: START + 2_000 }),
@@ -315,20 +315,42 @@ describe("RunTree", () => {
     expect(getComputedStyle(row).height).toBe("30px")
     expect(getComputedStyle(row).gap).toBe("9px")
 
-    const rail = tokenColor("--border-300")
+    const rail = railOf(first!).borderLeftColor
     const elbow = elbowOf(first!)
-    expect(elbow.left).toBe("-20px")
-    expect(elbow.width).toBe("13px")
-    expect(elbow.height).toBe("15px")
-    expect(elbow.borderBottomLeftRadius).toBe("9px")
     expect(elbow.borderLeftColor).toBe(rail)
-    expect(railOf(first!).borderLeftColor).toBe(rail)
+    expect(elbow.borderBottomColor).toBe(rail)
+    expect(elbow.borderLeftWidth).toBe(railOf(first!).borderLeftWidth)
+    expect(elbow.borderBottomWidth).toBe(railOf(first!).borderLeftWidth)
     expect(railOf(last!).display).toBe("none")
-    expect(authored(".run-tree-item::before", "border-left")).toBe("1.5px solid var(--run-rail)")
-    expect(authored(".run-tree-item::after", "border-bottom")).toBe("1.5px solid var(--run-rail)")
+    expect(rail).not.toMatch(/\/\s*0?\.\d|rgba|transparent/)
+    expect(authored(".run-tree-item::before", "border-left")).toBe("var(--run-stroke) solid var(--run-rail)")
+    expect(authored(".run-tree-item::after", "border-bottom")).toBe("var(--run-stroke) solid var(--run-rail)")
   })
 
-  it("indents each level by 27px and hangs a helper's steps off its own rail", async () => {
+  it("centers each elbow on its row and puts open output in the label column", async () => {
+    fake.live = false
+    fake.steps = [step("a", { after: 34, startedAt: START, endedAt: START + 2_000 })]
+    await using screen = await render(() => <RunTree windowKey="kiko#34" count={1} endedAt={START + 6_000} />)
+    const [item] = await openTree(screen.container, 1)
+    const row = item!.querySelector<HTMLElement>(".run-tree-row")!
+    const elbow = elbowOf(item!)
+    const stroke = Number.parseFloat(elbow.borderBottomWidth)
+    const strokeMid = item!.getBoundingClientRect().top + Number.parseFloat(elbow.height) - stroke / 2
+    const rowBox = row.getBoundingClientRect()
+    expect(strokeMid).toBeCloseTo(rowBox.top + rowBox.height / 2, 0)
+
+    row.click()
+    const detail = await vi.waitFor(() => {
+      const found = item!.querySelector<HTMLElement>(".run-tree-detail")
+      expect(found).not.toBeNull()
+      return found!
+    })
+    const label = row.querySelector(".run-tree-label")!.getBoundingClientRect().left
+    const text = detail.getBoundingClientRect().left + Number.parseFloat(getComputedStyle(detail).paddingLeft)
+    expect(text).toBeCloseTo(label, 2)
+  })
+
+  it("hangs a helper's steps from its icon, with their icons in its label column", async () => {
     const worker = { id: "w1", task: "Trains helper" }
     fake.live = false
     fake.steps = [
@@ -338,24 +360,30 @@ describe("RunTree", () => {
     await using screen = await render(() => <RunTree windowKey="kiko#31" count={2} />)
     await openTree(screen.container, 1)
 
-    const list = screen.container.querySelector<HTMLElement>(".run-tree-list")!
-    expect(getComputedStyle(list).marginLeft).toBe("7px")
-    expect(getComputedStyle(list).paddingLeft).toBe("20px")
-
-    rows(screen.container)
-      .find((row) => row.dataset.kind === "worker")!
-      .click()
-    const helperStep = await vi.waitFor(() => {
+    const helper = rows(screen.container).find((row) => row.dataset.kind === "worker")!
+    helper.click()
+    const [firstStep, helperStep] = await vi.waitFor(() => {
       const found = [...screen.container.querySelectorAll<HTMLElement>(".run-tree-children > .run-tree-item")]
       expect(found).toHaveLength(2)
-      return found[1]!
+      return found
     })
 
-    const children = screen.container.querySelector<HTMLElement>(".run-tree-children")!
-    expect(getComputedStyle(children).marginLeft).toBe("7px")
-    expect(getComputedStyle(children).paddingLeft).toBe("20px")
-    expect(elbowOf(helperStep).left).toBe("-20px")
-    expect(railOf(helperStep).display).toBe("none")
+    const slot = helper.querySelector(".run-tree-slot")!.getBoundingClientRect()
+    const glyph = helper.querySelector(".run-tree-leaves > i")!.getBoundingClientRect()
+    const label = helper.querySelector(".run-tree-label")!.getBoundingClientRect()
+    const childIcon = firstStep!.querySelector(".run-tree-slot")!.getBoundingClientRect()
+    expect(childIcon.left).toBeCloseTo(label.left, 2)
+    expect(childIcon.width).toBe(slot.width)
+
+    const elbow = elbowOf(firstStep!)
+    const railMid =
+      firstStep!.getBoundingClientRect().left +
+      Number.parseFloat(elbow.left) +
+      Number.parseFloat(elbow.borderLeftWidth) / 2
+    expect(railMid).toBeCloseTo(slot.left + slot.width / 2, 0)
+    expect(glyph.width).toBeLessThan(slot.width)
+    expect(glyph.left + glyph.width / 2).toBeCloseTo(slot.left + slot.width / 2, 2)
+    expect(railOf(helperStep!).display).toBe("none")
   })
 
   it("turns the branch white from the top down to the running step", async () => {
@@ -373,16 +401,18 @@ describe("RunTree", () => {
     })
 
     const white = tokenColor("--text-100")
-    const rail = tokenColor("--border-300")
+    const rail = tokenColor("--run-rail", screen.container.querySelector<HTMLElement>(".run-tree")!)
 
     expect(found[0]!.hasAttribute("data-live")).toBe(true)
     expect(found[0]!.hasAttribute("data-hot")).toBe(false)
     expect(railOf(found[0]!).borderLeftColor).toBe(white)
-    expect(elbowOf(found[0]!).borderLeftColor).toBe(rail)
+    expect(elbowOf(found[0]!).borderLeftColor).toBe(white)
+    expect(elbowOf(found[0]!).borderBottomColor).toBe(rail)
 
     expect(found[2]!.hasAttribute("data-hot")).toBe(true)
     expect(railOf(found[2]!).borderLeftColor).toBe(white)
     expect(elbowOf(found[2]!).borderLeftColor).toBe(white)
+    expect(elbowOf(found[2]!).borderBottomColor).toBe(white)
   })
 
   it("settles a tree that mounts right after its run with no second enter animation", async () => {
