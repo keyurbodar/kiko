@@ -69,24 +69,27 @@ jobs:
           test -n "$CLIENT"
           database="/Library/Application Support/com.apple.TCC/TCC.db"
           now=$(date +%s)
-          for client in "${CLIENT}" /usr/bin/osascript; do
-            for service in kTCCServiceAccessibility kTCCServiceScreenCapture; do
-              sudo sqlite3 "$database" \
-                "INSERT OR REPLACE INTO access(service,client,client_type,auth_value,auth_reason,auth_version,csreq,policy_id,indirect_object_identifier_type,indirect_object_identifier,indirect_object_code_identity,flags,last_modified) \
-                 VALUES('${service}','${client}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,${now});"
-            done
+          for service in kTCCServiceAccessibility kTCCServiceScreenCapture; do
+            sudo sqlite3 "$database" \
+              "INSERT OR REPLACE INTO access(service,client,client_type,auth_value,auth_reason,auth_version,csreq,policy_id,indirect_object_identifier_type,indirect_object_identifier,indirect_object_code_identity,flags,last_modified) \
+               VALUES('${service}','${CLIENT}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,${now});"
           done
           sudo killall tccd 2>/dev/null || true
           sleep 2
           pgrep -lx tccd || sudo launchctl kickstart -k system/com.apple.tccd || true
           sudo sqlite3 "$database" "SELECT service, client, auth_value FROM access WHERE client LIKE '%kiko_native_macos%';"
 
-      - name: Make sure Chrome is installed
+      - name: Install a fresh Google Chrome
         run: |
           set -euo pipefail
-          if [ ! -d "/Applications/Google Chrome.app" ]; then
-            HOMEBREW_NO_AUTO_UPDATE=1 brew install --cask google-chrome
-          fi
+          sudo rm -rf "/Applications/Google Chrome.app"
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/googlechrome.dmg" \
+            "https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg"
+          hdiutil attach -nobrowse -quiet -mountpoint "$RUNNER_TEMP/chrome" "$RUNNER_TEMP/googlechrome.dmg"
+          cp -R "$RUNNER_TEMP/chrome/Google Chrome.app" /Applications/
+          hdiutil detach -quiet "$RUNNER_TEMP/chrome"
+          sudo xattr -dr com.apple.quarantine "/Applications/Google Chrome.app" || true
           ls -d "/Applications/Google Chrome.app"
 
       - name: Install Electron for the web-content e2e
@@ -123,25 +126,6 @@ jobs:
           sleep 2
           ps aux | grep -i "[T]extEdit" || echo "no TextEdit process"
           ps aux | grep -i "[S]afari" || echo "no Safari process"
-
-      - name: Probe Chrome on its own
-        run: |
-          set +e
-          printf '<title>probe</title><button>Push kiko</button>' > "$RUNNER_TEMP/probe.html"
-          windows() {
-            osascript -e 'tell application "System Events" to get name of every window of process "Google Chrome"' 2>&1
-          }
-          started=$(date +%s)
-          open -a "/Applications/Google Chrome.app"
-          echo "plain open exit=$? after $(( $(date +%s) - started ))s"
-          sleep 10
-          pgrep -lf "MacOS/Google Chrome$" || echo "no Chrome process"
-          echo "windows: $(windows)"
-          started=$(date +%s)
-          open -a "/Applications/Google Chrome.app" "$RUNNER_TEMP/probe.html"
-          echo "document open exit=$? after $(( $(date +%s) - started ))s"
-          sleep 5
-          echo "windows: $(windows)"
 
       - name: End to end
         timeout-minutes: 12
