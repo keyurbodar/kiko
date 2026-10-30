@@ -11,7 +11,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .rp-tab:hover {
-    background: var(--fill);
+    background: var(--fill-hover);
     color: var(--text-000);
   }
 
@@ -75,7 +75,7 @@
   height: 28px;
   flex-shrink: 0;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: var(--text-300);
   transition:
     background-color var(--dur-hover) var(--ease-kiko),
@@ -102,7 +102,6 @@
 .rp-control-xs {
   width: 24px;
   height: 24px;
-  border-radius: 6px;
 }
 
 .rp-host {
@@ -175,6 +174,6 @@
 }
 
 .rp-head {
-  height: calc(60px + env(safe-area-inset-top, 0px));
+  height: calc(52px + env(safe-area-inset-top, 0px));
   padding-top: env(safe-area-inset-top, 0px);
 }

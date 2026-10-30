@@ -198,7 +198,7 @@ function AddSurface(props: { chatId: string }) {
   return (
     <MenuV2 open={open()} onOpenChange={setOpen} placement="bottom-start" gutter={6}>
       <MenuV2.Trigger class="rp-control rp-control-xs" aria-label="Open a surface" data-action="add-surface">
-        <RemixIcon icon={PlusIcon} size={16} class="size-3.5" />
+        <RemixIcon icon={PlusIcon} class="size-3.5" />
       </MenuV2.Trigger>
       <MenuV2.Portal>
         <MenuV2.Content class="min-w-52" data-component="right-panel-launcher" onCloseAutoFocus={afterClose}>
@@ -231,7 +231,7 @@ function ScrollButton(props: { direction: -1 | 1; disabled: boolean; onScroll: (
         disabled={props.disabled}
         onClick={() => props.onScroll()}
       >
-        <RemixIcon icon={props.direction < 0 ? ChevronLeftIcon : ChevronRightIcon} size={16} />
+        <RemixIcon icon={props.direction < 0 ? ChevronLeftIcon : ChevronRightIcon} class="size-3.5" />
       </button>
     </TooltipV2>
   )
@@ -479,6 +479,7 @@ export default function RightPanel(props: { chatId: string; onClose: () => void;
       class="rp-panel flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden"
       data-component="right-panel"
       data-maximized={maximized() ? "" : undefined}
+      data-panel-mode={props.sheet ? "sheet" : "inline"}
       aria-label="Chat panels"
     >
       <header class="rp-head flex shrink-0 items-center gap-1 pr-3 pl-2" data-component="right-panel-head">
