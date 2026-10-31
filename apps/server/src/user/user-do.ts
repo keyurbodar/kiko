@@ -1,5 +1,6 @@
 import { diffRows, type RowChange, rowLists } from "./rows"
 import type { Provider } from "@earendil-works/pi-ai"
+import type { DesktopInfo } from "@kiko/computer/driver"
 import { isAgentSlug } from "@kiko/protocol"
 import {
   type CustomApi,
@@ -1296,7 +1297,7 @@ export class User {
     return this.#pc.list()
   }
 
-  computerDesktop(pcId?: string): import("@kiko/computer/driver").DesktopInfo | null {
+  computerDesktop(pcId?: string): DesktopInfo | null {
     return this.#pc.desktop(pcId)
   }
 
