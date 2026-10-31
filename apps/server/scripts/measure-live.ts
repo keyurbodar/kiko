@@ -318,7 +318,13 @@ async function main(): Promise<void> {
         })
         const skip = page.locator('[data-action="skip-first-run"]')
         if ((await skip.count()) > 0) await skip.click()
+        const done = page.locator('[data-action="open-kiko"]')
+        await done.waitFor({ state: "visible", timeout: 30_000 }).catch(() => {})
+        if ((await done.count()) > 0) await done.click()
         await page.waitForSelector('[data-action="computer-watch"]', { timeout: 60_000 })
+        await page
+          .waitForSelector('[data-component="first-run"]', { state: "detached", timeout: 30_000 })
+          .catch(() => {})
       } catch (error) {
         if (shots) {
           await page.screenshot({ path: join(shots, "failure.png") }).catch(() => {})
