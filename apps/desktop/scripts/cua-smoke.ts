@@ -113,7 +113,8 @@ async function connectDriver(path: string): Promise<Driver> {
     try {
       return await Driver.connect(path)
     } catch (error) {
-      if (Date.now() >= deadline) throw new Error(`the kiko driver socket ${path} never opened: ${String(error)}`)
+      if (Date.now() >= deadline)
+        throw new Error(`the kiko driver socket ${path} never opened: ${String(error)}`, { cause: error })
     }
     await Bun.sleep(POLL_MS)
   }
@@ -246,8 +247,7 @@ async function linuxFocus(title: string): Promise<void> {
   const id = found
     .split("\n")
     .map((line) => line.trim())
-    .filter(Boolean)
-    .at(-1)
+    .findLast(Boolean)
   if (id) await command(["xdotool", "windowactivate", "--sync", id])
 }
 

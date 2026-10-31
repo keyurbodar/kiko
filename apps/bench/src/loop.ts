@@ -164,7 +164,13 @@ const allZero = (background: Background): boolean =>
   background.keysSwallowed === 0 &&
   background.windowsRaised === 0
 
-const perceptionTools = new Set(["computer_look", "computer_see", "computer_windows", "browser_look", "browser_read"])
+const perceptionTools = new Set([
+  "desktop_list_windows",
+  "desktop_get_window_state",
+  "desktop_zoom",
+  "browser_look",
+  "browser_read",
+])
 
 export function classifyFailure(result: LoopResult, verdict: Verdict, background: Background): string {
   if (!allZero(background)) return "background"

@@ -17,7 +17,7 @@ const unused = (): never => {
 }
 
 const browser = { connection: unused, lease: unused, acceptsImages: () => false }
-const computers = { port: unused, acceptsImages: () => false }
+const computers = { port: unused, acceptsImages: () => false, desktop: [] }
 
 describe("buildAgent", () => {
   it("runs a round with a writing tool one call at a time and leaves reads parallel", () => {

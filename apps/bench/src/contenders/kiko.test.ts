@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process"
 import { join } from "node:path"
-import type { DriverCall, Look, Window } from "@kiko/computer/driver"
+import type { DriverCall } from "@kiko/computer/driver"
 import type { Driver } from "@kiko/computer-daemon/src/driver.ts"
 import { afterEach, describe, expect, it } from "vitest"
 import { createMachine, removeMachine } from "../machine"
@@ -19,7 +19,7 @@ const serverToolsPath = join(import.meta.dirname, "../../../server/src/agent/com
 function serverTools(): ToolSpec[] {
   const script = [
     `const { computerExtension } = await import(${JSON.stringify(serverToolsPath)})`,
-    `const extension = computerExtension({ port: () => { throw new Error("no port") }, acceptsImages: () => true })`,
+    `const extension = computerExtension({ port: () => { throw new Error("no port") }, acceptsImages: () => true, desktop: [] })`,
     `console.log(JSON.stringify(extension.tools.map(({ name, description, parameters }) => ({ name, description, parameters }))))`,
   ].join("\n")
   return JSON.parse(execFileSync("bun", ["-e", script], { encoding: "utf8" })) as ToolSpec[]
@@ -65,32 +65,32 @@ describe("kiko tool schemas", () => {
     await contender.stop()
   })
 
-  it("uses the kiko driver for background windows when one is connected", async () => {
+  it("lists and calls the desktop tools the driver reports", async () => {
     const machine = await createMachine("test-kiko")
     machines.push(machine)
     const calls: DriverCall[] = []
-    const window: Window = {
-      id: "7",
-      pid: 12,
-      app: "Files",
-      title: "Home",
-      frame: { x: 0, y: 0, w: 800, h: 600 },
-      focused: true,
-      minimized: false,
-      on_screen: true,
-    }
-    const look: Look = {
-      window,
-      image: { mime: "image/png", data: "aGk=", width: 800, height: 600, covers: { x: 0, y: 0, w: 800, h: 600 } },
-      nodes: [],
-      outline: '0 button "Open"',
-    }
+    const tools = [
+      { name: "list_windows", description: "List top-level windows", inputSchema: { type: "object", properties: {} } },
+      {
+        name: "get_window_state",
+        description: "Snapshot a window",
+        inputSchema: { type: "object", properties: { window_id: { type: "integer" } }, required: ["window_id"] },
+      },
+    ]
     const driver: Driver = {
       call: async (call) => {
         calls.push(call)
-        if (call.method === "windows") return [window]
-        if (call.method === "look") return look
-        return { route: "background" }
+        if (call.method === "desktop.tools") return { version: "0.38.0", tools }
+        if (call.method === "desktop.call") {
+          if (call.params.name === "list_windows") return { content: [{ type: "text", text: "0 window [id=7]" }] }
+          return {
+            content: [
+              { type: "text", text: "window 7: Files" },
+              { type: "image", data: "aGk=", mimeType: "image/png" },
+            ],
+          }
+        }
+        return {}
       },
       state: () => null,
       background: () => true,
@@ -103,26 +103,30 @@ describe("kiko tool schemas", () => {
       "computer_shell",
       "computer_read",
       "computer_write",
-      "computer_windows",
-      "computer_see",
-      "computer_use",
+      "desktop_list_windows",
+      "desktop_get_window_state",
     ])
-    const windows = await contender.call("computer_windows", {}, new AbortController().signal)
+    const listed = contender.tools().find((tool) => tool.name === "desktop_get_window_state")
+    expect(listed?.description).toBe("Snapshot a window")
+    expect(listed?.parameters).toMatchObject({
+      required: ["window_id"],
+      properties: { window_id: { type: "integer" }, pc: { type: "string" } },
+    })
+
+    const windows = await contender.call("desktop_list_windows", {}, new AbortController().signal)
     expect(windows.isError).toBe(false)
-    expect(windows.text).toContain("Files — Home")
-    const seen = await contender.call("computer_see", { window: "7" }, new AbortController().signal)
-    expect(seen.images).toHaveLength(1)
-    expect(seen.text).toContain("Open")
-    const used = await contender.call(
-      "computer_use",
-      { window: "7", steps: [{ action: "press", ref: 0 }] },
+    expect(windows.text).toContain("id=7")
+
+    const seen = await contender.call(
+      "desktop_get_window_state",
+      { window_id: 7, pc: "ignored" },
       new AbortController().signal,
     )
-    expect(used.isError).toBe(false)
-    expect(used.text).toContain("did all 1 steps")
-    const act = calls.find((call) => call.method === "act")
-    if (act?.method !== "act") throw new Error("the contender did not call act")
-    expect(act.params).toMatchObject({ window: "7", action: "press", mode: "background", ref: 0 })
+    expect(seen.text).toContain("Files")
+    expect(seen.images).toEqual([{ mime: "image/png", base64: "aGk=" }])
+
+    const called = calls.find((call) => call.method === "desktop.call" && call.params.name === "get_window_state")
+    expect(called).toMatchObject({ params: { name: "get_window_state", args: { window_id: 7 } } })
     await contender.stop()
   })
 })

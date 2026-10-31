@@ -54,8 +54,9 @@ function harness(pc: ComputerSummary, answer: Answer) {
     },
     link: async () => ({ ok: true }),
     holder: async () => pc.holder,
+    desktopTools: async () => [],
   }
-  const tools: ToolRegistration[] = terminalTools({ port: () => port, acceptsImages: () => false })
+  const tools: ToolRegistration[] = terminalTools({ port: () => port, acceptsImages: () => false, desktop: [] })
   const tool = (name: string) => {
     const found = tools.find((entry) => entry.name === name)
     if (!found) throw new Error(`no ${name} tool`)
