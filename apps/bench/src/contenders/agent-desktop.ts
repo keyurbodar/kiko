@@ -197,8 +197,12 @@ function mapResult(stdout: string): ToolResult {
 
 async function imageAt(path: string | undefined, data: Record<string, unknown>): Promise<readonly Image[]> {
   if (path) {
-    const bytes = await readFile(path)
-    return [{ mime: "image/png", base64: bytes.toString("base64") }]
+    try {
+      const bytes = await readFile(path)
+      return [{ mime: "image/png", base64: bytes.toString("base64") }]
+    } catch {
+      return []
+    }
   }
   return typeof data.base64 === "string" ? [{ mime: "image/png", base64: data.base64 }] : []
 }
@@ -235,10 +239,7 @@ export class AgentDesktopContender implements Contender {
     const result = await run(this.#binary, [...build(parsed), "--session", this.#session], signal)
     const mapped = mapResult(result.stdout)
     if (name !== "screenshot" || mapped.isError) return mapped
-    const images = await imageAt(
-      optStr(parsed, "path"),
-      asRecord(lastJsonLine(result.stdout)).data as Record<string, unknown>,
-    )
+    const images = await imageAt(optStr(parsed, "path"), asRecord(asRecord(lastJsonLine(result.stdout)).data))
     return { text: mapped.text, images, isError: false }
   }
 }

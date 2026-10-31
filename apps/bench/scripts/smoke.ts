@@ -185,7 +185,7 @@ async function cuaAction(c: Contender, f: Fixture, typed: string): Promise<Outco
   if (inserted.isError) return { ok: false, detail: `type_text failed: ${inserted.text.slice(0, 400)}` }
   const read = await c.call(
     "get_window_state",
-    { pid: window.pid, window_id: window.id, query: typed, include_screenshot: false },
+    { pid: window.pid, window_id: window.id, include_screenshot: false },
     signal,
   )
   if (!read.text.includes(typed)) return { ok: false, detail: `read back missing ${typed}: ${read.text.slice(0, 400)}` }
@@ -291,13 +291,23 @@ async function browserAction(
   }
 }
 
-async function focusFor(m: Machine, f: Fixture, condition: Condition): Promise<void> {
+async function activate(m: Machine, f: Fixture, condition: Condition): Promise<void> {
   const foreground = condition === "foreground"
   if (m.os === "macos") {
     await focusApp(m, foreground ? f.app : "Finder")
     return
   }
   await focusWindow(m, foreground ? f.title : f.decoyTitle)
+}
+
+async function focusFor(m: Machine, f: Fixture, condition: Condition): Promise<void> {
+  const expected = expectedFrontmost(m, f, condition)
+  const deadline = Date.now() + 20_000
+  for (;;) {
+    await activate(m, f, condition)
+    const current = await waitForFrontmost(m, expected, 1500)
+    if (current.includes(expected) || Date.now() >= deadline) return
+  }
 }
 
 function expectedFrontmost(m: Machine, f: Fixture, condition: Condition): string {
