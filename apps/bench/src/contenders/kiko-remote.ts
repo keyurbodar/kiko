@@ -8,12 +8,16 @@ import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { readTopology, type EnvComputer } from "../tasks/env/topology"
 import type { Contender, Image, Machine, ToolResult, ToolSpec } from "../types"
+import { startFakeDesktop, type FakeDesktop } from "./fake-desktop"
 import { serverToolSpecs } from "./server-tools"
 
 const ROOT = fileURLToPath(new URL("../../../../", import.meta.url))
 const DAEMON = join(ROOT, "apps/computer/src/index.ts")
-const FAKE_DRIVER = join(ROOT, "apps/bench/fixtures/fake-desktop.ts")
-const WRANGLER = join(ROOT, "apps/bench/node_modules/wrangler/bin/wrangler.js")
+const WRANGLER_CANDIDATES = [
+  join(ROOT, "node_modules/wrangler/bin/wrangler.js"),
+  join(ROOT, "apps/bench/node_modules/wrangler/bin/wrangler.js"),
+  join(ROOT, "apps/server/node_modules/wrangler/bin/wrangler.js"),
+]
 const SERVER = join(ROOT, "apps/server")
 const BENCH_ROOM = "01900000-0000-7000-8000-00000000beef"
 const AGENT = "bench"
@@ -24,8 +28,6 @@ const CALL_TIMEOUT_MS = 60_000
 const ONLINE_MS = 20_000
 const ONLINE_STEP_MS = 100
 const WORKER_READY_MS = 120_000
-const DRIVER_MS = 5_000
-const DRIVER_STEP_MS = 50
 
 type Bag = Record<string, unknown>
 
@@ -63,13 +65,18 @@ interface LocalWorker {
 async function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = createServer()
-    server.once("error", reject)
     server.listen(0, "127.0.0.1", () => {
       const address = server.address()
       const port = typeof address === "object" && address !== null ? address.port : 0
       server.close(() => (port > 0 ? resolve(port) : reject(new Error("no free port"))))
     })
   })
+}
+
+function wranglerBin(): string {
+  const found = WRANGLER_CANDIDATES.find((candidate) => existsSync(candidate))
+  if (!found) throw new Error("wrangler is not installed in this checkout")
+  return found
 }
 
 async function startWorker(): Promise<LocalWorker> {
@@ -81,7 +88,7 @@ async function startWorker(): Promise<LocalWorker> {
   const child = spawn(
     "node",
     [
-      WRANGLER,
+      wranglerBin(),
       "dev",
       "--port",
       String(port),
@@ -221,7 +228,7 @@ async function waitFor<T>(
 function daemonPair(dir: string, url: URL, code: string, name: string): Promise<void> {
   return new Promise((resolve, reject) => {
     execFile(
-      "bun",
+      process.execPath,
       [DAEMON, "pair", `${url.origin}/pc#${code}`, "--name", name, "--dir", dir],
       { cwd: dir, timeout: 60_000 },
       (error) => (error ? reject(error) : resolve()),
@@ -230,7 +237,7 @@ function daemonPair(dir: string, url: URL, code: string, name: string): Promise<
 }
 
 function daemonRun(home: string, configDir: string, driverPath?: string): ChildProcess {
-  const child = spawn("bun", [DAEMON, "run", "--dir", configDir], {
+  const child = spawn(process.execPath, [DAEMON, "run", "--dir", configDir], {
     cwd: home,
     env: {
       ...process.env,
@@ -253,15 +260,6 @@ async function writePolicy(dir: string, allow: readonly string[]): Promise<void>
   await writeFile(join(dir, "policy.json"), JSON.stringify(policy, null, 2), "utf8")
 }
 
-async function startFakeDriver(dir: string): Promise<{ socket: string; process: ChildProcess }> {
-  const socket = join(dir, "desktop.sock")
-  const process = spawn("bun", [FAKE_DRIVER, socket], { cwd: dir, stdio: "ignore", detached: true })
-  process.unref()
-  const ready = await waitFor(async () => (existsSync(socket) ? true : undefined), DRIVER_MS, DRIVER_STEP_MS)
-  if (!ready) throw new Error("the fake desktop driver did not open its socket")
-  return { socket, process }
-}
-
 function kikoVersion(): string {
   try {
     const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as Bag
@@ -269,28 +267,6 @@ function kikoVersion(): string {
   } catch {
     return "kiko-remote@unknown"
   }
-}
-
-const PC_PROPERTY = { type: "string", description: "the computer's name or id" }
-
-function withPC(schema: unknown): Bag {
-  const body = isBag(schema) ? schema : {}
-  const properties = isBag(body.properties) ? body.properties : {}
-  return { ...body, type: "object", properties: { ...properties, pc: PC_PROPERTY } }
-}
-
-function desktopSpecs(tools: readonly Bag[]): ToolSpec[] {
-  return tools.flatMap((tool) => {
-    const name = stringOf(tool.name)
-    if (!name) return []
-    return [
-      {
-        name: `desktop_${name}`,
-        description: stringOf(tool.description)?.trim() || `run the machine's ${name} desktop tool`,
-        parameters: withPC(tool.inputSchema),
-      },
-    ]
-  })
 }
 
 const IMAGE_MIMES = new Set(["image/png", "image/jpeg"])
@@ -402,6 +378,103 @@ function driverResult(pc: Computer, tool: string, value: unknown): ToolResult {
   return contentResult(value, pc)
 }
 
+type Formatter = (pc: Computer, value: unknown, args: Bag) => ToolResult
+
+function formatShell(pc: Computer, value: unknown): ToolResult {
+  const shell = bagOf(value)
+  const head = [
+    `exit code ${shell.exitCode ?? "none"}`,
+    shell.timedOut ? "still running" : undefined,
+    shell.truncated ? "the start of the output is cut" : undefined,
+    `on ${pc.name}`,
+  ]
+    .filter(Boolean)
+    .join(", ")
+  const output = stringOf(shell.output) ?? ""
+  return text(`${head}\n\n${output.trim() ? tail(output) : "(no output)"}`)
+}
+
+function formatRead(pc: Computer, value: unknown, args: Bag): ToolResult {
+  const read = bagOf(value)
+  const path = stringOf(args.path) ?? "the file"
+  if (read.base64 !== undefined)
+    return text(`${path} on ${pc.name} is binary, ${read.size} bytes. use computer_shell for it.`, true)
+  const note = read.truncated ? ` (cut at ${read.size} bytes)` : ""
+  return text(`${path} on ${pc.name}, ${read.size} bytes${note}\n\n${cut(stringOf(read.text) ?? "")}`)
+}
+
+function formatWrite(pc: Computer, value: unknown, args: Bag): ToolResult {
+  return text(`wrote ${bagOf(value).size} bytes to ${stringOf(args.path) ?? "the file"} on ${pc.name}`)
+}
+
+function formatTerminalOpen(pc: Computer, value: unknown): ToolResult {
+  const open = bagOf(value)
+  return text(
+    `opened ${open.name} (${open.id}) on ${pc.name} running ${open.shell} in ${open.cwd}, ${open.cols}x${open.rows}. it stays open between your turns: type with terminal_send, then terminal_wait or terminal_read.`,
+  )
+}
+
+function formatTerminalSend(pc: Computer, value: unknown): ToolResult {
+  return text(
+    `sent ${bagOf(value).bytes} bytes on ${pc.name}. call terminal_wait to wait for the output, or terminal_read to see the screen.`,
+  )
+}
+
+function formatTerminalRead(pc: Computer, value: unknown): ToolResult {
+  const read = bagOf(value)
+  return text(
+    `${read.id} on ${pc.name}, ${read.cols}x${read.rows}, ${statusOf(read)}\n\n${bodyOf(stringOf(read.text) ?? "", read.truncated === true)}`,
+  )
+}
+
+function formatTerminalWait(pc: Computer, value: unknown): ToolResult {
+  const wait = bagOf(value)
+  const head = wait.matched
+    ? `found the text on ${pc.name}.`
+    : wait.exited
+      ? `the terminal on ${pc.name} exited while waiting.`
+      : `waited and did not see the text on ${pc.name}.`
+  return text(`${head}\n\n${bodyOf(stringOf(wait.text) ?? "", false)}`)
+}
+
+function formatTerminalList(pc: Computer, value: unknown): ToolResult {
+  const list = Array.isArray(bagOf(value).terminals) ? (bagOf(value).terminals as Bag[]) : []
+  if (list.length === 0) return text(`no terminal sessions are open on ${pc.name}. open one with terminal_open.`)
+  const lines = list.map(
+    (entry) => `${entry.id} "${entry.name}" ${entry.cwd} ${entry.cols}x${entry.rows} ${statusOf(entry)}`,
+  )
+  return text(`${list.length} terminal session(s) on ${pc.name}:\n${lines.join("\n")}`)
+}
+
+function formatTerminalClose(pc: Computer): ToolResult {
+  return text(`closed the terminal on ${pc.name}.`)
+}
+
+const FORMATTERS: Readonly<Record<string, Formatter>> = {
+  shell: formatShell,
+  read: formatRead,
+  write: formatWrite,
+  terminal_open: formatTerminalOpen,
+  terminal_send: formatTerminalSend,
+  terminal_read: formatTerminalRead,
+  terminal_wait: formatTerminalWait,
+  terminal_list: formatTerminalList,
+  terminal_close: formatTerminalClose,
+}
+
+function formatResult(pc: Computer, tool: string, op: string, value: unknown, args: Bag): ToolResult {
+  if (op === "driver") return driverResult(pc, tool, value)
+  const formatter = FORMATTERS[op]
+  return formatter ? formatter(pc, value, args) : contentResult(value, pc)
+}
+
+function describeComputer(pc: Computer): string {
+  const caps = Object.entries(pc.caps)
+    .filter(([, on]) => on === true)
+    .map(([cap]) => cap)
+  return `${pc.name} (id ${pc.id}): ${[pc.os, pc.online ? "online" : "offline", ...caps].join(", ")}.`
+}
+
 export function kikoRemote(): Contender {
   let machine: Machine | undefined
   let worker: LocalWorker | null = null
@@ -409,7 +482,7 @@ export function kikoRemote(): Contender {
   let specs: ToolSpec[] = []
   let computers: Computer[] = []
   const daemons = new Map<string, ChildProcess>()
-  const drivers = new Map<string, ChildProcess>()
+  const desktops = new Map<string, FakeDesktop>()
   const dirs = new Map<string, string>()
   const configDirs = new Map<string, string>()
   const restarted = new Set<string>()
@@ -442,8 +515,8 @@ export function kikoRemote(): Contender {
     await writePolicy(config, [home])
     const code = await needRemote().pairCode()
     await daemonPair(config, needRemote().url, code, computer.name)
-    const driver = computer.desktop ? await startFakeDriver(config) : null
-    if (driver) drivers.set(computer.name, driver.process)
+    const driver = computer.desktop ? await startFakeDesktop(join(config, "desktop.sock")) : null
+    if (driver) desktops.set(computer.name, driver)
     const daemon = daemonRun(home, config, driver?.socket)
     daemons.set(computer.name, daemon)
     const online = await waitFor(
@@ -463,8 +536,8 @@ export function kikoRemote(): Contender {
     const config = configDirs.get(name)
     if (!home || !config) return
     daemons.get(name)?.kill("SIGKILL")
-    const driver = drivers.get(name)
-    const daemon = daemonRun(home, config, driver ? join(config, "desktop.sock") : undefined)
+    const driver = desktops.get(name)
+    const daemon = daemonRun(home, config, driver?.socket)
     daemons.set(name, daemon)
     await waitFor(
       async () => {
@@ -530,76 +603,67 @@ export function kikoRemote(): Contender {
     const elapsed = performance.now() - started
     if (!outcome.ok)
       return { ...text(failText(outcome.code, outcome.message, pc), true), opMs: outcome.opMs ?? elapsed }
-    return { ...format(pc, tool, op, outcome.value, bagOf(args)), opMs: outcome.opMs ?? elapsed }
+    return { ...formatResult(pc, tool, op, outcome.value, bagOf(args)), opMs: outcome.opMs ?? elapsed }
   }
 
-  function format(pc: Computer, tool: string, op: string, value: unknown, args: Bag): ToolResult {
-    if (op === "driver") return driverResult(pc, tool, value)
-    if (op === "shell") {
-      const shell = bagOf(value)
-      const head = [
-        `exit code ${shell.exitCode ?? "none"}`,
-        shell.timedOut ? "still running" : undefined,
-        shell.truncated ? "the start of the output is cut" : undefined,
-        `on ${pc.name}`,
-      ]
-        .filter(Boolean)
-        .join(", ")
-      const output = stringOf(shell.output) ?? ""
-      return text(`${head}\n\n${output.trim() ? tail(output) : "(no output)"}`)
-    }
-    if (op === "read") {
-      const read = bagOf(value)
-      const path = stringOf(args.path) ?? "the file"
-      if (read.base64 !== undefined)
-        return text(`${path} on ${pc.name} is binary, ${read.size} bytes. use computer_shell for it.`, true)
-      const note = read.truncated ? ` (cut at ${read.size} bytes)` : ""
-      return text(`${path} on ${pc.name}, ${read.size} bytes${note}\n\n${cut(stringOf(read.text) ?? "")}`)
-    }
-    if (op === "write")
-      return text(`wrote ${bagOf(value).size} bytes to ${stringOf(args.path) ?? "the file"} on ${pc.name}`)
-    if (op === "terminal_open") {
-      const open = bagOf(value)
-      return text(
-        `opened ${open.name} (${open.id}) running ${open.shell} in ${open.cwd}, ${open.cols}x${open.rows}. it stays open between your turns: type with terminal_send, then terminal_wait or terminal_read.`,
+  async function listComputers(): Promise<ToolResult> {
+    computers = await needRemote().computers()
+    return text([`computers (${computers.length}):`, ...computers.map(describeComputer)].join("\n"))
+  }
+
+  async function armRestart(pc: Computer): Promise<void> {
+    const topology = await topologyFor(need())
+    const restart = topology.find((computer) => computer.name === pc.name)?.restartAfterMs
+    if (restart !== undefined) scheduleRestart(pc.name, restart)
+  }
+
+  async function shellCall(pc: Computer, rest: Bag): Promise<ToolResult> {
+    const command = stringOf(rest.command)
+    if (!command) return text("computer_shell needs a command", true)
+    const timeoutMs = Math.min(Math.max(numberOr(rest.timeoutMs, SHELL_TIMEOUT_MS), 1_000), 590_000)
+    const cwd = stringOf(rest.cwd)
+    return callOp(pc, "shell", { command, ...(cwd ? { cwd } : {}), timeoutMs }, timeoutMs + 10_000)
+  }
+
+  async function readCall(pc: Computer, rest: Bag): Promise<ToolResult> {
+    const path = stringOf(rest.path)
+    if (!path) return text("computer_read needs a path", true)
+    const maxBytes = Math.min(Math.max(numberOr(rest.maxBytes, MAX_READ_BYTES), 1), 1_000_000)
+    return callOp(pc, "read", { path, maxBytes }, CALL_TIMEOUT_MS)
+  }
+
+  async function writeCall(pc: Computer, rest: Bag): Promise<ToolResult> {
+    const path = stringOf(rest.path)
+    if (path === undefined) return text("computer_write needs a path", true)
+    if (rest.text === undefined) return text("computer_write needs text", true)
+    return callOp(
+      pc,
+      "write",
+      { path, text: rest.text, ...(rest.append === true ? { append: true } : {}) },
+      CALL_TIMEOUT_MS,
+    )
+  }
+
+  async function otherCall(pc: Computer, name: string, rest: Bag): Promise<ToolResult> {
+    if (name.startsWith("desktop_"))
+      return callOp(
+        pc,
+        "driver",
+        { method: "desktop.call", params: { name: name.slice("desktop_".length), args: rest } },
+        CALL_TIMEOUT_MS,
+        name,
       )
-    }
-    if (op === "terminal_send")
-      return text(
-        `sent ${bagOf(value).bytes} bytes on ${pc.name}. call terminal_wait to wait for the output, or terminal_read to see the screen.`,
-      )
-    if (op === "terminal_read") {
-      const read = bagOf(value)
-      return text(
-        `${read.id} on ${pc.name}, ${read.cols}x${read.rows}, ${statusOf(read)}\n\n${bodyOf(stringOf(read.text) ?? "", read.truncated === true)}`,
-      )
-    }
-    if (op === "terminal_wait") {
-      const wait = bagOf(value)
-      const head = wait.matched
-        ? `found the text on ${pc.name}.`
-        : wait.exited
-          ? `the terminal on ${pc.name} exited while waiting.`
-          : `waited and did not see the text on ${pc.name}.`
-      return text(`${head}\n\n${bodyOf(stringOf(wait.text) ?? "", false)}`)
-    }
-    if (op === "terminal_list") {
-      const list = Array.isArray(bagOf(value).terminals) ? (bagOf(value).terminals as Bag[]) : []
-      if (list.length === 0) return text(`no terminal sessions are open on ${pc.name}. open one with terminal_open.`)
-      const lines = list.map(
-        (entry) => `${entry.id} "${entry.name}" ${entry.cwd} ${entry.cols}x${entry.rows} ${statusOf(entry)}`,
-      )
-      return text(`${list.length} terminal session(s) on ${pc.name}:\n${lines.join("\n")}`)
-    }
-    if (op === "terminal_close") return text(`closed the terminal on ${pc.name}.`)
-    return contentResult(value, pc)
+    const method = browserMethod(name)
+    if (method) return callOp(pc, "driver", { method, params: rest }, CALL_TIMEOUT_MS, name)
+    if (name.startsWith("terminal_")) return callOp(pc, name, rest, CALL_TIMEOUT_MS)
+    return text(`there is no tool called ${name}`, true)
   }
 
   async function teardown(): Promise<void> {
     for (const daemon of daemons.values()) daemon.kill("SIGKILL")
-    for (const driver of drivers.values()) driver.kill("SIGKILL")
+    for (const driver of desktops.values()) await driver.close()
     daemons.clear()
-    drivers.clear()
+    desktops.clear()
     dirs.clear()
     configDirs.clear()
     restarted.clear()
@@ -643,69 +707,16 @@ export function kikoRemote(): Contender {
       need()
       if (signal.aborted) return text("the call was cancelled", true)
       const bag = bagOf(args)
-      const which = stringOf(bag.pc)
       const { pc: _pc, ...rest } = bag
-      if (name === "computer_list") {
-        computers = await needRemote().computers()
-        const lines = computers.map(
-          (pc) =>
-            `${pc.name} (id ${pc.id}): ${[
-              pc.os,
-              pc.online ? "online" : "offline",
-              ...Object.entries(pc.caps)
-                .filter(([, on]) => on === true)
-                .map(([cap]) => cap),
-            ].join(", ")}.`,
-        )
-        return text([`computers (${computers.length}):`, ...lines].join("\n"))
-      }
-      const target = await resolvePc(which)
+      if (name === "computer_list") return listComputers()
+      const target = await resolvePc(stringOf(bag.pc))
       if (!target.ok) return target.result
       const pc = target.pc
-      const topology = await topologyFor(need())
-      const restart = topology.find((computer) => computer.name === pc.name)?.restartAfterMs
-      if (restart !== undefined) scheduleRestart(pc.name, restart)
-      if (name === "computer_shell") {
-        const command = stringOf(rest.command)
-        if (!command) return text("computer_shell needs a command", true)
-        const timeoutMs = Math.min(Math.max(numberOr(rest.timeoutMs, SHELL_TIMEOUT_MS), 1_000), 590_000)
-        return callOp(
-          pc,
-          "shell",
-          { command, ...(stringOf(rest.cwd) ? { cwd: stringOf(rest.cwd) } : {}), timeoutMs },
-          timeoutMs + 10_000,
-        )
-      }
-      if (name === "computer_read") {
-        const path = stringOf(rest.path)
-        if (!path) return text("computer_read needs a path", true)
-        const maxBytes = Math.min(Math.max(numberOr(rest.maxBytes, MAX_READ_BYTES), 1), 1_000_000)
-        return callOp(pc, "read", { path, maxBytes }, CALL_TIMEOUT_MS)
-      }
-      if (name === "computer_write") {
-        const path = stringOf(rest.path)
-        if (path === undefined) return text("computer_write needs a path", true)
-        if (rest.text === undefined) return text("computer_write needs text", true)
-        return callOp(
-          pc,
-          "write",
-          { path, text: rest.text, ...(rest.append === true ? { append: true } : {}) },
-          CALL_TIMEOUT_MS,
-        )
-      }
-      if (name.startsWith("desktop_")) {
-        return callOp(
-          pc,
-          "driver",
-          { method: "desktop.call", params: { name: name.slice("desktop_".length), args: rest } },
-          CALL_TIMEOUT_MS,
-          name,
-        )
-      }
-      const method = browserMethod(name)
-      if (method) return callOp(pc, "driver", { method, params: rest }, CALL_TIMEOUT_MS, name)
-      if (name.startsWith("terminal_")) return callOp(pc, name, rest, CALL_TIMEOUT_MS)
-      return text(`there is no tool called ${name}`, true)
+      await armRestart(pc)
+      if (name === "computer_shell") return shellCall(pc, rest)
+      if (name === "computer_read") return readCall(pc, rest)
+      if (name === "computer_write") return writeCall(pc, rest)
+      return otherCall(pc, name, rest)
     },
     async stop(): Promise<void> {
       await teardown()

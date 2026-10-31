@@ -1,5 +1,6 @@
 const DEFAULT_BASE_URL = "https://opencode.ai/inference/go/openai/v1"
 const CHAT_PATH = "/chat/completions"
+const DONE_EVENT = Symbol("done")
 
 export type ChatPart =
   | { readonly type: "text"; readonly text: string }
@@ -204,13 +205,8 @@ export class ModelClient {
   private async readStream(stream: ReadableStream<Uint8Array>, started: number): Promise<ModelReply> {
     const reader = stream.getReader()
     const decoder = new TextDecoder()
-    const calls = new Map<number, { id: string; name: string; arguments: string }>()
+    const state = emptyStream()
     let pending = ""
-    let content = ""
-    let reasoning = ""
-    let finishReason: string | null = null
-    let usage: ModelUsage = { prompt: 0, cached: 0, completion: 0, reasoning: 0, cost: 0, listCost: 0 }
-    let ttftMs = 0
     try {
       for (;;) {
         const { done, value } = await reader.read()
@@ -220,59 +216,76 @@ export class ModelClient {
         pending = lines.pop() ?? ""
         for (const line of lines) {
           const event = streamEvent(line)
-          if (event === undefined) continue
-          if (event === DONE_EVENT) return this.reply(content, reasoning, calls, usage, finishReason, started, ttftMs)
-          const chunk = event
-          if (bag(chunk).error !== undefined)
-            throw new ModelError(`the model stream failed: ${JSON.stringify(bag(chunk).error).slice(0, 500)}`)
-          if (bag(chunk).usage !== undefined && bag(chunk).usage !== null) usage = usageOf(chunk)
-          const choice = firstChoice(chunk)
-          if (Object.keys(choice).length === 0) continue
-          const delta = bag(choice.delta)
-          const pieces = deltaPieces(delta)
-          if (ttftMs === 0 && pieces.length > 0) ttftMs = performance.now() - started
-          content += str(delta.content)
-          reasoning += str(delta.reasoning_content) || str(delta.reasoning)
-          for (const part of toolCallParts(delta)) accumulateCall(calls, part)
-          if (typeof choice.finish_reason === "string") finishReason = choice.finish_reason
+          if (event === DONE_EVENT) return this.reply(state, started)
+          if (event !== undefined) consumeChunk(event, state, started)
         }
       }
     } finally {
       reader.releaseLock()
     }
-    return this.reply(content, reasoning, calls, usage, finishReason, started, ttftMs)
+    return this.reply(state, started)
   }
 
-  private reply(
-    content: string,
-    reasoning: string,
-    calls: Map<number, { id: string; name: string; arguments: string }>,
-    usage: ModelUsage,
-    finishReason: string | null,
-    started: number,
-    ttftMs: number,
-  ): ModelReply {
+  private reply(state: StreamState, started: number): ModelReply {
     const latencyMs = performance.now() - started
     return {
-      content,
-      reasoning,
-      toolCalls: [...calls.entries()]
+      content: state.content,
+      reasoning: state.reasoning,
+      toolCalls: [...state.calls.entries()]
         .sort(([left], [right]) => left - right)
         .map(([, call], index) => ({
           id: call.id || `call-${index + 1}`,
           type: "function" as const,
           function: { name: call.name, arguments: call.arguments || "{}" },
         })),
-      usage,
-      finishReason,
+      usage: state.usage,
+      finishReason: state.finishReason,
       latencyMs,
-      ttftMs: ttftMs === 0 ? latencyMs : ttftMs,
+      ttftMs: state.ttftMs === 0 ? latencyMs : state.ttftMs,
       raw: null,
     }
   }
 }
 
-const DONE_EVENT = Symbol("done")
+interface HeldCall {
+  id: string
+  name: string
+  arguments: string
+}
+
+interface StreamState {
+  content: string
+  reasoning: string
+  finishReason: string | null
+  usage: ModelUsage
+  ttftMs: number
+  calls: Map<number, HeldCall>
+}
+
+function emptyStream(): StreamState {
+  return {
+    content: "",
+    reasoning: "",
+    finishReason: null,
+    usage: { prompt: 0, cached: 0, completion: 0, reasoning: 0, cost: 0, listCost: 0 },
+    ttftMs: 0,
+    calls: new Map(),
+  }
+}
+
+function consumeChunk(chunk: unknown, state: StreamState, started: number): void {
+  if (bag(chunk).error !== undefined)
+    throw new ModelError(`the model stream failed: ${JSON.stringify(bag(chunk).error).slice(0, 500)}`)
+  if (bag(chunk).usage !== undefined && bag(chunk).usage !== null) state.usage = usageOf(chunk)
+  const choice = firstChoice(chunk)
+  if (Object.keys(choice).length === 0) return
+  const delta = bag(choice.delta)
+  if (state.ttftMs === 0 && deltaPieces(delta).length > 0) state.ttftMs = performance.now() - started
+  state.content += str(delta.content)
+  state.reasoning += str(delta.reasoning_content) || str(delta.reasoning)
+  for (const part of toolCallParts(delta)) accumulateCall(state.calls, part)
+  if (typeof choice.finish_reason === "string") state.finishReason = choice.finish_reason
+}
 
 function streamEvent(line: string): unknown | typeof DONE_EVENT | undefined {
   if (!line.startsWith("data:")) return undefined
@@ -312,10 +325,7 @@ function toolCallParts(delta: Bag): { index?: number; id: string; name: string; 
   })
 }
 
-function accumulateCall(
-  calls: Map<number, { id: string; name: string; arguments: string }>,
-  part: { index?: number; id: string; name: string; arguments: string },
-): void {
+function accumulateCall(calls: Map<number, HeldCall>, part: { index?: number } & HeldCall): void {
   const index = part.index ?? slotFor(calls, part.id)
   const held = calls.get(index) ?? { id: "", name: "", arguments: "" }
   calls.set(index, {
@@ -325,7 +335,7 @@ function accumulateCall(
   })
 }
 
-function slotFor(calls: Map<number, { id: string }>, id: string): number {
+function slotFor(calls: Map<number, HeldCall>, id: string): number {
   if (id) {
     for (const [index, held] of calls) if (held.id === id) return index
     return calls.size === 0 ? 0 : Math.max(...calls.keys()) + 1

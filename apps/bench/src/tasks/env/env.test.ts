@@ -19,15 +19,15 @@ async function checked(task: Task, solve: boolean): Promise<boolean> {
 }
 
 describe("environment tasks", () => {
-  for (const task of envTasks) {
-    it(`${task.id} passes its oracle and fails when nothing runs`, async () => {
-      expect(await checked(task, true)).toBe(true)
-      expect(await checked(task, false)).toBe(false)
-    })
+  const cases = envTasks.map((task) => [task.id, task] as [string, Task])
 
-    it(`${task.id} only runs against kiko-remote`, () => {
-      expect(task.contenders).toEqual(["kiko-remote"])
-      expect(task.track).toBe("environment")
-    })
-  }
+  it.each(cases)("%s passes its oracle and fails when nothing runs", async (_id, task) => {
+    expect(await checked(task, true)).toBe(true)
+    expect(await checked(task, false)).toBe(false)
+  })
+
+  it.each(cases)("%s only runs against kiko-remote", (_id, task) => {
+    expect(task.contenders).toEqual(["kiko-remote"])
+    expect(task.track).toBe("environment")
+  })
 })

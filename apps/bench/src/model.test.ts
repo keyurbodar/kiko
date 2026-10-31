@@ -213,7 +213,8 @@ describe("model client", () => {
       })
       const reply = await client.chat({ model: "beam-free", messages: [], tools: [], session: "kb-a-b" })
       expect(reply.ttftMs).toBe(reply.latencyMs)
-      expect((seen[0]?.body as { stream?: boolean }).stream).toBeUndefined()
+      const body = seen[0]?.body as { stream?: boolean } | undefined
+      expect(body?.stream).toBeUndefined()
     } finally {
       await fake.close()
     }

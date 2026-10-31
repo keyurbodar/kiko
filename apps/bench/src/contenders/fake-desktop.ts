@@ -1,9 +1,8 @@
 import { createServer, type Socket } from "node:net"
 
-const socketPath = process.argv[2]
-if (!socketPath) {
-  console.error("usage: fake-desktop <socket-path>")
-  process.exit(2)
+export interface FakeDesktop {
+  readonly socket: string
+  close(): Promise<void>
 }
 
 const WINDOWS = "2 windows\n1: Fixture — a demo window\n2: Terminal"
@@ -66,4 +65,9 @@ function serve(connection: Socket): void {
   connection.on("error", () => undefined)
 }
 
-createServer(serve).listen(socketPath)
+export function startFakeDesktop(socket: string): Promise<FakeDesktop> {
+  const server = createServer(serve)
+  return new Promise((resolve) => {
+    server.listen(socket, () => resolve({ socket, close: () => new Promise((done) => server.close(() => done())) }))
+  })
+}
