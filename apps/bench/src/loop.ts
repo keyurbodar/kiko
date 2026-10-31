@@ -17,6 +17,8 @@ export const SYSTEM_PROMPT_SHA = createHash("sha256").update(SYSTEM_PROMPT).dige
 
 const NUDGE = "Keep going. Reply with DONE when the task is finished."
 const DONE = /DONE\s*[.!]?$/i
+const TOOL_MARKUP = /<tool_call>/gi
+const TOOL_JSON = /"arguments"\s*:/i
 
 export type Outcome = "done" | "turns" | "timeout" | "model_error" | "tool_crash" | "setup_error"
 
@@ -62,6 +64,7 @@ export interface Trajectory {
   readonly ended_at: string
   readonly wall_ms: number
   readonly outcome: Outcome
+  readonly text_tool_calls: number
   readonly requests: readonly TrajectoryRequest[]
   readonly tools: readonly TrajectoryTool[]
   readonly error?: string
@@ -119,6 +122,13 @@ const redact = (messages: readonly ChatMessage[]): ChatMessage[] =>
     return { ...message, content }
   })
 
+function countTextToolCalls(content: string, known: readonly string[]): number {
+  const markup = content.match(TOOL_MARKUP)?.length ?? 0
+  if (markup > 0) return markup
+  const named = known.some((name) => content.includes(`"name": "${name}"`) || content.includes(`"name":"${name}"`))
+  return named && TOOL_JSON.test(content) ? 1 : 0
+}
+
 const parseArgs = (raw: string): { ok: true; value: unknown } | { ok: false; error: string } => {
   try {
     return { ok: true, value: JSON.parse(raw) as unknown }
@@ -162,6 +172,7 @@ export function classifyFailure(result: LoopResult, verdict: Verdict, background
   if (result.outcome === "model_error") return "model"
   if (result.outcome === "setup_error" || result.outcome === "tool_crash") return "environment"
   if (result.outcome === "timeout") return result.turns > 0 ? "model" : "environment"
+  if (result.trajectory.text_tool_calls > 0) return "model"
   if (result.turns === 0 || result.toolCalls === 0) return "planning"
   if (result.toolErrors > 0) return "delivery"
   if (result.trajectory.tools.some((tool) => perceptionTools.has(tool.name))) return "perception"
@@ -254,6 +265,7 @@ export async function runLoop(input: LoopInput): Promise<LoopResult> {
   let turns = 0
   let toolCalls = 0
   let toolErrors = 0
+  let textToolCalls = 0
   let stop: Outcome | undefined
   let error: string | undefined
 
@@ -293,6 +305,7 @@ export async function runLoop(input: LoopInput): Promise<LoopResult> {
           content: reply.content,
           ...(reply.reasoning ? { reasoning_content: reply.reasoning } : {}),
         })
+        textToolCalls += countTextToolCalls(reply.content, known)
         if (DONE.test(reply.content.trim())) {
           stop = "done"
           break
@@ -349,6 +362,7 @@ export async function runLoop(input: LoopInput): Promise<LoopResult> {
     ended_at: new Date().toISOString(),
     wall_ms: wallMs,
     outcome,
+    text_tool_calls: textToolCalls,
     requests,
     tools: toolRecords,
     ...(error ? { error } : {}),

@@ -6,7 +6,7 @@ import { basename, dirname, join, resolve } from "node:path"
 import { CONTENDERS } from "./contenders"
 import { appendRow, escape, readRows, writeRows, type Row } from "./ledger"
 import { classifyFailure, runLoop, SYSTEM_PROMPT_SHA, type LoopResult, type Outcome, type Trajectory } from "./loop"
-import { createMachine, localOs, removeMachine } from "./machine"
+import { clearGitHookEnv, createMachine, localOs, removeMachine } from "./machine"
 import { ModelClient } from "./model"
 import { renderReport } from "./report/render"
 import { TASKS } from "./tasks"
@@ -191,6 +191,7 @@ function emptyTrajectory(input: TrialInput, outcome: Outcome, error: string): Tr
     ended_at: new Date().toISOString(),
     wall_ms: 0,
     outcome,
+    text_tool_calls: 0,
     requests: [],
     tools: [],
     error,
@@ -645,6 +646,7 @@ async function pull(runId: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  clearGitHookEnv()
   const parsed = parseArgs(process.argv.slice(2))
   switch (parsed.command) {
     case "list":

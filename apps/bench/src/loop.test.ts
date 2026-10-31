@@ -210,4 +210,24 @@ describe("agent loop", () => {
     expect(classifyFailure(result, { pass: false, checks: [] }, { ...background, pointerMoves: 1 })).toBe("background")
     expect(classifyFailure(result, { pass: false, checks: [] }, background)).toBe("targeting")
   })
+
+  it("counts a tool call written as text and classifies it as a model failure", async () => {
+    const reply = {
+      choices: [
+        {
+          finish_reason: "stop",
+          message: {
+            role: "assistant",
+            content: '<tool_call>{"name": "shell", "arguments": {"command": "ls"}}</tool_call>',
+          },
+        },
+      ],
+      usage,
+    }
+    const { result } = await run([reply, saysDone()])
+    expect(result.trajectory.text_tool_calls).toBe(1)
+    expect(result.toolCalls).toBe(0)
+    const background = { focusSteals: 0, pointerMoves: 0, keysSwallowed: 0, windowsRaised: 0 }
+    expect(classifyFailure(result, { pass: false, checks: [] }, background)).toBe("model")
+  })
 })

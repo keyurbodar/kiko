@@ -6,6 +6,27 @@ import type { Exec, Machine, Os } from "./types"
 
 const DEFAULT_TIMEOUT_MS = 120_000
 
+const GIT_HOOK_ENV = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_COMMON_DIR",
+  "GIT_NAMESPACE",
+  "GIT_PREFIX",
+]
+
+export function clearGitHookEnv(env: NodeJS.ProcessEnv = process.env): void {
+  for (const key of GIT_HOOK_ENV) delete env[key]
+}
+
+function commandEnv(extra?: Record<string, string>): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = { ...process.env, ...extra }
+  for (const key of GIT_HOOK_ENV) delete env[key]
+  return env
+}
+
 export function localOs(platform: string = process.platform): Os {
   if (platform === "darwin") return "macos"
   if (platform === "win32") return "windows"
@@ -71,7 +92,7 @@ class LocalMachine implements Machine {
   ): Promise<Exec> {
     return run(cmd[0] ?? "", cmd.slice(1), {
       cwd: opts.cwd ?? this.workdir,
-      env: { ...process.env, ...opts.env },
+      env: commandEnv(opts.env),
       timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     })
   }
@@ -82,7 +103,7 @@ class LocalMachine implements Machine {
   ): Promise<{ pid: number; stop(): Promise<void> }> {
     const child = spawnProcess(cmd[0] ?? "", cmd.slice(1), {
       cwd: opts.cwd ?? this.workdir,
-      env: { ...process.env, ...opts.env },
+      env: commandEnv(opts.env),
       stdio: "ignore",
       detached: process.platform !== "win32",
     })
