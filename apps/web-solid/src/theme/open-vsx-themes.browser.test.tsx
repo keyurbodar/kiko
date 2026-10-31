@@ -55,17 +55,25 @@ const monokaiRoutes = {
   [`${monokaiFiles}/LICENSE.txt`]: "Monokai Pro may not be sub-licensed, resold, or redistributed.",
 }
 
-const palette = (canvas: string, text: string) => ({
-  canvas,
-  sidebar: canvas,
-  text,
-  muted: text,
-  faint: text,
-  action: "#8839ef",
-  actionHover: "#8839ef",
-  onAction: "#ffffff",
+const palette = (chrome: string, base: string, accent: string) => ({
+  chrome,
+  sidebar: chrome,
+  editor: chrome,
+  base,
+  accent,
+  onPrimary: chrome,
+  focus: accent,
+  success: "#40a02b",
+  warn: "#df8e1d",
   danger: "#d20f39",
-  gold: "#fe640b",
+  red: "#d20f39",
+  orange: "#fe640b",
+  yellow: "#df8e1d",
+  green: "#40a02b",
+  cyan: "#04a5e5",
+  blue: "#1e66f5",
+  magenta: "#ea76cb",
+  purple: "#8839ef",
 })
 
 const mocha: ImportedTheme = {
@@ -74,7 +82,7 @@ const mocha: ImportedTheme = {
   source: "Catppuccin.catppuccin-vsc",
   appearance: "dark",
   accent: "#cba6f7",
-  palette: palette("#1e1e2e", "#cdd6f4"),
+  palette: palette("#1e1e2e", "#cdd6f4", "#cba6f7"),
 }
 const latte: ImportedTheme = {
   id: "Catppuccin.catppuccin-vsc:extension/themes/latte.json",
@@ -82,7 +90,7 @@ const latte: ImportedTheme = {
   source: "Catppuccin.catppuccin-vsc",
   appearance: "light",
   accent: "#8839ef",
-  palette: palette("#eff1f5", "#4c4f69"),
+  palette: palette("#eff1f5", "#4c4f69", "#8839ef"),
 }
 
 describe("theme browser", () => {
