@@ -318,8 +318,13 @@ async function main(): Promise<void> {
         })
         const skip = page.locator('[data-action="skip-first-run"]')
         if ((await skip.count()) > 0) await skip.click()
+        await page
+          .waitForSelector('[data-action="open-kiko"], [data-action="computer-watch"]', {
+            state: "visible",
+            timeout: 30_000,
+          })
+          .catch(() => {})
         const done = page.locator('[data-action="open-kiko"]')
-        await done.waitFor({ state: "visible", timeout: 30_000 }).catch(() => {})
         if ((await done.count()) > 0) await done.click()
         await page.waitForSelector('[data-action="computer-watch"]', { timeout: 60_000 })
         await page
