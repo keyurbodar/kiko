@@ -69,17 +69,17 @@ function capture(match: readonly string[], index: number): string {
 const directCall = (text: string) =>
   /\[(?:ws|tool) (\w+) (\{.*?\})\]/.exec(text.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&"))
 
-const BROWSE_LINE = /\[browse (\S+) click ([^\]]+)\]/
+const WEB_READ_LINE = /\[web_read (\S+) click ([^\]]+)\]/
 
 function workerReply(messages: readonly Message[], toolNames: () => string) {
   const users = messages.filter((m) => m.role === "user").map(textOf)
   if (users[0] === "[tools]") return fauxAssistantMessage(`tools: ${toolNames()}`)
   const results = messages.filter((m) => m.role === "toolResult")
-  const browse = browseScript(messages, users)
-  if (browse) return fauxAssistantMessage(browse, { stopReason: "toolUse" })
+  const webRead = webReadScript(messages, users)
+  if (webRead) return fauxAssistantMessage(webRead, { stopReason: "toolUse" })
   const last = messages.at(-1)
-  if (last?.role === "toolResult" && last.toolName?.startsWith("browse"))
-    return fauxAssistantMessage(browsed(textOf(last)))
+  if (last?.role === "toolResult" && last.toolName?.startsWith("web_read"))
+    return fauxAssistantMessage(webReadReport(textOf(last)))
   const direct = directCall(users[0] ?? "")
   if (direct && !results.length)
     return fauxAssistantMessage(fauxToolCall(capture(direct, 1), JSON.parse(capture(direct, 2))), {
@@ -122,8 +122,8 @@ function fakeReply(transcript: readonly Message[]) {
     if (m?.role !== "user") return null
     const work = /(?<=\[work\]\s*)\S[\s\S]*/.exec(textOf(m))
     if (work) return work
-    const browseAsk = BROWSE_LINE.exec(textOf(m))
-    if (browseAsk && !offered.has("browse")) return browseAsk
+    const webReadAsk = WEB_READ_LINE.exec(textOf(m))
+    if (webReadAsk && !offered.has("web_read")) return webReadAsk
     const call = directCall(textOf(m))
     return call && !offered.has(capture(call, 1)) ? call : null
   }
@@ -151,10 +151,10 @@ function replyToMessages(messages: readonly Message[], toolNames: () => string) 
   const fetchFirst = last?.role === "user" && textOf(last).startsWith("[fetch]")
   const page = last?.role === "toolResult" && last.toolName === "fake_fetch"
   if (last?.role === "user" && textOf(last) === "[tools]") return fauxAssistantMessage(`tools: ${toolNames()}`)
-  const browse = browseScript(messages, users)
-  if (browse) return fauxAssistantMessage(browse, { stopReason: "toolUse" })
-  if (last?.role === "toolResult" && last.toolName?.startsWith("browse"))
-    return fauxAssistantMessage(browsed(textOf(last)))
+  const webRead = webReadScript(messages, users)
+  if (webRead) return fauxAssistantMessage(webRead, { stopReason: "toolUse" })
+  if (last?.role === "toolResult" && last.toolName?.startsWith("web_read"))
+    return fauxAssistantMessage(webReadReport(textOf(last)))
   const typed = last?.role === "user" ? textCall(rawOf(last)) : null
   if (typed) return fauxAssistantMessage(typed)
   const any = last && ((last.role === "user" && !fetchFirst) || page) ? anyToolCall(rawOf(last)) : null
@@ -238,22 +238,22 @@ function replyToBurst(since: readonly Message[], users: string[], results: strin
   return fauxAssistantMessage(heard)
 }
 
-function browseScript(messages: readonly Message[], users: readonly string[]) {
+function webReadScript(messages: readonly Message[], users: readonly string[]) {
   const last = messages.at(-1)
-  const ask = users.map((u) => BROWSE_LINE.exec(u)).findLast(Boolean)
+  const ask = users.map((u) => WEB_READ_LINE.exec(u)).findLast(Boolean)
   if (!ask) return null
   if (last?.role === "user")
-    return BROWSE_LINE.test(textOf(last)) ? fauxToolCall("browse", { urls: [capture(ask, 1)] }) : null
-  if (last?.role !== "toolResult" || last.toolName !== "browse") return null
+    return WEB_READ_LINE.test(textOf(last)) ? fauxToolCall("web_read", { urls: [capture(ask, 1)] }) : null
+  if (last?.role !== "toolResult" || last.toolName !== "web_read") return null
   const label = capture(ask, 2).trim().toLowerCase()
   const id = textOf(last)
     .split("\n")
     .map((l) => /^(\d+) \S+ "(.*)"$/.exec(l))
     .find((m) => m && capture(m, 2).trim().toLowerCase() === label)?.[1]
-  return id === undefined ? null : fauxToolCall("browser_act", { steps: [{ op: "click", id: Number(id) }] })
+  return id === undefined ? null : fauxToolCall("web_act", { steps: [{ op: "click", id: Number(id) }] })
 }
 
-function browsed(result: string): string {
+function webReadReport(result: string): string {
   const lines = result.split("\n").filter((l) => l.trim() && !/^<\/?untrusted/.test(l))
   const did = lines.findIndex((l) => l.startsWith("did:"))
   const [title, url] = lines.slice(did + 1)

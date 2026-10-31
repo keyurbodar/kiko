@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 
-use kiko_driver::PermissionKind;
+use crate::menu::Permission;
 
 use crate::control::Command;
 use crate::driver::SharedDriver;
@@ -14,7 +14,7 @@ pub enum Action {
     Login,
     Open,
     Quit,
-    Permission(PermissionKind),
+    Permission(Permission),
 }
 
 pub type Handler = Arc<dyn Fn(Action) + Send + Sync>;

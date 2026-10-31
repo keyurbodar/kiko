@@ -1,9 +1,9 @@
-import type { Background } from "../types"
+import type { Background, BackgroundCounter } from "../types"
 
 export type Front = "self" | "other"
 
 export type WitnessEvent =
-  | { readonly ev: "ready"; readonly t: number }
+  | { readonly ev: "ready"; readonly t: number; readonly unmeasured?: readonly BackgroundCounter[] }
   | { readonly ev: "exit"; readonly t: number }
   | { readonly ev: "error"; readonly t: number; readonly message: string }
   | { readonly ev: "tick"; readonly t: number; readonly received: boolean }
@@ -13,7 +13,7 @@ export type WitnessEvent =
       readonly front: Front
       readonly key: boolean
       readonly above: readonly string[]
-      readonly pointer: readonly [number, number]
+      readonly pointer?: readonly [number, number]
     }
 
 export interface Witness {
@@ -43,11 +43,21 @@ function isNames(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((name) => typeof name === "string")
 }
 
+const COUNTERS: ReadonlySet<string> = new Set(["focusSteals", "pointerMoves", "keysSwallowed", "windowsRaised"])
+
+function isCounters(value: unknown): value is readonly BackgroundCounter[] {
+  return Array.isArray(value) && value.every((name) => typeof name === "string" && COUNTERS.has(name))
+}
+
 function readEvent(value: unknown): WitnessEvent | undefined {
   if (!isRecord(value) || typeof value.ev !== "string" || typeof value.t !== "number") return undefined
   switch (value.ev) {
     case "ready":
-      return { ev: "ready", t: value.t }
+      return value.unmeasured === undefined
+        ? { ev: "ready", t: value.t }
+        : isCounters(value.unmeasured)
+          ? { ev: "ready", t: value.t, unmeasured: value.unmeasured as BackgroundCounter[] }
+          : undefined
     case "exit":
       return { ev: "exit", t: value.t }
     case "error":
@@ -55,14 +65,17 @@ function readEvent(value: unknown): WitnessEvent | undefined {
     case "tick":
       return typeof value.received === "boolean" ? { ev: "tick", t: value.t, received: value.received } : undefined
     case "sample":
-      return isFront(value.front) && typeof value.key === "boolean" && isNames(value.above) && isPoint(value.pointer)
+      return isFront(value.front) &&
+        typeof value.key === "boolean" &&
+        isNames(value.above) &&
+        (value.pointer === undefined || isPoint(value.pointer))
         ? {
             ev: "sample",
             t: value.t,
             front: value.front,
             key: value.key,
             above: value.above,
-            pointer: value.pointer,
+            ...(value.pointer === undefined ? {} : { pointer: value.pointer as readonly [number, number] }),
           }
         : undefined
     default:
@@ -88,6 +101,7 @@ export function parseEvents(text: string): WitnessEvent[] {
 
 interface Tally {
   ready: boolean
+  unmeasured: Set<BackgroundCounter>
   error: string | undefined
   keysSent: number
   keysReceived: number
@@ -100,6 +114,7 @@ interface Tally {
 function tally(events: readonly WitnessEvent[]): Tally {
   const state: Tally = {
     ready: false,
+    unmeasured: new Set(),
     error: undefined,
     keysSent: 0,
     keysReceived: 0,
@@ -116,6 +131,7 @@ function tally(events: readonly WitnessEvent[]): Tally {
     switch (event.ev) {
       case "ready":
         state.ready = true
+        for (const counter of event.unmeasured ?? []) state.unmeasured.add(counter)
         break
       case "exit":
         break
@@ -128,12 +144,14 @@ function tally(events: readonly WitnessEvent[]): Tally {
         break
       case "sample": {
         state.samples += 1
-        baseline ??= event.pointer
-        const [x, y] = event.pointer
-        const [baseX, baseY] = baseline
-        const far = Math.hypot(x - baseX, y - baseY) > POINTER_TOLERANCE_PX
-        if (far && !moved) state.pointerMoves += 1
-        moved = far
+        if (event.pointer) {
+          baseline ??= event.pointer
+          const [x, y] = event.pointer
+          const [baseX, baseY] = baseline
+          const far = Math.hypot(x - baseX, y - baseY) > POINTER_TOLERANCE_PX
+          if (far && !moved) state.pointerMoves += 1
+          moved = far
+        }
         const nowFocused = event.front === "self" && event.key
         if (!nowFocused && focused) state.steals += 1
         focused = nowFocused
@@ -161,6 +179,7 @@ export function witness(events: readonly WitnessEvent[]): Witness {
       pointerMoves: state.pointerMoves,
       keysSwallowed: state.keysSent - state.keysReceived,
       windowsRaised: state.raised,
+      ...(state.unmeasured.size === 0 ? {} : { unmeasured: [...state.unmeasured] }),
     },
     keysSent: state.keysSent,
     keysReceived: state.keysReceived,

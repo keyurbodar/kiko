@@ -1,7 +1,9 @@
 import type { Display, FromDaemon, Holder, ToDaemon } from "@kiko/computer/wire"
 import type { Logger } from "../log"
 import { createLive } from "./daemon"
+import { createInput } from "./input"
 import type { PeerModule } from "./rtc-link"
+import type { LivePolicy } from "./types"
 
 export type LiveFrames = {
   rtc(frame: Extract<ToDaemon, { t: "rtc" }>): void
@@ -16,7 +18,7 @@ export type LiveHooks = {
   setHolder(holder: Holder): void
   send(frame: FromDaemon): void
   sendBinary(bytes: Uint8Array<ArrayBuffer>): void
-  policy: () => { live: boolean; input: boolean }
+  policy: () => LivePolicy
   display: () => Display | undefined
   configDir: string
 }
@@ -48,7 +50,8 @@ export async function startLive(hooks: LiveHooks): Promise<Live> {
     send: hooks.send,
     sendBinary: hooks.sendBinary,
     warn: (message) => hooks.logger.warn(message),
-    policy,
+    policy: hooks.policy,
+    openInput: (area, gate) => createInput(area, gate),
     rtc,
     configDir: hooks.configDir,
     ...(hooks.display() ? { display: hooks.display() } : {}),
@@ -62,7 +65,7 @@ export async function startLive(hooks: LiveHooks): Promise<Live> {
       input: (frame) => live.onInput(frame.events),
       control: (frame) => {
         hooks.setHolder(frame.holder)
-        live.onControl(frame.holder)
+        live.onControl(frame)
       },
       ack: (frame) => live.onAck(frame.seq),
     },
@@ -71,7 +74,7 @@ export async function startLive(hooks: LiveHooks): Promise<Live> {
   }
 }
 
-export function emptyLive(hooks: Pick<LiveHooks, "logger" | "setHolder">): Live {
+export function emptyLive(hooks: Pick<LiveHooks, "logger" | "setHolder" | "send">): Live {
   const ignore = (kind: string) => hooks.logger.warn(`${kind} arrived but this build has no live view`)
   return {
     live: false,
@@ -80,7 +83,10 @@ export function emptyLive(hooks: Pick<LiveHooks, "logger" | "setHolder">): Live 
       rtc: () => ignore("an rtc frame"),
       live: () => ignore("a live frame"),
       input: () => ignore("an input frame"),
-      control: (frame) => hooks.setHolder(frame.holder),
+      control: (frame) => {
+        hooks.setHolder(frame.holder)
+        hooks.send({ t: "held", holder: frame.holder, ...(frame.epoch === undefined ? {} : { epoch: frame.epoch }) })
+      },
       ack: () => undefined,
     },
     agentCursor: () => undefined,

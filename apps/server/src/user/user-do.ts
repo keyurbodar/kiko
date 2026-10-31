@@ -1,5 +1,6 @@
 import { diffRows, type RowChange, rowLists } from "./rows"
 import type { Provider } from "@earendil-works/pi-ai"
+import type { DesktopInfo } from "@kiko/computer/driver"
 import { isAgentSlug } from "@kiko/protocol"
 import {
   type CustomApi,
@@ -55,7 +56,7 @@ import {
   type UserSettingsPatch,
 } from "@kiko/protocol"
 import type { OwnerServices, ServiceOptions } from "../owner/services"
-import { loadUserDev } from "../lib/dev-guard"
+import { devOverride, loadUserDev } from "../lib/dev-guard"
 import { signToken } from "../auth/auth"
 import { BACKEND } from "../lib/version"
 import * as Effect from "effect/Effect"
@@ -124,7 +125,7 @@ import { COMPUTER_WAKEUP } from "../computer/hub"
 import type { ComputerHub } from "../computer/hub"
 import type { ComputerSummary } from "@kiko/protocol"
 import type { Op } from "@kiko/computer/wire"
-import type { ComputerLinkResult, PcCallOutcome, PcReleased } from "../computer/types"
+import type { ComputerLinkResult, PcCallOutcome, PcReleased, PcTaken } from "../computer/types"
 import { MemoryCapture } from "./memory-capture"
 import { type Attachment, send } from "./socket-frames"
 import { AWAY_MS, LAST_SEEN } from "./keys"
@@ -1274,6 +1275,7 @@ export class User {
       env: this.env,
       alarms: this.alarms,
       userId: () => this.ownerId,
+      cdpUrl: devOverride(() => this.env.KERNEL_CDP ?? null) ?? undefined,
       notify: (error) => this.broadcast({ t: "error", error }),
     })
     return this.#kernelWiring
@@ -1294,6 +1296,10 @@ export class User {
 
   computerList(): ComputerSummary[] {
     return this.#pc.list()
+  }
+
+  computerDesktop(pcId?: string): DesktopInfo | null {
+    return this.#pc.desktop(pcId)
   }
 
   async computerCall(
@@ -1318,7 +1324,7 @@ export class User {
   }
 
   computerHolder(pcId: string): "agent" | "human" {
-    return this.#pc.holder(pcId)
+    return this.computerList().find((pc) => pc.id === pcId)?.holder ?? "agent"
   }
 
   async computerPair(input: {
@@ -1333,6 +1339,10 @@ export class User {
 
   computerReleased(out: PcReleased): void {
     this.#pc.released(out)
+  }
+
+  computerTaken(out: PcTaken): void {
+    this.#pc.taken(out)
   }
 
   setComputerWakeup(at: number): Promise<void> {

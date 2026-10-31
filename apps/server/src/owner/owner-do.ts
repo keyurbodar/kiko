@@ -99,6 +99,7 @@ export class OwnerDO extends DurableObject<Env> {
       store: computers,
       ownerId: this.ownerId,
       released: (out) => this.user().computerReleased(out),
+      taken: (out) => this.user().computerTaken(out),
       wakeup: {
         set: (at) => this.user().setComputerWakeup(at),
         clear: () => this.user().clearComputerWakeup(),
@@ -365,9 +366,9 @@ export class OwnerDO extends DurableObject<Env> {
     await dispatch(HANDLERS, { host: this.rpcHost, ws, socket: socketView(ws) }, raw)
   }
 
-  async webSocketClose(ws: WebSocket, code: number): Promise<void> {
+  async webSocketClose(ws: WebSocket, code: number, reason?: string): Promise<void> {
     if (pcSocketId(ws) !== null) {
-      await this.computers.close(ws)
+      await this.computers.close(ws, code, reason)
       await this.refreshClock()
       return
     }
@@ -378,7 +379,7 @@ export class OwnerDO extends DurableObject<Env> {
 
   async webSocketError(ws: WebSocket): Promise<void> {
     if (pcSocketId(ws) !== null) {
-      await this.computers.close(ws)
+      await this.computers.close(ws, 1006)
       await this.refreshClock()
       return
     }

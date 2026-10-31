@@ -49,19 +49,32 @@ describe("startSentinel", () => {
   it("starts the platform command and reports the witnessed counters on stop", async () => {
     const machine = new FakeMachine(events)
     const sentinel = await startSentinel(machine)
-    const background = await sentinel.stop()
-    expect(background).toEqual({
+    const measured = await sentinel.stop()
+    expect(measured.background).toEqual({
       focusSteals: 1,
       pointerMoves: 1,
       keysSwallowed: 1,
       windowsRaised: 1,
     })
+    expect(measured.keysSent).toBe(2)
+    expect(measured.keysReceived).toBe(1)
     expect(machine.spawned[0]?.slice(0, 3)).toEqual([
       "python3",
       "-u",
       expect.stringContaining("native/linux/sentinel.py"),
     ])
     expect(machine.files.get(machine.stopFile)).toBe("stop")
+  })
+
+  it("keeps the counters the witness did not measure out of the result", async () => {
+    const blind = [
+      { ev: "ready", t: 0, unmeasured: ["pointerMoves", "windowsRaised"] },
+      { ev: "tick", t: 1000, received: true },
+    ]
+      .map((event) => JSON.stringify(event))
+      .join("\n")
+    const measured = await (await startSentinel(new FakeMachine(blind))).stop()
+    expect(measured.background.unmeasured).toEqual(["pointerMoves", "windowsRaised"])
   })
 
   it("refuses to start when the sentinel reports an error", async () => {

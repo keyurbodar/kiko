@@ -66,6 +66,7 @@ import type { Batch } from "@kiko/agent/input"
 import type { Work } from "@kiko/agent/workers"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
+import { computersContext } from "./computer/inventory"
 import { userComputer } from "./computer/port"
 import type { ComputerPort } from "./computer/port"
 
@@ -581,7 +582,9 @@ export class Agent {
                 },
               }
             : {}),
-          ...(computersOn && home ? { computers: { port: () => this.computer(), acceptsImages: () => false } } : {}),
+          ...(computersOn && home
+            ? { computers: { port: () => this.computer(), acceptsImages: () => false, desktop: [] } }
+            : {}),
           routines: { port: () => this.routinesPort() },
           groups: this.groupsPort(),
           work: this.host.workers,
@@ -634,9 +637,12 @@ export class Agent {
         : undefined
     const picked = await this.picked()
     const computersOn = await this.computersOn()
+    const desktopTools = computersOn ? await this.computer().desktopTools() : []
     const built = buildAgent({
       ...(browser ? { browser } : {}),
-      ...(computersOn ? { computers: { port: () => this.computer(), acceptsImages: imageReader(user.models) } } : {}),
+      ...(computersOn
+        ? { computers: { port: () => this.computer(), acceptsImages: imageReader(user.models), desktop: desktopTools } }
+        : {}),
       testExtensions: [this.routineScheduler.extension],
       ...role,
       ...(picked.model ? { model: picked.model } : {}),
@@ -689,7 +695,8 @@ export class Agent {
         const integrations = integrationNote(composio, browserOn)
         const learned = Array.isArray(composio) ? learnedNote(composio) : undefined
         const routines = await this.routineContext()
-        return [clock, integrations, down, learned, quiet, routines].filter(Boolean).join("\n\n")
+        const computers = this.computerContext()
+        return [clock, integrations, down, learned, quiet, routines, computers].filter(Boolean).join("\n\n")
       },
       ...(home
         ? {
@@ -1078,6 +1085,15 @@ export class Agent {
     }
   }
 
+  private computerContext(): string | undefined {
+    if (!this.home()) return undefined
+    try {
+      return computersContext(this.services.user().computerList())
+    } catch {
+      return undefined
+    }
+  }
+
   async releaseTabs(): Promise<number> {
     if (!this.#browser) return 0
     return this.#browser.release().catch((e: unknown) => {
@@ -1145,5 +1161,21 @@ export class Agent {
 
   async devWorkers(): Promise<Work[]> {
     return (await this.dev()).devWorkers(this.agentDevHost())
+  }
+
+  async devBrowse(urls: string[]): Promise<number> {
+    const connection = this.browser()
+    return connection.use(async () => {
+      const [first, ...rest] = urls
+      const borrowed = rest.length ? await connection.borrow(rest) : null
+      try {
+        const tab = await connection.goto(first ?? "about:blank")
+        await tab.read()
+        for (const other of borrowed?.tabs ?? []) await other.read()
+        return 1 + (borrowed?.tabs.length ?? 0)
+      } finally {
+        await borrowed?.done()
+      }
+    })
   }
 }

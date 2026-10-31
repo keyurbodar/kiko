@@ -1,11 +1,11 @@
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import type { Background, Machine } from "../types"
+import type { Machine } from "../types"
 import { pointerCommand, sentinelCommand, sentinelSource } from "./launch"
-import { parseEvents, witness, type WitnessEvent } from "./witness"
+import { parseEvents, witness, type Witness, type WitnessEvent } from "./witness"
 
 export interface Sentinel {
-  stop(): Promise<Background>
+  stop(): Promise<Witness>
 }
 
 const SOURCE_DIR = dirname(fileURLToPath(import.meta.url))
@@ -82,7 +82,7 @@ export async function startSentinel(m: Machine): Promise<Sentinel> {
     await child.stop()
     throw new Error(`sentinel: ${failure(ready, log)}`)
   }
-  let stopping: Promise<Background> | undefined
+  let stopping: Promise<Witness> | undefined
   return {
     stop: () => {
       stopping ??= (async () => {
@@ -92,7 +92,7 @@ export async function startSentinel(m: Machine): Promise<Sentinel> {
         const events = exited.length > 0 ? exited : await readEvents(m, log)
         const result = witness(events)
         if (result.error) throw new Error(`sentinel: ${result.error}`)
-        return result.background
+        return result
       })()
       return stopping
     },

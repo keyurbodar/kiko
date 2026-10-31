@@ -5,9 +5,9 @@ import { findBinary, probeEncoders } from "./binary"
 import type { AccessUnit } from "./annexb"
 import { workingEncoders, type Screen } from "./capture"
 import { startH264, startMjpeg, type H264Capture, type MjpegCapture } from "./captures"
-import { createInput, type Injected } from "./input"
+import type { Injected } from "./input"
 import { createSession, type Session } from "./session"
-import type { Live, LiveDeps, LiveFrame } from "./types"
+import type { Control, Live, LiveDeps, LiveFrame } from "./types"
 
 const CURSOR_INTERVAL_MS = Math.round(1000 / 30)
 const CURSOR_EPSILON = 0.0008
@@ -28,6 +28,7 @@ class Daemon implements Live {
   private readonly sessions = new Map<string, Session>()
   private readonly screen: Screen
   private holder: Holder = "agent"
+  private holderSession: string | undefined
   private closed = false
   private cursorTimer: ReturnType<typeof setInterval> | null = null
   private cursorAt: { x: number; y: number } | null = null
@@ -40,13 +41,17 @@ class Daemon implements Live {
   constructor(deps: LiveDeps) {
     this.deps = deps
     const area = screenOf(deps.display)
-    this.input = createInput(area, { holder: () => this.holder, allowed: () => this.deps.policy.input })
+    this.input = deps.openInput?.(area, { holder: () => this.holder, allowed: () => this.deps.policy().input }) ?? null
     this.screen = area ?? this.input?.screen() ?? { width: 1920, height: 1080 }
     this.probe()
   }
 
+  private ffmpeg(): string | null {
+    return (this.deps.find ?? ((name) => findBinary(name, this.deps.configDir)))("ffmpeg")
+  }
+
   private probe(): void {
-    const ffmpeg = findBinary("ffmpeg", this.deps.configDir)
+    const ffmpeg = this.ffmpeg()
     if (!ffmpeg) return
     void workingEncoders(ffmpeg, this.deps.encoders ?? probeEncoders(ffmpeg)).then((found) => {
       this.encoders = found
@@ -54,7 +59,7 @@ class Daemon implements Live {
   }
 
   onRtc(session: string, signal: RtcSignal, iceServers?: readonly IceServer[]): void {
-    if (this.closed || !this.deps.policy.live || signal.type === "bye") {
+    if (this.closed || !this.deps.policy().live || signal.type === "bye") {
       this.drop(session)
       return
     }
@@ -66,7 +71,7 @@ class Daemon implements Live {
 
   onLive(frame: LiveFrame): void {
     if (this.closed) return
-    if (!frame.on || !this.deps.policy.live) {
+    if (!frame.on || !this.deps.policy().live) {
       this.stopRelay()
       return
     }
@@ -74,19 +79,24 @@ class Daemon implements Live {
   }
 
   onInput(events: readonly InputEvent[]): void {
-    if (this.closed || !this.deps.policy.live) return
+    if (this.closed || !this.deps.policy().live) return
     const decoded = decodeEvents(events)
     if (decoded._tag !== "Some") return
     this.deliver(decoded.value as readonly InputEvent[])
   }
 
-  onControl(holder: Holder): void {
-    if (this.holder === holder) return
-    this.holder = holder
-    if (holder === "agent") {
+  onControl(control: Control): void {
+    this.holder = control.holder
+    this.holderSession = control.holder === "human" ? control.session : undefined
+    if (control.holder === "agent") {
       this.input?.release()
       this.broadcast([{ k: "cursor", who: "real", x: 0, y: 0 }])
     }
+    this.deps.send({
+      t: "held",
+      holder: control.holder,
+      ...(control.epoch === undefined ? {} : { epoch: control.epoch }),
+    })
   }
 
   onAck(seq: number): void {
@@ -114,7 +124,7 @@ class Daemon implements Live {
     if (existing) return existing
     const created = createSession(id, this.deps.rtc, {
       signal: (target, signal) => this.deps.send({ t: "rtc", session: target, signal }),
-      input: (_target, events) => this.deliver(events),
+      input: (target, events) => this.deliver(events, target),
       closed: (target) => this.drop(target),
       watching: (target) => {
         this.attach()
@@ -153,9 +163,10 @@ class Daemon implements Live {
     this.stopWatching()
   }
 
-  private deliver(events: readonly InputEvent[]): void {
+  private deliver(events: readonly InputEvent[], from?: string): void {
     if (events.length === 0) return
-    if (this.holder !== "human" || !this.deps.policy.input) return
+    if (this.holder !== "human" || !this.deps.policy().input) return
+    if (from !== undefined && this.holderSession !== undefined && from !== this.holderSession) return
     const input = events.filter((event) => event.k !== "cursor") as InputEvent[]
     if (input.length > 0) this.input?.apply(input)
   }
@@ -166,7 +177,7 @@ class Daemon implements Live {
 
   private startCapture(): void {
     if (this.h264 || this.mjpeg) return
-    const ffmpeg = findBinary("ffmpeg", this.deps.configDir)
+    const ffmpeg = this.ffmpeg()
     if (!ffmpeg) return
     this.h264 = startH264({
       ffmpeg,
@@ -191,7 +202,7 @@ class Daemon implements Live {
   private startRelay(frame: LiveFrame): void {
     if (this.relay) return
     if (this.sessions.size === 0) this.stopCapture()
-    const ffmpeg = findBinary("ffmpeg", this.deps.configDir)
+    const ffmpeg = this.ffmpeg()
     if (!ffmpeg) return
     const fps = clamp(frame.fps, 1, 15, RELAY_FPS)
     this.relay = {

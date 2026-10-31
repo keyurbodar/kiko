@@ -48,6 +48,7 @@ type KernelDeps = {
   notify?: (error: NoticeError) => void
   store?: KernelStore
   clientFor?: (key: string) => KernelClient
+  cdpUrl?: string
 }
 
 const RESUMED = {
@@ -61,6 +62,22 @@ function slugOf(agentId: string): string {
   return agentId.split(/[/:]/).pop() ?? agentId
 }
 
+function localBrowser(cdpUrl: string, live: Set<string>): KernelClient {
+  return {
+    createBrowser: async () => {
+      const sessionId = `local-${crypto.randomUUID()}`
+      live.add(sessionId)
+      return { sessionId, cdpUrl }
+    },
+    deleteBrowser: async (sessionId) => {
+      live.delete(sessionId)
+    },
+    listActive: async () => [...live],
+    alive: async (sessionId) => live.has(sessionId),
+    createProfile: async () => {},
+  }
+}
+
 export class KernelWiring {
   readonly browser: KernelLease
   private switching = false
@@ -68,9 +85,12 @@ export class KernelWiring {
   private readonly d: KernelDeps
   private readonly store: KernelStore
   private readonly clientFor: (key: string) => KernelClient
+  private readonly local: string | undefined
+  private readonly localLive = new Set<string>()
 
   constructor(d: KernelDeps) {
     this.d = d
+    this.local = d.cdpUrl
     this.store = d.store ?? new KernelStore(d.sql, () => ({ keyring: keyringFromEnv(d.env), userId: d.userId() }))
     this.clientFor = d.clientFor ?? ((key) => sdkClient(key, d.fetch))
     this.browser = new KernelLease({
@@ -81,8 +101,12 @@ export class KernelWiring {
     })
   }
 
+  private get connected(): boolean {
+    return this.local !== undefined || this.store.connected()
+  }
+
   status(): KernelStatus {
-    const connected = this.store.connected()
+    const connected = this.connected
     return { connected, broken: connected && this.store.broken(), browser: connected ? this.browser.status() : null }
   }
 
@@ -147,7 +171,7 @@ export class KernelWiring {
   }
 
   tabList(agentId: string): { id: string; agent: string; url: string }[] {
-    const row = this.store.connected() ? this.store.lease() : undefined
+    const row = this.connected ? this.store.lease() : undefined
     if (!row || row.dead) return []
     return Object.entries(row.tabs).flatMap(([owner, tabs]) =>
       Object.entries(tabs).map(([id, url]) => ({
@@ -217,7 +241,7 @@ export class KernelWiring {
   check(agentId?: string): BrowserCheck {
     const status = this.browser.status()
     return {
-      connected: this.store.connected(),
+      connected: this.connected,
       takeover: this.takeover(),
       mode: status?.mode ?? null,
       tabs: status?.tabs ?? {},
@@ -231,7 +255,7 @@ export class KernelWiring {
   }
 
   browserState(): BrowserState {
-    const row = this.store.connected() ? this.store.lease() : undefined
+    const row = this.connected ? this.store.lease() : undefined
     return browserState(row && { ...row, takeover: humanHolds(row, Date.now()) }, this.switching, (agentId) => {
       const slug = slugOf(agentId)
       const row = this.d.sql.exec<{ name: string }>("SELECT name FROM agents WHERE slug = ?", slug).toArray()[0]
@@ -240,7 +264,7 @@ export class KernelWiring {
   }
 
   private async openLink(mode: "watch" | "control", onSwitching: (on: boolean) => void): Promise<string> {
-    if (!this.store.connected()) throw new KernelError({ kind: "failed", message: "Kernel is not connected" })
+    if (!this.connected) throw new KernelError({ kind: "failed", message: "Kernel is not connected" })
     const hold = () =>
       mode === "control" ? this.browser.setTakeover(true) : this.browser.watchUntil(Date.now() + WATCH_MS)
     const row = this.store.lease()
@@ -282,11 +306,12 @@ export class KernelWiring {
   }
 
   private async closeBrowser(): Promise<void> {
-    if (!this.store.connected()) return
+    if (!this.connected) return
     await this.browser.close().catch(() => undefined)
   }
 
   private async client(): Promise<KernelClient> {
+    if (this.local) return localBrowser(this.local, this.localLive)
     const key = await this.store.key()
     if (!key) throw new KernelError({ kind: "failed", message: "Kernel is not connected" })
     return this.clientFor(key)

@@ -4,6 +4,7 @@ import { PROTOCOL } from "@kiko/computer/wire"
 import { type Host, runLink } from "./connection"
 import type { Deadline } from "./deadline"
 import type { Driver } from "./driver"
+import { TerminalManager } from "./terminal/manager"
 
 type Event = { code?: number; reason?: string; data?: unknown }
 type Listener = (event: Event) => void
@@ -54,8 +55,9 @@ async function host(): Promise<Host> {
     key: await crypto.subtle.exportKey("jwk", pair.privateKey),
     hello: () => "{}",
     policy: async () => ({ shell: true, files: { allow: ["~"] }, desktop: false, live: false, input: false }),
-    desktop: () => null,
     driver: () => null,
+    terminal: () => null,
+    terminals: { open() {}, input() {}, resize() {}, ack() {}, close() {} },
     paused: () => false,
     live: { rtc() {}, live() {}, input() {}, control() {}, ack() {} },
     holder: () => "agent",
@@ -178,6 +180,26 @@ function sendDriver(socket: FakeSocket, id: string, args: unknown) {
   socket.emit("message", { data: JSON.stringify({ t: "call", id, op: "driver", args, deadlineMs: 5_000 }) })
 }
 
+function sendTerminal(socket: FakeSocket, id: string, op: string, args: unknown) {
+  socket.emit("message", { data: JSON.stringify({ t: "call", id, op, args, deadlineMs: 5_000 }) })
+}
+
+function fakeTerminals() {
+  const writes: string[] = []
+  const manager = new TerminalManager({
+    spawn: () => ({
+      pid: 7,
+      write: (data) => writes.push(data),
+      resize: () => {},
+      kill: () => {},
+      close: () => {},
+      exited: new Promise(() => {}),
+    }),
+    screen: () => ({ write: (_text, done) => done?.(), text: () => "", resize: () => {}, dispose: () => {} }),
+  })
+  return { manager, writes }
+}
+
 async function resultOf(socket: FakeSocket, id: string): Promise<Result> {
   await vi.waitFor(() => {
     assert.isTrue(socket.sent.some((frame) => (JSON.parse(frame as string) as Result).id === id))
@@ -185,18 +207,93 @@ async function resultOf(socket: FakeSocket, id: string): Promise<Result> {
   return socket.sent.map((frame) => JSON.parse(frame as string) as Result).find((frame) => frame.id === id)!
 }
 
+describe("terminal calls", () => {
+  it("opens a terminal through the manager", async () => {
+    const { manager } = fakeTerminals()
+    const { link, socket } = await openLink({ ...(await host()), terminal: () => manager })
+    try {
+      sendTerminal(socket, "c1", "terminal_open", { name: "repl" })
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isTrue(result.ok)
+      assert.strictEqual((result.value as { name: string }).name, "repl")
+    } finally {
+      manager.closeAll()
+      link.stop()
+      reset()
+    }
+  })
+
+  it("types into a terminal and reports the bytes", async () => {
+    const { manager, writes } = fakeTerminals()
+    const { link, socket } = await openLink({ ...(await host()), terminal: () => manager })
+    try {
+      const target = manager.open({ name: "repl" })
+      sendTerminal(socket, "c1", "terminal_send", { id: target.id, text: "ls", keys: ["enter"] })
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isTrue(result.ok)
+      assert.deepStrictEqual((result.value as { bytes: number }).bytes, 3)
+      assert.deepStrictEqual(writes, ["ls", "\r"])
+    } finally {
+      manager.closeAll()
+      link.stop()
+      reset()
+    }
+  })
+
+  it("denies terminals when policy turns shell off", async () => {
+    const { manager } = fakeTerminals()
+    const { link, socket } = await openLink({
+      ...(await host()),
+      terminal: () => manager,
+      policy: async () => ({ ...(await desktopOn()), shell: false }),
+    })
+    try {
+      sendTerminal(socket, "c1", "terminal_open", {})
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isFalse(result.ok)
+      assert.strictEqual(result.error?.code, "denied")
+      assert.strictEqual(manager.list().terminals.length, 0)
+    } finally {
+      manager.closeAll()
+      link.stop()
+      reset()
+    }
+  })
+
+  it("says a machine without a pty cannot open one", async () => {
+    const { link, socket } = await openLink(await host())
+    try {
+      sendTerminal(socket, "c1", "terminal_open", {})
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isFalse(result.ok)
+      assert.strictEqual(result.error?.code, "unsupported")
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+})
+
 describe("driver calls", () => {
   it("forwards a driver call to the kiko app", async () => {
     const { driver, calls } = fakeDriver()
     const { link, socket } = await openLink({ ...(await host()), driver: () => driver, policy: desktopOn })
     try {
-      sendDriver(socket, "c1", { method: "windows" })
+      sendDriver(socket, "c1", { method: "desktop.tools" })
 
       const result = await resultOf(socket, "c1")
 
       assert.isTrue(result.ok)
       assert.deepStrictEqual(result.value, { windows: [] })
-      assert.deepStrictEqual(calls, [{ method: "windows" }])
+      assert.deepStrictEqual(calls, [{ method: "desktop.tools" }])
     } finally {
       link.stop()
       reset()
@@ -212,7 +309,7 @@ describe("driver calls", () => {
       paused: () => true,
     })
     try {
-      sendDriver(socket, "c1", { method: "windows" })
+      sendDriver(socket, "c1", { method: "desktop.tools" })
 
       const result = await resultOf(socket, "c1")
 
@@ -236,7 +333,7 @@ describe("driver calls", () => {
       holder: () => "human",
     })
     try {
-      sendDriver(socket, "c1", { method: "windows" })
+      sendDriver(socket, "c1", { method: "desktop.tools" })
 
       const result = await resultOf(socket, "c1")
 
@@ -256,7 +353,7 @@ describe("driver calls", () => {
       policy: async () => ({ ...(await desktopOn()), desktop: false }),
     })
     try {
-      sendDriver(socket, "c1", { method: "windows" })
+      sendDriver(socket, "c1", { method: "desktop.tools" })
 
       const result = await resultOf(socket, "c1")
 
@@ -272,12 +369,268 @@ describe("driver calls", () => {
   it("refuses driver work when the kiko app is not there", async () => {
     const { link, socket } = await openLink({ ...(await host()), policy: desktopOn })
     try {
-      sendDriver(socket, "c1", { method: "windows" })
+      sendDriver(socket, "c1", { method: "desktop.tools" })
 
       const result = await resultOf(socket, "c1")
 
       assert.isFalse(result.ok)
       assert.strictEqual(result.error?.code, "unsupported")
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+
+  it("answers cancelled when the worker cancels a call the app settled anyway", async () => {
+    const driver: Driver = {
+      call: (_call, deadline) =>
+        new Promise((resolve) => {
+          const settle = () => resolve({ windows: [] })
+          if (deadline.signal.aborted) settle()
+          else deadline.signal.addEventListener("abort", settle, { once: true })
+        }),
+      state: () => null,
+      background: () => false,
+      browser: () => false,
+      close: () => {},
+    }
+    const { link, socket } = await openLink({ ...(await host()), driver: () => driver, policy: desktopOn })
+    try {
+      sendDriver(socket, "c1", { method: "desktop.tools" })
+      socket.emit("message", { data: JSON.stringify({ t: "cancel", id: "c1" }) })
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isFalse(result.ok)
+      assert.strictEqual(result.error?.code, "cancelled")
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+
+  it("keeps the link when a live frame throws", async () => {
+    const { driver } = fakeDriver()
+    const { link, socket } = await openLink({
+      ...(await host()),
+      driver: () => driver,
+      policy: desktopOn,
+      live: {
+        rtc() {
+          throw new Error("a bad sdp")
+        },
+        live() {},
+        input() {},
+        control() {},
+        ack() {},
+      },
+    })
+    try {
+      socket.emit("message", {
+        data: JSON.stringify({ t: "rtc", session: "s", signal: { type: "offer", sdp: "not an sdp" } }),
+      })
+      sendDriver(socket, "c1", { method: "desktop.tools" })
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isTrue(result.ok)
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+})
+
+describe("resumable calls", () => {
+  function heldShell() {
+    let exited: (code: number) => void = () => {}
+    const proc = { pid: 5150, stdout: undefined, stderr: undefined, exited: new Promise<number>((r) => (exited = r)) }
+    let spawns = 0
+    vi.stubGlobal("Bun", {
+      spawn: () => {
+        spawns += 1
+        return proc
+      },
+      spawnSync: () => ({}),
+    })
+    return { spawns: () => spawns, finish: () => exited(0) }
+  }
+
+  function shellCall(socket: FakeSocket, id: string) {
+    socket.emit("message", {
+      data: JSON.stringify({ t: "call", id, op: "shell", args: { command: "build" }, deadlineMs: 60_000 }),
+    })
+  }
+
+  async function swap(link: { open(): Promise<void> }, before: number) {
+    void link.open()
+    await vi.waitFor(() => assert.strictEqual(FakeSocket.made.length, before + 1))
+    const second = FakeSocket.made[before]!
+    second.open()
+    return second
+  }
+
+  function helloOf(socket: FakeSocket) {
+    const frame = socket.sent.map((text) => JSON.parse(text as string) as { resume?: unknown })
+    return frame.find((parsed) => parsed.resume !== undefined)
+  }
+
+  it("keeps a running shell call through a socket swap and returns its output once", async () => {
+    const shell = heldShell()
+    const { link, socket } = await openLink({ ...(await host()), policy: desktopOn })
+    try {
+      const opening = link as unknown as { open(): Promise<void> }
+      shellCall(socket, "c1")
+      await vi.waitFor(() => assert.strictEqual(shell.spawns(), 1))
+
+      socket.emit("close", { code: 1006 })
+      const second = await swap(opening, 1)
+
+      assert.deepStrictEqual(helloOf(second)?.resume, { running: ["c1"], recent: [] })
+      assert.strictEqual(resultsOf(socket, "c1").length, 0)
+
+      shell.finish()
+
+      assert.isTrue((await resultOf(second, "c1")).ok)
+      assert.strictEqual(resultsOf(second, "c1").length, 1)
+      assert.strictEqual(shell.spawns(), 1)
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+
+  it("answers a shell call that finished during the gap from the recent results", async () => {
+    const shell = heldShell()
+    const { link, socket } = await openLink({ ...(await host()), policy: desktopOn })
+    try {
+      const opening = link as unknown as { open(): Promise<void> }
+      shellCall(socket, "c1")
+      await vi.waitFor(() => assert.strictEqual(shell.spawns(), 1))
+
+      socket.emit("close", { code: 1006 })
+      shell.finish()
+      await vi.waitFor(() => assert.isFalse(link.busy()))
+      const second = await swap(opening, 1)
+
+      assert.deepStrictEqual(helloOf(second)?.resume, { running: [], recent: ["c1"] })
+
+      shellCall(second, "c1")
+
+      assert.isTrue((await resultOf(second, "c1")).ok)
+      assert.strictEqual(shell.spawns(), 1)
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+
+  it("reports no call when the daemon never saw one", async () => {
+    const { link, socket } = await openLink({ ...(await host()), policy: desktopOn })
+    try {
+      const opening = link as unknown as { open(): Promise<void> }
+      socket.emit("close", { code: 1006 })
+      const second = await swap(opening, 1)
+
+      assert.deepStrictEqual(helloOf(second)?.resume, { running: [], recent: [] })
+      assert.strictEqual(second.sent.length, 1)
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+
+  it("kills the process group when the worker cancels a shell call", async () => {
+    let exited: (code: number) => void = () => {}
+    let spawned: () => void = () => {}
+    const started = new Promise<void>((r) => (spawned = r))
+    const proc = { pid: 4242, stdout: undefined, stderr: undefined, exited: new Promise<number>((r) => (exited = r)) }
+    const spawnSync = vi.fn(() => {
+      exited(137)
+      return {}
+    })
+    vi.stubGlobal("Bun", {
+      spawn: () => {
+        spawned()
+        return proc
+      },
+      spawnSync,
+    })
+    const kill = vi.spyOn(process, "kill").mockImplementation(() => {
+      exited(137)
+      return true
+    })
+    const { link, socket } = await openLink({ ...(await host()), policy: desktopOn })
+    try {
+      socket.emit("message", {
+        data: JSON.stringify({ t: "call", id: "c1", op: "shell", args: { command: "sleep 30" }, deadlineMs: 60_000 }),
+      })
+      await started
+      socket.emit("message", { data: JSON.stringify({ t: "cancel", id: "c1" }) })
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isFalse(result.ok)
+      assert.strictEqual(result.error?.code, "cancelled")
+      if (process.platform === "win32")
+        assert.deepStrictEqual(spawnSync.mock.calls, [
+          [["taskkill", "/pid", "4242", "/T", "/F"], { stdout: "ignore", stderr: "ignore" }],
+        ])
+      else assert.deepStrictEqual(kill.mock.calls, [[-4242, "SIGKILL"]])
+    } finally {
+      kill.mockRestore()
+      link.stop()
+      reset()
+    }
+  })
+})
+
+function resultsOf(socket: FakeSocket, id: string): Result[] {
+  return socket.sent
+    .map((text) => JSON.parse(text as string) as Result)
+    .filter((frame) => frame.t === "result" && frame.id === id)
+}
+
+describe("driver input policy", () => {
+  const inputOff = async () => ({ ...(await desktopOn()), input: false })
+
+  const typing = [
+    { method: "desktop.call", params: { name: "click", args: { x: 1, y: 2 } } },
+    { method: "browser.act", params: { tab: "t", ref: 1, action: "click" } },
+    { method: "browser.open", params: { url: "https://example.com" } },
+  ]
+
+  it("refuses every call that would type or click", async () => {
+    for (const call of typing) {
+      const { driver, calls } = fakeDriver()
+      const { link, socket } = await openLink({
+        ...(await host()),
+        driver: () => driver,
+        policy: inputOff,
+      })
+      try {
+        sendDriver(socket, "c1", call)
+
+        const result = await resultOf(socket, "c1")
+
+        assert.isFalse(result.ok, call.method)
+        assert.strictEqual(result.error?.code, "denied", call.method)
+        assert.strictEqual(calls.length, 0, call.method)
+      } finally {
+        link.stop()
+        reset()
+      }
+    }
+  })
+
+  it("still lists the desktop tools with input off", async () => {
+    const { driver, calls } = fakeDriver()
+    const { link, socket } = await openLink({ ...(await host()), driver: () => driver, policy: inputOff })
+    try {
+      sendDriver(socket, "c1", { method: "desktop.tools" })
+
+      assert.isTrue((await resultOf(socket, "c1")).ok)
+      assert.strictEqual(calls.length, 1)
     } finally {
       link.stop()
       reset()

@@ -1,0 +1,495 @@
+import { basename, isAbsolute, resolve } from "node:path"
+import type { Args, TerminalStream, Value } from "@kiko/computer/wire"
+import { Fail } from "../log"
+import { BoundedHistory } from "./history"
+import { KEY_NAMES, keyBytes } from "./keys"
+import { bunPty, defaultCwd, defaultShell, type Pty, type PtySpawn } from "./pty"
+import { createScreen, type Screen } from "./screen"
+import { plain, plainTail, replay } from "./text"
+
+const DEFAULT_COLS = 120
+const DEFAULT_ROWS = 30
+const MAX_TERMINALS = 16
+const IDLE_MS = 30 * 60_000
+const WAIT_DEFAULT_MS = 30_000
+const WAIT_MAX_MS = 120_000
+const CLOSE_GRACE_MS = 1_000
+const READ_LINES = 200
+const READ_CHARS = 64_000
+const SNAPSHOT_CHARS = 256 * 1024
+const VIEW_WINDOW = 256 * 1024
+const VIEW_BACKLOG = 4 * 1024 * 1024
+
+type Timer = ReturnType<typeof setTimeout>
+
+type Waiter = {
+  test(screen: string, tail: string): boolean
+  settle(matched: boolean, timedOut: boolean, exited: boolean): void
+}
+
+type Viewer = {
+  event(event: TerminalStream): void
+  pending: number
+  queue: string[]
+  queued: number
+  open: boolean
+}
+
+export type TerminalView = {
+  detach(): void
+  ack(bytes: number): void
+  write(data: string): void
+  resize(cols: number, rows: number): void
+}
+
+type Session = {
+  id: string
+  name: string
+  cwd: string
+  shell: string
+  cols: number
+  rows: number
+  status: "running" | "exited"
+  exitCode: number | null
+  history: BoundedHistory
+  screen: Screen
+  pty: Pty
+  decoder: TextDecoder
+  idle: Timer | null
+  waiters: Set<Waiter>
+  drains: Set<() => void>
+  viewers: Set<Viewer>
+  pendingWrites: number
+  disposed: boolean
+}
+
+export type TerminalOptions = {
+  spawn?: PtySpawn
+  idleMs?: number
+  screen?: (cols: number, rows: number, onReply: (data: string) => void) => Screen
+}
+
+export class TerminalManager {
+  private readonly sessions = new Map<string, Session>()
+  private readonly spawn: PtySpawn
+  private readonly idleMs: number
+  private readonly makeScreen: NonNullable<TerminalOptions["screen"]>
+  private counter = 0
+
+  constructor(options: TerminalOptions = {}) {
+    this.spawn = options.spawn ?? bunPty
+    this.idleMs = options.idleMs ?? IDLE_MS
+    this.makeScreen = options.screen ?? createScreen
+  }
+
+  open(args: Args<"terminal_open">): Value<"terminal_open"> {
+    if (this.sessions.size >= MAX_TERMINALS)
+      throw new Fail({
+        code: "busy",
+        message: `this computer already has ${MAX_TERMINALS} terminals open; close one with terminal_close first`,
+      })
+    const command = args.shell?.trim() ? [args.shell.trim()] : defaultShell()
+    const shell = command.join(" ")
+    const cwd = resolve(args.cwd ? expandHome(args.cwd) : defaultCwd())
+    const cols = args.cols ?? DEFAULT_COLS
+    const rows = args.rows ?? DEFAULT_ROWS
+    const id = crypto.randomUUID()
+    this.counter += 1
+    const name = (args.name?.trim() || `${basename(command[0] ?? shell)} ${this.counter}`).slice(0, 60)
+    let session: Session | undefined
+    const screen = this.makeScreen(cols, rows, (data) => session?.pty.write(data))
+    let pty: Pty
+    try {
+      pty = this.spawn({
+        command,
+        cwd,
+        cols,
+        rows,
+        onData: (chunk) => {
+          if (session) this.receive(session, chunk)
+        },
+        onExit: (code) => {
+          if (session) this.exited(session, code)
+        },
+      })
+    } catch (error) {
+      screen.dispose()
+      throw new Fail({
+        code: "failed",
+        message: `could not start ${shell} in ${cwd}: ${error instanceof Error ? error.message : String(error)}`,
+      })
+    }
+    const created: Session = {
+      id,
+      name,
+      cwd,
+      shell,
+      cols,
+      rows,
+      status: "running",
+      exitCode: null,
+      history: new BoundedHistory(),
+      screen,
+      pty,
+      decoder: new TextDecoder(),
+      idle: null,
+      waiters: new Set(),
+      drains: new Set(),
+      viewers: new Set(),
+      pendingWrites: 0,
+      disposed: false,
+    }
+    session = created
+    this.sessions.set(id, created)
+    this.scheduleIdle(created)
+    return this.info(created)
+  }
+
+  send(args: Args<"terminal_send">, signal?: AbortSignal): Promise<Value<"terminal_send">> {
+    const session = this.get(args.id)
+    const text = args.text ?? ""
+    const keys = args.keys ?? []
+    if (text.length === 0 && keys.length === 0)
+      throw new Fail({ code: "failed", message: "terminal_send needs text, keys, or both" })
+    let pressed = ""
+    for (const key of keys) {
+      const bytes = keyBytes(key)
+      if (bytes === null)
+        throw new Fail({
+          code: "failed",
+          message: `terminal_send does not know the key ${key}; use ${KEY_NAMES.join(", ")}`,
+        })
+      pressed += bytes
+    }
+    const matcher = args.until === undefined ? null : matcherFor(args.until, args.regex === true)
+    if (text) session.pty.write(text)
+    if (pressed) session.pty.write(pressed)
+    this.scheduleIdle(session)
+    const bytes = Buffer.byteLength(text + pressed)
+    if (!matcher) return Promise.resolve({ id: session.id, bytes })
+    return this.settleOn(session, matcher, args.timeoutMs, signal).then((waited) => ({
+      id: session.id,
+      bytes,
+      ...waited,
+    }))
+  }
+
+  async read(args: Args<"terminal_read">): Promise<Value<"terminal_read">> {
+    const session = this.get(args.id)
+    this.scheduleIdle(session)
+    await this.drained(session)
+    const { text, truncated } = args.mode === "screen" ? this.screenText(session) : this.tail(session, args.lines)
+    return {
+      id: session.id,
+      mode: args.mode,
+      text,
+      truncated,
+      cols: session.cols,
+      rows: session.rows,
+      status: session.status,
+      exitCode: session.exitCode,
+    }
+  }
+
+  private drained(session: Session): Promise<void> {
+    if (session.pendingWrites === 0 || session.disposed) return Promise.resolve()
+    return new Promise((resolve) => session.drains.add(resolve))
+  }
+
+  private settleDrains(session: Session): void {
+    if (session.pendingWrites > 0) return
+    for (const resolve of session.drains) resolve()
+    session.drains.clear()
+  }
+
+  private screenText(session: Session): { text: string; truncated: boolean } {
+    const text = session.screen.text()
+    if (text.length <= READ_CHARS) return { text, truncated: false }
+    return { text: text.slice(0, READ_CHARS), truncated: true }
+  }
+
+  private tail(session: Session, lines = READ_LINES): { text: string; truncated: boolean } {
+    const { text, truncated } = session.history.lines(lines)
+    const clean = plain(text)
+    if (clean.length <= READ_CHARS) return { text: clean, truncated }
+    return { text: clean.slice(clean.length - READ_CHARS), truncated: true }
+  }
+
+  wait(args: Args<"terminal_wait">, signal?: AbortSignal): Promise<Value<"terminal_wait">> {
+    const session = this.get(args.id)
+    const matcher = matcherFor(args.until, args.regex === true)
+    return this.settleOn(session, matcher, args.timeoutMs, signal).then((waited) => ({ id: session.id, ...waited }))
+  }
+
+  private settleOn(
+    session: Session,
+    matcher: (text: string) => boolean,
+    timeoutMs: number | undefined,
+    signal?: AbortSignal,
+  ): Promise<{ matched: boolean; timedOut: boolean; exited: boolean; text: string }> {
+    const budget = Math.min(Math.max(timeoutMs ?? WAIT_DEFAULT_MS, 1_000), WAIT_MAX_MS)
+    this.scheduleIdle(session)
+    return new Promise((resolve, reject) => {
+      let timer: Timer | undefined
+      let abort = () => {}
+      let waiter: Waiter
+      const finish = (matched: boolean, timedOut: boolean, exited: boolean) => {
+        session.waiters.delete(waiter)
+        if (timer) clearTimeout(timer)
+        signal?.removeEventListener("abort", abort)
+        resolve({ matched, timedOut, exited, text: plainTail(session.history.value()) })
+      }
+      waiter = {
+        test: (screen, tail) => matcher(screen) || matcher(tail),
+        settle: (matched, timedOut, exited) => finish(matched, timedOut, exited),
+      }
+      timer = setTimeout(() => finish(false, true, false), budget)
+      unref(timer)
+      abort = () => {
+        session.waiters.delete(waiter)
+        if (timer) clearTimeout(timer)
+        reject(signal?.reason instanceof Error ? signal.reason : new Fail({ code: "cancelled", message: "cancelled" }))
+      }
+      signal?.addEventListener("abort", abort, { once: true })
+      if (signal?.aborted) {
+        abort()
+        return
+      }
+      session.waiters.add(waiter)
+      this.poke(session)
+    })
+  }
+
+  resize(args: Args<"terminal_resize">): Value<"terminal_resize"> {
+    const session = this.get(args.id)
+    session.cols = args.cols
+    session.rows = args.rows
+    session.screen.resize(args.cols, args.rows)
+    session.pty.resize(args.cols, args.rows)
+    this.scheduleIdle(session)
+    return { id: session.id, cols: session.cols, rows: session.rows }
+  }
+
+  async close(args: Args<"terminal_close">): Promise<Value<"terminal_close">> {
+    const session = this.get(args.id)
+    this.sessions.delete(session.id)
+    if (!session.disposed) {
+      session.pty.kill()
+      const grace = setTimeout(() => session.pty.close(), CLOSE_GRACE_MS)
+      unref(grace)
+      await Promise.race([session.pty.exited, sleep(CLOSE_GRACE_MS * 2)])
+      clearTimeout(grace)
+      this.finish(session)
+    }
+    return { id: session.id, closed: true }
+  }
+
+  list(): Value<"terminal_list"> {
+    return { terminals: [...this.sessions.values()].map((session) => this.info(session)) }
+  }
+
+  attach(args: { id: string; cols?: number; rows?: number }, event: (event: TerminalStream) => void): TerminalView {
+    const session = this.get(args.id)
+    if (
+      args.cols !== undefined &&
+      args.rows !== undefined &&
+      (args.cols !== session.cols || args.rows !== session.rows)
+    )
+      this.resize({ id: session.id, cols: args.cols, rows: args.rows })
+    this.scheduleIdle(session)
+    const viewer: Viewer = { event, pending: 0, queue: [], queued: 0, open: true }
+    session.viewers.add(viewer)
+    this.deliver(viewer, {
+      type: "snapshot",
+      history: replay(session.history.value(), SNAPSHOT_CHARS),
+      cols: session.cols,
+      rows: session.rows,
+      status: session.status,
+      exitCode: session.exitCode,
+    })
+    return {
+      detach: () => this.detach(session, viewer),
+      ack: (bytes) => this.acknowledge(viewer, bytes),
+      write: (data) => {
+        if (session.disposed) return
+        session.pty.write(data)
+        this.scheduleIdle(session)
+      },
+      resize: (cols, rows) => {
+        if (session.disposed) return
+        this.resize({ id: session.id, cols, rows })
+      },
+    }
+  }
+
+  private detach(session: Session, viewer: Viewer): void {
+    viewer.open = false
+    viewer.queue = []
+    viewer.queued = 0
+    session.viewers.delete(viewer)
+  }
+
+  private acknowledge(viewer: Viewer, bytes: number): void {
+    if (!viewer.open) return
+    viewer.pending = Math.max(0, viewer.pending - bytes)
+    while (viewer.open && viewer.pending < VIEW_WINDOW && viewer.queue.length > 0) {
+      const data = viewer.queue.shift() ?? ""
+      viewer.queued -= data.length
+      this.deliver(viewer, { type: "output", data })
+    }
+  }
+
+  private deliver(viewer: Viewer, event: TerminalStream): void {
+    if (!viewer.open) return
+    if (event.type === "snapshot") viewer.pending += event.history.length
+    else if (event.type === "output") viewer.pending += event.data.length
+    viewer.event(event)
+  }
+
+  private broadcast(session: Session, event: TerminalStream): void {
+    for (const viewer of session.viewers) {
+      if (!viewer.open) continue
+      if (event.type !== "output" || (viewer.pending < VIEW_WINDOW && viewer.queue.length === 0)) {
+        this.deliver(viewer, event)
+        continue
+      }
+      viewer.queue.push(event.data)
+      viewer.queued += event.data.length
+      if (viewer.queued <= VIEW_BACKLOG) continue
+      viewer.event({ type: "error", message: "this terminal is producing more output than the viewer can take" })
+      this.detach(session, viewer)
+    }
+  }
+
+  closeAll(): void {
+    for (const session of this.sessions.values()) {
+      session.pty.kill()
+      this.finish(session)
+    }
+    this.sessions.clear()
+  }
+
+  private get(id: string): Session {
+    const session = this.sessions.get(id)
+    if (!session) {
+      const open = [...this.sessions.values()].map((entry) => entry.id).join(", ")
+      throw new Fail({
+        code: "failed",
+        message: `there is no terminal ${id}${open ? `; the open terminals are ${open}` : "; terminal_list shows the open ones"}`,
+      })
+    }
+    return session
+  }
+
+  private info(session: Session): Value<"terminal_open"> {
+    return {
+      id: session.id,
+      name: session.name,
+      cwd: session.cwd,
+      shell: session.shell,
+      cols: session.cols,
+      rows: session.rows,
+      status: session.status,
+      exitCode: session.exitCode,
+    }
+  }
+
+  private receive(session: Session, chunk: Uint8Array): void {
+    if (session.disposed) return
+    this.feed(session, session.decoder.decode(chunk, { stream: true }))
+  }
+
+  private feed(session: Session, text: string): void {
+    if (!text) return
+    session.history.append(text)
+    this.broadcast(session, { type: "output", data: text })
+    session.pendingWrites += 1
+    session.screen.write(text, () => {
+      session.pendingWrites -= 1
+      this.settleDrains(session)
+      this.poke(session)
+    })
+  }
+
+  private exited(session: Session, code: number | null): void {
+    if (session.disposed) return
+    this.feed(session, session.decoder.decode())
+    session.status = "exited"
+    session.exitCode = code
+    this.broadcast(session, { type: "exit", code })
+    this.scheduleIdle(session)
+    for (const waiter of session.waiters) waiter.settle(false, false, true)
+  }
+
+  private poke(session: Session): void {
+    if (session.disposed || session.waiters.size === 0) return
+    if (session.pendingWrites > 0) return
+    const screen = session.screen.text()
+    const tail = plainTail(session.history.value())
+    for (const waiter of session.waiters) {
+      if (waiter.test(screen, tail)) waiter.settle(true, false, false)
+    }
+  }
+
+  private scheduleIdle(session: Session): void {
+    if (session.idle) clearTimeout(session.idle)
+    const timer = setTimeout(() => {
+      if (session.waiters.size > 0) {
+        this.scheduleIdle(session)
+        return
+      }
+      this.sessions.delete(session.id)
+      session.pty.kill()
+      this.finish(session)
+    }, this.idleMs)
+    unref(timer)
+    session.idle = timer
+  }
+
+  private finish(session: Session): void {
+    if (session.disposed) return
+    session.disposed = true
+    if (session.idle) clearTimeout(session.idle)
+    session.idle = null
+    for (const viewer of session.viewers) viewer.event({ type: "exit", code: session.exitCode })
+    session.viewers.clear()
+    for (const resolve of session.drains) resolve()
+    session.drains.clear()
+    for (const waiter of session.waiters) waiter.settle(false, false, true)
+    session.waiters.clear()
+    session.screen.dispose()
+    session.pty.close()
+  }
+}
+
+function matcherFor(until: string, regex: boolean): (text: string) => boolean {
+  if (!until) throw new Fail({ code: "failed", message: "terminal_wait needs some text to look for" })
+  if (!regex) return (text) => text.includes(until)
+  let pattern: RegExp
+  try {
+    pattern = new RegExp(until)
+  } catch (error) {
+    throw new Fail({
+      code: "failed",
+      message: `until is not a valid regular expression: ${error instanceof Error ? error.message : String(error)}`,
+    })
+  }
+  return (text) => pattern.test(text)
+}
+
+function expandHome(path: string): string {
+  if (path === "~") return defaultCwd()
+  if (path.startsWith("~/") || path.startsWith("~\\")) return resolve(defaultCwd(), path.slice(2))
+  return isAbsolute(path) ? path : resolve(defaultCwd(), path)
+}
+
+function unref(timer: Timer): void {
+  if (typeof timer === "object" && timer !== null && "unref" in timer) (timer as { unref(): void }).unref()
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((done) => {
+    const timer = setTimeout(done, ms)
+    unref(timer)
+  })
+}

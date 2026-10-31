@@ -1,20 +1,21 @@
 import type { Caps, Display } from "@kiko/computer/wire"
-import type { Access, Backend } from "./desk/backend"
-import { createBackend } from "./desk"
-import { Desktop } from "./desktop"
+import type { DriverState } from "./driver"
 import type { Logger } from "./log"
 import type { LiveCaps } from "./live"
 import { findBinary } from "./live/binary"
+import { hasPty } from "./terminal/pty"
+
+export type Access = { screen: boolean; input: boolean }
 
 export type Detection = {
-  backend: Backend | null
-  desktop: Desktop | null
   caps: Caps
   displays: Display[]
   access: Access | null
   reason: string | null
 }
 
+const NO_DRIVER = "the kiko app is not running on this machine, so desktop tools are off"
+const STARTING = "the kiko app is still connecting its desktop engine"
 const FFMPEG_NOTE =
   process.platform === "darwin"
     ? "the live view needs ffmpeg on this computer: brew install ffmpeg"
@@ -24,46 +25,63 @@ function hasFfmpeg(configDir?: string): boolean {
   return findBinary("ffmpeg", configDir) !== null
 }
 
-function capsFor(desktop: boolean, ffmpeg: boolean, live: LiveCaps): Caps {
+function permitted(grant: string | undefined): boolean {
+  return grant === "granted" || grant === "not_needed"
+}
+
+function accessOf(state: DriverState | null): Access | null {
+  if (!state) return null
+  return { screen: permitted(state.permissions.screen), input: permitted(state.permissions.accessibility) }
+}
+
+function displaysOf(state: DriverState | null): Display[] {
+  return [...(state?.displays ?? [])]
+}
+
+function desktopReady(state: DriverState | null): boolean {
+  return (state?.desktop?.tools.length ?? 0) > 0
+}
+
+function capsFor(state: DriverState | null, ffmpeg: boolean, live: LiveCaps, terminal: boolean): Caps {
+  const desktop = desktopReady(state)
   return {
     shell: true,
     files: true,
     desktop,
     live: live.live && desktop && ffmpeg,
     input: live.input && desktop,
+    terminal,
   }
 }
 
-function noBackendReason(): string {
-  if (process.platform !== "linux") return "the desktop backend for this system did not load"
-  if (process.env.DISPLAY) return "the desktop backend for this X11 session did not load"
-  if (process.env.WAYLAND_DISPLAY) return "this is a Wayland-only session; desktop tools need X11"
-  return "no DISPLAY is set; desktop tools need an X11 session"
+function reasonFor(state: DriverState | null, ffmpeg: boolean): string | null {
+  if (!state) return NO_DRIVER
+  if (!desktopReady(state)) return STARTING
+  return ffmpeg ? null : FFMPEG_NOTE
 }
 
-function displaysOf(backend: Backend | null): Display[] {
-  const area = backend?.area() ?? null
-  if (!area) return []
-  return [{ id: "primary", width: area.width, height: area.height, scale: 1 }]
-}
-
-function detectionOf(backend: Backend | null, ffmpeg: boolean, live: LiveCaps): Detection {
+export function detect(
+  log: Logger,
+  live: LiveCaps = { live: false, input: false },
+  state: DriverState | null = null,
+  configDir?: string,
+): Detection {
+  const ffmpeg = hasFfmpeg(configDir)
+  const reason = reasonFor(state, ffmpeg)
+  if (reason && !state) log.warn(`${reason}; desktop tools are off`)
   return {
-    backend,
-    desktop: backend ? new Desktop(backend) : null,
-    caps: capsFor(backend !== null, ffmpeg, live),
-    displays: displaysOf(backend),
-    access: backend?.access() ?? null,
-    reason: backend ? (ffmpeg ? null : FFMPEG_NOTE) : noBackendReason(),
+    caps: capsFor(state, ffmpeg, live, hasPty()),
+    displays: displaysOf(state),
+    access: accessOf(state),
+    reason,
   }
 }
 
 export function presence(): Detection {
-  return detectionOf(createBackend(), hasFfmpeg(), { live: false, input: false })
-}
-
-export function detect(log: Logger, live: LiveCaps = { live: false, input: false }, configDir?: string): Detection {
-  const backend = createBackend()
-  if (!backend) log.warn(`${noBackendReason()}; desktop tools are off`)
-  return detectionOf(backend, hasFfmpeg(configDir), live)
+  return {
+    caps: { shell: true, files: true, desktop: false, live: false, input: false, terminal: hasPty() },
+    displays: [],
+    access: null,
+    reason: NO_DRIVER,
+  }
 }

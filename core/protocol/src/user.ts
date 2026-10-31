@@ -245,6 +245,7 @@ export const ComputerCaps = Schema.Struct({
   input: Schema.Boolean,
   background: Schema.optionalKey(Schema.Boolean),
   browser: Schema.optionalKey(Schema.Boolean),
+  terminal: Schema.optionalKey(Schema.Boolean),
 })
 export type ComputerCaps = typeof ComputerCaps.Type
 
@@ -311,6 +312,9 @@ export const ComputerSummary = Schema.Struct({
   background: Schema.Boolean,
   browsers: Schema.Array(ComputerBrowser),
   note: Schema.optionalKey(Schema.String),
+  version: Schema.optionalKey(Schema.String),
+  lastSeenAt: Schema.optionalKey(Schema.Number),
+  lastCloseReason: Schema.optionalKey(Schema.String),
 })
 export type ComputerSummary = typeof ComputerSummary.Type
 
@@ -323,6 +327,36 @@ export const ComputerFrame = Schema.Struct({
   data: Schema.String,
 })
 export type ComputerFrame = typeof ComputerFrame.Type
+
+export const TerminalStatus = Schema.Literals(["running", "exited"])
+export type TerminalStatus = typeof TerminalStatus.Type
+
+export const TerminalSummary = Schema.Struct({
+  id: Id,
+  name: Schema.String,
+  cwd: Schema.String,
+  shell: Schema.String,
+  cols: Count,
+  rows: Count,
+  status: TerminalStatus,
+  exitCode: Schema.NullOr(Schema.Int),
+})
+export type TerminalSummary = typeof TerminalSummary.Type
+
+export const TerminalEvent = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("snapshot"),
+    history: Schema.String,
+    cols: Count,
+    rows: Count,
+    status: TerminalStatus,
+    exitCode: Schema.NullOr(Schema.Int),
+  }),
+  Schema.Struct({ type: Schema.Literal("output"), data: Schema.String }),
+  Schema.Struct({ type: Schema.Literal("exit"), code: Schema.NullOr(Schema.Int) }),
+  Schema.Struct({ type: Schema.Literal("error"), message: Schema.String }),
+])
+export type TerminalEvent = typeof TerminalEvent.Type
 
 export const ReleaseVersion = Schema.String.check(Schema.isPattern(/^[A-Za-z0-9._-]{1,64}$/))
 

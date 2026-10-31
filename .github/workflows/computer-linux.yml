@@ -1,0 +1,27 @@
+name: computer-linux
+
+on:
+  push:
+    branches: ["t3/cu-*"]
+    paths:
+      - "apps/computer/**"
+      - "core/computer/**"
+      - ".github/workflows/computer-linux.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: computer-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: daemon unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Unit tests
+        run: bunx vitest run apps/computer/src

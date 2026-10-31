@@ -131,12 +131,34 @@ pub fn core_path() -> PathBuf {
     if let Some(path) = env::var_os("KIKO_CORE") {
         return PathBuf::from(path);
     }
-    let name = if cfg!(windows) {
+    sibling(core_name())
+}
+
+fn core_name() -> &'static str {
+    if cfg!(windows) {
         "kiko-core.exe"
     } else {
         "kiko-core"
-    };
-    sibling(name)
+    }
+}
+
+pub fn cua_path() -> PathBuf {
+    if let Some(path) = env::var_os("KIKO_CUA") {
+        return PathBuf::from(path);
+    }
+    sibling(cua_name())
+}
+
+fn cua_name() -> &'static str {
+    if cfg!(windows) {
+        "cua-driver.exe"
+    } else {
+        "cua-driver"
+    }
+}
+
+pub fn cua_socket() -> PathBuf {
+    app_dir().join("cua-driver.sock")
 }
 
 pub fn sibling(name: &str) -> PathBuf {

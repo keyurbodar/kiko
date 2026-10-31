@@ -28,6 +28,7 @@ export interface Env extends AuthEnv {
   CF_TURN_KEY_ID?: string
   CF_TURN_KEY_TOKEN?: string
   CF_GRANT?: string
+  KERNEL_CDP?: string
   BUILDER?: BuilderBinding
 }
 

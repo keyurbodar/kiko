@@ -9,10 +9,12 @@
   "scripts": {
     "typecheck": "tsgo --noEmit",
     "test": "vitest run --config ../../vitest.config.ts --dir .",
+    "e2e:terminal": "bun scripts/terminal-e2e.ts",
     "build": "bun scripts/build.ts"
   },
   "dependencies": {
     "@kiko/computer": "workspace:*",
+    "@xterm/headless": "6.0.0",
     "effect": "4.0.6",
     "node-datachannel": "0.33.4"
   },

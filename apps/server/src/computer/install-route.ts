@@ -216,6 +216,7 @@ linux_replace() {
   mkdir -p "$work/unpack"
   tar -xzf "$work/$asset" -C "$work/unpack" || die "could not unpack $asset"
   [ -f "$work/unpack/kiko" ] || die "the archive has no kiko binary"
+  [ -f "$work/unpack/cua-driver" ] || die "the archive has no cua-driver binary"
   mkdir -p "$root"
   if [ "$use_systemd" = 1 ]; then systemctl --user stop kiko.service >/dev/null 2>&1 || true; fi
   if linux_app_process; then
@@ -224,8 +225,10 @@ linux_replace() {
   fi
   install -m 755 "$work/unpack/kiko" "$root/.kiko.new"
   install -m 755 "$work/unpack/kiko-core" "$root/.kiko-core.new"
+  install -m 755 "$work/unpack/cua-driver" "$root/.cua-driver.new"
   mv -f "$root/.kiko.new" "$root/kiko"
   mv -f "$root/.kiko-core.new" "$root/kiko-core"
+  mv -f "$root/.cua-driver.new" "$root/cua-driver"
   printf '%s\\n' "$version" > "$root/VERSION"
   if [ -f "$work/unpack/kiko.png" ]; then
     mkdir -p "$home/.local/share/icons/hicolor/256x256/apps"

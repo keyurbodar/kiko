@@ -105,10 +105,21 @@ export const HANDLERS: Handlers = {
   "pc.watch": ({ pcId, on, mode }, { host, socket }) => host.user().pc.watch(socket, pcId, on, mode),
   "pc.frames": ({ pcId }, { host, ws, requestId }) => host.user().pc.frames(ws, requestId, pcId),
   "pc.take": ({ pcId }, { host, socket }) => host.user().pc.take(socket, pcId),
-  "pc.release": ({ pcId }, { host }) => host.user().pc.release(pcId),
+  "pc.release": ({ pcId }, { host, socket }) => host.user().pc.release(socket, pcId),
   "pc.rtc": ({ pcId, signal }, { host, socket }) => host.user().pc.rtc(socket, pcId, signal),
-  "pc.input": ({ pcId, events }, { host }) => host.user().pc.input(pcId, events),
+  "pc.input": ({ pcId, events }, { host, socket }) => host.user().pc.input(socket, pcId, events),
   "pc.ack": ({ pcId, seq }, { host }) => host.user().pc.ack(pcId, seq),
+
+  "terminal.list": ({ pcId }, { host }) => host.user().pc.terminalList(pcId),
+  "terminal.open": ({ pcId, cols, rows }, { host }) => host.user().pc.terminalOpen(pcId, cols, rows),
+  "terminal.attach": ({ pcId, terminalId, cols, rows }, { host, ws, requestId }) =>
+    host.user().pc.terminalAttach(ws, requestId, pcId, terminalId, cols, rows),
+  "terminal.input": ({ pcId, terminalId, data }, { host, ws }) =>
+    host.user().pc.terminalInput(ws, pcId, terminalId, data),
+  "terminal.resize": ({ pcId, terminalId, cols, rows }, { host, ws }) =>
+    host.user().pc.terminalResize(ws, pcId, terminalId, cols, rows),
+  "terminal.ack": ({ pcId, terminalId, bytes }, { host, ws }) =>
+    host.user().pc.terminalAck(ws, pcId, terminalId, bytes),
 
   "recipes.list": (_, { host }) => host.user().recipesList(),
   "recipes.install": (input, { host }) => host.user().recipesInstall(input),

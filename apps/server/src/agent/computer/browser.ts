@@ -6,6 +6,7 @@ import {
   cut,
   driverCall,
   failText,
+  imageOf,
   imageResult,
   MAX_STEPS,
   notRunning,
@@ -119,14 +120,14 @@ function pageResult(
   head: string,
 ): Promise<ComputerResult> {
   const body = cut([head, page.outline.trim() || "(no controls on this page)"].join("\n\n"))
-  return imageResult(api, page.image, sees, body)
+  return imageResult(api, imageOf(page.image), sees, body)
 }
 
 export function browserTools(deps: ComputerToolDeps) {
   const base = baseReady(deps)
   const ready = async (which?: string): Promise<Ready> => {
     const target = await base(which)
-    if (!target.ok) return target
+    if (!target.ok || !target.pc.online) return target
     const blocked = browserBlocked(target.pc)
     if (blocked) return { ok: false, result: blocked }
     return target

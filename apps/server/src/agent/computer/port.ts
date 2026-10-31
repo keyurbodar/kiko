@@ -1,17 +1,17 @@
 import * as Schema from "effect/Schema"
+import type { DesktopTool } from "@kiko/computer/driver"
 import type { Op } from "@kiko/computer/wire"
-import type { Holder } from "@kiko/computer/wire"
 import type { User } from "../../user/user-do"
 import type { ComputerCallOutcome, ComputerLinkOutcome, ComputerMode, ComputerSummary } from "./types"
 
-export type UserComputerRpc = Pick<User, "computerList" | "computerCall" | "computerLink" | "computerHolder">
+export type UserComputerRpc = Pick<User, "computerList" | "computerCall" | "computerLink" | "computerDesktop">
 
 export interface ComputerPort {
   list(): Promise<ComputerSummary[]>
   resolve(pc?: string): Promise<ComputerSummary>
+  desktopTools(): Promise<readonly DesktopTool[]>
   call(pcId: string, op: Op, args: unknown, deadlineMs: number): Promise<ComputerCallOutcome>
   link(pcId: string, mode: ComputerMode, reason?: string): Promise<ComputerLinkOutcome>
-  holder(pcId: string): Promise<Holder>
 }
 
 class NoComputer extends Schema.TaggedError<NoComputer>()("NoComputer", {
@@ -40,8 +40,15 @@ export function userComputer(user: () => UserComputerRpc, agentId: string, roomI
       })
     }
     const lower = want.toLowerCase()
-    const found = all.find((pc) => pc.id === want) ?? all.find((pc) => pc.name.toLowerCase() === lower)
-    if (found) return found
+    const byId = all.find((pc) => pc.id === want)
+    if (byId) return byId
+    const named = all.filter((pc) => pc.name.toLowerCase() === lower)
+    if (named.length === 1 && named[0]) return named[0]
+    if (named.length > 1)
+      throw new NoComputer({
+        reason: "ambiguous",
+        message: `${named.length} computers are called ${want}: ${named.map((pc) => `${pc.name} (${pc.id})`).join(", ")}. pass the id of the one you mean in pc.`,
+      })
     throw new NoComputer({
       reason: "unknown",
       message: `there is no computer called ${want}. the computers are: ${names(all)}.`,
@@ -49,9 +56,9 @@ export function userComputer(user: () => UserComputerRpc, agentId: string, roomI
   }
   return {
     list: async () => user().computerList(),
+    desktopTools: async () => user().computerDesktop()?.tools ?? [],
     resolve,
     call: (pcId, op, args, deadlineMs) => user().computerCall(agentId, roomId, pcId, op, args, deadlineMs),
     link: (pcId, mode, reason) => user().computerLink(agentId, roomId, pcId, mode, reason),
-    holder: async (pcId) => user().computerHolder(pcId),
   }
 }

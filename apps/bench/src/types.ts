@@ -35,6 +35,7 @@ export interface Verdict {
 export interface Task {
   readonly id: string
   readonly track: Track
+  readonly kind?: "real" | "long" | "edge"
   readonly os: readonly Os[]
   readonly needs: readonly Need[]
   readonly heldOut: boolean
@@ -76,9 +77,12 @@ export interface ModelSpec {
   readonly effort?: "low" | "medium" | "high"
 }
 
+export type BackgroundCounter = "focusSteals" | "pointerMoves" | "keysSwallowed" | "windowsRaised"
+
 export interface Background {
   readonly focusSteals: number
   readonly pointerMoves: number
   readonly keysSwallowed: number
   readonly windowsRaised: number
+  readonly unmeasured?: readonly BackgroundCounter[]
 }

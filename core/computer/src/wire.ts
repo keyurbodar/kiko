@@ -1,7 +1,10 @@
 import * as Schema from "effect/Schema"
-import { BrowserStatus, DriverCall, Permissions } from "./driver"
+import { BrowserStatus, DesktopInfo, Display, DriverCall, Permissions } from "./driver"
 
-export const PROTOCOL = 1
+export { Display }
+
+export const PROTOCOL = 2
+export const OLDEST_PROTOCOL = 1
 
 const Text = Schema.String
 const Id = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(64))
@@ -16,11 +19,15 @@ export const Caps = Schema.Struct({
   input: Schema.Boolean,
   background: Schema.optionalKey(Schema.Boolean),
   browser: Schema.optionalKey(Schema.Boolean),
+  terminal: Schema.optionalKey(Schema.Boolean),
 })
 export type Caps = typeof Caps.Type
 
-export const Display = Schema.Struct({ id: Id, width: Count, height: Count, scale: Schema.Number })
-export type Display = typeof Display.Type
+export const Resume = Schema.Struct({
+  running: Schema.Array(Id),
+  recent: Schema.Array(Id),
+})
+export type Resume = typeof Resume.Type
 
 export const Hello = Schema.Struct({
   t: Schema.Literal("hello"),
@@ -33,51 +40,51 @@ export const Hello = Schema.Struct({
   displays: Schema.Array(Display),
   access: Schema.optionalKey(Schema.Struct({ screen: Schema.Boolean, input: Schema.Boolean })),
   driver: Schema.optionalKey(Schema.Struct({ permissions: Permissions, browsers: Schema.Array(BrowserStatus) })),
+  desktop: Schema.optionalKey(DesktopInfo),
   note: Schema.optionalKey(Text),
+  resume: Schema.optionalKey(Resume),
 })
 export type Hello = typeof Hello.Type
 
-export const Control = Schema.Struct({
-  id: Count,
-  role: Text,
-  label: Text,
-  x: Count,
-  y: Count,
-  w: Count,
-  h: Count,
+const TerminalStatus = Schema.Literals(["running", "exited"])
+const TerminalInfo = Schema.Struct({
+  id: Id,
+  name: Text,
+  cwd: Text,
+  shell: Text,
+  cols: Count,
+  rows: Count,
+  status: TerminalStatus,
+  exitCode: Schema.NullOr(Schema.Int),
 })
-export type Control = typeof Control.Type
+const Cols = Schema.Int.check(Schema.isGreaterThanOrEqualTo(20), Schema.isLessThanOrEqualTo(500))
+const Rows = Schema.Int.check(Schema.isGreaterThanOrEqualTo(5), Schema.isLessThanOrEqualTo(200))
+const Lines = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1), Schema.isLessThanOrEqualTo(5_000))
 
-export const View = Schema.Struct({
-  captureId: Id,
-  width: Count,
-  height: Count,
-  app: Schema.optionalKey(Text),
-  title: Schema.optionalKey(Text),
-  controls: Schema.Array(Control),
-  tree: Schema.optionalKey(Text),
-  image: Schema.optionalKey(Schema.Struct({ mime: Schema.Literals(["image/jpeg", "image/png"]), data: Text })),
-})
-export type View = typeof View.Type
+const OPS = [
+  "shell",
+  "read",
+  "write",
+  "driver",
+  "terminal_open",
+  "terminal_send",
+  "terminal_read",
+  "terminal_wait",
+  "terminal_resize",
+  "terminal_close",
+  "terminal_list",
+] as const
+export type Op = (typeof OPS)[number]
 
-const Point = { id: Schema.optionalKey(Count), x: Schema.optionalKey(Count), y: Schema.optionalKey(Count) }
-
-export const Step = Schema.Union([
-  Schema.Struct({
-    op: Schema.Literal("click"),
-    ...Point,
-    button: Schema.optionalKey(Schema.Literals(["left", "right", "middle"])),
-    count: Schema.optionalKey(Count),
-  }),
-  Schema.Struct({ op: Schema.Literal("type"), ...Point, text: Text, submit: Schema.optionalKey(Schema.Boolean) }),
-  Schema.Struct({ op: Schema.Literal("key"), keys: Text }),
-  Schema.Struct({ op: Schema.Literal("scroll"), ...Point, dx: Schema.Int, dy: Schema.Int }),
-  Schema.Struct({ op: Schema.Literal("drag"), from: Schema.Tuple([Count, Count]), to: Schema.Tuple([Count, Count]) }),
-  Schema.Struct({ op: Schema.Literal("move"), x: Count, y: Count }),
-  Schema.Struct({ op: Schema.Literal("open"), app: Text }),
-  Schema.Struct({ op: Schema.Literal("wait"), ms: Count }),
+export const TERMINAL_OPS: ReadonlySet<Op> = new Set<Op>([
+  "terminal_open",
+  "terminal_send",
+  "terminal_read",
+  "terminal_wait",
+  "terminal_resize",
+  "terminal_close",
+  "terminal_list",
 ])
-export type Step = typeof Step.Type
 
 export const Calls = {
   shell: {
@@ -107,32 +114,79 @@ export const Calls = {
     }),
     value: Schema.Struct({ size: Count }),
   },
-  look: {
-    args: Schema.Struct({
-      display: Schema.optionalKey(Id),
-      controls: Schema.optionalKey(Schema.Boolean),
-      image: Schema.optionalKey(Schema.Boolean),
-      maxWidth: Schema.optionalKey(Count),
-      zoom: Schema.optionalKey(
-        Schema.Struct({ captureId: Schema.optionalKey(Id), x: Count, y: Count, width: Count, height: Count }),
-      ),
-    }),
-    value: View,
-  },
-  act: {
-    args: Schema.Struct({
-      captureId: Schema.optionalKey(Id),
-      steps: Schema.Array(Step),
-      image: Schema.optionalKey(Schema.Boolean),
-    }),
-    value: Schema.Struct({ done: Count, error: Schema.optionalKey(Text), view: View }),
-  },
   driver: {
     args: DriverCall,
     value: Schema.Unknown,
   },
-} as const
-export type Op = keyof typeof Calls
+  terminal_open: {
+    args: Schema.Struct({
+      cwd: Schema.optionalKey(Text),
+      shell: Schema.optionalKey(Text),
+      cols: Schema.optionalKey(Cols),
+      rows: Schema.optionalKey(Rows),
+      name: Schema.optionalKey(Text),
+    }),
+    value: TerminalInfo,
+  },
+  terminal_send: {
+    args: Schema.Struct({
+      id: Id,
+      text: Schema.optionalKey(Text),
+      keys: Schema.optionalKey(Schema.Array(Text)),
+      until: Schema.optionalKey(Text),
+      regex: Schema.optionalKey(Schema.Boolean),
+      timeoutMs: Schema.optionalKey(Count),
+    }),
+    value: Schema.Struct({
+      id: Id,
+      bytes: Count,
+      matched: Schema.optionalKey(Schema.Boolean),
+      timedOut: Schema.optionalKey(Schema.Boolean),
+      exited: Schema.optionalKey(Schema.Boolean),
+      text: Schema.optionalKey(Text),
+    }),
+  },
+  terminal_read: {
+    args: Schema.Struct({ id: Id, mode: Schema.Literals(["screen", "tail"]), lines: Schema.optionalKey(Lines) }),
+    value: Schema.Struct({
+      id: Id,
+      mode: Schema.Literals(["screen", "tail"]),
+      text: Text,
+      truncated: Schema.Boolean,
+      cols: Count,
+      rows: Count,
+      status: TerminalStatus,
+      exitCode: Schema.NullOr(Schema.Int),
+    }),
+  },
+  terminal_wait: {
+    args: Schema.Struct({
+      id: Id,
+      until: Text,
+      regex: Schema.optionalKey(Schema.Boolean),
+      timeoutMs: Schema.optionalKey(Count),
+    }),
+    value: Schema.Struct({
+      id: Id,
+      matched: Schema.Boolean,
+      timedOut: Schema.Boolean,
+      exited: Schema.Boolean,
+      text: Text,
+    }),
+  },
+  terminal_resize: {
+    args: Schema.Struct({ id: Id, cols: Cols, rows: Rows }),
+    value: Schema.Struct({ id: Id, cols: Count, rows: Count }),
+  },
+  terminal_close: {
+    args: Schema.Struct({ id: Id }),
+    value: Schema.Struct({ id: Id, closed: Schema.Boolean }),
+  },
+  terminal_list: {
+    args: Schema.Struct({}),
+    value: Schema.Struct({ terminals: Schema.Array(TerminalInfo) }),
+  },
+} as const satisfies Record<Op, { args: Schema.Top; value: Schema.Top }>
 export type Args<O extends Op> = (typeof Calls)[O]["args"]["Type"]
 export type Value<O extends Op> = (typeof Calls)[O]["value"]["Type"]
 
@@ -149,6 +203,21 @@ export const InputEvent = Schema.Union([
   Schema.Struct({ k: Schema.Literal("cursor"), who: Schema.Literals(["agent", "real"]), x: Unit, y: Unit }),
 ])
 export type InputEvent = typeof InputEvent.Type
+
+export const TerminalStream = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("snapshot"),
+    history: Text,
+    cols: Count,
+    rows: Count,
+    status: TerminalStatus,
+    exitCode: Schema.NullOr(Schema.Int),
+  }),
+  Schema.Struct({ type: Schema.Literal("output"), data: Text }),
+  Schema.Struct({ type: Schema.Literal("exit"), code: Schema.NullOr(Schema.Int) }),
+  Schema.Struct({ type: Schema.Literal("error"), message: Text }),
+])
+export type TerminalStream = typeof TerminalStream.Type
 
 export const Holder = Schema.Literals(["agent", "human"])
 export type Holder = typeof Holder.Type
@@ -173,7 +242,7 @@ export const ToDaemon = Schema.Union([
   Schema.Struct({
     t: Schema.Literal("call"),
     id: Id,
-    op: Schema.Literals(["shell", "read", "write", "look", "act", "driver"]),
+    op: Schema.Literals(OPS),
     args: Schema.Unknown,
     deadlineMs: Count,
   }),
@@ -185,7 +254,12 @@ export const ToDaemon = Schema.Union([
     maxWidth: Schema.optionalKey(Count),
     quality: Schema.optionalKey(Count),
   }),
-  Schema.Struct({ t: Schema.Literal("control"), holder: Holder }),
+  Schema.Struct({
+    t: Schema.Literal("control"),
+    holder: Holder,
+    epoch: Schema.optionalKey(Count),
+    session: Schema.optionalKey(Id),
+  }),
   Schema.Struct({ t: Schema.Literal("input"), events: Schema.Array(InputEvent) }),
   Schema.Struct({ t: Schema.Literal("ack"), seq: Count }),
   Schema.Struct({
@@ -194,6 +268,17 @@ export const ToDaemon = Schema.Union([
     signal: RtcSignal,
     iceServers: Schema.optionalKey(Schema.Array(IceServer)),
   }),
+  Schema.Struct({
+    t: Schema.Literal("terminal"),
+    on: Schema.Boolean,
+    id: Id,
+    terminal: Schema.optionalKey(Id),
+    cols: Schema.optionalKey(Cols),
+    rows: Schema.optionalKey(Rows),
+  }),
+  Schema.Struct({ t: Schema.Literal("terminalInput"), id: Id, data: Text }),
+  Schema.Struct({ t: Schema.Literal("terminalResize"), id: Id, cols: Cols, rows: Rows }),
+  Schema.Struct({ t: Schema.Literal("terminalAck"), id: Id, bytes: Count }),
 ])
 export type ToDaemon = typeof ToDaemon.Type
 
@@ -208,6 +293,17 @@ export const FromDaemon = Schema.Union([
   }),
   Schema.Struct({ t: Schema.Literal("chunk"), id: Id, data: Text }),
   Schema.Struct({ t: Schema.Literal("humanInput") }),
+  Schema.Struct({ t: Schema.Literal("held"), holder: Holder, epoch: Schema.optionalKey(Count) }),
   Schema.Struct({ t: Schema.Literal("rtc"), session: Id, signal: RtcSignal }),
+  Schema.Struct({ t: Schema.Literal("terminal"), id: Id, event: TerminalStream }),
 ])
 export type FromDaemon = typeof FromDaemon.Type
+
+export const BinaryResult = Schema.Struct({
+  t: Schema.Literal("result"),
+  id: Id,
+  ok: Schema.Literal(true),
+  value: Schema.Unknown,
+  parts: Schema.Array(Schema.Struct({ mime: Text, length: Count })),
+})
+export type BinaryResult = typeof BinaryResult.Type

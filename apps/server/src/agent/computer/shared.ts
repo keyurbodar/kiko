@@ -1,23 +1,23 @@
 import { Type } from "@earendil-works/pi-ai"
 import type { ModelRef, ToolExecutionApi } from "@earendil-works/pi-durable"
-import type { DriverCall } from "@kiko/computer/driver"
+import type { DesktopTool, DriverCall } from "@kiko/computer/driver"
 import type { FailCode } from "@kiko/computer/wire"
 import { filesOf } from "../../files/room-fs"
+import { encodeBase64 } from "../../lib/base64"
 import { count } from "../../lib/dev-guard"
 import type { ComputerPort } from "./port"
 import type { ComputerCallOutcome, ComputerSummary } from "./types"
 
 export const CALL_DEADLINE_MS = 60_000
 const DRIVER_DEADLINE_MS = 30_000
-const MAX_OUTPUT_CHARS = 12_000
+export const MAX_OUTPUT_CHARS = 12_000
 export const MAX_STEPS = 10
-export const SCREEN_MAX_WIDTH = 1280
-
-const BACKGROUND_UNAVAILABLE = "background_unavailable:"
+export const SCREEN_MAX_WIDTH = 960
 
 export type ComputerToolDeps = {
   port: () => ComputerPort
   acceptsImages: (model: ModelRef | undefined) => boolean
+  desktop: readonly DesktopTool[]
 }
 
 type Part = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string }
@@ -43,33 +43,7 @@ export const paused = (pc: ComputerSummary) =>
 export const offline = (pc: ComputerSummary) => `${pc.name} is offline: its daemon is not connected.`
 
 export const notRunning = (pc: ComputerSummary) =>
-  `${pc.name} is not running the kiko app yet, so it cannot work in the background. use computer_look and computer_act only if the owner agrees to share their screen.`
-
-const screenDenied = (pc: ComputerSummary): string =>
-  pc.os === "macos"
-    ? "macOS has not allowed kiko to record the screen. On the Mac, open System Settings > Privacy & Security > Screen Recording and turn on kiko."
-    : `${pc.name} has not allowed kiko to record its screen.`
-
-const inputDenied = (pc: ComputerSummary): string =>
-  pc.os === "macos"
-    ? "macOS has not allowed kiko to control this Mac. On the Mac, open System Settings > Privacy & Security > Accessibility and turn on kiko."
-    : `${pc.name} has not allowed kiko to control it.`
-
-const BLOCKED: Readonly<Record<"shell" | "read" | "write" | "look" | "act", string>> = {
-  shell: "running commands",
-  read: "reading files",
-  write: "writing files",
-  look: "seeing the desktop",
-  act: "using the desktop",
-}
-
-const CAPS: Readonly<Record<keyof typeof BLOCKED, keyof ComputerSummary["caps"]>> = {
-  shell: "shell",
-  read: "files",
-  write: "files",
-  look: "desktop",
-  act: "desktop",
-}
+  `${pc.name} is not running the kiko app yet, so it cannot work in the background.`
 
 export function failText(code: FailCode, message: string, pc: ComputerSummary): string {
   const reason = message.trim()
@@ -80,9 +54,9 @@ export function failText(code: FailCode, message: string, pc: ComputerSummary): 
     case "busy":
       return pc.holder === "human" ? `${paused(pc)}${detail}` : reason || `${pc.name} is busy; try again shortly.`
     case "stale":
-      return "Those ids are from an old view. Call computer_look again."
+      return "Those ids are from an old view. Look at the window again."
     case "timeout":
-      return `${pc.name} did not answer in time, so it may still be running that. call computer_look to see the screen.${detail}`
+      return `${pc.name} did not answer in time, so it may still be running that. look at the window to see the result.${detail}`
     case "unsupported":
       return `${pc.name} cannot do this: ${reason || "its daemon does not support that op."}`
     case "cancelled":
@@ -96,7 +70,7 @@ export function stepFailure(code: FailCode, message: string, pc: ComputerSummary
   const reason = message.trim()
   switch (code) {
     case "stale":
-      return "that [ref] is from an old view; call computer_see again"
+      return "that id is from an old view; read the page again"
     case "busy":
       return pc.holder === "human" ? "the owner has control right now" : reason || "the computer is busy"
     case "timeout":
@@ -112,27 +86,15 @@ export function stepFailure(code: FailCode, message: string, pc: ComputerSummary
   }
 }
 
-export function isBackgroundUnavailable(outcome: { code: FailCode; message: string }): boolean {
-  return outcome.code === "unsupported" && outcome.message.startsWith(BACKGROUND_UNAVAILABLE)
-}
-
-export function backgroundReason(message: string): string {
-  return message.slice(BACKGROUND_UNAVAILABLE.length)
-}
-
-export function backgroundUnavailable(message: string): string {
-  const reason = message.trim().replace(/[.!?]$/, "")
-  return `${reason}. this needs the owner's screen: ask the owner first, then call computer_use with on_screen true, or computer_act`
-}
-
 export function seeFailure(outcome: { code: FailCode; message: string }, pc: ComputerSummary): string {
-  return isBackgroundUnavailable(outcome)
-    ? backgroundUnavailable(backgroundReason(outcome.message))
-    : failText(outcome.code, outcome.message, pc)
+  return failText(outcome.code, outcome.message, pc)
 }
 
 export const PC = Type.Optional(
-  Type.String({ description: "the computer's name or id. leave it out when the owner has one computer" }),
+  Type.String({
+    description:
+      "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
+  }),
 )
 
 export function run(tool: string, call: () => Promise<ComputerResult>): Promise<ComputerResult> {
@@ -145,39 +107,12 @@ export function run(tool: string, call: () => Promise<ComputerResult>): Promise<
     })
 }
 
-export function readyFor(deps: ComputerToolDeps) {
-  return async (which: string | undefined, op: keyof typeof CAPS): Promise<Ready> => {
-    const pc = await deps.port().resolve(which)
-    if ((await deps.port().holder(pc.id)) === "human") return { ok: false, result: text(paused(pc)) }
-    if (!pc.online) return { ok: false, result: text(offline(pc), true) }
-    if (!pc.caps[CAPS[op]])
-      return {
-        ok: false,
-        result: text(`${pc.name} blocks ${BLOCKED[op]} in its policy, so this cannot run there.`, true),
-      }
-    if ((op === "look" || op === "act") && pc.access?.screen === false)
-      return { ok: false, result: text(screenDenied(pc), true) }
-    if (op === "act" && pc.access?.input === false) return { ok: false, result: text(inputDenied(pc), true) }
-    return { ok: true, pc }
-  }
-}
-
 export function baseReady(deps: ComputerToolDeps) {
   return async (which?: string): Promise<Ready> => {
     const pc = await deps.port().resolve(which)
-    if ((await deps.port().holder(pc.id)) === "human") return { ok: false, result: text(paused(pc)) }
-    if (!pc.online) return { ok: false, result: text(offline(pc), true) }
+    if (!pc.online) return { ok: true, pc }
+    if (pc.holder === "human") return { ok: false, result: text(paused(pc)) }
     return { ok: true, pc }
-  }
-}
-
-export function backgroundReady(deps: ComputerToolDeps) {
-  const base = baseReady(deps)
-  return async (which?: string): Promise<Ready> => {
-    const target = await base(which)
-    if (!target.ok) return target
-    if (!target.pc.background) return { ok: false, result: text(notRunning(target.pc), true) }
-    return target
   }
 }
 
@@ -185,40 +120,66 @@ export async function driverCall(
   deps: ComputerToolDeps,
   pc: ComputerSummary,
   call: DriverCall,
+  deadlineMs = DRIVER_DEADLINE_MS,
 ): Promise<ComputerCallOutcome> {
-  return deps.port().call(pc.id, "driver", call, DRIVER_DEADLINE_MS)
+  return deps.port().call(pc.id, "driver", call, deadlineMs)
 }
+
+export type ImageData = { mime: string; data: string | Uint8Array }
 
 const decodeBase64 = (data: string): Uint8Array => Uint8Array.from(atob(data), (c) => c.charCodeAt(0))
 
+const asBase64 = (data: string | Uint8Array): string => (typeof data === "string" ? data : encodeBase64(data))
+
+const asBytes = (data: string | Uint8Array): Uint8Array => (typeof data === "string" ? decodeBase64(data) : data)
+
 const extensionOf = (mime: string) => (mime === "image/png" ? "png" : "jpg")
 
-async function saveScreenshot(
-  api: Pick<ToolExecutionApi, "env">,
-  image: { mime: string; data: string },
-): Promise<string | null> {
+async function saveScreenshot(api: Pick<ToolExecutionApi, "env">, image: ImageData): Promise<string | null> {
   const saved = `/computer-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 6)}.${extensionOf(image.mime)}`
-  const out = await filesOf(api).write(saved, decodeBase64(image.data), image.mime)
+  const out = await filesOf(api).write(saved, asBytes(image.data), image.mime)
   return out.ok ? saved : null
 }
 
-export function imageResult(
+export function imagesResult(
   api: Pick<ToolExecutionApi, "env">,
-  image: { mime: string; data: string } | undefined,
+  images: readonly ImageData[],
   sees: boolean,
   body: string,
+  isError = false,
 ): Promise<ComputerResult> {
-  if (!image) return Promise.resolve(text(body))
+  if (images.length === 0) return Promise.resolve(text(body, isError))
   if (sees)
     return Promise.resolve({
       output: [
         { type: "text", text: body },
-        { type: "image", data: image.data, mimeType: image.mime },
+        ...images.map((image) => ({ type: "image" as const, data: asBase64(image.data), mimeType: image.mime })),
       ],
+      isError,
     })
-  return saveScreenshot(api, image).then((saved) =>
-    saved
-      ? text(`${body}\n\nsaved to ${saved}. share it in your reply as ![what it shows](${saved})`)
-      : text(`${body}\n\nthe screenshot could not be saved, and your model cannot see images.`, true),
-  )
+  return Promise.all(images.map((image) => saveScreenshot(api, image))).then((saved) => {
+    const paths = saved.filter((path): path is string => path !== null)
+    if (paths.length === 0)
+      return text(`${body}\n\nthe screenshots could not be saved, and your model cannot see images.`, true)
+    const links = paths.map((path) => `![what it shows](${path})`).join(" ")
+    return text(`${body}\n\nsaved to ${paths.join(", ")}. share it in your reply as ${links}`, isError)
+  })
+}
+
+export function imageResult(
+  api: Pick<ToolExecutionApi, "env">,
+  image: ImageData | undefined,
+  sees: boolean,
+  body: string,
+): Promise<ComputerResult> {
+  return imagesResult(api, image ? [image] : [], sees, body)
+}
+
+export function imageOf(value: unknown): ImageData | undefined {
+  if (typeof value !== "object" || value === null) return undefined
+  const record = value as Record<string, unknown>
+  const mime = typeof record.mime === "string" ? record.mime : record.mimeType
+  if (typeof mime !== "string") return undefined
+  if (typeof record.data === "string" || record.data instanceof Uint8Array) return { mime, data: record.data }
+  return undefined
 }

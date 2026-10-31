@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { parseArgs } from "node:util"
 import { fileURLToPath } from "node:url"
+import { localOs } from "../machine"
 import type { Background, Exec, Machine, Os } from "../types"
 import { movePointer, startSentinel } from "./index"
 import { parseEvents, witness, type Witness } from "./witness"
@@ -24,7 +25,7 @@ class LocalMachine implements Machine {
 
   constructor(workdir: string) {
     this.workdir = workdir
-    this.os = process.platform === "darwin" ? "macos" : process.platform === "win32" ? "windows" : "linux"
+    this.os = localOs()
     this.id = `ci-${this.os}`
   }
 
@@ -107,26 +108,6 @@ async function stealFocus(m: Machine): Promise<Cleanup> {
       await delay(2000)
       return () => other.stop()
     }
-    case "windows": {
-      const script = join(FIXTURES, "windows", "OtherWindow.ps1")
-      const other = await m.spawn(
-        [
-          "powershell.exe",
-          "-NoProfile",
-          "-WindowStyle",
-          "Hidden",
-          "-ExecutionPolicy",
-          "Bypass",
-          "-File",
-          script,
-          "-Seconds",
-          "12",
-        ],
-        { cwd: m.workdir },
-      )
-      await delay(2500)
-      return () => other.stop()
-    }
     case "linux": {
       const script = join(FIXTURES, "linux", "other_window.py")
       const other = await m.spawn(["python3", "-u", script, "--seconds", "12"], {
@@ -144,18 +125,7 @@ async function stealFocus(m: Machine): Promise<Cleanup> {
 
 async function writeFileElsewhere(m: Machine): Promise<Cleanup> {
   const target = join(m.workdir, "background.txt")
-  const cmd =
-    m.os === "windows"
-      ? [
-          "powershell.exe",
-          "-NoProfile",
-          "-WindowStyle",
-          "Hidden",
-          "-Command",
-          `Set-Content -Path '${target}' -Value background`,
-        ]
-      : ["sh", "-c", `printf background > '${target}'`]
-  const run = await m.exec(cmd)
+  const run = await m.exec(["sh", "-c", `printf background > '${target}'`])
   if (run.code !== 0) throw new Error(`background write failed: ${run.stderr}`)
   return noop
 }
@@ -184,17 +154,19 @@ function allZero(background: Background): boolean {
 function judge(name: CaseName, result: Witness, seconds: number): string[] {
   const failures: string[] = []
   const background = result.background
+  const blind = new Set(background.unmeasured ?? [])
   if (name === "idle" || name === "file") {
-    if (!allZero(background)) failures.push(`counters not zero: ${JSON.stringify(background)}`)
+    if (blind.size > 0) failures.push(`unmeasured: ${[...blind].join(", ")}`)
+    else if (!allZero(background)) failures.push(`counters not zero: ${JSON.stringify(background)}`)
     if (result.keysSent < seconds - 2) failures.push(`only ${result.keysSent} keys sent`)
     if (result.keysReceived !== result.keysSent) {
       failures.push(`${result.keysSent - result.keysReceived} keys not received`)
     }
   }
-  if (name === "steal" && background.focusSteals < 1) {
+  if (name === "steal" && (blind.has("focusSteals") || background.focusSteals < 1)) {
     failures.push("focus steal was not witnessed")
   }
-  if (name === "pointer" && background.pointerMoves < 1) {
+  if (name === "pointer" && (blind.has("pointerMoves") || background.pointerMoves < 1)) {
     failures.push("pointer move was not witnessed")
   }
   if (!result.ready) failures.push("sentinel never reported ready")
@@ -281,7 +253,7 @@ async function main(): Promise<void> {
   const caseSeconds = Number(values["case-seconds"])
   const logs = values.logs
   await mkdir(logs, { recursive: true })
-  const os: Os = process.platform === "darwin" ? "macos" : process.platform === "win32" ? "windows" : "linux"
+  const os: Os = localOs()
   const cases: CaseResult[] = []
   cases.push(await attempt("idle", idleSeconds, caseSeconds, logs, async () => noop))
   const nullRun = cases[0]

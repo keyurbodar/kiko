@@ -26,7 +26,8 @@ export class Deadline {
 
   child(minMs: number): Deadline {
     const child = new Deadline(Math.max(minMs, this.remaining()))
-    this.signal.addEventListener("abort", () => child.controller.abort(this.signal.reason), { once: true })
+    if (this.signal.aborted) child.controller.abort(this.signal.reason)
+    else this.signal.addEventListener("abort", () => child.controller.abort(this.signal.reason), { once: true })
     return child
   }
 }

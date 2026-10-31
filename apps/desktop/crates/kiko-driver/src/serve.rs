@@ -3,7 +3,7 @@ use std::io::{BufRead, Write};
 use serde::Serialize;
 
 use crate::api::{Call, DriverError, ErrorCode, False, Request, Response, Status, True};
-use crate::{Browser, Native};
+use crate::{Browser, Desktop};
 
 fn value<T: Serialize>(result: crate::Result<T>) -> crate::Result<serde_json::Value> {
     result.and_then(|v| {
@@ -12,23 +12,22 @@ fn value<T: Serialize>(result: crate::Result<T>) -> crate::Result<serde_json::Va
 }
 
 pub fn dispatch(
-    native: &mut dyn Native,
+    desktop: &mut dyn Desktop,
     browser: &mut dyn Browser,
     status: &Status,
     call: Call,
 ) -> crate::Result<serde_json::Value> {
     match call {
         Call::Status => {
+            desktop.refresh();
             let mut status = status.clone();
-            status.permissions = native.permissions();
+            status.permissions = desktop.permissions();
+            status.displays = desktop.screens();
             status.browsers = browser.status();
             value(Ok(status))
         }
-        Call::PermissionsRequest(p) => value(native.request_permission(p.kind)),
-        Call::Windows => value(native.windows()),
-        Call::Look(p) => value(native.look(&p)),
-        Call::Act(p) => value(native.act(&p)),
-        Call::Open(p) => value(native.open(&p)),
+        Call::DesktopTools => value(Ok(desktop.info())),
+        Call::DesktopCall(p) => desktop.call(&p.name, p.args),
         Call::BrowserTabs => value(browser.tabs()),
         Call::BrowserOpen(p) => value(browser.open(&p)),
         Call::BrowserClose(p) => value(browser.close(&p)),
@@ -55,7 +54,7 @@ fn respond(id: u64, result: crate::Result<serde_json::Value>) -> Response {
 }
 
 fn answer(
-    native: &mut dyn Native,
+    desktop: &mut dyn Desktop,
     browser: &mut dyn Browser,
     status: &Status,
     line: &str,
@@ -63,7 +62,7 @@ fn answer(
     match serde_json::from_str::<Request>(line) {
         Ok(request) => Some(respond(
             request.id,
-            dispatch(native, browser, status, request.call),
+            dispatch(desktop, browser, status, request.call),
         )),
         Err(error) => {
             let id = serde_json::from_str::<serde_json::Value>(line)
@@ -79,7 +78,7 @@ fn answer(
 }
 
 pub fn serve(
-    native: &mut dyn Native,
+    desktop: &mut dyn Desktop,
     browser: &mut dyn Browser,
     status: &Status,
     input: impl BufRead,
@@ -90,7 +89,7 @@ pub fn serve(
         if line.trim().is_empty() {
             continue;
         }
-        if let Some(response) = answer(native, browser, status, &line) {
+        if let Some(response) = answer(desktop, browser, status, &line) {
             serde_json::to_writer(&mut output, &response)?;
             output.write_all(b"\n")?;
             output.flush()?;

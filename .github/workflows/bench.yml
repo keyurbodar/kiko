@@ -1,0 +1,124 @@
+name: bench
+
+on:
+  push:
+    branches:
+      - "t3/cu-*"
+    paths:
+      - "apps/bench/**"
+      - ".github/workflows/bench.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate (${{ matrix.machine }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            machine: gha-ubuntu-24.04-x11
+          - runner: macos-15
+            machine: gha-macos-15
+          - runner: windows-2025
+            machine: gha-windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        if: runner.os != 'Windows'
+      - uses: oven-sh/setup-bun@v2
+        if: runner.os == 'Windows'
+        with:
+          bun-version: "1.3.14"
+      - if: runner.os == 'Windows'
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Install display fixtures
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb xauth openbox python3-gi gir1.2-gtk-3.0 xdotool jq x11-xkb-utils libreoffice-calc
+      - name: Validate
+        if: runner.os == 'Linux'
+        run: xvfb-run -a -s "-screen 0 1280x1024x24" sh -c 'openbox >/dev/null 2>&1 & exec bun run bench validate --results results --machine ${{ matrix.machine }}'
+      - name: Validate
+        if: runner.os != 'Linux'
+        run: bun run bench validate --results results --machine ${{ matrix.machine }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-validate-${{ matrix.machine }}
+          path: results/
+          if-no-files-found: warn
+
+  ubuntu:
+    name: Ubuntu 24.04
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      OPENCODE_GO_KEY: ${{ secrets.OPENCODE_GO_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Display
+        run: sudo apt-get update && sudo apt-get install -y xvfb xauth openbox || true
+      - name: Bench
+        run: |
+          if command -v xvfb-run >/dev/null; then
+            xvfb-run -a -s "-screen 0 1280x800x24" sh -c 'openbox >/dev/null 2>&1 & exec bun run bench run --ci --machine gha-ubuntu-24.04-x11 --results results'
+          else
+            bun run bench run --ci --machine gha-ubuntu-24.04-x11 --results results
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-ubuntu-24.04
+          path: results/
+          if-no-files-found: warn
+
+  macos:
+    name: macOS 15
+    needs: ubuntu
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      OPENCODE_GO_KEY: ${{ secrets.OPENCODE_GO_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Bench
+        run: bun run bench run --ci --machine gha-macos-15 --results results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-macos-15
+          path: results/
+          if-no-files-found: warn
+
+  windows:
+    name: Windows 2025
+    needs: ubuntu
+    runs-on: windows-2025
+    timeout-minutes: 45
+    env:
+      OPENCODE_GO_KEY: ${{ secrets.OPENCODE_GO_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Bench
+        run: bun run bench run --ci --machine gha-windows-2025 --results results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-windows-2025
+          path: results/
+          if-no-files-found: warn

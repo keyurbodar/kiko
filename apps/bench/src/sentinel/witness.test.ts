@@ -131,4 +131,30 @@ describe("witness", () => {
     expect(result.error).toBe("no focus")
     expect(result.ready).toBe(false)
   })
+
+  it("keeps counters a stack cannot observe unmeasured instead of zero", () => {
+    const result = witness(
+      parseEvents(
+        text([
+          { ev: "ready", t: 0, unmeasured: ["pointerMoves", "windowsRaised"] },
+          { ev: "sample", t: 100, front: "self", key: true, above: [] },
+          tick(1000, true),
+        ]),
+      ),
+    )
+    expect(result.background).toEqual({
+      focusSteals: 0,
+      pointerMoves: 0,
+      keysSwallowed: 0,
+      windowsRaised: 0,
+      unmeasured: ["pointerMoves", "windowsRaised"],
+    })
+    expect(result.samples).toBe(1)
+  })
+
+  it("ignores a counter name it does not know", () => {
+    const result = witness(parseEvents(text([{ ev: "ready", t: 0, unmeasured: ["cpuShare"] }])))
+    expect(result.ready).toBe(false)
+    expect(result.background.unmeasured).toBeUndefined()
+  })
 })

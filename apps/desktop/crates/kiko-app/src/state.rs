@@ -71,7 +71,7 @@ pub fn refresh(shared: &Shared, driver: &Mutex<Driver>) {
     let snapshot = driver
         .try_lock()
         .ok()
-        .map(|mut driver| (driver.native.permissions(), driver.browser.status()));
+        .map(|mut driver| (driver.desktop.permissions(), driver.browser.status()));
 
     let mut state = lock(shared);
     state.paused = paused;

@@ -17,27 +17,15 @@ export interface PointerOptions {
   readonly dy: number
 }
 
-const WINDOWS_HOST = [
-  "powershell.exe",
-  "-NoProfile",
-  "-NonInteractive",
-  "-WindowStyle",
-  "Hidden",
-  "-ExecutionPolicy",
-  "Bypass",
-]
-
 export function sentinelSource(os: Os, dir: string): string {
   switch (os) {
     case "macos":
       return join(dir, "native", "macos", "Sentinel.swift")
-    case "windows":
-      return join(dir, "native", "windows", "Sentinel.ps1")
     case "linux":
       return join(dir, "native", "linux", "sentinel.py")
     default: {
       const exhaustive: never = os
-      throw new Error(`no sentinel for ${exhaustive}`)
+      throw new Error(`the sentinel has no build for ${exhaustive}`)
     }
   }
 }
@@ -46,21 +34,11 @@ export function sentinelCommand(options: LaunchOptions): readonly string[] {
   switch (options.os) {
     case "macos":
       return [options.binary ?? sentinelSource("macos", options.dir), "--log", options.log, "--stop-file", options.stop]
-    case "windows":
-      return [
-        ...WINDOWS_HOST,
-        "-File",
-        sentinelSource("windows", options.dir),
-        "-Log",
-        options.log,
-        "-StopFile",
-        options.stop,
-      ]
     case "linux":
       return ["python3", "-u", sentinelSource("linux", options.dir), "--log", options.log, "--stop-file", options.stop]
     default: {
       const exhaustive: never = options.os
-      throw new Error(`no sentinel for ${exhaustive}`)
+      throw new Error(`the sentinel has no build for ${exhaustive}`)
     }
   }
 }
@@ -70,13 +48,11 @@ export function pointerCommand(options: PointerOptions): readonly string[] {
   switch (options.os) {
     case "macos":
       return [options.binary ?? sentinelSource("macos", options.dir), "--move-pointer", offset]
-    case "windows":
-      return [...WINDOWS_HOST, "-File", sentinelSource("windows", options.dir), "-MovePointer", offset]
     case "linux":
       return ["python3", "-u", sentinelSource("linux", options.dir), "--move-pointer", offset]
     default: {
       const exhaustive: never = options.os
-      throw new Error(`no pointer mover for ${exhaustive}`)
+      throw new Error(`the sentinel cannot move a pointer on ${exhaustive}`)
     }
   }
 }

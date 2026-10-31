@@ -5,6 +5,7 @@ import { CopyCheckIcon } from "@kiko/ui/v2/copy-check-icon"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
+import { timeAgo } from "../lib/time-ago"
 import { accessHint, backgroundHint, browserHints } from "../chat/computer/access"
 import {
   computers,
@@ -44,6 +45,16 @@ function meta(computer: ComputerSummary): string {
   if (computer.holder === "human") parts.push("You have control")
   else if (computer.agent) parts.push("Waiting for you")
   return parts.join(", ")
+}
+
+function daemonLine(computer: ComputerSummary, now: number): string {
+  const version = computer.version ? `Daemon ${computer.version}` : "Daemon version unknown"
+  if (computer.online) return version
+  const seen =
+    computer.lastSeenAt === undefined
+      ? "not connected since it was paired"
+      : `last seen ${timeAgo(now - computer.lastSeenAt)}`
+  return `${version} · ${seen}`
 }
 
 function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void }): JSX.Element {
@@ -127,9 +138,12 @@ function Row(props: { computer: ComputerSummary; onError: (message: string | nul
   const [editing, setEditing] = createSignal(false)
   const [confirming, setConfirming] = createSignal(false)
   const [busy, setBusy] = createSignal(false)
+  const [now, setNow] = createSignal(Date.now())
   let timer: ReturnType<typeof setTimeout> | undefined
   let input: HTMLInputElement | undefined
+  const tick = setInterval(() => setNow(Date.now()), 30_000)
   onCleanup(() => clearTimeout(timer))
+  onCleanup(() => clearInterval(tick))
 
   const rename = async (event: SubmitEvent) => {
     event.preventDefault()
@@ -198,6 +212,16 @@ function Row(props: { computer: ComputerSummary; onError: (message: string | nul
       meta={
         <span class="flex flex-col gap-0.5" data-field="meta">
           <span>{meta(props.computer)}</span>
+          <span class="text-[var(--fg4)]" data-field="daemon">
+            {daemonLine(props.computer, now())}
+          </span>
+          <Show when={!props.computer.online && props.computer.lastCloseReason}>
+            {(reason) => (
+              <span class="text-[var(--text-quaternary)]" data-field="closed">
+                {`The last connection ended: ${reason()}`}
+              </span>
+            )}
+          </Show>
           <Show when={props.computer.online}>
             <span class="text-[var(--fg4)]" data-field="background">
               {backgroundHint(props.computer)}

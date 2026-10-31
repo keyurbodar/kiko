@@ -65,9 +65,9 @@ fn connection(driver: &SharedDriver, status: &Status, stream: LocalSocketStream)
             let mut guard = driver
                 .lock()
                 .map_err(|_| io::Error::other("driver lock poisoned"))?;
-            let Driver { native, browser } = &mut *guard;
+            let Driver { desktop, browser } = &mut *guard;
             kiko_driver::serve(
-                &mut **native,
+                &mut **desktop,
                 &mut **browser,
                 status,
                 Cursor::new(line.as_str()),

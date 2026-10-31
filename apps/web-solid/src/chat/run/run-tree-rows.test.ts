@@ -30,7 +30,7 @@ describe("groupSummary", () => {
       step("read", { tool: "read", name: "read", label: "Read /src/app.tsx" }),
       step("read2", { tool: "read", name: "read", label: "Read /src/main.tsx" }),
       step("search", { tool: "search", name: "web_search", label: "Searched for hotels" }),
-      step("browse", { tool: "web", name: "browse", label: "Browsed asakusa.jp" }),
+      step("web_read", { tool: "web", name: "web_read", label: "Browsed asakusa.jp" }),
     ]
     expect(summaryText(groupSummary(steps))).toBe(
       "Ran 3 commands, edited 1 file, read 2 files, searched 1 time, browsed 1 page, 1 failed",

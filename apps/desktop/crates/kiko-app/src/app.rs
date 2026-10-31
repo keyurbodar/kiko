@@ -41,6 +41,9 @@ pub fn run(args: &[String]) -> i32 {
     }
     let _ = log::init(&config::log_file());
     log::line(format!("kiko {} starting", env!("CARGO_PKG_VERSION")));
+    if let Err(error) = login::migrate() {
+        log::line(format!("could not migrate start at login: {error}"));
+    }
 
     match acquire() {
         Ok(()) => start(),
@@ -100,7 +103,7 @@ fn start() -> i32 {
         log::line(format!("control socket failed: {error}"));
     }
 
-    let handler = handler(Arc::clone(&driver), shutdown, Arc::clone(&shared));
+    let handler = handler(shutdown, Arc::clone(&shared));
     state::refresh(&shared, &driver);
     tray::run(shared, driver, handler, incoming)
 }
@@ -132,7 +135,7 @@ fn shutdown(supervisor: Arc<Supervisor>) -> Arc<dyn Fn() + Send + Sync> {
     })
 }
 
-fn handler(driver: SharedDriver, shutdown: Arc<dyn Fn() + Send + Sync>, shared: Shared) -> Handler {
+fn handler(shutdown: Arc<dyn Fn() + Send + Sync>, shared: Shared) -> Handler {
     Arc::new(move |action| match action {
         Action::Pause => toggle(&config::pause_file()),
         Action::Login => toggle_login(),
@@ -144,19 +147,9 @@ fn handler(driver: SharedDriver, shutdown: Arc<dyn Fn() + Send + Sync>, shared: 
             }
         }
         Action::Permission(kind) => {
-            let driver = Arc::clone(&driver);
             thread::spawn(move || {
-                let requested = driver
-                    .lock()
-                    .map_err(|_| "the driver lock is poisoned".to_string())
-                    .and_then(|mut driver| {
-                        driver
-                            .native
-                            .request_permission(kind)
-                            .map_err(|error| error.to_string())
-                    });
-                if let Err(error) = requested {
-                    log::line(format!("could not request {kind:?}: {error}"));
+                if let Err(error) = open::settings(kind) {
+                    log::line(format!("could not open the {kind:?} settings: {error}"));
                 }
             });
         }
@@ -192,6 +185,7 @@ fn status() -> Status {
             automation: Grant::Unknown,
         },
         browsers: Vec::<BrowserStatus>::new(),
+        displays: Vec::new(),
     }
 }
 
