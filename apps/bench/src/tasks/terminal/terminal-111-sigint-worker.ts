@@ -89,7 +89,7 @@ process.exit(1)`
     const result = await bun(m, code)
     if (result.code !== 0) throw new Error(`the target worker did not stop: ${result.stderr || result.stdout}`)
   },
-  check: async (m, seed) => {
+  check: async (m) => {
     const targetPort = Number((await readText(m, "port.txt"))?.trim())
     const otherPort = Number((await readText(m, "other-port.txt"))?.trim())
     const targetPid = await readPid(m, "target/pid")

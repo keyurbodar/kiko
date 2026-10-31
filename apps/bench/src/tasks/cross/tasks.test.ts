@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process"
 import { describe, expect, it } from "vitest"
 
 import { createMachine, localOs, removeMachine } from "../../machine"
@@ -5,7 +6,17 @@ import type { Task } from "../../types"
 import { crossTasks } from "./registry"
 
 const currentOs = localOs()
-const runsHere = (task: Task): boolean => task.os.includes(currentOs)
+const hasDisplay = currentOs === "linux" && Boolean(process.env.DISPLAY)
+const hasChrome =
+  spawnSync("sh", [
+    "-c",
+    "command -v google-chrome || command -v chromium || command -v chromium-browser || command -v chrome || test -x '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'",
+  ]).status === 0
+
+const runsHere = (task: Task): boolean =>
+  task.os.includes(currentOs) &&
+  (!task.needs.includes("display") || hasDisplay) &&
+  (!task.needs.includes("chrome") || hasChrome)
 
 async function expectOraclePasses(task: Task): Promise<void> {
   const machine = await createMachine()
