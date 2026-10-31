@@ -1,4 +1,4 @@
-export type Os = "macos" | "windows" | "linux"
+export type Os = "macos" | "linux"
 export type Track = "terminal" | "browser" | "desktop" | "mixed"
 export type Condition = "foreground" | "background"
 export type Need = "display" | "chrome" | "electron" | "network" | "docker"
