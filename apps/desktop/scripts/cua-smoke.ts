@@ -211,6 +211,16 @@ async function frontmost(): Promise<string> {
   return command(["xdotool", "getactivewindow", "getwindowname"])
 }
 
+async function frontAwayFrom(fixture: Fixture): Promise<string> {
+  const deadline = Date.now() + 10_000
+  for (;;) {
+    await focusDecoy(fixture.decoy)
+    await Bun.sleep(200)
+    const front = await frontmost()
+    if (!front.includes(fixture.title) || Date.now() >= deadline) return front
+  }
+}
+
 async function focusDecoy(decoy: string): Promise<void> {
   try {
     if (process.platform === "darwin") await command(["osascript", "-e", 'tell application "Finder" to activate'])
@@ -337,10 +347,8 @@ async function main(): Promise<void> {
     if (names.length === 0) throw new Error("the desktop engine listed no tools")
 
     fixture = await startFixture(dir)
-    await Bun.sleep(1_000)
-    await focusDecoy(fixture.decoy)
-    const before = await frontmost()
     const window = await locateWindow(driver, fixture.title)
+    const before = await frontAwayFrom(fixture)
     await typeInto(driver, window, typed)
     const after = await frontmost()
     if (before !== after || after.includes(fixture.title))
