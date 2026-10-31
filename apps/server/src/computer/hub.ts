@@ -56,7 +56,7 @@ const CLOSE_TEXT: Readonly<Record<number, string>> = {
 }
 
 function closeText(code?: number, reason?: string): string {
-  const sent = reason?.trim()
+  const sent = reason?.trim().replace(/[.!?]$/, "")
   if (sent) return sent
   if (code === undefined) return "the connection ended"
   return CLOSE_TEXT[code] ?? `it closed with code ${code}`
@@ -339,7 +339,7 @@ export class ComputerHub {
   }
 
   private nameTaken(name: string, owner: ComputerRow): string {
-    return `${name} is already the name of another computer (${owner.os}, ${owner.id}). rename that one first, or pair this machine with a different name.`
+    return `${name} is already the name of another computer (${owner.os}, ${owner.id}). rename that one first, or use a different name.`
   }
 
   private busy(id: string): boolean {

@@ -577,7 +577,7 @@ describe("computer summaries", () => {
       const pc = pcSocket("pc-1")
       pcs.push(pc.ws)
       yield* Effect.promise(() => computers.message(pc.ws, JSON.stringify({ ...HELLO, version: "2.5.0" })))
-      yield* Effect.promise(() => computers.close(pc.ws, 1006, "the network dropped"))
+      yield* Effect.promise(() => computers.close(pc.ws, 1006, "the network dropped."))
       pcs.splice(0)
 
       const [summary] = computers.summaries()
