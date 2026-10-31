@@ -19,7 +19,7 @@ jobs:
     steps:
       - id: plan
         run: |
-          echo 'host=[{"env":"a","n":1},{"env":"b","n":2}]' >> "$GITHUB_OUTPUT"
+          echo 'host={"include":[{"env":"a","n":1},{"env":"b","n":2}]}' >> "$GITHUB_OUTPUT"
           echo "wrote the host output"
 
   use-needs:
@@ -37,16 +37,6 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON('[{"env":"a"},{"env":"b"}]') }}
+      matrix: ${{ fromJSON('{"include":[{"env":"a"},{"env":"b"}]}') }}
     steps:
       - run: echo "static env=${{ matrix.env }}"
-
-  use-literal:
-    name: Probe literal ${{ matrix.env }}
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        env: [a, b]
-    steps:
-      - run: echo "literal env=${{ matrix.env }}"
