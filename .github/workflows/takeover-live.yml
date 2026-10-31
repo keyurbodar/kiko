@@ -32,6 +32,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg xvfb
       - name: Install Chromium
         run: node apps/server/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Build the web app
+        run: bun run build
       - name: Measure
         run: xvfb-run -a -s "-screen 0 1920x1080x24" bun apps/server/scripts/measure-live.ts --out live-measure.json --shots shots
       - name: Upload

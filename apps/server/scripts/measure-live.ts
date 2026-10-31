@@ -74,7 +74,7 @@ addEventListener("pointerdown", (event) => {
 
 type Sample = { glass: number; x: number }
 
-const MEASURE_GLASS = async (path: string, durationMs: number) => {
+const MEASURE_GLASS = async ([path, durationMs]: [string, number]) => {
   const screen = document.querySelector('[data-component="computer-screen"]')
   if (!screen) return []
   const video = screen.querySelector("video") as HTMLVideoElement | null
@@ -112,7 +112,7 @@ const MEASURE_GLASS = async (path: string, durationMs: number) => {
   return samples
 }
 
-const MEASURE_PHOTON = async (path: string, x: number, y: number, timeoutMs: number) => {
+const MEASURE_PHOTON = async ([path, x, y, timeoutMs]: [string, number, number, number]) => {
   const screen = document.querySelector('[data-component="computer-screen"]')
   if (!screen) return null
   const video = screen.querySelector("video") as HTMLVideoElement | null
@@ -122,17 +122,17 @@ const MEASURE_PHOTON = async (path: string, x: number, y: number, timeoutMs: num
   const width = (source as HTMLVideoElement).videoWidth || (source as HTMLCanvasElement).width
   const height = (source as HTMLVideoElement).videoHeight || (source as HTMLCanvasElement).height
   const probe = document.createElement("canvas")
-  probe.width = width
-  probe.height = height
+  probe.width = 32
+  probe.height = 32
   const context = probe.getContext("2d", { willReadFrequently: true })
   if (!context) return null
+  const px = Math.max(0, Math.round(x * width) - 16)
+  const py = Math.max(0, Math.round(y * height) - 16)
   const end = performance.now() + timeoutMs
   while (performance.now() < end) {
     try {
-      context.drawImage(source, 0, 0, width, height)
-      const px = Math.round(x * width) - 16
-      const py = Math.round(y * height) - 16
-      const block = context.getImageData(Math.max(0, px), Math.max(0, py), 32, 32).data
+      context.drawImage(source, px, py, 32, 32, 0, 0, 32, 32)
+      const block = context.getImageData(0, 0, 32, 32).data
       let sum = 0
       for (let i = 0; i < block.length; i += 4) sum += block[i] ?? 0
       if (sum / (block.length / 4) > 200) return Date.now()
@@ -149,12 +149,13 @@ function percentile(values: readonly number[], p: number): number {
 }
 
 function summary(values: readonly number[]) {
+  const round = (value: number) => (Number.isFinite(value) ? Math.round(value) : null)
   return {
     n: values.length,
-    p50: Math.round(percentile(values, 50)),
-    p95: Math.round(percentile(values, 95)),
-    min: Math.round(Math.min(...values)),
-    max: Math.round(Math.max(...values)),
+    p50: round(percentile(values, 50)),
+    p95: round(percentile(values, 95)),
+    min: values.length ? round(Math.min(...values)) : null,
+    max: values.length ? round(Math.max(...values)) : null,
   }
 }
 
@@ -285,97 +286,99 @@ async function main(): Promise<void> {
     const shots = process.argv.includes("--shots") ? process.argv[process.argv.indexOf("--shots") + 1] : undefined
     if (shots) await mkdir(shots, { recursive: true })
 
-    const run = async (label: string) => {
-      const context = await viewer!.newContext()
-      await context.addInitScript((record) => {
-        localStorage.setItem("kiko:auth", record)
-        localStorage.setItem("kiko:schema", "1")
-      }, auth)
-      const page = await context.newPage()
-      await page.goto(`http://localhost:${WEB_PORT}/`)
-      await page.waitForSelector('[data-action="computer-watch"]', { timeout: 60_000 })
-      await page.waitForFunction(
-        () => {
-          const button = document.querySelector('[data-action="computer-watch"]')
-          return button !== null && !button.hasAttribute("disabled")
-        },
-        { timeout: 30_000 },
-      )
-      await wait(1_000)
+    const context = await viewer.newContext()
+    await context.addInitScript((record) => {
+      localStorage.setItem("kiko:auth", record)
+      localStorage.setItem("kiko:schema", "1")
+    }, auth)
+    const page = await context.newPage()
+    await page.goto(`http://localhost:${WEB_PORT}/`)
+    await page.waitForSelector('[data-action="computer-watch"]', { timeout: 60_000 })
+    await wait(1_500)
 
+    const mode = () =>
+      page.evaluate(
+        () => document.querySelector('[data-component="computer-screen"]')?.getAttribute("data-mode") ?? "unknown",
+      )
+    const open = async () => {
       const opened = Date.now()
       await page.click('[data-action="computer-watch"]')
       await page.waitForSelector('[data-component="computer-screen"]', { timeout: 30_000 })
       await page.waitForFunction(
         () => {
           const screen = document.querySelector('[data-component="computer-screen"]')
-          const mode = screen?.getAttribute("data-mode")
-          return mode === "rtc" || mode === "relay"
+          const value = screen?.getAttribute("data-mode")
+          return value === "rtc" || value === "relay"
         },
         { timeout: 30_000 },
       )
-      const openMs = Date.now() - opened
-      const firstMode = await page.evaluate(
-        () => document.querySelector('[data-component="computer-screen"]')?.getAttribute("data-mode") ?? "unknown",
-      )
+      return { openMs: Date.now() - opened, mode: await mode() }
+    }
+    const close = async () => {
+      const hide = page.locator('[data-action="computer-hide"]')
+      if ((await hide.count()) > 0) await hide.click()
+      await page.waitForSelector('[data-component="computer-screen"]', { state: "detached", timeout: 15_000 })
+      await wait(800)
+    }
 
-      const takeover = page.locator('[data-action="computer-takeover"]')
-      if ((await takeover.count()) > 0) {
-        await takeover.click()
-        await page.waitForSelector('[data-component="computer-screen"][data-interactive]', { timeout: 15_000 })
-        await wait(500)
-      }
+    const cold = await open()
 
-      const currentMode = () =>
-        page.evaluate(
-          () => document.querySelector('[data-component="computer-screen"]')?.getAttribute("data-mode") ?? "unknown",
+    const takeover = page.locator('[data-action="computer-takeover"]')
+    if ((await takeover.count()) > 0) {
+      await takeover.click()
+      await page.waitForSelector('[data-component="computer-screen"][data-interactive]', { timeout: 15_000 })
+      await wait(500)
+    }
+
+    const path = (await mode()) === "relay" ? "relay" : "rtc"
+    const glass = await page.evaluate(MEASURE_GLASS, [path, 4_000])
+    if (shots) await page.screenshot({ path: join(shots, `cold-${path}.png`) }).catch(() => {})
+
+    const box = await page.locator('[data-part="stage"]').boundingBox()
+    const clicks: number[] = []
+    if (box) {
+      for (let round = 0; round < 5; round++) {
+        const before = await screenPage.evaluate(() => (window as unknown as { __events: unknown[] }).__events.length)
+        const sampling = page.evaluate(MEASURE_PHOTON, [path, 0.5, 0.5, 2_000])
+        await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5)
+        const landed = await until(
+          "the remote click",
+          async () =>
+            (await screenPage.evaluate(() => (window as unknown as { __events: unknown[] }).__events.length)) > before,
+          3_000,
         )
-      const path = (await currentMode()) === "relay" ? "relay" : "rtc"
-      const glass = await page.evaluate(MEASURE_GLASS, path, 4_000)
-      if (shots) await page.screenshot({ path: join(shots, `${label}-${path}.png`) }).catch(() => {})
-
-      const box = await page.locator('[data-part="stage"]').boundingBox()
-      const clicks: number[] = []
-      if (box) {
-        for (let round = 0; round < 5; round++) {
-          const before = await screenPage.evaluate(() => (window as unknown as { __events: unknown[] }).__events.length)
-          const sampling = page.evaluate(MEASURE_PHOTON, path, 0.5, 0.5, 2_000)
-          await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5)
-          const landed = await until(
-            "the remote click",
-            async () =>
-              (await screenPage.evaluate(() => (window as unknown as { __events: unknown[] }).__events.length)) >
-              before,
-            3_000,
-          )
-            .then(() => true)
-            .catch(() => false)
-          const photon = await sampling
-          if (landed && typeof photon === "number") {
-            const event = (await screenPage.evaluate(() =>
-              (window as unknown as { __events: { t: number }[] }).__events.at(-1),
-            )) as { t: number }
-            clicks.push(photon - event.t)
-          }
-          await wait(500)
+          .then(() => true)
+          .catch(() => false)
+        const photon = await sampling
+        if (landed && typeof photon === "number") {
+          const event = (await screenPage.evaluate(() =>
+            (window as unknown as { __events: { t: number }[] }).__events.at(-1),
+          )) as { t: number }
+          clicks.push(photon - event.t)
         }
-      }
-
-      await context.close()
-      return {
-        label,
-        firstMode,
-        measured: path,
-        openMs,
-        glass: summary(glass.map((sample) => sample.glass)),
-        input: summary(clicks),
+        await wait(500)
       }
     }
 
-    const cold = await run("cold")
-    const warm = await run("warm")
+    await close()
+    const warm: number[] = []
+    for (let round = 0; round < 4; round++) {
+      const again = await open()
+      warm.push(again.openMs)
+      await wait(500)
+      await close()
+    }
+    await context.close()
 
-    const output = { cold, warm, at: new Date().toISOString() }
+    const coldOpen = [cold.openMs]
+    const warmOpen = { ...summary(warm), n: warm.length }
+    const output = {
+      at: new Date().toISOString(),
+      cold: { ...cold, glass: summary(glass.map((sample) => sample.glass)), input: summary(clicks) },
+      warm: warmOpen,
+      open: { cold: summary(coldOpen), warm: warmOpen },
+      path,
+    }
     const out = process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out") + 1] : undefined
     if (out) await writeFile(out, `${JSON.stringify(output, null, 2)}\n`)
     console.log(JSON.stringify(output, null, 2))
