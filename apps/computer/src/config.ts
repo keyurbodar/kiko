@@ -168,7 +168,7 @@ export function policyCache(dir = configDir()): () => Promise<Policy> {
   }
 }
 
-export type PauseWatch = { get(): boolean; close(): void }
+type PauseWatch = { get(): boolean; close(): void }
 
 export function watchPaused(dir = configDir()): PauseWatch {
   const markers = [join(dir, "paused"), join(appDir(), "paused")]

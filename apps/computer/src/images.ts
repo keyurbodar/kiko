@@ -4,9 +4,9 @@ const IMAGE_MIMES = new Set(["image/png", "image/jpeg", "image/webp"])
 const MAX_EDGE = 960
 const QUALITY = 60
 
-export type Fitted = { bytes: Uint8Array; mime: string }
+type Fitted = { bytes: Uint8Array; mime: string }
 export type Fitter = (bytes: Uint8Array, mime: string) => Promise<Fitted>
-export type Split = { value: unknown; parts: ImagePart[]; data: Uint8Array<ArrayBuffer> }
+type Split = { value: unknown; parts: ImagePart[]; data: Uint8Array<ArrayBuffer> }
 
 type Bag = Record<string, unknown>
 
@@ -38,7 +38,7 @@ function imageConstructor(): ImageConstructor | null {
   return typeof bun?.Image === "function" ? bun.Image : null
 }
 
-export async function fitWithBun(bytes: Uint8Array, mime: string): Promise<Fitted> {
+async function fitWithBun(bytes: Uint8Array, mime: string): Promise<Fitted> {
   const Image = imageConstructor()
   if (!Image) return { bytes, mime }
   try {

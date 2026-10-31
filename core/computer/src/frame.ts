@@ -65,7 +65,7 @@ export const IMAGE_REF = "$bin"
 
 export type ImagePart = { mime: string; length: number }
 
-export type BinaryMessage = { header: Record<string, unknown>; data: Uint8Array }
+type BinaryMessage = { header: Record<string, unknown>; data: Uint8Array }
 
 export function encodeBinary(header: Record<string, unknown>, data: Uint8Array): Uint8Array<ArrayBuffer> {
   const json = new TextEncoder().encode(JSON.stringify(header))
