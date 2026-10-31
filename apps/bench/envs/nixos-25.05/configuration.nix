@@ -35,6 +35,19 @@ let
     nspr
     nss
   ];
+  benchPython = pkgs.python3.withPackages (ps: [ ps.pygobject3 ]);
+  girepositoryPath = lib.makeSearchPath "lib/girepository-1.0" (
+    with pkgs;
+    [
+      glib
+      gtk3
+      pango
+      gdk-pixbuf
+      at-spi2-core
+      harfbuzz
+      gobject-introspection
+    ]
+  );
 in
 {
   system.stateVersion = "25.05";
@@ -118,6 +131,8 @@ in
     XDG_SESSION_TYPE = "wayland";
     XDG_CURRENT_DESKTOP = "GNOME";
     MOZ_ENABLE_WAYLAND = "0";
+    GI_TYPELIB_PATH = girepositoryPath;
+    LD_LIBRARY_PATH = lib.makeLibraryPath benchLibs;
   };
 
   environment.systemPackages =
@@ -145,7 +160,7 @@ in
       vim
       which
       zip
-      python3
+      benchPython
       nodejs_22
       bun
       chromium

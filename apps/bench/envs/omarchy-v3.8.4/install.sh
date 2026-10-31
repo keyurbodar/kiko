@@ -22,7 +22,16 @@ run() {
   if ! bash -c "source '$script'"; then echo "!! $script failed" >&2; fi
 }
 
-run "$OMARCHY_INSTALL/packaging/base.sh"
+install_base_packages() {
+  local pkg
+  while IFS= read -r pkg; do
+    case "$pkg" in '' | \#*) continue ;; esac
+    echo "== package $pkg"
+    omarchy-pkg-add "$pkg" || echo "!! package $pkg failed" >&2
+  done <"$OMARCHY_INSTALL/omarchy-base.packages"
+}
+
+install_base_packages
 run "$OMARCHY_INSTALL/packaging/fonts.sh"
 run "$OMARCHY_INSTALL/packaging/icons.sh"
 run "$OMARCHY_INSTALL/packaging/tuis.sh"
