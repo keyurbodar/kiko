@@ -413,14 +413,14 @@ export function computerInfoExtension(deps: ComputerToolDeps): Extension {
   const link = defineTool({
     name: "computer_link",
     description:
-      "the live view of a computer. mode watch is view only; mode control lets the human click and type, and pauses that computer for every agent until they press I'm done, so use it for a login, a two-factor code, a payment, or a captcha. with a reason it posts the link or a card with a Take over button to the chat. the link is a bearer secret for the human, so only post it in the chat.",
+      "the live view of a computer. mode watch is view only and posts nothing: the human opens the live view from the top bar of the chat. mode control lets the human click and type, pauses that computer for every agent until they press I'm done, and posts a card with a Take over button to the chat, so use it for a login, a two-factor code, a payment, or a captcha.",
     parameters: Type.Object({
       pc: PC,
       mode: Type.Union([Type.Literal("watch"), Type.Literal("control")]),
       reason: Type.Optional(
         Type.String({
           description:
-            'one short sentence for the human, such as "please sign in to dropbox". posts the link or the card to the chat',
+            'one short sentence for the human, such as "please sign in to dropbox". mode control puts it on the card',
         }),
       ),
     }),
@@ -433,14 +433,16 @@ export function computerInfoExtension(deps: ComputerToolDeps): Extension {
           return text(`${pc.name} blocks its live view in its policy, so there is nothing to watch.`, true)
         const out = await deps.port().link(pc.id, args.mode, args.reason?.slice(0, 300))
         if (!out.ok) return text(out.error, true)
-        const taken =
-          args.mode === "control" ? ` ${paused(pc)} The human is told it is theirs until they press I'm done.` : ""
-        if (!out.url)
+        if (args.mode === "watch")
           return text(
-            `posted the ${args.mode === "control" ? "Take over card" : "watch link"} to the chat.${taken} do not post it again.`,
+            `nothing was posted: the human has the live view of ${pc.name} on the Watch your computer button in the top bar of this chat. say in your reply what you want them to see.`,
+          )
+        if (!out.posted)
+          return text(
+            `could not post the Take over card to the chat. say in your reply that ${pc.name} is waiting for them in the computer panel. ${paused(pc)}`,
           )
         return text(
-          `${args.mode === "control" ? "Take over" : "Watch"} ${pc.name}: ${out.url}\nreply with it as a markdown link.${taken}`,
+          `posted the Take over card to the chat. ${paused(pc)} The human is told it is theirs until they press I'm done. do not post it again.`,
         )
       }),
   })

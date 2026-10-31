@@ -20,7 +20,7 @@ import type { Env } from "../index"
 import { encodeBase64 } from "../lib/base64"
 import { BACKEND } from "../lib/version"
 import { dropStreams, socketView } from "../owner/socket"
-import { frameChunk, frameSubs, frameText } from "./frames"
+import { frameChunk, framePcId, frameStream, frameSubs, frameText } from "./frames"
 import type { ComputerRow, ComputerStore, NewComputer } from "./store"
 
 const HOLD_MS = 30 * 60_000
@@ -491,7 +491,8 @@ export class ComputerHub {
 
   private watchingTab(tab: WebSocket): readonly string[] {
     const saved = tab.deserializeAttachment() as { rpc?: readonly { stream: string }[] } | null
-    return [...new Set((saved?.rpc ?? []).map((sub) => sub.stream).filter((stream) => stream.startsWith("pc:")))]
+    const ids = (saved?.rpc ?? []).flatMap((sub) => framePcId(sub.stream) ?? [])
+    return [...new Set(ids)]
   }
 
   syncRelay(pcId: string, force = false): void {
@@ -520,7 +521,7 @@ export class ComputerHub {
 
   leave(tab: WebSocket): void {
     for (const pcId of this.watchingTab(tab)) {
-      dropStreams(tab, `pc:${pcId}`)
+      dropStreams(tab, frameStream(pcId))
       this.syncRelay(pcId)
     }
     this.dropHuman(tab)

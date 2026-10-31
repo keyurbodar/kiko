@@ -15,7 +15,7 @@ import type { ComputerLinkResult, PcCallOutcome, PcReleased } from "../computer/
 import type { Env } from "../index"
 import type { Attachment } from "./socket-frames"
 import { subscribe } from "../owner/socket"
-import { frameStream } from "../computer/frames"
+import { framePcId, frameStream } from "../computer/frames"
 import type { RequestId } from "../rpc/wire"
 
 const missing = () => new NotFoundError({ resource: "computer", message: "there is no such computer" })
@@ -125,9 +125,11 @@ export class ComputerWiring {
     const why = typeof reason === "string" ? reason.trim().slice(0, MAX_REASON) : ""
     if (this.hub.link(row.id, { slug, roomId, ...(why ? { reason: why } : {}) }) === "missing")
       return { ok: false, error: "there is no such computer" }
-    if (mode === "control")
-      await this.d.services.room(roomId).computerAsk(slug, { id: row.id, name: row.name }, why, `${Date.now()}`)
-    return { ok: true }
+    if (mode === "watch") return { ok: true, posted: false }
+    const posted = await this.d.services
+      .room(roomId)
+      .computerAsk(slug, { id: row.id, name: row.name }, why, `${Date.now()}`)
+    return { ok: true, posted }
   }
 
   holder(pcId: string): "agent" | "human" {
@@ -175,7 +177,8 @@ export class ComputerWiring {
   )
 
   ended(stream: string): void {
-    if (stream.startsWith("pc:")) this.hub.syncRelay(stream.slice("pc:".length))
+    const pcId = framePcId(stream)
+    if (pcId !== null) this.hub.syncRelay(pcId)
   }
 
   readonly take = Effect.fn("Computers.take")({ self: this }, function* (socket: WebSocket, pcId: string) {

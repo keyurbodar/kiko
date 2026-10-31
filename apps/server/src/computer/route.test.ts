@@ -42,6 +42,23 @@ describe("computer connect", () => {
     expect(reached).toBe(false)
   })
 
+  it("refuses a socket from anyone who is not the owner, before reaching the owner", async () => {
+    let reached = false
+    const response = await computerRoute(
+      connect({
+        [CONNECT_HEADERS.user]: "attacker",
+        [CONNECT_HEADERS.id]: "pc1",
+        [CONNECT_HEADERS.ts]: "1",
+        [CONNECT_HEADERS.sig]: "sig",
+      }),
+      env(() => {
+        reached = true
+      }),
+    )
+    expect(response?.status).toBe(401)
+    expect(reached).toBe(false)
+  })
+
   it("forwards a signed socket to the owner", async () => {
     let reached = false
     const response = await computerRoute(

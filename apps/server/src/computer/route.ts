@@ -2,6 +2,7 @@ import { Schema } from "effect"
 import { Hello, PROTOCOL } from "@kiko/computer/wire"
 import { CONNECT_HEADERS } from "@kiko/computer/sign"
 import type { Env } from "../index"
+import { PRODUCTION_OWNER } from "../auth/auth"
 import { NameError, ownerStub } from "../lib/names"
 import { error } from "../lib/route"
 import { readPairCode } from "./pairing"
@@ -81,6 +82,7 @@ function connect(request: Request, env: Env): Promise<Response> | Response {
       headers: { [CONNECT_HEADERS.protocol]: String(PROTOCOL) },
     })
   if (!user || !id || !ts || !sig) return error(401, "unauthorized")
+  if (user !== PRODUCTION_OWNER) return error(401, "unauthorized")
   try {
     return ownerStub(env.OWNER, user).fetch(request)
   } catch (e) {

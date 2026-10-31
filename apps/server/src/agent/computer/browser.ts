@@ -66,6 +66,17 @@ function tabLine(tab: Tab): string {
   return `${tab.id}${tab.active ? " [in front]" : ""} ${tab.title || "(no title)"} — ${tab.url}`
 }
 
+const WEB_SCHEMES: ReadonlySet<string> = new Set(["http:", "https:"])
+
+function openable(url: string): boolean {
+  if (url === "about:blank") return true
+  try {
+    return WEB_SCHEMES.has(new URL(url).protocol)
+  } catch {
+    return false
+  }
+}
+
 function tabHead(tab: Tab, suffix: string): string {
   return `${tab.title || "(no title)"} — ${tab.url} (tab ${tab.id}, ${suffix})`
 }
@@ -222,11 +233,18 @@ export function browserTools(deps: ComputerToolDeps) {
       "open a URL in a new tab in the background, in the browser the owner already uses, without bringing it to the front. use the tab the owner already has open for that site instead when there is one.",
     parameters: Type.Object({
       pc: PC,
-      url: Type.String({ description: "the full URL to open, such as https://example.com" }),
+      url: Type.String({
+        description: "the full URL to open, such as https://example.com. only http, https and about:blank",
+      }),
     }),
     replay: "unsafe",
     execute: (args) =>
       run("browser_open", async () => {
+        if (!openable(args.url))
+          return text(
+            `browser_open only opens http, https and about:blank URLs, so ${cut(args.url)} was not opened.`,
+            true,
+          )
         const target = await ready(args.pc)
         if (!target.ok) return target.result
         const pc = target.pc

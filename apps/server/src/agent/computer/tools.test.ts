@@ -3,8 +3,8 @@ import type { Context } from "@earendil-works/chord"
 import type { ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { DriverCall, Look, Page, Tab, Window } from "@kiko/computer/driver"
 import type { ComputerPort } from "./port"
-import { computerExtension, zoomOf } from "./tools"
-import type { ComputerCallOutcome, ComputerSummary } from "./types"
+import { computerExtension, computerInfoExtension, zoomOf } from "./tools"
+import type { ComputerCallOutcome, ComputerLinkOutcome, ComputerSummary } from "./types"
 
 type Answer = (call: DriverCall) => ComputerCallOutcome
 
@@ -48,7 +48,7 @@ function summary(extra: Partial<ComputerSummary> = {}): ComputerSummary {
   }
 }
 
-function harness(pc: ComputerSummary, answer: Answer) {
+function harness(pc: ComputerSummary, answer: Answer, link: ComputerLinkOutcome = { ok: true, posted: false }) {
   const calls: DriverCall[] = []
   const port: ComputerPort = {
     list: async () => [pc],
@@ -59,10 +59,11 @@ function harness(pc: ComputerSummary, answer: Answer) {
       calls.push(call)
       return answer(call)
     },
-    link: async () => ({ ok: true }),
+    link: async () => link,
     holder: async () => pc.holder,
   }
-  const tools = computerExtension({ port: () => port, acceptsImages: () => false }).tools ?? []
+  const deps = { port: () => port, acceptsImages: () => false }
+  const tools = [...(computerExtension(deps).tools ?? []), ...(computerInfoExtension(deps).tools ?? [])]
   const tool = (name: string) => {
     const found = tools.find((entry) => entry.name === name)
     if (!found) throw new Error(`no ${name} tool`)
@@ -228,6 +229,38 @@ describe("browser_open", () => {
     const out = await tool("browser_open").execute({ url: "https://mail.example/" }, api, context)
 
     expect(textOf(out)).toContain("t-1 [in front] Inbox — https://mail.example/")
+  })
+
+  it("refuses anything that is not http, https or about:blank", async () => {
+    const { tool, calls } = harness(summary(), () => ({ ok: true, value: TAB }))
+
+    const out = await tool("browser_open").execute({ url: "file:///etc/passwd" }, api, context)
+
+    expect(out.isError).toBe(true)
+    expect(textOf(out)).toBe(
+      "browser_open only opens http, https and about:blank URLs, so file:///etc/passwd was not opened.",
+    )
+    expect(calls).toEqual([])
+  })
+})
+
+describe("computer_link", () => {
+  it("says a watch posts nothing, because the live view is in the top bar", async () => {
+    const { tool } = harness(summary(), () => ({ ok: true, value: null }))
+
+    const out = await tool("computer_link").execute({ mode: "watch", reason: "please watch" }, api, context)
+
+    expect(out.isError).not.toBe(true)
+    expect(textOf(out)).toContain("nothing was posted")
+    expect(textOf(out)).toContain("Watch your computer button")
+  })
+
+  it("says the Take over card is posted for control", async () => {
+    const { tool } = harness(summary(), () => ({ ok: true, value: null }), { ok: true, posted: true })
+
+    const out = await tool("computer_link").execute({ mode: "control", reason: "please sign in" }, api, context)
+
+    expect(textOf(out)).toContain("posted the Take over card to the chat.")
   })
 })
 

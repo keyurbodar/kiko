@@ -93,6 +93,25 @@ describe("computer frame relay", () => {
     }),
   )
 
+  it.effect("stops the relay when the tab watching the computer leaves", () =>
+    Effect.sync(() => {
+      const told: unknown[] = []
+      const pc = daemon(PC)
+      ;(pc as unknown as { send: (text: string) => void }).send = (text: string) => told.push(JSON.parse(text))
+      const watching = tab([{ requestId: "5", stream: `pc:${PC}` }])
+      const computers = hub([watching.ws], [pc])
+
+      computers.syncRelay(PC)
+      computers.leave(watching.ws)
+
+      assert.deepStrictEqual(told, [
+        { t: "live", on: true, fps: 8, maxWidth: 1280, quality: 60 },
+        { t: "live", on: false },
+      ])
+      assert.deepStrictEqual(watching.sent, [])
+    }),
+  )
+
   it.effect("tells the daemon to start and stop the relay as watchers come and go", () =>
     Effect.sync(() => {
       const told: unknown[] = []

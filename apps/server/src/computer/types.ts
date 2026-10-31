@@ -6,4 +6,4 @@ export type PcCallOutcome = { ok: true; value: unknown } | { ok: false; code: Fa
 
 export type PcReleased = { pcId: string; name: string; waiters: PcAgentRef[]; expired: boolean }
 
-export type ComputerLinkResult = { ok: true } | { ok: false; error: string }
+export type ComputerLinkResult = { ok: true; posted: boolean } | { ok: false; error: string }
