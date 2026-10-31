@@ -33,19 +33,7 @@ describe("ImageDialog", () => {
     )
     await userEvent.keyboard("{Escape}")
 
-    await vi.waitFor(() => {
-      if (!onClose.mock.calls.length)
-        console.log(
-          "DIAG",
-          document.activeElement?.outerHTML.slice(0, 200),
-          document.querySelectorAll("[role=dialog]").length,
-          [...document.querySelectorAll("[data-kb-top-layer],[role=tooltip],[data-expanded]")].map((e) =>
-            e.outerHTML.slice(0, 160),
-          ),
-          document.body.style.pointerEvents,
-        )
-      expect(onClose).toHaveBeenCalled()
-    })
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalled())
   })
 
   it("plays a video in the preview", async () => {
