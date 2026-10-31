@@ -1,10 +1,10 @@
-import { Segmented } from "@kiko/ui/v2/segmented"
 import type { ComputerSummary } from "@kiko/protocol"
 import { EditIcon, MonitorIcon, PlusIcon } from "@kiko/ui/icons"
 import { CopyCheckIcon } from "@kiko/ui/v2/copy-check-icon"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
+import { timeAgo } from "../lib/time-ago"
 import { accessHint, backgroundHint, browserHints } from "../chat/computer/access"
 import {
   computers,
@@ -17,9 +17,7 @@ import {
 import { Button, fieldClass, Group, IconButton, Item, Notice } from "./kit"
 import { clearPairing, readPairing, savePairing } from "./pairing"
 
-const OS: Record<ComputerSummary["os"], string> = { macos: "macOS", linux: "Linux", windows: "Windows" }
-
-type Shell = "unix" | "windows"
+const OS: Record<ComputerSummary["os"], string> = { macos: "macOS", linux: "Linux" }
 
 const REMOVE_CONFIRM_MS = 4_000
 
@@ -27,28 +25,14 @@ const COPIED_MS = 1_200
 
 const SHINE = { "--run-text": "var(--text-tertiary)", "--visible-animation-state": "running" }
 
-function command(shell: Shell, url: string): string {
+function command(url: string): string {
   const origin = new URL(url).origin
-  return shell === "unix"
-    ? `curl -fsSL ${origin}/pc/install.sh | sh -s -- '${url}'`
-    : `& ([scriptblock]::Create((irm ${origin}/pc/install.ps1))) '${url}'`
+  return `curl -fsSL ${origin}/pc/install.sh | sh -s -- '${url}'`
 }
 
 function clock(ms: number): string {
   const seconds = Math.max(0, Math.ceil(ms / 1000))
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
-}
-
-function timeAgo(ms: number): string {
-  const seconds = Math.max(0, Math.round(ms / 1000))
-  if (seconds < 2) return "just now"
-  if (seconds < 60) return `${seconds} seconds ago`
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`
-  const days = Math.round(hours / 24)
-  return `${days} day${days === 1 ? "" : "s"} ago`
 }
 
 function meta(computer: ComputerSummary): string {
@@ -69,13 +53,12 @@ function daemonLine(computer: ComputerSummary, now: number): string {
 }
 
 function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void }): JSX.Element {
-  const [shell, setShell] = createSignal<Shell>("unix")
   const [now, setNow] = createSignal(Date.now())
   const [copied, setCopied] = createSignal(false)
   const timer = setInterval(() => setNow(Date.now()), 1000)
   onCleanup(() => clearInterval(timer))
   const left = () => props.pair.expiresAt - now()
-  const text = () => command(shell(), props.pair.url)
+  const text = () => command(props.pair.url)
   const copy = async () => {
     await navigator.clipboard.writeText(text())
     setCopied(true)
@@ -85,15 +68,6 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
     <div class="flex flex-col gap-3 px-4 py-3.5" data-component="computer-pairing">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <span class="type-base text-primary">Run this on the computer you want to add</span>
-        <Segmented<Shell>
-          label="Operating system"
-          value={shell()}
-          options={[
-            { value: "unix", label: "macOS / Linux" },
-            { value: "windows", label: "Windows" },
-          ]}
-          onChange={setShell}
-        />
       </div>
       <Show
         when={left() > 0}

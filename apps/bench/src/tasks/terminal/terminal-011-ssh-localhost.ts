@@ -58,6 +58,7 @@ export const sshLocalhost: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "Connect to the local SSH server described in host.txt with the key in clientkey, read the file secret.txt in the home directory, and write its contents to answer.txt.",
   limits: LIMITS,

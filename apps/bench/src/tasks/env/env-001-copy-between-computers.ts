@@ -11,6 +11,7 @@ export const envCopyBetweenComputers: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   contenders: ["kiko-remote"],
   prompt:
     "There is a file called notes.txt in alpha's home folder. Copy it to the same place on beta, then reply DONE.",

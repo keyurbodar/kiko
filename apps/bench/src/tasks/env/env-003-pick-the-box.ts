@@ -13,6 +13,7 @@ export const envPickTheBox: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "edge",
   contenders: ["kiko-remote"],
   prompt:
     "Both of my boxes have a file called version.txt. One holds the real release number and the other holds a placeholder. Copy the real release number into answer.txt on the box that has it, then reply DONE.",

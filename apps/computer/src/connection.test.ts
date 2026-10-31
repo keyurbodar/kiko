@@ -57,6 +57,7 @@ async function host(): Promise<Host> {
     policy: async () => ({ shell: true, files: { allow: ["~"] }, desktop: false, live: false, input: false }),
     driver: () => null,
     terminal: () => null,
+    terminals: { open() {}, input() {}, resize() {}, ack() {}, close() {} },
     paused: () => false,
     live: { rtc() {}, live() {}, input() {}, control() {}, ack() {} },
     holder: () => "agent",
@@ -235,7 +236,7 @@ describe("terminal calls", () => {
 
       assert.isTrue(result.ok)
       assert.deepStrictEqual((result.value as { bytes: number }).bytes, 3)
-      assert.deepStrictEqual(writes, ["ls", "\r"])
+      assert.deepStrictEqual(writes, ["ls\r"])
     } finally {
       manager.closeAll()
       link.stop()
@@ -544,16 +545,11 @@ describe("resumable calls", () => {
     let spawned: () => void = () => {}
     const started = new Promise<void>((r) => (spawned = r))
     const proc = { pid: 4242, stdout: undefined, stderr: undefined, exited: new Promise<number>((r) => (exited = r)) }
-    const spawnSync = vi.fn(() => {
-      exited(137)
-      return {}
-    })
     vi.stubGlobal("Bun", {
       spawn: () => {
         spawned()
         return proc
       },
-      spawnSync,
     })
     const kill = vi.spyOn(process, "kill").mockImplementation(() => {
       exited(137)
@@ -571,11 +567,7 @@ describe("resumable calls", () => {
 
       assert.isFalse(result.ok)
       assert.strictEqual(result.error?.code, "cancelled")
-      if (process.platform === "win32")
-        assert.deepStrictEqual(spawnSync.mock.calls, [
-          [["taskkill", "/pid", "4242", "/T", "/F"], { stdout: "ignore", stderr: "ignore" }],
-        ])
-      else assert.deepStrictEqual(kill.mock.calls, [[-4242, "SIGKILL"]])
+      assert.deepStrictEqual(kill.mock.calls, [[-4242, "SIGKILL"]])
     } finally {
       kill.mockRestore()
       link.stop()

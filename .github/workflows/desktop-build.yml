@@ -78,15 +78,20 @@ jobs:
         run: |
           cua="$(bash apps/desktop/scripts/fetch-cua-driver.sh "linux-${{ matrix.arch }}" "$RUNNER_TEMP/cua")"
           echo "CUA_BIN=$cua" >> "$GITHUB_ENV"
+      - name: Fetch the browser engine
+        run: |
+          browser="$(bash apps/desktop/scripts/fetch-agent-browser.sh "linux-${{ matrix.arch }}" "$RUNNER_TEMP/browser")"
+          echo "BROWSER_BIN=$browser" >> "$GITHUB_ENV"
       - name: Package the app
         run: |
           mkdir -p dist
           cp apps/desktop/target/release/kiko dist/
           cp apps/computer/dist/kiko-computer-linux-${{ matrix.arch }} dist/kiko-core
           cp "$CUA_BIN" dist/cua-driver
+          cp "$BROWSER_BIN" dist/agent-browser
           cp apps/desktop/packaging/kiko.desktop dist/
           cp apps/desktop/crates/kiko-app/resources/icon-1024.png dist/kiko.png
-          tar -czf kiko-linux-${{ matrix.arch }}.tar.gz -C dist kiko kiko-core cua-driver kiko.desktop kiko.png
+          tar -czf kiko-linux-${{ matrix.arch }}.tar.gz -C dist kiko kiko-core cua-driver agent-browser kiko.desktop kiko.png
       - name: Installer end to end
         if: inputs.installer
         run: bash scripts/installer-e2e.sh "$PWD" 8765
@@ -121,6 +126,12 @@ jobs:
         run: |
           cua="$(bash apps/desktop/scripts/fetch-cua-driver.sh darwin-universal "$RUNNER_TEMP/cua")"
           echo "CUA_BIN=$cua" >> "$GITHUB_ENV"
+      - name: Fetch the browser engine
+        run: |
+          arm="$(bash apps/desktop/scripts/fetch-agent-browser.sh darwin-arm64 "$RUNNER_TEMP/browser-arm")"
+          intel="$(bash apps/desktop/scripts/fetch-agent-browser.sh darwin-x64 "$RUNNER_TEMP/browser-x64")"
+          lipo -create "$arm" "$intel" -output "$RUNNER_TEMP/agent-browser"
+          echo "BROWSER_BIN=$RUNNER_TEMP/agent-browser" >> "$GITHUB_ENV"
       - name: Install the workspace
         run: bun install --frozen-lockfile
       - name: Build the daemon for arm64
@@ -162,6 +173,7 @@ jobs:
           KIKO_BIN: ${{ runner.temp }}/kiko
           KIKO_CORE_BIN: ${{ runner.temp }}/kiko-core
           KIKO_CUA_BIN: ${{ env.CUA_BIN }}
+          KIKO_AGENT_BROWSER_BIN: ${{ env.BROWSER_BIN }}
         run: bash apps/desktop/scripts/bundle-macos.sh arm64 dist kiko
       - name: Verify the designated requirement
         run: |

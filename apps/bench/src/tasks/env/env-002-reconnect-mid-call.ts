@@ -12,6 +12,7 @@ export const envReconnectMidCall: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "edge",
   contenders: ["kiko-remote"],
   prompt: "On beta, run `sleep 4; printf survived > out.txt` and tell me when it has finished.",
   limits: { turns: 20, seconds: 240 },

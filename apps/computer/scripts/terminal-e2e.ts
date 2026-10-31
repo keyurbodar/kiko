@@ -14,17 +14,13 @@ function ok(condition: boolean, what: string): asserts condition {
   console.log(`ok ${what}`)
 }
 
-const python = Bun.which(process.platform === "win32" ? "python" : "python3") ?? Bun.which("python")
+const python = Bun.which("python3") ?? Bun.which("python")
 const vim = Bun.which("vim") ?? Bun.which("nvim") ?? Bun.which("vi")
 const dir = await mkdtemp(join(tmpdir(), "kiko-terminal-e2e-"))
 
 async function prompt(id: string): Promise<void> {
   const ready = await manager.wait({ id, until: "[>#$%]\\s*$", regex: true, timeoutMs: 60_000 })
   ok(ready.matched, `${id} showed a prompt: ${JSON.stringify(ready.text.slice(-80))}`)
-}
-
-function run(path: string): string {
-  return process.platform === "win32" ? `& "${path}"` : `"${path}"`
 }
 
 try {
@@ -35,7 +31,7 @@ try {
   const repl = manager.open({ name: "repl", cols: 100, rows: 30 })
   await prompt(repl.id)
 
-  manager.send({ id: repl.id, text: `${run(python)} -q`, keys: ["enter"] })
+  manager.send({ id: repl.id, text: `"${python}" -q`, keys: ["enter"] })
   const pythonPrompt = await manager.wait({ id: repl.id, until: ">>>", timeoutMs: 60_000 })
   ok(pythonPrompt.matched, `the python prompt appeared: ${JSON.stringify(pythonPrompt.text.slice(-400))}`)
 
@@ -46,15 +42,11 @@ try {
   const screen = await manager.read({ id: repl.id, mode: "screen" })
   ok(screen.text.includes("42"), `the screen shows 42: ${JSON.stringify(screen.text)}`)
 
-  if (process.platform === "win32") {
-    console.log("skip ctrl+c: ConPTY does not turn an input byte into a console interrupt")
-  } else {
-    manager.send({ id: repl.id, text: "import time; time.sleep(30)", keys: ["enter"] })
-    await manager.wait({ id: repl.id, until: "time.sleep(30)", timeoutMs: 10_000 })
-    manager.send({ id: repl.id, keys: ["ctrl+c"] })
-    const interrupt = await manager.wait({ id: repl.id, until: "KeyboardInterrupt", timeoutMs: 15_000 })
-    ok(interrupt.matched, "ctrl+c interrupted the REPL")
-  }
+  manager.send({ id: repl.id, text: "import time; time.sleep(30)", keys: ["enter"] })
+  await manager.wait({ id: repl.id, until: "time.sleep(30)", timeoutMs: 10_000 })
+  manager.send({ id: repl.id, keys: ["ctrl+c"] })
+  const interrupt = await manager.wait({ id: repl.id, until: "KeyboardInterrupt", timeoutMs: 15_000 })
+  ok(interrupt.matched, "ctrl+c interrupted the REPL")
 
   manager.send({ id: repl.id, text: "exit()", keys: ["enter"] })
 
@@ -62,7 +54,7 @@ try {
   await writeFile(note, "kiko terminal screen\nsecond line\n")
   const editor = manager.open({ name: "editor", cols: 100, rows: 30 })
   await prompt(editor.id)
-  const command = vim ? `${run(vim)} -u NONE -N "${note}"` : `${run(python)} -u "${join(dir, "fullscreen.py")}"`
+  const command = vim ? `"${vim}" -u NONE -N "${note}"` : `"${python}" -u "${join(dir, "fullscreen.py")}"`
   if (!vim)
     await writeFile(
       join(dir, "fullscreen.py"),

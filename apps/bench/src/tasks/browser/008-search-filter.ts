@@ -31,9 +31,10 @@ const ledger = (seed: number) => {
 export const searchFilter: Task = {
   id: "browser-008-search-filter",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
+  kind: "real",
   prompt:
     "On the invoices page in url.txt, find the invoice for the customer and status in request.json and submit its invoice number in the answer form.",
   limits: LIMITS,

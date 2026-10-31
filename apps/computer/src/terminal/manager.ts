@@ -1,11 +1,11 @@
 import { basename, isAbsolute, resolve } from "node:path"
-import type { Args, Value } from "@kiko/computer/wire"
+import type { Args, TerminalStream, Value } from "@kiko/computer/wire"
 import { Fail } from "../log"
 import { BoundedHistory } from "./history"
 import { KEY_NAMES, keyBytes } from "./keys"
 import { bunPty, defaultCwd, defaultShell, type Pty, type PtySpawn } from "./pty"
 import { createScreen, type Screen } from "./screen"
-import { plain, plainTail } from "./text"
+import { plain, plainTail, replay } from "./text"
 
 const DEFAULT_COLS = 120
 const DEFAULT_ROWS = 30
@@ -16,12 +16,30 @@ const WAIT_MAX_MS = 120_000
 const CLOSE_GRACE_MS = 1_000
 const READ_LINES = 200
 const READ_CHARS = 64_000
+const SNAPSHOT_CHARS = 256 * 1024
+const VIEW_WINDOW = 256 * 1024
+const VIEW_BACKLOG = 4 * 1024 * 1024
 
 type Timer = ReturnType<typeof setTimeout>
 
 type Waiter = {
   test(screen: string, tail: string): boolean
   settle(matched: boolean, timedOut: boolean, exited: boolean): void
+}
+
+type Viewer = {
+  event(event: TerminalStream): void
+  pending: number
+  queue: string[]
+  queued: number
+  open: boolean
+}
+
+export type TerminalView = {
+  detach(): void
+  ack(bytes: number): void
+  write(data: string): void
+  resize(cols: number, rows: number): void
 }
 
 type Session = {
@@ -40,6 +58,7 @@ type Session = {
   idle: Timer | null
   waiters: Set<Waiter>
   drains: Set<() => void>
+  viewers: Set<Viewer>
   pendingWrites: number
   disposed: boolean
 }
@@ -116,6 +135,7 @@ export class TerminalManager {
       idle: null,
       waiters: new Set(),
       drains: new Set(),
+      viewers: new Set(),
       pendingWrites: 0,
       disposed: false,
     }
@@ -125,7 +145,7 @@ export class TerminalManager {
     return this.info(created)
   }
 
-  send(args: Args<"terminal_send">): Value<"terminal_send"> {
+  send(args: Args<"terminal_send">, signal?: AbortSignal): Promise<Value<"terminal_send">> {
     const session = this.get(args.id)
     const text = args.text ?? ""
     const keys = args.keys ?? []
@@ -141,10 +161,16 @@ export class TerminalManager {
         })
       pressed += bytes
     }
-    if (text) session.pty.write(text)
-    if (pressed) session.pty.write(pressed)
+    const matcher = args.until === undefined ? null : matcherFor(args.until, args.regex === true)
+    session.pty.write(text + pressed)
     this.scheduleIdle(session)
-    return { id: session.id, bytes: Buffer.byteLength(text + pressed) }
+    const bytes = Buffer.byteLength(text + pressed)
+    if (!matcher) return Promise.resolve({ id: session.id, bytes })
+    return this.settleOn(session, matcher, args.timeoutMs, signal).then((waited) => ({
+      id: session.id,
+      bytes,
+      ...waited,
+    }))
   }
 
   async read(args: Args<"terminal_read">): Promise<Value<"terminal_read">> {
@@ -191,7 +217,16 @@ export class TerminalManager {
   wait(args: Args<"terminal_wait">, signal?: AbortSignal): Promise<Value<"terminal_wait">> {
     const session = this.get(args.id)
     const matcher = matcherFor(args.until, args.regex === true)
-    const timeoutMs = Math.min(Math.max(args.timeoutMs ?? WAIT_DEFAULT_MS, 1_000), WAIT_MAX_MS)
+    return this.settleOn(session, matcher, args.timeoutMs, signal).then((waited) => ({ id: session.id, ...waited }))
+  }
+
+  private settleOn(
+    session: Session,
+    matcher: (text: string) => boolean,
+    timeoutMs: number | undefined,
+    signal?: AbortSignal,
+  ): Promise<{ matched: boolean; timedOut: boolean; exited: boolean; text: string }> {
+    const budget = Math.min(Math.max(timeoutMs ?? WAIT_DEFAULT_MS, 1_000), WAIT_MAX_MS)
     this.scheduleIdle(session)
     return new Promise((resolve, reject) => {
       let timer: Timer | undefined
@@ -201,13 +236,13 @@ export class TerminalManager {
         session.waiters.delete(waiter)
         if (timer) clearTimeout(timer)
         signal?.removeEventListener("abort", abort)
-        resolve({ id: session.id, matched, timedOut, exited, text: plainTail(session.history.value()) })
+        resolve({ matched, timedOut, exited, text: plainTail(session.history.value()) })
       }
       waiter = {
         test: (screen, tail) => matcher(screen) || matcher(tail),
         settle: (matched, timedOut, exited) => finish(matched, timedOut, exited),
       }
-      timer = setTimeout(() => finish(false, true, false), timeoutMs)
+      timer = setTimeout(() => finish(false, true, false), budget)
       unref(timer)
       abort = () => {
         session.waiters.delete(waiter)
@@ -252,6 +287,79 @@ export class TerminalManager {
     return { terminals: [...this.sessions.values()].map((session) => this.info(session)) }
   }
 
+  attach(args: { id: string; cols?: number; rows?: number }, event: (event: TerminalStream) => void): TerminalView {
+    const session = this.get(args.id)
+    if (
+      args.cols !== undefined &&
+      args.rows !== undefined &&
+      (args.cols !== session.cols || args.rows !== session.rows)
+    )
+      this.resize({ id: session.id, cols: args.cols, rows: args.rows })
+    this.scheduleIdle(session)
+    const viewer: Viewer = { event, pending: 0, queue: [], queued: 0, open: true }
+    session.viewers.add(viewer)
+    this.deliver(viewer, {
+      type: "snapshot",
+      history: replay(session.history.value(), SNAPSHOT_CHARS),
+      cols: session.cols,
+      rows: session.rows,
+      status: session.status,
+      exitCode: session.exitCode,
+    })
+    return {
+      detach: () => this.detach(session, viewer),
+      ack: (bytes) => this.acknowledge(viewer, bytes),
+      write: (data) => {
+        if (session.disposed) return
+        session.pty.write(data)
+        this.scheduleIdle(session)
+      },
+      resize: (cols, rows) => {
+        if (session.disposed) return
+        this.resize({ id: session.id, cols, rows })
+      },
+    }
+  }
+
+  private detach(session: Session, viewer: Viewer): void {
+    viewer.open = false
+    viewer.queue = []
+    viewer.queued = 0
+    session.viewers.delete(viewer)
+  }
+
+  private acknowledge(viewer: Viewer, bytes: number): void {
+    if (!viewer.open) return
+    viewer.pending = Math.max(0, viewer.pending - bytes)
+    while (viewer.open && viewer.pending < VIEW_WINDOW && viewer.queue.length > 0) {
+      const data = viewer.queue.shift() ?? ""
+      viewer.queued -= data.length
+      this.deliver(viewer, { type: "output", data })
+    }
+  }
+
+  private deliver(viewer: Viewer, event: TerminalStream): void {
+    if (!viewer.open) return
+    if (event.type === "snapshot") viewer.pending += event.history.length
+    else if (event.type === "output") viewer.pending += event.data.length
+    viewer.event(event)
+  }
+
+  private broadcast(session: Session, event: TerminalStream): void {
+    for (const viewer of session.viewers) {
+      if (!viewer.open) continue
+      if (event.type !== "output" || (viewer.pending < VIEW_WINDOW && viewer.queue.length === 0)) {
+        this.deliver(viewer, event)
+        continue
+      }
+      viewer.queue.push(event.data)
+      viewer.queued += event.data.length
+      if (viewer.queued <= VIEW_BACKLOG) continue
+      viewer.event({ type: "error", message: "this terminal is producing more output than the viewer can take" })
+      this.detach(session, viewer)
+    }
+  }
+
   closeAll(): void {
     for (const session of this.sessions.values()) {
       session.pty.kill()
@@ -293,6 +401,7 @@ export class TerminalManager {
   private feed(session: Session, text: string): void {
     if (!text) return
     session.history.append(text)
+    this.broadcast(session, { type: "output", data: text })
     session.pendingWrites += 1
     session.screen.write(text, () => {
       session.pendingWrites -= 1
@@ -306,6 +415,7 @@ export class TerminalManager {
     this.feed(session, session.decoder.decode())
     session.status = "exited"
     session.exitCode = code
+    this.broadcast(session, { type: "exit", code })
     this.scheduleIdle(session)
     for (const waiter of session.waiters) waiter.settle(false, false, true)
   }
@@ -340,6 +450,8 @@ export class TerminalManager {
     session.disposed = true
     if (session.idle) clearTimeout(session.idle)
     session.idle = null
+    for (const viewer of session.viewers) viewer.event({ type: "exit", code: session.exitCode })
+    session.viewers.clear()
     for (const resolve of session.drains) resolve()
     session.drains.clear()
     for (const waiter of session.waiters) waiter.settle(false, false, true)

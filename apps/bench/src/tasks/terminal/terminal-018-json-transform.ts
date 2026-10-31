@@ -67,9 +67,10 @@ const plan = (seed: number): { orders: Order[]; expected: Summary } => {
 export const jsonTransform: Task = {
   id: "terminal-018-json-transform",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "Build summary.json from orders.json: `{orders:[{id, totalCents, itemCount}]}` sorted by id, plus `grandTotalCents`. Only include orders whose status is paid.",
   limits: LIMITS,

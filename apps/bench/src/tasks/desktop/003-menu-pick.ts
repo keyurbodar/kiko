@@ -10,6 +10,7 @@ export const desktopMenu: Task = {
   os: ["linux"],
   needs: ["display"],
   heldOut: false,
+  kind: "real",
   prompt: "In the open window, use the File menu to export the data in the format named in request.json.",
   limits: LIMITS,
   setup: async (m, seed) => {

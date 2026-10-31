@@ -12,6 +12,7 @@ export const envMissingCapability: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "edge",
   contenders: ["kiko-remote"],
   prompt:
     "Only one of my computers can show its desktop. On that one, list the windows and write the first window's title into windows.txt, then reply DONE.",

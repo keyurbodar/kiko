@@ -1,7 +1,8 @@
-export type Os = "macos" | "windows" | "linux"
-export type Track = "terminal" | "browser" | "desktop" | "mixed" | "environment"
+export type Os = "macos" | "linux"
+export type Track = "terminal" | "browser" | "desktop" | "mixed" | "cross" | "environment"
+export type Kind = "real" | "long" | "edge"
 export type Condition = "foreground" | "background"
-export type Need = "display" | "chrome" | "electron" | "network" | "docker"
+export type Need = "display" | "chrome" | "electron" | "network" | "docker" | "libreoffice"
 
 export interface Exec {
   readonly code: number
@@ -39,6 +40,7 @@ export interface Task {
   readonly needs: readonly Need[]
   readonly heldOut: boolean
   readonly contenders?: readonly string[]
+  readonly kind: Kind
   readonly prompt: string
   readonly limits: { readonly turns: number; readonly seconds: number }
   setup(m: Machine, seed: number): Promise<void>

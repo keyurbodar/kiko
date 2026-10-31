@@ -1,13 +1,17 @@
-import { createEffect, createMemo, createSignal, on, onCleanup, Show, type JSX } from "solid-js"
+import type { ComputerInput } from "@kiko/protocol"
+import { createEffect, createMemo, createSignal, on, onCleanup, Show, untrack, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { connection } from "../../state/connection"
-import { computerById } from "../computers"
+import { computerById, takePending } from "../computers"
 import { accessHint } from "./access"
+import { createInputGate } from "./control"
 import { Cursor } from "./Cursor"
-import { bindInput, escapeEvents, type Point } from "./input"
+import { bindInput, escapeEvents } from "./input"
+import { offlineNotice } from "./offline"
 import { type Cursor as AgentPoint, type Mode, type Session, startSession } from "./session"
 
 const DEFAULT_RATIO = 16 / 10
+const AGENT_IDLE_MS = 1_500
 
 const sameCursor = (a: AgentPoint, b: AgentPoint) => a?.x === b?.x && a?.y === b?.y
 
@@ -21,22 +25,33 @@ export default function LiveScreen(props: {
   const [size, setSize] = createSignal<{ w: number; h: number } | null>(null)
   const [agent, setAgent] = createSignal<AgentPoint>(null, { equals: sameCursor })
   const [epoch, setEpoch] = createSignal(0)
+  let agentTimer: ReturnType<typeof setTimeout> | undefined
   const streams = createMemo(() => {
     const computer = computerById(props.pcId)
     return computer?.online === true && computer.caps.live
   })
+  const display = () => {
+    const first = computerById(props.pcId)?.displays[0]
+    return first ? { width: first.width, height: first.height, scale: first.scale } : null
+  }
   const ratio = () => {
     const known = size()
     if (known) return known.w / known.h
-    const display = computerById(props.pcId)?.displays[0]
-    return display?.height ? display.width / display.height : DEFAULT_RATIO
+    const first = computerById(props.pcId)?.displays[0]
+    return first?.height ? first.width / first.height : DEFAULT_RATIO
   }
   let video!: HTMLVideoElement
   let canvas!: HTMLCanvasElement
   let stage!: HTMLDivElement
   let sink!: HTMLTextAreaElement
-  let you: HTMLDivElement | undefined
   let session: Session | undefined
+  const gate = createInputGate<ComputerInput>((events) => session?.send(events))
+
+  const showAgent = (point: AgentPoint) => {
+    setAgent(point)
+    clearTimeout(agentTimer)
+    if (point) agentTimer = setTimeout(() => setAgent(null), AGENT_IDLE_MS)
+  }
 
   createEffect(
     on(
@@ -54,9 +69,10 @@ export default function LiveScreen(props: {
       const next = startSession(props.pcId, {
         video,
         canvas,
+        display: untrack(display),
         onMode: setMode,
         onSize: (w, h) => setSize((prev) => (prev?.w === w && prev.h === h ? prev : { w, h })),
-        onCursor: setAgent,
+        onCursor: showAgent,
       })
       session = next
       onCleanup(() => {
@@ -67,20 +83,26 @@ export default function LiveScreen(props: {
     }),
   )
 
-  const place = (point: Point | null) => {
-    if (!you) return
-    you.style.display = point ? "" : "none"
-    if (!point) return
-    you.style.left = `${point.x * 100}%`
-    you.style.top = `${point.y * 100}%`
-  }
-
   createEffect(() => {
     if (!props.interactive) return
-    const unbind = bindInput({ stage, sink, send: (events) => session?.send(events), onPointer: place })
+    const unbind = bindInput({ stage, sink, send: (events) => gate.send(events) })
     sink.focus({ preventScroll: true })
-    onCleanup(unbind)
+    onCleanup(() => {
+      unbind()
+      gate.discard()
+    })
   })
+
+  createEffect(() => {
+    if (!props.interactive) {
+      gate.discard()
+      return
+    }
+    if (takePending(props.pcId)) gate.hold()
+    else gate.release()
+  })
+
+  onCleanup(() => clearTimeout(agentTimer))
 
   createEffect(() => {
     if (!props.interactive) return
@@ -88,7 +110,7 @@ export default function LiveScreen(props: {
       if (event.key !== "Escape" || event.shiftKey || event.defaultPrevented) return
       if (event.target === sink) return
       event.preventDefault()
-      session?.send(escapeEvents(event))
+      gate.send(escapeEvents(event))
       sink.focus({ preventScroll: true })
     }
     document.addEventListener("keydown", remote)
@@ -97,9 +119,13 @@ export default function LiveScreen(props: {
     })
   })
 
+  const offline = () => {
+    const computer = computerById(props.pcId)
+    return computer && !computer.online ? offlineNotice(computer, Date.now()) : null
+  }
   const notice = () => {
     const computer = computerById(props.pcId)
-    if (!computer?.online) return "This computer is offline"
+    if (!computer) return "This computer is offline"
     const hint = accessHint(computer)
     if (hint) return hint
     if (!computer.caps.live) return "The live view is off on this computer"
@@ -133,11 +159,13 @@ export default function LiveScreen(props: {
             disablepictureinpicture
             disableremoteplayback
           />
-          <canvas ref={canvas} class={cn("absolute inset-0 size-full", showing("relay"))} />
-          <Show when={!props.interactive ? agent() : null}>
+          <canvas
+            ref={canvas}
+            class={cn("absolute inset-0 size-full", mode() === "rtc" ? "opacity-0" : "opacity-100")}
+          />
+          <Show when={agent()}>
             {(point) => (
               <Cursor
-                tone="agent"
                 label={props.agentName}
                 style={{
                   left: `${point().x * 100}%`,
@@ -148,7 +176,6 @@ export default function LiveScreen(props: {
             )}
           </Show>
           <Show when={props.interactive}>
-            <Cursor ref={(el) => (you = el)} tone="you" label="You" style={{ display: "none" }} />
             <textarea
               ref={sink}
               class="pointer-events-none absolute top-0 left-0 size-px resize-none opacity-0"
@@ -167,7 +194,17 @@ export default function LiveScreen(props: {
           role="status"
           data-part="connecting"
         >
-          {notice()}
+          <Show when={offline()} fallback={notice()}>
+            {(notice) => (
+              <div class="flex flex-col gap-1" data-part="offline">
+                <span class="text-base font-medium text-white/90" data-field="offline-title">
+                  {notice().title}
+                </span>
+                <span data-field="offline-detail">{notice().detail}</span>
+                <span data-field="offline-fix">{notice().fix}</span>
+              </div>
+            )}
+          </Show>
         </div>
       </Show>
     </div>

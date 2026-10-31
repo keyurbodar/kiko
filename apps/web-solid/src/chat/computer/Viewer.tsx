@@ -1,22 +1,44 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ChevronDownIcon, CloseIcon } from "@kiko/ui/icons"
+import { ChevronDownIcon, CloseIcon, PlusIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
-import { createEffect, For, onCleanup, Show, type JSX } from "solid-js"
+import type { TerminalSummary } from "@kiko/protocol"
+import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { agentDisplayName } from "../../lib/names"
 import { user } from "../../state/user"
 import { closeViewer, computerById, computers, openViewer, release, takeOver, viewerFor } from "../computers"
 import { accessHint, canControl } from "./access"
 import LiveScreen from "./LiveScreen"
+import TerminalView from "./TerminalView"
+import { listTerminals, openTerminal } from "./terminals"
 
 const pill =
   "type-base h-control-xl shrink-0 cursor-pointer rounded-base px-3 font-medium whitespace-nowrap transition-[background-color,scale] duration-(--duration-fast) hover:bg-(--bg-neutral-hover) active:scale-(--press-scale)"
 
+const tab =
+  "h-control-md cursor-pointer rounded-base px-2.5 type-sm font-medium whitespace-nowrap transition-colors duration-(--duration-fast)"
+
 export default function Viewer(): JSX.Element {
+  const [terminals, setTerminals] = createSignal<readonly TerminalSummary[]>([])
+  const [active, setActive] = createSignal("desktop")
+  const [opening, setOpening] = createSignal(false)
   const pc = () => computerById(viewerFor() ?? "")
-  const interactive = () => {
+  const canTake = () => {
     const computer = pc()
-    return computer?.holder === "human" && canControl(computer)
+    if (!computer?.online) return false
+    return active() === "desktop" ? canControl(computer) : computer.caps.terminal === true
+  }
+  const control = (): "watching" | "you" | "other" => {
+    const computer = pc()
+    if (computer?.holder !== "human") return "watching"
+    return computer.heldBy === "you" ? "you" : "other"
+  }
+  const interactive = () => canTake() && control() === "you"
+  const stateLabel = () => {
+    const name = pc()?.name ?? ""
+    if (control() === "you") return `You have control of ${name}`
+    if (control() === "other") return `Another viewer has control of ${name}`
+    return `Watching ${name}`
   }
   const reason = () => pc()?.agent?.reason
   const agentName = () => {
@@ -24,6 +46,41 @@ export default function Viewer(): JSX.Element {
     return slug ? agentDisplayName(slug, user.agents()) : undefined
   }
   let panel: HTMLDivElement | undefined
+
+  const refresh = async (pcId: string) => {
+    const open = await listTerminals(pcId)
+    if (viewerFor() !== pcId) return
+    setTerminals(open)
+    if (active() !== "desktop" && !open.some((terminal) => terminal.id === active())) setActive("desktop")
+  }
+
+  const addTerminal = async () => {
+    const pcId = viewerFor()
+    if (!pcId || opening()) return
+    setOpening(true)
+    const opened = await openTerminal(pcId, 100, 30)
+    setOpening(false)
+    if (!opened) return
+    setTerminals((all) => [...all.filter((terminal) => terminal.id !== opened.id), opened])
+    setActive(opened.id)
+  }
+
+  createEffect(
+    on(viewerFor, (pcId) => {
+      setActive("desktop")
+      setTerminals([])
+      if (pcId) void refresh(pcId)
+    }),
+  )
+  createEffect(
+    on(
+      () => pc()?.busy,
+      (busy, before) => {
+        if (before === true && busy !== true && viewerFor()) void refresh(viewerFor() ?? "")
+      },
+      { defer: true },
+    ),
+  )
 
   const leave = (event: KeyboardEvent) => {
     if (event.key !== "Escape" || event.defaultPrevented || event.shiftKey !== interactive()) return
@@ -65,11 +122,20 @@ export default function Viewer(): JSX.Element {
               data-part="bar"
             >
               <div class="flex min-w-0 flex-1 flex-col">
-                <span class="truncate text-base font-semibold" data-field="viewer-reason">
-                  {reason() ??
-                    (interactive() ? `You are controlling ${computer().name}` : `Watching ${computer().name}`)}
+                <span class="truncate text-base font-semibold" data-field="viewer-reason" data-state={control()}>
+                  {reason() ?? stateLabel()}
                 </span>
-                <Show when={accessHint(computer())}>
+                <Show when={reason()}>
+                  <span class="truncate type-xs opacity-70" data-field="viewer-state">
+                    {stateLabel()}
+                  </span>
+                </Show>
+                <Show when={control() === "other"}>
+                  <span class="truncate type-xs opacity-70" data-field="viewer-held-elsewhere">
+                    Take over to move it to this tab.
+                  </span>
+                </Show>
+                <Show when={active() === "desktop" ? accessHint(computer()) : null}>
                   {(line) => (
                     <span class="truncate type-xs opacity-70" data-field="viewer-access">
                       {line()}
@@ -117,7 +183,7 @@ export default function Viewer(): JSX.Element {
                 when={interactive()}
                 fallback={
                   <Show
-                    when={canControl(computer())}
+                    when={canTake()}
                     fallback={
                       <span
                         class="shrink-0 px-2 type-sm whitespace-nowrap text-tertiary"
@@ -158,10 +224,72 @@ export default function Viewer(): JSX.Element {
                 <RemixIcon icon={CloseIcon} size={14} />
               </button>
             </div>
+            <Show when={terminals().length > 0 || computer().caps.terminal}>
+              <div class="flex shrink-0 items-center gap-1 overflow-x-auto px-1" data-part="terminal-tabs">
+                <button
+                  type="button"
+                  class={cn(
+                    tab,
+                    active() === "desktop"
+                      ? "bg-tertiary text-primary"
+                      : "text-secondary hover:bg-quaternary hover:text-primary",
+                  )}
+                  data-action="computer-tab-desktop"
+                  onClick={() => setActive("desktop")}
+                >
+                  Desktop
+                </button>
+                <For each={terminals()}>
+                  {(terminal) => (
+                    <button
+                      type="button"
+                      class={cn(
+                        tab,
+                        "max-w-56 truncate",
+                        active() === terminal.id
+                          ? "bg-tertiary text-primary"
+                          : "text-secondary hover:bg-quaternary hover:text-primary",
+                      )}
+                      data-action="computer-tab-terminal"
+                      data-terminal-id={terminal.id}
+                      onClick={() => setActive(terminal.id)}
+                    >
+                      {terminal.name}
+                    </button>
+                  )}
+                </For>
+                <button
+                  type="button"
+                  class="grid size-control-md shrink-0 cursor-pointer place-items-center rounded-base text-secondary transition-colors duration-(--duration-fast) hover:bg-quaternary hover:text-primary disabled:cursor-not-allowed disabled:opacity-(--opacity-disabled)"
+                  aria-label="New terminal"
+                  title="New terminal"
+                  data-action="computer-tab-new-terminal"
+                  disabled={opening() || !computer().online}
+                  onClick={() => void addTerminal()}
+                >
+                  <RemixIcon icon={PlusIcon} size={12} />
+                </button>
+              </div>
+            </Show>
             <div class="min-h-0 flex-1 overflow-hidden rounded-xl bg-black">
               <Show when={computer().id} keyed>
                 {(id) => (
-                  <LiveScreen pcId={id} interactive={interactive()} agentName={agentName() ?? ""} class="size-full" />
+                  <Show
+                    when={active() === "desktop" ? undefined : active()}
+                    keyed
+                    fallback={
+                      <LiveScreen
+                        pcId={id}
+                        interactive={interactive()}
+                        agentName={agentName() ?? ""}
+                        class="size-full"
+                      />
+                    }
+                  >
+                    {(terminalId) => (
+                      <TerminalView pcId={id} terminalId={terminalId} interactive={interactive()} class="size-full" />
+                    )}
+                  </Show>
                 )}
               </Show>
             </div>

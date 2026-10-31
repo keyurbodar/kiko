@@ -20,9 +20,10 @@ const details = (seed: number): { readonly name: string; readonly age: number } 
 export const pythonInput: Task = {
   id: "terminal-007-python-input",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt: "Run survey.py and answer its two prompts with the name and age in request.json.",
   limits: LIMITS,
   setup: async (m, seed) => {

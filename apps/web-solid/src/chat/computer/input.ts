@@ -1,12 +1,11 @@
 import type { ComputerInput } from "@kiko/protocol"
 
-export type Point = { x: number; y: number }
+type Point = { x: number; y: number }
 
 export type InputTarget = {
   stage: HTMLElement
   sink: HTMLTextAreaElement
   send(events: readonly ComputerInput[]): void
-  onPointer(point: Point | null): void
 }
 
 const WHEEL_LINE = 40
@@ -35,7 +34,7 @@ function wheelScale(mode: number): number {
 }
 
 function pointerHandlers(target: InputTarget) {
-  const { stage, sink, send, onPointer } = target
+  const { stage, sink, send } = target
   const buttons = new Map<number, Point>()
   let pending: Point | null = null
   let frame = 0
@@ -55,7 +54,6 @@ function pointerHandlers(target: InputTarget) {
   return {
     move(event: PointerEvent) {
       last = pointOf(stage, event)
-      onPointer(last)
       pending = last
       if (!frame) frame = requestAnimationFrame(flush)
     },
@@ -64,7 +62,6 @@ function pointerHandlers(target: InputTarget) {
       stage.setPointerCapture(event.pointerId)
       sink.focus({ preventScroll: true })
       last = pointOf(stage, event)
-      onPointer(last)
       flushNow()
       buttons.set(event.button, last)
       send([{ k: "down", ...last, b: event.button }])
@@ -75,9 +72,6 @@ function pointerHandlers(target: InputTarget) {
       buttons.delete(event.button)
       send([{ k: "up", ...last, b: event.button }])
     },
-    leave() {
-      if (!buttons.size) onPointer(null)
-    },
     wheel(event: WheelEvent) {
       event.preventDefault()
       const scale = wheelScale(event.deltaMode)
@@ -87,7 +81,6 @@ function pointerHandlers(target: InputTarget) {
       flushNow()
       for (const [b, at] of buttons) send([{ k: "up", ...at, b }])
       buttons.clear()
-      onPointer(null)
     },
   }
 }
@@ -164,7 +157,6 @@ export function bindInput(target: InputTarget): () => void {
     pointerdown: pointer.down,
     pointerup: pointer.up,
     pointercancel: pointer.up,
-    pointerleave: pointer.leave,
     contextmenu: quiet,
   } as const
   const sinkEvents = {

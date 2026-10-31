@@ -3,7 +3,8 @@ import { BrowserStatus, DesktopInfo, Display, DriverCall, Permissions } from "./
 
 export { Display }
 
-export const PROTOCOL = 1
+export const PROTOCOL = 2
+export const OLDEST_PROTOCOL = 1
 
 const Text = Schema.String
 const Id = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(64))
@@ -32,7 +33,7 @@ export const Hello = Schema.Struct({
   t: Schema.Literal("hello"),
   protocol: Count,
   version: Text,
-  os: Schema.Literals(["macos", "linux", "windows"]),
+  os: Schema.Literals(["macos", "linux"]),
   arch: Text,
   host: Text,
   caps: Caps,
@@ -132,8 +133,18 @@ export const Calls = {
       id: Id,
       text: Schema.optionalKey(Text),
       keys: Schema.optionalKey(Schema.Array(Text)),
+      until: Schema.optionalKey(Text),
+      regex: Schema.optionalKey(Schema.Boolean),
+      timeoutMs: Schema.optionalKey(Count),
     }),
-    value: Schema.Struct({ id: Id, bytes: Count }),
+    value: Schema.Struct({
+      id: Id,
+      bytes: Count,
+      matched: Schema.optionalKey(Schema.Boolean),
+      timedOut: Schema.optionalKey(Schema.Boolean),
+      exited: Schema.optionalKey(Schema.Boolean),
+      text: Schema.optionalKey(Text),
+    }),
   },
   terminal_read: {
     args: Schema.Struct({ id: Id, mode: Schema.Literals(["screen", "tail"]), lines: Schema.optionalKey(Lines) }),
@@ -193,6 +204,21 @@ export const InputEvent = Schema.Union([
 ])
 export type InputEvent = typeof InputEvent.Type
 
+export const TerminalStream = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("snapshot"),
+    history: Text,
+    cols: Count,
+    rows: Count,
+    status: TerminalStatus,
+    exitCode: Schema.NullOr(Schema.Int),
+  }),
+  Schema.Struct({ type: Schema.Literal("output"), data: Text }),
+  Schema.Struct({ type: Schema.Literal("exit"), code: Schema.NullOr(Schema.Int) }),
+  Schema.Struct({ type: Schema.Literal("error"), message: Text }),
+])
+export type TerminalStream = typeof TerminalStream.Type
+
 export const Holder = Schema.Literals(["agent", "human"])
 export type Holder = typeof Holder.Type
 
@@ -228,7 +254,12 @@ export const ToDaemon = Schema.Union([
     maxWidth: Schema.optionalKey(Count),
     quality: Schema.optionalKey(Count),
   }),
-  Schema.Struct({ t: Schema.Literal("control"), holder: Holder }),
+  Schema.Struct({
+    t: Schema.Literal("control"),
+    holder: Holder,
+    epoch: Schema.optionalKey(Count),
+    session: Schema.optionalKey(Id),
+  }),
   Schema.Struct({ t: Schema.Literal("input"), events: Schema.Array(InputEvent) }),
   Schema.Struct({ t: Schema.Literal("ack"), seq: Count }),
   Schema.Struct({
@@ -237,6 +268,17 @@ export const ToDaemon = Schema.Union([
     signal: RtcSignal,
     iceServers: Schema.optionalKey(Schema.Array(IceServer)),
   }),
+  Schema.Struct({
+    t: Schema.Literal("terminal"),
+    on: Schema.Boolean,
+    id: Id,
+    terminal: Schema.optionalKey(Id),
+    cols: Schema.optionalKey(Cols),
+    rows: Schema.optionalKey(Rows),
+  }),
+  Schema.Struct({ t: Schema.Literal("terminalInput"), id: Id, data: Text }),
+  Schema.Struct({ t: Schema.Literal("terminalResize"), id: Id, cols: Cols, rows: Rows }),
+  Schema.Struct({ t: Schema.Literal("terminalAck"), id: Id, bytes: Count }),
 ])
 export type ToDaemon = typeof ToDaemon.Type
 
@@ -258,6 +300,17 @@ export const FromDaemon = Schema.Union([
   }),
   Schema.Struct({ t: Schema.Literal("chunk"), id: Id, data: Text }),
   Schema.Struct({ t: Schema.Literal("humanInput") }),
+  Schema.Struct({ t: Schema.Literal("held"), holder: Holder, epoch: Schema.optionalKey(Count) }),
   Schema.Struct({ t: Schema.Literal("rtc"), session: Id, signal: RtcSignal }),
+  Schema.Struct({ t: Schema.Literal("terminal"), id: Id, event: TerminalStream }),
 ])
 export type FromDaemon = typeof FromDaemon.Type
+
+export const BinaryResult = Schema.Struct({
+  t: Schema.Literal("result"),
+  id: Id,
+  ok: Schema.Literal(true),
+  value: Schema.Unknown,
+  parts: Schema.Array(Schema.Struct({ mime: Text, length: Count })),
+})
+export type BinaryResult = typeof BinaryResult.Type

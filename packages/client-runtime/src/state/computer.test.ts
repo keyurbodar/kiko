@@ -1,4 +1,4 @@
-import type { ComputerFrame } from "@kiko/protocol"
+import type { TerminalEvent } from "@kiko/protocol"
 import { describe, expect, it } from "@effect/vitest"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -9,32 +9,25 @@ import * as Stream from "effect/Stream"
 import * as SubscriptionRef from "effect/SubscriptionRef"
 import * as Atom from "effect/reactivity/Atom"
 import * as AtomRegistry from "effect/reactivity/AtomRegistry"
+import * as AsyncResult from "effect/reactivity/AsyncResult"
 import { OwnerSupervisor } from "../connection/supervisor"
 import type { PreparedConnection, SupervisorConnectionState } from "../connection/model"
 import type { OwnerRpcClient } from "../rpc/protocol"
 import type { RpcSession } from "../rpc/session"
-import { createComputerAtoms } from "./computer"
+import { createTerminalAtoms, terminalKey, type TerminalFeed } from "./computer"
 import type { OwnerRuntimeServices } from "./runtime"
 
 const PC = "pc-1"
 
-const frame = (seq: number): ComputerFrame => ({
-  seq,
-  mime: "image/jpeg",
-  width: 64,
-  height: 48,
-  cursor: null,
-  data: "ZnJhbWU=",
-})
-
 const setup = Effect.fnUntraced(function* () {
   const calls: string[] = []
   const interrupts: string[] = []
-  const frames = yield* Queue.unbounded<ComputerFrame>()
+  const events = yield* Queue.unbounded<TerminalEvent>()
   const seen = yield* Deferred.make<void>()
   const client = ((tag: string) => {
     calls.push(tag)
-    return Stream.fromQueue(frames).pipe(
+    const stream = Stream.fromQueue(events)
+    return (stream as Stream.Stream<unknown>).pipe(
       Stream.tap(() => Deferred.succeed(seen, undefined)),
       Stream.ensuring(Effect.sync(() => interrupts.push(tag))),
     )
@@ -52,50 +45,46 @@ const setup = Effect.fnUntraced(function* () {
     OwnerRuntimeServices,
     never
   >
-  return { runtime, calls, interrupts, frames, seen }
+  return { runtime, calls, interrupts, events, seen }
 })
 
 const yieldTimes = (n: number) => Effect.repeat(Effect.yieldNow, { times: n })
 
-const latest = (registry: AtomRegistry.AtomRegistry, atom: Atom.Atom<unknown>) => {
-  const result = registry.get(atom) as { _tag: string; value?: Option.Option<ComputerFrame> }
-  return result._tag === "Success" ? Option.getOrUndefined(result.value ?? Option.none())?.seq : undefined
-}
+const feedOf = (result: unknown): TerminalFeed | undefined =>
+  Option.getOrUndefined(AsyncResult.value(result as AsyncResult.AsyncResult<TerminalFeed, unknown>))
 
-describe("computer frames atom", () => {
-  it.effect("subscribes for the computer on mount and interrupts on unmount", () =>
+describe("terminal atom", () => {
+  it.effect("keeps the snapshot and every live chunk in order", () =>
     Effect.gen(function* () {
-      const { runtime, calls, interrupts } = yield* setup()
-      const { framesAtom } = createComputerAtoms(runtime)
+      const { runtime, calls, events } = yield* setup()
+      const { terminalAtom } = createTerminalAtoms(runtime)
       const registry = AtomRegistry.make()
-      const atom = framesAtom(PC)
+      const feeds: TerminalFeed[] = []
+      const atom = terminalAtom(terminalKey(PC, "t-1"))
 
       const unmount = registry.mount(atom)
+      const stop = registry.subscribe(atom, (result) => {
+        const feed = feedOf(result)
+        if (feed) feeds.push(feed)
+      })
       yield* yieldTimes(40)
-      expect(calls).toEqual(["pc.frames"])
+      expect(calls).toEqual(["terminal.attach"])
 
-      unmount()
-      yield* yieldTimes(20)
-      expect(interrupts).toEqual(["pc.frames"])
-    }),
-  )
-
-  it.effect("keeps the newest frame while a viewer is mounted", () =>
-    Effect.gen(function* () {
-      const { runtime, calls, frames, seen } = yield* setup()
-      const { framesAtom } = createComputerAtoms(runtime)
-      const registry = AtomRegistry.make()
-      const atom = framesAtom(PC)
-
-      const unmount = registry.mount(atom)
+      yield* Queue.offer(events, {
+        type: "snapshot",
+        history: "ready\r\n",
+        cols: 120,
+        rows: 30,
+        status: "running",
+        exitCode: null,
+      })
       yield* yieldTimes(40)
-      expect(calls).toEqual(["pc.frames"])
+      yield* Queue.offer(events, { type: "output", data: "$ ls\r\n" })
+      yield* yieldTimes(40)
 
-      yield* Queue.offer(frames, frame(2))
-      yield* Deferred.await(seen)
-      yield* yieldTimes(20)
-      expect(latest(registry, atom)).toBe(2)
+      expect(feeds.at(-1)?.items.map((item) => item.event.type)).toEqual(["snapshot", "output"])
 
+      stop()
       unmount()
       yield* yieldTimes(20)
     }),

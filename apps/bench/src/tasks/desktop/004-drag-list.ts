@@ -16,6 +16,7 @@ export const desktopList: Task = {
   os: ["linux"],
   needs: ["display"],
   heldOut: false,
+  kind: "real",
   prompt: "In the open window, drag the item named in request.json to the top of the list.",
   limits: LIMITS,
   setup: async (m, seed) => {

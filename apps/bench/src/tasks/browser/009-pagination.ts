@@ -33,9 +33,10 @@ const registry = (seed: number) => {
 export const pagination: Task = {
   id: "browser-009-pagination",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: true,
+  kind: "real",
   prompt:
     "The records page in url.txt is split over several pages. Find the record whose ID is shown in the answer form and submit its code.",
   limits: LIMITS,

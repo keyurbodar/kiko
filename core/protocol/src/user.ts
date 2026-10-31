@@ -300,7 +300,7 @@ export type ComputerAgent = typeof ComputerAgent.Type
 export const ComputerSummary = Schema.Struct({
   id: ComputerId,
   name: Schema.String,
-  os: Schema.Literals(["macos", "linux", "windows"]),
+  os: Schema.Literals(["macos", "linux"]),
   online: Schema.Boolean,
   caps: ComputerCaps,
   holder: Schema.Literals(["agent", "human"]),
@@ -318,15 +318,35 @@ export const ComputerSummary = Schema.Struct({
 })
 export type ComputerSummary = typeof ComputerSummary.Type
 
-export const ComputerFrame = Schema.Struct({
-  seq: Count,
-  mime: Schema.Literals(["image/jpeg", "image/webp"]),
-  width: Count,
-  height: Count,
-  cursor: Schema.NullOr(Schema.Struct({ x: Unit, y: Unit })),
-  data: Schema.String,
+export const TerminalStatus = Schema.Literals(["running", "exited"])
+export type TerminalStatus = typeof TerminalStatus.Type
+
+export const TerminalSummary = Schema.Struct({
+  id: Id,
+  name: Schema.String,
+  cwd: Schema.String,
+  shell: Schema.String,
+  cols: Count,
+  rows: Count,
+  status: TerminalStatus,
+  exitCode: Schema.NullOr(Schema.Int),
 })
-export type ComputerFrame = typeof ComputerFrame.Type
+export type TerminalSummary = typeof TerminalSummary.Type
+
+export const TerminalEvent = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("snapshot"),
+    history: Schema.String,
+    cols: Count,
+    rows: Count,
+    status: TerminalStatus,
+    exitCode: Schema.NullOr(Schema.Int),
+  }),
+  Schema.Struct({ type: Schema.Literal("output"), data: Schema.String }),
+  Schema.Struct({ type: Schema.Literal("exit"), code: Schema.NullOr(Schema.Int) }),
+  Schema.Struct({ type: Schema.Literal("error"), message: Schema.String }),
+])
+export type TerminalEvent = typeof TerminalEvent.Type
 
 export const ReleaseVersion = Schema.String.check(Schema.isPattern(/^[A-Za-z0-9._-]{1,64}$/))
 
@@ -368,7 +388,6 @@ export const ClientToUser = Schema.Union([
   Schema.Struct({ t: Schema.Literal("pc.release"), pcId: ComputerId }),
   Schema.Struct({ t: Schema.Literal("pc.rtc"), pcId: ComputerId, signal: ComputerSignal }),
   Schema.Struct({ t: Schema.Literal("pc.input"), pcId: ComputerId, events: Schema.Array(ComputerInput) }),
-  Schema.Struct({ t: Schema.Literal("pc.ack"), pcId: ComputerId, seq: Count }),
   Schema.Struct({ t: Schema.Literal("login.start"), loginId: Id, provider: Id }),
   Schema.Struct({ t: Schema.Literal("login.answer"), loginId: Id, promptId: Id, value: Schema.String }),
   Schema.Struct({ t: Schema.Literal("login.cancel"), loginId: Id }),

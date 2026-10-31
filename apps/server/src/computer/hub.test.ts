@@ -1,11 +1,14 @@
 import { assert, describe, it } from "@effect/vitest"
-import { PROTOCOL } from "@kiko/computer/wire"
+import { encodeBinary, IMAGE_REF } from "@kiko/computer/frame"
+import { OLDEST_PROTOCOL, PROTOCOL } from "@kiko/computer/wire"
+import type { AgentSlug, RoomId } from "@kiko/protocol"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as TestClock from "effect/testing/TestClock"
 import { DatabaseSync, type SQLInputValue } from "node:sqlite"
 import { ComputerHub, type HubDeps } from "./hub"
 import { ComputerStore, type ComputerRow, type NewComputer } from "./store"
+import type { PcTaken } from "./types"
 
 const CAPS = { shell: true, files: true, desktop: false, live: false, input: false }
 
@@ -52,6 +55,7 @@ function hub(tabs: readonly WebSocket[]) {
     store,
     ownerId: "owner",
     released: () => {},
+    taken: () => {},
     wakeup: { set: () => Promise.resolve(), clear: () => Promise.resolve() },
   } as unknown as HubDeps
   return new ComputerHub(deps)
@@ -119,6 +123,7 @@ function realHub(tabs: readonly WebSocket[]) {
     store: new ComputerStore(db.sql),
     ownerId: "owner",
     released: () => {},
+    taken: () => {},
     wakeup: { set: () => Promise.resolve(), clear: () => Promise.resolve() },
   } as unknown as HubDeps
   return { hub: new ComputerHub(deps), written: db.written }
@@ -199,7 +204,16 @@ describe("pairing again", () => {
   )
 })
 
-type SentFrame = { t: string; holder?: string; on?: boolean }
+type SentFrame = {
+  t: string
+  holder?: string
+  on?: boolean
+  seq?: number
+  id?: string
+  terminal?: string
+  data?: string
+  bytes?: number
+}
 
 function pcSocket(id: string, holder: "agent" | "human" = "agent") {
   const sent: SentFrame[] = []
@@ -221,21 +235,23 @@ function liveHub(
   pcs: readonly WebSocket[],
   ids: readonly string[] = [],
   sleep?: (ms: number) => Promise<void>,
+  lives: readonly WebSocket[] = [],
 ) {
   const store = {
-    get: (id: string) => ({ id, name: "box" }),
-    list: () => ids.map((id) => ({ id, name: "box" })),
+    get: (id: string) => ({ id, name: "box", os: "linux" }),
+    list: () => ids.map((id) => ({ id, name: "box", os: "linux" })),
     caps: () => CAPS,
   }
   const deps = {
     ctx: {
-      getWebSockets: (tag: string) => (tag === "tab" ? [...tabs] : [...pcs]),
+      getWebSockets: (tag: string) => (tag === "tab" ? [...tabs] : tag.startsWith("live:") ? [...lives] : [...pcs]),
       getWebSocketAutoResponseTimestamp: () => null,
     },
     env: {},
     store,
     ownerId: "owner",
     released: () => {},
+    taken: () => {},
     wakeup: { set: () => Promise.resolve(), clear: () => Promise.resolve() },
     ...(sleep ? { sleep } : {}),
   } as unknown as HubDeps
@@ -285,6 +301,20 @@ describe("unique names", () => {
 })
 
 describe("daemon reconnect", () => {
+  it.effect("welcomes a daemon that has not updated past the oldest protocol", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([], [pc.ws])
+
+      await computers.message(pc.ws, JSON.stringify({ ...HELLO, protocol: OLDEST_PROTOCOL }))
+
+      assert.deepStrictEqual(
+        pc.sent.map((frame) => frame.t),
+        ["welcome", "control"],
+      )
+    }),
+  )
+
   it.effect("tells a reconnecting daemon who holds the screen", () =>
     Effect.promise(async () => {
       const pc = pcSocket("pc-1", "human")
@@ -302,15 +332,9 @@ describe("daemon reconnect", () => {
 
   it.effect("arms the relay again when a disconnected daemon comes back", () =>
     Effect.promise(async () => {
-      const watching = tab()
-      watching.ws.serializeAttachment({
-        user: { ready: true },
-        rooms: {},
-        rpc: [{ requestId: "9", stream: "pc:pc-1" }],
-      })
       const first = pcSocket("pc-1")
       const pcs: WebSocket[] = [first.ws]
-      const computers = liveHub([watching.ws], pcs)
+      const computers = liveHub([], pcs, ["pc-1"], undefined, [liveSocket("pc-1")])
 
       await computers.message(first.ws, JSON.stringify(HELLO))
       await computers.close(first.ws)
@@ -445,7 +469,9 @@ describe("leaving the viewer", () => {
       const computers = liveHub([viewing.ws], [pc.ws], ["pc-1"])
       const desktop = { ...HELLO, caps: { ...CAPS, desktop: true, background: true } }
       await computers.message(pc.ws, JSON.stringify(desktop))
-      assert.isTrue(computers.take("pc-1", viewing.ws))
+      const taking = computers.take("pc-1", viewing.ws)
+      await computers.message(pc.ws, JSON.stringify({ t: "held", holder: "human", epoch: 1 }))
+      assert.isTrue(await taking)
 
       const bad = { method: "desktop.call", params: { name: 5 } }
       const held = await computers.call("pc-1", "driver", bad)
@@ -460,35 +486,248 @@ describe("leaving the viewer", () => {
   )
 })
 
-describe("relay fallback", () => {
-  it.effect("tells the daemon to share again when a new frame subscription arrives", () =>
-    Effect.promise(async () => {
-      const viewing = tab()
-      viewing.ws.serializeAttachment({
-        user: { ready: true },
-        rooms: {},
-        rpc: [{ requestId: "9", stream: "pc:pc-1" }],
-      })
-      const pc = pcSocket("pc-1")
-      const computers = liveHub([viewing.ws], [pc.ws], ["pc-1"])
-      await computers.message(pc.ws, JSON.stringify(HELLO))
-
-      computers.syncRelay("pc-1")
-      assert.strictEqual(pc.sent.filter((frame) => frame.t === "live").length, 1)
-
-      computers.syncRelay("pc-1", true)
-
-      const live = pc.sent.filter((frame) => frame.t === "live")
-      assert.strictEqual(live.length, 2)
-      assert.strictEqual(live[1]?.on, true)
-    }),
-  )
-})
+function liveSocket(pcId: string) {
+  const attachment = { kind: "live", pcId }
+  return {
+    send: () => {},
+    serializeAttachment: () => {},
+    deserializeAttachment: () => attachment,
+    readyState: WebSocket.OPEN,
+  } as unknown as WebSocket
+}
 
 const onClock =
   (clock: Clock.Clock) =>
   (ms: number): Promise<void> =>
     Effect.runPromise(Effect.sleep(ms).pipe(Effect.provideService(Clock.Clock, clock)))
+
+describe("the owned hold", () => {
+  async function taken(computers: ReturnType<typeof liveHub>, ws: WebSocket, pc: ReturnType<typeof pcSocket>) {
+    const taking = computers.take("pc-1", ws)
+    await computers.message(pc.ws, JSON.stringify({ t: "held", holder: "human", epoch: 1 }))
+    assert.isTrue(await taking)
+  }
+
+  const input = (text: string) => [{ k: "text" as const, s: text }]
+
+  it.effect("waits for the daemon to acknowledge control before answering the take", () =>
+    Effect.promise(async () => {
+      const viewer = tab()
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([viewer.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+      let done = false
+      const taking = computers.take("pc-1", viewer.ws).then((ok) => {
+        done = true
+        return ok
+      })
+
+      await Promise.resolve()
+      assert.isFalse(done)
+
+      await computers.message(pc.ws, JSON.stringify({ t: "held", holder: "human", epoch: 1 }))
+      assert.isTrue(await taking)
+    }),
+  )
+
+  it.effect("answers the take after the cap when the daemon never acknowledges", () =>
+    Effect.gen(function* () {
+      const clock = yield* Clock.Clock
+      const viewer = tab()
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([viewer.ws], [pc.ws], ["pc-1"], onClock(clock))
+      yield* Effect.promise(() => computers.message(pc.ws, JSON.stringify(HELLO)))
+      let done = false
+      const taking = computers.take("pc-1", viewer.ws).then((ok) => {
+        done = true
+        return ok
+      })
+
+      yield* Effect.yieldNow
+      assert.isFalse(done)
+
+      yield* TestClock.adjust("1 second")
+      assert.isFalse(done)
+
+      yield* TestClock.adjust("1 second")
+      assert.isTrue(yield* Effect.promise(() => taking))
+      assert.isTrue(done)
+    }),
+  )
+
+  it.effect("takes input only from the tab that holds the screen", () =>
+    Effect.promise(async () => {
+      const first = tab()
+      const second = tab()
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([first.ws, second.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+      await taken(computers, first.ws, pc)
+
+      assert.isTrue(computers.input("pc-1", computers.session(first.ws), input("mine")))
+      assert.isFalse(computers.input("pc-1", computers.session(second.ws), input("theirs")))
+
+      const frames = pc.sent.filter((frame) => frame.t === "input")
+      assert.strictEqual(frames.length, 1)
+    }),
+  )
+
+  it.effect("shows another tab as the other viewer and moves the hold when it takes over", () =>
+    Effect.promise(async () => {
+      const first = tab()
+      const second = tab()
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([first.ws, second.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+      await taken(computers, first.ws, pc)
+
+      assert.strictEqual(computers.summaries(first.ws)[0]?.heldBy, "you")
+      assert.strictEqual(computers.summaries(second.ws)[0]?.heldBy, "other")
+
+      const taking = computers.take("pc-1", second.ws)
+      await computers.message(pc.ws, JSON.stringify({ t: "held", holder: "human", epoch: 2 }))
+      assert.isTrue(await taking)
+
+      assert.strictEqual(computers.summaries(first.ws)[0]?.heldBy, "other")
+      assert.isFalse(computers.input("pc-1", computers.session(first.ws), input("mine")))
+      assert.isTrue(computers.input("pc-1", computers.session(second.ws), input("theirs")))
+    }),
+  )
+
+  it.effect("refuses to release a hold another viewer owns", () =>
+    Effect.promise(async () => {
+      const first = tab()
+      const second = tab()
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([first.ws, second.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+      await taken(computers, first.ws, pc)
+
+      assert.strictEqual(computers.releaseBy("pc-1", computers.session(second.ws)), "other")
+      assert.strictEqual(computers.holder("pc-1"), "human")
+
+      assert.strictEqual(computers.releaseBy("pc-1", computers.session(first.ws)), "ok")
+      assert.strictEqual(computers.holder("pc-1"), "agent")
+    }),
+  )
+
+  it.effect("wakes each linked agent once when the owner takes over", () =>
+    Effect.promise(async () => {
+      const first = tab()
+      const second = tab()
+      const pc = pcSocket("pc-1")
+      const woken: { pcId: string; name: string; waiters: { slug: string; roomId: string }[]; epoch: number }[] = []
+      const store = {
+        get: (id: string) => ({ id, name: "box", os: "linux" }),
+        list: () => [{ id: "pc-1", name: "box", os: "linux" }],
+        caps: () => CAPS,
+      }
+      const computers = new ComputerHub({
+        ctx: {
+          getWebSockets: (tag: string) => (tag === "tab" ? [first.ws, second.ws] : [pc.ws]),
+          getWebSocketAutoResponseTimestamp: () => null,
+        },
+        env: {},
+        store,
+        ownerId: "owner",
+        released: () => {},
+        taken: (out: PcTaken) => woken.push(out),
+        wakeup: { set: () => Promise.resolve(), clear: () => Promise.resolve() },
+      } as unknown as HubDeps)
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+      computers.link("pc-1", { slug: "kiko" as AgentSlug, roomId: "01900000-0000-7000-8000-000000000001" as RoomId })
+      computers.link("pc-1", { slug: "muse" as AgentSlug, roomId: "01900000-0000-7000-8000-000000000001" as RoomId })
+
+      await taken(computers, first.ws, pc)
+      const taking = computers.take("pc-1", second.ws)
+      await computers.message(pc.ws, JSON.stringify({ t: "held", holder: "human", epoch: 2 }))
+      assert.isTrue(await taking)
+
+      assert.strictEqual(woken.length, 1)
+      assert.deepStrictEqual(
+        woken[0]?.waiters.map((waiter) => waiter.slug),
+        ["kiko", "muse"],
+      )
+      assert.strictEqual(woken[0]?.name, "box")
+    }),
+  )
+})
+
+describe("computer pushes", () => {
+  it.effect("retries a push the socket refused", () =>
+    Effect.sync(() => {
+      const sent: string[] = []
+      let refuse = true
+      let attachment: unknown = {
+        user: { ready: true },
+        rooms: {},
+        rpc: [{ requestId: "1", stream: "user", cursor: 0 }],
+      }
+      const ws = {
+        send: (text: string) => {
+          if (refuse) {
+            refuse = false
+            throw new Error("socket closed")
+          }
+          sent.push(text)
+        },
+        serializeAttachment: (value: unknown) => {
+          attachment = structuredClone(value)
+        },
+        deserializeAttachment: () => structuredClone(attachment),
+        readyState: WebSocket.OPEN,
+      } as unknown as WebSocket
+      const computers = liveHub([ws], [], ["pc-1"])
+
+      computers.push()
+      computers.push()
+
+      assert.strictEqual(sent.length, 1)
+    }),
+  )
+})
+
+describe("relay fallback", () => {
+  it.effect("shares while a live viewer is open and stops when the last one closes", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const lives: WebSocket[] = []
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, lives)
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      const viewer = liveSocket("pc-1")
+      lives.push(viewer)
+      assert.isTrue(computers.liveMessage(viewer, JSON.stringify({ t: "live", maxWidth: 2000 })))
+
+      const first = pc.sent.filter((frame) => frame.t === "live")
+      assert.strictEqual(first.length, 1)
+      assert.strictEqual(first[0]?.on, true)
+
+      lives.length = 0
+      assert.isTrue(computers.liveClosed(viewer))
+
+      const all = pc.sent.filter((frame) => frame.t === "live")
+      assert.strictEqual(all.length, 2)
+      assert.strictEqual(all[1]?.on, false)
+    }),
+  )
+
+  it.effect("forwards an ack from the viewer to the daemon", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const viewer = liveSocket("pc-1")
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, [viewer])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      assert.isTrue(computers.liveMessage(viewer, JSON.stringify({ t: "ack", seq: 7 })))
+
+      assert.deepStrictEqual(
+        pc.sent.filter((frame) => frame.t === "ack").map((frame) => frame.seq),
+        [7],
+      )
+    }),
+  )
+})
 
 describe("computer calls", () => {
   it.effect("waits for a computer that comes back, then runs the call", () =>
@@ -602,6 +841,7 @@ describe("TURN credentials", () => {
         store: { get: () => null, list: () => [] },
         ownerId: "owner",
         released: () => {},
+        taken: () => {},
         wakeup: { set: () => Promise.resolve(), clear: () => Promise.resolve() },
         fetch: ((_url: string, init: RequestInit) => {
           calls += 1
@@ -622,6 +862,34 @@ describe("TURN credentials", () => {
 })
 
 const BACKGROUND = { ...HELLO, caps: { ...CAPS, background: true } }
+
+describe("binary results", () => {
+  it.effect("settles a call from a binary frame with the image bytes attached", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+      const outcome = computers.call("pc-1", "shell", { command: "shot" })
+      const id = callIds(pc)[0]!
+      const image = new Uint8Array([0xff, 0xd8, 1, 2])
+      const header = {
+        t: "result",
+        id,
+        ok: true,
+        value: { content: [{ type: "image", data: { [IMAGE_REF]: 0 }, mimeType: "image/jpeg" }] },
+        parts: [{ mime: "image/jpeg", length: image.byteLength }],
+      }
+
+      await computers.message(pc.ws, encodeBinary(header, image).buffer as ArrayBuffer)
+
+      const result = await outcome
+      assert.isTrue(result.ok)
+      if (!result.ok) return
+      const content = (result.value as { content: { data: Uint8Array }[] }).content
+      assert.deepStrictEqual(content[0]?.data, image)
+    }),
+  )
+})
 
 type CallFrame = { t: string; id?: string; op?: string }
 
@@ -682,6 +950,166 @@ describe("driver desk", () => {
       for (const id of ids) await settle(computers, pc.ws, id)
       assert.isTrue((await first).ok)
       assert.isTrue((await second).ok)
+    }),
+  )
+})
+
+const TERMINAL = { ...HELLO, caps: { ...CAPS, terminal: true } }
+
+type ChunkFrame = { _tag: string; requestId: unknown; values: readonly { type: string; data?: string }[] }
+
+function terminalTab() {
+  const sent: unknown[] = []
+  let attachment: unknown = { user: { ready: true }, rooms: {}, rpc: [] }
+  const ws = {
+    send: (text: string) => sent.push(JSON.parse(text)),
+    serializeAttachment: (value: unknown) => {
+      attachment = structuredClone(value)
+    },
+    deserializeAttachment: () => structuredClone(attachment),
+    readyState: WebSocket.OPEN,
+  } as unknown as WebSocket
+  const chunks = () => sent as ChunkFrame[]
+  return { ws, chunks }
+}
+
+function attach(computers: ReturnType<typeof liveHub>, pc: ReturnType<typeof pcSocket>, tab: WebSocket, id = "t-1") {
+  const outcome = computers.attachTerminal(tab, "req-1", "pc-1", id, 100, 30)
+  const frame = pc.sent.find((sent) => sent.t === "terminal" && sent.on === true)
+  return { outcome, frame }
+}
+
+describe("terminal attach", () => {
+  it.effect("asks the daemon for a terminal and streams its output to the tab", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(TERMINAL))
+
+      const { outcome, frame } = attach(computers, pc, open.ws)
+      await computers.message(
+        pc.ws,
+        JSON.stringify({ t: "terminal", id: frame?.id, event: { type: "output", data: "hi" } }),
+      )
+
+      assert.isTrue(outcome.ok)
+      assert.strictEqual(frame?.terminal, "t-1")
+      assert.deepStrictEqual(open.chunks().at(-1), {
+        _tag: "Chunk",
+        requestId: "req-1",
+        values: [{ type: "output", data: "hi" }],
+      })
+    }),
+  )
+
+  it.effect("refuses a computer that does not allow terminals", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      const { outcome } = attach(computers, pc, open.ws)
+
+      assert.isFalse(outcome.ok)
+      if (!outcome.ok) assert.match(outcome.message, /does not allow terminal sessions/)
+    }),
+  )
+
+  it.effect("refuses a computer that is not connected", () =>
+    Effect.promise(async () => {
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [], ["pc-1"])
+
+      const outcome = computers.attachTerminal(open.ws, "req-1", "pc-1", "t-1", 100, 30)
+
+      assert.isFalse(outcome.ok)
+      if (!outcome.ok) assert.match(outcome.message, /offline/)
+    }),
+  )
+
+  it.effect("tells the tab when the daemon disconnects", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(TERMINAL))
+      attach(computers, pc, open.ws)
+
+      await computers.close(pc.ws)
+
+      assert.match(open.chunks().at(-1)?.values[0]?.type ?? "", /error/)
+    }),
+  )
+})
+
+describe("terminal control", () => {
+  it.effect("refuses owner input until the owner takes over", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(TERMINAL))
+      attach(computers, pc, open.ws)
+
+      const before = computers.terminalInput(open.ws, "pc-1", "t-1", "ls\r")
+      computers.take("pc-1", open.ws)
+      const after = computers.terminalInput(open.ws, "pc-1", "t-1", "ls\r")
+
+      assert.isFalse(before.ok)
+      assert.isTrue(after.ok)
+      assert.isTrue(pc.sent.some((frame) => frame.t === "terminalInput" && frame.data === "ls\r"))
+    }),
+  )
+
+  it.effect("refuses input from another tab while one tab holds control", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const mine = terminalTab()
+      const other = terminalTab()
+      const computers = liveHub([mine.ws, other.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(TERMINAL))
+      attach(computers, pc, mine.ws)
+      attach(computers, pc, other.ws)
+      computers.take("pc-1", mine.ws)
+
+      const typed = computers.terminalInput(other.ws, "pc-1", "t-1", "rm -rf /\r")
+
+      assert.isFalse(typed.ok)
+      if (!typed.ok) assert.match(typed.message, /another viewer has control/)
+    }),
+  )
+
+  it.effect("refuses an agent terminal_send while the owner holds the terminal", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(TERMINAL))
+      computers.take("pc-1", open.ws)
+
+      const outcome = await computers.call("pc-1", "terminal_send", { id: "t-1", text: "ls" })
+
+      assert.isFalse(outcome.ok)
+      if (!outcome.ok) {
+        assert.strictEqual(outcome.code, "busy")
+        assert.strictEqual(outcome.message, "the owner has control of this terminal")
+      }
+    }),
+  )
+
+  it.effect("detaches the daemon attach when the tab leaves", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(TERMINAL))
+      const { frame } = attach(computers, pc, open.ws)
+
+      computers.leave(open.ws)
+
+      assert.isTrue(pc.sent.some((sent) => sent.t === "terminal" && sent.on === false && sent.id === frame?.id))
     }),
   )
 })

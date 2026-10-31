@@ -45,9 +45,10 @@ const plan = (seed: number): { files: { path: string; size: number }[]; expected
 export const largestFiles: Task = {
   id: "terminal-015-largest-files",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "Write the relative paths of the three largest files under data/ to largest.txt, largest first, one per line, using forward slashes.",
   limits: LIMITS,

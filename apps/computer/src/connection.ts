@@ -1,5 +1,6 @@
 import * as Schema from "effect/Schema"
 import * as Option from "effect/Option"
+import { encodeBinary } from "@kiko/computer/frame"
 import { CONNECT_HEADERS, connectMessage, sign } from "@kiko/computer/sign"
 import {
   Calls,
@@ -18,9 +19,11 @@ import type { Policy } from "./config"
 import type { Driver } from "./driver"
 import type { LiveFrames } from "./live"
 import { abortReason, Deadline } from "./deadline"
+import { splitImages } from "./images"
 import { Fail, failureCode, failureMessage, type Logger } from "./log"
 import { read, shell, write } from "./ops"
 import type { TerminalManager } from "./terminal/manager"
+import type { TerminalLink } from "./terminal/link"
 
 const PING_MS = 20_000
 const PING = JSON.stringify({ _tag: "Ping" })
@@ -32,6 +35,7 @@ const DEFAULT_DEADLINE_MS = 60_000
 const MAX_DEADLINE_MS = 600_000
 const SILENT_MS = 2.5 * PING_MS
 const RECENT_MAX = 64
+const RECENT_MAX_CHARS = 64_000
 const RECENT_MS = 120_000
 const CLOCK_SKEW_S = 60
 const PAUSED = "the owner paused the agent from the kiko menu"
@@ -46,6 +50,7 @@ export type Host = {
   policy(): Promise<Policy>
   driver(): Driver | null
   terminal(): TerminalManager | null
+  terminals: TerminalLink
   paused(): boolean
   live: LiveFrames
   holder(): Holder
@@ -338,6 +343,14 @@ class Link {
         return this.liveFrame(() => this.host.live.rtc(frame))
       case "ack":
         return this.liveFrame(() => this.host.live.ack(frame))
+      case "terminal":
+        return this.terminalFrame(() => this.host.terminals.open(frame))
+      case "terminalInput":
+        return this.terminalFrame(() => this.host.terminals.input(frame))
+      case "terminalResize":
+        return this.terminalFrame(() => this.host.terminals.resize(frame))
+      case "terminalAck":
+        return this.terminalFrame(() => this.host.terminals.ack(frame))
       case "welcome":
         this.welcomed = true
         this.host.onWelcome?.(frame.name, frame.version)
@@ -349,6 +362,14 @@ class Link {
       run()
     } catch (error) {
       this.host.log.warn(`the live view could not handle a frame: ${failureMessage(error)}`)
+    }
+  }
+
+  private terminalFrame(run: () => void): void {
+    try {
+      run()
+    } catch (error) {
+      this.host.log.warn(`the terminal view could not handle a frame: ${failureMessage(error)}`)
     }
   }
 
@@ -376,8 +397,7 @@ class Link {
       this.pending.delete(frame.id)
       if (this.pending.size === 0) this.host.onIdle?.()
     }
-    this.remember(result)
-    this.answer(result)
+    await this.answer(result)
   }
 
   private recall(id: string): Result | null {
@@ -417,8 +437,10 @@ class Link {
       throw new Fail({ code: "denied", message: "policy.json turns off shell commands and terminals on this machine" })
     const terminals = this.host.terminal()
     if (!terminals) throw new Fail({ code: "unsupported", message: "this machine cannot open terminal sessions" })
+    if (op === "terminal_send" && this.host.holder() === "human")
+      throw new Fail({ code: "busy", message: "the owner has control of this terminal" })
     if (op === "terminal_open") return terminals.open(args as Args<"terminal_open">)
-    if (op === "terminal_send") return terminals.send(args as Args<"terminal_send">)
+    if (op === "terminal_send") return terminals.send(args as Args<"terminal_send">, context.signal)
     if (op === "terminal_read") return terminals.read(args as Args<"terminal_read">)
     if (op === "terminal_wait") return terminals.wait(args as Args<"terminal_wait">, context.signal)
     if (op === "terminal_resize") return terminals.resize(args as Args<"terminal_resize">)
@@ -444,12 +466,21 @@ class Link {
     this.pending.get(id)?.controller.abort(new Fail({ code: "cancelled", message: "the agent cancelled this call" }))
   }
 
-  private answer(
+  private async answer(
     frame:
       | { t: "result"; id: string; ok: true; value: unknown }
       | { t: "result"; id: string; ok: false; error: { code: FailCode; message: string } },
-  ): void {
-    this.send(JSON.stringify(frame))
+  ): Promise<void> {
+    const split = frame.ok ? await splitImages(frame.value) : null
+    if (split) {
+      this.binary(
+        encodeBinary({ t: "result", id: frame.id, ok: true, value: split.value, parts: split.parts }, split.data),
+      )
+      return
+    }
+    const text = JSON.stringify(frame)
+    if (text.length <= RECENT_MAX_CHARS) this.remember(frame)
+    this.send(text)
   }
 
   frame(frame: FromDaemon): void {

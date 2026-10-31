@@ -28,9 +28,10 @@ const buildScript = (seed: number): string => BUILD.replace("TOKEN", JSON.string
 export const buildMode: Task = {
   id: "terminal-023-build-mode",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt: "The build fails because a setting is missing. Run it in the mode in request.json.",
   limits: LIMITS,
   setup: async (m, seed) => {

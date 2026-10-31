@@ -17,9 +17,10 @@ const account = (seed: number) => {
 export const login: Task = {
   id: "browser-007-login",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
+  kind: "real",
   prompt:
     "Sign in on the page in url.txt with the username and password in request.json, then submit the access token shown on the account page in the answer form.",
   limits: LIMITS,

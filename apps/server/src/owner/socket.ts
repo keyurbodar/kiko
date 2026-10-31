@@ -38,34 +38,30 @@ export function unsubscribe(ws: WebSocket, requestId: RequestId): Subscription |
   return sub
 }
 
-export function dropStreams(ws: WebSocket, prefix: string): readonly Subscription[] {
-  const saved = ownerAttachment(ws)
-  const dropped = saved.rpc.filter((s) => s.stream.startsWith(prefix))
-  if (!dropped.length) return dropped
-  saved.rpc = saved.rpc.filter((s) => !s.stream.startsWith(prefix))
-  ws.serializeAttachment(saved)
-  return dropped
-}
-
-function forward(target: WebSocket, stream: StreamKey, raw: string | ArrayBuffer | ArrayBufferView): void {
+function forward(target: WebSocket, stream: StreamKey, raw: string | ArrayBuffer | ArrayBufferView): boolean {
   if (typeof raw !== "string") {
     try {
       target.send(raw)
-    } catch {}
-    return
+      return true
+    } catch {
+      return false
+    }
   }
   const saved = ownerAttachment(target)
   const sub = saved.rpc.find((s) => s.stream === stream)
-  if (!sub) return
+  if (!sub) return false
   const { text, cursor } = streamFrame(sub, raw)
   if (cursor !== sub.cursor) {
     sub.cursor = cursor
     target.serializeAttachment(saved)
   }
-  if (text === null) return
+  if (text === null) return true
   try {
     target.send(text)
-  } catch {}
+    return true
+  } catch {
+    return false
+  }
 }
 
 function endRoomStream(target: WebSocket, roomId: string): void {

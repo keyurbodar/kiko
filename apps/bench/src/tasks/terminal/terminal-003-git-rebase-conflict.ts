@@ -23,9 +23,10 @@ const commit = (m: Machine, message: string, second: number) =>
 export const gitRebaseConflict: Task = {
   id: "terminal-003-git-rebase-conflict",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "Rebase feature onto main and resolve the conflict in config.txt by keeping version 2 from main and mode=fast from the feature. Leave feature checked out with a clean working tree.",
   limits: LIMITS,

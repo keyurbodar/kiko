@@ -47,9 +47,10 @@ async function checkBranch(m: Machine): Promise<Verdict> {
 export const gitBranch: Task = {
   id: "terminal-027-git-branch",
   track: "terminal",
-  os: ["macos", "windows", "linux"],
+  os: ["macos", "linux"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "create a git branch called feature with exactly one commit that adds a file notes.txt containing the line hello",
   limits: { turns: 12, seconds: 180 },
