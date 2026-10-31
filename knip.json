@@ -33,6 +33,9 @@
     "apps/builder": {
       "entry": ["scripts/*.ts"]
     },
+    "apps/bench": {
+      "entry": ["src/contenders/*.ts", "scripts/*.ts"]
+    },
     "infra": {
       "entry": ["alchemy.run.ts"]
     }
