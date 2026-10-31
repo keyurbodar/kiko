@@ -530,10 +530,10 @@ export function kikoRemote(): Contender {
     const elapsed = performance.now() - started
     if (!outcome.ok)
       return { ...text(failText(outcome.code, outcome.message, pc), true), opMs: outcome.opMs ?? elapsed }
-    return { ...format(pc, tool, op, outcome.value), opMs: outcome.opMs ?? elapsed }
+    return { ...format(pc, tool, op, outcome.value, bagOf(args)), opMs: outcome.opMs ?? elapsed }
   }
 
-  function format(pc: Computer, tool: string, op: string, value: unknown): ToolResult {
+  function format(pc: Computer, tool: string, op: string, value: unknown, args: Bag): ToolResult {
     if (op === "driver") return driverResult(pc, tool, value)
     if (op === "shell") {
       const shell = bagOf(value)
@@ -550,11 +550,14 @@ export function kikoRemote(): Contender {
     }
     if (op === "read") {
       const read = bagOf(value)
-      if (read.base64 !== undefined) return text(`${pc.name} returned binary data`, true)
+      const path = stringOf(args.path) ?? "the file"
+      if (read.base64 !== undefined)
+        return text(`${path} on ${pc.name} is binary, ${read.size} bytes. use computer_shell for it.`, true)
       const note = read.truncated ? ` (cut at ${read.size} bytes)` : ""
-      return text(`${read.size} bytes${note}\n\n${cut(stringOf(read.text) ?? "")}`)
+      return text(`${path} on ${pc.name}, ${read.size} bytes${note}\n\n${cut(stringOf(read.text) ?? "")}`)
     }
-    if (op === "write") return text(`wrote ${bagOf(value).size} bytes on ${pc.name}`)
+    if (op === "write")
+      return text(`wrote ${bagOf(value).size} bytes to ${stringOf(args.path) ?? "the file"} on ${pc.name}`)
     if (op === "terminal_open") {
       const open = bagOf(value)
       return text(
