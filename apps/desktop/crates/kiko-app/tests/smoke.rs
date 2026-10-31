@@ -48,7 +48,7 @@ impl App {
 
     fn socket(&self) -> String {
         if cfg!(windows) {
-            "kiko-driver".to_string()
+            kiko_app::config::socket_name()
         } else {
             self.dir.join("driver.sock").to_string_lossy().into_owned()
         }

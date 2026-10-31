@@ -116,13 +116,14 @@ CI runs `Changes`, `Lint`, `Build and Typecheck`, `Test`, `Test Web` and `Worker
 
 ## Desktop drivers
 
-`apps/desktop` is the kiko app the owner installs. It serves the driver contract in `crates/kiko-driver` (JSON lines over a local socket that it passes to `kiko-core` as `KIKO_DRIVER`) and implements `kiko_driver::Native` once per OS. Background mode never moves the pointer, changes focus or raises a window; a route that cannot honor that answers `background_unavailable` and says foreground mode would work.
+`apps/desktop` is the kiko app the owner installs. It serves the driver contract in `crates/kiko-driver` (JSON lines over a local socket that it passes to `kiko-core` as `KIKO_DRIVER`) and implements `kiko_driver::Native` once per OS. On Windows both pipe names end with the owner's SID, because named pipes are machine-wide and a second account's kiko would otherwise fail to bind. Background mode never moves the pointer, changes focus or raises a window; a route that cannot honor that answers `background_unavailable` and says foreground mode would work.
 
 - **Linux keeps AT-SPI on its own thread.** `crates/kiko-native-linux` owns a current-thread Tokio runtime on a dedicated thread, so the synchronous trait never touches the owner's executor. Every proxy disables zbus property caching (`CacheProperties::No`): Qt5's AT-SPI bridge reads the second argument of every `Properties` call and segfaults on the one-argument `GetAll` that lazy caching sends.
 - **A window id is the AT-SPI bus name plus object path.** It survives restacking. `_NET_CLIENT_LIST`, `_NET_WM_PID` and the title map it to an X window, so capture and foreground input share one identity, and `_NET_ACTIVE_WINDOW` and `_NET_WM_STATE_HIDDEN` decide `focused` and `minimized`.
 - **Capture reads the window manager's frame, not the client window.** Xvfb, and some X servers, only redirect direct children of the root, so `NameWindowPixmap` fails on a reparented client; the driver names the top ancestor's pixmap and crops the client rect out of it. That is why a fully covered window still returns its own pixels.
 - **Focus is foreground-only on Linux.** AT-SPI `GrabFocus` raises the window, so background `focus` and `key` answer `background_unavailable`; background typing goes through `EditableText` instead. Foreground input is XTest after `_NET_ACTIVE_WINDOW`. A Wayland-only session has neither until the RemoteDesktop portal lands, so it answers `background_unavailable` too.
 - **Chromium exposes actions without names.** Its buttons answer `GetActions` with blank names, so a press falls back to action 0 when every name is empty.
+- **Posted keys cannot carry modifiers on Windows.** `PostMessage` never updates the target thread's keyboard state, so classic controls that read `GetKeyState` see no modifier; background `key` answers `background_unavailable` for any chord and asks for foreground, while modifier-free keys are posted as a down and then an up.
 
 ## Releases
 

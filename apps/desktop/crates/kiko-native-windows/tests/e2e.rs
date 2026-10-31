@@ -15,8 +15,9 @@ use kiko_driver::api::{
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, WPARAM};
 use windows::Win32::UI::Controls::EM_SETSEL;
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetCursorPos, GetForegroundWindow, HWND_TOP, PostMessageW, SWP_NOMOVE, SWP_NOSIZE,
-    SWP_SHOWWINDOW, SendMessageW, SetCursorPos, SetForegroundWindow, SetWindowPos, WM_CLOSE,
+    GetCursorPos, GetForegroundWindow, HWND_TOP, PostMessageW, SWP_NOACTIVATE, SWP_NOMOVE,
+    SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW, SendMessageW, SetCursorPos, SetForegroundWindow,
+    SetWindowPos, WM_CLOSE, WM_KEYDOWN, WM_KEYUP,
 };
 
 const TARGET_COLOR: (u8, u8, u8) = (0x33, 0x66, 0xcc);
@@ -26,6 +27,14 @@ struct Scene {
     child: Child,
     hwnd: isize,
     edit: isize,
+}
+
+struct SceneOptions<'a> {
+    title: &'a str,
+    color: &'a str,
+    x: i32,
+    y: i32,
+    extra: &'a [&'a str],
 }
 
 impl Scene {
@@ -38,6 +47,36 @@ impl Scene {
         x: i32,
         y: i32,
     ) -> Self {
+        Self::with(
+            app,
+            directory,
+            name,
+            SceneOptions {
+                title,
+                color,
+                x,
+                y,
+                extra: &[],
+            },
+        )
+    }
+
+    fn hung(app: &Path, directory: &Path, name: &str) -> Self {
+        Self::with(
+            app,
+            directory,
+            name,
+            SceneOptions {
+                title: "kiko-hung",
+                color: "3366cc",
+                x: 100,
+                y: 100,
+                extra: &["--hang"],
+            },
+        )
+    }
+
+    fn with(app: &Path, directory: &Path, name: &str, options: SceneOptions<'_>) -> Self {
         let hwnd_file = directory.join(format!("{name}.hwnd"));
         let edit_file = directory.join(format!("{name}.edit"));
         let log_file = directory.join(format!("{name}.log"));
@@ -47,9 +86,9 @@ impl Scene {
         let child = Command::new(app)
             .args([
                 "--title",
-                title,
+                options.title,
                 "--color",
-                color,
+                options.color,
                 "--file",
                 log_file.to_string_lossy().as_ref(),
                 "--hwnd-file",
@@ -57,10 +96,11 @@ impl Scene {
                 "--edit-hwnd-file",
                 edit_file.to_string_lossy().as_ref(),
                 "--pos",
-                &format!("{x},{y}"),
+                &format!("{},{}", options.x, options.y),
                 "--size",
                 "600,400",
             ])
+            .args(options.extra)
             .spawn()
             .expect("start the test app");
         let hwnd = wait_for_text(&hwnd_file)
@@ -903,4 +943,196 @@ fn print_window_capture_returns_a_full_size_image() {
     let colors: std::collections::HashSet<[u8; 3]> =
         rgb.pixels().take(5000).map(|pixel| pixel.0).collect();
     assert!(colors.len() > 1, "the PrintWindow image is blank");
+}
+
+fn key_log(path: &Path) -> Vec<String> {
+    fs::read_to_string(path)
+        .unwrap_or_default()
+        .lines()
+        .filter(|line| line.starts_with("down ") || line.starts_with("up "))
+        .map(str::to_string)
+        .collect()
+}
+
+fn post_message(window: isize, message: u32, key: usize) {
+    unsafe {
+        let _ = PostMessageW(
+            Some(HWND(window as *mut _)),
+            message,
+            WPARAM(key),
+            LPARAM(1),
+        );
+    }
+}
+
+#[test]
+#[ignore = "needs an interactive Windows desktop"]
+fn a_posted_modifier_never_reaches_the_target_keyboard_state() {
+    let directory = scratch("posted-modifier");
+    let app = app_path();
+    let target = Scene::start(
+        &app,
+        &directory,
+        "target",
+        "kiko-posted",
+        "3366cc",
+        100,
+        100,
+    );
+    let log = directory.join("target.log");
+
+    post_message(target.edit, WM_KEYDOWN, 0x11);
+    post_message(target.edit, WM_KEYDOWN, 0x41);
+    post_message(target.edit, WM_KEYUP, 0x41);
+    post_message(target.edit, WM_KEYUP, 0x11);
+    wait_for("the posted keys to reach the test app", || {
+        key_log(&log)
+            .iter()
+            .any(|line| line == "down 65 control=0")
+            .then_some(())
+    });
+}
+
+#[test]
+#[ignore = "needs an interactive Windows desktop"]
+fn background_plain_keys_arrive_in_order_and_chords_refuse() {
+    let directory = scratch("keys");
+    let mut driver = kiko_native_windows::driver().expect("create the driver");
+    let app = app_path();
+    let target = Scene::start(&app, &directory, "target", "kiko-keys", "3366cc", 100, 100);
+    let cover_window = Scene::start(&app, &directory, "cover", "kiko-cover", "cc3333", 160, 140);
+    cover(cover_window.hwnd);
+    unsafe {
+        let _ = SetCursorPos(5, 5);
+    }
+    let foreground_before = foreground();
+    let cursor_before = cursor();
+    let log = directory.join("target.log");
+
+    let first = look(&mut driver, &target.id());
+    let edit = find(&first.nodes, "edit", None).clone();
+
+    let mut plain = background(&target.id(), Some(edit.reference), Action::Key);
+    plain.keys = Some("a".into());
+    assert_eq!(act(&mut driver, plain).route, Route::WindowEvent);
+    wait_for("the posted key to arrive once down and then up", || {
+        let lines = key_log(&log);
+        (lines.len() >= 2 && lines[0] == "down 65 control=0" && lines[1] == "up 65 control=0")
+            .then_some(())
+    });
+    checkpoint("keys", foreground_before);
+
+    let before = key_log(&log).len();
+    let mut chord = background(&target.id(), Some(edit.reference), Action::Key);
+    chord.keys = Some("ctrl+a".into());
+    let refused = driver
+        .act(&chord)
+        .expect_err("a background chord cannot carry its modifiers");
+    assert_eq!(refused.code, ErrorCode::BackgroundUnavailable);
+    assert_eq!(
+        key_log(&log).len(),
+        before,
+        "a refused chord posts nothing: {}",
+        refused.message
+    );
+    assert_untouched(foreground_before, cursor_before);
+}
+
+#[test]
+#[ignore = "needs an interactive Windows desktop"]
+fn background_press_follows_a_moved_window() {
+    let directory = scratch("moved");
+    let mut driver = kiko_native_windows::driver().expect("create the driver");
+    let app = app_path();
+    let target = Scene::start(&app, &directory, "target", "kiko-moved", "3366cc", 100, 100);
+    let cover_window = Scene::start(&app, &directory, "cover", "kiko-cover", "cc3333", 160, 140);
+    cover(cover_window.hwnd);
+    unsafe {
+        let _ = SetCursorPos(5, 5);
+    }
+    let foreground_before = foreground();
+    let cursor_before = cursor();
+    let log = directory.join("target.log");
+
+    let first = look(&mut driver, &target.id());
+    let button = find(&first.nodes, "button", Some("Fire")).clone();
+    unsafe {
+        SetWindowPos(
+            HWND(target.hwnd as *mut _),
+            None,
+            300,
+            200,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        )
+        .expect("move the target window");
+    }
+    let pressed = act(
+        &mut driver,
+        background(&target.id(), Some(button.reference), Action::Press),
+    );
+    assert_eq!(pressed.route, Route::WindowEvent);
+    wait_for("the press to reach the button at its new place", || {
+        fs::read_to_string(&log)
+            .ok()
+            .filter(|text| text.contains("fire"))
+    });
+    checkpoint("moved press", foreground_before);
+    assert_untouched(foreground_before, cursor_before);
+}
+
+fn process_threads() -> usize {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
+    };
+
+    let mut count = 0;
+    unsafe {
+        let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) else {
+            return 0;
+        };
+        let mut entry = THREADENTRY32 {
+            dwSize: std::mem::size_of::<THREADENTRY32>() as u32,
+            ..Default::default()
+        };
+        if Thread32First(snapshot, &mut entry).is_ok() {
+            loop {
+                if entry.th32OwnerProcessID == std::process::id() {
+                    count += 1;
+                }
+                if Thread32Next(snapshot, &mut entry).is_err() {
+                    break;
+                }
+            }
+        }
+        let _ = CloseHandle(snapshot);
+    }
+    count
+}
+
+#[test]
+#[ignore = "needs an interactive Windows desktop"]
+fn repeated_accessibility_timeouts_keep_one_worker_thread() {
+    let directory = scratch("hung");
+    let app = app_path();
+    let target = Scene::hung(&app, &directory, "hung");
+    let mut driver = kiko_native_windows::driver().expect("create the driver");
+    let before = process_threads();
+
+    for attempt in 0..4 {
+        let result = driver.look(&LookParams {
+            window: target.id(),
+            tree: true,
+            image: false,
+            max_width: None,
+        });
+        assert!(result.is_err(), "a hung window answered look {attempt}");
+        let now = process_threads();
+        assert!(
+            now <= before,
+            "a timeout left a blocked accessibility worker behind: {now} threads after look {attempt}, {before} before"
+        );
+    }
 }

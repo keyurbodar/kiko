@@ -169,18 +169,29 @@ impl WindowsDriver {
         &self,
         handle: isize,
         native: isize,
-        screen: Point,
+        screen: Option<Point>,
         params: &ActParams,
     ) -> Result<ActResult> {
         let route = match params.action {
             Action::Key => input::post_keys(native, &keys::parse(params.keys.as_deref())?)?,
             Action::Type => input::post_text(native, params.text.as_deref().unwrap_or_default())?,
-            _ => input::post_click_screen(handle, screen)?,
+            _ => {
+                let screen = screen.ok_or_else(|| {
+                    DriverError::new(
+                        ErrorCode::BackgroundUnavailable,
+                        "the control has no position on screen; scroll it into view first",
+                    )
+                })?;
+                input::post_click_screen(handle, screen)?
+            }
         };
         Ok(ActResult { route })
     }
 
     fn act_foreground(&self, handle: isize, params: &ActParams) -> Result<ActResult> {
+        if params.action != Action::Raise {
+            input::ensure_foreground_input(handle)?;
+        }
         input::foreground_window(handle)?;
         if params.action == Action::Raise {
             return Ok(ActResult {

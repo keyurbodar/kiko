@@ -44,7 +44,6 @@ const WHEEL_DELTA: f64 = 120.0;
 const WHEEL_PIXELS: f64 = 100.0;
 const MAX_CHILD_DEPTH: usize = 16;
 const VK_RETURN: u16 = 0x0d;
-const VK_CONTROL: u16 = 0x11;
 const VK_MENU: u16 = 0x12;
 const VK_NONAME: u16 = 0xfc;
 const MK_LBUTTON_BIT: usize = 0x0001;
@@ -303,7 +302,7 @@ fn key_lparam(scan: u16, extended_key: bool, up: bool) -> LPARAM {
     LPARAM(value as isize)
 }
 
-fn post_key(window: isize, key: u16, scan: u16, extended_key: bool) -> Result<()> {
+fn post_key_down(window: isize, key: u16, scan: u16, extended_key: bool) -> Result<()> {
     unsafe {
         PostMessageW(
             Some(to_hwnd(window)),
@@ -311,15 +310,67 @@ fn post_key(window: isize, key: u16, scan: u16, extended_key: bool) -> Result<()
             WPARAM(key as usize),
             key_lparam(scan, extended_key, false),
         )
-        .and_then(|()| {
-            PostMessageW(
-                Some(to_hwnd(window)),
-                WM_KEYUP,
-                WPARAM(key as usize),
-                key_lparam(scan, extended_key, true),
-            )
-        })
-        .map_err(post_failed)
+    }
+    .map_err(post_failed)
+}
+
+fn post_key_up(window: isize, key: u16, scan: u16, extended_key: bool) -> Result<()> {
+    unsafe {
+        PostMessageW(
+            Some(to_hwnd(window)),
+            WM_KEYUP,
+            WPARAM(key as usize),
+            key_lparam(scan, extended_key, true),
+        )
+    }
+    .map_err(post_failed)
+}
+
+fn post_key(window: isize, key: u16, scan: u16, extended_key: bool) -> Result<()> {
+    post_key_down(window, key, scan, extended_key)?;
+    post_key_up(window, key, scan, extended_key)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct KeyStep {
+    key: u16,
+    scan: u16,
+    extended: bool,
+    up: bool,
+}
+
+fn key_step(code: &str, up: bool) -> KeyStep {
+    KeyStep {
+        key: virtual_key(code, code),
+        scan: scan_code(code),
+        extended: extended(code),
+        up,
+    }
+}
+
+fn key_steps(chord: &Chord) -> Vec<KeyStep> {
+    let mut steps: Vec<KeyStep> = chord
+        .mods
+        .iter()
+        .map(|modifier| key_step(modifier, false))
+        .collect();
+    steps.push(key_step(&chord.code, false));
+    steps.push(key_step(&chord.code, true));
+    steps.extend(
+        chord
+            .mods
+            .iter()
+            .rev()
+            .map(|modifier| key_step(modifier, true)),
+    );
+    steps
+}
+
+fn post_step(window: isize, step: &KeyStep) -> Result<()> {
+    if step.up {
+        post_key_up(window, step.key, step.scan, step.extended)
+    } else {
+        post_key_down(window, step.key, step.scan, step.extended)
     }
 }
 
@@ -402,30 +453,17 @@ pub fn post_text(window: isize, text: &str) -> Result<Route> {
 }
 
 pub fn post_keys(window: isize, chords: &[Chord]) -> Result<Route> {
+    if chords.iter().any(|chord| !chord.mods.is_empty()) {
+        return Err(background_unavailable(
+            "posted keys cannot carry modifiers, so ctrl+a would arrive as plain keys; retry this action with mode foreground"
+                .to_string(),
+        ));
+    }
     let target = post_target(window)?;
     ensure_postable(window, target, Kind::Key)?;
     for chord in chords {
-        for modifier in &chord.mods {
-            post_key(
-                target,
-                virtual_key(modifier, modifier),
-                scan_code(modifier),
-                extended(modifier),
-            )?;
-        }
-        post_key(
-            target,
-            virtual_key(&chord.code, &chord.key),
-            scan_code(&chord.code),
-            extended(&chord.code),
-        )?;
-        for modifier in chord.mods.iter().rev() {
-            post_key(
-                target,
-                virtual_key(modifier, modifier),
-                scan_code(modifier),
-                extended(modifier),
-            )?;
+        for step in key_steps(chord) {
+            post_step(target, &step)?;
         }
     }
     Ok(Route::WindowEvent)
@@ -451,7 +489,7 @@ fn attach_threads(current: u32, threads: [u32; 2], attach: bool) {
 }
 
 fn claim_last_input() {
-    send(&[
+    let _ = send(&[
         keyboard_input(0, VK_NONAME, KEYBD_EVENT_FLAGS(0)),
         keyboard_input(0, VK_NONAME, KEYEVENTF_KEYUP),
     ]);
@@ -459,7 +497,7 @@ fn claim_last_input() {
 
 fn alt_tap() {
     let alt = scan_code("AltLeft");
-    send(&[
+    let _ = send(&[
         keyboard_input(alt, VK_MENU, KEYEVENTF_SCANCODE),
         keyboard_input(alt, VK_MENU, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP),
     ]);
@@ -536,50 +574,58 @@ fn mouse_input(dx: i32, dy: i32, data: u32, flags: MOUSE_EVENT_FLAGS) -> INPUT {
     }
 }
 
-fn send(inputs: &[INPUT]) {
-    unsafe {
-        let _ = SendInput(inputs, size_of::<INPUT>() as i32);
+fn send(inputs: &[INPUT]) -> Result<()> {
+    let expected = inputs.len();
+    let sent = unsafe { SendInput(inputs, size_of::<INPUT>() as i32) };
+    if sent as usize != expected {
+        let error = unsafe { GetLastError() };
+        return Err(DriverError::new(
+            ErrorCode::Failed,
+            format!(
+                "Windows inserted {sent} of {expected} input events (error {})",
+                error.0
+            ),
+        ));
     }
+    Ok(())
 }
 
-fn move_to(screen: Point) {
+fn move_to(screen: Point) -> Result<()> {
     let (x, y) = virtual_desk(screen);
     send(&[mouse_input(
         x,
         y,
         0,
         MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK,
-    )]);
+    )])
 }
 
-fn click_at(screen: Point, down: MOUSE_EVENT_FLAGS, up: MOUSE_EVENT_FLAGS) {
+fn click_at(screen: Point, down: MOUSE_EVENT_FLAGS, up: MOUSE_EVENT_FLAGS) -> Result<()> {
     let (x, y) = virtual_desk(screen);
     let flags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
     send(&[
         mouse_input(x, y, 0, flags | down),
         mouse_input(x, y, 0, flags | up),
-    ]);
+    ])
 }
 
 pub fn foreground_click(screen: Point) -> Result<()> {
-    click_at(screen, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP);
-    Ok(())
+    click_at(screen, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP)
 }
 
 pub fn foreground_right_click(screen: Point) -> Result<()> {
-    click_at(screen, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP);
-    Ok(())
+    click_at(screen, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP)
 }
 
 pub fn foreground_wheel(screen: Point, dx: f64, dy: f64) -> Result<()> {
-    move_to(screen);
+    move_to(screen)?;
     let vertical = (dy * WHEEL_DELTA / WHEEL_PIXELS).round() as i32;
     let horizontal = (dx * WHEEL_DELTA / WHEEL_PIXELS).round() as i32;
     if vertical != 0 {
-        send(&[mouse_input(0, 0, (-vertical) as u32, MOUSEEVENTF_WHEEL)]);
+        send(&[mouse_input(0, 0, (-vertical) as u32, MOUSEEVENTF_WHEEL)])?;
     }
     if horizontal != 0 {
-        send(&[mouse_input(0, 0, horizontal as u32, MOUSEEVENTF_HWHEEL)]);
+        send(&[mouse_input(0, 0, horizontal as u32, MOUSEEVENTF_HWHEEL)])?;
     }
     Ok(())
 }
@@ -615,18 +661,71 @@ fn key_event(code: &str, key: &str, up: bool) -> INPUT {
     keyboard_input(scan_code(code), virtual_key(code, key), key_flags(code, up))
 }
 
+#[derive(Clone)]
+struct KeyPress {
+    code: String,
+    key: String,
+}
+
+fn key_press(code: &str) -> KeyPress {
+    KeyPress {
+        code: code.to_string(),
+        key: code.to_string(),
+    }
+}
+
+fn key_down(key: &KeyPress) -> INPUT {
+    key_event(&key.code, &key.key, false)
+}
+
+fn key_up(key: &KeyPress) -> INPUT {
+    key_event(&key.code, &key.key, true)
+}
+
+fn release_plan(sent: &[KeyPress]) -> Vec<INPUT> {
+    sent.iter().rev().map(key_up).collect()
+}
+
+fn press_chord(modifiers: &[KeyPress], action: &KeyPress) -> Result<()> {
+    let mut sent: Vec<KeyPress> = Vec::new();
+    for modifier in modifiers {
+        if let Err(error) = send(&[key_down(modifier)]) {
+            let mut recovery = sent.clone();
+            recovery.push(modifier.clone());
+            let _ = send(&release_plan(&recovery));
+            return Err(error);
+        }
+        sent.push(modifier.clone());
+    }
+    if let Err(error) = send(&[key_down(action), key_up(action)]) {
+        sent.push(action.clone());
+        let _ = send(&release_plan(&sent));
+        return Err(error);
+    }
+    let mut failure = None;
+    for modifier in modifiers.iter().rev() {
+        if let Err(error) = send(&[key_up(modifier)]) {
+            failure.get_or_insert(error);
+        }
+    }
+    match failure {
+        Some(error) => Err(error),
+        None => Ok(()),
+    }
+}
+
 pub fn foreground_keys(chords: &[Chord]) -> Result<()> {
     for chord in chords {
-        for modifier in &chord.mods {
-            send(&[key_event(modifier, modifier, false)]);
-        }
-        send(&[
-            key_event(&chord.code, &chord.key, false),
-            key_event(&chord.code, &chord.key, true),
-        ]);
-        for modifier in chord.mods.iter().rev() {
-            send(&[key_event(modifier, modifier, true)]);
-        }
+        let modifiers: Vec<KeyPress> = chord
+            .mods
+            .iter()
+            .map(|modifier| key_press(modifier))
+            .collect();
+        let action = KeyPress {
+            code: chord.code.clone(),
+            key: chord.key.clone(),
+        };
+        press_chord(&modifiers, &action)?;
     }
     Ok(())
 }
@@ -636,23 +735,36 @@ pub fn foreground_text(text: &str) -> Result<()> {
         send(&[
             keyboard_input(unit, 0, KEYEVENTF_UNICODE),
             keyboard_input(unit, 0, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP),
-        ]);
+        ])?;
     }
     Ok(())
 }
 
 pub fn foreground_select_all() -> Result<()> {
-    send(&[keyboard_input(
-        scan_code("ControlLeft"),
-        VK_CONTROL,
-        KEYEVENTF_SCANCODE,
-    )]);
-    send(&[key_event("KeyA", "a", false), key_event("KeyA", "a", true)]);
-    send(&[keyboard_input(
-        scan_code("ControlLeft"),
-        VK_CONTROL,
-        KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP,
-    )]);
+    let control = key_press("ControlLeft");
+    let letter = key_press("KeyA");
+    if let Err(error) = send(&[key_down(&control)]) {
+        let _ = send(&release_plan(&[control]));
+        return Err(error);
+    }
+    if let Err(error) = send(&[key_down(&letter), key_up(&letter)]) {
+        let _ = send(&release_plan(&[control, letter]));
+        return Err(error);
+    }
+    if let Err(error) = send(&[key_up(&control)]) {
+        let _ = send(&[key_up(&control)]);
+        return Err(error);
+    }
+    Ok(())
+}
+
+pub fn ensure_foreground_input(window: isize) -> Result<()> {
+    if blocked_by_uipi(window).is_some() {
+        return Err(DriverError::new(
+            ErrorCode::Failed,
+            "Windows drops kiko's input to a window at a higher integrity level; run kiko elevated or drive a window at kiko's level",
+        ));
+    }
     Ok(())
 }
 
@@ -679,4 +791,58 @@ pub fn shell_open(target: &str, show: SHOW_WINDOW_CMD) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn chord(mods: &[&str], code: &str, key: &str) -> Chord {
+        Chord {
+            mods: mods.iter().map(|value| value.to_string()).collect(),
+            code: code.into(),
+            key: key.into(),
+        }
+    }
+
+    fn step(step: &KeyStep) -> (u16, bool) {
+        (step.scan, step.up)
+    }
+
+    fn input_key(input: &INPUT) -> (u16, bool) {
+        unsafe {
+            let key = input.Anonymous.ki;
+            (key.wScan, key.dwFlags.0 & KEYEVENTF_KEYUP.0 != 0)
+        }
+    }
+
+    #[test]
+    fn a_chord_presses_modifiers_before_the_key_and_lifts_them_after() {
+        let steps: Vec<(u16, bool)> = key_steps(&chord(&["ControlLeft", "ShiftLeft"], "KeyA", "a"))
+            .iter()
+            .map(step)
+            .collect();
+        assert_eq!(
+            steps,
+            vec![
+                (0x1d, false),
+                (0x2a, false),
+                (0x1e, false),
+                (0x1e, true),
+                (0x2a, true),
+                (0x1d, true),
+            ]
+        );
+    }
+
+    #[test]
+    fn release_plan_lifts_keys_in_reverse() {
+        let sent = vec![
+            key_press("ControlLeft"),
+            key_press("ShiftLeft"),
+            key_press("KeyA"),
+        ];
+        let plan: Vec<(u16, bool)> = release_plan(&sent).iter().map(input_key).collect();
+        assert_eq!(plan, vec![(0x1e, true), (0x2a, true), (0x1d, true)]);
+    }
 }

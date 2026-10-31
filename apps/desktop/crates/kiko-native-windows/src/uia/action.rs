@@ -27,7 +27,7 @@ const WRITE_VERIFY_PAUSE: Duration = Duration::from_millis(40);
 
 pub enum Outcome {
     Route(Route),
-    Native { hwnd: isize, screen: Point },
+    Native { hwnd: isize, screen: Option<Point> },
     Text { hwnd: isize, text: String },
     Pointer { screen: Point },
 }
@@ -73,14 +73,13 @@ fn background(element: &IUIAutomationElement, request: &OwnedAct) -> Result<Outc
 
 fn foreground(element: &IUIAutomationElement, request: &OwnedAct) -> Result<Outcome> {
     match request.action {
-        Action::SetValue => {
-            set_value(element, request.text.as_deref()).or_else(|_| pointer(element))
-        }
+        Action::SetValue => set_value(element, request.text.as_deref())
+            .or_else(|_| pointer(element, request.window)),
         Action::Focus => match unsafe { element.SetFocus() } {
             Ok(()) => route(Route::Accessibility),
-            Err(_) => pointer(element),
+            Err(_) => pointer(element, request.window),
         },
-        _ => pointer(element).or_else(|_| primary(element, request)),
+        _ => pointer(element, request.window).or_else(|_| primary(element, request)),
     }
 }
 
@@ -91,11 +90,11 @@ fn primary(element: &IUIAutomationElement, request: &OwnedAct) -> Result<Outcome
         Action::Select => select(element),
         Action::Expand => expand(element, true),
         Action::Collapse => expand(element, false),
-        _ => return pointer(element),
+        _ => return pointer(element, request.window),
     };
     match outcome {
         Ok(Outcome::Route(route)) => Ok(Outcome::Route(route)),
-        _ => pointer(element),
+        _ => pointer(element, request.window),
     }
 }
 
@@ -115,10 +114,9 @@ fn text_outcome(element: &IUIAutomationElement, text: &str) -> Result<Outcome> {
 }
 
 fn native(element: &IUIAutomationElement, window: isize) -> Result<Outcome> {
-    let screen = center(element).unwrap_or(Point { x: 0.0, y: 0.0 });
     Ok(Outcome::Native {
         hwnd: native_handle(element).unwrap_or(window),
-        screen,
+        screen: center(element),
     })
 }
 
@@ -148,7 +146,7 @@ fn press(element: &IUIAutomationElement, window: isize) -> Result<Outcome> {
     };
     Ok(Outcome::Native {
         hwnd: native_handle(element).unwrap_or(window),
-        screen,
+        screen: Some(screen),
     })
 }
 
@@ -234,13 +232,13 @@ fn splice_at_selection(element: &IUIAutomationElement, text: &str) -> Result<Out
         None if current.is_empty() => (String::new(), String::new()),
         None => return Err(no_selection()),
     };
-    let spliced = splice(&current, &prefix, &selected, text);
+    let (spliced, start) = splice(&current, &prefix, &selected, text);
     unsafe {
         value
             .SetValue(&BSTR::from(spliced.as_str()))
             .map_err(|error| failed("SetValue", error))?
     };
-    verify_value(&value, &spliced)?;
+    verify_value(&value, &current, start, text)?;
     route(Route::Accessibility)
 }
 
@@ -250,7 +248,12 @@ fn focused(element: &IUIAutomationElement) -> bool {
         .unwrap_or(false)
 }
 
-fn verify_value(value: &IUIAutomationValuePattern, expected: &str) -> Result<()> {
+fn verify_value(
+    value: &IUIAutomationValuePattern,
+    before: &str,
+    start: usize,
+    text: &str,
+) -> Result<()> {
     for attempt in 0..WRITE_VERIFY_ATTEMPTS {
         if attempt > 0 {
             std::thread::sleep(WRITE_VERIFY_PAUSE);
@@ -258,13 +261,41 @@ fn verify_value(value: &IUIAutomationValuePattern, expected: &str) -> Result<()>
         let current = unsafe { value.CurrentValue() }
             .map(|value| value.to_string())
             .unwrap_or_default();
-        if current == expected {
+        if accepted(&current, before, start, text) {
             return Ok(());
         }
     }
     Err(unavailable(
         "the control did not take the text at its caret in the background; use set_value to replace the text, or retry with mode foreground",
     ))
+}
+
+fn accepted(current: &str, before: &str, start: usize, text: &str) -> bool {
+    if current == before {
+        return false;
+    }
+    let current_units: Vec<u16> = current.encode_utf16().collect();
+    let before_units: Vec<u16> = before.encode_utf16().collect();
+    if start > current_units.len() || start > before_units.len() {
+        return false;
+    }
+    if current_units[..start] != before_units[..start] {
+        return false;
+    }
+    match text.encode_utf16().next() {
+        Some(first) => current_units
+            .get(start)
+            .is_some_and(|unit| same_unit(*unit, first)),
+        None => true,
+    }
+}
+
+fn same_unit(left: u16, right: u16) -> bool {
+    left == right || (newline(left) && newline(right))
+}
+
+fn newline(unit: u16) -> bool {
+    unit == u16::from(b'\r') || unit == u16::from(b'\n')
 }
 
 fn range_text(range: &IUIAutomationTextRange) -> String {
@@ -363,7 +394,7 @@ fn prefix_text(
         .map_err(|error| failed("GetText", error))
 }
 
-fn splice(base: &str, prefix: &str, selected: &str, text: &str) -> String {
+fn splice(base: &str, prefix: &str, selected: &str, text: &str) -> (String, usize) {
     let units: Vec<u16> = base.encode_utf16().collect();
     let start = prefix.encode_utf16().count().min(units.len());
     let end = (start + selected.encode_utf16().count()).min(units.len());
@@ -371,7 +402,7 @@ fn splice(base: &str, prefix: &str, selected: &str, text: &str) -> String {
     spliced.extend_from_slice(&units[..start]);
     spliced.extend(text.encode_utf16());
     spliced.extend_from_slice(&units[end..]);
-    String::from_utf16_lossy(&spliced)
+    (String::from_utf16_lossy(&spliced), start)
 }
 
 fn amount(delta: f64) -> ScrollAmount {
@@ -410,4 +441,34 @@ fn scroll(element: &IUIAutomationElement, dx: f64, dy: f64) -> Result<Outcome> {
     Err(unavailable(
         "this element cannot scroll; retry with mode foreground",
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_an_exact_insert() {
+        assert!(accepted("hello world", "hello", 5, " world"));
+    }
+
+    #[test]
+    fn accepts_a_clamped_insert() {
+        assert!(accepted("abcdef", "abc", 3, "defgh"));
+    }
+
+    #[test]
+    fn accepts_a_crlf_normalised_insert() {
+        assert!(accepted("a\r\n", "a", 1, "\n"));
+    }
+
+    #[test]
+    fn rejects_an_unchanged_value() {
+        assert!(!accepted("hello", "hello", 5, " world"));
+    }
+
+    #[test]
+    fn rejects_a_changed_prefix() {
+        assert!(!accepted("help world", "hello", 5, " world"));
+    }
 }
