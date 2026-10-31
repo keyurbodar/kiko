@@ -19,7 +19,7 @@ import { localizeWhen, nextRunLabel } from "./model"
 import { cards, followRecipes, installsFor, setInstallPaused } from "./state"
 
 const chip =
-  "type-base flex h-9 min-w-0 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-editor px-3.5 text-secondary outline-none transition-[background-color,color,transform] duration-(--duration-fast) hover:bg-secondary hover:text-primary focus-visible:bg-secondary active:scale-[0.97]"
+  "type-base flex h-9 min-w-0 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-editor px-3.5 text-secondary outline-none transition-[background-color,color,transform] duration-(--duration-fast) hover:bg-secondary hover:text-primary focus-visible:bg-secondary active:scale-(--press-scale)"
 
 type Base = { id: string; sha256: string }
 
@@ -372,7 +372,9 @@ function NextRun(props: { installs: readonly RecipeInstall[] }) {
             <>
               <IdentityAvatar seed={next().i.agent} size={32} />
               <div class="flex min-w-0 flex-1 flex-col">
-                <span class="type-base truncate text-primary">{nextRunLabel(next().r.dueUtc, Date.now(), next().r.tz)}</span>
+                <span class="type-base truncate text-primary">
+                  {nextRunLabel(next().r.dueUtc, Date.now(), next().r.tz)}
+                </span>
                 <span class="type-sm truncate text-tertiary">In {chatName(next().i)}</span>
               </div>
             </>

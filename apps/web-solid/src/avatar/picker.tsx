@@ -15,7 +15,7 @@ const OUTFITS = ["none", ...OUTFIT_NAMES] as const
 const label = (name: string) => name.charAt(0).toUpperCase() + name.slice(1)
 
 const cell =
-  "grid size-12 cursor-pointer place-items-center rounded-xl outline-none transition-[background-color,box-shadow,transform] duration-(--duration-fast) ease-sharp hover:bg-tertiary active:scale-[0.96] aria-checked:bg-secondary aria-checked:shadow-[inset_0_0_0_2px_var(--bg-accent)]"
+  "grid size-12 cursor-pointer place-items-center rounded-xl outline-none transition-[background-color,box-shadow,transform] duration-(--duration-fast) ease-sharp hover:bg-tertiary active:scale-(--press-scale) aria-checked:bg-secondary aria-checked:shadow-[inset_0_0_0_2px_var(--bg-accent)]"
 
 const HOP: Keyframe[] = [
   { transform: "translateY(0) scale(1, 1)" },

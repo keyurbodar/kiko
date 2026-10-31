@@ -81,7 +81,6 @@ const mocha: ImportedTheme = {
   name: "Catppuccin Mocha",
   source: "Catppuccin.catppuccin-vsc",
   appearance: "dark",
-  accent: "#cba6f7",
   palette: palette("#1e1e2e", "#cdd6f4", "#cba6f7"),
 }
 const latte: ImportedTheme = {
@@ -89,7 +88,6 @@ const latte: ImportedTheme = {
   name: "Catppuccin Latte",
   source: "Catppuccin.catppuccin-vsc",
   appearance: "light",
-  accent: "#8839ef",
   palette: palette("#eff1f5", "#4c4f69", "#8839ef"),
 }
 

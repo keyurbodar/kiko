@@ -27,7 +27,7 @@ export type CardFile = {
 
 const GREY = ["#6f7480", "#9ea3ae"] as const
 
-export function toneOf(name: string): string {
+function toneOf(name: string): string {
   const [light, dark] = fileTone(name) ?? GREY
   return `light-dark(${light}, ${dark})`
 }

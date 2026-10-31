@@ -16,7 +16,7 @@ export function ConnectSheet() {
             <span class="flex items-center gap-3.5 pt-1">
               <RecipeIcon recipe={ask().card} size={44} />
               <span class="flex min-w-0 flex-col gap-0.5">
-                <span class="type-base truncate font-medium">Connect apps first</span>
+                <span class="type-base truncate">Connect apps first</span>
                 <span class="type-sm truncate text-tertiary">{ask().card.title} needs them</span>
               </span>
             </span>

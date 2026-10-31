@@ -125,7 +125,7 @@ export function VirtualTable(props: VirtualTableProps): JSX.Element {
         <Show when={!props.source}>
           <div
             role="row"
-            class="sticky top-0 z-20 flex border-b border-[var(--stroke-tertiary)] bg-editor font-medium text-primary"
+            class="sticky top-0 z-20 flex border-b border-[var(--stroke-tertiary)] bg-editor text-primary"
             style={{ height: `${ROW_HEIGHT}px` }}
           >
             <div

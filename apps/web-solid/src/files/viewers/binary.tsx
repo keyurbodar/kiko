@@ -91,9 +91,9 @@ function ArchiveList(props: { entries: readonly ArchiveEntry[]; size: number; na
         <table class="w-full border-separate border-spacing-0 text-xs">
           <thead class="sticky top-0 z-10 bg-editor text-tertiary">
             <tr>
-              <th class="border-b border-[var(--stroke-tertiary)] px-3 py-1.5 text-left font-medium">Name</th>
-              <th class="w-24 border-b border-[var(--stroke-tertiary)] px-3 py-1.5 text-right font-medium">Size</th>
-              <th class="w-28 border-b border-[var(--stroke-tertiary)] px-3 py-1.5 text-right font-medium">Modified</th>
+              <th class="border-b border-[var(--stroke-tertiary)] px-3 py-1.5 text-left">Name</th>
+              <th class="w-24 border-b border-[var(--stroke-tertiary)] px-3 py-1.5 text-right">Size</th>
+              <th class="w-28 border-b border-[var(--stroke-tertiary)] px-3 py-1.5 text-right">Modified</th>
             </tr>
           </thead>
           <tbody>

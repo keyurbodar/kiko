@@ -128,7 +128,7 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
                       <>
                         <ChatAvatar faces={room.chatFaces(c().roomId)} size={30} />
                         <span class="min-w-0 flex-1">
-                          <span class="block truncate text-sm font-medium text-primary">{c().name}</span>
+                          <span class="block truncate text-sm text-primary">{c().name}</span>
                           <Show when={c().targets.length > 1}>
                             <span class="block truncate text-xs text-tertiary">
                               {expanded() === c().roomId ? "Choose who" : `${c().targets.length} agents`}
@@ -149,9 +149,7 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
                   <Match when={o.kind === "own"}>
                     <RecipeIcon recipe={props.card} size={30} />
                     <span class="min-w-0 flex-1">
-                      <span class="block truncate text-sm font-medium text-primary">
-                        New chat with {props.card.agent.name}
-                      </span>
+                      <span class="block truncate text-sm text-primary">New chat with {props.card.agent.name}</span>
                       <span class="block truncate text-xs text-tertiary">
                         {isOwning(props.card.slug) ? "Making the chat…" : "An agent just for this"}
                       </span>

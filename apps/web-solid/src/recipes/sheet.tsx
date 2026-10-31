@@ -13,7 +13,7 @@ import { addToTarget, editRecipe, installsFor, isAdded, isEditing, refreshListin
 
 const label = "type-sm text-tertiary"
 const sheetSecondary =
-  "type-base flex h-control-xl cursor-pointer items-center gap-2 rounded-base bg-tertiary px-3 font-medium text-primary transition-[background-color,transform] duration-(--duration-fast) hover:bg-quaternary active:scale-[0.97] disabled:opacity-(--opacity-disabled)"
+  "type-base flex h-control-lg cursor-pointer items-center gap-1.5 rounded-base bg-tertiary px-2.5 text-primary transition-[background-color,transform] duration-(--duration-fast) hover:bg-secondary active:scale-(--press-scale) disabled:opacity-(--opacity-disabled)"
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 const asksFirst = (count: number) =>
@@ -30,7 +30,10 @@ function Fact(props: { name: string; children: JSX.Element }) {
 
 function Facts(props: { recipe: RecipeCard; onConnect: () => void }) {
   return (
-    <div class="flex flex-col divide-y divide-[var(--stroke-tertiary)] rounded-xl bg-editor" data-component="recipe-facts">
+    <div
+      class="flex flex-col divide-y divide-[var(--stroke-tertiary)] rounded-xl bg-editor"
+      data-component="recipe-facts"
+    >
       <Fact name="Runs">{localizeWhen(props.recipe.when)}</Fact>
       <Show when={props.recipe.apps.length}>
         <Fact name="Uses">
@@ -96,18 +99,18 @@ export function RecipeSheet(props: {
       data-component="recipe-sheet"
       class="recipe-sheet"
       title={
-        <span class="flex items-center gap-3.5 pt-1">
+        <span class="flex items-center gap-3 pt-1">
           <span
-            class="grid size-12 shrink-0 place-items-center rounded-xl bg-editor"
+            class="grid size-10 shrink-0 place-items-center rounded-lg bg-tertiary"
             style={{ color: `var(--recipe-${props.recipe.tone})` }}
             aria-hidden="true"
           >
-            <svg class="size-6" viewBox="0 0 256 256" fill="currentColor" innerHTML={props.recipe.glyph} />
+            <svg class="size-5" viewBox="0 0 256 256" fill="currentColor" innerHTML={props.recipe.glyph} />
           </span>
           <span class="flex min-w-0 flex-col gap-0.5">
             <span class="truncate">{props.recipe.title}</span>
             <span class="type-sm flex items-center gap-1.5 truncate text-tertiary">
-              <RemixIcon icon={ClockIcon} size={16} class="shrink-0" />
+              <RemixIcon icon={ClockIcon} size={12} class="shrink-0" />
               {adding() ? "Choose where it runs" : localizeWhen(props.recipe.when)}
             </span>
           </span>

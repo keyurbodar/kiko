@@ -104,8 +104,10 @@ export function NoPreview(props: { name: string; href: string }) {
       class="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 px-6 text-center"
       data-component="file-no-preview"
     >
-      <p class="text-lg font-medium text-primary">No preview for this file</p>
-      <p class="max-w-sm text-sm leading-relaxed text-tertiary">Save it to open in an app that supports {ext()} files.</p>
+      <p class="text-lg text-primary">No preview for this file</p>
+      <p class="max-w-sm text-sm leading-relaxed text-tertiary">
+        Save it to open in an app that supports {ext()} files.
+      </p>
       <a
         class="mt-3 inline-flex h-7 items-center gap-1.5 rounded-base border border-[var(--stroke-tertiary)] px-2.5 text-xs text-primary hover:bg-tertiary"
         href={props.href}

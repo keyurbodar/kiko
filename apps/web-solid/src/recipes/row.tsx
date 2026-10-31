@@ -54,8 +54,8 @@ function InstallMenu(props: { install: RecipeInstall; card: RecipeCard; go: (roo
   return (
     <MenuV2 gutter={4} placement="bottom-end">
       <MenuV2.Trigger class={cn(iconButtonClass, "rounded-full")} aria-label={`More for ${props.card.title}`}>
-        <Show when={isEditing(props.card.slug)} fallback={<RemixIcon icon={MoreIcon} size={16} />}>
-          <Spinner size={16} />
+        <Show when={isEditing(props.card.slug)} fallback={<RemixIcon icon={MoreIcon} size={14} />}>
+          <Spinner size={14} />
         </Show>
       </MenuV2.Trigger>
       <MenuV2.Portal>
@@ -112,7 +112,7 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
   }
   return (
     <article
-      class="tpl group flex min-w-0 items-center gap-4 p-3.5"
+      class="tpl group flex min-w-0 items-center gap-3 p-3"
       data-install={props.install.installId}
       data-status={status().kind}
       data-fresh={sinceFresh === undefined ? undefined : ""}
@@ -134,12 +134,12 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
         aria-label={`Open ${chatName()}`}
         onClick={() => openChat(props.install.roomId)}
       >
-        <span class="truncate type-base font-semibold text-primary">{props.card.title}</span>
-        <span class="type-base truncate text-tertiary">{props.card.description}</span>
-        <span class="type-sm mt-0.5 flex min-w-0 items-center gap-2 text-quaternary">
-          <RemixIcon icon={ClockIcon} size={16} class="shrink-0" />
+        <span class="truncate type-base text-primary">{props.card.title}</span>
+        <span class="type-sm truncate text-tertiary">{props.card.description}</span>
+        <span class="type-sm mt-0.5 flex min-w-0 items-center gap-1.5 text-tertiary">
+          <RemixIcon icon={ClockIcon} size={12} class="shrink-0 icon-tertiary" />
           <span class="truncate">{localizeWhen(props.card.when)}</span>
-          <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={18} />
+          <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={16} />
           <span class="truncate">{chatName()}</span>
         </span>
       </button>
@@ -157,7 +157,7 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
             role="switch"
             aria-checked={on()}
             aria-label={`${on() ? "Pause" : "Resume"} ${props.card.title}`}
-            class="tpl-switch cursor-pointer outline-none active:scale-[0.97]"
+            class="tpl-switch cursor-pointer outline-none active:scale-(--press-scale)"
             data-action="recipe-pause"
             onClick={() => setInstallPaused(props.install, on())}
           />
@@ -186,7 +186,7 @@ export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; na
       >
         <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={36} />
         <span class="flex min-w-0 flex-1 flex-col gap-1">
-          <span class="type-base truncate font-medium text-primary">{title()}</span>
+          <span class="type-base truncate text-primary">{title()}</span>
           <span class="flex min-w-0 items-center gap-2">
             <Runner install={props.install} />
             <StatusChip status={installStatus(props.install, props.card)} />

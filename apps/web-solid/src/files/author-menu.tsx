@@ -54,7 +54,7 @@ export function AuthorMenu(props: {
   return (
     <MenuV2 gutter={6} placement="bottom-start">
       <MenuV2.Trigger
-        class="type-base flex h-control-xl max-w-64 min-w-0 cursor-pointer items-center gap-2 rounded-base px-3 font-medium text-secondary transition-[background-color,color,transform] duration-(--duration-fast) hover:bg-tertiary hover:text-primary active:scale-[0.97] aria-expanded:bg-tertiary aria-expanded:text-primary data-[picked]:bg-secondary data-[picked]:text-primary"
+        class="type-base flex h-control-xl max-w-64 min-w-0 cursor-pointer items-center gap-2 rounded-base px-3 text-secondary transition-[background-color,color,transform] duration-(--duration-fast) hover:bg-tertiary hover:text-primary active:scale-(--press-scale) aria-expanded:bg-tertiary aria-expanded:text-primary data-[picked]:bg-secondary data-[picked]:text-primary"
         aria-label={`Show files from ${authorLabel(props.value)}`}
         data-action="filter-author"
         data-picked={props.value === "all" ? undefined : ""}

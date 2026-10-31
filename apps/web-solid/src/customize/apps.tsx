@@ -28,15 +28,15 @@ export function AppsTab(props: { query: string; scope: Scope }) {
           each={rows()}
           fallback={
             <div
-              class="col-span-full flex flex-col items-center gap-2 px-6 py-12 text-center"
+              class="col-span-full mx-auto flex max-w-sm flex-col items-center gap-4 px-6 py-12 text-center"
               data-component="apps-empty"
             >
-              <EmptyArt name={props.scope === "yours" && !props.query ? "plug" : "search"} size={140} />
+              <EmptyArt name={props.scope === "yours" && !props.query ? "plug" : "search"} size={96} />
               <p class="type-base text-secondary">
                 {props.scope === "yours" && !props.query ? "No apps connected." : "Nothing matches."}
               </p>
               <Show when={props.scope === "yours" && !props.query}>
-                <p class="type-sm max-w-[280px] text-tertiary">
+                <p class="type-sm -mt-3 text-tertiary">
                   Connect Gmail or Calendar so your agents can help with real things.
                 </p>
               </Show>
@@ -48,26 +48,26 @@ export function AppsTab(props: { query: string; scope: Scope }) {
             return (
               <button
                 type="button"
-                class="group flex min-w-0 cursor-pointer items-start gap-3.5 page-card rounded-xl bg-editor p-4 text-left outline-none transition-[background-color,transform] duration-(--duration-fast) hover:bg-elevated active:scale-[0.99] focus-visible:bg-elevated"
+                class="group flex min-w-0 cursor-pointer items-center gap-3 page-card rounded-xl bg-editor p-3 text-left outline-none transition-[background-color,transform] duration-(--duration-fast) hover:bg-quaternary-opaque-elevated active:scale-(--press-scale) focus-visible:bg-quaternary-opaque-elevated"
                 data-tool={`app:${row.id}`}
                 onClick={() => setOpenId(row.id)}
               >
-                <span class="grid size-12 shrink-0 place-items-center rounded-xl bg-elevated text-primary transition-colors duration-(--duration-fast) group-hover:bg-secondary [&_svg]:size-7">
+                <span class="grid size-9 shrink-0 place-items-center rounded-lg bg-tertiary text-primary [&_svg]:size-5">
                   <row.app.icon />
                 </span>
                 <span class="flex min-w-0 flex-1 flex-col">
-                  <span class="type-base truncate font-semibold text-primary">{row.app.name}</span>
-                  <span class="type-base line-clamp-2 text-tertiary">{row.app.description}</span>
+                  <span class="type-base truncate text-primary">{row.app.name}</span>
+                  <span class="type-sm line-clamp-2 text-tertiary">{row.app.description}</span>
                   <Show when={row.state === "broken"}>
                     <span class="type-sm mt-1 text-danger">Key rejected</span>
                   </Show>
                 </span>
                 <span
-                  class="grid size-8 shrink-0 place-items-center rounded-base bg-elevated text-secondary transition-colors duration-(--duration-fast) group-hover:bg-secondary"
+                  class="grid size-6 shrink-0 place-items-center rounded-base icon-tertiary transition-colors duration-(--duration-fast) group-hover:icon-primary"
                   aria-hidden="true"
                 >
-                  <Show when={connected()} fallback={<RemixIcon icon={PlusIcon} size={16} class="page-swap" />}>
-                    <RemixIcon icon={CheckIcon} size={16} class="page-swap text-success" />
+                  <Show when={connected()} fallback={<RemixIcon icon={PlusIcon} size={14} class="page-swap" />}>
+                    <RemixIcon icon={CheckIcon} size={14} class="page-swap text-success" />
                   </Show>
                 </span>
               </button>

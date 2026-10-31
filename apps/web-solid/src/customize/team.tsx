@@ -80,20 +80,20 @@ export function TeamTab() {
           {(agent) => (
             <article
               ref={(el) => onCleanup(look(el))}
-              class="group relative flex min-w-0 flex-col gap-4 page-card rounded-xl bg-editor p-4 transition-colors duration-(--duration-fast) hover:bg-elevated"
+              class="group relative flex min-w-0 flex-col gap-3 page-card rounded-xl bg-editor p-3 transition-colors duration-(--duration-fast) hover:bg-quaternary-opaque-elevated"
               data-agent={agent.slug}
             >
-              <div class="flex min-w-0 items-center gap-3.5">
+              <div class="flex min-w-0 items-center gap-3">
                 <button
                   type="button"
-                  class="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 text-left outline-none after:absolute after:inset-0 after:rounded-[inherit]"
+                  class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none after:absolute after:inset-0 after:rounded-[inherit]"
                   aria-label={`Open ${agent.name}`}
                   data-action="open-agent"
                   onClick={() => openAgent(agent)}
                 >
-                  <IdentityAvatar seed={agent.slug} size={48} />
+                  <IdentityAvatar seed={agent.slug} size={36} />
                   <span class="flex min-w-0 flex-1 flex-col">
-                    <span class="type-base truncate font-semibold text-primary">{agent.name}</span>
+                    <span class="type-base truncate text-primary">{agent.name}</span>
                     <span class="type-sm truncate text-tertiary">
                       {agent.id === KIKO ? "Lead, plans and routes" : firstLine(agent.prompt) || `@${agent.slug}`}
                     </span>
@@ -101,7 +101,7 @@ export function TeamTab() {
                 </button>
                 <button
                   type="button"
-                  class="type-sm relative z-[1] flex h-8 shrink-0 cursor-pointer items-center rounded-base px-3 font-medium text-secondary transition-colors duration-(--duration-fast) hover:bg-secondary hover:text-primary"
+                  class="type-sm relative z-[1] flex h-control-md shrink-0 cursor-pointer items-center rounded-base px-2 text-secondary transition-colors duration-(--duration-fast) hover:bg-tertiary hover:text-primary"
                   aria-label={`Edit ${agent.name}`}
                   data-action="edit-agent"
                   onClick={() => openSettings("models")}
@@ -111,7 +111,7 @@ export function TeamTab() {
                 <Show when={agent.id !== KIKO}>
                   <button
                     type="button"
-                    class="type-sm relative z-[1] flex h-8 shrink-0 cursor-pointer items-center rounded-base px-3 font-medium text-secondary transition-colors duration-(--duration-fast) hover:bg-secondary hover:text-danger"
+                    class="type-sm relative z-[1] flex h-control-md shrink-0 cursor-pointer items-center rounded-base px-2 text-secondary transition-colors duration-(--duration-fast) hover:bg-tertiary hover:text-danger"
                     aria-label={`Delete ${agent.name}`}
                     data-action="delete-agent"
                     onClick={() => setDeleting(agent)}
@@ -124,7 +124,7 @@ export function TeamTab() {
                 <div class="flex flex-col gap-2">
                   <span class="type-sm text-tertiary">Can use</span>
                   <span class="flex items-center gap-1.5">
-                    <For each={appsFor(agent.slug).slice(0, 8)}>{(app) => <AppLogo app={app} size={26} />}</For>
+                    <For each={appsFor(agent.slug).slice(0, 8)}>{(app) => <AppLogo app={app} size={20} />}</For>
                   </span>
                 </div>
               </Show>
@@ -133,7 +133,7 @@ export function TeamTab() {
                   <Show when={resolvedModel(agent)}>
                     {(model) => (
                       <>
-                        <ProviderIcon id={model().provider} width="16" height="16" />
+                        <ProviderIcon id={model().provider} width="14" height="14" />
                         <span class="truncate" data-field="model">
                           {model().name}
                         </span>

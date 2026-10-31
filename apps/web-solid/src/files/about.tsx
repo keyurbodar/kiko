@@ -36,7 +36,7 @@ export function FileAbout(props: { chatId: string; path: string; file: FileRef |
   const edited = () => fact()?.at
   return (
     <section class="flex min-w-0 flex-col gap-2 px-4 py-4" aria-label="About this file" data-component="file-about">
-      <h3 class="type-sm m-0 font-medium text-primary">About this file</h3>
+      <h3 class="type-sm m-0 text-primary">About this file</h3>
       <dl class="m-0 flex flex-col">
         <Row label="Type">
           {recipeSlugOf(props.path)

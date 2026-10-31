@@ -28,7 +28,7 @@ import "./right-panel.css"
 const scrolls = new Map<string, number>()
 
 const KEY_HINT =
-  "grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-[5px] bg-tertiary px-1 text-[11px] font-medium text-[var(--text-tertiary)]"
+  "grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-[5px] bg-tertiary px-1 text-[11px] text-[var(--text-tertiary)]"
 
 const SHORTCUT_BLOCKING_LAYERS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]'
 
@@ -363,7 +363,7 @@ function EmptyPanel(props: { chatId: string }) {
       onKeyDown={onKeyDown}
     >
       <div class="w-full max-w-xs py-6">
-        <h3 class="mb-3 text-center text-[13px] font-medium text-[var(--text-primary)]">Open a surface</h3>
+        <h3 class="mb-3 text-center text-[13px] text-[var(--text-primary)]">Open a surface</h3>
         <div class="flex flex-col gap-0.5">
           <For each={entries()}>
             {(entry, index) => (

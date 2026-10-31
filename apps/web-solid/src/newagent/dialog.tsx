@@ -101,7 +101,11 @@ export default function NewAgentDialog() {
               <span class="flex items-center gap-1">
                 <span aria-hidden="true">@</span>
                 <input
-                  class={cn(fieldClass, "min-w-0 flex-1", issues().handle && "shadow-[inset_0_0_0_1px_var(--text-danger)]")}
+                  class={cn(
+                    fieldClass,
+                    "min-w-0 flex-1",
+                    issues().handle && "shadow-[inset_0_0_0_1px_var(--text-danger)]",
+                  )}
                   name="handle"
                   autocomplete="off"
                   spellcheck={false}
@@ -131,7 +135,7 @@ export default function NewAgentDialog() {
                 role="radio"
                 aria-checked={chosen() === index()}
                 aria-label={index() === 0 ? "Face from the name" : `Face ${index() + 1}`}
-                class="grid aspect-square place-items-center rounded-xl outline-none transition-[background-color,transform] duration-[var(--duration-fast)] hover:bg-tertiary active:scale-[0.97] aria-checked:bg-secondary"
+                class="grid aspect-square place-items-center rounded-xl outline-none transition-[background-color,transform] duration-[var(--duration-fast)] hover:bg-tertiary active:scale-(--press-scale) aria-checked:bg-secondary"
                 onClick={() => setChosen(index())}
               >
                 {face(index(), 32)}
