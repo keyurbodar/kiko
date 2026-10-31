@@ -1,6 +1,6 @@
 import "../../index.css"
 import { describe, expect, it, vi } from "vitest"
-import { userEvent } from "vitest/browser"
+import { page, userEvent } from "vitest/browser"
 import { render } from "../../../test/render"
 import ImageDialog from "./ImageDialog"
 
@@ -28,6 +28,11 @@ describe("ImageDialog", () => {
     const onClose = vi.fn()
     await using _screen = await render(() => <ImageDialog images={images} index={0} onClose={onClose} />)
 
+    await vi.waitFor(() =>
+      expect(document.querySelector('[role="dialog"]')?.contains(document.activeElement)).toBe(true),
+    )
+    await userEvent.hover(page.getByRole("region", { name: "first.png, zoomable image" }))
+    await vi.waitFor(() => expect(document.querySelector('[role="tooltip"]')).toBeNull())
     await userEvent.keyboard("{Escape}")
 
     await vi.waitFor(() => expect(onClose).toHaveBeenCalled())
