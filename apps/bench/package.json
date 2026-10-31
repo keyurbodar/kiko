@@ -1,0 +1,16 @@
+{
+  "name": "@kiko/bench",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bench": "bun src/main.ts",
+    "typecheck": "tsgo --noEmit",
+    "test": "vitest run --config ../../vitest.config.ts --dir ."
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.14",
+    "typescript": "^5.9.0",
+    "vitest": "5.0.5"
+  }
+}

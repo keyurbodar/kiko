@@ -1,0 +1,13 @@
+{
+  "contenders": ["cua-driver", "agent-desktop", "agent-browser"],
+  "runners": ["ubuntu-24.04", "macos-15", "windows-2025"],
+  "versions": {
+    "cua-driver": "0.38.0",
+    "agent-desktop": "1.0.2",
+    "agent-browser": "0.41.0"
+  },
+  "smoke": {
+    "timeoutSeconds": 240,
+    "typed": "kiko bench typed this"
+  }
+}
