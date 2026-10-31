@@ -1,9 +1,7 @@
-export type Platform = "macos" | "linux" | "windows"
+type Platform = "macos" | "linux"
 
 export function platform(): Platform {
-  if (process.platform === "darwin") return "macos"
-  if (process.platform === "win32") return "windows"
-  return "linux"
+  return process.platform === "darwin" ? "macos" : "linux"
 }
 
 const MAX_LONG_EDGE = 1920
@@ -29,7 +27,6 @@ const HARDWARE: readonly Encoder[] = [
   { name: "h264_videotoolbox", args: ["-realtime", "true", "-allow_sw", "1"] },
   { name: "h264_nvenc", args: ["-preset", "p1", "-tune", "ull", "-zerolatency", "1"] },
   { name: "h264_qsv", args: ["-preset", "veryfast", "-low_power", "1"] },
-  { name: "h264_mf", args: ["-scenario", "display_remoting"] },
   { name: "h264_vaapi", args: [] },
 ]
 
@@ -74,34 +71,8 @@ function macSources(fps: number, index: number): string[][] {
   ]
 }
 
-function windowsSources(screen: Screen, fps: number): string[][] {
-  const offset = `:offset_x=${screen.originX ?? 0}:offset_y=${screen.originY ?? 0}`
-  return [
-    ["-f", "lavfi", "-i", `ddagrab=output_idx=0:framerate=${fps}:draw_mouse=0`],
-    ["-f", "lavfi", "-i", `ddagrab=output_idx=0:framerate=${fps}:draw_mouse=0${offset}`],
-    [
-      "-f",
-      "gdigrab",
-      "-draw_mouse",
-      "0",
-      "-framerate",
-      String(fps),
-      "-offset_x",
-      String(screen.originX ?? 0),
-      "-offset_y",
-      String(screen.originY ?? 0),
-      "-video_size",
-      `${screen.width}x${screen.height}`,
-      "-i",
-      "desktop",
-    ],
-  ]
-}
-
 function sources(options: CaptureOptions): string[][] {
-  const name = platform()
-  if (name === "macos") return macSources(options.fps, options.screenIndex ?? 0)
-  if (name === "windows") return windowsSources(options.screen, options.fps)
+  if (platform() === "macos") return macSources(options.fps, options.screenIndex ?? 0)
   return linuxSources(options.screen, options.fps)
 }
 
@@ -116,10 +87,9 @@ function videoEncoders(options: CaptureOptions): Encoder[] {
   return [...hardware, { name: "libx264", args: ["-c:v", ...SOFTWARE, ...gop, ...force] }]
 }
 
-function inputFilter(options: CaptureOptions, encoder: string, source: readonly string[]): string[] {
+function inputFilter(options: CaptureOptions, encoder: string): string[] {
   const size = scaled(options.screen, options.maxWidth)
-  const gpuFrames = source.some((part) => part.startsWith("ddagrab"))
-  const scale = `${gpuFrames ? "hwdownload,format=bgra," : ""}scale=${size.width}:${size.height}:flags=fast_bilinear`
+  const scale = `scale=${size.width}:${size.height}:flags=fast_bilinear`
   return ["-vf", encoder === "h264_vaapi" ? `${scale},format=nv12,hwupload` : scale]
 }
 
@@ -133,7 +103,7 @@ export function capturePlans(options: CaptureOptions): string[][] {
       ...(encoder.name === "h264_vaapi" ? ["-vaapi_device", VAAPI_DEVICE] : []),
       ...source,
       ...fixed,
-      ...inputFilter(options, encoder.name, source),
+      ...inputFilter(options, encoder.name),
       ...encoder.args,
       ...output,
     ]),
