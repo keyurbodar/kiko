@@ -18,15 +18,21 @@ const python = Bun.which(process.platform === "win32" ? "python" : "python3") ??
 const vim = Bun.which("vim") ?? Bun.which("nvim") ?? Bun.which("vi")
 const dir = await mkdtemp(join(tmpdir(), "kiko-terminal-e2e-"))
 
+async function prompt(id: string): Promise<void> {
+  const ready = await manager.wait({ id, until: "[>#$%]\\s*$", regex: true, timeoutMs: 60_000 })
+  ok(ready.matched, `${id} showed a prompt: ${JSON.stringify(ready.text.slice(-80))}`)
+}
+
 try {
   console.log(`platform ${process.platform} bun ${Bun.version} pty ${typeof Bun.Terminal === "function"}`)
   ok(typeof Bun.Terminal === "function", "Bun has a pseudo-terminal")
   ok(python !== null, `found a python: ${python ?? "none"}`)
 
   const repl = manager.open({ name: "repl", cols: 100, rows: 30 })
+  await prompt(repl.id)
   manager.send({ id: repl.id, text: `"${python}" -q`, keys: ["enter"] })
-  const prompt = await manager.wait({ id: repl.id, until: ">>>", timeoutMs: 60_000 })
-  ok(prompt.matched, `the python prompt appeared: ${prompt.text.trim().split("\n").at(-1) ?? ""}`)
+  const pythonPrompt = await manager.wait({ id: repl.id, until: ">>>", timeoutMs: 60_000 })
+  ok(pythonPrompt.matched, `the python prompt appeared: ${pythonPrompt.text.trim().split("\n").at(-1) ?? ""}`)
 
   manager.send({ id: repl.id, text: "print(6*7)", keys: ["enter"] })
   const answer = await manager.wait({ id: repl.id, until: "42", timeoutMs: 30_000 })
@@ -50,6 +56,7 @@ try {
   const note = join(dir, "note.txt")
   await writeFile(note, "kiko terminal screen\nsecond line\n")
   const editor = manager.open({ name: "editor", cols: 100, rows: 30 })
+  await prompt(editor.id)
   const command = vim ? `"${vim}" -u NONE -N "${note}"` : `"${python}" -u "${join(dir, "fullscreen.py")}"`
   if (!vim)
     await writeFile(
