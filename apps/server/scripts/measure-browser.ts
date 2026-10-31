@@ -184,9 +184,14 @@ const MEASURE_CLICK = async (timeoutMs: number) => {
     }
     await new Promise((resolve) => setTimeout(resolve, 8))
   }
-  if (!painted) return null
+  if (!painted) return { latency: null, frame: null, click, frames: store.__frames.length }
   const frames = store.__frames.filter((at) => at >= click && at <= painted)
-  return { latency: Math.round(painted - click), frame: frames.length ? Math.round(frames.at(-1)! - click) : null }
+  return {
+    latency: Math.round(painted - click),
+    frame: frames.length ? Math.round(frames.at(-1)! - click) : null,
+    click,
+    frames: store.__frames.length,
+  }
 }
 
 function percentile(values: readonly number[], p: number): number {
@@ -416,6 +421,8 @@ async function main(): Promise<void> {
     )
     const openMs = Date.now() - opened
 
+    const streamed = await meter(session.token)
+
     const takeover = page.locator('[data-action="computer-takeover"]')
     if ((await takeover.count()) > 0) {
       await takeover.click()
@@ -423,24 +430,28 @@ async function main(): Promise<void> {
       await wait(400)
     }
 
+    const taken = await meter(session.token)
+
     const stage = await page.locator('[data-part="stage"]').boundingBox()
     if (!stage) throw new Error("the browser stage has no box")
     const x = stage.x + stage.width * 0.5
     const y = stage.y + stage.height * 0.5
     const clicks: number[] = []
     const frames: number[] = []
+    const missed: unknown[] = []
     for (let round = 0; round < 5; round++) {
       await page.evaluate(() => {
         ;(window as unknown as { __click: number }).__click = 0
       })
       await wait(900)
-      const sampling = page.evaluate(MEASURE_CLICK, 4_000)
       await page.mouse.click(x, y)
-      const seen = (await sampling) as { latency: number; frame: number | null } | null
-      if (seen) {
-        clicks.push(seen.latency)
-        if (seen.frame !== null) frames.push(seen.frame)
+      const seen = (await page.evaluate(MEASURE_CLICK, 4_000)) as {
+        latency: number | null
+        frame: number | null
       }
+      if (seen.latency !== null) clicks.push(seen.latency)
+      if (seen.frame !== null) frames.push(seen.frame)
+      if (seen.latency === null) missed.push(seen)
       await wait(900)
     }
 
@@ -470,9 +481,18 @@ async function main(): Promise<void> {
       openMs,
       clickToFrame: summary(frames),
       clickToPaint: summary(clicks),
+      missed,
       typing: { typed, ok: typed === "hi" },
       focus: { before: frontBefore, after: frontAfter, chrome, raised: frontBefore !== frontAfter || chrome > 0 },
-      writes: { before, after, delta: after - before },
+      writes: {
+        before,
+        streamed,
+        taken,
+        after,
+        attachAndFrames: streamed - before,
+        takeover: taken - streamed,
+        inputAndFrames: after - taken,
+      },
     }
     const out = process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out") + 1] : undefined
     if (out) await writeFile(out, `${JSON.stringify(output, null, 2)}\n`)
