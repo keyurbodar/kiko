@@ -9,8 +9,6 @@ const tokens = (seed: number): { old: string; fresh: string } => {
   return { old: `sk_live_${hex(rng, 24)}`, fresh: `sk_live_${hex(rng, 24)}` }
 }
 
-const FILES = ["config/app.json", "config/worker.json", "deploy/env", "scripts/setup.sh"]
-
 const MESSAGES = [
   "Add the app config",
   "Add the worker config",
