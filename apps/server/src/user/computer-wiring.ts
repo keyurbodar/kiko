@@ -12,7 +12,7 @@ import type { Op } from "@kiko/computer/wire"
 import type { OwnerServices } from "../owner/services"
 import { MAX_DEADLINE_MS, type ComputerHub } from "../computer/hub"
 import { mintPairCode } from "../computer/pairing"
-import type { ComputerLinkResult, PcCallOutcome, PcReleased } from "../computer/types"
+import type { ComputerLinkResult, PcCallOutcome, PcReleased, PcTaken } from "../computer/types"
 import type { Env } from "../index"
 import type { Attachment } from "./socket-frames"
 import { subscribe } from "../owner/socket"
@@ -27,6 +27,9 @@ const RESUMED = {
 } as const
 const RESUME =
   " Carry on with the computer work that was waiting. Tell the worker that was waiting to continue with tell_work; the computer is where the human left it, so it does not need to set anything up again. Say one short line to the human only if there is something to say."
+
+const taken = (name: string): string =>
+  `The owner took over ${name}. Wait until they hand it back: do not use its screen, shell or files until you are told to carry on.`
 
 const NAME_MAX = 60
 const MAX_REASON = 300
@@ -180,13 +183,17 @@ export class ComputerWiring {
 
   readonly take = Effect.fn("Computers.take")({ self: this }, function* (socket: WebSocket, pcId: string) {
     const row = yield* this.row(pcId)
-    if (!this.hub.take(row.id, socket))
+    if (!(yield* Effect.promise(() => this.hub.take(row.id, socket))))
       return yield* new RefusedError({ reason: "offline", message: `${row.name} is not connected` })
   })
 
-  readonly release = Effect.fn("Computers.release")({ self: this }, function* (pcId: string) {
+  readonly release = Effect.fn("Computers.release")({ self: this }, function* (socket: WebSocket, pcId: string) {
     const row = yield* this.row(pcId)
-    this.released(this.hub.release(row.id))
+    if (this.hub.releaseBy(row.id, this.hub.session(socket)) === "other")
+      return yield* new RefusedError({
+        reason: "held",
+        message: `another viewer has control of ${row.name}, so only that viewer can hand it back`,
+      })
   })
 
   readonly rtc = Effect.fn("Computers.rtc")(
@@ -199,9 +206,9 @@ export class ComputerWiring {
 
   readonly input = Effect.fn("Computers.input")(
     { self: this },
-    function* (pcId: string, events: readonly ComputerInput[]) {
+    function* (socket: WebSocket, pcId: string, events: readonly ComputerInput[]) {
       const row = yield* this.row(pcId)
-      this.hub.input(row.id, events)
+      this.hub.input(row.id, this.hub.session(socket), events)
     },
   )
 
@@ -239,6 +246,24 @@ export class ComputerWiring {
       this.d.ctx.waitUntil(
         Promise.resolve(wake).catch((e) =>
           console.error(`computer resume wake failed: ${e instanceof Error ? e.message : String(e)}`),
+        ),
+      )
+    }
+  }
+
+  taken(out: PcTaken): void {
+    for (const waiter of out.waiters) {
+      if (!isRoomId(waiter.roomId) || !isAgentSlug(waiter.slug)) continue
+      const wake = this.d.services.room(waiter.roomId).wake({
+        id: `computer-taken:${out.pcId}:${out.epoch}:${waiter.slug}`,
+        to: waiter.slug,
+        why: "system",
+        body: taken(out.name),
+        chain: null,
+      })
+      this.d.ctx.waitUntil(
+        Promise.resolve(wake).catch((e) =>
+          console.error(`computer taken wake failed: ${e instanceof Error ? e.message : String(e)}`),
         ),
       )
     }

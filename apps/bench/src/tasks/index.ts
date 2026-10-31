@@ -9,6 +9,23 @@ import { login } from "./browser/007-login"
 import { searchFilter } from "./browser/008-search-filter"
 import { pagination } from "./browser/009-pagination"
 import { modalDelete } from "./browser/010-modal-delete"
+import { checkoutTask } from "./browser/browser-101-checkout"
+import { reauthSettings } from "./browser/browser-102-reauth-settings"
+import { productCompare } from "./browser/browser-103-product-compare"
+import { formFromPdf } from "./browser/browser-104-form-from-pdf"
+import { issueTriage } from "./browser/browser-105-issue-triage"
+import { researchSixPages } from "./browser/browser-106-research-six-pages"
+import { inboxZero } from "./browser/browser-107-inbox-zero"
+import { shadowIframe } from "./browser/browser-108-shadow-iframe"
+import { infiniteScroll } from "./browser/browser-109-infinite-scroll"
+import { kanbanDrag } from "./browser/browser-110-kanban-drag"
+import { richText } from "./browser/browser-111-rich-text"
+import { oauthPopup } from "./browser/browser-112-oauth-popup"
+import { flakyBackend } from "./browser/browser-113-flaky-backend"
+import { humanWall } from "./browser/browser-114-human-wall"
+import { datePicker } from "./browser/browser-115-date-picker"
+import { fileUpload } from "./browser/browser-116-file-upload"
+import { hiddenTabSurvey } from "./browser/browser-117-hidden-tab"
 import { desktopForm } from "./desktop/001-set-field"
 import { desktopSettings } from "./desktop/002-toggle-settings"
 import { desktopMenu } from "./desktop/003-menu-pick"
@@ -24,6 +41,19 @@ import { fixScript } from "./terminal/fix-script"
 import { gitBranch } from "./terminal/git-branch"
 import { terminalTasksA } from "./terminal/registry-a"
 import { terminalTasksB } from "./terminal/registry-b"
+import { desktopCalcColumn } from "./desktop/desktop-101-calc-column"
+import { desktopSaveAs } from "./desktop/desktop-102-save-as-folder"
+import { desktopBatchRename } from "./desktop/desktop-103-batch-rename"
+import { desktopPreference } from "./desktop/desktop-104-app-preference"
+import { desktopReport } from "./desktop/desktop-105-report-chart"
+import { desktopBigForm } from "./desktop/desktop-106-big-form"
+import { desktopModal } from "./desktop/desktop-107-modal-midtask"
+import { desktopMinimized } from "./desktop/desktop-108-minimized-window"
+import { desktopSameTitle } from "./desktop/desktop-109-same-title"
+import { desktopHidpi } from "./desktop/desktop-110-hidpi"
+import { desktopGermanKeyboard } from "./desktop/desktop-111-german-keyboard"
+import { desktopNotification } from "./desktop/desktop-112-notification"
+import { desktopOwnerTyping } from "./desktop/desktop-113-owner-typing"
 
 export const TASKS: readonly Task[] = [
   ...terminalTasksA,
@@ -51,4 +81,34 @@ export const TASKS: readonly Task[] = [
   desktopRadio,
   desktopTree,
   desktopWindows,
+  desktopCalcColumn,
+  desktopSaveAs,
+  desktopBatchRename,
+  desktopPreference,
+  desktopReport,
+  desktopBigForm,
+  desktopModal,
+  desktopMinimized,
+  desktopSameTitle,
+  desktopHidpi,
+  desktopGermanKeyboard,
+  desktopNotification,
+  desktopOwnerTyping,
+  checkoutTask,
+  reauthSettings,
+  productCompare,
+  formFromPdf,
+  issueTriage,
+  researchSixPages,
+  inboxZero,
+  shadowIframe,
+  infiniteScroll,
+  kanbanDrag,
+  richText,
+  oauthPopup,
+  flakyBackend,
+  humanWall,
+  datePicker,
+  fileUpload,
+  hiddenTabSurvey,
 ]

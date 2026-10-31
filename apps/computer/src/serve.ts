@@ -42,9 +42,9 @@ export async function serve(dir = configDir()): Promise<number> {
   const livePolicy = cachedPolicy({ live: policy.live, input: policy.input }, () => loadPolicy(dir))
   const currentPolicy = policyCache(dir)
   const pauseWatch = watchPaused(dir)
-  let live: Live = emptyLive({ logger: log, setHolder })
-  let driver: Driver | null = null
   let link: ReturnType<typeof runLink> | null = null
+  let live: Live = emptyLive({ logger: log, setHolder, send: (frame) => link?.frame(frame) })
+  let driver: Driver | null = null
   let detection = detect(log, policy, null, dir)
   let liveCaps: LiveCaps = policy
   let liveStarting = false

@@ -14,9 +14,20 @@ const pill =
 
 export default function Viewer(): JSX.Element {
   const pc = () => computerById(viewerFor() ?? "")
+  const control = (): "watching" | "you" | "other" => {
+    const computer = pc()
+    if (computer?.holder !== "human") return "watching"
+    return computer.heldBy === "you" ? "you" : "other"
+  }
   const interactive = () => {
     const computer = pc()
-    return computer?.holder === "human" && canControl(computer)
+    return computer !== undefined && control() === "you" && canControl(computer)
+  }
+  const stateLabel = () => {
+    const name = pc()?.name ?? ""
+    if (control() === "you") return `You have control of ${name}`
+    if (control() === "other") return `Another viewer has control of ${name}`
+    return `Watching ${name}`
   }
   const reason = () => pc()?.agent?.reason
   const agentName = () => {
@@ -65,10 +76,19 @@ export default function Viewer(): JSX.Element {
               data-part="bar"
             >
               <div class="flex min-w-0 flex-1 flex-col">
-                <span class="truncate text-base font-semibold" data-field="viewer-reason">
-                  {reason() ??
-                    (interactive() ? `You are controlling ${computer().name}` : `Watching ${computer().name}`)}
+                <span class="truncate text-base font-semibold" data-field="viewer-reason" data-state={control()}>
+                  {reason() ?? stateLabel()}
                 </span>
+                <Show when={reason()}>
+                  <span class="truncate type-xs opacity-70" data-field="viewer-state">
+                    {stateLabel()}
+                  </span>
+                </Show>
+                <Show when={control() === "other"}>
+                  <span class="truncate type-xs opacity-70" data-field="viewer-held-elsewhere">
+                    Take over to move it to this tab.
+                  </span>
+                </Show>
                 <Show when={accessHint(computer())}>
                   {(line) => (
                     <span class="truncate type-xs opacity-70" data-field="viewer-access">
