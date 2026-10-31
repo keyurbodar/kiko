@@ -4,8 +4,8 @@ import { page, userEvent } from "vitest/browser"
 import { render } from "../../test/render"
 import Appearance from "./appearance"
 import { look, updateLook } from "./live"
-import mono from "@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2?url"
-import sans from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url"
+import mono from "../fonts/geist-mono-core.woff2?url"
+import sans from "../fonts/geist-core.woff2?url"
 
 async function install(family: string, url: string) {
   const face = new FontFace(family, `url(${url})`)

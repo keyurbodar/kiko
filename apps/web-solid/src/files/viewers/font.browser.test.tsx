@@ -1,7 +1,7 @@
 import "../../index.css"
 import { expect, it } from "vitest"
 import { render } from "../../../test/render"
-import geist from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url"
+import geist from "../../fonts/geist-core.woff2?url"
 import FontViewer from "./font"
 
 it("shows a font specimen with its family and several sizes", async () => {
