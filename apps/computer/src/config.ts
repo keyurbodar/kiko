@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync, statSync } from "node:fs"
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { homeDir } from "./platform"
@@ -58,10 +58,6 @@ function appDir(): string {
   if (process.platform === "darwin") return join(homeDir(), "Library", "Application Support", "kiko")
   if (process.platform === "win32") return join(process.env.APPDATA ?? join(homeDir(), "AppData", "Roaming"), "kiko")
   return join(process.env.XDG_CONFIG_HOME ?? join(homeDir(), ".config"), "kiko")
-}
-
-export function paused(dir = configDir()): boolean {
-  return existsSync(join(dir, "paused")) || existsSync(join(appDir(), "paused"))
 }
 
 async function readJson(file: string): Promise<unknown> {
@@ -130,7 +126,72 @@ function mergePolicy(raw: unknown): Policy {
 }
 
 export async function loadPolicy(dir = configDir()): Promise<Policy> {
-  return mergePolicy(await readJson(paths(dir).policy))
+  return readPolicy(paths(dir).policy)
+}
+
+type Stamp = { ino: number; mtimeMs: number; size: number }
+
+function stampOf(file: string): Stamp | null {
+  try {
+    const info = statSync(file)
+    return { ino: info.ino, mtimeMs: info.mtimeMs, size: info.size }
+  } catch {
+    return null
+  }
+}
+
+const sameStamp = (a: Stamp | null, b: Stamp | null): boolean =>
+  a === b || (a !== null && b !== null && a.ino === b.ino && a.mtimeMs === b.mtimeMs && a.size === b.size)
+
+function readPolicy(file: string): Policy {
+  try {
+    return mergePolicy(JSON.parse(readFileSync(file, "utf8")))
+  } catch {
+    return DEFAULT_POLICY
+  }
+}
+
+const POLICY_RELOAD_MS = 1_000
+const PAUSE_RELOAD_MS = 250
+
+export function policyCache(
+  dir = configDir(),
+  now: () => number = Date.now,
+): { get(): Promise<Policy>; current(): Policy } {
+  let stamp: Stamp | null = null
+  let policy = DEFAULT_POLICY
+  let loaded = false
+  let readAt = 0
+  const refresh = (): Policy => {
+    const next = stampOf(paths(dir).policy)
+    if (loaded && sameStamp(next, stamp)) return policy
+    stamp = next
+    policy = readPolicy(paths(dir).policy)
+    loaded = true
+    return policy
+  }
+  return {
+    get: () => Promise.resolve(refresh()),
+    current: () => {
+      const at = now()
+      if (loaded && at - readAt < POLICY_RELOAD_MS) return policy
+      readAt = at
+      return refresh()
+    },
+  }
+}
+
+export function pausedCache(dir = configDir()): () => boolean {
+  const markers = [join(dir, "paused"), join(appDir(), "paused")]
+  let value = markers.some((marker) => existsSync(marker))
+  let readAt = Date.now()
+  return () => {
+    const now = Date.now()
+    if (now - readAt < PAUSE_RELOAD_MS) return value
+    readAt = now
+    value = markers.some((marker) => existsSync(marker))
+    return value
+  }
 }
 
 export async function ensurePolicy(dir: string): Promise<void> {

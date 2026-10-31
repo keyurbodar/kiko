@@ -7,7 +7,7 @@ import { workingEncoders, type Screen } from "./capture"
 import { startH264, startMjpeg, type H264Capture, type MjpegCapture } from "./captures"
 import type { Injected } from "./input"
 import { createSession, type Session } from "./session"
-import type { Live, LiveDeps, LiveFrame } from "./types"
+import type { Control, Live, LiveDeps, LiveFrame } from "./types"
 
 const CURSOR_INTERVAL_MS = Math.round(1000 / 30)
 const CURSOR_EPSILON = 0.0008
@@ -28,6 +28,7 @@ class Daemon implements Live {
   private readonly sessions = new Map<string, Session>()
   private readonly screen: Screen
   private holder: Holder = "agent"
+  private holderSession: string | undefined
   private closed = false
   private cursorTimer: ReturnType<typeof setInterval> | null = null
   private cursorAt: { x: number; y: number } | null = null
@@ -84,13 +85,18 @@ class Daemon implements Live {
     this.deliver(decoded.value as readonly InputEvent[])
   }
 
-  onControl(holder: Holder): void {
-    if (this.holder === holder) return
-    this.holder = holder
-    if (holder === "agent") {
+  onControl(control: Control): void {
+    this.holder = control.holder
+    this.holderSession = control.holder === "human" ? control.session : undefined
+    if (control.holder === "agent") {
       this.input?.release()
       this.broadcast([{ k: "cursor", who: "real", x: 0, y: 0 }])
     }
+    this.deps.send({
+      t: "held",
+      holder: control.holder,
+      ...(control.epoch === undefined ? {} : { epoch: control.epoch }),
+    })
   }
 
   onAck(seq: number): void {
@@ -118,7 +124,7 @@ class Daemon implements Live {
     if (existing) return existing
     const created = createSession(id, this.deps.rtc, {
       signal: (target, signal) => this.deps.send({ t: "rtc", session: target, signal }),
-      input: (_target, events) => this.deliver(events),
+      input: (target, events) => this.deliver(events, target),
       closed: (target) => this.drop(target),
       watching: (target) => {
         this.attach()
@@ -157,9 +163,10 @@ class Daemon implements Live {
     this.stopWatching()
   }
 
-  private deliver(events: readonly InputEvent[]): void {
+  private deliver(events: readonly InputEvent[], from?: string): void {
     if (events.length === 0) return
     if (this.holder !== "human" || !this.deps.policy().input) return
+    if (from !== undefined && this.holderSession !== undefined && from !== this.holderSession) return
     const input = events.filter((event) => event.k !== "cursor") as InputEvent[]
     if (input.length > 0) this.input?.apply(input)
   }

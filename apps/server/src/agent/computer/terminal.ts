@@ -24,7 +24,7 @@ const OPEN_DESCRIPTION =
   "open a terminal on the computer: a real shell that stays alive between your turns, so you can start a long job, a REPL, or a full-screen app and come back to it. returns an id. cwd is where it starts, default the owner's home folder. cols and rows are the text size, default 120x30. shell is the program to run, default the owner's login shell on macOS and Linux and powershell.exe on Windows. open a second terminal for a second job. for one command that finishes, computer_shell is simpler."
 
 const SEND_DESCRIPTION =
-  'type into a terminal from terminal_open. text is typed exactly as written and does not press enter. keys presses named keys in order, such as ["enter"], ["ctrl+c"], ["up"], ["tab"], ["esc"], ["ctrl+d"]; use ctrl on macOS, Linux and Windows. give both to type a command and run it in one call. it does not return the screen: call terminal_wait to wait for the result, or terminal_read to look.'
+  'type into a terminal from terminal_open. text is typed exactly as written and does not press enter. keys presses named keys in order, such as ["enter"], ["ctrl+c"], ["up"], ["tab"], ["esc"], ["ctrl+d"]; use ctrl on macOS, Linux and Windows. give both to type a command and run it in one call. add until to send and wait in one call: the reply comes back as soon as that output appears, with the output up to it, or says it timed out. until is text, or a regular expression with regex true; timeoutMs defaults 30000 and is at most 120000. without until it does not return the screen: call terminal_wait to wait, or terminal_read to look.'
 
 const READ_DESCRIPTION =
   "read a terminal as text. mode screen is the current visible screen, which is what a full-screen app such as vim, less or top shows. mode tail is the end of the output history, which is what a plain command printed; escape codes are removed. lines is how many lines of the tail to return, default 200, at most 2000. the reply says when older output was cut."
@@ -53,6 +53,38 @@ function bodyOf(value: string, truncated: boolean): string {
   const shown = value.length > MAX_OUTPUT_CHARS ? `…${value.slice(value.length - MAX_OUTPUT_CHARS + 1)}` : value
   const body = shown.trim() ? shown : "(no output)"
   return notes.length > 0 ? `${notes.join("; ")}\n\n${body}` : body
+}
+
+type SendArgs = { id: string; text?: string; keys?: readonly string[]; until?: string; regex?: boolean }
+
+function sendBody(args: SendArgs, until: string | undefined, timeoutMs: number) {
+  return {
+    id: args.id,
+    ...(args.text !== undefined ? { text: args.text } : {}),
+    ...(args.keys ? { keys: args.keys } : {}),
+    ...(until !== undefined ? { until, timeoutMs } : {}),
+    ...(args.regex ? { regex: true } : {}),
+  }
+}
+
+function sendText(
+  args: SendArgs,
+  pc: ComputerSummary,
+  value: Value<"terminal_send">,
+  until: string | undefined,
+  timeoutMs: number,
+): string {
+  const sent = `sent ${value.bytes} bytes to ${args.id} on ${pc.name}`
+  if (until === undefined)
+    return `${sent}. call terminal_wait to wait for the output, or terminal_read to see the screen.`
+  if (value.matched === undefined && value.timedOut === undefined && value.exited === undefined)
+    return `${sent}. the app on ${pc.name} cannot wait yet: update it, or call terminal_wait to wait.`
+  const head = value.matched
+    ? `${sent} and found ${JSON.stringify(until)}.`
+    : value.exited
+      ? `${sent}; it exited while waiting for ${JSON.stringify(until)}.`
+      : `${sent}; waited ${Math.round(timeoutMs / 1000)} s and did not see ${JSON.stringify(until)}.`
+  return `${head}\n\n${bodyOf(value.text ?? "", false)}`
 }
 
 export function terminalTools(deps: ComputerToolDeps): ToolRegistration[] {
@@ -123,6 +155,13 @@ export function terminalTools(deps: ComputerToolDeps): ToolRegistration[] {
           description: 'named keys to press in order, such as ["enter"], ["ctrl+c"], ["up"]',
         }),
       ),
+      until: Type.Optional(
+        Type.String({ description: "wait in the same call until this output appears, then return it" }),
+      ),
+      regex: Type.Optional(Type.Boolean({ description: "treat until as a regular expression, default false" })),
+      timeoutMs: Type.Optional(
+        Type.Number({ description: "how long to wait for until, default 30000, at most 120000" }),
+      ),
     }),
     replay: "unsafe",
     execute: (args) =>
@@ -132,16 +171,13 @@ export function terminalTools(deps: ComputerToolDeps): ToolRegistration[] {
         const pc = found.pc
         if (args.text === undefined && (args.keys ?? []).length === 0)
           return text("terminal_send needs text or keys.", true)
-        const body = {
-          id: args.id,
-          ...(args.text !== undefined ? { text: args.text } : {}),
-          ...(args.keys ? { keys: args.keys } : {}),
-        }
-        const out = await deps.port().call(pc.id, "terminal_send", body, CALL_DEADLINE_MS)
+        const until = args.until?.trim()
+        if (args.until !== undefined && !until) return text("until needs some text to look for.", true)
+        const timeoutMs = Math.min(Math.max(Math.round(args.timeoutMs ?? WAIT_DEFAULT_MS), 1_000), WAIT_MAX_MS)
+        const deadlineMs = until === undefined ? CALL_DEADLINE_MS : Math.min(timeoutMs + WAIT_SLACK_MS, MAX_DEADLINE_MS)
+        const out = await deps.port().call(pc.id, "terminal_send", sendBody(args, until, timeoutMs), deadlineMs)
         if (!out.ok) return text(failText(out.code, out.message, pc), true)
-        return text(
-          `sent ${(out.value as Value<"terminal_send">).bytes} bytes to ${args.id} on ${pc.name}. call terminal_wait to wait for the output, or terminal_read to see the screen.`,
-        )
+        return text(sendText(args, pc, out.value as Value<"terminal_send">, until, timeoutMs))
       }),
   })
 

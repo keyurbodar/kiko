@@ -99,6 +99,7 @@ export class OwnerDO extends DurableObject<Env> {
       store: computers,
       ownerId: this.ownerId,
       released: (out) => this.user().computerReleased(out),
+      taken: (out) => this.user().computerTaken(out),
       wakeup: {
         set: (at) => this.user().setComputerWakeup(at),
         clear: () => this.user().clearComputerWakeup(),

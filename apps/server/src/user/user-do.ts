@@ -125,7 +125,7 @@ import { COMPUTER_WAKEUP } from "../computer/hub"
 import type { ComputerHub } from "../computer/hub"
 import type { ComputerSummary } from "@kiko/protocol"
 import type { Op } from "@kiko/computer/wire"
-import type { ComputerLinkResult, PcCallOutcome, PcReleased } from "../computer/types"
+import type { ComputerLinkResult, PcCallOutcome, PcReleased, PcTaken } from "../computer/types"
 import { MemoryCapture } from "./memory-capture"
 import { type Attachment, send } from "./socket-frames"
 import { AWAY_MS, LAST_SEEN } from "./keys"
@@ -1324,7 +1324,7 @@ export class User {
   }
 
   computerHolder(pcId: string): "agent" | "human" {
-    return this.#pc.holder(pcId)
+    return this.computerList().find((pc) => pc.id === pcId)?.holder ?? "agent"
   }
 
   async computerPair(input: {
@@ -1339,6 +1339,10 @@ export class User {
 
   computerReleased(out: PcReleased): void {
     this.#pc.released(out)
+  }
+
+  computerTaken(out: PcTaken): void {
+    this.#pc.taken(out)
   }
 
   setComputerWakeup(at: number): Promise<void> {

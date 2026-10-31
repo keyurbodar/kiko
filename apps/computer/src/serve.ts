@@ -1,17 +1,17 @@
 import { stat } from "node:fs/promises"
 import { PROTOCOL, type Holder } from "@kiko/computer/wire"
 import { detect, type Detection } from "./caps"
-import { configDir, loadConfig, loadKey, loadPolicy, paths, paused } from "./config"
+import { configDir, loadConfig, loadKey, loadPolicy, paths, pausedCache, policyCache } from "./config"
 import { runLink, type Host } from "./connection"
 import { startDriver, type Driver } from "./driver"
 import { helloPayload } from "./hello"
 import { emptyLive, startLive, type Live, type LiveCaps } from "./live"
-import { cachedPolicy } from "./live/policy"
 import { createFeed } from "./feed"
 import { createLogger, type Logger } from "./log"
 import { VERSION } from "./platform"
 import { hasPty } from "./terminal/pty"
 import { TerminalManager } from "./terminal/manager"
+import { createTerminalLink } from "./terminal/link"
 import { createUpdater, updateTarget, type Updater } from "./update"
 
 const REPAIR_POLL_MS = 30_000
@@ -39,15 +39,21 @@ export async function serve(dir = configDir()): Promise<number> {
     log.info(next === "human" ? "the owner took control of this screen" : "the owner handed this screen back")
   }
   const policy = await loadPolicy(dir)
-  const livePolicy = cachedPolicy({ live: policy.live, input: policy.input }, () => loadPolicy(dir))
-  let live: Live = emptyLive({ logger: log, setHolder })
-  let driver: Driver | null = null
+  const policies = policyCache(dir)
+  const paused = pausedCache(dir)
   let link: ReturnType<typeof runLink> | null = null
+  let live: Live = emptyLive({ logger: log, setHolder, send: (frame) => link?.frame(frame) })
+  let driver: Driver | null = null
   let detection = detect(log, policy, null, dir)
   let liveCaps: LiveCaps = policy
   let liveStarting = false
   let update: Updater | null = null
   const terminals = new TerminalManager()
+  const terminalLink = createTerminalLink({
+    manager: () => (hasPty() ? terminals : null),
+    holder: () => holder,
+    send: (frame) => link?.frame(frame),
+  })
   const refresh = () => {
     detection = detect(log, liveCaps, driver?.state() ?? null, dir)
     link?.reconnect()
@@ -60,7 +66,7 @@ export async function serve(dir = configDir()): Promise<number> {
       setHolder,
       send: (frame) => link?.frame(frame),
       sendBinary: (bytes) => link?.binary(bytes),
-      policy: livePolicy,
+      policy: () => policies.current(),
       display: () => detection.displays[0],
       configDir: dir,
     }).then((started) => {
@@ -77,10 +83,11 @@ export async function serve(dir = configDir()): Promise<number> {
     endpoint: { url: config.url, userId: config.userId, pcId: config.pcId, protocol: PROTOCOL },
     key,
     hello: () => JSON.stringify(helloPayload(detection, driver)),
-    policy: () => loadPolicy(dir),
+    policy: policies.get,
     driver: () => driver,
     terminal: () => (hasPty() ? terminals : null),
-    paused: () => paused(dir),
+    terminals: terminalLink,
+    paused,
     live: {
       rtc: (frame) => live.frames.rtc(frame),
       live: (frame) => live.frames.live(frame),
@@ -109,6 +116,7 @@ export async function serve(dir = configDir()): Promise<number> {
     log.info("stopping")
     link?.stop()
     driver?.close()
+    terminalLink.close()
     terminals.closeAll()
     void live.close()
     process.exit(0)

@@ -6,6 +6,7 @@ import {
   cut,
   driverCall,
   failText,
+  imageOf,
   imageResult,
   MAX_STEPS,
   notRunning,
@@ -119,7 +120,7 @@ function pageResult(
   head: string,
 ): Promise<ComputerResult> {
   const body = cut([head, page.outline.trim() || "(no controls on this page)"].join("\n\n"))
-  return imageResult(api, page.image, sees, body)
+  return imageResult(api, imageOf(page.image), sees, body)
 }
 
 export function browserTools(deps: ComputerToolDeps) {

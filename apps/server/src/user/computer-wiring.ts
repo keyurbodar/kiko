@@ -8,11 +8,11 @@ import {
 } from "@kiko/protocol"
 import * as Effect from "effect/Effect"
 import type { DesktopInfo } from "@kiko/computer/driver"
-import type { Op } from "@kiko/computer/wire"
+import type { Op, Value } from "@kiko/computer/wire"
 import type { OwnerServices } from "../owner/services"
 import { MAX_DEADLINE_MS, type ComputerHub } from "../computer/hub"
 import { mintPairCode } from "../computer/pairing"
-import type { ComputerLinkResult, PcCallOutcome, PcReleased } from "../computer/types"
+import type { ComputerLinkResult, PcCallOutcome, PcReleased, PcTaken } from "../computer/types"
 import type { Env } from "../index"
 import type { Attachment } from "./socket-frames"
 import { subscribe } from "../owner/socket"
@@ -27,6 +27,9 @@ const RESUMED = {
 } as const
 const RESUME =
   " Carry on with the computer work that was waiting. Tell the worker that was waiting to continue with tell_work; the computer is where the human left it, so it does not need to set anything up again. Say one short line to the human only if there is something to say."
+
+const taken = (name: string): string =>
+  `The owner took over ${name}. Wait until they hand it back: do not use its screen, shell or files until you are told to carry on.`
 
 const NAME_MAX = 60
 const MAX_REASON = 300
@@ -102,9 +105,7 @@ export class ComputerWiring {
     const slug = slugOf(agentId)
     if (!isAgentSlug(slug) || !isRoomId(roomId))
       return Promise.resolve({ ok: false, code: "failed", message: "Unknown room or agent" })
-    const row = this.find(pcId)
-    if (!row) return Promise.resolve({ ok: false, code: "unsupported", message: "there is no such computer" })
-    return this.hub.call(row.id, op, args, {
+    return this.hub.call(pcId, op, args, {
       deadlineMs: Math.min(Number(deadlineMs ?? MAX_DEADLINE_MS), MAX_DEADLINE_MS),
       user: { key: `${roomId}:${agentId}`, name: slug },
     })
@@ -132,11 +133,6 @@ export class ComputerWiring {
   desktop(pcId?: string): DesktopInfo | null {
     const row = pcId ? this.find(pcId) : (this.hub.rows()[0] ?? null)
     return row ? this.hub.desktopInfo(row.id) : null
-  }
-
-  holder(pcId: string): "agent" | "human" {
-    const row = this.find(pcId)
-    return row ? this.hub.holder(row.id) : "agent"
   }
 
   onTabHello(ws: WebSocket): void {
@@ -183,17 +179,22 @@ export class ComputerWiring {
 
   ended(stream: string): void {
     if (stream.startsWith("pc:")) this.hub.syncRelay(stream.slice("pc:".length))
+    else if (stream.startsWith("term:")) this.hub.endTerminal(stream)
   }
 
   readonly take = Effect.fn("Computers.take")({ self: this }, function* (socket: WebSocket, pcId: string) {
     const row = yield* this.row(pcId)
-    if (!this.hub.take(row.id, socket))
+    if (!(yield* Effect.promise(() => this.hub.take(row.id, socket))))
       return yield* new RefusedError({ reason: "offline", message: `${row.name} is not connected` })
   })
 
-  readonly release = Effect.fn("Computers.release")({ self: this }, function* (pcId: string) {
+  readonly release = Effect.fn("Computers.release")({ self: this }, function* (socket: WebSocket, pcId: string) {
     const row = yield* this.row(pcId)
-    this.released(this.hub.release(row.id))
+    if (this.hub.releaseBy(row.id, this.hub.session(socket)) === "other")
+      return yield* new RefusedError({
+        reason: "held",
+        message: `another viewer has control of ${row.name}, so only that viewer can hand it back`,
+      })
   })
 
   readonly rtc = Effect.fn("Computers.rtc")(
@@ -206,9 +207,9 @@ export class ComputerWiring {
 
   readonly input = Effect.fn("Computers.input")(
     { self: this },
-    function* (pcId: string, events: readonly ComputerInput[]) {
+    function* (socket: WebSocket, pcId: string, events: readonly ComputerInput[]) {
       const row = yield* this.row(pcId)
-      this.hub.input(row.id, events)
+      this.hub.input(row.id, this.hub.session(socket), events)
     },
   )
 
@@ -216,6 +217,59 @@ export class ComputerWiring {
     const row = yield* this.row(pcId)
     this.hub.ack(row.id, seq)
   })
+
+  readonly terminalList = Effect.fn("Terminals.list")({ self: this }, function* (pcId: string) {
+    const row = yield* this.row(pcId)
+    const out = yield* Effect.promise(() => this.hub.call(row.id, "terminal_list", {}))
+    if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+    return (out.value as Value<"terminal_list">).terminals
+  })
+
+  readonly terminalOpen = Effect.fn("Terminals.open")(
+    { self: this },
+    function* (pcId: string, cols: number, rows: number) {
+      const row = yield* this.row(pcId)
+      const out = yield* Effect.promise(() => this.hub.call(row.id, "terminal_open", { cols, rows }))
+      if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+      return out.value as Value<"terminal_open">
+    },
+  )
+
+  readonly terminalAttach = Effect.fn("Terminals.attach")(
+    { self: this },
+    function* (socket: WebSocket, requestId: RequestId, pcId: string, terminalId: string, cols: number, rows: number) {
+      const row = yield* this.row(pcId)
+      const out = this.hub.attachTerminal(socket, requestId, row.id, terminalId, cols, rows)
+      if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+      subscribe(socket, { requestId, stream: out.value, cursor: 0 })
+    },
+  )
+
+  readonly terminalInput = Effect.fn("Terminals.input")(
+    { self: this },
+    function* (socket: WebSocket, pcId: string, terminalId: string, data: string) {
+      const row = yield* this.row(pcId)
+      const out = this.hub.terminalInput(socket, row.id, terminalId, data)
+      if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+    },
+  )
+
+  readonly terminalResize = Effect.fn("Terminals.resize")(
+    { self: this },
+    function* (socket: WebSocket, pcId: string, terminalId: string, cols: number, rows: number) {
+      const row = yield* this.row(pcId)
+      const out = this.hub.terminalResize(socket, row.id, terminalId, cols, rows)
+      if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+    },
+  )
+
+  readonly terminalAck = Effect.fn("Terminals.ack")(
+    { self: this },
+    function* (socket: WebSocket, pcId: string, terminalId: string, bytes: number) {
+      const row = yield* this.row(pcId)
+      this.hub.terminalAck(socket, row.id, terminalId, bytes)
+    },
+  )
 
   readonly listForTab = Effect.fn("Computers.list")({ self: this }, function (socket: WebSocket) {
     return Effect.sync(() => this.hub.summaries(socket))
@@ -246,6 +300,24 @@ export class ComputerWiring {
       this.d.ctx.waitUntil(
         Promise.resolve(wake).catch((e) =>
           console.error(`computer resume wake failed: ${e instanceof Error ? e.message : String(e)}`),
+        ),
+      )
+    }
+  }
+
+  taken(out: PcTaken): void {
+    for (const waiter of out.waiters) {
+      if (!isRoomId(waiter.roomId) || !isAgentSlug(waiter.slug)) continue
+      const wake = this.d.services.room(waiter.roomId).wake({
+        id: `computer-taken:${out.pcId}:${out.epoch}:${waiter.slug}`,
+        to: waiter.slug,
+        why: "system",
+        body: taken(out.name),
+        chain: null,
+      })
+      this.d.ctx.waitUntil(
+        Promise.resolve(wake).catch((e) =>
+          console.error(`computer taken wake failed: ${e instanceof Error ? e.message : String(e)}`),
         ),
       )
     }
