@@ -44,8 +44,8 @@ export function Bubble(rawProps: BubbleProps) {
       data-align={local.align}
       data-position={local.position}
       class={cn(
-        "relative flex w-fit min-w-0 max-w-[min(calc(100%-3.5rem),520px)] flex-col gap-1",
-        "data-[align=end]:self-end data-[variant=ghost]:max-w-full",
+        "relative flex w-fit min-w-0 max-w-[80%] flex-col gap-1",
+        "data-[align=end]:ml-[20%] data-[align=end]:self-end data-[variant=ghost]:max-w-full",
         VARIANTS[local.variant],
         local.class,
       )}

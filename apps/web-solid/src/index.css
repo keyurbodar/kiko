@@ -98,8 +98,14 @@
   --hairline: inset 0 0 0 1px var(--stroke-tertiary);
   --hairline-strong: inset 0 0 0 1px var(--stroke-secondary);
   --popup-shadow: 0 0 0 1px var(--stroke-tertiary), var(--box-shadow-popup);
-  --scrim-blur: none;
+  --scrim-blur: blur(6px) saturate(0.7);
   --surface-blur: none;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --scrim-blur: none;
+  }
 }
 
 /* palette:start */
@@ -1375,7 +1381,35 @@ html[data-input="pointer"] :focus-visible {
   position: absolute;
   inset: 0 0 auto;
   z-index: 30;
-  background: var(--bg-chrome);
+}
+
+[data-component="main-column"] > [data-component="top-bar"]::before {
+  position: absolute;
+  inset: 0 0 -18px;
+  z-index: -1;
+  background: linear-gradient(
+    to bottom,
+    var(--bg-chrome) 0%,
+    color-mix(in oklab, var(--bg-chrome) 82%, transparent) 55%,
+    transparent 100%
+  );
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  content: "";
+  pointer-events: none;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  [data-component="main-column"] > [data-component="top-bar"]::before {
+    inset: 0;
+    background: var(--bg-chrome);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
 }
 
 [data-component="chat-scroll"] {
