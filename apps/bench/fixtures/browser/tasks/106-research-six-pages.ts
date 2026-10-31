@@ -20,7 +20,7 @@ export const research: Handlers = {
 <h1>Fleet wiki</h1>
 <p>The fleet runs in ${list.length} regions. A decommissioned region is no longer part of the fleet and its machines do not count toward capacity.</p>
 <ul>${list.map((region) => `<li><a href="/wiki/${escape(region.slug)}">${escape(region.name)} region</a></li>`).join("")}</ul>
-<p><a href="/wiki/maintenance">Maintenance window</a> | <a href="/wiki/policy">Spare capacity policy</a></p>`)
+<p><a href="/wiki/maintenance">Maintenance window</a> | <a href="/wiki/policy">Spare capacity policy</a> | <a href="/answer">Submit the count</a></p>`)
     },
     "/wiki/north": (ctx) => regionPage(regions(ctx).find((region) => region.slug === "north")!),
     "/wiki/south": (ctx) => regionPage(regions(ctx).find((region) => region.slug === "south")!),
