@@ -6,7 +6,9 @@
   "scripts": {
     "bench": "bun src/main.ts",
     "typecheck": "tsgo --noEmit",
-    "test": "vitest run --config ../../vitest.config.ts --dir ."
+    "test": "vitest run --config ../../vitest.config.ts --dir .",
+    "bench:smoke": "bun scripts/smoke.ts",
+    "bench:table": "bun scripts/contenders-table.ts"
   },
   "dependencies": {
     "@kiko/computer": "workspace:*",
