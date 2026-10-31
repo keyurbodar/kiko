@@ -29,23 +29,23 @@ const answer = (code: number, out: string): Command => ({ code, out })
 describe("the display list", () => {
   it("reads the monitors xrandr lists, with their origins", () => {
     expect(parseMonitors(MONITORS)).toEqual([
-      { id: "eDP-1", width: 1920, height: 1080, scale: 1, originX: 0, originY: 0 },
-      { id: "HDMI-1", width: 1280, height: 1024, scale: 1, originX: 1920, originY: 0 },
+      { id: "eDP-1", width: 1920, height: 1080, scale: 1, originX: 0, originY: 0, index: 0 },
+      { id: "HDMI-1", width: 1280, height: 1024, scale: 1, originX: 1920, originY: 0, index: 1 },
     ])
   })
 
   it("reads connected outputs when the monitors call says nothing", () => {
     expect(parseMonitors("Monitors: 0\n")).toEqual([])
     expect(parseOutputs(QUERY)).toEqual([
-      { id: "eDP-1", width: 1920, height: 1080, scale: 1, originX: 0, originY: 0 },
-      { id: "HDMI-1", width: 1280, height: 1024, scale: 1, originX: 1920, originY: 0 },
+      { id: "eDP-1", width: 1920, height: 1080, scale: 1, originX: 0, originY: 0, index: 0 },
+      { id: "HDMI-1", width: 1280, height: 1024, scale: 1, originX: 1920, originY: 0, index: 1 },
     ])
   })
 
   it("reads the screens macOS reports, Retina scale included", () => {
     expect(parseScreens(SCREENS)).toEqual([
-      { id: "69733248", width: 1512, height: 982, scale: 2, originX: 0, originY: 0 },
-      { id: "72428190", width: 1920, height: 1080, scale: 1, originX: 1512, originY: 0 },
+      { id: "69733248", width: 1512, height: 982, scale: 2, originX: 0, originY: 0, index: 0 },
+      { id: "72428190", width: 1920, height: 1080, scale: 1, originX: 1512, originY: 0, index: 1 },
     ])
     expect(parseScreens("not json")).toEqual([])
   })

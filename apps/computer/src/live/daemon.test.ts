@@ -212,8 +212,8 @@ describe("the holder", () => {
 })
 
 const DISPLAYS = [
-  { id: "left", width: 1000, height: 800, scale: 1, originX: 0, originY: 0 },
-  { id: "right", width: 800, height: 600, scale: 1, originX: 1000, originY: 0 },
+  { id: "left", width: 1000, height: 800, scale: 1, originX: 0, originY: 0, index: 0 },
+  { id: "right", width: 800, height: 600, scale: 1, originX: 1000, originY: 0, index: 1 },
 ]
 
 describe("text and paste", () => {

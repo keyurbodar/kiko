@@ -30,6 +30,7 @@ export const Display = Schema.Struct({
   scale: Schema.Number,
   originX: Schema.optionalKey(Schema.Int),
   originY: Schema.optionalKey(Schema.Int),
+  index: Schema.optionalKey(Schema.Int),
 })
 export type Display = typeof Display.Type
 

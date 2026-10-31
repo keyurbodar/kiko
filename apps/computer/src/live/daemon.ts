@@ -44,7 +44,7 @@ class Daemon implements Live {
 
   constructor(deps: LiveDeps) {
     this.deps = deps
-    const area = screenOf(deps.displays?.()[0] ?? deps.display, 0)
+    const area = screenOf(deps.displays?.()[0] ?? deps.display)
     this.input =
       deps.openInput?.(() => this.screen, { holder: () => this.holder, allowed: () => this.deps.policy().input }) ??
       null
@@ -94,11 +94,12 @@ class Daemon implements Live {
   onScreen(id: string): void {
     if (this.closed) return
     const displays = this.deps.displays?.() ?? []
-    const index = displays.findIndex((display) => display.id === id)
-    const next = index < 0 ? null : screenOf(displays[index], index)
+    const next = displays.find((display) => display.id === id)
     if (!next) return
-    if (sameScreen(this.screen, next)) return
-    this.screen = next
+    const area = screenOf(next)
+    if (!area) return
+    if (sameScreen(this.screen, area)) return
+    this.screen = area
     this.restartCapture()
   }
 
@@ -430,13 +431,13 @@ function clamp(value: number | undefined, min: number, max: number, fallback: nu
   return Math.min(max, Math.max(min, Math.round(value)))
 }
 
-function screenOf(display: Display | undefined, index: number): Screen | null {
+function screenOf(display: Display | undefined, fallback = 0): Screen | null {
   if (!display || display.width <= 0 || display.height <= 0) return null
   return {
     width: display.width,
     height: display.height,
     scale: display.scale,
-    index,
+    index: display.index ?? fallback,
     ...(display.originX === undefined ? {} : { originX: display.originX }),
     ...(display.originY === undefined ? {} : { originY: display.originY }),
   }

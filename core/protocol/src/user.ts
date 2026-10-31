@@ -262,6 +262,7 @@ export const ComputerDisplay = Schema.Struct({
   scale: Schema.Number,
   originX: Schema.optionalKey(Schema.Int),
   originY: Schema.optionalKey(Schema.Int),
+  index: Schema.optionalKey(Schema.Int),
 })
 export type ComputerDisplay = typeof ComputerDisplay.Type
 

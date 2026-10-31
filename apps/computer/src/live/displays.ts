@@ -38,16 +38,16 @@ for (let index = 0; index < screens.count; index++) {
 }
 JSON.stringify(out)`
 
-function display(id: string, width: number, height: number, x: number, y: number, scale = 1): Display {
-  return { id, width, height, scale, originX: x, originY: y }
+function display(id: string, width: number, height: number, x: number, y: number, scale = 1, index = 0): Display {
+  return { id, width, height, scale, originX: x, originY: y, index }
 }
 
 export function parseMonitors(text: string): Display[] {
   const found: Display[] = []
   for (const match of text.matchAll(MONITOR)) {
-    const [, , name, width, height, x, y] = match
+    const [, at, name, width, height, x, y] = match
     if (!name || !width || !height) continue
-    found.push(display(name, Number(width), Number(height), Number(x), Number(y)))
+    found.push(display(name, Number(width), Number(height), Number(x), Number(y), 1, Number(at ?? found.length)))
   }
   return found
 }
@@ -57,7 +57,7 @@ export function parseOutputs(text: string): Display[] {
   for (const match of text.matchAll(OUTPUT)) {
     const [, name, width, height, x, y] = match
     if (!name || !width || !height) continue
-    found.push(display(name, Number(width), Number(height), Number(x), Number(y)))
+    found.push(display(name, Number(width), Number(height), Number(x), Number(y), 1, found.length))
   }
   return found
 }
@@ -76,7 +76,11 @@ export function parseScreens(json: string): Display[] {
     const { id, width, height, scale, x, y } = item as Record<string, unknown>
     if (typeof id !== "string" || typeof width !== "number" || typeof height !== "number") continue
     if (width < 1 || height < 1) continue
-    found.push(display(id, Math.round(width), Math.round(height), Number(x ?? 0), Number(y ?? 0), Number(scale ?? 1)))
+    const at =
+      typeof (item as { index?: unknown }).index === "number" ? (item as { index: number }).index : found.length
+    found.push(
+      display(id, Math.round(width), Math.round(height), Number(x ?? 0), Number(y ?? 0), Number(scale ?? 1), at),
+    )
   }
   return found
 }
