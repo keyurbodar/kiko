@@ -225,6 +225,7 @@ function liveHub(
   const store = {
     get: (id: string) => ({ id, name: "box" }),
     list: () => ids.map((id) => ({ id, name: "box" })),
+    caps: () => CAPS,
   }
   const deps = {
     ctx: {
@@ -563,6 +564,28 @@ describe("computer calls", () => {
       await computers.message(pc.ws, JSON.stringify(HELLO))
 
       assert.isTrue(computers.online("pc-1"))
+    }),
+  )
+})
+
+describe("computer summaries", () => {
+  it.effect("carries the daemon version, last seen time and close reason", () =>
+    Effect.gen(function* () {
+      const clock = yield* Clock.Clock
+      const pcs: WebSocket[] = []
+      const computers = liveHub([], pcs, ["pc-1"], onClock(clock))
+      const pc = pcSocket("pc-1")
+      pcs.push(pc.ws)
+      yield* Effect.promise(() => computers.message(pc.ws, JSON.stringify({ ...HELLO, version: "2.5.0" })))
+      yield* Effect.promise(() => computers.close(pc.ws, 1006, "the network dropped"))
+      pcs.splice(0)
+
+      const [summary] = computers.summaries()
+
+      assert.strictEqual(summary?.online, false)
+      assert.strictEqual(summary?.version, "2.5.0")
+      assert.strictEqual(summary?.lastCloseReason, "the network dropped")
+      assert.isNumber(summary?.lastSeenAt)
     }),
   )
 })

@@ -441,6 +441,7 @@ export class ComputerHub {
       return
     }
     this.heard.set(ws, Date.now())
+    this.marks.set(saved.id, { ...this.marks.get(saved.id), seenAt: Date.now() })
     if (typeof raw !== "string") {
       this.relayFrame(saved.id, new Uint8Array(raw))
       return
