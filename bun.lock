@@ -51,6 +51,7 @@
       },
       "dependencies": {
         "@kiko/computer": "workspace:*",
+        "@xterm/headless": "6.0.0",
         "effect": "4.0.6",
         "node-datachannel": "0.33.4",
       },
@@ -1595,6 +1596,8 @@
     "@wallet-standard/features": ["@wallet-standard/features@1.1.1", "", { "dependencies": { "@wallet-standard/base": "^1.1.1" } }, "sha512-aCWYmVeSCGViyEU5k7GMoW8zxE4Gs+C1s1Pp2XLesvSNlnZ4PMES9HUnTB3hl0b3RVj7C61yze3IWyrncqg4MA=="],
 
     "@wallet-standard/wallet": ["@wallet-standard/wallet@1.1.1", "", { "dependencies": { "@wallet-standard/base": "^1.1.1" } }, "sha512-8WiRPaKk/wNNRZhB2eVhpR/JW7/aqTCMoZhgVUCujuzDmxxmGvsosMxdCG4NAdYkoyozAHCX8/xLtlWUn5mNdQ=="],
+
+    "@xterm/headless": ["@xterm/headless@6.0.0", "", {}, "sha512-5Yj1QINYCyzrZtf8OFIHi47iQtI+0qYFPHmouEfG8dHNxbZ9Tb9YGSuLcsEwj9Z+OL75GJqPyJbyoFer80a2Hw=="],
 
     "@zxcvbn-ts/core": ["@zxcvbn-ts/core@3.0.4", "", { "dependencies": { "fastest-levenshtein": "1.0.16" } }, "sha512-aQeiT0F09FuJaAqNrxynlAwZ2mW/1MdXakKWNmGM1Qp/VaY6CnB/GfnMS2T8gB2231Esp1/maCWd8vTG4OuShw=="],
 

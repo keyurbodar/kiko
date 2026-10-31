@@ -9,7 +9,7 @@ import type { ComputerCallOutcome, ComputerSummary } from "./types"
 
 export const CALL_DEADLINE_MS = 60_000
 const DRIVER_DEADLINE_MS = 30_000
-const MAX_OUTPUT_CHARS = 12_000
+export const MAX_OUTPUT_CHARS = 12_000
 export const MAX_STEPS = 10
 export const SCREEN_MAX_WIDTH = 1280
 
@@ -55,12 +55,13 @@ const inputDenied = (pc: ComputerSummary): string =>
     ? "macOS has not allowed kiko to control this Mac. On the Mac, open System Settings > Privacy & Security > Accessibility and turn on kiko."
     : `${pc.name} has not allowed kiko to control it.`
 
-const BLOCKED: Readonly<Record<"shell" | "read" | "write" | "look" | "act", string>> = {
+const BLOCKED: Readonly<Record<"shell" | "read" | "write" | "look" | "act" | "terminal", string>> = {
   shell: "running commands",
   read: "reading files",
   write: "writing files",
   look: "seeing the desktop",
   act: "using the desktop",
+  terminal: "opening terminals",
 }
 
 const CAPS: Readonly<Record<keyof typeof BLOCKED, keyof ComputerSummary["caps"]>> = {
@@ -69,6 +70,7 @@ const CAPS: Readonly<Record<keyof typeof BLOCKED, keyof ComputerSummary["caps"]>
   write: "files",
   look: "desktop",
   act: "desktop",
+  terminal: "terminal",
 }
 
 export function failText(code: FailCode, message: string, pc: ComputerSummary): string {
