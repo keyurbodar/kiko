@@ -309,10 +309,7 @@ impl Engine {
     fn read(&mut self, params: &BrowserReadParams) -> Outcome<Page> {
         let tab = self.one(&params.tab)?;
         self.bind(&params.tab)?;
-        let data = self.tool(
-            "agent_browser_snapshot",
-            json!({ "interactive": false, "compact": true }),
-        )?;
+        let data = self.tool("agent_browser_snapshot", json!({ "interactive": false }))?;
         let tree = data
             .get("snapshot")
             .and_then(Value::as_str)

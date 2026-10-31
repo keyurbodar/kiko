@@ -1,10 +1,38 @@
+use std::collections::HashSet;
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 use serde_json::{Value, json};
 
 static LAUNCHED: AtomicBool = AtomicBool::new(false);
+
+fn refs() -> &'static Mutex<HashSet<String>> {
+    static REFS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    REFS.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+fn clear_refs() {
+    refs().lock().unwrap().clear();
+}
+
+fn snapshot_refs() {
+    let mut held = refs().lock().unwrap();
+    held.clear();
+    held.insert("e2".into());
+    held.insert("e3".into());
+}
+
+fn check_ref(selector: &str) -> Result<(), String> {
+    let Some(name) = selector.strip_prefix('@') else {
+        return Ok(());
+    };
+    if refs().lock().unwrap().contains(name) {
+        return Ok(());
+    }
+    Err(format!("Unknown ref: {name}"))
+}
 
 fn jpeg() -> Vec<u8> {
     let mut bytes = vec![0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x11, 0x08];
@@ -34,6 +62,7 @@ fn data(name: &str, arguments: &Value) -> Result<Value, String> {
     match name {
         "agent_browser_open" | "agent_browser_tab_new" => {
             LAUNCHED.store(true, Ordering::SeqCst);
+            clear_refs();
             Ok(
                 json!({ "url": "https://example.com/", "title": "Fixture", "tabId": "t2", "total": 2 }),
             )
@@ -45,10 +74,14 @@ fn data(name: &str, arguments: &Value) -> Result<Value, String> {
             Ok(tabs())
         }
         "agent_browser_tab_switch" => {
+            clear_refs();
             Ok(json!({ "tabId": arguments.get("tab").cloned().unwrap_or(Value::Null) }))
         }
         "agent_browser_tab_close" => Ok(json!({ "closed": true })),
-        "agent_browser_snapshot" => Ok(snapshot()),
+        "agent_browser_snapshot" => {
+            snapshot_refs();
+            Ok(snapshot())
+        }
         "agent_browser_screenshot" => {
             let path = arguments
                 .get("path")
@@ -64,6 +97,20 @@ fn data(name: &str, arguments: &Value) -> Result<Value, String> {
             Ok(json!({ "result": 42 }))
         }
         "agent_browser_close" => Ok(json!({ "closed": true })),
+        "agent_browser_click"
+        | "agent_browser_type"
+        | "agent_browser_fill"
+        | "agent_browser_select"
+        | "agent_browser_focus"
+        | "agent_browser_scroll_into_view" => {
+            check_ref(
+                arguments
+                    .get("selector")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+            )?;
+            Ok(json!({ "ok": true }))
+        }
         "fail" => Err("it broke".into()),
         "crash" => std::process::exit(3),
         _ => Ok(json!({ "ok": true })),

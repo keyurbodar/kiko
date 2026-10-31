@@ -127,6 +127,39 @@ fn acts_on_a_ref_and_rejects_a_stale_one() {
 }
 
 #[test]
+fn a_read_before_each_act_keeps_the_refs_alive() {
+    let (_dir, mut engine) = start(vec![]);
+    assert!(engine.wait_ready(READY));
+    let tab = open(&mut engine);
+    read(&mut engine, &tab.id, false);
+    engine
+        .act(&BrowserActParams {
+            tab: tab.id.clone(),
+            reference: 2,
+            action: PageAction::Click,
+            text: None,
+            mode: Mode::Background,
+        })
+        .expect("click the button");
+    let page = read(&mut engine, &tab.id, false);
+    let field = page
+        .nodes
+        .iter()
+        .find(|node| node.role == "text field")
+        .expect("the text field");
+    engine
+        .act(&BrowserActParams {
+            tab: tab.id.clone(),
+            reference: field.reference,
+            action: PageAction::Type,
+            text: Some("hello".into()),
+            mode: Mode::Background,
+        })
+        .expect("type into the field");
+    engine.stop();
+}
+
+#[test]
 fn evaluates_an_expression_in_the_tab() {
     let (_dir, mut engine) = start(vec![]);
     assert!(engine.wait_ready(READY));
