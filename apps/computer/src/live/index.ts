@@ -1,7 +1,9 @@
 import type { Display, FromDaemon, Holder, ToDaemon } from "@kiko/computer/wire"
 import type { Logger } from "../log"
 import { createLive } from "./daemon"
+import { createInput } from "./input"
 import type { PeerModule } from "./rtc-link"
+import type { LivePolicy } from "./types"
 
 export type LiveFrames = {
   rtc(frame: Extract<ToDaemon, { t: "rtc" }>): void
@@ -16,7 +18,7 @@ export type LiveHooks = {
   setHolder(holder: Holder): void
   send(frame: FromDaemon): void
   sendBinary(bytes: Uint8Array<ArrayBuffer>): void
-  policy: () => { live: boolean; input: boolean }
+  policy: () => LivePolicy
   display: () => Display | undefined
   configDir: string
 }
@@ -48,7 +50,8 @@ export async function startLive(hooks: LiveHooks): Promise<Live> {
     send: hooks.send,
     sendBinary: hooks.sendBinary,
     warn: (message) => hooks.logger.warn(message),
-    policy,
+    policy: hooks.policy,
+    openInput: (area, gate) => createInput(area, gate),
     rtc,
     configDir: hooks.configDir,
     ...(hooks.display() ? { display: hooks.display() } : {}),

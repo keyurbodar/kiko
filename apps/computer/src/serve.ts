@@ -6,6 +6,7 @@ import { runLink, type Host } from "./connection"
 import { startDriver, type Driver } from "./driver"
 import { helloPayload } from "./hello"
 import { emptyLive, startLive, type Live } from "./live"
+import { cachedPolicy } from "./live/policy"
 import { createFeed } from "./feed"
 import { createLogger, type Logger } from "./log"
 import { VERSION } from "./platform"
@@ -36,6 +37,7 @@ export async function serve(dir = configDir()): Promise<number> {
     log.info(next === "human" ? "the owner took control of this screen" : "the owner handed this screen back")
   }
   const policy = await loadPolicy(dir)
+  const livePolicy = cachedPolicy({ live: policy.live, input: policy.input }, () => loadPolicy(dir))
   let live: Live = emptyLive({ logger: log, setHolder })
   let detection = detect(log, policy, dir)
   if (policy.desktop) detection.backend?.requestAccess()
@@ -79,7 +81,7 @@ export async function serve(dir = configDir()): Promise<number> {
       setHolder,
       send: (frame) => link.frame(frame),
       sendBinary: (bytes) => link.binary(bytes),
-      policy: () => policy,
+      policy: livePolicy,
       display: () => detection.displays[0],
       configDir: dir,
     })
