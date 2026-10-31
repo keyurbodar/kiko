@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
 import { CONTENDERS } from "./contenders"
@@ -8,6 +8,7 @@ import { appendRow, escape, readRows, writeRows, type Row } from "./ledger"
 import { classifyFailure, runLoop, SYSTEM_PROMPT_SHA, type LoopResult, type Outcome, type Trajectory } from "./loop"
 import { clearGitHookEnv, createMachine, localOs, removeMachine } from "./machine"
 import { ModelClient } from "./model"
+import { appendIndex, harvestArtifacts } from "./pull"
 import { renderReport } from "./report/render"
 import { TASKS } from "./tasks"
 import type { Background, Condition, Contender, Machine, ModelSpec, Os, Task, Verdict } from "./types"
@@ -15,7 +16,6 @@ import type { Background, Condition, Contender, Machine, ModelSpec, Os, Task, Ve
 const ZERO_BACKGROUND: Background = { focusSteals: 0, pointerMoves: 0, keysSwallowed: 0, windowsRaised: 0 }
 const PLANS = join(homedir(), "kiko-plans", "computer-use-2026-10-31", "results")
 const VALIDATE_HEADER = ["task", "os", "machine", "kind", "pass", "detail"].join("\t")
-const INDEX_HEADER = ["run_id", "gh_run", "machine", "commit", "rows"].join("\t")
 
 const MODELS: Readonly<Record<string, ModelSpec>> = {
   "beam-free": { id: "beam-free", vision: false },
@@ -588,15 +588,24 @@ async function report(positionals: readonly string[], flags: Parsed["flags"]): P
     .filter((file) => basename(file).endsWith(".tsv") && !basename(file).startsWith("validate-"))
   if (files.length === 0) throw new Error("no result TSVs matched")
   const rows: Row[] = []
-  for (const file of files) rows.push(...(await readRows(file)))
+  const used: string[] = []
+  for (const file of files) {
+    try {
+      rows.push(...(await readRows(file)))
+      used.push(basename(file))
+    } catch (error) {
+      console.log(`skipping ${basename(file)}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  if (rows.length === 0) throw new Error("no bench ledgers among the matched files")
   const out = resolve(flagString(flags, "out") ?? join("reports", `bench-${newRunId()}.html`))
   const html = renderReport(rows, {
     generatedAt: new Date().toISOString(),
-    sources: files.map((file) => basename(file)),
+    sources: used,
   })
   await mkdir(dirname(out), { recursive: true })
   await writeFile(out, html, "utf8")
-  console.log(`${rows.length} rows from ${files.length} files`)
+  console.log(`${rows.length} rows from ${used.length} files`)
   console.log(out)
 }
 
@@ -605,40 +614,8 @@ async function pull(runId: string): Promise<void> {
   try {
     const download = spawnSync("gh", ["run", "download", runId, "-p", "bench-*", "-D", staging], { encoding: "utf8" })
     if (download.status !== 0) throw new Error(`gh run download failed: ${download.stderr.trim()}`)
-    const index = join(PLANS, "index.tsv")
-    const existing = existsSync(index) ? await readFile(index, "utf8") : ""
-    const seen = new Set(
-      existing
-        .split("\n")
-        .slice(1)
-        .map((line) => line.split("\t").slice(0, 2).join("\t"))
-        .filter(Boolean),
-    )
-    const appended: string[] = []
-    for (const artifact of new Bun.Glob("*").scanSync({ cwd: staging, onlyFiles: false })) {
-      const results = join(staging, artifact, "results")
-      if (!existsSync(results)) continue
-      for (const name of new Bun.Glob("*.tsv").scanSync({ cwd: results })) {
-        if (name.startsWith("validate-")) continue
-        const source = join(results, name)
-        const rows = await readRows(source)
-        const first = rows[0]
-        if (!first) continue
-        const id = String(first.run_id)
-        const machine = String(first.machine)
-        const key = `${id}\t${machine}`
-        await mkdir(PLANS, { recursive: true })
-        await cp(source, join(PLANS, name), { force: true })
-        const trialDir = join(results, id)
-        if (existsSync(trialDir)) await cp(trialDir, join(PLANS, id), { recursive: true, force: true })
-        if (seen.has(key)) continue
-        seen.add(key)
-        appended.push([id, runId, machine, String(first.commit), String(rows.length)].join("\t"))
-      }
-    }
-    const body = [INDEX_HEADER, ...existing.split("\n").slice(1).filter(Boolean), ...appended].join("\n") + "\n"
-    await mkdir(PLANS, { recursive: true })
-    await writeFile(index, body, "utf8")
+    const appended = await harvestArtifacts(staging, PLANS, runId)
+    await appendIndex(PLANS, appended)
     console.log(`pulled ${appended.length} result files into ${PLANS}`)
   } finally {
     await rm(staging, { recursive: true, force: true })
