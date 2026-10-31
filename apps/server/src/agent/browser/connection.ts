@@ -7,7 +7,9 @@ import type { LeasePort } from "./lease"
 import { BrowserError } from "../errors"
 
 const IDLE_CLOSE_MS = 15_000
+const IDLE_ARM_MS = IDLE_CLOSE_MS / 2
 const CLAIM_MS = 60_000
+const TOUCH_MS = 60_000
 export const BROWSER_IDLE_WAKEUP = "browser-idle"
 
 const RESTARTED =
@@ -50,6 +52,9 @@ export class BrowserConnection {
   private sessionId: string | null = null
   private seeded = false
   private note: string | undefined
+  private lastTabs = ""
+  private lastTouch = 0
+  private armedAt = 0
   private readonly connectTo: (cdpUrl: string) => Promise<BrowserSession>
   private readonly now: () => number
 
@@ -68,9 +73,33 @@ export class BrowserConnection {
       this.busy--
       this.running.set(scope, (this.running.get(scope) ?? 1) - 1)
       this.seen.set(scope, this.now())
-      if (this.session) await this.deps.lease.touch(this.tabs()).catch(() => false)
-      await this.deps.idle.arm(this.now() + IDLE_CLOSE_MS)
+      await this.persist()
+      await this.arm()
     }
+  }
+
+  private async persist(): Promise<void> {
+    if (!this.session) return
+    const tabs = this.tabs()
+    const signature = JSON.stringify(
+      Object.keys(tabs)
+        .sort()
+        .map((id) => [id, tabs[id]]),
+    )
+    const now = this.now()
+    if (signature === this.lastTabs && now - this.lastTouch < TOUCH_MS) return
+    const known = await this.deps.lease.touch(tabs).catch(() => false)
+    if (!known) return
+    this.lastTabs = signature
+    this.lastTouch = now
+  }
+
+  private async arm(): Promise<void> {
+    const now = this.now()
+    if (now < this.armedAt - IDLE_ARM_MS) return
+    const at = now + IDLE_CLOSE_MS
+    await this.deps.idle.arm(at)
+    this.armedAt = at
   }
 
   takeNote(): string | undefined {
@@ -350,11 +379,13 @@ export class BrowserConnection {
 
   async idle(): Promise<"busy" | "closed"> {
     if (this.busy > 0) {
-      await this.deps.idle.arm(this.now() + IDLE_CLOSE_MS)
+      await this.arm()
       return "busy"
     }
     const session = this.session
     this.session = null
+    this.armedAt = 0
+    this.lastTabs = ""
     for (const h of this.held.values()) h.tab = undefined
     await session?.close().catch(() => {})
     return "closed"
