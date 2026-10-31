@@ -58,6 +58,45 @@ function cutout(spots: readonly Spot[], index: number): Record<string, string> {
   }
 }
 
+const ROW_STEP = 0.72
+
+const ROW_GAP_PX = 2
+
+function rowCutout(): Record<string, string> {
+  const cx = (BODY.cx - ROW_STEP) * 100
+  const mask = `radial-gradient(calc(${BODY.rx * 100}% + ${ROW_GAP_PX}px) calc(${BODY.ry * 100}% + ${ROW_GAP_PX}px) at ${cx}% ${BODY.cy * 100}%, transparent 99%, #000 100%)`
+  return { "mask-image": mask, "-webkit-mask-image": mask }
+}
+
+export function FaceRow(props: { faces: readonly string[]; size: number; extra?: number }) {
+  return (
+    <span class="inline-flex shrink-0 items-center" data-component="face-row" data-faces={props.faces.length}>
+      <For each={props.faces}>
+        {(seed, i) => (
+          <span
+            class="flex shrink-0"
+            style={{
+              width: `${props.size}px`,
+              height: `${props.size}px`,
+              "margin-left": i() ? `${(ROW_STEP - 1) * props.size}px` : undefined,
+              ...(i() ? rowCutout() : {}),
+            }}
+          >
+            <IdentityAvatar seed={seed} class="size-full" />
+          </span>
+        )}
+      </For>
+      <Show when={props.extra}>
+        {(extra) => (
+          <span class="ml-1 type-xs text-tertiary tabular-nums" data-component="face-row-extra">
+            +{extra()}
+          </span>
+        )}
+      </Show>
+    </span>
+  )
+}
+
 export function ChatAvatar(props: { faces: readonly string[]; size?: number; class?: string }) {
   const layout = () => LAYOUT[Math.min(props.faces.length, 3)]
   return (
