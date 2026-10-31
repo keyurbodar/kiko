@@ -6,8 +6,10 @@
   "conditions": ["foreground"],
   "seed": 1,
   "pattern": "terminal-02[5-7]-*",
-  "validate": { "runs": 10 },
-  "runners": ["ubuntu-24.04", "macos-15", "windows-2025"],
+  "validate": {
+    "runs": 10
+  },
+  "runners": ["ubuntu-24.04", "macos-15"],
   "versions": {
     "cua-driver": "0.38.0",
     "agent-desktop": "1.0.2",

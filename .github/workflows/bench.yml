@@ -70,14 +70,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-        if: runner.os != 'Windows'
-      - uses: oven-sh/setup-bun@v2
-        if: runner.os == 'Windows'
-        with:
-          bun-version: "1.3.14"
-      - name: Install the workspace
-        if: runner.os == 'Windows'
-        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Install the contender
         if: runner.os == 'Linux' && matrix.contender != 'kiko' && matrix.contender != 'baseline-shell'
@@ -117,11 +109,6 @@ jobs:
         if: runner.os == 'macOS'
         run: bun run bench run --ci --config "$CONFIG" --track ${{ matrix.track }} --contender ${{ matrix.contender }} --model ${{ matrix.model }} --shard ${{ matrix.shard }} --machine ${{ matrix.machine }} --results results
 
-      - name: Bench
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: bun run bench run --ci --config $env:CONFIG --track ${{ matrix.track }} --contender ${{ matrix.contender }} --model ${{ matrix.model }} --shard ${{ matrix.shard }} --machine ${{ matrix.machine }} --results results
-
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -142,19 +129,9 @@ jobs:
             machine: gha-ubuntu-24.04-x11
           - runner: macos-15
             machine: gha-macos-15
-          - runner: windows-2025
-            machine: gha-windows-2025
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-        if: runner.os != 'Windows'
-      - uses: oven-sh/setup-bun@v2
-        if: runner.os == 'Windows'
-        with:
-          bun-version: "1.3.14"
-      - name: Install the workspace
-        if: runner.os == 'Windows'
-        run: bun install --frozen-lockfile --ignore-scripts
       - name: Install the desktop test bed
         if: runner.os == 'Linux'
         run: |
