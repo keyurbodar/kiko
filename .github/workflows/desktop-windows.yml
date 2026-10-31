@@ -40,6 +40,8 @@ jobs:
         run: cargo clippy -p kiko-native-windows --all-targets --features testapp -- -D warnings
       - name: Unit tests
         run: cargo test -p kiko-native-windows --lib
+      - name: App unit tests
+        run: cargo test -p kiko-app --lib
       - name: Build the fixture app
         run: cargo build -p kiko-native-windows --bin kiko-native-testapp --features testapp
       - name: End to end on the interactive desktop

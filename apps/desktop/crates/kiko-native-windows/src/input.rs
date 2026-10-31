@@ -331,49 +331,6 @@ fn post_key(window: isize, key: u16, scan: u16, extended_key: bool) -> Result<()
     post_key_up(window, key, scan, extended_key)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct KeyStep {
-    key: u16,
-    scan: u16,
-    extended: bool,
-    up: bool,
-}
-
-fn key_step(code: &str, up: bool) -> KeyStep {
-    KeyStep {
-        key: virtual_key(code, code),
-        scan: scan_code(code),
-        extended: extended(code),
-        up,
-    }
-}
-
-fn key_steps(chord: &Chord) -> Vec<KeyStep> {
-    let mut steps: Vec<KeyStep> = chord
-        .mods
-        .iter()
-        .map(|modifier| key_step(modifier, false))
-        .collect();
-    steps.push(key_step(&chord.code, false));
-    steps.push(key_step(&chord.code, true));
-    steps.extend(
-        chord
-            .mods
-            .iter()
-            .rev()
-            .map(|modifier| key_step(modifier, true)),
-    );
-    steps
-}
-
-fn post_step(window: isize, step: &KeyStep) -> Result<()> {
-    if step.up {
-        post_key_up(window, step.key, step.scan, step.extended)
-    } else {
-        post_key_down(window, step.key, step.scan, step.extended)
-    }
-}
-
 pub fn post_set_text(window: isize, text: &str) -> Result<Route> {
     ensure_postable(window, window, Kind::Text)?;
     let value = HSTRING::from(text);
@@ -462,9 +419,12 @@ pub fn post_keys(window: isize, chords: &[Chord]) -> Result<Route> {
     let target = post_target(window)?;
     ensure_postable(window, target, Kind::Key)?;
     for chord in chords {
-        for step in key_steps(chord) {
-            post_step(target, &step)?;
-        }
+        post_key(
+            target,
+            virtual_key(&chord.code, &chord.key),
+            scan_code(&chord.code),
+            extended(&chord.code),
+        )?;
     }
     Ok(Route::WindowEvent)
 }
@@ -686,25 +646,29 @@ fn release_plan(sent: &[KeyPress]) -> Vec<INPUT> {
     sent.iter().rev().map(key_up).collect()
 }
 
-fn press_chord(modifiers: &[KeyPress], action: &KeyPress) -> Result<()> {
+fn press_with(
+    sender: impl Fn(&[INPUT]) -> Result<()>,
+    modifiers: &[KeyPress],
+    action: &KeyPress,
+) -> Result<()> {
     let mut sent: Vec<KeyPress> = Vec::new();
     for modifier in modifiers {
-        if let Err(error) = send(&[key_down(modifier)]) {
+        if let Err(error) = sender(&[key_down(modifier)]) {
             let mut recovery = sent.clone();
             recovery.push(modifier.clone());
-            let _ = send(&release_plan(&recovery));
+            let _ = sender(&release_plan(&recovery));
             return Err(error);
         }
         sent.push(modifier.clone());
     }
-    if let Err(error) = send(&[key_down(action), key_up(action)]) {
+    if let Err(error) = sender(&[key_down(action), key_up(action)]) {
         sent.push(action.clone());
-        let _ = send(&release_plan(&sent));
+        let _ = sender(&release_plan(&sent));
         return Err(error);
     }
     let mut failure = None;
     for modifier in modifiers.iter().rev() {
-        if let Err(error) = send(&[key_up(modifier)]) {
+        if let Err(error) = sender(&[key_up(modifier)]) {
             failure.get_or_insert(error);
         }
     }
@@ -712,6 +676,10 @@ fn press_chord(modifiers: &[KeyPress], action: &KeyPress) -> Result<()> {
         Some(error) => Err(error),
         None => Ok(()),
     }
+}
+
+fn press_chord(modifiers: &[KeyPress], action: &KeyPress) -> Result<()> {
+    press_with(send, modifiers, action)
 }
 
 pub fn foreground_keys(chords: &[Chord]) -> Result<()> {
@@ -795,19 +763,9 @@ pub fn shell_open(target: &str, show: SHOW_WINDOW_CMD) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+
     use super::*;
-
-    fn chord(mods: &[&str], code: &str, key: &str) -> Chord {
-        Chord {
-            mods: mods.iter().map(|value| value.to_string()).collect(),
-            code: code.into(),
-            key: key.into(),
-        }
-    }
-
-    fn step(step: &KeyStep) -> (u16, bool) {
-        (step.scan, step.up)
-    }
 
     fn input_key(input: &INPUT) -> (u16, bool) {
         unsafe {
@@ -816,33 +774,63 @@ mod tests {
         }
     }
 
-    #[test]
-    fn a_chord_presses_modifiers_before_the_key_and_lifts_them_after() {
-        let steps: Vec<(u16, bool)> = key_steps(&chord(&["ControlLeft", "ShiftLeft"], "KeyA", "a"))
-            .iter()
-            .map(step)
-            .collect();
-        assert_eq!(
-            steps,
-            vec![
-                (0x1d, false),
-                (0x2a, false),
-                (0x1e, false),
-                (0x1e, true),
-                (0x2a, true),
-                (0x1d, true),
-            ]
+    fn record<'a>(
+        calls: &'a RefCell<Vec<Vec<(u16, bool)>>>,
+        fail_at: usize,
+    ) -> impl Fn(&[INPUT]) -> Result<()> + 'a {
+        move |inputs| {
+            calls
+                .borrow_mut()
+                .push(inputs.iter().map(input_key).collect());
+            if calls.borrow().len() == fail_at {
+                return Err(DriverError::new(
+                    ErrorCode::Failed,
+                    "Windows inserted 0 of 1 input events",
+                ));
+            }
+            Ok(())
+        }
+    }
+
+    fn press(fail_at: usize) -> (Result<()>, Vec<Vec<(u16, bool)>>) {
+        let calls = RefCell::new(Vec::new());
+        let result = press_with(
+            record(&calls, fail_at),
+            &[key_press("ControlLeft"), key_press("ShiftLeft")],
+            &key_press("KeyA"),
         );
+        (result, calls.into_inner())
     }
 
     #[test]
-    fn release_plan_lifts_keys_in_reverse() {
-        let sent = vec![
-            key_press("ControlLeft"),
-            key_press("ShiftLeft"),
-            key_press("KeyA"),
-        ];
-        let plan: Vec<(u16, bool)> = release_plan(&sent).iter().map(input_key).collect();
-        assert_eq!(plan, vec![(0x1e, true), (0x2a, true), (0x1d, true)]);
+    fn a_whole_chord_lifts_its_modifiers_in_reverse() {
+        let (result, calls) = press(usize::MAX);
+        assert!(result.is_ok());
+        assert_eq!(calls[0], vec![(0x1d, false)]);
+        assert_eq!(calls[1], vec![(0x2a, false)]);
+        assert_eq!(calls[2], vec![(0x1e, false), (0x1e, true)]);
+        assert_eq!(calls[3], vec![(0x2a, true)]);
+        assert_eq!(calls[4], vec![(0x1d, true)]);
+    }
+
+    #[test]
+    fn a_failed_modifier_press_lifts_the_keys_it_touched() {
+        let (result, calls) = press(2);
+        assert!(result.is_err());
+        assert_eq!(calls[2], vec![(0x2a, true), (0x1d, true)]);
+    }
+
+    #[test]
+    fn a_failed_action_key_lifts_its_modifiers_too() {
+        let (result, calls) = press(3);
+        assert!(result.is_err());
+        assert_eq!(calls[3], vec![(0x1e, true), (0x2a, true), (0x1d, true)]);
+    }
+
+    #[test]
+    fn a_failed_release_still_lifts_the_remaining_modifiers() {
+        let (result, calls) = press(4);
+        assert!(result.is_err());
+        assert_eq!(calls[4], vec![(0x1d, true)]);
     }
 }
