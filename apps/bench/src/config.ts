@@ -11,6 +11,7 @@ interface TrackConfig {
   readonly os: readonly Os[]
   readonly runner?: string
   readonly machine?: string
+  readonly maxTrialsPerJob?: number
   readonly contenders: readonly ContenderConfig[]
 }
 
@@ -102,6 +103,9 @@ function trackOf(value: unknown, flat: { contenders: readonly string[]; models: 
     os: oneOf(value.os === undefined ? [...OSES] : strings(value.os, `the machines of ${track}`), OSES, "a machine"),
     ...(typeof value.runner === "string" ? { runner: value.runner } : {}),
     ...(typeof value.machine === "string" ? { machine: value.machine } : {}),
+    ...(value.maxTrialsPerJob === undefined
+      ? {}
+      : { maxTrialsPerJob: number(value.maxTrialsPerJob, `maxTrialsPerJob of ${track}`, 1) }),
     contenders,
   }
 }
@@ -168,7 +172,8 @@ export function planJobs(config: BenchConfig, tasks: readonly Task[]): Job[] {
       const runner = track.runner ?? config.runners[os].runner
       const machine = track.machine ?? config.runners[os].machine
       const count = tasksFor(tasks, track.track, os).length * config.reps
-      const shards = Math.max(1, Math.ceil(count / config.maxTrialsPerJob))
+      const perJob = track.maxTrialsPerJob ?? config.maxTrialsPerJob
+      const shards = Math.max(1, Math.ceil(count / perJob))
       for (const contender of track.contenders) {
         for (const model of contender.models) {
           for (let shard = 1; shard <= shards; shard += 1)
