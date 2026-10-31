@@ -6,7 +6,7 @@ import { CliError, type Context } from "../context"
 
 export const WAIT_BUDGET = Duration.seconds(60)
 
-type Computers = Stream.Stream<readonly ComputerSummary[]>
+type Computers = Stream.Stream<readonly ComputerSummary[], CliError>
 
 function capabilityList(caps: ComputerCaps, background: boolean): readonly string[] {
   const list: string[] = []
@@ -109,6 +109,7 @@ export function pcStream(client: {
   return client["user.subscribe"]({}).pipe(
     Stream.map((item) => (item.kind === "signal" && item.signal.t === "pcState" ? item.signal.computers : undefined)),
     Stream.filter((list): list is readonly ComputerSummary[] => list !== undefined),
+    Stream.mapError(() => new CliError({ message: "lost the connection to the Worker" })),
   )
 }
 
