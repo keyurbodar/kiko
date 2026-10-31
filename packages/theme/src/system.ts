@@ -118,7 +118,7 @@ export function systemCss(): string {
     "/* system:start */",
     `:root {\n${root.join("\n")}\n}`,
     "",
-    `@theme {\n${fixed.join("\n")}\n}`,
+    `@theme static {\n${fixed.join("\n")}\n}`,
     "",
     `@theme inline {\n${live.join("\n")}\n}`,
     "",

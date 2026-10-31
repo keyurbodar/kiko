@@ -820,16 +820,12 @@
   --layer-popover: 4000;
   --layer-toast: 5000;
   --layer-tooltip: 100000;
-  --font-family-sans:
-    "Geist Variable", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
-  --font-family-mono:
-    "Geist Mono Variable", ui-monospace, SFMono-Regular, "Roboto Mono", Menlo, Monaco, "Liberation Mono",
-    "DejaVu Sans Mono", "Courier New", monospace;
+  --font-family-sans: "Geist Variable", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-family-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, "Roboto Mono", Menlo, Monaco, "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
   --press-scale: 0.98;
 }
 
-@theme {
+@theme static {
   --radius-none: 0px;
   --radius-xs: 2px;
   --radius-sm: 4px;
