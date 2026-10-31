@@ -39,7 +39,7 @@ pub fn id(action: Action) -> String {
     }
 }
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(target_os = "macos")]
 mod desktop;
 
 #[cfg(target_os = "linux")]
@@ -51,7 +51,7 @@ pub fn run(
     handler: Handler,
     commands: Receiver<Command>,
 ) -> ! {
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
         desktop::run(shared, driver, handler, commands)
     }

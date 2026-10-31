@@ -233,49 +233,6 @@ fn candidates() -> Vec<(&'static str, &'static str, PathBuf)> {
     .collect()
 }
 
-#[cfg(target_os = "windows")]
-fn candidates() -> Vec<(&'static str, &'static str, PathBuf)> {
-    let Some(local) = std::env::var_os("LOCALAPPDATA") else {
-        return Vec::new();
-    };
-    let local = PathBuf::from(local);
-    [
-        ("chrome", "Chrome", "Google/Chrome/User Data"),
-        ("chrome-beta", "Chrome Beta", "Google/Chrome Beta/User Data"),
-        ("chrome-dev", "Chrome Dev", "Google/Chrome Dev/User Data"),
-        (
-            "chrome-canary",
-            "Chrome Canary",
-            "Google/Chrome SxS/User Data",
-        ),
-        ("edge", "Edge", "Microsoft/Edge/User Data"),
-        ("edge-beta", "Edge Beta", "Microsoft/Edge Beta/User Data"),
-        ("edge-dev", "Edge Dev", "Microsoft/Edge Dev/User Data"),
-        (
-            "edge-canary",
-            "Edge Canary",
-            "Microsoft/Edge Canary/User Data",
-        ),
-        ("brave", "Brave", "BraveSoftware/Brave-Browser/User Data"),
-        (
-            "brave-beta",
-            "Brave Beta",
-            "BraveSoftware/Brave-Browser-Beta/User Data",
-        ),
-        (
-            "brave-nightly",
-            "Brave Nightly",
-            "BraveSoftware/Brave-Browser-Nightly/User Data",
-        ),
-        ("chromium", "Chromium", "Chromium/User Data"),
-        ("vivaldi", "Vivaldi", "Vivaldi/User Data"),
-        ("arc", "Arc", "Arc/User Data"),
-    ]
-    .into_iter()
-    .map(|(slug, name, path)| (slug, name, local.join(path)))
-    .collect()
-}
-
 #[cfg(target_os = "linux")]
 fn candidates() -> Vec<(&'static str, &'static str, PathBuf)> {
     let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
@@ -396,21 +353,6 @@ fn other_browsers() -> Vec<Profile> {
             &["safari"],
         ));
     }
-    #[cfg(target_os = "windows")]
-    {
-        if let Some(roaming) = std::env::var_os("APPDATA") {
-            let firefox = PathBuf::from(roaming).join("Mozilla/Firefox");
-            if firefox.is_dir() {
-                found.push(Profile::other(
-                    "firefox",
-                    "Firefox",
-                    firefox,
-                    Kind::Other,
-                    &["firefox"],
-                ));
-            }
-        }
-    }
     #[cfg(target_os = "linux")]
     if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
         for path in [
@@ -502,23 +444,6 @@ mod tests {
             "Library/Application Support/Microsoft Edge",
             "Library/Application Support/BraveSoftware/Brave-Browser",
             "Library/Application Support/Arc/User Data",
-        ] {
-            assert!(
-                paths.iter().any(|path| path.ends_with(wanted)),
-                "{wanted} in {paths:?}"
-            );
-        }
-    }
-
-    #[cfg(target_os = "windows")]
-    #[test]
-    fn looks_where_windows_browsers_keep_their_profiles() {
-        let paths = candidate_paths();
-        for wanted in [
-            "Google/Chrome/User Data",
-            "Google/Chrome SxS/User Data",
-            "Microsoft/Edge/User Data",
-            "BraveSoftware/Brave-Browser/User Data",
         ] {
             assert!(
                 paths.iter().any(|path| path.ends_with(wanted)),

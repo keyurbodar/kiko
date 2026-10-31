@@ -19,11 +19,6 @@ if [ -z "$chrome" ]; then
         if [ -x "$candidate" ]; then chrome="$candidate"; break; fi
       done
       ;;
-    *)
-      for candidate in "/c/Program Files/Google/Chrome/Application/chrome.exe" "/c/Program Files (x86)/Google/Chrome/Application/chrome.exe"; do
-        if [ -x "$candidate" ]; then chrome="$candidate"; break; fi
-      done
-      ;;
   esac
 fi
 if [ -z "$chrome" ]; then
