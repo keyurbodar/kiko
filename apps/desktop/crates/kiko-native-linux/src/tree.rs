@@ -9,6 +9,7 @@ use crate::a11y::{self, CALL, Target};
 
 const MAX_DEPTH: usize = 40;
 const MAX_CHILDREN: usize = 2048;
+const MAX_CACHED: usize = kiko_driver::MAX_NODES;
 const DEADLINE: Duration = Duration::from_secs(3);
 
 pub(crate) struct RefAllocator {
@@ -64,7 +65,12 @@ impl Index {
         let Some(entries) = a11y::cache(conn, bus, budget).await else {
             return;
         };
-        for entry in entries {
+        self.ingest(entries);
+    }
+
+    fn ingest(&mut self, entries: Vec<a11y::CacheEntry>) {
+        let room = MAX_CACHED.saturating_sub(self.items.len());
+        for entry in entries.into_iter().take(room) {
             if let Some(parent) = entry.parent {
                 self.children
                     .entry(parent)
@@ -496,9 +502,27 @@ pub(crate) fn is_window_role(role: Role) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use atspi::{State, StateSet};
+    use atspi::{InterfaceSet, Role, State, StateSet};
 
-    use super::states_of;
+    use super::{Index, MAX_CACHED, states_of};
+    use crate::a11y::{CacheEntry, Target};
+
+    fn entry(index: usize) -> CacheEntry {
+        CacheEntry {
+            object: Target {
+                bus: ":1.1".to_string(),
+                path: format!("/org/a11y/atspi/accessible/{index}"),
+            },
+            parent: None,
+            index: 0,
+            count: 0,
+            children: Vec::new(),
+            ifaces: InterfaceSet::empty(),
+            role: Role::Frame,
+            name: String::new(),
+            states: StateSet::empty(),
+        }
+    }
 
     #[test]
     fn infers_disabled_from_a_missing_enabled_state() {
@@ -516,5 +540,20 @@ mod tests {
     fn does_not_infer_disabled_when_the_toolkit_never_reports_enabled() {
         let states = StateSet::new(State::Focusable);
         assert_eq!(states_of(&states, false), vec!["focusable".to_string()]);
+    }
+
+    #[test]
+    fn caches_no_more_entries_than_the_node_limit() {
+        let mut index = Index::default();
+        index.ingest((0..MAX_CACHED + 10).map(entry).collect());
+        assert_eq!(index.items.len(), MAX_CACHED);
+    }
+
+    #[test]
+    fn a_full_cache_takes_no_more_entries() {
+        let mut index = Index::default();
+        index.ingest((0..MAX_CACHED).map(entry).collect());
+        index.ingest((0..10).map(entry).collect());
+        assert_eq!(index.items.len(), MAX_CACHED);
     }
 }

@@ -102,6 +102,7 @@ impl Worker {
             image,
             nodes,
             outline,
+            note: None,
         })
     }
 

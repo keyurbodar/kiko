@@ -20,13 +20,12 @@ export XDG_DATA_HOME="$(mktemp -d)"
 export XDG_SESSION_TYPE=wayland
 export XDG_CURRENT_DESKTOP=GNOME
 export WAYLAND_DISPLAY=wayland-0
-unset DISPLAY
 export NO_AT_BRIDGE=0
 export KIKO_E2E_OUT="$(mktemp -d)"
 export KIKO_TEST_ARGS="${KIKO_TEST_ARGS:-${*:-wayland_}}"
 
 dbus-run-session -- bash -euo pipefail -c '
-  gnome-shell --headless --virtual-monitor 1280x1024 --no-x11 >/tmp/kiko-wayland-shell.log 2>&1 &
+  gnome-shell --headless --virtual-monitor 1280x1024 >/tmp/kiko-wayland-shell.log 2>&1 &
   pids=($!)
   cleanup() { kill "${pids[@]}" 2>/dev/null || true; }
   trap cleanup EXIT
@@ -36,6 +35,20 @@ dbus-run-session -- bash -euo pipefail -c '
   done
   if [ ! -S "$XDG_RUNTIME_DIR/wayland-0" ]; then
     echo "the headless compositor did not start" >&2
+    tail -20 /tmp/kiko-wayland-shell.log >&2 || true
+    exit 1
+  fi
+  for _ in $(seq 1 300); do
+    for n in $(seq 0 9); do
+      if [ -S "/tmp/.X11-unix/X$n" ]; then
+        export DISPLAY=":$n"
+        break 2
+      fi
+    done
+    sleep 0.1
+  done
+  if [ -z "${DISPLAY:-}" ]; then
+    echo "the headless compositor did not start Xwayland" >&2
     tail -20 /tmp/kiko-wayland-shell.log >&2 || true
     exit 1
   fi

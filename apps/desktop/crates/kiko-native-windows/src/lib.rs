@@ -70,6 +70,7 @@ impl Native for WindowsDriver {
             window,
             image,
             nodes,
+            note: None,
         })
     }
 

@@ -98,6 +98,7 @@ export const Look = Schema.Struct({
   image: Schema.optionalKey(Image),
   nodes: Schema.Array(Node),
   outline: Text,
+  note: Schema.optionalKey(Text),
 })
 export type Look = typeof Look.Type
 

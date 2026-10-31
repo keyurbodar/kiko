@@ -30,6 +30,7 @@ for _ in $(seq 1 100); do
   sleep 0.1
 done
 export DISPLAY=":${display}"
+export XDG_SESSION_TYPE=x11
 export NO_AT_BRIDGE=0
 
 dbus-run-session -- bash -euo pipefail -c '

@@ -9,14 +9,14 @@ use atspi::zbus::Connection;
 use atspi::{CoordType, State as A11yState, StateSet};
 use atspi_connection::AccessibilityConnection;
 use kiko_driver::{
-    ActParams, ActResult, Action, ErrorCode, Grant, Image, Look, LookParams, Mode, Native,
+    ActParams, ActResult, Action, DriverError, Grant, Image, Look, LookParams, Mode, Native,
     OpenParams, PermissionKind, Permissions, Ref, Result, Route, Status, Window, WindowId,
 };
 
 use crate::a11y::{self, Target};
 use crate::act;
 use crate::capture;
-use crate::error::{background_unavailable, failed, not_found, stale, unsupported};
+use crate::error::{background_unavailable, failed, not_found, stale, timeout, unsupported};
 use crate::open;
 use crate::tree::{self, RefAllocator};
 use crate::wayland::Wayland;
@@ -43,15 +43,13 @@ struct Listed {
 
 impl State {
     fn new() -> Self {
-        let wayland =
-            std::env::var_os("WAYLAND_DISPLAY").is_some() && std::env::var_os("DISPLAY").is_none();
         Self {
             a11y: None,
             advertised: false,
             next_ref: 1,
             refs: HashMap::new(),
             x11: None,
-            wayland,
+            wayland: wayland_session(),
             portal: None,
         }
     }
@@ -70,20 +68,29 @@ impl State {
             .ok_or_else(|| failed("the accessibility bus is unavailable"))
     }
 
+    fn forget_bus(&mut self, error: DriverError) -> DriverError {
+        self.a11y = None;
+        error
+    }
+
     fn x11(&mut self) -> Option<&mut X11> {
-        if self.x11.is_none() && !self.wayland {
+        if self.x11.is_none() && std::env::var_os("DISPLAY").is_some() {
             self.x11 = X11::connect().ok();
         }
         self.x11.as_mut()
     }
 
     fn screen_granted(&mut self) -> bool {
-        self.x11().is_some()
+        if self.wayland {
+            self.portal().screen_granted()
+        } else {
+            self.x11().is_some()
+        }
     }
 
     async fn reachable(&mut self) -> bool {
         matches!(
-            tokio::time::timeout(Duration::from_secs(3), self.bus()).await,
+            tokio::time::timeout(Duration::from_secs(3), self.applications()).await,
             Ok(Ok(_))
         )
     }
@@ -94,8 +101,8 @@ impl State {
                 self.advertised = true;
                 a11y::enable().await
             }
-            PermissionKind::Screen if self.screen_granted() => Ok(()),
             PermissionKind::Screen if self.wayland => self.portal().request_screen().await,
+            PermissionKind::Screen if self.x11().is_some() => Ok(()),
             PermissionKind::Screen => Err(unsupported(
                 "screen capture needs an X11 display or the Wayland ScreenCast portal",
             )),
@@ -107,21 +114,40 @@ impl State {
 
     async fn listed(&mut self) -> Result<Vec<Listed>> {
         let frames = self.frames().await?;
+        let wayland = self.wayland;
         let snapshot = self.x11().map(|x11| x11.snapshot());
         Ok(frames
             .into_iter()
-            .filter_map(|frame| frame.into_listed(snapshot.as_ref()))
+            .filter_map(|frame| frame.into_listed(snapshot.as_ref(), wayland))
             .collect())
     }
 
     async fn frames(&mut self) -> Result<Vec<Frame>> {
+        let applications = self.applications().await?;
         let bus = self.bus().await?;
-        let root = a11y::root(&bus).await?;
-        let applications = a11y::within(a11y::CALL, root.get_children())
-            .await
-            .unwrap_or_default();
-        let applications: Vec<Target> = applications.iter().filter_map(Target::from_ref).collect();
         Ok(frames_of(&bus, applications, Instant::now() + LIST_DEADLINE).await)
+    }
+
+    async fn applications(&mut self) -> Result<Vec<Target>> {
+        let bus = self.bus().await?;
+        let root = match a11y::root(&bus).await {
+            Ok(root) => root,
+            Err(error) => return Err(self.forget_bus(error)),
+        };
+        let children = match tokio::time::timeout(a11y::CALL, root.get_children()).await {
+            Ok(Ok(children)) => children,
+            Ok(Err(error)) => {
+                return Err(
+                    self.forget_bus(failed(format!("could not list applications: {error}")))
+                );
+            }
+            Err(_) => {
+                return Err(
+                    self.forget_bus(timeout("the accessibility bus did not answer in time"))
+                );
+            }
+        };
+        Ok(children.iter().filter_map(Target::from_ref).collect())
     }
 
     async fn look(&mut self, params: &LookParams) -> Result<Look> {
@@ -141,20 +167,20 @@ impl State {
         self.next_ref = allocator.next_ref();
         self.refs
             .insert(params.window.clone(), allocator.into_table());
-        let image = if params.image {
-            match self.image(&entry, params.max_width.unwrap_or(1280)).await {
-                Ok(image) => Some(image),
-                Err(error) if params.tree && error.code == ErrorCode::Denied => None,
-                Err(error) => return Err(error),
-            }
+        let (image, note) = if params.image {
+            image_outcome(
+                self.image(&entry, params.max_width.unwrap_or(1280)).await,
+                params.tree,
+            )?
         } else {
-            None
+            (None, None)
         };
         Ok(Look {
             window: entry.window,
             image,
             outline: kiko_driver::outline(&nodes),
             nodes,
+            note,
         })
     }
 
@@ -389,6 +415,17 @@ fn foreground() -> ActResult {
     }
 }
 
+fn image_outcome(result: Result<Image>, tree: bool) -> Result<(Option<Image>, Option<String>)> {
+    match result {
+        Ok(image) => Ok((Some(image), None)),
+        Err(error) if tree => {
+            let reason = error.message.lines().next().unwrap_or_default().trim();
+            Ok((None, (!reason.is_empty()).then(|| reason.to_string())))
+        }
+        Err(error) => Err(error),
+    }
+}
+
 fn require_focused(entry: &Listed) -> Result<()> {
     if entry.window.focused {
         return Ok(());
@@ -421,9 +458,12 @@ struct Frame {
 }
 
 impl Frame {
-    fn into_listed(self, snapshot: Option<&Snapshot>) -> Option<Listed> {
-        let matched =
-            snapshot.and_then(|snapshot| snapshot.matched(self.pid, &self.title, self.extents));
+    fn into_listed(self, snapshot: Option<&Snapshot>, wayland: bool) -> Option<Listed> {
+        let matched = snapshot.and_then(|snapshot| {
+            let window = snapshot.matched(self.pid, &self.title, self.extents)?;
+            let same_process = self.pid.is_some_and(|pid| window.pid == Some(pid));
+            (!wayland || same_process).then_some(window)
+        });
         let window = Window {
             id: self.target.id(),
             pid: self.pid.unwrap_or(0),
@@ -611,11 +651,7 @@ impl Session {
         let screen = if state.screen_granted() {
             Grant::Granted
         } else if state.wayland {
-            if state.portal().screen_granted() {
-                Grant::Granted
-            } else {
-                Grant::Unknown
-            }
+            Grant::Unknown
         } else {
             Grant::Denied
         };
@@ -711,8 +747,22 @@ pub fn status() -> Status {
     }
 }
 
+fn wayland_session() -> bool {
+    wayland_from(
+        std::env::var("XDG_SESSION_TYPE").ok().as_deref(),
+        std::env::var_os("WAYLAND_DISPLAY").is_some(),
+    )
+}
+
+fn wayland_from(session_type: Option<&str>, wayland_display: bool) -> bool {
+    match session_type {
+        Some(kind) => kind.eq_ignore_ascii_case("wayland"),
+        None => wayland_display,
+    }
+}
+
 fn session_name() -> String {
-    if std::env::var_os("WAYLAND_DISPLAY").is_some() && std::env::var_os("DISPLAY").is_none() {
+    if wayland_session() {
         "wayland".to_string()
     } else if std::env::var_os("DISPLAY").is_some() {
         "x11".to_string()
@@ -725,17 +775,135 @@ fn session_name() -> String {
 mod tests {
     use std::time::{Duration, Instant};
 
-    use atspi::Role;
+    use atspi::{Role, StateSet};
 
-    use super::frames_of;
-    use crate::a11y;
+    use super::{Frame, State, frames_of, image_outcome, wayland_from};
+    use crate::a11y::{self, Target};
     use crate::fake::{self, Hangs};
+    use crate::x11::{Snapshot, XWindow};
 
     fn runtime() -> tokio::runtime::Runtime {
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("the test runtime")
+    }
+
+    fn error(code: kiko_driver::ErrorCode, message: &str) -> kiko_driver::DriverError {
+        kiko_driver::DriverError::new(code, message)
+    }
+
+    fn frame(pid: u32, title: &str) -> Frame {
+        Frame {
+            target: Target {
+                bus: ":1.2".to_string(),
+                path: "/org/a11y/atspi/accessible/2".to_string(),
+            },
+            pid: Some(pid),
+            app: "Kiko".to_string(),
+            title: title.to_string(),
+            states: StateSet::empty(),
+            extents: None,
+        }
+    }
+
+    fn snapshot(pid: u32, title: &str) -> Snapshot {
+        Snapshot {
+            windows: vec![XWindow {
+                xid: 1,
+                pid: Some(pid),
+                title: title.to_string(),
+                rect: kiko_driver::Rect::default(),
+                hidden: false,
+            }],
+            active: None,
+        }
+    }
+
+    #[test]
+    fn a_wayland_session_is_detected_even_when_display_is_set() {
+        assert!(wayland_from(Some("wayland"), true));
+        assert!(wayland_from(Some("wayland"), false));
+        assert!(!wayland_from(Some("x11"), true));
+        assert!(!wayland_from(Some("tty"), false));
+        assert!(wayland_from(None, true));
+        assert!(!wayland_from(None, false));
+    }
+
+    #[test]
+    fn a_tree_look_keeps_the_tree_when_the_picture_fails() {
+        let error = error(
+            kiko_driver::ErrorCode::Timeout,
+            "the shared window has not sent a picture yet",
+        );
+        let (image, note) = image_outcome(Err(error), true).expect("a tree look failed with it");
+        assert!(image.is_none());
+        assert_eq!(
+            note.as_deref(),
+            Some("the shared window has not sent a picture yet")
+        );
+    }
+
+    #[test]
+    fn a_picture_only_look_fails_when_the_picture_fails() {
+        let error = error(kiko_driver::ErrorCode::Denied, "no screen capture grant");
+        assert!(image_outcome(Err(error), false).is_err());
+    }
+
+    #[test]
+    fn a_picture_that_arrived_needs_no_note() {
+        let picture = kiko_driver::Image {
+            mime: "image/jpeg".to_string(),
+            data: String::new(),
+            width: 1,
+            height: 1,
+            covers: kiko_driver::Rect::default(),
+        };
+        let (image, note) = image_outcome(Ok(picture), true).expect("a good picture failed");
+        assert!(image.is_some());
+        assert!(note.is_none());
+    }
+
+    #[test]
+    fn a_native_window_does_not_take_a_related_xwayland_window() {
+        let snapshot = snapshot(100, "Kiko Target X11");
+        let listed = frame(200, "Kiko Target")
+            .into_listed(Some(&snapshot), true)
+            .expect("the native window vanished");
+        assert!(listed.xid.is_none());
+    }
+
+    #[test]
+    fn an_xwayland_window_keeps_its_x11_window() {
+        let snapshot = snapshot(100, "Kiko Target");
+        let listed = frame(100, "Kiko Target")
+            .into_listed(Some(&snapshot), true)
+            .expect("the Xwayland window vanished");
+        assert_eq!(listed.xid, Some(1));
+    }
+
+    #[test]
+    #[ignore]
+    fn a_closed_accessibility_bus_is_dropped_and_reconnected() {
+        let runtime = runtime();
+        let mut state = State::new();
+        let bus = runtime
+            .block_on(state.bus())
+            .expect("the accessibility bus is missing");
+        runtime
+            .block_on(bus.clone().close())
+            .expect("could not close the accessibility bus");
+        assert!(
+            !runtime.block_on(state.reachable()),
+            "a closed accessibility bus still reported the desktop as reachable"
+        );
+        assert!(
+            state.a11y.is_none(),
+            "the closed accessibility bus was kept for the next call"
+        );
+        runtime
+            .block_on(state.frames())
+            .expect("the accessibility bus did not reconnect");
     }
 
     #[test]

@@ -141,6 +141,8 @@ pub struct Look {
     pub image: Option<Image>,
     pub nodes: Vec<Node>,
     pub outline: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

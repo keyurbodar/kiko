@@ -38,11 +38,12 @@ fn python() -> String {
     }
 }
 
-fn spawn_gtk(out: &Path) -> App {
+fn spawn_gtk(out: &Path, backend: &str, suffix: &str) -> App {
     let child = Command::new(python())
         .arg(fixture())
         .arg(out)
-        .env("GDK_BACKEND", "wayland")
+        .env("GDK_BACKEND", backend)
+        .env("KIKO_TITLE_SUFFIX", suffix)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit())
@@ -51,13 +52,17 @@ fn spawn_gtk(out: &Path) -> App {
     App { child }
 }
 
-fn start(name: &str) -> (App, PathBuf) {
+fn start_with(name: &str, backend: &str, suffix: &str) -> (App, PathBuf) {
     let out = output_dir().join(name);
     let _ = std::fs::remove_dir_all(&out);
     std::fs::create_dir_all(&out).expect("output dir");
-    let app = spawn_gtk(&out);
+    let app = spawn_gtk(&out, backend, suffix);
     wait_file(&out.join("ready"));
     (app, out)
+}
+
+fn start(name: &str) -> (App, PathBuf) {
+    start_with(name, "wayland", "")
 }
 
 fn wait_for<T>(what: &str, mut probe: impl FnMut() -> Option<T>) -> T {
@@ -103,6 +108,18 @@ fn windows_with(native: &mut Box<dyn Native>, title: &str) -> Option<Window> {
 
 fn wait_window(native: &mut Box<dyn Native>, title: &str) -> Window {
     wait_for(title, || windows_with(native, title))
+}
+
+fn windows_titled(native: &mut Box<dyn Native>, title: &str) -> Option<Window> {
+    native
+        .windows()
+        .ok()?
+        .into_iter()
+        .find(|window| window.title == title)
+}
+
+fn wait_titled(native: &mut Box<dyn Native>, title: &str) -> Window {
+    wait_for(title, || windows_titled(native, title))
 }
 
 fn node(look: &Look, roles: &[&str], name: &str) -> kiko_driver::Node {
@@ -214,6 +231,56 @@ fn wayland_look_without_a_grant_returns_the_tree_and_no_image() {
         first.nodes.iter().any(|node| node.name == "Press me"),
         "the button is missing from\n{}",
         first.outline
+    );
+    assert!(
+        first
+            .note
+            .as_deref()
+            .is_some_and(|note| note.contains("Screen Recording")),
+        "the missing picture came with no reason: {:?}",
+        first.note
+    );
+}
+
+#[test]
+#[ignore]
+fn wayland_uses_x11_for_an_xwayland_window_and_the_portal_for_a_native_window() {
+    let (_native_app, _native_out) = start("native-and-xwayland");
+    let (_x11_app, _x11_out) = start_with("native-and-xwayland-client", "x11", " X11");
+    let mut native = driver().expect("driver");
+    let native_window = wait_titled(&mut native, TARGET);
+    let x11_window = wait_titled(&mut native, "Kiko Target X11");
+
+    let native_look = native
+        .look(&LookParams {
+            window: native_window.id.clone(),
+            tree: true,
+            image: true,
+            max_width: Some(2000),
+        })
+        .expect("a look at the native window failed");
+    assert!(
+        native_look.image.is_none(),
+        "a native Wayland window got a picture without a screen capture grant"
+    );
+    let note = native_look.note.unwrap_or_default();
+    assert!(
+        note.contains("Screen Recording"),
+        "the native window's missing picture said {note:?}"
+    );
+
+    let x11_look = native
+        .look(&LookParams {
+            window: x11_window.id.clone(),
+            tree: true,
+            image: true,
+            max_width: Some(2000),
+        })
+        .expect("a look at the Xwayland window failed");
+    assert!(
+        x11_look.image.is_some(),
+        "the Xwayland window got no picture: {:?}",
+        x11_look.note
     );
 }
 

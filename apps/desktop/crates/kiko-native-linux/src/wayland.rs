@@ -1,4 +1,7 @@
+use std::ffi::OsString;
 use std::future::Future;
+use std::io::Write as _;
+use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -6,7 +9,7 @@ use std::time::Duration;
 
 use ashpd::desktop::remote_desktop::{DeviceType, KeyState, RemoteDesktop, SelectDevicesOptions};
 use ashpd::desktop::screencast::{
-    CursorMode, Screencast, SelectSourcesOptions, SourceType, Streams,
+    CursorMode, Screencast, SelectSourcesOptions, SourceType, Stream, Streams,
 };
 use ashpd::desktop::{PersistMode, ResponseError, Session, SessionPortal};
 use ashpd::enumflags2::BitFlags;
@@ -25,6 +28,9 @@ const RESTORE_BUDGET: Duration = Duration::from_secs(5);
 const PORTAL_BUDGET: Duration = Duration::from_secs(5);
 const CALL_BUDGET: Duration = Duration::from_secs(5);
 const CLOSE_BUDGET: Duration = Duration::from_secs(1);
+const COVER_SLACK: f64 = 64.0;
+const TOKEN_DIR: u32 = 0o700;
+const TOKEN_FILE: u32 = 0o600;
 const SCREEN_HINT: &str =
     "ask the owner to allow screen capture from the Screen Recording row of the kiko menu";
 const INPUT_HINT: &str =
@@ -42,6 +48,47 @@ struct Capture {
     session: Arc<Session<Screencast>>,
     frames: Frames,
     closed: Arc<AtomicBool>,
+    cover: Cover,
+}
+
+#[derive(Clone, Debug)]
+struct Cover {
+    mapping: Option<String>,
+    position: Option<(i32, i32)>,
+    size: Option<(i32, i32)>,
+}
+
+impl Cover {
+    fn of(stream: &Stream) -> Self {
+        Self {
+            mapping: stream.mapping_id().map(str::to_string),
+            position: stream.position(),
+            size: stream.size(),
+        }
+    }
+
+    fn matches(&self, window: Rect) -> bool {
+        let Some((width, height)) = self.size else {
+            return false;
+        };
+        (f64::from(width) - window.w).abs() <= COVER_SLACK
+            && (f64::from(height) - window.h).abs() <= COVER_SLACK
+    }
+
+    fn describe(&self) -> String {
+        let size = self
+            .size
+            .map(|(width, height)| format!("{width}x{height}"))
+            .unwrap_or_else(|| "an unknown size".to_string());
+        let position = self
+            .position
+            .map(|(x, y)| format!(" at {x},{y}"))
+            .unwrap_or_default();
+        match self.mapping.as_deref() {
+            Some(mapping) => format!("{size}{position}, {mapping}"),
+            None => format!("{size}{position}"),
+        }
+    }
 }
 
 impl Capture {
@@ -66,8 +113,8 @@ impl Wayland {
     pub fn new() -> Self {
         Self {
             tokens: Tokens {
-                capture: read_token(&capture_path()),
-                input: read_token(&input_path()),
+                capture: read_token(capture_path().as_deref()),
+                input: read_token(input_path().as_deref()),
             },
             capture: None,
             input: None,
@@ -110,8 +157,19 @@ impl Wayland {
     }
 
     async fn shot(&mut self, covers: Rect, max_width: u32) -> Result<Image, DriverError> {
-        let frames = self.frames().await?;
-        let frame = frames.latest()?;
+        self.prepare_capture().await?;
+        let cover = self
+            .capture
+            .as_ref()
+            .map(|capture| capture.cover.clone())
+            .ok_or_else(|| failed("the screen sharing session is unavailable"))?;
+        if !cover.matches(covers) {
+            return Err(denied(format!(
+                "kiko's screen share covers {}, not this window; {SCREEN_HINT}",
+                cover.describe()
+            )));
+        }
+        let frame = self.frames().await?.latest()?;
         capture::encode(frame.to_rgb()?, max_width, covers)
     }
 
@@ -226,16 +284,21 @@ impl Wayland {
     }
 
     async fn frames(&mut self) -> Result<&mut Frames, DriverError> {
+        self.prepare_capture().await?;
+        self.capture
+            .as_mut()
+            .map(|capture| &mut capture.frames)
+            .ok_or_else(|| failed("the screen sharing session is unavailable"))
+    }
+
+    async fn prepare_capture(&mut self) -> Result<(), DriverError> {
         if self.capture.as_ref().is_none_or(Capture::needs_reset) {
             self.reset_capture().await;
         }
         if self.capture.is_none() {
             self.ensure_capture().await?;
         }
-        self.capture
-            .as_mut()
-            .map(|capture| &mut capture.frames)
-            .ok_or_else(|| failed("the screen sharing session is unavailable"))
+        Ok(())
     }
 
     async fn ensure_capture(&mut self) -> Result<(), DriverError> {
@@ -276,7 +339,9 @@ impl Wayland {
             return;
         };
         self.tokens.capture = Some(token.to_string());
-        write_token(&capture_path(), token);
+        if let Some(path) = capture_path() {
+            write_token(&path, token);
+        }
     }
 
     fn remember_input(&mut self, token: Option<&str>) {
@@ -284,7 +349,9 @@ impl Wayland {
             return;
         };
         self.tokens.input = Some(token.to_string());
-        write_token(&input_path(), token);
+        if let Some(path) = input_path() {
+            write_token(&path, token);
+        }
     }
 }
 
@@ -294,14 +361,21 @@ async fn open_capture_session(
 ) -> Result<(Capture, Option<String>), DriverError> {
     let (screencast, session, streams) = open_capture(token, budget).await?;
     let restore = streams.restore_token().map(str::to_string);
+    let Some(stream) = streams.streams().first() else {
+        close(&session).await;
+        return Err(failed("the portal shared no window"));
+    };
+    let cover = Cover::of(stream);
+    let node = stream.pipe_wire_node_id();
     let session = Arc::new(session);
     let closed = watch_closed(&session);
-    match read_frames(&screencast, session.as_ref(), &streams).await {
+    match read_frames(&screencast, session.as_ref(), node).await {
         Ok(frames) => Ok((
             Capture {
                 session,
                 frames,
                 closed,
+                cover,
             },
             restore,
         )),
@@ -392,13 +466,8 @@ async fn start_capture(
 async fn read_frames(
     screencast: &Screencast,
     session: &Session<Screencast>,
-    streams: &Streams,
+    node: u32,
 ) -> Result<Frames, DriverError> {
-    let node = streams
-        .streams()
-        .first()
-        .ok_or_else(|| failed("the portal shared no window"))?
-        .pipe_wire_node_id();
     let fd = portal_call(
         PORTAL_BUDGET,
         screencast.open_pipe_wire_remote(session, Default::default()),
@@ -551,24 +620,31 @@ fn portal_error(context: &str, cancel: &str, error: ashpd::Error) -> DriverError
     }
 }
 
-fn data_dir() -> PathBuf {
-    std::env::var_os("XDG_DATA_HOME")
+fn data_dir() -> Option<PathBuf> {
+    data_home(std::env::var_os("XDG_DATA_HOME"), std::env::var_os("HOME"))
+}
+
+fn data_home(xdg: Option<OsString>, home: Option<OsString>) -> Option<PathBuf> {
+    let base = xdg
+        .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share")))
-        .unwrap_or_else(|| PathBuf::from("/tmp"))
-        .join("kiko")
+        .or_else(|| {
+            home.filter(|value| !value.is_empty())
+                .map(|home| PathBuf::from(home).join(".local/share"))
+        })?;
+    Some(base.join("kiko"))
 }
 
-fn capture_path() -> PathBuf {
-    data_dir().join("screencast-token")
+fn capture_path() -> Option<PathBuf> {
+    data_dir().map(|directory| directory.join("screencast-token"))
 }
 
-fn input_path() -> PathBuf {
-    data_dir().join("remote-desktop-token")
+fn input_path() -> Option<PathBuf> {
+    data_dir().map(|directory| directory.join("remote-desktop-token"))
 }
 
-fn read_token(path: &Path) -> Option<String> {
-    let text = std::fs::read_to_string(path).ok()?;
+fn read_token(path: Option<&Path>) -> Option<String> {
+    let text = std::fs::read_to_string(path?).ok()?;
     text.lines()
         .next()
         .map(str::trim)
@@ -583,5 +659,128 @@ fn write_token(path: &Path, token: &str) {
     if std::fs::create_dir_all(directory).is_err() {
         return;
     }
-    let _ = std::fs::write(path, format!("{token}\n"));
+    let _ = std::fs::set_permissions(directory, std::fs::Permissions::from_mode(TOKEN_DIR));
+    let temporary = path.with_extension("tmp");
+    let written = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(TOKEN_FILE)
+        .open(&temporary)
+        .and_then(|mut file| file.write_all(format!("{token}\n").as_bytes()))
+        .and_then(|()| std::fs::rename(&temporary, path));
+    if written.is_err() {
+        let _ = std::fs::remove_file(&temporary);
+        return;
+    }
+    let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(TOKEN_FILE));
+}
+
+#[cfg(test)]
+mod tests {
+    use std::os::unix::fs::PermissionsExt as _;
+    use std::path::PathBuf;
+
+    use kiko_driver::Rect;
+
+    use super::{Cover, TOKEN_DIR, TOKEN_FILE, data_home, write_token};
+
+    fn cover(size: Option<(i32, i32)>) -> Cover {
+        Cover {
+            mapping: None,
+            position: Some((0, 0)),
+            size,
+        }
+    }
+
+    fn window(w: f64, h: f64) -> Rect {
+        Rect {
+            x: 0.0,
+            y: 0.0,
+            w,
+            h,
+        }
+    }
+
+    fn mode(path: &std::path::Path) -> u32 {
+        std::fs::metadata(path)
+            .expect("the path")
+            .permissions()
+            .mode()
+            & 0o777
+    }
+
+    #[test]
+    fn a_look_at_the_granted_window_matches() {
+        assert!(cover(Some((400, 300))).matches(window(400.0, 300.0)));
+        assert!(cover(Some((410, 310))).matches(window(400.0, 300.0)));
+    }
+
+    #[test]
+    fn a_look_at_another_window_is_refused() {
+        assert!(!cover(Some((700, 500))).matches(window(400.0, 300.0)));
+    }
+
+    #[test]
+    fn a_grant_without_a_size_matches_no_window() {
+        assert!(!cover(None).matches(window(400.0, 300.0)));
+    }
+
+    #[test]
+    fn a_grant_says_what_it_covers() {
+        let described = cover(Some((700, 500))).describe();
+        assert!(described.contains("700x500"), "{described}");
+        assert!(described.contains("0,0"), "{described}");
+    }
+
+    #[test]
+    fn tokens_live_under_the_data_home() {
+        assert_eq!(
+            data_home(Some(PathBuf::from("/data").into_os_string()), None),
+            Some(PathBuf::from("/data/kiko"))
+        );
+        assert_eq!(
+            data_home(None, Some(PathBuf::from("/home/kiko").into_os_string())),
+            Some(PathBuf::from("/home/kiko/.local/share/kiko"))
+        );
+        assert_eq!(
+            data_home(
+                Some("".into()),
+                Some(PathBuf::from("/home/kiko").into_os_string())
+            ),
+            Some(PathBuf::from("/home/kiko/.local/share/kiko"))
+        );
+    }
+
+    #[test]
+    fn a_missing_home_leaves_no_place_for_tokens() {
+        assert_eq!(data_home(None, None), None);
+    }
+
+    #[test]
+    fn a_restore_token_is_private_to_its_owner() {
+        let directory = std::env::temp_dir().join(format!("kiko-token-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).expect("the token directory");
+        std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o755))
+            .expect("the loose token directory");
+        let path = directory.join("screencast-token");
+        std::fs::write(&path, "old\n").expect("the old token");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644))
+            .expect("the loose token");
+
+        write_token(&path, "secret");
+
+        assert_eq!(mode(&directory), TOKEN_DIR);
+        assert_eq!(mode(&path), TOKEN_FILE);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the token"),
+            "secret\n"
+        );
+        assert!(
+            !directory.join("screencast-token.tmp").exists(),
+            "the temporary token was left behind"
+        );
+        let _ = std::fs::remove_dir_all(&directory);
+    }
 }

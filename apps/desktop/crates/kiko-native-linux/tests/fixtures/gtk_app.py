@@ -11,6 +11,8 @@ from gi.repository import Gdk, GLib, Gtk
 out = sys.argv[1]
 os.makedirs(out, exist_ok=True)
 
+suffix = os.environ.get("KIKO_TITLE_SUFFIX", "")
+
 
 def write(name, text="1"):
     with open(os.path.join(out, name), "w") as handle:
@@ -29,7 +31,7 @@ def on_entry(entry):
     write("entry", entry.get_text())
 
 
-target = Gtk.Window(title="Kiko Target")
+target = Gtk.Window(title="Kiko Target" + suffix)
 target.set_default_size(400, 300)
 target.move(100, 100)
 
@@ -72,7 +74,7 @@ def on_cover_click(_widget, _event):
     write("cover-clicked")
 
 
-cover = Gtk.Window(title="Kiko Cover")
+cover = Gtk.Window(title="Kiko Cover" + suffix)
 cover.set_default_size(700, 500)
 cover.move(0, 0)
 cover_background = Gtk.EventBox()
