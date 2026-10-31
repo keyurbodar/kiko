@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { runHardOracle } from "./tasks/1xx-oracle"
 
 const read = (workdir: string, name: string): any => JSON.parse(readFileSync(join(workdir, name), "utf8"))
 const readText = (workdir: string, name: string): string => readFileSync(join(workdir, name), "utf8").trim()
@@ -91,6 +92,10 @@ export const runBrowserOracle = async (task: string, workdir: string): Promise<v
     const draft = (data.drafts as Array<{ id: string; title: string }>).find((entry) => entry.title === request.title)
     if (!draft) throw new Error("draft not found")
     need(await post("/api/drafts/delete", { id: draft.id }))
+    return
+  }
+  if (task.startsWith("browser-1")) {
+    await runHardOracle(task, { base, data, request, workdir })
     return
   }
   throw new Error(`no oracle for ${task}`)

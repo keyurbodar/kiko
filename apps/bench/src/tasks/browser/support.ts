@@ -29,12 +29,18 @@ const ctx = { data, state, save, record }
 save()
 const server = Bun.serve({
   port: 0,
-  hostname: "127.0.0.1",
+  hostname: "0.0.0.0",
   async fetch(request) {
     const url = new URL(request.url)
     const api = handlers.api[request.method + " " + url.pathname]
     if (api) {
-      const body = request.method === "GET" ? undefined : await request.json().catch(() => ({}))
+      const type = request.headers.get("content-type") || ""
+      const body =
+        request.method === "GET"
+          ? undefined
+          : type.includes("multipart/form-data")
+            ? await request.formData()
+            : await request.json().catch(() => ({}))
       return api(ctx, body, url)
     }
     const page = handlers.pages[url.pathname]
