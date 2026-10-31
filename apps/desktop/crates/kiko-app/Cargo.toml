@@ -22,7 +22,7 @@ fd-lock = "4"
 dirs = "7"
 interprocess = "2"
 png = "0.18"
-kiko-browser = { path = "../kiko-browser" }
+kiko-agent-browser = { path = "../kiko-agent-browser" }
 kiko-cua = { path = "../kiko-cua" }
 
 [target.'cfg(unix)'.dependencies]

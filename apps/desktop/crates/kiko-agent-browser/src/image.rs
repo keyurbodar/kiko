@@ -1,3 +1,25 @@
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
+use kiko_driver::{DriverError, ErrorCode, Image, Rect, Result};
+
+pub fn from_jpeg(bytes: &[u8]) -> Result<Image> {
+    let (width, height) = dimensions(bytes).ok_or_else(|| {
+        DriverError::new(ErrorCode::Failed, "the browser engine sent no jpeg picture")
+    })?;
+    Ok(Image {
+        mime: "image/jpeg".into(),
+        data: STANDARD.encode(bytes),
+        width,
+        height,
+        covers: Rect {
+            x: 0.0,
+            y: 0.0,
+            w: f64::from(width),
+            h: f64::from(height),
+        },
+    })
+}
+
 pub fn dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
     if bytes.len() < 4 || bytes[0] != 0xFF || bytes[1] != 0xD8 {
         return None;
@@ -54,5 +76,15 @@ mod tests {
     fn rejects_something_that_is_not_a_jpeg() {
         assert_eq!(dimensions(b"not a jpeg at all"), None);
         assert_eq!(dimensions(&[]), None);
+    }
+
+    #[test]
+    fn wraps_the_bytes_as_a_jpeg_image() {
+        let image = from_jpeg(&header(0xC0, 640, 480)).expect("a jpeg");
+        assert_eq!(image.mime, "image/jpeg");
+        assert_eq!(image.width, 640);
+        assert_eq!(image.height, 480);
+        assert_eq!(image.covers.w, 640.0);
+        assert!(!image.data.is_empty());
     }
 }
