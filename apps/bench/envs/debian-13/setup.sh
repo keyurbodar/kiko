@@ -13,6 +13,7 @@ apt-get install -y --no-install-recommends \
   git \
   jq \
   less \
+  libglib2.0-bin \
   libreoffice-calc \
   libreoffice-writer \
   make \

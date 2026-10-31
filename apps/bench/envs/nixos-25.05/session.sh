@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export PATH="/run/current-system/sw/bin:/usr/local/bin:$PATH"
+
 if [ "$#" -eq 0 ]; then
   echo "usage: session.sh <command...>" >&2
   exit 2

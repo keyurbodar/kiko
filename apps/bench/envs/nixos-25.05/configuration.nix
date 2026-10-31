@@ -100,6 +100,7 @@ in
   users.users.bench = {
     isNormalUser = true;
     password = "bench";
+    linger = true;
     extraGroups = [
       "wheel"
       "input"

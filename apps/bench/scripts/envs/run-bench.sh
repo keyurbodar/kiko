@@ -4,6 +4,8 @@ set -euo pipefail
 contender="${1:?usage: run-bench.sh <contender> <bench args...>}"
 shift
 
+export PATH="/run/current-system/sw/bin:$HOME/.local/bin:$HOME/.bun/bin:$PATH"
+
 case "$contender" in
   cua-driver)
     bin="$(bash apps/bench/scripts/install-cua-driver.sh | tail -n 1)"

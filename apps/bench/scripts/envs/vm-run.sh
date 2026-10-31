@@ -95,19 +95,20 @@ if [ "$env_id" = "omarchy-v3.8.4" ]; then
 fi
 
 sshpass -e ssh "${ssh_opts[@]}" bench@127.0.0.1 \
-  'rm -rf "$HOME/repo" && mkdir -p "$HOME/repo" && cp -a /mnt/repo/. "$HOME/repo/"'
+  'export PATH=/run/current-system/sw/bin:$PATH; rm -rf "$HOME/repo" && mkdir -p "$HOME/repo" && cp -a /mnt/repo/. "$HOME/repo/"'
 
 printf '%s' "${OPENCODE_GO_KEY:?OPENCODE_GO_KEY is not set}" |
   sshpass -e ssh "${ssh_opts[@]}" bench@127.0.0.1 \
-    'umask 077; mkdir -p "$HOME/.config/kiko-bench"; cat > "$HOME/.config/kiko-bench/opencode.key"'
+    'export PATH=/run/current-system/sw/bin:$PATH; umask 077; mkdir -p "$HOME/.config/kiko-bench"; cat > "$HOME/.config/kiko-bench/opencode.key"'
 
 set +e
-sshpass -e ssh "${ssh_opts[@]}" bench@127.0.0.1 'bash "$HOME/repo/.bench-command.sh"'
+sshpass -e ssh "${ssh_opts[@]}" bench@127.0.0.1 \
+  'if [ -x /run/current-system/sw/bin/bash ]; then exec /run/current-system/sw/bin/bash "$HOME/repo/.bench-command.sh"; fi; exec bash "$HOME/repo/.bench-command.sh"'
 run_status=$?
 set -e
 
 mkdir -p "$results"
-sshpass -e ssh "${ssh_opts[@]}" bench@127.0.0.1 'cd "$HOME/repo" && tar -cf - results 2>/dev/null' |
+sshpass -e ssh "${ssh_opts[@]}" bench@127.0.0.1 'export PATH=/run/current-system/sw/bin:$PATH; cd "$HOME/repo" && tar -cf - results 2>/dev/null' |
   tar -xf - -C "$results" 2>/dev/null || true
 
 exit "$run_status"
