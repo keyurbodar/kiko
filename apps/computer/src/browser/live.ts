@@ -34,7 +34,7 @@ type Attach = {
   started: boolean
 }
 
-export type BrowserLiveDeps = {
+type BrowserLiveDeps = {
   stream: (tab: string) => Promise<string>
   send(frame: FromDaemon): void
   sendBinary(bytes: Uint8Array<ArrayBuffer>): void
@@ -43,7 +43,7 @@ export type BrowserLiveDeps = {
   open?: (url: string) => StreamSocket
 }
 
-export type BrowserLive = {
+type BrowserLive = {
   open(frame: Open): void
   input(frame: Input): void
   ack(frame: Ack): void

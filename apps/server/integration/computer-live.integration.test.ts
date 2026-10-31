@@ -3,7 +3,7 @@ import { generateKeys } from "@kiko/computer/sign"
 import { assert, describe, it } from "@effect/vitest"
 import { Effect } from "effect"
 import { connectDaemon, HELLO, pair } from "./daemon"
-import { connect, signIn } from "./owner"
+import { connect, type Meter, signIn } from "./owner"
 import { localWorker } from "./worker"
 
 const LIVE_MS = "20 seconds"
@@ -121,11 +121,12 @@ describe.concurrent("computer live socket", () => {
 
 const BROWSER = { ...HELLO, caps: { ...HELLO.caps, browser: true } }
 
-function billableWrites(counters: Record<string, number>): number {
+function billableWrites(meter: Meter): number {
+  if (meter.billedWrites) return meter.billedWrites.total
   const sum = (matches: (key: string) => boolean) =>
-    Object.entries(counters).reduce((total, [key, value]) => (matches(key) ? total + value : total), 0)
+    Object.entries(meter.counters).reduce((total, [key, value]) => (matches(key) ? total + value : total), 0)
   return (
-    (counters["owner.rowsWritten"] ?? sum((key) => key.endsWith(".rowsWritten"))) +
+    (meter.counters["owner.rowsWritten"] ?? sum((key) => key.endsWith(".rowsWritten"))) +
     sum((key) => key.endsWith(".kvKeysPut")) +
     sum((key) => key.endsWith(".kvKeysDeleted")) +
     sum((key) => key.endsWith(".alarmWrites"))
@@ -191,7 +192,7 @@ describe.concurrent("computer browser live", () => {
       assert.strictEqual(ack.bytes, bytes.byteLength)
 
       const streamed = yield* owner.meter()
-      assert.strictEqual(billableWrites(streamed.counters), 0, "a browser attach, frame and ack wrote rows")
+      assert.strictEqual(billableWrites(streamed), 0, "a browser attach, frame and ack wrote rows")
 
       const refused = yield* Effect.flip(
         session.client["browser.input"]({
@@ -218,7 +219,7 @@ describe.concurrent("computer browser live", () => {
       assert.deepStrictEqual(input.events, [{ k: "down", x: 0.5, y: 0.5, b: 0 }])
 
       const typed = yield* owner.meter()
-      assert.strictEqual(billableWrites(typed.counters), 0, "owner browser input wrote rows")
+      assert.strictEqual(billableWrites(typed), 0, "owner browser input wrote rows")
     }).pipe(Effect.scoped),
   )
 })

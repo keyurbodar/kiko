@@ -67,11 +67,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.14"
-      - name: Install
-        run: bun install --frozen-lockfile --ignore-scripts
+      - uses: ./.github/actions/setup
       - name: Install Chromium, Xvfb and the test desktop
         run: |
           node apps/server/node_modules/playwright/cli.js install --with-deps chromium
@@ -81,6 +77,8 @@ jobs:
       - name: Build kiko
         working-directory: apps/desktop
         run: cargo build --release --locked -p kiko-app
+      - name: Build the web app
+        run: bun run build
       - name: Fetch the browser engine
         run: |
           browser="$(bash apps/desktop/scripts/fetch-agent-browser.sh linux-x64 "$RUNNER_TEMP/browser")"

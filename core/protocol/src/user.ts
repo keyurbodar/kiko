@@ -339,17 +339,6 @@ export const BrowserEvent = Schema.Union([
     viewportWidth: Count,
     viewportHeight: Count,
   }),
-  Schema.Struct({
-    type: Schema.Literal("frame"),
-    seq: Count,
-    tab: Id,
-    mime: Schema.Literal("image/jpeg"),
-    width: Count,
-    height: Count,
-    viewportWidth: Count,
-    viewportHeight: Count,
-    data: Schema.String,
-  }),
   Schema.Struct({ type: Schema.Literal("error"), message: Schema.String }),
   Schema.Struct({ type: Schema.Literal("end") }),
 ])

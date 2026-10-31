@@ -165,7 +165,7 @@ const RECORD_FRAMES = () => {
 const MEASURE_CLICK = async (timeoutMs: number) => {
   const store = window as unknown as { __frames: number[]; __click: number }
   const view = document.querySelector('[data-component="computer-browser"]')
-  const canvas = view?.querySelector("canvas") ?? null
+  const canvas = (view?.querySelector("canvas") ?? null) as HTMLCanvasElement | null
   const context = canvas?.getContext("2d", { willReadFrequently: true }) ?? null
   if (!canvas || !context) return null
   const click = store.__click
@@ -206,9 +206,27 @@ function summary(values: readonly number[]) {
   }
 }
 
-type Meter = { counters: Record<string, number> }
+async function command(args: string[]): Promise<string> {
+  const proc = Bun.spawn(args, { stdout: "pipe", stderr: "ignore" })
+  const output = await new Response(proc.stdout).text()
+  await proc.exited
+  return output.trim()
+}
 
-function billableWrites(counters: Record<string, number>): number {
+async function frontWindow(): Promise<string | null> {
+  return (await command(["xdotool", "getactivewindow", "getwindowname"]).catch(() => "")) || null
+}
+
+async function chromeWindows(): Promise<number> {
+  const found = await command(["xdotool", "search", "--class", "chromium"]).catch(() => "")
+  return found ? found.split("\n").filter(Boolean).length : 0
+}
+
+type Meter = { counters: Record<string, number>; billedWrites?: { total: number } }
+
+function billableWrites(meter: Meter): number {
+  if (meter.billedWrites) return meter.billedWrites.total
+  const counters = meter.counters
   const sum = (matches: (key: string) => boolean) =>
     Object.entries(counters).reduce((total, [key, value]) => (matches(key) ? total + value : total), 0)
   return (
@@ -224,7 +242,7 @@ async function meter(token: string): Promise<number> {
     headers: { authorization: `Bearer ${token}` },
   })
   if (!answer.ok) throw new Error(`the stats endpoint answered ${answer.status}`)
-  return billableWrites(((await answer.json()) as Meter).counters)
+  return billableWrites((await answer.json()) as Meter)
 }
 
 async function main(): Promise<void> {
@@ -240,6 +258,7 @@ async function main(): Promise<void> {
   let driver: Driver | null = null
   let viewer: Browser | null = null
   try {
+    await mkdir(app, { recursive: true })
     const stub = join(dir, "core-stub.sh")
     await writeFile(stub, "#!/bin/sh\nsleep 3600\n")
     await chmod(stub, 0o755)
@@ -259,6 +278,8 @@ async function main(): Promise<void> {
           `CREDENTIALS_KEK:${kek}`,
           "--var",
           `SESSION_SECRET:${secret}`,
+          "--persist-to",
+          join(dir, "state"),
         ],
         SERVER,
       ),
@@ -310,6 +331,7 @@ async function main(): Promise<void> {
       120_000,
     )
 
+    const frontBefore = await frontWindow()
     const tab = (await driver?.call("browser.open", {
       url: `http://127.0.0.1:${FIXTURE_PORT}/`,
       mode: "background",
@@ -433,6 +455,8 @@ async function main(): Promise<void> {
       expression: "document.getElementById('field').value",
     })) as string
 
+    const frontAfter = await frontWindow()
+    const chrome = await chromeWindows()
     const after = await meter(session.token)
     if (shots) {
       await page.mouse.click(x, y)
@@ -447,6 +471,7 @@ async function main(): Promise<void> {
       clickToFrame: summary(frames),
       clickToPaint: summary(clicks),
       typing: { typed, ok: typed === "hi" },
+      focus: { before: frontBefore, after: frontAfter, chrome, raised: frontBefore !== frontAfter || chrome > 0 },
       writes: { before, after, delta: after - before },
     }
     const out = process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out") + 1] : undefined
