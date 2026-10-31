@@ -1,6 +1,6 @@
-import { existsSync } from "node:fs"
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
-import { join } from "node:path"
+import { existsSync, watch, type FSWatcher } from "node:fs"
+import { chmod, mkdir, readFile, stat, writeFile } from "node:fs/promises"
+import { dirname, join } from "node:path"
 import { homeDir } from "./platform"
 
 export type Config = { url: string; userId: string; pcId: string; name: string }
@@ -131,6 +131,77 @@ function mergePolicy(raw: unknown): Policy {
 
 export async function loadPolicy(dir = configDir()): Promise<Policy> {
   return mergePolicy(await readJson(paths(dir).policy))
+}
+
+type Stamp = { ino: number; mtimeMs: number; size: number }
+
+async function stampOf(file: string): Promise<Stamp | null> {
+  try {
+    const info = await stat(file)
+    return { ino: info.ino, mtimeMs: info.mtimeMs, size: info.size }
+  } catch {
+    return null
+  }
+}
+
+const sameStamp = (a: Stamp | null, b: Stamp | null): boolean =>
+  a === b || (a !== null && b !== null && a.ino === b.ino && a.mtimeMs === b.mtimeMs && a.size === b.size)
+
+export function policyCache(dir = configDir()): () => Promise<Policy> {
+  let stamp: Stamp | null = null
+  let policy = DEFAULT_POLICY
+  let loaded = false
+  let pending: Promise<Policy> | null = null
+  const read = async (): Promise<Policy> => {
+    const next = await stampOf(paths(dir).policy)
+    if (loaded && sameStamp(next, stamp)) return policy
+    policy = await loadPolicy(dir)
+    stamp = next
+    loaded = true
+    return policy
+  }
+  return () => {
+    pending ??= read().finally(() => {
+      pending = null
+    })
+    return pending
+  }
+}
+
+export type PauseWatch = { get(): boolean; close(): void }
+
+export function watchPaused(dir = configDir()): PauseWatch {
+  const markers = [join(dir, "paused"), join(appDir(), "paused")]
+  const folders = new Map<string, boolean>()
+  const watchers: FSWatcher[] = []
+  let value = markers.some((marker) => existsSync(marker))
+  const refresh = () => {
+    value = markers.some((marker) => existsSync(marker))
+  }
+  for (const marker of markers) {
+    const folder = dirname(marker)
+    if (folders.has(folder)) continue
+    try {
+      const watcher = watch(folder, { persistent: false }, refresh)
+      watcher.on("error", () => {})
+      watchers.push(watcher)
+      folders.set(folder, true)
+    } catch {
+      folders.set(folder, false)
+    }
+  }
+  const live = markers.every((marker) => folders.get(dirname(marker)) === true)
+  return {
+    get: live
+      ? () => value
+      : () => {
+          refresh()
+          return value
+        },
+    close: () => {
+      for (const watcher of watchers) watcher.close()
+    },
+  }
 }
 
 export async function ensurePolicy(dir: string): Promise<void> {

@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises"
 import { PROTOCOL, type Holder } from "@kiko/computer/wire"
 import { detect, type Detection } from "./caps"
-import { configDir, loadConfig, loadKey, loadPolicy, paths, paused } from "./config"
+import { configDir, loadConfig, loadKey, loadPolicy, paths, policyCache, watchPaused } from "./config"
 import { runLink, type Host } from "./connection"
 import { startDriver, type Driver } from "./driver"
 import { helloPayload } from "./hello"
@@ -40,6 +40,8 @@ export async function serve(dir = configDir()): Promise<number> {
   }
   const policy = await loadPolicy(dir)
   const livePolicy = cachedPolicy({ live: policy.live, input: policy.input }, () => loadPolicy(dir))
+  const currentPolicy = policyCache(dir)
+  const pauseWatch = watchPaused(dir)
   let live: Live = emptyLive({ logger: log, setHolder })
   let driver: Driver | null = null
   let link: ReturnType<typeof runLink> | null = null
@@ -77,10 +79,10 @@ export async function serve(dir = configDir()): Promise<number> {
     endpoint: { url: config.url, userId: config.userId, pcId: config.pcId, protocol: PROTOCOL },
     key,
     hello: () => JSON.stringify(helloPayload(detection, driver)),
-    policy: () => loadPolicy(dir),
+    policy: currentPolicy,
     driver: () => driver,
     terminal: () => (hasPty() ? terminals : null),
-    paused: () => paused(dir),
+    paused: () => pauseWatch.get(),
     live: {
       rtc: (frame) => live.frames.rtc(frame),
       live: (frame) => live.frames.live(frame),
@@ -109,6 +111,7 @@ export async function serve(dir = configDir()): Promise<number> {
     log.info("stopping")
     link?.stop()
     driver?.close()
+    pauseWatch.close()
     terminals.closeAll()
     void live.close()
     process.exit(0)

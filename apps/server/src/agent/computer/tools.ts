@@ -21,6 +21,7 @@ import {
   text,
   type ComputerResult,
   type ComputerToolDeps,
+  type ImageData,
 } from "./shared"
 import type { ComputerSummary } from "./types"
 
@@ -60,17 +61,21 @@ function withPC(schema: unknown) {
   return Type.Unsafe({ ...body, type: "object", properties: { ...properties, pc: PC_PROPERTY } })
 }
 
-type Content = { type?: string; text?: string; data?: string; mimeType?: string }
+type Content = { type?: string; text?: string; data?: string | Uint8Array; mimeType?: string }
 
-function contentOf(value: unknown): { texts: string[]; images: { mime: string; data: string }[]; isError: boolean } {
+function contentOf(value: unknown): { texts: string[]; images: ImageData[]; isError: boolean } {
   const record = isRecord(value) ? value : {}
   const content = Array.isArray(record.content) ? (record.content as Content[]) : []
   const texts: string[] = []
-  const images: { mime: string; data: string }[] = []
+  const images: ImageData[] = []
   for (const item of content) {
     if (!isRecord(item)) continue
     if (item.type === "text" && typeof item.text === "string") texts.push(item.text)
-    if (item.type === "image" && typeof item.data === "string" && typeof item.mimeType === "string")
+    if (
+      item.type === "image" &&
+      typeof item.mimeType === "string" &&
+      (typeof item.data === "string" || item.data instanceof Uint8Array)
+    )
       images.push({ mime: item.mimeType, data: item.data })
   }
   return { texts, images, isError: record.isError === true }

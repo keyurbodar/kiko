@@ -1,5 +1,6 @@
 import { Schema } from "effect"
 import {
+  BinaryResult,
   Calls,
   type FailCode,
   type FromDaemon,
@@ -16,13 +17,14 @@ import {
 } from "@kiko/computer/wire"
 import { CONNECT_HEADERS, CONNECT_SKEW_MS, connectMessage, verify } from "@kiko/computer/sign"
 import type { DesktopInfo } from "@kiko/computer/driver"
-import { decodeFrame } from "@kiko/computer/frame"
+import { decodeBinary, decodeFrame } from "@kiko/computer/frame"
 import type { AgentSlug, ComputerFrame, ComputerSummary, RoomId } from "@kiko/protocol"
 import type { Env } from "../index"
 import { ago } from "../lib/ago"
 import { encodeBase64 } from "../lib/base64"
 import { BACKEND } from "../lib/version"
 import { dropStreams, socketView } from "../owner/socket"
+import { joinImages } from "./binary"
 import { frameChunk, frameSubs, frameText } from "./frames"
 import type { ComputerRow, ComputerStore, NewComputer } from "./store"
 
@@ -445,7 +447,10 @@ export class ComputerHub {
     this.heard.set(ws, Date.now())
     this.marks.set(saved.id, { ...this.marks.get(saved.id), seenAt: Date.now() })
     if (typeof raw !== "string") {
-      this.relayFrame(saved.id, new Uint8Array(raw))
+      const bytes = new Uint8Array(raw)
+      const binary = decodeBinary(bytes)
+      if (binary) return this.binaryResult(binary.header, binary.data)
+      this.relayFrame(saved.id, bytes)
       return
     }
     let frame: FromDaemon
@@ -507,6 +512,16 @@ export class ComputerHub {
       frame.id,
       frame.ok ? { ok: true, value: frame.value } : { ok: false, code: frame.error.code, message: frame.error.message },
     )
+  }
+
+  private binaryResult(header: Record<string, unknown>, data: Uint8Array): void {
+    let decoded: BinaryResult
+    try {
+      decoded = Schema.decodeUnknownSync(BinaryResult)(header)
+    } catch {
+      return
+    }
+    this.settle(decoded.id, { ok: true, value: joinImages(decoded.value, decoded.parts, data) })
   }
 
   private settle(callId: string, outcome: CallOutcome): boolean {

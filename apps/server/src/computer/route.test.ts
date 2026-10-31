@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { CONNECT_HEADERS } from "@kiko/computer/sign"
+import { PROTOCOL as VERSION } from "@kiko/computer/wire"
 import type { Env } from "../index"
 import { computerRoute } from "./route"
 
 const CONNECT = "https://kiko.example/api/pc/connect"
-const PROTOCOL = "1"
+const PROTOCOL = String(VERSION)
 
 function env(touched: () => void): Env {
   return {
