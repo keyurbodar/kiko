@@ -1,0 +1,34 @@
+name: probe
+
+on:
+  push:
+    branches:
+      - "t3/cu-*"
+    paths:
+      - ".github/workflows/probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Probe plan
+    runs-on: ubuntu-24.04
+    outputs:
+      host: ${{ steps.plan.outputs.host }}
+    steps:
+      - id: plan
+        run: |
+          echo 'host=[{"env":"a","n":1},{"env":"b","n":2}]' >> "$GITHUB_OUTPUT"
+          echo "wrote the host output"
+
+  use:
+    name: Probe use ${{ matrix.env }}
+    needs: plan
+    if: needs.plan.result == 'success'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.host) }}
+    steps:
+      - run: echo "matrix env=${{ matrix.env }} n=${{ matrix.n }}"

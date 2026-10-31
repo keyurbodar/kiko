@@ -36,19 +36,8 @@ async function macFixture(
   return { app: "TextEdit", title: basename(path), decoyTitle: "Finder", processes: [] }
 }
 
-async function windowsFixture(
-  m: Machine,
-): Promise<{ app: string; title: string; decoyTitle: string; processes: Process[] }> {
-  const path = join(m.workdir, "fixture.txt")
-  await m.writeText(path, "seed")
-  const fixture = await m.spawn(["notepad.exe", path])
-  await m.spawn(["explorer.exe", m.workdir])
-  return { app: "Notepad", title: "fixture.txt", decoyTitle: basename(m.workdir), processes: [fixture] }
-}
-
 export async function prepareFixture(m: Machine): Promise<Fixture> {
-  const platform =
-    m.os === "macos" ? await macFixture(m) : m.os === "windows" ? await windowsFixture(m) : await linuxFixture(m)
+  const platform = m.os === "macos" ? await macFixture(m) : await linuxFixture(m)
   return {
     app: platform.app,
     title: platform.title,

@@ -1,7 +1,5 @@
-import { join } from "node:path"
 import type { Machine } from "../src/types"
 
-const SCRIPTS = import.meta.dir
 const POLL_MS = 250
 
 function pause(ms: number): Promise<void> {
@@ -16,15 +14,8 @@ async function macFrontmost(m: Machine): Promise<string> {
   return match?.[1] ?? info.trim()
 }
 
-async function windowsFrontmost(m: Machine): Promise<string> {
-  const script = join(SCRIPTS, "frontmost.ps1")
-  const result = await m.exec(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script])
-  return result.stdout.trim()
-}
-
 export async function frontmost(m: Machine): Promise<string> {
   if (m.os === "macos") return macFrontmost(m)
-  if (m.os === "windows") return windowsFrontmost(m)
   return (await m.exec(["xdotool", "getactivewindow", "getwindowname"])).stdout.trim()
 }
 
@@ -49,18 +40,9 @@ async function linuxFocusWindow(m: Machine, title: string): Promise<void> {
   await m.exec(["xdotool", "windowactivate", "--sync", id])
 }
 
-async function windowsFocusWindow(m: Machine, title: string): Promise<void> {
-  const script = join(SCRIPTS, "activate-window.ps1")
-  await m.exec(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-Title", title])
-}
-
 export async function focusWindow(m: Machine, title: string): Promise<void> {
   if (m.os === "linux") {
     await linuxFocusWindow(m, title)
-    return
-  }
-  if (m.os === "windows") {
-    await windowsFocusWindow(m, title)
     return
   }
   await focusApp(m, title)

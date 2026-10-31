@@ -5,9 +5,7 @@ import { join } from "node:path"
 import type { Exec, Machine, Os } from "../src/types"
 
 export function currentOs(): Os {
-  if (process.platform === "darwin") return "macos"
-  if (process.platform === "win32") return "windows"
-  return "linux"
+  return process.platform === "darwin" ? "macos" : "linux"
 }
 
 function exitCodeOf(error: ExecException | null): number {
