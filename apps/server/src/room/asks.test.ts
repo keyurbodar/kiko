@@ -1,5 +1,5 @@
 import { DatabaseSync, type SQLInputValue } from "node:sqlite"
-import type { AgentSlug } from "@kiko/protocol"
+import type { AgentSlug, RoomId } from "@kiko/protocol"
 import { describe, expect, it } from "vitest"
 import { Asks } from "./asks"
 
@@ -7,6 +7,7 @@ const ROOM = "room"
 const KIKO = "kiko" as AgentSlug
 const ANA = "ana" as AgentSlug
 const NOW = 1_700_000_000_000
+const DAY = 86_400_000
 
 function asks() {
   const db = new DatabaseSync(":memory:")
@@ -42,5 +43,14 @@ describe("an unanswered ask", () => {
 
     expect(a.owes(ANA, KIKO, NOW + 31 * 60_000)).toBe(false)
     expect(a.owed(ANA, NOW + 31 * 60_000)).toEqual([])
+  })
+
+  it("prunes asks past the window on the next ask", () => {
+    const a = asks()
+    a.expect("old", KIKO, ANA, "m-old", NOW - 8 * DAY, "other" as RoomId)
+    a.expect("fresh", KIKO, ANA, "m-fresh", NOW, "other" as RoomId)
+
+    expect(a.remote("old")).toBeNull()
+    expect(a.remote("fresh")).not.toBeNull()
   })
 })

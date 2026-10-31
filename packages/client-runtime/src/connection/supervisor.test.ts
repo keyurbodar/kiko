@@ -259,6 +259,42 @@ describe("OwnerSupervisor", () => {
     }),
   )
 
+  it.effect("backs off when a health-check probe fails", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness({ probe: () => Effect.fail(transient("Kiko stopped answering.")) })
+      const supervisor = yield* start(harness)
+      yield* awaitState(supervisor.state, (s) => s.phase === "connected")
+      yield* harness.wake("application-active")
+      const backoff = yield* awaitState(supervisor.state, (s) => s.phase === "backoff")
+      expect(backoff.attempt).toBe(1)
+      expect(backoff.retryAt).toBe(2_000)
+      yield* TestClock.adjust("1999 millis")
+      expect(yield* Ref.get(harness.sessionCount)).toBe(1)
+      yield* TestClock.adjust("1 millis")
+      yield* awaitState(supervisor.state, (s) => s.phase === "connected" && s.attempt === 2)
+      expect(yield* Ref.get(harness.sessionCount)).toBe(2)
+    }),
+  )
+
+  it.effect("backs off when the socket drops while a health-check probe is in flight", () =>
+    Effect.gen(function* () {
+      const started = yield* Deferred.make<void>()
+      const harness = yield* makeHarness({
+        probe: () => Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)),
+      })
+      const supervisor = yield* start(harness)
+      yield* awaitState(supervisor.state, (s) => s.phase === "connected")
+      yield* harness.wake("application-active")
+      yield* Deferred.await(started)
+      yield* harness.dropLatest()
+      const backoff = yield* awaitState(supervisor.state, (s) => s.phase === "backoff")
+      expect(backoff.attempt).toBe(1)
+      expect(backoff.retryAt).toBe(2_000)
+      yield* TestClock.adjust("1999 millis")
+      expect(yield* Ref.get(harness.sessionCount)).toBe(1)
+    }),
+  )
+
   it.effect("resets the ladder only after a session stayed up for 30 seconds", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness({

@@ -287,10 +287,12 @@ export class Life {
   pin(pos: number, pinned: boolean): { ok: true } | { ok: false; error: string } {
     const row = this.sql.exec<Row>("SELECT * FROM life WHERE pos = ?", pos).toArray()[0]
     if (!row || row.redacted) return { ok: false, error: "no such memory" }
+    if (pinned && row.superseded_by !== null)
+      return { ok: false, error: "that memory was replaced. pin the one that replaced it." }
     if (
       pinned &&
       !row.pinned &&
-      this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM life WHERE pinned = 1").one().n >= MAX_PINS
+      this.sql.exec<{ n: number }>(`SELECT count(*) AS n FROM life WHERE pinned = 1 AND ${LIVE}`).one().n >= MAX_PINS
     ) {
       return { ok: false, error: `at most ${MAX_PINS} pinned memories. unpin one first.` }
     }

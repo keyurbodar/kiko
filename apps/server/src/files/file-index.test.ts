@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { DatabaseSync, type SQLInputValue } from "node:sqlite"
 import type { Actor } from "@kiko/protocol"
 import { actorKey } from "../room/actor-key"
-import { FileIndex, fileIndexSteps, listOwnerFiles, ROOM_TABLES } from "./file-index"
+import { FileIndex, fileIndexSteps, type FsEntry, type FsFail, listOwnerFiles, ROOM_TABLES } from "./file-index"
 
 const ROOM = "00000000-0000-7000-8000-000000000001"
 
@@ -15,7 +15,7 @@ function storage() {
       const statement = db.prepare(query)
       if (statement.columns().length > 0) {
         const rows = statement.all(...bindings)
-        return { toArray: () => rows, rowsWritten: 0 }
+        return { toArray: () => rows, one: () => rows[0], rowsWritten: 0 }
       }
       written += Number(statement.run(...bindings).changes)
       return { toArray: () => [], rowsWritten: 0 }
@@ -36,6 +36,34 @@ const put = (index: FileIndex<unknown>, path: string, author: Actor) =>
     author,
     expectSha256: "none",
   })
+
+describe("FileIndex.list", () => {
+  const shape = (out: FsEntry[] | FsFail) => {
+    if (!Array.isArray(out)) throw new Error("expected entries")
+    return out.map((e) => (e.kind === "file" ? [e.path, e.size] : [e.path, e.files, e.size]))
+  }
+
+  it("counts each folder's files and bytes", () => {
+    const db = storage()
+    const index = new FileIndex<unknown>(db.store, ROOM_TABLES, () => null, actorKey)
+    put(index, "a/one.txt", { kind: "human" })
+    put(index, "a/b/two.txt", { kind: "human" })
+    put(index, "c/three.txt", { kind: "human" })
+    expect(shape(index.list(""))).toEqual([
+      ["a", 2, 6],
+      ["c", 1, 3],
+    ])
+    expect(shape(index.list("a"))).toEqual([
+      ["a/b", 1, 3],
+      ["a/one.txt", 3],
+    ])
+    expect(shape(index.list("a", true))).toEqual([
+      ["a/b", 1, 3],
+      ["a/b/two.txt", 3],
+      ["a/one.txt", 3],
+    ])
+  })
+})
 
 describe("listOwnerFiles", () => {
   it("lists home and every chat's files with who made them, without writing", () => {

@@ -25,6 +25,18 @@ function sqlite() {
   } as unknown as SqlStorage
 }
 
+function countingSqlite() {
+  const sql = sqlite()
+  const scans: string[] = []
+  const counting = {
+    exec: (query: string, ...bindings: SQLInputValue[]) => {
+      if (query === "SELECT * FROM apps") scans.push(query)
+      return sql.exec(query, ...bindings)
+    },
+  } as unknown as SqlStorage
+  return { sql: counting, scans }
+}
+
 const build: Builder = async (files) => ({
   ok: true,
   envelope: {
@@ -45,6 +57,8 @@ function lakebed() {
     expiresAt: "2026-11-02T00:00:00.000Z",
     recordStatus: undefined as number | undefined,
     recordExtra: {} as Record<string, unknown>,
+    recordStarts: 0,
+    recordResolvedAt: [] as number[],
     gate: undefined as Promise<void> | undefined,
     requests: [] as string[],
     pages: [] as number[],
@@ -93,6 +107,9 @@ function lakebed() {
       })
     }
     if (method === "GET" && path.startsWith("/v1/deploys/")) {
+      state.recordStarts += 1
+      await Promise.resolve()
+      state.recordResolvedAt.push(state.recordStarts)
       if (state.recordStatus !== undefined) return new Response("", { status: state.recordStatus })
       return Response.json({ claimed: state.claimed, ...state.recordExtra })
     }
@@ -132,6 +149,19 @@ describe("apps ownership", () => {
     expect((await apps.overview()).apps.map((a) => [a.claimed, a.expiresAt])).toEqual([[true, null]])
   })
 
+  it("asks Lakebed about every unclaimed app at once", async () => {
+    const api = lakebed()
+    const apps = new Apps(sqlite(), keyring, "owner", build, api.fetcher)
+    await apps.deploy("radar", source("radar"))
+    await apps.deploy("sonar", source("sonar"))
+    api.state.recordStarts = 0
+    api.state.recordResolvedAt.length = 0
+
+    await apps.overview()
+
+    expect(api.state.recordResolvedAt).toEqual([2, 2])
+  })
+
   it("asks for the claim on an app's first deploy only, without a new sign-in per redeploy", async () => {
     const api = lakebed()
     const apps = new Apps(sqlite(), keyring, "owner", build, api.fetcher)
@@ -144,6 +174,50 @@ describe("apps ownership", () => {
     expect(first.claim?.url).toBe("https://api.lakebed.dev/claim/d1/token-d1?cli_session=s1")
     expect([second.changed, second.claim, second.app.expiresAt]).toEqual([true, undefined, "2026-11-02T00:00:00.000Z"])
     expect([api.state.updates, api.state.sessions]).toEqual([1, 1])
+  })
+})
+
+describe("apps fetch signing", () => {
+  it("signs app fetches from one read of the apps table", async () => {
+    const api = lakebed()
+    const { sql, scans } = countingSqlite()
+    const apps = new Apps(sql, keyring, "owner", build, api.fetcher)
+    await apps.deploy("radar", source("radar"))
+
+    const first = await apps.signedHeaders(new URL("https://d1.lakebed.app/ping"))
+    const second = await apps.signedHeaders(new URL("https://d1.lakebed.app/ping"))
+
+    expect(first).not.toBeNull()
+    expect(second).toEqual(first)
+    expect(scans).toHaveLength(1)
+  })
+
+  it("re-reads the app keys after a deploy or a forget", async () => {
+    const api = lakebed()
+    const { sql } = countingSqlite()
+    const apps = new Apps(sql, keyring, "owner", build, api.fetcher)
+    await apps.deploy("radar", source("radar"))
+    expect(await apps.signedHeaders(new URL("https://d1.lakebed.app/ping"))).not.toBeNull()
+
+    await apps.deploy("sonar", source("sonar"))
+    expect(await apps.signedHeaders(new URL("https://d2.lakebed.app/ping"))).not.toBeNull()
+
+    apps.forget("radar")
+    expect(await apps.signedHeaders(new URL("https://d1.lakebed.app/ping"))).toBeNull()
+  })
+
+  it("keeps signing for the healthy apps when one app's secrets cannot be read", async () => {
+    const api = lakebed()
+    const sql = sqlite()
+    const apps = new Apps(sql, keyring, "owner", build, api.fetcher)
+    await apps.deploy("radar", source("radar"))
+    await apps.deploy("sonar", source("sonar"))
+    sql.exec("UPDATE apps SET ciphertext = ? WHERE name = ?", new Uint8Array([0]), "radar")
+
+    expect(await apps.signedHeaders(new URL("https://d1.lakebed.app/ping"))).toBeNull()
+    expect(await apps.signedHeaders(new URL("https://d2.lakebed.app/ping"))).toEqual({
+      "x-kiko-key": expect.any(String),
+    })
   })
 })
 

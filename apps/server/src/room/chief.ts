@@ -1,4 +1,4 @@
-import { type Agent, type AgentSlug, isAgentSlug, tagline } from "@kiko/protocol"
+import { type Agent, type AgentSlug, isAgentSlug, MAX_MEMBERS, tagline } from "@kiko/protocol"
 import { MAX_CHAT } from "../files/room-fs"
 import type { RecipeHint } from "../recipes/match"
 import { MAX_SOUL } from "../user/souls"
@@ -19,7 +19,6 @@ export type GroupInput = {
 }
 
 const MAX_NEW_AGENTS = 4
-const MAX_MEMBERS = 7
 const MAX_KICKOFF = 4_000
 const MAX_GROUP_TASKS = 12
 
@@ -79,8 +78,8 @@ export function checkGroup(
     newAgents.push(out)
   }
   if (members.length + newAgents.length === 0) return { error: "a group needs at least one agent besides you and kiko" }
-  if (members.length + newAgents.length + (creator === CHIEF ? 0 : 1) > MAX_MEMBERS)
-    return { error: `a group holds ${MAX_MEMBERS} agents besides kiko` }
+  if (members.length + newAgents.length + (creator === CHIEF ? 0 : 1) > MAX_MEMBERS - 1)
+    return { error: `a group holds ${MAX_MEMBERS - 1} agents besides kiko` }
   const tasks = checkTasks(input.tasks ?? [], [CHIEF, creator, ...members, ...newAgents.map((a) => a.handle)])
   if ("error" in tasks) return tasks
   return { title, members, newAgents, goal: input.goal.trim(), kickoff, ...(tasks.length ? { tasks } : {}) }

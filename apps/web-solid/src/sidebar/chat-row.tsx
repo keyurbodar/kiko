@@ -4,7 +4,7 @@ import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { openAvatarPicker } from "../avatar/picker-state"
 import { openChat } from "../app/history"
-import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createRoot, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { agentDisplayName } from "../lib/names"
 import { presenceWords } from "../state/live-status"
@@ -68,17 +68,24 @@ let previewClosedAt = 0
 const HANDOFF_MS = 400
 const fine = () => typeof matchMedia !== "undefined" && matchMedia("(hover: hover) and (pointer: fine)").matches
 
-if (typeof document !== "undefined") {
-  const close = () => setOpenPreview(null)
-  document.addEventListener("pointerdown", close, true)
-  document.addEventListener(
-    "keydown",
-    (event) => {
-      if (!["Tab", "Shift", "Control", "Alt", "Meta"].includes(event.key)) close()
-    },
-    true,
+if (typeof document !== "undefined")
+  createRoot(() =>
+    createEffect(
+      on(openPreview, (open) => {
+        if (open === null) return
+        const close = () => setOpenPreview(null)
+        const onKey = (event: KeyboardEvent) => {
+          if (!["Tab", "Shift", "Control", "Alt", "Meta"].includes(event.key)) close()
+        }
+        document.addEventListener("pointerdown", close, true)
+        document.addEventListener("keydown", onKey, true)
+        onCleanup(() => {
+          document.removeEventListener("pointerdown", close, true)
+          document.removeEventListener("keydown", onKey, true)
+        })
+      }),
+    ),
   )
-}
 
 function previewState(id: string) {
   const open = () => openPreview() === id
@@ -296,7 +303,7 @@ function RowMore(props: { id: string; name: string; onOpenChange: (open: boolean
         <RemixIcon icon={MoreIcon} size={16} />
       </MenuV2.Trigger>
       <MenuV2.Portal>
-        <MenuV2.Content data-component="sidebar-chat-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
+        <MenuV2.Content data-component="sidebar-chat-menu">
           <ChatMenuItems id={props.id} />
         </MenuV2.Content>
       </MenuV2.Portal>
@@ -326,7 +333,12 @@ export function ChatRow(props: {
   const tail = cachedTail(() => props.bot.id, hovered)
   const recent = createMemo(() => {
     const live = room.activeId() === props.bot.id ? room.messages() : tail()
-    return live.filter(isListed).slice(-3)
+    const latest: ChatMessage[] = []
+    for (let i = live.length - 1; i >= 0 && latest.length < 3; i--) {
+      const message = live[i]!
+      if (isListed(message)) latest.push(message)
+    }
+    return latest.toReversed()
   })
   const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id) || props.need !== undefined
   const draft = () => {
@@ -403,7 +415,7 @@ export function ChatRow(props: {
       </MenuV2.Context.Trigger>
 
       <MenuV2.Context.Portal>
-        <MenuV2.Context.Content data-component="sidebar-chat-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
+        <MenuV2.Context.Content data-component="sidebar-chat-menu">
           <ChatMenuItems id={props.bot.id} />
         </MenuV2.Context.Content>
       </MenuV2.Context.Portal>

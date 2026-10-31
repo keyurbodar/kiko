@@ -100,6 +100,25 @@ describe("MessageRow attachments", () => {
   })
 })
 
+describe("MessageRow failed send", () => {
+  it("shows the failed row without a reason the message does not carry", async () => {
+    await using screen = await render(() => (
+      <MessageRow
+        message={{ ...message, sender: "user", status: "failed" }}
+        bot={undefined}
+        quote={null}
+        isRunStart
+        isRunEnd
+        hasRunGapBefore={false}
+        onOpenReplyTarget={() => {}}
+      />
+    ))
+    const failed = screen.container.querySelector<HTMLElement>('[data-component="chat-send-failed"]')!
+    expect(failed.textContent).toContain("Didn't send")
+    expect(failed.querySelector('[data-part="reason"]')?.hasAttribute("title")).toBe(false)
+  })
+})
+
 describe("MessageRow time", () => {
   it("shows the sent time only while the row is hovered, with the full time in a tooltip", async () => {
     const sentAt = Date.UTC(2024, 9, 24, 9, 5)

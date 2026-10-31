@@ -11,6 +11,7 @@ import * as Wakeups from "../connection/wakeups"
 import * as Cache from "../platform/cache"
 import * as IndexedDb from "../platform/indexedDb"
 import * as RpcSession from "../rpc/session"
+import * as ChatRemovals from "./chatRemovals"
 import * as Pending from "./pending"
 import * as UserState from "./userState"
 
@@ -19,6 +20,7 @@ export type OwnerRuntimeServices =
   | UserState.UserStore
   | Pending.PendingCommands
   | Cache.SnapshotCache
+  | ChatRemovals.ChatRemovals
   | Wakeups.ConnectionWakeups
 
 export interface OwnerRuntimeOptions {
@@ -47,6 +49,7 @@ export const layer = (options: OwnerRuntimeOptions): Layer.Layer<OwnerRuntimeSer
   const base = Layer.mergeAll(
     cache,
     Pending.layer,
+    ChatRemovals.layer,
     Endpoint.layer(options.endpoint),
     options.connectivity,
     options.wakeups,

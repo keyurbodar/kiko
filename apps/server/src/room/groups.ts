@@ -1,5 +1,5 @@
 import type { OwnerServices } from "../owner/services"
-import { type Agent, type AgentSlug, type RoomEvent, tagline } from "@kiko/protocol"
+import { type Agent, type AgentSlug, type RoomEvent, type RoomId, tagline } from "@kiko/protocol"
 import { sha256Hex } from "@kiko/durable/hash"
 import type { Env } from "../index"
 import { CHIEF, checkGroup, groupChatFile, type GroupInput, type NewAgentSpec } from "./chief"
@@ -88,7 +88,7 @@ export class Groups {
     const checked = checkGroup(input, slug, mine)
     if ("error" in checked) return { ok: false, error: checked.error }
     const made: Agent[] = []
-    let opened = false
+    let opened: { roomId: RoomId; created: boolean } | null = null
     try {
       for (const spec of checked.newAgents) made.push(await this.make(home, spec))
       const picked = [...checked.members.map((m) => this.owned(mine, m)), ...made]
@@ -103,10 +103,9 @@ export class Groups {
         await user.discardAgents(made.map((a) => a.slug))
         return { ok: false, error: chat.error }
       }
-      const { roomId, created } = await user.openChat(checked.title, [CHIEF, ...everyone.map((a) => a.id)])
-      opened = true
-      await this.d.services.room(roomId).startGroup(home.userId, {
-        chat: created ? chat : null,
+      opened = await user.openChat(checked.title, [CHIEF, ...everyone.map((a) => a.id)])
+      await this.d.services.room(opened.roomId).startGroup(home.userId, {
+        chat: opened.created ? chat : null,
         creator: slug,
         kickoff: checked.kickoff,
         tasks: checked.tasks ?? [],
@@ -116,17 +115,21 @@ export class Groups {
         from: { kind: "system", reason: "created" },
         text: `${checked.title} is ready.`,
         clientId: key,
-        event: { kind: "created", roomId, title: checked.title },
-        goto: roomId,
+        event: { kind: "created", roomId: opened.roomId, title: checked.title },
+        goto: opened.roomId,
       })
       if (event) this.d.publish([event])
-      const text = created
+      const text = opened.created
         ? `the group ${checked.title} is made, in its own chat, and your kickoff is sent. you lead it there, and the human follows it there. say one short line that names the group, and do not promise to report back in this chat.`
         : `the group ${checked.title} is already in its own chat. your kickoff is sent there, and you lead it there, and the human follows it there. say one short line that names the group, and do not promise to report back in this chat.`
       this.d.log.setMeta(key, text)
       return { ok: true, text }
     } catch (error) {
-      if (!opened) await user.discardAgents(made.map((a) => a.slug))
+      if (opened?.created)
+        await user
+          .deleteChat(opened.roomId)
+          .catch((e: unknown) => console.error(`group chat not removed: ${e instanceof Error ? e.message : String(e)}`))
+      await user.discardAgents(made.map((a) => a.slug))
       return { ok: false, error: error instanceof Error ? error.message : String(error) }
     }
   }

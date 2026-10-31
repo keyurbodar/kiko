@@ -204,6 +204,7 @@ export class AgentHost {
   readonly workers: Workers
   private readonly alarms: Alarms
   private opened?: Promise<Opened>
+  private journal?: JournalStorage
   private plannedSetup?: AgentSetup
   private invocation?: {
     due: () => boolean
@@ -334,25 +335,25 @@ export class AgentHost {
   }
 
   async unfinished(): Promise<boolean> {
-    const storage = await JournalStorage.open(this.ctx.storage, this.options.agentKey)
-    try {
-      for (const status of ["pending", "running", "waiting", "completing"] as const) {
-        let cursor: Parameters<JournalStorage["scanTasks"]>[2]
-        do {
-          const page = await storage.scanTasks({ status }, 100, cursor, context)
-          if (page.items.some((record) => !this.futureTask({ record }))) return true
-          cursor = page.next
-        } while (cursor)
-      }
-      for (const status of ["queued", "placed"] as const) {
-        if ((await storage.scanSubmissions({ status }, 1, undefined, context)).items.length) {
-          return true
-        }
-      }
-      return false
-    } finally {
-      await storage.close(context)
+    const storage = this.journalStorage()
+    for (const status of ["pending", "running", "waiting", "completing"] as const) {
+      let cursor: Parameters<JournalStorage["scanTasks"]>[2]
+      do {
+        const page = await storage.scanTasks({ status }, 100, cursor, context)
+        if (page.items.some((record) => !this.futureTask({ record }))) return true
+        cursor = page.next
+      } while (cursor)
     }
+    for (const status of ["queued", "placed"] as const) {
+      if ((await storage.scanSubmissions({ status }, 1, undefined, context)).items.length) {
+        return true
+      }
+    }
+    return false
+  }
+
+  private journalStorage(): JournalStorage {
+    return (this.journal ??= JournalStorage.open(this.ctx.storage, this.options.agentKey, true))
   }
 
   async runInvocation(due: () => boolean): Promise<"done" | "continue"> {
@@ -526,7 +527,7 @@ export class AgentHost {
 
   private async openHarness(setup: AgentSetup): Promise<Opened> {
     setup = { ...setup, settings: { ...setup.settings, steeringMode: "all", followUpMode: "all" } }
-    const storage = await JournalStorage.open(this.ctx.storage, this.options.agentKey)
+    const storage = this.journalStorage()
     const env = setup.env
     const harness = this.options.openHarness
       ? await this.options.openHarness(storage, setup)
@@ -958,6 +959,7 @@ export class AgentHost {
   }
 
   private reset(): void {
+    this.journal = undefined
     JournalStorage.reset(this.ctx.storage, this.options.agentKey)
     this.ctx.storage.sql.exec(
       "INSERT INTO harness_epoch (agent, n) VALUES (?, 1) ON CONFLICT(agent) DO UPDATE SET n = n + 1",
@@ -970,6 +972,7 @@ export class AgentHost {
   async shutdown(): Promise<void> {
     const opened = await this.opened?.catch(() => undefined)
     this.opened = undefined
+    this.journal = undefined
     if (!opened) return
     this.retiring.add(opened)
     if (this.invocation && !this.invocation.settling)

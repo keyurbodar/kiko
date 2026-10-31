@@ -107,6 +107,7 @@ export function reactionBrief(log: RoomLog, sql: SqlStorage, slug: AgentSlug): {
       log.roomId,
     )
     .one().seq
+  if (upTo <= since) return { text: null, upTo }
   const rows = sql
     .exec<{ actor: string; emoji: string; text: string }>(
       "SELECT r.actor, r.emoji, m.text FROM reactions AS r JOIN messages AS m ON m.room_id = r.room_id AND m.seq = CAST(r.message_id AS INTEGER) AND m.id = r.message_id WHERE ((m.deleted_at IS NULL AND JSON_EXTRACT(m.sender, '$.kind') = 'agent' AND JSON_EXTRACT(m.sender, '$.slug') = ?1 AND r.actor <> ?2 AND EXISTS(SELECT 1 FROM events AS e WHERE (e.kind = 'react' AND e.seq > ?3 AND e.actor = r.actor AND JSON_EXTRACT(e.payload, '$.messageId') = r.message_id) AND e.room_id = ?4)) AND r.room_id = ?4) AND m.room_id = ?4 ORDER BY r.at",

@@ -61,7 +61,34 @@ async function host(): Promise<Host> {
 function reset() {
   vi.useRealTimers()
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
   FakeSocket.made = []
+}
+
+const WELCOME = JSON.stringify({ t: "welcome", id: "1", name: "kiko" })
+
+async function nextSocket(count: number): Promise<FakeSocket> {
+  await vi.waitFor(() => assert.strictEqual(FakeSocket.made.length, count))
+  return FakeSocket.made[count - 1]!
+}
+
+function recordWaits(): number[] {
+  const waits: number[] = []
+  vi.stubGlobal("Bun", {
+    sleep: (ms: number) => {
+      waits.push(ms)
+      return Promise.resolve()
+    },
+  })
+  vi.spyOn(Math, "random").mockReturnValue(1)
+  return waits
+}
+
+async function welcomeAndDrop(count: number): Promise<void> {
+  const socket = await nextSocket(count)
+  socket.open()
+  socket.emit("message", { data: WELCOME })
+  socket.emit("close", { code: 1006 })
 }
 
 describe("daemon connect", () => {
@@ -126,6 +153,54 @@ describe("daemon connect", () => {
 
       assert.strictEqual(newer.sent.length, before + 1)
       assert.strictEqual(older.sent.length, 1)
+    } finally {
+      reset()
+    }
+  })
+
+  it("backs off when a worker welcomes and then drops", async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal("WebSocket", FakeSocket)
+    const waits = recordWaits()
+    try {
+      const link = runLink(await host())
+      void link.loop()
+      await welcomeAndDrop(1)
+      await welcomeAndDrop(2)
+      await vi.waitFor(() => assert.strictEqual(waits.length, 2))
+
+      assert.deepStrictEqual(waits, [1000, 2000])
+      await nextSocket(3)
+      link.stop()
+      await vi.advanceTimersByTimeAsync(20_000)
+    } finally {
+      reset()
+    }
+  })
+
+  it("resets the backoff after a socket stays up", async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal("WebSocket", FakeSocket)
+    const waits = recordWaits()
+    try {
+      const link = runLink(await host())
+      void link.loop()
+      await welcomeAndDrop(1)
+      await welcomeAndDrop(2)
+
+      const stable = await nextSocket(3)
+      stable.open()
+      stable.emit("message", { data: WELCOME })
+      await vi.advanceTimersByTimeAsync(20_000)
+      stable.emit("close", { code: 1006 })
+
+      await welcomeAndDrop(4)
+      await vi.waitFor(() => assert.strictEqual(waits.length, 4))
+
+      assert.deepStrictEqual(waits, [1000, 2000, 1000, 1000])
+      await nextSocket(5)
+      link.stop()
+      await vi.advanceTimersByTimeAsync(20_000)
     } finally {
       reset()
     }

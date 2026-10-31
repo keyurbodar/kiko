@@ -10,12 +10,22 @@ const MAX_BUBBLE_BYTES = 64 * 1024
 
 export type WholeText = { id: string; r2Key: string; size: number; sha256: string }
 
+function escapedBytes(ch: string): number {
+  const code = ch.codePointAt(0) ?? 0
+  if (code === 0x22 || code === 0x5c) return 2
+  if (code < 0x20) return code === 0x08 || code === 0x09 || code === 0x0a || code === 0x0c || code === 0x0d ? 2 : 6
+  if (code >= 0xd800 && code <= 0xdfff) return 6
+  if (code < 0x80) return 1
+  if (code < 0x800) return 2
+  return code < 0x10000 ? 3 : 4
+}
+
 export function bubbleOf(text: string): string {
   let end = 0
   let bytes = 0
   for (const ch of text) {
     if (end + ch.length > MAX_MESSAGE_TEXT) break
-    bytes += new TextEncoder().encode(JSON.stringify(ch)).length - 2
+    bytes += escapedBytes(ch)
     if (bytes > MAX_BUBBLE_BYTES) break
     end += ch.length
   }

@@ -20,6 +20,6 @@ export function swipeRegion(target: EventTarget | null, x: number): SwipeRegion 
   const element = target instanceof Element ? target : null
   if (element?.closest('[data-component="drawer-scrim"]')) return "scrim"
   if (element?.closest(".sidebar-shell > .panel")) return "drawer"
-  if (element?.closest('[data-component="sidecar"]')) return "sidecar"
+  if (element?.closest('[data-component="sidecar-overlay"]')) return "sidecar"
   return x <= EDGE_PX ? "edge" : "other"
 }

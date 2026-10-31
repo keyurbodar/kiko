@@ -19,7 +19,8 @@ export type Target = Exclude<Scan, { _tag: "Foreign" }> | { readonly _tag: "Empt
 
 export type Pointer = { readonly v: 1; readonly url: string; readonly accountId: string; readonly script: string }
 
-export const isKikoName = (name: string): boolean => name === DEFAULT_SCRIPT || name.startsWith(`${DEFAULT_SCRIPT}-`)
+export const isKikoName = (name: string): boolean =>
+  (name === DEFAULT_SCRIPT || name.startsWith(`${DEFAULT_SCRIPT}-`)) && !name.endsWith("-builder")
 
 export function classify(script: Script, sub: string): Scan {
   if (!script.bindings.some((binding) => binding.type === "durable_object_namespace"))

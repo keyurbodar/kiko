@@ -97,7 +97,7 @@ const SHIFTED = new Map<string, string>([
 
 type Keyboard = { min: number; max: number; perKeycode: number; syms: Float64Array }
 
-type Symbols = {
+export type Symbols = {
   display: number
   width: number
   height: number
@@ -237,64 +237,109 @@ function needsShift(key: string): boolean {
   return (key.length === 1 && key >= "A" && key <= "Z") || SHIFTED.has(key)
 }
 
-export function linuxNative(): Native | null {
-  const symbols = openSymbols()
-  if (!symbols) return null
+export function nativeFrom(symbols: Symbols, settle: (ms: number) => void): Native {
   const down = new Map<string, number>()
   const heldButtons = new Set<number>()
+
+  const press = (code: number): void => {
+    symbols.keycodeDown(code, true)
+    symbols.keycodeDown(code, false)
+  }
 
   const typeAscii = (char: string): void => {
     const shift = needsShift(char)
     const code = symbols.keycode(baseOf(char).charCodeAt(0))
     if (!code) return
     if (shift) symbols.keycodeDown(symbols.keycode(0xffe1), true)
-    symbols.keycodeDown(code, true)
-    symbols.keycodeDown(code, false)
+    press(code)
     if (shift) symbols.keycodeDown(symbols.keycode(0xffe1), false)
   }
 
-  const typeSymbol = (keysym: number): void => {
-    const mapped = symbols.keycode(keysym)
-    if (mapped) {
-      symbols.keycodeDown(mapped, true)
-      symbols.keycodeDown(mapped, false)
-      return
-    }
-    const keyboard = symbols.keyboard()
-    if (!keyboard) return
-    const spare = spareKeycode(keyboard.syms, keyboard.min, keyboard.max, keyboard.perKeycode)
-    if (spare === null) return
-    const remap = new BigUint64Array(keyboard.perKeycode)
-    remap[0] = BigInt(keysym)
-    symbols.change(spare, remap)
-    symbols.sync()
-    symbols.keycodeDown(spare, true)
-    symbols.keycodeDown(spare, false)
-    symbols.sync()
-    Bun.sleepSync(REMAP_SETTLE_MS)
-    symbols.change(spare, new BigUint64Array(keyboard.perKeycode))
-    symbols.sync()
-  }
-
-  const type = (char: string): void => {
+  const typeChar = (char: string, mapped: ReadonlyMap<number, number>): void => {
     if (char === "\n" || char === "\r") {
       const code = symbols.keycode(0xff0d)
-      if (!code) return
-      symbols.keycodeDown(code, true)
-      symbols.keycodeDown(code, false)
+      if (code) press(code)
       return
     }
     if (char === "\t") {
       const code = symbols.keycode(0xff09)
-      if (!code) return
-      symbols.keycodeDown(code, true)
-      symbols.keycodeDown(code, false)
+      if (code) press(code)
       return
     }
     const codepoint = char.codePointAt(0)
     if (codepoint === undefined) return
-    if (codepoint < 0x7f) typeAscii(char)
-    else typeSymbol(unicodeKeysym(codepoint))
+    if (codepoint < 0x7f) {
+      typeAscii(char)
+      return
+    }
+    const keysym = unicodeKeysym(codepoint)
+    const code = symbols.keycode(keysym) || mapped.get(keysym)
+    if (code) press(code)
+  }
+
+  const planRun = (
+    chars: readonly string[],
+    from: number,
+  ): { end: number; mapped: Map<number, number>; perKeycode: number } => {
+    const mapped = new Map<number, number>()
+    let keyboard: Keyboard | null = null
+    let pool: Float64Array | null = null
+    let index = from
+    while (index < chars.length) {
+      const codepoint = chars[index]!.codePointAt(0)!
+      if (codepoint >= 0x7f) {
+        const keysym = unicodeKeysym(codepoint)
+        if (!mapped.has(keysym) && !symbols.keycode(keysym)) {
+          keyboard ??= symbols.keyboard()
+          if (!keyboard) break
+          pool ??= Float64Array.from(keyboard.syms)
+          const spare = spareKeycode(pool, keyboard.min, keyboard.max, keyboard.perKeycode)
+          if (spare === null) break
+          mapped.set(keysym, spare)
+          const start = (spare - keyboard.min) * keyboard.perKeycode
+          for (let level = 0; level < keyboard.perKeycode; level++) pool[start + level] = 1
+        }
+      }
+      index++
+    }
+    return { end: index, mapped, perKeycode: keyboard?.perKeycode ?? 0 }
+  }
+
+  const applyRun = (
+    chars: readonly string[],
+    from: number,
+    to: number,
+    mapped: ReadonlyMap<number, number>,
+    perKeycode: number,
+  ): void => {
+    if (mapped.size === 0) {
+      for (let index = from; index < to; index++) typeChar(chars[index]!, mapped)
+      return
+    }
+    for (const [keysym, spare] of mapped) {
+      const remap = new BigUint64Array(perKeycode)
+      remap[0] = BigInt(keysym)
+      symbols.change(spare, remap)
+    }
+    symbols.sync()
+    for (let index = from; index < to; index++) typeChar(chars[index]!, mapped)
+    symbols.sync()
+    settle(REMAP_SETTLE_MS)
+    const cleared = new BigUint64Array(perKeycode)
+    for (const spare of mapped.values()) symbols.change(spare, cleared)
+    symbols.sync()
+  }
+
+  const typeText = (value: string): void => {
+    const chars = Array.from(value)
+    let index = 0
+    while (index < chars.length) {
+      const run = planRun(chars, index)
+      const end = run.end > index ? run.end : index + 1
+      applyRun(chars, index, end, run.mapped, run.perKeycode)
+      index = end
+    }
+    symbols.flush()
   }
 
   const upright = notches(WHEEL_NOTCH_PX)
@@ -330,8 +375,7 @@ export function linuxNative(): Native | null {
       symbols.flush()
     },
     text(value) {
-      for (const char of value) type(char)
-      symbols.flush()
+      typeText(value)
     },
     cursor() {
       return symbols.query()
@@ -347,4 +391,10 @@ export function linuxNative(): Native | null {
       symbols.flush()
     },
   }
+}
+
+export function linuxNative(): Native | null {
+  const symbols = openSymbols()
+  if (!symbols) return null
+  return nativeFrom(symbols, (ms) => Bun.sleepSync(ms))
 }

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import { CliError, type Context } from "../context"
@@ -27,6 +27,7 @@ async function saveToken(url: string, token: string): Promise<void> {
   const file = sessionFile()
   await mkdir(dirname(file), { recursive: true })
   await writeFile(file, `${JSON.stringify(sessions, null, 2)}\n`, { mode: 0o600 })
+  await chmod(file, 0o600)
 }
 
 function endpoint(ctx: Context, path: string): URL {

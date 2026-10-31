@@ -192,7 +192,7 @@ export class Burst {
   }
 
   deadline(): number | undefined {
-    const pending = this.envelopes(undefined, Number.MAX_SAFE_INTEGER)
+    const pending = this.envelopes()
     const first = pending[0]
     const last = pending.at(-1)
     if (!first || !last) return undefined

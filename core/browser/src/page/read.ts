@@ -10,6 +10,7 @@ export type PageState = {
   crashed?: boolean
   settle?: boolean
   loading?: Promise<unknown>
+  loaded?: boolean
   notes: string[]
 }
 
@@ -57,8 +58,7 @@ async function readOnce(page: PageState): Promise<string> {
 }
 
 export async function read(page: PageState): Promise<PageView> {
-  let raw = await readOnce(page)
-  if (page.loading) raw = await readOnce(page)
+  const raw = await readOnce(page)
   const view = JSON.parse(raw.startsWith(GZIP_MARK) ? await gunzip(raw.slice(GZIP_MARK.length)) : raw) as PageView
   for (const control of view.controls) {
     if (control.href?.startsWith("/")) control.href = new URL(control.href, view.url).href

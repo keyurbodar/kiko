@@ -500,6 +500,18 @@ type SpaceIndex = {
   commit(changes: readonly IndexChange[]): Promise<CommitResult>
 }
 
+const PUT_CHUNK = 20
+
+async function eachChunk<T>(items: readonly T[], run: (item: T, index: number) => Promise<void>): Promise<void> {
+  for (let start = 0; start < items.length; start += PUT_CHUNK) {
+    const settled = await Promise.allSettled(
+      items.slice(start, start + PUT_CHUNK).map((item, n) => run(item, start + n)),
+    )
+    const failed = settled.find((r): r is PromiseRejectedResult => r.status === "rejected")
+    if (failed) throw failed.reason
+  }
+}
+
 function spaceBackend(
   services: OwnerServices,
   home: () => AgentHome,
@@ -554,15 +566,19 @@ function spaceBackend(
       const h = home()
       const at = index()
       const stored: { key: string; bytes: Uint8Array }[] = []
-      const indexed = await Promise.all(
-        changes.map(async (c): Promise<IndexChange> => {
-          if (c.op !== "write") return c
+      const indexed: IndexChange[] = []
+      try {
+        await eachChunk(changes, async (c, i) => {
+          if (c.op !== "write") {
+            indexed[i] = c
+            return
+          }
           const id = crypto.randomUUID()
           const r2Key = fileKey(h.userId, at.space, id)
           const sha256 = await sha256Hex(c.bytes)
           await services.files().put(r2Key, c.bytes, { httpMetadata: { contentType: c.type } })
           stored.push({ key: r2Key, bytes: c.bytes })
-          return {
+          indexed[i] = {
             op: "put",
             file: {
               id,
@@ -575,8 +591,14 @@ function spaceBackend(
               expectSha256: c.expect,
             },
           }
-        }),
-      )
+        })
+      } catch (e) {
+        await deleteFiles(
+          services.files(),
+          stored.map((s) => s.key),
+        )
+        throw e
+      }
       const out = await at.commit(indexed)
       if (!out.ok) {
         await deleteFiles(

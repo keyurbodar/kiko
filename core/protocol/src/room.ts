@@ -261,6 +261,28 @@ export type FileOp = typeof FileOp.Type
 export const MemberRefusal = Schema.Literals(["limit", "exists", "unknown", "last", "reserved", "chief", "kiko"])
 export type MemberRefusal = typeof MemberRefusal.Type
 
+export const MAX_MEMBERS = 8
+
+export function memberRefusalText(op: MemberOp, reason: MemberRefusal): string {
+  const who = "name" in op ? op.name : op.slug
+  switch (reason) {
+    case "limit":
+      return `A group holds at most ${MAX_MEMBERS} agents`
+    case "exists":
+      return `${who} is already in this chat`
+    case "unknown":
+      return `${who} is not in this chat`
+    case "last":
+      return "A chat keeps at least one agent"
+    case "reserved":
+      return `@${op.slug} is a reserved handle`
+    case "chief":
+      return "Kiko leads every chat and stays in it"
+    case "kiko":
+      return "The Kiko chat stays with Kiko. Start a new group instead"
+  }
+}
+
 export const TaskStatus = Schema.Literals(["todo", "doing", "blocked", "review", "done", "cancelled"])
 export type TaskStatus = typeof TaskStatus.Type
 
@@ -396,7 +418,6 @@ export type ClientToRoom = typeof ClientToRoom.Type
 
 export const RoomSignal = Schema.Union([
   Schema.Struct({ t: Schema.Literal("typing"), who: Schema.Array(AgentSlug) }),
-  Schema.Struct({ t: Schema.Literal("draft"), slug: AgentSlug, runId: Id, index: Count, text: Schema.String }),
   Schema.Struct({
     t: Schema.Literal("thinking"),
     slug: AgentSlug,

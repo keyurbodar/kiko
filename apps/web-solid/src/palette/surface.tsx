@@ -5,7 +5,7 @@ import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from
 import { Portal } from "solid-js/web"
 import { commands, type RowAction } from "../commands/registry"
 import { messageStatus, typeMessageQuery } from "../commands/message-search"
-import { formatBytes } from "../chat/info/format"
+import { formatBytes } from "../lib/format"
 import {
   iconFor,
   backspaceLeaves,

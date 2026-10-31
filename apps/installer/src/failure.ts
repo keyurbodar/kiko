@@ -19,6 +19,7 @@ export const InstallErrorCode = Schema.Literals([
   "storage_full",
   "release_unavailable",
   "release_untrusted",
+  "missing_migration_tag",
   "not_ready",
   "internal",
 ])
@@ -54,6 +55,8 @@ const SAID: Record<InstallErrorCode, string> = {
     "This Cloudflare account has used its free daily allowance of Durable Object storage, so the install could not save its step. The allowance resets at 00:00 UTC, and trying again after that works. A paid Workers plan removes the daily limit.",
   release_unavailable: "The Kiko release could not be loaded. Try again.",
   release_untrusted: "The Kiko release did not verify. Nothing was uploaded.",
+  missing_migration_tag:
+    "This backend is deployed, but Cloudflare reports no migration tag for it, so Kiko cannot tell which schema it runs. Delete it in Cloudflare, then install again.",
   not_ready: "The backend was installed but did not answer in time. Try again in a minute.",
   internal: "The install failed. Try again.",
 }
@@ -70,6 +73,7 @@ const STATUS: Partial<Record<InstallErrorCode, number>> = {
   no_subdomain: 409,
   name_taken: 409,
   not_keepable: 409,
+  missing_migration_tag: 409,
   storage_full: 503,
   not_ready: 504,
   internal: 500,

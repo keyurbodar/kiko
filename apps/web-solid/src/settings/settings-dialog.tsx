@@ -14,7 +14,8 @@ import { closeSettings } from "./open"
 import { SETTINGS_GROUPS, searchSections, sectionAt, type SettingsSection } from "./sections"
 import "./settings-dialog.css"
 
-const LAYERS = '[role="dialog"], [role="menu"], [role="listbox"], [data-popper-positioner], .toast-v2'
+const LAYERS =
+  '[role="dialog"], [role="menu"], [role="listbox"], [data-popper-positioner], .toast-v2, [data-kb-top-layer]'
 
 type Health = "running" | "waiting" | "unreachable"
 

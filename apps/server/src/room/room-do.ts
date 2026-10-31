@@ -37,7 +37,7 @@ import type { OwnerServices, ServiceOptions } from "../owner/services"
 import { loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
-import { runDue } from "../owner/clock"
+import { runDue, retryDelay } from "../owner/clock"
 import { RoomRoutines } from "./routines"
 import type { Wake, WakeResult } from "./delivery"
 
@@ -47,7 +47,7 @@ import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { RoomMemory } from "./memory"
 import { Asks } from "./asks"
-import { Bubbles, replyTag } from "./bubbles"
+import { Bubbles } from "./bubbles"
 import type { StepItem } from "../agent/extensions/presence"
 import { roomActivity, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./activity"
 import { Deliveries, withContext } from "./deliver"
@@ -68,7 +68,7 @@ import { dividerMessage, type Divider } from "./dividers"
 import { findProvider } from "../models/catalog"
 import { describeRunError } from "../agent/run-error"
 import { problemOfRun } from "../user/provider-health"
-import { parseModelRef } from "../agent/thinking"
+import { modelName, parseModelRef } from "../agent/thinking"
 import { parseRichText } from "@kiko/protocol/markdown"
 import { listMembers, type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, reactionBrief } from "./reactions"
@@ -105,18 +105,10 @@ const MAX_DOING = 160
 const DELEGATED_TITLE = 100
 const HUMAN_NOTIFY_MS = 10_000
 const ASK_TYPING_MS = 120_000
+const CHAT_RETRY_WAKEUP = "burst_retry"
 const edit = (caption: string): Activity => ({ kind: "tool", tool: "edit", caption })
 
-const modelNamed = (ref: string): string => {
-  const found = parseModelRef(ref)
-  return (
-    (found &&
-      findProvider(found.provider)
-        ?.getModels()
-        .find((m) => m.id === found.modelId)?.name) ||
-    ref
-  )
-}
+class ChatMissing extends Error {}
 
 export const DEFAULT_AGENT = CHIEF
 const CHIEF_NAME = "Kiko"
@@ -134,7 +126,7 @@ const ROW_EVENTS: ReadonlySet<RoomEvent["t"]> = new Set([
 ])
 
 export class Room implements CommandRoom {
-  readonly commands = makeRoomCommands(this)
+  readonly commands = makeRoomCommands(this, (work) => this.ctx.waitUntil(work))
   log!: RoomLog
   private deliveries!: Deliveries
   private alarms!: Alarms
@@ -154,6 +146,7 @@ export class Room implements CommandRoom {
   private reports!: Reports
   private wakes!: RoomDelivery
   private humanNotifiedAt = 0
+  private chatRetries = 0
   private mailer!: RoomMessaging
   private pairs!: RoomPair
   private receiver!: ReceiveDeps
@@ -184,11 +177,11 @@ export class Room implements CommandRoom {
 
     {
       const roomId = this.identity.roomId
+      this.alarms = options.clock
       this.log = new RoomLog(ctx.storage, roomId, Date.now, ctx.storage)
       this.deliveries = new Deliveries(ctx.storage, this.log)
       this.files = roomFiles(ctx.storage, this.log)
       this.team = new Team(ctx.storage.sql, roomId)
-      this.alarms = options.clock
 
       this.bubbles = new Bubbles(ctx.storage, this.log, (path) => {
         const entry = this.files.stat(path)
@@ -359,7 +352,29 @@ export class Room implements CommandRoom {
   }
 
   private flushBurst(): Promise<void> {
-    return this.burst.flush(() => this.flushBurstOnce())
+    return this.burst.flush(async () => {
+      try {
+        await this.flushBurstOnce()
+        await this.clearChatRetry()
+      } catch (error) {
+        if (!(error instanceof ChatMissing)) throw error
+        await this.armChatRetry(error)
+      }
+    })
+  }
+
+  private async armChatRetry(error: Error): Promise<void> {
+    this.chatRetries += 1
+    console.error(`burst held back: ${error.message}`)
+    await this.alarms.setWakeup(CHAT_RETRY_WAKEUP, Date.now() + retryDelay(this.chatRetries))
+  }
+
+  private clearChatRetry(): Promise<void> {
+    if (!this.chatRetries) return Promise.resolve()
+    this.chatRetries = 0
+    return this.alarms.deadline(CHAT_RETRY_WAKEUP) === undefined
+      ? Promise.resolve()
+      : this.alarms.clearWakeup(CHAT_RETRY_WAKEUP)
   }
 
   private async flushBurstOnce(): Promise<void> {
@@ -370,9 +385,7 @@ export class Room implements CommandRoom {
     const batch = deliverable(pending)
     if (!batch.length) return
     const chat = await this.chat(home)
-    if (!chat) {
-      return
-    }
+    if (!chat) throw new ChatMissing(`chat ${home.roomId} is not in the owner's directory`)
     await this.seedMembers(home, chat)
     const members = this.members.list()
     const routes = route(batch, members, (id) => replyAddressees((at) => this.log.message(at), id))
@@ -766,12 +779,19 @@ export class Room implements CommandRoom {
     if (this.log.meta("deleted") === "1" || this.log.meta("erasing") === "1") return
     await this.restoreHumanInput()
     this.mail.redrive()
+    this.flushRead()
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
       [BURST_WAKEUP]: () => this.flushBurst(),
+      [CHAT_RETRY_WAKEUP]: () => this.flushBurst(),
       ["routine_events"]: () => this.reports.flush(),
       [PENDING_WAKEUP]: () => this.sweepPending(),
     })
+  }
+
+  private flushRead(): void {
+    const event = this.log.flushRead()
+    if (event) this.publish([event])
   }
 
   restoreChain(slug: AgentSlug, envelopes: readonly Pick<Envelope, "rootId" | "hop">[]): void {
@@ -997,6 +1017,7 @@ export class Room implements CommandRoom {
     for (const ws of this.ctx.getWebSockets()) ws.close(1000, "Chat deleted")
     eraseRoomSchema(this.ownerStorage, this.log.roomId)
     await this.alarms.clearWakeup(BURST_WAKEUP)
+    await this.alarms.clearWakeup(CHAT_RETRY_WAKEUP)
   }
 
   async subscribe(ws: WebSocket, afterSequence: number, handle?: string): Promise<boolean> {
@@ -1489,8 +1510,8 @@ export class Room implements CommandRoom {
   async modelChanged(slug: AgentSlug, ref: string, was?: string): Promise<void> {
     const member = this.members.get(slug)
     if (!member) return
-    const to = modelNamed(ref)
-    const from = was ? modelNamed(was) : undefined
+    const to = modelName(parseModelRef(ref), ref)
+    const from = was ? modelName(parseModelRef(was), was) : undefined
     this.divider(
       `model:${slug}:${crypto.randomUUID()}`,
       from ? `Context handoff from ${from} to ${to}` : `${member.name} now uses ${to}`,
@@ -1734,10 +1755,6 @@ export class Room implements CommandRoom {
     })
     if (event) this.publish([event])
     await this.setStatus(slug, "idle")
-  }
-
-  async draft(slug: AgentSlug, runId: string, index: number, text: string): Promise<void> {
-    this.broadcast({ t: "draft", slug, runId, index, text: replyTag(text).text })
   }
 
   async thinking(

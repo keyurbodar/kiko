@@ -18,9 +18,11 @@ import { DuplicateChatError } from "@kiko/protocol/rpc"
 import * as Cause from "effect/Cause"
 import * as Option from "effect/Option"
 import { createComputed, createMemo, createRoot, createSignal, on, untrack } from "solid-js"
+import { dropRoomPreviews } from "../files/preview/cache"
 import { kikoPlaceholder, newChatMembers } from "../lib/chats"
 import { showFailure, showNotice } from "../lib/errors"
 import { setFileToken, setFileTokenSource } from "../lib/file-token"
+import { providerOf } from "../settings/model-list"
 import { attempt, failureMessage, observe, owner, registry, run, valueOf, watch } from "./runtime"
 import { type ChatTyping, otherChatTyping, typingOnStatus } from "./live-status"
 import { createUserSignals } from "./user-signals"
@@ -62,6 +64,15 @@ export const user = createRoot(() => {
     const list = snapshot()?.chats ?? []
     return (list.length || synced() ? [...list] : [placeholder]).sort(chatOrder)
   })
+  const knownChats = new Set<RoomId>()
+  createComputed(
+    on(chats, (list) => {
+      const present = new Set(list.map((chat) => chat.roomId))
+      for (const roomId of knownChats) if (!present.has(roomId)) dropRoomPreviews(roomId)
+      knownChats.clear()
+      for (const roomId of present) knownChats.add(roomId)
+    }),
+  )
   const liveTyping = createMemo(() => otherChatTyping(typing(), chats()))
 
   const onSignal = (value: UserSignal) =>
@@ -92,7 +103,7 @@ export const user = createRoot(() => {
   function agentModel(slug: string): AgentModel | undefined {
     const pick = snapshot()?.agentModels?.[slug]
     if (!pick || !synced()) return pick
-    const provider = pick.model.split("/")[0] ?? ""
+    const provider = providerOf(pick.model)
     return !provider || providers().some((p) => p.id === provider) ? pick : undefined
   }
 

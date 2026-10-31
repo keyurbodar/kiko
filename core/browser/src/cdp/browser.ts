@@ -11,6 +11,7 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
   const cdp = await openSession(cdpUrl, options)
   const tabs = new Map<string, Tab>()
   const opening = new Set<string>()
+  const popups = new Map<string, string>()
 
   const releases = new Map<string, () => void>()
 
@@ -28,7 +29,8 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
         const loading: Promise<unknown> = page.channel
           .waitFor("Page.loadEventFired", BROWSER.loadMs)
           .catch(() => undefined)
-          .then(() => {
+          .then((fired) => {
+            if (fired !== undefined) page.loaded = true
             if (page.loading === loading) page.loading = undefined
           })
         page.loading = loading
@@ -67,6 +69,7 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
       },
       close: async () => {
         tabs.delete(targetId)
+        popups.delete(targetId)
         await cdp.send("Target.closeTarget", { targetId }).catch(() => {})
       },
     }
@@ -80,12 +83,16 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     if (targetInfo.type !== "page" || !opener || !tabs.has(opener)) return
     if (tabs.has(targetInfo.targetId) || opening.has(targetInfo.targetId)) return
     opening.add(targetInfo.targetId)
+    popups.set(targetInfo.targetId, targetInfo.url)
     adopt(targetInfo.targetId)
-      .catch(() => {})
+      .catch(() => {
+        popups.delete(targetInfo.targetId)
+      })
       .finally(() => opening.delete(targetInfo.targetId))
   })
   cdp.on("Target.targetDestroyed", ({ targetId }) => {
     tabs.delete(targetId)
+    popups.delete(targetId)
     releases.get(targetId)?.()
     releases.delete(targetId)
   })
@@ -116,7 +123,13 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
         .filter((t) => tabs.has(t.targetId))
         .map((t) => ({ id: t.targetId, url: t.url, title: t.title }))
     },
+    popups: () => [...popups].map(([id, url]) => ({ id, url })),
     closed: cdp.closed,
-    close: () => cdp.close(),
+    close: async () => {
+      const ids = [...popups.keys()]
+      popups.clear()
+      await Promise.all(ids.map((targetId) => cdp.send("Target.closeTarget", { targetId }).catch(() => {})))
+      await cdp.close()
+    },
   }
 }

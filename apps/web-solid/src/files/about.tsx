@@ -1,6 +1,6 @@
 import { fileName, type FileRef } from "@kiko/protocol"
 import { createMemo, onMount, Show, type JSX } from "solid-js"
-import { formatBytes } from "../chat/info/format"
+import { formatBytes } from "../lib/format"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { agentDisplayName } from "../lib/names"
 import { room } from "../state/room"

@@ -311,6 +311,7 @@ const OWNER_STEPS: readonly Step[] = [
   `UPDATE agent_sends SET delivered = 1`,
   ...UPLOAD_STEPS,
   `ALTER TABLE apps ADD COLUMN inspect_public INTEGER NOT NULL DEFAULT 0`,
+  `CREATE TABLE IF NOT EXISTS auth_lockout (id INTEGER PRIMARY KEY CHECK (id = 1), failures INTEGER NOT NULL, window_start INTEGER NOT NULL) STRICT`,
 ]
 
 export function initializeSchema(storage: DurableObjectStorage): void {
@@ -345,6 +346,7 @@ export function eraseRoomSchema(storage: DurableObjectStorage, roomId: string): 
     storage.sql.exec("DELETE FROM team_leases WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM human_asks WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM ws_task_reports WHERE room_id = ?", roomId)
+    storage.sql.exec("DELETE FROM messages_fts WHERE room_id = ?", roomId)
     storage.sql.exec("DELETE FROM owner_meta WHERE scope = ?", `room:${roomId}`)
     storage.sql.exec("INSERT INTO owner_meta (scope, key, value) VALUES (?, 'deleted', '1')", `room:${roomId}`)
     storage.sql.exec("DELETE FROM owner_deadlines WHERE scope = ?", `room:${roomId}`)

@@ -13,6 +13,7 @@ import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { AppLogo } from "../recipes/icon"
 import { cards, followRecipes, installs } from "../recipes/state"
 import { Button } from "../settings/kit"
+import { modelIdOf, providerOf } from "../settings/model-list"
 import { openSettings } from "../settings/open"
 import { attempt, owner } from "../state/runtime"
 import { user } from "../state/user"
@@ -24,7 +25,7 @@ const resolvedModel = (agent: Agent) => {
   const pick = user.agentModel(agent.slug) ?? user.agentModel(KIKO)
   const ref = pick?.model || agent.model
   if (!ref) return undefined
-  return { provider: ref.split("/")[0] ?? "", name: pick?.name ?? ref.split("/").slice(1).join("/") ?? ref }
+  return { provider: providerOf(ref), name: pick?.name ?? modelIdOf(ref) }
 }
 
 function openAgent(agent: Agent) {

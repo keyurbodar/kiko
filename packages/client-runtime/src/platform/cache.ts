@@ -6,6 +6,7 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 
 const SNAPSHOT_CACHE_SCHEMA_VERSION = 1 as const
+const CACHED_MESSAGES = 200
 
 export class SnapshotCacheError extends Schema.TaggedError<SnapshotCacheError>()("SnapshotCacheError", {
   operation: Schema.Literals(["open", "read", "write", "remove"]),
@@ -67,12 +68,23 @@ const encodeRoom = Schema.encodeEffect(StoredRoomJson)
 
 const encodeFailed = (message: string) => new SnapshotCacheError({ operation: "write", message })
 
+const cachedSnapshot = (snapshot: RoomSnapshot): RoomSnapshot =>
+  snapshot.messages.length > CACHED_MESSAGES
+    ? { ...snapshot, messages: snapshot.messages.slice(-CACHED_MESSAGES) }
+    : snapshot
+
 const make = Effect.gen(function* () {
   const store = yield* SnapshotStore
   const userKey = "user"
   const roomKey = (roomId: RoomId) => `room:${roomId}`
   const queryKey = (key: string) => `query:${SNAPSHOT_CACHE_SCHEMA_VERSION}:${key}`
   const queryCodec = <A>(schema: Schema.Codec<A, unknown>) => Schema.fromJsonString(Schema.toCodecJson(schema))
+  const written = new Map<string, string>()
+  const write = (key: string, text: string) =>
+    written.get(key) === text
+      ? Effect.void
+      : store.write(key, text).pipe(Effect.tap(() => Effect.sync(() => void written.set(key, text))))
+  const remove = (key: string) => Effect.sync(() => void written.delete(key)).pipe(Effect.andThen(store.remove(key)))
 
   const load = <A>(key: string, decode: (raw: string) => Effect.Effect<A, unknown>) =>
     store.read(key).pipe(
@@ -82,7 +94,7 @@ const make = Effect.gen(function* () {
             onNone: () => Effect.succeed(Option.none<A>()),
             onSome: (text) => decode(text).pipe(Effect.map(Option.some)),
           }),
-          store.remove(key),
+          remove(key),
         ),
       ),
     )
@@ -94,7 +106,7 @@ const make = Effect.gen(function* () {
     saveUser: ({ sequence, snapshot }) =>
       encodeUser({ schemaVersion: SNAPSHOT_CACHE_SCHEMA_VERSION, sequence, snapshot }).pipe(
         Effect.mapError((error) => encodeFailed(error.message)),
-        Effect.flatMap((text) => store.write(userKey, text)),
+        Effect.flatMap((text) => write(userKey, text)),
       ),
     loadRoom: (roomId) =>
       load(roomKey(roomId), (raw) =>
@@ -107,18 +119,23 @@ const make = Effect.gen(function* () {
         ),
       ),
     saveRoom: (roomId, { sequence, snapshot }) =>
-      encodeRoom({ schemaVersion: SNAPSHOT_CACHE_SCHEMA_VERSION, sequence, snapshot, roomId }).pipe(
+      encodeRoom({
+        schemaVersion: SNAPSHOT_CACHE_SCHEMA_VERSION,
+        sequence,
+        snapshot: cachedSnapshot(snapshot),
+        roomId,
+      }).pipe(
         Effect.mapError((error) => encodeFailed(error.message)),
-        Effect.flatMap((text) => store.write(roomKey(roomId), text)),
+        Effect.flatMap((text) => write(roomKey(roomId), text)),
       ),
-    removeRoom: (roomId) => store.remove(roomKey(roomId)),
+    removeRoom: (roomId) => remove(roomKey(roomId)),
     loadQuery: (key, schema) =>
       load(queryKey(key), Schema.decodeUnknownEffect(queryCodec(schema))).pipe(
         Effect.orElseSucceed(() => Option.none()),
       ),
     saveQuery: (key, schema, value) =>
       Schema.encodeEffect(queryCodec(schema))(value).pipe(
-        Effect.flatMap((text) => store.write(queryKey(key), text)),
+        Effect.flatMap((text) => write(queryKey(key), text)),
         Effect.ignore,
       ),
   })

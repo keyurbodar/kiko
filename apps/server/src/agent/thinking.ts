@@ -17,8 +17,11 @@ function lookup(ref: { provider: string; modelId: string }) {
     .find((m) => m.id === ref.modelId)
 }
 
-export function modelName(ref: { provider: string; modelId: string }): string | undefined {
-  return lookup(ref)?.name.replace(/\s*\(latest\)$/i, "")
+export function modelName(ref: { provider: string; modelId: string } | null, fallback: string): string
+export function modelName(ref: { provider: string; modelId: string } | null): string | undefined
+export function modelName(ref: { provider: string; modelId: string } | null, fallback?: string): string | undefined {
+  const model = ref ? lookup(ref) : undefined
+  return model?.name.replace(/\s*\(latest\)$/i, "") ?? fallback
 }
 
 export function supportedThinking(ref: { provider: string; modelId: string }): ThinkingLevel[] {

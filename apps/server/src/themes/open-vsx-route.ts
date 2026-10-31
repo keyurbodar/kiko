@@ -48,7 +48,9 @@ export async function openVsxRoute(request: Request, env: Env): Promise<Response
   }
   return new Response(result.body, {
     headers: {
-      "content-type": result.headers.get("content-type") ?? "application/octet-stream",
+      "content-type": "application/octet-stream",
+      "content-disposition": "attachment",
+      "content-security-policy": "sandbox",
       "cache-control": "no-store",
       "x-content-type-options": "nosniff",
     },

@@ -1,5 +1,6 @@
 import {
   MAX_MESSAGE_TEXT,
+  memberRefusalText,
   NotFoundError,
   RefusedError,
   sendFits,
@@ -100,7 +101,7 @@ export function memberRefusal(op: MemberOp): string | null {
 const refuse = (reason: string, message: string | null) =>
   message === null ? Effect.void : Effect.fail(new RefusedError({ reason, message }))
 
-export function makeRoomCommands(room: CommandRoom) {
+export function makeRoomCommands(room: CommandRoom, soon: (work: Promise<unknown>) => void) {
   const human = { kind: "human" } as const
 
   const open = Effect.suspend(() =>
@@ -109,6 +110,13 @@ export function makeRoomCommands(room: CommandRoom) {
       : Effect.void,
   )
   const settle = Effect.promise(() => room.settleHumanInput())
+  const settleSoon = Effect.sync(() => {
+    soon(
+      room.settleHumanInput().catch((error: unknown) => {
+        console.error(`settle failed: ${error instanceof Error ? error.message : String(error)}`)
+      }),
+    )
+  })
   const publish = (events: RoomEvent | readonly RoomEvent[] | null) =>
     Effect.sync(() => {
       if (events) room.publish(Array.isArray(events) ? events : [events])
@@ -123,7 +131,7 @@ export function makeRoomCommands(room: CommandRoom) {
       const out = yield* Effect.promise(() => room.humanSend(input))
       if ("refused" in out) return yield* new RefusedError({ reason: "send", message: out.refused })
       yield* publish(out.events)
-      yield* settle
+      yield* settleSoon
       return out.ack
     }),
     edit: Effect.fn("Room.edit")(function* (input: { readonly messageId: MessageId; readonly text: string }) {
@@ -134,23 +142,23 @@ export function makeRoomCommands(room: CommandRoom) {
           ? room.log.editMessage(input.messageId, input.text, parseRichText(input.text))
           : null,
       )
-      yield* settle
+      yield* settleSoon
     }),
     delete: Effect.fn("Room.delete")(function* (input: { readonly messageId: MessageId }) {
       yield* open
       yield* mutate(input.messageId, () => room.log.deleteMessages([input.messageId], human))
-      yield* settle
+      yield* settleSoon
     }),
     react: Effect.fn("Room.react")(function* (input: { readonly messageId: MessageId; readonly emoji: string | null }) {
       yield* open
       yield* refuse("react", reactionRefusal(input.emoji))
       yield* mutate(input.messageId, () => room.log.react(input.messageId, human, input.emoji))
-      yield* settle
+      yield* settleSoon
     }),
     read: Effect.fn("Room.read")(function* (input: { readonly seq: number }) {
       yield* open
       yield* publish(room.log.markRead(input.seq))
-      yield* settle
+      yield* settleSoon
     }),
     typing: Effect.fn("Room.typing")(function* () {
       yield* open
@@ -236,23 +244,3 @@ export function makeRoomCommands(room: CommandRoom) {
 }
 
 export type RoomCommands = ReturnType<typeof makeRoomCommands>
-
-export function memberRefusalText(op: MemberOp, reason: MemberRefusal): string {
-  const who = "name" in op ? op.name : op.slug
-  switch (reason) {
-    case "limit":
-      return "A group holds at most 8 agents"
-    case "exists":
-      return `${who} is already in this chat`
-    case "unknown":
-      return `${who} is not in this chat`
-    case "last":
-      return "A chat keeps at least one agent"
-    case "reserved":
-      return `@${op.slug} is a reserved handle`
-    case "chief":
-      return "Kiko leads every chat and stays in it"
-    case "kiko":
-      return "The Kiko chat stays with Kiko. Start a new group instead"
-  }
-}

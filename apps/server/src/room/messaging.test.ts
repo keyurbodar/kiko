@@ -35,14 +35,15 @@ function room({ now = Date.now, drop }: { now?: () => number; drop?: (text: stri
   } as unknown as SqlStorage
   const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
   let seq = 0
+  const meta = new Map<string, string>()
   const log = {
     roomId: ROOM,
     addMessage: () => {
       seq += 1
       return { id: `m${seq}`, seq, event: null }
     },
-    meta: () => null,
-    setMeta: () => {},
+    meta: (key: string) => meta.get(key) ?? null,
+    setMeta: (key: string, value: string) => void meta.set(key, value),
   } as unknown as RoomLog
   const asks = new Asks(sql, ROOM)
   const delivered: { from: AgentSlug; to: AgentSlug; text: string }[] = []
@@ -221,6 +222,27 @@ describe("a send left undelivered by a restart", () => {
     clock += 10_000
     mail.redrive()
     expect(delivered).toEqual([{ from: JUNO, to: MIRA, text: "the radar app is up" }])
+  })
+
+  it("retries a rejected delivery and never redelivers an accepted one", () => {
+    let clock = 1_000
+    let reject = true
+    const { mail, delivered } = room({ now: () => clock, drop: () => reject })
+    mail.send(JUNO, { id: "a", to: MIRA, text: "first" }, MEMBERS)
+    expect(delivered).toEqual([])
+
+    clock += 10_000
+    mail.redrive()
+    expect(delivered).toEqual([])
+
+    reject = false
+    clock += 10_000
+    mail.redrive()
+    expect(delivered).toEqual([{ from: JUNO, to: MIRA, text: "first" }])
+
+    clock += 10_000
+    mail.redrive()
+    expect(delivered).toEqual([{ from: JUNO, to: MIRA, text: "first" }])
   })
 
   it("spares a delivered send", () => {

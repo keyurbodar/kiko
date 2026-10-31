@@ -276,37 +276,38 @@ export class Tree {
     prev: readonly Span[] | null,
     now: number,
     tail: (lo: number, hi: number) => Item[] = this.items,
+    page: (lo: number, hi: number) => Item[] = this.items,
   ): { lines: string[]; tiling: Span[] } {
     const end = region(count, this.shape)
     const tiling = tile(prev, end, this.shape)
     const lines: string[] = []
-    for (const span of tiling) this.render(span, now, lines)
+    for (const span of tiling) this.render(span, now, lines, page)
     let day = ""
     for (const item of tail(end, count)) {
       const d = dayOf(item.at, now)
-      lines.push(itemLine(item, TAIL_CUT, d !== day, this.shape.log))
+      lines.push(itemLine(item, TAIL_CUT, d !== day, this.shape.log, now))
       day = d
     }
     return { lines, tiling }
   }
 
-  render(span: Span, now: number, out: string[] = []): string[] {
+  render(span: Span, now: number, out: string[] = [], page: (lo: number, hi: number) => Item[] = this.items): string[] {
     const node = this.node(span)
     if (node) out.push(nodeLine(span, node, now))
     else if (span.hi - span.lo <= this.shape.page)
-      for (const item of this.items(span.lo, span.hi)) out.push(itemLine(item, PAGE_CUT, true, this.shape.log))
+      for (const item of page(span.lo, span.hi)) out.push(itemLine(item, PAGE_CUT, true, this.shape.log, now))
     else {
       const mid = (span.lo + span.hi) / 2
-      this.render({ lo: span.lo, hi: mid }, now, out)
-      this.render({ lo: mid, hi: span.hi }, now, out)
+      this.render({ lo: span.lo, hi: mid }, now, out, page)
+      this.render({ lo: mid, hi: span.hi }, now, out, page)
     }
     return out
   }
 
-  zoom(span: Span, count: number, now: number): string[] {
+  zoom(span: Span, count: number, now: number, page: (lo: number, hi: number) => Item[] = this.items): string[] {
     if (span.lo >= count) return []
     if (span.hi - span.lo <= this.shape.page)
-      return this.items(span.lo, Math.min(span.hi, count)).map((i) => itemLine(i, ZOOM_CUT, true, this.shape.log))
+      return page(span.lo, Math.min(span.hi, count)).map((i) => itemLine(i, ZOOM_CUT, true, this.shape.log, now))
     const mid = (span.lo + span.hi) / 2
     const out: string[] = []
     for (const half of [
@@ -316,18 +317,18 @@ export class Tree {
       if (half.lo >= count) continue
       const node = this.node(half)
       if (node) out.push(nodeLine(half, node, now))
-      else out.push(...this.zoom(half, count, now))
+      else out.push(...this.zoom(half, count, now, page))
     }
     return out
   }
 }
 
-export function itemLine(item: Item, cut: number, withDay = true, log: ZoomLog = "chat"): string {
+export function itemLine(item: Item, cut: number, withDay = true, log: ZoomLog = "chat", now = item.at): string {
   const d = new Date(item.at)
   const time = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`
   const text = oneLine(item.shown ?? item.text, cut)
   const rest = text.endsWith("…") ? ` (cut, zoom ${log}:${item.pos})` : ""
-  return `#${item.pos} ${withDay ? `${dayOf(item.at, item.at)} ` : ""}${time} ${text}${rest}`
+  return `#${item.pos} ${withDay ? `${dayOf(item.at, now)} ` : ""}${time} ${text}${rest}`
 }
 
 export function nodeLine(span: Span, node: Node, now: number): string {

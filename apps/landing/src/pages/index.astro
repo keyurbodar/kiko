@@ -1,5 +1,5 @@
 ---
-const appUrl = import.meta.env.PUBLIC_APP_URL || "https://app.kiko.codes"
+const appUrl = import.meta.env.PUBLIC_APP_URL || "https://app.kiko.works"
 ---
 <!doctype html>
 <html lang="en">
@@ -91,10 +91,12 @@ const appUrl = import.meta.env.PUBLIC_APP_URL || "https://app.kiko.codes"
 
       <section class="self-deploy" id="self-deploy" aria-labelledby="self-deploy-title">
         <h2 id="self-deploy-title">Self-deploy</h2>
-        <p>One deployment serves one owner. You need a Cloudflare account on the free plan and Bun. The full steps are in <code>docs/self-deploy.md</code> in the repository. In short:</p>
+        <p>One deployment serves one owner. You need a Cloudflare account on the free plan and Bun. The steps:</p>
         <ol>
           <li>Fork the repo and clone your fork.</li>
-          <li>Run <code>bunx wrangler login</code>, then <code>bunx wrangler r2 bucket create kiko-files</code>.</li>
+          <li>
+            Run <code>bunx wrangler login</code>, then create the two R2 buckets Kiko binds: <code>bunx wrangler r2 bucket create kiko-files</code> for files and <code>bunx wrangler r2 bucket create kiko-history</code> for cold history.
+          </li>
           <li>Run <code>bun install</code>, then build the client with <code>bun run --cwd apps/web-solid build</code>.</li>
           <li>Deploy the Worker with <code>bun run --cwd apps/server deploy</code>.</li>
           <li>Set three secrets in <code>apps/server</code>: <code>SESSION_SECRET</code>, <code>CREDENTIALS_KEK</code>, and <code>ACCESS_CODE</code>.</li>

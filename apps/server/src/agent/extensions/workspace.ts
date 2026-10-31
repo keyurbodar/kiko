@@ -5,6 +5,7 @@ import type { AgentHome } from "../../room/room-do"
 import { TASK_TITLE_WORD_LIMIT } from "../../room/task-title"
 import { TASK_STATUSES, type WorkspaceAnswer, type WorkspaceCall } from "../../room/workspace"
 import { declareEffect } from "@kiko/agent/effects"
+import { textResult as text } from "./tool-result"
 
 export const WORKSPACE = "workspace"
 
@@ -12,7 +13,6 @@ export interface WorkspacePort {
   call(call: WorkspaceCall): Promise<WorkspaceAnswer>
 }
 
-const text = (value: string) => [{ type: "text" as const, text: value }]
 const answer = (a: WorkspaceAnswer) => (a.ok ? { output: text(a.text) } : { output: text(a.error), isError: true })
 const newTaskId = () => `t${crypto.randomUUID().replaceAll("-", "").slice(0, 6)}`
 

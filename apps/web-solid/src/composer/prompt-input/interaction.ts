@@ -4,6 +4,7 @@ import { attachmentError, attachmentMessages, MAX_ATTACHMENTS } from "@kiko/prot
 import { createPromptInputV2Attachments, type PromptInputV2AttachmentConfig } from "./attachments"
 import { createPromptInputV2Store, type PromptInputV2StoreInput } from "./store"
 import { composingKey } from "../ime"
+import { isMac } from "../../lib/platform"
 import { attachmentToken } from "@kiko/protocol"
 import { fileRefToken } from "../rich/file-ref"
 import { trayAttachments } from "./placement"
@@ -142,7 +143,8 @@ export function createPromptInputV2Controller(input: {
   const attach = () => fileInput?.click()
 
   const onKeyDown = (event: KeyboardEvent) => {
-    if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "u") {
+    const primary = isMac ? event.metaKey : event.ctrlKey
+    if (primary && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "u") {
       event.preventDefault()
       attach()
       return true

@@ -16,15 +16,16 @@ import { baseName } from "../../room/files"
 import { DEFAULT_TIMEOUT_S, MAX_TIMEOUT_S } from "../../files/bash"
 import { filesOf } from "../../files/room-fs"
 import { encodeBase64 } from "../../lib/base64"
+import { isImageType } from "@kiko/protocol"
 import { declareEffect } from "@kiko/agent/effects"
 import { AgentFileMissing } from "../errors"
+import { textResult as text } from "./tool-result"
 
 const FILES = "files"
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 const MAX_PDF_BYTES = 20 * 1024 * 1024
 const MAX_LISTED = 500
 const MAX_COPIED = 200
-const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"])
 
 async function pdfText(bytes: Uint8Array): Promise<{ text: string; pages: number } | null> {
   try {
@@ -71,7 +72,6 @@ function causeOf(e: unknown): unknown {
   return new Error(`${e.message.replace(/ Error code: \w+\.$/, "")} ${e.cause.message}`)
 }
 
-const text = (value: string) => [{ type: "text" as const, text: value }]
 const refused = (message: string) => ({ output: text(message), isError: true })
 
 const roomPathOf = (api: Pick<ToolExecutionApi, "env">, path: string) => `/${getOrThrow(filesOf(api).roomPath(path))}`
@@ -123,7 +123,7 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
             if (!bytes) return refused(`no file at ${args.path}`)
             return { output: [{ type: "image" as const, data: encodeBase64(bytes), mimeType: entry.type }] }
           }
-          if (IMAGE_TYPES.has(entry.type)) return readImage()
+          if (isImageType(entry.type)) return readImage()
           if (entry.type === "application/pdf" || entry.path.toLowerCase().endsWith(".pdf")) {
             if (entry.size > MAX_PDF_BYTES)
               return refused(`${args.path} is a pdf of ${size(entry.size)}, over the ${size(MAX_PDF_BYTES)} limit`)

@@ -1,3 +1,4 @@
+import { isObject } from "./guards"
 import type { ImportedTheme } from "./imported"
 import type { ThemeAppearance } from "./palette"
 import { packagePath, parseJsonc, readVsCodeTheme, themeFromVsCode, type VsCodeTheme } from "./vscode-theme"
@@ -54,7 +55,6 @@ export class OpenVsxError extends Error {
   }
 }
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
 const text = (v: unknown) => (typeof v === "string" ? v.trim() : "")
 const unreadable = () => new OpenVsxError("Open VSX returned an unreadable response.", true)
 

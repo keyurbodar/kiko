@@ -1,7 +1,7 @@
 import { fileName } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { For, Show } from "solid-js"
-import { formatBytes } from "../chat/info/format"
+import { formatBytes } from "../lib/format"
 import { EntryIcon } from "../lib/EntryIcon"
 import { fileSrc } from "../state/room"
 import type { RowAction } from "../commands/registry"

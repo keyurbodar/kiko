@@ -1,3 +1,5 @@
+import { batch } from "solid-js"
+
 export const RUN_AVATAR_PX = 28
 const FAR = 100_000
 
@@ -28,19 +30,19 @@ function measure(scroller: HTMLElement, state: ScrollerState): void {
     else byKey.set(key, [row])
   }
   const box = scroller.getBoundingClientRect()
-  for (const entry of state.entries) {
+  const shapes = [...state.entries].map((entry) => {
     const row = entry.track()?.parentElement
     const rows = byKey.get(entry.runKey())
-    if (!row || !rows || rows[rows.length - 1] !== row) {
-      entry.apply(null)
-      continue
-    }
+    if (!row || !rows || rows[rows.length - 1] !== row) return { entry, shape: null }
     const first = rows[0]!
     const rect = row.getBoundingClientRect()
     const above = first.hasAttribute("data-run-first") ? Math.max(0, rect.top - first.getBoundingClientRect().top) : FAR
     const below = entry.isRunEnd() ? 0 : Math.max(0, Math.ceil(box.bottom - rect.bottom)) + RUN_AVATAR_PX
-    entry.apply({ above, below })
-  }
+    return { entry, shape: { above, below } }
+  })
+  batch(() => {
+    for (const { entry, shape } of shapes) entry.apply(shape)
+  })
 }
 
 function schedule(scroller: HTMLElement, state: ScrollerState): void {

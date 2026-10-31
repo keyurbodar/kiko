@@ -1,10 +1,8 @@
+import { formatBytes } from "../../lib/format"
 import { createEffect, createMemo, createSignal, onCleanup, Show, type JSX } from "solid-js"
 import { SurfaceFailure, SurfaceNotice } from "../chrome"
 import { MAX_BYTES, PAGE_ROWS, type TextRequest, type TextResult } from "./large-text-model"
 import { VirtualTable } from "./virtual-table"
-
-const formatSize = (bytes: number) =>
-  bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
 
 export function LargeTextViewer(props: {
   name: string
@@ -74,7 +72,7 @@ export function LargeTextViewer(props: {
       <div class="flex min-h-0 flex-1 flex-col" data-component="file-large-text">
         <Show when={truncated()}>
           <SurfaceNotice>
-            Showing the first {formatSize(MAX_BYTES)} of a {formatSize(meta()?.size ?? 0)} file. Save it to read the
+            Showing the first {formatBytes(MAX_BYTES)} of a {formatBytes(meta()?.size ?? 0)} file. Save it to read the
             whole file.
           </SurfaceNotice>
         </Show>

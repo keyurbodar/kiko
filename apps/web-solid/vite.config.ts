@@ -48,9 +48,15 @@ function shipEveryStylesheet(): Plugin {
 
 function requireInstaller(mode: string): void {
   const env = { ...loadEnv(mode, import.meta.dirname, "VITE_"), ...process.env }
-  if (mode === "production" && env.VITE_CLERK_PUBLISHABLE_KEY && !env.VITE_INSTALLER_URL) {
+  if (mode !== "production") return
+  if (env.VITE_CLERK_PUBLISHABLE_KEY && !env.VITE_INSTALLER_URL) {
     throw new Error(
       "VITE_CLERK_PUBLISHABLE_KEY is set but VITE_INSTALLER_URL is not. Set it to the installer Worker's URL.",
+    )
+  }
+  if (env.VITE_INSTALLER_URL && !env.VITE_CLERK_PUBLISHABLE_KEY) {
+    throw new Error(
+      "VITE_INSTALLER_URL is set but VITE_CLERK_PUBLISHABLE_KEY is not. Set it to the Clerk publishable key, or the build ships a client with sign-in disabled.",
     )
   }
 }
@@ -58,7 +64,13 @@ function requireInstaller(mode: string): void {
 export default defineConfig(({ mode }) => {
   requireInstaller(mode)
   return {
-    plugins: [tanstackRouter({ target: "solid" }), solid(), tailwindcss(), swKillSwitch, shipEveryStylesheet()],
+    plugins: [
+      tanstackRouter({ target: "solid", autoCodeSplitting: true }),
+      solid(),
+      tailwindcss(),
+      swKillSwitch,
+      shipEveryStylesheet(),
+    ],
     define: { __KIKO_VERSION__: JSON.stringify(pkg.version) },
     optimizeDeps: {
       include: [

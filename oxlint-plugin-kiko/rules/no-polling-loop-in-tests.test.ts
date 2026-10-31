@@ -207,6 +207,15 @@ describe("kiko/no-polling-loop-in-tests", () => {
   )
 
   rule.invalid(
+    "reports a Bun.sleep poll",
+    `
+      export const waitFor = async (done: () => boolean) => {
+        while (!done()) await Bun.sleep(10);
+      };
+    `,
+  )
+
+  rule.invalid(
     "reports an awaited Promise.resolve poll that breaks",
     `
       export const waitFor = async (done: () => boolean) => {

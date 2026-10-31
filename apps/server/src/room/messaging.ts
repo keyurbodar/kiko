@@ -289,27 +289,43 @@ export class MessageChains {
       this.admissions.push(Promise.resolve(this.deliver({ id, n: 0, from, to, send, remote })))
   }
 
-  admitted(mail: QueuedMail): void {
+  private markDelivered(id: string): void {
     this.sql.exec(
       "UPDATE agent_sends SET delivered = 1 WHERE id = ?1 AND agent_sends.room_id = ?2",
-      mail.id,
+      id,
       this.log.roomId,
     )
   }
 
+  admitted(mail: QueuedMail): void {
+    this.markDelivered(mail.id)
+  }
+
   redrive(): void {
+    const floor = Number(this.log.meta("mail_redrive_at") ?? 0)
     const rows = this.sql
-      .exec<{ id: string; send: string }>(
-        "SELECT id, send FROM agent_sends WHERE delivered = 0 AND at < ?1 AND agent_sends.room_id = ?2 ORDER BY at",
+      .exec<{ id: string; send: string; at: number }>(
+        "SELECT id, send, at FROM agent_sends WHERE delivered = 0 AND at >= ?1 AND at < ?2 AND agent_sends.room_id = ?3 ORDER BY at",
+        floor,
         this.now() - REDRIVE_AFTER_MS,
         this.log.roomId,
       )
       .toArray()
     for (const row of rows) {
       const send = JSON.parse(row.send) as StoredSend
-      if (!send.from || this.stopped(send.rootId)) continue
+      if (!send.from || this.stopped(send.rootId)) {
+        this.markDelivered(row.id)
+        continue
+      }
       this.enqueue(row.id, send.from, send, send.remote ?? null)
     }
+    const next = this.sql
+      .exec<{ at: number | null }>(
+        "SELECT min(at) AS at FROM agent_sends WHERE delivered = 0 AND agent_sends.room_id = ?1",
+        this.log.roomId,
+      )
+      .one().at
+    if (next !== null && next !== floor) this.log.setMeta("mail_redrive_at", String(next))
   }
 
   giveBack(askId: string, from: AgentSlug, to: AgentSlug, text: string, room: RoomId, chain?: Chain): void {
@@ -565,7 +581,10 @@ export class RoomMessaging {
       this.d.mail.admitted(mail)
       return
     }
-    if (this.d.mail.stopped(rootId)) return
+    if (this.d.mail.stopped(rootId)) {
+      this.d.mail.admitted(mail)
+      return
+    }
     const receipt = await room.pairIn(home.userId, {
       askId: remote.askId,
       origin: home.roomId,
@@ -591,7 +610,10 @@ export class RoomMessaging {
     if (mail.remote) return this.deliverRemote(home, mail, mail.remote)
     const members = this.d.members.list()
     const member = members.find((m) => m.slug === mail.to)
-    if (!member || this.d.mail.stopped(mail.send.rootId)) return
+    if (!member || this.d.mail.stopped(mail.send.rootId)) {
+      this.d.mail.admitted(mail)
+      return
+    }
     const envelope = this.d.mail.envelope(home.roomId, mail.from, mail.send, mail.to)
     const receipt = await receive(this.d, home, member, members, await this.d.title(home), [envelope])
     if (receipt === "full") throw new InboxFull({ recipient: mail.to, message: `${mail.to}'s inbox is full` })

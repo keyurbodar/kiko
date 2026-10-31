@@ -1,4 +1,5 @@
-import type { IceServer, InputEvent, RtcSignal } from "@kiko/computer/wire"
+import * as Schema from "effect/Schema"
+import { InputEvent, type IceServer, type RtcSignal } from "@kiko/computer/wire"
 import type { AccessUnit } from "./annexb"
 import { rtcConfig, videoMid, videoPayloadType, type PeerModule } from "./rtc-link"
 
@@ -7,6 +8,8 @@ const H264_CLOCK = 90_000
 const CONNECT_TIMEOUT_MS = 30_000
 const KEYFRAME_DELAY_MS = 250
 const CHANNEL_BACKLOG = 256 * 1024
+
+const decodeEvents = Schema.decodeUnknownOption(Schema.Array(InputEvent))
 
 export type SessionEvents = {
   signal(session: string, signal: RtcSignal): void
@@ -154,10 +157,12 @@ export function createSession(id: string, rtc: PeerModule, events: SessionEvents
 
 function parseEvents(message: string | Buffer | ArrayBuffer): readonly InputEvent[] | null {
   try {
-    const text = typeof message === "string" ? message : Buffer.from(message as ArrayBuffer).toString("utf8")
-    const value: unknown = JSON.parse(text)
-    if (!Array.isArray(value)) return null
-    return value as readonly InputEvent[]
+    const text =
+      typeof message === "string"
+        ? message
+        : Buffer.from(message instanceof ArrayBuffer ? new Uint8Array(message) : message).toString("utf8")
+    const decoded = decodeEvents(JSON.parse(text))
+    return decoded._tag === "Some" ? decoded.value : null
   } catch {
     return null
   }

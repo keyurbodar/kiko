@@ -21,8 +21,7 @@ export type MessagingPort = {
 }
 
 import { AgentHomeMissing } from "../errors"
-
-const text = (t: string) => [{ type: "text" as const, text: t }]
+import { textResult as text } from "./tool-result"
 
 const ASK_WAIT_MS = 120_000
 

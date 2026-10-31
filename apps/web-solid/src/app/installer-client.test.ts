@@ -58,6 +58,7 @@ const INSTALLER_RETRY = [
   ["storage_full", "same", 503],
   ["release_unavailable", "same", 502],
   ["release_untrusted", "same", 502],
+  ["missing_migration_tag", "same", 409],
   ["not_ready", "same", 504],
   ["internal", "same", 500],
 ] as const

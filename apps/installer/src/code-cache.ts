@@ -23,9 +23,13 @@ export const codeCache = (storage: Pick<DurableObjectStorage, "get" | "put" | "d
   CodeCache.of({
     recall: (code) =>
       Effect.gen(function* () {
-        const kept = yield* stored(async () => storage.get<Kept>(await keyOf(code)))
+        const key = yield* stored(() => keyOf(code))
+        const kept = yield* stored(() => storage.get<Kept>(key))
         const now = yield* Clock.currentTimeMillis
-        return kept && now - kept.at < CODE_KEEP_MS ? kept.tokens : null
+        if (!kept) return null
+        if (now - kept.at < CODE_KEEP_MS) return kept.tokens
+        yield* stored(() => storage.delete(key))
+        return null
       }),
     remember: (code, tokens) =>
       Effect.gen(function* () {

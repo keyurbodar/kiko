@@ -42,6 +42,7 @@ export class JournalStorage extends MemoryStorage {
   private constructor(
     private readonly durable: DurableObjectStorage,
     private readonly key: string,
+    private readonly shared = false,
   ) {
     super()
     let leases = idLeases.get(durable)
@@ -60,8 +61,8 @@ export class JournalStorage extends MemoryStorage {
     this.ids = lease
   }
 
-  static open(storage: DurableObjectStorage, key: string): JournalStorage {
-    const journal = new JournalStorage(storage, key)
+  static open(storage: DurableObjectStorage, key: string, shared = false): JournalStorage {
+    const journal = new JournalStorage(storage, key, shared)
     let group: Row[] = []
     const replay = () => {
       const first = group[0]
@@ -193,6 +194,7 @@ export class JournalStorage extends MemoryStorage {
   override close(context: Context): Promise<void> {
     return this.serial(async () => {
       this.flush()
+      if (this.shared) return
       await super.close(context)
       this.finished = true
     })

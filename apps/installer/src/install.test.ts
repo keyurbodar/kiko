@@ -17,7 +17,7 @@ type FakeAccount = {
   name?: string
   subdomain: string | null
   scripts: Record<string, FakeScript>
-  refuses?: "listing" | "creating" | "builder"
+  refuses?: "listing" | "creating" | "builder" | "transient"
 }
 type FakeUser = { email: string; metadata: Record<string, unknown> }
 type Upload = { account: string; script: string; bindings: UploadedBinding[]; migrations: unknown }
@@ -27,7 +27,11 @@ type Reply = { status: number; body: Record<string, unknown> & { error?: Record<
 const OWNER_DO = { type: "durable_object_namespace", name: "OWNER", class_name: "OwnerDO" }
 const secret = (name: string): ScriptBinding => ({ type: "secret_text", name })
 
-const kikoScript = (owner: ScriptBinding, tag = "v5", modified = "2026-10-01T00:00:00Z"): FakeScript => ({
+const kikoScript = (
+  owner: ScriptBinding,
+  tag: string | null = "v5",
+  modified = "2026-10-01T00:00:00Z",
+): FakeScript => ({
   tag,
   modified,
   bindings: [
@@ -45,6 +49,11 @@ const kikoScript = (owner: ScriptBinding, tag = "v5", modified = "2026-10-01T00:
 const ownedBy = (sub: string, tag?: string, modified?: string) =>
   kikoScript({ type: "plain_text", name: "OWNER_ID", text: sub }, tag, modified)
 const unclaimed = (tag?: string) => kikoScript(secret("OWNER_ID"), tag)
+const builderScript = (modified = "2026-10-25T00:00:00Z"): FakeScript => ({
+  tag: "v1",
+  modified,
+  bindings: [{ type: "durable_object_namespace", name: "BUILDER", class_name: "Builder" }],
+})
 const foreign = (): FakeScript => ({ tag: "x", modified: "2026-01-01T00:00:00Z", bindings: [secret("API_KEY")] })
 
 const BUILDER_CODE = "export class Builder {}"
@@ -161,6 +170,7 @@ function makeWorld(input: {
     }
     if (rest.length > 0) return scriptApi(owner, method, rest, init)
     if (owner.refuses === "listing") return refusal(403, 10000, "Authentication error")
+    if (owner.refuses === "transient") return refusal(400, 9999, "temporary failure")
     if (input.busy) return refusal(429, 971, "Please wait and consider throttling your request speed")
     return ok(
       Object.entries(owner.scripts).map(([script, value]) => ({
@@ -456,6 +466,29 @@ describe("install", () => {
     }),
   )
 
+  it.effect("blames a missing migration tag on the backend, not the release signature", () =>
+    Effect.gen(function* () {
+      const world = makeWorld({
+        accounts: [
+          {
+            id: "acc1",
+            subdomain: "owner",
+            scripts: {
+              kiko: kikoScript({ type: "plain_text", name: "OWNER_ID", text: "user_a" }, null),
+            },
+          },
+        ],
+      })
+      const installer = yield* installerFor(world)
+      const reply = yield* installer.install({ sub: "user_a", grant: TOKEN_GRANT })
+      assert.strictEqual(reply.status, 409)
+      assert.deepInclude(reply.body.error, { code: "missing_migration_tag", retry: "same" })
+      assert.match(String(reply.body.error?.message), /migration tag/)
+      assert.notMatch(String(reply.body.error?.message), /signature|verif/)
+      assert.deepStrictEqual(world.uploads, [])
+    }),
+  )
+
   it.effect("never replaces a Worker named kiko that is not Kiko", () =>
     Effect.gen(function* () {
       const world = makeWorld({ accounts: [{ id: "acc1", subdomain: "owner", scripts: { kiko: foreign() } }] })
@@ -522,6 +555,22 @@ describe("install", () => {
     }),
   )
 
+  it.effect("fails instead of dropping an account whose listing hits a transient error", () =>
+    Effect.gen(function* () {
+      const world = makeWorld({
+        accounts: [
+          { id: "acc1", subdomain: "one", scripts: {}, refuses: "transient" },
+          { id: "acc2", subdomain: "two", scripts: {} },
+        ],
+      })
+      const installer = yield* installerFor(world)
+      const reply = yield* installer.install({ sub: "user_a", grant: TOKEN_GRANT })
+      assert.deepInclude(reply.body.error, { code: "cloudflare_error", retry: "same" })
+      assert.deepStrictEqual(world.uploads, [])
+      assert.deepStrictEqual(world.writes, [])
+    }),
+  )
+
   it.effect("serializes two installs by one identity so the second redeploys what the first created", () =>
     Effect.gen(function* () {
       const world = makeWorld({ accounts: [{ id: "acc1", subdomain: "owner", scripts: {} }] })
@@ -555,6 +604,29 @@ describe("install", () => {
       assert.deepStrictEqual(reply, { status: 204, body: null })
       assert.deepStrictEqual(world.users.get("user_a")?.metadata, { theme: "dark" })
       assert.deepStrictEqual(world.writes, [])
+    }),
+  )
+
+  it.effect("ignores a newer app builder when choosing which Worker to install into", () =>
+    Effect.gen(function* () {
+      const world = makeWorld({
+        accounts: [
+          {
+            id: "acc1",
+            subdomain: "owner",
+            scripts: {
+              kiko: kikoScript(secret("OWNER_ID"), "v5", "2026-10-01T00:00:00Z"),
+              "kiko-builder": builderScript(),
+            },
+          },
+        ],
+      })
+      const installer = yield* installerFor(world)
+      const asked = yield* installer.install({ sub: "user_a", grant: TOKEN_GRANT })
+      assert.deepInclude(asked.body.error, {
+        code: "decide",
+        found: { script: "kiko", owner: { _tag: "Unknown" }, keepable: true },
+      })
     }),
   )
 

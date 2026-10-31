@@ -38,4 +38,15 @@ describe("codeCache", () => {
       assert.isNull(yield* cache.recall("code-2"))
     }),
   )
+
+  it.effect("deletes an expired entry when recall finds it", () =>
+    Effect.gen(function* () {
+      const { storage, entries } = memoryStorage()
+      const cache = codeCache(storage)
+      yield* cache.remember("code-1", TOKENS)
+      yield* TestClock.adjust("11 minutes")
+      assert.isNull(yield* cache.recall("code-1"))
+      assert.strictEqual(entries.size, 0)
+    }),
+  )
 })

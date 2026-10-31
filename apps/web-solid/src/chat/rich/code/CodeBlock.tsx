@@ -43,17 +43,16 @@ function download(file: CodeFile): void {
   setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-function useHighlight(file: () => CodeFile, root: () => HTMLElement | undefined) {
-  const [lines, setLines] = createSignal<readonly CodeLine[]>(plainLines(file().text))
+function useHighlight(text: () => string, lang: () => string | undefined, root: () => HTMLElement | undefined) {
+  const [lines, setLines] = createSignal<readonly CodeLine[]>(plainLines(text()))
   const [seen, setSeen] = createSignal(typeof IntersectionObserver === "undefined")
   let frame = 0
   let request = 0
 
   const run = () => {
     frame = 0
-    const current = file()
     const id = ++request
-    highlight(current.text, current.lang).then(
+    highlight(text(), lang()).then(
       (result) => {
         if (id !== request || !result) return
         setLines((previous) => keepTokens(previous, result))
@@ -67,8 +66,8 @@ function useHighlight(file: () => CodeFile, root: () => HTMLElement | undefined)
   }
 
   createEffect(
-    on([file, seen], ([current]) => {
-      setLines((previous) => keepLinesWithSameText(previous, plainLines(current.text)))
+    on([text, lang, seen], ([current]) => {
+      setLines((previous) => keepLinesWithSameText(previous, plainLines(current)))
       schedule()
     }),
   )
@@ -176,7 +175,9 @@ function CodeFiles(props: { files: readonly CodeFile[]; streaming?: boolean }): 
   let timer: ReturnType<typeof setTimeout> | undefined
   const [active, setActive] = createSignal(0)
   const file = () => props.files[Math.min(active(), props.files.length - 1)]!
-  const lines = useHighlight(file, () => root)
+  const text = createMemo(() => file().text)
+  const lang = createMemo(() => file().lang)
+  const lines = useHighlight(text, lang, () => root)
   const digits = createMemo(() => String(lines().length).length)
   const [copied, setCopied] = createSignal(false)
   const [edges, setEdges] = createSignal<CodeEdges>({ top: false, bottom: false, left: false, right: false })

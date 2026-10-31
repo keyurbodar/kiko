@@ -1,7 +1,7 @@
 import { createSignal, onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { MAX_IMAGE_BYTES, attachmentError, attachmentKind, attachmentLimit, attachmentMessages } from "@kiko/protocol"
-import { formatBytes } from "../../chat/info/format"
+import { formatBytes } from "../../lib/format"
 import { admit, attachmentType } from "../../lib/attachments"
 import { droppedFilePath, hasFileDrag } from "../../lib/file-drag"
 import { prepareImageForAttachment } from "../../lib/image-compression"

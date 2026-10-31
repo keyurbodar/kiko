@@ -7,6 +7,7 @@ const TEST_FILE_PATTERN = /\.(?:test|spec)\.[cm]?[jt]sx?$/u
 const TEST_CLOCK_DRIVERS = new Set(["adjust", "setTime"])
 const TIMER_PROMISES_MODULES = new Set(["node:timers/promises", "timers/promises"])
 const TIMER_FUNCTIONS = new Set(["setTimeout", "setInterval", "setImmediate"])
+const BUN_SLEEPS = new Set(["sleep", "sleepSync"])
 const SCHEDULE_WAITS = new Set(["spaced", "fixed", "exponential"])
 const TESTER_ROOTS = new Set(["it", "test"])
 const FUNCTIONS = new Set(["ArrowFunctionExpression", "FunctionExpression", "FunctionDeclaration"])
@@ -222,25 +223,27 @@ export default defineRule({
           drivesTestClock = true
           return
         }
-        const isSleep = object === "Effect" && property === "sleep"
+        const isEffectSleep = object === "Effect" && property === "sleep"
+        const isBunSleep = object === "Bun" && BUN_SLEEPS.has(property)
         const isWait =
-          isSleep ||
+          isEffectSleep ||
+          isBunSleep ||
           (object === "Effect" && property === "delay") ||
           (object === "Schedule" && SCHEDULE_WAITS.has(property))
         if (!isWait) return
 
         const tester = enclosingTester(node)
         if (Option.isNone(tester)) {
-          if (isPollingLoopStep(node)) {
+          if (isBunSleep || isPollingLoopStep(node)) {
             reportFor(REAL_CLOCK_MESSAGE)
           } else {
             untilDrivenReports.push({ node: node.callee, message: REAL_CLOCK_MESSAGE })
           }
           return
         }
-        if (tester.value !== "effect") {
+        if (tester.value !== "effect" || isBunSleep) {
           reportFor(REAL_CLOCK_MESSAGE)
-        } else if (isSleep) {
+        } else if (isEffectSleep) {
           untilDrivenReports.push({ node: node.callee, message: UNDRIVEN_TEST_CLOCK_MESSAGE })
         }
       },

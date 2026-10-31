@@ -74,7 +74,7 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault()
       move(e.key === "ArrowDown" ? 1 : -1)
-    } else if (e.key === "Enter") {
+    } else if (e.key === "Enter" && !e.isComposing) {
       e.preventDefault()
       const o = options()[cursor()]
       if (o) choose(o)

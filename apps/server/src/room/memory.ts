@@ -21,6 +21,7 @@ import type { SearchOptions, SearchPage } from "./search"
 const HUMAN_GAP_MS = 30 * 60_000
 const RECALL_CUT = 300
 const TRACE_MAX = 6
+const NONE: ReadonlySet<number> = new Set()
 
 const TILING = "mem_tiling"
 const EVENTS = "mem_events"
@@ -132,10 +133,11 @@ export class RoomMemory {
       )
       .toArray()
     const newest = events.at(-1)?.seq ?? from
+    const turns = events.length ? this.turns() : []
     for (const e of events) {
       const body = JSON.parse(e.payload) as { messageId?: string; messageIds?: string[] }
       for (const id of body.messageIds ?? (body.messageId ? [body.messageId] : [])) {
-        const pos = this.posOfMessage(id)
+        const pos = this.posOfMessage(id, turns)
         if (pos !== null) this.tree.forget(pos)
       }
     }
@@ -163,8 +165,9 @@ export class RoomMemory {
     }
     const ids = [...new Set([...deleted, ...edited.keys()])]
     const positions = new Set<number>()
+    const turns = this.turns()
     for (const id of ids) {
-      const pos = this.posOfMessage(id)
+      const pos = this.posOfMessage(id, turns)
       if (pos !== null) positions.add(pos)
     }
     const humanAt = new Map<string, number>()
@@ -190,7 +193,7 @@ export class RoomMemory {
     this.meta.set(FORWARDED, String(upto))
   }
 
-  private posOfMessage(id: string): number | null {
+  private posOfMessage(id: string, turns: readonly TurnRow[] = this.turns()): number | null {
     const seq = this.sql
       .exec<{ seq: number }>(
         "SELECT seq FROM messages WHERE seq = ?1 AND messages.room_id = ?2",
@@ -198,15 +201,15 @@ export class RoomMemory {
         this.roomId,
       )
       .toArray()[0]?.seq
-    return seq === undefined ? null : this.posOfSeq(seq)
+    return seq === undefined ? null : this.posOfSeq(seq, turns)
   }
 
-  private posOfSeq(seq: number): number | null {
-    const turn = this.turns().findLast((turn) => turn.first_seq !== null && turn.first_seq <= seq)
+  private posOfSeq(seq: number, turns: readonly TurnRow[] = this.turns()): number | null {
+    const turn = turns.findLast((turn) => turn.first_seq !== null && turn.first_seq <= seq)
     return turn && turn.last_seq !== null && seq <= turn.last_seq ? turn.pos : null
   }
 
-  items(lo: number, hi: number, skip: ReadonlySet<number> = new Set()): Item[] {
+  items(lo: number, hi: number, skip: ReadonlySet<number> = NONE, turns: readonly TurnRow[] = this.turns()): Item[] {
     const rows = this.sql
       .exec<{
         pos: number
@@ -227,7 +230,7 @@ export class RoomMemory {
          ON m.room_id = ?2 AND m.seq BETWEEN json_extract(t.value, '$.first_seq') AND json_extract(t.value, '$.last_seq')
          AND (m.event IS NULL OR json_extract(m.event, '$.private') IS NOT 1)
          ORDER BY pos, m.seq`,
-        JSON.stringify(this.turns().slice(lo, hi)),
+        JSON.stringify(turns.slice(lo, hi)),
         this.roomId,
       )
       .toArray()
@@ -259,11 +262,16 @@ export class RoomMemory {
     })
   }
 
-  view(now: number, skip: ReadonlySet<number> = new Set()): string {
+  view(now: number, skip: ReadonlySet<number> = NONE): string {
     const count = this.sync()
+    const turns = this.turns()
     const prev = this.meta.get(TILING)
-    const { lines, tiling } = this.tree.view(count, prev ? (JSON.parse(prev) as Span[]) : null, now, (lo, hi) =>
-      this.items(lo, hi, skip),
+    const { lines, tiling } = this.tree.view(
+      count,
+      prev ? (JSON.parse(prev) as Span[]) : null,
+      now,
+      (lo, hi) => this.items(lo, hi, skip, turns),
+      (lo, hi) => this.items(lo, hi, NONE, turns),
     )
     if (JSON.stringify(tiling) !== prev) this.meta.set(TILING, JSON.stringify(tiling))
     return lines.join("\n")
@@ -271,8 +279,9 @@ export class RoomMemory {
 
   since(slug: AgentSlug, pos: number, now: number, skip: ReadonlySet<number>): { text: string; count: number } {
     const count = this.sync()
+    const turns = this.turns()
     const own = new Set(
-      this.turns()
+      turns
         .filter(
           (turn) => turn.pos >= pos && (turn.key.startsWith(`agent:${slug}:`) || turn.key.startsWith(`trace:${slug}:`)),
         )
@@ -280,10 +289,10 @@ export class RoomMemory {
     )
     let day = ""
     const lines: string[] = []
-    for (const item of this.items(pos, count, skip)) {
+    for (const item of this.items(pos, count, skip, turns)) {
       if (own.has(item.pos)) continue
       const d = dayOf(item.at, now)
-      lines.push(itemLine(item, 300, d !== day))
+      lines.push(itemLine(item, 300, d !== day, "chat", now))
       day = d
     }
     return { text: lines.join("\n"), count }
@@ -291,18 +300,19 @@ export class RoomMemory {
 
   zoom(id: string, now: number): string | null {
     const count = this.sync()
+    const turns = this.turns()
     const one = /^t?(\d+)$/.exec(id)
     if (one) {
       const pos = Number(one[1])
       return pos < count
-        ? this.items(pos, pos + 1)
-            .map((i) => itemLine(i, ZOOM_CUT))
+        ? this.items(pos, pos + 1, NONE, turns)
+            .map((i) => itemLine(i, ZOOM_CUT, true, "chat", now))
             .join("\n")
         : null
     }
     const span = spanOf(id)
     if (!span) return null
-    const lines = this.tree.zoom(span, count, now)
+    const lines = this.tree.zoom(span, count, now, (lo, hi) => this.items(lo, hi, NONE, turns))
     return lines.length ? lines.join("\n") : null
   }
 
@@ -312,15 +322,16 @@ export class RoomMemory {
     now: number,
   ): Promise<string | null> {
     const count = this.sync()
+    const turns = this.turns()
     const one = /^t?(\d+)$/.exec(id)
     const span = one ? { lo: Number(one[1]), hi: Number(one[1]) + 1 } : spanOf(id)
     if (!span || span.lo >= count) return null
     const raw = async (lo: number, hi: number): Promise<string[]> => {
-      const turns = this.turns().slice(lo, hi)
-      const first = Math.min(...turns.flatMap((turn) => (turn.first_seq === null ? [] : [turn.first_seq])))
-      const last = Math.max(...turns.flatMap((turn) => (turn.last_seq === null ? [] : [turn.last_seq])))
+      const slice = turns.slice(lo, hi)
+      const first = Math.min(...slice.flatMap((turn) => (turn.first_seq === null ? [] : [turn.first_seq])))
+      const last = Math.max(...slice.flatMap((turn) => (turn.last_seq === null ? [] : [turn.last_seq])))
       const messages = Number.isFinite(first) && Number.isFinite(last) ? await load(first, 0, last - first + 1) : []
-      return turns.map((turn) => {
+      return slice.map((turn) => {
         const parts = messages
           .filter(
             (message) =>
@@ -340,6 +351,9 @@ export class RoomMemory {
         return itemLine(
           { pos: turn.pos, at: turn.at, text: `${whoOfKey(turn.key)}: ${parts.join(" / ") || "(deleted)"}${did}` },
           ZOOM_CUT,
+          true,
+          "chat",
+          now,
         )
       })
     }
@@ -392,7 +406,8 @@ export class RoomMemory {
   ): string[] {
     this.capture()
     const lo = region(this.sync(), ROOM_SHAPE)
-    const poss = new Map(hits.map((h) => [h.id, this.posOfSeq(h.seq)]))
+    const turns = this.turns()
+    const poss = new Map(hits.map((h) => [h.id, this.posOfSeq(h.seq, turns)]))
     hits = hits
       .filter((h) => {
         if (skip.has(h.seq)) return false

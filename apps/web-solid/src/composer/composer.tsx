@@ -224,11 +224,15 @@ export function Composer(props: ComposerProps) {
     on(
       composerFill,
       (fill) => {
-        if (!fill || fill.roomId !== draftKey()) return
-        const text = takeComposerFill(fill.roomId) ?? ""
-        store.setText(text.trimEnd())
+        const room = props.draftKey ?? ""
+        if (!fill || fill.roomId !== room) return
+        const text = takeComposerFill(room)
+        if (text === undefined) return
+        const restored = text.trimEnd()
+        const current = draftText()
+        store.setText(current === "" || current === restored ? restored : `${current}\n\n${restored}`)
         typeHere(text)
-        void restoreFiles(fill.roomId)
+        void restoreFiles(room)
       },
       { defer: true },
     ),

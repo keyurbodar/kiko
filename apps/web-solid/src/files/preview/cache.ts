@@ -4,11 +4,22 @@ import type { Preview } from "./model"
 const STORE = "previews"
 const KEEP = 400
 const PRUNE_AT = 500
+const MEMORY_LIMIT = 200
 
 type Row = { key: string; at: number; preview: Preview }
+type Entry = { space: string; preview: Preview }
 
-const memory = new Map<string, Preview>()
+const memory = new Map<string, Entry>()
 let opened: Promise<IDBDatabase | null> | undefined
+
+function remember(space: string, key: string, preview: Preview) {
+  memory.delete(key)
+  memory.set(key, { space, preview })
+  for (const oldest of memory.keys()) {
+    if (memory.size <= MEMORY_LIMIT) return
+    memory.delete(oldest)
+  }
+}
 
 function prune(db: IDBDatabase) {
   const tx = db.transaction(STORE, "readwrite")
@@ -48,9 +59,19 @@ function open(): Promise<IDBDatabase | null> {
   return opened
 }
 
-export const memoryPreview = (key: string): Preview | undefined => memory.get(key)
+export const memoryPreview = (key: string): Preview | undefined => {
+  const entry = memory.get(key)
+  if (entry === undefined) return undefined
+  memory.delete(key)
+  memory.set(key, entry)
+  return entry.preview
+}
 
-export async function storedPreview(key: string): Promise<Preview | undefined> {
+export function dropRoomPreviews(roomId: string) {
+  for (const [key, entry] of memory) if (entry.space === roomId) memory.delete(key)
+}
+
+export async function storedPreview(space: string, key: string): Promise<Preview | undefined> {
   const db = await open()
   if (!db) return undefined
   const row = await new Promise<Row | undefined>((resolve) => {
@@ -58,12 +79,12 @@ export async function storedPreview(key: string): Promise<Preview | undefined> {
     request.addEventListener("success", () => resolve(request.result as Row | undefined))
     request.addEventListener("error", () => resolve(undefined))
   }).catch(() => undefined)
-  if (row) memory.set(key, row.preview)
+  if (row) remember(space, key, row.preview)
   return row?.preview
 }
 
-export function keepPreview(key: string, preview: Preview) {
-  memory.set(key, preview)
+export function keepPreview(space: string, key: string, preview: Preview) {
+  remember(space, key, preview)
   void open().then((db) => {
     if (!db) return
     try {

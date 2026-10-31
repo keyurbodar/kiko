@@ -13,7 +13,7 @@ import {
   SkillsIcon,
 } from "@kiko/ui/icons"
 import { isImage } from "../../lib/attachments"
-import { formatBytes } from "../../chat/info/format"
+import { formatBytes } from "../../lib/format"
 import { isTextFile, readText } from "../../files/api"
 import { HOME, inHome, strip } from "../../files/model"
 import { fileType } from "../../files/type"
@@ -24,7 +24,7 @@ import { room } from "../../state/room"
 import { user } from "../../state/user"
 import { progressLabel, progressShare, retryUpload, uploadState } from "../uploads"
 import type { ChipView, FileRefView, TokenView } from "../rich/nodes"
-import { middleTruncate } from "../rich/nodes"
+import { middleTruncate } from "../truncate"
 import type { Token } from "../tokens"
 import type { PromptInputV2Attachment } from "./types"
 

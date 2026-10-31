@@ -7,6 +7,7 @@ import { describeTrigger, type Reminder, type RoutineRun, type RunDelivery } fro
 import type { RoutineResult } from "../../user/routines"
 import { declareEffect } from "@kiko/agent/effects"
 import { AgentHomeMissing } from "../errors"
+import { textResult as text } from "./tool-result"
 
 export const ROUTINES = "routines"
 
@@ -136,8 +137,6 @@ export const routineLine = (r: Reminder, runs?: RoutineRun[]) => {
   if (r.fails) details.push(`consecutive failures ${r.fails}`)
   return `${details.join("; ")}\ninstructions: ${r.text}`
 }
-
-const text = (t: string) => [{ type: "text" as const, text: t }]
 
 export function routinesExtension(port: () => RoutinesPort | null): Extension {
   const user = () => {

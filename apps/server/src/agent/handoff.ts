@@ -1,6 +1,5 @@
 import type { EntryRecord, ModelRef } from "@earendil-works/pi-durable"
 import type { ThinkingLevel } from "@kiko/protocol"
-import { findProvider } from "../models/catalog"
 
 export type Applied = { model: ModelRef; thinkingLevel: ThinkingLevel }
 
@@ -8,14 +7,6 @@ export const sameApplied = (a: Applied | undefined, b: Applied): boolean => JSON
 
 export const switchedModel = (a: Applied, b: Applied): boolean =>
   a.model.provider !== b.model.provider || a.model.modelId !== b.model.modelId
-
-export function modelName(ref: ModelRef): string {
-  return (
-    findProvider(ref.provider)
-      ?.getModels()
-      .find((m) => m.id === ref.modelId)?.name ?? `${ref.provider}/${ref.modelId}`
-  )
-}
 
 const HANDOFF_CHARS = 48_000
 

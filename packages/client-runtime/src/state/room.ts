@@ -20,6 +20,14 @@ function messageIndex(messages: ReadonlyArray<Message>, id: MessageId): number {
 }
 
 function putMessage(messages: ReadonlyArray<Message>, message: Message): Message[] {
+  const last = messages.at(-1)
+  if (last === undefined) return [message]
+  if (last.id === message.id) {
+    const next = messages.slice()
+    next[next.length - 1] = message
+    return next
+  }
+  if (message.seq > last.seq) return [...messages, message]
   const index = messageIndex(messages, message.id)
   if (index !== -1) {
     const next = messages.slice()

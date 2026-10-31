@@ -7,7 +7,7 @@ import { isVideo, saveFile, splitFiles } from "../../lib/attachments"
 import type { MessageFile } from "../../lib/types"
 import { setFileDrag } from "../../lib/file-drag"
 import { openFile } from "../side/surfaces"
-import { formatBytes } from "../info/format"
+import { formatBytes } from "../../lib/format"
 import { messageGallery, type DialogImage } from "./chat-images"
 import "./attachments.css"
 
@@ -80,7 +80,7 @@ export function MessageAttachments(props: {
               >
                 <Show
                   when={isVideo(file)}
-                  fallback={<img src={file.src} alt={file.name} loading="lazy" draggable={false} />}
+                  fallback={<img src={file.src} alt={file.name} loading="lazy" decoding="async" draggable={false} />}
                 >
                   <video src={`${file.src}#t=0.1`} preload="metadata" muted playsinline tabindex={-1} />
                   <span class="att-play" aria-hidden="true">

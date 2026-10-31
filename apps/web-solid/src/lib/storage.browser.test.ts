@@ -36,10 +36,10 @@ function seed(): void {
 }
 
 describe("purging local data", () => {
-  it("finishes while a tab from an older build still holds the database open, and deletes it once that tab lets go", async () => {
+  it("reports a database another tab still holds open as not deleted, and deletes it once that tab lets go", async () => {
     const held = await open("kiko:client-runtime")
 
-    await purge()
+    await expect(purge()).rejects.toThrow(/another tab/)
 
     held.close()
     const reopened = await new Promise<boolean>((resolve) => {

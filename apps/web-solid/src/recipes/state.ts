@@ -67,16 +67,17 @@ export function targetsForChat(roomId: string): RecipeTarget[] {
   const agents = user.agents()
   const slugs = (chat.agents?.length ? chat.agents : [KIKO]).map((id) => agents.find((a) => a.id === id)?.slug ?? id)
   if (slugs.length > 1 && !slugs.includes(KIKO)) slugs.unshift(KIKO)
-  return [...new Set(slugs)].map((agent) => ({ roomId: roomId as RoomId, agent, name: agentName(agent) }))
+  return [...new Set(slugs)].map((agent) => ({
+    roomId: roomId as RoomId,
+    agent,
+    name: agentDisplayName(agent, user.agents()),
+  }))
 }
 
 export const installs = (): readonly RecipeInstall[] => listing()?.installs ?? []
 export const knownInstalls = (): readonly RecipeInstall[] | undefined =>
   listing() === undefined && listing.error === undefined ? undefined : installs()
 export const installsFor = (slug: string): readonly RecipeInstall[] => installs().filter((i) => i.slug === slug)
-export function agentName(slug: string): string {
-  return agentDisplayName(slug, user.agents())
-}
 export const isAdded = (slug: string, target?: RecipeTarget): boolean =>
   !!target && installedSlugs(installs(), target).has(slug)
 

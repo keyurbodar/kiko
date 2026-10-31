@@ -535,11 +535,16 @@ export function VirtualThread(props: {
     createEventListener(() => scroller, "focusin", resync)
     createEventListener(document, "visibilitychange", resync)
     createEventListener(window, "focus", resync)
+    let resizeFrame = 0
     const sizes = makeResizeObserver(() => {
-      resync()
-      followEnd()
-      commitState(readState())
-      checkBlank()
+      if (resizeFrame) return
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = 0
+        resync()
+        followEnd()
+        commitState(readState())
+        checkBlank()
+      })
     })
     sizes.observe(scroller)
     sizes.observe(column)
@@ -600,6 +605,7 @@ export function VirtualThread(props: {
       { capture: true },
     )
     onCleanup(() => {
+      cancelAnimationFrame(resizeFrame)
       sizes.unobserve(scroller)
       sizes.unobserve(column)
       props.scrollRef(undefined)

@@ -4,6 +4,7 @@ import {
   createResource,
   createSelector,
   createSignal,
+  createUniqueId,
   For,
   onCleanup,
   onMount,
@@ -43,6 +44,7 @@ interface Section {
 const key = (at: GridAt) => `${at.section}:${at.index}`
 
 export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
+  const id = createUniqueId()
   const [data] = createResource(() => loadEmoji().catch(() => []))
   const [query, setQuery] = createSignal("")
   const [active, setActive] = createSignal<GridAt | null>(null)
@@ -50,6 +52,10 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
     const at = active()
     return at === null ? "" : key(at)
   })
+  const activeId = () => {
+    const at = active()
+    return at === null ? undefined : `${id}-${at.section}-${at.index}`
+  }
   const [mounted, setMounted] = createSignal(2)
   onMount(() => {
     let frame = 0
@@ -141,6 +147,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
           size="large"
           placeholder="Search emoji"
           aria-label="Search emoji"
+          aria-activedescendant={activeId()}
           value={query()}
           onValue={(value) => {
             setQuery(value)
@@ -189,6 +196,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
                           type="button"
                           tabIndex={-1}
                           role="option"
+                          id={`${id}-${index()}-${at()}`}
                           class="grid size-10 cursor-default place-items-center rounded-row p-0 font-emoji text-[28px] leading-none data-[active]:bg-[var(--active)]"
                           data-at={`${index()}:${at()}`}
                           data-emoji={cell.emoji}

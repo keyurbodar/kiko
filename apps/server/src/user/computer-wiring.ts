@@ -14,6 +14,7 @@ import { mintPairCode } from "../computer/pairing"
 import type { ComputerLinkResult, PcCallOutcome, PcReleased } from "../computer/types"
 import type { Env } from "../index"
 import type { Attachment } from "./socket-frames"
+import { slugOf } from "./agent-id"
 import { subscribe } from "../owner/socket"
 import { frameStream } from "../computer/frames"
 import type { RequestId } from "../rpc/wire"
@@ -38,10 +39,6 @@ type ComputerDeps = {
   services: OwnerServices
   userId: () => string
   publicOrigin: () => Promise<string | null>
-}
-
-function slugOf(agentId: string): string {
-  return agentId.split(/[/:]/).pop() ?? agentId
 }
 
 function workerOrigin(ws: WebSocket): string | null {

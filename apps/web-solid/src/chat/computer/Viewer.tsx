@@ -10,6 +10,8 @@ import { accessHint, canControl } from "./access"
 import LiveScreen from "./LiveScreen"
 
 const pill = "h-8 shrink-0 cursor-pointer rounded-full px-3.5 type-label font-medium whitespace-nowrap"
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 export default function Viewer(): JSX.Element {
   const pc = () => computerById(viewerFor() ?? "")
@@ -29,6 +31,18 @@ export default function Viewer(): JSX.Element {
     event.preventDefault()
     closeViewer()
   }
+  const trapTab = (event: KeyboardEvent) => {
+    if (event.key !== "Tab" || event.defaultPrevented || !panel) return
+    const items = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)]
+    const first = items[0]
+    const last = items.at(-1)
+    if (!first || !last) return
+    const at = document.activeElement
+    if (event.shiftKey ? at === first || !panel.contains(at) : at === last || !panel.contains(at)) {
+      event.preventDefault()
+      ;(event.shiftKey ? last : first).focus()
+    }
+  }
   createEffect(() => {
     if (!pc()) closeViewer()
   })
@@ -36,7 +50,9 @@ export default function Viewer(): JSX.Element {
     if (!interactive()) panel?.focus({ preventScroll: true })
   })
   document.addEventListener("keydown", leave)
+  document.addEventListener("keydown", trapTab)
   onCleanup(() => document.removeEventListener("keydown", leave))
+  onCleanup(() => document.removeEventListener("keydown", trapTab))
 
   return (
     <Show when={pc()}>

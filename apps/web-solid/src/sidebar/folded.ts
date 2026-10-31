@@ -22,6 +22,16 @@ export function parseFolded(raw: string | null): Folded {
 
 export const serializeFolded = (folded: Folded): string => JSON.stringify(folded)
 
-export const loadFolded = (): Folded => parseFolded(localStorage.getItem(KEY))
+export const loadFolded = (): Folded => {
+  try {
+    return parseFolded(localStorage.getItem(KEY))
+  } catch {
+    return {}
+  }
+}
 
-export const saveFolded = (folded: Folded): void => localStorage.setItem(KEY, serializeFolded(folded))
+export const saveFolded = (folded: Folded): void => {
+  try {
+    localStorage.setItem(KEY, serializeFolded(folded))
+  } catch {}
+}

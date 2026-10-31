@@ -10,6 +10,7 @@ import {
 import { declareEffect } from "@kiko/agent/effects"
 import type { FailCode, Step, Value, View } from "@kiko/computer/wire"
 import { filesOf } from "../../files/room-fs"
+import { decodeBase64 } from "../../lib/base64"
 import { count } from "../../lib/dev-guard"
 import type { ComputerPort } from "./port"
 import type { ComputerSummary } from "./types"
@@ -256,8 +257,6 @@ const STEPS: Readonly<Record<StepArgs["op"], (s: StepArgs) => Built>> = {
   open: openStep,
   wait: waitStep,
 }
-
-const decodeBase64 = (data: string): Uint8Array => Uint8Array.from(atob(data), (c) => c.charCodeAt(0))
 
 const extensionOf = (mime: string) => (mime === "image/png" ? "png" : "jpg")
 

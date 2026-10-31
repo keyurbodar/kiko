@@ -693,7 +693,7 @@
 }
 @media (width < 480px) {
   .palette-scrim {
-    padding: 0;
+    padding: env(safe-area-inset-top, 0px) 0 0;
   }
   .palette-panel {
     max-width: none;

@@ -1,4 +1,4 @@
-import { fileName, type FileRef, type HumanAsk, type RunStep, type Task } from "@kiko/protocol"
+import { fileName, type FileRef, type HumanAsk, type Task } from "@kiko/protocol"
 import {
   AlertCircleIcon,
   ArchiveIcon,
@@ -503,11 +503,10 @@ function UsedRowView(props: { row: UsedRow }) {
   )
 }
 
-function UsedSection(props: { steps: readonly RunStep[] }) {
-  const rows = () => usedRows(room.messages(), props.steps)
+function UsedSection(props: { rows: readonly UsedRow[] }) {
   return (
     <Section id="used" title="Used in this session">
-      <For each={rows()}>{(row) => <UsedRowView row={row} />}</For>
+      <For each={props.rows}>{(row) => <UsedRowView row={row} />}</For>
     </Section>
   )
 }
@@ -580,7 +579,16 @@ export default function ThreadDetails(props: { chatId: string }) {
     return { x: rect.right - right - size, y: rect.top + top, width: size, height: size }
   }
   const visibility = () => threadDetailsVisibility()
-  const steps = createMemo(() => [...stepWindows(room.messages()).keys()].flatMap((key) => room.runSteps(key)))
+  const sameKeys = (a: readonly string[], b: readonly string[]) =>
+    a.length === b.length && a.every((key, index) => key === b[index])
+  const windowKeys = createMemo(() => [...stepWindows(room.messages()).keys()], [], { equals: sameKeys })
+  const steps = createMemo(() => windowKeys().flatMap((key) => room.runSteps(key)))
+  const uploads = createMemo(
+    () => room.messages().filter((message) => message.sender === "user" && !!message.files?.length),
+    [],
+    { equals: (a, b) => a.length === b.length && a.every((message, index) => message === b[index]) },
+  )
+  const used = createMemo(() => usedRows(uploads(), steps()))
   const asks = () => room.active()?.asks() ?? []
   const progress = useProgress(() => props.chatId)
   const memory = useMemoryStore()
@@ -599,7 +607,7 @@ export default function ThreadDetails(props: { chatId: string }) {
       case "outputs":
         return outputs().length > 0
       case "used":
-        return usedRows(room.messages(), steps()).length > 0
+        return used().length > 0
       case "memory":
         return knowns(memoryLines()).shown.length > 0
     }
@@ -653,7 +661,7 @@ export default function ThreadDetails(props: { chatId: string }) {
               <OutputsSection chatId={props.chatId} files={outputs()} />
             </Show>
             <Show when={shown("used")}>
-              <UsedSection steps={steps()} />
+              <UsedSection rows={used()} />
             </Show>
             <Show when={shown("memory")}>
               <MemorySection chatId={props.chatId} />

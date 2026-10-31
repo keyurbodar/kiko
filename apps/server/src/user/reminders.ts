@@ -13,7 +13,6 @@ const RUNS_KEPT = 20
 const LATE_MS = 60 * 60_000
 const MAX_FAILS = 3
 const LOST_RUN_MS = 2 * 60 * 60_000
-const MAX_SKIPS = 10_000
 const MAX_TEXT = 2000
 
 export type ReminderStatus = "active" | "paused" | "done" | "cancelled" | "failed"
@@ -118,14 +117,7 @@ function parseTime(time: string, tz: string, now: number): number {
 
 function nextAfter(rrule: string, tz: string, due: number, now: number, anchor: number): number | null {
   if (ruleProblem(rrule)) return null
-  let at = due
-  for (let i = 0; i < MAX_SKIPS; i++) {
-    const next = nextOccurrence(rrule, tz, at, anchor)
-    if (!next) return null
-    if (next.getTime() > now) return next.getTime()
-    at = next.getTime()
-  }
-  return null
+  return nextOccurrence(rrule, tz, Math.max(due, now), anchor)?.getTime() ?? null
 }
 
 export type RoutinePorts = { deliverRun: DeliverRun; notice: Notice; gate: RunGate }

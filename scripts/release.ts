@@ -1,6 +1,7 @@
 import { chmod, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { extname, join, resolve } from "node:path"
+import { PUBLIC_KEY } from "../apps/server/src/lib/release-config.ts"
 import {
   COMPUTER_ASSETS,
   COMPUTER_REPO,
@@ -188,7 +189,7 @@ async function main(): Promise<void> {
   const version = pkg.version
   if (!version || !/^[A-Za-z0-9._-]+$/.test(version)) throw new Error("root package.json needs a plain version")
 
-  const { privateKey, x } = await loadKey()
+  const { privateKey } = await loadKey()
   const staging = join(OUT, ".staging")
   await dryRun(staging)
   const computer = await buildComputer()
@@ -216,8 +217,8 @@ async function main(): Promise<void> {
   const signature = Buffer.from(await crypto.subtle.sign({ name: "Ed25519" }, privateKey, manifestBytes)).toString(
     "base64",
   )
-  if (!(await verifyRelease(manifestBytes, signature, x)))
-    throw new Error("self-check failed: signature does not verify")
+  if (!(await verifyRelease(manifestBytes, signature, PUBLIC_KEY)))
+    throw new Error("self-check failed: signature does not verify against the PUBLIC_KEY compiled into the server")
   for (const module of modules) {
     if (!(await verifyModuleHash(module, contents.get(module.name) as Uint8Array)))
       throw new Error(`self-check failed: ${module.name}`)

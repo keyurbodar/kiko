@@ -40,6 +40,22 @@ describe("createRichTextCache", () => {
     expect(cache.parse("replacement")).toEqual(parseRichText("replacement"))
   })
 
+  it("matches a full parse as a long document grows a line at a time", () => {
+    const cache = createRichTextCache()
+    const lines = Array.from({ length: 60 }, (_, index) =>
+      index % 3 === 0
+        ? `## Section ${index}`
+        : `Line ${index} with **bold** and [a link](https://example.com/${index}).`,
+    )
+    let text = ""
+    for (const line of lines) {
+      text += `${line}\n`
+      expect(cache.parse(text)).toEqual(parseRichText(text))
+      text += "\n"
+      expect(cache.parse(text)).toEqual(parseRichText(text))
+    }
+  })
+
   it("matches a full parse when definitions arrive late", () => {
     const cache = createRichTextCache()
     expect(cache.parse("A [label].\n\nNext.")).toEqual(parseRichText("A [label].\n\nNext."))

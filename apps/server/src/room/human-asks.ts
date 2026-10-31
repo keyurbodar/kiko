@@ -3,6 +3,7 @@ import type { AgentSlug, HumanAsk, MessageId } from "@kiko/protocol"
 export const MAX_QUESTION = 2_000
 const MAX_OPTIONS = 8
 const MAX_OPTION = 120
+const KEEP_ASKS_MS = 7 * 86_400_000
 
 type HumanAskState = { state: "open" | "answered" | "skipped"; answer: string | null }
 
@@ -68,6 +69,11 @@ export class HumanAsks {
       ask.options?.length ? JSON.stringify(ask.options) : null,
       ask.messageId,
       now,
+      this.roomId,
+    )
+    this.sql.exec(
+      "DELETE FROM human_asks WHERE state != 'open' AND at < ?1 AND human_asks.room_id = ?2",
+      now - KEEP_ASKS_MS,
       this.roomId,
     )
   }

@@ -21,12 +21,19 @@ function setExpanded(messageId: string, value: boolean): void {
   setExpandedIds(next)
 }
 
-function scrollParent(element: HTMLElement): HTMLElement | undefined {
+const scrollParents = new WeakMap<HTMLElement, HTMLElement | null>()
+
+function findScrollParent(element: HTMLElement): HTMLElement | undefined {
   for (let node = element.parentElement; node; node = node.parentElement) {
     const overflowY = getComputedStyle(node).overflowY
     if (overflowY === "auto" || overflowY === "scroll") return node
   }
   return undefined
+}
+
+function scrollParent(element: HTMLElement): HTMLElement | undefined {
+  if (!scrollParents.has(element)) scrollParents.set(element, findScrollParent(element) ?? null)
+  return scrollParents.get(element) ?? undefined
 }
 
 const REVEAL_MS = 200
@@ -36,10 +43,12 @@ const CODE_BLOCK = '[data-component="chat-code-block"]'
 const CODE_GAP = 8
 
 function clampPastCode(inner: HTMLDivElement, limit: number): number {
+  const blocks = inner.querySelectorAll<HTMLElement>(CODE_BLOCK)
+  if (blocks.length === 0) return limit
   const top = inner.getBoundingClientRect().top
-  const blocks = [...inner.querySelectorAll<HTMLElement>(CODE_BLOCK)].map((element) => element.getBoundingClientRect())
   let raised = limit
-  for (const rect of blocks) {
+  for (const block of blocks) {
+    const rect = block.getBoundingClientRect()
     if (rect.top - top >= raised || rect.bottom - top <= raised) continue
     raised = rect.bottom - top + CODE_GAP
   }
@@ -88,7 +97,7 @@ export function Collapsible(props: { messageId: string; fixed?: boolean; childre
     })
   }
   onMount(() => {
-    measure()
+    scheduleMeasure()
     if (!inner) return
     makeResizeObserver(scheduleMeasure).observe(inner)
     const onResize = () => scheduleMeasure()

@@ -180,10 +180,24 @@ describe("RoomFs", () => {
   })
 })
 
-function homeServices() {
+function homeServices(options: { failPutAt?: number } = {}) {
   const objects = new Map<string, Uint8Array>()
+  let puts = 0
+  let active = 0
+  let peak = 0
   const bucket = {
-    put: async (key: string, bytes: Uint8Array) => void objects.set(key, bytes),
+    put: async (key: string, bytes: Uint8Array) => {
+      const mine = ++puts
+      active++
+      peak = Math.max(peak, active)
+      await Promise.resolve()
+      try {
+        if (mine === options.failPutAt) throw new Error("put failed")
+        objects.set(key, bytes)
+      } finally {
+        active--
+      }
+    },
     get: async (key: string) => {
       const bytes = objects.get(key)
       return bytes ? { arrayBuffer: async () => bytes.buffer } : null
@@ -203,14 +217,33 @@ function homeServices() {
     homeMkdir: async () => done,
     homeCommit: async () => ({ ok: true, events: [], drop: [] }),
   }
-  return { files: () => bucket, user: () => user } as unknown as OwnerServices
+  return {
+    services: { files: () => bucket, user: () => user } as unknown as OwnerServices,
+    objects,
+    peak: () => peak,
+  }
 }
 
 describe("homeBackend", () => {
   const home = () => ({ roomId: "room", slug: "juno", userId: "owner" }) as unknown as AgentHome
   it("refuses writes while the chat is private", async () => {
-    const backend = homeBackend(homeServices(), home, undefined, () => "this chat is private")
+    const backend = homeBackend(homeServices().services, home, undefined, () => "this chat is private")
     const out = await backend.write("a.md", encoder.encode("a"), "text/markdown", "none")
     expect(out.ok).toBe(false)
+  })
+
+  it("writes a commit's files in chunks and deletes the ones it wrote when a put fails", async () => {
+    const { services, objects, peak } = homeServices({ failPutAt: 23 })
+    const backend = homeBackend(services, home)
+    const changes = Array.from({ length: 30 }, (_, i) => ({
+      op: "write" as const,
+      path: `f${i}.txt`,
+      bytes: encoder.encode(`${i}`),
+      type: "text/plain",
+      expect: "none",
+    }))
+    await expect(backend.commit(changes)).rejects.toThrow("put failed")
+    expect(peak()).toBeLessThanOrEqual(20)
+    expect(objects.size).toBe(0)
   })
 })

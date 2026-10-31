@@ -1,4 +1,5 @@
 import { formatHex, interpolate, parse, rgb, wcagContrast, wcagLuminance } from "culori"
+import { isObject } from "./guards"
 import { themeId, type ImportedTheme, type Syntax } from "./imported"
 import { THEMES, PALETTES, type ThemeAppearance } from "./palette"
 
@@ -15,7 +16,6 @@ const MAX_INCLUDE_DEPTH = 8
 const TEXT_CONTRAST = 4.5
 const SHAPE_CONTRAST = 3
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
 const clamp = (n: number) => Math.min(1, Math.max(0, n))
 
 function colorOf(value: unknown) {

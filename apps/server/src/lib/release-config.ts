@@ -2,7 +2,7 @@ import type { ClerkTrust } from "@kiko/durable/clerk-token"
 import type { UpdateConfig } from "../user/update"
 import { devOverride } from "./dev-guard"
 
-const PUBLIC_KEY = "9m0G9Ew6-gPLSZfItPOYlOsWO-HzvGRzElO9hdjWVhU"
+export const PUBLIC_KEY = "9m0G9Ew6-gPLSZfItPOYlOsWO-HzvGRzElO9hdjWVhU"
 const DEFAULT_BASE = "https://app.kiko.works/releases"
 const FRONT_DOOR_ORIGIN = "https://app.kiko.works"
 const CLERK_JWT_KEY = `-----BEGIN PUBLIC KEY-----

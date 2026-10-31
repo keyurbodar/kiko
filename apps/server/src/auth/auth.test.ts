@@ -83,3 +83,62 @@ describe("POST /api/auth/clerk", () => {
     expect(response).toBeNull()
   })
 })
+
+const ACCESS_CODE = "k".repeat(20)
+
+function fakeOwner(allow: boolean, calls: boolean[] = []) {
+  const stub = {
+    accessCodeAttempt: async (matched: boolean) => {
+      calls.push(matched)
+      return allow
+    },
+  }
+  const OWNER = { idFromName: () => "owner", get: () => stub } as unknown as NonNullable<AuthEnv["OWNER"]>
+  return { OWNER, calls }
+}
+
+const accessCode = async (env: AuthEnv, code: string) => {
+  const response = await authRoute(
+    new Request("http://kiko.test/api/auth/access-code", { method: "POST", body: JSON.stringify({ code }) }),
+    env,
+  )
+  return { status: response?.status, body: (await response?.json()) as Record<string, unknown> }
+}
+
+describe("POST /api/auth/access-code", () => {
+  it("issues a session for the right code and leaves the response shape unchanged", async () => {
+    const { OWNER, calls } = fakeOwner(true)
+    const signedIn = await accessCode({ SESSION_SECRET: "s", ACCESS_CODE, OWNER }, ACCESS_CODE)
+    expect(signedIn.status).toBe(200)
+    expect(signedIn.body).toMatchObject({ user: { id: "owner" }, token: expect.stringMatching(/^owner\.session\./) })
+    expect(calls).toEqual([true])
+  })
+
+  it("refuses a wrong code, and refuses the right one once the lockout holds", async () => {
+    const open = fakeOwner(true)
+    const wrong = await accessCode({ SESSION_SECRET: "s", ACCESS_CODE, OWNER: open.OWNER }, "w".repeat(20))
+    expect(wrong).toEqual({ status: 401, body: { message: "That access code is not right" } })
+    expect(open.calls).toEqual([false])
+
+    const locked = fakeOwner(false)
+    const refused = await accessCode({ SESSION_SECRET: "s", ACCESS_CODE, OWNER: locked.OWNER }, ACCESS_CODE)
+    expect(refused.status).toBe(429)
+    expect(locked.calls).toEqual([true])
+  })
+
+  it("accepts a short configured code, leaving the lockout as the only guard", async () => {
+    const { OWNER, calls } = fakeOwner(true)
+    const short = "k"
+    const signedIn = await accessCode({ SESSION_SECRET: "s", ACCESS_CODE: short, OWNER }, short)
+    expect(signedIn.status).toBe(200)
+    expect(calls).toEqual([true])
+  })
+
+  it("reports a missing OWNER binding as a configuration error, not a lockout", async () => {
+    const refused = await accessCode({ SESSION_SECRET: "s", ACCESS_CODE }, ACCESS_CODE)
+    expect(refused).toEqual({
+      status: 500,
+      body: { message: "This deploy has no OWNER binding, so it cannot check access codes" },
+    })
+  })
+})

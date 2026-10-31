@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js"
-import { formatBytes } from "../chat/info/format"
+import { formatBytes } from "../lib/format"
 import { isTextFile, putFile, rememberMade } from "./api"
 import { fileType, type FileType } from "./type"
 

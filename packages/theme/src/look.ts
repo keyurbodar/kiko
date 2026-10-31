@@ -11,6 +11,7 @@ import {
   type OutfitName,
 } from "@kiko/avatar"
 import { DEFAULT_DISPLAY, readDisplay, type Display } from "./display"
+import { isObject } from "./guards"
 import { EMPTY_IMPORTED, readImported, type Imported } from "./imported"
 import { DEFAULT_DARK_THEME, isDarkThemeId, type DarkThemeId, type ThemeMode } from "./palette"
 
@@ -69,7 +70,6 @@ const BIRD_OUTFITS: Record<string, Pick<AvatarPins, "charm" | "leaf">> = {
   momiji: { leaf: "momiji" },
 }
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
 const one = <T extends string>(value: unknown, names: readonly T[]): T | undefined =>
   names.find((name) => name === value)
 

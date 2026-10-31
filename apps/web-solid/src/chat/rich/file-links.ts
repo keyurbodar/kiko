@@ -190,8 +190,6 @@ export function hrefFile(href: string): FileTarget | null {
   return looksLikeFilePath(bare, path) ? target(path, hash) : null
 }
 
-const basename = (path: string) => path.slice(path.lastIndexOf("/") + 1)
-
 export function isFileLabel(label: string, file: FileTarget): boolean {
   const own = splitPosition(label.trim())
   if ((own.line !== undefined && own.line !== file.line) || (own.column !== undefined && own.column !== file.column))
@@ -203,7 +201,7 @@ export function isFileLabel(label: string, file: FileTarget): boolean {
 export function parentSuffixes(paths: readonly string[]): Map<string, string> {
   const groups = new Map<string, Set<string>>()
   for (const path of paths) {
-    const name = basename(path)
+    const name = fileName(path)
     groups.set(name, (groups.get(name) ?? new Set()).add(path))
   }
   const out = new Map<string, string>()

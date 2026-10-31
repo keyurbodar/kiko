@@ -32,7 +32,7 @@ const EXTRA_OWNERS: readonly (readonly [RegExp, readonly string[]])[] = [
 
 const WEB = "web-solid"
 const WORKER = "@kiko/server"
-const BUNDLED = new Set([WEB, WORKER, "@kiko/installer"])
+const BUNDLED = new Set([WEB, WORKER, "@kiko/installer", "@kiko/builder", "@kiko/computer-daemon"])
 const OWN_TEST_JOB = new Set([WEB])
 
 export function readWorkspace(root = ROOT): WorkspacePackage[] {

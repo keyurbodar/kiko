@@ -29,6 +29,7 @@ function setup(openChat?: () => Promise<{ roomId: string; created: boolean }>) {
       return agent as Agent
     },
     openChat: openChat ?? (async () => ({ roomId: "group-room", created: true })),
+    deleteChat: vi.fn(async () => true),
     discardAgents: vi.fn(async () => {}),
   }
   const startGroup = vi.fn(async () => {})
@@ -56,13 +57,14 @@ function setup(openChat?: () => Promise<{ roomId: string; created: boolean }>) {
 
 describe("making a group", () => {
   it("records nothing when the kickoff fails, so the retry sends it", async () => {
-    const { groups, startGroup, meta } = setup()
+    const { groups, user, startGroup, meta } = setup()
     startGroup.mockRejectedValueOnce(new Error("kickoff refused"))
 
     const failed = await groups.createGroup(KIKO, GROUP)
     const retry = await groups.createGroup(KIKO, GROUP)
 
     expect(failed).toEqual({ ok: false, error: "kickoff refused" })
+    expect(user.deleteChat).toHaveBeenCalledWith("group-room")
     expect(retry.ok).toBe(true)
     expect(startGroup).toHaveBeenCalledTimes(2)
     expect(meta.size).toBe(1)

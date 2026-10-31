@@ -16,7 +16,7 @@ export type Attempts = {
 
 export const NO_ATTEMPTS: Attempts = { tried: new Set(), installed: null, failures: 0, retryAt: 0 }
 
-export type UpdateStep =
+type UpdateStep =
   | { kind: "stay" }
   | { kind: "idle" }
   | { kind: "wait"; until: number }

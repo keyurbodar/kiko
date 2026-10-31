@@ -11,6 +11,7 @@ import type {
   InspectWhat,
 } from "../../apps/service"
 import type { RoomFs } from "../../files/room-fs"
+import { textResult as text } from "./tool-result"
 
 const APPS = "apps"
 
@@ -20,7 +21,6 @@ const MAX_BODY_BYTES = 4_000_000
 const SHOWN_CHARS = 8_000
 const SOURCE = /\.(tsx?|jsx?|mjs|css|json|svg|md|txt)$/
 
-const text = (t: string) => [{ type: "text" as const, text: t }]
 const clip = (t: string) =>
   t.length > SHOWN_CHARS ? `${t.slice(0, SHOWN_CHARS)}… (cut; pass save_to for all of it)` : t
 const appDir = (name: string) => `/home/apps/${name}`

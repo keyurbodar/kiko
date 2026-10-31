@@ -89,6 +89,8 @@ jobs:
           (cd apps/server && bunx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/owner")
           (cd apps/server && bunx wrangler deploy --dry-run --config wrangler.front-door.jsonc --outdir "$RUNNER_TEMP/front-door")
           (cd apps/installer && bunx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/installer")
+          (cd apps/builder && bun scripts/vendor.ts && bunx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/builder")
+          (cd apps/computer && bun run build linux-x64)
       - name: Typecheck
         if: ${{ !cancelled() && steps.typecheck.outcome == 'success' }}
         timeout-minutes: 5

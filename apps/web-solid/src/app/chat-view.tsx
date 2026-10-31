@@ -193,9 +193,10 @@ export function ChatView(props: { covered: boolean }) {
     return roomEmpty(window, messages(), user.chat(roomId())?.lastSeq)
   }
   const readingLatest = () => !props.covered && !room.tabHidden() && !scrolled()
+  const unread = createMemo(() => room.hasUnread())
   createEffect(() => {
     const id = roomId()
-    if (id && readingLatest() && room.hasUnread()) room.markRead(id)
+    if (id && readingLatest() && unread()) room.markRead(id)
   })
   let dock: HTMLDivElement | undefined
   let launch: Launch | null = null
@@ -213,7 +214,6 @@ export function ChatView(props: { covered: boolean }) {
       data-component="chat-shell"
       data-session-empty={empty() ? "true" : "false"}
       data-reply-target={replyTarget() ?? undefined}
-      data-range={threadState() ? `${threadState()!.rangeStart}-${threadState()!.rangeEnd}` : undefined}
     >
       <div
         class="flex min-h-0 flex-1 flex-col"

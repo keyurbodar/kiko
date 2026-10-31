@@ -27,7 +27,7 @@ class ModelCallFailed extends Schema.TaggedError<ModelCallFailed>()("ModelCallFa
   message: Schema.String,
 }) {}
 
-const NAPS_PER_RUN = 4
+const NAPS_PER_RUN = 1
 const MAX_NAPS = 4
 const COMPRESS_TIMEOUT_MS = 120_000
 const MEMORY_USAGE = "memory_usage"
@@ -49,6 +49,7 @@ export type MemoryDeps = {
   label: string
   credentials: () => CredentialVault
   turn: (provider: string) => Promise<TurnContext>
+  waitUntil: (work: Promise<unknown>) => void
 }
 
 export class MemoryCapture {
@@ -180,7 +181,11 @@ export class MemoryCapture {
       JSON.stringify(rows),
     )
     if (inserted.rowsWritten) this.expire(Date.now())
-    await this.captureNow()
+    this.d.waitUntil(
+      this.captureNow().catch((error: unknown) =>
+        console.error(`memory capture failed: ${error instanceof Error ? error.message : String(error)}`),
+      ),
+    )
   }
 
   async captureNow(): Promise<void> {

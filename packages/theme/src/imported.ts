@@ -1,3 +1,4 @@
+import { isObject } from "./guards"
 import { PALETTE_KEYS, type Palette, type ThemeAppearance } from "./palette"
 
 export type ImportedTheme = {
@@ -32,8 +33,6 @@ export function themeId(value: string): string {
   const cleaned = value.replace(ID_UNSAFE, "-").slice(0, 160).replace(ID_EDGE, "")
   return cleaned.length > 0 ? cleaned : "theme"
 }
-
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
 
 function readTheme(raw: unknown): ImportedTheme | null {
   if (!isObject(raw) || !isObject(raw.palette)) return null

@@ -107,11 +107,17 @@ function inline(value: unknown, defs: Schema, depth: number): unknown {
   return { ...(isSchema(base) ? base : {}), ...own }
 }
 
+const cleanedParameters = new WeakMap<object, Schema>()
+
 function toolParameters(parameters: unknown): Schema {
-  const root = isSchema(parameters) ? parameters : {}
-  const out = clean(inline(root, definitionsOf(root), 0))
+  if (!isSchema(parameters)) return { type: "object", properties: {} }
+  const cached = cleanedParameters.get(parameters)
+  if (cached) return cached
+  const out = clean(inline(parameters, definitionsOf(parameters), 0))
   const { allOf: _all, anyOf: _any, oneOf: _one, ...schema } = isSchema(out) ? out : {}
-  return { ...schema, type: "object", properties: isSchema(schema.properties) ? schema.properties : {} }
+  const cleaned = { ...schema, type: "object", properties: isSchema(schema.properties) ? schema.properties : {} }
+  cleanedParameters.set(parameters, cleaned)
+  return cleaned
 }
 
 const cleanTools = <T extends { parameters: unknown }>(tools: readonly T[]): T[] =>

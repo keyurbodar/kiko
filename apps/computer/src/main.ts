@@ -89,10 +89,10 @@ async function runService(dir: string, rest: string[]): Promise<number> {
   if (!action || !serviceActions.has(action as ServiceAction)) {
     throw new CliError({ message: `service needs one of install, uninstall, status\n\n${USAGE}` })
   }
-  if (action !== "install") return service(action as ServiceAction)
+  if (action !== "install") return service(action as ServiceAction, dir)
   const log = paths(dir).log
   const from = await logSize(log)
-  const code = await service("install")
+  const code = await service("install", dir)
   if (code !== 0) return code
   const lines = await connection(log, from)
   if (lines.some((line) => line.includes(WELCOMED))) {

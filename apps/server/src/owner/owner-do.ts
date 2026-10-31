@@ -34,6 +34,8 @@ type Run = { agent: string; room_id: string; slug: string; request_id: string }
 type QueuedRun = Run & { version: number; continues: number }
 
 const RUN_GAP_MS = 250
+const ACCESS_CODE_LIMIT = 10
+const ACCESS_CODE_WINDOW_MS = 15 * 60 * 1000
 const LEGACY_PING = "ping"
 const LEGACY_PONG = "pong"
 
@@ -58,6 +60,8 @@ export class OwnerDO extends DurableObject<Env> {
     streamEnded: (stream) => this.user().pc.ended(stream),
   }
   private nextRunAt = 0
+  private recovery?: Promise<Run[]>
+  private burstsRestored = false
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -301,6 +305,32 @@ export class OwnerDO extends DurableObject<Env> {
     return this.user().selfUpdate.state()
   }
 
+  async accessCodeAttempt(matched: boolean, nowMs: number): Promise<boolean> {
+    const row = this.ctx.storage.sql
+      .exec<{ failures: number; window_start: number }>("SELECT failures, window_start FROM auth_lockout WHERE id = 1")
+      .toArray()[0]
+    const failures = row?.failures ?? 0
+    const windowStart = row?.window_start ?? nowMs
+    if (nowMs < windowStart + ACCESS_CODE_WINDOW_MS) {
+      if (failures >= ACCESS_CODE_LIMIT) return false
+      if (matched) return true
+      const next = failures + 1
+      this.recordAccessCodeFailure(next, next >= ACCESS_CODE_LIMIT ? nowMs : windowStart)
+      return true
+    }
+    if (matched) return true
+    this.recordAccessCodeFailure(1, nowMs)
+    return true
+  }
+
+  private recordAccessCodeFailure(failures: number, windowStart: number): void {
+    this.ctx.storage.sql.exec(
+      "INSERT INTO auth_lockout (id, failures, window_start) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET failures = excluded.failures, window_start = excluded.window_start",
+      failures,
+      windowStart,
+    )
+  }
+
   protected room(roomId: string): Room {
     if (!isRoomId(roomId)) throw new AgentKeyError({ kind: "room", key: roomId, message: "bad room id" })
     let room = this.rooms.get(roomId)
@@ -459,13 +489,21 @@ export class OwnerDO extends DurableObject<Env> {
       await room.restoreHumanInput()
       if (room.humanInputPending()) result.push(room_id)
     }
+    this.burstsRestored = true
     return result
+  }
+
+  private mayHavePendingInput(): boolean {
+    if (!this.burstsRestored) return true
+    for (const room of this.rooms.values()) if (room.humanInputDeadline() !== undefined) return true
+    return false
   }
 
   private async unfinishedRuns(): Promise<Run[]> {
     const result: Run[] = []
     const keys = this.ctx.storage.sql.exec<{ agent: string }>("SELECT DISTINCT agent FROM journal").toArray()
     for (const { agent: key } of keys) {
+      if (this.runs.has(key)) continue
       const [roomId, slug] = key.split(":")
       if (!roomId || !slug || !(await this.agent(roomId, slug).unfinished())) continue
       result.push({ agent: key, room_id: roomId, slug, request_id: "recovery" })
@@ -473,10 +511,19 @@ export class OwnerDO extends DurableObject<Env> {
     return result
   }
 
+  private recoverRuns(): Promise<Run[]> {
+    this.recovery ??= this.unfinishedRuns().catch((error) => {
+      this.recovery = undefined
+      throw error
+    })
+    return this.recovery
+  }
+
   private async resumeSocket(): Promise<void> {
-    for (const roomId of await this.pendingRooms()) await this.room(roomId).settleHumanInput()
-    for (const run of await this.unfinishedRuns())
-      if (!this.runs.has(run.agent)) await this.enqueueRun(run.agent, run.request_id)
+    const runs = await this.recoverRuns()
+    if (runs.length || this.mayHavePendingInput())
+      for (const roomId of await this.pendingRooms()) await this.room(roomId).settleHumanInput()
+    for (const run of runs) if (!this.runs.has(run.agent)) await this.enqueueRun(run.agent, run.request_id)
   }
 
   private async recoverDisconnected(): Promise<void> {
@@ -510,7 +557,7 @@ export class OwnerDO extends DurableObject<Env> {
     const call = room[method] as (...args: Args<Room[M]>) => Result<Room[M]>
     if (method === "humanSend" || method === "answerAsk" || method === "skipAsk" || method === "retryRun") {
       const result = await call.apply(room, args)
-      await room.settleHumanInput()
+      this.ctx.waitUntil(room.settleHumanInput())
       return result
     }
     return call.apply(room, args)

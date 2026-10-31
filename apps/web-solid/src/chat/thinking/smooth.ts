@@ -37,7 +37,8 @@ export function useSmoothText(target: () => string, live: () => boolean): Access
   let elapsed = SMOOTH_WINDOW_MS
   let last = 0
 
-  const reduced = () => typeof window !== "undefined" && window.matchMedia(REDUCED_MOTION).matches
+  const reducedQuery = typeof window === "undefined" ? undefined : window.matchMedia(REDUCED_MOTION)
+  const reduced = () => reducedQuery?.matches === true
   const stop = () => {
     if (frame === undefined) return
     cancelAnimationFrame(frame)
